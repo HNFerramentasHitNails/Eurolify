@@ -56,6 +56,14 @@ Substituem a Scaleway gerida (ADR-0003, ADR-0004) e o «Claude só lê»
 | SSH a partir de uma sessão na cloud | ligação directa a `github.com:22` sem resposta em 8 s; o resto do teste bloqueado pelo sistema de permissões da sessão | `bash /dev/tcp`, 03/10/2026; o tráfego HTTPS passa pelo proxy da sessão (`/root/.ccr/README.md`) |
 | `AGENTS.md` | 12.702 bytes (limite do Codex: 32 KiB) | `wc -c`, depois da secção nova |
 
+## A máquina: VPS-3 da OVH (decisão X, ADR-0017)
+
+Pergunta: *«para começar com o ensaio, fica a VPS-3 da OVH (6 vCores, 12 GB,
+10,40 € + IVA/mês), num centro de dados na UE?»* Resposta do Diogo,
+03/10/2026: *«sim, fica a VPS-3 da OVH»*. O centro de dados escolhe-se na
+compra: o texto da página portuguesa não lista as localizações (procurei 13
+nomes de cidades europeias da OVH no HTML: nenhum); estão só num mapa.
+
 ## O que ficou por verificar
 
 - **Por onde o Claude chega à VPS** (`docs/11` §5): o Claude Code no

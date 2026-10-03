@@ -23,13 +23,15 @@ de»*, sem IVA:
 | **VPS-3** | 6 | 12 GB | 100 GB NVMe | **10,40 €** | idem |
 | VPS-4 | 8 | 24 GB | 200 GB NVMe | 19,96 € | idem |
 
-- **Proposta:** uma VPS-3 para começar (o ensaio, durante a construção) e uma
+- ✅ **Decidido** (Diogo, 03/10/2026, [ADR-0017](adr/0017-vps-3-da-ovh.md)): uma
+  **VPS-3 da OVH** para começar (o ensaio, durante a construção). Proposta: uma
   segunda máquina para a produção antes do primeiro comerciante de fora. A
-  VPS-3 é palpite meu (**C**, carga não medida): PostgreSQL, a API, o Hub e as
+  VPS-3 foi proposta minha (**C**, carga não medida): PostgreSQL, a API, o Hub e as
   construções das imagens na mesma máquina; a Coolify, se for usada, pede no
   mínimo 2 núcleos e 2 GB.
-- **Centro de dados na UE** (regra 4 do `AGENTS.md`). Quais estão disponíveis
-  para estas VPS: **não verifiquei**.
+- **Centro de dados na UE** (regra 4 do `AGENTS.md`), escolhido na compra. A
+  página mostra as localizações num mapa; o texto não as lista: **não
+  verifiquei** quais há.
 - **Cópias fora da máquina**: num armazenamento na UE, noutro sítio que não a
   VPS. A cópia diária da OVH não chega (ver §3.5). Preço: **não verifiquei**.
 
@@ -165,7 +167,8 @@ preciso operar a partir da cloud.
 
 ## 7. Decisões por tomar, por esta ordem
 
-1. **Fornecedor, plano e centro de dados** (proposta: OVH, VPS-3, centro na UE).
+1. ~~Fornecedor, plano e centro de dados~~ → ✅ **OVH, VPS-3, centro na UE**
+   (ADR-0017); o centro escolhe-se na compra.
 2. **Como o Claude chega à máquina** (§5; proposta: a).
 3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
    antes do primeiro comerciante de fora).
