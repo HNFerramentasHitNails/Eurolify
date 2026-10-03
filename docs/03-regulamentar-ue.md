@@ -134,7 +134,9 @@ inventar um próprio.
   desconfio, confirmar no regulamento.
 - ~~A data de aplicação do art. 50.º do AI Act.~~ Lida a 03/10/2026:
   02/08/2026 (§4).
-- **Para o jurista:** se o Eurolify é «serviço de alojamento» do DSA já na
+- **Para o jurista** (todas as perguntas, por prioridade, em
+  [`12-perguntas-para-o-jurista.md`](12-perguntas-para-o-jurista.md)): se o
+  Eurolify é «serviço de alojamento» do DSA já na
   Fase 1 (§4) e o que a Dir. (UE) 2024/2853 quer dizer para o Eurolify e para
   os comerciantes (§3). Enquanto não responder, ficam como estão o
   `05-fases-e-mvp.md` (DSA só na Fase 4, com o marketplace), o

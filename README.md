@@ -29,6 +29,7 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/09-modelo-de-receita.md`](docs/09-modelo-de-receita.md) | Como o Eurolify ganha dinheiro: concorrência, fontes de receita e a proposta (D-14) |
 | [`docs/10-estimativa-prazo-e-custo.md`](docs/10-estimativa-prazo-e-custo.md) | Quanto tempo e quanto custa construir a Fase 1, por cenário de equipa (D-13) |
 | [`docs/11-preparacao-da-vps.md`](docs/11-preparacao-da-vps.md) | O que a preparação da VPS instala, quem faz o quê e as decisões que faltam (ADR-0015, ADR-0016) |
+| [`docs/12-perguntas-para-o-jurista.md`](docs/12-perguntas-para-o-jurista.md) | As perguntas a fazer ao jurista, por prioridade, com o que já lemos de cada lei |
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`AGENTS.md`](AGENTS.md) | As regras para qualquer sessão de Claude Code ou de Codex neste repositório (o `CLAUDE.md` só o importa) |
