@@ -1,6 +1,6 @@
 ---
 name: platform-architect
-description: Arquitectura do Eurolify — monólito modular multi-inquilino, fronteiras entre domínios (catálogo, preços, carrinho, checkout, encomendas, stock, clientes, pagamentos, IVA, documentos fiscais, envios, notificações), eventos de domínio com outbox, idempotência, versões de API e ADR. Usar ao desenhar ou alterar um domínio, ao decidir onde vive uma regra, ao pensar em partir um módulo em serviço, e antes de registar qualquer decisão de arquitectura.
+description: Arquitectura do Eurolify — monólito modular multi-inquilino, fronteiras entre domínios (catálogo, preços, carrinho, checkout, encomendas, stock, clientes, pagamentos, IVA, documentos fiscais, envios, notificações), eventos de domínio com outbox, idempotência, versões de API e ADR; e as capacidades comuns do Hub — linha do tempo de cada registo, tarefas com dono e prazo, módulos ligáveis por comerciante. Usar ao desenhar ou alterar um domínio, ao decidir onde vive uma regra, ao pensar em partir um módulo em serviço, e antes de registar qualquer decisão de arquitectura.
 ---
 
 # Arquitecto da plataforma
@@ -66,6 +66,56 @@ description: Arquitectura do Eurolify — monólito modular multi-inquilino, fro
 formato, inquilino, momento em UTC, e o mínimo de dados (o resto pede-se pela
 API). Quem consome é idempotente pelo identificador do evento.
 
+## Capacidades comuns a todos os domínios (para o Hub)
+
+Ideias de desenho vistas nos guias do repositório `mart337i/odoo-skills` e
+adaptadas ao Eurolify — não se usa o Odoo (memória
+`odoo-skills-avaliado-03out2026.md`).
+
+### Linha do tempo de cada registo
+
+- Encomendas, clientes, artigos, devoluções e documentos retidos têm uma
+  **linha do tempo** que a equipa do comerciante vê: mudanças de estado e dos
+  campos escolhidos (quem, quando, antes → depois), notas da equipa, e-mails e
+  avisos enviados, anexos.
+- Alimenta-se dos **eventos de domínio** e do registo de auditoria
+  (`observability-security`); não é outra fonte de verdade. As entradas do
+  sistema não se editam nem se apagam.
+- Respeita as permissões: quem não vê um campo também não vê as mudanças dele.
+- Notas, e-mails e anexos sobre clientes são **dados pessoais**: entram na
+  exportação e no apagamento do titular (`eu-gdpr-privacy`) e nunca nos
+  registos técnicos.
+
+### Tarefas sobre um registo
+
+- Uma tarefa liga-se a um registo e tem **uma pessoa responsável, um prazo e
+  um estado** (aberta, feita, cancelada — com quem a fechou e quando).
+- As filas que pedem decisão humana — documentos fiscais retidos, fusões de
+  clientes, correcções e reenvios fiscais — criam tarefas: cada item é decidido
+  por uma pessoa, **nunca em lote** (`AGENTS.md`, «Não se erra em documentos
+  fiscais», regra 5).
+- Tarefa vencida ⇒ aviso a quem a tem e a quem gere a equipa: nada fica parado
+  em silêncio (regra 7).
+
+### Módulos ligáveis por comerciante (Fase 2)
+
+- Cada módulo declara **de que módulos depende** e traz **as suas permissões e
+  os seus dados**. A fronteira segue um conceito de negócio (devoluções, vários
+  armazéns), não ficheiros técnicos.
+- Desligar um módulo avisa antes se outro depende dele, e **nunca apaga** dados
+  com obrigação legal (os documentos fiscais ficam 10 anos).
+- Os dados que o Eurolify entrega feitos dividem-se em duas classes, escrita em
+  cada um:
+  1. **instalados uma vez e depois do comerciante** (modelos de e-mail,
+     textos, automações de exemplo): uma actualização do Eurolify **nunca
+     reescreve** o que o comerciante mudou. Se a versão do Eurolify mudar —
+     por exemplo, por causa de uma lei nova — o comerciante é avisado e vê a
+     diferença;
+  2. **do Eurolify, actualizados sempre** (listas de países, estados,
+     motivos): o comerciante não os muda (regra 8).
+- Os textos legais seguem também a regra das versões da `consumer-rights-eu`:
+  versão nova, nunca editar a antiga.
+
 ## Versões da API
 
 - Versão por data (ex.: `2027-01`), suportada pelo menos 12 meses.
@@ -96,5 +146,7 @@ substitui-se por outro.
 - [ ] A regra nova vive num sítio; as cópias estão anotadas.
 - [ ] Os eventos gravam-se na mesma transacção que o estado.
 - [ ] Há teste de isolamento entre inquilinos para as tabelas novas.
+- [ ] O registo novo tem linha do tempo e, se pede decisão humana, tarefa com
+      dono e prazo.
 - [ ] Respondi a «por onde é que isto ainda pode sair errado?».
 - [ ] O ADR está escrito, se a decisão muda a arquitectura.
