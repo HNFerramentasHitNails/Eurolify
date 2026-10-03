@@ -2,7 +2,8 @@
 
 > **Versão de 03/10/2026 — estudo; base decidida (ADR-0007), preços por decidir.** Pedido do Diogo: *«estuda o
 > modelo de receita do lumavo»*. Com a D-1 decidida (vender desde o início,
-> ADR-0006), o modelo é preciso **antes da Fase 1**.
+> ADR-0006), o modelo é preciso **antes da Fase 1** — a base; os preços, só
+> antes da peça 13 (ADR-0012, 03/10/2026).
 >
 > Marcas de certeza como em `03-regulamentar-ue.md`: **W** pesquisa web a
 > 03/10/2026; **M** memória dos sistemas actuais; **C** conhecimento prévio,

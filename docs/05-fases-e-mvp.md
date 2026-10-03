@@ -24,12 +24,14 @@
 | Regras do motor de IVA validadas pelo contabilista | por fazer |
 | Fluxos do consumidor (checkout, confirmação, livre resolução, garantia) validados por jurista | por fazer |
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
-| Modelo de receita (D-14) — preciso antes da Fase 1, porque se vende desde o início | **base decidida** (ADR-0007: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, depois das conversas com comerciantes e da D-13 |
+| Modelo de receita (D-14) — a base é precisa antes da Fase 1, porque se vende desde o início; os preços, antes da peça 13 (ADR-0012) | **base decidida** (ADR-0007: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, depois das conversas com comerciantes |
 | Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
 | Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; tempo por fases em `10-estimativa-prazo-e-custo.md` §9 (Fase 1: 15 a 29 meses a tempo inteiro, 28 a 52 a meio tempo), corrigido às 8 semanas (§6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
 
-**Critério de passagem:** D-13 e D-14 decididas e registadas em ADR; o OK
-escrito do Bruno ou do Diogo para começar código (ADR-0001).
+**Critério de passagem** (mudado a 03/10/2026, ADR-0012): a D-13 decidida
+(ADR-0008), a base da D-14 decidida (ADR-0007) e o OK escrito do Bruno ou do
+Diogo para começar código (ADR-0001). Os preços da D-14 têm de estar decididos
+antes de começar a peça 13 da Fase 1 (abertura a comerciantes).
 
 ## Fase 1 — Núcleo e os primeiros comerciantes (vende-se desde o início)
 

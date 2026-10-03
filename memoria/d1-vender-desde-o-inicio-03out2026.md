@@ -9,6 +9,8 @@ ADR-0006.
 
 - ADR-0006; decisão **M** em `docs/06`; D-13 passa a ser a próxima tarefa;
   D-14 (modelo de receita) passa a ser preciso **antes da Fase 1**.
+  ⚠️ Mudado mais tarde a 03/10/2026 (ADR-0012, decisão S): a base sim; os
+  preços só antes da peça 13 da Fase 1.
 - `docs/05` reorganizado: a Fase 1 passa a «Núcleo e os primeiros
   comerciantes (vende-se desde o início)» e recebe da Fase 3 o registo de
   comerciantes, os contratos e o acordo de tratamento de dados, a faturação do

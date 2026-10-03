@@ -36,6 +36,22 @@ O Lumavo não recebe o dinheiro dos comerciantes, por isso não pode ganhar como
 o Shopify (3/4 da receita em pagamentos). Depende da mensalidade e do valor da
 conformidade europeia; dos pagamentos, só chega pelo prestador e às claras.
 
+## Quando se decidem os preços (03/10/2026, mais tarde — ADR-0012)
+
+- **Pergunta ao Diogo:** *«Aceitas que os preços da D-14 passem a ser exigidos
+  só antes da peça 13, e não antes da primeira linha de código?»* Resposta:
+  *«sim, aceito»*. Decisão **S** em `docs/06`.
+- O critério de passagem da Fase 0 fica: D-13 decidida (ADR-0008), base da
+  D-14 decidida (ADR-0007) e o OK escrito para código. Os preços (e as outras
+  fontes por decidir) têm de estar em ADR antes da peça 13 (abertura a
+  comerciantes, 6 a 10 pessoas-semana, `docs/10` §2, **C**).
+- Varrido e acertado: `docs/05` (critério e linha da D-14), `docs/06` (M, S e
+  a secção D-14), `docs/09`, `docs/00` §6, `docs/10` §9 e as linhas de estado
+  dos ADR-0006 e 0007. O tempo da Fase 0 em `docs/10` §9 **não foi
+  recalculado**.
+- **Não verifiquei** a apresentação para Bruno e Cila: pode ainda dizer que a
+  D-14 é precisa antes da Fase 1.
+
 ## O que ficou por verificar
 
 - Escalões do Shopware (não públicos); percentagens do programa de parceiros
