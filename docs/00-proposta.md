@@ -222,7 +222,7 @@ Pormenor em [`05-fases-e-mvp.md`](05-fases-e-mvp.md).
   03/10/2026 (resumos e títulos das fontes) e estão marcadas como tal.
 - Prazos e custos: estimados a 03/10/2026 em `10-estimativa-prazo-e-custo.md`
   (D-13), com o esforço de cada peça por julgamento, sem medição.
-- **Não verifiquei** se a marca «Lumavo» está livre nem os domínios (D-12).
+- **A marca:** o nome passou a **Eurolify** (antes «Lumavo», que estava ocupado; ADR-0009). Os domínios `.com` e `.eu` estavam livres a 03/10/2026; **a pesquisa de marcas no TMview não foi feita** — tem de ser à mão (D-12).
 - As licenças e capacidades da Medusa, Saleor e Vendure vêm de resumos de
   pesquisa; o código não foi lido (D-2).
 - Os números dos sistemas actuais vêm da memória de trabalho, com a data de cada um;

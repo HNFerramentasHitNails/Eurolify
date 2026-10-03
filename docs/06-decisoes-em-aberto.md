@@ -30,6 +30,7 @@
 | ✅ M | **O Lumavo vende-se a outros comerciantes desde o início** (D-1 → a)); a recomendação era a b). Registo de comerciantes, contratos, faturação do Lumavo, suporte e a emissão por Moloni passam à Fase 1; o modelo de receita (D-14) passa a ser preciso antes dela | Diogo, 03/10/2026 | [ADR-0006](adr/0006-vender-desde-o-inicio.md) |
 | ✅ N | **A receita assenta numa mensalidade por plano, por escalões de vendas anuais, sem taxa sobre cada venda** (D-14, em parte). Preços e outras fontes por decidir | Diogo, 03/10/2026 | [ADR-0007](adr/0007-receita-mensalidade-por-escaloes.md) |
 | ✅ O | **A Fase 1 é desenvolvida pelo Diogo e pelo Bruno, com Claude Code e Codex**, sem contratar programadores (D-13 → cenário A); a recomendação era a B (2 sénior). Fase 1: 15 a 29 meses os dois a tempo inteiro, 28 a 52 a meio tempo (`10` §9, hipótese C), corrigido às 8 semanas. O Codex não lê o `CLAUDE.md` nem `.claude/skills` — como ligar as regras está por decidir. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md) |
+| ✅ P | **O produto chama-se Eurolify** (antes Lumavo; D-12, na parte do nome). `.com` e `.eu` livres a 03/10/2026; a pesquisa de marcas no TMview e a compra dos domínios estão por fazer. A identidade visual continua por decidir | Diogo, 03/10/2026 | [ADR-0009](adr/0009-nome-eurolify.md) |
 
 ## Por decidir — por esta ordem
 
@@ -184,6 +185,12 @@ para que uma sessão sobre os sistemas actuais saiba que o Lumavo existe. Não o
 pedido foi guardar aqui.
 
 ### D-12 · O nome «Lumavo» e a identidade visual
+
+> ✅ **Nome decidido a 03/10/2026 pelo Diogo: Eurolify** — *«fica o eurolify»*
+> ([ADR-0009](adr/0009-nome-eurolify.md)). «Lumavo» estava ocupado
+> (`lumavo.com` desde 2009, `lumavo.eu` com dono). Por fazer: a pesquisa à mão
+> no TMview e a compra dos domínios. A **identidade visual** continua por
+> decidir. O texto abaixo fica como registo.
 
 **Não verifiquei** se a marca está livre no EUIPO nem que domínios estão
 disponíveis. Verificar antes de gastar dinheiro em marca. A **identidade
