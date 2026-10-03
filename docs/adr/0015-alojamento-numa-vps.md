@@ -4,7 +4,8 @@
   e o [ADR-0004](0004-fornecedor-scaleway.md); deixa sem efeito o
   [ADR-0011](0011-preparacao-da-conta-scaleway.md) quanto ao alojamento; muda
   o sítio do ensaio do [ADR-0014](0014-um-so-ensaio.md). Quem opera é o
-  Claude: [ADR-0016](0016-o-claude-opera-a-vps.md)
+  Claude: [ADR-0016](0016-o-claude-opera-a-vps.md) · a máquina é uma VPS-3 da OVH:
+  [ADR-0017](0017-vps-3-da-ovh.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** D-3 (`docs/06-decisoes-em-aberto.md`),
