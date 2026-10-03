@@ -1,0 +1,104 @@
+---
+name: headless-commerce
+description: Desenho das interfaces do Lumavo — API da Loja (pública) e de Administração (privada), REST com contrato OpenAPI, OAuth 2.1/OIDC, papéis e chaves, webhooks assinados, paginação, limites, erros normalizados, chaves de idempotência, SDK tipado, checkout alojado, servidor MCP e o pacote para construtores de frontends (Lovable, Vercel, Bolt, Emergent). Usar ao desenhar ou alterar qualquer recurso, operação, aviso ou ferramenta de IA exposta para fora.
+---
+
+# Comércio sem cabeça (headless)
+
+> Estado: **desenho** — não há código (ADR-0001). Base:
+> `docs/02-arquitectura.md` §4. Decisões ligadas: D-7, D-8, D-9.
+
+## Quando usar
+
+- Acrescentar ou alterar um recurso, uma operação ou um aviso (webhook).
+- Pensar no que um frontend feito com IA pode e não pode fazer.
+- Desenhar uma ferramenta MCP.
+
+## As duas APIs
+
+| | API da Loja | API de Administração |
+|---|---|---|
+| Para quem | frontends (Lovable, Vercel, Bolt, Emergent, apps, balcão) | Hub do Lumavo, integrações, aplicações, o Hub da HNH |
+| Autenticação | chave **pública** por loja + sessão do visitante/cliente | **OAuth 2.1 / OIDC** com âmbitos; chaves de servidor para integrações |
+| Pode | ler catálogo e preços do mercado, gerir o próprio carrinho, iniciar o checkout alojado, área de cliente | tudo o que o papel e os âmbitos permitirem |
+| Não pode | decidir preço, IVA, disponibilidade ou elegibilidade | contornar as travas fiscais (vivem no domínio, não na API) |
+
+**O Hub do Lumavo usa a API de Administração como qualquer outro cliente.** Se
+o Hub precisa de uma coisa que a API não dá, a API está incompleta.
+
+## Regras do contrato
+
+1. **REST com contrato OpenAPI 3.1** é a fonte da verdade; documentação, SDK e
+   ferramentas MCP geram-se dele. Nada é exposto fora do contrato.
+2. **Recursos com nomes de negócio** e identificadores opacos, com prefixo do
+   tipo (ex.: `ord_…`, `cus_…`).
+3. **Erros num formato único** (RFC 9457) com código estável (`vat.vies_invalid`,
+   `inventory.insufficient`), mensagem em PT/EN e o campo em causa. Nunca um 200
+   com `ok: false` e nunca um erro engolido (lição 4.1 e o
+   `supabase.functions.invoke` que deitava fora o corpo dos erros no Hub).
+4. **Paginação por cursor**, sempre, com indicação de que há mais. Nenhuma
+   lista cortada em silêncio (lição 4.7: «não existe» a 40 % das fichas).
+5. **`Idempotency-Key` obrigatória** em todas as escritas; a mesma chave com
+   outro corpo dá erro.
+6. **Limites de pedidos** por chave e por loja, com cabeçalhos do que resta.
+7. **Versão por data**, 12 meses de suporte, alterações anunciadas.
+8. **Dinheiro**: valor em cêntimos (inteiro) + moeda ISO 4217; nunca vírgula
+   flutuante. Datas em ISO 8601 com fuso.
+9. **Expandir em vez de inventar**: campos relacionados pedem-se
+   (`expand=billing_profile`), não se duplicam em cada resposta.
+
+## Webhooks
+
+- Assinados com HMAC e carimbo de tempo (rejeitar reenvios velhos).
+- Identificador do evento para o receptor ser idempotente.
+- Reenvio com recuo exponencial durante 72 h; registo de entregas visível ao
+  comerciante, com botão de reenviar.
+- **Mínimo de dados no corpo**; o receptor pede o resto à API (evita espalhar
+  dados pessoais por sistemas de terceiros).
+
+## Checkout alojado (D-7)
+
+O checkout é **servido pelo Lumavo**, com o aspecto e o domínio da loja,
+porque é onde a lei e o IVA se decidem: total com impostos e portes, condições
+e aceitação, perfil de faturação («a fatura é para outra pessoa/empresa»),
+VIES, métodos de pagamento do país, autenticação forte, confirmação com prova
+contratual. Um frontend gerado por IA **redirecciona** para lá; não o imita.
+
+## Pacote para construtores de frontends
+
+Para o Lovable, Vercel (v0), Bolt e Emergent gerarem uma loja certa à primeira:
+
+- `llms.txt` e o contrato OpenAPI publicados;
+- um texto de instruções pronto a colar no construtor (o `README.md` da loja
+  HNH, em `bruno-88/hitnails`, é um exemplo real deste género de especificação);
+- uma loja de exemplo;
+- a lista do que o frontend **não** faz: calcular IVA, validar NIF, decidir
+  promoções, mostrar condições legais diferentes das do servidor.
+
+## Servidor MCP (D-9)
+
+- Ferramentas geradas do mesmo contrato, com nomes de negócio
+  (`procurar_artigos`, `vendas_por_pais`, `encomenda_por_numero`).
+- **Fase 1: só leitura.** Escrita (Fase 3) sempre com confirmação humana;
+  **nunca**: emitir faturas, reembolsar, fundir clientes, alterações em lote.
+- Respostas **pequenas e paginadas** — a assistente do Hub gastava 185 mil
+  tokens por conversa por levar o catálogo inteiro (lição 6.1).
+- Autenticação OAuth com os mesmos âmbitos da API; cada chamada no registo de
+  auditoria com utilizador, cliente de IA e modelo.
+- Os modelos que não falam MCP usam o **mesmo contrato** OpenAPI por chamada de
+  funções.
+- Comércio por agentes (UCP, ACP): Fase 3, sobre o checkout alojado.
+
+## Anti-padrões
+
+- Um endpoint «só para o Hub» fora do contrato.
+- Devolver dados que o papel não pode ver e confiar no ecrã para os esconder.
+- Contar no browser o que as permissões filtram (lição 4.8).
+- Um webhook que responde 200 antes de ter gravado o evento.
+
+## Antes de dizer «está feito»
+
+- [ ] Está no contrato OpenAPI, com exemplos e erros.
+- [ ] Escritas com idempotência; listas com cursor.
+- [ ] Testado com um papel sem permissão e com outro inquilino.
+- [ ] Se é sensível a IA: decidido se entra no MCP e com que confirmação.
