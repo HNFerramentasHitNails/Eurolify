@@ -88,6 +88,11 @@ Para o Lovable, Vercel (v0), Bolt e Emergent gerarem uma loja certa à primeira:
 - Os modelos que não falam MCP usam o **mesmo contrato** OpenAPI por chamada de
   funções.
 - Comércio por agentes (UCP, ACP): Fase 3, sobre o checkout alojado.
+- **Lista de verificação do que o MCP tem de responder:** as 116 tarefas de
+  comerciante do repo `40RTY-ai/shopify-admin-skills` (MIT, lido a 03/10/2026).
+  Serve de inventário e de formato (operações declaradas, ensaio sem escrever
+  por omissão); **não se copia** — ver
+  `memoria/skills-shopify-admin-avaliadas-03out2026.md`.
 
 ## Anti-padrões
 
