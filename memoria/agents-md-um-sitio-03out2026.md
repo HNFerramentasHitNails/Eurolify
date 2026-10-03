@@ -30,4 +30,8 @@
 - Uma sessão de **Codex** a ler o `AGENTS.md` e as 14 skills; uma sessão
   **nova** de Claude Code a ver as skills pelas ligações. Só a documentação
   oficial diz que funciona.
-- Clones em Windows sem ligações simbólicas activas (**C**).
+- Clones em Windows sem ligações simbólicas activas (**C**). **O Diogo
+  trabalha em Windows e o Bruno em macOS** (Diogo, 03/10/2026). O Git para
+  Windows não cria ligações por omissão; activam-se com o Modo de Programador
+  e `git clone -c core.symlinks=true` (gitforwindows.org, 03/10/2026). Falta
+  o Diogo confirmar no Windows dele que o Claude Code vê as 14 skills.
