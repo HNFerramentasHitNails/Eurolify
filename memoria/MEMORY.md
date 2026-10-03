@@ -17,7 +17,7 @@
 
 - [Apresentação para Bruno e Cila, 64 páginas (v11: Eurolify, a folha de 9 logótipos no lugar dos 18 rascunhos, a D-13 e o tempo por fases); o estudo 5 (estrelas da UE) arrisca recusa no EUIPO; páginas não vistas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
 - [Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G), na Scaleway (H); e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
-- [Scaleway por MCP: o oficial é o `scw mcp` (só leitura possível); não há conector de um clique; a API chega daqui (401), instala-se pelo Go; decidido: publicar pelo GitHub e MCP só de leitura (I) — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
+- [Scaleway: conta preparada (R, ADR-0011), ensaio + chave só de leitura, `scw` 2.63.0 pelo binário; o MCP só de leitura deixa ler segredos, `--read-only` falha; listas sem permissão dão vazio; portador da chave por ver — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
 - [Extensões de terceiros: 7 tipos, os mesmos contratos para o Lumavo e para terceiros, regras fiscais e legais não extensíveis, loja (DSA, ciber-resiliência); decididos K e L (parceiros convidados na Fase 2) — 03/10/2026](extensoes-de-terceiros-03out2026.md)
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1, e o «outros países» que tinha escapado ao varrimento da decisão F — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Pagamentos e envios na UE: 27 países com fonte, conferidos por amostragem; Mollie cobre os métodos locais; o pagamento na entrega no Leste é parceria de envios — 03/10/2026](pagamentos-e-envios-ue-03out2026.md)
