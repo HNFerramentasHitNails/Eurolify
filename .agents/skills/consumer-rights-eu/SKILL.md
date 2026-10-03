@@ -1,6 +1,6 @@
 ---
 name: consumer-rights-eu
-description: Direitos do consumidor na UE no Eurolify — transparência de preço total, impostos, portes, prazos e condições; reduções de preço com o preço mais baixo dos 30 dias; confirmação da encomenda e prova contratual; botão de livre resolução (obrigatório desde 19/06/2026), devoluções, reembolsos e excepções; aviso da garantia legal (27/09/2026); RAL e Livro de Reclamações; textos configuráveis por país e por comerciante; B2C vs B2B. Usar ao desenhar o checkout, a página de artigo, promoções, a área de cliente, devoluções e páginas legais.
+description: Direitos do consumidor na UE no Eurolify — transparência de preço total, impostos, portes, prazos e condições; preço por unidade; reduções de preço com o preço mais baixo dos 30 dias; preço personalizado; avaliações e resultados de pesquisa pagos; confirmação da encomenda e prova contratual; botão de livre resolução (obrigatório desde 19/06/2026), devoluções, reembolsos e excepções (conteúdos digitais incluídos); aviso da garantia legal e selo da garantia comercial de durabilidade (27/09/2026); garantia e reparação (+12 meses, 31/07/2026); RAL e Livro de Reclamações; textos configuráveis por país e por comerciante; B2C vs B2B. Usar ao desenhar o checkout, a página de artigo, promoções, avaliações, pesquisa, a área de cliente, devoluções, garantias e páginas legais.
 ---
 
 # Direitos do consumidor
@@ -37,12 +37,48 @@ perfil), e por omissão trata como consumidor.
 - **Alegações ambientais** genéricas («eco», «verde») sem prova são proibidas
   desde 27/09/2026 (Dir. (UE) 2024/825, **W**) ⇒ campo de alegação ambiental
   só com documento de prova anexado.
-- **Aviso harmonizado da garantia legal** no ponto de venda, desde 27/09/2026
-  (**W**) — o texto exacto vem do acto da Comissão, **C**.
+- **Aviso harmonizado da garantia legal** no ponto de venda, desde 27/09/2026:
+  lembrar a garantia legal de conformidade e os seus elementos principais,
+  com o mínimo de 2 anos, de forma destacada (art. 6.º, n.º 1, alínea l), da
+  Dir. 2011/83/UE, na redacção da Dir. (UE) 2024/825 — **W · texto lido**). O
+  desenho e o texto do aviso vêm de um acto de execução da Comissão que **não
+  li** — **C**.
+- **Selo da garantia comercial de durabilidade**, desde 27/09/2026: quando o
+  **produtor** oferece, sem custo, uma garantia de durabilidade de **mais de 2
+  anos** sobre o bem inteiro e dá essa informação ao comerciante, a loja mostra
+  que o bem a tem, a duração e o lembrete da garantia legal, com o **selo
+  harmonizado** (art. 6.º, n.º 1, alínea l-A), e art. 22.º-A, na redacção da
+  Dir. 2024/825 — **W · texto lido**; o desenho do selo, **C**). Da mesma
+  directiva, também antes da compra (alíneas l-C), u) e v)): o período mínimo
+  de **actualizações de software** dos bens com elementos digitais e dos
+  conteúdos e serviços digitais, quando o produtor o dá; o **índice de
+  reparabilidade**, quando existe; e, na falta dele, o que o produtor der
+  sobre peças (disponibilidade, custo estimado, como encomendar), manuais e
+  restrições de reparação. ⇒ campos no artigo, preenchidos com o que o
+  produtor dá; o Eurolify não os inventa.
+- **Preço por unidade**: ao lado do preço de venda, o preço final por
+  quilograma, litro, metro, metro quadrado ou metro cúbico, também em todo o
+  anúncio que mostre o preço (arts. 2.º e 3.º da Dir. 98/6/CE — **W · texto
+  lido**). Exemplo: um frasco de 15 ml a 9,90 € mostra 660,00 €/l. Cada país
+  pode dispensar produtos em que o preço por unidade não seja útil ou confunda
+  (art. 5.º) ⇒ a regra é **por país**, e o artigo guarda a quantidade e a
+  unidade.
+- **Preço personalizado**: se o preço foi personalizado com base numa decisão
+  automatizada, a loja di-lo (art. 6.º, n.º 1, alínea e-A), da Dir.
+  2011/83/UE, introduzida pela Dir. (UE) 2019/2161, Omnibus — **W · texto
+  lido**). O Eurolify não personaliza preços por omissão; se um comerciante ou
+  uma extensão o fizer, o aviso vem do servidor, como o preço.
 
 ### Na compra
 - Botão final com texto inequívoco de obrigação de pagar («Encomendar com
   obrigação de pagar» — **C**, confirmar o texto por língua).
+- **Imediatamente antes do botão final**, de forma clara e destacada: as
+  características principais, o preço total, **o selo da garantia comercial
+  de durabilidade quando houver**, a duração do contrato (ou as condições
+  para o terminar, se for por tempo indeterminado ou se renovar sozinho) e a
+  duração mínima das obrigações do consumidor, quando se apliquem (art. 8.º,
+  n.º 2, e art. 6.º, n.º 1, alíneas a), e), l-A), o) e p), da Dir.
+  2011/83/UE, na redacção da Dir. 2024/825 — **W · texto lido**).
 - Aceitação das condições guardada: **versão do texto**, momento, encomenda.
 
 ### Depois da compra
@@ -74,9 +110,43 @@ Dir. (UE) 2023/2673, novo art. 11.º-A da Dir. 2011/83/UE (**W**):
 | Devolução | liga-se a um **RMA** (`order-fulfilment`): o que volta, em que estado |
 | Reembolso | prazo legal a contar da comunicação (14 dias, podendo reter até receber o bem — **C**); mesmo meio de pagamento por omissão |
 | Documento | **nota de crédito** com o tratamento fiscal do original (`eu-vat-oss-ioss`) |
+| Conteúdos digitais sem suporte material (descargas, cursos em linha) | perde-se a livre resolução depois de começar o fornecimento **só** se, num contrato pago, o consumidor deu **consentimento prévio expresso** para começar dentro do prazo, **reconheceu** que assim perde o direito e o comerciante enviou a **confirmação** (art. 16.º, alínea m), da Dir. 2011/83/UE, na redacção da Omnibus — **W · texto lido**) ⇒ o checkout pede e guarda as duas declarações, com a versão do texto, e a confirmação vai no suporte duradouro. Sem as três, o direito mantém-se |
 
 Regra do ecossistema: **devolução = volta mercadoria**; **problema = não
 volta** (`devolucoes-nao-tem-fluxo-15set2026.md`).
+
+## Garantia legal e reparação
+
+- Garantia legal de conformidade: **mínimo de 2 anos** (Dir. (UE) 2019/771,
+  como a lembra o art. 6.º, n.º 1, alínea l), da Dir. 2011/83/UE — **W ·
+  texto lido**); a lei de cada país pode dar mais (art. 22.º-A, n.º 3).
+- **Desde 31/07/2026, se o consumidor escolher a reparação, o prazo da
+  garantia ganha 12 meses, uma vez** (novo art. 10.º, n.º 2-A, da Dir.
+  2019/771, pela Dir. (UE) 2024/1799 — **W · texto lido**). ⇒ o pedido de
+  garantia guarda **o remédio escolhido** (reparação, substituição, redução do
+  preço ou resolução) e recalcula o fim da garantia da linha.
+- A **obrigação de reparar** a pedido do consumidor, também fora da garantia,
+  é do **fabricante**, e só nos produtos com requisitos de reparabilidade num
+  acto da UE (anexo II da Dir. 2024/1799: máquinas de lavar, aspiradores,
+  telemóveis e tábletes, entre outros — art. 5.º, **W · texto lido**). Não é
+  do comerciante.
+
+## Avaliações e resultados de pesquisa
+
+Dir. 2005/29/CE (práticas comerciais desleais), na redacção da Omnibus —
+**W · texto lido**:
+
+- Se a loja mostra avaliações, diz **se e como** garante que vêm de quem
+  comprou ou usou o produto (art. 7.º, n.º 6).
+- Afirmar que as avaliações são de quem comprou ou usou **sem passos razoáveis
+  para o verificar** é prática proibida (anexo I, ponto 23-B); avaliações
+  falsas, encomendadas ou deturpadas também (ponto 23-C) — e publicar só as
+  positivas, apagando as negativas, é um dos exemplos dados no considerando.
+  ⇒ no Eurolify, uma avaliação liga-se a uma **encomenda entregue**, a loja
+  mostra a regra usada, e nenhuma se esconde por ser negativa.
+- **Anúncio pago ou pagamento para subir** nos resultados de uma pesquisa tem
+  de ser indicado claramente (anexo I, ponto 11-A) ⇒ a ordenação da pesquisa
+  sabe o que é patrocinado e o ecrã mostra-o.
 
 ## Resolução de litígios
 
@@ -109,6 +179,12 @@ personalização.
 
 - [ ] O preço mostrado em todo o lado vem do servidor e inclui IVA e portes.
 - [ ] A promoção mostra o preço de referência dos 30 dias.
+- [ ] O preço por unidade aparece onde o país o exige.
+- [ ] Selo da garantia de durabilidade e informação de reparação, quando o
+      produtor as dá, antes da compra e antes do botão final.
+- [ ] Conteúdo digital: consentimento, reconhecimento e confirmação guardados.
+- [ ] Garantia: o remédio escolhido fica guardado e a reparação soma 12 meses.
+- [ ] Avaliações ligadas a encomendas, com a regra de verificação visível.
 - [ ] Botão de livre resolução visível 14 dias, com confirmação de recepção.
 - [ ] Versões dos textos aceites guardadas na encomenda.
 - [ ] Jurista validou os textos do país.
