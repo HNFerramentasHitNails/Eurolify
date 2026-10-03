@@ -101,6 +101,28 @@ concorrer com shopify»*.
   lê-se «vend-E-U». Alternativa na mesma linha: EUvendo («eu vendo»);
   `euvendo.com` registado desde 2003.
 
+## Quinta volta: em inglês, bem pronunciado em todas as línguas (03/10/2026)
+
+Pedido do Diogo: *«algo em ingles, mas que seja bem pronuciado em todas as
+linguas»* (sem resposta ao vendEU).
+
+- **Como:** palavras inglesas que toda a UE conhece (shop, store, sell, cart,
+  market, order) com partes que se lêem como se escrevem (star, nova, atlas,
+  union, stack, point, port, pilot, polis, land, pro, box, kit, go) — sem
+  «th», «w», «j», «ch» nem vogais que mudam de som. **168 combinações**, `.eu`
+  pelo DNS e `.com` pelo RDAP da Verisign (03/10/2026): **7 com os dois
+  livres** — Cartpolis, Orderpolis, Polisorder, Polissell, Portorder,
+  Portsell, Sellpolis.
+- **Proposta: Sellpolis** — *sell* (vender) + *polis* (a cidade grega, onde
+  nasceu a ágora, o mercado). Lê-se sel-po-lis em PT, ES, IT, FR, DE e PL
+  (opinião, não testado com falantes). `sellpolis.com` sem registo;
+  `sellpolis.eu`, `.pt`, `.de` e `.io` sem delegação no DNS. Na web, nada com
+  esse nome; o mais perto é a Empolis (software alemão de gestão de
+  conhecimento) e uma página «Selopolis» no Facebook.
+- Alternativa: Cartpolis (*cart*, o carrinho); na web só uma conta vazia
+  «Cartropolis» no X e um jornal brasileiro «Carta Polis». Contra: em PT, ES,
+  IT e FR «cart» lê-se como carta/carte.
+
 ## Números (com data e como se contaram)
 
 - **03/10/2026, `.com` por RDAP da Verisign** (404 = não registado): dos 50
