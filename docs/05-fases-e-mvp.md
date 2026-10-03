@@ -92,6 +92,10 @@ tratado de ponta a ponta pelo menos uma vez.
 
 ## Fase 2 — O Hub do Eurolify e mais países
 
+> Os módulos desta fase passaram pelas 8 portas a 03/10/2026:
+> [`13-portas-da-fase-2.md`](13-portas-da-fase-2.md) — três propostas de passar
+> peças para a Fase 1, por decidir.
+
 - Armazém completo: vários armazéns, picking, lotes, compostos, inventários.
 - **Devoluções ligadas à nota de crédito**, com o estado do artigo; troca e
   carteira (com validação do contabilista).
