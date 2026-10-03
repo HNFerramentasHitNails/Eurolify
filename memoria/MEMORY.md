@@ -15,7 +15,7 @@
 - [Apresentação impressa para Bruno e Cila, 48 páginas (v4: decisões E, F, G e a Scaleway): link, partes, caixas para decidir à mão, marca como opinião; páginas não vistas desenhadas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
 - [Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G), na Scaleway (H); e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
 - [Scaleway por MCP: o oficial é o `scw mcp` (só leitura possível); não há conector de um clique; a API chega daqui (401), instala-se pelo Go; decidido: publicar pelo GitHub e MCP só de leitura (I) — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
-- [Nome para substituir «Lumavo» (D-12): lumavo.com e .eu ocupados; lista curta Taruvia, Albovia, Nalvamo com .com e .eu livres; custos de domínio e marca; bases de marcas por verificar à mão — 03/10/2026](marca-nome-e-dominios-03out2026.md)
+- [Nome para substituir «Lumavo» (D-12): lumavo.com e .eu ocupados; 2.ª volta com animal (Lincavo, Lontravo, Ciconova, .com e .eu livres; a 1.ª foi recusada); custos; bases de marcas por verificar à mão — 03/10/2026](marca-nome-e-dominios-03out2026.md)
 
 ## Referências externas avaliadas
 

@@ -30,6 +30,32 @@ dentro da UE e comprar o dominio e subsituir o lumavo»*. É a decisão D-12
   dormitar); Quirana (lê-se «ki» ou «kwi» conforme a língua; «kirana» é
   mercearia na Índia); Ervama («erva»).
 
+## Segunda volta: um nome que lembre um animal (03/10/2026)
+
+O Diogo não quis nenhum dos três: *«quero algo que se possa identificar como
+uma animal ou uma especia, porque seria giro fazer o logo com algum animal»*.
+
+- **Os nomes científicos puros estão todos ocupados**: Upupa, Lutra, Alcedo,
+  Ciconia, Alauda, Merops têm o `.com` registado (RDAP da Verisign) e o `.eu`
+  ocupado (Vercel), 03/10/2026. O mesmo para as variações de polvo e camaleão
+  que testei.
+- **Lista curta**, com `.com` e `.eu` livres a 03/10/2026:
+
+| Nome | Animal | Na web (pesquisa entre aspas, 03/10/2026) | A história |
+|---|---|---|---|
+| **Lincavo** ⭐ | lince | nada com esse nome; em italiano lê-se «l'incavo» (a reentrância) | «olhos de lince», ver tudo ([Priberam](https://dicionario.priberam.org/olho%20de%20lince)); o lince-ibérico é de Portugal e Espanha |
+| Lontravo | lontra | nada | a lontra é «o mamífero das águas limpas» ([RTP Ensina](https://ensina.rtp.pt/artigo/lontra-o-mamifero-das-aguas-limpas/)) |
+| Ciconova | cegonha | apelido eslovaco raro (Cicoňová), ~8 pessoas | a ave das entregas, que atravessa a Europa |
+
+- **Descartados nesta volta:** Upupia (poupa) — «upupić» é um verbo
+  coloquial polaco para ridicularizar alguém ([sjp.pl](https://sjp.pl/upupia));
+  Lincela — personagem infantil portuguesa «Lince Lincela»; Lontria — lugar em
+  Itália (La Lontria, Marradi), livre mas menos claro; Alcedix (guarda-rios) —
+  livre e limpo, mas ninguém lá reconhece o animal; Medusa — é o nome de um
+  motor de comércio por API, concorrente directo.
+- ⚠️ **A tomada de ferramentas e as mãos dadas a dormir são da lontra-marinha**
+  (Pacífico), não da lontra europeia — não usar essas histórias.
+
 ## Números (com data e como se contaram)
 
 - **03/10/2026, `.com` por RDAP da Verisign** (404 = não registado): dos 50
@@ -68,7 +94,7 @@ dentro da UE e comprar o dominio e subsituir o lumavo»*. É a decisão D-12
 
 ## O que ficou por verificar
 
-- 🔴 **Nenhum candidato foi procurado nas bases de marcas** (EUIPO eSearch e
+- 🔴 **Nenhum candidato (das duas voltas) foi procurado nas bases de marcas** (EUIPO eSearch e
   TMview): as duas recusam pedidos automáticos a partir da sessão (resposta
   `302 → error/revise.html` da firewall, 03/10/2026). Tem de ser uma pessoa no
   browser: [TMview](https://www.tmdn.org/tmview/) com o nome, classes 9, 35 e
