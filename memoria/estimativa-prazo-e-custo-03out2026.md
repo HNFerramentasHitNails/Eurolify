@@ -27,6 +27,9 @@
 - No ADR-0008 ficaram como consequência: dados pessoais reais nunca entram numa
   sessão de Claude Code ou de Codex (regra 4); o ADR-0005 vale para os dois
   agentes; a revisão cruzada fica como **proposta**.
+  ✅ Decidida mais tarde a 03/10/2026 pelo Diogo (*«sim, fica assim»*,
+  ADR-0013, decisão T): o código que um escreve, o outro revê, e o agente que
+  não escreveu revê o diff; regra no `AGENTS.md`, secção Git.
 - **Tempo por fases do cenário A** (pedido do Diogo: *«coloca só o tempo que
   eu e o Bruno usando a IA como o claude code e codex, por fases»*):
   `docs/10` §9. Hipótese **C**: cada um rende como um sénior com IA; duas

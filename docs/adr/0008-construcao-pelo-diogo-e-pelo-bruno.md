@@ -1,6 +1,7 @@
 # ADR-0008 · O Eurolify é desenvolvido pelo Diogo e pelo Bruno, com Claude Code e Codex
 
-- **Estado:** aceite
+- **Estado:** aceite · a revisão do código ficou decidida no
+  [ADR-0013](0013-revisao-do-codigo.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** D-13 (`docs/06-decisoes-em-aberto.md`)
@@ -50,7 +51,8 @@ recomendação B não foi seguida; a discordância ficou escrita uma vez em
 - **O ADR-0005 vale para os dois agentes:** publica-se só pelo GitHub; o MCP da
   Scaleway, se o Codex o usar, também é só de leitura.
 - **Quem revê:** sem programador contratado, ninguém revê por ofício o que
-  entra no `main`. Proposta, por decidir: o que um escreve, o outro revê antes
+  entra no `main`. ✅ **Decidido a 03/10/2026 pelo Diogo** (ADR-0013), tal
+  como estava proposto: o que um escreve, o outro revê antes
   de entrar; e o agente que não escreveu revê o diff (o Codex revê o que o
   Claude escreveu e o contrário). Os testes de isolamento entre inquilinos e o
   teste de intrusão externo antes do primeiro comerciante de fora continuam
