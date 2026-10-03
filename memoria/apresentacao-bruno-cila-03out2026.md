@@ -203,9 +203,32 @@ OVH) e à correcção da segunda máquina da Scaleway.
   proposta do ADR-0009; onde se compram passou a «por decidir» no `docs/11` §7
   e nas notas da 63.
 - **O PDF da v15** enviado ao Bruno e à Cila ficou desactualizado.
-- **Não vista desenhada.** Mudaram de altura a 44 (mais uma linha na tabela,
-  a frase de baixo encurtada; pela minha conta fica perto do limite, ≈ 906 de
-  920 píxeis), a 51, a 63 (de 6 para 8 passos) e a 46 nova.
+- Mudaram de altura a 44 (mais uma linha na tabela, a frase de baixo
+  encurtada), a 51, a 63 (de 6 para 8 passos) e a 46 nova. ~~Pela minha conta
+  a 44 ficava perto do limite, ≈ 906 de 920 píxeis~~ → medida no PDF da v16:
+  **843** (secção abaixo).
+
+## PDF da versão 16 (03/10/2026)
+
+Pedido do Diogo: *«sim, gera o PDF novo»*. Feito como o da v15: as 64 páginas
+da versão publicada (`1791065510-8518`, confirmada antes) juntas num HTML,
+desenhadas num Chromium local (Playwright 1.56.1) a 1920×1080, com as letras
+Space Grotesk e Public Sans descarregadas do Google Fonts e metidas no
+ficheiro, e a imagem dos logótipos tirada do deck.
+
+- `Eurolify-apresentacao-Bruno-Cila-v16.pdf`: **64 páginas, 1440×810 pt,
+  3.235.849 bytes** (`pdfinfo`); as duas letras dentro (`pdffonts`). Entregue
+  ao Diogo na conversa; **não está no repositório**.
+- Fundo do conteúdo contra o limite de 920 píxeis: passam a **3** (índice,
+  929) e a **48** (modelo de receita, 924), nenhuma mexida nesta versão; sem
+  tocar no rodapé. As mudadas: 2 → 790, 41 → 874, 44 → 843, 45 → 830,
+  46 → 854, 51 → 825, 63 → 851.
+- ⚠️ Os estilos de tabela e de lista são imitação minha (bordas, espaço nas
+  células), não os do motor da apresentação: as medidas **não se comparam**
+  com as da v15, e o PDF do botão de exportar do deck pode sair diferente.
+- Vistas em imagem: 2, 3, 44, 45, 46, 48, 51 e 63. As outras 56, não.
+- A página 61 ainda diz que a data do art. 50.º da lei europeia da IA está
+  por ver; o `docs/03` leu-a entretanto (02/08/2026, commit `9f391a1`).
 
 ## O que ficou por verificar
 
