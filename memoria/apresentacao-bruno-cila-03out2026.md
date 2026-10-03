@@ -167,6 +167,16 @@ fundo). ⚠️ O desenho local imita o motor da apresentação (tamanhos, letras
 caixas) mas não os estilos dele para tabelas e listas: é uma medição
 aproximada, não o PDF que sai do botão de exportar.
 
+## PDF para enviar (03/10/2026)
+
+Pedido do Diogo: *«deixa agora a apresentação em pdf para enviar para o bruno
+e cila»*. Gerado a partir das páginas da versão 15 num Chromium local, com as
+letras da apresentação metidas no ficheiro: `Eurolify-apresentacao-Bruno-Cila-v15.pdf`,
+**64 páginas, 1440×810 pt, 3.069.490 bytes** (`pdfinfo`, 03/10/2026). Entregue
+ao Diogo na conversa; **não está no repositório** (é binário e muda a cada
+versão). Vistas no PDF: capa, 11 e 57. As notas do orador não vão no PDF. A
+exportação do próprio deck (menu da página) não foi experimentada.
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
