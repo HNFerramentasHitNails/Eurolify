@@ -1,6 +1,6 @@
 ---
 name: eurolify-design
-description: Design do Eurolify — montra (kit de loja e temas de cada comerciante), checkout alojado e momentos legais, Hub de gestão, e-mails e documentos; sistema de design com tokens e um tema por comerciante, claro/escuro, acessibilidade (EAA), PT/ES/EN, estados de ecrã, pesquisa com comerciantes e revisão. Traz uma biblioteca de 38 referências de terceiros (Anthropic, Vercel, designer-skills) a ler por etapa. Usar antes de desenhar, propor ou rever qualquer ecrã, componente, tema ou fluxo, e antes de falar com comerciantes sobre o produto.
+description: Design do Eurolify — montra (kit de loja e temas de cada comerciante), checkout alojado e momentos legais, Hub de gestão (vistas de lista, quadro, calendário e tabela dinâmica, filtros guardados), e-mails e documentos impressos; sistema de design com tokens e um tema por comerciante, claro/escuro, acessibilidade (EAA), PT/ES/EN, estados de ecrã, pesquisa com comerciantes e revisão. Traz uma biblioteca de 38 referências de terceiros (Anthropic, Vercel, designer-skills) a ler por etapa. Usar antes de desenhar, propor ou rever qualquer ecrã, componente, tema ou fluxo, e antes de falar com comerciantes sobre o produto.
 ---
 
 # Design do Eurolify
@@ -62,6 +62,47 @@ description: Design do Eurolify — montra (kit de loja e temas de cada comercia
    e escuro, e uma passagem só com teclado. Nos sistemas actuais, quatro passos
    feitos às cegas não viram um defeito que três fotografias de um telemóvel
    viram (`handover-responsivo-12-13set2026.md`).
+
+## Hub: vistas e documentos impressos
+
+Ideias vistas nos guias do repositório `mart337i/odoo-skills` e adaptadas ao
+Eurolify — não se usa o Odoo (memória `odoo-skills-avaliado-03out2026.md`).
+
+### Vistas
+
+- Os mesmos registos vêem-se de várias formas, com os mesmos filtros:
+  - **lista**, com **colunas opcionais** que cada pessoa escolhe e ficam
+    guardadas, a cor por estado da regra 3 e cartões no telemóvel (regra 5);
+  - **quadro por colunas de estado** (devoluções, separação no armazém);
+  - **calendário** (expedições, recolhas);
+  - **tabela dinâmica e gráfico** (vendas por país e por mês).
+- **Filtros guardados e «agrupar por»** (estado, país, canal), de cada pessoa
+  ou partilhados com a equipa, se o comerciante quiser.
+- **Barra de estados** no topo de cada registo, com os estados que o domínio
+  define (`order-fulfilment`); nunca uma lista inventada no ecrã.
+- **Linha do tempo e tarefas** do registo ao lado do formulário
+  (`platform-architect`).
+- A lista diz sempre quantos registos há e pagina; nunca corta em silêncio
+  (lição 4.7).
+
+### Documentos impressos
+
+Guia de separação, guia de remessa, confirmação da encomenda em PDF, etiqueta
+de devolução. **As faturas não**: são do software certificado
+(`eu-vat-oss-ioss`). Antes de dizer que um documento está feito:
+
+- [ ] Os valores e totais vêm do servidor; o modelo só os mostra (regra 8).
+- [ ] Visto em PDF com um documento curto e com um de várias páginas: as
+      tabelas longas repetem o cabeçalho e partem bem; a última página não
+      transborda nem sai em branco.
+- [ ] Textos longos, valores em falta, imagens, códigos de barras e totais
+      vistos no PDF, não só no ecrã.
+- [ ] Pelo menos um caso traduzido (PT/ES/EN), com o formato de papel e as
+      margens certos.
+- [ ] Letras e imagens guardadas no Eurolify; nada se vai buscar à Internet
+      no momento de gerar.
+- [ ] Vários registos dão documentos separados.
+- [ ] Texto vindo de dados sai escapado, nunca como HTML.
 
 ## A biblioteca — o que ler, e quando
 
@@ -136,5 +177,6 @@ fora: `referencias/ORIGEM.md`.
 - [ ] Nenhuma cor, tamanho ou espaço escrito à mão: tudo por token.
 - [ ] Claro e escuro; 375, 768 e 1280 px; só teclado — vistos, não supostos.
 - [ ] Estados: vazio, a carregar, erro, sem permissão (e retida, se fiscal).
+- [ ] Listas do Hub: colunas opcionais, filtros guardados e a contagem à vista.
 - [ ] Textos em PT/ES/EN, masculino universal em PT, nada de maiúsculas forçadas.
 - [ ] O que é aspecto do Eurolify foi ao Diogo ou ao Bruno com o antes e o depois.
