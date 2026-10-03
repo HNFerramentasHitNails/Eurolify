@@ -70,6 +70,9 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
 - SSH **só com chave**, sem palavra-passe; uma chave por pessoa (ADR-0016),
   com data de troca. Quem sai perde a chave no mesmo dia (lição do Hub:
   contas de ex-colaboradores activas, 28/08/2026).
+- ✅ **A chave do Diogo (`eurolify_vps`) troca-se a 31/03/2027**, com a
+  migração para Paris: máquina nova, chave nova (Diogo, 03/10/2026, decisão
+  AB). A do Bruno tem data própria quando for criada.
 - Bloqueio de quem tenta entrar à força (proposta: `fail2ban`).
 
 ### 3.2 Firewall — fechado por omissão
@@ -135,8 +138,9 @@ imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
 
 - Máquina ou serviço em baixo; disco acima do limite; cópia que não correu ou
   reposição que falhou; certificado a expirar; actualizações por aplicar.
-- A data de fim da VPS no Reino Unido, **31/03/2027** (ADR-0019): aviso a
-  partir de 01/03/2027 (proposta).
+- A data de fim da VPS no Reino Unido e a troca da chave do Diogo, ambas a
+  **31/03/2027** (ADR-0019, decisão AB): aviso a partir de 01/03/2027
+  (proposta).
 - Para onde vão (e-mail, com fornecedor na UE): por decidir (§7).
 - Lição: o recálculo diário esteve parado 15 dias sem ninguém saber (repo
   `claude`, 05/09/2026).

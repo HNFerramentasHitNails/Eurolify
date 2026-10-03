@@ -195,5 +195,9 @@ computador»* — o caminho a) do `docs/11` §5.
 - Se a VPS aceita palavra-passe (passo 6).
 - `-t ed25519` não está na página da Microsoft (o exemplo dela é `ecdsa`);
   se o `ssh-keygen` do Windows do Diogo recusar, usa-se `ecdsa`.
-- A data de troca da chave (ADR-0016, ponto 3).
+- ~~A data de troca da chave~~ → **31/03/2027** para a do Diogo (decisão AB;
+  pergunta: *«A data de troca da tua chave fica 31/03/2027?»*, resposta do
+  Diogo, 03/10/2026: *«sim, 31/03/2027»*). Registada no `docs/11` §3.1 e
+  §3.8, no `docs/06` e no estado do ADR-0020 — sem ADR próprio, como as
+  decisões K e L.
 - O equivalente no macOS do Bruno (por escrever).
