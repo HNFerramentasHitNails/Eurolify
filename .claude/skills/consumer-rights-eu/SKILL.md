@@ -19,7 +19,7 @@ description: Direitos do consumidor na UE no Lumavo — transparência de preço
 ## 🔴 Consumidor ou profissional — por encomenda
 
 Muitas regras deste ficheiro só se aplicam a **consumidores**. Grande parte das
-vendas da HNH é B2B (`ai-act-compliance.md`). Mas **ter NIF não faz de alguém
+vendas dos sistemas actuais é B2B (`ai-act-compliance.md`). Mas **ter NIF não faz de alguém
 profissional**: em Portugal um particular também tem NIF. O Lumavo guarda **por
 encomenda** se o comprador declarou comprar como profissional (e com que
 perfil), e por omissão trata como consumidor.
@@ -61,8 +61,8 @@ Dir. (UE) 2023/2673, novo art. 11.º-A da Dir. 2011/83/UE (**W**):
 - No Lumavo: **é servido pelo servidor** (área de cliente e link no e-mail de
   confirmação), não por cada frontend — um frontend gerado por IA não pode
   esquecê-lo.
-- A loja HNH tem hoje um formulário (`hitnails/supabase/functions/submit-withdrawal-request`,
-  com captcha e limite de 3 pedidos por hora e e-mail). **Não verifiquei** se
+- A loja online actual tem um formulário de livre resolução (com captcha e
+  limite de 3 pedidos por hora e e-mail). **Não verifiquei** se
   cumpre o art. 11.º-A nem se o pedido chega ao Hub.
 
 ## Livre resolução, devoluções e reembolsos
@@ -81,9 +81,8 @@ volta** (`devolucoes-nao-tem-fluxo-15set2026.md`).
 ## Resolução de litígios
 
 - **A plataforma europeia ODR fechou a 20/07/2025** (Reg. (UE) 2024/3228,
-  **W**): **não** pôr a ligação. ⚠️ A loja HNH ainda a tem em
-  `hitnails/src/data/policiesContent.ts:558` (lido a 03/10/2026) — achado
-  registado em `memoria/`, fora do âmbito do Lumavo.
+  **W**): **não** pôr a ligação. As páginas legais por omissão do Lumavo não a
+  trazem.
 - Em Portugal: informação de **RAL** e **Livro de Reclamações electrónico**
   (**C**). Noutros países, as entidades de cada um.
 

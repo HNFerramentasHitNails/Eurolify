@@ -29,7 +29,7 @@ description: Arquitectura do Lumavo — monólito modular multi-inquilino, front
    inquilino), com testes que tentam ler o vizinho e têm de falhar.
 4. **A decisão vive no servidor, uma vez.** Lição paga no Hub: a isenção de
    IVA escrita duas vezes divergiu na ordem e a #D4248 saiu com IVA
-   (`docs/04-licoes-do-ecossistema-hnh.md`, 2.1 e 4.9). Uma cópia inevitável
+   (`docs/04-licoes-dos-sistemas-actuais.md`, 2.1 e 4.9). Uma cópia inevitável
    para o ecrã responder depressa **anota-se dos dois lados** e nunca é a
    autoridade.
 5. **Eventos de domínio com outbox.** O evento grava-se **na mesma transacção**
@@ -81,7 +81,7 @@ opções com prós e contras, decisão numa frase, consequências (incluindo o q
 pode partir) e, se for temporária, **data de fim**. Um ADR aceite não se edita:
 substitui-se por outro.
 
-## Anti-padrões (vistos no ecossistema HNH)
+## Anti-padrões (vistos nos sistemas actuais)
 
 - Duas funções com nomes parecidos que respondem à mesma pergunta.
 - Um `if` no ecrã que repete uma trava da base.

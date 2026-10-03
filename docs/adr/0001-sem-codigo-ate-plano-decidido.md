@@ -8,8 +8,8 @@
 ## Contexto
 
 O Lumavo é um projecto grande e com regras fiscais e legais em vários países.
-No ecossistema HNH, construir antes de mapear deu remendos que reapareciam
-noutro sítio (ver `docs/04-licoes-do-ecossistema-hnh.md`).
+Nos sistemas actuais, construir antes de mapear deu remendos que reapareciam
+noutro sítio (ver `docs/04-licoes-dos-sistemas-actuais.md`).
 
 Palavras do Diogo, a 03/10/2026: *«Não escrevas qualquer codigo até termos um
 plano decidido.»* e *«Só avançamos para o código quando eu ou o bruno

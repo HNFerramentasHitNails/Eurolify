@@ -1,6 +1,7 @@
 # Decisões — as que estão tomadas e as que faltam
 
-> **Versão de 03/10/2026.** Cada decisão tem opções, uma recomendação com o
+> **Versão de 03/10/2026** (revista no mesmo dia: o Lumavo é da Luckytarget,
+> sem marcas existentes). Cada decisão tem opções, uma recomendação com o
 > porquê, quem decide e o que fica parado enquanto não se decide. Quando uma
 > decisão é tomada, regista-se num ADR em `docs/adr/` e muda-se aqui o estado —
 > **não se apaga a linha**.
@@ -17,6 +18,7 @@
 | ✅ A | **Nenhum código até haver um plano decidido.** Avança-se para código quando o Bruno ou o Diogo o decidirem | Diogo, 03/10/2026 | [ADR-0001](adr/0001-sem-codigo-ate-plano-decidido.md) |
 | ✅ B | **Skills, memórias e informação do Lumavo vivem neste repositório**, para o Bruno e o Diogo trabalharem em conjunto | Diogo, 03/10/2026 | `CLAUDE.md`, `memoria/` |
 | ✅ C | **Requisitos de partida** (não são desenho): funcionar por API para qualquer frontend (Lovable, Vercel, Emergent, Bolt…); ter um Hub completo e adaptável; regras europeias de raiz; funcionar com qualquer IA | Diogo, 03/10/2026 | `00-proposta.md` |
+| ✅ D | **O Lumavo é desenvolvido dentro da Luckytarget Lda, com marca própria.** Nenhuma marca existente da empresa é usada no Lumavo; os sistemas actuais servem só como fonte de regras e de casos medidos | Diogo, 03/10/2026 | `CLAUDE.md`, `memoria/` |
 
 ## Por decidir — por esta ordem
 
@@ -25,11 +27,12 @@
 | Opção | O que quer dizer |
 |---|---|
 | a) Produto para vender a outros comerciantes desde o início | Onboarding, faturação do próprio Lumavo, suporte e contratos já na 1.ª versão |
-| **b) Plataforma multi-inquilino, com a HNH como cliente zero, aberta a outros só na Fase 3** ⭐ | Constrói-se como produto (isolamento, nada da HNH no código), mas prova-se com uma loja real antes de vender |
-| c) Plataforma só da HNH | Mais rápido no início; vender depois obriga a reconstruir — foi o que a proposta de venda do Hub mostrou (30/09/2026) |
+| **b) Plataforma multi-inquilino, com um cliente zero real, aberta a outros só na Fase 3** ⭐ | Constrói-se como produto (isolamento, nada de um cliente escrito no código), mas prova-se com uma loja real antes de vender. O cliente zero pode ser uma operação do próprio grupo ou um comerciante parceiro — **parte desta decisão** |
+| c) Plataforma só para uso interno da Luckytarget | Mais rápido no início; vender depois obriga a reconstruir — foi o que a proposta de venda do Hub mostrou (30/09/2026) |
 
-**Recomendação: b).** A tentativa de vender o Hub mediu que nunca foi
-instalado de raiz e que tem a HNH escrita em 92 ficheiros do ecrã: construir
+**Recomendação: b).** A tentativa de vender o Hub interno mediu que nunca foi
+instalado de raiz e que tem a marca e as regras de uma só empresa escritas em
+92 ficheiros do ecrã: construir
 para um e vender a muitos sai caro. E vender antes de provar com uma loja real
 põe faturas de outras empresas em risco.
 **Bloqueia:** quase tudo — é a primeira.
@@ -83,7 +86,7 @@ europeu. **Não verifiquei preços.**
 (guardar fundos de terceiros exige licença de instituição de pagamento); cada
 comerciante liga a sua conta do prestador. Primeiros prestadores: **EuPago**
 (MB WAY, Multibanco, cartão, Floa) e **Stripe** (Klarna, cartão, Apple/Google
-Pay) — a mesma escolha que o Bruno fez para o Academy a 29/09/2026
+Pay) — a mesma escolha que o Bruno fez para a plataforma de formação a 29/09/2026
 (`academy-piloto-eupago-desenho-29set2026.md`, repo `claude`), com a régua
 «método → prestador → conta» numa tabela do servidor. Marketplace, se um dia
 existir, só com o produto de plataformas do prestador (Stripe Connect, Adyen
@@ -91,8 +94,8 @@ for Platforms, Mollie Connect).
 
 ### D-6 · Países da primeira versão
 
-**Recomendação: Portugal e Espanha.** É onde a HNH vende mais fora de Portugal
-(340 perfis espanhóis activos, medido a 28/09/2026 em
+**Recomendação: Portugal e Espanha.** É onde os sistemas actuais vendem mais
+fora de Portugal (340 perfis espanhóis activos, medido a 28/09/2026 em
 `canarias-ceuta-melilla-extra-ue-28set2026.md`) e já obriga a tratar OSS, VIES
 e territórios especiais. Restantes países por procura — cada regime de
 faturação electrónica é um projecto (ver `03-regulamentar-ue.md` §1).
@@ -119,19 +122,20 @@ chamada de funções leem melhor. GraphQL só com necessidade medida.
 na Fase 3; protocolos de comércio por agentes (UCP, ACP) na Fase 3. **Nunca**
 uma IA emite faturas, reembolsa, funde clientes ou corrige em lote.
 
-### D-10 · Na HNH, quem fala com o Moloni?
+### D-10 · Um cliente que já tem sistema de gestão: quem emite as faturas?
 
-**Recomendação: continua a ser o Hub da HNH.** O Lumavo entrega as encomendas
-ao Hub como o Shopify faz hoje; o Hub mantém as regras fiscais já provadas e
-continua a ser o único que fala com o Moloni (regra do `CLAUDE.md` do Hub).
-Passar a faturação da HNH para o Lumavo é uma decisão posterior, com o Lumavo
-já provado noutras lojas. **Quem decide: Bruno.**
+**Recomendação: continua a ser o sistema dele.** O Lumavo entrega-lhe as
+encomendas como o Shopify faz hoje, e esse sistema continua a ser o único que
+fala com o software de faturação — é a regra do Hub interno actual («um só
+sistema fala com o Moloni»), e evita dois emissores para a mesma venda. Passar
+a emissão para o Lumavo é uma decisão posterior, cliente a cliente, com o
+Lumavo já provado. **Quem decide: Bruno.**
 
-### D-11 · Ponte para a memória do ecossistema
+### D-11 · Ponte para a memória de trabalho existente
 
 A memória do Lumavo vive aqui (decisão B). **Por decidir com o Bruno:** pôr no
 repo `bruno-88/claude` **uma** memória curta a apontar para este repositório,
-para que uma sessão do ecossistema saiba que o Lumavo existe. Não o fiz: o
+para que uma sessão sobre os sistemas actuais saiba que o Lumavo existe. Não o fiz: o
 pedido foi guardar aqui.
 
 ### D-12 · O nome «Lumavo»

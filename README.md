@@ -1,6 +1,8 @@
 # Lumavo
 
-**Comércio electrónico feito na Europa, para vender na Europa.**
+**Comércio electrónico feito na Europa, para vender na Europa.** Um projecto
+da **Luckytarget Lda**.
+
 Um núcleo de loja por API para qualquer frontend, um Hub de gestão, as regras
 europeias de raiz e aberto a qualquer IA.
 
@@ -17,7 +19,7 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/05-fases-e-mvp.md`](docs/05-fases-e-mvp.md) | Fases, o que entra na primeira versão e quando se passa à seguinte |
 | [`docs/02-arquitectura.md`](docs/02-arquitectura.md) | As peças, os domínios e as interfaces (API, checkout, MCP) |
 | [`docs/03-regulamentar-ue.md`](docs/03-regulamentar-ue.md) | O mapa das regras europeias, com datas e fontes |
-| [`docs/04-licoes-do-ecossistema-hnh.md`](docs/04-licoes-do-ecossistema-hnh.md) | As regras que o Hub, a loja e o Academy da HNH já pagaram |
+| [`docs/04-licoes-dos-sistemas-actuais.md`](docs/04-licoes-dos-sistemas-actuais.md) | As regras que os sistemas actuais da empresa já pagaram |
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`CLAUDE.md`](CLAUDE.md) | As regras para qualquer sessão de Claude neste repositório |

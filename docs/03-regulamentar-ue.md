@@ -10,7 +10,7 @@
 | Marca | Significa |
 |---|---|
 | **W** | Confirmado numa pesquisa web a 03/10/2026. Lido o **resumo** dos resultados e o título das fontes; **o texto legal não foi lido** nesta sessão. |
-| **M** | Vem da memória do ecossistema HNH (repo `bruno-88/claude`), medido ou decidido lá, com data. |
+| **M** | Vem da memória de trabalho dos sistemas actuais (repo `bruno-88/claude`), medido ou decidido lá, com data. |
 | **C** | Conhecimento prévio, bem estabelecido, **não verificado nesta sessão**. Confirmar antes de construir. |
 
 ⚠️ **Regra:** uma linha **C** não entra num ecrã, num texto legal nem numa
@@ -23,7 +23,7 @@ um profissional.
 
 | Tema | Instrumento | Desde | O que obriga o Lumavo a ter | Verif. | Quem valida |
 |---|---|---|---|---|---|
-| IVA nas vendas à distância na UE (OSS) | Pacote IVA do comércio electrónico, Dir. (UE) 2017/2455 e 2019/1995 | 01/07/2021 | Taxa do **país de destino** em B2C acima do limiar de 10.000 € anuais na UE; relatório OSS separado do nacional, da exportação e das isentas | **C** + **M** (a HNH já declara OSS — `oss-iva-por-pais-10ago2026.md`) | contabilista |
+| IVA nas vendas à distância na UE (OSS) | Pacote IVA do comércio electrónico, Dir. (UE) 2017/2455 e 2019/1995 | 01/07/2021 | Taxa do **país de destino** em B2C acima do limiar de 10.000 € anuais na UE; relatório OSS separado do nacional, da exportação e das isentas | **C** + **M** (os sistemas actuais já declaram OSS — `oss-iva-por-pais-10ago2026.md`) | contabilista |
 | Importações de baixo valor (IOSS) | idem | 01/07/2021 | Só relevante se um comerciante vender a partir de fora da UE (≤150 €) | **C** | contabilista |
 | Fim da isenção aduaneira <150 € | reforma aduaneira da UE | 01/07/2026 | Direito fixo de 3 € **por artigo/categoria pautal** nas importações de baixo valor; transitório até 2028 | **W** ([Avalara](https://www.avalara.com/blog/en/europe/2025/11/eu-end-150-customs-duty-exemption-2026.html), [Baker Tilly](https://bakertillysee.com/insights/major-eu-customs-update-e3-duty-on-low-value-e-commerce-imports-starting-july-2026/)) | despachante |
 | IVA na era digital (ViDA) | pacote ViDA, adoptado pelo Conselho a 11/03/2025 | faseado | Fatura electrónica estruturada nas operações **intracomunitárias** a partir de **01/07/2030**; regra do fornecedor presumido para plataformas de alojamento e transporte (opcional 01/07/2028, obrigatória 01/01/2030) | **W** ([vatupdate](https://www.vatupdate.com/2025/03/13/council-adopted-the-vat-in-the-digital-age-vida-package-on-march-11-2025/), [KPMG](https://kpmg.com/ch/en/insights/taxes/vat-digital-age.html)) | contabilista |
@@ -38,8 +38,8 @@ um profissional.
 | Alemanha — B2B electrónico | lei alemã | receber desde 01/01/2025 · emitir: >800.000 € a 01/01/2027, todos a 01/01/2028 | Fatura estruturada (XRechnung/ZUGFeRD) | **W** ([vatupdate](https://www.vatupdate.com/2026/09/14/germanys-e-invoicing-mandate-key-deadlines-for-2025-2027-and-2028/), [Avalara](https://www.avalara.com/blog/en/europe/2026/09/germany-e-invoicing.html)) | Steuerberater |
 | Polónia — KSeF | lei polaca | 01/02/2026 (grandes) · 01/04/2026 (restantes) · 01/01/2027 (micro) | Emissão pelo sistema nacional KSeF | **W** ([EY](https://www.ey.com/en_gl/technical/tax-alerts/poland-announces-new-timeline-for-mandatory-e-invoicing), [Sovos](https://sovos.com/blog/vat/poland-e-invoicing-via-ksef/)) | contabilista PL |
 | Itália — SDI | lei italiana | B2B e B2C desde 2019 | Emissão pelo Sistema di Interscambio | **C** | commercialista IT |
-| Canárias, Ceuta e Melilla | Directiva IVA (territórios excluídos) | em vigor | São Espanha mas **fora do território de IVA da UE**: venda de bens = exportação (M05), sem VIES | **M** (`canarias-ceuta-melilla-extra-ue-28set2026.md`, executado na HNH a 28/09/2026) | contabilista |
-| Açores e Madeira | CIVA | em vigor | Taxas próprias (16 % e 22 % na taxa normal, medido na HNH). Se uma venda do continente leva a taxa regional **ficou por responder ao contabilista** | **M** (`oss-iva-por-pais-10ago2026.md`) | contabilista |
+| Canárias, Ceuta e Melilla | Directiva IVA (territórios excluídos) | em vigor | São Espanha mas **fora do território de IVA da UE**: venda de bens = exportação (M05), sem VIES | **M** (`canarias-ceuta-melilla-extra-ue-28set2026.md`, executado nos sistemas actuais a 28/09/2026) | contabilista |
+| Açores e Madeira | CIVA | em vigor | Taxas próprias (16 % e 22 % na taxa normal, medido nos sistemas actuais). Se uma venda do continente leva a taxa regional **ficou por responder ao contabilista** | **M** (`oss-iva-por-pais-10ago2026.md`) | contabilista |
 
 ## 2. Consumidor
 
@@ -54,7 +54,7 @@ um profissional.
 | Geobloqueio | Reg. (UE) 2018/302 | 03/12/2018 | Não recusar acesso à loja por nacionalidade/residência; não obriga a entregar em todo o lado | **C** | jurista |
 | *Digital Fairness Act* (equidade digital) | proposta da Comissão | **ainda não apresentada** (esperada no 4.º trimestre de 2026) | Vigiar: padrões enganadores, subscrições, personalização | **W** ([AKD](https://www.akd.eu/insights/the-digital-fairness-act-what-to-expect-from-the-forthcoming-eu-legislative-proposal-on-strengthening-consumer-protection-rules-for-the-digital-age)) | — |
 
-> ⚠️ Muitas vendas da HNH são **B2B** (profissionais), o que afasta parte destas
+> ⚠️ Muitas vendas dos sistemas actuais são **B2B** (profissionais), o que afasta parte destas
 > obrigações (`ai-act-compliance.md`, auditoria jurídica de abril/2026). O Lumavo
 > tem de saber, **por encomenda**, se o comprador é consumidor ou profissional —
 > e não deduzi-lo só por haver NIF.
@@ -76,7 +76,7 @@ um profissional.
 | Tema | Instrumento | Desde | O que obriga | Verif. | Quem valida |
 |---|---|---|---|---|---|
 | Protecção de dados | Reg. (UE) 2016/679 (RGPD) | 25/05/2018 | Base legal por finalidade, minimização, registo de tratamentos, pedidos dos titulares, subcontratantes, transferências internacionais. **Apagar ≠ destruir faturas:** a fatura fica 10 anos (art. 52.º CIVA) e pseudonimiza-se o resto | **C** | encarregado de dados / jurista |
-| Cookies | Dir. 2002/58/CE (ePrivacy), art. 5.º(3) | em vigor | Consentimento antes de cookies não essenciais (o píxel da Meta antes do consentimento foi um achado da auditoria de 2026) | **C** + **M** (`ai-act-compliance.md`) | jurista |
+| Cookies | Dir. 2002/58/CE (ePrivacy), art. 5.º(3) | em vigor | Consentimento antes de cookies não essenciais (o píxel da Meta antes do consentimento foi um achado de uma auditoria jurídica de 2026) | **C** + **M** (`ai-act-compliance.md`) | jurista |
 | Mudança de fornecedor de nuvem/SaaS | Reg. (UE) 2023/2854 (Data Act) | aplicável 12/09/2025 | O comerciante tem direito a **sair com os dados**; a partir de **12/01/2027** não se pode cobrar pela saída | **W** ([Comissão Europeia](https://digital-strategy.ec.europa.eu/en/factpages/data-act-explained), [Pinsent Masons](https://www.pinsentmasons.com/out-law/guides/switching-porting-rules-eu-data-act)) | jurista |
 | Serviços digitais (DSA) | Reg. (UE) 2022/2065 | 17/02/2024 | Só pesa se houver **marketplace**. Micro e pequenas plataformas estão fora das secções 3 e 4 (incluindo a rastreabilidade dos vendedores, art. 30.º), salvo plataforma muito grande | **W** ([CMS DigitalLaws](https://www.cms-digitallaws.com/en/dsa/article-19/), [DSA Library](https://dsa-library.com/article/30/)) | jurista |
 | Comunicação de vendedores por plataformas | Dir. (UE) 2021/514 (DAC7) | 01/01/2023 | Só com marketplace: reportar rendimentos dos vendedores à AT | **C** | contabilista |
@@ -113,6 +113,5 @@ inventar um próprio.
   desconfio, confirmar no regulamento.
 - A data de aplicação do art. 50.º do AI Act.
 - Itália (SDI) e os regimes de faturação dos restantes países da UE.
-- Se o formulário de livre resolução da loja HNH
-  (`hitnails/supabase/functions/submit-withdrawal-request`) cumpre o
+- Se o formulário de livre resolução da loja online actual cumpre o
   art. 11.º-A — existe, não foi avaliado.

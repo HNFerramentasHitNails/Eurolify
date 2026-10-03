@@ -6,7 +6,7 @@ description: Encomendas, stock e expedição no Lumavo — reserva de stock, dis
 # Encomendas, stock e expedição
 
 > Estado: **desenho** — não há código (ADR-0001). Lições:
-> `docs/04-licoes-do-ecossistema-hnh.md` §3.
+> `docs/04-licoes-dos-sistemas-actuais.md` §3.
 
 ## Stock — as regras
 
@@ -42,9 +42,9 @@ pendente → paga → em_preparação → expedida(parcial | total) → entregue
 - **Cancelar avisa toda a gente que precisa de saber** (documentos fiscais,
   pagamentos, stock, integrações) — no ecossistema, um cancelamento que ficava
   num sistema deixava o rascunho fiscal vivo noutro (lição 4.5).
-- **Uma encomenda nunca entra por duas vias**: no ecossistema, cada bilhete do
-  Pink gerava duas encomendas no armazém, uma pela Shopify e outra pelo Academy
-  (29/09/2026). Identificador externo único por origem.
+- **Uma encomenda nunca entra por duas vias**: nos sistemas actuais, cada
+  bilhete de evento gerava duas encomendas no armazém, uma pela Shopify e outra
+  pela plataforma de formação (29/09/2026). Identificador externo único por origem.
 - **Quem compra ≠ quem é faturado ≠ quem recebe**: três papéis na encomenda.
 - **Portes são linha própria**, nunca um artigo — no Hub voltavam como artigo ao
   reabrir a encomenda e cobraram-se duas vezes (12 encomendas, 150,43 €, 16/09/2026).

@@ -1,6 +1,7 @@
 # Arranque do Lumavo — proposta, desenho e skills (03/10/2026)
 
 **Pedido por:** Diogo · **Sessão:** https://claude.ai/code/session_01URyrpGYUUBZv5e3iicDc4g
+**Dono do projecto:** Luckytarget Lda — ver [[dono-e-marca-luckytarget-03out2026]].
 
 ## O pedido, nas palavras dele (03/10/2026)
 
@@ -15,17 +16,17 @@
 > *«O Lumavo, tem de funcionar com API (ou podes sugerir outra alternativa), Em
 > que se possa criar um frontend em lovable, vercel, emergent, bolt.new, etc»*
 >
-> *«O Lumavo também deverá conter um hub totalmente funcional e adaptavel tipo o
-> hub da hnhitnails […] funcionar nativamente com todos os mercados europeus,
-> aplicação de pagamentos, envios, e outras personalizações uteis»*
+> *«O Lumavo também deverá conter um hub totalmente funcional e adaptavel […]
+> funcionar nativamente com todos os mercados europeus, aplicação de
+> pagamentos, envios, e outras personalizações uteis»*
 >
 > *«Será importante, também o lumavo funcionar com todas as IAs do mundo, como
 > codex, claude, deepseek, etc, talvez por mcp ou algo parecido.»*
 >
 > *«Só avançamos para o código quando eu ou o bruno decidirmos avançar.»*
 >
-> *«aproveita o que existe ja no hub hit nails e no front end da loja shopify da
-> hnhitnails, para fazeres consultas de algumas regras.»*
+> *«aproveita o que existe ja no hub […] e no front end da loja shopify […]
+> para fazeres consultas de algumas regras.»*
 
 Trouxe uma lista de 12 skills pedida ao Perplexity (as que estão em
 `.claude/skills/`, com os mesmos nomes).
@@ -37,16 +38,17 @@ Trouxe uma lista de 12 skills pedida ao Perplexity (as que estão em
 | `docs/00-proposta.md` | a proposta para Bruno e Cila |
 | `docs/02-arquitectura.md` | peças, domínios, API, checkout alojado, MCP, multi-inquilino |
 | `docs/03-regulamentar-ue.md` | mapa regulamentar com datas e fontes (W/M/C) |
-| `docs/04-licoes-do-ecossistema-hnh.md` | ~40 regras pagas pelo Hub, loja e Academy, cada uma com o caso e o ficheiro de origem |
+| `docs/04-licoes-dos-sistemas-actuais.md` | ~40 regras pagas pelos sistemas actuais, cada uma com o caso e o ficheiro de origem |
 | `docs/05-fases-e-mvp.md` | fases 0–4 e critérios de passagem |
-| `docs/06-decisoes-em-aberto.md` | 3 decididas, 14 por decidir (D-1 a D-14) |
+| `docs/06-decisoes-em-aberto.md` | 4 decididas, 14 por decidir (D-1 a D-14) |
 | `docs/adr/0000-modelo.md`, `0001-…` | modelo de ADR; ADR-0001 «sem código até plano decidido» |
 | `CLAUDE.md`, `README.md` | regras das sessões e porta de entrada |
-| `.claude/skills/*` | as 12 skills, escritas de raiz com as lições do ecossistema |
+| `.claude/skills/*` | as 12 skills, escritas de raiz com as lições dos sistemas actuais |
+| Documento partilhável | «Lumavo — proposta», https://claude.ai/code/artifact/22bde99f-97fa-4b63-a51b-53ca49a8dca0 (resumo da proposta; se divergir, vale o repositório) |
 
 ## Onde fui buscar o que está escrito
 
-- **Memória do ecossistema** — repo `bruno-88/claude`, anexado nesta sessão;
+- **Memória de trabalho** — repo `bruno-88/claude`, anexado nesta sessão;
   lidos por inteiro: `desenho-ecossistema-bruno`, `feedback-uma-coisa-de-cada-vez`,
   `plano-sessoes-ago2026`, `user-bruno`, `regra-isencao-iva-bruno`,
   `regra-decisao-no-servidor`, `regras-identidade-duplicados`,
@@ -56,7 +58,8 @@ Trouxe uma lista de 12 skills pedida ao Perplexity (as que estão em
   `contribuinte-recusado-retem-17set2026`, `hub-nif-sai-da-entidade-moloni-12ago2026`,
   `cila-renovacoes-stripe-07ago2026`, `projetos-plataformas-31ago2026`,
   `proposta-venda-do-hub-30set2026`, `regras-nos-repos-vs-memoria`,
-  `ai-act-compliance`, `project-loja-lovable`; lidos em parte: `agentes-e-skills-no-repo-21set2026`,
+  `ai-act-compliance`, `project-loja-lovable`, `empresa-nome-legal-e-marca-02out2026`;
+  lidos em parte: `agentes-e-skills-no-repo-21set2026`,
   `academy-pagamento-directo-mapa-29set2026`, `academy-piloto-eupago-desenho-29set2026`,
   `commerce-agents-anthropic-13set2026`, `consentimento-de-marketing-no-hub-29set2026`,
   `loja-vendeu-stock-ja-reservado-16set2026`, `devolucoes-nao-tem-fluxo-15set2026`,
@@ -66,8 +69,10 @@ Trouxe uma lista de 12 skills pedida ao Perplexity (as que estão em
   `lingua-do-hub-para-parceiros-02out2026`. Os outros números citados foram
   conferidos por `grep` no ficheiro de origem (ex.: 150,43 € em
   `portes-a-dobrar-16set2026.md`).
-- **Código** — `hub-hit-nails` (`CLAUDE.md`, `.claude/`) e `hitnails`
-  (`README.md`, `src/data/policiesContent.ts`, `supabase/functions/submit-withdrawal-request`,
+- **Código dos sistemas actuais** (só para fonte; a marca não se usa no Lumavo):
+  repos `bruno-88/hub-hit-nails` (`CLAUDE.md`, `.claude/`) e `bruno-88/hitnails`
+  (`README.md`, `src/data/policiesContent.ts`,
+  `supabase/functions/submit-withdrawal-request`,
   `supabase/functions/shopify-duplicator-sync`), lidos a 03/10/2026.
 - **Web** — ~20 pesquisas a 03/10/2026; as fontes estão nas linhas **W** de
   `docs/03-regulamentar-ue.md`. **Li os resumos e os títulos, não os textos
@@ -76,32 +81,23 @@ Trouxe uma lista de 12 skills pedida ao Perplexity (as que estão em
 ## O que NÃO foi verificado
 
 - Nenhum texto legal lido por inteiro.
-- Nenhum número da HNH medido de novo nesta sessão.
-- Nenhuma base de dados consultada (nem do Hub, nem do Academy, nem do Shopify).
+- Nenhum número dos sistemas actuais medido de novo nesta sessão.
+- Nenhuma base de dados consultada.
 - Prazos e custos: não estimados, de propósito (D-13).
 - A marca e os domínios «Lumavo» (D-12).
 - Licenças e capacidades da Medusa, Saleor e Vendure — só resumos de pesquisa.
-- Se o formulário de livre resolução da loja cumpre o art. 11.º-A e se o pedido
-  chega ao Hub (procurei `withdrawal` e «livre resolução» em `hub-hit-nails/src`
-  e `supabase/functions`: zero ficheiros — o que **não** prova que não chega por
-  outra via).
+- Os dados da Luckytarget no racius.com: a página deu 403 nesta sessão.
 
-## Tensões que deixei escritas, em vez de as resolver sozinho
+## Tensões deixadas escritas, em vez de resolvidas sozinho
 
-- **Memória no repo de código.** No ecossistema a regra é «nunca memória num
-  repo de código; a memória vive no repo `claude`». O Diogo pediu explicitamente
-  para guardar tudo aqui; o Lumavo ainda não tem código e é um produto à parte.
-  Ficou na pasta `memoria/`, separada, e a ponte para o repo `claude` é a D-11.
+- **Memória num repositório de produto.** Nos sistemas actuais a regra é «nunca
+  memória num repo de código; vive no repo `claude`». O Diogo pediu explicitamente
+  para guardar tudo aqui; o Lumavo ainda não tem código. Ficou em `memoria/`,
+  separada; a ponte para o repo `claude` é a D-11.
 - **Ramo e `main`.** A sessão veio com o ramo designado
-  `hnferramentas/gallant-wozniak-ri7s3z`; a regra do ecossistema manda as
-  memórias para o `main`. O repositório estava **vazio** (sem ramos no remoto, a
-  03/10/2026).
-
-## Achados fora do Lumavo (não tratados aqui)
-
-1. **A loja HNH ainda liga à plataforma europeia ODR**, encerrada a 20/07/2025:
-   `hitnails/src/data/policiesContent.ts:558`. Ligação a retirar (zona jurídica).
-2. **O Academy serve «5 marcas»** segundo o `CLAUDE.md` do Hub e **«6 marcas»**
-   segundo `nif-guarda-se-como-a-lei-manda-16set2026.md` («Pink incluído»).
-   Pode ser só a forma de contar o Pink, ou um dos dois estar desactualizado.
-   Não verifiquei; por isso os documentos do Lumavo não dão o número.
+  `hnferramentas/gallant-wozniak-ri7s3z`; a regra de trabalho manda as memórias
+  para o `main`. O repositório estava **vazio** (sem ramos no remoto, a
+  03/10/2026); o mesmo commit foi para os dois e o `main` ficou o ramo por
+  omissão.
+- **O primeiro commit** (`7171e44`) ainda tem a marca antiga na mensagem e num
+  nome de ficheiro; o histórico não foi reescrito.

@@ -19,7 +19,7 @@ resultado, ou «não verificado»).
 
 O que se decidiu, numa frase. E, se for uma excepção ou uma solução
 temporária, **a data em que termina** (lição 2.11 de
-`docs/04-licoes-do-ecossistema-hnh.md`).
+`docs/04-licoes-dos-sistemas-actuais.md`).
 
 ## Consequências
 

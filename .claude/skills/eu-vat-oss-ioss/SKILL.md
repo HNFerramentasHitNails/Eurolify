@@ -6,7 +6,7 @@ description: Motor de IVA e documentos fiscais do Lumavo — categoria fiscal do
 # IVA, OSS/IOSS e documentos fiscais
 
 > Estado: **desenho** — não há código (ADR-0001). Fontes e datas:
-> `docs/03-regulamentar-ue.md` §1. Lições: `docs/04-licoes-do-ecossistema-hnh.md`
+> `docs/03-regulamentar-ue.md` §1. Lições: `docs/04-licoes-dos-sistemas-actuais.md`
 > §1 e §2. **Quem decide: Bruno.**
 >
 > 🔴 **Validação obrigatória:** cada regra deste ficheiro é validada por um
@@ -23,10 +23,10 @@ Lumavo: **na dúvida, retém** — nunca emite à sorte.
 
 | Peça | O que guarda / faz |
 |---|---|
-| **Categoria fiscal do artigo** | normal, reduzida, isenta por natureza (ex.: formação profissional isenta pelo art. 9.º do CIVA em PT — regra da HNH, pode não ser a de outro comerciante) |
+| **Categoria fiscal do artigo** | normal, reduzida, isenta por natureza (ex.: formação profissional isenta pelo art. 9.º do CIVA em PT — regra dos sistemas actuais, pode não ser a de outro comerciante) |
 | **Jurisdição e taxa** | país (e região: Açores, Madeira), categoria, percentagem, **data de início e de fim**. Nunca uma taxa escrita no código (o Hub tinha 23 % fixos no ecrã — `regra-isencao-iva-bruno.md`) |
 | **Territórios especiais** | por país + código postal: Canárias (35xxx, 38xxx), Ceuta (51xxx), Melilla (52xxx) **fora do IVA da UE** (M) — e, a confirmar (**C**): Åland, Monte Atos, Büsingen, Heligoland, Livigno, Campione, departamentos ultramarinos franceses, Irlanda do Norte (`XI`) |
-| **Registos fiscais do comerciante** | onde está registado: país-sede, OSS, IOSS, registos noutros países (a HNH tinha um registo suíço activo no Shopify a cobrar 8,1 % de MwSt sem o querer — `desenho-ecossistema-bruno.md`) |
+| **Registos fiscais do comerciante** | onde está registado: país-sede, OSS, IOSS, registos noutros países (a loja actual tinha um registo suíço activo no Shopify a cobrar 8,1 % de MwSt sem o querer — `desenho-ecossistema-bruno.md`) |
 | **Perfil de faturação** | NIF, país do contribuinte, morada fiscal, tipo (particular/empresa), validação VIES com prova, isenção manual com motivo, nota e anexos |
 | **Decisão de IVA da linha** | taxa ou isenção, **motivo** (código: ex.: M05 exportação, M16 intracomunitária, M07 isento art. 9.º — códigos portugueses), a **regra que decidiu**, a versão da regra e a **evidência** (país de entrega, resposta do VIES, isenção manual) — gravada no momento do checkout |
 | **Pedido de documento** | o que se mandou ao software certificado, a resposta em bruto |
@@ -54,8 +54,8 @@ escrita duas vezes e as cópias divergiram na ordem.
 
 ## Regras que não se negociam
 
-1. **Intracomunitária isenta só com NIF válido no VIES.** Sem NIF ⇒ cobra. Na
-   HNH saíram 7 faturas assim, 3.773,09 € (`canarias-ceuta-melilla-extra-ue-28set2026.md`).
+1. **Intracomunitária isenta só com NIF válido no VIES.** Sem NIF ⇒ cobra. Nos
+   sistemas actuais saíram 7 faturas assim, 3.773,09 € (`canarias-ceuta-melilla-extra-ue-28set2026.md`).
    Que o VIES é condição substantiva desde 2020 vem de uma pesquisa (OCC) que
    **não foi lida** — **C**.
 2. **Se foi cobrado IVA, a fatura leva IVA.** A fatura nasce do que foi cobrado
@@ -76,9 +76,9 @@ escrita duas vezes e as cópias divergiram na ordem.
 
 | Pergunta | Régua |
 |---|---|
-| Como se guarda? | **com o prefixo fiscal do país, excepto o país do comerciante** (na HNH: PT sem prefixo). O que a pessoa escreveu com prefixo **mantém-se sempre**. O prefixo fiscal **não** é o ISO: `CHE` na Suíça, `EL` na Grécia |
+| Como se guarda? | **com o prefixo fiscal do país, excepto o país do comerciante** (em Portugal: sem prefixo). O que a pessoa escreveu com prefixo **mantém-se sempre**. O prefixo fiscal **não** é o ISO: `CHE` na Suíça, `EL` na Grécia |
 | São o mesmo contribuinte? | compara-se **só o número**, sem prefixo nem pontuação |
-| Número de 9 dígitos sem prefixo, ficha estrangeira, passa o dígito de controlo português? | leva `PT` (o padrão das emigrantes — 8 casos na HNH, 16/09/2026) |
+| Número de 9 dígitos sem prefixo, ficha estrangeira, passa o dígito de controlo português? | leva `PT` (o padrão das emigrantes — 8 casos nos sistemas actuais, 16/09/2026) |
 | Procurar a entidade no software de faturação? | **pelo número sem prefixo** — procurar `PT263631656` não encontra `263631656` |
 | Números impossíveis? | `000000000`, `123456789` e afins **passam o dígito de controlo** e são recusados por lista (#5414, 30/09/2026) |
 | Recusado pela régua? | **retém** — nunca sai como consumidor final a quem deu o número |
@@ -92,7 +92,7 @@ português e morada no Luxemburgo).
   fiscal; **duas pessoas são duas fichas**.
 - **Cada encomenda liga a um perfil**, fixo depois de emitida a fatura.
 - O checkout tem **«a fatura é para outra pessoa/empresa»**: quem compra não é
-  quem é faturado (caso Maria e Clarisse, 12/08/2026).
+  quem é faturado (o bilhete comprado para outra pessoa, 12/08/2026).
 - O perfil «principal» é **um** sinal, guardado na base, que o ecrã e o servidor
   leem — no Hub eram duas réguas e divergiam em 182 de 314 fichas (28/09/2026).
 
@@ -119,7 +119,7 @@ português e morada no Luxemburgo).
 ## Arredondamentos
 
 - Guardar os totais **do cabeçalho do documento** como o emissor os devolve;
-  somar linhas perde cêntimos (HN/101: 15,45 contra 15,47).
+  somar linhas perde cêntimos (15,45 € contra 15,47 € numa fatura a 21 %).
 - Regra de arredondamento por linha ou por documento: a do país e do emissor
   — **C**, confirmar por país.
 
@@ -159,7 +159,8 @@ adaptador por regime**, cada um com o seu contabilista.
 ## Antes de dizer «está feito»
 
 - [ ] Há um teste por ramo da ordem de decisão, incluindo a #D4248 (isenção
-      manual com entrega em PT), o caso Maria/Clarisse, o `000000000` e as Canárias.
+      manual com entrega em PT), o bilhete comprado para outra pessoa, o `000000000`
+      e as Canárias.
 - [ ] A decisão grava a evidência e a versão da regra.
 - [ ] O documento emitido é lido de volta e comparado com o que se pediu.
 - [ ] Todos os sítios que liam a regra antiga estão listados e tratados.

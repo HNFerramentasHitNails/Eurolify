@@ -11,7 +11,7 @@ description: Catálogo e gestão de informação de produto (PIM) no Lumavo — 
 
 ## 🔴 Primeira regra: a ficha do artigo vive num sítio só
 
-No ecossistema HNH isto falhou **três vezes** (18/08, 24/08 e 26/09/2026): a
+Nos sistemas actuais isto falhou **três vezes** (18/08, 24/08 e 26/09/2026): a
 foto, as quantidades mínimas e a galeria foram criadas em ecrãs-espelho e não
 na ficha onde o Bruno trabalha — para ele foi como não existirem
 (`catalogo-de-produtos-centraliza-26set2026.md`, repo `claude`).
@@ -20,8 +20,9 @@ No Lumavo: **campo novo de artigo nasce no domínio Catálogo, na API de
 Administração e na ficha do Hub do Lumavo, no mesmo passo.** Os outros ecrãs e
 canais são espelhos que mostram ou não.
 
-Para a HNH (cliente zero), a ficha continua a nascer **no Hub da HNH**
-(`/admin/sales/products`) e é espelhada para o Lumavo pela API.
+Num cliente que já tem um sistema de gestão onde a ficha do artigo nasce (como o
+Hub interno actual), a ficha continua a nascer lá e é espelhada para o Lumavo
+pela API de Administração.
 
 ## O modelo
 

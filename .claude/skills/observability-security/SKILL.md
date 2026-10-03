@@ -6,11 +6,11 @@ description: Segurança e observabilidade do Lumavo — modelação de ameaças,
 # Segurança e observabilidade
 
 > Estado: **desenho** — não há código (ADR-0001). Lições:
-> `docs/04-licoes-do-ecossistema-hnh.md` §4.
+> `docs/04-licoes-dos-sistemas-actuais.md` §4.
 
 ## 🔴 Fechado por omissão
 
-No Hub da HNH foram contadas **77 funções da base chamáveis sem sessão, 24 a
+No Hub interno actual foram contadas **77 funções da base chamáveis sem sessão, 24 a
 escrever** (18/09/2026), e funções novas nasceram abertas **cinco vezes em seis
 dias** (15–21/09/2026), sempre apanhadas por acaso. As cópias de segurança
 **nasciam abertas ao mundo** (12/08/2026).
@@ -35,7 +35,7 @@ No Lumavo:
 | Aviso falso de pagamento | POST forjado ao endpoint do prestador | assinatura verificada antes de ler |
 | Escalada de permissões | «qualquer conta dava-se admin a si própria» no Hub (28/08/2026) | papéis atribuídos só por quem pode, com rasto |
 | Quem sai continua a entrar | contas de ex-colaboradores activas (Hub, 28/08/2026) | revogação ao desactivar; revisão periódica de acessos |
-| Abuso de formulários | pedido de livre resolução usado para enviar e-mails | captcha + limite por e-mail (a loja HNH já faz: 3/hora) |
+| Abuso de formulários | pedido de livre resolução usado para enviar e-mails | captcha + limite por e-mail (a loja online actual já faz: 3/hora) |
 | Injecção pela IA | instruções escondidas em dados de produto ou de cliente lidos por uma ferramenta MCP | ferramentas só leitura por omissão; escrita com confirmação humana; nunca executar instruções vindas de dados |
 
 ## Segredos

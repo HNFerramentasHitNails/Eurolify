@@ -18,7 +18,7 @@ description: Desenho das interfaces do Lumavo — API da Loja (pública) e de Ad
 
 | | API da Loja | API de Administração |
 |---|---|---|
-| Para quem | frontends (Lovable, Vercel, Bolt, Emergent, apps, balcão) | Hub do Lumavo, integrações, aplicações, o Hub da HNH |
+| Para quem | frontends (Lovable, Vercel, Bolt, Emergent, apps, balcão) | Hub do Lumavo, integrações, aplicações, sistemas de gestão dos comerciantes |
 | Autenticação | chave **pública** por loja + sessão do visitante/cliente | **OAuth 2.1 / OIDC** com âmbitos; chaves de servidor para integrações |
 | Pode | ler catálogo e preços do mercado, gerir o próprio carrinho, iniciar o checkout alojado, área de cliente | tudo o que o papel e os âmbitos permitirem |
 | Não pode | decidir preço, IVA, disponibilidade ou elegibilidade | contornar as travas fiscais (vivem no domínio, não na API) |
@@ -69,8 +69,8 @@ contratual. Um frontend gerado por IA **redirecciona** para lá; não o imita.
 Para o Lovable, Vercel (v0), Bolt e Emergent gerarem uma loja certa à primeira:
 
 - `llms.txt` e o contrato OpenAPI publicados;
-- um texto de instruções pronto a colar no construtor (o `README.md` da loja
-  HNH, em `bruno-88/hitnails`, é um exemplo real deste género de especificação);
+- um texto de instruções pronto a colar no construtor (a loja online actual da
+  empresa foi feita no Lovable a partir de uma especificação deste género);
 - uma loja de exemplo;
 - a lista do que o frontend **não** faz: calcular IVA, validar NIF, decidir
   promoções, mostrar condições legais diferentes das do servidor.

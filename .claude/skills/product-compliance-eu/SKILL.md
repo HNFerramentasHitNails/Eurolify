@@ -46,7 +46,7 @@ O TPO, um fotoiniciador comum em géis de unhas, foi **proibido nos cosméticos 
 01/09/2025 sem período de escoamento** (Reg. (UE) 2025/877, **W**). De um dia
 para o outro deixou de se poder vender o que já estava em stock.
 
-No Hub da HNH, o fornecedor troca fórmulas e os SKU mantêm-se
+No Hub interno actual, o fornecedor troca fórmulas e os SKU mantêm-se
 (`formulas-versionadas-cosmeticos-04set2026.md`, repo `claude`). ⇒ no Lumavo:
 
 - O artigo aponta para **uma versão de fórmula** com o seu INCI.
@@ -72,10 +72,10 @@ domínio de envios recusa serviços incompatíveis **antes do checkout**. Liçã
 casa: a etiqueta dos CTT saiu Via Aérea quando o cliente tinha pago Via
 Marítima (`etiqueta-ctt-aerea-em-vez-de-maritima-17set2026.md`).
 
-## O que a HNH já tem e serve de referência
+## O que os sistemas actuais já têm e serve de referência
 
 Rótulos com versão e imagens de CPNP, fórmulas versionadas, lote que nasce no
-enchimento — tudo no Hub da HNH (memórias de 18/08 a 02/10/2026, repo `claude`).
+enchimento — tudo no Hub interno actual (memórias de 18/08 a 02/10/2026, repo `claude`).
 **Referência de regras, não de código.**
 
 ## Anti-padrões

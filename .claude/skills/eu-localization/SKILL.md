@@ -18,9 +18,9 @@ uma ordem de compra não tinha moeda nenhuma (23/09/2026, `CLAUDE.md` do Hub).
 
 O **mercado** é a unidade de venda: **país (ou grupo de países) + moeda +
 línguas + lista de preços + métodos de pagamento + métodos de entrega + textos
-legais + registos fiscais**. Uma loja tem vários mercados — a HNH, para vender
-noutros países, **duplica lojas Shopify inteiras** (`hitnails/supabase/functions/shopify-duplicator-*`);
-no Lumavo é um mercado a mais na mesma loja.
+legais + registos fiscais**. Uma loja tem vários mercados — a loja online actual, para vender
+noutros países, **duplica lojas Shopify inteiras** (um duplicador de loja mãe
+para lojas destino); no Lumavo é um mercado a mais na mesma loja.
 
 - O mercado de um visitante decide-se pelo **país de entrega** quando o há;
   antes disso, por escolha dele (nunca impor pelo IP — geobloqueio).
@@ -74,7 +74,7 @@ no Lumavo é um mercado a mais na mesma loja.
 
 | País | Métodos de pagamento a considerar | Notas |
 |---|---|---|
-| Portugal | MB WAY, Multibanco, cartão, Klarna | Klarna = 58 pagamentos e 28.305 € em 90 dias no Academy (29/09/2026) |
+| Portugal | MB WAY, Multibanco, cartão, Klarna | Klarna = 58 pagamentos e 28.305 € em 90 dias na plataforma de formação actual (29/09/2026) |
 | Espanha | cartão, Bizum, Klarna | **C** |
 | Bélgica / Países Baixos | Bancontact, iDEAL/Wero | **C**, confirmar o estado da migração iDEAL → Wero |
 | Polónia | BLIK, Przelewy24 | **C** |

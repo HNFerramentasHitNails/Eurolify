@@ -28,7 +28,7 @@ description: Pagamentos no Lumavo — camada de adaptadores para prestadores (Eu
 
 ## A régua método → prestador → conta
 
-Desenho que o Bruno escolheu para o Academy a 29/09/2026
+Desenho que o Bruno escolheu para a plataforma de formação a 29/09/2026
 (`academy-piloto-eupago-desenho-29set2026.md`, repo `claude`), generalizado:
 
 | Método | Prestador | Conta | Activo | Mercados |
@@ -39,7 +39,7 @@ Desenho que o Bruno escolheu para o Academy a 29/09/2026
 | Cartão, Apple Pay, Google Pay | Stripe (ou EuPago) | … | … | todos |
 
 - **Tabela no servidor**, que o comerciante muda sem código.
-- **A conta escolhe-se pelo que se vende, nunca pelo domínio** (na HNH: duas
+- **A conta escolhe-se pelo que se vende, nunca pelo domínio** (hoje há duas
   contas EuPago, uma para formação e outra para produtos).
 - Quando um prestador não deixa escolher os métodos por pedido (o Pay By Link da
   EuPago não deixa — resumo de 29/09), **a escolha do método faz-se no checkout
@@ -86,18 +86,18 @@ capturado → em_disputa → (ganha | perdida)
 - Reembolso **ligado à nota de crédito** e à devolução; reembolso parcial com
   as linhas a que corresponde.
 - Por omissão, o reembolso vai para o **mesmo meio** de pagamento (é o que diz
-  a política da loja HNH — `hitnails/src/data/policiesContent.ts`).
+  a política da loja online actual, lida a 03/10/2026).
 - Disputas: prazo, provas (confirmação da encomenda, prova de entrega, aceitação
   das condições) reunidas automaticamente.
 
 ## Conciliação
 
 - Cada pagamento tem **a nossa referência** (`identifier`) igual à do prestador
-  — na Fluxus da HNH a conciliação EuPago já casa por essa referência.
+  — no módulo financeiro actual a conciliação EuPago já casa por essa referência.
 - Os pagamentos de um dia/liquidação do prestador ligam-se ao movimento do
   banco; taxas do prestador como despesa à parte.
 - **O meio de pagamento que vai para o documento fiscal tem de ser o real** — no
-  Hub, tudo o que não era «encontro de contas» saía «Shopify Payments», o que
+  Hub interno, tudo o que não era «encontro de contas» saía «Shopify Payments», o que
   num pagamento EuPago seria um documento errado (29/09/2026).
 
 ## Ambiente de testes

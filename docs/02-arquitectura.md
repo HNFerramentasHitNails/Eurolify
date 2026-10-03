@@ -10,7 +10,7 @@
 ```
    Frontends de qualquer origem               IAs de qualquer origem
    (Lovable, Vercel, Bolt, Emergent,          (Claude, ChatGPT/Codex, Gemini,
-    app móvel, POS, o Hub da HNH)              DeepSeek, agentes de compra)
+    app móvel, POS, um ERP)                    DeepSeek, agentes de compra)
             │  API da Loja (pública)                 │  MCP · OpenAPI · UCP/ACP
             │  API de Administração (privada)        │
             ▼                                        ▼
@@ -35,7 +35,7 @@
 E por cima de tudo, o **Hub do Lumavo**: o back-office onde o comerciante
 trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 
-## 2. Princípios (cada um tem um caso pago — ver `04-licoes-do-ecossistema-hnh.md`)
+## 2. Princípios (cada um tem um caso pago — ver `04-licoes-dos-sistemas-actuais.md`)
 
 1. **A API é o servidor, e o servidor decide.** Preço, IVA, disponibilidade,
    quem pode o quê e o que é um documento emitido decidem-se no núcleo. Um
@@ -49,7 +49,7 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
    com números (carga, equipa, ritmo de publicação).
 4. **Multi-inquilino desde o primeiro dia.** Cada linha tem o seu comerciante;
    o isolamento é imposto pela base (políticas por inquilino), não só pelo
-   código. A HNH é o inquilino zero. **D-1.**
+   código. O primeiro inquilino é o cliente zero (D-1).
 5. **Adaptadores para tudo o que é de fora.** Pagamentos, faturação, envios,
    VIES, e-mail. O núcleo fala uma língua só; trocar de fornecedor não mexe no
    núcleo.
@@ -144,7 +144,7 @@ módulo sem reescrever os outros.
 | Escrita por MCP | criar artigos, preparar encomendas — **sempre com confirmação humana**; nunca emitir faturas, reembolsar ou fundir clientes sem uma pessoa | 3 |
 | **OpenAPI para chamada de funções** | qualquer modelo que saiba chamar funções (incluindo os que não falam MCP) usa o mesmo contrato | 1 |
 | **Comércio por agentes (UCP/ACP)** | um agente de compras de terceiros encontra o catálogo e compra pelo checkout do Lumavo | 3 |
-| Pacote para construtores de frontends | instruções e exemplos para o Lovable/Vercel/Bolt/Emergent gerarem uma loja que fala com o Lumavo (o `README.md` da loja HNH já é uma especificação deste género) | 1 |
+| Pacote para construtores de frontends | instruções e exemplos para o Lovable/Vercel/Bolt/Emergent gerarem uma loja que fala com o Lumavo (a especificação da loja online actual, escrita para o Lovable, é deste género) | 1 |
 
 Regras: as ferramentas devolvem **páginas pequenas e procuras**, não dumps
 (lição 6.1); cada chamada fica no registo de auditoria com quem a fez e por que
@@ -153,8 +153,7 @@ modelo; orçamento de IA por comerciante (lição 6.3).
 ## 5. Multi-inquilino, alojamento e dados (D-1, D-3)
 
 - **Um inquilino = um comerciante**, com uma ou várias lojas (marcas) e vários
-  mercados. A HNH, com as várias marcas do Academy e a loja, é um inquilino com
-  várias lojas.
+  mercados. Um grupo com várias marcas é um inquilino com várias lojas.
 - Isolamento na base por inquilino em todas as tabelas, com testes que provam
   que um comerciante não vê o outro.
 - **Alojamento na UE.** Três hipóteses em D-3: fornecedor europeu (Hetzner,
@@ -172,7 +171,8 @@ modelo; orçamento de IA por comerciante (lição 6.3).
 - Cada alteração passa por: tipos, testes, testes de permissões, migração
   testada contra uma cópia — e só então é publicada, pelo mesmo caminho sempre.
 - O que é fiscal tem testes por cada ramo da regra e por cada caso pago do
-  ecossistema HNH (a #D4248, o caso Maria/Clarisse, o `000000000`, as Canárias…).
+  sistemas actuais (a isenção manual com entrega em Portugal, o bilhete comprado
+  para outra pessoa, o `000000000`, as Canárias…).
 - Decisões de arquitectura registadas como ADR em `docs/adr/`.
 
 ## 7. O que este documento não decide

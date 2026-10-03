@@ -1,8 +1,8 @@
 # Lumavo — regras de trabalho
 
-Plataforma de comércio electrónico europeia: núcleo por API, Hub de gestão,
-regras europeias de raiz e aberta a qualquer IA. **Projecto em desenho: não há
-código** (ADR-0001). Trabalham aqui o **Bruno** e o **Diogo**, à vez, cada um na
+Plataforma de comércio electrónico europeia da **Luckytarget Lda**: núcleo por
+API, Hub de gestão, regras europeias de raiz e aberta a qualquer IA. **Projecto
+em desenho: não há código** (ADR-0001). Trabalham aqui o **Bruno** e o **Diogo**, à vez, cada um na
 sua conta de Claude Code.
 
 ## 🔴 Antes da primeira resposta
@@ -15,13 +15,22 @@ sua conta de Claude Code.
 4. `git fetch origin main` e `git log --oneline -15 origin/main`: o outro pode
    ter mexido desde a última sessão.
 
+## 🔴 Marca própria — nunca uma marca existente
+
+Ordem do Diogo, 03/10/2026: o Lumavo é desenvolvido dentro da **Luckytarget
+Lda**, com marca própria. **A marca HN Hit Nails não se usa no Lumavo** — nem
+em documentos, nem em ecrãs, nem em exemplos, nem em nomes de ficheiros. Os
+sistemas actuais da empresa (Hub interno, loja online, plataforma de formação)
+servem só como **fonte de regras e de casos medidos**, citados sem a marca e sem
+nomes de clientes.
+
 **Este ficheiro são REGRAS.** O que se descobre (medições, decisões, estado) vai
 para `memoria/`, um ficheiro por tema e uma linha no índice.
 
 ## 🔴 Não se erra em documentos fiscais
 
-Herdado do ecossistema HNH, onde custou faturas reais
-(`docs/04-licoes-do-ecossistema-hnh.md`):
+Herdado dos sistemas actuais, onde custou faturas reais
+(`docs/04-licoes-dos-sistemas-actuais.md`):
 
 1. **Varrer, não remendar.** Uma regra que muda de sítio só está tratada quando
    **todos** os sítios que a liam estão listados e tratados.
@@ -113,15 +122,15 @@ confirmação, livre resolução, documento fiscal — são servidos pelo Lumavo
 
 ## Agentes
 
-Não pôr vários agentes em paralelo sem perguntar — no ecossistema HNH já se
+Não pôr vários agentes em paralelo sem perguntar — nos sistemas actuais já se
 esvaziou a janela de créditos de 5 horas num só pedido. Um agente dirigido a
 uma pergunta concreta, sim; e destilar o que devolver.
 
-## Relação com o ecossistema HNH
+## Relação com os sistemas actuais da empresa
 
-- Repos: `bruno-88/hub-hit-nails` (Hub), `bruno-88/hitnails` (loja),
-  `bruno-88/claude` (memória do ecossistema).
-- Mexer em qualquer sistema da HNH obedece às regras do `CLAUDE.md` **desse**
+- A memória de trabalho desses sistemas vive no repo `bruno-88/claude`; os
+  repositórios de onde vieram as regras estão listados em `memoria/` (fontes).
+- Mexer em qualquer desses sistemas obedece às regras do `CLAUDE.md` **desse**
   repositório, não a estas.
-- O Lumavo **não fala com o Moloni da HNH**: na HNH, quem fala com o Moloni é o
-  Hub (decisão D-10 por tomar).
+- O Lumavo **não fala com o software de faturação de um cliente que já tem
+  sistema de gestão**: quem emite é o sistema dele (decisão D-10 por tomar).
