@@ -155,6 +155,18 @@ A página 52 passou de «por decidir» a «Decidido · ADR-0010» (as regras no
 `AGENTS.md`, importado pelo `CLAUDE.md`; as skills em `.agents/skills`), e o
 passo 5 dos próximos passos (63) passou a «Testar o Codex».
 
+## Versão 15 (03/10/2026): desenhada e medida
+
+Pergunta do Diogo: *«A apresentação está feita para apresentar ao bruno e
+cila?»*. As 64 páginas foram desenhadas num Chromium local, com as letras da
+apresentação (Space Grotesk e Public Sans, descarregadas do Google Fonts) e o
+tamanho 1920×1080, e medido o fundo do conteúdo contra o limite de 920 píxeis.
+Só a 11 passava (957 com as letras verdadeiras): encurtadas duas frases, ficou
+em 898. As 1 e 5 encostam a 920 de propósito (conteúdo espalhado até ao
+fundo). ⚠️ O desenho local imita o motor da apresentação (tamanhos, letras,
+caixas) mas não os estilos dele para tabelas e listas: é uma medição
+aproximada, não o PDF que sai do botão de exportar.
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma

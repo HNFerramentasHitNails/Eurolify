@@ -55,7 +55,13 @@ Resposta do Diogo a 03/10/2026: *«a) um sítio só, AGENTS.md para os dois»*.
 - **O que pode partir:** um clone em Windows sem ligações simbólicas activas
   traz `.claude/skills/<nome>` como ficheiros de texto com o caminho, e o
   Claude Code deixa de ver as skills (conhecimento prévio, **C**). Em macOS e
-  Linux as ligações funcionam.
+  Linux as ligações funcionam. **O Bruno trabalha em macOS e o Diogo em
+  Windows** (Diogo, 03/10/2026). O Git para Windows **não cria ligações por
+  omissão**; activam-se com o Modo de Programador do Windows (Windows 10
+  1703 ou mais recente) e clonando com `git clone -c core.symlinks=true <URL>`
+  ([Git for Windows](https://gitforwindows.org/symbolic-links), lido a
+  03/10/2026, **W**). O Codex não é afectado: lê `.agents/skills`, que são
+  pastas a sério, e o `AGENTS.md`, que é um ficheiro a sério.
 - Não é o OK para código (ADR-0001).
 
 ## O que ficou por verificar
@@ -64,4 +70,4 @@ Resposta do Diogo a 03/10/2026: *«a) um sítio só, AGENTS.md para os dois»*.
   skills; nem numa sessão nova de Claude Code que as skills chegam pelas
   ligações. O teste: abrir uma sessão de cada e perguntar «que regras e que
   skills tens deste repositório?».
-- Se o Diogo ou o Bruno trabalham em Windows.
+- Se, no Windows do Diogo, o Claude Code vê as 14 skills depois de activar as ligações.

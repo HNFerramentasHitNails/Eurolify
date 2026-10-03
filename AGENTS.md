@@ -148,7 +148,8 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
 As skills vivem em `.agents/skills/`, onde o Codex as procura. Em
 `.claude/skills/` há uma ligação por skill para lá, que é como o Claude Code as
 encontra. **Skill nova = pasta nova em `.agents/skills/` + a ligação em
-`.claude/skills/`**; nunca uma cópia.
+`.claude/skills/`**; nunca uma cópia. Em Windows, as ligações só existem com
+o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 
 | Skill | Usar quando |
 |---|---|
