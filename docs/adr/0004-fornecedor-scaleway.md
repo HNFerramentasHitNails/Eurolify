@@ -27,7 +27,7 @@ scaleway»*.
 
 ## Decisão
 
-O Lumavo fica alojado na **Scaleway**, com serviços geridos: PostgreSQL gerido
+O Eurolify fica alojado na **Scaleway**, com serviços geridos: PostgreSQL gerido
 com máquina de reserva, contentores para a API e os processos sempre ligados, e
 armazenamento de ficheiros. Sem comparação com a OVHcloud.
 

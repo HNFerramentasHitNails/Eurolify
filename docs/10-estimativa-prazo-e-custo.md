@@ -55,7 +55,7 @@ Claude Code (**C**, todas as linhas):
 | 10 | Livre resolução, área de cliente, confirmação com prova, notificações PT/ES/EN | 4–7 |
 | 11 | RGPD essencial | 3–5 |
 | 12 | API da Loja e de Administração, webhooks, SDK, MCP de leitura, documentação | 8–12 |
-| 13 | Abertura a comerciantes: registo, contrato aceite, faturação do Lumavo por escalões, suporte, exportação (Data Act) | 6–10 |
+| 13 | Abertura a comerciantes: registo, contrato aceite, faturação do Eurolify por escalões, suporte, exportação (Data Act) | 6–10 |
 | 14 | Hub mínimo: definições, encomendas, integrações, webhooks, auditoria | 6–10 |
 | 15 | Desenho de ecrãs (checkout, Hub, registo) e acessibilidade | 4–8 |
 | 16 | Testes, isolamento entre inquilinos, carga, correcções do teste de intrusão e da auditoria de acessibilidade | 6–10 |
@@ -123,7 +123,7 @@ Claude Code (**M**, contado a 03/10/2026 no `main` do Hub): primeira migração 
 código (sem o ficheiro de tipos gerado). É muito, depressa. Mas foi construído
 para uma empresa só e corrigido em produção, e as lições custaram faturas
 reais: 277 faturas em 90 dias por uma rede temporária, 77 funções abertas a
-quem não tinha sessão (`docs/04`). O Lumavo é vendido a outras empresas, com
+quem não tinha sessão (`docs/04`). O Eurolify é vendido a outras empresas, com
 contrato e responsabilidade: precisa de alguém que reveja cada mudança, de
 testes de isolamento e de segurança que o Hub não tem. Não tenho medida de
 quanto isso atrasa duas pessoas que gerem também a empresa — por isso o
@@ -220,7 +220,7 @@ contabilista e o contrato pelo jurista, que correm em paralelo.
 
 **O contraste com o Hub interno, dito às claras:** o Hub foi construído em
 ≈ 10,5 meses (primeira migração a 18/11/2025, **M**) e tem mais módulos do que
-a Fase 1. Estes números são maiores porque o Lumavo tem de ser provado antes
+a Fase 1. Estes números são maiores porque o Eurolify tem de ser provado antes
 de abrir — isolamento entre comerciantes, testes, segurança, validações — e o
 Hub foi corrigido em produção. **Não tenho medida** de quanto mais rápido
 vocês são do que a hipótese 1: às 8 semanas mede-se (§6) e estes números

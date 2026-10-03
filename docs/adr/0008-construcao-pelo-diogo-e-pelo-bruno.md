@@ -1,4 +1,4 @@
-# ADR-0008 · O Lumavo é desenvolvido pelo Diogo e pelo Bruno, com Claude Code e Codex
+# ADR-0008 · O Eurolify é desenvolvido pelo Diogo e pelo Bruno, com Claude Code e Codex
 
 - **Estado:** aceite
 - **Data:** 03/10/2026

@@ -1,8 +1,8 @@
-# O que os sistemas actuais já pagaram — e como entra no Lumavo
+# O que os sistemas actuais já pagaram — e como entra no Eurolify
 
 > **Versão de 03/10/2026.** Os sistemas que a Luckytarget já usa todos os dias —
 > um Hub interno de gestão, uma loja online sobre o Shopify e uma plataforma de
-> formação — são, na prática, **a especificação dos problemas** que o Lumavo
+> formação — são, na prática, **a especificação dos problemas** que o Eurolify
 > tem de resolver de raiz. Cada regra abaixo custou uma fatura errada, uma nota
 > de crédito, horas de trabalho ou um cliente ao telefone.
 >
@@ -11,7 +11,7 @@
 > medidos lá e **não foram medidos outra vez nesta sessão**. Nomes de clientes e
 > números de documentos foram retirados de propósito.
 >
-> 🔴 **O Lumavo herda as REGRAS, não o CÓDIGO.** A tentativa de vender o Hub
+> 🔴 **O Eurolify herda as REGRAS, não o CÓDIGO.** A tentativa de vender o Hub
 > interno a outra empresa (30/09/2026) mediu que tem a marca e as regras de uma só
 > empresa escritas em 92 ficheiros do ecrã e 51 funções, **nunca foi instalado de
 > raiz noutra conta** (1.601 migrações, 225 funções) e tinha **77 funções da base
@@ -22,7 +22,7 @@
 
 ## 1. Identidade e perfis de faturação
 
-| # | Regra | O caso que a pagou | Fonte | No Lumavo |
+| # | Regra | O caso que a pagou | Fonte | No Eurolify |
 |---|---|---|---|---|
 | 1.1 | **A ficha do cliente não tem identidade fiscal.** NIF, isenção e validação VIES vivem no **perfil de faturação**: um cliente, vários perfis | O NIF saiu da ficha para o perfil a 06/08/2026; a 11/09 ainda havia **4 sítios** a ler a ficha, um a mandar o NIF errado ao Shopify | `CLAUDE.md` do Hub interno («Não se erra em documentos fiscais») | `Customer` e `BillingProfile` separados desde o primeiro dia; nenhum campo fiscal em `Customer` |
 | 1.2 | **Um perfil é a mesma pessoa noutra postura fiscal; duas pessoas são duas fichas** | Um cliente comprou um bilhete para outra pessoa e o checkout criou um perfil com o NIF dessa pessoa **dentro** da ficha de quem comprou; o rascunho fiscal apontava à entidade errada (12/08/2026) | `identidade-comprou-para-outra-pessoa-12ago2026.md` | O checkout tem «a fatura é para outra pessoa/empresa» e nunca escreve dados de terceiros no perfil de quem está autenticado |
@@ -37,14 +37,14 @@
 
 ## 2. IVA e documentos fiscais
 
-| # | Regra | O caso | Fonte | No Lumavo |
+| # | Regra | O caso | Fonte | No Eurolify |
 |---|---|---|---|---|
 | 2.1 | **A ordem da decisão do IVA:** 1.º o tipo de artigo (isento pelo artigo ganha a tudo); 2.º excepções — manual, VIES, fora da UE; 3.º o resto paga — taxa nacional ou do destino (OSS); 4.º **entrega no país do comerciante anula VIES e fora da UE, mas não a isenção manual** | A regra estava escrita duas vezes, as cópias divergiram na ordem e uma encomenda saiu com IVA com o ecrã a mostrar «s/ IVA» (13/08/2026) | `regra-isencao-iva-bruno.md` | Uma função de decisão de IVA no servidor, com testes por cada ramo |
 | 2.2 | **A isenção manual é absoluta, mas exige prova** (ex.: declaração da alfândega) | Cliente suíço com transportadora própria recebe em Portugal e a mercadoria sai do país (13/08/2026) | `regra-isencao-iva-bruno.md`; `excepcoes-de-isencao-e-anexos-28set2026.md` | Isenção manual com motivo (art. 14.º CIVA / RITI), nota, anexos e quem a pôs |
 | 2.3 | **Uma intracomunitária só é isenta com NIF válido no VIES** | 7 faturas intra-UE isentas sem NIF, 3.773,09 € (21/04 → 30/07/2026, número corrigido a 28/09) | `desenho-ecossistema-bruno.md`; `canarias-ceuta-melilla-extra-ue-28set2026.md` | Trava no servidor; a prova do VIES (data, resposta, identificador da consulta) guarda-se com a decisão |
 | 2.4 | **Territórios fora do IVA da UE** decidem-se pelo código postal, nunca por «contém» | «Palma de Mallorca» cairia nas Canárias por «la palma» (28/09/2026) | `canarias-ceuta-melilla-extra-ue-28set2026.md` | Tabela de territórios especiais por país + código postal |
 | 2.5 | **Se foi cobrado IVA, a fatura leva IVA** — a isenção do cliente nunca passa por cima do que foi cobrado | Cliente suíço pagou 67,05 € de IVA e a fatura ia sair sem IVA (05/08/2026) | `desenho-ecossistema-bruno.md` | A fatura nasce do que foi cobrado no checkout, não de um novo cálculo |
-| 2.6 | **A prova do que saiu é o documento**, nunca o nosso registo | 13 faturas (2.656,04 €) saíram como consumidor final tendo nós o NIF — a nossa tabela guardava a **intenção** (12/08/2026) | `hub-nif-sai-da-entidade-moloni-12ago2026.md` | Depois de emitir, o Lumavo lê de volta o NIF, a taxa e os totais **do documento** e guarda-os à parte |
+| 2.6 | **A prova do que saiu é o documento**, nunca o nosso registo | 13 faturas (2.656,04 €) saíram como consumidor final tendo nós o NIF — a nossa tabela guardava a **intenção** (12/08/2026) | `hub-nif-sai-da-entidade-moloni-12ago2026.md` | Depois de emitir, o Eurolify lê de volta o NIF, a taxa e os totais **do documento** e guarda-os à parte |
 | 2.7 | **A taxa é por país; um nome de taxa não serve para ler o passado** | Uma taxa chamada «VAT PT» serviu Espanha a 21 % durante meses; editar a taxa no software de faturação **não é retroactivo** (10/08/2026) | `oss-iva-por-pais-10ago2026.md` | Chave (país, taxa); o documento guarda um retrato da taxa no momento |
 | 2.8 | **O relatório OSS tem quatro baldes**: OSS, nacional, exportação, isentas (recapitulativa) | Ia-se declarar 1.346 € de IVA português no impresso errado (10/08/2026) | `oss-iva-por-pais-10ago2026.md` | Relatório com os quatro baldes, agrupado pelo **país de entrega** |
 | 2.9 | **Os totais que fecham ao cêntimo são os do cabeçalho do documento** | Somar linhas perdia cêntimos (15,45 € contra 15,47 € numa fatura a 21 %) | `oss-iva-por-pais-10ago2026.md` | Guardar os totais devolvidos pelo emissor, não recalculados |
@@ -55,7 +55,7 @@
 
 ## 3. Stock, encomendas e devoluções
 
-| # | Regra | O caso | Fonte | No Lumavo |
+| # | Regra | O caso | Fonte | No Eurolify |
 |---|---|---|---|---|
 | 3.1 | **Vender o disponível, não o físico** | A loja vendeu 2 coleções já prometidas a uma encomenda comercial; **216 de 1.259** artigos à venda nessa situação (16/09/2026) | `loja-vendeu-stock-ja-reservado-16set2026.md` | Um só número de disponibilidade por canal, com reservas de todos os canais |
 | 3.2 | **Saldo e movimento andam juntos** — uma porta para mexer no stock | Nada obrigava os dois a concordar; baixas a dobrar em Abr–Mai (145 encomendas) | `mapa-da-cadeia-do-stock-18set2026.md`; `proposta-venda-do-hub-30set2026.md` | O stock só muda por movimento no livro de stock |
@@ -68,7 +68,7 @@
 
 ## 4. Integrações e falhas silenciosas
 
-| # | Regra | O caso | Fonte | No Lumavo |
+| # | Regra | O caso | Fonte | No Eurolify |
 |---|---|---|---|---|
 | 4.1 | **«Não encontrei» nunca é «feito»** | Um sistema respondia `200 not_found` e o outro registava «apagado»; 211 arquivamentos sem rasto porque a tabela de registo **nunca foi criada** (18/09/2026) | `CLAUDE.md` do repo `claude` | Respostas da API com estado explícito; registo de integrações obrigatório |
 | 4.2 | **Um aviso (webhook) que falha não pode responder 200** | Uma mudança de versão da API do Stripe fez as renovações desistirem em silêncio com 200: **0 transacções** registadas e 14 de 22 subscrições paradas (07/08/2026, projecto Cila Santos) | `cila-renovacoes-stripe-07ago2026.md` | Versão da API do fornecedor fixada e testada; falha ⇒ 5xx e reenvio; alarme |
@@ -96,9 +96,9 @@
 
 ## 6. IA
 
-| # | Regra | O caso | Fonte | No Lumavo |
+| # | Regra | O caso | Fonte | No Eurolify |
 |---|---|---|---|---|
-| 6.1 | **Uma ferramenta de IA devolve um índice, não o catálogo inteiro** | O assistente interno gastava **185 mil tokens por conversa**, 70 % no catálogo enviado inteiro; passou a 28 mil (15/09/2026) | `estrela-gasta-185-mil-tokens-por-conversa-15set2026.md`; `estrela-fase1-catalogo-fora-do-prompt-15set2026.md` | As ferramentas MCP do Lumavo devolvem páginas pequenas e procuras, nunca dumps |
+| 6.1 | **Uma ferramenta de IA devolve um índice, não o catálogo inteiro** | O assistente interno gastava **185 mil tokens por conversa**, 70 % no catálogo enviado inteiro; passou a 28 mil (15/09/2026) | `estrela-gasta-185-mil-tokens-por-conversa-15set2026.md`; `estrela-fase1-catalogo-fora-do-prompt-15set2026.md` | As ferramentas MCP do Eurolify devolvem páginas pequenas e procuras, nunca dumps |
 | 6.2 | **Uma régua corre sozinha e avisa; um agente responde a quem pergunta** | 5 funções abertas criadas em 6 dias, nenhuma apanhada por um agente (21/09/2026) | `agentes-e-skills-no-repo-21set2026.md` | Vigilâncias são consultas agendadas, não IA |
 | 6.3 | **Créditos de IA esgotam** | O assistente interno ficou em baixo a 15/09/2026 por falta de créditos | `estrela-fase3-bloqueada-creditos-15set2026.md` | Orçamento de IA por comerciante, com tecto e aviso |
 

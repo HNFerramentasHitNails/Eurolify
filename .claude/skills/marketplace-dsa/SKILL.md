@@ -1,6 +1,6 @@
 ---
 name: marketplace-dsa
-description: Preparação do Lumavo para marketplace com vendedores terceiros — integração de vendedores, verificação de empresas (KYB/KYC) por adaptador, identidade fiscal do vendedor, contas e comissões, rastreabilidade (art. 30.º do DSA), aviso e acção, moderação de conteúdos e produtos, recurso, transparência de publicidade e recomendações, DAC7. Usar quando alguém propuser vendedores terceiros, comissões ou «marketplace», e para travar lógica de marketplace na Fase 1.
+description: Preparação do Eurolify para marketplace com vendedores terceiros — integração de vendedores, verificação de empresas (KYB/KYC) por adaptador, identidade fiscal do vendedor, contas e comissões, rastreabilidade (art. 30.º do DSA), aviso e acção, moderação de conteúdos e produtos, recurso, transparência de publicidade e recomendações, DAC7. Usar quando alguém propuser vendedores terceiros, comissões ou «marketplace», e para travar lógica de marketplace na Fase 1.
 ---
 
 # Marketplace e DSA
@@ -19,7 +19,7 @@ passa o dinheiro e que leis se aplicam. Desenhar as costuras sim; ligar não.
 1. **O vendedor é uma entidade do modelo**, mesmo que na Fase 1 seja sempre o
    próprio comerciante: encomenda, linha, stock, documento fiscal e reembolso
    sabem **de que vendedor** são.
-2. **O dinheiro nunca passa pelo Lumavo** (`payments-psd2-sca`): num
+2. **O dinheiro nunca passa pelo Eurolify** (`payments-psd2-sca`): num
    marketplace usa-se o produto de plataformas do prestador.
 3. **O documento fiscal é do vendedor**, emitido com os dados dele — ou, nos
    casos de fornecedor presumido (art. 14.º-A da Directiva IVA, **C**), da
@@ -43,14 +43,14 @@ passa o dinheiro e que leis se aplicam. Desenhar as costuras sim; ligar não.
 |---|---|
 | Vendedor | identidade legal, NIF/IVA com prova VIES, morada, registo comercial, representante, estado (pendente, activo, suspenso), data de verificação e por quem/que serviço |
 | Verificação (KYB/KYC) | adaptador do serviço, resultado em bruto, documentos, validade |
-| Conta de recebimento | no prestador de pagamentos, nunca no Lumavo |
+| Conta de recebimento | no prestador de pagamentos, nunca no Eurolify |
 | Comissão | regra (percentagem, fixa, por categoria), vigência, documento de faturação da comissão |
 | Denúncia | quem, o quê, fundamento, decisão, fundamentação, notificação, recurso — **registo imutável** |
 
 ## Anti-padrões
 
 - Aceitar vendedores «de confiança» sem verificação, para andar depressa.
-- Somar o dinheiro de vários vendedores numa conta do Lumavo.
+- Somar o dinheiro de vários vendedores numa conta do Eurolify.
 - Moderação sem decisão fundamentada nem recurso.
 - Decidir identidade de vendedores pelo nome (regra do ecossistema).
 

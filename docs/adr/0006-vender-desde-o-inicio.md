@@ -1,4 +1,4 @@
-# ADR-0006 · O Lumavo vende-se a outros comerciantes desde o início
+# ADR-0006 · O Eurolify vende-se a outros comerciantes desde o início
 
 - **Estado:** aceite
 - **Data:** 03/10/2026
@@ -7,7 +7,7 @@
 
 ## Contexto
 
-A D-1 perguntava quando o Lumavo abre a outros comerciantes. A decisão F
+A D-1 perguntava quando o Eurolify abre a outros comerciantes. A decisão F
 (Diogo, 03/10/2026) já tinha dito que é um produto para vender a todos os tipos
 de comerciantes da UE, o que excluiu a opção c) (uso interno). Ficava a escolha
 entre a) vender desde o início e b) provar com um cliente zero e abrir na
@@ -20,19 +20,19 @@ outros desde o início»*.
 
 | Opção | A favor | Contra |
 |---|---|---|
-| **a) Vender desde o início** | Receita e comerciantes reais mais cedo; o produto é desenhado para vender desde o primeiro dia | Faturas de outras empresas em risco antes de o Lumavo estar provado; mais trabalho na 1.ª versão (registo de comerciantes, contratos, faturação do Lumavo, suporte) |
+| **a) Vender desde o início** | Receita e comerciantes reais mais cedo; o produto é desenhado para vender desde o primeiro dia | Faturas de outras empresas em risco antes de o Eurolify estar provado; mais trabalho na 1.ª versão (registo de comerciantes, contratos, faturação do Eurolify, suporte) |
 | b) Cliente zero e abrir na Fase 3 | Prova com uma loja real antes de pôr faturas de terceiros em risco | Mais tempo até vender |
 
 ## Decisão
 
-O Lumavo vende-se a outros comerciantes **desde a primeira versão** (Fase 1).
+O Eurolify vende-se a outros comerciantes **desde a primeira versão** (Fase 1).
 A recomendação b) não foi seguida.
 
 ## Consequências
 
 - **Entram na Fase 1** (antes estavam na Fase 3): registo e configuração pelo
   próprio comerciante, contrato de serviço e acordo de tratamento de dados,
-  faturação do Lumavo aos comerciantes, suporte e níveis de serviço,
+  faturação do Eurolify aos comerciantes, suporte e níveis de serviço,
   exportação completa dos dados.
 - **A emissão de faturas por adaptador em Portugal (Moloni) passa à Fase 1**:
   um comerciante sem sistema de gestão precisa de faturar desde o primeiro dia.

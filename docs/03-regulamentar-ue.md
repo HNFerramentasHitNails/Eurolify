@@ -1,9 +1,9 @@
-# Mapa regulamentar europeu do Lumavo
+# Mapa regulamentar europeu do Eurolify
 
 > **Versão de 03/10/2026.** Desenho, não aconselhamento jurídico nem fiscal.
 > Cada linha diz **de onde veio** e **com que grau de certeza**. Nada disto
 > dispensa a validação de um contabilista e de um jurista em cada país onde o
-> Lumavo for vendido — ver a coluna «Quem valida».
+> Eurolify for vendido — ver a coluna «Quem valida».
 
 ## Como ler a coluna «Verificação»
 
@@ -21,14 +21,14 @@ um profissional.
 
 ## 1. Impostos e faturação
 
-| Tema | Instrumento | Desde | O que obriga o Lumavo a ter | Verif. | Quem valida |
+| Tema | Instrumento | Desde | O que obriga o Eurolify a ter | Verif. | Quem valida |
 |---|---|---|---|---|---|
 | IVA nas vendas à distância na UE (OSS) | Pacote IVA do comércio electrónico, Dir. (UE) 2017/2455 e 2019/1995 | 01/07/2021 | Taxa do **país de destino** em B2C acima do limiar de 10.000 € anuais na UE; relatório OSS separado do nacional, da exportação e das isentas | **C** + **M** (os sistemas actuais já declaram OSS — `oss-iva-por-pais-10ago2026.md`) | contabilista |
 | Importações de baixo valor (IOSS) | idem | 01/07/2021 | Só relevante se um comerciante vender a partir de fora da UE (≤150 €) | **C** | contabilista |
 | Fim da isenção aduaneira <150 € | reforma aduaneira da UE | 01/07/2026 | Direito fixo de 3 € **por artigo/categoria pautal** nas importações de baixo valor; transitório até 2028 | **W** ([Avalara](https://www.avalara.com/blog/en/europe/2025/11/eu-end-150-customs-duty-exemption-2026.html), [Baker Tilly](https://bakertillysee.com/insights/major-eu-customs-update-e3-duty-on-low-value-e-commerce-imports-starting-july-2026/)) | despachante |
 | IVA na era digital (ViDA) | pacote ViDA, adoptado pelo Conselho a 11/03/2025 | faseado | Fatura electrónica estruturada nas operações **intracomunitárias** a partir de **01/07/2030**; regra do fornecedor presumido para plataformas de alojamento e transporte (opcional 01/07/2028, obrigatória 01/01/2030) | **W** ([vatupdate](https://www.vatupdate.com/2025/03/13/council-adopted-the-vat-in-the-digital-age-vida-package-on-march-11-2025/), [KPMG](https://kpmg.com/ch/en/insights/taxes/vat-digital-age.html)) | contabilista |
 | Fornecedor presumido em bens (marketplaces) | art. 14.º-A da Directiva IVA | 01/07/2021 | Se um dia houver marketplace: em certas vendas a plataforma passa a ser o vendedor para efeitos de IVA | **C** | contabilista |
-| Software de faturação **certificado pela AT** | Portaria 363/2010 e legislação conexa | em vigor | O Lumavo **não emite faturas portuguesas** sem ser software certificado ⇒ liga-se a quem é (Moloni, etc.) | **C** + **M** (é por isso que o Hub fala com o Moloni) | contabilista |
+| Software de faturação **certificado pela AT** | Portaria 363/2010 e legislação conexa | em vigor | O Eurolify **não emite faturas portuguesas** sem ser software certificado ⇒ liga-se a quem é (Moloni, etc.) | **C** + **M** (é por isso que o Hub fala com o Moloni) | contabilista |
 | ATCUD e código QR | legislação portuguesa | em vigor | Obrigatórios em todas as faturas — tratados pelo software certificado | **W** ([centralgest](https://www.centralgest.com/noticia/797/assinatura-digital-nas-faturas-adiada-para-2027)) | contabilista |
 | PDF como fatura electrónica (PT) | regime transitório | até 31/12/2026 | A partir de **01/01/2027** um PDF só vale como fatura electrónica com **assinatura electrónica qualificada** (ou formato estruturado). O Orçamento de 2027 ainda pode mudar isto | **W** ([centralgestcloud](https://www.centralgestcloud.com/blog/artigo/244/assinatura-digital-qualificada-adiada-para-2027), [InvoiceXpress](https://invoicexpress.com/blog/assinatura-digital-faturas-eletronicas/)) | contabilista |
 | Conservação de documentos (PT) | art. 52.º do CIVA | em vigor | **10 anos civis**; em suporte electrónico com integridade e acesso em linha. Choca com o «direito ao apagamento» do RGPD ⇒ ver §4 | **W** ([Portal das Finanças](https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/civa/Pages/iva52.aspx)) | contabilista |
@@ -55,7 +55,7 @@ um profissional.
 | *Digital Fairness Act* (equidade digital) | proposta da Comissão | **ainda não apresentada** (esperada no 4.º trimestre de 2026) | Vigiar: padrões enganadores, subscrições, personalização | **W** ([AKD](https://www.akd.eu/insights/the-digital-fairness-act-what-to-expect-from-the-forthcoming-eu-legislative-proposal-on-strengthening-consumer-protection-rules-for-the-digital-age)) | — |
 
 > ⚠️ Muitas vendas dos sistemas actuais são **B2B** (profissionais), o que afasta parte destas
-> obrigações (`ai-act-compliance.md`, auditoria jurídica de abril/2026). O Lumavo
+> obrigações (`ai-act-compliance.md`, auditoria jurídica de abril/2026). O Eurolify
 > tem de saber, **por encomenda**, se o comprador é consumidor ou profissional —
 > e não deduzi-lo só por haver NIF.
 
@@ -69,7 +69,7 @@ um profissional.
 | Químicos — rótulo na venda online | Reg. (UE) 2024/2865 (CLP revisto) | adiado para **01/01/2028** pelo Reg. (UE) 2025/2439 | Na venda à distância, **todos** os elementos do rótulo CLP visíveis na oferta (não chega um PDF da ficha de segurança) | **W** ([CMS](https://cms.law/en/aut/legal-updates/updated-eu-chemicals-labelling-and-packaging-clp-regulation), [ChemLinked](https://chemical.chemlinked.com/news/chemical-news/eu-extends-clp-compliance-deadlines-for-new-labeling-rules-to-2028)) | técnico regulamentar |
 | Embalagens (PPWR) | Reg. (UE) 2025/40 | **12/08/2026** | Registo de responsabilidade alargada do produtor **por país** onde se vende, vendedores à distância incluídos; marketplaces verificam o registo. ⚠️ As fontes de consultoria dizem que o limite de 40 % de espaço vazio já se aplica — **não confio: confirmar no texto** | **W** parcial ([ppwratlas](https://ppwratlas.com/), [complir](https://www.complir.io/resources/guides/extended-producer-responsibility-eu-guide)) | jurista / entidade gestora |
 | Mercadorias perigosas no transporte | ADR / IATA | em vigor | Marcar artigos que não podem seguir por avião ou certas transportadoras (vernizes, solventes) | **C** + **M** (a etiqueta dos CTT saiu Via Aérea com Via Marítima cobrada, `etiqueta-ctt-aerea-em-vez-de-maritima-17set2026.md`) | transportadora |
-| Acessibilidade | Dir. (UE) 2019/882 (EAA) | 28/06/2025 | Loja e checkout acessíveis; **microempresas de serviços** (<10 pessoas e ≤2 M€) isentas — o Lumavo deve dar acessibilidade por omissão a todos | **W** ([accessible.org](https://accessible.org/eaa-ecommerce-services-requirements/), [Travers Smith](https://www.traverssmith.com/knowledge/knowledge-container/a-new-milestone-for-accessibility-the-european-accessibility-act-now-applies/)) | jurista |
+| Acessibilidade | Dir. (UE) 2019/882 (EAA) | 28/06/2025 | Loja e checkout acessíveis; **microempresas de serviços** (<10 pessoas e ≤2 M€) isentas — o Eurolify deve dar acessibilidade por omissão a todos | **W** ([accessible.org](https://accessible.org/eaa-ecommerce-services-requirements/), [Travers Smith](https://www.traverssmith.com/knowledge/knowledge-container/a-new-milestone-for-accessibility-the-european-accessibility-act-now-applies/)) | jurista |
 
 ## 4. Dados, plataformas e IA
 
@@ -81,13 +81,13 @@ um profissional.
 | Serviços digitais (DSA) | Reg. (UE) 2022/2065 | 17/02/2024 | Só pesa se houver **marketplace**. Micro e pequenas plataformas estão fora das secções 3 e 4 (incluindo a rastreabilidade dos vendedores, art. 30.º), salvo plataforma muito grande | **W** ([CMS DigitalLaws](https://www.cms-digitallaws.com/en/dsa/article-19/), [DSA Library](https://dsa-library.com/article/30/)) | jurista |
 | Comunicação de vendedores por plataformas | Dir. (UE) 2021/514 (DAC7) | 01/01/2023 | Só com marketplace: reportar rendimentos dos vendedores à AT | **C** | contabilista |
 | Inteligência artificial | Reg. (UE) 2024/1689 (AI Act) | faseado | Literacia em IA (art. 4.º) desde 02/02/2025; transparência quando alguém fala com uma IA (art. 50.º) — **data a confirmar**. Um assistente de loja não é «alto risco» | **M** (`ai-act-compliance.md`) + **C** | jurista |
-| Cibersegurança | Dir. (UE) 2022/2555 (NIS2) | transposição nacional | A avaliar quando o Lumavo for média empresa (mercados online e fornecedores de nuvem estão nos anexos) | **C** | jurista |
+| Cibersegurança | Dir. (UE) 2022/2555 (NIS2) | transposição nacional | A avaliar quando o Eurolify for média empresa (mercados online e fornecedores de nuvem estão nos anexos) | **C** | jurista |
 
 ## 5. Pagamentos
 
 | Tema | Instrumento | Desde | O que obriga | Verif. | Quem valida |
 |---|---|---|---|---|---|
-| Serviços de pagamento e autenticação forte | Dir. (UE) 2015/2366 (PSD2) + Reg. Del. (UE) 2018/389 | 2019 | Autenticação forte (3DS2) feita pelo prestador de pagamento; **guardar fundos de terceiros exige licença** ⇒ o Lumavo nunca recebe o dinheiro dos comerciantes | **C** | jurista |
+| Serviços de pagamento e autenticação forte | Dir. (UE) 2015/2366 (PSD2) + Reg. Del. (UE) 2018/389 | 2019 | Autenticação forte (3DS2) feita pelo prestador de pagamento; **guardar fundos de terceiros exige licença** ⇒ o Eurolify nunca recebe o dinheiro dos comerciantes | **C** | jurista |
 | PSD3 / PSR | propostas da Comissão | acordo político a 27/11/2025; adopção formal esperada no 2.º semestre de 2026 | Fraude, transparência de preços, responsabilidade em fraude por usurpação; vigiar | **W** ([Taylor Wessing](https://www.taylorwessing.com/en/insights-and-events/insights/2025/11/eu-lawmakers-strike-a-deal-on-payments-reforms), [Parlamento Europeu](https://www.europarl.europa.eu/legislative-train/theme-an-economy-that-works-for-people/file-revision-of-eu-rules-on-payment-services)) | jurista |
 | PCI DSS | norma da indústria (não é lei) | — | Nunca tocar em dados de cartão: páginas de pagamento alojadas pelo prestador | **C** | — |
 
@@ -101,7 +101,7 @@ um profissional.
 | **AP2** (Agent Payments Protocol) | Google | autorização de pagamentos por agentes | **W** (resumo de pesquisa) |
 
 ⚠️ O UCP nasceu da **Shopify**: é o concorrente directo a escrever as regras
-do comércio por agentes. Razão para o Lumavo falar estes protocolos em vez de
+do comércio por agentes. Razão para o Eurolify falar estes protocolos em vez de
 inventar um próprio.
 
 ---

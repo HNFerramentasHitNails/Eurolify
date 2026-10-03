@@ -168,7 +168,7 @@ O que os números dizem:
    Pesa no Leste: Bulgária 50,3 % dos pagamentos, Hungria 59 % das encomendas,
    Eslováquia 43 %, Chéquia 39 % dos compradores, Roménia 37 % na FAN Courier.
    Quem cobra é a transportadora (Econt, Speedy, Packeta, FAN Courier,
-   Sameday…). O Lumavo nunca toca no dinheiro, como nos outros pagamentos.
+   Sameday…). O Eurolify nunca toca no dinheiro, como nos outros pagamentos.
 4. **Envios: uma plataforma que junta transportadoras** (Sendcloud, europeia)
    para começar em muitos países de uma vez, e **ligação directa** às redes que
    cobrem vários países (DHL, DPD, GLS) e ao operador nacional de cada país
@@ -178,7 +178,7 @@ O que os números dizem:
    Bálticos, Econt e Speedy na Bulgária, FAN Courier e Sameday na Roménia,
    BRT em Itália.
 6. **Pela decisão L**, estes parceiros são convidados, na Fase 2, a escrever
-   eles próprios a sua ligação ao Lumavo.
+   eles próprios a sua ligação ao Eurolify.
 
 **O que não está medido:** por que ordem abrir os países (tamanho do mercado,
 procura dos comerciantes). As parcerias seguem os comerciantes que entrarem.

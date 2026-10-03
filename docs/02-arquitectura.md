@@ -1,4 +1,4 @@
-# Arquitectura proposta do Lumavo
+# Arquitectura proposta do Eurolify
 
 > **Versão de 03/10/2026 — proposta, nada construído, nada decidido.** As
 > escolhas marcadas com **D-n** dependem de uma decisão de
@@ -15,7 +15,7 @@
             │  API de Administração (privada)        │
             ▼                                        ▼
  ┌──────────────────────────────────────────────────────────────────┐
- │                       LUMAVO — o servidor                         │
+ │                      EUROLIFY — o servidor                        │
  │  Checkout alojado · Botão de livre resolução · Páginas legais     │
  │ ─────────────────────────────────────────────────────────────── │
  │  Catálogo │ Preços e mercados │ Carrinho │ Encomendas │ Stock     │
@@ -32,7 +32,7 @@
  Identidade fiscal: VIES                             Comunicação: e-mail, SMS, WhatsApp
 ```
 
-E por cima de tudo, o **Hub do Lumavo**: o back-office onde o comerciante
+E por cima de tudo, o **Hub do Eurolify**: o back-office onde o comerciante
 trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 
 ## 2. Princípios (cada um tem um caso pago — ver `04-licoes-dos-sistemas-actuais.md`)
@@ -40,7 +40,7 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 1. **A API é o servidor, e o servidor decide.** Preço, IVA, disponibilidade,
    quem pode o quê e o que é um documento emitido decidem-se no núcleo. Um
    frontend gerado por IA mostra a decisão, nunca a refaz (lição 4.9).
-2. **Os momentos legais são servidos pelo Lumavo**, não por cada frontend:
+2. **Os momentos legais são servidos pelo Eurolify**, não por cada frontend:
    checkout (preço total, impostos, portes, condições, aceitação), confirmação
    da encomenda, botão de livre resolução, páginas legais e documento fiscal. O
    comerciante muda o aspecto; não pode tirar o que a lei obriga. **D-7.**
@@ -104,10 +104,10 @@ módulo sem reescrever os outros.
 
 ### 4.2 API de Administração (privada)
 
-- Para o Hub do Lumavo, integrações e aplicações. **OAuth 2.1 / OIDC** com
+- Para o Hub do Eurolify, integrações e aplicações. **OAuth 2.1 / OIDC** com
   âmbitos (`orders:read`, `invoices:write`…), chaves de servidor para
   integrações, papéis e permissões por utilizador.
-- O Hub do Lumavo usa **exactamente esta API** — se o Hub consegue, uma
+- O Hub do Eurolify usa **exactamente esta API** — se o Hub consegue, uma
   integração consegue.
 
 ### 4.3 Regras comuns às duas
@@ -126,7 +126,7 @@ módulo sem reescrever os outros.
 
 ### 4.4 Checkout alojado (D-7)
 
-- Página do Lumavo, com o aspecto da loja, no domínio da loja
+- Página do Eurolify, com o aspecto da loja, no domínio da loja
   (`checkout.loja.pt`).
 - Faz o que nenhum frontend gerado por IA deve refazer: total com impostos e
   portes, condições e aceitação, escolha ou criação do perfil de faturação
@@ -140,11 +140,11 @@ módulo sem reescrever os outros.
 
 | Peça | Para quê | Fase |
 |---|---|---|
-| **Servidor MCP de Administração** | O comerciante liga o seu assistente (Claude, ChatGPT, Gemini, Cursor…) ao Lumavo: «quanto vendi ontem em Espanha?», «que artigos estão sem foto?» | 1 (só leitura) |
+| **Servidor MCP de Administração** | O comerciante liga o seu assistente (Claude, ChatGPT, Gemini, Cursor…) ao Eurolify: «quanto vendi ontem em Espanha?», «que artigos estão sem foto?» | 1 (só leitura) |
 | Escrita por MCP | criar artigos, preparar encomendas — **sempre com confirmação humana**; nunca emitir faturas, reembolsar ou fundir clientes sem uma pessoa | 3 |
 | **OpenAPI para chamada de funções** | qualquer modelo que saiba chamar funções (incluindo os que não falam MCP) usa o mesmo contrato | 1 |
-| **Comércio por agentes (UCP/ACP)** | um agente de compras de terceiros encontra o catálogo e compra pelo checkout do Lumavo | 3 |
-| Pacote para construtores de frontends | instruções e exemplos para o Lovable/Vercel/Bolt/Emergent gerarem uma loja que fala com o Lumavo (a especificação da loja online actual, escrita para o Lovable, é deste género) | 1 |
+| **Comércio por agentes (UCP/ACP)** | um agente de compras de terceiros encontra o catálogo e compra pelo checkout do Eurolify | 3 |
+| Pacote para construtores de frontends | instruções e exemplos para o Lovable/Vercel/Bolt/Emergent gerarem uma loja que fala com o Eurolify (a especificação da loja online actual, escrita para o Lovable, é deste género) | 1 |
 
 Regras: as ferramentas devolvem **páginas pequenas e procuras**, não dumps
 (lição 6.1); cada chamada fica no registo de auditoria com quem a fez e por que

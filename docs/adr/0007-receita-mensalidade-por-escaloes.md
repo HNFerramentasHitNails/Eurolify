@@ -7,7 +7,7 @@
 
 ## Contexto
 
-Estudo em `docs/09-modelo-de-receita.md`. O Lumavo não recebe o dinheiro dos
+Estudo em `docs/09-modelo-de-receita.md`. O Eurolify não recebe o dinheiro dos
 comerciantes (D-5), por isso não pode ganhar com pagamentos como o Shopify (76 %
 da receita do Shopify em 2025, segundo um resumo do relatório anual). Uma taxa
 sobre cada venda somava-se à taxa do prestador de pagamento.
@@ -22,12 +22,12 @@ As nove fontes de receita de `docs/09` §3.
 
 ## Decisão
 
-A receita do Lumavo assenta numa **mensalidade por plano que sobe por escalões
+A receita do Eurolify assenta numa **mensalidade por plano que sobe por escalões
 de vendas anuais**. **Não há taxa sobre cada venda.**
 
 ## Consequências
 
-- O Lumavo mede o volume de vendas anual de cada comerciante para saber o
+- O Eurolify mede o volume de vendas anual de cada comerciante para saber o
   escalão (dado que já tem: as encomendas passam por ele).
 - **Continuam por decidir:** os preços e os limites de cada escalão (depois de
   falar com 3 a 5 comerciantes e da estimativa D-13), e as outras fontes

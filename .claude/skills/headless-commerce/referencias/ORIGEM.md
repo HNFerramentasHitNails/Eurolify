@@ -13,7 +13,7 @@ funcionar.
 
 **Ficou de fora:** a pasta `scripts/` (`evaluation.py`, `connections.py`,
 `requirements.txt`, `example_evaluation.xml`). São programas Python que se
-ligam a servidores MCP e chamam a API paga da Anthropic; no Lumavo ainda não há
+ligam a servidores MCP e chamam a API paga da Anthropic; no Eurolify ainda não há
 código (ADR-0001). O guia `reference/evaluation.md` refere-os — estão no
 repositório de origem, no commit acima.
 

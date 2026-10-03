@@ -1,6 +1,6 @@
 ---
 name: eu-localization
-description: Localização europeia no Lumavo — mercados (país, moeda, língua, canal e contexto de preço), línguas e traduções, moedas e câmbios guardados com taxa e data, formatos regionais, moradas e códigos postais por país, regiões e territórios especiais, fusos horários, métodos de pagamento e de entrega por país, conteúdo legal e comunicações transaccionais por língua. Usar ao abrir um país ou língua, ao mexer em moradas, datas, moedas ou montantes, e ao configurar métodos de pagamento ou de entrega por mercado.
+description: Localização europeia no Eurolify — mercados (país, moeda, língua, canal e contexto de preço), línguas e traduções, moedas e câmbios guardados com taxa e data, formatos regionais, moradas e códigos postais por país, regiões e territórios especiais, fusos horários, métodos de pagamento e de entrega por país, conteúdo legal e comunicações transaccionais por língua. Usar ao abrir um país ou língua, ao mexer em moradas, datas, moedas ou montantes, e ao configurar métodos de pagamento ou de entrega por mercado.
 ---
 
 # Localização europeia
@@ -20,7 +20,7 @@ O **mercado** é a unidade de venda: **país (ou grupo de países) + moeda +
 línguas + lista de preços + métodos de pagamento + métodos de entrega + textos
 legais + registos fiscais**. Uma loja tem vários mercados — a loja online actual, para vender
 noutros países, **duplica lojas Shopify inteiras** (um duplicador de loja mãe
-para lojas destino); no Lumavo é um mercado a mais na mesma loja.
+para lojas destino); no Eurolify é um mercado a mais na mesma loja.
 
 - O mercado de um visitante decide-se pelo **país de entrega** quando o há;
   antes disso, por escolha dele (nunca impor pelo IP — geobloqueio).
@@ -31,7 +31,7 @@ para lojas destino); no Lumavo é um mercado a mais na mesma loja.
 ## Línguas e traduções
 
 - Línguas por mercado; a de origem é a do comerciante.
-- Traduções **vivem no Lumavo**, por campo, com estado (completa,
+- Traduções **vivem no Eurolify**, por campo, com estado (completa,
   desactualizada, em falta); mudar o original marca-as desactualizadas.
 - Tradução automática por IA **só como proposta**, revista por uma pessoa antes
   de publicar textos legais ou avisos de segurança.

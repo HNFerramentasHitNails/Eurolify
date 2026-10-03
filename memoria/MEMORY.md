@@ -1,4 +1,7 @@
-# Índice da memória do Lumavo
+# Índice da memória do Eurolify
+
+> Chamava-se **Lumavo** até 03/10/2026 (ADR-0009): as memórias anteriores
+> usam o nome antigo, e a skill `lumavo-design` é hoje a `eurolify-design`.
 
 > Só o índice: **uma linha por memória, no máximo 300 caracteres**. O trabalho
 > vive no ficheiro. Um título não é a memória — abrir o ficheiro antes de

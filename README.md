@@ -1,4 +1,8 @@
-# Lumavo
+# Eurolify
+
+> Chamava-se **Lumavo** até 03/10/2026 — o nome estava ocupado; decidido pelo
+> Diogo ([ADR-0009](docs/adr/0009-nome-eurolify.md)). O repositório no GitHub
+> ainda tem o nome antigo.
 
 **Comércio electrónico feito na Europa, para vender na Europa.** Um projecto
 da **Luckytarget Lda**.
@@ -21,8 +25,8 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/03-regulamentar-ue.md`](docs/03-regulamentar-ue.md) | O mapa das regras europeias, com datas e fontes |
 | [`docs/04-licoes-dos-sistemas-actuais.md`](docs/04-licoes-dos-sistemas-actuais.md) | As regras que os sistemas actuais da empresa já pagaram |
 | [`docs/07-pagamentos-e-envios-por-pais.md`](docs/07-pagamentos-e-envios-por-pais.md) | Os pagamentos e os envios mais usados na UE, e com quem fazer parcerias |
-| [`docs/08-extensoes-de-terceiros.md`](docs/08-extensoes-de-terceiros.md) | Como terceiros acrescentam pagamentos, envios, regras e ecrãs ao Lumavo |
-| [`docs/09-modelo-de-receita.md`](docs/09-modelo-de-receita.md) | Como o Lumavo ganha dinheiro: concorrência, fontes de receita e a proposta (D-14) |
+| [`docs/08-extensoes-de-terceiros.md`](docs/08-extensoes-de-terceiros.md) | Como terceiros acrescentam pagamentos, envios, regras e ecrãs ao Eurolify |
+| [`docs/09-modelo-de-receita.md`](docs/09-modelo-de-receita.md) | Como o Eurolify ganha dinheiro: concorrência, fontes de receita e a proposta (D-14) |
 | [`docs/10-estimativa-prazo-e-custo.md`](docs/10-estimativa-prazo-e-custo.md) | Quanto tempo e quanto custa construir a Fase 1, por cenário de equipa (D-13) |
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |

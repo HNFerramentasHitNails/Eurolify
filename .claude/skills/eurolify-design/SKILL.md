@@ -1,16 +1,16 @@
 ---
-name: lumavo-design
-description: Design do Lumavo — montra (kit de loja e temas de cada comerciante), checkout alojado e momentos legais, Hub de gestão, e-mails e documentos; sistema de design com tokens e um tema por comerciante, claro/escuro, acessibilidade (EAA), PT/ES/EN, estados de ecrã, pesquisa com comerciantes e revisão. Traz uma biblioteca de 38 referências de terceiros (Anthropic, Vercel, designer-skills) a ler por etapa. Usar antes de desenhar, propor ou rever qualquer ecrã, componente, tema ou fluxo, e antes de falar com comerciantes sobre o produto.
+name: eurolify-design
+description: Design do Eurolify — montra (kit de loja e temas de cada comerciante), checkout alojado e momentos legais, Hub de gestão, e-mails e documentos; sistema de design com tokens e um tema por comerciante, claro/escuro, acessibilidade (EAA), PT/ES/EN, estados de ecrã, pesquisa com comerciantes e revisão. Traz uma biblioteca de 38 referências de terceiros (Anthropic, Vercel, designer-skills) a ler por etapa. Usar antes de desenhar, propor ou rever qualquer ecrã, componente, tema ou fluxo, e antes de falar com comerciantes sobre o produto.
 ---
 
-# Design do Lumavo
+# Design do Eurolify
 
 > Estado: **desenho** — não há código (ADR-0001). A identidade visual do
-> próprio Lumavo **ainda não está decidida** (D-12).
+> próprio Eurolify **ainda não está decidida** (D-12).
 >
-> Esta skill junta, numa entrada só, as regras de design do Lumavo e uma
+> Esta skill junta, numa entrada só, as regras de design do Eurolify e uma
 > biblioteca de referências de terceiros em `referencias/`. **As regras do
-> Lumavo ganham sempre às referências**; as referências estão em inglês e não
+> Eurolify ganham sempre às referências**; as referências estão em inglês e não
 > conhecem nem a lei europeia nem as lições dos sistemas actuais.
 
 ## As três superfícies — objectivos diferentes
@@ -23,9 +23,9 @@ description: Design do Lumavo — montra (kit de loja e temas de cada comerciant
 
 ## Regras que não se negociam
 
-1. **Nenhuma marca existente.** O Lumavo é da Luckytarget, com marca própria;
+1. **Nenhuma marca existente.** O Eurolify é da Luckytarget, com marca própria;
    a identidade visual dele decide-se (D-12) — nunca se inventa uma paleta ou um
-   logótipo «definitivos». Tudo o que é aspecto do Lumavo vai **ao Diogo ou ao
+   logótipo «definitivos». Tudo o que é aspecto do Eurolify vai **ao Diogo ou ao
    Bruno com o antes e o depois**, e só um deles dá o OK: nos sistemas actuais, um aspecto novo aprovado por
    outra pessoa e publicado em 14 commits foi todo revertido na mesma noite (01/10/2026,
    `regra-aspecto-so-com-ok-do-bruno-01out2026.md`, repo `claude`).
@@ -35,7 +35,7 @@ description: Design do Lumavo — montra (kit de loja e temas de cada comerciant
    cor escrita num componente. Claro e escuro desde o primeiro dia.
 3. **Um estado, uma cor.** No Hub interno actual, «pago» aparecia em quatro
    verdes diferentes e nenhum era legível — 4.811 cores escritas à mão
-   (`cores-de-estado-11set2026.md`). No Lumavo os estados (pago, retida,
+   (`cores-de-estado-11set2026.md`). No Eurolify os estados (pago, retida,
    expedida, devolvida…) são tokens semânticos únicos.
 4. **Acessibilidade por omissão**, porque a lei a exige ao comércio
    electrónico desde 28/06/2025 (EAA — `docs/03-regulamentar-ue.md`): contraste
@@ -46,7 +46,7 @@ description: Design do Lumavo — montra (kit de loja e temas de cada comerciant
    (`contraste-do-cabecalho-rosa-11set2026.md`). A norma de referência
    (EN 301 549 / WCAG) é **C** — confirmar a versão exigida.
 5. **Primeiro o telemóvel.** Uma tabela de 743 px vista numa janela de 198 px
-   mostra 27 % de cada vez (`tabela-em-cartoes-13set2026.md`): no Hub do Lumavo
+   mostra 27 % de cada vez (`tabela-em-cartoes-13set2026.md`): no Hub do Eurolify
    as listas têm vista de cartões no telemóvel desde o desenho.
 6. **Português, espanhol e inglês desde o início.** Textos traduzíveis, sem
    letras maiúsculas forçadas nos rótulos, espaço para textos mais longos,
@@ -73,16 +73,16 @@ fora: `referencias/ORIGEM.md`.
 | Para | Ler |
 |---|---|
 | As conversas com 3 a 5 comerciantes (Fase 0) | `referencias/designer-skills/design-research/interview-script.md` |
-| Que trabalho o comerciante «contrata» ao Lumavo | `referencias/designer-skills/design-research/jobs-to-be-done.md` |
+| Que trabalho o comerciante «contrata» ao Eurolify | `referencias/designer-skills/design-research/jobs-to-be-done.md` |
 | O percurso do comerciante e o do cliente final | `referencias/designer-skills/design-research/journey-map.md` |
-| Lumavo contra Shopify, Shopware, PrestaShop | `referencias/designer-skills/ux-strategy/competitive-analysis.md` |
+| Eurolify contra Shopify, Shopware, PrestaShop | `referencias/designer-skills/ux-strategy/competitive-analysis.md` |
 | O que está por trás de cada ecrã (pagamentos, faturação, armazém) | `referencias/designer-skills/ux-strategy/service-blueprint.md` |
 
 ### 2. Definir
 
 | Para | Ler |
 |---|---|
-| Os princípios de design do Lumavo (propor ao Diogo ou ao Bruno) | `referencias/designer-skills/ux-strategy/design-principles.md` |
+| Os princípios de design do Eurolify (propor ao Diogo ou ao Bruno) | `referencias/designer-skills/ux-strategy/design-principles.md` |
 | O caderno de encargos de um ecrã ou fluxo | `referencias/designer-skills/ux-strategy/design-brief.md` |
 | A arquitectura de informação do Hub e da montra | `referencias/designer-skills/ux-strategy/information-architecture.md` |
 | Fluxos (checkout, livre resolução, onboarding) | `referencias/designer-skills/prototyping-testing/user-flow-diagram.md` |
@@ -122,7 +122,7 @@ fora: `referencias/ORIGEM.md`.
 | Teste com utilizadores | `referencias/designer-skills/design-research/usability-test-plan.md` |
 | Verificação antes de entregar | `referencias/designer-skills/design-ops/design-qa-checklist.md` |
 
-## Onde as referências chocam com o Lumavo
+## Onde as referências chocam com o Eurolify
 
 - A `frontend-design` pede ousadia estética: vale para a **montra**, não para o
   checkout nem para o Hub.
@@ -137,4 +137,4 @@ fora: `referencias/ORIGEM.md`.
 - [ ] Claro e escuro; 375, 768 e 1280 px; só teclado — vistos, não supostos.
 - [ ] Estados: vazio, a carregar, erro, sem permissão (e retida, se fiscal).
 - [ ] Textos em PT/ES/EN, masculino universal em PT, nada de maiúsculas forçadas.
-- [ ] O que é aspecto do Lumavo foi ao Diogo ou ao Bruno com o antes e o depois.
+- [ ] O que é aspecto do Eurolify foi ao Diogo ou ao Bruno com o antes e o depois.

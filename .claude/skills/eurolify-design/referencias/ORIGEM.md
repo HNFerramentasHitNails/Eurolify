@@ -7,7 +7,7 @@ programa foi copiado nem corrido**.
 **Alteração feita a todos os ficheiros:** só o nome — `SKILL.md` passou a
 `<nome>.md`, para não serem carregados como skills soltas (cada skill carregada
 ocupa contexto em todas as sessões). **O conteúdo está igual ao original.** As
-regras do Lumavo estão na `SKILL.md` acima desta pasta.
+regras do Eurolify estão na `SKILL.md` acima desta pasta.
 
 | Origem | Commit (data) | Licença | O que se trouxe |
 |---|---|---|---|
@@ -34,7 +34,7 @@ compara-se com a versão nova e regista-se a data aqui.
 | `anthropics/skills` | `web-artifacts-builder`, `webapp-testing` | trazem programas; servem quando houver código (ADR-0001) — `webapp-testing` é candidata nessa altura |
 | `anthropics/skills` | `mcp-builder` | não é design: foi juntada a 03/10/2026 na skill `headless-commerce` (`referencias/mcp-builder/`), a pedido do Diogo |
 | `vercel-labs/agent-skills` | `react-best-practices`, `composition-patterns`, `react-view-transitions`, `react-native-skills` | regras de código React; candidatas quando houver código |
-| `vercel-labs/agent-skills` | `writing-guidelines` | manual de escrita da Vercel, em inglês; o Lumavo tem as suas regras de escrita |
+| `vercel-labs/agent-skills` | `writing-guidelines` | manual de escrita da Vercel, em inglês; o Eurolify tem as suas regras de escrita |
 | `vercel-labs/agent-skills` | `vercel-optimize`, `deploy-to-vercel`, `vercel-cli-with-tokens` | operação na Vercel; o alojamento está por decidir (D-3) |
 | `owl-listener/designer-skills` | 75 das 111 | repetem as escolhidas (as «leis» de Fitts, Hick, Miller…, as críticas visuais) ou servem equipas de design grandes (operações, liderança, apresentações). As 111 continuam no repositório de origem |
 | `owl-listener/designer-skills` | os comandos (`/plugin`) e os scripts do repositório | ferramentas do próprio repositório, não do design |

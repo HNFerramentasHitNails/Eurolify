@@ -1,6 +1,6 @@
 ---
 name: observability-security
-description: Segurança e observabilidade do Lumavo — modelação de ameaças, permissões por papel e atributo (RBAC/ABAC) com isolamento entre comerciantes, gestão de segredos, encriptação, cópias de segurança e recuperação, registos estruturados, métricas, traços e alertas, registo de auditoria imutável para acções administrativas e eventos financeiros e fiscais, limites de pedidos e abuso, validação de entradas, vulnerabilidades, e dados pessoais fora dos registos. Usar ao criar qualquer função, tabela, permissão, integração, segredo ou tarefa automática, e antes de qualquer publicação.
+description: Segurança e observabilidade do Eurolify — modelação de ameaças, permissões por papel e atributo (RBAC/ABAC) com isolamento entre comerciantes, gestão de segredos, encriptação, cópias de segurança e recuperação, registos estruturados, métricas, traços e alertas, registo de auditoria imutável para acções administrativas e eventos financeiros e fiscais, limites de pedidos e abuso, validação de entradas, vulnerabilidades, e dados pessoais fora dos registos. Usar ao criar qualquer função, tabela, permissão, integração, segredo ou tarefa automática, e antes de qualquer publicação.
 ---
 
 # Segurança e observabilidade
@@ -15,7 +15,7 @@ escrever** (18/09/2026), e funções novas nasceram abertas **cinco vezes em sei
 dias** (15–21/09/2026), sempre apanhadas por acaso. As cópias de segurança
 **nasciam abertas ao mundo** (12/08/2026).
 
-No Lumavo:
+No Eurolify:
 
 1. Toda a função, tabela, ficheiro e endpoint nasce **fechado**; abrir é um acto
    explícito, revisto.

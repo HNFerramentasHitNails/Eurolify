@@ -1,6 +1,6 @@
 ---
 name: eu-vat-oss-ioss
-description: Motor de IVA e documentos fiscais do Lumavo — categoria fiscal do artigo, jurisdição e taxas com vigência, territórios especiais, isenções com prova (manual, VIES, exportação), B2C/B2B e autoliquidação, a ordem de decisão do Bruno, NIF com código do país, perfis de faturação, retenção em vez de emissão errada, prova do documento emitido, OSS/IOSS, arredondamentos, notas de crédito, reembolsos e correcções. Usar SEMPRE que se toca em IVA, NIF, VIES, perfis de faturação, faturas, notas de crédito, relatórios fiscais ou no adaptador de um software de faturação.
+description: Motor de IVA e documentos fiscais do Eurolify — categoria fiscal do artigo, jurisdição e taxas com vigência, territórios especiais, isenções com prova (manual, VIES, exportação), B2C/B2B e autoliquidação, a ordem de decisão do Bruno, NIF com código do país, perfis de faturação, retenção em vez de emissão errada, prova do documento emitido, OSS/IOSS, arredondamentos, notas de crédito, reembolsos e correcções. Usar SEMPRE que se toca em IVA, NIF, VIES, perfis de faturação, faturas, notas de crédito, relatórios fiscais ou no adaptador de um software de faturação.
 ---
 
 # IVA, OSS/IOSS e documentos fiscais
@@ -17,7 +17,7 @@ description: Motor de IVA e documentos fiscais do Lumavo — categoria fiscal do
 
 **Um documento fiscal errado não se apaga.** Corrige-se com nota de crédito, um
 telefonema ao cliente e um risco legal que é do comerciante. Por isso, no
-Lumavo: **na dúvida, retém** — nunca emite à sorte.
+Eurolify: **na dúvida, retém** — nunca emite à sorte.
 
 ## As peças
 
@@ -98,7 +98,7 @@ português e morada no Luxemburgo).
 
 ## Documentos — emissão, retenção e prova
 
-- **O Lumavo não emite faturas portuguesas por si**: liga-se a software
+- **O Eurolify não emite faturas portuguesas por si**: liga-se a software
   certificado (D-4). O adaptador traduz; **a decisão fiscal já vem tomada**.
 - **No adaptador do Moloni** (lições do Hub): o rascunho leva o identificador
   da entidade e **o NIF que sai é o da entidade**, não o nosso — confirmar a

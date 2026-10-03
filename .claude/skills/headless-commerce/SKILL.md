@@ -1,6 +1,6 @@
 ---
 name: headless-commerce
-description: Desenho das interfaces do Lumavo — API da Loja (pública) e de Administração (privada), REST com contrato OpenAPI, OAuth 2.1/OIDC, papéis e chaves, webhooks assinados, paginação, limites, erros normalizados, chaves de idempotência, SDK tipado, checkout alojado, servidor MCP e o pacote para construtores de frontends (Lovable, Vercel, Bolt, Emergent). Usar ao desenhar ou alterar qualquer recurso, operação, aviso ou ferramenta de IA exposta para fora.
+description: Desenho das interfaces do Eurolify — API da Loja (pública) e de Administração (privada), REST com contrato OpenAPI, OAuth 2.1/OIDC, papéis e chaves, webhooks assinados, paginação, limites, erros normalizados, chaves de idempotência, SDK tipado, checkout alojado, servidor MCP e o pacote para construtores de frontends (Lovable, Vercel, Bolt, Emergent). Usar ao desenhar ou alterar qualquer recurso, operação, aviso ou ferramenta de IA exposta para fora.
 ---
 
 # Comércio sem cabeça (headless)
@@ -18,12 +18,12 @@ description: Desenho das interfaces do Lumavo — API da Loja (pública) e de Ad
 
 | | API da Loja | API de Administração |
 |---|---|---|
-| Para quem | frontends (Lovable, Vercel, Bolt, Emergent, apps, balcão) | Hub do Lumavo, integrações, aplicações, sistemas de gestão dos comerciantes |
+| Para quem | frontends (Lovable, Vercel, Bolt, Emergent, apps, balcão) | Hub do Eurolify, integrações, aplicações, sistemas de gestão dos comerciantes |
 | Autenticação | chave **pública** por loja + sessão do visitante/cliente | **OAuth 2.1 / OIDC** com âmbitos; chaves de servidor para integrações |
 | Pode | ler catálogo e preços do mercado, gerir o próprio carrinho, iniciar o checkout alojado, área de cliente | tudo o que o papel e os âmbitos permitirem |
 | Não pode | decidir preço, IVA, disponibilidade ou elegibilidade | contornar as travas fiscais (vivem no domínio, não na API) |
 
-**O Hub do Lumavo usa a API de Administração como qualquer outro cliente.** Se
+**O Hub do Eurolify usa a API de Administração como qualquer outro cliente.** Se
 o Hub precisa de uma coisa que a API não dá, a API está incompleta.
 
 ## Regras do contrato
@@ -58,7 +58,7 @@ o Hub precisa de uma coisa que a API não dá, a API está incompleta.
 
 ## Checkout alojado (D-7)
 
-O checkout é **servido pelo Lumavo**, com o aspecto e o domínio da loja,
+O checkout é **servido pelo Eurolify**, com o aspecto e o domínio da loja,
 porque é onde a lei e o IVA se decidem: total com impostos e portes, condições
 e aceitação, perfil de faturação («a fatura é para outra pessoa/empresa»),
 VIES, métodos de pagamento do país, autenticação forte, confirmação com prova
@@ -100,13 +100,13 @@ Guia da Anthropic para construir servidores MCP, guardado em
 `referencias/mcp-builder/` (Apache 2.0; origem em `referencias/ORIGEM.md`).
 Ler `referencias/mcp-builder/mcp-builder.md` quando chegar a hora de construir
 (depois do ADR que substitua o ADR-0001), e os guias em `reference/` pela ordem
-que ele indica. **As regras do Lumavo ganham ao guia:**
+que ele indica. **As regras do Eurolify ganham ao guia:**
 
-| O guia diz | No Lumavo |
+| O guia diz | No Eurolify |
 |---|---|
 | Na dúvida, cobrir a API toda | **Fase 1 só leitura.** A escrita entra na Fase 3, ferramenta a ferramenta, com confirmação humana — nunca faturas, reembolsos, fusões de clientes nem lotes |
 | Ferramentas geradas à mão | geradas do **contrato OpenAPI**, para o MCP e a API nunca divergirem (uma regra, um sítio) |
-| Prefixo de serviço nos nomes | prefixo `lumavo_` e nomes de negócio (`lumavo_vendas_por_pais`) |
+| Prefixo de serviço nos nomes | prefixo `eurolify_` e nomes de negócio (`eurolify_vendas_por_pais`) |
 | Paginar e filtrar | obrigatório, e com o total explícito (lição 4.7) |
 | TypeScript e HTTP «streamable» sem estado | é a mesma recomendação da D-2 e da D-8; confirmar quando forem decididas |
 | Avaliar com 10 perguntas realistas | perguntas **em português**, tiradas das tarefas reais de comerciante (lista do `40RTY-ai/shopify-admin-skills`); **correr a avaliação gasta créditos de API** — orçamento antes (lição 6.3) |

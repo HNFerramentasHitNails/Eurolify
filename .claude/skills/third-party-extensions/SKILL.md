@@ -1,6 +1,6 @@
 ---
 name: third-party-extensions
-description: Extensões de terceiros no Lumavo — aplicações, meios de pagamento, transportadoras, faturação por país, funções (regras de negócio em caixa fechada), extensões de ecrã e campos próprios; os contratos que o próprio Lumavo usa, os pontos de extensão, o que um terceiro nunca pode mudar (regras fiscais e legais), âmbitos e consentimento, dados na UE, loja de extensões (DSA, ciber-resiliência, prestadores autorizados) e a experiência de quem desenvolve. Usar ao desenhar qualquer contrato de adaptador, ponto de extensão, permissão de aplicação, a loja de extensões ou o programa de parceiros.
+description: Extensões de terceiros no Eurolify — aplicações, meios de pagamento, transportadoras, faturação por país, funções (regras de negócio em caixa fechada), extensões de ecrã e campos próprios; os contratos que o próprio Eurolify usa, os pontos de extensão, o que um terceiro nunca pode mudar (regras fiscais e legais), âmbitos e consentimento, dados na UE, loja de extensões (DSA, ciber-resiliência, prestadores autorizados) e a experiência de quem desenvolve. Usar ao desenhar qualquer contrato de adaptador, ponto de extensão, permissão de aplicação, a loja de extensões ou o programa de parceiros.
 ---
 
 # Extensões de terceiros
@@ -20,7 +20,7 @@ description: Extensões de terceiros no Lumavo — aplicações, meios de pagame
 
 ## 🔴 Regras que não se negociam
 
-1. **O Lumavo usa os mesmos contratos que os terceiros.** Um adaptador nosso
+1. **O Eurolify usa os mesmos contratos que os terceiros.** Um adaptador nosso
    não tem atalhos que uma extensão não tenha — senão o contrato não está
    provado.
 2. **Regras fiscais e legais não são extensíveis** (confirmado pelo Diogo,
@@ -50,7 +50,7 @@ description: Extensões de terceiros no Lumavo — aplicações, meios de pagame
 
 - [ ] O contrato tem idempotência, versão por data, erros num formato único e
       «não encontrei» como erro.
-- [ ] Há teste de conformidade que o adaptador do próprio Lumavo passa.
+- [ ] Há teste de conformidade que o adaptador do próprio Eurolify passa.
 - [ ] Nenhum ponto de extensão novo toca numa regra fiscal ou legal.
 - [ ] O ecrã de consentimento diz que dados e em que país.
 - [ ] As regras da UE da loja (DSA, ciber-resiliência) foram vistas com fonte
