@@ -6,16 +6,16 @@ estudos de logótipo (18 estudos) entregues na mesma mensagem.
 
 ## O que se fez
 
-- **48 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
-  (versão 6, capa «Versão 0.3»; a versão 3 tinha 46). **Privado**: só o Diogo o abre até o partilhar no menu da página.
+- **50 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
+  (versão 7, capa «Versão 0.3»; a versão 3 tinha 46, a 4 a 6 tinham 48). **Privado**: só o Diogo o abre até o partilhar no menu da página.
   Descarrega-se em PDF ou PPTX para imprimir.
 - É um **resumo** de `docs/00` a `docs/06`. Se divergir do repositório, vale o
   repositório — está escrito na capa e na última página.
 - Partes: o pedido (1–3) · o problema, com números (4–8) · o que é o Lumavo
-  (9–16) · as regras europeias (17–24) · lições dos sistemas actuais (25–27) ·
-  onde discordei, o que ficou e as fases (28–31) · as decisões, o alojamento e
-  os custos (32–38) · a marca (39–43) · riscos, o que não foi verificado,
-  fontes e próximos passos (44–48).
+  e as extensões de terceiros (9–18) · as regras europeias (19–26) · lições
+  dos sistemas actuais (27–29) · onde discordei, o que ficou e as fases (30–33)
+  · as decisões, o alojamento e os custos (34–40) · a marca (41–45) · riscos, o
+  que não foi verificado, fontes e próximos passos (46–50).
 - **Feito para papel:** D-1, D-2 e D-3 têm a recomendação escrita por extenso
   («Recomendado», não só por cor) e uma caixa tracejada para escrever à mão a
   decisão, quem e a data; a página da marca tem espaço para os caminhos
@@ -61,6 +61,16 @@ respostas que dei anteriormente.»*
   e 47. **Versão 6 (03/10/2026):** quem decide passa a ser o Diogo ou o Bruno
   (página 32, asides das 31 e 40 a 43, sem «decide o Bruno» na 38) e a
   publicação pelo GitHub passa a decidida na 37.
+
+## Versão 7 (03/10/2026): extensões de terceiros
+
+Pedido do Diogo: *«acrescenta as extensões de terceiros à apresentação»*.
+Páginas novas 17 («Qualquer programador pode acrescentar ao Lumavo») e 18 («O
+que um terceiro nunca muda, e como se abre», com as decisões K e L). A fase 2
+das fases passa a «Hub, mais países e parceiros» e a 3 diz «extensões abertas
+a todos». Tudo o resto andou duas páginas; índice e referências cruzadas
+acertados (ex.: a D-1 passou da página 33 para a 35). **Chegou ao limite de 50
+páginas.**
 
 ## O que ficou por verificar
 
