@@ -2,7 +2,8 @@
 
 - **Estado:** aceite · posto em prática pelo [ADR-0011](0011-preparacao-da-conta-scaleway.md):
   no Claude Code usa-se o `scw` directo com uma chave só de leitura, em vez do
-  MCP; o `scw mcp` e o IAM foram experimentados nele
+  MCP; o `scw mcp` e o IAM foram experimentados nele · completado pelo
+  [ADR-0014](0014-um-so-ensaio.md): um só ensaio, actualizado a cada entrada no `main`
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** — (completa o ADR-0004)

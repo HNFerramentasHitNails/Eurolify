@@ -35,6 +35,7 @@
 | ✅ R | **A conta da Scaleway está preparada e o Claude lê-a só de leitura**: projecto `eurolify-ensaio`, aplicação e política `claude-leitura` (9 conjuntos de permissões só de leitura), uma chave por pessoa com data de fim (a do Diogo a 03/10/2027) e o `scw` 2.63.0 nas sessões; no Claude Code, o `scw` directo em vez do MCP. Escrita, produção, recursos e publicação continuam fechados. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0011](adr/0011-preparacao-da-conta-scaleway.md) |
 | ✅ S | **Os preços da D-14 são precisos antes da peça 13 da Fase 1** (abertura a comerciantes), **não antes do código**. O critério de passagem da Fase 0 fica: D-13 decidida, base da D-14 decidida (N) e o OK escrito para código | Diogo, 03/10/2026 | [ADR-0012](adr/0012-precos-da-d14-antes-da-peca-13.md) |
 | ✅ T | **O código que um escreve, o outro revê antes de entrar no `main`; e o agente que não escreveu revê o diff** (o Codex revê o Claude Code e o contrário). Vale para código, desde a primeira linha; os documentos entram como hoje. Como se impõe no GitHub decide-se com o OK para código | Diogo, 03/10/2026 | [ADR-0013](adr/0013-revisao-do-codigo.md) |
+| ✅ U | **Um só ensaio na Scaleway, actualizado a cada entrada no `main`**, pelo caminho do GitHub (I); sem pré-visualizações por ramo. O endereço público, a base do ensaio e a chave de escrita ficam por decidir com o OK para código. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0014](adr/0014-um-so-ensaio.md) |
 
 ## Por decidir — por esta ordem
 
