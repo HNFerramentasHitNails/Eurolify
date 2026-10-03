@@ -1,5 +1,9 @@
 # Scaleway por MCP: dá para ligar, e como se publica (03/10/2026)
 
+> ⚠️ **03/10/2026, mais tarde:** o alojamento passou para uma VPS operada pelo
+> Diogo e pelo Bruno, com o Claude a operá-la (ADR-0015, ADR-0016;
+> `vps-operada-por-nos-03out2026.md`). Isto fica como registo.
+
 **Pergunta do Diogo (03/10/2026):** *«scaleway conseguimos ligar por mcp para
 que possas fazer deploy como no vercel+supabase??»* — logo depois de decidir o
 alojamento europeu gerido (ADR-0003).

@@ -87,7 +87,8 @@ comerciantes e da D-13):
 - **Receita por comerciante** = mensalidade + módulos + partilha de pagamentos
   + serviços.
 - **Custo por comerciante**: a infraestrutura pesa pouco — nas configurações
-  estudadas, ≈ 234 €/mês no início e ≈ 710 €/mês numa base para muitos
+  estudadas, ≈ 234 €/mês no início e ≈ 710 €/mês (na Scaleway gerida; com a VPS
+  do ADR-0015, por recalcular) numa base para muitos
   comerciantes (`memoria/alojamento-e-custos-03out2026.md`) —, mais suporte e
   IA.
 - **Ponto de equilíbrio** = custos fixos por mês (equipa, contabilistas e

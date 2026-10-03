@@ -156,10 +156,11 @@ modelo; orçamento de IA por comerciante (lição 6.3).
   mercados. Um grupo com várias marcas é um inquilino com várias lojas.
 - Isolamento na base por inquilino em todas as tabelas, com testes que provam
   que um comerciante não vê o outro.
-- **Alojamento num fornecedor europeu, com serviços geridos** (decidido a
-  03/10/2026, ADR-0003): PostgreSQL gerido com segunda máquina e cópias,
-  contentores para a API e os processos sempre ligados, armazenamento de
-  ficheiros, tudo na UE. O fornecedor é a Scaleway (ADR-0004). As lojas dos
+- **Alojamento numa VPS operada pelo Diogo e pelo Bruno**, num centro de
+  dados na UE, com o Claude a operá-la (decidido a 03/10/2026, ADR-0015 e
+  ADR-0016; substitui a Scaleway gerida dos ADR-0003 e ADR-0004): PostgreSQL,
+  contentores para a API e os processos sempre ligados, cópias fora da máquina
+  — o que se instala está em `11-preparacao-da-vps.md`. As lojas dos
   comerciantes ficam onde cada um quiser e falam pela API.
 - **Separar dados pessoais dos registos técnicos**: os logs não levam nomes,
   e-mails nem NIF em claro.
@@ -169,8 +170,8 @@ modelo; orçamento de IA por comerciante (lição 6.3).
 ## 6. Como se trabalha no código (quando houver código)
 
 - Ambientes: desenvolvimento, ensaio e produção, com dados de ensaio
-  **sem dados pessoais reais**. O ensaio é **um só**, na Scaleway, actualizado
-  a cada entrada no `main` (ADR-0014).
+  **sem dados pessoais reais**. O ensaio é **um só**, na VPS, actualizado
+  a cada entrada no `main` (ADR-0014, ADR-0015).
 - Cada alteração passa por: tipos, testes, testes de permissões, migração
   testada contra uma cópia — e só então é publicada, pelo mesmo caminho sempre.
 - O que é fiscal tem testes por cada ramo da regra e por cada caso pago do

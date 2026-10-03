@@ -3,8 +3,8 @@
 > **Projecto da Luckytarget Lda.** **Para:** Bruno e Cila · **De:** Diogo
 > (preparado com Claude) · **Versão 0.3, 03/10/2026** · **Estado:** proposta. Nenhum código escrito; já
 > decididas pelo Diogo a 03/10/2026: vender desde o início (D-1), de raiz
-> (D-2), produto nativo para toda a UE (F) e alojamento europeu gerido, na
-> Scaleway (D-3) — ver `06-decisoes-em-aberto.md`. Os pormenores estão nos outros documentos de `docs/`; este é o que
+> (D-2), produto nativo para toda a UE (F) e alojamento numa VPS operada por
+> nós, com o Claude a operá-la (D-3, revista: ADR-0015 e ADR-0016) — ver `06-decisoes-em-aberto.md`. Os pormenores estão nos outros documentos de `docs/`; este é o que
 > se lê primeiro.
 >
 > O Eurolify é desenvolvido **dentro da Luckytarget**, com marca própria. Os
@@ -60,7 +60,7 @@ mais um mercado; o Eurolify trata-a como casa.
 e esta proposta **não traz nenhuma** — seria inventá-la.
 *Estado a 03/10/2026:* as três decididas — D-1 vender desde o início
 (ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido na Scaleway (ADR-0003,
-ADR-0004). Depois: a base da receita decidida (ADR-0007) e a estimativa de
+ADR-0004), revista no mesmo dia: VPS operada por nós (ADR-0015, ADR-0016). Depois: a base da receita decidida (ADR-0007) e a estimativa de
 prazo e custo feita (`10-estimativa-prazo-e-custo.md`) e a equipa decidida:
 o Diogo e o Bruno desenvolvem, com Claude Code e Codex (D-13, ADR-0008).
 

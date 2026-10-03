@@ -1,5 +1,9 @@
 # Alojamento do Lumavo: servidor dedicado, Vercel + Supabase, ou europeu gerido — e quanto custa (03/10/2026)
 
+> ⚠️ **03/10/2026, mais tarde:** o alojamento passou para uma VPS operada pelo
+> Diogo e pelo Bruno, com o Claude a operá-la (ADR-0015, ADR-0016;
+> `vps-operada-por-nos-03out2026.md`). Isto fica como registo.
+
 **Pergunta do Diogo (03/10/2026):** *«Preciso que me digas na sinceridade se
 vale trabalhar logo dentro de um servidor dedicado, ou trabalhando diretamente
 com o vercel e supabase. Que nivel de valores podemos chegar usando a máxima
