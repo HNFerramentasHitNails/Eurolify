@@ -32,4 +32,3 @@
 - [As skills de design de 3 repos juntadas numa só (lumavo-design): 38 referências por etapa, 75+ de fora e porquê; a regra da Vercel copiada em vez de ligada — 03/10/2026](skills-de-design-juntadas-03out2026.md)
 - [A mcp-builder (Anthropic) juntada à headless-commerce, sem os programas; o que o Lumavo muda ao guia (só leitura na Fase 1) — 03/10/2026](mcp-builder-juntado-03out2026.md)
 - [O repo scaleway/scaleway-skills: 1 skill só (instalar o `scw`), que pede à API do GitHub (403 daqui), não confere a soma e usa sempre a última versão; não se instala — 03/10/2026](scaleway-skills-avaliado-03out2026.md)
-- [O repo JoelLewis/finance_skills: 91 skills de investimentos e regulação dos EUA; não se instala. Serve como método: conciliação, escalões marginal vs patamar (D-14) e avaliar skills (as nossas 14 têm 0) — 03/10/2026](finance-skills-avaliado-03out2026.md)
