@@ -204,7 +204,7 @@ usando a IA como o Claude Code e Codex, por fases»*.
 
 | Fase | O que é | Esforço (pessoas-semana) | Os dois a tempo inteiro | Cada um a meio tempo |
 |---|---|---|---|---|
-| **0** (o que falta) | Desenho final (domínio, API, contratos), conversas com 3 a 5 comerciantes, preços (D-14), OK para código | 5–10 | **1 a 3** | **1,5 a 3** |
+| **0** (o que falta) | Desenho final (domínio, API, contratos), conversas com 3 a 5 comerciantes, preços (D-14), OK para código. Desde 03/10/2026 os preços só travam a peça 13 (ADR-0012); estes números não foram recalculados | 5–10 | **1 a 3** | **1,5 a 3** |
 | **1** | Núcleo à venda (§2, sem a peça 1) | 101–192 | **15 a 29** | **28 a 52** |
 | | Critério de passagem: 3 meses de vendas reais sem documento fiscal errado | — | **+3** | **+3** |
 | **2** | Hub completo e mais países (tabela abaixo) | 60–117 | **9 a 18** | **16 a 32** |

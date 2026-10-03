@@ -27,12 +27,13 @@
 | ✅ J | **O Diogo e o Bruno têm toda a liberdade neste repositório**, cada um sozinho — incluindo faturação, NIF, IVA e identidade de clientes. **Regras da UE**: seguir as skills, só regras da UE com fonte, nunca inventar, dados na UE | Diogo, 03/10/2026 | `AGENTS.md` |
 | ✅ K | **Requisito: terceiros desenvolvem extensões de forma fácil** — aplicações, meios de pagamento, envios, faturação por país, regras de negócio, ecrãs. **As regras fiscais e legais não são extensíveis** (confirmado pelo Diogo: *«sim, concordo»*) | Diogo, 03/10/2026 | `08-extensoes-de-terceiros.md` |
 | ✅ L | **Na Fase 2, os parceiros da lista de pagamentos e envios são convidados a escrever eles próprios a sua ligação ao Eurolify**, com os contratos que o Eurolify já usa | Diogo, 03/10/2026 | `05-fases-e-mvp.md`, `07` e `08` |
-| ✅ M | **O Eurolify vende-se a outros comerciantes desde o início** (D-1 → a)); a recomendação era a b). Registo de comerciantes, contratos, faturação do Eurolify, suporte e a emissão por Moloni passam à Fase 1; o modelo de receita (D-14) passa a ser preciso antes dela | Diogo, 03/10/2026 | [ADR-0006](adr/0006-vender-desde-o-inicio.md) |
+| ✅ M | **O Eurolify vende-se a outros comerciantes desde o início** (D-1 → a)); a recomendação era a b). Registo de comerciantes, contratos, faturação do Eurolify, suporte e a emissão por Moloni passam à Fase 1; o modelo de receita (D-14) passa a ser preciso antes dela — os preços, só antes da peça 13 (S) | Diogo, 03/10/2026 | [ADR-0006](adr/0006-vender-desde-o-inicio.md) |
 | ✅ N | **A receita assenta numa mensalidade por plano, por escalões de vendas anuais, sem taxa sobre cada venda** (D-14, em parte). Preços e outras fontes por decidir | Diogo, 03/10/2026 | [ADR-0007](adr/0007-receita-mensalidade-por-escaloes.md) |
 | ✅ O | **A Fase 1 é desenvolvida pelo Diogo e pelo Bruno, com Claude Code e Codex**, sem contratar programadores (D-13 → cenário A); a recomendação era a B (2 sénior). Fase 1: 15 a 29 meses os dois a tempo inteiro, 28 a 52 a meio tempo (`10` §9, hipótese C), corrigido às 8 semanas. As regras e as skills ficaram num sítio só para os dois (Q, ADR-0010). Não é o OK para código | Diogo, 03/10/2026 | [ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md) |
 | ✅ P | **O produto chama-se Eurolify** (antes Lumavo; D-12, na parte do nome). `.com` e `.eu` livres a 03/10/2026; a pesquisa de marcas no TMview e a compra dos domínios estão por fazer. A identidade visual continua por decidir | Diogo, 03/10/2026 | [ADR-0009](adr/0009-nome-eurolify.md) |
 | ✅ Q | **As regras e as skills vivem num sítio só, lido pelo Claude Code e pelo Codex**: as regras no `AGENTS.md` (o `CLAUDE.md` só o importa); as 14 skills em `.agents/skills`, com uma ligação por skill em `.claude/skills`. Regras novas só no `AGENTS.md`, abaixo de 32 KiB | Diogo, 03/10/2026 | [ADR-0010](adr/0010-regras-num-sitio-so-agents-md.md) |
 | ✅ R | **A conta da Scaleway está preparada e o Claude lê-a só de leitura**: projecto `eurolify-ensaio`, aplicação e política `claude-leitura` (9 conjuntos de permissões só de leitura), uma chave por pessoa com data de fim (a do Diogo a 03/10/2027) e o `scw` 2.63.0 nas sessões; no Claude Code, o `scw` directo em vez do MCP. Escrita, produção, recursos e publicação continuam fechados. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0011](adr/0011-preparacao-da-conta-scaleway.md) |
+| ✅ S | **Os preços da D-14 são precisos antes da peça 13 da Fase 1** (abertura a comerciantes), **não antes do código**. O critério de passagem da Fase 0 fica: D-13 decidida, base da D-14 decidida (N) e o OK escrito para código | Diogo, 03/10/2026 | [ADR-0012](adr/0012-precos-da-d14-antes-da-peca-13.md) |
 
 ## Por decidir — por esta ordem
 
@@ -235,6 +236,10 @@ automáticas (`proposta-venda-do-hub-30set2026.md`).
 > [ADR-0007](adr/0007-receita-mensalidade-por-escaloes.md)): mensalidade por
 > escalões de vendas anuais, sem taxa sobre cada venda. **Por decidir:** os
 > preços (depois de falar com comerciantes e da D-13) e as outras fontes.
+>
+> ✅ **Quando (03/10/2026, Diogo, decisão S,
+> [ADR-0012](adr/0012-precos-da-d14-antes-da-peca-13.md)):** os preços têm de
+> estar decididos antes da peça 13 da Fase 1, não antes do código.
 
 Mensalidade, percentagem das vendas, módulos pagos, instalação dedicada — **não
 estudado**. Com a D-1 → a) (vender desde o início, ADR-0006), **passa a ser

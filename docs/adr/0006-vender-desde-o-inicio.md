@@ -1,6 +1,7 @@
 # ADR-0006 · O Eurolify vende-se a outros comerciantes desde o início
 
-- **Estado:** aceite
+- **Estado:** aceite · os preços da D-14 passaram a ser precisos só antes da
+  peça 13 da Fase 1 ([ADR-0012](0012-precos-da-d14-antes-da-peca-13.md))
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** D-1 (`docs/06-decisoes-em-aberto.md`)

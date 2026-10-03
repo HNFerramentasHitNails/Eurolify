@@ -1,6 +1,7 @@
 # ADR-0007 · A base da receita é a mensalidade por escalões de vendas, sem taxa sobre cada venda
 
-- **Estado:** aceite
+- **Estado:** aceite · os preços decidem-se antes da peça 13 da Fase 1
+  ([ADR-0012](0012-precos-da-d14-antes-da-peca-13.md))
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** D-14 (`docs/06-decisoes-em-aberto.md`), em parte
