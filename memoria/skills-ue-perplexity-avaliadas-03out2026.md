@@ -75,22 +75,45 @@ futuras regras»* (segunda versão, `eu-ecommerce-skills_1.zip`). A seguir:
 | Green Claims | a página da Comissão, lida a 03/10/2026, diz «pending»; a retirada que o zip anuncia não confirmei |
 | Carteira europeia de identidade (Reg. (UE) 2024/1183) | o texto conta 24 meses a partir de actos de execução que não li; «até ao fim de 2026» não verifiquei |
 
-## O que fica por levar às nossas skills (não feito — pede o OK do Diogo ou do Bruno)
+## Levado às nossas skills (03/10/2026, pedido do Diogo: *«sim, leva às skills»*)
 
-- `consumer-rights-eu`: o selo da **garantia comercial de durabilidade** e a
-  informação de reparabilidade antes da compra (Dir. 2024/825, considerandos
-  lidos); a garantia **+12 meses** quando se escolhe reparar; o **preço por
-  unidade** (por litro, por kg — Dir. 98/6/CE, considerandos lidos). Avaliações
-  verificadas e aviso de preço personalizado (Omnibus) e conteúdos digitais
-  (Dir. (UE) 2019/770): **C**, não li.
-- `eu-gdpr-privacy`: violação de dados — o responsável avisa a autoridade em
-  72 h (art. 33.º, n.º 1) e o subcontratante, como o Eurolify, avisa o
-  responsável sem demora (n.º 2). Lido no texto em inglês.
-- `product-compliance-eu`: o código QR das baterias (18/02/2027); registos de
-  produtor de equipamentos eléctricos e de baterias por país, como as
-  embalagens — **C**.
-- `observability-security`: a notificação de incidentes da NIS2 (24 h, 72 h,
-  um mês) para quando o Eurolify for média empresa — **C**.
+Antes de escrever, li os artigos no EUR-Lex: o que aqui estava como **C** passou
+a **W · texto lido**.
+
+- `consumer-rights-eu`: aviso da garantia legal e **selo da garantia comercial
+  de durabilidade**, actualizações de software, índice de reparabilidade ou
+  informação sobre peças (Dir. 2024/825, art. 2.º, que altera os arts. 5.º,
+  6.º, 8.º e 22.º-A da Dir. 2011/83/UE); o que vai **imediatamente antes do
+  botão final** (art. 8.º, n.º 2); **preço por unidade** (Dir. 98/6/CE, arts.
+  2.º, 3.º e 5.º); **preço personalizado** (art. 6.º, n.º 1, alínea e-A),
+  Omnibus); **conteúdos digitais** — consentimento, reconhecimento e
+  confirmação (art. 16.º, alínea m), Omnibus); **garantia +12 meses** quando se
+  escolhe reparar e a reparação como obrigação do fabricante (Dir. 2024/1799,
+  arts. 5.º e 16.º); **avaliações** e **resultados de pesquisa pagos** (Dir.
+  2005/29/CE, art. 7.º, n.º 6, e anexo I, pontos 11-A, 23-B e 23-C, Omnibus).
+- `eu-gdpr-privacy`: secção «Violação de dados pessoais» — o Eurolify, como
+  subcontratante, avisa cada comerciante afectado; o comerciante notifica a
+  autoridade até 72 h e as pessoas se o risco for elevado (RGPD, arts. 28.º,
+  n.º 3, 33.º e 34.º).
+- `product-compliance-eu`: linhas **Bateria** (QR a partir de 18/02/2027,
+  passaporte, registo de produtor por país e representante — Reg. (UE)
+  2023/1542, arts. 3.º, 13.º, 55.º, 56.º, 77.º) e **Equipamento eléctrico ou
+  electrónico** (registo por país com representante — Dir. 2012/19/UE, arts.
+  3.º, 16.º, 17.º; a transposição de cada país, **C**).
+- `observability-security`: secção «Notificação de incidentes (NIS2)» — médias
+  empresas ou maiores, nuvem no anexo I, mercados em linha no anexo II; 24 h,
+  72 h, um mês (Dir. (UE) 2022/2555, arts. 2.º e 23.º). Se o Eurolify cabe num
+  dos anexos fica para o jurista.
+- Ficou **C**: o desenho do aviso e do selo harmonizados (actos de execução da
+  Comissão, não lidos) e as leis nacionais que transpõem a REEE.
+- O `docs/03` foi alinhado a seguir (pedido do Diogo: *«sim, acerta o
+  docs/03»*): linhas novas para preço por unidade, preço personalizado,
+  avaliações e resultados pagos, conteúdos digitais, REEE e violação de dados;
+  a linha da garantia (Dir. 2024/825) com o selo de durabilidade; a das
+  baterias com o registo de produtor por país (já não diz «não foi lido»); a
+  da NIS2 passou de **C** a **W · texto lido**, com 24 h, 72 h e um mês. Datas
+  de aplicação confirmadas no texto: Omnibus 28/05/2022, RGPD 25/05/2018,
+  capítulo VIII das baterias 18/08/2025.
 
 ## Números (com data e como se contaram)
 
@@ -98,11 +121,12 @@ futuras regras»* (segunda versão, `eu-ecommerce-skills_1.zip`). A seguir:
 - 2.ª versão: 11 skills + README, 96.444 bytes; 9 das 10 antigas mudaram e a de
   RGPD ficou igual (`diff -rq`); o título «Sources» desapareceu em 9 das 11
   (`grep -c "^## Sources"`).
-- Textos lidos no EUR-Lex a 03/10/2026, na versão inglesa: 18 actos (`legal-content/EN/TXT/HTML`,
+- Textos lidos no EUR-Lex a 03/10/2026, na versão inglesa: 22 actos (`legal-content/EN/TXT/HTML`,
   CELEX 32018R0389, 32022R2065, 32024L2853, 32024R1689, 32006L0112,
   32025L0516, 32023L2226, 31998L0006, 32017L2455, 32018R0302, 32016R0679,
   32026R1744, 32024L1799, 32024R2847, 32023R1542, 32024R1183, 32024L0825,
-  32024R1781); só os artigos citados, nenhum por inteiro.
+  32024R1781 e, para as skills, 32019L2161, 32012L0019, 32022L2555,
+  32011L0083); só os artigos citados, nenhum por inteiro.
 - 09/12/2026 fica a 67 dias de 03/10/2026.
 
 ## O que ficou por verificar

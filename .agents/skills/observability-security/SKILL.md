@@ -1,6 +1,6 @@
 ---
 name: observability-security
-description: Segurança e observabilidade do Eurolify — modelação de ameaças, permissões por papel e atributo (RBAC/ABAC) com isolamento entre comerciantes, gestão de segredos, encriptação, cópias de segurança e recuperação, registos estruturados, métricas, traços e alertas, registo de auditoria imutável para acções administrativas e eventos financeiros e fiscais, limites de pedidos e abuso, validação de entradas, vulnerabilidades, e dados pessoais fora dos registos. Usar ao criar qualquer função, tabela, permissão, integração, segredo ou tarefa automática, e antes de qualquer publicação.
+description: Segurança e observabilidade do Eurolify — modelação de ameaças, permissões por papel e atributo (RBAC/ABAC) com isolamento entre comerciantes, gestão de segredos, encriptação, cópias de segurança e recuperação, registos estruturados, métricas, traços e alertas, registo de auditoria imutável para acções administrativas e eventos financeiros e fiscais, limites de pedidos e abuso, validação de entradas, vulnerabilidades, dados pessoais fora dos registos, e notificação de incidentes (NIS2 — 24 h, 72 h, um mês). Usar ao criar qualquer função, tabela, permissão, integração, segredo ou tarefa automática, ao desenhar o plano de resposta a incidentes, e antes de qualquer publicação.
 ---
 
 # Segurança e observabilidade
@@ -100,6 +100,23 @@ preparação instala em `docs/11-preparacao-da-vps.md`. O que muda aqui:
 - Vulnerabilidades: dependências vigiadas e actualizadas por rotina; revisão de
   segurança antes de cada fase.
 
+## Notificação de incidentes (NIS2) — para quando o Eurolify crescer
+
+Dir. (UE) 2022/2555, arts. 2.º e 23.º e anexos I e II — **W · texto lido**
+(EUR-Lex, 03/10/2026):
+
+- A NIS2 aplica-se às entidades dos anexos I e II que sejam **médias empresas
+  ou maiores** (art. 2.º, n.º 1, com a Recomendação 2003/361/CE). Os
+  fornecedores de computação em nuvem estão no anexo I e os mercados em linha
+  no anexo II. **Se o Eurolify é uma coisa ou outra é pergunta para o
+  jurista**, quando chegar a média empresa (`docs/03-regulamentar-ue.md` §4).
+- Num **incidente significativo**, ao CSIRT ou à autoridade nacional (art.
+  23.º, n.º 4): **alerta precoce em 24 h**, **notificação em 72 h** com a
+  primeira avaliação, e **relatório final até um mês** depois da notificação.
+- ⇒ Desde já, barato: o plano de resposta e os alertas pensados para estes
+  prazos. O mesmo incidente pode ser também uma **violação de dados**, com as
+  72 h do RGPD a contar para cada comerciante (`eu-gdpr-privacy`).
+
 ## Antes de dizer «está feito»
 
 - [ ] O que é novo nasceu fechado e o teste de acesso anónimo/cruzado passa.
@@ -107,3 +124,5 @@ preparação instala em `docs/11-preparacao-da-vps.md`. O que muda aqui:
 - [ ] Nenhum dado pessoal nos registos técnicos.
 - [ ] Há alerta se a tarefa nova deixar de correr.
 - [ ] Se mexi na VPS: ficou registado na máquina e numa memória.
+- [ ] Num incidente, o plano diz quem avisa os comerciantes afectados e, se a
+      NIS2 se aplicar, quem envia o alerta das 24 h.
