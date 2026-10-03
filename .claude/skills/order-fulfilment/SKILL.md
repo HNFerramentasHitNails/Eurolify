@@ -57,6 +57,10 @@ pendente → paga → em_preparação → expedida(parcial | total) → entregue
 - **Adaptadores de transportadora** (CTT, DPD, GLS, agregadores como Sendcloud
   ou Packlink): cotação, etiqueta, seguimento, recolha — o núcleo nunca fala a
   língua de uma transportadora.
+  Transportadoras por país, com fonte: `docs/07-pagamentos-e-envios-por-pais.md`.
+- **Pagamento na entrega** (pesa 37–59 % no Leste — `docs/07` §3): é um serviço
+  da transportadora, que cobra e entrega o dinheiro ao comerciante; o Lumavo
+  regista o estado, nunca o dinheiro.
 - **O serviço vendido é o serviço da etiqueta**: a etiqueta dos CTT saiu Via
   Aérea com Via Marítima cobrada (17/09/2026). E artigos perigosos recusam
   serviços incompatíveis **antes do checkout**.

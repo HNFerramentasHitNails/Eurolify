@@ -17,6 +17,7 @@
 - [Scaleway por MCP: o oficial é o `scw mcp` (só leitura possível); não há conector de um clique; a API chega daqui (401), instala-se pelo Go; decidido: publicar pelo GitHub e MCP só de leitura (I) — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
 - [Extensões de terceiros: 7 tipos, os mesmos contratos para o Lumavo e para terceiros, regras fiscais e legais não extensíveis, loja (DSA, ciber-resiliência); decididos K e L (parceiros convidados na Fase 2) — 03/10/2026](extensoes-de-terceiros-03out2026.md)
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1, e o «outros países» que tinha escapado ao varrimento da decisão F — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
+- [Pagamentos e envios na UE: 27 países com fonte, conferidos por amostragem; Mollie cobre os métodos locais; o pagamento na entrega no Leste é parceria de envios — 03/10/2026](pagamentos-e-envios-ue-03out2026.md)
 
 ## Referências externas avaliadas
 

@@ -44,9 +44,9 @@ Desenho que o Bruno escolheu para a plataforma de formação a 29/09/2026
 - Quando um prestador não deixa escolher os métodos por pedido (o Pay By Link da
   EuPago não deixa — resumo de 29/09), **a escolha do método faz-se no checkout
   do Lumavo**, antes de sair para o prestador.
-- Métodos por país (ver `eu-localization`): MB WAY e Multibanco (PT), Bizum
-  (ES), Bancontact (BE), BLIK (PL), iDEAL/Wero (NL) — **C**, confirmar o estado
-  de cada um.
+- Métodos por país: **`docs/07-pagamentos-e-envios-por-pais.md`** (27 países,
+  com fonte, 03/10/2026). O pagamento na entrega é um serviço da transportadora:
+  o Lumavo nunca toca no dinheiro.
 
 ## Máquina de estados do pagamento
 

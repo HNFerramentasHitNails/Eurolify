@@ -72,12 +72,17 @@ para lojas destino); no Lumavo é um mercado a mais na mesma loja.
 
 ## Pagamentos e entregas por mercado
 
+> **A lista dos 27 países, com fonte em cada linha, está em
+> `docs/07-pagamentos-e-envios-por-pais.md`** (pesquisa de 03/10/2026). Não se
+> escreve aqui uma segunda cópia: consulta-se lá.
+
 | País | Métodos de pagamento a considerar | Notas |
 |---|---|---|
-| Portugal | MB WAY, Multibanco, cartão, Klarna | Klarna = 58 pagamentos e 28.305 € em 90 dias na plataforma de formação actual (29/09/2026) |
-| Espanha | cartão, Bizum, Klarna | **C** |
-| Bélgica / Países Baixos | Bancontact, iDEAL/Wero | **C**, confirmar o estado da migração iDEAL → Wero |
-| Polónia | BLIK, Przelewy24 | **C** |
+| Portugal | MB WAY, Multibanco, cartão, Klarna | MB WAY é o meio mais usado online (Marktest, 14/03/2025 — `docs/07`); Klarna = 58 pagamentos e 28.305 € em 90 dias na plataforma de formação actual (29/09/2026) |
+| Espanha | cartão, Bizum, PayPal | **W** (`docs/07`) |
+| Bélgica / Países Baixos | Bancontact; iDEAL a passar a Wero (2026–2027) | **W** (`docs/07`) |
+| Polónia | BLIK, Przelewy24 (A2A 70 % do valor) | **W** (`docs/07`) |
+| Leste (BG, HU, SK, CZ, RO) | **pagamento na entrega** pesa 37–59 % | é um serviço da transportadora (`docs/07` §3) |
 
 Entregas por mercado: transportadoras, serviços, prazos e restrições
 (mercadorias perigosas), configurados por mercado.
