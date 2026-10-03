@@ -106,9 +106,14 @@ a **W · texto lido**.
   dos anexos fica para o jurista.
 - Ficou **C**: o desenho do aviso e do selo harmonizados (actos de execução da
   Comissão, não lidos) e as leis nacionais que transpõem a REEE.
-- Não mexi no `docs/03`: a linha da NIS2 continua **C** e não tem as 24 h,
-  72 h e um mês; o preço por unidade, as avaliações e a violação de dados não
-  têm linha própria lá.
+- O `docs/03` foi alinhado a seguir (pedido do Diogo: *«sim, acerta o
+  docs/03»*): linhas novas para preço por unidade, preço personalizado,
+  avaliações e resultados pagos, conteúdos digitais, REEE e violação de dados;
+  a linha da garantia (Dir. 2024/825) com o selo de durabilidade; a das
+  baterias com o registo de produtor por país (já não diz «não foi lido»); a
+  da NIS2 passou de **C** a **W · texto lido**, com 24 h, 72 h e um mês. Datas
+  de aplicação confirmadas no texto: Omnibus 28/05/2022, RGPD 25/05/2018,
+  capítulo VIII das baterias 18/08/2025.
 
 ## Números (com data e como se contaram)
 
