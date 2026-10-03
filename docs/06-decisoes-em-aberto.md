@@ -21,9 +21,9 @@
 | ✅ D | **O Eurolify é desenvolvido dentro da Luckytarget Lda, com marca própria.** Nenhuma marca existente da empresa é usada no Eurolify; os sistemas actuais servem só como fonte de regras e de casos medidos | Diogo, 03/10/2026 | `AGENTS.md`, `memoria/` |
 | ✅ E | **O Eurolify é construído de raiz** (D-2 → a); a prova com a Medusa deixa de se fazer. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0002](adr/0002-nucleo-proprio-de-raiz.md) |
 | ✅ F | **O Eurolify é um produto para vender, como o Shopify, a todos os tipos de comerciantes da UE, e nativo para toda a UE** (exclui a c) da D-1; fecha a D-6) | Diogo, 03/10/2026 | D-1 e D-6 abaixo |
-| ✅ G | **Alojamento num fornecedor europeu, com serviços geridos** (D-3 → a); o fornecedor ficou a Scaleway (H). Não é o OK para código | Diogo, 03/10/2026 | [ADR-0003](adr/0003-alojamento-europeu-gerido.md) |
-| ✅ H | **O fornecedor de alojamento é a Scaleway**, sem comparação com a OVHcloud. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0004](adr/0004-fornecedor-scaleway.md) |
-| ✅ I | **Publica-se pelo GitHub**: cada alteração entra no `main`, os testes correm e o mesmo caminho põe no ar. O Claude tem o MCP da Scaleway **só de leitura**; escrita só num projecto de ensaio, com chave limitada a ele. Na prática, o `scw` directo com uma chave só de leitura (R) | Diogo, 03/10/2026 | [ADR-0005](adr/0005-publicacao-pelo-github.md) |
+| ✅ G | **Alojamento num fornecedor europeu, com serviços geridos** (D-3 → a); o fornecedor ficou a Scaleway (H). Não é o OK para código ⚠️ **Substituída por V** (ADR-0015) | Diogo, 03/10/2026 | [ADR-0003](adr/0003-alojamento-europeu-gerido.md) |
+| ✅ H | **O fornecedor de alojamento é a Scaleway**, sem comparação com a OVHcloud. Não é o OK para código ⚠️ **Substituída por V** (ADR-0015) | Diogo, 03/10/2026 | [ADR-0004](adr/0004-fornecedor-scaleway.md) |
+| ✅ I | **Publica-se pelo GitHub**: cada alteração entra no `main`, os testes correm e o mesmo caminho põe no ar. O Claude tem o MCP da Scaleway **só de leitura**; escrita só num projecto de ensaio, com chave limitada a ele. Na prática, o `scw` directo com uma chave só de leitura (R) ⚠️ **O «só de leitura» mudou por W** (ADR-0016): o Claude opera a VPS com acesso total; publicar pelo GitHub mantém-se | Diogo, 03/10/2026 | [ADR-0005](adr/0005-publicacao-pelo-github.md) |
 | ✅ J | **O Diogo e o Bruno têm toda a liberdade neste repositório**, cada um sozinho — incluindo faturação, NIF, IVA e identidade de clientes. **Regras da UE**: seguir as skills, só regras da UE com fonte, nunca inventar, dados na UE | Diogo, 03/10/2026 | `AGENTS.md` |
 | ✅ K | **Requisito: terceiros desenvolvem extensões de forma fácil** — aplicações, meios de pagamento, envios, faturação por país, regras de negócio, ecrãs. **As regras fiscais e legais não são extensíveis** (confirmado pelo Diogo: *«sim, concordo»*) | Diogo, 03/10/2026 | `08-extensoes-de-terceiros.md` |
 | ✅ L | **Na Fase 2, os parceiros da lista de pagamentos e envios são convidados a escrever eles próprios a sua ligação ao Eurolify**, com os contratos que o Eurolify já usa | Diogo, 03/10/2026 | `05-fases-e-mvp.md`, `07` e `08` |
@@ -32,10 +32,12 @@
 | ✅ O | **A Fase 1 é desenvolvida pelo Diogo e pelo Bruno, com Claude Code e Codex**, sem contratar programadores (D-13 → cenário A); a recomendação era a B (2 sénior). Fase 1: 15 a 29 meses os dois a tempo inteiro, 28 a 52 a meio tempo (`10` §9, hipótese C), corrigido às 8 semanas. As regras e as skills ficaram num sítio só para os dois (Q, ADR-0010). Não é o OK para código | Diogo, 03/10/2026 | [ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md) |
 | ✅ P | **O produto chama-se Eurolify** (antes Lumavo; D-12, na parte do nome). `.com` e `.eu` livres a 03/10/2026; a pesquisa de marcas no TMview e a compra dos domínios estão por fazer. A identidade visual continua por decidir | Diogo, 03/10/2026 | [ADR-0009](adr/0009-nome-eurolify.md) |
 | ✅ Q | **As regras e as skills vivem num sítio só, lido pelo Claude Code e pelo Codex**: as regras no `AGENTS.md` (o `CLAUDE.md` só o importa); as 14 skills em `.agents/skills`, com uma ligação por skill em `.claude/skills`. Regras novas só no `AGENTS.md`, abaixo de 32 KiB | Diogo, 03/10/2026 | [ADR-0010](adr/0010-regras-num-sitio-so-agents-md.md) |
-| ✅ R | **A conta da Scaleway está preparada e o Claude lê-a só de leitura**: projecto `eurolify-ensaio`, aplicação e política `claude-leitura` (9 conjuntos de permissões só de leitura), uma chave por pessoa com data de fim (a do Diogo a 03/10/2027) e o `scw` 2.63.0 nas sessões; no Claude Code, o `scw` directo em vez do MCP. Escrita, produção, recursos e publicação continuam fechados. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0011](adr/0011-preparacao-da-conta-scaleway.md) |
+| ✅ R | **A conta da Scaleway está preparada e o Claude lê-a só de leitura**: projecto `eurolify-ensaio`, aplicação e política `claude-leitura` (9 conjuntos de permissões só de leitura), uma chave por pessoa com data de fim (a do Diogo a 03/10/2027) e o `scw` 2.63.0 nas sessões; no Claude Code, o `scw` directo em vez do MCP. Escrita, produção, recursos e publicação continuam fechados. Não é o OK para código ⚠️ **Sem efeito para o alojamento (V)**; o acesso só de leitura mudou (W) | Diogo, 03/10/2026 | [ADR-0011](adr/0011-preparacao-da-conta-scaleway.md) |
 | ✅ S | **Os preços da D-14 são precisos antes da peça 13 da Fase 1** (abertura a comerciantes), **não antes do código**. O critério de passagem da Fase 0 fica: D-13 decidida, base da D-14 decidida (N) e o OK escrito para código | Diogo, 03/10/2026 | [ADR-0012](adr/0012-precos-da-d14-antes-da-peca-13.md) |
 | ✅ T | **O código que um escreve, o outro revê antes de entrar no `main`; e o agente que não escreveu revê o diff** (o Codex revê o Claude Code e o contrário). Vale para código, desde a primeira linha; os documentos entram como hoje. Como se impõe no GitHub decide-se com o OK para código | Diogo, 03/10/2026 | [ADR-0013](adr/0013-revisao-do-codigo.md) |
-| ✅ U | **Um só ensaio na Scaleway, actualizado a cada entrada no `main`**, pelo caminho do GitHub (I); sem pré-visualizações por ramo. O endereço público, a base do ensaio e a chave de escrita ficam por decidir com o OK para código. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0014](adr/0014-um-so-ensaio.md) |
+| ✅ U | **Um só ensaio na Scaleway, actualizado a cada entrada no `main`**, pelo caminho do GitHub (I); sem pré-visualizações por ramo. O endereço público, a base do ensaio e a chave de escrita ficam por decidir com o OK para código. Não é o OK para código ⚠️ O ensaio passa para a VPS (V) | Diogo, 03/10/2026 | [ADR-0014](adr/0014-um-so-ensaio.md) |
+| ✅ V | **O Eurolify fica numa VPS operada pelo Diogo e pelo Bruno**, num centro de dados na UE (D-3 revista; substitui G e H); publica-se pelo GitHub; o ensaio único passa para a VPS. Abre o ADR-0001 só para a preparação da VPS; o código do produto continua fechado. Fornecedor, plano e o resto por decidir em `docs/11` §7 | Diogo, 03/10/2026 | [ADR-0015](adr/0015-alojamento-numa-vps.md) |
+| ✅ W | **O Claude opera a VPS com acesso total** (*«O claude vai controlar tudo!! esta é uma decisão!!»*); substitui o «só de leitura» de I e R. Mantêm-se: alterar só com confirmação de quem pediu, cópia antes de escrever, as regras fiscais, as duas revisões do código (T). Por onde o Claude chega à máquina: por resolver | Diogo, 03/10/2026 | [ADR-0016](adr/0016-o-claude-opera-a-vps.md) |
 
 ## Por decidir — por esta ordem
 
@@ -90,6 +92,13 @@ de produção.
 **Bloqueia:** estimativas de prazo e custo (D-13).
 
 ### D-3 · Onde fica alojado?
+
+> ⚠️ **Revista a 03/10/2026, mais tarde, pelo Diogo: VPS operada pelo Diogo e
+> pelo Bruno, com o Claude a operá-la** (decisões V e W,
+> [ADR-0015](adr/0015-alojamento-numa-vps.md),
+> [ADR-0016](adr/0016-o-claude-opera-a-vps.md)) — *«o alojamento para uma VPS
+> operada por vocês os dois»*. Fica perto da b) abaixo. A recomendação era
+> manter a a); a discordância está no ADR-0015. Guia: `11-preparacao-da-vps.md`.
 
 > ✅ **Decidido a 03/10/2026 pelo Diogo: a) fornecedor europeu, serviços
 > geridos** ([ADR-0003](adr/0003-alojamento-europeu-gerido.md)) — *«sim, fica

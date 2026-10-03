@@ -1,6 +1,7 @@
 # ADR-0003 · O Eurolify fica alojado num fornecedor europeu, com serviços geridos
 
-- **Estado:** aceite · completado pelo [ADR-0004](0004-fornecedor-scaleway.md)
+- **Estado:** **substituída pelo [ADR-0015](0015-alojamento-numa-vps.md)** (VPS operada por nós,
+  03/10/2026) · era: aceite · completado pelo [ADR-0004](0004-fornecedor-scaleway.md)
   (fornecedor: Scaleway, 03/10/2026) · conta preparada pelo
   [ADR-0011](0011-preparacao-da-conta-scaleway.md)
 - **Data:** 03/10/2026

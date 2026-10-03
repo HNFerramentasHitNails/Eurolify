@@ -1,6 +1,7 @@
 # ADR-0005 · Publica-se pelo GitHub; o Claude tem o MCP da Scaleway só de leitura
 
-- **Estado:** aceite · posto em prática pelo [ADR-0011](0011-preparacao-da-conta-scaleway.md):
+- **Estado:** aceite · pontos 2 e 3 (o Claude só lê; escrita só no ensaio)
+  **substituídos pelo [ADR-0016](0016-o-claude-opera-a-vps.md)**; o ponto 1 mantém-se · posto em prática pelo [ADR-0011](0011-preparacao-da-conta-scaleway.md):
   no Claude Code usa-se o `scw` directo com uma chave só de leitura, em vez do
   MCP; o `scw mcp` e o IAM foram experimentados nele · completado pelo
   [ADR-0014](0014-um-so-ensaio.md): um só ensaio, actualizado a cada entrada no `main`

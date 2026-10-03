@@ -1,5 +1,9 @@
 # Publicação na Scaleway: um só ensaio, actualizado a cada entrada no `main` (03/10/2026)
 
+> ⚠️ **03/10/2026, mais tarde:** o alojamento passou para uma VPS operada pelo
+> Diogo e pelo Bruno, com o Claude a operá-la (ADR-0015, ADR-0016;
+> `vps-operada-por-nos-03out2026.md`). Isto fica como registo.
+
 **Pedido do Diogo (03/10/2026):** *«Verifica antes de escrever código, como
 podemos depois fazer deploy no scaleway para ver em tempo real o que estamos a
 contruir.»*

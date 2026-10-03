@@ -89,8 +89,9 @@ seguem a régua única.
 
 ## Transferências e subcontratantes
 
-- Alojamento num fornecedor europeu com serviços geridos, a Scaleway
-  (ADR-0003 e ADR-0004). Cada
+- Alojamento numa VPS num centro de dados na UE, operada pelo Diogo e pelo
+  Bruno (ADR-0015; antes, a Scaleway gerida): o fornecedor da VPS e o das
+  cópias são subcontratantes. Cada
   fornecedor com dados: país, garantias da
   transferência se sair da UE, acordo assinado, finalidade.
 - **IA**: um modelo de terceiros que recebe dados de clientes é um

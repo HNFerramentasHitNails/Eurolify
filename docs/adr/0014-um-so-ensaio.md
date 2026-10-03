@@ -1,6 +1,7 @@
 # ADR-0014 · Um só ensaio na Scaleway, actualizado a cada entrada no `main`
 
-- **Estado:** aceite
+- **Estado:** aceite · o ensaio passa para a VPS pelo
+  [ADR-0015](0015-alojamento-numa-vps.md); a decisão (um só, a cada entrada no `main`) mantém-se
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** — (completa o

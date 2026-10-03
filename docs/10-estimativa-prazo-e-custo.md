@@ -44,7 +44,7 @@ Claude Code (**C**, todas as linhas):
 | # | Peça | Pessoas-semana |
 |---|---|---|
 | 1 | Desenho final: modelo de domínio, lista da API, contratos de extensão | 4–8 |
-| 2 | Fundações: inquilinos isolados pela base, contas e permissões, auditoria, eventos e avisos idempotentes, versões da API, publicação GitHub → Scaleway, cópias e alarmes | 8–14 |
+| 2 | Fundações: inquilinos isolados pela base, contas e permissões, auditoria, eventos e avisos idempotentes, versões da API, publicação GitHub → VPS (ADR-0015), cópias e alarmes | 8–14 |
 | 3 | Catálogo: variantes, kits, traduções, campos regulamentares, espelho do sistema do comerciante | 5–9 |
 | 4 | IVA dos 27 e OSS, NIF e VIES com prova, territórios especiais, preços B2B, mínimos, histórico de 30 dias | 8–14 |
 | 5 | Carrinho e checkout alojado: perfis de faturação, fatura para outra pessoa, momentos legais | 8–12 |
@@ -111,7 +111,7 @@ lado se está.
 | Teste de intrusão de uma plataforma multi-inquilino | **5.950–8.500 €** cada (7 a 10 dias a 849 €/dia); conto um ou dois ⇒ 5.950–17.000 € | **W**, [Budget Security](https://budgetsecurity.com/blog/web-application-penetration-testing-cost/), 20/07/2026 |
 | Auditoria de acessibilidade (a Lei Europeia da Acessibilidade obriga as lojas online desde 28/06/2025) | **5.000–10.000 €** para um sítio pequeno, manual | **W**, resumo de pesquisa — fonte fraca, preços sobretudo britânicos e americanos |
 | Marca da UE na EUIPO, 3 classes | **1.050 €** (850 € a 1.ª, 50 € a 2.ª, 150 € a 3.ª) | **W**, resumos ([ds.solutions](https://ds.solutions/en/eu-trademark-cost/)); a página da EUIPO deu 403. As classes (9, 35, 42) são escolha minha, **C** |
-| Alojamento durante a construção (ensaio e, nos últimos meses, produção ≈ 234 €/mês) | **2.000–5.000 €** | **C**, a partir de `memoria/alojamento-e-custos-03out2026.md` |
+| Alojamento durante a construção (ensaio e, nos últimos meses, produção ≈ 234 €/mês, contado para a Scaleway gerida; com a VPS do ADR-0015, **não recalculado**) | **2.000–5.000 €** | **C**, a partir de `memoria/alojamento-e-custos-03out2026.md` |
 | Contabilista: validar o motor de IVA antes do primeiro comerciante de fora | **orçamento a pedir** | — |
 | Jurista: checkout e livre resolução, contrato com limites, acordo de tratamento de dados, Data Act, margem sobre pagamentos | **orçamento a pedir** | — |
 | Seguro de responsabilidade civil profissional e ciber | **orçamento a pedir** — há produtos de entrada desde 404 €/ano, mas com capitais que não servem a uma plataforma que trata faturas de outras empresas | **W** ([Santander](https://www.santander.pt/empresas/seguros/seguro-protecao-empresas-cyber)) |
@@ -158,7 +158,8 @@ Uma estimativa sem medida é um palpite. Por isso:
 
 ## 8. Depois de abrir — ligação à D-14
 
-O custo fixo por mês depois de abrir (pessoas + alojamento ≈ 234–710 € +
+O custo fixo por mês depois de abrir (pessoas + alojamento ≈ 234–710 € na Scaleway gerida, não
+recalculado para a VPS do ADR-0015 +
 Claude) é ≈ **10.150–14.870 €** no cenário B e ≈ **15.110–21.950 €** no C, sem
 contabilista, jurista, seguro nem quem atende os comerciantes.
 
