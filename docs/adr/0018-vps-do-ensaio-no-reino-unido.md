@@ -2,8 +2,8 @@
 
 - **Estado:** aceite · **excepção temporária** ao centro de dados na UE do
   [ADR-0017](0017-vps-3-da-ovh.md) e à regra 4 do `AGENTS.md`, **só para o
-  ensaio e sem dados pessoais reais** · **data de fim: por decidir** (ver
-  «Decisão», ponto 3)
+  ensaio e sem dados pessoais reais** · **data de fim: 31/03/2027**, ou antes
+  se entrar um dado de cliente real ([ADR-0019](0019-fim-da-vps-no-reino-unido.md))
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** `docs/11-preparacao-da-vps.md` §1 (a
