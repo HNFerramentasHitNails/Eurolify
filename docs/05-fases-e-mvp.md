@@ -10,7 +10,8 @@
 |---|---|
 | Proposta, arquitectura, mapa regulamentar, lições dos sistemas actuais | escrito (este repositório) |
 | As 12 skills de trabalho para as sessões de Claude | escrito (`.claude/skills/`) |
-| Decisões D-1, D-2, D-3 | D-2 **decidida** (ADR-0002); D-1 em parte (decisão F); D-3 **por decidir** |
+| Decisões D-1, D-2, D-3 | D-2 **decidida** (ADR-0002); D-3 **decidida** (ADR-0003); D-1 em parte (decisão F: falta quando abre a outros comerciantes) |
+| Escolher o fornecedor europeu (D-3) | por fazer — Scaleway ou OVHcloud, com os mesmos critérios |
 | Prova de 2 semanas com a Medusa (D-2) | **cancelada** — a D-2 foi decidida a 03/10/2026: núcleo próprio, de raiz (ADR-0002) |
 | Modelo de domínio (entidades, estados, quem é dono de quê) em tabelas | por fazer |
 | Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | por fazer |

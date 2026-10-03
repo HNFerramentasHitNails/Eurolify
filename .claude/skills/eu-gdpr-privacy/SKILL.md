@@ -89,7 +89,8 @@ seguem a régua única.
 
 ## Transferências e subcontratantes
 
-- Alojamento na UE (D-3). Cada fornecedor com dados: país, garantias da
+- Alojamento num fornecedor europeu com serviços geridos (ADR-0003). Cada
+  fornecedor com dados: país, garantias da
   transferência se sair da UE, acordo assinado, finalidade.
 - **IA**: um modelo de terceiros que recebe dados de clientes é um
   subcontratante — mesmo cuidado, e sem treino com os dados.

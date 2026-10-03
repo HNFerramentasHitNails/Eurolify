@@ -13,6 +13,8 @@ para toda a UE). A F era a segunda vez que ele o pedia: a discordância
 
 ## O que se fez
 
+- ✅ **Decidido pelo Diogo a 03/10/2026:** *«sim, fica o europeu gerido»* —
+  ADR-0003, decisão G em `docs/06`. Fica por escolher o fornecedor.
 - A D-3 foi reescrita em `docs/06` com quatro opções e a recomendação
   **a) serviços geridos de um fornecedor europeu**.
 - Corrigido um contra meu: a D-3 dava contra a Supabase «o caminho de

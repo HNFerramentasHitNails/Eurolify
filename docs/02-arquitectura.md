@@ -156,9 +156,11 @@ modelo; orçamento de IA por comerciante (lição 6.3).
   mercados. Um grupo com várias marcas é um inquilino com várias lojas.
 - Isolamento na base por inquilino em todas as tabelas, com testes que provam
   que um comerciante não vê o outro.
-- **Alojamento na UE.** Três hipóteses em D-3: fornecedor europeu (Hetzner,
-  Scaleway, OVHcloud), Supabase na região UE, ou nuvem norte-americana na
-  região UE. Para quem vende «europeu», a primeira é argumento comercial.
+- **Alojamento num fornecedor europeu, com serviços geridos** (decidido a
+  03/10/2026, ADR-0003): PostgreSQL gerido com segunda máquina e cópias,
+  contentores para a API e os processos sempre ligados, armazenamento de
+  ficheiros, tudo na UE. O fornecedor concreto está por escolher. As lojas dos
+  comerciantes ficam onde cada um quiser e falam pela API.
 - **Separar dados pessoais dos registos técnicos**: os logs não levam nomes,
   e-mails nem NIF em claro.
 - Cópias de segurança cifradas, com ensaio de reposição agendado — e

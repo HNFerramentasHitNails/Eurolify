@@ -55,6 +55,9 @@ mais um mercado; o Lumavo trata-a como casa.
 **O que se pede agora:** decidir D-1, D-2 e D-3
 (`06-decisoes-em-aberto.md`). Sem elas não há estimativa de prazo nem de custo,
 e esta proposta **não traz nenhuma** — seria inventá-la.
+*Estado a 03/10/2026:* D-2 decidida (de raiz, ADR-0002), D-3 decidida (europeu
+gerido, ADR-0003), D-1 em parte (produto para toda a UE; falta quando abre a
+outros comerciantes).
 
 ---
 

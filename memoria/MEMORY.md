@@ -12,7 +12,7 @@
 ## Para decidir
 
 - [Apresentação impressa de 46 páginas para Bruno e Cila: link, partes, caixas para decidir à mão, leituras da marca como opinião; páginas não vistas desenhadas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
-- [Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; recomendado o europeu gerido; e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
+- [Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G); e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
 
 ## Referências externas avaliadas
 
