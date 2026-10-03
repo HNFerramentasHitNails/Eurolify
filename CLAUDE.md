@@ -3,7 +3,8 @@
 Plataforma de comércio electrónico europeia da **Luckytarget Lda**: núcleo por
 API, Hub de gestão, regras europeias de raiz e aberta a qualquer IA. **Projecto
 em desenho: não há código** (ADR-0001). Trabalham aqui o **Bruno** e o **Diogo**, à vez, cada um na
-sua conta de Claude Code.
+sua conta de Claude Code e de Codex — são eles que desenvolvem o Lumavo
+(ADR-0008).
 
 ## 🔴 Antes da primeira resposta
 

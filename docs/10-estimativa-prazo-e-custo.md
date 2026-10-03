@@ -11,11 +11,16 @@
 > vendido. Por isso tudo vem em intervalos, e a §6 diz como se corrige o
 > intervalo às 8 semanas.
 
+> ✅ **Decidido a 03/10/2026 pelo Diogo: cenário A** — *«será eu e o Bruno a
+> desenvolver com o Claude Code e Codex»* ([ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md)).
+> A recomendação era a B. Os cenários B e C ficam como registo; o prazo do A
+> mede-se às 8 semanas (§6).
+
 ## 1. A resposta curta
 
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
-| **A** — só o Diogo e o Bruno, com Claude Code | **não estimo** (§5) | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
+| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | **não estimo** (§5); mede-se às 8 semanas (§6) | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
 | **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **16 a 30 meses** | **≈ 173.000–465.000 €** | ≈ 10.150–14.840 € |
 | **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **12 a 23 meses** | **≈ 193.000–519.000 €** | ≈ 15.110–21.920 € |
 
@@ -138,7 +143,7 @@ Uma estimativa sem medida é um palpite. Por isso:
 3. Com o factor medido, decide-se se entra a terceira pessoa (B → C) e
    corrige-se esta página **onde os números estão escritos**.
 
-## 7. Recomendação — opinião, para decidir
+## 7. Recomendação — opinião (não seguida: decidido o A, ADR-0008)
 
 - **Cenário B com o primeiro contratado como líder técnico** (base de dados,
   isolamento entre inquilinos, segurança): é quem revê cada mudança, incluindo
@@ -155,6 +160,13 @@ Uma estimativa sem medida é um palpite. Por isso:
 O custo fixo por mês depois de abrir (pessoas + alojamento ≈ 225–680 € +
 Claude) é ≈ **10.150–14.840 €** no cenário B e ≈ **15.110–21.920 €** no C, sem
 contabilista, jurista, seguro nem quem atende os comerciantes.
+
+**No cenário A (decidido):** sem salários de programadores, o que sai em
+dinheiro por mês é o alojamento e as subscrições — ≈ 225–680 € + US$ 440–800
+(2 × Claude Max US$ 200 + 2 × Codex entre o Plus de US$ 20 e o Pro de US$ 200,
+**W**, páginas oficiais). **O tempo do Diogo e do Bruno não está contado, e é
+o custo real**: sem lhe pôr um valor, o ponto de equilíbrio do cenário A não
+se calcula.
 
 **Exemplo de conta (hipótese, não é preço):** se cada comerciante deixar, em
 média, 100 € por mês depois dos custos dele, são precisos ≈ **100–150

@@ -96,7 +96,10 @@ comerciantes e da D-13):
   15.110–21.920 €/mês com 3, sem contabilista, jurista, seguro nem suporte.
   Exemplo de conta (hipótese, não é preço): a 100 € de margem média por
   comerciante e por mês, são precisos ≈ 100–150 comerciantes (≈ 150–220 com 3
-  programadores).
+  programadores). **Decidido a seguir o cenário A** (ADR-0008, sem contratar):
+  sai em dinheiro só o alojamento e as subscrições, mas o tempo do Diogo e do
+  Bruno não está contado — sem lhe pôr valor, o ponto de equilíbrio não se
+  calcula.
 
 ## 6. Regras europeias e fiscais da receita do próprio Lumavo
 
@@ -112,7 +115,7 @@ comerciantes e da D-13):
 
 1. Falar com 3 a 5 comerciantes: quanto pagam hoje (plataforma + extensões de
    faturação + contabilista) e o que pagariam por não errar faturas.
-2. ~~A estimativa de custos (D-13).~~ Feita a 03/10/2026 (`10-estimativa-prazo-e-custo.md`); falta escolher o cenário de equipa.
+2. ~~A estimativa de custos (D-13).~~ Feita a 03/10/2026 (`10-estimativa-prazo-e-custo.md`); equipa decidida (ADR-0008). Falta pôr um valor ao tempo do Diogo e do Bruno.
 3. Confirmar com a Mollie as condições reais (Connect e programa de parceiros).
 4. Contabilista: IVA das mensalidades e das comissões.
 5. Jurista: margem sobre pagamentos às claras; contrato com o Data Act.

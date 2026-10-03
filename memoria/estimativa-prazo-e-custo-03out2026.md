@@ -14,7 +14,19 @@
   (cenário A) — o Lumavo é vendido com responsabilidade e precisa de quem
   reveja cada mudança. Recomendação: B (2 sénior, o 1.º líder técnico), medir
   às 8 semanas, decidir a 3.ª pessoa.
-- **Não decidido:** o cenário de equipa.
+- ✅ **Decidido pelo Diogo a 03/10/2026: cenário A** — *«SERÁ EU E O BRUNO A
+  DESENVOLVER COM O CLAUDE CODE E CODEX»* (ADR-0008, decisão O em `docs/06`).
+  Registado em `docs/10`, `docs/06`, `docs/05`, `docs/00`, `docs/09` e no
+  `CLAUDE.md` (quem trabalha aqui). O prazo mede-se às 8 semanas.
+- **Achado ao registar:** o Codex **não lê o `CLAUDE.md` nem
+  `.claude/skills`** — lê o `AGENTS.md` (até 32 KiB) e `.agents/skills`
+  (documentação oficial, learn.chatgpt.com, 03/10/2026, **W**). Sem ajuste, o
+  Codex trabalha sem as regras do repositório. **Por decidir** como ligar os
+  dois a uma regra só; nada criado. O `CLAUDE.md` tem 9.336 bytes (cabe nos
+  32 KiB).
+- No ADR-0008 ficaram como consequência: dados pessoais reais nunca entram numa
+  sessão de Claude Code ou de Codex (regra 4); o ADR-0005 vale para os dois
+  agentes; a revisão cruzada fica como **proposta**.
 
 ## Números (com data e como se contaram)
 
@@ -50,3 +62,5 @@
 - Contabilista, jurista, seguro, recrutamento e suporte: sem número —
   orçamentos a pedir.
 - Se o SIFIDE II é renovado para 2027.
+- Limites de uso do Codex por plano; se o Codex e o Claude Code seguem ligações
+  simbólicas nas pastas de skills.

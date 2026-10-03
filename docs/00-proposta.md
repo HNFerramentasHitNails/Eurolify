@@ -61,8 +61,8 @@ e esta proposta **não traz nenhuma** — seria inventá-la.
 *Estado a 03/10/2026:* as três decididas — D-1 vender desde o início
 (ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido na Scaleway (ADR-0003,
 ADR-0004). Depois: a base da receita decidida (ADR-0007) e a estimativa de
-prazo e custo feita (`10-estimativa-prazo-e-custo.md`); falta escolher o
-cenário de equipa (D-13).
+prazo e custo feita (`10-estimativa-prazo-e-custo.md`) e a equipa decidida:
+o Diogo e o Bruno desenvolvem, com Claude Code e Codex (D-13, ADR-0008).
 
 ---
 

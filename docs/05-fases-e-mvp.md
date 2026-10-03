@@ -2,8 +2,8 @@
 
 > **Versão de 03/10/2026 — proposta.** D-1, D-2 e D-3 foram decididas a
 > 03/10/2026 (`06-decisoes-em-aberto.md`); a estimativa de prazo e custo da
-> Fase 1 está em `10-estimativa-prazo-e-custo.md` (D-13, falta escolher o
-> cenário de equipa). Cada fase tem um
+> Fase 1 está em `10-estimativa-prazo-e-custo.md`; a D-13 foi decidida
+> (ADR-0008: o Diogo e o Bruno desenvolvem, com Claude Code e Codex). Cada fase tem um
 > **critério de passagem** medível; não se passa à seguinte por calendário.
 
 ## Fase 0 — Decidir e desenhar (agora; sem código)
@@ -11,7 +11,7 @@
 | Entregável | Estado a 03/10/2026 |
 |---|---|
 | Proposta, arquitectura, mapa regulamentar, lições dos sistemas actuais | escrito (este repositório) |
-| As 14 skills de trabalho para as sessões de Claude | escrito (`.claude/skills/`) |
+| As 14 skills de trabalho para as sessões de Claude | escrito (`.claude/skills/`); **o Codex não as lê** — ligar ao Codex por decidir (ADR-0008) |
 | Decisões D-1, D-2, D-3 | **todas decididas** a 03/10/2026: D-1 vender desde o início (ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido, Scaleway (ADR-0003, ADR-0004) |
 | Escolher o fornecedor europeu (D-3) | **decidido** — Scaleway (ADR-0004) |
 | Contratos de adaptadores e pontos de extensão (requisito K) | por fazer — desenho em `08-extensoes-de-terceiros.md` |
@@ -23,7 +23,7 @@
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
 | Modelo de receita (D-14) — preciso antes da Fase 1, porque se vende desde o início | **base decidida** (ADR-0007: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, depois das conversas com comerciantes e da D-13 |
 | Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
-| Estimativa de prazo e custo (D-13) | **estimada** a 03/10/2026 (`10-estimativa-prazo-e-custo.md`): 12 a 30 meses de construção conforme o cenário; **falta escolher o cenário de equipa** e pedir os orçamentos do contabilista, do jurista e do seguro |
+| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; prazo medido às 8 semanas (`10-estimativa-prazo-e-custo.md` §6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
 
 **Critério de passagem:** D-13 e D-14 decididas e registadas em ADR; o OK
 escrito do Bruno ou do Diogo para começar código (ADR-0001).
