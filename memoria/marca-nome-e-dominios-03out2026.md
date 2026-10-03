@@ -136,6 +136,22 @@ linguas»* (sem resposta ao vendEU).
 - Opinião, não verificada: «Polify» soa perto de «Spotify», marca de
   prestígio; e em espanhol «poli» é a polícia na fala corrente.
 
+## Eurolify, proposto pelo Diogo (03/10/2026)
+
+- **Domínios livres:** `eurolify.com` sem registo (RDAP da Verisign, 404);
+  `.eu`, `.com`, `.pt`, `.de`, `.io`, `.app` e `.net` sem delegação no DNS
+  (`dns.google`, 03/10/2026).
+- **Na web, nada com esse nome** (pesquisa entre aspas, 03/10/2026). O mais
+  perto: **Eurolife**, nome de várias seguradoras — em Chipre (grupo Bank of
+  Cyprus), na Grécia e Roménia (Eurolife FFH) e uma corretora em Graz. Sector
+  diferente (seguros), mas soa quase igual.
+- Leitura: «Euro» + (simp)«lify» — a Europa simplificada. «Euro» diz-se à
+  maneira de cada língua mas reconhece-se em todas; «-ify» toda a gente o diz
+  como em Spotify e Shopify (opinião, não testado com falantes).
+- Riscos por verificar: «-ify» no comércio electrónico pode levar o Shopify a
+  alegar associação com a marca dele; o EUIPO trata «EURO» como elemento fraco,
+  e a marca vale pelo resto (**C**, não verificado).
+
 ## Números (com data e como se contaram)
 
 - **03/10/2026, `.com` por RDAP da Verisign** (404 = não registado): dos 50
