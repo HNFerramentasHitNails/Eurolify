@@ -29,9 +29,14 @@ de»*, sem IVA:
   VPS-3 foi proposta minha (**C**, carga não medida): PostgreSQL, a API, o Hub e as
   construções das imagens na mesma máquina; a Coolify, se for usada, pede no
   mínimo 2 núcleos e 2 GB.
-- **Centro de dados na UE** (regra 4 do `AGENTS.md`), escolhido na compra. A
-  página mostra as localizações num mapa; o texto não as lista: **não
-  verifiquei** quais há.
+- **Centro de dados na UE** (regra 4 do `AGENTS.md`), escolhido na compra. O
+  catálogo público da OVH para Portugal (lido a 03/10/2026) oferece ao VPS-3
+  `DE`, `EU-SOUTH-MIL`, `EU-WEST-RBX`, `GRA`, `SBG` e `WAW` — na UE, pelo
+  código — e também `UK`, `BHS`, `SGP`, `SYD` e `YNM`, que não servem.
+- ⚠️ **A VPS comprada a 03/10/2026 (`vps-c01fa544`) tem os endereços
+  registados no Reino Unido** (RIPE: `VPS-UK2`, país GB). A confirmar na
+  consola da OVH antes de instalar o que quer que seja
+  (`memoria/vps-operada-por-nos-03out2026.md`).
 - **Cópias fora da máquina**: num armazenamento na UE, noutro sítio que não a
   VPS. A cópia diária da OVH não chega (ver §3.5). Preço: **não verifiquei**.
 
@@ -148,7 +153,9 @@ imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
 
 **Por resolver.** Numa sessão do Claude Code na cloud, uma ligação directa à
 porta 22 (SSH) do `github.com` não respondeu em 8 s (03/10/2026); o resto do
-teste foi bloqueado pelo sistema de permissões da sessão. Caminhos:
+teste foi bloqueado pelo sistema de permissões da sessão. Com a VPS comprada,
+a porta 22 dela também não respondeu em 10 s a partir da cloud (03/10/2026);
+não se sabe se o bloqueio é da sessão ou da VPS. Caminhos:
 
 | Caminho | Como | Estado |
 |---|---|---|
@@ -182,8 +189,10 @@ preciso operar a partir da cloud.
 
 ## 8. O que ficou por verificar
 
-- Os centros de dados da UE das VPS da OVH e as condições do preço «a partir
-  de» (a página irlandesa, lida por resumo, fala de 12 meses adiantados).
+- A localização da VPS comprada, na consola da OVH (o registo da RIPE diz
+  Reino Unido); se a OVH deixa mudar de centro de dados ou desistir.
+- As condições do preço «a partir de» (a página irlandesa, lida por resumo,
+  fala de 12 meses adiantados) e se o preço muda com o centro de dados.
 - O preço do armazenamento das cópias.
 - A versão estável do PostgreSQL à data da instalação.
 - Os dois caminhos do §5.
