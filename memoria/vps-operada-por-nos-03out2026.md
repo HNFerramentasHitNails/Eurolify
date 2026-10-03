@@ -213,3 +213,68 @@ cria a chave no Windows nem liga o agente de SSH do Windows, e a chave ficaria
 na máquina virtual, não no computador do Diogo (ADR-0020). Se a rede dele
 chega à porta 22: **não verifiquei**. O prompt foi feito para o Claude Code no
 computador do Diogo.
+
+## Primeiro acesso e medição (03/10/2026)
+
+Claude Code no computador do Diogo (Windows), a pedido dele; as medições são das
+23:49 UTC de 03/10/2026 (já madrugada de 04/10 em Lisboa).
+
+### O que se fez
+
+- Verificado no computador: `git` 2.53.0.windows.2; Modo de Programador ligado
+  (`AllowDevelopmentWithoutDevLicense = 1`); `OpenSSH_for_Windows_9.5p2`.
+- Clone em `C:\Users\diogo\Eurolify` com `core.symlinks=true`. As **14 ligações**
+  de `.claude\skills\` funcionam (cada uma é uma ligação simbólica e o
+  `SKILL.md` abre): fecha a dúvida do ADR-0020.
+- A chave `eurolify_vps` (ED25519, com frase-passe) **já existia** no computador
+  do Diogo, e o `ssh-agent` já estava ligado (arranque automático) com ela
+  carregada; a impressão digital do agente é a da `.pub`. Não foi preciso criar
+  chave nem ligar o agente.
+- **Primeira alteração à máquina: a chave pública do Diogo está no
+  `authorized_keys` do utilizador `ubuntu`, posta pelo Diogo.** Não vi quando
+  nem como (o Claude não a pôs): soube-se porque a entrada por chave, com
+  `-o BatchMode=yes`, já funcionava antes de o Claude fazer o que quer que fosse
+  na máquina.
+- Criado `%USERPROFILE%\.ssh\config` (não existia) com o `Host eurolify-ensaio`
+  (`ubuntu`, `IdentityFile ~/.ssh/eurolify_vps`, `IdentitiesOnly yes`).
+- Na VPS, **só leitura**: nada instalado, configurado ou reiniciado; `sudo`
+  só com `-n` e aceite sem palavra-passe nos comandos de leitura.
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| Porta 22 a partir do computador do Diogo | responde | `Test-NetConnection <VPS> -Port 22`, 03/10/2026 |
+| Entrada por chave | `vps-c01fa544` / `ubuntu`, sem pedir palavra-passe | `ssh -o BatchMode=yes eurolify-ensaio "hostname; whoami"` |
+| **A VPS aceita palavra-passe?** | **sim**: `Permission denied (publickey,password).` | `ssh -o BatchMode=yes -o PubkeyAuthentication=no -o PreferredAuthentications=none eurolify-ensaio` |
+| Sistema | Ubuntu 26.04 LTS (Resolute Raccoon), kernel 7.0.0-28-generic | `/etc/os-release`, `uname -r` |
+| **Núcleos** | **2** (ADR-0017: 6) | `nproc` |
+| **Memória** | **3,7 GiB** no total, 496 MiB usados, sem swap (ADR-0017: 12 GB) | `free -h` |
+| **Disco** | **40 GB** (raiz 38 GB, 2,7 GB usados, 7 %) (ADR-0017: 100 GB NVMe) | `lsblk`, `df -h /` |
+| Portas à escuta | só 22 (SSH, IPv4 e IPv6) e o DNS local (53) | `ss -tln` |
+| Actualizações automáticas | `enabled` | `systemctl is-enabled unattended-upgrades` |
+| Hora | UTC, relógio sincronizado, NTP activo | `timedatectl` |
+| `sshd` | `passwordauthentication yes`; `permitrootlogin prohibit-password`; `kbdinteractiveauthentication no`; `pubkeyauthentication yes` | `sudo -n sshd -T` filtrado |
+| Firewall | `ufw`: **inactive** | `sudo -n ufw status` |
+| Tentativas de entrada falhadas, últimas 24 h | **528** | `sudo -n journalctl -u ssh -u sshd --since "24 hours ago"`, `grep -c` de «Failed password», «Invalid user», «authentication failure» e «Connection closed by (invalid\|authenticating) user»; uma tentativa pode contar em mais de uma linha, por isso é uma ordem de grandeza |
+
+**Leitura:** a máquina mede o que a VPS-1 da OVH anuncia (2 vCores, 4 GB; ver
+a tabela de preços acima), **não** a VPS-3 do ADR-0017 (6 vCores, 12 GB, 100 GB).
+A causa não está apurada. Com a palavra-passe aceite e a firewall desligada, a
+máquina já recebe tentativas de adivinhação (528 em 24 h) só com a porta 22
+aberta.
+
+### O que ficou por verificar
+
+- **Que plano a OVH facturou e instalou** (consola da OVH, o Diogo): a medição
+  dá 2 núcleos, 3,7 GiB e 40 GB, e o ADR-0017 e o `docs/11` §1 dizem VPS-3. Se
+  for mesmo uma VPS-1, as contas e a margem do ADR-0017 (**C**, carga não
+  medida) têm de ser revistas, e fala-se com a OVH sobre o plano. Os números
+  não foram corrigidos nos documentos: só se corrigem depois de confirmados.
+- Fechar a entrada por palavra-passe e ligar a firewall: **não feito**; vem no
+  script, com as duas revisões (ADR-0015, ponto 4; ADR-0013).
+- O que pode ter entrado entre a compra e esta medição: **não verifiquei** os
+  registos de entradas bem-sucedidas nem o `authorized_keys` (só medi o número
+  de falhadas).
+- Quando e como a chave pública foi posta no `authorized_keys`.
+- O IPv6 não foi testado a partir do computador do Diogo.
