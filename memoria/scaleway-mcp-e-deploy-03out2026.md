@@ -7,7 +7,9 @@ alojamento europeu gerido (ADR-0003).
 ## O que se fez (só leitura e medição; nada instalado, nada criado)
 
 - ✅ **A Scaleway ficou escolhida** pelo Diogo a 03/10/2026 (*«fica a
-  scaleway»*, ADR-0004). A proposta de publicação abaixo continua por decidir.
+  scaleway»*, ADR-0004).
+- ✅ **A proposta de publicação ficou decidida** pelo Diogo a 03/10/2026
+  (*«sim, fica assim»*, ADR-0005, decisão I).
 
 - **Existe MCP oficial**: vem dentro do programa de linha de comandos da
   Scaleway — `scw mcp server serve`. Expõe todos os comandos como ferramentas;
@@ -28,7 +30,7 @@ alojamento europeu gerido (ADR-0003).
 | Download do `scw` pelas releases do GitHub | 403 do proxy | bloqueado |
 | `proxy.golang.org/…/scaleway-cli/v2/@latest` | 200; Go 1.24.7 instalado | dá para instalar com `go install` (não instalado) |
 
-## Proposta (por decidir)
+## Proposta (decidida a 03/10/2026, ADR-0005)
 
 - **Quem publica é o caminho no GitHub, não eu à mão**: cada alteração entra
   no `main`, os testes correm e o mesmo caminho põe no ar (lição 4.12 de

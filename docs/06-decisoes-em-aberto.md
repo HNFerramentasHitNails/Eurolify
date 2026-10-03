@@ -6,10 +6,10 @@
 > decisão é tomada, regista-se num ADR em `docs/adr/` e muda-se aqui o estado —
 > **não se apaga a linha**.
 >
-> **Quem decide (proposta, a confirmar):** o negócio decidem **Bruno e
-> Cila**; tudo o que é faturação, NIF, IVA e identidade de clientes passa pelo
-> **Bruno**, como em todo o ecossistema; avançar para código decide **o Bruno ou
-> o Diogo** (ADR-0001).
+> **Quem decide:** **o Diogo ou o Bruno**, cada um sozinho, em tudo — negócio,
+> faturação, NIF, IVA, identidade de clientes, aspecto, e o OK para código
+> (ordem do Diogo, 03/10/2026; `CLAUDE.md`, «Quem decide»). As propostas de
+> negócio e de marca continuam a ser apresentadas a Bruno e Cila.
 
 ## Já decidido
 
@@ -23,6 +23,8 @@
 | ✅ F | **O Lumavo é um produto para vender, como o Shopify, a todos os tipos de comerciantes da UE, e nativo para toda a UE** (exclui a c) da D-1; fecha a D-6) | Diogo, 03/10/2026 | D-1 e D-6 abaixo |
 | ✅ G | **Alojamento num fornecedor europeu, com serviços geridos** (D-3 → a); o fornecedor ficou a Scaleway (H). Não é o OK para código | Diogo, 03/10/2026 | [ADR-0003](adr/0003-alojamento-europeu-gerido.md) |
 | ✅ H | **O fornecedor de alojamento é a Scaleway**, sem comparação com a OVHcloud. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0004](adr/0004-fornecedor-scaleway.md) |
+| ✅ I | **Publica-se pelo GitHub**: cada alteração entra no `main`, os testes correm e o mesmo caminho põe no ar. O Claude tem o MCP da Scaleway **só de leitura**; escrita só num projecto de ensaio, com chave limitada a ele | Diogo, 03/10/2026 | [ADR-0005](adr/0005-publicacao-pelo-github.md) |
+| ✅ J | **O Diogo e o Bruno têm toda a liberdade neste repositório**, cada um sozinho — incluindo faturação, NIF, IVA e identidade de clientes. **Regras da UE**: seguir as skills, só regras da UE com fonte, nunca inventar, dados na UE | Diogo, 03/10/2026 | `CLAUDE.md` |
 
 ## Por decidir — por esta ordem
 
@@ -109,7 +111,7 @@ e esse alojamento é deles.
 | b) Certificar o próprio Lumavo junto da AT (e equivalentes) | Controlo total; custo, prazo e responsabilidade legal por país |
 
 **Recomendação: a)** nas Fases 1 a 3. Reavaliar a b) com números de clientes.
-**Quem decide: Bruno.**
+**Quem decide:** Diogo ou Bruno.
 
 ### D-5 · Pagamentos
 
@@ -163,11 +165,11 @@ encomendas como o Shopify faz hoje, e esse sistema continua a ser o único que
 fala com o software de faturação — é a regra do Hub interno actual («um só
 sistema fala com o Moloni»), e evita dois emissores para a mesma venda. Passar
 a emissão para o Lumavo é uma decisão posterior, cliente a cliente, com o
-Lumavo já provado. **Quem decide: Bruno.**
+Lumavo já provado. **Quem decide:** Diogo ou Bruno.
 
 ### D-11 · Ponte para a memória de trabalho existente
 
-A memória do Lumavo vive aqui (decisão B). **Por decidir com o Bruno:** pôr no
+A memória do Lumavo vive aqui (decisão B). **Por decidir pelo Diogo ou pelo Bruno:** pôr no
 repo `bruno-88/claude` **uma** memória curta a apontar para este repositório,
 para que uma sessão sobre os sistemas actuais saiba que o Lumavo existe. Não o fiz: o
 pedido foi guardar aqui.
@@ -176,8 +178,8 @@ pedido foi guardar aqui.
 
 **Não verifiquei** se a marca está livre no EUIPO nem que domínios estão
 disponíveis. Verificar antes de gastar dinheiro em marca. A **identidade
-visual** (logótipo, cores, letra) também está por decidir: as propostas vão a
-Bruno e Cila com o antes e o depois (skill `lumavo-design`, regra 1).
+visual** (logótipo, cores, letra) também está por decidir: as propostas vão com o
+antes e o depois e decide o Diogo ou o Bruno (skill `lumavo-design`, regra 1).
 
 ### D-13 · Quem constrói, em quanto tempo e com que orçamento
 

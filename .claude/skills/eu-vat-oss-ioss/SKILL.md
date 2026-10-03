@@ -7,7 +7,7 @@ description: Motor de IVA e documentos fiscais do Lumavo — categoria fiscal do
 
 > Estado: **desenho** — não há código (ADR-0001). Fontes e datas:
 > `docs/03-regulamentar-ue.md` §1. Lições: `docs/04-licoes-dos-sistemas-actuais.md`
-> §1 e §2. **Quem decide: Bruno.**
+> §1 e §2. **Quem decide:** Diogo ou Bruno (ordem do Diogo, 03/10/2026).
 >
 > 🔴 **Validação obrigatória:** cada regra deste ficheiro é validada por um
 > contabilista **do país** antes de chegar a um documento real. O que está

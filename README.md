@@ -14,7 +14,7 @@ europeias de raiz e aberto a qualquer IA.
 
 | Ler | Para quê |
 |---|---|
-| [`docs/00-proposta.md`](docs/00-proposta.md) | **A proposta**, para Bruno e Cila decidirem |
+| [`docs/00-proposta.md`](docs/00-proposta.md) | **A proposta**, apresentada a Bruno e Cila |
 | [`docs/06-decisoes-em-aberto.md`](docs/06-decisoes-em-aberto.md) | O que está decidido e as 14 decisões que faltam, por ordem |
 | [`docs/05-fases-e-mvp.md`](docs/05-fases-e-mvp.md) | Fases, o que entra na primeira versão e quando se passa à seguinte |
 | [`docs/02-arquitectura.md`](docs/02-arquitectura.md) | As peças, os domínios e as interfaces (API, checkout, MCP) |

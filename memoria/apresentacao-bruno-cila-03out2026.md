@@ -7,7 +7,7 @@ estudos de logótipo (18 estudos) entregues na mesma mensagem.
 ## O que se fez
 
 - **48 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
-  (versão 5, capa «Versão 0.3»; a versão 3 tinha 46). **Privado**: só o Diogo o abre até o partilhar no menu da página.
+  (versão 6, capa «Versão 0.3»; a versão 3 tinha 46). **Privado**: só o Diogo o abre até o partilhar no menu da página.
   Descarrega-se em PDF ou PPTX para imprimir.
 - É um **resumo** de `docs/00` a `docs/06`. Se divergir do repositório, vale o
   repositório — está escrito na capa e na última página.
@@ -58,7 +58,9 @@ respostas que dei anteriormente.»*
   45, 46 (fontes da Scaleway, Supabase, Vercel, Hetzner), 47, e a capa.
 - Na versão 4 a Scaleway aparecia como o fornecedor estudado. **Versão 5
   (03/10/2026):** passa a escolhida (ADR-0004) nas páginas 2, 32, 35, 37, 45
-  e 47.
+  e 47. **Versão 6 (03/10/2026):** quem decide passa a ser o Diogo ou o Bruno
+  (página 32, asides das 31 e 40 a 43, sem «decide o Bruno» na 38) e a
+  publicação pelo GitHub passa a decidida na 37.
 
 ## O que ficou por verificar
 

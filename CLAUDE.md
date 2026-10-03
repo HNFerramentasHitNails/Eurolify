@@ -46,6 +46,31 @@ Herdado dos sistemas actuais, onde custou faturas reais
    **W/M/C** como em `docs/03-regulamentar-ue.md`; as **C** não chegam a um
    ecrã sem verificação ou validação profissional.
 
+## 🔴 Regras da UE — seguir as skills, nunca inventar
+
+Ordem do Diogo, 03/10/2026: *«o claude seguir as skills já criadas, para seguir
+totalmente as regras da UE e nunca inventar nada fora da UE»*.
+
+1. **Antes de trabalhar num tema, abrir a skill dele e segui-la toda** (tabela
+   no fim deste ficheiro). Um tema que toca em várias abre todas — ex.: o
+   checkout é `consumer-rights-eu` + `eu-vat-oss-ioss` + `payments-psd2-sca` +
+   `eu-gdpr-privacy`. Se o pedido chocar com uma skill, diz-se e não se
+   contorna; muda-se a skill primeiro, com o OK do Diogo ou do Bruno.
+2. **Só regras da UE e dos seus Estados-membros.** O que é fiscal, legal, de
+   consumidor, de produto, de dados ou de pagamentos vem do direito da UE ou do
+   país da UE em causa, com fonte e marca W/M/C (`docs/03-regulamentar-ue.md`).
+   Não se importam regras nem conceitos de fora da UE (o *sales tax* dos EUA,
+   leis de privacidade americanas, o comportamento do Shopify como se fosse
+   regra). Uma venda para fora da UE trata-se pelas regras da UE (exportação),
+   não pelas do país de destino.
+3. **Nunca inventar.** Uma regra, taxa, data, prazo ou obrigação sem fonte não
+   entra: diz-se **«não verifiquei»** e fica marcada **C** até ser verificada ou
+   validada por um profissional. Nada se completa «por lógica» numa regra
+   fiscal ou legal.
+4. **Os dados ficam na UE.** O Lumavo vive na Scaleway (ADR-0004). Um serviço
+   de fora da UE que receba dados pessoais só entra com decisão escrita do
+   Diogo ou do Bruno e o acordo de transferência (skill `eu-gdpr-privacy`).
+
 ## 🔴 Uma regra, um sítio — e o sítio é a API
 
 Tudo o que decide preço, IVA, disponibilidade, permissões ou estados vive **no
@@ -55,15 +80,19 @@ confirmação, livre resolução, documento fiscal — são servidos pelo Lumavo
 
 ## Quem decide
 
+**O Diogo e o Bruno têm toda a liberdade neste repositório**, cada um sozinho
+(ordem do Diogo, 03/10/2026: *«neste projeto, não é só o bruno que trata de
+facturação. EU e o Bruno, temos toda a liberdade dentro deste repositorio»*).
+
 | O quê | Quem |
 |---|---|
 | Ler, medir, investigar, escrever documentos de desenho | livre, para qualquer pessoa |
-| Decisões de negócio (D-1, D-13, D-14…) | Bruno e Cila |
-| Faturação, NIF, IVA, identidade de clientes, Moloni | **Bruno** |
-| Avançar para código (substituir o ADR-0001) | Bruno ou Diogo |
-| Alterar decisões já tomadas | quem as tomou |
+| Decisões de negócio, faturação, NIF, IVA, identidade de clientes, Moloni, aspecto e marca | **Diogo ou Bruno** |
+| Avançar para código (substituir o ADR-0001) | **Diogo ou Bruno** |
+| Alterar decisões já tomadas | **Diogo ou Bruno** |
 
-*(Proposta escrita a 03/10/2026; confirmar com o Bruno.)*
+As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
+(a apresentação impressa é para os dois).
 
 ## Como responder
 

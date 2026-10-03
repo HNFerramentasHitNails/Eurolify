@@ -25,8 +25,8 @@ description: Design do Lumavo — montra (kit de loja e temas de cada comerciant
 
 1. **Nenhuma marca existente.** O Lumavo é da Luckytarget, com marca própria;
    a identidade visual dele decide-se (D-12) — nunca se inventa uma paleta ou um
-   logótipo «definitivos». Tudo o que é aspecto do Lumavo vai a **Bruno e Cila
-   com o antes e o depois**: nos sistemas actuais, um aspecto novo aprovado por
+   logótipo «definitivos». Tudo o que é aspecto do Lumavo vai **ao Diogo ou ao
+   Bruno com o antes e o depois**, e só um deles dá o OK: nos sistemas actuais, um aspecto novo aprovado por
    outra pessoa e publicado em 14 commits foi todo revertido na mesma noite (01/10/2026,
    `regra-aspecto-so-com-ok-do-bruno-01out2026.md`, repo `claude`).
 2. **Tokens em três níveis**: global (valores), semântico (`superficie`,
@@ -82,7 +82,7 @@ fora: `referencias/ORIGEM.md`.
 
 | Para | Ler |
 |---|---|
-| Os princípios de design do Lumavo (propor a Bruno e Cila) | `referencias/designer-skills/ux-strategy/design-principles.md` |
+| Os princípios de design do Lumavo (propor ao Diogo ou ao Bruno) | `referencias/designer-skills/ux-strategy/design-principles.md` |
 | O caderno de encargos de um ecrã ou fluxo | `referencias/designer-skills/ux-strategy/design-brief.md` |
 | A arquitectura de informação do Hub e da montra | `referencias/designer-skills/ux-strategy/information-architecture.md` |
 | Fluxos (checkout, livre resolução, onboarding) | `referencias/designer-skills/prototyping-testing/user-flow-diagram.md` |
@@ -137,4 +137,4 @@ fora: `referencias/ORIGEM.md`.
 - [ ] Claro e escuro; 375, 768 e 1280 px; só teclado — vistos, não supostos.
 - [ ] Estados: vazio, a carregar, erro, sem permissão (e retida, se fiscal).
 - [ ] Textos em PT/ES/EN, masculino universal em PT, nada de maiúsculas forçadas.
-- [ ] O que é aspecto do Lumavo foi a Bruno e Cila com o antes e o depois.
+- [ ] O que é aspecto do Lumavo foi ao Diogo ou ao Bruno com o antes e o depois.

@@ -1,6 +1,6 @@
 # ADR-0004 · O fornecedor de alojamento é a Scaleway
 
-- **Estado:** aceite
+- **Estado:** aceite · a publicação ficou decidida no [ADR-0005](0005-publicacao-pelo-github.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** D-3 (`docs/06-decisoes-em-aberto.md`);
