@@ -7,7 +7,7 @@ estudos de logótipo (18 estudos) entregues na mesma mensagem.
 ## O que se fez
 
 - **50 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
-  (versão 7, capa «Versão 0.3»; a versão 3 tinha 46, a 4 a 6 tinham 48). **Privado**: só o Diogo o abre até o partilhar no menu da página.
+  (versão 8, capa «Versão 0.3»; a versão 3 tinha 46, a 4 a 6 tinham 48). **Privado**: só o Diogo o abre até o partilhar no menu da página.
   Descarrega-se em PDF ou PPTX para imprimir.
 - É um **resumo** de `docs/00` a `docs/06`. Se divergir do repositório, vale o
   repositório — está escrito na capa e na última página.
@@ -72,6 +72,13 @@ a todos». Tudo o resto andou duas páginas; índice e referências cruzadas
 acertados (ex.: a D-1 passou da página 33 para a 35). Chegou às 50 páginas;
 **o Diogo autorizou passar das 50** (*«pode ultrapassar as 50 paginas»*,
 03/10/2026).
+
+## Versão 8 (03/10/2026): D-1 decidida
+
+A D-1 (vender desde o início, ADR-0006) entrou nas páginas 2, 30, 31, 32, 33,
+34, 35, 40, 46 e 49: a página 2 passa a «O que ficou decidido e o que pedimos
+nesta reunião» (pede-se só a marca); a 35 tem a decisão carimbada e diz que a
+recomendação era a b); as fases e o âmbito da Fase 1 seguem `docs/05`.
 
 ## O que ficou por verificar
 

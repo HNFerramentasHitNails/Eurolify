@@ -49,7 +49,7 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
    com números (carga, equipa, ritmo de publicação).
 4. **Multi-inquilino desde o primeiro dia.** Cada linha tem o seu comerciante;
    o isolamento é imposto pela base (políticas por inquilino), não só pelo
-   código. O primeiro inquilino é o cliente zero (D-1).
+   código. Vende-se a outros comerciantes desde a primeira versão (D-1, ADR-0006).
 5. **Adaptadores para tudo o que é de fora.** Pagamentos, faturação, envios,
    VIES, e-mail. O núcleo fala uma língua só; trocar de fornecedor não mexe no
    núcleo.

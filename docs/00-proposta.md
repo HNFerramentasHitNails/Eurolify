@@ -2,8 +2,9 @@
 
 > **Projecto da Luckytarget Lda.** **Para:** Bruno e Cila · **De:** Diogo
 > (preparado com Claude) · **Versão 0.3, 03/10/2026** · **Estado:** proposta. Nenhum código escrito; já
-> decididas pelo Diogo a 03/10/2026: de raiz (D-2), produto nativo para toda a
-> UE (F) e alojamento europeu gerido, na Scaleway (D-3) — ver `06-decisoes-em-aberto.md`. Os pormenores estão nos outros documentos de `docs/`; este é o que
+> decididas pelo Diogo a 03/10/2026: vender desde o início (D-1), de raiz
+> (D-2), produto nativo para toda a UE (F) e alojamento europeu gerido, na
+> Scaleway (D-3) — ver `06-decisoes-em-aberto.md`. Os pormenores estão nos outros documentos de `docs/`; este é o que
 > se lê primeiro.
 >
 > O Lumavo é desenvolvido **dentro da Luckytarget**, com marca própria. Os
@@ -41,8 +42,9 @@ mais um mercado; o Lumavo trata-a como casa.
 **O que recomendo.**
 
 - Construir o Lumavo **como produto** (vários comerciantes na mesma
-  plataforma), mas provar com **um cliente zero real** — uma operação do próprio
-  grupo ou um comerciante parceiro (D-1) — e só depois vender.
+  plataforma) e **vendê-lo desde a primeira versão** (decisão do Diogo,
+  03/10/2026, ADR-0006 — a recomendação inicial era provar primeiro com um
+  cliente zero).
 - **Nativo para toda a UE desde a raiz** (decisão do Diogo, 03/10/2026): IVA
   dos 27 países e OSS, NIF e VIES, territórios especiais. O que entra país a
   país é a ligação ao software de faturação dos comerciantes de cada país.
@@ -56,9 +58,9 @@ mais um mercado; o Lumavo trata-a como casa.
 **O que se pede agora:** decidir D-1, D-2 e D-3
 (`06-decisoes-em-aberto.md`). Sem elas não há estimativa de prazo nem de custo,
 e esta proposta **não traz nenhuma** — seria inventá-la.
-*Estado a 03/10/2026:* D-2 decidida (de raiz, ADR-0002), D-3 decidida (europeu
-gerido, ADR-0003), D-1 em parte (produto para toda a UE; falta quando abre a
-outros comerciantes).
+*Estado a 03/10/2026:* as três decididas — D-1 vender desde o início
+(ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido na Scaleway (ADR-0003,
+ADR-0004). A seguir: a estimativa (D-13) e o modelo de receita (D-14).
 
 ---
 
@@ -170,22 +172,22 @@ são de uma empresa, não de uma loja.
 3. **Uma alternativa ao Shopify para toda a gente.** Já há alternativas
    europeias (o Shopware na Alemanha, o PrestaShop em França). O que o Lumavo
    tem de diferente tem de ser claro: **API para qualquer frontend + Hub de
-   gestão + faturação e IVA europeus de raiz + IA**. Sem um cliente zero real,
-   é uma lista de desejos.
+   gestão + faturação e IVA europeus de raiz + IA**. Sem os primeiros
+   comerciantes reais, é uma lista de desejos.
 4. **A API sozinha não chega.** O checkout e os momentos legais têm de ser do
    Lumavo — ver §2.1.
 
-## 5. Como um cliente zero com sistemas próprios passaria a usar o Lumavo
+## 5. Como um comerciante com sistemas próprios passa a usar o Lumavo
 
 1. O **sistema de gestão que já fatura continua a faturar** e a ser o único que
    fala com o software de faturação; o Lumavo entrega-lhe as encomendas como o
    Shopify faz hoje (D-10).
 2. O **catálogo continua a nascer nesse sistema** e é espelhado para o Lumavo
    pela API.
-3. A primeira loja real é **pequena e contida**, a correr em paralelo com o
-   Shopify.
-4. Uma loja principal só muda depois de a primeira ter três meses de vendas sem
-   um documento fiscal errado.
+3. Nas lojas do próprio grupo, a primeira é **pequena e contida**, a correr em
+   paralelo com o Shopify.
+4. A loja principal do grupo só muda depois de a primeira ter três meses de
+   vendas sem um documento fiscal errado.
 5. O piloto de pagamentos já desenhado para a plataforma de formação (EuPago e
    Stripe, 29/09/2026) segue o seu caminho; o Lumavo reaproveita o desenho.
 
@@ -193,10 +195,10 @@ são de uma empresa, não de uma loja.
 
 | Fase | O quê | Passa quando |
 |---|---|---|
-| **0** | Decidir e desenhar — **agora, sem código** | D-1 a D-3 decididas, estimativa feita, OK escrito para código |
-| **1** | Núcleo nativo para a UE + cliente zero | 3 meses de vendas reais sem documento fiscal errado com origem no Lumavo |
-| **2** | O Hub do Lumavo + emissão por adaptador + mais países | um 2.º comerciante a vender há 3 meses |
-| **3** | Abrir a outros comerciantes | — |
+| **0** | Decidir e desenhar — **agora, sem código** | estimativa (D-13) e modelo de receita (D-14) decididos, OK escrito para código |
+| **1** | Núcleo nativo para a UE, **à venda desde o início** | 3 meses de vendas reais, em todos os comerciantes, sem documento fiscal errado com origem no Lumavo |
+| **2** | O Hub do Lumavo + faturação noutros países + parceiros | comerciantes de pelo menos dois países a vender há 3 meses (proposta) |
+| **3** | Extensões abertas e comércio por agentes | — |
 | **4** | Marketplace, só com caso de negócio | — |
 
 Pormenor em [`05-fases-e-mvp.md`](05-fases-e-mvp.md).
@@ -205,10 +207,10 @@ Pormenor em [`05-fases-e-mvp.md`](05-fases-e-mvp.md).
 
 | Risco | Porque é sério | Como se reduz |
 |---|---|---|
-| **Responsabilidade fiscal por faturas de outras empresas** | Um erro do Lumavo vira uma nota de crédito e um telefonema de um cliente de outro comerciante | Faturação por software certificado; retenção em vez de emissão errada; contratos e seguro; Fase 3 só depois de provas |
+| **Responsabilidade fiscal por faturas de outras empresas** | Um erro do Lumavo vira uma nota de crédito e um telefonema de um cliente de outro comerciante | Faturação por software certificado; retenção em vez de emissão errada; contrato com limites e seguro; motor de IVA validado pelo contabilista **antes do primeiro comerciante de fora** (vende-se desde o início, ADR-0006) |
 | **Âmbito** | Uma plataforma destas tem centenas de peças; o Hub interno actual já tem 420 caminhos de ecrã e 225 funções no servidor (30/09/2026) | Fases com critério de passagem; a faturação de cada país ligada um país de cada vez; fora tudo o que não é de uma loja |
 | **Migrar uma loja que já vende** | A loja actual tem 5.262 clientes no Shopify (contados a 29/09/2026, `consentimento-de-marketing-no-hub-29set2026.md`), consentimentos, encomendas a meio | Loja pequena primeiro; corrida em paralelo; consentimentos migrados pela régua única |
-| **Concorrência** | Shopify, Shopware, PrestaShop, WooCommerce, motores abertos | Diferença clara (§4.3) e um cliente zero real |
+| **Concorrência** | Shopify, Shopware, PrestaShop, WooCommerce, motores abertos | Diferença clara (§4.3) e os primeiros comerciantes reais |
 | **Equipa e créditos de IA** | Os sistemas actuais já esgotaram créditos de IA (15/09/2026) e o limite semanal de Claude (registado a 29/09/2026) | Estimativa honesta na Fase 0 (D-13); orçamento de IA |
 | **Regras a mudar** | PSD3, Digital Fairness Act, ViDA estão a caminho | Mapa regulamentar com datas e revisão trimestral |
 

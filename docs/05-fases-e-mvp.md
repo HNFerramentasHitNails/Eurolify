@@ -1,7 +1,8 @@
 # Fases e primeira versão (MVP)
 
-> **Versão de 03/10/2026 — proposta.** Sem datas nem custos: dependem das
-> decisões D-1, D-2 e D-3 (`06-decisoes-em-aberto.md`). Cada fase tem um
+> **Versão de 03/10/2026 — proposta.** Sem datas nem custos: D-1, D-2 e D-3
+> foram decididas a 03/10/2026 (`06-decisoes-em-aberto.md`); falta a
+> estimativa (D-13). Cada fase tem um
 > **critério de passagem** medível; não se passa à seguinte por calendário.
 
 ## Fase 0 — Decidir e desenhar (agora; sem código)
@@ -9,8 +10,8 @@
 | Entregável | Estado a 03/10/2026 |
 |---|---|
 | Proposta, arquitectura, mapa regulamentar, lições dos sistemas actuais | escrito (este repositório) |
-| As 12 skills de trabalho para as sessões de Claude | escrito (`.claude/skills/`) |
-| Decisões D-1, D-2, D-3 | D-2 **decidida** (ADR-0002); D-3 **decidida** (ADR-0003); D-1 em parte (decisão F: falta quando abre a outros comerciantes) |
+| As 14 skills de trabalho para as sessões de Claude | escrito (`.claude/skills/`) |
+| Decisões D-1, D-2, D-3 | **todas decididas** a 03/10/2026: D-1 vender desde o início (ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido, Scaleway (ADR-0003, ADR-0004) |
 | Escolher o fornecedor europeu (D-3) | **decidido** — Scaleway (ADR-0004) |
 | Contratos de adaptadores e pontos de extensão (requisito K) | por fazer — desenho em `08-extensoes-de-terceiros.md` |
 | Prova de 2 semanas com a Medusa (D-2) | **cancelada** — a D-2 foi decidida a 03/10/2026: núcleo próprio, de raiz (ADR-0002) |
@@ -18,18 +19,20 @@
 | Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | por fazer |
 | Regras do motor de IVA validadas pelo contabilista | por fazer |
 | Fluxos do consumidor (checkout, confirmação, livre resolução, garantia) validados por jurista | por fazer |
-| Conversas com 3 a 5 comerciantes de fora (para D-1 e D-14) | por fazer |
-| Estimativa de prazo e custo (D-13) | por fazer, depois de D-1 a D-3 |
+| Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
+| Modelo de receita (D-14) — preciso antes da Fase 1, porque se vende desde o início | por decidir |
+| Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
+| Estimativa de prazo e custo (D-13) | por fazer — **é a próxima tarefa** (D-1 a D-3 decididas) |
 
-**Critério de passagem:** D-1 a D-3 e D-13 decididas e registadas em ADR; o OK
+**Critério de passagem:** D-13 e D-14 decididas e registadas em ADR; o OK
 escrito do Bruno ou do Diogo para começar código (ADR-0001).
 
-## Fase 1 — Núcleo e cliente zero
+## Fase 1 — Núcleo e os primeiros comerciantes (vende-se desde o início)
 
 **Âmbito — entra:**
 
 - Catálogo com variantes, kits/coleções, traduções e os campos regulamentares
-  (fabricante, pessoa responsável, avisos, INCI, lote) — se o cliente zero já
+  (fabricante, pessoa responsável, avisos, INCI, lote) — se o comerciante já
   tiver um sistema de gestão, o catálogo continua a **nascer lá** e é espelhado
   para o Lumavo pela API, como hoje para o Shopify.
 - **Toda a UE de raiz** (decisão F, 03/10/2026): taxas dos 27 países, OSS,
@@ -40,8 +43,14 @@ escrito do Bruno ou do Diogo para começar código (ADR-0001).
   (PT, UE, fora da UE, Canárias/Ceuta/Melilla, Açores/Madeira).
 - Pagamentos **EuPago** e **Stripe**, com a régua método → prestador → conta.
 - Encomendas e stock (um armazém, reservas, disponível por canal).
-- **Entrega das encomendas ao sistema de gestão do cliente zero**, que continua
-  a faturar no software certificado (D-10).
+- **Entrega das encomendas ao sistema de gestão do comerciante que já o
+  tenha**, que continua a faturar no software certificado (D-10).
+- **Emissão de faturas por adaptador em Portugal (Moloni)** para quem não tem
+  sistema de gestão — passou da Fase 2 por causa da D-1 → a) (ADR-0006).
+- **Abertura a comerciantes desde o início (ADR-0006):** registo e
+  configuração pelo próprio comerciante, contrato de serviço e acordo de
+  tratamento de dados, faturação do Lumavo aos comerciantes, suporte e níveis
+  de serviço, exportação completa dos dados (Data Act).
 - Envios com **CTT** e mais uma transportadora ou agregador.
 - **Botão de livre resolução**, área de cliente, confirmação com prova
   contratual, notificações em PT/ES/EN.
@@ -54,19 +63,23 @@ escrito do Bruno ou do Diogo para começar código (ADR-0001).
 - Hub do Lumavo mínimo: definições, encomendas, registo de integrações e de
   webhooks, auditoria.
 
-**Âmbito — fica de fora:** emissão de faturas pelo Lumavo (emite o sistema do
-cliente zero),
-devoluções completas, carteira, vários armazéns, outros países, marketplace,
-escrita por IA, protocolos de comércio por agentes, faturação do próprio
-Lumavo.
+**Âmbito — fica de fora:** emissão de faturas pelo próprio Lumavo (emite o
+software certificado de cada comerciante), emissão por adaptador fora de
+Portugal (entra país a país), devoluções completas, carteira, vários armazéns,
+marketplace, escrita por IA, protocolos de comércio por agentes, extensões
+abertas a qualquer programador.
 
-**A primeira loja real (por decidir em D-1):** uma loja **pequena e contida**,
+**Antes do primeiro comerciante de fora:** o motor de IVA validado pelo
+contabilista, os fluxos do consumidor validados por jurista, o contrato com
+limites de responsabilidade e o seguro, e o modelo de receita (D-14).
+
+**As lojas do próprio grupo:** uma loja **pequena e contida** primeiro,
 em paralelo com o Shopify, **nunca a loja principal primeiro**. O piloto de
 pagamentos EuPago e Stripe já desenhado para a plataforma de formação
 (29/09/2026) segue o seu caminho; o Lumavo reaproveita o desenho dele.
 
-**Critério de passagem:** 3 meses de vendas reais sem um documento fiscal
-errado com origem no Lumavo; pagamentos 100 % conciliados; os testes de
+**Critério de passagem:** 3 meses de vendas reais, em todos os comerciantes,
+sem um documento fiscal errado com origem no Lumavo; pagamentos 100 % conciliados; os testes de
 isolamento entre inquilinos sempre verdes; o botão de livre resolução usado e
 tratado de ponta a ponta pelo menos uma vez.
 
@@ -75,29 +88,30 @@ tratado de ponta a ponta pelo menos uma vez.
 - Armazém completo: vários armazéns, picking, lotes, compostos, inventários.
 - **Devoluções ligadas à nota de crédito**, com o estado do artigo; troca e
   carteira (com validação do contabilista).
-- **Emissão de faturas por adaptador** para comerciantes que não têm um Hub:
-  Moloni primeiro; depois por país (Verifactu em Espanha, Plateforme Agréée em
-  França…), conforme D-4.
+- **Emissão de faturas por adaptador nos outros países** (Verifactu em
+  Espanha, Plateforme Agréée em França…), conforme D-4 — o Moloni já entrou na
+  Fase 1.
 - Relatório OSS com os quatro baldes; ligações ao software de faturação dos
   comerciantes estabelecidos noutros países, país a país.
 - Automações e notificações configuráveis; campos personalizados; módulos
   ligáveis por comerciante.
-- Migração da loja principal do cliente zero, se a Fase 1 o justificar.
+- Migração da loja principal do grupo, se a Fase 1 o justificar.
 - **Primeiros parceiros convidados a escrever eles próprios o seu adaptador**
   (decidido pelo Diogo a 03/10/2026, decisão L): prestadores e transportadoras da lista de parcerias
   (`07-pagamentos-e-envios-por-pais.md`), com os contratos que o Lumavo já usa.
 
-**Critério de passagem:** um segundo comerciante, de fora, a vender há 3
-meses; a loja principal do cliente zero migrada sem perda de clientes nem de
+**Critério de passagem (proposta):** comerciantes estabelecidos em pelo menos
+dois países a vender há 3 meses sem documento fiscal errado com origem no
+Lumavo; a loja principal do grupo migrada sem perda de clientes nem de
 consentimentos.
 
-## Fase 3 — Abrir a outros comerciantes
+## Fase 3 — Extensões abertas e comércio por agentes
 
-Onboarding, contratos (incluindo o acordo de tratamento de dados), faturação do
-Lumavo, extensões de terceiros abertas a qualquer programador e loja de
-extensões (`08-extensoes-de-terceiros.md`), MCP com escrita sob confirmação, UCP/ACP,
-API de checkout com verificação de conformidade, exportação completa (Data
-Act), níveis de serviço e suporte.
+Extensões de terceiros abertas a qualquer programador e loja de extensões
+(`08-extensoes-de-terceiros.md`), MCP com escrita sob confirmação, UCP/ACP,
+API de checkout com verificação de conformidade. (O registo de comerciantes,
+os contratos, a faturação do Lumavo, o suporte e a exportação completa
+passaram à Fase 1 — ADR-0006.)
 
 ## Fase 4 — Marketplace (só com requisitos concretos)
 

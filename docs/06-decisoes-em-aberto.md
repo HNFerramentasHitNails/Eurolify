@@ -27,10 +27,15 @@
 | ✅ J | **O Diogo e o Bruno têm toda a liberdade neste repositório**, cada um sozinho — incluindo faturação, NIF, IVA e identidade de clientes. **Regras da UE**: seguir as skills, só regras da UE com fonte, nunca inventar, dados na UE | Diogo, 03/10/2026 | `CLAUDE.md` |
 | ✅ K | **Requisito: terceiros desenvolvem extensões de forma fácil** — aplicações, meios de pagamento, envios, faturação por país, regras de negócio, ecrãs. **As regras fiscais e legais não são extensíveis** (confirmado pelo Diogo: *«sim, concordo»*) | Diogo, 03/10/2026 | `08-extensoes-de-terceiros.md` |
 | ✅ L | **Na Fase 2, os parceiros da lista de pagamentos e envios são convidados a escrever eles próprios a sua ligação ao Lumavo**, com os contratos que o Lumavo já usa | Diogo, 03/10/2026 | `05-fases-e-mvp.md`, `07` e `08` |
+| ✅ M | **O Lumavo vende-se a outros comerciantes desde o início** (D-1 → a)); a recomendação era a b). Registo de comerciantes, contratos, faturação do Lumavo, suporte e a emissão por Moloni passam à Fase 1; o modelo de receita (D-14) passa a ser preciso antes dela | Diogo, 03/10/2026 | [ADR-0006](adr/0006-vender-desde-o-inicio.md) |
 
 ## Por decidir — por esta ordem
 
 ### D-1 · O que é o Lumavo primeiro?
+
+> ✅ **Decidido a 03/10/2026 pelo Diogo: a) vender a outros comerciantes desde
+> o início** ([ADR-0006](adr/0006-vender-desde-o-inicio.md)). A recomendação
+> era a b); o texto abaixo fica como registo das opções.
 
 > **03/10/2026, Diogo:** *«O Lumavo é um produto vendável como o shopify, para
 > todos os tipos de comerciantes dentro a UE nativamente.»* ⇒ a c) cai. Entre a
@@ -185,12 +190,13 @@ antes e o depois e decide o Diogo ou o Bruno (skill `lumavo-design`, regra 1).
 
 ### D-13 · Quem constrói, em quanto tempo e com que orçamento
 
-**Sem número nesta versão.** Depende de D-1, D-2 e D-3. A primeira tarefa da
-Fase 0, depois dessas três, é a estimativa. Referência do que um sistema destes
+**Sem número nesta versão.** D-1, D-2 e D-3 foram decididas a 03/10/2026: **a
+estimativa é a próxima tarefa da Fase 0**. Referência do que um sistema destes
 pesa: o Hub tinha, a 30/09/2026, 420 caminhos de ecrã, 225 funções no servidor, 761 tabelas
 e 78 tarefas automáticas (`proposta-venda-do-hub-30set2026.md`).
 
 ### D-14 · Como o Lumavo ganha dinheiro
 
 Mensalidade, percentagem das vendas, módulos pagos, instalação dedicada — **não
-estudado**. Decide-se depois de D-1 e antes da Fase 3.
+estudado**. Com a D-1 → a) (vender desde o início, ADR-0006), **passa a ser
+preciso antes da Fase 1**.
