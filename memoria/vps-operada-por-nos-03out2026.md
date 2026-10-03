@@ -201,3 +201,15 @@ computador»* — o caminho a) do `docs/11` §5.
   §3.8, no `docs/06` e no estado do ADR-0020 — sem ADR próprio, como as
   decisões K e L.
 - O equivalente no macOS do Bruno (por escrever).
+
+### Porque não o Cowork (03/10/2026)
+
+O Diogo pediu um prompt para o «claude work» fazer os passos do §5.1. Segundo
+a documentação da Anthropic (*Claude Cowork architecture overview*,
+support.claude.com, lida a 03/10/2026), o Cowork corre os comandos *«inside a
+dedicated Linux VM»*, *«isolated from the host operating system by the
+platform's hypervisor»*, com *«its own network egress filtering»*. Por isso não
+cria a chave no Windows nem liga o agente de SSH do Windows, e a chave ficaria
+na máquina virtual, não no computador do Diogo (ADR-0020). Se a rede dele
+chega à porta 22: **não verifiquei**. O prompt foi feito para o Claude Code no
+computador do Diogo.
