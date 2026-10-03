@@ -177,6 +177,36 @@ ao Diogo na conversa; **não está no repositório** (é binário e muda a cada
 versão). Vistas no PDF: capa, 11 e 57. As notas do orador não vão no PDF. A
 exportação do próprio deck (menu da página) não foi experimentada.
 
+## Versão 16 (03/10/2026): a VPS e os custos corrigidos
+
+Pedido do Diogo: *«Atualizar a apresentação»*, logo a seguir às decisões V, W
+e X (ADR-0015 a ADR-0017: VPS operada por nós, o Claude a operá-la, VPS-3 da
+OVH) e à correcção da segunda máquina da Scaleway.
+
+- **Página 46 trocada:** saiu «A Scaleway: o que nos dá e como se liga» (id
+  `scaleway`) e entrou, no mesmo lugar, «A VPS: o que se compra e quem a opera»
+  (id `vps`): a VPS-3 da OVH, o que passa a ser nosso, a publicação, o Claude a
+  operar com a trava da confirmação, a discordância dita uma vez e o «por
+  resolver» de como o Claude chega à máquina. O deck continua com 64 páginas.
+- **Acertadas:** capa (versão 0.5), 2 (cartão da D-3), 25 (os dados na UE, com
+  a OVH, sem repetir «fora do alcance de leis de outros países»), 41 (D-3
+  revista; a revisão do código), 44 (D-3 com a opção e) decidida e a a)
+  «decidida primeiro»), 45 (≈ €234 e ≈ €710; a frase do fim passa à VPS; notas
+  com a correcção), 49 (B e C com 14.870 e 21.950 €; o A com «VPS por
+  refazer»), 51 (alojamento por refazer), 52 (revisão decidida, ADR-0013; o
+  Claude opera a VPS), 61 (não verificado: a OVH e o acesso), 62 (a fonte da
+  OVH no lugar do MCP da Scaleway), 63 (8 passos: comprar e preparar a VPS).
+- Índice do deck: `scaleway` → `vps` na ordem; a secção 7 diz «a VPS».
+- Publicada por cima da 15 (versão `1791061319-1706`, lida antes de editar);
+  a 16 é a `1791065510-8518`.
+- Ficou como estava a 56 (comprar os domínios na consola da Scaleway): é a
+  proposta do ADR-0009; onde se compram passou a «por decidir» no `docs/11` §7
+  e nas notas da 63.
+- **O PDF da v15** enviado ao Bruno e à Cila ficou desactualizado.
+- **Não vista desenhada.** Mudaram de altura a 44 (mais uma linha na tabela,
+  a frase de baixo encurtada; pela minha conta fica perto do limite, ≈ 906 de
+  920 píxeis), a 51, a 63 (de 6 para 8 passos) e a 46 nova.
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
