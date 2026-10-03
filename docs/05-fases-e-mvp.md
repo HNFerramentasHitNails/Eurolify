@@ -10,8 +10,8 @@
 |---|---|
 | Proposta, arquitectura, mapa regulamentar, lições dos sistemas actuais | escrito (este repositório) |
 | As 12 skills de trabalho para as sessões de Claude | escrito (`.claude/skills/`) |
-| Decisões D-1, D-2, D-3 | **por decidir** |
-| Prova de 2 semanas com a Medusa (D-2) | **precisa do OK** do Bruno ou do Diogo — é código, ainda que de ensaio (ADR-0001) |
+| Decisões D-1, D-2, D-3 | D-2 **decidida** (ADR-0002); D-1 em parte (decisão F); D-3 **por decidir** |
+| Prova de 2 semanas com a Medusa (D-2) | **cancelada** — a D-2 foi decidida a 03/10/2026: núcleo próprio, de raiz (ADR-0002) |
 | Modelo de domínio (entidades, estados, quem é dono de quê) em tabelas | por fazer |
 | Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | por fazer |
 | Regras do motor de IVA validadas pelo contabilista | por fazer |
@@ -30,7 +30,8 @@ escrito do Bruno ou do Diogo para começar código (ADR-0001).
   (fabricante, pessoa responsável, avisos, INCI, lote) — se o cliente zero já
   tiver um sistema de gestão, o catálogo continua a **nascer lá** e é espelhado
   para o Lumavo pela API, como hoje para o Shopify.
-- Mercados **Portugal e Espanha**, em euros; listas de preços B2B por etiqueta;
+- **Toda a UE de raiz** (decisão F, 03/10/2026): taxas dos 27 países, OSS,
+  NIF e VIES, territórios especiais; listas de preços B2B por etiqueta;
   quantidades mínimas; histórico de preços (30 dias).
 - Carrinho e **checkout alojado**, com perfis de faturação, «a fatura é para
   outra pessoa/empresa», validação VIES com prova e o motor de IVA
@@ -73,7 +74,8 @@ tratado de ponta a ponta pelo menos uma vez.
 - **Emissão de faturas por adaptador** para comerciantes que não têm um Hub:
   Moloni primeiro; depois por país (Verifactu em Espanha, Plateforme Agréée em
   França…), conforme D-4.
-- Relatório OSS com os quatro baldes; mais mercados por procura.
+- Relatório OSS com os quatro baldes; ligações ao software de faturação dos
+  comerciantes estabelecidos noutros países, país a país.
 - Automações e notificações configuráveis; campos personalizados; módulos
   ligáveis por comerciante.
 - Migração da loja principal do cliente zero, se a Fase 1 o justificar.

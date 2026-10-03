@@ -42,7 +42,9 @@ mais um mercado; o Lumavo trata-a como casa.
 - Construir o Lumavo **como produto** (vários comerciantes na mesma
   plataforma), mas provar com **um cliente zero real** — uma operação do próprio
   grupo ou um comerciante parceiro (D-1) — e só depois vender.
-- Começar em **Portugal e Espanha**, e acrescentar países por procura.
+- **Nativo para toda a UE desde a raiz** (decisão do Diogo, 03/10/2026): IVA
+  dos 27 países e OSS, NIF e VIES, territórios especiais. O que entra país a
+  país é a ligação ao software de faturação dos comerciantes de cada país.
 - **Não emitir faturas com software próprio** no início: ligar ao software
   certificado de cada país (em Portugal, o Moloni), como o Hub interno já faz.
 - **Nunca receber o dinheiro dos comerciantes**: cada um liga a sua conta na
@@ -151,12 +153,14 @@ são de uma empresa, não de uma loja.
 
 ## 4. Onde discordo do pedido, e porquê
 
-1. **«Funcionar nativamente com todos os mercados europeus» desde o início.**
-   São 27 regimes de IVA e vários sistemas de fatura electrónica obrigatória
-   diferentes (França obriga a passar por uma plataforma aprovada; Itália pelo
-   SDI; Polónia pelo KSeF). Prometer todos de uma vez é prometer faturas
-   erradas. Proposta: Portugal e Espanha primeiro; o resto **por procura**, um
-   país de cada vez, com o contabilista desse país.
+1. ~~**«Funcionar nativamente com todos os mercados europeus» desde o
+   início.**~~ **Fechado a 03/10/2026:** o Diogo pediu-o pela segunda vez e
+   ficou decidido — o Lumavo é nativo para toda a UE (`06-decisoes-em-aberto.md`,
+   decisão F e D-6). A recomendação «Portugal e Espanha primeiro» saiu. O que
+   continua a ter calendário por país é a ligação ao software de faturação
+   certificado de quem está estabelecido nesse país (França por uma plataforma
+   aprovada, Itália pelo SDI, Polónia pelo KSeF), validada pelo contabilista
+   desse país.
 2. **«Um hub totalmente funcional como o actual».** Sim ao conceito, não à
    cópia — ver §3.
 3. **Uma alternativa ao Shopify para toda a gente.** Já há alternativas
@@ -186,7 +190,7 @@ são de uma empresa, não de uma loja.
 | Fase | O quê | Passa quando |
 |---|---|---|
 | **0** | Decidir e desenhar — **agora, sem código** | D-1 a D-3 decididas, estimativa feita, OK escrito para código |
-| **1** | Núcleo + cliente zero (PT e ES) | 3 meses de vendas reais sem documento fiscal errado com origem no Lumavo |
+| **1** | Núcleo nativo para a UE + cliente zero | 3 meses de vendas reais sem documento fiscal errado com origem no Lumavo |
 | **2** | O Hub do Lumavo + emissão por adaptador + mais países | um 2.º comerciante a vender há 3 meses |
 | **3** | Abrir a outros comerciantes | — |
 | **4** | Marketplace, só com caso de negócio | — |
@@ -198,7 +202,7 @@ Pormenor em [`05-fases-e-mvp.md`](05-fases-e-mvp.md).
 | Risco | Porque é sério | Como se reduz |
 |---|---|---|
 | **Responsabilidade fiscal por faturas de outras empresas** | Um erro do Lumavo vira uma nota de crédito e um telefonema de um cliente de outro comerciante | Faturação por software certificado; retenção em vez de emissão errada; contratos e seguro; Fase 3 só depois de provas |
-| **Âmbito** | Uma plataforma destas tem centenas de peças; o Hub interno actual já tem 420 caminhos de ecrã e 225 funções no servidor (30/09/2026) | Fases com critério de passagem; um país de cada vez; fora tudo o que não é de uma loja |
+| **Âmbito** | Uma plataforma destas tem centenas de peças; o Hub interno actual já tem 420 caminhos de ecrã e 225 funções no servidor (30/09/2026) | Fases com critério de passagem; a faturação de cada país ligada um país de cada vez; fora tudo o que não é de uma loja |
 | **Migrar uma loja que já vende** | A loja actual tem 5.262 clientes no Shopify (contados a 29/09/2026, `consentimento-de-marketing-no-hub-29set2026.md`), consentimentos, encomendas a meio | Loja pequena primeiro; corrida em paralelo; consentimentos migrados pela régua única |
 | **Concorrência** | Shopify, Shopware, PrestaShop, WooCommerce, motores abertos | Diferença clara (§4.3) e um cliente zero real |
 | **Equipa e créditos de IA** | Os sistemas actuais já esgotaram créditos de IA (15/09/2026) e o limite semanal de Claude (registado a 29/09/2026) | Estimativa honesta na Fase 0 (D-13); orçamento de IA |

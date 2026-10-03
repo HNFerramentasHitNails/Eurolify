@@ -19,10 +19,17 @@
 | ✅ B | **Skills, memórias e informação do Lumavo vivem neste repositório**, para o Bruno e o Diogo trabalharem em conjunto | Diogo, 03/10/2026 | `CLAUDE.md`, `memoria/` |
 | ✅ C | **Requisitos de partida** (não são desenho): funcionar por API para qualquer frontend (Lovable, Vercel, Emergent, Bolt…); ter um Hub completo e adaptável; regras europeias de raiz; funcionar com qualquer IA | Diogo, 03/10/2026 | `00-proposta.md` |
 | ✅ D | **O Lumavo é desenvolvido dentro da Luckytarget Lda, com marca própria.** Nenhuma marca existente da empresa é usada no Lumavo; os sistemas actuais servem só como fonte de regras e de casos medidos | Diogo, 03/10/2026 | `CLAUDE.md`, `memoria/` |
+| ✅ E | **O Lumavo é construído de raiz** (D-2 → a); a prova com a Medusa deixa de se fazer. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0002](adr/0002-nucleo-proprio-de-raiz.md) |
+| ✅ F | **O Lumavo é um produto para vender, como o Shopify, a todos os tipos de comerciantes da UE, e nativo para toda a UE** (exclui a c) da D-1; fecha a D-6) | Diogo, 03/10/2026 | D-1 e D-6 abaixo |
 
 ## Por decidir — por esta ordem
 
 ### D-1 · O que é o Lumavo primeiro?
+
+> **03/10/2026, Diogo:** *«O Lumavo é um produto vendável como o shopify, para
+> todos os tipos de comerciantes dentro a UE nativamente.»* ⇒ a c) cai. Entre a
+> a) e a b) a frase não diz **quando** abre a outros comerciantes (logo, ou
+> depois de provado com um cliente zero) — é isso que fica por decidir aqui.
 
 | Opção | O que quer dizer |
 |---|---|
@@ -38,6 +45,10 @@ põe faturas de outras empresas em risco.
 **Bloqueia:** quase tudo — é a primeira.
 
 ### D-2 · Construir de raiz ou partir de um motor aberto?
+
+> ✅ **Decidido a 03/10/2026 pelo Diogo: a) núcleo próprio, de raiz**
+> ([ADR-0002](adr/0002-nucleo-proprio-de-raiz.md)). A prova com a Medusa
+> deixa de se fazer. O texto abaixo fica como registo das opções.
 
 | Opção | Licença | A favor | Contra |
 |---|---|---|---|
@@ -61,14 +72,27 @@ de produção.
 
 ### D-3 · Onde fica alojado?
 
+Revista a 03/10/2026, a pedido do Diogo (*«servidor dedicado, ou Vercel e
+Supabase?»*), com os preços lidos nas páginas oficiais nesse dia — números e
+fontes em `memoria/alojamento-e-custos-03out2026.md`.
+
 | Opção | A favor | Contra |
 |---|---|---|
-| **a) Fornecedor europeu** (Hetzner, Scaleway, OVHcloud) ⭐ | Argumento «europeu» verdadeiro; dados fora do alcance de leis de outros países | Mais trabalho de operação |
-| b) Supabase na região UE | A equipa conhece; rápido | Empresa norte-americana; o caminho de publicação do Hub (editar ≠ publicar, dependência do agente do Lovable) é lição a não repetir |
-| c) AWS/Google/Azure na região UE | Serviços geridos completos | Mesma questão de jurisdição; custo |
+| **a) Serviços geridos de um fornecedor europeu** — base de dados gerida com segunda máquina, contentores, armazenamento (ex.: Scaleway, Paris; OVHcloud por verificar) ⭐ | O argumento «europeu» é verdadeiro; a base, as cópias e a segunda máquina são do fornecedor; custa da mesma ordem das outras | A autenticação e o caminho de publicação constroem-se (a Supabase dá-os feitos) |
+| b) Servidores dedicados (ex.: Hetzner) | Europeu; máquina potente | A base, as cópias, a segunda máquina, as actualizações e os alarmes são nossos, e ninguém na equipa faz operação; a máquina já não é muito mais barata (o AX42 custa 97,30 €/mês desde 15/06/2026) |
+| c) Vercel + Supabase, na região UE | A equipa conhece; o mais rápido a arrancar | Empresas norte-americanas: a região UE muda onde estão os dados, não quem pode ser obrigado a entregá-los (CLOUD Act); a Supabase põe a base de dados à frente do browser, o modelo que deixou 77 funções abertas a quem não tem sessão no Hub interno (18/09/2026); as funções da Vercel param aos 800 s e o Lumavo precisa de processos sempre ligados (avisos, reenvios, VIES diário) |
+| d) AWS, Google ou Azure na região UE | Serviços geridos completos | A mesma questão de jurisdição; custo |
 
-**Recomendação: a)**, com a base de dados gerida pelo próprio fornecedor
-europeu. **Não verifiquei preços.**
+⚠️ **Correcção (03/10/2026):** a versão anterior desta tabela dava contra a
+Supabase «o caminho de publicação do Hub (editar ≠ publicar, agente do
+Lovable)». Isso é do Lovable, não da Supabase — saiu.
+
+**Recomendação: a).** Não um servidor dedicado já: a máquina custa quase o
+mesmo e a operação fica toda connosco, com documentos fiscais de outras
+empresas. Não Vercel + Supabase como casa do núcleo: contraria o argumento
+europeu e o desenho «a API é o servidor». **As lojas dos comerciantes podem
+viver na Vercel, no Lovable ou onde quiserem** — é para isso que a API existe,
+e esse alojamento é deles.
 
 ### D-4 · Quem emite as faturas?
 
@@ -92,16 +116,19 @@ Pay) — a mesma escolha que o Bruno fez para a plataforma de formação a 29/09
 existir, só com o produto de plataformas do prestador (Stripe Connect, Adyen
 for Platforms, Mollie Connect).
 
-### D-6 · Países da primeira versão
+### D-6 · Países
 
-**Recomendação: Portugal e Espanha.** É onde os sistemas actuais vendem mais
-fora de Portugal (340 perfis espanhóis activos, medido a 28/09/2026 em
-`canarias-ceuta-melilla-extra-ue-28set2026.md`) e já obriga a tratar OSS, VIES
-e territórios especiais. Restantes países por procura — cada regime de
-faturação electrónica é um projecto (ver `03-regulamentar-ue.md` §1).
-⚠️ **Discordo de «todos os mercados europeus nativamente» desde o início**: são
-27 regimes fiscais e vários de faturação obrigatória diferentes; prometê-lo é
-prometer faturas erradas.
+> ✅ **Decidido a 03/10/2026 pelo Diogo (decisão F): nativo para toda a UE.**
+> Era a segunda vez que o pedia; a recomendação «Portugal e Espanha primeiro»
+> e a discordância que aqui estavam saem.
+
+O que isto obriga a ter **de raiz**: o motor de IVA com as taxas dos 27 países
+e o OSS; NIF e VIES de todos; os territórios especiais; línguas, moedas,
+moradas e métodos de pagamento por país. O que tem **calendário próprio por
+país** é a ligação ao software de faturação certificado de um comerciante
+estabelecido nesse país (ex.: um comerciante francês emite por uma Plateforme
+Agréée — `03-regulamentar-ue.md` §1), com a regra validada pelo contabilista
+desse país (D-4).
 
 ### D-7 · Checkout alojado pelo Lumavo ou feito por cada frontend?
 

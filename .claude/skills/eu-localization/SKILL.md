@@ -5,8 +5,8 @@ description: Localização europeia no Lumavo — mercados (país, moeda, língu
 
 # Localização europeia
 
-> Estado: **desenho** — não há código (ADR-0001). Países da primeira versão:
-> Portugal e Espanha (D-6).
+> Estado: **desenho** — não há código (ADR-0001). Países: **toda a UE, de
+> raiz** (decisão F e D-6, Diogo, 03/10/2026).
 
 ## 🔴 Regra de ouro
 
