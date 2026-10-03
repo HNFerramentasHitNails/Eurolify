@@ -89,7 +89,8 @@ seguem a régua única.
 
 ## Transferências e subcontratantes
 
-- Alojamento num fornecedor europeu com serviços geridos (ADR-0003). Cada
+- Alojamento num fornecedor europeu com serviços geridos, a Scaleway
+  (ADR-0003 e ADR-0004). Cada
   fornecedor com dados: país, garantias da
   transferência se sair da UE, acordo assinado, finalidade.
 - **IA**: um modelo de terceiros que recebe dados de clientes é um

@@ -21,7 +21,8 @@
 | ✅ D | **O Lumavo é desenvolvido dentro da Luckytarget Lda, com marca própria.** Nenhuma marca existente da empresa é usada no Lumavo; os sistemas actuais servem só como fonte de regras e de casos medidos | Diogo, 03/10/2026 | `CLAUDE.md`, `memoria/` |
 | ✅ E | **O Lumavo é construído de raiz** (D-2 → a); a prova com a Medusa deixa de se fazer. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0002](adr/0002-nucleo-proprio-de-raiz.md) |
 | ✅ F | **O Lumavo é um produto para vender, como o Shopify, a todos os tipos de comerciantes da UE, e nativo para toda a UE** (exclui a c) da D-1; fecha a D-6) | Diogo, 03/10/2026 | D-1 e D-6 abaixo |
-| ✅ G | **Alojamento num fornecedor europeu, com serviços geridos** (D-3 → a); o fornecedor concreto fica por escolher. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0003](adr/0003-alojamento-europeu-gerido.md) |
+| ✅ G | **Alojamento num fornecedor europeu, com serviços geridos** (D-3 → a); o fornecedor ficou a Scaleway (H). Não é o OK para código | Diogo, 03/10/2026 | [ADR-0003](adr/0003-alojamento-europeu-gerido.md) |
+| ✅ H | **O fornecedor de alojamento é a Scaleway**, sem comparação com a OVHcloud. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0004](adr/0004-fornecedor-scaleway.md) |
 
 ## Por decidir — por esta ordem
 
@@ -75,8 +76,8 @@ de produção.
 
 > ✅ **Decidido a 03/10/2026 pelo Diogo: a) fornecedor europeu, serviços
 > geridos** ([ADR-0003](adr/0003-alojamento-europeu-gerido.md)) — *«sim, fica
-> o europeu gerido»*. Fica por escolher o fornecedor (Scaleway ou OVHcloud,
-> com os mesmos critérios). O texto abaixo fica como registo das opções.
+> o europeu gerido»*. Fornecedor: **Scaleway** (decisão H,
+> [ADR-0004](adr/0004-fornecedor-scaleway.md), Diogo, 03/10/2026: *«fica a scaleway»*). O texto abaixo fica como registo das opções.
 
 Revista a 03/10/2026, a pedido do Diogo (*«servidor dedicado, ou Vercel e
 Supabase?»*), com os preços lidos nas páginas oficiais nesse dia — números e

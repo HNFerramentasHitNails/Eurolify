@@ -3,7 +3,7 @@
 > **Projecto da Luckytarget Lda.** **Para:** Bruno e Cila · **De:** Diogo
 > (preparado com Claude) · **Versão 0.3, 03/10/2026** · **Estado:** proposta. Nenhum código escrito; já
 > decididas pelo Diogo a 03/10/2026: de raiz (D-2), produto nativo para toda a
-> UE (F) e alojamento europeu gerido (D-3) — ver `06-decisoes-em-aberto.md`. Os pormenores estão nos outros documentos de `docs/`; este é o que
+> UE (F) e alojamento europeu gerido, na Scaleway (D-3) — ver `06-decisoes-em-aberto.md`. Os pormenores estão nos outros documentos de `docs/`; este é o que
 > se lê primeiro.
 >
 > O Lumavo é desenvolvido **dentro da Luckytarget**, com marca própria. Os

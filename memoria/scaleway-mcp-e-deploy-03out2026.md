@@ -6,6 +6,9 @@ alojamento europeu gerido (ADR-0003).
 
 ## O que se fez (só leitura e medição; nada instalado, nada criado)
 
+- ✅ **A Scaleway ficou escolhida** pelo Diogo a 03/10/2026 (*«fica a
+  scaleway»*, ADR-0004). A proposta de publicação abaixo continua por decidir.
+
 - **Existe MCP oficial**: vem dentro do programa de linha de comandos da
   Scaleway — `scw mcp server serve`. Expõe todos os comandos como ferramentas;
   pode ficar **só de leitura** (`read-only`) e limitado a serviços, recursos e

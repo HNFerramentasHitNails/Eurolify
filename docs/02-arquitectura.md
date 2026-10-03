@@ -159,7 +159,7 @@ modelo; orçamento de IA por comerciante (lição 6.3).
 - **Alojamento num fornecedor europeu, com serviços geridos** (decidido a
   03/10/2026, ADR-0003): PostgreSQL gerido com segunda máquina e cópias,
   contentores para a API e os processos sempre ligados, armazenamento de
-  ficheiros, tudo na UE. O fornecedor concreto está por escolher. As lojas dos
+  ficheiros, tudo na UE. O fornecedor é a Scaleway (ADR-0004). As lojas dos
   comerciantes ficam onde cada um quiser e falam pela API.
 - **Separar dados pessoais dos registos técnicos**: os logs não levam nomes,
   e-mails nem NIF em claro.

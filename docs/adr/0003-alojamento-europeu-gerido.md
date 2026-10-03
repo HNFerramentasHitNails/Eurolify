@@ -1,6 +1,7 @@
 # ADR-0003 · O Lumavo fica alojado num fornecedor europeu, com serviços geridos
 
-- **Estado:** aceite
+- **Estado:** aceite · completado pelo [ADR-0004](0004-fornecedor-scaleway.md)
+  (fornecedor: Scaleway, 03/10/2026)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** D-3 (`docs/06-decisoes-em-aberto.md`)
