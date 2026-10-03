@@ -76,6 +76,31 @@ concorrer com shopify»*.
   11/01/2016, sem site — parece de um investidor, não verifiquei se está à
   venda. Na web: uma mercearia online colombiana, Mercalo.co (desde 2017).
 
+## Quarta volta: «fácil de identificar que é um ecommerce para a UE, e apoiado pela UE» (03/10/2026)
+
+- 🔴 **«Apoiado pela UE» não pode estar no nome sem ser verdade.** Dizer que
+  um profissional ou produto foi «aprovado, reconhecido ou autorizado por um
+  organismo público» quando não foi está na lista negra da Directiva
+  2005/29/CE (anexo I, ponto 4 — desleal em quaisquer circunstâncias), segundo
+  a [comunicação da Comissão sobre a directiva](https://eur-lex.europa.eu/legal-content/PT/TXT/HTML/?uri=CELEX%3A52021XC1229%2805%29)
+  (**W**, texto não lido; EUR-Lex não abriu daqui). E o emblema da UE não se
+  usa de forma a sugerir aprovação da Comissão
+  ([regras do emblema, programas 2021-2027](https://commission.europa.eu/document/download/3192a0ef-6bda-4e1a-81ca-65ade2ffad73_en?filename=eu_emblem_rules.pdf), **W**).
+  Só passa a verdade com financiamento europeu real, e aí mostra-se o emblema
+  oficial «Cofinanciado pela União Europeia», afastado do nosso logótipo.
+- A skill `consumer-rights-eu` não tem esta regra (procurei «desleal»,
+  «2005/29», «selo», «aprovado por»: só as alegações ambientais) — acrescentar
+  pede o OK do Diogo ou do Bruno.
+- **Proposta: vendEU** (`vendeu.eu`). «Vend-» é vender em PT/ES/IT/FR e
+  *vendor* em inglês; «EU» à vista; em português «vendeu!» é a venda feita.
+  `vendeu.eu` e `vendeu.pt` sem delegação no DNS (03/10/2026); `vendeu.com` na
+  GoDaddy desde 08/08/2006, sem site; `vendeu.com.br` registado. Na web, nenhuma
+  plataforma com esse nome (pesquisa, 03/10/2026 — palavra comum, muito ruído).
+  Contra: «vendeu» é palavra corrente em português e o EUIPO pode achá-la pouco
+  distintiva para serviços de venda (**C**, não verificado); fora de Portugal
+  lê-se «vend-E-U». Alternativa na mesma linha: EUvendo («eu vendo»);
+  `euvendo.com` registado desde 2003.
+
 ## Números (com data e como se contaram)
 
 - **03/10/2026, `.com` por RDAP da Verisign** (404 = não registado): dos 50
