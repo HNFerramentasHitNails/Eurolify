@@ -69,8 +69,9 @@ Páginas novas 17 («Qualquer programador pode acrescentar ao Lumavo») e 18 («
 que um terceiro nunca muda, e como se abre», com as decisões K e L). A fase 2
 das fases passa a «Hub, mais países e parceiros» e a 3 diz «extensões abertas
 a todos». Tudo o resto andou duas páginas; índice e referências cruzadas
-acertados (ex.: a D-1 passou da página 33 para a 35). **Chegou ao limite de 50
-páginas.**
+acertados (ex.: a D-1 passou da página 33 para a 35). Chegou às 50 páginas;
+**o Diogo autorizou passar das 50** (*«pode ultrapassar as 50 paginas»*,
+03/10/2026).
 
 ## O que ficou por verificar
 
