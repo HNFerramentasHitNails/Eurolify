@@ -77,6 +77,10 @@ totalmente as regras da UE e nunca inventar nada fora da UE»*.
    avalia nem se regista**: diz-se que é de fora da UE e pára-se. Nada sobre
    ela vai para `memoria/`, documentos ou skills (Diogo, 03/10/2026: *«se é
    EUA não escrevas nada sobre isso. só importa o que é as regras na UE»*).
+   **Excepção:** uma lei de fora da UE que ameace os dados guardados na UE
+   regista-se e **não se retira**, porque é razão para os proteger — ex.: o
+   CLOUD Act na D-3 (`docs/06`) e em `memoria/alojamento-e-custos-03out2026.md`
+   (Diogo, 03/10/2026: *«fica, é para proteger os dados na UE»*).
 3. **Nunca inventar.** Uma regra, taxa, data, prazo ou obrigação sem fonte não
    entra: diz-se **«não verifiquei»** e fica marcada **C** até ser verificada ou
    validada por um profissional. Nada se completa «por lógica» numa regra
