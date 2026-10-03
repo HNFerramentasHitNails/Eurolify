@@ -1,6 +1,6 @@
 ---
 name: eu-gdpr-privacy
-description: Protecção de dados no Eurolify (RGPD e ePrivacy) — privacidade desde a concepção e por omissão, minimização, finalidade e base legal por tratamento, consentimento granular e prova dele, retenção e apagamento (e o choque com os 10 anos fiscais), pedidos dos titulares (acesso, exportação, rectificação, apagamento, limitação), registo de tratamentos, subcontratantes e transferências. Usar sempre que se cria ou muda um campo com dados pessoais, um consentimento, uma exportação, um apagamento ou um fornecedor que recebe dados.
+description: Protecção de dados no Eurolify (RGPD e ePrivacy) — privacidade desde a concepção e por omissão, minimização, finalidade e base legal por tratamento, consentimento granular e prova dele, retenção e apagamento (e o choque com os 10 anos fiscais), pedidos dos titulares (acesso, exportação, rectificação, apagamento, limitação), registo de tratamentos, violações de dados (aviso ao comerciante e as 72 h), subcontratantes e transferências. Usar sempre que se cria ou muda um campo com dados pessoais, um consentimento, uma exportação, um apagamento ou um fornecedor que recebe dados, e no plano de resposta a incidentes.
 ---
 
 # RGPD e privacidade
@@ -79,6 +79,31 @@ aplica a cada tratamento.
 Prazo legal de resposta de um mês (prorrogável) — **C**, confirmar.
 Cada pedido: quem pediu, como se verificou a identidade, o que se fez, quando.
 
+## Violação de dados pessoais
+
+RGPD, arts. 28.º, n.º 3, 33.º e 34.º — **W · texto lido** (EUR-Lex, versão
+inglesa, 03/10/2026):
+
+| Quem | O quê | Prazo |
+|---|---|---|
+| **O Eurolify como subcontratante** (dados dos clientes de cada comerciante) | avisa **cada comerciante afectado** e ajuda-o a cumprir as suas obrigações (art. 33.º, n.º 2; art. 28.º, n.º 3) | sem demora injustificada depois de ter conhecimento |
+| **O comerciante** (responsável) | notifica a autoridade de controlo, salvo se a violação não for susceptível de resultar num risco para as pessoas (art. 33.º, n.º 1) | sem demora injustificada e, se possível, **até 72 h** depois de ter conhecimento |
+| O comerciante, se o **risco for elevado** | comunica a violação às pessoas afectadas, em linguagem clara (art. 34.º) | sem demora injustificada |
+| **O Eurolify como responsável** (contas dos comerciantes, faturação do Eurolify) | o mesmo que o comerciante: autoridade e, se o risco for elevado, as pessoas | os mesmos: se possível, até 72 h |
+
+- A notificação diz pelo menos: a natureza da violação, as categorias e o
+  número aproximado de pessoas e de registos, um contacto, as consequências
+  prováveis e as medidas tomadas ou propostas (art. 33.º, n.º 3); pode ir por
+  fases (n.º 4).
+- **Todas** as violações ficam documentadas — factos, efeitos, o que se fez —,
+  mesmo as que não se notificam (n.º 5).
+- ⇒ No Eurolify: os registos por inquilino e o registo de auditoria têm de
+  dizer depressa **que comerciantes e quantas pessoas** uma violação tocou;
+  sem isso, ninguém cumpre as 72 h. O plano de resposta e o modelo do aviso ao
+  comerciante ficam prontos antes do primeiro comerciante. Um incidente de
+  segurança pode ser, ao mesmo tempo, violação de dados e incidente da NIS2
+  (`observability-security`).
+
 ## Fusões e identidade
 
 Uma fusão de fichas junta dados de duas «pessoas» — por isso só com os sinais do
@@ -110,3 +135,5 @@ seguem a régua única.
 - [ ] Entra na exportação e no apagamento do titular.
 - [ ] Nenhum dado pessoal novo nos registos técnicos.
 - [ ] Se há fornecedor novo: acordo, país e lista de subcontratantes actualizada.
+- [ ] Numa violação, sabemos dizer que comerciantes e quantas pessoas foram
+      tocados, a tempo de cada comerciante notificar em 72 h.

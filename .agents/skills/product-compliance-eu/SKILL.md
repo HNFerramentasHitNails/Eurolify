@@ -1,6 +1,6 @@
 ---
 name: product-compliance-eu
-description: Conformidade de produto no Eurolify — atributos regulamentares do artigo (GPSR, cosméticos, químicos/CLP, embalagens/PPWR, mercadorias perigosas), operador económico e pessoa responsável na UE, documentos e evidências fornecidos pelo comerciante, identificadores, avisos por língua, lotes, alertas e recolhas, categorias regulamentadas e fórmulas com versões. Usar ao desenhar campos de artigo, a página de produto, recolhas, o envio de mercadorias perigosas, ou qualquer alegação de certificação.
+description: Conformidade de produto no Eurolify — atributos regulamentares do artigo (GPSR, cosméticos, químicos/CLP, embalagens/PPWR, baterias, equipamentos eléctricos/REEE, mercadorias perigosas), operador económico e pessoa responsável na UE, documentos e evidências fornecidos pelo comerciante, identificadores, avisos por língua, lotes, alertas e recolhas, categorias regulamentadas e fórmulas com versões. Usar ao desenhar campos de artigo, a página de produto, recolhas, o envio de mercadorias perigosas, ou qualquer alegação de certificação.
 ---
 
 # Conformidade de produto
@@ -33,6 +33,8 @@ e válido não aparece na loja.
 | **Cosmético** | pessoa responsável, n.º de notificação CPNP, INCI, **fórmula com versão**, PAO/validade, rótulo | Reg. (CE) 1223/2009 (**C**) |
 | **Mistura química** | classificação CLP, pictogramas, palavra-sinal, frases de perigo e prudência; **na venda online, todos os elementos do rótulo visíveis na oferta** a partir de 01/01/2028 | Reg. (UE) 2024/2865 adiado pelo 2025/2439 (**W**) |
 | **Embalagem** | n.º de registo EPR **por país** onde se vende; materiais | PPWR (Reg. (UE) 2025/40), desde 12/08/2026 (**W** parcial) |
+| **Bateria** (o artigo é ou leva uma bateria) | **código QR** em todas as baterias a partir de 18/02/2027 (art. 13.º, n.º 6); **passaporte electrónico** nas de meios de transporte ligeiros, nas industriais acima de 2 kWh e nas de veículos eléctricos (art. 77.º, n.º 1); n.º de registo de produtor **por país**: quem vende à distância a utilizadores finais noutro Estado-membro é lá produtor (art. 3.º, ponto 47, alínea d)), regista-se em cada país onde disponibiliza a bateria pela primeira vez (art. 55.º, n.º 2) e nomeia um representante para a responsabilidade alargada do produtor em cada um (art. 56.º, n.º 3) — desde 18/08/2025 (capítulo VIII) | Reg. (UE) 2023/1542 (**W · texto lido**, EUR-Lex, 03/10/2026) |
+| **Equipamento eléctrico ou electrónico** | n.º de registo de produtor **por país**: quem vende à distância noutro Estado-membro é lá produtor (art. 3.º, n.º 1, alínea f), iv)), regista-se no país para onde vende (art. 16.º, n.º 1) através de um representante autorizado estabelecido lá (art. 17.º, n.º 2) | Dir. 2012/19/UE, REEE (**W · texto lido**, EUR-Lex, 03/10/2026); a lei de cada país que a transpõe, **C** |
 | **Transporte** | número ONU / classe ADR, restrições por modo (avião, mar) e transportadora | ADR/IATA (**C**) |
 | **Alegações ambientais** | só com documento de prova | Dir. (UE) 2024/825, desde 27/09/2026 (**W**) |
 
@@ -89,4 +91,6 @@ enchimento — tudo no Hub interno actual (memórias de 18/08 a 02/10/2026, repo
 - [ ] Todo o atributo obrigatório tem documento e validade.
 - [ ] A página de produto mostra, por mercado, o que a lei pede antes da compra.
 - [ ] Uma recolha simulada encontra os clientes certos.
+- [ ] Artigo com bateria ou eléctrico: registo de produtor de cada país onde
+      se vende e, nas baterias, o QR a partir de 18/02/2027.
 - [ ] Técnico regulamentar validou a lista de campos por categoria.
