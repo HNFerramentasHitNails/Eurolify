@@ -37,7 +37,7 @@ description: Extensões de terceiros no Eurolify — aplicações, meios de paga
 5. **Fechado por omissão** (skill `observability-security`): âmbitos mínimos,
    consentimento do comerciante com os dados e o país de tratamento, registo de
    auditoria de cada acção, limites de pedidos, desligar a todos de uma vez.
-6. **Dados na UE** (regra 4 do `CLAUDE.md`): a loja oficial só aceita
+6. **Dados na UE** (regra 4 do `AGENTS.md`): a loja oficial só aceita
    extensões que tratem dados pessoais na UE ou que declarem a transferência e
    a base legal; acordo de tratamento de dados obrigatório.
 7. **Só entra na loja quem pode exercer:** meio de pagamento com prestador

@@ -149,6 +149,12 @@ logótipo «Eurolify», uma paleta de 4 cores e 4 frases de assinatura.
   publicações; os tamanhos dos 65 ficheiros publicados batem com as minhas
   cópias, mas não comparei o conteúdo byte a byte.
 
+## Versão 14 (03/10/2026): regras num sítio só
+
+A página 52 passou de «por decidir» a «Decidido · ADR-0010» (as regras no
+`AGENTS.md`, importado pelo `CLAUDE.md`; as skills em `.agents/skills`), e o
+passo 5 dos próximos passos (63) passou a «Testar o Codex».
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma

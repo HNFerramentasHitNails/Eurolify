@@ -8,7 +8,7 @@
 >
 > **Quem decide:** **o Diogo ou o Bruno**, cada um sozinho, em tudo — negócio,
 > faturação, NIF, IVA, identidade de clientes, aspecto, e o OK para código
-> (ordem do Diogo, 03/10/2026; `CLAUDE.md`, «Quem decide»). As propostas de
+> (ordem do Diogo, 03/10/2026; `AGENTS.md`, «Quem decide»). As propostas de
 > negócio e de marca continuam a ser apresentadas a Bruno e Cila.
 
 ## Já decidido
@@ -16,21 +16,22 @@
 | # | Decisão | Quem, quando | Registo |
 |---|---|---|---|
 | ✅ A | **Nenhum código até haver um plano decidido.** Avança-se para código quando o Bruno ou o Diogo o decidirem | Diogo, 03/10/2026 | [ADR-0001](adr/0001-sem-codigo-ate-plano-decidido.md) |
-| ✅ B | **Skills, memórias e informação do Eurolify vivem neste repositório**, para o Bruno e o Diogo trabalharem em conjunto | Diogo, 03/10/2026 | `CLAUDE.md`, `memoria/` |
+| ✅ B | **Skills, memórias e informação do Eurolify vivem neste repositório**, para o Bruno e o Diogo trabalharem em conjunto | Diogo, 03/10/2026 | `AGENTS.md`, `memoria/` |
 | ✅ C | **Requisitos de partida** (não são desenho): funcionar por API para qualquer frontend (Lovable, Vercel, Emergent, Bolt…); ter um Hub completo e adaptável; regras europeias de raiz; funcionar com qualquer IA | Diogo, 03/10/2026 | `00-proposta.md` |
-| ✅ D | **O Eurolify é desenvolvido dentro da Luckytarget Lda, com marca própria.** Nenhuma marca existente da empresa é usada no Eurolify; os sistemas actuais servem só como fonte de regras e de casos medidos | Diogo, 03/10/2026 | `CLAUDE.md`, `memoria/` |
+| ✅ D | **O Eurolify é desenvolvido dentro da Luckytarget Lda, com marca própria.** Nenhuma marca existente da empresa é usada no Eurolify; os sistemas actuais servem só como fonte de regras e de casos medidos | Diogo, 03/10/2026 | `AGENTS.md`, `memoria/` |
 | ✅ E | **O Eurolify é construído de raiz** (D-2 → a); a prova com a Medusa deixa de se fazer. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0002](adr/0002-nucleo-proprio-de-raiz.md) |
 | ✅ F | **O Eurolify é um produto para vender, como o Shopify, a todos os tipos de comerciantes da UE, e nativo para toda a UE** (exclui a c) da D-1; fecha a D-6) | Diogo, 03/10/2026 | D-1 e D-6 abaixo |
 | ✅ G | **Alojamento num fornecedor europeu, com serviços geridos** (D-3 → a); o fornecedor ficou a Scaleway (H). Não é o OK para código | Diogo, 03/10/2026 | [ADR-0003](adr/0003-alojamento-europeu-gerido.md) |
 | ✅ H | **O fornecedor de alojamento é a Scaleway**, sem comparação com a OVHcloud. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0004](adr/0004-fornecedor-scaleway.md) |
 | ✅ I | **Publica-se pelo GitHub**: cada alteração entra no `main`, os testes correm e o mesmo caminho põe no ar. O Claude tem o MCP da Scaleway **só de leitura**; escrita só num projecto de ensaio, com chave limitada a ele | Diogo, 03/10/2026 | [ADR-0005](adr/0005-publicacao-pelo-github.md) |
-| ✅ J | **O Diogo e o Bruno têm toda a liberdade neste repositório**, cada um sozinho — incluindo faturação, NIF, IVA e identidade de clientes. **Regras da UE**: seguir as skills, só regras da UE com fonte, nunca inventar, dados na UE | Diogo, 03/10/2026 | `CLAUDE.md` |
+| ✅ J | **O Diogo e o Bruno têm toda a liberdade neste repositório**, cada um sozinho — incluindo faturação, NIF, IVA e identidade de clientes. **Regras da UE**: seguir as skills, só regras da UE com fonte, nunca inventar, dados na UE | Diogo, 03/10/2026 | `AGENTS.md` |
 | ✅ K | **Requisito: terceiros desenvolvem extensões de forma fácil** — aplicações, meios de pagamento, envios, faturação por país, regras de negócio, ecrãs. **As regras fiscais e legais não são extensíveis** (confirmado pelo Diogo: *«sim, concordo»*) | Diogo, 03/10/2026 | `08-extensoes-de-terceiros.md` |
 | ✅ L | **Na Fase 2, os parceiros da lista de pagamentos e envios são convidados a escrever eles próprios a sua ligação ao Eurolify**, com os contratos que o Eurolify já usa | Diogo, 03/10/2026 | `05-fases-e-mvp.md`, `07` e `08` |
 | ✅ M | **O Eurolify vende-se a outros comerciantes desde o início** (D-1 → a)); a recomendação era a b). Registo de comerciantes, contratos, faturação do Eurolify, suporte e a emissão por Moloni passam à Fase 1; o modelo de receita (D-14) passa a ser preciso antes dela | Diogo, 03/10/2026 | [ADR-0006](adr/0006-vender-desde-o-inicio.md) |
 | ✅ N | **A receita assenta numa mensalidade por plano, por escalões de vendas anuais, sem taxa sobre cada venda** (D-14, em parte). Preços e outras fontes por decidir | Diogo, 03/10/2026 | [ADR-0007](adr/0007-receita-mensalidade-por-escaloes.md) |
-| ✅ O | **A Fase 1 é desenvolvida pelo Diogo e pelo Bruno, com Claude Code e Codex**, sem contratar programadores (D-13 → cenário A); a recomendação era a B (2 sénior). Fase 1: 15 a 29 meses os dois a tempo inteiro, 28 a 52 a meio tempo (`10` §9, hipótese C), corrigido às 8 semanas. O Codex não lê o `CLAUDE.md` nem `.claude/skills` — como ligar as regras está por decidir. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md) |
+| ✅ O | **A Fase 1 é desenvolvida pelo Diogo e pelo Bruno, com Claude Code e Codex**, sem contratar programadores (D-13 → cenário A); a recomendação era a B (2 sénior). Fase 1: 15 a 29 meses os dois a tempo inteiro, 28 a 52 a meio tempo (`10` §9, hipótese C), corrigido às 8 semanas. As regras e as skills ficaram num sítio só para os dois (Q, ADR-0010). Não é o OK para código | Diogo, 03/10/2026 | [ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md) |
 | ✅ P | **O produto chama-se Eurolify** (antes Lumavo; D-12, na parte do nome). `.com` e `.eu` livres a 03/10/2026; a pesquisa de marcas no TMview e a compra dos domínios estão por fazer. A identidade visual continua por decidir | Diogo, 03/10/2026 | [ADR-0009](adr/0009-nome-eurolify.md) |
+| ✅ Q | **As regras e as skills vivem num sítio só, lido pelo Claude Code e pelo Codex**: as regras no `AGENTS.md` (o `CLAUDE.md` só o importa); as 14 skills em `.agents/skills`, com uma ligação por skill em `.claude/skills`. Regras novas só no `AGENTS.md`, abaixo de 32 KiB | Diogo, 03/10/2026 | [ADR-0010](adr/0010-regras-num-sitio-so-agents-md.md) |
 
 ## Por decidir — por esta ordem
 

@@ -40,9 +40,10 @@ recomendação B não foi seguida; a discordância ficou escrita uma vez em
   [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md) e
   [skills](https://learn.chatgpt.com/docs/build-skills), 03/10/2026, **W**).
   Sem ajuste, **o Codex trabalha sem as regras deste repositório** — incluindo
-  o ADR-0001 e as regras da UE. Como ligar os dois a uma regra só está por
-  decidir.
-- **Dados na UE (regra 4 do `CLAUDE.md`):** a Anthropic e a OpenAI são empresas
+  o ADR-0001 e as regras da UE. ✅ **Decidido a 03/10/2026:** as regras
+  passam para o `AGENTS.md`, que o `CLAUDE.md` importa, e as skills para
+  `.agents/skills`, com ligações em `.claude/skills` (ADR-0010).
+- **Dados na UE (regra 4 do `CLAUDE.md`, hoje no `AGENTS.md` — ADR-0010):** a Anthropic e a OpenAI são empresas
   de fora da UE. Os dois agentes trabalham com código e dados de ensaio
   inventados; **dados pessoais reais nunca entram numa sessão de nenhum dos
   dois** sem a decisão escrita e o acordo de transferência da regra 4.
@@ -61,5 +62,6 @@ recomendação B não foi seguida; a discordância ficou escrita uma vez em
 - Os limites de uso do Codex em cada plano do ChatGPT e qual plano o Diogo e o
   Bruno vão usar.
 - Se o Codex segue ligações simbólicas nas pastas de skills, e se o Claude
-  Code as segue em `.claude/skills`.
+  Code as segue em `.claude/skills` — as duas documentações dizem que sim
+  (03/10/2026, ADR-0010); falta ver numa sessão de cada um.
 - A velocidade real do Diogo e do Bruno — às 8 semanas.

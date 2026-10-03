@@ -33,7 +33,7 @@ dos 30 dias, as páginas legais, a retenção de faturas, o que um documento
 fiscal leva.
 
 **Porquê:** a promessa do Eurolify é «as regras da UE de raiz» (regras da UE no
-`CLAUDE.md`). Uma extensão que mexesse no IVA punha faturas erradas em nome do
+`AGENTS.md`). Uma extensão que mexesse no IVA punha faturas erradas em nome do
 comerciante, e a decisão deixava de viver num sítio só — foi assim que, nos
 sistemas actuais, a regra do IVA escrita duas vezes divergiu e uma encomenda
 saiu com IVA com o ecrã a mostrar «s/ IVA» (13/08/2026, `docs/04` regra 2.1,
@@ -90,7 +90,7 @@ métodos de pagamento e de entrega.
   lê e escreve **e em que país trata os dados**.
 - **Acordo de tratamento de dados** (RGPD) entre o comerciante e o programador,
   com o Eurolify a exigi-lo na loja (skill `eu-gdpr-privacy`).
-- **Regra 4 do `CLAUDE.md` (dados na UE):** a loja oficial só aceita
+- **Regra 4 do `AGENTS.md` (dados na UE):** a loja oficial só aceita
   extensões que tratem dados pessoais na UE, ou que declarem a transferência e
   a sua base legal.
 - Segredos de cada extensão no cofre, por comerciante; nunca no código.

@@ -13,7 +13,7 @@
 | Entregável | Estado a 03/10/2026 |
 |---|---|
 | Proposta, arquitectura, mapa regulamentar, lições dos sistemas actuais | escrito (este repositório) |
-| As 14 skills de trabalho para as sessões de Claude | escrito (`.claude/skills/`); **o Codex não as lê** — ligar ao Codex por decidir (ADR-0008) |
+| As 14 skills de trabalho para as sessões de Claude Code e de Codex | escrito (`.agents/skills/`, com ligações em `.claude/skills/`; ADR-0010) |
 | Decisões D-1, D-2, D-3 | **todas decididas** a 03/10/2026: D-1 vender desde o início (ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido, Scaleway (ADR-0003, ADR-0004) |
 | Escolher o fornecedor europeu (D-3) | **decidido** — Scaleway (ADR-0004) |
 | Contratos de adaptadores e pontos de extensão (requisito K) | por fazer — desenho em `08-extensoes-de-terceiros.md` |

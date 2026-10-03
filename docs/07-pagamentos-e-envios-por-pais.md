@@ -9,7 +9,7 @@
 > a página; relatórios pagos não lidos por inteiro); **M** = memória de trabalho
 > dos sistemas actuais; **C** = conhecimento prévio, **não verificado**.
 >
-> ⚠️ Regra 4 do `CLAUDE.md` (dados na UE): um parceiro com empresa-mãe fora da
+> ⚠️ Regra 4 do `AGENTS.md` (dados na UE): um parceiro com empresa-mãe fora da
 > UE que receba dados pessoais só entra com decisão escrita do Diogo ou do
 > Bruno e o acordo de transferência. Está assinalado em cada um.
 

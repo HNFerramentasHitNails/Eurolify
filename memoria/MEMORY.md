@@ -23,6 +23,7 @@
 - [Pagamentos e envios na UE: 27 países com fonte, conferidos por amostragem; Mollie cobre os métodos locais; o pagamento na entrega no Leste é parceria de envios — 03/10/2026](pagamentos-e-envios-ue-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir — 03/10/2026](modelo-de-receita-03out2026.md)
 - [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 15–29 meses a tempo inteiro, 28–52 a meio (hipótese C), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
+- [Regras e skills num sítio só (Q, ADR-0010): `AGENTS.md` para o Claude Code e o Codex, `CLAUDE.md` só importa; skills em `.agents/skills` com ligações em `.claude/skills`; por testar numa sessão de Codex — 03/10/2026](agents-md-um-sitio-03out2026.md)
 - [✅ Nome: Eurolify (D-12, ADR-0009), escolhido pelo Diogo depois de 5 voltas; .com e .eu livres a 03/10; Lumavo ocupado (.com desde 2009); «apoiado pela UE» sem o ser é prática desleal; a Vercel erra no .eu — 03/10/2026](marca-nome-e-dominios-03out2026.md)
 
 ## Referências externas avaliadas
