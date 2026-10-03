@@ -61,6 +61,11 @@ eurolify»*.
 - **Fica por fazer fora do repositório:** o nome do repositório no GitHub
   (ainda «Lumavo»), a apresentação impressa e o documento partilhável, e os
   estudos de logótipo, que foram desenhados para «Lumavo».
+  *Actualização a 03/10/2026:* o repositório passou a
+  `HNFerramentasHitNails/Eurolify` (mudado pelo Diogo; o endereço antigo
+  reencaminha); a apresentação foi actualizada (versão 11) com uma folha de
+  estudos de logótipo «Eurolify» no lugar dos antigos. Falta o documento
+  partilhável (não verifiquei qual é).
 - O que pode partir: ligações de fora para `.claude/skills/lumavo-design`; uma
   sessão que procure a skill pelo nome antigo.
 

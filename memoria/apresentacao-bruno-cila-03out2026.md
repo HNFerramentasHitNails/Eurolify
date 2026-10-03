@@ -111,7 +111,8 @@ logótipo «Eurolify», uma paleta de 4 cores e 4 frases de assinatura.
 
 - **O nome:** «Lumavo» → «Eurolify» em todas as páginas (capa, fim, rodapés,
   textos e notas). Fica «Lumavo» só onde se fala do nome antigo (páginas 2, 54,
-  55 e 56). O repositório no GitHub ainda se chama «Lumavo».
+  55 e 56). O repositório no GitHub passou a «Eurolify» a 03/10/2026, depois
+  desta versão (o Diogo mudou-o; páginas 1 e 56 acertadas a seguir).
 - **Saíram** as 3 páginas dos 18 rascunhos (`marca-comercio`,
   `marca-identidade`, `marca-cloud`). **Entraram** 8:
   - 49–52 · a D-13: quem constrói (os três cenários, o A carimbado, a
@@ -140,6 +141,13 @@ logótipo «Eurolify», uma paleta de 4 cores e 4 frases de assinatura.
   às 8 semanas.
 - Antes de publicar: a versão publicada era a 10 sem alterações de ninguém
   (mesmos tamanhos e códigos de verificação que a minha cópia).
+- ❌ **Erro meu na versão 11, corrigido na 13:** a troca automática de
+  «Lumavo» por «Eurolify» correu depois da minha edição das notas da capa e
+  escreveu «antes Eurolify» e «o nome antigo, Eurolify». Só a capa tinha o
+  erro (procurei «antes Eurolify» e «nome antigo, Eurolify» em todas as
+  páginas). A versão 12 foi gravada por outra via entre as minhas duas
+  publicações; os tamanhos dos 65 ficheiros publicados batem com as minhas
+  cópias, mas não comparei o conteúdo byte a byte.
 
 ## O que ficou por verificar
 

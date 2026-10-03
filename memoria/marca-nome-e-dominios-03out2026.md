@@ -186,6 +186,11 @@ linguas»* (sem resposta ao vendEU).
   com o `main` em `e0dcf89`, eram **295** — o `main` cresceu entretanto. Mais: o nome do repositório no GitHub, a pasta
   da skill `lumavo-design`, a apresentação de 48 páginas, o documento
   partilhável e os estudos de logótipo (desenhados para «Lumavo»).
+  *Depois, no mesmo dia:* o Diogo mudou o repositório para
+  `HNFerramentasHitNails/Eurolify`. Verificado na sessão: o endereço antigo
+  continua a responder (o `git ls-remote` devolveu o último commit pelo
+  reencaminhamento) e o clone pelo nome novo funciona depois de anexar o
+  repositório à sessão; antes disso pedia credenciais.
 
 ## Custos (a confirmar no dia da compra)
 
