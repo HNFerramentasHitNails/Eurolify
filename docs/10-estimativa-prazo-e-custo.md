@@ -13,14 +13,15 @@
 
 > ✅ **Decidido a 03/10/2026 pelo Diogo: cenário A** — *«será eu e o Bruno a
 > desenvolver com o Claude Code e Codex»* ([ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md)).
-> A recomendação era a B. Os cenários B e C ficam como registo; o prazo do A
-> mede-se às 8 semanas (§6).
+> A recomendação era a B. Os cenários B e C ficam como registo. O tempo do A,
+> por fases, está no §9 (pedido do Diogo, 03/10/2026) e corrige-se às 8
+> semanas (§6).
 
 ## 1. A resposta curta
 
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
-| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | **não estimo** (§5); mede-se às 8 semanas (§6) | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
+| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **15 a 29 meses** os dois a tempo inteiro, **28 a 52** a meio tempo (§9, com hipótese C) | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
 | **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **16 a 30 meses** | **≈ 173.000–465.000 €** | ≈ 10.150–14.840 € |
 | **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **12 a 23 meses** | **≈ 193.000–519.000 €** | ≈ 15.110–21.920 € |
 
@@ -115,7 +116,7 @@ lado se está.
 | Jurista: checkout e livre resolução, contrato com limites, acordo de tratamento de dados, Data Act, margem sobre pagamentos | **orçamento a pedir** | — |
 | Seguro de responsabilidade civil profissional e ciber | **orçamento a pedir** — há produtos de entrada desde 404 €/ano, mas com capitais que não servem a uma plataforma que trata faturas de outras empresas | **W** ([Santander](https://www.santander.pt/empresas/seguros/seguro-protecao-empresas-cyber)) |
 
-**Cenário A — porque não lhe dou prazo.** O Hub interno mostra o que o Bruno e,
+**Cenário A — porque não lhe dava prazo** (a pedido do Diogo, ficou estimado no §9, com a hipótese escrita). O Hub interno mostra o que o Bruno e,
 desde julho de 2026, também o Diogo constroem com o agente do Lovable e o
 Claude Code (**M**, contado a 03/10/2026 no `main` do Hub): primeira migração a
 18/11/2025, **1.643 migrações, 229 funções no servidor e ≈ 568 mil linhas** de
@@ -125,8 +126,8 @@ reais: 277 faturas em 90 dias por uma rede temporária, 77 funções abertas a
 quem não tinha sessão (`docs/04`). O Lumavo é vendido a outras empresas, com
 contrato e responsabilidade: precisa de alguém que reveja cada mudança, de
 testes de isolamento e de segurança que o Hub não tem. Não tenho medida de
-quanto isso atrasa duas pessoas que gerem também a empresa — **dar um prazo
-seria inventá-lo**.
+quanto isso atrasa duas pessoas que gerem também a empresa — por isso o
+prazo do §9 assenta numa hipótese escrita e corrige-se às 8 semanas.
 
 **Discordo** de fazer a Fase 1 só no cenário A, pelo motivo acima. Fica
 dito uma vez; a decisão é do Diogo ou do Bruno.
@@ -181,9 +182,83 @@ desenvolvimento de software novo é elegível — **mas o regime vigora até
 Se for renovado, pode reduzir o custo da construção; elegibilidade a confirmar
 com o contabilista. Não entra nos números acima.
 
+## 9. O tempo do Diogo e do Bruno, por fases (cenário A)
+
+Pedido do Diogo, 03/10/2026: *«coloca só o tempo que eu e o Bruno [levamos]
+usando a IA como o Claude Code e Codex, por fases»*.
+
+**Hipóteses (todas C — é aqui que a estimativa pode falhar):**
+
+1. **Cada um rende como um programador sénior com IA.** É a hipótese do meio:
+   vocês conhecem as regras fiscais e os casos melhor do que qualquer
+   contratado (o Hub interno prova-o, e prova o volume que fazem com IA); mas
+   ninguém com ofício de engenharia revê o que entra. Se renderem menos, o
+   tempo cresce na mesma proporção; se renderem mais, encurta.
+2. **Duas dedicações possíveis:** os dois a tempo inteiro (duas pessoas rendem
+   90 % de duas) ou cada um a meio tempo (uma pessoa no total), porque os dois
+   também cuidam dos sistemas actuais da empresa.
+3. 44 semanas produtivas por pessoa e por ano; o esforço de cada fase com
+   imprevistos (+15 % a +30 %).
+
+**O tempo, em meses:**
+
+| Fase | O que é | Esforço (pessoas-semana) | Os dois a tempo inteiro | Cada um a meio tempo |
+|---|---|---|---|---|
+| **0** (o que falta) | Desenho final (domínio, API, contratos), conversas com 3 a 5 comerciantes, preços (D-14), OK para código | 5–10 | **1 a 3** | **1,5 a 3** |
+| **1** | Núcleo à venda (§2, sem a peça 1) | 101–192 | **15 a 29** | **28 a 52** |
+| | Critério de passagem: 3 meses de vendas reais sem documento fiscal errado | — | **+3** | **+3** |
+| **2** | Hub completo e mais países (tabela abaixo) | 60–117 | **9 a 18** | **16 a 32** |
+| | Critério de passagem: 3 meses em comerciantes de pelo menos dois países | — | **+3** | **+3** |
+| **3** | Extensões abertas e comércio por agentes (tabela abaixo) | 46–90 | **7 a 14** | **12 a 25** |
+| **4** | Marketplace | — | **não se estima**: só com caso de negócio escrito (`05-fases-e-mvp.md`) | |
+| | **Até ao fim da Fase 3** | | **≈ 38 a 70** (3 a 6 anos) | **≈ 64 a 118** (5 a 10 anos) |
+
+**Exemplo:** com a Fase 0 fechada a 31/12/2026 e os dois a tempo inteiro, a
+construção da Fase 1 acaba entre **abril de 2028 e junho de 2029**; o primeiro
+comerciante de fora pode entrar quando o motor de IVA estiver validado pelo
+contabilista e o contrato pelo jurista, que correm em paralelo.
+
+**O contraste com o Hub interno, dito às claras:** o Hub foi construído em
+≈ 10,5 meses (primeira migração a 18/11/2025, **M**) e tem mais módulos do que
+a Fase 1. Estes números são maiores porque o Lumavo tem de ser provado antes
+de abrir — isolamento entre comerciantes, testes, segurança, validações — e o
+Hub foi corrigido em produção. **Não tenho medida** de quanto mais rápido
+vocês são do que a hipótese 1: às 8 semanas mede-se (§6) e estes números
+corrigem-se aqui.
+
+### O que entra na Fase 2 (pessoas-semana, C)
+
+| Peça | Pessoas-semana |
+|---|---|
+| Armazém completo: vários armazéns, picking, lotes, compostos, inventários | 8–14 |
+| Devoluções ligadas à nota de crédito, estado do artigo, troca e carteira | 6–10 |
+| Emissão por adaptador em dois países novos (ex.: Verifactu em Espanha) | 6–12 |
+| Relatório OSS com os quatro baldes; ligações ao software de faturação de comerciantes de outros países | 4–8 |
+| Automações e notificações configuráveis, campos personalizados, módulos por comerciante | 8–12 |
+| Ecrãs do Hub para o que entra nesta fase | 6–10 |
+| Migração da loja principal do grupo | 4–8 |
+| Programa para os parceiros convidados (documentação, loja de ensaio, simulador, testes do contrato) | 6–10 |
+| Testes, segurança e novo teste de intrusão | 4–6 |
+| **Soma** | **52–90** (com imprevistos ≈ 60–117) |
+
+### O que entra na Fase 3 (pessoas-semana, C)
+
+| Peça | Pessoas-semana |
+|---|---|
+| Loja de extensões: publicação, revisão, instalação, permissões, extensões pagas | 8–14 |
+| Caixa fechada para as funções de terceiros e os pontos de extensão | 6–10 |
+| Extensões de ecrã no Hub e no checkout | 4–8 |
+| Linha de comandos, modelos, loja de ensaio e documentação para programadores | 6–10 |
+| Obrigações do DSA na loja (denúncia, decisão fundamentada, recurso) | 3–5 |
+| MCP com escrita sob confirmação | 3–6 |
+| Comércio por agentes (UCP/ACP) e API de checkout com verificação | 6–10 |
+| Testes e segurança | 4–6 |
+| **Soma** | **40–69** (com imprevistos ≈ 46–90) |
+
 ## O que ficou por verificar
 
-- **O esforço de cada peça (§2) é julgamento meu**, sem medição. É a maior
+- **O esforço de cada peça (§2 e §9) é julgamento meu**, sem medição; e a
+  hipótese de o Diogo e o Bruno renderem como um sénior com IA (§9). É a maior
   incerteza desta página; a §6 é a forma de a reduzir.
 - Os salários vêm de resumos de artigos que citam guias de 2026; o Guia Hays e
   o estudo da Michael Page de 2026 não foram lidos (o PDF de TI da Michael Page

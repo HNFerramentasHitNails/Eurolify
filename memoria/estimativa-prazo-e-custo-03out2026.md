@@ -27,6 +27,11 @@
 - No ADR-0008 ficaram como consequência: dados pessoais reais nunca entram numa
   sessão de Claude Code ou de Codex (regra 4); o ADR-0005 vale para os dois
   agentes; a revisão cruzada fica como **proposta**.
+- **Tempo por fases do cenário A** (pedido do Diogo: *«coloca só o tempo que
+  eu e o Bruno usando a IA como o claude code e codex, por fases»*):
+  `docs/10` §9. Hipótese **C**: cada um rende como um sénior com IA; duas
+  dedicações (os dois a tempo inteiro, eficiência 90 %; cada um a meio tempo).
+  Fases 2 e 3 estimadas peça a peça pela primeira vez (C).
 
 ## Números (com data e como se contaram)
 
@@ -48,6 +53,10 @@
   1.ª migração 18/11/2025; 1.643 migrações; 229 pastas de funções (sem `_`);
   635.339 linhas TS/TSX em `src` e `supabase/functions`, das quais 67.268 no
   `types.ts` gerado ⇒ ≈ 568 mil sem ele (`wc -l`).
+- Tempo do A (meses; tempo inteiro / meio tempo): Fase 0 1–3 / 1,5–3;
+  Fase 1 15–29 / 28–52 (+3 do critério); Fase 2 9–18 / 16–32 (+3); Fase 3
+  7–14 / 12–25; até ao fim da Fase 3 ≈ 38–70 / 64–118. Esforço: F2 52–90
+  pessoas-semana (60–117 com imprevistos), F3 40–69 (46–90).
 - SIFIDE II: 32,5 % de base + 50 % incremental; vigora até 31/12/2026 (**W**,
   resumo).
 

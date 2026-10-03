@@ -19,7 +19,7 @@
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1, e o «outros países» que tinha escapado ao varrimento da decisão F — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Pagamentos e envios na UE: 27 países com fonte, conferidos por amostragem; Mollie cobre os métodos locais; o pagamento na entrega no Leste é parceria de envios — 03/10/2026](pagamentos-e-envios-ue-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir — 03/10/2026](modelo-de-receita-03out2026.md)
-- [Estimativa da Fase 1 (D-13): 106–202 pessoas-semana (C); B e C com preço; decidido o A (O, ADR-0008): Diogo e Bruno com Claude Code e Codex, prazo às 8 semanas; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
+- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 15–29 meses a tempo inteiro, 28–52 a meio (hipótese C), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
 
 ## Referências externas avaliadas
 

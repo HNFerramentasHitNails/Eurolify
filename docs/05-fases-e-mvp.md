@@ -3,7 +3,9 @@
 > **Versão de 03/10/2026 — proposta.** D-1, D-2 e D-3 foram decididas a
 > 03/10/2026 (`06-decisoes-em-aberto.md`); a estimativa de prazo e custo da
 > Fase 1 está em `10-estimativa-prazo-e-custo.md`; a D-13 foi decidida
-> (ADR-0008: o Diogo e o Bruno desenvolvem, com Claude Code e Codex). Cada fase tem um
+> (ADR-0008: o Diogo e o Bruno desenvolvem, com Claude Code e Codex). O
+> tempo de cada fase está no §9 desse documento (hipótese, corrigida às 8
+> semanas); o critério de passagem continua a mandar, não o calendário. Cada fase tem um
 > **critério de passagem** medível; não se passa à seguinte por calendário.
 
 ## Fase 0 — Decidir e desenhar (agora; sem código)
@@ -23,7 +25,7 @@
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
 | Modelo de receita (D-14) — preciso antes da Fase 1, porque se vende desde o início | **base decidida** (ADR-0007: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, depois das conversas com comerciantes e da D-13 |
 | Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
-| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; prazo medido às 8 semanas (`10-estimativa-prazo-e-custo.md` §6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
+| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; tempo por fases em `10-estimativa-prazo-e-custo.md` §9 (Fase 1: 15 a 29 meses a tempo inteiro, 28 a 52 a meio tempo), corrigido às 8 semanas (§6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
 
 **Critério de passagem:** D-13 e D-14 decididas e registadas em ADR; o OK
 escrito do Bruno ou do Diogo para começar código (ADR-0001).

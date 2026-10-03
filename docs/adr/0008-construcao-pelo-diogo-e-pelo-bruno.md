@@ -25,9 +25,10 @@ recomendação B não foi seguida; a discordância ficou escrita uma vez em
 
 ## Consequências
 
-- **Prazo:** não estimado — não há medida da velocidade do Diogo e do Bruno
-  neste tipo de trabalho. Mede-se às 8 semanas, como em `docs/10` §6: esforço
-  planeado contra esforço gasto, e daí o prazo.
+- **Prazo** (`docs/10` §9, pedido do Diogo a 03/10/2026; hipótese **C**: cada
+  um rende como um programador sénior com IA): Fase 1 em **15 a 29 meses** os
+  dois a tempo inteiro, **28 a 52** cada um a meio tempo; até ao fim da Fase 3,
+  ≈ 38 a 70 meses ou ≈ 64 a 118. Corrige-se às 8 semanas (`docs/10` §6).
 - **Custo:** as subscrições (Claude Max US$ 200/mês por pessoa; o Codex vem com
   os planos do ChatGPT — Plus US$ 20, Pro desde US$ 100, Business US$ 20–25 por
   utilizador, página oficial a 03/10/2026, **W**), os serviços externos com

@@ -29,7 +29,7 @@
 | ✅ L | **Na Fase 2, os parceiros da lista de pagamentos e envios são convidados a escrever eles próprios a sua ligação ao Lumavo**, com os contratos que o Lumavo já usa | Diogo, 03/10/2026 | `05-fases-e-mvp.md`, `07` e `08` |
 | ✅ M | **O Lumavo vende-se a outros comerciantes desde o início** (D-1 → a)); a recomendação era a b). Registo de comerciantes, contratos, faturação do Lumavo, suporte e a emissão por Moloni passam à Fase 1; o modelo de receita (D-14) passa a ser preciso antes dela | Diogo, 03/10/2026 | [ADR-0006](adr/0006-vender-desde-o-inicio.md) |
 | ✅ N | **A receita assenta numa mensalidade por plano, por escalões de vendas anuais, sem taxa sobre cada venda** (D-14, em parte). Preços e outras fontes por decidir | Diogo, 03/10/2026 | [ADR-0007](adr/0007-receita-mensalidade-por-escaloes.md) |
-| ✅ O | **A Fase 1 é desenvolvida pelo Diogo e pelo Bruno, com Claude Code e Codex**, sem contratar programadores (D-13 → cenário A); a recomendação era a B (2 sénior). Prazo medido às 8 semanas. O Codex não lê o `CLAUDE.md` nem `.claude/skills` — como ligar as regras está por decidir. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md) |
+| ✅ O | **A Fase 1 é desenvolvida pelo Diogo e pelo Bruno, com Claude Code e Codex**, sem contratar programadores (D-13 → cenário A); a recomendação era a B (2 sénior). Fase 1: 15 a 29 meses os dois a tempo inteiro, 28 a 52 a meio tempo (`10` §9, hipótese C), corrigido às 8 semanas. O Codex não lê o `CLAUDE.md` nem `.claude/skills` — como ligar as regras está por decidir. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md) |
 
 ## Por decidir — por esta ordem
 
@@ -194,7 +194,7 @@ antes e o depois e decide o Diogo ou o Bruno (skill `lumavo-design`, regra 1).
 
 > ✅ **Decidida a 03/10/2026 pelo Diogo: cenário A** — *«será eu e o Bruno a
 > desenvolver com o Claude Code e Codex»* ([ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md)).
-> O prazo mede-se às 8 semanas. O texto abaixo fica como registo da estimativa.
+> Tempo por fases no [§9 do docs/10](10-estimativa-prazo-e-custo.md); corrige-se às 8 semanas. O texto abaixo fica como registo da estimativa.
 
 > **Estimada a 03/10/2026** em [`10-estimativa-prazo-e-custo.md`](10-estimativa-prazo-e-custo.md). Construção da Fase 1: **B** — 2
 > programadores sénior, 16 a 30 meses, ≈ 173.000–465.000 €; **C** — 3 sénior,
