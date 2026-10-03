@@ -191,6 +191,13 @@ pedido foi guardar aqui.
 > (`lumavo.com` desde 2009, `lumavo.eu` com dono). Por fazer: a pesquisa à mão
 > no TMview e a compra dos domínios. A **identidade visual** continua por
 > decidir. O texto abaixo fica como registo.
+>
+> **Logótipo (03/10/2026):** o Diogo entregou uma folha de 9 estudos
+> «Eurolify», com paleta e frases de assinatura, que substitui os 18 rascunhos
+> anteriores (apresentação, páginas 57 a 59). 🔴 O estudo 5 usa um círculo de
+> estrelas: o EUIPO recusa marcas que reproduzam ou imitem o emblema europeu
+> (art. 7.º, n.º 1, al. i), do regulamento da marca da UE; directrizes do
+> EUIPO por resumo de pesquisa, **W**). Escolha por fazer.
 
 **Não verifiquei** se a marca está livre no EUIPO nem que domínios estão
 disponíveis. Verificar antes de gastar dinheiro em marca. A **identidade

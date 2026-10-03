@@ -6,9 +6,10 @@ estudos de logótipo (18 estudos) entregues na mesma mensagem.
 
 ## O que se fez
 
-- **59 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
-  (versão 10, capa «Versão 0.3»; a versão 3 tinha 46, a 4 a 6 tinham 48, a 7 e a 8
-  tinham 50, a 9 tinha 57). **Privado**: só o Diogo o abre até o partilhar no menu da página.
+- **64 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
+  (versão 11, capa «Versão 0.4», título «Eurolify — apresentação»; a versão 3
+  tinha 46, a 4 a 6 tinham 48, a 7 e a 8 tinham 50, a 9 tinha 57, a 10 tinha
+  59). As partes abaixo são as da versão 10; as da 11 estão na secção dela. **Privado**: só o Diogo o abre até o partilhar no menu da página.
   Descarrega-se em PDF ou PPTX para imprimir.
 - É um **resumo** de `docs/00` a `docs/06`. Se divergir do repositório, vale o
   repositório — está escrito na capa e na última página.
@@ -100,6 +101,46 @@ dinheiro») e 48 («O modelo de receita: o que ficou e o que falta», com a base
 carimbada e os planos sem preço). Acertadas a 2, 34, 40, 42, 45, 49 e 58
 («decidir o modelo» passou a «fixar os preços»).
 
+## Versão 11 (03/10/2026): Eurolify, o logótipo novo e a estimativa
+
+Pedidos do Diogo, na mesma volta: *«acrescenta à apresentação»* (a estimativa
+de prazo e custo e a decisão D-13), *«acrescenta à apresentação o novo nome»*
+(Eurolify, ADR-0009, decidido noutra sessão) e *«podes retirar todos os outros
+rascunhos de logo e substituir por este»*, com uma folha de 9 estudos de
+logótipo «Eurolify», uma paleta de 4 cores e 4 frases de assinatura.
+
+- **O nome:** «Lumavo» → «Eurolify» em todas as páginas (capa, fim, rodapés,
+  textos e notas). Fica «Lumavo» só onde se fala do nome antigo (páginas 2, 54,
+  55 e 56). O repositório no GitHub ainda se chama «Lumavo».
+- **Saíram** as 3 páginas dos 18 rascunhos (`marca-comercio`,
+  `marca-identidade`, `marca-cloud`). **Entraram** 8:
+  - 49–52 · a D-13: quem constrói (os três cenários, o A carimbado, a
+    discordância dita uma vez), o tempo por fases, o que se paga por fora, e
+    como se trabalha com Claude Code e Codex (o Codex não lê o `CLAUDE.md`);
+  - 55–56 · o nome Eurolify e o que fazer antes de comprar e registar;
+  - 57–58 · a folha de 9 estudos e a leitura de cada um (opinião).
+- **A folha de logótipos** foi tirada do registo da conversa (chegou a meio de
+  uma resposta e não ficou gravada em disco) e carregada no deck como
+  `/_blob/619cd0c4d7f3af9b685f2d4e16ee73e0`.
+- 🔴 **Estudo 5 (círculo de estrelas):** o círculo de estrelas é o elemento
+  essencial da bandeira europeia; o EUIPO recusa marcas que o reproduzam ou
+  imitem, mesmo em pequeno (art. 7.º, n.º 1, al. i), do regulamento da marca
+  da UE — directrizes do EUIPO, «Protected symbols», e jurisprudência do
+  Conselho de Recurso, lidas por resumo de pesquisa a 03/10/2026, **W**). Na
+  página 58 recomenda-se tirá-lo da escolha (opinião; decide o Diogo ou o
+  Bruno).
+- **Partes da v11:** pedido (1–3) · problema (4–8) · o que é o Eurolify
+  (9–18) · regras europeias (19–26) · pagamentos e envios (27–33) · lições
+  (34–36) · plano e fases (37–40) · decisões, alojamento, receita, quem
+  constrói e em quanto tempo (41–53) · a marca: nome e logótipo (54–59) ·
+  riscos, não verificado, fontes, próximos passos (60–64).
+- A página 2 passou a 6 cartões (D-1, D-2, D-3, D-12, D-13 e «pedimos hoje: o
+  logótipo»); os próximos passos (63) passaram a: TMview e domínios, preços,
+  orçamentos, logótipo, como o Codex recebe as regras, OK para código e medir
+  às 8 semanas.
+- Antes de publicar: a versão publicada era a 10 sem alterações de ninguém
+  (mesmos tamanhos e códigos de verificação que a minha cópia).
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
@@ -108,6 +149,13 @@ carimbada e os planos sem preço). Acertadas a 2, 34, 40, 42, 45, 49 e 58
   (Scaleway) e a 38 (outras decisões), que são as mais cheias.
 - Os números são os de `docs/04`, com a data de lá; **não foram medidos outra
   vez**.
+- **Versão 11, também não vista desenhada.** As mais cheias: a 2 (seis
+  cartões), a 49 (tabela dos cenários), a 50 (tempo por fases), a 51 (custos),
+  a 57 (a folha de logótipos ocupa quase toda a altura) e a 62 (fontes, 29
+  linhas). As alturas foram contadas pela regra do tipo Slides, não vistas.
+- A leitura dos 9 estudos é opinião, sem teste com pessoas; a recusa do estudo
+  5 no EUIPO é risco lido nas directrizes por resumo, não uma decisão do EUIPO
+  sobre este desenho.
 - A descrição de cada estudo de logótipo foi feita a olho a partir das imagens;
   a numeração (esquerda→direita, cima→baixo) pode não ser a que o autor dos
   estudos usou.

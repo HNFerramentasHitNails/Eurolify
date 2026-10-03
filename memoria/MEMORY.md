@@ -15,7 +15,7 @@
 
 ## Para decidir
 
-- [Apresentação impressa para Bruno e Cila, 59 páginas (v10: decisões, Scaleway, extensões, pagamentos e envios, receita): link, partes, caixas para decidir à mão, marca como opinião; páginas não vistas desenhadas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
+- [Apresentação para Bruno e Cila, 64 páginas (v11: Eurolify, a folha de 9 logótipos no lugar dos 18 rascunhos, a D-13 e o tempo por fases); o estudo 5 (estrelas da UE) arrisca recusa no EUIPO; páginas não vistas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
 - [Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G), na Scaleway (H); e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
 - [Scaleway por MCP: o oficial é o `scw mcp` (só leitura possível); não há conector de um clique; a API chega daqui (401), instala-se pelo Go; decidido: publicar pelo GitHub e MCP só de leitura (I) — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
 - [Extensões de terceiros: 7 tipos, os mesmos contratos para o Lumavo e para terceiros, regras fiscais e legais não extensíveis, loja (DSA, ciber-resiliência); decididos K e L (parceiros convidados na Fase 2) — 03/10/2026](extensoes-de-terceiros-03out2026.md)
