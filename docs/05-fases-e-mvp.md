@@ -1,8 +1,9 @@
 # Fases e primeira versão (MVP)
 
-> **Versão de 03/10/2026 — proposta.** Sem datas nem custos: D-1, D-2 e D-3
-> foram decididas a 03/10/2026 (`06-decisoes-em-aberto.md`); falta a
-> estimativa (D-13). Cada fase tem um
+> **Versão de 03/10/2026 — proposta.** D-1, D-2 e D-3 foram decididas a
+> 03/10/2026 (`06-decisoes-em-aberto.md`); a estimativa de prazo e custo da
+> Fase 1 está em `10-estimativa-prazo-e-custo.md` (D-13, falta escolher o
+> cenário de equipa). Cada fase tem um
 > **critério de passagem** medível; não se passa à seguinte por calendário.
 
 ## Fase 0 — Decidir e desenhar (agora; sem código)
@@ -22,7 +23,7 @@
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
 | Modelo de receita (D-14) — preciso antes da Fase 1, porque se vende desde o início | **base decidida** (ADR-0007: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, depois das conversas com comerciantes e da D-13 |
 | Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
-| Estimativa de prazo e custo (D-13) | por fazer — **é a próxima tarefa** (D-1 a D-3 decididas) |
+| Estimativa de prazo e custo (D-13) | **estimada** a 03/10/2026 (`10-estimativa-prazo-e-custo.md`): 12 a 30 meses de construção conforme o cenário; **falta escolher o cenário de equipa** e pedir os orçamentos do contabilista, do jurista e do seguro |
 
 **Critério de passagem:** D-13 e D-14 decididas e registadas em ADR; o OK
 escrito do Bruno ou do Diogo para começar código (ADR-0001).

@@ -91,8 +91,12 @@ comerciantes e da D-13):
   IA.
 - **Ponto de equilíbrio** = custos fixos por mês (equipa, contabilistas e
   juristas por país, seguro) ÷ margem por comerciante.
-- **Os custos fixos são a D-13, ainda por estimar.** Sem eles não há número de
-  comerciantes necessários, e este estudo não o inventa.
+- **Os custos fixos estão estimados na D-13** (`10-estimativa-prazo-e-custo.md`
+  §8, 03/10/2026): ≈ 10.150–14.840 €/mês com 2 programadores e ≈
+  15.110–21.920 €/mês com 3, sem contabilista, jurista, seguro nem suporte.
+  Exemplo de conta (hipótese, não é preço): a 100 € de margem média por
+  comerciante e por mês, são precisos ≈ 100–150 comerciantes (≈ 150–220 com 3
+  programadores).
 
 ## 6. Regras europeias e fiscais da receita do próprio Lumavo
 
@@ -108,7 +112,7 @@ comerciantes e da D-13):
 
 1. Falar com 3 a 5 comerciantes: quanto pagam hoje (plataforma + extensões de
    faturação + contabilista) e o que pagariam por não errar faturas.
-2. A estimativa de custos (D-13).
+2. ~~A estimativa de custos (D-13).~~ Feita a 03/10/2026 (`10-estimativa-prazo-e-custo.md`); falta escolher o cenário de equipa.
 3. Confirmar com a Mollie as condições reais (Connect e programa de parceiros).
 4. Contabilista: IVA das mensalidades e das comissões.
 5. Jurista: margem sobre pagamentos às claras; contrato com o Data Act.

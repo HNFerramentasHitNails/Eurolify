@@ -191,10 +191,17 @@ antes e o depois e decide o Diogo ou o Bruno (skill `lumavo-design`, regra 1).
 
 ### D-13 · Quem constrói, em quanto tempo e com que orçamento
 
-**Sem número nesta versão.** D-1, D-2 e D-3 foram decididas a 03/10/2026: **a
-estimativa é a próxima tarefa da Fase 0**. Referência do que um sistema destes
-pesa: o Hub tinha, a 30/09/2026, 420 caminhos de ecrã, 225 funções no servidor, 761 tabelas
-e 78 tarefas automáticas (`proposta-venda-do-hub-30set2026.md`).
+> **Estimada a 03/10/2026** em [`10-estimativa-prazo-e-custo.md`](10-estimativa-prazo-e-custo.md);
+> **falta escolher o cenário de equipa.** Construção da Fase 1: **B** — 2
+> programadores sénior, 16 a 30 meses, ≈ 173.000–465.000 €; **C** — 3 sénior,
+> 12 a 23 meses, ≈ 193.000–519.000 €; **A** — só o Diogo e o Bruno com Claude
+> Code, sem prazo estimável (sem medida). Fora dos números: contabilista,
+> jurista, seguro, recrutamento e suporte (orçamentos a pedir). Recomendação: B
+> com um líder técnico, medir às 8 semanas e decidir a terceira pessoa.
+
+Referência do que um sistema destes pesa: o Hub tinha, a 30/09/2026, 420
+caminhos de ecrã, 225 funções no servidor, 761 tabelas e 78 tarefas
+automáticas (`proposta-venda-do-hub-30set2026.md`).
 
 ### D-14 · Como o Lumavo ganha dinheiro
 

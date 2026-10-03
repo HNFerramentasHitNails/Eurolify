@@ -60,7 +60,9 @@ mais um mercado; o Lumavo trata-a como casa.
 e esta proposta **não traz nenhuma** — seria inventá-la.
 *Estado a 03/10/2026:* as três decididas — D-1 vender desde o início
 (ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido na Scaleway (ADR-0003,
-ADR-0004). A seguir: a estimativa (D-13) e o modelo de receita (D-14).
+ADR-0004). Depois: a base da receita decidida (ADR-0007) e a estimativa de
+prazo e custo feita (`10-estimativa-prazo-e-custo.md`); falta escolher o
+cenário de equipa (D-13).
 
 ---
 
@@ -218,7 +220,8 @@ Pormenor em [`05-fases-e-mvp.md`](05-fases-e-mvp.md).
 
 - **Nenhum texto legal foi lido por inteiro**; as datas vêm de pesquisas web a
   03/10/2026 (resumos e títulos das fontes) e estão marcadas como tal.
-- **Não há prazos nem custos**, de propósito (D-13).
+- Prazos e custos: estimados a 03/10/2026 em `10-estimativa-prazo-e-custo.md`
+  (D-13), com o esforço de cada peça por julgamento, sem medição.
 - **Não verifiquei** se a marca «Lumavo» está livre nem os domínios (D-12).
 - As licenças e capacidades da Medusa, Saleor e Vendure vêm de resumos de
   pesquisa; o código não foi lido (D-2).
