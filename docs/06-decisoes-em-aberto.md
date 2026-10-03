@@ -42,6 +42,7 @@
 | ✅ Y | **A VPS do ensaio fica, por agora, no Reino Unido** (só havia essa localidade); migra-se para um servidor em Paris. Excepção temporária à regra 4 do `AGENTS.md`, só para o ensaio e **sem dados pessoais reais**; a produção não vai para lá. Acaba a 31/03/2027 (Z) | Diogo, 03/10/2026 | [ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md) |
 | ✅ Z | **A excepção do Reino Unido (Y) acaba a 31/03/2027**, ou antes se algum dado de um cliente real tiver de entrar no ensaio; se não tiver migrado até lá, não se prolonga em silêncio: decide-se num ADR novo | Diogo, 03/10/2026 | [ADR-0019](adr/0019-fim-da-vps-no-reino-unido.md) |
 | ✅ AA | **O Claude chega à VPS pelo Claude Code no computador do Diogo, por SSH**, com uma chave do Diogo; o Bruno, no dele, com a dele. Cada comando na máquina passa pela autorização no ecrã de quem pediu. Passos no `docs/11` §5.1 | Diogo, 03/10/2026 | [ADR-0020](adr/0020-acesso-pelo-computador-do-diogo.md) |
+| ✅ AB | **A chave SSH do Diogo para a VPS troca-se a 31/03/2027**, com a migração para Paris (máquina nova, chave nova); a do Bruno terá data própria | Diogo, 03/10/2026 | `11-preparacao-da-vps.md` §3.1 |
 
 ## Por decidir — por esta ordem
 
