@@ -227,8 +227,27 @@ ficheiro, e a imagem dos logótipos tirada do deck.
   células), não os do motor da apresentação: as medidas **não se comparam**
   com as da v15, e o PDF do botão de exportar do deck pode sair diferente.
 - Vistas em imagem: 2, 3, 44, 45, 46, 48, 51 e 63. As outras 56, não.
-- A página 61 ainda diz que a data do art. 50.º da lei europeia da IA está
-  por ver; o `docs/03` leu-a entretanto (02/08/2026, commit `9f391a1`).
+- ~~A página 61 ainda diz que a data do art. 50.º da lei europeia da IA está
+  por ver~~ → corrigida na versão 17 (abaixo).
+
+## Versão 17 e o seu PDF (03/10/2026)
+
+Pedido do Diogo: *«sim, corrige e gera o PDF outra vez»*.
+
+- **Página 61:** sai «a data do art. 50.º da lei europeia da IA» da lista do
+  que não foi verificado; a primeira linha passa a dizer que algumas datas
+  vêm de artigos lidos no EUR-Lex; nas notas, a data lida: 02/08/2026, a
+  geral do art. 113.º, que o Omnibus da IA (Reg. (UE) 2026/1744) não mudou
+  (`docs/03` §4, commit `9f391a1`). Ficam por confirmar a Itália e os 40 %.
+- Publicada por cima da 16 (`1791065510-8518`, confirmada antes); a 17 é a
+  `1791067324-254e`. Só mudou a página 61.
+- `Eurolify-apresentacao-Bruno-Cila-v17.pdf`: **64 páginas, 1440×810 pt,
+  3.235.346 bytes** (`pdfinfo`), pelo mesmo método do PDF da 16. Passam do
+  limite as mesmas duas (3 → 929, 48 → 924); a 61 fica em 701. Vista em
+  imagem a 61. Entregue ao Diogo na conversa; não está no repositório.
+- Em 11 páginas (6, 11, 26, 29, 30, 31, 38, 45, 49, 50, 51) alguns símbolos
+  saem numa letra de recurso (Liberation Sans, DejaVu Sans), como no PDF da
+  16 (`pdffonts` página a página). Quais caracteres: **não verifiquei**.
 
 ## O que ficou por verificar
 
