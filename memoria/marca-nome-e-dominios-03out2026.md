@@ -56,6 +56,26 @@ uma animal ou uma especia, porque seria giro fazer o logo com algum animal»*.
 - ⚠️ **A tomada de ferramentas e as mãos dadas a dormir são da lontra-marinha**
   (Pacífico), não da lontra europeia — não usar essas histórias.
 
+## Terceira volta: algo para concorrer com o Shopify (03/10/2026)
+
+O Diogo não quis os animais: *«esquece os animais. foca te que é algo para
+concorrer com shopify»*.
+
+- **O erro das duas primeiras voltas foi meu:** deixei o `.com` livre escolher
+  o nome, e só saem palavras sem sentido. Nesta volta o nome vem primeiro; o
+  `.eu` serve de domínio principal (é coerente com «a alternativa europeia») e
+  o `.com` vê-se a quem pertence.
+- **Os nomes que dizem «comércio» estão em uso no próprio comércio
+  electrónico** (pesquisa entre aspas, 03/10/2026): Storewise (pelo menos 5
+  programas de lojas e um tema WooCommerce), Sellstack (plataforma de comércio,
+  EUA), Sellforge (apps de vendas e uma agência de lojas Shopify), Botiqa
+  (assistente de IA para lojas, Suíça), Vendalo (Vendalo Media, Alemanha, 2023),
+  Kassavo (`kassavo.com` activo: gestão de Airbnb, Espanha, desde 08/2025).
+- **O mais limpo dos que dizem comércio: Mércalo** («compra-o» em espanhol,
+  verbo *mercar*). `.eu` sem delegação no DNS; `.com` da Alpine Domains desde
+  11/01/2016, sem site — parece de um investidor, não verifiquei se está à
+  venda. Na web: uma mercearia online colombiana, Mercalo.co (desde 2017).
+
 ## Números (com data e como se contaram)
 
 - **03/10/2026, `.com` por RDAP da Verisign** (404 = não registado): dos 50
@@ -63,9 +83,11 @@ uma animal ou uma especia, porque seria giro fazer o logo com algum animal»*.
   gerados por programa, 168 livres; de 900 de três sílabas, 250 livres; de 80
   com sentido (luz, estrela, ponte, porto), 12 livres. Os livres soam quase
   todos mal — os nomes curtos e bonitos já estão registados.
-- **`.eu`** pelo MCP da Vercel: dá «ocupado» a nomes que parecem não existir
-  (ex.: `olvele.eu`); só usei os «livre». Uma disponibilidade é desse instante,
-  não reserva nada.
+- **`.eu`**: ⚠️ **o MCP da Vercel não serve para o `.eu`** — deu «ocupado» a
+  `olvele.eu`, `merkla.eu`, `sellvo.eu` e `torgeo.eu`, que não existem no DNS
+  (NXDOMAIN em `dns.google/resolve`, 03/10/2026). A partir da terceira volta o
+  `.eu` vê-se pelo DNS (sem delegação = muito provavelmente livre). Uma
+  disponibilidade é desse instante, não reserva nada.
 - **Repositório:** `grep -rio lumavo` fora do `.git` dá **217 ocorrências em
   36 ficheiros** (03/10/2026). Mais: o nome do repositório no GitHub, a pasta
   da skill `lumavo-design`, a apresentação de 48 páginas, o documento
