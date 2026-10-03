@@ -169,7 +169,8 @@ modelo; orçamento de IA por comerciante (lição 6.3).
 ## 6. Como se trabalha no código (quando houver código)
 
 - Ambientes: desenvolvimento, ensaio e produção, com dados de ensaio
-  **sem dados pessoais reais**.
+  **sem dados pessoais reais**. O ensaio é **um só**, na Scaleway, actualizado
+  a cada entrada no `main` (ADR-0014).
 - Cada alteração passa por: tipos, testes, testes de permissões, migração
   testada contra uma cópia — e só então é publicada, pelo mesmo caminho sempre.
 - O que é fiscal tem testes por cada ramo da regra e por cada caso pago do
