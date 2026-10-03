@@ -22,7 +22,7 @@ scaleway»*.
 
 | Opção | A favor | Contra |
 |---|---|---|
-| **Scaleway** | Preços lidos (PostgreSQL gerido desde ≈ €105/mês, com máquina de reserva noutra zona desde ≈ €44/mês; contentores ≈ €37/mês cada sempre ligado); MCP oficial (`scw mcp`) que pode ficar só de leitura; a API chega às sessões do Claude | O preço do tráfego e o do armazenamento de ficheiros não foram lidos |
+| **Scaleway** | Preços lidos (PostgreSQL gerido desde ≈ €105/mês, com segunda máquina desde ≈ €55/mês — corrigido a 03/10/2026: era ≈ €44, a coluna Multi-AZ, que só vale para réplicas de leitura; contentores ≈ €37/mês cada sempre ligado); MCP oficial (`scw mcp`) que pode ficar só de leitura; a API chega às sessões do Claude | O preço do tráfego e o do armazenamento de ficheiros não foram lidos |
 | OVHcloud | Europeia | Não verificada |
 
 ## Decisão

@@ -49,7 +49,7 @@
 - Externos com preço: teste de intrusão 5.950–8.500 € cada (Budget Security,
   20/07/2026); acessibilidade 5.000–10.000 € (fonte fraca); marca UE 3 classes
   1.050 €; alojamento na construção 2.000–5.000 € (**C**).
-- Custo fixo/mês depois de abrir: B ≈ 10.150–14.840 €, C ≈ 15.110–21.920 €.
+- Custo fixo/mês depois de abrir: B ≈ 10.150–14.870 €, C ≈ 15.110–21.950 € (corrigido a 03/10/2026: o alojamento passou a ≈ 234–710 €, ver `alojamento-e-custos-03out2026.md`).
   A 100 €/mês de margem média por comerciante (hipótese): B ≈ 100–150
   comerciantes, C ≈ 150–220.
 - Referência medida no Hub interno (contado a 03/10/2026 no clone do `main`):

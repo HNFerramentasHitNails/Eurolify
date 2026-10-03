@@ -22,8 +22,8 @@
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
 | **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **15 a 29 meses** os dois a tempo inteiro, **28 a 52** a meio tempo (§9, com hipótese C) | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
-| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **16 a 30 meses** | **≈ 173.000–465.000 €** | ≈ 10.150–14.840 € |
-| **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **12 a 23 meses** | **≈ 193.000–519.000 €** | ≈ 15.110–21.920 € |
+| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **16 a 30 meses** | **≈ 173.000–465.000 €** | ≈ 10.150–14.870 € |
+| **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **12 a 23 meses** | **≈ 193.000–519.000 €** | ≈ 15.110–21.950 € |
 
 **Não estão nos números** (e não os invento): contabilista, jurista e seguro
 (orçamentos a pedir), recrutamento, o tempo do Diogo e do Bruno, quem atende os
@@ -111,7 +111,7 @@ lado se está.
 | Teste de intrusão de uma plataforma multi-inquilino | **5.950–8.500 €** cada (7 a 10 dias a 849 €/dia); conto um ou dois ⇒ 5.950–17.000 € | **W**, [Budget Security](https://budgetsecurity.com/blog/web-application-penetration-testing-cost/), 20/07/2026 |
 | Auditoria de acessibilidade (a Lei Europeia da Acessibilidade obriga as lojas online desde 28/06/2025) | **5.000–10.000 €** para um sítio pequeno, manual | **W**, resumo de pesquisa — fonte fraca, preços sobretudo britânicos e americanos |
 | Marca da UE na EUIPO, 3 classes | **1.050 €** (850 € a 1.ª, 50 € a 2.ª, 150 € a 3.ª) | **W**, resumos ([ds.solutions](https://ds.solutions/en/eu-trademark-cost/)); a página da EUIPO deu 403. As classes (9, 35, 42) são escolha minha, **C** |
-| Alojamento durante a construção (ensaio e, nos últimos meses, produção ≈ 225 €/mês) | **2.000–5.000 €** | **C**, a partir de `memoria/alojamento-e-custos-03out2026.md` |
+| Alojamento durante a construção (ensaio e, nos últimos meses, produção ≈ 234 €/mês) | **2.000–5.000 €** | **C**, a partir de `memoria/alojamento-e-custos-03out2026.md` |
 | Contabilista: validar o motor de IVA antes do primeiro comerciante de fora | **orçamento a pedir** | — |
 | Jurista: checkout e livre resolução, contrato com limites, acordo de tratamento de dados, Data Act, margem sobre pagamentos | **orçamento a pedir** | — |
 | Seguro de responsabilidade civil profissional e ciber | **orçamento a pedir** — há produtos de entrada desde 404 €/ano, mas com capitais que não servem a uma plataforma que trata faturas de outras empresas | **W** ([Santander](https://www.santander.pt/empresas/seguros/seguro-protecao-empresas-cyber)) |
@@ -158,12 +158,12 @@ Uma estimativa sem medida é um palpite. Por isso:
 
 ## 8. Depois de abrir — ligação à D-14
 
-O custo fixo por mês depois de abrir (pessoas + alojamento ≈ 225–680 € +
-Claude) é ≈ **10.150–14.840 €** no cenário B e ≈ **15.110–21.920 €** no C, sem
+O custo fixo por mês depois de abrir (pessoas + alojamento ≈ 234–710 € +
+Claude) é ≈ **10.150–14.870 €** no cenário B e ≈ **15.110–21.950 €** no C, sem
 contabilista, jurista, seguro nem quem atende os comerciantes.
 
 **No cenário A (decidido):** sem salários de programadores, o que sai em
-dinheiro por mês é o alojamento e as subscrições — ≈ 225–680 € + US$ 440–800
+dinheiro por mês é o alojamento e as subscrições — ≈ 234–710 € + US$ 440–800
 (2 × Claude Max US$ 200 + 2 × Codex entre o Plus de US$ 20 e o Pro de US$ 200,
 **W**, páginas oficiais). **O tempo do Diogo e do Bruno não está contado, e é
 o custo real**: sem lhe pôr um valor, o ponto de equilíbrio do cenário A não
