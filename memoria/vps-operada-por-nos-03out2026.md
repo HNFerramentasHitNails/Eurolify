@@ -170,3 +170,30 @@ tiver de entrar.»* Resposta do Diogo, 03/10/2026: *«sim, 31/03/2027»*.
   «data de fim» em todos os `.md`.
 - Alarme a partir de 01/03/2027: proposta, nos alertas da máquina, que ainda
   não existem.
+
+## O acesso: o Claude Code no computador do Diogo (decisão AA, ADR-0020)
+
+Resposta do Diogo, 03/10/2026: *«vamos avançar com o acesso pelo meu
+computador»* — o caminho a) do `docs/11` §5.
+
+### O que se fez
+
+- ADR-0020 novo; estados no ADR-0016 e no `docs/06` (W e AA nova); `docs/11`
+  §5 (decidido), §5.1 novo (os 9 passos no Windows), §7 e §8.
+- Os passos vêm de duas páginas lidas a 03/10/2026: Microsoft, *Key-based
+  authentication in OpenSSH for Windows* (o `ssh-agent` *«is disabled»* por
+  omissão; `Set-Service -StartupType Automatic`, `Start-Service ssh-agent`,
+  `ssh-add`); Claude Code, `code.claude.com/docs/en/setup.md` (Windows 10
+  1809+; `irm https://claude.ai/install.ps1 | iex`; o Git para Windows é
+  recomendado para o Bash, sem ele usa o PowerShell).
+- **Nada feito na máquina ainda.** A primeira alteração (pôr a chave pública)
+  é do Diogo, no passo 4.
+
+### O que ficou por verificar
+
+- Se o computador do Diogo chega à porta 22 da VPS.
+- Se a VPS aceita palavra-passe (passo 6).
+- `-t ed25519` não está na página da Microsoft (o exemplo dela é `ecdsa`);
+  se o `ssh-keygen` do Windows do Diogo recusar, usa-se `ecdsa`.
+- A data de troca da chave (ADR-0016, ponto 3).
+- O equivalente no macOS do Bruno (por escrever).

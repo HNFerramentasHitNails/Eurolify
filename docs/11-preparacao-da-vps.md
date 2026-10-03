@@ -163,7 +163,12 @@ imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
 
 ## 5. Como o Claude chega à máquina
 
-**Por resolver.** Numa sessão do Claude Code na cloud, uma ligação directa à
+✅ **Decidido** (Diogo, 03/10/2026,
+[ADR-0020](adr/0020-acesso-pelo-computador-do-diogo.md)): pelo **Claude Code no
+computador do Diogo (Windows), por SSH**, com uma chave do Diogo; o Bruno, no
+dele, com a dele. Os passos estão no §5.1.
+
+Como se chegou aqui: numa sessão do Claude Code na cloud, uma ligação directa à
 porta 22 (SSH) do `github.com` não respondeu em 8 s (03/10/2026); o resto do
 teste foi bloqueado pelo sistema de permissões da sessão. Com a VPS comprada,
 a porta 22 dela também não respondeu em 10 s a partir da cloud (03/10/2026);
@@ -171,11 +176,49 @@ não se sabe se o bloqueio é da sessão ou da VPS. Caminhos:
 
 | Caminho | Como | Estado |
 |---|---|---|
-| **a) O Claude Code no computador do Diogo ou do Bruno** | SSH directo, com a chave de cada um | **não testado** |
+| ✅ **a) O Claude Code no computador do Diogo ou do Bruno** | SSH directo, com a chave de cada um | **escolhido** (ADR-0020); por testar |
 | b) Um servidor MCP na VPS, por HTTPS | o endereço tem de ser autorizado na rede do ambiente (definições do ambiente → *Network access*, [documentação](https://code.claude.com/docs/en/cloud-environments#network-access)); é mais uma porta para uma ferramenta com acesso total, com autenticação forte | **não testado** |
 
-**Proposta:** a a) primeiro — não expõe nada além do SSH. A b) só se for
-preciso operar a partir da cloud.
+A a) não expõe nada além do SSH. A b) só se for preciso operar a partir da
+cloud.
+
+### 5.1 Ligar o computador do Diogo (Windows)
+
+Fontes: documentação da Microsoft, *Key-based authentication in OpenSSH for
+Windows*, e do Claude Code, `code.claude.com/docs/en/setup`, lidas a
+03/10/2026. **A chave privada, a frase-passe e a palavra-passe da OVH nunca
+saem do computador** — nem para o chat, nem para o repositório.
+
+1. **O cliente SSH existe?** No PowerShell: `ssh -V`.
+2. **Uma chave só para a VPS** (não a do GitHub), com frase-passe:
+   `ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\eurolify_vps -C "diogo-eurolify-vps"`.
+3. **O agente de SSH**, para o Claude Code usar a chave sem pedir a
+   frase-passe a cada comando. Vem desligado por omissão (Microsoft). No
+   PowerShell **como administrador**:
+   `Get-Service ssh-agent | Set-Service -StartupType Automatic` e
+   `Start-Service ssh-agent`; depois, no PowerShell normal:
+   `ssh-add $env:USERPROFILE\.ssh\eurolify_vps`.
+4. **Pôr a parte pública na VPS**, com a palavra-passe da OVH (uma vez):
+   `type $env:USERPROFILE\.ssh\eurolify_vps.pub | ssh ubuntu@57.129.168.39 "umask 077; mkdir -p ~/.ssh; tr -d '\r' >> ~/.ssh/authorized_keys"`
+   (o `tr` tira o fim de linha do Windows).
+   É a primeira alteração à máquina: fica registada em `memoria/`.
+5. **Entra com a chave?**
+   `ssh -i $env:USERPROFILE\.ssh\eurolify_vps ubuntu@57.129.168.39 "hostname; whoami"`
+   — tem de responder sem pedir a palavra-passe da OVH.
+6. **A VPS aceita palavra-passe?**
+   `ssh -o PubkeyAuthentication=no -o PreferredAuthentications=none ubuntu@57.129.168.39`
+   — a linha `Permission denied (...)` diz os métodos aceites. Se lá estiver
+   `password`, qualquer pessoa na Internet pode tentar adivinhá-la: é a
+   primeira coisa a fechar.
+7. **O Claude Code** (se ainda não estiver instalado), no PowerShell:
+   `irm https://claude.ai/install.ps1 | iex`. O Git para Windows é
+   recomendado para o Claude Code ter o Bash; sem ele, usa o PowerShell.
+8. **O repositório**, com as ligações das skills (ADR-0010): Modo de
+   Programador do Windows ligado e
+   `git clone -c core.symlinks=true https://github.com/HNFerramentasHitNails/Eurolify.git`.
+   Abrir `claude` nessa pasta.
+9. **Ao operar a VPS:** nunca «permitir sempre» num comando `ssh`, e não usar
+   o modo que salta as autorizações (ADR-0020).
 
 ## 6. O que deixa de ser preciso da Scaleway
 
@@ -189,7 +232,8 @@ preciso operar a partir da cloud.
 1. ~~Fornecedor, plano e centro de dados~~ → ✅ **OVH, VPS-3, centro na UE**
    (ADR-0017); a comprada ficou no Reino Unido, só para o ensaio, até à
    migração para Paris, até 31/03/2027 (ADR-0018, ADR-0019).
-2. **Como o Claude chega à máquina** (§5; proposta: a).
+2. ~~Como o Claude chega à máquina~~ → ✅ **o Claude Code no computador do
+   Diogo, por SSH** (ADR-0020); passos no §5.1.
 3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
    antes do primeiro comerciante de fora).
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
@@ -209,5 +253,6 @@ preciso operar a partir da cloud.
   fala de 12 meses adiantados) e se o preço muda com o centro de dados.
 - O preço do armazenamento das cópias.
 - A versão estável do PostgreSQL à data da instalação.
-- Os dois caminhos do §5.
+- O caminho a) do §5, no computador do Diogo (§5.1), e o equivalente no macOS
+  do Bruno (por escrever).
 - O acordo de tratamento de dados do fornecedor.
