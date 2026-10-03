@@ -6,7 +6,9 @@
 > publica-se pelo GitHub ([ADR-0005](adr/0005-publicacao-pelo-github.md),
 > ponto 1); um só ensaio, actualizado a cada entrada no `main`
 > ([ADR-0014](adr/0014-um-so-ensaio.md)); o código passa por duas revisões
-> ([ADR-0013](adr/0013-revisao-do-codigo.md)). **Tudo o resto aqui é proposta**
+> ([ADR-0013](adr/0013-revisao-do-codigo.md)); a máquina é uma VPS-3 da OVH
+> ([ADR-0017](adr/0017-vps-3-da-ovh.md)), a do ensaio por agora no Reino Unido
+> ([ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md)). **Tudo o resto aqui é proposta**
 > e está marcado assim. As decisões por tomar estão no §7, por ordem.
 >
 > Este documento é a lista do que a preparação faz. O script de instalação vem
@@ -33,10 +35,15 @@ de»*, sem IVA:
   catálogo público da OVH para Portugal (lido a 03/10/2026) oferece ao VPS-3
   `DE`, `EU-SOUTH-MIL`, `EU-WEST-RBX`, `GRA`, `SBG` e `WAW` — na UE, pelo
   código — e também `UK`, `BHS`, `SGP`, `SYD` e `YNM`, que não servem.
-- ⚠️ **A VPS comprada a 03/10/2026 (`vps-c01fa544`) tem os endereços
-  registados no Reino Unido** (RIPE: `VPS-UK2`, país GB). A confirmar na
-  consola da OVH antes de instalar o que quer que seja
-  (`memoria/vps-operada-por-nos-03out2026.md`).
+- ⚠️ **A VPS comprada a 03/10/2026 (`vps-c01fa544`) está no Reino Unido**
+  (RIPE: `VPS-UK2`, país GB; confirmado pelo Diogo na consola): só havia essa
+  localidade. Fica para o ensaio, **sem dados pessoais reais**, até à
+  migração para um servidor em Paris; data de fim por decidir
+  ([ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md)). Paris não está na
+  lista dos centros das VPS; a 03/10/2026, 23:10 UTC, todos os 11 estavam
+  esgotados para o VPS-3 (API pública da OVH).
+- **Tudo o que se instala sai do script** (§3), para que a migração seja
+  correr o mesmo script em Paris e repor a base.
 - **Cópias fora da máquina**: num armazenamento na UE, noutro sítio que não a
   VPS. A cópia diária da OVH não chega (ver §3.5). Preço: **não verifiquei**.
 
@@ -145,7 +152,8 @@ imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
 
 - Acordo de tratamento de dados com o fornecedor da VPS e com o das cópias, e
   ambos no registo de tratamentos (skill `eu-gdpr-privacy`).
-- Centro de dados na UE confirmado, para a VPS e para as cópias.
+- Centro de dados na UE confirmado, para a VPS e para as cópias. O dado
+  nunca entra na VPS do ensaio, que está no Reino Unido (ADR-0018).
 - O teste de intrusão antes do primeiro comerciante de fora continua
   obrigatório (`docs/05`, `docs/10` §5).
 
@@ -175,7 +183,8 @@ preciso operar a partir da cloud.
 ## 7. Decisões por tomar, por esta ordem
 
 1. ~~Fornecedor, plano e centro de dados~~ → ✅ **OVH, VPS-3, centro na UE**
-   (ADR-0017); o centro escolhe-se na compra.
+   (ADR-0017); a comprada ficou no Reino Unido, só para o ensaio, até à
+   migração para Paris (ADR-0018). **Falta a data de fim.**
 2. **Como o Claude chega à máquina** (§5; proposta: a).
 3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
    antes do primeiro comerciante de fora).
@@ -189,8 +198,9 @@ preciso operar a partir da cloud.
 
 ## 8. O que ficou por verificar
 
-- A localização da VPS comprada, na consola da OVH (o registo da RIPE diz
-  Reino Unido); se a OVH deixa mudar de centro de dados ou desistir.
+- Que produto da OVH é o servidor de Paris, o preço e a disponibilidade; se
+  a OVH muda uma VPS de centro de dados ou o custo de sair desta antes do fim
+  do período pago.
 - As condições do preço «a partir de» (a página irlandesa, lida por resumo,
   fala de 12 meses adiantados) e se o preço muda com o centro de dados.
 - O preço do armazenamento das cópias.

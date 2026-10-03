@@ -116,7 +116,9 @@ seguem a régua única.
 
 - Alojamento numa VPS num centro de dados na UE, operada pelo Diogo e pelo
   Bruno (ADR-0015; antes, a Scaleway gerida): o fornecedor da VPS e o das
-  cópias são subcontratantes. Cada
+  cópias são subcontratantes. Excepção temporária: a VPS do ensaio está no
+  Reino Unido até à migração para Paris (ADR-0018) — nela não entra nenhum
+  dado pessoal real. Cada
   fornecedor com dados: país, garantias da
   transferência se sair da UE, acordo assinado, finalidade.
 - **IA**: um modelo de terceiros que recebe dados de clientes é um
