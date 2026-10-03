@@ -123,6 +123,19 @@ linguas»* (sem resposta ao vendEU).
   «Cartropolis» no X e um jornal brasileiro «Carta Polis». Contra: em PT, ES,
   IT e FR «cart» lê-se como carta/carte.
 
+## Polify, proposto pelo Diogo (03/10/2026)
+
+- `polify.eu` **registado** (servidores de nomes da United Domains, Alemanha;
+  sem site); `polify.com` na GoDaddy desde 23/01/2006 com site activo
+  «Polify | Medical Policy Intelligence»; `.de`, `.io` e `.app` registados;
+  `.pt` sem delegação (DNS e RDAP, 03/10/2026).
+- Em uso **na UE e em serviços de software**: Polify, estúdio de design e
+  marca em Estocolmo, desde 2021, 10+ pessoas, 200+ clientes
+  ([polify.xyz](https://www.polify.xyz/)) — classe 42 (design de produto e
+  UI/UX). Risco de oposição.
+- Opinião, não verificada: «Polify» soa perto de «Spotify», marca de
+  prestígio; e em espanhol «poli» é a polícia na fala corrente.
+
 ## Números (com data e como se contaram)
 
 - **03/10/2026, `.com` por RDAP da Verisign** (404 = não registado): dos 50
