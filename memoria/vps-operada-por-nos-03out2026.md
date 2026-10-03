@@ -119,3 +119,38 @@ O registo da RIPE é declarado pela OVH e não prova o sítio físico da máquin
 - Se a rede desta sessão deixa passar SSH com alguma definição; a
   documentação do ambiente só fala de domínios autorizados no proxy.
 - Se a VPS aceita entrar por palavra-passe (não tentei entrar).
+
+## Fica no Reino Unido por agora; migra-se para Paris (decisão Y, ADR-0018)
+
+Resposta do Diogo, 03/10/2026, depois de ver a consola: *«está em uk. mais
+tarde faremos a migração para um servidor em paris. agora so havia esta
+localidade para a vps»*.
+
+### O que se fez
+
+- ADR-0018 novo (excepção temporária, só para o ensaio, sem dados pessoais
+  reais; a produção não vai para lá).
+- Varrimento de «centro de dados na UE» (`grep -rn` em todos os `.md`, sem as
+  referências da skill de design): mudados `AGENTS.md` (regra 4, linha da
+  excepção), ADR-0015 e ADR-0017 (estado), `docs/06` (X e Y nova), `docs/11`
+  (§1, §4, §7, §8 e cabeçalho), `docs/12` (descrição para o jurista) e a skill
+  `eu-gdpr-privacy` (subcontratantes). As memórias datadas ficam como estão.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Fonte e como |
+|---|---|---|
+| Disponibilidade do VPS-3 por centro | os 11 `out-of-stock`, incluindo o `UK` | `eu.api.ovh.com/v1/vps/order/rule/datacenter?ovhSubsidiary=PT&planCode=vps-2025-model3`, 03/10/2026, 23:10 UTC — depois da compra, não mostra o que havia antes |
+| Códigos dos centros | `DE` = `eu-west-lim`, `UK` = `eu-west-eri`, `YNM` = `ap-south-mum`, `BHS` = `ca-east-bhs`; nenhum de Paris | a mesma consulta, campo `code` |
+| `AGENTS.md` | 12.906 bytes (limite do Codex: 32 KiB) | `wc -c`, depois da linha da excepção |
+
+### O que ficou por verificar
+
+- **A data de fim da excepção** — perguntada ao Diogo.
+- Que produto da OVH é o servidor de Paris (não é uma VPS da gama actual),
+  o preço e a disponibilidade.
+- Se a OVH muda uma VPS de centro de dados, e o custo de sair desta antes do
+  fim do período pago.
+- A base de transferência do RGPD para o Reino Unido (não lida).
+- Os IP nos registos da máquina (SSH, servidor web) são dados pessoais que
+  ficam no Reino Unido mesmo sem clientes reais: retenção por decidir.

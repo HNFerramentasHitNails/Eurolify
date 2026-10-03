@@ -1,6 +1,7 @@
 # ADR-0017 · A VPS é uma VPS-3 da OVH, num centro de dados na UE
 
-- **Estado:** aceite
+- **Estado:** aceite · o centro de dados da VPS comprada é o do Reino Unido,
+  por excepção temporária só para o ensaio: [ADR-0018](0018-vps-do-ensaio-no-reino-unido.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** `docs/11-preparacao-da-vps.md` §7, ponto 1
