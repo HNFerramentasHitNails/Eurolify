@@ -73,7 +73,10 @@ totalmente as regras da UE e nunca inventar nada fora da UE»*.
    Não se importam regras nem conceitos de fora da UE (o *sales tax* dos EUA,
    leis de privacidade americanas, o comportamento do Shopify como se fosse
    regra). Uma venda para fora da UE trata-se pelas regras da UE (exportação),
-   não pelas do país de destino.
+   não pelas do país de destino. **Uma fonte de regras de fora da UE não se
+   avalia nem se regista**: diz-se que é de fora da UE e pára-se. Nada sobre
+   ela vai para `memoria/`, documentos ou skills (Diogo, 03/10/2026: *«se é
+   EUA não escrevas nada sobre isso. só importa o que é as regras na UE»*).
 3. **Nunca inventar.** Uma regra, taxa, data, prazo ou obrigação sem fonte não
    entra: diz-se **«não verifiquei»** e fica marcada **C** até ser verificada ou
    validada por um profissional. Nada se completa «por lógica» numa regra
