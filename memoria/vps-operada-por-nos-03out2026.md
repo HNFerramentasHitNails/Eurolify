@@ -75,3 +75,47 @@ nomes de cidades europeias da OVH no HTML: nenhum); estão só num mapa.
 - A apresentação para o Bruno e a Cila ainda mostra a Scaleway (não aberta).
 - As contas de custo (`docs/09`, `docs/10`) e o tempo de operar a máquina não
   foram recalculados para a VPS.
+
+## A VPS comprada — e registada no Reino Unido (03/10/2026, noite)
+
+O Diogo enviou o e-mail da OVH (captura no chat, 03/10/2026): *«O seu VPS foi
+instalado com sucesso com o sistema operativo Ubuntu 26.04»*; nome
+`vps-c01fa544.vps.ovh.net`, IPv4 `57.129.168.39`, IPv6
+`2001:41d0:801:2000::2323`, utilizador `ubuntu`. A palavra-passe não veio para
+o chat (nem deve vir). O repositório é privado (GitHub, `"private": true`,
+03/10/2026), por isso o nome e os endereços ficam aqui; não são segredos.
+
+### O que se fez (só leitura; nada instalado, nenhum login)
+
+- Consultei o registo da RIPE (RDAP) dos dois endereços.
+- Descarreguei o catálogo público das VPS da OVH para Portugal
+  (`eu.api.ovh.com/v1/order/catalog/public/vps?ovhSubsidiary=PT`).
+- Testei se esta sessão na cloud chega à porta 22 da VPS.
+- Confirmei na Canonical se o Ubuntu 26.04 é LTS.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Fonte e como |
+|---|---|---|
+| Registo do IPv4 | bloco `57.129.168.0/24`, nome **`VPS-UK2`**, país **GB**, titular «OVH Ltd», contacto técnico «OVH UK Technical Contact», registado a 02/10/2026 19:40 UTC | `rdap.db.ripe.net/ip/57.129.168.39`, 03/10/2026 |
+| Registo do IPv6 | bloco `2001:41d0:801::/48`, nome `OVH-PCI-ERI`, país **GB**, titular «OVH Ltd» | `rdap.db.ripe.net/ip/2001:41d0:801:2000::2323`, 03/10/2026 |
+| Centros de dados que o catálogo oferece ao VPS-3 | `DE`, `EU-SOUTH-MIL`, `EU-WEST-RBX`, `GRA`, `SBG`, `WAW` (na UE, pelo código); `UK`, `BHS`, `SGP`, `SYD`, `YNM` (fora da UE ou por identificar) | catálogo público da OVH (PT), campo `vps_datacenter` de todos os planos «VPS-3 2026», 03/10/2026 |
+| SSH a partir desta sessão na cloud | `57.129.168.39:22` sem resposta em 10 s | `bash /dev/tcp`, 03/10/2026; não se distingue se o bloqueio é da rede da sessão ou da VPS |
+| Ubuntu 26.04 | «26.04.1 LTS», *Supported: 1* | `changelogs.ubuntu.com/meta-release-lts`, 03/10/2026 |
+
+**Leitura:** o registo da RIPE põe os dois endereços no Reino Unido, que não é
+da UE — a regra 4 do `AGENTS.md` e o ADR-0017 pedem um centro de dados na UE.
+O registo da RIPE é declarado pela OVH e não prova o sítio físico da máquina:
+**a prova é a localização na consola da OVH**, que não vi.
+
+### O que ficou por verificar
+
+- A localização da VPS na consola da OVH (o Diogo).
+- Se a OVH deixa mudar de centro de dados sem comprar outra VPS, e se há
+  reembolso ou prazo para desistir (não li as condições).
+- Se o preço do VPS-3 muda com o centro de dados.
+- O significado dos códigos `DE` (cidade), `YNM` e `BHS` no catálogo — li-os
+  pelo código, não numa lista da OVH.
+- Se a rede desta sessão deixa passar SSH com alguma definição; a
+  documentação do ambiente só fala de domínios autorizados no proxy.
+- Se a VPS aceita entrar por palavra-passe (não tentei entrar).
