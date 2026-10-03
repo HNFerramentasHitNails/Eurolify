@@ -132,6 +132,11 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
   `git push origin HEAD:main`, um commit de cada vez.
 - Um commit por assunto; a mensagem diz o assunto em português.
 - **Nunca segredos no repositório** (chaves, palavras-passe, tokens).
+- **Código não entra no `main` sem duas revisões** (ADR-0013, a partir da
+  primeira linha): a da outra pessoa (o Bruno revê o que o Diogo escreve, e o
+  contrário) e a do agente que não o escreveu (o Codex revê o diff do Claude
+  Code, e o contrário). A via acima (`cherry-pick` e `push` directo) é só
+  para documentos.
 
 ## Memória (`memoria/`)
 
