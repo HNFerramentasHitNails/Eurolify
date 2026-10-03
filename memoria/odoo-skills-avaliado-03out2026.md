@@ -48,11 +48,15 @@ fiscais em lote; as faturas não são documentos do Eurolify (software
 certificado); o campo escondido não sai pela API, exportações, linha do tempo
 nem IA.
 
-**Não levado:** o método das 8 «portas» da `odoo-idea-gates` (decidir se um
-módulo deve existir: experiência directa, solução existente, gasto existente,
-50 compradores alcançáveis, alvo estreito, encaixe, custo de manter, valor em
-menos de 30 minutos). Fica aqui; pode ir para a `platform-architect` se o
-Diogo ou o Bruno quiserem.
+**Levado depois** (pedido do Diogo, 03/10/2026: *«leva as 8 portas para a
+platform-architect»*): o método das 8 «portas» da `odoo-idea-gates` (decidir
+se um módulo deve existir: conhecer o problema por dentro, ainda não resolvido,
+gasto existente, 50 compradores alcançáveis, alvo estreito, encaixe no
+Eurolify, custo de manter, valor em menos de 30 minutos), adaptado ao Eurolify
+na secção «Antes de construir um módulo: as 8 portas». As alternativas a ver
+na porta 2 passaram a ser as nossas (domínio, configuração, adaptador ou
+extensão, serviço de fora) e a porta 6 junta a decisão K (regras fiscais e
+legais não extensíveis).
 
 **Não serve:** OWL, os guias por versão no seu detalhe, migração de módulos e
 de relatórios entre versões.
