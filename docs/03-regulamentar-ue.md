@@ -1,6 +1,9 @@
 # Mapa regulamentar europeu do Eurolify
 
-> **Versão de 03/10/2026.** Desenho, não aconselhamento jurídico nem fiscal.
+> **Versão de 03/10/2026**, revista no mesmo dia: datas lidas no texto do
+> EUR-Lex (Omnibus da IA e art. 50.º, Dir. 2024/2853, Dir. 2024/1799,
+> baterias) e o DSA na Fase 1 como pergunta ao jurista. Desenho, não
+> aconselhamento jurídico nem fiscal.
 > Cada linha diz **de onde veio** e **com que grau de certeza**. Nada disto
 > dispensa a validação de um contabilista e de um jurista em cada país onde o
 > Eurolify for vendido — ver a coluna «Quem valida».
@@ -16,6 +19,11 @@
 ⚠️ **Regra:** uma linha **C** não entra num ecrã, num texto legal nem numa
 decisão de IVA sem passar a **W** (com o texto legal lido) ou ser validada por
 um profissional.
+
+**W · texto lido** quer dizer que os artigos citados na linha foram lidos no
+texto publicado no EUR-Lex (a versão do Jornal Oficial, não a consolidada), na
+data indicada; o resto do acto não. Alterações posteriores a esse texto não
+foram vistas, salvo as que a linha cita.
 
 ---
 
@@ -49,6 +57,7 @@ um profissional.
 | **Botão de livre resolução** | Dir. (UE) 2023/2673 (novo art. 11.º-A da Dir. 2011/83/UE) | **19/06/2026** | Uma **função online** fácil de encontrar, visível e disponível durante todo o prazo, em **todos** os contratos à distância com direito de resolução celebrados por interface online, com confirmação de recepção | **W** ([EUR-Lex](https://eur-lex.europa.eu/eli/dir/2023/2673/oj/eng), [William Fry](https://www.williamfry.com/knowledge/world-consumer-rights-day-part-3-mandatory-withdrawal-button-coming-june-2026/), [Heuking](https://www.heuking.de/en/news-events/newsletter-articles/detail/new-cancellation-button-what-companies-must-implement-by-june-19-2026.html)) | jurista |
 | Reduções de preço — preço mais baixo dos 30 dias | Dir. 98/6/CE art. 6.º-A, introduzido pela Dir. (UE) 2019/2161 (Omnibus) | 28/05/2022 | Guardar o **histórico de preços** por mercado para mostrar o preço de referência certo numa promoção | **C** | jurista |
 | Alegações ambientais e garantia legal | Dir. (UE) 2024/825 (EmpCo) | **27/09/2026** | Proibidas alegações genéricas («eco», «verde») sem prova; **aviso harmonizado da garantia legal** no ponto de venda | **W** ([Comissão Europeia](https://transition-pathways.europa.eu/retail/news/updated-qa-directive-empowering-consumers-green-transition), [Freshfields](https://www.freshfields.com/en/our-thinking/blogs/sustainability/empco-goes-live-what-businesses-need-to-know-as-the-new-rules-take-effect-102o3sq)) | jurista |
+| Direito à reparação | Dir. (UE) 2024/1799 | **31/07/2026** | A obrigação de reparar é do **fabricante**, a pedido do consumidor, e só nos produtos com requisitos de reparabilidade num acto da UE (anexo II: máquinas de lavar, aspiradores, telemóveis e tábletes, entre outros). Para o **vendedor** muda a garantia legal: se o consumidor escolher a reparação, o prazo **ganha 12 meses, uma vez** (novo art. 10.º, n.º 2-A, da Dir. (UE) 2019/771) ⇒ a garantia e as devoluções têm de guardar que remédio foi escolhido | **W** · texto lido (art. 5.º, art. 16.º, transposição e anexo II; EUR-Lex, 03/10/2026) | jurista |
 | Plataforma europeia de litígios (ODR) | Reg. (UE) 2024/3228 revogou o Reg. ODR | **encerrada a 20/07/2025** | **Não** pôr a ligação à ODR (induz em erro). A RAL nacional continua | **W** ([Comissão Europeia](https://consumer-redress.ec.europa.eu/site-relocation_en), [iubenda](https://www.iubenda.com/en/blog/discontinuation-of-the-european-online-dispute-resolution-odr-platform/)) | jurista |
 | RAL e Livro de Reclamações electrónico (PT) | Lei 144/2015; DL 156/2005 alterado | em vigor | Informação RAL e ligação ao Livro de Reclamações nas lojas portuguesas B2C | **C** | jurista |
 | Geobloqueio | Reg. (UE) 2018/302 | 03/12/2018 | Não recusar acesso à loja por nacionalidade/residência; não obriga a entregar em todo o lado | **C** | jurista |
@@ -70,6 +79,8 @@ um profissional.
 | Embalagens (PPWR) | Reg. (UE) 2025/40 | **12/08/2026** | Registo de responsabilidade alargada do produtor **por país** onde se vende, vendedores à distância incluídos; marketplaces verificam o registo. ⚠️ As fontes de consultoria dizem que o limite de 40 % de espaço vazio já se aplica — **não confio: confirmar no texto** | **W** parcial ([ppwratlas](https://ppwratlas.com/), [complir](https://www.complir.io/resources/guides/extended-producer-responsibility-eu-guide)) | jurista / entidade gestora |
 | Mercadorias perigosas no transporte | ADR / IATA | em vigor | Marcar artigos que não podem seguir por avião ou certas transportadoras (vernizes, solventes) | **C** + **M** (a etiqueta dos CTT saiu Via Aérea com Via Marítima cobrada, `etiqueta-ctt-aerea-em-vez-de-maritima-17set2026.md`) | transportadora |
 | Acessibilidade | Dir. (UE) 2019/882 (EAA) | 28/06/2025 | Loja e checkout acessíveis; **microempresas de serviços** (<10 pessoas e ≤2 M€) isentas — o Eurolify deve dar acessibilidade por omissão a todos | **W** ([accessible.org](https://accessible.org/eaa-ecommerce-services-requirements/), [Travers Smith](https://www.traverssmith.com/knowledge/knowledge-container/a-new-milestone-for-accessibility-the-european-accessibility-act-now-applies/)) | jurista |
+| Responsabilidade por produtos defeituosos | Dir. (UE) 2024/2853 (revoga a Dir. 85/374/CEE) | **09/12/2026** — produtos colocados no mercado depois dessa data | Responsabilidade sem culpa por danos causados por produtos defeituosos. **O software é produto**, seja qual for o modo de fornecimento, incluindo o fornecido como serviço (SaaS). Prazo: 10 anos desde a colocação no mercado; 25 anos só quando uma lesão corporal se manifesta tarde. ❓ **Pergunta para o jurista:** o que quer dizer para o próprio Eurolify (software usado pelos comerciantes e pelos clientes deles) e para os comerciantes que vendem nele | **W** · texto lido (arts. 2.º, n.º 1, 17.º e 22.º; considerando 13; EUR-Lex, 03/10/2026) | jurista |
+| Baterias — código QR e passaporte | Reg. (UE) 2023/1542 | **18/02/2027** | A partir dessa data **todas as baterias** levam código QR (art. 13.º, n.º 6); as de meios de transporte ligeiros, as industriais acima de 2 kWh e as de veículos eléctricos levam **passaporte electrónico** (art. 77.º, n.º 1) ⇒ campo no artigo com bateria. O resto do regulamento (registo de produtor por país, recolha) não foi lido | **W** · texto lido (arts. 13.º e 77.º; EUR-Lex, 03/10/2026) + **C** para o resto | técnico regulamentar |
 
 ## 4. Dados, plataformas e IA
 
@@ -78,9 +89,9 @@ um profissional.
 | Protecção de dados | Reg. (UE) 2016/679 (RGPD) | 25/05/2018 | Base legal por finalidade, minimização, registo de tratamentos, pedidos dos titulares, subcontratantes, transferências internacionais. **Apagar ≠ destruir faturas:** a fatura fica 10 anos (art. 52.º CIVA) e pseudonimiza-se o resto | **C** | encarregado de dados / jurista |
 | Cookies | Dir. 2002/58/CE (ePrivacy), art. 5.º(3) | em vigor | Consentimento antes de cookies não essenciais (o píxel da Meta antes do consentimento foi um achado de uma auditoria jurídica de 2026) | **C** + **M** (`ai-act-compliance.md`) | jurista |
 | Mudança de fornecedor de nuvem/SaaS | Reg. (UE) 2023/2854 (Data Act) | aplicável 12/09/2025 | O comerciante tem direito a **sair com os dados**; a partir de **12/01/2027** não se pode cobrar pela saída | **W** ([Comissão Europeia](https://digital-strategy.ec.europa.eu/en/factpages/data-act-explained), [Pinsent Masons](https://www.pinsentmasons.com/out-law/guides/switching-porting-rules-eu-data-act)) | jurista |
-| Serviços digitais (DSA) | Reg. (UE) 2022/2065 | 17/02/2024 | Só pesa se houver **marketplace**. Micro e pequenas plataformas estão fora das secções 3 e 4 (incluindo a rastreabilidade dos vendedores, art. 30.º), salvo plataforma muito grande | **W** ([CMS DigitalLaws](https://www.cms-digitallaws.com/en/dsa/article-19/), [DSA Library](https://dsa-library.com/article/30/)) | jurista |
+| Serviços digitais (DSA) | Reg. (UE) 2022/2065 | 17/02/2024 | ❓ **Pode pesar já na Fase 1, sem marketplace — pergunta para o jurista.** O Eurolify guarda e publica o conteúdo dos comerciantes, e o serviço de «alojamento» é a armazenagem de informação prestada por um destinatário do serviço, a pedido dele (art. 3.º, alínea g), iii)). O mecanismo de denúncia (art. 16.º) vale para **todos** os prestadores de alojamento, sem isenção por tamanho; as micro e pequenas empresas só estão isentas dos relatórios de transparência (art. 15.º, n.º 2) e da secção das plataformas em linha (art. 19.º). **Com marketplace:** micro e pequenas plataformas fora das secções 3 e 4 (incluindo a rastreabilidade dos vendedores, art. 30.º), salvo plataforma muito grande | **W** ([CMS DigitalLaws](https://www.cms-digitallaws.com/en/dsa/article-19/), [DSA Library](https://dsa-library.com/article/30/)) + **W** · texto lido (arts. 3.º, 15.º, 16.º e 19.º; EUR-Lex, 03/10/2026). Se o Eurolify é «alojamento» é leitura nossa do texto | jurista |
 | Comunicação de vendedores por plataformas | Dir. (UE) 2021/514 (DAC7) | 01/01/2023 | Só com marketplace: reportar rendimentos dos vendedores à AT | **C** | contabilista |
-| Inteligência artificial | Reg. (UE) 2024/1689 (AI Act) | faseado | Literacia em IA (art. 4.º) desde 02/02/2025; transparência quando alguém fala com uma IA (art. 50.º) — **data a confirmar**. Um assistente de loja não é «alto risco» | **M** (`ai-act-compliance.md`) + **C** | jurista |
+| Inteligência artificial | Reg. (UE) 2024/1689 (AI Act), alterado pelo Reg. (UE) 2026/1744 (Omnibus da IA, publicado a 24/07/2026, em vigor a 27/07/2026) | faseado | Literacia em IA (art. 4.º) desde 02/02/2025 — desde o Omnibus, quem fornece ou usa IA tem de **tomar medidas para apoiar** a literacia de quem a opera. Transparência quando alguém fala com uma IA (art. 50.º) **desde 02/08/2026**: é a data geral do art. 113.º, que o Omnibus não mudou; para a marcação de conteúdo sintético (art. 50.º, n.º 2), os sistemas no mercado antes de 02/08/2026 têm até 02/12/2026 (novo art. 111.º, n.º 4). Alto risco adiado para 02/12/2027 (anexo III) e 02/08/2028 (anexo I). Um assistente de loja não é «alto risco» | **W** · texto lido (art. 113.º do AI Act; arts. 4.º, 111.º e 113.º na redacção do Reg. (UE) 2026/1744; EUR-Lex, 03/10/2026) + **M** (`ai-act-compliance.md`) + **C** (o assistente de loja não ser alto risco) | jurista |
 | Cibersegurança | Dir. (UE) 2022/2555 (NIS2) | transposição nacional | A avaliar quando o Eurolify for média empresa (mercados online e fornecedores de nuvem estão nos anexos) | **C** | jurista |
 
 ## 5. Pagamentos
@@ -108,10 +119,19 @@ inventar um próprio.
 
 ## O que ficou por verificar nesta versão
 
-- **Nenhum texto legal foi lido por inteiro** — só resumos de pesquisa e títulos.
+- **Nenhum texto legal foi lido por inteiro.** Nas linhas **W · texto lido**
+  leram-se só os artigos citados (EUR-Lex, 03/10/2026); no resto, só resumos de
+  pesquisa e títulos.
 - O espaço vazio de 40 % do PPWR: fontes de consultoria dizem que já se aplica;
   desconfio, confirmar no regulamento.
-- A data de aplicação do art. 50.º do AI Act.
+- ~~A data de aplicação do art. 50.º do AI Act.~~ Lida a 03/10/2026:
+  02/08/2026 (§4).
+- **Para o jurista:** se o Eurolify é «serviço de alojamento» do DSA já na
+  Fase 1 (§4) e o que a Dir. (UE) 2024/2853 quer dizer para o Eurolify e para
+  os comerciantes (§3). Enquanto não responder, ficam como estão o
+  `05-fases-e-mvp.md` (DSA só na Fase 4, com o marketplace), o
+  `10-estimativa-prazo-e-custo.md` (DSA na Fase 3, na loja de extensões) e a
+  skill `marketplace-dsa`.
 - Itália (SDI) e os regimes de faturação dos restantes países da UE.
 - Se o formulário de livre resolução da loja online actual cumpre o
   art. 11.º-A — existe, não foi avaliado.
