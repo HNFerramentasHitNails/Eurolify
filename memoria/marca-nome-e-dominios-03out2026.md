@@ -152,6 +152,19 @@ linguas»* (sem resposta ao vendEU).
   alegar associação com a marca dele; o EUIPO trata «EURO» como elemento fraco,
   e a marca vale pelo resto (**C**, não verificado).
 
+## Eurozo, proposto pelo Diogo (03/10/2026)
+
+- `eurozo.eu` **registado e com site activo**, húngaro: «Gazdaság,
+  környezetvédelem, jótékonyság - EuroZo.eu» (economia, ambiente, caridade);
+  `eurozo.com` na GoDaddy desde 07/08/2006, sem site; `.pt`, `.de` e `.io` sem
+  delegação no DNS (03/10/2026). Na web: «Eurozo» aparece como abreviatura de
+  *eurozone* no nome de um índice da Euronext.
+- Lê-se como «eurozona» (PT, ES, IT): a zona do euro, que deixa de fora os
+  países da UE com outra moeda (Polónia, Suécia…), quando o produto é para a UE
+  toda e com várias moedas.
+- O «z» muda de som de língua para língua (ts em alemão e italiano, «th» em
+  Espanha), contra o critério «bem pronunciado em todas as línguas».
+
 ## Números (com data e como se contaram)
 
 - **03/10/2026, `.com` por RDAP da Verisign** (404 = não registado): dos 50
