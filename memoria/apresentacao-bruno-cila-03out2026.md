@@ -6,16 +6,18 @@ estudos de logótipo (18 estudos) entregues na mesma mensagem.
 
 ## O que se fez
 
-- **50 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
-  (versão 8, capa «Versão 0.3»; a versão 3 tinha 46, a 4 a 6 tinham 48). **Privado**: só o Diogo o abre até o partilhar no menu da página.
+- **57 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
+  (versão 9, capa «Versão 0.3»; a versão 3 tinha 46, a 4 a 6 tinham 48, a 7 e a 8
+  tinham 50). **Privado**: só o Diogo o abre até o partilhar no menu da página.
   Descarrega-se em PDF ou PPTX para imprimir.
 - É um **resumo** de `docs/00` a `docs/06`. Se divergir do repositório, vale o
   repositório — está escrito na capa e na última página.
 - Partes: o pedido (1–3) · o problema, com números (4–8) · o que é o Lumavo
-  e as extensões de terceiros (9–18) · as regras europeias (19–26) · lições
-  dos sistemas actuais (27–29) · onde discordei, o que ficou e as fases (30–33)
-  · as decisões, o alojamento e os custos (34–40) · a marca (41–45) · riscos, o
-  que não foi verificado, fontes e próximos passos (46–50).
+  e as extensões de terceiros (9–18) · as regras europeias (19–26) ·
+  pagamentos, envios e parcerias (27–33) · lições dos sistemas actuais (34–36)
+  · onde discordei, o que ficou e as fases (37–40) · as decisões, o alojamento
+  e os custos (41–47) · a marca (48–52) · riscos, o que não foi verificado,
+  fontes e próximos passos (53–57).
 - **Feito para papel:** D-1, D-2 e D-3 têm a recomendação escrita por extenso
   («Recomendado», não só por cor) e uma caixa tracejada para escrever à mão a
   decisão, quem e a data; a página da marca tem espaço para os caminhos
@@ -79,6 +81,16 @@ A D-1 (vender desde o início, ADR-0006) entrou nas páginas 2, 30, 31, 32, 33,
 34, 35, 40, 46 e 49: a página 2 passa a «O que ficou decidido e o que pedimos
 nesta reunião» (pede-se só a marca); a 35 tem a decisão carimbada e diz que a
 recomendação era a b); as fases e o âmbito da Fase 1 seguem `docs/05`.
+
+## Versão 9 (03/10/2026): pagamentos, envios e parcerias
+
+Pedido do Diogo: *«acrescenta a lista de pagamentos e envios à apresentação»*.
+Sete páginas novas (27–33), a seguir à página dos pagamentos: parceiros de
+pagamentos, parceiros de envios, pagamentos país a país (2 páginas), envios
+país a país (2 páginas) e por onde começar as parcerias — tudo de
+`docs/07-pagamentos-e-envios-por-pais.md`, com a nota de que as percentagens
+não se comparam entre fontes. Índice e referências cruzadas andaram 7
+páginas (ex.: a D-1 passou da 35 para a 42).
 
 ## O que ficou por verificar
 
