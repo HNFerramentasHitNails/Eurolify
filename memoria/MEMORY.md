@@ -9,6 +9,10 @@
 - [🔴 O Lumavo é da Luckytarget Lda, com marca própria; nenhuma marca existente se usa (ordem do Diogo) — 03/10/2026](dono-e-marca-luckytarget-03out2026.md)
 - [Arranque do Lumavo: o pedido do Diogo, proposta, desenho e 12 skills; fontes e o que não foi verificado — 03/10/2026](arranque-do-projecto-03out2026.md)
 
+## Para decidir
+
+- [Apresentação impressa de 46 páginas para Bruno e Cila: link, partes, caixas para decidir à mão, leituras da marca como opinião; páginas não vistas desenhadas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
+
 ## Referências externas avaliadas
 
 - [O repo 40RTY-ai/shopify-admin-skills: 116 skills só para Shopify; serve de lista de tarefas e de formato, não se instala (identidade pelo nome, IVA pelo nome da taxa) — 03/10/2026](skills-shopify-admin-avaliadas-03out2026.md)
