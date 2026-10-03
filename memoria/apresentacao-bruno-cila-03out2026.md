@@ -6,15 +6,16 @@ estudos de logótipo (18 estudos) entregues na mesma mensagem.
 
 ## O que se fez
 
-- **46 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
-  (versão 3). **Privado**: só o Diogo o abre até o partilhar no menu da página.
+- **48 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
+  (versão 4, capa «Versão 0.3»; a versão 3 tinha 46). **Privado**: só o Diogo o abre até o partilhar no menu da página.
   Descarrega-se em PDF ou PPTX para imprimir.
 - É um **resumo** de `docs/00` a `docs/06`. Se divergir do repositório, vale o
   repositório — está escrito na capa e na última página.
 - Partes: o pedido (1–3) · o problema, com números (4–8) · o que é o Lumavo
   (9–16) · as regras europeias (17–24) · lições dos sistemas actuais (25–27) ·
-  onde discordo e as fases (28–31) · as decisões (32–36) · a marca (37–41) ·
-  riscos, o que não foi verificado, fontes e próximos passos (42–46).
+  onde discordei, o que ficou e as fases (28–31) · as decisões, o alojamento e
+  os custos (32–38) · a marca (39–43) · riscos, o que não foi verificado,
+  fontes e próximos passos (44–48).
 - **Feito para papel:** D-1, D-2 e D-3 têm a recomendação escrita por extenso
   («Recomendado», não só por cor) e uma caixa tracejada para escrever à mão a
   decisão, quem e a data; a página da marca tem espaço para os caminhos
@@ -41,11 +42,29 @@ estudos de logótipo (18 estudos) entregues na mesma mensagem.
 - Letra neutra (Space Grotesk e Public Sans) e um azul só, de propósito: a
   identidade visual ainda não foi escolhida.
 
+## Versão 4 (03/10/2026): as decisões do dia e a Scaleway
+
+Pedido do Diogo: *«Podes adicionar à apresentar o scaleway e atualizar as
+respostas que dei anteriormente.»*
+
+- **Páginas novas:** 36 «Quanto custa a infraestrutura» (as contas de
+  [[alojamento-e-custos-03out2026]]) e 37 «A Scaleway: o que nos dá e como se
+  liga» (preços, o MCP oficial, a proposta de publicar pelo GitHub com o MCP só
+  de leitura — marcada **por decidir**) ([[scaleway-mcp-e-deploy-03out2026]]).
+- **Actualizadas com as decisões E, F e G:** 2 (o pedido), 3 (índice), 11
+  (alojado na UE), 23 (dados), 28 («nativo para toda a UE» deixa de ser
+  discordância), 29 e 30 (fases e âmbito: toda a UE de raiz), 32 a 35 (D-2 e
+  D-3 com a decisão carimbada; a D-1 com a caixa só para «a) ou b)»), 38, 44,
+  45, 46 (fontes da Scaleway, Supabase, Vercel, Hetzner), 47, e a capa.
+- **A Scaleway aparece como o fornecedor estudado**, não como escolhido: a
+  escolha entre Scaleway e OVHcloud continua por fazer (ADR-0003).
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
   página pode ter texto a sair da caixa — ver antes de imprimir, sobretudo a 11
-  (arquitectura), a 29 (fases) e a 36 (outras decisões), que são as mais cheias.
+  (arquitectura), a 29 (fases), a 35 (alojamento), a 36 (custos), a 37
+  (Scaleway) e a 38 (outras decisões), que são as mais cheias.
 - Os números são os de `docs/04`, com a data de lá; **não foram medidos outra
   vez**.
 - A descrição de cada estudo de logótipo foi feita a olho a partir das imagens;
