@@ -1,6 +1,8 @@
 # ADR-0001 · Nenhum código até haver um plano decidido
 
-- **Estado:** aceite
+- **Estado:** aceite · aberto **só** para a preparação da conta da Scaleway
+  pelo [ADR-0011](0011-preparacao-da-conta-scaleway.md) (03/10/2026); o código
+  do produto continua fechado
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** — (decisão de processo)
