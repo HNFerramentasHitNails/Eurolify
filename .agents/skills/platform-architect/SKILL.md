@@ -1,6 +1,6 @@
 ---
 name: platform-architect
-description: Arquitectura do Eurolify — monólito modular multi-inquilino, fronteiras entre domínios (catálogo, preços, carrinho, checkout, encomendas, stock, clientes, pagamentos, IVA, documentos fiscais, envios, notificações), eventos de domínio com outbox, idempotência, versões de API e ADR; e as capacidades comuns do Hub — linha do tempo de cada registo, tarefas com dono e prazo, módulos ligáveis por comerciante. Usar ao desenhar ou alterar um domínio, ao decidir onde vive uma regra, ao pensar em partir um módulo em serviço, e antes de registar qualquer decisão de arquitectura.
+description: Arquitectura do Eurolify — monólito modular multi-inquilino, fronteiras entre domínios (catálogo, preços, carrinho, checkout, encomendas, stock, clientes, pagamentos, IVA, documentos fiscais, envios, notificações), eventos de domínio com outbox, idempotência, versões de API e ADR; e as capacidades comuns do Hub — linha do tempo de cada registo, tarefas com dono e prazo, módulos ligáveis por comerciante e as 8 portas para decidir se um módulo deve existir. Usar ao desenhar ou alterar um domínio, ao decidir onde vive uma regra, ao pensar em partir um módulo em serviço, e antes de registar qualquer decisão de arquitectura.
 ---
 
 # Arquitecto da plataforma
@@ -116,6 +116,28 @@ adaptadas ao Eurolify — não se usa o Odoo (memória
 - Os textos legais seguem também a regra das versões da `consumer-rights-eu`:
   versão nova, nunca editar a antiga.
 
+### Antes de construir um módulo: as 8 portas
+
+Adaptadas da skill `odoo-idea-gates` do mesmo repositório. Passa-se pelas
+portas por ordem e pára-se na primeira que falha. Construir ou não decide o
+Diogo ou o Bruno.
+
+| # | Porta | Passa quando | Falha quando |
+|---|---|---|---|
+| 1 | **Conhecemos o problema por dentro** | Vimos a dor nos sistemas actuais (`docs/04`, `memoria/`) ou falámos com comerciantes que a têm | A ideia veio de ver o que outros fazem, sem ninguém que a viva |
+| 2 | **Ainda não está resolvido** | Depois de ver o que já existe — um domínio do Eurolify, configuração, um adaptador ou uma extensão de terceiros (`docs/08`), um serviço de fora — fica uma falha clara | Já existe e pode usar-se, configurar-se ou ligar-se |
+| 3 | **Já se gasta dinheiro ou tempo nisto** | Os comerciantes já pagam extensões, consultores, folhas de cálculo ou horas por causa disto | Ninguém gasta nada perto do problema: a procura teria de ser criada |
+| 4 | **Chegamos a quem compra** | Conseguimos nomear 50 comerciantes que o usariam e falar com 5 numa semana | O comprador é abstracto |
+| 5 | **O primeiro alvo é estreito** | A primeira versão serve um tipo de comerciante, um papel e um fluxo | Serve toda a gente e todos os fluxos |
+| 6 | **Encaixa no Eurolify** | Cabe num domínio existente, ou num novo com fronteira clara, e não mexe nas regras fiscais nem legais (não são extensíveis, decisão K) | Força excepções às regras, cópias de regras ou acessos largos aos dados |
+| 7 | **O custo de manter compensa** | Segurança, isolamento entre comerciantes, migrações, risco fiscal e testes são proporcionais à dor | Uma dor pequena pede mudanças fundas e arriscadas |
+| 8 | **O valor aparece depressa** | O comerciante vê valor em menos de 30 minutos, sem reorganizar a loja nem limpar dados | Só se vê valor depois de semanas de configuração |
+
+**Saída:** **matar** (diz a porta que falhou), **estreitar** (guarda a ideia,
+encolhe o alvo), **investigar** (falta prova: qual é o passo mais pequeno para
+a obter) ou **avançar** (a fronteira do módulo e como se valida). Escreve-se o
+resultado de cada porta (passa, falha, não se sabe).
+
 ## Versões da API
 
 - Versão por data (ex.: `2027-01`), suportada pelo menos 12 meses.
@@ -149,4 +171,5 @@ substitui-se por outro.
 - [ ] O registo novo tem linha do tempo e, se pede decisão humana, tarefa com
       dono e prazo.
 - [ ] Respondi a «por onde é que isto ainda pode sair errado?».
+- [ ] Módulo novo: passou pelas 8 portas, com o resultado escrito.
 - [ ] O ADR está escrito, se a decisão muda a arquitectura.
