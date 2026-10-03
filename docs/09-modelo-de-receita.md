@@ -1,6 +1,6 @@
 # Modelo de receita do Lumavo — estudo (D-14)
 
-> **Versão de 03/10/2026 — estudo, por decidir.** Pedido do Diogo: *«estuda o
+> **Versão de 03/10/2026 — estudo; base decidida (ADR-0007), preços por decidir.** Pedido do Diogo: *«estuda o
 > modelo de receita do lumavo»*. Com a D-1 decidida (vender desde o início,
 > ADR-0006), o modelo é preciso **antes da Fase 1**.
 >
@@ -61,7 +61,7 @@ Fontes da linha 4: [Mollie Connect](https://help.mollie.com/hc/en-us/articles/21
 ## 4. Proposta — opinião, para decidir
 
 1. **Base: mensalidade por plano, com escalões de vendas anuais.** Sem taxa
-   sobre cada venda.
+   sobre cada venda. ✅ **Decidido pelo Diogo a 03/10/2026** (ADR-0007).
 2. **Receita de pagamentos só pelo prestador, e às claras** (Mollie Connect,
    com a margem visível ao comerciante).
 3. **Módulos pagos por país de faturação**, porque cada país tem um custo real

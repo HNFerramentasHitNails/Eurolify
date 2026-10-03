@@ -28,6 +28,7 @@
 | ✅ K | **Requisito: terceiros desenvolvem extensões de forma fácil** — aplicações, meios de pagamento, envios, faturação por país, regras de negócio, ecrãs. **As regras fiscais e legais não são extensíveis** (confirmado pelo Diogo: *«sim, concordo»*) | Diogo, 03/10/2026 | `08-extensoes-de-terceiros.md` |
 | ✅ L | **Na Fase 2, os parceiros da lista de pagamentos e envios são convidados a escrever eles próprios a sua ligação ao Lumavo**, com os contratos que o Lumavo já usa | Diogo, 03/10/2026 | `05-fases-e-mvp.md`, `07` e `08` |
 | ✅ M | **O Lumavo vende-se a outros comerciantes desde o início** (D-1 → a)); a recomendação era a b). Registo de comerciantes, contratos, faturação do Lumavo, suporte e a emissão por Moloni passam à Fase 1; o modelo de receita (D-14) passa a ser preciso antes dela | Diogo, 03/10/2026 | [ADR-0006](adr/0006-vender-desde-o-inicio.md) |
+| ✅ N | **A receita assenta numa mensalidade por plano, por escalões de vendas anuais, sem taxa sobre cada venda** (D-14, em parte). Preços e outras fontes por decidir | Diogo, 03/10/2026 | [ADR-0007](adr/0007-receita-mensalidade-por-escaloes.md) |
 
 ## Por decidir — por esta ordem
 
@@ -201,8 +202,12 @@ e 78 tarefas automáticas (`proposta-venda-do-hub-30set2026.md`).
 > Recomendação: mensalidade por plano com escalões de vendas anuais, **sem taxa
 > sobre cada venda**; receita de pagamentos só pelo prestador e às claras;
 > módulos por país de faturação; serviço de migração; comissão da loja de
-> extensões na Fase 3; nunca custos de saída. **Por decidir**; os preços só
-> depois de falar com comerciantes e da D-13.
+> extensões na Fase 3; nunca custos de saída.
+>
+> ✅ **Decidida a base a 03/10/2026 pelo Diogo** (*«sim, fica assim»*,
+> [ADR-0007](adr/0007-receita-mensalidade-por-escaloes.md)): mensalidade por
+> escalões de vendas anuais, sem taxa sobre cada venda. **Por decidir:** os
+> preços (depois de falar com comerciantes e da D-13) e as outras fontes.
 
 Mensalidade, percentagem das vendas, módulos pagos, instalação dedicada — **não
 estudado**. Com a D-1 → a) (vender desde o início, ADR-0006), **passa a ser

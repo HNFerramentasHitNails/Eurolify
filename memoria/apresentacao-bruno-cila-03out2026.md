@@ -6,18 +6,18 @@ estudos de logótipo (18 estudos) entregues na mesma mensagem.
 
 ## O que se fez
 
-- **57 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
-  (versão 9, capa «Versão 0.3»; a versão 3 tinha 46, a 4 a 6 tinham 48, a 7 e a 8
-  tinham 50). **Privado**: só o Diogo o abre até o partilhar no menu da página.
+- **59 páginas**, num deck do tipo Slides: https://claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN
+  (versão 10, capa «Versão 0.3»; a versão 3 tinha 46, a 4 a 6 tinham 48, a 7 e a 8
+  tinham 50, a 9 tinha 57). **Privado**: só o Diogo o abre até o partilhar no menu da página.
   Descarrega-se em PDF ou PPTX para imprimir.
 - É um **resumo** de `docs/00` a `docs/06`. Se divergir do repositório, vale o
   repositório — está escrito na capa e na última página.
 - Partes: o pedido (1–3) · o problema, com números (4–8) · o que é o Lumavo
   e as extensões de terceiros (9–18) · as regras europeias (19–26) ·
   pagamentos, envios e parcerias (27–33) · lições dos sistemas actuais (34–36)
-  · onde discordei, o que ficou e as fases (37–40) · as decisões, o alojamento
-  e os custos (41–47) · a marca (48–52) · riscos, o que não foi verificado,
-  fontes e próximos passos (53–57).
+  · onde discordei, o que ficou e as fases (37–40) · as decisões, o alojamento,
+  os custos e o modelo de receita (41–49) · a marca (50–54) · riscos, o que não
+  foi verificado, fontes e próximos passos (55–59).
 - **Feito para papel:** D-1, D-2 e D-3 têm a recomendação escrita por extenso
   («Recomendado», não só por cor) e uma caixa tracejada para escrever à mão a
   decisão, quem e a data; a página da marca tem espaço para os caminhos
@@ -91,6 +91,14 @@ país a país (2 páginas) e por onde começar as parcerias — tudo de
 `docs/07-pagamentos-e-envios-por-pais.md`, com a nota de que as percentagens
 não se comparam entre fontes. Índice e referências cruzadas andaram 7
 páginas (ex.: a D-1 passou da 35 para a 42).
+
+## Versão 10 (03/10/2026): modelo de receita
+
+Pedido do Diogo: *«sim, fica assim. acrescenta à apresentação»* (base do
+modelo de receita, ADR-0007). Páginas novas 47 («Como o Lumavo ganha
+dinheiro») e 48 («O modelo de receita: o que ficou e o que falta», com a base
+carimbada e os planos sem preço). Acertadas a 2, 34, 40, 42, 45, 49 e 58
+(«decidir o modelo» passou a «fixar os preços»).
 
 ## O que ficou por verificar
 

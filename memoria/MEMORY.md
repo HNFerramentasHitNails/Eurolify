@@ -12,13 +12,13 @@
 
 ## Para decidir
 
-- [Apresentação impressa para Bruno e Cila, 57 páginas (v9: decisões, Scaleway, extensões, pagamentos e envios): link, partes, caixas para decidir à mão, marca como opinião; páginas não vistas desenhadas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
+- [Apresentação impressa para Bruno e Cila, 59 páginas (v10: decisões, Scaleway, extensões, pagamentos e envios, receita): link, partes, caixas para decidir à mão, marca como opinião; páginas não vistas desenhadas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
 - [Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G), na Scaleway (H); e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
 - [Scaleway por MCP: o oficial é o `scw mcp` (só leitura possível); não há conector de um clique; a API chega daqui (401), instala-se pelo Go; decidido: publicar pelo GitHub e MCP só de leitura (I) — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
 - [Extensões de terceiros: 7 tipos, os mesmos contratos para o Lumavo e para terceiros, regras fiscais e legais não extensíveis, loja (DSA, ciber-resiliência); decididos K e L (parceiros convidados na Fase 2) — 03/10/2026](extensoes-de-terceiros-03out2026.md)
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1, e o «outros países» que tinha escapado ao varrimento da decisão F — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Pagamentos e envios na UE: 27 países com fonte, conferidos por amostragem; Mollie cobre os métodos locais; o pagamento na entrega no Leste é parceria de envios — 03/10/2026](pagamentos-e-envios-ue-03out2026.md)
-- [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, proposta sem taxa sobre as vendas, regras fiscais e Data Act; preços por decidir — 03/10/2026](modelo-de-receita-03out2026.md)
+- [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir — 03/10/2026](modelo-de-receita-03out2026.md)
 
 ## Referências externas avaliadas
 

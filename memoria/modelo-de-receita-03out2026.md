@@ -4,6 +4,10 @@
 
 ## O que se fez
 
+- ✅ **Base decidida pelo Diogo a 03/10/2026** (*«sim, fica assim»*,
+  ADR-0007, decisão N): mensalidade por escalões de vendas anuais, sem taxa
+  sobre cada venda. Preços e outras fontes por decidir.
+
 - `docs/09-modelo-de-receita.md`: ponto de partida, preços da concorrência,
   nove fontes de receita possíveis e uma proibida, proposta, como se calcula o
   ponto de equilíbrio, regras fiscais e europeias da receita do próprio Lumavo,
