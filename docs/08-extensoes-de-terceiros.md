@@ -19,7 +19,10 @@ programador de fora também consegue — e o contrato fica provado antes de ser
 aberto. É a mesma regra do Hub do Lumavo, que usa a mesma API que qualquer
 integração (`02-arquitectura.md` §4.2).
 
-## 2. Onde discordo: «regras»
+## 2. «Regras»: as fiscais e legais ficam fora — decidido
+
+> ✅ **Confirmado pelo Diogo a 03/10/2026:** *«sim, concordo»* (decisão K em
+> `06-decisoes-em-aberto.md`).
 
 Um terceiro pode escrever **regras de negócio** — descontos, portes, validação
 do carrinho, escolha do armazém, ordem dos métodos de pagamento e de entrega.
@@ -114,7 +117,7 @@ métodos de pagamento e de entrega.
 |---|---|
 | **0 (agora)** | Desenhar os contratos e os pontos de extensão, na lista de recursos e operações da API (`05-fases-e-mvp.md`) |
 | **1** | Os adaptadores do próprio Lumavo (pagamentos, envios, faturação) escritos com os contratos, como se fossem de terceiros |
-| **2 — proposta nova** | **Primeiros parceiros convidados** a escrever o seu adaptador: os prestadores e transportadoras da lista de parcerias (`07-pagamentos-e-envios-por-pais.md`) |
+| **2 — decidido** (Diogo, 03/10/2026, decisão L) | **Primeiros parceiros convidados** a escrever eles próprios o seu adaptador: os prestadores e transportadoras da lista de parcerias (`07-pagamentos-e-envios-por-pais.md`) |
 | **3** | Programa aberto a qualquer programador e loja de extensões (já estava na Fase 3) |
 
 ## O que ficou por verificar

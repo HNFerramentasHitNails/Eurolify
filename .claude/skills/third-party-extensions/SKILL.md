@@ -10,6 +10,9 @@ description: Extensões de terceiros no Lumavo — aplicações, meios de pagame
 
 ## Quando usar
 
+> Fase 2 (decisão L, 03/10/2026): os parceiros da lista de pagamentos e envios
+> (`docs/07`) são convidados a escrever eles próprios o seu adaptador.
+
 - Desenhar ou mudar um contrato (pagamento, envio, faturação).
 - Criar um ponto de extensão novo para funções ou para o ecrã.
 - Dar permissões a uma aplicação, ou mexer na loja de extensões.
@@ -20,7 +23,8 @@ description: Extensões de terceiros no Lumavo — aplicações, meios de pagame
 1. **O Lumavo usa os mesmos contratos que os terceiros.** Um adaptador nosso
    não tem atalhos que uma extensão não tenha — senão o contrato não está
    provado.
-2. **Regras fiscais e legais não são extensíveis.** Decisão do IVA, NIF e
+2. **Regras fiscais e legais não são extensíveis** (confirmado pelo Diogo,
+   03/10/2026, decisão K). Decisão do IVA, NIF e
    VIES, livre resolução, preço dos 30 dias, páginas legais, retenção e
    conteúdo de documentos fiscais vivem no núcleo, uma vez. Uma extensão de
    faturação só **traduz** uma decisão já tomada.

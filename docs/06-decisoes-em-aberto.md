@@ -25,7 +25,8 @@
 | ✅ H | **O fornecedor de alojamento é a Scaleway**, sem comparação com a OVHcloud. Não é o OK para código | Diogo, 03/10/2026 | [ADR-0004](adr/0004-fornecedor-scaleway.md) |
 | ✅ I | **Publica-se pelo GitHub**: cada alteração entra no `main`, os testes correm e o mesmo caminho põe no ar. O Claude tem o MCP da Scaleway **só de leitura**; escrita só num projecto de ensaio, com chave limitada a ele | Diogo, 03/10/2026 | [ADR-0005](adr/0005-publicacao-pelo-github.md) |
 | ✅ J | **O Diogo e o Bruno têm toda a liberdade neste repositório**, cada um sozinho — incluindo faturação, NIF, IVA e identidade de clientes. **Regras da UE**: seguir as skills, só regras da UE com fonte, nunca inventar, dados na UE | Diogo, 03/10/2026 | `CLAUDE.md` |
-| ✅ K | **Requisito: terceiros desenvolvem extensões de forma fácil** — aplicações, meios de pagamento, envios, faturação por país, regras de negócio, ecrãs. As regras fiscais e legais não são extensíveis | Diogo, 03/10/2026 | `08-extensoes-de-terceiros.md` |
+| ✅ K | **Requisito: terceiros desenvolvem extensões de forma fácil** — aplicações, meios de pagamento, envios, faturação por país, regras de negócio, ecrãs. **As regras fiscais e legais não são extensíveis** (confirmado pelo Diogo: *«sim, concordo»*) | Diogo, 03/10/2026 | `08-extensoes-de-terceiros.md` |
+| ✅ L | **Na Fase 2, os parceiros da lista de pagamentos e envios são convidados a escrever eles próprios a sua ligação ao Lumavo**, com os contratos que o Lumavo já usa | Diogo, 03/10/2026 | `05-fases-e-mvp.md`, `07` e `08` |
 
 ## Por decidir — por esta ordem
 

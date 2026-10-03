@@ -83,8 +83,8 @@ tratado de ponta a ponta pelo menos uma vez.
 - Automações e notificações configuráveis; campos personalizados; módulos
   ligáveis por comerciante.
 - Migração da loja principal do cliente zero, se a Fase 1 o justificar.
-- **Primeiros parceiros convidados a escrever o seu adaptador** (proposta de
-  03/10/2026): prestadores e transportadoras da lista de parcerias
+- **Primeiros parceiros convidados a escrever eles próprios o seu adaptador**
+  (decidido pelo Diogo a 03/10/2026, decisão L): prestadores e transportadoras da lista de parcerias
   (`07-pagamentos-e-envios-por-pais.md`), com os contratos que o Lumavo já usa.
 
 **Critério de passagem:** um segundo comerciante, de fora, a vender há 3

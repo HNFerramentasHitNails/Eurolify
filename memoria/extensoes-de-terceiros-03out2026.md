@@ -6,6 +6,11 @@ de pagamente, envios, regras, dentro do lumavo de forma fácil»*.
 
 ## O que se fez
 
+- ✅ **Decidido pelo Diogo a 03/10/2026:** as regras fiscais e legais ficam
+  fora do que terceiros podem mudar (*«sim, concordo»*, decisão K) e, na
+  Fase 2, os parceiros da lista de pagamentos e envios são convidados a
+  escrever eles próprios a sua ligação (decisão L).
+
 - Desenho em `docs/08-extensoes-de-terceiros.md`; requisito **K** em `docs/06`;
   skill nova `third-party-extensions`; ligações em `docs/02` (domínio
   Extensões), `docs/05` (Fases 0 a 3), `README.md` e tabela de skills do
@@ -17,8 +22,8 @@ de pagamente, envios, regras, dentro do lumavo de forma fácil»*.
 - **Discordância escrita:** terceiros escrevem regras de negócio (descontos,
   portes, validações, armazém, ordem dos métodos), **não regras fiscais e
   legais** — com o caso da regra do IVA escrita duas vezes (13/08/2026).
-- **Proposta nova de fase:** na Fase 2, os parceiros da lista de pagamentos e
-  envios (`docs/07`) escrevem o seu adaptador como primeiros convidados.
+- **Fase 2 (decidido, L):** os parceiros da lista de pagamentos e envios
+  (`docs/07`) escrevem o seu adaptador como primeiros convidados.
 
 ## Fontes (pesquisa web, 03/10/2026)
 
