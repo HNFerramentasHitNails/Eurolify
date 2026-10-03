@@ -89,6 +89,9 @@ totalmente as regras da UE e nunca inventar nada fora da UE»*.
    (ADR-0015; antes, a Scaleway). Um serviço
    de fora da UE que receba dados pessoais só entra com decisão escrita do
    Diogo ou do Bruno e o acordo de transferência (skill `eu-gdpr-privacy`).
+   **Excepção temporária:** a VPS do ensaio está no Reino Unido até à migração
+   para Paris (ADR-0018, Diogo, 03/10/2026) — **nenhum dado pessoal real entra
+   nela**; data de fim por decidir.
 
 ## 🔴 Uma regra, um sítio — e o sítio é a API
 

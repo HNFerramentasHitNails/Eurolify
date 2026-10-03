@@ -22,7 +22,8 @@
   conta num prestador de pagamento (EuPago, Stripe, Mollie…).
 - **Não emite faturas por si**: liga-se ao software de faturação certificado
   de cada comerciante.
-- Alojado numa VPS num centro de dados na UE. **Sem vendedores terceiros**
+- Alojado numa VPS num centro de dados na UE (o ensaio, sem dados pessoais
+  reais, está por agora no Reino Unido: ADR-0018). **Sem vendedores terceiros**
   (marketplace) enquanto não houver caso de negócio.
 - Estado: desenho, sem código. O primeiro comerciante de fora só entra depois
   de os fluxos do consumidor e o contrato estarem validados por um jurista
