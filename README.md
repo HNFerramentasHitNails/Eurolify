@@ -23,7 +23,7 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`CLAUDE.md`](CLAUDE.md) | As regras para qualquer sessão de Claude neste repositório |
-| [`.claude/skills/`](.claude/skills/) | As 12 skills de trabalho |
+| [`.claude/skills/`](.claude/skills/) | As 13 skills de trabalho (12 de domínio e a de design, com 38 referências de terceiros) |
 
 ## As quatro peças
 

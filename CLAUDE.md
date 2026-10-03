@@ -119,6 +119,7 @@ confirmação, livre resolução, documento fiscal — são servidos pelo Lumavo
 | `order-fulfilment` | reservas, encomendas, expedição, devoluções, transportadoras |
 | `observability-security` | ameaças, permissões, segredos, auditoria, registos |
 | `eu-localization` | línguas, moedas, mercados, moradas, fusos, métodos por país |
+| `lumavo-design` | qualquer ecrã, tema, componente ou fluxo; pesquisa com comerciantes; revisão de interface (traz 38 referências de terceiros em `referencias/`) |
 
 ## Agentes
 

@@ -138,10 +138,12 @@ repo `bruno-88/claude` **uma** memória curta a apontar para este repositório,
 para que uma sessão sobre os sistemas actuais saiba que o Lumavo existe. Não o fiz: o
 pedido foi guardar aqui.
 
-### D-12 · O nome «Lumavo»
+### D-12 · O nome «Lumavo» e a identidade visual
 
 **Não verifiquei** se a marca está livre no EUIPO nem que domínios estão
-disponíveis. Verificar antes de gastar dinheiro em marca.
+disponíveis. Verificar antes de gastar dinheiro em marca. A **identidade
+visual** (logótipo, cores, letra) também está por decidir: as propostas vão a
+Bruno e Cila com o antes e o depois (skill `lumavo-design`, regra 1).
 
 ### D-13 · Quem constrói, em quanto tempo e com que orçamento
 

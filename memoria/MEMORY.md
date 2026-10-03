@@ -12,3 +12,4 @@
 ## Referências externas avaliadas
 
 - [O repo 40RTY-ai/shopify-admin-skills: 116 skills só para Shopify; serve de lista de tarefas e de formato, não se instala (identidade pelo nome, IVA pelo nome da taxa) — 03/10/2026](skills-shopify-admin-avaliadas-03out2026.md)
+- [As skills de design de 3 repos juntadas numa só (lumavo-design): 38 referências por etapa, 75+ de fora e porquê; a regra da Vercel copiada em vez de ligada — 03/10/2026](skills-de-design-juntadas-03out2026.md)
