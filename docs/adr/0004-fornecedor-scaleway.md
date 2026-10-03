@@ -1,6 +1,6 @@
 # ADR-0004 · O fornecedor de alojamento é a Scaleway
 
-- **Estado:** aceite · a publicação ficou decidida no [ADR-0005](0005-publicacao-pelo-github.md)
+- **Estado:** aceite · a publicação ficou decidida no [ADR-0005](0005-publicacao-pelo-github.md) · a conta, as chaves e o acesso do Claude ficaram preparados pelo [ADR-0011](0011-preparacao-da-conta-scaleway.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** D-3 (`docs/06-decisoes-em-aberto.md`);
