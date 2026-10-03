@@ -81,7 +81,7 @@ Para o Lovable, Vercel (v0), Bolt e Emergent gerarem uma loja certa à primeira:
   (`procurar_artigos`, `vendas_por_pais`, `encomenda_por_numero`).
 - **Fase 1: só leitura.** Escrita (Fase 3) sempre com confirmação humana;
   **nunca**: emitir faturas, reembolsar, fundir clientes, alterações em lote.
-- Respostas **pequenas e paginadas** — a assistente do Hub gastava 185 mil
+- Respostas **pequenas e paginadas** — o assistente interno actual gastava 185 mil
   tokens por conversa por levar o catálogo inteiro (lição 6.1).
 - Autenticação OAuth com os mesmos âmbitos da API; cada chamada no registo de
   auditoria com utilizador, cliente de IA e modelo.
@@ -93,6 +93,28 @@ Para o Lovable, Vercel (v0), Bolt e Emergent gerarem uma loja certa à primeira:
   Serve de inventário e de formato (operações declaradas, ensaio sem escrever
   por omissão); **não se copia** — ver
   `memoria/skills-shopify-admin-avaliadas-03out2026.md`.
+
+### Construir o servidor MCP — a referência `mcp-builder`
+
+Guia da Anthropic para construir servidores MCP, guardado em
+`referencias/mcp-builder/` (Apache 2.0; origem em `referencias/ORIGEM.md`).
+Ler `referencias/mcp-builder/mcp-builder.md` quando chegar a hora de construir
+(depois do ADR que substitua o ADR-0001), e os guias em `reference/` pela ordem
+que ele indica. **As regras do Lumavo ganham ao guia:**
+
+| O guia diz | No Lumavo |
+|---|---|
+| Na dúvida, cobrir a API toda | **Fase 1 só leitura.** A escrita entra na Fase 3, ferramenta a ferramenta, com confirmação humana — nunca faturas, reembolsos, fusões de clientes nem lotes |
+| Ferramentas geradas à mão | geradas do **contrato OpenAPI**, para o MCP e a API nunca divergirem (uma regra, um sítio) |
+| Prefixo de serviço nos nomes | prefixo `lumavo_` e nomes de negócio (`lumavo_vendas_por_pais`) |
+| Paginar e filtrar | obrigatório, e com o total explícito (lição 4.7) |
+| TypeScript e HTTP «streamable» sem estado | é a mesma recomendação da D-2 e da D-8; confirmar quando forem decididas |
+| Avaliar com 10 perguntas realistas | perguntas **em português**, tiradas das tarefas reais de comerciante (lista do `40RTY-ai/shopify-admin-skills`); **correr a avaliação gasta créditos de API** — orçamento antes (lição 6.3) |
+
+⚠️ O guia de avaliação (`reference/evaluation.md`) manda correr
+`scripts/evaluation.py`: **os programas não foram copiados** (chamam a API paga
+da Anthropic e são código — ADR-0001). Estão no repositório de origem, no commit
+indicado em `referencias/ORIGEM.md`.
 
 ## Anti-padrões
 

@@ -31,8 +31,9 @@ repo `claude`).
   utilização. Ficou a cópia datada das regras (`e3d624b`).
 - **Ficaram de fora** as que trazem programas (`web-artifacts-builder`,
   `webapp-testing`) e as de código React — candidatas quando houver código
-  (ADR-0001) — e a `mcp-builder`, que não é design mas é candidata forte para o
-  MCP (D-9).
+  (ADR-0001). A `mcp-builder`, que não é design, ficou de fora desta skill e foi
+  juntada depois, no mesmo dia, à `headless-commerce` — ver
+  [[mcp-builder-juntado-03out2026]].
 - **75 das 111 do `designer-skills` ficaram de fora** por repetirem as
   escolhidas ou servirem equipas grandes. A lista exacta está em `ORIGEM.md`.
 - O `awesome-claude-skills` é **uma lista de ligações**, sem skills nem ficheiro

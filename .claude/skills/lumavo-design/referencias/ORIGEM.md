@@ -32,7 +32,7 @@ compara-se com a versão nova e regista-se a data aqui.
 | `anthropics/skills` | `canvas-design`, `algorithmic-art`, `theme-factory`, `slack-gif-creator` | arte e apresentações, não desenho de produto |
 | `anthropics/skills` | `brand-guidelines` | é a marca da Anthropic |
 | `anthropics/skills` | `web-artifacts-builder`, `webapp-testing` | trazem programas; servem quando houver código (ADR-0001) — `webapp-testing` é candidata nessa altura |
-| `anthropics/skills` | `mcp-builder` | não é design, mas é **candidata forte** para o MCP do Lumavo (D-9) quando houver código |
+| `anthropics/skills` | `mcp-builder` | não é design: foi juntada a 03/10/2026 na skill `headless-commerce` (`referencias/mcp-builder/`), a pedido do Diogo |
 | `vercel-labs/agent-skills` | `react-best-practices`, `composition-patterns`, `react-view-transitions`, `react-native-skills` | regras de código React; candidatas quando houver código |
 | `vercel-labs/agent-skills` | `writing-guidelines` | manual de escrita da Vercel, em inglês; o Lumavo tem as suas regras de escrita |
 | `vercel-labs/agent-skills` | `vercel-optimize`, `deploy-to-vercel`, `vercel-cli-with-tokens` | operação na Vercel; o alojamento está por decidir (D-3) |

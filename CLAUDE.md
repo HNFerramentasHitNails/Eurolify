@@ -108,7 +108,7 @@ confirmação, livre resolução, documento fiscal — são servidos pelo Lumavo
 | Skill | Usar quando |
 |---|---|
 | `platform-architect` | fronteiras de domínio, monólito modular, eventos, ADR |
-| `headless-commerce` | desenhar a API da Loja e de Administração, webhooks, SDK, MCP |
+| `headless-commerce` | desenhar a API da Loja e de Administração, webhooks, SDK, MCP (traz o guia `mcp-builder` da Anthropic em `referencias/`) |
 | `eu-gdpr-privacy` | dados pessoais, consentimento, pedidos dos titulares, retenção |
 | `eu-vat-oss-ioss` | IVA, NIF, VIES, OSS, faturas e notas de crédito |
 | `payments-psd2-sca` | pagamentos, autenticação forte, reembolsos, conciliação |
