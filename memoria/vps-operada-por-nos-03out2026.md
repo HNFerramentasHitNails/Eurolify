@@ -146,7 +146,7 @@ localidade para a vps»*.
 
 ### O que ficou por verificar
 
-- **A data de fim da excepção** — perguntada ao Diogo.
+- ~~A data de fim da excepção~~ → **31/03/2027** (abaixo).
 - Que produto da OVH é o servidor de Paris (não é uma VPS da gama actual),
   o preço e a disponibilidade.
 - Se a OVH muda uma VPS de centro de dados, e o custo de sair desta antes do
@@ -154,3 +154,19 @@ localidade para a vps»*.
 - A base de transferência do RGPD para o Reino Unido (não lida).
 - Os IP nos registos da máquina (SSH, servidor web) são dados pessoais que
   ficam no Reino Unido mesmo sem clientes reais: retenção por decidir.
+
+## A excepção acaba a 31/03/2027 (decisão Z, ADR-0019)
+
+Pergunta: *«Que data de fim escrevo para a migração para Paris? Proponho
+31/03/2027 (seis meses), ou antes disso, se algum dado de um cliente real
+tiver de entrar.»* Resposta do Diogo, 03/10/2026: *«sim, 31/03/2027»*.
+
+- Foi num ADR novo e não no ADR-0018 porque a skill `platform-architect`
+  diz que um ADR aceite não se edita. **Erro meu:** o ADR-0018 nasceu aceite
+  sem a data de fim, que a mesma skill dá como obrigatória numa decisão
+  temporária. Devia ter perguntado a data antes de o escrever.
+- Mudados: ADR-0018 (estado), `AGENTS.md` (regra 4), `docs/06` (Y e Z nova),
+  `docs/11` (cabeçalho, §1, §3.8, §7) e o índice. Procurei «fim por decidir» e
+  «data de fim» em todos os `.md`.
+- Alarme a partir de 01/03/2027: proposta, nos alertas da máquina, que ainda
+  não existem.

@@ -91,7 +91,8 @@ totalmente as regras da UE e nunca inventar nada fora da UE»*.
    Diogo ou do Bruno e o acordo de transferência (skill `eu-gdpr-privacy`).
    **Excepção temporária:** a VPS do ensaio está no Reino Unido até à migração
    para Paris (ADR-0018, Diogo, 03/10/2026) — **nenhum dado pessoal real entra
-   nela**; data de fim por decidir.
+   nela**; acaba a **31/03/2027**, ou antes se um dado de cliente real tiver
+   de entrar (ADR-0019).
 
 ## 🔴 Uma regra, um sítio — e o sítio é a API
 

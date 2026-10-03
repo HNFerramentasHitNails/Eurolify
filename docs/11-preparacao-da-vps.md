@@ -8,7 +8,8 @@
 > ([ADR-0014](adr/0014-um-so-ensaio.md)); o código passa por duas revisões
 > ([ADR-0013](adr/0013-revisao-do-codigo.md)); a máquina é uma VPS-3 da OVH
 > ([ADR-0017](adr/0017-vps-3-da-ovh.md)), a do ensaio por agora no Reino Unido
-> ([ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md)). **Tudo o resto aqui é proposta**
+> ([ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md), até 31/03/2027:
+> [ADR-0019](adr/0019-fim-da-vps-no-reino-unido.md)). **Tudo o resto aqui é proposta**
 > e está marcado assim. As decisões por tomar estão no §7, por ordem.
 >
 > Este documento é a lista do que a preparação faz. O script de instalação vem
@@ -38,8 +39,9 @@ de»*, sem IVA:
 - ⚠️ **A VPS comprada a 03/10/2026 (`vps-c01fa544`) está no Reino Unido**
   (RIPE: `VPS-UK2`, país GB; confirmado pelo Diogo na consola): só havia essa
   localidade. Fica para o ensaio, **sem dados pessoais reais**, até à
-  migração para um servidor em Paris; data de fim por decidir
-  ([ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md)). Paris não está na
+  migração para um servidor em Paris, **até 31/03/2027**
+  ([ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md),
+  [ADR-0019](adr/0019-fim-da-vps-no-reino-unido.md)). Paris não está na
   lista dos centros das VPS; a 03/10/2026, 23:10 UTC, todos os 11 estavam
   esgotados para o VPS-3 (API pública da OVH).
 - **Tudo o que se instala sai do script** (§3), para que a migração seja
@@ -133,6 +135,8 @@ imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
 
 - Máquina ou serviço em baixo; disco acima do limite; cópia que não correu ou
   reposição que falhou; certificado a expirar; actualizações por aplicar.
+- A data de fim da VPS no Reino Unido, **31/03/2027** (ADR-0019): aviso a
+  partir de 01/03/2027 (proposta).
 - Para onde vão (e-mail, com fornecedor na UE): por decidir (§7).
 - Lição: o recálculo diário esteve parado 15 dias sem ninguém saber (repo
   `claude`, 05/09/2026).
@@ -184,7 +188,7 @@ preciso operar a partir da cloud.
 
 1. ~~Fornecedor, plano e centro de dados~~ → ✅ **OVH, VPS-3, centro na UE**
    (ADR-0017); a comprada ficou no Reino Unido, só para o ensaio, até à
-   migração para Paris (ADR-0018). **Falta a data de fim.**
+   migração para Paris, até 31/03/2027 (ADR-0018, ADR-0019).
 2. **Como o Claude chega à máquina** (§5; proposta: a).
 3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
    antes do primeiro comerciante de fora).
