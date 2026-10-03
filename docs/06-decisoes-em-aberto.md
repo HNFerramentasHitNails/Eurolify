@@ -197,6 +197,13 @@ e 78 tarefas automáticas (`proposta-venda-do-hub-30set2026.md`).
 
 ### D-14 · Como o Lumavo ganha dinheiro
 
+> **Estudado a 03/10/2026** em [`09-modelo-de-receita.md`](09-modelo-de-receita.md).
+> Recomendação: mensalidade por plano com escalões de vendas anuais, **sem taxa
+> sobre cada venda**; receita de pagamentos só pelo prestador e às claras;
+> módulos por país de faturação; serviço de migração; comissão da loja de
+> extensões na Fase 3; nunca custos de saída. **Por decidir**; os preços só
+> depois de falar com comerciantes e da D-13.
+
 Mensalidade, percentagem das vendas, módulos pagos, instalação dedicada — **não
 estudado**. Com a D-1 → a) (vender desde o início, ADR-0006), **passa a ser
 preciso antes da Fase 1**.

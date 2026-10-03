@@ -22,6 +22,7 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/04-licoes-dos-sistemas-actuais.md`](docs/04-licoes-dos-sistemas-actuais.md) | As regras que os sistemas actuais da empresa já pagaram |
 | [`docs/07-pagamentos-e-envios-por-pais.md`](docs/07-pagamentos-e-envios-por-pais.md) | Os pagamentos e os envios mais usados na UE, e com quem fazer parcerias |
 | [`docs/08-extensoes-de-terceiros.md`](docs/08-extensoes-de-terceiros.md) | Como terceiros acrescentam pagamentos, envios, regras e ecrãs ao Lumavo |
+| [`docs/09-modelo-de-receita.md`](docs/09-modelo-de-receita.md) | Como o Lumavo ganha dinheiro: concorrência, fontes de receita e a proposta (D-14) |
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`CLAUDE.md`](CLAUDE.md) | As regras para qualquer sessão de Claude neste repositório |

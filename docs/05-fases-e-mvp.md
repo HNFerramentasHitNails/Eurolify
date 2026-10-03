@@ -20,7 +20,7 @@
 | Regras do motor de IVA validadas pelo contabilista | por fazer |
 | Fluxos do consumidor (checkout, confirmação, livre resolução, garantia) validados por jurista | por fazer |
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
-| Modelo de receita (D-14) — preciso antes da Fase 1, porque se vende desde o início | por decidir |
+| Modelo de receita (D-14) — preciso antes da Fase 1, porque se vende desde o início | **estudado** (`09-modelo-de-receita.md`), por decidir; preços depois das conversas com comerciantes e da D-13 |
 | Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
 | Estimativa de prazo e custo (D-13) | por fazer — **é a próxima tarefa** (D-1 a D-3 decididas) |
 
