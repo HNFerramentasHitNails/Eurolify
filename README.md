@@ -20,10 +20,12 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/02-arquitectura.md`](docs/02-arquitectura.md) | As peças, os domínios e as interfaces (API, checkout, MCP) |
 | [`docs/03-regulamentar-ue.md`](docs/03-regulamentar-ue.md) | O mapa das regras europeias, com datas e fontes |
 | [`docs/04-licoes-dos-sistemas-actuais.md`](docs/04-licoes-dos-sistemas-actuais.md) | As regras que os sistemas actuais da empresa já pagaram |
+| [`docs/07-pagamentos-e-envios-por-pais.md`](docs/07-pagamentos-e-envios-por-pais.md) | Os pagamentos e os envios mais usados na UE, e com quem fazer parcerias |
+| [`docs/08-extensoes-de-terceiros.md`](docs/08-extensoes-de-terceiros.md) | Como terceiros acrescentam pagamentos, envios, regras e ecrãs ao Lumavo |
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`CLAUDE.md`](CLAUDE.md) | As regras para qualquer sessão de Claude neste repositório |
-| [`.claude/skills/`](.claude/skills/) | As 13 skills de trabalho (12 de domínio e a de design, com 38 referências de terceiros) |
+| [`.claude/skills/`](.claude/skills/) | As 14 skills de trabalho (12 de domínio, a de design com 38 referências de terceiros, e a de extensões) |
 
 ## As quatro peças
 

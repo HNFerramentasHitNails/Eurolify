@@ -12,6 +12,7 @@
 | As 12 skills de trabalho para as sessões de Claude | escrito (`.claude/skills/`) |
 | Decisões D-1, D-2, D-3 | D-2 **decidida** (ADR-0002); D-3 **decidida** (ADR-0003); D-1 em parte (decisão F: falta quando abre a outros comerciantes) |
 | Escolher o fornecedor europeu (D-3) | **decidido** — Scaleway (ADR-0004) |
+| Contratos de adaptadores e pontos de extensão (requisito K) | por fazer — desenho em `08-extensoes-de-terceiros.md` |
 | Prova de 2 semanas com a Medusa (D-2) | **cancelada** — a D-2 foi decidida a 03/10/2026: núcleo próprio, de raiz (ADR-0002) |
 | Modelo de domínio (entidades, estados, quem é dono de quê) em tabelas | por fazer |
 | Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | por fazer |
@@ -48,6 +49,8 @@ escrito do Bruno ou do Diogo para começar código (ADR-0001).
   retenção fiscal respeitada.
 - API da Loja, API de Administração, webhooks, SDK TypeScript, **MCP de
   leitura**, pacote para construtores de frontends.
+- **Os adaptadores do próprio Lumavo** (pagamentos, envios, faturação)
+  escritos com os contratos de extensão, como se fossem de terceiros (requisito K).
 - Hub do Lumavo mínimo: definições, encomendas, registo de integrações e de
   webhooks, auditoria.
 
@@ -80,6 +83,9 @@ tratado de ponta a ponta pelo menos uma vez.
 - Automações e notificações configuráveis; campos personalizados; módulos
   ligáveis por comerciante.
 - Migração da loja principal do cliente zero, se a Fase 1 o justificar.
+- **Primeiros parceiros convidados a escrever o seu adaptador** (proposta de
+  03/10/2026): prestadores e transportadoras da lista de parcerias
+  (`07-pagamentos-e-envios-por-pais.md`), com os contratos que o Lumavo já usa.
 
 **Critério de passagem:** um segundo comerciante, de fora, a vender há 3
 meses; a loja principal do cliente zero migrada sem perda de clientes nem de
@@ -88,7 +94,8 @@ consentimentos.
 ## Fase 3 — Abrir a outros comerciantes
 
 Onboarding, contratos (incluindo o acordo de tratamento de dados), faturação do
-Lumavo, extensões de terceiros, MCP com escrita sob confirmação, UCP/ACP,
+Lumavo, extensões de terceiros abertas a qualquer programador e loja de
+extensões (`08-extensoes-de-terceiros.md`), MCP com escrita sob confirmação, UCP/ACP,
 API de checkout com verificação de conformidade, exportação completa (Data
 Act), níveis de serviço e suporte.
 

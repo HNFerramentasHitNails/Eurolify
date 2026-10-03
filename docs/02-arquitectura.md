@@ -85,7 +85,7 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 | **Privacidade** | registo de tratamentos, pedidos dos titulares, retenção, pseudonimização | dados fiscais (retenção de 10 anos) | `dsar.received`, `dsar.completed` |
 | **Conformidade de produto** | operador económico, pessoa responsável, documentos e prazos, alertas e recolhas | o catálogo (anexa-se a ele) | `recall.opened` |
 | **Auditoria** | registo imutável de acções administrativas e fiscais | — | — |
-| **Extensões** | aplicações instaladas, permissões, webhooks, campos personalizados | — | — |
+| **Extensões** | aplicações instaladas, permissões, webhooks, campos personalizados, contratos de adaptadores, funções em caixa fechada, extensões de ecrã — desenho em `08-extensoes-de-terceiros.md` | regras fiscais e legais (não são extensíveis) | — |
 
 **Regra de fronteira:** um domínio só lê outro pela sua API interna ou pelos
 seus eventos — nunca pelas tabelas dele. É isto que permite, um dia, separar um

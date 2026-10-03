@@ -149,6 +149,7 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
 | `observability-security` | ameaças, permissões, segredos, auditoria, registos |
 | `eu-localization` | línguas, moedas, mercados, moradas, fusos, métodos por país |
 | `lumavo-design` | qualquer ecrã, tema, componente ou fluxo; pesquisa com comerciantes; revisão de interface (traz 38 referências de terceiros em `referencias/`) |
+| `third-party-extensions` | contratos de adaptadores (pagamento, envio, faturação), pontos de extensão, permissões de aplicações, loja de extensões, parceiros que escrevem o seu adaptador |
 
 ## Agentes
 
