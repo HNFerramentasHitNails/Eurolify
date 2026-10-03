@@ -1,6 +1,6 @@
 ---
 name: payments-psd2-sca
-description: Pagamentos no Lumavo — camada de adaptadores para prestadores (EuPago, Stripe, Adyen, Mollie…), intenção de pagamento, autorização, captura, anulação, reembolso, disputa e conciliação, máquina de estados, autenticação forte (SCA/3DS2), nunca guardar dados de cartão nem fundos de terceiros, avisos assinados, idempotência, falhas e reenvios. Usar ao desenhar ou alterar qualquer fluxo de dinheiro, método de pagamento, aviso de um prestador ou conciliação.
+description: Pagamentos no Eurolify — camada de adaptadores para prestadores (EuPago, Stripe, Adyen, Mollie…), intenção de pagamento, autorização, captura, anulação, reembolso, disputa e conciliação, máquina de estados, autenticação forte (SCA/3DS2), nunca guardar dados de cartão nem fundos de terceiros, avisos assinados, idempotência, falhas e reenvios. Usar ao desenhar ou alterar qualquer fluxo de dinheiro, método de pagamento, aviso de um prestador ou conciliação.
 ---
 
 # Pagamentos (PSD2 e autenticação forte)
@@ -16,13 +16,13 @@ description: Pagamentos no Lumavo — camada de adaptadores para prestadores (Eu
 
 ## 🔴 As duas fronteiras
 
-1. **O Lumavo nunca recebe nem guarda o dinheiro dos comerciantes.** Cada
+1. **O Eurolify nunca recebe nem guarda o dinheiro dos comerciantes.** Cada
    comerciante liga a **sua** conta no prestador. Guardar fundos de terceiros é
    prestar um serviço de pagamento e exige licença (PSD2 — **C**). Se um dia
    houver marketplace, o dinheiro reparte-se pelo produto de plataformas do
    prestador (Stripe Connect, Adyen for Platforms, Mollie Connect), nunca por
-   uma conta do Lumavo.
-2. **O Lumavo nunca toca em dados de cartão.** Páginas ou componentes alojados
+   uma conta do Eurolify.
+2. **O Eurolify nunca toca em dados de cartão.** Páginas ou componentes alojados
    pelo prestador; a autenticação forte (3DS2) é do prestador. Fora do âmbito
    PCI pesado por construção.
 
@@ -43,10 +43,10 @@ Desenho que o Bruno escolheu para a plataforma de formação a 29/09/2026
   contas EuPago, uma para formação e outra para produtos).
 - Quando um prestador não deixa escolher os métodos por pedido (o Pay By Link da
   EuPago não deixa — resumo de 29/09), **a escolha do método faz-se no checkout
-  do Lumavo**, antes de sair para o prestador.
-- Métodos por país (ver `eu-localization`): MB WAY e Multibanco (PT), Bizum
-  (ES), Bancontact (BE), BLIK (PL), iDEAL/Wero (NL) — **C**, confirmar o estado
-  de cada um.
+  do Eurolify**, antes de sair para o prestador.
+- Métodos por país: **`docs/07-pagamentos-e-envios-por-pais.md`** (27 países,
+  com fonte, 03/10/2026). O pagamento na entrega é um serviço da transportadora:
+  o Eurolify nunca toca no dinheiro.
 
 ## Máquina de estados do pagamento
 
@@ -107,7 +107,7 @@ toda a cadeia e retido antes do emissor (desenho de 29/09/2026).
 
 ## Antes de dizer «está feito»
 
-- [ ] Nenhum caminho passa dinheiro por uma conta do Lumavo.
+- [ ] Nenhum caminho passa dinheiro por uma conta do Eurolify.
 - [ ] Avisos com assinatura verificada, evento em bruto gravado, idempotentes.
 - [ ] Testados: MB WAY (imediato), Multibanco (dias depois), cartão com 3DS,
       aviso repetido, reembolso parcial, link expirado, desligar o prestador a

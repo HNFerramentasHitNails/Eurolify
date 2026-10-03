@@ -1,6 +1,6 @@
 ---
 name: platform-architect
-description: Arquitectura do Lumavo — monólito modular multi-inquilino, fronteiras entre domínios (catálogo, preços, carrinho, checkout, encomendas, stock, clientes, pagamentos, IVA, documentos fiscais, envios, notificações), eventos de domínio com outbox, idempotência, versões de API e ADR. Usar ao desenhar ou alterar um domínio, ao decidir onde vive uma regra, ao pensar em partir um módulo em serviço, e antes de registar qualquer decisão de arquitectura.
+description: Arquitectura do Eurolify — monólito modular multi-inquilino, fronteiras entre domínios (catálogo, preços, carrinho, checkout, encomendas, stock, clientes, pagamentos, IVA, documentos fiscais, envios, notificações), eventos de domínio com outbox, idempotência, versões de API e ADR. Usar ao desenhar ou alterar um domínio, ao decidir onde vive uma regra, ao pensar em partir um módulo em serviço, e antes de registar qualquer decisão de arquitectura.
 ---
 
 # Arquitecto da plataforma

@@ -1,4 +1,4 @@
-# ADR-0002 · O Lumavo é construído de raiz, sem partir de um motor aberto
+# ADR-0002 · O Eurolify é construído de raiz, sem partir de um motor aberto
 
 - **Estado:** aceite
 - **Data:** 03/10/2026
@@ -21,7 +21,7 @@ motores não foi lido).
 
 ## Decisão
 
-O núcleo do Lumavo é próprio, escrito de raiz. **A prova de 2 semanas com a
+O núcleo do Eurolify é próprio, escrito de raiz. **A prova de 2 semanas com a
 Medusa deixa de se fazer.**
 
 ## Consequências
@@ -29,7 +29,7 @@ Medusa deixa de se fazer.**
 - Tudo o que é comum (carrinho, promoções, stock, pesquisa) é trabalho nosso:
   pesa na estimativa (D-13).
 - O modelo de perfis fiscais, o motor de IVA e o isolamento entre comerciantes
-  nascem desenhados para o Lumavo, sem adaptar um motor alheio.
+  nascem desenhados para o Eurolify, sem adaptar um motor alheio.
 - **Não é o OK para código.** O ADR-0001 continua em vigor: esta decisão diz
   *como* se vai construir, não *quando* se começa.
 

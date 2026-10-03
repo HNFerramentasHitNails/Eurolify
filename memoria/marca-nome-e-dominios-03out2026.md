@@ -1,5 +1,8 @@
 # Um nome para substituir «Lumavo»: domínios e marca (03/10/2026)
 
+> ✅ **Decidido pelo Diogo a 03/10/2026: Eurolify** — *«fica o eurolify»*
+> ([ADR-0009](../docs/adr/0009-nome-eurolify.md)). Secção «Eurolify» abaixo.
+
 Pedido do Diogo (03/10/2026): *«preciso de um nome legal para registar a marca
 dentro da UE e comprar o dominio e subsituir o lumavo»*. É a decisão D-12
 (`docs/06-decisoes-em-aberto.md`), que até hoje dizia «não verifiquei».
@@ -10,7 +13,8 @@ dentro da UE e comprar o dominio e subsituir o lumavo»*. É a decisão D-12
   (registador NameSilo, expira a 15/04/2028; RDAP da Verisign,
   `rdap.verisign.com/com/v1/domain/lumavo.com`, consultado a 03/10/2026) e
   `lumavo.eu` está ocupado (consulta ao registo pelo MCP da Vercel,
-  `get_bulk_availability`, 03/10/2026). `lumavo.io` e `lumavo.app` estavam
+  `get_bulk_availability`, 03/10/2026; confirmado pelo DNS, que lhe dá
+  servidores de nomes — a Vercel erra no `.eu`, ver «Números»). `lumavo.io` e `lumavo.app` estavam
   livres. A marca «Lumavo» **não** foi procurada nas bases de marcas.
 - **Critérios para o nome novo:** palavra inventada (sem significado para
   comércio, para não ser recusada por descritiva); pronuncia-se igual em PT,
@@ -177,8 +181,9 @@ linguas»* (sem resposta ao vendEU).
   (NXDOMAIN em `dns.google/resolve`, 03/10/2026). A partir da terceira volta o
   `.eu` vê-se pelo DNS (sem delegação = muito provavelmente livre). Uma
   disponibilidade é desse instante, não reserva nada.
-- **Repositório:** `grep -rio lumavo` fora do `.git` dá **217 ocorrências em
-  36 ficheiros** (03/10/2026). Mais: o nome do repositório no GitHub, a pasta
+- **Repositório:** `grep -rio lumavo` fora do `.git` dava **217 ocorrências em
+  36 ficheiros** no início da sessão (`main` em `b7cbfd8`, 03/10/2026); na troca,
+  com o `main` em `e0dcf89`, eram **295** — o `main` cresceu entretanto. Mais: o nome do repositório no GitHub, a pasta
   da skill `lumavo-design`, a apresentação de 48 páginas, o documento
   partilhável e os estudos de logótipo (desenhados para «Lumavo»).
 

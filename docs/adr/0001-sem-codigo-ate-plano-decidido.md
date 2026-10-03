@@ -7,7 +7,7 @@
 
 ## Contexto
 
-O Lumavo é um projecto grande e com regras fiscais e legais em vários países.
+O Eurolify é um projecto grande e com regras fiscais e legais em vários países.
 Nos sistemas actuais, construir antes de mapear deu remendos que reapareciam
 noutro sítio (ver `docs/04-licoes-dos-sistemas-actuais.md`).
 

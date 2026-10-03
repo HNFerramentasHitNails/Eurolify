@@ -1,4 +1,4 @@
-# ADR-0003 · O Lumavo fica alojado num fornecedor europeu, com serviços geridos
+# ADR-0003 · O Eurolify fica alojado num fornecedor europeu, com serviços geridos
 
 - **Estado:** aceite · completado pelo [ADR-0004](0004-fornecedor-scaleway.md)
   (fornecedor: Scaleway, 03/10/2026)
@@ -28,13 +28,13 @@ AWS/Google/Azure na região UE.
 
 ## Decisão
 
-O núcleo do Lumavo e o seu Hub ficam num **fornecedor europeu, com serviços
+O núcleo do Eurolify e o seu Hub ficam num **fornecedor europeu, com serviços
 geridos**: base de dados PostgreSQL gerida com segunda máquina e cópias,
 contentores para a API e os processos sempre ligados, e armazenamento de
 ficheiros — tudo na UE.
 
 As lojas dos comerciantes ficam onde cada um quiser (Vercel, Lovable, Bolt,
-Emergent…): falam com o Lumavo pela API, e esse alojamento é deles.
+Emergent…): falam com o Eurolify pela API, e esse alojamento é deles.
 
 ## Consequências
 

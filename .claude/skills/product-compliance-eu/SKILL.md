@@ -1,6 +1,6 @@
 ---
 name: product-compliance-eu
-description: Conformidade de produto no Lumavo — atributos regulamentares do artigo (GPSR, cosméticos, químicos/CLP, embalagens/PPWR, mercadorias perigosas), operador económico e pessoa responsável na UE, documentos e evidências fornecidos pelo comerciante, identificadores, avisos por língua, lotes, alertas e recolhas, categorias regulamentadas e fórmulas com versões. Usar ao desenhar campos de artigo, a página de produto, recolhas, o envio de mercadorias perigosas, ou qualquer alegação de certificação.
+description: Conformidade de produto no Eurolify — atributos regulamentares do artigo (GPSR, cosméticos, químicos/CLP, embalagens/PPWR, mercadorias perigosas), operador económico e pessoa responsável na UE, documentos e evidências fornecidos pelo comerciante, identificadores, avisos por língua, lotes, alertas e recolhas, categorias regulamentadas e fórmulas com versões. Usar ao desenhar campos de artigo, a página de produto, recolhas, o envio de mercadorias perigosas, ou qualquer alegação de certificação.
 ---
 
 # Conformidade de produto
@@ -11,7 +11,7 @@ description: Conformidade de produto no Lumavo — atributos regulamentares do a
 
 ## 🔴 Primeira regra
 
-**O Lumavo nunca afirma que um produto está conforme ou certificado.** Guarda
+**O Eurolify nunca afirma que um produto está conforme ou certificado.** Guarda
 o que o comerciante declara **e os documentos que o provam**, mostra o que a lei
 obriga a mostrar, e avisa quando falta. Uma certificação sem documento anexado
 e válido não aparece na loja.
@@ -47,7 +47,7 @@ O TPO, um fotoiniciador comum em géis de unhas, foi **proibido nos cosméticos 
 para o outro deixou de se poder vender o que já estava em stock.
 
 No Hub interno actual, o fornecedor troca fórmulas e os SKU mantêm-se
-(`formulas-versionadas-cosmeticos-04set2026.md`, repo `claude`). ⇒ no Lumavo:
+(`formulas-versionadas-cosmeticos-04set2026.md`, repo `claude`). ⇒ no Eurolify:
 
 - O artigo aponta para **uma versão de fórmula** com o seu INCI.
 - O **lote** sabe que versão de fórmula leva.
@@ -62,7 +62,7 @@ No Hub interno actual, o fornecedor troca fórmulas e os SKU mantêm-se
   `proposta-venda-do-hub-30set2026.md`).
 - **Recolha**: abre-se sobre um lote ou versão de fórmula ⇒ lista de clientes
   afectados, notificação nas línguas deles, bloqueio de venda, registo das
-  acções. Os alertas às autoridades (Safety Gate) são do comerciante — o Lumavo
+  acções. Os alertas às autoridades (Safety Gate) são do comerciante — o Eurolify
   prepara a informação.
 
 ## Mercadorias perigosas

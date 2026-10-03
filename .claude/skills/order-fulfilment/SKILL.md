@@ -1,6 +1,6 @@
 ---
 name: order-fulfilment
-description: Encomendas, stock e expedição no Lumavo — reserva de stock, disponível por canal, livro de movimentos, lotes, encomendas com estados claros e auditáveis, divisão em várias expedições, etiquetas e seguimento por adaptador de transportadora, devoluções (RMA) ligadas à nota de crédito, reembolsos parciais, trocas, e os eventos order.created, inventory.reserved, payment.authorized, payment.captured, shipment.dispatched, refund.completed. Usar ao desenhar ou alterar encomendas, stock, armazém, transportadoras ou devoluções.
+description: Encomendas, stock e expedição no Eurolify — reserva de stock, disponível por canal, livro de movimentos, lotes, encomendas com estados claros e auditáveis, divisão em várias expedições, etiquetas e seguimento por adaptador de transportadora, devoluções (RMA) ligadas à nota de crédito, reembolsos parciais, trocas, e os eventos order.created, inventory.reserved, payment.authorized, payment.captured, shipment.dispatched, refund.completed. Usar ao desenhar ou alterar encomendas, stock, armazém, transportadoras ou devoluções.
 ---
 
 # Encomendas, stock e expedição
@@ -57,6 +57,10 @@ pendente → paga → em_preparação → expedida(parcial | total) → entregue
 - **Adaptadores de transportadora** (CTT, DPD, GLS, agregadores como Sendcloud
   ou Packlink): cotação, etiqueta, seguimento, recolha — o núcleo nunca fala a
   língua de uma transportadora.
+  Transportadoras por país, com fonte: `docs/07-pagamentos-e-envios-por-pais.md`.
+- **Pagamento na entrega** (pesa 37–59 % no Leste — `docs/07` §3): é um serviço
+  da transportadora, que cobra e entrega o dinheiro ao comerciante; o Eurolify
+  regista o estado, nunca o dinheiro.
 - **O serviço vendido é o serviço da etiqueta**: a etiqueta dos CTT saiu Via
   Aérea com Via Marítima cobrada (17/09/2026). E artigos perigosos recusam
   serviços incompatíveis **antes do checkout**.

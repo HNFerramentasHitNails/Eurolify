@@ -1,6 +1,6 @@
 ---
 name: eu-gdpr-privacy
-description: Protecção de dados no Lumavo (RGPD e ePrivacy) — privacidade desde a concepção e por omissão, minimização, finalidade e base legal por tratamento, consentimento granular e prova dele, retenção e apagamento (e o choque com os 10 anos fiscais), pedidos dos titulares (acesso, exportação, rectificação, apagamento, limitação), registo de tratamentos, subcontratantes e transferências. Usar sempre que se cria ou muda um campo com dados pessoais, um consentimento, uma exportação, um apagamento ou um fornecedor que recebe dados.
+description: Protecção de dados no Eurolify (RGPD e ePrivacy) — privacidade desde a concepção e por omissão, minimização, finalidade e base legal por tratamento, consentimento granular e prova dele, retenção e apagamento (e o choque com os 10 anos fiscais), pedidos dos titulares (acesso, exportação, rectificação, apagamento, limitação), registo de tratamentos, subcontratantes e transferências. Usar sempre que se cria ou muda um campo com dados pessoais, um consentimento, uma exportação, um apagamento ou um fornecedor que recebe dados.
 ---
 
 # RGPD e privacidade
@@ -21,11 +21,11 @@ description: Protecção de dados no Lumavo (RGPD e ePrivacy) — privacidade de
 
 | | Responsável pelo tratamento | Subcontratante |
 |---|---|---|
-| Quem | **o comerciante** (os clientes são dele) | **o Lumavo** (trata por conta do comerciante) |
+| Quem | **o comerciante** (os clientes são dele) | **o Eurolify** (trata por conta do comerciante) |
 | Consequência | decide finalidades, responde aos clientes | só trata segundo instruções; precisa de **acordo de tratamento de dados** com cada comerciante; lista pública de subcontratantes ulteriores; avisa antes de mudar |
 
-Quando o Lumavo trata dados **para si** (contas dos comerciantes, faturação do
-Lumavo, segurança), aí é responsável. Escrever sempre qual dos dois papéis se
+Quando o Eurolify trata dados **para si** (contas dos comerciantes, faturação do
+Eurolify, segurança), aí é responsável. Escrever sempre qual dos dois papéis se
 aplica a cada tratamento.
 
 ## Regras que não se negociam
@@ -48,7 +48,7 @@ aplica a cada tratamento.
    não» — guardam-se de forma diferente.
 6. **Cookies não essenciais só depois do consentimento** — o píxel da Meta a
    disparar antes do consentimento foi um achado da auditoria jurídica de 2026
-   no ecossistema (`ai-act-compliance.md`). O Lumavo dá um gestor de
+   no ecossistema (`ai-act-compliance.md`). O Eurolify dá um gestor de
    consentimento por omissão às lojas.
 7. **Dados pessoais fora dos registos técnicos**: logs, erros e métricas levam
    identificadores, não nomes, e-mails, telefones nem NIF em claro.
@@ -69,7 +69,7 @@ aplica a cada tratamento.
 
 ## Pedidos dos titulares (DSAR)
 
-| Pedido | O que o Lumavo entrega |
+| Pedido | O que o Eurolify entrega |
 |---|---|
 | Acesso / exportação | ficheiro legível por máquina com tudo o que existe sobre a pessoa, **em todos os domínios** (encomendas, perfis, consentimentos, mensagens, registos de comunicação) |
 | Rectificação | correcção com rasto; ⚠️ **um NIF num documento fiscal emitido não se corrige** — corrige-se com nota de crédito, e isso é do domínio fiscal |

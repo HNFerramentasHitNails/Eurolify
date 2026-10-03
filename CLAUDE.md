@@ -1,9 +1,14 @@
-# Lumavo — regras de trabalho
+# Eurolify — regras de trabalho
 
 Plataforma de comércio electrónico europeia da **Luckytarget Lda**: núcleo por
 API, Hub de gestão, regras europeias de raiz e aberta a qualquer IA. **Projecto
 em desenho: não há código** (ADR-0001). Trabalham aqui o **Bruno** e o **Diogo**, à vez, cada um na
-sua conta de Claude Code.
+sua conta de Claude Code e de Codex — são eles que desenvolvem o Eurolify
+(ADR-0008).
+
+**Nome: Eurolify** — antes **Lumavo** (ADR-0009, Diogo, 03/10/2026). As
+citações e as memórias datadas guardam o nome antigo e não se reescrevem; a
+skill `lumavo-design` passou a `eurolify-design`.
 
 ## 🔴 Antes da primeira resposta
 
@@ -17,8 +22,8 @@ sua conta de Claude Code.
 
 ## 🔴 Marca própria — nunca uma marca existente
 
-Ordem do Diogo, 03/10/2026: o Lumavo é desenvolvido dentro da **Luckytarget
-Lda**, com marca própria. **A marca HN Hit Nails não se usa no Lumavo** — nem
+Ordem do Diogo, 03/10/2026: o Eurolify é desenvolvido dentro da **Luckytarget
+Lda**, com marca própria. **A marca HN Hit Nails não se usa no Eurolify** — nem
 em documentos, nem em ecrãs, nem em exemplos, nem em nomes de ficheiros. Os
 sistemas actuais da empresa (Hub interno, loja online, plataforma de formação)
 servem só como **fonte de regras e de casos medidos**, citados sem a marca e sem
@@ -67,16 +72,16 @@ totalmente as regras da UE e nunca inventar nada fora da UE»*.
    entra: diz-se **«não verifiquei»** e fica marcada **C** até ser verificada ou
    validada por um profissional. Nada se completa «por lógica» numa regra
    fiscal ou legal.
-4. **Os dados ficam na UE.** O Lumavo vive na Scaleway (ADR-0004). Um serviço
+4. **Os dados ficam na UE.** O Eurolify vive na Scaleway (ADR-0004). Um serviço
    de fora da UE que receba dados pessoais só entra com decisão escrita do
    Diogo ou do Bruno e o acordo de transferência (skill `eu-gdpr-privacy`).
 
 ## 🔴 Uma regra, um sítio — e o sítio é a API
 
 Tudo o que decide preço, IVA, disponibilidade, permissões ou estados vive **no
-servidor do Lumavo**. Os frontends (Lovable, Vercel, Bolt, Emergent, apps) e as
+servidor do Eurolify**. Os frontends (Lovable, Vercel, Bolt, Emergent, apps) e as
 IAs **usam** a decisão, nunca a refazem. Os momentos legais — checkout,
-confirmação, livre resolução, documento fiscal — são servidos pelo Lumavo.
+confirmação, livre resolução, documento fiscal — são servidos pelo Eurolify.
 
 ## Quem decide
 
@@ -148,7 +153,8 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
 | `order-fulfilment` | reservas, encomendas, expedição, devoluções, transportadoras |
 | `observability-security` | ameaças, permissões, segredos, auditoria, registos |
 | `eu-localization` | línguas, moedas, mercados, moradas, fusos, métodos por país |
-| `lumavo-design` | qualquer ecrã, tema, componente ou fluxo; pesquisa com comerciantes; revisão de interface (traz 38 referências de terceiros em `referencias/`) |
+| `eurolify-design` | qualquer ecrã, tema, componente ou fluxo; pesquisa com comerciantes; revisão de interface (traz 38 referências de terceiros em `referencias/`) |
+| `third-party-extensions` | contratos de adaptadores (pagamento, envio, faturação), pontos de extensão, permissões de aplicações, loja de extensões, parceiros que escrevem o seu adaptador |
 
 ## Agentes
 
@@ -162,5 +168,5 @@ uma pergunta concreta, sim; e destilar o que devolver.
   repositórios de onde vieram as regras estão listados em `memoria/` (fontes).
 - Mexer em qualquer desses sistemas obedece às regras do `CLAUDE.md` **desse**
   repositório, não a estas.
-- O Lumavo **não fala com o software de faturação de um cliente que já tem
+- O Eurolify **não fala com o software de faturação de um cliente que já tem
   sistema de gestão**: quem emite é o sistema dele (decisão D-10 por tomar).

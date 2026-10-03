@@ -1,6 +1,6 @@
 ---
 name: eu-localization
-description: Localização europeia no Lumavo — mercados (país, moeda, língua, canal e contexto de preço), línguas e traduções, moedas e câmbios guardados com taxa e data, formatos regionais, moradas e códigos postais por país, regiões e territórios especiais, fusos horários, métodos de pagamento e de entrega por país, conteúdo legal e comunicações transaccionais por língua. Usar ao abrir um país ou língua, ao mexer em moradas, datas, moedas ou montantes, e ao configurar métodos de pagamento ou de entrega por mercado.
+description: Localização europeia no Eurolify — mercados (país, moeda, língua, canal e contexto de preço), línguas e traduções, moedas e câmbios guardados com taxa e data, formatos regionais, moradas e códigos postais por país, regiões e territórios especiais, fusos horários, métodos de pagamento e de entrega por país, conteúdo legal e comunicações transaccionais por língua. Usar ao abrir um país ou língua, ao mexer em moradas, datas, moedas ou montantes, e ao configurar métodos de pagamento ou de entrega por mercado.
 ---
 
 # Localização europeia
@@ -20,7 +20,7 @@ O **mercado** é a unidade de venda: **país (ou grupo de países) + moeda +
 línguas + lista de preços + métodos de pagamento + métodos de entrega + textos
 legais + registos fiscais**. Uma loja tem vários mercados — a loja online actual, para vender
 noutros países, **duplica lojas Shopify inteiras** (um duplicador de loja mãe
-para lojas destino); no Lumavo é um mercado a mais na mesma loja.
+para lojas destino); no Eurolify é um mercado a mais na mesma loja.
 
 - O mercado de um visitante decide-se pelo **país de entrega** quando o há;
   antes disso, por escolha dele (nunca impor pelo IP — geobloqueio).
@@ -31,7 +31,7 @@ para lojas destino); no Lumavo é um mercado a mais na mesma loja.
 ## Línguas e traduções
 
 - Línguas por mercado; a de origem é a do comerciante.
-- Traduções **vivem no Lumavo**, por campo, com estado (completa,
+- Traduções **vivem no Eurolify**, por campo, com estado (completa,
   desactualizada, em falta); mudar o original marca-as desactualizadas.
 - Tradução automática por IA **só como proposta**, revista por uma pessoa antes
   de publicar textos legais ou avisos de segurança.
@@ -72,12 +72,17 @@ para lojas destino); no Lumavo é um mercado a mais na mesma loja.
 
 ## Pagamentos e entregas por mercado
 
+> **A lista dos 27 países, com fonte em cada linha, está em
+> `docs/07-pagamentos-e-envios-por-pais.md`** (pesquisa de 03/10/2026). Não se
+> escreve aqui uma segunda cópia: consulta-se lá.
+
 | País | Métodos de pagamento a considerar | Notas |
 |---|---|---|
-| Portugal | MB WAY, Multibanco, cartão, Klarna | Klarna = 58 pagamentos e 28.305 € em 90 dias na plataforma de formação actual (29/09/2026) |
-| Espanha | cartão, Bizum, Klarna | **C** |
-| Bélgica / Países Baixos | Bancontact, iDEAL/Wero | **C**, confirmar o estado da migração iDEAL → Wero |
-| Polónia | BLIK, Przelewy24 | **C** |
+| Portugal | MB WAY, Multibanco, cartão, Klarna | MB WAY é o meio mais usado online (Marktest, 14/03/2025 — `docs/07`); Klarna = 58 pagamentos e 28.305 € em 90 dias na plataforma de formação actual (29/09/2026) |
+| Espanha | cartão, Bizum, PayPal | **W** (`docs/07`) |
+| Bélgica / Países Baixos | Bancontact; iDEAL a passar a Wero (2026–2027) | **W** (`docs/07`) |
+| Polónia | BLIK, Przelewy24 (A2A 70 % do valor) | **W** (`docs/07`) |
+| Leste (BG, HU, SK, CZ, RO) | **pagamento na entrega** pesa 37–59 % | é um serviço da transportadora (`docs/07` §3) |
 
 Entregas por mercado: transportadoras, serviços, prazos e restrições
 (mercadorias perigosas), configurados por mercado.
