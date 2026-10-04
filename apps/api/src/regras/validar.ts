@@ -39,6 +39,13 @@ function ehObjecto(valor: unknown): boolean {
   return typeof valor === "object" && valor !== null;
 }
 
+/**
+ * Formato da `id` de uma regra: minúsculas, algarismos, «.», «_» e «-», a
+ * começar por letra ou algarismo. Assim «R», «r », «a  b» ou «ı» não podem
+ * parecer a mesma `id` que outra e não ser (revisões do #50, P2-1 e P2-A).
+ */
+const FORMATO_ID = /^[a-z0-9][a-z0-9._-]*$/;
+
 function vazio(texto: unknown): boolean {
   return typeof texto !== "string" || texto.trim() === "";
 }
@@ -155,9 +162,8 @@ export function errosDoRegisto(registo: Registo): string[] {
     // A prova de uma regra não pode estar vazia (AGENTS.md, regras da UE,
     // ponto 3: uma regra só entra com fonte; revisão do #40, P2-5).
     if (vazio(regra.id)) erros.push(`${nome}: sem id`);
-    else if (regra.id !== regra.id.trim()) {
-      // «r » e «r» parecem a mesma id e não são (revisão do #50, P2-1).
-      erros.push(`${nome}: id com espaços nas pontas`);
+    else if (!FORMATO_ID.test(regra.id)) {
+      erros.push(`${nome}: id fora do formato (a-z, 0-9, «.», «_», «-»)`);
     }
     if (!Number.isInteger(regra.versao) || regra.versao < 1) {
       erros.push(`${nome}: versão inválida`);
@@ -230,22 +236,14 @@ export function errosDoRegisto(registo: Registo): string[] {
   // Duas versões da mesma regra não podem valer ao mesmo tempo. Uma
   // `proposta` nunca conta (decidir.ts), por isso pode viver ao lado da versão
   // em vigor (revisão do #40, P2-3).
-  // Uma regra sem `id` já tem o seu erro; não entra nos testes por `id`. As
-  // `id` comparam-se sem espaços nas pontas e sem distinguir maiúsculas: «R»,
-  // «r» e «r » são a mesma regra para quem lê (revisão do #50, P2-1).
+  // Uma regra sem `id`, ou com uma `id` fora do formato, já tem o seu erro;
+  // não entra nos testes por `id`.
   const porId = new Map<string, Regra[]>();
   for (const regra of regras) {
-    if (vazio(regra.id)) continue;
-    const chave = regra.id.trim().toLowerCase();
-    porId.set(chave, [...(porId.get(chave) ?? []), regra]);
+    if (vazio(regra.id) || !FORMATO_ID.test(regra.id)) continue;
+    porId.set(regra.id, [...(porId.get(regra.id) ?? []), regra]);
   }
   for (const [id, todas] of porId) {
-    const grafias = new Set(todas.map((r) => r.id));
-    if (grafias.size > 1) {
-      erros.push(
-        `${id}: a mesma id escrita de maneiras diferentes (${[...grafias].map((g) => `«${g}»`).join(", ")})`,
-      );
-    }
     // A `id` é uma regra de um país e de um domínio (§4.1), propostas
     // incluídas (revisão do #45, P2-4).
     const lugares = new Set(todas.map((r) => `${r.pais}/${r.dominio}`));

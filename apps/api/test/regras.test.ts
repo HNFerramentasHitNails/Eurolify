@@ -651,7 +651,7 @@ describe("validar o registo", () => {
     ]);
   });
 
-  it("uma id com espaços nas pontas ou noutras maiúsculas é a mesma id (revisão do #50, P2-1)", () => {
+  it("uma id fora do formato é erro, sem erros por arrasto (revisão do #50, P2-1 e P2-A)", () => {
     const base = registoComPortugal([
       regraTeste({ id: "r", aplicaAte: "2026-01-01T00:00:00Z" }),
       regraTeste({
@@ -661,6 +661,12 @@ describe("validar o registo", () => {
         aplicaDesde: "2026-01-01T00:00:00Z",
       }),
       regraTeste({ id: "R", versao: 3, aplicaDesde: "2026-01-01T00:00:00Z" }),
+      regraTeste({ id: "a b", dominio: "iva" }),
+      regraTeste({ id: "a  b", dominio: "iva" }),
+      regraTeste({ id: "ı", dominio: "iva" }),
+      regraTeste({ id: "-x", dominio: "iva" }),
+      // Dentro do formato: pontos, sublinhados e hífenes, sem erro.
+      regraTeste({ id: "pt.iva_2026-1", dominio: "iva" }),
     ]);
     const registo: Registo = {
       ...base,
@@ -670,11 +676,14 @@ describe("validar o registo", () => {
           : perfil,
       ),
     };
+    const formato = "id fora do formato (a-z, 0-9, «.», «_», «-»)";
     expect(errosDoRegisto(registo)).toEqual([
-      "r @2: id com espaços nas pontas",
-      "r: a mesma id escrita de maneiras diferentes («r», «r », «R»)",
-      "r: a mesma id em PT/consumidor e PT/iva",
-      "r: as versões 2 e 3 valem ao mesmo tempo",
+      `r @2: ${formato}`,
+      `R@3: ${formato}`,
+      `a b@1: ${formato}`,
+      `a  b@1: ${formato}`,
+      `ı@1: ${formato}`,
+      `-x@1: ${formato}`,
     ]);
   });
 
