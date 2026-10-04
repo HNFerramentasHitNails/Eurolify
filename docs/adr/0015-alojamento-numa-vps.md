@@ -82,7 +82,9 @@ documentação para começarmos a preparar a vps»*.
   SSH); o que se faz à conta da Scaleway (a chave só de leitura do Diogo vale
   até 03/10/2027, e o ADR-0009 propunha lá comprar os domínios).
 - As contas de custo do `docs/09` e do `docs/10` estavam feitas para a
-  Scaleway gerida: **não foram recalculadas** para a VPS. E o tempo de operar a
+  Scaleway gerida: **não foram recalculadas** para a VPS. *(04/10/2026:
+  recalculadas — alojamento da construção no `docs/10` §5, custo depois de
+  abrir no `docs/10` §8 e no `docs/09` §5.)* E o tempo de operar a
   máquina não está no tempo do Diogo e do Bruno do `docs/10` §9.
 - **O que pode partir:**
   - com uma só máquina e só a cópia diária da OVH, uma avaria às 18h perde o
