@@ -17,24 +17,35 @@ EXCLUDED_DIRS = {
 # «secret», e «chave» ou «token» sozinhos (ADR-0029 «chave-do-age…»,
 # «design-token.md») não são segredos. Só contam as palavras e as sequências
 # abaixo, com qualquer separador (`api_key`, `api-key`) ou nenhum (`apikey`).
+# É uma heurística: «chaves-…» sozinho não conta (seria o ADR-0029), e o
+# relatório só mostra caminho, tamanho e hash, nunca o conteúdo.
 SENSITIVE_WORDS = {
     "secret", "secrets", "segredo", "segredos", "credential", "credentials",
     "credencial", "credenciais", "password", "passwords", "senha", "senhas",
-    "env",
+    "passphrase", "passphrases", "passwd",
 }
 SENSITIVE_SEQUENCES = (
     ("palavra", "passe"), ("palavras", "passe"),
-    ("private", "key"), ("chave", "privada"), ("chave", "secreta"),
-    ("chave", "api"), ("chave", "de", "api"), ("api", "key"),
-    ("api", "token"), ("access", "token"), ("token", "de", "acesso"),
+    ("private", "key"), ("private", "keys"), ("secret", "key"), ("secret", "keys"),
+    ("chave", "privada"), ("chaves", "privadas"),
+    ("chave", "secreta"), ("chaves", "secretas"),
+    ("chave", "api"), ("chaves", "api"), ("chave", "de", "api"), ("chaves", "de", "api"),
+    ("api", "key"), ("api", "keys"), ("api", "token"), ("api", "tokens"),
+    ("access", "token"), ("access", "tokens"),
+    ("token", "de", "acesso"), ("tokens", "de", "acesso"),
 )
+# «env» só como ficheiro de ambiente (`.env.md`, `ensaio.env.md`, `.env.local.md`),
+# não como palavra solta (`env-vars.md`, `node-env.md`).
+DOTENV = re.compile(r"(^|\.)env(\.|$)")
 
 
 def sensitive_name(name):
     """Diz se o nome do ficheiro sugere um segredo (palavras inteiras)."""
-    words = [w for w in re.split(r"[-_. ]+", name.lower()) if w]
-    if words and words[-1] == "md":
-        words = words[:-1]
+    lower = name.lower()
+    stem = lower[:-3] if lower.endswith(".md") else lower
+    if DOTENV.search(stem):
+        return True
+    words = [w for w in re.split(r"[-_. ]+", stem) if w]
     if any(w in SENSITIVE_WORDS for w in words):
         return True
     for seq in SENSITIVE_SEQUENCES:

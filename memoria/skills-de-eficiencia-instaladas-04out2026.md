@@ -61,13 +61,22 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
     `42c1e0c`. O P2-5 do 1.º comentário (o índice) ficou para o #52;
   - uma sessão Opus 5.5 reviu o `bf7f15d` e o `d6fe59f` e corrigiu ela
     própria os seus 5 P2 no `165ebc7`, que a sessão Sonnet reviu;
-  - uma terceira sessão nova (Opus 5.5) reviu o `94b7302` e o `42c1e0c`.
+  - uma terceira sessão nova (Opus 5.5) reviu o `94b7302` e o `42c1e0c` e,
+    depois, também o `165ebc7` e o merge `aa57078`, com a CI verde
+    (comentário das 20:16 no #58). O `165ebc7` teve assim duas revisões.
+- **O `8ed7bf8` ficou fora do `main`:** a sessão Sonnet enviou-o ao ramo
+  `skills-eficiencia` às 20:20, depois de o #58 estar junto. Tratava o mesmo
+  P2 que o #61 tratou por outro caminho, por isso não se juntou.
 - **Quem pediu às sessões de revisão que corrigissem:** o pedido inicial
-  dizia-lhes para não alterar o ramo. Cada uma escreveu no #58 que o
-  utilizador dela lho pediu depois, na conversa dela (*«Corrige os P2 e
-  responde no pedido»*; *«corrige os 5 P2 no ramo»*). Essas mensagens não
-  passaram pelo canal entre sessões: a sessão que instalou não as viu e não
-  as pôde verificar.
+  dizia-lhes para não alterar o ramo. O que cada uma escreveu no #58:
+  - a sessão Sonnet, na resposta do `bf7f15d`, «a pedido do Diogo»; no 5.º
+    comentário e na resposta do `42c1e0c`, «o utilizador desta sessão», com
+    a citação *«Corrige os P2 e responde no pedido»*;
+  - a sessão Opus, na resposta do `165ebc7`, «a pedido do Diogo nesta
+    conversa», com a citação *«corrige os 5 P2 no ramo»*.
+
+  Essas mensagens não passaram pelo canal entre sessões: nenhuma se pôde
+  verificar fora da conversa de cada sessão.
 - **Os P2 que ficaram depois de juntar** (pedido do Diogo, *«trata os P2 que
   ficaram por fazer»*): o `audit_memory.py` passa a comparar **palavras
   inteiras** do nome do ficheiro, em vez de pedaços de texto. `desenhado-…` e
@@ -75,6 +84,18 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   `private_key` passam a ser saltados (com aviso). Há um teste novo, que falha
   com o script antigo. As frases desta memória sobre as revisões foram
   corrigidas: a atribuição por commit e a numeração.
+- **Os 4 P2 da revisão do #61** (pedido do Diogo, *«corrige os P2 do #61
+  num pedido»*, issue #64): `env` só conta como ficheiro de ambiente
+  (`.env.md`, `ensaio.env.md`), já não `env-vars.md` nem `node-env.md`; as
+  sequências ganham os plurais (`api-keys`, `access-tokens`,
+  `chaves-privadas`…), `secret key`, `passphrase` e `passwd`; há um teste
+  para os plurais, as maiúsculas e o `env`. Continua a ser uma heurística:
+  `chaves-vps.md` é lido, porque «chaves» sozinho apanharia o ADR-0029, e
+  `env-local.md`, `env-prod.md` e `env_vars.md` também são lidos (o `env` só
+  conta com ponto, como em `.env.md`). A revisão Sonnet do #65 (P2-1 a P2-3)
+  levou a acrescentar este aviso e `env.md` e `.env.local.md` ao teste; as
+  correcções foram escritas pela sessão que as pediu a pedido do Diogo, sem
+  nova revisão independente.
 
 ## Números (com data e como se contaram)
 
@@ -86,8 +107,10 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
 | Testes do `audit_memory.py` depois das revisões do #58 | 10, a passar | `python3 test_audit_memory.py`, 04/10/2026 |
 | Testes do `audit_memory.py` com as palavras inteiras | 11, a passar; o teste novo falha com o script do `main` em `c3c2e4c` | `python3 test_audit_memory.py`, 04/10/2026 |
 | `audit_memory.py` sobre `memoria docs .agents` | 164 ficheiros, 0 avisos | 04/10/2026, depois das palavras inteiras |
+| Testes do `audit_memory.py` com os P2 do #61 | 12, a passar; o teste novo falha com o script do `main` em `417e0a5` | `python3 test_audit_memory.py`, 04/10/2026 |
+| `audit_memory.py` sobre `memoria docs .agents` com os P2 do #61 | 165 ficheiros, 0 avisos | 04/10/2026, `--repo . --roots memoria docs .agents` |
 | `AGENTS.md` com as 6 linhas | 17 926 bytes (limite 32 KiB) | `wc -c`, 04/10/2026 |
-| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 076 bytes (limite 32 KiB) | `wc -c`, 04/10/2026, depois de remeter o ponto 3 para «Trabalhar os dois» (P2-1 do 5.º comentário da revisão Sonnet do #58) |
+| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 076 bytes (limite 32 KiB); em `wc -c`, 04/10/2026 (ramo `p2-do-61`, depois do #58), 19 781 | `wc -c`, 04/10/2026, depois de remeter o ponto 3 para «Trabalhar os dois» (P2-1 do 5.º comentário da revisão Sonnet do #58) |
 | Modelo da sessão | `claude-opus-5-5` configurado e servido | `get_session`, 04/10/2026 |
 
 ## O que ficou por verificar
