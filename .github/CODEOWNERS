@@ -1,0 +1,21 @@
+# Donos do código (ADR-0013, ADR-0024). Com a revisão dos donos obrigatória no
+# main, o pedido de um só entra com a aprovação do outro: o autor não se
+# aprova a si próprio. Os documentos não têm dono aqui — junta-os o autor.
+# HNFerramentasHitNails: a conta com que o Diogo trabalha (dona do
+# repositório); bruno-88: a do Bruno (dita pelo Diogo a 04/10/2026).
+
+/apps/                 @HNFerramentasHitNails @bruno-88
+/packages/             @HNFerramentasHitNails @bruno-88
+/infra/                @HNFerramentasHitNails @bruno-88
+/.github/              @HNFerramentasHitNails @bruno-88
+/Dockerfile            @HNFerramentasHitNails @bruno-88
+/.dockerignore         @HNFerramentasHitNails @bruno-88
+/package.json          @HNFerramentasHitNails @bruno-88
+/pnpm-lock.yaml        @HNFerramentasHitNails @bruno-88
+/pnpm-workspace.yaml   @HNFerramentasHitNails @bruno-88
+/tsconfig.base.json    @HNFerramentasHitNails @bruno-88
+/eslint.config.js      @HNFerramentasHitNails @bruno-88
+/.prettierrc.json      @HNFerramentasHitNails @bruno-88
+/.prettierignore       @HNFerramentasHitNails @bruno-88
+/.gitattributes        @HNFerramentasHitNails @bruno-88
+/.gitignore            @HNFerramentasHitNails @bruno-88

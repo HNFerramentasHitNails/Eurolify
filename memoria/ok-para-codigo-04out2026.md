@@ -176,3 +176,28 @@ de gravar, pediu três verificações; resposta final: *«sim»*.
 - Se o pnpm sem os scripts de instalação funciona em tudo (só se viu o
   `--version`).
 - O computador do trabalho do Diogo e o Mac do Bruno não foram preparados.
+
+## GitHub Pro activo; CODEOWNERS e a nova via Git — 04/10/2026
+
+- O Diogo: *«ja tenho o github pro»*. Confirmado pela API: a protecção do
+  `main` passou de 403 («Upgrade to GitHub Pro») a 404 «Branch not protected»,
+  e as *rulesets* a `[]` (nenhuma ainda).
+- Conta do Bruno, dita pelo Diogo: **`bruno-88`** (existe, criada a
+  25/07/2024; **não é colaborador** nem tem convite, a 04/10/2026). A 2FA dele
+  não se vê de fora: a confirmar por ele.
+- `.github/CODEOWNERS` no `main` (código → `@HNFerramentasHitNails` e
+  `@bruno-88`) e a secção Git do `AGENTS.md` reescrita: **nada directo ao
+  `main`**; documentos por pedido juntado pelo autor; código com a aprovação
+  do outro e a revisão do outro agente. Este foi o último `push` directo.
+- O `CODEOWNERS` tem de ir para o `main` **antes** de a regra se ligar: o
+  GitHub lê-o do ramo de destino; sem ele, o primeiro pedido de código
+  entraria sem aprovação.
+- ⚠️ O nome da conta com a marca existente fica escrito no `CODEOWNERS` —
+  consequência da A2 b) (ADR-0024).
+
+### O que ficou por verificar
+
+- O convite ao `bruno-88` (o Diogo convida, ou o Claude com o OK dele) e a
+  aceitação; enquanto não aceitar, o GitHub marca a linha dele no `CODEOWNERS`
+  como inválida.
+- A regra do `main` ainda não está ligada.

@@ -173,16 +173,24 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
   ramo designado trabalha nele e leva o resultado ao `main`.
 - `git fetch origin main` **antes de escrever e antes do push**; ler o
   ficheiro que está no `main` antes de o substituir.
-- **Nunca `git rebase origin/main`** com o ramo da sessão: a via é
-  `git checkout -B tmp origin/main` + `git cherry-pick -x <sha>` +
-  `git push origin HEAD:main`, um commit de cada vez.
+- **Nada entra no `main` por `push` directo** (ADR-0024, desde 04/10/2026): a
+  regra do GitHub recusa-o, também à conta de administrador. A via, para
+  documentos e para código, é um pedido de alteração:
+  `git switch -c <assunto> origin/main` → commits → `git push -u origin HEAD`
+  → `gh pr create --base main --fill`.
+- **Documentos** (`*.md`, `docs/`, `memoria/`, `.agents/skills/`): o próprio
+  autor junta o pedido, sem aprovação (`gh pr merge --squash --delete-branch`).
+- **Código não entra no `main` sem duas revisões** (ADR-0013, a partir da
+  primeira linha). O código é o que o `.github/CODEOWNERS` lista; o GitHub só
+  junta o pedido com a aprovação da outra pessoa (o Bruno aprova o que o Diogo
+  escreve, e o contrário). Antes de aprovar, a revisão do agente que não o
+  escreveu tem de estar no pedido, com os pontos P0/P1 tratados: o Codex revê
+  o diff do Claude Code (`@codex review`, ou automática) e o Claude Code revê
+  o do Codex. Um pedido com código e documentos conta como código.
+- Ramo de um pedido desactualizado: `git merge origin/main` nele. **Nunca
+  `push --force`** num ramo que já está num pedido.
 - Um commit por assunto; a mensagem diz o assunto em português.
 - **Nunca segredos no repositório** (chaves, palavras-passe, tokens).
-- **Código não entra no `main` sem duas revisões** (ADR-0013, a partir da
-  primeira linha): a da outra pessoa (o Bruno revê o que o Diogo escreve, e o
-  contrário) e a do agente que não o escreveu (o Codex revê o diff do Claude
-  Code, e o contrário). A via acima (`cherry-pick` e `push` directo) é só
-  para documentos.
 
 ## Memória (`memoria/`)
 
