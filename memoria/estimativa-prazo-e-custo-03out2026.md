@@ -67,9 +67,12 @@
 - Custo fixo/mês depois de abrir: B ≈ 10.150–14.870 €, C ≈ 15.110–21.950 € (corrigido a 03/10/2026: o alojamento passou a ≈ 234–710 €, ver `alojamento-e-custos-03out2026.md`).
   A 100 €/mês de margem média por comerciante (hipótese): B ≈ 100–150
   comerciantes, C ≈ 150–220. *Corrigido a 04/10/2026 com a VPS da OVH
-  (alojamento ≈ 18–70 €/mês, `docs/10` §8): B ≈ 9.940–14.230 €, C
+  (alojamento ≈ 18–70 €/mês, `docs/10` §8): B ≈ 9.950–14.230 €, C
   ≈ 14.910–21.310 €; ≈ 100–140 e ≈ 150–210 comerciantes; no cenário A sai
-  ≈ 18–70 € + US$ 440–800 por mês.*
+  ≈ 18–70 € + US$ 444–804 por mês.* *Corrigido no mesmo dia com o GitHub Pro
+  (US$ 4/mês, ADR-0024): o mínimo do B era ≈ 9.940 € e o A era US$ 440–800; na
+  construção soma ≈ 70–135 € no B e ≈ 53–101 € no C, sem mexer nos totais ao
+  milhar (`docs/10` §3, §4 e §8).*
 - Referência medida no Hub interno (contado a 03/10/2026 no clone do `main`):
   1.ª migração 18/11/2025; 1.643 migrações; 229 pastas de funções (sem `_`);
   635.339 linhas TS/TSX em `src` e `supabase/functions`, das quais 67.268 no

@@ -94,7 +94,8 @@ comerciantes e da D-13):
 - **Ponto de equilíbrio** = custos fixos por mês (equipa, contabilistas e
   juristas por país, seguro) ÷ margem por comerciante.
 - **Os custos fixos estão estimados na D-13** (`10-estimativa-prazo-e-custo.md`
-  §8, 03/10/2026; recalculados a 04/10/2026 com a VPS): ≈ 9.940–14.230 €/mês
+  §8, 03/10/2026; recalculados a 04/10/2026 com a VPS e com o GitHub Pro, que levou o mínimo de
+  ≈ 9.940 a ≈ 9.950 €): ≈ 9.950–14.230 €/mês
   com 2 programadores e ≈ 14.910–21.310 €/mês com 3, sem contabilista,
   jurista, seguro nem suporte (com a Scaleway eram ≈ 10.150–14.870 € e
   ≈ 15.110–21.950 €). Exemplo de conta (hipótese, não é preço): a 100 € de
