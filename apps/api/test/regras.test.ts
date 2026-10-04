@@ -400,8 +400,11 @@ describe("decidir", () => {
         pais: "PT",
         dominios: ["consumidor"],
         momento: AGORA,
-      }).estado,
-    ).toBe("revisao_necessaria");
+      }),
+    ).toMatchObject({
+      estado: "revisao_necessaria",
+      motivos: [{ codigo: "sem_regra_em_vigor", dominio: "consumidor" }],
+    });
   });
 
   it("domínio verificado com regra em vigor sai permitido, com a regra e a versão", () => {
@@ -673,6 +676,13 @@ describe("instante", () => {
     expect(instante("2026-10-04T00:00:00-12:00")).toBe(
       Date.UTC(2026, 9, 4, 12),
     );
+    // Só -00:00 é recusado: +00:00 é UTC e -00:30 é um fuso válido.
+    expect(instante("2026-10-04T12:00:00+00:00")).toBe(
+      Date.UTC(2026, 9, 4, 12),
+    );
+    expect(instante("2026-10-04T11:30:00-00:30")).toBe(
+      Date.UTC(2026, 9, 4, 12),
+    );
     expect(instante("2024-02-29T00:00:00.500Z")).toBe(
       Date.UTC(2024, 1, 29, 0, 0, 0, 500),
     );
@@ -859,6 +869,30 @@ describe("validar o registo", () => {
       "a@1: fonte incompleta (url, título e artigo)",
       "b@1: «territorios» tem de ser uma lista",
       "c@1: «territorios» tem de ser uma lista",
+    ]);
+  });
+
+  it("elementos que não são objectos, territórios vazios e regras sem id não rebentam nem repetem erros (revisão do #45, segunda volta, P2-2 e P2-4)", () => {
+    const base = registoComPortugal(
+      [
+        regraTeste({ id: "", versao: 1 }),
+        regraTeste({ id: "", versao: 2, dominio: "iva" }),
+      ],
+      2,
+      ["PT-20", ""],
+    );
+    const registo = {
+      ...base,
+      paises: [...base.paises, null],
+      regras: [...base.regras, null],
+    } as unknown as Registo;
+    expect(errosDoRegisto(registo)).toEqual([
+      "país na posição 27 não é um objecto",
+      "regra na posição 2 não é um objecto",
+      "PT: cada território mapeado tem de ser um texto não vazio",
+      "@1: sem id",
+      "@2: sem id",
+      "@2: o domínio iva de PT não está verificado",
     ]);
   });
 

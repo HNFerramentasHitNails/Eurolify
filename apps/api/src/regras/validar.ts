@@ -46,8 +46,22 @@ export function errosDoRegisto(registo: Registo): string[] {
     erros.push("«paises» e «regras» têm de ser listas");
     return erros;
   }
+  // Um elemento que não é objecto (null, texto) fica listado pela posição e
+  // fora das verificações seguintes (revisão do #45, segunda volta, P2-2).
+  registo.paises.forEach((perfil, posicao) => {
+    if (!objecto(perfil)) {
+      erros.push(`país na posição ${String(posicao)} não é um objecto`);
+    }
+  });
+  registo.regras.forEach((regra, posicao) => {
+    if (!objecto(regra)) {
+      erros.push(`regra na posição ${String(posicao)} não é um objecto`);
+    }
+  });
+  const perfis = registo.paises.filter((perfil) => objecto(perfil));
+  const todasAsRegras = registo.regras.filter((regra) => objecto(regra));
 
-  const codigos = registo.paises.map((p) => p.codigo as string);
+  const codigos = perfis.map((p) => p.codigo as string);
   for (const codigo of CODIGOS_UE) {
     const vezes = codigos.filter((c) => c === codigo).length;
     if (vezes !== 1)
@@ -59,7 +73,7 @@ export function errosDoRegisto(registo: Registo): string[] {
     }
   }
 
-  for (const perfil of registo.paises) {
+  for (const perfil of perfis) {
     // Vindo de fora, «dominios» pode não ser um objecto (revisão do #45,
     // P2-2): lista-se e passa-se ao país seguinte.
     const dominiosDoPerfil: unknown = perfil.dominios;
@@ -71,6 +85,13 @@ export function errosDoRegisto(registo: Registo): string[] {
     if (territoriosDoPerfil !== null && !Array.isArray(territoriosDoPerfil)) {
       erros.push(
         `${perfil.codigo}: «territorios» tem de ser uma lista ou null`,
+      );
+    } else if (
+      Array.isArray(territoriosDoPerfil) &&
+      territoriosDoPerfil.some((territorio) => vazio(territorio))
+    ) {
+      erros.push(
+        `${perfil.codigo}: cada território mapeado tem de ser um texto não vazio`,
       );
     }
     const chaves = Object.keys(dominiosDoPerfil);
@@ -121,7 +142,7 @@ export function errosDoRegisto(registo: Registo): string[] {
   }
 
   const vistas = new Set<string>();
-  for (const regra of registo.regras) {
+  for (const regra of todasAsRegras) {
     const nome = `${regra.id}@${String(regra.versao)}`;
     if (vistas.has(nome)) erros.push(`${nome}: repetida`);
     vistas.add(nome);
@@ -168,7 +189,7 @@ export function errosDoRegisto(registo: Registo): string[] {
       erros.push(`${nome}: verificadaEm inválido «${regra.verificadaEm}»`);
     }
 
-    const perfil = registo.paises.find((p) => p.codigo === regra.pais);
+    const perfil = perfis.find((p) => p.codigo === regra.pais);
     if (perfil === undefined) {
       erros.push(`${nome}: país ${regra.pais} sem perfil`);
       continue;
@@ -210,7 +231,10 @@ export function errosDoRegisto(registo: Registo): string[] {
   // incluídas (tipos.ts; revisão do #45, P2-4).
   const dono = new Map<string, Registo["regras"][number]>();
   const misturas = new Set<string>();
-  for (const regra of registo.regras) {
+  for (const regra of todasAsRegras) {
+    // Sem `id` já há o erro «sem id»; não se repete como consequência
+    // (revisão do #45, segunda volta, P2-4).
+    if (vazio(regra.id)) continue;
     const primeira = dono.get(regra.id);
     if (primeira === undefined) {
       dono.set(regra.id, regra);
@@ -229,8 +253,8 @@ export function errosDoRegisto(registo: Registo): string[] {
   // nunca conta em decidir.ts, por isso fica de fora: registar a proposta ao
   // lado da versão em vigor é o uso previsto (revisão do #40, P2-3).
   const porId = new Map<string, Registo["regras"][number][]>();
-  for (const regra of registo.regras) {
-    if (regra.estadoLegal === "proposta") continue;
+  for (const regra of todasAsRegras) {
+    if (regra.estadoLegal === "proposta" || vazio(regra.id)) continue;
     porId.set(regra.id, [...(porId.get(regra.id) ?? []), regra]);
   }
   for (const [id, versoes] of porId) {

@@ -163,7 +163,7 @@ permitida).
 | Regra com um estado legal que o motor não conhece (`Proposta`, `revogado`, em falta) | não conta — só `em_vigor`, `adoptada_futura` e `revogada` podem contar |
 | Regra `revogada` depois de `aplicaAte` | não conta |
 | Território mapeado, só com a regra do continente | `revisao_necessaria`, motivo `sem_regra_em_vigor` (o território não herda) |
-| Domínio `nao_aplicavel` com justificação | não bloqueia |
+| Domínio `nao_aplicavel` (a justificação, a prova e o revisor são verificados no arranque, não em `decidir`) | não bloqueia |
 | Só domínios `nao_aplicavel` | `revisao_necessaria`, motivo `sem_regra_aplicada` |
 | Todos os domínios pedidos verificados, com regra em vigor | `permitido` |
 
@@ -177,7 +177,9 @@ países ou dois domínios, revisões, `dominios`, `territorios` (da regra e do
 perfil) ou `base` com a
 forma errada, `id`, `base`, `revistaPor` ou `revistoPor` vazios,
 `versao` que não é inteiro a partir de 1 — a aplicação **não arranca** e diz a
-lista toda. A validação é a porta de arranque, não a garantia: `decidir` só
+lista toda. A prova de cada revisão e de cada regra (`revistoPor`,
+`verificadoEm`, `justificacao`, `prova`, `base`, `revistaPor`) só se verifica
+aí. A validação é a porta de arranque, não a garantia: `decidir` só
 conta um domínio `verificado`, dos 11, e uma regra com estado legal conhecido,
 passe ou não o registo pelo validador.
 
