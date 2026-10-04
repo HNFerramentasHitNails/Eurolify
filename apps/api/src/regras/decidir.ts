@@ -1,3 +1,4 @@
+import { instante } from "./instante.js";
 import type {
   Decisao,
   Motivo,
@@ -5,16 +6,22 @@ import type {
   PerfilPais,
   Regra,
   Registo,
+  RevisaoDominio,
 } from "./tipos.js";
 
-/** Uma regra conta no momento pedido? Uma proposta nunca conta. */
+/**
+ * Uma regra conta no momento pedido? Uma proposta nunca conta; o intervalo é
+ * [aplicaDesde, aplicaAte). Uma data inválida dá «não conta» — o lado seguro;
+ * o registo é validado ao carregar (validar.ts), para isto não ficar em
+ * silêncio.
+ */
 function regraEmVigor(regra: Regra, momento: number): boolean {
   if (regra.estadoLegal === "proposta") return false;
-  const desde = Date.parse(regra.aplicaDesde);
-  if (Number.isNaN(desde) || momento < desde) return false;
+  const desde = instante(regra.aplicaDesde);
+  if (desde === null || momento < desde) return false;
   if (regra.aplicaAte !== null) {
-    const ate = Date.parse(regra.aplicaAte);
-    if (Number.isNaN(ate) || momento >= ate) return false;
+    const ate = instante(regra.aplicaAte);
+    if (ate === null || momento >= ate) return false;
   } else if (regra.estadoLegal === "revogada") {
     // Revogada sem data de fim: não se sabe desde quando — não conta.
     return false;
@@ -30,45 +37,64 @@ function regraDoTerritorio(
   return regra.territorios.includes(territorio);
 }
 
+function recusado(versaoRegisto: number, motivo: Motivo): Decisao {
+  return {
+    estado: "recusado",
+    regrasAplicadas: [],
+    versaoRegisto,
+    motivos: [motivo],
+  };
+}
+
 /**
  * Decide uma combinação (país, território, domínios, momento) contra um
  * registo. Função pura: a mesma entrada e o mesmo registo dão sempre a mesma
  * decisão, e a decisão guarda a versão do registo usada. Um bloqueio vale só
- * para a combinação pedida.
+ * para a combinação pedida. **Nunca sai «permitido» sem pelo menos uma regra
+ * aplicada** (revisão do #37, P0-1).
  */
 export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
-  const base = {
-    regrasAplicadas: [] as string[],
-    versaoRegisto: registo.versao,
-  };
+  const versao = registo.versao;
 
+  if (!/^[A-Z]{2}$/.test(pedido.pais)) {
+    return recusado(versao, {
+      codigo: "codigo_pais_invalido",
+      pais: pedido.pais,
+    });
+  }
   const perfil: PerfilPais | undefined = registo.paises.find(
     (p) => p.codigo === pedido.pais,
   );
   if (perfil === undefined) {
-    return {
-      ...base,
-      estado: "recusado",
-      motivos: [{ codigo: "pais_fora_da_ue", pais: pedido.pais }],
-    };
+    return recusado(versao, { codigo: "pais_fora_da_ue", pais: pedido.pais });
   }
 
-  const momento = Date.parse(pedido.momento);
-  if (Number.isNaN(momento)) {
-    return {
-      ...base,
-      estado: "recusado",
-      motivos: [{ codigo: "momento_invalido", momento: pedido.momento }],
-    };
+  const momento = instante(pedido.momento);
+  if (momento === null) {
+    return recusado(versao, {
+      codigo: "momento_invalido",
+      momento: pedido.momento,
+    });
+  }
+
+  // O tipo já exige um domínio, mas o pedido pode vir de fora sem tipos.
+  if ((pedido.dominios as readonly string[]).length === 0) {
+    return recusado(versao, { codigo: "sem_dominios" });
+  }
+  for (const dominio of pedido.dominios) {
+    const revisao = perfil.dominios[dominio] as RevisaoDominio | undefined;
+    if (revisao === undefined) {
+      return recusado(versao, { codigo: "dominio_desconhecido", dominio });
+    }
   }
 
   const motivos: Motivo[] = [];
   const regrasAplicadas: string[] = [];
 
-  if (
-    pedido.territorio !== undefined &&
-    !(perfil.territorios ?? []).includes(pedido.territorio)
-  ) {
+  const territorioMapeado =
+    pedido.territorio === undefined ||
+    (perfil.territorios ?? []).includes(pedido.territorio);
+  if (!territorioMapeado && pedido.territorio !== undefined) {
     motivos.push({
       codigo: "territorio_nao_mapeado",
       territorio: pedido.territorio,
@@ -93,14 +119,21 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
       motivos.push({ codigo: "sem_regra_em_vigor", dominio });
       continue;
     }
-    for (const regra of emVigor)
-      regrasAplicadas.push(`${regra.id}@${String(regra.versao)}`);
+    // Num território não mapeado nenhuma regra se dá como aplicada.
+    if (territorioMapeado) {
+      for (const regra of emVigor)
+        regrasAplicadas.push(`${regra.id}@${String(regra.versao)}`);
+    }
+  }
+
+  if (motivos.length === 0 && regrasAplicadas.length === 0) {
+    motivos.push({ codigo: "sem_regra_aplicada" });
   }
 
   return {
     estado: motivos.length === 0 ? "permitido" : "revisao_necessaria",
     regrasAplicadas,
-    versaoRegisto: registo.versao,
+    versaoRegisto: versao,
     motivos,
   };
 }

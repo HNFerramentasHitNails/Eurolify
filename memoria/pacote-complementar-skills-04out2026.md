@@ -61,3 +61,18 @@ inicial» do pacote (texto no ADR-0034).
   InvestEU.
 - Se as skills de canais e de entrada de comerciantes se instalam (e como).
 - A revisão do código do motor por uma sessão nova (ADR-0030).
+
+## Depois: o #37 entrou antes da revisão (04/10/2026)
+
+- **O que aconteceu:** às 14:28 UTC lançou-se a sessão de revisão (`claude-fable-5-1`, sem a conversa). Às 14:33:46 a conta `HNFerramentasHitNails` tirou o #37 de rascunho e às 14:34:21 juntou-o. A revisão só foi publicada às 14:36:49. O registo da sessão de revisão não tem nenhuma chamada para juntar o pedido nem para mudar o estado dele; quem o fez, ao certo, não verifiquei.
+- **O que a revisão achou:** 1 P0, 2 P1 e 9 P2.
+  - **P0:** `decidir` com `dominios: []` saía «permitido» contra o registo vazio. Reproduzido nesta sessão.
+  - **P1-1:** as datas sem fuso dependiam do fuso do servidor, e o `Date.parse` aceitava `"1"` e `"10/04/2026"`. Encontrado depois, nesta sessão: `2026-02-30` passava para 2 de Março.
+  - **P1-2:** um registo incoerente passava em silêncio.
+- **O que se corrigiu** (issue #39):
+  - `instante.ts`, a leitura única de datas;
+  - `validar.ts`, que impede a aplicação de arrancar com um registo incoerente;
+  - `decidir` nunca permite sem uma regra aplicada;
+  - os P2 1 a 7: domínio desconhecido, código de país inválido, registo congelado, esquema do `GET /paises` fechado, testes tautológicos substituídos, e a tabela §4.2 do `architecture.md` acertada.
+- **Números** (04/10/2026, `grep -c "it("` e `pnpm teste`): 33 testes do motor; a API com 35 a passar e 1 saltado. Repetido com o servidor nos fusos de Paris, Kiritimati e Los Angeles.
+- **O que ficou por fazer:** P2-8 (testar localmente em Node 24) e P2-9 (limite de pedidos na rota pública, quando houver autenticação).

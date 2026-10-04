@@ -90,7 +90,10 @@ export interface Regra {
   /** Vazio = vale para o país sem território especial. */
   territorios: readonly string[];
   estadoLegal: EstadoLegal;
-  /** Instantes ISO 8601. */
+  /**
+   * Instantes ISO 8601 com fuso (instante.ts). Intervalo meio-aberto: vale de
+   * `aplicaDesde` (incluído) até `aplicaAte` (excluído).
+   */
   aplicaDesde: string;
   aplicaAte: string | null;
   base: { url: string; titulo: string; artigo: string };
@@ -108,17 +111,22 @@ export interface PedidoDecisao {
   /** Vem de fora: pode não ser um dos 27. */
   pais: string;
   territorio?: string;
-  dominios: readonly Dominio[];
-  /** Instante ISO 8601 da operação. */
+  /** Pelo menos um: uma lista vazia não pode sair «permitido». */
+  dominios: readonly [Dominio, ...Dominio[]];
+  /** Instante ISO 8601 com fuso (instante.ts). */
   momento: string;
 }
 
 export type Motivo =
+  | { codigo: "codigo_pais_invalido"; pais: string }
   | { codigo: "pais_fora_da_ue"; pais: string }
+  | { codigo: "momento_invalido"; momento: string }
+  | { codigo: "sem_dominios" }
+  | { codigo: "dominio_desconhecido"; dominio: string }
   | { codigo: "territorio_nao_mapeado"; territorio: string }
   | { codigo: "dominio_por_verificar"; dominio: Dominio }
   | { codigo: "sem_regra_em_vigor"; dominio: Dominio }
-  | { codigo: "momento_invalido"; momento: string };
+  | { codigo: "sem_regra_aplicada" };
 
 export interface Decisao {
   estado: "permitido" | "revisao_necessaria" | "recusado";

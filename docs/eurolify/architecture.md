@@ -125,11 +125,11 @@ este motor antes de agir.
 | **Registo** | `versao` | sobe a cada alteração; cada decisão guarda a versão usada — uma versão nova **não reescreve** o que já foi decidido |
 | | `paises` | os 27, por código ISO 3166-1 (Grécia = `GR`; o prefixo fiscal `EL` é coisa do adaptador do VIES, `eu-vat-oss-ioss`) |
 | **Perfil do país** | `codigo`, `nome` | |
-| | `dominios` | por domínio obrigatório, o estado da revisão: `por_verificar`, `verificado`, `nao_aplicavel` (este exige justificação e prova) |
+| | `dominios` | por domínio (os 7 obrigatórios e os 4 condicionais), o estado da revisão: `por_verificar`, `verificado`, `nao_aplicavel` (este exige justificação e prova) |
 | | `territorios` | `null` = não mapeados: um território pedido **não herda** a regra do continente |
 | **Regra** | `id`, `versao`, `dominio`, `pais` | |
 | | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide** |
-| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 |
+| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
 
@@ -140,20 +140,37 @@ termos entre plataforma e empresas.
 
 ### 4.2 Decisão
 
-Entrada: país, território (opcional), domínios pedidos, momento.
+Entrada: país, território (opcional), domínios pedidos (pelo menos um),
+momento (ISO 8601 com fuso).
 Saída: `estado` (`permitido`, `revisao_necessaria`, `recusado`), regras
-aplicadas, versão do registo, motivos e prova em falta.
+aplicadas, versão do registo e motivos.
+
+**Nunca sai `permitido` sem pelo menos uma regra aplicada** (corrigido a
+04/10/2026, revisão do #37, P0-1: uma lista de domínios vazia saía
+permitida).
 
 | Caso | Resultado |
 |---|---|
-| País fora dos 27 | `recusado`, motivo `pais_fora_da_ue` |
+| Código de país que não são duas maiúsculas (`pt`, `PRT`) | `recusado`, motivo `codigo_pais_invalido` — não se normaliza |
+| País fora dos 27 (`CH`, `GB`, `EL`) | `recusado`, motivo `pais_fora_da_ue` |
+| Momento que não é ISO 8601 com fuso, ou data impossível (`2026-02-30`) | `recusado`, motivo `momento_invalido` |
+| Lista de domínios vazia | `recusado`, motivo `sem_dominios` |
+| Domínio que não existe | `recusado`, motivo `dominio_desconhecido` |
 | Território pedido e não mapeado | `revisao_necessaria`, motivo `territorio_nao_mapeado` |
 | Domínio `por_verificar` | `revisao_necessaria`, motivo `dominio_por_verificar` |
 | Domínio `verificado` sem regra em vigor nesse momento | `revisao_necessaria`, motivo `sem_regra_em_vigor` |
 | Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde` | não conta |
 | Regra `revogada` depois de `aplicaAte` | não conta |
+| Território mapeado, só com a regra do continente | `revisao_necessaria`, motivo `sem_regra_em_vigor` (o território não herda) |
 | Domínio `nao_aplicavel` com justificação | não bloqueia |
+| Só domínios `nao_aplicavel` | `revisao_necessaria`, motivo `sem_regra_aplicada` |
 | Todos os domínios pedidos verificados, com regra em vigor | `permitido` |
+
+**O registo é validado ao arrancar** (`validar.ts`): datas sem fuso ou
+impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
+regra repetida, duas versões da mesma regra a valer ao mesmo tempo, país sem
+perfil, território não mapeado, regra num domínio que não está `verificado` —
+a aplicação **não arranca** e diz a lista toda.
 
 Um bloqueio vale **só para a combinação pedida**: o IVA de França bloqueado
 não bloqueia o consumidor de Portugal.
