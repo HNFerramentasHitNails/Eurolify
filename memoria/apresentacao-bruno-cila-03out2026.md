@@ -577,7 +577,31 @@ ja foi feito, para propor este projeto ao bruno e cila?»*
   usou o sistema de design da conta (é de uma marca dos sistemas actuais).
 - ⚠️ **Não desenhei nem vi as páginas.** As alturas foram contadas à mão
   contra o limite de 792 px (com rodapé); as mais apertadas pela conta: 2
-  (≈ 764), 3 (≈ 756), 4 (≈ 763) e 21 (≈ 761). Sem PDF desta versão.
+  (≈ 764), 3 (≈ 756), 4 (≈ 763) e 21 (≈ 761). → medidas no PDF (abaixo).
+
+## PDF da versão 0.8 (04/10/2026)
+
+Pedido do Diogo: *«gera o PDF da v0.8»*.
+
+- Antes: os 26 ficheiros publicados (versão `1791127287-770f`) eram iguais
+  byte a byte às minhas cópias (`cmp`).
+- ❌ **Erro meu, apanhado ao ver a página 13:** os rodapés das páginas 12 a 15
+  diziam 11 a 14 (contei a página 11, de abertura, sem rodapé). Corrigidos e
+  publicados (versão `1791127554-c2db`); conferidos os 23 rodapés contra a
+  ordem do deck por programa.
+- Método: as 25 páginas da versão publicada juntas num HTML, desenhadas num
+  Chromium local (Playwright 1.56.1) a 1920×1080, com a Space Grotesk e a
+  Public Sans (latin e latin-ext) do Google Fonts metidas no ficheiro; as
+  setas e os 6 ícones da página 13 desenhados por mim em SVG (imitação dos do
+  tipo Slides); notas do orador fora.
+- `Eurolify-apresentacao-Bruno-Cila-v0.8.pdf`: **25 páginas, 1440×810 pt,
+  1.202.413 bytes** (`pdfinfo`); sha256 começa por `c5fc2d1e36c0201f`.
+  Entregue ao Diogo na conversa; não está no repositório.
+- Fundo do conteúdo: nenhuma passa de 920 px nem de 1792 à direita; as mais
+  altas: 2 (857), 19 (812), 8 (811), 20 (803). Letra de recurso só nas 18 e 19,
+  para o «≈». Vistas em imagem: 13, 21 e as 25 numa folha reduzida.
+- ⚠️ Os estilos de tabela e de lista são imitação minha; o PDF do botão de
+  exportar do deck pode sair diferente.
 
 ## O que ficou por verificar
 
