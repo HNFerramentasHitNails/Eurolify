@@ -265,3 +265,10 @@ Com o OK do Diogo (*«sim»*) aos dois comandos mostrados:
   aprovação do outro volta a pedi-la).
 - O primeiro `PUT` falhou com `Problems parsing JSON`: o PowerShell 5.1
   gravou o ficheiro com BOM; refeito sem BOM.
+
+## A chave do `age` também na VPS (decisão AK, ADR-0029) — 04/10/2026
+
+Ao desenhar o C3, o Claude viu que o ADR-0027 não fechava: chave privada fora
+da VPS e reposição semanal automática na VPS. Duas opções (a: reposição do
+dump local + decifrar à mão uma vez por mês, recomendada; b: chave privada
+também na VPS). Resposta do Diogo: *«b»*. Só para o ensaio.
