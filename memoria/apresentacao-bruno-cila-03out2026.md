@@ -351,6 +351,27 @@ ficheiro, e a folha dos logótipos tirada do deck (asset
   ADR-0028: a publicação no ensaio pelo GitHub por SSH, as cópias e os alertas
   do ensaio, a VPS operada pelo GitHub). Não verifiquei que páginas tocam.
 
+## Versão 20 (04/10/2026): o GitHub Pro nas subscrições
+
+Pedido do Diogo: *«sim, põe e faz a v20»* (pôr os US$ 4/mês do GitHub Pro,
+decisão AF, no `docs/10` §8 e na página 52).
+
+- **Duas páginas:** 50 (A ≈ 18–70 € de VPS + **US$ 444–804**, era US$ 440–800;
+  B ≈ **9.950**–14.230 €, era 9.940; o C não muda à dezena) e 52 (subscrições
+  ≈ US$ 444–804, «Claude e Codex, os dois, e o GitHub Pro»). Os valores antigos
+  e o cálculo ficaram nas notas. Fonte: `docs/10` §3, §4 e §8, corrigido no
+  mesmo dia (na construção o Pro soma 70–135 € no B e 53–101 € no C, sem mexer
+  nos totais ao milhar).
+- **Varrido:** procurei «440», «9.940», «subscri», «GitHub» e «US$» nas 66
+  páginas da v19 (grep nos ficheiros lidos do artefacto); só a 50 e a 52 tinham
+  números a mudar. Não se mexeu no índice nem na capa (continua «Versão 0.6»).
+- **Medido, não visto:** cada página sozinha num Chromium a 1920×1080, com as
+  fontes da apresentação e um CSS aproximado ao do tipo Slides — o conteúdo
+  acaba à mesma altura antes e depois (50: 683 px; 52: 781 px; o limite é 920).
+- Publicada por cima da 19 (`1791074590-acf5`); a 20 é a `1791076976-574b`,
+  confirmada lendo de volta as duas páginas.
+- O PDF da v19 (secção acima) ficou com os números antigos da 50 e da 52.
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
