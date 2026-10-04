@@ -185,6 +185,13 @@ da máquina, que puxa a imagem pelo resumo, migra, troca e volta atrás se o
 computador do Diogo (Windows), por SSH**, com uma chave do Diogo; o Bruno, no
 dele, com a dele. Os passos estão no §5.1.
 
+⚠️ **Desde 04/10/2026 a VPS opera-se pelo GitHub**
+([ADR-0028](adr/0028-a-vps-opera-se-pelo-github.md)): publicar, aplicar o
+script revisto e medir (só leitura) são fluxos do GitHub Actions, lançados de
+qualquer computador ou da cloud; as chaves ficam como segredos do ambiente
+`ensaio`, presos ao `main`. **O acesso por SSH do §5.1 passa a emergência**,
+com a chave do Diogo e a do Bruno (como se acrescenta: ADR-0028, ponto 5).
+
 Como se chegou aqui: numa sessão do Claude Code na cloud, uma ligação directa à
 porta 22 (SSH) do `github.com` não respondeu em 8 s (03/10/2026); o resto do
 teste foi bloqueado pelo sistema de permissões da sessão. Com a VPS comprada,

@@ -2,7 +2,10 @@
 
 - **Estado:** aceite · põe em prática o [ADR-0005](0005-publicacao-pelo-github.md)
   (ponto 1) e o [ADR-0014](0014-um-so-ensaio.md) na VPS do
-  [ADR-0015](0015-alojamento-numa-vps.md)
+  [ADR-0015](0015-alojamento-numa-vps.md) · completado pelo
+  [ADR-0028](0028-a-vps-opera-se-pelo-github.md): a VPS opera-se toda pelo
+  GitHub (publicar, aplicar o script, medir), chaves como segredos do ambiente
+  `ensaio`
 - **Data:** 04/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** `docs/11-preparacao-da-vps.md` §7, ponto 6

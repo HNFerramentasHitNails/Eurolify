@@ -126,3 +126,25 @@ Proposta em quatro peças; resposta do Diogo: *«sim»*. Só para o ensaio.
 - O registador do `eurolify.eu`.
 - Por criar pelo Diogo: a chave da Scaleway só de escrita no contentor; a
   conta no Healthchecks.io.
+
+## A4 acrescentada: a VPS opera-se pelo GitHub (decisão AJ, ADR-0028) — 04/10/2026
+
+Pedido do Diogo: *«quero trabalhar sem depender deste computador (tenho outro
+no trabalho; o Bruno usa um Mac)»*; decisão: *«b), operar pelo GitHub»*. Antes
+de gravar, pediu três verificações; resposta final: *«sim»*.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Fonte e como |
+|---|---|---|
+| Revisores obrigatórios num ambiente, repositório privado | **não** no Free, Pro e Team; só no Enterprise (21 $/utilizador/mês) | `docs.github.com`, *Deployments and environments*, 04/10/2026 |
+| Segredos e *deployment branches* de ambiente, repositório privado | sim no Pro e no Team | idem |
+| Quem cria segredos de ambiente num repositório de conta pessoal | só o dono (`HNFerramentasHitNails`) | `docs.github.com`, *Using secrets*, 04/10/2026 |
+| 2FA exigida aos colaboradores | uma organização pode; a página não diz que um repositório pessoal possa | `docs.github.com`, *About mandatory 2FA*, 04/10/2026 |
+
+### O que ficou por verificar
+
+- Que um fluxo num ramo que não o `main` não recebe os segredos do ambiente
+  `ensaio` (teste no C2).
+- A conta do Bruno e a 2FA dele.
+- O passo B2 (pnpm 12.9.1) ficou à espera do OK quando esta decisão entrou.

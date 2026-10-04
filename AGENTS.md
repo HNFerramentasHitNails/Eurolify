@@ -128,6 +128,12 @@ pelo Bruno** (ADR-0015) e **o Claude opera-a com acesso total** (ADR-0016:
 7. **Chaves:** uma por pessoa, nas definições do ambiente; nunca no chat nem
    no repositório. Uma chave exposta revoga-se primeiro e investiga-se depois.
 8. **Publica-se pelo GitHub** (ADR-0005, ponto 1), também numa urgência.
+9. **A VPS opera-se pelo GitHub** (ADR-0028): a publicação, o script de
+   preparação e as suas alterações entram por pedido de alteração revisto e é o
+   GitHub que os aplica — **essa revisão é a confirmação da regra 1**. Medir
+   faz-se pelo fluxo fixo só de leitura. As chaves da VPS são segredos do
+   ambiente `ensaio` (só o `main`), nunca do repositório. **As chaves pessoais
+   por SSH (ADR-0020) são só para emergência**, e cada uso fica numa memória.
 
 ## Quem decide
 
