@@ -240,7 +240,7 @@ describe("decidir", () => {
   });
 
   it("um estado legal que não existe nunca conta (revisão do #47, P1)", () => {
-    for (const estadoLegal of ["em_vigorr", undefined]) {
+    for (const estadoLegal of ["em_vigorr", undefined, null]) {
       // Um registo que não passou pelo validar, com uma gralha na regra.
       const registo = registoComPortugal([
         {
@@ -261,6 +261,32 @@ describe("decidir", () => {
         motivos: [{ codigo: "sem_regra_em_vigor", dominio: "consumidor" }],
       });
     }
+  });
+
+  it("territórios de uma regra em texto não contam (revisão do #47, 2.ª, P2-A)", () => {
+    // Um registo que não passou pelo validar: "PT-MA" contém "MA".
+    const registo = registoComPortugal(
+      [
+        {
+          ...regraTeste({ id: "x" }),
+          territorios: "PT-MA",
+        } as unknown as Regra,
+      ],
+      2,
+      ["MA"],
+    );
+    expect(
+      decidir(registo, {
+        pais: "PT",
+        territorio: "MA",
+        dominios: ["consumidor"],
+        momento: AGORA,
+      }),
+    ).toMatchObject({
+      estado: "revisao_necessaria",
+      regrasAplicadas: [],
+      motivos: [{ codigo: "sem_regra_em_vigor", dominio: "consumidor" }],
+    });
   });
 
   it("um estado de revisão que não existe bloqueia, mesmo com regra em vigor (revisão do #40, P1-1)", () => {
@@ -725,6 +751,36 @@ describe("validar o registo", () => {
       }),
     ]);
     expect(errosDoRegisto(registo)).toEqual([]);
+  });
+
+  it("uma proposta pode entrar num domínio ainda por verificar (decisão do Diogo, 04/10/2026)", () => {
+    const registo: Registo = {
+      ...REGISTO_INICIAL,
+      regras: [
+        regraTeste({
+          id: "iva-proposta",
+          dominio: "iva",
+          estadoLegal: "proposta",
+          aplicaDesde: "2027-01-01T00:00:00Z",
+        }),
+      ],
+    };
+    expect(errosDoRegisto(registo)).toEqual([]);
+    // E continua a não decidir nada.
+    expect(
+      decidir(registo, { pais: "PT", dominios: ["iva"], momento: AGORA })
+        .estado,
+    ).toBe("revisao_necessaria");
+  });
+
+  it("uma regra em vigor num domínio por verificar continua a ser erro", () => {
+    const registo: Registo = {
+      ...REGISTO_INICIAL,
+      regras: [regraTeste({ id: "iva-1", dominio: "iva" })],
+    };
+    expect(errosDoRegisto(registo)).toEqual([
+      "iva-1@1: o domínio iva de PT não está verificado",
+    ]);
   });
 
   it("em vigor sem fim e adoptada futura da mesma regra é erro", () => {

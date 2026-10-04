@@ -128,7 +128,7 @@ este motor antes de agir.
 | | `dominios` | por domínio (os 7 obrigatórios e os 4 condicionais), o estado da revisão: `por_verificar`, `verificado`, `nao_aplicavel` (este exige justificação e prova) |
 | | `territorios` | `null` = não mapeados: um território pedido **não herda** a regra do continente |
 | **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo: identifica uma regra de um país e de um domínio, nas suas versões; as decisões citam `id@versao` |
-| | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide** |
+| | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide**, e por isso pode entrar num domínio ainda `por_verificar`; os outros estados só num domínio `verificado` (decisão do Diogo, 04/10/2026) |
 | | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
@@ -170,7 +170,7 @@ permitida).
 impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
 regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
 `proposta` não conta), país sem perfil, território não mapeado, regra num
-domínio que não está `verificado` ou que não existe, estado de revisão ou
+domínio que não está `verificado` (excepto propostas) ou que não existe, estado de revisão ou
 estado legal desconhecido, prova vazia (`base`, `revistaPor`, `revistoPor`),
 `id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40) —
 a aplicação **não arranca** e diz a lista toda.

@@ -1,6 +1,7 @@
 import { instante } from "./instante.js";
 import type {
   Decisao,
+  EstadoLegal,
   Motivo,
   PedidoDecisao,
   PerfilPais,
@@ -10,11 +11,11 @@ import type {
 } from "./tipos.js";
 
 /** Os estados legais que podem contar; `proposta` e o que não existe, nunca. */
-const ESTADOS_QUE_CONTAM: readonly string[] = [
+const ESTADOS_QUE_CONTAM = [
   "em_vigor",
   "adoptada_futura",
   "revogada",
-];
+] as const satisfies readonly EstadoLegal[];
 
 /**
  * Uma regra conta no momento pedido? Lista de aceitação, não de exclusão
@@ -25,7 +26,8 @@ const ESTADOS_QUE_CONTAM: readonly string[] = [
  * isto não ficar em silêncio.
  */
 function regraEmVigor(regra: Regra, momento: number): boolean {
-  if (!ESTADOS_QUE_CONTAM.includes(regra.estadoLegal)) return false;
+  if (!(ESTADOS_QUE_CONTAM as readonly string[]).includes(regra.estadoLegal))
+    return false;
   const desde = instante(regra.aplicaDesde);
   if (desde === null || momento < desde) return false;
   if (regra.aplicaAte !== null) {
@@ -38,12 +40,19 @@ function regraEmVigor(regra: Regra, momento: number): boolean {
   return true;
 }
 
+/**
+ * A regra vale para o território pedido? Uma lista que não é lista não conta:
+ * um texto faria `includes` por pedaço de texto (`"PT-MA"` contém `"MA"`)
+ * (revisão do #47, 2.ª, P2-A).
+ */
 function regraDoTerritorio(
   regra: Regra,
   territorio: string | undefined,
 ): boolean {
-  if (territorio === undefined) return regra.territorios.length === 0;
-  return regra.territorios.includes(territorio);
+  const territorios: unknown = regra.territorios;
+  if (!Array.isArray(territorios)) return false;
+  if (territorio === undefined) return territorios.length === 0;
+  return (territorios as readonly unknown[]).includes(territorio);
 }
 
 function recusado(versaoRegisto: number, motivo: Motivo): Decisao {
@@ -79,8 +88,10 @@ function revisaoDoDominio(
  * Assume um registo validado (validar.ts, chamado por `criarApp`), com duas
  * excepções que se defendem aqui mesmo sem validação: o estado da revisão do
  * domínio e o estado legal da regra — só os valores conhecidos que permitem
- * contam. Uma forma errada noutro campo dá uma excepção, nunca «permitido»
- * (revisão do #47, P2 n.º 3).
+ * contam — e os territórios da regra, que só contam se forem uma lista. Fora
+ * destes três campos, o `decidir` não se defende sozinho: um registo que não
+ * passou pelo `validar` pode dar uma excepção ou uma decisão errada (revisão
+ * do #47, P2 n.º 3, e 2.ª revisão, P2-A).
  */
 export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   const versao = registo.versao;

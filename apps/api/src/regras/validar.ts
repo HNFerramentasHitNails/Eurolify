@@ -3,6 +3,7 @@ import {
   CODIGOS_UE,
   DOMINIOS_CONDICIONAIS,
   DOMINIOS_OBRIGATORIOS,
+  ESTADOS_LEGAIS,
   type Regra,
   type Registo,
   type RevisaoDominio,
@@ -17,13 +18,6 @@ const ESTADOS_DE_REVISAO: readonly string[] = [
   "por_verificar",
   "verificado",
   "nao_aplicavel",
-];
-
-const ESTADOS_LEGAIS: readonly string[] = [
-  "em_vigor",
-  "adoptada_futura",
-  "proposta",
-  "revogada",
 ];
 
 /**
@@ -158,7 +152,7 @@ export function errosDoRegisto(registo: Registo): string[] {
     if (!Number.isInteger(regra.versao) || regra.versao < 1) {
       erros.push(`${nome}: versão inválida`);
     }
-    if (!ESTADOS_LEGAIS.includes(regra.estadoLegal)) {
+    if (!(ESTADOS_LEGAIS as readonly string[]).includes(regra.estadoLegal)) {
       erros.push(`${nome}: estado legal desconhecido «${regra.estadoLegal}»`);
     }
     const base: unknown = regra.base;
@@ -204,6 +198,9 @@ export function errosDoRegisto(registo: Registo): string[] {
         : undefined;
     if (revisao === undefined) {
       erros.push(`${nome}: domínio desconhecido ${regra.dominio}`);
+    } else if (regra.estadoLegal === "proposta") {
+      // Uma proposta nunca decide, por isso pode entrar num domínio ainda por
+      // verificar (decisão do Diogo, 04/10/2026; revisão do #47, P2 n.º 2).
     } else if (
       !ehObjecto(revisao) ||
       (revisao as RevisaoDominio).estado !== "verificado"
