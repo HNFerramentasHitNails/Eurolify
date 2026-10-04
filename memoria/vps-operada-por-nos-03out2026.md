@@ -479,9 +479,18 @@ dele, e o Claude confirmou só a ler.
 
 ### O que ficou por verificar
 
-- **A jaula pode não ver todas as linhas**: filtra `_COMM=sshd`, e no Ubuntu
-  26.04 as sessões correm como `sshd-session`. As 77 falhas mostram que apanha
-  pelo menos parte; quantas lhe escapam: **não verifiquei**.
+- ~~A jaula pode não ver todas as linhas~~ → **vê** (corrigido a 04/10/2026,
+  00:15 UTC). O filtro `_SYSTEMD_UNIT=ssh.service + _COMM=sshd` é um **OU**
+  (o `+` do journal), por isso apanha também as linhas do `sshd-session`, que
+  são todas as de falha (o `_COMM=sshd` sozinho tem 0 linhas de falha em 24 h).
+  Números: o `fail2ban` arrancou às 00:10:28 UTC e leu os 10 min anteriores
+  (`findtime`); nessa janela o journal do `ssh` tem 156 linhas de falha (2 a 4
+  por tentativa), e o `fail2ban` contou 77 falhas; desde o arranque, 0 linhas
+  de falha novas, coerente com o endereço que atacava ter ficado bloqueado
+  (deduzido, não provado). Comandos: `systemctl show fail2ban -p
+  ActiveEnterTimestamp`; `journalctl _SYSTEMD_UNIT=ssh.service --since … | grep
+  -cE 'Failed password|Invalid user|authentication failure|Connection closed by
+  (invalid|authenticating) user'`; `fail2ban-client status sshd`.
 - **Retenção dos endereços** que o `fail2ban` guarda (base e registos), que são
   dados pessoais (ADR-0018): por decidir no script, com a do `ufw`.
 - O fecho das sessões 22 e 24 (o Diogo fecha as janelas).
