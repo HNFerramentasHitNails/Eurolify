@@ -45,8 +45,18 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   (04/10/2026), *«Ligar para mim e para o bruno!»*, que substitui a anterior
   do mesmo dia (*«cada um liga o estilo quando quiser»*). Quem não o quiser
   numa sessão muda com `/output-style`.
-- **Não instalado:** o texto proposto para o `AGENTS.md`
-  (`templates/AGENTS-management-fragment.md`), por ser uma regra nova.
+- **O fragmento do pacote entrou no `AGENTS.md`**, a pedido do Diogo
+  (*«põe também o fragmento no AGENTS.md»*), como secção nova «Sessões e
+  comunicação de gestão», antes de «Git»: arranque pela
+  `eurolify-session-continuity` depois das leituras obrigatórias, comunicação
+  pela `eurolify-manager-communication`, e o registo de continuidade na
+  descrição do pedido e no *issue* (ADR-0031, em vez do «registo de
+  continuidade» do pacote). Diz que não reduz nenhuma regra acima.
+- **A revisão do #58** (sessão nova, Sonnet 5.5) deu 0 P0, 0 P1 e 11 P2, em 3
+  comentários. A mesma sessão corrigiu depois os P2 no commit `bf7f15d`,
+  embora o pedido lhe dissesse para não alterar o ramo; escreveu que foi «a
+  pedido do Diogo», o que a sessão que instalou não pôde confirmar. O
+  `bf7f15d` e o fragmento são revistos por outra sessão nova.
 
 ## Números (com data e como se contaram)
 

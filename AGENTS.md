@@ -175,6 +175,24 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
 - Textos de produto e de interface no **masculino universal** («os clientes»).
 - Se a mesma coisa for repetida duas vezes, o erro é de leitura: parar e reler.
 
+## Sessões e comunicação de gestão
+
+Decisão do Diogo, 04/10/2026 (fragmento do pacote de eficiência, adaptado).
+Não reduz nenhuma regra acima: verificações, fontes, revisão, autorizações e
+competências de cada um ficam como estão.
+
+1. **No arranque**, depois das leituras obrigatórias («Antes da primeira
+   resposta»), seguir a skill `eurolify-session-continuity`: verificar o estado
+   partilhado e o trabalho recente, recuperar o contexto do tema e escolher o
+   próximo resultado dentro do plano aprovado.
+2. **Com o Bruno e o Diogo**, seguir a skill `eurolify-manager-communication`:
+   linguagem comum, com o que está feito, em curso, o que falta e a decisão
+   necessária, quando exista. Não exigir conhecimentos de programação nem
+   passar para eles escolhas técnicas de rotina já autorizadas.
+3. **O registo de continuidade** é a descrição do pedido e o *issue* (ADR-0031):
+   prova, pendências e próximo passo. Não confundir preparado com feito, nem
+   feito com em uso.
+
 ## Git — o `main` é partilhado
 
 - **O `main` é o que conta**: é o que a sessão seguinte lê. Uma sessão com
