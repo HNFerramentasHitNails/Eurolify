@@ -670,6 +670,13 @@ describe("validar o registo", () => {
       regraTeste({ id: "r\u200b", dominio: "iva" }),
       regraTeste({ id: "r\u200b", dominio: "iva" }),
       regraTeste({ id: "r\u200b", versao: 2, dominio: "iva" }),
+      // Aspas, barras, controlo, DEL e um par substituto saem escapados e sem
+      // ambiguidade (revisão do #50, P2-A).
+      regraTeste({ id: 'a"b', dominio: "iva" }),
+      regraTeste({ id: "a\\u0041", dominio: "iva" }),
+      regraTeste({ id: "a\nb", dominio: "iva" }),
+      regraTeste({ id: "a\u007f", dominio: "iva" }),
+      regraTeste({ id: "\u{1F600}", dominio: "iva" }),
       // Dentro do formato: pontos, sublinhados e hífenes, sem erro.
       regraTeste({ id: "pt.iva_2026-1", dominio: "iva" }),
     ]);
@@ -691,6 +698,11 @@ describe("validar o registo", () => {
       `"-x"@1: ${formato}`,
       `"r\\u200b"@1: ${formato}`,
       '"r\\u200b"@1: repetida',
+      `"a\\"b"@1: ${formato}`,
+      `"a\\\\u0041"@1: ${formato}`,
+      `"a\\nb"@1: ${formato}`,
+      `"a\\u007f"@1: ${formato}`,
+      `"\\ud83d\\ude00"@1: ${formato}`,
     ]);
   });
 
@@ -721,6 +733,9 @@ describe("validar o registo", () => {
     const base = registoComPortugal([
       regraTeste({ id: "" }),
       regraTeste({ id: "", versao: 2, dominio: "iva" }),
+      // Só espaços que não se vêem: a mensagem mostra-os (revisão do #50,
+      // P2-B).
+      regraTeste({ id: "\u00a0\u00a0", versao: 3, dominio: "iva" }),
     ]);
     const registo: Registo = {
       ...base,
@@ -730,7 +745,11 @@ describe("validar o registo", () => {
           : perfil,
       ),
     };
-    expect(errosDoRegisto(registo)).toEqual(["@1: sem id", "@2: sem id"]);
+    expect(errosDoRegisto(registo)).toEqual([
+      '""@1: sem id',
+      '""@2: sem id',
+      '"\\u00a0\\u00a0"@3: sem id',
+    ]);
   });
 
   it("lista todos os problemas de um registo incoerente", () => {
@@ -896,7 +915,7 @@ describe("validar o registo", () => {
         "a@1: base sem título",
         "a@1: base sem artigo",
         "a@1: sem revistaPor",
-        "@3: sem id",
+        '""@3: sem id',
         "b@0: versão inválida",
         "c@1.5: versão inválida",
       ]),
