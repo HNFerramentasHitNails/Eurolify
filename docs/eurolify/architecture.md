@@ -153,7 +153,7 @@ permitida).
 |---|---|
 | Código de país que não são duas maiúsculas (`pt`, `PRT`) | `recusado`, motivo `codigo_pais_invalido` — não se normaliza |
 | País fora dos 27 (`CH`, `GB`, `EL`) | `recusado`, motivo `pais_fora_da_ue` |
-| Momento que não é ISO 8601 com fuso, ou data impossível (`2026-02-30`) | `recusado`, motivo `momento_invalido` |
+| Momento que não é ISO 8601 com fuso, ou data impossível (`2026-02-30`), ou com `-00:00` (a mesma leitura das datas das regras e das verificações) | `recusado`, motivo `momento_invalido` |
 | Lista de domínios vazia, ou que não é uma lista | `recusado`, motivo `sem_dominios` |
 | Domínio que não existe (também `constructor`, `__proto__`) | `recusado`, motivo `dominio_desconhecido` |
 | Território pedido e não mapeado | `revisao_necessaria`, motivo `territorio_nao_mapeado` |
@@ -173,7 +173,9 @@ regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
 domínio que não está `verificado` ou que não existe, estado de revisão ou
 estado legal desconhecido, prova vazia (`base`, `revistaPor`, `revistoPor`),
 `id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40), a mesma
-`id` em dois países ou dois domínios, propostas incluídas (revisão do #45) —
+`id` em dois países ou dois domínios, propostas incluídas (revisão do #45),
+`id` com espaços nas pontas ou escrita de maneiras diferentes (`R` e `r`;
+revisão do #50) —
 a aplicação **não arranca** e diz a lista toda.
 
 Um bloqueio vale **só para a combinação pedida**: o IVA de França bloqueado

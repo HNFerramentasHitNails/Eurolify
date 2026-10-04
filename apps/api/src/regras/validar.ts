@@ -155,6 +155,10 @@ export function errosDoRegisto(registo: Registo): string[] {
     // A prova de uma regra não pode estar vazia (AGENTS.md, regras da UE,
     // ponto 3: uma regra só entra com fonte; revisão do #40, P2-5).
     if (vazio(regra.id)) erros.push(`${nome}: sem id`);
+    else if (regra.id !== regra.id.trim()) {
+      // «r » e «r» parecem a mesma id e não são (revisão do #50, P2-1).
+      erros.push(`${nome}: id com espaços nas pontas`);
+    }
     if (!Number.isInteger(regra.versao) || regra.versao < 1) {
       erros.push(`${nome}: versão inválida`);
     }
@@ -226,13 +230,22 @@ export function errosDoRegisto(registo: Registo): string[] {
   // Duas versões da mesma regra não podem valer ao mesmo tempo. Uma
   // `proposta` nunca conta (decidir.ts), por isso pode viver ao lado da versão
   // em vigor (revisão do #40, P2-3).
-  // Uma regra sem `id` já tem o seu erro; não entra nos testes por `id`.
+  // Uma regra sem `id` já tem o seu erro; não entra nos testes por `id`. As
+  // `id` comparam-se sem espaços nas pontas e sem distinguir maiúsculas: «R»,
+  // «r» e «r » são a mesma regra para quem lê (revisão do #50, P2-1).
   const porId = new Map<string, Regra[]>();
   for (const regra of regras) {
     if (vazio(regra.id)) continue;
-    porId.set(regra.id, [...(porId.get(regra.id) ?? []), regra]);
+    const chave = regra.id.trim().toLowerCase();
+    porId.set(chave, [...(porId.get(chave) ?? []), regra]);
   }
   for (const [id, todas] of porId) {
+    const grafias = new Set(todas.map((r) => r.id));
+    if (grafias.size > 1) {
+      erros.push(
+        `${id}: a mesma id escrita de maneiras diferentes (${[...grafias].map((g) => `«${g}»`).join(", ")})`,
+      );
+    }
     // A `id` é uma regra de um país e de um domínio (§4.1), propostas
     // incluídas (revisão do #45, P2-4).
     const lugares = new Set(todas.map((r) => `${r.pais}/${r.dominio}`));

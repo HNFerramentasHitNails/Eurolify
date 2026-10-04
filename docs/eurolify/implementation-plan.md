@@ -18,7 +18,7 @@
 | # | Fatia | Depende de | Desenho | Porta para entrar no `main` | Porta para produção | Responsável | Estado |
 |---|---|---|---|---|---|---|---|
 | 0 | Esqueleto, publicação, VPS | — | ADR-0025 a 0028 | testes verdes | — | Diogo | **feito** (antes deste plano) |
-| 1 | **Motor de regras por país**: registo dos 27, decisão pura, `GET /paises` | — | `architecture.md` §4 | testes verdes + revisão de uma sessão nova (ADR-0030) | cada regra nacional com fonte lida e revisor | Diogo (#37; correcções da revisão: issue #39) | **feito** — 50 testes; nada sai «permitido»; entrou no `main` antes da revisão — P0 e P1 corrigidos depois (issue #39); o P1 da revisão do #40 na issue #46 |
+| 1 | **Motor de regras por país**: registo dos 27, decisão pura, `GET /paises` | — | `architecture.md` §4 | testes verdes + revisão de uma sessão nova (ADR-0030) | cada regra nacional com fonte lida e revisor | Diogo (#37; correcções da revisão: issue #39) | **feito** — 52 testes; nada sai «permitido»; entrou no `main` antes da revisão — P0 e P1 corrigidos depois (issue #39); o P1 da revisão do #40 na issue #46 |
 | 2 | Comerciante e entidade legal: registo, estados (rascunho → prova pendente → revisão → aprovado limitado → activo; suspenso, fechado), isolamento por comerciante na base (RLS) | 1 | **em desenho**: [`docs/15`](../15-dominio-comerciante.md) (issue #41) | idem + teste que tenta ler o vizinho | acordo de tratamento de dados e contrato de serviço (jurista) | — | por fazer |
 | 3 | Catálogo: artigo, variante, tradução, publicação por canal × mercado | 2 | `docs/14` | idem | P1, P2, P4–P7 respondidas | — | **bloqueado**: perguntas do `docs/14` §9 |
 | 4 | Preços e mercados: listas, mercados, histórico de 30 dias, listas B2B por relação | 1, 3 | **por fazer** (`architecture.md` §3 para o B2B) | idem | regra do preço de referência (**C**, jurista) | — | por fazer |
@@ -68,7 +68,7 @@
   P2, corrigidos no #47 (issue #46) — 48 testes no motor a 04/10/2026
   (`grep -c "  it("`). O #45 corrigiu a mesma revisão noutro ramo; o que ele
   tinha e o #47 não (a mesma `id` em dois sítios, `-00:00`) veio num pedido
-  à parte — 50 testes.
+  à parte — 52 testes.
 
 ## Próxima fatia proposta
 

@@ -167,6 +167,9 @@ describe("decidir", () => {
       "2026-02-30T00:00:00Z",
       "2026-13-01T00:00:00Z",
       "2026-10-04T24:00:00Z",
+      // O momento lê-se com o mesmo instante.ts das regras (revisão do #50,
+      // P2-2).
+      "2026-10-04T12:00:00-00:00",
     ]) {
       const decisao = decidir(REGISTO_INICIAL, {
         pais: "PT",
@@ -627,6 +630,38 @@ describe("validar o registo", () => {
       regraTeste({ id: "t", aplicaAte: "2026-01-01T00:00:00Z" }),
       regraTeste({ id: "t", versao: 2, aplicaDesde: "2026-01-01T00:00:00Z" }),
     ]);
+    // O consumidor de ES verificado aqui, para o teste não depender do
+    // registo de partida (revisão do #50, P2-3).
+    const registo: Registo = {
+      ...base,
+      paises: base.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? { ...perfil, dominios: { ...perfil.dominios, iva: VERIFICADO } }
+          : perfil.codigo === "ES"
+            ? {
+                ...perfil,
+                dominios: { ...perfil.dominios, consumidor: VERIFICADO },
+              }
+            : perfil,
+      ),
+    };
+    expect(errosDoRegisto(registo)).toEqual([
+      "r: a mesma id em PT/consumidor e PT/iva",
+      "s: a mesma id em PT/consumidor e ES/consumidor",
+    ]);
+  });
+
+  it("uma id com espaços nas pontas ou noutras maiúsculas é a mesma id (revisão do #50, P2-1)", () => {
+    const base = registoComPortugal([
+      regraTeste({ id: "r", aplicaAte: "2026-01-01T00:00:00Z" }),
+      regraTeste({
+        id: "r ",
+        versao: 2,
+        dominio: "iva",
+        aplicaDesde: "2026-01-01T00:00:00Z",
+      }),
+      regraTeste({ id: "R", versao: 3, aplicaDesde: "2026-01-01T00:00:00Z" }),
+    ]);
     const registo: Registo = {
       ...base,
       paises: base.paises.map((perfil) =>
@@ -636,9 +671,33 @@ describe("validar o registo", () => {
       ),
     };
     expect(errosDoRegisto(registo)).toEqual([
-      "s@2: o domínio consumidor de ES não está verificado",
+      "r @2: id com espaços nas pontas",
+      "r: a mesma id escrita de maneiras diferentes («r», «r », «R»)",
       "r: a mesma id em PT/consumidor e PT/iva",
-      "s: a mesma id em PT/consumidor e ES/consumidor",
+      "r: as versões 2 e 3 valem ao mesmo tempo",
+    ]);
+  });
+
+  it("uma data de verificação com -00:00 é inválida (revisão do #50, P2-2)", () => {
+    const registo = {
+      ...REGISTO_INICIAL,
+      paises: REGISTO_INICIAL.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? {
+              ...perfil,
+              dominios: {
+                ...perfil.dominios,
+                consumidor: {
+                  ...VERIFICADO,
+                  verificadoEm: "2026-10-04T00:00:00-00:00",
+                },
+              },
+            }
+          : perfil,
+      ),
+    };
+    expect(errosDoRegisto(registo)).toEqual([
+      "PT/consumidor: data de verificação inválida «2026-10-04T00:00:00-00:00»",
     ]);
   });
 
