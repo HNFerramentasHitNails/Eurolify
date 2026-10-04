@@ -110,7 +110,7 @@ Dir. (UE) 2023/2673, novo art. 11.º-A da Dir. 2011/83/UE (**W**):
 | Devolução | liga-se a um **RMA** (`order-fulfilment`): o que volta, em que estado |
 | Reembolso | prazo legal a contar da comunicação (14 dias, podendo reter até receber o bem — **C**); mesmo meio de pagamento por omissão |
 | Documento | **nota de crédito** com o tratamento fiscal do original (`eu-vat-oss-ioss`) |
-| Conteúdos digitais sem suporte material (descargas, cursos em linha) | perde-se a livre resolução depois de começar o fornecimento **só** se, num contrato pago, o consumidor deu **consentimento prévio expresso** para começar dentro do prazo, **reconheceu** que assim perde o direito e o comerciante enviou a **confirmação** (art. 16.º, alínea m), da Dir. 2011/83/UE, na redacção da Omnibus — **W · texto lido**) ⇒ o checkout pede e guarda as duas declarações, com a versão do texto, e a confirmação vai no suporte duradouro. Sem as três, o direito mantém-se |
+| Conteúdos digitais sem suporte material (descargas, cursos gravados; um curso **ao vivo com professor** é serviço, não conteúdo digital — `digital-products-eu`, **C**) | perde-se a livre resolução depois de começar o fornecimento **só** se, num contrato pago, o consumidor deu **consentimento prévio expresso** para começar dentro do prazo, **reconheceu** que assim perde o direito e o comerciante enviou a **confirmação** (art. 16.º, alínea m), da Dir. 2011/83/UE, na redacção da Omnibus — **W · texto lido**) ⇒ o checkout pede e guarda as duas declarações, com a versão do texto, e a confirmação vai no suporte duradouro. Sem as três, o direito mantém-se |
 
 Regra do ecossistema: **devolução = volta mercadoria**; **problema = não
 volta** (`devolucoes-nao-tem-fluxo-15set2026.md`).

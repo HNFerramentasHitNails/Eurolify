@@ -13,15 +13,15 @@
 | Entregável | Estado a 03/10/2026 |
 |---|---|
 | Proposta, arquitectura, mapa regulamentar, lições dos sistemas actuais | escrito (este repositório) |
-| As 14 skills de trabalho para as sessões de Claude Code e de Codex | escrito (`.agents/skills/`, com ligações em `.claude/skills/`; ADR-0010) |
+| As skills de trabalho para as sessões de Claude Code e de Codex (14; mais 2 a 04/10/2026: produtos digitais e cartões-oferta) | escrito (`.agents/skills/`, com ligações em `.claude/skills/`; ADR-0010) |
 | Decisões D-1, D-2, D-3 | **todas decididas** a 03/10/2026: D-1 vender desde o início (ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido, Scaleway (ADR-0003, ADR-0004) — **revista**: VPS operada por nós, com o Claude (ADR-0015, ADR-0016) |
 | Escolher o alojamento (D-3) | **revisto** a 03/10/2026: VPS operada por nós (ADR-0015); fornecedor e plano por escolher (`11-preparacao-da-vps.md` §7) — antes, Scaleway (ADR-0004) |
 | Conta da Scaleway e acesso só de leitura do Claude | ⚠️ **deixa de se usar** (ADR-0032, 04/10/2026: a OVH é o fornecedor único) · antes: **preparado** (ADR-0011): projecto `eurolify-ensaio`, chave do Diogo só de leitura, `scw` nas sessões. Falta a chave do Bruno e confirmar o portador da chave — **sem efeito** com a VPS (ADR-0015) |
 | Preparação da VPS (ADR-0015, ADR-0016) | **por fazer** — guia em `11-preparacao-da-vps.md`; o script entra no `main` com as duas revisões (ADR-0013) |
 | Contratos de adaptadores e pontos de extensão (requisito K) | por fazer — desenho em `08-extensoes-de-terceiros.md` |
 | Prova de 2 semanas com a Medusa (D-2) | **cancelada** — a D-2 foi decidida a 03/10/2026: núcleo próprio, de raiz (ADR-0002) |
-| Modelo de domínio (entidades, estados, quem é dono de quê) em tabelas | por fazer |
-| Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | por fazer |
+| Modelo de domínio (entidades, estados, quem é dono de quê) em tabelas | **Catálogo em desenho** ([`14-dominio-catalogo.md`](14-dominio-catalogo.md), #36, 04/10/2026); os outros domínios por fazer |
+| Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | **Catálogo em desenho** (`14-dominio-catalogo.md` §7); os outros domínios por fazer |
 | Regras do motor de IVA validadas pelo contabilista | por fazer |
 | Fluxos do consumidor (checkout, confirmação, livre resolução, garantia) validados por jurista | por fazer |
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
