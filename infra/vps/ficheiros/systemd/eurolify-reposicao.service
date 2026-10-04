@@ -1,0 +1,8 @@
+[Unit]
+Description=Eurolify: ensaio de reposição semanal (ADR-0027, ADR-0029)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/eurolify-reposicao
+TimeoutStartSec=3600

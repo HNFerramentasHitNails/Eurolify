@@ -1,6 +1,6 @@
 # ADR-0029 · A chave privada das cópias do ensaio fica também na VPS, para a reposição semanal
 
-- **Estado:** aceite · muda o ponto 1 do
+- **Estado:** aceite · as cópias passam da Scaleway para o OVH Object Storage: [ADR-0032](0032-ovh-fornecedor-unico.md) · muda o ponto 1 do
   [ADR-0027](0027-copias-alertas-registos-e-endereco-do-ensaio.md) (a chave
   privada do `age` ficava só fora da VPS) · **só para o ensaio**
 - **Data:** 04/10/2026
@@ -33,11 +33,11 @@ na VPS, só para o root. Resposta, a 04/10/2026: *«b»*.
 A chave privada do `age` das cópias do ensaio fica **também na VPS**, num
 ficheiro legível só pelo root (`/etc/eurolify/`), posto lá na preparação, nunca
 pelo repositório nem pelo chat. A reposição semanal descarrega a cópia mais
-recente da Scaleway, decifra-a e repõe-a numa base temporária.
+recente da ~~Scaleway~~ OVH (ADR-0032), decifra-a e repõe-a numa base temporária.
 
 ## Consequências
 
-- A cifra das cópias passa a proteger **contra uma fuga do lado da Scaleway**,
+- A cifra das cópias passa a proteger **contra uma fuga do lado do fornecedor das cópias** (~~a Scaleway~~ a OVH, ADR-0032),
   não contra quem tenha root na VPS.
 - O ensaio não tem dados pessoais reais (ADR-0018): o que a cifra protege no
   ensaio é pouco. **Para a produção, esta decisão não vale**: decide-se de novo

@@ -124,7 +124,8 @@ Proposta em quatro peças; resposta do Diogo: *«sim»*. Só para o ensaio.
 
 - O país dos servidores do Healthchecks.io e se o plano gratuito manda e-mail.
 - O registador do `eurolify.eu`.
-- Por criar pelo Diogo: a chave da Scaleway só de escrita no contentor; a
+- Por criar pelo Diogo: a chave da Scaleway ~~só de escrita~~ de leitura e
+  escrita só no contentor (corrigido pela revisão do #10); a
   conta no Healthchecks.io.
 
 ## A4 acrescentada: a VPS opera-se pelo GitHub (decisão AJ, ADR-0028) — 04/10/2026
@@ -272,3 +273,117 @@ Ao desenhar o C3, o Claude viu que o ADR-0027 não fechava: chave privada fora
 da VPS e reposição semanal automática na VPS. Duas opções (a: reposição do
 dump local + decifrar à mão uma vez por mês, recomendada; b: chave privada
 também na VPS). Resposta do Diogo: *«b»*. Só para o ensaio.
+
+## Fase C: o pedido #10 com o C1, o C2 e o C3 — à espera do Bruno e do Codex (04/10/2026)
+
+### O que se fez
+
+- Ramo `c1-esqueleto`, pedido **#10**: esqueleto da API (C1), os quatro fluxos
+  `verificar`, `publicar`, `aplicar-script`, `medir` e o `Dockerfile` (C2), e o
+  `infra/vps` com o `preparar.sh` e os programas da máquina (C3).
+- Erros apanhados antes do pedido: `BASE_URL` é reservado do Vite (o Vitest
+  preenche-o com `"/"`; passou a `BASE_DADOS_URL`); no `preparar.sh`, um
+  `sshd -t` falhado apagava o ficheiro em vez de repor o anterior, e acrescentar
+  uma chave colava-a à última linha; nas tarefas, o `trap ERR` não avisava
+  quando a falha vinha de um `exit`.
+- No GitHub, a primeira corrida falhou no `shellcheck` (2 avisos «info»:
+  SC1091 por o caminho dos `source` se ler da raiz; SC2016 de propósito,
+  anotado). Corrigido no commit `cc61aa9`.
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Onde |
+|---|---|---|
+| `verificar` no #10 | `codigo` (com PostgreSQL 18) 42 s, `imagem` 42 s, `script-vps` 11 s — todos a passar | GitHub Actions, corrida 37168591880, 04/10/2026 |
+| `preparar.sh --mostrar` | 53 alterações por fazer, 10 avisos, nada mudado — igual no WSL do Diogo e no Ubuntu 26.04 do GitHub | idem; WSL com teste antes/depois das pastas |
+| Tamanho do pedido | 48 ficheiros, ≈ 3.700 linhas (antes da correcção) | `git diff --stat origin/main...HEAD` |
+
+### O que ficou por verificar
+
+- A aprovação do Bruno (convite aceite? 2FA?) e a revisão do Codex
+  (`@codex review`; a revisão automática não está ligada).
+- O `preparar.sh` a sério, publicar, aplicar e medir: só na Fase D.
+- Acrescentar à regra do `main` a verificação obrigatória do fluxo
+  `verificar` depois de o #10 entrar.
+
+## Só o Claude Code por agora; o #10 entra sem o Bruno (decisão AL, ADR-0030) — 04/10/2026
+
+- O Diogo: *«vamos utilizar agora so o claude code, e o codex talvez mais
+  tarde»* e *«O bruno ja tem convite e deve de aceitar amanha ou segundo. por
+  isso, avançamos sem ele com a minha permissão»*. Ao plano do Claude
+  (revisão por uma sessão nova com outro modelo; o Bruno revê depois, até
+  07/10/2026; a regra do `main` desligada só para juntar o #10): *«sim»*.
+- O Claude avisou antes: sem o Bruno e sem o Codex o #10 entraria sem nenhuma
+  revisão independente, com um script que corre como root na VPS.
+
+## Cada um junta o que fez (decisão AM, ADR-0031) — 04/10/2026
+
+- Pedido do Diogo: histórico do que o outro fez ao chegar, nunca repetir nem
+  recriar, trabalho em paralelo (X e Y) sem se atrapalharem; *«cada um pode
+  auto aprovar o que fez»*. O Claude propôs a via intermédia (VPS, fluxos e
+  fiscal com o outro) e avisou uma vez do risco; resposta: *«cada um aprova
+  tudo o que fez»*.
+- Achado: o #10 aparecia `CLEAN` com a revisão dos donos ligada, antes de o
+  `bruno-88` aceitar o convite — a trava do ADR-0024 não funcionava como se
+  pensava (causa provável: dono que não é colaborador é ignorado).
+- A revisão do agente ao #10 (sessão nova, Sonnet) deu 0 P0, 3 P1, 12 P2;
+  corrigidos os 3 P1 e 9 P2 no commit `2acc97f`, com os testes verdes; os P2
+  que ficam estão no `infra/vps/LEIA-ME.md`.
+
+## O #10 no `main` e a regra a exigir os testes (04/10/2026)
+
+Com o OK do Diogo (*«sim»*) aos quatro passos mostrados:
+
+| Passo | Resultado | Comando |
+|---|---|---|
+| Ambiente `ensaio`, só o `main` | criado: `custom_branch_policies: true`, política `main` (branch) — antes de os fluxos o referirem, para não nascer sem restrição | `gh api -X PUT …/environments/ensaio`; `POST …/deployment-branch-policies` |
+| Regra sem a revisão dos donos (ADR-0031) | `require_code_owner_review: false`, 0 aprovações | `PUT …/rulesets/24437624` |
+| #10 juntado | `3f5bd6a` (squash) | `gh pr merge 10 --squash --delete-branch` |
+| Regra a exigir os testes | `required_status_checks`: `codigo`, `script-vps`, `imagem` | `PUT …/rulesets/24437624` |
+
+- Juntar o #10 disparou o `publicar` e o `aplicar-script` no `main`: esperado
+  que falhem no passo SSH (sem chaves nem `VPS_ENDERECO` até à Fase D), sem
+  tocar na VPS. O `publicar` envia a primeira imagem para o GHCR.
+- Este pedido (só memória) é a prova de que um pedido de documentos corre os
+  testes e só depois se junta.
+
+## Fase D começada: chaves e segredos no GitHub (04/10/2026, 11:39 UTC)
+
+Com o OK do Diogo a cada passo:
+
+| Passo | Resultado | Como |
+|---|---|---|
+| D1: 4 chaves de máquina (sem frase-passe) | `publicar` `SHA256:ic0n9LRb…`, `aplicar` `SHA256:zDIpR8AV…`, `medir` `SHA256:dM3jm5Nq…`, `deploy_key` `SHA256:HHLuipRT…` (ED25519), em `C:\Users\diogo\.eurolify-chaves`, só legível pelo `diogo` (sem herança) | `ssh-keygen` do Git Bash; `icacls /inheritance:r` |
+| D2: segredos do ambiente `ensaio` | `VPS_CHAVE_PUBLICAR`, `_APLICAR`, `_MEDIR`, `VPS_ENDERECO` (comparado sem o mostrar: igual ao da VPS); variável `VPS_KNOWN_HOSTS` (3 chaves do anfitrião: ed25519, rsa, ecdsa) | `gh secret set --env ensaio < ficheiro`; `gh variable set` |
+| D3: *deploy key* | id 165336573, **read-only** | `gh repo deploy-key add` |
+
+As chaves privadas apagam-se deste computador no D8 (ficam só no GitHub e na
+VPS).
+
+## A OVH, fornecedor único (decisão AN, ADR-0032) — 04/10/2026
+
+- O Diogo: *«entretanto deixamos de usar o scaleway e passamos a usar so o
+  ovh, ja que a vps é de lá»* e *«usamos sempre o ovh para centralizar tudo em
+  um unico fornecedor»*.
+- OVH Object Storage, lido a 04/10/2026: compatível com S3; regiões na UE
+  (Gravelines, Estrasburgo, Roubaix, Frankfurt, Varsóvia, Paris, Milão) e
+  Londres; catálogo PT: `storage-standard.monthly.postpaid` 0,007 €/mês
+  (unidade por GB presumida), entrada 0 €.
+- O Claude avisou uma vez: VPS e cópias na mesma conta — um problema na conta
+  leva as duas; aceite para o ensaio, a produção decide de novo.
+- Mudados: `ensaio.conf` (`S3_DESTINO=ovh:…`), `LEIA-ME`, comentários do
+  `eurolify-copia` e do `eurolify-reposicao`, `docs/11` §6 e §7 (4 e 9),
+  `docs/05`, `docs/06` (AN e nota em AI), estados dos ADR-0011, 0027, 0029.
+  O primeiro varrimento só via ficheiros com extensão e falhou os programas
+  sem extensão; refeito em todo o `infra/` e `.github/`.
+
+## Fase D: o par `age` e as chaves públicas dos fluxos (04/10/2026)
+
+- `age` 1.3.2 instalado pelo winget (última no GitHub `FiloSottile/age`,
+  29/08/2026). Par gerado em `C:\Users\diogo\.eurolify-chaves` (só o
+  `diogo`): pública `age1l66ychslr5t8t29gx05t5nfpnu9nlx0chfk8erzqtn3n86zh85qqu839m4`;
+  teste de cifrar e decifrar a passar. A privada vai para a VPS (ADR-0029) e o
+  Diogo guarda uma cópia num sítio seguro dele **antes do D8** — sem ela, as
+  cópias são ilegíveis se a VPS se perder.
+- D4: as partes públicas `publicar.pub`, `aplicar.pub`, `medir.pub` em
+  `infra/vps/chaves/fluxos/` (impressões digitais iguais às do D1).

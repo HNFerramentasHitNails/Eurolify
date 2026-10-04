@@ -1,6 +1,6 @@
 # ADR-0013 · O código que um escreve, o outro revê — e o agente que não escreveu revê o diff
 
-- **Estado:** aceite
+- **Estado:** aceite · ponto 1 (o outro aprova) substituído pelo [ADR-0031](0031-cada-um-aprova-o-que-fez.md): cada um junta o que fez · ponto 2 (o Codex revê) mudado, enquanto o Codex não volta, e o caso «a outra pessoa não pode rever» decidido pelo [ADR-0030](0030-revisao-sem-codex-e-sem-a-outra-pessoa.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** a proposta «Quem revê» do

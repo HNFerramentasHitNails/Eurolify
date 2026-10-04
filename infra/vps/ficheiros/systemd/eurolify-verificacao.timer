@@ -1,0 +1,9 @@
+[Unit]
+Description=Eurolify: verificação diária às 07:00 UTC (ADR-0027)
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

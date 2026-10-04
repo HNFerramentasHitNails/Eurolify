@@ -1,6 +1,6 @@
 # ADR-0027 · O ensaio: cópias na Scaleway, alertas pelo Healthchecks.io, IP guardados 14 dias, acesso por túnel SSH
 
-- **Estado:** aceite · ponto 1 mudado pelo
+- **Estado:** aceite · as cópias passam para o OVH Object Storage e a chave da Scaleway deixa de existir: [ADR-0032](0032-ovh-fornecedor-unico.md) · ponto 1 mudado pelo
   [ADR-0029](0029-chave-do-age-tambem-na-vps.md) (a chave privada do `age`
   também na VPS) · **só para o ensaio** (a VPS-1 do
   [ADR-0021](0021-vps-1-ate-a-migracao.md)); para a produção, os pontos 4 e 7
@@ -47,7 +47,7 @@ Resposta, a 04/10/2026: *«sim»*.
 
 1. **Cópias do ensaio:** `pg_dump` diário às 03:00 UTC, cifrado com `age` (só
    a chave pública na VPS; a privada fora, com o Diogo), enviado para um
-   contentor **privado** no **Scaleway Object Storage, Paris, One Zone**, com
+   contentor **privado** no ~~**Scaleway Object Storage, Paris, One Zone**~~ **OVH Object Storage, Gravelines, Standard** (ADR-0032), com
    expiração aos **14 dias**. **Ensaio de reposição semanal** automático numa
    base temporária da própria VPS, que confere tabelas e linhas. Pode perder-se
    até 24 h de dados do ensaio.
@@ -68,11 +68,14 @@ Resposta, a 04/10/2026: *«sim»*.
 
 ## Consequências
 
-- **O Diogo cria:** na Scaleway, uma chave que só escreve nesse contentor; no
+- **O Diogo cria:** na ~~Scaleway~~ OVH (ADR-0032), uma chave ~~que só escreve~~ **de leitura e
+  escrita só nesse contentor** (corrigido a 04/10/2026, revisão do #10: a
+  reposição semanal lista e lê as cópias; com uma chave só de escrita falhava
+  todas as semanas); no
   Healthchecks.io, a conta com o e-mail dele. Os segredos vão para a VPS pelo
   script, nunca pelo chat (`AGENTS.md`).
 - O script de preparação (C3) faz tudo isto e reproduz o que se fez à mão.
-- O Healthchecks.io e a Scaleway passam a fornecedores do ensaio; não recebem
+- O Healthchecks.io e a ~~Scaleway~~ OVH (ADR-0032) passam a fornecedores do ensaio; não recebem
   dados pessoais (os avisos não levam conteúdo; as cópias vão cifradas e o
   ensaio não tem dados reais).
 - **O que pode partir:**

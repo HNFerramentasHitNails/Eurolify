@@ -1,0 +1,10 @@
+[Unit]
+Description=Eurolify: cópia diária às 03:00 UTC (ADR-0027)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

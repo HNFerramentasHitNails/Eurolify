@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Serviço da máquina que trata um pedido dos fluxos (ADR-0026, ADR-0028).
+# Corre como root, lançado pelo eurolify-pedido@<fluxo>.path quando aparece
+# /var/lib/eurolify/pedidos/<fluxo>/pedido. A pasta é do utilizador do fluxo:
+# nada do que lá está é de confiança — valida-se tudo outra vez.
+#
+# O pedido tem duas linhas: o comando e o identificador; a resposta vai para
+# resultado.<identificador>.
+set -Eeuo pipefail
+umask 077
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+
+fluxo="${1:-}"
+case "$fluxo" in
+  publicar) padrao='^sha256:[0-9a-f]{64}$' ;;
+  aplicar) padrao='^[0-9a-f]{40} (mostrar|aplicar)$' ;;
+  medir) padrao='^$' ;;
+  *) falhar "fluxo desconhecido: '$fluxo'" ;;
+esac
+
+pasta="/var/lib/eurolify/pedidos/$fluxo"
+utilizador="eurolify-$fluxo"
+trabalho=/var/lib/eurolify/trabalho
+install -d -m 700 "$trabalho"
+
+[[ -e "$pasta/pedido" || -L "$pasta/pedido" ]] || exit 0
+
+# Tira o pedido da pasta do utilizador para uma de root, sem seguir ligações.
+# Se não se conseguir (ex.: uma pasta com esse nome), apaga-se: senão o .path
+# voltava a disparar até ao limite e o fluxo ficava parado.
+recebido="$(mktemp "$trabalho/pedido.XXXXXX")"
+trap 'rm -f "$recebido"' EXIT
+if ! mv -fT "$pasta/pedido" "$recebido" 2>/dev/null; then
+  rm -rf -- "${pasta:?}/pedido"
+  registar "fluxo $fluxo: pedido que não se pôde retirar foi apagado"
+  exit 1
+fi
+if [[ -L "$recebido" || ! -f "$recebido" ]]; then
+  registar "fluxo $fluxo: pedido recusado (não é um ficheiro normal)"
+  exit 1
+fi
+pedido="$(head -c 300 -- "$recebido" | sed -n 1p)"
+id="$(head -c 300 -- "$recebido" | sed -n 2p)"
+
+# Sem um identificador válido não há a quem responder.
+if [[ ! "$id" =~ ^[0-9]{10,40}$ ]]; then
+  registar "fluxo $fluxo: pedido recusado (identificador inválido)"
+  exit 1
+fi
+
+saida="$(mktemp "$trabalho/saida.XXXXXX")"
+trap 'rm -f "$recebido" "$saida"' EXIT
+codigo=0
+if [[ ${#pedido} -gt 200 || ! "$pedido" =~ $padrao ]]; then
+  # O conteúdo recusado não vai para o registo nem volta ao cliente.
+  echo "Pedido recusado pelo serviço da máquina." >"$saida"
+  codigo=65
+  registar "fluxo $fluxo: pedido $id recusado (formato inválido)"
+else
+  case "$fluxo" in
+    publicar)
+      EUROLIFY_ORIGEM="fluxo publicar" /usr/local/sbin/eurolify-publicar "$pedido" >"$saida" 2>&1 || codigo=$?
+      ;;
+    aplicar)
+      read -r commit modo <<<"$pedido"
+      EUROLIFY_ORIGEM="fluxo aplicar-script, commit $commit" \
+        /usr/local/sbin/eurolify-aplicar "$commit" "$modo" >"$saida" 2>&1 || codigo=$?
+      ;;
+    medir)
+      /usr/local/sbin/eurolify-medir >"$saida" 2>&1 || codigo=$?
+      ;;
+  esac
+  EUROLIFY_ORIGEM="fluxo $fluxo" registar "pedido $id '${pedido:-(vazio)}' tratado, código $codigo"
+fi
+
+# A resposta escreve-se numa pasta de root e entra com um rename: se o
+# utilizador deixar uma ligação com esse nome, é substituída, não seguida.
+resposta="$(mktemp "$trabalho/resposta.XXXXXX")"
+{
+  echo "$codigo"
+  filtrar_ip <"$saida"
+} >"$resposta"
+chown "$utilizador:" "$resposta"
+chmod 600 "$resposta"
+mv -fT "$resposta" "$pasta/resultado.$id"

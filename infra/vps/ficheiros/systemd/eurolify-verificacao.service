@@ -1,0 +1,7 @@
+[Unit]
+Description=Eurolify: verificação diária da VPS (ADR-0027)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/eurolify-verificacao
+TimeoutStartSec=600

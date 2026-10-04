@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Publica no ensaio a imagem com o resumo dado (ADR-0026). Corre como root,
+# chamado pelo eurolify-trabalho. Puxa pelo resumo, corre as migrações, troca
+# o contentor, verifica o /health e volta à imagem anterior se falhar.
+set -Eeuo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+
+resumo="${1:-}"
+[[ "$resumo" =~ ^sha256:[0-9a-f]{64}$ ]] || falhar "resumo de imagem inválido"
+carregar_config
+
+imagem="${IMAGEM_REPO}@${resumo}"
+token=/etc/eurolify/ghcr.token
+[[ -s "$token" ]] || falhar "falta $token (token clássico com read:packages, ADR-0026)"
+
+arrancar() {
+  docker rm -f eurolify-api >/dev/null 2>&1 || true
+  docker run -d --name eurolify-api \
+    --restart unless-stopped \
+    --network eurolify \
+    -p 127.0.0.1:8080:8080 \
+    --env-file /etc/eurolify/api.env \
+    --memory 512m \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+    "$1" >/dev/null
+}
+
+saude() {
+  local i
+  for ((i = 0; i < 30; i++)); do
+    if curl -fsS -m 2 http://127.0.0.1:8080/health >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+echo "A puxar $imagem"
+docker login ghcr.io -u "$GHCR_UTILIZADOR" --password-stdin <"$token" >/dev/null
+trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+docker pull --quiet "$imagem" >/dev/null
+
+anterior="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+if [[ "$anterior" == "$imagem" ]]; then
+  echo "Esta imagem já é a que está no ar. Nada a fazer."
+  exit 0
+fi
+
+# As migrações correm antes de trocar; se falharem, fica a versão anterior.
+# Se o /health falhar depois, volta-se à imagem anterior com o esquema já
+# migrado: por isso as migrações têm de ser compatíveis com a versão anterior
+# (acrescentar primeiro, tirar só numa publicação seguinte).
+if docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
+  echo "A correr as migrações"
+  docker run --rm --network eurolify --env-file /etc/eurolify/api.env "$imagem" node dist/migrar.js ||
+    falhar "a migração falhou: fica a versão anterior (${anterior:-nenhuma})"
+else
+  echo "Sem migrações nesta imagem."
+fi
+
+arrancar "$imagem"
+if saude; then
+  printf '%s | %s | anterior: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" >>/var/log/eurolify/publicacoes.log
+  registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
+  echo "Publicado: $resumo. O /health responde."
+  exit 0
+fi
+
+echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
+docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
+if [[ -n "$anterior" ]]; then
+  echo "A voltar à imagem anterior: $anterior"
+  arrancar "$anterior"
+  if saude; then echo "A anterior voltou e responde."; else echo "ATENÇÃO: a anterior também não responde."; fi
+else
+  docker rm -f eurolify-api >/dev/null 2>&1 || true
+fi
+registar "publicação de $resumo falhou; reposta: ${anterior:-nenhuma}"
+exit 1

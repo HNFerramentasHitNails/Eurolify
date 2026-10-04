@@ -1,0 +1,8 @@
+[Unit]
+Description=Eurolify: cópia diária da base do ensaio (ADR-0027)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/eurolify-copia
+TimeoutStartSec=1800

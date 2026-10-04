@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Aplica o script de preparação de um commit do main (ADR-0028). Corre como
+# root, chamado pelo eurolify-trabalho. A VPS vai buscar o repositório com a
+# sua chave só de leitura (deploy key) e recusa um commit que não esteja no main:
+# a chave do fluxo só escolhe o commit, nunca envia o script.
+set -Eeuo pipefail
+umask 077
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+
+commit="${1:-}"
+modo="${2:-}"
+[[ "$commit" =~ ^[0-9a-f]{40}$ ]] || falhar "commit inválido"
+[[ "$modo" == mostrar || "$modo" == aplicar ]] || falhar "modo inválido"
+carregar_config
+
+chave=/etc/eurolify/deploy_key
+[[ -s "$chave" ]] || falhar "falta $chave (chave só de leitura do repositório, Fase D)"
+export GIT_SSH_COMMAND="ssh -i $chave -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/eurolify/github_known_hosts"
+
+repo=/var/lib/eurolify/repo.git
+if [[ ! -d "$repo" ]]; then
+  git clone --quiet --bare "$REPOSITORIO_GIT" "$repo"
+fi
+git --git-dir="$repo" fetch --quiet origin +refs/heads/main:refs/heads/main
+
+git --git-dir="$repo" cat-file -e "${commit}^{commit}" 2>/dev/null || falhar "o commit $commit não existe no repositório"
+git --git-dir="$repo" merge-base --is-ancestor "$commit" refs/heads/main ||
+  falhar "o commit $commit não está no main: recusado"
+
+# Nunca para trás: o commit tem de descender do último aplicado, senão uma
+# chave «aplicar» podia reinstalar versões antigas (revisão do #10, P2).
+ultimo_ficheiro=/var/lib/eurolify/ultimo-commit-aplicado
+if [[ -s "$ultimo_ficheiro" ]]; then
+  ultimo="$(head -c 40 "$ultimo_ficheiro")"
+  if [[ "$ultimo" =~ ^[0-9a-f]{40}$ ]] &&
+    ! git --git-dir="$repo" merge-base --is-ancestor "$ultimo" "$commit"; then
+    falhar "o commit $commit é anterior ao último aplicado ($ultimo): recusado"
+  fi
+fi
+
+pasta="$(mktemp -d /var/lib/eurolify/trabalho/aplicar.XXXXXX)"
+trap 'rm -rf "$pasta"' EXIT
+git --git-dir="$repo" archive "$commit" infra/vps | tar -x -C "$pasta"
+
+argumentos=()
+[[ "$modo" == mostrar ]] && argumentos=(--mostrar)
+echo "Commit $commit, modo $modo"
+EUROLIFY_COMMIT="$commit" bash "$pasta/infra/vps/preparar.sh" "${argumentos[@]}"
+if [[ "$modo" == aplicar ]]; then
+  printf '%s\n' "$commit" >"$ultimo_ficheiro"
+fi

@@ -1,0 +1,23 @@
+{
+  "name": "eurolify",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.9.1",
+  "engines": {
+    "node": ">=24.21.0 <25"
+  },
+  "scripts": {
+    "lint": "eslint . && prettier --check .",
+    "formatar": "prettier --write .",
+    "tipos": "pnpm -r run tipos",
+    "teste": "pnpm -r run teste",
+    "construir": "pnpm -r run construir"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0"
+  }
+}
