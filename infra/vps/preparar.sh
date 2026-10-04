@@ -281,7 +281,7 @@ if [[ -f /etc/eurolify/api.env ]]; then
     aviso "/etc/eurolify/api.env devia ser 600 e de root"
   fi
 else
-  fazer "criar /etc/eurolify/api.env (vazio; a ligação da API à base entra com o primeiro domínio)" \
+  fazer "criar /etc/eurolify/api.env (vazio; a ligação da API à base entra quando a API usar a base)" \
     install -o root -g root -m 600 /dev/null /etc/eurolify/api.env
 fi
 # A ligação do migrador (dono das tabelas) vive num ficheiro à parte: só o
@@ -294,7 +294,7 @@ if [[ -f /etc/eurolify/migrar.env ]]; then
     aviso "/etc/eurolify/migrar.env devia ser 600 e de root"
   fi
 else
-  fazer "criar /etc/eurolify/migrar.env (vazio; BASE_DADOS_URL_MIGRACAO entra com o primeiro domínio)" \
+  fazer "criar /etc/eurolify/migrar.env (vazio; a ligação escreve-a o passo 10b)" \
     install -o root -g root -m 600 /dev/null /etc/eurolify/migrar.env
 fi
 imagem_pg="$(docker inspect -f '{{.Config.Image}}' eurolify-postgres 2>/dev/null || true)"
@@ -320,6 +320,143 @@ fi
 if tem docker && docker inspect eurolify-postgres >/dev/null 2>&1; then
   portas="$(docker port eurolify-postgres || true)"
   [[ -z "$portas" ]] || aviso "o eurolify-postgres tem portas publicadas: $portas"
+fi
+
+# ---------------------------------------------------------------------------
+passo "10b. Utilizadores da base: o migrador (dono) e a API (sem acesso ainda) (docs/15 §5, #70)"
+# O eurolify_migrador é dono da base e das tabelas e só o contentor das
+# migrações recebe a ligação dele (migrar.env). O eurolify_api nasce aqui como a
+# migração 0001 o criaria (o migrador não tem CREATEROLE), NOLOGIN e sem
+# palavra-passe: só entra quando a API usar a base (fatia «identidade»;
+# fechado por omissão). As palavras-passe gera-as este script e nunca passam
+# pelo repositório, pelo chat nem pela linha de comandos (vão por stdin).
+pg_valor() {
+  docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -qAtc "$1"
+}
+# Por omissão, o psql repete no stderr um pedaço da instrução que falhou, e
+# esse stderr vai para o registo do fluxo aplicar-script no GitHub. Mascarar
+# não chega (o psql corta o pedaço e o corte deixa parte da palavra-passe à
+# vista: revisão do f1ede40, P1-1): com VERBOSITY=terse a mensagem sai sem a
+# instrução, só com o erro e a posição.
+pg_stdin() {
+  docker exec -i eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -v VERBOSITY=terse -qAt
+}
+# A ligação do migrar.env entra mesmo? Testa-se como a publicação a usa: de
+# outro contentor, pela rede eurolify, com palavra-passe (dentro do contentor
+# da base, 127.0.0.1 entra sem ela). A palavra-passe vai pelo ambiente do
+# cliente docker, nunca pela linha de comandos (revisão do #71, P2-2).
+# Escreve «entra», «recusada» (sem ligação no ficheiro, ou palavra-passe que
+# a base recusa: renova-se) ou «erro: …» (o docker ou a rede falharam: avisa-se
+# e não se renova; revisão do f1ede40, P2-1). A mensagem do erro não leva a
+# palavra-passe: o psql e o docker não a escrevem.
+estado_da_ligacao_do_migrador() {
+  local senha saida
+  senha="$(sed -n 's#^BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:\([^@]*\)@.*#\1#p' /etc/eurolify/migrar.env 2>/dev/null || true)"
+  if [[ -z "$senha" ]]; then
+    echo recusada
+    return 0
+  fi
+  if saida="$(PGPASSWORD="$senha" docker run --rm --pull never --network eurolify -e PGPASSWORD "$IMAGEM_POSTGRES" \
+    psql -h eurolify-postgres -U eurolify_migrador -d "$BASE_NOME" -qAtc 'SELECT 1' 2>&1 >/dev/null)"; then
+    echo entra
+  elif grep -q 'password authentication failed' <<<"$saida"; then
+    echo recusada
+  else
+    echo "erro: $(head -n 1 <<<"$saida")"
+  fi
+}
+pg_pronta() {
+  local _
+  for _ in $(seq 1 30); do
+    docker exec eurolify-postgres pg_isready -q -U postgres -d "$BASE_NOME" 2>/dev/null && return 0
+    sleep 2
+  done
+  return 1
+}
+criar_eurolify_api() {
+  pg_valor "CREATE ROLE eurolify_api NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT"
+}
+# Palavra-passe nova no PostgreSQL primeiro, depois o ficheiro: se o ficheiro
+# falhar, a corrida seguinte vê-o sem a ligação e repete.
+# Global, não local: se o script morrer a meio, o trap de saída já corre fora
+# da função e tem de o ver, para o ficheiro temporário com a palavra-passe não
+# ficar para trás (revisão do #71, P2-4).
+TEMPORARIO_MIGRAR=""
+criar_migrador() {
+  local senha existe
+  trap 'rm -f "${TEMPORARIO_MIGRAR:-}"' EXIT
+  senha="$(openssl rand -hex 32)"
+  existe="$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")"
+  {
+    # Uma instrução que falhe não vai para o registo do PostgreSQL com a senha.
+    echo "SET log_min_error_statement = 'panic';"
+    echo "SET log_statement = 'none';"
+    if [[ "$existe" == 1 ]]; then
+      printf "ALTER ROLE eurolify_migrador LOGIN PASSWORD '%s';\n" "$senha"
+    else
+      printf "CREATE ROLE eurolify_migrador LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '%s';\n" "$senha"
+    fi
+  } | pg_stdin
+  TEMPORARIO_MIGRAR="$(mktemp /etc/eurolify/.migrar.env.XXXXXX)"
+  printf 'BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:%s@eurolify-postgres:5432/%s\n' "$senha" "$BASE_NOME" >"$TEMPORARIO_MIGRAR"
+  chown root:root "$TEMPORARIO_MIGRAR"
+  chmod 600 "$TEMPORARIO_MIGRAR"
+  mv -f "$TEMPORARIO_MIGRAR" /etc/eurolify/migrar.env
+  TEMPORARIO_MIGRAR=""
+  trap - EXIT
+}
+if ! docker inspect eurolify-postgres >/dev/null 2>&1; then
+  if ((MOSTRAR)); then
+    echo "   FARIA: criar o eurolify_api (NOLOGIN) e o eurolify_migrador, dono da base $BASE_NOME, e escrever /etc/eurolify/migrar.env"
+    mudancas=$((mudancas + 1))
+  else
+    aviso "sem o contentor eurolify-postgres: os utilizadores da base ficam para a próxima corrida"
+  fi
+elif ! pg_pronta; then
+  aviso "o eurolify-postgres não responde: os utilizadores da base ficam para a próxima corrida"
+else
+  if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_api'")" == 0 ]]; then
+    fazer "criar o papel eurolify_api (NOLOGIN, sem palavra-passe, sem BYPASSRLS)" criar_eurolify_api
+  else
+    ok "papel eurolify_api"
+  fi
+  # Em --mostrar só se lê o ficheiro: experimentar a ligação arranca um
+  # contentor (revisão do f1ede40, P2-2).
+  if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")" != 1 ]]; then
+    ligacao="recusada"
+  elif ((MOSTRAR)); then
+    if grep -q '^BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:' /etc/eurolify/migrar.env 2>/dev/null; then
+      ligacao="no ficheiro"
+    else
+      ligacao="recusada"
+    fi
+  else
+    ligacao="$(estado_da_ligacao_do_migrador)"
+  fi
+  case "$ligacao" in
+    entra) ok "eurolify_migrador e a ligação dele em /etc/eurolify/migrar.env (entra)" ;;
+    "no ficheiro") ok "eurolify_migrador e a ligação dele em /etc/eurolify/migrar.env (em --mostrar não se experimenta)" ;;
+    recusada) fazer "criar o eurolify_migrador (ou renovar a palavra-passe) e escrever /etc/eurolify/migrar.env" criar_migrador ;;
+    *) aviso "não consegui experimentar a ligação do migrador; não a renovo ($ligacao)" ;;
+  esac
+  # Só o dono da base retira o TEMPORARY ao PUBLIC; a migração 0001 pára se
+  # não conseguir (docs/15 §5). O esquema public é do dono da base (pg_database_owner).
+  if ((MOSTRAR)) && [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")" == 0 ]]; then
+    echo "   FARIA: passar a base $BASE_NOME para o eurolify_migrador"
+    mudancas=$((mudancas + 1))
+  elif [[ "$(pg_valor "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '$BASE_NOME'")" != eurolify_migrador ]]; then
+    fazer "passar a base $BASE_NOME para o eurolify_migrador" \
+      pg_valor "ALTER DATABASE $BASE_NOME OWNER TO eurolify_migrador"
+  else
+    ok "a base $BASE_NOME é do eurolify_migrador"
+  fi
+  # Nenhum dos dois pode ignorar o RLS (docs/15 §5), e o eurolify_api não
+  # entra enquanto a API não usar a base: se alguém lhes deu mais, avisa
+  # (revisão do #71, P2-3).
+  perigosos="$(pg_valor "SELECT string_agg(rolname, ', ') FROM pg_roles WHERE rolname IN ('eurolify_api', 'eurolify_migrador') AND (rolsuper OR rolbypassrls OR rolcreaterole)")"
+  [[ -z "$perigosos" ]] || aviso "superutilizador, BYPASSRLS ou CREATEROLE em: $perigosos"
+  [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_api' AND rolcanlogin")" == 0 ]] ||
+    aviso "o eurolify_api pode entrar (LOGIN), mas a API ainda não usa a base (docs/15 §5)"
 fi
 
 # ---------------------------------------------------------------------------
