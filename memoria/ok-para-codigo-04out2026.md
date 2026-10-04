@@ -243,7 +243,7 @@ Com o OK do Diogo (*«sim»*) aos dois comandos mostrados:
 |---|---|---|
 | Convite ao `bruno-88` | enviado, permissão `write`, 01:16:27 UTC; por aceitar | `gh api -X PUT …/collaborators/bruno-88 -f permission=push` |
 | Regra do `main` | *ruleset* `24437624` «main protegido (ADR-0024)», `active`, **sem excepções** (`bypass_actors: []`) | `gh api -X POST …/rulesets --input regra.json` |
-| O que se aplica ao `main` | `deletion`, `non_fast_forward`, `pull_request` (0 aprovações, revisão dos donos obrigatória, aprovação depois do último `push`, aprovações antigas caem com um `push`, só `squash`; o GitHub acrescentou `require_extra_approval_for_unattributed_changes: true`) | `gh api …/rules/branches/main` |
+| O que se aplica ao `main` | `deletion`, `non_fast_forward`, `pull_request` (0 aprovações, revisão dos donos obrigatória, ~~aprovação depois do último `push`~~ — desligada às 01:2x UTC, ver abaixo —, aprovações antigas caem com um `push`, só `squash`; o GitHub acrescentou `require_extra_approval_for_unattributed_changes: true`) | `gh api …/rules/branches/main` |
 
 ### O que ficou por verificar
 
@@ -252,3 +252,16 @@ Com o OK do Diogo (*«sim»*) aos dois comandos mostrados:
   entra.
 - A verificação obrigatória `codigo` (o fluxo `verificar`) só se acrescenta à
   regra depois de o fluxo estar no `main`.
+
+### Correcção da regra: a «aprovação do último push» desligada (04/10/2026)
+
+- O pedido #3 (só memória, sem ficheiros com dono) ficou `BLOCKED` com a
+  regra acabada de ligar. Causa: `require_last_push_approval: true` pede
+  sempre uma aprovação de outra pessoa, mesmo com 0 aprovações obrigatórias —
+  contra o ADR-0024, ponto 4 (documentos juntados pelo autor).
+- Com o OK do Diogo, a opção foi desligada (`PUT …/rulesets/24437624`); o #3
+  passou de `BLOCKED` a `CLEAN` e foi juntado. Ficaram: revisão dos donos
+  obrigatória e `dismiss_stale_reviews_on_push` (um `push` depois da
+  aprovação do outro volta a pedi-la).
+- O primeiro `PUT` falhou com `Problems parsing JSON`: o PowerShell 5.1
+  gravou o ficheiro com BOM; refeito sem BOM.
