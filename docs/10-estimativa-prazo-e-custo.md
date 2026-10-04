@@ -21,13 +21,14 @@
 
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
-| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **15 a 29 meses** os dois a tempo inteiro, **28 a 52** a meio tempo (§9, com hipótese C) — **sem** as três peças da decisão AD (04/10/2026), por estimar | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
+| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 32 meses** os dois a tempo inteiro, **31 a 58** a meio tempo (§9, com hipótese C; recalculado a 04/10/2026 com as três peças da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
 | **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **16 a 30 meses** | **≈ 173.000–465.000 €** | ≈ 10.150–14.870 € |
 | **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **12 a 23 meses** | **≈ 193.000–519.000 €** | ≈ 15.110–21.950 € |
 
-**Todos os prazos e custos desta página são sem as três peças que a decisão AD
-(04/10/2026, ADR-0022) passou da Fase 2 para a Fase 1** — estão no §2 como «por
-estimar».
+**Desde 04/10/2026, os prazos do cenário A (aqui e no §9) contam as três peças
+que a decisão AD (ADR-0022) passou da Fase 2 para a Fase 1** (peças 18 a 20 do
+§2). Os cenários B e C (não seguidos) e os custos do §4 **não foram
+recalculados**: são sem elas.
 
 **Não estão nos números** (e não os invento): contabilista, jurista e seguro
 (orçamentos a pedir), recrutamento, o tempo do Diogo e do Bruno, quem atende os
@@ -64,11 +65,19 @@ Claude Code (**C**, todas as linhas):
 | 15 | Desenho de ecrãs (checkout, Hub, registo) e acessibilidade | 4–8 |
 | 16 | Testes, isolamento entre inquilinos, carga, correcções do teste de intrusão e da auditoria de acessibilidade | 6–10 |
 | 17 | Loja piloto do grupo sobre a API | 2–4 |
-| 18 | Relatório OSS com os quatro baldes (decisão AD, 04/10/2026; veio da Fase 2) | **por estimar** |
-| 19 | Devolução → estado do artigo → reembolso → nota de crédito (decisão AD; veio da Fase 2) | **por estimar** |
-| 20 | Lotes na linha expedida e compostos (decisão AD; veio da Fase 2) | **por estimar** |
-| | **Soma** (sem as peças 18 a 20) | **92–155** |
-| | **Com imprevistos e coordenação** (+15 % no mínimo, +30 % no máximo), sem as peças 18 a 20 | **≈ 106–202** |
+| 18 | Relatório OSS com os quatro baldes (decisão AD, 04/10/2026; veio da Fase 2) | 2–4 |
+| 19 | Devolução → estado do artigo → reembolso → nota de crédito (decisão AD; veio da Fase 2) | 4–7 |
+| 20 | Lotes na linha expedida e compostos (decisão AD; veio da Fase 2) | 3–5 |
+| | **Soma** (com as peças 18 a 20; sem elas era 92–155) | **101–171** |
+| | **Com imprevistos e coordenação** (+15 % no mínimo, +30 % no máximo; sem as peças 18 a 20 era ≈ 106–202) | **≈ 116–222** |
+
+**Como se estimaram as peças 18 a 20** (04/10/2026, **C**, por julgamento,
+como as outras): cada uma é parte de uma peça da Fase 2, que se partiu em duas
+— o relatório OSS sai dos 4–8 do relatório com as ligações (ficam 2–4 para as
+ligações); o núcleo das devoluções sai dos 6–10 das devoluções (ficam 2–3 para
+a troca e a carteira); os lotes e os compostos saem dos 8–14 do armazém
+completo (ficam 5–9). Cada estimativa conta os ecrãs e os testes da peça; as
+linhas de ecrãs e de testes da Fase 2 não se mexeram.
 
 **Como se passa a meses** (**C**): 44 semanas produtivas por pessoa e por ano
 (férias, feriados e doença); duas pessoas rendem 90 % de duas, três rendem
@@ -213,16 +222,17 @@ usando a IA como o Claude Code e Codex, por fases»*.
 | Fase | O que é | Esforço (pessoas-semana) | Os dois a tempo inteiro | Cada um a meio tempo |
 |---|---|---|---|---|
 | **0** (o que falta) | Desenho final (domínio, API, contratos), conversas com 3 a 5 comerciantes, preços (D-14), OK para código. Desde 03/10/2026 os preços só travam a peça 13 (ADR-0012); estes números não foram recalculados | 5–10 | **1 a 3** | **1,5 a 3** |
-| **1** | Núcleo à venda (§2, sem a peça 1 e **sem as peças 18 a 20** da decisão AD, por estimar) | 101–192 | **15 a 29** | **28 a 52** |
+| **1** | Núcleo à venda (§2, sem a peça 1; com as peças 18 a 20 da decisão AD — sem elas eram 101–192, 15 a 29 e 28 a 52) | 112–212 | **17 a 32** | **31 a 58** |
 | | Critério de passagem: 3 meses de vendas reais sem documento fiscal errado | — | **+3** | **+3** |
-| **2** | Hub completo e mais países (tabela abaixo; ainda **com** as peças que a decisão AD passou para a Fase 1) | 60–117 | **9 a 18** | **16 a 32** |
+| **2** | Hub completo e mais países (tabela abaixo; sem as peças que a decisão AD passou para a Fase 1 — com elas eram 60–117, 9 a 18 e 16 a 32) | 49–96 | **7 a 15** | **13 a 26** |
 | | Critério de passagem: 3 meses em comerciantes de pelo menos dois países | — | **+3** | **+3** |
 | **3** | Extensões abertas e comércio por agentes (tabela abaixo) | 46–90 | **7 a 14** | **12 a 25** |
 | **4** | Marketplace | — | **não se estima**: só com caso de negócio escrito (`05-fases-e-mvp.md`) | |
-| | **Até ao fim da Fase 3** | | **≈ 38 a 70** (3 a 6 anos) | **≈ 64 a 118** (5 a 10 anos) |
+| | **Até ao fim da Fase 3** (igual depois da decisão AD: o trabalho mudou de fase, não cresceu) | | **≈ 38 a 70** (3 a 6 anos) | **≈ 64 a 118** (5 a 10 anos) |
 
 **Exemplo:** com a Fase 0 fechada a 31/12/2026 e os dois a tempo inteiro, a
-construção da Fase 1 acaba entre **abril de 2028 e junho de 2029**; o primeiro
+construção da Fase 1 acaba entre **junho de 2028 e setembro de 2029** (antes
+da decisão AD: abril de 2028 e junho de 2029); o primeiro
 comerciante de fora pode entrar quando o motor de IVA estiver validado pelo
 contabilista e o contrato pelo jurista, que correm em paralelo.
 
@@ -238,16 +248,16 @@ corrigem-se aqui.
 
 | Peça | Pessoas-semana |
 |---|---|
-| Armazém completo: vários armazéns, picking, lotes, compostos, inventários — os lotes e os compostos passaram para a Fase 1 (decisão AD) | 8–14 |
-| Devoluções ligadas à nota de crédito, estado do artigo, troca e carteira — o núcleo passou para a Fase 1 (decisão AD) | 6–10 |
+| Armazém completo: vários armazéns, picking, inventários (os lotes e os compostos passaram para a Fase 1, decisão AD; eram 8–14) | 5–9 |
+| Troca e carteira nas devoluções (o núcleo passou para a Fase 1, decisão AD; eram 6–10) | 2–3 |
 | Emissão por adaptador em dois países novos (ex.: Verifactu em Espanha) | 6–12 |
-| Relatório OSS com os quatro baldes; ligações ao software de faturação de comerciantes de outros países — o relatório passou para a Fase 1 (decisão AD) | 4–8 |
+| Ligações ao software de faturação de comerciantes de outros países (o relatório OSS passou para a Fase 1, decisão AD; eram 4–8) | 2–4 |
 | Automações e notificações configuráveis, campos personalizados, módulos por comerciante | 8–12 |
 | Ecrãs do Hub para o que entra nesta fase | 6–10 |
 | Migração da loja principal do grupo | 4–8 |
 | Programa para os parceiros convidados (documentação, loja de ensaio, simulador, testes do contrato) | 6–10 |
 | Testes, segurança e novo teste de intrusão | 4–6 |
-| **Soma** | **52–90** (com imprevistos ≈ 60–117), ainda com as partes que a decisão AD passou para a Fase 1 — por separar |
+| **Soma** | **43–74** (com imprevistos ≈ 49–96; antes da decisão AD, 52–90 e ≈ 60–117) |
 
 ### O que entra na Fase 3 (pessoas-semana, C)
 

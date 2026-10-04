@@ -55,6 +55,11 @@ Não é o OK para código (ADR-0001).
   29 meses os dois a tempo inteiro) e do ADR-0008 são **sem estas três
   peças**; as peças entram no `docs/10` como «por estimar». A Fase 2 encolhe
   na mesma medida, também por estimar.
+  *Actualização de 04/10/2026, a pedido do Diogo:* estimadas no `docs/10`
+  (**C**) — relatório OSS 2–4, núcleo das devoluções 4–7, lotes e compostos
+  3–5 pessoas-semana. A Fase 1 passa a 17 a 32 meses os dois a tempo inteiro
+  (31 a 58 a meio tempo), a Fase 2 a 7 a 15 (13 a 26); o total até ao fim da
+  Fase 3 fica em ≈ 38 a 70 meses.
 - O critério de passagem da Fase 1 já pedia o botão de livre resolução
   «tratado de ponta a ponta»; com esta decisão, ponta a ponta inclui o
   reembolso e a nota de crédito.
@@ -64,7 +69,8 @@ Não é o OK para código (ADR-0001).
 
 ## O que ficou por verificar
 
-- Quanto custam as três peças e quanto tiram à Fase 2: **não estimado**.
+- ~~Quanto custam as três peças e quanto tiram à Fase 2: **não estimado**.~~
+  Estimado a 04/10/2026 (ver acima), por julgamento (**C**).
 - Se os softwares de faturação dos comerciantes já dão o relatório OSS com os
   quatro baldes.
 - O prazo legal do reembolso continua **C**.
