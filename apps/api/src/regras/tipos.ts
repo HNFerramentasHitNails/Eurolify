@@ -79,8 +79,18 @@ export interface PerfilPais {
   territorios: readonly string[] | null;
 }
 
-export type EstadoLegal =
-  "em_vigor" | "adoptada_futura" | "proposta" | "revogada";
+/**
+ * Os estados legais de uma regra, num sítio só (revisão do #47, 2.ª, P2-B):
+ * o tipo deriva desta lista, e o decidir e o validar lêem-na daqui.
+ */
+export const ESTADOS_LEGAIS = [
+  "em_vigor",
+  "adoptada_futura",
+  "proposta",
+  "revogada",
+] as const;
+
+export type EstadoLegal = (typeof ESTADOS_LEGAIS)[number];
 
 export interface Regra {
   /**
