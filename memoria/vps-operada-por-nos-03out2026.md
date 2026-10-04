@@ -387,3 +387,45 @@ mostra.**
   mínimo 2 GB; PostgreSQL, API, Hub e construções das imagens na mesma máquina
   não foram medidos (**C**).
 - As contas de custo que usam os 10,40 € da VPS-3.
+
+## Firewall ligada, só a porta 22 (04/10/2026, 00:02 UTC)
+
+O Diogo mandou ligar a firewall já, em vez de esperar pelo script. **Substitui a
+linha «Firewall… só o script a liga» da secção anterior, só quanto a estar
+desligada:** o script continua a ter de a reproduzir. Cada comando foi mostrado
+ao Diogo e só correu com o OK dele. É a terceira alteração à máquina e a
+segunda feita pelo Claude.
+
+### O que se fez
+
+- Cópia: `/root/ufw.antes-20261004-000139` (`cp -a` de `/etc/ufw`, 00:01 UTC).
+  Antes: `ufw 0.36.2`, `IPV6=yes`, estado `inactive`.
+- Às 00:02:10 UTC: `ufw default deny incoming`, `ufw default allow outgoing`,
+  `ufw allow 22/tcp` e `ufw --force enable`, por esta ordem (a regra da 22
+  antes do `enable`, para a ligação não cair).
+- **Só a 22/tcp** ficou aberta, em IPv4 e IPv6. As portas 80 e 443 do `docs/11`
+  §3.2 **não** se abriram: nada ouve nelas (`ss -tln`, 03/10/2026) e abrir uma
+  porta é um acto explícito com registo (`AGENTS.md`); abrem-se quando houver
+  proxy.
+- **O script de preparação tem de reproduzir esta regra** (ADR-0018).
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| Estado, depois | `active`, arranque com a máquina; `Default: deny (incoming), allow (outgoing), disabled (routed)`; `Logging: on (low)` | `sudo -n ufw status verbose`, 04/10/2026 00:02 UTC |
+| Regras | `22/tcp ALLOW IN Anywhere` e `22/tcp (v6) ALLOW IN Anywhere (v6)` | idem |
+| Entrada com a chave, ligação nova, depois | `vps-c01fa544` / `ubuntu` | `ssh -o BatchMode=yes eurolify-ensaio "hostname; whoami"` |
+| Porta 22 a partir do computador do Diogo | responde | `Test-NetConnection <VPS> -Port 22` |
+| Porta 80 a partir do computador do Diogo | não responde, **mas já não respondia antes** (nada ouve nela): não prova o bloqueio | `Test-NetConnection <VPS> -Port 80` |
+
+### O que ficou por verificar
+
+- Que a firewall bloqueia de facto as outras portas: só se prova com um serviço
+  a ouvir numa delas (por exemplo, quando se instalar o proxy).
+- O bloqueio de quem tenta entrar à força (`fail2ban`, proposta do `docs/11`
+  §3.1): **não feito**.
+- `Logging: on (low)`: o `ufw` regista bloqueios com endereços IP, que são dados
+  pessoais (ADR-0018); retenção por decidir no script.
+- Continuam em aberto a palavra-passe inicial do `ubuntu` e as 4 sessões do
+  `loginctl`. O plano da OVH ficou esclarecido na secção anterior: é a VPS-1.
