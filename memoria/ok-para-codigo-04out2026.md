@@ -272,3 +272,35 @@ Ao desenhar o C3, o Claude viu que o ADR-0027 não fechava: chave privada fora
 da VPS e reposição semanal automática na VPS. Duas opções (a: reposição do
 dump local + decifrar à mão uma vez por mês, recomendada; b: chave privada
 também na VPS). Resposta do Diogo: *«b»*. Só para o ensaio.
+
+## Fase C: o pedido #10 com o C1, o C2 e o C3 — à espera do Bruno e do Codex (04/10/2026)
+
+### O que se fez
+
+- Ramo `c1-esqueleto`, pedido **#10**: esqueleto da API (C1), os quatro fluxos
+  `verificar`, `publicar`, `aplicar-script`, `medir` e o `Dockerfile` (C2), e o
+  `infra/vps` com o `preparar.sh` e os programas da máquina (C3).
+- Erros apanhados antes do pedido: `BASE_URL` é reservado do Vite (o Vitest
+  preenche-o com `"/"`; passou a `BASE_DADOS_URL`); no `preparar.sh`, um
+  `sshd -t` falhado apagava o ficheiro em vez de repor o anterior, e acrescentar
+  uma chave colava-a à última linha; nas tarefas, o `trap ERR` não avisava
+  quando a falha vinha de um `exit`.
+- No GitHub, a primeira corrida falhou no `shellcheck` (2 avisos «info»:
+  SC1091 por o caminho dos `source` se ler da raiz; SC2016 de propósito,
+  anotado). Corrigido no commit `cc61aa9`.
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Onde |
+|---|---|---|
+| `verificar` no #10 | `codigo` (com PostgreSQL 18) 42 s, `imagem` 42 s, `script-vps` 11 s — todos a passar | GitHub Actions, corrida 37168591880, 04/10/2026 |
+| `preparar.sh --mostrar` | 53 alterações por fazer, 10 avisos, nada mudado — igual no WSL do Diogo e no Ubuntu 26.04 do GitHub | idem; WSL com teste antes/depois das pastas |
+| Tamanho do pedido | 48 ficheiros, ≈ 3.700 linhas (antes da correcção) | `git diff --stat origin/main...HEAD` |
+
+### O que ficou por verificar
+
+- A aprovação do Bruno (convite aceite? 2FA?) e a revisão do Codex
+  (`@codex review`; a revisão automática não está ligada).
+- O `preparar.sh` a sério, publicar, aplicar e medir: só na Fase D.
+- Acrescentar à regra do `main` a verificação obrigatória do fluxo
+  `verificar` depois de o #10 entrar.
