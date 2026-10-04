@@ -55,5 +55,6 @@ Fase 2 passarem pelas 8 portas (`docs/13-portas-da-fase-2.md`).
 - ~~Quanto custam as três peças da decisão AD e quanto tiram à Fase 2: não
   estimado.~~ Estimadas a 04/10/2026, a pedido do Diogo (`docs/10`, **C**):
   2–4, 4–7 e 3–5 pessoas-semana; a Fase 1 passa a 17–32 meses os dois a tempo
-  inteiro, a Fase 2 a 7–15. Os cenários B e C e os custos não foram
-  recalculados.
+  inteiro, a Fase 2 a 7–15. Os cenários B e C também foram recalculados no
+  mesmo dia: B 18–34 meses, ≈ 189.000–510.000 €; C 13–25 meses,
+  ≈ 210.000–569.000 €.
