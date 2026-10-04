@@ -11,7 +11,9 @@
 A estimativa da Fase 1 (`docs/10-estimativa-prazo-e-custo.md`, 03/10/2026)
 pôs três cenários de equipa: **A** — só o Diogo e o Bruno com Claude Code;
 **B** — 2 programadores sénior contratados (16 a 30 meses, ≈ 173.000–465.000 €);
-**C** — 3 sénior (12 a 23 meses, ≈ 193.000–519.000 €). A recomendação era a B,
+**C** — 3 sénior (12 a 23 meses, ≈ 193.000–519.000 €). *(04/10/2026, com a
+decisão AD, ADR-0022: B 18 a 34 meses, ≈ 189.000–510.000 €; C 13 a 25 meses,
+≈ 210.000–569.000 €.)* A recomendação era a B,
 com o primeiro contratado como líder técnico.
 
 Resposta do Diogo a 03/10/2026: *«SERÁ EU E O BRUNO A DESENVOLVER COM O CLAUDE
