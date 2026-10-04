@@ -550,3 +550,4 @@ agente de SSH lhe deu a chave.
   uma ferramenta da sessão (coluna errada num `awk`); não foi escrito em
   ficheiro nem no repositório.
 - 04/10/2026, 22:47 UTC: o `aplicar-script` (#71) criou na base o `eurolify_api` (NOLOGIN) e o `eurolify_migrador`, dono da base `eurolify`, com a ligação gerada na máquina em `/etc/eurolify/migrar.env`; 4 alterações, 0 avisos. Pormenor em `vps-utilizadores-da-base-04out2026.md`.
+- 04/10/2026, ~23:00 UTC: a publicação de `53e209d` aplicou a migração 0001 (Comerciante) na base `eurolify` da VPS, como `eurolify_migrador`; `/health` responde. Fecha a #70.
