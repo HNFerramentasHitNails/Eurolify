@@ -1,4 +1,5 @@
 import { instante } from "./instante.js";
+import { ehLista, valor } from "./mostrar.js";
 import type {
   Decisao,
   Motivo,
@@ -85,10 +86,14 @@ function revisaoDoDominio(
 export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   const versao = registo.versao;
 
-  if (!/^[A-Z]{2}$/.test(pedido.pais)) {
+  // Um país que não é texto também é inválido: a expressão regular
+  // converteria um Symbol ou um objecto estranho e rebentava (revisão do #50,
+  // P2-3).
+  const pais: unknown = pedido.pais;
+  if (typeof pais !== "string" || !/^[A-Z]{2}$/.test(pais)) {
     return recusado(versao, {
       codigo: "codigo_pais_invalido",
-      pais: pedido.pais,
+      pais: valor(pais),
     });
   }
   const perfil: PerfilPais | undefined = registo.paises.find(
@@ -102,14 +107,15 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   if (momento === null) {
     return recusado(versao, {
       codigo: "momento_invalido",
-      momento: pedido.momento,
+      momento: valor(pedido.momento),
     });
   }
 
   // O tipo já exige uma lista com um domínio, mas o pedido pode vir de fora
-  // sem tipos: null, texto ou lista vazia são «sem domínios».
+  // sem tipos: null, texto, lista vazia ou um Proxy revogado são «sem
+  // domínios».
   const dominios: unknown = pedido.dominios;
-  if (!Array.isArray(dominios) || dominios.length === 0) {
+  if (!ehLista(dominios) || (dominios as readonly unknown[]).length === 0) {
     return recusado(versao, { codigo: "sem_dominios" });
   }
   for (const dominio of dominios as readonly unknown[]) {
@@ -119,7 +125,7 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
     ) {
       return recusado(versao, {
         codigo: "dominio_desconhecido",
-        dominio: typeof dominio === "string" ? dominio : String(dominio),
+        dominio: valor(dominio),
       });
     }
   }
@@ -133,7 +139,7 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   if (!territorioMapeado && pedido.territorio !== undefined) {
     motivos.push({
       codigo: "territorio_nao_mapeado",
-      territorio: pedido.territorio,
+      territorio: valor(pedido.territorio),
     });
   }
 

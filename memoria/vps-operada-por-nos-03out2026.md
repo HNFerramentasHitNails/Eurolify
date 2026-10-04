@@ -1,5 +1,10 @@
 # Alojamento numa VPS operada por nós, com o Claude a operá-la (03/10/2026)
 
+> 📌 **Estado a 04/10/2026** (bloco acrescentado a 04/10/2026; o texto abaixo é o registo original, por ordem, e não foi mudado). Se o bloco divergir de um ADR, vale o ADR.
+> - **O ensaio está numa VPS-1 da OVH no Reino Unido** ([ADR-0021](../docs/adr/0021-vps-1-ate-a-migracao.md); a VPS-3 da decisão X, [ADR-0017](../docs/adr/0017-vps-3-da-ovh.md), não é a máquina comprada), sem dados pessoais reais, até 31/03/2027 ([ADR-0018](../docs/adr/0018-vps-do-ensaio-no-reino-unido.md), [ADR-0019](../docs/adr/0019-fim-da-vps-no-reino-unido.md)).
+> - **O Claude opera-a** ([ADR-0016](../docs/adr/0016-o-claude-opera-a-vps.md)) **pelo GitHub** ([ADR-0028](../docs/adr/0028-a-vps-opera-se-pelo-github.md)); o SSH pelo computador do Diogo ([ADR-0020](../docs/adr/0020-acesso-pelo-computador-do-diogo.md)) passou a via de emergência; o MCP: [ADR-0033](../docs/adr/0033-mcp-na-vps-com-accoes.md); a OVH é o fornecedor único: [ADR-0032](../docs/adr/0032-ovh-fornecedor-unico.md).
+> - **O que se seguiu** (publicação, cópias, alertas, MCP) está em `ok-para-codigo-04out2026.md`.
+
 **Decisões do Diogo (03/10/2026, à noite):**
 - *«o alojamento para uma VPS operada por vocês os dois — prepara tudo, todas
   as memorias, instruções e documentação para começarmos a preparar a vps»* —

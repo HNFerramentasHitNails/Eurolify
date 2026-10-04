@@ -86,6 +86,9 @@ export interface Regra {
   /**
    * Única em todo o registo: uma `id` identifica uma regra de um país e de um
    * domínio, nas suas várias versões. `regrasAplicadas` cita `id@versao`.
+   * Formato: minúsculas, algarismos, «.», «_» e «-», a começar por letra ou
+   * algarismo (ex.: `pt-consumidor-1`; `FORMATO_ID` em validar.ts, §4.1 do
+   * docs/eurolify/architecture.md).
    */
   id: string;
   versao: number;
@@ -96,7 +99,8 @@ export interface Regra {
   estadoLegal: EstadoLegal;
   /**
    * Instantes ISO 8601 com fuso (instante.ts): `AAAA-MM-DDThh:mm:ss(.sss)?`
-   * seguido de `Z` ou `±hh:mm`; a fracção tem no máximo 3 dígitos. Intervalo
+   * seguido de `Z` ou `±hh:mm` (não `-00:00`, que na RFC 3339 é «fuso
+   * desconhecido»); a fracção tem no máximo 3 dígitos. Intervalo
    * meio-aberto: vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído).
    */
   aplicaDesde: string;
