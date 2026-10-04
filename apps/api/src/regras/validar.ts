@@ -114,7 +114,8 @@ export function errosDoRegisto(registo: Registo): string[] {
     if (!Number.isInteger(regra.versao) || regra.versao < 1) {
       erros.push(`${nome}: versão inválida «${String(regra.versao)}»`);
     }
-    const base: Partial<Regra["base"]> | undefined = regra.base;
+    // Alargado de propósito: vindo de fora, a `base` pode nem existir.
+    const base = regra.base as Partial<Regra["base"]> | undefined;
     if (
       base === undefined ||
       vazio(base.url) ||
