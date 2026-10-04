@@ -15,6 +15,17 @@
 > Marcas: **regra** (com fonte), **proposta** (decide-se ao juntar),
 > **pergunta** (§9; não se programa sem resposta).
 
+## Estado do código (04/10/2026)
+
+Feito: a migração `apps/api/migracoes/0001_comerciante.sql` (as seis tabelas,
+RLS forçado, o `eurolify_api` sem `BYPASSRLS`, as transições de estado e as
+condições de activação na base, o rasto obrigatório no fim da transacção), o
+migrador (`apps/api/src/migrar.ts`), o acesso interno
+(`apps/api/src/comerciante/repositorio.ts`) e 21 testes contra o PostgreSQL
+18.6. Por fazer: a API (fatia «identidade»), os dois utilizadores da base na
+VPS (pedido ao script, ADR-0028), a validação da morada e do número fiscal por
+país (**C**).
+
 ## 1. O que é e o que entra
 
 O comerciante é o **inquilino**: tudo o resto (catálogo, encomendas, clientes)
@@ -44,8 +55,8 @@ dados, exportação completa.
 
 ## 3. Modelo
 
-Identificadores: `uuid` na base (`uuidv7()`, que o PostgreSQL 18 traz — **proposta**,
-a confirmar no CI), mostrados para fora com prefixo do tipo (`mer_…`, `ent_…`,
+Identificadores: `uuid` na base (`uuidv7()`, que o PostgreSQL 18 traz — **confirmado** no
+PostgreSQL 18.6 a 04/10/2026), mostrados para fora com prefixo do tipo (`mer_…`, `ent_…`,
 `sto_…`; `headless-commerce`, regra 2). Datas em UTC (`timestamptz`).
 **Todas as tabelas têm `comerciante_id`**, com RLS (§5).
 
@@ -149,7 +160,7 @@ ADR-0025 (RLS por comerciante).
 | Utilizador da base da API | `eurolify_api`: `NOSUPERUSER NOBYPASSRLS`, só `SELECT/INSERT/UPDATE` nas tabelas do produto; **sem `DELETE`** nas tabelas «só se acrescenta» |
 | Utilizador das migrações | `eurolify_migrador`: dono das tabelas; só corre na publicação (`dist/migrar.js`, já previsto em `eurolify-publicar:113`) |
 | Políticas | `ENABLE` **e** `FORCE ROW LEVEL SECURITY` em todas as tabelas; `USING (comerciante_id = current_setting('eurolify.comerciante')::uuid)` e o mesmo em `WITH CHECK` |
-| Contexto | cada pedido abre uma transacção e faz `SET LOCAL eurolify.comerciante = '<uuid>'`; sem isso a consulta dá **erro**, nunca vazio em silêncio: numa ligação nova o parâmetro não existe; numa ligação reaproveitada vale texto vazio, que falha a conversão para `uuid` (comportamento do PostgreSQL a confirmar no teste do CI) |
+| Contexto | cada pedido abre uma transacção e faz `SET LOCAL eurolify.comerciante = '<uuid>'`; sem isso a consulta dá **erro**, nunca vazio em silêncio: numa ligação nova o parâmetro não existe; numa ligação reaproveitada vale texto vazio, que falha a conversão para `uuid` (**confirmado** no PostgreSQL 18.6 a 04/10/2026: erros `42704` e `22P02`; há um teste para cada caso) |
 | Criar um comerciante | a aplicação gera o `uuid`, faz `SET LOCAL` com ele e insere: a política deixa, sem nenhum utilizador que ignore o RLS |
 | Trabalho da equipa do Eurolify (rever comerciantes) | **nenhum papel entre comerciantes** até haver o Hub (P6): a revisão faz-se por um comando auditado na API, dentro do contexto do comerciante revisto |
 | Testes | o CI liga-se como `postgres` (superutilizador, que **ignora o RLS**): os testes de isolamento criam e usam o `eurolify_api`, e falham se a ligação tiver `BYPASSRLS` |

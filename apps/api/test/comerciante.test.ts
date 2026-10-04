@@ -1,0 +1,500 @@
+import { sql } from "kysely";
+import pg from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ESTADOS_COMERCIANTE, TIPOS_CONTRATO } from "../src/base/esquema.js";
+import { migrar } from "../src/base/migracoes.js";
+import {
+  aceitarContrato,
+  comComerciante,
+  criarEntidadeLegal,
+  criarLoja,
+  ErroComerciante,
+  mudarEstado,
+  obterComerciante,
+  registarComerciante,
+  registarVerificacao,
+  type DadosEntidadeLegal,
+} from "../src/comerciante/repositorio.js";
+import {
+  criarBaseDeTeste,
+  URL_BASE,
+  type BaseDeTeste,
+} from "./base-de-teste.js";
+
+// Testes contra o PostgreSQL 18 verdadeiro (ADR-0025). Sem BASE_DADOS_URL
+// saltam; no GitHub o fluxo põe EXIGIR_BASE=1 e o base.test.ts falha se a
+// base faltar, por isso aqui não se salta em silêncio no CI.
+
+const ENTIDADE: DadosEntidadeLegal = {
+  denominacao: "Exemplo, Lda.",
+  forma_juridica: "sociedade por quotas",
+  pais: "PT",
+  numero_fiscal: "123456789",
+  morada_linha: "Rua de Teste, 1",
+  morada_codigo_postal: "1000-001",
+  morada_localidade: "Lisboa",
+};
+
+const NOVO = { nome: "Loja de Teste", lingua: "pt", fuso: "Europe/Lisbon" };
+
+async function codigoDoErro(promessa: Promise<unknown>): Promise<string> {
+  try {
+    await promessa;
+  } catch (erro) {
+    if (erro instanceof ErroComerciante) return erro.codigo;
+    const pgErro = erro as { code?: unknown; message?: unknown };
+    return `pg:${String(pgErro.code)}:${String(pgErro.message)}`;
+  }
+  return "sem erro";
+}
+
+describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
+  let base: BaseDeTeste;
+
+  beforeAll(async () => {
+    base = await criarBaseDeTeste(URL_BASE ?? "");
+  }, 60_000);
+
+  afterAll(async () => {
+    await base.fechar();
+  });
+
+  describe("migrações e utilizadores", () => {
+    it("a 0001 está aplicada e correr outra vez não faz nada", async () => {
+      const { results } = await migrar(base.dono);
+      expect(results).toEqual([]);
+      const { rows } = await sql<{ name: string }>`
+        select name from kysely_migration order by name`.execute(base.dono);
+      expect(rows.map((r) => r.name)).toEqual(["0001_comerciante"]);
+    });
+
+    it("o eurolify_api não é superutilizador nem ignora o RLS", async () => {
+      const { rows } = await sql<{ rolsuper: boolean; rolbypassrls: boolean }>`
+        select rolsuper, rolbypassrls from pg_roles
+        where rolname = 'eurolify_api'`.execute(base.dono);
+      expect(rows).toEqual([{ rolsuper: false, rolbypassrls: false }]);
+    });
+
+    it("todas as tabelas do produto têm RLS forçado; as do migrador estão fechadas à API", async () => {
+      const { rows } = await sql<{
+        tabela: string;
+        rls: boolean;
+        forcado: boolean;
+        api_le: boolean;
+      }>`
+        select c.relname as tabela, c.relrowsecurity as rls,
+               c.relforcerowsecurity as forcado,
+               has_table_privilege('eurolify_api', c.oid, 'SELECT') as api_le
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind = 'r'
+        order by 1`.execute(base.dono);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const linha of rows) {
+        if (linha.tabela.startsWith("kysely_")) {
+          expect(linha, linha.tabela).toMatchObject({ api_le: false });
+        } else {
+          expect(linha, linha.tabela).toMatchObject({
+            rls: true,
+            forcado: true,
+          });
+        }
+      }
+      expect(rows.filter((r) => !r.tabela.startsWith("kysely_"))).toHaveLength(
+        6,
+      );
+    });
+
+    it("a lista de estados do código é a mesma que a base aceita", async () => {
+      const { rows } = await sql<{ definicao: string }>`
+        select pg_get_constraintdef(oid) as definicao from pg_constraint
+        where conname = 'comerciante_estado_check'`.execute(base.dono);
+      const naBase = [
+        ...(rows[0]?.definicao ?? "").matchAll(/'([a-z_]+)'/g),
+      ].map((m) => m[1]);
+      expect(naBase).toEqual([...ESTADOS_COMERCIANTE]);
+      const contratos = await sql<{ definicao: string }>`
+        select pg_get_constraintdef(oid) as definicao from pg_constraint
+        where conname = 'aceitacao_contrato_tipo_check'`.execute(base.dono);
+      expect(
+        [...(contratos.rows[0]?.definicao ?? "").matchAll(/'([a-z_]+)'/g)].map(
+          (m) => m[1],
+        ),
+      ).toEqual([...TIPOS_CONTRATO]);
+    });
+  });
+
+  describe("isolamento entre comerciantes (RLS)", () => {
+    let a: string;
+    let b: string;
+    let entidadeB: string;
+
+    beforeAll(async () => {
+      a = await registarComerciante(base.api, { ...NOVO, nome: "A" });
+      b = await registarComerciante(base.api, { ...NOVO, nome: "B" });
+      await criarEntidadeLegal(base.api, a, ENTIDADE);
+      entidadeB = await criarEntidadeLegal(base.api, b, ENTIDADE);
+    });
+
+    it("sem comerciante definido, a base dá erro — não devolve vazio", async () => {
+      const erro = await codigoDoErro(
+        base.api.selectFrom("comerciante").selectAll().execute(),
+      );
+      expect(erro).toMatch(/^pg:(42704|22P02):/);
+    });
+
+    it("numa ligação reaproveitada sem contexto também dá erro", async () => {
+      const cliente = new pg.Client({ connectionString: base.urlApi });
+      await cliente.connect();
+      try {
+        await cliente.query("BEGIN");
+        await cliente.query(
+          "select set_config('eurolify.comerciante', $1, true)",
+          [a],
+        );
+        await cliente.query("COMMIT");
+        await expect(
+          cliente.query("select * from comerciante"),
+        ).rejects.toMatchObject({
+          code: "22P02",
+        });
+      } finally {
+        await cliente.end();
+      }
+    });
+
+    it("cada comerciante só vê as suas linhas, em todas as tabelas", async () => {
+      await comComerciante(base.api, a, async (trx) => {
+        const comerciantes = await trx
+          .selectFrom("comerciante")
+          .select("id")
+          .execute();
+        expect(comerciantes).toEqual([{ id: a }]);
+        const entidades = await trx
+          .selectFrom("entidade_legal")
+          .select("comerciante_id")
+          .execute();
+        expect(entidades.map((e) => e.comerciante_id)).toEqual([a]);
+      });
+    });
+
+    it("com o contexto de A não se escreve em B", async () => {
+      const inserir = codigoDoErro(
+        comComerciante(base.api, a, (trx) =>
+          trx
+            .insertInto("entidade_legal")
+            .values({ ...ENTIDADE, comerciante_id: b, numero_fiscal: "999" })
+            .execute(),
+        ),
+      );
+      expect(await inserir).toMatch(/^pg:42501:/);
+
+      const alterados = await comComerciante(base.api, a, (trx) =>
+        trx
+          .updateTable("comerciante")
+          .set({ nome: "invadido" })
+          .where("id", "=", b)
+          .executeTakeFirst(),
+      );
+      expect(alterados.numUpdatedRows).toBe(0n);
+      expect((await obterComerciante(base.api, b)).nome).toBe("B");
+    });
+
+    it("uma loja de A não pode vender pela entidade legal de B", async () => {
+      const erro = await codigoDoErro(
+        criarLoja(base.api, a, {
+          entidade_legal_id: entidadeB,
+          nome: "Loja",
+          lingua_origem: "pt",
+        }),
+      );
+      expect(erro).toMatch(/^pg:23503:/);
+    });
+
+    it("o rasto só se acrescenta: nem alterar nem apagar", async () => {
+      for (const consulta of [
+        sql`update transicao_estado set motivo = 'x'`,
+        sql`delete from transicao_estado`,
+        sql`delete from comerciante`,
+        sql`update aceitacao_contrato set versao_texto = 'x'`,
+      ]) {
+        const erro = await codigoDoErro(
+          comComerciante(base.api, a, (trx) => consulta.execute(trx)),
+        );
+        expect(erro).toMatch(/^pg:42501:/);
+      }
+    });
+  });
+
+  describe("estados do comerciante", () => {
+    async function comercianteProntoParaActivar(): Promise<string> {
+      const id = await registarComerciante(base.api, NOVO);
+      const entidade = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      for (const para of [
+        "prova_pendente",
+        "em_revisao",
+        "aprovado_limitado",
+      ] as const) {
+        await mudarEstado(base.api, id, {
+          para,
+          motivo: "teste",
+          quem: "teste",
+        });
+      }
+      for (const tipo of TIPOS_CONTRATO) {
+        await aceitarContrato(base.api, id, {
+          tipo,
+          versao_texto: "v1-teste",
+          aceite_por: "teste",
+        });
+      }
+      await registarVerificacao(base.api, id, {
+        entidade_legal_id: entidade,
+        finalidade: "identificacao_fiscal",
+        origem: "manual",
+        origem_detalhe: "teste",
+        resultado: "aceite",
+      });
+      return id;
+    }
+
+    it("nasce em rascunho, com versão 1; o mesmo nome pode existir duas vezes", async () => {
+      const x = await registarComerciante(base.api, NOVO);
+      const y = await registarComerciante(base.api, NOVO);
+      expect(x).not.toBe(y);
+      const lido = await obterComerciante(base.api, x);
+      expect(lido).toMatchObject({
+        estado: "rascunho",
+        versao: 1,
+        nome: NOVO.nome,
+      });
+    });
+
+    it("não nasce noutro estado", async () => {
+      const { rows } = await sql<{ id: string }>`select uuidv7() as id`.execute(
+        base.api,
+      );
+      const id = rows[0]?.id ?? "";
+      const erro = await codigoDoErro(
+        comComerciante(base.api, id, (trx) =>
+          trx
+            .insertInto("comerciante")
+            .values({ id, ...NOVO, estado: "activo" })
+            .execute(),
+        ),
+      );
+      expect(erro).toBe("merchant.invalid_transition");
+    });
+
+    it("o caminho completo até activo deixa uma linha de rasto por mudança", async () => {
+      const id = await comercianteProntoParaActivar();
+      await mudarEstado(base.api, id, {
+        para: "activo",
+        motivo: "teste",
+        quem: "teste",
+      });
+      const lido = await obterComerciante(base.api, id);
+      expect(lido).toMatchObject({ estado: "activo", versao: 5 });
+      const rasto = await comComerciante(base.api, id, (trx) =>
+        trx
+          .selectFrom("transicao_estado")
+          .select(["de", "para"])
+          .orderBy("quando")
+          .execute(),
+      );
+      expect(rasto.map((t) => `${t.de}→${t.para}`)).toEqual([
+        "rascunho→prova_pendente",
+        "prova_pendente→em_revisao",
+        "em_revisao→aprovado_limitado",
+        "aprovado_limitado→activo",
+      ]);
+    });
+
+    it("não se activa sem os dois contratos", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      await criarEntidadeLegal(base.api, id, ENTIDADE);
+      for (const para of ["em_revisao", "aprovado_limitado"] as const) {
+        await mudarEstado(base.api, id, {
+          para,
+          motivo: "teste",
+          quem: "teste",
+        });
+      }
+      const erro = await codigoDoErro(
+        mudarEstado(base.api, id, {
+          para: "activo",
+          motivo: "teste",
+          quem: "teste",
+        }),
+      );
+      expect(erro).toBe("merchant.activation_blocked");
+      expect((await obterComerciante(base.api, id)).estado).toBe(
+        "aprovado_limitado",
+      );
+    });
+
+    it("não se activa com a prova do número fiscal caducada", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const entidade = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      for (const para of ["em_revisao", "aprovado_limitado"] as const) {
+        await mudarEstado(base.api, id, {
+          para,
+          motivo: "teste",
+          quem: "teste",
+        });
+      }
+      for (const tipo of TIPOS_CONTRATO) {
+        await aceitarContrato(base.api, id, {
+          tipo,
+          versao_texto: "v1",
+          aceite_por: "teste",
+        });
+      }
+      await comComerciante(base.api, id, (trx) =>
+        trx
+          .insertInto("prova_verificacao")
+          .values({
+            comerciante_id: id,
+            entidade_legal_id: entidade,
+            finalidade: "identificacao_fiscal",
+            origem: "manual",
+            origem_detalhe: "teste",
+            resultado: "aceite",
+            verificado_em: "2025-01-01T00:00:00Z",
+            rever_ate: "2025-06-01T00:00:00Z",
+            documento: null,
+          })
+          .execute(),
+      );
+      const erro = await codigoDoErro(
+        mudarEstado(base.api, id, {
+          para: "activo",
+          motivo: "teste",
+          quem: "teste",
+        }),
+      );
+      expect(erro).toBe("merchant.activation_blocked");
+    });
+
+    it("uma transição que não existe é recusada e não deixa rasto", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const erro = await codigoDoErro(
+        mudarEstado(base.api, id, {
+          para: "activo",
+          motivo: "teste",
+          quem: "teste",
+        }),
+      );
+      expect(erro).toBe("merchant.invalid_transition");
+      const rasto = await comComerciante(base.api, id, (trx) =>
+        trx.selectFrom("transicao_estado").selectAll().execute(),
+      );
+      expect(rasto).toEqual([]);
+    });
+
+    it("mudar o estado sem a linha de rasto é desfeito", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const erro = await codigoDoErro(
+        comComerciante(base.api, id, (trx) =>
+          trx
+            .updateTable("comerciante")
+            .set({ estado: "em_revisao" })
+            .where("id", "=", id)
+            .execute(),
+        ),
+      );
+      expect(erro).toBe("merchant.transition_without_trail");
+      expect((await obterComerciante(base.api, id)).estado).toBe("rascunho");
+    });
+
+    it("suspenso volta só ao estado de onde veio; fechado não sai", async () => {
+      const id = await comercianteProntoParaActivar();
+      await mudarEstado(base.api, id, {
+        para: "activo",
+        motivo: "teste",
+        quem: "teste",
+      });
+      await mudarEstado(base.api, id, {
+        para: "suspenso",
+        motivo: "teste",
+        quem: "teste",
+      });
+      expect(
+        await codigoDoErro(
+          mudarEstado(base.api, id, {
+            para: "em_revisao",
+            motivo: "teste",
+            quem: "teste",
+          }),
+        ),
+      ).toBe("merchant.invalid_transition");
+      await mudarEstado(base.api, id, {
+        para: "activo",
+        motivo: "teste",
+        quem: "teste",
+      });
+      await mudarEstado(base.api, id, {
+        para: "fechado",
+        motivo: "teste",
+        quem: "teste",
+      });
+      expect(
+        await codigoDoErro(
+          mudarEstado(base.api, id, {
+            para: "activo",
+            motivo: "teste",
+            quem: "teste",
+          }),
+        ),
+      ).toBe("merchant.invalid_transition");
+    });
+
+    it("comerciante que não existe (ou de outro) dá not_found", async () => {
+      const { rows } = await sql<{ id: string }>`select uuidv7() as id`.execute(
+        base.api,
+      );
+      const erro = await codigoDoErro(
+        obterComerciante(base.api, rows[0]?.id ?? ""),
+      );
+      expect(erro).toBe("merchant.not_found");
+    });
+  });
+
+  describe("entidades legais e valores", () => {
+    it("o número fiscal é único por país dentro do comerciante, não entre comerciantes", async () => {
+      const x = await registarComerciante(base.api, NOVO);
+      const y = await registarComerciante(base.api, NOVO);
+      await criarEntidadeLegal(base.api, x, ENTIDADE);
+      expect(
+        await codigoDoErro(criarEntidadeLegal(base.api, x, ENTIDADE)),
+      ).toBe("legal_entity.tax_number_duplicate");
+      await criarEntidadeLegal(base.api, x, { ...ENTIDADE, pais: "ES" });
+      await expect(criarEntidadeLegal(base.api, y, ENTIDADE)).resolves.toMatch(
+        /^[0-9a-f-]{36}$/,
+      );
+    });
+
+    it("recusa país fora dos 27, língua e fuso inválidos, texto vazio", async () => {
+      const x = await registarComerciante(base.api, NOVO);
+      for (const mau of [
+        { ...ENTIDADE, pais: "GB" },
+        { ...ENTIDADE, pais: "EL" },
+        { ...ENTIDADE, numero_fiscal: "12 34" },
+        { ...ENTIDADE, denominacao: "   " },
+      ]) {
+        expect(
+          await codigoDoErro(criarEntidadeLegal(base.api, x, mau)),
+        ).toMatch(/^pg:23514:/);
+      }
+      expect(
+        await codigoDoErro(
+          registarComerciante(base.api, { ...NOVO, lingua: "PT" }),
+        ),
+      ).toMatch(/^pg:23514:/);
+      expect(
+        await codigoDoErro(
+          registarComerciante(base.api, { ...NOVO, fuso: "Lua/Base" }),
+        ),
+      ).toMatch(/^pg:22023:/);
+    });
+  });
+});
