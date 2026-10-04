@@ -97,8 +97,11 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   escreveu essas correcções (`a67beab`) foi a própria sessão de revisão
   Sonnet, que tinha encontrado os P2, depois de o utilizador dela lho pedir
   na conversa (*«corrige os 3 P2 no #65»*; não se verificou quem escreveu).
-  O `a67beab` foi revisto antes de juntar pela sessão Opus que escreveu o
-  `623ae84` e não o `a67beab` (0 P0, 0 P1, 1 P2: esta frase).
+  O `a67beab` teve duas revisões antes de juntar, ambas no #65: a da sessão
+  Opus que escreveu o `623ae84` e não o `a67beab` (0 P0, 0 P1, 1 P2: esta
+  frase) e a de um agente Opus 5.5 lançado da sessão Sonnet (ADR-0035; 0 P0,
+  0 P1, 2 P2). Os 2 P2 do agente foram tratados no `a67e322`, que ficou fora
+  do #65 e entrou depois, sem nova revisão (só memória).
 
 ## Números (com data e como se contaram)
 
@@ -113,7 +116,8 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
 | Testes do `audit_memory.py` com os P2 do #61 | 12, a passar; o teste novo falha com o script do `main` em `417e0a5` | `python3 test_audit_memory.py`, 04/10/2026 |
 | `audit_memory.py` sobre `memoria docs .agents` com os P2 do #61 | 165 ficheiros, 0 avisos | 04/10/2026, `--repo . --roots memoria docs .agents` |
 | `AGENTS.md` com as 6 linhas | 17 926 bytes (limite 32 KiB) | `wc -c`, 04/10/2026 |
-| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 076 bytes (limite 32 KiB); em `wc -c`, 04/10/2026 (ramo `p2-do-61`, depois do #58), 19 781 | `wc -c`, 04/10/2026, depois de remeter o ponto 3 para «Trabalhar os dois» (P2-1 do 5.º comentário da revisão Sonnet do #58) |
+| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 076 bytes (limite 32 KiB) | `wc -c`, 04/10/2026, depois de remeter o ponto 3 para «Trabalhar os dois» (P2-1 do 5.º comentário da revisão Sonnet do #58) |
+| `AGENTS.md` depois do #48 (ADR-0035) | 19 781 bytes (limite 32 KiB); subiu dos 19 076 do #58 | `wc -c` em `c3c2e4c` (19 076) e em `c8e4dae` (19 781), 04/10/2026 |
 | Modelo da sessão | `claude-opus-5-5` configurado e servido | `get_session`, 04/10/2026 |
 
 ## O que ficou por verificar
