@@ -495,3 +495,31 @@ Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
 - A reposição só compara o número de tabelas, e com a base vazia (0 = 0) não
   prova dados — prova o caminho (descarregar, decifrar, repor, limpar).
 - Os alertas (Healthchecks.io), o reinício pedido pelas actualizações e o D8.
+
+## Fase D: alertas ligados e D8 feito (04/10/2026, ≈ 12:20–12:35 UTC)
+
+- **Healthchecks.io:** o Diogo criou a conta e as três verificações e deu o
+  caminho de um ficheiro com os endereços de *ping*. O Claude viu só a forma
+  (3 linhas `HC_*=https://hc-ping.com/…`, 56 caracteres cada), pô-lo na VPS
+  (`/etc/eurolify/healthchecks.env`, 600 root) sem o mostrar e apagou o
+  original do Ambiente de trabalho.
+- Lançadas uma vez as três tarefas: **cópia** `success` (2.ª cópia,
+  `eurolify-20261004T122020Z.dump.age`), **reposição** `success` (0 = 0
+  tabelas), **verificação** falhou de propósito com um só problema —
+  *«reinício pedido pelas actualizações»*. Nenhuma escreveu «o
+  Healthchecks.io não respondeu». O Diogo deve ter recebido o primeiro alerta.
+- As 2 actualizações de segurança que a VPS mostrava são do ESM (pago, não
+  ligado): o `apt-check` dá 0 de segurança normais, por isso a verificação
+  não as acusa.
+- **D8:** o Diogo guardou uma cópia do `age.key` num sítio dele (*«ja
+  copiei»*). Confirmado antes de apagar que cada ficheiro tinha cópia no
+  GitHub (segredos do ambiente, *deploy key*), na VPS (`/etc/eurolify/`) ou
+  no repositório (chaves públicas). Apagada a pasta
+  `C:\Users\diogo\.eurolify-chaves` (14 ficheiros). Fica só a chave pessoal de
+  emergência (`~\.ssh\eurolify_vps`), que continua a entrar.
+
+### O que ficou por verificar
+
+- O reinício pedido pelas actualizações: hora a escolher pelo Diogo, fora do
+  horário de trabalho; até lá a verificação diária fica vermelha.
+- Se o alerta chegou mesmo ao e-mail do Diogo.
