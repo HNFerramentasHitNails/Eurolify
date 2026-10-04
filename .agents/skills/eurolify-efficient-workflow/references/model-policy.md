@@ -10,7 +10,7 @@ Esta é uma política proposta, não um benchmark. Confirmar versão do Claude C
 
 A documentação apresenta Sonnet para programação diária, Opus para raciocínio complexo e Haiku para tarefas simples/eficientes; os aliases resolvem de acordo com fornecedor e disponibilidade ([modelos Claude Code](https://code.claude.com/docs/en/model-config)). As associações detalhadas acima são decisões deste pack.
 
-Por decisão do utilizador, não utilizar Fable, nem como fallback ou próximo degrau de escalonamento. Esta preferência não é apresentada como benchmark universal. Avaliar eficiência total, incluindo contexto, tentativas e retrabalho; Haiku/Sonnet não são obrigatórios quando Opus 5.5 produzir melhor resultado global observado.
+Por decisão do utilizador, não utilizar Fable, nem como fallback ou próximo degrau de escalonamento. Esta preferência não é apresentada como benchmark universal. Avaliar eficiência total, incluindo contexto, tentativas e retrabalho; Haiku/Sonnet são o padrão da Eurolify (execução e pesquisa); o Opus 5.5 usa-se quando produzir melhor resultado global observado, e diz-se porquê.
 
 ## Mecanismos reais
 
@@ -18,7 +18,7 @@ Por decisão do utilizador, não utilizar Fable, nem como fallback ou próximo d
 
 Um agente personalizado pode definir `model: haiku`, `sonnet`, `opus` ou outro valor suportado, e limitar ferramentas com `tools`; verificar a precedência entre invocação, definição, ambiente e modelo principal ([subagentes](https://code.claude.com/docs/en/sub-agents)). Uma configuração é um mecanismo real, mas a sua existência não prova que uma tarefa foi delegada.
 
-O revisor deste pack fixa `model: claude-opus-5-5`, identificador documentado, em vez de depender do alias `opus` ([subagentes](https://code.claude.com/docs/en/sub-agents)). Se o fornecedor não aceitar esse identificador, confirmar a configuração equivalente de Opus 5.5 com o utilizador; não substituir silenciosamente por outro modelo.
+O subagente `eurolify-critical-review` (`.claude/agents/`) fixa `model: claude-opus-5-5`, identificador documentado, em vez de depender do alias `opus` ([subagentes](https://code.claude.com/docs/en/sub-agents)). Se o fornecedor não aceitar esse identificador, confirmar a configuração equivalente de Opus 5.5 com o utilizador; não substituir silenciosamente por outro modelo.
 
 O Claude Code também documenta overrides de modelo em skills, sujeitos à versão e política da organização; este pack evita esses campos para preservar o formato portátil e usa agentes separados ([skills](https://code.claude.com/docs/en/skills)). Não inventar configurações universais que garantam roteamento em todas as instalações.
 

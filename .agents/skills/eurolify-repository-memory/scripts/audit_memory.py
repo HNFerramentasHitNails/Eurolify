@@ -11,7 +11,18 @@ EXCLUDED_DIRS = {
     ".git", ".env", "node_modules", ".venv", "venv", "dist", "build",
     "__pycache__", "secrets", "credentials",
 }
-SENSITIVE_NAMES = ("secret", "credential", "password", "private-key", ".env")
+SENSITIVE_NAMES = (
+    "secret", "segredo", "credential", "credencia", "password", "senha",
+    "palavra-passe", "token", "chave", "private-key", ".env",
+)
+NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+
+def read_no_follow(file):
+    """Lê o ficheiro sem seguir uma ligação posta a meio (O_NOFOLLOW onde existe)."""
+    fd = os.open(file, os.O_RDONLY | NOFOLLOW)
+    with os.fdopen(fd, "rb") as handle:
+        return handle.read()
 
 
 def audit(repo, roots, limit=12):
@@ -45,13 +56,17 @@ def audit(repo, roots, limit=12):
                 if file.suffix.lower() != ".md" or file.is_symlink():
                     continue
                 if any(s in name.lower() for s in SENSITIVE_NAMES):
+                    warnings.append({
+                        "path": file.relative_to(repo).as_posix(),
+                        "reason": "sensitive_name_skipped",
+                    })
                     continue
                 key = file.resolve()
                 if key in seen:
                     continue
                 seen.add(key)
                 try:
-                    payload = file.read_bytes()
+                    payload = read_no_follow(file)
                 except OSError as exc:
                     warnings.append({
                         "path": file.relative_to(repo).as_posix(),

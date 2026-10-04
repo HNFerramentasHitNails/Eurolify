@@ -39,6 +39,23 @@ class AuditTests(unittest.TestCase):
         (self.repo / "docs/secrets/x.md").write_text("not read", encoding="utf-8")
         self.assertEqual(audit(self.repo, ["docs"])["markdownFiles"], 1)
 
+    def test_sensitive_name_is_reported_not_silent(self):
+        (self.repo / "docs/chaves-vps.md").write_text("x", encoding="utf-8")
+        (self.repo / "docs/Credenciais.md").write_text("x", encoding="utf-8")
+        report = audit(self.repo, ["docs"])
+        self.assertEqual(report["markdownFiles"], 1)
+        reasons = {w["reason"] for w in report["warnings"]}
+        self.assertEqual(reasons, {"sensitive_name_skipped"})
+        self.assertEqual(len(report["warnings"]), 2)
+
+    def test_root_under_symlinked_parent_rejected(self):
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        Path(outside.name, "x.md").write_text("fora", encoding="utf-8")
+        (self.repo / "link").symlink_to(outside.name)
+        with self.assertRaises(ValueError):
+            audit(self.repo, ["link/sub"])
+
     def test_symlink_not_followed(self):
         (self.repo / "docs/link.md").symlink_to(self.repo / "memoria/a.md")
         (self.repo / "docs/linked").symlink_to(self.repo / "memoria")

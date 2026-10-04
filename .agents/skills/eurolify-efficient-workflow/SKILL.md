@@ -9,13 +9,13 @@ metadata:
 
 Lê `references/model-policy.md` quando fores escolher ou mudar modelo, esforço ou subagente.
 
-Opus 5.5 é o modelo forte aprovado para este fluxo. Não seleciones Fable para execução, escalonamento ou fallback; Haiku/Sonnet são alternativas delimitadas, sujeitas a qualidade e utilização observadas.
+Política de modelos da Eurolify (decisão do Diogo, 04/10/2026): Sonnet para a execução normal, Haiku para a pesquisa mecânica, Opus 5.5 para a análise e a revisão de risco. Não seleciones Fable para execução, escalonamento ou fallback. Se o Opus 5.5 der melhor resultado global observado numa tarefa, pode usar-se, dizendo porquê.
 
 1. Cumpre as regras de arranque e revisão do repositório. Classifica a tarefa por ambiguidade, fronteiras afetadas, risco e evidência necessária, não por número de palavras.
 2. Define objetivo, ficheiros prováveis, critérios de aceitação e comando de verificação. Para trabalho simples, evita um plano extenso ou delegação.
 3. Usa `eurolify-repository-memory` para localizar contexto. Não abre toda a memória nem todas as skills; lê as obrigatórias para os domínios efetivamente afetados.
 4. Recomenda modelo e justificação curtos. Para mudar a sessão principal, apresenta a opção suportada; nunca afirma que a recomendação já mudou o modelo. Usa um agente configurado só se disponível e autorizado.
-5. Executa uma fatia delimitada. Delega apenas leitura volumosa ou tarefas independentes com resultado compacto; não lança vários escritores nos mesmos ficheiros.
+5. Executa uma fatia delimitada. Delega apenas leitura volumosa ou tarefas independentes com resultado compacto; não lança vários escritores nos mesmos ficheiros. **Não põe vários agentes em paralelo sem perguntar** (`AGENTS.md`, «Agentes»); um agente dirigido a uma pergunta concreta pode ser usado.
 6. Se falhar, distingue erro de ambiente/dados de raciocínio insuficiente. Usa diagnóstico antes de repetir. Após duas tentativas sem nova evidência, muda a abordagem ou escala justificadamente.
 7. Usa `eurolify-evidence-before-done` para concluir. Mantém o gate de uma sessão independente quando o projeto o exigir; um subagente no mesmo trabalho não o substitui automaticamente.
 
