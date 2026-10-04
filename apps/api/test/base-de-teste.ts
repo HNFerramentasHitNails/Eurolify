@@ -45,7 +45,10 @@ export async function esperarQueSaiam(
 ): Promise<void> {
   for (let i = 0; i < 100; i++) {
     const { rows } = await admin.query<{ n: number }>(
-      "select count(*)::int as n from pg_stat_activity where datname = $1",
+      // Só ligações de clientes: um processo de fundo do servidor (o
+      // autovacuum, por exemplo) não fecha por o cliente sair (revisão do
+      // ab609b5, P2-1).
+      "select count(*)::int as n from pg_stat_activity where datname = $1 and backend_type = 'client backend'",
       [nome],
     );
     if ((rows[0]?.n ?? 0) === 0) return;
@@ -56,17 +59,34 @@ export async function esperarQueSaiam(
 
 /**
  * Apaga a base de teste depois de esperar pelas ligações; apaga-a mesmo que a
- * espera falhe, e só depois devolve esse erro.
+ * espera falhe, e só depois devolve esse erro. Se o DROP também falhar, o
+ * erro dele leva o da espera em `cause`, para nenhum se perder (revisão do
+ * ab609b5, P2-2).
  */
 export async function apagarBase(
   admin: pg.Client,
   nome: string,
 ): Promise<void> {
+  let erroDaEspera: Error | undefined;
   try {
     await esperarQueSaiam(admin, nome);
-  } finally {
-    await admin.query(`DROP DATABASE IF EXISTS ${nome} WITH (FORCE)`);
+  } catch (erro) {
+    erroDaEspera =
+      erro instanceof Error
+        ? erro
+        : new Error("a espera pelas ligações falhou", { cause: erro });
   }
+  try {
+    await admin.query(`DROP DATABASE IF EXISTS ${nome} WITH (FORCE)`);
+  } catch (erro) {
+    if (erroDaEspera === undefined) throw erro;
+    throw new AggregateError(
+      [erroDaEspera, erro],
+      `a base de teste ${nome} não foi apagada (e a espera tinha falhado)`,
+      { cause: erro },
+    );
+  }
+  if (erroDaEspera !== undefined) throw erroDaEspera;
 }
 
 export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
