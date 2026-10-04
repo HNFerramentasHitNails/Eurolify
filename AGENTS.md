@@ -184,9 +184,17 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
   primeira linha). O código é o que o `.github/CODEOWNERS` lista; o GitHub só
   junta o pedido com a aprovação da outra pessoa (o Bruno aprova o que o Diogo
   escreve, e o contrário). Antes de aprovar, a revisão do agente que não o
-  escreveu tem de estar no pedido, com os pontos P0/P1 tratados: o Codex revê
-  o diff do Claude Code (`@codex review`, ou automática) e o Claude Code revê
-  o do Codex. Um pedido com código e documentos conta como código.
+  escreveu tem de estar no pedido, com os pontos P0/P1 tratados. **Enquanto o
+  Codex não volta** (ADR-0030, revê-se a 29/11/2026): essa revisão é de **uma
+  sessão nova do Claude Code, sem a conversa de quem escreveu e, se possível,
+  com outro modelo**, publicada no pedido. Um pedido com código e documentos
+  conta como código.
+- **Quando a outra pessoa não pode rever** (ADR-0030): o Diogo ou o Bruno pode
+  autorizar, por escrito, que um pedido entre sem ela — só com a revisão do
+  agente feita e os P0/P1 tratados, e **a outra pessoa revê depois**, com data
+  escrita no pedido; o que encontrar corrige-se num pedido novo. A regra do
+  `main` desliga-se só para esse pedido e volta a ligar-se logo, e as duas
+  mudanças ficam na memória.
 - Ramo de um pedido desactualizado: `git merge origin/main` nele. **Nunca
   `push --force`** num ramo que já está num pedido.
 - Um commit por assunto; a mensagem diz o assunto em português.

@@ -1,6 +1,6 @@
 # ADR-0024 · O código vive neste repositório, e as duas revisões impõem-se com o GitHub Pro
 
-- **Estado:** aceite · completa o [ADR-0013](0013-revisao-do-codigo.md)
+- **Estado:** aceite · ponto 5 (revisão automática do Codex) suspenso enquanto o Codex não volta: [ADR-0030](0030-revisao-sem-codex-e-sem-a-outra-pessoa.md) · completa o [ADR-0013](0013-revisao-do-codigo.md)
   (como se impõem as duas revisões) e o [ADR-0023](0023-ok-para-codigo.md)
 - **Data:** 04/10/2026
 - **Quem decidiu:** Diogo

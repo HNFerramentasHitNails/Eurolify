@@ -304,3 +304,13 @@ também na VPS). Resposta do Diogo: *«b»*. Só para o ensaio.
 - O `preparar.sh` a sério, publicar, aplicar e medir: só na Fase D.
 - Acrescentar à regra do `main` a verificação obrigatória do fluxo
   `verificar` depois de o #10 entrar.
+
+## Só o Claude Code por agora; o #10 entra sem o Bruno (decisão AL, ADR-0030) — 04/10/2026
+
+- O Diogo: *«vamos utilizar agora so o claude code, e o codex talvez mais
+  tarde»* e *«O bruno ja tem convite e deve de aceitar amanha ou segundo. por
+  isso, avançamos sem ele com a minha permissão»*. Ao plano do Claude
+  (revisão por uma sessão nova com outro modelo; o Bruno revê depois, até
+  07/10/2026; a regra do `main` desligada só para juntar o #10): *«sim»*.
+- O Claude avisou antes: sem o Bruno e sem o Codex o #10 entraria sem nenhuma
+  revisão independente, com um script que corre como root na VPS.
