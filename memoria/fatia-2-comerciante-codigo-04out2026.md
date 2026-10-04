@@ -46,3 +46,11 @@ Sem P0. Com 4 P1 e 7 P2. Corrigidos na migração 0001, que ainda não estava no
 - **P2:** a data de criação já não muda; o prefixo do país é recusado; a restrição tem nome; o papel volta a `NOLOGIN` no fim dos testes; o desenho foi acertado (transição rascunho→em revisão, uma transacção para todas as migrações, riscos que ficam).
 
 **Números** (04/10/2026): api com 66 passados, dos quais 26 do comerciante e 4 do migrador. Com `BYPASSRLS` falham 8 dos 26.
+
+## Segunda revisão do #43 e concorrência (04/10/2026)
+
+A segunda revisão encontrou 3 P1: tabelas temporárias a desviar o rasto, tabelas temporárias a enganar a activação, e uma entidade arquivada a vender por uma loja activa. A sessão de quem escreveu corrigiu os três no `31710f2`.
+
+A sessão de revisão repetiu as sondas contra esse commit, e as três fecham. Encontrou depois uma corrida que ficava: duas transacções ao mesmo tempo, uma a arquivar a entidade e outra a abrir uma loja activa nela, passavam as duas (medido). A correcção é o `FOR SHARE` na linha da entidade, no gatilho da loja. Há um teste com as duas ordens, que falha com a função antiga.
+
+**Números** (04/10/2026, PostgreSQL 18.6): api com 70 passados e mcp com 30, em 3 corridas seguidas.

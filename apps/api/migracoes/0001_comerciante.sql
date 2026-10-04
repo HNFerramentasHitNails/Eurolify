@@ -268,17 +268,25 @@ CREATE TRIGGER entidade_legal_antes_de_alterar
 
 -- Uma loja activa vende sempre por uma entidade activa: assim a regra da
 -- activação («cada entidade activa com a sua prova») cobre todas as que vendem
--- (revisão do #43, P1-C).
+-- (revisão do #43, P1-C). O FOR SHARE tranca a linha da entidade até ao fim
+-- da transacção: quem a quer arquivar ao mesmo tempo espera e, ao continuar,
+-- já vê esta loja (e recusa); quem a arquivou primeiro faz esta esperar, e
+-- aqui lê-se a entidade já arquivada (e recusa). Sem ele, as duas passavam.
 CREATE FUNCTION loja_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  estado_da_entidade text;
 BEGIN
-  IF NEW.estado = 'activa' AND EXISTS (
-    SELECT FROM public.entidade_legal e
+  IF NEW.estado = 'activa' THEN
+    SELECT e.estado INTO estado_da_entidade
+    FROM public.entidade_legal e
     WHERE e.comerciante_id = NEW.comerciante_id
       AND e.id = NEW.entidade_legal_id
-      AND e.estado <> 'activa'
-  ) THEN
-    RAISE EXCEPTION 'store.legal_entity_archived: uma loja activa não vende por uma entidade arquivada';
+    FOR SHARE;
+    -- Sem linha, a chave estrangeira recusa a seguir (23503).
+    IF estado_da_entidade IS DISTINCT FROM 'activa' AND estado_da_entidade IS NOT NULL THEN
+      RAISE EXCEPTION 'store.legal_entity_archived: uma loja activa não vende por uma entidade arquivada';
+    END IF;
   END IF;
   IF TG_OP = 'UPDATE' THEN
     NEW.criado_em := OLD.criado_em;

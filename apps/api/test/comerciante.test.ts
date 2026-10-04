@@ -689,6 +689,75 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         ),
       ).toBe("store.legal_entity_archived");
     });
+
+    // Duas transacções ao mesmo tempo: sem o FOR SHARE de loja_antes_de_gravar,
+    // passavam as duas e ficava uma loja activa numa entidade arquivada.
+    it("em concorrência, arquivar a entidade e abrir uma loja nela não passam as duas", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const pt = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      const es = await criarEntidadeLegal(base.api, id, {
+        ...ENTIDADE,
+        pais: "ES",
+      });
+
+      /** Espera até a promessa acabar ou ficar à espera de um bloqueio. */
+      async function ateBloquear(promessa: Promise<unknown>): Promise<void> {
+        const estado = { acabou: false };
+        void promessa.then(
+          () => (estado.acabou = true),
+          () => (estado.acabou = true),
+        );
+        for (let i = 0; i < 100 && !estado.acabou; i++) {
+          const { rows } = await sql<{ n: number }>`
+            select count(*)::int as n from pg_stat_activity
+            where usename = 'eurolify_api' and wait_event_type = 'Lock'`.execute(
+            base.dono,
+          );
+          if ((rows[0]?.n ?? 0) > 0) return;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
+
+      const loja = new pg.Client({ connectionString: base.urlApi });
+      const arquivo = new pg.Client({ connectionString: base.urlApi });
+      await loja.connect();
+      await arquivo.connect();
+      const contexto = "select set_config('eurolify.comerciante', $1, true)";
+      const abrirLoja =
+        "INSERT INTO loja (comerciante_id, entidade_legal_id, nome, lingua_origem) VALUES ($1, $2, 'Loja', 'pt')";
+      const arquivar =
+        "UPDATE entidade_legal SET estado = 'arquivada' WHERE id = $1";
+      try {
+        // A loja primeiro: quem arquiva espera e, depois, vê a loja.
+        await loja.query("BEGIN");
+        await loja.query(contexto, [id]);
+        await loja.query(abrirLoja, [id, pt]);
+        await arquivo.query("BEGIN");
+        await arquivo.query(contexto, [id]);
+        const arquivamento = arquivo.query(arquivar, [pt]);
+        await ateBloquear(arquivamento);
+        await loja.query("COMMIT");
+        await expect(arquivamento).rejects.toThrow(/^legal_entity\.in_use:/);
+        await arquivo.query("ROLLBACK");
+
+        // O arquivo primeiro: a loja espera e, depois, lê a entidade arquivada.
+        await arquivo.query("BEGIN");
+        await arquivo.query(contexto, [id]);
+        await arquivo.query(arquivar, [es]);
+        await loja.query("BEGIN");
+        await loja.query(contexto, [id]);
+        const abertura = loja.query(abrirLoja, [id, es]);
+        await ateBloquear(abertura);
+        await arquivo.query("COMMIT");
+        await expect(abertura).rejects.toThrow(
+          /^store\.legal_entity_archived:/,
+        );
+        await loja.query("ROLLBACK");
+      } finally {
+        await loja.end();
+        await arquivo.end();
+      }
+    });
   });
 
   describe("entidades legais e valores", () => {
