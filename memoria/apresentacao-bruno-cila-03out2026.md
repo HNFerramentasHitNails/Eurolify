@@ -402,6 +402,24 @@ folha dos logótipos tirada do deck (asset `619cd0c4d7f3af9b685f2d4e16ee73e0`).
 - Vistas em imagem: 1, 12, 50, 52 e 59. As outras 61, não. As notas do orador
   não vão no PDF.
 
+## Versão 21 (04/10/2026): a capa na versão 0.7
+
+Pedido do Diogo: *«actualiza a capa para a versão 0.7»*.
+
+- **Só a capa:** «Versão 0.6 · 04/10/2026» passou a «Versão 0.7 · 04/10/2026».
+  Nas notas, a lista das versões ganhou a 0.7: o OK para código (páginas 39,
+  51, 53 e 65 e notas da 44), o custo por mês na VPS (50 e 52) e o GitHub Pro
+  (ADR-0024) — o que entrou nas versões 19 e 20 do deck.
+- **Procurei a versão noutros sítios:** «0.6» nas 66 páginas da v20 (só a capa)
+  e «versão 0.x» nos `.md` do repositório (só a nota histórica da v18, acima,
+  que fica).
+- Publicada por cima da 20 (`1791076976-574b`, confirmada antes de editar); a
+  21 é a `1791115169-c625`, confirmada lendo a capa de volta. Mudou um
+  algarismo: a altura da capa não mexe, e não a medi.
+- **O PDF da v20 diz «Versão 0.6» na capa.**
+- Visto de passagem e não mexido: as notas da página 66 ainda dizem «Nenhum
+  código foi escrito … (ADR-0001)».
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
