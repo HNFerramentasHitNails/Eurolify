@@ -77,6 +77,8 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
         // O papel é da instância, não da base: volta a ficar sem acesso e sem
         // palavra-passe (revisão do #43, P2-5). Só um ficheiro de testes usa a
         // base de cada vez; se passarem a ser vários em paralelo, mudar isto.
+        // Se a corrida for morta antes daqui, o papel fica com LOGIN e a
+        // palavra-passe de teste nesta instância (só em máquinas de teste).
         await fim.query("ALTER ROLE eurolify_api NOLOGIN PASSWORD NULL");
       } finally {
         await fim.end();

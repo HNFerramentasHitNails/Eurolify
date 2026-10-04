@@ -12,6 +12,11 @@ import type {
 // fatia de identidade (P1). Todas as operações correm dentro do contexto de
 // um comerciante (SET LOCAL), e é a base que impõe o isolamento (RLS); as
 // regras de estado vivem na base (trigger), aqui só se traduzem os erros.
+//
+// 🔴 Os parâmetros eurolify.comerciante, eurolify.motivo e eurolify.quem
+// põem-se SEMPRE com set_config(…, true) — só nesta transacção. Com `false`
+// ficavam na ligação do pool e a transacção seguinte herdava-os (revisão do
+// #43, P2-3).
 
 export type CodigoErroComerciante =
   | "merchant.not_found"
@@ -19,7 +24,9 @@ export type CodigoErroComerciante =
   | "merchant.activation_blocked"
   | "merchant.transition_without_trail"
   | "legal_entity.tax_number_duplicate"
-  | "legal_entity.immutable_identity";
+  | "legal_entity.immutable_identity"
+  | "legal_entity.in_use"
+  | "store.legal_entity_archived";
 
 export class ErroComerciante extends Error {
   constructor(
@@ -37,6 +44,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroComerciante[] = [
   "merchant.activation_blocked",
   "merchant.transition_without_trail",
   "legal_entity.immutable_identity",
+  "legal_entity.in_use",
+  "store.legal_entity_archived",
 ];
 
 /** Traduz um erro da base num erro do domínio; o resto passa como está. */

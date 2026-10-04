@@ -247,6 +247,17 @@ acordo de tratamento — **qual** (construir ou fornecedor) decide-se nesse ADR.
   qualquer uuid no `SET LOCAL`. É a fatia «identidade» que tem de ligar o
   contexto à sessão autenticada — até lá, nenhum endpoint usa a base (revisão
   do #43).
+- **A activação só é verificada na transição para `activo`** (revisão do #43,
+  P2-2): depois de activo, uma prova que expira, uma nova prova recusada ou uma
+  entidade arquivada não fazem o comerciante sair de `activo`. Quem reage a
+  isso é um trabalho periódico ou a fatia de verificação — por fazer; até lá,
+  não há comerciantes reais na base.
+- **Tabelas temporárias com o nome das verdadeiras** desviavam o rasto ou a
+  verificação de activação: as funções têm `search_path` fixo com `pg_temp` em
+  último, os nomes vão com `public.` e o `PUBLIC` perde `TEMPORARY` na base
+  (revisão do #43, P1-A).
+- **Uma loja activa a vender por uma entidade arquivada** — a base recusa nos
+  dois sentidos (`legal_entity.in_use`, `store.legal_entity_archived`; P1-B/C).
 - **A versão em vigor dos contratos** não existe ainda (`compliance-gaps.md`
   G11): a activação aceita qualquer versão aceite de cada tipo.
 - **O migrador ligado com o utilizador da API** se a ligação dele for para o

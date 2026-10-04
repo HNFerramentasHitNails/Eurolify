@@ -562,6 +562,135 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     });
   });
 
+  describe("tabelas temporárias e entidades arquivadas (revisão do #43, P1-A/B/C)", () => {
+    it("o eurolify_api não cria tabelas temporárias nesta base", async () => {
+      const cliente = new pg.Client({ connectionString: base.urlApi });
+      await cliente.connect();
+      try {
+        await expect(
+          cliente.query("CREATE TEMP TABLE t (x int)"),
+        ).rejects.toMatchObject({ code: "42501" });
+      } finally {
+        await cliente.end();
+      }
+    });
+
+    it("mesmo com TEMP, tabelas temporárias não desviam o rasto nem enganam a activação", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      await criarEntidadeLegal(base.api, id, ENTIDADE);
+      for (const para of ["em_revisao", "aprovado_limitado"] as const) {
+        await mudarEstado(base.api, id, {
+          para,
+          motivo: "teste",
+          quem: "teste",
+        });
+      }
+      const nomeBase = new URL(base.urlApi).pathname.slice(1);
+      await sql`${sql.raw(`GRANT TEMPORARY ON DATABASE ${nomeBase} TO eurolify_api`)}`.execute(
+        base.dono,
+      );
+      const cliente = new pg.Client({ connectionString: base.urlApi });
+      await cliente.connect();
+      try {
+        await cliente.query(
+          "CREATE TEMP TABLE transicao_estado (comerciante_id uuid, de text, para text, motivo text, quem text)",
+        );
+        await cliente.query(
+          "CREATE TEMP TABLE aceitacao_contrato (comerciante_id uuid, tipo text)",
+        );
+        await cliente.query(
+          "CREATE TEMP TABLE prova_verificacao (comerciante_id uuid, entidade_legal_id uuid, finalidade text, resultado text, rever_ate timestamptz, registado_em timestamptz, id uuid)",
+        );
+        await cliente.query("BEGIN");
+        await cliente.query(
+          "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.motivo', 'teste', true), set_config('eurolify.quem', 'teste', true)",
+          [id],
+        );
+        await cliente.query(
+          "INSERT INTO aceitacao_contrato VALUES ($1, 'contrato_servico'), ($1, 'acordo_tratamento_dados')",
+          [id],
+        );
+        await cliente.query(
+          "INSERT INTO prova_verificacao SELECT $1, e.id, 'identificacao_fiscal', 'aceite', NULL, now(), gen_random_uuid() FROM public.entidade_legal e",
+          [id],
+        );
+        await expect(
+          cliente.query("UPDATE public.comerciante SET estado = 'activo'"),
+        ).rejects.toThrow(/merchant\.activation_blocked: faltam contratos/);
+        await cliente.query("ROLLBACK");
+
+        await cliente.query("BEGIN");
+        await cliente.query(
+          "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.motivo', 'teste', true), set_config('eurolify.quem', 'teste', true)",
+          [id],
+        );
+        await cliente.query(
+          "UPDATE public.comerciante SET estado = 'suspenso'",
+        );
+        await cliente.query("COMMIT");
+        const temporaria = await cliente.query(
+          "SELECT count(*)::int AS n FROM pg_temp.transicao_estado",
+        );
+        expect(temporaria.rows[0]).toEqual({ n: 0 });
+      } finally {
+        await cliente.end();
+        await sql`${sql.raw(`REVOKE TEMPORARY ON DATABASE ${nomeBase} FROM eurolify_api`)}`.execute(
+          base.dono,
+        );
+      }
+      const rasto = await comComerciante(base.api, id, (trx) =>
+        trx.selectFrom("transicao_estado").select(["de", "para"]).execute(),
+      );
+      expect(rasto.map((t) => `${t.de}→${t.para}`)).toContain(
+        "aprovado_limitado→suspenso",
+      );
+    });
+
+    it("não se arquiva uma entidade por onde vende uma loja activa, nem se vende por uma arquivada", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const pt = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      const es = await criarEntidadeLegal(base.api, id, {
+        ...ENTIDADE,
+        pais: "ES",
+      });
+      const loja = await criarLoja(base.api, id, {
+        entidade_legal_id: pt,
+        nome: "Loja",
+        lingua_origem: "pt",
+      });
+      const arquivar = (entidade: string) =>
+        comComerciante(base.api, id, (trx) =>
+          trx
+            .updateTable("entidade_legal")
+            .set({ estado: "arquivada" as never })
+            .where("id", "=", entidade)
+            .execute(),
+        );
+      expect(await codigoDoErro(arquivar(pt))).toBe("legal_entity.in_use");
+      await arquivar(es);
+      expect(
+        await codigoDoErro(
+          criarLoja(base.api, id, {
+            entidade_legal_id: es,
+            nome: "Outra",
+            lingua_origem: "es",
+          }),
+        ),
+      ).toBe("store.legal_entity_archived");
+      expect(
+        await codigoDoErro(
+          comComerciante(base.api, id, (trx) =>
+            trx
+              .updateTable("loja")
+              .set({ entidade_legal_id: es })
+              .where("id", "=", loja)
+              .execute(),
+          ),
+        ),
+      ).toBe("store.legal_entity_archived");
+    });
+  });
+
   describe("entidades legais e valores", () => {
     it("o número fiscal é único por país dentro do comerciante, não entre comerciantes", async () => {
       const x = await registarComerciante(base.api, NOVO);

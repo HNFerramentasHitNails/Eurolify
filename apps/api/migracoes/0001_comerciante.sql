@@ -17,7 +17,7 @@ $$;
 -- Sem ele dá erro, nunca vazio: numa ligação nova o parâmetro não existe;
 -- numa ligação reaproveitada vale '' e falha a conversão para uuid.
 CREATE FUNCTION comerciante_actual() RETURNS uuid
-  LANGUAGE sql STABLE
+  LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp
   AS $$ SELECT current_setting('eurolify.comerciante')::uuid $$;
 
 CREATE TABLE comerciante (
@@ -128,7 +128,7 @@ CREATE TABLE transicao_estado (
 -- versão e data de alteração sobem. As transições e a activação decidem-se
 -- aqui (docs/15 §4).
 CREATE FUNCTION comerciante_antes_de_gravar() RETURNS trigger
-  LANGUAGE plpgsql AS $$
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.estado <> 'rascunho' OR NEW.estado_antes_de_suspenso IS NOT NULL THEN
@@ -170,20 +170,20 @@ BEGIN
     -- do número fiscal aceite e não caducada (decisão P3 do Diogo,
     -- 04/10/2026). A versão em vigor dos contratos ainda não existe (G11).
     IF NEW.estado = 'activo' THEN
-      IF (SELECT count(DISTINCT tipo) FROM aceitacao_contrato
+      IF (SELECT count(DISTINCT tipo) FROM public.aceitacao_contrato
           WHERE comerciante_id = NEW.id) < 2 THEN
         RAISE EXCEPTION 'merchant.activation_blocked: faltam contratos aceites';
       END IF;
       IF NOT EXISTS (
-        SELECT FROM entidade_legal e
+        SELECT FROM public.entidade_legal e
         WHERE e.comerciante_id = NEW.id AND e.estado = 'activa'
       ) OR EXISTS (
-        SELECT FROM entidade_legal e
+        SELECT FROM public.entidade_legal e
         WHERE e.comerciante_id = NEW.id AND e.estado = 'activa'
           AND NOT EXISTS (
             SELECT FROM (
               SELECT p.resultado, p.rever_ate
-              FROM prova_verificacao p
+              FROM public.prova_verificacao p
               WHERE p.comerciante_id = e.comerciante_id
                 AND p.entidade_legal_id = e.id
                 AND p.finalidade = 'identificacao_fiscal'
@@ -211,9 +211,14 @@ CREATE TRIGGER comerciante_antes_de_gravar
 -- O rasto escreve-o a base, depois de cada mudança de estado, com o motivo e
 -- quem postos pela aplicação (SET LOCAL eurolify.motivo / eurolify.quem).
 -- Sem eles, a mudança falha. Corre com os direitos do dono das tabelas (a API
--- não tem INSERT em transicao_estado); o RLS forçado aplica-se na mesma.
+-- não tem INSERT em transicao_estado). O RLS forçado só se aplica se o dono
+-- não for superutilizador (o eurolify_migrador na VPS); no CI e nos testes o
+-- dono é o postgres, que o ignora — por isso esta função não faz mais nada
+-- além de escrever a linha de NEW.id, que já passou o RLS do UPDATE.
+-- O search_path põe o pg_temp em último e os nomes vão com o esquema: uma
+-- tabela temporária com o mesmo nome não desvia nada (revisão do #43, P1-A/B).
 CREATE FUNCTION comerciante_escrever_rasto() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   motivo text := nullif(btrim(current_setting('eurolify.motivo', true)), '');
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
@@ -221,7 +226,7 @@ BEGIN
   IF motivo IS NULL OR quem IS NULL THEN
     RAISE EXCEPTION 'merchant.transition_without_trail: % → % sem motivo ou sem quem', OLD.estado, NEW.estado;
   END IF;
-  INSERT INTO transicao_estado (comerciante_id, de, para, motivo, quem)
+  INSERT INTO public.transicao_estado (comerciante_id, de, para, motivo, quem)
   VALUES (NEW.id, OLD.estado, NEW.estado, motivo, quem);
   RETURN NULL;
 END
@@ -236,8 +241,16 @@ CREATE TRIGGER comerciante_escrever_rasto
 -- (nunca decidir identidade pelo nome): arquiva-se e cria-se outra, e as
 -- provas da anterior não passam para ela.
 CREATE FUNCTION entidade_legal_antes_de_alterar() RETURNS trigger
-  LANGUAGE plpgsql AS $$
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+  IF NEW.estado = 'arquivada' AND OLD.estado <> 'arquivada' AND EXISTS (
+    SELECT FROM public.loja l
+    WHERE l.comerciante_id = OLD.comerciante_id
+      AND l.entidade_legal_id = OLD.id
+      AND l.estado = 'activa'
+  ) THEN
+    RAISE EXCEPTION 'legal_entity.in_use: arquivar só depois de nenhuma loja activa vender por ela';
+  END IF;
   IF NEW.pais IS DISTINCT FROM OLD.pais
      OR NEW.numero_fiscal IS DISTINCT FROM OLD.numero_fiscal
      OR NEW.comerciante_id IS DISTINCT FROM OLD.comerciante_id
@@ -252,6 +265,31 @@ $$;
 CREATE TRIGGER entidade_legal_antes_de_alterar
   BEFORE UPDATE ON entidade_legal
   FOR EACH ROW EXECUTE FUNCTION entidade_legal_antes_de_alterar();
+
+-- Uma loja activa vende sempre por uma entidade activa: assim a regra da
+-- activação («cada entidade activa com a sua prova») cobre todas as que vendem
+-- (revisão do #43, P1-C).
+CREATE FUNCTION loja_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NEW.estado = 'activa' AND EXISTS (
+    SELECT FROM public.entidade_legal e
+    WHERE e.comerciante_id = NEW.comerciante_id
+      AND e.id = NEW.entidade_legal_id
+      AND e.estado <> 'activa'
+  ) THEN
+    RAISE EXCEPTION 'store.legal_entity_archived: uma loja activa não vende por uma entidade arquivada';
+  END IF;
+  IF TG_OP = 'UPDATE' THEN
+    NEW.criado_em := OLD.criado_em;
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER loja_antes_de_gravar
+  BEFORE INSERT OR UPDATE ON loja
+  FOR EACH ROW EXECUTE FUNCTION loja_antes_de_gravar();
 
 -- RLS forçado: nem o dono das tabelas o ignora (só um superutilizador).
 ALTER TABLE comerciante ENABLE ROW LEVEL SECURITY;
@@ -287,3 +325,13 @@ GRANT INSERT (comerciante_id, entidade_legal_id, finalidade, origem,
   origem_detalhe, resultado, verificado_em, rever_ate, documento)
   ON prova_verificacao TO eurolify_api;
 REVOKE EXECUTE ON FUNCTION comerciante_escrever_rasto() FROM PUBLIC;
+
+-- Segunda barreira (revisão do #43, P1-B): sem tabelas temporárias nesta base.
+-- Só quem é dono da base (ou superutilizador) as pode retirar; se a migração
+-- correr com outro, o PostgreSQL avisa e não muda nada, e fica a primeira
+-- barreira (search_path e nomes com esquema).
+DO $$
+BEGIN
+  EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database());
+END
+$$;
