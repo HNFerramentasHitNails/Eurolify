@@ -172,9 +172,10 @@ países (por país) e os vários armazéns — ambos ainda por investigar.
    - devolução → reembolso → nota de crédito (sem troca nem carteira) → Fase 1;
    - lotes na linha expedida e compostos → Fase 1.
 
-   Cada uma **aumenta a Fase 1**, cuja estimativa no `docs/10` (15 a 29 meses a
-   tempo inteiro) não as inclui: estão lá como «por estimar». **Não estimei**
-   quanto de cada peça passa.
+   Cada uma **aumenta a Fase 1**. Estimadas a 04/10/2026 no `docs/10` (**C**):
+   relatório OSS 2–4, núcleo das devoluções 4–7, lotes e compostos 3–5
+   pessoas-semana; a Fase 1 passa de 15–29 para 17–32 meses os dois a tempo
+   inteiro, a Fase 2 de 9–18 para 7–15.
 2. **As conversas com os comerciantes** são o passo que desbloqueia as portas 3
    e 4 em todos os módulos. Perguntas mínimas por módulo:
    - quanto pagam hoje (plataforma, extensões, contabilista) e por quê;
