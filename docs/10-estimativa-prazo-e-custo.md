@@ -276,7 +276,7 @@ usando a IA como o Claude Code e Codex, por fases»*.
 
 | Fase | O que é | Esforço (pessoas-semana) | Os dois a tempo inteiro | Cada um a meio tempo |
 |---|---|---|---|---|
-| **0** (o que falta) | Desenho final (domínio, API, contratos), conversas com 3 a 5 comerciantes, preços (D-14), OK para código (dado a 04/10/2026, ADR-0023). Desde 03/10/2026 os preços só travam a peça 13 (ADR-0012); estes números não foram recalculados | 5–10 | **1 a 3** | **1,5 a 3** |
+| **0** (o que falta) | Desenho final (domínio, API, contratos), conversas com 3 a 5 comerciantes, preços (D-14), OK para código (dado a 04/10/2026, ADR-0023). Desde 03/10/2026 os preços só travam a peça 13 (ADR-0012); estes números não foram recalculados. A Fase 0 passou a 04/10/2026 (critério S); o resto desta linha continua por fazer e faz-se no começo da Fase 1, domínio a domínio | 5–10 | **1 a 3** | **1,5 a 3** |
 | **1** | Núcleo à venda (§2, sem a peça 1; com as peças 18 a 20 da decisão AD — sem elas eram 101–192, 15 a 29 e 28 a 52) | 112–212 | **17 a 32** | **31 a 58** |
 | | Critério de passagem: 3 meses de vendas reais sem documento fiscal errado | — | **+3** | **+3** |
 | **2** | Hub completo e mais países (tabela abaixo; sem as peças que a decisão AD passou para a Fase 1 — com elas eram 60–117, 9 a 18 e 16 a 32) | 49–96 | **7 a 15** | **13 a 26** |
@@ -285,9 +285,13 @@ usando a IA como o Claude Code e Codex, por fases»*.
 | **4** | Marketplace | — | **não se estima**: só com caso de negócio escrito (`05-fases-e-mvp.md`) | |
 | | **Até ao fim da Fase 3** (igual depois da decisão AD: o trabalho mudou de fase, não cresceu) | | **≈ 38 a 70** (3 a 6 anos) | **≈ 64 a 118** (5 a 10 anos) |
 
-**Exemplo:** com a Fase 0 fechada a 31/12/2026 e os dois a tempo inteiro, a
-construção da Fase 1 acaba entre **junho de 2028 e setembro de 2029** (antes
-da decisão AD: abril de 2028 e junho de 2029); o primeiro
+**Exemplo** (recalculado a 04/10/2026): a Fase 0 passou a 04/10/2026, e o
+desenho que faltava (linha 0, 1 a 3 meses) faz-se no começo da Fase 1. Com os
+dois a tempo inteiro, a construção da Fase 1 acaba entre **abril de 2028 e
+setembro de 2029** (1 a 3 + 17 a 32 = 18 a 35 meses a contar de 05/10/2026,
+**C**). Com a Fase 0 fechada a 31/12/2026, como o exemplo supunha antes, era
+junho de 2028 a setembro de 2029 (e, antes da decisão AD, abril de 2028 e
+junho de 2029). O primeiro
 comerciante de fora pode entrar quando o motor de IVA estiver validado pelo
 contabilista e o contrato pelo jurista, que correm em paralelo.
 

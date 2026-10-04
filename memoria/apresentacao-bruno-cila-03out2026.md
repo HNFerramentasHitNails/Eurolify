@@ -507,6 +507,44 @@ Pedido do Diogo: *«sim, corrige a 58 e a 53 e gera o PDF»* (issue #28).
   nenhuma página passa de 920 nem de 1792; letra de recurso nas mesmas 12
   páginas. Vistas em imagem: 2, 53 e 58. Entregue ao Diogo na conversa.
 
+## Versão 25 e o seu PDF (04/10/2026)
+
+Pedido do Diogo: *«verifica se há mais alterações»* — procurei nas 66 páginas
+(texto visível e notas) os assuntos que mudaram a 04/10/2026 (revisões, acesso
+à VPS, Scaleway, domínios, cópias, MCP, Fase 0) contra as decisões AE a AO do
+`docs/06` — e depois *«sim, corrige a 47, 62 e 51 e gera o PDF»* (issue #31).
+
+- **Página 47 (A VPS), texto visível:** o cartão do Claude dizia «o código com
+  duas revisões» e passou a «publica e repõe cópias pelo GitHub: cada alteração
+  entra por pedido revisto, e essa revisão é a confirmação» (ADR-0016 e
+  ADR-0028); «Já feito: … firewall só na porta 22 … O Claude entra pelo
+  computador do Diogo (ADR-0020)» passou a «Já feito a 04/10/2026: a VPS
+  preparada pelo script, pelo GitHub; a primeira publicação no ensaio; cópias
+  cifradas em Paris, com reposição; alertas. O SSH pessoal fica para
+  emergência» (pedidos #17, #19, #20, #23). Notas: o ADR-0031 em vez das duas
+  revisões; o MCP abre a 443 quando o #30 entrar (estado actual da firewall
+  não verificado).
+- **Página 62 (Riscos):** «revisão cruzada» → «revisão por outro agente»; nas
+  notas, o ADR-0030/0031 e o aviso do Codex (limite de uso) nos pedidos #22,
+  #26 e #29.
+- **Página 51 e `docs/10` §9:** o exemplo «Fase 0 fechada a 31/12/2026 → Fase
+  1 acaba entre junho de 2028 e setembro de 2029» passou a «A Fase 0 passou a
+  04/10/2026; com o desenho que falta no começo da Fase 1 … entre abril de 2028
+  e setembro de 2029» (1 a 3 + 17 a 32 = 18 a 35 meses a contar de 05/10/2026,
+  **C**). A linha 0 do §9 diz agora que a Fase 0 passou e que o resto se faz no
+  começo da Fase 1; o total até ao fim da Fase 3 (38 a 70) não muda.
+- Publicada por cima da 24 (`1791117369-2f81`); a 25 é a `1791118926-1995`,
+  confirmada lendo as três páginas de volta.
+- **Medido:** a 47 passou de 854 a 889 px (limite 920); a 51 (813) e a 62 (702)
+  não mudaram.
+- **O PDF:** `Eurolify-apresentacao-Bruno-Cila-v25.pdf`: **66 páginas,
+  1440×810 pt, 3.262.984 bytes** (`pdfinfo`); as duas letras dentro; nenhuma
+  página passa de 920 nem de 1792; letra de recurso nas mesmas 12 páginas.
+  Vistas em imagem: 47 e 51. Entregue ao Diogo na conversa.
+- **Ficaram por mexer (menores):** o rodapé «proposta para Bruno e Cila ·
+  03/10/2026» em 28 páginas e a data da 66 (a capa diz 04/10/2026); as notas da
+  capa descrevem a 0.7 só até à v21.
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
