@@ -53,7 +53,7 @@ dentro da sessão, com capturas de ecrã. Não é a Scaleway.
 | O mesmo contentor sempre ligado (730 h) | ≈ 15,60 €/mês (11,14 + 4,46) | conta minha |
 | Base PostgreSQL gerida DB-DEV-S (2 vCPU, 2 GB) | €0,0156/h ⇒ ≈ 11,40 €/mês; disco €0,0993/GB/mês; cópias €0,03/GB/mês | scaleway.com/en/pricing/managed-databases, 03/10/2026 |
 | Registo de imagens privado | €0,027/GB/mês; tráfego na mesma região grátis, entre regiões €0,033/GB | scaleway.com/en/pricing/containers, 03/10/2026, conferido no HTML |
-| Ensaio inteiro | ≈ 12 a 28 €/mês | soma minha; o `docs/10` §5 conta 2.000–5.000 € de alojamento na construção — **não recalculado** |
+| Ensaio inteiro | ≈ 12 a 28 €/mês | soma minha; o `docs/10` §5 conta 2.000–5.000 € de alojamento na construção — **não recalculado** (*04/10/2026: recalculado para a VPS da OVH, ≈ 120–1.360 €, `docs/10` §5*) |
 | Desligar por inactividade | 15 min com `min-scale` 0; republicar não desliga o serviço | `containers-autoscaling.mdx` |
 | Pôr no ar | *«can take several minutes, depending on the image used»* | `api-cli/deploy-container-cli.mdx`; não medido |
 | Registos e métricas no Cockpit | grátis com a retenção por omissão (7 dias registos, 31 dias métricas) | `how-to/monitor-container.mdx` |

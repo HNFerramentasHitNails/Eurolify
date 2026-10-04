@@ -41,8 +41,9 @@
 > ⚠️ **04/10/2026:** a decisão AD (ADR-0022) passou três peças da Fase 2 para a
 > Fase 1 (relatório OSS 2–4, núcleo das devoluções 4–7, lotes e compostos 3–5
 > pessoas-semana, **C**, partidas das peças da Fase 2 de onde vieram). Os
-> números dos cenários A, B e C abaixo foram corrigidos onde estão; os
-> serviços externos e o custo fixo por mês não dependem do âmbito.
+> números dos cenários A, B e C abaixo foram corrigidos onde estão. No mesmo
+> dia, o alojamento da construção passou a ser contado na VPS da OVH; o custo
+> fixo por mês depois de abrir continua contado para a Scaleway gerida.
 
 - Esforço da Fase 1: **101–171 pessoas-semana**, **≈ 116–222** com imprevistos
   (+15 % / +30 %) — corrigido a 04/10/2026 com a decisão AD; eram 92–155 e
@@ -51,13 +52,18 @@
   90 %, 3 rendem 80 %.
 - Custo de uma pessoa: 45.000–65.000 € brutos/ano (**W**, resumos de guias
   2026) × 1,27 (TSU 23,75 % **W** + 3 % **C**) = 57.150–82.550 €/ano.
-- B (2 sénior): 17,6–33,7 meses; ≈ 189.000–510.000 €. C (3 sénior):
-  13,2–25,3 meses; ≈ 210.000–569.000 €. A conta está escrita no docs/10 §2–§4.
+- B (2 sénior): 17,6–33,7 meses; ≈ 187.000–506.000 €. C (3 sénior):
+  13,2–25,3 meses; ≈ 208.000–565.000 €. A conta está escrita no docs/10 §2–§4.
   *Corrigido a 04/10/2026 com a decisão AD: eram B 16,0–30,5 meses e
   ≈ 173.000–465.000 €, C 12,0–22,9 meses e ≈ 193.000–519.000 €.*
 - Externos com preço: teste de intrusão 5.950–8.500 € cada (Budget Security,
   20/07/2026); acessibilidade 5.000–10.000 € (fonte fraca); marca UE 3 classes
-  1.050 €; alojamento na construção 2.000–5.000 € (**C**).
+  1.050 €; alojamento na construção 2.000–5.000 € (**C**). *Corrigido a
+  04/10/2026 para a VPS da OVH: ≈ 120–1.360 € conforme o cenário (conta no
+  `docs/10` §5); os serviços externos passam de ≈ 14.000–33.000 € a
+  ≈ 12.000–29.000 €, e os totais de B e C a ≈ 187.000–506.000 € e
+  ≈ 208.000–565.000 € (com a decisão AD eram ≈ 189.000–510.000 € e
+  ≈ 210.000–569.000 €).*
 - Custo fixo/mês depois de abrir: B ≈ 10.150–14.870 €, C ≈ 15.110–21.950 € (corrigido a 03/10/2026: o alojamento passou a ≈ 234–710 €, ver `alojamento-e-custos-03out2026.md`).
   A 100 €/mês de margem média por comerciante (hipótese): B ≈ 100–150
   comerciantes, C ≈ 150–220.
