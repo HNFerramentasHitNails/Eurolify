@@ -578,6 +578,16 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     it("mesmo com TEMP, tabelas temporárias não desviam o rasto nem enganam a activação", async () => {
       const id = await registarComerciante(base.api, NOVO);
       await criarEntidadeLegal(base.api, id, ENTIDADE);
+      // Os contratos aceites a sério: assim a activação passa a primeira
+      // verificação e chega à da prova, que é a que a tabela temporária tenta
+      // enganar (terceira revisão do #43, P2-2).
+      for (const tipo of TIPOS_CONTRATO) {
+        await aceitarContrato(base.api, id, {
+          tipo,
+          versao_texto: "v1",
+          aceite_por: "teste",
+        });
+      }
       for (const para of ["em_revisao", "aprovado_limitado"] as const) {
         await mudarEstado(base.api, id, {
           para,
@@ -616,7 +626,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         );
         await expect(
           cliente.query("UPDATE public.comerciante SET estado = 'activo'"),
-        ).rejects.toThrow(/merchant\.activation_blocked: faltam contratos/);
+        ).rejects.toThrow(
+          /merchant\.activation_blocked: falta a prova do número fiscal/,
+        );
         await cliente.query("ROLLBACK");
 
         await cliente.query("BEGIN");
@@ -688,6 +700,36 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           ),
         ),
       ).toBe("store.legal_entity_archived");
+    });
+
+    it("arquivada é terminal: uma entidade arquivada não volta a activa", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const es = await criarEntidadeLegal(base.api, id, {
+        ...ENTIDADE,
+        pais: "ES",
+      });
+      const porEstado = (estado: "activa" | "arquivada") =>
+        comComerciante(base.api, id, (trx) =>
+          trx
+            .updateTable("entidade_legal")
+            .set({ estado: estado as never })
+            .where("id", "=", es)
+            .execute(),
+        );
+      await porEstado("arquivada");
+      expect(await codigoDoErro(porEstado("activa"))).toBe(
+        "legal_entity.archived",
+      );
+      // Voltar a escrever «arquivada» não é desarquivar: passa.
+      await porEstado("arquivada");
+      const [linha] = await comComerciante(base.api, id, (trx) =>
+        trx
+          .selectFrom("entidade_legal")
+          .select("estado")
+          .where("id", "=", es)
+          .execute(),
+      );
+      expect(linha).toEqual({ estado: "arquivada" });
     });
 
     // Duas transacções ao mesmo tempo: sem o FOR SHARE de loja_antes_de_gravar,

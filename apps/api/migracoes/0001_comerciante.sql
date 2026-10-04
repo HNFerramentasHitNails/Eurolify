@@ -16,9 +16,14 @@ $$;
 -- O comerciante do pedido, posto com SET LOCAL eurolify.comerciante.
 -- Sem ele dá erro, nunca vazio: numa ligação nova o parâmetro não existe;
 -- numa ligação reaproveitada vale '' e falha a conversão para uuid.
+-- Sem cláusula SET, de propósito: uma função sql com SET não é expandida em
+-- linha pelo planeador e paga a troca do search_path em cada chamada, e esta
+-- está em todas as políticas de RLS. A protecção contra o pg_temp fica na
+-- mesma, porque a função e o tipo vão com o esquema (terceira revisão do #43,
+-- P2-5).
 CREATE FUNCTION comerciante_actual() RETURNS uuid
-  LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp
-  AS $$ SELECT current_setting('eurolify.comerciante')::uuid $$;
+  LANGUAGE sql STABLE
+  AS $$ SELECT pg_catalog.current_setting('eurolify.comerciante')::pg_catalog.uuid $$;
 
 CREATE TABLE comerciante (
   id uuid PRIMARY KEY,
@@ -239,10 +244,16 @@ CREATE TRIGGER comerciante_escrever_rasto
 
 -- Uma entidade com outro número fiscal ou de outro país é outra entidade
 -- (nunca decidir identidade pelo nome): arquiva-se e cria-se outra, e as
--- provas da anterior não passam para ela.
+-- provas da anterior não passam para ela. Arquivada é terminal: desarquivar
+-- trazia de volta uma entidade cuja prova pode estar recusada, sem a regra da
+-- activação voltar a correr (terceira revisão do #43, P2-3). Se for preciso,
+-- cria-se outra entidade com os mesmos dados e prova nova.
 CREATE FUNCTION entidade_legal_antes_de_alterar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+  IF OLD.estado = 'arquivada' AND NEW.estado IS DISTINCT FROM 'arquivada' THEN
+    RAISE EXCEPTION 'legal_entity.archived: uma entidade arquivada não volta a activa; cria-se outra';
+  END IF;
   IF NEW.estado = 'arquivada' AND OLD.estado <> 'arquivada' AND EXISTS (
     SELECT FROM public.loja l
     WHERE l.comerciante_id = OLD.comerciante_id
@@ -335,11 +346,17 @@ GRANT INSERT (comerciante_id, entidade_legal_id, finalidade, origem,
 REVOKE EXECUTE ON FUNCTION comerciante_escrever_rasto() FROM PUBLIC;
 
 -- Segunda barreira (revisão do #43, P1-B): sem tabelas temporárias nesta base.
--- Só quem é dono da base (ou superutilizador) as pode retirar; se a migração
--- correr com outro, o PostgreSQL avisa e não muda nada, e fica a primeira
--- barreira (search_path e nomes com esquema).
+-- Só quem é dono da base (ou superutilizador) as pode retirar. Se a migração
+-- correr com outro, o PostgreSQL só emite um WARNING, que o migrador não
+-- mostra (medido na terceira revisão do #43, P2-1): por isso verifica-se o
+-- resultado e falha-se alto — a publicação fica na versão anterior, e o
+-- remédio é fazer o migrador dono da base (docs/15 §5).
 DO $$
 BEGIN
   EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database());
+  IF has_database_privilege('eurolify_api', current_database(), 'TEMP') THEN
+    RAISE EXCEPTION 'migracao 0001: o eurolify_api continua a poder criar tabelas temporárias em %; o migrador tem de ser dono da base (docs/15 §5)',
+      current_database();
+  END IF;
 END
 $$;

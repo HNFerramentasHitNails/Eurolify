@@ -54,3 +54,16 @@ A segunda revisão encontrou 3 P1: tabelas temporárias a desviar o rasto, tabel
 A sessão de revisão repetiu as sondas contra esse commit, e as três fecham. Encontrou depois uma corrida que ficava: duas transacções ao mesmo tempo, uma a arquivar a entidade e outra a abrir uma loja activa nela, passavam as duas (medido). A correcção é o `FOR SHARE` na linha da entidade, no gatilho da loja. Há um teste com as duas ordens, que falha com a função antiga.
 
 **Números** (04/10/2026, PostgreSQL 18.6): api com 70 passados e mcp com 30, em 3 corridas seguidas.
+
+## Terceira revisão do #43 e os 6 P2 (04/10/2026)
+
+A terceira revisão (sessão nova, PostgreSQL 18.6) não encontrou P0 nem P1: confirmou que a corrida do arquivo está fechada no `d0ea931`, nas duas ordens. Encontrou 6 P2, corrigidos a pedido do Diogo (*«Corrige os 6 P2 no ramo e empurra»*):
+
+- **P2-1:** medido — a migração corrida por um utilizador que não é dono da base deixa o `eurolify_api` com `TEMPORARY` e só um `WARNING`, que o migrador não mostra. A migração passa a verificar `has_database_privilege(…, 'TEMP')` e a falhar alto. Na VPS, o `eurolify_migrador` tem de ser dono da base `eurolify` (docs/15 §5; fica para o pedido ao script).
+- **P2-2:** o teste das tabelas temporárias aceita agora os dois contratos a sério, para a activação chegar à prova de verificação (`falta a prova do número fiscal`).
+- **P2-3:** **arquivada é terminal** — `legal_entity.archived`. Decisão tomada ao corrigir os 6 P2 a pedido do Diogo; se a intenção for outra, retira-se o gatilho e muda-se o §3.2 do docs/15. Há teste.
+- **P2-4:** a janela concorrente da verificação de activação ficou escrita no §10 do docs/15 (não medida).
+- **P2-5:** `comerciante_actual()` sem `SET search_path` (volta a poder ser expandida em linha); função e tipo com `pg_catalog.`.
+- **P2-6:** a citação do `preparar.sh:278` no §5 acertada.
+
+**Números** (04/10/2026, PostgreSQL 18.6, `EXIGIR_BASE=1`): api com 71 passados (um teste novo, o do terminal) e mcp com 30; `pnpm lint` e `pnpm tipos` sem erros. Medido à parte: a migração corrida por um utilizador não dono pára com `ERROR: migracao 0001: …`, e nenhuma tabela fica (uma transacção); corrida pelo dono, `has_database_privilege('eurolify_api', …, 'TEMP') = f`.

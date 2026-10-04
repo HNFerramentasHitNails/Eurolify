@@ -86,7 +86,7 @@ regra 4).
 | `pais` | ISO 3166-1 | sim | um dos 27 (motor de regras, `CODIGOS_UE`) |
 | `numero_fiscal` | texto | sim | **sem** o prefixo do país (o prefixo do VIES não é o ISO: `EL` na Grécia — `eu-vat-oss-ioss`); único por país **dentro do comerciante** |
 | `morada_fiscal` | morada por país | sim | formato e código postal validados pelo país (`eu-localization`); região de uma lista, nunca texto livre |
-| `estado` | activa, arquivada | sim | arquivar não apaga: os documentos fiscais ficam 10 anos (`eu-gdpr-privacy`) |
+| `estado` | activa, arquivada | sim | arquivar não apaga: os documentos fiscais ficam 10 anos (`eu-gdpr-privacy`). **Arquivada é terminal**: não se desarquiva, cria-se outra entidade (`legal_entity.archived`; terceira revisão do #43, P2-3) |
 
 ### 3.3 Loja (`sto_`)
 
@@ -170,7 +170,7 @@ ADR-0025 (RLS por comerciante).
 | Criar um comerciante | a aplicação gera o `uuid`, faz `SET LOCAL` com ele e insere: a política deixa, sem nenhum utilizador que ignore o RLS |
 | Trabalho da equipa do Eurolify (rever comerciantes) | **nenhum papel entre comerciantes** até haver o Hub (P6): a revisão faz-se por um comando auditado na API, dentro do contexto do comerciante revisto |
 | Testes | o CI liga-se como `postgres` (superutilizador, que **ignora o RLS**): os testes de isolamento criam e usam o `eurolify_api`, e falham se a ligação tiver `BYPASSRLS` |
-| VPS | o `api.env` está vazio («a ligação à base entra com o primeiro domínio», `preparar.sh:278`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028). **A ligação do migrador não vai para o `api.env`**, que o contentor da API também recebe (`eurolify-publicar:23`): vai no `/etc/eurolify/migrar.env`, que o `preparar.sh` cria vazio (passo 10) e só o contentor das migrações recebe (revisão do #43, P1-4). Até a ligação lá entrar, o `migrar.js` tolera a **falta** da variável até 31/10/2026 (data de fim confirmada pelo Diogo a 04/10/2026, `src/base/url-migracao.ts`); uma variável vazia é erro |
+| VPS | o `api.env` está vazio («a ligação da API à base entra com o primeiro domínio», `preparar.sh:278`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028). **O migrador tem de ser dono da base** (`ALTER DATABASE eurolify OWNER TO eurolify_migrador`, nesse pedido): a base `eurolify` nasce criada pelo `postgres` (passo 10 do `preparar.sh`), e só o dono retira o `TEMPORARY` ao `PUBLIC`; a migração 0001 verifica-o e falha alto se não conseguir (terceira revisão do #43, P2-1). **A ligação do migrador não vai para o `api.env`**, que o contentor da API também recebe (`eurolify-publicar:23`): vai no `/etc/eurolify/migrar.env`, que o `preparar.sh` cria vazio (passo 10) e só o contentor das migrações recebe (revisão do #43, P1-4). Até a ligação lá entrar, o `migrar.js` tolera a **falta** da variável até 31/10/2026 (data de fim confirmada pelo Diogo a 04/10/2026, `src/base/url-migracao.ts`); uma variável vazia é erro |
 
 **Testes que têm de falhar** (`observability-security`): ler, alterar e criar
 num comerciante com o contexto de outro; ler sem contexto; o `eurolify_api`
@@ -249,15 +249,20 @@ acordo de tratamento — **qual** (construir ou fornecedor) decide-se nesse ADR.
   do #43).
 - **A activação só é verificada na transição para `activo`** (revisão do #43,
   P2-2): depois de activo, uma prova que expira, uma nova prova recusada ou uma
-  entidade arquivada não fazem o comerciante sair de `activo`. Quem reage a
-  isso é um trabalho periódico ou a fatia de verificação — por fazer; até lá,
-  não há comerciantes reais na base.
+  entidade arquivada não fazem o comerciante sair de `activo`. A janela abre
+  uns milissegundos antes: a verificação lê as entidades, as provas e os
+  contratos sem os trancar, e uma entidade nova ou uma prova recusada que
+  entrem **ao mesmo tempo** que a activação passam as duas (terceira revisão
+  do #43, P2-4; não medido). Quem reage a isso é um trabalho periódico ou a
+  fatia de verificação — por fazer; até lá, não há comerciantes reais na base.
 - **Tabelas temporárias com o nome das verdadeiras** desviavam o rasto ou a
   verificação de activação: as funções têm `search_path` fixo com `pg_temp` em
   último, os nomes vão com `public.` e o `PUBLIC` perde `TEMPORARY` na base
   (revisão do #43, P1-A).
 - **Uma loja activa a vender por uma entidade arquivada** — a base recusa nos
-  dois sentidos (`legal_entity.in_use`, `store.legal_entity_archived`; P1-B/C).
+  dois sentidos (`legal_entity.in_use`, `store.legal_entity_archived`; P1-B/C),
+  também em concorrência (`FOR SHARE` na entidade), e uma entidade arquivada
+  não volta a activa (`legal_entity.archived`).
 - **A versão em vigor dos contratos** não existe ainda (`compliance-gaps.md`
   G11): a activação aceita qualquer versão aceite de cada tipo.
 - **A API com a ligação do dono das tabelas** se a ligação do migrador for
