@@ -1,4 +1,5 @@
-import { sql } from "kysely";
+import { randomBytes } from "node:crypto";
+import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -54,6 +55,24 @@ async function codigoDoErro(promessa: Promise<unknown>): Promise<string> {
 
 describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
   let base: BaseDeTeste;
+
+  /** Espera até a promessa acabar ou ficar à espera de um bloqueio. */
+  async function ateBloquear(promessa: Promise<unknown>): Promise<void> {
+    const estado = { acabou: false };
+    void promessa.then(
+      () => (estado.acabou = true),
+      () => (estado.acabou = true),
+    );
+    for (let i = 0; i < 100 && !estado.acabou; i++) {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from pg_stat_activity
+        where usename = 'eurolify_api' and wait_event_type = 'Lock'`.execute(
+        base.dono,
+      );
+      if ((rows[0]?.n ?? 0) > 0) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
 
   beforeAll(async () => {
     base = await criarBaseDeTeste(URL_BASE ?? "");
@@ -806,24 +825,6 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         pais: "ES",
       });
 
-      /** Espera até a promessa acabar ou ficar à espera de um bloqueio. */
-      async function ateBloquear(promessa: Promise<unknown>): Promise<void> {
-        const estado = { acabou: false };
-        void promessa.then(
-          () => (estado.acabou = true),
-          () => (estado.acabou = true),
-        );
-        for (let i = 0; i < 100 && !estado.acabou; i++) {
-          const { rows } = await sql<{ n: number }>`
-            select count(*)::int as n from pg_stat_activity
-            where usename = 'eurolify_api' and wait_event_type = 'Lock'`.execute(
-            base.dono,
-          );
-          if ((rows[0]?.n ?? 0) > 0) return;
-          await new Promise((r) => setTimeout(r, 50));
-        }
-      }
-
       const loja = new pg.Client({ connectionString: base.urlApi });
       const arquivo = new pg.Client({ connectionString: base.urlApi });
       await loja.connect();
@@ -863,6 +864,156 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         await loja.end();
         await arquivo.end();
       }
+    });
+  });
+
+  // A VPS terá um eurolify_migrador; se não for dono da base, o REVOKE
+  // TEMPORARY só dá um WARNING e o eurolify_api continuava a criar tabelas
+  // temporárias. A migração verifica e pára (terceira revisão do #43, P2-1;
+  // sem teste até à revisão do 3e43cbc, P2-3).
+  it("a migração corrida por quem não é dono da base pára alto e não deixa tabelas", async () => {
+    const sufixo = randomBytes(4).toString("hex");
+    const papel = `migrador_teste_${sufixo}`;
+    const nome = `eurolify_nao_dono_${sufixo}`;
+    const senha = "so-para-testes";
+    const admin = new pg.Client({ connectionString: URL_BASE });
+    await admin.connect();
+    const naBase = (u?: string) => {
+      const url = new URL(URL_BASE ?? "");
+      url.pathname = `/${nome}`;
+      if (u !== undefined) {
+        url.username = u;
+        url.password = senha;
+      }
+      return url.toString();
+    };
+    try {
+      await admin.query(`CREATE ROLE ${papel} LOGIN PASSWORD '${senha}'`);
+      await admin.query(`CREATE DATABASE ${nome}`);
+      const dono = new pg.Client({ connectionString: naBase() });
+      await dono.connect();
+      try {
+        await dono.query(`GRANT CREATE ON SCHEMA public TO ${papel}`);
+      } finally {
+        await dono.end();
+      }
+      const migrador = new Kysely<unknown>({
+        dialect: new PostgresDialect({
+          pool: new pg.Pool({ connectionString: naBase(papel), max: 1 }),
+        }),
+      });
+      try {
+        await expect(migrar(migrador)).rejects.toThrow(
+          /migracao 0001: o eurolify_api continua a poder criar tabelas temporárias/,
+        );
+        const { rows } = await sql<{ n: number }>`
+          select count(*)::int as n from pg_tables
+          where schemaname = 'public' and tablename = 'comerciante'`.execute(
+          migrador,
+        );
+        expect(rows[0]?.n).toBe(0);
+      } finally {
+        await migrador.destroy();
+      }
+    } finally {
+      await admin.query(`DROP DATABASE IF EXISTS ${nome} WITH (FORCE)`);
+      await admin.query(`DROP ROLE IF EXISTS ${papel}`);
+      await admin.end();
+    }
+  }, 60_000);
+
+  describe("concorrência na prova e no estado (revisão do #43, P2-1 do 3e43cbc)", () => {
+    const contexto = "select set_config('eurolify.comerciante', $1, true)";
+
+    // Sem o FOR SHARE de prova_antes_de_gravar, a chave estrangeira não
+    // esperava pelo arquivo, a prova lia a entidade ainda activa e ficava
+    // gravada numa entidade arquivada.
+    it("arquivar a entidade e registar uma prova nela ao mesmo tempo não passam as duas", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const pt = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      const es = await criarEntidadeLegal(base.api, id, {
+        ...ENTIDADE,
+        pais: "ES",
+      });
+      const prova = new pg.Client({ connectionString: base.urlApi });
+      const arquivo = new pg.Client({ connectionString: base.urlApi });
+      await prova.connect();
+      await arquivo.connect();
+      const registar =
+        "INSERT INTO prova_verificacao (comerciante_id, entidade_legal_id, finalidade, origem, origem_detalhe, resultado) VALUES ($1, $2, 'identificacao_fiscal', 'manual', 'teste', 'aceite')";
+      const arquivar =
+        "UPDATE entidade_legal SET estado = 'arquivada' WHERE id = $1";
+      try {
+        // O arquivo primeiro: a prova espera e, depois, é recusada.
+        await arquivo.query("BEGIN");
+        await arquivo.query(contexto, [id]);
+        await arquivo.query(arquivar, [pt]);
+        await prova.query("BEGIN");
+        await prova.query(contexto, [id]);
+        const registo = prova.query(registar, [id, pt]);
+        await ateBloquear(registo);
+        await arquivo.query("COMMIT");
+        await expect(registo).rejects.toThrow(/^legal_entity\.archived:/);
+        await prova.query("ROLLBACK");
+
+        // A prova primeiro: o arquivo espera e passa depois; a prova é de
+        // quando a entidade ainda estava activa.
+        await prova.query("BEGIN");
+        await prova.query(contexto, [id]);
+        await prova.query(registar, [id, es]);
+        await arquivo.query("BEGIN");
+        await arquivo.query(contexto, [id]);
+        const arquivamento = arquivo.query(arquivar, [es]);
+        await ateBloquear(arquivamento);
+        await prova.query("COMMIT");
+        await arquivamento;
+        await arquivo.query("COMMIT");
+      } finally {
+        await prova.end();
+        await arquivo.end();
+      }
+      const provas = await comComerciante(base.api, id, (trx) =>
+        trx
+          .selectFrom("prova_verificacao")
+          .select("entidade_legal_id")
+          .execute(),
+      );
+      expect(provas).toEqual([{ entidade_legal_id: es }]);
+    });
+
+    it("duas mudanças de estado a partir do mesmo estado: a segunda é recusada", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const primeira = new pg.Client({ connectionString: base.urlApi });
+      await primeira.connect();
+      try {
+        await primeira.query("BEGIN");
+        await primeira.query(
+          "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.motivo', 'primeira', true), set_config('eurolify.quem', 'a', true)",
+          [id],
+        );
+        await primeira.query(
+          "UPDATE comerciante SET estado = 'em_revisao' WHERE id = $1 AND estado = 'rascunho'",
+          [id],
+        );
+        // A segunda, pelo repositório, leu «rascunho» e quer prova_pendente:
+        // espera pela primeira e, depois, não pode fazer em_revisao →
+        // prova_pendente em nome de quem pediu outra coisa.
+        const segunda = mudarEstado(base.api, id, {
+          de: "rascunho",
+          para: "prova_pendente",
+          motivo: "segunda",
+          quem: "b",
+        });
+        await ateBloquear(segunda);
+        await primeira.query("COMMIT");
+        expect(await codigoDoErro(segunda)).toBe("merchant.invalid_transition");
+      } finally {
+        await primeira.end();
+      }
+      const rasto = await comComerciante(base.api, id, (trx) =>
+        trx.selectFrom("transicao_estado").select(["de", "para"]).execute(),
+      );
+      expect(rasto).toEqual([{ de: "rascunho", para: "em_revisao" }]);
     });
   });
 

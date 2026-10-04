@@ -21,7 +21,7 @@ Feito: a migração `apps/api/migracoes/0001_comerciante.sql` (as seis tabelas,
 RLS forçado, o `eurolify_api` sem `BYPASSRLS`, as transições de estado e as
 condições de activação na base, o rasto escrito pela base num gatilho
 `AFTER UPDATE`), o migrador (`apps/api/src/migrar.ts`), o acesso interno
-(`apps/api/src/comerciante/repositorio.ts`), 37 testes contra o PostgreSQL
+(`apps/api/src/comerciante/repositorio.ts`), 40 testes contra o PostgreSQL
 18.6 e 7 do migrador (`grep -c "  it("`, 04/10/2026). Por fazer: a API (fatia «identidade»), os dois utilizadores da base na
 VPS (pedido ao script, ADR-0028), a validação da morada e do número fiscal por
 país (**C**).
@@ -279,6 +279,13 @@ acordo de tratamento — **qual** (construir ou fornecedor) decide-se nesse ADR.
   dois sentidos (`legal_entity.in_use`, `store.legal_entity_archived`; P1-B/C),
   também em concorrência (`FOR SHARE` na entidade), e uma entidade arquivada
   não volta a activa (`legal_entity.archived_is_final`, §4).
+- **Bloqueio mútuo (deadlock) ao registar prova e arquivar na mesma
+  transacção**: o `FOR SHARE` da prova (e o da loja) tranca a entidade; duas
+  transacções que registem prova na mesma entidade e depois a arquivem dão
+  `40P01` numa delas (medido na revisão do `3e43cbc`, P2-2). Hoje não acontece:
+  cada função do repositório é uma transacção. Uma operação futura que faça as
+  duas coisas tranca primeiro a entidade (`SELECT … FOR UPDATE`) ou repete a
+  transacção em `40P01`.
 - **A versão em vigor dos contratos** não existe ainda (`compliance-gaps.md`
   G11): a activação aceita qualquer versão aceite de cada tipo.
 - **A API com a ligação do dono das tabelas** se a ligação do migrador for
