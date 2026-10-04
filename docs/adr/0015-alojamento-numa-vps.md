@@ -5,7 +5,8 @@
   [ADR-0011](0011-preparacao-da-conta-scaleway.md) quanto ao alojamento; muda
   o sítio do ensaio do [ADR-0014](0014-um-so-ensaio.md). Quem opera é o
   Claude: [ADR-0016](0016-o-claude-opera-a-vps.md) · a máquina é uma VPS-3 da OVH:
-  [ADR-0017](0017-vps-3-da-ovh.md) · a do ensaio está, por agora, no Reino
+  [ADR-0017](0017-vps-3-da-ovh.md), mas a do ensaio é uma VPS-1 até à migração:
+  [ADR-0021](0021-vps-1-ate-a-migracao.md) · a do ensaio está, por agora, no Reino
   Unido: [ADR-0018](0018-vps-do-ensaio-no-reino-unido.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
