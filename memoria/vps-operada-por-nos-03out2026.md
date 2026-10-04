@@ -429,3 +429,60 @@ segunda feita pelo Claude.
   pessoais (ADR-0018); retenção por decidir no script.
 - Continuam em aberto a palavra-passe inicial do `ubuntu` e as 4 sessões do
   `loginctl`. O plano da OVH ficou esclarecido na secção anterior: é a VPS-1.
+
+## Sessões abertas e `fail2ban` (04/10/2026, 00:06–00:12 UTC)
+
+**Substitui, na secção anterior, «`fail2ban`… não feito» e «as 4 sessões do
+`loginctl`» em aberto.**
+
+### As 4 sessões do `ubuntu` (só leitura, 00:06 UTC)
+
+| Sessão | O que é |
+|---|---|
+| 22 e 24 | duas ligações SSH remotas, abertas desde ~23:05 UTC de 03/10 (1 h 01 min), `active`, sem comando a correr além do `sshd-session` |
+| 23 | gestor de utilizador do `systemd` (`Class=manager`), não remota |
+| a quarta | a ligação do Claude que fazia a leitura (o número muda a cada ligação) |
+
+- **A 22 e a 24 são do Diogo** (resposta dele, 04/10/2026: *«sim»* à pergunta
+  se tinha duas janelas de SSH abertas desde ~00:05 de Lisboa).
+- O método e a origem delas são **inferidos, não provados**: abriram às
+  23:05:21 e 23:05:22 UTC, quando todas as entradas eram por palavra-passe e as
+  23 vinham da origem do Diogo; mas o número do processo no journal não bate
+  com o da sessão, por isso não se ligou cada sessão à sua entrada.
+- **Uma alteração ao `sshd` não fecha sessões já abertas**: fechar a
+  palavra-passe (23:57 UTC) não as terminou. Às 00:12 UTC continuavam abertas.
+
+### `fail2ban` (a quarta e a quinta alterações à máquina, feitas pelo Diogo)
+
+O modo automático do Claude Code recusou ao Claude o `apt-get install` na VPS
+(«Remote Shell Writes»). O Diogo correu ele os dois comandos, no PowerShell
+dele, e o Claude confirmou só a ler.
+
+- **Instalação** (Diogo, ~00:10 UTC): `sudo DEBIAN_FRONTEND=noninteractive
+  apt-get install -y fail2ban`, sem `apt-get update`. Veio ligado: a jaula
+  `sshd` do `defaults-debian.conf` do pacote (`backend = systemd`,
+  `journalmatch = _SYSTEMD_UNIT=ssh.service + _COMM=sshd`, `banaction =
+  nftables`), com `bantime` 10 min, `findtime` 10 min, `maxretry` 5.
+- **Configuração** (Diogo, 00:11 UTC): `/etc/fail2ban/jail.d/eurolify.local`
+  (`root:root`, `644`, 20 bytes) com `[sshd]` e `bantime = 1h`, e
+  `fail2ban-client reload`. O bloqueio fica pelo `nftables`, não pelo `ufw`,
+  para não encher o `ufw status` de regras de bloqueio.
+- **O script de preparação tem de reproduzir as duas** (ADR-0018).
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| Pacote | `fail2ban 1.1.0-9` (`ii`) | `dpkg -l fail2ban`, 04/10/2026 00:11 UTC |
+| Serviço | `active`, `enabled` | `systemctl is-active` / `is-enabled fail2ban` |
+| Jaulas | 1: `sshd` | `sudo -n fail2ban-client status` |
+| Valores em vigor | `bantime=3600`, `findtime=600`, `maxretry=5` | `sudo -n fail2ban-client get sshd <chave>`, 00:12 UTC |
+| Falhas e bloqueios | 77 falhas vistas no total; 1 endereço bloqueado (não é o do Diogo: a ligação dele continuou a entrar). O bloqueio manteve-se depois do `reload` | `sudo -n fail2ban-client status sshd`, 00:11 e 00:12 UTC, sem a lista de endereços |
+
+### O que ficou por verificar
+
+- **A jaula pode não ver todas as linhas**: filtra `_COMM=sshd`, e no Ubuntu
+  26.04 as sessões correm como `sshd-session`. As 77 falhas mostram que apanha
+  pelo menos parte; quantas lhe escapam: **não verifiquei**.
+- **Retenção dos endereços** que o `fail2ban` guarda (base e registos), que são
+  dados pessoais (ADR-0018): por decidir no script, com a do `ufw`.
+- O fecho das sessões 22 e 24 (o Diogo fecha as janelas).
+- A palavra-passe inicial do `ubuntu` continua em aberto.
