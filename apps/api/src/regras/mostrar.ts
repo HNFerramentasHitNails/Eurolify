@@ -3,15 +3,15 @@
 // protótipo, um toString que lança ou um Proxy revogado não rebentam a lista
 // de erros nem a decisão — ficam listados ou recusados.
 //
-// Limite, escrito (medido nas revisões do #50, 10.ª e 11.ª voltas): pode
-// rebentar um Proxy vivo cuja armadilha de leitura de propriedade (`get`)
-// lança, onde o código lê campos dele — num elemento de `paises` ou de
-// `regras`, nas listas `paises` e `regras` ou no registo inteiro; nos
-// `dominios` do perfil fica listado. Rebenta também um registo inteiro que
-// seja um Proxy revogado (a primeira leitura, `registo.versao`, lança). Um
-// Proxy cuja armadilha `ownKeys` lança conta como «não é um objecto» e fica
-// listado. Nada disto vem de JSON nem da base, e protegê-lo obrigava a
-// envolver cada leitura do registo.
+// Limite, escrito (revisões do #50, 10.ª a 12.ª voltas):
+// - um Proxy revogado fica listado ou recusado nos sítios que o teste «um
+//   Proxy revogado nas listas e objectos…» cobre (listas e objectos dentro do
+//   registo, e os domínios do pedido); um registo inteiro revogado rebenta na
+//   primeira leitura (medido, sem teste);
+// - um Proxy vivo cujas armadilhas lançam pode rebentar o validar e o
+//   decidir, em qualquer sítio onde o código o leia.
+// Nada disto vem de JSON nem da base, e protegê-lo obrigava a envolver cada
+// leitura do registo.
 
 /**
  * É uma lista? Sem estreitar o tipo (o `Array.isArray` sobre uma lista só de
