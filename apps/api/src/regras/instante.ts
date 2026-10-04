@@ -20,8 +20,12 @@ export function instante(texto: string): number | null {
     number,
   ];
   if (mes < 1 || mes > 12) return null;
-  // O dia tem de existir nesse mês (sem passar para o seguinte).
-  const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  // O dia tem de existir nesse mês (sem passar para o seguinte). O
+  // setUTCFullYear não trata os anos 0–99 como 1900+, ao contrário do
+  // Date.UTC (revisão do #47, P2 n.º 4).
+  const fimDoMes = new Date(0);
+  fimDoMes.setUTCFullYear(ano, mes, 0);
+  const ultimoDia = fimDoMes.getUTCDate();
   if (dia < 1 || dia > ultimoDia) return null;
   const valor = Date.parse(texto);
   return Number.isNaN(valor) ? null : valor;

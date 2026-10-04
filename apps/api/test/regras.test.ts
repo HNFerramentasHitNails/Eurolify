@@ -239,6 +239,30 @@ describe("decidir", () => {
     }
   });
 
+  it("um estado legal que não existe nunca conta (revisão do #47, P1)", () => {
+    for (const estadoLegal of ["em_vigorr", undefined]) {
+      // Um registo que não passou pelo validar, com uma gralha na regra.
+      const registo = registoComPortugal([
+        {
+          ...regraTeste({ id: "pt-consumidor-1" }),
+          estadoLegal,
+        } as unknown as Regra,
+      ]);
+      expect(
+        decidir(registo, {
+          pais: "PT",
+          dominios: ["consumidor"],
+          momento: AGORA,
+        }),
+      ).toEqual({
+        estado: "revisao_necessaria",
+        regrasAplicadas: [],
+        versaoRegisto: 2,
+        motivos: [{ codigo: "sem_regra_em_vigor", dominio: "consumidor" }],
+      });
+    }
+  });
+
   it("um estado de revisão que não existe bloqueia, mesmo com regra em vigor (revisão do #40, P1-1)", () => {
     const base = registoComPortugal([regraTeste({ id: "pt-consumidor-1" })]);
     // Um registo que não passou pelo validar, com uma gralha no estado.
@@ -537,6 +561,9 @@ describe("instante", () => {
       Date.UTC(2024, 1, 29, 0, 0, 0, 500),
     );
     expect(instante("2026-10-04T14:00:00+14:00")).toBe(Date.UTC(2026, 9, 4, 0));
+    // Anos 0–99 não passam a 1900+ (revisão do #47, P2 n.º 4).
+    expect(instante("0000-02-29T00:00:00Z")).not.toBeNull();
+    expect(instante("0100-02-29T00:00:00Z")).toBeNull();
     expect(instante("2026-10-04T12:00:00+23:59")).toBe(
       Date.UTC(2026, 9, 3, 12, 1),
     );
@@ -657,6 +684,33 @@ describe("validar o registo", () => {
     expect(errosDoRegisto(registo)).toEqual([
       "«paises» não é uma lista",
       "«regras» não é uma lista",
+    ]);
+  });
+
+  it("elementos que não são objectos são listados, não rebentam (revisão do #47, P2 n.º 1)", () => {
+    const base = registoComPortugal([
+      regraTeste({ id: "a", aplicaDesde: "lixo" }),
+    ]);
+    const registo = {
+      ...base,
+      paises: [
+        ...base.paises.map((perfil) =>
+          perfil.codigo === "PT"
+            ? {
+                ...perfil,
+                dominios: { ...perfil.dominios, iva: null },
+              }
+            : perfil,
+        ),
+        null,
+      ],
+      regras: [...base.regras, null],
+    } as unknown as Registo;
+    expect(errosDoRegisto(registo)).toEqual([
+      "paises[27] não é um objecto",
+      "regras[1] não é um objecto",
+      "PT/iva: a revisão não é um objecto",
+      "a@1: aplicaDesde inválido «lixo»",
     ]);
   });
 

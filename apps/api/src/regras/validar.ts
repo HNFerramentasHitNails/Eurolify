@@ -34,6 +34,11 @@ function ehLista(valor: unknown): boolean {
   return Array.isArray(valor);
 }
 
+/** É um objecto (não null)? Sem estreitar o tipo, pela mesma razão. */
+function ehObjecto(valor: unknown): boolean {
+  return typeof valor === "object" && valor !== null;
+}
+
 function vazio(texto: unknown): boolean {
   return typeof texto !== "string" || texto.trim() === "";
 }
@@ -62,7 +67,20 @@ export function errosDoRegisto(registo: Registo): string[] {
     return erros;
   }
 
-  const codigos = registo.paises.map((p) => p.codigo as string);
+  // Um elemento que não é objecto (null, texto, número) é listado e posto de
+  // parte, para a lista de erros sair completa (revisão do #47, P2 n.º 1).
+  const paises = registo.paises.filter((perfil, i) => {
+    if (ehObjecto(perfil)) return true;
+    erros.push(`paises[${String(i)}] não é um objecto`);
+    return false;
+  });
+  const regras = registo.regras.filter((regra, i) => {
+    if (ehObjecto(regra)) return true;
+    erros.push(`regras[${String(i)}] não é um objecto`);
+    return false;
+  });
+
+  const codigos = paises.map((p) => p.codigo as string);
   for (const codigo of CODIGOS_UE) {
     const vezes = codigos.filter((c) => c === codigo).length;
     if (vezes !== 1)
@@ -74,7 +92,7 @@ export function errosDoRegisto(registo: Registo): string[] {
     }
   }
 
-  for (const perfil of registo.paises) {
+  for (const perfil of paises) {
     if (vazio(perfil.nome)) erros.push(`${perfil.codigo}: sem nome`);
     if (perfil.territorios !== null && !ehLista(perfil.territorios)) {
       erros.push(`${perfil.codigo}: «territorios» não é null nem uma lista`);
@@ -99,6 +117,10 @@ export function errosDoRegisto(registo: Registo): string[] {
       perfil.dominios,
     )) {
       const sitio = `${perfil.codigo}/${dominio}`;
+      if (!ehObjecto(revisao)) {
+        erros.push(`${sitio}: a revisão não é um objecto`);
+        continue;
+      }
       const estado: unknown = revisao.estado;
       if (!ESTADOS_DE_REVISAO.includes(estado as string)) {
         // Revisão do #40, P1-1: uma gralha no estado não pode passar.
@@ -125,7 +147,7 @@ export function errosDoRegisto(registo: Registo): string[] {
   }
 
   const vistas = new Set<string>();
-  for (const regra of registo.regras) {
+  for (const regra of regras) {
     const nome = `${regra.id}@${String(regra.versao)}`;
     if (vistas.has(nome)) erros.push(`${nome}: repetida`);
     vistas.add(nome);
@@ -170,17 +192,22 @@ export function errosDoRegisto(registo: Registo): string[] {
       erros.push(`${nome}: verificadaEm inválido «${regra.verificadaEm}»`);
     }
 
-    const perfil = registo.paises.find((p) => p.codigo === regra.pais);
+    const perfil = paises.find((p) => p.codigo === regra.pais);
     if (perfil === undefined) {
       erros.push(`${nome}: país ${regra.pais} sem perfil`);
       continue;
     }
-    const revisao = Object.hasOwn(perfil.dominios, regra.dominio)
-      ? (perfil.dominios as Record<string, RevisaoDominio>)[regra.dominio]
-      : undefined;
+    const revisao: unknown =
+      ehObjecto(perfil.dominios) &&
+      Object.hasOwn(perfil.dominios, regra.dominio)
+        ? (perfil.dominios as Record<string, unknown>)[regra.dominio]
+        : undefined;
     if (revisao === undefined) {
       erros.push(`${nome}: domínio desconhecido ${regra.dominio}`);
-    } else if (revisao.estado !== "verificado") {
+    } else if (
+      !ehObjecto(revisao) ||
+      (revisao as RevisaoDominio).estado !== "verificado"
+    ) {
       erros.push(
         `${nome}: o domínio ${regra.dominio} de ${regra.pais} não está verificado`,
       );
@@ -200,7 +227,7 @@ export function errosDoRegisto(registo: Registo): string[] {
   // `proposta` nunca conta (decidir.ts), por isso pode viver ao lado da versão
   // em vigor (revisão do #40, P2-3).
   const porId = new Map<string, Regra[]>();
-  for (const regra of registo.regras) {
+  for (const regra of regras) {
     if (regra.estadoLegal === "proposta") continue;
     porId.set(regra.id, [...(porId.get(regra.id) ?? []), regra]);
   }

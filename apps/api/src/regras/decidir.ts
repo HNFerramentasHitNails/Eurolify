@@ -9,14 +9,23 @@ import type {
   RevisaoDominio,
 } from "./tipos.js";
 
+/** Os estados legais que podem contar; `proposta` e o que não existe, nunca. */
+const ESTADOS_QUE_CONTAM: readonly string[] = [
+  "em_vigor",
+  "adoptada_futura",
+  "revogada",
+];
+
 /**
- * Uma regra conta no momento pedido? Uma proposta nunca conta; o intervalo é
- * [aplicaDesde, aplicaAte). Uma data inválida dá «não conta» — o lado seguro;
- * o registo é validado ao carregar (validar.ts), para isto não ficar em
- * silêncio.
+ * Uma regra conta no momento pedido? Lista de aceitação, não de exclusão
+ * (revisão do #47, P1): só `em_vigor`, `adoptada_futura` e `revogada` com
+ * fim podem contar; uma proposta, uma gralha ou um estado em falta não
+ * contam. O intervalo é [aplicaDesde, aplicaAte). Uma data inválida dá «não
+ * conta» — o lado seguro; o registo é validado ao carregar (validar.ts), para
+ * isto não ficar em silêncio.
  */
 function regraEmVigor(regra: Regra, momento: number): boolean {
-  if (regra.estadoLegal === "proposta") return false;
+  if (!ESTADOS_QUE_CONTAM.includes(regra.estadoLegal)) return false;
   const desde = instante(regra.aplicaDesde);
   if (desde === null || momento < desde) return false;
   if (regra.aplicaAte !== null) {
@@ -66,6 +75,12 @@ function revisaoDoDominio(
  * decisão, e a decisão guarda a versão do registo usada. Um bloqueio vale só
  * para a combinação pedida. **Nunca sai «permitido» sem pelo menos uma regra
  * aplicada** (revisão do #37, P0-1).
+ *
+ * Assume um registo validado (validar.ts, chamado por `criarApp`), com duas
+ * excepções que se defendem aqui mesmo sem validação: o estado da revisão do
+ * domínio e o estado legal da regra — só os valores conhecidos que permitem
+ * contam. Uma forma errada noutro campo dá uma excepção, nunca «permitido»
+ * (revisão do #47, P2 n.º 3).
  */
 export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   const versao = registo.versao;

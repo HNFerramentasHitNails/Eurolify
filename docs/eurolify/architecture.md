@@ -159,7 +159,7 @@ permitida).
 | Território pedido e não mapeado | `revisao_necessaria`, motivo `territorio_nao_mapeado` |
 | Domínio `por_verificar`, ou com um estado que não existe | `revisao_necessaria`, motivo `dominio_por_verificar` — só `verificado` segue para as regras |
 | Domínio `verificado` sem regra em vigor nesse momento | `revisao_necessaria`, motivo `sem_regra_em_vigor` |
-| Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde` | não conta |
+| Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde`, ou com um estado legal que não existe | não conta — só `em_vigor`, `adoptada_futura` e `revogada` podem contar |
 | Regra `revogada` depois de `aplicaAte` | não conta |
 | Território mapeado, só com a regra do continente | `revisao_necessaria`, motivo `sem_regra_em_vigor` (o território não herda) |
 | Domínio `nao_aplicavel` com justificação | não bloqueia |
