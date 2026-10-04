@@ -107,7 +107,7 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   if (momento === null) {
     return recusado(versao, {
       codigo: "momento_invalido",
-      momento: pedido.momento,
+      momento: valor(pedido.momento),
     });
   }
 
@@ -138,7 +138,7 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   if (!territorioMapeado && pedido.territorio !== undefined) {
     motivos.push({
       codigo: "territorio_nao_mapeado",
-      territorio: pedido.territorio,
+      territorio: valor(pedido.territorio),
     });
   }
 

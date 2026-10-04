@@ -1,12 +1,21 @@
 // Como um valor que veio de fora (registo ou pedido) aparece numa mensagem,
 // sem nunca lançar (revisões do #50, P2-A e P2-3): um Symbol, um objecto sem
-// protótipo ou um toString que lança não rebentam a lista de erros nem a
-// decisão.
+// protótipo, um toString que lança ou um Proxy revogado não rebentam a lista
+// de erros nem a decisão.
+
+/** É uma lista? Um Proxy revogado lança no Array.isArray: conta como não. */
+function ehLista(v: unknown): boolean {
+  try {
+    return Array.isArray(v);
+  } catch {
+    return false;
+  }
+}
 
 /** O nome do tipo de um valor, em português. */
 export function tipo(v: unknown): string {
   if (v === null) return "nulo";
-  if (Array.isArray(v)) return "lista";
+  if (ehLista(v)) return "lista";
   switch (typeof v) {
     case "string":
       return "texto";

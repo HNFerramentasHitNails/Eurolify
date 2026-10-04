@@ -78,6 +78,13 @@ const TODOS_OS_DOMINIOS = [
 
 const AGORA = "2026-10-04T12:00:00Z";
 
+/** Um Proxy já revogado: qualquer operação sobre ele lança. */
+function proxyRevogado(): object {
+  const { proxy, revoke } = Proxy.revocable({}, {});
+  revoke();
+  return proxy;
+}
+
 describe("registo de partida", () => {
   it("tem os 27 países da UE, uma vez cada", () => {
     const codigos = REGISTO_INICIAL.paises.map((p) => p.codigo);
@@ -160,6 +167,27 @@ describe("decidir", () => {
     }
   });
 
+  it("um momento ou um território que não é texto aparece no motivo como texto (revisão do #50, P2-C)", () => {
+    expect(
+      decidir(REGISTO_INICIAL, {
+        pais: "PT",
+        dominios: ["consumidor"],
+        momento: Symbol("m"),
+      } as unknown as PedidoDecisao).motivos,
+    ).toEqual([{ codigo: "momento_invalido", momento: "Symbol(m)" }]);
+    expect(
+      decidir(REGISTO_INICIAL, {
+        pais: "PT",
+        dominios: ["consumidor"],
+        momento: AGORA,
+        territorio: Symbol("t"),
+      } as unknown as PedidoDecisao).motivos,
+    ).toContainEqual({
+      codigo: "territorio_nao_mapeado",
+      territorio: "Symbol(t)",
+    });
+  });
+
   it("um país ou um domínio que não é texto é recusado, sem rebentar (revisão do #50, P2-3)", () => {
     const naoTexto: [unknown, string][] = [
       [Symbol("pt"), "Symbol(pt)"],
@@ -173,6 +201,8 @@ describe("decidir", () => {
         "(objecto)",
       ],
       [["PT"], "(lista)"],
+      // Um Proxy revogado lança no Array.isArray (revisão do #50, P2-B).
+      [proxyRevogado(), "(objecto)"],
     ];
     for (const [mau, mostrado] of naoTexto) {
       expect(
@@ -851,6 +881,10 @@ describe("validar o registo", () => {
     expect(comAplicaDesde(["x"])).toEqual([
       "r@1: aplicaDesde inválido «(lista)»",
     ]);
+    // Uma função mostra o tipo, não o código-fonte (revisão do #50, P2-A).
+    expect(comAplicaDesde(() => 1)).toEqual([
+      "r@1: aplicaDesde inválido «(função)»",
+    ]);
 
     // As mensagens do perfil, com um código que não é texto.
     const s = Symbol("pt");
@@ -951,6 +985,15 @@ describe("validar o registo", () => {
       regraTeste({ id: "5", dominio: "iva" }),
       regraTeste({ id: null as unknown as string }),
       regraTeste({ id: Symbol("s") as unknown as string }),
+      // As outras formas que não são texto, cada uma pelo seu tipo (revisão
+      // do #50, P2-A); um Proxy revogado também não rebenta (P2-B).
+      regraTeste({ id: true as unknown as string }),
+      regraTeste({ id: 5n as unknown as string }),
+      regraTeste({ id: (() => 1) as unknown as string }),
+      regraTeste({ id: {} as unknown as string }),
+      regraTeste({ id: [] as unknown as string }),
+      regraTeste({ id: undefined as unknown as string }),
+      regraTeste({ id: proxyRevogado() as unknown as string, versao: 2 }),
     ]);
     const registo: Registo = {
       ...base,
@@ -969,6 +1012,13 @@ describe("validar o registo", () => {
       "(número: 5)@1: sem id",
       "(nulo)@1: sem id",
       "(símbolo: Symbol(s))@1: sem id",
+      "(booleano: true)@1: sem id",
+      "(bigint: 5)@1: sem id",
+      "(função)@1: sem id",
+      "(objecto)@1: sem id",
+      "(lista)@1: sem id",
+      "(indefinido)@1: sem id",
+      "(objecto)@2: sem id",
     ]);
   });
 
