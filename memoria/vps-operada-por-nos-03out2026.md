@@ -170,3 +170,262 @@ tiver de entrar.»* Resposta do Diogo, 03/10/2026: *«sim, 31/03/2027»*.
   «data de fim» em todos os `.md`.
 - Alarme a partir de 01/03/2027: proposta, nos alertas da máquina, que ainda
   não existem.
+
+## O acesso: o Claude Code no computador do Diogo (decisão AA, ADR-0020)
+
+Resposta do Diogo, 03/10/2026: *«vamos avançar com o acesso pelo meu
+computador»* — o caminho a) do `docs/11` §5.
+
+### O que se fez
+
+- ADR-0020 novo; estados no ADR-0016 e no `docs/06` (W e AA nova); `docs/11`
+  §5 (decidido), §5.1 novo (os 9 passos no Windows), §7 e §8.
+- Os passos vêm de duas páginas lidas a 03/10/2026: Microsoft, *Key-based
+  authentication in OpenSSH for Windows* (o `ssh-agent` *«is disabled»* por
+  omissão; `Set-Service -StartupType Automatic`, `Start-Service ssh-agent`,
+  `ssh-add`); Claude Code, `code.claude.com/docs/en/setup.md` (Windows 10
+  1809+; `irm https://claude.ai/install.ps1 | iex`; o Git para Windows é
+  recomendado para o Bash, sem ele usa o PowerShell).
+- **Nada feito na máquina ainda.** A primeira alteração (pôr a chave pública)
+  é do Diogo, no passo 4.
+
+### O que ficou por verificar
+
+- Se o computador do Diogo chega à porta 22 da VPS.
+- Se a VPS aceita palavra-passe (passo 6).
+- `-t ed25519` não está na página da Microsoft (o exemplo dela é `ecdsa`);
+  se o `ssh-keygen` do Windows do Diogo recusar, usa-se `ecdsa`.
+- ~~A data de troca da chave~~ → **31/03/2027** para a do Diogo (decisão AB;
+  pergunta: *«A data de troca da tua chave fica 31/03/2027?»*, resposta do
+  Diogo, 03/10/2026: *«sim, 31/03/2027»*). Registada no `docs/11` §3.1 e
+  §3.8, no `docs/06` e no estado do ADR-0020 — sem ADR próprio, como as
+  decisões K e L.
+- O equivalente no macOS do Bruno (por escrever).
+
+### Porque não o Cowork (03/10/2026)
+
+O Diogo pediu um prompt para o «claude work» fazer os passos do §5.1. Segundo
+a documentação da Anthropic (*Claude Cowork architecture overview*,
+support.claude.com, lida a 03/10/2026), o Cowork corre os comandos *«inside a
+dedicated Linux VM»*, *«isolated from the host operating system by the
+platform's hypervisor»*, com *«its own network egress filtering»*. Por isso não
+cria a chave no Windows nem liga o agente de SSH do Windows, e a chave ficaria
+na máquina virtual, não no computador do Diogo (ADR-0020). Se a rede dele
+chega à porta 22: **não verifiquei**. O prompt foi feito para o Claude Code no
+computador do Diogo.
+
+## Primeiro acesso e medição (03/10/2026)
+
+Claude Code no computador do Diogo (Windows), a pedido dele; as medições são das
+23:49 UTC de 03/10/2026 (já madrugada de 04/10 em Lisboa).
+
+### O que se fez
+
+- Verificado no computador: `git` 2.53.0.windows.2; Modo de Programador ligado
+  (`AllowDevelopmentWithoutDevLicense = 1`); `OpenSSH_for_Windows_9.5p2`.
+- Clone em `C:\Users\diogo\Eurolify` com `core.symlinks=true`. As **14 ligações**
+  de `.claude\skills\` funcionam (cada uma é uma ligação simbólica e o
+  `SKILL.md` abre): fecha a dúvida do ADR-0020.
+- A chave `eurolify_vps` (ED25519, com frase-passe) **já existia** no computador
+  do Diogo, e o `ssh-agent` já estava ligado (arranque automático) com ela
+  carregada; a impressão digital do agente é a da `.pub`. Não foi preciso criar
+  chave nem ligar o agente.
+- **Primeira alteração à máquina: a chave pública do Diogo está no
+  `authorized_keys` do utilizador `ubuntu`, posta pelo Diogo.** Não vi quando
+  nem como (o Claude não a pôs): soube-se porque a entrada por chave, com
+  `-o BatchMode=yes`, já funcionava antes de o Claude fazer o que quer que fosse
+  na máquina.
+- Criado `%USERPROFILE%\.ssh\config` (não existia) com o `Host eurolify-ensaio`
+  (`ubuntu`, `IdentityFile ~/.ssh/eurolify_vps`, `IdentitiesOnly yes`).
+- Na VPS, **só leitura**: nada instalado, configurado ou reiniciado; `sudo`
+  só com `-n` e aceite sem palavra-passe nos comandos de leitura.
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| Porta 22 a partir do computador do Diogo | responde | `Test-NetConnection <VPS> -Port 22`, 03/10/2026 |
+| Entrada por chave | `vps-c01fa544` / `ubuntu`, sem pedir palavra-passe | `ssh -o BatchMode=yes eurolify-ensaio "hostname; whoami"` |
+| **A VPS aceita palavra-passe?** | **sim**: `Permission denied (publickey,password).` | `ssh -o BatchMode=yes -o PubkeyAuthentication=no -o PreferredAuthentications=none eurolify-ensaio` |
+| Sistema | Ubuntu 26.04 LTS (Resolute Raccoon), kernel 7.0.0-28-generic | `/etc/os-release`, `uname -r` |
+| **Núcleos** | **2** (ADR-0017: 6) | `nproc` |
+| **Memória** | **3,7 GiB** no total, 496 MiB usados, sem swap (ADR-0017: 12 GB) | `free -h` |
+| **Disco** | **40 GB** (raiz 38 GB, 2,7 GB usados, 7 %) (ADR-0017: 100 GB NVMe) | `lsblk`, `df -h /` |
+| Portas à escuta | só 22 (SSH, IPv4 e IPv6) e o DNS local (53) | `ss -tln` |
+| Actualizações automáticas | `enabled` | `systemctl is-enabled unattended-upgrades` |
+| Hora | UTC, relógio sincronizado, NTP activo | `timedatectl` |
+| `sshd` | `passwordauthentication yes`; `permitrootlogin prohibit-password`; `kbdinteractiveauthentication no`; `pubkeyauthentication yes` | `sudo -n sshd -T` filtrado |
+| Firewall | `ufw`: **inactive** | `sudo -n ufw status` |
+| Tentativas de entrada falhadas, últimas 24 h | **528** | `sudo -n journalctl -u ssh -u sshd --since "24 hours ago"`, `grep -c` de «Failed password», «Invalid user», «authentication failure» e «Connection closed by (invalid\|authenticating) user»; uma tentativa pode contar em mais de uma linha, por isso é uma ordem de grandeza |
+
+**Leitura:** a máquina mede o que a VPS-1 da OVH anuncia (2 vCores, 4 GB; ver
+a tabela de preços acima), **não** a VPS-3 do ADR-0017 (6 vCores, 12 GB, 100 GB).
+A causa não está apurada. Com a palavra-passe aceite e a firewall desligada, a
+máquina já recebe tentativas de adivinhação (528 em 24 h) só com a porta 22
+aberta.
+
+### O que ficou por verificar
+
+- **Que plano a OVH facturou e instalou** (consola da OVH, o Diogo): a medição
+  dá 2 núcleos, 3,7 GiB e 40 GB, e o ADR-0017 e o `docs/11` §1 dizem VPS-3. Se
+  for mesmo uma VPS-1, as contas e a margem do ADR-0017 (**C**, carga não
+  medida) têm de ser revistas, e fala-se com a OVH sobre o plano. Os números
+  não foram corrigidos nos documentos: só se corrigem depois de confirmados.
+- Fechar a entrada por palavra-passe e ligar a firewall: **não feito**; vem no
+  script, com as duas revisões (ADR-0015, ponto 4; ADR-0013).
+- O que pode ter entrado entre a compra e esta medição: **não verifiquei** os
+  registos de entradas bem-sucedidas nem o `authorized_keys` (só medi o número
+  de falhadas).
+- Quando e como a chave pública foi posta no `authorized_keys`.
+- O IPv6 não foi testado a partir do computador do Diogo.
+
+## Entrada por palavra-passe fechada (03/10/2026, 23:56–23:57 UTC)
+
+O Diogo mudou de ideia e mandou fechar já, antes do script (a 03/10/2026 tinha
+escolhido esperar por ele). **Esta secção substitui a linha «Fechar a entrada
+por palavra-passe… não feito» da secção anterior, só quanto à palavra-passe:**
+a firewall continua por ligar. Cada comando foi mostrado ao Diogo e só correu
+com o OK dele.
+
+### O que se fez (a segunda alteração à máquina, e a primeira feita pelo Claude)
+
+- Cópia: `/root/sshd_config.d.antes-20261003-235552` (`cp -a` de
+  `/etc/ssh/sshd_config.d`, feita às 23:55 UTC).
+- Criado `/etc/ssh/sshd_config.d/00-eurolify.conf` (23:56 UTC, `root:root`,
+  `644`, 77 bytes) com `PasswordAuthentication no`,
+  `KbdInteractiveAuthentication no` e `PermitRootLogin no`. Vem antes do
+  `50-cloud-init.conf`, que dizia `PasswordAuthentication yes` e ganhava ao
+  `60-cloudimg-settings.conf` (`no`) porque o `sshd` usa o primeiro valor lido.
+- `sshd -t` sem erro; `systemctl reload ssh` às 23:57:13 UTC (`reload: OK`,
+  serviço `active`). Reload, não reinício: as sessões abertas não caem.
+- **O script de preparação tem de reproduzir esta alteração** (ADR-0018:
+  tudo o que se instala sai do script, para a migração para Paris).
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| `sshd -T`, antes | `passwordauthentication yes`, `kbdinteractiveauthentication no`, `permitrootlogin prohibit-password` | `sudo -n sshd -T`, 03/10/2026 23:55 UTC |
+| `sshd -T`, depois do `sshd -t` e antes do reload | `passwordauthentication no`, `kbdinteractiveauthentication no`, `permitrootlogin no`, `pubkeyauthentication yes` | idem, 23:56 UTC |
+| Entrada com a chave, ligação nova, depois do reload | `vps-c01fa544` / `ubuntu` | `ssh -o BatchMode=yes eurolify-ensaio "hostname; whoami"`, 23:57 UTC |
+| Teste G, depois do reload | `Permission denied (publickey).` — já não aparece `password` | `ssh -o BatchMode=yes -o PubkeyAuthentication=no -o PreferredAuthentications=none eurolify-ensaio` |
+
+### O que se verificou antes de fechar o caso (só leitura, 23:58–23:59 UTC)
+
+Quem entrou na máquina desde a instalação. Fonte: o journal do serviço `ssh`,
+desde a primeira entrada (03/10/2026 23:00:06 UTC); contei com `grep` e `uniq -c`
+das linhas «Accepted password for» e «Accepted publickey for». Nenhum endereço
+foi escrito; a comparação com a ligação em curso (`$SSH_CLIENT`) fez-se na
+própria máquina.
+
+| O quê | Resultado |
+|---|---|
+| Entradas aceites por palavra-passe | **23**, todas do utilizador `ubuntu`, de **23:02:28 a 23:23:31 UTC** |
+| Dessas 23, origem igual à da ligação actual do Diogo | **23 «igual»**, 0 «diferente» |
+| Entradas aceites por chave | **13**, todas `ubuntu`, de 23:23:37 a 23:59:10 UTC (as últimas são testes e medições do Claude) |
+| Entradas por palavra-passe depois da alteração | **0** (a última é das 23:23:31 UTC, antes da alteração) |
+| Utilizadores com entradas aceites | só `ubuntu` |
+| `authorized_keys` de `/home/ubuntu` | **1 chave**: a do Diogo (`diogo-eurolify-vps`, ED25519, impressão digital igual à do agente) |
+| `authorized_keys` de `/root` | existe, **0 chaves** (sem linhas efectivas) |
+| `who` | vazio (nenhuma sessão com terminal) |
+| `loginctl list-sessions` | 4 sessões do utilizador `ubuntu` (não identifiquei qual é qual) |
+
+**Leitura:** as 23 entradas por palavra-passe, de 23:02 a 23:23 UTC, são
+compatíveis com o passo 4 do `docs/11` §5.1 e com as tentativas do Diogo
+antes de a chave entrar; vêm todas do mesmo endereço que a ligação de agora. As
+528 tentativas falhadas das últimas 24 h (secção anterior) não resultaram em
+nenhuma entrada de outra origem: não há nenhuma entrada aceite de origem
+diferente da do Diogo.
+
+### O que ficou por verificar
+
+- «Igual» é o mesmo endereço público, **não prova que foi a mesma pessoa**:
+  um endereço partilhado (rede do mesmo operador, NAT) daria o mesmo resultado.
+- O journal só começa às 23:00 UTC de 03/10/2026; o que houve antes (a
+  instalação pela OVH) **não verifiquei**.
+- **O que fez a OVH ou o `cloud-init` na primeira inicialização**:
+  não li os ficheiros de `/var/log/cloud-init*`.
+- **As 4 sessões do `ubuntu` no `loginctl`**: quais são e se alguma está parada.
+  O `last` não existe nesta máquina (comando em falta), por isso não há
+  histórico de `wtmp`; usei o journal.
+- A palavra-passe inicial do `ubuntu` (a que serviu nas 23 entradas) **não foi
+  mudada, até onde sei**: a alteração só fecha a entrada por SSH. Se a OVH
+  oferece uma consola com entrada sem SSH, e se aceita essa palavra-passe, **não
+  verifiquei**. Mudá-la, ou bloqueá-la, é decisão do Diogo.
+- Firewall (`ufw`): continua `inactive`; só o script a liga.
+
+## É mesmo uma VPS-1, não a VPS-3 da decisão X (04/10/2026)
+
+Confirmado pelo Diogo na consola da OVH, 04/10/2026: *«é mesmo a vps 1»*. A
+medição da secção «Primeiro acesso» (2 núcleos, 3,7 GiB, 40 GB) bate com isso.
+**A decisão X (ADR-0017, VPS-3) não se cumpriu na compra.** Porquê (escolha, ou
+só havia a VPS-1 no Reino Unido): não perguntei.
+
+**Decisão AC (ADR-0021):** pergunta *«Ficamos com a VPS-1 até à migração para
+Paris (muda a decisão X), ou tentas subir para a VPS-3?»*; resposta do Diogo,
+04/10/2026: *«ficamos com a VPS-1 até à migração»*. Varrimento de «VPS-3» e
+«10,40» nos `.md` (sem memórias e referências): mudados o estado dos ADR-0015
+e 0017, o contexto do ADR-0018 (dizia «A VPS-3 da OVH foi comprada»,
+corrigido onde estava escrito), o `docs/06` (X e AC) e o `docs/11`
+(cabeçalho, §1, §7). A tabela de preços do `docs/11` §1 fica: são os planos.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Fonte e como |
+|---|---|---|
+| Preço «a partir de», sem IVA | VPS-1 3,81 €/mês (2 vCores, 4 GB); VPS-3 10,40 €/mês (6 vCores, 12 GB, 100 GB) | página portuguesa da OVH, 03/10/2026 (secção «Números» do início desta memória) |
+| Disponibilidade da VPS-1 e da VPS-3 | as duas `out-of-stock` nos 11 centros, incluindo o `UK` | `eu.api.ovh.com/v1/vps/order/rule/datacenter`, `vps-2025-model1` e `vps-2025-model3`, PT, 04/10/2026 00:01 UTC |
+
+A VPS-1 do Diogo foi comprada no `UK` minutos antes de a API a dar esgotada
+ali: **não sei se este indicador da API corresponde ao que a página de compra
+mostra.**
+
+### O que ficou por verificar
+
+- Se a OVH deixa subir a VPS-1 para a VPS-3 sem reinstalar, e a que preço.
+- Se a VPS-1 chega para o ensaio: memória 3,7 GiB sem swap; a Coolify pede no
+  mínimo 2 GB; PostgreSQL, API, Hub e construções das imagens na mesma máquina
+  não foram medidos (**C**).
+- As contas de custo que usam os 10,40 € da VPS-3.
+
+## Firewall ligada, só a porta 22 (04/10/2026, 00:02 UTC)
+
+O Diogo mandou ligar a firewall já, em vez de esperar pelo script. **Substitui a
+linha «Firewall… só o script a liga» da secção anterior, só quanto a estar
+desligada:** o script continua a ter de a reproduzir. Cada comando foi mostrado
+ao Diogo e só correu com o OK dele. É a terceira alteração à máquina e a
+segunda feita pelo Claude.
+
+### O que se fez
+
+- Cópia: `/root/ufw.antes-20261004-000139` (`cp -a` de `/etc/ufw`, 00:01 UTC).
+  Antes: `ufw 0.36.2`, `IPV6=yes`, estado `inactive`.
+- Às 00:02:10 UTC: `ufw default deny incoming`, `ufw default allow outgoing`,
+  `ufw allow 22/tcp` e `ufw --force enable`, por esta ordem (a regra da 22
+  antes do `enable`, para a ligação não cair).
+- **Só a 22/tcp** ficou aberta, em IPv4 e IPv6. As portas 80 e 443 do `docs/11`
+  §3.2 **não** se abriram: nada ouve nelas (`ss -tln`, 03/10/2026) e abrir uma
+  porta é um acto explícito com registo (`AGENTS.md`); abrem-se quando houver
+  proxy.
+- **O script de preparação tem de reproduzir esta regra** (ADR-0018).
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| Estado, depois | `active`, arranque com a máquina; `Default: deny (incoming), allow (outgoing), disabled (routed)`; `Logging: on (low)` | `sudo -n ufw status verbose`, 04/10/2026 00:02 UTC |
+| Regras | `22/tcp ALLOW IN Anywhere` e `22/tcp (v6) ALLOW IN Anywhere (v6)` | idem |
+| Entrada com a chave, ligação nova, depois | `vps-c01fa544` / `ubuntu` | `ssh -o BatchMode=yes eurolify-ensaio "hostname; whoami"` |
+| Porta 22 a partir do computador do Diogo | responde | `Test-NetConnection <VPS> -Port 22` |
+| Porta 80 a partir do computador do Diogo | não responde, **mas já não respondia antes** (nada ouve nela): não prova o bloqueio | `Test-NetConnection <VPS> -Port 80` |
+
+### O que ficou por verificar
+
+- Que a firewall bloqueia de facto as outras portas: só se prova com um serviço
+  a ouvir numa delas (por exemplo, quando se instalar o proxy).
+- O bloqueio de quem tenta entrar à força (`fail2ban`, proposta do `docs/11`
+  §3.1): **não feito**.
+- `Logging: on (low)`: o `ufw` regista bloqueios com endereços IP, que são dados
+  pessoais (ADR-0018); retenção por decidir no script.
+- Continuam em aberto a palavra-passe inicial do `ubuntu` e as 4 sessões do
+  `loginctl`. O plano da OVH ficou esclarecido na secção anterior: é a VPS-1.

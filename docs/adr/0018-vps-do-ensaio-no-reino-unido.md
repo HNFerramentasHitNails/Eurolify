@@ -11,7 +11,9 @@
 
 ## Contexto
 
-A VPS-3 da OVH foi comprada a 03/10/2026 (`vps-c01fa544.vps.ovh.net`). O
+A VPS da OVH foi comprada a 03/10/2026 (`vps-c01fa544.vps.ovh.net`) — uma
+VPS-1, não a VPS-3 que aqui se escrevia (corrigido a 04/10/2026,
+[ADR-0021](0021-vps-1-ate-a-migracao.md)). O
 registo da RIPE dos dois endereços dá o Reino Unido: o IPv4 está no bloco
 `VPS-UK2`, país GB, titular «OVH Ltd», e o IPv6 no bloco `OVH-PCI-ERI`, país GB
 (`rdap.db.ripe.net`, 03/10/2026). O Diogo confirmou na consola da OVH, a

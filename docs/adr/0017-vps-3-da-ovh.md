@@ -2,6 +2,9 @@
 
 - **Estado:** aceite · o centro de dados da VPS comprada é o do Reino Unido,
   por excepção temporária só para o ensaio: [ADR-0018](0018-vps-do-ensaio-no-reino-unido.md)
+  · ⚠️ **a máquina comprada é uma VPS-1** (medidos 2 núcleos, 3,7 GiB, 40 GB;
+  confirmado pelo Diogo a 04/10/2026) e o ensaio fica nela até à migração:
+  [ADR-0021](0021-vps-1-ate-a-migracao.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** `docs/11-preparacao-da-vps.md` §7, ponto 1

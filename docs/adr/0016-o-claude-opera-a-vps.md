@@ -4,7 +4,8 @@
   [ADR-0005](0005-publicacao-pelo-github.md) (o Claude só lê; escrita só num
   projecto de ensaio) e o acesso só de leitura do
   [ADR-0011](0011-preparacao-da-conta-scaleway.md); o ponto 1 do ADR-0005 (publica-se
-  pelo GitHub) mantém-se
+  pelo GitHub) mantém-se · por onde o Claude chega à máquina:
+  [ADR-0020](0020-acesso-pelo-computador-do-diogo.md)
 - **Data:** 03/10/2026
 - **Quem decidiu:** Diogo
 - **Decisão em aberto de origem:** — (acompanha o

@@ -6,8 +6,9 @@
 > publica-se pelo GitHub ([ADR-0005](adr/0005-publicacao-pelo-github.md),
 > ponto 1); um só ensaio, actualizado a cada entrada no `main`
 > ([ADR-0014](adr/0014-um-so-ensaio.md)); o código passa por duas revisões
-> ([ADR-0013](adr/0013-revisao-do-codigo.md)); a máquina é uma VPS-3 da OVH
-> ([ADR-0017](adr/0017-vps-3-da-ovh.md)), a do ensaio por agora no Reino Unido
+> ([ADR-0013](adr/0013-revisao-do-codigo.md)); decidida uma VPS-3 da OVH
+> ([ADR-0017](adr/0017-vps-3-da-ovh.md)), mas a do ensaio é uma VPS-1 até à
+> migração ([ADR-0021](adr/0021-vps-1-ate-a-migracao.md)), por agora no Reino Unido
 > ([ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md), até 31/03/2027:
 > [ADR-0019](adr/0019-fim-da-vps-no-reino-unido.md)). **Tudo o resto aqui é proposta**
 > e está marcado assim. As decisões por tomar estão no §7, por ordem.
@@ -44,6 +45,11 @@ de»*, sem IVA:
   [ADR-0019](adr/0019-fim-da-vps-no-reino-unido.md)). Paris não está na
   lista dos centros das VPS; a 03/10/2026, 23:10 UTC, todos os 11 estavam
   esgotados para o VPS-3 (API pública da OVH).
+- ⚠️ **A máquina comprada é uma VPS-1**, não a VPS-3 do ADR-0017: 2 núcleos,
+  3,7 GiB de memória, 40 GB de disco (medido a 03/10/2026; confirmado na
+  consola pelo Diogo a 04/10/2026). **O ensaio fica nela até à migração**
+  ([ADR-0021](adr/0021-vps-1-ate-a-migracao.md)); sem swap, a memória é o
+  limite a vigiar.
 - **Tudo o que se instala sai do script** (§3), para que a migração seja
   correr o mesmo script em Paris e repor a base.
 - **Cópias fora da máquina**: num armazenamento na UE, noutro sítio que não a
@@ -70,6 +76,9 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
 - SSH **só com chave**, sem palavra-passe; uma chave por pessoa (ADR-0016),
   com data de troca. Quem sai perde a chave no mesmo dia (lição do Hub:
   contas de ex-colaboradores activas, 28/08/2026).
+- ✅ **A chave do Diogo (`eurolify_vps`) troca-se a 31/03/2027**, com a
+  migração para Paris: máquina nova, chave nova (Diogo, 03/10/2026, decisão
+  AB). A do Bruno tem data própria quando for criada.
 - Bloqueio de quem tenta entrar à força (proposta: `fail2ban`).
 
 ### 3.2 Firewall — fechado por omissão
@@ -135,8 +144,9 @@ imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
 
 - Máquina ou serviço em baixo; disco acima do limite; cópia que não correu ou
   reposição que falhou; certificado a expirar; actualizações por aplicar.
-- A data de fim da VPS no Reino Unido, **31/03/2027** (ADR-0019): aviso a
-  partir de 01/03/2027 (proposta).
+- A data de fim da VPS no Reino Unido e a troca da chave do Diogo, ambas a
+  **31/03/2027** (ADR-0019, decisão AB): aviso a partir de 01/03/2027
+  (proposta).
 - Para onde vão (e-mail, com fornecedor na UE): por decidir (§7).
 - Lição: o recálculo diário esteve parado 15 dias sem ninguém saber (repo
   `claude`, 05/09/2026).
@@ -163,7 +173,12 @@ imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
 
 ## 5. Como o Claude chega à máquina
 
-**Por resolver.** Numa sessão do Claude Code na cloud, uma ligação directa à
+✅ **Decidido** (Diogo, 03/10/2026,
+[ADR-0020](adr/0020-acesso-pelo-computador-do-diogo.md)): pelo **Claude Code no
+computador do Diogo (Windows), por SSH**, com uma chave do Diogo; o Bruno, no
+dele, com a dele. Os passos estão no §5.1.
+
+Como se chegou aqui: numa sessão do Claude Code na cloud, uma ligação directa à
 porta 22 (SSH) do `github.com` não respondeu em 8 s (03/10/2026); o resto do
 teste foi bloqueado pelo sistema de permissões da sessão. Com a VPS comprada,
 a porta 22 dela também não respondeu em 10 s a partir da cloud (03/10/2026);
@@ -171,11 +186,49 @@ não se sabe se o bloqueio é da sessão ou da VPS. Caminhos:
 
 | Caminho | Como | Estado |
 |---|---|---|
-| **a) O Claude Code no computador do Diogo ou do Bruno** | SSH directo, com a chave de cada um | **não testado** |
+| ✅ **a) O Claude Code no computador do Diogo ou do Bruno** | SSH directo, com a chave de cada um | **escolhido** (ADR-0020); por testar |
 | b) Um servidor MCP na VPS, por HTTPS | o endereço tem de ser autorizado na rede do ambiente (definições do ambiente → *Network access*, [documentação](https://code.claude.com/docs/en/cloud-environments#network-access)); é mais uma porta para uma ferramenta com acesso total, com autenticação forte | **não testado** |
 
-**Proposta:** a a) primeiro — não expõe nada além do SSH. A b) só se for
-preciso operar a partir da cloud.
+A a) não expõe nada além do SSH. A b) só se for preciso operar a partir da
+cloud.
+
+### 5.1 Ligar o computador do Diogo (Windows)
+
+Fontes: documentação da Microsoft, *Key-based authentication in OpenSSH for
+Windows*, e do Claude Code, `code.claude.com/docs/en/setup`, lidas a
+03/10/2026. **A chave privada, a frase-passe e a palavra-passe da OVH nunca
+saem do computador** — nem para o chat, nem para o repositório.
+
+1. **O cliente SSH existe?** No PowerShell: `ssh -V`.
+2. **Uma chave só para a VPS** (não a do GitHub), com frase-passe:
+   `ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\eurolify_vps -C "diogo-eurolify-vps"`.
+3. **O agente de SSH**, para o Claude Code usar a chave sem pedir a
+   frase-passe a cada comando. Vem desligado por omissão (Microsoft). No
+   PowerShell **como administrador**:
+   `Get-Service ssh-agent | Set-Service -StartupType Automatic` e
+   `Start-Service ssh-agent`; depois, no PowerShell normal:
+   `ssh-add $env:USERPROFILE\.ssh\eurolify_vps`.
+4. **Pôr a parte pública na VPS**, com a palavra-passe da OVH (uma vez):
+   `type $env:USERPROFILE\.ssh\eurolify_vps.pub | ssh ubuntu@57.129.168.39 "umask 077; mkdir -p ~/.ssh; tr -d '\r' >> ~/.ssh/authorized_keys"`
+   (o `tr` tira o fim de linha do Windows).
+   É a primeira alteração à máquina: fica registada em `memoria/`.
+5. **Entra com a chave?**
+   `ssh -i $env:USERPROFILE\.ssh\eurolify_vps ubuntu@57.129.168.39 "hostname; whoami"`
+   — tem de responder sem pedir a palavra-passe da OVH.
+6. **A VPS aceita palavra-passe?**
+   `ssh -o PubkeyAuthentication=no -o PreferredAuthentications=none ubuntu@57.129.168.39`
+   — a linha `Permission denied (...)` diz os métodos aceites. Se lá estiver
+   `password`, qualquer pessoa na Internet pode tentar adivinhá-la: é a
+   primeira coisa a fechar.
+7. **O Claude Code** (se ainda não estiver instalado), no PowerShell:
+   `irm https://claude.ai/install.ps1 | iex`. O Git para Windows é
+   recomendado para o Claude Code ter o Bash; sem ele, usa o PowerShell.
+8. **O repositório**, com as ligações das skills (ADR-0010): Modo de
+   Programador do Windows ligado e
+   `git clone -c core.symlinks=true https://github.com/HNFerramentasHitNails/Eurolify.git`.
+   Abrir `claude` nessa pasta.
+9. **Ao operar a VPS:** nunca «permitir sempre» num comando `ssh`, e não usar
+   o modo que salta as autorizações (ADR-0020).
 
 ## 6. O que deixa de ser preciso da Scaleway
 
@@ -187,9 +240,10 @@ preciso operar a partir da cloud.
 ## 7. Decisões por tomar, por esta ordem
 
 1. ~~Fornecedor, plano e centro de dados~~ → ✅ **OVH, VPS-3, centro na UE**
-   (ADR-0017); a comprada ficou no Reino Unido, só para o ensaio, até à
-   migração para Paris, até 31/03/2027 (ADR-0018, ADR-0019).
-2. **Como o Claude chega à máquina** (§5; proposta: a).
+   (ADR-0017); a comprada é uma VPS-1 no Reino Unido, só para o ensaio, até à
+   migração para Paris, até 31/03/2027 (ADR-0018, ADR-0019, ADR-0021).
+2. ~~Como o Claude chega à máquina~~ → ✅ **o Claude Code no computador do
+   Diogo, por SSH** (ADR-0020); passos no §5.1.
 3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
    antes do primeiro comerciante de fora).
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
@@ -209,5 +263,6 @@ preciso operar a partir da cloud.
   fala de 12 meses adiantados) e se o preço muda com o centro de dados.
 - O preço do armazenamento das cópias.
 - A versão estável do PostgreSQL à data da instalação.
-- Os dois caminhos do §5.
+- O caminho a) do §5, no computador do Diogo (§5.1), e o equivalente no macOS
+  do Bruno (por escrever).
 - O acordo de tratamento de dados do fornecedor.
