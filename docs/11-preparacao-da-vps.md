@@ -6,8 +6,9 @@
 > publica-se pelo GitHub ([ADR-0005](adr/0005-publicacao-pelo-github.md),
 > ponto 1); um só ensaio, actualizado a cada entrada no `main`
 > ([ADR-0014](adr/0014-um-so-ensaio.md)); o código passa por duas revisões
-> ([ADR-0013](adr/0013-revisao-do-codigo.md)); a máquina é uma VPS-3 da OVH
-> ([ADR-0017](adr/0017-vps-3-da-ovh.md)), a do ensaio por agora no Reino Unido
+> ([ADR-0013](adr/0013-revisao-do-codigo.md)); decidida uma VPS-3 da OVH
+> ([ADR-0017](adr/0017-vps-3-da-ovh.md)), mas a do ensaio é uma VPS-1 até à
+> migração ([ADR-0021](adr/0021-vps-1-ate-a-migracao.md)), por agora no Reino Unido
 > ([ADR-0018](adr/0018-vps-do-ensaio-no-reino-unido.md), até 31/03/2027:
 > [ADR-0019](adr/0019-fim-da-vps-no-reino-unido.md)). **Tudo o resto aqui é proposta**
 > e está marcado assim. As decisões por tomar estão no §7, por ordem.
@@ -46,7 +47,9 @@ de»*, sem IVA:
   esgotados para o VPS-3 (API pública da OVH).
 - ⚠️ **A máquina comprada é uma VPS-1**, não a VPS-3 do ADR-0017: 2 núcleos,
   3,7 GiB de memória, 40 GB de disco (medido a 03/10/2026; confirmado na
-  consola pelo Diogo a 04/10/2026). Ficar com ela ou subir: por decidir.
+  consola pelo Diogo a 04/10/2026). **O ensaio fica nela até à migração**
+  ([ADR-0021](adr/0021-vps-1-ate-a-migracao.md)); sem swap, a memória é o
+  limite a vigiar.
 - **Tudo o que se instala sai do script** (§3), para que a migração seja
   correr o mesmo script em Paris e repor a base.
 - **Cópias fora da máquina**: num armazenamento na UE, noutro sítio que não a
@@ -237,8 +240,8 @@ saem do computador** — nem para o chat, nem para o repositório.
 ## 7. Decisões por tomar, por esta ordem
 
 1. ~~Fornecedor, plano e centro de dados~~ → ✅ **OVH, VPS-3, centro na UE**
-   (ADR-0017); a comprada ficou no Reino Unido, só para o ensaio, até à
-   migração para Paris, até 31/03/2027 (ADR-0018, ADR-0019).
+   (ADR-0017); a comprada é uma VPS-1 no Reino Unido, só para o ensaio, até à
+   migração para Paris, até 31/03/2027 (ADR-0018, ADR-0019, ADR-0021).
 2. ~~Como o Claude chega à máquina~~ → ✅ **o Claude Code no computador do
    Diogo, por SSH** (ADR-0020); passos no §5.1.
 3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados

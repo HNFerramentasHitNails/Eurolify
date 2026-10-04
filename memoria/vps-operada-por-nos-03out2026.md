@@ -361,6 +361,14 @@ medição da secção «Primeiro acesso» (2 núcleos, 3,7 GiB, 40 GB) bate com 
 **A decisão X (ADR-0017, VPS-3) não se cumpriu na compra.** Porquê (escolha, ou
 só havia a VPS-1 no Reino Unido): não perguntei.
 
+**Decisão AC (ADR-0021):** pergunta *«Ficamos com a VPS-1 até à migração para
+Paris (muda a decisão X), ou tentas subir para a VPS-3?»*; resposta do Diogo,
+04/10/2026: *«ficamos com a VPS-1 até à migração»*. Varrimento de «VPS-3» e
+«10,40» nos `.md` (sem memórias e referências): mudados o estado dos ADR-0015
+e 0017, o contexto do ADR-0018 (dizia «A VPS-3 da OVH foi comprada»,
+corrigido onde estava escrito), o `docs/06` (X e AC) e o `docs/11`
+(cabeçalho, §1, §7). A tabela de preços do `docs/11` §1 fica: são os planos.
+
 ### Números (com data e como se contaram)
 
 | O quê | Valor | Fonte e como |
