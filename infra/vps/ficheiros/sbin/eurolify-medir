@@ -16,9 +16,17 @@ free -h
 df -h /
 
 seccao "serviços"
-for s in ssh docker fail2ban ufw eurolify-copia.timer eurolify-reposicao.timer eurolify-verificacao.timer \
-  eurolify-pedido@publicar.path eurolify-pedido@aplicar.path eurolify-pedido@medir.path; do
+for s in ssh docker fail2ban ufw nginx eurolify-copia.timer eurolify-reposicao.timer eurolify-verificacao.timer \
+  eurolify-pedido@publicar.path eurolify-pedido@aplicar.path eurolify-pedido@medir.path eurolify-pedido@mcp.path; do
   printf '%s: %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null)"
+done
+
+seccao "tarefas (última vez)"
+for t in copia reposicao verificacao; do
+  printf '%s: %s, resultado %s, fim %s\n' "$t" \
+    "$(systemctl show "eurolify-$t.service" -p ActiveState --value 2>/dev/null)" \
+    "$(systemctl show "eurolify-$t.service" -p Result --value 2>/dev/null)" \
+    "$(systemctl show "eurolify-$t.service" -p ExecMainExitTimestamp --value 2>/dev/null)"
 done
 
 seccao "contentores"
@@ -38,6 +46,13 @@ seccao "fail2ban (só números)"
 fail2ban-client status sshd 2>&1 | grep -E 'Currently|Total'
 echo "bantime (sshd): $(fail2ban-client get sshd bantime 2>&1)"
 echo "dbpurgeage: $(fail2ban-client get dbpurgeage 2>&1)"
+
+seccao "MCP (ADR-0033)"
+for c in /etc/letsencrypt/live/*/fullchain.pem; do
+  [[ -r "$c" ]] && echo "certificado $(basename "$(dirname "$c")"): $(openssl x509 -enddate -noout -in "$c")"
+done
+[[ -r /etc/eurolify/ovh-dns.expira ]] && echo "chave da OVH (certificado) troca-se a: $(cat /etc/eurolify/ovh-dns.expira)"
+curl -fsS -m 5 http://127.0.0.1:8090/health 2>/dev/null && echo || echo "MCP: /health sem resposta"
 
 seccao "actualizações"
 /usr/lib/update-notifier/apt-check --human-readable 2>&1

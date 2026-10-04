@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Os tipos do SDK de MCP (1.32.0) não seguem exactOptionalPropertyTypes:
+    // o transporte HTTP e o servidor não compilam com ela ligada.
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["src", "test"]
+}

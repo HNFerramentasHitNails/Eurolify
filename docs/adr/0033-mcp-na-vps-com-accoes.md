@@ -100,6 +100,32 @@ servidores de nomes da OVH (`ns200`/`dns200.anycast.me`).
     ao desligar o *connector*;
   - a porta 443 aberta passa a ser alvo, mesmo filtrada.
 
+## Alteração de 04/10/2026 (revisão do pedido #30)
+
+A revisão independente do código mostrou que o ponto 2 impedia o próprio
+login: o `/authorize` e o regresso do GitHub abrem no **browser de quem liga
+o connector**, a partir do endereço dele, não da Anthropic. Com a 443 só para
+`160.79.104.0/21`, o connector nunca se ligava.
+
+Opções postas ao Diogo: abrir só o login (recomendado), ou manter a 443
+fechada e abri-la por pedido ao GitHub durante 15 minutos de cada vez que for
+preciso ligar. Resposta: *«Abrir só o login»*.
+
+- **Ponto 2 passa a ser:** a 443 abre a todos no `ufw`; o `nginx` deixa passar
+  a todos só o `/authorize` e o `/oauth/github/callback` (com limite de
+  pedidos por endereço), e todo o resto (o `/mcp`, o `/token`, o `/register`,
+  os metadados) só a `160.79.104.0/21`.
+- **Ponto 3, mais apertado:** as contas entram pelo **número** da conta no
+  GitHub (`HNFerramentasHitNails` = 259400126, `bruno-88` = 176623429), não
+  pelo nome, que pode mudar e ficar livre; só se registam clientes cujo
+  retorno é o do Claude (`https://claude.ai/…` ou `https://claude.com/api/mcp/auth_callback`),
+  para um link de login enviado por outro não lhe entregar o código; o GitHub
+  pede sempre a escolha da conta.
+- **O que pode partir, a mais:** a página de login fica pública (alvo de
+  varrimentos; só reencaminha para o GitHub); se a Anthropic mudar o
+  intervalo, o connector deixa de chegar ao `/mcp` até se mudar o
+  `nginx-mcp.conf`.
+
 ## O que ficou por verificar
 
 - Se o `apt` do Ubuntu 26.04 tem o `certbot` e o módulo DNS da OVH, e as
