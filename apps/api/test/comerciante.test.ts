@@ -21,6 +21,7 @@ import {
   type DadosEntidadeLegal,
 } from "../src/comerciante/repositorio.js";
 import {
+  apagarBase,
   criarBaseDeTeste,
   URL_BASE,
   type BaseDeTeste,
@@ -916,9 +917,17 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         await migrador.destroy();
       }
     } finally {
-      await admin.query(`DROP DATABASE IF EXISTS ${nome} WITH (FORCE)`);
-      await admin.query(`DROP ROLE IF EXISTS ${papel}`);
-      await admin.end();
+      // Esperar pela ligação do migrador antes do DROP (esperarQueSaiam);
+      // o papel e a ligação de administração saem mesmo que isso falhe.
+      try {
+        await apagarBase(admin, nome);
+      } finally {
+        try {
+          await admin.query(`DROP ROLE IF EXISTS ${papel}`);
+        } finally {
+          await admin.end();
+        }
+      }
     }
   }, 60_000);
 
