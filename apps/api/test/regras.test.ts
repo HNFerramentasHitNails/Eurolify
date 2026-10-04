@@ -729,6 +729,62 @@ describe("validar o registo", () => {
     ]);
   });
 
+  it("um valor que não vem de JSON, em qualquer campo, fica listado e não rebenta (revisão do #50, P2-A)", () => {
+    const maus: unknown[] = [
+      Symbol("s"),
+      Object.create(null),
+      {
+        toString() {
+          throw new Error("toString");
+        },
+      },
+      5n,
+    ];
+    const campos = [
+      "id",
+      "versao",
+      "estadoLegal",
+      "aplicaDesde",
+      "aplicaAte",
+      "verificadaEm",
+      "pais",
+      "dominio",
+    ] as const;
+    for (const mau of maus) {
+      const casos: Registo[] = [
+        ...campos.map((campo) =>
+          registoComPortugal([regraTeste({ id: "r", [campo]: mau })]),
+        ),
+        registoComPortugal([
+          regraTeste({ id: "r", territorios: [mau] as unknown as string[] }),
+        ]),
+        {
+          ...REGISTO_INICIAL,
+          versao: mau as number,
+          paises: REGISTO_INICIAL.paises.map((perfil) =>
+            perfil.codigo === "PT"
+              ? ({
+                  ...perfil,
+                  codigo: mau,
+                  dominios: {
+                    ...perfil.dominios,
+                    consumidor: { ...VERIFICADO, verificadoEm: mau },
+                  },
+                } as unknown as PerfilPais)
+              : perfil,
+          ),
+        },
+      ];
+      for (const registo of casos) {
+        let erros: string[] = [];
+        expect(() => {
+          erros = errosDoRegisto(registo);
+        }).not.toThrow();
+        expect(erros.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("regras sem id dão só o erro «sem id», sem erros por arrasto", () => {
     const base = registoComPortugal([
       regraTeste({ id: "" }),

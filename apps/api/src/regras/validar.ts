@@ -57,6 +57,22 @@ function mostrarId(id: string): string {
   );
 }
 
+/**
+ * Um valor do registo numa mensagem, sem nunca lançar: texto tal como é;
+ * número, booleano, null, undefined, bigint e Symbol pelo seu texto; listas e
+ * objectos só pelo tipo — um objecto sem protótipo, ou com um toString que
+ * lança, não rebenta a lista de erros (revisão do #50, P2-A).
+ */
+function valor(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (typeof v === "symbol") return v.toString();
+  if (typeof v === "function") return "(função)";
+  if (typeof v === "object" && v !== null) {
+    return Array.isArray(v) ? "(lista)" : "(objecto)";
+  }
+  return String(v);
+}
+
 function vazio(texto: unknown): boolean {
   return typeof texto !== "string" || texto.trim() === "";
 }
@@ -73,7 +89,7 @@ export function errosDoRegisto(registo: Registo): string[] {
   const erros: string[] = [];
 
   if (!Number.isInteger(registo.versao) || registo.versao < 1) {
-    erros.push(`versão do registo inválida: ${String(registo.versao)}`);
+    erros.push(`versão do registo inválida: ${valor(registo.versao)}`);
   }
   if (!ehLista(registo.paises)) {
     erros.push("«paises» não é uma lista");
@@ -106,35 +122,37 @@ export function errosDoRegisto(registo: Registo): string[] {
   }
   for (const codigo of codigos) {
     if (!(CODIGOS_UE as readonly string[]).includes(codigo)) {
-      erros.push(`país ${codigo} não é um dos 27`);
+      erros.push(`país ${valor(codigo)} não é um dos 27`);
     }
   }
 
   for (const perfil of paises) {
-    if (vazio(perfil.nome)) erros.push(`${perfil.codigo}: sem nome`);
+    if (vazio(perfil.nome)) erros.push(`${valor(perfil.codigo)}: sem nome`);
     if (perfil.territorios !== null && !ehLista(perfil.territorios)) {
-      erros.push(`${perfil.codigo}: «territorios» não é null nem uma lista`);
+      erros.push(
+        `${valor(perfil.codigo)}: «territorios» não é null nem uma lista`,
+      );
     }
     const dominios: unknown = perfil.dominios;
     if (typeof dominios !== "object" || dominios === null) {
-      erros.push(`${perfil.codigo}: «dominios» não é um objecto`);
+      erros.push(`${valor(perfil.codigo)}: «dominios» não é um objecto`);
       continue;
     }
     const chaves = Object.keys(dominios);
     for (const dominio of DOMINIOS) {
       if (!chaves.includes(dominio)) {
-        erros.push(`${perfil.codigo}: falta o domínio ${dominio}`);
+        erros.push(`${valor(perfil.codigo)}: falta o domínio ${dominio}`);
       }
     }
     for (const chave of chaves) {
       if (!DOMINIOS.includes(chave)) {
-        erros.push(`${perfil.codigo}: domínio desconhecido ${chave}`);
+        erros.push(`${valor(perfil.codigo)}: domínio desconhecido ${chave}`);
       }
     }
     for (const [dominio, revisao] of Object.entries<RevisaoDominio>(
       perfil.dominios,
     )) {
-      const sitio = `${perfil.codigo}/${dominio}`;
+      const sitio = `${valor(perfil.codigo)}/${dominio}`;
       if (!ehObjecto(revisao)) {
         erros.push(`${sitio}: a revisão não é um objecto`);
         continue;
@@ -143,14 +161,14 @@ export function errosDoRegisto(registo: Registo): string[] {
       if (!ESTADOS_DE_REVISAO.includes(estado as string)) {
         // Revisão do #40, P1-1: uma gralha no estado não pode passar.
         erros.push(
-          `${sitio}: estado de revisão desconhecido «${String(estado)}»`,
+          `${sitio}: estado de revisão desconhecido «${valor(estado)}»`,
         );
         continue;
       }
       if (revisao.estado === "verificado") {
         if (instante(revisao.verificadoEm) === null) {
           erros.push(
-            `${sitio}: data de verificação inválida «${revisao.verificadoEm}»`,
+            `${sitio}: data de verificação inválida «${valor(revisao.verificadoEm)}»`,
           );
         }
         if (vazio(revisao.revistoPor)) erros.push(`${sitio}: sem revistoPor`);
@@ -177,15 +195,19 @@ export function errosDoRegisto(registo: Registo): string[] {
     const id: unknown = regra.id;
     let mostrada: string;
     let foraDoFormato = false;
-    if (typeof id !== "string") {
-      mostrada = `(${typeof id}: ${String(id)})`;
+    if (typeof id === "object" && id !== null) {
+      mostrada = "(object)";
+    } else if (typeof id !== "string") {
+      mostrada = `(${typeof id}: ${valor(id)})`;
     } else if (FORMATO_ID.test(id)) {
       mostrada = id;
     } else {
+      // Vazia incluída: o «sem id» é testado antes e ganha (revisão do #50,
+      // P2-B).
       mostrada = mostrarId(id);
-      foraDoFormato = !vazio(id);
+      foraDoFormato = true;
     }
-    const nome = `${mostrada}@${String(regra.versao)}`;
+    const nome = `${mostrada}@${valor(regra.versao)}`;
     if (vistas.has(nome)) erros.push(`${nome}: repetida`);
     vistas.add(nome);
 
@@ -200,7 +222,9 @@ export function errosDoRegisto(registo: Registo): string[] {
       erros.push(`${nome}: versão inválida`);
     }
     if (!ESTADOS_LEGAIS.includes(regra.estadoLegal)) {
-      erros.push(`${nome}: estado legal desconhecido «${regra.estadoLegal}»`);
+      erros.push(
+        `${nome}: estado legal desconhecido «${valor(regra.estadoLegal)}»`,
+      );
     }
     const base: unknown = regra.base;
     if (typeof base !== "object" || base === null) {
@@ -217,11 +241,11 @@ export function errosDoRegisto(registo: Registo): string[] {
 
     const desde = instante(regra.aplicaDesde);
     if (desde === null) {
-      erros.push(`${nome}: aplicaDesde inválido «${regra.aplicaDesde}»`);
+      erros.push(`${nome}: aplicaDesde inválido «${valor(regra.aplicaDesde)}»`);
     }
     const ate = regra.aplicaAte === null ? null : instante(regra.aplicaAte);
     if (regra.aplicaAte !== null && ate === null) {
-      erros.push(`${nome}: aplicaAte inválido «${regra.aplicaAte}»`);
+      erros.push(`${nome}: aplicaAte inválido «${valor(regra.aplicaAte)}»`);
     }
     if (desde !== null && ate !== null && ate <= desde) {
       erros.push(`${nome}: aplicaAte não é depois de aplicaDesde`);
@@ -230,34 +254,40 @@ export function errosDoRegisto(registo: Registo): string[] {
       erros.push(`${nome}: revogada sem aplicaAte`);
     }
     if (instante(regra.verificadaEm) === null) {
-      erros.push(`${nome}: verificadaEm inválido «${regra.verificadaEm}»`);
+      erros.push(
+        `${nome}: verificadaEm inválido «${valor(regra.verificadaEm)}»`,
+      );
     }
 
     const perfil = paises.find((p) => p.codigo === regra.pais);
     if (perfil === undefined) {
-      erros.push(`${nome}: país ${regra.pais} sem perfil`);
+      erros.push(`${nome}: país ${valor(regra.pais)} sem perfil`);
       continue;
     }
+    // Só um domínio em texto se procura no perfil: um objecto sem protótipo
+    // como chave rebentava o hasOwn (revisão do #50, P2-A).
+    const dominioDaRegra: unknown = regra.dominio;
     const revisao: unknown =
+      typeof dominioDaRegra === "string" &&
       ehObjecto(perfil.dominios) &&
-      Object.hasOwn(perfil.dominios, regra.dominio)
-        ? (perfil.dominios as Record<string, unknown>)[regra.dominio]
+      Object.hasOwn(perfil.dominios, dominioDaRegra)
+        ? (perfil.dominios as Record<string, unknown>)[dominioDaRegra]
         : undefined;
     if (revisao === undefined) {
-      erros.push(`${nome}: domínio desconhecido ${regra.dominio}`);
+      erros.push(`${nome}: domínio desconhecido ${valor(regra.dominio)}`);
     } else if (
       !ehObjecto(revisao) ||
       (revisao as RevisaoDominio).estado !== "verificado"
     ) {
       erros.push(
-        `${nome}: o domínio ${regra.dominio} de ${regra.pais} não está verificado`,
+        `${nome}: o domínio ${valor(regra.dominio)} de ${valor(regra.pais)} não está verificado`,
       );
     }
     if (ehLista(regra.territorios)) {
       for (const territorio of regra.territorios) {
         if (!(perfil.territorios ?? []).includes(territorio)) {
           erros.push(
-            `${nome}: território ${territorio} não mapeado em ${regra.pais}`,
+            `${nome}: território ${valor(territorio)} não mapeado em ${valor(regra.pais)}`,
           );
         }
       }
@@ -277,7 +307,9 @@ export function errosDoRegisto(registo: Registo): string[] {
   for (const [id, todas] of porId) {
     // A `id` é uma regra de um país e de um domínio (§4.1), propostas
     // incluídas (revisão do #45, P2-4).
-    const lugares = new Set(todas.map((r) => `${r.pais}/${r.dominio}`));
+    const lugares = new Set(
+      todas.map((r) => `${valor(r.pais)}/${valor(r.dominio)}`),
+    );
     if (lugares.size > 1) {
       erros.push(`${id}: a mesma id em ${[...lugares].join(" e ")}`);
     }
@@ -296,7 +328,7 @@ export function errosDoRegisto(registo: Registo): string[] {
         if (aAte === null || bAte === null) continue;
         if (aDesde < bAte && bDesde < aAte) {
           erros.push(
-            `${id}: as versões ${String(a.versao)} e ${String(b.versao)} valem ao mesmo tempo`,
+            `${id}: as versões ${valor(a.versao)} e ${valor(b.versao)} valem ao mesmo tempo`,
           );
         }
       }
@@ -311,7 +343,7 @@ export function assegurarRegistoValido(registo: Registo): void {
   const erros = errosDoRegisto(registo);
   if (erros.length > 0) {
     throw new Error(
-      `Registo de regras inválido (versão ${String(registo.versao)}):\n- ${erros.join("\n- ")}`,
+      `Registo de regras inválido (versão ${valor(registo.versao)}):\n- ${erros.join("\n- ")}`,
     );
   }
 }
