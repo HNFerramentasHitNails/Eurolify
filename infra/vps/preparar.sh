@@ -364,10 +364,24 @@ pg_stdin() {
 linha_do_migrador() {
   printf 'BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:%s@eurolify-postgres:5432/%s' "$1" "$BASE_NOME"
 }
+# A palavra-passe guardada no migrar.env (vazio se o ficheiro não tiver a forma
+# esperada). O `sed` só leva o padrão na linha de comandos, nunca a palavra-passe.
+senha_no_ficheiro() {
+  sed -n 's#^BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:\([0-9a-f]\{64\}\)@.*#\1#p' /etc/eurolify/migrar.env 2>/dev/null | head -n 1 || true
+}
+# O ficheiro é só a linha que este script escreve? Compara-se dentro do bash
+# (`$(<…)` e `[[ … ]]` não arrancam programas): a palavra-passe não vai para a
+# linha de comandos de nenhum processo (revisão do 6892dae, P1). Só essa linha:
+# outra a seguir seria a que o docker usava (revisão do 6892dae, P2-1).
+ficheiro_e_so_a_linha() {
+  local conteudo
+  conteudo="$(</etc/eurolify/migrar.env)" || return 1
+  [[ -n "$1" && "$conteudo" == "$(linha_do_migrador "$1")" ]]
+}
 estado_da_ligacao_do_migrador() {
   local senha saida
-  senha="$(sed -n 's#^BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:\([0-9a-f]\{64\}\)@.*#\1#p' /etc/eurolify/migrar.env 2>/dev/null | head -n 1 || true)"
-  if [[ -z "$senha" ]] || ! grep -qxF "$(linha_do_migrador "$senha")" /etc/eurolify/migrar.env; then
+  senha="$(senha_no_ficheiro)"
+  if ! ficheiro_e_so_a_linha "$senha"; then
     echo recusada
     return 0
   fi
@@ -446,7 +460,7 @@ else
   if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")" != 1 ]]; then
     ligacao="recusada"
   elif ((MOSTRAR)); then
-    if grep -qE "^BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:[0-9a-f]{64}@eurolify-postgres:5432/${BASE_NOME}\$" /etc/eurolify/migrar.env 2>/dev/null; then
+    if ficheiro_e_so_a_linha "$(senha_no_ficheiro)"; then
       ligacao="no ficheiro"
     else
       ligacao="recusada"

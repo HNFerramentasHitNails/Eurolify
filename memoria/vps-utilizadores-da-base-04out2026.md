@@ -68,6 +68,12 @@ Fluxo `publicar`, corrida 37242060285, no `main` `53e209d` (junção do #73): «
 ## Os 3 P2 da revisão do `09882b4` (#71), a pedido do Diogo (*«trata os 3 P2 do #71»*)
 
 - **P2-A:** o stderr do psql só sai no fim, com sequências de 16 ou mais hexadecimais tapadas, e a sessão dá `SET log_min_messages = 'panic'`. Medido: um erro de sintaxe com a palavra-passe como token dá `at or near "'***'"`; 0 pedaços no stderr e 0 no registo da base.
-- **P2-B:** a renovação repõe `LOGIN`, `CONNECTION LIMIT -1` e `VALID UNTIL 'infinity'`, e «não pode entrar» ou «demasiadas ligações» contam como recusada. Medido: `NOLOGIN`, `CONNECTION LIMIT 0` e `VALID UNTIL` no passado são reparados (1 alteração, depois 0). Um `REVOKE CONNECT … FROM PUBLIC` não impede o migrador, que é dono da base (0 alterações, 0 avisos).
+- **P2-B:** a renovação repõe `LOGIN`, `CONNECTION LIMIT -1` e `VALID UNTIL 'infinity'`, e «não pode entrar» ou «demasiadas ligações» contam como recusada. Medido: `NOLOGIN`, `CONNECTION LIMIT 0` e `VALID UNTIL` no passado são reparados (1 alteração, depois 0). Um `REVOKE CONNECT … FROM PUBLIC` sozinho não impede o migrador, que é dono da base e tem `CONNECT` explícito (`datacl` `eurolify_migrador=CT/eurolify_migrador`): 0 alterações, 0 avisos (medido por quem escreveu, duas vezes). Com `FROM PUBLIC` **e** `FROM eurolify_migrador`, `permission denied for database`: aviso a cada corrida, sem renovar (medido pela revisão do `6892dae` e repetido) — é o desenho, e o aviso diz onde ver.
 - **P2-C:** a linha do `migrar.env` tem de ser exactamente a que o script escreve (anfitrião, porta, base). Medido: base ou anfitrião trocados à mão → reescrita (1 alteração, depois 0); em `--mostrar`, «FARIA».
 - De novo: 3 alterações e depois 0; a migração 0001 corre como o migrador; trap sem temporários; `shellcheck` sem achados.
+
+## O P1 e os 2 P2 da revisão do `6892dae` (#75), a pedido do Diogo (*«sim, corrige o P1 e os 2 P2 e manda rever»*)
+
+- **P1 (erro meu, introduzido no `6892dae`):** a comparação com `grep -qxF "$(linha…)"` punha a linha, com a palavra-passe, na linha de comandos do `grep`. Passou a comparar-se dentro do bash (`$(<ficheiro)` e `[[ … ]]`). Medido com `strace -f -e execve`: 0 de 14 execuções com a palavra-passe numa corrida normal, 0 em `--mostrar`.
+- **P2-1:** o ficheiro tem de ser só a linha que o script escreve. Medido: linha boa mais outra → `FARIA` em `--mostrar`, reescrito numa corrida (fica 1 linha), depois 0; CRLF e um comentário antes → reescrito, depois 0; sem newline final → aceite.
+- **P2-2:** a frase sobre o `REVOKE CONNECT` acima diz agora o que se mediu e por quem.
