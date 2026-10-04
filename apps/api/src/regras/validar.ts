@@ -1,4 +1,5 @@
 import { instante } from "./instante.js";
+import { tipo, valor } from "./mostrar.js";
 import {
   CODIGOS_UE,
   DOMINIOS_CONDICIONAIS,
@@ -55,22 +56,6 @@ function mostrarId(id: string): string {
     /[^\x20-\x7e]/g,
     (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
-}
-
-/**
- * Um valor do registo numa mensagem, sem nunca lançar: texto tal como é;
- * número, booleano, null, undefined, bigint e Symbol pelo seu texto; listas e
- * objectos só pelo tipo — um objecto sem protótipo, ou com um toString que
- * lança, não rebenta a lista de erros (revisão do #50, P2-A).
- */
-function valor(v: unknown): string {
-  if (typeof v === "string") return v;
-  if (typeof v === "symbol") return v.toString();
-  if (typeof v === "function") return "(função)";
-  if (typeof v === "object" && v !== null) {
-    return Array.isArray(v) ? "(lista)" : "(objecto)";
-  }
-  return String(v);
 }
 
 function vazio(texto: unknown): boolean {
@@ -195,10 +180,15 @@ export function errosDoRegisto(registo: Registo): string[] {
     const id: unknown = regra.id;
     let mostrada: string;
     let foraDoFormato = false;
-    if (typeof id === "object" && id !== null) {
-      mostrada = "(object)";
-    } else if (typeof id !== "string") {
-      mostrada = `(${typeof id}: ${valor(id)})`;
+    if (typeof id !== "string") {
+      // Entre parênteses com o tipo, em português: «(número: 5)», «(nulo)»,
+      // «(lista)» (revisão do #50, P2-4).
+      const comValor =
+        typeof id === "number" ||
+        typeof id === "boolean" ||
+        typeof id === "bigint" ||
+        typeof id === "symbol";
+      mostrada = comValor ? `(${tipo(id)}: ${valor(id)})` : `(${tipo(id)})`;
     } else if (FORMATO_ID.test(id)) {
       mostrada = id;
     } else {

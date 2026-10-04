@@ -151,7 +151,7 @@ permitida).
 
 | Caso | Resultado |
 |---|---|
-| Código de país que não são duas maiúsculas (`pt`, `PRT`) | `recusado`, motivo `codigo_pais_invalido` — não se normaliza |
+| Código de país que não são duas maiúsculas (`pt`, `PRT`), ou que não é texto | `recusado`, motivo `codigo_pais_invalido` — não se normaliza |
 | País fora dos 27 (`CH`, `GB`, `EL`) | `recusado`, motivo `pais_fora_da_ue` |
 | Momento que não é ISO 8601 com fuso, ou data impossível (`2026-02-30`), ou com `-00:00` (a mesma leitura das datas das regras e das verificações) | `recusado`, motivo `momento_invalido` |
 | Lista de domínios vazia, ou que não é uma lista | `recusado`, motivo `sem_dominios` |
@@ -170,7 +170,8 @@ permitida).
 impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
 regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
 `proposta` não conta), país sem perfil, território não mapeado, regra num
-domínio que não está `verificado` ou que não existe, estado de revisão ou
+domínio que não está `verificado` ou que não existe (também um domínio que não
+é texto, como `["consumidor"]`; revisão do #50), estado de revisão ou
 estado legal desconhecido, prova vazia (`base`, `revistaPor`, `revistoPor`),
 `id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40), a mesma
 `id` em dois países ou dois domínios, propostas incluídas (revisão do #45),

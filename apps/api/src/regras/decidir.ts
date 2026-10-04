@@ -1,4 +1,5 @@
 import { instante } from "./instante.js";
+import { valor } from "./mostrar.js";
 import type {
   Decisao,
   Motivo,
@@ -85,10 +86,14 @@ function revisaoDoDominio(
 export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   const versao = registo.versao;
 
-  if (!/^[A-Z]{2}$/.test(pedido.pais)) {
+  // Um país que não é texto também é inválido: a expressão regular
+  // converteria um Symbol ou um objecto estranho e rebentava (revisão do #50,
+  // P2-3).
+  const pais: unknown = pedido.pais;
+  if (typeof pais !== "string" || !/^[A-Z]{2}$/.test(pais)) {
     return recusado(versao, {
       codigo: "codigo_pais_invalido",
-      pais: pedido.pais,
+      pais: valor(pais),
     });
   }
   const perfil: PerfilPais | undefined = registo.paises.find(
@@ -119,7 +124,7 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
     ) {
       return recusado(versao, {
         codigo: "dominio_desconhecido",
-        dominio: typeof dominio === "string" ? dominio : String(dominio),
+        dominio: valor(dominio),
       });
     }
   }

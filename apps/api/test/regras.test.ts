@@ -14,7 +14,10 @@ import {
   type Regra,
   type Registo,
 } from "../src/regras/tipos.js";
-import { errosDoRegisto } from "../src/regras/validar.js";
+import {
+  assegurarRegistoValido,
+  errosDoRegisto,
+} from "../src/regras/validar.js";
 
 // Regras e perfis de TESTE: os URL e os artigos são inventados de propósito e
 // nunca entram no registo real (nenhuma taxa nem prazo de verdade aqui).
@@ -154,6 +157,44 @@ describe("decidir", () => {
       expect(decisao.motivos).toEqual([
         { codigo: "codigo_pais_invalido", pais },
       ]);
+    }
+  });
+
+  it("um país ou um domínio que não é texto é recusado, sem rebentar (revisão do #50, P2-3)", () => {
+    const naoTexto: [unknown, string][] = [
+      [Symbol("pt"), "Symbol(pt)"],
+      [Object.create(null), "(objecto)"],
+      [
+        {
+          toString() {
+            throw new Error("toString");
+          },
+        },
+        "(objecto)",
+      ],
+      [["PT"], "(lista)"],
+    ];
+    for (const [mau, mostrado] of naoTexto) {
+      expect(
+        decidir(REGISTO_INICIAL, {
+          pais: mau,
+          dominios: ["consumidor"],
+          momento: AGORA,
+        } as unknown as PedidoDecisao),
+      ).toMatchObject({
+        estado: "recusado",
+        motivos: [{ codigo: "codigo_pais_invalido", pais: mostrado }],
+      });
+      expect(
+        decidir(REGISTO_INICIAL, {
+          pais: "PT",
+          dominios: [mau],
+          momento: AGORA,
+        } as unknown as PedidoDecisao),
+      ).toMatchObject({
+        estado: "recusado",
+        motivos: [{ codigo: "dominio_desconhecido", dominio: mostrado }],
+      });
     }
   });
 
@@ -785,6 +826,116 @@ describe("validar o registo", () => {
     }
   });
 
+  it("um valor que não vem de JSON aparece pelo texto ou pelo tipo, nas mensagens todas (revisão do #50, P2-2)", () => {
+    // O texto de cada tipo, num campo.
+    const comAplicaDesde = (mau: unknown) =>
+      errosDoRegisto(
+        registoComPortugal([
+          regraTeste({ id: "r", aplicaDesde: mau as string }),
+        ]),
+      );
+    expect(comAplicaDesde(Symbol("s"))).toEqual([
+      "r@1: aplicaDesde inválido «Symbol(s)»",
+    ]);
+    expect(comAplicaDesde(Object.create(null))).toEqual([
+      "r@1: aplicaDesde inválido «(objecto)»",
+    ]);
+    expect(
+      comAplicaDesde({
+        toString() {
+          throw new Error("toString");
+        },
+      }),
+    ).toEqual(["r@1: aplicaDesde inválido «(objecto)»"]);
+    expect(comAplicaDesde(5n)).toEqual(["r@1: aplicaDesde inválido «5»"]);
+    expect(comAplicaDesde(["x"])).toEqual([
+      "r@1: aplicaDesde inválido «(lista)»",
+    ]);
+
+    // As mensagens do perfil, com um código que não é texto.
+    const s = Symbol("pt");
+    const portugal = REGISTO_INICIAL.paises.find((p) => p.codigo === "PT");
+    const dominiosSemIva = Object.fromEntries(
+      Object.entries(portugal?.dominios ?? {}).filter(([d]) => d !== "iva"),
+    );
+    const comPortugal = (alterado: object, regras: unknown[] = []) =>
+      ({
+        ...REGISTO_INICIAL,
+        regras,
+        paises: REGISTO_INICIAL.paises.map((perfil) =>
+          perfil.codigo === "PT" ? { ...perfil, ...alterado } : perfil,
+        ),
+      }) as unknown as Registo;
+    expect(
+      errosDoRegisto(
+        comPortugal({
+          codigo: s,
+          nome: "",
+          territorios: "x",
+          dominios: {
+            ...dominiosSemIva,
+            consumidor: { estado: Object.create(null) as unknown },
+            extra: { estado: "por_verificar" },
+          },
+        }),
+      ),
+    ).toEqual([
+      "país PT aparece 0 vezes",
+      "país Symbol(pt) não é um dos 27",
+      "Symbol(pt): sem nome",
+      "Symbol(pt): «territorios» não é null nem uma lista",
+      "Symbol(pt): falta o domínio iva",
+      "Symbol(pt): domínio desconhecido extra",
+      "Symbol(pt)/consumidor: estado de revisão desconhecido «(objecto)»",
+    ]);
+
+    // Uma regra com país estranho igual ao código do perfil, num território
+    // que não existe, e duas versões com versão estranha.
+    expect(
+      errosDoRegisto(
+        comPortugal({ codigo: s }, [
+          regraTeste({
+            id: "r",
+            pais: s as unknown as Regra["pais"],
+            territorios: ["T-1"],
+          }),
+          regraTeste({ id: "v", versao: Symbol("v1") as unknown as number }),
+          regraTeste({ id: "v", versao: Symbol("v2") as unknown as number }),
+        ]),
+      ),
+    ).toEqual([
+      "país PT aparece 0 vezes",
+      "país Symbol(pt) não é um dos 27",
+      "r@1: o domínio consumidor de Symbol(pt) não está verificado",
+      "r@1: território T-1 não mapeado em Symbol(pt)",
+      "v@Symbol(v1): versão inválida",
+      "v@Symbol(v1): país PT sem perfil",
+      "v@Symbol(v2): versão inválida",
+      "v@Symbol(v2): país PT sem perfil",
+      "v: as versões Symbol(v1) e Symbol(v2) valem ao mesmo tempo",
+    ]);
+
+    // A excepção do arranque diz a versão estranha sem rebentar.
+    expect(() => {
+      assegurarRegistoValido({
+        ...REGISTO_INICIAL,
+        versao: Object.create(null) as number,
+      });
+    }).toThrow("Registo de regras inválido (versão (objecto))");
+  });
+
+  it("um domínio que não é texto é desconhecido, mesmo que se converta num (revisão do #50, P2-1)", () => {
+    for (const dominio of [
+      ["consumidor"],
+      { toString: () => "consumidor" },
+    ] as unknown as Regra["dominio"][]) {
+      const tipoDoDominio = Array.isArray(dominio) ? "(lista)" : "(objecto)";
+      expect(
+        errosDoRegisto(registoComPortugal([regraTeste({ id: "r", dominio })])),
+      ).toEqual([`r@1: domínio desconhecido ${tipoDoDominio}`]);
+    }
+  });
+
   it("regras sem id dão só o erro «sem id», sem erros por arrasto", () => {
     const base = registoComPortugal([
       regraTeste({ id: "" }),
@@ -815,9 +966,9 @@ describe("validar o registo", () => {
       '""@1: sem id',
       '""@2: sem id',
       '"\\u00a0\\u00a0"@3: sem id',
-      "(number: 5)@1: sem id",
-      "(object: null)@1: sem id",
-      "(symbol: Symbol(s))@1: sem id",
+      "(número: 5)@1: sem id",
+      "(nulo)@1: sem id",
+      "(símbolo: Symbol(s))@1: sem id",
     ]);
   });
 
