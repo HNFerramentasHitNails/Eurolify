@@ -201,3 +201,36 @@ de gravar, pediu três verificações; resposta final: *«sim»*.
   aceitação; enquanto não aceitar, o GitHub marca a linha dele no `CODEOWNERS`
   como inválida.
 - A regra do `main` ainda não está ligada.
+
+## Incidente: `node_modules` e `dist` enviados para o `main` (04/10/2026) — erro do Claude
+
+### O que se fez
+
+- O commit `9f28fd6` (CODEOWNERS e a nova via Git), feito num ramo tirado do
+  `main` sem `.gitignore` (o `.gitignore` só existia no ramo `c1-esqueleto`),
+  levou com `git add -A` **7.506 ficheiros a mais**: `node_modules` (pacotes
+  de terceiros e estado do pnpm) e `apps/api/dist` (4 ficheiros: o código do
+  C1 compilado). O `git status` foi mostrado pelo próprio comando e **não foi
+  lido** antes do commit; o `push` seguiu no mesmo comando.
+- **Segredos: nenhum** — conferida a lista de ficheiros (as duas
+  correspondências a `id_` são ficheiros de língua `id_ID` do `typebox`).
+- O `apps/api/dist` era código compilado a entrar no `main` sem revisão,
+  contra o ADR-0013.
+- Correcção sem reescrever o histórico (sem `push --force`): pedido #1
+  (`fba6e09`) retira os 7.506 ficheiros e acrescenta o `.gitignore` igual ao
+  do C1. Juntado pelo Claude, sem revisão, por urgência (as outras sessões
+  puxam o `main`).
+- Depois do `gh pr merge --delete-branch`, a cópia local ficou no `main`
+  **local** antigo (`12edf46`, do clone): pôs-se no `origin/main` com
+  `git switch -C main origin/main`.
+
+### Lição
+
+- **Nunca `git add -A`**: acrescentar os ficheiros pelo nome e ler o `git
+  status --short` antes de cada commit; separar o `push` do commit.
+
+### O que ficou por verificar
+
+- O peso que os 7.506 ficheiros deixam no histórico (o tamanho do GitHub
+  ainda dava 785 KB, valor que actualiza com atraso). Tirá-los do histórico
+  exige reescrevê-lo (`push --force`): decisão do Diogo.
