@@ -365,12 +365,42 @@ decisão AF, no `docs/10` §8 e na página 52).
 - **Varrido:** procurei «440», «9.940», «subscri», «GitHub» e «US$» nas 66
   páginas da v19 (grep nos ficheiros lidos do artefacto); só a 50 e a 52 tinham
   números a mudar. Não se mexeu no índice nem na capa (continua «Versão 0.6»).
-- **Medido, não visto:** cada página sozinha num Chromium a 1920×1080, com as
-  fontes da apresentação e um CSS aproximado ao do tipo Slides — o conteúdo
-  acaba à mesma altura antes e depois (50: 683 px; 52: 781 px; o limite é 920).
+- **Medido:** cada página sozinha num Chromium a 1920×1080, com um CSS
+  aproximado ao do tipo Slides — o conteúdo acaba à mesma altura antes e depois
+  (50: 687 px; 52: 783 px; o limite é 920). *Corrigido no mesmo dia: estava
+  escrito 683 e 781 «com as fontes da apresentação», mas nessa medição as
+  letras não carregaram (ver o PDF da v20, abaixo); refeita com elas, a v19 e
+  a v20 dão as mesmas alturas.*
 - Publicada por cima da 19 (`1791074590-acf5`); a 20 é a `1791076976-574b`,
   confirmada lendo de volta as duas páginas.
 - O PDF da v19 (secção acima) ficou com os números antigos da 50 e da 52.
+
+## PDF da versão 20 (04/10/2026)
+
+Pedido do Diogo: *«sim, gera o PDF da v20»*. Mesmo método do da 19: as 66
+páginas da versão publicada (`1791076976-574b`, confirmada ao ler as 66 páginas
+e o `deck.json` do artefacto) juntas num HTML, desenhadas num Chromium local
+(Playwright 1.56, o do Node) a 1920×1080, com a Space Grotesk e a Public Sans
+(latin e latin-ext) descarregadas do Google Fonts e metidas no ficheiro, e a
+folha dos logótipos tirada do deck (asset `619cd0c4d7f3af9b685f2d4e16ee73e0`).
+
+- `Eurolify-apresentacao-Bruno-Cila-v20.pdf`: **66 páginas, 1440×810 pt,
+  3.263.167 bytes** (`pdfinfo`); as duas letras dentro (`pdffonts`). Na 50 e na
+  52 está «444–804» e na 50 «9.950–14.230» (`pdftotext`). Entregue ao Diogo na
+  conversa; **não está no repositório**.
+- ⚠️ **A primeira tentativa saiu toda em Liberation Sans** (923.154 bytes), sem
+  erro: a ligação ao Google Fonts não carregou numa página aberta do disco, e
+  `document.fonts.check` responde «sim» mesmo quando a letra não existe. Só o
+  `pdffonts` o mostrou. Lição: confirmar as letras no PDF, nunca na página.
+- Fundo do conteúdo contra o limite de 920 píxeis: **nenhuma passa**; nenhuma
+  passa à direita de 1792. As mais altas: capa e 5 (920, encostadas de
+  propósito), 12 (917), 21 (914), 59 (910), 49 (902), 20 (885), 65 (881). Não se
+  comparam com as da v19: o CSS de imitação não é o mesmo (regras nas quatro
+  faces, recuo das listas).
+- Letra de recurso em 12 páginas — 6, 12, 27, 30, 31, 32, 39, 40, 46, 50, 51 e
+  52 —, as mesmas da v19 (as setas e o «≈»; `pdffonts` página a página).
+- Vistas em imagem: 1, 12, 50, 52 e 59. As outras 61, não. As notas do orador
+  não vão no PDF.
 
 ## O que ficou por verificar
 
