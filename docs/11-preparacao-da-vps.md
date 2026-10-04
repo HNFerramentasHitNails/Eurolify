@@ -201,7 +201,7 @@ não se sabe se o bloqueio é da sessão ou da VPS. Caminhos:
 | Caminho | Como | Estado |
 |---|---|---|
 | ✅ **a) O Claude Code no computador do Diogo ou do Bruno** | SSH directo, com a chave de cada um | **escolhido** (ADR-0020); por testar |
-| b) Um servidor MCP na VPS, por HTTPS | o endereço tem de ser autorizado na rede do ambiente (definições do ambiente → *Network access*, [documentação](https://code.claude.com/docs/en/cloud-environments#network-access)); é mais uma porta para uma ferramenta com acesso total, com autenticação forte | **não testado** |
+| ✅ b) Um servidor MCP na VPS, por HTTPS (**escolhido também**, ADR-0033, 04/10/2026: leituras e acções fixas para o Claude desktop) | o endereço tem de ser autorizado na rede do ambiente (definições do ambiente → *Network access*, [documentação](https://code.claude.com/docs/en/cloud-environments#network-access)); é mais uma porta para uma ferramenta com acesso total, com autenticação forte | **não testado** |
 
 A a) não expõe nada além do SSH. A b) só se for preciso operar a partir da
 cloud.
