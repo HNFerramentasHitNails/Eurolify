@@ -254,10 +254,14 @@ saem do computador** — nem para o chat, nem para o repositório.
 3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
    antes do primeiro comerciante de fora).
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
-   para voltar).
+   para voltar). ✅ **Para o ensaio** (ADR-0027): `pg_dump` diário cifrado
+   para o Scaleway Object Storage em Paris, 14 dias, reposição semanal; até
+   24 h de perda. Para a produção, por decidir.
 5. **Segunda máquina para a base**, e a partir de quando.
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
-7. **Para onde vão os alertas.**
+7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
+   Healthchecks.io (Letónia) vigia as tarefas e manda e-mail ao Diogo; a
+   verificação diária da VPS avisa por ele. Para a produção, por decidir.
 8. **O Codex na VPS** (ADR-0016: não está decidido).
 9. **O que se faz à conta da Scaleway** (§6).
 

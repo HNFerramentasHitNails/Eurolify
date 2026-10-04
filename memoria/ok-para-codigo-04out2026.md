@@ -106,3 +106,23 @@ Diogo). Resposta: *«fica a b)»*.
 
 - Se o GHCR aceita tokens finos; o pacote do Docker Engine no Ubuntu 26.04;
   o tamanho da imagem e o tempo de uma publicação.
+
+## A5: o ensaio — cópias, alertas, IP e endereço (decisão AI, ADR-0027) — 04/10/2026
+
+Proposta em quatro peças; resposta do Diogo: *«sim»*. Só para o ensaio.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Fonte e como |
+|---|---|---|
+| Scaleway Object Storage | One Zone 0,00803 €/GB/mês; Multi-AZ 0,01606 €; Glacier 0,00254 €; saída 75 GB/mês grátis; Paris, Amesterdão, Varsóvia | `scaleway.com/en/pricing/storage`, 04/10/2026 |
+| OVH Object Storage | preço **não lido** (a página não o mostrou) | `ovhcloud.com/en-ie/public-cloud/prices`, 04/10/2026 |
+| Healthchecks.io | SIA Monkey See Monkey Do, Riga (Letónia); servidores «Hetzner bare metal» (país não dito); grátis: 20 tarefas, 100 registos por tarefa | `healthchecks.io/about` e `/pricing`, 04/10/2026 |
+| `eurolify.eu` | comprado pelo Diogo a 04/10/2026; DNS público «não existe» à hora da consulta (NS, A, SOA) | `Resolve-DnsName`, 04/10/2026 |
+
+### O que ficou por verificar
+
+- O país dos servidores do Healthchecks.io e se o plano gratuito manda e-mail.
+- O registador do `eurolify.eu`.
+- Por criar pelo Diogo: a chave da Scaleway só de escrita no contentor; a
+  conta no Healthchecks.io.
