@@ -129,7 +129,7 @@ este motor antes de agir.
 | | `territorios` | `null` = não mapeados: um território pedido **não herda** a regra do continente |
 | **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo: identifica uma regra de um país e de um domínio, nas suas versões; as decisões citam `id@versao` |
 | | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide** |
-| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
+| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59, não `-00:00` — na RFC 3339 é «fuso desconhecido»; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
 
@@ -172,7 +172,8 @@ regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
 `proposta` não conta), país sem perfil, território não mapeado, regra num
 domínio que não está `verificado` ou que não existe, estado de revisão ou
 estado legal desconhecido, prova vazia (`base`, `revistaPor`, `revistoPor`),
-`id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40) —
+`id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40), a mesma
+`id` em dois países ou dois domínios, propostas incluídas (revisão do #45) —
 a aplicação **não arranca** e diz a lista toda.
 
 Um bloqueio vale **só para a combinação pedida**: o IVA de França bloqueado

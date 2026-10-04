@@ -226,12 +226,20 @@ export function errosDoRegisto(registo: Registo): string[] {
   // Duas versões da mesma regra não podem valer ao mesmo tempo. Uma
   // `proposta` nunca conta (decidir.ts), por isso pode viver ao lado da versão
   // em vigor (revisão do #40, P2-3).
+  // Uma regra sem `id` já tem o seu erro; não entra nos testes por `id`.
   const porId = new Map<string, Regra[]>();
   for (const regra of regras) {
-    if (regra.estadoLegal === "proposta") continue;
+    if (vazio(regra.id)) continue;
     porId.set(regra.id, [...(porId.get(regra.id) ?? []), regra]);
   }
-  for (const [id, versoes] of porId) {
+  for (const [id, todas] of porId) {
+    // A `id` é uma regra de um país e de um domínio (§4.1), propostas
+    // incluídas (revisão do #45, P2-4).
+    const lugares = new Set(todas.map((r) => `${r.pais}/${r.dominio}`));
+    if (lugares.size > 1) {
+      erros.push(`${id}: a mesma id em ${[...lugares].join(" e ")}`);
+    }
+    const versoes = todas.filter((r) => r.estadoLegal !== "proposta");
     for (let i = 0; i < versoes.length; i++) {
       for (let j = i + 1; j < versoes.length; j++) {
         const a = versoes[i];

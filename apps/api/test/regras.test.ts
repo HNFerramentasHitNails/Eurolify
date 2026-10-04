@@ -589,13 +589,75 @@ describe("instante", () => {
       "2026-10-04T23:59:60Z",
       "2026-10-04T12:00:00.1234Z",
       "2026-10-04T12:00:00+0100",
+      // «Fuso desconhecido» na RFC 3339 (revisão do #45, P2-6).
+      "2026-10-04T12:00:00-00:00",
+      "2026-10-04T12:00:00.500-00:00",
     ]) {
       expect(instante(texto)).toBeNull();
     }
+    // Só o -00:00: +00:00 e os fusos negativos continuam a valer.
+    expect(instante("2026-10-04T12:00:00+00:00")).toBe(
+      Date.UTC(2026, 9, 4, 12),
+    );
+    expect(instante("2026-10-04T12:00:00-00:30")).toBe(
+      Date.UTC(2026, 9, 4, 12, 30),
+    );
   });
 });
 
 describe("validar o registo", () => {
+  it("a mesma id em dois domínios ou dois países é erro, propostas incluídas (revisão do #45, P2-4)", () => {
+    const base = registoComPortugal([
+      regraTeste({ id: "r", aplicaAte: "2026-01-01T00:00:00Z" }),
+      regraTeste({
+        id: "r",
+        versao: 2,
+        dominio: "iva",
+        aplicaDesde: "2026-01-01T00:00:00Z",
+      }),
+      regraTeste({ id: "s", versao: 1 }),
+      regraTeste({
+        id: "s",
+        versao: 2,
+        estadoLegal: "proposta",
+        pais: "ES",
+        aplicaDesde: "2027-01-01T00:00:00Z",
+      }),
+      // Versões no mesmo país e domínio continuam a poder partilhar a id.
+      regraTeste({ id: "t", aplicaAte: "2026-01-01T00:00:00Z" }),
+      regraTeste({ id: "t", versao: 2, aplicaDesde: "2026-01-01T00:00:00Z" }),
+    ]);
+    const registo: Registo = {
+      ...base,
+      paises: base.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? { ...perfil, dominios: { ...perfil.dominios, iva: VERIFICADO } }
+          : perfil,
+      ),
+    };
+    expect(errosDoRegisto(registo)).toEqual([
+      "s@2: o domínio consumidor de ES não está verificado",
+      "r: a mesma id em PT/consumidor e PT/iva",
+      "s: a mesma id em PT/consumidor e ES/consumidor",
+    ]);
+  });
+
+  it("regras sem id dão só o erro «sem id», sem erros por arrasto", () => {
+    const base = registoComPortugal([
+      regraTeste({ id: "" }),
+      regraTeste({ id: "", versao: 2, dominio: "iva" }),
+    ]);
+    const registo: Registo = {
+      ...base,
+      paises: base.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? { ...perfil, dominios: { ...perfil.dominios, iva: VERIFICADO } }
+          : perfil,
+      ),
+    };
+    expect(errosDoRegisto(registo)).toEqual(["@1: sem id", "@2: sem id"]);
+  });
+
   it("lista todos os problemas de um registo incoerente", () => {
     const base = registoComPortugal([
       regraTeste({ id: "a", aplicaDesde: "lixo" }),
