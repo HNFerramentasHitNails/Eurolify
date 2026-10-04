@@ -18,7 +18,7 @@
 | # | Fatia | Depende de | Desenho | Porta para entrar no `main` | Porta para produção | Responsável | Estado |
 |---|---|---|---|---|---|---|---|
 | 0 | Esqueleto, publicação, VPS | — | ADR-0025 a 0028 | testes verdes | — | Diogo | **feito** (antes deste plano) |
-| 1 | **Motor de regras por país**: registo dos 27, decisão pura, `GET /paises` | — | `architecture.md` §4 | testes verdes + revisão de uma sessão nova (ADR-0030) | cada regra nacional com fonte lida e revisor | Diogo (#37; correcções da revisão: issue #39) | **feito** — 33 testes; nada sai «permitido»; entrou no `main` antes da revisão — P0 e P1 corrigidos depois (issue #39) |
+| 1 | **Motor de regras por país**: registo dos 27, decisão pura, `GET /paises` | — | `architecture.md` §4 | testes verdes + revisão de uma sessão nova (ADR-0030) | cada regra nacional com fonte lida e revisor | Diogo (#37; correcções da revisão: issue #39) | **feito** — 38 testes; nada sai «permitido»; o #37 e o #40 entraram no `main` antes das revisões — P0, P1 e P2 corrigidos depois (issue #39) |
 | 2 | Comerciante e entidade legal: registo, estados (rascunho → prova pendente → revisão → aprovado limitado → activo; suspenso, fechado), isolamento por comerciante na base (RLS) | 1 | **em desenho**: [`docs/15`](../15-dominio-comerciante.md) (issue #41) | idem + teste que tenta ler o vizinho | acordo de tratamento de dados e contrato de serviço (jurista) | — | por fazer |
 | 3 | Catálogo: artigo, variante, tradução, publicação por canal × mercado | 2 | `docs/14` | idem | P1, P2, P4–P7 respondidas | — | **bloqueado**: perguntas do `docs/14` §9 |
 | 4 | Preços e mercados: listas, mercados, histórico de 30 dias, listas B2B por relação | 1, 3 | **por fazer** (`architecture.md` §3 para o B2B) | idem | regra do preço de referência (**C**, jurista) | — | por fazer |
@@ -41,7 +41,7 @@
 - **Porquê primeiro:** não depende de nenhuma pergunta em aberto, não inventa
   nenhuma regra, e todas as fatias seguintes (IVA, checkout, livre resolução,
   digital, vales) precisam de lhe perguntar antes de agir.
-- **Testes** (`apps/api/test/regras.test.ts`, 33 a 04/10/2026, contados com
+- **Testes** (`apps/api/test/regras.test.ts`, 38 a 04/10/2026, contados com
   `grep -c "it("`): 27 códigos únicos; `GR` e não `EL`; registo sem regras,
   coerente e congelado; nenhuma combinação permitida com o registo de partida
   (11 domínios, juntos e um a um); código de país inválido e país fora da UE;
@@ -61,8 +61,14 @@
   estar publicada (14:36 UTC). A revisão
   ([#37](https://github.com/HNFerramentasHitNails/Eurolify/pull/37#pullrequestreview-5406682412))
   achou 1 P0 (lista de domínios vazia saía «permitido»), 2 P1 (datas sem fuso
-  e registo incoerente em silêncio) e 9 P2; corrigidos no pedido da issue #39,
-  que volta a precisar de revisão de uma sessão nova antes de entrar.
+  e registo incoerente em silêncio) e 9 P2; corrigidos no #40 (issue #39). O
+  #40 entrou às 14:51 UTC, também antes da sua revisão (14:58 UTC,
+  [#40](https://github.com/HNFerramentasHitNails/Eurolify/pull/40#pullrequestreview-5406771672)):
+  1 P1 (um estado de revisão desconhecido contava como verificado em
+  `decidir`) e 6 P2 (chaves do protótipo como domínio, `TypeError` no
+  validador, falso positivo com uma `proposta`, campos de prova vazios, o
+  `enum` do `GET /paises` não trava na serialização, alcance do fuso pelo
+  motor). Corrigidos no terceiro pedido da issue #39, com um teste por achado.
 
 ## Próxima fatia proposta
 

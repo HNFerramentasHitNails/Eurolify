@@ -42,7 +42,7 @@ venda é permitida pelo motor** em nenhum país.
 | G12 | **Dados só na UE**: e-mail, registos, suporte, cópias e acessos remotos verificados fornecedor a fornecedor | produção | Diogo ou Bruno | — | contrato e localização de cada fornecedor | aberta; o ensaio está no Reino Unido até 31/03/2027, sem dados reais (ADR-0018/0019) |
 | G13 | Acessibilidade (EAA) do checkout e da montra | fatias 7 em diante | — | — | auditoria; testes automáticos não chegam | aberta |
 | G14 | NIS2: o Eurolify cabe num dos anexos? | operação | jurista | — | parecer (`observability-security`) | aberta |
-| G15 | Revisão do código do motor por uma sessão nova (ADR-0030) | entrada no `main` | Diogo ou Bruno | — | revisão publicada no pedido | **o #37 entrou antes da revisão**; a revisão chegou depois (1 P0, 2 P1, 9 P2), corrigidos no pedido da issue #39, que precisa de nova revisão |
+| G15 | Revisão do código do motor por uma sessão nova (ADR-0030) | entrada no `main` | Diogo ou Bruno | — | revisão publicada no pedido | **o #37 e o #40 entraram antes das revisões**; a do #37 achou 1 P0, 2 P1 e 9 P2 (corrigidos no #40); a do #40 achou 1 P1 e 6 P2 (corrigidos no terceiro pedido da issue #39, que precisa de revisão **antes** de juntar) |
 
 ## 3. O que não é lacuna, e porquê
 

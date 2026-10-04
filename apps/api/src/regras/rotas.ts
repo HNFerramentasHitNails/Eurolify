@@ -14,7 +14,10 @@ const EstadoDominio = Type.Union([
 ]);
 
 // O contrato lista os 27 códigos e os 11 domínios (revisão do #37, P2-6), em
-// vez de aceitar qualquer texto.
+// vez de aceitar qualquer texto. É contrato, não guarda: o serializador do
+// Fastify usa o esquema como lista branca de campos e não valida o `enum`
+// (medido na revisão do #40, P2-4) — quem recusa um código fora dos 27 é o
+// validar.ts, ao arrancar.
 const propriedadesDominios = Object.fromEntries(
   [...DOMINIOS_OBRIGATORIOS, ...DOMINIOS_CONDICIONAIS].map((dominio) => [
     dominio,

@@ -1,8 +1,10 @@
+import { Value } from "typebox/value";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import { decidir } from "../src/regras/decidir.js";
 import { instante } from "../src/regras/instante.js";
 import { REGISTO_INICIAL } from "../src/regras/registo.js";
+import { RespostaPaises } from "../src/regras/rotas.js";
 import {
   CODIGOS_UE,
   DOMINIOS_CONDICIONAIS,
@@ -207,6 +209,67 @@ describe("decidir", () => {
       estado: "recusado",
       motivos: [{ codigo: "dominio_desconhecido", dominio: "inexistente" }],
     });
+  });
+
+  it("chaves do protótipo não são domínios; sem lista de domínios é recusado (revisão do #40, P2-2)", () => {
+    for (const dominio of ["constructor", "__proto__", "toString"]) {
+      const pedido = {
+        pais: "PT",
+        dominios: [dominio],
+        momento: AGORA,
+      } as unknown as PedidoDecisao;
+      expect(decidir(REGISTO_INICIAL, pedido)).toMatchObject({
+        estado: "recusado",
+        motivos: [{ codigo: "dominio_desconhecido", dominio }],
+      });
+    }
+    for (const dominios of [
+      null,
+      undefined,
+      "consumidor",
+      { 0: "consumidor" },
+    ]) {
+      const pedido = {
+        pais: "PT",
+        dominios,
+        momento: AGORA,
+      } as unknown as PedidoDecisao;
+      expect(decidir(REGISTO_INICIAL, pedido)).toMatchObject({
+        estado: "recusado",
+        motivos: [{ codigo: "sem_dominios" }],
+      });
+    }
+  });
+
+  it("um estado de revisão desconhecido não conta como verificado, mesmo com regra (revisão do #40, P1-1)", () => {
+    const base = registoComPortugal([
+      regraTeste({ id: "pt-consumidor-1" }),
+      regraTeste({ id: "pt-iva-1", dominio: "iva" }),
+    ]);
+    const registo = {
+      ...base,
+      paises: base.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? {
+              ...perfil,
+              dominios: { ...perfil.dominios, iva: { estado: "verificadoo" } },
+            }
+          : perfil,
+      ),
+    } as unknown as Registo;
+    const decisao = decidir(registo, {
+      pais: "PT",
+      dominios: ["consumidor", "iva"],
+      momento: AGORA,
+    });
+    expect(decisao.estado).toBe("revisao_necessaria");
+    expect(decisao.motivos).toEqual([
+      { codigo: "dominio_por_verificar", dominio: "iva" },
+    ]);
+    expect(decisao.regrasAplicadas).toEqual(["pt-consumidor-1@1"]);
+    expect(errosDoRegisto(registo)).toContain(
+      "PT/iva: estado de revisão desconhecido «verificadoo»",
+    );
   });
 
   it("domínio verificado com regra em vigor sai permitido, com a regra e a versão", () => {
@@ -472,17 +535,31 @@ describe("instante", () => {
     expect(instante("2026-10-04T14:00:00+02:00")).toBe(
       Date.UTC(2026, 9, 4, 12),
     );
+    expect(instante("2026-10-05T02:00:00+14:00")).toBe(
+      Date.UTC(2026, 9, 4, 12),
+    );
+    expect(instante("2026-10-04T00:00:00-12:00")).toBe(
+      Date.UTC(2026, 9, 4, 12),
+    );
     expect(instante("2024-02-29T00:00:00.500Z")).toBe(
       Date.UTC(2024, 1, 29, 0, 0, 0, 500),
     );
   });
 
-  it("recusa o resto", () => {
+  it("recusa o resto: fuso fora de alcance, segundo 60, fracção longa, bissexto falso", () => {
     for (const texto of [
       "",
       "2025-02-29T00:00:00Z",
+      "2100-02-29T00:00:00Z",
       "2026-10-04T12:00Z",
       " 2026-10-04T12:00:00Z",
+      "2026-10-04T12:00:00+24:00",
+      "2026-10-04T12:00:00+00:60",
+      "2026-10-04T12:00:00+0200",
+      "2026-10-04T23:59:60Z",
+      "2026-10-04T12:00:00.1234Z",
+      "2026-10-04T12:00:00.Z",
+      "2026-10-04t12:00:00z",
     ]) {
       expect(instante(texto)).toBeNull();
     }
@@ -526,6 +603,81 @@ describe("validar o registo", () => {
       regraTeste({ id: "e", versao: 2, aplicaDesde: "2026-01-01T00:00:00Z" }),
     ]);
     expect(errosDoRegisto(registo)).toEqual([]);
+  });
+
+  it("uma proposta ao lado da versão em vigor não é sobreposição (revisão do #40, P2-3)", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "e", versao: 1 }),
+      regraTeste({
+        id: "e",
+        versao: 2,
+        estadoLegal: "proposta",
+        aplicaDesde: "2027-01-01T00:00:00Z",
+      }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([]);
+    // Mas uma adoptada sem a versão anterior ter fim, sim: a partir de 2027
+    // contariam as duas.
+    const sobreposto = registoComPortugal([
+      regraTeste({ id: "e", versao: 1 }),
+      regraTeste({
+        id: "e",
+        versao: 2,
+        estadoLegal: "adoptada_futura",
+        aplicaDesde: "2027-01-01T00:00:00Z",
+      }),
+    ]);
+    expect(errosDoRegisto(sobreposto)).toEqual([
+      "e: as versões 1 e 2 valem ao mesmo tempo",
+    ]);
+  });
+
+  it("campos de prova vazios e versão inválida são erro (revisão do #40, P2-5)", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "a", base: { url: "", titulo: "t", artigo: "t" } }),
+      regraTeste({ id: "b", revistaPor: " " }),
+      regraTeste({ id: "", versao: 0 }),
+      regraTeste({ id: "d", versao: 1.5 }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([
+      "a@1: fonte incompleta (url, título e artigo)",
+      "b@1: sem quem reviu",
+      "@0: sem id",
+      "@0: versão inválida «0»",
+      "d@1.5: versão inválida «1.5»",
+    ]);
+    const semRevisor = {
+      ...REGISTO_INICIAL,
+      paises: REGISTO_INICIAL.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? {
+              ...perfil,
+              dominios: {
+                ...perfil.dominios,
+                consumidor: { ...VERIFICADO, revistoPor: "" },
+              },
+            }
+          : perfil,
+      ),
+    };
+    expect(errosDoRegisto(semRevisor)).toEqual([
+      "PT/consumidor: «verificado» sem quem reviu",
+    ]);
+  });
+
+  it("domínio desconhecido numa regra e listas em falta ficam listados, não rebentam (revisão do #40, P2-1)", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "x", dominio: "inexistente" as Regra["dominio"] }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([
+      "x@1: domínio desconhecido inexistente",
+    ]);
+    for (const campo of ["paises", "regras"] as const) {
+      const partido = { ...REGISTO_INICIAL, [campo]: null };
+      expect(errosDoRegisto(partido)).toEqual([
+        "«paises» e «regras» têm de ser listas",
+      ]);
+    }
   });
 
   it("um país em falta ou a mais é erro", () => {
@@ -597,6 +749,8 @@ describe("GET /paises", () => {
     }>();
     expect(corpo.versaoRegisto).toBe(1);
     expect(corpo.paises).toHaveLength(27);
+    // O serializador não valida o esquema; prova-se aqui que o corpo o cumpre.
+    expect(Value.Check(RespostaPaises, corpo)).toBe(true);
     for (const pais of corpo.paises) {
       expect(Object.keys(pais.dominios)).toHaveLength(11);
       expect(pais.territoriosMapeados).toBe(false);

@@ -3,6 +3,7 @@ import {
   CODIGOS_UE,
   DOMINIOS_CONDICIONAIS,
   DOMINIOS_OBRIGATORIOS,
+  type Regra,
   type Registo,
   type RevisaoDominio,
 } from "./tipos.js";
@@ -11,6 +12,17 @@ const DOMINIOS: readonly string[] = [
   ...DOMINIOS_OBRIGATORIOS,
   ...DOMINIOS_CONDICIONAIS,
 ];
+
+const ESTADOS_REVISAO: readonly string[] = [
+  "por_verificar",
+  "verificado",
+  "nao_aplicavel",
+];
+
+/** Um campo de prova ou de identidade não pode ficar vazio. */
+function vazio(texto: unknown): boolean {
+  return typeof texto !== "string" || texto.trim() === "";
+}
 
 /**
  * Lista os erros de um registo (revisão do #37, P1-2: nada falha em
@@ -22,6 +34,15 @@ export function errosDoRegisto(registo: Registo): string[] {
 
   if (!Number.isInteger(registo.versao) || registo.versao < 1) {
     erros.push(`versão do registo inválida: ${String(registo.versao)}`);
+  }
+
+  // Vindo de fora sem tipos, `paises` ou `regras` podem não ser listas; sem
+  // elas não há mais nada que se possa verificar (revisão do #40, P2-1).
+  const paises: unknown = registo.paises;
+  const regras: unknown = registo.regras;
+  if (!Array.isArray(paises) || !Array.isArray(regras)) {
+    erros.push("«paises» e «regras» têm de ser listas");
+    return erros;
   }
 
   const codigos = registo.paises.map((p) => p.codigo as string);
@@ -51,21 +72,32 @@ export function errosDoRegisto(registo: Registo): string[] {
     for (const [dominio, revisao] of Object.entries<RevisaoDominio>(
       perfil.dominios,
     )) {
+      const sitio = `${perfil.codigo}/${dominio}`;
+      // Um estado fora dos três fica listado, não interpretado (revisão do
+      // #40, P1-1).
+      if (!ESTADOS_REVISAO.includes(revisao.estado)) {
+        erros.push(
+          `${sitio}: estado de revisão desconhecido «${revisao.estado}»`,
+        );
+        continue;
+      }
+      if (revisao.estado === "por_verificar") continue;
+      if (vazio(revisao.revistoPor)) {
+        erros.push(`${sitio}: «${revisao.estado}» sem quem reviu`);
+      }
       if (
         revisao.estado === "verificado" &&
         instante(revisao.verificadoEm) === null
       ) {
         erros.push(
-          `${perfil.codigo}/${dominio}: data de verificação inválida «${revisao.verificadoEm}»`,
+          `${sitio}: data de verificação inválida «${revisao.verificadoEm}»`,
         );
       }
       if (
         revisao.estado === "nao_aplicavel" &&
-        (revisao.justificacao.trim() === "" || revisao.prova.trim() === "")
+        (vazio(revisao.justificacao) || vazio(revisao.prova))
       ) {
-        erros.push(
-          `${perfil.codigo}/${dominio}: «não aplicável» sem justificação ou sem prova`,
-        );
+        erros.push(`${sitio}: «não aplicável» sem justificação ou sem prova`);
       }
     }
   }
@@ -75,6 +107,23 @@ export function errosDoRegisto(registo: Registo): string[] {
     const nome = `${regra.id}@${String(regra.versao)}`;
     if (vistas.has(nome)) erros.push(`${nome}: repetida`);
     vistas.add(nome);
+
+    // Identidade e prova: nada vazio (revisão do #40, P2-5). Uma regra sem
+    // fonte lida não entra (AGENTS.md, regras da UE, ponto 3).
+    if (vazio(regra.id)) erros.push(`${nome}: sem id`);
+    if (!Number.isInteger(regra.versao) || regra.versao < 1) {
+      erros.push(`${nome}: versão inválida «${String(regra.versao)}»`);
+    }
+    const base: Partial<Regra["base"]> | undefined = regra.base;
+    if (
+      base === undefined ||
+      vazio(base.url) ||
+      vazio(base.titulo) ||
+      vazio(base.artigo)
+    ) {
+      erros.push(`${nome}: fonte incompleta (url, título e artigo)`);
+    }
+    if (vazio(regra.revistaPor)) erros.push(`${nome}: sem quem reviu`);
 
     const desde = instante(regra.aplicaDesde);
     if (desde === null) {
@@ -99,7 +148,17 @@ export function errosDoRegisto(registo: Registo): string[] {
       erros.push(`${nome}: país ${regra.pais} sem perfil`);
       continue;
     }
-    if (perfil.dominios[regra.dominio].estado !== "verificado") {
+    // Só chaves próprias, para listar o erro em vez de rebentar (revisão do
+    // #40, P2-1).
+    const revisao: RevisaoDominio | undefined = Object.hasOwn(
+      perfil.dominios,
+      regra.dominio,
+    )
+      ? perfil.dominios[regra.dominio]
+      : undefined;
+    if (revisao === undefined) {
+      erros.push(`${nome}: domínio desconhecido ${regra.dominio}`);
+    } else if (revisao.estado !== "verificado") {
       erros.push(
         `${nome}: o domínio ${regra.dominio} de ${regra.pais} não está verificado`,
       );
@@ -113,9 +172,12 @@ export function errosDoRegisto(registo: Registo): string[] {
     }
   }
 
-  // Duas versões da mesma regra não podem valer ao mesmo tempo.
+  // Duas versões da mesma regra não podem valer ao mesmo tempo. Uma proposta
+  // nunca conta em decidir.ts, por isso fica de fora: registar a proposta ao
+  // lado da versão em vigor é o uso previsto (revisão do #40, P2-3).
   const porId = new Map<string, Registo["regras"][number][]>();
   for (const regra of registo.regras) {
+    if (regra.estadoLegal === "proposta") continue;
     porId.set(regra.id, [...(porId.get(regra.id) ?? []), regra]);
   }
   for (const [id, versoes] of porId) {

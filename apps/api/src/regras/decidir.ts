@@ -6,7 +6,6 @@ import type {
   PerfilPais,
   Regra,
   Registo,
-  RevisaoDominio,
 } from "./tipos.js";
 
 /**
@@ -77,13 +76,16 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
     });
   }
 
-  // O tipo já exige um domínio, mas o pedido pode vir de fora sem tipos.
-  if ((pedido.dominios as readonly string[]).length === 0) {
+  // O tipo já exige um domínio, mas o pedido pode vir de fora sem tipos: sem
+  // lista, lista vazia ou um texto no lugar da lista são «sem domínios».
+  const dominios: unknown = pedido.dominios;
+  if (!Array.isArray(dominios) || dominios.length === 0) {
     return recusado(versao, { codigo: "sem_dominios" });
   }
   for (const dominio of pedido.dominios) {
-    const revisao = perfil.dominios[dominio] as RevisaoDominio | undefined;
-    if (revisao === undefined) {
+    // Só chaves próprias: «constructor» ou «__proto__» existem em qualquer
+    // objecto e passavam por domínio (revisão do #40, P2-2).
+    if (!Object.hasOwn(perfil.dominios, dominio)) {
       return recusado(versao, { codigo: "dominio_desconhecido", dominio });
     }
   }
@@ -104,7 +106,10 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   for (const dominio of new Set(pedido.dominios)) {
     const revisao = perfil.dominios[dominio];
     if (revisao.estado === "nao_aplicavel") continue;
-    if (revisao.estado === "por_verificar") {
+    // Só «verificado» segue para as regras. Um estado que não se conhece
+    // trata-se como por verificar: a decisão não pode depender de o registo
+    // ter passado pelo validar.ts (revisão do #40, P1-1).
+    if (revisao.estado !== "verificado") {
       motivos.push({ codigo: "dominio_por_verificar", dominio });
       continue;
     }

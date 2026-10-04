@@ -127,10 +127,10 @@ este motor antes de agir.
 | **Perfil do país** | `codigo`, `nome` | |
 | | `dominios` | por domínio (os 7 obrigatórios e os 4 condicionais), o estado da revisão: `por_verificar`, `verificado`, `nao_aplicavel` (este exige justificação e prova) |
 | | `territorios` | `null` = não mapeados: um território pedido **não herda** a regra do continente |
-| **Regra** | `id`, `versao`, `dominio`, `pais` | |
+| **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo (uma regra de um país e um domínio); as versões partilham-na; `versao` é um inteiro a partir de 1 |
 | | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide** |
 | | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
-| | `base` | URL oficial, título, artigo |
+| | `base` | URL oficial, título, artigo — nenhum vazio |
 | | `verificadaEm`, `revistaPor` | |
 
 **Domínios obrigatórios** (do pacote): consumidor, IVA, faturação, privacidade
@@ -154,10 +154,10 @@ permitida).
 | Código de país que não são duas maiúsculas (`pt`, `PRT`) | `recusado`, motivo `codigo_pais_invalido` — não se normaliza |
 | País fora dos 27 (`CH`, `GB`, `EL`) | `recusado`, motivo `pais_fora_da_ue` |
 | Momento que não é ISO 8601 com fuso, ou data impossível (`2026-02-30`) | `recusado`, motivo `momento_invalido` |
-| Lista de domínios vazia | `recusado`, motivo `sem_dominios` |
-| Domínio que não existe | `recusado`, motivo `dominio_desconhecido` |
+| Lista de domínios vazia, em falta ou que não é uma lista | `recusado`, motivo `sem_dominios` |
+| Domínio que não existe (também `constructor` e as outras chaves do protótipo) | `recusado`, motivo `dominio_desconhecido` |
 | Território pedido e não mapeado | `revisao_necessaria`, motivo `territorio_nao_mapeado` |
-| Domínio `por_verificar` | `revisao_necessaria`, motivo `dominio_por_verificar` |
+| Domínio `por_verificar`, ou com um estado que o motor não conhece | `revisao_necessaria`, motivo `dominio_por_verificar` — só `verificado` chega às regras |
 | Domínio `verificado` sem regra em vigor nesse momento | `revisao_necessaria`, motivo `sem_regra_em_vigor` |
 | Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde` | não conta |
 | Regra `revogada` depois de `aplicaAte` | não conta |
@@ -168,9 +168,13 @@ permitida).
 
 **O registo é validado ao arrancar** (`validar.ts`): datas sem fuso ou
 impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
-regra repetida, duas versões da mesma regra a valer ao mesmo tempo, país sem
-perfil, território não mapeado, regra num domínio que não está `verificado` —
-a aplicação **não arranca** e diz a lista toda.
+regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
+`proposta` fica de fora: nunca conta), país sem perfil, território não
+mapeado, regra num domínio que não existe ou que não está `verificado`, estado
+de revisão fora dos três, `id`, `base`, `revistaPor` ou `revistoPor` vazios,
+`versao` que não é inteiro a partir de 1 — a aplicação **não arranca** e diz a
+lista toda. A validação é a porta de arranque, não a garantia: `decidir` só
+conta um domínio `verificado`, passe ou não o registo pelo validador.
 
 Um bloqueio vale **só para a combinação pedida**: o IVA de França bloqueado
 não bloqueia o consumidor de Portugal.
@@ -179,7 +183,7 @@ não bloqueia o consumidor de Portugal.
 
 | Operação | Método e caminho | Quem | Notas |
 |---|---|---|---|
-| Cobertura dos países | `GET /paises` | qualquer cliente (dados do Eurolify, sem dados pessoais) | os 27, o estado de cada domínio e a versão do registo; **provisório** até haver a versão por data e a autenticação da API de Administração (`headless-commerce`) |
+| Cobertura dos países | `GET /paises` | qualquer cliente (dados do Eurolify, sem dados pessoais) | os 27, o estado de cada domínio e a versão do registo; o esquema lista os 27 códigos e os 11 domínios como contrato — o serializador não o valida, quem recusa um registo fora dele é o `validar.ts`; **provisório** até haver a versão por data e a autenticação da API de Administração (`headless-commerce`) |
 
 A decisão (`decidir`) é **interna**: chamam-na os domínios no servidor. Não
 fica exposta para os frontends refazerem decisões (`AGENTS.md`, «Uma regra, um

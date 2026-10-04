@@ -76,3 +76,12 @@ inicial» do pacote (texto no ADR-0034).
   - os P2 1 a 7: domínio desconhecido, código de país inválido, registo congelado, esquema do `GET /paises` fechado, testes tautológicos substituídos, e a tabela §4.2 do `architecture.md` acertada.
 - **Números** (04/10/2026, `grep -c "it("` e `pnpm teste`): 33 testes do motor; a API com 35 a passar e 1 saltado. Repetido com o servidor nos fusos de Paris, Kiritimati e Los Angeles.
 - **O que ficou por fazer:** P2-8 (testar localmente em Node 24) e P2-9 (limite de pedidos na rota pública, quando houver autenticação).
+
+## Depois: o #40 também entrou antes da revisão (04/10/2026)
+
+- **O que aconteceu:** o #40 foi juntado às 14:51 UTC; a revisão da sessão nova (`claude-fable-5-1`) saiu às 14:58 UTC ([#40](https://github.com/HNFerramentasHitNails/Eurolify/pull/40#pullrequestreview-5406771672)). Quem o juntou, ao certo, não verifiquei. O Diogo pediu: *«corrige o P1 e os P2 num commit novo»* — como o #40 já estava no `main` e o ramo tinha sido reaproveitado pela fatia 2 (#43), as correcções foram num ramo novo a partir do `main`.
+- **O que a revisão achou:** sem P0; 1 P1 e 6 P2.
+  - **P1-1:** `decidir` tratava como verificado qualquer estado que não fosse `por_verificar` nem `nao_aplicavel`; com um estado com gralha e uma regra em vigor saía «permitido» (medido). Só não era P0 porque `criarApp` valida antes. Corrigido: só `verificado` chega às regras, e o `validar` lista estados desconhecidos.
+  - **P2:** `validar` rebentava com `TypeError` numa regra de domínio desconhecido; `constructor`/`__proto__` passavam por domínio em `decidir`, e `dominios: null` rebentava; uma `proposta` da mesma regra contava como sobreposição (falso positivo, impedia o arranque); campos de prova vazios (`base`, `revistaPor`, `revistoPor`, `id`, `versao`) passavam; o `Type.Enum` do `GET /paises` não trava na serialização (medido: `codigo: "XX"` sai com 200), ao contrário do que a descrição do #40 dizia; o alcance do fuso em `instante` era decidido pelo `Date.parse`, não pela expressão.
+- **Números** (04/10/2026, `grep -c "  it("` e `pnpm teste`): 38 testes do motor; a API com 40 a passar e 1 saltado (base, sem PostgreSQL). Repetido em Node 24.21.0 e com o servidor em Paris e Kiritimati.
+- **O que ficou por verificar:** a semântica de `proposta` na skill do pacote (assumiu-se que coexiste com a versão em vigor, a partir do §4.2); P2-9 do #37 (limite de pedidos) continua à espera da autenticação.
