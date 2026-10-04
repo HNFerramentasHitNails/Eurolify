@@ -81,7 +81,7 @@ Proposta numa tabela (peça, versão, porquê, alternativa). Resposta do Diogo:
 | PostgreSQL | 18.6 «current» (13/08/2026), fim 14/11/2030; 17.11; 16.15 | `postgresql.org/versions.json`, 04/10/2026 |
 | TypeScript | `latest` 7.0.2; 6.0.3 (16/04/2026) | `registry.npmjs.org/typescript` |
 | typescript-eslint 8.71.0 | pede `typescript >=4.8.4 <6.1.0` → por isso o TS 6.0 | `peerDependencies` no registo do npm |
-| Outras (`latest`) | pnpm 12.9.1, fastify 5.12.5, typebox 0.34.52, @fastify/swagger 9.9.1, kysely 0.29.6, pg 8.23.1, vitest 5.0.3, testcontainers 12.2.0, eslint 10.12.0, prettier 3.9.9, react 19.3.0, vite 8.3.2 | `registry.npmjs.org/<pacote>/latest`, 04/10/2026 |
+| Outras (`latest`) | pnpm 12.9.1, fastify 5.12.5, ~~typebox 0.34.52~~ `typebox` 1.3.34 (o `@sinclair/typebox` era o nome antigo — erro do Claude, corrigido a 04/10/2026, opção a do Diogo; adaptador `@fastify/type-provider-typebox` 6.1.0 exige `typebox ^1.0.13`), @fastify/swagger 9.9.1, kysely 0.29.6, pg 8.23.1, vitest 5.0.3, testcontainers 12.2.0, eslint 10.12.0, prettier 3.9.9, react 19.3.0, vite 8.3.2 | `registry.npmjs.org/<pacote>/latest`, 04/10/2026 |
 
 ### O que ficou por verificar
 
