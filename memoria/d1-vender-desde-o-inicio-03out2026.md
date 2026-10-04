@@ -52,5 +52,8 @@ Fase 2 passarem pelas 8 portas (`docs/13-portas-da-fase-2.md`).
 
 - O seguro de responsabilidade civil para uma plataforma destas.
 - O que o contrato de serviço pode limitar — com jurista.
-- Quanto custam as três peças da decisão AD e quanto tiram à Fase 2: não
-  estimado (04/10/2026). Os prazos do `docs/10` são sem elas.
+- ~~Quanto custam as três peças da decisão AD e quanto tiram à Fase 2: não
+  estimado.~~ Estimadas a 04/10/2026, a pedido do Diogo (`docs/10`, **C**):
+  2–4, 4–7 e 3–5 pessoas-semana; a Fase 1 passa a 17–32 meses os dois a tempo
+  inteiro, a Fase 2 a 7–15. Os cenários B e C e os custos não foram
+  recalculados.
