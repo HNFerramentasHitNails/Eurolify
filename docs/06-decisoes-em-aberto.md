@@ -234,8 +234,8 @@ antes e o depois e decide o Diogo ou o Bruno (skill `eurolify-design`, regra 1).
 > **Estimada a 03/10/2026** em [`10-estimativa-prazo-e-custo.md`](10-estimativa-prazo-e-custo.md). Construção da Fase 1: **B** — 2
 > programadores sénior, 16 a 30 meses, ≈ 173.000–465.000 €; **C** — 3 sénior,
 > 12 a 23 meses, ≈ 193.000–519.000 € *(recalculados a 04/10/2026 com a
-> decisão AD: B 18 a 34 meses, ≈ 189.000–510.000 €; C 13 a 25 meses,
-> ≈ 210.000–569.000 €)*; **A** — só o Diogo e o Bruno com Claude
+> decisão AD e o alojamento da construção na OVH: B 18 a 34 meses,
+> ≈ 187.000–506.000 €; C 13 a 25 meses, ≈ 208.000–565.000 €)*; **A** — só o Diogo e o Bruno com Claude
 > Code, sem prazo estimável (sem medida). Fora dos números: contabilista,
 > jurista, seguro, recrutamento e suporte (orçamentos a pedir). Recomendação: B
 > com um líder técnico, medir às 8 semanas e decidir a terceira pessoa.
