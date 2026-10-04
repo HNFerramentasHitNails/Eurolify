@@ -69,6 +69,7 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 
 | Domínio | É dono de | Não é dono de | Eventos que publica |
 |---|---|---|---|
+| **Comerciante** (`15-dominio-comerciante.md`) | comerciante (o inquilino), entidades legais, lojas, estados, aceitação de contratos, provas de verificação | registos fiscais (Motor de IVA), pessoas e papéis (identidade) | `merchant.created`, `merchant.status_changed`, `legal_entity.created`, `store.created` |
 | **Catálogo (PIM)** | artigos, variantes, opções, atributos, kits/coleções, media, categorias, traduções, atributos regulamentares | preço, stock | `product.created`, `product.updated`, `product.published` |
 | **Preços e mercados** | listas de preços, mercados (país + moeda + língua + canal), histórico de preços (30 dias da Omnibus), promoções, quantidades mínimas, preços B2B por etiqueta | imposto | `price.changed`, `promotion.started` |
 | **Carrinho** | carrinho, linhas, códigos de desconto aplicados, cotação de portes | decisão de IVA (pede-a) | `cart.updated` |
@@ -76,7 +77,7 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 | **Encomendas** | encomenda, linhas, estado, quem compra vs quem é faturado, cancelamentos | o documento fiscal | `order.created`, `order.cancelled` |
 | **Stock** | armazéns, saldos, reservas, movimentos, lotes, compostos derivados | preço | `inventory.reserved`, `inventory.released`, `inventory.adjusted` |
 | **Clientes e identidade fiscal** | ficha, perfis de faturação, validações VIES com prova, duplicados, fusões (humanas), consentimentos | encomendas | `customer.created`, `billing_profile.validated`, `customer.merged`, `consent.changed` |
-| **Motor de IVA** | categorias fiscais de artigo, jurisdições, taxas com vigência, territórios especiais, regras de isenção, **evidência da decisão** | o documento | `tax.decided` (interno) |
+| **Motor de IVA** | categorias fiscais de artigo, registos fiscais de cada entidade legal (país-sede, OSS, IOSS, outros), jurisdições, taxas com vigência, territórios especiais, regras de isenção, **evidência da decisão** | o documento | `tax.decided` (interno) |
 | **Documentos fiscais** | pedido de emissão ao software certificado, fila de **retidas**, prova do documento emitido, notas de crédito, relatórios (OSS) | o cálculo do IVA | `invoice.requested`, `invoice.retained`, `invoice.issued`, `credit_note.issued` |
 | **Pagamentos** | intenção de pagamento, autorização, captura, anulação, reembolso, disputa, conciliação | dinheiro (nunca o guarda) | `payment.authorized`, `payment.captured`, `payment.failed`, `refund.completed` |
 | **Envios** | expedições, divisão em várias caixas, etiquetas, seguimento, restrições de transporte | stock | `shipment.created`, `shipment.dispatched`, `shipment.delivered` |

@@ -1,6 +1,7 @@
 # Domínio Comerciante — modelo e lista da API (fatia 2)
 
-> **Versão de 04/10/2026, em desenho** (issue #41). Fatia 2 do
+> **Versão de 04/10/2026** (issue #41). **As 7 perguntas da §9 foram
+> decididas pelo Diogo a 04/10/2026** (*«sim, aceito as 7 propostas»*). Fatia 2 do
 > [plano](eurolify/implementation-plan.md): a primeira com tabelas, isolamento
 > por comerciante na base e migrações. Pelo ADR-0023, o código vem depois deste
 > desenho; e entra só com a revisão de uma sessão nova **antes** de juntar
@@ -36,7 +37,7 @@ dados, exportação completa.
 | Dado | Dono | Nota |
 |---|---|---|
 | comerciante, entidade legal, loja, estado, aceitações, provas de verificação | **Comerciante** | |
-| registos fiscais da entidade (país-sede, OSS, IOSS, outros países) | **Motor de IVA** (`eu-vat-oss-ioss`, «Registos fiscais do comerciante») — **pergunta P4** | a entidade legal só os referencia |
+| registos fiscais da entidade (país-sede, OSS, IOSS, outros países) | **Motor de IVA** (`eu-vat-oss-ioss`, «Registos fiscais do comerciante»; P4) | a entidade legal só os referencia |
 | mercados, moedas, listas de preços de cada loja | Preços e mercados | |
 | pessoas da equipa, papéis, sessões | fatia «identidade» (P1) | |
 | subscrição e faturação do Eurolify ao comerciante | por decidir (D-14) | o Eurolify é aí **responsável** pelo tratamento, não subcontratante (`eu-gdpr-privacy`) |
@@ -57,7 +58,7 @@ a confirmar no CI), mostrados para fora com prefixo do tipo (`mer_…`, `ent_…
 | `nome` | texto | sim | nome comercial, para mostrar; **nunca serve para decidir identidade** (`AGENTS.md`, regra fiscal 6): dois comerciantes com o mesmo nome são dois |
 | `lingua` | código (pt, es, en…) | sim | a do Hub e das comunicações do Eurolify |
 | `fuso` | IANA (ex.: `Europe/Lisbon`) | sim | para mostrar; guarda-se sempre UTC (`eu-localization`) |
-| `plano` | lista | não | **pergunta P5**: escalões por decidir (ADR-0007, ADR-0012) |
+| ~~`plano`~~ | — | — | **não entra nesta fatia** (P5): entra com a D-14 (ADR-0007, ADR-0012) |
 | `criado_em`, `actualizado_em`, `versao` | | sim | `versao` sobe em cada alteração; escrita com versão antiga recusada |
 
 ### 3.2 Entidade legal (`ent_`)
@@ -125,7 +126,7 @@ Do pacote (onboarding, regra 3), com os nomes em português:
 | `rascunho` | configurar | regista-se |
 | `prova_pendente` | configurar | pediu activação e falta prova |
 | `em_revisao` | configurar | a prova está entregue; uma pessoa revê |
-| `aprovado_limitado` | **pergunta P2**: proposta — vender só em modo de ensaio, sem dinheiro real | revisão aceite |
+| `aprovado_limitado` | vender **só em modo de ensaio, sem dinheiro real** (P2) | revisão aceite |
 | `activo` | vender | contrato e acordo aceites na versão em vigor, provas válidas, e o motor de regras a permitir os domínios dos países onde vende |
 | `suspenso` | ler e exportar; **as encomendas pendentes continuam a ser tratadas** (direitos dos clientes) | decisão com motivo |
 | `fechado` | exportar durante o prazo da exportação; documentos fiscais guardados 10 anos | pedido do comerciante ou decisão com motivo |
@@ -150,7 +151,7 @@ ADR-0025 (RLS por comerciante).
 | Políticas | `ENABLE` **e** `FORCE ROW LEVEL SECURITY` em todas as tabelas; `USING (comerciante_id = current_setting('eurolify.comerciante')::uuid)` e o mesmo em `WITH CHECK` |
 | Contexto | cada pedido abre uma transacção e faz `SET LOCAL eurolify.comerciante = '<uuid>'`; sem isso a consulta dá **erro**, nunca vazio em silêncio: numa ligação nova o parâmetro não existe; numa ligação reaproveitada vale texto vazio, que falha a conversão para `uuid` (comportamento do PostgreSQL a confirmar no teste do CI) |
 | Criar um comerciante | a aplicação gera o `uuid`, faz `SET LOCAL` com ele e insere: a política deixa, sem nenhum utilizador que ignore o RLS |
-| Trabalho da equipa do Eurolify (rever comerciantes) | **pergunta P6**: um papel próprio com acesso entre comerciantes, auditado — ou nenhum até haver o Hub |
+| Trabalho da equipa do Eurolify (rever comerciantes) | **nenhum papel entre comerciantes** até haver o Hub (P6): a revisão faz-se por um comando auditado na API, dentro do contexto do comerciante revisto |
 | Testes | o CI liga-se como `postgres` (superutilizador, que **ignora o RLS**): os testes de isolamento criam e usam o `eurolify_api`, e falham se a ligação tiver `BYPASSRLS` |
 | VPS | o `api.env` está vazio («a ligação à base entra com o primeiro domínio», `preparar.sh:278`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028) |
 
@@ -173,7 +174,7 @@ SECURITY` (teste que percorre o catálogo da base).
 
 `merchant.created`, `merchant.status_changed` (de, para), `legal_entity.created`,
 `store.created` — nomes no passado, mínimo de dados (`platform-architect`).
-**Pergunta P7**: acrescentá-los à tabela de eventos da skill e do `docs/02`.
+Acrescentados à tabela de eventos da skill `platform-architect` e ao `docs/02` (P7).
 
 ## 8. Lista da API (Administração)
 
@@ -200,9 +201,13 @@ Erros (proposta): `merchant.invalid_transition`, `merchant.version_conflict`,
 `legal_entity.tax_number_duplicate`, `legal_entity.country_not_supported`,
 `agreement.version_unknown`.
 
-## 9. Perguntas para o Diogo ou o Bruno
+## 9. Perguntas — decididas pelo Diogo, 04/10/2026
 
-| # | Pergunta | Proposta |
+Todas aceites tal como propostas. A P1 decide só a forma: a identidade é uma
+fatia própria com ADR, e um fornecedor de fora só entra se for na UE e com
+acordo de tratamento — **qual** (construir ou fornecedor) decide-se nesse ADR.
+
+| # | Pergunta | Decisão |
 |---|---|---|
 | P1 | Identidade: construímos o OAuth 2.1/OIDC ou usamos um fornecedor **na UE**? Decide quem é o «dono» e quando a API desta fatia abre | fatia própria a seguir a esta, com ADR; fornecedor só na UE e com acordo de tratamento (`AGENTS.md`, regra 4) |
 | P2 | O que pode um comerciante `aprovado_limitado`? | vender só em modo de ensaio, sem dinheiro real |
