@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Comando fixo das chaves dos fluxos do GitHub (ADR-0026, ADR-0028).
+# Corre como eurolify-<fluxo>, sem sudo nem docker: só valida o pedido, deixa-o
+# na pasta do fluxo e espera pela resposta do serviço da máquina (root).
+#
+# authorized_keys: restrict,command="/usr/local/bin/eurolify-pedido <fluxo>" <chave>
+set -Eeuo pipefail
+umask 077
+
+fluxo="${1:-}"
+pedido="${SSH_ORIGINAL_COMMAND:-}"
+
+case "$fluxo" in
+  publicar)
+    padrao='^sha256:[0-9a-f]{64}$'
+    espera=900
+    ;;
+  aplicar)
+    padrao='^[0-9a-f]{40} (mostrar|aplicar)$'
+    espera=1800
+    ;;
+  medir)
+    padrao='^$'
+    espera=120
+    ;;
+  *)
+    echo "eurolify-pedido: fluxo desconhecido" >&2
+    exit 64
+    ;;
+esac
+
+if [[ ${#pedido} -gt 200 || ! "$pedido" =~ $padrao ]]; then
+  echo "eurolify-pedido: pedido recusado para o fluxo '$fluxo'" >&2
+  exit 65
+fi
+
+pasta="/var/lib/eurolify/pedidos/$fluxo"
+cd "$pasta"
+
+# Um pedido de cada vez por fluxo.
+exec 9>"$pasta/.tranca"
+if ! flock -w 60 9; then
+  echo "eurolify-pedido: outro pedido de '$fluxo' ainda está a correr" >&2
+  exit 75
+fi
+
+rm -f resultado
+printf '%s\n' "$pedido" > pedido.tmp
+mv -f pedido.tmp pedido
+
+for ((i = 0; i < espera; i++)); do
+  if [[ -f resultado ]]; then
+    codigo="$(head -n 1 resultado)"
+    tail -n +2 resultado
+    rm -f resultado
+    [[ "$codigo" =~ ^[0-9]+$ ]] || codigo=70
+    exit "$codigo"
+  fi
+  sleep 1
+done
+
+echo "eurolify-pedido: sem resposta em ${espera} s (o serviço eurolify-pedido@${fluxo} correu?)" >&2
+exit 69

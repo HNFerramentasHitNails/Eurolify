@@ -1,0 +1,7 @@
+# Eurolify (infra/vps). Bloqueio de 1 h (memória da VPS, 04/10/2026) e
+# endereços guardados 14 dias na base do fail2ban (ADR-0027).
+[DEFAULT]
+dbpurgeage = 14d
+
+[sshd]
+bantime = 1h

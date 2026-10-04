@@ -50,6 +50,29 @@ jobs:
       - run: pnpm teste
       - run: pnpm construir
 
+  script-vps:
+    # O script da VPS (C3): shellcheck e o modo que só mostra numa máquina
+    # Ubuntu 26.04 vazia. Não toca na VPS.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: |
+          shellcheck --version | head -n 2
+          shellcheck -x -P infra/vps/ficheiros/lib \
+            infra/vps/preparar.sh \
+            infra/vps/ficheiros/lib/comum.sh \
+            infra/vps/ficheiros/bin/eurolify-pedido \
+            infra/vps/ficheiros/sbin/eurolify-*
+      - name: preparar.sh --mostrar num Ubuntu 26.04 vazio
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" \
+            ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7 \
+            bash /repo/infra/vps/preparar.sh --mostrar
+
   imagem:
     # Prova que o Dockerfile constrói; não envia nada para lado nenhum.
     if: github.event_name == 'pull_request'

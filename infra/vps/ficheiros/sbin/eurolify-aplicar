@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Aplica o script de preparação de um commit do main (ADR-0028). Corre como
+# root, chamado pelo eurolify-trabalho. A VPS vai buscar o repositório com a
+# sua chave só de leitura (deploy key) e recusa um commit que não esteja no main:
+# a chave do fluxo só escolhe o commit, nunca envia o script.
+set -Eeuo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+
+commit="${1:-}"
+modo="${2:-}"
+[[ "$commit" =~ ^[0-9a-f]{40}$ ]] || falhar "commit inválido"
+[[ "$modo" == mostrar || "$modo" == aplicar ]] || falhar "modo inválido"
+carregar_config
+
+chave=/etc/eurolify/deploy_key
+[[ -s "$chave" ]] || falhar "falta $chave (chave só de leitura do repositório, Fase D)"
+export GIT_SSH_COMMAND="ssh -i $chave -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/eurolify/github_known_hosts"
+
+repo=/var/lib/eurolify/repo.git
+if [[ ! -d "$repo" ]]; then
+  git clone --quiet --bare "$REPOSITORIO_GIT" "$repo"
+fi
+git --git-dir="$repo" fetch --quiet origin +refs/heads/main:refs/heads/main
+
+git --git-dir="$repo" cat-file -e "${commit}^{commit}" 2>/dev/null || falhar "o commit $commit não existe no repositório"
+git --git-dir="$repo" merge-base --is-ancestor "$commit" refs/heads/main ||
+  falhar "o commit $commit não está no main: recusado"
+
+pasta="$(mktemp -d /var/lib/eurolify/trabalho/aplicar.XXXXXX)"
+trap 'rm -rf "$pasta"' EXIT
+git --git-dir="$repo" archive "$commit" infra/vps | tar -x -C "$pasta"
+
+argumentos=()
+[[ "$modo" == mostrar ]] && argumentos=(--mostrar)
+echo "Commit $commit, modo $modo"
+EUROLIFY_COMMIT="$commit" bash "$pasta/infra/vps/preparar.sh" "${argumentos[@]}"

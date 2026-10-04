@@ -1,0 +1,9 @@
+[Unit]
+Description=Eurolify: pedidos do fluxo %i (ADR-0028)
+
+[Path]
+PathExists=/var/lib/eurolify/pedidos/%i/pedido
+Unit=eurolify-pedido@%i.service
+
+[Install]
+WantedBy=paths.target

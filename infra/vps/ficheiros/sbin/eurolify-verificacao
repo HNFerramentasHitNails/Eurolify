@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Verificação diária da VPS (ADR-0027): o que pára em silêncio. Se houver
+# problemas, avisa o Healthchecks.io como «falhou», com a lista.
+set -uo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+carregar_config
+
+problemas=()
+hoje="$(date -u +%F)"
+
+uso="$(df --output=pcent / | tail -n 1 | tr -dc '0-9')"
+((uso > 80)) && problemas+=("disco a ${uso}% (limite 80%)")
+
+total="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)"
+livre="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+((livre * 100 / total < 10)) && problemas+=("memória disponível abaixo de 10% (sem swap, ADR-0021)")
+
+for s in ssh docker fail2ban; do
+  systemctl is-active --quiet "$s" || problemas+=("serviço $s parado")
+done
+ufw status | grep -q '^Status: active' || problemas+=("firewall (ufw) desligada")
+
+[[ "$(docker inspect -f '{{.State.Running}}' eurolify-postgres 2>/dev/null)" == true ]] ||
+  problemas+=("contentor eurolify-postgres parado")
+if docker inspect eurolify-api >/dev/null 2>&1; then
+  curl -fsS -m 5 http://127.0.0.1:8080/health >/dev/null 2>&1 || problemas+=("a API não responde no /health")
+fi
+
+seguranca="$(/usr/lib/update-notifier/apt-check 2>&1 | cut -d ';' -f 2)"
+[[ "$seguranca" =~ ^[0-9]+$ ]] && ((seguranca > 0)) &&
+  problemas+=("$seguranca actualizações de segurança por aplicar")
+[[ -f /var/run/reboot-required ]] &&
+  problemas+=("reinício pedido pelas actualizações — fazer fora do horário de trabalho e anunciado (AGENTS.md)")
+
+# Datas escritas nas decisões. Avisam todos os dias até se mudar este ficheiro.
+[[ ! "$hoje" < "2027-03-01" ]] &&
+  problemas+=("ADR-0019: a VPS no Reino Unido acaba a 31/03/2027 — migrar para Paris")
+[[ ! "$hoje" < "2026-10-28" ]] &&
+  problemas+=("ADR-0025: o Node 26 é LTS desde 28/10/2026 — passar a imagem para o 26")
+
+if [[ -r /etc/eurolify/ghcr.expira ]]; then
+  expira="$(tr -dc '0-9-' </etc/eurolify/ghcr.expira)"
+  if [[ -n "$expira" ]] && (($(date -u -d "$expira" +%s) - $(date -u +%s) < 14 * 86400)); then
+    problemas+=("o token do GHCR expira a $expira — criar outro (ADR-0026)")
+  fi
+else
+  problemas+=("falta /etc/eurolify/ghcr.expira (data de fim do token do GHCR)")
+fi
+
+if ((${#problemas[@]})); then
+  texto="$(printf -- '- %s\n' "${problemas[@]}")"
+  echo "$texto"
+  hc VERIFICACAO falhou "$texto"
+  exit 1
+fi
+echo "Sem problemas."
+hc VERIFICACAO ok "sem problemas"

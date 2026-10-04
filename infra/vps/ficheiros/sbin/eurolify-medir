@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Medição fixa da VPS, só leitura (ADR-0028). Corre como root, chamado pelo
+# eurolify-trabalho, que ainda tira os endereços IP da saída. Mudar a lista é
+# mudar este ficheiro, por pedido de alteração revisto.
+set -uo pipefail
+
+seccao() { printf '\n## %s\n' "$1"; }
+
+seccao "data (UTC)"
+date -u +%FT%TZ
+
+seccao "sistema"
+grep -E '^PRETTY_NAME=' /etc/os-release
+echo "kernel $(uname -r), $(nproc) núcleos"
+free -h
+df -h /
+
+seccao "serviços"
+for s in ssh docker fail2ban ufw eurolify-copia.timer eurolify-reposicao.timer eurolify-verificacao.timer \
+  eurolify-pedido@publicar.path eurolify-pedido@aplicar.path eurolify-pedido@medir.path; do
+  printf '%s: %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null)"
+done
+
+seccao "contentores"
+docker ps --all --format '{{.Names}}  {{.Status}}  {{.Image}}' 2>&1
+docker stats --no-stream --format '{{.Name}}  {{.MemUsage}}' 2>&1
+
+seccao "portas à escuta"
+ss -tlnH | awk '{print $4}' | sort -u
+
+seccao "ssh"
+sshd -T 2>/dev/null | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|pubkeyauthentication) '
+
+seccao "firewall"
+ufw status verbose
+
+seccao "fail2ban (só números)"
+fail2ban-client status sshd 2>&1 | grep -E 'Currently|Total'
+
+seccao "actualizações"
+/usr/lib/update-notifier/apt-check --human-readable 2>&1
+[[ -f /var/run/reboot-required ]] && echo "Reinício pedido pelas actualizações."
+
+seccao "últimas publicações"
+tail -n 5 /var/log/eurolify/publicacoes.log 2>/dev/null || echo "(nenhuma)"
+
+seccao "últimas acções registadas"
+tail -n 15 /var/log/eurolify/acoes.log 2>/dev/null || echo "(nenhuma)"
+
+exit 0

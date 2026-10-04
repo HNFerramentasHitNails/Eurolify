@@ -1,0 +1,7 @@
+[Unit]
+Description=Eurolify: tratar um pedido do fluxo %i (ADR-0028)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/eurolify-trabalho %i
+TimeoutStartSec=1800
