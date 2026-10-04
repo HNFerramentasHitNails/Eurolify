@@ -33,6 +33,7 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/11-preparacao-da-vps.md`](docs/11-preparacao-da-vps.md) | O que a preparação da VPS instala, quem faz o quê e as decisões que faltam (ADR-0015, ADR-0016) |
 | [`docs/12-perguntas-para-o-jurista.md`](docs/12-perguntas-para-o-jurista.md) | As perguntas a fazer ao jurista, por prioridade, com o que já lemos de cada lei |
 | [`docs/13-portas-da-fase-2.md`](docs/13-portas-da-fase-2.md) | Os módulos da Fase 2 pelas 8 portas: o que avançar, estreitar ou investigar; três peças passaram para a Fase 1 (decisão AD) |
+| [`docs/14-dominio-catalogo.md`](docs/14-dominio-catalogo.md) | Domínio Catálogo: fronteira, modelo, estados, regras, eventos e lista da API em tabela (ADR-0023), com as perguntas por decidir |
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`AGENTS.md`](AGENTS.md) | As regras para qualquer sessão de Claude Code ou de Codex neste repositório (o `CLAUDE.md` só o importa) |

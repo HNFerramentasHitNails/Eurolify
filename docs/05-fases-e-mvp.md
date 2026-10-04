@@ -20,8 +20,8 @@
 | Preparação da VPS (ADR-0015, ADR-0016) | **por fazer** — guia em `11-preparacao-da-vps.md`; o script entra no `main` com as duas revisões (ADR-0013) |
 | Contratos de adaptadores e pontos de extensão (requisito K) | por fazer — desenho em `08-extensoes-de-terceiros.md` |
 | Prova de 2 semanas com a Medusa (D-2) | **cancelada** — a D-2 foi decidida a 03/10/2026: núcleo próprio, de raiz (ADR-0002) |
-| Modelo de domínio (entidades, estados, quem é dono de quê) em tabelas | por fazer |
-| Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | por fazer |
+| Modelo de domínio (entidades, estados, quem é dono de quê) em tabelas | **Catálogo em desenho** ([`14-dominio-catalogo.md`](14-dominio-catalogo.md), #36, 04/10/2026); os outros domínios por fazer |
+| Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | **Catálogo em desenho** (`14-dominio-catalogo.md` §7); os outros domínios por fazer |
 | Regras do motor de IVA validadas pelo contabilista | por fazer |
 | Fluxos do consumidor (checkout, confirmação, livre resolução, garantia) validados por jurista | por fazer |
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
