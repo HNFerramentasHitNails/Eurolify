@@ -418,7 +418,32 @@ Pedido do Diogo: *«actualiza a capa para a versão 0.7»*.
   algarismo: a altura da capa não mexe, e não a medi.
 - **O PDF da v20 diz «Versão 0.6» na capa.**
 - Visto de passagem e não mexido: as notas da página 66 ainda dizem «Nenhum
-  código foi escrito … (ADR-0001)».
+  código foi escrito … (ADR-0001)». → corrigidas na versão 22 (abaixo).
+
+## Versão 22 e o seu PDF (04/10/2026)
+
+Pedido do Diogo: *«sim, corrige as notas e gera o PDF da v21»* (issue #21).
+
+- **Notas da página 66:** «Nenhum código foi escrito: avança-se para código
+  quando o Bruno ou o Diogo o decidirem por escrito (ADR-0001)» passou a «O OK
+  para código foi dado pelo Diogo a 04/10/2026 (ADR-0023, que substitui o
+  ADR-0001); o primeiro código, o esqueleto da API, entrou no repositório no
+  mesmo dia (pedido #10)». Publicada por cima da 21 (`1791115169-c625`,
+  confirmada antes: as 66 páginas com o mesmo sha256 da 20, menos a capa); a
+  22 é a `1791116237-9750`, confirmada lendo a página de volta.
+- **Procurei nas 66 páginas** «ADR-0001», «nenhum código» e «OK para código».
+  Ficaram as frases verdadeiras ou históricas (as notas da 43 e da 42: as
+  decisões de 03/10/2026 não são o OK). **Desactualizadas pelo ADR-0030 e pelo
+  ADR-0031, e não mexidas:** o cartão «Quem revê» da página 53 (texto visível:
+  ainda a revisão cruzada do ADR-0013) e as notas da 65 («com as duas revisões
+  (ADR-0013)»).
+- **O PDF:** `Eurolify-apresentacao-Bruno-Cila-v22.pdf`, da versão 22, pelo
+  método do da 20 (letras metidas no ficheiro). **66 páginas, 1440×810 pt,
+  3.263.166 bytes** (`pdfinfo`); as duas letras dentro (`pdffonts`); capa
+  «Versão 0.7» (`pdftotext`). As páginas são as da 21 — as notas não vão no
+  PDF. Medidas iguais às do PDF da 20 (nenhuma passa de 920 nem de 1792); letra
+  de recurso nas mesmas 12 páginas. Vistas em imagem: 1 e 66. Entregue ao
+  Diogo na conversa; não está no repositório.
 
 ## O que ficou por verificar
 
