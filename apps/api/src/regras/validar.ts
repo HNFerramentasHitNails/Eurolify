@@ -258,8 +258,9 @@ export function errosDoRegisto(registo: Registo): string[] {
     ) {
       // Uma proposta nunca decide, por isso pode entrar num domínio ainda por
       // verificar (decisão do Diogo, 04/10/2026; revisão do #47, P2 n.º 2).
-      // Só «por verificar»: um domínio «não aplicável» diz que não há regras
-      // e não leva nenhuma, nem proposta (revisão do #49, P2-1).
+      // Num domínio `verificado` aceita-se no ramo seguinte, como qualquer
+      // regra; num `nao_aplicavel` nunca: diz que não há regras e não leva
+      // nenhuma, nem proposta (revisões do #49).
     } else if (
       !ehObjecto(revisao) ||
       (revisao as RevisaoDominio).estado !== "verificado"
