@@ -127,9 +127,9 @@ este motor antes de agir.
 | **Perfil do país** | `codigo`, `nome` | |
 | | `dominios` | por domínio (os 7 obrigatórios e os 4 condicionais), o estado da revisão: `por_verificar`, `verificado`, `nao_aplicavel` (este exige justificação e prova) |
 | | `territorios` | `null` = não mapeados: um território pedido **não herda** a regra do continente |
-| **Regra** | `id`, `versao`, `dominio`, `pais` | |
+| **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo: identifica uma regra de um país e de um domínio, nas suas versões; as decisões citam `id@versao` |
 | | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide** |
-| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
+| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
 
@@ -154,12 +154,12 @@ permitida).
 | Código de país que não são duas maiúsculas (`pt`, `PRT`) | `recusado`, motivo `codigo_pais_invalido` — não se normaliza |
 | País fora dos 27 (`CH`, `GB`, `EL`) | `recusado`, motivo `pais_fora_da_ue` |
 | Momento que não é ISO 8601 com fuso, ou data impossível (`2026-02-30`) | `recusado`, motivo `momento_invalido` |
-| Lista de domínios vazia | `recusado`, motivo `sem_dominios` |
-| Domínio que não existe | `recusado`, motivo `dominio_desconhecido` |
+| Lista de domínios vazia, ou que não é uma lista | `recusado`, motivo `sem_dominios` |
+| Domínio que não existe (também `constructor`, `__proto__`) | `recusado`, motivo `dominio_desconhecido` |
 | Território pedido e não mapeado | `revisao_necessaria`, motivo `territorio_nao_mapeado` |
-| Domínio `por_verificar` | `revisao_necessaria`, motivo `dominio_por_verificar` |
+| Domínio `por_verificar`, ou com um estado que não existe | `revisao_necessaria`, motivo `dominio_por_verificar` — só `verificado` segue para as regras |
 | Domínio `verificado` sem regra em vigor nesse momento | `revisao_necessaria`, motivo `sem_regra_em_vigor` |
-| Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde` | não conta |
+| Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde`, ou com um estado legal que não existe | não conta — só `em_vigor`, `adoptada_futura` e `revogada` podem contar |
 | Regra `revogada` depois de `aplicaAte` | não conta |
 | Território mapeado, só com a regra do continente | `revisao_necessaria`, motivo `sem_regra_em_vigor` (o território não herda) |
 | Domínio `nao_aplicavel` com justificação | não bloqueia |
@@ -168,8 +168,11 @@ permitida).
 
 **O registo é validado ao arrancar** (`validar.ts`): datas sem fuso ou
 impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
-regra repetida, duas versões da mesma regra a valer ao mesmo tempo, país sem
-perfil, território não mapeado, regra num domínio que não está `verificado` —
+regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
+`proposta` não conta), país sem perfil, território não mapeado, regra num
+domínio que não está `verificado` ou que não existe, estado de revisão ou
+estado legal desconhecido, prova vazia (`base`, `revistaPor`, `revistoPor`),
+`id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40) —
 a aplicação **não arranca** e diz a lista toda.
 
 Um bloqueio vale **só para a combinação pedida**: o IVA de França bloqueado
