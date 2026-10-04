@@ -83,6 +83,10 @@ export type EstadoLegal =
   "em_vigor" | "adoptada_futura" | "proposta" | "revogada";
 
 export interface Regra {
+  /**
+   * Única em todo o registo: uma `id` identifica uma regra de um país e de um
+   * domínio, nas suas várias versões. `regrasAplicadas` cita `id@versao`.
+   */
   id: string;
   versao: number;
   dominio: Dominio;
@@ -91,8 +95,9 @@ export interface Regra {
   territorios: readonly string[];
   estadoLegal: EstadoLegal;
   /**
-   * Instantes ISO 8601 com fuso (instante.ts). Intervalo meio-aberto: vale de
-   * `aplicaDesde` (incluído) até `aplicaAte` (excluído).
+   * Instantes ISO 8601 com fuso (instante.ts): `AAAA-MM-DDThh:mm:ss(.sss)?`
+   * seguido de `Z` ou `±hh:mm`; a fracção tem no máximo 3 dígitos. Intervalo
+   * meio-aberto: vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído).
    */
   aplicaDesde: string;
   aplicaAte: string | null;

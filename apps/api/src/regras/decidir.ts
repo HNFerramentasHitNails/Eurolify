@@ -47,6 +47,20 @@ function recusado(versaoRegisto: number, motivo: Motivo): Decisao {
 }
 
 /**
+ * A revisão de um domínio no perfil, ou undefined se o domínio não existir.
+ * Só chaves próprias: `constructor` ou `__proto__` não são domínios (revisão
+ * do #40, P2-2).
+ */
+function revisaoDoDominio(
+  perfil: PerfilPais,
+  dominio: string,
+): RevisaoDominio | undefined {
+  return Object.hasOwn(perfil.dominios, dominio)
+    ? (perfil.dominios as Record<string, RevisaoDominio>)[dominio]
+    : undefined;
+}
+
+/**
  * Decide uma combinação (país, território, domínios, momento) contra um
  * registo. Função pura: a mesma entrada e o mesmo registo dão sempre a mesma
  * decisão, e a decisão guarda a versão do registo usada. Um bloqueio vale só
@@ -77,14 +91,21 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
     });
   }
 
-  // O tipo já exige um domínio, mas o pedido pode vir de fora sem tipos.
-  if ((pedido.dominios as readonly string[]).length === 0) {
+  // O tipo já exige uma lista com um domínio, mas o pedido pode vir de fora
+  // sem tipos: null, texto ou lista vazia são «sem domínios».
+  const dominios: unknown = pedido.dominios;
+  if (!Array.isArray(dominios) || dominios.length === 0) {
     return recusado(versao, { codigo: "sem_dominios" });
   }
-  for (const dominio of pedido.dominios) {
-    const revisao = perfil.dominios[dominio] as RevisaoDominio | undefined;
-    if (revisao === undefined) {
-      return recusado(versao, { codigo: "dominio_desconhecido", dominio });
+  for (const dominio of dominios as readonly unknown[]) {
+    if (
+      typeof dominio !== "string" ||
+      revisaoDoDominio(perfil, dominio) === undefined
+    ) {
+      return recusado(versao, {
+        codigo: "dominio_desconhecido",
+        dominio: typeof dominio === "string" ? dominio : String(dominio),
+      });
     }
   }
 
@@ -104,7 +125,10 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   for (const dominio of new Set(pedido.dominios)) {
     const revisao = perfil.dominios[dominio];
     if (revisao.estado === "nao_aplicavel") continue;
-    if (revisao.estado === "por_verificar") {
+    // Só «verificado» segue para as regras. Qualquer outro estado — o
+    // `por_verificar` ou um estado que não existe (gralha num registo que não
+    // passou pelo validar) — bloqueia (revisão do #40, P1-1).
+    if (revisao.estado !== "verificado") {
       motivos.push({ codigo: "dominio_por_verificar", dominio });
       continue;
     }
