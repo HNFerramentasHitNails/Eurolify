@@ -3,8 +3,11 @@
 // protótipo, um toString que lança ou um Proxy revogado não rebentam a lista
 // de erros nem a decisão — ficam listados ou recusados.
 //
-// Limite, escrito: um Proxy vivo cujas armadilhas lançam (por exemplo, numa
-// leitura de propriedade) continua a rebentar. Não vem de JSON nem da base, e
+// Limite, escrito (medido na revisão do #50, P2-C da décima volta): continua
+// a rebentar um Proxy vivo cuja armadilha de leitura de propriedade (`get`)
+// lança, e um registo inteiro que seja um Proxy revogado (a primeira leitura,
+// `registo.versao`, lança). Um Proxy cuja armadilha `ownKeys` lança conta como
+// «não é um objecto» e fica listado. Nada disto vem de JSON nem da base, e
 // protegê-lo obrigava a envolver cada leitura do registo.
 
 /**

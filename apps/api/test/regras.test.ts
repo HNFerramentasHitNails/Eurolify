@@ -230,16 +230,19 @@ describe("decidir", () => {
         ),
       }) as unknown as Registo;
     const portugal = REGISTO_INICIAL.paises.find((p) => p.codigo === "PT");
-    const casos: [Registo, string[]][] = [
+    const casos: [string, Registo, string[]][] = [
       [
+        "«paises» do registo",
         { ...REGISTO_INICIAL, paises: proxyRevogado() } as unknown as Registo,
         ["«paises» não é uma lista"],
       ],
       [
+        "«regras» do registo",
         { ...REGISTO_INICIAL, regras: proxyRevogado() } as unknown as Registo,
         ["«regras» não é uma lista"],
       ],
       [
+        "um elemento de «paises»",
         {
           ...REGISTO_INICIAL,
           paises: [...REGISTO_INICIAL.paises, proxyRevogado()],
@@ -247,24 +250,29 @@ describe("decidir", () => {
         ["paises[27] não é um objecto"],
       ],
       [
+        "um elemento de «regras»",
         { ...REGISTO_INICIAL, regras: [proxyRevogado()] } as unknown as Registo,
         ["regras[0] não é um objecto"],
       ],
       [
+        "«territorios» do perfil",
         comPortugal({ territorios: proxyRevogado() }),
         ["PT: «territorios» não é null nem uma lista"],
       ],
       [
+        "«dominios» do perfil",
         comPortugal({ dominios: proxyRevogado() }),
         ["PT: «dominios» não é um objecto"],
       ],
       [
+        "a revisão de um domínio",
         comPortugal({
           dominios: { ...portugal?.dominios, consumidor: proxyRevogado() },
         }),
         ["PT/consumidor: a revisão não é um objecto"],
       ],
       [
+        "a «base» e os «territorios» de regras",
         comPortugal(
           { dominios: { ...portugal?.dominios, consumidor: VERIFICADO } },
           [
@@ -279,8 +287,13 @@ describe("decidir", () => {
         ["r@1: sem base legal", "t@1: «territorios» não é uma lista"],
       ],
     ];
-    for (const [registo, esperado] of casos) {
-      expect(errosDoRegisto(registo)).toEqual(esperado);
+    // Cada caso com nome, para a falha dizer qual foi (revisão do #50, P2-B).
+    for (const [nome, registo, esperado] of casos) {
+      let erros: string[] = [];
+      expect(() => {
+        erros = errosDoRegisto(registo);
+      }, nome).not.toThrow();
+      expect(erros, nome).toEqual(esperado);
     }
   });
 
