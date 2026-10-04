@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 
@@ -11,14 +12,40 @@ EXCLUDED_DIRS = {
     ".git", ".env", "node_modules", ".venv", "venv", "dist", "build",
     "__pycache__", "secrets", "credentials",
 }
-# «chave» e «token» sozinhos apanhavam documentos que não são segredos
-# (ADR-0029 «chave-do-age…», «design-token.md»); só as formas compostas.
-SENSITIVE_NAMES = (
-    "secret", "segredo", "credential", "credencia", "password", "senha",
-    "palavra-passe", "private-key", "chave-privada", "chave-secreta",
-    "chave-api", "chave-de-api", "api-key", "api-token", "access-token",
-    "token-de-acesso", ".env",
+# Compara palavras inteiras do nome (separadas por «-», «_», «.» ou espaço),
+# não pedaços de texto: «desenhado» não é «senha», «secretaria» não é
+# «secret», e «chave» ou «token» sozinhos (ADR-0029 «chave-do-age…»,
+# «design-token.md») não são segredos. Só contam as palavras e as sequências
+# abaixo, com qualquer separador (`api_key`, `api-key`) ou nenhum (`apikey`).
+SENSITIVE_WORDS = {
+    "secret", "secrets", "segredo", "segredos", "credential", "credentials",
+    "credencial", "credenciais", "password", "passwords", "senha", "senhas",
+    "env",
+}
+SENSITIVE_SEQUENCES = (
+    ("palavra", "passe"), ("palavras", "passe"),
+    ("private", "key"), ("chave", "privada"), ("chave", "secreta"),
+    ("chave", "api"), ("chave", "de", "api"), ("api", "key"),
+    ("api", "token"), ("access", "token"), ("token", "de", "acesso"),
 )
+
+
+def sensitive_name(name):
+    """Diz se o nome do ficheiro sugere um segredo (palavras inteiras)."""
+    words = [w for w in re.split(r"[-_. ]+", name.lower()) if w]
+    if words and words[-1] == "md":
+        words = words[:-1]
+    if any(w in SENSITIVE_WORDS for w in words):
+        return True
+    for seq in SENSITIVE_SEQUENCES:
+        n = len(seq)
+        if any(tuple(words[i:i + n]) == seq for i in range(len(words) - n + 1)):
+            return True
+        if "".join(seq) in words:
+            return True
+    return False
+
+
 NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
 
@@ -59,7 +86,7 @@ def audit(repo, roots, limit=12):
                 file = Path(folder) / name
                 if file.suffix.lower() != ".md" or file.is_symlink():
                     continue
-                if any(s in name.lower() for s in SENSITIVE_NAMES):
+                if sensitive_name(name):
                     warnings.append({
                         "path": file.relative_to(repo).as_posix(),
                         "reason": "sensitive_name_skipped",

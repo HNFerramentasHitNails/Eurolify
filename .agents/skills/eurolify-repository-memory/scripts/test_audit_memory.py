@@ -55,6 +55,18 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(report["markdownFiles"], 3)
         self.assertEqual(report["warnings"], [])
 
+    def test_sensitive_names_by_whole_words(self):
+        skipped = ["api_key.md", "apikey.md", "chave_privada.md", "private_key.md",
+                   "palavra-passe-vps.md", "secrets.md", "token-de-acesso.md"]
+        read = ["desenhado-do-checkout.md", "secretaria-geral.md", "tokens-de-design.md",
+                "chave-do-age.md", "environment.md"]
+        for name in skipped + read:
+            (self.repo / "docs" / name).write_text(name, encoding="utf-8")
+        report = audit(self.repo, ["docs"])
+        avisados = {Path(w["path"]).name for w in report["warnings"]}
+        self.assertEqual(avisados, set(skipped))
+        self.assertEqual(report["markdownFiles"], 1 + len(read))
+
     def test_root_under_symlinked_parent_rejected(self):
         outside = tempfile.TemporaryDirectory()
         self.addCleanup(outside.cleanup)
