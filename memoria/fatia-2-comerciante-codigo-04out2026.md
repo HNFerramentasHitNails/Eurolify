@@ -54,3 +54,9 @@ A segunda revisão encontrou 3 P1: tabelas temporárias a desviar o rasto, tabel
 A sessão de revisão repetiu as sondas contra esse commit, e as três fecham. Encontrou depois uma corrida que ficava: duas transacções ao mesmo tempo, uma a arquivar a entidade e outra a abrir uma loja activa nela, passavam as duas (medido). A correcção é o `FOR SHARE` na linha da entidade, no gatilho da loja. Há um teste com as duas ordens, que falha com a função antiga.
 
 **Números** (04/10/2026, PostgreSQL 18.6): api com 70 passados e mcp com 30, em 3 corridas seguidas.
+
+## Arquivada é final (Diogo, 04/10/2026, «sim, arquivada é final»)
+
+- **A decisão:** responde ao P2-3 da revisão 5406927138. A base recusa voltar uma entidade arquivada a activa (`legal_entity.archived_is_final`).
+- **O número fiscal:** passou a ser único só entre as entidades **activas**, por um índice parcial com o mesmo nome da restrição antiga (`entidade_legal_nif_unico_por_pais`). Voltar a usar um número arquivado é criar outra entidade, com prova nova.
+- **Testes:** 71 passados com `EXIGIR_BASE=1` contra o 18.6, a 04/10/2026.

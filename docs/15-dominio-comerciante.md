@@ -151,7 +151,10 @@ escrita **pela base**, pelo gatilho da mudança de estado, com o motivo e quem
 postos pela aplicação; a API não escreve no rasto (revisão do #43, P1-3).
 A activação olha para a prova **mais recente** de cada entidade legal activa,
 pela ordem de registo (P1-1); o país e o número fiscal de uma entidade não
-mudam — arquiva-se e cria-se outra (P1-2).
+mudam — arquiva-se e cria-se outra (P1-2). **Arquivada é final** (Diogo,
+04/10/2026): a base recusa desarquivar (`legal_entity.archived_is_final`); o
+número fiscal só é único entre as entidades activas, por isso voltar a usar um
+número arquivado é criar outra entidade, com prova nova.
 Ninguém se activa a si próprio: a passagem a `activo` é feita pelo servidor
 quando as condições se verificam, ou por uma pessoa do Eurolify com rasto
 (**proposta**).

@@ -26,6 +26,7 @@ export type CodigoErroComerciante =
   | "legal_entity.tax_number_duplicate"
   | "legal_entity.immutable_identity"
   | "legal_entity.in_use"
+  | "legal_entity.archived_is_final"
   | "store.legal_entity_archived";
 
 export class ErroComerciante extends Error {
@@ -45,6 +46,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroComerciante[] = [
   "merchant.transition_without_trail",
   "legal_entity.immutable_identity",
   "legal_entity.in_use",
+  "legal_entity.archived_is_final",
   "store.legal_entity_archived",
 ];
 

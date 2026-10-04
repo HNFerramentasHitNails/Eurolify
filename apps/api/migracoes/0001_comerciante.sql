@@ -58,10 +58,15 @@ CREATE TABLE entidade_legal (
     left(numero_fiscal, 2) <> pais
     AND NOT (pais = 'GR' AND left(numero_fiscal, 2) = 'EL')),
   -- Único por país dentro do comerciante; nunca entre comerciantes.
-  CONSTRAINT entidade_legal_nif_unico_por_pais
-    UNIQUE (comerciante_id, pais, numero_fiscal),
   UNIQUE (comerciante_id, id)
 );
+
+-- Um número fiscal por país entre as entidades ACTIVAS do comerciante: como
+-- arquivada é final (Diogo, 04/10/2026), voltar a usar um número arquivado é
+-- criar outra entidade, com prova nova.
+CREATE UNIQUE INDEX entidade_legal_nif_unico_por_pais
+  ON entidade_legal (comerciante_id, pais, numero_fiscal)
+  WHERE estado = 'activa';
 
 CREATE TABLE loja (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -243,6 +248,11 @@ CREATE TRIGGER comerciante_escrever_rasto
 CREATE FUNCTION entidade_legal_antes_de_alterar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+  -- Arquivada é final (Diogo, 04/10/2026): desarquivar deixaria activa uma
+  -- entidade cuja prova a activação já não volta a ver (revisão do #43, P2-3).
+  IF OLD.estado = 'arquivada' AND NEW.estado <> 'arquivada' THEN
+    RAISE EXCEPTION 'legal_entity.archived_is_final: uma entidade arquivada não volta a activa; criar outra';
+  END IF;
   IF NEW.estado = 'arquivada' AND OLD.estado <> 'arquivada' AND EXISTS (
     SELECT FROM public.loja l
     WHERE l.comerciante_id = OLD.comerciante_id

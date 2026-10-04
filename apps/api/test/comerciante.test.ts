@@ -774,6 +774,28 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       );
     });
 
+    it("arquivada é final: não se desarquiva, e o número volta a usar-se numa entidade nova", async () => {
+      const x = await registarComerciante(base.api, NOVO);
+      const antiga = await criarEntidadeLegal(base.api, x, ENTIDADE);
+      const mudarEstado = (estado: "activa" | "arquivada") =>
+        comComerciante(base.api, x, (trx) =>
+          trx
+            .updateTable("entidade_legal")
+            .set({ estado: estado as never })
+            .where("id", "=", antiga)
+            .execute(),
+        );
+      await mudarEstado("arquivada");
+      expect(await codigoDoErro(mudarEstado("activa"))).toBe(
+        "legal_entity.archived_is_final",
+      );
+      const nova = await criarEntidadeLegal(base.api, x, ENTIDADE);
+      expect(nova).not.toBe(antiga);
+      expect(
+        await codigoDoErro(criarEntidadeLegal(base.api, x, ENTIDADE)),
+      ).toBe("legal_entity.tax_number_duplicate");
+    });
+
     it("recusa país fora dos 27, língua e fuso inválidos, texto vazio", async () => {
       const x = await registarComerciante(base.api, NOVO);
       for (const mau of [
