@@ -70,7 +70,7 @@ class AuditTests(unittest.TestCase):
     def test_sensitive_names_plurals_case_and_env(self):
         skipped = ["api-keys.md", "private-keys.md", "access-tokens.md", "chaves-privadas.md",
                    "tokens-de-acesso.md", "SecretKey.md", "passwd.md", "Password.MD",
-                   ".env.md", "ensaio.env.md"]
+                   ".env.md", "ensaio.env.md", "env.md", ".env.local.md"]
         read = ["env-vars.md", "node-env.md", "ambiente-env-ensaio.md", "chaves-do-age.md"]
         for name in skipped + read:
             (self.repo / "docs" / name).write_text(name, encoding="utf-8")

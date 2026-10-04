@@ -90,7 +90,12 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   sequências ganham os plurais (`api-keys`, `access-tokens`,
   `chaves-privadas`…), `secret key`, `passphrase` e `passwd`; há um teste
   para os plurais, as maiúsculas e o `env`. Continua a ser uma heurística:
-  `chaves-vps.md` é lido, porque «chaves» sozinho apanharia o ADR-0029.
+  `chaves-vps.md` é lido, porque «chaves» sozinho apanharia o ADR-0029, e
+  `env-local.md`, `env-prod.md` e `env_vars.md` também são lidos (o `env` só
+  conta com ponto, como em `.env.md`). A revisão Sonnet do #65 (P2-1 a P2-3)
+  levou a acrescentar este aviso e `env.md` e `.env.local.md` ao teste; as
+  correcções foram escritas pela sessão que as pediu a pedido do Diogo, sem
+  nova revisão independente.
 
 ## Números (com data e como se contaram)
 
@@ -105,7 +110,7 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
 | Testes do `audit_memory.py` com os P2 do #61 | 12, a passar; o teste novo falha com o script do `main` em `417e0a5` | `python3 test_audit_memory.py`, 04/10/2026 |
 | `audit_memory.py` sobre `memoria docs .agents` com os P2 do #61 | 165 ficheiros, 0 avisos | 04/10/2026, `--repo . --roots memoria docs .agents` |
 | `AGENTS.md` com as 6 linhas | 17 926 bytes (limite 32 KiB) | `wc -c`, 04/10/2026 |
-| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 076 bytes (limite 32 KiB) | `wc -c`, 04/10/2026, depois de remeter o ponto 3 para «Trabalhar os dois» (P2-1 do 5.º comentário da revisão Sonnet do #58) |
+| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 076 bytes (limite 32 KiB); em `wc -c`, 04/10/2026 (ramo `p2-do-61`, depois do #58), 19 781 | `wc -c`, 04/10/2026, depois de remeter o ponto 3 para «Trabalhar os dois» (P2-1 do 5.º comentário da revisão Sonnet do #58) |
 | Modelo da sessão | `claude-opus-5-5` configurado e servido | `get_session`, 04/10/2026 |
 
 ## O que ficou por verificar
