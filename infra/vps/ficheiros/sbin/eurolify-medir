@@ -34,7 +34,16 @@ docker ps --all --format '{{.Names}}  {{.Status}}  {{.Image}}' 2>&1
 docker stats --no-stream --format '{{.Name}}  {{.MemUsage}}' 2>&1
 
 seccao "portas à escuta"
-ss -tlnH | awk '{print $4}' | sort -u
+# Sem endereços (o filtro tirava-os todos e a secção saía vazia): diz só se a
+# porta está presa a esta máquina ou aberta, e que programa a tem.
+ss -tlnpH | awk '{
+  n = split($4, p, ":"); porta = p[n]; endereco = substr($4, 1, length($4) - length(porta) - 1)
+  if (endereco ~ /^(127\.|\[::1\])/) onde = "só nesta máquina"
+  else if (endereco ~ /^(0\.0\.0\.0|\*|\[::\])$/) onde = "aberta (todas as interfaces)"
+  else onde = "presa a um endereço"
+  prog = "?"; if (match($0, /\(\("[^"]+"/)) prog = substr($0, RSTART + 3, RLENGTH - 4)
+  printf "%s/tcp  %s  %s\n", porta, onde, prog
+}' | sort -u | sort -t/ -k1,1n
 
 seccao "ssh"
 sshd -T 2>/dev/null | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|pubkeyauthentication) '
