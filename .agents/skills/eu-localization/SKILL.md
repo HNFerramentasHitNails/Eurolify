@@ -5,7 +5,7 @@ description: Localização europeia no Eurolify — mercados (país, moeda, lín
 
 # Localização europeia
 
-> Estado: **desenho** — não há código (ADR-0001). Países: **toda a UE, de
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Países: **toda a UE, de
 > raiz** (decisão F e D-6, Diogo, 03/10/2026).
 
 ## 🔴 Regra de ouro

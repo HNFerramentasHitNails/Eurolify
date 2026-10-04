@@ -15,7 +15,7 @@
 
 | # | Decisão | Quem, quando | Registo |
 |---|---|---|---|
-| ✅ A | **Nenhum código até haver um plano decidido.** Avança-se para código quando o Bruno ou o Diogo o decidirem | Diogo, 03/10/2026 | [ADR-0001](adr/0001-sem-codigo-ate-plano-decidido.md) |
+| ✅ A | **Nenhum código até haver um plano decidido.** Avança-se para código quando o Bruno ou o Diogo o decidirem ⚠️ **Substituída por AE** (ADR-0023): OK para código | Diogo, 03/10/2026 | [ADR-0001](adr/0001-sem-codigo-ate-plano-decidido.md) |
 | ✅ B | **Skills, memórias e informação do Eurolify vivem neste repositório**, para o Bruno e o Diogo trabalharem em conjunto | Diogo, 03/10/2026 | `AGENTS.md`, `memoria/` |
 | ✅ C | **Requisitos de partida** (não são desenho): funcionar por API para qualquer frontend (Lovable, Vercel, Emergent, Bolt…); ter um Hub completo e adaptável; regras europeias de raiz; funcionar com qualquer IA | Diogo, 03/10/2026 | `00-proposta.md` |
 | ✅ D | **O Eurolify é desenvolvido dentro da Luckytarget Lda, com marca própria.** Nenhuma marca existente da empresa é usada no Eurolify; os sistemas actuais servem só como fonte de regras e de casos medidos | Diogo, 03/10/2026 | `AGENTS.md`, `memoria/` |
@@ -45,6 +45,7 @@
 | ✅ AB | **A chave SSH do Diogo para a VPS troca-se a 31/03/2027**, com a migração para Paris (máquina nova, chave nova); a do Bruno terá data própria | Diogo, 03/10/2026 | `11-preparacao-da-vps.md` §3.1 |
 | ✅ AC | **O ensaio fica na VPS-1 comprada até à migração para Paris** (até 31/03/2027), em vez de subir para a VPS-3 da decisão X; o plano da máquina de Paris escolhe-se com a carga medida | Diogo, 04/10/2026 | [ADR-0021](adr/0021-vps-1-ate-a-migracao.md) |
 | ✅ AD | **Três peças da Fase 2 passam para a Fase 1**: o relatório OSS com os quatro baldes (em todos os planos), o fluxo devolução → estado do artigo → reembolso → nota de crédito, e os lotes na linha expedida com os compostos. Ficam na Fase 2 a troca, a carteira, os vários armazéns, a separação e os inventários. Estimadas a 04/10/2026 (`docs/10`, C): a Fase 1 passa a 17 a 32 meses os dois a tempo inteiro e a Fase 2 a 7 a 15; o total até ao fim da Fase 3 não muda. Não é o OK para código | Diogo, 04/10/2026 | [ADR-0022](adr/0022-tres-pecas-da-fase-2-para-a-fase-1.md) |
+| ✅ AE | **OK para código** (substitui A): o código do produto, o script da VPS e a integração contínua, sempre num ramo e num pedido de alteração com as duas revisões (T); **o código de um domínio só depois de o modelo e a lista da API dele estarem escritos em tabela**. Cumpre o critério de passagem da Fase 0 (S). Como se impõem as revisões no GitHub: a decidir a seguir | Diogo, 04/10/2026 | [ADR-0023](adr/0023-ok-para-codigo.md) |
 
 ## Por decidir — por esta ordem
 

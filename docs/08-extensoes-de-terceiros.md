@@ -1,6 +1,7 @@
 # Extensões de terceiros — como qualquer programador acrescenta ao Eurolify
 
-> **Versão de 03/10/2026 — desenho, sem código (ADR-0001).** Pedido do Diogo:
+> **Versão de 03/10/2026 — desenho** (o código está autorizado desde
+> 04/10/2026, ADR-0023; o deste domínio espera por este desenho). Pedido do Diogo:
 > *«é importante que haja a possibilidade de developers de terceiros,
 > desenvolverem os seus próprios plugins, módulos, meios de pagamento, envios,
 > regras, dentro do lumavo de forma fácil»*. Registado como requisito **K** em
@@ -126,6 +127,7 @@ métodos de pagamento e de entrega.
   as próprias extensões — só li resumos.
 - Que obrigações do DSA se aplicam a uma loja de extensões pequena.
 - A caixa fechada das funções (WebAssembly) é conhecimento prévio; a escolha
-  técnica faz-se quando houver OK para código.
+  técnica faz-se ao desenhar este domínio (o OK para código foi dado a
+  04/10/2026, ADR-0023).
 - Como o Eurolify ganha dinheiro com a loja (comissão, assinatura) é a D-14, não
   estudada.

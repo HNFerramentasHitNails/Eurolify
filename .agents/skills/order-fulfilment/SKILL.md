@@ -5,7 +5,7 @@ description: Encomendas, stock e expedição no Eurolify — reserva de stock, d
 
 # Encomendas, stock e expedição
 
-> Estado: **desenho** — não há código (ADR-0001). Lições:
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Lições:
 > `docs/04-licoes-dos-sistemas-actuais.md` §3.
 
 ## Stock — as regras

@@ -249,6 +249,51 @@ Pedido do Diogo: *«sim, corrige e gera o PDF outra vez»*.
   saem numa letra de recurso (Liberation Sans, DejaVu Sans), como no PDF da
   16 (`pdffonts` página a página). Quais caracteres: **não verifiquei**.
 
+## Versão 18 (04/10/2026): mercado, financiamento, VPS-1 e decisão AD
+
+Pedido do Diogo: *«VERIFICA O QUE PODES ADICIONAR À APRESENTAÇÃO DO BRUNO E
+CILA COM ESTE PDF GERADO PELO PERPLEXITY»* e, depois da avaliação, *«sim»*
+(avaliação em [[pdf-perplexity-apresentacao-avaliado-04out2026]]).
+
+- **64 → 66 páginas.** Novas: **9** «O mercado: quantos compram na UE»
+  (450,4 M habitantes, 72 % compram online, 757 mil M€ previstos na UE-27
+  para 2026) e **54** «Financiamento: o que nos pode servir» (EIC Accelerator,
+  COMPETE 2030, SIFIDE II, Europa Digital, com uma caixa tracejada para a
+  decisão «procurar financiamento: sim/não», quem e data).
+- **Página 7:** entra 09/12/2026, produtos defeituosos (Dir. (UE) 2024/2853);
+  a grelha passou a 2025 à esquerda e 2026 à direita, sem linha a mais (o
+  espaço vazio que lá havia saiu).
+- **Acertos à VPS** (ADR-0018 a ADR-0021; até aqui a apresentação dizia
+  VPS-3 na UE): capa, 2, 26, 45, 46, 47, 52, 63 e 65. A 47 diz agora a VPS-1
+  (2 núcleos, 3,7 GiB, 40 GB, 3,81 € + IVA), no Reino Unido até Paris, e o que
+  já se fez na máquina; o «por onde o Claude chega» saiu (ADR-0020).
+- **Acertos à decisão AD** (ADR-0022) e à estimativa refeita a 04/10/2026
+  (`docs/10`): 39 (Fase 0 passa com a D-13 e a base da D-14; o tempo na 51),
+  40 (âmbito da Fase 1 com o relatório OSS, o fluxo das devoluções e os lotes),
+  49 (relatório OSS em todos os planos), 50 e 51 (A 17–32 e 31–58 meses;
+  B 18–34 e ≈ 187–506 mil €; C 13–25 e ≈ 208–565 mil €; Fase 2 7 a 15 e 13 a
+  26; exemplo: junho de 2028 a setembro de 2029) e 52 (alojamento da
+  construção ≈ 120–1.360 €; serviços ≈ 12.000–29.000 €). Os números antigos
+  ficaram nas notas de cada página.
+- Índice (3), referências cruzadas (capa, 2, 27, 39, 42, 45, 46, 49, 52, 55,
+  56, 65) e os rodapés das 66 acertados por um programa que parava se um
+  texto não aparecesse exactamente uma vez. Capa: versão 0.6 · 04/10/2026.
+- Publicada por cima da 17 (`1791067324-254e`, a mesma lida no início); a 18 é
+  a `1791074129-10d0`.
+- ⚠️ **Não desenhei nem medi a 18.** As alturas das páginas mudadas foram
+  contadas pela regra do tipo Slides; as mais apertadas pela conta são a 54
+  (≈ 810 de 920 píxeis) e a 47 (854 na v16, quando era a 46; pela minha conta
+  tem o mesmo número de linhas). **O PDF da v17 ficou desactualizado**; o
+  que o Bruno e a Cila têm é o da v15.
+- ⚠️ **Já atrasada ao publicar.** Enquanto a fazia entraram no `main` o custo
+  depois de abrir na VPS (≈ 18–70 €/mês de alojamento; B ≈ 9.940–14.230 € e
+  C ≈ 14.910–21.310 € por mês; `docs/10` §8) e o OK para código (ADR-0023,
+  decisão AE). Por acertar: 39 (a Fase 0 já passou), 50 e 52 (o «por mês,
+  depois de abrir» ainda diz «por refazer» e os valores da Scaleway), 53
+  («nada disto é o OK para código») e 65 (o passo 8). É a terceira volta de
+  páginas atrasadas no mesmo dia (VPS, decisão AD, agora AE): a apresentação
+  copia o `docs/` e nada a acerta quando ele muda.
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
