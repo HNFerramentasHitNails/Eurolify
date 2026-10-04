@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Ensaio de reposição semanal (ADR-0027, ADR-0029): descarrega a cópia mais
+# recente da Scaleway, decifra-a com a chave que está na VPS (só root), repõe-a
+# numa base temporária e confere as tabelas. Uma cópia que nunca foi reposta
+# não é uma cópia (skill observability-security).
+set -Eeuo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+carregar_config
+
+pasta=""
+temporaria="eurolify_reposicao"
+avisado=0
+# Qualquer saída com erro avisa (nunca em silêncio) e limpa sempre.
+terminar() {
+  local codigo=$?
+  [[ -n "$pasta" ]] && rm -rf "$pasta"
+  docker exec eurolify-postgres dropdb -U postgres --if-exists "$temporaria" >/dev/null 2>&1 || true
+  if ((codigo != 0 && avisado == 0)); then
+    hc REPOSICAO falhou "a reposição falhou (código $codigo); ver journalctl -u eurolify-reposicao"
+  fi
+}
+trap terminar EXIT
+
+[[ -s /etc/eurolify/age.key ]] || falhar "falta /etc/eurolify/age.key (ADR-0029)"
+rc=(rclone --config /etc/eurolify/rclone.conf)
+
+ultima="$("${rc[@]}" lsf --files-only "$S3_DESTINO" | grep -E '^eurolify-[0-9TZ]+\.dump\.age$' | sort | tail -n 1)"
+[[ -n "$ultima" ]] || falhar "não há cópias em $S3_DESTINO"
+
+# A cópia mais recente tem de ter menos de 2 dias: senão a cópia diária parou.
+data_ultima="$(sed -E 's/^eurolify-([0-9]{8})T.*/\1/' <<<"$ultima")"
+if (($(date -u +%s) - $(date -u -d "$data_ultima" +%s) > 2 * 86400)); then
+  falhar "a cópia mais recente ($ultima) tem mais de 2 dias: a cópia diária parou?"
+fi
+
+pasta="$(mktemp -d /var/lib/eurolify/trabalho/reposicao.XXXXXX)"
+
+"${rc[@]}" copyto "$S3_DESTINO/$ultima" "$pasta/$ultima"
+age -d -i /etc/eurolify/age.key -o "$pasta/copia.dump" "$pasta/$ultima"
+
+docker exec eurolify-postgres dropdb -U postgres --if-exists "$temporaria"
+docker exec eurolify-postgres createdb -U postgres "$temporaria"
+docker exec -i eurolify-postgres pg_restore -U postgres --no-owner --exit-on-error -d "$temporaria" <"$pasta/copia.dump"
+
+contar() {
+  docker exec eurolify-postgres psql -U postgres -d "$1" -Atc \
+    "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema')"
+}
+repostas="$(contar "$temporaria")"
+vivas="$(contar "$BASE_NOME")"
+texto="reposta $ultima: $repostas tabelas (na base viva: $vivas)"
+echo "$texto"
+
+if [[ "$repostas" != "$vivas" ]]; then
+  # Pode acontecer se uma migração entrou depois da cópia: avisa, não esconde.
+  hc REPOSICAO falhou "$texto — números diferentes"
+  avisado=1
+  registar "reposição: $texto — números diferentes"
+  exit 1
+fi
+registar "reposição: $texto"
+hc REPOSICAO ok "$texto"

@@ -1,0 +1,9 @@
+# Os documentos não passam pelo Prettier: a formatação deles é à mão.
+*.md
+docs/
+memoria/
+.agents/
+.claude/
+pnpm-lock.yaml
+dist/
+coverage/

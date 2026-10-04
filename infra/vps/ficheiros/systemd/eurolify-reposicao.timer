@@ -1,0 +1,9 @@
+[Unit]
+Description=Eurolify: reposição aos domingos às 04:00 UTC (ADR-0027)
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

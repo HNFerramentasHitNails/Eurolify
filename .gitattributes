@@ -1,0 +1,6 @@
+# Fim de linha LF no repositório e na cópia de trabalho, também no Windows:
+# o Prettier exige LF e o GitHub Actions corre em Linux.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary

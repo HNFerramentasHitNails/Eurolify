@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Cópia diária da base do ensaio (ADR-0027): pg_dump, cifrado com age, enviado
+# para o Scaleway Object Storage. A expiração aos 14 dias é uma regra do
+# contentor da Scaleway. Avisa o Healthchecks.io do resultado.
+set -Eeuo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+carregar_config
+
+# Qualquer saída com erro (comando falhado ou falhar) avisa: nunca em silêncio.
+terminar() {
+  local codigo=$?
+  ((codigo == 0)) || hc COPIA falhou "a cópia falhou (código $codigo); ver journalctl -u eurolify-copia"
+}
+trap terminar EXIT
+
+[[ -s /etc/eurolify/age.pub ]] || falhar "falta /etc/eurolify/age.pub"
+[[ -s /etc/eurolify/rclone.conf ]] || falhar "falta /etc/eurolify/rclone.conf"
+
+pasta=/var/lib/eurolify/copias
+install -d -m 700 "$pasta"
+carimbo="$(date -u +%Y%m%dT%H%M%SZ)"
+nome="eurolify-${carimbo}.dump.age"
+
+docker exec eurolify-postgres pg_dump -U postgres -Fc "$BASE_NOME" |
+  age -R /etc/eurolify/age.pub -o "$pasta/$nome"
+
+rclone --config /etc/eurolify/rclone.conf copyto "$pasta/$nome" "$S3_DESTINO/$nome"
+
+# Na máquina ficam só as cópias cifradas dos últimos 2 dias.
+find "$pasta" -type f -name 'eurolify-*.dump.age' -mtime +2 -delete
+
+tamanho="$(du -h "$pasta/$nome" | cut -f1)"
+registar "cópia $nome enviada ($tamanho)"
+hc COPIA ok "cópia $nome ($tamanho)"
