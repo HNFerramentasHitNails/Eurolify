@@ -148,3 +148,31 @@ de gravar, pediu três verificações; resposta final: *«sim»*.
   `ensaio` (teste no C2).
 - A conta do Bruno e a 2FA dele.
 - O passo B2 (pnpm 12.9.1) ficou à espera do OK quando esta decisão entrou.
+
+## Fase B: o computador do Diogo (Windows) — 04/10/2026
+
+### O que se fez (cada passo com o OK do Diogo)
+
+- **Node.js 24.21.0** (tinha 24.14.1, pelo winget, que só oferecia a 24.19.0):
+  instalador oficial `node-v24.21.0-x64.msi` do `nodejs.org`, conferido pela
+  soma do `SHASUMS256.txt` (`bb0eaee1…2cac`, igual), `msiexec` com código 0,
+  `node --version` = v24.21.0.
+- **pnpm 12.9.1** (tinha 11.5.2): `npm install -g pnpm@12.9.1`. O npm 11 **não
+  correu os scripts de instalação** do pnpm (`allowScripts`); o `pnpm --version`
+  responde 12.9.1. Se falhar por isso: `npm install -g --allow-scripts=pnpm
+  pnpm@12.9.1`, com OK.
+- **Docker Desktop 4.93.0** (última nas notas do Docker, 28/09/2026) instalado
+  pelo winget (soma verificada) e **desinstalado** a seguir. O Diogo perguntou
+  porque se instalava no computador e não na VPS; resposta: a VPS recebe o que
+  precisa pelo script revisto (Fase D, ADR-0028), o computador é só para
+  escrever e testar. Decisão do Diogo: *«testes com base correm só no
+  GitHub»*. Os testes com PostgreSQL correm no GitHub Actions; neste
+  computador correm o lint, os tipos e os testes sem base.
+- Já existiam: git 2.53.0, gh 2.95.0 (sessão na `HNFerramentasHitNails`),
+  WSL 2.6.3, winget 1.29.
+
+### O que ficou por verificar
+
+- Se o pnpm sem os scripts de instalação funciona em tudo (só se viu o
+  `--version`).
+- O computador do trabalho do Diogo e o Mac do Bruno não foram preparados.
