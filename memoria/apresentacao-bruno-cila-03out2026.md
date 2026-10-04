@@ -318,6 +318,39 @@ Pedido do Diogo: *«faz a v19 agora com as cinco páginas»*.
   impostas com o GitHub Pro, ≈ 4 $/mês). Não contradiz nenhuma página; o custo
   do Pro não está na 52.
 
+## PDF da versão 19 (04/10/2026)
+
+Pedido do Diogo: *«gera o PDF da v19»*. Feito como os da 16 e da 17: as 66
+páginas da versão publicada (`1791074590-acf5`, confirmada antes: o
+`deck.json` publicado e a minha cópia têm o mesmo sha256) juntas num HTML,
+desenhadas num Chromium local (Playwright 1.56.1, o do Node) a 1920×1080, com
+a Space Grotesk e a Public Sans descarregadas do Google Fonts e metidas no
+ficheiro, e a folha dos logótipos tirada do deck (asset
+`619cd0c4d7f3af9b685f2d4e16ee73e0`).
+
+- `Eurolify-apresentacao-Bruno-Cila-v19.pdf`: **66 páginas, 1440×810 pt,
+  3.273.769 bytes** (`pdfinfo`); as duas letras dentro (`pdffonts`). Entregue
+  ao Diogo na conversa; **não está no repositório**.
+- Fundo do conteúdo contra o limite de 920 píxeis: **nenhuma passa**. As mais
+  altas: capa e 5 (920, encostadas de propósito), 49 (909), 3 (897), 65 (877),
+  6 (861), 47 (849). As novas: 9 → 724, 54 → 763. Nenhuma passa à direita de
+  1792.
+- Na 39 as quatro setas «→» entre as fases são mais largas do que a caixa de
+  24 píxeis (32 de largura); vêm de versões anteriores e não as mexi.
+- Letra de recurso (Liberation Sans, DejaVu Sans) em 12 páginas — 6, 12, 27,
+  30, 31, 32, 39, 40, 46, 50, 51 e 52 — só para «→», «↓», «⇄» e «≈»
+  (`pdffonts` e `pdftotext` página a página). A 40 é nova: a seta da linha das
+  devoluções que entrou na v18.
+- ⚠️ Os estilos de tabela e de lista continuam a ser imitação minha (regras de
+  1 px nas quatro faces e enchimento de 0,35em 0,6em, como diz a referência
+  do tipo Slides; a cor da regra e a altura de linha são minhas): as medidas
+  **não se comparam** com as dos PDF anteriores, e o PDF do botão de exportar
+  do deck pode sair diferente.
+- Vistas em imagem: 7, 9, 39, 47, 50, 52, 54, 59 e 65. As outras 57, não.
+- Ao gerar, o `main` já tinha decisões que a v19 não traz (ADR-0025 a
+  ADR-0028: a publicação no ensaio pelo GitHub por SSH, as cópias e os alertas
+  do ensaio, a VPS operada pelo GitHub). Não verifiquei que páginas tocam.
+
 ## Versão 20 (04/10/2026): o GitHub Pro nas subscrições
 
 Pedido do Diogo: *«sim, põe e faz a v20»* (pôr os US$ 4/mês do GitHub Pro,
@@ -337,6 +370,7 @@ decisão AF, no `docs/10` §8 e na página 52).
   acaba à mesma altura antes e depois (50: 683 px; 52: 781 px; o limite é 920).
 - Publicada por cima da 19 (`1791074590-acf5`); a 20 é a `1791076976-574b`,
   confirmada lendo de volta as duas páginas.
+- O PDF da v19 (secção acima) ficou com os números antigos da 50 e da 52.
 
 ## O que ficou por verificar
 
