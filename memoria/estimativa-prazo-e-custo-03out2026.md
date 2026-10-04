@@ -38,6 +38,10 @@
 
 ## Números (com data e como se contaram)
 
+> ⚠️ **04/10/2026:** a decisão AD (ADR-0022) passou três peças da Fase 2 para a
+> Fase 1 (relatório OSS, núcleo das devoluções, lotes e compostos). Os números
+> abaixo **não as incluem**; estão no `docs/10` como «por estimar».
+
 - Esforço da Fase 1: **92–155 pessoas-semana**, **≈ 106–202** com imprevistos
   (+15 % / +30 %). Julgamento meu, peça a peça — **C**, sem medição.
 - Conversão (**C**): 44 semanas produtivas por pessoa e ano; 2 pessoas rendem
