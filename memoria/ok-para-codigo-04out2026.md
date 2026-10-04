@@ -329,3 +329,20 @@ também na VPS). Resposta do Diogo: *«b»*. Só para o ensaio.
 - A revisão do agente ao #10 (sessão nova, Sonnet) deu 0 P0, 3 P1, 12 P2;
   corrigidos os 3 P1 e 9 P2 no commit `2acc97f`, com os testes verdes; os P2
   que ficam estão no `infra/vps/LEIA-ME.md`.
+
+## O #10 no `main` e a regra a exigir os testes (04/10/2026)
+
+Com o OK do Diogo (*«sim»*) aos quatro passos mostrados:
+
+| Passo | Resultado | Comando |
+|---|---|---|
+| Ambiente `ensaio`, só o `main` | criado: `custom_branch_policies: true`, política `main` (branch) — antes de os fluxos o referirem, para não nascer sem restrição | `gh api -X PUT …/environments/ensaio`; `POST …/deployment-branch-policies` |
+| Regra sem a revisão dos donos (ADR-0031) | `require_code_owner_review: false`, 0 aprovações | `PUT …/rulesets/24437624` |
+| #10 juntado | `3f5bd6a` (squash) | `gh pr merge 10 --squash --delete-branch` |
+| Regra a exigir os testes | `required_status_checks`: `codigo`, `script-vps`, `imagem` | `PUT …/rulesets/24437624` |
+
+- Juntar o #10 disparou o `publicar` e o `aplicar-script` no `main`: esperado
+  que falhem no passo SSH (sem chaves nem `VPS_ENDERECO` até à Fase D), sem
+  tocar na VPS. O `publicar` envia a primeira imagem para o GHCR.
+- Este pedido (só memória) é a prova de que um pedido de documentos corre os
+  testes e só depois se junta.
