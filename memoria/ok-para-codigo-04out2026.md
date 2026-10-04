@@ -234,3 +234,21 @@ de gravar, pediu três verificações; resposta final: *«sim»*.
 - O peso que os 7.506 ficheiros deixam no histórico (o tamanho do GitHub
   ainda dava 785 KB, valor que actualiza com atraso). Tirá-los do histórico
   exige reescrevê-lo (`push --force`): decisão do Diogo.
+
+## A regra do `main` ligada e o Bruno convidado (04/10/2026, 01:16 UTC)
+
+Com o OK do Diogo (*«sim»*) aos dois comandos mostrados:
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| Convite ao `bruno-88` | enviado, permissão `write`, 01:16:27 UTC; por aceitar | `gh api -X PUT …/collaborators/bruno-88 -f permission=push` |
+| Regra do `main` | *ruleset* `24437624` «main protegido (ADR-0024)», `active`, **sem excepções** (`bypass_actors: []`) | `gh api -X POST …/rulesets --input regra.json` |
+| O que se aplica ao `main` | `deletion`, `non_fast_forward`, `pull_request` (0 aprovações, revisão dos donos obrigatória, aprovação depois do último `push`, aprovações antigas caem com um `push`, só `squash`; o GitHub acrescentou `require_extra_approval_for_unattributed_changes: true`) | `gh api …/rules/branches/main` |
+
+### O que ficou por verificar
+
+- ~~Que um `push` directo ao `main` é recusado~~ → **recusado**: `GH013: Repository rule violations found for refs/heads/main` (teste do Claude, conta de administrador, 04/10/2026).
+- A aceitação do convite e a 2FA do Bruno; até lá, nenhum pedido de código
+  entra.
+- A verificação obrigatória `codigo` (o fluxo `verificar`) só se acrescenta à
+  regra depois de o fluxo estar no `main`.
