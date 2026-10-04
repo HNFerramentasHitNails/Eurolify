@@ -21,14 +21,16 @@
 
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
-| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 32 meses** os dois a tempo inteiro, **31 a 58** a meio tempo (§9, com hipótese C; recalculado a 04/10/2026 com as três peças da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
-| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 189.000–510.000 €** (era ≈ 173.000–465.000) | ≈ 10.150–14.870 € |
-| **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 210.000–569.000 €** (era ≈ 193.000–519.000) | ≈ 15.110–21.950 € |
+| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 32 meses** os dois a tempo inteiro, **31 a 58** a meio tempo (§9, com hipótese C; recalculado a 04/10/2026 com as três peças da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
+| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | ≈ 10.150–14.870 € |
+| **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) | ≈ 15.110–21.950 € |
 
 **Desde 04/10/2026, os três cenários (aqui, no §4 e no §9) contam as três
 peças que a decisão AD (ADR-0022) passou da Fase 2 para a Fase 1** (peças 18 a
 20 do §2); os valores antigos ficam entre parênteses. Os serviços externos (§5)
-e o custo fixo por mês depois de abrir não dependem do âmbito e não mudaram.
+baixaram no mesmo dia, com o alojamento da construção contado na VPS da OVH.
+O custo fixo por mês depois de abrir **ainda está contado para a Scaleway
+gerida** (≈ 234–710 €/mês de alojamento) e não foi recalculado para a VPS.
 
 **Não estão nos números** (e não os invento): contabilista, jurista e seguro
 (orçamentos a pedir), recrutamento, o tempo do Diogo e do Bruno, quem atende os
@@ -107,8 +109,8 @@ que o topo deste intervalo.
 | Construção | 17,6 a 33,7 meses (era 16,0 a 30,5) | 13,2 a 25,3 meses (era 12,0 a 22,9) |
 | Pessoas | 167.600–463.400 € (era 152.700–420.000) | 188.600–521.300 € (era 171.800–472.600) |
 | Claude (US$ 200 × pessoas × meses, contado 1 US$ = 1 € por cima) | 7.000–13.500 (era 6.400–12.200) | 7.900–15.200 (era 7.200–13.700) |
-| Serviços externos com preço (§5) | 14.000–33.000 | 14.000–33.000 |
-| **Total com preço** | **≈ 189.000–510.000 €** (era ≈ 173.000–465.000) | **≈ 210.000–569.000 €** (era ≈ 193.000–519.000) |
+| Serviços externos com preço (§5) | 12.000–29.000 (era 14.000–33.000) | 12.000–29.000 (era 14.000–33.000) |
+| **Total com preço** | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) |
 | Sai por mês, em pessoas | 9.500–13.800 € | 14.300–20.600 € |
 
 **Antes de começar:** contratar leva tempo — **1 a 3 meses** para um sénior
@@ -129,10 +131,36 @@ lado se está.
 | Teste de intrusão de uma plataforma multi-inquilino | **5.950–8.500 €** cada (7 a 10 dias a 849 €/dia); conto um ou dois ⇒ 5.950–17.000 € | **W**, [Budget Security](https://budgetsecurity.com/blog/web-application-penetration-testing-cost/), 20/07/2026 |
 | Auditoria de acessibilidade (a Lei Europeia da Acessibilidade obriga as lojas online desde 28/06/2025) | **5.000–10.000 €** para um sítio pequeno, manual | **W**, resumo de pesquisa — fonte fraca, preços sobretudo britânicos e americanos |
 | Marca da UE na EUIPO, 3 classes | **1.050 €** (850 € a 1.ª, 50 € a 2.ª, 150 € a 3.ª) | **W**, resumos ([ds.solutions](https://ds.solutions/en/eu-trademark-cost/)); a página da EUIPO deu 403. As classes (9, 35, 42) são escolha minha, **C** |
-| Alojamento durante a construção (ensaio e, nos últimos meses, produção ≈ 234 €/mês, contado para a Scaleway gerida; com a VPS do ADR-0015, **não recalculado**) | **2.000–5.000 €** | **C**, a partir de `memoria/alojamento-e-custos-03out2026.md` |
+| Alojamento durante a construção, na OVH (recalculado a 04/10/2026; era 2.000–5.000 €, contado para a Scaleway gerida a ≈ 234 €/mês) — conta abaixo | **≈ 120–1.360 €** | preços **W** (página portuguesa da OVH, 03/10/2026, sem IVA, «a partir de»); meses e planos **C** |
 | Contabilista: validar o motor de IVA antes do primeiro comerciante de fora | **orçamento a pedir** | — |
 | Jurista: checkout e livre resolução, contrato com limites, acordo de tratamento de dados, Data Act, margem sobre pagamentos | **orçamento a pedir** | — |
 | Seguro de responsabilidade civil profissional e ciber | **orçamento a pedir** — há produtos de entrada desde 404 €/ano, mas com capitais que não servem a uma plataforma que trata faturas de outras empresas | **W** ([Santander](https://www.santander.pt/empresas/seguros/seguro-protecao-empresas-cyber)) |
+
+**Como se contou o alojamento da construção** (04/10/2026). Preços da OVH sem
+IVA, «a partir de» (`11-preparacao-da-vps.md` §2 e ADR-0021): VPS-1 3,81 €,
+VPS-2 7,21 €, VPS-3 10,40 €, VPS-4 19,96 € por mês.
+
+- **Ensaio, até à migração para Paris:** a VPS-1 comprada, 6 meses (outubro de
+  2026 a março de 2027; ADR-0019, ADR-0021).
+- **Ensaio, em Paris, até ao fim da construção:** entre uma VPS-2 e uma VPS-4
+  (**C**: o plano escolhe-se com a carga medida; a VPS-1 já é apertada).
+- **Produção nos últimos meses** (**C**): 3 meses numa VPS-3 sem segunda
+  máquina da base, a 6 meses numa VPS-4 com uma segunda VPS-4 para a base
+  (as duas decisões estão por tomar no `11-preparacao-da-vps.md` §7).
+- **Meses até ao fim da construção** = o que falta da Fase 0 (1–3) + a
+  contratação nos cenários B e C (1–3) + a construção (§4 e §9):
+
+| Cenário | Meses | Alojamento |
+|---|---|---|
+| A, os dois a tempo inteiro | 18–35 | ≈ 140–840 € |
+| A, cada um a meio tempo | 32,5–61 | ≈ 250–1.360 € |
+| B | 19,6–39,7 | ≈ 150–940 € |
+| C | 15,2–31,3 | ≈ 120–770 € |
+
+**Não está contado:** as cópias fora da máquina (preço **não verificado**,
+`11-preparacao-da-vps.md` §8), o IVA, e as condições do preço «a partir de»
+(a página irlandesa, lida por resumo, fala de 12 meses adiantados). Mesmo que
+dupliquem o valor, a linha dos serviços externos mexe pouco.
 
 **Cenário A — porque não lhe dava prazo** (a pedido do Diogo, ficou estimado no §9, com a hipótese escrita). O Hub interno mostra o que o Bruno e,
 desde julho de 2026, também o Diogo constroem com o agente do Lovable e o
