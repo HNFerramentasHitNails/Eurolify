@@ -31,3 +31,11 @@ Ensaio local a 04/10/2026, PostgreSQL 18.6 em Docker com o nome `eurolify-postgr
 - A corrida na VPS a sério (depois de juntar, no registo do `aplicar-script`) e a primeira migração lá (na publicação seguinte).
 - Uma base `eurolify` que já tivesse tabelas do `postgres` antes de mudar de dono (na VPS está vazia: a publicação de 04/10/2026 disse «nenhuma migração aplicada»).
 - A memória da VPS (`vps-operada-por-nos-03out2026.md`) ganha uma linha quando o passo correr lá.
+
+## Os 4 P2 da revisão do `63cadd6` (#71), a pedido do Diogo (*«sim, corrige os 4 P2 e manda rever»*)
+
+- **P2-1:** o stderr do psql (que vai para o registo do fluxo no GitHub) passa por um `sed` que mascara `PASSWORD '…'`. Medido: um erro com posição mostra `PASSWORD '***'`; com as duas linhas `SET` do script, 0 ocorrências no registo da base.
+- **P2-2:** «já está» só se a ligação do `migrar.env` **entra** de facto: um contentor na rede `eurolify` liga-se como o migrador, com a palavra-passe pelo ambiente do cliente docker (dentro do contentor da base, `127.0.0.1` entra sem palavra-passe — `pg_hba` da imagem). Medido: palavra-passe mudada à mão → o passo renova-a (1 alteração), depois 0.
+- **P2-3:** aviso se o `eurolify_api` tiver `LOGIN`. Medido: 1 aviso.
+- **P2-4:** o ficheiro temporário com a palavra-passe apaga-se se o script morrer a meio (trap de saída com uma variável global: com uma local, o `set -u` parava o trap e o ficheiro ficava — medido antes de corrigir). Medido com o `mv` a falhar: 0 temporários; a corrida seguinte repara.
+- O `eurolify-publicar` diz «passos 10 e 10b» quando falta o `migrar.env`.
