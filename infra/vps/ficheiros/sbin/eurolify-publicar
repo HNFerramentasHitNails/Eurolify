@@ -109,10 +109,16 @@ fi
 # As migrações correm antes de trocar; se falharem, fica a versão anterior.
 # Se o /health falhar depois, volta-se à imagem anterior com o esquema já
 # migrado: por isso as migrações têm de ser compatíveis com a versão anterior
-# (acrescentar primeiro, tirar só numa publicação seguinte).
+# (acrescentar primeiro, tirar só numa publicação seguinte). O migrador lê o
+# migrar.env (a ligação do dono das tabelas), que a API nunca recebe.
 if docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
   echo "A correr as migrações"
-  docker run --rm --network eurolify --env-file /etc/eurolify/api.env "$imagem" node dist/migrar.js ||
+  [[ -f /etc/eurolify/migrar.env ]] || falhar "falta /etc/eurolify/migrar.env (preparar.sh, passo 10)"
+  # As mesmas protecções da API: é o contentor com a ligação mais poderosa
+  # (revisão do #43, P2-5 do 36e8778).
+  docker run --rm --network eurolify --env-file /etc/eurolify/migrar.env \
+    --memory 512m --cap-drop ALL --security-opt no-new-privileges \
+    "$imagem" node dist/migrar.js ||
     falhar "a migração falhou: fica a versão anterior (${anterior:-nenhuma})"
 else
   echo "Sem migrações nesta imagem."

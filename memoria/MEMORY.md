@@ -17,6 +17,7 @@
 ## Código e revisão
 
 - [OK para código (AE, ADR-0023): só por PR com as duas revisões, domínio só depois do desenho; revisões impostas com o GitHub Pro na conta pessoal (AF, ADR-0024), Codex automático, Bruno precisa de conta — 04/10/2026](ok-para-codigo-04out2026.md)
+- [Fatia 2 (Comerciante), código: migração 0001 com RLS forçado e eurolify_api sem BYPASSRLS, estados e activação na base, Kysely 0.29 (Migrator em kysely/migration), 21 testes contra PostgreSQL 18.6 local por Docker — 04/10/2026](fatia-2-comerciante-codigo-04out2026.md)
 
 ## Alojamento e VPS
 

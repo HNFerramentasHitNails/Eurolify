@@ -31,6 +31,8 @@ COPY --from=dependencias /app/node_modules ./node_modules
 COPY --from=dependencias /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=dependencias /app/apps/mcp/node_modules ./apps/mcp/node_modules
 COPY --from=construir /app/apps/api/dist ./apps/api/dist
+# As migrações em SQL vão ao lado do dist/: o dist/migrar.js lê-as de ../migracoes.
+COPY apps/api/migracoes ./apps/api/migracoes
 COPY --from=construir /app/apps/mcp/dist ./apps/mcp/dist
 COPY apps/api/package.json ./apps/api/
 COPY apps/mcp/package.json ./apps/mcp/
