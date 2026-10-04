@@ -916,6 +916,18 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         await migrador.destroy();
       }
     } finally {
+      // O pool do migrador fecha a ligação sem esperar que o servidor a
+      // largue; um DROP … WITH (FORCE) nesse intervalo termina-a (57P01) e o
+      // cliente, já a fechar, lança um erro que ninguém apanha (falhou assim
+      // no CI do main, 04/10/2026). Espera-se que a ligação desapareça.
+      for (let i = 0; i < 100; i++) {
+        const { rows } = await admin.query<{ n: number }>(
+          "select count(*)::int as n from pg_stat_activity where usename = $1",
+          [papel],
+        );
+        if ((rows[0]?.n ?? 0) === 0) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
       await admin.query(`DROP DATABASE IF EXISTS ${nome} WITH (FORCE)`);
       await admin.query(`DROP ROLE IF EXISTS ${papel}`);
       await admin.end();
