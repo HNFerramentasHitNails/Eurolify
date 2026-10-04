@@ -44,6 +44,9 @@ de»*, sem IVA:
   [ADR-0019](adr/0019-fim-da-vps-no-reino-unido.md)). Paris não está na
   lista dos centros das VPS; a 03/10/2026, 23:10 UTC, todos os 11 estavam
   esgotados para o VPS-3 (API pública da OVH).
+- ⚠️ **A máquina comprada é uma VPS-1**, não a VPS-3 do ADR-0017: 2 núcleos,
+  3,7 GiB de memória, 40 GB de disco (medido a 03/10/2026; confirmado na
+  consola pelo Diogo a 04/10/2026). Ficar com ela ou subir: por decidir.
 - **Tudo o que se instala sai do script** (§3), para que a migração seja
   correr o mesmo script em Paris e repor a base.
 - **Cópias fora da máquina**: num armazenamento na UE, noutro sítio que não a

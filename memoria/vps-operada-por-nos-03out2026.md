@@ -353,3 +353,29 @@ diferente da do Diogo.
   oferece uma consola com entrada sem SSH, e se aceita essa palavra-passe, **não
   verifiquei**. Mudá-la, ou bloqueá-la, é decisão do Diogo.
 - Firewall (`ufw`): continua `inactive`; só o script a liga.
+
+## É mesmo uma VPS-1, não a VPS-3 da decisão X (04/10/2026)
+
+Confirmado pelo Diogo na consola da OVH, 04/10/2026: *«é mesmo a vps 1»*. A
+medição da secção «Primeiro acesso» (2 núcleos, 3,7 GiB, 40 GB) bate com isso.
+**A decisão X (ADR-0017, VPS-3) não se cumpriu na compra.** Porquê (escolha, ou
+só havia a VPS-1 no Reino Unido): não perguntei.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Fonte e como |
+|---|---|---|
+| Preço «a partir de», sem IVA | VPS-1 3,81 €/mês (2 vCores, 4 GB); VPS-3 10,40 €/mês (6 vCores, 12 GB, 100 GB) | página portuguesa da OVH, 03/10/2026 (secção «Números» do início desta memória) |
+| Disponibilidade da VPS-1 e da VPS-3 | as duas `out-of-stock` nos 11 centros, incluindo o `UK` | `eu.api.ovh.com/v1/vps/order/rule/datacenter`, `vps-2025-model1` e `vps-2025-model3`, PT, 04/10/2026 00:01 UTC |
+
+A VPS-1 do Diogo foi comprada no `UK` minutos antes de a API a dar esgotada
+ali: **não sei se este indicador da API corresponde ao que a página de compra
+mostra.**
+
+### O que ficou por verificar
+
+- Se a OVH deixa subir a VPS-1 para a VPS-3 sem reinstalar, e a que preço.
+- Se a VPS-1 chega para o ensaio: memória 3,7 GiB sem swap; a Coolify pede no
+  mínimo 2 GB; PostgreSQL, API, Hub e construções das imagens na mesma máquina
+  não foram medidos (**C**).
+- As contas de custo que usam os 10,40 € da VPS-3.
