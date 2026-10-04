@@ -1,14 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import { decidir } from "../src/regras/decidir.js";
+import { instante } from "../src/regras/instante.js";
 import { REGISTO_INICIAL } from "../src/regras/registo.js";
 import {
   CODIGOS_UE,
+  DOMINIOS_CONDICIONAIS,
   DOMINIOS_OBRIGATORIOS,
+  type PedidoDecisao,
   type PerfilPais,
   type Regra,
   type Registo,
 } from "../src/regras/tipos.js";
+import { errosDoRegisto } from "../src/regras/validar.js";
 
 // Regras e perfis de TESTE: os URL e os artigos são inventados de propósito e
 // nunca entram no registo real (nenhuma taxa nem prazo de verdade aqui).
@@ -38,8 +42,15 @@ function regraTeste(parcial: Partial<Regra> & Pick<Regra, "id">): Regra {
   };
 }
 
-/** Registo de teste: Portugal com o consumidor verificado. */
-function registoComPortugal(regras: Regra[], versao = 2): Registo {
+/**
+ * Registo de teste: Portugal com o consumidor verificado; com `territorios`,
+ * esses territórios ficam mapeados.
+ */
+function registoComPortugal(
+  regras: Regra[],
+  versao = 2,
+  territorios: readonly string[] | null = null,
+): Registo {
   return {
     versao,
     regras,
@@ -48,11 +59,17 @@ function registoComPortugal(regras: Regra[], versao = 2): Registo {
         ? {
             ...perfil,
             dominios: { ...perfil.dominios, consumidor: VERIFICADO },
+            territorios,
           }
         : perfil,
     ),
   };
 }
+
+const TODOS_OS_DOMINIOS = [
+  ...DOMINIOS_OBRIGATORIOS,
+  ...DOMINIOS_CONDICIONAIS,
+] as const;
 
 const AGORA = "2026-10-04T12:00:00Z";
 
@@ -78,22 +95,42 @@ describe("registo de partida", () => {
     }
   });
 
-  it("com ele, nenhuma combinação dos 27 sai permitida", () => {
+  it("com ele, nenhuma combinação dos 27 sai permitida (11 domínios, e cada um)", () => {
     for (const pais of CODIGOS_UE) {
       const decisao = decidir(REGISTO_INICIAL, {
         pais,
-        dominios: DOMINIOS_OBRIGATORIOS,
+        dominios: TODOS_OS_DOMINIOS,
         momento: AGORA,
       });
       expect(decisao.estado).toBe("revisao_necessaria");
-      expect(decisao.motivos).toHaveLength(DOMINIOS_OBRIGATORIOS.length);
+      expect(decisao.motivos).toHaveLength(TODOS_OS_DOMINIOS.length);
+      for (const dominio of TODOS_OS_DOMINIOS) {
+        expect(
+          decidir(REGISTO_INICIAL, {
+            pais,
+            dominios: [dominio],
+            momento: AGORA,
+          }).estado,
+        ).not.toBe("permitido");
+      }
     }
+  });
+
+  it("é coerente e está congelado (mudar é uma versão nova)", () => {
+    expect(errosDoRegisto(REGISTO_INICIAL)).toEqual([]);
+    expect(Object.isFrozen(REGISTO_INICIAL)).toBe(true);
+    expect(Object.isFrozen(REGISTO_INICIAL.paises)).toBe(true);
+    const portugal = REGISTO_INICIAL.paises.find((p) => p.codigo === "PT");
+    expect(portugal && Object.isFrozen(portugal.dominios)).toBe(true);
+    expect(() => {
+      (REGISTO_INICIAL as { versao: number }).versao = 2;
+    }).toThrow(TypeError);
   });
 });
 
 describe("decidir", () => {
   it("país fora dos 27 é recusado (Suíça, Reino Unido, código EL)", () => {
-    for (const pais of ["CH", "GB", "EL", "pt", ""]) {
+    for (const pais of ["CH", "GB", "EL"]) {
       const decisao = decidir(REGISTO_INICIAL, {
         pais,
         dominios: ["consumidor"],
@@ -104,13 +141,72 @@ describe("decidir", () => {
     }
   });
 
-  it("momento inválido é recusado, não tratado como agora", () => {
-    const decisao = decidir(REGISTO_INICIAL, {
+  it("código de país mal escrito é recusado com o motivo certo, sem normalizar", () => {
+    for (const pais of ["pt", "", "PRT", "P1"]) {
+      const decisao = decidir(REGISTO_INICIAL, {
+        pais,
+        dominios: ["consumidor"],
+        momento: AGORA,
+      });
+      expect(decisao.estado).toBe("recusado");
+      expect(decisao.motivos).toEqual([
+        { codigo: "codigo_pais_invalido", pais },
+      ]);
+    }
+  });
+
+  it("momento que não é ISO 8601 com fuso é recusado, não interpretado", () => {
+    for (const momento of [
+      "ontem",
+      "1",
+      "10/04/2026",
+      "2026-10-04",
+      "2026-10-04T12:00:00",
+      "2026-02-30T00:00:00Z",
+      "2026-13-01T00:00:00Z",
+      "2026-10-04T24:00:00Z",
+    ]) {
+      const decisao = decidir(REGISTO_INICIAL, {
+        pais: "PT",
+        dominios: ["consumidor"],
+        momento,
+      });
+      expect(decisao.motivos).toEqual([
+        { codigo: "momento_invalido", momento },
+      ]);
+      expect(decisao.estado).toBe("recusado");
+    }
+  });
+
+  it("lista de domínios vazia é recusada, nunca permitida (revisão do #37, P0-1)", () => {
+    const vazio = {
       pais: "PT",
-      dominios: ["consumidor"],
-      momento: "ontem",
+      dominios: [],
+      momento: AGORA,
+    } as unknown as PedidoDecisao;
+    for (const registo of [
+      REGISTO_INICIAL,
+      registoComPortugal([regraTeste({ id: "pt-consumidor-1" })]),
+    ]) {
+      expect(decidir(registo, vazio)).toEqual({
+        estado: "recusado",
+        regrasAplicadas: [],
+        versaoRegisto: registo.versao,
+        motivos: [{ codigo: "sem_dominios" }],
+      });
+    }
+  });
+
+  it("domínio desconhecido vindo de fora é recusado, não rebenta", () => {
+    const pedido = {
+      pais: "PT",
+      dominios: ["inexistente"],
+      momento: AGORA,
+    } as unknown as PedidoDecisao;
+    expect(decidir(REGISTO_INICIAL, pedido)).toMatchObject({
+      estado: "recusado",
+      motivos: [{ codigo: "dominio_desconhecido", dominio: "inexistente" }],
     });
-    expect(decisao.estado).toBe("recusado");
   });
 
   it("domínio verificado com regra em vigor sai permitido, com a regra e a versão", () => {
@@ -224,6 +320,82 @@ describe("decidir", () => {
     expect(decisao.regrasAplicadas).toEqual([]);
   });
 
+  it("território mapeado com regra desse território sai permitido", () => {
+    const registo = registoComPortugal(
+      [regraTeste({ id: "pt-20-consumidor", territorios: ["PT-20"] })],
+      2,
+      ["PT-20"],
+    );
+    expect(errosDoRegisto(registo)).toEqual([]);
+    const decisao = decidir(registo, {
+      pais: "PT",
+      territorio: "PT-20",
+      dominios: ["consumidor"],
+      momento: AGORA,
+    });
+    expect(decisao.estado).toBe("permitido");
+    expect(decisao.regrasAplicadas).toEqual(["pt-20-consumidor@1"]);
+  });
+
+  it("território mapeado só com a regra do continente pede revisão (não herda)", () => {
+    const registo = registoComPortugal(
+      [regraTeste({ id: "pt-continente" })],
+      2,
+      ["PT-20"],
+    );
+    const decisao = decidir(registo, {
+      pais: "PT",
+      territorio: "PT-20",
+      dominios: ["consumidor"],
+      momento: AGORA,
+    });
+    expect(decisao.motivos).toEqual([
+      { codigo: "sem_regra_em_vigor", dominio: "consumidor" },
+    ]);
+  });
+
+  it("só domínios «não aplicáveis» não chegam para permitir", () => {
+    const registo: Registo = {
+      ...REGISTO_INICIAL,
+      paises: REGISTO_INICIAL.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? {
+              ...perfil,
+              dominios: {
+                ...perfil.dominios,
+                agencia_comercial: {
+                  estado: "nao_aplicavel",
+                  justificacao: "sem agentes (teste)",
+                  prova: "teste",
+                  revistoPor: "teste",
+                },
+              },
+            }
+          : perfil,
+      ),
+    };
+    const decisao = decidir(registo, {
+      pais: "PT",
+      dominios: ["agencia_comercial"],
+      momento: AGORA,
+    });
+    expect(decisao.estado).toBe("revisao_necessaria");
+    expect(decisao.motivos).toEqual([{ codigo: "sem_regra_aplicada" }]);
+  });
+
+  it("uma regra com data sem fuso não conta (não depende do fuso do servidor)", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "pt-sem-fuso", aplicaDesde: "2020-01-01T00:00:00" }),
+    ]);
+    expect(
+      decidir(registo, { pais: "PT", dominios: ["consumidor"], momento: AGORA })
+        .estado,
+    ).toBe("revisao_necessaria");
+    expect(errosDoRegisto(registo)).toContain(
+      "pt-sem-fuso@1: aplicaDesde inválido «2020-01-01T00:00:00»",
+    );
+  });
+
   it("um domínio aprovado não aprova os outros", () => {
     const registo = registoComPortugal([regraTeste({ id: "pt-consumidor-1" })]);
     const decisao = decidir(registo, {
@@ -278,26 +450,125 @@ describe("decidir", () => {
     expect(decisao.estado).toBe("permitido");
   });
 
-  it("uma versão nova do registo não reescreve uma decisão já tomada", () => {
-    const v2 = registoComPortugal([regraTeste({ id: "pt-consumidor-1" })], 2);
-    const tomada = decidir(v2, {
+  it("cada decisão diz a versão do registo que a tomou", () => {
+    const pedido = {
       pais: "PT",
       dominios: ["consumidor"],
       momento: AGORA,
-    });
-    const copia = structuredClone(tomada);
+    } as const;
+    const v2 = decidir(
+      registoComPortugal([regraTeste({ id: "pt-consumidor-1" })], 2),
+      pedido,
+    );
+    const v3 = decidir(registoComPortugal([], 3), pedido);
+    expect([v2.versaoRegisto, v2.estado]).toEqual([2, "permitido"]);
+    expect([v3.versaoRegisto, v3.estado]).toEqual([3, "revisao_necessaria"]);
+  });
+});
 
-    const v3 = registoComPortugal([], 3);
-    const nova = decidir(v3, {
-      pais: "PT",
-      dominios: ["consumidor"],
-      momento: AGORA,
-    });
+describe("instante", () => {
+  it("lê ISO 8601 com fuso e o mesmo instante com fusos diferentes", () => {
+    expect(instante("2026-10-04T12:00:00Z")).toBe(Date.UTC(2026, 9, 4, 12));
+    expect(instante("2026-10-04T14:00:00+02:00")).toBe(
+      Date.UTC(2026, 9, 4, 12),
+    );
+    expect(instante("2024-02-29T00:00:00.500Z")).toBe(
+      Date.UTC(2024, 1, 29, 0, 0, 0, 500),
+    );
+  });
 
-    expect(tomada).toEqual(copia);
-    expect(tomada.versaoRegisto).toBe(2);
-    expect(nova.versaoRegisto).toBe(3);
-    expect(nova.estado).toBe("revisao_necessaria");
+  it("recusa o resto", () => {
+    for (const texto of [
+      "",
+      "2025-02-29T00:00:00Z",
+      "2026-10-04T12:00Z",
+      " 2026-10-04T12:00:00Z",
+    ]) {
+      expect(instante(texto)).toBeNull();
+    }
+  });
+});
+
+describe("validar o registo", () => {
+  it("lista todos os problemas de um registo incoerente", () => {
+    const base = registoComPortugal([
+      regraTeste({ id: "a", aplicaDesde: "lixo" }),
+      regraTeste({
+        id: "b",
+        aplicaDesde: "2026-01-01T00:00:00Z",
+        aplicaAte: "2025-01-01T00:00:00Z",
+      }),
+      regraTeste({ id: "c", estadoLegal: "revogada" }),
+      regraTeste({ id: "d" }),
+      regraTeste({ id: "d" }),
+      regraTeste({ id: "e", versao: 1 }),
+      regraTeste({ id: "e", versao: 2 }),
+      regraTeste({ id: "f", dominio: "iva" }),
+      regraTeste({ id: "g", territorios: ["PT-20"] }),
+    ]);
+    const erros = errosDoRegisto(base);
+    expect(erros).toEqual(
+      expect.arrayContaining([
+        "a@1: aplicaDesde inválido «lixo»",
+        "b@1: aplicaAte não é depois de aplicaDesde",
+        "c@1: revogada sem aplicaAte",
+        "d@1: repetida",
+        "e: as versões 1 e 2 valem ao mesmo tempo",
+        "f@1: o domínio iva de PT não está verificado",
+        "g@1: território PT-20 não mapeado em PT",
+      ]),
+    );
+  });
+
+  it("versões da mesma regra em sequência são coerentes", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "e", versao: 1, aplicaAte: "2026-01-01T00:00:00Z" }),
+      regraTeste({ id: "e", versao: 2, aplicaDesde: "2026-01-01T00:00:00Z" }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([]);
+  });
+
+  it("um país em falta ou a mais é erro", () => {
+    const semPortugal: Registo = {
+      ...REGISTO_INICIAL,
+      paises: REGISTO_INICIAL.paises.filter((p) => p.codigo !== "PT"),
+    };
+    expect(errosDoRegisto(semPortugal)).toContain("país PT aparece 0 vezes");
+  });
+
+  it("a aplicação não arranca com um registo incoerente", () => {
+    const invalido = registoComPortugal([
+      regraTeste({ id: "c", estadoLegal: "revogada" }),
+    ]);
+    expect(() => criarApp({}, invalido)).toThrow(/revogada sem aplicaAte/);
+  });
+});
+
+describe("GET /paises com um domínio verificado", () => {
+  it("mostra o estado, mas não quem reviu nem quando", async () => {
+    const app = criarApp(
+      {},
+      registoComPortugal([regraTeste({ id: "pt-consumidor-1" })]),
+    );
+    try {
+      const resposta = await app.inject({ method: "GET", url: "/paises" });
+      expect(resposta.statusCode).toBe(200);
+      const corpo = resposta.json<{
+        paises: {
+          codigo: string;
+          nome: string;
+          dominios: Record<string, string>;
+        }[];
+      }>();
+      const portugal = corpo.paises.find((p) => p.codigo === "PT");
+      expect(portugal?.nome).toBe("Portugal");
+      expect(portugal?.dominios["consumidor"]).toBe("verificado");
+      expect(resposta.body).not.toContain("revistoPor");
+      expect(resposta.body).not.toContain("verificadoEm");
+      expect(resposta.body).not.toContain("teste");
+    } finally {
+      await app.close();
+    }
   });
 });
 
@@ -327,6 +598,7 @@ describe("GET /paises", () => {
     expect(corpo.versaoRegisto).toBe(1);
     expect(corpo.paises).toHaveLength(27);
     for (const pais of corpo.paises) {
+      expect(Object.keys(pais.dominios)).toHaveLength(11);
       expect(pais.territoriosMapeados).toBe(false);
       expect(new Set(Object.values(pais.dominios))).toEqual(
         new Set(["por_verificar"]),

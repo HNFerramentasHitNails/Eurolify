@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import { REGISTO_INICIAL } from "./regras/registo.js";
 import { coberturaPaises, RespostaPaises } from "./regras/rotas.js";
 import type { Registo } from "./regras/tipos.js";
+import { assegurarRegistoValido } from "./regras/validar.js";
 
 const RespostaSaude = Type.Object({ estado: Type.Literal("ok") });
 
@@ -16,6 +17,8 @@ export function criarApp(
   opcoes: FastifyServerOptions = {},
   registo: Registo = REGISTO_INICIAL,
 ) {
+  // Um registo incoerente não arranca: nada falha em silêncio.
+  assegurarRegistoValido(registo);
   const app = Fastify(opcoes).withTypeProvider<TypeBoxTypeProvider>();
 
   app.get("/health", { schema: { response: { 200: RespostaSaude } } }, () => ({

@@ -49,13 +49,22 @@ function todosPorVerificar(): Record<Dominio, RevisaoDominio> {
   return dominios;
 }
 
+/** Congela em profundidade: o `readonly` é só do compilador (revisão do #37, P2-4). */
+function congelar<T>(valor: T): T {
+  if (typeof valor === "object" && valor !== null && !Object.isFrozen(valor)) {
+    for (const filho of Object.values(valor)) congelar(filho);
+    Object.freeze(valor);
+  }
+  return valor;
+}
+
 /**
  * O registo de partida (versão 1, 04/10/2026): os 27 países, todos os
  * domínios por verificar, nenhum território mapeado, nenhuma regra. Com ele,
- * todas as decisões saem «revisão necessária» — é o comportamento certo
- * enquanto nada estiver verificado.
+ * nenhuma decisão sai «permitido» — é o comportamento certo enquanto nada
+ * estiver verificado. Congelado: mudar o registo é uma versão nova.
  */
-export const REGISTO_INICIAL: Registo = {
+export const REGISTO_INICIAL: Registo = congelar({
   versao: 1,
   paises: CODIGOS_UE.map((codigo): PerfilPais => ({
     codigo,
@@ -64,4 +73,4 @@ export const REGISTO_INICIAL: Registo = {
     territorios: null,
   })),
   regras: [],
-};
+});
