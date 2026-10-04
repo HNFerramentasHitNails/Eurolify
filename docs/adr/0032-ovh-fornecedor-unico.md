@@ -1,6 +1,6 @@
 # ADR-0032 · A OVH é o fornecedor único: as cópias do ensaio vão para o Object Storage da OVH e a Scaleway deixa de se usar
 
-- **Estado:** aceite · muda o ponto 1 do
+- **Estado:** aceite · ⚠️ **contentor em Paris, três zonas (`eu-west-par`), não em Gravelines** — criado assim pelo Diogo e mantido com o OK dele a 04/10/2026; `rclone` com `provider = Other` (a versão do Ubuntu não conhece `OVHcloud`) · muda o ponto 1 do
   [ADR-0027](0027-copias-alertas-registos-e-endereco-do-ensaio.md) e do
   [ADR-0029](0029-chave-do-age-tambem-na-vps.md) (Scaleway Object Storage) ·
   põe fim ao [ADR-0011](0011-preparacao-da-conta-scaleway.md) (conta da
