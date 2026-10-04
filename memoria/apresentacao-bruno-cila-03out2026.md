@@ -474,7 +474,38 @@ Pedido do Diogo: *«sim, corrige a 53 e a 65 e gera o PDF»* (issue #25).
 - **Visto e não mexido:** a página 58 (texto visível) ainda fala duas vezes da
   Scaleway, que o ADR-0032 deixou de usar; a frase de baixo da 53 («o Claude
   opera a VPS … com a confirmação de quem pede; o Codex na VPS, por decidir»)
-  não diz que a VPS se opera pelo GitHub (ADR-0028).
+  não diz que a VPS se opera pelo GitHub (ADR-0028). → corrigidas na versão
+  24 (abaixo).
+
+## Versão 24 e o seu PDF (04/10/2026)
+
+Pedido do Diogo: *«sim, corrige a 58 e a 53 e gera o PDF»* (issue #28).
+
+- **Página 58, texto visível:** o passo 2 dizia «Comprar eurolify.eu e
+  eurolify.com na consola da Scaleway… .eu 5,98 €/ano; .com 12,34 €/ano». Passou
+  a «O eurolify.eu já está comprado (Diogo, 04/10/2026). Falta comprar o
+  eurolify.com, em nome da Luckytarget Lda (e o .pt…)», custo «por ver, no
+  registador que se escolher»; o rodapé deixou de citar os preços da
+  Scaleway. Fonte: `docs/06`, linha P. Nas notas: registador e titular do .eu
+  não escritos, servidores de nomes da OVH (memória `ok-para-codigo`); a
+  Scaleway deixou de se usar (ADR-0032), com os preços antigos guardados.
+- **Página 53, frase de baixo:** passou a dizer que a VPS muda só por pedido
+  revisto, aplicado pelo GitHub (ADR-0028), e que as operações fixas também
+  se fazem pelo MCP da VPS, com confirmação (ADR-0033); «o Codex na VPS, por
+  decidir» fica (procurei no `docs/06` e no ADR-0033 e não há decisão). Notas
+  com as decisões AJ e AO.
+- **Também, pelo mesmo facto (o .eu comprado):** a página 2 («Domínios livres;
+  marca por registar» → «.eu comprado; .com e marca por registar») e a 65
+  (passo 1: «comprar o .com (o .eu já está comprado)»; notas). Sem isto o PDF
+  contradizia-se. A 57 diz «livres a 03/10/2026», com data, e ficou.
+- Publicada por cima da 23 (`1791116880-a8b5`, confirmada antes de editar); a
+  24 é a `1791117369-2f81`, confirmada lendo as quatro páginas de volta.
+- **Medido:** a 53 passou de 816 a 850 px; a 2 (790), a 58 (655) e a 65 (881)
+  não mudaram; o limite é 920.
+- **O PDF:** `Eurolify-apresentacao-Bruno-Cila-v24.pdf`, da versão 24: **66
+  páginas, 1440×810 pt, 3.262.721 bytes** (`pdfinfo`); as duas letras dentro;
+  nenhuma página passa de 920 nem de 1792; letra de recurso nas mesmas 12
+  páginas. Vistas em imagem: 2, 53 e 58. Entregue ao Diogo na conversa.
 
 ## O que ficou por verificar
 
