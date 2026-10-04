@@ -5,9 +5,11 @@
 //
 // O alcance de cada campo é decidido aqui, não pelo motor de JavaScript
 // (revisão do #40, P2-6): horas 00-23, minutos e segundos 00-59, fracção até
-// 3 dígitos (o que o Date guarda), fuso `Z` ou ±00:00 a ±23:59.
+// 3 dígitos (o que o Date guarda), fuso `Z` ou ±00:00 a ±23:59. `-00:00` é
+// recusado: na RFC 3339 (§4.3) quer dizer «fuso local desconhecido», o
+// contrário de um instante com fuso (revisão do #45, P2-6).
 const ISO_COM_FUSO =
-  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(\.\d{1,3})?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
+  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(\.\d{1,3})?(Z|\+(?:[01]\d|2[0-3]):[0-5]\d|-(?!00:00$)(?:[01]\d|2[0-3]):[0-5]\d)$/;
 
 /** Milissegundos desde 1970 (UTC), ou null se o texto não for um instante válido. */
 export function instante(texto: string): number | null {

@@ -127,9 +127,9 @@ este motor antes de agir.
 | **Perfil do país** | `codigo`, `nome` | |
 | | `dominios` | por domínio (os 7 obrigatórios e os 4 condicionais), o estado da revisão: `por_verificar`, `verificado`, `nao_aplicavel` (este exige justificação e prova) |
 | | `territorios` | `null` = não mapeados: um território pedido **não herda** a regra do continente |
-| **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo: identifica uma regra de um país e de um domínio, nas suas versões; as decisões citam `id@versao` |
+| **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo: identifica uma regra de um país e de um domínio, nas suas versões; as decisões citam `id@versao`. Formato: minúsculas, algarismos, `.`, `_` e `-`, a começar por letra ou algarismo (ex.: `pt-consumidor-1`) — nada de maiúsculas nem espaços que façam duas `id` parecer a mesma |
 | | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide** |
-| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
+| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59, não `-00:00` — na RFC 3339 é «fuso desconhecido»; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
 
@@ -151,9 +151,9 @@ permitida).
 
 | Caso | Resultado |
 |---|---|
-| Código de país que não são duas maiúsculas (`pt`, `PRT`) | `recusado`, motivo `codigo_pais_invalido` — não se normaliza |
+| Código de país que não são duas maiúsculas (`pt`, `PRT`), ou que não é texto | `recusado`, motivo `codigo_pais_invalido` — não se normaliza |
 | País fora dos 27 (`CH`, `GB`, `EL`) | `recusado`, motivo `pais_fora_da_ue` |
-| Momento que não é ISO 8601 com fuso, ou data impossível (`2026-02-30`) | `recusado`, motivo `momento_invalido` |
+| Momento que não é ISO 8601 com fuso, ou data impossível (`2026-02-30`), ou com `-00:00` (a mesma leitura das datas das regras e das verificações) | `recusado`, motivo `momento_invalido` |
 | Lista de domínios vazia, ou que não é uma lista | `recusado`, motivo `sem_dominios` |
 | Domínio que não existe (também `constructor`, `__proto__`) | `recusado`, motivo `dominio_desconhecido` |
 | Território pedido e não mapeado | `revisao_necessaria`, motivo `territorio_nao_mapeado` |
@@ -170,9 +170,12 @@ permitida).
 impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
 regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
 `proposta` não conta), país sem perfil, território não mapeado, regra num
-domínio que não está `verificado` ou que não existe, estado de revisão ou
+domínio que não está `verificado` ou que não existe (também um domínio que não
+é texto, como `["consumidor"]`; revisão do #50), estado de revisão ou
 estado legal desconhecido, prova vazia (`base`, `revistaPor`, `revistoPor`),
-`id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40) —
+`id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40), a mesma
+`id` em dois países ou dois domínios, propostas incluídas (revisão do #45),
+`id` fora do formato do §4.1 (revisão do #50) —
 a aplicação **não arranca** e diz a lista toda.
 
 Um bloqueio vale **só para a combinação pedida**: o IVA de França bloqueado
