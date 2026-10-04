@@ -1,6 +1,8 @@
 import { instante } from "./instante.js";
+import { ehLista, ehObjecto, valor } from "./mostrar.js";
 import type {
   Decisao,
+  EstadoLegal,
   Motivo,
   PedidoDecisao,
   PerfilPais,
@@ -10,11 +12,11 @@ import type {
 } from "./tipos.js";
 
 /** Os estados legais que podem contar; `proposta` e o que não existe, nunca. */
-const ESTADOS_QUE_CONTAM: readonly string[] = [
+const ESTADOS_QUE_CONTAM = [
   "em_vigor",
   "adoptada_futura",
   "revogada",
-];
+] as const satisfies readonly EstadoLegal[];
 
 /**
  * Uma regra conta no momento pedido? Lista de aceitação, não de exclusão
@@ -25,7 +27,8 @@ const ESTADOS_QUE_CONTAM: readonly string[] = [
  * isto não ficar em silêncio.
  */
 function regraEmVigor(regra: Regra, momento: number): boolean {
-  if (!ESTADOS_QUE_CONTAM.includes(regra.estadoLegal)) return false;
+  if (!(ESTADOS_QUE_CONTAM as readonly string[]).includes(regra.estadoLegal))
+    return false;
   const desde = instante(regra.aplicaDesde);
   if (desde === null || momento < desde) return false;
   if (regra.aplicaAte !== null) {
@@ -38,12 +41,22 @@ function regraEmVigor(regra: Regra, momento: number): boolean {
   return true;
 }
 
+/**
+ * A regra vale para o território pedido? Uma lista que não é lista não conta:
+ * um texto faria `includes` por pedaço de texto (`"PT-MA"` contém `"MA"`)
+ * (revisão do #47, 2.ª, P2-A).
+ */
 function regraDoTerritorio(
   regra: Regra,
   territorio: string | undefined,
 ): boolean {
-  if (territorio === undefined) return regra.territorios.length === 0;
-  return regra.territorios.includes(territorio);
+  const territorios: unknown = regra.territorios;
+  // `ehLista` e não `Array.isArray`: um Proxy revogado dá «não conta» em vez
+  // de excepção (revisão do #49, P2-2).
+  if (!ehLista(territorios)) return false;
+  if (territorio === undefined)
+    return (territorios as readonly unknown[]).length === 0;
+  return (territorios as readonly unknown[]).includes(territorio);
 }
 
 function recusado(versaoRegisto: number, motivo: Motivo): Decisao {
@@ -79,16 +92,22 @@ function revisaoDoDominio(
  * Assume um registo validado (validar.ts, chamado por `criarApp`), com duas
  * excepções que se defendem aqui mesmo sem validação: o estado da revisão do
  * domínio e o estado legal da regra — só os valores conhecidos que permitem
- * contam. Uma forma errada noutro campo dá uma excepção, nunca «permitido»
- * (revisão do #47, P2 n.º 3).
+ * contam — e os territórios da regra, que só contam se forem uma lista. Fora
+ * destes três campos, o `decidir` não se defende sozinho: um registo que não
+ * passou pelo `validar` pode dar uma excepção ou uma decisão errada (revisão
+ * do #47, P2 n.º 3, e 2.ª revisão, P2-A).
  */
 export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   const versao = registo.versao;
 
-  if (!/^[A-Z]{2}$/.test(pedido.pais)) {
+  // Um país que não é texto também é inválido: a expressão regular
+  // converteria um Symbol ou um objecto estranho e rebentava (revisão do #50,
+  // P2-3).
+  const pais: unknown = pedido.pais;
+  if (typeof pais !== "string" || !/^[A-Z]{2}$/.test(pais)) {
     return recusado(versao, {
       codigo: "codigo_pais_invalido",
-      pais: pedido.pais,
+      pais: valor(pais),
     });
   }
   const perfil: PerfilPais | undefined = registo.paises.find(
@@ -102,14 +121,15 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   if (momento === null) {
     return recusado(versao, {
       codigo: "momento_invalido",
-      momento: pedido.momento,
+      momento: valor(pedido.momento),
     });
   }
 
   // O tipo já exige uma lista com um domínio, mas o pedido pode vir de fora
-  // sem tipos: null, texto ou lista vazia são «sem domínios».
+  // sem tipos: null, texto, lista vazia ou um Proxy revogado são «sem
+  // domínios».
   const dominios: unknown = pedido.dominios;
-  if (!Array.isArray(dominios) || dominios.length === 0) {
+  if (!ehLista(dominios) || (dominios as readonly unknown[]).length === 0) {
     return recusado(versao, { codigo: "sem_dominios" });
   }
   for (const dominio of dominios as readonly unknown[]) {
@@ -119,7 +139,7 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
     ) {
       return recusado(versao, {
         codigo: "dominio_desconhecido",
-        dominio: typeof dominio === "string" ? dominio : String(dominio),
+        dominio: valor(dominio),
       });
     }
   }
@@ -133,12 +153,20 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   if (!territorioMapeado && pedido.territorio !== undefined) {
     motivos.push({
       codigo: "territorio_nao_mapeado",
-      territorio: pedido.territorio,
+      territorio: valor(pedido.territorio),
     });
   }
 
   for (const dominio of new Set(pedido.dominios)) {
-    const revisao = perfil.dominios[dominio];
+    // Uma revisão que não é objecto (null, texto, Proxy revogado) bloqueia em
+    // vez de rebentar: só acontece num registo que não passou pelo validar
+    // (revisão do #49, 2.ª, P2-2).
+    const lida: unknown = perfil.dominios[dominio];
+    if (!ehObjecto(lida)) {
+      motivos.push({ codigo: "dominio_por_verificar", dominio });
+      continue;
+    }
+    const revisao = lida as RevisaoDominio;
     if (revisao.estado === "nao_aplicavel") continue;
     // Só «verificado» segue para as regras. Qualquer outro estado — o
     // `por_verificar` ou um estado que não existe (gralha num registo que não

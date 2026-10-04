@@ -7,28 +7,42 @@
 > vive no ficheiro. Um título não é a memória — abrir o ficheiro antes de
 > afirmar. Todo o número traz a data em que foi medido.
 
-## Arranque
+## Arranque e regras
 
 - [🔴 O Diogo e o Bruno decidem tudo neste repositório (faturação incluída); 4 regras da UE para o Claude: seguir as skills, só regras da UE com fonte, nunca inventar, dados na UE — 03/10/2026](liberdade-e-regras-ue-03out2026.md)
 - [🔴 O Lumavo é da Luckytarget Lda, com marca própria; nenhuma marca existente se usa (ordem do Diogo) — 03/10/2026](dono-e-marca-luckytarget-03out2026.md)
 - [Arranque do Lumavo: o pedido do Diogo, proposta, desenho e 12 skills; fontes e o que não foi verificado — 03/10/2026](arranque-do-projecto-03out2026.md)
+- [Regras e skills num sítio só (Q, ADR-0010): `AGENTS.md` para o Claude Code e o Codex, `CLAUDE.md` só importa; skills em `.agents/skills` com ligações em `.claude/skills`; por testar numa sessão de Codex — 03/10/2026](agents-md-um-sitio-03out2026.md)
 
-## Para decidir
+## Código e revisão
 
-- [Apresentação para Bruno e Cila: v0.8 e PDF: reescrita em 25 páginas num deck novo (o feito, 4 pedidos à mão; o antigo não abre desta conta); antes 66 páginas (v25 e PDF); estudo 5 arrisca recusa no EUIPO; páginas não vistas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
-- [⚠️ O alojamento gerido foi substituído pela VPS (ADR-0015). Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G), na Scaleway (H); e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
-- [⚠️ Sem efeito com a VPS (ADR-0015). Scaleway: conta preparada (R, ADR-0011), ensaio + chave só de leitura, `scw` 2.63.0 pelo binário; o MCP só de leitura deixa ler segredos, `--read-only` falha; listas sem permissão dão vazio; portador da chave por ver — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
-- [⚠️ O ensaio passou para a VPS (ADR-0015). Publicação na Scaleway: um só ensaio, actualizado a cada entrada no `main` (U, ADR-0014); o endereço fica público (o modo privado não abre no browser); base do ensaio em PostgreSQL gerido, não a SQL sem servidor; ≈ 12–28 €/mês — 03/10/2026](scaleway-publicacao-ensaio-03out2026.md)
+- [OK para código (AE, ADR-0023): só por PR com as duas revisões, domínio só depois do desenho; revisões impostas com o GitHub Pro na conta pessoal (AF, ADR-0024), Codex automático, Bruno precisa de conta — 04/10/2026](ok-para-codigo-04out2026.md)
+- [Fatia 2 (Comerciante), código: migração 0001 com RLS forçado e eurolify_api sem BYPASSRLS, estados e activação na base, Kysely 0.29 (Migrator em kysely/migration), 21 testes contra PostgreSQL 18.6 local por Docker — 04/10/2026](fatia-2-comerciante-codigo-04out2026.md)
+
+## Alojamento e VPS
+
 - [🔴 VPS operada por nós (V, ADR-0015) e pelo Claude (W, ADR-0016), VPS-1 até à migração (AC; X era VPS-3); guia `docs/11`. ⚠️ No Reino Unido: só ensaio, sem dados pessoais, até 31/03/2027 (Y, Z); acesso pelo PC do Diogo (AA); palavra-passe fechada — 03/10/2026](vps-operada-por-nos-03out2026.md)
-- [Extensões de terceiros: 7 tipos, os mesmos contratos para o Lumavo e para terceiros, regras fiscais e legais não extensíveis, loja (DSA, ciber-resiliência); decididos K e L (parceiros convidados na Fase 2) — 03/10/2026](extensoes-de-terceiros-03out2026.md)
+- [⚠️ O alojamento gerido foi substituído pela VPS (ADR-0015). Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G), na Scaleway (H); decididas E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
+- [⚠️ Sem efeito com a VPS (ADR-0015). Scaleway: conta preparada (R, ADR-0011), ensaio + chave só de leitura, `scw` 2.63.0; o MCP só de leitura deixa ler segredos, `--read-only` falha; listas sem permissão dão vazio; portador da chave por ver — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
+- [⚠️ O ensaio passou para a VPS (ADR-0015). Publicação na Scaleway: um só ensaio, actualizado a cada entrada no `main` (U, ADR-0014); o endereço fica público; base do ensaio em PostgreSQL gerido, não a SQL sem servidor; ≈ 12–28 €/mês — 03/10/2026](scaleway-publicacao-ensaio-03out2026.md)
+
+## Negócio, fases e estimativa
+
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1 (preços só antes da peça 13, ADR-0012); AD (ADR-0022, 04/10): relatório OSS, núcleo das devoluções e lotes passam para a Fase 1, estimados — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
-- [Pagamentos e envios na UE: 27 países com fonte, conferidos por amostragem; Mollie cobre os métodos locais; o pagamento na entrega no Leste é parceria de envios — 03/10/2026](pagamentos-e-envios-ue-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, antes da peça 13 e não antes do código (S, ADR-0012) — 03/10/2026](modelo-de-receita-03out2026.md)
 - [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 17–32 meses a tempo inteiro, 31–58 a meio (hipótese C; com a AD, 04/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
-- [Regras e skills num sítio só (Q, ADR-0010): `AGENTS.md` para o Claude Code e o Codex, `CLAUDE.md` só importa; skills em `.agents/skills` com ligações em `.claude/skills`; por testar numa sessão de Codex — 03/10/2026](agents-md-um-sitio-03out2026.md)
-- [✅ Nome: Eurolify (D-12, ADR-0009), escolhido pelo Diogo depois de 5 voltas; .com e .eu livres a 03/10; Lumavo ocupado (.com desde 2009); «apoiado pela UE» sem o ser é prática desleal; a Vercel erra no .eu — 03/10/2026](marca-nome-e-dominios-03out2026.md)
 
-## Referências externas avaliadas
+## Marca e apresentação
+
+- [✅ Nome: Eurolify (D-12, ADR-0009), escolhido pelo Diogo depois de 5 voltas; .com e .eu livres a 03/10; Lumavo ocupado (.com desde 2009); «apoiado pela UE» sem o ser é prática desleal; a Vercel erra no .eu — 03/10/2026](marca-nome-e-dominios-03out2026.md)
+- [Apresentação para Bruno e Cila: v0.8 e PDF: reescrita em 25 páginas num deck novo (o feito, 4 pedidos à mão; o antigo não abre desta conta); antes 66 páginas (v25 e PDF); estudo 5 arrisca recusa no EUIPO; páginas não vistas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
+
+## Pagamentos, envios e extensões
+
+- [Pagamentos e envios na UE: 27 países com fonte, conferidos por amostragem; Mollie cobre os métodos locais; o pagamento na entrega no Leste é parceria de envios — 03/10/2026](pagamentos-e-envios-ue-03out2026.md)
+- [Extensões de terceiros: 7 tipos, os mesmos contratos para o Lumavo e para terceiros, regras fiscais e legais não extensíveis, loja (DSA, ciber-resiliência); decididos K e L (parceiros convidados na Fase 2) — 03/10/2026](extensoes-de-terceiros-03out2026.md)
+
+## Fontes externas avaliadas
 
 - [O repo 40RTY-ai/shopify-admin-skills: 116 skills só para Shopify; serve de lista de tarefas e de formato, não se instala (identidade pelo nome, IVA pelo nome da taxa) — 03/10/2026](skills-shopify-admin-avaliadas-03out2026.md)
 - [As skills de design de 3 repos juntadas numa só (lumavo-design): 38 referências por etapa, 75+ de fora e porquê; a regra da Vercel copiada em vez de ligada — 03/10/2026](skills-de-design-juntadas-03out2026.md)
@@ -36,8 +50,7 @@
 - [O repo scaleway/scaleway-skills: 1 skill só (instalar o `scw`), que pede à API do GitHub (403 daqui), não confere a soma e usa sempre a última versão; não se instala — 03/10/2026](scaleway-skills-avaliado-03out2026.md)
 - [As skills de regras da UE do Perplexity (2 versões): não se instalam — erros conferidos no EUR-Lex; serviram para 5 datas e o DSA na Fase 1 no `docs/03` e para 4 skills nossas (consumidor, RGPD, produto, segurança), com os artigos lidos — 03/10/2026](skills-ue-perplexity-avaliadas-03out2026.md)
 - [O repo mart337i/odoo-skills: skills para programar Odoo, não uma lista de módulos; não se instala; 7 ideias de back-office e as 8 portas levadas a 3 skills (linha do tempo, tarefas, vistas, automáticas, módulos, permissões por campo, impressos) — 03/10/2026](odoo-skills-avaliado-03out2026.md)
-- [OK para código (AE, ADR-0023): só por PR com as duas revisões, domínio só depois do desenho; revisões impostas com o GitHub Pro na conta pessoal (AF, ADR-0024), Codex automático, Bruno precisa de conta — 04/10/2026](ok-para-codigo-04out2026.md)
 - [O PDF «Apresentação de Projeto» do Perplexity: não se envia como está (erros, microserviços, taxa sobre vendas, 1,8 M€ sem contas); na apresentação: o mercado (757 mil M€ é previsão de 2026) e o financiamento (o EIC exige TRL 6–8) — 04/10/2026](pdf-perplexity-apresentacao-avaliado-04out2026.md)
 - [Skills de produtos digitais e de cartões-oferta (zip do Diogo): instaladas como `digital-products-eu` e `gift-cards-eu`, tudo C (EUR-Lex não leu); corrigidos «cursos em linha»; choque com a carteira da `eu-vat-oss-ioss` por decidir — 04/10/2026](skills-digitais-e-cartoes-oferta-04out2026.md)
 - [Pacote complementar (26 skills): lido, não instalado (10 repetem as nossas); o prompt seguido por ordem do Diogo — docs/eurolify/, motor de regras dos 27 (tudo por verificar), P3 decidida, diagnóstico de apoios — 04/10/2026](pacote-complementar-skills-04out2026.md)
-- [Fatia 2 (Comerciante), código: migração 0001 com RLS forçado e eurolify_api sem BYPASSRLS, estados e activação na base, Kysely 0.29 (Migrator em kysely/migration), 21 testes contra PostgreSQL 18.6 local por Docker — 04/10/2026](fatia-2-comerciante-codigo-04out2026.md)
+- [Pacote de eficiência: auditoria só de leitura (0 ficheiros iguais; decisões em 3 sítios) → #52, #54, #56; 6 skills instaladas (sessão, gestão, modelos, memória, diagnóstico, prova); Sonnet/Haiku/Opus 5.5, sem Fable; poupança não medida — 04/10/2026](skills-de-eficiencia-instaladas-04out2026.md)
