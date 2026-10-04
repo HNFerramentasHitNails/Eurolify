@@ -124,7 +124,14 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
 ### 3.6 Publicação a partir do GitHub
 
 A cada entrada no `main` (ADR-0014): os testes correm no GitHub, constrói-se a
-imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
+imagem e a VPS passa a correr a nova versão.
+
+✅ **Decidido** (Diogo, 04/10/2026, [ADR-0026](adr/0026-publicacao-pelo-github-por-ssh.md)):
+**o GitHub por SSH**, com as imagens construídas no GitHub e guardadas no
+GHCR; na VPS, um utilizador `eurolify-publicar` sem sudo e fora do grupo
+`docker`, com um comando fixo que só deixa um pedido; quem publica é um serviço
+da máquina, que puxa a imagem pelo resumo, migra, troca e volta atrás se o
+`/health` falhar. As duas formas que estavam em cima da mesa:
 
 - **Coolify** na VPS: publica a partir do GitHub e mostra o estado; é mais uma
   peça na máquina, com uma página de administração que tem de nascer fechada
@@ -249,7 +256,7 @@ saem do computador** — nem para o chat, nem para o repositório.
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
    para voltar).
 5. **Segunda máquina para a base**, e a partir de quando.
-6. **Coolify ou o GitHub por SSH** (§3.6).
+6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.**
 8. **O Codex na VPS** (ADR-0016: não está decidido).
 9. **O que se faz à conta da Scaleway** (§6).

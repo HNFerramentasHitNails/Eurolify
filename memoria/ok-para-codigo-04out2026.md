@@ -87,3 +87,22 @@ Proposta numa tabela (peça, versão, porquê, alternativa). Resposta do Diogo:
 
 - Fastify 5.12 e Vitest 5 no Node 26; a memória real de cada peça na VPS-1.
 - As duas datas: Node 26 depois de 28/10/2026; TypeScript 7 quando o lint o aceitar.
+
+## A4: publicação pelo GitHub por SSH (decisão AH, ADR-0026) — 04/10/2026
+
+Duas opções (Coolify; GitHub por SSH com imagens no GitHub, inclinação do
+Diogo). Resposta: *«fica a b)»*.
+
+- **Correcção do Claude antes de gravar:** na proposta escreveu «a
+  documentação do GitHub diz que o GHCR aceita tokens clássicos» sem a ter
+  lido nessa sessão. Leu-a antes do ADR: `docs.github.com`, *Working with the
+  Container registry*, 04/10/2026 — *«GitHub Packages only supports
+  authentication using a personal access token (classic)»*; `read:packages`
+  para puxar; pull pelo resumo `@sha256:…`.
+- Um token clássico lê todos os pacotes da conta, não só os do Eurolify:
+  fica na VPS só para o root, com data de fim (proposta: 90 dias).
+
+### O que ficou por verificar
+
+- Se o GHCR aceita tokens finos; o pacote do Docker Engine no Ubuntu 26.04;
+  o tamanho da imagem e o tempo de uma publicação.
