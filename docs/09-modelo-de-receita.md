@@ -77,8 +77,8 @@ comerciantes e da D-13):
 
 | Plano | Para quem | Inclui | Referência na concorrência |
 |---|---|---|---|
-| **Início** | Uma loja que vende no seu país e para o resto da UE | Checkout alojado, IVA dos 27 e OSS, faturação no país do comerciante, um armazém | Shopify Basic 19–27 €; PrestaShop Hosted 24–29 € |
-| **Europa** | Quem vende para vários países e a empresas | + relatórios OSS, listas de preços B2B, Hub completo, mais utilizadores | Shopify Grow 56–74 € |
+| **Início** | Uma loja que vende no seu país e para o resto da UE | Checkout alojado, IVA dos 27 e OSS com o relatório dos quatro baldes (decisão AD), faturação no país do comerciante, um armazém | Shopify Basic 19–27 €; PrestaShop Hosted 24–29 € |
+| **Europa** | Quem vende para vários países e a empresas | + listas de preços B2B, Hub completo, mais utilizadores (o relatório OSS passou para todos os planos, decisão AD) | Shopify Grow 56–74 € |
 | **Profissional** | Vários armazéns, faturação em vários países | + vários armazéns, módulos de faturação por país, nível de serviço | Shopify Advanced 289–384 € |
 | **Empresa** | Grandes volumes | Instalação dedicada, contrato próprio | Shopware Rise desde 600 €; Shopify Plus desde 2.100 € |
 
