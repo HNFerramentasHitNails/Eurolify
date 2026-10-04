@@ -57,6 +57,14 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   embora o pedido lhe dissesse para não alterar o ramo; escreveu que foi «a
   pedido do Diogo», o que a sessão que instalou não pôde confirmar. O
   `bf7f15d` e o fragmento são revistos por outra sessão nova.
+- **A 4.ª revisão do #58** (sessão nova, Opus 5.5, ao `bf7f15d` e ao
+  `d6fe59f`) deu 0 P0, 0 P1 e 5 P2. A mesma sessão corrigiu-os depois, a
+  pedido do Diogo (*«corrige os 5 P2 no ramo»*): o `audit_memory.py` deixa de
+  saltar nomes só por terem «chave» ou «token» (o ADR-0029 e o
+  `design-token.md` voltam a contar), o teste da raiz por ligação passa a
+  ter ficheiros do outro lado, a `model-policy.md` diz Opus 5.5 para a análise
+  e a revisão, e o `AGENTS.md` troca «plano aprovado» pelos *issues* de que se
+  é dono. Esta correcção precisa de revisão por outra sessão nova.
 
 ## Números (com data e como se contaram)
 
@@ -65,7 +73,9 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
 | Carregado sempre por sessão | ≈ 17,2 KB automáticos (`CLAUDE.md` + `AGENTS.md`), 9 451 caracteres de descrições das 16 skills, 57,9 KB de leitura obrigatória (`README`, `docs/00`, `docs/06`, `MEMORY.md`) | `wc -c` e Python, 04/10/2026, antes dos pedidos acima; bytes, não tokens |
 | `docs/06` com o #54 | 31 416 → 23 948 bytes | `wc -c` no ramo, 04/10/2026 |
 | Testes do `audit_memory.py` | 7, a passar | `python3 test_audit_memory.py`, no zip e depois de instalado |
+| Testes do `audit_memory.py` depois das revisões do #58 | 10, a passar | `python3 test_audit_memory.py`, 04/10/2026 |
 | `AGENTS.md` com as 6 linhas | 17 926 bytes (limite 32 KiB) | `wc -c`, 04/10/2026 |
+| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 056 bytes (limite 32 KiB) | `wc -c`, 04/10/2026, depois da correcção do P2-4 da 4.ª revisão |
 | Modelo da sessão | `claude-opus-5-5` configurado e servido | `get_session`, 04/10/2026 |
 
 ## O que ficou por verificar

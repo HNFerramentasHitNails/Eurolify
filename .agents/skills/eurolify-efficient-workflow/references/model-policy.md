@@ -10,7 +10,7 @@ Esta é uma política proposta, não um benchmark. Confirmar versão do Claude C
 
 A documentação apresenta Sonnet para programação diária, Opus para raciocínio complexo e Haiku para tarefas simples/eficientes; os aliases resolvem de acordo com fornecedor e disponibilidade ([modelos Claude Code](https://code.claude.com/docs/en/model-config)). As associações detalhadas acima são decisões deste pack.
 
-Por decisão do utilizador, não utilizar Fable, nem como fallback ou próximo degrau de escalonamento. Esta preferência não é apresentada como benchmark universal. Avaliar eficiência total, incluindo contexto, tentativas e retrabalho; Haiku/Sonnet são o padrão da Eurolify (execução e pesquisa); o Opus 5.5 usa-se quando produzir melhor resultado global observado, e diz-se porquê.
+Por decisão do utilizador, não utilizar Fable, nem como fallback ou próximo degrau de escalonamento. Esta preferência não é apresentada como benchmark universal. Avaliar eficiência total, incluindo contexto, tentativas e retrabalho; Haiku e Sonnet são o padrão da Eurolify para a pesquisa e a execução; Opus 5.5 para a análise e a revisão, e noutras tarefas quando der melhor resultado global observado, dizendo porquê.
 
 ## Mecanismos reais
 

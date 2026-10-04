@@ -11,9 +11,13 @@ EXCLUDED_DIRS = {
     ".git", ".env", "node_modules", ".venv", "venv", "dist", "build",
     "__pycache__", "secrets", "credentials",
 }
+# «chave» e «token» sozinhos apanhavam documentos que não são segredos
+# (ADR-0029 «chave-do-age…», «design-token.md»); só as formas compostas.
 SENSITIVE_NAMES = (
     "secret", "segredo", "credential", "credencia", "password", "senha",
-    "palavra-passe", "token", "chave", "private-key", ".env",
+    "palavra-passe", "private-key", "chave-privada", "chave-secreta",
+    "chave-api", "chave-de-api", "api-key", "api-token", "access-token",
+    "token-de-acesso", ".env",
 )
 NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 

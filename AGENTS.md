@@ -184,7 +184,8 @@ competências de cada um ficam como estão.
 1. **No arranque**, depois das leituras obrigatórias («Antes da primeira
    resposta»), seguir a skill `eurolify-session-continuity`: verificar o estado
    partilhado e o trabalho recente, recuperar o contexto do tema e escolher o
-   próximo resultado dentro do plano aprovado.
+   próximo resultado entre os *issues* de que se é dono e as decisões escritas
+   (ADR, `docs/06`) — o que está atribuído ao outro não se toca (ADR-0031).
 2. **Com o Bruno e o Diogo**, seguir a skill `eurolify-manager-communication`:
    linguagem comum, com o que está feito, em curso, o que falta e a decisão
    necessária, quando exista. Não exigir conhecimentos de programação nem
