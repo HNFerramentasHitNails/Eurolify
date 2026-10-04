@@ -39,11 +39,12 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   Codex não. Ao estilo acrescentei que as regras de «Como responder» do
   `AGENTS.md` valem acima dele; os agentes ficaram como no pacote. O
   `eurolify-critical-review` **não substitui** a revisão por sessão nova do
-  ADR-0030. O estilo **não ficou por omissão** no projecto (o
-  `templates/settings-management.json` não se aplicou: mudaria as sessões do
-  Bruno também); cada um escolhe-o com `/output-style eurolify-gestao`.
-  **Decidido pelo Diogo** (04/10/2026): *«cada um liga o estilo quando
-  quiser»*.
+  ADR-0030. O estilo **está ligado por omissão para os dois**, em
+  `.claude/settings.json` (`"outputStyle": "eurolify-gestao"`, do
+  `templates/settings-management.json` do pacote): decisão do Diogo
+  (04/10/2026), *«Ligar para mim e para o bruno!»*, que substitui a anterior
+  do mesmo dia (*«cada um liga o estilo quando quiser»*). Quem não o quiser
+  numa sessão muda com `/output-style`.
 - **Não instalado:** o texto proposto para o `AGENTS.md`
   (`templates/AGENTS-management-fragment.md`), por ser uma regra nova.
 
