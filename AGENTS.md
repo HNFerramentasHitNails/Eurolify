@@ -25,10 +25,14 @@ de o ler até ao fim (limite por omissão, documentação do Codex).
    não é a memória**.
 3. Ver o estado dos ADR em `docs/adr/`: **o código está autorizado pelo
    ADR-0023** (substitui o ADR-0001), só por um ramo e um pedido de alteração
-   com as duas revisões (ADR-0013); o código de um domínio só depois de o
-   modelo e a lista da API dele estarem escritos em tabela.
-4. `git fetch origin main` e `git log --oneline -15 origin/main`: o outro pode
-   ter mexido desde a última sessão.
+   (cada um junta o seu, com os testes verdes e a revisão do agente — ADR-0031);
+   o código de um domínio só depois de o modelo e a lista da API dele estarem
+   escritos em tabela.
+4. **O que o outro fez desde a última sessão** (ADR-0031): `git fetch origin
+   main`; `gh pr list --state merged --limit 20` (o que entrou: ler a
+   descrição dos que não se conhecem); `gh pr list --state open` (o que está
+   em curso, de quem e em que ficheiros); `gh issue list --state open` (as
+   tarefas e os donos). Dizê-lo em poucas linhas antes de começar.
 
 ## 🔴 Marca própria — nunca uma marca existente
 
@@ -178,27 +182,46 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
   documentos e para código, é um pedido de alteração:
   `git switch -c <assunto> origin/main` → commits → `git push -u origin HEAD`
   → `gh pr create --base main --fill`.
-- **Documentos** (`*.md`, `docs/`, `memoria/`, `.agents/skills/`): o próprio
-  autor junta o pedido, sem aprovação (`gh pr merge --squash --delete-branch`).
-- **Código não entra no `main` sem duas revisões** (ADR-0013, a partir da
-  primeira linha). O código é o que o `.github/CODEOWNERS` lista; o GitHub só
-  junta o pedido com a aprovação da outra pessoa (o Bruno aprova o que o Diogo
-  escreve, e o contrário). Antes de aprovar, a revisão do agente que não o
-  escreveu tem de estar no pedido, com os pontos P0/P1 tratados. **Enquanto o
-  Codex não volta** (ADR-0030, revê-se a 29/11/2026): essa revisão é de **uma
-  sessão nova do Claude Code, sem a conversa de quem escreveu e, se possível,
-  com outro modelo**, publicada no pedido. Um pedido com código e documentos
-  conta como código.
-- **Quando a outra pessoa não pode rever** (ADR-0030): o Diogo ou o Bruno pode
-  autorizar, por escrito, que um pedido entre sem ela — só com a revisão do
-  agente feita e os P0/P1 tratados, e **a outra pessoa revê depois**, com data
-  escrita no pedido; o que encontrar corrige-se num pedido novo. A regra do
-  `main` desliga-se só para esse pedido e volta a ligar-se logo, e as duas
-  mudanças ficam na memória.
+- **Cada um junta o que fez** (ADR-0031, desde 04/10/2026; substitui a
+  aprovação cruzada do ADR-0013): documentos e código. O GitHub só junta com
+  **os testes verdes** (fluxo `verificar`). **No código**, antes de juntar, a
+  revisão do agente que não o escreveu tem de estar publicada no pedido, com
+  os P0/P1 tratados — **enquanto o Codex não volta** (ADR-0030, revê-se a
+  29/11/2026), uma **sessão nova do Claude Code, sem a conversa de quem
+  escreveu e, se possível, com outro modelo**. Um pedido com código e
+  documentos conta como código.
+- **A descrição do pedido é o histórico** que o outro lê de manhã: o que fez,
+  porquê (ADR ou issue), como se testou, o que ficou por fazer e o que pode
+  partir. Um pedido sem isto não se junta.
 - Ramo de um pedido desactualizado: `git merge origin/main` nele. **Nunca
   `push --force`** num ramo que já está num pedido.
 - Um commit por assunto; a mensagem diz o assunto em português.
 - **Nunca segredos no repositório** (chaves, palavras-passe, tokens).
+- **Nunca `git add -A`**: acrescentar os ficheiros pelo nome e ler o `git
+  status --short` antes de cada commit (incidente de 04/10/2026, memória).
+
+## Trabalhar os dois sem se atrapalharem (ADR-0031)
+
+O Diogo e o Bruno trabalham a horas diferentes e, às vezes, ao mesmo tempo.
+
+1. **Ao começar uma sessão, primeiro o que o outro fez** (ver «Antes da
+   primeira resposta», ponto 4): os pedidos juntados desde a última sessão, os
+   que estão em curso e as tarefas abertas — e dizê-lo em poucas linhas a quem
+   pediu, antes de começar.
+2. **Uma tarefa = um *issue* no GitHub, com dono.** Antes de começar: procurar
+   se já existe (`gh issue list --search "<palavras>" --state all`) e se já há
+   código ou documento que o faça (`docs/`, `memoria/`, `git log -S`). Se
+   existe, usa-se ou completa-se — não se cria outro. Ao começar,
+   atribuir-se (`gh issue edit <n> --add-assignee @me`). **O que está
+   atribuído ao outro não se toca** sem falar com ele.
+3. **Trabalho em paralelo:** cada tarefa no seu ramo e com o seu pedido,
+   **aberto como rascunho logo no primeiro commit** (`gh pr create --draft`),
+   para o outro ver que alguém está naqueles ficheiros. Pedidos pequenos, de
+   preferência num domínio só (skill `platform-architect`). Se dois pedidos
+   em curso mexem no mesmo ficheiro, quem chegou depois avisa no pedido do
+   outro. `git merge origin/main` no ramo pelo menos ao começar cada sessão.
+4. **Ao acabar uma sessão:** o pedido com a descrição em dia (o que fez, o que
+   falta), mesmo que fique em rascunho; o *issue* com o estado.
 
 ## Memória (`memoria/`)
 

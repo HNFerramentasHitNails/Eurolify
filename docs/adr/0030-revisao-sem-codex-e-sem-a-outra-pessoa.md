@@ -1,6 +1,6 @@
 # ADR-0030 · Sem o Codex, revê uma sessão nova do Claude Code; e quando a outra pessoa não pode rever
 
-- **Estado:** aceite · muda o ponto 2 do [ADR-0013](0013-revisao-do-codigo.md)
+- **Estado:** aceite · ponto 2 (quando o outro não pode rever) sem objecto pelo [ADR-0031](0031-cada-um-aprova-o-que-fez.md); o ponto 1 mantém-se · muda o ponto 2 do [ADR-0013](0013-revisao-do-codigo.md)
   (o Codex revê o Claude Code) **enquanto o Codex não volta** · decide o que o
   ADR-0013 deixou em aberto («o que se faz quando a outra pessoa não pode
   rever») · ajusta o [ADR-0024](0024-revisoes-impostas-no-github-pro.md),

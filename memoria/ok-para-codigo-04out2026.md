@@ -314,3 +314,17 @@ também na VPS). Resposta do Diogo: *«b»*. Só para o ensaio.
   07/10/2026; a regra do `main` desligada só para juntar o #10): *«sim»*.
 - O Claude avisou antes: sem o Bruno e sem o Codex o #10 entraria sem nenhuma
   revisão independente, com um script que corre como root na VPS.
+
+## Cada um junta o que fez (decisão AM, ADR-0031) — 04/10/2026
+
+- Pedido do Diogo: histórico do que o outro fez ao chegar, nunca repetir nem
+  recriar, trabalho em paralelo (X e Y) sem se atrapalharem; *«cada um pode
+  auto aprovar o que fez»*. O Claude propôs a via intermédia (VPS, fluxos e
+  fiscal com o outro) e avisou uma vez do risco; resposta: *«cada um aprova
+  tudo o que fez»*.
+- Achado: o #10 aparecia `CLEAN` com a revisão dos donos ligada, antes de o
+  `bruno-88` aceitar o convite — a trava do ADR-0024 não funcionava como se
+  pensava (causa provável: dono que não é colaborador é ignorado).
+- A revisão do agente ao #10 (sessão nova, Sonnet) deu 0 P0, 3 P1, 12 P2;
+  corrigidos os 3 P1 e 9 P2 no commit `2acc97f`, com os testes verdes; os P2
+  que ficam estão no `infra/vps/LEIA-ME.md`.
