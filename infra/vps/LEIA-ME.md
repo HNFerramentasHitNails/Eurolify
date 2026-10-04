@@ -49,7 +49,7 @@ sozinho** o que não conhece (chaves, regras, contentores): avisa.
 | `ghcr.token` | token clássico do GitHub com `read:packages` (ADR-0026) |
 | `ghcr.expira` | data de fim desse token, `AAAA-MM-DD` |
 | `deploy_key` | chave só de leitura do repositório (*deploy key*) |
-| `rclone.conf` | remoto `scaleway`, com uma chave de **leitura e escrita só no contentor das cópias**: a cópia escreve, a reposição lista e lê (corrigido na revisão do #10 — «só de escrita» não chegava) |
+| `rclone.conf` | remoto `ovh` (OVH Object Storage, Standard, Gravelines — ADR-0032), com um utilizador S3 de **leitura e escrita só no contentor das cópias**: a cópia escreve, a reposição lista e lê (corrigido na revisão do #10 — «só de escrita» não chegava) |
 | `age.pub` / `age.key` | chaves das cópias (a privada também com o Diogo, ADR-0029) |
 | `healthchecks.env` | `HC_COPIA=`, `HC_REPOSICAO=`, `HC_VERIFICACAO=` (endereços do Healthchecks.io) |
 

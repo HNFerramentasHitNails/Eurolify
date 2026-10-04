@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cópia diária da base do ensaio (ADR-0027): pg_dump, cifrado com age, enviado
-# para o Scaleway Object Storage. A expiração aos 14 dias é uma regra do
-# contentor da Scaleway. Avisa o Healthchecks.io do resultado.
+# para o OVH Object Storage (ADR-0032). A expiração aos 14 dias é uma regra do
+# contentor na OVH. Avisa o Healthchecks.io do resultado.
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
 source /usr/local/lib/eurolify/comum.sh

@@ -1,6 +1,6 @@
 # ADR-0027 · O ensaio: cópias na Scaleway, alertas pelo Healthchecks.io, IP guardados 14 dias, acesso por túnel SSH
 
-- **Estado:** aceite · ponto 1 mudado pelo
+- **Estado:** aceite · as cópias passam para o OVH Object Storage e a chave da Scaleway deixa de existir: [ADR-0032](0032-ovh-fornecedor-unico.md) · ponto 1 mudado pelo
   [ADR-0029](0029-chave-do-age-tambem-na-vps.md) (a chave privada do `age`
   também na VPS) · **só para o ensaio** (a VPS-1 do
   [ADR-0021](0021-vps-1-ate-a-migracao.md)); para a produção, os pontos 4 e 7

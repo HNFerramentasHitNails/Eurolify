@@ -1,6 +1,6 @@
 # ADR-0029 · A chave privada das cópias do ensaio fica também na VPS, para a reposição semanal
 
-- **Estado:** aceite · muda o ponto 1 do
+- **Estado:** aceite · as cópias passam da Scaleway para o OVH Object Storage: [ADR-0032](0032-ovh-fornecedor-unico.md) · muda o ponto 1 do
   [ADR-0027](0027-copias-alertas-registos-e-endereco-do-ensaio.md) (a chave
   privada do `age` ficava só fora da VPS) · **só para o ensaio**
 - **Data:** 04/10/2026

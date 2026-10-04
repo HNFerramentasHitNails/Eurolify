@@ -346,3 +346,33 @@ Com o OK do Diogo (*«sim»*) aos quatro passos mostrados:
   tocar na VPS. O `publicar` envia a primeira imagem para o GHCR.
 - Este pedido (só memória) é a prova de que um pedido de documentos corre os
   testes e só depois se junta.
+
+## Fase D começada: chaves e segredos no GitHub (04/10/2026, 11:39 UTC)
+
+Com o OK do Diogo a cada passo:
+
+| Passo | Resultado | Como |
+|---|---|---|
+| D1: 4 chaves de máquina (sem frase-passe) | `publicar` `SHA256:ic0n9LRb…`, `aplicar` `SHA256:zDIpR8AV…`, `medir` `SHA256:dM3jm5Nq…`, `deploy_key` `SHA256:HHLuipRT…` (ED25519), em `C:\Users\diogo\.eurolify-chaves`, só legível pelo `diogo` (sem herança) | `ssh-keygen` do Git Bash; `icacls /inheritance:r` |
+| D2: segredos do ambiente `ensaio` | `VPS_CHAVE_PUBLICAR`, `_APLICAR`, `_MEDIR`, `VPS_ENDERECO` (comparado sem o mostrar: igual ao da VPS); variável `VPS_KNOWN_HOSTS` (3 chaves do anfitrião: ed25519, rsa, ecdsa) | `gh secret set --env ensaio < ficheiro`; `gh variable set` |
+| D3: *deploy key* | id 165336573, **read-only** | `gh repo deploy-key add` |
+
+As chaves privadas apagam-se deste computador no D8 (ficam só no GitHub e na
+VPS).
+
+## A OVH, fornecedor único (decisão AN, ADR-0032) — 04/10/2026
+
+- O Diogo: *«entretanto deixamos de usar o scaleway e passamos a usar so o
+  ovh, ja que a vps é de lá»* e *«usamos sempre o ovh para centralizar tudo em
+  um unico fornecedor»*.
+- OVH Object Storage, lido a 04/10/2026: compatível com S3; regiões na UE
+  (Gravelines, Estrasburgo, Roubaix, Frankfurt, Varsóvia, Paris, Milão) e
+  Londres; catálogo PT: `storage-standard.monthly.postpaid` 0,007 €/mês
+  (unidade por GB presumida), entrada 0 €.
+- O Claude avisou uma vez: VPS e cópias na mesma conta — um problema na conta
+  leva as duas; aceite para o ensaio, a produção decide de novo.
+- Mudados: `ensaio.conf` (`S3_DESTINO=ovh:…`), `LEIA-ME`, comentários do
+  `eurolify-copia` e do `eurolify-reposicao`, `docs/11` §6 e §7 (4 e 9),
+  `docs/05`, `docs/06` (AN e nota em AI), estados dos ADR-0011, 0027, 0029.
+  O primeiro varrimento só via ficheiros com extensão e falhou os programas
+  sem extensão; refeito em todo o `infra/` e `.github/`.

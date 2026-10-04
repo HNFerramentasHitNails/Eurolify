@@ -1,6 +1,6 @@
 # ADR-0011 · A conta da Scaleway fica preparada e o Claude lê-a com uma chave só de leitura
 
-- **Estado:** aceite · **sem efeito para o alojamento** desde o
+- **Estado:** aceite · ⚠️ **a Scaleway deixa de se usar** ([ADR-0032](0032-ovh-fornecedor-unico.md), 04/10/2026: a OVH é o fornecedor único) · **sem efeito para o alojamento** desde o
   [ADR-0015](0015-alojamento-numa-vps.md); o acesso só de leitura do Claude mudou pelo
   [ADR-0016](0016-o-claude-opera-a-vps.md)
 - **Data:** 03/10/2026
