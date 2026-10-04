@@ -6,9 +6,9 @@ description: Cartões-oferta no Eurolify, só na UE — distinguir vale comprado
 # Cartões-oferta (só na UE)
 
 > Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste
-> domínio só depois do desenho dele em tabela. **Fora da Fase 1** enquanto a
-> pergunta P3 de `docs/14-dominio-catalogo.md` não for decidida pelo Diogo ou
-> pelo Bruno.
+> domínio só depois do desenho dele em tabela. **Desenha-se e fica desligado**
+> até à porta (os testes desta skill e a validação de contabilista e jurista):
+> decisão do Diogo, 04/10/2026 (ADR-0034, P3 do `docs/14`).
 >
 > Origem: pacote enviado pelo Diogo a 04/10/2026, adaptado às regras do
 > repositório (`referencias/ORIGEM.md`). 🔴 **Todas as regras desta skill são

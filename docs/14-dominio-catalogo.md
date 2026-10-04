@@ -71,7 +71,7 @@ quando a loja tinha 1.043 à venda (13/09/2026, `catalog-pim`, regra 1).
 | Campo | Tipo | Obrig. | Notas |
 |---|---|---|---|
 | `id` | `prd_…` | sim | |
-| `tipo` | lista | sim | físico, serviço, digital, bilhete, cartão-oferta (`catalog-pim`); quais entram na Fase 1: **pergunta P3** |
+| `tipo` | lista | sim | físico, serviço, digital, bilhete, cartão-oferta (`catalog-pim`); digital e cartão-oferta desenhados e desligados até às portas deles (P3, ADR-0034) |
 | `estado` | lista | sim | rascunho, activo, arquivado (§4.1) |
 | `nome`, `descricao` | texto traduzível | nome sim | na língua de origem do comerciante; as outras em Tradução (§3.8) |
 | `marca` | texto | não | |
@@ -359,7 +359,7 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 |---|---|---|
 | P1 | Quem é dono do **canal**? O `02-arquitectura.md` põe o canal dentro do mercado, mas a `catalog-pim` publica por canal × mercado e a `eu-localization` define o mercado sem canal | canal e mercado são ambos de Preços e mercados; a publicação usa os dois |
 | P2 | De quem é a **fórmula com versão** (INCI)? Não aparece no `02-arquitectura.md` | Conformidade de produto, ao lado dos documentos e das recolhas; a variante aponta para ela |
-| P3 | Que **tipos de artigo** entram na Fase 1? Digital e cartão-oferta trazem regras próprias, agora nas skills `digital-products-eu` e `gift-cards-eu` (04/10/2026, tudo **C**): classificação dupla consumidor/IVA, perda da livre resolução por linha, SPV/MPV, saldo por movimentos e uma porta financeira (PSD2) por decidir | físico e serviço na Fase 1; digital, bilhete e cartão-oferta depois, cada um com a sua skill e os seus testes |
+| P3 | Que **tipos de artigo** entram na Fase 1? | ✅ **Decidido pelo Diogo, 04/10/2026 (ADR-0034):** digital e cartão-oferta **desenham-se** com `digital-products-eu` e `gift-cards-eu` e **ficam desligados** até às portas deles; físico e serviço seguem sem esperar por eles |
 | P4 | Atributos definidos pelo comerciante na Fase 1? | não: entram com os «campos e objectos próprios» das extensões (`docs/08`) |
 | P5 | Comerciante com sistema de gestão: o que pode ser editado no Hub do Eurolify? | os campos que vêm de lá ficam só de leitura no Hub; as traduções, a media e a publicação editam-se no Eurolify |
 | P6 | Acrescentar `product.unpublished` e `product.archived` à lista de eventos (skill `platform-architect` e `02-arquitectura.md`)? | sim — sem eles, Preços, Stock e frontends não sabem que um artigo deixou de estar à venda |

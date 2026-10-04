@@ -54,4 +54,4 @@ Fase 1), e depois *«sim, instala as duas skills»*.
   considerando 23), Reg. 282/2011 (arts. 7.º, 9.º-A, 24.º-B, 24.º-F), PSD2
   (arts. 3.º, alínea k), e 37.º), Reg. 2018/302.
 - O autor do pacote: o `SKILL.md` declara licença MIT, sem autor.
-- A P3 continua por decidir (proposta: físico e serviço na Fase 1).
+- ~~A P3 continua por decidir~~ — decidida pelo Diogo no mesmo dia (ADR-0034): digital e cartões-oferta desenham-se e ficam desligados até às portas deles.
