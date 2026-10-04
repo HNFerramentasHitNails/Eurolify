@@ -25,7 +25,32 @@ ADR-0006.
   fora: outros países», contra a decisão F (nativo para toda a UE) — escapou ao
   varrimento dessa decisão. Corrigido aqui.
 
+## 04/10/2026 — três peças da Fase 2 passam para a Fase 1 (decisão AD, ADR-0022)
+
+Pedido do Diogo: *«sim, passa as três para a Fase 1»*, depois de os módulos da
+Fase 2 passarem pelas 8 portas (`docs/13-portas-da-fase-2.md`).
+
+- Passam: o **relatório OSS com os quatro baldes** (em todos os planos), o
+  fluxo **devolução → estado do artigo → reembolso → nota de crédito** e os
+  **lotes na linha expedida com os compostos**. Ficam na Fase 2: troca,
+  carteira, vários armazéns, separação, inventários e as ligações ao software
+  de faturação de comerciantes de outros países.
+- Varrimento (procura por «relatório OSS», «quatro baldes», «devoluções
+  completas», «devoluções ligadas», «vários armazéns», «armazém completo»,
+  «compostos», «carteira» nos `docs/`, README, skills e `AGENTS.md`; e por
+  «15 a 29», «92–155», «101–192», «52–90», «60–117», «9 a 18» em todo o
+  repositório): acertados `docs/05` (âmbito da Fase 1, o que fica de fora,
+  critério de passagem, Fase 2), `docs/06` (linha AD e a linha O), `docs/09`
+  (planos), `docs/10` (peças 18 a 20 «por estimar» e as somas marcadas «sem
+  elas»), `docs/13` e README.
+- **Não mexi:** no ADR-0008 (aceite, não se edita — o ADR-0022 diz que os
+  números dele são sem estas peças); nas skills, porque nenhuma punha estas
+  três peças numa fase (a `order-fulfilment` só diz «vários armazéns (Fase
+  2)», que continua certo); na apresentação impressa para Bruno e Cila.
+
 ## O que ficou por verificar
 
 - O seguro de responsabilidade civil para uma plataforma destas.
 - O que o contrato de serviço pode limitar — com jurista.
+- Quanto custam as três peças da decisão AD e quanto tiram à Fase 2: não
+  estimado (04/10/2026). Os prazos do `docs/10` são sem elas.
