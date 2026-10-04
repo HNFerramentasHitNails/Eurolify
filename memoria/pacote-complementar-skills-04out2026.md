@@ -93,3 +93,10 @@ inicial» do pacote (texto no ADR-0034).
 - **P2:** domínio fora dos 11 mas presente no perfil (`decidir` passa a usar a lista dos 11); `null` e formas erradas em revisões, `dominios`, `territorios` e `base` ficam listados; `territorios: ""` deixa de contar como «sem território»; a mesma `id` em dois países ou domínios é erro; `-00:00` recusado (RFC 3339 §4.3); teste próprio para o estado desconhecido sem regra. Fica: `+23:59` aceite (é ISO válido; está escrito em `instante.ts`).
 - **Números** (04/10/2026, `grep -c "  it("` e `pnpm teste`): 44 testes do motor; a API com 46 a passar e 1 saltado.
 
+## Segunda volta da revisão do #45 (04/10/2026)
+
+- **O que se fez:** a revisão de `8a9d31f` (Fable 5.1, sessão nova) saiu às 15:44 UTC ([#45](https://github.com/HNFerramentasHitNails/Eurolify/pull/45#pullrequestreview-5406941876)): sem P0; 1 P1 e 3 P2. Confirmou o P1 anterior fechado.
+- **P1-1:** a varredura das formas (P2-2 anterior) deixou de fora os `territorios` do **perfil**. Com um texto, `includes` passava a ser pesquisa de subtexto: `"PT-30"` mapeava `"PT-3"`, passava o validador e saía «permitido». Corrigido em `decidir` e `validar` (só uma lista mapeia; o validador lista o erro). Terceira vez seguida que o achado é «o mesmo padrão no campo ao lado»: cada correcção de forma deve varrer **todos** os campos lidos, com `grep` de `?? []` e `.includes(`.
+- **P2:** `instante` sem coerção (uma lista com um texto deixava de ser recusada); frase no §4.4: quando o registo passar para a base, cada versão passa pelo `errosDoRegisto` antes de ser servida (o revisor concordou que a `base` fica fora de `decidir`); um teste simplificado. Fica: a mensagem «undefined: a mesma id…» com duas regras sem `id` (verdadeira e listada ao lado de «sem id»).
+- **Números** (04/10/2026, `grep -c "  it("` e `pnpm teste`): 46 testes do motor; a API com 48 a passar e 1 saltado.
+

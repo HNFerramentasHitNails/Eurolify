@@ -173,7 +173,8 @@ regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
 `proposta` fica de fora: nunca conta), país sem perfil, território não
 mapeado, regra num domínio que não existe ou que não está `verificado`, estado
 de revisão fora dos três, estado legal fora dos quatro, a mesma `id` em dois
-países ou dois domínios, revisões, `dominios`, `territorios` ou `base` com a
+países ou dois domínios, revisões, `dominios`, `territorios` (da regra e do
+perfil) ou `base` com a
 forma errada, `id`, `base`, `revistaPor` ou `revistoPor` vazios,
 `versao` que não é inteiro a partir de 1 — a aplicação **não arranca** e diz a
 lista toda. A validação é a porta de arranque, não a garantia: `decidir` só
@@ -197,7 +198,11 @@ sítio»).
 
 `apps/api/src/regras/` — dados do Eurolify, iguais para todos os comerciantes
 (classe 2 da `platform-architect`): nesta fatia ficam no código, com versão;
-passam para a base quando houver revisão de regras pelo Hub.
+passam para a base quando houver revisão de regras pelo Hub. **Quando passarem,
+cada versão nova do registo passa pelo `errosDoRegisto` antes de ser servida**:
+hoje a porta é o arranque (`app.ts`); a prova de cada regra (`base`,
+`revistaPor`, `verificadaEm`) só é verificada aí, não em `decidir` (revisão do
+#45, segunda volta, P2-1).
 
 ## 5. Digital e cartões-oferta
 

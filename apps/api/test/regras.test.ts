@@ -350,10 +350,34 @@ describe("decidir", () => {
     });
   });
 
+  it("territórios do perfil que não são lista: não mapeiam e são erro (revisão do #45, segunda volta, P1-1)", () => {
+    for (const territorios of ["PT-30", {}, 5, true]) {
+      const registo = registoComPortugal(
+        [regraTeste({ id: "r", territorios: ["PT-3"] })],
+        2,
+        territorios as unknown as readonly string[],
+      );
+      expect(
+        decidir(registo, {
+          pais: "PT",
+          territorio: "PT-3",
+          dominios: ["consumidor"],
+          momento: AGORA,
+        }),
+      ).toMatchObject({
+        estado: "revisao_necessaria",
+        regrasAplicadas: [],
+        motivos: [{ codigo: "territorio_nao_mapeado", territorio: "PT-3" }],
+      });
+      expect(errosDoRegisto(registo)).toEqual([
+        "PT: «territorios» tem de ser uma lista ou null",
+        "r@1: território PT-3 não mapeado em PT",
+      ]);
+    }
+  });
+
   it("revisões e territórios com forma errada não contam (revisão do #45, P2-2)", () => {
-    const comNull = {
-      ...registoComPortugal([regraTeste({ id: "r" })]),
-    };
+    const comNull = registoComPortugal([regraTeste({ id: "r" })]);
     const registo = {
       ...comNull,
       paises: comNull.paises.map((perfil) =>
@@ -672,6 +696,27 @@ describe("instante", () => {
     ]) {
       expect(instante(texto)).toBeNull();
     }
+  });
+});
+
+describe("instante sem coerção", () => {
+  it("o que não é texto não é instante (revisão do #45, segunda volta, P2-2)", () => {
+    for (const valor of [["2026-10-04T12:00:00Z"], 0, null, undefined, {}]) {
+      expect(instante(valor as never)).toBeNull();
+    }
+    const registo = registoComPortugal([
+      {
+        ...regraTeste({ id: "r" }),
+        aplicaDesde: ["2020-01-01T00:00:00Z"],
+      } as unknown as Regra,
+    ]);
+    expect(
+      decidir(registo, { pais: "PT", dominios: ["consumidor"], momento: AGORA })
+        .estado,
+    ).toBe("revisao_necessaria");
+    expect(errosDoRegisto(registo)).toEqual([
+      "r@1: aplicaDesde inválido «2020-01-01T00:00:00Z»",
+    ]);
   });
 });
 

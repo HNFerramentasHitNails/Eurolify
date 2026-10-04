@@ -116,9 +116,14 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   const motivos: Motivo[] = [];
   const regrasAplicadas: string[] = [];
 
+  // Só uma lista mapeia territórios: um texto faria do `includes` uma
+  // pesquisa de subtexto (revisão do #45, segunda volta, P1-1).
+  const territoriosDoPerfil: unknown = perfil.territorios;
+  const mapeados: readonly unknown[] = Array.isArray(territoriosDoPerfil)
+    ? territoriosDoPerfil
+    : [];
   const territorioMapeado =
-    pedido.territorio === undefined ||
-    (perfil.territorios ?? []).includes(pedido.territorio);
+    pedido.territorio === undefined || mapeados.includes(pedido.territorio);
   if (!territorioMapeado && pedido.territorio !== undefined) {
     motivos.push({
       codigo: "territorio_nao_mapeado",

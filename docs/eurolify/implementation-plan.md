@@ -18,7 +18,7 @@
 | # | Fatia | Depende de | Desenho | Porta para entrar no `main` | Porta para produção | Responsável | Estado |
 |---|---|---|---|---|---|---|---|
 | 0 | Esqueleto, publicação, VPS | — | ADR-0025 a 0028 | testes verdes | — | Diogo | **feito** (antes deste plano) |
-| 1 | **Motor de regras por país**: registo dos 27, decisão pura, `GET /paises` | — | `architecture.md` §4 | testes verdes + revisão de uma sessão nova (ADR-0030) | cada regra nacional com fonte lida e revisor | Diogo (#37; correcções da revisão: issue #39) | **feito** — 44 testes; nada sai «permitido»; o #37 e o #40 entraram no `main` antes das revisões — P0, P1 e P2 corrigidos depois (issue #39) |
+| 1 | **Motor de regras por país**: registo dos 27, decisão pura, `GET /paises` | — | `architecture.md` §4 | testes verdes + revisão de uma sessão nova (ADR-0030) | cada regra nacional com fonte lida e revisor | Diogo (#37; correcções da revisão: issue #39) | **feito** — 46 testes; nada sai «permitido»; o #37 e o #40 entraram no `main` antes das revisões — P0, P1 e P2 corrigidos depois (issue #39) |
 | 2 | Comerciante e entidade legal: registo, estados (rascunho → prova pendente → revisão → aprovado limitado → activo; suspenso, fechado), isolamento por comerciante na base (RLS) | 1 | **em desenho**: [`docs/15`](../15-dominio-comerciante.md) (issue #41) | idem + teste que tenta ler o vizinho | acordo de tratamento de dados e contrato de serviço (jurista) | — | por fazer |
 | 3 | Catálogo: artigo, variante, tradução, publicação por canal × mercado | 2 | `docs/14` | idem | P1, P2, P4–P7 respondidas | — | **bloqueado**: perguntas do `docs/14` §9 |
 | 4 | Preços e mercados: listas, mercados, histórico de 30 dias, listas B2B por relação | 1, 3 | **por fazer** (`architecture.md` §3 para o B2B) | idem | regra do preço de referência (**C**, jurista) | — | por fazer |
@@ -41,7 +41,7 @@
 - **Porquê primeiro:** não depende de nenhuma pergunta em aberto, não inventa
   nenhuma regra, e todas as fatias seguintes (IVA, checkout, livre resolução,
   digital, vales) precisam de lhe perguntar antes de agir.
-- **Testes** (`apps/api/test/regras.test.ts`, 44 a 04/10/2026, contados com
+- **Testes** (`apps/api/test/regras.test.ts`, 46 a 04/10/2026, contados com
   `grep -c "it("`): 27 códigos únicos; `GR` e não `EL`; registo sem regras,
   coerente e congelado; nenhuma combinação permitida com o registo de partida
   (11 domínios, juntos e um a um); código de país inválido e país fora da UE;
@@ -72,7 +72,10 @@
   do #45 ([#45](https://github.com/HNFerramentasHitNails/Eurolify/pull/45#pullrequestreview-5406880633),
   antes de juntar) achou 1 P1 (o mesmo padrão, no `estadoLegal`: uma
   `"Proposta"` com maiúscula passava o validador e saía «permitido») e 6 P2;
-  corrigidos no mesmo pedido.
+  corrigidos no mesmo pedido. A segunda volta
+  ([revisão de `8a9d31f`](https://github.com/HNFerramentasHitNails/Eurolify/pull/45#pullrequestreview-5406941876))
+  achou 1 P1 (`territorios` do perfil em texto passava o validador e saía
+  «permitido») e 3 P2; corrigidos no mesmo pedido.
 
 ## Próxima fatia proposta
 

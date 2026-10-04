@@ -67,6 +67,12 @@ export function errosDoRegisto(registo: Registo): string[] {
       erros.push(`${perfil.codigo}: «dominios» tem de ser um objecto`);
       continue;
     }
+    const territoriosDoPerfil: unknown = perfil.territorios;
+    if (territoriosDoPerfil !== null && !Array.isArray(territoriosDoPerfil)) {
+      erros.push(
+        `${perfil.codigo}: «territorios» tem de ser uma lista ou null`,
+      );
+    }
     const chaves = Object.keys(dominiosDoPerfil);
     for (const dominio of DOMINIOS) {
       if (!chaves.includes(dominio)) {
@@ -188,7 +194,11 @@ export function errosDoRegisto(registo: Registo): string[] {
       continue;
     }
     for (const territorio of regra.territorios) {
-      if (!(perfil.territorios ?? []).includes(territorio)) {
+      const territoriosDoPerfil: unknown = perfil.territorios;
+      const mapeados: readonly unknown[] = Array.isArray(territoriosDoPerfil)
+        ? territoriosDoPerfil
+        : [];
+      if (!mapeados.includes(territorio)) {
         erros.push(
           `${nome}: território ${territorio} não mapeado em ${regra.pais}`,
         );

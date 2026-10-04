@@ -12,6 +12,10 @@ const ISO_COM_FUSO =
 
 /** Milissegundos desde 1970 (UTC), ou null se o texto não for um instante válido. */
 export function instante(texto: string): number | null {
+  // Sem coerção: uma lista com um texto lá dentro não é um instante (revisão
+  // do #45, segunda volta, P2-2).
+  const entrada: unknown = texto;
+  if (typeof entrada !== "string") return null;
   const partes = ISO_COM_FUSO.exec(texto);
   if (partes === null) return null;
   const [ano, mes, dia, hora, minuto, segundo] = partes
