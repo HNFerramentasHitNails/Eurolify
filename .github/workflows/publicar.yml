@@ -1,0 +1,92 @@
+# Publica no ensaio a cada entrada de código no main (ADR-0014, ADR-0026,
+# ADR-0028). A imagem constrói-se aqui e vai para o GHCR; na VPS, a chave
+# "publicar" só entrega o resumo da imagem: quem publica é o serviço da máquina.
+name: publicar
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig.base.json"
+      - ".github/workflows/publicar.yml"
+      - ".github/workflows/verificar.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Nunca duas publicações ao mesmo tempo; a que chega espera pela anterior.
+  group: publicar-ensaio
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    uses: ./.github/workflows/verificar.yml
+
+  imagem:
+    needs: verificar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      resumo: ${{ steps.construir.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: nome
+        # O GHCR só aceita nomes em minúsculas.
+        env:
+          DONO: ${{ github.repository_owner }}
+        run: echo "imagem=ghcr.io/${DONO,,}/eurolify-api" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: construir
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.nome.outputs.imagem }}:${{ github.sha }}
+
+  publicar:
+    needs: imagem
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # As chaves e o endereço só existem no ambiente "ensaio", que só aceita o
+    # main (ADR-0028).
+    environment: ensaio
+    steps:
+      - name: Pedir a publicação na VPS
+        env:
+          CHAVE: ${{ secrets.VPS_CHAVE_PUBLICAR }}
+          ANFITRIOES: ${{ vars.VPS_KNOWN_HOSTS }}
+          VPS: ${{ vars.VPS_ENDERECO }}
+          RESUMO: ${{ needs.imagem.outputs.resumo }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RESUMO" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Resumo da imagem inválido: '$RESUMO'" >&2
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/chave
+          chmod 600 ~/.ssh/chave
+          printf '%s\n' "$ANFITRIOES" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/chave "eurolify-publicar@${VPS}" "$RESUMO"
+      - name: Apagar a chave do executor
+        if: always()
+        run: rm -f ~/.ssh/chave

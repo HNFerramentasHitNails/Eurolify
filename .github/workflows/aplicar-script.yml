@@ -1,0 +1,48 @@
+# Aplica o script de preparação revisto quando ele muda no main (ADR-0028).
+# A chave "aplicar" só entrega o commit e o modo; na VPS, o serviço confirma
+# que o commit está no main, corre o infra/vps desse commit e devolve a saída.
+name: aplicar-script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/vps/**"
+      - ".github/workflows/aplicar-script.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aplicar-script-ensaio
+  cancel-in-progress: false
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ensaio
+    env:
+      CHAVE: ${{ secrets.VPS_CHAVE_APLICAR }}
+      ANFITRIOES: ${{ vars.VPS_KNOWN_HOSTS }}
+      VPS: ${{ vars.VPS_ENDERECO }}
+      COMMIT: ${{ github.sha }}
+    steps:
+      - name: Preparar o SSH
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/chave
+          chmod 600 ~/.ssh/chave
+          printf '%s\n' "$ANFITRIOES" > ~/.ssh/known_hosts
+      - name: Primeiro, só mostrar o que faria
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/chave "eurolify-aplicar@${VPS}" "$COMMIT mostrar"
+      - name: Depois, aplicar
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/chave "eurolify-aplicar@${VPS}" "$COMMIT aplicar"
+      - name: Apagar a chave do executor
+        if: always()
+        run: rm -f ~/.ssh/chave

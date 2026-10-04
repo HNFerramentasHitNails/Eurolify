@@ -1,0 +1,33 @@
+# Mede a VPS, só a ler (ADR-0028). Lança-se à mão, de qualquer computador ou
+# da cloud, sem entradas: a lista de medições é fixa e vive na máquina. A
+# saída já vem sem endereços IP nem dados pessoais (filtrada na VPS).
+name: medir
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  medir:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: ensaio
+    steps:
+      - name: Medir
+        env:
+          CHAVE: ${{ secrets.VPS_CHAVE_MEDIR }}
+          ANFITRIOES: ${{ vars.VPS_KNOWN_HOSTS }}
+          VPS: ${{ vars.VPS_ENDERECO }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/chave
+          chmod 600 ~/.ssh/chave
+          printf '%s\n' "$ANFITRIOES" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/chave "eurolify-medir@${VPS}"
+      - name: Apagar a chave do executor
+        if: always()
+        run: rm -f ~/.ssh/chave
