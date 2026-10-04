@@ -67,3 +67,23 @@ b: conta pessoal com Pro; c: sem protecção). Resposta do Diogo: *«b»*.
 - O preço actual do Pro; se aceita «0 aprovações + donos obrigatórios».
 - O Diogo disse ter comprado o domínio `eurolify.eu` a 04/10/2026 (registador
   não dito); o DNS público respondia «não existe» nessa altura. Entra na A5.
+
+## A3: as ferramentas (decisão AG, ADR-0025) — 04/10/2026
+
+Proposta numa tabela (peça, versão, porquê, alternativa). Resposta do Diogo:
+*«fica assim»*.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Fonte e como |
+|---|---|---|
+| Node.js | LTS 24.21.0 (07/09/2026); 26.10.0 «Current»; a 26 passa a LTS a 28/10/2026; a 24 entra em manutenção a 20/10/2026 e acaba a 30/04/2028 | `nodejs.org/dist/index.json` e `nodejs/Release` `schedule.json`, 04/10/2026 |
+| PostgreSQL | 18.6 «current» (13/08/2026), fim 14/11/2030; 17.11; 16.15 | `postgresql.org/versions.json`, 04/10/2026 |
+| TypeScript | `latest` 7.0.2; 6.0.3 (16/04/2026) | `registry.npmjs.org/typescript` |
+| typescript-eslint 8.71.0 | pede `typescript >=4.8.4 <6.1.0` → por isso o TS 6.0 | `peerDependencies` no registo do npm |
+| Outras (`latest`) | pnpm 12.9.1, fastify 5.12.5, typebox 0.34.52, @fastify/swagger 9.9.1, kysely 0.29.6, pg 8.23.1, vitest 5.0.3, testcontainers 12.2.0, eslint 10.12.0, prettier 3.9.9, react 19.3.0, vite 8.3.2 | `registry.npmjs.org/<pacote>/latest`, 04/10/2026 |
+
+### O que ficou por verificar
+
+- Fastify 5.12 e Vitest 5 no Node 26; a memória real de cada peça na VPS-1.
+- As duas datas: Node 26 depois de 28/10/2026; TypeScript 7 quando o lint o aceitar.
