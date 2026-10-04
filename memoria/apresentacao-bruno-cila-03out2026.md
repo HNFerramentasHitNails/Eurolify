@@ -545,6 +545,64 @@ Pedido do Diogo: *«verifica se há mais alterações»* — procurei nas 66 pá
   03/10/2026» em 28 páginas e a data da 66 (a capa diz 04/10/2026); as notas da
   capa descrevem a 0.7 só até à v21.
 
+## Versão 0.8: reescrita em 25 páginas, num deck novo (04/10/2026)
+
+Pedido do Diogo: *«podes melhorar a apresentação e explicação com tudo o que
+ja foi feito, para propor este projeto ao bruno e cila?»*
+
+- **O deck antigo não abriu desta sessão:** a leitura de
+  `claude.ai/artifact/Jym2njB8ZwYHJJBJkw4anN` deu «não encontrado» e a lista
+  de artefactos veio vazia (provavelmente outra conta). Fez-se um **deck novo**
+  a partir do repositório: https://claude.ai/artifact/8rJhue4m1Dwdu6zR3kkAJo
+  (tipo Slides, versão `1791127287-770f`), **privado** até o Diogo o partilhar.
+  O antigo (v25, 66 páginas) não foi mexido.
+- **De 66 para 25 páginas**, contadas como uma história para quem não é
+  técnico: resumo (2) · o problema medido, as regras que mudam e o mercado
+  (3–5) · as quatro peças, como funciona, a diferença, o que não é, a receita
+  (6–10) · **o que já está feito** (11–15: 42 decisões, 34 ADR, 15 documentos
+  de desenho, 16 skills; a máquina que publica, copia e avisa sozinha; as três
+  portas, com o P0 apanhado pela revisão no #37/#40; e o que ainda não existe)
+  · fases, Fase 1, tempo, custo, financiamento (16–20) · riscos e marca (21–22)
+  · **quatro pedidos com caixa para escrever à mão** (23–24) · próximos passos
+  (25). O pormenor ficou nas notas de cada página e no `docs/`.
+- **Pedidos novos na reunião:** avançar (sim/não/com condições); a dedicação
+  do Diogo e do Bruno (tempo inteiro 17–32 meses ou meio tempo 31–58 —
+  procurei no `docs/06` e no `docs/10` §9: não está decidida); procurar
+  financiamento; o logótipo (sem o estudo 5). A folha dos 9 estudos **não está
+  no deck novo** (a imagem só existia no antigo).
+- Contados a 04/10/2026: 42 linhas ✅ no `docs/06` (A a AP); 35 ficheiros em
+  `docs/adr` menos o modelo = 34; 15 documentos em `docs/` (00, 02–15); 16
+  pastas em `.agents/skills`.
+- Mesma letra do antigo (Space Grotesk e Public Sans) e azul neutro; não se
+  usou o sistema de design da conta (é de uma marca dos sistemas actuais).
+- ⚠️ **Não desenhei nem vi as páginas.** As alturas foram contadas à mão
+  contra o limite de 792 px (com rodapé); as mais apertadas pela conta: 2
+  (≈ 764), 3 (≈ 756), 4 (≈ 763) e 21 (≈ 761). → medidas no PDF (abaixo).
+
+## PDF da versão 0.8 (04/10/2026)
+
+Pedido do Diogo: *«gera o PDF da v0.8»*.
+
+- Antes: os 26 ficheiros publicados (versão `1791127287-770f`) eram iguais
+  byte a byte às minhas cópias (`cmp`).
+- ❌ **Erro meu, apanhado ao ver a página 13:** os rodapés das páginas 12 a 15
+  diziam 11 a 14 (contei a página 11, de abertura, sem rodapé). Corrigidos e
+  publicados (versão `1791127554-c2db`); conferidos os 23 rodapés contra a
+  ordem do deck por programa.
+- Método: as 25 páginas da versão publicada juntas num HTML, desenhadas num
+  Chromium local (Playwright 1.56.1) a 1920×1080, com a Space Grotesk e a
+  Public Sans (latin e latin-ext) do Google Fonts metidas no ficheiro; as
+  setas e os 6 ícones da página 13 desenhados por mim em SVG (imitação dos do
+  tipo Slides); notas do orador fora.
+- `Eurolify-apresentacao-Bruno-Cila-v0.8.pdf`: **25 páginas, 1440×810 pt,
+  1.202.413 bytes** (`pdfinfo`); sha256 começa por `c5fc2d1e36c0201f`.
+  Entregue ao Diogo na conversa; não está no repositório.
+- Fundo do conteúdo: nenhuma passa de 920 px nem de 1792 à direita; as mais
+  altas: 2 (857), 19 (812), 8 (811), 20 (803). Letra de recurso só nas 18 e 19,
+  para o «≈». Vistas em imagem: 13, 21 e as 25 numa folha reduzida.
+- ⚠️ Os estilos de tabela e de lista são imitação minha; o PDF do botão de
+  exportar do deck pode sair diferente.
+
 ## O que ficou por verificar
 
 - **Não vi as páginas desenhadas**: não abri o deck nem tirei capturas. Uma
