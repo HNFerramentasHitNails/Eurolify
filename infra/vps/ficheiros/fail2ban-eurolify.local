@@ -1,7 +1,5 @@
-# Eurolify (infra/vps). Bloqueio de 1 h (memória da VPS, 04/10/2026) e
-# endereços guardados 14 dias na base do fail2ban (ADR-0027).
-[DEFAULT]
-dbpurgeage = 14d
-
+# Eurolify (infra/vps), em /etc/fail2ban/jail.d/: bloqueio de 1 h
+# (memória da VPS, 04/10/2026). A retenção da base está no
+# fail2ban-definicao-eurolify.local (é opção do fail2ban.conf, não das jaulas).
 [sshd]
 bantime = 1h

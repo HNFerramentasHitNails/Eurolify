@@ -73,7 +73,7 @@ jobs:
         env:
           CHAVE: ${{ secrets.VPS_CHAVE_PUBLICAR }}
           ANFITRIOES: ${{ vars.VPS_KNOWN_HOSTS }}
-          VPS: ${{ vars.VPS_ENDERECO }}
+          VPS: ${{ secrets.VPS_ENDERECO }}
           RESUMO: ${{ needs.imagem.outputs.resumo }}
         run: |
           set -euo pipefail

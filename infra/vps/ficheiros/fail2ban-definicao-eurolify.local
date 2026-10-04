@@ -1,0 +1,5 @@
+# Eurolify (infra/vps), em /etc/fail2ban/fail2ban.d/: os endereços bloqueados
+# ficam 14 dias na base do fail2ban (ADR-0027). Opção da secção [Definition]
+# do fail2ban.conf — numa jaula seria ignorada (revisão do #10, P1).
+[Definition]
+dbpurgeage = 14d

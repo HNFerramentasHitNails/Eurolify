@@ -68,7 +68,10 @@ Resposta, a 04/10/2026: *«sim»*.
 
 ## Consequências
 
-- **O Diogo cria:** na Scaleway, uma chave que só escreve nesse contentor; no
+- **O Diogo cria:** na Scaleway, uma chave ~~que só escreve~~ **de leitura e
+  escrita só nesse contentor** (corrigido a 04/10/2026, revisão do #10: a
+  reposição semanal lista e lê as cópias; com uma chave só de escrita falhava
+  todas as semanas); no
   Healthchecks.io, a conta com o e-mail dele. Os segredos vão para a VPS pelo
   script, nunca pelo chat (`AGENTS.md`).
 - O script de preparação (C3) faz tudo isto e reproduz o que se fez à mão.

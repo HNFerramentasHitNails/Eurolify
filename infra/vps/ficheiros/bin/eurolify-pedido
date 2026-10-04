@@ -4,6 +4,9 @@
 # na pasta do fluxo e espera pela resposta do serviço da máquina (root).
 #
 # authorized_keys: restrict,command="/usr/local/bin/eurolify-pedido <fluxo>" <chave>
+#
+# Cada pedido leva um identificador e a resposta vem em resultado.<id>: um
+# pedido nunca lê a resposta de outro que tenha ficado a meio (revisão do #10, P1).
 set -Eeuo pipefail
 umask 077
 
@@ -44,15 +47,19 @@ if ! flock -w 60 9; then
   exit 75
 fi
 
-rm -f resultado
-printf '%s\n' "$pedido" > pedido.tmp
+# Respostas de pedidos antigos que ninguém leu já não interessam a ninguém.
+rm -f resultado.*
+
+id="$(date +%s%N)$$"
+printf '%s\n%s\n' "$pedido" "$id" >pedido.tmp
 mv -f pedido.tmp pedido
 
+resposta="resultado.$id"
 for ((i = 0; i < espera; i++)); do
-  if [[ -f resultado ]]; then
-    codigo="$(head -n 1 resultado)"
-    tail -n +2 resultado
-    rm -f resultado
+  if [[ -f "$resposta" ]]; then
+    codigo="$(head -n 1 "$resposta")"
+    tail -n +2 "$resposta"
+    rm -f "$resposta"
     [[ "$codigo" =~ ^[0-9]+$ ]] || codigo=70
     exit "$codigo"
   fi

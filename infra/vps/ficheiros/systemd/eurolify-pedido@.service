@@ -1,5 +1,7 @@
 [Unit]
 Description=Eurolify: tratar um pedido do fluxo %i (ADR-0028)
+# Um pedido estragado não pode esgotar o limite de arranques e parar o fluxo.
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot

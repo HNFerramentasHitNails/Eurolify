@@ -23,7 +23,7 @@ carimbo="$(date -u +%Y%m%dT%H%M%SZ)"
 nome="eurolify-${carimbo}.dump.age"
 
 docker exec eurolify-postgres pg_dump -U postgres -Fc "$BASE_NOME" |
-  age -r "$(cat /etc/eurolify/age.pub)" -o "$pasta/$nome"
+  age -R /etc/eurolify/age.pub -o "$pasta/$nome"
 
 rclone --config /etc/eurolify/rclone.conf copyto "$pasta/$nome" "$S3_DESTINO/$nome"
 

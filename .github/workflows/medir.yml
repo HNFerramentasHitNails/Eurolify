@@ -19,7 +19,7 @@ jobs:
         env:
           CHAVE: ${{ secrets.VPS_CHAVE_MEDIR }}
           ANFITRIOES: ${{ vars.VPS_KNOWN_HOSTS }}
-          VPS: ${{ vars.VPS_ENDERECO }}
+          VPS: ${{ secrets.VPS_ENDERECO }}
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh

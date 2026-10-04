@@ -22,6 +22,8 @@ arrancar() {
     -p 127.0.0.1:8080:8080 \
     --env-file /etc/eurolify/api.env \
     --memory 512m \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
     --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
     "$1" >/dev/null
 }
@@ -49,6 +51,9 @@ if [[ "$anterior" == "$imagem" ]]; then
 fi
 
 # As migrações correm antes de trocar; se falharem, fica a versão anterior.
+# Se o /health falhar depois, volta-se à imagem anterior com o esquema já
+# migrado: por isso as migrações têm de ser compatíveis com a versão anterior
+# (acrescentar primeiro, tirar só numa publicação seguinte).
 if docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
   echo "A correr as migrações"
   docker run --rm --network eurolify --env-file /etc/eurolify/api.env "$imagem" node dist/migrar.js ||

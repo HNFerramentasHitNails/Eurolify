@@ -25,12 +25,13 @@ carregar_config() {
 }
 
 # Tira endereços IPv4 e IPv6 de uma saída (ADR-0018: são dados pessoais).
-# O IPv6 exige pelo menos três «:» para não apanhar horas (12:34:56).
+# IPv6: ou tem «::», ou pelo menos três «:» — para não apanhar horas
+# (12:34:56). A forma com «::» trata-se primeiro, inteira (revisão do #10, P2).
 filtrar_ip() {
   sed -E \
-    -e 's/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/<ip>/g' \
-    -e 's/\b([0-9a-fA-F]{1,4}:){3,7}[0-9a-fA-F]{0,4}\b/<ip6>/g' \
-    -e 's/\b[0-9a-fA-F]{0,4}::([0-9a-fA-F]{1,4}:?){1,6}\b/<ip6>/g'
+    -e 's/([0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){0,6})?::([0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){0,6})?/<ip6>/g' \
+    -e 's/([0-9a-fA-F]{1,4}:){3,7}[0-9a-fA-F]{1,4}/<ip6>/g' \
+    -e 's/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/<ip>/g'
 }
 
 # Aviso ao Healthchecks.io (ADR-0027). healthchecks.env traz HC_<NOME>=<url>.

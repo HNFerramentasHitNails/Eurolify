@@ -124,7 +124,8 @@ Proposta em quatro peças; resposta do Diogo: *«sim»*. Só para o ensaio.
 
 - O país dos servidores do Healthchecks.io e se o plano gratuito manda e-mail.
 - O registador do `eurolify.eu`.
-- Por criar pelo Diogo: a chave da Scaleway só de escrita no contentor; a
+- Por criar pelo Diogo: a chave da Scaleway ~~só de escrita~~ de leitura e
+  escrita só no contentor (corrigido pela revisão do #10); a
   conta no Healthchecks.io.
 
 ## A4 acrescentada: a VPS opera-se pelo GitHub (decisão AJ, ADR-0028) — 04/10/2026

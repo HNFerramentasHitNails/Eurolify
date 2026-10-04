@@ -84,7 +84,8 @@ passo "1. Pacotes"
 pacotes=(docker.io ufw fail2ban age rclone git curl openssh-server)
 falta=()
 for p in "${pacotes[@]}"; do
-  dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed' || falta+=("$p")
+  estado="$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null || true)"
+  [[ "$estado" == "install ok installed" ]] || falta+=("$p")
 done
 if ((${#falta[@]})); then
   fazer "instalar pacotes: ${falta[*]}" \
@@ -94,11 +95,57 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-passo "2. SSH só por chave, sem root (docs/11 §3.1; memória da VPS)"
+# As chaves de emergência vêm ANTES do SSH só por chave: fechar a palavra-passe
+# numa máquina sem nenhuma chave deixava toda a gente de fora (revisão do #10).
+passo "2. Chaves de emergência do ubuntu (ADR-0028): só acrescenta, nunca apaga"
+ak=/home/ubuntu/.ssh/authorized_keys
+acrescentar_chave() {
+  install -d -o ubuntu -g ubuntu -m 700 /home/ubuntu/.ssh
+  # Se a última linha não acabar em mudança de linha, a chave nova colava-se à
+  # anterior e estragava-a.
+  if [[ -s "$ak" && -n "$(tail -c 1 "$ak")" ]]; then printf '\n' >>"$ak"; fi
+  head -n 1 "$1" >>"$ak"
+  chown ubuntu:ubuntu "$ak"
+  chmod 600 "$ak"
+}
+chaves_no_repositorio=0
+for pub in "$AQUI"/chaves/pessoais/*.pub; do
+  [[ -s "$pub" ]] || continue
+  chaves_no_repositorio=$((chaves_no_repositorio + 1))
+  material="$(awk '{print $2}' "$pub")"
+  if [[ -f "$ak" ]] && grep -qF -- "$material" "$ak"; then
+    ok "chave $(basename "$pub")"
+  else
+    fazer "acrescentar a chave $(basename "$pub") ao ubuntu" acrescentar_chave "$pub"
+  fi
+done
+if [[ -f "$ak" ]]; then
+  while read -r _ material comentario; do
+    [[ -n "${material:-}" ]] || continue
+    grep -qF -- "$material" "$AQUI"/chaves/pessoais/*.pub 2>/dev/null ||
+      aviso "chave no ubuntu que não está no repositório (não a apago): ${comentario:-sem comentário}"
+  done < <(grep -vE '^\s*(#|$)' "$ak")
+fi
+chaves_no_ubuntu=0
+if [[ -f "$ak" ]]; then
+  chaves_no_ubuntu="$(grep -cE '^(ssh-|ecdsa-|sk-)' "$ak" || true)"
+fi
+
+# ---------------------------------------------------------------------------
+passo "3. SSH só por chave, sem root (docs/11 §3.1; memória da VPS)"
 sshd_eurolify=/etc/ssh/sshd_config.d/00-eurolify.conf
 sshd_antes=/etc/ssh/00-eurolify.conf.antes # fora da pasta: o Include só lê *.conf
-((MOSTRAR)) || { [[ -f "$sshd_eurolify" ]] && cp -p "$sshd_eurolify" "$sshd_antes"; } || true
-instalar "$F/sshd-00-eurolify.conf" "$sshd_eurolify" 644
+pode_fechar=0
+if ((chaves_no_ubuntu > 0)) || ((MOSTRAR && chaves_no_repositorio > 0)); then
+  pode_fechar=1
+fi
+mudou=0
+if ((pode_fechar)); then
+  ((MOSTRAR)) || { [[ -f "$sshd_eurolify" ]] && cp -p "$sshd_eurolify" "$sshd_antes"; } || true
+  instalar "$F/sshd-00-eurolify.conf" "$sshd_eurolify" 644
+else
+  aviso "o ubuntu não tem nenhuma chave: NÃO fecho a entrada por palavra-passe (ficaríamos todos de fora)"
+fi
 if ((mudou && !MOSTRAR)); then
   if ! sshd -t; then
     # Nunca deixar o sshd com uma configuração inválida: volta a versão
@@ -118,10 +165,11 @@ if tem sshd && ! ((MOSTRAR && mudou)); then
 fi
 
 # ---------------------------------------------------------------------------
-passo "3. Firewall: entrada fechada, só a porta 22 (ADR-0027)"
-if tem ufw && ufw status verbose | grep -q '^Status: active' &&
-  ufw status verbose | grep -q 'deny (incoming)' &&
-  ufw status | grep -qE '^22/tcp +ALLOW IN +Anywhere *$'; then
+passo "4. Firewall: entrada fechada, só a porta 22 (ADR-0027)"
+ufw_verbose=""
+tem ufw && ufw_verbose="$(ufw status verbose 2>&1 || true)"
+if [[ "$ufw_verbose" == *"Status: active"* && "$ufw_verbose" == *"deny (incoming)"* ]] &&
+  grep -qE '^22/tcp +ALLOW IN +Anywhere *$' <<<"$ufw_verbose"; then
   ok "ufw activo, entrada deny, 22/tcp aberta"
 else
   fazer "ufw: entrada deny, saída allow, 22/tcp, ligar" bash -c \
@@ -133,23 +181,30 @@ if tem ufw; then
 fi
 
 # ---------------------------------------------------------------------------
-passo "4. fail2ban: bloqueio de 1 h, endereços 14 dias (ADR-0027)"
-instalar "$F/fail2ban-eurolify.local" /etc/fail2ban/jail.d/eurolify.local 644
-((mudou)) && fazer "recarregar o fail2ban" fail2ban-client reload
+passo "5. fail2ban: bloqueio de 1 h, endereços 14 dias (ADR-0027)"
+# Primeiro activo, depois a configuração: um reload com o serviço parado
+# abortava o script a meio (revisão do #10).
 if tem systemctl && systemctl is-active --quiet fail2ban 2>/dev/null; then
   ok "fail2ban activo"
 else
   fazer "ligar o fail2ban" systemctl enable --now fail2ban
 fi
+f2b_mudou=0
+instalar "$F/fail2ban-eurolify.local" /etc/fail2ban/jail.d/eurolify.local 644
+((mudou)) && f2b_mudou=1
+# O dbpurgeage é do fail2ban.conf ([Definition]), não das jaulas.
+instalar "$F/fail2ban-definicao-eurolify.local" /etc/fail2ban/fail2ban.d/eurolify.local 644
+((mudou)) && f2b_mudou=1
+((f2b_mudou)) && fazer "reiniciar o fail2ban (a retenção da base só muda ao arrancar)" systemctl restart fail2ban
 
 # ---------------------------------------------------------------------------
-passo "5. Registos com endereços IP: 14 dias (ADR-0018, ADR-0027)"
+passo "6. Registos com endereços IP: 14 dias (ADR-0018, ADR-0027)"
 instalar "$F/journald-eurolify.conf" /etc/systemd/journald.conf.d/eurolify.conf 644
 ((mudou)) && fazer "reiniciar o systemd-journald" systemctl restart systemd-journald
 instalar "$F/logrotate-ufw" /etc/logrotate.d/ufw 644
 
 # ---------------------------------------------------------------------------
-passo "6. Pastas e configuração sem segredos"
+passo "7. Pastas e configuração sem segredos"
 for d in /etc/eurolify:700 /var/lib/eurolify:755 /var/lib/eurolify/pedidos:755 \
   /var/lib/eurolify/trabalho:700 /var/lib/eurolify/copias:700 /var/log/eurolify:750; do
   caminho="${d%%:*}"
@@ -166,7 +221,7 @@ instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
 source "$F/ensaio.conf"
 
 # ---------------------------------------------------------------------------
-passo "7. Programas e unidades do Eurolify"
+passo "8. Programas e unidades do Eurolify"
 instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
 for p in trabalho publicar aplicar medir copia reposicao verificacao; do
@@ -180,7 +235,7 @@ done
 ((unidades_mudaram)) && fazer "systemctl daemon-reload" systemctl daemon-reload
 
 # ---------------------------------------------------------------------------
-passo "8. Docker e rede interna"
+passo "9. Docker e rede interna"
 if tem systemctl && systemctl is-active --quiet docker 2>/dev/null; then
   ok "docker activo"
 else
@@ -193,7 +248,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-passo "9. PostgreSQL 18, só na rede interna, sem porta publicada (AGENTS.md)"
+passo "10. PostgreSQL 18, só na rede interna, sem porta publicada (AGENTS.md)"
 if [[ -s /etc/eurolify/postgres.env ]]; then
   ok "/etc/eurolify/postgres.env"
 else
@@ -233,18 +288,27 @@ if tem docker && docker inspect eurolify-postgres >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-passo "10. Utilizadores dos fluxos: sem sudo, sem docker, só um comando (ADR-0026, ADR-0028)"
+passo "11. Utilizadores dos fluxos: sem sudo, sem docker, só um comando (ADR-0026, ADR-0028)"
 for fluxo in "${FLUXOS[@]}"; do
   u="eurolify-$fluxo"
+  # A casa é de root e não tem nada do utilizador (nem .bashrc): o utilizador
+  # do fluxo não escreve em lado nenhum além da pasta dos pedidos.
+  casa="/var/lib/eurolify/casa/$u"
   if id "$u" >/dev/null 2>&1; then
     ok "utilizador $u"
   else
-    fazer "criar o utilizador $u (sem palavra-passe)" bash -c \
-      "useradd --system --create-home --shell /bin/bash '$u' && passwd -l '$u' >/dev/null"
+    fazer "criar o utilizador $u (sem palavra-passe, casa de root)" bash -c \
+      "useradd --system --no-create-home --home-dir '$casa' --shell /bin/bash '$u' && passwd -l '$u' >/dev/null"
+  fi
+  if [[ -d "$casa" && "$(stat -c '%a %U' "$casa")" == "755 root" ]]; then
+    ok "$casa (de root)"
+  else
+    fazer "casa $casa de root (755)" install -d -o root -g root -m 755 "$casa"
   fi
   if id "$u" >/dev/null 2>&1; then
+    grupos=" $(id -nG "$u") "
     for g in sudo docker adm; do
-      if id -nG "$u" | tr ' ' '\n' | grep -qx "$g"; then
+      if [[ "$grupos" == *" $g "* ]]; then
         fazer "tirar $u do grupo $g" gpasswd -d "$u" "$g"
       fi
     done
@@ -261,8 +325,6 @@ for fluxo in "${FLUXOS[@]}"; do
   if [[ ! -s "$pub" ]]; then
     aviso "falta $pub: o fluxo $fluxo ainda não entra (Fase D)"
   else
-    casa="$(getent passwd "$u" | cut -d: -f6)"
-    casa="${casa:-/home/$u}"
     linha="restrict,command=\"/usr/local/bin/eurolify-pedido $fluxo\" $(head -n 1 "$pub")"
     temp="$(mktemp)"
     printf '%s\n' "$linha" >"$temp"
@@ -283,7 +345,7 @@ for fluxo in "${FLUXOS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-passo "11. Tarefas: cópia, reposição, verificação (ADR-0027, ADR-0029)"
+passo "12. Tarefas: cópia, reposição, verificação (ADR-0027, ADR-0029)"
 for t in copia reposicao verificacao; do
   if tem systemctl && systemctl is-enabled --quiet "eurolify-$t.timer" 2>/dev/null &&
     systemctl is-active --quiet "eurolify-$t.timer" 2>/dev/null; then
@@ -300,35 +362,6 @@ for s in ghcr.token ghcr.expira deploy_key rclone.conf age.pub age.key healthche
     aviso "falta o segredo /etc/eurolify/$s (posto pelo Diogo na Fase D, nunca pelo repositório)"
   fi
 done
-
-# ---------------------------------------------------------------------------
-passo "12. Chaves de emergência do ubuntu (ADR-0028): só acrescenta, nunca apaga"
-ak=/home/ubuntu/.ssh/authorized_keys
-acrescentar_chave() {
-  install -d -o ubuntu -g ubuntu -m 700 /home/ubuntu/.ssh
-  # Se a última linha não acabar em mudança de linha, a chave nova colava-se à
-  # anterior e estragava-a.
-  if [[ -s "$ak" && -n "$(tail -c 1 "$ak")" ]]; then printf '\n' >>"$ak"; fi
-  head -n 1 "$1" >>"$ak"
-  chown ubuntu:ubuntu "$ak"
-  chmod 600 "$ak"
-}
-for pub in "$AQUI"/chaves/pessoais/*.pub; do
-  [[ -s "$pub" ]] || continue
-  material="$(awk '{print $2}' "$pub")"
-  if [[ -f "$ak" ]] && grep -qF "$material" "$ak"; then
-    ok "chave $(basename "$pub")"
-  else
-    fazer "acrescentar a chave $(basename "$pub") ao ubuntu" acrescentar_chave "$pub"
-  fi
-done
-if [[ -f "$ak" ]]; then
-  while read -r _ material comentario; do
-    [[ -n "${material:-}" ]] || continue
-    grep -qF "$material" "$AQUI"/chaves/pessoais/*.pub 2>/dev/null ||
-      aviso "chave no ubuntu que não está no repositório (não a apago): ${comentario:-sem comentário}"
-  done < <(grep -vE '^\s*(#|$)' "$ak")
-fi
 
 # ---------------------------------------------------------------------------
 passo "Resumo"

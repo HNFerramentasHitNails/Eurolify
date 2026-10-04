@@ -36,6 +36,8 @@ ufw status verbose
 
 seccao "fail2ban (só números)"
 fail2ban-client status sshd 2>&1 | grep -E 'Currently|Total'
+echo "bantime (sshd): $(fail2ban-client get sshd bantime 2>&1)"
+echo "dbpurgeage: $(fail2ban-client get dbpurgeage 2>&1)"
 
 seccao "actualizações"
 /usr/lib/update-notifier/apt-check --human-readable 2>&1
