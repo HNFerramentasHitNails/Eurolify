@@ -665,6 +665,11 @@ describe("validar o registo", () => {
       regraTeste({ id: "a  b", dominio: "iva" }),
       regraTeste({ id: "ı", dominio: "iva" }),
       regraTeste({ id: "-x", dominio: "iva" }),
+      // Um espaço invisível vê-se na mensagem; repetida, a mesma id fora do
+      // formato diz-se uma vez (revisão do #50, P2-1 e P2-2).
+      regraTeste({ id: "r\u200b", dominio: "iva" }),
+      regraTeste({ id: "r\u200b", dominio: "iva" }),
+      regraTeste({ id: "r\u200b", versao: 2, dominio: "iva" }),
       // Dentro do formato: pontos, sublinhados e hífenes, sem erro.
       regraTeste({ id: "pt.iva_2026-1", dominio: "iva" }),
     ]);
@@ -678,12 +683,14 @@ describe("validar o registo", () => {
     };
     const formato = "id fora do formato (a-z, 0-9, «.», «_», «-»)";
     expect(errosDoRegisto(registo)).toEqual([
-      `r @2: ${formato}`,
-      `R@3: ${formato}`,
-      `a b@1: ${formato}`,
-      `a  b@1: ${formato}`,
-      `ı@1: ${formato}`,
-      `-x@1: ${formato}`,
+      `"r "@2: ${formato}`,
+      `"R"@3: ${formato}`,
+      `"a b"@1: ${formato}`,
+      `"a  b"@1: ${formato}`,
+      `"\\u0131"@1: ${formato}`,
+      `"-x"@1: ${formato}`,
+      `"r\\u200b"@1: ${formato}`,
+      '"r\\u200b"@1: repetida',
     ]);
   });
 

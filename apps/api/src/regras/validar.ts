@@ -46,6 +46,17 @@ function ehObjecto(valor: unknown): boolean {
  */
 const FORMATO_ID = /^[a-z0-9][a-z0-9._-]*$/;
 
+/**
+ * Uma `id` entre aspas, com o que não é ASCII visível escrito em `\uXXXX`:
+ * um espaço invisível ou um «ı» vêem-se na mensagem (revisão do #50, P2-2).
+ */
+function mostrarId(id: string): string {
+  return JSON.stringify(id).replace(
+    /[^\x20-\x7e]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
 function vazio(texto: unknown): boolean {
   return typeof texto !== "string" || texto.trim() === "";
 }
@@ -154,15 +165,22 @@ export function errosDoRegisto(registo: Registo): string[] {
   }
 
   const vistas = new Set<string>();
+  // Uma `id` fora do formato diz-se uma vez, não uma por versão (revisão do
+  // #50, P2-1).
+  const idsForaDoFormato = new Set<string>();
   for (const regra of regras) {
-    const nome = `${regra.id}@${String(regra.versao)}`;
+    // Uma `id` fora do formato aparece entre aspas e escapada em todas as
+    // mensagens dela (revisão do #50, P2-2).
+    const foraDoFormato = !vazio(regra.id) && !FORMATO_ID.test(regra.id);
+    const nome = `${foraDoFormato ? mostrarId(regra.id) : regra.id}@${String(regra.versao)}`;
     if (vistas.has(nome)) erros.push(`${nome}: repetida`);
     vistas.add(nome);
 
     // A prova de uma regra não pode estar vazia (AGENTS.md, regras da UE,
     // ponto 3: uma regra só entra com fonte; revisão do #40, P2-5).
     if (vazio(regra.id)) erros.push(`${nome}: sem id`);
-    else if (!FORMATO_ID.test(regra.id)) {
+    else if (foraDoFormato && !idsForaDoFormato.has(regra.id)) {
+      idsForaDoFormato.add(regra.id);
       erros.push(`${nome}: id fora do formato (a-z, 0-9, «.», «_», «-»)`);
     }
     if (!Number.isInteger(regra.versao) || regra.versao < 1) {

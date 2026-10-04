@@ -86,6 +86,9 @@ export interface Regra {
   /**
    * Única em todo o registo: uma `id` identifica uma regra de um país e de um
    * domínio, nas suas várias versões. `regrasAplicadas` cita `id@versao`.
+   * Formato: minúsculas, algarismos, «.», «_» e «-», a começar por letra ou
+   * algarismo (ex.: `pt-consumidor-1`; `FORMATO_ID` em validar.ts, §4.1 do
+   * docs/eurolify/architecture.md).
    */
   id: string;
   versao: number;
