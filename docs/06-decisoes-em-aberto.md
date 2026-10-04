@@ -54,11 +54,12 @@
 | ✅ AI | O ensaio: cópias, alertas, registos e endereço | em parte: cópias na OVH (AN), chave também na VPS (AK), porta 443 só para o MCP (AO) | Diogo, 04/10/2026 | [ADR-0027](adr/0027-copias-alertas-registos-e-endereco-do-ensaio.md) |
 | ✅ AJ | A VPS opera-se pelo GitHub (completa W e AA) | em vigor; completada por AO | Diogo, 04/10/2026 | [ADR-0028](adr/0028-a-vps-opera-se-pelo-github.md) |
 | ✅ AK | A chave privada das cópias do ensaio fica também na VPS (muda AI) | em vigor; cópias na OVH (AN) | Diogo, 04/10/2026 | [ADR-0029](adr/0029-chave-do-age-tambem-na-vps.md) |
-| ✅ AL | Sem o Codex, revê uma sessão nova do Claude Code (muda o ponto 2 de T) | em parte: o ponto 1 mantém-se até 29/11/2026; o ponto 2 (quando a outra pessoa não pode rever) sem objecto por AM | Diogo, 04/10/2026 | [ADR-0030](adr/0030-revisao-sem-codex-e-sem-a-outra-pessoa.md) |
+| ✅ AL | Sem o Codex, revê uma sessão nova do Claude Code (muda o ponto 2 de T) | em parte: o ponto 1 mantém-se até 29/11/2026, alargado por AQ; o ponto 2 (quando a outra pessoa não pode rever) sem objecto por AM | Diogo, 04/10/2026 | [ADR-0030](adr/0030-revisao-sem-codex-e-sem-a-outra-pessoa.md) |
 | ✅ AM | Cada um junta o que fez (substitui a aprovação cruzada de T e AF) | em vigor | Diogo, 04/10/2026 | [ADR-0031](adr/0031-cada-um-aprova-o-que-fez.md) |
 | ✅ AN | A OVH é o fornecedor único (muda AI e AK; põe fim a R) | em vigor; contentor em Paris, três zonas | Diogo, 04/10/2026 | [ADR-0032](adr/0032-ovh-fornecedor-unico.md) |
 | ✅ AO | Um servidor MCP na VPS, por HTTPS, com acções (muda AI; completa AJ) | em vigor | Diogo, 04/10/2026 | [ADR-0033](adr/0033-mcp-na-vps-com-accoes.md) |
 | ✅ AP | Segue-se o plano do pacote complementar de skills, dentro das regras do repositório | em vigor | Diogo, 04/10/2026 | [ADR-0034](adr/0034-plano-do-pacote-e-motor-de-regras.md) |
+| ✅ AQ | A revisão do agente pode ser um agente lançado da própria sessão, sem a conversa dela (muda o ponto 1 de AL); sessões novas só a pedido | em vigor até 29/11/2026 (com AL) | Diogo, 04/10/2026 | [ADR-0035](adr/0035-revisao-por-agente-na-mesma-sessao.md) |
 
 ## Por decidir — por esta ordem
 

@@ -211,8 +211,13 @@ competências de cada um ficam como estão.
   revisão do agente que não o escreveu tem de estar publicada no pedido, com
   os P0/P1 tratados — **enquanto o Codex não volta** (ADR-0030, revê-se a
   29/11/2026), uma **sessão nova do Claude Code, sem a conversa de quem
-  escreveu e, se possível, com outro modelo**. Um pedido com código e
-  documentos conta como código.
+  escreveu e, se possível, com outro modelo** — **ou um agente lançado da
+  própria sessão** (ferramenta `Agent`, ADR-0035), nas mesmas condições: o
+  pedido ao agente leva só o pedido, os commits, os ficheiros, o desenho e o
+  que rever, nunca as conclusões de quem escreveu; o agente só lê e mede,
+  sem push; a revisão publica-se tal como ele a devolveu, dizendo o modelo.
+  Corrigir e rever ficam na mesma sessão; sessões revisoras novas só a pedido
+  do Diogo ou do Bruno. Um pedido com código e documentos conta como código.
 - **A descrição do pedido é o histórico** que o outro lê de manhã: o que fez,
   porquê (ADR ou issue), como se testou, o que ficou por fazer e o que pode
   partir. Um pedido sem isto não se junta.
@@ -294,6 +299,11 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 Não pôr vários agentes em paralelo sem perguntar — nos sistemas actuais já se
 esvaziou a janela de créditos de 5 horas num só pedido. Um agente dirigido a
 uma pergunta concreta, sim; e destilar o que devolver.
+
+**Agentes em vez de sessões** (ADR-0035, Diogo, 04/10/2026): o trabalho fica
+na sessão onde começou, e as revisões e as tarefas de apoio fazem-se com
+agentes lançados dela. Não se abrem sessões novas (`create_session`) sem o
+Diogo ou o Bruno o pedirem.
 
 ## Relação com os sistemas actuais da empresa
 
