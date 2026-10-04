@@ -57,6 +57,12 @@ export type Dominio =
   | (typeof DOMINIOS_OBRIGATORIOS)[number]
   | (typeof DOMINIOS_CONDICIONAIS)[number];
 
+/** Os 11 domínios: a única lista aceite por decidir.ts e validar.ts. */
+export const DOMINIOS: readonly Dominio[] = [
+  ...DOMINIOS_OBRIGATORIOS,
+  ...DOMINIOS_CONDICIONAIS,
+];
+
 /**
  * Estado da revisão de um domínio num país. «não aplicável» só existe com
  * justificação e prova: não é um atalho para «não sei».
@@ -79,8 +85,14 @@ export interface PerfilPais {
   territorios: readonly string[] | null;
 }
 
-export type EstadoLegal =
-  "em_vigor" | "adoptada_futura" | "proposta" | "revogada";
+export const ESTADOS_LEGAIS = [
+  "em_vigor",
+  "adoptada_futura",
+  "proposta",
+  "revogada",
+] as const;
+
+export type EstadoLegal = (typeof ESTADOS_LEGAIS)[number];
 
 export interface Regra {
   /**
@@ -98,7 +110,8 @@ export interface Regra {
   estadoLegal: EstadoLegal;
   /**
    * Instantes ISO 8601 com fuso (instante.ts): `AAAA-MM-DDThh:mm:ss`, fracção
-   * opcional de 1 a 3 dígitos, e `Z` ou `±hh:mm`. Intervalo meio-aberto: vale
+   * opcional de 1 a 3 dígitos, e `Z` ou `±hh:mm` (sem `-00:00`, que na RFC
+   * 3339 quer dizer «fuso desconhecido»). Intervalo meio-aberto: vale
    * de `aplicaDesde` (incluído) até `aplicaAte` (excluído).
    */
   aplicaDesde: string;

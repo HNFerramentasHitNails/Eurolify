@@ -129,7 +129,7 @@ este motor antes de agir.
 | | `territorios` | `null` = não mapeados: um território pedido **não herda** a regra do continente |
 | **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo (uma regra de um país e um domínio); as versões partilham-na; `versao` é um inteiro a partir de 1 |
 | | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide** |
-| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
+| | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, sem `-00:00`, que na RFC 3339 é «fuso desconhecido»); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo — nenhum vazio |
 | | `verificadaEm`, `revistaPor` | |
 
@@ -160,6 +160,7 @@ permitida).
 | Domínio `por_verificar`, ou com um estado que o motor não conhece | `revisao_necessaria`, motivo `dominio_por_verificar` — só `verificado` chega às regras |
 | Domínio `verificado` sem regra em vigor nesse momento | `revisao_necessaria`, motivo `sem_regra_em_vigor` |
 | Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde` | não conta |
+| Regra com um estado legal que o motor não conhece (`Proposta`, `revogado`, em falta) | não conta — só `em_vigor`, `adoptada_futura` e `revogada` podem contar |
 | Regra `revogada` depois de `aplicaAte` | não conta |
 | Território mapeado, só com a regra do continente | `revisao_necessaria`, motivo `sem_regra_em_vigor` (o território não herda) |
 | Domínio `nao_aplicavel` com justificação | não bloqueia |
@@ -171,10 +172,13 @@ impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
 regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
 `proposta` fica de fora: nunca conta), país sem perfil, território não
 mapeado, regra num domínio que não existe ou que não está `verificado`, estado
-de revisão fora dos três, `id`, `base`, `revistaPor` ou `revistoPor` vazios,
+de revisão fora dos três, estado legal fora dos quatro, a mesma `id` em dois
+países ou dois domínios, revisões, `dominios`, `territorios` ou `base` com a
+forma errada, `id`, `base`, `revistaPor` ou `revistoPor` vazios,
 `versao` que não é inteiro a partir de 1 — a aplicação **não arranca** e diz a
 lista toda. A validação é a porta de arranque, não a garantia: `decidir` só
-conta um domínio `verificado`, passe ou não o registo pelo validador.
+conta um domínio `verificado`, dos 11, e uma regra com estado legal conhecido,
+passe ou não o registo pelo validador.
 
 Um bloqueio vale **só para a combinação pedida**: o IVA de França bloqueado
 não bloqueia o consumidor de Portugal.

@@ -272,6 +272,114 @@ describe("decidir", () => {
     );
   });
 
+  it("um estado de revisão desconhecido sem regra é o único erro listado (revisão do #45)", () => {
+    const registo = {
+      ...REGISTO_INICIAL,
+      paises: REGISTO_INICIAL.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? {
+              ...perfil,
+              dominios: { ...perfil.dominios, iva: { estado: "verificadoo" } },
+            }
+          : perfil,
+      ),
+    } as unknown as Registo;
+    expect(errosDoRegisto(registo)).toEqual([
+      "PT/iva: estado de revisão desconhecido «verificadoo»",
+    ]);
+  });
+
+  it("um estado legal desconhecido não conta e é erro do registo (revisão do #45, P1-1)", () => {
+    for (const estadoLegal of ["Proposta", "propostaa", "draft", undefined]) {
+      const regra = {
+        ...regraTeste({ id: "r" }),
+        estadoLegal,
+      } as unknown as Regra;
+      const registo = registoComPortugal([regra]);
+      expect(
+        decidir(registo, {
+          pais: "PT",
+          dominios: ["consumidor"],
+          momento: AGORA,
+        }),
+      ).toMatchObject({
+        estado: "revisao_necessaria",
+        regrasAplicadas: [],
+        motivos: [{ codigo: "sem_regra_em_vigor", dominio: "consumidor" }],
+      });
+      expect(errosDoRegisto(registo)).toEqual([
+        `r@1: estado legal desconhecido «${String(estadoLegal)}»`,
+      ]);
+    }
+    // «revogado» sem data de fim também não conta para sempre.
+    const revogado = registoComPortugal([
+      {
+        ...regraTeste({ id: "r" }),
+        estadoLegal: "revogado",
+      } as unknown as Regra,
+    ]);
+    expect(
+      decidir(revogado, {
+        pais: "PT",
+        dominios: ["consumidor"],
+        momento: AGORA,
+      }).estado,
+    ).toBe("revisao_necessaria");
+  });
+
+  it("um domínio a mais no perfil não passa a valer em decidir (revisão do #45, P2-1)", () => {
+    const base = registoComPortugal([
+      { ...regraTeste({ id: "f" }), dominio: "foo" } as unknown as Regra,
+    ]);
+    const registo = {
+      ...base,
+      paises: base.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? { ...perfil, dominios: { ...perfil.dominios, foo: VERIFICADO } }
+          : perfil,
+      ),
+    } as unknown as Registo;
+    const pedido = {
+      pais: "PT",
+      dominios: ["foo"],
+      momento: AGORA,
+    } as unknown as PedidoDecisao;
+    expect(decidir(registo, pedido)).toMatchObject({
+      estado: "recusado",
+      motivos: [{ codigo: "dominio_desconhecido", dominio: "foo" }],
+    });
+  });
+
+  it("revisões e territórios com forma errada não contam (revisão do #45, P2-2)", () => {
+    const comNull = {
+      ...registoComPortugal([regraTeste({ id: "r" })]),
+    };
+    const registo = {
+      ...comNull,
+      paises: comNull.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? { ...perfil, dominios: { ...perfil.dominios, iva: null } }
+          : perfil,
+      ),
+    } as unknown as Registo;
+    expect(
+      decidir(registo, { pais: "PT", dominios: ["iva"], momento: AGORA }),
+    ).toMatchObject({
+      estado: "revisao_necessaria",
+      motivos: [{ codigo: "dominio_por_verificar", dominio: "iva" }],
+    });
+    const territorioTexto = registoComPortugal([
+      { ...regraTeste({ id: "r" }), territorios: "" } as unknown as Regra,
+    ]);
+    expect(
+      decidir(territorioTexto, {
+        pais: "PT",
+        dominios: ["consumidor"],
+        momento: AGORA,
+      }).estado,
+    ).toBe("revisao_necessaria");
+  });
+
   it("domínio verificado com regra em vigor sai permitido, com a regra e a versão", () => {
     const registo = registoComPortugal([regraTeste({ id: "pt-consumidor-1" })]);
     const decisao = decidir(registo, {
@@ -560,6 +668,7 @@ describe("instante", () => {
       "2026-10-04T12:00:00.1234Z",
       "2026-10-04T12:00:00.Z",
       "2026-10-04t12:00:00z",
+      "2026-10-04T12:00:00-00:00",
     ]) {
       expect(instante(texto)).toBeNull();
     }
@@ -678,6 +787,73 @@ describe("validar o registo", () => {
         "«paises» e «regras» têm de ser listas",
       ]);
     }
+  });
+
+  it("null e formas erradas vindos de fora ficam listados, não rebentam (revisão do #45, P2-2 e P2-3)", () => {
+    const base = registoComPortugal([
+      { ...regraTeste({ id: "a" }), base: null } as unknown as Regra,
+      {
+        ...regraTeste({ id: "b" }),
+        territorios: undefined,
+      } as unknown as Regra,
+      { ...regraTeste({ id: "c" }), territorios: "" } as unknown as Regra,
+    ]);
+    const registo = {
+      ...base,
+      paises: base.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? { ...perfil, dominios: { ...perfil.dominios, iva: null } }
+          : perfil.codigo === "ES"
+            ? { ...perfil, dominios: null }
+            : perfil,
+      ),
+    } as unknown as Registo;
+    expect(errosDoRegisto(registo)).toEqual([
+      "PT/iva: revisão em falta",
+      "ES: «dominios» tem de ser um objecto",
+      "a@1: fonte incompleta (url, título e artigo)",
+      "b@1: «territorios» tem de ser uma lista",
+      "c@1: «territorios» tem de ser uma lista",
+    ]);
+  });
+
+  it("a mesma id em dois domínios ou dois países é erro, propostas incluídas (revisão do #45, P2-4)", () => {
+    const base = registoComPortugal([
+      regraTeste({ id: "r", versao: 1, aplicaAte: "2026-01-01T00:00:00Z" }),
+      regraTeste({
+        id: "r",
+        versao: 2,
+        dominio: "iva",
+        aplicaDesde: "2026-01-01T00:00:00Z",
+      }),
+      regraTeste({ id: "s", versao: 1 }),
+      regraTeste({
+        id: "s",
+        versao: 2,
+        pais: "ES",
+        estadoLegal: "proposta",
+        aplicaDesde: "2027-01-01T00:00:00Z",
+      }),
+    ]);
+    const registo: Registo = {
+      ...base,
+      paises: base.paises.map((perfil) =>
+        perfil.codigo === "PT" || perfil.codigo === "ES"
+          ? {
+              ...perfil,
+              dominios: {
+                ...perfil.dominios,
+                consumidor: VERIFICADO,
+                iva: VERIFICADO,
+              },
+            }
+          : perfil,
+      ),
+    };
+    expect(errosDoRegisto(registo)).toEqual([
+      "r: a mesma id em PT/consumidor e PT/iva",
+      "s: a mesma id em PT/consumidor e ES/consumidor",
+    ]);
   });
 
   it("um país em falta ou a mais é erro", () => {

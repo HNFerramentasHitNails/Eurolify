@@ -4,9 +4,11 @@
 // "10/04/2026" ou 30 de Fevereiro (que passa para Março). O alcance do fuso
 // (±00:00 a ±23:59) e a fracção (1 a 3 dígitos: o JavaScript só tem
 // milissegundos) estão escritos aqui, para não dependerem do motor que corre
-// (revisão do #40, P2-6).
+// (revisão do #40, P2-6). `-00:00` é recusado: na RFC 3339 (§4.3) quer dizer
+// «fuso local desconhecido», o contrário do que este ficheiro exige (revisão
+// do #45, P2-6).
 const ISO_COM_FUSO =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,3})?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,3})?(Z|\+(?:[01]\d|2[0-3]):[0-5]\d|-(?!00:00$)(?:[01]\d|2[0-3]):[0-5]\d)$/;
 
 /** Milissegundos desde 1970 (UTC), ou null se o texto não for um instante válido. */
 export function instante(texto: string): number | null {

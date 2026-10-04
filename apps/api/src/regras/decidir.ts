@@ -1,12 +1,24 @@
 import { instante } from "./instante.js";
-import type {
-  Decisao,
-  Motivo,
-  PedidoDecisao,
-  PerfilPais,
-  Regra,
-  Registo,
+import {
+  DOMINIOS,
+  type Decisao,
+  type Motivo,
+  type PedidoDecisao,
+  type PerfilPais,
+  type Regra,
+  type Registo,
+  type RevisaoDominio,
 } from "./tipos.js";
+
+/**
+ * Os estados legais que podem contar, pela positiva: uma gralha, um estado em
+ * falta ou uma «Proposta» com maiúscula não contam (revisão do #45, P1-1).
+ */
+const ESTADOS_QUE_CONTAM: readonly string[] = [
+  "em_vigor",
+  "adoptada_futura",
+  "revogada",
+];
 
 /**
  * Uma regra conta no momento pedido? Uma proposta nunca conta; o intervalo é
@@ -15,7 +27,7 @@ import type {
  * silêncio.
  */
 function regraEmVigor(regra: Regra, momento: number): boolean {
-  if (regra.estadoLegal === "proposta") return false;
+  if (!ESTADOS_QUE_CONTAM.includes(regra.estadoLegal)) return false;
   const desde = instante(regra.aplicaDesde);
   if (desde === null || momento < desde) return false;
   if (regra.aplicaAte !== null) {
@@ -32,7 +44,11 @@ function regraDoTerritorio(
   regra: Regra,
   territorio: string | undefined,
 ): boolean {
-  if (territorio === undefined) return regra.territorios.length === 0;
+  // Uma regra sem lista de territórios não conta: um texto vazio não é «sem
+  // território» (revisão do #45, P2-2).
+  const territorios: unknown = regra.territorios;
+  if (!Array.isArray(territorios)) return false;
+  if (territorio === undefined) return territorios.length === 0;
   return regra.territorios.includes(territorio);
 }
 
@@ -82,10 +98,17 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   if (!Array.isArray(dominios) || dominios.length === 0) {
     return recusado(versao, { codigo: "sem_dominios" });
   }
+  const dominiosDoPerfil: unknown = perfil.dominios;
   for (const dominio of pedido.dominios) {
-    // Só chaves próprias: «constructor» ou «__proto__» existem em qualquer
-    // objecto e passavam por domínio (revisão do #40, P2-2).
-    if (!Object.hasOwn(perfil.dominios, dominio)) {
+    // Só os 11 e só chaves próprias: «constructor» ou «__proto__» existem em
+    // qualquer objecto (revisão do #40, P2-2), e um domínio a mais no perfil
+    // não passa a valer (revisão do #45, P2-1).
+    if (
+      !DOMINIOS.includes(dominio) ||
+      typeof dominiosDoPerfil !== "object" ||
+      dominiosDoPerfil === null ||
+      !Object.hasOwn(dominiosDoPerfil, dominio)
+    ) {
       return recusado(versao, { codigo: "dominio_desconhecido", dominio });
     }
   }
@@ -104,12 +127,13 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   }
 
   for (const dominio of new Set(pedido.dominios)) {
-    const revisao = perfil.dominios[dominio];
-    if (revisao.estado === "nao_aplicavel") continue;
+    // Alargado de propósito: vindo de fora, a revisão pode ser null.
+    const revisao = perfil.dominios[dominio] as RevisaoDominio | null;
+    if (revisao?.estado === "nao_aplicavel") continue;
     // Só «verificado» segue para as regras. Um estado que não se conhece
     // trata-se como por verificar: a decisão não pode depender de o registo
     // ter passado pelo validar.ts (revisão do #40, P1-1).
-    if (revisao.estado !== "verificado") {
+    if (revisao?.estado !== "verificado") {
       motivos.push({ codigo: "dominio_por_verificar", dominio });
       continue;
     }
