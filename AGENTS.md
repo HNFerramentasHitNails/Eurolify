@@ -175,6 +175,25 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
 - Textos de produto e de interface no **masculino universal** («os clientes»).
 - Se a mesma coisa for repetida duas vezes, o erro é de leitura: parar e reler.
 
+## Sessões e comunicação de gestão
+
+Decisão do Diogo, 04/10/2026 (fragmento do pacote de eficiência, adaptado).
+Não reduz nenhuma regra acima: verificações, fontes, revisão, autorizações e
+competências de cada um ficam como estão.
+
+1. **No arranque**, depois das leituras obrigatórias («Antes da primeira
+   resposta»), seguir a skill `eurolify-session-continuity`: verificar o estado
+   partilhado e o trabalho recente, recuperar o contexto do tema e escolher o
+   próximo resultado entre os *issues* de que se é dono e as decisões escritas
+   (ADR, `docs/06`) — o que está atribuído ao outro não se toca (ADR-0031).
+2. **Com o Bruno e o Diogo**, seguir a skill `eurolify-manager-communication`:
+   linguagem comum, com o que está feito, em curso, o que falta e a decisão
+   necessária, quando exista. Não exigir conhecimentos de programação nem
+   passar para eles escolhas técnicas de rotina já autorizadas.
+3. **O registo de continuidade** é o de «Trabalhar os dois sem se
+   atrapalharem», ponto 4 (a descrição do pedido e o *issue*, ADR-0031). Não
+   confundir preparado com feito, nem feito com em uso.
+
 ## Git — o `main` é partilhado
 
 - **O `main` é o que conta**: é o que a sessão seguinte lê. Uma sessão com
@@ -263,6 +282,12 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 | `third-party-extensions` | contratos de adaptadores (pagamento, envio, faturação), pontos de extensão, permissões de aplicações, loja de extensões, parceiros que escrevem o seu adaptador |
 | `digital-products-eu` | conteúdo digital, serviço digital e serviço humano à distância: classificação, livre resolução, IVA electrónico, entrega e acessos (tudo **C**) |
 | `gift-cards-eu` | cartões-oferta: SPV/MPV, IVA na venda e no resgate, saldo por movimentos, reembolso, porta PSD2 (tudo **C**) |
+| `eurolify-session-continuity` | arranque, interrupção e fecho de sessão: estado verificado, o que o outro fez, próximo passo (depois das leituras obrigatórias acima) |
+| `eurolify-manager-communication` | explicar progresso, riscos e decisões ao Bruno e ao Diogo sem jargão: feito, em curso, falta, decisão |
+| `eurolify-efficient-workflow` | escolher o modelo e o esforço por risco (Haiku pesquisa, Sonnet execução, Opus 5.5 análise e revisão; nunca o Fable) e quando delegar |
+| `eurolify-repository-memory` | auditar e organizar `memoria/` e `docs/` (só leitura primeiro; o script `audit_memory.py`), leitura progressiva, uma fonte por decisão |
+| `eurolify-fault-first-debugging` | um teste ou erro que se repete: reproduzir e achar a causa antes de tentar outra vez |
+| `eurolify-evidence-before-done` | antes de dizer «feito»: testes proporcionais, o verificado e o não verificado, a revisão exigida |
 
 ## Agentes
 
