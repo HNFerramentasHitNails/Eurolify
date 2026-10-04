@@ -732,10 +732,18 @@ describe("validar o registo", () => {
   it("regras sem id dão só o erro «sem id», sem erros por arrasto", () => {
     const base = registoComPortugal([
       regraTeste({ id: "" }),
+      // A mesma id vazia repetida: «repetida» e «sem id» (revisão do #50).
+      regraTeste({ id: "" }),
       regraTeste({ id: "", versao: 2, dominio: "iva" }),
       // Só espaços que não se vêem: a mensagem mostra-os (revisão do #50,
       // P2-B).
       regraTeste({ id: "\u00a0\u00a0", versao: 3, dominio: "iva" }),
+      // Uma id que não é texto mostra o tipo: o número 5 não se confunde com
+      // a id "5", e um Symbol não rebenta a lista (revisão do #50).
+      regraTeste({ id: 5 as unknown as string }),
+      regraTeste({ id: "5", dominio: "iva" }),
+      regraTeste({ id: null as unknown as string }),
+      regraTeste({ id: Symbol("s") as unknown as string }),
     ]);
     const registo: Registo = {
       ...base,
@@ -747,8 +755,13 @@ describe("validar o registo", () => {
     };
     expect(errosDoRegisto(registo)).toEqual([
       '""@1: sem id',
+      '""@1: repetida',
+      '""@1: sem id',
       '""@2: sem id',
       '"\\u00a0\\u00a0"@3: sem id',
+      "(number: 5)@1: sem id",
+      "(object: null)@1: sem id",
+      "(symbol: Symbol(s))@1: sem id",
     ]);
   });
 

@@ -169,13 +169,23 @@ export function errosDoRegisto(registo: Registo): string[] {
   // #50, P2-1).
   const idsForaDoFormato = new Set<string>();
   for (const regra of regras) {
-    // Uma `id` em texto fora do formato, vazia incluída, aparece entre aspas e
-    // escapada em todas as mensagens dela: «""», ou só espaços que não se
-    // vêem, também se lêem (revisão do #50, P2-2 e P2-B).
-    const foraDoFormato = !vazio(regra.id) && !FORMATO_ID.test(regra.id);
-    const textoAMostrar =
-      typeof regra.id === "string" && !FORMATO_ID.test(regra.id);
-    const nome = `${textoAMostrar ? mostrarId(regra.id) : regra.id}@${String(regra.versao)}`;
+    // Como a `id` aparece em todas as mensagens dela (revisões do #50):
+    // dentro do formato, tal como é; em texto fora do formato, vazia incluída,
+    // entre aspas e escapada («""», espaços que não se vêem); se não for
+    // texto, entre parênteses com o tipo — `5` não se confunde com `"5"` e um
+    // `Symbol` não rebenta a lista.
+    const id: unknown = regra.id;
+    let mostrada: string;
+    let foraDoFormato = false;
+    if (typeof id !== "string") {
+      mostrada = `(${typeof id}: ${String(id)})`;
+    } else if (FORMATO_ID.test(id)) {
+      mostrada = id;
+    } else {
+      mostrada = mostrarId(id);
+      foraDoFormato = !vazio(id);
+    }
+    const nome = `${mostrada}@${String(regra.versao)}`;
     if (vistas.has(nome)) erros.push(`${nome}: repetida`);
     vistas.add(nome);
 
