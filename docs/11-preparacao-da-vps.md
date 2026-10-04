@@ -267,7 +267,7 @@ O que o Diogo faz, fora do repositório:
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
    para voltar). ✅ **Para o ensaio** (ADR-0027): `pg_dump` diário cifrado
    para o ~~Scaleway Object Storage em Paris~~ **OVH Object Storage em
-   Gravelines** (ADR-0032), 14 dias, reposição semanal; até 24 h de perda.
+   Paris, três zonas** (ADR-0032), 14 dias, reposição semanal; até 24 h de perda.
    Para a produção, por decidir — com VPS e cópias no mesmo fornecedor e na
    mesma conta, um problema na conta leva as duas (ADR-0032).
 5. **Segunda máquina para a base**, e a partir de quando.

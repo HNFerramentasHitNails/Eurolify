@@ -49,7 +49,7 @@ sozinho** o que não conhece (chaves, regras, contentores): avisa.
 | `ghcr.token` | token clássico do GitHub com `read:packages` (ADR-0026) |
 | `ghcr.expira` | data de fim desse token, `AAAA-MM-DD` |
 | `deploy_key` | chave só de leitura do repositório (*deploy key*) |
-| `rclone.conf` | remoto `ovh` (OVH Object Storage, Standard, Gravelines — ADR-0032), com um utilizador S3 de **leitura e escrita**: a cópia escreve e apaga as de mais de 14 dias, a reposição lista e lê (corrigido na revisão do #10 — «só de escrita» não chegava). O ideal é o utilizador só ver o contentor das cópias; **se a OVH o deixa limitar a um contentor ou só ao projecto inteiro, não está verificado** |
+| `rclone.conf` | remoto `ovh` (OVH Object Storage, Standard, **Paris, três zonas** — ADR-0032; modelo abaixo), com um utilizador S3 de **leitura e escrita**: a cópia escreve e apaga as de mais de 14 dias, a reposição lista e lê (corrigido na revisão do #10 — «só de escrita» não chegava). O ideal é o utilizador só ver o contentor das cópias; **se a OVH o deixa limitar a um contentor ou só ao projecto inteiro, não está verificado** |
 | `age.pub` / `age.key` | chaves das cópias (a privada também com o Diogo, ADR-0029) |
 | `healthchecks.env` | `HC_COPIA=`, `HC_REPOSICAO=`, `HC_VERIFICACAO=` (endereços do Healthchecks.io) |
 
@@ -58,25 +58,33 @@ falham e avisam.
 
 ### O `rclone.conf` (modelo, sem segredos)
 
-Valores da documentação do rclone (`rclone.org/s3`, secção OVHcloud, lida a
-04/10/2026) para Gravelines:
+O que está na VPS desde 04/10/2026 (contentor `eurolify-ensaio-copias` em
+**Paris, três zonas**, `eu-west-par` — onde o Diogo o criou; achado a listar
+os endereços S3 da OVH a partir da VPS):
 
 ```ini
 [ovh]
 type = s3
-provider = OVHcloud
+provider = Other
 env_auth = false
 access_key_id = <do utilizador S3 da OVH>
 secret_access_key = <do utilizador S3 da OVH>
-region = gra
-endpoint = s3.gra.io.cloud.ovh.net
+region = eu-west-par
+endpoint = s3.eu-west-par.io.cloud.ovh.net
 acl = private
 ```
 
-Sem o `endpoint`, o `rclone` vai para a AWS e a cópia falha. Os 14 dias na
-OVH são garantidos pelo `eurolify-copia` (`rclone delete --min-age 14d`); uma
-regra de expiração no contentor (*lifecycle*, `Expiration` com `Days`, que a
-documentação da OVH descreve) é uma segunda trava, não a única.
+- **`provider = Other`, não `OVHcloud`:** o `rclone` do Ubuntu 26.04 é a
+  1.60.1 e não conhece o fornecedor `OVHcloud` (aviso *«s3 provider
+  "OVHcloud" not known»*); com `Other` lista e escreve. A documentação actual
+  do rclone (`rclone.org/s3`, lida a 04/10/2026) dá `OVHcloud`.
+- Sem o `endpoint`, o `rclone` vai para a AWS e a cópia falha. Para outra
+  região: `s3.<região>.io.cloud.ovh.net` (ex.: `gra` em Gravelines).
+
+Os 14 dias na OVH são garantidos pelo `eurolify-copia` (`rclone delete
+--min-age 14d`); uma regra de expiração no contentor (*lifecycle*,
+`Expiration` com `Days`, que a documentação da OVH descreve) é uma segunda
+trava, não a única.
 
 ## Regras para quem mexer
 

@@ -47,7 +47,7 @@ Resposta, a 04/10/2026: *«sim»*.
 
 1. **Cópias do ensaio:** `pg_dump` diário às 03:00 UTC, cifrado com `age` (só
    a chave pública na VPS; a privada fora, com o Diogo), enviado para um
-   contentor **privado** no ~~**Scaleway Object Storage, Paris, One Zone**~~ **OVH Object Storage, Gravelines, Standard** (ADR-0032), com
+   contentor **privado** no ~~**Scaleway Object Storage, Paris, One Zone**~~ **OVH Object Storage, Standard, Paris em três zonas** (ADR-0032; ~~Gravelines~~), com
    expiração aos **14 dias**. **Ensaio de reposição semanal** automático numa
    base temporária da própria VPS, que confere tabelas e linhas. Pode perder-se
    até 24 h de dados do ensaio.
