@@ -478,3 +478,20 @@ Com o OK do Diogo a cada passo.
 - O reinício que as actualizações pedem.
 - D8: apagar as chaves de máquina, o `rclone.conf` e o `ghcr.token` deste
   computador (o Diogo guarda antes o `age.key`).
+
+## Fase D: a primeira cópia e a reposição (04/10/2026, 12:14 UTC)
+
+Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
+
+| O quê | Resultado | Como |
+|---|---|---|
+| `eurolify-copia` | `success`: `eurolify-20261004T121455Z.dump.age` enviada (4 K na VPS; 1.089 bytes no contentor em Paris) | `journalctl -u eurolify-copia`; `rclone lsl` |
+| A cópia está cifrada | começa por `age-encryption.org/v1`; 0 ocorrências de `PGDMP` (assinatura de um `pg_dump` em claro) | `rclone cat … \| head -c 21`; `grep -c PGDMP` |
+| `eurolify-reposicao` | `success`: descarregou, decifrou com a chave da VPS (ADR-0029), repôs **0 tabelas = 0 na base viva**, apagou a base temporária (só ficam `eurolify`, `postgres`, `template0/1`) | `journalctl -u eurolify-reposicao`; `psql … pg_database` |
+| Alertas | as duas avisaram «sem healthchecks.env; o alerta não segue» — esperado | idem |
+
+### O que ficou por verificar
+
+- A reposição só compara o número de tabelas, e com a base vazia (0 = 0) não
+  prova dados — prova o caminho (descarregar, decifrar, repor, limpar).
+- Os alertas (Healthchecks.io), o reinício pedido pelas actualizações e o D8.
