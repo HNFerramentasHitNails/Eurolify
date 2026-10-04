@@ -275,8 +275,16 @@ fi
 if [[ -f /etc/eurolify/api.env ]]; then
   ok "/etc/eurolify/api.env"
 else
-  fazer "criar /etc/eurolify/api.env (vazio; a ligação à base entra com o primeiro domínio)" \
+  fazer "criar /etc/eurolify/api.env (vazio; a ligação da API à base entra com o primeiro domínio)" \
     install -o root -g root -m 600 /dev/null /etc/eurolify/api.env
+fi
+# A ligação do migrador (dono das tabelas) vive num ficheiro à parte: só o
+# contentor das migrações a recebe; a API nunca a vê (docs/15 §5).
+if [[ -f /etc/eurolify/migrar.env ]]; then
+  ok "/etc/eurolify/migrar.env"
+else
+  fazer "criar /etc/eurolify/migrar.env (vazio; BASE_DADOS_URL_MIGRACAO entra com o primeiro domínio)" \
+    install -o root -g root -m 600 /dev/null /etc/eurolify/migrar.env
 fi
 imagem_pg="$(docker inspect -f '{{.Config.Image}}' eurolify-postgres 2>/dev/null || true)"
 if [[ -z "$imagem_pg" ]]; then
