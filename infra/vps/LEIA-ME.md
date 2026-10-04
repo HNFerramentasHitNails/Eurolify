@@ -18,6 +18,7 @@ noutra máquina). Decisões: ADR-0015, 0016, 0018, 0021, 0026 a 0030; guia
 | 8 | programas `eurolify-*` e unidades do `systemd` | ADR-0026, 0028 |
 | 9 | Docker e a rede interna `eurolify` | ADR-0026 |
 | 10 | PostgreSQL 18 num contentor, **sem porta publicada**; palavra-passe gerada na máquina | ADR-0025, `AGENTS.md` |
+| 10b | Utilizadores da base: `eurolify_migrador` (dono da base e das tabelas, ligação em `migrar.env`, palavra-passe gerada na máquina) e `eurolify_api` (`NOLOGIN` até a API usar a base) | `docs/15` §5, #70 |
 | 11 | utilizadores `eurolify-publicar`, `-aplicar`, `-medir`: sem sudo nem docker, casa de root; cada chave só corre `eurolify-pedido <fluxo>` | ADR-0026, 0028 |
 | 12 | tarefas: cópia 03:00 UTC, reposição ao domingo 04:00, verificação 07:00 | ADR-0027, 0029 |
 | 13 | MCP da VPS: utilizador `eurolify-mcp` e a pasta dos pedidos; certificado de `mcp.eurolify.eu` (Let's Encrypt, desafio DNS da OVH, sem abrir a 80); `nginx` só com o site do MCP, ligado depois de haver certificado e de o `nginx -t` passar: o login aberto a todos, o resto só para `160.79.104.0/21` | ADR-0033 |

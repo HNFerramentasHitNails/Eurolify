@@ -1,0 +1,33 @@
+# VPS: utilizadores da base e ligação do migrador (#70) — 04/10/2026
+
+## O que se fez
+
+- **Passo 10b do `infra/vps/preparar.sh`** (tarefa #70, pedida pelo Diogo: *«pega na tarefa #70»*), aplicado pelo fluxo `aplicar-script` quando entrar no `main` (ADR-0028; a revisão do pedido é a confirmação da regra 1 de «Operar a VPS»):
+  - cria o papel `eurolify_api` como a migração 0001 o criaria (`NOLOGIN`, sem palavra-passe, sem `BYPASSRLS`), porque o migrador não tem `CREATEROLE`;
+  - cria o `eurolify_migrador` (`LOGIN`, sem superutilizador, `BYPASSRLS` nem `CREATEROLE`) com uma palavra-passe gerada na máquina (`openssl rand -hex 32`), dada ao PostgreSQL por stdin com o registo de erros desligado nessa sessão; escreve `/etc/eurolify/migrar.env` (`600 root`) por um ficheiro temporário e `mv`;
+  - passa a base `eurolify` para o `eurolify_migrador` (o esquema `public` vai com ela);
+  - avisa se algum dos dois tiver superutilizador, `BYPASSRLS` ou `CREATEROLE`.
+- **Decisão de rotina tomada nesta sessão:** o `api.env` fica vazio e o `eurolify_api` sem acesso até a API usar a base (hoje só o `migrar.js` lê uma ligação: `grep process.env apps/api/src`). Fechado por omissão.
+- **As tabelas só aparecem na publicação seguinte:** o fluxo `publicar` corre quando muda algo em `apps/**` (não tem arranque manual).
+
+## Números (com data e como se contaram)
+
+Ensaio local a 04/10/2026, PostgreSQL 18.6 em Docker com o nome `eurolify-postgres` e a base `eurolify`, o passo 10b extraído para um script à parte:
+
+| O quê | Resultado |
+|---|---|
+| `--mostrar` | 3 alterações por fazer, nada mudado |
+| Primeira corrida | 3 alterações feitas; `migrar.env` `600 root`, com a ligação |
+| Segunda corrida | 0 alterações («já está» nas três) |
+| `node dist/migrar.js` com a ligação gerada | «aplicadas 0001_comerciante», depois «nada em falta»; 8 tabelas, todas do `eurolify_migrador`; `has_database_privilege('eurolify_api', 'eurolify', 'TEMP') = f` |
+| Papéis | `eurolify_api` sem LOGIN nem palavra-passe; `eurolify_migrador` com LOGIN; nenhum com superutilizador, `BYPASSRLS` ou `CREATEROLE` |
+| Rasto com o dono não superutilizador (RLS forçado aplica-se) | `SET ROLE eurolify_api`, criar e mudar de estado: uma linha `rascunho→em_revisao` |
+| Cópia e reposição como os scripts (`pg_dump -U postgres -Fc`, `pg_restore --no-owner`) | 8 tabelas repostas, 8 na base viva |
+| Palavra-passe no registo do PostgreSQL | 0 ocorrências de 64 hexadecimais (`docker logs`) |
+| `preparar.sh --mostrar` num Ubuntu 26.04 vazio, como o CI | passa; o 10b diz o que faria |
+
+## O que ficou por verificar
+
+- A corrida na VPS a sério (depois de juntar, no registo do `aplicar-script`) e a primeira migração lá (na publicação seguinte).
+- Uma base `eurolify` que já tivesse tabelas do `postgres` antes de mudar de dono (na VPS está vazia: a publicação de 04/10/2026 disse «nenhuma migração aplicada»).
+- A memória da VPS (`vps-operada-por-nos-03out2026.md`) ganha uma linha quando o passo correr lá.
