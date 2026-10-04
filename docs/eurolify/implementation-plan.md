@@ -65,8 +65,10 @@
   O #40 também entrou (14:51 UTC) antes da revisão dele (14:58 UTC,
   [#40](https://github.com/HNFerramentasHitNails/Eurolify/pull/40#pullrequestreview-5406771672)):
   1 P1 (um estado de revisão desconhecido era tratado como «verificado») e 6
-  P2, corrigidos no pedido da issue #46 — 48 testes no motor a 04/10/2026
-  (`grep -c "  it("`), que precisa de revisão **antes** de entrar.
+  P2, corrigidos no #47 (issue #46) — 48 testes no motor a 04/10/2026
+  (`grep -c "  it("`). O #45 corrigiu a mesma revisão noutro ramo; o que ele
+  tinha e o #47 não (a mesma `id` em dois sítios, `-00:00`) veio num pedido
+  à parte — 50 testes.
 
 ## Próxima fatia proposta
 
