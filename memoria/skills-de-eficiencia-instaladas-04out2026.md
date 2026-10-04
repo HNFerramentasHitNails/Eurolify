@@ -93,9 +93,12 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   `chaves-vps.md` é lido, porque «chaves» sozinho apanharia o ADR-0029, e
   `env-local.md`, `env-prod.md` e `env_vars.md` também são lidos (o `env` só
   conta com ponto, como em `.env.md`). A revisão Sonnet do #65 (P2-1 a P2-3)
-  levou a acrescentar este aviso e `env.md` e `.env.local.md` ao teste; as
-  correcções foram escritas pela sessão que as pediu a pedido do Diogo, sem
-  nova revisão independente.
+  levou a acrescentar este aviso e `env.md` e `.env.local.md` ao teste. Quem
+  escreveu essas correcções (`a67beab`) foi a própria sessão de revisão
+  Sonnet, que tinha encontrado os P2, depois de o utilizador dela lho pedir
+  na conversa (*«corrige os 3 P2 no #65»*; não se verificou quem escreveu).
+  O `a67beab` foi revisto antes de juntar pela sessão Opus que escreveu o
+  `623ae84` e não o `a67beab` (0 P0, 0 P1, 1 P2: esta frase).
 
 ## Números (com data e como se contaram)
 
