@@ -254,10 +254,20 @@ CREATE TRIGGER comerciante_escrever_rasto
 CREATE FUNCTION entidade_legal_antes_de_alterar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-  -- Arquivada é final (Diogo, 04/10/2026): desarquivar deixaria activa uma
-  -- entidade cuja prova a activação já não volta a ver (revisão do #43, P2-3).
-  IF OLD.estado = 'arquivada' AND NEW.estado <> 'arquivada' THEN
-    RAISE EXCEPTION 'legal_entity.archived_is_final: uma entidade arquivada não volta a activa; criar outra';
+  -- Uma entidade nasce activa: nascer já arquivada era um registo que nunca
+  -- vendeu nem foi provado (revisão do #43, P2-2 do `98ca4c1`).
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.estado <> 'activa' THEN
+      RAISE EXCEPTION 'legal_entity.archived_is_final: uma entidade nasce activa';
+    END IF;
+    RETURN NEW;
+  END IF;
+  -- Arquivada é final e congela a entidade inteira (Diogo, 04/10/2026:
+  -- «sim, arquivada é final» e «congela a entidade inteira»): não volta a
+  -- activa, e nada nela muda — é o registo histórico do que vendeu (revisão do
+  -- #43, P2-3 e P2-2 do `98ca4c1`).
+  IF OLD.estado = 'arquivada' THEN
+    RAISE EXCEPTION 'legal_entity.archived_is_final: uma entidade arquivada não muda nem volta a activa; criar outra';
   END IF;
   IF NEW.estado = 'arquivada' AND OLD.estado <> 'arquivada' AND EXISTS (
     SELECT FROM public.loja l
@@ -279,7 +289,7 @@ END
 $$;
 
 CREATE TRIGGER entidade_legal_antes_de_alterar
-  BEFORE UPDATE ON entidade_legal
+  BEFORE INSERT OR UPDATE ON entidade_legal
   FOR EACH ROW EXECUTE FUNCTION entidade_legal_antes_de_alterar();
 
 -- Uma loja activa vende sempre por uma entidade activa: assim a regra da

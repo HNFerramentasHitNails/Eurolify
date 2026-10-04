@@ -87,9 +87,9 @@ O Diogo pediu a esta sessão que pegasse no #43 (*«sim, pega no #43 daqui»*): 
   - o `preparar.sh` avisa se o `api.env` ou o `migrar.env` não são `600 root`;
   - o contentor do migrador com `--cap-drop ALL`, `no-new-privileges` e `--memory 512m`;
   - docs/15: estado do código, `fechado` não sai, regra por fazer (comerciante activo que troca a entidade provada), palavras-passe geradas pelo script da VPS, citações de linhas.
-- **Por decidir (Diogo ou Bruno):** P2-2 do `98ca4c1` — «arquivada é final» congela só o estado ou o registo inteiro (morada, denominação; nascer já arquivada)?
+- **Decidido pelo Diogo** (*«congela a entidade inteira»*, 04/10/2026), P2-2 do `98ca4c1`: uma entidade arquivada não muda em nada, e nenhuma nasce arquivada (`legal_entity.archived_is_final`); teste novo, que falha com a migração anterior.
 - **Na descrição do pedido:** quem tem uma base de desenvolvimento deste ramo tem de a recriar, porque a 0001 foi alterada no sítio (P2-6 do `98ca4c1`).
 
-**Números** (04/10/2026, PostgreSQL 18.6 em Docker, `EXIGIR_BASE=1`, Node 22.22): api com 111 passados, mcp com 30; `comerciante.test.ts` 36 e `url-migracao.test.ts` 7 (`grep -c "  it("`). Com o código anterior, 5 dos testes novos falham; os outros 3 guardam o que já estava certo. `pnpm tipos`, `pnpm lint`, `pnpm construir` e o `shellcheck` como o CI sem erros.
+**Números** (04/10/2026, PostgreSQL 18.6 em Docker, `EXIGIR_BASE=1`, Node 22.22; com a decisão acima, 112 e `comerciante.test.ts` com 37): api com 111 passados, mcp com 30; `comerciante.test.ts` 36 e `url-migracao.test.ts` 7 (`grep -c "  it("`). Com o código anterior, 5 dos testes novos falham; os outros 3 guardam o que já estava certo. `pnpm tipos`, `pnpm lint`, `pnpm construir` e o `shellcheck` como o CI sem erros.
 
 **Por verificar:** Node 24; o `preparar.sh` na VPS; o migrador com `--memory 512m` numa migração real.

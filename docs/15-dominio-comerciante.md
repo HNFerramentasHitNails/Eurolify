@@ -21,7 +21,7 @@ Feito: a migração `apps/api/migracoes/0001_comerciante.sql` (as seis tabelas,
 RLS forçado, o `eurolify_api` sem `BYPASSRLS`, as transições de estado e as
 condições de activação na base, o rasto escrito pela base num gatilho
 `AFTER UPDATE`), o migrador (`apps/api/src/migrar.ts`), o acesso interno
-(`apps/api/src/comerciante/repositorio.ts`), 36 testes contra o PostgreSQL
+(`apps/api/src/comerciante/repositorio.ts`), 37 testes contra o PostgreSQL
 18.6 e 7 do migrador (`grep -c "  it("`, 04/10/2026). Por fazer: a API (fatia «identidade»), os dois utilizadores da base na
 VPS (pedido ao script, ADR-0028), a validação da morada e do número fiscal por
 país (**C**).
@@ -86,7 +86,7 @@ regra 4).
 | `pais` | ISO 3166-1 | sim | um dos 27 (motor de regras, `CODIGOS_UE`) |
 | `numero_fiscal` | texto | sim | **sem** o prefixo do país (o prefixo do VIES não é o ISO: `EL` na Grécia — `eu-vat-oss-ioss`); único por país **dentro do comerciante** |
 | `morada_fiscal` | morada por país | sim | formato e código postal validados pelo país (`eu-localization`); região de uma lista, nunca texto livre |
-| `estado` | activa, arquivada | sim | arquivar não apaga: os documentos fiscais ficam 10 anos (`eu-gdpr-privacy`). **Arquivada é final** (Diogo, 04/10/2026): não se desarquiva (`legal_entity.archived_is_final`), cria-se outra entidade (§4) |
+| `estado` | activa, arquivada | sim | arquivar não apaga: os documentos fiscais ficam 10 anos (`eu-gdpr-privacy`). **Arquivada é final** (Diogo, 04/10/2026): não se desarquiva nem se altera, e nasce sempre activa (`legal_entity.archived_is_final`); cria-se outra entidade (§4) |
 
 ### 3.3 Loja (`sto_`)
 
@@ -155,7 +155,10 @@ postos pela aplicação; a API não escreve no rasto (revisão do #43, P1-3).
 A activação olha para a prova **mais recente** de cada entidade legal activa,
 pela ordem de registo (P1-1); o país e o número fiscal de uma entidade não
 mudam — arquiva-se e cria-se outra (P1-2). **Arquivada é final** (Diogo,
-04/10/2026): a base recusa desarquivar (`legal_entity.archived_is_final`); o
+04/10/2026) e **congela a entidade inteira** (Diogo, 04/10/2026, «congela a
+entidade inteira»): a base recusa desarquivar e qualquer outra alteração a uma
+entidade arquivada, e uma entidade nasce sempre activa
+(`legal_entity.archived_is_final`); o
 número fiscal só é único entre as entidades activas, por isso voltar a usar um
 número arquivado é criar outra entidade, com prova nova. Uma prova nova só se
 regista numa entidade activa (`legal_entity.archived`; revisão do #43, P2-3

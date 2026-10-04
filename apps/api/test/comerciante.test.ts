@@ -902,6 +902,50 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       ).toBe("legal_entity.tax_number_duplicate");
     });
 
+    it("arquivada congela a entidade inteira, e uma entidade nasce activa (Diogo, 04/10/2026)", async () => {
+      const x = await registarComerciante(base.api, NOVO);
+      const antiga = await criarEntidadeLegal(base.api, x, ENTIDADE);
+      await comComerciante(base.api, x, (trx) =>
+        trx
+          .updateTable("entidade_legal")
+          .set({ estado: "arquivada" as never })
+          .where("id", "=", antiga)
+          .execute(),
+      );
+      for (const alteracao of [
+        { morada_linha: "Outra rua, 2" },
+        { denominacao: "Outro nome, Lda." },
+        { estado: "arquivada" as never },
+      ]) {
+        expect(
+          await codigoDoErro(
+            comComerciante(base.api, x, (trx) =>
+              trx
+                .updateTable("entidade_legal")
+                .set(alteracao)
+                .where("id", "=", antiga)
+                .execute(),
+            ),
+          ),
+        ).toBe("legal_entity.archived_is_final");
+      }
+      expect(
+        await codigoDoErro(
+          comComerciante(base.api, x, (trx) =>
+            trx
+              .insertInto("entidade_legal")
+              .values({
+                comerciante_id: x,
+                ...ENTIDADE,
+                pais: "ES",
+                estado: "arquivada" as never,
+              })
+              .execute(),
+          ),
+        ),
+      ).toBe("legal_entity.archived_is_final");
+    });
+
     it("a prova de uma entidade arquivada não conta para a nova: a activação pede prova nova", async () => {
       const id = await registarComerciante(base.api, NOVO);
       const antiga = await criarEntidadeLegal(base.api, id, ENTIDADE);
