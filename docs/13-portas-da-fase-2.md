@@ -8,6 +8,9 @@
 > [`04-licoes-dos-sistemas-actuais.md`](04-licoes-dos-sistemas-actuais.md)
 > (números medidos nos sistemas actuais, com a data de lá). **Não decide nada**:
 > construir ou não, e mudar de fase, decide o Diogo ou o Bruno.
+>
+> ✅ **04/10/2026:** as três propostas de mudança de fase foram aceites pelo
+> Diogo (decisão AD, [ADR-0022](adr/0022-tres-pecas-da-fase-2-para-a-fase-1.md)).
 
 **Legenda:** ✅ passa · ◐ em parte · ❌ falha · ❔ não se sabe.
 
@@ -163,13 +166,15 @@ países (por país) e os vários armazéns — ambos ainda por investigar.
 
 ## O que isto pede ao Diogo ou ao Bruno
 
-1. **Três propostas de mudança de fase**, cada uma a decidir:
+1. **Três propostas de mudança de fase** — ✅ **aceites a 04/10/2026** (decisão
+   AD, ADR-0022):
    - relatório OSS → núcleo da Fase 1;
    - devolução → reembolso → nota de crédito (sem troca nem carteira) → Fase 1;
    - lotes na linha expedida e compostos → Fase 1.
 
    Cada uma **aumenta a Fase 1**, cuja estimativa no `docs/10` (15 a 29 meses a
-   tempo inteiro) não as inclui. **Não estimei** quanto de cada peça passa.
+   tempo inteiro) não as inclui: estão lá como «por estimar». **Não estimei**
+   quanto de cada peça passa.
 2. **As conversas com os comerciantes** são o passo que desbloqueia as portas 3
    e 4 em todos os módulos. Perguntas mínimas por módulo:
    - quanto pagam hoje (plataforma, extensões, contabilista) e por quê;

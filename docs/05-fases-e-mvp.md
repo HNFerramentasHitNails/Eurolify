@@ -27,7 +27,7 @@
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
 | Modelo de receita (D-14) — a base é precisa antes da Fase 1, porque se vende desde o início; os preços, antes da peça 13 (ADR-0012) | **base decidida** (ADR-0007: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, depois das conversas com comerciantes |
 | Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
-| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; tempo por fases em `10-estimativa-prazo-e-custo.md` §9 (Fase 1: 15 a 29 meses a tempo inteiro, 28 a 52 a meio tempo), corrigido às 8 semanas (§6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
+| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; tempo por fases em `10-estimativa-prazo-e-custo.md` §9 (Fase 1: 15 a 29 meses a tempo inteiro, 28 a 52 a meio tempo — sem as três peças da decisão AD, por estimar), corrigido às 8 semanas (§6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
 
 **Critério de passagem** (mudado a 03/10/2026, ADR-0012): a D-13 decidida
 (ADR-0008), a base da D-14 decidida (ADR-0007) e o OK escrito do Bruno ou do
@@ -44,12 +44,15 @@ antes de começar a peça 13 da Fase 1 (abertura a comerciantes).
   para o Eurolify pela API, como hoje para o Shopify.
 - **Toda a UE de raiz** (decisão F, 03/10/2026): taxas dos 27 países, OSS,
   NIF e VIES, territórios especiais; listas de preços B2B por etiqueta;
-  quantidades mínimas; histórico de preços (30 dias).
+  quantidades mínimas; histórico de preços (30 dias); **relatório OSS com os
+  quatro baldes**, em todos os planos (decisão AD, ADR-0022; veio da Fase 2).
 - Carrinho e **checkout alojado**, com perfis de faturação, «a fatura é para
   outra pessoa/empresa», validação VIES com prova e o motor de IVA
   (PT, UE, fora da UE, Canárias/Ceuta/Melilla, Açores/Madeira).
 - Pagamentos **EuPago** e **Stripe**, com a régua método → prestador → conta.
-- Encomendas e stock (um armazém, reservas, disponível por canal).
+- Encomendas e stock (um armazém, reservas, disponível por canal), com **lotes
+  na linha expedida e compostos** — é o que permite uma recolha (decisão AD,
+  ADR-0022; veio da Fase 2).
 - **Entrega das encomendas ao sistema de gestão do comerciante que já o
   tenha**, que continua a faturar no software certificado (D-10).
 - **Emissão de faturas por adaptador em Portugal (Moloni)** para quem não tem
@@ -61,6 +64,9 @@ antes de começar a peça 13 da Fase 1 (abertura a comerciantes).
 - Envios com **CTT** e mais uma transportadora ou agregador.
 - **Botão de livre resolução**, área de cliente, confirmação com prova
   contratual, notificações em PT/ES/EN.
+- **Devolução → estado do artigo → reembolso → nota de crédito**, a seguir ao
+  botão de livre resolução (decisão AD, ADR-0022; veio da Fase 2). A troca e a
+  carteira ficam na Fase 2.
 - RGPD essencial: consentimentos numa régua só, exportação e apagamento com a
   retenção fiscal respeitada.
 - API da Loja, API de Administração, webhooks, SDK TypeScript, **MCP de
@@ -72,7 +78,7 @@ antes de começar a peça 13 da Fase 1 (abertura a comerciantes).
 
 **Âmbito — fica de fora:** emissão de faturas pelo próprio Eurolify (emite o
 software certificado de cada comerciante), emissão por adaptador fora de
-Portugal (entra país a país), devoluções completas, carteira, vários armazéns,
+Portugal (entra país a país), troca e carteira, vários armazéns,
 marketplace, escrita por IA, protocolos de comércio por agentes, extensões
 abertas a qualquer programador.
 
@@ -88,22 +94,25 @@ pagamentos EuPago e Stripe já desenhado para a plataforma de formação
 **Critério de passagem:** 3 meses de vendas reais, em todos os comerciantes,
 sem um documento fiscal errado com origem no Eurolify; pagamentos 100 % conciliados; os testes de
 isolamento entre inquilinos sempre verdes; o botão de livre resolução usado e
-tratado de ponta a ponta pelo menos uma vez.
+tratado de ponta a ponta pelo menos uma vez — até ao reembolso e à nota de
+crédito (decisão AD).
 
 ## Fase 2 — O Hub do Eurolify e mais países
 
 > Os módulos desta fase passaram pelas 8 portas a 03/10/2026:
-> [`13-portas-da-fase-2.md`](13-portas-da-fase-2.md) — três propostas de passar
-> peças para a Fase 1, por decidir.
+> [`13-portas-da-fase-2.md`](13-portas-da-fase-2.md). Três peças passaram para
+> a Fase 1 a 04/10/2026 (decisão AD, ADR-0022): o relatório OSS, o núcleo das
+> devoluções e os lotes com os compostos.
 
-- Armazém completo: vários armazéns, picking, lotes, compostos, inventários.
-- **Devoluções ligadas à nota de crédito**, com o estado do artigo; troca e
-  carteira (com validação do contabilista).
+- Armazém completo: vários armazéns, picking, inventários (os lotes e os
+  compostos passaram para a Fase 1, decisão AD).
+- **Troca e carteira** nas devoluções (a carteira com validação do
+  contabilista); o núcleo das devoluções passou para a Fase 1 (decisão AD).
 - **Emissão de faturas por adaptador nos outros países** (Verifactu em
   Espanha, Plateforme Agréée em França…), conforme D-4 — o Moloni já entrou na
   Fase 1.
-- Relatório OSS com os quatro baldes; ligações ao software de faturação dos
-  comerciantes estabelecidos noutros países, país a país.
+- Ligações ao software de faturação dos comerciantes estabelecidos noutros
+  países, país a país (o relatório OSS passou para a Fase 1, decisão AD).
 - Automações e notificações configuráveis; campos personalizados; módulos
   ligáveis por comerciante.
 - Migração da loja principal do grupo, se a Fase 1 o justificar.
