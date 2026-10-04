@@ -5,7 +5,7 @@ description: Extensões de terceiros no Eurolify — aplicações, meios de paga
 
 # Extensões de terceiros
 
-> Estado: **desenho** — não há código (ADR-0001). Base:
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Base:
 > `docs/08-extensoes-de-terceiros.md`. Requisito K em `docs/06`.
 
 ## Quando usar

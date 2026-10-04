@@ -5,7 +5,7 @@ description: Motor de IVA e documentos fiscais do Eurolify — categoria fiscal 
 
 # IVA, OSS/IOSS e documentos fiscais
 
-> Estado: **desenho** — não há código (ADR-0001). Fontes e datas:
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Fontes e datas:
 > `docs/03-regulamentar-ue.md` §1. Lições: `docs/04-licoes-dos-sistemas-actuais.md`
 > §1 e §2. **Quem decide:** Diogo ou Bruno (ordem do Diogo, 03/10/2026).
 >

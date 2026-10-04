@@ -5,7 +5,7 @@ description: Pagamentos no Eurolify — camada de adaptadores para prestadores (
 
 # Pagamentos (PSD2 e autenticação forte)
 
-> Estado: **desenho** — não há código (ADR-0001). Fontes: `docs/03-regulamentar-ue.md`
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Fontes: `docs/03-regulamentar-ue.md`
 > §5. Decisão ligada: D-5.
 
 ## Quando usar

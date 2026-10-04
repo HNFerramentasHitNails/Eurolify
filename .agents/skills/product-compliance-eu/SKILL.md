@@ -5,7 +5,7 @@ description: Conformidade de produto no Eurolify — atributos regulamentares do
 
 # Conformidade de produto
 
-> Estado: **desenho** — não há código (ADR-0001). Fontes e datas:
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Fontes e datas:
 > `docs/03-regulamentar-ue.md` §3. **Validação: técnico regulamentar e
 > jurista.**
 

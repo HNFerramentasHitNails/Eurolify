@@ -5,7 +5,7 @@ description: Design do Eurolify — montra (kit de loja e temas de cada comercia
 
 # Design do Eurolify
 
-> Estado: **desenho** — não há código (ADR-0001). A identidade visual do
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. A identidade visual do
 > próprio Eurolify **ainda não está decidida** (D-12).
 >
 > Esta skill junta, numa entrada só, as regras de design do Eurolify e uma

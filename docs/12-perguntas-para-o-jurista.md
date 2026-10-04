@@ -25,7 +25,8 @@
 - Alojado numa VPS num centro de dados na UE (o ensaio, sem dados pessoais
   reais, está por agora no Reino Unido: ADR-0018). **Sem vendedores terceiros**
   (marketplace) enquanto não houver caso de negócio.
-- Estado: desenho, sem código. O primeiro comerciante de fora só entra depois
+- Estado: desenho; o código está autorizado desde 04/10/2026 (ADR-0023), sem
+  produto em uso nem dados de clientes. O primeiro comerciante de fora só entra depois
   de os fluxos do consumidor e o contrato estarem validados por um jurista
   (ADR-0006).
 

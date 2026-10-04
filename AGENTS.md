@@ -1,8 +1,10 @@
 # Eurolify — regras de trabalho
 
 Plataforma de comércio electrónico europeia da **Luckytarget Lda**: núcleo por
-API, Hub de gestão, regras europeias de raiz e aberta a qualquer IA. **Projecto
-em desenho: não há código** (ADR-0001). Trabalham aqui o **Bruno** e o **Diogo**, à vez, cada um na
+API, Hub de gestão, regras europeias de raiz e aberta a qualquer IA. **O
+código está autorizado desde 04/10/2026** (ADR-0023, substitui o ADR-0001):
+entra só pelas duas revisões (ADR-0013), e o de um domínio só depois de o
+desenho dele estar escrito. Trabalham aqui o **Bruno** e o **Diogo**, à vez, cada um na
 sua conta de Claude Code e de Codex — são eles que desenvolvem o Eurolify
 (ADR-0008).
 
@@ -21,8 +23,10 @@ de o ler até ao fim (limite por omissão, documentação do Codex).
 1. Ler `README.md`, `docs/00-proposta.md` e `docs/06-decisoes-em-aberto.md`.
 2. Ler `memoria/MEMORY.md` e abrir as memórias do tema — **um título do índice
    não é a memória**.
-3. Ver o estado dos ADR em `docs/adr/`: **o ADR-0001 proíbe código** até um
-   ADR novo o substituir com o OK escrito do Bruno ou do Diogo.
+3. Ver o estado dos ADR em `docs/adr/`: **o código está autorizado pelo
+   ADR-0023** (substitui o ADR-0001), só por um ramo e um pedido de alteração
+   com as duas revisões (ADR-0013); o código de um domínio só depois de o
+   modelo e a lista da API dele estarem escritos em tabela.
 4. `git fetch origin main` e `git log --oneline -15 origin/main`: o outro pode
    ter mexido desde a última sessão.
 
@@ -135,7 +139,7 @@ facturação. EU e o Bruno, temos toda a liberdade dentro deste repositorio»*).
 |---|---|
 | Ler, medir, investigar, escrever documentos de desenho | livre, para qualquer pessoa |
 | Decisões de negócio, faturação, NIF, IVA, identidade de clientes, Moloni, aspecto e marca | **Diogo ou Bruno** |
-| Avançar para código (substituir o ADR-0001) | **Diogo ou Bruno** |
+| Avançar para código (feito a 04/10/2026, ADR-0023) e mudar o âmbito dele | **Diogo ou Bruno** |
 | Alterar decisões já tomadas | **Diogo ou Bruno** |
 
 As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila

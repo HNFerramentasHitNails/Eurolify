@@ -5,7 +5,7 @@ description: Catálogo e gestão de informação de produto (PIM) no Eurolify �
 
 # Catálogo (PIM)
 
-> Estado: **desenho** — não há código (ADR-0001). Os campos regulamentares
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Os campos regulamentares
 > estão em `product-compliance-eu`; o preço em «Preços e mercados»; o stock em
 > `order-fulfilment`.
 

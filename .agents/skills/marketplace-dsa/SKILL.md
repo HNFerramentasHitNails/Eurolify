@@ -5,7 +5,7 @@ description: Preparação do Eurolify para marketplace com vendedores terceiros 
 
 # Marketplace e DSA
 
-> Estado: **desenho** — não há código (ADR-0001). Fase 4 em
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Fase 4 em
 > `docs/05-fases-e-mvp.md`. Fontes: `docs/03-regulamentar-ue.md` §4.
 
 ## 🔴 Primeira regra

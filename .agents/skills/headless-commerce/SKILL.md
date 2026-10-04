@@ -5,7 +5,7 @@ description: Desenho das interfaces do Eurolify — API da Loja (pública) e de 
 
 # Comércio sem cabeça (headless)
 
-> Estado: **desenho** — não há código (ADR-0001). Base:
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Base:
 > `docs/02-arquitectura.md` §4. Decisões ligadas: D-7, D-8, D-9.
 
 ## Quando usar
@@ -99,7 +99,8 @@ Para o Lovable, Vercel (v0), Bolt e Emergent gerarem uma loja certa à primeira:
 Guia da Anthropic para construir servidores MCP, guardado em
 `referencias/mcp-builder/` (Apache 2.0; origem em `referencias/ORIGEM.md`).
 Ler `referencias/mcp-builder/mcp-builder.md` quando chegar a hora de construir
-(depois do ADR que substitua o ADR-0001), e os guias em `reference/` pela ordem
+(o ADR-0023 substituiu o ADR-0001; o MCP é código de domínio e espera pelo
+desenho dele), e os guias em `reference/` pela ordem
 que ele indica. **As regras do Eurolify ganham ao guia:**
 
 | O guia diz | No Eurolify |
@@ -113,7 +114,8 @@ que ele indica. **As regras do Eurolify ganham ao guia:**
 
 ⚠️ O guia de avaliação (`reference/evaluation.md`) manda correr
 `scripts/evaluation.py`: **os programas não foram copiados** (chamam a API paga
-da Anthropic e são código — ADR-0001). Estão no repositório de origem, no commit
+da Anthropic e são código: entram, se entrarem, pelas duas revisões do
+ADR-0013). Estão no repositório de origem, no commit
 indicado em `referencias/ORIGEM.md`.
 
 ## Anti-padrões

@@ -5,7 +5,7 @@ description: Protecção de dados no Eurolify (RGPD e ePrivacy) — privacidade 
 
 # RGPD e privacidade
 
-> Estado: **desenho** — não há código (ADR-0001). Regras e fontes:
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Regras e fontes:
 > `docs/03-regulamentar-ue.md` §4. Validação: encarregado de protecção de dados
 > ou jurista. Isto não é aconselhamento jurídico.
 

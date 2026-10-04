@@ -10,9 +10,11 @@ da **Luckytarget Lda**.
 Um núcleo de loja por API para qualquer frontend, um Hub de gestão, as regras
 europeias de raiz e aberto a qualquer IA.
 
-> **Estado a 03/10/2026: Fase 0 — proposta e desenho. Não há código**
-> ([ADR-0001](docs/adr/0001-sem-codigo-ate-plano-decidido.md)). Avança-se para
-> código quando o Bruno ou o Diogo o decidirem.
+> **Estado a 04/10/2026: o código está autorizado**
+> ([ADR-0023](docs/adr/0023-ok-para-codigo.md), que substitui o
+> [ADR-0001](docs/adr/0001-sem-codigo-ate-plano-decidido.md)): entra só por
+> pedido de alteração com as duas revisões (ADR-0013), e o de um domínio só
+> depois do desenho dele. Ainda não há código no `main`.
 
 ## Por onde começar
 

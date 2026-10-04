@@ -5,7 +5,7 @@ description: Arquitectura do Eurolify — monólito modular multi-inquilino, fro
 
 # Arquitecto da plataforma
 
-> Estado: **desenho** — não há código (ADR-0001). Base: `docs/02-arquitectura.md`.
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Base: `docs/02-arquitectura.md`.
 
 ## Quando usar
 

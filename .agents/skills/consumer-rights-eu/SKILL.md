@@ -5,7 +5,7 @@ description: Direitos do consumidor na UE no Eurolify — transparência de pre�
 
 # Direitos do consumidor
 
-> Estado: **desenho** — não há código (ADR-0001). Fontes e datas:
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Fontes e datas:
 > `docs/03-regulamentar-ue.md` §2. **Validação: jurista.** As obrigações
 > concretas dependem do **produto**, do **país** e de o comprador ser
 > **consumidor ou profissional** — o Eurolify dá as peças; o comerciante e o

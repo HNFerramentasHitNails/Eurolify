@@ -8,7 +8,7 @@
 > semanas); o critério de passagem continua a mandar, não o calendário. Cada fase tem um
 > **critério de passagem** medível; não se passa à seguinte por calendário.
 
-## Fase 0 — Decidir e desenhar (agora; sem código)
+## Fase 0 — Decidir e desenhar (critério de passagem cumprido a 04/10/2026, ADR-0023)
 
 | Entregável | Estado a 03/10/2026 |
 |---|---|
@@ -33,6 +33,11 @@
 (ADR-0008), a base da D-14 decidida (ADR-0007) e o OK escrito do Bruno ou do
 Diogo para começar código (ADR-0001). Os preços da D-14 têm de estar decididos
 antes de começar a peça 13 da Fase 1 (abertura a comerciantes).
+
+✅ **Cumprido a 04/10/2026:** o OK para código é o
+[ADR-0023](adr/0023-ok-para-codigo.md) (Diogo). Os entregáveis da tabela que
+faltam continuam a fazer-se, e o código de um domínio espera pelo modelo e
+pela lista da API dele escritos em tabela.
 
 ## Fase 1 — Núcleo e os primeiros comerciantes (vende-se desde o início)
 

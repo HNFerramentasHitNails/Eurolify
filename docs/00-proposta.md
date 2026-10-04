@@ -197,7 +197,7 @@ são de uma empresa, não de uma loja.
 
 | Fase | O quê | Passa quando |
 |---|---|---|
-| **0** | Decidir e desenhar — **agora, sem código** | estimativa (D-13) e base da receita (D-14) decididas, OK escrito para código; os preços, antes da peça 13 da Fase 1 (ADR-0012) |
+| **0** | Decidir e desenhar — **critério cumprido a 04/10/2026** (OK para código, ADR-0023); o desenho dos domínios continua | estimativa (D-13) e base da receita (D-14) decididas, OK escrito para código; os preços, antes da peça 13 da Fase 1 (ADR-0012) |
 | **1** | Núcleo nativo para a UE, **à venda desde o início** | 3 meses de vendas reais, em todos os comerciantes, sem documento fiscal errado com origem no Eurolify |
 | **2** | O Hub do Eurolify + faturação noutros países + parceiros | comerciantes de pelo menos dois países a vender há 3 meses (proposta) |
 | **3** | Extensões abertas e comércio por agentes | — |
