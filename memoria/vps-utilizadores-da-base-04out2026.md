@@ -46,3 +46,12 @@ Ensaio local a 04/10/2026, PostgreSQL 18.6 em Docker com o nome `eurolify-postgr
 - **P2-1:** a verificação da ligação distingue «recusada» (sem ligação no ficheiro, ou `password authentication failed`: renova) de «erro» do docker ou da rede (avisa e **não** renova), e não descarrega imagens (`--pull never`). Medido: imagem em falta e rede em falta dão 1 aviso e 0 alterações.
 - **P2-2:** em `--mostrar` só se lê o ficheiro; não arranca contentores. Medido com `docker events`: 0 contentores criados.
 - De novo: 1.ª corrida 3 alterações, 2.ª 0; palavra-passe mudada à mão → renovada, depois 0; trap: 0 temporários; `shellcheck` e `--mostrar` como o CI passam.
+
+## Aplicado na VPS (04/10/2026, 22:47 UTC)
+
+Fluxo `aplicar-script`, corrida 37241277662, no `main` `e14ff84` (junção do #71, pedida pelo Diogo: *«sim, junta o #71»*):
+
+- `--mostrar` primeiro: 4 alterações por fazer, 0 avisos; depois a corrida: **4 alterações feitas, 0 avisos** — instalar o novo `/usr/local/sbin/eurolify-publicar`, criar o `eurolify_api`, criar o `eurolify_migrador` e escrever o `migrar.env`, passar a base `eurolify` para o `eurolify_migrador`.
+- Antes: passo 10 com «já está» no `postgres.env`, `api.env`, `migrar.env` e no contentor `eurolify-postgres` com a imagem certa.
+- Registo do fluxo no GitHub: 0 sequências de 64 hexadecimais (procurado com `grep -cE '[0-9a-f]{64}'`).
+- **Ainda por ver:** a migração 0001 na VPS, que só corre na publicação seguinte (o `publicar` corre com mudanças em `apps/**`); a #70 fecha quando essa publicação disser «aplicadas 0001_comerciante».
