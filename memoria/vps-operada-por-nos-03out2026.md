@@ -443,8 +443,10 @@ segunda feita pelo Claude.
 | 23 | gestor de utilizador do `systemd` (`Class=manager`), não remota |
 | a quarta | a ligação do Claude que fazia a leitura (o número muda a cada ligação) |
 
-- **A 22 e a 24 são do Diogo** (resposta dele, 04/10/2026: *«sim»* à pergunta
-  se tinha duas janelas de SSH abertas desde ~00:05 de Lisboa).
+- ~~A 22 e a 24 são do Diogo (janelas de SSH)~~ → **eram da aplicação de
+  computador do Claude**, não janelas (corrigido a 04/10/2026; ver «As sessões
+  22 e 24 eram da aplicação do Claude», abaixo). O *«sim»* do Diogo à pergunta
+  das janelas não o distinguia.
 - O método e a origem delas são **inferidos, não provados**: abriram às
   23:05:21 e 23:05:22 UTC, quando todas as entradas eram por palavra-passe e as
   23 vinham da origem do Diogo; mas o número do processo no journal não bate
@@ -493,5 +495,52 @@ dele, e o Claude confirmou só a ler.
   (invalid|authenticating) user'`; `fail2ban-client status sshd`.
 - **Retenção dos endereços** que o `fail2ban` guarda (base e registos), que são
   dados pessoais (ADR-0018): por decidir no script, com a do `ufw`.
-- O fecho das sessões 22 e 24 (o Diogo fecha as janelas).
+- ~~O fecho das sessões 22 e 24~~ → fechadas (secção seguinte).
 - A palavra-passe inicial do `ubuntu` continua em aberto.
+
+## As sessões 22 e 24 eram da aplicação do Claude (04/10/2026, 00:14–00:20 UTC)
+
+### O que se fez
+
+- O Diogo fechou as janelas de SSH; às 00:16 UTC a 22 e a 24 continuavam
+  `active`, com a ligação TCP viva (`ESTAB`) e da origem do Diogo
+  (comparação feita na VPS, sem escrever o endereço).
+- No computador do Diogo (só leitura): os dois `ssh.exe` dessas ligações eram
+  filhos da **aplicação de computador do Claude** (`Claude.exe` 2.19675, da
+  Microsoft Store), não desta sessão do Claude Code (outro `claude.exe`).
+  Abertos às 00:05:13 e 00:05:21 de Lisboa (23:05 UTC), com `BatchMode=no`
+  (entraram pela palavra-passe, quando ainda era aceite) e
+  `ServerAliveInterval=15`: um com um ciclo que executa na VPS cada linha que a
+  aplicação lhe manda (uma consola remota), o outro `sftp`.
+- Com o OK do Diogo, o Claude terminou os dois processos locais (00:18 UTC).
+  **A aplicação voltou a entrar logo, com a chave do Diogo**: três entradas
+  `publickey` às 00:18:33–35 UTC, origem igual, impressão digital da
+  `eurolify_vps`. Conseguiu porque a chave está no `ssh-agent` do Windows, que
+  a dá a qualquer programa do Diogo sem perguntar.
+- O Diogo desligou a ligação SSH na aplicação (~00:19 UTC). Última entrada que
+  não é do Claude: 00:19:27 UTC, `publickey`, origem igual, sessão de 1 s (a
+  aplicação ao desligar, por dedução; não verificado).
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| `ssh.exe` locais da aplicação | 0 | `Get-CimInstance Win32_Process -Filter "Name='ssh.exe'"`, 04/10/2026 00:20 UTC |
+| Sessões na VPS | só a do Claude que lia e o gestor de utilizador | `loginctl list-sessions`, 00:20:11 UTC |
+| Ligações TCP estabelecidas na porta 22 | 1 (a do Claude) | `ss -tnH state established '( sport = :22 )'` |
+
+**Leitura:** havia uma segunda via de acesso à VPS — a aplicação do Claude,
+com consola e `sudo` — que não passava pelas autorizações desta sessão
+(ADR-0020) e reabria sozinha. Fechar a palavra-passe não a travou, porque o
+agente de SSH lhe deu a chave.
+
+### O que ficou por verificar
+
+- **O que a aplicação do Claude executou na VPS** entre as 23:05 e as 00:19
+  UTC: não li (o journal do `ssh` não regista os comandos).
+- **A chave no agente**: qualquer programa do Diogo a usa sem perguntar.
+  Tirá-la quando não se opera a VPS (`ssh-add -d`) ou aceitar o risco: decisão
+  do Diogo.
+- Falha do Claude nesta leitura: um endereço IP de origem apareceu na saída de
+  uma ferramenta da sessão (coluna errada num `awk`); não foi escrito em
+  ficheiro nem no repositório.
