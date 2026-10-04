@@ -37,7 +37,7 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`AGENTS.md`](AGENTS.md) | As regras para qualquer sessão de Claude Code ou de Codex neste repositório (o `CLAUDE.md` só o importa) |
-| [`.agents/skills/`](.agents/skills/) | As 14 skills de trabalho (12 de domínio, a de design com 38 referências de terceiros, e a de extensões); `.claude/skills/` tem uma ligação para cada uma |
+| [`.agents/skills/`](.agents/skills/) | As 16 skills de trabalho (12 de domínio, a de design com 38 referências de terceiros, a de extensões, e as de produtos digitais e de cartões-oferta, juntadas a 04/10/2026); `.claude/skills/` tem uma ligação para cada uma |
 
 ## As quatro peças
 

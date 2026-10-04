@@ -13,7 +13,7 @@
 | Entregável | Estado a 03/10/2026 |
 |---|---|
 | Proposta, arquitectura, mapa regulamentar, lições dos sistemas actuais | escrito (este repositório) |
-| As 14 skills de trabalho para as sessões de Claude Code e de Codex | escrito (`.agents/skills/`, com ligações em `.claude/skills/`; ADR-0010) |
+| As skills de trabalho para as sessões de Claude Code e de Codex (14; mais 2 a 04/10/2026: produtos digitais e cartões-oferta) | escrito (`.agents/skills/`, com ligações em `.claude/skills/`; ADR-0010) |
 | Decisões D-1, D-2, D-3 | **todas decididas** a 03/10/2026: D-1 vender desde o início (ADR-0006), D-2 de raiz (ADR-0002), D-3 europeu gerido, Scaleway (ADR-0003, ADR-0004) — **revista**: VPS operada por nós, com o Claude (ADR-0015, ADR-0016) |
 | Escolher o alojamento (D-3) | **revisto** a 03/10/2026: VPS operada por nós (ADR-0015); fornecedor e plano por escolher (`11-preparacao-da-vps.md` §7) — antes, Scaleway (ADR-0004) |
 | Conta da Scaleway e acesso só de leitura do Claude | ⚠️ **deixa de se usar** (ADR-0032, 04/10/2026: a OVH é o fornecedor único) · antes: **preparado** (ADR-0011): projecto `eurolify-ensaio`, chave do Diogo só de leitura, `scw` nas sessões. Falta a chave do Bruno e confirmar o portador da chave — **sem efeito** com a VPS (ADR-0015) |

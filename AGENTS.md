@@ -261,6 +261,8 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 | `eu-localization` | línguas, moedas, mercados, moradas, fusos, métodos por país |
 | `eurolify-design` | qualquer ecrã, tema, componente ou fluxo; pesquisa com comerciantes; revisão de interface (traz 38 referências de terceiros em `referencias/`) |
 | `third-party-extensions` | contratos de adaptadores (pagamento, envio, faturação), pontos de extensão, permissões de aplicações, loja de extensões, parceiros que escrevem o seu adaptador |
+| `digital-products-eu` | conteúdo digital, serviço digital e serviço humano à distância: classificação, livre resolução, IVA electrónico, entrega e acessos (tudo **C**) |
+| `gift-cards-eu` | cartões-oferta: SPV/MPV, IVA na venda e no resgate, saldo por movimentos, reembolso, porta PSD2 (tudo **C**) |
 
 ## Agentes
 
