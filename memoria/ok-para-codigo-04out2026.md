@@ -387,3 +387,51 @@ VPS).
   cópias são ilegíveis se a VPS se perder.
 - D4: as partes públicas `publicar.pub`, `aplicar.pub`, `medir.pub` em
   `infra/vps/chaves/fluxos/` (impressões digitais iguais às do D1).
+
+## Fase D: a VPS preparada pelo script e os fluxos provados (04/10/2026, ≈ 11:50–12:10 UTC)
+
+Com o OK do Diogo a cada passo.
+
+### O que se fez
+
+- `infra/vps` do `main` (`aee2117`) copiado para `~/eurolify-infra` na VPS
+  (31 ficheiros, somas SHA-256 iguais às do `main`).
+- `preparar.sh --mostrar` (60 por fazer, 8 avisos) e depois a sério pela
+  chave de emergência: **59 alterações feitas**, 8 avisos. Segundo
+  `--mostrar`: **0 por fazer** (repete-se sem estragar).
+- Segredos postos na VPS pelo computador do Diogo, sem passarem pelo ecrã
+  (`cmd` com `<` para `sudo sh -c 'umask 077; cat > …'`): `deploy_key`,
+  `age.key`, `age.pub` (600 root).
+- Um aviso falso no passo 4 (a própria regra da 22 dada como desconhecida,
+  por comparar o formato curto do `ufw status` com o longo): corrigido neste
+  pedido, testado na VPS nos dois sentidos.
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Como |
+|---|---|---|
+| SSH depois do script | `passwordauthentication no`, `permitrootlogin no`, `pubkeyauthentication yes`; ligação nova com a chave do Diogo entra | `sshd -T`; `ssh -o BatchMode=yes` |
+| Serviços | `ssh`, `docker`, `fail2ban`, `ufw`, 3 `eurolify-pedido@*.path`, 3 temporizadores: todos `active` | `systemctl is-active` |
+| `fail2ban` | `bantime` 3600 s; **`dbpurgeage` 1.209.600 s (14 dias)** | `fail2ban-client get` |
+| PostgreSQL | `postgres:18.6` a correr, porta 5432 **não publicada**; 31–34 MiB de 768 MiB | `docker ps`, `docker stats` |
+| Memória da máquina | 655 MiB usados de 3,7 GiB; 3,1 GiB disponíveis | `free -h` |
+| Portas à escuta | 22 (todas as interfaces), 53 (DNS local), 38049 = `containerd` só em `127.0.0.1` | `ss -tlnp` |
+| Utilizadores dos fluxos | sem `sudo`/`docker`; casa e `authorized_keys` de root | `id`, `stat` |
+| *Deploy key* na VPS | impressão digital `SHA256:HHLuipRT…`; `git ls-remote` deu `aee2117` = `main` | `ssh-keygen -lf`; `git ls-remote` |
+| `age` na VPS | a pública gerada pela privada = `age.pub` | `age-keygen -y` |
+| Fluxo `medir` (GitHub, `main`) | sucesso; **0 IPv4** no registo do GitHub | corrida 37200307029 |
+| `medir` num ramo de teste | **recusado** pelo ambiente (*«not allowed to deploy to ensaio»*), 0 passos — resolve o «por verificar» do ADR-0028 | corrida 37200369524; ramo apagado |
+| Fluxo `aplicar-script` (GitHub, `aee2117`) | sucesso: `mostrar` 0 por fazer, `aplicar` 0 feitas; 0 IPv4 no registo | corrida 37200025121 (repetida) |
+| Chave `aplicar` com commit antigo (`3f5bd6a`) | **recusado**: *«anterior ao último aplicado (aee2117…)»* | `ssh` com a chave, modo `mostrar` |
+| Chave `aplicar` com `ls /etc` ou sem comando | **recusado** (código 65); sem consola | idem |
+| Actualizações | 53 por aplicar; **reinício pedido** | `apt-check` no `medir` |
+
+### O que ficou por verificar
+
+- A publicação e o `/health` (falta o token `read:packages` do Diogo).
+- As cópias e a reposição (faltam o Object Storage e o utilizador S3 na OVH),
+  os alertas (falta o Healthchecks.io).
+- O reinício que as actualizações pedem: decisão do Diogo, fora do horário de
+  trabalho e com aviso (`AGENTS.md`, regra 4).
+- D8: apagar as chaves de máquina do computador do Diogo (depois de ele
+  guardar o `age.key` num sítio seguro).
