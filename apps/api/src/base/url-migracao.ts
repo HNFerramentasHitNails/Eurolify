@@ -2,7 +2,8 @@
 // é tolerada, e só até à data de fim: é uma rede temporária para a VPS, cujo
 // /etc/eurolify/migrar.env (só do migrador; a API não o recebe) ainda está
 // vazio (preparar.sh, passo 10). Acaba quando o pedido ao script da VPS puser
-// lá a ligação do migrador — ou a 31/10/2026, o que vier primeiro
+// lá a ligação do migrador — ou a 31/10/2026 (confirmada pelo Diogo a
+// 04/10/2026), o que vier primeiro
 // (`AGENTS.md`: uma rede temporária tem data de fim).
 export const FIM_DA_REDE_SEM_BASE = "2026-11-01T00:00:00Z";
 
