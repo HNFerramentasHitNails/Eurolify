@@ -15,7 +15,7 @@
 
 ## Para decidir
 
-- [Apresentação para Bruno e Cila, 66 páginas (v19: OK para código, custo mensal na VPS; v18: mercado, financiamento, VPS-1, decisão AD; v11: Eurolify, logótipos, D-13); o estudo 5 (estrelas da UE) arrisca recusa no EUIPO; páginas não vistas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
+- [Apresentação para Bruno e Cila, 66 páginas (v20: GitHub Pro nas subscrições; v19: OK para código, custo na VPS; v18: mercado, financiamento, decisão AD; v11: Eurolify, logótipos, D-13); estudo 5 arrisca recusa no EUIPO; páginas não vistas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
 - [⚠️ O alojamento gerido foi substituído pela VPS (ADR-0015). Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G), na Scaleway (H); e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
 - [⚠️ Sem efeito com a VPS (ADR-0015). Scaleway: conta preparada (R, ADR-0011), ensaio + chave só de leitura, `scw` 2.63.0 pelo binário; o MCP só de leitura deixa ler segredos, `--read-only` falha; listas sem permissão dão vazio; portador da chave por ver — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
 - [⚠️ O ensaio passou para a VPS (ADR-0015). Publicação na Scaleway: um só ensaio, actualizado a cada entrada no `main` (U, ADR-0014); o endereço fica público (o modo privado não abre no browser); base do ensaio em PostgreSQL gerido, não a SQL sem servidor; ≈ 12–28 €/mês — 03/10/2026](scaleway-publicacao-ensaio-03out2026.md)
