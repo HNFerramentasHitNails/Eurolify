@@ -31,10 +31,19 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   execução normal, Haiku para a pesquisa mecânica, Opus 5.5 para a análise e
   a revisão de risco; **o Fable não se usa**, nem como recurso; não se troca
   o Opus 5.5 em silêncio. Está na skill `eurolify-efficient-workflow`.
-- **Não instalados** (não são skills; ficam por decidir): os 3 agentes de
-  exemplo (`.claude/agents/`), o estilo de resposta `eurolify-gestao`, o
-  `templates/settings-management.json` e o texto proposto para o `AGENTS.md`
-  (`templates/AGENTS-management-fragment.md`).
+- **Instalados também, a pedido do Diogo** (*«instala também os agentes e o
+  estilo de gestão»*): os 3 subagentes em `.claude/agents/`
+  (`eurolify-scout`, Haiku, só leitura; `eurolify-builder`, Sonnet;
+  `eurolify-critical-review`, `claude-opus-5-5`, só leitura) e o estilo
+  `eurolify-gestao` em `.claude/output-styles/`. Só o Claude Code os lê; o
+  Codex não. Ao estilo acrescentei que as regras de «Como responder» do
+  `AGENTS.md` valem acima dele; os agentes ficaram como no pacote. O
+  `eurolify-critical-review` **não substitui** a revisão por sessão nova do
+  ADR-0030. O estilo **não ficou por omissão** no projecto (o
+  `templates/settings-management.json` não se aplicou: mudaria as sessões do
+  Bruno também); cada um escolhe-o com `/output-style eurolify-gestao`.
+- **Não instalado:** o texto proposto para o `AGENTS.md`
+  (`templates/AGENTS-management-fragment.md`), por ser uma regra nova.
 
 ## Números (com data e como se contaram)
 
@@ -54,5 +63,8 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   da ferramenta de agentes, não foram experimentados.
 - As 6 skills apareceram na lista de skills da sessão do Claude Code logo a
   seguir a serem copiadas; **não se testou numa sessão de Codex**.
+- Os subagentes e o estilo **não foram experimentados**: não se viu `/agents`
+  nem `/output-style` com eles. Que o identificador `claude-opus-5-5` é aceite
+  no campo `model` de um subagente não foi verificado.
 - O resto do texto das skills ficou em português com o Acordo Ortográfico
   («atual», «arquitetura»); não foi reescrito.

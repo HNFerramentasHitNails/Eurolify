@@ -40,6 +40,7 @@ europeias de raiz e aberto a qualquer IA.
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`AGENTS.md`](AGENTS.md) | As regras para qualquer sessão de Claude Code ou de Codex neste repositório (o `CLAUDE.md` só o importa) |
 | [`.agents/skills/`](.agents/skills/) | As 22 skills de trabalho (12 de domínio, a de design com 38 referências de terceiros, a de extensões, as de produtos digitais e de cartões-oferta, juntadas a 04/10/2026, e 6 de modo de trabalho — sessão, comunicação, modelos, memória, diagnóstico e prova —, juntadas no mesmo dia); `.claude/skills/` tem uma ligação para cada uma |
+| [`.claude/agents/`](.claude/agents/) e [`.claude/output-styles/`](.claude/output-styles/) | Só para o Claude Code: 3 subagentes (`eurolify-scout` em Haiku, só leitura; `eurolify-builder` em Sonnet; `eurolify-critical-review` em Opus 5.5, só leitura) e o estilo de resposta `eurolify-gestao` (escolhe-se com `/output-style`) |
 
 ## As quatro peças
 
