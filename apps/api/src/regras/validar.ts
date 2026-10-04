@@ -1,5 +1,5 @@
 import { instante } from "./instante.js";
-import { tipo, valor } from "./mostrar.js";
+import { ehLista, ehObjecto, tipo, valor } from "./mostrar.js";
 import {
   CODIGOS_UE,
   DOMINIOS_CONDICIONAIS,
@@ -26,19 +26,6 @@ const ESTADOS_LEGAIS: readonly string[] = [
   "proposta",
   "revogada",
 ];
-
-/**
- * É uma lista? Sem estreitar o tipo: o `Array.isArray` sobre uma lista só de
- * leitura dá `any[]` e apaga os tipos dos elementos.
- */
-function ehLista(valor: unknown): boolean {
-  return Array.isArray(valor);
-}
-
-/** É um objecto (não null)? Sem estreitar o tipo, pela mesma razão. */
-function ehObjecto(valor: unknown): boolean {
-  return typeof valor === "object" && valor !== null;
-}
 
 /**
  * Formato da `id` de uma regra: minúsculas, algarismos, «.», «_» e «-», a
@@ -119,7 +106,12 @@ export function errosDoRegisto(registo: Registo): string[] {
       );
     }
     const dominios: unknown = perfil.dominios;
-    if (typeof dominios !== "object" || dominios === null) {
+    // O typeof estreita o tipo; o ehObjecto apanha um Proxy revogado.
+    if (
+      typeof dominios !== "object" ||
+      dominios === null ||
+      !ehObjecto(dominios)
+    ) {
       erros.push(`${valor(perfil.codigo)}: «dominios» não é um objecto`);
       continue;
     }
@@ -217,7 +209,7 @@ export function errosDoRegisto(registo: Registo): string[] {
       );
     }
     const base: unknown = regra.base;
-    if (typeof base !== "object" || base === null) {
+    if (typeof base !== "object" || base === null || !ehObjecto(base)) {
       erros.push(`${nome}: sem base legal`);
     } else {
       if (vazio(regra.base.url)) erros.push(`${nome}: base sem url`);

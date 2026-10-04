@@ -1,12 +1,35 @@
-// Como um valor que veio de fora (registo ou pedido) aparece numa mensagem,
-// sem nunca lançar (revisões do #50, P2-A e P2-3): um Symbol, um objecto sem
+// Como um valor que veio de fora (registo ou pedido) se lê e aparece numa
+// mensagem, sem nunca lançar (revisões do #50): um Symbol, um objecto sem
 // protótipo, um toString que lança ou um Proxy revogado não rebentam a lista
-// de erros nem a decisão.
+// de erros nem a decisão — ficam listados ou recusados.
+//
+// Limite, escrito: um Proxy vivo cujas armadilhas lançam (por exemplo, numa
+// leitura de propriedade) continua a rebentar. Não vem de JSON nem da base, e
+// protegê-lo obrigava a envolver cada leitura do registo.
 
-/** É uma lista? Um Proxy revogado lança no Array.isArray: conta como não. */
-function ehLista(v: unknown): boolean {
+/**
+ * É uma lista? Sem estreitar o tipo (o `Array.isArray` sobre uma lista só de
+ * leitura dá `any[]`). Um Proxy revogado lança no `Array.isArray`: conta
+ * como não.
+ */
+export function ehLista(v: unknown): boolean {
   try {
     return Array.isArray(v);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * É um objecto que se consegue ler (não null)? Sem estreitar o tipo. Um Proxy
+ * revogado tem `typeof` «object» mas lança em qualquer leitura: conta como
+ * não (revisão do #50, P2-1 da nona volta).
+ */
+export function ehObjecto(v: unknown): boolean {
+  if (typeof v !== "object" || v === null) return false;
+  try {
+    Reflect.ownKeys(v);
+    return true;
   } catch {
     return false;
   }

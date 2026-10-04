@@ -186,6 +186,102 @@ describe("decidir", () => {
       codigo: "territorio_nao_mapeado",
       territorio: "Symbol(t)",
     });
+    // Também null e um objecto (revisão do #50, P2-2 da nona volta).
+    for (const [mau, mostrado] of [
+      [null, "null"],
+      [{}, "(objecto)"],
+    ] as const) {
+      expect(
+        decidir(REGISTO_INICIAL, {
+          pais: "PT",
+          dominios: ["consumidor"],
+          momento: mau,
+        } as unknown as PedidoDecisao).motivos,
+      ).toEqual([{ codigo: "momento_invalido", momento: mostrado }]);
+      expect(
+        decidir(REGISTO_INICIAL, {
+          pais: "PT",
+          dominios: ["consumidor"],
+          momento: AGORA,
+          territorio: mau,
+        } as unknown as PedidoDecisao).motivos,
+      ).toContainEqual({
+        codigo: "territorio_nao_mapeado",
+        territorio: mostrado,
+      });
+    }
+  });
+
+  it("um Proxy revogado nas listas e objectos do pedido e do registo fica listado ou recusado (revisão do #50, P2-1 da nona volta)", () => {
+    expect(
+      decidir(REGISTO_INICIAL, {
+        pais: "PT",
+        dominios: proxyRevogado(),
+        momento: AGORA,
+      } as unknown as PedidoDecisao).motivos,
+    ).toEqual([{ codigo: "sem_dominios" }]);
+
+    const comPortugal = (alterado: object, regras: unknown[] = []) =>
+      ({
+        ...REGISTO_INICIAL,
+        regras,
+        paises: REGISTO_INICIAL.paises.map((perfil) =>
+          perfil.codigo === "PT" ? { ...perfil, ...alterado } : perfil,
+        ),
+      }) as unknown as Registo;
+    const portugal = REGISTO_INICIAL.paises.find((p) => p.codigo === "PT");
+    const casos: [Registo, string[]][] = [
+      [
+        { ...REGISTO_INICIAL, paises: proxyRevogado() } as unknown as Registo,
+        ["«paises» não é uma lista"],
+      ],
+      [
+        { ...REGISTO_INICIAL, regras: proxyRevogado() } as unknown as Registo,
+        ["«regras» não é uma lista"],
+      ],
+      [
+        {
+          ...REGISTO_INICIAL,
+          paises: [...REGISTO_INICIAL.paises, proxyRevogado()],
+        } as unknown as Registo,
+        ["paises[27] não é um objecto"],
+      ],
+      [
+        { ...REGISTO_INICIAL, regras: [proxyRevogado()] } as unknown as Registo,
+        ["regras[0] não é um objecto"],
+      ],
+      [
+        comPortugal({ territorios: proxyRevogado() }),
+        ["PT: «territorios» não é null nem uma lista"],
+      ],
+      [
+        comPortugal({ dominios: proxyRevogado() }),
+        ["PT: «dominios» não é um objecto"],
+      ],
+      [
+        comPortugal({
+          dominios: { ...portugal?.dominios, consumidor: proxyRevogado() },
+        }),
+        ["PT/consumidor: a revisão não é um objecto"],
+      ],
+      [
+        comPortugal(
+          { dominios: { ...portugal?.dominios, consumidor: VERIFICADO } },
+          [
+            regraTeste({ id: "r", base: proxyRevogado() as Regra["base"] }),
+            regraTeste({
+              id: "t",
+              dominio: "consumidor",
+              territorios: proxyRevogado() as string[],
+            }),
+          ],
+        ),
+        ["r@1: sem base legal", "t@1: «territorios» não é uma lista"],
+      ],
+    ];
+    for (const [registo, esperado] of casos) {
+      expect(errosDoRegisto(registo)).toEqual(esperado);
+    }
   });
 
   it("um país ou um domínio que não é texto é recusado, sem rebentar (revisão do #50, P2-3)", () => {

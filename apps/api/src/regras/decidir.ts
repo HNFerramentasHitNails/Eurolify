@@ -1,5 +1,5 @@
 import { instante } from "./instante.js";
-import { valor } from "./mostrar.js";
+import { ehLista, valor } from "./mostrar.js";
 import type {
   Decisao,
   Motivo,
@@ -112,9 +112,10 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   }
 
   // O tipo já exige uma lista com um domínio, mas o pedido pode vir de fora
-  // sem tipos: null, texto ou lista vazia são «sem domínios».
+  // sem tipos: null, texto, lista vazia ou um Proxy revogado são «sem
+  // domínios».
   const dominios: unknown = pedido.dominios;
-  if (!Array.isArray(dominios) || dominios.length === 0) {
+  if (!ehLista(dominios) || (dominios as readonly unknown[]).length === 0) {
     return recusado(versao, { codigo: "sem_dominios" });
   }
   for (const dominio of dominios as readonly unknown[]) {
