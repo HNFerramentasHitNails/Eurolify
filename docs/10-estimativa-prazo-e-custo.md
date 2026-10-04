@@ -22,13 +22,13 @@
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
 | **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 32 meses** os dois a tempo inteiro, **31 a 58** a meio tempo (§9, com hipótese C; recalculado a 04/10/2026 com as três peças da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 14.000–33.000 € em serviços externos + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
-| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **16 a 30 meses** | **≈ 173.000–465.000 €** | ≈ 10.150–14.870 € |
-| **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **12 a 23 meses** | **≈ 193.000–519.000 €** | ≈ 15.110–21.950 € |
+| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 189.000–510.000 €** (era ≈ 173.000–465.000) | ≈ 10.150–14.870 € |
+| **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 210.000–569.000 €** (era ≈ 193.000–519.000) | ≈ 15.110–21.950 € |
 
-**Desde 04/10/2026, os prazos do cenário A (aqui e no §9) contam as três peças
-que a decisão AD (ADR-0022) passou da Fase 2 para a Fase 1** (peças 18 a 20 do
-§2). Os cenários B e C (não seguidos) e os custos do §4 **não foram
-recalculados**: são sem elas.
+**Desde 04/10/2026, os três cenários (aqui, no §4 e no §9) contam as três
+peças que a decisão AD (ADR-0022) passou da Fase 2 para a Fase 1** (peças 18 a
+20 do §2); os valores antigos ficam entre parênteses. Os serviços externos (§5)
+e o custo fixo por mês depois de abrir não dependem do âmbito e não mudaram.
 
 **Não estão nos números** (e não os invento): contabilista, jurista e seguro
 (orçamentos a pedir), recrutamento, o tempo do Diogo e do Bruno, quem atende os
@@ -36,7 +36,8 @@ comerciantes depois de abrir. Antes da construção há a contratação (§4); d
 dela, os **3 meses de vendas reais** do critério de passagem da Fase 1.
 
 **Entre B e C o trabalho é o mesmo**: muda sobretudo o prazo e o dinheiro que
-sai por mês. C acaba 4 a 8 meses mais cedo e custa ≈ 20.000–54.000 € mais,
+sai por mês. C acaba 4 a 8 meses mais cedo e custa ≈ 21.000–59.000 € mais (antes
+da decisão AD, ≈ 20.000–54.000 €),
 porque três pessoas a trabalhar em paralelo perdem mais tempo a coordenar-se
 do que duas.
 
@@ -103,17 +104,18 @@ que o topo deste intervalo.
 
 | | B — 2 sénior | C — 3 sénior |
 |---|---|---|
-| Construção | 16,0 a 30,5 meses | 12,0 a 22,9 meses |
-| Pessoas | 152.700–420.000 € | 171.800–472.600 € |
-| Claude (US$ 200 × pessoas × meses, contado 1 US$ = 1 € por cima) | 6.400–12.200 | 7.200–13.700 |
+| Construção | 17,6 a 33,7 meses (era 16,0 a 30,5) | 13,2 a 25,3 meses (era 12,0 a 22,9) |
+| Pessoas | 167.600–463.400 € (era 152.700–420.000) | 188.600–521.300 € (era 171.800–472.600) |
+| Claude (US$ 200 × pessoas × meses, contado 1 US$ = 1 € por cima) | 7.000–13.500 (era 6.400–12.200) | 7.900–15.200 (era 7.200–13.700) |
 | Serviços externos com preço (§5) | 14.000–33.000 | 14.000–33.000 |
-| **Total com preço** | **≈ 173.000–465.000 €** | **≈ 193.000–519.000 €** |
+| **Total com preço** | **≈ 189.000–510.000 €** (era ≈ 173.000–465.000) | **≈ 210.000–569.000 €** (era ≈ 193.000–519.000) |
 | Sai por mês, em pessoas | 9.500–13.800 € | 14.300–20.600 € |
 
 **Antes de começar:** contratar leva tempo — **1 a 3 meses** para um sénior
 (**C**, não verifiquei). **Exemplo:** se o OK para código (ADR-0001) for dado a
 01/01/2027 e as contratações fecharem a 01/03/2027, a construção no cenário C
-acaba entre **março de 2028 e janeiro de 2029**, e a Fase 1 só passa 3 meses
+acaba entre **abril de 2028 e abril de 2029** (antes da decisão AD: março de
+2028 e janeiro de 2029), e a Fase 1 só passa 3 meses
 depois de o primeiro comerciante vender.
 
 **O mínimo e o máximo não acontecem juntos por acaso:** o mínimo exige salários
