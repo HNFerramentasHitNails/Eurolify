@@ -263,6 +263,12 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 | `third-party-extensions` | contratos de adaptadores (pagamento, envio, faturação), pontos de extensão, permissões de aplicações, loja de extensões, parceiros que escrevem o seu adaptador |
 | `digital-products-eu` | conteúdo digital, serviço digital e serviço humano à distância: classificação, livre resolução, IVA electrónico, entrega e acessos (tudo **C**) |
 | `gift-cards-eu` | cartões-oferta: SPV/MPV, IVA na venda e no resgate, saldo por movimentos, reembolso, porta PSD2 (tudo **C**) |
+| `eurolify-session-continuity` | arranque, interrupção e fecho de sessão: estado verificado, o que o outro fez, próximo passo (depois das leituras obrigatórias acima) |
+| `eurolify-manager-communication` | explicar progresso, riscos e decisões ao Bruno e ao Diogo sem jargão: feito, em curso, falta, decisão |
+| `eurolify-efficient-workflow` | escolher o modelo e o esforço por risco (Haiku pesquisa, Sonnet execução, Opus 5.5 análise e revisão; nunca o Fable) e quando delegar |
+| `eurolify-repository-memory` | auditar e organizar `memoria/` e `docs/` (só leitura primeiro; o script `audit_memory.py`), leitura progressiva, uma fonte por decisão |
+| `eurolify-fault-first-debugging` | um teste ou erro que se repete: reproduzir e achar a causa antes de tentar outra vez |
+| `eurolify-evidence-before-done` | antes de dizer «feito»: testes proporcionais, o verificado e o não verificado, a revisão exigida |
 
 ## Agentes
 
