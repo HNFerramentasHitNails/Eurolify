@@ -55,3 +55,12 @@ Fluxo `aplicar-script`, corrida 37241277662, no `main` `e14ff84` (junção do #7
 - Antes: passo 10 com «já está» no `postgres.env`, `api.env`, `migrar.env` e no contentor `eurolify-postgres` com a imagem certa.
 - Registo do fluxo no GitHub: 0 sequências de 64 hexadecimais (procurado com `grep -cE '[0-9a-f]{64}'`).
 - **Ainda por ver:** a migração 0001 na VPS, que só corre na publicação seguinte (o `publicar` corre com mudanças em `apps/**`); a #70 fecha quando essa publicação disser «aplicadas 0001_comerciante».
+
+## A migração 0001 aplicada na VPS (04/10/2026, ~23:00 UTC)
+
+Fluxo `publicar`, corrida 37242060285, no `main` `53e209d` (junção do #73): «migrar: aplicadas 0001_comerciante.» e «O /health da API responde.» As tabelas do Comerciante existem agora na base `eurolify` da VPS, do `eurolify_migrador`.
+
+- **O `eurolify_api` sem `TEMPORARY`:** provado pela própria migração, que pára se o `eurolify_api` ainda o tiver (e não parou).
+- **Sem `BYPASSRLS`, superutilizador ou `LOGIN`:** o passo 10b verifica e avisa; a corrida de 22:47 UTC deu 0 avisos.
+- **Não medido directamente na VPS:** as consultas a `pg_roles` e `pg_tables` (não há MCP da VPS autorizado nesta sessão; o fluxo `medir` não lista papéis).
+- A tarefa #70 fecha-se com isto.
