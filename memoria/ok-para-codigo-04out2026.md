@@ -617,3 +617,30 @@ Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
   login pelo GitHub — só depois do pedido entrar e o GitHub o aplicar.
 - `exactOptionalPropertyTypes` desligado só no `apps/mcp` (os tipos do SDK não
   o seguem).
+
+### Revisão do #30 (agente Sonnet, sessão nova) e correcções
+
+- **P0, o login não chegava à VPS:** o `/authorize` e o regresso do GitHub
+  abrem no browser de quem liga, não na Anthropic; a 443 só para
+  `160.79.104.0/21` impedia ligar o connector. O Diogo escolheu *«Abrir só o
+  login»* (contra fechar e abrir 15 min por pedido): `ufw allow 443/tcp`; o
+  `nginx` deixa a todos só `/authorize` e `/oauth/github/callback` (10/min por
+  endereço), o resto só à Anthropic. Escrito no ADR-0033 («Alteração») e no
+  docs/06 (AO).
+- **P0, registo aberto:** só se registam clientes com retorno do Claude
+  (`claude.ai`/`claude.com` `/api/mcp/auth_callback`); o GitHub pede sempre a
+  escolha da conta (`prompt=select_account` — **não verifiquei** que o GitHub
+  o respeita no fluxo das aplicações OAuth).
+- **P1:** contas pelo número (259400126, 176623429, lidos com `gh api
+  users/…` a 04/10/2026); falha do MCP já não desfaz a publicação da API, e
+  imagem sem MCP tira o contentor em vez de o deixar a reiniciar; cópia,
+  reposição e reinício em segundo plano (o `medir` mostra «tarefas»), o
+  reinício volta a ver o horário depois da cópia; `trust proxy` 1.
+- **P2 feitos:** tempo limite de 10 s nas chamadas ao GitHub; limpeza do que
+  expirou e tecto de 1000 logins em curso; *hook* do `certbot` sem erro com o
+  `nginx` parado; `--pids-limit 100 --cpus 1`; respostas esquecidas apagadas
+  ao fim de 1 h; voltar atrás só para imagens com o MCP.
+- **P2 por fazer:** tokens em memória (cada publicação obriga a voltar a ligar
+  o connector — dito nas ferramentas e no `LEIA-ME`); rede própria para o
+  contentor do MCP.
+- **Por verificar na VPS:** se o `github-oauth.env` foi escrito sem aspas.

@@ -21,6 +21,14 @@ for s in ssh docker fail2ban ufw nginx eurolify-copia.timer eurolify-reposicao.t
   printf '%s: %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null)"
 done
 
+seccao "tarefas (última vez)"
+for t in copia reposicao verificacao; do
+  printf '%s: %s, resultado %s, fim %s\n' "$t" \
+    "$(systemctl show "eurolify-$t.service" -p ActiveState --value 2>/dev/null)" \
+    "$(systemctl show "eurolify-$t.service" -p Result --value 2>/dev/null)" \
+    "$(systemctl show "eurolify-$t.service" -p ExecMainExitTimestamp --value 2>/dev/null)"
+done
+
 seccao "contentores"
 docker ps --all --format '{{.Names}}  {{.Status}}  {{.Image}}' 2>&1
 docker stats --no-stream --format '{{.Name}}  {{.MemUsage}}' 2>&1

@@ -22,8 +22,10 @@ export function criarApp({
   fila,
 }: ConfigApp): Express {
   const app = express();
-  // Só o nginx da própria máquina fala com este processo.
-  app.set("trust proxy", "loopback");
+  // Só o nginx da própria máquina fala com este processo, mas o contentor
+  // vê-o pela ponte do Docker, não por 127.0.0.1: confia-se no primeiro salto
+  // (revisão do #30), senão os limites por IP do SDK eram um só para todos.
+  app.set("trust proxy", 1);
   app.disable("x-powered-by");
 
   const urlMcp = new URL(`${urlPublico}/mcp`);

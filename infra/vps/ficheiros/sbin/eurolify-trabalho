@@ -79,6 +79,10 @@ else
   EUROLIFY_ORIGEM="fluxo $fluxo" registar "pedido $id '${pedido:-(vazio)}' tratado, código $codigo"
 fi
 
+# Respostas que ninguém veio buscar (quem pediu desistiu de esperar) saem ao
+# fim de uma hora. Só ficheiros: uma ligação com esse nome não é seguida.
+find "$pasta" -maxdepth 1 -type f -name 'resultado.*' -mmin +60 -delete 2>/dev/null || true
+
 # A resposta escreve-se numa pasta de root e entra com um rename: se o
 # utilizador deixar uma ligação com esse nome, é substituída, não seguida.
 resposta="$(mktemp "$trabalho/resposta.XXXXXX")"

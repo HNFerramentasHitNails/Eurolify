@@ -168,7 +168,7 @@ if tem sshd && ! ((MOSTRAR && mudou)); then
 fi
 
 # ---------------------------------------------------------------------------
-passo "4. Firewall: entrada fechada; 22 aberta; 443 só para a Anthropic (ADR-0027, ADR-0033)"
+passo "4. Firewall: entrada fechada; 22 e 443 abertas (ADR-0027, ADR-0033)"
 ufw_verbose=""
 tem ufw && ufw_verbose="$(ufw status verbose 2>&1 || true)"
 if [[ "$ufw_verbose" == *"Status: active"* && "$ufw_verbose" == *"deny (incoming)"* ]] &&
@@ -178,20 +178,20 @@ else
   fazer "ufw: entrada deny, saída allow, 22/tcp, ligar" bash -c \
     'ufw default deny incoming && ufw default allow outgoing && ufw allow 22/tcp && ufw --force enable'
 fi
-# A 443 só para o intervalo de onde a Anthropic liga aos connectors (ADR-0033).
-regra_443="^443/tcp +ALLOW IN +${ANTHROPIC_INTERVALO//./\\.} *\$"
-if grep -qE "$regra_443" <<<"$ufw_verbose"; then
-  ok "443/tcp aberta só a $ANTHROPIC_INTERVALO"
+# A 443 para o MCP (ADR-0033). Aberta a todos, porque o login abre no browser
+# de quem liga o connector (revisão do #30); o nginx deixa passar só o login,
+# e o resto só ao intervalo da Anthropic (nginx-mcp.conf).
+regra_443='^443/tcp( \(v6\))? +ALLOW IN +Anywhere( \(v6\))? *$'
+if grep -qE '^443/tcp +ALLOW IN +Anywhere *$' <<<"$ufw_verbose"; then
+  ok "443/tcp aberta (o nginx filtra)"
 else
-  fazer "ufw: 443/tcp só a partir de $ANTHROPIC_INTERVALO (MCP, ADR-0033)" \
-    ufw allow proto tcp from "$ANTHROPIC_INTERVALO" to any port 443
+  fazer "ufw: 443/tcp (MCP, ADR-0033; o nginx filtra)" ufw allow 443/tcp
 fi
 if tem ufw; then
   # O formato longo (verbose) diz «ALLOW IN»; o curto diz só «ALLOW» e dava a
   # própria regra da 22 como desconhecida (visto na VPS a 04/10/2026).
   extra="$(ufw status verbose | grep -E ' (ALLOW|DENY|LIMIT|REJECT)( IN| OUT|) ' |
-    grep -vE '^22/tcp( \(v6\))? +ALLOW IN +Anywhere( \(v6\))? *$' | grep -vE "$regra_443" || true)"
-  [[ -z "$extra" ]] || aviso "regras da firewall que o script não conhece (não as apago): $extra"
+    grep -vE '^22/tcp( \(v6\))? +ALLOW IN +Anywhere( \(v6\))? *$' | grep -vE "$regra_443" || true)"  [[ -z "$extra" ]] || aviso "regras da firewall que o script não conhece (não as apago): $extra"
 fi
 
 # ---------------------------------------------------------------------------

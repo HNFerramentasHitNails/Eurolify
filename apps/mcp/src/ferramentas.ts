@@ -64,7 +64,7 @@ export function criarServidorMcp(
     {
       title: "Correr a cópia agora",
       description:
-        "Faz já a cópia diária da base do ensaio (cifrada, para o OVH Object Storage).",
+        "Começa já a cópia diária da base do ensaio (cifrada, para o OVH Object Storage), em segundo plano; o resultado vê-se em «estado_do_ensaio», secção «tarefas».",
       annotations: accao,
     },
     () => responder("copia"),
@@ -75,7 +75,7 @@ export function criarServidorMcp(
     {
       title: "Correr o ensaio de reposição agora",
       description:
-        "Descarrega a cópia mais recente, repõe-na numa base temporária, confere e apaga-a.",
+        "Em segundo plano: descarrega a cópia mais recente, repõe-na numa base temporária, confere e apaga-a. O resultado vê-se em «estado_do_ensaio», secção «tarefas».",
       annotations: accao,
     },
     () => responder("reposicao"),
@@ -97,7 +97,7 @@ export function criarServidorMcp(
     {
       title: "Voltar a uma publicação",
       description:
-        "Republica no ensaio uma imagem que já esteve no ar (resumo sha256 tirado de «publicacoes_recentes»). Corre em segundo plano; o resultado vê-se em «estado_do_ensaio».",
+        "Republica no ensaio uma imagem que já esteve no ar (resumo sha256 tirado de «publicacoes_recentes»). Só imagens que têm o MCP. Corre em segundo plano; o resultado vê-se em «estado_do_ensaio». O MCP reinicia com a imagem: é preciso voltar a ligar o connector.",
       inputSchema: {
         resumo: z
           .string()
@@ -125,7 +125,7 @@ export function criarServidorMcp(
     {
       title: "Reiniciar a VPS",
       description:
-        "Reinicia a máquina daqui a 60 s, depois de uma cópia da base. Recusado em dias úteis das 08:00 às 20:00 (Lisboa), regra 4 do AGENTS.md.",
+        "Em segundo plano: faz uma cópia da base e depois reinicia a máquina. Recusado em dias úteis das 08:00 às 20:00 (Lisboa), regra 4 do AGENTS.md, e cancelado se a cópia acabar já nesse horário. Depois é preciso voltar a ligar o connector.",
       annotations: accao,
     },
     () => responder("reiniciar-vps"),

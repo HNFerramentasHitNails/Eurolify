@@ -12,10 +12,20 @@ function obrigatoria(nome: string): string {
 }
 
 const urlPublico = obrigatoria("MCP_URL").replace(/\/+$/, "");
+// Números das contas no GitHub, não nomes: um nome pode mudar e ficar livre.
 const contas = obrigatoria("CONTAS_PERMITIDAS")
   .split(",")
   .map((c) => c.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((c) => {
+    if (!/^[0-9]+$/.test(c)) {
+      console.error(
+        `CONTAS_PERMITIDAS: «${c}» não é um número de conta do GitHub`,
+      );
+      process.exit(1);
+    }
+    return Number(c);
+  });
 
 const app = criarApp({
   urlPublico,

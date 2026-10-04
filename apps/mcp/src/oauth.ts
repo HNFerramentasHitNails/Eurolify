@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import {
+  InvalidClientMetadataError,
   InvalidGrantError,
   InvalidTokenError,
 } from "@modelcontextprotocol/sdk/server/auth/errors.js";
@@ -19,7 +20,8 @@ import type {
 /**
  * Servidor de autorização do MCP (ADR-0033): o próprio MCP é o servidor
  * OAuth (registo dinâmico, PKCE S256 — o SDK valida o PKCE), e o login faz-se
- * no GitHub. Só entram as contas da lista; tudo o resto é recusado.
+ * no GitHub. Só entram as contas da lista, pelo número da conta no GitHub (o
+ * nome pode mudar e ficar livre para outro); tudo o resto é recusado.
  *
  * Tudo em memória: reiniciar o contentor obriga a voltar a ligar o connector.
  */
@@ -30,12 +32,24 @@ const VALIDADE_CODIGO = 5 * MINUTO;
 const VALIDADE_ACESSO = 60 * MINUTO;
 const VALIDADE_RENOVACAO = 30 * 24 * 60 * MINUTO;
 const MAXIMO_CLIENTES = 100;
+const MAXIMO_PEDIDOS_GITHUB = 1000;
+
+/**
+ * Só se registam clientes que devolvem ao Claude (revisão do #30): sem isto,
+ * qualquer um registava um endereço seu e mandava o link de login a quem tem
+ * acesso — o código ia parar-lhe às mãos.
+ */
+export const RETORNOS_PERMITIDOS = new Set([
+  "https://claude.ai/api/mcp/auth_callback",
+  "https://claude.com/api/mcp/auth_callback",
+]);
 
 export interface ConfigOAuth {
   urlPublico: string;
   githubClientId: string;
   githubClientSecret: string;
-  contasPermitidas: string[];
+  /** Números das contas no GitHub (o `id` de `GET /user`). */
+  contasPermitidas: number[];
   agora?: () => number;
 }
 
@@ -45,17 +59,22 @@ interface PedidoGitHub {
   criado: number;
 }
 
+interface Conta {
+  id: number;
+  login: string;
+}
+
 interface Codigo {
   clientId: string;
   desafio: string;
   redirectUri: string;
-  login: string;
+  conta: Conta;
   expira: number;
 }
 
 interface Token {
   clientId: string;
-  login: string;
+  conta: Conta;
   expira: number;
 }
 
@@ -76,6 +95,15 @@ class ClientesEmMemoria implements OAuthRegisteredClientsStore {
       "client_id" | "client_id_issued_at"
     >,
   ): OAuthClientInformationFull {
+    const retornos = cliente.redirect_uris.map(String);
+    if (
+      retornos.length === 0 ||
+      !retornos.every((r) => RETORNOS_PERMITIDOS.has(r))
+    ) {
+      throw new InvalidClientMetadataError(
+        "só se aceitam os endereços de retorno do Claude",
+      );
+    }
     // O registo é aberto (a especificação pede-o); limitar o número evita que
     // alguém encha a memória. Os mais antigos saem primeiro.
     if (this.clientes.size >= MAXIMO_CLIENTES) {
@@ -98,11 +126,11 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
   private readonly codigos = new Map<string, Codigo>();
   private readonly acessos = new Map<string, Token>();
   private readonly renovacoes = new Map<string, Token>();
-  private readonly contas: Set<string>;
+  private readonly contas: Set<number>;
   private readonly agora: () => number;
 
   constructor(private readonly config: ConfigOAuth) {
-    this.contas = new Set(config.contasPermitidas.map((c) => c.toLowerCase()));
+    this.contas = new Set(config.contasPermitidas);
     this.agora = config.agora ?? Date.now;
   }
 
@@ -115,6 +143,11 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
     params: AuthorizationParams,
     res: Response,
   ): Promise<void> {
+    this.limpar();
+    if (this.pedidosGitHub.size >= MAXIMO_PEDIDOS_GITHUB) {
+      res.status(503).type("text/plain").send("Demasiados logins em curso.");
+      return Promise.resolve();
+    }
     const estado = segredo();
     this.pedidosGitHub.set(estado, {
       clientId: cliente.client_id,
@@ -126,11 +159,13 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
     url.searchParams.set("redirect_uri", this.urlRetornoGitHub);
     url.searchParams.set("state", estado);
     url.searchParams.set("allow_signup", "false");
+    // Pede sempre a escolha da conta: um login nunca passa sem a pessoa ver.
+    url.searchParams.set("prompt", "select_account");
     res.redirect(302, url.toString());
     return Promise.resolve();
   }
 
-  /** Volta do GitHub: troca o código pelo login e só deixa passar a lista. */
+  /** Volta do GitHub: troca o código pela conta e só deixa passar a lista. */
   async retornoGitHub(req: Request, res: Response): Promise<void> {
     const estado =
       typeof req.query["state"] === "string" ? req.query["state"] : "";
@@ -154,16 +189,16 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
     if (pedido.params.state !== undefined)
       destino.searchParams.set("state", pedido.params.state);
 
-    let login: string | undefined;
+    let conta: Conta | undefined;
     try {
-      login = await this.loginNoGitHub(codigoGitHub);
+      conta = await this.contaNoGitHub(codigoGitHub);
     } catch {
-      login = undefined;
+      conta = undefined;
     }
 
-    if (!login || !this.contas.has(login.toLowerCase())) {
+    if (!conta || !this.contas.has(conta.id)) {
       console.warn(
-        `oauth: login recusado (${login ? "conta fora da lista" : "GitHub não confirmou"})`,
+        `oauth: login recusado (${conta ? "conta fora da lista" : "GitHub não confirmou"})`,
       );
       destino.searchParams.set("error", "access_denied");
       destino.searchParams.set(
@@ -179,17 +214,18 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
       clientId: pedido.clientId,
       desafio: pedido.params.codeChallenge,
       redirectUri: pedido.params.redirectUri,
-      login,
+      conta,
       expira: this.agora() + VALIDADE_CODIGO,
     });
-    console.info(`oauth: login aceite (${login})`);
+    console.info(`oauth: login aceite (${conta.login}, ${String(conta.id)})`);
     destino.searchParams.set("code", codigo);
     res.redirect(302, destino.toString());
   }
 
-  private async loginNoGitHub(codigo: string): Promise<string | undefined> {
+  private async contaNoGitHub(codigo: string): Promise<Conta | undefined> {
     const troca = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -205,6 +241,7 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
     if (!troca.ok || !corpo.access_token) return undefined;
 
     const utilizador = await fetch("https://api.github.com/user", {
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${corpo.access_token}`,
@@ -212,8 +249,23 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
       },
     });
     if (!utilizador.ok) return undefined;
-    const dados = (await utilizador.json()) as { login?: string };
-    return dados.login;
+    const dados = (await utilizador.json()) as {
+      id?: unknown;
+      login?: unknown;
+    };
+    if (typeof dados.id !== "number" || typeof dados.login !== "string")
+      return undefined;
+    return { id: dados.id, login: dados.login };
+  }
+
+  /** Tira o que já expirou (tudo vive em memória). */
+  private limpar(): void {
+    const agora = this.agora();
+    for (const [chave, p] of this.pedidosGitHub)
+      if (agora - p.criado > VALIDADE_PEDIDO_GITHUB)
+        this.pedidosGitHub.delete(chave);
+    for (const mapa of [this.codigos, this.acessos, this.renovacoes])
+      for (const [chave, r] of mapa) if (r.expira < agora) mapa.delete(chave);
   }
 
   private codigoValido(
@@ -249,7 +301,7 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
     if (redirectUri !== undefined && redirectUri !== registo.redirectUri) {
       throw new InvalidGrantError("redirect_uri diferente do pedido");
     }
-    return Promise.resolve(this.emitir(cliente.client_id, registo.login));
+    return Promise.resolve(this.emitir(cliente.client_id, registo.conta));
   }
 
   exchangeRefreshToken(
@@ -265,23 +317,24 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
     ) {
       throw new InvalidGrantError("token de renovação inválido ou expirado");
     }
-    if (!this.contas.has(registo.login.toLowerCase())) {
+    if (!this.contas.has(registo.conta.id)) {
       throw new InvalidGrantError("conta sem acesso");
     }
-    return Promise.resolve(this.emitir(cliente.client_id, registo.login));
+    return Promise.resolve(this.emitir(cliente.client_id, registo.conta));
   }
 
-  private emitir(clientId: string, login: string): OAuthTokens {
+  private emitir(clientId: string, conta: Conta): OAuthTokens {
+    this.limpar();
     const acesso = segredo();
     const renovacao = segredo();
     this.acessos.set(acesso, {
       clientId,
-      login,
+      conta,
       expira: this.agora() + VALIDADE_ACESSO,
     });
     this.renovacoes.set(renovacao, {
       clientId,
-      login,
+      conta,
       expira: this.agora() + VALIDADE_RENOVACAO,
     });
     return {
@@ -298,7 +351,7 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
     if (
       !registo ||
       registo.expira < this.agora() ||
-      !this.contas.has(registo.login.toLowerCase())
+      !this.contas.has(registo.conta.id)
     ) {
       return Promise.reject(
         new InvalidTokenError("token inválido ou expirado"),
@@ -309,7 +362,7 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
       clientId: registo.clientId,
       scopes: ["eurolify"],
       expiresAt: Math.floor(registo.expira / 1000),
-      extra: { login: registo.login },
+      extra: { login: registo.conta.login },
     });
   }
 
