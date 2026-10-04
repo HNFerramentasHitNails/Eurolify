@@ -86,7 +86,7 @@ regra 4).
 | `pais` | ISO 3166-1 | sim | um dos 27 (motor de regras, `CODIGOS_UE`) |
 | `numero_fiscal` | texto | sim | **sem** o prefixo do país (o prefixo do VIES não é o ISO: `EL` na Grécia — `eu-vat-oss-ioss`); único por país **dentro do comerciante** |
 | `morada_fiscal` | morada por país | sim | formato e código postal validados pelo país (`eu-localization`); região de uma lista, nunca texto livre |
-| `estado` | activa, arquivada | sim | arquivar não apaga: os documentos fiscais ficam 10 anos (`eu-gdpr-privacy`). **Arquivada é terminal**: não se desarquiva, cria-se outra entidade (`legal_entity.archived`; terceira revisão do #43, P2-3) |
+| `estado` | activa, arquivada | sim | arquivar não apaga: os documentos fiscais ficam 10 anos (`eu-gdpr-privacy`). **Arquivada é final** (Diogo, 04/10/2026): não se desarquiva (`legal_entity.archived_is_final`), cria-se outra entidade (§4) |
 
 ### 3.3 Loja (`sto_`)
 
@@ -151,7 +151,10 @@ escrita **pela base**, pelo gatilho da mudança de estado, com o motivo e quem
 postos pela aplicação; a API não escreve no rasto (revisão do #43, P1-3).
 A activação olha para a prova **mais recente** de cada entidade legal activa,
 pela ordem de registo (P1-1); o país e o número fiscal de uma entidade não
-mudam — arquiva-se e cria-se outra (P1-2).
+mudam — arquiva-se e cria-se outra (P1-2). **Arquivada é final** (Diogo,
+04/10/2026): a base recusa desarquivar (`legal_entity.archived_is_final`); o
+número fiscal só é único entre as entidades activas, por isso voltar a usar um
+número arquivado é criar outra entidade, com prova nova.
 Ninguém se activa a si próprio: a passagem a `activo` é feita pelo servidor
 quando as condições se verificam, ou por uma pessoa do Eurolify com rasto
 (**proposta**).
@@ -262,7 +265,7 @@ acordo de tratamento — **qual** (construir ou fornecedor) decide-se nesse ADR.
 - **Uma loja activa a vender por uma entidade arquivada** — a base recusa nos
   dois sentidos (`legal_entity.in_use`, `store.legal_entity_archived`; P1-B/C),
   também em concorrência (`FOR SHARE` na entidade), e uma entidade arquivada
-  não volta a activa (`legal_entity.archived`).
+  não volta a activa (`legal_entity.archived_is_final`, §4).
 - **A versão em vigor dos contratos** não existe ainda (`compliance-gaps.md`
   G11): a activação aceita qualquer versão aceite de cada tipo.
 - **A API com a ligação do dono das tabelas** se a ligação do migrador for

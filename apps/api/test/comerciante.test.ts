@@ -701,37 +701,6 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         ),
       ).toBe("store.legal_entity_archived");
     });
-
-    it("arquivada é terminal: uma entidade arquivada não volta a activa", async () => {
-      const id = await registarComerciante(base.api, NOVO);
-      const es = await criarEntidadeLegal(base.api, id, {
-        ...ENTIDADE,
-        pais: "ES",
-      });
-      const porEstado = (estado: "activa" | "arquivada") =>
-        comComerciante(base.api, id, (trx) =>
-          trx
-            .updateTable("entidade_legal")
-            .set({ estado: estado as never })
-            .where("id", "=", es)
-            .execute(),
-        );
-      await porEstado("arquivada");
-      expect(await codigoDoErro(porEstado("activa"))).toBe(
-        "legal_entity.archived",
-      );
-      // Voltar a escrever «arquivada» não é desarquivar: passa.
-      await porEstado("arquivada");
-      const [linha] = await comComerciante(base.api, id, (trx) =>
-        trx
-          .selectFrom("entidade_legal")
-          .select("estado")
-          .where("id", "=", es)
-          .execute(),
-      );
-      expect(linha).toEqual({ estado: "arquivada" });
-    });
-
     // Duas transacções ao mesmo tempo: sem o FOR SHARE de loja_antes_de_gravar,
     // passavam as duas e ficava uma loja activa numa entidade arquivada.
     it("em concorrência, arquivar a entidade e abrir uma loja nela não passam as duas", async () => {
@@ -814,6 +783,28 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       await expect(criarEntidadeLegal(base.api, y, ENTIDADE)).resolves.toMatch(
         /^[0-9a-f-]{36}$/,
       );
+    });
+
+    it("arquivada é final: não se desarquiva, e o número volta a usar-se numa entidade nova", async () => {
+      const x = await registarComerciante(base.api, NOVO);
+      const antiga = await criarEntidadeLegal(base.api, x, ENTIDADE);
+      const mudarEstado = (estado: "activa" | "arquivada") =>
+        comComerciante(base.api, x, (trx) =>
+          trx
+            .updateTable("entidade_legal")
+            .set({ estado: estado as never })
+            .where("id", "=", antiga)
+            .execute(),
+        );
+      await mudarEstado("arquivada");
+      expect(await codigoDoErro(mudarEstado("activa"))).toBe(
+        "legal_entity.archived_is_final",
+      );
+      const nova = await criarEntidadeLegal(base.api, x, ENTIDADE);
+      expect(nova).not.toBe(antiga);
+      expect(
+        await codigoDoErro(criarEntidadeLegal(base.api, x, ENTIDADE)),
+      ).toBe("legal_entity.tax_number_duplicate");
     });
 
     it("recusa país fora dos 27, língua e fuso inválidos, texto vazio", async () => {

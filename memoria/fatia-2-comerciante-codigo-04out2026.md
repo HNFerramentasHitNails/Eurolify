@@ -55,13 +55,19 @@ A sessão de revisão repetiu as sondas contra esse commit, e as três fecham. E
 
 **Números** (04/10/2026, PostgreSQL 18.6): api com 70 passados e mcp com 30, em 3 corridas seguidas.
 
+## Arquivada é final (Diogo, 04/10/2026, «sim, arquivada é final»)
+
+- **A decisão:** responde ao P2-3 da revisão 5406927138. A base recusa voltar uma entidade arquivada a activa (`legal_entity.archived_is_final`).
+- **O número fiscal:** passou a ser único só entre as entidades **activas**, por um índice parcial com o mesmo nome da restrição antiga (`entidade_legal_nif_unico_por_pais`). Voltar a usar um número arquivado é criar outra entidade, com prova nova.
+- **Testes:** 71 passados com `EXIGIR_BASE=1` contra o 18.6, a 04/10/2026.
+
 ## Terceira revisão do #43 e os 6 P2 (04/10/2026)
 
 A terceira revisão (sessão nova, PostgreSQL 18.6) não encontrou P0 nem P1: confirmou que a corrida do arquivo está fechada no `d0ea931`, nas duas ordens. Encontrou 6 P2, corrigidos a pedido do Diogo (*«Corrige os 6 P2 no ramo e empurra»*):
 
 - **P2-1:** medido — a migração corrida por um utilizador que não é dono da base deixa o `eurolify_api` com `TEMPORARY` e só um `WARNING`, que o migrador não mostra. A migração passa a verificar `has_database_privilege(…, 'TEMP')` e a falhar alto. Na VPS, o `eurolify_migrador` tem de ser dono da base `eurolify` (docs/15 §5; fica para o pedido ao script).
 - **P2-2:** o teste das tabelas temporárias aceita agora os dois contratos a sério, para a activação chegar à prova de verificação (`falta a prova do número fiscal`).
-- **P2-3:** **arquivada é terminal** — `legal_entity.archived`. Decisão tomada ao corrigir os 6 P2 a pedido do Diogo; se a intenção for outra, retira-se o gatilho e muda-se o §3.2 do docs/15. Há teste.
+- **P2-3:** feito em paralelo pela sessão de quem escreveu, com a decisão do Diogo («sim, arquivada é final»): `98ca4c1`, `legal_entity.archived_is_final` e o índice parcial (secção acima). A versão desta sessão (um gatilho igual com outro nome de erro) foi retirada na junção.
 - **P2-4:** a janela concorrente da verificação de activação ficou escrita no §10 do docs/15 (não medida).
 - **P2-5:** `comerciante_actual()` sem `SET search_path` (volta a poder ser expandida em linha); função e tipo com `pg_catalog.`.
 - **P2-6:** a citação do `preparar.sh:278` no §5 acertada.
