@@ -376,3 +376,14 @@ VPS).
   `docs/05`, `docs/06` (AN e nota em AI), estados dos ADR-0011, 0027, 0029.
   O primeiro varrimento só via ficheiros com extensão e falhou os programas
   sem extensão; refeito em todo o `infra/` e `.github/`.
+
+## Fase D: o par `age` e as chaves públicas dos fluxos (04/10/2026)
+
+- `age` 1.3.2 instalado pelo winget (última no GitHub `FiloSottile/age`,
+  29/08/2026). Par gerado em `C:\Users\diogo\.eurolify-chaves` (só o
+  `diogo`): pública `age1l66ychslr5t8t29gx05t5nfpnu9nlx0chfk8erzqtn3n86zh85qqu839m4`;
+  teste de cifrar e decifrar a passar. A privada vai para a VPS (ADR-0029) e o
+  Diogo guarda uma cópia num sítio seguro dele **antes do D8** — sem ela, as
+  cópias são ilegíveis se a VPS se perder.
+- D4: as partes públicas `publicar.pub`, `aplicar.pub`, `medir.pub` em
+  `infra/vps/chaves/fluxos/` (impressões digitais iguais às do D1).
