@@ -11,7 +11,9 @@
 A estimativa da Fase 1 (`docs/10-estimativa-prazo-e-custo.md`, 03/10/2026)
 pôs três cenários de equipa: **A** — só o Diogo e o Bruno com Claude Code;
 **B** — 2 programadores sénior contratados (16 a 30 meses, ≈ 173.000–465.000 €);
-**C** — 3 sénior (12 a 23 meses, ≈ 193.000–519.000 €). A recomendação era a B,
+**C** — 3 sénior (12 a 23 meses, ≈ 193.000–519.000 €). *(04/10/2026, com a
+decisão AD, ADR-0022: B 18 a 34 meses, ≈ 189.000–510.000 €; C 13 a 25 meses,
+≈ 210.000–569.000 €.)* A recomendação era a B,
 com o primeiro contratado como líder técnico.
 
 Resposta do Diogo a 03/10/2026: *«SERÁ EU E O BRUNO A DESENVOLVER COM O CLAUDE
@@ -29,7 +31,9 @@ recomendação B não foi seguida; a discordância ficou escrita uma vez em
 - **Prazo** (`docs/10` §9, pedido do Diogo a 03/10/2026; hipótese **C**: cada
   um rende como um programador sénior com IA): Fase 1 em **15 a 29 meses** os
   dois a tempo inteiro, **28 a 52** cada um a meio tempo; até ao fim da Fase 3,
-  ≈ 38 a 70 meses ou ≈ 64 a 118. Corrige-se às 8 semanas (`docs/10` §6).
+  ≈ 38 a 70 meses ou ≈ 64 a 118. *(04/10/2026: com as três peças que a decisão
+  AD, ADR-0022, passou para a Fase 1, a Fase 1 é 17 a 32 e 31 a 58 meses; o
+  total até ao fim da Fase 3 não muda.)* Corrige-se às 8 semanas (`docs/10` §6).
 - **Custo:** as subscrições (Claude Max US$ 200/mês por pessoa; o Codex vem com
   os planos do ChatGPT — Plus US$ 20, Pro desde US$ 100, Business US$ 20–25 por
   utilizador, página oficial a 03/10/2026, **W**), os serviços externos com

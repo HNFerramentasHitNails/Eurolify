@@ -387,3 +387,160 @@ mostra.**
   mínimo 2 GB; PostgreSQL, API, Hub e construções das imagens na mesma máquina
   não foram medidos (**C**).
 - As contas de custo que usam os 10,40 € da VPS-3.
+
+## Firewall ligada, só a porta 22 (04/10/2026, 00:02 UTC)
+
+O Diogo mandou ligar a firewall já, em vez de esperar pelo script. **Substitui a
+linha «Firewall… só o script a liga» da secção anterior, só quanto a estar
+desligada:** o script continua a ter de a reproduzir. Cada comando foi mostrado
+ao Diogo e só correu com o OK dele. É a terceira alteração à máquina e a
+segunda feita pelo Claude.
+
+### O que se fez
+
+- Cópia: `/root/ufw.antes-20261004-000139` (`cp -a` de `/etc/ufw`, 00:01 UTC).
+  Antes: `ufw 0.36.2`, `IPV6=yes`, estado `inactive`.
+- Às 00:02:10 UTC: `ufw default deny incoming`, `ufw default allow outgoing`,
+  `ufw allow 22/tcp` e `ufw --force enable`, por esta ordem (a regra da 22
+  antes do `enable`, para a ligação não cair).
+- **Só a 22/tcp** ficou aberta, em IPv4 e IPv6. As portas 80 e 443 do `docs/11`
+  §3.2 **não** se abriram: nada ouve nelas (`ss -tln`, 03/10/2026) e abrir uma
+  porta é um acto explícito com registo (`AGENTS.md`); abrem-se quando houver
+  proxy.
+- **O script de preparação tem de reproduzir esta regra** (ADR-0018).
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| Estado, depois | `active`, arranque com a máquina; `Default: deny (incoming), allow (outgoing), disabled (routed)`; `Logging: on (low)` | `sudo -n ufw status verbose`, 04/10/2026 00:02 UTC |
+| Regras | `22/tcp ALLOW IN Anywhere` e `22/tcp (v6) ALLOW IN Anywhere (v6)` | idem |
+| Entrada com a chave, ligação nova, depois | `vps-c01fa544` / `ubuntu` | `ssh -o BatchMode=yes eurolify-ensaio "hostname; whoami"` |
+| Porta 22 a partir do computador do Diogo | responde | `Test-NetConnection <VPS> -Port 22` |
+| Porta 80 a partir do computador do Diogo | não responde, **mas já não respondia antes** (nada ouve nela): não prova o bloqueio | `Test-NetConnection <VPS> -Port 80` |
+
+### O que ficou por verificar
+
+- Que a firewall bloqueia de facto as outras portas: só se prova com um serviço
+  a ouvir numa delas (por exemplo, quando se instalar o proxy).
+- O bloqueio de quem tenta entrar à força (`fail2ban`, proposta do `docs/11`
+  §3.1): **não feito**.
+- `Logging: on (low)`: o `ufw` regista bloqueios com endereços IP, que são dados
+  pessoais (ADR-0018); retenção por decidir no script.
+- Continuam em aberto a palavra-passe inicial do `ubuntu` e as 4 sessões do
+  `loginctl`. O plano da OVH ficou esclarecido na secção anterior: é a VPS-1.
+
+## Sessões abertas e `fail2ban` (04/10/2026, 00:06–00:12 UTC)
+
+**Substitui, na secção anterior, «`fail2ban`… não feito» e «as 4 sessões do
+`loginctl`» em aberto.**
+
+### As 4 sessões do `ubuntu` (só leitura, 00:06 UTC)
+
+| Sessão | O que é |
+|---|---|
+| 22 e 24 | duas ligações SSH remotas, abertas desde ~23:05 UTC de 03/10 (1 h 01 min), `active`, sem comando a correr além do `sshd-session` |
+| 23 | gestor de utilizador do `systemd` (`Class=manager`), não remota |
+| a quarta | a ligação do Claude que fazia a leitura (o número muda a cada ligação) |
+
+- ~~A 22 e a 24 são do Diogo (janelas de SSH)~~ → **eram da aplicação de
+  computador do Claude**, não janelas (corrigido a 04/10/2026; ver «As sessões
+  22 e 24 eram da aplicação do Claude», abaixo). O *«sim»* do Diogo à pergunta
+  das janelas não o distinguia.
+- O método e a origem delas são **inferidos, não provados**: abriram às
+  23:05:21 e 23:05:22 UTC, quando todas as entradas eram por palavra-passe e as
+  23 vinham da origem do Diogo; mas o número do processo no journal não bate
+  com o da sessão, por isso não se ligou cada sessão à sua entrada.
+- **Uma alteração ao `sshd` não fecha sessões já abertas**: fechar a
+  palavra-passe (23:57 UTC) não as terminou. Às 00:12 UTC continuavam abertas.
+
+### `fail2ban` (a quarta e a quinta alterações à máquina, feitas pelo Diogo)
+
+O modo automático do Claude Code recusou ao Claude o `apt-get install` na VPS
+(«Remote Shell Writes»). O Diogo correu ele os dois comandos, no PowerShell
+dele, e o Claude confirmou só a ler.
+
+- **Instalação** (Diogo, ~00:10 UTC): `sudo DEBIAN_FRONTEND=noninteractive
+  apt-get install -y fail2ban`, sem `apt-get update`. Veio ligado: a jaula
+  `sshd` do `defaults-debian.conf` do pacote (`backend = systemd`,
+  `journalmatch = _SYSTEMD_UNIT=ssh.service + _COMM=sshd`, `banaction =
+  nftables`), com `bantime` 10 min, `findtime` 10 min, `maxretry` 5.
+- **Configuração** (Diogo, 00:11 UTC): `/etc/fail2ban/jail.d/eurolify.local`
+  (`root:root`, `644`, 20 bytes) com `[sshd]` e `bantime = 1h`, e
+  `fail2ban-client reload`. O bloqueio fica pelo `nftables`, não pelo `ufw`,
+  para não encher o `ufw status` de regras de bloqueio.
+- **O script de preparação tem de reproduzir as duas** (ADR-0018).
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| Pacote | `fail2ban 1.1.0-9` (`ii`) | `dpkg -l fail2ban`, 04/10/2026 00:11 UTC |
+| Serviço | `active`, `enabled` | `systemctl is-active` / `is-enabled fail2ban` |
+| Jaulas | 1: `sshd` | `sudo -n fail2ban-client status` |
+| Valores em vigor | `bantime=3600`, `findtime=600`, `maxretry=5` | `sudo -n fail2ban-client get sshd <chave>`, 00:12 UTC |
+| Falhas e bloqueios | 77 falhas vistas no total; 1 endereço bloqueado (não é o do Diogo: a ligação dele continuou a entrar). O bloqueio manteve-se depois do `reload` | `sudo -n fail2ban-client status sshd`, 00:11 e 00:12 UTC, sem a lista de endereços |
+
+### O que ficou por verificar
+
+- ~~A jaula pode não ver todas as linhas~~ → **vê** (corrigido a 04/10/2026,
+  00:15 UTC). O filtro `_SYSTEMD_UNIT=ssh.service + _COMM=sshd` é um **OU**
+  (o `+` do journal), por isso apanha também as linhas do `sshd-session`, que
+  são todas as de falha (o `_COMM=sshd` sozinho tem 0 linhas de falha em 24 h).
+  Números: o `fail2ban` arrancou às 00:10:28 UTC e leu os 10 min anteriores
+  (`findtime`); nessa janela o journal do `ssh` tem 156 linhas de falha (2 a 4
+  por tentativa), e o `fail2ban` contou 77 falhas; desde o arranque, 0 linhas
+  de falha novas, coerente com o endereço que atacava ter ficado bloqueado
+  (deduzido, não provado). Comandos: `systemctl show fail2ban -p
+  ActiveEnterTimestamp`; `journalctl _SYSTEMD_UNIT=ssh.service --since … | grep
+  -cE 'Failed password|Invalid user|authentication failure|Connection closed by
+  (invalid|authenticating) user'`; `fail2ban-client status sshd`.
+- **Retenção dos endereços** que o `fail2ban` guarda (base e registos), que são
+  dados pessoais (ADR-0018): por decidir no script, com a do `ufw`.
+- ~~O fecho das sessões 22 e 24~~ → fechadas (secção seguinte).
+- A palavra-passe inicial do `ubuntu` continua em aberto.
+
+## As sessões 22 e 24 eram da aplicação do Claude (04/10/2026, 00:14–00:20 UTC)
+
+### O que se fez
+
+- O Diogo fechou as janelas de SSH; às 00:16 UTC a 22 e a 24 continuavam
+  `active`, com a ligação TCP viva (`ESTAB`) e da origem do Diogo
+  (comparação feita na VPS, sem escrever o endereço).
+- No computador do Diogo (só leitura): os dois `ssh.exe` dessas ligações eram
+  filhos da **aplicação de computador do Claude** (`Claude.exe` 2.19675, da
+  Microsoft Store), não desta sessão do Claude Code (outro `claude.exe`).
+  Abertos às 00:05:13 e 00:05:21 de Lisboa (23:05 UTC), com `BatchMode=no`
+  (entraram pela palavra-passe, quando ainda era aceite) e
+  `ServerAliveInterval=15`: um com um ciclo que executa na VPS cada linha que a
+  aplicação lhe manda (uma consola remota), o outro `sftp`.
+- Com o OK do Diogo, o Claude terminou os dois processos locais (00:18 UTC).
+  **A aplicação voltou a entrar logo, com a chave do Diogo**: três entradas
+  `publickey` às 00:18:33–35 UTC, origem igual, impressão digital da
+  `eurolify_vps`. Conseguiu porque a chave está no `ssh-agent` do Windows, que
+  a dá a qualquer programa do Diogo sem perguntar.
+- O Diogo desligou a ligação SSH na aplicação (~00:19 UTC). Última entrada que
+  não é do Claude: 00:19:27 UTC, `publickey`, origem igual, sessão de 1 s (a
+  aplicação ao desligar, por dedução; não verificado).
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Comando |
+|---|---|---|
+| `ssh.exe` locais da aplicação | 0 | `Get-CimInstance Win32_Process -Filter "Name='ssh.exe'"`, 04/10/2026 00:20 UTC |
+| Sessões na VPS | só a do Claude que lia e o gestor de utilizador | `loginctl list-sessions`, 00:20:11 UTC |
+| Ligações TCP estabelecidas na porta 22 | 1 (a do Claude) | `ss -tnH state established '( sport = :22 )'` |
+
+**Leitura:** havia uma segunda via de acesso à VPS — a aplicação do Claude,
+com consola e `sudo` — que não passava pelas autorizações desta sessão
+(ADR-0020) e reabria sozinha. Fechar a palavra-passe não a travou, porque o
+agente de SSH lhe deu a chave.
+
+### O que ficou por verificar
+
+- **O que a aplicação do Claude executou na VPS** entre as 23:05 e as 00:19
+  UTC: não li (o journal do `ssh` não regista os comandos).
+- **A chave no agente**: qualquer programa do Diogo a usa sem perguntar.
+  Tirá-la quando não se opera a VPS (`ssh-add -d`) ou aceitar o risco: decisão
+  do Diogo.
+- Falha do Claude nesta leitura: um endereço IP de origem apareceu na saída de
+  uma ferramenta da sessão (coluna errada num `awk`); não foi escrito em
+  ficheiro nem no repositório.
