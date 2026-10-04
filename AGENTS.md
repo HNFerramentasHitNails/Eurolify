@@ -190,9 +190,9 @@ competências de cada um ficam como estão.
    linguagem comum, com o que está feito, em curso, o que falta e a decisão
    necessária, quando exista. Não exigir conhecimentos de programação nem
    passar para eles escolhas técnicas de rotina já autorizadas.
-3. **O registo de continuidade** é a descrição do pedido e o *issue* (ADR-0031):
-   prova, pendências e próximo passo. Não confundir preparado com feito, nem
-   feito com em uso.
+3. **O registo de continuidade** é o de «Trabalhar os dois sem se
+   atrapalharem», ponto 4 (a descrição do pedido e o *issue*, ADR-0031). Não
+   confundir preparado com feito, nem feito com em uso.
 
 ## Git — o `main` é partilhado
 

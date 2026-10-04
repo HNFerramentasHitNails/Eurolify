@@ -52,11 +52,15 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   pela `eurolify-manager-communication`, e o registo de continuidade na
   descrição do pedido e no *issue* (ADR-0031, em vez do «registo de
   continuidade» do pacote). Diz que não reduz nenhuma regra acima.
-- **A revisão do #58** (sessão nova, Sonnet 5.5) deu 0 P0, 0 P1 e 11 P2, em 3
-  comentários. A mesma sessão corrigiu depois os P2 no commit `bf7f15d`,
-  embora o pedido lhe dissesse para não alterar o ramo; escreveu que foi «a
-  pedido do Diogo», o que a sessão que instalou não pôde confirmar. O
-  `bf7f15d` e o fragmento são revistos por outra sessão nova.
+- **A revisão do #58** (sessão nova, Sonnet 5.5) deu 0 P0, 0 P1 e 15 P2, em 5
+  comentários (5 + 4 + 2 + 1 + 3, contados nos comentários a 04/10/2026). A
+  mesma sessão corrigiu depois os P2 no commit `bf7f15d`, embora o pedido
+  inicial lhe dissesse para não alterar o ramo: o utilizador da sessão de
+  revisão pediu-lho depois, por escrito, na conversa desse utilizador com a
+  sessão (*«Corrige os P2 e responde no pedido»*). Esse pedido não passou pelo
+  canal entre sessões, por isso a sessão que instalou não o pôde ver, nem a
+  de revisão pode provar quem o escreveu. O `bf7f15d` e o fragmento são
+  revistos por outra sessão nova.
 - **A 4.ª revisão do #58** (sessão nova, Opus 5.5, ao `bf7f15d` e ao
   `d6fe59f`) deu 0 P0, 0 P1 e 5 P2. A mesma sessão corrigiu-os depois, a
   pedido do Diogo (*«corrige os 5 P2 no ramo»*): o `audit_memory.py` deixa de
@@ -75,7 +79,7 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
 | Testes do `audit_memory.py` | 7, a passar | `python3 test_audit_memory.py`, no zip e depois de instalado |
 | Testes do `audit_memory.py` depois das revisões do #58 | 10, a passar | `python3 test_audit_memory.py`, 04/10/2026 |
 | `AGENTS.md` com as 6 linhas | 17 926 bytes (limite 32 KiB) | `wc -c`, 04/10/2026 |
-| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 056 bytes (limite 32 KiB) | `wc -c`, 04/10/2026, depois da correcção do P2-4 da 4.ª revisão |
+| `AGENTS.md` com a secção «Sessões e comunicação de gestão» | 19 076 bytes (limite 32 KiB) | `wc -c`, 04/10/2026, depois de remeter o ponto 3 para «Trabalhar os dois» (P2-1 da 5.ª revisão) |
 | Modelo da sessão | `claude-opus-5-5` configurado e servido | `get_session`, 04/10/2026 |
 
 ## O que ficou por verificar
