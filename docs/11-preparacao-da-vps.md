@@ -244,12 +244,16 @@ saem do computador** — nem para o chat, nem para o repositório.
 9. **Ao operar a VPS:** nunca «permitir sempre» num comando `ssh`, e não usar
    o modo que salta as autorizações (ADR-0020).
 
-## 6. O que deixa de ser preciso da Scaleway
+## 6. A Scaleway deixa de se usar
 
-- Nas sessões do Claude Code: as variáveis `SCW_*` e o setup script que instala
-  o `scw` (ADR-0011). Tirá-los é decisão (§7): a conta pode ficar para os
-  domínios (o ADR-0009 propunha lá comprá-los).
-- A chave só de leitura do Diogo expira a 03/10/2027.
+✅ **Decidido** (Diogo, 04/10/2026,
+[ADR-0032](adr/0032-ovh-fornecedor-unico.md)): **a OVH é o fornecedor único**.
+O que o Diogo faz, fora do repositório:
+
+- Revogar a chave só de leitura `claude-leitura` (expirava a 03/10/2027).
+- Tirar das definições do ambiente do Claude Code as variáveis `SCW_*` e o
+  setup script que instala o `scw` (ADR-0011).
+- Fechar a conta: decisão dele.
 
 ## 7. Decisões por tomar, por esta ordem
 
@@ -262,15 +266,18 @@ saem do computador** — nem para o chat, nem para o repositório.
    antes do primeiro comerciante de fora).
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
    para voltar). ✅ **Para o ensaio** (ADR-0027): `pg_dump` diário cifrado
-   para o Scaleway Object Storage em Paris, 14 dias, reposição semanal; até
-   24 h de perda. Para a produção, por decidir.
+   para o ~~Scaleway Object Storage em Paris~~ **OVH Object Storage em
+   Gravelines** (ADR-0032), 14 dias, reposição semanal; até 24 h de perda.
+   Para a produção, por decidir — com VPS e cópias no mesmo fornecedor e na
+   mesma conta, um problema na conta leva as duas (ADR-0032).
 5. **Segunda máquina para a base**, e a partir de quando.
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
    Healthchecks.io (Letónia) vigia as tarefas e manda e-mail ao Diogo; a
    verificação diária da VPS avisa por ele. Para a produção, por decidir.
 8. **O Codex na VPS** (ADR-0016: não está decidido).
-9. **O que se faz à conta da Scaleway** (§6).
+9. ~~O que se faz à conta da Scaleway~~ → ✅ **deixa de se usar; a OVH é o
+   fornecedor único** (ADR-0032, §6).
 
 ## 8. O que ficou por verificar
 
