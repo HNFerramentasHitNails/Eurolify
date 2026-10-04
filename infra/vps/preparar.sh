@@ -197,6 +197,7 @@ passo "9. PostgreSQL 18, só na rede interna, sem porta publicada (AGENTS.md)"
 if [[ -s /etc/eurolify/postgres.env ]]; then
   ok "/etc/eurolify/postgres.env"
 else
+  # shellcheck disable=SC2016 # de propósito: o $(openssl …) expande-se dentro do bash -c, ao fazer
   fazer "gerar a palavra-passe do PostgreSQL em /etc/eurolify/postgres.env" bash -c \
     'umask 077 && printf "POSTGRES_PASSWORD=%s\nPOSTGRES_DB=eurolify\n" "$(openssl rand -hex 32)" > /etc/eurolify/postgres.env'
 fi

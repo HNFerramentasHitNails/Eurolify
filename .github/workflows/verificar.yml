@@ -62,7 +62,7 @@ jobs:
       - name: shellcheck
         run: |
           shellcheck --version | head -n 2
-          shellcheck -x -P infra/vps/ficheiros/lib \
+          shellcheck -x -P SCRIPTDIR \
             infra/vps/preparar.sh \
             infra/vps/ficheiros/lib/comum.sh \
             infra/vps/ficheiros/bin/eurolify-pedido \
