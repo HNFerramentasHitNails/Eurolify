@@ -523,3 +523,26 @@ Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
 - O reinício pedido pelas actualizações: hora a escolher pelo Diogo, fora do
   horário de trabalho; até lá a verificação diária fica vermelha.
 - Se o alerta chegou mesmo ao e-mail do Diogo.
+
+## Reinício da VPS (04/10/2026, 12:24 UTC — domingo, fora do horário de trabalho)
+
+- Pedido do Diogo: *«podes reiniciar agora a vps»*. Correcção do Claude antes:
+  o reinício **não** instala as actualizações pendentes (tinha dito o
+  contrário); só activa o que já estava instalado.
+- Antes: cópia da base (`eurolify-copia`, `success`). Reinício pedido por
+  `linux-image-7.0.0-34-generic`, `linux-base`, `libc6`; corria o kernel
+  7.0.0-28.
+- `systemctl reboot` às 12:24:49 UTC; a VPS arrancou às 12:24:56 UTC e aceitou
+  SSH 21 s depois do pedido.
+- Depois: kernel **7.0.0-34**, reinício já não pedido; `sshd -T` só por chave;
+  os 10 serviços `active`; `ufw` activo; `eurolify-postgres` e `eurolify-api`
+  arrancaram sozinhos (`--restart unless-stopped`); `/health` →
+  `{"estado":"ok"}`; **verificação diária «Sem problemas»** (alerta a verde).
+- Próximos temporizadores: cópia 05/10 03:01 UTC, verificação 05/10 07:00 UTC,
+  reposição 11/10 04:00 UTC.
+
+### O que ficou por verificar
+
+- As 53 actualizações por instalar (não de segurança): instalá-las
+  (`apt upgrade`) é uma decisão à parte, do Diogo; as de segurança instala-as
+  o `unattended-upgrades`.
