@@ -124,7 +124,14 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
 ### 3.6 Publicação a partir do GitHub
 
 A cada entrada no `main` (ADR-0014): os testes correm no GitHub, constrói-se a
-imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
+imagem e a VPS passa a correr a nova versão.
+
+✅ **Decidido** (Diogo, 04/10/2026, [ADR-0026](adr/0026-publicacao-pelo-github-por-ssh.md)):
+**o GitHub por SSH**, com as imagens construídas no GitHub e guardadas no
+GHCR; na VPS, um utilizador `eurolify-publicar` sem sudo e fora do grupo
+`docker`, com um comando fixo que só deixa um pedido; quem publica é um serviço
+da máquina, que puxa a imagem pelo resumo, migra, troca e volta atrás se o
+`/health` falhar. As duas formas que estavam em cima da mesa:
 
 - **Coolify** na VPS: publica a partir do GitHub e mostra o estado; é mais uma
   peça na máquina, com uma página de administração que tem de nascer fechada
@@ -177,6 +184,13 @@ imagem e a VPS passa a correr a nova versão. Duas formas (por decidir, §7):
 [ADR-0020](adr/0020-acesso-pelo-computador-do-diogo.md)): pelo **Claude Code no
 computador do Diogo (Windows), por SSH**, com uma chave do Diogo; o Bruno, no
 dele, com a dele. Os passos estão no §5.1.
+
+⚠️ **Desde 04/10/2026 a VPS opera-se pelo GitHub**
+([ADR-0028](adr/0028-a-vps-opera-se-pelo-github.md)): publicar, aplicar o
+script revisto e medir (só leitura) são fluxos do GitHub Actions, lançados de
+qualquer computador ou da cloud; as chaves ficam como segredos do ambiente
+`ensaio`, presos ao `main`. **O acesso por SSH do §5.1 passa a emergência**,
+com a chave do Diogo e a do Bruno (como se acrescenta: ADR-0028, ponto 5).
 
 Como se chegou aqui: numa sessão do Claude Code na cloud, uma ligação directa à
 porta 22 (SSH) do `github.com` não respondeu em 8 s (03/10/2026); o resto do
@@ -247,10 +261,14 @@ saem do computador** — nem para o chat, nem para o repositório.
 3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
    antes do primeiro comerciante de fora).
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
-   para voltar).
+   para voltar). ✅ **Para o ensaio** (ADR-0027): `pg_dump` diário cifrado
+   para o Scaleway Object Storage em Paris, 14 dias, reposição semanal; até
+   24 h de perda. Para a produção, por decidir.
 5. **Segunda máquina para a base**, e a partir de quando.
-6. **Coolify ou o GitHub por SSH** (§3.6).
-7. **Para onde vão os alertas.**
+6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
+7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
+   Healthchecks.io (Letónia) vigia as tarefas e manda e-mail ao Diogo; a
+   verificação diária da VPS avisa por ele. Para a produção, por decidir.
 8. **O Codex na VPS** (ADR-0016: não está decidido).
 9. **O que se faz à conta da Scaleway** (§6).
 

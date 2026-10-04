@@ -1,6 +1,8 @@
 # ADR-0020 · O Claude chega à VPS pelo Claude Code no computador do Diogo, por SSH
 
-- **Estado:** aceite · completa o [ADR-0016](0016-o-claude-opera-a-vps.md)
+- **Estado:** aceite · ⚠️ **passa a via de emergência pelo
+  [ADR-0028](0028-a-vps-opera-se-pelo-github.md)** (04/10/2026: a VPS opera-se
+  pelo GitHub) · completa o [ADR-0016](0016-o-claude-opera-a-vps.md)
   (por onde o Claude chega à máquina) · a chave do Diogo troca-se a
   31/03/2027 (decisão AB, `docs/11` §3.1)
 - **Data:** 03/10/2026
