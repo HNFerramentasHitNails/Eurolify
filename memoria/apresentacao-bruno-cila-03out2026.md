@@ -444,6 +444,37 @@ Pedido do Diogo: *«sim, corrige as notas e gera o PDF da v21»* (issue #21).
   PDF. Medidas iguais às do PDF da 20 (nenhuma passa de 920 nem de 1792); letra
   de recurso nas mesmas 12 páginas. Vistas em imagem: 1 e 66. Entregue ao
   Diogo na conversa; não está no repositório.
+- *Corrigidas na versão 23 (abaixo): a página 53 e as notas da 65.*
+
+## Versão 23 e o seu PDF (04/10/2026)
+
+Pedido do Diogo: *«sim, corrige a 53 e a 65 e gera o PDF»* (issue #25).
+
+- **Página 53, texto visível:** o cartão «Quem revê» passou de «Decidido ·
+  ADR-0013 — o outro revê antes de entrar no main; e o Codex revê o que o
+  Claude escreveu, e o contrário» a «Decidido · ADR-0030 e ADR-0031 — cada um
+  junta o seu pedido, com os testes verdes; no código, revê antes o agente que
+  não o escreveu: sem o Codex, uma sessão nova do Claude Code». As notas dizem
+  que a revisão cruzada foi substituída a 04/10/2026 (decisões AL e AM).
+- **Página 65:** nas notas, as duas revisões passaram ao ADR-0031 e ao
+  ADR-0030; o script da VPS entrou (pedido #10) e preparou a VPS pelo GitHub
+  (pedido #17, ADR-0028); a conta da Scaleway deixou de se usar (ADR-0032) e
+  onde se compram os domínios continua por decidir. **No texto visível, o
+  passo 7** («Escrever o script da VPS, revisto pelo outro e pelo Codex»)
+  passou a «Script da VPS: feito a 04/10/2026; a VPS prepara-se e publica-se
+  pelo GitHub» — tinha a mesma revisão antiga e já está feito.
+- Publicada por cima da 22 (`1791116237-9750`, confirmada antes de editar); a
+  23 é a `1791116880-a8b5`, confirmada lendo as duas páginas de volta.
+- **Medido** (Chromium, letras verdadeiras): a 53 passou de 784 a 816 px (uma
+  linha a mais no cartão), a 65 ficou em 881; o limite é 920.
+- **O PDF:** `Eurolify-apresentacao-Bruno-Cila-v23.pdf`, da versão 23, mesmo
+  método: **66 páginas, 1440×810 pt, 3.263.327 bytes** (`pdfinfo`); as duas
+  letras dentro; nenhuma página passa de 920 nem de 1792; letra de recurso nas
+  mesmas 12 páginas. Vistas em imagem: 53 e 65. Entregue ao Diogo na conversa.
+- **Visto e não mexido:** a página 58 (texto visível) ainda fala duas vezes da
+  Scaleway, que o ADR-0032 deixou de usar; a frase de baixo da 53 («o Claude
+  opera a VPS … com a confirmação de quem pede; o Codex na VPS, por decidir»)
+  não diz que a VPS se opera pelo GitHub (ADR-0028).
 
 ## O que ficou por verificar
 
