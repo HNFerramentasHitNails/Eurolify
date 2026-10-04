@@ -170,7 +170,7 @@ ADR-0025 (RLS por comerciante).
 | Criar um comerciante | a aplicação gera o `uuid`, faz `SET LOCAL` com ele e insere: a política deixa, sem nenhum utilizador que ignore o RLS |
 | Trabalho da equipa do Eurolify (rever comerciantes) | **nenhum papel entre comerciantes** até haver o Hub (P6): a revisão faz-se por um comando auditado na API, dentro do contexto do comerciante revisto |
 | Testes | o CI liga-se como `postgres` (superutilizador, que **ignora o RLS**): os testes de isolamento criam e usam o `eurolify_api`, e falham se a ligação tiver `BYPASSRLS` |
-| VPS | o `api.env` está vazio («a ligação à base entra com o primeiro domínio», `preparar.sh:278`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028). **A ligação do migrador não vai para o `api.env`**, que o contentor da API também recebe (`eurolify-publicar:23`): vai num ficheiro só do migrador (revisão do #43, P1-4). Até lá o `migrar.js` tolera a **falta** da variável até 31/10/2026 (data de fim, `src/base/url-migracao.ts`); uma variável vazia é erro |
+| VPS | o `api.env` está vazio («a ligação à base entra com o primeiro domínio», `preparar.sh:278`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028). **A ligação do migrador não vai para o `api.env`**, que o contentor da API também recebe (`eurolify-publicar:23`): vai no `/etc/eurolify/migrar.env`, que o `preparar.sh` cria vazio (passo 10) e só o contentor das migrações recebe (revisão do #43, P1-4). Até a ligação lá entrar, o `migrar.js` tolera a **falta** da variável até 31/10/2026 (data de fim, `src/base/url-migracao.ts`); uma variável vazia é erro |
 
 **Testes que têm de falhar** (`observability-security`): ler, alterar e criar
 num comerciante com o contexto de outro; ler sem contexto; o `eurolify_api`
@@ -260,8 +260,9 @@ acordo de tratamento — **qual** (construir ou fornecedor) decide-se nesse ADR.
   dois sentidos (`legal_entity.in_use`, `store.legal_entity_archived`; P1-B/C).
 - **A versão em vigor dos contratos** não existe ainda (`compliance-gaps.md`
   G11): a activação aceita qualquer versão aceite de cada tipo.
-- **O migrador ligado com o utilizador da API** se a ligação dele for para o
-  `api.env` — por isso vai num ficheiro só dele (§5).
+- **A API com a ligação do dono das tabelas** se a ligação do migrador for
+  para o `api.env` — por isso vai no `migrar.env`, que só o contentor das
+  migrações recebe (§5).
 - **Decidir identidade pelo nome** num registo de comerciantes — o número
   fiscal é único por país dentro do comerciante, nunca entre comerciantes
   (dois comerciantes podem ter a mesma empresa? **não verificado**; fica para a

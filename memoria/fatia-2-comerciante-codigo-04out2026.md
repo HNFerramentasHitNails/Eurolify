@@ -31,7 +31,7 @@ O `docker` está instalado, mas o daemon vem parado. `dockerd &` arranca-o. Depo
 ## O que ficou por verificar
 
 - A imagem Docker com as migrações: construída só pelo CI (o trabalho `imagem`).
-- Na VPS: os dois utilizadores da base e o `api.env` (próximo pedido ao script, ADR-0028).
+- Na VPS: os dois utilizadores da base, o `api.env` (ligação da API) e o `migrar.env` (ligação do migrador, só o contentor das migrações o recebe; criado vazio pelo `preparar.sh` a partir do commit da sessão de revisão, 04/10/2026) — próximo pedido ao script, ADR-0028.
 - A morada e o número fiscal por país: hoje só se exige texto, e o número fiscal em maiúsculas e algarismos (**C**).
 - A activação não pergunta ao motor de regras se os países estão verificados (o desenho §4 pede-o): fica para quando a API existir.
 
