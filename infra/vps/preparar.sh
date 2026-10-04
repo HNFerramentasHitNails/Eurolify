@@ -272,16 +272,27 @@ else
   fazer "gerar a palavra-passe do PostgreSQL em /etc/eurolify/postgres.env" bash -c \
     'umask 077 && printf "POSTGRES_PASSWORD=%s\nPOSTGRES_DB=eurolify\n" "$(openssl rand -hex 32)" > /etc/eurolify/postgres.env'
 fi
+# Numa segunda corrida, ver também se continuam 600 e de root, como os
+# segredos do passo 12 (revisão do #43, P2-4 do 36e8778).
 if [[ -f /etc/eurolify/api.env ]]; then
-  ok "/etc/eurolify/api.env"
+  if [[ "$(stat -c '%a %U' /etc/eurolify/api.env)" == "600 root" ]]; then
+    ok "/etc/eurolify/api.env"
+  else
+    aviso "/etc/eurolify/api.env devia ser 600 e de root"
+  fi
 else
   fazer "criar /etc/eurolify/api.env (vazio; a ligação da API à base entra com o primeiro domínio)" \
     install -o root -g root -m 600 /dev/null /etc/eurolify/api.env
 fi
 # A ligação do migrador (dono das tabelas) vive num ficheiro à parte: só o
-# contentor das migrações a recebe; a API nunca a vê (docs/15 §5).
+# contentor das migrações a recebe; a API nunca a vê (docs/15 §5). Escreve-se
+# CHAVE=valor, sem aspas nem espaços: o Docker não os tira.
 if [[ -f /etc/eurolify/migrar.env ]]; then
-  ok "/etc/eurolify/migrar.env"
+  if [[ "$(stat -c '%a %U' /etc/eurolify/migrar.env)" == "600 root" ]]; then
+    ok "/etc/eurolify/migrar.env"
+  else
+    aviso "/etc/eurolify/migrar.env devia ser 600 e de root"
+  fi
 else
   fazer "criar /etc/eurolify/migrar.env (vazio; BASE_DADOS_URL_MIGRACAO entra com o primeiro domínio)" \
     install -o root -g root -m 600 /dev/null /etc/eurolify/migrar.env

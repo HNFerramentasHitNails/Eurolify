@@ -26,6 +26,30 @@ describe("que base o migrador usa (revisão do #43, P1-4)", () => {
     }
   });
 
+  it("um instante antes da data de fim ainda tolera a falta", () => {
+    const antes = new Date(Date.parse(FIM_DA_REDE_SEM_BASE) - 1);
+    expect(decidirMigracao({}, antes).tipo).toBe("sem_base");
+  });
+
+  it("um URL com espaços à volta migra com o URL limpo (revisão do #43, P2-2)", () => {
+    expect(
+      decidirMigracao({ BASE_DADOS_URL_MIGRACAO: " postgres://x/y \t" }, ANTES),
+    ).toEqual({ tipo: "migrar", url: "postgres://x/y" });
+  });
+
+  it("um valor que não é um URL postgres é erro, sem mostrar o valor", () => {
+    for (const mau of ['"postgres://u:segredo@x/y"', "u:segredo@x/y"]) {
+      expect(() =>
+        decidirMigracao({ BASE_DADOS_URL_MIGRACAO: mau }, ANTES),
+      ).toThrow(/não começa por postgres:\/\//);
+      try {
+        decidirMigracao({ BASE_DADOS_URL_MIGRACAO: mau }, ANTES);
+      } catch (erro) {
+        expect(String(erro)).not.toContain("segredo");
+      }
+    }
+  });
+
   it("com a variável, migra com esse URL", () => {
     expect(
       decidirMigracao({ BASE_DADOS_URL_MIGRACAO: "postgres://x/y" }, ANTES),

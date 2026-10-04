@@ -62,7 +62,8 @@ CREATE TABLE entidade_legal (
   CONSTRAINT entidade_legal_sem_prefixo_do_pais CHECK (
     left(numero_fiscal, 2) <> pais
     AND NOT (pais = 'GR' AND left(numero_fiscal, 2) = 'EL')),
-  -- Único por país dentro do comerciante; nunca entre comerciantes.
+  -- A chave das FK de loja e prova: a entidade é sempre do mesmo comerciante.
+  -- (O número fiscal único por país está no índice a seguir.)
   UNIQUE (comerciante_id, id)
 );
 
@@ -313,6 +314,31 @@ $$;
 CREATE TRIGGER loja_antes_de_gravar
   BEFORE INSERT OR UPDATE ON loja
   FOR EACH ROW EXECUTE FUNCTION loja_antes_de_gravar();
+
+-- Uma prova nova só para uma entidade activa: numa arquivada ficava onde a
+-- activação já não olha, e a entidade nova continuava sem prova (revisão do
+-- #43, P2-3 do `98ca4c1`). O FOR SHARE espera por quem a esteja a arquivar.
+CREATE FUNCTION prova_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  estado_da_entidade text;
+BEGIN
+  SELECT e.estado INTO estado_da_entidade
+  FROM public.entidade_legal e
+  WHERE e.comerciante_id = NEW.comerciante_id
+    AND e.id = NEW.entidade_legal_id
+  FOR SHARE;
+  -- Sem linha, a chave estrangeira recusa a seguir (23503).
+  IF estado_da_entidade = 'arquivada' THEN
+    RAISE EXCEPTION 'legal_entity.archived: uma prova nova só para uma entidade activa';
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER prova_antes_de_gravar
+  BEFORE INSERT ON prova_verificacao
+  FOR EACH ROW EXECUTE FUNCTION prova_antes_de_gravar();
 
 -- RLS forçado: nem o dono das tabelas o ignora (só um superutilizador).
 ALTER TABLE comerciante ENABLE ROW LEVEL SECURITY;

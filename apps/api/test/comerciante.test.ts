@@ -1,7 +1,11 @@
 import { sql } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ESTADOS_COMERCIANTE, TIPOS_CONTRATO } from "../src/base/esquema.js";
+import {
+  ESTADOS_COMERCIANTE,
+  TIPOS_CONTRATO,
+  type EstadoComerciante,
+} from "../src/base/esquema.js";
 import { migrar } from "../src/base/migracoes.js";
 import {
   aceitarContrato,
@@ -236,16 +240,19 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     async function comercianteProntoParaActivar(): Promise<string> {
       const id = await registarComerciante(base.api, NOVO);
       const entidade = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      let de: EstadoComerciante = "rascunho";
       for (const para of [
         "prova_pendente",
         "em_revisao",
         "aprovado_limitado",
       ] as const) {
         await mudarEstado(base.api, id, {
+          de,
           para,
           motivo: "teste",
           quem: "teste",
         });
+        de = para;
       }
       for (const tipo of TIPOS_CONTRATO) {
         await aceitarContrato(base.api, id, {
@@ -295,6 +302,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     it("o caminho completo até activo deixa uma linha de rasto por mudança", async () => {
       const id = await comercianteProntoParaActivar();
       await mudarEstado(base.api, id, {
+        de: "aprovado_limitado",
         para: "activo",
         motivo: "teste",
         quem: "teste",
@@ -319,15 +327,19 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     it("não se activa sem os dois contratos", async () => {
       const id = await registarComerciante(base.api, NOVO);
       await criarEntidadeLegal(base.api, id, ENTIDADE);
+      let de: EstadoComerciante = "rascunho";
       for (const para of ["em_revisao", "aprovado_limitado"] as const) {
         await mudarEstado(base.api, id, {
+          de,
           para,
           motivo: "teste",
           quem: "teste",
         });
+        de = para;
       }
       const erro = await codigoDoErro(
         mudarEstado(base.api, id, {
+          de: "aprovado_limitado",
           para: "activo",
           motivo: "teste",
           quem: "teste",
@@ -342,12 +354,15 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     it("não se activa com a prova do número fiscal caducada", async () => {
       const id = await registarComerciante(base.api, NOVO);
       const entidade = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      let de: EstadoComerciante = "rascunho";
       for (const para of ["em_revisao", "aprovado_limitado"] as const) {
         await mudarEstado(base.api, id, {
+          de,
           para,
           motivo: "teste",
           quem: "teste",
         });
+        de = para;
       }
       for (const tipo of TIPOS_CONTRATO) {
         await aceitarContrato(base.api, id, {
@@ -374,6 +389,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       );
       const erro = await codigoDoErro(
         mudarEstado(base.api, id, {
+          de: "aprovado_limitado",
           para: "activo",
           motivo: "teste",
           quem: "teste",
@@ -385,6 +401,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     it("o rasto guarda o motivo e quem, uma linha por mudança", async () => {
       const id = await registarComerciante(base.api, NOVO);
       await mudarEstado(base.api, id, {
+        de: "rascunho",
         para: "em_revisao",
         motivo: "pedido de activação",
         quem: "dono-teste",
@@ -420,6 +437,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(
         await codigoDoErro(
           mudarEstado(base.api, id, {
+            de: "aprovado_limitado",
             para: "activo",
             motivo: "teste",
             quem: "teste",
@@ -434,6 +452,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(
         await codigoDoErro(
           mudarEstado(base.api, id, {
+            de: "aprovado_limitado",
             para: "activo",
             motivo: "teste",
             quem: "teste",
@@ -482,6 +501,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       const id = await registarComerciante(base.api, NOVO);
       const erro = await codigoDoErro(
         mudarEstado(base.api, id, {
+          de: "rascunho",
           para: "activo",
           motivo: "teste",
           quem: "teste",
@@ -512,11 +532,13 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     it("suspenso volta só ao estado de onde veio; fechado não sai", async () => {
       const id = await comercianteProntoParaActivar();
       await mudarEstado(base.api, id, {
+        de: "aprovado_limitado",
         para: "activo",
         motivo: "teste",
         quem: "teste",
       });
       await mudarEstado(base.api, id, {
+        de: "activo",
         para: "suspenso",
         motivo: "teste",
         quem: "teste",
@@ -524,6 +546,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(
         await codigoDoErro(
           mudarEstado(base.api, id, {
+            de: "suspenso",
             para: "em_revisao",
             motivo: "teste",
             quem: "teste",
@@ -531,11 +554,13 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         ),
       ).toBe("merchant.invalid_transition");
       await mudarEstado(base.api, id, {
+        de: "suspenso",
         para: "activo",
         motivo: "teste",
         quem: "teste",
       });
       await mudarEstado(base.api, id, {
+        de: "activo",
         para: "fechado",
         motivo: "teste",
         quem: "teste",
@@ -543,12 +568,79 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(
         await codigoDoErro(
           mudarEstado(base.api, id, {
+            de: "fechado",
             para: "activo",
             motivo: "teste",
             quem: "teste",
           }),
         ),
       ).toBe("merchant.invalid_transition");
+    });
+
+    it("mudar para o mesmo estado é recusado e não mexe na versão", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      expect(
+        await codigoDoErro(
+          mudarEstado(base.api, id, {
+            de: "rascunho",
+            para: "rascunho",
+            motivo: "teste",
+            quem: "teste",
+          }),
+        ),
+      ).toBe("merchant.invalid_transition");
+      expect(await obterComerciante(base.api, id)).toMatchObject({
+        estado: "rascunho",
+        versao: 1,
+      });
+    });
+
+    it("um estado de partida que já mudou é recusado, sem rasto nem versão (revisão do #43, P2-1 do 0f63e36)", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      await mudarEstado(base.api, id, {
+        de: "rascunho",
+        para: "em_revisao",
+        motivo: "primeiro",
+        quem: "a",
+      });
+      // Quem leu «rascunho» antes da primeira mudança: a repetição (ordem B)
+      // e outra transição a partir do estado velho (ordem C) são recusadas.
+      for (const para of ["em_revisao", "prova_pendente"] as const) {
+        expect(
+          await codigoDoErro(
+            mudarEstado(base.api, id, {
+              de: "rascunho",
+              para,
+              motivo: "segundo",
+              quem: "b",
+            }),
+          ),
+        ).toBe("merchant.invalid_transition");
+      }
+      expect(await obterComerciante(base.api, id)).toMatchObject({
+        estado: "em_revisao",
+        versao: 2,
+      });
+      const rasto = await comComerciante(base.api, id, (trx) =>
+        trx.selectFrom("transicao_estado").select(["de", "para"]).execute(),
+      );
+      expect(rasto).toEqual([{ de: "rascunho", para: "em_revisao" }]);
+    });
+
+    it("mudar o estado de um comerciante que não existe dá not_found", async () => {
+      const { rows } = await sql<{ id: string }>`select uuidv7() as id`.execute(
+        base.api,
+      );
+      expect(
+        await codigoDoErro(
+          mudarEstado(base.api, rows[0]?.id ?? "", {
+            de: "rascunho",
+            para: "em_revisao",
+            motivo: "teste",
+            quem: "teste",
+          }),
+        ),
+      ).toBe("merchant.not_found");
     });
 
     it("comerciante que não existe (ou de outro) dá not_found", async () => {
@@ -588,12 +680,15 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           aceite_por: "teste",
         });
       }
+      let de: EstadoComerciante = "rascunho";
       for (const para of ["em_revisao", "aprovado_limitado"] as const) {
         await mudarEstado(base.api, id, {
+          de,
           para,
           motivo: "teste",
           quem: "teste",
         });
+        de = para;
       }
       const nomeBase = new URL(base.urlApi).pathname.slice(1);
       await sql`${sql.raw(`GRANT TEMPORARY ON DATABASE ${nomeBase} TO eurolify_api`)}`.execute(
@@ -788,7 +883,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
     it("arquivada é final: não se desarquiva, e o número volta a usar-se numa entidade nova", async () => {
       const x = await registarComerciante(base.api, NOVO);
       const antiga = await criarEntidadeLegal(base.api, x, ENTIDADE);
-      const mudarEstado = (estado: "activa" | "arquivada") =>
+      const mudarEstadoDaEntidade = (estado: "activa" | "arquivada") =>
         comComerciante(base.api, x, (trx) =>
           trx
             .updateTable("entidade_legal")
@@ -796,8 +891,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
             .where("id", "=", antiga)
             .execute(),
         );
-      await mudarEstado("arquivada");
-      expect(await codigoDoErro(mudarEstado("activa"))).toBe(
+      await mudarEstadoDaEntidade("arquivada");
+      expect(await codigoDoErro(mudarEstadoDaEntidade("activa"))).toBe(
         "legal_entity.archived_is_final",
       );
       const nova = await criarEntidadeLegal(base.api, x, ENTIDADE);
@@ -805,6 +900,78 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(
         await codigoDoErro(criarEntidadeLegal(base.api, x, ENTIDADE)),
       ).toBe("legal_entity.tax_number_duplicate");
+    });
+
+    it("a prova de uma entidade arquivada não conta para a nova: a activação pede prova nova", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const antiga = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      await registarVerificacao(base.api, id, {
+        entidade_legal_id: antiga,
+        finalidade: "identificacao_fiscal",
+        origem: "manual",
+        origem_detalhe: "teste",
+        resultado: "aceite",
+      });
+      for (const tipo of TIPOS_CONTRATO) {
+        await aceitarContrato(base.api, id, {
+          tipo,
+          versao_texto: "v1",
+          aceite_por: "teste",
+        });
+      }
+      let de: EstadoComerciante = "rascunho";
+      for (const para of ["em_revisao", "aprovado_limitado"] as const) {
+        await mudarEstado(base.api, id, {
+          de,
+          para,
+          motivo: "teste",
+          quem: "teste",
+        });
+        de = para;
+      }
+      await comComerciante(base.api, id, (trx) =>
+        trx
+          .updateTable("entidade_legal")
+          .set({ estado: "arquivada" as never })
+          .where("id", "=", antiga)
+          .execute(),
+      );
+      await criarEntidadeLegal(base.api, id, ENTIDADE);
+      await expect(
+        mudarEstado(base.api, id, {
+          de: "aprovado_limitado",
+          para: "activo",
+          motivo: "teste",
+          quem: "teste",
+        }),
+      ).rejects.toThrow(/falta a prova do número fiscal/);
+    });
+
+    it("não se regista uma prova numa entidade arquivada (revisão do #43, P2-3 do 98ca4c1)", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const antiga = await criarEntidadeLegal(base.api, id, ENTIDADE);
+      await comComerciante(base.api, id, (trx) =>
+        trx
+          .updateTable("entidade_legal")
+          .set({ estado: "arquivada" as never })
+          .where("id", "=", antiga)
+          .execute(),
+      );
+      expect(
+        await codigoDoErro(
+          registarVerificacao(base.api, id, {
+            entidade_legal_id: antiga,
+            finalidade: "identificacao_fiscal",
+            origem: "vies",
+            origem_detalhe: "VIES: válido",
+            resultado: "aceite",
+          }),
+        ),
+      ).toBe("legal_entity.archived");
+      const provas = await comComerciante(base.api, id, (trx) =>
+        trx.selectFrom("prova_verificacao").selectAll().execute(),
+      );
+      expect(provas).toEqual([]);
     });
 
     it("recusa país fora dos 27, língua e fuso inválidos, texto vazio", async () => {

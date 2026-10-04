@@ -27,6 +27,7 @@ export type CodigoErroComerciante =
   | "legal_entity.immutable_identity"
   | "legal_entity.in_use"
   | "legal_entity.archived_is_final"
+  | "legal_entity.archived"
   | "store.legal_entity_archived";
 
 export class ErroComerciante extends Error {
@@ -47,6 +48,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroComerciante[] = [
   "legal_entity.immutable_identity",
   "legal_entity.in_use",
   "legal_entity.archived_is_final",
+  "legal_entity.archived",
   "store.legal_entity_archived",
 ];
 
@@ -130,17 +132,30 @@ export async function obterComerciante(db: Kysely<BaseDados>, id: string) {
 }
 
 export interface Transicao {
+  /** O estado que quem chama leu: se já mudou, a transição é recusada. */
+  de: EstadoComerciante;
   para: EstadoComerciante;
   motivo: string;
   quem: string;
 }
 
-/** Muda o estado de um comerciante; o rasto fica escrito na mesma transacção. */
+/**
+ * Muda o estado de um comerciante de `de` para `para`; o rasto fica escrito
+ * na mesma transacção. Se o estado já não é `de` (outra mudança chegou
+ * primeiro), recusa em vez de fazer outra transição que ninguém pediu
+ * (revisão do #43, P2-1 do `0f63e36`).
+ */
 export async function mudarEstado(
   db: Kysely<BaseDados>,
   comercianteId: string,
   transicao: Transicao,
 ): Promise<void> {
+  if (transicao.de === transicao.para) {
+    throw new ErroComerciante(
+      "merchant.invalid_transition",
+      `merchant.invalid_transition: ${transicao.de} → ${transicao.para}`,
+    );
+  }
   // A base valida a transição e as condições de activação e escreve ela
   // própria a linha de rasto, com o motivo e quem postos aqui (SET LOCAL).
   await comComerciante(db, comercianteId, async (trx) => {
@@ -152,11 +167,25 @@ export async function mudarEstado(
       .updateTable("comerciante")
       .set({ estado: transicao.para })
       .where("id", "=", comercianteId)
+      .where("estado", "=", transicao.de)
       .executeTakeFirst();
     if (resultado.numUpdatedRows === 0n) {
+      // Não existe (ou é de outro: o RLS esconde-o igual), ou já não está em
+      // `de`.
+      const actual = await trx
+        .selectFrom("comerciante")
+        .select("estado")
+        .where("id", "=", comercianteId)
+        .executeTakeFirst();
+      if (actual === undefined) {
+        throw new ErroComerciante(
+          "merchant.not_found",
+          `comerciante ${comercianteId}`,
+        );
+      }
       throw new ErroComerciante(
-        "merchant.not_found",
-        `comerciante ${comercianteId}`,
+        "merchant.invalid_transition",
+        `merchant.invalid_transition: esperava ${transicao.de}, está ${actual.estado}`,
       );
     }
   });

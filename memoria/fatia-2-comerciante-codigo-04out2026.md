@@ -73,3 +73,23 @@ A terceira revisão (sessão nova, PostgreSQL 18.6) não encontrou P0 nem P1: co
 - **P2-6:** a citação do `preparar.sh:278` no §5 acertada.
 
 **Números** (04/10/2026, PostgreSQL 18.6, `EXIGIR_BASE=1`): api com 71 passados (um teste novo, o do terminal) e mcp com 30; `pnpm lint` e `pnpm tipos` sem erros. Medido à parte: a migração corrida por um utilizador não dono pára com `ERROR: migracao 0001: …`, e nenhuma tabela fica (uma transacção); corrida pelo dono, `has_database_privilege('eurolify_api', …, 'TEMP') = f`.
+
+## Os 13 P2 das revisões do `98ca4c1` e do `0f63e36` (04/10/2026, à noite)
+
+O Diogo pediu a esta sessão que pegasse no #43 (*«sim, pega no #43 daqui»*): junção do `main` (`0bcea0b`) e os P2 das duas revisões das 19:08 e 19:13 UTC.
+
+- **Feito:**
+  - comentário da tabela `entidade_legal` no sítio certo;
+  - uma prova nova só numa entidade activa (`legal_entity.archived`, gatilho com `FOR SHARE`);
+  - o teste local `mudarEstado` renomeado e um teste que mostra porque «arquivada é final» importa;
+  - `mudarEstado` leva o estado de partida (`de`): se já mudou, ou se é igual ao destino, `merchant.invalid_transition`;
+  - o URL do migrador sem espaços e só `postgres://`/`postgresql://`, sem mostrar o valor;
+  - o `preparar.sh` avisa se o `api.env` ou o `migrar.env` não são `600 root`;
+  - o contentor do migrador com `--cap-drop ALL`, `no-new-privileges` e `--memory 512m`;
+  - docs/15: estado do código, `fechado` não sai, regra por fazer (comerciante activo que troca a entidade provada), palavras-passe geradas pelo script da VPS, citações de linhas.
+- **Por decidir (Diogo ou Bruno):** P2-2 do `98ca4c1` — «arquivada é final» congela só o estado ou o registo inteiro (morada, denominação; nascer já arquivada)?
+- **Na descrição do pedido:** quem tem uma base de desenvolvimento deste ramo tem de a recriar, porque a 0001 foi alterada no sítio (P2-6 do `98ca4c1`).
+
+**Números** (04/10/2026, PostgreSQL 18.6 em Docker, `EXIGIR_BASE=1`, Node 22.22): api com 111 passados, mcp com 30; `comerciante.test.ts` 36 e `url-migracao.test.ts` 7 (`grep -c "  it("`). Com o código anterior, 5 dos testes novos falham; os outros 3 guardam o que já estava certo. `pnpm tipos`, `pnpm lint`, `pnpm construir` e o `shellcheck` como o CI sem erros.
+
+**Por verificar:** Node 24; o `preparar.sh` na VPS; o migrador com `--memory 512m` numa migração real.

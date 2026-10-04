@@ -19,10 +19,10 @@
 
 Feito: a migração `apps/api/migracoes/0001_comerciante.sql` (as seis tabelas,
 RLS forçado, o `eurolify_api` sem `BYPASSRLS`, as transições de estado e as
-condições de activação na base, o rasto obrigatório no fim da transacção), o
-migrador (`apps/api/src/migrar.ts`), o acesso interno
-(`apps/api/src/comerciante/repositorio.ts`) e 21 testes contra o PostgreSQL
-18.6. Por fazer: a API (fatia «identidade»), os dois utilizadores da base na
+condições de activação na base, o rasto escrito pela base num gatilho
+`AFTER UPDATE`), o migrador (`apps/api/src/migrar.ts`), o acesso interno
+(`apps/api/src/comerciante/repositorio.ts`), 36 testes contra o PostgreSQL
+18.6 e 7 do migrador (`grep -c "  it("`, 04/10/2026). Por fazer: a API (fatia «identidade»), os dois utilizadores da base na
 VPS (pedido ao script, ADR-0028), a validação da morada e do número fiscal por
 país (**C**).
 
@@ -145,8 +145,11 @@ Do pacote (onboarding, regra 3), com os nomes em português:
 Transições permitidas: `rascunho → prova_pendente → em_revisao →
 aprovado_limitado → activo`; `rascunho → em_revisao` (quando o pedido de
 activação já traz a prova); `em_revisao → prova_pendente` (recusada, com
-motivo); qualquer um → `suspenso` ou `fechado`; `suspenso → ` o estado
-anterior. **Toda a transição tem motivo e quem**, e fica na tabela 3.6 —
+motivo); qualquer um, excepto `fechado`, → `suspenso` ou `fechado`
+(`fechado` não sai); `suspenso → ` o estado anterior. Quem pede a mudança diz
+de que estado parte: se já mudou entretanto, a mudança é recusada
+(`merchant.invalid_transition`), e mudar para o mesmo estado também (revisão
+do #43, P2-1 do `0f63e36`). **Toda a transição tem motivo e quem**, e fica na tabela 3.6 —
 escrita **pela base**, pelo gatilho da mudança de estado, com o motivo e quem
 postos pela aplicação; a API não escreve no rasto (revisão do #43, P1-3).
 A activação olha para a prova **mais recente** de cada entidade legal activa,
@@ -154,7 +157,14 @@ pela ordem de registo (P1-1); o país e o número fiscal de uma entidade não
 mudam — arquiva-se e cria-se outra (P1-2). **Arquivada é final** (Diogo,
 04/10/2026): a base recusa desarquivar (`legal_entity.archived_is_final`); o
 número fiscal só é único entre as entidades activas, por isso voltar a usar um
-número arquivado é criar outra entidade, com prova nova.
+número arquivado é criar outra entidade, com prova nova. Uma prova nova só se
+regista numa entidade activa (`legal_entity.archived`; revisão do #43, P2-3
+do `98ca4c1`). **Regra por fazer** (revisão do #43, P2-4 do `98ca4c1`): a
+condição «cada entidade activa com a sua prova» só se verifica ao passar a
+`activo`. Um comerciante já `activo` que arquive a única entidade provada e
+crie outra sem prova continua `activo` e pode abrir lojas nela; tem de ser
+verificada também ao criar uma entidade ou uma loja de um comerciante activo
+(fatia «identidade»).
 Ninguém se activa a si próprio: a passagem a `activo` é feita pelo servidor
 quando as condições se verificam, ou por uma pessoa do Eurolify com rasto
 (**proposta**).
@@ -167,13 +177,13 @@ ADR-0025 (RLS por comerciante).
 | Peça | Desenho (proposta) |
 |---|---|
 | Utilizador da base da API | `eurolify_api`: `NOSUPERUSER NOBYPASSRLS`, só `SELECT/INSERT/UPDATE` nas tabelas do produto; **sem `DELETE`** nas tabelas «só se acrescenta» |
-| Utilizador das migrações | `eurolify_migrador`: dono das tabelas; só corre na publicação (`dist/migrar.js`, já previsto em `eurolify-publicar:113`) |
+| Utilizador das migrações | `eurolify_migrador`: dono das tabelas; só corre na publicação (`dist/migrar.js`, já previsto em `eurolify-publicar:114-122`) |
 | Políticas | `ENABLE` **e** `FORCE ROW LEVEL SECURITY` em todas as tabelas; `USING (comerciante_id = current_setting('eurolify.comerciante')::uuid)` e o mesmo em `WITH CHECK` |
 | Contexto | cada pedido abre uma transacção e faz `SET LOCAL eurolify.comerciante = '<uuid>'`; sem isso a consulta dá **erro**, nunca vazio em silêncio: numa ligação nova o parâmetro não existe; numa ligação reaproveitada vale texto vazio, que falha a conversão para `uuid` (**confirmado** no PostgreSQL 18.6 a 04/10/2026: erros `42704` e `22P02`; há um teste para cada caso) |
 | Criar um comerciante | a aplicação gera o `uuid`, faz `SET LOCAL` com ele e insere: a política deixa, sem nenhum utilizador que ignore o RLS |
 | Trabalho da equipa do Eurolify (rever comerciantes) | **nenhum papel entre comerciantes** até haver o Hub (P6): a revisão faz-se por um comando auditado na API, dentro do contexto do comerciante revisto |
 | Testes | o CI liga-se como `postgres` (superutilizador, que **ignora o RLS**): os testes de isolamento criam e usam o `eurolify_api`, e falham se a ligação tiver `BYPASSRLS` |
-| VPS | o `api.env` está vazio («a ligação da API à base entra com o primeiro domínio», `preparar.sh:278`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028). **O migrador tem de ser dono da base** (`ALTER DATABASE eurolify OWNER TO eurolify_migrador`, nesse pedido): a base `eurolify` nasce criada pelo `postgres` (passo 10 do `preparar.sh`), e só o dono retira o `TEMPORARY` ao `PUBLIC`; a migração 0001 verifica-o e falha alto se não conseguir (terceira revisão do #43, P2-1). **A ligação do migrador não vai para o `api.env`**, que o contentor da API também recebe (`eurolify-publicar:23`): vai no `/etc/eurolify/migrar.env`, que o `preparar.sh` cria vazio (passo 10) e só o contentor das migrações recebe (revisão do #43, P1-4). Até a ligação lá entrar, o `migrar.js` tolera a **falta** da variável até 31/10/2026 (data de fim confirmada pelo Diogo a 04/10/2026, `src/base/url-migracao.ts`); uma variável vazia é erro |
+| VPS | o `api.env` está vazio («a ligação da API à base entra com o primeiro domínio», `preparar.sh:284`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028). **As palavras-passe nunca passam pelo repositório:** o script gera-as com `openssl rand`, cria os utilizadores pelo `docker exec` e escreve ele próprio o `api.env` e o `migrar.env`, como já faz com o `postgres.env` (revisão do #43, P2-6 do `36e8778`). **O migrador tem de ser dono da base** (`ALTER DATABASE eurolify OWNER TO eurolify_migrador`, nesse pedido): a base `eurolify` nasce criada pelo `postgres` (passo 10 do `preparar.sh`), e só o dono retira o `TEMPORARY` ao `PUBLIC`; a migração 0001 verifica-o e falha alto se não conseguir (terceira revisão do #43, P2-1). **A ligação do migrador não vai para o `api.env`**, que o contentor da API também recebe (`eurolify-publicar:23`): vai no `/etc/eurolify/migrar.env`, que o `preparar.sh` cria vazio (passo 10) e só o contentor das migrações recebe (revisão do #43, P1-4); escreve-se `CHAVE=valor`, sem aspas nem espaços. O contentor das migrações corre com as mesmas protecções da API (`--cap-drop ALL`, `no-new-privileges`, `--memory`). Até a ligação lá entrar, o `migrar.js` tolera a **falta** da variável até 31/10/2026 (data de fim confirmada pelo Diogo a 04/10/2026, `src/base/url-migracao.ts`); uma variável vazia é erro |
 
 **Testes que têm de falhar** (`observability-security`): ler, alterar e criar
 num comerciante com o contexto de outro; ler sem contexto; o `eurolify_api`
@@ -186,7 +196,7 @@ SECURITY` (teste que percorre o catálogo da base).
 |---|---|
 | Formato | SQL à mão, numerado (`0001_comerciante.sql`), pelo migrador do Kysely (ADR-0025). O Kysely 0.29.6 corre **todas as migrações em falta numa só transacção**, com um bloqueio consultivo: se a 0002 falhar, a 0001 também se desfaz (revisão do #43, P2-4) |
 | Ordem | só para a frente; nunca se edita uma migração já no `main` |
-| Compatibilidade | a publicação migra **antes** de trocar a versão e, se falhar, fica a anterior (`eurolify-publicar:109-116`): cada migração tem de funcionar com a versão anterior da API ainda a correr |
+| Compatibilidade | a publicação migra **antes** de trocar a versão e, se falhar, fica a anterior (`eurolify-publicar:109-122`): cada migração tem de funcionar com a versão anterior da API ainda a correr |
 | Cópia | antes de migrar no ensaio, a cópia diária já existe (ADR-0027); a reposição foi provada só com a base vazia (memória da sessão de 04/10/2026) |
 | Teste | o CI aplica todas as migrações numa base vazia e corre os testes de isolamento |
 
