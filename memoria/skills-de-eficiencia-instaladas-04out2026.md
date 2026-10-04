@@ -42,6 +42,8 @@ em leitura, propor um índice por tema e uma fonte por decisão, e depois
   ADR-0030. O estilo **não ficou por omissão** no projecto (o
   `templates/settings-management.json` não se aplicou: mudaria as sessões do
   Bruno também); cada um escolhe-o com `/output-style eurolify-gestao`.
+  **Decidido pelo Diogo** (04/10/2026): *«cada um liga o estilo quando
+  quiser»*.
 - **Não instalado:** o texto proposto para o `AGENTS.md`
   (`templates/AGENTS-management-fragment.md`), por ser uma regra nova.
 
