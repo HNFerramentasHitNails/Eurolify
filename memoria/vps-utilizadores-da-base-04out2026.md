@@ -64,3 +64,10 @@ Fluxo `publicar`, corrida 37242060285, no `main` `53e209d` (junção do #73): «
 - **Sem `BYPASSRLS`, superutilizador ou `LOGIN`:** o passo 10b verifica e avisa; a corrida de 22:47 UTC deu 0 avisos.
 - **Não medido directamente na VPS:** as consultas a `pg_roles` e `pg_tables` (não há MCP da VPS autorizado nesta sessão; o fluxo `medir` não lista papéis).
 - A tarefa #70 fecha-se com isto.
+
+## Os 3 P2 da revisão do `09882b4` (#71), a pedido do Diogo (*«trata os 3 P2 do #71»*)
+
+- **P2-A:** o stderr do psql só sai no fim, com sequências de 16 ou mais hexadecimais tapadas, e a sessão dá `SET log_min_messages = 'panic'`. Medido: um erro de sintaxe com a palavra-passe como token dá `at or near "'***'"`; 0 pedaços no stderr e 0 no registo da base.
+- **P2-B:** a renovação repõe `LOGIN`, `CONNECTION LIMIT -1` e `VALID UNTIL 'infinity'`, e «não pode entrar» ou «demasiadas ligações» contam como recusada. Medido: `NOLOGIN`, `CONNECTION LIMIT 0` e `VALID UNTIL` no passado são reparados (1 alteração, depois 0). Um `REVOKE CONNECT … FROM PUBLIC` não impede o migrador, que é dono da base (0 alterações, 0 avisos).
+- **P2-C:** a linha do `migrar.env` tem de ser exactamente a que o script escreve (anfitrião, porta, base). Medido: base ou anfitrião trocados à mão → reescrita (1 alteração, depois 0); em `--mostrar`, «FARIA».
+- De novo: 3 alterações e depois 0; a migração 0001 corre como o migrador; trap sem temporários; `shellcheck` sem achados.
