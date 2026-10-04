@@ -35,6 +35,7 @@ europeias de raiz e aberto a qualquer IA.
 | [`docs/13-portas-da-fase-2.md`](docs/13-portas-da-fase-2.md) | Os módulos da Fase 2 pelas 8 portas: o que avançar, estreitar ou investigar; três peças passaram para a Fase 1 (decisão AD) |
 | [`docs/eurolify/`](docs/eurolify/) | Actores e papéis, canais, motor de regras por país (`architecture.md`), plano por fatias, lacunas de conformidade e diagnóstico de financiamento (ADR-0034) |
 | [`docs/14-dominio-catalogo.md`](docs/14-dominio-catalogo.md) | Domínio Catálogo: fronteira, modelo, estados, regras, eventos e lista da API em tabela (ADR-0023), com as perguntas por decidir |
+| [`docs/15-dominio-comerciante.md`](docs/15-dominio-comerciante.md) | Domínio Comerciante (fatia 2): comerciante, entidade legal, loja, estados, isolamento por comerciante na base (RLS), migrações e lista da API, com as perguntas por decidir |
 | [`docs/adr/`](docs/adr/) | As decisões registadas |
 | [`memoria/MEMORY.md`](memoria/MEMORY.md) | O índice da memória de trabalho |
 | [`AGENTS.md`](AGENTS.md) | As regras para qualquer sessão de Claude Code ou de Codex neste repositório (o `CLAUDE.md` só o importa) |
