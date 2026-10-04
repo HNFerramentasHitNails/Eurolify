@@ -251,9 +251,15 @@ export function errosDoRegisto(registo: Registo): string[] {
         : undefined;
     if (revisao === undefined) {
       erros.push(`${nome}: domínio desconhecido ${valor(regra.dominio)}`);
-    } else if (regra.estadoLegal === "proposta") {
+    } else if (
+      regra.estadoLegal === "proposta" &&
+      ehObjecto(revisao) &&
+      (revisao as RevisaoDominio).estado === "por_verificar"
+    ) {
       // Uma proposta nunca decide, por isso pode entrar num domínio ainda por
       // verificar (decisão do Diogo, 04/10/2026; revisão do #47, P2 n.º 2).
+      // Só «por verificar»: um domínio «não aplicável» diz que não há regras
+      // e não leva nenhuma, nem proposta (revisão do #49, P2-1).
     } else if (
       !ehObjecto(revisao) ||
       (revisao as RevisaoDominio).estado !== "verificado"

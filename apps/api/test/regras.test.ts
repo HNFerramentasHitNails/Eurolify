@@ -1318,6 +1318,57 @@ describe("validar o registo", () => {
     ]);
   });
 
+  it("uma proposta num domínio «não aplicável» é erro (só «por verificar» a aceita)", () => {
+    const registo: Registo = {
+      ...REGISTO_INICIAL,
+      paises: REGISTO_INICIAL.paises.map((perfil) =>
+        perfil.codigo === "PT"
+          ? {
+              ...perfil,
+              dominios: {
+                ...perfil.dominios,
+                agencia_comercial: {
+                  estado: "nao_aplicavel",
+                  justificacao: "sem agentes (teste)",
+                  prova: "teste",
+                  revistoPor: "teste",
+                },
+              },
+            }
+          : perfil,
+      ),
+      regras: [
+        regraTeste({
+          id: "agencia-proposta",
+          dominio: "agencia_comercial",
+          estadoLegal: "proposta",
+          aplicaDesde: "2027-01-01T00:00:00Z",
+        }),
+      ],
+    };
+    expect(errosDoRegisto(registo)).toEqual([
+      "agencia-proposta@1: o domínio agencia_comercial de PT não está verificado",
+    ]);
+  });
+
+  it("territórios de uma regra num Proxy revogado não contam (não rebenta)", () => {
+    const registo = registoComPortugal([
+      regraTeste({
+        id: "pt-consumidor-proxy",
+        territorios: proxyRevogado() as unknown as readonly string[],
+      }),
+    ]);
+    const decisao = decidir(registo, {
+      pais: "PT",
+      dominios: ["consumidor"],
+      momento: AGORA,
+    });
+    expect(decisao.estado).toBe("revisao_necessaria");
+    expect(decisao.motivos).toEqual([
+      { codigo: "sem_regra_em_vigor", dominio: "consumidor" },
+    ]);
+  });
+
   it("em vigor sem fim e adoptada futura da mesma regra é erro", () => {
     const registo = registoComPortugal([
       regraTeste({ id: "x", versao: 1 }),

@@ -51,8 +51,11 @@ function regraDoTerritorio(
   territorio: string | undefined,
 ): boolean {
   const territorios: unknown = regra.territorios;
-  if (!Array.isArray(territorios)) return false;
-  if (territorio === undefined) return territorios.length === 0;
+  // `ehLista` e não `Array.isArray`: um Proxy revogado dá «não conta» em vez
+  // de excepção (revisão do #49, P2-2).
+  if (!ehLista(territorios)) return false;
+  if (territorio === undefined)
+    return (territorios as readonly unknown[]).length === 0;
   return (territorios as readonly unknown[]).includes(territorio);
 }
 
