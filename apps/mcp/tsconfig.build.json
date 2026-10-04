@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // Ver tsconfig.json: o SDK de MCP não segue exactOptionalPropertyTypes.
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["src"]
+}

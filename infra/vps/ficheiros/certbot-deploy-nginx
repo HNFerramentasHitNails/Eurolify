@@ -1,0 +1,4 @@
+#!/bin/sh
+# Eurolify (infra/vps): depois de o certbot renovar um certificado, o nginx
+# passa a servi-lo (ADR-0033).
+systemctl reload nginx

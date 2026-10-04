@@ -17,6 +17,9 @@ umask 022
 
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 F="$AQUI/ficheiros"
+# A configuração sem segredos lê-se logo à entrada: o passo da firewall já precisa dela.
+# shellcheck source=ficheiros/ensaio.conf
+source "$F/ensaio.conf"
 
 MOSTRAR=0
 case "${1:-}" in
@@ -81,7 +84,7 @@ instalar() {
 
 # ---------------------------------------------------------------------------
 passo "1. Pacotes"
-pacotes=(docker.io ufw fail2ban age rclone git curl openssh-server)
+pacotes=(docker.io ufw fail2ban age rclone git curl openssh-server nginx certbot python3-certbot-dns-ovh)
 falta=()
 for p in "${pacotes[@]}"; do
   estado="$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null || true)"
@@ -165,7 +168,7 @@ if tem sshd && ! ((MOSTRAR && mudou)); then
 fi
 
 # ---------------------------------------------------------------------------
-passo "4. Firewall: entrada fechada, só a porta 22 (ADR-0027)"
+passo "4. Firewall: entrada fechada; 22 aberta; 443 só para a Anthropic (ADR-0027, ADR-0033)"
 ufw_verbose=""
 tem ufw && ufw_verbose="$(ufw status verbose 2>&1 || true)"
 if [[ "$ufw_verbose" == *"Status: active"* && "$ufw_verbose" == *"deny (incoming)"* ]] &&
@@ -175,10 +178,19 @@ else
   fazer "ufw: entrada deny, saída allow, 22/tcp, ligar" bash -c \
     'ufw default deny incoming && ufw default allow outgoing && ufw allow 22/tcp && ufw --force enable'
 fi
+# A 443 só para o intervalo de onde a Anthropic liga aos connectors (ADR-0033).
+regra_443="^443/tcp +ALLOW IN +${ANTHROPIC_INTERVALO//./\\.} *\$"
+if grep -qE "$regra_443" <<<"$ufw_verbose"; then
+  ok "443/tcp aberta só a $ANTHROPIC_INTERVALO"
+else
+  fazer "ufw: 443/tcp só a partir de $ANTHROPIC_INTERVALO (MCP, ADR-0033)" \
+    ufw allow proto tcp from "$ANTHROPIC_INTERVALO" to any port 443
+fi
 if tem ufw; then
   # O formato longo (verbose) diz «ALLOW IN»; o curto diz só «ALLOW» e dava a
   # própria regra da 22 como desconhecida (visto na VPS a 04/10/2026).
-  extra="$(ufw status verbose | grep -E ' (ALLOW|DENY|LIMIT|REJECT)( IN| OUT|) ' | grep -vE '^22/tcp( \(v6\))? +ALLOW IN +Anywhere( \(v6\))? *$' || true)"
+  extra="$(ufw status verbose | grep -E ' (ALLOW|DENY|LIMIT|REJECT)( IN| OUT|) ' |
+    grep -vE '^22/tcp( \(v6\))? +ALLOW IN +Anywhere( \(v6\))? *$' | grep -vE "$regra_443" || true)"
   [[ -z "$extra" ]] || aviso "regras da firewall que o script não conhece (não as apago): $extra"
 fi
 
@@ -219,14 +231,12 @@ for d in /etc/eurolify:700 /var/lib/eurolify:755 /var/lib/eurolify/pedidos:755 \
 done
 instalar "$F/ensaio.conf" /etc/eurolify/ensaio.conf 644
 instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
-# shellcheck source=ficheiros/ensaio.conf
-source "$F/ensaio.conf"
 
 # ---------------------------------------------------------------------------
 passo "8. Programas e unidades do Eurolify"
 instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
-for p in trabalho publicar aplicar medir copia reposicao verificacao; do
+for p in trabalho publicar aplicar medir copia reposicao verificacao operar; do
   instalar "$F/sbin/eurolify-$p" "/usr/local/sbin/eurolify-$p" 700
 done
 unidades_mudaram=0
@@ -362,6 +372,88 @@ for s in ghcr.token ghcr.expira deploy_key rclone.conf age.pub age.key healthche
       aviso "/etc/eurolify/$s devia ser 600 e de root"
   else
     aviso "falta o segredo /etc/eurolify/$s (posto pelo Diogo na Fase D, nunca pelo repositório)"
+  fi
+done
+
+# ---------------------------------------------------------------------------
+passo "13. MCP da VPS: utilizador, pedidos, certificado e nginx (ADR-0033)"
+# O utilizador do contentor do MCP: sem casa, sem consola, sem chave SSH. Só
+# escreve na pasta dos seus pedidos.
+if id eurolify-mcp >/dev/null 2>&1; then
+  ok "utilizador eurolify-mcp"
+else
+  fazer "criar o utilizador eurolify-mcp (sem casa nem consola)" \
+    useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin eurolify-mcp
+fi
+pasta_mcp=/var/lib/eurolify/pedidos/mcp
+if [[ -d "$pasta_mcp" && "$(stat -c '%a %U' "$pasta_mcp")" == "700 eurolify-mcp" ]]; then
+  ok "$pasta_mcp"
+else
+  fazer "pasta $pasta_mcp (700, eurolify-mcp)" install -d -o eurolify-mcp -g eurolify-mcp -m 700 "$pasta_mcp"
+fi
+if tem systemctl && systemctl is-enabled --quiet eurolify-pedido@mcp.path 2>/dev/null &&
+  systemctl is-active --quiet eurolify-pedido@mcp.path 2>/dev/null; then
+  ok "eurolify-pedido@mcp.path"
+else
+  fazer "ligar eurolify-pedido@mcp.path" systemctl enable --now eurolify-pedido@mcp.path
+fi
+
+# Certificado pelo desafio DNS com a API da OVH: a porta 80 não abre.
+instalar "$F/certbot-deploy-nginx" /etc/letsencrypt/renewal-hooks/deploy/eurolify-nginx 755
+certificado="/etc/letsencrypt/live/$MCP_DOMINIO/fullchain.pem"
+certificado_previsto=0 # no --mostrar: o certificado seria pedido nesta corrida
+if [[ -s "$certificado" ]]; then
+  ok "certificado de $MCP_DOMINIO"
+elif [[ ! -s /etc/eurolify/ovh-dns.ini ]]; then
+  aviso "falta /etc/eurolify/ovh-dns.ini (chave da API da OVH): sem certificado, o MCP não abre"
+elif ! getent ahostsv4 "$MCP_DOMINIO" >/dev/null 2>&1; then
+  aviso "$MCP_DOMINIO ainda não resolve: sem certificado, o MCP não abre"
+else
+  certificado_previsto=1
+  fazer "pedir o certificado de $MCP_DOMINIO (Let's Encrypt, desafio DNS da OVH)" \
+    certbot certonly --non-interactive --agree-tos --register-unsafely-without-email \
+    --dns-ovh --dns-ovh-credentials /etc/eurolify/ovh-dns.ini --dns-ovh-propagation-seconds 60 \
+    -d "$MCP_DOMINIO"
+fi
+
+# nginx: só o site do MCP. O site por omissão do pacote (porta 80) sai.
+if [[ -L /etc/nginx/sites-enabled/default ]]; then
+  fazer "desligar o site por omissão do nginx" rm -f /etc/nginx/sites-enabled/default
+else
+  ok "site por omissão do nginx desligado"
+fi
+instalar "$F/nginx-mcp.conf" /etc/nginx/sites-available/eurolify-mcp.conf 644
+nginx_mudou=$mudou
+site=/etc/nginx/sites-enabled/eurolify-mcp.conf
+if [[ -s "$certificado" ]] || ((MOSTRAR && certificado_previsto)); then
+  if [[ -L "$site" ]]; then
+    ok "site do MCP ligado"
+  else
+    fazer "ligar o site do MCP no nginx" ln -s /etc/nginx/sites-available/eurolify-mcp.conf "$site"
+    nginx_mudou=1
+  fi
+  if ((nginx_mudou && !MOSTRAR)); then
+    if nginx -t 2>/dev/null; then
+      fazer "recarregar o nginx" systemctl reload-or-restart nginx
+    else
+      rm -f "$site"
+      aviso "nginx -t falhou: o site do MCP foi desligado outra vez e nada foi recarregado"
+    fi
+  fi
+else
+  aviso "sem certificado: o site do MCP fica desligado"
+fi
+if tem systemctl && systemctl is-active --quiet nginx 2>/dev/null; then
+  ok "nginx activo"
+else
+  fazer "ligar o nginx" systemctl enable --now nginx
+fi
+for s in github-oauth.env ovh-dns.ini ovh-dns.expira; do
+  if [[ -s "/etc/eurolify/$s" ]]; then
+    [[ "$(stat -c '%a %U' "/etc/eurolify/$s")" == "600 root" ]] ||
+      aviso "/etc/eurolify/$s devia ser 600 e de root"
+  else
+    aviso "falta o segredo /etc/eurolify/$s (MCP, ADR-0033)"
   fi
 done
 

@@ -29,14 +29,42 @@ arrancar() {
 }
 
 saude() {
-  local i
+  local porta="${1:-8080}" i
   for ((i = 0; i < 30; i++)); do
-    if curl -fsS -m 2 http://127.0.0.1:8080/health >/dev/null 2>&1; then
+    if curl -fsS -m 2 "http://127.0.0.1:${porta}/health" >/dev/null 2>&1; then
       return 0
     fi
     sleep 2
   done
   return 1
+}
+
+# O MCP da VPS (ADR-0033) corre da mesma imagem: uma publicação actualiza os
+# dois, e voltar atrás volta com os dois. Sem github-oauth.env não arranca.
+mcp_configurado() { [[ -s /etc/eurolify/github-oauth.env ]] && id eurolify-mcp >/dev/null 2>&1; }
+
+arrancar_mcp() {
+  mcp_configurado || {
+    echo "MCP: sem /etc/eurolify/github-oauth.env ou sem o utilizador eurolify-mcp; não arranca."
+    return 0
+  }
+  docker rm -f eurolify-mcp >/dev/null 2>&1 || true
+  docker run -d --name eurolify-mcp \
+    --restart unless-stopped \
+    -p 127.0.0.1:8090:8090 \
+    --user "$(id -u eurolify-mcp):$(id -g eurolify-mcp)" \
+    -v /var/lib/eurolify/pedidos/mcp:/pedidos \
+    --env-file /etc/eurolify/github-oauth.env \
+    -e MCP_URL="$MCP_URL" -e CONTAS_PERMITIDAS="$MCP_CONTAS" \
+    -e ANFITRIAO=0.0.0.0 -e PORTA=8090 -e PASTA_PEDIDOS=/pedidos \
+    --workdir /app/apps/mcp \
+    --memory 256m \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --read-only --tmpfs /tmp \
+    --no-healthcheck \
+    --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+    "$1" node dist/servidor.js >/dev/null
 }
 
 echo "A puxar $imagem"
@@ -46,6 +74,11 @@ docker pull --quiet "$imagem" >/dev/null
 
 anterior="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
 if [[ "$anterior" == "$imagem" ]]; then
+  if mcp_configurado && [[ "$(docker inspect --format '{{.Config.Image}}' eurolify-mcp 2>/dev/null || true)" != "$imagem" ]]; then
+    arrancar_mcp "$imagem"
+    if saude 8090; then echo "A API já estava nesta imagem; o MCP arrancou e responde."; exit 0; fi
+    falhar "o MCP arrancou mas não responde no /health"
+  fi
   echo "Esta imagem já é a que está no ar. Nada a fazer."
   exit 0
 fi
@@ -63,21 +96,32 @@ else
 fi
 
 arrancar "$imagem"
-if saude; then
-  printf '%s | %s | anterior: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" >>/var/log/eurolify/publicacoes.log
-  registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
-  echo "Publicado: $resumo. O /health responde."
-  exit 0
+if saude 8080; then
+  mcp_ok=1
+  if mcp_configurado; then
+    arrancar_mcp "$imagem"
+    saude 8090 || mcp_ok=0
+  fi
+  if ((mcp_ok)); then
+    printf '%s | %s | anterior: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" >>/var/log/eurolify/publicacoes.log
+    registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
+    echo "Publicado: $resumo. O /health responde$(mcp_configurado && echo ' (API e MCP)')."
+    exit 0
+  fi
+  echo "O MCP não respondeu no /health em 60 s. Últimas linhas:"
+  docker logs --tail 30 eurolify-mcp 2>&1 | filtrar_ip || true
+else
+  echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
+  docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
 fi
 
-echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
-docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
 if [[ -n "$anterior" ]]; then
   echo "A voltar à imagem anterior: $anterior"
   arrancar "$anterior"
-  if saude; then echo "A anterior voltou e responde."; else echo "ATENÇÃO: a anterior também não responde."; fi
+  if mcp_configurado; then arrancar_mcp "$anterior"; fi
+  if saude 8080; then echo "A anterior voltou e responde."; else echo "ATENÇÃO: a anterior também não responde."; fi
 else
-  docker rm -f eurolify-api >/dev/null 2>&1 || true
+  docker rm -f eurolify-api eurolify-mcp >/dev/null 2>&1 || true
 fi
 registar "publicação de $resumo falhou; reposta: ${anterior:-nenhuma}"
 exit 1

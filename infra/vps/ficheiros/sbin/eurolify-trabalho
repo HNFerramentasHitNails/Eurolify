@@ -16,6 +16,8 @@ case "$fluxo" in
   publicar) padrao='^sha256:[0-9a-f]{64}$' ;;
   aplicar) padrao='^[0-9a-f]{40} (mostrar|aplicar)$' ;;
   medir) padrao='^$' ;;
+  # O MCP da VPS (ADR-0033): a lista fixa de leituras e operações.
+  mcp) padrao='^(medir|publicacoes|copia|reposicao|reiniciar-api|actualizar|reiniciar-vps|publicar sha256:[0-9a-f]{64})$' ;;
   *) falhar "fluxo desconhecido: '$fluxo'" ;;
 esac
 
@@ -69,6 +71,9 @@ else
       ;;
     medir)
       /usr/local/sbin/eurolify-medir >"$saida" 2>&1 || codigo=$?
+      ;;
+    mcp)
+      EUROLIFY_ORIGEM="mcp" /usr/local/sbin/eurolify-operar "$pedido" >"$saida" 2>&1 || codigo=$?
       ;;
   esac
   EUROLIFY_ORIGEM="fluxo $fluxo" registar "pedido $id '${pedido:-(vazio)}' tratado, código $codigo"

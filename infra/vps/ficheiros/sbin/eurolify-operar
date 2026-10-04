@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Operações do MCP da VPS (ADR-0033). Corre como root, chamado pelo
+# eurolify-trabalho (fluxo «mcp»), que já validou o pedido contra a lista
+# fixa — aqui valida-se outra vez. Nada daqui muda configuração (ADR-0028).
+set -Eeuo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+
+pedido="${1:-}"
+[[ "$pedido" =~ ^(medir|publicacoes|copia|reposicao|reiniciar-api|actualizar|reiniciar-vps|publicar\ sha256:[0-9a-f]{64})$ ]] ||
+  falhar "operação fora da lista"
+
+# Regra 4 do AGENTS.md: nunca reiniciar a máquina (nem actualizar) em horário
+# de trabalho — dias úteis, 08:00–20:00 em Lisboa.
+fora_de_horas() {
+  local dia hora
+  dia="$(TZ=Europe/Lisbon date +%u)"
+  hora="$(TZ=Europe/Lisbon date +%H)"
+  ((dia >= 6 || 10#$hora < 8 || 10#$hora >= 20))
+}
+
+tarefa() {
+  local unidade="eurolify-$1.service" resultado
+  systemctl start "$unidade" || true
+  resultado="$(systemctl show "$unidade" -p Result --value)"
+  journalctl -u "$unidade" -n 8 --no-pager -o cat --since '-15min' |
+    grep -vE '^(Starting|Finished|.*Deactivated successfully|.*Consumed )' || true
+  [[ "$resultado" == success ]] || falhar "$unidade terminou com «$resultado»"
+}
+
+case "$pedido" in
+  medir)
+    exec /usr/local/sbin/eurolify-medir
+    ;;
+  publicacoes)
+    echo "Últimas publicações (data | resumo | anterior):"
+    tail -n 10 /var/log/eurolify/publicacoes.log 2>/dev/null || echo "(nenhuma)"
+    ;;
+  copia | reposicao)
+    tarefa "$pedido"
+    ;;
+  reiniciar-api)
+    docker restart eurolify-api >/dev/null
+    for ((i = 0; i < 30; i++)); do
+      if curl -fsS -m 2 http://127.0.0.1:8080/health >/dev/null 2>&1; then
+        echo "API reiniciada; o /health responde."
+        exit 0
+      fi
+      sleep 2
+    done
+    falhar "a API foi reiniciada mas o /health não responde em 60 s"
+    ;;
+  publicar\ *)
+    resumo="${pedido#publicar }"
+    # Só uma imagem que já esteve no ar (está no registo das publicações).
+    grep -q -- "$resumo" /var/log/eurolify/publicacoes.log 2>/dev/null ||
+      falhar "esse resumo nunca foi publicado no ensaio: recusado"
+    # Em segundo plano: a publicação reinicia também o contentor do MCP, que
+    # está à espera desta resposta.
+    systemd-run --quiet --collect --unit "eurolify-publicar-mcp-$(date +%s)" \
+      --setenv=EUROLIFY_ORIGEM="mcp" /usr/local/sbin/eurolify-publicar "$resumo"
+    echo "Publicação de $resumo iniciada em segundo plano; o resultado aparece em «estado_do_ensaio»."
+    ;;
+  actualizar)
+    fora_de_horas || falhar "recusado: dias úteis das 08:00 às 20:00 (Lisboa) são horário de trabalho (AGENTS.md, regra 4)"
+    systemd-run --quiet --collect --unit "eurolify-actualizar-$(date +%s)" --setenv=DEBIAN_FRONTEND=noninteractive \
+      bash -c 'apt-get update -q && apt-get upgrade -y -q -o Dpkg::Options::=--force-confold'
+    echo "Actualização iniciada em segundo plano (apt upgrade). O resultado e o «reinício pedido» aparecem em «estado_do_ensaio»."
+    ;;
+  reiniciar-vps)
+    fora_de_horas || falhar "recusado: dias úteis das 08:00 às 20:00 (Lisboa) são horário de trabalho (AGENTS.md, regra 4)"
+    tarefa copia
+    systemd-run --quiet --collect --on-active=60 --unit "eurolify-reiniciar-$(date +%s)" /usr/bin/systemctl reboot
+    echo "Cópia feita. A VPS reinicia daqui a 60 s; o MCP volta quando a máquina arrancar."
+    ;;
+esac
+registar "mcp: «$pedido» feito"

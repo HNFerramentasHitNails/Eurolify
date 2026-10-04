@@ -568,3 +568,52 @@ Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
 - Registo A `mcp.eurolify.eu` → VPS (zona da OVH).
 - Chave da API da OVH só para a zona `eurolify.eu` (certificado).
 - Aplicação OAuth no GitHub (callback `https://mcp.eurolify.eu/oauth/github/callback`).
+
+## MCP na VPS: segredos e o código (04/10/2026, ≈ 13:30–14:00 UTC)
+
+### O que se fez
+
+- **Aplicação OAuth do GitHub:** ficheiro dado pelo Diogo; o Claude viu só a
+  forma (2 campos), confirmou o par com a API do GitHub (`POST
+  /applications/{id}/token` com um token inventado → 404 = par válido), pô-lo
+  em `/etc/eurolify/github-oauth.env` (600 root) e apagou o original.
+- **Chave da API da OVH (certificado):** a primeira expirava a 05/10 (validade
+  por omissão de 1 dia); a segunda a 03/11 (30 dias) — o Diogo escolheu essa
+  (b) e foi posta na VPS; depois deu uma **ilimitada**, que substituiu a de 30
+  dias. Verificada pela API da OVH (`GET /auth/currentCredential`, assinado):
+  validada, sem data de fim, direitos `GET /domain/zone/*` e
+  `POST/PUT/DELETE /domain/zone/eurolify.eu/*`. Em `/etc/eurolify/ovh-dns.ini`
+  (600 root, formato do `certbot`); troca a **2027-03-31** em
+  `ovh-dns.expira`.
+- **Incidente (erro do Claude):** o primeiro ficheiro «ilimitado» tinha outra
+  disposição (11 linhas, começava por «API Keys created»), e o comando que
+  devia mostrar só os nomes mostrava posições fixas: **apareceram nesta
+  conversa a *Application key* e um valor de 32 caracteres (provavelmente o
+  *Application secret*) dessa chave**. Não foi usada nem posta na VPS; pedido
+  ao Diogo que a revogue (regra: exposta → revoga-se primeiro). O método
+  passou a procurar os valores **pelo nome** e a só mostrar linhas que são
+  nomes conhecidos; a chave que ficou na VPS foi comparada com a exposta
+  (diferente) antes de se usar.
+- **DNS:** `mcp.eurolify.eu` criado pelo Diogo; o servidor de nomes da OVH já o
+  dá com o endereço da VPS (a cache local ainda não, à hora da verificação).
+- **Código** (ramo `mcp-na-vps`): `apps/mcp` (SDK de MCP 1.32.0, OAuth com o
+  GitHub, 8 ferramentas), `eurolify-operar`, fluxo `mcp` no
+  `eurolify-trabalho`, MCP no `eurolify-publicar`, passo 13 e a regra da 443
+  no `preparar.sh`, `nginx-mcp.conf`, avisos novos na verificação diária.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Como |
+|---|---|---|
+| Pacotes no Ubuntu da VPS | `nginx` 1.28.3, `certbot` 4.0.0, `python3-certbot-dns-ovh` 4.0.0 | `apt-cache policy`, 04/10/2026 |
+| SDK de MCP | `@modelcontextprotocol/sdk` 1.32.0 (02/10/2026); usa `zod` (4.6.5) | registo do npm |
+| Testes do MCP | 27, a passar; um teste estragado de propósito (conta fora da lista posta como permitida) falha, como deve | `vitest`; ficheiro reposto |
+| `preparar.sh --mostrar` (WSL vazio) | 71 por fazer, 12 avisos, nada mudado; regra da 443 e passo 13 presentes | teste antes/depois |
+
+### O que ficou por verificar
+
+- A revogação da chave da OVH exposta (o Diogo).
+- O MCP a sério: certificado, `nginx`, o *connector* no Claude desktop e o
+  login pelo GitHub — só depois do pedido entrar e o GitHub o aplicar.
+- `exactOptionalPropertyTypes` desligado só no `apps/mcp` (os tipos do SDK não
+  o seguem).
