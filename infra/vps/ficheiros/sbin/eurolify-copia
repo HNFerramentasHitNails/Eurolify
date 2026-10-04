@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cópia diária da base do ensaio (ADR-0027): pg_dump, cifrado com age, enviado
-# para o OVH Object Storage (ADR-0032). A expiração aos 14 dias é uma regra do
-# contentor na OVH. Avisa o Healthchecks.io do resultado.
+# para o OVH Object Storage (ADR-0032). Apaga lá as cópias com mais de 14 dias
+# (ADR-0027). Avisa o Healthchecks.io do resultado.
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
 source /usr/local/lib/eurolify/comum.sh
@@ -29,6 +29,11 @@ rclone --config /etc/eurolify/rclone.conf copyto "$pasta/$nome" "$S3_DESTINO/$no
 
 # Na máquina ficam só as cópias cifradas dos últimos 2 dias.
 find "$pasta" -type f -name 'eurolify-*.dump.age' -mtime +2 -delete
+
+# Na OVH, 14 dias (ADR-0027) garantidos por nós, não só pela regra do
+# contentor (revisão do #15, P1): apaga as cópias com mais de 14 dias.
+rclone --config /etc/eurolify/rclone.conf delete --min-age 14d \
+  --include 'eurolify-*.dump.age' "$S3_DESTINO"
 
 tamanho="$(du -h "$pasta/$nome" | cut -f1)"
 registar "cópia $nome enviada ($tamanho)"

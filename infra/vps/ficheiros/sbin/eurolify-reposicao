@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ensaio de reposição semanal (ADR-0027, ADR-0029): descarrega a cópia mais
-# recente do OVH Object Storage (ADR-0032), decifra-a com a chave que está na VPS (só root), repõe-a
-# numa base temporária e confere as tabelas. Uma cópia que nunca foi reposta
+# recente do OVH Object Storage (ADR-0032), decifra-a com a chave que está na
+# VPS (só root), repõe-a numa base temporária e confere as tabelas. Uma cópia que nunca foi reposta
 # não é uma cópia (skill observability-security).
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh

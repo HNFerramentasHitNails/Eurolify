@@ -55,8 +55,13 @@ Lido a 04/10/2026:
 ## Consequências
 
 - No `infra/vps`, o remoto do `rclone` passa de `scaleway` a `ovh`
-  (`ensaio.conf`, `LEIA-ME`); o resto do código não muda (o `rclone` fala S3
-  com os dois).
+  (`ensaio.conf`, `LEIA-ME`, com o modelo do `rclone.conf`: `provider =
+  OVHcloud`, `region = gra`, `endpoint = s3.gra.io.cloud.ovh.net` —
+  `rclone.org/s3`, lido a 04/10/2026).
+- **Os 14 dias na OVH garante-os o `eurolify-copia`** (`rclone delete
+  --min-age 14d`), não só uma regra do contentor: a revisão do pedido viu que
+  a expiração dependia de uma *lifecycle* não confirmada. A documentação da
+  OVH descreve regras com `Expiration`/`Days`; fica como segunda trava.
 - O D5 da Fase D passa a ter: criar na OVH o contentor de Object Storage
   (Gravelines, Standard) e o utilizador S3 só com acesso a ele.
 - Um só acordo de tratamento de dados a assinar antes do primeiro dado
