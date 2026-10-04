@@ -644,3 +644,14 @@ Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
   o connector — dito nas ferramentas e no `LEIA-ME`); rede própria para o
   contentor do MCP.
 - **Por verificar na VPS:** se o `github-oauth.env` foi escrito sem aspas.
+- **Segunda revisão (só as correcções):** um P1 meu — ao tirar um comentário
+  do `preparar.sh` perdeu-se uma quebra de linha; `[[ -z "$extra" ]]` ficou
+  colado à linha anterior e, com `set -u`, o script morria no passo 4 na VPS.
+  **O `bash -n` e o `--mostrar` no WSL não o apanharam**: no WSL não há `ufw`
+  e esse bloco não corre. Corrigido e provado com um `ufw` de mentira.
+  Lição: o `--mostrar` num Ubuntu vazio não cobre os ramos «já existe».
+  Feitos ainda: `--pull=never` ao ver se uma imagem tem o MCP; o registo diz
+  «iniciado» nas operações em segundo plano. Ficam (P2): ecrã de confirmação
+  antes do GitHub (contra um link de login enviado por outro — depende de o
+  claude.ai ligar o `state` à sessão do browser, não verificado); os limites
+  por endereço do SDK contam todo o tráfego da Anthropic junto.

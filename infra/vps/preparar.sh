@@ -191,7 +191,8 @@ if tem ufw; then
   # O formato longo (verbose) diz «ALLOW IN»; o curto diz só «ALLOW» e dava a
   # própria regra da 22 como desconhecida (visto na VPS a 04/10/2026).
   extra="$(ufw status verbose | grep -E ' (ALLOW|DENY|LIMIT|REJECT)( IN| OUT|) ' |
-    grep -vE '^22/tcp( \(v6\))? +ALLOW IN +Anywhere( \(v6\))? *$' | grep -vE "$regra_443" || true)"  [[ -z "$extra" ]] || aviso "regras da firewall que o script não conhece (não as apago): $extra"
+    grep -vE '^22/tcp( \(v6\))? +ALLOW IN +Anywhere( \(v6\))? *$' | grep -vE "$regra_443" || true)"
+  [[ -z "$extra" ]] || aviso "regras da firewall que o script não conhece (não as apago): $extra"
 fi
 
 # ---------------------------------------------------------------------------

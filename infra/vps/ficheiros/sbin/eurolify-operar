@@ -64,7 +64,7 @@ case "$pedido" in
     # E que tenha o MCP: voltar a uma sem ele desligava o próprio MCP, e só se
     # recuperava pelo GitHub.
     carregar_config
-    docker run --rm --entrypoint test "${IMAGEM_REPO}@${resumo}" -f /app/apps/mcp/dist/servidor.js >/dev/null 2>&1 ||
+    docker run --rm --pull=never --entrypoint test "${IMAGEM_REPO}@${resumo}" -f /app/apps/mcp/dist/servidor.js >/dev/null 2>&1 ||
       falhar "essa imagem não tem o MCP (ou já não está na máquina): voltar a ela desligava o MCP; faz-se pelo GitHub"
     # Em segundo plano: a publicação reinicia também o contentor do MCP, que
     # está à espera desta resposta.
@@ -95,4 +95,8 @@ case "$pedido" in
     fi
     ;;
 esac
-registar "mcp: «$pedido» feito"
+# As que correm em segundo plano ficam só «iniciadas»; o fim vê-se no medir.
+case "$pedido" in
+  copia | reposicao | publicar\ * | actualizar | reiniciar-vps) registar "mcp: «$pedido» iniciado" ;;
+  *) registar "mcp: «$pedido» feito" ;;
+esac
