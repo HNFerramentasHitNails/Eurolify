@@ -1,6 +1,6 @@
 # ADR-0028 · A VPS opera-se pelo GitHub; as chaves pessoais ficam para emergência
 
-- **Estado:** aceite · completa o [ADR-0016](0016-o-claude-opera-a-vps.md)
+- **Estado:** aceite · completado pelo [ADR-0033](0033-mcp-na-vps-com-accoes.md): operações fixas também por um MCP na VPS, com confirmação; a configuração continua só por pedido revisto · completa o [ADR-0016](0016-o-claude-opera-a-vps.md)
   (o Claude opera a VPS) e o [ADR-0020](0020-acesso-pelo-computador-do-diogo.md)
   (acesso pelo computador do Diogo, que passa a ser a via de emergência) ·
   acrescenta à [ADR-0026](0026-publicacao-pelo-github-por-ssh.md) os fluxos do
