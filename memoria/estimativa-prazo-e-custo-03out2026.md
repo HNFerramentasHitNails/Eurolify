@@ -42,8 +42,8 @@
 > Fase 1 (relatório OSS 2–4, núcleo das devoluções 4–7, lotes e compostos 3–5
 > pessoas-semana, **C**, partidas das peças da Fase 2 de onde vieram). Os
 > números dos cenários A, B e C abaixo foram corrigidos onde estão. No mesmo
-> dia, o alojamento da construção passou a ser contado na VPS da OVH; o custo
-> fixo por mês depois de abrir continua contado para a Scaleway gerida.
+> dia, o alojamento da construção e o custo fixo por mês depois de abrir
+> passaram a ser contados na VPS da OVH.
 
 - Esforço da Fase 1: **101–171 pessoas-semana**, **≈ 116–222** com imprevistos
   (+15 % / +30 %) — corrigido a 04/10/2026 com a decisão AD; eram 92–155 e
@@ -66,7 +66,10 @@
   ≈ 210.000–569.000 €).*
 - Custo fixo/mês depois de abrir: B ≈ 10.150–14.870 €, C ≈ 15.110–21.950 € (corrigido a 03/10/2026: o alojamento passou a ≈ 234–710 €, ver `alojamento-e-custos-03out2026.md`).
   A 100 €/mês de margem média por comerciante (hipótese): B ≈ 100–150
-  comerciantes, C ≈ 150–220.
+  comerciantes, C ≈ 150–220. *Corrigido a 04/10/2026 com a VPS da OVH
+  (alojamento ≈ 18–70 €/mês, `docs/10` §8): B ≈ 9.940–14.230 €, C
+  ≈ 14.910–21.310 €; ≈ 100–140 e ≈ 150–210 comerciantes; no cenário A sai
+  ≈ 18–70 € + US$ 440–800 por mês.*
 - Referência medida no Hub interno (contado a 03/10/2026 no clone do `main`):
   1.ª migração 18/11/2025; 1.643 migrações; 229 pastas de funções (sem `_`);
   635.339 linhas TS/TSX em `src` e `supabase/functions`, das quais 67.268 no
