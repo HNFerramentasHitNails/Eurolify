@@ -39,3 +39,10 @@ Ensaio local a 04/10/2026, PostgreSQL 18.6 em Docker com o nome `eurolify-postgr
 - **P2-3:** aviso se o `eurolify_api` tiver `LOGIN`. Medido: 1 aviso.
 - **P2-4:** o ficheiro temporário com a palavra-passe apaga-se se o script morrer a meio (trap de saída com uma variável global: com uma local, o `set -u` parava o trap e o ficheiro ficava — medido antes de corrigir). Medido com o `mv` a falhar: 0 temporários; a corrida seguinte repara.
 - O `eurolify-publicar` diz «passos 10 e 10b» quando falta o `migrar.env`.
+
+## O P1 e os 2 P2 da revisão do `f1ede40` (#71), a pedido do Diogo (*«sim, corrige o P1 e os 2 P2 e manda rever»*)
+
+- **P1-1:** a máscara com `sed` não chegava: o psql corta o pedaço da instrução que repete, e o corte deixava 14 ou 52 dos 64 caracteres à vista (medido pelo revisor). Passou a `-v VERBOSITY=terse`: o erro sai sem a instrução. Medido: os dois casos (erro antes e depois da palavra-passe) dão só `ERROR: … at character N`, `rc=3`, 0 pedaços da palavra-passe.
+- **P2-1:** a verificação da ligação distingue «recusada» (sem ligação no ficheiro, ou `password authentication failed`: renova) de «erro» do docker ou da rede (avisa e **não** renova), e não descarrega imagens (`--pull never`). Medido: imagem em falta e rede em falta dão 1 aviso e 0 alterações.
+- **P2-2:** em `--mostrar` só se lê o ficheiro; não arranca contentores. Medido com `docker events`: 0 contentores criados.
+- De novo: 1.ª corrida 3 alterações, 2.ª 0; palavra-passe mudada à mão → renovada, depois 0; trap: 0 temporários; `shellcheck` e `--mostrar` como o CI passam.

@@ -333,23 +333,37 @@ passo "10b. Utilizadores da base: o migrador (dono) e a API (sem acesso ainda) (
 pg_valor() {
   docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -qAtc "$1"
 }
-# O psql repete no stderr a instrução que falhou, com a posição do erro: a
-# palavra-passe sai mascarada, porque esse stderr vai para o registo do fluxo
-# aplicar-script no GitHub (revisão do #71, P2-1).
+# Por omissão, o psql repete no stderr um pedaço da instrução que falhou, e
+# esse stderr vai para o registo do fluxo aplicar-script no GitHub. Mascarar
+# não chega (o psql corta o pedaço e o corte deixa parte da palavra-passe à
+# vista: revisão do f1ede40, P1-1): com VERBOSITY=terse a mensagem sai sem a
+# instrução, só com o erro e a posição.
 pg_stdin() {
-  docker exec -i eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -qAt \
-    2> >(sed -E "s/PASSWORD '[^']*'/PASSWORD '***'/g" >&2)
+  docker exec -i eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -v VERBOSITY=terse -qAt
 }
 # A ligação do migrar.env entra mesmo? Testa-se como a publicação a usa: de
 # outro contentor, pela rede eurolify, com palavra-passe (dentro do contentor
 # da base, 127.0.0.1 entra sem ela). A palavra-passe vai pelo ambiente do
 # cliente docker, nunca pela linha de comandos (revisão do #71, P2-2).
-ligacao_do_migrador_entra() {
-  local senha
+# Escreve «entra», «recusada» (sem ligação no ficheiro, ou palavra-passe que
+# a base recusa: renova-se) ou «erro: …» (o docker ou a rede falharam: avisa-se
+# e não se renova; revisão do f1ede40, P2-1). A mensagem do erro não leva a
+# palavra-passe: o psql e o docker não a escrevem.
+estado_da_ligacao_do_migrador() {
+  local senha saida
   senha="$(sed -n 's#^BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:\([^@]*\)@.*#\1#p' /etc/eurolify/migrar.env 2>/dev/null || true)"
-  [[ -n "$senha" ]] || return 1
-  PGPASSWORD="$senha" docker run --rm --network eurolify -e PGPASSWORD "$IMAGEM_POSTGRES" \
-    psql -h eurolify-postgres -U eurolify_migrador -d "$BASE_NOME" -qAtc 'SELECT 1' >/dev/null 2>&1
+  if [[ -z "$senha" ]]; then
+    echo recusada
+    return 0
+  fi
+  if saida="$(PGPASSWORD="$senha" docker run --rm --pull never --network eurolify -e PGPASSWORD "$IMAGEM_POSTGRES" \
+    psql -h eurolify-postgres -U eurolify_migrador -d "$BASE_NOME" -qAtc 'SELECT 1' 2>&1 >/dev/null)"; then
+    echo entra
+  elif grep -q 'password authentication failed' <<<"$saida"; then
+    echo recusada
+  else
+    echo "erro: $(head -n 1 <<<"$saida")"
+  fi
 }
 pg_pronta() {
   local _
@@ -406,12 +420,25 @@ else
   else
     ok "papel eurolify_api"
   fi
-  if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")" == 1 ]] &&
-    ligacao_do_migrador_entra; then
-    ok "eurolify_migrador e a ligação dele em /etc/eurolify/migrar.env (entra)"
+  # Em --mostrar só se lê o ficheiro: experimentar a ligação arranca um
+  # contentor (revisão do f1ede40, P2-2).
+  if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")" != 1 ]]; then
+    ligacao="recusada"
+  elif ((MOSTRAR)); then
+    if grep -q '^BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:' /etc/eurolify/migrar.env 2>/dev/null; then
+      ligacao="no ficheiro"
+    else
+      ligacao="recusada"
+    fi
   else
-    fazer "criar o eurolify_migrador (ou renovar a palavra-passe) e escrever /etc/eurolify/migrar.env" criar_migrador
+    ligacao="$(estado_da_ligacao_do_migrador)"
   fi
+  case "$ligacao" in
+    entra) ok "eurolify_migrador e a ligação dele em /etc/eurolify/migrar.env (entra)" ;;
+    "no ficheiro") ok "eurolify_migrador e a ligação dele em /etc/eurolify/migrar.env (em --mostrar não se experimenta)" ;;
+    recusada) fazer "criar o eurolify_migrador (ou renovar a palavra-passe) e escrever /etc/eurolify/migrar.env" criar_migrador ;;
+    *) aviso "não consegui experimentar a ligação do migrador; não a renovo ($ligacao)" ;;
+  esac
   # Só o dono da base retira o TEMPORARY ao PUBLIC; a migração 0001 pára se
   # não conseguir (docs/15 §5). O esquema public é do dono da base (pg_database_owner).
   if ((MOSTRAR)) && [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")" == 0 ]]; then
