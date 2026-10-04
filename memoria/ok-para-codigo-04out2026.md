@@ -546,3 +546,25 @@ Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
 - As 53 actualizações por instalar (não de segurança): instalá-las
   (`apt upgrade`) é uma decisão à parte, do Diogo; as de segurança instala-as
   o `unattended-upgrades`.
+
+## MCP na VPS, com acções (decisão AO, ADR-0033) — 04/10/2026
+
+- Pedido do Diogo: um MCP para o Claude desktop aceder à VPS sem voltar ao
+  terminal. Opções: a) separador Code; b) MCP local só de leitura pelo GitHub
+  (recomendada); c) MCP na VPS por HTTPS. Resposta: *«c»*; depois *«quero
+  açoes»*, as quatro propostas (cópia/reposição, reiniciar a API, voltar a uma
+  publicação, actualizar/reiniciar a VPS).
+- Lido a 04/10/2026 (`claude.com/docs/connectors/building/…`): pedidos dos
+  *connectors* saem de `160.79.104.0/21` (só IPv4), também na aplicação de
+  computador; OAuth 2.0 com DCR ou CIMD e PKCE S256; *callback*
+  `https://claude.ai/api/mcp/auth_callback`.
+- DNS: `eurolify.eu` e `www` apontam para a VPS; servidores de nomes da OVH.
+- Desenho: `mcp.eurolify.eu`, 443 só para a Anthropic, certificado por DNS da
+  OVH, OAuth com o GitHub (só as duas contas), contentor sem `docker`/`sudo`,
+  cada leitura e acção é um pedido ao serviço da máquina; actualizar e
+  reiniciar recusados em dias úteis 08:00–20:00 (Lisboa).
+
+### Por criar pelo Diogo
+- Registo A `mcp.eurolify.eu` → VPS (zona da OVH).
+- Chave da API da OVH só para a zona `eurolify.eu` (certificado).
+- Aplicação OAuth no GitHub (callback `https://mcp.eurolify.eu/oauth/github/callback`).

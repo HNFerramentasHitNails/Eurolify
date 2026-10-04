@@ -138,6 +138,10 @@ pelo Bruno** (ADR-0015) e **o Claude opera-a com acesso total** (ADR-0016:
    faz-se pelo fluxo fixo só de leitura. As chaves da VPS são segredos do
    ambiente `ensaio` (só o `main`), nunca do repositório. **As chaves pessoais
    por SSH (ADR-0020) são só para emergência**, e cada uso fica numa memória.
+   **O MCP da VPS** (ADR-0033, `https://mcp.eurolify.eu`) dá leituras e quatro
+   acções fixas com confirmação (cópia/reposição, reiniciar a API, voltar a uma
+   publicação, actualizar/reiniciar a VPS fora do horário de trabalho); nunca
+   muda configuração, chaves, firewall nem a base.
 
 ## Quem decide
 
