@@ -35,7 +35,10 @@ esac
   exit 1
 }
 
-export EUROLIFY_ORIGEM="${EUROLIFY_ORIGEM:-manual por ${SUDO_USER:-root}}, commit ${EUROLIFY_COMMIT:-desconhecido}"
+EUROLIFY_ORIGEM="${EUROLIFY_ORIGEM:-manual por ${SUDO_USER:-root}}"
+# O fluxo aplicar-script já põe o commit na origem: não o repetir.
+[[ "$EUROLIFY_ORIGEM" == *"commit "* ]] || EUROLIFY_ORIGEM+=", commit ${EUROLIFY_COMMIT:-desconhecido}"
+export EUROLIFY_ORIGEM
 FLUXOS=(publicar aplicar medir)
 mudancas=0
 avisos=0
