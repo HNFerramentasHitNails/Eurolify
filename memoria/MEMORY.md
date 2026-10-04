@@ -15,7 +15,7 @@
 
 ## Para decidir
 
-- [Apresentação para Bruno e Cila, 66 páginas (v18: mercado, financiamento, VPS-1 e decisão AD; v16: a VPS da OVH; v11: Eurolify, os 9 logótipos, a D-13); o estudo 5 (estrelas da UE) arrisca recusa no EUIPO; páginas não vistas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
+- [Apresentação para Bruno e Cila, 66 páginas (v19: OK para código, custo mensal na VPS; v18: mercado, financiamento, VPS-1, decisão AD; v11: Eurolify, logótipos, D-13); o estudo 5 (estrelas da UE) arrisca recusa no EUIPO; páginas não vistas — 03/10/2026](apresentacao-bruno-cila-03out2026.md)
 - [⚠️ O alojamento gerido foi substituído pela VPS (ADR-0015). Alojamento: dedicado, Vercel + Supabase ou europeu gerido; preços oficiais lidos e contas por escala; decidido o europeu gerido (G), na Scaleway (H); e as decisões E (de raiz) e F (toda a UE) — 03/10/2026](alojamento-e-custos-03out2026.md)
 - [⚠️ Sem efeito com a VPS (ADR-0015). Scaleway: conta preparada (R, ADR-0011), ensaio + chave só de leitura, `scw` 2.63.0 pelo binário; o MCP só de leitura deixa ler segredos, `--read-only` falha; listas sem permissão dão vazio; portador da chave por ver — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
 - [⚠️ O ensaio passou para a VPS (ADR-0015). Publicação na Scaleway: um só ensaio, actualizado a cada entrada no `main` (U, ADR-0014); o endereço fica público (o modo privado não abre no browser); base do ensaio em PostgreSQL gerido, não a SQL sem servidor; ≈ 12–28 €/mês — 03/10/2026](scaleway-publicacao-ensaio-03out2026.md)
@@ -36,5 +36,5 @@
 - [O repo scaleway/scaleway-skills: 1 skill só (instalar o `scw`), que pede à API do GitHub (403 daqui), não confere a soma e usa sempre a última versão; não se instala — 03/10/2026](scaleway-skills-avaliado-03out2026.md)
 - [As skills de regras da UE do Perplexity (2 versões): não se instalam — erros conferidos no EUR-Lex; serviram para 5 datas e o DSA na Fase 1 no `docs/03` e para 4 skills nossas (consumidor, RGPD, produto, segurança), com os artigos lidos — 03/10/2026](skills-ue-perplexity-avaliadas-03out2026.md)
 - [O repo mart337i/odoo-skills: skills para programar Odoo, não uma lista de módulos; não se instala; 7 ideias de back-office e as 8 portas levadas a 3 skills (linha do tempo, tarefas, vistas, automáticas, módulos, permissões por campo, impressos) — 03/10/2026](odoo-skills-avaliado-03out2026.md)
-- [OK para código (AE, ADR-0023, substitui o ADR-0001): produto, script da VPS e integração contínua, só por PR com as duas revisões; o código de um domínio só depois do desenho dele; varrimento de 71 sítios — 04/10/2026](ok-para-codigo-04out2026.md)
+- [OK para código (AE, ADR-0023): só por PR com as duas revisões, domínio só depois do desenho; revisões impostas com o GitHub Pro na conta pessoal (AF, ADR-0024), Codex automático, Bruno precisa de conta — 04/10/2026](ok-para-codigo-04out2026.md)
 - [O PDF «Apresentação de Projeto» do Perplexity: não se envia como está (erros, microserviços, taxa sobre vendas, 1,8 M€ sem contas); na apresentação: o mercado (757 mil M€ é previsão de 2026) e o financiamento (o EIC exige TRL 6–8) — 04/10/2026](pdf-perplexity-apresentacao-avaliado-04out2026.md)

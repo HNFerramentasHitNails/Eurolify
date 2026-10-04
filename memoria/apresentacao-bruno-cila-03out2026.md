@@ -288,11 +288,35 @@ CILA COM ESTE PDF GERADO PELO PERPLEXITY»* e, depois da avaliação, *«sim»*
 - ⚠️ **Já atrasada ao publicar.** Enquanto a fazia entraram no `main` o custo
   depois de abrir na VPS (≈ 18–70 €/mês de alojamento; B ≈ 9.940–14.230 € e
   C ≈ 14.910–21.310 € por mês; `docs/10` §8) e o OK para código (ADR-0023,
-  decisão AE). Por acertar: 39 (a Fase 0 já passou), 50 e 52 (o «por mês,
+  decisão AE). ~~Por acertar: 39 (a Fase 0 já passou), 50 e 52 (o «por mês,
   depois de abrir» ainda diz «por refazer» e os valores da Scaleway), 53
-  («nada disto é o OK para código») e 65 (o passo 8). É a terceira volta de
+  («nada disto é o OK para código») e 65 (o passo 8).~~ → acertadas na
+  versão 19 (abaixo). É a terceira volta de
   páginas atrasadas no mesmo dia (VPS, decisão AD, agora AE): a apresentação
   copia o `docs/` e nada a acerta quando ele muda.
+
+## Versão 19 (04/10/2026): o OK para código e o custo mensal na VPS
+
+Pedido do Diogo: *«faz a v19 agora com as cinco páginas»*.
+
+- **As cinco:** 39 (a Fase 0 passa a «cumprida», com o OK para código de
+  04/10/2026, ADR-0023), 50 (por mês depois de abrir: A ≈ 18–70 € de VPS +
+  US$ 440–800; B ≈ 9.940–14.230 €; C ≈ 14.910–21.310 €), 52 (alojamento por
+  mês ≈ 18–70 €), 53 (o OK veio a 04/10/2026, só por pedido de alteração) e 65
+  (o passo 8 passou a «domínio e API em tabela antes do código; medir o ritmo
+  às 8 semanas»). Fonte: `docs/10` §8 e ADR-0023.
+- **Mais duas, que a minha lista de cinco não tinha** (apanhadas ao procurar
+  «OK para código» e «ADR-0001» em todas as páginas): 51 («OK para código» saiu
+  do que falta na Fase 0) e as notas da 44 (diziam «o ADR-0001 continua em
+  vigor»). As outras menções ao ADR-0001 são históricas e ficaram.
+- Os números antigos ficaram nas notas de cada página. Nenhuma página mudou de
+  número; não se mexeu no índice nem na capa (continua «Versão 0.6»).
+- Publicada por cima da 18 (`1791074129-10d0`); a 19 é a `1791074590-acf5`.
+- Não desenhada nem medida. A 65 e a 53 ficaram com textos de comprimento
+  parecido com o que havia, pela minha conta.
+- Ao publicar já tinha entrado no `main` a decisão AF (ADR-0024: as revisões
+  impostas com o GitHub Pro, ≈ 4 $/mês). Não contradiz nenhuma página; o custo
+  do Pro não está na 52.
 
 ## O que ficou por verificar
 

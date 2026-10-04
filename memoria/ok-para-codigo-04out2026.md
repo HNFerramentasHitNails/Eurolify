@@ -40,5 +40,30 @@ VPS, integração contínua»*.
 
 - Se o Bruno concorda com o OK (vale com o do Diogo, mas é o Bruno quem revê).
 - Se o Diogo queria mesmo a trava do domínio.
-- A A2 (onde vive o código e como se impõem as duas revisões) é a próxima
-  decisão; até ela, nenhum código se escreve.
+- ~~A A2 é a próxima decisão~~ → decidida (secção seguinte).
+
+## A2: GitHub Pro na conta pessoal (decisão AF, ADR-0024) — 04/10/2026
+
+Pergunta com três opções (a: organização `eurolify` no Team, recomendada;
+b: conta pessoal com Pro; c: sem protecção). Resposta do Diogo: *«b»*.
+
+### Números (com data e como se contaram)
+
+| O quê | Valor | Fonte e como |
+|---|---|---|
+| Dono do repositório | conta pessoal `HNFerramentasHitNails` (`User`), privado | `gh api repos/HNFerramentasHitNails/Eurolify`, 04/10/2026 |
+| Colaboradores | 1: a própria conta, `admin` | `gh api …/collaborators` |
+| Protecção do `main` e *rulesets* | 403, *«Upgrade to GitHub Pro or make this repository public»* | `gh api …/branches/main/protection` e `…/rulesets` |
+| Fluxos de Actions | 0; Actions ligadas, todas as acções permitidas | `gh api …/actions/permissions` e `…/workflows` |
+| Planos (organizações) | Free 0 $, Team 4 $/utilizador/mês, Enterprise 21 $; protecção em privados só no Team+ | `github.com/pricing`, 04/10/2026 |
+| GitHub Pro | protecção, revisores obrigatórios e donos do código em privados; 4 $/mês segundo a FAQ (texto antigo) | `docs.github.com` (*GitHub's plans*; FAQ das mudanças aos planos), 04/10/2026 |
+| Codex no GitHub | publica como `chatgpt-codex-connector`; não aprova; segue `## Code Review Rules` do `AGENTS.md` | `learn.chatgpt.com/docs/third-party/github` (sem data), 04/10/2026 |
+| Nomes `eurolify`, `eurolify-dev`, `luckytarget` no GitHub | livres (404) | `gh api users/<nome>`, 04/10/2026 |
+| `gh` no computador do Diogo | 2.95.0, sessão na `HNFerramentasHitNails`, âmbitos `gist`, `read:org`, `repo`, `workflow` | `gh --version`, `gh auth status` |
+
+### O que ficou por verificar
+
+- Se o Bruno tem conta própria no GitHub (perguntado; sem resposta).
+- O preço actual do Pro; se aceita «0 aprovações + donos obrigatórios».
+- O Diogo disse ter comprado o domínio `eurolify.eu` a 04/10/2026 (registador
+  não dito); o DNS público respondia «não existe» nessa altura. Entra na A5.
