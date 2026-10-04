@@ -59,9 +59,9 @@ export async function esperarQueSaiam(
 
 /**
  * Apaga a base de teste depois de esperar pelas ligações; apaga-a mesmo que a
- * espera falhe, e só depois devolve esse erro. Se o DROP também falhar, o
- * erro dele leva o da espera em `cause`, para nenhum se perder (revisão do
- * ab609b5, P2-2).
+ * espera falhe, e só depois devolve esse erro. Se o DROP também falhar,
+ * chega um AggregateError com os dois erros em `errors`, para nenhum se
+ * perder (revisão do ab609b5, P2-2).
  */
 export async function apagarBase(
   admin: pg.Client,
