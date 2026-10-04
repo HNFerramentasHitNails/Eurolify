@@ -1,5 +1,10 @@
 # Apresentação impressa do Lumavo para Bruno e Cila (03/10/2026)
 
+> 📌 **Estado a 04/10/2026** (bloco acrescentado a 04/10/2026; o texto abaixo é o registo original, por ordem, e não foi mudado). Se divergir do repositório, vale o repositório.
+> - **A versão em uso é a 0.8:** 25 páginas, num deck novo (https://claude.ai/artifact/8rJhue4m1Dwdu6zR3kkAJo, privado), e o seu PDF, entregue ao Diogo na conversa e fora do repositório — secções «Versão 0.8» e «PDF da versão 0.8», no fim.
+> - As versões até à 25 (66 páginas, deck antigo, que não abre da conta da sessão de 04/10/2026) ficam abaixo como histórico.
+> - O que não foi visto ou medido: «O que ficou por verificar», no fim.
+
 **Pedido do Diogo (03/10/2026):** *«cria agora uma apresentação até 50 páginas
 do Lumavo para imprimir e entregar ao Bruno e Cila»*, com três folhas de
 estudos de logótipo (18 estudos) entregues na mesma mensagem.

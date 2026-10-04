@@ -2,6 +2,8 @@
 
 > ✅ **Decidido pelo Diogo a 03/10/2026: Eurolify** — *«fica o eurolify»*
 > ([ADR-0009](../docs/adr/0009-nome-eurolify.md)). Secção «Eurolify» abaixo.
+>
+> 📌 **Estado a 04/10/2026** (acrescentado; o resto não foi mudado): `eurolify.eu` comprado pelo Diogo a 04/10/2026, registador não dito; o `.com` e a pesquisa no TMview continuam por fazer (`docs/06`, decisão P).
 
 Pedido do Diogo (03/10/2026): *«preciso de um nome legal para registar a marca
 dentro da UE e comprar o dominio e subsituir o lumavo»*. É a decisão D-12
