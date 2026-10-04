@@ -45,7 +45,8 @@ máquina de Paris decide-se na altura, com a carga medida no ensaio.
 - **Pesa na decisão 6 do `docs/11` §7** (Coolify ou o GitHub por SSH): a
   Coolify pede no mínimo 2 GB, mais de metade da memória desta máquina.
 - As contas de custo do `docs/09` e do `docs/10` continuam por recalcular para
-  a VPS (já estavam).
+  a VPS (já estavam). *(04/10/2026: recalculadas — `docs/10` §5 e §8,
+  `docs/09` §5.)*
 - **O que pode partir:** sem swap, quando a memória acabar o sistema mata
   processos — pode ser o PostgreSQL a meio de uma escrita. Se faltar memória,
   sobe-se de plano (se a OVH deixar) por decisão do Diogo ou do Bruno; não se

@@ -22,15 +22,15 @@
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
 | **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 32 meses** os dois a tempo inteiro, **31 a 58** a meio tempo (§9, com hipótese C; recalculado a 04/10/2026 com as três peças da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
-| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | ≈ 10.150–14.870 € |
-| **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) | ≈ 15.110–21.950 € |
+| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | ≈ 9.940–14.230 € (era ≈ 10.150–14.870, com a Scaleway) |
+| **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) | ≈ 14.910–21.310 € (era ≈ 15.110–21.950, com a Scaleway) |
 
 **Desde 04/10/2026, os três cenários (aqui, no §4 e no §9) contam as três
 peças que a decisão AD (ADR-0022) passou da Fase 2 para a Fase 1** (peças 18 a
 20 do §2); os valores antigos ficam entre parênteses. Os serviços externos (§5)
-baixaram no mesmo dia, com o alojamento da construção contado na VPS da OVH.
-O custo fixo por mês depois de abrir **ainda está contado para a Scaleway
-gerida** (≈ 234–710 €/mês de alojamento) e não foi recalculado para a VPS.
+baixaram no mesmo dia, com o alojamento da construção contado na VPS da OVH,
+e o custo fixo por mês depois de abrir também passou a ser contado na VPS
+(§8; com a Scaleway gerida, o alojamento era ≈ 234–710 €/mês).
 
 **Não estão nos números** (e não os invento): contabilista, jurista e seguro
 (orçamentos a pedir), recrutamento, o tempo do Diogo e do Bruno, quem atende os
@@ -204,21 +204,42 @@ Uma estimativa sem medida é um palpite. Por isso:
 
 ## 8. Depois de abrir — ligação à D-14
 
-O custo fixo por mês depois de abrir (pessoas + alojamento ≈ 234–710 € na Scaleway gerida, não
-recalculado para a VPS do ADR-0015 +
-Claude) é ≈ **10.150–14.870 €** no cenário B e ≈ **15.110–21.950 €** no C, sem
-contabilista, jurista, seguro nem quem atende os comerciantes.
+O custo fixo por mês depois de abrir (pessoas + alojamento + Claude dos
+programadores) é ≈ **9.940–14.230 €** no cenário B e ≈ **14.910–21.310 €** no C,
+sem contabilista, jurista, seguro nem quem atende os comerciantes. Recalculado
+a 04/10/2026 com o alojamento na VPS da OVH; com a Scaleway gerida eram
+≈ 10.150–14.870 € e ≈ 15.110–21.950 € (refeita a conta antiga, os mínimos dão
+≈ 10.160 € e ≈ 15.120 €; estavam escritos 10 € abaixo).
+
+**Alojamento depois de abrir, na VPS da OVH: ≈ 18–70 €/mês** (preços sem IVA,
+«a partir de», `11-preparacao-da-vps.md` §2). As duas escalas são as da conta
+antiga da Scaleway (`memoria/alojamento-e-custos-03out2026.md`), passadas para
+planos da OVH (**C**, carga não medida):
+
+| Escala | Na Scaleway gerida (antes) | Na VPS da OVH |
+|---|---|---|
+| Início (na Scaleway: base 2 vCPU/8 GB com segunda máquina, 2 contentores) | ≈ 234 €/mês | base, API e Hub numa VPS-3 + ensaio numa VPS-2 = **≈ 17,61 €/mês**; com uma segunda VPS-3 para a base, **≈ 28,01 €/mês** (a segunda máquina está por decidir, `11-preparacao-da-vps.md` §7) |
+| Médio (na Scaleway: base 8 vCPU/32 GB com segunda máquina, 6 contentores) | ≈ 710 €/mês | base numa VPS-4 + segunda VPS-4 + contentores numa VPS-4 + ensaio numa VPS-3 = **≈ 70,28 €/mês** |
+
+**Não está contado:** as cópias fora da máquina (preço **não verificado**), o
+tráfego das montras (o que cresce de verdade, segundo a memória do alojamento;
+**não verifiquei** o preço na OVH), o IVA e as condições do «a partir de». A
+VPS-4 tem 24 GB, menos do que os 32 GB da escala média da Scaleway; os planos
+acima dela não têm preço lido. E há o trabalho de operar as máquinas, que na
+Scaleway gerida era do fornecedor e passa a ser nosso (ADR-0015).
 
 **No cenário A (decidido):** sem salários de programadores, o que sai em
-dinheiro por mês é o alojamento e as subscrições — ≈ 234–710 € + US$ 440–800
+dinheiro por mês é o alojamento e as subscrições — ≈ 18–70 € (era ≈ 234–710 €,
+com a Scaleway) + US$ 440–800
 (2 × Claude Max US$ 200 + 2 × Codex entre o Plus de US$ 20 e o Pro de US$ 200,
 **W**, páginas oficiais). **O tempo do Diogo e do Bruno não está contado, e é
 o custo real**: sem lhe pôr um valor, o ponto de equilíbrio do cenário A não
 se calcula.
 
 **Exemplo de conta (hipótese, não é preço):** se cada comerciante deixar, em
-média, 100 € por mês depois dos custos dele, são precisos ≈ **100–150
-comerciantes** no cenário B (≈ 150–220 no C) só para pagar isto. Os preços
+média, 100 € por mês depois dos custos dele, são precisos ≈ **100–140
+comerciantes** no cenário B (≈ 150–210 no C) só para pagar isto (com a Scaleway
+gerida eram ≈ 100–150 e ≈ 150–220). Os preços
 decidem-se na D-14, depois das conversas com 3 a 5 comerciantes
 (`09-modelo-de-receita.md`).
 
