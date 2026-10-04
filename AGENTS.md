@@ -175,6 +175,25 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
 - Textos de produto e de interface no **masculino universal** («os clientes»).
 - Se a mesma coisa for repetida duas vezes, o erro é de leitura: parar e reler.
 
+## Sessões e comunicação de gestão
+
+Decisão do Diogo, 04/10/2026 (fragmento do pacote de eficiência, adaptado).
+Não reduz nenhuma regra acima: verificações, fontes, revisão, autorizações e
+competências de cada um ficam como estão.
+
+1. **No arranque**, depois das leituras obrigatórias («Antes da primeira
+   resposta»), seguir a skill `eurolify-session-continuity`: verificar o estado
+   partilhado e o trabalho recente, recuperar o contexto do tema e escolher o
+   próximo resultado entre os *issues* de que se é dono e as decisões escritas
+   (ADR, `docs/06`) — o que está atribuído ao outro não se toca (ADR-0031).
+2. **Com o Bruno e o Diogo**, seguir a skill `eurolify-manager-communication`:
+   linguagem comum, com o que está feito, em curso, o que falta e a decisão
+   necessária, quando exista. Não exigir conhecimentos de programação nem
+   passar para eles escolhas técnicas de rotina já autorizadas.
+3. **O registo de continuidade** é o de «Trabalhar os dois sem se
+   atrapalharem», ponto 4 (a descrição do pedido e o *issue*, ADR-0031). Não
+   confundir preparado com feito, nem feito com em uso.
+
 ## Git — o `main` é partilhado
 
 - **O `main` é o que conta**: é o que a sessão seguinte lê. Uma sessão com
@@ -192,8 +211,13 @@ As propostas de negócio e de marca continuam a ser apresentadas a Bruno e Cila
   revisão do agente que não o escreveu tem de estar publicada no pedido, com
   os P0/P1 tratados — **enquanto o Codex não volta** (ADR-0030, revê-se a
   29/11/2026), uma **sessão nova do Claude Code, sem a conversa de quem
-  escreveu e, se possível, com outro modelo**. Um pedido com código e
-  documentos conta como código.
+  escreveu e, se possível, com outro modelo** — **ou um agente lançado da
+  própria sessão** (ferramenta `Agent`, ADR-0035), nas mesmas condições: o
+  pedido ao agente leva só o pedido, os commits, os ficheiros, o desenho e o
+  que rever, nunca as conclusões de quem escreveu; o agente só lê e mede,
+  sem push; a revisão publica-se tal como ele a devolveu, dizendo o modelo.
+  Corrigir e rever ficam na mesma sessão; sessões revisoras novas só a pedido
+  do Diogo ou do Bruno. Um pedido com código e documentos conta como código.
 - **A descrição do pedido é o histórico** que o outro lê de manhã: o que fez,
   porquê (ADR ou issue), como se testou, o que ficou por fazer e o que pode
   partir. Um pedido sem isto não se junta.
@@ -263,12 +287,23 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 | `third-party-extensions` | contratos de adaptadores (pagamento, envio, faturação), pontos de extensão, permissões de aplicações, loja de extensões, parceiros que escrevem o seu adaptador |
 | `digital-products-eu` | conteúdo digital, serviço digital e serviço humano à distância: classificação, livre resolução, IVA electrónico, entrega e acessos (tudo **C**) |
 | `gift-cards-eu` | cartões-oferta: SPV/MPV, IVA na venda e no resgate, saldo por movimentos, reembolso, porta PSD2 (tudo **C**) |
+| `eurolify-session-continuity` | arranque, interrupção e fecho de sessão: estado verificado, o que o outro fez, próximo passo (depois das leituras obrigatórias acima) |
+| `eurolify-manager-communication` | explicar progresso, riscos e decisões ao Bruno e ao Diogo sem jargão: feito, em curso, falta, decisão |
+| `eurolify-efficient-workflow` | escolher o modelo e o esforço por risco (Haiku pesquisa, Sonnet execução, Opus 5.5 análise e revisão; nunca o Fable) e quando delegar |
+| `eurolify-repository-memory` | auditar e organizar `memoria/` e `docs/` (só leitura primeiro; o script `audit_memory.py`), leitura progressiva, uma fonte por decisão |
+| `eurolify-fault-first-debugging` | um teste ou erro que se repete: reproduzir e achar a causa antes de tentar outra vez |
+| `eurolify-evidence-before-done` | antes de dizer «feito»: testes proporcionais, o verificado e o não verificado, a revisão exigida |
 
 ## Agentes
 
 Não pôr vários agentes em paralelo sem perguntar — nos sistemas actuais já se
 esvaziou a janela de créditos de 5 horas num só pedido. Um agente dirigido a
 uma pergunta concreta, sim; e destilar o que devolver.
+
+**Agentes em vez de sessões** (ADR-0035, Diogo, 04/10/2026): o trabalho fica
+na sessão onde começou, e as revisões e as tarefas de apoio fazem-se com
+agentes lançados dela. Não se abrem sessões novas (`create_session`) sem o
+Diogo ou o Bruno o pedirem.
 
 ## Relação com os sistemas actuais da empresa
 
