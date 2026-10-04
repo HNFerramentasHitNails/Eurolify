@@ -435,3 +435,63 @@ Com o OK do Diogo a cada passo.
   trabalho e com aviso (`AGENTS.md`, regra 4).
 - D8: apagar as chaves de máquina do computador do Diogo (depois de ele
   guardar o `age.key` num sítio seguro).
+
+## Fase D: segredos da OVH e do GitHub, e a primeira publicação (04/10/2026, ≈ 12:00–12:20 UTC)
+
+### O que se fez (com o OK do Diogo)
+
+- O Diogo deu os caminhos de dois ficheiros com segredos (as chaves S3 da OVH,
+  em JSON nas Transferências; o token do GitHub no Ambiente de trabalho). O
+  Claude **não os leu**: viu só a forma (nomes dos campos, tamanhos),
+  construiu o `rclone.conf` e o `ghcr.token` na pasta privada sem os valores
+  passarem pelo ecrã, e **apagou os dois originais** (o primeiro `Remove-Item`
+  do token foi recusado pela protecção do ambiente — o caminho com espaço foi
+  lido como `/c`; apagado com `[IO.File]::Delete`).
+- Token, confirmado pela API do GitHub: conta `HNFerramentasHitNails`, âmbito
+  **só `read:packages`**, **fim a 2027-04-03 23:00 UTC** (o Diogo tinha dito
+  2027-01-02; vale a do GitHub, posta em `ghcr.expira`).
+- O contentor `eurolify-ensaio-copias` **não estava em Gravelines**: listando
+  os endereços S3 da OVH a partir da VPS, só apareceu em `eu-west-par` (Paris,
+  três zonas). Com o OK do Diogo, fica em Paris. Catálogo PT:
+  `storage-standard-3AZ.consumption` 0,000019 €/h (≈ 0,014 €/mês, unidade por
+  GB presumida) — o dobro de uma zona, cêntimos para cópias de poucos MB.
+- O `rclone` do Ubuntu 26.04 é a **1.60.1** e não conhece o fornecedor
+  `OVHcloud`; com `provider = Other` funciona.
+- Postos na VPS (600 root): `rclone.conf`, `ghcr.token`, `ghcr.expira`.
+- **Primeira publicação:** repetido só o trabalho falhado da corrida
+  `publicar` do #10 (37169605512).
+
+### Números (com data e como se contaram)
+
+| O quê | Resultado | Como |
+|---|---|---|
+| Contentor visto da VPS | `eurolify-ensaio-copias`, lista sem erro | `rclone lsd ovh:` (código 0) |
+| Publicação | *«A puxar …eurolify-api@sha256:9d1c4e1e55b1… — Sem migrações nesta imagem — Publicado. O /health responde.»* | registo do trabalho `publicar` |
+| `/health` pelo túnel SSH | `200 {"estado":"ok"}`; `/nao-existe` → 404 | `ssh -L 18080:127.0.0.1:8080`, `Invoke-WebRequest` |
+| Porta 8080 vista da Internet | **fechada** | `Test-NetConnection -Port 8080` |
+| IPv4 no registo da corrida | 14, todos `127.0.0.1`/`0.0.0.0` nos trabalhos de teste e construção; **0 no `publicar`**, nenhum da VPS | `grep` e classificação |
+
+### O que ficou por verificar
+
+- A primeira cópia e a reposição (o `rclone` e o `age` já estão).
+- Os alertas (falta o Healthchecks.io).
+- O reinício que as actualizações pedem.
+- D8: apagar as chaves de máquina, o `rclone.conf` e o `ghcr.token` deste
+  computador (o Diogo guarda antes o `age.key`).
+
+## Fase D: a primeira cópia e a reposição (04/10/2026, 12:14 UTC)
+
+Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
+
+| O quê | Resultado | Como |
+|---|---|---|
+| `eurolify-copia` | `success`: `eurolify-20261004T121455Z.dump.age` enviada (4 K na VPS; 1.089 bytes no contentor em Paris) | `journalctl -u eurolify-copia`; `rclone lsl` |
+| A cópia está cifrada | começa por `age-encryption.org/v1`; 0 ocorrências de `PGDMP` (assinatura de um `pg_dump` em claro) | `rclone cat … \| head -c 21`; `grep -c PGDMP` |
+| `eurolify-reposicao` | `success`: descarregou, decifrou com a chave da VPS (ADR-0029), repôs **0 tabelas = 0 na base viva**, apagou a base temporária (só ficam `eurolify`, `postgres`, `template0/1`) | `journalctl -u eurolify-reposicao`; `psql … pg_database` |
+| Alertas | as duas avisaram «sem healthchecks.env; o alerta não segue» — esperado | idem |
+
+### O que ficou por verificar
+
+- A reposição só compara o número de tabelas, e com a base vazia (0 = 0) não
+  prova dados — prova o caminho (descarregar, decifrar, repor, limpar).
+- Os alertas (Healthchecks.io), o reinício pedido pelas actualizações e o D8.
