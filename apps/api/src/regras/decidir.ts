@@ -1,5 +1,5 @@
 import { instante } from "./instante.js";
-import { ehLista, valor } from "./mostrar.js";
+import { ehLista, ehObjecto, valor } from "./mostrar.js";
 import type {
   Decisao,
   EstadoLegal,
@@ -158,7 +158,15 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
   }
 
   for (const dominio of new Set(pedido.dominios)) {
-    const revisao = perfil.dominios[dominio];
+    // Uma revisão que não é objecto (null, texto, Proxy revogado) bloqueia em
+    // vez de rebentar: só acontece num registo que não passou pelo validar
+    // (revisão do #49, 2.ª, P2-2).
+    const lida: unknown = perfil.dominios[dominio];
+    if (!ehObjecto(lida)) {
+      motivos.push({ codigo: "dominio_por_verificar", dominio });
+      continue;
+    }
+    const revisao = lida as RevisaoDominio;
     if (revisao.estado === "nao_aplicavel") continue;
     // Só «verificado» segue para as regras. Qualquer outro estado — o
     // `por_verificar` ou um estado que não existe (gralha num registo que não

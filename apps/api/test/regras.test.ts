@@ -13,6 +13,7 @@ import {
   type PerfilPais,
   type Regra,
   type Registo,
+  type RevisaoDominio,
 } from "../src/regras/tipos.js";
 import {
   assegurarRegistoValido,
@@ -1349,6 +1350,52 @@ describe("validar o registo", () => {
     expect(errosDoRegisto(registo)).toEqual([
       "agencia-proposta@1: o domínio agencia_comercial de PT não está verificado",
     ]);
+  });
+
+  it("uma proposta num domínio verificado é aceite e não decide", () => {
+    const registo = registoComPortugal([
+      regraTeste({
+        id: "pt-consumidor-proposta",
+        estadoLegal: "proposta",
+        aplicaDesde: "2027-01-01T00:00:00Z",
+      }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([]);
+    const decisao = decidir(registo, {
+      pais: "PT",
+      dominios: ["consumidor"],
+      momento: "2027-06-01T00:00:00Z",
+    });
+    expect(decisao.estado).toBe("revisao_necessaria");
+    expect(decisao.regrasAplicadas).toEqual([]);
+  });
+
+  it("uma revisão de domínio que não é objecto bloqueia em vez de rebentar", () => {
+    for (const lida of [null, "verificado", proxyRevogado()]) {
+      const registo: Registo = {
+        ...REGISTO_INICIAL,
+        paises: REGISTO_INICIAL.paises.map((perfil) =>
+          perfil.codigo === "PT"
+            ? {
+                ...perfil,
+                dominios: {
+                  ...perfil.dominios,
+                  consumidor: lida as unknown as RevisaoDominio,
+                },
+              }
+            : perfil,
+        ),
+      };
+      const decisao = decidir(registo, {
+        pais: "PT",
+        dominios: ["consumidor"],
+        momento: AGORA,
+      });
+      expect(decisao.estado).toBe("revisao_necessaria");
+      expect(decisao.motivos).toEqual([
+        { codigo: "dominio_por_verificar", dominio: "consumidor" },
+      ]);
+    }
   });
 
   it("territórios de uma regra num Proxy revogado não contam (não rebenta)", () => {

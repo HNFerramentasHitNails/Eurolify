@@ -170,8 +170,9 @@ permitida).
 impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
 regra repetida, duas versões da mesma regra a valer ao mesmo tempo (uma
 `proposta` não conta), país sem perfil, território não mapeado, regra num
-domínio que não está `verificado` (uma `proposta` só pode estar num domínio
-`por_verificar`; revisão do #49) ou que não existe (também um domínio que não
+domínio que não está `verificado` (uma `proposta` pode estar num domínio
+`verificado` ou `por_verificar`, nunca num `nao_aplicavel`; revisão do #49) ou
+que não existe (também um domínio que não
 é texto, como `["consumidor"]`; revisão do #50), estado de revisão ou
 estado legal desconhecido, prova vazia (`base`, `revistaPor`, `revistoPor`),
 `id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40), a mesma
