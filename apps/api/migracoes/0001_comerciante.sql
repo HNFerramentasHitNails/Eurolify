@@ -46,15 +46,20 @@ CREATE TABLE entidade_legal (
     'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR',
     'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK',
     'SI', 'ES', 'SE')),
-  -- Sem o prefixo do país; o formato de cada país ainda não está validado (C).
+  -- Sem o prefixo do país (o do VIES na Grécia é EL); o formato de cada país
+  -- ainda não está validado (C).
   numero_fiscal text NOT NULL CHECK (numero_fiscal ~ '^[A-Z0-9]{2,20}$'),
   morada_linha text NOT NULL CHECK (length(btrim(morada_linha)) > 0),
   morada_codigo_postal text NOT NULL CHECK (length(btrim(morada_codigo_postal)) > 0),
   morada_localidade text NOT NULL CHECK (length(btrim(morada_localidade)) > 0),
   estado text NOT NULL DEFAULT 'activa' CHECK (estado IN ('activa', 'arquivada')),
   criado_em timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT entidade_legal_sem_prefixo_do_pais CHECK (
+    left(numero_fiscal, 2) <> pais
+    AND NOT (pais = 'GR' AND left(numero_fiscal, 2) = 'EL')),
   -- Único por país dentro do comerciante; nunca entre comerciantes.
-  UNIQUE (comerciante_id, pais, numero_fiscal),
+  CONSTRAINT entidade_legal_nif_unico_por_pais
+    UNIQUE (comerciante_id, pais, numero_fiscal),
   UNIQUE (comerciante_id, id)
 );
 
@@ -81,7 +86,8 @@ CREATE TABLE aceitacao_contrato (
   aceite_em timestamptz NOT NULL DEFAULT now()
 );
 
--- Só se acrescenta: uma prova nova substitui a anterior.
+-- Só se acrescenta: a prova mais recente (pela ordem em que foi registada,
+-- que a API não escolhe) é a que vale.
 CREATE TABLE prova_verificacao (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
   comerciante_id uuid NOT NULL REFERENCES comerciante (id),
@@ -95,25 +101,32 @@ CREATE TABLE prova_verificacao (
   verificado_em timestamptz NOT NULL DEFAULT now(),
   rever_ate timestamptz,
   documento text,
+  registado_em timestamptz NOT NULL DEFAULT clock_timestamp(),
   CHECK (rever_ate IS NULL OR rever_ate > verificado_em),
   FOREIGN KEY (comerciante_id, entidade_legal_id)
     REFERENCES entidade_legal (comerciante_id, id)
 );
 
--- Só se acrescenta: cada mudança de estado, com motivo e quem.
+-- Só se acrescenta, e só pelo gatilho do comerciante: uma linha por mudança
+-- de estado, nem mais nem menos. A API não escreve aqui directamente.
 CREATE TABLE transicao_estado (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
   comerciante_id uuid NOT NULL REFERENCES comerciante (id),
-  de text NOT NULL,
-  para text NOT NULL,
+  de text NOT NULL CHECK (de IN (
+    'rascunho', 'prova_pendente', 'em_revisao', 'aprovado_limitado',
+    'activo', 'suspenso', 'fechado')),
+  para text NOT NULL CHECK (para IN (
+    'rascunho', 'prova_pendente', 'em_revisao', 'aprovado_limitado',
+    'activo', 'suspenso', 'fechado')),
   motivo text NOT NULL CHECK (length(btrim(motivo)) > 0),
   quem text NOT NULL CHECK (length(btrim(quem)) > 0),
   quando timestamptz NOT NULL DEFAULT now(),
-  -- A transacção que a escreveu: prova que a mudança e o rasto foram juntos.
-  transacao xid8 NOT NULL DEFAULT pg_current_xact_id()
+  CHECK (de <> para)
 );
 
--- Um comerciante nasce em rascunho; o id não muda; versão e data sobem.
+-- Um comerciante nasce em rascunho; o id e a data de criação não mudam;
+-- versão e data de alteração sobem. As transições e a activação decidem-se
+-- aqui (docs/15 §4).
 CREATE FUNCTION comerciante_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql AS $$
 BEGIN
@@ -127,6 +140,7 @@ BEGIN
   IF NEW.id <> OLD.id THEN
     RAISE EXCEPTION 'merchant.immutable_id: o id de um comerciante não muda';
   END IF;
+  NEW.criado_em := OLD.criado_em;
   NEW.versao := OLD.versao + 1;
   NEW.actualizado_em := now();
 
@@ -151,22 +165,34 @@ BEGIN
       RAISE EXCEPTION 'merchant.invalid_transition: % → %', OLD.estado, NEW.estado;
     END IF;
 
-    -- Activar exige os dois contratos aceites e o número fiscal provado
-    -- (decisão P3 do Diogo, 04/10/2026). Voltar de suspenso a activo também.
+    -- Activar (também ao voltar de suspenso) exige os dois contratos aceites
+    -- e, em cada entidade legal activa (pelo menos uma), a prova mais recente
+    -- do número fiscal aceite e não caducada (decisão P3 do Diogo,
+    -- 04/10/2026). A versão em vigor dos contratos ainda não existe (G11).
     IF NEW.estado = 'activo' THEN
       IF (SELECT count(DISTINCT tipo) FROM aceitacao_contrato
           WHERE comerciante_id = NEW.id) < 2 THEN
         RAISE EXCEPTION 'merchant.activation_blocked: faltam contratos aceites';
       END IF;
       IF NOT EXISTS (
-        SELECT FROM prova_verificacao p
-        JOIN entidade_legal e
-          ON e.comerciante_id = p.comerciante_id AND e.id = p.entidade_legal_id
-        WHERE p.comerciante_id = NEW.id
-          AND e.estado = 'activa'
-          AND p.finalidade = 'identificacao_fiscal'
-          AND p.resultado = 'aceite'
-          AND (p.rever_ate IS NULL OR p.rever_ate > now())
+        SELECT FROM entidade_legal e
+        WHERE e.comerciante_id = NEW.id AND e.estado = 'activa'
+      ) OR EXISTS (
+        SELECT FROM entidade_legal e
+        WHERE e.comerciante_id = NEW.id AND e.estado = 'activa'
+          AND NOT EXISTS (
+            SELECT FROM (
+              SELECT p.resultado, p.rever_ate
+              FROM prova_verificacao p
+              WHERE p.comerciante_id = e.comerciante_id
+                AND p.entidade_legal_id = e.id
+                AND p.finalidade = 'identificacao_fiscal'
+              ORDER BY p.registado_em DESC, p.id DESC
+              LIMIT 1
+            ) ultima
+            WHERE ultima.resultado = 'aceite'
+              AND (ultima.rever_ate IS NULL OR ultima.rever_ate > now())
+          )
       ) THEN
         RAISE EXCEPTION 'merchant.activation_blocked: falta a prova do número fiscal';
       END IF;
@@ -182,28 +208,50 @@ CREATE TRIGGER comerciante_antes_de_gravar
   BEFORE INSERT OR UPDATE ON comerciante
   FOR EACH ROW EXECUTE FUNCTION comerciante_antes_de_gravar();
 
--- No fim da transacção: uma mudança de estado sem a linha de rasto da mesma
--- transacção é desfeita (nada muda de estado sem motivo e sem quem).
-CREATE FUNCTION comerciante_estado_tem_rasto() RETURNS trigger
-  LANGUAGE plpgsql AS $$
+-- O rasto escreve-o a base, depois de cada mudança de estado, com o motivo e
+-- quem postos pela aplicação (SET LOCAL eurolify.motivo / eurolify.quem).
+-- Sem eles, a mudança falha. Corre com os direitos do dono das tabelas (a API
+-- não tem INSERT em transicao_estado); o RLS forçado aplica-se na mesma.
+CREATE FUNCTION comerciante_escrever_rasto() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog AS $$
+DECLARE
+  motivo text := nullif(btrim(current_setting('eurolify.motivo', true)), '');
+  quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
 BEGIN
-  IF NEW.estado IS DISTINCT FROM OLD.estado AND NOT EXISTS (
-    SELECT FROM transicao_estado t
-    WHERE t.comerciante_id = NEW.id
-      AND t.de = OLD.estado
-      AND t.para = NEW.estado
-      AND t.transacao = pg_current_xact_id()
-  ) THEN
-    RAISE EXCEPTION 'merchant.transition_without_trail: % → % sem linha em transicao_estado', OLD.estado, NEW.estado;
+  IF motivo IS NULL OR quem IS NULL THEN
+    RAISE EXCEPTION 'merchant.transition_without_trail: % → % sem motivo ou sem quem', OLD.estado, NEW.estado;
   END IF;
+  INSERT INTO transicao_estado (comerciante_id, de, para, motivo, quem)
+  VALUES (NEW.id, OLD.estado, NEW.estado, motivo, quem);
   RETURN NULL;
 END
 $$;
 
-CREATE CONSTRAINT TRIGGER comerciante_estado_tem_rasto
+CREATE TRIGGER comerciante_escrever_rasto
   AFTER UPDATE OF estado ON comerciante
-  DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW EXECUTE FUNCTION comerciante_estado_tem_rasto();
+  FOR EACH ROW WHEN (NEW.estado IS DISTINCT FROM OLD.estado)
+  EXECUTE FUNCTION comerciante_escrever_rasto();
+
+-- Uma entidade com outro número fiscal ou de outro país é outra entidade
+-- (nunca decidir identidade pelo nome): arquiva-se e cria-se outra, e as
+-- provas da anterior não passam para ela.
+CREATE FUNCTION entidade_legal_antes_de_alterar() RETURNS trigger
+  LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.pais IS DISTINCT FROM OLD.pais
+     OR NEW.numero_fiscal IS DISTINCT FROM OLD.numero_fiscal
+     OR NEW.comerciante_id IS DISTINCT FROM OLD.comerciante_id
+     OR NEW.id IS DISTINCT FROM OLD.id THEN
+    RAISE EXCEPTION 'legal_entity.immutable_identity: país e número fiscal não mudam; arquivar e criar outra';
+  END IF;
+  NEW.criado_em := OLD.criado_em;
+  RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER entidade_legal_antes_de_alterar
+  BEFORE UPDATE ON entidade_legal
+  FOR EACH ROW EXECUTE FUNCTION entidade_legal_antes_de_alterar();
 
 -- RLS forçado: nem o dono das tabelas o ignora (só um superutilizador).
 ALTER TABLE comerciante ENABLE ROW LEVEL SECURITY;
@@ -230,7 +278,12 @@ END
 $$;
 
 -- O que a API pode fazer. Sem DELETE em nenhuma; nas que só se acrescentam,
--- nem UPDATE.
+-- nem UPDATE; no rasto, só ler; na prova, sem escolher a ordem de registo.
 GRANT USAGE ON SCHEMA public TO eurolify_api;
 GRANT SELECT, INSERT, UPDATE ON comerciante, entidade_legal, loja TO eurolify_api;
-GRANT SELECT, INSERT ON aceitacao_contrato, prova_verificacao, transicao_estado TO eurolify_api;
+GRANT SELECT, INSERT ON aceitacao_contrato TO eurolify_api;
+GRANT SELECT ON prova_verificacao, transicao_estado TO eurolify_api;
+GRANT INSERT (comerciante_id, entidade_legal_id, finalidade, origem,
+  origem_detalhe, resultado, verificado_em, rever_ate, documento)
+  ON prova_verificacao TO eurolify_api;
+REVOKE EXECUTE ON FUNCTION comerciante_escrever_rasto() FROM PUBLIC;

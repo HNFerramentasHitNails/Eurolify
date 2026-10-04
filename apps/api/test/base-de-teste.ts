@@ -74,6 +74,10 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
       await fim.connect();
       try {
         await fim.query(`DROP DATABASE IF EXISTS ${nome} WITH (FORCE)`);
+        // O papel é da instância, não da base: volta a ficar sem acesso e sem
+        // palavra-passe (revisão do #43, P2-5). Só um ficheiro de testes usa a
+        // base de cada vez; se passarem a ser vários em paralelo, mudar isto.
+        await fim.query("ALTER ROLE eurolify_api NOLOGIN PASSWORD NULL");
       } finally {
         await fim.end();
       }

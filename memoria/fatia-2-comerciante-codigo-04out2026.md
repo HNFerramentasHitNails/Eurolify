@@ -34,3 +34,15 @@ O `docker` está instalado, mas o daemon vem parado. `dockerd &` arranca-o. Depo
 - Na VPS: os dois utilizadores da base e o `api.env` (próximo pedido ao script, ADR-0028).
 - A morada e o número fiscal por país: hoje só se exige texto, e o número fiscal em maiúsculas e algarismos (**C**).
 - A activação não pergunta ao motor de regras se os países estão verificados (o desenho §4 pede-o): fica para quando a API existir.
+
+## Revisão do #43 (15:18 UTC) e correcções
+
+Sem P0. Com 4 P1 e 7 P2. Corrigidos na migração 0001, que ainda não estava no `main`:
+
+- **P1-1:** a activação olha para a prova mais recente de cada entidade activa, pela ordem de registo. A coluna `registado_em` não pode ser escrita pela API (`GRANT INSERT` por coluna).
+- **P1-2:** o país e o número fiscal de uma entidade não mudam (gatilho).
+- **P1-3:** o rasto é escrito pela base (gatilho `SECURITY DEFINER`, com o motivo e quem vindos de `SET LOCAL`). A API só o lê, e `de`/`para` têm `CHECK`.
+- **P1-4:** o `migrar.js` tolera só a falta da variável e só até 31/10/2026; uma variável vazia é erro. A ligação do migrador vai para um ficheiro próprio na VPS.
+- **P2:** a data de criação já não muda; o prefixo do país é recusado; a restrição tem nome; o papel volta a `NOLOGIN` no fim dos testes; o desenho foi acertado (transição rascunho→em revisão, uma transacção para todas as migrações, riscos que ficam).
+
+**Números** (04/10/2026): api com 66 passados, dos quais 26 do comerciante e 4 do migrador. Com `BYPASSRLS` falham 8 dos 26.

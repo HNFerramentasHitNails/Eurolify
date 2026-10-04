@@ -143,9 +143,15 @@ Do pacote (onboarding, regra 3), com os nomes em português:
 | `fechado` | exportar durante o prazo da exportação; documentos fiscais guardados 10 anos | pedido do comerciante ou decisão com motivo |
 
 Transições permitidas: `rascunho → prova_pendente → em_revisao →
-aprovado_limitado → activo`; `em_revisao → prova_pendente` (recusada, com
+aprovado_limitado → activo`; `rascunho → em_revisao` (quando o pedido de
+activação já traz a prova); `em_revisao → prova_pendente` (recusada, com
 motivo); qualquer um → `suspenso` ou `fechado`; `suspenso → ` o estado
-anterior. **Toda a transição tem motivo e quem**, e fica na tabela 3.6.
+anterior. **Toda a transição tem motivo e quem**, e fica na tabela 3.6 —
+escrita **pela base**, pelo gatilho da mudança de estado, com o motivo e quem
+postos pela aplicação; a API não escreve no rasto (revisão do #43, P1-3).
+A activação olha para a prova **mais recente** de cada entidade legal activa,
+pela ordem de registo (P1-1); o país e o número fiscal de uma entidade não
+mudam — arquiva-se e cria-se outra (P1-2).
 Ninguém se activa a si próprio: a passagem a `activo` é feita pelo servidor
 quando as condições se verificam, ou por uma pessoa do Eurolify com rasto
 (**proposta**).
@@ -164,7 +170,7 @@ ADR-0025 (RLS por comerciante).
 | Criar um comerciante | a aplicação gera o `uuid`, faz `SET LOCAL` com ele e insere: a política deixa, sem nenhum utilizador que ignore o RLS |
 | Trabalho da equipa do Eurolify (rever comerciantes) | **nenhum papel entre comerciantes** até haver o Hub (P6): a revisão faz-se por um comando auditado na API, dentro do contexto do comerciante revisto |
 | Testes | o CI liga-se como `postgres` (superutilizador, que **ignora o RLS**): os testes de isolamento criam e usam o `eurolify_api`, e falham se a ligação tiver `BYPASSRLS` |
-| VPS | o `api.env` está vazio («a ligação à base entra com o primeiro domínio», `preparar.sh:278`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028) |
+| VPS | o `api.env` está vazio («a ligação à base entra com o primeiro domínio», `preparar.sh:278`): os dois utilizadores e as duas ligações entram pelo script da VPS, por pedido revisto (ADR-0028). **A ligação do migrador não vai para o `api.env`**, que o contentor da API também recebe (`eurolify-publicar:23`): vai num ficheiro só do migrador (revisão do #43, P1-4). Até lá o `migrar.js` tolera a **falta** da variável até 31/10/2026 (data de fim, `src/base/url-migracao.ts`); uma variável vazia é erro |
 
 **Testes que têm de falhar** (`observability-security`): ler, alterar e criar
 num comerciante com o contexto de outro; ler sem contexto; o `eurolify_api`
@@ -175,7 +181,7 @@ SECURITY` (teste que percorre o catálogo da base).
 
 | Peça | Desenho |
 |---|---|
-| Formato | SQL à mão, numerado (`0001_comerciante.sql`), pelo migrador do Kysely (ADR-0025) |
+| Formato | SQL à mão, numerado (`0001_comerciante.sql`), pelo migrador do Kysely (ADR-0025). O Kysely 0.29.6 corre **todas as migrações em falta numa só transacção**, com um bloqueio consultivo: se a 0002 falhar, a 0001 também se desfaz (revisão do #43, P2-4) |
 | Ordem | só para a frente; nunca se edita uma migração já no `main` |
 | Compatibilidade | a publicação migra **antes** de trocar a versão e, se falhar, fica a anterior (`eurolify-publicar:109-116`): cada migração tem de funcionar com a versão anterior da API ainda a correr |
 | Cópia | antes de migrar no ensaio, a cópia diária já existe (ADR-0027); a reposição foi provada só com a base vazia (memória da sessão de 04/10/2026) |
@@ -237,6 +243,14 @@ acordo de tratamento — **qual** (construir ou fornecedor) decide-se nesse ADR.
   à prova — por isso os testes de isolamento usam o `eurolify_api`.
 - **Uma migração incompatível com a versão anterior** — a publicação já migrou
   quando a troca falha.
+- **O contexto é escolhido pela aplicação**: o `eurolify_api` pode pôr
+  qualquer uuid no `SET LOCAL`. É a fatia «identidade» que tem de ligar o
+  contexto à sessão autenticada — até lá, nenhum endpoint usa a base (revisão
+  do #43).
+- **A versão em vigor dos contratos** não existe ainda (`compliance-gaps.md`
+  G11): a activação aceita qualquer versão aceite de cada tipo.
+- **O migrador ligado com o utilizador da API** se a ligação dele for para o
+  `api.env` — por isso vai num ficheiro só dele (§5).
 - **Decidir identidade pelo nome** num registo de comerciantes — o número
   fiscal é único por país dentro do comerciante, nunca entre comerciantes
   (dois comerciantes podem ter a mesma empresa? **não verificado**; fica para a

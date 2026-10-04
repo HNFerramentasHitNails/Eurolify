@@ -210,12 +210,19 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(erro).toMatch(/^pg:23503:/);
     });
 
-    it("o rasto só se acrescenta: nem alterar nem apagar", async () => {
+    it("o rasto e as provas só se acrescentam; o rasto só o escreve a base", async () => {
       for (const consulta of [
         sql`update transicao_estado set motivo = 'x'`,
         sql`delete from transicao_estado`,
+        sql`insert into transicao_estado (comerciante_id, de, para, motivo, quem)
+            values (${a}, 'aprovado_limitado', 'activo', 'nunca aconteceu', 'x')`,
         sql`delete from comerciante`,
         sql`update aceitacao_contrato set versao_texto = 'x'`,
+        sql`update prova_verificacao set resultado = 'aceite'`,
+        sql`insert into prova_verificacao (comerciante_id, entidade_legal_id,
+              finalidade, origem, origem_detalhe, resultado, registado_em)
+            select ${a}, id, 'identificacao_fiscal', 'manual', 'x', 'aceite',
+              '2099-01-01' from entidade_legal`,
       ]) {
         const erro = await codigoDoErro(
           comComerciante(base.api, a, (trx) => consulta.execute(trx)),
@@ -375,6 +382,102 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(erro).toBe("merchant.activation_blocked");
     });
 
+    it("o rasto guarda o motivo e quem, uma linha por mudança", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      await mudarEstado(base.api, id, {
+        para: "em_revisao",
+        motivo: "pedido de activação",
+        quem: "dono-teste",
+      });
+      const rasto = await comComerciante(base.api, id, (trx) =>
+        trx
+          .selectFrom("transicao_estado")
+          .select(["de", "para", "motivo", "quem"])
+          .execute(),
+      );
+      expect(rasto).toEqual([
+        {
+          de: "rascunho",
+          para: "em_revisao",
+          motivo: "pedido de activação",
+          quem: "dono-teste",
+        },
+      ]);
+    });
+
+    it("uma prova recusada depois de uma aceite trava a activação (revisão #43, P1-1)", async () => {
+      const id = await comercianteProntoParaActivar();
+      const entidade = await comComerciante(base.api, id, (trx) =>
+        trx.selectFrom("entidade_legal").select("id").executeTakeFirstOrThrow(),
+      );
+      await registarVerificacao(base.api, id, {
+        entidade_legal_id: entidade.id,
+        finalidade: "identificacao_fiscal",
+        origem: "vies",
+        origem_detalhe: "VIES: número inválido",
+        resultado: "recusada",
+      });
+      expect(
+        await codigoDoErro(
+          mudarEstado(base.api, id, {
+            para: "activo",
+            motivo: "teste",
+            quem: "teste",
+          }),
+        ),
+      ).toBe("merchant.activation_blocked");
+    });
+
+    it("cada entidade legal activa precisa da sua prova", async () => {
+      const id = await comercianteProntoParaActivar();
+      await criarEntidadeLegal(base.api, id, { ...ENTIDADE, pais: "ES" });
+      expect(
+        await codigoDoErro(
+          mudarEstado(base.api, id, {
+            para: "activo",
+            motivo: "teste",
+            quem: "teste",
+          }),
+        ),
+      ).toBe("merchant.activation_blocked");
+    });
+
+    it("o país e o número fiscal de uma entidade não mudam (revisão #43, P1-2)", async () => {
+      const id = await comercianteProntoParaActivar();
+      for (const alteracao of [
+        { numero_fiscal: "999999990" },
+        { pais: "ES" },
+      ]) {
+        expect(
+          await codigoDoErro(
+            comComerciante(base.api, id, (trx) =>
+              trx.updateTable("entidade_legal").set(alteracao).execute(),
+            ),
+          ),
+        ).toBe("legal_entity.immutable_identity");
+      }
+      await comComerciante(base.api, id, (trx) =>
+        trx
+          .updateTable("entidade_legal")
+          .set({ morada_localidade: "Porto" })
+          .execute(),
+      );
+    });
+
+    it("a data de criação não muda", async () => {
+      const id = await registarComerciante(base.api, NOVO);
+      const antes = await obterComerciante(base.api, id);
+      await comComerciante(base.api, id, (trx) =>
+        trx
+          .updateTable("comerciante")
+          .set({ nome: "outro", criado_em: "1999-01-01T00:00:00Z" } as never)
+          .execute(),
+      );
+      const depois = await obterComerciante(base.api, id);
+      expect(depois.criado_em).toEqual(antes.criado_em);
+      expect(depois).toMatchObject({ nome: "outro", versao: 2 });
+    });
+
     it("uma transição que não existe é recusada e não deixa rasto", async () => {
       const id = await registarComerciante(base.api, NOVO);
       const erro = await codigoDoErro(
@@ -391,7 +494,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(rasto).toEqual([]);
     });
 
-    it("mudar o estado sem a linha de rasto é desfeito", async () => {
+    it("mudar o estado sem motivo nem quem é recusado", async () => {
       const id = await registarComerciante(base.api, NOVO);
       const erro = await codigoDoErro(
         comComerciante(base.api, id, (trx) =>
@@ -480,6 +583,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         { ...ENTIDADE, pais: "EL" },
         { ...ENTIDADE, numero_fiscal: "12 34" },
         { ...ENTIDADE, denominacao: "   " },
+        { ...ENTIDADE, numero_fiscal: "PT123456789" },
+        { ...ENTIDADE, pais: "GR", numero_fiscal: "EL123456789" },
       ]) {
         expect(
           await codigoDoErro(criarEntidadeLegal(base.api, x, mau)),

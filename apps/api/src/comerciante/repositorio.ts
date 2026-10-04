@@ -18,7 +18,8 @@ export type CodigoErroComerciante =
   | "merchant.invalid_transition"
   | "merchant.activation_blocked"
   | "merchant.transition_without_trail"
-  | "legal_entity.tax_number_duplicate";
+  | "legal_entity.tax_number_duplicate"
+  | "legal_entity.immutable_identity";
 
 export class ErroComerciante extends Error {
   constructor(
@@ -35,6 +36,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroComerciante[] = [
   "merchant.invalid_transition",
   "merchant.activation_blocked",
   "merchant.transition_without_trail",
+  "legal_entity.immutable_identity",
 ];
 
 /** Traduz um erro da base num erro do domínio; o resto passa como está. */
@@ -47,7 +49,7 @@ function traduzir(erro: unknown): unknown {
   const pg = erro as Error & { code?: string; constraint?: string };
   if (
     pg.code === "23505" &&
-    pg.constraint === "entidade_legal_comerciante_id_pais_numero_fiscal_key"
+    pg.constraint === "entidade_legal_nif_unico_por_pais"
   ) {
     return new ErroComerciante(
       "legal_entity.tax_number_duplicate",
@@ -122,43 +124,30 @@ export interface Transicao {
   quem: string;
 }
 
-/**
- * Muda o estado de um comerciante e escreve o rasto, na mesma transacção. A
- * base valida a transição e as condições de activação.
- */
+/** Muda o estado de um comerciante; o rasto fica escrito na mesma transacção. */
 export async function mudarEstado(
   db: Kysely<BaseDados>,
   comercianteId: string,
   transicao: Transicao,
 ): Promise<void> {
+  // A base valida a transição e as condições de activação e escreve ela
+  // própria a linha de rasto, com o motivo e quem postos aqui (SET LOCAL).
   await comComerciante(db, comercianteId, async (trx) => {
-    const actual = await trx
-      .selectFrom("comerciante")
-      .select("estado")
+    await sql`select set_config('eurolify.motivo', ${transicao.motivo}, true),
+                     set_config('eurolify.quem', ${transicao.quem}, true)`.execute(
+      trx,
+    );
+    const resultado = await trx
+      .updateTable("comerciante")
+      .set({ estado: transicao.para })
       .where("id", "=", comercianteId)
-      .forUpdate()
       .executeTakeFirst();
-    if (actual === undefined) {
+    if (resultado.numUpdatedRows === 0n) {
       throw new ErroComerciante(
         "merchant.not_found",
         `comerciante ${comercianteId}`,
       );
     }
-    await trx
-      .insertInto("transicao_estado")
-      .values({
-        comerciante_id: comercianteId,
-        de: actual.estado,
-        para: transicao.para,
-        motivo: transicao.motivo,
-        quem: transicao.quem,
-      })
-      .execute();
-    await trx
-      .updateTable("comerciante")
-      .set({ estado: transicao.para })
-      .where("id", "=", comercianteId)
-      .execute();
   });
 }
 

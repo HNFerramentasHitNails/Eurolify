@@ -84,6 +84,7 @@ export interface TabelaProvaVerificacao {
   verificado_em: Instante;
   rever_ate: Date | string | null;
   documento: string | null;
+  registado_em: ColumnType<Date, never, never>;
 }
 
 export interface TabelaTransicaoEstado {
@@ -94,7 +95,6 @@ export interface TabelaTransicaoEstado {
   motivo: string;
   quem: string;
   quando: Instante;
-  transacao: ColumnType<string, never, never>;
 }
 
 export interface BaseDados {

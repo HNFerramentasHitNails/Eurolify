@@ -1,21 +1,20 @@
 import { Kysely, PostgresDialect } from "kysely";
 import pg from "pg";
 import { migrar } from "./base/migracoes.js";
+import { decidirMigracao } from "./base/url-migracao.js";
 
 // Corre na publicação, antes de trocar a versão (eurolify-publicar). Liga-se
-// com o utilizador dono das tabelas (BASE_DADOS_URL_MIGRACAO), nunca com o da
-// API. Enquanto a VPS não tiver a base configurada (api.env vazio, ver
-// preparar.sh), diz-o e sai sem erro, para não travar a publicação do resto.
-const url = process.env["BASE_DADOS_URL_MIGRACAO"];
+// com o utilizador dono das tabelas, nunca com o da API. A falta da variável
+// só é tolerada até à data de fim em url-migracao.ts; um erro faz a
+// publicação parar e ficar a versão anterior.
+const decisao = decidirMigracao(process.env, new Date());
 
-if (url === undefined || url === "") {
-  console.log(
-    "migrar: sem BASE_DADOS_URL_MIGRACAO — a base ainda não está configurada neste ambiente; nenhuma migração aplicada.",
-  );
+if (decisao.tipo === "sem_base") {
+  console.log(decisao.aviso);
 } else {
   const db = new Kysely<unknown>({
     dialect: new PostgresDialect({
-      pool: new pg.Pool({ connectionString: url, max: 1 }),
+      pool: new pg.Pool({ connectionString: decisao.url, max: 1 }),
     }),
   });
   try {
