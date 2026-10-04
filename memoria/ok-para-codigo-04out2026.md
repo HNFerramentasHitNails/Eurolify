@@ -655,3 +655,23 @@ Com o OK do Diogo, lançadas uma vez à mão (`systemctl start`):
   antes do GitHub (contra um link de login enviado por outro — depende de o
   claude.ai ligar o `state` à sessão do browser, não verificado); os limites
   por endereço do SDK contam todo o tráfego da Anthropic junto.
+
+### MCP no ar (04/10/2026, 13:11–13:30 UTC)
+
+- #30 junto (621e036). `aplicar-script`: 17 alterações, 0 avisos — `nginx`
+  1.28, `certbot` 4.0.0-4, `python3-certbot-dns-ovh` 4.0.0-2, 443 aberta,
+  certificado Let's Encrypt (YE1) até 02/01/2027. `publicar`: «MCP: arrancou e
+  responde».
+- Teste de fora (computador do Diogo): `/authorize` e o regresso do GitHub
+  chegam à aplicação (400 sem parâmetros); `/mcp`, `/register`, metadados e
+  `/health` dão 403; pelo IP directo a ligação fecha sem resposta (444).
+- `medir` depois: contentor `eurolify-mcp` 46 MiB/256 MiB, `/health` ok,
+  firewall só 22 e 443.
+- O Diogo ligou o connector no Claude desktop (login pelo GitHub correu bem,
+  logo o `github-oauth.env` está sem aspas, como deve).
+- **Chaves da OVH:** o Diogo revogou todas menos a que está na VPS (a exposta
+  no chat incluída). Que a que ficou continua válida só se prova na renovação
+  (~02/12/2026); a verificação diária avisa 20 dias antes do fim.
+- **Visto no `medir`, por corrigir:** a secção «portas à escuta» sai vazia (o
+  filtro de endereços IP tira as linhas `127.0.0.1:porta`); o registo das
+  acções repete «commit …» duas vezes.
