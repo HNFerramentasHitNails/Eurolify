@@ -1,5 +1,10 @@
 # OK para código (decisão AE, ADR-0023) — 04/10/2026
 
+> 📌 **Estado a 04/10/2026** (bloco acrescentado a 04/10/2026; o texto abaixo é o registo original, por ordem, e não foi mudado). Se o bloco divergir de um ADR, vale o ADR.
+> - **Código autorizado** (AE, [ADR-0023](../docs/adr/0023-ok-para-codigo.md)): entra por pedido com os testes verdes e, no código, a revisão do agente; cada um junta o que fez ([ADR-0031](../docs/adr/0031-cada-um-aprova-o-que-fez.md), [ADR-0030](../docs/adr/0030-revisao-sem-codex-e-sem-a-outra-pessoa.md)).
+> - **A VPS opera-se pelo GitHub** ([ADR-0028](../docs/adr/0028-a-vps-opera-se-pelo-github.md)); o MCP na VPS está no ar desde 04/10/2026 ([ADR-0033](../docs/adr/0033-mcp-na-vps-com-accoes.md)); as cópias estão na OVH ([ADR-0032](../docs/adr/0032-ovh-fornecedor-unico.md)).
+> - **O mais recente** está nas últimas secções: «MCP na VPS: segredos e o código» e «MCP no ar».
+
 Pedido do Diogo, 04/10/2026: *«preparar tudo para começarmos a escrever o
 código do Eurolify no GitHub e para que cada entrada no main seja publicada
 sozinha no ensaio (a VPS)»*. Fase A do pedido, decisão A1: o OK para código
