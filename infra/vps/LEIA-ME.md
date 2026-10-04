@@ -79,10 +79,12 @@ acl = private
   "OVHcloud" not known»*); com `Other` lista e escreve. A documentação actual
   do rclone (`rclone.org/s3`, lida a 04/10/2026) dá `OVHcloud`.
 - Sem o `endpoint`, o `rclone` vai para a AWS e a cópia falha. Para outra
-  região: `s3.<região>.io.cloud.ovh.net` (ex.: `gra` em Gravelines). Os 14 dias na
-OVH são garantidos pelo `eurolify-copia` (`rclone delete --min-age 14d`); uma
-regra de expiração no contentor (*lifecycle*, `Expiration` com `Days`, que a
-documentação da OVH descreve) é uma segunda trava, não a única.
+  região: `s3.<região>.io.cloud.ovh.net` (ex.: `gra` em Gravelines).
+
+Os 14 dias na OVH são garantidos pelo `eurolify-copia` (`rclone delete
+--min-age 14d`); uma regra de expiração no contentor (*lifecycle*,
+`Expiration` com `Days`, que a documentação da OVH descreve) é uma segunda
+trava, não a única.
 
 ## Regras para quem mexer
 

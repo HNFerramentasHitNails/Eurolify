@@ -41,8 +41,10 @@ Lido a 04/10/2026:
 ## Decisão
 
 1. **A OVH é o fornecedor único do Eurolify** (VPS, cópias e o que vier).
-2. As cópias do ensaio vão para o **OVH Object Storage, classe Standard, numa
-   zona, em Gravelines (França, UE)**, num contentor privado com expiração aos
+2. As cópias do ensaio vão para o **OVH Object Storage, classe Standard,
+   ~~numa zona, em Gravelines (França, UE)~~ em três zonas, em Paris (França,
+   UE)** (corrigido a 04/10/2026: o contentor foi criado em `eu-west-par` e
+   ficou lá, com o OK do Diogo), num contentor privado com expiração aos
    14 dias, com um utilizador S3 que só acede a esse contentor (leitura e
    escrita: a reposição lê). Tudo o resto do ADR-0027 e do ADR-0029 mantém-se
    (pg_dump diário cifrado com `age`, reposição semanal, chave privada também
@@ -55,15 +57,18 @@ Lido a 04/10/2026:
 ## Consequências
 
 - No `infra/vps`, o remoto do `rclone` passa de `scaleway` a `ovh`
-  (`ensaio.conf`, `LEIA-ME`, com o modelo do `rclone.conf`: `provider =
-  OVHcloud`, `region = gra`, `endpoint = s3.gra.io.cloud.ovh.net` —
-  `rclone.org/s3`, lido a 04/10/2026).
+  (`ensaio.conf`, `LEIA-ME`, com o modelo do `rclone.conf`: ~~`provider =
+  OVHcloud`, `region = gra`, `endpoint = s3.gra.io.cloud.ovh.net`~~ —
+  `rclone.org/s3`, lido a 04/10/2026) → **na VPS:** `provider = Other`,
+  `region = eu-west-par`, `endpoint = s3.eu-west-par.io.cloud.ovh.net` (o
+  `rclone` 1.60.1 do Ubuntu 26.04 não conhece `OVHcloud`; ver o `LEIA-ME`).
 - **Os 14 dias na OVH garante-os o `eurolify-copia`** (`rclone delete
   --min-age 14d`), não só uma regra do contentor: a revisão do pedido viu que
   a expiração dependia de uma *lifecycle* não confirmada. A documentação da
   OVH descreve regras com `Expiration`/`Days`; fica como segunda trava.
 - O D5 da Fase D passa a ter: criar na OVH o contentor de Object Storage
-  (Gravelines, Standard) e o utilizador S3 só com acesso a ele.
+  (~~Gravelines~~ Paris em três zonas, Standard — criado assim) e o
+  utilizador S3 só com acesso a ele.
 - Um só acordo de tratamento de dados a assinar antes do primeiro dado
   pessoal real (`docs/11` §4; skill `eu-gdpr-privacy`).
 - **O que pode partir:**
