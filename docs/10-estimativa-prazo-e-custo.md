@@ -22,7 +22,7 @@
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
 | **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 32 meses** os dois a tempo inteiro, **31 a 58** a meio tempo (§9, com hipótese C; recalculado a 04/10/2026 com as três peças da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
-| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | ≈ 9.940–14.230 € (era ≈ 10.150–14.870, com a Scaleway) |
+| **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | ≈ 9.950–14.230 € (era ≈ 9.940 antes do GitHub Pro e ≈ 10.150–14.870 com a Scaleway) |
 | **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) | ≈ 14.910–21.310 € (era ≈ 15.110–21.950, com a Scaleway) |
 
 **Desde 04/10/2026, os três cenários (aqui, no §4 e no §9) contam as três
@@ -97,6 +97,7 @@ linhas de ecrãs e de testes da Fase 2 não se mexeram.
 | Seguro de acidentes de trabalho e subsídio de refeição | conto **+3 %** sobre o bruto | **C** |
 | **Custo para a empresa** | **×1,27 ⇒ 57.150–82.550 € por ano**, ≈ 4.760–6.880 € por mês | conta |
 | Claude Max 20x | **US$ 200 por mês** por pessoa | **W** ([suporte Anthropic](https://support.claude.com/en/articles/11049741-what-is-the-max-plan)) |
+| GitHub Pro, na conta onde vive o repositório (decisão AF, [ADR-0024](adr/0024-revisoes-impostas-no-github-pro.md); acrescentado a 04/10/2026) | **US$ 4 por mês**, contado uma vez para a conta | **W** o preço, por uma FAQ antiga do GitHub citada no ADR-0024 (o preço pago não está escrito); **C** que os colaboradores — o Bruno, ou os contratados de B e C — não pagam |
 
 Assumo que os 45.000–65.000 € já incluem os 14 meses (**C**). Se o primeiro
 contratado for o líder técnico (o que eu recomendo, §7), pode custar mais do
@@ -109,6 +110,7 @@ que o topo deste intervalo.
 | Construção | 17,6 a 33,7 meses (era 16,0 a 30,5) | 13,2 a 25,3 meses (era 12,0 a 22,9) |
 | Pessoas | 167.600–463.400 € (era 152.700–420.000) | 188.600–521.300 € (era 171.800–472.600) |
 | Claude (US$ 200 × pessoas × meses, contado 1 US$ = 1 € por cima) | 7.000–13.500 (era 6.400–12.200) | 7.900–15.200 (era 7.200–13.700) |
+| GitHub Pro (US$ 4 × meses, 1 US$ = 1 €; acrescentado a 04/10/2026 — não mexe nos totais ao milhar) | 70–135 | 53–101 |
 | Serviços externos com preço (§5) | 12.000–29.000 (era 14.000–33.000) | 12.000–29.000 (era 14.000–33.000) |
 | **Total com preço** | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) |
 | Sai por mês, em pessoas | 9.500–13.800 € | 14.300–20.600 € |
@@ -205,10 +207,11 @@ Uma estimativa sem medida é um palpite. Por isso:
 ## 8. Depois de abrir — ligação à D-14
 
 O custo fixo por mês depois de abrir (pessoas + alojamento + Claude dos
-programadores) é ≈ **9.940–14.230 €** no cenário B e ≈ **14.910–21.310 €** no C,
+programadores + GitHub Pro) é ≈ **9.950–14.230 €** no cenário B e ≈ **14.910–21.310 €** no C,
 sem contabilista, jurista, seguro nem quem atende os comerciantes. Recalculado
-a 04/10/2026 com o alojamento na VPS da OVH; com a Scaleway gerida eram
-≈ 10.150–14.870 € e ≈ 15.110–21.950 € (refeita a conta antiga, os mínimos dão
+a 04/10/2026 com o alojamento na VPS da OVH e, no mesmo dia, com o GitHub Pro
+(US$ 4, ADR-0024: o mínimo do B era ≈ 9.940 €; o resto não muda ao arredondar
+à dezena); com a Scaleway gerida eram ≈ 10.150–14.870 € e ≈ 15.110–21.950 € (refeita a conta antiga, os mínimos dão
 ≈ 10.160 € e ≈ 15.120 €; estavam escritos 10 € abaixo).
 
 **Alojamento depois de abrir, na VPS da OVH: ≈ 18–70 €/mês** (preços sem IVA,
@@ -230,9 +233,10 @@ Scaleway gerida era do fornecedor e passa a ser nosso (ADR-0015).
 
 **No cenário A (decidido):** sem salários de programadores, o que sai em
 dinheiro por mês é o alojamento e as subscrições — ≈ 18–70 € (era ≈ 234–710 €,
-com a Scaleway) + US$ 440–800
+com a Scaleway) + US$ 444–804
 (2 × Claude Max US$ 200 + 2 × Codex entre o Plus de US$ 20 e o Pro de US$ 200,
-**W**, páginas oficiais). **O tempo do Diogo e do Bruno não está contado, e é
+**W**, páginas oficiais; + o GitHub Pro, US$ 4, ADR-0024 — era US$ 440–800
+antes dele, 04/10/2026). **O tempo do Diogo e do Bruno não está contado, e é
 o custo real**: sem lhe pôr um valor, o ponto de equilíbrio do cenário A não
 se calcula.
 
@@ -338,5 +342,8 @@ corrigem-se aqui.
 - O preço da auditoria de acessibilidade (fonte fraca) e da marca (página
   oficial da EUIPO deu 403).
 - O câmbio do dólar não foi aplicado: o Claude conta-se 1 US$ = 1 €, por cima.
+- O preço do GitHub Pro: os US$ 4 por mês vêm de uma FAQ antiga (ADR-0024); o
+  Diogo comprou-o a 04/10/2026, mas o valor pago e se é por mês ou por ano não
+  estão escritos.
 - Se o SIFIDE II é renovado para 2027.
 - Contabilista, jurista, seguro, recrutamento e suporte: **sem número**.
