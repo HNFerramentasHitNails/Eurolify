@@ -55,10 +55,14 @@ nenhum escalão (ADR-0007) os tira.
 
 ## 3. Canais comerciais — papéis por relação, não por conta
 
-Segue o `eurolify-channel-governance` do pacote (**C** em tudo o que é regra
-de concorrência: Reg. (UE) 2022/720, Dir. 86/653, não lidos por nós). Na Fase
-1 só entram as **listas de preços B2B por etiqueta** (`docs/05`); o resto é
-desenho para quando o Diogo ou o Bruno o puserem numa fase.
+Segue a skill **`eurolify-b2b-channels-eu`** (instalada a 05/10/2026, #84),
+que substitui como fonte o `eurolify-channel-governance` do pacote de 04/10,
+nunca instalado (decisão do Diogo, 05/10/2026: *«sim, manda a skill nova»*,
+Q4 do `docs/16`). **C** em tudo o que é regra de concorrência (Reg. (UE)
+2022/720, Dir. 86/653, não lidos por nós; a skill manda análise concorrencial
+antes de restringir preço, território, venda online ou clientes). Na Fase 1
+só entram as **listas de preços B2B por etiqueta**; o resto é da **Fase 2**
+(Diogo, 05/10/2026; `docs/05`).
 
 ### 3.1 Modelo (proposta)
 
@@ -74,8 +78,10 @@ desenho para quando o Diogo ou o Bruno o puserem numa fase.
 jusante), revendedor (compra para revender em nome próprio; inclui envio
 directo pelo fornecedor), franchisado (negócio próprio dentro de uma rede de
 marca e saber-fazer, com royalties), agente (negoceia por conta do principal),
+operador logístico (guarda ou entrega por conta de outro, sem vender),
 cliente profissional, consumidor. **A mesma parte pode ter várias relações**
-com papéis diferentes.
+com papéis diferentes. «Cliente profissional» nunca tira direitos a quem
+actua como consumidor (`eurolify-b2b-channels-eu`).
 
 ### 3.2 Como se classifica
 
@@ -221,6 +227,6 @@ respetivos gates.»* — responde à P3 do `docs/14` (ADR-0034).
 
 - As perguntas P1, P2 e P4 a P7 do Catálogo: decididas no `docs/14` §9 (Diogo, 05/10/2026; `docs/06`, AR), não aqui.
 - Se as skills do pacote se instalam (ADR-0034: usadas a partir do zip).
-- Portais de distribuidor, franchising e royalties em que fase.
+- ~~Portais de distribuidor, franchising e royalties em que fase.~~ Decidido: Fase 2, só as listas de preços B2B na Fase 1 (Diogo, 05/10/2026; `docs/05`).
 - O preenchimento de qualquer regra nacional: cada uma entra com fonte oficial
   lida, data e revisor.

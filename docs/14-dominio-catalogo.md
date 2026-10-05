@@ -292,7 +292,9 @@ classificações guardam-se **à parte** e **uma não se deduz da outra**
 | `natureza_consumidor` | `bem`, `servico_presencial`, `servico_humano_a_distancia`, `acesso_com_data`, `conteudo_digital`, `servico_digital`, `vale` | os três do digital são os da `digital-products-eu`; `acesso_com_data` é a entrada num evento, sessão ou actividade com **data ou período marcado**; `vale` é do cartão-oferta |
 | `natureza_iva` | lista do Motor de IVA (por desenhar) + `por_classificar` | separada da do consumidor; um serviço humano à distância **não** é por isso serviço electrónico (`digital-products-eu`) |
 | `data_prestacao` | data/hora de início e fim, com fuso | obrigatória no `acesso_com_data` e no `servico_presencial` com data marcada; é o que distingue um bilhete de um vale |
-| `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` |
+| `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` presencial |
+| `modo` | `presencial`, `virtual` | obrigatório no `acesso_com_data` e no serviço humano; muda o lugar da prestação para o IVA (Dir. 2006/112/CE arts. 53.º e 54.º, **W**, `docs/03` §1) |
+| `lazer_com_data` | `nao` (por omissão), `sim` | o comerciante declara que é uma actividade de **lazer** com data marcada; **só com `sim` e a regra validada pelo jurista** é que se aplica a excepção à livre resolução (§ abaixo) |
 | `classificado_por`, `classificado_em` | | entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) |
 
 **Que natureza cada tipo admite** (as outras combinações são recusadas pelo
@@ -312,24 +314,22 @@ servidor):
 `familia_restrita` — as famílias que a `sectors.md` manda bloquear por
 omissão ou que exigem autorização (medicamentos, dispositivos médicos,
 biocidas e fitofármacos, álcool e tabaco, armas, explosivos e jogo, saúde e
-profissões reguladas — lista **proposta**, a confirmar pelo Diogo ou pelo Bruno) **não se publicam** até haver o desenho e a validação
+profissões reguladas — lista **decidida** pelo Diogo, 05/10/2026: *«sim, aceito a lista»*) **não se publicam** até haver o desenho e a validação
 profissional delas (`eurolify-sector-compliance-eu`, pontos 4 e 6).
 
-**O que a classificação ainda não decide — tudo C, não verifiquei** (o
-EUR-Lex não abriu nesta sessão, 05/10/2026). Nada disto chega a um ecrã ou a
-uma decisão de IVA sem passar a W com o texto lido ou ser validado:
+**O que a lei diz e o que ainda falta** — pesquisa de 05/10/2026, citações
+literais em `docs/eurolify/fontes-eventos-servicos-iva-05out2026.md`, marcadas
+**W** no `docs/03` (texto legal não aberto nesta sessão). Nada disto chega a
+um ecrã nem a uma decisão de IVA sem a validação indicada:
 
-| Pergunta | Para quem |
-|---|---|
-| Um `acesso_com_data` de lazer está fora da livre resolução (excepção da Dir. 2011/83/UE para actividades de lazer com data marcada)? Que alínea, e com que redacção em cada país? | jurista |
-| Um `servico_presencial` ou `servico_humano_a_distancia` começado dentro do prazo: que pedido expresso e que pagamento proporcional se pedem ao consumidor? | jurista |
-| Onde se tributa a entrada num evento e um serviço humano à distância (lugar da prestação), para consumidor e para empresa? | contabilista |
-| O bilhete comprado para outra pessoa: quem é o consumidor e quem é faturado (lição 1.2 do `docs/04`) | jurista + contabilista |
-
-Até haver resposta: o `bilhete` e o `servico` publicam-se **sem nenhuma
-excepção à livre resolução** e o IVA deles espera pelo Motor de IVA e pelo
-contabilista — não se aplica nenhuma excepção nem regra especial por conta
-própria («Nunca inventar», `AGENTS.md`).
+| Tema | O que diz (W) | O que o Eurolify faz | Falta |
+|---|---|---|---|
+| Lazer com data | Sem livre resolução em serviços de lazer com data marcada (Dir. 2011/83/UE art. 16.º, l); DL 24/2014 art. 17.º, 1, k)); o bilhete cabe aí (C-96/21) | **Nunca** `tem data ⇒ sem livre resolução`: só com `lazer_com_data = sim`, declarado e com rasto; por omissão o bilhete tem livre resolução | jurista valida a regra e as condições do intermediário (C-96/21, dispositivo) |
+| Serviço começado no prazo | Pedido expresso + reconhecimento; perde-se só com o serviço **integralmente** prestado; proporcional se resolver antes (arts. 8.º, 8; 14.º, 3 e 4; 16.º, a); DL 24/2014 arts. 15.º e 17.º) | guarda à parte o pedido, o reconhecimento (com o texto mostrado e a data) e a prova da execução; nunca dá o direito por perdido só porque começou | jurista; o cálculo do proporcional é do domínio Encomendas |
+| Lugar do IVA | Presencial: onde o evento acontece; virtual B2C: onde o cliente está (arts. 53.º, 54.º) | guarda `modo` e `local_prestacao`; quem decide é o Motor de IVA | contabilista; transposição portuguesa e taxas por verificar |
+| Ensino ao vivo por vídeo | Não é serviço electrónico (Reg. Exec. 282/2011 art. 7.º, 3, j)) | `servico_humano_a_distancia` nunca vira «electrónico» por ir pela Internet | contabilista, para a consultoria por vídeo (sem alínea própria) |
+| Bilhete para outra pessoa | Não há regra escrita: consumidor é quem contrata (art. 2.º, 1)); a fatura vai ao adquirente (Dir. 2006/112 art. 226.º, 5); CIVA art. 36.º) | **fora do Catálogo**: Encomendas e Clientes guardam à parte contratante, pagador, participante e dados de faturação; nunca copiar o participante para a fatura | jurista + contabilista |
+| Bilhete em vez de fatura (PT) | O bilhete pode cumprir a fatura nas entradas em espectáculos e na lista do CIVA art. 40.º, 5, a) — **não** inclui expressamente workshops | nada automático; decide o domínio dos documentos fiscais | contabilista |
 
 ### 3.11 Importação (`imp_`) e exportação (`exp_`)
 

@@ -121,6 +121,12 @@ crédito (decisão AD).
 - Automações e notificações configuráveis; campos personalizados; módulos
   ligáveis por comerciante.
 - Migração da loja principal do grupo, se a Fase 1 o justificar.
+- **Loja física (POS, caixa, recolha em loja), distribuidores, revendedores e
+  franchising** — decidido pelo Diogo a 05/10/2026 (*«Fase 2, só as listas B2B
+  ficam na Fase 1»*, Q3 do `docs/16`); as listas de preços B2B por etiqueta
+  ficam na Fase 1. Estes módulos **ainda não passaram pelas 8 portas** do
+  `13-portas-da-fase-2.md`. Skills: `eurolify-physical-retail-eu`,
+  `eurolify-b2b-channels-eu`, `eurolify-contracts-operations-eu`.
 - **Primeiros parceiros convidados a escrever eles próprios o seu adaptador**
   (decidido pelo Diogo a 03/10/2026, decisão L): prestadores e transportadoras da lista de parcerias
   (`07-pagamentos-e-envios-por-pais.md`), com os contratos que o Eurolify já usa.
