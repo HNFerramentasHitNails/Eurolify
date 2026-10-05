@@ -185,6 +185,7 @@ pedido de alteração.
   `evidence.md`, `timeline.md`, `rule-record.yaml` e `source-gaps.jsonl`;
   linha de estado nas 7 skills novas; remissões das 6 skills antigas para as
   complementares.
+- **Q2 respondida** (Diogo, 05/10/2026: «podemos classificar já»): a classificação do artigo está desenhada no `docs/14` §3.10 («Classificação do artigo») e na C2; o código fica para o #77.
 - **Ficam à espera:** `marketplace-dsa` (marca do art. 16.º) até à resposta
   da G7 (`docs/03:137-145`); papéis da `eurolify-b2b-channels-eu` até à Q4.
 - Por fazer: os pontos de documentos, de segurança e de código (pedidos

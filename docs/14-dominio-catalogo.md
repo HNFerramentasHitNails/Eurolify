@@ -91,6 +91,7 @@ quando a loja tinha 1.043 à venda (13/09/2026, `catalog-pim`, regra 1).
 | `estado` | lista | sim | rascunho, activo, arquivado (§4.1) |
 | `nome`, `descricao` | texto traduzível | nome sim | na língua de origem do comerciante; as outras em Tradução (§3.8) |
 | `marca` | texto | não | |
+| `classificacao` | família setorial, natureza para o consumidor, natureza para o IVA, quem e quando (§3.10, «Classificação do artigo») | sim para publicar | sem ela o artigo não se publica (C2; Q2 do `docs/16`, Diogo, 05/10/2026) |
 | `categoria_fiscal` | código da lista do Motor de IVA | sim para publicar | ex.: normal, reduzida, isenta por natureza (`eu-vat-oss-ioss`) |
 | `operador_economico_id` | referência à Conformidade | conforme o mercado | fabricante e, se o fabricante é de fora da UE, a pessoa responsável na UE (GPSR, **W**, `docs/03` linha 81) |
 | `avisos` | texto traduzível | conforme o mercado | avisos e instruções **na língua do país** onde se vende (GPSR, **W**) |
@@ -228,6 +229,64 @@ O **documento de prova** de cada atributo (ficheiro, emissor, validade) é da
 Conformidade. **O Eurolify nunca afirma que um produto está conforme**
 (`product-compliance-eu`, «Primeira regra»).
 
+#### Classificação do artigo
+
+Decisão do Diogo, 05/10/2026 (*«podemos classificar já»*, Q2 do
+`docs/16-auditoria-das-skills.md`): o `bilhete` e o `servico` não ficam
+desligados; **classificam-se**, e **sem classificação nenhum artigo se
+publica** (`eurolify-sector-compliance-eu`, ponto 4; `digital-products-eu`,
+«Primeira regra»). Vale para todos os tipos, não só para estes dois.
+
+Quem classifica é o **comerciante** (ou quem ele autorizar), na ficha; o
+Eurolify guarda **valor, quem e quando** e não decide por ele. As três
+classificações guardam-se **à parte** e **uma não se deduz da outra**
+(`digital-products-eu`, «Primeira regra»).
+
+| Campo | Valores | Notas |
+|---|---|---|
+| `familia_setorial` | as 27 famílias de `eurolify-legal-briefing-eu/references/sectors.md` (tabela «Famílias», contada a 05/10/2026) + `por_classificar`, que é a 28.ª linha dela («qualquer família não classificada») | um artigo pode ter **mais de uma** família (ex.: um kit de manicure com lâmpada: cosmética + electrónica); `por_classificar` nunca vale «retalho geral» (`sectors.md`, introdução) |
+| `natureza_consumidor` | `bem`, `servico_presencial`, `servico_humano_a_distancia`, `acesso_com_data`, `conteudo_digital`, `servico_digital`, `vale` | os três do digital são os da `digital-products-eu`; `acesso_com_data` é a entrada num evento, sessão ou actividade com **data ou período marcado**; `vale` é do cartão-oferta |
+| `natureza_iva` | lista do Motor de IVA (por desenhar) + `por_classificar` | separada da do consumidor; um serviço humano à distância **não** é por isso serviço electrónico (`digital-products-eu`) |
+| `data_prestacao` | data/hora de início e fim, com fuso | obrigatória no `acesso_com_data` e no `servico_presencial` com data marcada; é o que distingue um bilhete de um vale |
+| `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` |
+| `classificado_por`, `classificado_em` | | entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) |
+
+**Que natureza cada tipo admite** (as outras combinações são recusadas pelo
+servidor):
+
+| Tipo | Naturezas admitidas |
+|---|---|
+| `fisico` | `bem` |
+| `servico` | `servico_presencial`, `servico_humano_a_distancia` |
+| `bilhete` | `acesso_com_data` |
+| `digital` (desligado, P3) | `conteudo_digital`, `servico_digital` |
+| `cartao_oferta` (desligado, P3) | `vale` |
+
+**Bloqueia a publicação** (novos impedimentos da C2):
+`classificacao_em_falta` (família `por_classificar` ou natureza em falta);
+`natureza_incompativel` (fora da tabela acima); `data_ou_local_em_falta`;
+`familia_restrita` — as famílias que a `sectors.md` manda bloquear por
+omissão ou que exigem autorização (medicamentos, dispositivos médicos,
+biocidas e fitofármacos, álcool e tabaco, armas, explosivos e jogo, saúde e
+profissões reguladas — lista **proposta**, a confirmar pelo Diogo ou pelo Bruno) **não se publicam** até haver o desenho e a validação
+profissional delas (`eurolify-sector-compliance-eu`, pontos 4 e 6).
+
+**O que a classificação ainda não decide — tudo C, não verifiquei** (o
+EUR-Lex não abriu nesta sessão, 05/10/2026). Nada disto chega a um ecrã ou a
+uma decisão de IVA sem passar a W com o texto lido ou ser validado:
+
+| Pergunta | Para quem |
+|---|---|
+| Um `acesso_com_data` de lazer está fora da livre resolução (excepção da Dir. 2011/83/UE para actividades de lazer com data marcada)? Que alínea, e com que redacção em cada país? | jurista |
+| Um `servico_presencial` ou `servico_humano_a_distancia` começado dentro do prazo: que pedido expresso e que pagamento proporcional se pedem ao consumidor? | jurista |
+| Onde se tributa a entrada num evento e um serviço humano à distância (lugar da prestação), para consumidor e para empresa? | contabilista |
+| O bilhete comprado para outra pessoa: quem é o consumidor e quem é faturado (lição 1.2 do `docs/04`) | jurista + contabilista |
+
+Até haver resposta: o `bilhete` e o `servico` publicam-se **sem nenhuma
+excepção à livre resolução** e o IVA deles espera pelo Motor de IVA e pelo
+contabilista — não se aplica nenhuma excepção nem regra especial por conta
+própria («Nunca inventar», `AGENTS.md`).
+
 ### 3.11 Importação (`imp_`) e exportação (`exp_`)
 
 | Entidade | Campos | Notas |
@@ -288,7 +347,7 @@ artigo com todas as variantes arquivadas ficava preso: não voltava a activo
 | # | Regra | Fonte |
 |---|---|---|
 | C1 | **A ficha vive num sítio só.** Campo novo de artigo nasce no domínio, na API de Administração e na ficha do Hub no mesmo passo; o Hub usa a API como qualquer cliente | `catalog-pim`, «Primeira regra»; `headless-commerce` |
-| C2 | **«Pode publicar?» é uma pergunta ao servidor**, que responde sim ou a lista de impedimentos com código: sem SKU, sem unidade, sem categoria fiscal, sem preço no mercado ou a 0,00 € sem ser gratuito (pergunta a Preços), atributo obrigatório em falta no mercado (pergunta à Conformidade), nome ou avisos sem tradução numa língua do mercado, media sem texto alternativo | `catalog-pim`, regra 2 e «Antes de dizer está feito»; o gel a 0,00 € seis meses e meio com 149 unidades |
+| C2 | **«Pode publicar?» é uma pergunta ao servidor**, que responde sim ou a lista de impedimentos com código: sem SKU, sem unidade, sem categoria fiscal, sem preço no mercado ou a 0,00 € sem ser gratuito (pergunta a Preços), atributo obrigatório em falta no mercado (pergunta à Conformidade), classificação em falta ou incompatível, ou família restrita (§3.10, «Classificação do artigo»), nome ou avisos sem tradução numa língua do mercado, media sem texto alternativo | `catalog-pim`, regra 2 e «Antes de dizer está feito»; o gel a 0,00 € seis meses e meio com 149 unidades |
 | C3 | SKU obrigatório e único por comerciante; unidade de venda obrigatória | `catalog-pim`, regra 3 |
 | C4 | Código de barras com origem guardada | `catalog-pim`, regra 4 |
 | C5 | Mudar o original marca as traduções desactualizadas e avisa | `catalog-pim`, regra 5 |
@@ -430,3 +489,4 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P8 | Apagar uma variante de um artigo **rascunho** — também uma variante já **arquivada** — liberta o SKU dela para outra variante? (Um rascunho nunca esteve activo, por isso a variante nunca se vendeu) | ✅ **Decidido: sim, nos dois casos** (Diogo, 05/10/2026: *«sim, o SKU de um rascunho apagado pode voltar»*). É o que o código da parte 1 já faz (#78) |
 | P9 | `GEL-001` e `gel-001` são o **mesmo SKU**? | ✅ **Decidido: sim, o mesmo SKU** (Diogo, 05/10/2026: *«sim, mesmo SKU»*). Guarda-se como foi escrito; a unicidade e a procura não distinguem maiúsculas (migração 0003) |
 | P10 | Um artigo **sem opções** pode ter várias variantes? (O §3.2 dizia que tinha uma; o código da parte 1 deixa várias, como `GEL-001` e `GEL-REFILL`) | ✅ **Decidido: sim** (Diogo, 05/10/2026: *«sim, um artigo sem opções pode ter várias variantes»*). A regra «a combinação não se repete» só vale para artigos com opções |
+| P11 | O `bilhete` e o `servico` à distância ficam desligados até terem classificação, ou classificam-se já? (Q2 do `docs/16`) | ✅ **Decidido: classificam-se já** (Diogo, 05/10/2026: *«podemos classificar já»*); sem classificação nenhum artigo se publica — §3.10, «Classificação do artigo» |
