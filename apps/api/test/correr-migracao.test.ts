@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { correrMigracao } from "../src/base/correr-migracao.js";
 import { PASTA_MIGRACOES } from "../src/base/migracoes.js";
 import { apagarBase, URL_BASE } from "./base-de-teste.js";
@@ -92,6 +92,34 @@ describe.skipIf(URL_BASE === undefined)("correrMigracao", () => {
     expect(tudo).not.toContain("maria.silva@exemplo.pt");
     expect(tudo).not.toContain("Maria Silva");
     expect(tudo).not.toContain("Failing row");
+  });
+
+  it("se fechar a ligação falhar, não lança, não escreve valores e fica o código", async () => {
+    const { url, pasta } = await preparar();
+    const { linhas, saida } = apanhar();
+    // Fecha de verdade (a base de teste tem de ficar sem ligações) e depois
+    // falha, como um erro ao fechar.
+    type Fechar = (this: pg.Pool) => Promise<void>;
+    const fecharDeVerdade: unknown = Reflect.get(pg.Pool.prototype, "end");
+    const falhar = Object.assign(new Error("ao fechar"), {
+      code: "XX000",
+      detail: "Failing row contains (maria.silva@exemplo.pt)",
+    });
+    const fim = vi
+      .spyOn(pg.Pool.prototype as unknown as { end: Fechar }, "end")
+      .mockImplementationOnce(function (this: pg.Pool) {
+        return (fecharDeVerdade as Fechar).call(this).then(() => {
+          throw falhar;
+        });
+      });
+    try {
+      expect(await correrMigracao(url, saida, pasta)).toBe(0);
+    } finally {
+      fim.mockRestore();
+    }
+    const tudo = linhas.join("\n");
+    expect(tudo).toContain("migrar: aviso: a ligação não fechou: code=XX000");
+    expect(tudo).not.toContain("maria.silva@exemplo.pt");
   });
 
   it("sem falhas: código 0 e a lista do que se aplicou", async () => {

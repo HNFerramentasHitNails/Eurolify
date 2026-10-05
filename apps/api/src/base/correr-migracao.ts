@@ -20,11 +20,15 @@ export async function correrMigracao(
   saida: Saida,
   pasta: URL = PASTA_MIGRACOES,
 ): Promise<number> {
-  const db = new Kysely<unknown>({
-    dialect: new PostgresDialect({
-      pool: new pg.Pool({ connectionString: url, max: 1 }),
-    }),
+  const pool = new pg.Pool({ connectionString: url, max: 1 });
+  // Um erro numa ligação parada não pode chegar ao Node como excepção por
+  // apanhar (4.ª revisão do #80, P3-2).
+  pool.on("error", (erro) => {
+    saida.erro(
+      `migrar: aviso: ligação perdida: ${pormenorDeMigracao(erro) ?? "sem pormenor"}`,
+    );
   });
+  const db = new Kysely<unknown>({ dialect: new PostgresDialect({ pool }) });
   try {
     const { results } = await migrar(db, pasta);
     const aplicadas = (results ?? []).filter((r) => r.status === "Success");
@@ -40,6 +44,13 @@ export async function correrMigracao(
     );
     return 1;
   } finally {
-    await db.destroy();
+    // Fechar também não pode lançar: a rejeição tomaria o lugar do código e o
+    // Node imprimiria o erro inteiro (4.ª revisão do #80, P2-2). O código
+    // fica o da migração.
+    await db.destroy().catch((erro: unknown) => {
+      saida.erro(
+        `migrar: aviso: a ligação não fechou: ${pormenorDeMigracao(erro) ?? "sem pormenor"}`,
+      );
+    });
   }
 }

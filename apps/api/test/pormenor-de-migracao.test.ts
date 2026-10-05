@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { pormenorDeMigracao } from "../src/base/pormenor-de-migracao.js";
 
-// O registo da publicação nunca leva valores das linhas (revisão do #80, 2.ª,
-// P2-A): os erros abaixo têm a forma dos do `pg` (medida no PostgreSQL 18).
+// O registo da publicação não leva valores das linhas, excepto o comerciante
+// e o SKU da restrição do SKU (revisões do #80: 2.ª, P2-A; 4.ª, P3-1). Os
+// erros abaixo têm a forma dos do `pg` (medida no PostgreSQL 18).
 
 describe("pormenorDeMigracao", () => {
   it("uma linha recusada sai só com os nomes, sem os valores", () => {
