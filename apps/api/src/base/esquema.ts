@@ -186,6 +186,15 @@ export interface TabelaVariante {
   criado_em: ColumnType<Date, never, never>;
 }
 
+// Catálogo, parte 2a (migração 0004; docs/14 §3.4).
+export interface TabelaComponente {
+  comerciante_id: string;
+  kit_id: string;
+  componente_id: string;
+  quantidade: number;
+  posicao: ColumnType<number, number | undefined>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -195,4 +204,5 @@ export interface BaseDados {
   transicao_estado: TabelaTransicaoEstado;
   artigo: TabelaArtigo;
   variante: TabelaVariante;
+  componente: TabelaComponente;
 }

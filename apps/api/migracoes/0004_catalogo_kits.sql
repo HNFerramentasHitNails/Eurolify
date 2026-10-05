@@ -1,0 +1,105 @@
+-- Domínio Catálogo, parte 2a: composição dos kits (docs/14 §3.4; issue #77).
+-- Uma variante é um kit quando tem componentes, que são outras variantes do
+-- mesmo comerciante, com quantidade. A disponibilidade do kit calcula-a o
+-- Stock a partir daqui (§2); o Catálogo só guarda a lista.
+--
+-- Regras (as marcadas «proposta» são desta parte do código, docs/14 §3.4):
+-- - um kit não se contém a si próprio, nem por outro kit (sem ciclos);
+-- - um componente novo tem de ser uma variante activa (proposta); arquivar
+--   depois um componente é permitido (C6): o kit fica, e o Stock dá-o sem
+--   disponibilidade;
+-- - a composição de uma variante arquivada não muda (arquivada é final);
+-- - uma variante que é componente de um kit não se apaga (proposta: o kit
+--   perderia um componente sem ninguém ver).
+
+-- Para as chaves estrangeiras compostas (comerciante, variante), como o artigo.
+ALTER TABLE variante ADD CONSTRAINT variante_comerciante_id_unico UNIQUE (comerciante_id, id);
+
+CREATE TABLE componente (
+  comerciante_id uuid NOT NULL,
+  kit_id uuid NOT NULL,
+  componente_id uuid NOT NULL,
+  quantidade integer NOT NULL CHECK (quantidade > 0),
+  posicao integer NOT NULL DEFAULT 0 CHECK (posicao >= 0),
+  PRIMARY KEY (kit_id, componente_id),
+  CONSTRAINT componente_nao_e_o_kit CHECK (kit_id <> componente_id),
+  -- Apagar o kit (só um rascunho, 0002) leva a composição dele.
+  CONSTRAINT componente_do_kit FOREIGN KEY (comerciante_id, kit_id)
+    REFERENCES variante (comerciante_id, id) ON DELETE CASCADE,
+  -- Apagar uma variante que é componente de um kit é recusado.
+  CONSTRAINT componente_em_uso FOREIGN KEY (comerciante_id, componente_id)
+    REFERENCES variante (comerciante_id, id)
+);
+CREATE INDEX componente_por_componente ON componente (comerciante_id, componente_id);
+
+CREATE FUNCTION componente_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  linha public.componente;
+  estado_do_kit text;
+  estado_do_componente text;
+BEGIN
+  linha := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+
+  SELECT v.estado INTO estado_do_kit FROM public.variante v
+  WHERE v.comerciante_id = linha.comerciante_id AND v.id = linha.kit_id;
+  -- Sem kit: está a ser apagado (rascunho) e a composição vai com ele.
+  IF estado_do_kit = 'arquivada' THEN
+    RAISE EXCEPTION 'catalog.variant_archived_is_final: a composição de uma variante arquivada não muda';
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+
+  IF TG_OP = 'UPDATE' AND (NEW.comerciante_id <> OLD.comerciante_id
+      OR NEW.kit_id <> OLD.kit_id OR NEW.componente_id <> OLD.componente_id) THEN
+    RAISE EXCEPTION 'catalog.immutable_identity: o kit e o componente de uma linha não mudam; substituir a lista';
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    -- Quem acrescenta componentes no mesmo comerciante, um de cada vez: duas
+    -- escritas ao mesmo tempo (A em B e B em A) não passam as duas na
+    -- verificação dos ciclos.
+    PERFORM pg_advisory_xact_lock(
+      hashtextextended('eurolify.componente:' || NEW.comerciante_id::text, 0));
+
+    SELECT v.estado INTO estado_do_componente FROM public.variante v
+    WHERE v.comerciante_id = NEW.comerciante_id AND v.id = NEW.componente_id
+    FOR SHARE;
+    IF estado_do_componente = 'arquivada' THEN
+      RAISE EXCEPTION 'catalog.component_archived: um componente novo tem de ser uma variante activa';
+    END IF;
+
+    -- Sem ciclos: o kit não pode estar dentro do componente, a nenhum nível.
+    IF EXISTS (
+      WITH RECURSIVE dentro (id) AS (
+        SELECT NEW.componente_id
+        UNION
+        SELECT c.componente_id FROM public.componente c
+        JOIN dentro d ON c.comerciante_id = NEW.comerciante_id AND c.kit_id = d.id
+      )
+      SELECT FROM dentro WHERE id = NEW.kit_id
+    ) THEN
+      RAISE EXCEPTION 'catalog.component_cycle: o kit ficaria dentro de si próprio';
+    END IF;
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER componente_antes_de_gravar
+  BEFORE INSERT OR UPDATE OR DELETE ON componente
+  FOR EACH ROW EXECUTE FUNCTION componente_antes_de_gravar();
+
+ALTER TABLE componente ENABLE ROW LEVEL SECURITY;
+ALTER TABLE componente FORCE ROW LEVEL SECURITY;
+CREATE POLICY so_o_proprio ON componente
+  USING (comerciante_id = comerciante_actual())
+  WITH CHECK (comerciante_id = comerciante_actual());
+
+-- A API substitui a lista inteira (apaga e insere) e pode mudar quantidade e
+-- posição; o kit e o componente de uma linha não mudam.
+GRANT SELECT, DELETE ON componente TO eurolify_api;
+GRANT INSERT (comerciante_id, kit_id, componente_id, quantidade, posicao)
+  ON componente TO eurolify_api;
+GRANT UPDATE (quantidade, posicao) ON componente TO eurolify_api;
