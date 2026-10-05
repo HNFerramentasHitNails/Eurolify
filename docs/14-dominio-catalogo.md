@@ -9,10 +9,11 @@
 >
 > **Estado do código** (issue #77): parte 1 — artigos e variantes na base
 > (migração `0002_catalogo_artigos.sql`, `apps/api/src/catalogo/repositorio.ts`,
-> 18 testes contra o PostgreSQL 18.6), sem API até à fatia «identidade». As
+> 20 testes contra o PostgreSQL 18.6), sem API até à fatia «identidade». As
 > listas de unidades de venda (`unidade`, `par`, `caixa`, `embalagem`,
-> `conjunto`) e de unidades do conteúdo (`mg` a `m3`) são **proposta** desta
-> parte.
+> `conjunto`) e de unidades do conteúdo (`mg` a `m3`) e o formato do SKU
+> (1 a 64 caracteres: letras sem acentos, algarismos e `. _ / -`, a começar por
+> letra ou algarismo) são **proposta** desta parte.
 >
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
 > `product-compliance-eu`, `eu-localization`, `eu-vat-oss-ioss` (categoria
@@ -99,7 +100,7 @@ A unidade vendável. Um artigo sem opções tem uma variante.
 | `id` | `var_…` | sim | |
 | `artigo_id` | `prd_…` | sim | |
 | `sku` | texto | **sim** | **único por comerciante** (`catalog-pim`, regra 3: no Hub, artigo sem SKU travava a fatura, 11/09 e 17/09/2026). Um SKU arquivado **não se reutiliza** (**proposta**) |
-| `gtin` | texto | não | dígito de controlo validado; único por comerciante (**proposta**: no Hub havia 18 códigos repetidos, `catalog-pim`, regra 4) |
+| `gtin` | texto | não | dígito de controlo validado; único por comerciante (**proposta**: no Hub havia 18 códigos repetidos, `catalog-pim`, regra 4). O mesmo código noutro tamanho, com zeros à esquerda, conta como repetido; só zeros não é um GTIN (**proposta**, revisão do #78) |
 | `gtin_origem` | lista | sim se há `gtin` | GS1 do comerciante, do fornecedor ou interno (`catalog-pim`, regra 4) |
 | `valores_das_opcoes` | lista de `ovl_…` | conforme o artigo | uma combinação não se repete dentro do artigo |
 | `unidade_de_venda` | código da lista do Eurolify | **sim** | unidade, caixa, par… (`catalog-pim`, regra 3: no Hub, artigo sem unidade travava a fatura) |
@@ -225,6 +226,11 @@ Não se apaga um artigo que já esteve activo: arquiva-se (o rasto alimenta
 preços, IVA e conformidade, `catalog-pim`, regra 7). Apagar só um rascunho que
 nunca foi activo (**proposta**).
 
+Um artigo arquivado **pode receber variantes novas**, e repõe-se como os
+outros (decisão do Diogo, 05/10/2026, revisão do #78, opção a). Sem isto, um
+artigo com todas as variantes arquivadas ficava preso: não voltava a activo
+(sem variante activa) e não recebia uma nova.
+
 ### 4.2 Publicação
 
 | De | Para | Condição |
@@ -314,7 +320,8 @@ cursor, com indicação de que há mais e **o total explícito** (regra 4; liç�
 | Importar | `POST /imports` (ensaio por omissão), `GET /imports/{id}`, `POST /imports/{id}/apply` | import | o relatório do ensaio vem antes de escrever |
 | Exportar | `POST /exports`, `GET /exports/{id}` | read | exportação completa |
 
-Erros com código estável (**proposta**): `catalog.sku_required`,
+Erros com código estável (**proposta**): `catalog.not_found` (também quando
+o artigo é de outro comerciante), `catalog.sku_required`, `catalog.sku_invalid`,
 `catalog.sku_duplicate`, `catalog.gtin_invalid`, `catalog.gtin_duplicate`,
 `catalog.unit_required`, `catalog.option_combination_duplicate`,
 `catalog.component_cycle`, `catalog.version_conflict`,
@@ -373,3 +380,5 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P5 | Comerciante com sistema de gestão: o que pode ser editado no Hub do Eurolify? | ✅ **Decidido: os campos que vêm de lá ficam só de leitura no Hub; as traduções, a media e a publicação editam-se no Eurolify** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
 | P6 | Acrescentar `product.unpublished` e `product.archived` à lista de eventos (skill `platform-architect` e `02-arquitectura.md`)? | ✅ **Decidido: sim — sem eles, Preços, Stock e frontends não sabem que um artigo deixou de estar à venda** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
 | P7 | Um SKU de uma variante arquivada pode voltar a ser usado? | ✅ **Decidido: não** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
+| P8 | Apagar uma variante de um artigo **rascunho** liberta o SKU dela para outra variante? (Um rascunho nunca esteve activo, por isso a variante nunca se vendeu) | Por decidir. O código actual deixa (revisão do #78, P2-3) |
+| P9 | `GEL-001` e `gel-001` são o **mesmo SKU**? | Por decidir. O código actual trata-os como diferentes (revisão do #78, P2-4) |

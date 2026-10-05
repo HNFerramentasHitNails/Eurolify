@@ -142,6 +142,9 @@ export const ORIGENS_GTIN = [
 ] as const;
 export type OrigemGtin = (typeof ORIGENS_GTIN)[number];
 
+export const ESTADOS_VARIANTE = ["activa", "arquivada"] as const;
+export type EstadoVariante = (typeof ESTADOS_VARIANTE)[number];
+
 export interface TabelaArtigo {
   id: Generated<string>;
   comerciante_id: string;
@@ -178,7 +181,7 @@ export interface TabelaVariante {
   altura_mm: number | null;
   onu: string | null;
   classe_adr: string | null;
-  estado: ColumnType<"activa" | "arquivada", "activa" | undefined, "arquivada">;
+  estado: ColumnType<EstadoVariante, "activa" | undefined, "arquivada">;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
 }

@@ -23,9 +23,11 @@ export type CodigoErroCatalogo =
   | "catalog.immutable_type"
   | "catalog.no_variants"
   | "catalog.not_draft"
-  | "catalog.product_archived"
   | "catalog.variant_archived_is_final"
   | "catalog.version_conflict"
+  | "catalog.sku_required"
+  | "catalog.sku_invalid"
+  | "catalog.unit_required"
   | "catalog.sku_duplicate"
   | "catalog.gtin_duplicate"
   | "catalog.gtin_invalid";
@@ -48,17 +50,26 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   "catalog.immutable_type",
   "catalog.no_variants",
   "catalog.not_draft",
-  "catalog.product_archived",
   "catalog.variant_archived_is_final",
 ];
 
 /** As restrições da base que têm código próprio (§7.1). */
 const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   variante_sku_unico: "catalog.sku_duplicate",
+  variante_sku_check: "catalog.sku_invalid",
   variante_gtin_unico: "catalog.gtin_duplicate",
   variante_gtin_digito_de_controlo: "catalog.gtin_invalid",
   variante_gtin_check: "catalog.gtin_invalid",
 };
+
+/** Colunas obrigatórias com código próprio (§7.1: C3). */
+const OBRIGATORIAS: Readonly<Record<string, CodigoErroCatalogo>> = {
+  sku: "catalog.sku_required",
+  unidade_de_venda: "catalog.unit_required",
+};
+
+/** As tabelas deste domínio: um 23503 nelas é «não existe» (revisão do #78, P2-1). */
+const TABELAS = new Set(["artigo", "variante"]);
 
 function traduzir(erro: unknown): unknown {
   if (!(erro instanceof Error)) return erro;
@@ -66,7 +77,12 @@ function traduzir(erro: unknown): unknown {
   if (codigo !== undefined) {
     return new ErroCatalogo(codigo, erro.message, { cause: erro });
   }
-  const pg = erro as Error & { code?: string; constraint?: string };
+  const pg = erro as Error & {
+    code?: string;
+    constraint?: string;
+    column?: string;
+    table?: string;
+  };
   const daRestricao =
     pg.constraint === undefined ? undefined : RESTRICOES[pg.constraint];
   if (
@@ -74,6 +90,18 @@ function traduzir(erro: unknown): unknown {
     (pg.code === "23505" || pg.code === "23514")
   ) {
     return new ErroCatalogo(daRestricao, erro.message, { cause: erro });
+  }
+  const daColuna =
+    pg.column === undefined ? undefined : OBRIGATORIAS[pg.column];
+  if (pg.code === "23502" && daColuna !== undefined) {
+    return new ErroCatalogo(daColuna, erro.message, { cause: erro });
+  }
+  // Uma chave estrangeira que falha: o artigo (ou o comerciante) não existe
+  // ou é de outro comerciante — o RLS esconde-o igual, sem oráculo.
+  if (pg.code === "23503" && pg.table !== undefined && TABELAS.has(pg.table)) {
+    return new ErroCatalogo("catalog.not_found", "referência inexistente", {
+      cause: erro,
+    });
   }
   return erro;
 }
@@ -206,6 +234,8 @@ export async function alterarArtigo(
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
     await artigoNaVersao(trx, artigoId, versao);
+    // Nada para mudar: a versão fica (revisão do #78, P2-6).
+    if (Object.keys(alteracao).length === 0) return versao;
     const { versao: nova } = await trx
       .updateTable("artigo")
       .set(alteracao)
@@ -256,7 +286,7 @@ export async function apagarRascunho(
   });
 }
 
-/** Acrescenta uma variante a um artigo que não está arquivado. */
+/** Acrescenta uma variante; também a um artigo arquivado (§4.1, opção a). */
 export async function criarVariante(
   db: Kysely<BaseDados>,
   comercianteId: string,

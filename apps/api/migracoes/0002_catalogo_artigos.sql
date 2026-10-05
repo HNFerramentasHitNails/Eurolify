@@ -64,7 +64,6 @@ CREATE TABLE variante (
   posicao integer NOT NULL DEFAULT 0 CHECK (posicao >= 0),
   criado_em timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT variante_sku_unico UNIQUE (comerciante_id, sku),
-  CONSTRAINT variante_gtin_unico UNIQUE (comerciante_id, gtin),
   -- Com código de barras, a origem dele (C4).
   CONSTRAINT variante_gtin_com_origem CHECK ((gtin IS NULL) = (gtin_origem IS NULL)),
   CONSTRAINT variante_conteudo_completo CHECK (
@@ -77,18 +76,31 @@ CREATE TABLE variante (
 -- leva a soma ao múltiplo de 10 seguinte (o algoritmo GS1 do dígito de
 -- controlo; não verifiquei em que secção das especificações está). Os testes
 -- provam-no com códigos calculados à mão e com um dígito trocado.
+-- Só algarismos (sem depender de outro CHECK correr antes) e nunca só zeros
+-- (revisão do #78, P1-2 e P2-6).
 CREATE FUNCTION gtin_valido(codigo text) RETURNS boolean
   LANGUAGE sql IMMUTABLE STRICT SET search_path = pg_catalog AS $$
-  SELECT (10 - (sum(
-           substr(codigo, length(codigo) - i, 1)::int
-           * CASE WHEN i % 2 = 1 THEN 3 ELSE 1 END) % 10)) % 10
-         = substr(codigo, length(codigo), 1)::int
-  FROM generate_series(1, length(codigo) - 1) AS i
+  SELECT CASE
+    WHEN codigo !~ '^[0-9]{2,}$' OR codigo ~ '^0+$' THEN false
+    ELSE (
+      SELECT (10 - (sum(
+               substr(codigo, length(codigo) - i, 1)::int
+               * CASE WHEN i % 2 = 1 THEN 3 ELSE 1 END) % 10)) % 10
+             = substr(codigo, length(codigo), 1)::int
+      FROM generate_series(1, length(codigo) - 1) AS i)
+  END
 $$;
 
 ALTER TABLE variante
   ADD CONSTRAINT variante_gtin_digito_de_controlo
   CHECK (gtin IS NULL OR public.gtin_valido(gtin));
+
+-- Único por comerciante na forma de 14 algarismos: o mesmo código escrito
+-- como GTIN-12, 13 ou 14 (zeros à esquerda) é o mesmo código (revisão do
+-- #78, P1-2; C4: no Hub havia 18 códigos repetidos).
+CREATE UNIQUE INDEX variante_gtin_unico
+  ON variante (comerciante_id, lpad(gtin, 14, '0'))
+  WHERE gtin IS NOT NULL;
 
 -- Artigo: estados (§4.1), versão e o que não muda.
 CREATE FUNCTION artigo_antes_de_gravar() RETURNS trigger
@@ -104,6 +116,9 @@ BEGIN
       RAISE EXCEPTION 'catalog.type_disabled: o tipo % está desligado (ADR-0034)', NEW.tipo;
     END IF;
     NEW.versao := 1;
+    -- As datas são da base, não de quem cria (revisão do #78, P2-2).
+    NEW.criado_em := now();
+    NEW.actualizado_em := now();
     RETURN NEW;
   END IF;
 
@@ -130,7 +145,9 @@ BEGIN
     END IF;
     -- Activar exige pelo menos uma variante activa; o SKU e a unidade já são
     -- obrigatórios em todas (C3). FOR SHARE: quem arquiva a última variante
-    -- ao mesmo tempo espera, e vice-versa.
+    -- ao mesmo tempo espera, e esta activação vê o resultado. Depois de
+    -- activo, arquivar a última variante é permitido (C6): o artigo fica
+    -- activo sem variantes activas e não se pode publicar.
     IF NEW.estado = 'activo' AND NOT EXISTS (
       SELECT FROM (
         SELECT v.id FROM public.variante v
@@ -174,8 +191,10 @@ CREATE TRIGGER artigo_antes_de_apagar
 
 -- Variante: o artigo e o SKU não mudam (um SKU é a identidade da variante para
 -- faturas e importações); arquivada é final, como a entidade legal (P7: o SKU
--- não volta); arquivar não toca no artigo (C6). Só se apaga com o artigo
--- rascunho (o trigger acima), nunca sozinha.
+-- não volta); arquivar não toca no artigo (C6). Só se apaga enquanto o artigo
+-- é rascunho (sozinha ou com ele): um rascunho nunca esteve activo, por isso o
+-- SKU dela nunca foi usado fora e fica livre — se isto está bem é uma pergunta
+-- em aberto para o Diogo ou o Bruno (revisão do #78, P2-3).
 CREATE FUNCTION variante_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -194,13 +213,11 @@ BEGIN
     IF NEW.estado <> 'activa' THEN
       RAISE EXCEPTION 'catalog.invalid_transition: uma variante nasce activa';
     END IF;
-    -- Um artigo arquivado não recebe variantes novas: repor primeiro.
-    SELECT a.estado INTO estado_do_artigo FROM public.artigo a
-    WHERE a.comerciante_id = NEW.comerciante_id AND a.id = NEW.artigo_id
-    FOR SHARE;
-    IF estado_do_artigo = 'arquivado' THEN
-      RAISE EXCEPTION 'catalog.product_archived: o artigo está arquivado; repor primeiro';
-    END IF;
+    -- Um artigo arquivado pode receber variantes novas: é assim que se repõe
+    -- um artigo cujas variantes estão todas arquivadas (decisão do Diogo,
+    -- 05/10/2026, revisão do #78, P1-1, opção a). Arquivado não está à venda.
+    -- As datas são da base (revisão do #78, P2-2).
+    NEW.criado_em := now();
     RETURN NEW;
   END IF;
   IF OLD.estado = 'arquivada' THEN
@@ -238,5 +255,14 @@ $$;
 -- O que a API pode fazer. Apagar só o artigo (o trigger só deixa o rascunho
 -- que nunca esteve activo); as variantes vão com ele, pelo trigger, que corre
 -- com os direitos da API: por isso DELETE em variante também, e o trigger da
--- variante só deixa apagar a de um artigo rascunho.
-GRANT SELECT, INSERT, UPDATE, DELETE ON artigo, variante TO eurolify_api;
+-- variante só deixa apagar a de um artigo rascunho. No INSERT, o `id` é sempre
+-- o da base: a API não o escolhe, e um id escolhido não revela que já existe
+-- noutro comerciante (revisão do #78, P2-5).
+GRANT SELECT, UPDATE, DELETE ON artigo, variante TO eurolify_api;
+GRANT INSERT (comerciante_id, tipo, estado, nome, descricao, marca,
+  categoria_fiscal, origem, origem_ref, ja_esteve_activo, criado_em,
+  actualizado_em, versao) ON artigo TO eurolify_api;
+GRANT INSERT (comerciante_id, artigo_id, sku, gtin, gtin_origem,
+  unidade_de_venda, conteudo_quantidade, conteudo_unidade, peso_g,
+  comprimento_mm, largura_mm, altura_mm, onu, classe_adr, estado, posicao,
+  criado_em) ON variante TO eurolify_api;
