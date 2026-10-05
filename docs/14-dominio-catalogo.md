@@ -299,6 +299,13 @@ classificações guardam-se **à parte** e **uma não se deduz da outra**
 | `lazer_com_data` | `nao` (por omissão), `sim` | o comerciante declara que é uma actividade de **lazer** com data marcada; **só com `sim` e a regra validada pelo jurista** é que se aplica a excepção à livre resolução (§ abaixo) |
 | `classificado_por`, `classificado_em` | | entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) |
 
+**Em código** (migração `0006_catalogo_classificacao.sql`, 05/10/2026): as
+famílias, a natureza para o consumidor, o modo, a data e o local, o lazer com
+data e quem/quando, com as combinações abaixo recusadas pela base; os
+impedimentos para publicar em `apps/api/src/catalogo/classificacao.ts`, à
+espera da verificação C2 (parte 4 do #77). A `natureza_iva` espera pelo Motor
+de IVA. O mesmo artigo com o tipo mudado não existe (o tipo não muda, §4.1).
+
 **Que natureza cada tipo admite** (as outras combinações são recusadas pelo
 servidor):
 

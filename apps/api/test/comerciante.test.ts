@@ -95,6 +95,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0003_sku_sem_maiusculas",
         "0004_catalogo_kits",
         "0005_catalogo_opcoes",
+        "0006_catalogo_classificacao",
       ]);
     });
 
