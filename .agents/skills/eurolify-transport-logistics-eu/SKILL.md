@@ -8,6 +8,8 @@ metadata:
 
 # Transporte e logística
 
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o de cada domínio só depois do desenho dele em tabela.
+
 Lê `.agents/skills/eurolify-legal-briefing-eu/references/transport.md`.
 
 1. Classifica produto, papel do expedidor, origem/destino/territórios, modo e transportadora. Consulta o setor quando houver riscos.

@@ -17,7 +17,7 @@ Política de modelos da Eurolify (decisão do Diogo, 04/10/2026): Sonnet para a 
 4. Recomenda modelo e justificação curtos. Para mudar a sessão principal, apresenta a opção suportada; nunca afirma que a recomendação já mudou o modelo. Usa um agente configurado só se disponível e autorizado.
 5. Executa uma fatia delimitada. Delega apenas leitura volumosa ou tarefas independentes com resultado compacto; não lança vários escritores nos mesmos ficheiros. **Não põe vários agentes em paralelo sem perguntar** (`AGENTS.md`, «Agentes»); um agente dirigido a uma pergunta concreta pode ser usado.
 6. Se falhar, distingue erro de ambiente/dados de raciocínio insuficiente. Usa diagnóstico antes de repetir. Após duas tentativas sem nova evidência, muda a abordagem ou escala justificadamente.
-7. Usa `eurolify-evidence-before-done` para concluir. Mantém o gate de uma sessão independente quando o projeto o exigir; um subagente no mesmo trabalho não o substitui automaticamente.
+7. Usa `eurolify-evidence-before-done` para concluir. A revisão independente é a do `AGENTS.md` («Git») e do ADR-0035: um agente lançado da própria sessão, sem a conversa de quem escreveu, só de leitura, publicada no pedido com o modelo; sessões novas só a pedido do Diogo ou do Bruno.
 
 ## Saída curta
 

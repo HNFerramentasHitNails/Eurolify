@@ -8,6 +8,8 @@ metadata:
 
 # Atualização regulamentar
 
+> Estado: método — não corre sozinha; usa-se ao mudar uma regra ou uma data.
+
 Lê `.agents/skills/eurolify-legal-briefing-eu/references/timeline.md` e `references/evidence.md` nessa pasta.
 
 1. Parte da regra e fonte existentes; confirma ato modificador, versão consolidada, corrigendas, atos de execução e regras nacionais pertinentes.

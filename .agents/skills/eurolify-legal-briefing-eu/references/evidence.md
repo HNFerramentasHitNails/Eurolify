@@ -3,8 +3,10 @@
 Preserva o significado W/M/C do projeto. Não cria um novo significado para converter pesquisa em aprovação.
 
 - **W:** confirmação por pesquisa web, normalmente resumo. Usa `W · texto lido` apenas para artigos efetivamente lidos, identificados na ficha; não significa leitura de todo o diploma ou de todas as alterações.
-- **M:** facto medido ou decisão documentada na memória, com data e origem. Não torna uma decisão comercial numa norma legal.
-- **C:** conhecimento geral ou conclusão ainda não confirmada para o caso. Exige confirmação antes de sustentar a ativação.
+- **M:** vem da memória de trabalho dos sistemas actuais da empresa (repo `bruno-88/claude`), medido ou decidido lá, com data e origem. Não torna uma decisão comercial numa norma legal.
+- **C:** conhecimento prévio não verificado na sessão, ou conclusão ainda não confirmada para o caso. Exige confirmação antes de sustentar a ativação.
+
+A definição que manda é a de `docs/03-regulamentar-ue.md` (tabela W/M/C). **Uma linha C não entra num ecrã, num texto legal nem numa decisão de IVA** sem passar a W com o texto legal lido ou ser validada por um profissional (`docs/03`, regra a seguir à tabela).
 
 O rótulo W/M/C, a leitura da fonte, a implementação, o teste e a aprovação por profissional são dimensões separadas. Uma skill, uma página oficial ou um teste verde não certificam uma loja.
 

@@ -8,6 +8,8 @@ metadata:
 
 # Contratos e operação
 
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o de cada domínio só depois do desenho dele em tabela. A fase da loja física, dos distribuidores e do franchising está **por decidir** (`docs/16-auditoria-das-skills.md`, Q3); só as listas de preços B2B estão na Fase 1 (`docs/05`).
+
 Lê `.agents/skills/eurolify-legal-briefing-eu/references/channels-contracts.md` e `references/countries.md` nessa pasta quando houver requisitos nacionais.
 
 1. Identifica partes e funções: plataforma, comerciante, cliente, fornecedor, transportadora, franchisado, trabalhador ou senhorio.

@@ -10,6 +10,7 @@ description: Direitos do consumidor na UE no Eurolify — transparência de pre�
 > concretas dependem do **produto**, do **país** e de o comprador ser
 > **consumidor ou profissional** — o Eurolify dá as peças; o comerciante e o
 > jurista confirmam o texto.
+> Complementares (05/10/2026): `eurolify-physical-retail-eu` (venda ao balcão, que não tem a livre resolução das vendas à distância como regra geral da UE — `eurolify-legal-briefing-eu/references/retail-pos-tax.md`, **W**) e `eurolify-country-readiness-eu` (transposição por país); coordenação em `eurolify-legal-briefing-eu`.
 
 ## Quando usar
 
@@ -87,7 +88,10 @@ perfil), e por omissão trata como consumidor.
 
 ## Botão de livre resolução (desde 19/06/2026)
 
-Dir. (UE) 2023/2673, novo art. 11.º-A da Dir. 2011/83/UE (**W**):
+Dir. (UE) 2023/2673, novo art. 11.º-A da Dir. 2011/83/UE (**W**). Aplica-se
+pelas medidas nacionais de transposição: confirmar a lei de cada país antes de
+o declarar conforme (calendário da `eurolify-legal-briefing-eu`,
+`references/timeline.md`).
 
 - **Função online** fácil de encontrar, claramente visível e disponível
   **durante todo o prazo de 14 dias**, em todos os contratos à distância com

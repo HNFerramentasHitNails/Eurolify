@@ -7,6 +7,7 @@ description: Localização europeia no Eurolify — mercados (país, moeda, lín
 
 > Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Países: **toda a UE, de
 > raiz** (decisão F e D-6, Diogo, 03/10/2026).
+> Complementares (05/10/2026): `eurolify-country-readiness-eu` (prontidão por país, território, setor e canal); coordenação em `eurolify-legal-briefing-eu`.
 
 ## 🔴 Regra de ouro
 

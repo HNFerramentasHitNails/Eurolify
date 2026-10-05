@@ -8,6 +8,8 @@ metadata:
 
 # Evidência antes de ativação
 
+> Estado: método — aplica-se a qualquer regra legal ou fiscal antes de entrar num desenho ou no motor de regras (`apps/api/src/regras/`).
+
 Lê `.agents/skills/eurolify-legal-briefing-eu/references/evidence.md`; usa `templates/rule-record.yaml` nessa pasta para cada regra.
 
 1. Mantém W/M/C com o significado do repositório; regista nível de leitura e versão sem inventar uma nova equivalência.

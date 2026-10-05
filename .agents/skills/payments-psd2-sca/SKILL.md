@@ -7,6 +7,7 @@ description: Pagamentos no Eurolify — camada de adaptadores para prestadores (
 
 > Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Fontes: `docs/03-regulamentar-ue.md`
 > §5. Decisão ligada: D-5.
+> Complementares (05/10/2026): `eurolify-payment-readiness-eu` (entidade, prestador, conta antes de activar) e `eurolify-finance-reconciliation-eu` (conciliação e caixa); coordenação em `eurolify-legal-briefing-eu`.
 
 ## Quando usar
 
@@ -35,6 +36,7 @@ Desenho que o Bruno escolheu para a plataforma de formação a 29/09/2026
 |---|---|---|---|---|
 | MB WAY | EuPago | Formação / Produtos | sim | PT |
 | Multibanco | EuPago | … | sim | PT |
+| Floa | EuPago | … | … | PT |
 | Klarna | Stripe | … | sim | PT, ES… |
 | Cartão, Apple Pay, Google Pay | Stripe (ou EuPago) | … | … | todos |
 
@@ -54,9 +56,16 @@ Desenho que o Bruno escolheu para a plataforma de formação a 29/09/2026
 criado → a_aguardar_cliente → autorizado → capturado → (reembolsado_parcial | reembolsado)
              │                    │
              ├→ falhado           └→ anulado
-             └→ expirado
+             ├→ expirado
+             └→ incerto → (autorizado | capturado | falhado)   (só por conciliação)
 capturado → em_disputa → (ganha | perdida)
 ```
+
+- **`incerto`**: o prestador não respondeu (tempo esgotado) ou a resposta não
+  se consegue ler. **Nunca se cobra de novo nem se dá por falhado às cegas**:
+  sai de `incerto` só pela consulta ao prestador ou pela conciliação, e a
+  diferença vai para a fila com motivo e dono (`eurolify-payment-readiness-eu`,
+  `eurolify-finance-reconciliation-eu`).
 
 - Cada transição tem **origem** (aviso do prestador, consulta, pessoa) e o
   **evento em bruto** guardado.

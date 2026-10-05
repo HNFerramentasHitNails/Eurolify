@@ -171,3 +171,21 @@ negativa e dos números; reformular a Q5 e retirar a Q6; acrescentar
 `eu-vat-oss-ioss:149-150`, o `servico` à Q2, a Anthropic nos subcontratantes
 e a G15. **Tudo aplicado nesta versão.** O texto integral está publicado no
 pedido de alteração.
+
+## Estado das correcções
+
+- **Q1 respondida** (Diogo, 05/10/2026: «sim, podes corrigir as skills»).
+  Corrigido no pedido seguinte a este documento: revisão pelo ADR-0035 (duas
+  skills e o agente revisor); modelo na `eurolify-session-continuity`;
+  `eu-vat-oss-ioss` (ADR-0006, D-10, exportação pelas regras da UE em vez do
+  país de destino, reserva do Orçamento de 2027, ViDA); estado `incerto` e a
+  Floa na `payments-psd2-sca`; transposição nacional no botão de livre
+  resolução; rota de retorno e Fase 2 da troca e da carteira na
+  `order-fulfilment`; o MCP de operação separado na `headless-commerce`;
+  `evidence.md`, `timeline.md`, `rule-record.yaml` e `source-gaps.jsonl`;
+  linha de estado nas 7 skills novas; remissões das 6 skills antigas para as
+  complementares.
+- **Ficam à espera:** `marketplace-dsa` (marca do art. 16.º) até à resposta
+  da G7 (`docs/03:137-145`); papéis da `eurolify-b2b-channels-eu` até à Q4.
+- Por fazer: os pontos de documentos, de segurança e de código (pedidos
+  próprios).
