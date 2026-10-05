@@ -189,6 +189,7 @@ pedido de alteração.
 - **Q3 respondida** (Diogo, 05/10/2026: «Fase 2, só as listas B2B ficam na Fase 1»): `docs/05`, `docs/eurolify/architecture.md` §6 e a linha de estado das três skills.
 - **Lista das famílias restritas** da classificação aceite (Diogo, 05/10/2026: «sim, aceito a lista»), `docs/14` §3.10.
 - **Q4 respondida** (Diogo, 05/10/2026: «sim, manda a skill nova»): o `docs/eurolify/architecture.md` §3 passa a seguir a `eurolify-b2b-channels-eu`, com o operador logístico na lista de relações.
+- **Q5 respondida** (Diogo, 05/10/2026: «fica, por agora não se muda»): excepção escrita no `AGENTS.md`, «Marca própria».
 - **Fica à espera:** `marketplace-dsa` (marca do art. 16.º) até à resposta
   da G7 (`docs/03:137-145`).
 - Por fazer: os pontos de documentos, de segurança e de código (pedidos
