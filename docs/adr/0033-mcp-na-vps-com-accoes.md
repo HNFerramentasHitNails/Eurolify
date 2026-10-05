@@ -140,6 +140,11 @@ preciso ligar. Resposta: *«Abrir só o login»*.
   autorização serve este desenho.
 - Se a aplicação de computador mostra a confirmação das ferramentas marcadas
   como destrutivas (a documentação lida não o descreve). Desde o #92 a
-  confirmação já não depende disso (ponto 5); a confirmação pela própria
-  aplicação (elicitação do MCP) fica por verificar e é o passo seguinte, se o
-  cliente a suportar.
+  confirmação já não depende disso (ponto 5). A confirmação pela própria
+  aplicação (elicitação do MCP) foi vista a 05/10/2026 (#94): a aplicação de
+  computador provavelmente não a suporta (pedido #41110 do repositório
+  `anthropics/claude-code`, 30/03/2026, não oficial; nos connectors do
+  claude.ai não verifiquei), e o transporte sem sessão deste MCP não a
+  permite. **Decisão do Diogo, 05/10/2026: ficam os dois passos** (*«a, fica
+  com os dois passos»*); revê-se quando a aplicação suportar a elicitação
+  (#94 fica aberto).
