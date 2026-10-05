@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
+import { readdir } from "node:fs/promises";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrar } from "../src/base/migracoes.js";
+import { migrar, PASTA_MIGRACOES } from "../src/base/migracoes.js";
 import {
   aceitarContrato,
   criarEntidadeLegal,
@@ -182,15 +183,17 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
     const papel = `migrador_vps_${sufixo}`;
     const nome = `eurolify_migrador_${sufixo}`;
     const senha = "so-para-testes";
-    let admin: pg.Client;
-    let migrador: Kysely<unknown>;
+    let admin: pg.Client | undefined;
+    let migrador: Kysely<unknown> | undefined;
+    let resultado: Awaited<ReturnType<typeof migrar>> | undefined;
+    let erroDaMigracao: unknown;
 
     beforeAll(async () => {
       admin = new pg.Client({ connectionString: URL_BASE });
       await admin.connect();
-      // O eurolify_api é do cluster: cria-o o preparar.sh antes do migrador
-      // (este não tem CREATEROLE). Outro ficheiro de testes pode criá-lo ao
-      // mesmo tempo, por isso um duplicado não é erro.
+      // O eurolify_api é do cluster e na VPS cria-o o preparar.sh antes do
+      // migrador (este não tem CREATEROLE). Aqui o beforeAll de fora já o
+      // criou; o bloco fica para este describe também correr sozinho.
       await admin.query(`DO $$ BEGIN
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_api') THEN
           CREATE ROLE eurolify_api NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
@@ -210,33 +213,79 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
           pool: new pg.Pool({ connectionString: url.toString(), max: 1 }),
         }),
       });
+      // Migra aqui: se falhar, cada teste diz porquê (revisão, P3-2).
+      try {
+        resultado = await migrar(migrador);
+      } catch (erro) {
+        erroDaMigracao = erro;
+      }
     }, 60_000);
 
+    /** O migrador, ou falha com o erro da migração, se a houve. */
+    function soMigrado(): Kysely<unknown> {
+      if (erroDaMigracao !== undefined) throw erroDaMigracao;
+      if (migrador === undefined) throw new Error("o migrador não foi criado");
+      return migrador;
+    }
+
+    // Cada passo da limpeza no seu try: uma falha na preparação ou no fecho
+    // não deixa a base nem o papel para trás nem esconde o erro (revisão,
+    // P3-1).
     afterAll(async () => {
       try {
-        await migrador.destroy();
-        await apagarBase(admin, nome);
+        await migrador?.destroy();
       } finally {
         try {
-          await admin.query(`DROP ROLE IF EXISTS ${papel}`);
+          if (admin !== undefined) await apagarBase(admin, nome);
         } finally {
-          await admin.end();
+          try {
+            await admin?.query(`DROP ROLE IF EXISTS ${papel}`);
+          } finally {
+            await admin?.end();
+          }
         }
       }
     });
 
-    it("corre até à última sem erro e sem ser superutilizador", async () => {
-      const { rows: papeis } = await sql<{ super: boolean; bypass: boolean }>`
-        select rolsuper as super, rolbypassrls as bypass from pg_roles
-        where rolname = current_user`.execute(migrador);
-      expect(papeis[0]).toEqual({ super: false, bypass: false });
-      const { error, results } = await migrar(migrador);
-      expect(error).toBeUndefined();
-      expect(results?.at(-1)?.migrationName).toBe(
-        "0008_rasto_imutavel_e_funcoes_fechadas",
+    it("o migrador é como o da VPS: sem poderes e dono da base", async () => {
+      const { rows } = await sql<{
+        super: boolean;
+        bypass: boolean;
+        createdb: boolean;
+        createrole: boolean;
+        dono: boolean;
+      }>`
+        select r.rolsuper as super, r.rolbypassrls as bypass,
+          r.rolcreatedb as createdb, r.rolcreaterole as createrole,
+          d.datdba = r.oid as dono
+        from pg_roles r, pg_database d
+        where r.rolname = current_user and d.datname = current_database()`.execute(
+        soMigrado(),
       );
-      expect(results?.every((r) => r.status === "Success")).toBe(true);
-    }, 60_000);
+      expect(rows[0]).toEqual({
+        super: false,
+        bypass: false,
+        createdb: false,
+        createrole: false,
+        dono: true,
+      });
+    });
+
+    it("corre todas as migrações da pasta, sem erro", async () => {
+      soMigrado();
+      const ficheiros = (await readdir(PASTA_MIGRACOES))
+        .filter((f) => f.endsWith(".sql"))
+        .map((f) => f.replace(/\.sql$/, ""))
+        .sort();
+      expect(ficheiros.length).toBeGreaterThanOrEqual(8);
+      expect(resultado?.error).toBeUndefined();
+      expect(resultado?.results?.map((r) => r.migrationName)).toEqual(
+        ficheiros,
+      );
+      expect(resultado?.results?.every((r) => r.status === "Success")).toBe(
+        true,
+      );
+    });
 
     it("nenhuma função fica aberta a PUBLIC e a API só chama as da lista", async () => {
       const { rows: abertas } = await sql<{ nome: string }>`
@@ -246,7 +295,7 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
           and (p.proacl is null or exists (
             select 1 from aclexplode(p.proacl) a
             where a.grantee = 0 and a.privilege_type = 'EXECUTE'))`.execute(
-        migrador,
+        soMigrado(),
       );
       expect(abertas).toEqual([]);
       const { rows: daApi } = await sql<{ nome: string }>`
@@ -254,16 +303,16 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public'
           and has_function_privilege('eurolify_api', p.oid, 'EXECUTE')
-        order by 1`.execute(migrador);
+        order by 1`.execute(soMigrado());
       expect(daApi.map((r) => r.nome)).toEqual(FUNCOES_DA_API);
     });
 
     it("uma função nova do migrador nasce fechada", async () => {
       await sql`create function funcao_nova_do_migrador() returns int
-        language sql as 'select 1'`.execute(migrador);
+        language sql as 'select 1'`.execute(soMigrado());
       const { rows } = await sql<{ pode: boolean }>`
         select has_function_privilege('eurolify_api',
-          'funcao_nova_do_migrador()', 'EXECUTE') as pode`.execute(migrador);
+          'funcao_nova_do_migrador()', 'EXECUTE') as pode`.execute(soMigrado());
       expect(rows[0]?.pode).toBe(false);
     });
 
@@ -271,7 +320,7 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
       // O TRUNCATE dispara o gatilho por instrução, mesmo sem linhas.
       expect(
         await mensagemDoErro(
-          sql`truncate ${sql.table(tabela)}`.execute(migrador),
+          sql`truncate ${sql.table(tabela)}`.execute(soMigrado()),
         ),
       ).toMatch(/^audit\.append_only:/);
     });
