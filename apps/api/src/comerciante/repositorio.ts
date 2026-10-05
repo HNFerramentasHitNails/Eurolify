@@ -23,6 +23,7 @@ export type CodigoErroComerciante =
   | "merchant.invalid_transition"
   | "merchant.activation_blocked"
   | "merchant.transition_without_trail"
+  | "merchant.origin_language_locked"
   | "legal_entity.tax_number_duplicate"
   | "legal_entity.immutable_identity"
   | "legal_entity.in_use"
@@ -45,6 +46,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroComerciante[] = [
   "merchant.invalid_transition",
   "merchant.activation_blocked",
   "merchant.transition_without_trail",
+  "merchant.origin_language_locked",
   "legal_entity.immutable_identity",
   "legal_entity.in_use",
   "legal_entity.archived_is_final",
@@ -98,6 +100,11 @@ export interface DadosComerciante {
   nome: string;
   lingua: string;
   fuso: string;
+  /**
+   * A língua em que escreve o catálogo (docs/14 §9, P13). Sem ela, a do Hub
+   * (proposta, docs/14 §3.8). Não muda depois de haver catálogo (0008).
+   */
+  lingua_origem?: string;
 }
 
 /** Regista um comerciante novo, em rascunho. Devolve o id. */
@@ -111,7 +118,11 @@ export async function registarComerciante(
   await comComerciante(db, id, (trx) =>
     trx
       .insertInto("comerciante")
-      .values({ id, ...dados })
+      .values({
+        id,
+        ...dados,
+        lingua_origem: dados.lingua_origem ?? dados.lingua,
+      })
       .execute(),
   );
   return id;
@@ -219,7 +230,7 @@ export async function criarEntidadeLegal(
 export async function criarLoja(
   db: Kysely<BaseDados>,
   comercianteId: string,
-  dados: { entidade_legal_id: string; nome: string; lingua_origem: string },
+  dados: { entidade_legal_id: string; nome: string },
 ): Promise<string> {
   const { id } = await comComerciante(db, comercianteId, (trx) =>
     trx

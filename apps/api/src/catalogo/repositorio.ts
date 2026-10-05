@@ -57,7 +57,11 @@ export type CodigoErroCatalogo =
   | "catalog.category_duplicate"
   | "catalog.slug_invalid"
   | "catalog.slug_duplicate"
-  | "catalog.collection_product_duplicate";
+  | "catalog.collection_product_duplicate"
+  | "catalog.translated_by_required"
+  | "catalog.translation_same_language"
+  | "catalog.translation_no_original"
+  | "catalog.translation_not_ai";
 
 export class ErroCatalogo extends Error {
   constructor(
@@ -86,6 +90,10 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   "catalog.category_cycle",
   "catalog.category_archived",
   "catalog.category_has_children",
+  "catalog.translated_by_required",
+  "catalog.translation_same_language",
+  "catalog.translation_no_original",
+  "catalog.translation_not_ai",
 ];
 
 /** As restrições da base que têm código próprio (§7.1). */
@@ -131,6 +139,10 @@ const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   categoria_nao_e_o_pai: "catalog.category_cycle",
   artigo_categoria_pkey: "catalog.category_duplicate",
   colecao_artigo_pkey: "catalog.collection_product_duplicate",
+  // Traduções (0008).
+  traducao_endereco_valido: "catalog.slug_invalid",
+  traducao_endereco_unico_categoria: "catalog.slug_duplicate",
+  traducao_endereco_unico_colecao: "catalog.slug_duplicate",
 };
 
 /** Colunas obrigatórias com código próprio (§7.1: C3). */
@@ -153,6 +165,7 @@ const TABELAS = new Set([
   "artigo_categoria",
   "colecao",
   "colecao_artigo",
+  "traducao",
 ]);
 
 export interface OpcoesDeTraducao {
