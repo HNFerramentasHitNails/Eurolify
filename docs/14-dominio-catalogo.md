@@ -101,7 +101,7 @@ quando a loja tinha 1.043 à venda (13/09/2026, `catalog-pim`, regra 1).
 
 ### 3.2 Variante (`var_`)
 
-A unidade vendável. Um artigo sem opções tem uma variante.
+A unidade vendável. Um artigo sem opções pode ter **várias variantes**, distinguidas pelo SKU (Diogo, 05/10/2026: *«sim, um artigo sem opções pode ter várias variantes»*); a regra da combinação de opções só vale quando o artigo tem opções (P10).
 
 | Campo | Tipo | Obrig. | Notas |
 |---|---|---|---|
@@ -110,7 +110,7 @@ A unidade vendável. Um artigo sem opções tem uma variante.
 | `sku` | texto | **sim** | **único por comerciante** (`catalog-pim`, regra 3: no Hub, artigo sem SKU travava a fatura, 11/09 e 17/09/2026). Não distingue maiúsculas: `GEL-001` e `gel-001` são o mesmo (P9). Um SKU arquivado **não se reutiliza** (P7); **excepção:** o SKU de uma variante apagada de um artigo rascunho volta a ficar livre, porque nunca se vendeu (P8) |
 | `gtin` | texto | não | dígito de controlo validado; único por comerciante (**proposta**: no Hub havia 18 códigos repetidos, `catalog-pim`, regra 4). O mesmo código noutro tamanho, com zeros à esquerda, conta como repetido; só zeros não é um GTIN (**proposta**, revisão do #78) |
 | `gtin_origem` | lista | sim se há `gtin` | GS1 do comerciante, do fornecedor ou interno (`catalog-pim`, regra 4) |
-| `valores_das_opcoes` | lista de `ovl_…` | conforme o artigo | uma combinação não se repete dentro do artigo |
+| `valores_das_opcoes` | lista de `ovl_…` | conforme o artigo | quando o artigo tem opções, uma combinação não se repete dentro do artigo (P10) |
 | `unidade_de_venda` | código da lista do Eurolify | **sim** | unidade, caixa, par… (`catalog-pim`, regra 3: no Hub, artigo sem unidade travava a fatura) |
 | `conteudo_quantidade`, `conteudo_unidade` | inteiro + kg, l, m, m², m³ (e submúltiplos; a lista proposta da parte 1 do código tem `mg`, `g`, `kg`, `ml`, `cl`, `l`, `mm`, `cm`, `m`, `m2`, `m3` — **sem** submúltiplos de área, como `cm2`, por decidir com a lista) | conforme o país | para o **preço por unidade** (Dir. 98/6/CE, arts. 2.º, 3.º e 5.º, **W**, `docs/03` linha 61: «o artigo guarda quantidade e unidade»); cada país pode dispensar produtos (art. 5.º) |
 | `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | inteiros | físico: peso sim, **para publicar** (a verificação C2; a base aceita a variante sem peso enquanto não se publica, **proposta**) | para os Envios |
@@ -428,3 +428,4 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P7 | Um SKU de uma variante arquivada pode voltar a ser usado? | ✅ **Decidido: não** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
 | P8 | Apagar uma variante de um artigo **rascunho** — também uma variante já **arquivada** — liberta o SKU dela para outra variante? (Um rascunho nunca esteve activo, por isso a variante nunca se vendeu) | ✅ **Decidido: sim, nos dois casos** (Diogo, 05/10/2026: *«sim, o SKU de um rascunho apagado pode voltar»*). É o que o código da parte 1 já faz (#78) |
 | P9 | `GEL-001` e `gel-001` são o **mesmo SKU**? | ✅ **Decidido: sim, o mesmo SKU** (Diogo, 05/10/2026: *«sim, mesmo SKU»*). Guarda-se como foi escrito; a unicidade e a procura não distinguem maiúsculas (migração 0003) |
+| P10 | Um artigo **sem opções** pode ter várias variantes? (O §3.2 dizia que tinha uma; o código da parte 1 deixa várias, como `GEL-001` e `GEL-REFILL`) | ✅ **Decidido: sim** (Diogo, 05/10/2026: *«sim, um artigo sem opções pode ter várias variantes»*). A regra «a combinação não se repete» só vale para artigos com opções |
