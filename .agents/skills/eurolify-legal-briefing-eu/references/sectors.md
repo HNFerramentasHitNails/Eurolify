@@ -29,7 +29,8 @@ Esta matriz é uma agenda de verificação, não uma lista exaustiva de obrigaç
 | Conteúdos e serviços digitais | Skills existentes de produtos digitais; classificação, resolução, conformidade, atualização e IVA |
 | Cartões-oferta, vouchers e programas de fidelização | Skills existentes de cartões-oferta; SPV/MPV, condições, saldo e eventual perímetro financeiro |
 | Serviços gerais, instalação e manutenção | Local e momento do contrato, qualificações, execução antecipada, seguros e responsabilidade |
-| Saúde, educação, profissões reguladas | Habilitação, autorização, publicidade e dados sensíveis; separar prestação clínica de mera venda |
+| Saúde e profissões reguladas | Habilitação, autorização, publicidade e dados sensíveis; separar prestação clínica de mera venda |
+| Educação e formação | Classificação do serviço (presencial, ao vivo à distância, gravado — `digital-products-eu`); livre resolução e IVA conforme essa natureza (`docs/03`); habilitação quando a actividade a exija. Separada da saúde por decisão do Diogo, 05/10/2026 |
 | Turismo, alojamento, eventos e mobilidade | Classificação do serviço, exceções/regras de cancelamento, licenças e regime fiscal específico |
 | Plataformas, marketplaces e intermediação | Contraparte, alojamento versus venda própria, DSA, responsabilidade e obrigações fiscais aplicáveis |
 | Armas, explosivos, jogo e outros bens/serviços restritos | Bloqueio por defeito até análise especializada das autorizações e restrições nacionais |

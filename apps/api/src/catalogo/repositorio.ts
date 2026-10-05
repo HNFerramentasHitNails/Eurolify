@@ -8,6 +8,7 @@ import type {
   UnidadeDeVenda,
 } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
+import type { Classificacao } from "./classificacao.js";
 
 // Acesso interno ao domínio Catálogo, parte 1: artigos e variantes
 // (docs/14-dominio-catalogo.md §3.1, §3.2, §4.1 e §5; issue #77). Ainda sem
@@ -46,7 +47,10 @@ export type CodigoErroCatalogo =
   | "catalog.option_value_duplicate"
   | "catalog.option_repeated"
   | "catalog.option_values_required"
-  | "catalog.retry";
+  | "catalog.retry"
+  | "catalog.classified_by_required"
+  | "catalog.classification_invalid"
+  | "catalog.nature_incompatible";
 
 export class ErroCatalogo extends Error {
   constructor(
@@ -71,6 +75,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   "catalog.component_archived",
   "catalog.options_incomplete",
   "catalog.option_combination_duplicate",
+  "catalog.classified_by_required",
 ];
 
 /** As restrições da base que têm código próprio (§7.1). */
@@ -94,6 +99,18 @@ const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   valor_opcao_unico: "catalog.option_value_duplicate",
   // Dois valores da mesma opção para a mesma variante.
   variante_valor_pkey: "catalog.option_repeated",
+  // Classificação (0006).
+  artigo_natureza_do_tipo: "catalog.nature_incompatible",
+  artigo_familias_validas: "catalog.classification_invalid",
+  artigo_natureza_valida: "catalog.classification_invalid",
+  artigo_modo_valido: "catalog.classification_invalid",
+  artigo_modo_da_natureza: "catalog.classification_invalid",
+  artigo_lazer_so_em_acesso: "catalog.classification_invalid",
+  artigo_prestacao_datas: "catalog.classification_invalid",
+  artigo_local_valido: "catalog.classification_invalid",
+  artigo_classificado_por_valido: "catalog.classification_invalid",
+  artigo_datas_so_na_prestacao: "catalog.classification_invalid",
+  artigo_local_so_no_presencial: "catalog.classification_invalid",
 };
 
 /** Colunas obrigatórias com código próprio (§7.1: C3). */
@@ -351,6 +368,73 @@ export async function alterarArtigo(
       .returning("versao")
       .executeTakeFirstOrThrow();
     return nova;
+  });
+}
+
+function mesmaClassificacao(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): boolean {
+  const igual = (x: unknown, y: unknown) =>
+    x instanceof Date && y instanceof Date
+      ? x.getTime() === y.getTime()
+      : JSON.stringify(x) === JSON.stringify(y);
+  return Object.keys(b).every((chave) => igual(a[chave], b[chave]));
+}
+
+/**
+ * Classifica o artigo (§3.10, «Classificação do artigo»; migração 0006) na
+ * versão lida: substitui a classificação toda, com quem classificou (a data é
+ * da base). A base recusa as combinações que o desenho não admite. Devolve a
+ * versão nova. Os impedimentos para publicar dão-se em classificacao.ts.
+ */
+export async function classificarArtigo(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+  versao: number,
+  classificacao: Classificacao,
+  quem: string,
+): Promise<number> {
+  return noCatalogo(db, comercianteId, async (trx) => {
+    await artigoNaVersao(trx, artigoId, versao);
+    const nova = {
+      familias: [...new Set(classificacao.familias)].sort(),
+      natureza_consumidor: classificacao.natureza_consumidor,
+      modo: classificacao.modo ?? null,
+      prestacao_inicio: classificacao.prestacao_inicio ?? null,
+      prestacao_fim: classificacao.prestacao_fim ?? null,
+      local_pais: classificacao.local_pais ?? null,
+      local_territorio: classificacao.local_territorio ?? null,
+      lazer_com_data: classificacao.lazer_com_data ?? false,
+    };
+    // A mesma classificação não sobe a versão (como em alterarArtigo; revisão
+    // do #96, P3-2).
+    const actual = await trx
+      .selectFrom("artigo")
+      .select([
+        "familias",
+        "natureza_consumidor",
+        "modo",
+        "prestacao_inicio",
+        "prestacao_fim",
+        "local_pais",
+        "local_territorio",
+        "lazer_com_data",
+      ])
+      .where("id", "=", artigoId)
+      .executeTakeFirstOrThrow();
+    if (mesmaClassificacao(actual, nova)) return versao;
+    // Quem classificou: posto só nesta transacção (como no Comerciante); o
+    // gatilho da 0006 escreve-o e recusa a mudança sem ele.
+    await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
+    const { versao: depois } = await trx
+      .updateTable("artigo")
+      .set(nova)
+      .where("id", "=", artigoId)
+      .returning("versao")
+      .executeTakeFirstOrThrow();
+    return depois;
   });
 }
 

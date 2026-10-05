@@ -190,7 +190,7 @@ pedido de alteração.
 - **Lista das famílias restritas** da classificação aceite (Diogo, 05/10/2026: «sim, aceito a lista»), `docs/14` §3.10.
 - **Q4 respondida** (Diogo, 05/10/2026: «sim, manda a skill nova»): o `docs/eurolify/architecture.md` §3 passa a seguir a `eurolify-b2b-channels-eu`, com o operador logístico na lista de relações.
 - **Q5 respondida** (Diogo, 05/10/2026: «fica, por agora não se muda»): excepção escrita no `AGENTS.md`, «Marca própria».
-- **P1 de código feitos:** confirmação das acções do MCP em dois passos (#93, no `main`); marca W/M/C nas regras do motor **em curso** (#95).
+- **P1 de código feitos:** confirmação das acções do MCP em dois passos (#93, no `main`); marca W/M/C nas regras do motor (#95, no `main`); classificação do artigo em código (pedido da migração 0006).
 - **Fica à espera:** `marketplace-dsa` (marca do art. 16.º) até à resposta
   da G7 (`docs/03:137-145`).
 - Por fazer: os pontos de documentos, de segurança e de código (pedidos
