@@ -104,7 +104,7 @@ A unidade vendável. Um artigo sem opções tem uma variante.
 |---|---|---|---|
 | `id` | `var_…` | sim | |
 | `artigo_id` | `prd_…` | sim | |
-| `sku` | texto | **sim** | **único por comerciante** (`catalog-pim`, regra 3: no Hub, artigo sem SKU travava a fatura, 11/09 e 17/09/2026). Um SKU arquivado **não se reutiliza** (**proposta**) |
+| `sku` | texto | **sim** | **único por comerciante** (`catalog-pim`, regra 3: no Hub, artigo sem SKU travava a fatura, 11/09 e 17/09/2026). Um SKU arquivado **não se reutiliza** (P7); **excepção:** o SKU de uma variante apagada de um artigo rascunho volta a ficar livre, porque nunca se vendeu (P8) |
 | `gtin` | texto | não | dígito de controlo validado; único por comerciante (**proposta**: no Hub havia 18 códigos repetidos, `catalog-pim`, regra 4). O mesmo código noutro tamanho, com zeros à esquerda, conta como repetido; só zeros não é um GTIN (**proposta**, revisão do #78) |
 | `gtin_origem` | lista | sim se há `gtin` | GS1 do comerciante, do fornecedor ou interno (`catalog-pim`, regra 4) |
 | `valores_das_opcoes` | lista de `ovl_…` | conforme o artigo | uma combinação não se repete dentro do artigo |
@@ -383,7 +383,9 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   4.7.
 - **SKU reutilizado.** A P7 decidiu que o SKU de uma variante arquivada não
   volta a ser usado; se a base não o impuser (um teste), uma encomenda antiga
-  pode apontar para outro produto.
+  pode apontar para outro produto. A excepção da P8 (variante apagada de um
+  rascunho) só é segura enquanto um rascunho não puder ter encomendas,
+  reservas nem documentos: quando esses domínios existirem, têm de o garantir.
 - **A lista de campos regulamentares por categoria** não está validada por um
   técnico (**C** até lá).
 
@@ -398,5 +400,5 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P5 | Comerciante com sistema de gestão: o que pode ser editado no Hub do Eurolify? | ✅ **Decidido: os campos que vêm de lá ficam só de leitura no Hub; as traduções, a media e a publicação editam-se no Eurolify** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
 | P6 | Acrescentar `product.unpublished` e `product.archived` à lista de eventos (skill `platform-architect` e `02-arquitectura.md`)? | ✅ **Decidido: sim — sem eles, Preços, Stock e frontends não sabem que um artigo deixou de estar à venda** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
 | P7 | Um SKU de uma variante arquivada pode voltar a ser usado? | ✅ **Decidido: não** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
-| P8 | Apagar uma variante de um artigo **rascunho** — também uma variante já **arquivada** — liberta o SKU dela para outra variante? (Um rascunho nunca esteve activo, por isso a variante nunca se vendeu) | Por decidir. O código actual deixa, nos dois casos (revisões do #78: 1.ª, P2-3; 2.ª, P3-2) |
+| P8 | Apagar uma variante de um artigo **rascunho** — também uma variante já **arquivada** — liberta o SKU dela para outra variante? (Um rascunho nunca esteve activo, por isso a variante nunca se vendeu) | ✅ **Decidido: sim, nos dois casos** (Diogo, 05/10/2026: *«sim, o SKU de um rascunho apagado pode voltar»*). É o que o código da parte 1 já faz (#78) |
 | P9 | `GEL-001` e `gel-001` são o **mesmo SKU**? | Por decidir. O código actual trata-os como diferentes (revisão do #78, P2-4) |
