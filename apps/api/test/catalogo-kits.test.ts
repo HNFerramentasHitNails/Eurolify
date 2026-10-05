@@ -8,6 +8,7 @@ import {
   criarArtigo,
   definirComponentes,
   ErroCatalogo,
+  traduzir,
   varianteComSku,
   type DadosVariante,
 } from "../src/catalogo/repositorio.js";
@@ -281,21 +282,134 @@ describe.skipIf(URL_BASE === undefined)("kits na base", () => {
     await apagarRascunho(base.api, c, artigos["GEL"] ?? "");
   });
 
-  it("um rascunho com o kit e o componente dentro apaga-se inteiro", async () => {
+  it("um rascunho com o kit e o componente dentro apaga-se inteiro, por qualquer ordem", async () => {
+    const c = await registarComerciante(base.api, NOVO);
+    // As duas ordens de criação: o componente antes do kit era o caso que
+    // ficava preso (revisão do #81, P1-1).
+    for (const [primeira, segunda] of [
+      ["CJ-KIT", "CJ-GEL"],
+      ["CJ2-GEL", "CJ2-KIT"],
+    ] as const) {
+      const artigo = await criarArtigo(
+        base.api,
+        c,
+        { tipo: "fisico", nome: "Conjunto" },
+        [variante(primeira), variante(segunda)],
+      );
+      const kitSku = primeira.endsWith("KIT") ? primeira : segunda;
+      const gelSku = primeira.endsWith("GEL") ? primeira : segunda;
+      const kit = await varianteComSku(base.api, c, kitSku);
+      const gel = await varianteComSku(base.api, c, gelSku);
+      await definirComponentes(base.api, c, kit?.id ?? "", [
+        { varianteId: gel?.id ?? "", quantidade: 2 },
+      ]);
+      await apagarRascunho(base.api, c, artigo);
+      expect(await varianteComSku(base.api, c, gelSku)).toBeUndefined();
+      expect(await varianteComSku(base.api, c, kitSku)).toBeUndefined();
+    }
+  });
+
+  it("um rascunho com um kit arquivado também se apaga (P8)", async () => {
     const c = await registarComerciante(base.api, NOVO);
     const artigo = await criarArtigo(
       base.api,
       c,
       { tipo: "fisico", nome: "Conjunto" },
-      [variante("CJ-KIT"), variante("CJ-GEL")],
+      [variante("AR-GEL"), variante("AR-KIT")],
     );
-    const kit = await varianteComSku(base.api, c, "CJ-KIT");
-    const gel = await varianteComSku(base.api, c, "CJ-GEL");
+    const kit = await varianteComSku(base.api, c, "AR-KIT");
+    const gel = await varianteComSku(base.api, c, "AR-GEL");
     await definirComponentes(base.api, c, kit?.id ?? "", [
-      { varianteId: gel?.id ?? "", quantidade: 2 },
+      { varianteId: gel?.id ?? "", quantidade: 1 },
     ]);
+    await arquivarVariante(base.api, c, kit?.id ?? "");
     await apagarRascunho(base.api, c, artigo);
-    expect(await varianteComSku(base.api, c, "CJ-GEL")).toBeUndefined();
+    expect(await varianteComSku(base.api, c, "AR-KIT")).toBeUndefined();
+  });
+
+  it("um componente arquivado que já estava no kit pode ficar ao mudar a lista", async () => {
+    const { c, ids } = await catalogo("KIT", "GEL", "LIMA", "TOP", "VELHO");
+    const [kit, gel, lima, top, velho] = [
+      "KIT",
+      "GEL",
+      "LIMA",
+      "TOP",
+      "VELHO",
+    ].map((k) => ids[k] ?? "");
+    await definirComponentes(base.api, c, kit ?? "", [
+      { varianteId: gel ?? "", quantidade: 1 },
+      { varianteId: lima ?? "", quantidade: 1 },
+    ]);
+    await arquivarVariante(base.api, c, gel ?? "");
+    // Reenviar a mesma lista e acrescentar outro: o GEL arquivado fica.
+    await definirComponentes(base.api, c, kit ?? "", [
+      { varianteId: lima ?? "", quantidade: 2 },
+      { varianteId: gel ?? "", quantidade: 1 },
+      { varianteId: top ?? "", quantidade: 1 },
+    ]);
+    expect(await componentesDoKit(base.api, c, kit ?? "")).toEqual([
+      { varianteId: lima, quantidade: 2 },
+      { varianteId: gel, quantidade: 1 },
+      { varianteId: top, quantidade: 1 },
+    ]);
+    // Um arquivado novo continua recusado; depois de sair, não volta.
+    await arquivarVariante(base.api, c, velho ?? "");
+    expect(
+      await codigoDoErro(
+        definirComponentes(base.api, c, kit ?? "", [
+          { varianteId: velho ?? "", quantidade: 1 },
+        ]),
+      ),
+    ).toBe("catalog.component_archived");
+    await definirComponentes(base.api, c, kit ?? "", [
+      { varianteId: lima ?? "", quantidade: 1 },
+    ]);
+    expect(
+      await codigoDoErro(
+        definirComponentes(base.api, c, kit ?? "", [
+          { varianteId: gel ?? "", quantidade: 1 },
+        ]),
+      ),
+    ).toBe("catalog.component_archived");
+  });
+
+  it("substituições cruzadas ao mesmo tempo: uma passa, a outra é um ciclo, nunca um impasse", async () => {
+    for (let ronda = 0; ronda < 5; ronda++) {
+      const { c, ids } = await catalogo(
+        `X${String(ronda)}`,
+        `Y${String(ronda)}`,
+      );
+      const x = ids[`X${String(ronda)}`] ?? "";
+      const y = ids[`Y${String(ronda)}`] ?? "";
+      const resultados = await Promise.all([
+        codigoDoErro(
+          definirComponentes(base.api, c, x, [
+            { varianteId: y, quantidade: 1 },
+          ]),
+        ),
+        codigoDoErro(
+          definirComponentes(base.api, c, y, [
+            { varianteId: x, quantidade: 1 },
+          ]),
+        ),
+      ]);
+      expect(resultados.sort()).toEqual([
+        "catalog.component_cycle",
+        "sem erro",
+      ]);
+    }
+  });
+
+  it("componente_em_uso: «em uso» só ao apagar; ao inserir é «não existe»", () => {
+    const erro = Object.assign(new Error("fk"), {
+      code: "23503",
+      constraint: "componente_em_uso",
+      table: "componente",
+    });
+    expect((traduzir(erro) as ErroCatalogo).codigo).toBe("catalog.not_found");
+    expect((traduzir(erro, { apagar: true }) as ErroCatalogo).codigo).toBe(
+      "catalog.component_in_use",
+    );
   });
 
   it("isolamento: outro comerciante não usa, não lê e não muda os kits de um", async () => {
@@ -330,6 +444,38 @@ describe.skipIf(URL_BASE === undefined)("kits na base", () => {
         ),
       ),
     ).toMatch(/^pg:42501:/);
+    // Por SQL directo, como b: não vê, não apaga, não muda as linhas de a
+    // (RLS: revisão do #81, P2-3), e não usa um componente de a no seu kit
+    // (a chave estrangeira é por comerciante).
+    const sqlComo = async (texto: string, valores: unknown[] = []) => {
+      const cliente = new pg.Client({ connectionString: base.urlApi });
+      await cliente.connect();
+      try {
+        await cliente.query("begin");
+        await cliente.query(
+          "select set_config('eurolify.comerciante', $1, true)",
+          [b.c],
+        );
+        const r = await cliente.query(texto, valores);
+        await cliente.query("commit");
+        return r;
+      } finally {
+        await cliente.end();
+      }
+    };
+    expect((await sqlComo("select * from componente")).rowCount).toBe(0);
+    expect(
+      (await sqlComo("update componente set quantidade = 9")).rowCount,
+    ).toBe(0);
+    expect((await sqlComo("delete from componente")).rowCount).toBe(0);
+    expect(
+      await codigoDoErro(
+        sqlComo(
+          "insert into componente (comerciante_id, kit_id, componente_id, quantidade) values ($1, $2, $3, 1)",
+          [b.c, b.ids["MEU"], a.ids["GEL"]],
+        ),
+      ),
+    ).toMatch(/^pg:23503:/);
     expect(await componentesDoKit(base.api, a.c, a.ids["KIT"] ?? "")).toEqual([
       { varianteId: a.ids["GEL"], quantidade: 1 },
     ]);

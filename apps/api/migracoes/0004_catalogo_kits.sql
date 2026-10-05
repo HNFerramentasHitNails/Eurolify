@@ -7,10 +7,15 @@
 -- - um kit não se contém a si próprio, nem por outro kit (sem ciclos);
 -- - um componente novo tem de ser uma variante activa (proposta); arquivar
 --   depois um componente é permitido (C6): o kit fica, e o Stock dá-o sem
---   disponibilidade;
+--   disponibilidade; um componente arquivado que já estava no kit pode ficar
+--   quando se muda o resto da lista (revisão do #81, P2-1);
 -- - a composição de uma variante arquivada não muda (arquivada é final);
 -- - uma variante que é componente de um kit não se apaga (proposta: o kit
---   perderia um componente sem ninguém ver).
+--   perderia um componente sem ninguém ver); por isso o rascunho de um artigo
+--   cuja variante está no kit de outro artigo só se apaga depois de a tirar
+--   desse kit (limitação conhecida, revisão do #81, P2-5);
+-- - apagar um rascunho apaga primeiro a composição dos kits dele e só depois
+--   as variantes, por qualquer ordem que estejam (revisão do #81, P1-1).
 
 -- Para as chaves estrangeiras compostas (comerciante, variante), como o artigo.
 ALTER TABLE variante ADD CONSTRAINT variante_comerciante_id_unico UNIQUE (comerciante_id, id);
@@ -37,14 +42,21 @@ CREATE FUNCTION componente_antes_de_gravar() RETURNS trigger
 DECLARE
   linha public.componente;
   estado_do_kit text;
+  estado_do_artigo text;
   estado_do_componente text;
+  chave uuid;
 BEGIN
   linha := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 
-  SELECT v.estado INTO estado_do_kit FROM public.variante v
+  SELECT v.estado, a.estado INTO estado_do_kit, estado_do_artigo
+  FROM public.variante v
+  JOIN public.artigo a ON a.comerciante_id = v.comerciante_id AND a.id = v.artigo_id
   WHERE v.comerciante_id = linha.comerciante_id AND v.id = linha.kit_id;
-  -- Sem kit: está a ser apagado (rascunho) e a composição vai com ele.
-  IF estado_do_kit = 'arquivada' THEN
+  -- Sem kit: está a ser apagado (rascunho) e a composição vai com ele. Num
+  -- artigo rascunho (que nunca se vendeu), a composição de um kit arquivado
+  -- também se pode apagar: é o que acontece ao apagar o rascunho (P8).
+  IF estado_do_kit = 'arquivada'
+     AND NOT (TG_OP = 'DELETE' AND estado_do_artigo = 'rascunho') THEN
     RAISE EXCEPTION 'catalog.variant_archived_is_final: a composição de uma variante arquivada não muda';
   END IF;
   IF TG_OP = 'DELETE' THEN
@@ -60,8 +72,15 @@ BEGIN
     -- Quem acrescenta componentes no mesmo comerciante, um de cada vez: duas
     -- escritas ao mesmo tempo (A em B e B em A) não passam as duas na
     -- verificação dos ciclos.
+    -- A chave é a do comerciante do contexto, não a da linha: uma linha com
+    -- o comerciante de outro (que o RLS vai recusar) não toma o bloqueio
+    -- dele (revisão do #81, P3-1). Sem contexto (o dono, nas migrações), a da
+    -- linha.
+    chave := coalesce(
+      nullif(current_setting('eurolify.comerciante', true), '')::uuid,
+      NEW.comerciante_id);
     PERFORM pg_advisory_xact_lock(
-      hashtextextended('eurolify.componente:' || NEW.comerciante_id::text, 0));
+      hashtextextended('eurolify.componente:' || chave::text, 0));
 
     SELECT v.estado INTO estado_do_componente FROM public.variante v
     WHERE v.comerciante_id = NEW.comerciante_id AND v.id = NEW.componente_id
@@ -84,6 +103,27 @@ BEGIN
     END IF;
   END IF;
   RETURN NEW;
+END
+$$;
+
+-- Apagar um rascunho (0002), agora com kits: primeiro a composição dos kits
+-- do artigo, depois as variantes. Só com o DELETE das variantes, a ordem delas
+-- decidia: se o componente vinha antes do kit, a chave `componente_em_uso`
+-- recusava (revisão do #81, P1-1).
+CREATE OR REPLACE FUNCTION artigo_antes_de_apagar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF OLD.estado <> 'rascunho' OR OLD.ja_esteve_activo THEN
+    RAISE EXCEPTION 'catalog.not_draft: só se apaga um rascunho que nunca esteve activo; arquivar';
+  END IF;
+  DELETE FROM public.componente c
+  WHERE c.comerciante_id = OLD.comerciante_id
+    AND c.kit_id IN (SELECT v.id FROM public.variante v
+                     WHERE v.comerciante_id = OLD.comerciante_id
+                       AND v.artigo_id = OLD.id);
+  DELETE FROM public.variante v
+  WHERE v.comerciante_id = OLD.comerciante_id AND v.artigo_id = OLD.id;
+  RETURN OLD;
 END
 $$;
 

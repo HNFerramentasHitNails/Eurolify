@@ -20,7 +20,7 @@
 > variante física só se exige na verificação «pode publicar?» (C2), não ao
 > criar nem ao activar.
 >
-> Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 9 testes):
+> Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 13 testes):
 > ver §3.4, com as regras **proposta** desta parte.
 >
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
@@ -142,10 +142,17 @@ aqui):
 - sem ciclos, a nenhum nível; um kit dentro de outro kit é permitido;
 - um componente **novo** tem de ser uma variante **activa**; arquivar depois
   um componente é permitido (C6) — o kit fica e o Stock dá-o sem
-  disponibilidade;
+  disponibilidade; ao mudar a lista, um componente arquivado que já estava no
+  kit pode ficar (só os que entram de novo têm de estar activos);
 - a composição de uma variante **arquivada** não muda (arquivada é final);
 - uma variante que é componente de um kit **não se apaga** (só se apagam
-  variantes de rascunhos); apagar o rascunho do kit leva a composição;
+  variantes de rascunhos); apagar o rascunho do kit leva a composição, com o
+  kit e os componentes no mesmo artigo por qualquer ordem, e também com o kit
+  arquivado (P8). **Limitação conhecida:** o rascunho de um artigo cuja
+  variante está no kit de **outro** artigo só se apaga depois de a tirar desse
+  kit (um rascunho não se arquiva);
+- a quantidade de um componente é um inteiro > 0, **sem limite máximo** (se o
+  Stock precisar de um, decide-se lá);
 - a lista substitui-se inteira, pela ordem dada; lista vazia = deixa de ser kit;
 - um componente pode ser de qualquer artigo do mesmo comerciante, também do
   próprio artigo do kit.

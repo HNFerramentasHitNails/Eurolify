@@ -92,7 +92,16 @@ const OBRIGATORIAS: Readonly<Record<string, CodigoErroCatalogo>> = {
 /** As tabelas deste domínio, para os erros que só se traduzem quando vêm delas. */
 const TABELAS = new Set(["artigo", "variante", "componente"]);
 
-function traduzir(erro: unknown): unknown {
+export interface OpcoesDeTraducao {
+  /** A operação apaga variantes: `componente_em_uso` quer dizer «em uso». */
+  apagar?: boolean;
+}
+
+/** Exportada para os testes; o resto do código usa-a por `noCatalogo`. */
+export function traduzir(
+  erro: unknown,
+  opcoes: OpcoesDeTraducao = {},
+): unknown {
   if (!(erro instanceof Error)) return erro;
   const codigo = CODIGOS_DA_BASE.find((c) => erro.message.startsWith(`${c}:`));
   if (codigo !== undefined) {
@@ -142,11 +151,14 @@ function traduzir(erro: unknown): unknown {
   }
   // Apagar uma variante que é componente de um kit (0004), antes da regra
   // geral das chaves estrangeiras, que diria «não existe». A mesma restrição
-  // também falharia ao inserir um componente que não existe, mas
-  // `definirComponentes` confirma-os antes (e prende-os), por isso aqui só
-  // chega o apagar. A mensagem não serve para distinguir: depende da língua
-  // do servidor.
-  if (pg.code === "23503" && pg.constraint === "componente_em_uso") {
+  // falha ao inserir um componente que não existe (ou de outro comerciante):
+  // aí é «não existe». Decide-o a operação, não a mensagem, que depende da
+  // língua do servidor (revisão do #81, P2-4).
+  if (
+    pg.code === "23503" &&
+    pg.constraint === "componente_em_uso" &&
+    opcoes.apagar === true
+  ) {
     return new ErroCatalogo(
       "catalog.component_in_use",
       "a variante é componente de um kit",
@@ -168,11 +180,12 @@ async function noCatalogo<T>(
   db: Kysely<BaseDados>,
   comercianteId: string,
   fn: (trx: Transaction<BaseDados>) => Promise<T>,
+  opcoes: OpcoesDeTraducao = {},
 ): Promise<T> {
   try {
     return await comComerciante(db, comercianteId, fn);
   } catch (erro) {
-    throw traduzir(erro);
+    throw traduzir(erro, opcoes);
   }
 }
 
@@ -343,15 +356,20 @@ export async function apagarRascunho(
   comercianteId: string,
   artigoId: string,
 ): Promise<void> {
-  await noCatalogo(db, comercianteId, async (trx) => {
-    const resultado = await trx
-      .deleteFrom("artigo")
-      .where("id", "=", artigoId)
-      .executeTakeFirst();
-    if (resultado.numDeletedRows === 0n) {
-      throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
-    }
-  });
+  await noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const resultado = await trx
+        .deleteFrom("artigo")
+        .where("id", "=", artigoId)
+        .executeTakeFirst();
+      if (resultado.numDeletedRows === 0n) {
+        throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+      }
+    },
+    { apagar: true },
+  );
 }
 
 /** Acrescenta uma variante; também a um artigo arquivado (§4.1, opção a). */
@@ -419,8 +437,9 @@ export interface Componente {
 /**
  * Substitui a composição do kit pela lista dada, pela ordem dada (§3.4; na
  * API, `PUT /variants/{id}/components`). Lista vazia: deixa de ser kit. A base
- * recusa ciclos, componentes arquivados e repetidos, e mexer num kit
- * arquivado.
+ * recusa ciclos, componentes novos arquivados e mexer num kit arquivado. Um
+ * componente que já estava no kit fica (muda só a quantidade e a ordem), por
+ * isso pode continuar mesmo arquivado (revisão do #81, P2-1).
  */
 export async function definirComponentes(
   db: Kysely<BaseDados>,
@@ -428,9 +447,22 @@ export async function definirComponentes(
   kitId: string,
   componentes: readonly Componente[],
 ): Promise<void> {
+  const ids = componentes.map((c) => c.varianteId);
+  if (new Set(ids).size !== ids.length) {
+    throw new ErroCatalogo(
+      "catalog.component_duplicate",
+      "a mesma variante duas vezes na lista",
+    );
+  }
   await noCatalogo(db, comercianteId, async (trx) => {
-    // A linha do kit fica presa até ao fim: duas substituições do mesmo kit
-    // não se misturam.
+    // Primeiro, o bloqueio do comerciante que o trigger também toma: as
+    // substituições do mesmo comerciante ficam em fila num só ponto, antes de
+    // prenderem linhas, e duas cruzadas (X em Y e Y em X) não se bloqueiam
+    // uma à outra (revisão do #81, P2-2).
+    await sql`select pg_advisory_xact_lock(hashtextextended(${
+      "eurolify.componente:" + comercianteId
+    }, 0))`.execute(trx);
+    // A linha do kit fica presa até ao fim.
     const kit = await trx
       .selectFrom("variante")
       .select("id")
@@ -444,7 +476,6 @@ export async function definirComponentes(
     // Os componentes têm de existir neste comerciante (o RLS esconde os de
     // outro, que contam como inexistentes); presos até ao fim, para não se
     // apagarem entretanto.
-    const ids = [...new Set(componentes.map((c) => c.varianteId))];
     if (ids.length > 0) {
       const existem = await trx
         .selectFrom("variante")
@@ -457,19 +488,47 @@ export async function definirComponentes(
         throw new ErroCatalogo("catalog.not_found", "componente inexistente");
       }
     }
-    await trx.deleteFrom("componente").where("kit_id", "=", kitId).execute();
+    const actuais = new Set(
+      (
+        await trx
+          .selectFrom("componente")
+          .select("componente_id")
+          .where("comerciante_id", "=", comercianteId)
+          .where("kit_id", "=", kitId)
+          .execute()
+      ).map((l) => l.componente_id),
+    );
+    const sair = [...actuais].filter((id) => !ids.includes(id));
+    if (sair.length > 0) {
+      await trx
+        .deleteFrom("componente")
+        .where("comerciante_id", "=", comercianteId)
+        .where("kit_id", "=", kitId)
+        .where("componente_id", "in", sair)
+        .execute();
+    }
     let posicao = 0;
     for (const componente of componentes) {
-      await trx
-        .insertInto("componente")
-        .values({
-          comerciante_id: comercianteId,
-          kit_id: kitId,
-          componente_id: componente.varianteId,
-          quantidade: componente.quantidade,
-          posicao,
-        })
-        .execute();
+      if (actuais.has(componente.varianteId)) {
+        await trx
+          .updateTable("componente")
+          .set({ quantidade: componente.quantidade, posicao })
+          .where("comerciante_id", "=", comercianteId)
+          .where("kit_id", "=", kitId)
+          .where("componente_id", "=", componente.varianteId)
+          .execute();
+      } else {
+        await trx
+          .insertInto("componente")
+          .values({
+            comerciante_id: comercianteId,
+            kit_id: kitId,
+            componente_id: componente.varianteId,
+            quantidade: componente.quantidade,
+            posicao,
+          })
+          .execute();
+      }
       posicao += 1;
     }
   });
