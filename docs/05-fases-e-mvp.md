@@ -127,6 +127,9 @@ crédito (decisão AD).
 - Automações e notificações configuráveis; campos personalizados; módulos
   ligáveis por comerciante.
 - Migração da loja principal do grupo, se a Fase 1 o justificar.
+- **Montra do Eurolify** (kit de loja e temas por comerciante, `eurolify-design`)
+  — decidido pelo Diogo a 05/10/2026 (*«Fase 2»*, auditoria `docs/16`). O
+  checkout alojado e os momentos legais não mudam de fase com esta decisão.
 - **Loja física (POS, caixa, recolha em loja), distribuidores, revendedores e
   franchising** — decidido pelo Diogo a 05/10/2026 (*«Fase 2, só as listas B2B
   ficam na Fase 1»*, Q3 do `docs/16`); as listas de preços B2B por etiqueta

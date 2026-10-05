@@ -202,6 +202,6 @@ pedido de alteração.
   `docs/05` e no `docs/13`; o número contado no `compliance-gaps.md`; Dir.
   2008/68/CE, Reg. 2018/644, CRA, EUDR e brinquedos no `docs/03` (**W**);
   três papéis no `docs/02` e `inventory.adjusted` na `order-fulfilment`.
-  **Fica por decidir:** em que fase entra a montra com kit e temas por
-  comerciante.
+  A montra com kit e temas por comerciante fica na **Fase 2** (Diogo,
+  05/10/2026: «Fase 2»; `docs/05`).
 - Por fazer: os pontos de segurança e de código (pedidos próprios).
