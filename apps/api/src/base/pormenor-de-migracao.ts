@@ -5,7 +5,9 @@
 // restrição), nunca valores. Excepção: as restrições desta lista, cujo
 // pormenor só tem identificadores do catálogo (comerciante e SKU), e servem
 // para decidir à mão o que se repete.
-const PORMENOR_SEM_DADOS_PESSOAIS = new Set(["variante_sku_unico"]);
+// Tabela e restrição: o nome de uma restrição só é único por tabela (3.ª
+// revisão do #80, P2).
+const PORMENOR_SEM_DADOS_PESSOAIS = new Set(["variante.variante_sku_unico"]);
 
 const NOMES = ["code", "schema", "table", "column", "constraint"] as const;
 
@@ -22,8 +24,10 @@ export function pormenorDeMigracao(erro: unknown): string | undefined {
   });
   if (
     campos.code === "23505" &&
+    campos.schema === "public" &&
+    typeof campos.table === "string" &&
     typeof campos.constraint === "string" &&
-    PORMENOR_SEM_DADOS_PESSOAIS.has(campos.constraint) &&
+    PORMENOR_SEM_DADOS_PESSOAIS.has(`${campos.table}.${campos.constraint}`) &&
     typeof campos.detail === "string"
   ) {
     partes.push(`detail=${campos.detail}`);

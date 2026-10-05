@@ -34,6 +34,7 @@ describe("pormenorDeMigracao", () => {
   it("o SKU repetido da 0003 sai com o pormenor, para se decidir à mão", () => {
     const erro = Object.assign(new Error("could not create unique index"), {
       code: "23505",
+      schema: "public",
       table: "variante",
       constraint: "variante_sku_unico",
       detail:
@@ -41,6 +42,17 @@ describe("pormenorDeMigracao", () => {
     });
     expect(pormenorDeMigracao(erro)).toContain("detail=Key (comerciante_id");
     expect(pormenorDeMigracao(erro)).toContain("gel-001");
+  });
+
+  it("a mesma restrição noutra tabela não leva o pormenor", () => {
+    const erro = Object.assign(new Error("duplicate key"), {
+      code: "23505",
+      schema: "public",
+      table: "cliente",
+      constraint: "variante_sku_unico",
+      detail: "Key (email)=(a@b.pt) already exists.",
+    });
+    expect(pormenorDeMigracao(erro)).not.toContain("a@b.pt");
   });
 
   it("sem campos do PostgreSQL, nada", () => {
