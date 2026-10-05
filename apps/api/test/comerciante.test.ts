@@ -95,7 +95,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0003_sku_sem_maiusculas",
         "0004_catalogo_kits",
         "0005_catalogo_opcoes",
-        "0006_catalogo_categorias_colecoes",
+        "0006_catalogo_classificacao",
+        "0007_catalogo_categorias_colecoes",
       ]);
     });
 
@@ -134,7 +135,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           });
         }
       }
-      // 6 do Comerciante (0001) e 10 do Catálogo (0002, 0004, 0005 e 0006).
+      // 6 do Comerciante (0001) e 10 do Catálogo (0002, 0004, 0005 e 0007).
       expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(16);
     });
 

@@ -170,6 +170,8 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
 ### 3.4 Composição — kits e coleções (`cmp_`)
 
 Uma variante pode ser composta: tem componentes, que são outras variantes.
+Numa colecção, cada componente leva a sua fórmula (`catalog-pim`: uma
+colecção pode levar várias fórmulas; a fórmula é da Conformidade, P2).
 
 | Campo | Notas |
 |---|---|
@@ -224,7 +226,7 @@ lote de cada componente vai na linha expedida (`product-compliance-eu`; ADR-0022
 Árvore de navegação: `pai_id`, `nome` e `endereco_amigavel` traduzíveis,
 `posicao`. Sem ciclos. Arquivar uma categoria não arquiva os artigos.
 
-Regras da parte 3a do código (migração 0006; as marcadas **proposta** são
+Regras da parte 3a do código (migração 0007; as marcadas **proposta** são
 dela):
 
 - uma categoria nasce activa; arquivar e repor são livres; arquivar não tira
@@ -255,7 +257,7 @@ dela):
 Lista **manual** de artigos, com ordem: `nome` e `descricao` traduzíveis,
 `artigos` (lista ordenada). As colecções por regra ficam para depois (§1).
 
-Na parte 3a do código (migração 0006): `endereco_amigavel` com as regras da
+Na parte 3a do código (migração 0007): `endereco_amigavel` com as regras da
 categoria (§3.6), estado activa ou arquivada, versão. A lista substitui-se
 inteira, pela ordem dada, sem repetidos, e sobe a versão da colecção (só se a
 lista ou a ordem mudaram). Qualquer artigo pode entrar, em qualquer estado: a
@@ -299,7 +301,11 @@ Diz se um artigo está à venda num **canal** e num **mercado**
 Guardados no artigo (ou na variante, quando variam com ela), com **valor,
 quem o preencheu e quando** (`product-compliance-eu`). Os grupos da Fase 1 são
 os de `05-fases-e-mvp.md`: fabricante e pessoa responsável (pelo operador
-económico), avisos, INCI (pela versão da fórmula) e lote (no Stock). Os
+económico), avisos, INCI (pela versão da fórmula) e lote (no Stock). A
+**identificação do produto** que o GPSR pede na oferta online — tipo,
+lote/série, foto (`docs/03` §3, **W**) — sai do tipo e das variantes, do lote
+no Stock e da media (§3.5); um campo próprio de série fica para quando o
+Stock a guardar. Os
 outros grupos da skill (CLP, embalagens, baterias, REEE, transporte,
 alegações ambientais) entram como campos do artigo quando o mercado os pedir:
 a lista de campos **por categoria regulamentar** tem de ser validada por um
@@ -325,14 +331,21 @@ classificações guardam-se **à parte** e **uma não se deduz da outra**
 
 | Campo | Valores | Notas |
 |---|---|---|
-| `familia_setorial` | as 27 famílias de `eurolify-legal-briefing-eu/references/sectors.md` (tabela «Famílias», contada a 05/10/2026) + `por_classificar`, que é a 28.ª linha dela («qualquer família não classificada») | um artigo pode ter **mais de uma** família (ex.: um kit de manicure com lâmpada: cosmética + electrónica); `por_classificar` nunca vale «retalho geral» (`sectors.md`, introdução) |
+| `familia_setorial` | as 28 famílias de `eurolify-legal-briefing-eu/references/sectors.md` (tabela «Famílias», contada a 05/10/2026; «educação e formação» separou-se de «saúde e profissões reguladas», Diogo, 05/10/2026: *«separa a educação numa família própria»*) + `por_classificar`, que é a última linha dela («qualquer família não classificada») | um artigo pode ter **mais de uma** família (ex.: um kit de manicure com lâmpada: cosmética + electrónica); `por_classificar` nunca vale «retalho geral» (`sectors.md`, introdução) |
 | `natureza_consumidor` | `bem`, `servico_presencial`, `servico_humano_a_distancia`, `acesso_com_data`, `conteudo_digital`, `servico_digital`, `vale` | os três do digital são os da `digital-products-eu`; `acesso_com_data` é a entrada num evento, sessão ou actividade com **data ou período marcado**; `vale` é do cartão-oferta |
 | `natureza_iva` | lista do Motor de IVA (por desenhar) + `por_classificar` | separada da do consumidor; um serviço humano à distância **não** é por isso serviço electrónico (`digital-products-eu`) |
-| `data_prestacao` | data/hora de início e fim, com fuso | obrigatória no `acesso_com_data` e no `servico_presencial` com data marcada; é o que distingue um bilhete de um vale |
-| `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` presencial |
-| `modo` | `presencial`, `virtual` | obrigatório no `acesso_com_data` e no serviço humano; muda o lugar da prestação para o IVA (Dir. 2006/112/CE arts. 53.º e 54.º, **W**, `docs/03` §1) |
+| `data_prestacao` | data/hora de início e fim, com fuso | obrigatória no `acesso_com_data`, possível nos serviços; é o que distingue um bilhete de um vale. Guarda-se o **instante** (a hora local a mostrar, ex.: Ponta Delgada, ainda não se guarda — por decidir, revisão do #96, P2-4) |
+| `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` presencial; **proibido** no que é virtual ou à distância (o lugar do IVA é onde está o cliente) |
+| `modo` | `presencial`, `virtual` | obrigatório no `acesso_com_data` e no `servico_humano_a_distancia` (que é `virtual`); no `servico_presencial` é `presencial`; muda o lugar da prestação para o IVA (Dir. 2006/112/CE arts. 53.º e 54.º, **W**, `docs/03` §1) |
 | `lazer_com_data` | `nao` (por omissão), `sim` | o comerciante declara que é uma actividade de **lazer** com data marcada; **só com `sim` e a regra validada pelo jurista** é que se aplica a excepção à livre resolução (§ abaixo) |
-| `classificado_por`, `classificado_em` | | entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) |
+| `classificado_por`, `classificado_em` | | postos pela base (o «quem» vem da transacção, como no Comerciante; até à fatia de identidade é texto declarado, sem ligação a um utilizador); entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) |
+
+**Em código** (migração `0006_catalogo_classificacao.sql`, 05/10/2026): as
+famílias, a natureza para o consumidor, o modo, a data e o local, o lazer com
+data e quem/quando, com as combinações abaixo recusadas pela base; os
+impedimentos para publicar em `apps/api/src/catalogo/classificacao.ts`, à
+espera da verificação C2 (parte 4 do #77). A `natureza_iva` espera pelo Motor
+de IVA. O mesmo artigo com o tipo mudado não existe (o tipo não muda, §4.1).
 
 **Que natureza cada tipo admite** (as outras combinações são recusadas pelo
 servidor):
@@ -351,7 +364,7 @@ servidor):
 `familia_restrita` — as famílias que a `sectors.md` manda bloquear por
 omissão ou que exigem autorização (medicamentos, dispositivos médicos,
 biocidas e fitofármacos, álcool e tabaco, armas, explosivos e jogo, saúde e
-profissões reguladas — lista **decidida** pelo Diogo, 05/10/2026: *«sim, aceito a lista»*) **não se publicam** até haver o desenho e a validação
+profissões reguladas, sem a educação — lista **decidida** pelo Diogo, 05/10/2026: *«sim, aceito a lista»*) **não se publicam** até haver o desenho e a validação
 profissional delas (`eurolify-sector-compliance-eu`, pontos 4 e 6).
 
 **O que a lei diz e o que ainda falta** — pesquisa de 05/10/2026, citações

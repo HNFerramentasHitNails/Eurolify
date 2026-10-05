@@ -3,7 +3,8 @@
 > **Versão de 04/10/2026.** Pedido do Diogo (ADR-0034). As fases são as de
 > [`docs/05-fases-e-mvp.md`](../05-fases-e-mvp.md); este plano parte a Fase 1
 > em **fatias verticais** (cada uma atravessa domínio, API, testes e
-> auditoria) pela ordem do `eurolify-platform-orchestrator`: entrada do
+> auditoria) pela ordem do `eurolify-platform-orchestrator` (skill do pacote
+> de 04/10, lida a partir do zip e **não instalada** — ADR-0034): entrada do
 > comerciante → catálogo → checkout → pagamento → stock → encomenda → fatura →
 > pós-venda. Antes da primeira fatia de cada domínio, o desenho dele em tabela
 > (ADR-0023). As lacunas legais de cada fatia estão em
@@ -18,8 +19,8 @@
 | # | Fatia | Depende de | Desenho | Porta para entrar no `main` | Porta para produção | Responsável | Estado |
 |---|---|---|---|---|---|---|---|
 | 0 | Esqueleto, publicação, VPS | — | ADR-0025 a 0028 | testes verdes | — | Diogo | **feito** (antes deste plano) |
-| 1 | **Motor de regras por país**: registo dos 27, decisão pura, `GET /paises` | — | `architecture.md` §4 | testes verdes + revisão de uma sessão nova (ADR-0030) | cada regra nacional com fonte lida e revisor | Diogo (#37; correcções da revisão: issue #39) | **feito** — 65 testes; nada sai «permitido»; entrou no `main` antes da revisão — P0 e P1 corrigidos depois (issue #39); o P1 da revisão do #40 na issue #46; propostas num domínio por verificar e os P2 da 2.ª revisão do #47 no #49 |
-| 2 | Comerciante e entidade legal: registo, estados (rascunho → prova pendente → revisão → aprovado limitado → activo; suspenso, fechado), isolamento por comerciante na base (RLS) | 1 | [`docs/15`](../15-dominio-comerciante.md) (issue #41), decidido | testes verdes + teste que tenta ler o vizinho + revisão de uma sessão nova **antes** de juntar | os dois utilizadores da base na VPS; contrato e acordo de tratamento (jurista) | Diogo | **feito** (#43, #69, #73) — esquema, RLS, migrador, 40 testes contra o PostgreSQL 18.6 (e 7 do migrador); aplicado na VPS a 04/10/2026 (#71, #70); sem API até à fatia «identidade» |
+| 1 | **Motor de regras por país**: registo dos 27, decisão pura, `GET /paises` | — | `architecture.md` §4 | testes verdes + revisão de uma sessão nova (ADR-0030; desde o ADR-0035, também um agente lançado da sessão) | cada regra nacional com fonte lida e revisor | Diogo (#37; correcções da revisão: issue #39) | **feito** — 65 testes; nada sai «permitido»; entrou no `main` antes da revisão — P0 e P1 corrigidos depois (issue #39); o P1 da revisão do #40 na issue #46; propostas num domínio por verificar e os P2 da 2.ª revisão do #47 no #49 |
+| 2 | Comerciante e entidade legal: registo, estados (rascunho → prova pendente → revisão → aprovado limitado → activo; suspenso, fechado), isolamento por comerciante na base (RLS) | 1 | [`docs/15`](../15-dominio-comerciante.md) (issue #41), decidido | testes verdes + teste que tenta ler o vizinho + revisão **antes** de juntar (sessão nova, ADR-0030, ou agente da sessão, ADR-0035) | os dois utilizadores da base na VPS; contrato e acordo de tratamento (jurista) | Diogo | **feito** (#43, #69, #73) — esquema, RLS, migrador, 40 testes contra o PostgreSQL 18.6 (e 7 do migrador); aplicado na VPS a 04/10/2026 (#71, #70); sem API até à fatia «identidade» |
 | 3 | Catálogo: artigo, variante, tradução, publicação por canal × mercado | 2 | `docs/14` | idem | P1, P2, P4–P7 respondidas | Diogo | **em curso** (issue #77) — as perguntas do `docs/14` §9 decididas a 05/10/2026 (`docs/06`, AR); parte 1 (artigos e variantes na base) em pedido |
 | 4 | Preços e mercados: listas, mercados, histórico de 30 dias, listas B2B por relação | 1, 3 | **por fazer** (`architecture.md` §3 para o B2B) | idem | regra do preço de referência (**C**, jurista) | — | por fazer |
 | 5 | Clientes e perfis de faturação; finalidade por encomenda (consumo, profissional, revenda) | 2 | **por fazer** | idem | VIES com prova; validação do contabilista | — | por fazer |
@@ -74,6 +75,7 @@
 
 ## Próxima fatia proposta
 
-A **2 (comerciante e entidade legal)**: é a primeira com tabelas, RLS e o
-teste de isolamento, e não depende das perguntas do Catálogo. Antes dela, o
-desenho em tabela (ADR-0023).
+A fatia 2 está feita e a 3 (Catálogo) está em curso (#77; a classificação do
+artigo entrou no #96). A seguir, pela ordem da tabela, a **4 (Preços e
+mercados)**, que a publicação do Catálogo (parte 4 do #77) pede — antes dela,
+o desenho em tabela (ADR-0023). Actualizado a 05/10/2026 (auditoria `docs/16`).

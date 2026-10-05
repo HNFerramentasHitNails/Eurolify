@@ -3,7 +3,7 @@ import type { BaseDados, EstadoCategoria } from "../base/esquema.js";
 import { artigoNaVersao, ErroCatalogo, noCatalogo } from "./repositorio.js";
 
 // Catálogo, parte 3a: categorias e colecções manuais (docs/14 §3.6, §3.7 e
-// §3.1 «categorias»; migração 0006; issue #77). Como o resto do domínio,
+// §3.1 «categorias»; migração 0007; issue #77). Como o resto do domínio,
 // ainda sem API: as regras vivem na base; aqui só a versão lida, as listas
 // inteiras e a ordem dos bloqueios.
 
@@ -172,7 +172,7 @@ export async function mudarEstadoCategoria(
  * Substitui as categorias do artigo pela lista dada (§3.1, `categorias`), na
  * versão do artigo que quem chama leu; devolve a versão nova do artigo (a
  * mesma, se a lista não mudou). Uma categoria arquivada que o artigo já tinha
- * pode ficar; uma nova tem de estar activa (0006).
+ * pode ficar; uma nova tem de estar activa (0007).
  */
 export async function definirCategoriasDoArtigo(
   db: Kysely<BaseDados>,

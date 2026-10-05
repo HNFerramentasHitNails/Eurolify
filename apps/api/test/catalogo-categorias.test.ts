@@ -36,7 +36,7 @@ import {
 } from "./base-de-teste.js";
 
 // Catálogo, parte 3a: categorias e colecções (docs/14 §3.6 e §3.7; migração
-// 0006; issue #77), contra o PostgreSQL 18 verdadeiro e com o eurolify_api.
+// 0007; issue #77), contra o PostgreSQL 18 verdadeiro e com o eurolify_api.
 
 const NOVO = { nome: "Loja de Teste", lingua: "pt", fuso: "Europe/Lisbon" };
 

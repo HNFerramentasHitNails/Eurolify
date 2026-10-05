@@ -180,7 +180,7 @@ ADR-0025 (RLS por comerciante).
 
 | Peça | Desenho (proposta) |
 |---|---|
-| Utilizador da base da API | `eurolify_api`: `NOSUPERUSER NOBYPASSRLS`, só `SELECT/INSERT/UPDATE` nas tabelas do produto; **sem `DELETE`** nas tabelas «só se acrescenta» |
+| Utilizador da base da API | `eurolify_api`: `NOSUPERUSER NOBYPASSRLS`, `SELECT/INSERT/UPDATE` nas tabelas do produto; **sem `DELETE`** nas tabelas «só se acrescenta». *Nota de 05/10/2026:* no Catálogo há `DELETE` em artigo, variante e componentes (migrações 0002 e 0004), porque um **rascunho** que nunca esteve activo pode apagar-se (`docs/14`, «Apagar rascunho», `DELETE /products/{id}`) |
 | Utilizador das migrações | `eurolify_migrador`: dono das tabelas; só corre na publicação (`dist/migrar.js`, já previsto em `eurolify-publicar:114-122`) |
 | Políticas | `ENABLE` **e** `FORCE ROW LEVEL SECURITY` em todas as tabelas; `USING (comerciante_id = current_setting('eurolify.comerciante')::uuid)` e o mesmo em `WITH CHECK` |
 | Contexto | cada pedido abre uma transacção e faz `SET LOCAL eurolify.comerciante = '<uuid>'`; sem isso a consulta dá **erro**, nunca vazio em silêncio: numa ligação nova o parâmetro não existe; numa ligação reaproveitada vale texto vazio, que falha a conversão para `uuid` (**confirmado** no PostgreSQL 18.6 a 04/10/2026: erros `42704` e `22P02`; há um teste para cada caso) |
@@ -216,9 +216,13 @@ Só existe com autenticação (fatia «identidade», P1). Até lá, **nenhum end
 desta fatia fica exposto**: o código da fatia 2 é o esquema, o RLS, o acesso
 interno e os testes.
 
+Todas as escritas (`POST`, `PATCH`) levam `Idempotency-Key`; a mesma chave
+com outro corpo dá erro (`headless-commerce`, regra 5; `platform-architect`,
+regra 6; auditoria `docs/16`).
+
 | Operação | Método e caminho | Quem | Notas |
 |---|---|---|---|
-| Registar comerciante | `POST /merchants` | pessoa autenticada sem comerciante | nasce em `rascunho`; com `Idempotency-Key` |
+| Registar comerciante | `POST /merchants` | pessoa autenticada sem comerciante | nasce em `rascunho` |
 | Ver o próprio | `GET /merchants/me` | equipa do comerciante | |
 | Alterar | `PATCH /merchants/me` | dono | com `versao` |
 | Pedir activação | `POST /merchants/me/activation-requests` | dono | `rascunho → prova_pendente` ou `em_revisao` |
