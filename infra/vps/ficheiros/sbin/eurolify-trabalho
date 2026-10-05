@@ -56,7 +56,10 @@ if [[ ! "$id" =~ ^[0-9]{10,40}$ ]]; then
 fi
 
 # Uma conta que não é um número não entra no registo. Sem conta (uma imagem
-# do MCP anterior a esta), regista-se que não veio.
+# do MCP anterior a esta), regista-se que não veio. Esta rede serve para se
+# poder voltar a uma imagem antiga (voltar_a_publicacao); sai quando nenhuma
+# das publicações a que se pode voltar (publicacoes.log) for anterior ao #102.
+# Teste: infra/vps/testes/trabalho-conta.sh.
 origem_mcp="mcp, conta não indicada"
 conta_invalida=0
 if [[ "$fluxo" == mcp && -n "$conta" ]]; then
@@ -74,7 +77,7 @@ if [[ ${#pedido} -gt 200 || ! "$pedido" =~ $padrao || $conta_invalida -eq 1 ]]; 
   # O conteúdo recusado não vai para o registo nem volta ao cliente.
   echo "Pedido recusado pelo serviço da máquina." >"$saida"
   codigo=65
-  registar "fluxo $fluxo: pedido $id recusado (formato inválido)"
+  EUROLIFY_ORIGEM="fluxo $fluxo" registar "fluxo $fluxo: pedido $id recusado (formato inválido)"
 else
   case "$fluxo" in
     publicar)

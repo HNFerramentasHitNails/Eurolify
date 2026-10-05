@@ -4,8 +4,9 @@
 > auditoria (`docs/16`, «Segurança e dados»), a pedido do Diogo (*«avança com
 > os pontos de segurança do docs/16»*). Skills: `eu-gdpr-privacy` e
 > `observability-security`. **Nenhum dado pessoal real entrou no Eurolify**
-> (ADR-0018, ADR-0019): este documento tem de estar validado **antes** do
-> primeiro (`docs/11` §4). Tudo o que é base legal ou prazo legal está
+> (ADR-0018, ADR-0019). Antes do primeiro, o `docs/11` §4 pede os acordos de
+> tratamento e os fornecedores no registo de tratamentos; proponho que este
+> documento esteja validado nessa altura. Tudo o que é base legal ou prazo legal está
 > marcado **C** e vai ao encarregado de dados ou ao jurista. Isto não é
 > aconselhamento jurídico.
 
@@ -21,7 +22,7 @@ conta de cada comerciante.
 |---|---|---|---|---|---|---|---|---|
 | T1 | Registo e verificação do comerciante (Comerciante, `0001_comerciante.sql`) | responsável | o comerciante em nome individual; quem aceita contratos e muda estados | denominação, número fiscal e morada da entidade legal; `aceite_por`; `quem` nas transições; documento da prova de verificação | contratar e verificar quem vende | execução do contrato e obrigação legal — **C** | base PostgreSQL (VPS) e cópias | §3 — **C** |
 | T2 | Dados dos clientes de cada comerciante (encomendas, contas, consentimentos) | subcontratante | clientes dos comerciantes | **ainda não existe** | — | a do comerciante; acordo de tratamento (`aceitacao_contrato`, tipo `acordo_tratamento_dados`) | — | entra com cada domínio |
-| T3 | Acesso dos operadores ao MCP da VPS (ADR-0033) | responsável | o Diogo e o Bruno | número e login da conta do GitHub | autenticar e registar quem pediu cada acção | interesse legítimo (segurança) — **C** | registo do contentor do MCP; registo de acções da máquina (só o número, depois do pedido do MCP desta auditoria) | §3 |
+| T3 | Acesso dos operadores ao MCP da VPS (ADR-0033) | responsável | o Diogo e o Bruno | número e login da conta do GitHub | autenticar e registar quem pediu cada acção | interesse legítimo (segurança) — **C** | registo do contentor do MCP; registo de acções da máquina e diário do sistema (`logger`, `comum.sh`), só o número (#102). O `medir` e o `estado_do_ensaio` mostram as últimas acções com o número substituído por `<n>` (`eurolify-medir`), por isso a conta não chega ao GitHub Actions nem à Anthropic | §3 |
 | T4 | Registos técnicos da máquina | responsável | os operadores; quem abre o ensaio ou o MCP | endereços IP (SSH, fail2ban, firewall, nginx) | segurança da máquina | interesse legítimo (segurança) — **C** | VPS | 14 dias (ADR-0018, ADR-0027; `journald-eurolify.conf`) |
 | T5 | Cópias da base | o mesmo de T1 e T2 | os mesmos | toda a base, cifrada (`age`) | recuperar depois de uma falha | a dos tratamentos copiados | OVH Object Storage, Paris (ADR-0032) | 14 dias (`eurolify-copia`) |
 | T6 | Repositório, revisão e CI | responsável | o Diogo e o Bruno | contas, commits e comentários no GitHub | desenvolver o Eurolify | interesse legítimo — **C** | GitHub | o do GitHub — não verifiquei |
@@ -35,25 +36,26 @@ Falta, e entra com o domínio: cada tratamento novo acrescenta aqui uma linha
 |---|---|---|---|---|
 | **OVH** — VPS do ensaio | a base, os registos técnicos | Reino Unido (ADR-0018) | por assinar | excepção temporária: **sem dados pessoais reais**; acaba a 31/03/2027 ou antes do primeiro dado real (ADR-0019) |
 | **OVH** — Object Storage | as cópias cifradas | França, Paris (ADR-0032) | por assinar (um só acordo com a OVH, ADR-0032) | mesma conta que a VPS: aceite para o ensaio; para a produção, onde ficam as cópias decide-se de novo (ADR-0032) |
-| **Healthchecks.io** | sinais de vida das tarefas (sem dados pessoais, que eu saiba — não verifiquei o que o sinal leva além do nome da verificação) | **não verifiquei** (ADR-0027, «O que ficou por verificar») | não verifiquei | confirmar o país antes do primeiro dado real |
+| **Healthchecks.io** | sinais de vida das tarefas: o texto do resultado, sem IP e até 10 KB (`comum.sh`, `filtrar_ip`); os textos são o nome e o tamanho da cópia e o resultado da reposição e da verificação (`eurolify-copia`, `eurolify-reposicao`, `eurolify-verificacao`), sem dados pessoais | empresa na Letónia; país dos servidores **não verificado** (ADR-0027) | não verifiquei | confirmar o país dos servidores antes do primeiro dado real |
 | **GitHub** | o código, as revisões e as contas dos operadores; nenhum dado de clientes | fora da UE — não verifiquei onde ficam os dados | não verifiquei | só dados dos operadores |
 | **Anthropic** | os pedidos ao MCP saem da infraestrutura dela e as respostas passam por ela (ADR-0033) | fora da UE — não verifiquei onde ficam os dados | não verifiquei | **com dados pessoais reais na VPS, é um serviço de fora da UE que recebe dados**: só com decisão escrita do Diogo ou do Bruno e o acordo de transferência (`AGENTS.md`, «Regras da UE», regra 4). Hoje as respostas do MCP filtram os endereços IP (`filtrar_ip`, `eurolify-trabalho`) |
 
 ## 3. Retenção por campo e o que falta
 
-**Prazos legais: todos C.** O único prazo com fonte no repositório é o das
-faturas (10 anos, art. 52.º do CIVA, `docs/03` §4, ainda **C**), e o
-Comerciante ainda não emite faturas.
+**Prazos legais: todos C.** Procurei no `docs/03` e na `eu-gdpr-privacy`
+prazos de conservação: só encontrei o das faturas (10 anos civis, art. 52.º
+do CIVA, `docs/03`, **W**), e o Comerciante ainda não emite faturas.
 
 | Dado | Onde | Prazo proposto | Acção no fim | Nota |
 |---|---|---|---|---|
-| Entidade legal (denominação, número fiscal, morada) | `entidade_legal` | enquanto o comerciante tiver conta; depois, o prazo dos documentos fiscais em que aparece — **C** | pseudonimizar o que não for exigido | a entidade legal **arquiva-se, não se apaga** (`docs/15`) |
+| Entidade legal (denominação, número fiscal, morada) | `entidade_legal` | enquanto o comerciante tiver conta; depois, o prazo dos documentos fiscais em que aparece — **C** | pseudonimizar o que não for exigido | «arquivar não apaga: os documentos fiscais ficam 10 anos» (`docs/15`, tabela da entidade legal, campo `estado`) |
 | Quem aceitou e que versão | `aceitacao_contrato` | o prazo de prova do contrato — **C** (não verifiquei) | manter enquanto for prova | só se acrescenta |
 | Quem mudou o estado e porquê | `transicao_estado` | o mesmo — **C** | idem | só se acrescenta (§5 da auditoria: falta o gatilho que o garanta) |
 | Prova de verificação | `prova_verificacao` | o mesmo — **C** | idem | `rever_ate` não é prazo de retenção |
 | Endereços IP | registos da máquina | 14 dias | apagar | já aplicado |
 | Conta e login dos operadores | registo do contentor do MCP | **sem prazo por tempo**: roda por tamanho (3 × 10 MB, `eurolify-publicar`) | — | **ponto aberto** |
 | Número da conta dos operadores | `/var/log/eurolify/acoes.log` | **sem prazo**: o ficheiro não roda (procurei regras de rotação em `infra/vps`: nenhuma) | — | **ponto aberto**: propor 14 dias, como os IP, ou guardar como prova das acções |
+| Número da conta dos operadores | diário do sistema (`logger`) | 14 dias (`journald-eurolify.conf`) | apagar | já aplicado |
 | Cópias | OVH Object Storage | 14 dias | apagar | um apagamento propaga-se quando a cópia expira (`eu-gdpr-privacy`) |
 
 **Exportação e apagamento do titular** (pedidos dos titulares): ficam por
@@ -73,7 +75,11 @@ Medido no script da VPS a 05/10/2026:
 
 - **Cópia diária às 03:00 UTC** (`eurolify-copia.timer`): numa falha pode
   perder-se **até ~24 h** do que se escreveu (o RPO de hoje, de facto).
-- **14 dias** de cópias na OVH, 2 na máquina (`eurolify-copia`).
+- **14 dias** de cópias na OVH; na máquina, as de menos de 3 dias (até 3
+  cópias, `find -mtime +2` em `eurolify-copia`).
+- As cópias estão **na mesma conta da OVH** que a VPS; a skill pede-as fora
+  da conta principal (`observability-security`, «Cópias»). Aceite para o
+  ensaio; para a produção decide-se de novo (ADR-0032).
 - **Ensaio de reposição ao domingo às 04:00 UTC** (`eurolify-reposicao.timer`):
   repõe numa base temporária, confere e apaga.
 - **Tempo para voltar (RTO): por escrever.** Não está medido aqui quanto
@@ -86,7 +92,9 @@ Medido no script da VPS a 05/10/2026:
 
 Fontes: `eu-gdpr-privacy` («Violação de dados pessoais», RGPD arts. 28.º,
 33.º e 34.º, **W** · texto lido) e `docs/03` §4 (NIS2, art. 23.º, **W** · texto
-lido). Quem responde: o Diogo e o Bruno; quem souber primeiro avisa o outro.
+lido + **C** para a lei de cada país que a transpõe). Quem responde: o Diogo e
+o Bruno; quem souber primeiro avisa o outro e **é quem envia** os avisos dos
+passos 3, 4 e 7, salvo se combinarem outra coisa no momento.
 
 | Passo | O quê | Prazo |
 |---|---|---|
@@ -95,13 +103,15 @@ lido). Quem responde: o Diogo e o Bruno; quem souber primeiro avisa o outro.
 | 3. Avisar os comerciantes (o Eurolify como subcontratante) | Cada comerciante afectado, com o que se sabe | **sem demora injustificada** (art. 33.º, n.º 2) |
 | 4. Notificar a autoridade (o Eurolify como responsável, T1, T3, T4, T6) | Autoridade de controlo, salvo se não houver risco para as pessoas; a autoridade competente e o canal **não verifiquei** | sem demora e, se possível, **até 72 h** (art. 33.º, n.º 1) |
 | 5. Comunicar às pessoas | Se o risco for elevado, em linguagem clara | sem demora (art. 34.º) |
-| 6. Registar | **Todas** as violações, notificadas ou não: factos, efeitos, o que se fez (art. 33.º, n.º 5), numa memória em `memoria/` | sempre |
-| 7. NIS2 | Só se o Eurolify estiver abrangido (média empresa ou maior; pergunta para o jurista, `docs/03` §4): alerta em 24 h, notificação em 72 h, relatório final até um mês | art. 23.º, n.º 4 |
+| 6. Registar | **Todas** as violações, notificadas ou não: factos, efeitos, o que se fez (art. 33.º, n.º 5). Em `memoria/` vai só o resumo **sem dados pessoais** (o repositório está no GitHub, fora da UE); os pormenores ficam na VPS. Onde guardar os pormenores na produção é uma decisão por tomar | sempre |
+| 7. NIS2 | Só se o Eurolify estiver abrangido (média empresa ou maior; pergunta para o jurista, `docs/03` §4): alerta precoce, notificação e relatório final, **ao CSIRT ou à autoridade nacional** (`docs/03` §4); qual é, por país, **C** | 24 h, 72 h, até um mês (art. 23.º, n.º 4) |
 
-**O aviso ao comerciante** leva pelo menos (art. 33.º, n.º 3): a natureza da
+**O aviso ao comerciante** leva o que ele precisa para a sua própria
+notificação, cujo conteúdo mínimo é o do art. 33.º, n.º 3: a natureza da
 violação, as categorias e o número aproximado de pessoas e de registos, um
-contacto, as consequências prováveis e as medidas tomadas ou propostas. Pode ir
-por fases (n.º 4).
+contacto, as consequências prováveis e as medidas tomadas ou propostas. Que
+o aviso do subcontratante tenha de levar tudo isto é leitura nossa — **C**.
+A notificação pode ir por fases (n.º 4).
 
 **O que falta para o plano funcionar:** o registo de auditoria por comerciante
 (a auditoria, §5) e a resposta a «quantas pessoas?», que só existe quando
@@ -114,4 +124,3 @@ houver dados de clientes (T2).
   Anthropic.
 - A autoridade de controlo competente e o canal de notificação.
 - A duração de uma reposição completa.
-- O que o sinal do Healthchecks.io leva.
