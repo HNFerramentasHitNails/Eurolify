@@ -19,6 +19,7 @@
 - [OK para código (AE, ADR-0023): só por PR com as duas revisões, domínio só depois do desenho; revisões impostas com o GitHub Pro na conta pessoal (AF, ADR-0024), Codex automático, Bruno precisa de conta — 04/10/2026](ok-para-codigo-04out2026.md)
 - [Fatia 2 (Comerciante), código: migração 0001 com RLS forçado e eurolify_api sem BYPASSRLS, estados e activação na base, Kysely 0.29 (Migrator em kysely/migration), 21 testes contra PostgreSQL 18.6 local por Docker — 04/10/2026](fatia-2-comerciante-codigo-04out2026.md)
 - [Catálogo (fatia 3), parte 1: artigos e variantes na base (migração 0002, RLS, SKU único também entre arquivadas, GTIN com dígito de controlo, tipos digitais desligados, SKU sem maiúsculas na 0003), 24 testes; listas de unidades são proposta — 05/10/2026](catalogo-codigo-05out2026.md)
+- [Catálogo, parte 2a: kits (migração 0004, sem ciclos com bloqueio por comerciante, componente novo activo, componente em uso não se apaga), 16 testes; regras da parte são proposta; 2b (opções) espera decisão — 05/10/2026](catalogo-kits-05out2026.md)
 
 ## Alojamento e VPS
 

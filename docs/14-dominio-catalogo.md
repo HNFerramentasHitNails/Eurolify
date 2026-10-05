@@ -20,6 +20,9 @@
 > variante física só se exige na verificação «pode publicar?» (C2), não ao
 > criar nem ao activar.
 >
+> Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 16 testes):
+> ver §3.4, com as regras **proposta** desta parte.
+>
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
 > `product-compliance-eu`, `eu-localization`, `eu-vat-oss-ioss` (categoria
 > fiscal) e `consumer-rights-eu` (preço por unidade). Arquitectura de base:
@@ -132,6 +135,28 @@ Uma variante pode ser composta: tem componentes, que são outras variantes.
 | `variante_id` | o kit |
 | `componente_variante_id` | uma variante do mesmo comerciante; **não pode ser o próprio kit nem conter o kit** (sem ciclos, **proposta**) |
 | `quantidade` | inteiro > 0 |
+
+Regras da parte 2a do código (**proposta**, salvo a dos ciclos, que já estava
+aqui):
+
+- sem ciclos, a nenhum nível; um kit dentro de outro kit é permitido;
+- um componente **novo** tem de ser uma variante **activa**; arquivar depois
+  um componente é permitido (C6) — o kit fica e o Stock dá-o sem
+  disponibilidade; ao mudar a lista, um componente arquivado que já estava no
+  kit pode ficar (só os que entram de novo têm de estar activos);
+- a composição de uma variante **arquivada** não muda (arquivada é final);
+- uma variante que é componente de um kit **não se apaga** (só se apagam
+  variantes de rascunhos); apagar o rascunho do kit leva a composição, com o
+  kit e os componentes no mesmo artigo por qualquer ordem, e também com o kit
+  arquivado (P8). Fora de apagar o rascunho, a composição de um kit arquivado
+  não muda, nem num rascunho (nem esvaziá-la). **Limitação conhecida:** o rascunho de um artigo cuja
+  variante está no kit de **outro** artigo só se apaga depois de a tirar desse
+  kit (um rascunho não se arquiva);
+- a quantidade de um componente é um inteiro > 0, **sem limite máximo** (se o
+  Stock precisar de um, decide-se lá);
+- a lista substitui-se inteira, pela ordem dada; lista vazia = deixa de ser kit;
+- um componente pode ser de qualquer artigo do mesmo comerciante, também do
+  próprio artigo do kit.
 
 A **disponibilidade deriva dos componentes**, calculada pelo Stock (no Hub, 72
 de 72 compostos batiam com os componentes, 16/09/2026, `catalog-pim`). O
@@ -343,7 +368,9 @@ Da parte 1 do código (também **proposta**): `catalog.invalid_transition`,
 `catalog.gtin_origin_required` (GTIN e origem vêm juntos),
 `catalog.content_incomplete` (quantidade e unidade do conteúdo vêm juntas) e
 `catalog.invalid_field` (outro valor recusado, por exemplo uma unidade que não
-está na lista).
+está na lista). Da parte 2a (também **proposta**): `catalog.component_archived`,
+`catalog.component_duplicate` e `catalog.component_in_use` (apagar uma variante
+que é componente de um kit).
 
 ### 7.2 API da Loja
 
