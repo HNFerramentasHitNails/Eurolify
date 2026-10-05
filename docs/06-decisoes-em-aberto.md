@@ -59,6 +59,7 @@
 | ✅ AN | A OVH é o fornecedor único (muda AI e AK; põe fim a R) | em vigor; contentor em Paris, três zonas | Diogo, 04/10/2026 | [ADR-0032](adr/0032-ovh-fornecedor-unico.md) |
 | ✅ AO | Um servidor MCP na VPS, por HTTPS, com acções (muda AI; completa AJ) | em vigor | Diogo, 04/10/2026 | [ADR-0033](adr/0033-mcp-na-vps-com-accoes.md) |
 | ✅ AP | Segue-se o plano do pacote complementar de skills, dentro das regras do repositório | em vigor | Diogo, 04/10/2026 | [ADR-0034](adr/0034-plano-do-pacote-e-motor-de-regras.md) |
+| ✅ AR | Catálogo: as propostas P1, P2 e P4 a P7 do `docs/14` §9 (canal e mercado de Preços e mercados; fórmula da Conformidade; sem atributos próprios na Fase 1; campos de um sistema externo só de leitura no Hub; `product.unpublished` e `product.archived`; SKU arquivado não volta) | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9 |
 | ✅ AQ | A revisão do agente pode ser um agente lançado da própria sessão, sem a conversa dela (muda o ponto 1 de AL); sessões novas só a pedido | em vigor até 29/11/2026 (com AL) | Diogo, 04/10/2026 | [ADR-0035](adr/0035-revisao-por-agente-na-mesma-sessao.md) |
 
 ## Por decidir — por esta ordem

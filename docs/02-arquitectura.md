@@ -70,8 +70,8 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 | Domínio | É dono de | Não é dono de | Eventos que publica |
 |---|---|---|---|
 | **Comerciante** (`15-dominio-comerciante.md`) | comerciante (o inquilino), entidades legais, lojas, estados, aceitação de contratos, provas de verificação | registos fiscais (Motor de IVA), pessoas e papéis (identidade) | `merchant.created`, `merchant.status_changed`, `legal_entity.created`, `store.created` |
-| **Catálogo (PIM)** | artigos, variantes, opções, atributos, kits/coleções, media, categorias, traduções, atributos regulamentares | preço, stock | `product.created`, `product.updated`, `product.published` |
-| **Preços e mercados** | listas de preços, mercados (país + moeda + língua + canal), histórico de preços (30 dias da Omnibus), promoções, quantidades mínimas, preços B2B por etiqueta | imposto | `price.changed`, `promotion.started` |
+| **Catálogo (PIM)** | artigos, variantes, opções, atributos, kits/coleções, media, categorias, traduções, atributos regulamentares | preço, stock, canal e mercado (de Preços e mercados), fórmula com versão (da Conformidade) | `product.created`, `product.updated`, `product.published`, `product.unpublished`, `product.archived` |
+| **Preços e mercados** | listas de preços, mercados (país + moeda + língua + canal) e canais (`docs/14` §9, P1), histórico de preços (30 dias da Omnibus), promoções, quantidades mínimas, preços B2B por etiqueta | imposto | `price.changed`, `promotion.started` |
 | **Carrinho** | carrinho, linhas, códigos de desconto aplicados, cotação de portes | decisão de IVA (pede-a) | `cart.updated` |
 | **Checkout** | sessão de checkout, aceitação de condições, escolha de perfil de faturação, escolha do método | o pagamento em si | `checkout.completed` |
 | **Encomendas** | encomenda, linhas, estado, quem compra vs quem é faturado, cancelamentos | o documento fiscal | `order.created`, `order.cancelled` |
@@ -84,7 +84,7 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 | **Devoluções** | pedido de livre resolução, RMA, recepção, estado do artigo, decisão (reembolso, troca, carteira) | o reembolso em si | `withdrawal.requested`, `return.received`, `return.inspected` |
 | **Notificações** | modelos por língua e país, envio transaccional, preferências | consentimento de marketing (lê-o) | `notification.sent`, `notification.failed` |
 | **Privacidade** | registo de tratamentos, pedidos dos titulares, retenção, pseudonimização | dados fiscais (retenção de 10 anos) | `dsar.received`, `dsar.completed` |
-| **Conformidade de produto** | operador económico, pessoa responsável, documentos e prazos, alertas e recolhas | o catálogo (anexa-se a ele) | `recall.opened` |
+| **Conformidade de produto** | operador económico, pessoa responsável, documentos e prazos, alertas e recolhas, fórmulas com versão (INCI; `docs/14` §9, P2) | o catálogo (anexa-se a ele) | `recall.opened` |
 | **Auditoria** | registo imutável de acções administrativas e fiscais | — | — |
 | **Extensões** | aplicações instaladas, permissões, webhooks, campos personalizados, contratos de adaptadores, funções em caixa fechada, extensões de ecrã — desenho em `08-extensoes-de-terceiros.md` | regras fiscais e legais (não são extensíveis) | — |
 
