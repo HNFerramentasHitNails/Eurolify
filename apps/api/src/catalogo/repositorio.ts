@@ -50,7 +50,14 @@ export type CodigoErroCatalogo =
   | "catalog.retry"
   | "catalog.classified_by_required"
   | "catalog.classification_invalid"
-  | "catalog.nature_incompatible";
+  | "catalog.nature_incompatible"
+  | "catalog.category_cycle"
+  | "catalog.category_archived"
+  | "catalog.category_has_children"
+  | "catalog.category_duplicate"
+  | "catalog.slug_invalid"
+  | "catalog.slug_duplicate"
+  | "catalog.collection_product_duplicate";
 
 export class ErroCatalogo extends Error {
   constructor(
@@ -76,6 +83,9 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   "catalog.options_incomplete",
   "catalog.option_combination_duplicate",
   "catalog.classified_by_required",
+  "catalog.category_cycle",
+  "catalog.category_archived",
+  "catalog.category_has_children",
 ];
 
 /** As restrições da base que têm código próprio (§7.1). */
@@ -111,6 +121,16 @@ const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   artigo_classificado_por_valido: "catalog.classification_invalid",
   artigo_datas_so_na_prestacao: "catalog.classification_invalid",
   artigo_local_so_no_presencial: "catalog.classification_invalid",
+  // Categorias e colecções (0007).
+  categoria_nome_check: "catalog.name_required",
+  colecao_nome_check: "catalog.name_required",
+  categoria_endereco_valido: "catalog.slug_invalid",
+  colecao_endereco_valido: "catalog.slug_invalid",
+  categoria_endereco_unico: "catalog.slug_duplicate",
+  colecao_endereco_unico: "catalog.slug_duplicate",
+  categoria_nao_e_o_pai: "catalog.category_cycle",
+  artigo_categoria_pkey: "catalog.category_duplicate",
+  colecao_artigo_pkey: "catalog.collection_product_duplicate",
 };
 
 /** Colunas obrigatórias com código próprio (§7.1: C3). */
@@ -118,6 +138,7 @@ const OBRIGATORIAS: Readonly<Record<string, CodigoErroCatalogo>> = {
   nome: "catalog.name_required",
   sku: "catalog.sku_required",
   unidade_de_venda: "catalog.unit_required",
+  endereco_amigavel: "catalog.slug_invalid",
 };
 
 /** As tabelas deste domínio, para os erros que só se traduzem quando vêm delas. */
@@ -128,6 +149,10 @@ const TABELAS = new Set([
   "opcao",
   "valor_opcao",
   "variante_valor",
+  "categoria",
+  "artigo_categoria",
+  "colecao",
+  "colecao_artigo",
 ]);
 
 export interface OpcoesDeTraducao {
@@ -221,8 +246,11 @@ export function traduzir(
   return erro;
 }
 
-/** Corre `fn` no contexto do comerciante e traduz os erros do Catálogo. */
-async function noCatalogo<T>(
+/**
+ * Corre `fn` no contexto do comerciante e traduz os erros do Catálogo.
+ * Exportada só para os outros ficheiros do domínio (categorias.ts).
+ */
+export async function noCatalogo<T>(
   db: Kysely<BaseDados>,
   comercianteId: string,
   fn: (trx: Transaction<BaseDados>) => Promise<T>,
@@ -313,7 +341,7 @@ export async function obterArtigo(
  * escreveu entretanto, `catalog.version_conflict` (§3.1). O `FOR UPDATE`
  * guarda a linha até ao fim da transacção.
  */
-async function artigoNaVersao(
+export async function artigoNaVersao(
   trx: Transaction<BaseDados>,
   artigoId: string,
   versao: number,

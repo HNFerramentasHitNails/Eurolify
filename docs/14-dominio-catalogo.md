@@ -226,15 +226,57 @@ lote de cada componente vai na linha expedida (`product-compliance-eu`; ADR-0022
 Árvore de navegação: `pai_id`, `nome` e `endereco_amigavel` traduzíveis,
 `posicao`. Sem ciclos. Arquivar uma categoria não arquiva os artigos.
 
+Regras da parte 3a do código (migração 0007; as marcadas **proposta** são
+dela):
+
+- uma categoria nasce activa; arquivar e repor são livres; arquivar não tira
+  os artigos da categoria;
+- uma categoria activa não fica dentro de uma arquivada, e uma categoria com
+  subcategorias activas não se arquiva: arquiva-se de baixo para cima e
+  repõe-se de cima para baixo (**proposta**: na loja, a subcategoria ficava
+  sem caminho);
+- um artigo só entra numa categoria activa; uma arquivada que o artigo já
+  tinha fica quando se muda o resto da lista (**proposta**, como os
+  componentes dos kits, §3.4);
+- mudar as categorias de um artigo é uma escrita do artigo: leva a versão
+  lida e sobe-a (só se a lista mudou);
+- categorias e colecções **não se apagam**: arquivam-se (**proposta**, o rasto
+  da `catalog-pim`, regra 7);
+- o endereço amigável é obrigatório, até 100 caracteres, em minúsculas
+  **sem acentos**, algarismos e hífenes (ex.: `unhas-de-gel`), e único por
+  comerciante entre as categorias e, à parte, entre as colecções, também as
+  arquivadas (**proposta**: um endereço antigo não passa a mostrar outra
+  coisa). Limitação: numa língua com outro alfabeto (grego, búlgaro) o
+  endereço da língua de origem fica transliterado; os endereços por língua
+  são da parte 3b (traduções);
+- as escritas nas categorias de um comerciante passam por uma fila só delas
+  (o ciclo e as subcategorias activas olham para várias linhas). O
+  repositório entra na fila **antes** de prender a linha da categoria; ao
+  contrário, uma escrita de B e a criação de uma filha de B esperavam uma
+  pela outra (a chave estrangeira da filha pede a linha de B; revisão do #97,
+  P1-1);
+- a versão de uma categoria ou de uma colecção só sobe quando algo muda: um
+  valor igual ao actual, ou o pai que já tinha, não conta.
+
 ### 3.7 Colecção (`col_`)
 
 Lista **manual** de artigos, com ordem: `nome` e `descricao` traduzíveis,
 `artigos` (lista ordenada). As colecções por regra ficam para depois (§1).
 
+Na parte 3a do código (migração 0007): `endereco_amigavel` com as regras da
+categoria (§3.6), estado activa ou arquivada, versão. A lista substitui-se
+inteira, pela ordem dada, sem repetidos, e sobe a versão da colecção (só se a
+lista ou a ordem mudaram). Qualquer artigo pode entrar, em qualquer estado: a
+loja só mostra os publicados (§7.2). A lista de uma colecção arquivada também
+se muda (**proposta**: prepara-se antes de a repor). Apagar o rascunho de um artigo tira-o das
+categorias e das colecções.
+
 ### 3.8 Tradução
 
 Uma linha por **recurso × campo × língua** (`catalog-pim`, regra 5;
-`eu-localization`).
+`eu-localization`). O original está na **língua de origem do comerciante**,
+uma só para todo o catálogo (P13); não há tradução para a própria língua de
+origem.
 
 | Campo | Notas |
 |---|---|
@@ -494,7 +536,12 @@ repetido no artigo), `catalog.option_value_duplicate` e `catalog.option_repeated
 (dois valores da mesma opção numa variante), `catalog.option_values_required` e
 `catalog.retry` (duas transacções esperaram uma pela outra; nada ficou
 gravado, tenta-se outra vez); `catalog.option_combination_duplicate` já estava
-aqui.
+aqui. Da parte 3a (também **proposta**): `catalog.category_cycle`,
+`catalog.category_archived` (pai arquivado, ou um artigo a entrar numa
+categoria arquivada), `catalog.category_has_children`,
+`catalog.category_duplicate` (a mesma categoria duas vezes na lista),
+`catalog.slug_invalid`, `catalog.slug_duplicate` e
+`catalog.collection_product_duplicate`.
 
 ### 7.2 API da Loja
 
@@ -556,3 +603,4 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P10 | Um artigo **sem opções** pode ter várias variantes? (O §3.2 dizia que tinha uma; o código da parte 1 deixa várias, como `GEL-001` e `GEL-REFILL`) | ✅ **Decidido: sim** (Diogo, 05/10/2026: *«sim, um artigo sem opções pode ter várias variantes»*). A regra «a combinação não se repete» só vale para artigos com opções |
 | P11 | O `bilhete` e o `servico` à distância ficam desligados até terem classificação, ou classificam-se já? (Q2 do `docs/16`) | ✅ **Decidido: classificam-se já** (Diogo, 05/10/2026: *«podemos classificar já»*); sem classificação nenhum artigo se publica — §3.10, «Classificação do artigo» |
 | P12 | Num artigo já à venda, pode mudar-se o **texto** de uma opção ou de um valor (ex.: corrigir «Vermleho»)? | ✅ **Decidido: não** (Diogo, 05/10/2026: *«não, bloqueia fora do rascunho»*). Só num rascunho; a ordem muda sempre. Se fizer falta corrigir gralhas, abre-se depois com o registo de quem mudou o quê (C7) |
+| P13 | Em que língua se escreve o original do catálogo? O `docs/15` tinha a língua de origem **na loja**, mas o artigo é do comerciante: com uma loja em português e outra em espanhol, o mesmo artigo tinha duas | ✅ **Decidido: uma só língua de origem por comerciante** (Diogo, 05/10/2026: *«sim, uma só língua de origem por comerciante»*). Passa da loja para o comerciante com a parte 3b do código |
