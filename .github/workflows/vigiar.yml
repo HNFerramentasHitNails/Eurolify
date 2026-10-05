@@ -1,0 +1,60 @@
+# Vigilância de segredos e de dependências (auditoria docs/16, segurança):
+# em cada pedido de alteração, em cada entrada no main e todas as manhãs,
+# para apanhar também o que se descobre depois de juntar («uma régua corre
+# sozinha e avisa», observability-security). Só lê; não envia nada.
+# As acções de terceiros estão fixadas pelo resumo do commit (ADR-0026); o
+# gitleaks descarrega-se e confere-se pelo sha256 antes de correr.
+name: vigiar
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vigiar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  segredos:
+    # Todo o histórico: um segredo apagado num commit seguinte continua lá.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSAO: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: instalar o gitleaks (versão e resumo fixos)
+        run: |
+          f="gitleaks_${GITLEAKS_VERSAO}_linux_x64.tar.gz"
+          curl -sSfLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSAO}/${f}"
+          echo "${GITLEAKS_SHA256}  ${f}" | sha256sum -c -
+          tar xzf "${f}" gitleaks
+      - name: varrer o histórico
+        # --redact: o que encontrar não aparece em claro no registo do fluxo.
+        run: ./gitleaks git --redact --no-banner --exit-code 1 .
+
+  dependencias:
+    # Vulnerabilidades conhecidas, de gravidade alta ou crítica, nas
+    # dependências (as de produção e as de desenvolvimento, que correm no CI).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+      - run: pnpm audit --audit-level=high
