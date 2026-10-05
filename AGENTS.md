@@ -293,6 +293,8 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 | `eurolify-repository-memory` | auditar e organizar `memoria/` e `docs/` (só leitura primeiro; o script `audit_memory.py`), leitura progressiva, uma fonte por decisão |
 | `eurolify-fault-first-debugging` | um teste ou erro que se repete: reproduzir e achar a causa antes de tentar outra vez |
 | `eurolify-evidence-before-done` | antes de dizer «feito»: testes proporcionais, o verificado e o não verificado, a revisão exigida |
+| `eurolify-engineering-execution` | escrever ou rever código: isolamento entre comerciantes, concorrência, migrações, integrações e testes que falham sem a protecção (complementa as skills de domínio) |
+| `eurolify-legal-briefing-eu` | definir uma obrigação legal ou a prontidão de um país, setor ou canal (loja física, POS, B2B, franchising, transporte, identificadores, conciliação); encaminha para as 13 skills `eurolify-*-eu` complementares e guarda as fontes partilhadas |
 
 ## Agentes
 
