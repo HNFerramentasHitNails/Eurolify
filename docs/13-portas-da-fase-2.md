@@ -38,6 +38,9 @@ grupo contam como **um** comprador.
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
 projecto, com critério já escrito: «se a Fase 1 o justificar»), o programa
 dos parceiros convidados (decisão L, já tomada), os ecrãs do Hub e os testes.
+O **digital** e os **cartões-oferta** também não estão aqui: têm portas
+próprias, nas fatias 12 e 13 de `eurolify/implementation-plan.md` e no §5 de
+`eurolify/architecture.md` (ADR-0034).
 
 ---
 

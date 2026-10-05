@@ -1,9 +1,11 @@
 # Arquitectura proposta do Eurolify
 
-> **Versão de 03/10/2026 — proposta, nada construído, nada decidido.** As
-> escolhas marcadas com **D-n** dependem de uma decisão de
-> [`06-decisoes-em-aberto.md`](06-decisoes-em-aberto.md). Sem código: este
-> documento descreve peças, fronteiras e contratos.
+> **Versão de 03/10/2026 — proposta.** As escolhas marcadas com **D-n**
+> dependem de uma decisão de [`06-decisoes-em-aberto.md`](06-decisoes-em-aberto.md).
+> Este documento descreve peças, fronteiras e contratos. **Estado a
+> 05/10/2026:** há código desde o ADR-0023 — o motor de regras por país, o
+> Comerciante (fatia 2) e o Catálogo em curso (#77), em `apps/api/`; o que está
+> feito por domínio vê-se em [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md).
 
 ## 1. A forma em uma imagem
 
@@ -74,7 +76,7 @@ trabalha, que usa **a mesma API de Administração** que qualquer outro cliente.
 | **Preços e mercados** | listas de preços, mercados (país + moeda + língua + canal) e canais (`docs/14` §9, P1), histórico de preços (30 dias da Omnibus), promoções, quantidades mínimas, preços B2B por etiqueta | imposto | `price.changed`, `promotion.started` |
 | **Carrinho** | carrinho, linhas, códigos de desconto aplicados, cotação de portes | decisão de IVA (pede-a) | `cart.updated` |
 | **Checkout** | sessão de checkout, aceitação de condições, escolha de perfil de faturação, escolha do método | o pagamento em si | `checkout.completed` |
-| **Encomendas** | encomenda, linhas, estado, quem compra vs quem é faturado, cancelamentos | o documento fiscal | `order.created`, `order.cancelled` |
+| **Encomendas** | encomenda, linhas, estado, quem compra, quem é faturado e quem recebe/usa (o bilhete para outra pessoa: `docs/14` §3.10; a `order-fulfilment` também separa estes papéis), cancelamentos | o documento fiscal | `order.created`, `order.cancelled` |
 | **Stock** | armazéns, saldos, reservas, movimentos, lotes, compostos derivados | preço | `inventory.reserved`, `inventory.released`, `inventory.adjusted` |
 | **Clientes e identidade fiscal** | ficha, perfis de faturação, validações VIES com prova, duplicados, fusões (humanas), consentimentos | encomendas | `customer.created`, `billing_profile.validated`, `customer.merged`, `consent.changed` |
 | **Motor de IVA** | categorias fiscais de artigo, registos fiscais de cada entidade legal (país-sede, OSS, IOSS, outros), jurisdições, taxas com vigência, territórios especiais, regras de isenção, **evidência da decisão** | o documento | `tax.decided` (interno) |

@@ -170,6 +170,8 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
 ### 3.4 Composição — kits e coleções (`cmp_`)
 
 Uma variante pode ser composta: tem componentes, que são outras variantes.
+Numa colecção, cada componente leva a sua fórmula (`catalog-pim`: uma
+colecção pode levar várias fórmulas; a fórmula é da Conformidade, P2).
 
 | Campo | Notas |
 |---|---|
@@ -264,7 +266,11 @@ Diz se um artigo está à venda num **canal** e num **mercado**
 Guardados no artigo (ou na variante, quando variam com ela), com **valor,
 quem o preencheu e quando** (`product-compliance-eu`). Os grupos da Fase 1 são
 os de `05-fases-e-mvp.md`: fabricante e pessoa responsável (pelo operador
-económico), avisos, INCI (pela versão da fórmula) e lote (no Stock). Os
+económico), avisos, INCI (pela versão da fórmula) e lote (no Stock). A
+**identificação do produto** que o GPSR pede na oferta online — tipo,
+lote/série, foto (`docs/03` §3, **W**) — sai do tipo e das variantes, do lote
+no Stock e da media (§3.5); um campo próprio de série fica para quando o
+Stock a guardar. Os
 outros grupos da skill (CLP, embalagens, baterias, REEE, transporte,
 alegações ambientais) entram como campos do artigo quando o mercado os pedir:
 a lista de campos **por categoria regulamentar** tem de ser validada por um

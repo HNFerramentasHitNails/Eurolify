@@ -3,7 +3,7 @@
 > **Versão de 04/10/2026.** Escrito a pedido do Diogo (04/10/2026), que mandou
 > seguir o prompt do pacote complementar de skills (`eurolify-platform-orchestrator`
 > e `eurolify-channel-governance`, lidas a partir do zip; não estão instaladas
-> — ADR-0034). **Não substitui** [`docs/02-arquitectura.md`](../02-arquitectura.md),
+> — ADR-0034; desde 05/10/2026 os canais seguem a `eurolify-b2b-channels-eu`, §3). **Não substitui** [`docs/02-arquitectura.md`](../02-arquitectura.md),
 > que continua a ser a arquitectura dos domínios: este documento acrescenta o
 > **papel real de cada actor**, os **canais comerciais**, as **dependências de
 > digital e cartões-oferta** e o **motor de regras por país** — a primeira
