@@ -13,7 +13,7 @@ noutra máquina). Decisões: ADR-0015, 0016, 0018, 0021, 0026 a 0030; guia
 | 3 | `00-eurolify.conf`: SSH só por chave, sem root — **só se o `ubuntu` tiver pelo menos uma chave**; `sshd -t` antes de recarregar, e volta ao anterior se falhar | memória da VPS |
 | 4 | `ufw`: entrada fechada, só a 22/tcp e a 443/tcp (MCP); avisa de regras que não conhece | ADR-0027, 0033 |
 | 5 | `fail2ban` activo; jaula `sshd` com bloqueio de 1 h; `dbpurgeage = 14d` no `fail2ban.d` (é opção do `fail2ban.conf`) | ADR-0027 |
-| 6 | journal e `ufw.log`: 14 dias | ADR-0018, 0027 |
+| 6 | journal (um ficheiro por dia), `ufw.log` e `acoes.log`: 14 dias; as linhas com a conta dos operadores não vão para o `/var/log/syslog` | ADR-0018 (nota de 05/10/2026), 0027 |
 | 7 | pastas e `/etc/eurolify/ensaio.conf` (sem segredos) | — |
 | 8 | programas `eurolify-*` e unidades do `systemd` | ADR-0026, 0028 |
 | 9 | Docker e a rede interna `eurolify` | ADR-0026 |

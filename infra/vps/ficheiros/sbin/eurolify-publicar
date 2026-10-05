@@ -102,6 +102,14 @@ if [[ "$anterior" == "$imagem" ]]; then
     mcp_para "$imagem" || falhar "o MCP não arrancou"
     exit 0
   fi
+  # Um MCP de antes do #102 ainda escreve em ficheiros sem prazo: recria-se
+  # para o diário do sistema (14 dias, ADR-0018, nota de 05/10/2026).
+  if mcp_configurado && docker inspect eurolify-mcp >/dev/null 2>&1 &&
+    [[ "$(docker inspect --format '{{.HostConfig.LogConfig.Type}}' eurolify-mcp)" != journald ]]; then
+    echo "A API já está nesta imagem; o MCP passa a escrever no diário do sistema."
+    mcp_para "$imagem" || falhar "o MCP não arrancou"
+    exit 0
+  fi
   echo "Esta imagem já é a que está no ar. Nada a fazer."
   exit 0
 fi

@@ -221,6 +221,10 @@ instalar "$F/journald-eurolify.conf" /etc/systemd/journald.conf.d/eurolify.conf 
 ((mudou)) && fazer "reiniciar o systemd-journald" systemctl restart systemd-journald
 instalar "$F/logrotate-ufw" /etc/logrotate.d/ufw 644
 instalar "$F/logrotate-eurolify" /etc/logrotate.d/eurolify 644
+if [[ -d /etc/rsyslog.d ]]; then
+  instalar "$F/rsyslog-eurolify.conf" /etc/rsyslog.d/10-eurolify.conf 644
+  ((mudou)) && fazer "reiniciar o rsyslog" systemctl restart rsyslog
+fi
 
 # ---------------------------------------------------------------------------
 passo "7. Pastas e configuração sem segredos"
