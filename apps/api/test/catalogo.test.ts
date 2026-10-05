@@ -48,23 +48,6 @@ async function codigoDoErro(promessa: Promise<unknown>): Promise<string> {
   return "sem erro";
 }
 
-/** Dá a `promessa` 300 ms: se ainda não acabou, está à espera de um bloqueio. */
-async function aindaEspera(promessa: Promise<unknown>): Promise<boolean> {
-  const marca = Symbol("à espera");
-  const venceu = await Promise.race([
-    promessa.then(
-      () => undefined,
-      () => undefined,
-    ),
-    new Promise((r) => {
-      setTimeout(() => {
-        r(marca);
-      }, 300);
-    }),
-  ]);
-  return venceu === marca;
-}
-
 describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
   let base: BaseDeTeste;
 
@@ -83,7 +66,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
   /**
    * Abre uma transacção noutra ligação, como o comerciante `c`, e corre
    * `texto` nela sem a fechar: as linhas que tocou ficam bloqueadas até
-   * `fechar()` (para provar os bloqueios sem depender do tempo).
+   * `fechar()` (para provar os bloqueios sem depender do tempo). Se falhar a
+   * meio, fecha a ligação antes de lançar o erro (3.ª revisão, P2-C).
    */
   async function transaccaoAberta(
     c: string,
@@ -91,12 +75,20 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
     valores: unknown[],
   ) {
     const cliente = new pg.Client({ connectionString: base.urlApi });
-    await cliente.connect();
-    await cliente.query("begin");
-    await cliente.query("select set_config('eurolify.comerciante', $1, true)", [
-      c,
-    ]);
-    await cliente.query(texto, valores);
+    // Sem isto, um fim forçado da ligação seria um erro que ninguém apanha.
+    cliente.on("error", () => undefined);
+    try {
+      await cliente.connect();
+      await cliente.query("begin");
+      await cliente.query(
+        "select set_config('eurolify.comerciante', $1, true)",
+        [c],
+      );
+      await cliente.query(texto, valores);
+    } catch (erro) {
+      await cliente.end().catch(() => undefined);
+      throw erro;
+    }
     return {
       fechar: async () => {
         try {
@@ -106,6 +98,33 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
         }
       },
     };
+  }
+
+  /**
+   * Espera até 5 s que uma ligação a esta base fique à espera de um bloqueio
+   * (`pg_stat_activity`), em vez de contar tempo: prova que a escrita chegou
+   * à base e está bloqueada (3.ª revisão, P2-B). Devolve `false` se a
+   * `promessa` acabar antes ou se ninguém esperar.
+   */
+  async function esperaBloqueio(promessa: Promise<unknown>): Promise<boolean> {
+    const estado = { acabou: false };
+    const fim = () => {
+      estado.acabou = true;
+    };
+    // then com os dois ramos: uma promessa recusada não fica sem quem a apanhe.
+    promessa.then(fim, fim);
+    for (let i = 0; i < 100 && !estado.acabou; i++) {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`.execute(
+        base.dono,
+      );
+      if ((rows[0]?.n ?? 0) > 0) return true;
+      await new Promise((r) => {
+        setTimeout(r, 50);
+      });
+    }
+    return false;
   }
 
   describe("isolamento por comerciante (RLS)", () => {
@@ -356,6 +375,10 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
       expect(await codigoDoErro(alterarArtigo(base.api, c, id, 1, {}))).toBe(
         "catalog.version_conflict",
       );
+      // Uma chave sem valor também não muda nada (3.ª revisão, P2-A).
+      expect(await alterarArtigo(base.api, c, id, 2, { nome: undefined })).toBe(
+        2,
+      );
     });
 
     it("duas escritas na mesma versão ao mesmo tempo: só uma passa (§3.1)", async () => {
@@ -379,7 +402,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
       // aberta deixaria a base de teste presa no fim.
       let esperou: boolean;
       try {
-        esperou = await aindaEspera(segunda);
+        esperou = await esperaBloqueio(segunda);
       } finally {
         await primeira.fechar();
       }
@@ -412,7 +435,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
       // aberta deixaria a base de teste presa no fim.
       let esperou: boolean;
       try {
-        esperou = await aindaEspera(activacao);
+        esperou = await esperaBloqueio(activacao);
       } finally {
         await arquivo.fechar();
       }
@@ -464,6 +487,46 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
             comComerciante(base.api, c, (trx) => insercao.execute(trx)),
           ),
         ).toMatch(/^pg:42501:permission denied/);
+      }
+    });
+
+    it("mudar para o estado em que já está não muda nada (3.ª revisão, P3-1)", async () => {
+      const c = await comercianteNovo();
+      const id = await criarArtigo(base.api, c, {
+        tipo: "fisico",
+        nome: "Gel",
+      });
+      expect(await mudarEstadoArtigo(base.api, c, id, 1, "rascunho")).toBe(1);
+      expect((await obterArtigo(base.api, c, id)).versao).toBe(1);
+    });
+
+    it("valores que a base não lê saem com código (3.ª revisão, P2-A)", async () => {
+      const c = await comercianteNovo();
+      const id = await criarArtigo(base.api, c, {
+        tipo: "fisico",
+        nome: "Gel",
+      });
+      // Um id mal escrito é «não existe», venha do artigo ou do comerciante.
+      expect(await codigoDoErro(obterArtigo(base.api, c, "nao-e-uuid"))).toBe(
+        "catalog.not_found",
+      );
+      expect(await codigoDoErro(obterArtigo(base.api, "nao-e-uuid", id))).toBe(
+        "catalog.not_found",
+      );
+      const mas: [string, Partial<DadosVariante>][] = [
+        ["PESO-DECIMAL", { peso_g: 1.5 }],
+        [
+          "GRANDE",
+          { conteudo_quantidade: 99_999_999_999, conteudo_unidade: "ml" },
+        ],
+        ["NUL", { classe_adr: "3\u0000" }],
+      ];
+      for (const [sku, dados] of mas) {
+        expect(
+          await codigoDoErro(
+            criarVariante(base.api, c, id, { ...VARIANTE, sku, ...dados }),
+          ),
+        ).toBe("catalog.invalid_field");
       }
     });
 

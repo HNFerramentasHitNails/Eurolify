@@ -109,7 +109,7 @@ function traduzir(erro: unknown): unknown {
     return new ErroCatalogo(daColuna, erro.message, { cause: erro });
   }
   // Outro valor recusado nestas tabelas (uma lista, um número): código
-  // genérico, para que nenhum erro da base saia cru (P2-2).
+  // genérico (revisão do #78, 2.ª, P2-2).
   if (
     (pg.code === "23514" || pg.code === "23502") &&
     pg.table !== undefined &&
@@ -118,6 +118,18 @@ function traduzir(erro: unknown): unknown {
     return new ErroCatalogo("catalog.invalid_field", erro.message, {
       cause: erro,
     });
+  }
+  // Um valor que a base nem consegue ler (classe 22: um id que não é UUID,
+  // um número decimal ou grande demais num inteiro, um carácter NUL). Um id
+  // mal escrito é «não existe», como um id de outro comerciante (3.ª revisão,
+  // P2-A). Fica de fora o que não vem destas funções (por exemplo um 42501 de
+  // SQL escrito à mão): a validação dos pedidos é da camada da API.
+  if (pg.code !== undefined && pg.code.startsWith("22")) {
+    const codigoDeValor =
+      pg.code === "22P02" && /type uuid/.test(erro.message)
+        ? "catalog.not_found"
+        : "catalog.invalid_field";
+    return new ErroCatalogo(codigoDeValor, erro.message, { cause: erro });
   }
   // Uma chave estrangeira que falha: o artigo (ou o comerciante) não existe
   // ou é de outro comerciante — o RLS esconde-o igual, sem oráculo.
@@ -243,9 +255,14 @@ async function artigoNaVersao(
   return artigo;
 }
 
-export type AlteracaoArtigo = Partial<
-  Pick<DadosArtigo, "nome" | "descricao" | "marca" | "categoria_fiscal">
->;
+/**
+ * Os campos que se podem alterar. Uma chave com `undefined` quer dizer «não
+ * mexer» (como num PATCH em JSON que a traga vazia) e é ignorada.
+ */
+export type AlteracaoArtigo = {
+  [K in "nome" | "descricao" | "marca" | "categoria_fiscal"]?:
+    DadosArtigo[K] | undefined;
+};
 
 /** Altera campos do artigo na versão lida; devolve a versão nova. */
 export async function alterarArtigo(
@@ -257,11 +274,15 @@ export async function alterarArtigo(
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
     await artigoNaVersao(trx, artigoId, versao);
-    // Nada para mudar: a versão fica (revisão do #78, P2-6).
-    if (Object.keys(alteracao).length === 0) return versao;
+    // Nada para mudar: a versão fica (revisão do #78, P2-6). Uma chave com
+    // `undefined` também não muda nada (3.ª revisão, P2-A).
+    const campos = Object.fromEntries(
+      Object.entries(alteracao).filter(([, valor]) => valor !== undefined),
+    );
+    if (Object.keys(campos).length === 0) return versao;
     const { versao: nova } = await trx
       .updateTable("artigo")
-      .set(alteracao)
+      .set(campos)
       .where("id", "=", artigoId)
       .returning("versao")
       .executeTakeFirstOrThrow();
@@ -281,7 +302,9 @@ export async function mudarEstadoArtigo(
   para: EstadoArtigo,
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
-    await artigoNaVersao(trx, artigoId, versao);
+    const artigo = await artigoNaVersao(trx, artigoId, versao);
+    // Já está nesse estado: nada muda e a versão fica (3.ª revisão, P3-1).
+    if (artigo.estado === para) return versao;
     const { versao: nova } = await trx
       .updateTable("artigo")
       .set({ estado: para })

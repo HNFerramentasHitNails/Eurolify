@@ -9,7 +9,7 @@
 >
 > **Estado do código** (issue #77): parte 1 — artigos e variantes na base
 > (migração `0002_catalogo_artigos.sql`, `apps/api/src/catalogo/repositorio.ts`,
-> 21 testes contra o PostgreSQL 18.6), sem API até à fatia «identidade». As
+> 23 testes contra o PostgreSQL 18.6), sem API até à fatia «identidade». As
 > listas de unidades de venda (`unidade`, `par`, `caixa`, `embalagem`,
 > `conjunto`) e de unidades do conteúdo (`mg` a `m3`) e o formato do SKU
 > (1 a 64 caracteres: letras sem acentos, algarismos e `. _ / -`, a começar por
@@ -109,7 +109,7 @@ A unidade vendável. Um artigo sem opções tem uma variante.
 | `gtin_origem` | lista | sim se há `gtin` | GS1 do comerciante, do fornecedor ou interno (`catalog-pim`, regra 4) |
 | `valores_das_opcoes` | lista de `ovl_…` | conforme o artigo | uma combinação não se repete dentro do artigo |
 | `unidade_de_venda` | código da lista do Eurolify | **sim** | unidade, caixa, par… (`catalog-pim`, regra 3: no Hub, artigo sem unidade travava a fatura) |
-| `conteudo_quantidade`, `conteudo_unidade` | inteiro + kg, l, m, m², m³ (e submúltiplos) | conforme o país | para o **preço por unidade** (Dir. 98/6/CE, arts. 2.º, 3.º e 5.º, **W**, `docs/03` linha 61: «o artigo guarda quantidade e unidade»); cada país pode dispensar produtos (art. 5.º) |
+| `conteudo_quantidade`, `conteudo_unidade` | inteiro + kg, l, m, m², m³ (e submúltiplos; a lista proposta da parte 1 do código tem `mg`, `g`, `kg`, `ml`, `cl`, `l`, `mm`, `cm`, `m`, `m2`, `m3` — **sem** submúltiplos de área, como `cm2`, por decidir com a lista) | conforme o país | para o **preço por unidade** (Dir. 98/6/CE, arts. 2.º, 3.º e 5.º, **W**, `docs/03` linha 61: «o artigo guarda quantidade e unidade»); cada país pode dispensar produtos (art. 5.º) |
 | `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | inteiros | físico: peso sim, **para publicar** (a verificação C2; a base aceita a variante sem peso enquanto não se publica, **proposta**) | para os Envios |
 | `formula_versao_id` | referência à Conformidade | cosmético: sim | o lote sabe que versão leva (`product-compliance-eu`, «Fórmulas com versões»); decidido na §9 (P2) |
 | `onu`, `classe_adr` | texto | não | mercadorias perigosas (ADR/IATA, **C**, `product-compliance-eu`) |
@@ -225,11 +225,16 @@ dos eventos (§6) e do registo de auditoria; **não é outra fonte de verdade**.
 | — | rascunho | criar | não se pode publicar |
 | rascunho | activo | activar; exige SKU e unidade em todas as variantes e **pelo menos uma variante activa** (**proposta**) | pode publicar-se |
 | activo | arquivado | arquivar | **todas as publicações passam a arquivado**, com o motivo «artigo arquivado» |
-| arquivado | activo | repor | as publicações **não voltam sozinhas**: publicam-se outra vez, com nova verificação (**proposta**) |
+| arquivado | activo | repor; exige, como activar, **pelo menos uma variante activa** (**proposta**) | as publicações **não voltam sozinhas**: publicam-se outra vez, com nova verificação (**proposta**) |
 
 Não se apaga um artigo que já esteve activo: arquiva-se (o rasto alimenta
 preços, IVA e conformidade, `catalog-pim`, regra 7). Apagar só um rascunho que
 nunca foi activo (**proposta**).
+
+Depois de activo, arquivar a última variante activa **é permitido** (C6): o
+artigo fica activo sem variantes activas e não se pode publicar até ter uma
+(**proposta**). Pedir o estado em que o artigo já está não muda nada, nem a
+versão.
 
 Um artigo arquivado **pode receber variantes novas**, e repõe-se como os
 outros (decisão do Diogo, 05/10/2026, revisão do #78, opção a). Sem isto, um
