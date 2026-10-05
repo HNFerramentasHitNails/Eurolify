@@ -1,0 +1,912 @@
+[
+  {
+    "iso": "AT",
+    "name_pt": "Áustria",
+    "directory_name": "Austria",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Tax Office Austria",
+        "url": "https://www.bmf.gv.at/services/aemter-behoerden/faoe.html"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.bmf.gv.at/en/the-ministry/Contact---Enquiries-to-the-Ministry-of-Finance.html"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "BE",
+    "name_pt": "Bélgica",
+    "directory_name": "Belgium",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Federal Public Service - Finance",
+        "url": "https://financien.belgium.be/contact"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "BG",
+    "name_pt": "Bulgária",
+    "directory_name": "Bulgaria",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "National Revenue Agency",
+        "url": "https://nra.bg/wps/portal/nra/kontakti/connection.nap/kontakti.conection.nap.page.informationen.center.NRA"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.minfin.bg/bg/contacts"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "CY",
+    "name_pt": "Chipre",
+    "directory_name": "Cyprus",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Tax Department",
+        "url": "https://www.mof.gov.cy/mof/tax/taxdep.nsf/contact_en/contact_en?opendocument"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://mof.gov.cy/gr/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "CZ",
+    "name_pt": "Chéquia",
+    "directory_name": "Czechia",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Financial Administration",
+        "url": "https://financnisprava.gov.cz/cs/kontakty"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.mfcr.cz/cs/ministerstvo/kontakt"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "DE",
+    "name_pt": "Alemanha",
+    "directory_name": "Germany",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Federal Central Tax Office",
+        "url": "https://www.bzst.de/EN/Service/Contact_new/contact_node.html"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.bundesfinanzministerium.de/Web/DE/Service/Kontakt/kontakt.html"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "DK",
+    "name_pt": "Dinamarca",
+    "directory_name": "Denmark",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Customs and Tax Administration",
+        "url": "https://skat.dk/en-us/contact-us"
+      },
+      {
+        "label": "Ministry of Taxation",
+        "url": "https://en.fm.dk/about-us/contact/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "EE",
+    "name_pt": "Estónia",
+    "directory_name": "Estonia",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Estonian Tax and Customs Board",
+        "url": "https://www.emta.ee/en/business-client/board-news-and-contact/contacts"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "http://www.fin.ee/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "ES",
+    "name_pt": "Espanha",
+    "directory_name": "Spain",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Tax Agency",
+        "url": "https://sede.agenciatributaria.gob.es/Sede/en_gb/contacta-nosotros.html"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.hacienda.gob.es/en-GB/El%20Ministerio/Paginas/Cont%C3%A1ctenos/Contactenos.aspx"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "FI",
+    "name_pt": "Finlândia",
+    "directory_name": "Finland",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Tax Administration",
+        "url": "https://www.vero.fi/en/About-us/contact-us/"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://vm.fi/en/contact"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "FR",
+    "name_pt": "França",
+    "directory_name": "France",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Directorate General of Public Finances",
+        "url": "https://www.impots.gouv.fr/contacts"
+      },
+      {
+        "label": "Ministry of Economy and Finance",
+        "url": "https://www.economie.gouv.fr/contact"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "GR",
+    "name_pt": "Grécia",
+    "directory_name": "Greece",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Independent Authority for Public Revenue",
+        "url": "https://www.aade.gr/en/contact"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://minfin.gov.gr/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "HR",
+    "name_pt": "Croácia",
+    "directory_name": "Croatia",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Tax Administration",
+        "url": "https://www.porezna-uprava.hr/en/Pages/Contact.aspx"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://mfin.gov.hr/kontakti/102"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "HU",
+    "name_pt": "Hungria",
+    "directory_name": "Hungary",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "National Tax and Customs Administration",
+        "url": "https://nav.gov.hu/en/contact"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "IE",
+    "name_pt": "Irlanda",
+    "directory_name": "Ireland",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Irish Tax and Customs",
+        "url": "https://www.revenue.ie/en/contact-us/index.aspx"
+      },
+      {
+        "label": "Department of Finance",
+        "url": "http://www.finance.gov.ie/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "IT",
+    "name_pt": "Itália",
+    "directory_name": "Italy",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Revenue Agency",
+        "url": "https://www.agenziaentrate.gov.it/portale/contatta"
+      },
+      {
+        "label": "Ministry of Economy and Finance",
+        "url": "https://www.finanze.gov.it/it/contatti/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "LT",
+    "name_pt": "Lituânia",
+    "directory_name": "Lithuania",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "State Tax Inspectorate",
+        "url": "https://www.vmi.lt/evmi/kontaktai"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://finmin.lrv.lt/en/structure-and-contacts/contacts-of-ministry/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "LU",
+    "name_pt": "Luxemburgo",
+    "directory_name": "Luxembourg",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Indirect Tax Portal",
+        "url": "https://pfi.public.lu/fr/support/contact.html"
+      },
+      {
+        "label": "Administration of Direct Tax",
+        "url": "https://impotsdirects.public.lu/fr/support/contact.html"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://mfin.gouvernement.lu/fr/support/contact.html"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "LV",
+    "name_pt": "Letónia",
+    "directory_name": "Latvia",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "State Revenue Service",
+        "url": "https://www.vid.gov.lv/en/contacts-authority"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.fm.gov.lv/lv/iestades-kontakti"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "MT",
+    "name_pt": "Malta",
+    "directory_name": "Malta",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Office of the Commissioner for Revenue",
+        "url": "https://cfr.gov.mt/en/inlandrevenue/contact_us/Pages/Contact-Us.aspx"
+      },
+      {
+        "label": "Ministry for Finance",
+        "url": "https://finance.gov.mt/contact/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "NL",
+    "name_pt": "Países Baixos",
+    "directory_name": "The Netherlands",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Tax Administration",
+        "url": "https://www.belastingdienst.nl/wps/wcm/connect/bldcontenten/standaard_functies/individuals/contact/"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.government.nl/ministries/ministry-of-finance/contact"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "PL",
+    "name_pt": "Polónia",
+    "directory_name": "Poland",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Tax Portal",
+        "url": "https://www.podatki.gov.pl/en/"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.gov.pl/web/finanse/dane-teleadresowe"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "PT",
+    "name_pt": "Portugal",
+    "directory_name": "Portugal",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Tax and Customs Authority",
+        "url": "https://sitfiscal.portaldasfinancas.gov.pt/ebalcao/home"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "RO",
+    "name_pt": "Roménia",
+    "directory_name": "Romania",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Ministry of Finance",
+        "url": "https://mfinante.gov.ro/ro/contact"
+      },
+      {
+        "label": "National Agency of Fiscal Administration",
+        "url": "https://www.anaf.ro/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "SE",
+    "name_pt": "Suécia",
+    "directory_name": "Sweden",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Swedish Tax Agency",
+        "url": "https://www.skatteverket.se/omskatteverket/kontaktaoss.4.71004e4c133e23bf6db800079651.html"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.government.se/contact-information/#2076"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "SI",
+    "name_pt": "Eslovénia",
+    "directory_name": "Slovenia",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Financial Administration",
+        "url": "https://www.fu.gov.si/kontakti/"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.gov.si/en/state-authorities/ministries/ministry-of-finance/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  },
+  {
+    "iso": "SK",
+    "name_pt": "Eslováquia",
+    "directory_name": "Slovakia",
+    "source_directory": "https://taxation-customs.ec.europa.eu/national-tax-websites_en",
+    "directory_read_at": "2026-10-05",
+    "tax_authority_contacts": [
+      {
+        "label": "Financial Administration",
+        "url": "https://www.financnasprava.sk/en/contact"
+      },
+      {
+        "label": "Ministry of Finance",
+        "url": "https://www.mfsr.sk/sk/kontakty/"
+      }
+    ],
+    "contact_pages_read": false,
+    "national_law_status": "pending",
+    "national_evidence_wmc": "C",
+    "professional_approval": null,
+    "activation_authorized": false,
+    "pending_domains": [
+      "consumer",
+      "vat_and_invoicing",
+      "pos_fiscal",
+      "product_and_sector",
+      "privacy",
+      "waste_and_packaging",
+      "premises_and_employment",
+      "transport",
+      "payment_permissions",
+      "competition_and_contracts"
+    ]
+  }
+]
