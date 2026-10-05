@@ -7,6 +7,7 @@ description: Encomendas, stock e expedição no Eurolify — reserva de stock, d
 
 > Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Lições:
 > `docs/04-licoes-dos-sistemas-actuais.md` §3.
+> Complementares (05/10/2026): `eurolify-transport-logistics-eu` (rota, perigosos, frio, retorno) e `eurolify-physical-retail-eu` (recolha em loja, devolução noutro estabelecimento); coordenação em `eurolify-legal-briefing-eu`.
 
 ## Stock — as regras
 
@@ -76,9 +77,10 @@ devoluções registadas, zero movimentos de devolução em 44.431).
 | Passo | O que se guarda |
 |---|---|
 | Pedido | origem (botão de livre resolução, apoio ao cliente, comercial), linhas, motivo |
+| Rota de retorno | a transportadora e a rota de volta admitem o artigo (a rota de ida não aprova a volta; perigosos com profissional) — `eurolify-transport-logistics-eu` |
 | Recepção | o que chegou, quantidades, data |
 | Inspecção | **estado do artigo** — cosmética aberta **não volta a stock** |
-| Decisão | reembolso, troca ou carteira (regras fiscais em `eu-vat-oss-ioss`) |
+| Decisão | reembolso na Fase 1; troca e carteira na Fase 2 (`docs/05`) — regras fiscais em `eu-vat-oss-ioss` |
 | Stock | só o que foi aceite volta, por movimento de devolução |
 
 ## Eventos

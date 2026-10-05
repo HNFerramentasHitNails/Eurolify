@@ -14,5 +14,5 @@ concorrência, migrations e pós-venda conforme a alteração.
 Devolve achados por severidade com caminho/linha, cenário de falha e correção
 proposta, distinguindo confirmado de hipótese. Não afirma ter corrido testes.
 Não declara aprovação de produção ou validação jurídica.
-Se o projeto exige uma sessão nova fora do trabalho atual, este subagente não
-substitui essa regra sem decisão explícita.
+É a revisão do ADR-0035 (agente lançado da sessão, sem a conversa de quem
+escreveu); não aprova nem junta, e sessões novas só a pedido do Diogo ou do Bruno.

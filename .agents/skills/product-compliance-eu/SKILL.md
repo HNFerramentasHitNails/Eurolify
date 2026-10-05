@@ -8,6 +8,7 @@ description: Conformidade de produto no Eurolify — atributos regulamentares do
 > Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Fontes e datas:
 > `docs/03-regulamentar-ue.md` §3. **Validação: técnico regulamentar e
 > jurista.**
+> Complementares (05/10/2026): `eurolify-sector-compliance-eu` (classificação por setor) e `eurolify-identifiers-traceability-eu` (SKU, GTIN, lote, série, códigos); coordenação em `eurolify-legal-briefing-eu`.
 
 ## 🔴 Primeira regra
 

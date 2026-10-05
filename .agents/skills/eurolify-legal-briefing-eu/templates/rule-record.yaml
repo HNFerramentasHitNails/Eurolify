@@ -20,7 +20,7 @@ evidence:
       instrument: null
       articles: []
       version: null
-      read_level: null # search_snippet | official_summary | specified_articles | full_current_text
+      read_level: null # search_snippet | fetched_page_summary | official_summary | specified_articles | full_current_text
       relevant_excerpt: null
       limitations: []
   publication_date: null

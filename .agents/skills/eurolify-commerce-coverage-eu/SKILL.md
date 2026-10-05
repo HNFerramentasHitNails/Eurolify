@@ -8,6 +8,8 @@ metadata:
 
 # Cobertura de comércio, não cópia jurídica
 
+> Estado: **desenho** — o código está autorizado (ADR-0023), mas o de cada domínio só depois do desenho dele em tabela. Esta skill mapeia percursos; não dá nenhum por feito.
+
 Lê `.agents/skills/eurolify-legal-briefing-eu/references/shopify-coverage.md`.
 
 1. Separa site institucional, montra do comerciante, checkout/conta, Hub e administração da plataforma.

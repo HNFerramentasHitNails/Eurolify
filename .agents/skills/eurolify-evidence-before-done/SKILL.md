@@ -11,7 +11,7 @@ metadata:
 2. Executa teste focado durante a edição e verificações exigidas pelo projeto antes de entrega. Teste incremental não dispensa a suite de gate definida em CI.
 3. Preserva stdout/stderr relevantes e exit code; não filtra falhas, timeouts ou testes saltados como se fossem sucesso. Para logs longos, reporta resumo e caminho para leitura posterior.
 4. Revê o diff e os caminhos que ainda possam falhar: isolamento, estados, fiscalidade, eventos repetidos e regressões conforme a alteração.
-5. Obtém a revisão independente exigida pelo projeto. Um revisor configurado neste pack não autoriza aprovar automaticamente nem substitui uma sessão nova quando essa for a regra.
+5. Obtém a revisão independente exigida pelo projeto. É a do `AGENTS.md` («Git») e do ADR-0035: um agente lançado da sessão (`eurolify-critical-review`), sem a conversa de quem escreveu, publicada no pedido tal como ele a devolveu, com os P0/P1 tratados. O revisor não aprova nem junta.
 6. Entrega resumo curto de alteração, comandos/resultados, verificado, não verificado e pendências. Não repete a história do projeto nem afirma produção sem gate.
 
 ## Eficiência

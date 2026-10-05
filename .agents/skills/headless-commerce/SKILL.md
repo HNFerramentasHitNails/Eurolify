@@ -77,6 +77,11 @@ Para o Lovable, Vercel (v0), Bolt e Emergent gerarem uma loja certa à primeira:
 
 ## Servidor MCP (D-9)
 
+Esta secção é o **MCP de comércio** (dados do comerciante). O **MCP de
+operação da VPS** (`apps/mcp`, ADR-0033) é outro: leituras e quatro acções
+fixas com confirmação, só para o Diogo e o Bruno; as regras dele estão no
+ADR-0033, incluindo os nomes das ferramentas.
+
 - Ferramentas geradas do mesmo contrato, com nomes de negócio
   (`procurar_artigos`, `vendas_por_pais`, `encomenda_por_numero`).
 - **Fase 1: só leitura.** Escrita (Fase 3) sempre com confirmação humana;
