@@ -8,6 +8,7 @@ description: Catálogo e gestão de informação de produto (PIM) no Eurolify �
 > Estado: **desenho** — o código está autorizado (ADR-0023), mas o deste domínio só depois do desenho dele em tabela. Os campos regulamentares
 > estão em `product-compliance-eu`; o preço em «Preços e mercados»; o stock em
 > `order-fulfilment`.
+> Complementares (05/10/2026): `eurolify-identifiers-traceability-eu` (identificadores) e `eurolify-sector-compliance-eu` (classificação antes de publicar); coordenação em `eurolify-legal-briefing-eu`.
 
 ## 🔴 Primeira regra: a ficha do artigo vive num sítio só
 

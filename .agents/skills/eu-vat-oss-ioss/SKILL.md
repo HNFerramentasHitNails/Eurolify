@@ -99,7 +99,14 @@ português e morada no Luxemburgo).
 ## Documentos — emissão, retenção e prova
 
 - **O Eurolify não emite faturas portuguesas por si**: liga-se a software
-  certificado (D-4). O adaptador traduz; **a decisão fiscal já vem tomada**.
+  certificado — o Moloni em Portugal na Fase 1 (ADR-0006); os outros países
+  país a país (D-4, por decidir). O adaptador traduz; **a decisão fiscal já
+  vem tomada**.
+- **Comerciante que já tem sistema de gestão:** quem emite é o sistema dele
+  (D-10, `docs/06`, **por decidir**; `AGENTS.md`, última secção). Até à decisão, não se desenha emissão
+  pelo Eurolify para esse caso.
+- Caixa, recibos, séries por país e fatura electrónica nacional: ver também
+  `eurolify-tax-pos-invoicing-eu` (complementa esta skill; não decide o IVA).
 - **No adaptador do Moloni** (lições do Hub): o rascunho leva o identificador
   da entidade e **o NIF que sai é o da entidade**, não o nosso — confirmar a
   entidade antes de emitir; o Moloni não deixa mudar o NIF de uma entidade que
@@ -146,15 +153,19 @@ português e morada no Luxemburgo).
 - Notas de crédito entram **com sinal negativo**.
 - **Fecho mensal**: retrato congelado, com quem fechou e quando.
 - IOSS só se um comerciante vender a partir de fora da UE (≤150 €).
-- Fora da UE, o comerciante pode ter de se registar no país de destino (Reino
-  Unido, Suíça) — **C**, por país.
+- Venda para fora da UE: trata-se pelas regras da UE (exportação, balde
+  «exportação»); obrigações do país de destino não entram no Eurolify
+  (`AGENTS.md`, «Regras da UE», ponto 2).
 
 ## Fatura electrónica por país
 
 Ver `docs/03-regulamentar-ue.md` §1: Portugal (certificado, ATCUD, QR; PDF com
-assinatura qualificada desde 01/01/2027), Espanha (Verifactu 2027), França
+assinatura qualificada desde 01/01/2027 — o Orçamento de 2027 ainda pode mudar
+isto, `docs/03`), Espanha (Verifactu 2027), França
 (Plateforme Agréée), Bélgica, Alemanha, Polónia (KSeF), Itália (SDI). **Um
-adaptador por regime**, cada um com o seu contabilista.
+adaptador por regime**, cada um com o seu contabilista. As etapas do ViDA
+(2027–2035) seguem-se pela `eurolify-tax-pos-invoicing-eu` e pelo calendário
+da `eurolify-legal-briefing-eu`; não se antecipam.
 
 ## Antes de dizer «está feito»
 

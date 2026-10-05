@@ -1,0 +1,57 @@
+# Ficha de análise, não configuração de produção. Nunca preencher aprovação fictícia.
+rule_id: null
+title: null
+kind: null # binding_law | official_guidance | technical_standard | engineering | commercial_decision
+facts:
+  seller_entity: null
+  economic_roles: []
+  buyer_purpose: null
+  countries: []
+  territories: []
+  sectors: []
+  products_or_services: []
+  contract_channel: null
+  supply_chain: null
+evidence:
+  wmc: C
+  research_date: null
+  sources:
+    - url: null
+      instrument: null
+      articles: []
+      version: null
+      read_level: null # search_snippet | fetched_page_summary | official_summary | specified_articles | full_current_text
+      relevant_excerpt: null
+      limitations: []
+  publication_date: null
+  entry_into_force: null
+  application_date: null
+  transposition_deadline: null
+  legislative_status: unconfirmed
+  national_implementation_status: pending
+  exceptions: []
+  gaps: []
+professional_review:
+  required: null
+  completed: false
+  reviewer: null
+  qualification_and_jurisdiction: null
+  reviewed_scope: null
+  evidence_reference: null
+  date: null
+engineering:
+  decision_or_adr: null
+  affected_data: []
+  affected_flows: []
+  implementation_reference: null
+  tests_and_results: []
+  integration_evidence: []
+readiness:
+  blockers: []
+  legal_scope_confirmed: false
+  national_scope_confirmed: false
+  licenses_confirmed: false
+  professional_review_satisfied: false
+  implementation_and_tests_confirmed: false
+  project_activation_authorized: false
+  # Nenhuma soma automática destes campos autoriza uma atividade.

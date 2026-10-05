@@ -20,7 +20,7 @@
 - [Fatia 2 (Comerciante), código: migração 0001 com RLS forçado e eurolify_api sem BYPASSRLS, estados e activação na base, Kysely 0.29 (Migrator em kysely/migration), 21 testes contra PostgreSQL 18.6 local por Docker — 04/10/2026](fatia-2-comerciante-codigo-04out2026.md)
 - [Catálogo (fatia 3), parte 1: artigos e variantes na base (migração 0002, RLS, SKU único também entre arquivadas, GTIN com dígito de controlo, tipos digitais desligados, SKU sem maiúsculas na 0003), 24 testes; listas de unidades são proposta — 05/10/2026](catalogo-codigo-05out2026.md)
 - [Catálogo, parte 2a: kits (migração 0004, sem ciclos com bloqueio por comerciante, componente novo activo, componente em uso não se apaga), 16 testes; regras da parte são proposta — 05/10/2026](catalogo-kits-05out2026.md)
-- [Catálogo, parte 2b: opções e valores (migração 0005; opções só num rascunho; com opções, cada variante activa completa e sem combinação repetida; fila por artigo; P11: textos fixos fora do rascunho), 27 testes; regras da parte são proposta — 05/10/2026](catalogo-opcoes-05out2026.md)
+- [Catálogo, parte 2b: opções e valores (migração 0005; opções só num rascunho; com opções, cada variante activa completa e sem combinação repetida; fila por artigo; P12: textos fixos fora do rascunho), 27 testes; regras da parte são proposta — 05/10/2026](catalogo-opcoes-05out2026.md)
 
 ## Alojamento e VPS
 
@@ -58,3 +58,4 @@
 - [Skills de produtos digitais e de cartões-oferta (zip do Diogo): instaladas como `digital-products-eu` e `gift-cards-eu`, tudo C (EUR-Lex não leu); corrigidos «cursos em linha»; choque com a carteira da `eu-vat-oss-ioss` por decidir — 04/10/2026](skills-digitais-e-cartoes-oferta-04out2026.md)
 - [Pacote complementar (26 skills): lido, não instalado (10 repetem as nossas); o prompt seguido por ordem do Diogo — docs/eurolify/, motor de regras dos 27 (tudo por verificar), P3 decidida, diagnóstico de apoios — 04/10/2026](pacote-complementar-skills-04out2026.md)
 - [Pacote de eficiência: auditoria só de leitura (0 ficheiros iguais; decisões em 3 sítios) → #52, #54, #56; 6 skills instaladas (sessão, gestão, modelos, memória, diagnóstico, prova); Sonnet/Haiku/Opus 5.5, sem Fable; poupança não medida — 04/10/2026](skills-de-eficiencia-instaladas-04out2026.md)
+- [Skills complementares de engenharia e conformidade UE (zip do Diogo, 15): instaladas com ligações; 2 linhas no AGENTS.md (engenharia e coordenação jurídica); validação estrutural OK, `agentskills` não correu; fontes W, países todos pendentes — 05/10/2026](skills-complementares-ue-05out2026.md)

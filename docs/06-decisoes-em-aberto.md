@@ -64,7 +64,7 @@
 | ✅ AS | Catálogo: o SKU de uma variante apagada de um artigo rascunho (também já arquivada) volta a ficar livre; a P7 continua para tudo o resto | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P8 |
 | ✅ AT | Catálogo: o SKU não distingue maiúsculas — `GEL-001` e `gel-001` são o mesmo, também contra as arquivadas | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P9 |
 | ✅ AU | Catálogo: um artigo sem opções pode ter várias variantes; a combinação de opções só se exige única quando o artigo tem opções | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P10 |
-| ✅ AV | Catálogo: num artigo que já não é rascunho, o texto de uma opção ou de um valor não muda (a ordem sim) | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P11 |
+| ✅ AV | Catálogo: num artigo que já não é rascunho, o texto de uma opção ou de um valor não muda (a ordem sim) | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P12 |
 
 ## Por decidir — por esta ordem
 
