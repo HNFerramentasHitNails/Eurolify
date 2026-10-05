@@ -29,11 +29,10 @@ function simularGitHub(id: number, login: string) {
 describe("OAuth do MCP com o GitHub", () => {
   let servidor: Server;
   let base: string;
-  const fila = {
-    pedir: vi.fn(() =>
-      Promise.resolve({ codigo: 0, saida: "medição de teste" }),
-    ),
-  } as unknown as FilaDePedidos;
+  const pedir = vi.fn(() =>
+    Promise.resolve({ codigo: 0, saida: "medição de teste" }),
+  );
+  const fila = { pedir } as unknown as FilaDePedidos;
 
   beforeEach(async () => {
     servidor = await new Promise<Server>((resolver) => {
@@ -272,6 +271,55 @@ describe("OAuth do MCP com o GitHub", () => {
         t.name === "estado_do_ensaio" || t.name === "publicacoes_recentes";
       expect(t.annotations?.destructiveHint, t.name).toBe(!leitura);
     }
+  });
+
+  it("pelo HTTP, uma acção só executa no segundo passo, com o código", async () => {
+    const clientId = await registar();
+    const verificador = randomBytes(32).toString("base64url");
+    const final = await login(clientId, verificador, [
+      DIOGO,
+      "HNFerramentasHitNails",
+    ]);
+    const { access_token } = (await (
+      await trocar(clientId, final.searchParams.get("code") ?? "", verificador)
+    ).json()) as { access_token: string };
+    const chamar = async (id: number, args: Record<string, string>) => {
+      const r = await fetch(`${base}/mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          method: "tools/call",
+          params: { name: "reiniciar_api", arguments: args },
+        }),
+      });
+      expect(r.status).toBe(200);
+      const corpo = (await r.json()) as {
+        result: { content: { text: string }[]; isError?: boolean };
+      };
+      return corpo.result;
+    };
+    pedir.mockClear();
+
+    const primeiro = await chamar(1, {});
+    expect(primeiro.content[0]?.text).toContain("NADA FOI FEITO AINDA");
+    expect(pedir).not.toHaveBeenCalled();
+
+    // Cada pedido HTTP é um servidor MCP novo: o código tem de sobreviver
+    // entre pedidos (as confirmações vivem na aplicação, não no servidor).
+    const codigo =
+      /confirmacao: "([A-Z0-9]{8})"/.exec(
+        primeiro.content[0]?.text ?? "",
+      )?.[1] ?? "";
+    const segundo = await chamar(2, { confirmacao: codigo });
+    expect(segundo.isError).toBeFalsy();
+    expect(pedir).toHaveBeenCalledTimes(1);
+    expect(pedir).toHaveBeenCalledWith("reiniciar-api");
   });
 
   it("um token inventado é recusado", async () => {

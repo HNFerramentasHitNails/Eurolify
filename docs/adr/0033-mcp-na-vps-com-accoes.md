@@ -59,7 +59,13 @@ servidores de nomes da OVH (`ns200`/`dns200.anycast.me`).
    serviços, contentores, `/health`, firewall, `fail2ban`, actualizações,
    últimas publicações, cópias e acções), sem endereços IP.
 5. **Acções de operação** (um conjunto fixo, sem consola nem comandos
-   livres; cada uma marcada como destrutiva, para o Claude pedir confirmação):
+   livres; cada uma marcada como destrutiva, para o Claude pedir confirmação,
+   e — desde 05/10/2026, #92 — **confirmada em dois passos no servidor**: o
+   primeiro pedido não executa e devolve um código de uso único, ligado à
+   conta, à acção e aos argumentos, válido 5 minutos; só o segundo pedido,
+   com o código, executa. O servidor não prova que foi uma pessoa a dizer
+   «sim»: garante que nenhuma acção corre numa só chamada e que a confirmação
+   é da mesma conta e da mesma acção):
    - correr a **cópia** ou a **reposição** agora;
    - **reiniciar a API**;
    - **voltar a uma publicação**: republicar uma imagem que já está no GHCR
@@ -133,4 +139,7 @@ preciso ligar. Resposta: *«Abrir só o login»*.
 - A versão estável do SDK de MCP em TypeScript e se o seu servidor de
   autorização serve este desenho.
 - Se a aplicação de computador mostra a confirmação das ferramentas marcadas
-  como destrutivas (a documentação lida não o descreve).
+  como destrutivas (a documentação lida não o descreve). Desde o #92 a
+  confirmação já não depende disso (ponto 5); a confirmação pela própria
+  aplicação (elicitação do MCP) fica por verificar e é o passo seguinte, se o
+  cliente a suportar.

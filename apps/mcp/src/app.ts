@@ -5,6 +5,7 @@ import {
   mcpAuthRouter,
 } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { Confirmacoes } from "./confirmacoes.js";
 import { criarServidorMcp } from "./ferramentas.js";
 import type { AutorizacaoGitHub } from "./oauth.js";
 import type { FilaDePedidos } from "./pedidos.js";
@@ -29,6 +30,9 @@ export function criarApp({
   app.disable("x-powered-by");
 
   const urlMcp = new URL(`${urlPublico}/mcp`);
+  // Os códigos de confirmação das acções (#92) vivem no processo, entre
+  // pedidos HTTP; um reinício do MCP apaga os que estavam por confirmar.
+  const confirmacoes = new Confirmacoes();
 
   app.get("/health", (_req, res) => {
     res.json({ estado: "ok" });
@@ -59,11 +63,20 @@ export function criarApp({
     express.json({ limit: "64kb" }),
     exigirToken,
     async (req, res) => {
-      const login =
-        typeof req.auth?.extra?.["login"] === "string"
-          ? req.auth.extra["login"]
-          : "?";
-      const servidor = criarServidorMcp(fila, () => login);
+      // A conta (número no GitHub, ADR-0033) liga os códigos de confirmação;
+      // o login é só para a consola. Sem os dois, não se serve (#92).
+      const extra = req.auth?.extra ?? {};
+      const conta = extra["conta"];
+      const login = extra["login"];
+      if (
+        typeof conta !== "string" ||
+        conta === "" ||
+        typeof login !== "string"
+      ) {
+        res.status(401).json({ erro: "token sem conta" });
+        return;
+      }
+      const servidor = criarServidorMcp(fila, { conta, login }, confirmacoes);
       // Sem sessões: cada pedido HTTP é independente; resposta em JSON simples.
       const transporte = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,

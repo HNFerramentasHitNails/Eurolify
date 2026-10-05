@@ -362,7 +362,7 @@ export class AutorizacaoGitHub implements OAuthServerProvider {
       clientId: registo.clientId,
       scopes: ["eurolify"],
       expiresAt: Math.floor(registo.expira / 1000),
-      extra: { login: registo.conta.login },
+      extra: { login: registo.conta.login, conta: String(registo.conta.id) },
     });
   }
 
