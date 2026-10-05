@@ -1657,10 +1657,106 @@ describe("marca W/M/C: só decide uma regra com texto lido ou validação", () =
     expect(errosDoRegisto(registo).join("\n")).toContain(mensagem);
   });
 
+  it("uma proposta C ao lado de uma W em vigor não bloqueia a decisão", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "boa" }),
+      regraTeste({
+        id: "proposta",
+        estadoLegal: "proposta",
+        marca: "C",
+        textoLido: false,
+      }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([]);
+    expect(decidir(registo, pedido)).toMatchObject({
+      estado: "permitido",
+      regrasAplicadas: ["boa@1"],
+    });
+  });
+
+  it("uma C num território mapeado também não decide", () => {
+    const registo = registoComPortugal(
+      [
+        regraTeste({
+          id: "r",
+          territorios: ["PT-20"],
+          marca: "C",
+          textoLido: false,
+        }),
+      ],
+      2,
+      ["PT-20"],
+    );
+    expect(errosDoRegisto(registo).join("\n")).toContain("não pode decidir");
+    const decisao = decidir(registo, { ...pedido, territorio: "PT-20" });
+    expect(decisao.estado).toBe("revisao_necessaria");
+    expect(decisao.motivos).toContainEqual({
+      codigo: "regra_sem_prova",
+      dominio: "consumidor",
+      regra: "r@1",
+    });
+  });
+
+  it("uma versão C já revogada: o validar recusa; o decidir, no momento actual, usa só a W", () => {
+    const registo = registoComPortugal([
+      regraTeste({
+        id: "r",
+        versao: 1,
+        estadoLegal: "revogada",
+        aplicaAte: "2025-01-01T00:00:00Z",
+        marca: "C",
+        textoLido: false,
+      }),
+      regraTeste({ id: "r", versao: 2, aplicaDesde: "2025-01-01T00:00:00Z" }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([
+      expect.stringContaining("r@1: marca C"),
+    ]);
+    expect(decidir(registo, pedido)).toMatchObject({
+      estado: "permitido",
+      regrasAplicadas: ["r@2"],
+    });
+  });
+
+  it("uma C adoptada para o futuro: o validar recusa já; o decidir só a vê quando chegar a data", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "boa" }),
+      regraTeste({
+        id: "futura",
+        estadoLegal: "adoptada_futura",
+        aplicaDesde: "2030-01-01T00:00:00Z",
+        marca: "C",
+        textoLido: false,
+      }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([
+      expect.stringContaining("futura@1: marca C"),
+    ]);
+    expect(decidir(registo, pedido).estado).toBe("permitido");
+    expect(
+      decidir(registo, { ...pedido, momento: "2030-06-01T00:00:00Z" }).estado,
+    ).toBe("revisao_necessaria");
+  });
+
+  it("uma validação em falta (undefined) ou uma marca Symbol não rebentam", () => {
+    for (const estranho of [
+      { validacao: undefined },
+      { marca: Symbol("W") },
+    ] as unknown as Partial<Regra>[]) {
+      const registo = registoComPortugal([
+        regraTeste({ id: "r", ...estranho }),
+      ]);
+      expect(() => errosDoRegisto(registo)).not.toThrow();
+      expect(errosDoRegisto(registo)).not.toEqual([]);
+      expect(() => decidir(registo, pedido)).not.toThrow();
+    }
+  });
+
   it("o decidir não aceita uma validação estranha como prova", () => {
     for (const validacao of [
       { ...VALIDADA, papel: "advogado" },
       { ...VALIDADA, por: "" },
+      { ...VALIDADA, por: " " },
       { ...VALIDADA, em: "ontem" },
       "jurista",
     ]) {

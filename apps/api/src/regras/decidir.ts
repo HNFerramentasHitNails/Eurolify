@@ -117,8 +117,9 @@ function revisaoDoDominio(
  * Assume um registo validado (validar.ts, chamado por `criarApp`), com duas
  * excepções que se defendem aqui mesmo sem validação: o estado da revisão do
  * domínio e o estado legal da regra — só os valores conhecidos que permitem
- * contam — e os territórios da regra, que só contam se forem uma lista. Fora
- * destes três campos, o `decidir` não se defende sozinho: um registo que não
+ * contam —, os territórios da regra, que só contam se forem uma lista, e a
+ * prova da regra (`marca`, `textoLido`, `validacao`; `podeDecidir`). Fora
+ * destes campos, o `decidir` não se defende sozinho: um registo que não
  * passou pelo `validar` pode dar uma excepção ou uma decisão errada (revisão
  * do #47, P2 n.º 3, e 2.ª revisão, P2-A).
  */

@@ -101,6 +101,10 @@ export const PAPEIS_DE_VALIDACAO = [
   "jurista",
   "contabilista",
   "tecnico_regulamentar",
+  "despachante",
+  "entidade_gestora",
+  "encarregado_de_dados",
+  "transportadora",
 ] as const;
 export type PapelDeValidacao = (typeof PAPEIS_DE_VALIDACAO)[number];
 
