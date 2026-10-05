@@ -578,6 +578,47 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
       );
     });
 
+    it("o SKU não distingue maiúsculas: GEL-001 e gel-001 são o mesmo (P9)", async () => {
+      const c = await comercianteNovo();
+      const id = await criarArtigo(
+        base.api,
+        c,
+        { tipo: "fisico", nome: "Gel" },
+        [VARIANTE],
+      );
+      expect(
+        await codigoDoErro(
+          criarVariante(base.api, c, id, { ...VARIANTE, sku: "gel-001" }),
+        ),
+      ).toBe("catalog.sku_duplicate");
+      // Guarda-se como foi escrito e encontra-se de qualquer maneira.
+      expect((await varianteComSku(base.api, c, "gel-001"))?.sku).toBe(
+        "GEL-001",
+      );
+      // Também contra uma arquivada (P7).
+      const v = await varianteComSku(base.api, c, "GEL-001");
+      await arquivarVariante(base.api, c, v?.id ?? "");
+      expect(
+        await codigoDoErro(
+          criarVariante(base.api, c, id, { ...VARIANTE, sku: "Gel-001" }),
+        ),
+      ).toBe("catalog.sku_duplicate");
+      // Noutro comerciante, o mesmo SKU noutras maiúsculas pode existir (C3).
+      const outro = await comercianteNovo();
+      await criarArtigo(base.api, outro, { tipo: "fisico", nome: "Gel" }, [
+        { ...VARIANTE, sku: "gel-001" },
+      ]);
+      // A excepção da P8 continua: apagado o rascunho, o SKU volta.
+      const rascunho = await criarArtigo(
+        base.api,
+        c,
+        { tipo: "fisico", nome: "Rascunho" },
+        [{ ...VARIANTE, sku: "RASC-1" }],
+      );
+      await apagarRascunho(base.api, c, rascunho);
+      await criarVariante(base.api, c, id, { ...VARIANTE, sku: "rasc-1" });
+    });
+
     it("SKU e unidade de venda são obrigatórios e válidos (C3)", async () => {
       const c = await comercianteNovo();
       const id = await criarArtigo(base.api, c, {

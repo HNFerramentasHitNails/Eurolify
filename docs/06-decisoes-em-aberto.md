@@ -62,6 +62,7 @@
 | ✅ AR | Catálogo: as propostas P1, P2 e P4 a P7 do `docs/14` §9 (canal e mercado de Preços e mercados; fórmula da Conformidade; sem atributos próprios na Fase 1; campos de um sistema externo só de leitura no Hub; `product.unpublished` e `product.archived`; SKU arquivado não volta) | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9 |
 | ✅ AQ | A revisão do agente pode ser um agente lançado da própria sessão, sem a conversa dela (muda o ponto 1 de AL); sessões novas só a pedido | em vigor até 29/11/2026 (com AL) | Diogo, 04/10/2026 | [ADR-0035](adr/0035-revisao-por-agente-na-mesma-sessao.md) |
 | ✅ AS | Catálogo: o SKU de uma variante apagada de um artigo rascunho (também já arquivada) volta a ficar livre; a P7 continua para tudo o resto | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P8 |
+| ✅ AT | Catálogo: o SKU não distingue maiúsculas — `GEL-001` e `gel-001` são o mesmo, também contra as arquivadas | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P9 |
 
 ## Por decidir — por esta ordem
 

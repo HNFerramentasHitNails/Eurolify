@@ -1,4 +1,4 @@
-import type { Kysely, Transaction } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
 import type {
   BaseDados,
   EstadoArtigo,
@@ -367,7 +367,10 @@ export async function arquivarVariante(
   });
 }
 
-/** Procura uma variante pelo SKU, também arquivada (o SKU não volta, P7). */
+/**
+ * Procura uma variante pelo SKU, também arquivada (o SKU não volta, P7), sem
+ * distinguir maiúsculas (P9, migração 0003).
+ */
 export async function varianteComSku(
   db: Kysely<BaseDados>,
   comercianteId: string,
@@ -377,7 +380,11 @@ export async function varianteComSku(
     trx
       .selectFrom("variante")
       .selectAll()
-      .where("sku", "=", sku)
+      // O comerciante explícito, além do RLS: o lower() não é «leakproof» e,
+      // só com a política, o índice usava apenas o comerciante (revisão do
+      // #80, P2-1).
+      .where("comerciante_id", "=", comercianteId)
+      .where(sql<string>`lower(sku)`, "=", sql<string>`lower(${sku})`)
       .executeTakeFirst(),
   );
 }
