@@ -7,6 +7,13 @@
 > estão decididas** (P3 a 04/10/2026; as outras pelo Diogo a 05/10/2026, que
 > aceitou as propostas; `docs/06`, AR): o código do Catálogo pode começar.
 >
+> **Estado do código** (issue #77): parte 1 — artigos e variantes na base
+> (migração `0002_catalogo_artigos.sql`, `apps/api/src/catalogo/repositorio.ts`,
+> 18 testes contra o PostgreSQL 18.6), sem API até à fatia «identidade». As
+> listas de unidades de venda (`unidade`, `par`, `caixa`, `embalagem`,
+> `conjunto`) e de unidades do conteúdo (`mg` a `m3`) são **proposta** desta
+> parte.
+>
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
 > `product-compliance-eu`, `eu-localization`, `eu-vat-oss-ioss` (categoria
 > fiscal) e `consumer-rights-eu` (preço por unidade). Arquitectura de base:

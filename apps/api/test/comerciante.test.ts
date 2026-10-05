@@ -84,12 +84,15 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
   });
 
   describe("migrações e utilizadores", () => {
-    it("a 0001 está aplicada e correr outra vez não faz nada", async () => {
+    it("as migrações estão aplicadas e correr outra vez não faz nada", async () => {
       const { results } = await migrar(base.dono);
       expect(results).toEqual([]);
       const { rows } = await sql<{ name: string }>`
         select name from kysely_migration order by name`.execute(base.dono);
-      expect(rows.map((r) => r.name)).toEqual(["0001_comerciante"]);
+      expect(rows.map((r) => r.name)).toEqual([
+        "0001_comerciante",
+        "0002_catalogo_artigos",
+      ]);
     });
 
     it("o eurolify_api não é superutilizador nem ignora o RLS", async () => {
@@ -123,8 +126,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           });
         }
       }
+      // 6 do Comerciante (0001) e 2 do Catálogo (0002).
       expect(rows.filter((r) => !r.tabela.startsWith("kysely_"))).toHaveLength(
-        6,
+        8,
       );
     });
 
