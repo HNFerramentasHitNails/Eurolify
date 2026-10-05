@@ -63,11 +63,20 @@ export function criarApp({
     express.json({ limit: "64kb" }),
     exigirToken,
     async (req, res) => {
-      const login =
-        typeof req.auth?.extra?.["login"] === "string"
-          ? req.auth.extra["login"]
-          : "?";
-      const servidor = criarServidorMcp(fila, () => login, confirmacoes);
+      // A conta (número no GitHub, ADR-0033) liga os códigos de confirmação;
+      // o login é só para a consola. Sem os dois, não se serve (#92).
+      const extra = req.auth?.extra ?? {};
+      const conta = extra["conta"];
+      const login = extra["login"];
+      if (
+        typeof conta !== "string" ||
+        conta === "" ||
+        typeof login !== "string"
+      ) {
+        res.status(401).json({ erro: "token sem conta" });
+        return;
+      }
+      const servidor = criarServidorMcp(fila, { conta, login }, confirmacoes);
       // Sem sessões: cada pedido HTTP é independente; resposta em JSON simples.
       const transporte = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,

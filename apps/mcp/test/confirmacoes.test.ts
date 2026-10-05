@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Confirmacoes,
   MAXIMO_POR_CONTA,
@@ -83,8 +83,10 @@ describe("Confirmacoes", () => {
 describe("acções do MCP em dois passos", () => {
   let pedidos: string[];
   let cliente: Client;
-  let conta: string;
+  let agora: number;
   let confirmacoes: Confirmacoes;
+  const ANA = { conta: "1001", login: "ana" };
+  const RUI = { conta: "1002", login: "rui" };
 
   const fila: Pedinte = {
     pedir: (comando) => {
@@ -93,8 +95,8 @@ describe("acções do MCP em dois passos", () => {
     },
   };
 
-  const ligar = async () => {
-    const servidor = criarServidorMcp(fila, () => conta, confirmacoes);
+  const ligar = async (quem = ANA) => {
+    const servidor = criarServidorMcp(fila, quem, confirmacoes);
     const [lc, ls] = InMemoryTransport.createLinkedPair();
     const c = new Client({ name: "teste", version: "1.0.0" });
     await Promise.all([servidor.connect(ls), c.connect(lc)]);
@@ -107,8 +109,8 @@ describe("acções do MCP em dois passos", () => {
 
   beforeEach(async () => {
     pedidos = [];
-    conta = "ana";
-    confirmacoes = new Confirmacoes();
+    agora = 1_000_000;
+    confirmacoes = new Confirmacoes(() => agora);
     cliente = await ligar();
   });
   afterEach(async () => {
@@ -168,13 +170,88 @@ describe("acções do MCP em dois passos", () => {
 
   it("o código de uma conta não serve a outra", async () => {
     const r1 = await cliente.callTool({ name: "correr_copia", arguments: {} });
-    conta = "rui";
+    const outro = await ligar(RUI);
+    const r2 = await outro.callTool({
+      name: "correr_copia",
+      arguments: { confirmacao: codigoEm(textoDe(r1)) },
+    });
+    await outro.close();
+    expect(r2.isError).toBe(true);
+    // Não se diz a quem tenta que o código existe noutra conta.
+    expect(textoDe(r2)).toContain("não existe ou já foi usado");
+    expect(pedidos).toEqual([]);
+  });
+
+  it("o mesmo login com outro número de conta não confirma", async () => {
+    const r1 = await cliente.callTool({ name: "correr_copia", arguments: {} });
+    const outro = await ligar({ conta: "9999", login: "ana" });
+    const r2 = await outro.callTool({
+      name: "correr_copia",
+      arguments: { confirmacao: codigoEm(textoDe(r1)) },
+    });
+    await outro.close();
+    expect(r2.isError).toBe(true);
+    expect(pedidos).toEqual([]);
+  });
+
+  it("dois pedidos ao mesmo tempo com o mesmo código: só um executa", async () => {
+    const r1 = await cliente.callTool({ name: "correr_copia", arguments: {} });
+    const confirmacao = codigoEm(textoDe(r1));
+    const outro = await ligar();
+    const [a, b] = await Promise.all([
+      cliente.callTool({ name: "correr_copia", arguments: { confirmacao } }),
+      outro.callTool({ name: "correr_copia", arguments: { confirmacao } }),
+    ]);
+    await outro.close();
+    expect([a.isError, b.isError].filter((e) => e === true)).toHaveLength(1);
+    expect(pedidos).toEqual(["copia"]);
+  });
+
+  it("um código caducado não executa", async () => {
+    const r1 = await cliente.callTool({ name: "correr_copia", arguments: {} });
+    agora += VALIDADE_MS;
     const r2 = await cliente.callTool({
       name: "correr_copia",
       arguments: { confirmacao: codigoEm(textoDe(r1)) },
     });
     expect(r2.isError).toBe(true);
+    expect(textoDe(r2)).toContain("caducou");
     expect(pedidos).toEqual([]);
+  });
+
+  it("passado o limite, recusa a conta e não a outra", async () => {
+    for (let i = 0; i < MAXIMO_POR_CONTA; i++) {
+      await cliente.callTool({ name: "correr_copia", arguments: {} });
+    }
+    const r = await cliente.callTool({ name: "correr_copia", arguments: {} });
+    expect(r.isError).toBe(true);
+    expect(textoDe(r)).toContain("demasiadas");
+    const outro = await ligar(RUI);
+    const r2 = await outro.callTool({ name: "correr_copia", arguments: {} });
+    await outro.close();
+    expect(codigoEm(textoDe(r2))).toBeDefined();
+    expect(pedidos).toEqual([]);
+  });
+
+  it("o código nunca vai para a consola", async () => {
+    const consola = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const r1 = await cliente.callTool({
+        name: "correr_copia",
+        arguments: {},
+      });
+      const codigo = codigoEm(textoDe(r1)) ?? "";
+      await cliente.callTool({
+        name: "correr_copia",
+        arguments: { confirmacao: codigo },
+      });
+      const escrito = consola.mock.calls.flat().join("\n");
+      expect(codigo).not.toBe("");
+      expect(escrito).not.toContain(codigo);
+      expect(escrito).toContain("ana");
+    } finally {
+      consola.mockRestore();
+    }
   });
 
   it("um código inventado não executa", async () => {

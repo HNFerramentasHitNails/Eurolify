@@ -3,6 +3,12 @@ import { z } from "zod";
 import { VALIDADE_MS, type Confirmacoes } from "./confirmacoes.js";
 import type { FilaDePedidos } from "./pedidos.js";
 
+/** Quem pede: o número da conta no GitHub liga os códigos; o login é para a consola. */
+export interface Identidade {
+  conta: string;
+  login: string;
+}
+
 /** O que as ferramentas precisam da fila: só pedir. */
 export type Pedinte = Pick<FilaDePedidos, "pedir">;
 
@@ -23,7 +29,7 @@ const CONFIRMACAO = z
  */
 export function criarServidorMcp(
   fila: Pedinte,
-  quem: () => string,
+  quem: Identidade,
   confirmacoes: Confirmacoes,
 ): McpServer {
   const servidor = new McpServer({ name: "eurolify-ensaio", version: "1.1.0" });
@@ -33,8 +39,12 @@ export function criarServidorMcp(
     isError: erro,
   });
 
-  const responder = async (comando: string) => {
-    console.info(`mcp: ${quem()} pediu «${comando.split(" ")[0] ?? comando}»`);
+  const responder = async (comando: string, registar = true) => {
+    if (registar) {
+      console.info(
+        `mcp: ${quem.login} pediu «${comando.split(" ")[0] ?? comando}»`,
+      );
+    }
     const { codigo, saida } = await fila.pedir(comando);
     return texto(
       codigo === 0
@@ -50,20 +60,20 @@ export function criarServidorMcp(
     comando: string,
     confirmacao: string | undefined,
   ) => {
-    const conta = quem();
+    const { conta, login } = quem;
     const nome = comando.split(" ")[0] ?? comando;
     if (confirmacao === undefined) {
       const codigo = confirmacoes.pedir(conta, comando);
       if (codigo === null) {
         console.info(
-          `mcp: ${conta} pediu «${nome}» — recusado, códigos a mais`,
+          `mcp: ${login} pediu «${nome}» — recusado, códigos a mais`,
         );
         return texto(
           "Há demasiadas acções por confirmar desta conta. Espera que caduquem (5 minutos) e pede de novo.",
           true,
         );
       }
-      console.info(`mcp: ${conta} pediu «${nome}» — à espera de confirmação`);
+      console.info(`mcp: ${login} pediu «${nome}» — à espera de confirmação`);
       return texto(
         `NADA FOI FEITO AINDA.\n\nAcção: ${titulo}\nPedido: ${comando}\n\n` +
           `Mostra isto à pessoa e pergunta se confirma. Só se ela disser que sim, ` +
@@ -74,12 +84,13 @@ export function criarServidorMcp(
     const resultado = confirmacoes.confirmar(conta, comando, confirmacao);
     if (!resultado.ok) {
       console.info(
-        `mcp: ${conta} confirmou «${nome}» — recusado (${resultado.motivo})`,
+        `mcp: ${login} confirmou «${nome}» — recusado (${resultado.motivo})`,
       );
       const porque = {
         desconhecido: "o código não existe ou já foi usado",
         caducado: "o código caducou",
-        outra_conta: "o código não é desta conta",
+        // A quem tenta, não se diz que o código existe noutra conta.
+        outra_conta: "o código não existe ou já foi usado",
         outro_comando:
           "o código foi pedido para outra acção ou outros argumentos",
       }[resultado.motivo];
@@ -88,8 +99,8 @@ export function criarServidorMcp(
         true,
       );
     }
-    console.info(`mcp: ${conta} confirmou «${nome}»`);
-    return responder(comando);
+    console.info(`mcp: ${login} confirmou e executou «${nome}»`);
+    return responder(comando, false);
   };
 
   const leitura = {
