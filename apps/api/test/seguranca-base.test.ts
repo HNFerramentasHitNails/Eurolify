@@ -1,5 +1,8 @@
-import { sql } from "kysely";
+import { randomBytes } from "node:crypto";
+import { Kysely, PostgresDialect, sql } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { migrar } from "../src/base/migracoes.js";
 import {
   aceitarContrato,
   criarEntidadeLegal,
@@ -8,6 +11,7 @@ import {
   registarVerificacao,
 } from "../src/comerciante/repositorio.js";
 import {
+  apagarBase,
   criarBaseDeTeste,
   URL_BASE,
   type BaseDeTeste,
@@ -166,6 +170,110 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
       } finally {
         await sql`drop function funcao_nova_de_teste()`.execute(base.dono);
       }
+    });
+  });
+
+  // Como na VPS (infra/vps/preparar.sh, passo 10b): o eurolify_migrador é
+  // dono da base, sem superutilizador, BYPASSRLS, CREATEDB nem CREATEROLE, e
+  // corre as migrações todas. No resto do CI quem migra é o superutilizador,
+  // que não prova nada sobre a VPS (revisão do #104, P3-1).
+  describe("as migrações todas com um migrador sem poderes, dono da base", () => {
+    const sufixo = randomBytes(4).toString("hex");
+    const papel = `migrador_vps_${sufixo}`;
+    const nome = `eurolify_migrador_${sufixo}`;
+    const senha = "so-para-testes";
+    let admin: pg.Client;
+    let migrador: Kysely<unknown>;
+
+    beforeAll(async () => {
+      admin = new pg.Client({ connectionString: URL_BASE });
+      await admin.connect();
+      // O eurolify_api é do cluster: cria-o o preparar.sh antes do migrador
+      // (este não tem CREATEROLE). Outro ficheiro de testes pode criá-lo ao
+      // mesmo tempo, por isso um duplicado não é erro.
+      await admin.query(`DO $$ BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_api') THEN
+          CREATE ROLE eurolify_api NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+        END IF;
+      EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+      END $$`);
+      await admin.query(
+        `CREATE ROLE ${papel} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '${senha}'`,
+      );
+      await admin.query(`CREATE DATABASE ${nome} OWNER ${papel}`);
+      const url = new URL(URL_BASE ?? "");
+      url.pathname = `/${nome}`;
+      url.username = papel;
+      url.password = senha;
+      migrador = new Kysely<unknown>({
+        dialect: new PostgresDialect({
+          pool: new pg.Pool({ connectionString: url.toString(), max: 1 }),
+        }),
+      });
+    }, 60_000);
+
+    afterAll(async () => {
+      try {
+        await migrador.destroy();
+        await apagarBase(admin, nome);
+      } finally {
+        try {
+          await admin.query(`DROP ROLE IF EXISTS ${papel}`);
+        } finally {
+          await admin.end();
+        }
+      }
+    });
+
+    it("corre até à última sem erro e sem ser superutilizador", async () => {
+      const { rows: papeis } = await sql<{ super: boolean; bypass: boolean }>`
+        select rolsuper as super, rolbypassrls as bypass from pg_roles
+        where rolname = current_user`.execute(migrador);
+      expect(papeis[0]).toEqual({ super: false, bypass: false });
+      const { error, results } = await migrar(migrador);
+      expect(error).toBeUndefined();
+      expect(results?.at(-1)?.migrationName).toBe(
+        "0008_rasto_imutavel_e_funcoes_fechadas",
+      );
+      expect(results?.every((r) => r.status === "Success")).toBe(true);
+    }, 60_000);
+
+    it("nenhuma função fica aberta a PUBLIC e a API só chama as da lista", async () => {
+      const { rows: abertas } = await sql<{ nome: string }>`
+        select p.proname as nome
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+          and (p.proacl is null or exists (
+            select 1 from aclexplode(p.proacl) a
+            where a.grantee = 0 and a.privilege_type = 'EXECUTE'))`.execute(
+        migrador,
+      );
+      expect(abertas).toEqual([]);
+      const { rows: daApi } = await sql<{ nome: string }>`
+        select p.proname as nome
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+          and has_function_privilege('eurolify_api', p.oid, 'EXECUTE')
+        order by 1`.execute(migrador);
+      expect(daApi.map((r) => r.nome)).toEqual(FUNCOES_DA_API);
+    });
+
+    it("uma função nova do migrador nasce fechada", async () => {
+      await sql`create function funcao_nova_do_migrador() returns int
+        language sql as 'select 1'`.execute(migrador);
+      const { rows } = await sql<{ pode: boolean }>`
+        select has_function_privilege('eurolify_api',
+          'funcao_nova_do_migrador()', 'EXECUTE') as pode`.execute(migrador);
+      expect(rows[0]?.pode).toBe(false);
+    });
+
+    it.each(RASTO)("o migrador, dono, não esvazia %s", async (tabela) => {
+      // O TRUNCATE dispara o gatilho por instrução, mesmo sem linhas.
+      expect(
+        await mensagemDoErro(
+          sql`truncate ${sql.table(tabela)}`.execute(migrador),
+        ),
+      ).toMatch(/^audit\.append_only:/);
     });
   });
 });
