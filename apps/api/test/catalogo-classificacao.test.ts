@@ -135,6 +135,38 @@ describe("impedimentos da classificação (sem base)", () => {
     ).toContainEqual({ codigo: "familia_restrita", familias: [familia] });
   });
 
+  it("um serviço humano à distância sem modo impede", () => {
+    expect(
+      impedimentosDaClassificacao({
+        ...bilhete,
+        tipo: "servico",
+        familias: ["educacao_formacao"],
+        natureza_consumidor: "servico_humano_a_distancia",
+        modo: null,
+        prestacao_inicio: null,
+        prestacao_fim: null,
+        local_pais: null,
+      }),
+    ).toContainEqual({ codigo: "data_ou_local_em_falta", falta: ["modo"] });
+  });
+
+  it("uma família que não existe conta como por classificar", () => {
+    expect(
+      impedimentosDaClassificacao({ ...bilhete, familias: ["armas"] }),
+    ).toContainEqual({ codigo: "classificacao_em_falta" });
+  });
+
+  it("a educação é uma família própria e não é restrita (Diogo, 05/10/2026)", () => {
+    expect(
+      impedimentosDaClassificacao({
+        ...bilhete,
+        familias: ["educacao_formacao"],
+      }),
+    ).toEqual([]);
+    expect(FAMILIAS_RESTRITAS).not.toContain("educacao_formacao");
+    expect(FAMILIAS_RESTRITAS).toContain("saude_profissoes_reguladas");
+  });
+
   it("uma natureza que o tipo não admite impede (registo que não passou pela base)", () => {
     expect(
       impedimentosDaClassificacao({ ...bilhete, natureza_consumidor: "bem" }),
@@ -280,6 +312,53 @@ describe.skipIf(URL_BASE === undefined)(
           familias: ["servicos_gerais_instalacao"],
           natureza_consumidor: "servico_presencial",
           modo: "virtual",
+        },
+      ],
+      [
+        "lazer sem natureza",
+        "fisico",
+        {
+          familias: ["retalho_geral"],
+          natureza_consumidor: null,
+          lazer_com_data: true,
+        },
+      ],
+      [
+        "modo sem natureza",
+        "servico",
+        {
+          familias: ["retalho_geral"],
+          natureza_consumidor: null,
+          modo: "virtual",
+        },
+      ],
+      [
+        "datas num bem",
+        "fisico",
+        {
+          familias: ["retalho_geral"],
+          natureza_consumidor: "bem",
+          prestacao_inicio: INICIO,
+          prestacao_fim: FIM,
+        },
+      ],
+      [
+        "local num acesso virtual",
+        "bilhete",
+        {
+          familias: ["educacao_formacao"],
+          natureza_consumidor: "acesso_com_data",
+          modo: "virtual",
+          local_pais: "PT",
+        },
+      ],
+      [
+        "local num serviço à distância",
+        "servico",
+        {
+          familias: ["educacao_formacao"],
+          natureza_consumidor: "servico_humano_a_distancia",
+          local_pais: "PT",
         },
       ],
       [
@@ -432,14 +511,91 @@ describe.skipIf(URL_BASE === undefined)(
       expect(depois.classificado_em).toEqual(antes.classificado_em);
     });
 
-    it("a data de quem classificou é da base, não de quem escreve", async () => {
+    /** Corre SQL como o eurolify_api no comerciante `c`, com `quem` posto (ou não). */
+    async function comoApi(
+      c: string,
+      quem: string | null,
+      texto: ReturnType<typeof sql>,
+    ) {
+      return comComerciante(base.api, c, async (trx) => {
+        if (quem !== null)
+          await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(
+            trx,
+          );
+        await texto.execute(trx);
+      }).catch((erro: unknown) => {
+        throw traduzir(erro);
+      });
+    }
+
+    it("quem e quando são da base: o eurolify_api não os escolhe", async () => {
       const { c, id } = await artigo("fisico");
-      await expect(
+      await comoApi(
+        c,
+        "ana",
         sql`update artigo set familias = '{retalho_geral}', classificado_por = 'x',
-            classificado_em = '2000-01-01' where id = ${id}`.execute(base.dono),
-      ).resolves.toBeDefined();
+              classificado_em = '2000-01-01' where id = ${id}`,
+      );
       const a = await obterArtigo(base.api, c, id);
+      expect(a.classificado_por).toBe("ana");
       expect(a.classificado_em?.getUTCFullYear()).toBeGreaterThan(2000);
+    });
+
+    it("sem mudar a classificação, quem e quando não mudam", async () => {
+      const { c, id } = await artigo("fisico");
+      await classificarArtigo(
+        base.api,
+        c,
+        id,
+        1,
+        { familias: ["retalho_geral"], natureza_consumidor: "bem" },
+        "ana",
+      );
+      const antes = await obterArtigo(base.api, c, id);
+      await comoApi(
+        c,
+        "rui",
+        sql`update artigo set classificado_por = 'rui',
+              classificado_em = '2000-01-01' where id = ${id}`,
+      );
+      const depois = await obterArtigo(base.api, c, id);
+      expect(depois.classificado_por).toBe("ana");
+      expect(depois.classificado_em).toEqual(antes.classificado_em);
+    });
+
+    it("uma segunda classificação sem quem é recusada (não fica o quem antigo)", async () => {
+      const { c, id } = await artigo("fisico");
+      await classificarArtigo(
+        base.api,
+        c,
+        id,
+        1,
+        { familias: ["retalho_geral"], natureza_consumidor: "bem" },
+        "ana",
+      );
+      expect(
+        await codigoDoErro(
+          comoApi(
+            c,
+            null,
+            sql`update artigo set familias = '{baterias}' where id = ${id}`,
+          ),
+        ),
+      ).toBe("catalog.classified_by_required");
+      expect((await obterArtigo(base.api, c, id)).familias).toEqual([
+        "retalho_geral",
+      ]);
+    });
+
+    it("a mesma classificação não sobe a versão", async () => {
+      const { c, id } = await artigo("fisico");
+      const dados = {
+        familias: ["retalho_geral"],
+        natureza_consumidor: "bem",
+      } as const;
+      const v = await classificarArtigo(base.api, c, id, 1, dados, "ana");
+      expect(await classificarArtigo(base.api, c, id, v, dados, "rui")).toBe(v);
+      expect((await obterArtigo(base.api, c, id)).classificado_por).toBe("ana");
     });
 
     it("outro comerciante não classifica o artigo", async () => {

@@ -148,6 +148,7 @@ export type EstadoVariante = (typeof ESTADOS_VARIANTE)[number];
 // Catálogo: classificação do artigo (migração 0006; docs/14 §3.10). As
 // famílias são as de eurolify-legal-briefing-eu/references/sectors.md, pela
 // mesma ordem; `por_classificar` é a linha «qualquer família não classificada».
+// «Educação e formação» separou-se da saúde (Diogo, 05/10/2026).
 export const FAMILIAS_SETORIAIS = [
   "por_classificar",
   "retalho_geral",
@@ -173,7 +174,8 @@ export const FAMILIAS_SETORIAIS = [
   "conteudos_servicos_digitais",
   "cartoes_oferta_vales",
   "servicos_gerais_instalacao",
-  "saude_educacao_profissoes",
+  "saude_profissoes_reguladas",
+  "educacao_formacao",
   "turismo_alojamento_eventos",
   "plataformas_intermediacao",
   "armas_explosivos_jogo",
@@ -190,7 +192,7 @@ export const FAMILIAS_RESTRITAS = [
   "biocidas_fitofarmacos",
   "alcool_tabaco",
   "armas_explosivos_jogo",
-  "saude_educacao_profissoes",
+  "saude_profissoes_reguladas",
 ] as const satisfies readonly FamiliaSetorial[];
 
 export const NATUREZAS_CONSUMIDOR = [
@@ -249,7 +251,8 @@ export interface TabelaArtigo {
   local_pais: ColumnType<string | null, never, string | null>;
   local_territorio: ColumnType<string | null, never, string | null>;
   lazer_com_data: ColumnType<boolean, never, boolean>;
-  classificado_por: ColumnType<string | null, never, string>;
+  // Quem classificou vem de `eurolify.quem` (gatilho da 0006), não do SET.
+  classificado_por: ColumnType<string | null, never, never>;
   classificado_em: ColumnType<Date | null, never, never>;
 }
 

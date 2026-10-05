@@ -18,10 +18,20 @@
 --   a publicação entrar (parte 4 do #77);
 -- - a natureza para o IVA espera pelo Motor de IVA (a lista é dele, §3.10).
 --
--- As 27 famílias e o `por_classificar` são os de
+-- As 28 famílias e o `por_classificar` são os de
 -- .agents/skills/eurolify-legal-briefing-eu/references/sectors.md (tabela
--- «Famílias», 05/10/2026), pela mesma ordem; a lista vive também em
--- src/base/esquema.ts e um teste compara as duas (C8).
+-- «Famílias», 05/10/2026), pela mesma ordem; «educação e formação» separou-se
+-- de «saúde e profissões reguladas» (Diogo, 05/10/2026: «separa a educação
+-- numa família própria»): uma formação publica-se, a saúde fica restrita. A
+-- lista vive também em src/base/esquema.ts e um teste compara as duas (C8).
+--
+-- Quem classificou vem de `eurolify.quem` (set_config local à transacção),
+-- como no Comerciante (0001): um UPDATE que mude a classificação sem o pôr é
+-- recusado, mesmo que a linha já tenha um «quem» de antes (revisão do #96,
+-- P2-1).
+
+-- Uma transacção longa na API não deixa a migração à espera para sempre.
+SET LOCAL lock_timeout = '10s';
 
 ALTER TABLE artigo
   ADD COLUMN familias text[] NOT NULL DEFAULT ARRAY['por_classificar']::text[],
@@ -37,7 +47,7 @@ ALTER TABLE artigo
 
 ALTER TABLE artigo
   ADD CONSTRAINT artigo_familias_validas CHECK (
-    cardinality(familias) BETWEEN 1 AND 27
+    cardinality(familias) BETWEEN 1 AND 28
     AND familias <@ ARRAY[
       'por_classificar',
       'retalho_geral',
@@ -63,7 +73,8 @@ ALTER TABLE artigo
       'conteudos_servicos_digitais',
       'cartoes_oferta_vales',
       'servicos_gerais_instalacao',
-      'saude_educacao_profissoes',
+      'saude_profissoes_reguladas',
+      'educacao_formacao',
       'turismo_alojamento_eventos',
       'plataformas_intermediacao',
       'armas_explosivos_jogo'
@@ -89,16 +100,33 @@ ALTER TABLE artigo
     modo IS NULL OR modo IN ('presencial', 'virtual')
   ),
   -- O modo só existe no que se presta, e não contradiz a natureza.
+  -- (IS NOT DISTINCT FROM: com a natureza vazia, um CHECK com NULL passava;
+  -- revisão do #96, P2-2.)
   ADD CONSTRAINT artigo_modo_da_natureza CHECK (
     modo IS NULL
-    OR (natureza_consumidor = 'acesso_com_data')
-    OR (natureza_consumidor = 'servico_presencial' AND modo = 'presencial')
-    OR (natureza_consumidor = 'servico_humano_a_distancia' AND modo = 'virtual')
+    OR natureza_consumidor IS NOT DISTINCT FROM 'acesso_com_data'
+    OR (natureza_consumidor IS NOT DISTINCT FROM 'servico_presencial' AND modo = 'presencial')
+    OR (natureza_consumidor IS NOT DISTINCT FROM 'servico_humano_a_distancia' AND modo = 'virtual')
   ),
   -- A excepção do lazer com data só se declara num acesso com data (§3.10;
   -- por omissão, não: nunca «tem data ⇒ sem livre resolução»).
   ADD CONSTRAINT artigo_lazer_so_em_acesso CHECK (
-    NOT lazer_com_data OR natureza_consumidor = 'acesso_com_data'
+    NOT lazer_com_data OR natureza_consumidor IS NOT DISTINCT FROM 'acesso_com_data'
+  ),
+  -- A data só no que se presta; o local só no que acontece num sítio (um
+  -- acesso virtual não tem local: o lugar do IVA é onde está o cliente,
+  -- docs/03 §1; revisão do #96, P3-4).
+  ADD CONSTRAINT artigo_datas_so_na_prestacao CHECK (
+    prestacao_inicio IS NULL
+    OR natureza_consumidor IS NOT DISTINCT FROM 'acesso_com_data'
+    OR natureza_consumidor IS NOT DISTINCT FROM 'servico_presencial'
+    OR natureza_consumidor IS NOT DISTINCT FROM 'servico_humano_a_distancia'
+  ),
+  ADD CONSTRAINT artigo_local_so_no_presencial CHECK (
+    local_pais IS NULL
+    OR natureza_consumidor IS NOT DISTINCT FROM 'servico_presencial'
+    OR (natureza_consumidor IS NOT DISTINCT FROM 'acesso_com_data'
+        AND modo IS DISTINCT FROM 'virtual')
   ),
   -- Início e fim vão juntos, e o fim é depois do início.
   ADD CONSTRAINT artigo_prestacao_datas CHECK (
@@ -118,11 +146,13 @@ ALTER TABLE artigo
     classificado_por IS NULL OR length(btrim(classificado_por)) BETWEEN 1 AND 200
   );
 
--- Quem classificou e quando: mudar a classificação exige quem; a data é da
--- base. As famílias guardam-se sem repetidos e por ordem, para duas listas
--- iguais serem iguais.
+-- Quem classificou e quando: mudar a classificação exige `eurolify.quem`; a
+-- data é da base; quem escreve não escolhe nenhuma das duas. As famílias
+-- guardam-se sem repetidos e por ordem, para duas listas iguais serem iguais.
 CREATE FUNCTION artigo_classificacao_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  quem text;
 BEGIN
   NEW.familias := ARRAY(SELECT DISTINCT f FROM unnest(NEW.familias) AS f ORDER BY f);
   IF TG_OP = 'INSERT' THEN
@@ -138,9 +168,11 @@ BEGIN
       OLD.prestacao_fim, OLD.local_pais, OLD.local_territorio,
       OLD.lazer_com_data)
   THEN
-    IF NEW.classificado_por IS NULL OR btrim(NEW.classificado_por) = '' THEN
+    quem := nullif(btrim(current_setting('eurolify.quem', true)), '');
+    IF quem IS NULL THEN
       RAISE EXCEPTION 'catalog.classified_by_required: mudar a classificação exige quem classificou';
     END IF;
+    NEW.classificado_por := quem;
     NEW.classificado_em := now();
   ELSE
     NEW.classificado_por := OLD.classificado_por;
@@ -150,8 +182,9 @@ BEGIN
 END
 $$;
 
--- Corre antes do artigo_antes_de_gravar (ordem alfabética dos triggers do
--- PostgreSQL), que sobe a versão.
+-- Os gatilhos BEFORE correm por ordem alfabética do nome: depois do
+-- artigo_antes_de_gravar (que sobe a versão) e antes do
+-- artigo_combinacoes_ao_activar (0005). Este não toca na versão.
 CREATE TRIGGER artigo_classificacao_antes_de_gravar
   BEFORE INSERT OR UPDATE ON artigo
   FOR EACH ROW EXECUTE FUNCTION artigo_classificacao_antes_de_gravar();

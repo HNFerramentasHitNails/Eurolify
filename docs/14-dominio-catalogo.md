@@ -290,14 +290,14 @@ classificações guardam-se **à parte** e **uma não se deduz da outra**
 
 | Campo | Valores | Notas |
 |---|---|---|
-| `familia_setorial` | as 27 famílias de `eurolify-legal-briefing-eu/references/sectors.md` (tabela «Famílias», contada a 05/10/2026) + `por_classificar`, que é a 28.ª linha dela («qualquer família não classificada») | um artigo pode ter **mais de uma** família (ex.: um kit de manicure com lâmpada: cosmética + electrónica); `por_classificar` nunca vale «retalho geral» (`sectors.md`, introdução) |
+| `familia_setorial` | as 28 famílias de `eurolify-legal-briefing-eu/references/sectors.md` (tabela «Famílias», contada a 05/10/2026; «educação e formação» separou-se de «saúde e profissões reguladas», Diogo, 05/10/2026: *«separa a educação numa família própria»*) + `por_classificar`, que é a última linha dela («qualquer família não classificada») | um artigo pode ter **mais de uma** família (ex.: um kit de manicure com lâmpada: cosmética + electrónica); `por_classificar` nunca vale «retalho geral» (`sectors.md`, introdução) |
 | `natureza_consumidor` | `bem`, `servico_presencial`, `servico_humano_a_distancia`, `acesso_com_data`, `conteudo_digital`, `servico_digital`, `vale` | os três do digital são os da `digital-products-eu`; `acesso_com_data` é a entrada num evento, sessão ou actividade com **data ou período marcado**; `vale` é do cartão-oferta |
 | `natureza_iva` | lista do Motor de IVA (por desenhar) + `por_classificar` | separada da do consumidor; um serviço humano à distância **não** é por isso serviço electrónico (`digital-products-eu`) |
-| `data_prestacao` | data/hora de início e fim, com fuso | obrigatória no `acesso_com_data` e no `servico_presencial` com data marcada; é o que distingue um bilhete de um vale |
-| `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` presencial |
-| `modo` | `presencial`, `virtual` | obrigatório no `acesso_com_data` e no serviço humano; muda o lugar da prestação para o IVA (Dir. 2006/112/CE arts. 53.º e 54.º, **W**, `docs/03` §1) |
+| `data_prestacao` | data/hora de início e fim, com fuso | obrigatória no `acesso_com_data`, possível nos serviços; é o que distingue um bilhete de um vale. Guarda-se o **instante** (a hora local a mostrar, ex.: Ponta Delgada, ainda não se guarda — por decidir, revisão do #96, P2-4) |
+| `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` presencial; **proibido** no que é virtual ou à distância (o lugar do IVA é onde está o cliente) |
+| `modo` | `presencial`, `virtual` | obrigatório no `acesso_com_data` e no `servico_humano_a_distancia` (que é `virtual`); no `servico_presencial` é `presencial`; muda o lugar da prestação para o IVA (Dir. 2006/112/CE arts. 53.º e 54.º, **W**, `docs/03` §1) |
 | `lazer_com_data` | `nao` (por omissão), `sim` | o comerciante declara que é uma actividade de **lazer** com data marcada; **só com `sim` e a regra validada pelo jurista** é que se aplica a excepção à livre resolução (§ abaixo) |
-| `classificado_por`, `classificado_em` | | entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) |
+| `classificado_por`, `classificado_em` | | postos pela base (o «quem» vem da transacção, como no Comerciante; até à fatia de identidade é texto declarado, sem ligação a um utilizador); entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) |
 
 **Em código** (migração `0006_catalogo_classificacao.sql`, 05/10/2026): as
 famílias, a natureza para o consumidor, o modo, a data e o local, o lazer com
@@ -323,7 +323,7 @@ servidor):
 `familia_restrita` — as famílias que a `sectors.md` manda bloquear por
 omissão ou que exigem autorização (medicamentos, dispositivos médicos,
 biocidas e fitofármacos, álcool e tabaco, armas, explosivos e jogo, saúde e
-profissões reguladas — lista **decidida** pelo Diogo, 05/10/2026: *«sim, aceito a lista»*) **não se publicam** até haver o desenho e a validação
+profissões reguladas, sem a educação — lista **decidida** pelo Diogo, 05/10/2026: *«sim, aceito a lista»*) **não se publicam** até haver o desenho e a validação
 profissional delas (`eurolify-sector-compliance-eu`, pontos 4 e 6).
 
 **O que a lei diz e o que ainda falta** — pesquisa de 05/10/2026, citações

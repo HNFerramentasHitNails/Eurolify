@@ -108,7 +108,9 @@ const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   artigo_lazer_so_em_acesso: "catalog.classification_invalid",
   artigo_prestacao_datas: "catalog.classification_invalid",
   artigo_local_valido: "catalog.classification_invalid",
-  artigo_classificado_por_valido: "catalog.classified_by_required",
+  artigo_classificado_por_valido: "catalog.classification_invalid",
+  artigo_datas_so_na_prestacao: "catalog.classification_invalid",
+  artigo_local_so_no_presencial: "catalog.classification_invalid",
 };
 
 /** Colunas obrigatórias com código próprio (§7.1: C3). */
@@ -369,6 +371,17 @@ export async function alterarArtigo(
   });
 }
 
+function mesmaClassificacao(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): boolean {
+  const igual = (x: unknown, y: unknown) =>
+    x instanceof Date && y instanceof Date
+      ? x.getTime() === y.getTime()
+      : JSON.stringify(x) === JSON.stringify(y);
+  return Object.keys(b).every((chave) => igual(a[chave], b[chave]));
+}
+
 /**
  * Classifica o artigo (§3.10, «Classificação do artigo»; migração 0006) na
  * versão lida: substitui a classificação toda, com quem classificou (a data é
@@ -385,23 +398,43 @@ export async function classificarArtigo(
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
     await artigoNaVersao(trx, artigoId, versao);
-    const { versao: nova } = await trx
+    const nova = {
+      familias: [...new Set(classificacao.familias)].sort(),
+      natureza_consumidor: classificacao.natureza_consumidor,
+      modo: classificacao.modo ?? null,
+      prestacao_inicio: classificacao.prestacao_inicio ?? null,
+      prestacao_fim: classificacao.prestacao_fim ?? null,
+      local_pais: classificacao.local_pais ?? null,
+      local_territorio: classificacao.local_territorio ?? null,
+      lazer_com_data: classificacao.lazer_com_data ?? false,
+    };
+    // A mesma classificação não sobe a versão (como em alterarArtigo; revisão
+    // do #96, P3-2).
+    const actual = await trx
+      .selectFrom("artigo")
+      .select([
+        "familias",
+        "natureza_consumidor",
+        "modo",
+        "prestacao_inicio",
+        "prestacao_fim",
+        "local_pais",
+        "local_territorio",
+        "lazer_com_data",
+      ])
+      .where("id", "=", artigoId)
+      .executeTakeFirstOrThrow();
+    if (mesmaClassificacao(actual, nova)) return versao;
+    // Quem classificou: posto só nesta transacção (como no Comerciante); o
+    // gatilho da 0006 escreve-o e recusa a mudança sem ele.
+    await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
+    const { versao: depois } = await trx
       .updateTable("artigo")
-      .set({
-        familias: [...classificacao.familias],
-        natureza_consumidor: classificacao.natureza_consumidor,
-        modo: classificacao.modo ?? null,
-        prestacao_inicio: classificacao.prestacao_inicio ?? null,
-        prestacao_fim: classificacao.prestacao_fim ?? null,
-        local_pais: classificacao.local_pais ?? null,
-        local_territorio: classificacao.local_territorio ?? null,
-        lazer_com_data: classificacao.lazer_com_data ?? false,
-        classificado_por: quem,
-      })
+      .set(nova)
       .where("id", "=", artigoId)
       .returning("versao")
       .executeTakeFirstOrThrow();
-    return nova;
+    return depois;
   });
 }
 

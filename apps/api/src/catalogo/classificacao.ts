@@ -1,5 +1,6 @@
 import {
   FAMILIAS_RESTRITAS,
+  FAMILIAS_SETORIAIS,
   NATUREZAS_DO_TIPO,
   type FamiliaSetorial,
   type Modo,
@@ -58,9 +59,14 @@ export function impedimentosDaClassificacao(
   const familias: readonly string[] = Array.isArray(lidas)
     ? lidas.filter((f): f is string => typeof f === "string")
     : [];
+  // Uma família que não existe conta como por classificar (revisão do #96,
+  // P3-3): só passa o que está na lista.
   if (
     familias.length === 0 ||
     familias.includes("por_classificar") ||
+    familias.some(
+      (f) => !(FAMILIAS_SETORIAIS as readonly string[]).includes(f),
+    ) ||
     artigo.natureza_consumidor === null
   ) {
     impedimentos.push({ codigo: "classificacao_em_falta" });
@@ -87,6 +93,12 @@ export function impedimentosDaClassificacao(
   }
   if (natureza === "servico_presencial" && artigo.local_pais === null) {
     falta.push("local");
+  }
+  // O modo do serviço humano à distância (docs/14 §3.10: obrigatório no
+  // acesso com data e no serviço humano; revisão do #96, P2-3). No
+  // presencial, o modo é o próprio presencial.
+  if (natureza === "servico_humano_a_distancia" && artigo.modo === null) {
+    falta.push("modo");
   }
   if (falta.length > 0) {
     impedimentos.push({ codigo: "data_ou_local_em_falta", falta });
