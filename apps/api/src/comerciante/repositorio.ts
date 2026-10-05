@@ -102,7 +102,7 @@ export interface DadosComerciante {
   fuso: string;
   /**
    * A língua em que escreve o catálogo (docs/14 §9, P13). Sem ela, a do Hub
-   * (proposta, docs/14 §3.8). Não muda depois de haver catálogo (0008).
+   * (proposta, docs/14 §3.8). Não muda depois de haver catálogo (0009).
    */
   lingua_origem?: string;
 }

@@ -139,7 +139,7 @@ const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   categoria_nao_e_o_pai: "catalog.category_cycle",
   artigo_categoria_pkey: "catalog.category_duplicate",
   colecao_artigo_pkey: "catalog.collection_product_duplicate",
-  // Traduções (0008).
+  // Traduções (0009).
   traducao_endereco_valido: "catalog.slug_invalid",
   traducao_endereco_unico_categoria: "catalog.slug_duplicate",
   traducao_endereco_unico_colecao: "catalog.slug_duplicate",

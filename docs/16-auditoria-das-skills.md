@@ -220,9 +220,17 @@ pedido de alteração.
   cópias e plano de incidentes no `docs/17` (desenho; bases e prazos **C**).
   Falta: o RTO (decisão), a exportação e o apagamento do titular (desenho no
   `docs/15`).
-- Por fazer: o rasto imutável e os privilégios das funções na base (depois
-  do #97, por causa do número da migração); os pontos «ao abrir a primeira
-  rota».
+- **Segurança — base (migração 0008):** o rasto do Comerciante
+  (`transicao_estado`, `aceitacao_contrato`, `prova_verificacao`) recusa
+  alterar, apagar e esvaziar, também ao dono (desligar o gatilho exige ser dono e uma migração revista); as funções do esquema `public`
+  deixam de estar abertas a PUBLIC, as novas nascem fechadas, e a API fica
+  só com as que chama (teste que falha se alguma nascer aberta). Fica por
+  desenhar: «de onde» e «que IA e modelo» no rasto, e o rasto do Catálogo.
+- **Ao abrir a primeira rota:** desenho no `docs/18`. Feitos: erros RFC 9457
+  em todas as rotas e no 404, e o contrato OpenAPI 3.1 gerado e publicado em
+  `/openapi.json` (uma rota fora do contrato não se regista). Por fazer: as
+  tabelas da idempotência e dos eventos (próxima migração), a `Idempotency-Key`
+  nas rotas e os limites de pedidos, com a fatia «identidade».
 - **Código (Catálogo):** `ORIGENS_ARTIGO` passa a constante, com teste que a
   compara com a regra da base (`artigo_origem_check`). O GTIN sem emissor
   fica para quando houver Stock e leitor, como a auditoria diz.

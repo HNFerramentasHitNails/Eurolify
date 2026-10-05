@@ -299,7 +299,7 @@ origem.
 As traduções **vivem no Eurolify**, nunca numa app de terceiros (`catalog-pim`,
 regra 5).
 
-Na parte 3b do código (migração 0008; as marcadas **proposta** são dela):
+Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
 
 | Recurso | Campos traduzíveis |
 |---|---|

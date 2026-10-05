@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { migrar, PASTA_MIGRACOES } from "../src/base/migracoes.js";
 import { apagarBase, URL_BASE } from "./base-de-teste.js";
 
-// A migração 0008 (a língua de origem passa da loja para o comerciante, P13)
+// A migração 0009 (a língua de origem passa da loja para o comerciante, P13)
 // sobre uma base com a 0007 aplicada e dados, como a VPS. Corre com um
 // migrador como o da VPS — dono da base, sem ser superutilizador nem ignorar
 // o RLS (infra/vps/preparar.sh, eurolify_migrador) —, porque é assim que o
@@ -20,7 +20,7 @@ const B = "01900000-0000-7000-8000-0000000000c2";
 const ENTIDADE = "01900000-0000-7000-8000-0000000000e1";
 const SENHA = "so-para-testes";
 
-describe.skipIf(URL_BASE === undefined)("migração 0008 sobre dados", () => {
+describe.skipIf(URL_BASE === undefined)("migração 0009 sobre dados", () => {
   const aFechar: (() => Promise<void>)[] = [];
 
   afterEach(async () => {
@@ -33,7 +33,7 @@ describe.skipIf(URL_BASE === undefined)("migração 0008 sobre dados", () => {
       }
     }
     if (erros.length > 0) {
-      throw new AggregateError(erros, "a limpeza da migração 0008 falhou");
+      throw new AggregateError(erros, "a limpeza da migração 0009 falhou");
     }
   });
 
@@ -91,7 +91,7 @@ describe.skipIf(URL_BASE === undefined)("migração 0008 sobre dados", () => {
     });
     aFechar.push(() => db.destroy());
 
-    await migrar(db, await pastaAte("0007_catalogo_categorias_colecoes.sql"));
+    await migrar(db, await pastaAte("0008_rasto_imutavel_e_funcoes_fechadas.sql"));
     // A tem uma loja em es (Hub em pt); B não tem loja (Hub em fr). O RLS
     // forçado aplica-se a este migrador: cada um no seu contexto.
     await db.transaction().execute(async (trx) => {
@@ -120,10 +120,10 @@ describe.skipIf(URL_BASE === undefined)("migração 0008 sobre dados", () => {
 
     const { results } = await migrar(
       db,
-      await pastaAte("0008_catalogo_traducoes.sql"),
+      await pastaAte("0009_catalogo_traducoes.sql"),
     );
     expect(results?.map((r) => [r.migrationName, r.status])).toEqual([
-      ["0008_catalogo_traducoes", "Success"],
+      ["0009_catalogo_traducoes", "Success"],
     ]);
 
     const lidos = await db.transaction().execute(async (trx) => {

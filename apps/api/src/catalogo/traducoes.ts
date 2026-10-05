@@ -2,7 +2,7 @@ import { sql, type Kysely } from "kysely";
 import type { BaseDados, OrigemTraducao } from "../base/esquema.js";
 import { ErroCatalogo, noCatalogo } from "./repositorio.js";
 
-// Catálogo, parte 3b: traduções (docs/14 §3.8 e §4.3; migração 0008; issue
+// Catálogo, parte 3b: traduções (docs/14 §3.8 e §4.3; migração 0009; issue
 // #77). As regras vivem na base: quem traduz (`eurolify.quem`), o original
 // guardado, a língua de origem e o endereço. Aqui só a escrita repetível
 // (traduzir outra vez substitui) e o estado, que se calcula ao ler.

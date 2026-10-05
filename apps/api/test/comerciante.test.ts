@@ -97,7 +97,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0005_catalogo_opcoes",
         "0006_catalogo_classificacao",
         "0007_catalogo_categorias_colecoes",
-        "0008_catalogo_traducoes",
+        "0008_rasto_imutavel_e_funcoes_fechadas",
+        "0009_catalogo_traducoes",
       ]);
     });
 

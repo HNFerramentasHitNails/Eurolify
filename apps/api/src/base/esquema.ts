@@ -35,7 +35,7 @@ export interface TabelaComerciante {
   estado_antes_de_suspenso: ColumnType<EstadoComerciante | null, never, never>;
   nome: string;
   lingua: string;
-  /** A língua do original do catálogo, uma só (docs/14 §9, P13; 0008). */
+  /** A língua do original do catálogo, uma só (docs/14 §9, P13; 0009). */
   lingua_origem: string;
   fuso: string;
   criado_em: Instante;
@@ -360,7 +360,7 @@ export interface TabelaColecaoArtigo {
   posicao: number;
 }
 
-// Catálogo, parte 3b (migração 0008; docs/14 §3.8 e §4.3).
+// Catálogo, parte 3b (migração 0009; docs/14 §3.8 e §4.3).
 export const ORIGENS_TRADUCAO = ["pessoa", "ia"] as const;
 export type OrigemTraducao = (typeof ORIGENS_TRADUCAO)[number];
 
@@ -385,7 +385,7 @@ export interface TabelaTraducao {
   revisto_em: ColumnType<Date | null, never, never>;
 }
 
-/** Vista: os textos originais traduzíveis (0008). */
+/** Vista: os textos originais traduzíveis (0009). */
 export interface VistaTextoOriginal {
   comerciante_id: string;
   tipo: string;

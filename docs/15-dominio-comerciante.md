@@ -68,7 +68,7 @@ PostgreSQL 18.6 a 04/10/2026), mostrados para fora com prefixo do tipo (`mer_…
 | `estado` | lista | sim | §4 |
 | `nome` | texto | sim | nome comercial, para mostrar; **nunca serve para decidir identidade** (`AGENTS.md`, regra fiscal 6): dois comerciantes com o mesmo nome são dois |
 | `lingua` | código (pt, es, en…) | sim | a do Hub e das comunicações do Eurolify |
-| `lingua_origem` | código | sim | a língua em que o comerciante escreve o catálogo, **uma só para todo o catálogo** (`docs/14` §9, P13; Diogo, 05/10/2026: *«sim, uma só língua de origem por comerciante»*). Passou da loja para aqui com a parte 3b do Catálogo (migração 0008): os que já existiam ficaram com a da primeira loja ou a `lingua`; um novo, sem ela, fica com a `lingua`; não muda depois de haver catálogo (**proposta**, `docs/14` §3.8) |
+| `lingua_origem` | código | sim | a língua em que o comerciante escreve o catálogo, **uma só para todo o catálogo** (`docs/14` §9, P13; Diogo, 05/10/2026: *«sim, uma só língua de origem por comerciante»*). Passou da loja para aqui com a parte 3b do Catálogo (migração 0009): os que já existiam ficaram com a da primeira loja ou a `lingua`; um novo, sem ela, fica com a `lingua`; não muda depois de haver catálogo (**proposta**, `docs/14` §3.8) |
 | `fuso` | IANA (ex.: `Europe/Lisbon`) | sim | para mostrar; guarda-se sempre UTC (`eu-localization`) |
 | ~~`plano`~~ | — | — | **não entra nesta fatia** (P5): entra com a D-14 (ADR-0007, ADR-0012) |
 | `criado_em`, `actualizado_em`, `versao` | | sim | `versao` sobe em cada alteração; escrita com versão antiga recusada |
@@ -96,7 +96,7 @@ regra 4).
 | `comerciante_id` | uuid | sim | |
 | `entidade_legal_id` | uuid | sim | quem vende nesta loja (aparece ao cliente: `consumer-rights-eu`, identidade do vendedor) |
 | `nome` | texto | sim | marca |
-| ~~`lingua_origem`~~ | código | sim | **passa para o comerciante** (§3.1; `docs/14` §9, P13): o artigo é do comerciante, não da loja. Saiu da loja com a parte 3b do Catálogo (migração 0008) |
+| ~~`lingua_origem`~~ | código | sim | **passa para o comerciante** (§3.1; `docs/14` §9, P13): o artigo é do comerciante, não da loja. Saiu da loja com a parte 3b do Catálogo (migração 0009) |
 | `estado` | activa, arquivada | sim | |
 
 ### 3.4 Aceitação de um contrato
@@ -180,7 +180,7 @@ ADR-0025 (RLS por comerciante).
 
 | Peça | Desenho (proposta) |
 |---|---|
-| Utilizador da base da API | `eurolify_api`: `NOSUPERUSER NOBYPASSRLS`, `SELECT/INSERT/UPDATE` nas tabelas do produto; **sem `DELETE`** nas tabelas «só se acrescenta». *Nota de 05/10/2026:* no Catálogo há `DELETE` em artigo, variante e componentes (migrações 0002 e 0004), porque um **rascunho** que nunca esteve activo pode apagar-se (`docs/14`, «Apagar rascunho», `DELETE /products/{id}`) |
+| Utilizador da base da API | `eurolify_api`: `NOSUPERUSER NOBYPASSRLS`, `SELECT/INSERT/UPDATE` nas tabelas do produto; **sem `DELETE`** nas tabelas «só se acrescenta», que desde a migração 0008 recusam também `UPDATE`, `DELETE` e `TRUNCATE` ao dono, por gatilho (desligá-lo exige ser dono e uma migração revista; um teste falha se faltar ou estiver desligado); e sem `EXECUTE` nas funções da base, salvo nas que chama. As funções nascem fechadas quando criadas pelo `eurolify_migrador`; uma migração corrida por outro utilizador tem de fechar as suas. *Nota de 05/10/2026:* no Catálogo há `DELETE` em artigo, variante e componentes (migrações 0002 e 0004), porque um **rascunho** que nunca esteve activo pode apagar-se (`docs/14`, «Apagar rascunho», `DELETE /products/{id}`) |
 | Utilizador das migrações | `eurolify_migrador`: dono das tabelas; só corre na publicação (`dist/migrar.js`, já previsto em `eurolify-publicar:114-122`) |
 | Políticas | `ENABLE` **e** `FORCE ROW LEVEL SECURITY` em todas as tabelas; `USING (comerciante_id = current_setting('eurolify.comerciante')::uuid)` e o mesmo em `WITH CHECK` |
 | Contexto | cada pedido abre uma transacção e faz `SET LOCAL eurolify.comerciante = '<uuid>'`; sem isso a consulta dá **erro**, nunca vazio em silêncio: numa ligação nova o parâmetro não existe; numa ligação reaproveitada vale texto vazio, que falha a conversão para `uuid` (**confirmado** no PostgreSQL 18.6 a 04/10/2026: erros `42704` e `22P02`; há um teste para cada caso) |

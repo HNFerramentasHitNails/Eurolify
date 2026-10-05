@@ -36,7 +36,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Catálogo, parte 3b: traduções (docs/14 §3.8 e §4.3; migração 0008; issue
+// Catálogo, parte 3b: traduções (docs/14 §3.8 e §4.3; migração 0009; issue
 // #77), contra o PostgreSQL 18 verdadeiro e com o eurolify_api.
 
 const NOVO = { nome: "Loja de Teste", lingua: "pt", fuso: "Europe/Lisbon" };
