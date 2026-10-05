@@ -704,15 +704,19 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
     // antiga do servidor inteiro (pg_snapshot_xmin, de todas as bases). Com
     // outra sessão do servidor a segurar uma transacção, a limpeza espera por
     // ela — é de melhor esforço, sem dano — e este teste não a pode provar:
-    // salta-se, com a razão (revisão do #83, 4.ª, P2-1).
+    // salta-se, com a razão (revisão do #83, 4.ª, P2-1). Só contam
+    // transacções com xid (que escreveram) e as preparadas: uma sessão que só
+    // lê não entra no xmin do instantâneo nem atrasa a limpeza, e contá-la
+    // fazia o teste saltar-se sempre num portátil com um cliente de base de
+    // dados aberto (revisão do #90, P2-1).
     const haTransaccaoAntiga = async () => {
-      const { rows } = await sql<{ n: number }>`
-        select count(*)::int as n from pg_stat_activity
-        where pid <> pg_backend_pid() and backend_type = 'client backend'
-          and (backend_xid is not null or backend_xmin is not null)`.execute(
+      const { rows } = await sql<{ n: string }>`
+        select (select count(*) from pg_stat_activity
+                where pid <> pg_backend_pid() and backend_xid is not null)
+             + (select count(*) from pg_prepared_xacts) as n`.execute(
         base.dono,
       );
-      return (rows[0]?.n ?? 0) > 0;
+      return Number(rows[0]?.n ?? 0) > 0;
     };
     if (await haTransaccaoAntiga()) {
       ctx.skip(
