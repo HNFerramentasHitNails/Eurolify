@@ -188,7 +188,8 @@ pedido de alteração.
 - **Q2 respondida** (Diogo, 05/10/2026: «podemos classificar já»): a classificação do artigo está desenhada no `docs/14` §3.10 («Classificação do artigo») e na C2; o código fica para o #77.
 - **Q3 respondida** (Diogo, 05/10/2026: «Fase 2, só as listas B2B ficam na Fase 1»): `docs/05`, `docs/eurolify/architecture.md` §6 e a linha de estado das três skills.
 - **Lista das famílias restritas** da classificação aceite (Diogo, 05/10/2026: «sim, aceito a lista»), `docs/14` §3.10.
-- **Ficam à espera:** `marketplace-dsa` (marca do art. 16.º) até à resposta
-  da G7 (`docs/03:137-145`); papéis da `eurolify-b2b-channels-eu` até à Q4.
+- **Q4 respondida** (Diogo, 05/10/2026: «sim, manda a skill nova»): o `docs/eurolify/architecture.md` §3 passa a seguir a `eurolify-b2b-channels-eu`, com o operador logístico na lista de relações.
+- **Fica à espera:** `marketplace-dsa` (marca do art. 16.º) até à resposta
+  da G7 (`docs/03:137-145`).
 - Por fazer: os pontos de documentos, de segurança e de código (pedidos
   próprios).
