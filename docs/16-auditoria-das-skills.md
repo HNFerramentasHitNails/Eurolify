@@ -222,7 +222,7 @@ pedido de alteração.
   `docs/15`).
 - **Segurança — base (migração 0008):** o rasto do Comerciante
   (`transicao_estado`, `aceitacao_contrato`, `prova_verificacao`) recusa
-  alterar, apagar e esvaziar, também ao dono; as funções do esquema `public`
+  alterar, apagar e esvaziar, também ao dono (desligar o gatilho exige ser dono e uma migração revista); as funções do esquema `public`
   deixam de estar abertas a PUBLIC, as novas nascem fechadas, e a API fica
   só com as que chama (teste que falha se alguma nascer aberta). Fica por
   desenhar: «de onde» e «que IA e modelo» no rasto, e o rasto do Catálogo.

@@ -116,6 +116,22 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
     );
   });
 
+  it("os seis gatilhos do rasto existem e estão sempre ligados", async () => {
+    const { rows } = await sql<{ nome: string; ligado: string }>`
+      select t.tgname as nome, t.tgenabled as ligado
+      from pg_trigger t join pg_class c on c.oid = t.tgrelid
+      where c.relname in ('transicao_estado', 'aceitacao_contrato',
+                          'prova_verificacao')
+        and t.tgfoid = 'rasto_so_se_acrescenta'::regproc
+      order by 1`.execute(base.dono);
+    expect(rows).toEqual(
+      RASTO.flatMap((tabela) => [
+        { nome: `${tabela}_sem_truncate`, ligado: "A" },
+        { nome: `${tabela}_so_se_acrescenta`, ligado: "A" },
+      ]).sort((a, b) => a.nome.localeCompare(b.nome)),
+    );
+  });
+
   describe("funções fechadas por omissão", () => {
     it("nenhuma função do esquema public fica aberta a PUBLIC", async () => {
       const { rows } = await sql<{ nome: string }>`
