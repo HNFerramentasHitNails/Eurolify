@@ -39,7 +39,14 @@ export type CodigoErroCatalogo =
   | "catalog.component_cycle"
   | "catalog.component_archived"
   | "catalog.component_duplicate"
-  | "catalog.component_in_use";
+  | "catalog.component_in_use"
+  | "catalog.options_incomplete"
+  | "catalog.option_combination_duplicate"
+  | "catalog.option_duplicate"
+  | "catalog.option_value_duplicate"
+  | "catalog.option_repeated"
+  | "catalog.option_values_required"
+  | "catalog.retry";
 
 export class ErroCatalogo extends Error {
   constructor(
@@ -62,6 +69,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   "catalog.variant_archived_is_final",
   "catalog.component_cycle",
   "catalog.component_archived",
+  "catalog.options_incomplete",
+  "catalog.option_combination_duplicate",
 ];
 
 /** As restrições da base que têm código próprio (§7.1). */
@@ -80,6 +89,11 @@ const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   // Composição dos kits (0004).
   componente_nao_e_o_kit: "catalog.component_cycle",
   componente_pkey: "catalog.component_duplicate",
+  // Opções (0005).
+  opcao_nome_unico: "catalog.option_duplicate",
+  valor_opcao_unico: "catalog.option_value_duplicate",
+  // Dois valores da mesma opção para a mesma variante.
+  variante_valor_pkey: "catalog.option_repeated",
 };
 
 /** Colunas obrigatórias com código próprio (§7.1: C3). */
@@ -90,7 +104,14 @@ const OBRIGATORIAS: Readonly<Record<string, CodigoErroCatalogo>> = {
 };
 
 /** As tabelas deste domínio, para os erros que só se traduzem quando vêm delas. */
-const TABELAS = new Set(["artigo", "variante", "componente"]);
+const TABELAS = new Set([
+  "artigo",
+  "variante",
+  "componente",
+  "opcao",
+  "valor_opcao",
+  "variante_valor",
+]);
 
 export interface OpcoesDeTraducao {
   /** A operação apaga variantes: `componente_em_uso` quer dizer «em uso». */
@@ -164,6 +185,14 @@ export function traduzir(
       "a variante é componente de um kit",
       { cause: erro },
     );
+  }
+  // Duas transacções que esperavam uma pela outra (40P01) ou um conflito de
+  // serialização (40001): nada ficou gravado; tentar outra vez (revisão do
+  // #83, P2-2).
+  if (pg.code === "40P01" || pg.code === "40001") {
+    return new ErroCatalogo("catalog.retry", "tentar outra vez", {
+      cause: erro,
+    });
   }
   // Uma chave estrangeira que falha: o artigo (ou o comerciante) não existe
   // ou é de outro comerciante — o RLS esconde-o igual, sem oráculo.
@@ -556,4 +585,274 @@ export async function componentesDoKit(
     varianteId: l.componente_id,
     quantidade: l.quantidade,
   }));
+}
+
+export interface Opcao {
+  id: string;
+  nome: string;
+  valores: { id: string; valor: string }[];
+}
+
+/**
+ * Cria uma opção do artigo com os valores dados, pela ordem (§3.3). Só num
+ * rascunho (0005). Devolve a opção com os ids dos valores.
+ */
+export async function criarOpcao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+  nome: string,
+  valores: readonly string[],
+): Promise<Opcao> {
+  // Uma opção sem valores não deixava nenhuma variante completar-se (revisão
+  // do #83, P3).
+  if (valores.length === 0) {
+    throw new ErroCatalogo(
+      "catalog.option_values_required",
+      "uma opção leva pelo menos um valor",
+    );
+  }
+  return noCatalogo(db, comercianteId, async (trx) => {
+    // A linha do artigo antes da fila dele, pela mesma ordem de quem apaga o
+    // rascunho: a chave estrangeira da opção pede a linha do artigo, e o
+    // trigger toma a fila antes dela — sem isto, criar uma opção e apagar o
+    // rascunho podiam esperar um pelo outro (revisão do #83, 3.ª, P2-1).
+    const artigo = await trx
+      .selectFrom("artigo")
+      .select("id")
+      .where("comerciante_id", "=", comercianteId)
+      .where("id", "=", artigoId)
+      .forKeyShare()
+      .executeTakeFirst();
+    if (artigo === undefined) {
+      throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+    }
+    await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${artigoId}::uuid)`.execute(
+      trx,
+    );
+    const { n } = await trx
+      .selectFrom("opcao")
+      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .where("comerciante_id", "=", comercianteId)
+      .where("artigo_id", "=", artigoId)
+      .executeTakeFirstOrThrow();
+    const opcao = await trx
+      .insertInto("opcao")
+      .values({
+        comerciante_id: comercianteId,
+        artigo_id: artigoId,
+        nome,
+        posicao: Number(n),
+      })
+      .returning(["id", "nome"])
+      .executeTakeFirstOrThrow();
+    const criados: { id: string; valor: string }[] = [];
+    let posicao = 0;
+    for (const valor of valores) {
+      criados.push(
+        await trx
+          .insertInto("valor_opcao")
+          .values({
+            comerciante_id: comercianteId,
+            artigo_id: artigoId,
+            opcao_id: opcao.id,
+            valor,
+            posicao,
+          })
+          .returning(["id", "valor"])
+          .executeTakeFirstOrThrow(),
+      );
+      posicao += 1;
+    }
+    return { ...opcao, valores: criados };
+  });
+}
+
+/** Acrescenta um valor a uma opção, em qualquer estado do artigo. */
+export async function acrescentarValor(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  opcaoId: string,
+  valor: string,
+): Promise<string> {
+  return noCatalogo(db, comercianteId, async (trx) => {
+    const opcao = await trx
+      .selectFrom("opcao")
+      .select("artigo_id")
+      .where("comerciante_id", "=", comercianteId)
+      .where("id", "=", opcaoId)
+      .executeTakeFirst();
+    if (opcao === undefined) {
+      throw new ErroCatalogo("catalog.not_found", `opção ${opcaoId}`);
+    }
+    const { n } = await trx
+      .selectFrom("valor_opcao")
+      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .where("comerciante_id", "=", comercianteId)
+      .where("opcao_id", "=", opcaoId)
+      .executeTakeFirstOrThrow();
+    const { id } = await trx
+      .insertInto("valor_opcao")
+      .values({
+        comerciante_id: comercianteId,
+        artigo_id: opcao.artigo_id,
+        opcao_id: opcaoId,
+        valor,
+        posicao: Number(n),
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+    return id;
+  });
+}
+
+/** As opções do artigo com os valores, pela ordem. */
+export async function opcoesDoArtigo(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+): Promise<Opcao[]> {
+  return noCatalogo(db, comercianteId, async (trx) => {
+    const opcoes = await trx
+      .selectFrom("opcao")
+      .select(["id", "nome"])
+      .where("comerciante_id", "=", comercianteId)
+      .where("artigo_id", "=", artigoId)
+      .orderBy("posicao")
+      .orderBy("criado_em")
+      .execute();
+    const valores = await trx
+      .selectFrom("valor_opcao")
+      .select(["id", "opcao_id", "valor"])
+      .where("comerciante_id", "=", comercianteId)
+      .where("artigo_id", "=", artigoId)
+      .orderBy("posicao")
+      .orderBy("criado_em")
+      .execute();
+    return opcoes.map((o) => ({
+      ...o,
+      valores: valores
+        .filter((v) => v.opcao_id === o.id)
+        .map(({ id, valor }) => ({ id, valor })),
+    }));
+  });
+}
+
+/**
+ * Dá à variante os valores (um por opção), substituindo os que tinha. Num
+ * artigo que já não é rascunho só se dão a uma variante sem valores (a que se
+ * acabou de criar); a base verifica no fim a combinação (completa e sem
+ * repetidos).
+ */
+export async function definirValoresDaVariante(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  varianteId: string,
+  valorIds: readonly string[],
+): Promise<void> {
+  await noCatalogo(db, comercianteId, (trx) =>
+    gravarValores(trx, comercianteId, varianteId, valorIds),
+  );
+}
+
+async function gravarValores(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  varianteId: string,
+  valorIds: readonly string[],
+): Promise<void> {
+  const variante = await trx
+    .selectFrom("variante")
+    .select(["artigo_id"])
+    .where("comerciante_id", "=", comercianteId)
+    .where("id", "=", varianteId)
+    .executeTakeFirst();
+  if (variante === undefined) {
+    throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);
+  }
+  // A fila do artigo antes de prender qualquer linha: os triggers só a tomam
+  // depois de prender a linha que mudam, e quem apaga o rascunho toma-a antes
+  // de prender as variantes — sem isto, os dois podiam esperar um pelo outro
+  // (revisão do #83, 2.ª, P2-1).
+  await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${variante.artigo_id}::uuid)`.execute(
+    trx,
+  );
+  const unicos = [...new Set(valorIds)];
+  const valores =
+    unicos.length === 0
+      ? []
+      : await trx
+          .selectFrom("valor_opcao")
+          .select(["id", "opcao_id"])
+          .where("comerciante_id", "=", comercianteId)
+          .where("artigo_id", "=", variante.artigo_id)
+          .where("id", "in", unicos)
+          .execute();
+  if (valores.length !== unicos.length) {
+    throw new ErroCatalogo("catalog.not_found", "valor de opção inexistente");
+  }
+  const actuais = await trx
+    .selectFrom("variante_valor")
+    .select("opcao_id")
+    .where("comerciante_id", "=", comercianteId)
+    .where("variante_id", "=", varianteId)
+    .execute();
+  if (actuais.length > 0) {
+    await trx
+      .deleteFrom("variante_valor")
+      .where("comerciante_id", "=", comercianteId)
+      .where("variante_id", "=", varianteId)
+      .execute();
+  }
+  for (const v of valores) {
+    await trx
+      .insertInto("variante_valor")
+      .values({
+        comerciante_id: comercianteId,
+        artigo_id: variante.artigo_id,
+        variante_id: varianteId,
+        opcao_id: v.opcao_id,
+        valor_id: v.id,
+      })
+      .execute();
+  }
+}
+
+/**
+ * Cria uma variante já com os valores das opções, na mesma transacção (num
+ * artigo que não é rascunho, a combinação tem de ficar completa).
+ */
+export async function criarVarianteComValores(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+  dados: DadosVariante,
+  valorIds: readonly string[],
+): Promise<string> {
+  return noCatalogo(db, comercianteId, async (trx) => {
+    const { id } = await trx
+      .insertInto("variante")
+      .values({ comerciante_id: comercianteId, artigo_id: artigoId, ...dados })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+    await gravarValores(trx, comercianteId, id, valorIds);
+    return id;
+  });
+}
+
+/** Os ids dos valores da variante. */
+export async function valoresDaVariante(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  varianteId: string,
+): Promise<string[]> {
+  const linhas = await noCatalogo(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("variante_valor")
+      .select("valor_id")
+      .where("comerciante_id", "=", comercianteId)
+      .where("variante_id", "=", varianteId)
+      .execute(),
+  );
+  return linhas.map((l) => l.valor_id).sort();
 }

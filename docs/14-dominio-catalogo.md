@@ -23,6 +23,9 @@
 > Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 16 testes):
 > ver §3.4, com as regras **proposta** desta parte.
 >
+> Parte 2b — opções e valores (migração `0005_catalogo_opcoes.sql`, 27 testes):
+> ver §3.3, com as regras **proposta** desta parte.
+>
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
 > `product-compliance-eu`, `eu-localization`, `eu-vat-oss-ioss` (categoria
 > fiscal) e `consumer-rights-eu` (preço por unidade). Arquitectura de base:
@@ -127,6 +130,41 @@ A unidade vendável. Um artigo sem opções pode ter **várias variantes**, dist
 | Opção | `artigo_id`, `nome` (traduzível), `posicao` | ex.: «Cor», «Tamanho» |
 | Valor da opção | `opcao_id`, `valor` (traduzível), `posicao` | ex.: «Vermelho 12» |
 
+Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
+§3.2):
+
+- um artigo **sem opções** pode ter várias variantes (P10, decidido);
+- com opções, cada variante **activa** leva **um valor de cada opção**, e duas
+  variantes activas do mesmo artigo **não têm a mesma combinação** (§3.2). Uma
+  variante arquivada não conta: a combinação dela volta a ficar livre;
+- as opções só se criam e apagam enquanto o artigo é **rascunho**; valores
+  novos acrescentam-se sempre; uma opção nasce com pelo menos um valor (num
+  rascunho, apagar depois todos os valores de uma opção é possível e só
+  impede de completar as variantes até haver um valor novo);
+- o **texto** de uma opção ou de um valor só muda num rascunho (P12, decidido
+  (Diogo, 05/10/2026: *«não, bloqueia fora do rascunho»*)); a ordem muda sempre;
+- apagar uma opção num rascunho verifica as combinações (não pode deixar duas
+  variantes iguais);
+- os valores de uma variante dão-se ao criá-la; depois só mudam num rascunho
+  (depois de vendida, a variante não muda de identidade);
+- num rascunho a combinação pode estar incompleta; activar ou repor o artigo
+  exige-a completa; num artigo que já não é rascunho verifica-se no fim de cada
+  transacção (uma variante nova entra já com todos os valores);
+- nomes de opção únicos no artigo, valores únicos na opção, sem distinguir
+  maiúsculas (como o SKU, P9); até 100 caracteres;
+- as verificações das combinações correm uma vez por artigo e por transacção,
+  numa fila por artigo e por comerciante, e assumem o isolamento READ
+  COMMITTED da API (em REPEATABLE READ, duas transacções ao mesmo tempo podiam
+  não se ver). Ordem dos bloqueios: a linha do artigo, a fila do comerciante
+  (kits), a fila do artigo (opções). O repositório segue-a: criar uma opção
+  toma a linha do artigo antes da fila, e dar valores toma a fila antes de
+  prender linhas (os triggers só a tomam depois de prender a linha que
+  mudam). Por SQL directo, fora do repositório, a ordem pode inverter-se (por
+  exemplo, apagar uma variante de um rascunho contra dar-lhe valores); se duas
+  transacções esperarem uma pela outra, o erro é `catalog.retry` e nada fica
+  gravado. A tabela interna das marcas limpa-se ao marcar, com melhor esforço:
+  uma transacção longa em qualquer base do servidor atrasa a limpeza, sem dano.
+
 ### 3.4 Composição — kits e coleções (`cmp_`)
 
 Uma variante pode ser composta: tem componentes, que são outras variantes.
@@ -150,14 +188,20 @@ aqui):
   variantes de rascunhos); apagar o rascunho do kit leva a composição, com o
   kit e os componentes no mesmo artigo por qualquer ordem, e também com o kit
   arquivado (P8). Fora de apagar o rascunho, a composição de um kit arquivado
-  não muda, nem num rascunho (nem esvaziá-la). **Limitação conhecida:** o rascunho de um artigo cuja
-  variante está no kit de **outro** artigo só se apaga depois de a tirar desse
-  kit (um rascunho não se arquiva);
+  não muda, nem num rascunho (nem esvaziá-la). **Limitação conhecida:** o
+  rascunho de um artigo cuja variante está no kit de **outro** artigo só se
+  apaga depois de a tirar desse kit (um rascunho não se arquiva);
 - a quantidade de um componente é um inteiro > 0, **sem limite máximo** (se o
   Stock precisar de um, decide-se lá);
 - a lista substitui-se inteira, pela ordem dada; lista vazia = deixa de ser kit;
 - um componente pode ser de qualquer artigo do mesmo comerciante, também do
-  próprio artigo do kit.
+  próprio artigo do kit;
+- as escritas de kits de um comerciante ficam numa fila (bloqueio por
+  comerciante). Uma escrita por SQL directo com o comerciante de **outro** é
+  recusada pelo RLS, mas antes pode esperar pela fila dele (cerca de 600 ms,
+  medido na revisão do #81); não a prende, porque o erro larga os bloqueios.
+  Pelo repositório não se chega lá. (O comentário da 0004 diz só «não prende a
+  fila»; a 0004 já está aplicada e não se reescreve.)
 
 A **disponibilidade deriva dos componentes**, calculada pelo Stock (no Hub, 72
 de 72 compostos batiam com os componentes, 16/09/2026, `catalog-pim`). O
@@ -429,7 +473,13 @@ Da parte 1 do código (também **proposta**): `catalog.invalid_transition`,
 `catalog.invalid_field` (outro valor recusado, por exemplo uma unidade que não
 está na lista). Da parte 2a (também **proposta**): `catalog.component_archived`,
 `catalog.component_duplicate` e `catalog.component_in_use` (apagar uma variante
-que é componente de um kit).
+que é componente de um kit). Da parte 2b (também **proposta**):
+`catalog.options_incomplete`, `catalog.option_duplicate` (nome de opção
+repetido no artigo), `catalog.option_value_duplicate` e `catalog.option_repeated`
+(dois valores da mesma opção numa variante), `catalog.option_values_required` e
+`catalog.retry` (duas transacções esperaram uma pela outra; nada ficou
+gravado, tenta-se outra vez); `catalog.option_combination_duplicate` já estava
+aqui.
 
 ### 7.2 API da Loja
 
@@ -490,3 +540,4 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P9 | `GEL-001` e `gel-001` são o **mesmo SKU**? | ✅ **Decidido: sim, o mesmo SKU** (Diogo, 05/10/2026: *«sim, mesmo SKU»*). Guarda-se como foi escrito; a unicidade e a procura não distinguem maiúsculas (migração 0003) |
 | P10 | Um artigo **sem opções** pode ter várias variantes? (O §3.2 dizia que tinha uma; o código da parte 1 deixa várias, como `GEL-001` e `GEL-REFILL`) | ✅ **Decidido: sim** (Diogo, 05/10/2026: *«sim, um artigo sem opções pode ter várias variantes»*). A regra «a combinação não se repete» só vale para artigos com opções |
 | P11 | O `bilhete` e o `servico` à distância ficam desligados até terem classificação, ou classificam-se já? (Q2 do `docs/16`) | ✅ **Decidido: classificam-se já** (Diogo, 05/10/2026: *«podemos classificar já»*); sem classificação nenhum artigo se publica — §3.10, «Classificação do artigo» |
+| P12 | Num artigo já à venda, pode mudar-se o **texto** de uma opção ou de um valor (ex.: corrigir «Vermleho»)? | ✅ **Decidido: não** (Diogo, 05/10/2026: *«não, bloqueia fora do rascunho»*). Só num rascunho; a ordem muda sempre. Se fizer falta corrigir gralhas, abre-se depois com o registo de quem mudou o quê (C7) |

@@ -94,6 +94,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0002_catalogo_artigos",
         "0003_sku_sem_maiusculas",
         "0004_catalogo_kits",
+        "0005_catalogo_opcoes",
       ]);
     });
 
@@ -118,8 +119,12 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         where n.nspname = 'public' and c.relkind = 'r'
         order by 1`.execute(base.dono);
       expect(rows.length).toBeGreaterThan(0);
+      // Internas: só o migrador (kysely_*) ou funções com os direitos do dono
+      // (combinacoes_por_verificar, 0005) lhes tocam; a API não as lê.
+      const interna = (t: string) =>
+        t.startsWith("kysely_") || t === "combinacoes_por_verificar";
       for (const linha of rows) {
-        if (linha.tabela.startsWith("kysely_")) {
+        if (interna(linha.tabela)) {
           expect(linha, linha.tabela).toMatchObject({ api_le: false });
         } else {
           expect(linha, linha.tabela).toMatchObject({
@@ -128,10 +133,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           });
         }
       }
-      // 6 do Comerciante (0001) e 3 do Catálogo (0002 e 0004).
-      expect(rows.filter((r) => !r.tabela.startsWith("kysely_"))).toHaveLength(
-        9,
-      );
+      // 6 do Comerciante (0001) e 6 do Catálogo (0002, 0004 e 0005).
+      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(12);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

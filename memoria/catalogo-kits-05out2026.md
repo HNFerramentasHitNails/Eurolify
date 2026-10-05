@@ -23,5 +23,5 @@
 ## O que ficou por verificar
 
 - A 0004 na VPS (corre na publicação depois de juntar). A restrição nova em `variante` precisa de que não haja `(comerciante_id, id)` repetidos, o que o `id` único já garante.
-- Ciclos com mais de duas escritas ao mesmo tempo (o bloqueio por comerciante põe todas em fila; medido com 2, em 5 rondas, não com 3).
-- A parte 2b (opções) e a API HTTP.
+- Ciclos com mais de duas escritas ao mesmo tempo: medido pelo revisor do #81 (3.ª ronda) com 4 escritas em 20 rondas, sem impasses.
+- A API HTTP. (A parte 2b, opções, está em `catalogo-opcoes-05out2026.md`.)
