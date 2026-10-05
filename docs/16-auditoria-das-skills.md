@@ -213,9 +213,9 @@ pedido de alteração.
 - **Segurança — MCP:** o registo da máquina passa a dizer a conta (só o
   número no GitHub) de quem pediu cada acção. Um âmbito OAuth só fica, por
   agora: as duas contas permitidas têm as mesmas permissões, e separar ler de
-  agir só protege quando houver uma conta só de leitura. O login gravado pelo
-  MCP e o `acoes.log` sem prazo ficam como pergunta ao Diogo ou ao Bruno
-  (`docs/17` §3).
+  agir só protege quando houver uma conta só de leitura. A conta e o login dos
+  operadores nos registos da VPS ficam 14 dias, como os IP (Diogo,
+  05/10/2026: «14 dias, como os IP»; ADR-0018, nota).
 - **Segurança — dados:** registo de tratamentos, subcontratantes, retenção,
   cópias e plano de incidentes no `docs/17` (desenho; bases e prazos **C**).
   Falta: o RTO (decisão), a exportação e o apagamento do titular (desenho no

@@ -74,6 +74,15 @@ VPS.
   - as chaves SSH e as configurações feitas à mão que não estejam no script
     perdem-se na migração.
 
+## Nota de 05/10/2026 — contas dos operadores nos registos
+
+O número e o login da conta do GitHub do Diogo e do Bruno, que o MCP da VPS
+grava (ADR-0033; auditoria `docs/16`), entram na excepção dos registos
+técnicos do ponto 4, **com 14 dias, como os endereços IP**. Decisão do Diogo:
+*«14 dias, como os IP»*. Aplicado no `logrotate-eurolify` (`acoes.log`) e no
+registo do contentor do MCP, que passa para o diário do sistema
+(`journald-eurolify.conf`, 14 dias). Pormenor no `docs/17` §3.
+
 ## O que ficou por verificar
 
 - A data de fim (ponto 3).

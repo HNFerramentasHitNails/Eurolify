@@ -86,7 +86,7 @@ arrancar_mcp() {
     --security-opt no-new-privileges \
     --read-only --tmpfs /tmp \
     --no-healthcheck \
-    --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+    --log-driver journald --log-opt tag=eurolify-mcp \
     "$1" node dist/servidor.js >/dev/null
 }
 

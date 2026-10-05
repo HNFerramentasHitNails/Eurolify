@@ -53,8 +53,8 @@ do CIVA, `docs/03`, **W**), e o Comerciante ainda não emite faturas.
 | Quem mudou o estado e porquê | `transicao_estado` | o mesmo — **C** | idem | só se acrescenta (§5 da auditoria: falta o gatilho que o garanta) |
 | Prova de verificação | `prova_verificacao` | o mesmo — **C** | idem | `rever_ate` não é prazo de retenção |
 | Endereços IP | registos da máquina | 14 dias | apagar | já aplicado |
-| Conta e login dos operadores | registo do contentor do MCP | **sem prazo por tempo**: roda por tamanho (3 × 10 MB, `eurolify-publicar`) | — | **ponto aberto** |
-| Número da conta dos operadores | `/var/log/eurolify/acoes.log` | **sem prazo**: o ficheiro não roda (procurei regras de rotação em `infra/vps`: nenhuma) | — | **ponto aberto**: propor 14 dias, como os IP, ou guardar como prova das acções |
+| Conta e login dos operadores | registo do contentor do MCP | **14 dias**: o contentor escreve no diário do sistema (`--log-driver journald`, `eurolify-publicar`), a partir da publicação seguinte | apagar | Diogo, 05/10/2026: *«14 dias, como os IP»* |
+| Número da conta dos operadores | `/var/log/eurolify/acoes.log` | **14 dias** (`logrotate-eurolify`) | apagar | idem; antes não rodava |
 | Número da conta dos operadores | diário do sistema (`logger`) | 14 dias (`journald-eurolify.conf`) | apagar | já aplicado |
 | Cópias | OVH Object Storage | 14 dias | apagar | um apagamento propaga-se quando a cópia expira (`eu-gdpr-privacy`) |
 

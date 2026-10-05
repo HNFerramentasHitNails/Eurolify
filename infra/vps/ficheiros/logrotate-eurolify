@@ -1,0 +1,14 @@
+# Eurolify (infra/vps). O registo de acções guarda o número da conta do
+# GitHub de quem pede pelo MCP: 14 dias, como os endereços IP (Diogo,
+# 05/10/2026, ADR-0018). Escreve-se por acrescento a cada linha (registar,
+# comum.sh), por isso não é preciso avisar nenhum serviço.
+/var/log/eurolify/acoes.log
+{
+	daily
+	rotate 14
+	maxage 14
+	missingok
+	notifempty
+	compress
+	delaycompress
+}
