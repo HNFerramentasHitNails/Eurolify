@@ -5,6 +5,7 @@ import {
   mcpAuthRouter,
 } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { Confirmacoes } from "./confirmacoes.js";
 import { criarServidorMcp } from "./ferramentas.js";
 import type { AutorizacaoGitHub } from "./oauth.js";
 import type { FilaDePedidos } from "./pedidos.js";
@@ -29,6 +30,9 @@ export function criarApp({
   app.disable("x-powered-by");
 
   const urlMcp = new URL(`${urlPublico}/mcp`);
+  // Os códigos de confirmação das acções (#92) vivem no processo, entre
+  // pedidos HTTP; um reinício do MCP apaga os que estavam por confirmar.
+  const confirmacoes = new Confirmacoes();
 
   app.get("/health", (_req, res) => {
     res.json({ estado: "ok" });
@@ -63,7 +67,7 @@ export function criarApp({
         typeof req.auth?.extra?.["login"] === "string"
           ? req.auth.extra["login"]
           : "?";
-      const servidor = criarServidorMcp(fila, () => login);
+      const servidor = criarServidorMcp(fila, () => login, confirmacoes);
       // Sem sessões: cada pedido HTTP é independente; resposta em JSON simples.
       const transporte = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
