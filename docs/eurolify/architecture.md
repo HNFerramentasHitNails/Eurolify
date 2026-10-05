@@ -219,7 +219,7 @@ respetivos gates.»* — responde à P3 do `docs/14` (ADR-0034).
 
 ## 6. O que este documento não decide
 
-- As perguntas P1, P2 e P4 a P7 do Catálogo (`docs/14` §9).
+- As perguntas P1, P2 e P4 a P7 do Catálogo: decididas no `docs/14` §9 (Diogo, 05/10/2026; `docs/06`, AR), não aqui.
 - Se as skills do pacote se instalam (ADR-0034: usadas a partir do zip).
 - Portais de distribuidor, franchising e royalties em que fase.
 - O preenchimento de qualquer regra nacional: cada uma entra com fonte oficial

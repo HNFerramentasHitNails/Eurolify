@@ -1,11 +1,11 @@
 # Domínio Catálogo — modelo e lista da API
 
-> **Versão de 04/10/2026, em desenho** (issue #36). É o primeiro dos desenhos
-> que o [ADR-0023](adr/0023-ok-para-codigo.md) pede antes do código de um
-> domínio. Faltam o modelo em tabela e a lista da API em tabela
-> ([`05-fases-e-mvp.md`](05-fases-e-mvp.md), Fase 0). **O código do Catálogo
-> só começa depois de este documento estar no `main` e de as perguntas da §9
-> estarem decididas** pelo Diogo ou pelo Bruno.
+> **Versão de 05/10/2026** (issue #36). É o primeiro dos desenhos que o
+> [ADR-0023](adr/0023-ok-para-codigo.md) pede antes do código de um domínio:
+> o modelo em tabela (§3) e a lista da API em tabela (§7)
+> ([`05-fases-e-mvp.md`](05-fases-e-mvp.md), Fase 0). **As perguntas da §9
+> estão decididas** (P3 a 04/10/2026; as outras pelo Diogo a 05/10/2026, que
+> aceitou as propostas; `docs/06`, AR): o código do Catálogo pode começar.
 >
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
 > `product-compliance-eu`, `eu-localization`, `eu-vat-oss-ioss` (categoria
@@ -27,7 +27,7 @@ espelhado para o Eurolify pela API (`05-fases-e-mvp.md`, Fase 1, âmbito).
 
 | Entra na Fase 1 | Fica para depois |
 |---|---|
-| artigos, variantes, opções, kits e coleções (composição) | atributos definidos pelo comerciante — são «campos e objectos próprios» das extensões (`08-extensoes-de-terceiros.md`); **pergunta P4** |
+| artigos, variantes, opções, kits e coleções (composição) | atributos definidos pelo comerciante — são «campos e objectos próprios» das extensões (`08-extensoes-de-terceiros.md`); decidido na §9 (P4) |
 | media com texto alternativo por língua | colecções **por regra** (só manuais na Fase 1, **proposta**) |
 | categorias (árvore) e colecções manuais | feeds para Google, Meta e comparadores |
 | traduções por campo, com estado | tradução automática por IA (proposta, revista por uma pessoa: `eu-localization`) |
@@ -47,9 +47,9 @@ pelos eventos dele, nunca pelas tabelas (`platform-architect`, regra 2).
 | artigo, variante, opção, composição, media, categoria, colecção, tradução, publicação, SEO | **Catálogo** | — |
 | atributos regulamentares do artigo (valores declarados pelo comerciante) | **Catálogo** (`02-arquitectura.md`, linha do Catálogo) | guarda o valor, quem o preencheu e quando |
 | operador económico, pessoa responsável na UE, documentos de prova e validade, alertas e recolhas | **Conformidade de produto** (`02-arquitectura.md`) | o artigo aponta para o operador; pergunta à Conformidade «falta algum atributo obrigatório neste mercado?» |
-| fórmula com versão (INCI) | Conformidade de produto (**pergunta P2**) | a variante aponta para a versão da fórmula |
+| fórmula com versão (INCI) | Conformidade de produto (decidido na §9, P2) | a variante aponta para a versão da fórmula |
 | preço, lista de preços, histórico de 30 dias, promoções | **Preços e mercados** | a publicação pergunta «há preço neste mercado, e não é 0,00 € sem ser gratuito?» |
-| mercado (país + moeda + línguas) e canal | **Preços e mercados** (`02-arquitectura.md`: «mercados (país + moeda + língua + canal)»; **pergunta P1**) | a publicação guarda o canal e o mercado pelos identificadores |
+| mercado (país + moeda + línguas) e canal | **Preços e mercados** (`02-arquitectura.md`: «mercados (país + moeda + língua + canal)»; decidido na §9, P1) | a publicação guarda o canal e o mercado pelos identificadores |
 | stock, disponível, reservas, lotes | **Stock** (`order-fulfilment`) | nenhum; a disponibilidade de um kit calcula-a o Stock a partir da composição do Catálogo |
 | categoria fiscal (a lista e o que significa) | **Motor de IVA** (`eu-vat-oss-ioss`) | o artigo guarda o **código** da categoria; a taxa nunca vive no Catálogo |
 | restrições de transporte (mercadorias perigosas) | **Envios** | o artigo guarda o número ONU e a classe; os Envios recusam serviços incompatíveis (`product-compliance-eu`) |
@@ -80,7 +80,7 @@ quando a loja tinha 1.043 à venda (13/09/2026, `catalog-pim`, regra 1).
 | `avisos` | texto traduzível | conforme o mercado | avisos e instruções **na língua do país** onde se vende (GPSR, **W**) |
 | `categorias` | lista de `cat_…` | não | |
 | `seo` | por língua: endereço amigável, título, descrição | não | o endereço amigável é único por loja e língua (**proposta**) |
-| `origem` | eurolify ou sistema externo (+ identificador lá) | sim | quando a ficha nasce no sistema de gestão do comerciante (`catalog-pim`, «Primeira regra»); o que se pode editar no Hub: **pergunta P5** |
+| `origem` | eurolify ou sistema externo (+ identificador lá) | sim | quando a ficha nasce no sistema de gestão do comerciante (`catalog-pim`, «Primeira regra»); o que se pode editar no Hub: decidido na §9 (P5) — os campos que vêm de lá ficam só de leitura |
 | `criado_em`, `actualizado_em`, `versao` | | sim | `versao` sobe a cada alteração; a escrita com versão antiga é recusada (**proposta**) |
 
 ### 3.2 Variante (`var_`)
@@ -98,7 +98,7 @@ A unidade vendável. Um artigo sem opções tem uma variante.
 | `unidade_de_venda` | código da lista do Eurolify | **sim** | unidade, caixa, par… (`catalog-pim`, regra 3: no Hub, artigo sem unidade travava a fatura) |
 | `conteudo_quantidade`, `conteudo_unidade` | inteiro + kg, l, m, m², m³ (e submúltiplos) | conforme o país | para o **preço por unidade** (Dir. 98/6/CE, arts. 2.º, 3.º e 5.º, **W**, `docs/03` linha 61: «o artigo guarda quantidade e unidade»); cada país pode dispensar produtos (art. 5.º) |
 | `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | inteiros | físico: peso sim | para os Envios |
-| `formula_versao_id` | referência à Conformidade | cosmético: sim | o lote sabe que versão leva (`product-compliance-eu`, «Fórmulas com versões»); **pergunta P2** |
+| `formula_versao_id` | referência à Conformidade | cosmético: sim | o lote sabe que versão leva (`product-compliance-eu`, «Fórmulas com versões»); decidido na §9 (P2) |
 | `onu`, `classe_adr` | texto | não | mercadorias perigosas (ADR/IATA, **C**, `product-compliance-eu`) |
 | `estado` | lista | sim | activa, arquivada. Arquivar uma variante **não arquiva o artigo** nem retira as outras (`catalog-pim`, regra 6: no Hub, arquivar um refill tirou 4 produtos do site, 27–28/08/2026) |
 | `posicao` | inteiro | sim | ordem no artigo |
@@ -261,8 +261,8 @@ em UTC e o **mínimo de dados** (o resto pede-se pela API) (`platform-architect`
 | `product.created` | artigo criado | `prd_…` |
 | `product.updated` | artigo, variante, opção, composição, media ou atributo alterado | `prd_…`, campos alterados (só os nomes) |
 | `product.published` | publicação passou a publicado | `prd_…`, `pub_…`, canal, mercado |
-| `product.unpublished` | publicação passou a arquivado | `prd_…`, `pub_…`, motivo — **pergunta P6** |
-| `product.archived` | artigo arquivado | `prd_…` — **pergunta P6** |
+| `product.unpublished` | publicação passou a arquivado | `prd_…`, `pub_…`, motivo — decidido na §9 (P6) |
+| `product.archived` | artigo arquivado | `prd_…` — decidido na §9 (P6) |
 
 Quem consome: Preços (preço por mercado), Stock (composição dos kits), Pesquisa
 e frontends (por webhook), linha do tempo.
@@ -341,26 +341,28 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 ## 8. Por onde é que isto ainda pode sair errado
 
 - **Duas fichas.** Um comerciante com sistema de gestão edita o artigo no Hub
-  do Eurolify e a ficha de lá não sabe. Depende da resposta à P5.
+  do Eurolify e a ficha de lá não sabe. A P5 decidiu que os campos que vêm de
+  lá ficam só de leitura no Hub: o risco fica se a API não o impuser (um teste).
 - **Uma verificação de publicação feita só uma vez.** O preço passa a 0,00 €
   depois de publicado, ou um documento da Conformidade caduca. A verificação
   tem de correr também quando Preços ou Conformidade avisam (eventos), e não
-  só ao publicar (**proposta**; liga-se à P6).
+  só ao publicar (**proposta**; os eventos da P6 já estão decididos).
 - **Listas cortadas.** A procura de artigos sem total explícito repete a lição
   4.7.
-- **SKU reutilizado.** Se a P7 (SKU arquivado) se decidir ao contrário, uma
-  encomenda antiga pode apontar para outro produto.
+- **SKU reutilizado.** A P7 decidiu que o SKU de uma variante arquivada não
+  volta a ser usado; se a base não o impuser (um teste), uma encomenda antiga
+  pode apontar para outro produto.
 - **A lista de campos regulamentares por categoria** não está validada por um
   técnico (**C** até lá).
 
 ## 9. Perguntas para o Diogo ou o Bruno
 
-| # | Pergunta | Proposta |
+| # | Pergunta | Proposta e decisão |
 |---|---|---|
-| P1 | Quem é dono do **canal**? O `02-arquitectura.md` põe o canal dentro do mercado, mas a `catalog-pim` publica por canal × mercado e a `eu-localization` define o mercado sem canal | canal e mercado são ambos de Preços e mercados; a publicação usa os dois |
-| P2 | De quem é a **fórmula com versão** (INCI)? Não aparece no `02-arquitectura.md` | Conformidade de produto, ao lado dos documentos e das recolhas; a variante aponta para ela |
+| P1 | Quem é dono do **canal**? O `02-arquitectura.md` põe o canal dentro do mercado, mas a `catalog-pim` publica por canal × mercado e a `eu-localization` define o mercado sem canal | ✅ **Decidido: canal e mercado são ambos de Preços e mercados; a publicação usa os dois** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
+| P2 | De quem é a **fórmula com versão** (INCI)? Não aparece no `02-arquitectura.md` | ✅ **Decidido: Conformidade de produto, ao lado dos documentos e das recolhas; a variante aponta para ela** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
 | P3 | Que **tipos de artigo** entram na Fase 1? | ✅ **Decidido pelo Diogo, 04/10/2026 (ADR-0034):** digital e cartão-oferta **desenham-se** com `digital-products-eu` e `gift-cards-eu` e **ficam desligados** até às portas deles; físico e serviço seguem sem esperar por eles |
-| P4 | Atributos definidos pelo comerciante na Fase 1? | não: entram com os «campos e objectos próprios» das extensões (`docs/08`) |
-| P5 | Comerciante com sistema de gestão: o que pode ser editado no Hub do Eurolify? | os campos que vêm de lá ficam só de leitura no Hub; as traduções, a media e a publicação editam-se no Eurolify |
-| P6 | Acrescentar `product.unpublished` e `product.archived` à lista de eventos (skill `platform-architect` e `02-arquitectura.md`)? | sim — sem eles, Preços, Stock e frontends não sabem que um artigo deixou de estar à venda |
-| P7 | Um SKU de uma variante arquivada pode voltar a ser usado? | não |
+| P4 | Atributos definidos pelo comerciante na Fase 1? | ✅ **Decidido: não: entram com os «campos e objectos próprios» das extensões (`docs/08`)** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
+| P5 | Comerciante com sistema de gestão: o que pode ser editado no Hub do Eurolify? | ✅ **Decidido: os campos que vêm de lá ficam só de leitura no Hub; as traduções, a media e a publicação editam-se no Eurolify** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
+| P6 | Acrescentar `product.unpublished` e `product.archived` à lista de eventos (skill `platform-architect` e `02-arquitectura.md`)? | ✅ **Decidido: sim — sem eles, Preços, Stock e frontends não sabem que um artigo deixou de estar à venda** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
+| P7 | Um SKU de uma variante arquivada pode voltar a ser usado? | ✅ **Decidido: não** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
