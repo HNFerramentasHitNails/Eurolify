@@ -375,7 +375,11 @@ senha_no_ficheiro() {
 # outra a seguir seria a que o docker usava (revisão do 6892dae, P2-1).
 ficheiro_e_so_a_linha() {
   local conteudo
-  conteudo="$(</etc/eurolify/migrar.env)" || return 1
+  # Ver primeiro se se pode ler: em certas versões do bash (5.2), um `$(<…)` a
+  # um ficheiro em falta, dentro de um `if`, pára o script com o `set -e`, e o
+  # `|| return 1` não o apanha (revisão do b43c89e, P2-2).
+  [[ -r /etc/eurolify/migrar.env ]] || return 1
+  conteudo="$(</etc/eurolify/migrar.env)" 2>/dev/null || return 1
   [[ -n "$1" && "$conteudo" == "$(linha_do_migrador "$1")" ]]
 }
 estado_da_ligacao_do_migrador() {
