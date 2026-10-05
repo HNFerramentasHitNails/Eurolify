@@ -1,5 +1,6 @@
 import { instante } from "./instante.js";
 import { ehLista, ehObjecto, valor } from "./mostrar.js";
+import { PAPEIS_DE_VALIDACAO } from "./tipos.js";
 import type {
   Decisao,
   EstadoLegal,
@@ -39,6 +40,30 @@ function regraEmVigor(regra: Regra, momento: number): boolean {
     return false;
   }
   return true;
+}
+
+/**
+ * A regra tem prova para decidir? Só `W` com o texto legal lido, ou uma
+ * validação profissional (docs/03: «uma linha C não entra numa decisão sem
+ * passar a W com o texto legal lido ou ser validada por um profissional»;
+ * §4.1 do docs/eurolify/architecture.md). Lista de aceitação: um valor
+ * estranho — marca em falta, `textoLido` que não é `true`, validação que não
+ * é objecto — dá «não pode». O validar recusa estas regras ao carregar.
+ */
+export function podeDecidir(regra: Regra): boolean {
+  const marca: unknown = regra.marca;
+  const textoLido: unknown = regra.textoLido;
+  if (marca === "W" && textoLido === true) return true;
+  const validacao: unknown = regra.validacao;
+  if (!ehObjecto(validacao)) return false;
+  const { por, papel, em } = validacao as Record<string, unknown>;
+  return (
+    typeof por === "string" &&
+    por.trim() !== "" &&
+    (PAPEIS_DE_VALIDACAO as readonly unknown[]).includes(papel) &&
+    typeof em === "string" &&
+    instante(em) !== null
+  );
 }
 
 /**
@@ -184,6 +209,18 @@ export function decidir(registo: Registo, pedido: PedidoDecisao): Decisao {
     );
     if (emVigor.length === 0) {
       motivos.push({ codigo: "sem_regra_em_vigor", dominio });
+      continue;
+    }
+    // Uma regra em vigor sem prova para decidir não se aplica: bloqueia o
+    // domínio (só acontece num registo que não passou pelo validar).
+    const semProva = emVigor.filter((regra) => !podeDecidir(regra));
+    if (semProva.length > 0) {
+      for (const regra of semProva)
+        motivos.push({
+          codigo: "regra_sem_prova",
+          dominio,
+          regra: `${valor(regra.id)}@${valor(regra.versao)}`,
+        });
       continue;
     }
     // Num território não mapeado nenhuma regra se dá como aplicada.

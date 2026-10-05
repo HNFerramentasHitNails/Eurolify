@@ -44,6 +44,9 @@ function regraTeste(parcial: Partial<Regra> & Pick<Regra, "id">): Regra {
     },
     verificadaEm: "2026-10-04T00:00:00Z",
     revistaPor: "teste",
+    marca: "W",
+    textoLido: true,
+    validacao: null,
     ...parcial,
   };
 }
@@ -1565,6 +1568,111 @@ describe("GET /paises", () => {
       expect(new Set(Object.values(pais.dominios))).toEqual(
         new Set(["por_verificar"]),
       );
+    }
+  });
+});
+
+describe("marca W/M/C: só decide uma regra com texto lido ou validação", () => {
+  const pedido: PedidoDecisao = {
+    pais: "PT",
+    dominios: ["consumidor"],
+    momento: AGORA,
+  };
+  const VALIDADA = {
+    por: "teste",
+    papel: "jurista",
+    em: "2026-10-04T00:00:00Z",
+  } as const;
+
+  it.each([
+    ["W com texto lido", { marca: "W", textoLido: true, validacao: null }],
+    ["C validada", { marca: "C", textoLido: false, validacao: VALIDADA }],
+    ["M validada", { marca: "M", textoLido: false, validacao: VALIDADA }],
+    [
+      "W só resumo, validada",
+      { marca: "W", textoLido: false, validacao: VALIDADA },
+    ],
+  ] as const)("%s: o registo vale e a decisão sai permitido", (_n, prova) => {
+    const registo = registoComPortugal([regraTeste({ id: "r", ...prova })]);
+    expect(errosDoRegisto(registo)).toEqual([]);
+    expect(decidir(registo, pedido).estado).toBe("permitido");
+  });
+
+  it.each([
+    ["C", { marca: "C", textoLido: false, validacao: null }],
+    ["M", { marca: "M", textoLido: false, validacao: null }],
+    ["W só resumo", { marca: "W", textoLido: false, validacao: null }],
+  ] as const)(
+    "%s sem validação: o validar recusa e o decidir não a aplica",
+    (_n, prova) => {
+      const registo = registoComPortugal([regraTeste({ id: "r", ...prova })]);
+      expect(errosDoRegisto(registo)).toEqual([
+        expect.stringContaining("não pode decidir"),
+      ]);
+      const decisao = decidir(registo, pedido);
+      expect(decisao.estado).toBe("revisao_necessaria");
+      expect(decisao.regrasAplicadas).toEqual([]);
+      expect(decisao.motivos).toEqual([
+        { codigo: "regra_sem_prova", dominio: "consumidor", regra: "r@1" },
+      ]);
+    },
+  );
+
+  it("uma proposta C entra sem validação (nunca decide)", () => {
+    const registo = registoComPortugal([
+      regraTeste({
+        id: "r",
+        estadoLegal: "proposta",
+        marca: "C",
+        textoLido: false,
+      }),
+    ]);
+    expect(errosDoRegisto(registo)).toEqual([]);
+  });
+
+  it("uma regra sem prova não deixa as outras do domínio decidir", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "boa" }),
+      regraTeste({ id: "ma", marca: "C", textoLido: false }),
+    ]);
+    expect(decidir(registo, pedido).estado).toBe("revisao_necessaria");
+  });
+
+  it.each([
+    [{ marca: "X" }, "marca desconhecida"],
+    [{ marca: undefined }, "marca desconhecida"],
+    [{ textoLido: "sim" }, "textoLido não é true nem false"],
+    [{ marca: "C", textoLido: true }, "textoLido só existe numa marca W"],
+    [{ validacao: "jurista" }, "validação que não é objecto"],
+    [{ validacao: { ...VALIDADA, por: " " } }, "validação sem «por»"],
+    [
+      { validacao: { ...VALIDADA, papel: "advogado" } },
+      "papel de validação desconhecido",
+    ],
+    [{ validacao: { ...VALIDADA, em: "ontem" } }, "data de validação inválida"],
+  ])("valores estranhos são recusados: %j", (estranho, mensagem) => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "r", ...(estranho as Partial<Regra>) }),
+    ]);
+    expect(errosDoRegisto(registo).join("\n")).toContain(mensagem);
+  });
+
+  it("o decidir não aceita uma validação estranha como prova", () => {
+    for (const validacao of [
+      { ...VALIDADA, papel: "advogado" },
+      { ...VALIDADA, por: "" },
+      { ...VALIDADA, em: "ontem" },
+      "jurista",
+    ]) {
+      const registo = registoComPortugal([
+        regraTeste({
+          id: "r",
+          marca: "C",
+          textoLido: false,
+          validacao: validacao as unknown as Regra["validacao"],
+        }),
+      ]);
+      expect(decidir(registo, pedido).estado).toBe("revisao_necessaria");
     }
   });
 });

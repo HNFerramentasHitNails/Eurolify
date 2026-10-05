@@ -92,6 +92,25 @@ export const ESTADOS_LEGAIS = [
 
 export type EstadoLegal = (typeof ESTADOS_LEGAIS)[number];
 
+/** A marca de verificação, com o significado do docs/03 (num sítio só). */
+export const MARCAS = ["W", "M", "C"] as const;
+export type Marca = (typeof MARCAS)[number];
+
+/** Quem pode validar uma regra (coluna «Quem valida» do docs/03). */
+export const PAPEIS_DE_VALIDACAO = [
+  "jurista",
+  "contabilista",
+  "tecnico_regulamentar",
+] as const;
+export type PapelDeValidacao = (typeof PAPEIS_DE_VALIDACAO)[number];
+
+export interface Validacao {
+  por: string;
+  papel: PapelDeValidacao;
+  /** Instante ISO 8601 com fuso (instante.ts). */
+  em: string;
+}
+
 export interface Regra {
   /**
    * Única em todo o registo: uma `id` identifica uma regra de um país e de um
@@ -118,6 +137,15 @@ export interface Regra {
   base: { url: string; titulo: string; artigo: string };
   verificadaEm: string;
   revistaPor: string;
+  /**
+   * W, M ou C (docs/03). Só decide — fora de uma `proposta` — uma regra com
+   * `W` e o texto legal lido, ou com validação profissional (§4.1 do
+   * docs/eurolify/architecture.md; `podeDecidir` em decidir.ts).
+   */
+  marca: Marca;
+  /** Num `W`: o texto legal foi lido, e não só o resumo. Fora de `W`, false. */
+  textoLido: boolean;
+  validacao: Validacao | null;
 }
 
 export interface Registo {
@@ -145,6 +173,7 @@ export type Motivo =
   | { codigo: "territorio_nao_mapeado"; territorio: string }
   | { codigo: "dominio_por_verificar"; dominio: Dominio }
   | { codigo: "sem_regra_em_vigor"; dominio: Dominio }
+  | { codigo: "regra_sem_prova"; dominio: Dominio; regra: string }
   | { codigo: "sem_regra_aplicada" };
 
 export interface Decisao {

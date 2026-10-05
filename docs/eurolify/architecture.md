@@ -138,6 +138,9 @@ este motor antes de agir.
 | | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59, não `-00:00` — na RFC 3339 é «fuso desconhecido»; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
+| | `marca` | `W`, `M` ou `C`, com o significado do `docs/03` (tabela «Como ler a coluna Verificação»); `textoLido` diz se, num `W`, o texto legal foi lido (e não só o resumo) — decisão do Diogo, 05/10/2026 (*«avança com a marca W/M/C no motor de regras»*; P1 da auditoria `docs/16`) |
+| | `validacao` | `null` ou `{ por, papel, em }`, com `papel` = `jurista`, `contabilista` ou `tecnico_regulamentar`: a validação profissional da regra |
+| | **pode decidir** | uma regra que não é `proposta` só entra num domínio `verificado` se tiver **`W` com texto lido** ou **validação profissional** — a regra do `docs/03` («uma linha C não entra numa decisão sem passar a W com o texto legal lido ou ser validada por um profissional»), estendida a `M` e a `W` só de resumo. O `validar` recusa o registo; o `decidir`, se lhe chegar uma assim, não a aplica (`regra_sem_prova`) |
 
 **Domínios obrigatórios** (do pacote): consumidor, IVA, faturação, privacidade
 e marketing, produto e ambiente, acessibilidade e plataforma, pagamentos.
