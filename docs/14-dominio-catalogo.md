@@ -224,10 +224,43 @@ lote de cada componente vai na linha expedida (`product-compliance-eu`; ADR-0022
 Árvore de navegação: `pai_id`, `nome` e `endereco_amigavel` traduzíveis,
 `posicao`. Sem ciclos. Arquivar uma categoria não arquiva os artigos.
 
+Regras da parte 3a do código (migração 0006; as marcadas **proposta** são
+dela):
+
+- uma categoria nasce activa; arquivar e repor são livres; arquivar não tira
+  os artigos da categoria;
+- uma categoria activa não fica dentro de uma arquivada, e uma categoria com
+  subcategorias activas não se arquiva: arquiva-se de baixo para cima e
+  repõe-se de cima para baixo (**proposta**: na loja, a subcategoria ficava
+  sem caminho);
+- um artigo só entra numa categoria activa; uma arquivada que o artigo já
+  tinha fica quando se muda o resto da lista (**proposta**, como os
+  componentes dos kits, §3.4);
+- mudar as categorias de um artigo é uma escrita do artigo: leva a versão
+  lida e sobe-a (só se a lista mudou);
+- categorias e colecções **não se apagam**: arquivam-se (**proposta**, o rasto
+  da `catalog-pim`, regra 7);
+- o endereço amigável é obrigatório, até 100 caracteres, em minúsculas
+  **sem acentos**, algarismos e hífenes (ex.: `unhas-de-gel`), e único por
+  comerciante entre as categorias e, à parte, entre as colecções, também as
+  arquivadas (**proposta**: um endereço antigo não passa a mostrar outra
+  coisa). Limitação: numa língua com outro alfabeto (grego, búlgaro) o
+  endereço da língua de origem fica transliterado; os endereços por língua
+  são da parte 3b (traduções);
+- as escritas nas categorias de um comerciante passam por uma fila só delas
+  (o ciclo e as subcategorias activas olham para várias linhas).
+
 ### 3.7 Colecção (`col_`)
 
 Lista **manual** de artigos, com ordem: `nome` e `descricao` traduzíveis,
 `artigos` (lista ordenada). As colecções por regra ficam para depois (§1).
+
+Na parte 3a do código (migração 0006): `endereco_amigavel` com as regras da
+categoria (§3.6), estado activa ou arquivada, versão. A lista substitui-se
+inteira, pela ordem dada, sem repetidos, e sobe a versão da colecção (só se a
+lista ou a ordem mudaram). Qualquer artigo pode entrar, em qualquer estado: a
+loja só mostra os publicados (§7.2). Apagar o rascunho de um artigo tira-o das
+categorias e das colecções.
 
 ### 3.8 Tradução
 
@@ -481,7 +514,12 @@ repetido no artigo), `catalog.option_value_duplicate` e `catalog.option_repeated
 (dois valores da mesma opção numa variante), `catalog.option_values_required` e
 `catalog.retry` (duas transacções esperaram uma pela outra; nada ficou
 gravado, tenta-se outra vez); `catalog.option_combination_duplicate` já estava
-aqui.
+aqui. Da parte 3a (também **proposta**): `catalog.category_cycle`,
+`catalog.category_archived` (pai arquivado, ou um artigo a entrar numa
+categoria arquivada), `catalog.category_has_children`,
+`catalog.category_duplicate` (a mesma categoria duas vezes na lista),
+`catalog.slug_invalid`, `catalog.slug_duplicate` e
+`catalog.collection_product_duplicate`.
 
 ### 7.2 API da Loja
 

@@ -223,6 +223,48 @@ export interface TabelaVarianteValor {
   valor_id: string;
 }
 
+// Catálogo, parte 3a (migração 0006; docs/14 §3.6 e §3.7).
+export const ESTADOS_CATEGORIA = ["activa", "arquivada"] as const;
+export type EstadoCategoria = (typeof ESTADOS_CATEGORIA)[number];
+
+export interface TabelaCategoria {
+  id: Generated<string>;
+  comerciante_id: string;
+  pai_id: string | null;
+  nome: string;
+  endereco_amigavel: string;
+  posicao: ColumnType<number, number | undefined>;
+  estado: ColumnType<EstadoCategoria, never, EstadoCategoria>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaArtigoCategoria {
+  comerciante_id: string;
+  artigo_id: string;
+  categoria_id: string;
+}
+
+export interface TabelaColecao {
+  id: Generated<string>;
+  comerciante_id: string;
+  nome: string;
+  descricao: string | null;
+  endereco_amigavel: string;
+  estado: ColumnType<EstadoCategoria, never, EstadoCategoria>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaColecaoArtigo {
+  comerciante_id: string;
+  colecao_id: string;
+  artigo_id: string;
+  posicao: number;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -236,4 +278,8 @@ export interface BaseDados {
   opcao: TabelaOpcao;
   valor_opcao: TabelaValorOpcao;
   variante_valor: TabelaVarianteValor;
+  categoria: TabelaCategoria;
+  artigo_categoria: TabelaArtigoCategoria;
+  colecao: TabelaColecao;
+  colecao_artigo: TabelaColecaoArtigo;
 }
