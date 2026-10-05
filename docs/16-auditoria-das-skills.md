@@ -204,4 +204,10 @@ pedido de alteração.
   três papéis no `docs/02` e `inventory.adjusted` na `order-fulfilment`.
   A montra com kit e temas por comerciante fica na **Fase 2** (Diogo,
   05/10/2026: «Fase 2»; `docs/05`).
-- Por fazer: os pontos de segurança e de código (pedidos próprios).
+- **Segurança — CI:** fluxo `vigiar` (gitleaks em todo o histórico; `pnpm
+  audit` alto/crítico no `main`, de manhã e nos pedidos que mexem nas
+  dependências; issue automático se a corrida da manhã falhar). Fica em
+  aberto: as acções e as imagens fixadas por resumo não são vigiadas, não há
+  actualização por rotina, e o `segredos` não está nas verificações
+  obrigatórias (decisão do Diogo ou do Bruno).
+- Por fazer: os outros pontos de segurança e os de código (pedidos próprios).
