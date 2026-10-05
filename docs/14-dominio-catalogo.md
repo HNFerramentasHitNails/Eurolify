@@ -23,6 +23,9 @@
 > Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 16 testes):
 > ver §3.4, com as regras **proposta** desta parte.
 >
+> Parte 2b — opções e valores (migração `0005_catalogo_opcoes.sql`, 10 testes):
+> ver §3.3, com as regras **proposta** desta parte.
+>
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
 > `product-compliance-eu`, `eu-localization`, `eu-vat-oss-ioss` (categoria
 > fiscal) e `consumer-rights-eu` (preço por unidade). Arquitectura de base:
@@ -126,6 +129,23 @@ A unidade vendável. Um artigo sem opções pode ter **várias variantes**, dist
 | Opção | `artigo_id`, `nome` (traduzível), `posicao` | ex.: «Cor», «Tamanho» |
 | Valor da opção | `opcao_id`, `valor` (traduzível), `posicao` | ex.: «Vermelho 12» |
 
+Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
+§3.2):
+
+- um artigo **sem opções** pode ter várias variantes (P10, decidido);
+- com opções, cada variante **activa** leva **um valor de cada opção**, e duas
+  variantes activas do mesmo artigo **não têm a mesma combinação** (§3.2). Uma
+  variante arquivada não conta: a combinação dela volta a ficar livre;
+- as opções só se criam e apagam enquanto o artigo é **rascunho**; valores
+  novos acrescentam-se sempre;
+- os valores de uma variante dão-se ao criá-la; depois só mudam num rascunho
+  (depois de vendida, a variante não muda de identidade);
+- num rascunho a combinação pode estar incompleta; activar ou repor o artigo
+  exige-a completa; num artigo que já não é rascunho verifica-se no fim de cada
+  transacção (uma variante nova entra já com todos os valores);
+- nomes de opção únicos no artigo, valores únicos na opção, sem distinguir
+  maiúsculas (como o SKU, P9); até 100 caracteres.
+
 ### 3.4 Composição — kits e coleções (`cmp_`)
 
 Uma variante pode ser composta: tem componentes, que são outras variantes.
@@ -149,14 +169,20 @@ aqui):
   variantes de rascunhos); apagar o rascunho do kit leva a composição, com o
   kit e os componentes no mesmo artigo por qualquer ordem, e também com o kit
   arquivado (P8). Fora de apagar o rascunho, a composição de um kit arquivado
-  não muda, nem num rascunho (nem esvaziá-la). **Limitação conhecida:** o rascunho de um artigo cuja
-  variante está no kit de **outro** artigo só se apaga depois de a tirar desse
-  kit (um rascunho não se arquiva);
+  não muda, nem num rascunho (nem esvaziá-la). **Limitação conhecida:** o
+  rascunho de um artigo cuja variante está no kit de **outro** artigo só se
+  apaga depois de a tirar desse kit (um rascunho não se arquiva);
 - a quantidade de um componente é um inteiro > 0, **sem limite máximo** (se o
   Stock precisar de um, decide-se lá);
 - a lista substitui-se inteira, pela ordem dada; lista vazia = deixa de ser kit;
 - um componente pode ser de qualquer artigo do mesmo comerciante, também do
-  próprio artigo do kit.
+  próprio artigo do kit;
+- as escritas de kits de um comerciante ficam numa fila (bloqueio por
+  comerciante). Uma escrita por SQL directo com o comerciante de **outro** é
+  recusada pelo RLS, mas antes pode esperar pela fila dele (cerca de 600 ms,
+  medido na revisão do #81); não a prende, porque o erro larga os bloqueios.
+  Pelo repositório não se chega lá. (O comentário da 0004 diz só «não prende a
+  fila»; a 0004 já está aplicada e não se reescreve.)
 
 A **disponibilidade deriva dos componentes**, calculada pelo Stock (no Hub, 72
 de 72 compostos batiam com os componentes, 16/09/2026, `catalog-pim`). O
@@ -370,7 +396,11 @@ Da parte 1 do código (também **proposta**): `catalog.invalid_transition`,
 `catalog.invalid_field` (outro valor recusado, por exemplo uma unidade que não
 está na lista). Da parte 2a (também **proposta**): `catalog.component_archived`,
 `catalog.component_duplicate` e `catalog.component_in_use` (apagar uma variante
-que é componente de um kit).
+que é componente de um kit). Da parte 2b (também **proposta**):
+`catalog.options_incomplete`, `catalog.option_duplicate` (nome de opção
+repetido no artigo), `catalog.option_value_duplicate` e `catalog.option_repeated`
+(dois valores da mesma opção numa variante); `catalog.option_combination_duplicate`
+já estava aqui.
 
 ### 7.2 API da Loja
 

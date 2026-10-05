@@ -195,6 +195,34 @@ export interface TabelaComponente {
   posicao: ColumnType<number, number | undefined>;
 }
 
+// Catálogo, parte 2b (migração 0005; docs/14 §3.3).
+export interface TabelaOpcao {
+  id: Generated<string>;
+  comerciante_id: string;
+  artigo_id: string;
+  nome: string;
+  posicao: ColumnType<number, number | undefined>;
+  criado_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaValorOpcao {
+  id: Generated<string>;
+  comerciante_id: string;
+  artigo_id: string;
+  opcao_id: string;
+  valor: string;
+  posicao: ColumnType<number, number | undefined>;
+  criado_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaVarianteValor {
+  comerciante_id: string;
+  artigo_id: string;
+  variante_id: string;
+  opcao_id: string;
+  valor_id: string;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -205,4 +233,7 @@ export interface BaseDados {
   artigo: TabelaArtigo;
   variante: TabelaVariante;
   componente: TabelaComponente;
+  opcao: TabelaOpcao;
+  valor_opcao: TabelaValorOpcao;
+  variante_valor: TabelaVarianteValor;
 }

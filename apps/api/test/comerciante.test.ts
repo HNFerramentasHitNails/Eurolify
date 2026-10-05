@@ -94,6 +94,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0002_catalogo_artigos",
         "0003_sku_sem_maiusculas",
         "0004_catalogo_kits",
+        "0005_catalogo_opcoes",
       ]);
     });
 
@@ -128,9 +129,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           });
         }
       }
-      // 6 do Comerciante (0001) e 3 do Catálogo (0002 e 0004).
+      // 6 do Comerciante (0001) e 6 do Catálogo (0002, 0004 e 0005).
       expect(rows.filter((r) => !r.tabela.startsWith("kysely_"))).toHaveLength(
-        9,
+        12,
       );
     });
 
