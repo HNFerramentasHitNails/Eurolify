@@ -18,4 +18,4 @@
 - A revisão do agente (ADR-0035) — por fazer quando escrevi isto.
 - A 0006 na VPS (chega com a publicação ao juntar o pedido).
 - Endereços amigáveis em línguas com outro alfabeto: na língua de origem ficam transliterados (limitação escrita no `docs/14` §3.6); os endereços por língua são da parte 3b.
-- Para a 3b: a língua de origem do catálogo. O `docs/15` tem duas — `comerciante.lingua` (a do Hub) e `loja.lingua_origem` (a do catálogo), mas o artigo é do comerciante, não da loja. Falta a decisão do Diogo ou do Bruno.
+- Para a 3b: a língua de origem do catálogo ficou decidida (P13, `docs/06` AW; Diogo, 05/10/2026: *«sim, uma só língua de origem por comerciante»*): passa da loja para o comerciante com a 3b.

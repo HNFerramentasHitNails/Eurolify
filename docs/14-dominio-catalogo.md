@@ -265,7 +265,9 @@ categorias e das colecções.
 ### 3.8 Tradução
 
 Uma linha por **recurso × campo × língua** (`catalog-pim`, regra 5;
-`eu-localization`).
+`eu-localization`). O original está na **língua de origem do comerciante**,
+uma só para todo o catálogo (P13); não há tradução para a própria língua de
+origem.
 
 | Campo | Notas |
 |---|---|
@@ -581,3 +583,4 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P10 | Um artigo **sem opções** pode ter várias variantes? (O §3.2 dizia que tinha uma; o código da parte 1 deixa várias, como `GEL-001` e `GEL-REFILL`) | ✅ **Decidido: sim** (Diogo, 05/10/2026: *«sim, um artigo sem opções pode ter várias variantes»*). A regra «a combinação não se repete» só vale para artigos com opções |
 | P11 | O `bilhete` e o `servico` à distância ficam desligados até terem classificação, ou classificam-se já? (Q2 do `docs/16`) | ✅ **Decidido: classificam-se já** (Diogo, 05/10/2026: *«podemos classificar já»*); sem classificação nenhum artigo se publica — §3.10, «Classificação do artigo» |
 | P12 | Num artigo já à venda, pode mudar-se o **texto** de uma opção ou de um valor (ex.: corrigir «Vermleho»)? | ✅ **Decidido: não** (Diogo, 05/10/2026: *«não, bloqueia fora do rascunho»*). Só num rascunho; a ordem muda sempre. Se fizer falta corrigir gralhas, abre-se depois com o registo de quem mudou o quê (C7) |
+| P13 | Em que língua se escreve o original do catálogo? O `docs/15` tinha a língua de origem **na loja**, mas o artigo é do comerciante: com uma loja em português e outra em espanhol, o mesmo artigo tinha duas | ✅ **Decidido: uma só língua de origem por comerciante** (Diogo, 05/10/2026: *«sim, uma só língua de origem por comerciante»*). Passa da loja para o comerciante com a parte 3b do código |
