@@ -142,6 +142,12 @@ export const ORIGENS_GTIN = [
 ] as const;
 export type OrigemGtin = (typeof ORIGENS_GTIN)[number];
 
+// De onde vem o artigo (migração 0002, `artigo_origem_check`): criado no
+// Eurolify ou espelhado de um sistema externo, com `origem_ref` (auditoria
+// docs/16, «Código»).
+export const ORIGENS_ARTIGO = ["eurolify", "externo"] as const;
+export type OrigemArtigo = (typeof ORIGENS_ARTIGO)[number];
+
 export const ESTADOS_VARIANTE = ["activa", "arquivada"] as const;
 export type EstadoVariante = (typeof ESTADOS_VARIANTE)[number];
 
@@ -229,10 +235,7 @@ export interface TabelaArtigo {
   descricao: string | null;
   marca: string | null;
   categoria_fiscal: string | null;
-  origem: ColumnType<
-    "eurolify" | "externo",
-    "eurolify" | "externo" | undefined
-  >;
+  origem: ColumnType<OrigemArtigo, OrigemArtigo | undefined>;
   origem_ref: string | null;
   ja_esteve_activo: ColumnType<boolean, never, never>;
   criado_em: ColumnType<Date, never, never>;
