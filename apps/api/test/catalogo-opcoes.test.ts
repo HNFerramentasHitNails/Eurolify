@@ -11,13 +11,17 @@ import {
   criarVarianteComValores,
   definirValoresDaVariante,
   ErroCatalogo,
+  traduzir,
   mudarEstadoArtigo,
   opcoesDoArtigo,
   valoresDaVariante,
   varianteComSku,
   type DadosVariante,
 } from "../src/catalogo/repositorio.js";
-import { registarComerciante } from "../src/comerciante/repositorio.js";
+import {
+  comComerciante,
+  registarComerciante,
+} from "../src/comerciante/repositorio.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -43,6 +47,13 @@ async function codigoDoErro(promessa: Promise<unknown>): Promise<string> {
   }
   return "sem erro";
 }
+
+it("um impasse ou conflito de serialização é «tentar outra vez» (revisão do #83, P2-2)", () => {
+  for (const code of ["40P01", "40001"]) {
+    const erro = Object.assign(new Error("x"), { code });
+    expect((traduzir(erro) as ErroCatalogo).codigo).toBe("catalog.retry");
+  }
+});
 
 describe.skipIf(URL_BASE === undefined)("opções na base", () => {
   let base: BaseDeTeste;
@@ -86,6 +97,20 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
     };
   }
 
+  /**
+   * SQL directo como `c` (o eurolify_api, com o RLS), numa transacção, com os
+   * erros da base traduzidos como no repositório.
+   */
+  async function sqlComo(c: string, texto: string) {
+    try {
+      return await comComerciante(base.api, c, (trx) =>
+        sql.raw(texto).execute(trx),
+      );
+    } catch (erro) {
+      throw traduzir(erro);
+    }
+  }
+
   async function esperaBloqueio(promessa: Promise<unknown>): Promise<boolean> {
     const estado = { acabou: false };
     const fim = () => {
@@ -122,14 +147,14 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
   it("nomes de opção e valores não se repetem, sem distinguir maiúsculas", async () => {
     const { c, artigo, cor } = await verniz();
     expect(
-      await codigoDoErro(criarOpcao(base.api, c, artigo, " cor ", [])),
+      await codigoDoErro(criarOpcao(base.api, c, artigo, " cor ", ["X"])),
     ).toBe("catalog.option_duplicate");
     expect(
       await codigoDoErro(acrescentarValor(base.api, c, cor.id, "NUDE")),
     ).toBe("catalog.option_value_duplicate");
-    expect(await codigoDoErro(criarOpcao(base.api, c, artigo, "   ", []))).toBe(
-      "catalog.invalid_field",
-    );
+    expect(
+      await codigoDoErro(criarOpcao(base.api, c, artigo, "   ", ["X"])),
+    ).toBe("catalog.invalid_field");
   });
 
   it("sem opções, várias variantes são permitidas e o artigo activa (P10)", async () => {
@@ -268,7 +293,7 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
     });
     const varB = await criarVariante(base.api, b, artigoB, variante("MEU-1"));
     expect(
-      await codigoDoErro(criarOpcao(base.api, b, a.artigo, "Intrusa", [])),
+      await codigoDoErro(criarOpcao(base.api, b, a.artigo, "Intrusa", ["X"])),
     ).toBe("catalog.not_found");
     expect(
       await codigoDoErro(acrescentarValor(base.api, b, a.cor.id, "X")),
@@ -346,5 +371,304 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
     expect(await segunda).toBe("catalog.option_combination_duplicate");
     expect(await varianteComSku(base.api, c, "VC-1")).toBeDefined();
     expect(await varianteComSku(base.api, c, "VC-2")).toBeUndefined();
+  });
+
+  it("apagar uma opção que deixa duas variantes iguais é recusado (revisão do #83, P1-1)", async () => {
+    const { c, artigo, tamanho, v } = await verniz();
+    // Duas variantes só com a cor (o tamanho ficou por dar: rascunho).
+    for (const sku of ["AP-1", "AP-2"]) {
+      const id = await criarVariante(base.api, c, artigo, variante(sku));
+      await definirValoresDaVariante(base.api, c, id, [v.vermelho]);
+    }
+    expect(
+      await codigoDoErro(
+        sqlComo(c, `delete from opcao where id = '${tamanho.id}'`),
+      ),
+    ).toBe("catalog.option_combination_duplicate");
+    expect((await opcoesDoArtigo(base.api, c, artigo)).length).toBe(2);
+  });
+
+  it("muitas variantes de uma vez: a verificação corre uma vez por artigo (revisão do #83, P2-1)", async () => {
+    const c = await registarComerciante(base.api, NOVO);
+    const artigo = await criarArtigo(base.api, c, {
+      tipo: "fisico",
+      nome: "Paleta",
+    });
+    const nomes = Array.from({ length: 16 }, (_, i) => `N${String(i)}`);
+    const cor = await criarOpcao(base.api, c, artigo, "Cor", nomes);
+    const tam = await criarOpcao(base.api, c, artigo, "Tamanho", nomes);
+    // 256 variantes e 512 valores numa só transacção (com uma verificação
+    // por linha, o revisor mediu 23 s para 256).
+    const inicio = Date.now();
+    await comComerciante(base.api, c, async (trx) => {
+      let n = 0;
+      for (const a of cor.valores) {
+        for (const b of tam.valores) {
+          const { id } = await trx
+            .insertInto("variante")
+            .values({
+              comerciante_id: c,
+              artigo_id: artigo,
+              sku: `PL-${String(n)}`,
+              unidade_de_venda: "unidade",
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          await trx
+            .insertInto("variante_valor")
+            .values([
+              {
+                comerciante_id: c,
+                artigo_id: artigo,
+                variante_id: id,
+                opcao_id: cor.id,
+                valor_id: a.id,
+              },
+              {
+                comerciante_id: c,
+                artigo_id: artigo,
+                variante_id: id,
+                opcao_id: tam.id,
+                valor_id: b.id,
+              },
+            ])
+            .execute();
+          n += 1;
+        }
+      }
+    });
+    expect(Date.now() - inicio).toBeLessThan(8_000);
+    await mudarEstadoArtigo(base.api, c, artigo, 1, "activo");
+  }, 60_000);
+
+  it("numa transacção com muitas linhas, a verificação corre uma só vez por artigo", async () => {
+    const { c, artigo, cor, tamanho } = await verniz();
+    const cliente = new pg.Client({ connectionString: base.urlApi });
+    const avisos: string[] = [];
+    cliente.on("notice", (aviso) => avisos.push(aviso.message ?? ""));
+    await cliente.connect();
+    try {
+      await cliente.query("begin");
+      await cliente.query(
+        "select set_config('eurolify.comerciante', $1, true)",
+        [c],
+      );
+      await cliente.query("set local client_min_messages = debug1");
+      let n = 0;
+      for (const a of cor.valores) {
+        for (const b of tamanho.valores) {
+          const { rows } = await cliente.query<{ id: string }>(
+            "insert into variante (comerciante_id, artigo_id, sku, unidade_de_venda) values ($1, $2, $3, 'unidade') returning id",
+            [c, artigo, `UM-${String(n)}`],
+          );
+          for (const [opcao, valor] of [
+            [cor.id, a.id],
+            [tamanho.id, b.id],
+          ]) {
+            await cliente.query(
+              "insert into variante_valor (comerciante_id, artigo_id, variante_id, opcao_id, valor_id) values ($1, $2, $3, $4, $5)",
+              [c, artigo, rows[0]?.id, opcao, valor],
+            );
+          }
+          n += 1;
+        }
+      }
+      await cliente.query("commit");
+    } finally {
+      await cliente.end();
+    }
+    // 4 variantes e 8 valores (12 linhas): uma verificação.
+    expect(
+      avisos.filter((m) => m.startsWith("eurolify: verificar combinacoes"))
+        .length,
+    ).toBe(1);
+  });
+
+  it("a API não salta a verificação: tirar a marca não é dela", async () => {
+    const { c, artigo } = await verniz();
+    expect(
+      await codigoDoErro(
+        sqlComo(c, `select catalogo_tirar_marca('${c}', '${artigo}')`),
+      ),
+    ).toMatch(/^pg:42501:/);
+    expect(
+      await codigoDoErro(sqlComo(c, "select * from combinacoes_por_verificar")),
+    ).toMatch(/^pg:42501:/);
+  });
+
+  it("nomes e valores só mudam de texto num rascunho; a ordem muda sempre (P2-4)", async () => {
+    const { c, artigo, cor, v } = await verniz();
+    await sqlComo(c, `update opcao set nome = 'Cores' where id = '${cor.id}'`);
+    await sqlComo(
+      c,
+      `update valor_opcao set valor = 'Vermelho 12' where id = '${v.vermelho}'`,
+    );
+    await criarVarianteComValores(base.api, c, artigo, variante("RN-1"), [
+      v.vermelho,
+      v.pequeno,
+    ]);
+    await mudarEstadoArtigo(base.api, c, artigo, 1, "activo");
+    for (const texto of [
+      `update opcao set nome = 'Tom' where id = '${cor.id}'`,
+      `update valor_opcao set valor = 'Azul' where id = '${v.vermelho}'`,
+    ]) {
+      expect(await codigoDoErro(sqlComo(c, texto))).toBe("catalog.not_draft");
+    }
+    await sqlComo(c, `update opcao set posicao = 5 where id = '${cor.id}'`);
+    await sqlComo(
+      c,
+      `update valor_opcao set posicao = 5 where id = '${v.vermelho}'`,
+    );
+    const opcoes = await opcoesDoArtigo(base.api, c, artigo);
+    expect(opcoes.map((o) => o.nome)).toEqual(["Tamanho", "Cores"]);
+    expect(opcoes[1]?.valores.map((x) => x.valor)).toEqual([
+      "Nude",
+      "Vermelho 12",
+    ]);
+  });
+
+  it("por SQL directo num artigo à venda: nada muda nas opções nem nos valores das variantes", async () => {
+    const { c, artigo, v } = await verniz();
+    const a = await criarVarianteComValores(
+      base.api,
+      c,
+      artigo,
+      variante("SD-1"),
+      [v.vermelho, v.pequeno],
+    );
+    await mudarEstadoArtigo(base.api, c, artigo, 1, "activo");
+    for (const texto of [
+      `update variante_valor set valor_id = '${v.nude}' where variante_id = '${a}' and valor_id = '${v.vermelho}'`,
+      `delete from variante_valor where variante_id = '${a}'`,
+      `insert into opcao (comerciante_id, artigo_id, nome) values ('${c}', '${artigo}', 'Nova')`,
+      `delete from valor_opcao where id = '${v.grande}'`,
+    ]) {
+      expect(await codigoDoErro(sqlComo(c, texto)), texto).toBe(
+        "catalog.not_draft",
+      );
+    }
+    expect(await valoresDaVariante(base.api, c, a)).toEqual(
+      [v.vermelho, v.pequeno].sort(),
+    );
+  });
+
+  it("repor um artigo arquivado com uma variante nova completa", async () => {
+    const { c, artigo, cor, v } = await verniz();
+    const a = await criarVarianteComValores(
+      base.api,
+      c,
+      artigo,
+      variante("RP-1"),
+      [v.vermelho, v.pequeno],
+    );
+    let versao = await mudarEstadoArtigo(base.api, c, artigo, 1, "activo");
+    versao = await mudarEstadoArtigo(base.api, c, artigo, versao, "arquivado");
+    await arquivarVariante(base.api, c, a);
+    const coral = await acrescentarValor(base.api, c, cor.id, "Coral");
+    await criarVarianteComValores(base.api, c, artigo, variante("RP-2"), [
+      coral,
+      v.pequeno,
+    ]);
+    await mudarEstadoArtigo(base.api, c, artigo, versao, "activo");
+  });
+
+  it("chaves compostas e RLS por SQL directo (revisão do #83, P2-3b e P2-5)", async () => {
+    const a = await verniz();
+    const outroArtigo = await verniz(a.c);
+    const va = await criarVariante(base.api, a.c, a.artigo, variante("CK-1"));
+    await definirValoresDaVariante(base.api, a.c, va, [a.v.vermelho]);
+    // Um valor de outro artigo do mesmo comerciante: a chave composta recusa.
+    expect(
+      await codigoDoErro(
+        sqlComo(
+          a.c,
+          `insert into variante_valor (comerciante_id, artigo_id, variante_id, opcao_id, valor_id)
+           values ('${a.c}', '${a.artigo}', '${va}', '${outroArtigo.tamanho.id}', '${outroArtigo.v.pequeno}')`,
+        ),
+      ),
+    ).toBe("catalog.not_found");
+    const b = await registarComerciante(base.api, NOVO);
+    // b com os ids de a: com o comerciante de a, o RLS recusa (42501); com o
+    // seu, a chave estrangeira recusa (23503, «não existe») — nunca «já existe» (23505),
+    // que diria que a linha de a existe.
+    expect(
+      await codigoDoErro(
+        sqlComo(
+          b,
+          `insert into variante_valor (comerciante_id, artigo_id, variante_id, opcao_id, valor_id)
+           values ('${a.c}', '${a.artigo}', '${va}', '${a.cor.id}', '${a.v.nude}')`,
+        ),
+      ),
+    ).toMatch(/^pg:42501:/);
+    expect(
+      await codigoDoErro(
+        sqlComo(
+          b,
+          `insert into variante_valor (comerciante_id, artigo_id, variante_id, opcao_id, valor_id)
+           values ('${b}', '${a.artigo}', '${va}', '${a.cor.id}', '${a.v.nude}')`,
+        ),
+      ),
+    ).toBe("catalog.not_found");
+    for (const texto of [
+      `insert into opcao (comerciante_id, artigo_id, nome) values ('${a.c}', '${a.artigo}', 'X')`,
+      `insert into valor_opcao (comerciante_id, artigo_id, opcao_id, valor) values ('${a.c}', '${a.artigo}', '${a.cor.id}', 'X')`,
+    ]) {
+      expect(await codigoDoErro(sqlComo(b, texto)), texto).toMatch(
+        /^pg:42501:/,
+      );
+    }
+    for (const texto of [
+      "update opcao set posicao = 9",
+      "update valor_opcao set posicao = 9",
+      "update variante_valor set valor_id = valor_id",
+    ]) {
+      const r = await sqlComo(b, texto);
+      expect(Number(r.numAffectedRows ?? 0n), texto).toBe(0);
+    }
+  });
+
+  it("a fila de um artigo é por comerciante: outro não entra nela (P2-3a)", async () => {
+    const { c, artigo } = await verniz();
+    const b = await registarComerciante(base.api, NOVO);
+    // a segura a fila do artigo dele, numa transacção aberta.
+    const cliente = new pg.Client({ connectionString: base.urlApi });
+    cliente.on("error", () => undefined);
+    await cliente.connect();
+    try {
+      await cliente.query("begin");
+      await cliente.query(
+        "select set_config('eurolify.comerciante', $1, true)",
+        [c],
+      );
+      await cliente.query("select catalogo_fila_do_artigo($1, $2)", [
+        c,
+        artigo,
+      ]);
+      // b chama a função sobre o artigo de a: não espera.
+      const deB = sqlComo(
+        b,
+        `select catalogo_fila_do_artigo('${c}', '${artigo}')`,
+      );
+      expect(await esperaBloqueio(deB)).toBe(false);
+      await deB;
+    } finally {
+      await cliente.query("rollback").catch(() => undefined);
+      await cliente.end();
+    }
+  });
+
+  it("acertos: valores de uma arquivada não se tiram; uma opção leva valores", async () => {
+    const { c, artigo, v } = await verniz();
+    const a = await criarVariante(base.api, c, artigo, variante("AC-1"));
+    await definirValoresDaVariante(base.api, c, a, [v.vermelho]);
+    await arquivarVariante(base.api, c, a);
+    expect(
+      await codigoDoErro(
+        sqlComo(c, `delete from variante_valor where variante_id = '${a}'`),
+      ),
+    ).toBe("catalog.variant_archived_is_final");
+    expect(
+      await codigoDoErro(criarOpcao(base.api, c, artigo, "Vazia", [])),
+    ).toBe("catalog.option_values_required");
   });
 });

@@ -23,7 +23,7 @@
 > Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 16 testes):
 > ver §3.4, com as regras **proposta** desta parte.
 >
-> Parte 2b — opções e valores (migração `0005_catalogo_opcoes.sql`, 10 testes):
+> Parte 2b — opções e valores (migração `0005_catalogo_opcoes.sql`, 21 testes):
 > ver §3.3, com as regras **proposta** desta parte.
 >
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
@@ -137,14 +137,22 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
   variantes activas do mesmo artigo **não têm a mesma combinação** (§3.2). Uma
   variante arquivada não conta: a combinação dela volta a ficar livre;
 - as opções só se criam e apagam enquanto o artigo é **rascunho**; valores
-  novos acrescentam-se sempre;
+  novos acrescentam-se sempre; uma opção leva pelo menos um valor;
+- o **texto** de uma opção ou de um valor só muda num rascunho (P11, decidido
+  (Diogo, 05/10/2026: *«não, bloqueia fora do rascunho»*)); a ordem muda sempre;
+- apagar uma opção num rascunho verifica as combinações (não pode deixar duas
+  variantes iguais);
 - os valores de uma variante dão-se ao criá-la; depois só mudam num rascunho
   (depois de vendida, a variante não muda de identidade);
 - num rascunho a combinação pode estar incompleta; activar ou repor o artigo
   exige-a completa; num artigo que já não é rascunho verifica-se no fim de cada
   transacção (uma variante nova entra já com todos os valores);
 - nomes de opção únicos no artigo, valores únicos na opção, sem distinguir
-  maiúsculas (como o SKU, P9); até 100 caracteres.
+  maiúsculas (como o SKU, P9); até 100 caracteres;
+- as verificações das combinações correm uma vez por artigo e por transacção,
+  numa fila por artigo e por comerciante, e assumem o isolamento READ
+  COMMITTED da API (em REPEATABLE READ, duas transacções ao mesmo tempo podiam
+  não se ver).
 
 ### 3.4 Composição — kits e coleções (`cmp_`)
 
@@ -399,8 +407,10 @@ está na lista). Da parte 2a (também **proposta**): `catalog.component_archived
 que é componente de um kit). Da parte 2b (também **proposta**):
 `catalog.options_incomplete`, `catalog.option_duplicate` (nome de opção
 repetido no artigo), `catalog.option_value_duplicate` e `catalog.option_repeated`
-(dois valores da mesma opção numa variante); `catalog.option_combination_duplicate`
-já estava aqui.
+(dois valores da mesma opção numa variante), `catalog.option_values_required` e
+`catalog.retry` (duas transacções esperaram uma pela outra; nada ficou
+gravado, tenta-se outra vez); `catalog.option_combination_duplicate` já estava
+aqui.
 
 ### 7.2 API da Loja
 
@@ -460,3 +470,4 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P8 | Apagar uma variante de um artigo **rascunho** — também uma variante já **arquivada** — liberta o SKU dela para outra variante? (Um rascunho nunca esteve activo, por isso a variante nunca se vendeu) | ✅ **Decidido: sim, nos dois casos** (Diogo, 05/10/2026: *«sim, o SKU de um rascunho apagado pode voltar»*). É o que o código da parte 1 já faz (#78) |
 | P9 | `GEL-001` e `gel-001` são o **mesmo SKU**? | ✅ **Decidido: sim, o mesmo SKU** (Diogo, 05/10/2026: *«sim, mesmo SKU»*). Guarda-se como foi escrito; a unicidade e a procura não distinguem maiúsculas (migração 0003) |
 | P10 | Um artigo **sem opções** pode ter várias variantes? (O §3.2 dizia que tinha uma; o código da parte 1 deixa várias, como `GEL-001` e `GEL-REFILL`) | ✅ **Decidido: sim** (Diogo, 05/10/2026: *«sim, um artigo sem opções pode ter várias variantes»*). A regra «a combinação não se repete» só vale para artigos com opções |
+| P11 | Num artigo já à venda, pode mudar-se o **texto** de uma opção ou de um valor (ex.: corrigir «Vermleho»)? | ✅ **Decidido: não** (Diogo, 05/10/2026: *«não, bloqueia fora do rascunho»*). Só num rascunho; a ordem muda sempre. Se fizer falta corrigir gralhas, abre-se depois com o registo de quem mudou o quê (C7) |

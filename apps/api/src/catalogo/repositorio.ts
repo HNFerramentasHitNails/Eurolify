@@ -44,7 +44,9 @@ export type CodigoErroCatalogo =
   | "catalog.option_combination_duplicate"
   | "catalog.option_duplicate"
   | "catalog.option_value_duplicate"
-  | "catalog.option_repeated";
+  | "catalog.option_repeated"
+  | "catalog.option_values_required"
+  | "catalog.retry";
 
 export class ErroCatalogo extends Error {
   constructor(
@@ -183,6 +185,14 @@ export function traduzir(
       "a variante é componente de um kit",
       { cause: erro },
     );
+  }
+  // Duas transacções que esperavam uma pela outra (40P01) ou um conflito de
+  // serialização (40001): nada ficou gravado; tentar outra vez (revisão do
+  // #83, P2-2).
+  if (pg.code === "40P01" || pg.code === "40001") {
+    return new ErroCatalogo("catalog.retry", "tentar outra vez", {
+      cause: erro,
+    });
   }
   // Uma chave estrangeira que falha: o artigo (ou o comerciante) não existe
   // ou é de outro comerciante — o RLS esconde-o igual, sem oráculo.
@@ -594,6 +604,14 @@ export async function criarOpcao(
   nome: string,
   valores: readonly string[],
 ): Promise<Opcao> {
+  // Uma opção sem valores não deixava nenhuma variante completar-se (revisão
+  // do #83, P3).
+  if (valores.length === 0) {
+    throw new ErroCatalogo(
+      "catalog.option_values_required",
+      "uma opção leva pelo menos um valor",
+    );
+  }
   return noCatalogo(db, comercianteId, async (trx) => {
     const { n } = await trx
       .selectFrom("opcao")

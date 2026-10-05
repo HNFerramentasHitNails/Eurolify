@@ -10,13 +10,19 @@
 --   (proposta: é assim que se substitui uma variante);
 -- - as opções só se criam (e apagam) enquanto o artigo é rascunho (proposta:
 --   uma opção nova num artigo à venda deixava as variantes vendidas sem
---   valor); valores novos acrescentam-se sempre;
+--   valor); valores novos acrescentam-se sempre; o texto de uma opção ou de
+--   um valor só muda num rascunho (Diogo, 05/10/2026, revisão do #83, P2-4:
+--   «não, bloqueia fora do rascunho»); a ordem muda sempre;
 -- - os valores de uma variante dão-se ao criá-la; depois só mudam enquanto o
 --   artigo é rascunho (proposta: depois de vendida, a variante não muda de
 --   identidade);
 -- - num rascunho, a combinação pode estar incompleta; activar (ou repor) o
---   artigo exige-a completa em todas as variantes activas; num artigo que já
---   não é rascunho, verifica-se no fim de cada transacção;
+--   artigo exige-a completa e sem repetidos em todas as variantes activas; em
+--   qualquer estado, as combinações verificam-se no fim de cada transacção que
+--   lhes toque (valores, variantes novas, opções criadas ou apagadas), uma vez
+--   por artigo (revisão do #83, P1-1 e P2-1);
+-- - as verificações assumem READ COMMITTED (o da API, base/ligacao.ts): cada
+--   instrução vê o que os outros já confirmaram depois de esperar pela fila.
 -- - nomes de opção únicos no artigo e valores únicos na opção, sem distinguir
 --   maiúsculas (proposta, como o SKU, P9).
 --
@@ -54,14 +60,16 @@ CREATE TABLE valor_opcao (
 CREATE UNIQUE INDEX valor_opcao_unico ON valor_opcao (comerciante_id, opcao_id, lower(btrim(valor)));
 
 -- O valor que cada variante leva em cada opção. As chaves compostas garantem
--- que a opção, o valor e a variante são do mesmo artigo e comerciante.
+-- que a opção, o valor e a variante são do mesmo artigo e comerciante; a
+-- chave primária leva o comerciante, para um comerciante não saber, pelo erro,
+-- se uma linha de outro existe (revisão do #83, P2-3b).
 CREATE TABLE variante_valor (
   comerciante_id uuid NOT NULL,
   artigo_id uuid NOT NULL,
   variante_id uuid NOT NULL,
   opcao_id uuid NOT NULL,
   valor_id uuid NOT NULL,
-  PRIMARY KEY (variante_id, opcao_id),
+  CONSTRAINT variante_valor_pkey PRIMARY KEY (comerciante_id, variante_id, opcao_id),
   CONSTRAINT variante_valor_variante FOREIGN KEY (comerciante_id, artigo_id, variante_id)
     REFERENCES variante (comerciante_id, artigo_id, id) ON DELETE CASCADE,
   CONSTRAINT variante_valor_valor FOREIGN KEY (comerciante_id, artigo_id, opcao_id, valor_id)
@@ -69,10 +77,15 @@ CREATE TABLE variante_valor (
 );
 CREATE INDEX variante_valor_por_valor ON variante_valor (comerciante_id, valor_id);
 
--- Uma fila por artigo para tudo o que mexe nas combinações dele.
-CREATE FUNCTION catalogo_fila_do_artigo(artigo uuid) RETURNS void
+-- Uma fila por artigo para tudo o que mexe nas combinações dele. A chave leva
+-- o comerciante do contexto (ou o da linha, sem contexto): um comerciante não
+-- entra na fila de outro, nem chamando a função directamente (revisão do #83,
+-- P2-3a).
+CREATE FUNCTION catalogo_fila_do_artigo(comerciante uuid, artigo uuid) RETURNS void
   LANGUAGE sql SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT pg_advisory_xact_lock(hashtextextended('eurolify.opcoes:' || artigo::text, 0))
+  SELECT pg_advisory_xact_lock(hashtextextended('eurolify.opcoes:' ||
+    coalesce(nullif(current_setting('eurolify.comerciante', true), '')::uuid, comerciante)::text
+    || ':' || artigo::text, 0))
 $$;
 
 -- Estado do artigo, lido dentro dos triggers.
@@ -81,7 +94,40 @@ CREATE FUNCTION catalogo_estado_do_artigo(comerciante uuid, artigo uuid) RETURNS
   SELECT a.estado FROM public.artigo a WHERE a.comerciante_id = comerciante AND a.id = artigo
 $$;
 
--- Opção: só num rascunho; o artigo dela não muda.
+-- Artigos com combinações por verificar no fim desta transacção. A API não
+-- tem acesso a esta tabela: só as duas funções abaixo (com os direitos do
+-- dono) escrevem nela. Assim a verificação corre uma vez por artigo e por
+-- transacção (revisão do #83, P2-1: com uma verificação por linha, 512
+-- variantes demoravam 220 s), e a API não a pode dar por feita — ao
+-- contrário de uma marca em set_config, que ela própria poderia pôr.
+CREATE TABLE combinacoes_por_verificar (
+  artigo_id uuid NOT NULL,
+  transaccao xid8 NOT NULL,
+  comerciante_id uuid NOT NULL,
+  PRIMARY KEY (artigo_id, transaccao)
+);
+
+CREATE FUNCTION catalogo_marcar_combinacoes(comerciante uuid, artigo uuid) RETURNS void
+  LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  INSERT INTO public.combinacoes_por_verificar (artigo_id, transaccao, comerciante_id)
+  VALUES (artigo, pg_current_xact_id(), comerciante)
+  ON CONFLICT DO NOTHING
+$$;
+
+-- Devolve verdadeiro (e tira a marca) só à primeira chamada depois de marcar.
+CREATE FUNCTION catalogo_tirar_marca(comerciante uuid, artigo uuid) RETURNS boolean
+  LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  WITH tirada AS (
+    DELETE FROM public.combinacoes_por_verificar
+    WHERE artigo_id = artigo AND transaccao = pg_current_xact_id()
+      AND comerciante_id = comerciante
+    RETURNING 1
+  )
+  SELECT EXISTS (SELECT FROM tirada)
+$$;
+
+-- Opção: só se cria e apaga num rascunho; o texto só muda num rascunho; o
+-- artigo dela não muda.
 CREATE FUNCTION opcao_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -89,15 +135,19 @@ DECLARE
   estado text;
 BEGIN
   linha := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
-  PERFORM public.catalogo_fila_do_artigo(linha.artigo_id);
+  PERFORM public.catalogo_fila_do_artigo(linha.comerciante_id, linha.artigo_id);
   estado := public.catalogo_estado_do_artigo(linha.comerciante_id, linha.artigo_id);
   IF TG_OP = 'UPDATE' AND (NEW.comerciante_id <> OLD.comerciante_id
       OR NEW.artigo_id <> OLD.artigo_id) THEN
     RAISE EXCEPTION 'catalog.immutable_identity: o artigo de uma opção não muda';
   END IF;
   -- Sem artigo: está a ser apagado (rascunho) e as opções vão com ele.
-  IF TG_OP IN ('INSERT', 'DELETE') AND estado IS NOT NULL AND estado <> 'rascunho' THEN
-    RAISE EXCEPTION 'catalog.not_draft: as opções só se criam ou apagam num rascunho';
+  IF estado IS NOT NULL AND estado <> 'rascunho' AND (TG_OP IN ('INSERT', 'DELETE')
+      OR NEW.nome IS DISTINCT FROM OLD.nome) THEN
+    RAISE EXCEPTION 'catalog.not_draft: as opções só se criam, apagam ou mudam de nome num rascunho';
+  END IF;
+  IF TG_OP <> 'UPDATE' AND estado IS NOT NULL THEN
+    PERFORM public.catalogo_marcar_combinacoes(linha.comerciante_id, linha.artigo_id);
   END IF;
   IF TG_OP = 'INSERT' THEN
     NEW.criado_em := now();
@@ -111,7 +161,8 @@ CREATE TRIGGER opcao_antes_de_gravar
   BEFORE INSERT OR UPDATE OR DELETE ON opcao
   FOR EACH ROW EXECUTE FUNCTION opcao_antes_de_gravar();
 
--- Valor: acrescenta-se sempre; apaga-se só num rascunho; a opção não muda.
+-- Valor: acrescenta-se sempre; apaga-se e muda de texto só num rascunho; a
+-- opção não muda.
 CREATE FUNCTION valor_opcao_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -119,14 +170,15 @@ DECLARE
   estado text;
 BEGIN
   linha := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
-  PERFORM public.catalogo_fila_do_artigo(linha.artigo_id);
+  PERFORM public.catalogo_fila_do_artigo(linha.comerciante_id, linha.artigo_id);
   estado := public.catalogo_estado_do_artigo(linha.comerciante_id, linha.artigo_id);
   IF TG_OP = 'UPDATE' AND (NEW.comerciante_id <> OLD.comerciante_id
       OR NEW.artigo_id <> OLD.artigo_id OR NEW.opcao_id <> OLD.opcao_id) THEN
     RAISE EXCEPTION 'catalog.immutable_identity: a opção de um valor não muda';
   END IF;
-  IF TG_OP = 'DELETE' AND estado IS NOT NULL AND estado <> 'rascunho' THEN
-    RAISE EXCEPTION 'catalog.not_draft: um valor só se apaga num rascunho';
+  IF estado IS NOT NULL AND estado <> 'rascunho' AND (TG_OP = 'DELETE'
+      OR (TG_OP = 'UPDATE' AND NEW.valor IS DISTINCT FROM OLD.valor)) THEN
+    RAISE EXCEPTION 'catalog.not_draft: um valor só se apaga ou muda de texto num rascunho';
   END IF;
   IF TG_OP = 'INSERT' THEN
     NEW.criado_em := now();
@@ -140,9 +192,10 @@ CREATE TRIGGER valor_opcao_antes_de_gravar
   BEFORE INSERT OR UPDATE OR DELETE ON valor_opcao
   FOR EACH ROW EXECUTE FUNCTION valor_opcao_antes_de_gravar();
 
--- Valor de uma variante: dá-se a uma variante activa; num artigo que não é
--- rascunho, só a uma variante que ainda não tem valor nessa opção (a que se
--- está a criar); mudar ou tirar, só num rascunho.
+-- Valor de uma variante: dá-se a uma variante activa; mudar ou tirar só num
+-- rascunho. Num artigo que não é rascunho, dar valores só completa uma
+-- variante (a verificação no fim exige-as todas completas, por isso só a
+-- variante que se está a criar os pode receber).
 CREATE FUNCTION variante_valor_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -151,14 +204,24 @@ DECLARE
   estado_da_variante text;
 BEGIN
   linha := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
-  PERFORM public.catalogo_fila_do_artigo(linha.artigo_id);
+  PERFORM public.catalogo_fila_do_artigo(linha.comerciante_id, linha.artigo_id);
   estado := public.catalogo_estado_do_artigo(linha.comerciante_id, linha.artigo_id);
+  SELECT v.estado INTO estado_da_variante FROM public.variante v
+  WHERE v.comerciante_id = linha.comerciante_id AND v.id = linha.variante_id;
   IF TG_OP = 'DELETE' THEN
-    -- Sem artigo, ou sem a variante: está a ser apagado e vai com ele.
-    IF estado IS NOT NULL AND estado <> 'rascunho' AND EXISTS (
-      SELECT FROM public.variante v
-      WHERE v.comerciante_id = OLD.comerciante_id AND v.id = OLD.variante_id) THEN
-      RAISE EXCEPTION 'catalog.not_draft: os valores de uma variante só mudam num rascunho';
+    -- Vem de apagar a variante, o valor ou a opção (cascata, profundidade
+    -- > 1): deixa; a variante ou o artigo já estão a ser apagados, ou é um
+    -- rascunho (as opções e os valores só se apagam aí).
+    IF pg_trigger_depth() = 1 THEN
+      IF estado IS NOT NULL AND estado <> 'rascunho' THEN
+        RAISE EXCEPTION 'catalog.not_draft: os valores de uma variante só mudam num rascunho';
+      END IF;
+      IF estado_da_variante = 'arquivada' THEN
+        RAISE EXCEPTION 'catalog.variant_archived_is_final: uma variante arquivada não muda';
+      END IF;
+    END IF;
+    IF estado IS NOT NULL THEN
+      PERFORM public.catalogo_marcar_combinacoes(OLD.comerciante_id, OLD.artigo_id);
     END IF;
     RETURN OLD;
   END IF;
@@ -171,17 +234,28 @@ BEGIN
       RAISE EXCEPTION 'catalog.not_draft: os valores de uma variante só mudam num rascunho';
     END IF;
   END IF;
-  SELECT v.estado INTO estado_da_variante FROM public.variante v
-  WHERE v.comerciante_id = NEW.comerciante_id AND v.id = NEW.variante_id;
   IF estado_da_variante = 'arquivada' THEN
     RAISE EXCEPTION 'catalog.variant_archived_is_final: uma variante arquivada não muda';
   END IF;
+  PERFORM public.catalogo_marcar_combinacoes(NEW.comerciante_id, NEW.artigo_id);
   RETURN NEW;
 END
 $$;
 CREATE TRIGGER variante_valor_antes_de_gravar
   BEFORE INSERT OR UPDATE OR DELETE ON variante_valor
   FOR EACH ROW EXECUTE FUNCTION variante_valor_antes_de_gravar();
+
+-- Uma variante nova marca o artigo para verificar no fim.
+CREATE FUNCTION variante_nova_marca() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  PERFORM public.catalogo_marcar_combinacoes(NEW.comerciante_id, NEW.artigo_id);
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER variante_nova_marca
+  BEFORE INSERT ON variante
+  FOR EACH ROW EXECUTE FUNCTION variante_nova_marca();
 
 -- As combinações de um artigo: nenhuma repetida entre as variantes activas
 -- completas; e, se o artigo não é rascunho, todas as activas completas.
@@ -191,7 +265,9 @@ DECLARE
   n_opcoes integer;
   estado text;
 BEGIN
-  PERFORM public.catalogo_fila_do_artigo(artigo);
+  -- Só se vê com client_min_messages em debug: os testes contam as vezes.
+  RAISE DEBUG 'eurolify: verificar combinacoes %', artigo;
+  PERFORM public.catalogo_fila_do_artigo(comerciante, artigo);
   estado := public.catalogo_estado_do_artigo(comerciante, artigo);
   IF estado IS NULL THEN
     RETURN;  -- o artigo foi apagado (rascunho)
@@ -227,43 +303,52 @@ BEGIN
 END
 $$;
 
--- No fim da transacção (as variantes e os valores entram em várias
--- instruções), depois de qualquer mudança nos valores das variantes ou numa
--- variante nova.
-CREATE FUNCTION variante_valor_no_fim() RETURNS trigger
-  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+-- No fim da transacção: cada linha que mexeu nas combinações chama isto, mas
+-- só a primeira de cada artigo verifica (a marca sai ao verificar). Corre com
+-- os direitos do dono, porque tirar a marca é só dele: se a API a pudesse
+-- tirar, poderia saltar a verificação. Lê com o RLS do comerciante do
+-- contexto (as tabelas têm RLS forçado, também para o dono).
+CREATE FUNCTION combinacoes_no_fim() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
-  linha public.variante_valor;
+  comerciante uuid;
+  artigo uuid;
 BEGIN
-  linha := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
-  PERFORM public.catalogo_verificar_combinacoes(linha.comerciante_id, linha.artigo_id);
+  IF TG_OP = 'DELETE' THEN
+    comerciante := OLD.comerciante_id;
+    artigo := OLD.artigo_id;
+  ELSE
+    comerciante := NEW.comerciante_id;
+    artigo := NEW.artigo_id;
+  END IF;
+  IF public.catalogo_tirar_marca(comerciante, artigo) THEN
+    PERFORM public.catalogo_verificar_combinacoes(comerciante, artigo);
+  END IF;
   RETURN NULL;
 END
 $$;
-CREATE CONSTRAINT TRIGGER variante_valor_no_fim
+CREATE CONSTRAINT TRIGGER combinacoes_no_fim
   AFTER INSERT OR UPDATE OR DELETE ON variante_valor
   DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW EXECUTE FUNCTION variante_valor_no_fim();
-
-CREATE FUNCTION variante_nova_no_fim() RETURNS trigger
-  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-BEGIN
-  PERFORM public.catalogo_verificar_combinacoes(NEW.comerciante_id, NEW.artigo_id);
-  RETURN NULL;
-END
-$$;
-CREATE CONSTRAINT TRIGGER variante_nova_no_fim
+  FOR EACH ROW EXECUTE FUNCTION combinacoes_no_fim();
+CREATE CONSTRAINT TRIGGER combinacoes_no_fim
   AFTER INSERT ON variante
   DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW EXECUTE FUNCTION variante_nova_no_fim();
+  FOR EACH ROW EXECUTE FUNCTION combinacoes_no_fim();
+CREATE CONSTRAINT TRIGGER combinacoes_no_fim
+  AFTER INSERT OR DELETE ON opcao
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION combinacoes_no_fim();
 
--- Activar ou repor o artigo exige as combinações completas e sem repetidos.
+-- Activar ou repor o artigo exige as combinações completas e sem repetidos
+-- (o «sem repetidos» também aqui: apagar uma opção sem valores num rascunho
+-- podia tornar duas variantes completas e iguais; revisão do #83, P1-1).
 CREATE FUNCTION artigo_combinacoes_ao_activar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   n_opcoes integer;
 BEGIN
-  PERFORM public.catalogo_fila_do_artigo(NEW.id);
+  PERFORM public.catalogo_fila_do_artigo(NEW.comerciante_id, NEW.id);
   SELECT count(*) INTO n_opcoes FROM public.opcao o
   WHERE o.comerciante_id = NEW.comerciante_id AND o.artigo_id = NEW.id;
   IF n_opcoes > 0 AND EXISTS (
@@ -274,6 +359,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'catalog.options_incomplete: cada variante activa leva um valor de cada opção';
   END IF;
+  PERFORM public.catalogo_verificar_combinacoes(NEW.comerciante_id, NEW.id);
   RETURN NEW;
 END
 $$;
@@ -281,6 +367,30 @@ CREATE TRIGGER artigo_combinacoes_ao_activar
   BEFORE UPDATE ON artigo
   FOR EACH ROW WHEN (NEW.estado = 'activo' AND OLD.estado IS DISTINCT FROM 'activo')
   EXECUTE FUNCTION artigo_combinacoes_ao_activar();
+
+-- Apagar um rascunho (0004), agora com opções: entra na fila do artigo antes
+-- de prender as variantes, para não esperar ao contrário de quem dá valores
+-- a uma variante dele (revisão do #83, P2-2). Ordem dos bloqueios: a linha do
+-- artigo, a fila do comerciante (kits), a fila do artigo (opções).
+CREATE OR REPLACE FUNCTION artigo_antes_de_apagar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF OLD.estado <> 'rascunho' OR OLD.ja_esteve_activo THEN
+    RAISE EXCEPTION 'catalog.not_draft: só se apaga um rascunho que nunca esteve activo; arquivar';
+  END IF;
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended('eurolify.componente:' || OLD.comerciante_id::text, 0));
+  PERFORM public.catalogo_fila_do_artigo(OLD.comerciante_id, OLD.id);
+  DELETE FROM public.componente c
+  WHERE c.comerciante_id = OLD.comerciante_id
+    AND c.kit_id IN (SELECT v.id FROM public.variante v
+                     WHERE v.comerciante_id = OLD.comerciante_id
+                       AND v.artigo_id = OLD.id);
+  DELETE FROM public.variante v
+  WHERE v.comerciante_id = OLD.comerciante_id AND v.artigo_id = OLD.id;
+  RETURN OLD;
+END
+$$;
 
 DO $$
 DECLARE
@@ -297,8 +407,23 @@ BEGIN
 END
 $$;
 
--- A API não escolhe ids nem datas; muda textos e posições; apaga (os
--- triggers só deixam num rascunho).
+-- A tabela das marcas é só das duas funções acima (com os direitos do dono).
+ALTER TABLE combinacoes_por_verificar ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON combinacoes_por_verificar FROM PUBLIC;
+
+-- As funções: só a API as chama (por dentro dos triggers), não qualquer papel.
+REVOKE EXECUTE ON FUNCTION catalogo_fila_do_artigo(uuid, uuid),
+  catalogo_estado_do_artigo(uuid, uuid), catalogo_marcar_combinacoes(uuid, uuid),
+  catalogo_tirar_marca(uuid, uuid), catalogo_verificar_combinacoes(uuid, uuid)
+  FROM PUBLIC;
+-- Tirar a marca, não: só o trigger do fim, com os direitos do dono.
+GRANT EXECUTE ON FUNCTION catalogo_fila_do_artigo(uuid, uuid),
+  catalogo_estado_do_artigo(uuid, uuid), catalogo_marcar_combinacoes(uuid, uuid),
+  catalogo_verificar_combinacoes(uuid, uuid)
+  TO eurolify_api;
+
+-- A API não escolhe ids nem datas; muda textos e posições (os triggers só
+-- deixam os textos num rascunho); apaga (só num rascunho).
 GRANT SELECT, DELETE ON opcao, valor_opcao, variante_valor TO eurolify_api;
 GRANT INSERT (comerciante_id, artigo_id, nome, posicao) ON opcao TO eurolify_api;
 GRANT UPDATE (nome, posicao) ON opcao TO eurolify_api;
