@@ -220,9 +220,13 @@ pedido de alteração.
   cópias e plano de incidentes no `docs/17` (desenho; bases e prazos **C**).
   Falta: o RTO (decisão), a exportação e o apagamento do titular (desenho no
   `docs/15`).
-- Por fazer: o rasto imutável e os privilégios das funções na base (depois
-  do #97, por causa do número da migração); os pontos «ao abrir a primeira
-  rota».
+- **Segurança — base (migração 0008):** o rasto do Comerciante
+  (`transicao_estado`, `aceitacao_contrato`, `prova_verificacao`) recusa
+  alterar, apagar e esvaziar, também ao dono; as funções do esquema `public`
+  deixam de estar abertas a PUBLIC, as novas nascem fechadas, e a API fica
+  só com as que chama (teste que falha se alguma nascer aberta). Fica por
+  desenhar: «de onde» e «que IA e modelo» no rasto, e o rasto do Catálogo.
+- Por fazer: os pontos «ao abrir a primeira rota».
 - **Código (Catálogo):** `ORIGENS_ARTIGO` passa a constante, com teste que a
   compara com a regra da base (`artigo_origem_check`). O GTIN sem emissor
   fica para quando houver Stock e leitor, como a auditoria diz.
