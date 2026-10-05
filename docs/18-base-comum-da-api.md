@@ -1,0 +1,121 @@
+# Base comum da API: erros, contrato, idempotência, eventos e limites
+
+> **Versão de 05/10/2026 — desenho.** Responde aos pontos «ao abrir a primeira
+> rota» da auditoria (`docs/16`, «Segurança e dados»), a pedido do Diogo
+> (*«avança com os pontos ao abrir a primeira rota»*). Skills:
+> `headless-commerce` (regras 1, 3, 5 e 6), `platform-architect` (regras 5 e
+> 6), `observability-security`, `eu-gdpr-privacy` (regra 7). Já decidido:
+> REST com OpenAPI 3.1 gerado pelo Fastify + TypeBox + `@fastify/swagger`
+> 9.9.1 (ADR-0025); erros RFC 9457 e `Idempotency-Key` (`docs/02` §4).
+>
+> **Hoje** a API só tem `GET /health` e `GET /paises` (`apps/api/src/app.ts`).
+> As rotas de domínio (Comerciante, Catálogo) esperam pela fatia
+> «identidade» (`docs/15` §9, P1): sem saber quem chama, não há comerciante,
+> chave nem loja a que prender a idempotência e os limites.
+
+## 1. O que entra quando
+
+| Peça | Entra | Porquê |
+|---|---|---|
+| Erros num formato único (RFC 9457) | **já** (pedido A) | vale para as rotas que existem e para os erros do próprio Fastify (404, validação) |
+| Contrato OpenAPI 3.1 gerado e publicado | **já** (pedido A) | «nada é exposto fora do contrato» (`headless-commerce`, regra 1); um teste falha se uma rota ficar fora |
+| Tabelas da idempotência e dos eventos (outbox) | pedido B (migração 0009), antes da primeira rota de escrita | o desenho está aqui; o código liga-se com a fatia «identidade» |
+| `Idempotency-Key` nas rotas | com a primeira rota de escrita | precisa do comerciante de quem chama |
+| Limites de pedidos | com a fatia «identidade» | são «por chave e por loja» (regra 6) |
+| Publicador do outbox (webhooks) | com os webhooks | o evento grava-se já; publica-se depois |
+
+## 2. Erros (RFC 9457)
+
+Todo o erro sai com `Content-Type: application/problem+json` e este corpo
+(campos do RFC 9457 mais as extensões do Eurolify):
+
+| Campo | Tipo | Exemplo | Nota |
+|---|---|---|---|
+| `type` | URI relativo | `/erros/request.invalid` | o RFC aceita uma referência relativa; a página de cada código publica-se com a documentação |
+| `title` | texto | `Pedido inválido` | em português; igual para o mesmo código |
+| `status` | inteiro | `400` | o mesmo do HTTP |
+| `detail` | texto | `body/nome: tem de ter pelo menos 1 caracter` | o que aconteceu neste pedido; **nunca** dados pessoais, SQL nem pilha |
+| `instance` | texto | `req-1k` | o identificador do pedido, o mesmo do registo |
+| `codigo` | texto | `request.invalid` | **estável**: os clientes e as IA decidem por ele, nunca pelo texto |
+| `mensagem` | `{pt, en}` | — | `headless-commerce`, regra 3 |
+| `erros` | lista de `{campo, mensagem}` | `[{"campo": "/nome", …}]` | só na validação; `campo` é um ponteiro JSON (RFC 6901) |
+
+Códigos de partida (os de domínio, como `merchant.invalid_transition`,
+entram com as rotas de cada domínio):
+
+| Código | HTTP | Quando |
+|---|---|---|
+| `request.invalid` | 400 | o corpo, a consulta ou os cabeçalhos não cumprem o esquema |
+| `route.not_found` | 404 | o caminho não existe, ou o método não existe nesse caminho (o Fastify 5.12.5 dá 404 e não 405; medido no teste `base-comum`, 05/10/2026) |
+| `payload.too_large` | 413 | corpo acima do limite |
+| `media_type.unsupported` | 415 | `Content-Type` que a rota não aceita |
+| `idempotency.key_required` | 400 | escrita sem `Idempotency-Key` (com as rotas de escrita) |
+| `idempotency.key_reused` | 422 | a mesma chave com outro corpo |
+| `idempotency.in_progress` | 409 | a mesma chave ainda a ser tratada |
+| `rate_limit.exceeded` | 429 | acima do limite (com a fatia «identidade») |
+| `internal.error` | 500 | tudo o resto; o pormenor vai só para o registo, com o `instance` |
+
+**Nunca um 200 com `ok: false`, nunca um erro engolido** (`headless-commerce`,
+regra 3; lição 4.1).
+
+## 3. Contrato OpenAPI
+
+| Regra | Como |
+|---|---|
+| Gerado dos esquemas | `@fastify/swagger` 9.9.1, modo dinâmico, `openapi: 3.1.0` (ADR-0025) |
+| Publicado | `GET /openapi.json`, sem autenticação: é o que os construtores de frontends e as IA lêem (`docs/02` §4) |
+| Nada fora do contrato | uma rota sem a resposta de sucesso **e** a de erro (`application/problem+json`) **não se regista** (gancho `onRoute` em `app.ts`); só o `/openapi.json` fica de fora; o teste confere o contrato publicado |
+| Erro no contrato | um esquema `Problema` partilhado, referido em todas as respostas de erro |
+| Versão por data | **por desenhar** (`headless-commerce`, regra 7): entra antes da primeira rota de domínio |
+
+## 4. Idempotência (tabela `idempotencia`, migração 0009)
+
+| Campo | Tipo | Nota |
+|---|---|---|
+| `comerciante_id` | uuid | RLS por comerciante, como as outras tabelas |
+| `chave` | texto, 1–255 | o valor de `Idempotency-Key`; única por comerciante |
+| `metodo`, `caminho` | texto | a mesma chave noutra rota é outro pedido → `idempotency.key_reused` |
+| `resumo_corpo` | texto (sha256) | do corpo normalizado; outro resumo → `idempotency.key_reused` |
+| `estado` | `em_curso`, `concluido` | um segundo pedido com `em_curso` → `idempotency.in_progress` |
+| `resposta_status`, `resposta_corpo` | inteiro, jsonb | devolve-se a mesma resposta ao repetir |
+| `criado_em`, `expira_em` | instantes | **proposta: 24 h**; uma tarefa diária apaga as expiradas e regista o que apagou |
+
+- A linha grava-se **na mesma transacção** que a escrita; se a escrita falhar,
+  não fica nada e o cliente pode repetir.
+- O corpo guardado pode ter dados pessoais (ex.: uma morada): fica 24 h e entra
+  no `docs/17` §3 quando a tabela existir.
+
+## 5. Eventos de domínio (tabela `evento_saida`, outbox, migração 0009)
+
+| Campo | Tipo | Nota |
+|---|---|---|
+| `id` | uuid v7 | identificador do evento, para o receptor ser idempotente |
+| `comerciante_id` | uuid | RLS por comerciante |
+| `tipo` | texto | ex.: `merchant.activated`, `product.published` (`docs/02` §3) |
+| `versao_esquema` | inteiro | do corpo do evento |
+| `agregado_tipo`, `agregado_id` | texto, uuid | o registo a que diz respeito |
+| `dados` | jsonb | **mínimo**: identificadores e o que mudou; o receptor pede o resto à API (`headless-commerce`, «Webhooks») |
+| `criado_em` | instante | da base |
+| `publicado_em`, `tentativas`, `ultimo_erro` | — | do publicador; **só ele** os muda |
+
+- O evento grava-se **na mesma transacção** que a mudança (`platform-architect`,
+  regra 5). Nunca «gravar e depois tentar avisar».
+- A API só faz `INSERT`. O publicador terá um utilizador da base próprio.
+- Um evento já publicado não se altera nem se apaga (gatilho, como o rasto na
+  0008); o prazo de guarda decide-se com os webhooks.
+
+## 6. Limites de pedidos (com a fatia «identidade»)
+
+| Regra | Proposta |
+|---|---|
+| Por quê | por chave de API e por loja (`headless-commerce`, regra 6) |
+| Cabeçalhos | o que resta e quando volta; o nome dos cabeçalhos segue o rascunho da IETF *RateLimit header fields*, que **não verifiquei** se já é RFC |
+| Valores | **por decidir com medições**; nenhum número aqui é decisão |
+| Sem identidade | `/health`, `/paises` e `/openapi.json` ficam sem limite por cliente; a protecção é a do nginx e da firewall (ADR-0027) |
+| Dados pessoais | contar por chave, não por endereço IP (`eu-gdpr-privacy`, regra 7) |
+
+## O que não foi verificado
+
+- O estado do rascunho *RateLimit header fields* da IETF.
+- Os 24 h da idempotência e o prazo dos eventos são propostas técnicas, sem
+  medição.
