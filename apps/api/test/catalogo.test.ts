@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   ESTADOS_ARTIGO,
   ESTADOS_VARIANTE,
+  ORIGENS_ARTIGO,
   ORIGENS_GTIN,
   TIPOS_ARTIGO,
   UNIDADES_DE_CONTEUDO,
@@ -877,6 +878,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
       };
       expect(await lista("artigo_tipo_check")).toEqual([...TIPOS_ARTIGO]);
       expect(await lista("artigo_estado_check")).toEqual([...ESTADOS_ARTIGO]);
+      expect(await lista("artigo_origem_check")).toEqual([...ORIGENS_ARTIGO]);
       expect(await lista("variante_unidade_de_venda_check")).toEqual([
         ...UNIDADES_DE_VENDA,
       ]);

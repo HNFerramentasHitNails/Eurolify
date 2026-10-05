@@ -222,4 +222,7 @@ pedido de alteração.
   `docs/15`).
 - Por fazer: o rasto imutável e os privilégios das funções na base (depois
   do #97, por causa do número da migração); os pontos «ao abrir a primeira
-  rota»; e os de código.
+  rota».
+- **Código (Catálogo):** `ORIGENS_ARTIGO` passa a constante, com teste que a
+  compara com a regra da base (`artigo_origem_check`). O GTIN sem emissor
+  fica para quando houver Stock e leitor, como a auditoria diz.
