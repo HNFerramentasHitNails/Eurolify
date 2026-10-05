@@ -12,6 +12,8 @@
 
 - **2.ª revisão do #83 (agente, 05/10/2026):** 1 P1 e 3 P2; o Diogo pediu tudo (*«sim, corrige o P1, os P2 e os P3 e manda rever»*). P1, aberto pela minha correcção anterior: a função que marca (com os direitos do dono) aceitava qualquer comerciante e a API podia chamá-la, pôr uma marca falsa que ocupava o lugar da verdadeira e saltar a verificação (medido pelo revisor: variante incompleta num artigo à venda). Agora a marca leva o comerciante na chave e só os triggers marcam (`pg_trigger_depth() > 0`, 42501 directo). P2-1: o impasse apagar/dar valores ainda acontecia (1 em 400); `gravarValores` entra na fila do artigo antes de prender linhas. P2-2: as marcas de transacções acabadas limpam-se ao marcar (`SKIP LOCKED`, para dois comerciantes a limpar não esperarem um pelo outro — a primeira versão minha esperava). P2-3: teste com um impasse verdadeiro → `catalog.retry`. P3: ordem dos bloqueios e `catalog.retry` no `docs/14`; comentário da 0005; opção sem valores num rascunho escrita.
 
+- **3.ª revisão do #83 (agente, 05/10/2026):** sem P0 nem P1 (nenhuma via para saltar a verificação); o Diogo pediu os P2 e os P3. P2-1: criar uma opção e apagar o rascunho podiam esperar um pelo outro (a chave estrangeira da opção pede a linha do artigo depois da fila); `criarOpcao` toma a linha do artigo (`FOR KEY SHARE`) e depois a fila. P2-2: faltava o teste da condição `xmin` da limpeza (sem ela, uma transacção que mexe em dois artigos perdia a verificação do primeiro; medido pelo revisor). P2-3: o teste da limpeza tenta durante uns segundos (o `xmin` é do servidor todo). P3: comentário do GRANT; a limpeza é de melhor esforço e, com centenas de milhares de marcas acumuladas, atrasa quem marca a seguir (revisor: 300 000 marcas, 3,6 s numa transacção de 300 variantes, contra 0,63 s), sem bloquear nem fugir.
+
 ## Números (com data e como se contaram)
 
 - 05/10/2026, PostgreSQL 18.6 em Docker, `EXIGIR_BASE=1`: 10 testes em `catalogo-opcoes.test.ts`; api 177 passados, mcp 30; `pnpm tipos`, `pnpm lint` e `pnpm construir` sem erros.
@@ -20,6 +22,8 @@
 - 05/10/2026, depois da revisão: 21 testes em `catalogo-opcoes.test.ts`. Tempos do COMMIT de uma transacção (2 opções, PostgreSQL 18.6 local): 256 variantes, 0,45 s com a marca e 1,0 s sem ela; 576 variantes, 1,0 s e 4,4 s. Como um limite de tempo não prova a marca, o teste conta as verificações (uma por artigo, pelo aviso `RAISE DEBUG`). Mutações: sem a verificação ao apagar uma opção (1 falha), sem a marca (1), a API a poder tirar a marca (1), a fila sem o comerciante do contexto (1), a chave primária sem comerciante (1), mudar textos à venda (1), tirar valores de uma arquivada (1). Sem teste: o «sem repetidos» ao activar (só se alcança se a verificação no fim falhar) e a fila em `artigo_antes_de_apagar` (o impasse precisa de um intervalo que não se força num teste).
 
 - 05/10/2026, depois da 2.ª revisão: 25 testes em `catalogo-opcoes.test.ts`; api 192 passados, mcp 30. Mutações: sem a guarda dos triggers ao marcar (1 falha), sem a limpeza (1), sem a fila no repositório (1; o teste vê, com `FOR UPDATE NOWAIT`, que quem espera não prendeu linhas), sem traduzir 40P01 (2). A chave da marca com o comerciante não tem teste próprio: com a guarda dos triggers, a marca falsa já não se consegue pôr.
+
+- 05/10/2026, depois da 3.ª revisão: 27 testes em `catalogo-opcoes.test.ts`. Mutações: limpeza sem a condição `xmin` (1 falha, o teste de dois artigos), `criarOpcao` sem a linha do artigo primeiro (1, o teste com `lock_timeout`).
 
 ## O que ficou por verificar
 

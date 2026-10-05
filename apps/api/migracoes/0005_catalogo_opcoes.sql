@@ -433,7 +433,9 @@ $$;
 ALTER TABLE combinacoes_por_verificar ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON combinacoes_por_verificar FROM PUBLIC;
 
--- As funções: só a API as chama (por dentro dos triggers), não qualquer papel.
+-- As funções: só a API tem EXECUTE (os triggers correm com os direitos dela),
+-- não qualquer papel. Marcar exige-o também, mas recusa fora de um trigger
+-- (pg_trigger_depth); tirar a marca, nem a API.
 REVOKE EXECUTE ON FUNCTION catalogo_fila_do_artigo(uuid, uuid),
   catalogo_estado_do_artigo(uuid, uuid), catalogo_marcar_combinacoes(uuid, uuid),
   catalogo_tirar_marca(uuid, uuid), catalogo_verificar_combinacoes(uuid, uuid)

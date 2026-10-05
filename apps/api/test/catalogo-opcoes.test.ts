@@ -716,9 +716,21 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
       return rows[0]?.n ?? -1;
     };
     expect(await contar()).toBe(1);
-    // A próxima marca (de qualquer transacção) limpa as que já acabaram.
-    await criarVariante(base.api, c, artigo, variante("LX-2"));
-    expect(await contar()).toBe(0);
+    // A próxima marca (de qualquer transacção) limpa as que já acabaram. A
+    // limpeza é de melhor esforço: espera que nenhuma transacção mais antiga
+    // esteja aberta no servidor (pg_snapshot_xmin, de todas as bases), por
+    // isso tenta-se durante uns segundos (revisão do #83, 3.ª, P2-3).
+    let restam = -1;
+    for (let i = 0; i < 50 && restam !== 0; i++) {
+      await criarVariante(base.api, c, artigo, variante(`LX-${String(i + 2)}`));
+      restam = await contar();
+      if (restam !== 0) {
+        await new Promise((r) => {
+          setTimeout(r, 100);
+        });
+      }
+    }
+    expect(restam).toBe(0);
   });
 
   it("dar valores entra na fila do artigo antes de prender linhas (P2-1)", async () => {
@@ -781,5 +793,86 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
         await ligacao.end();
       }
     }
+  });
+
+  it("uma transacção que mexe em dois artigos verifica os dois (revisão do #83, 3.ª, P2-2)", async () => {
+    // A limpeza das marcas não pode levar as da própria transacção: aqui a
+    // marca de X ficaria sem verificação ao marcar Y.
+    const x = await verniz();
+    const y = await verniz(x.c);
+    for (const art of [x, y]) {
+      await criarVarianteComValores(
+        base.api,
+        x.c,
+        art.artigo,
+        variante(`DA-${art.artigo.slice(-6)}`),
+        [art.v.vermelho, art.v.pequeno],
+      );
+      await mudarEstadoArtigo(base.api, x.c, art.artigo, 1, "activo");
+    }
+    const cliente = await ligacaoComo(x.c);
+    let erro: unknown;
+    try {
+      // X: uma variante sem valores (incompleta). Y: uma completa e válida.
+      await cliente.query(
+        "insert into variante (comerciante_id, artigo_id, sku, unidade_de_venda) values ($1, $2, 'DA-X', 'unidade')",
+        [x.c, x.artigo],
+      );
+      const { rows } = await cliente.query<{ id: string }>(
+        "insert into variante (comerciante_id, artigo_id, sku, unidade_de_venda) values ($1, $2, 'DA-Y', 'unidade') returning id",
+        [x.c, y.artigo],
+      );
+      for (const valor of [y.v.nude, y.v.grande]) {
+        await cliente.query(
+          `insert into variante_valor (comerciante_id, artigo_id, variante_id, opcao_id, valor_id)
+           select $1, $2, $3, opcao_id, id from valor_opcao where id = $4`,
+          [x.c, y.artigo, rows[0]?.id, valor],
+        );
+      }
+      await cliente.query("commit");
+    } catch (e) {
+      erro = e;
+    } finally {
+      await cliente.query("rollback").catch(() => undefined);
+      await cliente.end();
+    }
+    expect((traduzir(erro) as ErroCatalogo).codigo).toBe(
+      "catalog.options_incomplete",
+    );
+    expect(await varianteComSku(base.api, x.c, "DA-X")).toBeUndefined();
+  });
+
+  it("criar uma opção toma a linha do artigo antes da fila (P2-1)", async () => {
+    const { c, artigo } = await verniz();
+    // Alguém tem a linha do artigo (como quem apaga o rascunho).
+    const linha = await ligacaoComo(c);
+    let esperou: boolean | undefined;
+    let criar: Promise<string> | undefined;
+    try {
+      await linha.query("select 1 from artigo where id = $1 for update", [
+        artigo,
+      ]);
+      criar = codigoDoErro(
+        criarOpcao(base.api, c, artigo, "Acabamento", ["Mate"]),
+      );
+      esperou = await esperaBloqueio(criar);
+      // Enquanto espera pela linha, não tem a fila do artigo.
+      const outra = await ligacaoComo(c);
+      try {
+        await outra.query("set local lock_timeout = '300ms'");
+        await outra.query("select catalogo_fila_do_artigo($1, $2)", [
+          c,
+          artigo,
+        ]);
+      } finally {
+        await outra.query("rollback").catch(() => undefined);
+        await outra.end();
+      }
+    } finally {
+      await linha.query("rollback").catch(() => undefined);
+      await linha.end();
+    }
+    expect(esperou).toBe(true);
+    expect(await criar).toBe("sem erro");
   });
 });

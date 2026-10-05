@@ -23,7 +23,7 @@
 > Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 16 testes):
 > ver §3.4, com as regras **proposta** desta parte.
 >
-> Parte 2b — opções e valores (migração `0005_catalogo_opcoes.sql`, 25 testes):
+> Parte 2b — opções e valores (migração `0005_catalogo_opcoes.sql`, 27 testes):
 > ver §3.3, com as regras **proposta** desta parte.
 >
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
@@ -155,10 +155,14 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
   numa fila por artigo e por comerciante, e assumem o isolamento READ
   COMMITTED da API (em REPEATABLE READ, duas transacções ao mesmo tempo podiam
   não se ver). Ordem dos bloqueios: a linha do artigo, a fila do comerciante
-  (kits), a fila do artigo (opções); o repositório entra na fila do artigo
-  antes de prender linhas (os triggers só a tomam depois de prender a linha
-  que mudam). Se ainda assim duas transacções esperarem uma pela outra, o
-  erro é `catalog.retry` e nada fica gravado.
+  (kits), a fila do artigo (opções). O repositório segue-a: criar uma opção
+  toma a linha do artigo antes da fila, e dar valores toma a fila antes de
+  prender linhas (os triggers só a tomam depois de prender a linha que
+  mudam). Por SQL directo, fora do repositório, a ordem pode inverter-se (por
+  exemplo, apagar uma variante de um rascunho contra dar-lhe valores); se duas
+  transacções esperarem uma pela outra, o erro é `catalog.retry` e nada fica
+  gravado. A tabela interna das marcas limpa-se ao marcar, com melhor esforço:
+  uma transacção longa em qualquer base do servidor atrasa a limpeza, sem dano.
 
 ### 3.4 Composição — kits e coleções (`cmp_`)
 

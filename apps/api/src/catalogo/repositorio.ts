@@ -613,6 +613,23 @@ export async function criarOpcao(
     );
   }
   return noCatalogo(db, comercianteId, async (trx) => {
+    // A linha do artigo antes da fila dele, pela mesma ordem de quem apaga o
+    // rascunho: a chave estrangeira da opção pede a linha do artigo, e o
+    // trigger toma a fila antes dela — sem isto, criar uma opção e apagar o
+    // rascunho podiam esperar um pelo outro (revisão do #83, 3.ª, P2-1).
+    const artigo = await trx
+      .selectFrom("artigo")
+      .select("id")
+      .where("comerciante_id", "=", comercianteId)
+      .where("id", "=", artigoId)
+      .forKeyShare()
+      .executeTakeFirst();
+    if (artigo === undefined) {
+      throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+    }
+    await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${artigoId}::uuid)`.execute(
+      trx,
+    );
     const { n } = await trx
       .selectFrom("opcao")
       .select((eb) => eb.fn.countAll<string>().as("n"))
