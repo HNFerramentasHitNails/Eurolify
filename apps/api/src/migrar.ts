@@ -1,6 +1,7 @@
 import { Kysely, PostgresDialect } from "kysely";
 import pg from "pg";
 import { migrar } from "./base/migracoes.js";
+import { pormenorDeMigracao } from "./base/pormenor-de-migracao.js";
 import { decidirMigracao } from "./base/url-migracao.js";
 
 // Corre na publicação, antes de trocar a versão (eurolify-publicar). Liga-se
@@ -19,12 +20,9 @@ if (decisao.tipo === "sem_base") {
   });
   try {
     const { results } = await migrar(db).catch((erro: unknown) => {
-      // O pormenor do PostgreSQL (por exemplo, que chave se repete) não vem
-      // na mensagem; escreve-se antes de parar (revisão do #80, P3-1).
-      const pormenor = (erro as { detail?: unknown }).detail;
-      if (typeof pormenor === "string") {
-        console.error(`migrar: pormenor: ${pormenor}`);
-      }
+      // Onde falhou, sem valores das linhas (pormenor-de-migracao.ts).
+      const pormenor = pormenorDeMigracao(erro);
+      if (pormenor !== undefined) console.error(`migrar: ${pormenor}`);
       throw erro;
     });
     const aplicadas = (results ?? []).filter((r) => r.status === "Success");

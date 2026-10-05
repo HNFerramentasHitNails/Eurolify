@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdtemp, copyFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,18 +21,35 @@ const ARTIGO_OUTRO = "01900000-0000-7000-8000-0000000000a2";
 describe.skipIf(URL_BASE === undefined)("migração 0003 sobre dados", () => {
   const aFechar: (() => Promise<void>)[] = [];
 
+  // Cada limpeza corre mesmo que a anterior falhe; o primeiro erro sai no
+  // fim (revisão do #80, 2.ª, P3-B).
   afterEach(async () => {
-    for (const fechar of aFechar.splice(0).reverse()) await fechar();
+    const erros: unknown[] = [];
+    for (const fechar of aFechar.splice(0).reverse()) {
+      try {
+        await fechar();
+      } catch (erro) {
+        erros.push(erro);
+      }
+    }
+    if (erros.length > 0) {
+      throw new AggregateError(erros, "a limpeza da migração 0003 falhou");
+    }
   });
 
   /** Uma base nova, migrada só até à 0002. */
   async function baseAte0002(): Promise<Kysely<unknown>> {
-    const nome = `eurolify_teste_0003_${String(Date.now())}`;
+    // Como em base-de-teste.ts: um nome ao acaso não colide com uma base
+    // deixada por uma corrida morta (P3-A).
+    const nome = `eurolify_teste_${randomBytes(6).toString("hex")}`;
     const urlAdmin = URL_BASE ?? "";
     const admin = new pg.Client({ connectionString: urlAdmin });
-    await admin.connect();
-    await admin.query(`CREATE DATABASE ${nome}`);
-    await admin.end();
+    try {
+      await admin.connect();
+      await admin.query(`CREATE DATABASE ${nome}`);
+    } finally {
+      await admin.end();
+    }
     aFechar.push(async () => {
       const fim = new pg.Client({ connectionString: urlAdmin });
       await fim.connect();
