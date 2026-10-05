@@ -133,8 +133,9 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
         await apagarBase(fim, nome);
       } finally {
         // O papel é da instância, não da base: volta a ficar sem acesso e sem
-        // palavra-passe (revisão do #43, P2-5). Só um ficheiro de testes usa a
-        // base de cada vez; se passarem a ser vários em paralelo, mudar isto.
+        // palavra-passe (revisão do #43, P2-5). Os ficheiros de testes correm
+        // um de cada vez (vitest.config.ts): o fim de um não fecha o papel a
+        // outro que ainda está a correr.
         // Se a corrida for morta antes daqui, o papel fica com LOGIN e a
         // palavra-passe de teste nesta instância (só em máquinas de teste).
         try {

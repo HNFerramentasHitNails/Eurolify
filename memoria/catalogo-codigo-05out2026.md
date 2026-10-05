@@ -1,0 +1,34 @@
+# Catálogo (fatia 3): código — 05/10/2026
+
+## O que se fez
+
+- O Diogo aceitou as propostas do `docs/14` §9 (*«sim, aceito as propostas do §9»*, #76, `docs/06` AR) e pediu o código (*«sim, começa o código do Catálogo»*). Issue #77, com as partes previstas.
+- **Parte 1 — artigos e variantes na base** (migração `0002_catalogo_artigos.sql`):
+  - `artigo`: tipo, estado (rascunho → activo → arquivado → activo), nome, descrição, marca, código da categoria fiscal, origem (Eurolify ou externo com referência), `ja_esteve_activo`, versão;
+  - `variante`: SKU obrigatório e único por comerciante, também contra as arquivadas (C3, P7); GTIN com dígito de controlo e origem, único (C4); unidade de venda obrigatória; conteúdo para o preço por unidade; peso e medidas; ONU e classe ADR; arquivada é final; o artigo e o SKU não mudam;
+  - digital e cartão-oferta recusados (`catalog.type_disabled`; P3, ADR-0034);
+  - activar exige uma variante activa (`FOR SHARE` contra quem arquiva ao mesmo tempo); só se apaga um rascunho que nunca esteve activo (e as variantes com ele);
+  - RLS forçado como na 0001; `eurolify_api` com SELECT, UPDATE e DELETE, e INSERT só nas colunas que não são o `id` (os triggers só deixam apagar rascunhos).
+- **Revisão do #78 (agente, 05/10/2026) e correcções:** o Diogo escolheu a opção a) para o P1-1 (*«a), e corrige o P1-2 e os P2 técnicos»*): um artigo arquivado recebe variantes novas — antes, um artigo com todas as variantes arquivadas ficava preso. P1-2: o GTIN único passa a comparar o código com 14 algarismos (zeros à esquerda), e só zeros é recusado. P2: datas de criação impostas pela base; o `id` não se escolhe; 23503 passa a `catalog.not_found`; SKU e unidade em falta e SKU mal formado com código próprio; alteração vazia não sobe a versão; teste de duas escritas na mesma versão ao mesmo tempo; listas C8 também para unidades do conteúdo, origens do GTIN e estados da variante.
+- **2.ª revisão do #78 (agente, 05/10/2026):** sem P0 nem P1; o Diogo pediu os P2 e os P3 (*«sim, corrige os P2 e os P3 e manda rever»*). O teste de duas escritas ao mesmo tempo passava sem o `FOR UPDATE` (dependia do tempo): passou a segurar a linha noutra transacção; teste novo igual para activar enquanto outro arquiva a única variante (`FOR SHARE`). Erros que saíam crus da base passam a ter código (`catalog.gtin_origin_required`, `content_incomplete`, `name_required`, `origin_ref_required` e `invalid_field` para os restantes). Testes de escritas cruzadas entre comerciantes. `docs/14`: códigos da parte 1 no §7.1; «activar exige uma variante activa», o formato da categoria fiscal e as datas postas pela base marcados como proposta; o peso só se exige ao publicar.
+- **3.ª revisão do #78 (agente, 05/10/2026):** sem P0 nem P1; o Diogo pediu os P2 e os P3 (*«sim, corrige os P2 e os P3 e manda rever»*). Os valores que a base nem consegue ler (classe 22) passam a ter código: um id que não é UUID é `catalog.not_found`, o resto `catalog.invalid_field`; uma alteração só com chaves `undefined` não sobe a versão; pedir o estado em que o artigo já está também não. Os testes de concorrência esperam que a base mostre a escrita à espera de um bloqueio (`pg_stat_activity`), em vez de 300 ms; a ligação que segura a linha fecha-se se falhar a meio. `docs/14`: repor também exige uma variante activa; arquivar a última de um artigo activo é permitido (C6); a lista de unidades não tem submúltiplos de área (por decidir). **O repositório não promete que nenhum erro da base saia cru**: um 42501 de SQL escrito à mão continua cru; a validação dos pedidos é da camada da API.
+- Ficam para o Diogo ou o Bruno (`docs/14` §9): P8 — apagar uma variante de um rascunho (também uma arquivada) liberta o SKU?; P9 — o SKU distingue maiúsculas?
+- Para a parte da API: as variantes não têm versão nem data de alteração, e criar ou arquivar uma variante não sobe a versão do artigo. Um futuro `PATCH` de variante pode perder alterações feitas ao mesmo tempo — decide-se aí (2.ª revisão, P3-3).
+- `apps/api/src/catalogo/repositorio.ts`: criar, ler, alterar com a versão lida (`catalog.version_conflict`), mudar o estado, apagar o rascunho, criar e arquivar variantes, procurar por SKU; erros com código (`catalog.*`).
+- Os ficheiros de testes passam a correr um de cada vez (`apps/api/vitest.config.ts`): os da base mexem no papel `eurolify_api`, que é da instância.
+- **Proposta desta parte:** as listas de unidades de venda (`unidade`, `par`, `caixa`, `embalagem`, `conjunto`) e de unidades do conteúdo (`mg`, `g`, `kg`, `ml`, `cl`, `l`, `mm`, `cm`, `m`, `m2`, `m3`).
+
+## Números (com data e como se contaram)
+
+- 05/10/2026, PostgreSQL 18.6 em Docker, `EXIGIR_BASE=1`, Node 22.22: api com 133 passados (18 novos em `catalogo.test.ts`, `grep -c "  it("`), mcp com 30; 5 corridas seguidas sem erros; `pnpm tipos`, `pnpm lint` e `pnpm construir` sem erros.
+- 05/10/2026, depois das correcções da revisão: api com 135 passados (20 em `catalogo.test.ts`, `grep -c '^    it("'`), mcp com 30; `pnpm tipos`, `pnpm lint` e `pnpm construir` sem erros. Mutações novas, uma de cada vez: índice do GTIN sem os zeros à esquerda, só zeros aceite, datas não impostas, INSERT em todas as colunas — cada uma faz falhar 1 teste. A última só falhou depois de corrigir o teste: a primeira versão inseria só o `id` e era recusada pelo RLS, não pela permissão.
+- 05/10/2026, depois da 2.ª revisão: `catalogo.test.ts` com 21 testes, 5 corridas seguidas sem erros. Mutações: sem o `FOR UPDATE` em `artigoNaVersao`, e sem o `FOR SHARE` na activação — cada uma faz falhar 1 teste (o da concorrência respectiva).
+- 05/10/2026, depois da 3.ª revisão: api com 138 passados (23 em `catalogo.test.ts`), mcp com 30. Mutações, uma de cada vez: sem `FOR UPDATE`, sem `FOR SHARE`, sem a guarda do estado igual, sem a tradução da classe 22, sem o filtro das chaves `undefined` — cada uma faz falhar 1 teste.
+- Mutações da primeira versão (uma de cada vez, na migração): sem o dígito de controlo, com os tipos desligados ligados, sem o SKU único, com a variante arquivada a mudar, a activar sem variantes — cada uma faz falhar 1 teste. Sem a guarda do artigo ao apagar, os testes passam: a guarda das variantes dá o mesmo erro (segunda barreira).
+- Os GTIN dos testes têm o dígito de controlo calculado à mão (pesos 3 e 1 da direita); não verifiquei em que secção das especificações GS1 está o algoritmo.
+
+## O que ficou por verificar
+
+- A migração 0002 na VPS: corre na publicação seguinte a juntar, como o `eurolify_migrador`.
+- As partes 2 a 5 (#77): opções, kits, traduções, categorias, colecções, publicação, media, importação, eventos e linha do tempo.
+- A API HTTP do Catálogo (com a fatia «identidade»).
