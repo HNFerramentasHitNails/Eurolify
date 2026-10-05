@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Type } from "typebox";
-import { criarApp } from "../src/app.js";
-import { RESPOSTA_DE_ERRO, TIPO_PROBLEMA } from "../src/base/erros.js";
+import { criarApp, rotasRegistadas } from "../src/app.js";
+import { ErroApi, RESPOSTA_DE_ERRO, TIPO_PROBLEMA } from "../src/base/erros.js";
 
 // Base comum da API (docs/18): erros RFC 9457 e contrato OpenAPI.
 
@@ -77,6 +77,80 @@ describe("base comum da API", () => {
       ]);
     });
 
+    it("um obrigatório em falta diz o nome do campo", async () => {
+      app.post(
+        "/teste-falta",
+        {
+          schema: {
+            body: Type.Object({ nome: Type.String() }),
+            response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO },
+          },
+        },
+        () => ({}),
+      );
+      const r = await app.inject({
+        method: "POST",
+        url: "/teste-falta",
+        payload: {},
+      });
+      expect(r.statusCode).toBe(400);
+      expect(
+        r.json<{ erros: { campo: string }[] }>().erros.map((e) => e.campo),
+      ).toEqual(["/body/nome"]);
+    });
+
+    it("um URL mal formado sai em problem+json, sem repetir o caminho", async () => {
+      const r = await app.inject({ method: "GET", url: "/%c0" });
+      expect(r.statusCode).toBe(400);
+      expect(r.headers["content-type"]).toMatch(/^application\/problem\+json/);
+      expect(r.json<{ codigo: string }>().codigo).toBe("request.invalid");
+      expect(r.body).not.toContain("%c0");
+    });
+
+    it("não há rotas HEAD automáticas fora do contrato", async () => {
+      const r = await app.inject({ method: "HEAD", url: "/health" });
+      expect(r.statusCode).toBe(404);
+    });
+
+    it("um erro de domínio (ErroApi) mantém o estado e o código", async () => {
+      app.get(
+        "/teste-conflito",
+        { schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } } },
+        () => {
+          throw new ErroApi(
+            "merchant.version_conflict",
+            409,
+            { pt: "Versão desactualizada", en: "Stale version" },
+            "versão 3 esperada",
+          );
+        },
+      );
+      const r = await app.inject({ method: "GET", url: "/teste-conflito" });
+      expect(r.statusCode).toBe(409);
+      expect(r.json()).toMatchObject({
+        type: "/erros/merchant.version_conflict",
+        status: 409,
+        codigo: "merchant.version_conflict",
+        detail: "versão 3 esperada",
+      });
+    });
+
+    it("um erro de fora com estado 4xx não passa o estado nem o texto: dá 500", async () => {
+      app.get(
+        "/teste-externo",
+        { schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } } },
+        () => {
+          throw Object.assign(new Error("cliente ana@exemplo.pt recusado"), {
+            statusCode: 409,
+          });
+        },
+      );
+      const r = await app.inject({ method: "GET", url: "/teste-externo" });
+      expect(r.statusCode).toBe(500);
+      expect(r.body).not.toContain("ana@");
+      expect(r.json<{ codigo: string }>().codigo).toBe("internal.error");
+    });
+
     it("um tipo de conteúdo que a rota não aceita dá 415", async () => {
       app.post(
         "/teste-tipo",
@@ -139,12 +213,28 @@ describe("base comum da API", () => {
           expect(respostas["200"], `${metodo} ${caminho}: 200`).toBeDefined();
           for (const erro of ["4XX", "5XX"]) {
             expect(
-              Object.keys(respostas[erro]?.content ?? {}),
+              respostas[erro]?.content,
               `${metodo} ${caminho}: ${erro}`,
-            ).toEqual([TIPO_PROBLEMA]);
+            ).toEqual({
+              [TIPO_PROBLEMA]: {
+                schema: { $ref: "#/components/schemas/Problema" },
+              },
+            });
           }
         }
       }
+    });
+
+    it("todas as rotas registadas estão no contrato", async () => {
+      const c = await contrato();
+      const noContrato = Object.entries(c.paths).flatMap(([caminho, ops]) =>
+        Object.keys(ops).map((metodo) => `${metodo} ${caminho}`),
+      );
+      const registadas = rotasRegistadas(app).map(
+        (r) => `${r.metodo.toLowerCase()} ${r.caminho}`,
+      );
+      expect(registadas.length).toBeGreaterThan(0);
+      expect(noContrato.sort()).toEqual(registadas.sort());
     });
 
     it("uma rota sem a resposta de erro não se regista: nada fora do contrato", () => {
@@ -158,6 +248,24 @@ describe("base comum da API", () => {
       expect(() => app.get("/sem-esquema", () => ({}))).toThrow(
         /fora do contrato/,
       );
+      expect(() =>
+        app.get(
+          "/erro-qualquer",
+          {
+            schema: {
+              response: {
+                200: Type.Object({}),
+                "4xx": Type.Object({}),
+                "5xx": Type.Object({}),
+              },
+            },
+          },
+          () => ({}),
+        ),
+      ).toThrow(/fora do contrato/);
+      expect(() =>
+        app.get("/escondida", { schema: { hide: true } }, () => ({})),
+      ).toThrow(/fora do contrato/);
     });
 
     it("o /openapi.json não aparece no próprio contrato", async () => {

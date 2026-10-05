@@ -229,7 +229,7 @@ pedido de alteração.
 - **Ao abrir a primeira rota:** desenho no `docs/18`. Feitos: erros RFC 9457
   em todas as rotas e no 404, e o contrato OpenAPI 3.1 gerado e publicado em
   `/openapi.json` (uma rota fora do contrato não se regista). Por fazer: as
-  tabelas da idempotência e dos eventos (migração 0009), a `Idempotency-Key`
+  tabelas da idempotência e dos eventos (próxima migração), a `Idempotency-Key`
   nas rotas e os limites de pedidos, com a fatia «identidade».
 - **Código (Catálogo):** `ORIGENS_ARTIGO` passa a constante, com teste que a
   compara com a regra da base (`artigo_origem_check`). O GTIN sem emissor

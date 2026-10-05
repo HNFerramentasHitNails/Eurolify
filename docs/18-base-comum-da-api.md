@@ -6,7 +6,7 @@
 > `headless-commerce` (regras 1, 3, 5 e 6), `platform-architect` (regras 5 e
 > 6), `observability-security`, `eu-gdpr-privacy` (regra 7). Já decidido:
 > REST com OpenAPI 3.1 gerado pelo Fastify + TypeBox + `@fastify/swagger`
-> 9.9.1 (ADR-0025); erros RFC 9457 e `Idempotency-Key` (`docs/02` §4).
+> 9.9.1 (ADR-0025); erros RFC 9457 e `Idempotency-Key` (`docs/02` §4.3).
 >
 > **Hoje** a API só tem `GET /health` e `GET /paises` (`apps/api/src/app.ts`).
 > As rotas de domínio (Comerciante, Catálogo) esperam pela fatia
@@ -19,7 +19,7 @@
 |---|---|---|
 | Erros num formato único (RFC 9457) | **já** (pedido A) | vale para as rotas que existem e para os erros do próprio Fastify (404, validação) |
 | Contrato OpenAPI 3.1 gerado e publicado | **já** (pedido A) | «nada é exposto fora do contrato» (`headless-commerce`, regra 1); um teste falha se uma rota ficar fora |
-| Tabelas da idempotência e dos eventos (outbox) | pedido B (migração 0009), antes da primeira rota de escrita | o desenho está aqui; o código liga-se com a fatia «identidade» |
+| Tabelas da idempotência e dos eventos (outbox) | pedido B (próxima migração), antes da primeira rota de escrita | o desenho está aqui; o código liga-se com a fatia «identidade» |
 | `Idempotency-Key` nas rotas | com a primeira rota de escrita | precisa do comerciante de quem chama |
 | Limites de pedidos | com a fatia «identidade» | são «por chave e por loja» (regra 6) |
 | Publicador do outbox (webhooks) | com os webhooks | o evento grava-se já; publica-se depois |
@@ -31,17 +31,22 @@ Todo o erro sai com `Content-Type: application/problem+json` e este corpo
 
 | Campo | Tipo | Exemplo | Nota |
 |---|---|---|---|
-| `type` | URI relativo | `/erros/request.invalid` | o RFC aceita uma referência relativa; a página de cada código publica-se com a documentação |
+| `type` | URI relativo | `/erros/request.invalid` | a página de cada código publica-se com a documentação. Se o RFC 9457 aceita um URI relativo aqui **não verifiquei** (o texto não foi lido); se não aceitar, passa a absoluto quando houver domínio da API |
 | `title` | texto | `Pedido inválido` | em português; igual para o mesmo código |
 | `status` | inteiro | `400` | o mesmo do HTTP |
-| `detail` | texto | `body/nome: tem de ter pelo menos 1 caracter` | o que aconteceu neste pedido; **nunca** dados pessoais, SQL nem pilha |
+| `detail` | texto | `body/nome must NOT have fewer than 1 characters` | o que aconteceu neste pedido; só nos erros do Fastify e nos de domínio (`ErroApi`); qualquer outro erro dá 500 sem `detail`. **Nunca** dados pessoais, SQL nem pilha |
 | `instance` | texto | `req-1k` | o identificador do pedido, o mesmo do registo |
 | `codigo` | texto | `request.invalid` | **estável**: os clientes e as IA decidem por ele, nunca pelo texto |
 | `mensagem` | `{pt, en}` | — | `headless-commerce`, regra 3 |
-| `erros` | lista de `{campo, mensagem}` | `[{"campo": "/nome", …}]` | só na validação; `campo` é um ponteiro JSON (RFC 6901) |
+| `erros` | lista de `{campo, mensagem}` | `[{"campo": "/body/nome", …}]` | só na validação; `campo` é um ponteiro JSON (RFC 6901), com o nome do obrigatório em falta. **A `mensagem` de cada campo sai em inglês, do validador**; em PT e EN por campo fica por fazer |
 
-Códigos de partida (os de domínio, como `merchant.invalid_transition`,
-entram com as rotas de cada domínio):
+Códigos de partida. Os de domínio (ex.: `merchant.invalid_transition`)
+entram com as rotas de cada domínio, lançados como `ErroApi` (código,
+estado e mensagem PT/EN); um erro que não seja do Fastify nem `ErroApi` dá
+sempre 500, mesmo que traga um estado 4xx, para não passar texto de fora ao
+cliente. O URL mal formado também sai neste formato (`frameworkErrors`). Ficam
+fora do formato, por serem anteriores ao Fastify, os pedidos HTTP mal formados
+e um erro dentro do próprio gestor de erros.
 
 | Código | HTTP | Quando |
 |---|---|---|
@@ -50,8 +55,8 @@ entram com as rotas de cada domínio):
 | `payload.too_large` | 413 | corpo acima do limite |
 | `media_type.unsupported` | 415 | `Content-Type` que a rota não aceita |
 | `idempotency.key_required` | 400 | escrita sem `Idempotency-Key` (com as rotas de escrita) |
-| `idempotency.key_reused` | 422 | a mesma chave com outro corpo |
-| `idempotency.in_progress` | 409 | a mesma chave ainda a ser tratada |
+| `idempotency.key_reused` | 422 | a mesma chave com outro corpo (**proposta**: o estado HTTP não tem fonte lida) |
+| `idempotency.in_progress` | 409 | a mesma chave ainda a ser tratada (**proposta**, idem) |
 | `rate_limit.exceeded` | 429 | acima do limite (com a fatia «identidade») |
 | `internal.error` | 500 | tudo o resto; o pormenor vai só para o registo, com o `instance` |
 
@@ -63,12 +68,12 @@ regra 3; lição 4.1).
 | Regra | Como |
 |---|---|
 | Gerado dos esquemas | `@fastify/swagger` 9.9.1, modo dinâmico, `openapi: 3.1.0` (ADR-0025) |
-| Publicado | `GET /openapi.json`, sem autenticação: é o que os construtores de frontends e as IA lêem (`docs/02` §4) |
+| Publicado | `GET /openapi.json`, sem autenticação: é o que os construtores de frontends e as IA lêem (`docs/02` §4.3) |
 | Nada fora do contrato | uma rota sem a resposta de sucesso **e** a de erro (`application/problem+json`) **não se regista** (gancho `onRoute` em `app.ts`); só o `/openapi.json` fica de fora; o teste confere o contrato publicado |
 | Erro no contrato | um esquema `Problema` partilhado, referido em todas as respostas de erro |
 | Versão por data | **por desenhar** (`headless-commerce`, regra 7): entra antes da primeira rota de domínio |
 
-## 4. Idempotência (tabela `idempotencia`, migração 0009)
+## 4. Idempotência (tabela `idempotencia`, próxima migração)
 
 | Campo | Tipo | Nota |
 |---|---|---|
@@ -80,12 +85,18 @@ regra 3; lição 4.1).
 | `resposta_status`, `resposta_corpo` | inteiro, jsonb | devolve-se a mesma resposta ao repetir |
 | `criado_em`, `expira_em` | instantes | **proposta: 24 h**; uma tarefa diária apaga as expiradas e regista o que apagou |
 
-- A linha grava-se **na mesma transacção** que a escrita; se a escrita falhar,
-  não fica nada e o cliente pode repetir.
+- **Modelo (proposta):** a linha entra em `em_curso` **numa transacção
+  própria, antes** da escrita (`INSERT … ON CONFLICT DO NOTHING`): se já existe
+  `em_curso` → `idempotency.in_progress`; se existe `concluido` com o mesmo
+  resumo → devolve-se a resposta guardada; com outro resumo →
+  `idempotency.key_reused`. A escrita e a passagem a `concluido` vão na
+  **mesma** transacção; se a escrita falhar, apaga-se a linha `em_curso` e o
+  cliente pode repetir. Um `em_curso` órfão (processo morto) expira ao fim de
+  um prazo curto, a decidir com a migração.
 - O corpo guardado pode ter dados pessoais (ex.: uma morada): fica 24 h e entra
   no `docs/17` §3 quando a tabela existir.
 
-## 5. Eventos de domínio (tabela `evento_saida`, outbox, migração 0009)
+## 5. Eventos de domínio (tabela `evento_saida`, outbox, próxima migração)
 
 | Campo | Tipo | Nota |
 |---|---|---|
@@ -111,8 +122,21 @@ regra 3; lição 4.1).
 | Por quê | por chave de API e por loja (`headless-commerce`, regra 6) |
 | Cabeçalhos | o que resta e quando volta; o nome dos cabeçalhos segue o rascunho da IETF *RateLimit header fields*, que **não verifiquei** se já é RFC |
 | Valores | **por decidir com medições**; nenhum número aqui é decisão |
-| Sem identidade | `/health`, `/paises` e `/openapi.json` ficam sem limite por cliente; a protecção é a do nginx e da firewall (ADR-0027) |
-| Dados pessoais | contar por chave, não por endereço IP (`eu-gdpr-privacy`, regra 7) |
+| Sem identidade | `/health`, `/paises` e `/openapi.json` ficam sem limite por cliente. Hoje a API não está exposta: só ouve em `127.0.0.1` (`servidor.ts`) e o nginx só encaminha o MCP (`infra/vps/ficheiros/nginx-mcp.conf`). O limite à frente da API desenha-se quando ela for publicada |
+| Dados pessoais | contar por chave, não por endereço IP: o IP é dado pessoal (`eu-gdpr-privacy`, «Quando usar») e não deve ir para registos nem métricas (regra 7) |
+
+## Outras notas
+
+- `docs/02` §4.3 fala de duas APIs (Loja e Administração). Hoje há um só
+  `/openapi.json`; quando entrar a de Administração, decide-se se cada uma tem
+  o seu contrato publicado, para o público não ver as rotas internas.
+- Um método que a rota não tem dá 404 e não 405 com `Allow` (RFC 9110). Fica
+  assim por agora.
+- O registo de cada pedido guarda o `url` com a consulta (`servidor.ts`): quando
+  houver filtros com dados pessoais (ex.: e-mail), a consulta sai do registo.
+- Os registos de erro guardam só o tipo, o código, a mensagem e a pilha do erro
+  (`servidor.ts`), não o `detail` de um erro do PostgreSQL, que traz valores da
+  linha. O identificador do pedido é um UUID.
 
 ## O que não foi verificado
 

@@ -88,16 +88,43 @@ function enviar(resposta: FastifyReply, corpo: Problema) {
   return resposta.status(corpo.status).type(TIPO_PROBLEMA).send(corpo);
 }
 
-/** Qual dos códigos de partida corresponde a um erro do Fastify. */
-function codigoDe(erro: FastifyError): CodigoBase {
-  if (erro.validation !== undefined) return "request.invalid";
-  if (erro.code === "FST_ERR_CTP_BODY_TOO_LARGE") return "payload.too_large";
-  if (erro.code === "FST_ERR_CTP_INVALID_MEDIA_TYPE") {
-    return "media_type.unsupported";
+/**
+ * Erro de domínio com código estável (docs/18 §2), para as rotas lançarem
+ * (ex.: um 409 de concorrência). Só estes e os do próprio Fastify mostram
+ * o `detail` ao cliente; qualquer outro erro dá 500 sem pormenor (revisão
+ * do #106, P2-1 e P2-2).
+ */
+export class ErroApi extends Error {
+  constructor(
+    readonly codigo: string,
+    readonly status: number,
+    readonly mensagens: { pt: string; en: string },
+    detalhe?: string,
+  ) {
+    super(detalhe ?? mensagens.pt);
+    this.name = "ErroApi";
   }
-  const estado = erro.statusCode ?? 500;
-  if (estado >= 400 && estado < 500) return "request.invalid";
-  return "internal.error";
+}
+
+/** Erros do Fastify com código próprio; os outros 4xx do Fastify são 400. */
+const DO_FASTIFY: Record<string, CodigoBase> = {
+  FST_ERR_CTP_BODY_TOO_LARGE: "payload.too_large",
+  FST_ERR_CTP_INVALID_MEDIA_TYPE: "media_type.unsupported",
+};
+
+function eDoFastify(erro: FastifyError): boolean {
+  return typeof erro.code === "string" && erro.code.startsWith("FST_");
+}
+
+/** O campo em ponteiro JSON; num obrigatório em falta, com o nome dele. */
+function campoDe(
+  onde: string,
+  v: NonNullable<FastifyError["validation"]>[number],
+): string {
+  const falta = (v.params as { missingProperty?: unknown } | undefined)
+    ?.missingProperty;
+  const extra = typeof falta === "string" ? `/${falta}` : "";
+  return `/${onde}${v.instancePath}${extra}`;
 }
 
 /**
@@ -114,30 +141,55 @@ export function ligarErros(app: FastifyInstance) {
 
   app.setErrorHandler(
     (erro: FastifyError, pedido: FastifyRequest, resposta: FastifyReply) => {
-      const codigo = codigoDe(erro);
-      if (codigo === "internal.error") {
-        pedido.log.error({ err: erro }, "erro interno");
-        return enviar(resposta, problema(codigo, pedido.id));
+      if (erro instanceof ErroApi) {
+        return enviar(resposta, {
+          type: `/erros/${erro.codigo}`,
+          title: erro.mensagens.pt,
+          status: erro.status,
+          detail: erro.message,
+          instance: pedido.id,
+          codigo: erro.codigo,
+          mensagem: erro.mensagens,
+        });
       }
-      if (codigo === "request.invalid" && erro.validation !== undefined) {
+      if (erro.validation !== undefined) {
         const onde = erro.validationContext ?? "body";
         return enviar(
           resposta,
-          problema(codigo, pedido.id, {
+          problema("request.invalid", pedido.id, {
             detail: erro.message,
             erros: erro.validation.map((v) => ({
-              campo: `/${onde}${v.instancePath}`,
+              campo: campoDe(onde, v),
               mensagem: v.message ?? "inválido",
             })),
           }),
         );
       }
-      return enviar(
-        resposta,
-        problema(codigo, pedido.id, { detail: erro.message }),
-      );
+      const estado = erro.statusCode ?? 500;
+      if (eDoFastify(erro) && estado >= 400 && estado < 500) {
+        const codigo = DO_FASTIFY[erro.code] ?? "request.invalid";
+        return enviar(
+          resposta,
+          problema(codigo, pedido.id, { detail: erro.message }),
+        );
+      }
+      pedido.log.error({ err: erro }, "erro interno");
+      return enviar(resposta, problema("internal.error", pedido.id));
     },
   );
+}
+
+/**
+ * Para a opção `frameworkErrors` do Fastify: o URL mal formado e o
+ * parâmetro comprido demais saem pelo mesmo formato, sem repetir o caminho
+ * (revisão do #106, P2-3).
+ */
+export function errosDoFastify(
+  _erro: FastifyError,
+  pedido: FastifyRequest,
+  resposta: FastifyReply,
+): void {
+  void enviar(resposta, problema("request.invalid", pedido.id));
 }
 
 /** A resposta de erro para pôr em cada rota do contrato (docs/18 §3). */
