@@ -223,7 +223,11 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
 
     /** O migrador, ou falha com o erro da migração, se a houve. */
     function soMigrado(): Kysely<unknown> {
-      if (erroDaMigracao !== undefined) throw erroDaMigracao;
+      if (erroDaMigracao !== undefined) {
+        throw erroDaMigracao instanceof Error
+          ? erroDaMigracao
+          : new Error("a migração falhou", { cause: erroDaMigracao });
+      }
       if (migrador === undefined) throw new Error("o migrador não foi criado");
       return migrador;
     }
