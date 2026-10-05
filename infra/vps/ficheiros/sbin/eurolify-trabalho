@@ -5,7 +5,10 @@
 # nada do que lá está é de confiança — valida-se tudo outra vez.
 #
 # O pedido tem duas linhas: o comando e o identificador; a resposta vai para
-# resultado.<identificador>.
+# resultado.<identificador>. No fluxo «mcp» há uma terceira: o número da conta
+# no GitHub de quem pediu, que vai para o registo (ADR-0033, ponto 7;
+# auditoria docs/16). Só o número, sem o nome. É o MCP que o diz: prova o que
+# a sessão OAuth do MCP aceitou, não mais.
 set -Eeuo pipefail
 umask 077
 # shellcheck source=../lib/comum.sh
@@ -44,6 +47,7 @@ if [[ -L "$recebido" || ! -f "$recebido" ]]; then
 fi
 pedido="$(head -c 300 -- "$recebido" | sed -n 1p)"
 id="$(head -c 300 -- "$recebido" | sed -n 2p)"
+conta="$(head -c 300 -- "$recebido" | sed -n 3p)"
 
 # Sem um identificador válido não há a quem responder.
 if [[ ! "$id" =~ ^[0-9]{10,40}$ ]]; then
@@ -51,14 +55,29 @@ if [[ ! "$id" =~ ^[0-9]{10,40}$ ]]; then
   exit 1
 fi
 
+# Uma conta que não é um número não entra no registo. Sem conta (uma imagem
+# do MCP anterior a esta), regista-se que não veio. Esta rede serve para se
+# poder voltar a uma imagem antiga (voltar_a_publicacao); sai quando nenhuma
+# das publicações a que se pode voltar (publicacoes.log) for anterior ao #102.
+# Teste: infra/vps/testes/trabalho-conta.sh.
+origem_mcp="mcp, conta não indicada"
+conta_invalida=0
+if [[ "$fluxo" == mcp && -n "$conta" ]]; then
+  if [[ "$conta" =~ ^[0-9]{1,20}$ ]]; then
+    origem_mcp="mcp, conta $conta"
+  else
+    conta_invalida=1
+  fi
+fi
+
 saida="$(mktemp "$trabalho/saida.XXXXXX")"
 trap 'rm -f "$recebido" "$saida"' EXIT
 codigo=0
-if [[ ${#pedido} -gt 200 || ! "$pedido" =~ $padrao ]]; then
+if [[ ${#pedido} -gt 200 || ! "$pedido" =~ $padrao || $conta_invalida -eq 1 ]]; then
   # O conteúdo recusado não vai para o registo nem volta ao cliente.
   echo "Pedido recusado pelo serviço da máquina." >"$saida"
   codigo=65
-  registar "fluxo $fluxo: pedido $id recusado (formato inválido)"
+  EUROLIFY_ORIGEM="fluxo $fluxo" registar "fluxo $fluxo: pedido $id recusado (formato inválido)"
 else
   case "$fluxo" in
     publicar)
@@ -73,10 +92,14 @@ else
       /usr/local/sbin/eurolify-medir >"$saida" 2>&1 || codigo=$?
       ;;
     mcp)
-      EUROLIFY_ORIGEM="mcp" /usr/local/sbin/eurolify-operar "$pedido" >"$saida" 2>&1 || codigo=$?
+      EUROLIFY_ORIGEM="$origem_mcp" /usr/local/sbin/eurolify-operar "$pedido" >"$saida" 2>&1 || codigo=$?
       ;;
   esac
-  EUROLIFY_ORIGEM="fluxo $fluxo" registar "pedido $id '${pedido:-(vazio)}' tratado, código $codigo"
+  if [[ "$fluxo" == mcp ]]; then
+    EUROLIFY_ORIGEM="fluxo mcp, ${origem_mcp#mcp, }" registar "pedido $id '$pedido' tratado, código $codigo"
+  else
+    EUROLIFY_ORIGEM="fluxo $fluxo" registar "pedido $id '${pedido:-(vazio)}' tratado, código $codigo"
+  fi
 fi
 
 # Respostas que ninguém veio buscar (quem pediu desistiu de esperar) saem ao

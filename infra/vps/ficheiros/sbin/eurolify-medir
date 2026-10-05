@@ -71,6 +71,9 @@ seccao "últimas publicações"
 tail -n 5 /var/log/eurolify/publicacoes.log 2>/dev/null || echo "(nenhuma)"
 
 seccao "últimas acções registadas"
-tail -n 15 /var/log/eurolify/acoes.log 2>/dev/null || echo "(nenhuma)"
+# A conta de quem pediu fica na máquina: esta saída vai para o MCP e para o
+# GitHub Actions (revisão do #102, P2-1).
+{ tail -n 15 /var/log/eurolify/acoes.log 2>/dev/null || echo "(nenhuma)"; } |
+  sed -E 's/conta [0-9]+/conta <n>/g'
 
 exit 0
