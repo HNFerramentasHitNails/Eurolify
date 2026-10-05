@@ -23,7 +23,7 @@
 > Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 16 testes):
 > ver §3.4, com as regras **proposta** desta parte.
 >
-> Parte 2b — opções e valores (migração `0005_catalogo_opcoes.sql`, 21 testes):
+> Parte 2b — opções e valores (migração `0005_catalogo_opcoes.sql`, 25 testes):
 > ver §3.3, com as regras **proposta** desta parte.
 >
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
@@ -137,7 +137,9 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
   variantes activas do mesmo artigo **não têm a mesma combinação** (§3.2). Uma
   variante arquivada não conta: a combinação dela volta a ficar livre;
 - as opções só se criam e apagam enquanto o artigo é **rascunho**; valores
-  novos acrescentam-se sempre; uma opção leva pelo menos um valor;
+  novos acrescentam-se sempre; uma opção nasce com pelo menos um valor (num
+  rascunho, apagar depois todos os valores de uma opção é possível e só
+  impede de completar as variantes até haver um valor novo);
 - o **texto** de uma opção ou de um valor só muda num rascunho (P11, decidido
   (Diogo, 05/10/2026: *«não, bloqueia fora do rascunho»*)); a ordem muda sempre;
 - apagar uma opção num rascunho verifica as combinações (não pode deixar duas
@@ -152,7 +154,11 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
 - as verificações das combinações correm uma vez por artigo e por transacção,
   numa fila por artigo e por comerciante, e assumem o isolamento READ
   COMMITTED da API (em REPEATABLE READ, duas transacções ao mesmo tempo podiam
-  não se ver).
+  não se ver). Ordem dos bloqueios: a linha do artigo, a fila do comerciante
+  (kits), a fila do artigo (opções); o repositório entra na fila do artigo
+  antes de prender linhas (os triggers só a tomam depois de prender a linha
+  que mudam). Se ainda assim duas transacções esperarem uma pela outra, o
+  erro é `catalog.retry` e nada fica gravado.
 
 ### 3.4 Composição — kits e coleções (`cmp_`)
 

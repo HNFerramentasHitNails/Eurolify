@@ -671,4 +671,115 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
       await codigoDoErro(criarOpcao(base.api, c, artigo, "Vazia", [])),
     ).toBe("catalog.option_values_required");
   });
+
+  /** Uma ligação própria como `c`, com uma transacção aberta. */
+  async function ligacaoComo(c: string) {
+    const cliente = new pg.Client({ connectionString: base.urlApi });
+    cliente.on("error", () => undefined);
+    await cliente.connect();
+    await cliente.query("begin");
+    await cliente.query("select set_config('eurolify.comerciante', $1, true)", [
+      c,
+    ]);
+    return cliente;
+  }
+
+  it("só os triggers marcam combinações: a API não chama a função (revisão do #83, 2.ª, P1-1)", async () => {
+    const { c, artigo } = await verniz();
+    const b = await registarComerciante(base.api, NOVO);
+    for (const comerciante of [c, b]) {
+      expect(
+        await codigoDoErro(
+          sqlComo(
+            c,
+            `select catalogo_marcar_combinacoes('${comerciante}', '${artigo}')`,
+          ),
+        ),
+      ).toMatch(/^pg:42501:/);
+    }
+  });
+
+  it("as marcas que ficam para trás limpam-se sozinhas (P2-2)", async () => {
+    const { c, artigo } = await verniz();
+    await criarVariante(base.api, c, artigo, variante("LX-1"));
+    // Uma variante que não entra (SKU repetido, ON CONFLICT DO NOTHING):
+    // marcou no trigger, mas nenhuma verificação no fim tirou a marca.
+    await sqlComo(
+      c,
+      `insert into variante (comerciante_id, artigo_id, sku, unidade_de_venda)
+       values ('${c}', '${artigo}', 'LX-1', 'unidade') on conflict do nothing`,
+    );
+    const contar = async () => {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from combinacoes_por_verificar
+        where comerciante_id = ${c}`.execute(base.dono);
+      return rows[0]?.n ?? -1;
+    };
+    expect(await contar()).toBe(1);
+    // A próxima marca (de qualquer transacção) limpa as que já acabaram.
+    await criarVariante(base.api, c, artigo, variante("LX-2"));
+    expect(await contar()).toBe(0);
+  });
+
+  it("dar valores entra na fila do artigo antes de prender linhas (P2-1)", async () => {
+    const { c, artigo, v } = await verniz();
+    const a = await criarVariante(base.api, c, artigo, variante("FL-1"));
+    await definirValoresDaVariante(base.api, c, a, [v.vermelho, v.pequeno]);
+    // Alguém tem a fila do artigo (como quem apaga o rascunho).
+    const fila = await ligacaoComo(c);
+    let esperou: boolean | undefined;
+    let mudar: Promise<string> | undefined;
+    try {
+      await fila.query("select catalogo_fila_do_artigo($1, $2)", [c, artigo]);
+      mudar = codigoDoErro(
+        definirValoresDaVariante(base.api, c, a, [v.nude, v.grande]),
+      );
+      esperou = await esperaBloqueio(mudar);
+      // Enquanto espera, não prendeu nenhuma linha da variante.
+      const outra = await ligacaoComo(c);
+      try {
+        await outra.query(
+          "select 1 from variante_valor where variante_id = $1 for update nowait",
+          [a],
+        );
+      } finally {
+        await outra.query("rollback").catch(() => undefined);
+        await outra.end();
+      }
+    } finally {
+      await fila.query("rollback").catch(() => undefined);
+      await fila.end();
+    }
+    expect(esperou).toBe(true);
+    expect(await mudar).toBe("sem erro");
+    expect(await valoresDaVariante(base.api, c, a)).toEqual(
+      [v.nude, v.grande].sort(),
+    );
+  });
+
+  it("um impasse verdadeiro chega como «tentar outra vez» (P2-3)", async () => {
+    const x = await verniz();
+    const y = await verniz(x.c);
+    const um = await ligacaoComo(x.c);
+    const dois = await ligacaoComo(x.c);
+    try {
+      await um.query("update opcao set posicao = 1 where id = $1", [x.cor.id]);
+      await dois.query("update opcao set posicao = 1 where id = $1", [
+        y.cor.id,
+      ]);
+      const resultados = await Promise.allSettled([
+        um.query("update opcao set posicao = 2 where id = $1", [y.cor.id]),
+        dois.query("update opcao set posicao = 2 where id = $1", [x.cor.id]),
+      ]);
+      const falhas = resultados.filter((r) => r.status === "rejected");
+      expect(falhas).toHaveLength(1);
+      const erro = (falhas[0] as PromiseRejectedResult).reason as unknown;
+      expect((traduzir(erro) as ErroCatalogo).codigo).toBe("catalog.retry");
+    } finally {
+      for (const ligacao of [um, dois]) {
+        await ligacao.query("rollback").catch(() => undefined);
+        await ligacao.end();
+      }
+    }
+  });
 });

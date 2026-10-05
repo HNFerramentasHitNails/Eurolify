@@ -100,18 +100,40 @@ $$;
 -- transacção (revisão do #83, P2-1: com uma verificação por linha, 512
 -- variantes demoravam 220 s), e a API não a pode dar por feita — ao
 -- contrário de uma marca em set_config, que ela própria poderia pôr.
+-- A chave leva o comerciante: uma marca com outro comerciante não ocupa o
+-- lugar da verdadeira (revisão do #83, 2.ª, P1-1).
 CREATE TABLE combinacoes_por_verificar (
+  comerciante_id uuid NOT NULL,
   artigo_id uuid NOT NULL,
   transaccao xid8 NOT NULL,
-  comerciante_id uuid NOT NULL,
-  PRIMARY KEY (artigo_id, transaccao)
+  PRIMARY KEY (comerciante_id, artigo_id, transaccao)
 );
+CREATE INDEX combinacoes_por_verificar_transaccao ON combinacoes_por_verificar (transaccao);
 
+-- Só os triggers marcam (pg_trigger_depth() > 0): a API não a chama
+-- directamente, nem com outros argumentos. Ao marcar, tira as marcas de
+-- transacções que já acabaram (uma linha que não entrou, por exemplo com
+-- ON CONFLICT DO NOTHING, marcou sem verificar) para a tabela não crescer
+-- (revisão do #83, 2.ª, P2-2).
 CREATE FUNCTION catalogo_marcar_combinacoes(comerciante uuid, artigo uuid) RETURNS void
-  LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
-  INSERT INTO public.combinacoes_por_verificar (artigo_id, transaccao, comerciante_id)
-  VALUES (artigo, pg_current_xact_id(), comerciante)
-  ON CONFLICT DO NOTHING
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF pg_trigger_depth() = 0 THEN
+    RAISE EXCEPTION 'só os triggers do catálogo marcam combinações'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  -- SKIP LOCKED: duas sessões a limpar ao mesmo tempo não esperam uma pela
+  -- outra (nem um comerciante pelo outro); um pouco de cada vez.
+  DELETE FROM public.combinacoes_por_verificar
+  WHERE ctid IN (
+    SELECT ctid FROM public.combinacoes_por_verificar
+    WHERE transaccao < pg_snapshot_xmin(pg_current_snapshot())
+    LIMIT 100
+    FOR UPDATE SKIP LOCKED);
+  INSERT INTO public.combinacoes_por_verificar (comerciante_id, artigo_id, transaccao)
+  VALUES (comerciante, artigo, pg_current_xact_id())
+  ON CONFLICT DO NOTHING;
+END
 $$;
 
 -- Devolve verdadeiro (e tira a marca) só à primeira chamada depois de marcar.
@@ -193,9 +215,9 @@ CREATE TRIGGER valor_opcao_antes_de_gravar
   FOR EACH ROW EXECUTE FUNCTION valor_opcao_antes_de_gravar();
 
 -- Valor de uma variante: dá-se a uma variante activa; mudar ou tirar só num
--- rascunho. Num artigo que não é rascunho, dar valores só completa uma
--- variante (a verificação no fim exige-as todas completas, por isso só a
--- variante que se está a criar os pode receber).
+-- rascunho. (Num artigo que não é rascunho não há regra própria para quem
+-- recebe valores: a verificação no fim exige as activas completas e sem
+-- repetidos, e a chave primária impede dois valores na mesma opção.)
 CREATE FUNCTION variante_valor_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE

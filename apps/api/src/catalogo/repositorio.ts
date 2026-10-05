@@ -753,6 +753,13 @@ async function gravarValores(
   if (variante === undefined) {
     throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);
   }
+  // A fila do artigo antes de prender qualquer linha: os triggers só a tomam
+  // depois de prender a linha que mudam, e quem apaga o rascunho toma-a antes
+  // de prender as variantes — sem isto, os dois podiam esperar um pelo outro
+  // (revisão do #83, 2.ª, P2-1).
+  await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${variante.artigo_id}::uuid)`.execute(
+    trx,
+  );
   const unicos = [...new Set(valorIds)];
   const valores =
     unicos.length === 0
