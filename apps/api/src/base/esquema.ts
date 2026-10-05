@@ -36,7 +36,7 @@ export interface TabelaComerciante {
   nome: string;
   lingua: string;
   /** A língua do original do catálogo, uma só (docs/14 §9, P13; 0009). */
-  lingua_origem: string;
+  lingua_origem: ColumnType<string, string | undefined, string>;
   fuso: string;
   criado_em: Instante;
   actualizado_em: ColumnType<Date, never, never>;

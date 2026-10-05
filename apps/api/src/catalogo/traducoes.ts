@@ -27,6 +27,12 @@ export interface DadosTraducao {
   lingua: string;
   texto: string;
   origem: OrigemTraducao;
+  /**
+   * O texto do original que quem traduziu viu. Se entretanto mudou, a
+   * tradução é recusada com `catalog.version_conflict` (revisão do #105,
+   * P2-3), como uma escrita do artigo com a versão antiga.
+   */
+  originalVisto: string;
 }
 
 /**
@@ -44,6 +50,28 @@ export async function definirTraducao(
   const recursoId = dados.recursoId.toLowerCase();
   await noCatalogo(db, comercianteId, async (trx) => {
     await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
+    // A linha do recurso presa (FOR SHARE) até ao fim: o original não muda
+    // entre esta comparação e o que a base guarda com a tradução.
+    await sql`select from ${sql.table(dados.tipo)} where id = ${recursoId} for share`.execute(
+      trx,
+    );
+    const original = await trx
+      .selectFrom("texto_original")
+      .select("texto")
+      .where("comerciante_id", "=", comercianteId)
+      .where("recurso_id", "=", recursoId)
+      .where("campo", "=", dados.campo)
+      .executeTakeFirst();
+    if (
+      original?.texto !== undefined &&
+      original.texto !== null &&
+      original.texto !== dados.originalVisto
+    ) {
+      throw new ErroCatalogo(
+        "catalog.version_conflict",
+        `${dados.tipo} ${recursoId}: o ${dados.campo} original mudou desde que foi lido`,
+      );
+    }
     await trx
       .insertInto("traducao")
       .values({
@@ -58,6 +86,8 @@ export async function definirTraducao(
         oc.constraint("traducao_unica").doUpdateSet((eb) => ({
           texto: eb.ref("excluded.texto"),
           origem: eb.ref("excluded.origem"),
+          // Traduzir outra vez apaga a revisão (a base trata-o assim).
+          revista: false,
         })),
       )
       .execute();
@@ -182,8 +212,9 @@ export interface PorTraduzir {
 /**
  * A fila de traduções de uma língua (§7.1, `GET /translations?state=…`): os
  * campos com original e sem tradução nessa língua (em falta) e os que têm
- * tradução de um original que entretanto mudou (desactualizada). Para a
- * língua de origem não há fila.
+ * tradução de um original que entretanto mudou ou ficou vazio
+ * (desactualizada; revisão do #105, P3-C). Para a língua de origem não há
+ * fila.
  */
 export async function filaDeTraducoes(
   db: Kysely<BaseDados>,
@@ -213,12 +244,21 @@ export async function filaDeTraducoes(
       )
       .select(["o.tipo", "o.recurso_id", "o.campo", "t.original"])
       .where("o.comerciante_id", "=", comercianteId)
-      .where("o.texto", "is not", null)
-      .where(sql<boolean>`btrim(o.texto) <> ''`)
       .where((eb) =>
         eb.or([
-          eb("t.id", "is", null),
-          eb("t.original", "is distinct from", eb.ref("o.texto")),
+          // Com original e sem tradução, ou com tradução de outro original.
+          eb.and([
+            sql<boolean>`coalesce(btrim(o.texto), '') <> ''`,
+            eb.or([
+              eb("t.id", "is", null),
+              eb("t.original", "is distinct from", eb.ref("o.texto")),
+            ]),
+          ]),
+          // Com tradução de um original que ficou vazio.
+          eb.and([
+            eb("t.id", "is not", null),
+            sql<boolean>`coalesce(btrim(o.texto), '') = ''`,
+          ]),
         ]),
       )
       .orderBy("o.tipo")

@@ -146,11 +146,21 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     lingua: "es",
     texto: "Gel de construcción",
     origem: "pessoa",
+    originalVisto: "Gel de construção",
   });
 
+  /** O original de agora de um campo (para os testes que não são da P2-3). */
+  async function originalDe(c: string, recursoId: string, campo: string) {
+    const { rows } = (await sqlComo(
+      c,
+      `select texto from texto_original where recurso_id = '${recursoId}' and campo = '${campo}'`,
+    )) as { rows: { texto: string | null }[] };
+    return rows[0]?.texto ?? "";
+  }
+
   it("a língua de origem é do comerciante: a dada ou, sem ela, a do Hub", async () => {
-    const pt = await registarComerciante(base.api, NOVO);
-    expect((await obterComerciante(base.api, pt)).lingua_origem).toBe("pt");
+    const de = await registarComerciante(base.api, { ...NOVO, lingua: "de" });
+    expect((await obterComerciante(base.api, de)).lingua_origem).toBe("de");
     const es = await registarComerciante(base.api, {
       ...NOVO,
       lingua_origem: "es",
@@ -225,9 +235,19 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
       ...nomeEs(artigo),
       campo: "descricao",
       texto: "Gel UV",
+      originalVisto: "Gel UV",
     });
-    // Confirmar o mesmo texto contra o original de agora.
-    await definirTraducao(base.api, c, "rui@exemplo.eu", nomeEs(artigo));
+    // Confirmar o mesmo texto com o original antigo: recusado (P2-3).
+    expect(
+      await codigoDoErro(
+        definirTraducao(base.api, c, "rui@exemplo.eu", nomeEs(artigo)),
+      ),
+    ).toBe("catalog.version_conflict");
+    // Com o original de agora, confirma.
+    await definirTraducao(base.api, c, "rui@exemplo.eu", {
+      ...nomeEs(artigo),
+      originalVisto: "Gel construtor",
+    });
     expect(await traducoesDoRecurso(base.api, c, artigo)).toMatchObject([
       { campo: "descricao", estado: "completa" },
       { campo: "nome", estado: "completa", traduzidoPor: "rui@exemplo.eu" },
@@ -297,7 +317,7 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     }
   });
 
-  it("revisão: só numa proposta de IA, com quem reviu; traduzir outra vez apaga-a e não se desfaz à mão", async () => {
+  it("revisão: só numa proposta de IA, por outro que não quem traduziu, uma vez; traduzir outra vez apaga-a", async () => {
     const { c, artigo } = await gel();
     await definirTraducao(base.api, c, QUEM, nomeEs(artigo));
     expect(
@@ -312,21 +332,42 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     expect(
       await codigoDoErro(reverTraducao(base.api, c, "", artigo, "nome", "es")),
     ).toBe("catalog.translated_by_required");
+    // Quem traduziu não se revê (P2-2).
+    expect(
+      await codigoDoErro(
+        reverTraducao(base.api, c, "assistente-ia", artigo, "nome", "es"),
+      ),
+    ).toBe("catalog.translation_self_review");
     await reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es");
     expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
       origem: "ia",
       traduzidoPor: "assistente-ia",
       revistoPor: "rui@exemplo.eu",
     });
+    // O original muda; rever outra vez não a dá por completa (P2-1).
+    await alterarArtigo(base.api, c, artigo, 1, { nome: "Gel construtor" });
     expect(
       await codigoDoErro(
-        sqlComo(c, `update traducao set revista = false`, QUEM),
+        reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es"),
       ),
     ).toBe("catalog.invalid_transition");
+    expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
+      estado: "desactualizada",
+      revistoPor: "rui@exemplo.eu",
+    });
+    // Pôr `revista` a falso à mão é traduzir outra vez: quem o faz fica como
+    // tradutor e a revisão sai.
+    await sqlComo(c, `update traducao set revista = false`, QUEM);
+    expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
+      estado: "completa",
+      traduzidoPor: QUEM,
+      revistoPor: null,
+    });
     await definirTraducao(base.api, c, "assistente-ia", {
       ...nomeEs(artigo),
       texto: "Gel constructor",
       origem: "ia",
+      originalVisto: "Gel construtor",
     });
     expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
       texto: "Gel constructor",
@@ -365,14 +406,17 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
       texto: string,
       lingua = "es",
     ) =>
-      definirTraducao(base.api, c, QUEM, {
-        tipo,
-        recursoId,
-        campo,
-        lingua,
-        texto,
-        origem: "pessoa",
-      });
+      originalDe(c, recursoId, campo).then((originalVisto) =>
+        definirTraducao(base.api, c, QUEM, {
+          tipo,
+          recursoId,
+          campo,
+          lingua,
+          texto,
+          origem: "pessoa",
+          originalVisto,
+        }),
+      );
     await t("opcao", cor.id, "nome", "Color");
     await t("valor_opcao", valor, "valor", "Rojo 12");
     await t("categoria", unhas, "nome", "Uñas");
@@ -392,6 +436,24 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     ).toBe("catalog.slug_duplicate");
     // Noutra língua, o mesmo endereço está livre.
     await t("categoria", pes, "endereco_amigavel", "unas", "fr");
+    // Entre colecções, também único por língua.
+    const inverno = await criarColecao(base.api, c, {
+      nome: "Inverno",
+      endereco_amigavel: "inverno",
+    });
+    expect(
+      await codigoDoErro(t("colecao", inverno, "endereco_amigavel", "unas")),
+    ).toBe("catalog.slug_duplicate");
+    expect(await codigoDoErro(t("colecao", inverno, "valor", "Invierno"))).toBe(
+      "catalog.invalid_field",
+    );
+    // Limites (P3-E): nome até 200, descrição até 20 000.
+    expect(
+      await codigoDoErro(t("categoria", pes, "nome", "x".repeat(201))),
+    ).toBe("catalog.invalid_field");
+    expect(
+      await codigoDoErro(t("colecao", col, "descricao", "x".repeat(20001))),
+    ).toBe("catalog.invalid_field");
     // O campo tem de ser do recurso (o valor da opção não tem nome).
     expect(await codigoDoErro(t("valor_opcao", valor, "nome", "Rojo"))).toBe(
       "catalog.invalid_field",
@@ -442,6 +504,7 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
       ...nomeEs(artigo),
       campo: "descricao",
       texto: "Gel UV",
+      originalVisto: "Gel UV",
     });
     await alterarArtigo(base.api, c, artigo, 1, { descricao: "Gel UV 15 ml" });
     expect(await filaDeTraducoes(base.api, c, "es")).toEqual(
@@ -464,6 +527,27 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     );
     // Em francês falta tudo.
     expect(await filaDeTraducoes(base.api, c, "fr")).toHaveLength(3);
+    // Um original só com espaços não pede tradução; uma tradução de um
+    // original que ficou vazio aparece como desactualizada (P3-C).
+    await criarArtigo(base.api, c, {
+      tipo: "fisico",
+      nome: "Pincel",
+      descricao: "   ",
+    });
+    expect(await filaDeTraducoes(base.api, c, "fr")).toHaveLength(4);
+    await alterarArtigo(base.api, c, artigo, 2, { descricao: null });
+    expect(
+      (await filaDeTraducoes(base.api, c, "es")).filter(
+        (l) => l.recursoId === artigo,
+      ),
+    ).toEqual([
+      {
+        tipo: "artigo",
+        recursoId: artigo,
+        campo: "descricao",
+        estado: "desactualizada",
+      },
+    ]);
     expect(await codigoDoErro(filaDeTraducoes(base.api, c, "pt"))).toBe(
       "catalog.translation_same_language",
     );
@@ -499,6 +583,36 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
       ...nomeEs(artigo.toUpperCase()),
       texto: "Gel",
     });
+    // Apagar uma opção (num rascunho) e a categoria levam as traduções delas.
+    const cor = await criarOpcao(base.api, c, artigo, "Cor", ["Vermelho 12"]);
+    const valor = cor.valores[0]?.id ?? "";
+    const unhas = await criarCategoria(base.api, c, {
+      nome: "Unhas",
+      endereco_amigavel: "unhas",
+    });
+    for (const [tipo, id, campo, original] of [
+      ["opcao", cor.id, "nome", "Cor"],
+      ["valor_opcao", valor, "valor", "Vermelho 12"],
+      ["categoria", unhas, "nome", "Unhas"],
+    ] as const) {
+      await definirTraducao(base.api, c, QUEM, {
+        tipo,
+        recursoId: id,
+        campo,
+        lingua: "es",
+        texto: "x",
+        origem: "pessoa",
+        originalVisto: original,
+      });
+    }
+    await sqlComo(c, `delete from valor_opcao where id = '${valor}'`);
+    await sqlComo(c, `delete from opcao where id = '${cor.id}'`);
+    await sql`delete from categoria where id = ${unhas}`.execute(base.dono);
+    const { rows: restam } = await sql<{ n: number }>`
+      select count(*)::int as n from traducao
+      where opcao_id = ${cor.id} or valor_opcao_id = ${valor}
+         or categoria_id = ${unhas}`.execute(base.dono);
+    expect(restam[0]?.n).toBe(0);
     expect(await traducoesDoRecurso(base.api, c, artigo)).toMatchObject([
       { texto: "Gel" },
     ]);
@@ -520,22 +634,63 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     ).toEqual(["descricao", "nome"]);
   });
 
-  it("mudar a língua de origem ao mesmo tempo que se traduz para ela: a tradução espera e é recusada", async () => {
-    const c = await registarComerciante(base.api, NOVO);
-    // Sem catálogo: a mudança para es é permitida, mas fica por confirmar.
+  it("traduzir enquanto o original muda: espera e é recusado pelo original visto (P2-3)", async () => {
+    const { c, artigo } = await gel();
     const t1 = await transaccaoAberta(
       c,
-      `update comerciante set lingua_origem = 'es' where id = '${c}'`,
+      `update artigo set nome = 'Gel construtor' where id = '${artigo}'`,
     );
-    const artigo = await criarArtigo(base.api, c, {
-      tipo: "fisico",
-      nome: "Gel",
-    });
     const traduzir = codigoDoErro(
-      definirTraducao(base.api, c, QUEM, { ...nomeEs(artigo), texto: "Gel" }),
+      definirTraducao(base.api, c, QUEM, nomeEs(artigo)),
     );
     expect(await esperaBloqueio(traduzir)).toBe(true);
     await t1.fechar();
-    expect(await traduzir).toBe("catalog.translation_same_language");
+    expect(await traduzir).toBe("catalog.version_conflict");
+    expect(await traducoesDoRecurso(base.api, c, artigo)).toEqual([]);
+  });
+
+  it.each(["artigo", "categoria", "colecao"] as const)(
+    "criar %s ao mesmo tempo que se muda a língua de origem: espera por ela (P1-1)",
+    async (tipo) => {
+      const c = await registarComerciante(base.api, NOVO);
+      const t1 = await transaccaoAberta(
+        c,
+        `update comerciante set lingua_origem = 'es' where id = '${c}'`,
+      );
+      const criar = codigoDoErro(
+        tipo === "artigo"
+          ? criarArtigo(base.api, c, { tipo: "fisico", nome: "Gel" })
+          : tipo === "categoria"
+            ? criarCategoria(base.api, c, {
+                nome: "Unhas",
+                endereco_amigavel: "unhas",
+              })
+            : criarColecao(base.api, c, {
+                nome: "Outono",
+                endereco_amigavel: "outono",
+              }),
+      );
+      expect(await esperaBloqueio(criar)).toBe(true);
+      await t1.fechar();
+      expect(await criar).toBe("sem erro");
+      expect((await obterComerciante(base.api, c)).lingua_origem).toBe("es");
+    },
+  );
+
+  it("mudar a língua de origem enquanto se cria o primeiro artigo: espera e é recusado (P1-1)", async () => {
+    const c = await registarComerciante(base.api, NOVO);
+    const t1 = await transaccaoAberta(
+      c,
+      `insert into artigo (comerciante_id, tipo, nome) values ('${c}', 'fisico', 'Gel')`,
+    );
+    const mudar = codigoDoErro(
+      sqlComo(
+        c,
+        `update comerciante set lingua_origem = 'es' where id = '${c}'`,
+      ),
+    );
+    expect(await esperaBloqueio(mudar)).toBe(true);
+    await t1.fechar();
+    expect(await mudar).toBe("merchant.origin_language_locked");
   });
 });

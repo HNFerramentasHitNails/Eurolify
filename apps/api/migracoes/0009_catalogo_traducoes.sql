@@ -19,7 +19,19 @@
 -- - o endereço traduzido tem o formato do original e é único por comerciante
 --   e por língua, entre categorias e, à parte, entre colecções;
 -- - a língua de origem não muda depois de o comerciante ter catálogo
---   (proposta).
+--   (proposta); criar o primeiro artigo, categoria ou colecção espera por
+--   quem a esteja a mudar (revisão do #105, P1-1);
+-- - quem traduz diz o original que viu: se já não é o de agora, a tradução é
+--   recusada (no repositório, com a linha do recurso presa; revisão do #105,
+--   P2-3); quem traduziu não revê a sua própria tradução, e uma revisão não
+--   se repete (P2-1 e P2-2). Que uma revisão é de uma pessoa, e não de um
+--   agente, só a camada da API o pode saber (pela conta que chama).
+--
+-- Compatível com a versão anterior da aplicação (`infra/vps/LEIA-ME.md`,
+-- «Migrações compatíveis com a versão anterior»; revisão do #105, P2-4): a
+-- `loja.lingua_origem` fica, sem obrigação, até uma migração seguinte (data
+-- de fim: 31/10/2026), e um comerciante criado sem `lingua_origem` fica com
+-- a `lingua`.
 --
 -- Também (revisão do #97, P3-A): um artigo a entrar numa categoria espera
 -- por quem a esteja a arquivar e lê o estado novo.
@@ -32,6 +44,23 @@
 ALTER TABLE comerciante ADD COLUMN lingua_origem text;
 ALTER TABLE comerciante NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE loja NO FORCE ROW LEVEL SECURITY;
+-- Um comerciante com lojas em línguas diferentes: a migração pára, em vez de
+-- escolher sozinha uma delas (AGENTS.md, regra fiscal 6, por analogia;
+-- revisão do #105, P3-A). Uma pessoa decide a língua de cada um e põe as
+-- lojas dele na mesma antes de migrar.
+DO $$
+DECLARE
+  quantos integer;
+BEGIN
+  SELECT count(*) INTO quantos FROM (
+    SELECT l.comerciante_id FROM loja l
+    GROUP BY l.comerciante_id
+    HAVING count(DISTINCT l.lingua_origem) > 1) diferentes;
+  IF quantos > 0 THEN
+    RAISE EXCEPTION 'a 0009 pára: % comerciante(s) com lojas em línguas de origem diferentes; uma pessoa decide antes de migrar', quantos;
+  END IF;
+END
+$$;
 ALTER TABLE comerciante DISABLE TRIGGER comerciante_antes_de_gravar;
 UPDATE comerciante c SET lingua_origem = coalesce(
   (SELECT l.lingua_origem FROM loja l
@@ -41,10 +70,45 @@ UPDATE comerciante c SET lingua_origem = coalesce(
 ALTER TABLE comerciante ENABLE TRIGGER comerciante_antes_de_gravar;
 ALTER TABLE comerciante FORCE ROW LEVEL SECURITY;
 ALTER TABLE loja FORCE ROW LEVEL SECURITY;
+-- Confirmação: o RLS forçado e o trigger voltaram (uma linha a menos acima e
+-- a migração não passa).
+DO $$
+BEGIN
+  IF NOT (SELECT c.relforcerowsecurity FROM pg_catalog.pg_class c
+          WHERE c.oid = 'public.comerciante'::regclass)
+     OR NOT (SELECT c.relforcerowsecurity FROM pg_catalog.pg_class c
+             WHERE c.oid = 'public.loja'::regclass)
+     OR (SELECT g.tgenabled FROM pg_catalog.pg_trigger g
+         WHERE g.tgrelid = 'public.comerciante'::regclass
+           AND g.tgname = 'comerciante_antes_de_gravar') <> 'O' THEN
+    RAISE EXCEPTION 'a 0009 pára: o RLS forçado ou o trigger do comerciante não voltaram';
+  END IF;
+END
+$$;
 ALTER TABLE comerciante
   ALTER COLUMN lingua_origem SET NOT NULL,
   ADD CONSTRAINT comerciante_lingua_origem_check CHECK (lingua_origem ~ '^[a-z]{2}$');
-ALTER TABLE loja DROP COLUMN lingua_origem;
+-- A da loja fica, sem obrigação, para a versão anterior da aplicação poder
+-- voltar; sai numa migração seguinte (data de fim: 31/10/2026).
+ALTER TABLE loja ALTER COLUMN lingua_origem DROP NOT NULL;
+COMMENT ON COLUMN loja.lingua_origem IS
+  'Obsoleta desde a 0009 (passou para comerciante.lingua_origem); sai numa migração seguinte, até 31/10/2026.';
+
+-- Sem língua de origem, a do Hub (proposta, docs/14 §3.8): também para a
+-- versão anterior da aplicação, que não a escreve.
+CREATE FUNCTION comerciante_lingua_origem_por_omissao() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NEW.lingua_origem IS NULL THEN
+    NEW.lingua_origem := NEW.lingua;
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER comerciante_lingua_origem_por_omissao
+  BEFORE INSERT ON comerciante
+  FOR EACH ROW EXECUTE FUNCTION comerciante_lingua_origem_por_omissao();
 
 CREATE FUNCTION comerciante_lingua_origem_fixa() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
@@ -62,6 +126,29 @@ $$;
 CREATE TRIGGER comerciante_lingua_origem_fixa
   BEFORE UPDATE OF lingua_origem ON comerciante
   FOR EACH ROW EXECUTE FUNCTION comerciante_lingua_origem_fixa();
+
+-- Criar um artigo, uma categoria ou uma colecção prende o comerciante (FOR
+-- SHARE): quem muda a língua de origem ao mesmo tempo espera por esta
+-- criação (e depois vê o catálogo e recusa), ou esta espera por ele (revisão
+-- do #105, P1-1). Sem isto, os dois passavam: a chave estrangeira só pede
+-- KEY SHARE, que não choca com o UPDATE da língua.
+CREATE FUNCTION catalogo_prende_o_comerciante() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  PERFORM FROM public.comerciante c WHERE c.id = NEW.comerciante_id FOR SHARE;
+  RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER artigo_prende_o_comerciante
+  BEFORE INSERT ON artigo
+  FOR EACH ROW EXECUTE FUNCTION catalogo_prende_o_comerciante();
+CREATE TRIGGER categoria_prende_o_comerciante
+  BEFORE INSERT ON categoria
+  FOR EACH ROW EXECUTE FUNCTION catalogo_prende_o_comerciante();
+CREATE TRIGGER colecao_prende_o_comerciante
+  BEFORE INSERT ON colecao
+  FOR EACH ROW EXECUTE FUNCTION catalogo_prende_o_comerciante();
 
 -- 2. As traduções. Uma coluna por tipo de recurso, para cada uma ter a sua
 -- chave estrangeira (apagar o recurso apaga as traduções dele).
@@ -99,6 +186,12 @@ CREATE TABLE traducao (
     OR (categoria_id IS NOT NULL AND campo IN ('nome', 'endereco_amigavel'))
     OR (colecao_id IS NOT NULL AND campo IN ('nome', 'descricao', 'endereco_amigavel'))),
   CONSTRAINT traducao_texto_check CHECK (length(btrim(texto)) > 0),
+  -- Limites (proposta; revisão do #105, P3-E): nomes e valores até 200, como
+  -- o nome de uma categoria; descrições até 20 000; o endereço até 100.
+  CONSTRAINT traducao_texto_comprimento CHECK (
+    (campo IN ('nome', 'valor') AND length(texto) <= 200)
+    OR (campo = 'descricao' AND length(texto) <= 20000)
+    OR campo = 'endereco_amigavel'),
   CONSTRAINT traducao_endereco_valido CHECK (
     campo <> 'endereco_amigavel'
     OR (texto ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND length(texto) <= 100)),
@@ -118,6 +211,13 @@ CREATE TABLE traducao (
     REFERENCES colecao (comerciante_id, id) ON DELETE CASCADE
 );
 CREATE INDEX traducao_por_lingua ON traducao (comerciante_id, lingua);
+-- Para apagar em cascata sem ler as traduções todas do comerciante (revisão
+-- do #105, P3-B).
+CREATE INDEX traducao_por_artigo ON traducao (comerciante_id, artigo_id) WHERE artigo_id IS NOT NULL;
+CREATE INDEX traducao_por_opcao ON traducao (comerciante_id, opcao_id) WHERE opcao_id IS NOT NULL;
+CREATE INDEX traducao_por_valor ON traducao (comerciante_id, valor_opcao_id) WHERE valor_opcao_id IS NOT NULL;
+CREATE INDEX traducao_por_categoria ON traducao (comerciante_id, categoria_id) WHERE categoria_id IS NOT NULL;
+CREATE INDEX traducao_por_colecao ON traducao (comerciante_id, colecao_id) WHERE colecao_id IS NOT NULL;
 CREATE UNIQUE INDEX traducao_endereco_unico_categoria
   ON traducao (comerciante_id, lingua, texto)
   WHERE campo = 'endereco_amigavel' AND categoria_id IS NOT NULL;
@@ -154,18 +254,28 @@ DECLARE
   lingua_de_origem text;
   texto_do_original text;
 BEGIN
-  -- Uma revisão: só muda `revista` de falso para verdadeiro.
+  -- Rever outra vez o que já está revisto: recusado. Se o original mudou
+  -- entretanto, a revisão repetida dava-a por completa sem ninguém a ver
+  -- (revisão do #105, P2-1); traduz-se (ou confirma-se) outra vez.
   IF TG_OP = 'UPDATE'
      AND (NEW.texto, NEW.origem) IS NOT DISTINCT FROM (OLD.texto, OLD.origem)
-     AND NEW.revista IS DISTINCT FROM OLD.revista THEN
-    IF NOT NEW.revista THEN
-      RAISE EXCEPTION 'catalog.invalid_transition: uma revisão não se desfaz; traduzir outra vez';
-    END IF;
+     AND NEW.revista AND OLD.revista THEN
+    RAISE EXCEPTION 'catalog.invalid_transition: a tradução já está revista; traduzir outra vez para a mudar';
+  END IF;
+  -- Uma revisão: só muda `revista` de falso para verdadeiro. Pôr `revista` a
+  -- falso é traduzir outra vez (abaixo).
+  IF TG_OP = 'UPDATE'
+     AND (NEW.texto, NEW.origem) IS NOT DISTINCT FROM (OLD.texto, OLD.origem)
+     AND NEW.revista AND NOT OLD.revista THEN
     IF OLD.origem <> 'ia' THEN
       RAISE EXCEPTION 'catalog.translation_not_ai: só uma proposta de IA se revê';
     END IF;
     IF quem IS NULL THEN
       RAISE EXCEPTION 'catalog.translated_by_required: rever exige quem reviu';
+    END IF;
+    -- Quem traduziu não se revê a si próprio (revisão do #105, P2-2).
+    IF quem = OLD.traduzido_por THEN
+      RAISE EXCEPTION 'catalog.translation_self_review: quem traduziu não revê a própria tradução';
     END IF;
     NEW.revisto_por := quem;
     NEW.revisto_em := now();
@@ -180,10 +290,11 @@ BEGIN
   IF quem IS NULL THEN
     RAISE EXCEPTION 'catalog.translated_by_required: traduzir exige quem traduziu';
   END IF;
-  -- FOR SHARE: quem muda a língua de origem ao mesmo tempo espera, ou esta
-  -- espera por ele e lê a nova.
+  -- Sem bloqueio: uma tradução é de um recurso que já existe, e com catálogo
+  -- a língua de origem já não muda (comerciante_lingua_origem_fixa e
+  -- catalogo_prende_o_comerciante).
   SELECT c.lingua_origem INTO lingua_de_origem FROM public.comerciante c
-  WHERE c.id = NEW.comerciante_id FOR SHARE;
+  WHERE c.id = NEW.comerciante_id;
   IF NEW.lingua = lingua_de_origem THEN
     RAISE EXCEPTION 'catalog.translation_same_language: % é a língua de origem', NEW.lingua;
   END IF;
@@ -216,7 +327,8 @@ CREATE POLICY so_o_proprio ON traducao
   USING (comerciante_id = comerciante_actual())
   WITH CHECK (comerciante_id = comerciante_actual());
 
--- A API não escolhe ids, o original, quem, datas nem a revisão (só a pede).
+-- A API não escolhe ids, o original, quem nem datas; pede a revisão
+-- (`revista`), que a base valida e assina.
 GRANT SELECT, DELETE ON traducao TO eurolify_api;
 GRANT INSERT (comerciante_id, artigo_id, opcao_id, valor_opcao_id, categoria_id,
   colecao_id, campo, lingua, texto, origem) ON traducao TO eurolify_api;

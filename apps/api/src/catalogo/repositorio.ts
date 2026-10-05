@@ -61,7 +61,8 @@ export type CodigoErroCatalogo =
   | "catalog.translated_by_required"
   | "catalog.translation_same_language"
   | "catalog.translation_no_original"
-  | "catalog.translation_not_ai";
+  | "catalog.translation_not_ai"
+  | "catalog.translation_self_review";
 
 export class ErroCatalogo extends Error {
   constructor(
@@ -94,6 +95,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   "catalog.translation_same_language",
   "catalog.translation_no_original",
   "catalog.translation_not_ai",
+  "catalog.translation_self_review",
 ];
 
 /** As restrições da base que têm código próprio (§7.1). */
