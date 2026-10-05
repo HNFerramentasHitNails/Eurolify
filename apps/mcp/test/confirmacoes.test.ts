@@ -82,6 +82,7 @@ describe("Confirmacoes", () => {
 
 describe("acções do MCP em dois passos", () => {
   let pedidos: string[];
+  let contas: string[];
   let cliente: Client;
   let agora: number;
   let confirmacoes: Confirmacoes;
@@ -89,8 +90,9 @@ describe("acções do MCP em dois passos", () => {
   const RUI = { conta: "1002", login: "rui" };
 
   const fila: Pedinte = {
-    pedir: (comando) => {
+    pedir: (comando, conta) => {
       pedidos.push(comando);
+      contas.push(conta);
       return Promise.resolve({ codigo: 0, saida: `feito: ${comando}` });
     },
   };
@@ -109,6 +111,7 @@ describe("acções do MCP em dois passos", () => {
 
   beforeEach(async () => {
     pedidos = [];
+    contas = [];
     agora = 1_000_000;
     confirmacoes = new Confirmacoes(() => agora);
     cliente = await ligar();
@@ -261,6 +264,16 @@ describe("acções do MCP em dois passos", () => {
     });
     expect(r.isError).toBe(true);
     expect(pedidos).toEqual([]);
+  });
+
+  it("a máquina recebe o número da conta de quem pede", async () => {
+    const r1 = await cliente.callTool({ name: "reiniciar_api", arguments: {} });
+    await cliente.callTool({
+      name: "reiniciar_api",
+      arguments: { confirmacao: codigoEm(textoDe(r1)) },
+    });
+    await cliente.callTool({ name: "estado_do_ensaio", arguments: {} });
+    expect(contas).toEqual(["1001", "1001"]);
   });
 
   it("as leituras continuam num só passo", async () => {

@@ -216,10 +216,15 @@ instalar "$F/fail2ban-definicao-eurolify.local" /etc/fail2ban/fail2ban.d/eurolif
 ((f2b_mudou)) && fazer "reiniciar o fail2ban (a retenção da base só muda ao arrancar)" systemctl restart fail2ban
 
 # ---------------------------------------------------------------------------
-passo "6. Registos com endereços IP: 14 dias (ADR-0018, ADR-0027)"
+passo "6. Registos com endereços IP e contas: 14 dias (ADR-0018, ADR-0027)"
 instalar "$F/journald-eurolify.conf" /etc/systemd/journald.conf.d/eurolify.conf 644
 ((mudou)) && fazer "reiniciar o systemd-journald" systemctl restart systemd-journald
 instalar "$F/logrotate-ufw" /etc/logrotate.d/ufw 644
+instalar "$F/logrotate-eurolify" /etc/logrotate.d/eurolify 644
+if [[ -d /etc/rsyslog.d ]]; then
+  instalar "$F/rsyslog-eurolify.conf" /etc/rsyslog.d/10-eurolify.conf 644
+  ((mudou)) && fazer "reiniciar o rsyslog" systemctl restart rsyslog
+fi
 
 # ---------------------------------------------------------------------------
 passo "7. Pastas e configuração sem segredos"

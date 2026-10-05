@@ -45,7 +45,7 @@ export function criarServidorMcp(
         `mcp: ${quem.login} pediu «${comando.split(" ")[0] ?? comando}»`,
       );
     }
-    const { codigo, saida } = await fila.pedir(comando);
+    const { codigo, saida } = await fila.pedir(comando, quem.conta);
     return texto(
       codigo === 0
         ? saida || "(sem saída)"

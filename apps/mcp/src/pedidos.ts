@@ -13,6 +13,9 @@ export function pedidoValido(comando: string): boolean {
   return comando.length <= 200 && PEDIDOS_PERMITIDOS.test(comando);
 }
 
+/** O número da conta no GitHub de quem pede (ADR-0033: o registo diz quem). */
+export const CONTA_VALIDA = /^[0-9]{1,20}$/;
+
 export interface Resposta {
   codigo: number;
   saida: string;
@@ -21,7 +24,9 @@ export interface Resposta {
 /**
  * Deixa um pedido na pasta partilhada com a máquina e espera pela resposta,
  * como o eurolify-pedido das chaves dos fluxos: a primeira linha é o comando,
- * a segunda o identificador; a resposta vem em resultado.<id>.
+ * a segunda o identificador, a terceira o número da conta de quem pede (só o
+ * número, sem o nome: vai para o registo da máquina, auditoria docs/16); a
+ * resposta vem em resultado.<id>.
  * Um pedido de cada vez (a pasta é uma fila de um lugar).
  */
 export class FilaDePedidos {
@@ -33,22 +38,27 @@ export class FilaDePedidos {
     private readonly intervaloMs = 500,
   ) {}
 
-  pedir(comando: string): Promise<Resposta> {
+  pedir(comando: string, conta: string): Promise<Resposta> {
     if (!pedidoValido(comando)) {
       return Promise.reject(new Error("pedido fora da lista permitida"));
     }
+    if (!CONTA_VALIDA.test(conta)) {
+      return Promise.reject(new Error("conta inválida"));
+    }
     const vez = this.ultimo.then(
-      () => this.executar(comando),
-      () => this.executar(comando),
+      () => this.executar(comando, conta),
+      () => this.executar(comando, conta),
     );
     this.ultimo = vez.catch(() => undefined);
     return vez;
   }
 
-  private async executar(comando: string): Promise<Resposta> {
+  private async executar(comando: string, conta: string): Promise<Resposta> {
     const id = `${String(Date.now())}${String(randomInt(1_000_000, 9_999_999))}`;
     const temporario = join(this.pasta, "pedido.tmp");
-    await writeFile(temporario, `${comando}\n${id}\n`, { mode: 0o600 });
+    await writeFile(temporario, `${comando}\n${id}\n${conta}\n`, {
+      mode: 0o600,
+    });
     await rename(temporario, join(this.pasta, "pedido"));
 
     const resposta = join(this.pasta, `resultado.${id}`);

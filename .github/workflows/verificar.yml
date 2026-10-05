@@ -66,7 +66,13 @@ jobs:
             infra/vps/preparar.sh \
             infra/vps/ficheiros/lib/comum.sh \
             infra/vps/ficheiros/bin/eurolify-pedido \
-            infra/vps/ficheiros/sbin/eurolify-*
+            infra/vps/ficheiros/sbin/eurolify-* \
+            infra/vps/testes/*.sh
+      - name: testes do serviço da máquina num Ubuntu 26.04 vazio
+        run: |
+          docker run --rm -e EUROLIFY_TESTE_DESCARTAVEL=1 -v "$PWD:/repo:ro" \
+            ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7 \
+            bash /repo/infra/vps/testes/trabalho-conta.sh
       - name: preparar.sh --mostrar num Ubuntu 26.04 vazio
         run: |
           docker run --rm -v "$PWD:/repo:ro" \

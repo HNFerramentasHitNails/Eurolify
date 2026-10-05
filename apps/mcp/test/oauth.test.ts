@@ -319,7 +319,7 @@ describe("OAuth do MCP com o GitHub", () => {
     const segundo = await chamar(2, { confirmacao: codigo });
     expect(segundo.isError).toBeFalsy();
     expect(pedir).toHaveBeenCalledTimes(1);
-    expect(pedir).toHaveBeenCalledWith("reiniciar-api");
+    expect(pedir).toHaveBeenCalledWith("reiniciar-api", String(DIOGO));
   });
 
   it("um token inventado é recusado", async () => {

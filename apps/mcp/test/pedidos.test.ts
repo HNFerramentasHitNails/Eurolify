@@ -38,17 +38,20 @@ describe("pedidos permitidos", () => {
 describe("FilaDePedidos", () => {
   let pasta: string;
   let maquina: NodeJS.Timeout;
+  let recebidos: string[];
 
   beforeEach(async () => {
     pasta = await mkdtemp(join(tmpdir(), "eurolify-pedidos-"));
+    recebidos = [];
     // Faz de serviço da máquina: lê o pedido e responde em resultado.<id>.
     maquina = setInterval(() => {
       void (async () => {
         const nomes = await readdir(pasta);
         if (!nomes.includes("pedido")) return;
-        const [comando, id] = (
+        const [comando, id, conta] = (
           await readFile(join(pasta, "pedido"), "utf8")
         ).split("\n");
+        recebidos.push(String(conta));
         await rm(join(pasta, "pedido"));
         await writeFile(
           join(pasta, `resultado.${String(id)}`),
@@ -65,7 +68,7 @@ describe("FilaDePedidos", () => {
 
   it("deixa o pedido, lê a resposta pelo identificador e limpa", async () => {
     const fila = new FilaDePedidos(pasta, 5_000, 20);
-    await expect(fila.pedir("medir")).resolves.toEqual({
+    await expect(fila.pedir("medir", "1001")).resolves.toEqual({
       codigo: 0,
       saida: "feito: medir",
     });
@@ -75,8 +78,8 @@ describe("FilaDePedidos", () => {
   it("trata os pedidos um de cada vez, pela ordem", async () => {
     const fila = new FilaDePedidos(pasta, 5_000, 20);
     const respostas = await Promise.all([
-      fila.pedir("copia"),
-      fila.pedir("reposicao"),
+      fila.pedir("copia", "1001"),
+      fila.pedir("reposicao", "1001"),
     ]);
     expect(respostas.map((r) => r.saida)).toEqual([
       "feito: copia",
@@ -86,13 +89,30 @@ describe("FilaDePedidos", () => {
 
   it("um pedido fora da lista nunca chega à máquina", async () => {
     const fila = new FilaDePedidos(pasta, 5_000, 20);
-    await expect(fila.pedir("rm -rf /")).rejects.toThrow(/fora da lista/);
+    await expect(fila.pedir("rm -rf /", "1001")).rejects.toThrow(
+      /fora da lista/,
+    );
     expect(await readdir(pasta)).toEqual([]);
   });
+
+  it("leva o número da conta na terceira linha", async () => {
+    const fila = new FilaDePedidos(pasta, 5_000, 20);
+    await fila.pedir("medir", "1001");
+    expect(recebidos).toEqual(["1001"]);
+  });
+
+  it.each(["", "ana", "1001\nreiniciar-vps", "1".repeat(21)])(
+    "recusa a conta %j sem chegar à máquina",
+    async (conta) => {
+      const fila = new FilaDePedidos(pasta, 5_000, 20);
+      await expect(fila.pedir("medir", conta)).rejects.toThrow(/conta/);
+      expect(await readdir(pasta)).toEqual([]);
+    },
+  );
 
   it("sem resposta, falha em vez de ficar à espera para sempre", async () => {
     clearInterval(maquina);
     const fila = new FilaDePedidos(pasta, 100, 20);
-    await expect(fila.pedir("medir")).rejects.toThrow(/sem resposta/);
+    await expect(fila.pedir("medir", "1001")).rejects.toThrow(/sem resposta/);
   });
 });
