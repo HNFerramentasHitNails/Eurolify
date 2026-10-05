@@ -1,9 +1,20 @@
 # Vigilância de segredos e de dependências (auditoria docs/16, segurança):
-# em cada pedido de alteração, em cada entrada no main e todas as manhãs,
-# para apanhar também o que se descobre depois de juntar («uma régua corre
-# sozinha e avisa», observability-security). Só lê; não envia nada.
+# em cada entrada no main e todas as manhãs, para apanhar também o que se
+# descobre depois de juntar («uma régua corre sozinha e avisa»,
+# observability-security); os segredos também em cada pedido de alteração.
+# As dependências num pedido só quando ele mexe nelas (vigiar-dependencias.yml):
+# um aviso novo publicado hoje não pinta de vermelho os pedidos alheios.
+# Não muda o repositório. O pnpm audit envia ao registo do npm a lista de
+# pacotes e versões (não são dados pessoais). Se a corrida da manhã falhar,
+# abre um issue (ou acrescenta-lhe um comentário, se já estiver aberto).
 # As acções de terceiros estão fixadas pelo resumo do commit (ADR-0026); o
 # gitleaks descarrega-se e confere-se pelo sha256 antes de correr.
+#
+# Se o gitleaks encontrar um segredo: (1) revoga-se a chave primeiro
+# (AGENTS.md, «Operar a VPS», regra 7); (2) o histórico não se reescreve
+# (nunca push --force); (3) por pedido revisto, acrescenta-se a impressão
+# digital do achado ao .gitleaksignore, a dizer que a chave foi revogada e
+# quando. Um falso positivo trata-se da mesma forma, a dizer porquê.
 name: vigiar
 
 on:
@@ -18,8 +29,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: vigiar-${{ github.ref }}
-  cancel-in-progress: true
+  group: vigiar-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   segredos:
@@ -47,6 +58,8 @@ jobs:
   dependencias:
     # Vulnerabilidades conhecidas, de gravidade alta ou crítica, nas
     # dependências (as de produção e as de desenvolvimento, que correm no CI).
+    # Provado a 05/10/2026 com o pnpm 12.9.1: o lodash 4.17.15 dá saída 1.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -58,3 +71,28 @@ jobs:
         with:
           node-version: 24.21.0
       - run: pnpm audit --audit-level=high
+
+  avisar:
+    # A corrida da manhã não pára em silêncio: um issue aberto, sem repetir.
+    needs: [segredos, dependencias]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TITULO: "vigiar: a corrida da manhã falhou"
+      CORRIDA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: abrir ou actualizar o issue
+        run: |
+          n="$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | "\(.number)\t\(.title)"' |
+            awk -F'\t' -v t="$TITULO" '$2 == t { print $1; exit }')"
+          texto="A corrida de $(date -u +%F) do fluxo vigiar falhou: ${CORRIDA}"
+          if [[ -n "$n" ]]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${n}/comments" -f body="$texto" >/dev/null
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/issues" -f title="$TITULO" -f body="$texto" >/dev/null
+          fi
