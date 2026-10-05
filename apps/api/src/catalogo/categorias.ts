@@ -14,19 +14,37 @@ export interface DadosCategoria {
   posicao?: number;
 }
 
+/**
+ * A fila das categorias do comerciante, a mesma que o trigger da 0007 toma.
+ * Toma-se antes de prender qualquer linha de categoria: se uma escrita
+ * prendesse primeiro a linha de B e só depois esperasse pela fila, e outra,
+ * já na fila, criasse uma filha de B (a chave estrangeira pede a linha de B),
+ * esperavam uma pela outra (revisão do #97, P1-1). A chave na forma canónica
+ * do uuid, como o trigger.
+ */
+async function filaDasCategorias(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended('eurolify.categoria:' || ${comercianteId}::uuid::text, 0))`.execute(
+    trx,
+  );
+}
+
 /** Cria uma categoria activa (§3.6). Devolve o id. */
 export async function criarCategoria(
   db: Kysely<BaseDados>,
   comercianteId: string,
   dados: DadosCategoria,
 ): Promise<string> {
-  const { id } = await noCatalogo(db, comercianteId, (trx) =>
-    trx
+  const { id } = await noCatalogo(db, comercianteId, async (trx) => {
+    await filaDasCategorias(trx, comercianteId);
+    return trx
       .insertInto("categoria")
       .values({ comerciante_id: comercianteId, ...dados })
       .returning("id")
-      .executeTakeFirstOrThrow(),
-  );
+      .executeTakeFirstOrThrow();
+  });
   return id;
 }
 
@@ -65,19 +83,13 @@ export async function categoriasDoComerciante(
   );
 }
 
-/** A linha da tabela, presa até ao fim, na versão que quem chama leu. */
-async function naVersao(
-  trx: Transaction<BaseDados>,
-  tabela: "categoria" | "colecao",
+/** Confirma a versão que quem chama leu (§3.1: a versão antiga é recusada). */
+function confirmarVersao(
+  linha: { versao: number } | undefined,
+  tabela: string,
   id: string,
   versao: number,
-) {
-  const linha = await trx
-    .selectFrom(tabela)
-    .select(["id", "estado", "versao"])
-    .where("id", "=", id)
-    .forUpdate()
-    .executeTakeFirst();
+): void {
   if (linha === undefined) {
     throw new ErroCatalogo("catalog.not_found", `${tabela} ${id}`);
   }
@@ -87,13 +99,56 @@ async function naVersao(
       `${tabela} ${id}: versão ${String(versao)} pedida, ${String(linha.versao)} actual`,
     );
   }
-  return linha;
 }
 
-/** Só as chaves com valor: `undefined` quer dizer «não mexer». */
-function soDefinidos<T extends object>(alteracao: T): Partial<T> {
+/**
+ * A categoria, presa até ao fim, na versão lida. Quem chama já está na fila
+ * das categorias (`filaDasCategorias`); o `FOR UPDATE` fica como defesa.
+ */
+async function categoriaNaVersao(
+  trx: Transaction<BaseDados>,
+  id: string,
+  versao: number,
+) {
+  const linha = await trx
+    .selectFrom("categoria")
+    .selectAll()
+    .where("id", "=", id)
+    .forUpdate()
+    .executeTakeFirst();
+  confirmarVersao(linha, "categoria", id, versao);
+  return linha as NonNullable<typeof linha>;
+}
+
+/** A colecção, presa até ao fim, na versão lida. */
+async function colecaoNaVersao(
+  trx: Transaction<BaseDados>,
+  id: string,
+  versao: number,
+) {
+  const linha = await trx
+    .selectFrom("colecao")
+    .selectAll()
+    .where("id", "=", id)
+    .forUpdate()
+    .executeTakeFirst();
+  confirmarVersao(linha, "colecao", id, versao);
+  return linha as NonNullable<typeof linha>;
+}
+
+/**
+ * Só o que muda de facto: `undefined` quer dizer «não mexer», e um valor igual
+ * ao actual não conta (a versão só sobe quando algo muda; revisão do #97,
+ * P3-2).
+ */
+function soOQueMuda<T extends object>(
+  alteracao: T,
+  actual: Record<string, unknown>,
+): Partial<T> {
   return Object.fromEntries(
-    Object.entries(alteracao).filter(([, valor]) => valor !== undefined),
+    Object.entries(alteracao).filter(
+      ([campo, valor]) => valor !== undefined && valor !== actual[campo],
+    ),
   ) as Partial<T>;
 }
 
@@ -111,8 +166,9 @@ export async function alterarCategoria(
   alteracao: AlteracaoCategoria,
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
-    await naVersao(trx, "categoria", categoriaId, versao);
-    const campos = soDefinidos(alteracao);
+    await filaDasCategorias(trx, comercianteId);
+    const linha = await categoriaNaVersao(trx, categoriaId, versao);
+    const campos = soOQueMuda(alteracao, linha);
     if (Object.keys(campos).length === 0) return versao;
     const { versao: nova } = await trx
       .updateTable("categoria")
@@ -136,7 +192,9 @@ export async function moverCategoria(
   paiId: string | null,
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
-    await naVersao(trx, "categoria", categoriaId, versao);
+    await filaDasCategorias(trx, comercianteId);
+    const linha = await categoriaNaVersao(trx, categoriaId, versao);
+    if (linha.pai_id === paiId) return versao;
     const { versao: nova } = await trx
       .updateTable("categoria")
       .set({ pai_id: paiId })
@@ -156,7 +214,8 @@ export async function mudarEstadoCategoria(
   para: EstadoCategoria,
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
-    const linha = await naVersao(trx, "categoria", categoriaId, versao);
+    await filaDasCategorias(trx, comercianteId);
+    const linha = await categoriaNaVersao(trx, categoriaId, versao);
     if (linha.estado === para) return versao;
     const { versao: nova } = await trx
       .updateTable("categoria")
@@ -317,8 +376,8 @@ export async function alterarColecao(
   alteracao: AlteracaoColecao,
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
-    await naVersao(trx, "colecao", colecaoId, versao);
-    const campos = soDefinidos(alteracao);
+    const linha = await colecaoNaVersao(trx, colecaoId, versao);
+    const campos = soOQueMuda(alteracao, linha);
     if (Object.keys(campos).length === 0) return versao;
     const { versao: nova } = await trx
       .updateTable("colecao")
@@ -338,7 +397,7 @@ export async function mudarEstadoColecao(
   para: EstadoCategoria,
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
-    const linha = await naVersao(trx, "colecao", colecaoId, versao);
+    const linha = await colecaoNaVersao(trx, colecaoId, versao);
     if (linha.estado === para) return versao;
     const { versao: nova } = await trx
       .updateTable("colecao")
@@ -369,18 +428,18 @@ export async function definirArtigosDaColecao(
     );
   }
   return noCatalogo(db, comercianteId, async (trx) => {
-    await naVersao(trx, "colecao", colecaoId, versao);
-    // Os artigos que entram, presos contra o apagar antes de mexer nas linhas
-    // da colecção, por uma ordem fixa: quem apaga um rascunho que está na
-    // lista acaba primeiro, e aqui dá «não existe» em vez de as duas
-    // transacções esperarem uma pela outra.
+    await colecaoNaVersao(trx, colecaoId, versao);
+    // Os artigos que entram, presos contra o apagar (`FOR KEY SHARE`) antes
+    // de mexer nas linhas da colecção: quem apaga um desses rascunhos espera
+    // por esta substituição, ou acaba antes e aqui dá «não existe», em vez de
+    // as duas transacções esperarem uma pela outra. Duas substituições não
+    // chocam entre si (as duas só pedem `KEY SHARE`).
     if (artigoIds.length > 0) {
       const existem = await trx
         .selectFrom("artigo")
         .select("id")
         .where("comerciante_id", "=", comercianteId)
         .where("id", "in", artigoIds)
-        .orderBy("id")
         .forKeyShare()
         .execute();
       if (existem.length !== artigoIds.length) {

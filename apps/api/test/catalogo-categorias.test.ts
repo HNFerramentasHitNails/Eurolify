@@ -109,6 +109,9 @@ describe.skipIf(URL_BASE === undefined)(
         throw erro;
       }
       return {
+        consulta: async (mais: string) => {
+          await cliente.query(mais);
+        },
         fechar: async () => {
           try {
             await cliente.query("commit");
@@ -339,6 +342,131 @@ describe.skipIf(URL_BASE === undefined)(
       expect(await filha).toBe("catalog.category_archived");
     });
 
+    it.each([
+      ["alterar", "sem erro"],
+      ["mover", "sem erro"],
+      ["arquivar", "catalog.category_has_children"],
+    ])(
+      "criar uma filha de B enquanto «%s» B espera pela fila: sem espera mútua (P1-1)",
+      async (operacao, esperado) => {
+        const c = await registarComerciante(base.api, NOVO);
+        const b = await criarCategoria(base.api, c, {
+          nome: "B",
+          endereco_amigavel: "b",
+        });
+        const x = await criarCategoria(base.api, c, {
+          nome: "X",
+          endereco_amigavel: "x",
+        });
+        // Uma transacção já na fila das categorias (como o trigger a deixa).
+        const t1 = await transaccaoAberta(
+          c,
+          `select pg_advisory_xact_lock(hashtextextended('eurolify.categoria:' || '${c}', 0))`,
+        );
+        // A escrita de B espera pela fila; não pode ter prendido a linha de B
+        // antes.
+        const escrita = codigoDoErro(
+          operacao === "alterar"
+            ? alterarCategoria(base.api, c, b, 1, { nome: "B novo" })
+            : operacao === "mover"
+              ? moverCategoria(base.api, c, b, 1, x)
+              : mudarEstadoCategoria(base.api, c, b, 1, "arquivada"),
+        );
+        expect(await esperaBloqueio(escrita)).toBe(true);
+        // A primeira cria uma filha de B: a chave estrangeira pede a linha de
+        // B.
+        await t1.consulta(
+          `insert into categoria (comerciante_id, nome, endereco_amigavel, pai_id) values ('${c}', 'Filha', 'filha', '${b}')`,
+        );
+        await t1.fechar();
+        expect(await escrita).toBe(esperado);
+      },
+    );
+
+    it("duas alterações da mesma colecção ao mesmo tempo: a segunda vê a versão nova (P2-1)", async () => {
+      const c = await registarComerciante(base.api, NOVO);
+      const col = await criarColecao(base.api, c, {
+        nome: "Outono",
+        endereco_amigavel: "outono",
+      });
+      const t1 = await transaccaoAberta(
+        c,
+        `update colecao set nome = 'Inverno' where id = '${col}'`,
+      );
+      const segunda = codigoDoErro(
+        alterarColecao(base.api, c, col, 1, { nome: "Primavera" }),
+      );
+      expect(await esperaBloqueio(segunda)).toBe(true);
+      await t1.fechar();
+      expect(await segunda).toBe("catalog.version_conflict");
+      expect(await obterColecao(base.api, c, col)).toMatchObject({
+        nome: "Inverno",
+        versao: 2,
+      });
+    });
+
+    it("um valor igual ao actual não sobe a versão (P3-2)", async () => {
+      const { c, unhas, gel } = await arvore();
+      expect(
+        await alterarCategoria(base.api, c, gel, 1, {
+          nome: "Unhas de gel",
+          endereco_amigavel: "unhas-de-gel",
+          posicao: 0,
+        }),
+      ).toBe(1);
+      expect(await moverCategoria(base.api, c, gel, 1, unhas)).toBe(1);
+      expect(await moverCategoria(base.api, c, unhas, 1, null)).toBe(1);
+      const col = await criarColecao(base.api, c, {
+        nome: "Outono",
+        endereco_amigavel: "outono",
+      });
+      expect(
+        await alterarColecao(base.api, c, col, 1, {
+          nome: "Outono",
+          descricao: null,
+        }),
+      ).toBe(1);
+      expect(await mudarEstadoColecao(base.api, c, col, 1, "activa")).toBe(1);
+      // Uma mudança a sério sobe.
+      expect(
+        await alterarColecao(base.api, c, col, 1, { descricao: "Nova" }),
+      ).toBe(2);
+    });
+
+    it("posições negativas e o endereço em falta (P3-1)", async () => {
+      const c = await registarComerciante(base.api, NOVO);
+      expect(
+        await codigoDoErro(
+          criarCategoria(base.api, c, {
+            nome: "X",
+            endereco_amigavel: "x",
+            posicao: -1,
+          }),
+        ),
+      ).toBe("catalog.invalid_field");
+      const col = await criarColecao(base.api, c, {
+        nome: "X",
+        endereco_amigavel: "x",
+      });
+      const a = await artigo(c, "gel-pos");
+      expect(
+        await codigoDoErro(
+          sqlComo(
+            c,
+            `insert into colecao_artigo (comerciante_id, colecao_id, artigo_id, posicao) values ('${c}', '${col}', '${a}', -1)`,
+          ),
+        ),
+      ).toBe("catalog.invalid_field");
+      expect(
+        await codigoDoErro(
+          sqlComo(
+            c,
+            `insert into categoria (comerciante_id, nome) values ('${c}', 'Sem endereço')`,
+          ),
+        ),
+      ).toBe("catalog.slug_invalid");
+    });
+
     it("o endereço amigável: formato, único por comerciante, também entre as arquivadas", async () => {
       const { c, construcao } = await arvore();
       for (const mau of [
@@ -365,6 +493,27 @@ describe.skipIf(URL_BASE === undefined)(
           }),
         ),
       ).toBe("catalog.slug_invalid");
+      // As mesmas regras na colecção (P2-2).
+      for (const mau of [
+        "Outono",
+        "novidades de outono",
+        "outono-",
+        "ç",
+        "a".repeat(101),
+      ]) {
+        expect(
+          await codigoDoErro(
+            criarColecao(base.api, c, { nome: "X", endereco_amigavel: mau }),
+          ),
+          mau,
+        ).toBe("catalog.slug_invalid");
+      }
+      expect(
+        await criarColecao(base.api, c, {
+          nome: "X",
+          endereco_amigavel: "a".repeat(100),
+        }),
+      ).toBeTypeOf("string");
       expect(
         await codigoDoErro(
           criarCategoria(base.api, c, {
@@ -422,6 +571,20 @@ describe.skipIf(URL_BASE === undefined)(
           }),
         ),
       ).toBe("catalog.invalid_field");
+      expect(
+        await codigoDoErro(
+          criarColecao(base.api, c, {
+            nome: "x".repeat(201),
+            endereco_amigavel: "x",
+          }),
+        ),
+      ).toBe("catalog.invalid_field");
+      expect(
+        await criarColecao(base.api, c, {
+          nome: "x".repeat(200),
+          endereco_amigavel: "y",
+        }),
+      ).toBeTypeOf("string");
     });
 
     it("o comerciante de outro não se vê nem se usa", async () => {
@@ -489,6 +652,7 @@ describe.skipIf(URL_BASE === undefined)(
         `delete from categoria where id = '${unhas}'`,
         `insert into colecao (comerciante_id, nome, endereco_amigavel, versao) values ('${c}', 'X', 'x', 5)`,
         `update colecao set versao = 9 where id = '${col}'`,
+        `update colecao set criado_em = now() where id = '${col}'`,
         `delete from colecao where id = '${col}'`,
         `update artigo_categoria set categoria_id = '${unhas}'`,
         `update colecao_artigo set posicao = 0`,

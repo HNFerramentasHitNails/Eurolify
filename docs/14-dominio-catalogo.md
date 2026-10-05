@@ -250,7 +250,13 @@ dela):
   endereço da língua de origem fica transliterado; os endereços por língua
   são da parte 3b (traduções);
 - as escritas nas categorias de um comerciante passam por uma fila só delas
-  (o ciclo e as subcategorias activas olham para várias linhas).
+  (o ciclo e as subcategorias activas olham para várias linhas). O
+  repositório entra na fila **antes** de prender a linha da categoria; ao
+  contrário, uma escrita de B e a criação de uma filha de B esperavam uma
+  pela outra (a chave estrangeira da filha pede a linha de B; revisão do #97,
+  P1-1);
+- a versão de uma categoria ou de uma colecção só sobe quando algo muda: um
+  valor igual ao actual, ou o pai que já tinha, não conta.
 
 ### 3.7 Colecção (`col_`)
 
@@ -261,7 +267,8 @@ Na parte 3a do código (migração 0007): `endereco_amigavel` com as regras da
 categoria (§3.6), estado activa ou arquivada, versão. A lista substitui-se
 inteira, pela ordem dada, sem repetidos, e sobe a versão da colecção (só se a
 lista ou a ordem mudaram). Qualquer artigo pode entrar, em qualquer estado: a
-loja só mostra os publicados (§7.2). Apagar o rascunho de um artigo tira-o das
+loja só mostra os publicados (§7.2). A lista de uma colecção arquivada também
+se muda (**proposta**: prepara-se antes de a repor). Apagar o rascunho de um artigo tira-o das
 categorias e das colecções.
 
 ### 3.8 Tradução
