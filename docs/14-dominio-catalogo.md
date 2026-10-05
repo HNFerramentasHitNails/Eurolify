@@ -314,7 +314,7 @@ servidor):
 `familia_restrita` — as famílias que a `sectors.md` manda bloquear por
 omissão ou que exigem autorização (medicamentos, dispositivos médicos,
 biocidas e fitofármacos, álcool e tabaco, armas, explosivos e jogo, saúde e
-profissões reguladas — lista **proposta**, a confirmar pelo Diogo ou pelo Bruno) **não se publicam** até haver o desenho e a validação
+profissões reguladas — lista **decidida** pelo Diogo, 05/10/2026: *«sim, aceito a lista»*) **não se publicam** até haver o desenho e a validação
 profissional delas (`eurolify-sector-compliance-eu`, pontos 4 e 6).
 
 **O que a lei diz e o que ainda falta** — pesquisa de 05/10/2026, citações
