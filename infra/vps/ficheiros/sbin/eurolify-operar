@@ -69,7 +69,7 @@ case "$pedido" in
     # Em segundo plano: a publicação reinicia também o contentor do MCP, que
     # está à espera desta resposta.
     systemd-run --quiet --collect --unit "eurolify-publicar-mcp-$(date +%s)" \
-      --setenv=EUROLIFY_ORIGEM="mcp" /usr/local/sbin/eurolify-publicar "$resumo"
+      --setenv=EUROLIFY_ORIGEM="${EUROLIFY_ORIGEM:-mcp}" /usr/local/sbin/eurolify-publicar "$resumo"
     echo "Publicação de $resumo iniciada em segundo plano; o resultado aparece em «estado_do_ensaio»."
     ;;
   actualizar)
@@ -84,7 +84,7 @@ case "$pedido" in
     # eurolify-trabalho passa um argumento só, e o MCP não o consegue pôr.
     if [[ "${2:-}" != --agora ]]; then
       systemd-run --quiet --collect --unit "eurolify-reiniciar-$(date +%s)" \
-        --setenv=EUROLIFY_ORIGEM="mcp" /usr/local/sbin/eurolify-operar reiniciar-vps --agora
+        --setenv=EUROLIFY_ORIGEM="${EUROLIFY_ORIGEM:-mcp}" /usr/local/sbin/eurolify-operar reiniciar-vps --agora
       echo "Em segundo plano: primeiro a cópia; depois, se ainda estiver fora de horas, a VPS reinicia. O MCP volta quando a máquina arrancar."
     else
       tarefa copia
