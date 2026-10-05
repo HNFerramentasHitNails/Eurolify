@@ -41,7 +41,10 @@ Lda**, com marca própria. **A marca HN Hit Nails não se usa no Eurolify** — 
 em documentos, nem em ecrãs, nem em exemplos, nem em nomes de ficheiros. Os
 sistemas actuais da empresa (Hub interno, loja online, plataforma de formação)
 servem só como **fonte de regras e de casos medidos**, citados sem a marca e sem
-nomes de clientes.
+nomes de clientes. **Excepção:** o nome da conta do GitHub que aloja o
+repositório é endereço técnico e fica, por agora (Diogo, 05/10/2026, Q5 do
+`docs/16`); aparece só em configuração, testes e ADR, nunca em produto, ecrãs
+ou exemplos.
 
 **Este ficheiro são REGRAS.** O que se descobre (medições, decisões, estado) vai
 para `memoria/`, um ficheiro por tema e uma linha no índice.
