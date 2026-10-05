@@ -8,11 +8,15 @@ import {
   criarArtigo,
   definirComponentes,
   ErroCatalogo,
+  mudarEstadoArtigo,
   traduzir,
   varianteComSku,
   type DadosVariante,
 } from "../src/catalogo/repositorio.js";
-import { registarComerciante } from "../src/comerciante/repositorio.js";
+import {
+  comComerciante,
+  registarComerciante,
+} from "../src/comerciante/repositorio.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -38,6 +42,19 @@ async function codigoDoErro(promessa: Promise<unknown>): Promise<string> {
   }
   return "sem erro";
 }
+
+// Corre sem base: só a tradução (revisão do #81, 2.ª, P3-4).
+it("componente_em_uso: «em uso» só ao apagar; ao inserir é «não existe»", () => {
+  const erro = Object.assign(new Error("fk"), {
+    code: "23503",
+    constraint: "componente_em_uso",
+    table: "componente",
+  });
+  expect((traduzir(erro) as ErroCatalogo).codigo).toBe("catalog.not_found");
+  expect((traduzir(erro, { apagar: true }) as ErroCatalogo).codigo).toBe(
+    "catalog.component_in_use",
+  );
+});
 
 describe.skipIf(URL_BASE === undefined)("kits na base", () => {
   let base: BaseDeTeste;
@@ -323,8 +340,120 @@ describe.skipIf(URL_BASE === undefined)("kits na base", () => {
       { varianteId: gel?.id ?? "", quantidade: 1 },
     ]);
     await arquivarVariante(base.api, c, kit?.id ?? "");
+    // Sem apagar o rascunho, a composição do kit arquivado não muda, nem
+    // esvaziada (revisão do #81, 2.ª, P3-3).
+    expect(
+      await codigoDoErro(definirComponentes(base.api, c, kit?.id ?? "", [])),
+    ).toBe("catalog.variant_archived_is_final");
     await apagarRascunho(base.api, c, artigo);
     expect(await varianteComSku(base.api, c, "AR-KIT")).toBeUndefined();
+  });
+
+  it("um kit arquivado de um artigo à venda não perde a composição", async () => {
+    // O caminho que protege um kit já vendido (revisão do #81, 2.ª, P2-2).
+    const c = await registarComerciante(base.api, NOVO);
+    const artigo = await criarArtigo(
+      base.api,
+      c,
+      { tipo: "fisico", nome: "Conjunto" },
+      [variante("VD-KIT"), variante("VD-GEL")],
+    );
+    const kit = (await varianteComSku(base.api, c, "VD-KIT"))?.id ?? "";
+    const gel = (await varianteComSku(base.api, c, "VD-GEL"))?.id ?? "";
+    await definirComponentes(base.api, c, kit, [
+      { varianteId: gel, quantidade: 1 },
+    ]);
+    await mudarEstadoArtigo(base.api, c, artigo, 1, "activo");
+    await arquivarVariante(base.api, c, kit);
+    for (const lista of [[], [{ varianteId: gel, quantidade: 5 }]]) {
+      expect(
+        await codigoDoErro(definirComponentes(base.api, c, kit, lista)),
+      ).toBe("catalog.variant_archived_is_final");
+    }
+    // Nem por SQL directo.
+    for (const texto of [
+      "delete from componente where kit_id = $1",
+      "update componente set quantidade = 5 where kit_id = $1",
+    ]) {
+      expect(
+        await codigoDoErro(
+          comComerciante(base.api, c, (trx) =>
+            sql.raw(texto.replace("$1", `'${kit}'`)).execute(trx),
+          ),
+        ),
+      ).toMatch(/catalog\.variant_archived_is_final/);
+    }
+    expect(await componentesDoKit(base.api, c, kit)).toEqual([
+      { varianteId: gel, quantidade: 1 },
+    ]);
+  });
+
+  it("apagar o rascunho e mudar um kit dele ao mesmo tempo: nunca um impasse", async () => {
+    // Revisão do #81, 2.ª, P2-1: antes, 4 em 30 davam 40P01.
+    for (let ronda = 0; ronda < 30; ronda++) {
+      const c = await registarComerciante(base.api, NOVO);
+      const artigo = await criarArtigo(
+        base.api,
+        c,
+        { tipo: "fisico", nome: "Conjunto" },
+        [
+          variante(`IP-GEL-${String(ronda)}`),
+          variante(`IP-KIT-${String(ronda)}`),
+        ],
+      );
+      const kit =
+        (await varianteComSku(base.api, c, `IP-KIT-${String(ronda)}`))?.id ??
+        "";
+      const gel =
+        (await varianteComSku(base.api, c, `IP-GEL-${String(ronda)}`))?.id ??
+        "";
+      await definirComponentes(base.api, c, kit, [
+        { varianteId: gel, quantidade: 1 },
+      ]);
+      const [mudar, apagar] = await Promise.all([
+        codigoDoErro(
+          definirComponentes(base.api, c, kit, [
+            { varianteId: gel, quantidade: 2 },
+          ]),
+        ),
+        codigoDoErro(apagarRascunho(base.api, c, artigo)),
+      ]);
+      expect(apagar).toBe("sem erro");
+      expect(["sem erro", "catalog.not_found"]).toContain(mudar);
+    }
+  });
+
+  it("arquivar o kit ou um componente a meio de uma substituição: espera e recusa", async () => {
+    // Os bloqueios das linhas (revisão do #81, 2.ª, P2-3): a linha do kit
+    // presa pelo repositório e cada componente novo preso pelo trigger.
+    for (const qual of ["kit", "componente"] as const) {
+      const { c, ids } = await catalogo(`K-${qual}`, `G-${qual}`);
+      const kit = ids[`K-${qual}`] ?? "";
+      const gel = ids[`G-${qual}`] ?? "";
+      const arquivo = await transaccaoAberta(
+        c,
+        "update variante set estado = 'arquivada' where id = $1",
+        [qual === "kit" ? kit : gel],
+      );
+      const mudar = codigoDoErro(
+        definirComponentes(base.api, c, kit, [
+          { varianteId: gel, quantidade: 1 },
+        ]),
+      );
+      let esperou: boolean;
+      try {
+        esperou = await esperaBloqueio(mudar);
+      } finally {
+        await arquivo.fechar();
+      }
+      expect(esperou, qual).toBe(true);
+      expect(await mudar, qual).toBe(
+        qual === "kit"
+          ? "catalog.variant_archived_is_final"
+          : "catalog.component_archived",
+      );
+      expect(await componentesDoKit(base.api, c, kit), qual).toEqual([]);
+    }
   });
 
   it("um componente arquivado que já estava no kit pode ficar ao mudar a lista", async () => {
@@ -398,18 +527,6 @@ describe.skipIf(URL_BASE === undefined)("kits na base", () => {
         "sem erro",
       ]);
     }
-  });
-
-  it("componente_em_uso: «em uso» só ao apagar; ao inserir é «não existe»", () => {
-    const erro = Object.assign(new Error("fk"), {
-      code: "23503",
-      constraint: "componente_em_uso",
-      table: "componente",
-    });
-    expect((traduzir(erro) as ErroCatalogo).codigo).toBe("catalog.not_found");
-    expect((traduzir(erro, { apagar: true }) as ErroCatalogo).codigo).toBe(
-      "catalog.component_in_use",
-    );
   });
 
   it("isolamento: outro comerciante não usa, não lê e não muda os kits de um", async () => {

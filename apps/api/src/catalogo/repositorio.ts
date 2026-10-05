@@ -459,9 +459,11 @@ export async function definirComponentes(
     // substituições do mesmo comerciante ficam em fila num só ponto, antes de
     // prenderem linhas, e duas cruzadas (X em Y e Y em X) não se bloqueiam
     // uma à outra (revisão do #81, P2-2).
-    await sql`select pg_advisory_xact_lock(hashtextextended(${
-      "eurolify.componente:" + comercianteId
-    }, 0))`.execute(trx);
+    // A chave na forma canónica do uuid, a mesma do trigger, seja qual for a
+    // forma como o id chegou (revisão do #81, 2.ª, P3-2).
+    await sql`select pg_advisory_xact_lock(hashtextextended('eurolify.componente:' || ${comercianteId}::uuid::text, 0))`.execute(
+      trx,
+    );
     // A linha do kit fica presa até ao fim.
     const kit = await trx
       .selectFrom("variante")
@@ -474,15 +476,16 @@ export async function definirComponentes(
       throw new ErroCatalogo("catalog.not_found", `variante ${kitId}`);
     }
     // Os componentes têm de existir neste comerciante (o RLS esconde os de
-    // outro, que contam como inexistentes); presos até ao fim, para não se
-    // apagarem entretanto.
+    // outro, que contam como inexistentes). Não se prendem aqui: o trigger
+    // prende cada componente novo (FOR SHARE) ao inseri-lo; se um for apagado
+    // entre esta leitura e o INSERT, a chave estrangeira recusa e o erro é
+    // «não existe» (revisão do #81, 2.ª, P2-3).
     if (ids.length > 0) {
       const existem = await trx
         .selectFrom("variante")
         .select("id")
         .where("comerciante_id", "=", comercianteId)
         .where("id", "in", ids)
-        .forShare()
         .execute();
       if (existem.length !== ids.length) {
         throw new ErroCatalogo("catalog.not_found", "componente inexistente");

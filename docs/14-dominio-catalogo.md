@@ -20,7 +20,7 @@
 > variante física só se exige na verificação «pode publicar?» (C2), não ao
 > criar nem ao activar.
 >
-> Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 13 testes):
+> Parte 2a — composição dos kits (migração `0004_catalogo_kits.sql`, 16 testes):
 > ver §3.4, com as regras **proposta** desta parte.
 >
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
@@ -148,7 +148,8 @@ aqui):
 - uma variante que é componente de um kit **não se apaga** (só se apagam
   variantes de rascunhos); apagar o rascunho do kit leva a composição, com o
   kit e os componentes no mesmo artigo por qualquer ordem, e também com o kit
-  arquivado (P8). **Limitação conhecida:** o rascunho de um artigo cuja
+  arquivado (P8). Fora de apagar o rascunho, a composição de um kit arquivado
+  não muda, nem num rascunho (nem esvaziá-la). **Limitação conhecida:** o rascunho de um artigo cuja
   variante está no kit de **outro** artigo só se apaga depois de a tirar desse
   kit (um rascunho não se arquiva);
 - a quantidade de um componente é um inteiro > 0, **sem limite máximo** (se o

@@ -44,7 +44,6 @@ DECLARE
   estado_do_kit text;
   estado_do_artigo text;
   estado_do_componente text;
-  chave uuid;
 BEGIN
   linha := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 
@@ -52,11 +51,14 @@ BEGIN
   FROM public.variante v
   JOIN public.artigo a ON a.comerciante_id = v.comerciante_id AND a.id = v.artigo_id
   WHERE v.comerciante_id = linha.comerciante_id AND v.id = linha.kit_id;
-  -- Sem kit: está a ser apagado (rascunho) e a composição vai com ele. Num
-  -- artigo rascunho (que nunca se vendeu), a composição de um kit arquivado
-  -- também se pode apagar: é o que acontece ao apagar o rascunho (P8).
+  -- Sem kit: está a ser apagado (rascunho) e a composição vai com ele. A
+  -- composição de um kit arquivado só se apaga quando é o próprio rascunho do
+  -- artigo dele que se apaga (P8): o DELETE vem então de outro trigger
+  -- (artigo_antes_de_apagar), o que a API não consegue imitar — um DELETE
+  -- directo da API corre com pg_trigger_depth() = 1 (revisão do #81, 2.ª, P3-3).
   IF estado_do_kit = 'arquivada'
-     AND NOT (TG_OP = 'DELETE' AND estado_do_artigo = 'rascunho') THEN
+     AND NOT (TG_OP = 'DELETE' AND estado_do_artigo = 'rascunho'
+              AND pg_trigger_depth() > 1) THEN
     RAISE EXCEPTION 'catalog.variant_archived_is_final: a composição de uma variante arquivada não muda';
   END IF;
   IF TG_OP = 'DELETE' THEN
@@ -72,15 +74,12 @@ BEGIN
     -- Quem acrescenta componentes no mesmo comerciante, um de cada vez: duas
     -- escritas ao mesmo tempo (A em B e B em A) não passam as duas na
     -- verificação dos ciclos.
-    -- A chave é a do comerciante do contexto, não a da linha: uma linha com
-    -- o comerciante de outro (que o RLS vai recusar) não toma o bloqueio
-    -- dele (revisão do #81, P3-1). Sem contexto (o dono, nas migrações), a da
-    -- linha.
-    chave := coalesce(
-      nullif(current_setting('eurolify.comerciante', true), '')::uuid,
-      NEW.comerciante_id);
+    -- Uma linha com o comerciante de outro toma o bloqueio dele, mas o RLS
+    -- recusa-a logo a seguir e o erro larga todos os bloqueios da transacção
+    -- (medido a 05/10/2026: a sessão falhada não guarda nenhum), por isso não
+    -- prende a fila do outro (revisões do #81: 1.ª, P3-1; 2.ª, P3-1).
     PERFORM pg_advisory_xact_lock(
-      hashtextextended('eurolify.componente:' || chave::text, 0));
+      hashtextextended('eurolify.componente:' || NEW.comerciante_id::text, 0));
 
     SELECT v.estado INTO estado_do_componente FROM public.variante v
     WHERE v.comerciante_id = NEW.comerciante_id AND v.id = NEW.componente_id
@@ -116,6 +115,12 @@ BEGIN
   IF OLD.estado <> 'rascunho' OR OLD.ja_esteve_activo THEN
     RAISE EXCEPTION 'catalog.not_draft: só se apaga um rascunho que nunca esteve activo; arquivar';
   END IF;
+  -- Na mesma fila de quem muda kits do comerciante (definirComponentes e o
+  -- trigger da composição), antes de prender linhas: sem isto, apagar o
+  -- rascunho e substituir a composição de um kit dele ao mesmo tempo podiam
+  -- esperar um pelo outro (40P01; revisão do #81, 2.ª, P2-1).
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended('eurolify.componente:' || OLD.comerciante_id::text, 0));
   DELETE FROM public.componente c
   WHERE c.comerciante_id = OLD.comerciante_id
     AND c.kit_id IN (SELECT v.id FROM public.variante v
