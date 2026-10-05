@@ -160,7 +160,9 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
   toma a linha do artigo antes da fila, e dar valores toma a fila antes de
   prender linhas (os triggers só a tomam depois de prender a linha que
   mudam). Por SQL directo, fora do repositório, a ordem pode inverter-se (por
-  exemplo, apagar uma variante de um rascunho contra dar-lhe valores); se duas
+  exemplo, apagar uma variante de um rascunho contra dar-lhe valores, ou
+  apagar uma opção contra acrescentar-lhe um valor — a futura função de apagar
+  opções tem de tomar a fila do artigo antes de prender a linha); se duas
   transacções esperarem uma pela outra, o erro é `catalog.retry` e nada fica
   gravado. A tabela interna das marcas limpa-se ao marcar, com melhor esforço:
   uma transacção longa em qualquer base do servidor atrasa a limpeza, sem dano.

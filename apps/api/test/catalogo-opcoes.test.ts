@@ -699,7 +699,30 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
     }
   });
 
-  it("as marcas que ficam para trás limpam-se sozinhas (P2-2)", async () => {
+  it("as marcas que ficam para trás limpam-se sozinhas (P2-2)", async (ctx) => {
+    // A limpeza só tira marcas mais antigas do que a transacção aberta mais
+    // antiga do servidor inteiro (pg_snapshot_xmin, de todas as bases). Com
+    // outra sessão do servidor a segurar uma transacção, a limpeza espera por
+    // ela — é de melhor esforço, sem dano — e este teste não a pode provar:
+    // salta-se, com a razão (revisão do #83, 4.ª, P2-1). Só contam
+    // transacções com xid (que escreveram) e as preparadas: uma sessão que só
+    // lê não entra no xmin do instantâneo nem atrasa a limpeza, e contá-la
+    // fazia o teste saltar-se sempre num portátil com um cliente de base de
+    // dados aberto (revisão do #90, P2-1).
+    const haTransaccaoAntiga = async () => {
+      const { rows } = await sql<{ n: string }>`
+        select (select count(*) from pg_stat_activity
+                where pid <> pg_backend_pid() and backend_xid is not null)
+             + (select count(*) from pg_prepared_xacts) as n`.execute(
+        base.dono,
+      );
+      return Number(rows[0]?.n ?? 0) > 0;
+    };
+    if (await haTransaccaoAntiga()) {
+      ctx.skip(
+        "há outra transacção aberta no servidor; a limpeza espera por ela",
+      );
+    }
     const { c, artigo } = await verniz();
     await criarVariante(base.api, c, artigo, variante("LX-1"));
     // Uma variante que não entra (SKU repetido, ON CONFLICT DO NOTHING):
@@ -721,7 +744,7 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
     // esteja aberta no servidor (pg_snapshot_xmin, de todas as bases), por
     // isso tenta-se durante uns segundos (revisão do #83, 3.ª, P2-3).
     let restam = -1;
-    for (let i = 0; i < 50 && restam !== 0; i++) {
+    for (let i = 0; i < 100 && restam !== 0; i++) {
       await criarVariante(base.api, c, artigo, variante(`LX-${String(i + 2)}`));
       restam = await contar();
       if (restam !== 0) {
@@ -730,8 +753,11 @@ describe.skipIf(URL_BASE === undefined)("opções na base", () => {
         });
       }
     }
+    if (restam !== 0 && (await haTransaccaoAntiga())) {
+      ctx.skip("uma transacção abriu-se no servidor durante o teste");
+    }
     expect(restam).toBe(0);
-  });
+  }, 30_000);
 
   it("dar valores entra na fila do artigo antes de prender linhas (P2-1)", async () => {
     const { c, artigo, v } = await verniz();
