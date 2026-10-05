@@ -21,6 +21,8 @@ description: Design do Eurolify — montra (kit de loja e temas de cada comercia
 | **Checkout alojado e momentos legais** (confirmação, livre resolução, garantia, faturas) | o cliente final | **clareza e prova**; o que a lei obriga não se personaliza | pouco: o comerciante muda cores, letra e logótipo, nunca o conteúdo legal nem a ordem |
 | **Hub de gestão** | o comerciante e a equipa dele, todos os dias | **densidade, rapidez, estados claros** | nenhum: ferramenta de trabalho, sem decoração |
 
+A montra (kit e temas) é da **Fase 2** (Diogo, 05/10/2026; `docs/05`).
+
 ## Regras que não se negociam
 
 1. **Nenhuma marca existente.** O Eurolify é da Luckytarget, com marca própria;
