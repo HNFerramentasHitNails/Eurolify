@@ -9,11 +9,16 @@
 >
 > **Estado do código** (issue #77): parte 1 — artigos e variantes na base
 > (migração `0002_catalogo_artigos.sql`, `apps/api/src/catalogo/repositorio.ts`,
-> 20 testes contra o PostgreSQL 18.6), sem API até à fatia «identidade». As
+> 21 testes contra o PostgreSQL 18.6), sem API até à fatia «identidade». As
 > listas de unidades de venda (`unidade`, `par`, `caixa`, `embalagem`,
 > `conjunto`) e de unidades do conteúdo (`mg` a `m3`) e o formato do SKU
 > (1 a 64 caracteres: letras sem acentos, algarismos e `. _ / -`, a começar por
-> letra ou algarismo) são **proposta** desta parte.
+> letra ou algarismo) são **proposta** desta parte, tal como: activar exige
+> pelo menos uma variante activa (§4.1); o código da categoria fiscal escreve-se
+> em minúsculas, algarismos e `_` (a começar por letra); as datas de criação e
+> de alteração são postas pela base, não por quem escreve; e o peso de uma
+> variante física só se exige na verificação «pode publicar?» (C2), não ao
+> criar nem ao activar.
 >
 > Skills seguidas: `catalog-pim`, `platform-architect`, `headless-commerce`,
 > `product-compliance-eu`, `eu-localization`, `eu-vat-oss-ioss` (categoria
@@ -105,7 +110,7 @@ A unidade vendável. Um artigo sem opções tem uma variante.
 | `valores_das_opcoes` | lista de `ovl_…` | conforme o artigo | uma combinação não se repete dentro do artigo |
 | `unidade_de_venda` | código da lista do Eurolify | **sim** | unidade, caixa, par… (`catalog-pim`, regra 3: no Hub, artigo sem unidade travava a fatura) |
 | `conteudo_quantidade`, `conteudo_unidade` | inteiro + kg, l, m, m², m³ (e submúltiplos) | conforme o país | para o **preço por unidade** (Dir. 98/6/CE, arts. 2.º, 3.º e 5.º, **W**, `docs/03` linha 61: «o artigo guarda quantidade e unidade»); cada país pode dispensar produtos (art. 5.º) |
-| `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | inteiros | físico: peso sim | para os Envios |
+| `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | inteiros | físico: peso sim, **para publicar** (a verificação C2; a base aceita a variante sem peso enquanto não se publica, **proposta**) | para os Envios |
 | `formula_versao_id` | referência à Conformidade | cosmético: sim | o lote sabe que versão leva (`product-compliance-eu`, «Fórmulas com versões»); decidido na §9 (P2) |
 | `onu`, `classe_adr` | texto | não | mercadorias perigosas (ADR/IATA, **C**, `product-compliance-eu`) |
 | `estado` | lista | sim | activa, arquivada. Arquivar uma variante **não arquiva o artigo** nem retira as outras (`catalog-pim`, regra 6: no Hub, arquivar um refill tirou 4 produtos do site, 27–28/08/2026) |
@@ -218,7 +223,7 @@ dos eventos (§6) e do registo de auditoria; **não é outra fonte de verdade**.
 | De | Para | Quem / quando | Efeito |
 |---|---|---|---|
 | — | rascunho | criar | não se pode publicar |
-| rascunho | activo | activar; exige SKU e unidade em todas as variantes | pode publicar-se |
+| rascunho | activo | activar; exige SKU e unidade em todas as variantes e **pelo menos uma variante activa** (**proposta**) | pode publicar-se |
 | activo | arquivado | arquivar | **todas as publicações passam a arquivado**, com o motivo «artigo arquivado» |
 | arquivado | activo | repor | as publicações **não voltam sozinhas**: publicam-se outra vez, com nova verificação (**proposta**) |
 
@@ -326,6 +331,14 @@ o artigo é de outro comerciante), `catalog.sku_required`, `catalog.sku_invalid`
 `catalog.unit_required`, `catalog.option_combination_duplicate`,
 `catalog.component_cycle`, `catalog.version_conflict`,
 `catalog.publish_blocked`, `catalog.not_draft`, `catalog.import_invalid`.
+Da parte 1 do código (também **proposta**): `catalog.invalid_transition`,
+`catalog.type_disabled`, `catalog.immutable_identity`, `catalog.immutable_type`,
+`catalog.no_variants`, `catalog.variant_archived_is_final`,
+`catalog.name_required`, `catalog.origin_ref_required`,
+`catalog.gtin_origin_required` (GTIN e origem vêm juntos),
+`catalog.content_incomplete` (quantidade e unidade do conteúdo vêm juntas) e
+`catalog.invalid_field` (outro valor recusado, por exemplo uma unidade que não
+está na lista).
 
 ### 7.2 API da Loja
 
@@ -380,5 +393,5 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 | P5 | Comerciante com sistema de gestão: o que pode ser editado no Hub do Eurolify? | ✅ **Decidido: os campos que vêm de lá ficam só de leitura no Hub; as traduções, a media e a publicação editam-se no Eurolify** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
 | P6 | Acrescentar `product.unpublished` e `product.archived` à lista de eventos (skill `platform-architect` e `02-arquitectura.md`)? | ✅ **Decidido: sim — sem eles, Preços, Stock e frontends não sabem que um artigo deixou de estar à venda** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
 | P7 | Um SKU de uma variante arquivada pode voltar a ser usado? | ✅ **Decidido: não** (Diogo, 05/10/2026 (*«sim, aceito as propostas do §9»*)) |
-| P8 | Apagar uma variante de um artigo **rascunho** liberta o SKU dela para outra variante? (Um rascunho nunca esteve activo, por isso a variante nunca se vendeu) | Por decidir. O código actual deixa (revisão do #78, P2-3) |
+| P8 | Apagar uma variante de um artigo **rascunho** — também uma variante já **arquivada** — liberta o SKU dela para outra variante? (Um rascunho nunca esteve activo, por isso a variante nunca se vendeu) | Por decidir. O código actual deixa, nos dois casos (revisões do #78: 1.ª, P2-3; 2.ª, P3-2) |
 | P9 | `GEL-001` e `gel-001` são o **mesmo SKU**? | Por decidir. O código actual trata-os como diferentes (revisão do #78, P2-4) |

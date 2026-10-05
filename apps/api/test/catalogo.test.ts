@@ -48,6 +48,23 @@ async function codigoDoErro(promessa: Promise<unknown>): Promise<string> {
   return "sem erro";
 }
 
+/** Dá a `promessa` 300 ms: se ainda não acabou, está à espera de um bloqueio. */
+async function aindaEspera(promessa: Promise<unknown>): Promise<boolean> {
+  const marca = Symbol("à espera");
+  const venceu = await Promise.race([
+    promessa.then(
+      () => undefined,
+      () => undefined,
+    ),
+    new Promise((r) => {
+      setTimeout(() => {
+        r(marca);
+      }, 300);
+    }),
+  ]);
+  return venceu === marca;
+}
+
 describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
   let base: BaseDeTeste;
 
@@ -61,6 +78,34 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
 
   async function comercianteNovo(): Promise<string> {
     return registarComerciante(base.api, NOVO);
+  }
+
+  /**
+   * Abre uma transacção noutra ligação, como o comerciante `c`, e corre
+   * `texto` nela sem a fechar: as linhas que tocou ficam bloqueadas até
+   * `fechar()` (para provar os bloqueios sem depender do tempo).
+   */
+  async function transaccaoAberta(
+    c: string,
+    texto: string,
+    valores: unknown[],
+  ) {
+    const cliente = new pg.Client({ connectionString: base.urlApi });
+    await cliente.connect();
+    await cliente.query("begin");
+    await cliente.query("select set_config('eurolify.comerciante', $1, true)", [
+      c,
+    ]);
+    await cliente.query(texto, valores);
+    return {
+      fechar: async () => {
+        try {
+          await cliente.query("commit");
+        } finally {
+          await cliente.end();
+        }
+      },
+    };
   }
 
   describe("isolamento por comerciante (RLS)", () => {
@@ -96,6 +141,43 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
         ),
       ).toBe("catalog.not_found");
       expect(await varianteComSku(base.api, b, "GEL-001")).toBeUndefined();
+      // As escritas também não passam (revisão do #78, 2.ª, P2-5).
+      expect(
+        await codigoDoErro(
+          alterarArtigo(base.api, b, artigo, 1, { nome: "X" }),
+        ),
+      ).toBe("catalog.not_found");
+      expect(await codigoDoErro(apagarRascunho(base.api, b, artigo))).toBe(
+        "catalog.not_found",
+      );
+      const deA = await varianteComSku(base.api, a, "GEL-001");
+      expect(
+        await codigoDoErro(arquivarVariante(base.api, b, deA?.id ?? "")),
+      ).toBe("catalog.not_found");
+      const mudadas = await comComerciante(base.api, b, (trx) =>
+        trx
+          .updateTable("variante")
+          .set({ peso_g: 1 })
+          .where("id", "=", deA?.id ?? "")
+          .executeTakeFirst(),
+      );
+      expect(mudadas.numUpdatedRows).toBe(0n);
+      expect(
+        await codigoDoErro(
+          comComerciante(base.api, b, (trx) =>
+            trx
+              .insertInto("artigo")
+              .values({ comerciante_id: a, tipo: "fisico", nome: "Intruso" })
+              .execute(),
+          ),
+        ),
+      ).toMatch(/^pg:42501:/);
+      expect(await obterArtigo(base.api, a, artigo)).toMatchObject({
+        nome: "Gel",
+        versao: 1,
+        estado: "rascunho",
+      });
+      expect((await varianteComSku(base.api, a, "GEL-001"))?.peso_g).toBeNull();
       // O SKU de a pode existir em b: único por comerciante (C3).
       await criarArtigo(base.api, b, { tipo: "fisico", nome: "Outro" }, [
         VARIANTE,
@@ -282,16 +364,61 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
         tipo: "fisico",
         nome: "Gel",
       });
-      const resultados = await Promise.all(
-        ["A", "B"].map((nome) =>
-          codigoDoErro(alterarArtigo(base.api, c, id, 1, { nome })),
-        ),
+      // A primeira escrita fica a meio, com a linha bloqueada; a segunda,
+      // feita com a mesma versão lida, tem de esperar e depois ver a versão
+      // nova. Sem o FOR UPDATE, passaria por cima (revisão do #78, 2.ª, P2-1).
+      const primeira = await transaccaoAberta(
+        c,
+        "update artigo set nome = 'A' where id = $1",
+        [id],
       );
-      expect(resultados.sort()).toEqual([
-        "catalog.version_conflict",
-        "sem erro",
-      ]);
-      expect((await obterArtigo(base.api, c, id)).versao).toBe(2);
+      const segunda = codigoDoErro(
+        alterarArtigo(base.api, c, id, 1, { nome: "B" }),
+      );
+      // Fecha-se sempre, também se a asserção falhar: uma transacção
+      // aberta deixaria a base de teste presa no fim.
+      let esperou: boolean;
+      try {
+        esperou = await aindaEspera(segunda);
+      } finally {
+        await primeira.fechar();
+      }
+      expect(esperou).toBe(true);
+      expect(await segunda).toBe("catalog.version_conflict");
+      expect(await obterArtigo(base.api, c, id)).toMatchObject({
+        nome: "A",
+        versao: 2,
+      });
+    });
+
+    it("activar enquanto outro arquiva a única variante: não activa (FOR SHARE)", async () => {
+      const c = await comercianteNovo();
+      const id = await criarArtigo(
+        base.api,
+        c,
+        { tipo: "fisico", nome: "Gel" },
+        [VARIANTE],
+      );
+      const unica = await varianteComSku(base.api, c, "GEL-001");
+      const arquivo = await transaccaoAberta(
+        c,
+        "update variante set estado = 'arquivada' where id = $1",
+        [unica?.id],
+      );
+      const activacao = codigoDoErro(
+        mudarEstadoArtigo(base.api, c, id, 1, "activo"),
+      );
+      // Fecha-se sempre, também se a asserção falhar: uma transacção
+      // aberta deixaria a base de teste presa no fim.
+      let esperou: boolean;
+      try {
+        esperou = await aindaEspera(activacao);
+      } finally {
+        await arquivo.fechar();
+      }
+      expect(esperou).toBe(true);
+      expect(await activacao).toBe("catalog.no_variants");
+      expect((await obterArtigo(base.api, c, id)).estado).toBe("rascunho");
     });
 
     it("as datas e o id são da base, não de quem escreve (P2-2, P2-5)", async () => {
@@ -415,7 +542,12 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
             unidade_de_venda: "litro" as never,
           }),
         ),
-      ).toMatch(/^pg:23514:/);
+      ).toBe("catalog.invalid_field");
+      expect(
+        await codigoDoErro(
+          criarArtigo(base.api, c, { tipo: "fisico", nome: " " }),
+        ),
+      ).toBe("catalog.name_required");
     });
 
     it("o GTIN tem dígito de controlo certo, origem e é único (C4)", async () => {
@@ -511,7 +643,27 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
             gtin: "96385074",
           }),
         ),
-      ).toMatch(/^pg:23514:/);
+      ).toBe("catalog.gtin_origin_required");
+      // Dígito errado e sem origem: a base vê primeiro a origem (os CHECK
+      // correm por ordem alfabética), e o erro sai com código (P2-2).
+      expect(
+        await codigoDoErro(
+          criarVariante(base.api, c, id, {
+            ...VARIANTE,
+            sku: "G-ERRADO-SEM-ORIGEM",
+            gtin: "4006381333932",
+          }),
+        ),
+      ).toBe("catalog.gtin_origin_required");
+      expect(
+        await codigoDoErro(
+          criarVariante(base.api, c, id, {
+            ...VARIANTE,
+            sku: "G-SO-ORIGEM",
+            gtin_origem: "interno",
+          }),
+        ),
+      ).toBe("catalog.gtin_origin_required");
     });
 
     it("arquivar uma variante não toca no artigo nem nas outras (C6)", async () => {
@@ -605,7 +757,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Catálogo na base", () => {
             conteudo_quantidade: 15,
           }),
         ),
-      ).toMatch(/^pg:23514:/);
+      ).toBe("catalog.content_incomplete");
     });
   });
 

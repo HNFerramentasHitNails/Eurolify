@@ -25,12 +25,17 @@ export type CodigoErroCatalogo =
   | "catalog.not_draft"
   | "catalog.variant_archived_is_final"
   | "catalog.version_conflict"
+  | "catalog.name_required"
+  | "catalog.origin_ref_required"
   | "catalog.sku_required"
   | "catalog.sku_invalid"
   | "catalog.unit_required"
   | "catalog.sku_duplicate"
   | "catalog.gtin_duplicate"
-  | "catalog.gtin_invalid";
+  | "catalog.gtin_invalid"
+  | "catalog.gtin_origin_required"
+  | "catalog.content_incomplete"
+  | "catalog.invalid_field";
 
 export class ErroCatalogo extends Error {
   constructor(
@@ -60,15 +65,22 @@ const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   variante_gtin_unico: "catalog.gtin_duplicate",
   variante_gtin_digito_de_controlo: "catalog.gtin_invalid",
   variante_gtin_check: "catalog.gtin_invalid",
+  // O PostgreSQL verifica os CHECK por ordem alfabética do nome: um GTIN com
+  // o dígito errado e sem origem cai aqui primeiro (revisão do #78, 2.ª, P2-2).
+  variante_gtin_com_origem: "catalog.gtin_origin_required",
+  variante_conteudo_completo: "catalog.content_incomplete",
+  artigo_origem_com_referencia: "catalog.origin_ref_required",
+  artigo_nome_check: "catalog.name_required",
 };
 
 /** Colunas obrigatórias com código próprio (§7.1: C3). */
 const OBRIGATORIAS: Readonly<Record<string, CodigoErroCatalogo>> = {
+  nome: "catalog.name_required",
   sku: "catalog.sku_required",
   unidade_de_venda: "catalog.unit_required",
 };
 
-/** As tabelas deste domínio: um 23503 nelas é «não existe» (revisão do #78, P2-1). */
+/** As tabelas deste domínio, para os erros que só se traduzem quando vêm delas. */
 const TABELAS = new Set(["artigo", "variante"]);
 
 function traduzir(erro: unknown): unknown {
@@ -95,6 +107,17 @@ function traduzir(erro: unknown): unknown {
     pg.column === undefined ? undefined : OBRIGATORIAS[pg.column];
   if (pg.code === "23502" && daColuna !== undefined) {
     return new ErroCatalogo(daColuna, erro.message, { cause: erro });
+  }
+  // Outro valor recusado nestas tabelas (uma lista, um número): código
+  // genérico, para que nenhum erro da base saia cru (P2-2).
+  if (
+    (pg.code === "23514" || pg.code === "23502") &&
+    pg.table !== undefined &&
+    TABELAS.has(pg.table)
+  ) {
+    return new ErroCatalogo("catalog.invalid_field", erro.message, {
+      cause: erro,
+    });
   }
   // Uma chave estrangeira que falha: o artigo (ou o comerciante) não existe
   // ou é de outro comerciante — o RLS esconde-o igual, sem oráculo.
