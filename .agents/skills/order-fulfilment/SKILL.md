@@ -86,6 +86,7 @@ devoluções registadas, zero movimentos de devolução em 44.431).
 ## Eventos
 
 `order.created`, `order.cancelled`, `inventory.reserved`, `inventory.released`,
+`inventory.adjusted` (acerto de inventário, como na lista do `docs/02`),
 `payment.authorized`, `payment.captured`, `shipment.created`,
 `shipment.dispatched`, `shipment.delivered`, `withdrawal.requested`,
 `return.received`, `return.inspected`, `refund.completed`.

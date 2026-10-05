@@ -193,5 +193,15 @@ pedido de alteração.
 - **P1 de código feitos:** confirmação das acções do MCP em dois passos (#93, no `main`); marca W/M/C nas regras do motor (#95, no `main`); classificação do artigo em código (pedido da migração 0006).
 - **Fica à espera:** `marketplace-dsa` (marca do art. 16.º) até à resposta
   da G7 (`docs/03:137-145`).
-- Por fazer: os pontos de documentos, de segurança e de código (pedidos
-  próprios).
+- **Pontos de documentos feitos** (Diogo, 05/10/2026: «avança com os pontos
+  de documentação do docs/16»), menos um: estado do código no `docs/02` e no
+  plano; ADR-0035 ao lado do ADR-0030; o orquestrador marcado como não
+  instalado (a citação no ADR-0034:17 é literal e fica); `DELETE` dos
+  rascunhos e `Idempotency-Key` em todas as escritas no `docs/15`; GPSR e
+  fórmulas por componente no `docs/14`; remissões do digital e dos vales no
+  `docs/05` e no `docs/13`; o número contado no `compliance-gaps.md`; Dir.
+  2008/68/CE, Reg. 2018/644, CRA, EUDR e brinquedos no `docs/03` (**W**);
+  três papéis no `docs/02` e `inventory.adjusted` na `order-fulfilment`.
+  **Fica por decidir:** em que fase entra a montra com kit e temas por
+  comerciante.
+- Por fazer: os pontos de segurança e de código (pedidos próprios).

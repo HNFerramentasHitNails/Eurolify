@@ -108,6 +108,12 @@ crédito (decisão AD).
 > [`13-portas-da-fase-2.md`](13-portas-da-fase-2.md). Três peças passaram para
 > a Fase 1 a 04/10/2026 (decisão AD, ADR-0022): o relatório OSS, o núcleo das
 > devoluções e os lotes com os compostos.
+>
+> O **digital** (conteúdo e serviço) e os **cartões-oferta** estão desenhados
+> e **desligados até à sua porta** (decisão do Diogo, ADR-0034): as condições
+> estão nas fatias 12 e 13 de [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
+> e no §5 de [`eurolify/architecture.md`](eurolify/architecture.md), não neste
+> documento.
 
 - Armazém completo: vários armazéns, picking, inventários (os lotes e os
   compostos passaram para a Fase 1, decisão AD).

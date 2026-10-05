@@ -56,7 +56,8 @@ Segue-se o prompt do pacote, dentro das regras do repositório:
   fonte, vigência e revisor; enquanto nada estiver verificado, **todas as
   decisões saem «revisão necessária»** — nenhuma venda é permitida por ele.
 - O código desta fatia entra no `main` só com a revisão de uma sessão nova do
-  Claude Code (ADR-0030, ADR-0031).
+  Claude Code (ADR-0030, ADR-0031). *Nota de 05/10/2026: desde o ADR-0035, a
+  revisão pode ser de um agente lançado da própria sessão.*
 - Pode partir: um domínio que ignore o motor e decida sozinho (`AGENTS.md`,
   «Uma regra, um sítio»); o `GET /paises` é provisório até haver a versão por
   data e a autenticação da API de Administração.

@@ -9,8 +9,9 @@
 ## 1. O registo dos 27 países
 
 Hoje (registo versão 1, `apps/api/src/regras/registo.ts`): **27 países × 7
-domínios obrigatórios = 189 combinações, todas `por_verificar`**; 0 regras;
-0 territórios mapeados (contado nos testes, 04/10/2026). Com isto, **nenhuma
+domínios obrigatórios = 189 combinações, todas `por_verificar`** (mais 4
+condicionais por país: 27 × 11 = 297 revisões no registo, `registo.ts:44-49`,
+que o teste percorre); 0 regras; 0 territórios mapeados (04/10/2026). Com isto, **nenhuma
 venda é permitida pelo motor** em nenhum país.
 
 | Domínio | O que cada país precisa | Responsável | Prova que fecha | Estado |
@@ -42,7 +43,7 @@ venda é permitida pelo motor** em nenhum país.
 | G12 | **Dados só na UE**: e-mail, registos, suporte, cópias e acessos remotos verificados fornecedor a fornecedor | produção | Diogo ou Bruno | — | contrato e localização de cada fornecedor | aberta; o ensaio está no Reino Unido até 31/03/2027, sem dados reais (ADR-0018/0019) |
 | G13 | Acessibilidade (EAA) do checkout e da montra | fatias 7 em diante | — | — | auditoria; testes automáticos não chegam | aberta |
 | G14 | NIS2: o Eurolify cabe num dos anexos? | operação | jurista | — | parecer (`observability-security`) | aberta |
-| G15 | Revisão do código do motor por uma sessão nova (ADR-0030) | entrada no `main` | Diogo ou Bruno | — | revisão publicada no pedido | **o #37 entrou antes da revisão**; a revisão chegou depois (1 P0, 2 P1, 9 P2), corrigidos no #40 (issue #39), que também entrou antes da revisão (1 P1, 6 P2), corrigidos no #47 (issue #46), que entrou depois de revisto; o pedido seguinte (propostas e dois P2) também espera revisão **antes** de entrar |
+| G15 | Revisão do código do motor por uma sessão nova (ADR-0030; desde o ADR-0035, também um agente da sessão) | entrada no `main` | Diogo ou Bruno | — | revisão publicada no pedido | **o #37 entrou antes da revisão**; a revisão chegou depois (1 P0, 2 P1, 9 P2), corrigidos no #40 (issue #39), que também entrou antes da revisão (1 P1, 6 P2), corrigidos no #47 (issue #46), que entrou depois de revisto; o pedido seguinte (propostas e dois P2) também espera revisão **antes** de entrar |
 
 ## 3. O que não é lacuna, e porquê
 
