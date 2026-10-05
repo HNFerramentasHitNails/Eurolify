@@ -1,3 +1,4 @@
+import { podeDecidir } from "./decidir.js";
 import { instante } from "./instante.js";
 import { ehLista, ehObjecto, tipo, valor } from "./mostrar.js";
 import {
@@ -5,6 +6,8 @@ import {
   DOMINIOS_CONDICIONAIS,
   DOMINIOS_OBRIGATORIOS,
   ESTADOS_LEGAIS,
+  MARCAS,
+  PAPEIS_DE_VALIDACAO,
   type Regra,
   type Registo,
   type RevisaoDominio,
@@ -211,6 +214,35 @@ export function errosDoRegisto(registo: Registo): string[] {
       if (vazio(regra.base.artigo)) erros.push(`${nome}: base sem artigo`);
     }
     if (vazio(regra.revistaPor)) erros.push(`${nome}: sem revistaPor`);
+    // A marca W/M/C e a prova para decidir (§4.1; docs/03).
+    const marca: unknown = regra.marca;
+    if (!(MARCAS as readonly unknown[]).includes(marca)) {
+      erros.push(`${nome}: marca desconhecida «${valor(marca)}» (W, M ou C)`);
+    }
+    const textoLido: unknown = regra.textoLido;
+    if (typeof textoLido !== "boolean") {
+      erros.push(`${nome}: textoLido não é true nem false`);
+    } else if (textoLido && marca !== "W") {
+      erros.push(`${nome}: textoLido só existe numa marca W`);
+    }
+    const validacao: unknown = regra.validacao;
+    if (validacao !== null) {
+      if (!ehObjecto(validacao)) {
+        erros.push(`${nome}: validação que não é objecto nem null`);
+      } else {
+        const v = validacao as Record<string, unknown>;
+        if (vazio(v["por"])) erros.push(`${nome}: validação sem «por»`);
+        if (!(PAPEIS_DE_VALIDACAO as readonly unknown[]).includes(v["papel"])) {
+          erros.push(
+            `${nome}: papel de validação desconhecido «${valor(v["papel"])}»`,
+          );
+        }
+        const em = v["em"];
+        if (typeof em !== "string" || instante(em) === null) {
+          erros.push(`${nome}: data de validação inválida «${valor(v["em"])}»`);
+        }
+      }
+    }
     if (!ehLista(regra.territorios)) {
       erros.push(`${nome}: «territorios» não é uma lista`);
     }
@@ -267,6 +299,12 @@ export function errosDoRegisto(registo: Registo): string[] {
     ) {
       erros.push(
         `${nome}: o domínio ${valor(regra.dominio)} de ${valor(regra.pais)} não está verificado`,
+      );
+    } else if (regra.estadoLegal !== "proposta" && !podeDecidir(regra)) {
+      // Num domínio verificado, uma regra que pode decidir precisa de W com
+      // o texto lido ou de validação profissional (docs/03; §4.1).
+      erros.push(
+        `${nome}: marca ${valor(regra.marca)} sem texto legal lido nem validação profissional — não pode decidir (docs/03)`,
       );
     }
     if (ehLista(regra.territorios)) {

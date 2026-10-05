@@ -138,6 +138,9 @@ este motor antes de agir.
 | | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59, não `-00:00` — na RFC 3339 é «fuso desconhecido»; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
+| | `marca` | `W`, `M` ou `C`, com o significado do `docs/03` (tabela «Como ler a coluna Verificação»); `textoLido` diz se, num `W`, o texto legal foi lido (e não só o resumo) — decisão do Diogo, 05/10/2026 (*«avança com a marca W/M/C no motor de regras»*; P1 da auditoria `docs/16`) |
+| | `validacao` | `null` ou `{ por, papel, em }`, com `papel` um dos da coluna «Quem valida» do `docs/03` (`jurista`, `contabilista`, `tecnico_regulamentar`, `despachante`, `entidade_gestora`, `encarregado_de_dados`, `transportadora`): a validação profissional da regra. O motor **não** liga o papel ao domínio (um jurista pode validar uma regra de IVA) — por decidir. Num `W` com texto lido, a data da leitura é o `verificadaEm` |
+| | **pode decidir** | uma regra que não é `proposta` só entra num domínio `verificado` se tiver **`W` com texto lido** ou **validação profissional** — a regra do `docs/03` («uma linha C não entra numa decisão sem passar a W com o texto legal lido ou ser validada por um profissional»), estendida a `M` e a `W` só de resumo por decisão do Diogo, 05/10/2026 (*«mantém para M e W só de resumo»*). O `validar` recusa o registo; o `decidir`, se lhe chegar uma assim, não a aplica (`regra_sem_prova`) |
 
 **Domínios obrigatórios** (do pacote): consumidor, IVA, faturação, privacidade
 e marketing, produto e ambiente, acessibilidade e plataforma, pagamentos.
@@ -170,7 +173,8 @@ permitida).
 | Território mapeado, só com a regra do continente | `revisao_necessaria`, motivo `sem_regra_em_vigor` (o território não herda) |
 | Domínio `nao_aplicavel` com justificação | não bloqueia |
 | Só domínios `nao_aplicavel` | `revisao_necessaria`, motivo `sem_regra_aplicada` |
-| Todos os domínios pedidos verificados, com regra em vigor | `permitido` |
+| Regra em vigor sem `W` com texto lido nem validação profissional (só num registo que não passou pelo `validar`) | `revisao_necessaria`, motivo `regra_sem_prova` — bloqueia o domínio, e as outras regras dele não se aplicam |
+| Todos os domínios pedidos verificados, com regra em vigor **e com prova** | `permitido` |
 
 **O registo é validado ao arrancar** (`validar.ts`): datas sem fuso ou
 impossíveis, `aplicaAte` antes de `aplicaDesde`, `revogada` sem data de fim,
@@ -183,7 +187,7 @@ que não existe (também um domínio que não
 estado legal desconhecido, prova vazia (`base`, `revistaPor`, `revistoPor`),
 `id` vazia ou `versao` que não é inteiro ≥ 1 (revisão do #40), a mesma
 `id` em dois países ou dois domínios, propostas incluídas (revisão do #45),
-`id` fora do formato do §4.1 (revisão do #50) —
+`id` fora do formato do §4.1 (revisão do #50), marca desconhecida, `textoLido` que não é booleano ou fora de um `W`, validação mal formada (sem `por`, papel fora da lista, data inválida) e regra que não é `proposta`, num domínio `verificado`, sem prova para decidir (§4.1; a vigência não conta: uma versão antiga ou futura também precisa de prova) —
 a aplicação **não arranca** e diz a lista toda.
 
 Um bloqueio vale **só para a combinação pedida**: o IVA de França bloqueado
