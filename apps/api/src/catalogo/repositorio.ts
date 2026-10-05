@@ -380,6 +380,10 @@ export async function varianteComSku(
     trx
       .selectFrom("variante")
       .selectAll()
+      // O comerciante explícito, além do RLS: o lower() não é «leakproof» e,
+      // só com a política, o índice usava apenas o comerciante (revisão do
+      // #80, P2-1).
+      .where("comerciante_id", "=", comercianteId)
       .where(sql<string>`lower(sku)`, "=", sql<string>`lower(${sku})`)
       .executeTakeFirst(),
   );

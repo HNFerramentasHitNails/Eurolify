@@ -18,7 +18,15 @@ if (decisao.tipo === "sem_base") {
     }),
   });
   try {
-    const { results } = await migrar(db);
+    const { results } = await migrar(db).catch((erro: unknown) => {
+      // O pormenor do PostgreSQL (por exemplo, que chave se repete) não vem
+      // na mensagem; escreve-se antes de parar (revisão do #80, P3-1).
+      const pormenor = (erro as { detail?: unknown }).detail;
+      if (typeof pormenor === "string") {
+        console.error(`migrar: pormenor: ${pormenor}`);
+      }
+      throw erro;
+    });
     const aplicadas = (results ?? []).filter((r) => r.status === "Success");
     console.log(
       aplicadas.length === 0
