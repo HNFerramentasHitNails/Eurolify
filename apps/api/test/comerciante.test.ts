@@ -100,7 +100,16 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0008_rasto_imutavel_e_funcoes_fechadas",
         "0009_catalogo_traducoes",
         "0010_identidade_chaves",
+        "0011_tirar_lingua_origem_da_loja",
       ]);
+    });
+
+    it("a loja já não tem língua de origem; o comerciante tem (0011, tarefa #109)", async () => {
+      const { rows } = await sql<{ tabela: string }>`
+        select table_name as tabela from information_schema.columns
+        where table_schema = 'public' and column_name = 'lingua_origem'
+        order by 1`.execute(base.dono);
+      expect(rows).toEqual([{ tabela: "comerciante" }]);
     });
 
     it("o eurolify_api não é superutilizador nem ignora o RLS", async () => {
