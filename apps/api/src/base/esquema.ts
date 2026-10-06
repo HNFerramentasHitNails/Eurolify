@@ -472,6 +472,8 @@ export interface TabelaHistoricoPreco {
   montante: ColumnType<string | null, never, never>;
   gratuito: ColumnType<boolean | null, never, never>;
   saiu: ColumnType<boolean, never, never>;
+  moeda: ColumnType<string, never, never>;
+  preco_inclui_iva: ColumnType<boolean, never, never>;
   em_vigor_desde: ColumnType<Date, never, never>;
   definido_por: ColumnType<string, never, never>;
 }

@@ -398,6 +398,8 @@ export async function mercadosDoCanal(
 
 // ------------------------------------------------------- Listas de preços
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface DadosLista {
   mercado_id: string;
   nome: string;
@@ -413,6 +415,11 @@ export async function criarLista(
   comercianteId: string,
   dados: DadosLista,
 ): Promise<string> {
+  // Uma etiqueta mal escrita é um campo inválido, não «não existe» (a etiqueta
+  // é de Clientes e aqui não se procura; revisão do #134, P3-4).
+  if (dados.etiqueta_id !== undefined && !UUID.test(dados.etiqueta_id)) {
+    throw new ErroPrecos("prices.invalid_field", "etiqueta mal escrita");
+  }
   const { id } = await noDominio(db, comercianteId, (trx) =>
     trx
       .insertInto("lista_precos")
@@ -444,6 +451,9 @@ export async function mudarEstadoLista(
 }
 
 // ------------------------------------------------------------------ Preços
+
+/** O limite da restrição `preco_montante_valido` da 0017. */
+const MONTANTE_MAXIMO = 100_000_000_000;
 
 export interface DadosPreco {
   /** Cêntimos, na moeda do mercado da lista. */
@@ -493,6 +503,18 @@ export async function definirPreco(
   varianteId: string,
   dados: DadosPreco,
 ): Promise<Preco> {
+  // Um montante que não é um número inteiro é campo inválido; um inteiro fora
+  // do limite é montante inválido, também acima do que o bigint guarda
+  // (revisão do #134, P3-4).
+  if (!Number.isInteger(dados.montante)) {
+    throw new ErroPrecos(
+      "prices.invalid_field",
+      "montante em cêntimos inteiros",
+    );
+  }
+  if (dados.montante < 0 || dados.montante > MONTANTE_MAXIMO) {
+    throw new ErroPrecos("prices.amount_invalid", "montante fora do limite");
+  }
   const valores = {
     montante: dados.montante,
     gratuito: dados.gratuito ?? false,
@@ -568,6 +590,9 @@ export interface LinhaHistorico {
   montante: number | null;
   gratuito: boolean | null;
   saiu: boolean;
+  /** A moeda e o «preço inclui IVA» do mercado quando a linha se escreveu. */
+  moeda: string;
+  preco_inclui_iva: boolean;
   em_vigor_desde: Date;
   definido_por: string;
 }
@@ -586,6 +611,8 @@ export async function historicoDoPreco(
         "montante",
         "gratuito",
         "saiu",
+        "moeda",
+        "preco_inclui_iva",
         "em_vigor_desde",
         "definido_por",
       ])

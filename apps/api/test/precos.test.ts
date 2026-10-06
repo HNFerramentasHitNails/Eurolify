@@ -1,4 +1,5 @@
 import { sql, type Kysely } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BaseDados } from "../src/base/esquema.js";
 import { apagarRascunho, criarArtigo } from "../src/catalogo/repositorio.js";
@@ -706,5 +707,408 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       (await verificarPrecos(base.api, c, rascunho, [v2]))[0]?.impedimento,
     ).toBe("prices.no_price");
     expect(await verificarPrecos(base.api, c, rascunho, [])).toEqual([]);
+  });
+
+  // ------------------------------------------------------------------
+  // Achados da revisão do #134 (1.ª ronda).
+
+  it("tirados todos os preços, a moeda continua fixa; o histórico guarda a moeda e o IVA (P2-1)", async () => {
+    const { c, loja, v1 } = await cenario();
+    const { mercado, lista } = await mercadoActivo(c, loja);
+    await definirPreco(base.api, c, QUEM, lista, v1, { montante: 990 });
+    await tirarPreco(base.api, c, QUEM, lista, v1);
+    expect(await precosDaLista(base.api, c, lista)).toEqual([]);
+    expect(
+      await codigoDoErro(
+        alterarMercado(base.api, c, mercado, 2, { moeda: "SEK" }),
+      ),
+    ).toBe("prices.market_has_prices");
+    const historico = await historicoDoPreco(base.api, c, lista, v1);
+    expect(historico.map((h) => [h.saiu, h.moeda, h.preco_inclui_iva])).toEqual(
+      [
+        [false, "EUR", true],
+        [true, "EUR", true],
+      ],
+    );
+  });
+
+  it("reenviar o mesmo preço não muda quem o definiu (P3-2)", async () => {
+    const { c, loja, v1 } = await cenario();
+    const { lista } = await mercadoActivo(c, loja);
+    const primeiro = await definirPreco(base.api, c, QUEM, lista, v1, {
+      montante: 990,
+    });
+    const outra = await definirPreco(base.api, c, "pessoa:outra", lista, v1, {
+      montante: 990,
+      multiplo: 2,
+    });
+    expect(outra).toMatchObject({
+      definido_por: QUEM,
+      definido_em: primeiro.definido_em,
+      multiplo: 2,
+      versao: 2,
+    });
+    const mudou = await definirPreco(base.api, c, "pessoa:outra", lista, v1, {
+      montante: 1090,
+      multiplo: 2,
+    });
+    expect(mudou.definido_por).toBe("pessoa:outra");
+    const historico = await historicoDoPreco(base.api, c, lista, v1);
+    expect(historico.map((h) => h.definido_por)).toEqual([
+      QUEM,
+      "pessoa:outra",
+    ]);
+  });
+
+  it("uma etiqueta mal escrita é campo inválido; um montante fora do limite é montante inválido (P3-4)", async () => {
+    const { c, loja, v1 } = await cenario();
+    const { mercado, lista } = await mercadoActivo(c, loja);
+    expect(
+      await codigoDoErro(
+        criarLista(base.api, c, {
+          mercado_id: mercado,
+          nome: "Pro",
+          tipo: "b2b",
+          etiqueta_id: "nao-e-uuid",
+          prioridade: 1,
+        }),
+      ),
+    ).toBe("prices.invalid_field");
+    expect(
+      await codigoDoErro(
+        definirPreco(base.api, c, QUEM, lista, v1, { montante: 1e20 }),
+      ),
+    ).toBe("prices.amount_invalid");
+    // A restrição da base também recusa, sem o repositório pelo meio.
+    expect(
+      await codigoDoErro(
+        comComerciante(base.api, c, async (trx) => {
+          await sql`select set_config('eurolify.quem', ${QUEM}, true)`.execute(
+            trx,
+          );
+          await sql`insert into preco (comerciante_id, lista_id, variante_id, montante)
+              values (${c}, ${lista}, ${v1}, -1)`.execute(trx);
+        }).catch((e: unknown) => {
+          throw traduzir(e);
+        }),
+      ),
+    ).toBe("prices.amount_invalid");
+  });
+
+  it("nem o dono muda a loja de um mercado, o mercado de uma lista ou a loja de um canal (P3-9)", async () => {
+    const { c, loja, entidade } = await cenario();
+    const outraLoja = await criarLoja(base.api, c, {
+      entidade_legal_id: entidade,
+      nome: "Outra",
+    });
+    const mercado = await criarMercado(base.api, c, mercadoPT(loja));
+    const outro = await criarMercado(
+      base.api,
+      c,
+      mercadoPT(loja, { nome: "PT2" }),
+    );
+    const lista = await criarLista(base.api, c, {
+      mercado_id: mercado,
+      nome: "Base",
+      tipo: "base",
+    });
+    const canal = await criarCanal(base.api, c, {
+      loja_id: loja,
+      nome: "Online",
+    });
+    const dono = base.dono as Kysely<BaseDados>;
+    expect(
+      await codigoDoErro(
+        sql`update mercado set loja_id = ${outraLoja} where id = ${mercado}`.execute(
+          dono,
+        ),
+      ),
+    ).toMatch(/prices\.immutable_identity/);
+    expect(
+      await codigoDoErro(
+        sql`update lista_precos set mercado_id = ${outro} where id = ${lista}`.execute(
+          dono,
+        ),
+      ),
+    ).toMatch(/prices\.immutable_identity/);
+    expect(
+      await codigoDoErro(
+        sql`update canal set loja_id = ${outraLoja} where id = ${canal}`.execute(
+          dono,
+        ),
+      ),
+    ).toMatch(/prices\.immutable_identity/);
+  });
+
+  it("um canal nasce activo; quem define tem no máximo 200 caracteres; a variante de um preço não muda", async () => {
+    const { c, loja, v1, v2 } = await cenario();
+    const { lista } = await mercadoActivo(c, loja);
+    const dono = base.dono as Kysely<BaseDados>;
+    expect(
+      await codigoDoErro(
+        sql`insert into canal (comerciante_id, loja_id, nome, estado)
+            values (${c}, ${loja}, 'Directo', 'arquivado')`.execute(dono),
+      ),
+    ).toMatch(/prices\.invalid_transition/);
+    expect(
+      await codigoDoErro(
+        definirPreco(base.api, c, "x".repeat(201), lista, v1, {
+          montante: 990,
+        }),
+      ),
+    ).toBe("prices.defined_by_required");
+    await definirPreco(base.api, c, QUEM, lista, v1, { montante: 990 });
+    expect(
+      await codigoDoErro(
+        dono.transaction().execute(async (trx) => {
+          await sql`select set_config('eurolify.quem', ${QUEM}, true)`.execute(
+            trx,
+          );
+          await sql`update preco set variante_id = ${v2}
+              where lista_id = ${lista} and variante_id = ${v1}`.execute(trx);
+        }),
+      ),
+    ).toMatch(/prices\.immutable_identity/);
+  });
+
+  it("repor uma lista de base arquivada quando já há outra activa é recusado (P3-9)", async () => {
+    const { c, loja } = await cenario();
+    const mercado = await criarMercado(base.api, c, mercadoPT(loja));
+    const antiga = await criarLista(base.api, c, {
+      mercado_id: mercado,
+      nome: "Base antiga",
+      tipo: "base",
+    });
+    await mudarEstadoLista(base.api, c, antiga, 1, "arquivada");
+    await criarLista(base.api, c, {
+      mercado_id: mercado,
+      nome: "Base",
+      tipo: "base",
+    });
+    expect(
+      await codigoDoErro(mudarEstadoLista(base.api, c, antiga, 2, "activa")),
+    ).toBe("prices.base_list_duplicate");
+  });
+
+  describe("em concorrência (P1-1, P2-2, P2-3 e P2-4)", () => {
+    // Cada ligação é uma transacção aberta do eurolify_api, com o comerciante
+    // e quem escreve; prova-se que a segunda espera pela primeira (fica à
+    // espera de um lock) e o que vê depois de a primeira confirmar.
+    const abertas: pg.Client[] = [];
+
+    afterAll(async () => {
+      await Promise.all(abertas.map((l) => l.end()));
+    });
+
+    async function ligacao(c: string): Promise<pg.Client> {
+      const l = new pg.Client({ connectionString: base.urlApi });
+      await l.connect();
+      abertas.push(l);
+      await l.query("begin");
+      await l.query(
+        "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.quem', $2, true)",
+        [c, QUEM],
+      );
+      return l;
+    }
+
+    /** Espera até uma ligação do eurolify_api estar à espera de um lock. */
+    async function alguemEspera(): Promise<void> {
+      for (let i = 0; i < 100; i++) {
+        const { rows } = await sql<{ n: number }>`
+          select count(*)::int as n from pg_stat_activity
+          where usename = 'eurolify_api' and datname = current_database()
+            and wait_event_type = 'Lock'`.execute(base.dono);
+        if ((rows[0]?.n ?? 0) > 0) return;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      throw new Error("a segunda escrita não esperou pela primeira");
+    }
+
+    /** O código da escrita que esperava, já com a transacção acabada. */
+    async function resultado(
+      l: pg.Client,
+      escrita: Promise<unknown>,
+    ): Promise<string> {
+      try {
+        await escrita;
+        await l.query("commit");
+        return "sem erro";
+      } catch (erro) {
+        await l.query("rollback");
+        const t = traduzir(erro);
+        return t instanceof ErroPrecos ? t.codigo : String(erro);
+      }
+    }
+
+    it("mudar a moeda e escrever o primeiro preço: quem chega depois espera e vê o outro", async () => {
+      const { c, loja, v1, v2 } = await cenario();
+      const { mercado, lista } = await mercadoActivo(c, loja);
+      // A moeda primeiro: o preço espera e fica escrito na moeda nova.
+      const a = await ligacao(c);
+      await a.query("update mercado set moeda = 'SEK' where id = $1", [
+        mercado,
+      ]);
+      const b = await ligacao(c);
+      const escrita = b.query(
+        "insert into preco (comerciante_id, lista_id, variante_id, montante) values ($1, $2, $3, 990)",
+        [c, lista, v1],
+      );
+      await alguemEspera();
+      await a.query("commit");
+      expect(await resultado(b, escrita)).toBe("sem erro");
+      expect(
+        (await historicoDoPreco(base.api, c, lista, v1)).map((h) => h.moeda),
+      ).toEqual(["SEK"]);
+      // O preço primeiro: a moeda espera e depois é recusada.
+      const outro = await mercadoActivo(c, loja, {
+        nome: "França",
+        paises: ["FR"],
+        linguas: ["fr"],
+        lingua_principal: "fr",
+      });
+      const d = await ligacao(c);
+      await d.query(
+        "insert into preco (comerciante_id, lista_id, variante_id, montante) values ($1, $2, $3, 990)",
+        [c, outro.lista, v2],
+      );
+      const e = await ligacao(c);
+      const mudanca = e.query(
+        "update mercado set moeda = 'SEK' where id = $1",
+        [outro.mercado],
+      );
+      await alguemEspera();
+      await d.query("commit");
+      expect(await resultado(e, mudanca)).toBe("prices.market_has_prices");
+    });
+
+    it("arquivar uma lista e escrever um preço nela: o preço espera e é recusado", async () => {
+      const { c, loja, v1 } = await cenario();
+      const { mercado } = await mercadoActivo(c, loja);
+      const b2b = await criarLista(base.api, c, {
+        mercado_id: mercado,
+        nome: "Pro",
+        tipo: "b2b",
+        etiqueta_id: "0192a3b4-0000-7000-8000-000000000005",
+        prioridade: 1,
+      });
+      const a = await ligacao(c);
+      await a.query(
+        "update lista_precos set estado = 'arquivada' where id = $1",
+        [b2b],
+      );
+      const b = await ligacao(c);
+      const escrita = b.query(
+        "insert into preco (comerciante_id, lista_id, variante_id, montante) values ($1, $2, $3, 990)",
+        [c, b2b, v1],
+      );
+      await alguemEspera();
+      await a.query("commit");
+      expect(await resultado(b, escrita)).toBe("prices.list_archived");
+    });
+
+    it("o histórico fica pela ordem das escritas, não pela hora a que cada transacção começou", async () => {
+      const { c, loja, v1 } = await cenario();
+      const { lista } = await mercadoActivo(c, loja);
+      await definirPreco(base.api, c, QUEM, lista, v1, { montante: 990 });
+      // A começa primeiro mas escreve depois de B.
+      const a = await ligacao(c);
+      await a.query("select now()");
+      await new Promise((r) => setTimeout(r, 20));
+      const b = await ligacao(c);
+      await b.query(
+        "update preco set montante = 1100 where lista_id = $1 and variante_id = $2",
+        [lista, v1],
+      );
+      const escrita = a.query(
+        "update preco set montante = 1200 where lista_id = $1 and variante_id = $2",
+        [lista, v1],
+      );
+      await alguemEspera();
+      await b.query("commit");
+      expect(await resultado(a, escrita)).toBe("sem erro");
+      const historico = await historicoDoPreco(base.api, c, lista, v1);
+      expect(historico.map((h) => h.montante)).toEqual([990, 1100, 1200]);
+      expect((await precosDaLista(base.api, c, lista))[0]?.montante).toBe(1200);
+    });
+
+    it("dois mercados com o mesmo país activados ao mesmo tempo: só um fica activo", async () => {
+      const { c, loja } = await cenario();
+      const m1 = await criarMercado(base.api, c, mercadoPT(loja));
+      const m2 = await criarMercado(
+        base.api,
+        c,
+        mercadoPT(loja, { nome: "PT2" }),
+      );
+      for (const m of [m1, m2]) {
+        await criarLista(base.api, c, {
+          mercado_id: m,
+          nome: "Base",
+          tipo: "base",
+        });
+      }
+      const a = await ligacao(c);
+      await a.query("update mercado set estado = 'activo' where id = $1", [m1]);
+      const b = await ligacao(c);
+      const activar = b.query(
+        "update mercado set estado = 'activo' where id = $1",
+        [m2],
+      );
+      await alguemEspera();
+      await a.query("commit");
+      expect(await resultado(b, activar)).toBe(
+        "prices.country_in_other_market",
+      );
+    });
+
+    it("activar o mercado e arquivar a lista de base: nunca fica um mercado activo sem lista de base", async () => {
+      const { c, loja } = await cenario();
+      // Arquivar primeiro: a activação espera e é recusada.
+      const m1 = await criarMercado(base.api, c, mercadoPT(loja));
+      const l1 = await criarLista(base.api, c, {
+        mercado_id: m1,
+        nome: "Base",
+        tipo: "base",
+      });
+      const a = await ligacao(c);
+      await a.query(
+        "update lista_precos set estado = 'arquivada' where id = $1",
+        [l1],
+      );
+      const b = await ligacao(c);
+      const activar = b.query(
+        "update mercado set estado = 'activo' where id = $1",
+        [m1],
+      );
+      await alguemEspera();
+      await a.query("commit");
+      expect(await resultado(b, activar)).toBe("prices.base_list_required");
+      // Activar primeiro: o arquivo espera e é recusado.
+      const m2 = await criarMercado(
+        base.api,
+        c,
+        mercadoPT(loja, {
+          nome: "ES",
+          paises: ["ES"],
+          linguas: ["es"],
+          lingua_principal: "es",
+        }),
+      );
+      const l2 = await criarLista(base.api, c, {
+        mercado_id: m2,
+        nome: "Base",
+        tipo: "base",
+      });
+      const d = await ligacao(c);
+      await d.query("update mercado set estado = 'activo' where id = $1", [m2]);
+      const e = await ligacao(c);
+      const arquivar = e.query(
+        "update lista_precos set estado = 'arquivada' where id = $1",
+        [l2],
+      );
+      await alguemEspera();
+      await d.query("commit");
+      expect(await resultado(e, arquivar)).toBe("prices.base_list_in_use");
+    });
   });
 });

@@ -13,8 +13,10 @@
 --   lista de base activa; numa loja, um país só está num mercado activo (Q4,
 --   BV); um mercado arquivado volta a activo com as mesmas condições;
 -- - a moeda e o «preço inclui IVA» de um mercado não mudam depois de haver
---   preços nas listas dele (proposta: mudariam o significado dos montantes
---   já escritos);
+--   preços nas listas dele, nem depois de os ter havido (o histórico conta):
+--   mudariam o significado dos montantes já escritos (proposta). Cada linha
+--   do histórico guarda também a moeda e o «preço inclui IVA», para ser prova
+--   por si (revisão do #134, P2-1);
 -- - uma lista de base activa por mercado; a de um mercado activo não se
 --   arquiva; as listas B2B por etiqueta (a etiqueta é de Clientes, ainda sem
 --   tabela: guarda-se o identificador) com prioridade única entre as activas
@@ -30,26 +32,18 @@
 --
 -- Concorrência: as escritas nos mercados de uma loja passam por uma fila só
 -- delas (o país único olha para várias linhas); as escritas nas listas de um
--- mercado tomam a linha do mercado (a lista de base e as prioridades).
--- Assumem READ COMMITTED (base/ligacao.ts).
+-- mercado tomam a linha do mercado (a lista de base e as prioridades); as
+-- escritas de preços tomam a linha da lista e a do mercado (a lista arquivada,
+-- a moeda e o «preço inclui IVA»; revisão do #134, P1-1 e P2-2). O histórico
+-- data-se com a hora do relógio, já com a linha do preço tomada, para a ordem
+-- das linhas ser a das escritas (P2-3). Assumem READ COMMITTED
+-- (base/ligacao.ts).
 
 SET LOCAL lock_timeout = '10s';
 
--- A loja ganha a chave com o comerciante e o id, para os mercados e os canais
--- apontarem para uma loja do mesmo comerciante (a 0010 já criou uma igual:
--- só se cria se faltar).
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT FROM pg_constraint
-    WHERE conrelid = 'public.loja'::regclass AND contype = 'u'
-      AND conkey = ARRAY[
-        (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.loja'::regclass AND attname = 'comerciante_id'),
-        (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.loja'::regclass AND attname = 'id')]::int2[]) THEN
-    ALTER TABLE loja ADD CONSTRAINT loja_comerciante_id_unico UNIQUE (comerciante_id, id);
-  END IF;
-END
-$$;
+-- Os mercados e os canais apontam para uma loja do mesmo comerciante pela
+-- chave única (comerciante_id, id) da loja, criada na 0010
+-- (`loja_comerciante_e_id`).
 
 CREATE TABLE mercado (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -143,6 +137,7 @@ CREATE TABLE lista_precos (
 );
 -- Uma lista de base activa por mercado; nas B2B activas de um mercado, a
 -- prioridade não se repete (o empate é recusado) e a etiqueta também não.
+CREATE INDEX lista_precos_por_mercado ON lista_precos (comerciante_id, mercado_id);
 CREATE UNIQUE INDEX lista_precos_uma_base_activa
   ON lista_precos (mercado_id) WHERE tipo = 'base' AND estado = 'activa';
 CREATE UNIQUE INDEX lista_precos_prioridade_unica
@@ -189,7 +184,10 @@ CREATE TABLE historico_preco (
   montante bigint,
   gratuito boolean,
   saiu boolean NOT NULL,
-  em_vigor_desde timestamptz NOT NULL DEFAULT now(),
+  -- A moeda e o «preço inclui IVA» do mercado no momento da linha (R2).
+  moeda text NOT NULL CHECK (moeda ~ '^[A-Z]{3}$'),
+  preco_inclui_iva boolean NOT NULL,
+  em_vigor_desde timestamptz NOT NULL DEFAULT clock_timestamp(),
   definido_por text NOT NULL,
   CONSTRAINT historico_preco_saida_sem_montante CHECK (
     (saiu AND montante IS NULL AND gratuito IS NULL)
@@ -240,10 +238,12 @@ BEGIN
      OR NEW.loja_id <> OLD.loja_id THEN
     RAISE EXCEPTION 'prices.immutable_identity: o id, o comerciante e a loja de um mercado não mudam';
   END IF;
+  -- Conta o histórico, não só os preços correntes: um preço tirado também
+  -- foi escrito nesta moeda (revisão do #134, P2-1).
   IF (NEW.moeda <> OLD.moeda OR NEW.preco_inclui_iva <> OLD.preco_inclui_iva)
      AND EXISTS (
-       SELECT FROM public.preco p
-       JOIN public.lista_precos l ON l.comerciante_id = p.comerciante_id AND l.id = p.lista_id
+       SELECT FROM public.historico_preco h
+       JOIN public.lista_precos l ON l.comerciante_id = h.comerciante_id AND l.id = h.lista_id
        WHERE l.comerciante_id = NEW.comerciante_id AND l.mercado_id = NEW.id) THEN
     RAISE EXCEPTION 'prices.market_has_prices: a moeda e o «preço inclui IVA» não mudam depois de haver preços';
   END IF;
@@ -353,6 +353,7 @@ CREATE FUNCTION preco_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
+  estado_da_lista text;
 BEGIN
   IF quem IS NULL THEN
     RAISE EXCEPTION 'prices.defined_by_required: quem define o preço (eurolify.quem) é obrigatório';
@@ -360,10 +361,16 @@ BEGIN
   IF length(quem) > 200 THEN
     RAISE EXCEPTION 'prices.defined_by_required: quem define o preço tem no máximo 200 caracteres';
   END IF;
-  IF EXISTS (
-    SELECT FROM public.lista_precos l
-    WHERE l.comerciante_id = NEW.comerciante_id AND l.id = NEW.lista_id
-      AND l.estado = 'arquivada') THEN
+  -- A lista e o mercado ficam tomados até ao fim da transacção: quem arquiva
+  -- a lista ou muda a moeda ou o «preço inclui IVA» espera, e depois vê este
+  -- preço no histórico (revisão do #134, P1-1 e P2-2). Sem linha (lista de
+  -- outro comerciante ou inexistente), a chave estrangeira recusa a seguir.
+  SELECT l.estado INTO estado_da_lista
+  FROM public.lista_precos l
+  JOIN public.mercado m ON m.comerciante_id = l.comerciante_id AND m.id = l.mercado_id
+  WHERE l.comerciante_id = NEW.comerciante_id AND l.id = NEW.lista_id
+  FOR SHARE OF l, m;
+  IF estado_da_lista = 'arquivada' THEN
     RAISE EXCEPTION 'prices.list_archived: não se escrevem preços numa lista arquivada';
   END IF;
   IF TG_OP = 'UPDATE' THEN
@@ -372,11 +379,19 @@ BEGIN
       RAISE EXCEPTION 'prices.immutable_identity: a lista e a variante de um preço não mudam';
     END IF;
     NEW.versao := OLD.versao + 1;
+    -- Quem e quando são de quem mudou o preço (o montante ou o «gratuito»),
+    -- como o histórico: reenviar o mesmo preço, ou mudar só as quantidades,
+    -- não muda o autor (revisão do #134, P3-2).
+    IF NEW.montante = OLD.montante AND NEW.gratuito = OLD.gratuito THEN
+      NEW.definido_por := OLD.definido_por;
+      NEW.definido_em := OLD.definido_em;
+      RETURN NEW;
+    END IF;
   ELSE
     NEW.versao := 1;
   END IF;
   NEW.definido_por := quem;
-  NEW.definido_em := now();
+  NEW.definido_em := clock_timestamp();
   RETURN NEW;
 END
 $$;
@@ -392,7 +407,19 @@ CREATE FUNCTION preco_depois_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
+  linha public.preco;
+  moeda_do_mercado text;
+  com_iva boolean;
 BEGIN
+  IF TG_OP = 'DELETE' THEN
+    linha := OLD;
+  ELSE
+    linha := NEW;
+  END IF;
+  SELECT m.moeda, m.preco_inclui_iva INTO moeda_do_mercado, com_iva
+  FROM public.lista_precos l
+  JOIN public.mercado m ON m.comerciante_id = l.comerciante_id AND m.id = l.mercado_id
+  WHERE l.comerciante_id = linha.comerciante_id AND l.id = linha.lista_id;
   IF TG_OP = 'DELETE' THEN
     IF quem IS NULL THEN
       IF EXISTS (
@@ -403,14 +430,17 @@ BEGIN
       quem := 'catalogo:variante apagada';
     END IF;
     INSERT INTO public.historico_preco
-      (comerciante_id, lista_id, variante_id, montante, gratuito, saiu, definido_por)
-    VALUES (OLD.comerciante_id, OLD.lista_id, OLD.variante_id, NULL, NULL, true, left(quem, 200));
+      (comerciante_id, lista_id, variante_id, montante, gratuito, saiu, moeda, preco_inclui_iva, definido_por)
+    VALUES (OLD.comerciante_id, OLD.lista_id, OLD.variante_id, NULL, NULL, true, moeda_do_mercado, com_iva,
+            left(quem, 200));
     RETURN OLD;
   END IF;
   IF TG_OP = 'INSERT' OR NEW.montante <> OLD.montante OR NEW.gratuito <> OLD.gratuito THEN
     INSERT INTO public.historico_preco
-      (comerciante_id, lista_id, variante_id, montante, gratuito, saiu, definido_por)
-    VALUES (NEW.comerciante_id, NEW.lista_id, NEW.variante_id, NEW.montante, NEW.gratuito, false, NEW.definido_por);
+      (comerciante_id, lista_id, variante_id, montante, gratuito, saiu, moeda, preco_inclui_iva,
+       em_vigor_desde, definido_por)
+    VALUES (NEW.comerciante_id, NEW.lista_id, NEW.variante_id, NEW.montante, NEW.gratuito, false,
+            moeda_do_mercado, com_iva, NEW.definido_em, NEW.definido_por);
   END IF;
   RETURN NEW;
 END
@@ -419,6 +449,10 @@ $$;
 CREATE TRIGGER preco_depois_de_gravar
   AFTER INSERT OR UPDATE OR DELETE ON preco
   FOR EACH ROW EXECUTE FUNCTION preco_depois_de_gravar();
+-- Também num restauro com `session_replication_role = replica`: o histórico
+-- não fica para trás dos preços (revisão do #134, P3-3).
+ALTER TABLE preco ENABLE ALWAYS TRIGGER preco_antes_de_gravar;
+ALTER TABLE preco ENABLE ALWAYS TRIGGER preco_depois_de_gravar;
 
 -- RLS forçado em todas, com a política por comerciante (como a 0007).
 DO $$
