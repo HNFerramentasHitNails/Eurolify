@@ -200,6 +200,81 @@ describe.skipIf(URL_BASE === undefined)(
         expect(registo.join("")).not.toContain(nova.segredo);
       });
 
+      it("uma chave com prazo não cria outra sem prazo nem que dure mais (decisão do Diogo, 06/10/2026)", async () => {
+        const daquiA = (minutos: number) =>
+          new Date(Date.now() + minutos * 60_000);
+        const prazo = daquiA(60);
+        const temporaria = await criarChave(comoDono(), a, {
+          tipo: "servidor",
+          nome: "Integrador até daqui a uma hora",
+          ambitos: ["keys:write", "catalog:read"],
+          criadaPor: "operador:teste",
+          expiraEm: prazo,
+        });
+        const antes = await contarChaves(a);
+        for (const corpo of [
+          // Sem prazo.
+          { tipo: "servidor", nome: "Permanente", ambitos: ["catalog:read"] },
+          // Com prazo, mas depois do da temporária.
+          {
+            tipo: "servidor",
+            nome: "Mais longa",
+            ambitos: ["catalog:read"],
+            expira_em: daquiA(120).toISOString(),
+          },
+          // A pública também.
+          { tipo: "publica", nome: "Montra", loja: `sto_${lojaA}` },
+        ]) {
+          const r = await criar(temporaria.segredo, corpo);
+          expect(r.statusCode, corpo.nome).toBe(422);
+          expect(r.json<{ codigo: string }>().codigo).toBe(
+            "key.expiry_beyond_creator",
+          );
+        }
+        expect(await contarChaves(a)).toBe(antes);
+        // Até ao prazo dela, cria.
+        const dentro = await criar(temporaria.segredo, {
+          tipo: "servidor",
+          nome: "Dentro do prazo",
+          ambitos: ["catalog:read"],
+          expira_em: daquiA(30).toISOString(),
+        });
+        expect(dentro.statusCode).toBe(201);
+        // No mesmo instante do prazo dela, também (a fronteira: `>` e não `>=`).
+        const igual = await criar(temporaria.segredo, {
+          tipo: "servidor",
+          nome: "Até ao mesmo instante",
+          ambitos: ["catalog:read"],
+          expira_em: prazo.toISOString(),
+        });
+        expect(igual.statusCode).toBe(201);
+        // A pública dentro do prazo também se cria.
+        const montra = await criar(temporaria.segredo, {
+          tipo: "publica",
+          nome: "Montra até ao prazo",
+          loja: `sto_${lojaA}`,
+          expira_em: daquiA(30).toISOString(),
+        });
+        expect(montra.statusCode).toBe(201);
+        // A regra está na base, não só na rota.
+        expect(
+          await mensagemDoErro(
+            comComerciante(base.api, a, (trx) =>
+              sql`select chave_criar_pela_api(${temporaria.segredo}, 'servidor',
+                    null, 'x', array['catalog:read'], 'eul_sk_abcde',
+                    ${"e".repeat(64)}, null)`.execute(trx),
+            ),
+          ),
+        ).toMatch(/^key\.expiry_beyond_creator:/);
+        // Uma chave sem prazo continua a criar chaves sem prazo.
+        const semPrazo = await criar(gestora.segredo, {
+          tipo: "servidor",
+          nome: "Permanente pela gestora",
+          ambitos: ["catalog:read"],
+        });
+        expect(semPrazo.statusCode).toBe(201);
+      });
+
       it("T9: não cria uma chave com âmbitos que não tem", async () => {
         const antes = await contarChaves(a);
         const r = await criar(gestora.segredo, {

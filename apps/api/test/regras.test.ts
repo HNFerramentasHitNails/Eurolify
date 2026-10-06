@@ -1,7 +1,7 @@
 import { Value } from "typebox/value";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
-import { decidir } from "../src/regras/decidir.js";
+import { decidir, papelValidaDominio } from "../src/regras/decidir.js";
 import { instante } from "../src/regras/instante.js";
 import { REGISTO_INICIAL } from "../src/regras/registo.js";
 import { RespostaPaises } from "../src/regras/rotas.js";
@@ -9,6 +9,9 @@ import {
   CODIGOS_UE,
   DOMINIOS_CONDICIONAIS,
   DOMINIOS_OBRIGATORIOS,
+  PAPEIS_DE_VALIDACAO,
+  PAPEIS_POR_DOMINIO,
+  type Dominio,
   type PedidoDecisao,
   type PerfilPais,
   type Regra,
@@ -1770,5 +1773,196 @@ describe("marca W/M/C: só decide uma regra com texto lido ou validação", () =
       ]);
       expect(decidir(registo, pedido).estado).toBe("revisao_necessaria");
     }
+  });
+});
+
+describe("o papel de quem valida tem de corresponder ao domínio (#59)", () => {
+  // Diogo, 06/10/2026: «tem de corresponder». A lista vem da coluna «Quem
+  // valida» do docs/03 (PAPEIS_POR_DOMINIO).
+  const validadaPor = (papel: string) =>
+    ({ por: "teste", papel, em: "2026-10-04T00:00:00Z" }) as Regra["validacao"];
+
+  /** Portugal com o domínio pedido verificado, e uma regra C validada. */
+  function comRegraValidada(dominio: Dominio, papel: string): Registo {
+    return {
+      versao: 2,
+      regras: [
+        regraTeste({
+          id: "r",
+          dominio,
+          marca: "C",
+          textoLido: false,
+          validacao: validadaPor(papel),
+        }),
+      ],
+      paises: REGISTO_INICIAL.paises.map((perfil): PerfilPais =>
+        perfil.codigo === "PT"
+          ? {
+              ...perfil,
+              dominios: { ...perfil.dominios, [dominio]: VERIFICADO },
+            }
+          : perfil,
+      ),
+    };
+  }
+
+  it.each([
+    ["iva", "contabilista"],
+    ["iva", "despachante"],
+    ["faturacao", "contabilista"],
+    ["consumidor", "jurista"],
+    ["privacidade_marketing", "encarregado_de_dados"],
+    ["produto_ambiente", "tecnico_regulamentar"],
+    ["pagamentos", "jurista"],
+  ] as const)("%s validado por %s: vale e decide", (dominio, papel) => {
+    const registo = comRegraValidada(dominio, papel);
+    expect(errosDoRegisto(registo)).toEqual([]);
+    expect(
+      decidir(registo, { pais: "PT", dominios: [dominio], momento: AGORA })
+        .estado,
+    ).toBe("permitido");
+  });
+
+  it.each([
+    ["iva", "jurista"],
+    ["faturacao", "despachante"],
+    ["consumidor", "contabilista"],
+    ["pagamentos", "transportadora"],
+    ["agencia_comercial", "jurista"],
+  ] as const)(
+    "%s validado por %s: o validar recusa e o decidir não a aplica",
+    (dominio, papel) => {
+      const registo = comRegraValidada(dominio, papel);
+      expect(errosDoRegisto(registo).join("\n")).toContain(
+        `o papel «${papel}» não valida o domínio ${dominio}`,
+      );
+      const decisao = decidir(registo, {
+        pais: "PT",
+        dominios: [dominio],
+        momento: AGORA,
+      });
+      expect(decisao.estado).toBe("revisao_necessaria");
+      expect(decisao.motivos).toContainEqual({
+        codigo: "regra_sem_prova",
+        dominio,
+        regra: "r@1",
+      });
+    },
+  );
+
+  // A tabela esperada, escrita à mão a partir do docs/03: alargar ou
+  // estreitar um papel no código faz falhar este teste (revisão do #126,
+  // P2-3).
+  const ESPERADO: Record<Dominio, readonly string[]> = {
+    consumidor: ["jurista"],
+    iva: ["contabilista", "despachante"],
+    faturacao: ["contabilista"],
+    privacidade_marketing: ["encarregado_de_dados", "jurista"],
+    produto_ambiente: [
+      "jurista",
+      "tecnico_regulamentar",
+      "entidade_gestora",
+      "transportadora",
+    ],
+    acessibilidade_plataforma: ["jurista"],
+    pagamentos: ["jurista"],
+    distribuicao_concorrencia: [],
+    contratos_franchising: [],
+    agencia_comercial: [],
+    termos_plataforma_empresas: [],
+  };
+
+  it("a tabela é exactamente a do docs/03", () => {
+    expect(PAPEIS_POR_DOMINIO).toEqual(ESPERADO);
+    expect(Object.keys(PAPEIS_POR_DOMINIO).sort()).toEqual(
+      [...TODOS_OS_DOMINIOS].sort(),
+    );
+  });
+
+  it("todos os domínios × todos os papéis: valida só o que a tabela diz, no validar e no decidir", () => {
+    for (const dominio of TODOS_OS_DOMINIOS) {
+      for (const papel of PAPEIS_DE_VALIDACAO) {
+        const aceite = ESPERADO[dominio].includes(papel);
+        const caso = `${dominio}/${papel}`;
+        expect(papelValidaDominio(papel, dominio), caso).toBe(aceite);
+        const registo = comRegraValidada(dominio, papel);
+        expect(errosDoRegisto(registo), caso).toEqual(
+          aceite ? [] : expect.arrayContaining([expect.any(String)]),
+        );
+        expect(
+          decidir(registo, { pais: "PT", dominios: [dominio], momento: AGORA })
+            .estado,
+          caso,
+        ).toBe(aceite ? "permitido" : "revisao_necessaria");
+      }
+    }
+  });
+
+  it("o erro diz que a validação não conta, não que falta (revisão do #126, P3-1)", () => {
+    const erros = errosDoRegisto(comRegraValidada("iva", "jurista"));
+    expect(erros.join("\n")).toContain("com uma validação que não conta");
+    expect(erros.join("\n")).not.toContain("nem validação profissional");
+  });
+
+  it("uma W com o texto lido decide pelo texto; o validar recusa na mesma o papel errado", () => {
+    const registo = comRegraValidada("iva", "jurista");
+    const regra = {
+      ...registo.regras[0],
+      marca: "W",
+      textoLido: true,
+    } as Regra;
+    const comW = { ...registo, regras: [regra] };
+    expect(errosDoRegisto(comW).join("\n")).toContain(
+      "o papel «jurista» não valida o domínio iva",
+    );
+    expect(
+      decidir(comW, { pais: "PT", dominios: ["iva"], momento: AGORA }).estado,
+    ).toBe("permitido");
+  });
+
+  it("uma proposta com um papel errado também é recusada ao carregar", () => {
+    const registo = comRegraValidada("iva", "jurista");
+    const proposta = {
+      ...registo.regras[0],
+      estadoLegal: "proposta",
+    } as Regra;
+    expect(
+      errosDoRegisto({ ...registo, regras: [proposta] }).join("\n"),
+    ).toContain("o papel «jurista» não valida o domínio iva");
+  });
+
+  it("uma regra com um domínio estranho não rebenta nem decide", () => {
+    for (const dominio of ["toString", "__proto__", "constructor"]) {
+      const registo = registoComPortugal([
+        regraTeste({
+          id: "r",
+          dominio: dominio as Dominio,
+          marca: "C",
+          textoLido: false,
+          validacao: validadaPor("jurista"),
+        }),
+      ]);
+      expect(() => errosDoRegisto(registo)).not.toThrow();
+      expect(errosDoRegisto(registo)).not.toEqual([]);
+      expect(
+        decidir(registo, {
+          pais: "PT",
+          dominios: ["consumidor"],
+          momento: AGORA,
+        }).estado,
+      ).not.toBe("permitido");
+    }
+  });
+
+  it("a tabela não se altera em execução", () => {
+    expect(Object.isFrozen(PAPEIS_POR_DOMINIO)).toBe(true);
+    for (const lista of Object.values(PAPEIS_POR_DOMINIO)) {
+      expect(Object.isFrozen(lista)).toBe(true);
+    }
+  });
+
+  it("um domínio estranho não aceita nenhum papel", () => {
+    expect(papelValidaDominio("jurista", "toString")).toBe(false);
+    expect(papelValidaDominio("jurista", undefined)).toBe(false);
   });
 });

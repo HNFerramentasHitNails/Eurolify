@@ -189,6 +189,11 @@ const ERROS_DAS_CHAVES = {
     pt: "A data de expiração tem de ser no futuro",
     en: "The expiry date must be in the future",
   },
+  "key.expiry_beyond_creator": {
+    status: 422,
+    pt: "Uma chave com prazo não cria outra sem prazo nem que dure mais do que ela",
+    en: "A key with an expiry cannot create one without expiry or expiring later",
+  },
   "key.store_not_found": {
     status: 422,
     pt: "A loja não existe neste comerciante",
