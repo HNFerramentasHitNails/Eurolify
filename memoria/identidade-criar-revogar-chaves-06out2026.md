@@ -72,8 +72,15 @@ Encontrou 0 P0, 0 P1, 5 P2 e 11 P3. Tratados na mesma sessão:
   (`key.merchant_inactive`), mas revoga;
 - fica na `chave_criar_pela_api`, com teste. Tirada a regra, o teste falha.
 
-**Por decidir (Diogo ou Bruno):** o P2-4, uma chave com prazo pode criar outra
-sem prazo? Também a pública de uma loja arquivada (`docs/19` §5).
+**P2-4, decidido pelo Diogo (06/10/2026, «a chave com prazo: não cria outra
+sem prazo»):** migração 0014 (`CREATE OR REPLACE` da `chave_criar_pela_api`).
+Uma chave com prazo não cria outra sem prazo, nem com um prazo mais longo do
+que o seu (proposta da revisão, incluída por ser o mesmo caminho) →
+`key.expiry_beyond_creator` (422). Há um teste, que falha se a regra for
+tirada.
+
+**Por decidir (Diogo ou Bruno):** a chave pública de uma loja arquivada
+(`docs/19` §5).
 
 | Protecção tirada | Testes que falham |
 |---|---|

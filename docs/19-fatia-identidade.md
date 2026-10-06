@@ -118,13 +118,16 @@ P2-2).
     (`key.merchant_inactive`, 403), mas **revoga**, para poder fechar
     acessos;
   - ler continua a resolver, como o `docs/15` §4 deixa (`suspenso` lê,
-    `fechado` exporta).
+    `fechado` exporta);
+  - **uma chave com prazo não cria outra sem prazo** (Diogo, 06/10/2026;
+    revisão do #118, P2-4), nem com um prazo mais longo do que o seu: é a
+    mesma coisa por outro caminho (proposta da revisão, incluída na
+    decisão) → `key.expiry_beyond_creator` (422). Vale também para a
+    pública. Migração 0014.
 - **Por decidir:**
   - o mesmo para as rotas de domínio que escrevem;
   - a chave pública de uma loja arquivada (hoje continua a resolver e pode
-    ser criada);
-  - se uma chave com prazo pode criar outra sem prazo (revisão do #118,
-    P2-4).
+    ser criada).
 
 Erros novos (no formato do `docs/18` §2):
 
@@ -233,7 +236,8 @@ que a API ganha para escrever chaves:
 
   Senão → `auth.forbidden` (403). Para **criar**, o comerciante não pode
   estar `suspenso` nem `fechado` → `key.merchant_inactive` (403); revogar
-  continua (§5).
+  continua (§5). Uma chave com prazo só cria chaves com prazo igual ou
+  anterior ao seu → `key.expiry_beyond_creator` (422; migração 0014).
 - **T9, na base:**
   - numa chave de **servidor**, os âmbitos novos têm de estar todos nos de
     quem pede; senão → `key.scope_escalation` (403);
