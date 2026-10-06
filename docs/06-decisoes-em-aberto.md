@@ -72,6 +72,7 @@
 | ✅ BA | Identidade: criar uma chave pela API não tem segundo passo de confirmação; no Hub (parte B), sim, com nova autenticação da pessoa | em vigor | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §10 |
 | ✅ BB | Motor de regras: a data de verificação de um domínio não limita o momento pedido; vale a vigência e a prova de cada versão | em vigor (é o que o código já faz) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.2, #59 |
 | ✅ BC | As contas de pessoas constroem-se na API, com bibliotecas abertas; passkeys primeiro, TOTP como alternativa; revisão de segurança própria | em vigor | Diogo, 06/10/2026 | [ADR-0036](adr/0036-contas-de-pessoas-construidas-na-api.md) |
+| ✅ BD | Motor de regras: quem valida uma regra tem de ter um papel indicado para o tema dela no `docs/03` | em vigor; por programar | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #59 |
 
 ## Por decidir — por esta ordem
 
