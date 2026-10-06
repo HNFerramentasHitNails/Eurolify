@@ -154,6 +154,12 @@ momento (ISO 8601 com fuso).
 Saída: `estado` (`permitido`, `revisao_necessaria`, `recusado`), regras
 aplicadas, versão do registo e motivos.
 
+**A data de verificação de um domínio não limita o momento pedido**
+(Diogo, 06/10/2026, #59: *«sim, concordo, fica a a)»*): diz quando se leu;
+o que vale para cada momento é a vigência e a prova de **cada versão** da
+regra. Ex.: uma nota de crédito de 2027 sobre uma venda de 10/11/2026 decide
+com a versão em vigor a 10/11/2026, desde que essa versão tenha prova.
+
 **Nunca sai `permitido` sem pelo menos uma regra aplicada** (corrigido a
 04/10/2026, revisão do #37, P0-1: uma lista de domínios vazia saía
 permitida).

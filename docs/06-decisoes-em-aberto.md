@@ -70,6 +70,7 @@
 | ✅ AY | Identidade: a chave pública de uma loja arquivada deixa de funcionar e não se criam novas; o registo fica | em vigor; por programar (T13) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
 | ✅ AZ | Comerciante `suspenso` ou `fechado` não escreve pela API (excepto encomendas pendentes do suspenso, revogar chaves e exportar) | em vigor; entra em cada domínio com as rotas que escrevem | Diogo, 06/10/2026 | [`docs/15`](15-dominio-comerciante.md) §4, [`docs/19`](19-fatia-identidade.md) §5 |
 | ✅ BA | Identidade: criar uma chave pela API não tem segundo passo de confirmação; no Hub (parte B), sim, com nova autenticação da pessoa | em vigor | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §10 |
+| ✅ BB | Motor de regras: a data de verificação de um domínio não limita o momento pedido; vale a vigência e a prova de cada versão | em vigor (é o que o código já faz) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.2, #59 |
 
 ## Por decidir — por esta ordem
 
