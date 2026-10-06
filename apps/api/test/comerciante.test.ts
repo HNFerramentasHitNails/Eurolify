@@ -106,6 +106,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0014_chave_com_prazo",
         "0015_revogar_com_prazo",
         "0016_chave_de_loja_arquivada",
+        "0017_precos_mercados",
       ]);
     });
 
@@ -156,8 +157,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         }
       }
       // 6 do Comerciante (0001), 11 do Catálogo (0002, 0004, 0005, 0007 e
-      // 0008) e a da idempotência (0012).
-      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(18);
+      // 0008), a da idempotência (0012) e 6 de Preços e mercados (0017).
+      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(24);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

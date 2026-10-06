@@ -394,6 +394,90 @@ export interface VistaTextoOriginal {
   texto: string | null;
 }
 
+// Preços e mercados, parte 1 (migração 0017; docs/20 §3). Os montantes são
+// bigint: o pg devolve-os como texto, e o repositório converte-os em número
+// (o limite da base, 10^11 cêntimos, cabe num número exacto).
+export const ESTADOS_MERCADO = ["rascunho", "activo", "arquivado"] as const;
+export type EstadoMercado = (typeof ESTADOS_MERCADO)[number];
+export const TIPOS_LISTA_PRECOS = ["base", "b2b"] as const;
+export type TipoListaPrecos = (typeof TIPOS_LISTA_PRECOS)[number];
+
+export interface TabelaMercado {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  nome: string;
+  paises: string[];
+  moeda: string;
+  linguas: string[];
+  lingua_principal: string;
+  preco_inclui_iva: ColumnType<boolean, boolean | undefined, boolean>;
+  estado: ColumnType<EstadoMercado, never, EstadoMercado>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaCanal {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  nome: string;
+  tipo: ColumnType<"online", never, never>;
+  estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaCanalMercado {
+  comerciante_id: string;
+  loja_id: string;
+  canal_id: string;
+  mercado_id: string;
+}
+
+export interface TabelaListaPrecos {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  mercado_id: ColumnType<string, string, never>;
+  nome: string;
+  tipo: ColumnType<TipoListaPrecos, TipoListaPrecos, never>;
+  etiqueta_id: string | null;
+  prioridade: number | null;
+  estado: ColumnType<"activa" | "arquivada", never, "activa" | "arquivada">;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaPreco {
+  comerciante_id: ColumnType<string, string, never>;
+  lista_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string, string, never>;
+  montante: ColumnType<string, number, number>;
+  gratuito: boolean;
+  quantidade_minima: ColumnType<number, number | undefined, number>;
+  multiplo: ColumnType<number, number | undefined, number>;
+  definido_por: ColumnType<string, never, never>;
+  definido_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaHistoricoPreco {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  lista_id: ColumnType<string, never, never>;
+  variante_id: ColumnType<string, never, never>;
+  montante: ColumnType<string | null, never, never>;
+  gratuito: ColumnType<boolean | null, never, never>;
+  saiu: ColumnType<boolean, never, never>;
+  moeda: ColumnType<string, never, never>;
+  preco_inclui_iva: ColumnType<boolean, never, never>;
+  em_vigor_desde: ColumnType<Date, never, never>;
+  definido_por: ColumnType<string, never, never>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -413,4 +497,10 @@ export interface BaseDados {
   colecao_artigo: TabelaColecaoArtigo;
   traducao: TabelaTraducao;
   texto_original: VistaTextoOriginal;
+  mercado: TabelaMercado;
+  canal: TabelaCanal;
+  canal_mercado: TabelaCanalMercado;
+  lista_precos: TabelaListaPrecos;
+  preco: TabelaPreco;
+  historico_preco: TabelaHistoricoPreco;
 }
