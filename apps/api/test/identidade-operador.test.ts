@@ -194,8 +194,10 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
   }, 60_000);
 
   it("um pedido inválido sai com 65 e não repete o pedido", async () => {
+    // O «quem» é válido: a recusa é pelo nome, que tem de ser lido primeiro
+    // (revisão do #110, P2-6).
     const r = await operador(
-      "comerciante pt Europe/Lisbon segredo-qualquer ana",
+      "comerciante pt Europe/Lisbon segredo-qualquer github:1001",
     );
     expect(r.codigo).toBe(65);
     expect(r.stderr).not.toContain("segredo-qualquer");
