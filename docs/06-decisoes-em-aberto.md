@@ -77,6 +77,7 @@
 | ✅ BF | O Eurolify nunca recebe o dinheiro das vendas: cada comerciante liga a sua conta (EuPago, Stripe primeiro) (D-5) | em vigor | Diogo, 06/10/2026 | [ADR-0038](adr/0038-o-eurolify-nunca-recebe-o-dinheiro.md) |
 | ✅ BG | O checkout é alojado pelo Eurolify, com o aspecto e no domínio da loja; API de checkout própria só na Fase 3 (D-7) | em vigor | Diogo, 06/10/2026 | [ADR-0039](adr/0039-checkout-alojado-pelo-eurolify.md) |
 | ✅ BH | As IAs dos comerciantes só lêem na Fase 1; escrita com confirmação humana na Fase 3; nunca faturas, reembolsos, fusões de clientes nem lotes (D-9) | em vigor | Diogo, 06/10/2026 | [ADR-0040](adr/0040-ia-so-le-na-fase-1.md) |
+| ✅ BI | Um comerciante com sistema de gestão continua a emitir por ele; o Eurolify não fala com o software de faturação nessas vendas (D-10) | em vigor | Diogo, 06/10/2026 | [ADR-0041](adr/0041-com-sistema-de-gestao-emite-o-sistema-dele.md) |
 
 ## Por decidir — por esta ordem
 
@@ -239,6 +240,9 @@ na Fase 3; protocolos de comércio por agentes (UCP, ACP) na Fase 3. **Nunca**
 uma IA emite faturas, reembolsa, funde clientes ou corrige em lote.
 
 ### D-10 · Um cliente que já tem sistema de gestão: quem emite as faturas?
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: continua o sistema dele**
+> ([ADR-0041](adr/0041-com-sistema-de-gestao-emite-o-sistema-dele.md)).
 
 **Recomendação: continua a ser o sistema dele.** O Eurolify entrega-lhe as
 encomendas como o Shopify faz hoje, e esse sistema continua a ser o único que
