@@ -74,7 +74,10 @@ dependem da P1 (§7).
 - Uma chave pública nunca recebe um âmbito de escrita de Administração; a base
   recusa-o (CHECK), não só a aplicação.
 
-## 4. Âmbitos (proposta)
+## 4. Âmbitos
+
+> Os nomes abaixo são os **finais** (escolha técnica de rotina, 06/10/2026;
+> já usados em `apps/api/src/identidade/chaves.ts`).
 
 | Âmbito | Dá | Fonte |
 |---|---|---|
@@ -343,8 +346,11 @@ domínio, porque o corpo do `POST /keys` não tem comerciante.
 - ~~Começar pela parte A~~ — **decidido** (Diogo, 06/10/2026: *«sim, começa
   pela parte A»*).
 - A P1 (§7): opção a), b) ou c).
-- Os nomes finais dos âmbitos e se `keys:write` precisa de dois passos, como as
-  acções do MCP.
+- ~~Os nomes finais dos âmbitos~~ — os do §4 (rotina, 06/10/2026).
+- ~~Se `keys:write` precisa de dois passos~~ — **decidido: não na API**
+  (Diogo, 06/10/2026: *«sim, concordo, sem dois passos na API»*). A protecção
+  fica na base (T9, T12, comerciante inactivo). No Hub (parte B), criar uma
+  chave pedirá à pessoa que se autentique outra vez nesse momento.
 
 ## O que não foi verificado
 
