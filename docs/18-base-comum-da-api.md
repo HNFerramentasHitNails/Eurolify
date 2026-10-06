@@ -151,9 +151,12 @@ regra 3; lição 4.1).
   no contexto do comerciante e as cadeias de gatilhos não mudam o estado sem o
   evento. O limite é o do rasto da 0008: o dono pode desligar ou apagar um
   gatilho por DDL, e isso só entra por migração revista (revisão do #143,
-  P3-2). Fora do contexto de um comerciante, nem o dono escreve um evento: a
-  política da tabela recusa-o, e uma mudança de estado à mão sem
-  `eurolify.comerciante` falha em vez de passar sem evento. A API **não** tem privilégios na tabela, nem para
+  P3-2). Um dono **sem superutilizador nem `BYPASSRLS`** (o migrador da VPS)
+  não muda o estado à mão sem `eurolify.comerciante`: o RLS forçado da
+  tabela de origem chama `comerciante_actual()`, que dá erro sem o
+  comerciante, e a mudança falha em vez de passar sem evento. Um
+  superutilizador ignora o RLS: a mudança passa e o evento grava-se com o
+  comerciante da linha (revisão do #143, ronda 2, P3-A). A API **não** tem privilégios na tabela, nem para
   ler nem para inserir: é mais fechado do que a proposta inicial («a API só
   faz `INSERT`»), porque um evento forjado seria aceite pelo publicador como
   verdadeiro.
@@ -166,19 +169,25 @@ regra 3; lição 4.1).
     **nunca** usa «o último `criado_em` visto» como cursor: uma transacção
     pode ficar visível depois de outra com `criado_em` posterior, e esse
     evento ficava para trás;
-  - garante a ordem **só dentro de um agregado** (as escritas do mesmo
-    artigo, mercado ou preço são em série); entre agregados não há ordem.
+  - garante a ordem **só dentro da mesma linha**: a mesma publicação (canal
+    × mercado), o mesmo preço (lista × variante) ou o mesmo mercado, cujas
+    escritas são em série. Dois eventos do mesmo agregado vindos de linhas
+    diferentes (o mesmo artigo publicado em dois canais, a mesma variante em
+    duas listas) podem chegar por qualquer ordem (revisão do #143, ronda 2,
+    P3-B).
 - **Eventos já escritos** (o contrato que os receptores vão ler; os
   identificadores vão em uuid, e os prefixos públicos — `prd_`, `prl_`… —
   põe-nos o publicador ao montar a mensagem, como a API nas respostas):
 
 | Tipo | Agregado | `dados` |
 |---|---|---|
-| `product.published` | artigo | `artigo_id`, `publicacao_id`, `canal_id`, `mercado_id`, `quem`, `em` |
-| `product.unpublished` | artigo | os mesmos, mais `motivo` (`retirada`, `artigo_arquivado`, `mercado_arquivado`, `canal_arquivado`…) |
+| `product.published` | artigo | `artigo_id`, `publicacao_id`, `canal_id`, `mercado_id`, `quem`\*, `em` |
+| `product.unpublished` | artigo | os mesmos, mais `motivo`: um destes quatro (CHECK da 0019): `retirada`, `artigo_arquivado`, `mercado_arquivado`, `canal_arquivado` |
 | `product.archived` | artigo | `artigo_id` |
-| `price.changed` | variante | `lista_id`, `variante_id`, `montante_antigo` (nulo no primeiro preço e depois de uma saída), `montante_novo` (nulo se saiu), `gratuito`, `saiu`, `moeda`, `preco_inclui_iva`, `quem`, `em` |
+| `price.changed` | variante | `lista_id`, `variante_id`, `montante_antigo` (nulo no primeiro preço e depois de uma saída), `montante_novo` (nulo se saiu), `gratuito`, `saiu`, `moeda`, `preco_inclui_iva`, `quem`\*, `em` |
 | `market.activated`, `market.archived` | mercado | `mercado_id`, `loja_id` |
+
+\* Guardado na base; **não sai** nos webhooks até à decisão da nota abaixo.
 
 - `em` vai em UTC, com formato fixo (`2026-10-06T17:24:42.123456Z`),
   qualquer que seja o fuso da sessão que escreveu.
@@ -187,7 +196,9 @@ regra 3; lição 4.1).
   na base, onde é o rasto das transições. Como o evento não se altera, um
   pedido de apagamento não o pseudonimiza. **Até ao Diogo ou ao Bruno
   decidirem, o publicador não envia `quem` para fora**; o registo está no
-  `docs/17` §3.
+  `docs/17` §3. **Fim desta reserva:** a decisão, que tem de estar tomada
+  antes de o pedido do publicador ser juntado (revisão do #143, ronda 2,
+  P3-C).
 - **Ainda não escritos:** os outros eventos entram com a parte que os
   escreve.
 - Um evento não se altera nem se apaga (gatilho, como o rasto na 0008), nem

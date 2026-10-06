@@ -378,6 +378,29 @@ describe.skipIf(URL_BASE === undefined)("eventos de domínio na base", () => {
     ]);
   });
 
+  it("o instante do evento é o da mudança, em UTC, mesmo numa sessão noutro fuso", async () => {
+    const s = await pronto();
+    const em = await base.dono.transaction().execute(async (trx) => {
+      await sql`set local time zone 'Asia/Tokyo'`.execute(trx);
+      await sql`select set_config('eurolify.comerciante', ${s.c}, true)`.execute(
+        trx,
+      );
+      await sql`select set_config('eurolify.quem', ${QUEM}, true)`.execute(trx);
+      await sql`update preco set montante = 2000 where variante_id = ${s.variante}`.execute(
+        trx,
+      );
+      const { rows } = await sql<{ em: Date }>`
+        select em_vigor_desde as em from historico_preco
+        where variante_id = ${s.variante} order by em_vigor_desde desc, id desc
+        limit 1`.execute(trx);
+      return rows[0]?.em;
+    });
+    const texto = String((await eventos(s.c)).at(-1)?.dados["em"]);
+    expect(texto).toMatch(/Z$/);
+    // Ao milissegundo (o Date do JavaScript não guarda os micro).
+    expect(new Date(texto).getTime()).toBe(em?.getTime());
+  });
+
   it("o evento grava-se na transacção da mudança e desfaz-se com ela", async () => {
     const s = await pronto();
     const antes = (await eventos(s.c)).length;

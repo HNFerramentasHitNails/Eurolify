@@ -461,16 +461,35 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
           { comerciante_id: c, tipo: "price.changed", antigo: 990 },
         ]);
         expect(await vistos(outro)).toEqual([]);
-        // Fora do contexto de um comerciante, nem o dono lê a fila: o
-        // publicador terá de ter o seu papel (docs/18 §5).
-        expect(
-          await mensagemDoErro(
-            sql`select count(*) from evento_saida`.execute(migradorPronto),
-          ),
-        ).not.toBe("sem erro");
+        // Numa ligação nova, sem o comerciante posto: este dono não lê a
+        // fila (o publicador terá o seu papel, docs/18 §5) nem muda um estado
+        // à mão sem deixar evento — o RLS da tabela de origem chama
+        // comerciante_actual(), que dá erro (revisão do #143, ronda 2, P3-A).
+        const urlMigrador = new URL(URL_BASE ?? "");
+        urlMigrador.pathname = `/${nome}`;
+        urlMigrador.username = papel;
+        urlMigrador.password = senha;
+        const solto = new pg.Client({
+          connectionString: urlMigrador.toString(),
+        });
+        await solto.connect();
+        try {
+          for (const consulta of [
+            "select count(*) from evento_saida",
+            `update mercado set estado = 'arquivado' where id = '${mercado}'`,
+          ]) {
+            expect(
+              await mensagemDoErro(solto.query(consulta)),
+              consulta,
+            ).toMatch(/eurolify\.comerciante/);
+          }
+        } finally {
+          await solto.end();
+        }
+        expect((await vistos(c)).length).toBe(3);
       } finally {
         await api.destroy();
       }
-    });
+    }, 30_000);
   });
 });

@@ -45,7 +45,9 @@
 -- - a ordem global: o publicador lê o conjunto `publicado_em IS NULL` (com
 --   `FOR UPDATE SKIP LOCKED`), nunca «o último `criado_em` visto», porque uma
 --   transacção pode ficar visível depois de outra com `criado_em` posterior; a
---   ordem só é garantida dentro de um agregado (revisão do #143, P2-3).
+--   ordem só é garantida dentro da mesma linha (a mesma publicação, o mesmo
+--   preço lista × variante, o mesmo mercado), não do agregado inteiro
+--   (revisão do #143, P2-3 e ronda 2, P3-B).
 
 SET LOCAL lock_timeout = '10s';
 

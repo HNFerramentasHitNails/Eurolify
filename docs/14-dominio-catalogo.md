@@ -622,7 +622,8 @@ em UTC e o **mínimo de dados** (o resto pede-se pela API) (`platform-architect`
 | `product.archived` | artigo arquivado | `prd_…` — decidido na §9 (P6) |
 
 **Em código** (migração 0021, `docs/18` §5): já se escrevem `product.published`,
-`product.unpublished` (com quem, quando e o motivo) e `product.archived`.
+`product.unpublished` (com quem, quando e o motivo; `quem` não sai nos
+webhooks até à decisão do `docs/18` §5) e `product.archived`.
 `product.created` e `product.updated` entram com a parte 5. Os campos exactos
 de cada evento (o contrato) estão na tabela do `docs/18` §5.
 
