@@ -33,7 +33,7 @@ case "$pedido" in
     exec /usr/local/sbin/eurolify-medir
     ;;
   publicacoes)
-    echo "Últimas publicações (data | resumo | anterior [| emergência] | migrou: as migrações que aplicou):"
+    echo "Últimas publicações (data | resumo | anterior [| emergência] [| falhou: tentativa que não ficou no ar] | migrou: as migrações que aplicou ou deixou na base):"
     tail -n 10 /var/log/eurolify/publicacoes.log 2>/dev/null || echo "(nenhuma)"
     ;;
   copia | reposicao)
@@ -60,8 +60,9 @@ case "$pedido" in
     resumo="${pedido#publicar }"
     # Só uma imagem que já esteve no ar (está no registo das publicações).
     # Na coluna do resumo, como o eurolify-publicar (revisão do #115, P3-1).
-    grep -qF -- "| $resumo |" /var/log/eurolify/publicacoes.log 2>/dev/null ||
-      falhar "esse resumo nunca foi publicado no ensaio: recusado"
+    # Uma linha «falhou» não conta: essa imagem nunca ficou no ar (#122, P3-1).
+    grep -F -- "| $resumo |" /var/log/eurolify/publicacoes.log 2>/dev/null | grep -vqF " | falhou | " ||
+      falhar "esse resumo nunca ficou no ar no ensaio: recusado"
     carregar_config
     # Só à publicação imediatamente anterior à que está no ar: é a única com a
     # compatibilidade garantida com a base (decisão do Diogo, 06/10/2026,

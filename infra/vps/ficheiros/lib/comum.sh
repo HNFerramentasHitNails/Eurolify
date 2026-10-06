@@ -104,9 +104,13 @@ em_ambas() {
 virgulas() { printf '%s\n' "$1" | sed '/^$/d' | paste -sd, -; }
 
 # O publicacoes.log tem uma linha por publicação: «data | resumo | anterior:
-# imagem [| emergência] | migrou: a,b» (o «migrou» desde a 4.ª revisão do
-# #115: as migrações que essa publicação aplicou, ou herdou da vez anterior
-# com a mesma anterior; «?» se não se soube; linhas antigas não o têm).
+# imagem [| emergência] [| falhou] | migrou: a,b» (o «migrou» desde a 4.ª
+# revisão do #115: as migrações que essa publicação aplicou, ou herdou da vez
+# anterior com a mesma anterior; «?» se não se soube; linhas antigas não o
+# têm). Uma tentativa que falhou deixa linha «falhou» com o que ficou na base
+# (#120): essa tentativa não deixa a imagem no ar (uma imagem que só tem
+# linhas «falhou» nunca esteve no ar), e a última linha da imagem no ar é
+# sempre de uma publicação que acabou bem.
 ultima_publicacao_de() {
   grep -F -- "| $1 |" /var/log/eurolify/publicacoes.log 2>/dev/null | tail -n 1
 }
