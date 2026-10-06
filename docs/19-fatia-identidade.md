@@ -127,6 +127,11 @@ P2-2).
   Uma chave com prazo só cria chaves com prazo igual ou anterior ao seu; uma
   sem prazo, ou com prazo mais longo, é recusada (`key.expiry_beyond_creator`,
   422), também a pública. Imposto na base: migração 0014, no #124 (T12).
+- **Decidido** (Diogo, 06/10/2026, revisão do #124, P2-1: *«sim, concordo, não
+  pode revogar»*): uma chave com prazo **só revoga chaves que expirem no mesmo
+  instante ou antes dela**; não revoga uma sem prazo nem uma que dure mais.
+  Assim uma chave temporária não deixa o comerciante sem gestora permanente.
+  **Por programar** (T14 no §9).
 - **Decidido** (Diogo, 06/10/2026: *«sim, concordo, deixa de funcionar»*):
   a chave pública de uma loja **arquivada** deixa de funcionar — não se cria
   nenhuma para ela e as que existem deixam de resolver (401 `auth.invalid`,
@@ -339,6 +344,7 @@ sessão em vez da chave.
 | T11 | uma chave não se revoga a si própria se for a última com `keys:write`, nem ao mesmo tempo que outra |
 | T12 | uma chave com prazo não cria outra sem prazo nem com prazo mais longo (também a pública, pela rota e pela função na base); prazo igual ou anterior passa (0014) |
 | T13 | uma loja arquivada: criar-lhe uma chave pública é recusado; uma chave pública que já existia dá 401 `auth.invalid` logo a seguir ao arquivo — **por programar** (decisão de 06/10/2026) |
+| T14 | uma chave com prazo não revoga uma chave sem prazo nem uma que expire depois dela; uma que expire antes ou no mesmo instante, sim — **por programar** (decisão de 06/10/2026) |
 
 Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta.
 Com o `POST /keys` (0012) entram o T9, o T10 e o T11

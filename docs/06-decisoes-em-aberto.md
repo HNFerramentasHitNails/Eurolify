@@ -85,6 +85,7 @@
 | ✅ BN | Produção sem réplica da base no arranque; entra quando um comerciante precisar de voltar em menos de 4 h ou na Fase 2 | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 5 |
 | ✅ BO | Produção: alertas pelo Healthchecks.io para o Diogo e o Bruno, mais verificação de minuto a minuto da API | em vigor; plano e custo por verificar | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 7 |
 | ✅ BP | O Codex opera a VPS com o mesmo acesso que o Claude, pelo GitHub (pedidos revistos, `medir`, MCP), sem chave SSH | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 8 |
+| ✅ BQ | Identidade: uma chave com prazo só revoga chaves que expirem no mesmo instante ou antes dela | em vigor; por programar (T14) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
 
 ## Por decidir — por esta ordem
 
