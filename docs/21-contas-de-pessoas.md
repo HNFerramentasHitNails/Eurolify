@@ -20,7 +20,7 @@
 
 | Precisa | Como |
 |---|---|
-| Uma pessoa entra no Hub | passkey; em alternativa, a via da §9 (P1) |
+| Uma pessoa entra no Hub | passkey; em alternativa, e-mail + palavra-passe + TOTP (§9 P1) |
 | Uma pessoa trabalha para um ou mais comerciantes | `membro`: pessoa × comerciante × papel |
 | Papéis | dono, gestor, armazém, apoio (`observability-security`, «Permissões em quatro camadas») |
 | Convidar e retirar alguém da equipa | convite com prazo; retirar desliga logo as sessões dessa pessoa nesse comerciante |
@@ -42,7 +42,7 @@ código **não foi lido**.
 |---|---|---|---|---|
 | Passkeys (WebAuthn): registar e verificar | `@simplewebauthn/server` | 14.0.3 · 25/09/2026 | MIT | **usar** |
 | Código de autenticação (TOTP, RFC 6238) | `otplib` | 13.5.0 · 21/08/2026 | MIT | **usar** |
-| Resumo de palavra-passe, se a P1 a escolher | `@node-rs/argon2` (Argon2id) | 2.2.2 · 06/10/2026 | MIT | usar só com a P1 = a) |
+| Resumo de palavra-passe (P1 = a)) | `@node-rs/argon2` (Argon2id) | 2.2.2 · 06/10/2026 | MIT | **usar** |
 | Cookie da sessão | `@fastify/cookie` | 11.1.2 · 15/07/2026 | MIT | **usar** (a API é Fastify 5.12.5) |
 | Fornecedor OIDC | `oidc-provider` | 9.12.2 · 05/09/2026 | MIT | **não agora** (§9 P3) |
 | Tudo feito (contas, sessões, 2FA) | `better-auth` | 1.7.7 · 30/09/2026 | MIT | **não**: traz as suas tabelas e sessões, fora das funções da base, do RLS e do rasto que o Eurolify já tem (`docs/19` §3) |
@@ -66,6 +66,7 @@ quem mantém cada uma.
 | `membro` | pessoa, comerciante, papel, desde, até, quem convidou | RLS por comerciante; um comerciante tem sempre pelo menos um **dono** activo (como a «última gestora» das chaves, T11) |
 | `passkey` | pessoa, id da credencial, chave pública, contador, nome do dispositivo, criada_em, último uso | a chave privada **nunca** sai do dispositivo |
 | `segundo_factor` | pessoa, segredo TOTP **cifrado**, activo desde | um por pessoa |
+| `palavra_passe` | pessoa, **resumo** Argon2id, mudada_em | só serve com o TOTP (P1); nunca sozinha |
 | `codigo_recuperacao` | pessoa, **resumo** do código, usado_em | 10 códigos, cada um usa-se uma vez (§6) |
 | `convite` | comerciante, e-mail, papel, resumo do segredo, expira_em, aceite_em, quem convidou | expira (proposta: 7 dias, **C**) |
 | `sessao` | pessoa, resumo do segredo, criada_em, expira_em, último uso, revogada_em | expira por inactividade e por prazo máximo (§9 P4) |
@@ -101,6 +102,7 @@ verifiquei; para o jurista ou o encarregado de dados).
 | E-mail e nome | entrar, ser convidado, saber quem fez o quê | execução do contrato com o comerciante | enquanto a pessoa tiver um `membro` activo; depois, §9 P4 | pseudonimizar (`pessoa:per_<id>` fica no rasto) |
 | Chave pública da passkey, nome do dispositivo | entrar | idem | enquanto a passkey existir | apagar |
 | Segredo TOTP (cifrado) | entrar | idem | enquanto estiver activo | apagar |
+| Resumo da palavra-passe | entrar (com o TOTP) | idem | enquanto a pessoa tiver conta | apagar |
 | Resumos dos códigos de recuperação | recuperar a conta | idem | até serem usados ou trocados | apagar |
 | Registo de entradas, com IP | segurança e investigação de incidentes | interesse legítimo (segurança) | proposta: **14 dias**, como os outros IP (`docs/17` §3, ADR-0027) | apagar |
 | Rasto (`quem` = `pessoa:per_<id>`) | provar quem fez cada acto | interesse legítimo / obrigação de prova | o do registo a que pertence (ex.: 10 anos se tocar em fatura) | fica pseudonimizado |
@@ -159,7 +161,7 @@ recomenda dois donos.
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| P1 | A alternativa à passkey (decidido: TOTP): com que primeiro passo? a) e-mail + palavra-passe + TOTP; b) e-mail + ligação por e-mail + TOTP | a) — não depende de um fornecedor de e-mail para entrar |
+| P1 | A alternativa à passkey (decidido: TOTP): com que primeiro passo? | ✅ **Decidido: a) e-mail + palavra-passe (resumo Argon2id) + TOTP** (Diogo, 06/10/2026: *«sim, concordo, fica a a)»*; decisão CA): entrar não depende de um fornecedor de e-mail |
 | P2 | Como chegam os convites e os avisos? a) um fornecedor de e-mail na UE (subcontratante novo, acordo de tratamento); b) na Fase 1, o dono copia a ligação e envia-a ele | por decidir |
 | P3 | O Eurolify como fornecedor OIDC (`oidc-provider`) já na parte B, ou só quando houver aplicações de terceiros (Fase 3)? | só depois: o Hub usa a sessão própria (§2) |
 | P4 | Prazos: duração da sessão; quanto tempo a conta de uma pessoa sem nenhum `membro` fica antes de ser pseudonimizada | por decidir, com o jurista (C) |
