@@ -43,7 +43,7 @@
 | Fica fora da Fase 1 (ou por decidir) | Porquê |
 |---|---|
 | códigos de desconto, regras de carrinho («leve 3 pague 2») | **pergunta** (§9, Q3); o `docs/02` põe as promoções neste domínio, mas o `docs/05` não as lista na Fase 1 |
-| conversão automática de moeda entre mercados | **pergunta** (§9, Q2); a `eu-localization` exige guardar taxa, fonte e data de cada conversão |
+| conversão automática de moeda entre mercados | **decidido: sem conversão na Fase 1** (Diogo, 06/10/2026; §9, Q2; `docs/06`, BT); quando entrar, guarda a taxa, a fonte e a data de cada conversão (`eu-localization`) |
 | preço de compra e preço recomendado de revenda, listas por relação comercial (distribuidor, revendedor, franchisado) | Fase 2 (`docs/eurolify/architecture.md` §3; Diogo, 05/10/2026) |
 | preço na loja física (POS) | Fase 2 (`docs/05`) |
 | preços personalizados por decisão automatizada | o Eurolify não personaliza por omissão (`consumer-rights-eu`); se uma extensão o fizer, o aviso vem do servidor (§5, R9) |
@@ -271,7 +271,7 @@ escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
 | Um preço a 0,00 € por engano (o gel dos seis meses e meio) | R4 na base e na C2 |
 | Um preço de referência inventado numa promoção | R6: calculado do histórico, nunca escrito à mão; sem histórico, não há redução |
 | O mesmo país em dois mercados da loja, e o cliente vê dois preços | um país só num mercado activo (§3.1, Q4) |
-| Um montante sem moeda, ou convertido sem taxa | R2 e R3; sem conversão automática na Fase 1 até à Q2 |
+| Um montante sem moeda, ou convertido sem taxa | R2 e R3; sem conversão automática na Fase 1 (Q2, decidida) |
 | Um preço com IVA guardado como sem IVA (ou o contrário) | o `preco_inclui_iva` é do mercado e mostrado claramente; o Motor de IVA é quem calcula o valor a mostrar |
 | Uma lista B2B aplicada a um consumidor com NIF | R10: decide a declaração na encomenda, não o NIF |
 | Uma regra legal **C** chega a um ecrã sem validação | o art. 6.º-A, as dispensas do preço por unidade e o arredondamento ficam marcados **C** e vão para o jurista; o servidor fica no lado seguro (recusa a redução, calcula o preço por unidade sempre) |
@@ -281,7 +281,7 @@ escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
 | # | Pergunta | Proposta |
 |---|---|---|
 | Q1 | Por omissão, um mercado novo tem os preços **com IVA** (o cliente vê o mesmo preço em todos os países e o comerciante absorve a diferença) ou **sem IVA** (o preço final muda com o país)? | ✅ **Decidido: com IVA por omissão**; o comerciante pode mudar por mercado (Diogo, 06/10/2026: *«sim, com IVA por omissão»*; `docs/06`, BS) |
-| Q2 | Na Fase 1, cada mercado tem os preços escritos à mão na sua moeda, ou o Eurolify converte de uma moeda para outra? | **Sem conversão na Fase 1**: cada lista escreve os seus preços; a conversão (com taxa, fonte e data, R3) fica para depois |
+| Q2 | Na Fase 1, cada mercado tem os preços escritos à mão na sua moeda, ou o Eurolify converte de uma moeda para outra? | ✅ **Decidido: sem conversão na Fase 1**; cada lista escreve os seus preços, e a conversão (com taxa, fonte e data, R3) fica para depois (Diogo, 06/10/2026: *«sim, sem conversão na Fase 1»*; `docs/06`, BT) |
 | Q3 | Códigos de desconto e regras de carrinho entram na Fase 1? | **Não**: na Fase 1 só a redução anunciada (preço riscado, §3.6); os códigos e as regras de carrinho com o domínio Carrinho, depois |
 | Q4 | Numa loja, o mesmo país pode estar em dois mercados activos? | **Não**: um país, um mercado activo por loja (evita dois preços para o mesmo cliente) |
 | Q5 | O preço por unidade mostra-se sempre que a variante tem quantidade e unidade, até haver a lista das dispensas por país validada? | **Sim**: mostrar a mais não viola a regra; esconder sem saber pode violar |
