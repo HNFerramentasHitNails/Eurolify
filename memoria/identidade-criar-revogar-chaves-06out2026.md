@@ -92,6 +92,11 @@ resolver; o registo fica (`docs/19` §5, T13). Por programar.
 | Sem a regra da 0014 (06/10/2026) | 1 (o da chave com prazo) |
 | `>` trocado por `>=` na 0014 (06/10/2026) | 1 (o da chave com prazo: o caso do prazo igual) |
 
+**0014 aplicada na VPS** (06/10/2026, 11:33 UTC, fluxo `publicar`, execução
+37456691422, `176e13a`): o registo diz «migrar: aplicadas 0014_chave_com_prazo.»
+e «A API chega à base.» Não li a função na base (o conector do MCP da VPS
+pedia autorização). Registado no #107.
+
 ## O que ficou por verificar
 
 - ~~A tarefa diária que apaga as linhas expiradas da `idempotencia`~~ — feita
