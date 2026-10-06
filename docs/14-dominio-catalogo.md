@@ -621,6 +621,10 @@ em UTC e o **mínimo de dados** (o resto pede-se pela API) (`platform-architect`
 | `product.unpublished` | publicação passou a arquivado | `prd_…`, `pub_…`, motivo — decidido na §9 (P6) |
 | `product.archived` | artigo arquivado | `prd_…` — decidido na §9 (P6) |
 
+**Em código** (migração 0020, `docs/18` §5): já se escrevem `product.published`,
+`product.unpublished` (com quem, quando e o motivo) e `product.archived`.
+`product.created` e `product.updated` entram com a parte 5.
+
 Quem consome: Preços (preço por mercado), Stock (composição dos kits), Pesquisa
 e frontends (por webhook), linha do tempo.
 
@@ -740,11 +744,11 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   vender até se publicar outra vez (C6 deixa arquivar a variante sem
   derrubar o resto; 4.ª revisão do #139, P3-A). O peso de uma variante à
   venda e a categoria fiscal já não se apagam depois de publicado (0019).
-- **Sem rasto das transições da publicação.** Publicar, retirar e voltar a
-  publicar guardam só a última passagem (quem e quando). A prova do que
-  esteve à venda e quando (pós-venda, direitos do consumidor) precisa do
-  rasto completo (C7): entra com a outbox e os eventos (parte 5; revisão do
-  #139, P3-1).
+- **O rasto das transições da publicação** é feito pelos eventos (migração
+  0020). Cada publicação, retirada ou nova publicação deixa um evento
+  `product.published` ou `product.unpublished` que não se altera nem se
+  apaga. O evento guarda quem, quando e, na retirada, o motivo. A linha da
+  publicação continua a guardar só a última passagem (revisão do #139, P3-1).
 - **Listas cortadas.** A procura de artigos sem total explícito repete a lição
   4.7.
 - **SKU reutilizado.** A P7 decidiu que o SKU de uma variante arquivada não

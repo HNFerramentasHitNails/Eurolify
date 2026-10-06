@@ -19,7 +19,7 @@
 |---|---|---|
 | Erros num formato único (RFC 9457) | **já** (pedido A) | vale para as rotas que existem e para os erros do próprio Fastify (404, validação) |
 | Contrato OpenAPI 3.1 gerado e publicado | **já** (pedido A) | «nada é exposto fora do contrato» (`headless-commerce`, regra 1); um teste falha se uma rota ficar fora |
-| Tabelas da idempotência e dos eventos (outbox) | idempotência: **feita** na 0012 (#118), limpeza na 0013; eventos: por fazer | o desenho está aqui; o código liga-se com a fatia «identidade» |
+| Tabelas da idempotência e dos eventos (outbox) | idempotência: **feita** na 0012 (#118), limpeza na 0013; eventos: **feita** na 0020 (§5) | o desenho está aqui; o código liga-se com a fatia «identidade» |
 | `Idempotency-Key` nas rotas | com a primeira rota de escrita | precisa do comerciante de quem chama |
 | Limites de pedidos | com a fatia «identidade» | são «por chave e por loja» (regra 6) |
 | Publicador do outbox (webhooks) | com os webhooks | o evento grava-se já; publica-se depois |
@@ -146,7 +146,18 @@ regra 3; lição 4.1).
 
 - O evento grava-se **na mesma transacção** que a mudança (`platform-architect`,
   regra 5). Nunca «gravar e depois tentar avisar».
-- A API só faz `INSERT`. O publicador terá um utilizador da base próprio.
+- **Em código** (migração 0020, 06/10/2026): quem escreve os eventos são os
+  gatilhos das tabelas que mudam, com os direitos do dono. Nenhum caminho muda
+  o estado sem o evento. A API **não** tem privilégios na tabela, nem para
+  ler nem para inserir: é mais fechado do que a proposta inicial («a API só
+  faz `INSERT`»), porque um evento forjado seria aceite pelo publicador como
+  verdadeiro. O publicador terá um utilizador da base próprio.
+- **Eventos já escritos:**
+  - `product.published`, `product.unpublished` e `product.archived` (`docs/14`
+    §6);
+  - `price.changed`, `market.activated` e `market.archived` (`docs/20` §6).
+- **Ainda não escritos:** os outros eventos entram com a parte que os
+  escreve.
 - Um evento já publicado não se altera nem se apaga (gatilho, como o rasto na
   0008); o prazo de guarda decide-se com os webhooks.
 
