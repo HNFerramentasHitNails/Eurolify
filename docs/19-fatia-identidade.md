@@ -124,9 +124,9 @@ P2-2).
     `fechado` exporta).
 - **Decidido** (Diogo, 06/10/2026, revisão do #118, P2-4: *«sim, concordo,
   nunca dura mais»*): uma chave **nunca cria outra que dure mais do que ela**.
-  Uma chave com prazo só cria chaves com prazo igual ou anterior ao seu; sem
-  prazo pedido, a nova herda o da que a cria. Imposto na base, ao lado do T9.
-  **Por programar** (T12 no §9).
+  Uma chave com prazo só cria chaves com prazo igual ou anterior ao seu; uma
+  sem prazo, ou com prazo mais longo, é recusada (`key.expiry_beyond_creator`,
+  422), também a pública. Imposto na base: migração 0014, no #124 (T12).
 - **Decidido** (Diogo, 06/10/2026: *«sim, concordo, deixa de funcionar»*):
   a chave pública de uma loja **arquivada** deixa de funcionar — não se cria
   nenhuma para ela e as que existem deixam de resolver (401 `auth.invalid`,
@@ -337,7 +337,7 @@ sessão em vez da chave.
 | T9 | uma chave não cria outra com mais âmbitos do que tem — **com o `POST /keys`**, imposto na base |
 | T10 | a mesma `Idempotency-Key`: repetir dá a mesma resposta sem escrever outra vez (o `POST /keys` dá `idempotency.secret_not_repeated`); outro corpo → `idempotency.key_reused`; ao mesmo tempo → `idempotency.in_progress` |
 | T11 | uma chave não se revoga a si própria se for a última com `keys:write`, nem ao mesmo tempo que outra |
-| T12 | uma chave com prazo não cria outra sem prazo nem com prazo mais longo; sem prazo pedido, a nova herda o dela — **por programar** (decisão de 06/10/2026) |
+| T12 | uma chave com prazo não cria outra sem prazo nem com prazo mais longo (também a pública, pela rota e pela função na base); prazo igual ou anterior passa (0014) |
 | T13 | uma loja arquivada: criar-lhe uma chave pública é recusado; uma chave pública que já existia dá 401 `auth.invalid` logo a seguir ao arquivo — **por programar** (decisão de 06/10/2026) |
 
 Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta.

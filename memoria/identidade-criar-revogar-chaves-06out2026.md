@@ -73,8 +73,8 @@ Encontrou 0 P0, 0 P1, 5 P2 e 11 P3. Tratados na mesma sessão:
 - fica na `chave_criar_pela_api`, com teste. Tirada a regra, o teste falha.
 
 **P2-4, decidido pelo Diogo (06/10/2026, «sim, concordo, nunca dura mais»):**
-uma chave nunca cria outra que dure mais do que ela (`docs/19` §5, T12).
-Por programar.
+uma chave nunca cria outra que dure mais do que ela (`docs/19` §5, T12);
+programada noutra sessão no #124 (migração 0014, `key.expiry_beyond_creator`).
 
 **Loja arquivada, decidido pelo Diogo (06/10/2026, «sim, concordo, deixa de
 funcionar»):** a chave pública dela não se cria e as que existem deixam de
