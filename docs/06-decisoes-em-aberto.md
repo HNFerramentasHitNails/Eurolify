@@ -95,6 +95,10 @@
 | ✅ BX | Preços e mercados: os eventos `market.activated` e `market.archived` entram na lista de eventos (o Catálogo arquiva as publicações de um mercado arquivado) | em vigor; no `docs/02`, no `docs/20` §6 e na skill `platform-architect` | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q6; #127 |
 | ✅ BY | Motor de regras: cada linha do `docs/03` diz o domínio do motor em que vive (não a secção); três linhas sem domínio (nuvem, IA, cibersegurança) | em vigor; no código (`TEMAS_DOCS03`, #133) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #133 |
 | ✅ BZ | Motor de regras: a DAC7 e o fim da isenção aduaneira ficam sem domínio até o contabilista e o despachante dizerem onde pertencem | em vigor; no código (`TEMAS_DOCS03`, #133) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #133 |
+| ✅ CA | Contas de pessoas: sem passkey, entra-se com e-mail + palavra-passe (resumo Argon2id) + código TOTP; nunca a palavra-passe sozinha | em vigor; desenho aprovado | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §10, P1 |
+| ✅ CB | Contas de pessoas: na Fase 1, os convites não vão por e-mail; o dono copia a ligação no Hub e envia-a ele (vale uma vez e expira) | em vigor; desenho aprovado | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §10, P2 |
+| ✅ CC | O Eurolify só passa a fornecedor de identidade (OIDC) quando houver aplicações de terceiros; até lá, sessão própria no Hub e chaves de API nas integrações | em vigor; desenho aprovado | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §10, P3 |
+| ✅ CD | Contas de pessoas: a sessão acaba após 12 h sem uso e no máximo 30 dias depois de entrar; a conta sem nenhum comerciante é pseudonimizada 90 dias depois de sair (o prazo dos 90 dias para o jurista confirmar, C) | em vigor; desenho aprovado | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §10, P4 |
 
 ## Por decidir — por esta ordem
 

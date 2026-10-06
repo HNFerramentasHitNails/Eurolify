@@ -7,7 +7,9 @@
 > chaves), `observability-security` (permissões em quatro camadas, segredos,
 > auditoria), `eu-gdpr-privacy` (dados das pessoas), `platform-architect`.
 >
-> **Já decidido:** a API de Administração usa OAuth 2.1/OIDC com âmbitos e
+> **Já decidido:** a API de Administração usa OAuth 2.1/OIDC (quando houver
+> aplicações de terceiros; até lá, as pessoas usam a sessão do Hub — decisão
+> CC, `docs/21`) com âmbitos e
 > chaves de servidor para integrações; a da Loja, uma chave pública por loja
 > (`docs/02` §4.1–4.2; `headless-commerce`, tabela das duas APIs). Um
 > fornecedor de fora só entra **se for na UE** e com acordo de tratamento
@@ -28,7 +30,7 @@ dependem da P1 (§7).
 |---|---|---|---|
 | Integração ou IA de um comerciante | **chave de servidor** (`Authorization: Bearer eul_sk_…`) com âmbitos | A | o software de gestão de um comerciante a ler artigos |
 | Frontend de uma loja | **chave pública** da loja (`eul_pk_…`), só leitura do catálogo e escrita no carrinho do visitante | A (a chave); as rotas da Loja entram com o Checkout | uma loja feita no Lovable |
-| Pessoa da equipa do comerciante | sessão OIDC, com papel no comerciante | **B** | o dono a alterar a morada da entidade legal |
+| Pessoa da equipa do comerciante | sessão própria do Hub, com papel no comerciante (`docs/21`; o OIDC só com aplicações de terceiros, decisão CC) | **B** | o dono a alterar a morada da entidade legal |
 | Operador do Eurolify (Diogo, Bruno) | **comando auditado**, fora da API pública (P6) | A | criar um comerciante de ensaio e a primeira chave dele |
 | Visitante ou cliente final da loja | sessão do visitante (carrinho) e conta de cliente | com o Checkout e o domínio Clientes | — |
 
@@ -348,7 +350,8 @@ sessão em vez da chave.
 - Parte A: só `criada_por` e `revogada_por` (`operador:github:<número>`; na
   parte B, a pessoa). Está no `docs/17` §1 (T7).
 - Parte B: contas de pessoas (e-mail, nome, segundo factor), com o registo de
-  tratamentos, a retenção e o apagamento escritos antes do código.
+  tratamentos, a retenção e o apagamento escritos antes do código: desenho no
+  [`docs/21`](21-contas-de-pessoas.md) §5 (por aprovar).
 
 ## 9. Testes que o código tem de trazer
 
