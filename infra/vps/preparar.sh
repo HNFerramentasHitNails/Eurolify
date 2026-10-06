@@ -245,7 +245,7 @@ instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
 passo "8. Programas e unidades do Eurolify"
 instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
-for p in trabalho publicar aplicar medir copia reposicao verificacao operar operador; do
+for p in trabalho publicar aplicar medir copia reposicao verificacao limpeza operar operador; do
   instalar "$F/sbin/eurolify-$p" "/usr/local/sbin/eurolify-$p" 700
 done
 unidades_mudaram=0
@@ -338,7 +338,7 @@ if tem docker && docker inspect eurolify-postgres >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-passo "10b. Utilizadores da base: o migrador (dono) e a API (docs/15 §5, #70, #107)"
+passo "10b. Utilizadores da base: o migrador (dono), a API e a limpeza (docs/15 §5, #70, #107)"
 # O eurolify_migrador é dono da base e das tabelas e só o contentor das
 # migrações recebe a ligação dele (migrar.env). O eurolify_api nasce aqui como a
 # migração 0001 o criaria (o migrador não tem CREATEROLE) e entra com a ligação
@@ -528,6 +528,45 @@ else
   # aplica-se a ela e o que pode fazer é o que as migrações lhe dão (docs/15 §5).
   tratar_ligacao /etc/eurolify/api-base.env BASE_DADOS_URL eurolify_api
   API_ENV_RENOVADO=$LIGACAO_RENOVADA
+  # O papel da limpeza diária da idempotência (migração 0013; revisão do #119,
+  # P2-2): entra só pelo socket do contentor (LOGIN sem palavra-passe: de fora,
+  # o PostgreSQL pede palavra-passe e ele não tem), não é superutilizador,
+  # passa o RLS forçado (BYPASSRLS) e só toca na idempotência. O migrador não
+  # o pode criar (nem dar BYPASSRLS); a migração dá-lhe os privilégios se ele
+  # já existir, e aqui dão-se se ela correu antes dele.
+  if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_limpeza'")" == 0 ]]; then
+    fazer "criar o papel eurolify_limpeza (LOGIN sem palavra-passe, BYPASSRLS, sem superutilizador)" \
+      pg_valor "CREATE ROLE eurolify_limpeza LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT"
+  else
+    ok "papel eurolify_limpeza"
+  fi
+  # Os privilégios na mesma corrida que cria o papel: se a migração 0013
+  # correu antes dele, não os deu. Em --mostrar, sem o papel, diz o que faria.
+  if ((MOSTRAR)) && [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_limpeza'")" == 0 ]]; then
+    if [[ "$(pg_valor "SELECT to_regclass('public.idempotencia') IS NOT NULL")" == t ]]; then
+      echo "   FARIA: dar ao eurolify_limpeza os privilégios na idempotencia e na função da limpeza"
+      mudancas=$((mudancas + 1))
+    fi
+  else
+    if [[ "$(pg_valor "SELECT to_regclass('public.idempotencia') IS NOT NULL")" == t ]]; then
+      if [[ "$(pg_valor "SELECT has_table_privilege('eurolify_limpeza', 'public.idempotencia', 'SELECT') AND has_table_privilege('eurolify_limpeza', 'public.idempotencia', 'DELETE')")" == t ]]; then
+        ok "eurolify_limpeza lê e apaga na idempotencia"
+      else
+        fazer "dar SELECT e DELETE na idempotencia ao eurolify_limpeza" \
+          pg_valor "GRANT SELECT, DELETE ON public.idempotencia TO eurolify_limpeza"
+      fi
+    fi
+    if [[ "$(pg_valor "SELECT to_regprocedure('public.idempotencia_apagar_expiradas()') IS NOT NULL")" == t ]]; then
+      if [[ "$(pg_valor "SELECT has_function_privilege('eurolify_limpeza', 'public.idempotencia_apagar_expiradas()', 'EXECUTE')")" == t ]]; then
+        ok "eurolify_limpeza chama idempotencia_apagar_expiradas()"
+      else
+        fazer "dar EXECUTE em idempotencia_apagar_expiradas() ao eurolify_limpeza" \
+          pg_valor "GRANT EXECUTE ON FUNCTION public.idempotencia_apagar_expiradas() TO eurolify_limpeza"
+      fi
+    fi
+    [[ "$(pg_valor "SELECT count(*) FROM pg_authid WHERE rolname = 'eurolify_limpeza' AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolpassword IS NOT NULL)")" == 0 ]] ||
+      aviso "o eurolify_limpeza tem superutilizador, CREATEROLE, CREATEDB ou palavra-passe: devia entrar só pelo contentor e só tocar na idempotência"
+  fi
   # Nenhum dos dois pode ignorar o RLS (docs/15 §5): se alguém lhes deu mais,
   # avisa (revisão do #71, P2-3).
   perigosos="$(pg_valor "SELECT string_agg(rolname, ', ') FROM pg_roles WHERE rolname IN ('eurolify_api', 'eurolify_migrador') AND (rolsuper OR rolbypassrls OR rolcreaterole)")"
@@ -632,8 +671,8 @@ for fluxo in "${FLUXOS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-passo "12. Tarefas: cópia, reposição, verificação (ADR-0027, ADR-0029)"
-for t in copia reposicao verificacao; do
+passo "12. Tarefas: cópia, reposição, verificação, limpeza (ADR-0027, ADR-0029, docs/18 §4)"
+for t in copia reposicao verificacao limpeza; do
   if tem systemctl && systemctl is-enabled --quiet "eurolify-$t.timer" 2>/dev/null &&
     systemctl is-active --quiet "eurolify-$t.timer" 2>/dev/null; then
     ok "eurolify-$t.timer"
