@@ -69,11 +69,25 @@ hoje na VPS:
 | Imagem sem `/me` (P2-2) | «Esta imagem não tem o /me…», saída 0 |
 | Duas publicações ao mesmo tempo (P2-1) | uma depois da outra (09:35:17 e 09:35:21); no ar a última, igual à última linha do `publicacoes.log` |
 
+## Aplicado na VPS (06/10/2026, 09:39 UTC)
+
+Fluxo `aplicar-script`, execução 37444456504, no `main` `f76f53e` (junção do
+#116, pedida pelo Diogo: *«junta o #116 quando estiver verde»*):
+
+- `--mostrar` primeiro: 3 alterações por fazer, 1 aviso; depois a corrida:
+  **3 alterações feitas, 1 aviso** — instalar o novo `eurolify-publicar`
+  (passo 8), dar LOGIN ao `eurolify_api` e escrever o `api-base.env` (10b),
+  recriar o `eurolify-api` com a imagem `sha256:3ad451ae…` (10c).
+- O 10c disse «A imagem … já está na máquina», «Recriada… O /health da API
+  responde.» e **«A API chega à base.»** (chave inventada → 401).
+- O aviso é o da `operar.pub` em falta (o fluxo `operar` ainda não entra).
+- Registo do fluxo no GitHub: só os resumos das imagens como sequências de 64
+  hexadecimais (visto à mão, não contado com ferramenta).
+
 ## O que ficou por verificar
 
-- A corrida na VPS a sério (no registo do `aplicar-script` depois de juntar):
-  deve dizer 2 alterações no 10b/10c e «A API chega à base».
-- A leitura pelo MCP da VPS (o conector não carregou na sessão de 06/10/2026).
+- A ligação do `eurolify_api` lida na base (`pg_stat_activity`), pelo MCP da
+  VPS (o conector não carregou na sessão de 06/10/2026).
 - O comando do operador e o `GET /me` com uma chave verdadeira na VPS (falta a
   chave SSH do fluxo `operar`).
 - O `eurolify-operador` lê a imagem do `eurolify-api`: se correr no instante
