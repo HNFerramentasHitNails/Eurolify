@@ -118,7 +118,7 @@ export class AutenticadorDeTeste {
   ) {
     const c = Buffer.alloc(4);
     c.writeUInt32BE(contador, 0);
-    const partes = [sha256(rpId), Buffer.from([flags]), c];
+    const partes: Uint8Array[] = [sha256(rpId), Buffer.from([flags]), c];
     if (comCredencial) {
       const tamanho = Buffer.alloc(2);
       tamanho.writeUInt16BE(this.credencialId.length, 0);
