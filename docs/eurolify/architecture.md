@@ -58,9 +58,13 @@ nenhum escalão (ADR-0007) os tira.
 Segue a skill **`eurolify-b2b-channels-eu`** (instalada a 05/10/2026, #84),
 que substitui como fonte o `eurolify-channel-governance` do pacote de 04/10,
 nunca instalado (decisão do Diogo, 05/10/2026: *«sim, manda a skill nova»*,
-Q4 do `docs/16`). **C** em tudo o que é regra de concorrência (Reg. (UE)
-2022/720, Dir. 86/653, não lidos por nós; a skill manda análise concorrencial
-antes de restringir preço, território, venda online ou clientes). Na Fase 1
+Q4 do `docs/16`). Regras de concorrência e de agência: **W · texto lido** nos
+artigos citados no `docs/03` §7 (Reg. (UE) 2022/720, arts. 3.º, n.º 1, 4.º,
+8.º, al. d), e 11.º; Dir. 86/653, arts. 1.º, 2.º e 17.º a 19.º; lidos a
+06/10/2026, #135); **C** no resto (ex.: arts. 2.º e 5.º do Reg. 2022/720, as
+orientações da Comissão, as leis nacionais). A skill manda análise
+concorrencial antes de restringir preço, território, venda online ou
+clientes. Na Fase 1
 só entram as **listas de preços B2B por etiqueta**; o resto é da **Fase 2**
 (Diogo, 05/10/2026; `docs/05`).
 
@@ -93,13 +97,13 @@ actua como consumidor (`eurolify-b2b-channels-eu`).
 
 ### 3.3 O que fica desligado até haver revisão
 
-| Política | Porquê | Fonte (**C**) |
+| Política | Porquê | Fonte (marca) |
 |---|---|---|
-| preço mínimo ou fixo de revenda, bloqueio de publicação abaixo do recomendado | restrição especialmente grave | Reg. 2022/720, art. 4.º, alínea a) |
-| recusar um pedido por território, morada ou IP | uma venda passiva não é venda activa | art. 4.º, alíneas b) a d); Reg. 2018/302 |
-| desligar a venda online, ou somar regras que a impeçam | restrição especialmente grave | art. 4.º, alínea e) |
-| não concorrência sem prazo ou acima de 5 anos, pós-contratual | excluída da isenção, com excepções | art. 5.º |
-| mostrar ao fornecedor preços futuros, margens ou clientes identificados de revendedores concorrentes | troca de informação fora da isenção | art. 2.º, n.os 4 e 5 |
+| preço mínimo ou fixo de revenda, bloqueio de publicação abaixo do recomendado | restrição especialmente grave | Reg. 2022/720, art. 4.º, alínea a) (**W** · texto lido, `docs/03` §7) |
+| recusar um pedido por território, morada ou IP | uma venda passiva não é venda activa | art. 4.º, alíneas b) a d) (**W** · texto lido); Reg. 2018/302 (**C**) |
+| desligar a venda online, ou somar regras que a impeçam | restrição especialmente grave | art. 4.º, alínea e) (**W** · texto lido) |
+| não concorrência sem prazo ou acima de 5 anos, pós-contratual | excluída da isenção, com excepções | art. 5.º (**C**) |
+| mostrar ao fornecedor preços futuros, margens ou clientes identificados de revendedores concorrentes | troca de informação fora da isenção | art. 2.º, n.os 4 e 5 (**C**) |
 
 Ficar fora da isenção **não** quer dizer ilegal: quer dizer análise caso a caso.
 O Eurolify bloqueia a política e diz porquê; nunca declara o parceiro ilegal.
@@ -139,7 +143,7 @@ este motor antes de agir.
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
 | | `marca` | `W`, `M` ou `C`, com o significado do `docs/03` (tabela «Como ler a coluna Verificação»); `textoLido` diz se, num `W`, o texto legal foi lido (e não só o resumo) — decisão do Diogo, 05/10/2026 (*«avança com a marca W/M/C no motor de regras»*; P1 da auditoria `docs/16`) |
-| | `validacao` | `null` ou `{ por, papel, em }`, com `papel` um dos da coluna «Quem valida» do `docs/03` (`jurista`, `contabilista`, `tecnico_regulamentar`, `despachante`, `entidade_gestora`, `encarregado_de_dados`, `transportadora`): a validação profissional da regra. **O papel tem de corresponder ao domínio** (Diogo, 06/10/2026, #59: *«sim, concordo, tem de corresponder»*): só valida um papel indicado para o tema na coluna «Quem valida» do `docs/03`; senão o `validar` recusa o registo. Feito **linha a linha** (decisão BR, #128): cada regra traz `tema`, o identificador da linha do `docs/03` de onde vem (`TEMAS_DOCS03` em `apps/api/src/regras/temas.ts`, 60 linhas das secções 1 a 5); com uma validação, o `tema` é obrigatório e o papel tem de estar na coluna «Quem valida» dessa linha (uma linha com «—» não aceita nenhum). Cada linha diz o domínio em que vive (decisão do Diogo, 06/10/2026, revisão do #133, P2-2: *«fica a a)»*), pelas definições do `docs/eurolify/compliance-gaps.md` §1 — ex.: a informação de entrega em `consumidor`, a acessibilidade e o DSA em `acessibilidade_plataforma`; o tema de uma regra tem de ser do domínio dela. Cinco linhas ficam sem domínio e nenhuma regra as usa até se decidir: três não cabem em nenhuma definição (mudança de fornecedor de nuvem, IA, cibersegurança) e duas esperam que um profissional diga onde ficam (a DAC7, pelo contabilista, e o fim da isenção aduaneira, pelo despachante; decisão BZ, Diogo, 06/10/2026: *«a»*). Os quatro domínios condicionais não têm linhas: nenhum papel os valida até elas existirem. O teste `regras-temas.test.ts` lê o `docs/03` e falha se a tabela deixar de dizer o mesmo. Antes (#126) a regra era por domínio, com a união dos papéis. O `decidir` também não aceita um papel que não corresponda (`regra_sem_prova`). Num `W` com texto lido, a data da leitura é o `verificadaEm` |
+| | `validacao` | `null` ou `{ por, papel, em }`, com `papel` um dos da coluna «Quem valida» do `docs/03` (`jurista`, `contabilista`, `tecnico_regulamentar`, `despachante`, `entidade_gestora`, `encarregado_de_dados`, `transportadora`): a validação profissional da regra. **O papel tem de corresponder ao domínio** (Diogo, 06/10/2026, #59: *«sim, concordo, tem de corresponder»*): só valida um papel indicado para o tema na coluna «Quem valida» do `docs/03`; senão o `validar` recusa o registo. Feito **linha a linha** (decisão BR, #128): cada regra traz `tema`, o identificador da linha do `docs/03` de onde vem (`TEMAS_DOCS03` em `apps/api/src/regras/temas.ts`, 64 linhas das secções 1 a 5 e 7); com uma validação, o `tema` é obrigatório e o papel tem de estar na coluna «Quem valida» dessa linha (uma linha com «—» não aceita nenhum). Cada linha diz o domínio em que vive (decisão do Diogo, 06/10/2026, revisão do #133, P2-2: *«fica a a)»*), pelas definições do `docs/eurolify/compliance-gaps.md` §1 — ex.: a informação de entrega em `consumidor`, a acessibilidade e o DSA em `acessibilidade_plataforma`; o tema de uma regra tem de ser do domínio dela. Cinco linhas ficam sem domínio e nenhuma regra as usa até se decidir: três não cabem em nenhuma definição (mudança de fornecedor de nuvem, IA, cibersegurança) e duas esperam que um profissional diga onde ficam (a DAC7, pelo contabilista, e o fim da isenção aduaneira, pelo despachante; decisão BZ, Diogo, 06/10/2026: *«a»*). Os quatro domínios condicionais têm uma linha cada na secção 7 do `docs/03` (acordos verticais, franchising, agentes comerciais e P2B; #135), validadas por um jurista. O teste `regras-temas.test.ts` lê o `docs/03` e falha se a tabela deixar de dizer o mesmo. Antes (#126) a regra era por domínio, com a união dos papéis. O `decidir` também não aceita um papel que não corresponda (`regra_sem_prova`). Num `W` com texto lido, a data da leitura é o `verificadaEm` |
 | | `tema` | `null` ou o identificador da linha do `docs/03` de onde a regra vem (`TEMAS_DOCS03`); obrigatório com uma `validacao` (decisão BR, #128) |
 | | **pode decidir** | uma regra que não é `proposta` só entra num domínio `verificado` se tiver **`W` com texto lido** ou **validação profissional** — a regra do `docs/03` («uma linha C não entra numa decisão sem passar a W com o texto legal lido ou ser validada por um profissional»), estendida a `M` e a `W` só de resumo por decisão do Diogo, 05/10/2026 (*«mantém para M e W só de resumo»*). O `validar` recusa o registo; o `decidir`, se lhe chegar uma assim, não a aplica (`regra_sem_prova`) |
 

@@ -7,10 +7,12 @@
 // O profissional fiscal de cada país da coluna (asesor fiscal, Steuerberater…)
 // regista-se como `contabilista` (convenção escrita no docs/03). Uma linha com
 // «—» não tem papel: nenhum profissional a valida até o docs/03 o dizer.
-// A secção 6 do docs/03 (protocolos) não é lei e fica de fora.
+// A secção 6 do docs/03 (protocolos) não é lei e fica de fora; a 7 traz os
+// domínios condicionais (#135).
 //
 // O domínio de cada linha (decisão BY) segue as definições do
-// docs/eurolify/compliance-gaps.md §1. As Canárias, Ceuta e Melilla e os Açores
+// docs/eurolify/compliance-gaps.md §1; os quatro domínios condicionais (secção
+// 7) são os de docs/eurolify/architecture.md §4. As Canárias, Ceuta e Melilla e os Açores
 // e a Madeira ficam em `iva` («território de IVA») e passam para `territorios`
 // quando esse domínio entrar no motor (revisão do #133, 2.ª, P3).
 
@@ -19,8 +21,8 @@ import type { Dominio, PapelDeValidacao } from "./tipos.js";
 export interface TemaDocs03 {
   /** Identificador estável, usado no campo `tema` da regra. */
   id: string;
-  /** A secção do docs/03 (1 a 5). */
-  seccao: 1 | 2 | 3 | 4 | 5;
+  /** A secção do docs/03 (1 a 5 e 7; a 6 são protocolos, não lei). */
+  seccao: 1 | 2 | 3 | 4 | 5 | 7;
   /**
    * O domínio do motor em que vive uma regra desta linha (decisão do Diogo,
    * 06/10/2026, revisão do #133, P2-2: «fica a a)»), pelas definições dos
@@ -527,6 +529,40 @@ const LINHAS: readonly TemaDocs03[] = [
     titulo: "PCI DSS",
     quemValida: "—",
     papeis: [],
+  },
+  // 7. Canais comerciais e plataformas para empresas (os domínios
+  // condicionais; tarefa #135)
+  {
+    id: "acordos-verticais",
+    seccao: 7,
+    dominio: "distribuicao_concorrencia",
+    titulo: "Distribuição e revenda (acordos verticais)",
+    quemValida: "jurista",
+    papeis: J,
+  },
+  {
+    id: "franchising",
+    seccao: 7,
+    dominio: "contratos_franchising",
+    titulo: "Franchising (informação pré-contratual e contrato)",
+    quemValida: "jurista",
+    papeis: J,
+  },
+  {
+    id: "agentes-comerciais",
+    seccao: 7,
+    dominio: "agencia_comercial",
+    titulo: "Agentes comerciais",
+    quemValida: "jurista",
+    papeis: J,
+  },
+  {
+    id: "p2b",
+    seccao: 7,
+    dominio: "termos_plataforma_empresas",
+    titulo: "Condições da plataforma para empresas (P2B)",
+    quemValida: "jurista",
+    papeis: J,
   },
 ];
 
