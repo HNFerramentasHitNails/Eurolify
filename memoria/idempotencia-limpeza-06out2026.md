@@ -73,10 +73,27 @@ o migrador, sem ser superutilizador, corre as migrações):
 | `eurolify_limpeza` de fora do contentor | recusado (`no password supplied`) |
 | Teste com a função trocada pelo dono por `RESET ROLE` + `ALTER ROLE … SUPERUSER`, numa sessão do `eurolify_limpeza` | recusado; o `eurolify_api` continua sem superutilizador |
 
+## Aplicado na VPS (06/10/2026)
+
+Junção do #119 (`47e07de`), pedida pelo Diogo (*«junta o #119 quando estiver
+verde»*):
+
+- **Fluxo `aplicar-script`, execução 37451652991, 10:43 UTC:** 9 alterações e
+  1 aviso. Instalou o `eurolify-limpeza`, as duas unidades, o `eurolify-medir`
+  e o `eurolify-verificacao` novos. Criou o papel `eurolify_limpeza`, deu-lhe
+  `SELECT`/`DELETE` na `idempotencia` e ligou o `eurolify-limpeza.timer`. A
+  função ainda não existia, por isso o `EXECUTE` ficou para a migração. O
+  aviso é o da `operar.pub`.
+- **Fluxo `publicar`, execução 37451652963, 10:46 UTC:** «migrar: aplicadas
+  0013_idempotencia_limpeza.», com o papel já existente; /health, MCP e «A
+  API chega à base.».
+- **Ainda por ver:**
+  - a primeira limpeza real (07/10/2026, 05:00 UTC) no `acoes.log`;
+  - a verificação das 07:00 com ela no ar;
+  - o `EXECUTE` lido na base (não houve MCP da VPS nesta sessão).
+
 ## O que ficou por verificar
 
-- A primeira corrida na VPS a sério. O `aplicar-script` instala e liga o
-  temporizador, e a 0013 entra pela publicação, também quando se juntar.
 - O aviso de uma unidade falhada (`systemctl is-failed`) não se mediu: não
   há systemd na máquina do ensaio local.
 - Cada linha entra em pelo menos uma cópia das 03:00 e fica lá 14 dias; na
