@@ -180,8 +180,8 @@ da `consumer-rights-eu`: um frasco de 15 ml a 9,90 € mostra 660,00 €/l.
 - Cada país pode dispensar produtos em que o preço por unidade não seja útil
   ou confunda (art. 5.º) ⇒ a regra é **por país**. Que dispensas tem cada
   país: **não verifiquei — C**. Até haver a lista validada, o servidor
-  calcula-o **sempre** que a variante tem quantidade e unidade, e devolve-o;
-  mostrar ou não é a pergunta Q5 (§9).
+  calcula-o **sempre** que a variante tem quantidade e unidade, e a loja
+  **mostra-o sempre** (decidido, Diogo, 06/10/2026; §9, Q5; `docs/06`, BW).
 - O **arredondamento** do preço por unidade (casas decimais, regra): **não
   verifiquei — C** (a `eu-vat-oss-ioss` deixa os arredondamentos «por país e
   por emissor — C»).
@@ -284,5 +284,5 @@ escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
 | Q2 | Na Fase 1, cada mercado tem os preços escritos à mão na sua moeda, ou o Eurolify converte de uma moeda para outra? | ✅ **Decidido: sem conversão na Fase 1**; cada lista escreve os seus preços, e a conversão (com taxa, fonte e data, R3) fica para depois (Diogo, 06/10/2026: *«sim, sem conversão na Fase 1»*; `docs/06`, BT) |
 | Q3 | Códigos de desconto e regras de carrinho entram na Fase 1? | ✅ **Decidido: ficam para depois**; na Fase 1 só a redução anunciada (preço riscado, §3.6), e os códigos e as regras de carrinho chegam com o domínio Carrinho (Diogo, 06/10/2026: *«sim, ficam para depois»*; `docs/06`, BU) |
 | Q4 | Numa loja, o mesmo país pode estar em dois mercados activos? | ✅ **Decidido: não**; um país, um mercado activo por loja, para o mesmo cliente nunca ver dois preços (Diogo, 06/10/2026: *«sim, um país só num mercado activo»*; `docs/06`, BV) |
-| Q5 | O preço por unidade mostra-se sempre que a variante tem quantidade e unidade, até haver a lista das dispensas por país validada? | **Sim**: mostrar a mais não viola a regra; esconder sem saber pode violar |
+| Q5 | O preço por unidade mostra-se sempre que a variante tem quantidade e unidade, até haver a lista das dispensas por país validada? | ✅ **Decidido: sim**; mostrar a mais não viola a regra, esconder sem saber pode violar (Diogo, 06/10/2026: *«sim, mostra sempre o preço por unidade»*; `docs/06`, BW) |
 | Q6 | Acrescentar `market.activated` e `market.archived` à lista de eventos do `docs/02`? | **Sim**: o Catálogo precisa deles para arquivar as publicações de um mercado arquivado |
