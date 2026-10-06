@@ -70,6 +70,7 @@ describe("pedido do operador", () => {
     [`comerciante pt Europe/Lisbon ${nome("")} github:1`, /nome/],
     [`comerciante pt Europe/Lisbon ${nome("x".repeat(101))} github:1`, /nome/],
     [`comerciante pt Europe/Lisbon ${nome("a\nb")} github:1`, /nome/],
+    [`comerciante pt Europe/Lisbon ${nome("Loja\u202Eadc")} github:1`, /nome/],
     [`comerciante pt Europe/Lisbon ${nome("x")} ana`, /quem/],
     [
       `chave nao-uuid catalog:read eul_sk_abcde ${RESUMO} ${nome("x")} github:1`,

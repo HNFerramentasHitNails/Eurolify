@@ -152,6 +152,30 @@ operador»*). Pelo GitHub e não pelo MCP, porque o MCP não muda a base
    está no ar e a ligação do dono das tabelas, como as migrações. Quem lançou
    fica na chave como `operador:github:<número da conta>`.
 
+Limites, tal como está (revisão do #110):
+
+- **Só dados de ensaio.** A VPS do ensaio está no Reino Unido e não recebe
+  dados pessoais reais (ADR-0018/0019); o nome também fica no histórico do
+  GitHub (as entradas de um fluxo lançado à mão ficam visíveis a quem pode
+  ver o repositório). Nomes fictícios, nunca o de um cliente ou de uma pessoa.
+- **Não é só a primeira chave.** O comando cria quantas chaves de servidor se
+  pedirem, com qualquer âmbito de servidor, para qualquer comerciante; o
+  travão é quem pode lançar o fluxo (escrita no repositório e o ambiente
+  `ensaio`). A regra «uma chave não cria outra com mais âmbitos» (T9) é para o
+  `POST /keys`, não para o operador.
+- **Repetir a acção `comerciante` cria outro comerciante** (não há chave de
+  idempotência neste comando): antes de repetir um pedido que pareceu falhar,
+  ver no registo da máquina se já foi feito.
+- **Um agente (Claude ou Codex) só lança este fluxo com a confirmação
+  explícita** do Diogo ou do Bruno para esse pedido (`AGENTS.md`, «Operar a
+  VPS», regra 1): escreve na base.
+- **As chaves ainda não funcionam no ensaio**: a API na VPS corre sem base
+  (`api.env` vazio) e o papel `eurolify_api` ainda não entra (NOLOGIN). Ligar
+  a API à base é um pedido próprio.
+- Na máquina há dois nomes parecidos: `eurolify-operar` é o utilizador do
+  fluxo (e o programa das acções do MCP); `eurolify-operador` é o programa
+  deste comando.
+
 Falta, para o fluxo entrar: o Diogo ou o Bruno criar a chave SSH do fluxo
 (a pública em `infra/vps/chaves/fluxos/operar.pub`, a privada no segredo
 `VPS_CHAVE_OPERAR` do ambiente `ensaio`), como as dos outros fluxos.

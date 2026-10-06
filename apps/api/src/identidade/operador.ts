@@ -37,7 +37,9 @@ function nomeDe(codificado: string): string {
   if (!BASE64URL.test(codificado)) throw new Error("nome: não é base64url");
   const nome = Buffer.from(codificado, "base64url").toString("utf8");
   // O que não for UTF-8 válido vira «�»: recusa-se em vez de gravar lixo.
-  if (nome.includes("�") || /[\p{Cc}]/u.test(nome)) {
+  // Nem caracteres de controlo nem de formato (ex.: U+202E, que inverte o
+  // texto e disfarça um nome; revisão do #110, P3-3).
+  if (nome.includes("\uFFFD") || /[\p{Cc}\p{Cf}]/u.test(nome)) {
     throw new Error("nome: texto inválido");
   }
   const limpo = nome.trim();
@@ -49,7 +51,8 @@ function nomeDe(codificado: string): string {
 
 /** Lê e valida um pedido; lança um erro com o motivo, sem repetir o pedido. */
 export function lerPedido(linha: string): PedidoOperador {
-  if (linha.length > 400) throw new Error("pedido comprido demais");
+  // O mesmo limite das camadas da máquina (revisão do #110, P3-1).
+  if (linha.length > 600) throw new Error("pedido comprido demais");
   const partes = linha.split(" ");
   const [accao] = partes;
   if (accao === "comerciante" && partes.length === 5) {

@@ -21,7 +21,7 @@ on:
         options: [comerciante, chave]
         required: true
       nome:
-        description: "Nome do comerciante, ou da chave (1 a 100 caracteres)"
+        description: "Nome do comerciante (SÓ DE ENSAIO, fictício: a VPS do ensaio não recebe dados reais) ou da chave; até 100 caracteres sem acentos, menos com acentos"
         type: string
         required: true
       lingua:
@@ -77,6 +77,18 @@ jobs:
           RESUMO: ${{ inputs.resumo }}
         run: |
           set -euo pipefail
+          # Nenhuma entrada pode trazer um segredo nem quebras de linha
+          # (revisão do #110, P2-4 e P3-4).
+          for valor in "$ACCAO" "$NOME" "$LINGUA" "$FUSO" "$COMERCIANTE" "$AMBITOS" "$PREFIXO" "$RESUMO"; do
+            if [[ "$valor" =~ eul_(sk|pk)_[a-z2-7]{6,} ]]; then
+              echo "Uma das entradas tem um SEGREDO de chave: não uses esse segredo; gera outro com o gerar-chave.mjs." >&2
+              exit 1
+            fi
+            if [[ "$valor" == *$'\n'* || "$valor" == *$'\r'* ]]; then
+              echo "Uma das entradas tem quebras de linha: recusado." >&2
+              exit 1
+            fi
+          done
           nome64="$(printf '%s' "$NOME" | basenc --base64url -w0 | tr -d '=')"
           quem="github:${GITHUB_ACTOR_ID}"
           case "$ACCAO" in
@@ -84,18 +96,15 @@ jobs:
               pedido="comerciante ${LINGUA} ${FUSO} ${nome64} ${quem}"
               ;;
             chave)
-              if [[ "$RESUMO" =~ ^eul_ ]]; then
-                echo "Puseste o SEGREDO no campo do resumo: revoga essa chave e gera outra." >&2
-                exit 1
-              fi
               comerciante="${COMERCIANTE#mer_}"
               pedido="chave ${comerciante} ${AMBITOS// /} ${PREFIXO} ${RESUMO} ${nome64} ${quem}"
               ;;
           esac
+          fim="FIM_$(openssl rand -hex 16)"
           {
-            echo "pedido<<FIM_DO_PEDIDO"
+            echo "pedido<<$fim"
             echo "$pedido"
-            echo "FIM_DO_PEDIDO"
+            echo "$fim"
           } >>"$GITHUB_OUTPUT"
       - name: Pedir à VPS
         env:

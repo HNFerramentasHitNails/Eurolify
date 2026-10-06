@@ -100,14 +100,14 @@ else
       EUROLIFY_ORIGEM="$origem_mcp" /usr/local/sbin/eurolify-operar "$pedido" >"$saida" 2>&1 || codigo=$?
       ;;
     operar)
-      EUROLIFY_ORIGEM="fluxo operar" /usr/local/sbin/eurolify-operador "$pedido" >"$saida" 2>&1 || codigo=$?
+      EUROLIFY_ORIGEM="fluxo operar, conta ${pedido##*github:}" /usr/local/sbin/eurolify-operador "$pedido" >"$saida" 2>&1 || codigo=$?
       ;;
   esac
   if [[ "$fluxo" == mcp ]]; then
     EUROLIFY_ORIGEM="fluxo mcp, ${origem_mcp#mcp, }" registar "pedido $id '$pedido' tratado, código $codigo"
   elif [[ "$fluxo" == operar ]]; then
     # Só a acção: o resto do pedido leva o nome de um comerciante.
-    EUROLIFY_ORIGEM="fluxo operar" registar "pedido $id '${pedido%% *}' tratado, código $codigo"
+    EUROLIFY_ORIGEM="fluxo operar, conta ${pedido##*github:}" registar "pedido $id '${pedido%% *}' tratado, código $codigo"
   else
     EUROLIFY_ORIGEM="fluxo $fluxo" registar "pedido $id '${pedido:-(vazio)}' tratado, código $codigo"
   fi
