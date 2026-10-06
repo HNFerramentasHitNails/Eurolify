@@ -73,17 +73,16 @@ Encontrou 0 P0, 0 P1, 5 P2 e 11 P3. Tratados na mesma sessão:
   (`key.merchant_inactive`), mas revoga;
 - fica na `chave_criar_pela_api`, com teste. Tirada a regra, o teste falha.
 
-**P2-4, decidido pelo Diogo (06/10/2026, «a chave com prazo: não cria outra
-sem prazo»):** migração 0014 (`CREATE OR REPLACE` da `chave_criar_pela_api`).
-Uma chave com prazo não cria outra sem prazo → `key.expiry_beyond_creator`
-(422). **Interpretação de quem implementou, por confirmar:** também não cria
-uma com prazo mais longo do que o seu (o mesmo por outro caminho), e vale
-para a pública. Revisão do #124 (Claude Opus 5.5): 0 P0/P1, 1 P2 (por
-decidir: uma chave com prazo pode revogar a gestora permanente e já não a
-pode substituir; ver `docs/19` §6.1), 7 P3 tratados.
+**P2-4, decidido pelo Diogo (06/10/2026, «sim, concordo, nunca dura mais»):**
+uma chave nunca cria outra que dure mais do que ela (`docs/19` §5, T12);
+programada noutra sessão no #124 (migração 0014, `key.expiry_beyond_creator`).
+Revisão do #124 (Claude Opus 5.5): 0 P0/P1, 1 P2 e 7 P3; os P3 tratados no
+#124; o P2-1 decidido pelo Diogo («não pode revogar», `docs/19` §5, T14), por
+programar.
 
-**Por decidir (Diogo ou Bruno):** a chave pública de uma loja arquivada
-(`docs/19` §5).
+**Loja arquivada, decidido pelo Diogo (06/10/2026, «sim, concordo, deixa de
+funcionar»):** a chave pública dela não se cria e as que existem deixam de
+resolver; o registo fica (`docs/19` §5, T13). Por programar.
 
 | Protecção tirada | Testes que falham |
 |---|---|

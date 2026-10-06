@@ -1,6 +1,6 @@
 # Fatia «identidade»: quem chama a API e em nome de que comerciante
 
-> **Versão de 06/10/2026 — desenho; parte A decidida** (Diogo, 06/10/2026: *«sim, começa pela parte A»*); parte B por decidir (P1). Pedido do Diogo: *«avança
+> **Versão de 06/10/2026 — desenho; parte A decidida** (Diogo, 06/10/2026: *«sim, começa pela parte A»*); parte B decidida: construir na API (ADR-0036). Pedido do Diogo: *«avança
 > com o desenho da fatia identidade»* (issue #107). Responde à P1 do `docs/15`
 > §9 e desbloqueia a API de domínio, a `Idempotency-Key` e os limites de
 > pedidos (`docs/18` §1). Skills: `headless-commerce` (autenticação, âmbitos,
@@ -74,7 +74,10 @@ dependem da P1 (§7).
 - Uma chave pública nunca recebe um âmbito de escrita de Administração; a base
   recusa-o (CHECK), não só a aplicação.
 
-## 4. Âmbitos (proposta)
+## 4. Âmbitos
+
+> Os nomes abaixo são os **finais** (escolha técnica de rotina, 06/10/2026;
+> já usados em `apps/api/src/identidade/chaves.ts`).
 
 | Âmbito | Dá | Fonte |
 |---|---|---|
@@ -118,17 +121,29 @@ P2-2).
     (`key.merchant_inactive`, 403), mas **revoga**, para poder fechar
     acessos;
   - ler continua a resolver, como o `docs/15` §4 deixa (`suspenso` lê,
-    `fechado` exporta);
-  - **uma chave com prazo não cria outra sem prazo** (Diogo, 06/10/2026;
-    revisão do #118, P2-4) → `key.expiry_beyond_creator` (422). Migração
-    0014. **Interpretação de quem implementou, por confirmar pelo Diogo ou
-    pelo Bruno:** também não cria uma com prazo mais longo do que o seu
-    (seria a mesma coisa por outro caminho: um prazo a 100 anos), e a regra
-    vale também para a pública.
-- **Por decidir:**
-  - o mesmo para as rotas de domínio que escrevem;
-  - a chave pública de uma loja arquivada (hoje continua a resolver e pode
-    ser criada).
+    `fechado` exporta).
+- **Decidido** (Diogo, 06/10/2026, revisão do #118, P2-4: *«sim, concordo,
+  nunca dura mais»*): uma chave **nunca cria outra que dure mais do que ela**.
+  Uma chave com prazo só cria chaves com prazo igual ou anterior ao seu; uma
+  sem prazo, ou com prazo mais longo, é recusada (`key.expiry_beyond_creator`,
+  422), também a pública. Imposto na base: migração 0014, no #124 (T12).
+- **Decidido** (Diogo, 06/10/2026, revisão do #124, P2-1: *«sim, concordo, não
+  pode revogar»*): uma chave com prazo **só revoga chaves que expirem no mesmo
+  instante ou antes dela**; não revoga uma sem prazo nem uma que dure mais.
+  Assim uma chave temporária não deixa o comerciante sem gestora permanente.
+  **Por programar** (T14 no §9).
+- **Decidido** (Diogo, 06/10/2026: *«sim, concordo, deixa de funcionar»*):
+  a chave pública de uma loja **arquivada** deixa de funcionar — não se cria
+  nenhuma para ela e as que existem deixam de resolver (401 `auth.invalid`,
+  como uma revogada) a partir do momento em que a loja é arquivada. O registo
+  das chaves fica, para se saber quem teve acesso e quando. **Por programar**
+  (T13 no §9).
+- **Decidido** (Diogo, 06/10/2026: *«sim, concordo, recusa as escritas»*):
+  um comerciante `suspenso` ou `fechado` **não escreve** pelas rotas de
+  domínio — recusa `merchant.inactive` (403), imposta na base. Excepções:
+  tratar as encomendas pendentes (só `suspenso`, `docs/15` §4), revogar
+  chaves e pedir a exportação. Entra em cada domínio quando ele abrir rotas que
+  escrevem (a 06/10/2026 só há as duas `POST` de `identidade/rotas.ts`).
 
 Erros novos (no formato do `docs/18` §2):
 
@@ -262,9 +277,9 @@ que a API ganha para escrever chaves:
     ela expirar. **Desde a 0014, ela já não pode criar uma permanente de
     substituição**: nesse caso não há saída pela API, e o único remédio é o
     comando do operador, que pode criar e revogar sem estas regras (é a
-    porta de emergência; revisão do #118, P3-7; revisão do #124, P2-1, **por
-    decidir**: impedir uma chave com prazo de revogar uma gestora que dure
-    mais do que ela, ou manter assim);
+    porta de emergência; revisão do #118, P3-7). **Decidido** (revisão do
+    #124, P2-1, §5): uma chave com prazo deixa de revogar uma que dure mais
+    do que ela — **por programar** (T14);
   - a verificação corre com uma tranca por comerciante
     (`pg_advisory_xact_lock`), e quem pede volta a ser verificado debaixo da
     tranca: duas chaves que se revoguem ao mesmo tempo não deixam o
@@ -296,7 +311,11 @@ Com isto, as rotas do `docs/15` §8 (Comerciante) e do `docs/14` §7 (Catálogo)
 podem abrir, cada uma com o seu âmbito, e a `Idempotency-Key` e os limites do
 `docs/18` passam a ter a quem se prender (o comerciante e a chave).
 
-## 7. Parte B — as pessoas (P1, por decidir)
+## 7. Parte B — as pessoas (P1, decidida: a), ADR-0036)
+
+> ✅ **Decidido** (Diogo, 06/10/2026, [ADR-0036](adr/0036-contas-de-pessoas-construidas-na-api.md)):
+> **a) construir na API**, com passkeys como forma principal e TOTP como
+> alternativa, e uma revisão de segurança própria. A tabela fica como registo.
 
 O que a parte B tem de dar: conta de pessoa, início de sessão forte, papéis
 por comerciante (dono, gestor, armazém, apoio — `observability-security`,
@@ -335,6 +354,8 @@ sessão em vez da chave.
 | T10 | a mesma `Idempotency-Key`: repetir dá a mesma resposta sem escrever outra vez (o `POST /keys` dá `idempotency.secret_not_repeated`); outro corpo → `idempotency.key_reused`; ao mesmo tempo → `idempotency.in_progress` |
 | T11 | uma chave não se revoga a si própria se for a última com `keys:write`, nem ao mesmo tempo que outra |
 | T12 | uma chave com prazo não cria outra sem prazo nem com prazo mais longo (também a pública, pela rota e pela função na base); prazo igual ou anterior passa (0014) |
+| T13 | uma loja arquivada: criar-lhe uma chave pública é recusado; uma chave pública que já existia dá 401 `auth.invalid` logo a seguir ao arquivo — **por programar** (decisão de 06/10/2026) |
+| T14 | uma chave com prazo não revoga uma chave sem prazo nem uma que expire depois dela; uma que expire antes ou no mesmo instante, sim — **por programar** (decisão de 06/10/2026) |
 
 Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta.
 Com o `POST /keys` (0012) entram o T9, o T10 e o T11, e com a 0014 o T12
@@ -345,9 +366,12 @@ domínio, porque o corpo do `POST /keys` não tem comerciante.
 
 - ~~Começar pela parte A~~ — **decidido** (Diogo, 06/10/2026: *«sim, começa
   pela parte A»*).
-- A P1 (§7): opção a), b) ou c).
-- Os nomes finais dos âmbitos e se `keys:write` precisa de dois passos, como as
-  acções do MCP.
+- ~~A P1 (§7)~~ — **a)** (ADR-0036).
+- ~~Os nomes finais dos âmbitos~~ — os do §4 (rotina, 06/10/2026).
+- ~~Se `keys:write` precisa de dois passos~~ — **decidido: não na API**
+  (Diogo, 06/10/2026: *«sim, concordo, sem dois passos na API»*). A protecção
+  fica na base (T9, T12, comerciante inactivo). No Hub (parte B), criar uma
+  chave pedirá à pessoa que se autentique outra vez nesse momento.
 
 ## O que não foi verificado
 

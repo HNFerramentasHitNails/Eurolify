@@ -66,6 +66,26 @@
 | ✅ AU | Catálogo: um artigo sem opções pode ter várias variantes; a combinação de opções só se exige única quando o artigo tem opções | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P10 |
 | ✅ AV | Catálogo: num artigo que já não é rascunho, o texto de uma opção ou de um valor não muda (a ordem sim) | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P12 |
 | ✅ AW | Catálogo: uma só língua de origem por comerciante (sai da loja) | em vigor; no código com a parte 3b (migração 0009) | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P13 |
+| ✅ AX | Identidade: uma chave de acesso nunca cria outra que dure mais do que ela | em vigor; programada no #124 (migração 0014, T12) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
+| ✅ AY | Identidade: a chave pública de uma loja arquivada deixa de funcionar e não se criam novas; o registo fica | em vigor; por programar (T13) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
+| ✅ AZ | Comerciante `suspenso` ou `fechado` não escreve pela API (excepto encomendas pendentes do suspenso, revogar chaves e exportar) | em vigor; entra em cada domínio com as rotas que escrevem | Diogo, 06/10/2026 | [`docs/15`](15-dominio-comerciante.md) §4, [`docs/19`](19-fatia-identidade.md) §5 |
+| ✅ BA | Identidade: criar uma chave pela API não tem segundo passo de confirmação; no Hub (parte B), sim, com nova autenticação da pessoa | em vigor | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §10 |
+| ✅ BB | Motor de regras: a data de verificação de um domínio não limita o momento pedido; vale a vigência e a prova de cada versão | em vigor (é o que o código já faz) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.2, #59 |
+| ✅ BC | As contas de pessoas constroem-se na API, com bibliotecas abertas; passkeys primeiro, TOTP como alternativa; revisão de segurança própria | em vigor | Diogo, 06/10/2026 | [ADR-0036](adr/0036-contas-de-pessoas-construidas-na-api.md) |
+| ✅ BD | Motor de regras: quem valida uma regra tem de ter um papel indicado para o tema dela no `docs/03` | em vigor; por programar | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #59 |
+| ✅ BE | As faturas emitem-se pelo software certificado de cada país, ligado por adaptador; o Eurolify decide o IVA e guarda o documento como prova (D-4 → a) | em vigor nas Fases 1 a 3 | Diogo, 06/10/2026 | [ADR-0037](adr/0037-faturas-por-software-certificado.md) |
+| ✅ BF | O Eurolify nunca recebe o dinheiro das vendas: cada comerciante liga a sua conta (EuPago, Stripe primeiro) (D-5) | em vigor | Diogo, 06/10/2026 | [ADR-0038](adr/0038-o-eurolify-nunca-recebe-o-dinheiro.md) |
+| ✅ BG | O checkout é alojado pelo Eurolify, com o aspecto e no domínio da loja; API de checkout própria só na Fase 3 (D-7) | em vigor | Diogo, 06/10/2026 | [ADR-0039](adr/0039-checkout-alojado-pelo-eurolify.md) |
+| ✅ BH | As IAs dos comerciantes só lêem na Fase 1; escrita com confirmação humana na Fase 3; nunca faturas, reembolsos, fusões de clientes nem lotes (D-9) | em vigor | Diogo, 06/10/2026 | [ADR-0040](adr/0040-ia-so-le-na-fase-1.md) |
+| ✅ BI | Um comerciante com sistema de gestão continua a emitir por ele; o Eurolify não fala com o software de faturação nessas vendas (D-10) | em vigor | Diogo, 06/10/2026 | [ADR-0041](adr/0041-com-sistema-de-gestao-emite-o-sistema-dele.md) |
+| ✅ BJ | **Não** se põe nenhuma nota sobre o Eurolify no repositório `bruno-88/claude`: o Eurolify é um projecto totalmente separado (D-11 → não) | em vigor | Diogo, 06/10/2026 (*«Não. O Eurolify é um projeto totalmente separado»*) | D-11 abaixo |
+| ✅ BK | Ensaio e produção em máquinas separadas a partir do primeiro comerciante de fora (produção na máquina da OVH em Paris; o produto escolhe-se na migração, ADR-0021) | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 3 |
+| ✅ BL | Produção: cópia contínua (WAL) mais completa diária — perda máxima de 5 minutos, volta em até 4 horas; números a confirmar num ensaio de reposição | em vigor; onde ficam: BM | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 4 |
+| ✅ BM | Produção: as cópias ficam na OVH e numa segunda cópia cifrada noutro fornecedor da UE (só produção; o ensaio fica como no ADR-0032) | em vigor; a segunda cópia numa VPS da PTISP (só cópias; centro de dados, preço e acordo por verificar) | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 4 |
+| ✅ BN | Produção sem réplica da base no arranque; entra quando um comerciante precisar de voltar em menos de 4 h ou na Fase 2 | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 5 |
+| ✅ BO | Produção: alertas pelo Healthchecks.io para o Diogo e o Bruno, mais verificação de minuto a minuto da API | em vigor; plano e custo por verificar | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 7 |
+| ✅ BP | O Codex opera a VPS com o mesmo acesso que o Claude, pelo GitHub (pedidos revistos, `medir`, MCP), sem chave SSH | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 8 |
+| ✅ BQ | Identidade: uma chave com prazo só revoga chaves que expirem no mesmo instante ou antes dela | em vigor; por programar (T14) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
 
 ## Por decidir — por esta ordem
 
@@ -157,6 +177,10 @@ e esse alojamento é deles.
 
 ### D-4 · Quem emite as faturas?
 
+> ✅ **Decidido a 06/10/2026 pelo Diogo: a)**
+> ([ADR-0037](adr/0037-faturas-por-software-certificado.md)). O texto abaixo
+> fica como registo das opções.
+
 | Opção | O que quer dizer |
 |---|---|
 | **a) Adaptadores a software certificado de cada país** ⭐ | Em Portugal o Moloni (e outros); em Espanha um software Verifactu; em França uma Plateforme Agréée. O Eurolify decide o IVA e guarda a prova; o documento legal é do software certificado |
@@ -166,6 +190,9 @@ e esse alojamento é deles.
 **Quem decide:** Diogo ou Bruno.
 
 ### D-5 · Pagamentos
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: nunca recebe o dinheiro**
+> ([ADR-0038](adr/0038-o-eurolify-nunca-recebe-o-dinheiro.md)).
 
 **Recomendação:** o Eurolify **nunca recebe o dinheiro dos comerciantes**
 (guardar fundos de terceiros exige licença de instituição de pagamento); cada
@@ -193,6 +220,9 @@ desse país (D-4).
 
 ### D-7 · Checkout alojado pelo Eurolify ou feito por cada frontend?
 
+> ✅ **Decidido a 06/10/2026 pelo Diogo: alojado**
+> ([ADR-0039](adr/0039-checkout-alojado-pelo-eurolify.md)).
+
 **Recomendação: alojado** (com o aspecto da loja, no domínio da loja). Um
 frontend gerado por IA não é sítio para decidir IVA, aceitar condições ou
 mostrar o botão de livre resolução. API de checkout própria só na Fase 3 e com
@@ -200,17 +230,27 @@ verificação.
 
 ### D-8 · Estilo da API
 
+> ✅ **Já decidida com o ADR-0025** (Diogo, 04/10/2026): o ADR das ferramentas
+> do código parte da recomendação abaixo — REST com OpenAPI 3.1 — e o código
+> segue-a desde o #106 (`docs/18`). Registado a 06/10/2026, sem pergunta nova.
+
 **Recomendação: REST com contrato OpenAPI 3.1**, webhooks assinados e SDK
 TypeScript. É o que os construtores de frontends com IA e os modelos com
 chamada de funções leem melhor. GraphQL só com necessidade medida.
 
 ### D-9 · IA
 
+> ✅ **Decidido a 06/10/2026 pelo Diogo: só ler na Fase 1**
+> ([ADR-0040](adr/0040-ia-so-le-na-fase-1.md)).
+
 **Recomendação:** MCP de **leitura** na Fase 1; escrita com confirmação humana
 na Fase 3; protocolos de comércio por agentes (UCP, ACP) na Fase 3. **Nunca**
 uma IA emite faturas, reembolsa, funde clientes ou corrige em lote.
 
 ### D-10 · Um cliente que já tem sistema de gestão: quem emite as faturas?
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: continua o sistema dele**
+> ([ADR-0041](adr/0041-com-sistema-de-gestao-emite-o-sistema-dele.md)).
 
 **Recomendação: continua a ser o sistema dele.** O Eurolify entrega-lhe as
 encomendas como o Shopify faz hoje, e esse sistema continua a ser o único que
@@ -220,6 +260,9 @@ a emissão para o Eurolify é uma decisão posterior, cliente a cliente, com o
 Eurolify já provado. **Quem decide:** Diogo ou Bruno.
 
 ### D-11 · Ponte para a memória de trabalho existente
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: não** — *«O Eurolify é um projeto
+> totalmente separado»*. Nada se escreve no `bruno-88/claude`.
 
 A memória do Eurolify vive aqui (decisão B). **Por decidir pelo Diogo ou pelo Bruno:** pôr no
 repo `bruno-88/claude` **uma** memória curta a apontar para este repositório,

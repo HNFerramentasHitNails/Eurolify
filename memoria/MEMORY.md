@@ -33,6 +33,7 @@
 - [VPS, passo 10b (#70): eurolify_migrador dono da base com a ligação em migrar.env gerada na máquina; eurolify_api NOLOGIN até a API usar a base; ensaio local com a migração 0001 a correr como o dono — 04/10/2026](vps-utilizadores-da-base-04out2026.md)
 - [VPS, passos 10b e 10c (#107): eurolify_api com LOGIN e a ligação em api-base.env gerada na máquina; a API recria-se, publicações trancadas, cada uma prova que chega à base (chave inventada → 401) — 06/10/2026](vps-api-ligada-a-base-06out2026.md)
 - [Identidade: POST /keys e revogação (#107, 0012): a base acha quem pede pelo resumo do segredo, T9 e a última gestora na base, tranca por comerciante; idempotência em tabela, o segredo não se repete (409) — 06/10/2026](identidade-criar-revogar-chaves-06out2026.md)
+- [Identidade, parte B: opções para contas de pessoas (biblioteca, servidor na VPS, gerido na UE), licenças e memória lidas por resumo; VPS medida: 781 MiB usados de 3,7 GiB, 2 núcleos; decidido construir na API (ADR-0036) — 06/10/2026](identidade-parte-b-opcoes-06out2026.md)
 - [Limpeza diária da idempotência (#107, 0013): função na base, eurolify-limpeza às 05:00 como superutilizador (RLS forçado), a verificação das 07:00 avisa se parar; ensaio local completo — 06/10/2026](idempotencia-limpeza-06out2026.md)
 
 ## Negócio, fases e estimativa
@@ -64,3 +65,4 @@
 - [Pacote complementar (26 skills): lido, não instalado (10 repetem as nossas); o prompt seguido por ordem do Diogo — docs/eurolify/, motor de regras dos 27 (tudo por verificar), P3 decidida, diagnóstico de apoios — 04/10/2026](pacote-complementar-skills-04out2026.md)
 - [Pacote de eficiência: auditoria só de leitura (0 ficheiros iguais; decisões em 3 sítios) → #52, #54, #56; 6 skills instaladas (sessão, gestão, modelos, memória, diagnóstico, prova); Sonnet/Haiku/Opus 5.5, sem Fable; poupança não medida — 04/10/2026](skills-de-eficiencia-instaladas-04out2026.md)
 - [Skills complementares de engenharia e conformidade UE (zip do Diogo, 15): instaladas com ligações; 2 linhas no AGENTS.md (engenharia e coordenação jurídica); validação estrutural OK, `agentskills` não correu; fontes W, países todos pendentes — 05/10/2026](skills-complementares-ue-05out2026.md)
+- [VPS: voltar a uma publicação pelo MCP decide pela base (#113/#115, #120/#122): só à anterior, «migrou:» e linhas «falhou» no publicacoes.log, --emergencia por SSH; 134 verificações; o formato novo na VPS não lido — 06/10/2026](vps-voltar-a-publicacao-06out2026.md)

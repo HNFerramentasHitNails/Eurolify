@@ -317,4 +317,4 @@ Diogo ou o Bruno o pedirem.
 - Mexer em qualquer desses sistemas obedece às regras do `CLAUDE.md` **desse**
   repositório, não a estas.
 - O Eurolify **não fala com o software de faturação de um cliente que já tem
-  sistema de gestão**: quem emite é o sistema dele (decisão D-10 por tomar).
+  sistema de gestão**: quem emite é o sistema dele (D-10, ADR-0041).
