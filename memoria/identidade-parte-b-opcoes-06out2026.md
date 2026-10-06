@@ -2,7 +2,7 @@
 
 Pergunta do `docs/19` §7 (P1): construir com uma biblioteca na API, alojar um
 servidor de identidade aberto na VPS, ou um fornecedor gerido na UE.
-Preparação para a decisão do Diogo ou do Bruno; **nada decidido aqui**.
+Preparação para a decisão; **decidido depois pelo Diogo (06/10/2026): a), construir na API — ADR-0036**.
 
 ## O que se fez
 
