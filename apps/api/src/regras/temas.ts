@@ -11,7 +11,8 @@
 // domínios condicionais (#135).
 //
 // O domínio de cada linha (decisão BY) segue as definições do
-// docs/eurolify/compliance-gaps.md §1. As Canárias, Ceuta e Melilla e os Açores
+// docs/eurolify/compliance-gaps.md §1; os quatro domínios condicionais (secção
+// 7) são os de docs/eurolify/architecture.md §4. As Canárias, Ceuta e Melilla e os Açores
 // e a Madeira ficam em `iva` («território de IVA») e passam para `territorios`
 // quando esse domínio entrar no motor (revisão do #133, 2.ª, P3).
 

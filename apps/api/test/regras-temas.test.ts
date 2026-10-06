@@ -37,7 +37,7 @@ function linhasDoDocs03() {
   let seccao = 0;
   let coluna = -1;
   for (const linha of readFileSync(DOCS03, "utf8").split("\n")) {
-    const titulo = /^## (\d)\. /.exec(linha);
+    const titulo = /^## (\d+)\. /.exec(linha);
     if (titulo !== null) {
       seccao = Number(titulo[1]);
       coluna = -1;

@@ -58,9 +58,13 @@ nenhum escalão (ADR-0007) os tira.
 Segue a skill **`eurolify-b2b-channels-eu`** (instalada a 05/10/2026, #84),
 que substitui como fonte o `eurolify-channel-governance` do pacote de 04/10,
 nunca instalado (decisão do Diogo, 05/10/2026: *«sim, manda a skill nova»*,
-Q4 do `docs/16`). **C** em tudo o que é regra de concorrência (Reg. (UE)
-2022/720, Dir. 86/653, não lidos por nós; a skill manda análise concorrencial
-antes de restringir preço, território, venda online ou clientes). Na Fase 1
+Q4 do `docs/16`). Regras de concorrência e de agência: **W · texto lido** nos
+artigos citados no `docs/03` §7 (Reg. (UE) 2022/720, arts. 3.º, n.º 1, 4.º,
+8.º, al. d), e 11.º; Dir. 86/653, arts. 1.º, 2.º e 17.º a 19.º; lidos a
+06/10/2026, #135); **C** no resto (ex.: arts. 2.º e 5.º do Reg. 2022/720, as
+orientações da Comissão, as leis nacionais). A skill manda análise
+concorrencial antes de restringir preço, território, venda online ou
+clientes. Na Fase 1
 só entram as **listas de preços B2B por etiqueta**; o resto é da **Fase 2**
 (Diogo, 05/10/2026; `docs/05`).
 
@@ -93,13 +97,13 @@ actua como consumidor (`eurolify-b2b-channels-eu`).
 
 ### 3.3 O que fica desligado até haver revisão
 
-| Política | Porquê | Fonte (**C**) |
+| Política | Porquê | Fonte (marca) |
 |---|---|---|
-| preço mínimo ou fixo de revenda, bloqueio de publicação abaixo do recomendado | restrição especialmente grave | Reg. 2022/720, art. 4.º, alínea a) |
-| recusar um pedido por território, morada ou IP | uma venda passiva não é venda activa | art. 4.º, alíneas b) a d); Reg. 2018/302 |
-| desligar a venda online, ou somar regras que a impeçam | restrição especialmente grave | art. 4.º, alínea e) |
-| não concorrência sem prazo ou acima de 5 anos, pós-contratual | excluída da isenção, com excepções | art. 5.º |
-| mostrar ao fornecedor preços futuros, margens ou clientes identificados de revendedores concorrentes | troca de informação fora da isenção | art. 2.º, n.os 4 e 5 |
+| preço mínimo ou fixo de revenda, bloqueio de publicação abaixo do recomendado | restrição especialmente grave | Reg. 2022/720, art. 4.º, alínea a) (**W** · texto lido, `docs/03` §7) |
+| recusar um pedido por território, morada ou IP | uma venda passiva não é venda activa | art. 4.º, alíneas b) a d) (**W** · texto lido); Reg. 2018/302 (**C**) |
+| desligar a venda online, ou somar regras que a impeçam | restrição especialmente grave | art. 4.º, alínea e) (**W** · texto lido) |
+| não concorrência sem prazo ou acima de 5 anos, pós-contratual | excluída da isenção, com excepções | art. 5.º (**C**) |
+| mostrar ao fornecedor preços futuros, margens ou clientes identificados de revendedores concorrentes | troca de informação fora da isenção | art. 2.º, n.os 4 e 5 (**C**) |
 
 Ficar fora da isenção **não** quer dizer ilegal: quer dizer análise caso a caso.
 O Eurolify bloqueia a política e diz porquê; nunca declara o parceiro ilegal.
