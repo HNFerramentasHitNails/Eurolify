@@ -48,6 +48,14 @@ export async function definirTraducao(
   dados: DadosTraducao,
 ): Promise<void> {
   const recursoId = dados.recursoId.toLowerCase();
+  // O tipo vai para o nome da tabela: só os da lista (2.ª revisão do #105,
+  // P3-5); outro dá um erro do Catálogo, não um erro cru da base.
+  if (!Object.hasOwn(COLUNA, dados.tipo)) {
+    throw new ErroCatalogo(
+      "catalog.invalid_field",
+      `tipo de recurso desconhecido: ${dados.tipo}`,
+    );
+  }
   await noCatalogo(db, comercianteId, async (trx) => {
     await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
     // A linha do recurso presa (FOR SHARE) até ao fim: o original não muda

@@ -1,5 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { copyFile, mkdtemp, readdir, rm } from "node:fs/promises";
+import {
+  copyFile,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -38,13 +45,23 @@ describe.skipIf(URL_BASE === undefined)("migração 0009 sobre dados", () => {
     }
   });
 
-  async function pastaAte(ultima: string): Promise<URL> {
+  /**
+   * Uma pasta com as migrações até `ultima`. Com `tirar`, esse texto sai da
+   * `ultima` (para provar uma protecção da própria migração).
+   */
+  async function pastaAte(ultima: string, tirar?: string): Promise<URL> {
     const pasta = await mkdtemp(join(tmpdir(), "migracoes-ate-"));
     aFechar.push(() => rm(pasta, { recursive: true, force: true }));
     for (const f of (await readdir(PASTA_MIGRACOES)).sort()) {
       if (f.endsWith(".sql") && f <= ultima) {
         await copyFile(new URL(f, PASTA_MIGRACOES), join(pasta, f));
       }
+    }
+    if (tirar !== undefined) {
+      const ficheiro = join(pasta, ultima);
+      const texto = await readFile(ficheiro, "utf8");
+      if (!texto.includes(tirar)) throw new Error(`não encontrei: ${tirar}`);
+      await writeFile(ficheiro, texto.replace(tirar, ""));
     }
     return pathToFileURL(`${pasta}/`);
   }
@@ -210,6 +227,8 @@ describe.skipIf(URL_BASE === undefined)("migração 0009 sobre dados", () => {
     expect(String(erro)).toMatch(
       /1 comerciante\(s\) com lojas em línguas de origem diferentes/,
     );
+    // A mensagem diz qual (2.ª revisão do #105, P3-4).
+    expect(String(erro)).toContain(A);
     const { rows } = await sql<{ n: number }>`
       select count(*)::int as n from information_schema.columns
       where table_name = 'comerciante' and column_name = 'lingua_origem'`.execute(
@@ -220,5 +239,41 @@ describe.skipIf(URL_BASE === undefined)("migração 0009 sobre dados", () => {
       select relforcerowsecurity as f from pg_class
       where relname = 'comerciante'`.execute(db);
     expect(forcado[0]?.f).toBe(true);
+  }, 60_000);
+
+  it("se o RLS forçado ou o trigger do comerciante não voltarem, a migração pára (2.ª revisão do #105, P3-2)", async () => {
+    const db = await baseComLojas(["es"]);
+    let erro: unknown;
+    try {
+      await migrar(
+        db,
+        await pastaAte(
+          "0009_catalogo_traducoes.sql",
+          "ALTER TABLE comerciante ENABLE TRIGGER comerciante_antes_de_gravar;",
+        ),
+      );
+    } catch (e) {
+      erro = e;
+    }
+    expect(String(erro)).toMatch(
+      /o RLS forçado ou o trigger do comerciante não voltaram/,
+    );
+  }, 60_000);
+
+  it("os índices para apagar em cascata existem (revisão do #105, P3-B)", async () => {
+    const db = await baseComLojas([]);
+    await migrar(db, await pastaAte("0009_catalogo_traducoes.sql"));
+    const { rows } = await sql<{ indexname: string }>`
+      select indexname from pg_indexes
+      where tablename = 'traducao' and indexname like 'traducao_por_%'
+      order by indexname`.execute(db);
+    expect(rows.map((r) => r.indexname)).toEqual([
+      "traducao_por_artigo",
+      "traducao_por_categoria",
+      "traducao_por_colecao",
+      "traducao_por_lingua",
+      "traducao_por_opcao",
+      "traducao_por_valor",
+    ]);
   }, 60_000);
 });

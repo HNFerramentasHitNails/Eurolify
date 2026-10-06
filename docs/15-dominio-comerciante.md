@@ -96,7 +96,7 @@ regra 4).
 | `comerciante_id` | uuid | sim | |
 | `entidade_legal_id` | uuid | sim | quem vende nesta loja (aparece ao cliente: `consumer-rights-eu`, identidade do vendedor) |
 | `nome` | texto | sim | marca |
-| ~~`lingua_origem`~~ | código | não | **passou para o comerciante** (§3.1; `docs/14` §9, P13). Fica, sem obrigação e sem uso, para a versão anterior da aplicação poder voltar; sai numa migração seguinte, até 31/10/2026 (migração 0009; revisão do #105, P2-4) |
+| ~~`lingua_origem`~~ | código | não | **passou para o comerciante** (§3.1; `docs/14` §9, P13). Fica, sem obrigação e sem uso, para a versão anterior da aplicação poder voltar; sai numa migração seguinte, até 31/10/2026 (migração 0009; revisão do #105, P2-4; tarefa #109) |
 | `estado` | activa, arquivada | sim | |
 
 ### 3.4 Aceitação de um contrato

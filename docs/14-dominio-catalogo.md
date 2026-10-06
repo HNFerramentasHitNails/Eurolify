@@ -333,10 +333,23 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   vice-versa (revisão do #105, P1-1).
 - A migração **pára** se um comerciante tiver lojas em línguas diferentes:
   uma pessoa decide a língua de origem dele antes (revisão do #105, P3-A).
+  A mensagem da paragem diz os ids. O passo da pessoa, com o Diogo ou o
+  Bruno a decidir a língua: por um pedido de alteração revisto (ADR-0028),
+  uma migração própria que corra antes da 0009 (o migrador ordena pelo nome:
+  por exemplo `0009_acertar_linguas_das_lojas.sql`), que põe a
+  `loja.lingua_origem` das lojas desse comerciante na língua decidida (com
+  `set_config('eurolify.comerciante', <id>, true)`, por causa do RLS
+  forçado), com a cópia antes (AGENTS.md, «Operar a VPS», regra 2).
+- **Ordem dos bloqueios com o comerciante:** criar catálogo prende a linha do
+  comerciante (`FOR SHARE`). Numa mesma transacção, **o comerciante altera-se
+  antes de se criar catálogo, nunca depois**: duas transacções que criam
+  artigos e depois alteram o comerciante esperam uma pela outra (medido na
+  2.ª revisão do #105, P2-1). Hoje nenhum código o faz; vale para as
+  importações (§3.11) quando existirem.
 - A `loja.lingua_origem` fica, sem obrigação e sem uso, para a versão
   anterior da aplicação poder voltar (`infra/vps/LEIA-ME.md`, migrações
   compatíveis); sai numa migração seguinte, **até 31/10/2026** (revisão do
-  #105, P2-4).
+  #105, P2-4; tarefa #109).
 - As línguas são códigos de duas letras minúsculas, como a `lingua` do
   comerciante (**proposta**; a lista das línguas de cada mercado é de Preços
   e mercados, `eu-localization`).
@@ -347,7 +360,10 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   vez; revisão do #105, P2-1 e P2-2).
 - Quem traduz diz o **original que viu**; se já não é o de agora, a tradução
   é recusada com `catalog.version_conflict` (como a escrita do artigo com a
-  versão antiga; revisão do #105, P2-3).
+  versão antiga; revisão do #105, P2-3). Esta comparação vive no
+  repositório (a base não sabe o que o chamador viu): só o repositório
+  escreve traduções; quem tivesse as credenciais da base podia confirmar
+  uma tradução sem a comparação (2.ª revisão do #105, P3-6).
 - **Pessoa ou IA** (`eu-localization`: a tradução por IA é proposta, revista
   por uma pessoa): a base não sabe quem é pessoa. Quando a API existir, a
   `origem` e o «é uma pessoa» de quem revê vêm da **conta que chama** (pessoa

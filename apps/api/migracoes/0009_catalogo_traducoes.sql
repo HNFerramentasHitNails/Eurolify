@@ -36,6 +36,11 @@
 -- Também (revisão do #97, P3-A): um artigo a entrar numa categoria espera
 -- por quem a esteja a arquivar e lê o estado novo.
 
+-- Como a 0006 e a 0008: com tráfego da versão anterior na VPS, a migração
+-- desiste ao fim de 10 s à espera de um bloqueio, em vez de pôr os pedidos
+-- todos em fila atrás dela (2.ª revisão do #105, P3-3).
+SET LOCAL lock_timeout = '10s';
+
 -- 1. A língua de origem passa para o comerciante. Os que já existem ficam
 -- com a da primeira loja ou, sem loja, com a `lingua` do Hub (proposta). O
 -- RLS forçado e o trigger da versão desligam-se só durante o preenchimento,
@@ -48,16 +53,22 @@ ALTER TABLE loja NO FORCE ROW LEVEL SECURITY;
 -- escolher sozinha uma delas (AGENTS.md, regra fiscal 6, por analogia;
 -- revisão do #105, P3-A). Uma pessoa decide a língua de cada um e põe as
 -- lojas dele na mesma antes de migrar.
+-- A mensagem diz quais (2.ª revisão do #105, P3-4); o passo da pessoa está
+-- no docs/14 §3.8.
 DO $$
 DECLARE
   quantos integer;
+  quais text;
 BEGIN
-  SELECT count(*) INTO quantos FROM (
+  SELECT count(*),
+         string_agg(diferentes.comerciante_id::text, ', '
+                    ORDER BY diferentes.comerciante_id)
+  INTO quantos, quais FROM (
     SELECT l.comerciante_id FROM loja l
     GROUP BY l.comerciante_id
     HAVING count(DISTINCT l.lingua_origem) > 1) diferentes;
   IF quantos > 0 THEN
-    RAISE EXCEPTION 'a 0009 pára: % comerciante(s) com lojas em línguas de origem diferentes; uma pessoa decide antes de migrar', quantos;
+    RAISE EXCEPTION 'a 0009 pára: % comerciante(s) com lojas em línguas de origem diferentes (%); uma pessoa decide antes de migrar', quantos, quais;
   END IF;
 END
 $$;
@@ -89,7 +100,7 @@ ALTER TABLE comerciante
   ALTER COLUMN lingua_origem SET NOT NULL,
   ADD CONSTRAINT comerciante_lingua_origem_check CHECK (lingua_origem ~ '^[a-z]{2}$');
 -- A da loja fica, sem obrigação, para a versão anterior da aplicação poder
--- voltar; sai numa migração seguinte (data de fim: 31/10/2026).
+-- voltar; sai numa migração seguinte (data de fim: 31/10/2026; tarefa #109).
 ALTER TABLE loja ALTER COLUMN lingua_origem DROP NOT NULL;
 COMMENT ON COLUMN loja.lingua_origem IS
   'Obsoleta desde a 0009 (passou para comerciante.lingua_origem); sai numa migração seguinte, até 31/10/2026.';
@@ -274,7 +285,9 @@ BEGIN
       RAISE EXCEPTION 'catalog.translated_by_required: rever exige quem reviu';
     END IF;
     -- Quem traduziu não se revê a si próprio (revisão do #105, P2-2).
-    IF quem = OLD.traduzido_por THEN
+    -- Sem distinguir maiúsculas: «Bot» e «bot» são o mesmo (2.ª revisão do
+    -- #105, P3-1); a identidade a sério vem da conta, na camada da API.
+    IF lower(quem) = lower(btrim(OLD.traduzido_por)) THEN
       RAISE EXCEPTION 'catalog.translation_self_review: quem traduziu não revê a própria tradução';
     END IF;
     NEW.revisto_por := quem;

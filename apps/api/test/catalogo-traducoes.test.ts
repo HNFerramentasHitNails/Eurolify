@@ -191,6 +191,16 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
       nome: "Outono",
       endereco_amigavel: "outono",
     });
+    // O formato e a obrigação (2.ª revisão, P3-2).
+    expect(await codigoDoErro(mudar(vazio, "PT"))).toMatch(/^pg:23514:/);
+    expect(
+      await codigoDoErro(
+        sqlComo(
+          vazio,
+          `update comerciante set lingua_origem = null where id = '${vazio}'`,
+        ),
+      ),
+    ).toMatch(/^pg:23502:/);
     for (const c of [comArtigo, comCategoria, comColecao]) {
       expect(await codigoDoErro(mudar(c, "es"))).toBe(
         "merchant.origin_language_locked",
@@ -287,6 +297,18 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
         JSON.stringify(mau),
       ).toBe("catalog.invalid_field");
     }
+    // Um tipo fora da lista dá um erro do Catálogo (2.ª revisão, P3-5).
+    for (const tipo of ["comerciante", "traducao", 'artigo"; --']) {
+      expect(
+        await codigoDoErro(
+          definirTraducao(base.api, c, QUEM, {
+            ...nomeEs(artigo),
+            tipo: tipo as DadosTraducao["tipo"],
+          }),
+        ),
+        tipo,
+      ).toBe("catalog.invalid_field");
+    }
     expect(await traducoesDoRecurso(base.api, c, artigo)).toEqual([]);
   });
 
@@ -332,12 +354,16 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     expect(
       await codigoDoErro(reverTraducao(base.api, c, "", artigo, "nome", "es")),
     ).toBe("catalog.translated_by_required");
-    // Quem traduziu não se revê (P2-2).
-    expect(
-      await codigoDoErro(
-        reverTraducao(base.api, c, "assistente-ia", artigo, "nome", "es"),
-      ),
-    ).toBe("catalog.translation_self_review");
+    // Quem traduziu não se revê (P2-2), nem com outras maiúsculas (2.ª
+    // revisão, P3-1).
+    for (const proprio of ["assistente-ia", "Assistente-IA"]) {
+      expect(
+        await codigoDoErro(
+          reverTraducao(base.api, c, proprio, artigo, "nome", "es"),
+        ),
+        proprio,
+      ).toBe("catalog.translation_self_review");
+    }
     await reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es");
     expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
       origem: "ia",
