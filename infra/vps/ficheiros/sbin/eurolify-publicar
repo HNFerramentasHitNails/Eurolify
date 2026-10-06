@@ -243,16 +243,17 @@ fi
 #   06/10/2026, opção A da 2.ª revisão do #115). Não se migra, e fica no
 #   registo;
 # - de resto migra-se como sempre; se não se conseguir comparar, diz-se, e o
-#   migrador decide (falha segura: fica a versão no ar).
-# Duas publicações ao mesmo tempo (MCP e GitHub): se a base mudar entre a
-# comparação e a migração, o migrador recusa e fica a versão no ar.
+#   migrador decide (falha segura: fica a versão no ar); uma imagem sem
+#   migrador que não se consegue comparar não se publica.
+# Duas publicações não se cruzam: o cadeado do início (revisão do #116, P2-1)
+# vale para a comparação, a migração e a troca do contentor.
 recusar() {
   registar "publicação de $resumo recusada: $1"
   falhar "$1; fica a versão no ar (${anterior:-nenhuma})"
 }
 migrar=0
 tem_migrador=0
-if docker run --rm --network none --cap-drop ALL --entrypoint test "$imagem" -f dist/migrar.js; then
+if docker run --rm --pull=never --network none --cap-drop ALL --entrypoint test "$imagem" -f dist/migrar.js; then
   tem_migrador=1
 fi
 da_imagem=""
@@ -268,7 +269,9 @@ if { ((tem_migrador == 0)) || [[ -n "$da_imagem" ]]; } && da_base="$(migracoes_d
       recusar "a base tem migrações que esta imagem não conhece ($(virgulas "$a_mais")) e faltam-lhe outras ($(virgulas "$faltam"))"
     [[ -n "$anterior" && "$(anterior_de "${anterior#*@}")" == "$imagem" ]] ||
       recusar "a base tem migrações que esta imagem não conhece ($(virgulas "$a_mais")) e ela não é a publicação imediatamente anterior à que está no ar"
-    desconhecidas="$(so_na_primeira "$a_mais" "$(migracoes_da_imagem "$anterior")")"
+    da_no_ar="$(migracoes_da_imagem "$anterior")" ||
+      recusar "não se leu a lista de migrações da versão no ar, para saber se conhece as da base ($(virgulas "$a_mais"))"
+    desconhecidas="$(so_na_primeira "$a_mais" "$da_no_ar")"
     [[ -z "$desconhecidas" ]] ||
       recusar "a base tem migrações que nem a versão no ar conhece ($(virgulas "$desconhecidas"))"
     echo "Volta à publicação anterior: as migrações dela já estão na base; não se migra."
@@ -279,6 +282,8 @@ if { ((tem_migrador == 0)) || [[ -n "$da_imagem" ]]; } && da_base="$(migracoes_d
 elif ((tem_migrador == 1)); then
   echo "Não se comparou a base com a imagem (lista ilegível ou base sem resposta): migra-se como sempre, e o migrador decide."
   migrar=1
+else
+  recusar "imagem sem migrador e a base não respondeu: não se sabe se a base está à frente dela"
 fi
 if ((migrar == 1)); then
   echo "A correr as migrações"

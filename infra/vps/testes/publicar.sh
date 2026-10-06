@@ -15,7 +15,7 @@ falhou() { echo "FALHOU: $*"; falhas=$((falhas + 1)); }
 repo_img="ghcr.io/eurolify/eurolify-api"
 r() { printf 'sha256:%064d' "$1"; } # resumo da imagem n
 img() { echo "$repo_img@$(r "$1")"; }
-install -d /usr/local/lib/eurolify /etc/eurolify /var/log/eurolify
+install -d /usr/local/lib/eurolify /etc/eurolify /var/log/eurolify /run/lock
 install -m 644 "$f/lib/comum.sh" /usr/local/lib/eurolify/comum.sh
 printf 'IMAGEM_REPO=%s\nGHCR_UTILIZADOR=ensaio\nBASE_NOME=eurolify\n' "$repo_img" >/etc/eurolify/ensaio.conf
 echo token >/etc/eurolify/ghcr.token
@@ -33,7 +33,10 @@ cat >"$falsos/docker" <<'FALSO'
 echo "docker $*" >>"$FALSOS/docker-chamado"
 n_de() { local x="${1##*:}"; echo $((10#$x)); }
 case "$1" in
-  inspect) cat "$FALSOS/no-ar" ;;
+  image) exit 0 ;; # a imagem já está na máquina
+  inspect)
+    [[ " $* " == *" eurolify-api "* && -f "$FALSOS/no-ar" ]] || exit 1
+    cat "$FALSOS/no-ar" ;;
   exec)
     [[ "${BASE_EM_BAIXO:-0}" == 0 ]] || exit 2
     if [[ "$*" == *to_regclass* ]]; then echo "${TABELA:-t}"; else cat "$FALSOS/base"; fi ;;
@@ -76,6 +79,7 @@ preparar() {
 2026-10-02T10:00:00Z | $(r 2) | anterior: $(img 1)
 2026-10-03T10:00:00Z | $(r 3) | anterior: $(img 2)
 REG
+  [[ -z "${SEM_REGISTO:-}" ]] || rm -f /var/log/eurolify/publicacoes.log
   img 3 >"$falsos/no-ar"
   printf '0001_a.sql\n' >"$falsos/ls-1"
   printf '0001_a.sql\n0002_b.sql\n' >"$falsos/ls-2"
@@ -180,11 +184,46 @@ printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
 caso "o /health falha depois de migrar" 4 CURL_FALHA=1
 confere sim "migrou a nova" migrou
 if [[ "$(cat "$falsos/no-ar")" == "$(img 3)" ]]; then echo "ok: volta à anterior"; else falhou "não voltou à anterior"; fi
+if grep -qF "| $(r 4) |" /var/log/eurolify/publicacoes.log; then falhou "a falhada ficou no registo"; else echo "ok: a falhada não fica no registo"; fi
 if [[ "$(grep -c "node dist/migrar.js" "$falsos/docker-chamado")" == 1 ]]; then
   echo "ok: a volta não migra"
 else
   falhou "a volta migrou"
 fi
+
+preparar
+rm -f "$falsos/ls-3"
+caso "voltar à anterior sem se ler a lista da versão no ar" 2
+confere nao "não arranca" arrancou 2
+confere sim "diz que não leu a lista da versão no ar" no_registo "não se leu a lista de migrações da versão no ar"
+
+preparar
+touch "$falsos/sem-migrador-2"
+caso "imagem sem migrador e a base não responde" 2 BASE_EM_BAIXO=1
+confere nao "não arranca" arrancou 2
+confere sim "regista a recusa" no_registo "imagem sem migrador e a base não respondeu"
+
+preparar
+caso "publicar a imagem que já está no ar" 3
+confere nao "não migra" migrou
+confere sim "nada a fazer" na_saida "Nada a fazer"
+
+SEM_REGISTO=1 preparar
+caso "voltar atrás sem o registo das publicações" 2
+confere nao "não arranca" arrancou 2
+SEM_REGISTO=1 preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+caso "imagem nova sem o registo das publicações" 4
+confere sim "migra" migrou
+confere sim "arranca" arrancou 4
+
+preparar
+caso "voltar à anterior e depois avançar outra vez" 2
+confere sim "voltou à 2" arrancou 2
+rm -f "$falsos/docker-chamado"
+caso "… e avançar para a 3" 3
+confere sim "a 3 arranca" arrancou 3
+confere sim "a 3 migra (o migrador não faz nada)" migrou
 
 # A acção «publicar» do MCP (eurolify-operar): só a anterior da que está no ar.
 operar() { # operar <n> → 0 se pediu a publicação
@@ -198,6 +237,15 @@ confere sim "aceita a imediatamente anterior" operar 2
 confere nao "recusa uma mais antiga" operar 1
 confere sim "diz qual se pode pedir" na_saida "imediatamente anterior"
 confere nao "recusa uma que nunca esteve no ar" operar 9
+bash "$f/sbin/eurolify-publicar" "$(r 2)" >/dev/null 2>&1 || falhou "a volta à 2 falhou"
+confere sim "depois de voltar à 2, aceita a 3 (de onde se veio)" operar 3
+confere nao "e recusa a 1" operar 1
+preparar
+img 7 >"$falsos/no-ar"
+confere nao "com a versão no ar fora do registo, recusa" operar 2
+confere sim "e di-lo" na_saida "sem registo da que está no ar"
+rm -f /var/log/eurolify/publicacoes.log
+confere nao "sem o registo, recusa" operar 2
 
 # O estado_do_ensaio (eurolify-medir) mostra sempre a base à frente da versão
 # no ar (revisão do #115, P2-2).
@@ -209,6 +257,14 @@ confere sim "mostra as migrações da base que a versão no ar não conhece" lin
 img 3 >"$falsos/no-ar"
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "e «nenhuma» quando estão iguais" linha_na_saida "na base e não na versão no ar: nenhuma"
+rm -f "$falsos/ls-3"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "diz quando não lê a lista da versão no ar" linha_na_saida "não se leu a lista de migrações da versão no ar"
+BASE_EM_BAIXO=1 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "diz quando a base não responde" linha_na_saida "a base não respondeu"
+rm -f "$falsos/no-ar"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "diz quando a API não está no ar" linha_na_saida "sem a API no ar"
 
 rm -rf "$falsos"
 ((falhas == 0))

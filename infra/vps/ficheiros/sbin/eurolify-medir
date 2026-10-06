@@ -83,8 +83,9 @@ if [[ -r /usr/local/lib/eurolify/comum.sh && -r /etc/eurolify/ensaio.conf ]]; th
     echo "sem a API no ar"
   elif ! da_base="$(migracoes_da_base)"; then
     echo "a base não respondeu"
+  elif ! da_imagem="$(migracoes_da_imagem "$no_ar")"; then
+    echo "não se leu a lista de migrações da versão no ar"
   else
-    da_imagem="$(migracoes_da_imagem "$no_ar")"
     echo "na base: $(printf '%s\n' "$da_base" | sed '/^$/d' | wc -l) (última: $(printf '%s\n' "$da_base" | tail -n 1))"
     echo "na versão no ar: $(printf '%s\n' "$da_imagem" | sed '/^$/d' | wc -l) (última: $(printf '%s\n' "$da_imagem" | tail -n 1))"
     a_mais="$(so_na_primeira "$da_base" "$da_imagem")"

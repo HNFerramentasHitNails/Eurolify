@@ -132,7 +132,7 @@ export function criarServidorMcp(
     {
       title: "Publicações recentes",
       description:
-        "As últimas imagens publicadas no ensaio (data, resumo sha256 e a anterior). «voltar_a_publicacao» só aceita a «anterior» da que está no ar.",
+        "As últimas imagens publicadas no ensaio (data, resumo sha256 e a anterior). «voltar_a_publicacao» só aceita a «anterior» da que está no ar (depois de uma volta, é a publicação de onde se veio).",
       annotations: leitura,
     },
     () => responder("publicacoes"),
@@ -184,7 +184,7 @@ export function criarServidorMcp(
     {
       title: "Voltar a uma publicação",
       description:
-        "Volta no ensaio à publicação imediatamente anterior à que está no ar (o resumo sha256 da «anterior» em «publicacoes_recentes»); mais atrás é recusado. Só imagens que têm o MCP. As migrações dela já estão na base: não se migra. Corre em segundo plano; o resultado vê-se em «estado_do_ensaio». O MCP reinicia com a imagem: é preciso voltar a ligar o connector." +
+        "Volta no ensaio à publicação imediatamente anterior à que está no ar (o resumo sha256 da «anterior» em «publicacoes_recentes»); mais atrás é recusado. Depois de uma volta, a «anterior» é a publicação de onde se veio: só se alterna entre as duas. Só imagens que têm o MCP. Se a base tiver migrações que ela não conhece, não se migra. Corre em segundo plano; o resultado vê-se em «estado_do_ensaio». O MCP reinicia com a imagem: é preciso voltar a ligar o connector." +
         DOIS_PASSOS,
       inputSchema: {
         resumo: z

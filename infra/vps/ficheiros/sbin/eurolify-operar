@@ -67,9 +67,12 @@ case "$pedido" in
     # compatibilidade garantida com a base (decisão do Diogo, 06/10/2026,
     # opção A da 2.ª revisão do #115). Mais atrás é uma emergência, à mão e
     # registada. O eurolify-publicar volta a conferir, pela base.
+    # Depois de uma volta, a «anterior» é a publicação de onde se veio: o MCP
+    # só alterna entre as duas (3.ª revisão do #115, P3-3).
     no_ar="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
-    [[ -n "$no_ar" && "$(anterior_de "${no_ar#*@}")" == "${IMAGEM_REPO}@${resumo}" ]] ||
-      falhar "pelo MCP só se volta à publicação imediatamente anterior à que está no ar ($(anterior_de "${no_ar#*@}" | sed 's/^.*@//')); mais atrás é uma emergência, à mão"
+    pode="$(anterior_de "${no_ar#*@}" | sed 's/^.*@//')" || pode=""
+    [[ -n "$no_ar" && -n "$pode" && "$pode" == "$resumo" ]] ||
+      falhar "pelo MCP só se volta à publicação imediatamente anterior à que está no ar (${pode:-sem registo da que está no ar}); mais atrás é uma emergência, à mão"
     # E que tenha o MCP: voltar a uma sem ele desligava o próprio MCP, e só se
     # recuperava pelo GitHub.
     docker run --rm --pull=never --entrypoint test "${IMAGEM_REPO}@${resumo}" -f /app/apps/mcp/dist/servidor.js >/dev/null 2>&1 ||

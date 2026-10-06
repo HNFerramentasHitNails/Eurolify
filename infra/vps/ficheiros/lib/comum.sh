@@ -62,9 +62,10 @@ NOME_MIGRACAO='^[0-9]{4}_[a-z0-9_]+$'
 so_migracoes() { { grep -E "$NOME_MIGRACAO" || true; } | LC_ALL=C sort; }
 
 # As da pasta da imagem (o Dockerfile põe-nas em /app/apps/api/migracoes).
-# Lista vazia se não se lê. Contentor sem rede nem capacidades.
+# Falha se não se lê. Contentor sem rede nem capacidades, e só com a imagem
+# que já está na máquina (não a vai buscar).
 migracoes_da_imagem() {
-  docker run --rm --network none --cap-drop ALL --entrypoint ls "$1" /app/apps/api/migracoes 2>/dev/null |
+  docker run --rm --pull=never --network none --cap-drop ALL --entrypoint ls "$1" /app/apps/api/migracoes 2>/dev/null |
     sed -n 's/\.sql$//p' | so_migracoes
 }
 
