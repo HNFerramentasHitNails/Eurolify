@@ -37,7 +37,7 @@ case "$1" in
   login | logout | pull) exit 0 ;;
   inspect)
     [[ " $* " == *" eurolify-api "* && -f "$FALSOS/no-ar" ]] || exit 1
-    cat "$FALSOS/no-ar" ;;
+    if [[ "$*" == *"{{.Created}}"* ]]; then echo "${CRIADO:-2099-01-01T00:00:00Z}"; else cat "$FALSOS/no-ar"; fi ;;
   exec)
     [[ "${BASE_EM_BAIXO:-0}" == 0 ]] || exit 2
     if [[ "$*" == *to_regclass* ]]; then echo "${TABELA:-t}"; else cat "$FALSOS/base"; fi ;;
@@ -49,6 +49,8 @@ case "$1" in
         if [[ "$cmd" == ls ]]; then
           [[ -f "$FALSOS/ls-$n" ]] || exit 2
           cat "$FALSOS/ls-$n"
+        elif [[ "$cmd" == test && "${args[*]}" == *servidor.js* ]]; then
+          [[ ! -f "$FALSOS/sem-mcp-$n" ]] || exit 1
         elif [[ "$cmd" == test && "${args[*]}" == *dist/migrar.js* ]]; then
           [[ ! -f "$FALSOS/erro-docker-$n" ]] || exit 125
           [[ ! -f "$FALSOS/sem-migrador-$n" ]] || exit 1
@@ -56,13 +58,19 @@ case "$1" in
         exit 0
       fi
     done
-    if [[ " $* " == *" node dist/migrar.js "* ]]; then exit "${MIGRAR_FALHA:-0}"; fi
+    if [[ " $* " == *" node dist/migrar.js "* ]]; then
+      # A falhar a meio, pode deixar migrações na base (MIGRAR_DEIXA).
+      [[ -z "${MIGRAR_DEIXA:-}" ]] || echo "$MIGRAR_DEIXA" >>"$FALSOS/base"
+      exit "${MIGRAR_FALHA:-0}"
+    fi
     if [[ " $* " == *" -d "* ]]; then echo "${*: -1}" >"$FALSOS/no-ar"; fi ;;
 esac
 exit 0
 FALSO
 cat >"$falsos/curl" <<'FALSO'
 #!/usr/bin/env bash
+# A prova da base (chega_a_base) pede /me com uma chave inventada.
+if [[ "$*" == */me* ]]; then echo "${CODIGO_ME:-401}"; exit 0; fi
 exit "${CURL_FALHA:-0}"
 FALSO
 printf '#!/usr/bin/env bash\nexit 0\n' >"$falsos/sleep"
@@ -76,7 +84,7 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
-  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/erro-docker-* "$falsos/docker-chamado" \
+  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/erro-docker-* "$falsos/docker-chamado" /etc/eurolify/api-base.env \
     "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
   echo token >/etc/eurolify/ghcr.token
   cat >/var/log/eurolify/publicacoes.log <<REG
@@ -237,7 +245,11 @@ printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
 caso "o /health falha depois de migrar" 4 CURL_FALHA=1
 confere sim "migrou a nova" migrou
 if [[ "$(cat "$falsos/no-ar")" == "$(img 3)" ]]; then echo "ok: volta à anterior"; else falhou "não voltou à anterior"; fi
-if grep -qF "| $(r 4) |" /var/log/eurolify/publicacoes.log; then falhou "a falhada ficou no registo"; else echo "ok: a falhada não fica no registo"; fi
+if grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \|" /var/log/eurolify/publicacoes.log; then
+  echo "ok: a falhada fica marcada «falhou»"
+else
+  falhou "a falhada não ficou marcada"
+fi
 if [[ "$(grep -c "node dist/migrar.js" "$falsos/docker-chamado")" == 1 ]]; then
   echo "ok: a volta não migra"
 else
@@ -300,7 +312,7 @@ confere nao "não migra" migrou
 confere nao "não escreve no publicacoes.log" grep -qF "| $(r 3) | anterior: $(img 3)" /var/log/eurolify/publicacoes.log
 OPCAO=--so-recriar caso "--so-recriar com outra imagem" 4
 confere nao "não arranca" arrancou 4
-confere nao "termina com erro" erro
+confere nao "termina sem erro" erro
 
 preparar
 cp "$falsos/ls-3" "$falsos/ls-4"
@@ -321,6 +333,64 @@ caso "falta a configuração da máquina" 4
 mv /etc/eurolify/ensaio.conf.fora /etc/eurolify/ensaio.conf
 confere sim "fica no registo de acções" no_registo "terminou com erro (código 1)"
 
+# #120, P2: uma publicação que falha o /health deixa linha «falhou», e a
+# mesma imagem repetida herda as migrações dela.
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+caso "a 4 falha o /health (a d fica na base) …" 4 CURL_FALHA=1
+confere sim "fica a linha «falhou» com a d" grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
+printf '0001_a\n0002_b\n0003_c\n0004_d\n' >"$falsos/base"
+caso "… repete-se a 4 e responde" 4
+confere sim "a 4 herda a d" grep -qE "\| $(r 4) \| anterior: $(img 3) \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
+rm -f "$falsos/docker-chamado"
+caso "… e volta-se à 3 pelo MCP" 3
+confere sim "a 3 arranca" arrancou 3
+confere nao "sem correr o migrador" migrou
+
+# #120, P3-1: a migração falha a meio e deixa migrações na base.
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n0005_e.sql\n' >"$falsos/ls-4"
+caso "a migração falha depois de aplicar a d" 4 MIGRAR_FALHA=1 MIGRAR_DEIXA=0004_d
+confere nao "não arranca" arrancou 4
+confere sim "regista o que ficou na base" no_registo "ficaram na base: 0004_d"
+confere sim "e deixa a linha «falhou»" grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
+
+# «migrou: ?» quando não se comparou; voltar a seguir é recusado.
+preparar
+cp "$falsos/ls-3" "$falsos/ls-4"
+caso "publicar sem se conseguir ler a base" 4 BASE_EM_BAIXO=1
+confere sim "a linha fica com «migrou: ?»" grep -qE "\| $(r 4) \| anterior: $(img 3) \| migrou: \?\$" /var/log/eurolify/publicacoes.log
+printf '0001_a\n0002_b\n0003_c\n0004_d\n' >"$falsos/base"
+rm -f "$falsos/docker-chamado"
+caso "… e voltar à 3" 3
+confere nao "não arranca" arrancou 3
+confere sim "regista a recusa" no_registo "não registou as migrações que aplicou"
+
+# A herança só leva as migrações que ainda estão na base.
+preparar
+caso "voltar à 2 …" 2
+sed -i "s#| $(r 3) | anterior: $(img 2) | migrou: 0003_c\$#| $(r 3) | anterior: $(img 2) | migrou: 0003_c,0009_z#" /var/log/eurolify/publicacoes.log
+caso "… e avançar para a 3, com uma herdada que já não está na base" 3
+confere sim "herda só a c" grep -qE "\| $(r 3) \| anterior: $(img 2) \| migrou: 0003_c\$" /var/log/eurolify/publicacoes.log
+
+# Uma recusa com a sessão do GHCR aberta fecha-a.
+preparar
+touch "$falsos/fora-da-maquina"
+caso "recusa depois de ir buscar a imagem" 1
+confere sim "recusa" erro
+confere sim "fecha a sessão no GHCR" grep -q "docker logout ghcr.io" "$falsos/docker-chamado"
+
+# --so-recriar: a configuração mudou depois de a API arrancar.
+preparar
+printf 'BASE_DADOS_URL=postgres://x\n' >/etc/eurolify/api-base.env
+OPCAO=--so-recriar caso "--so-recriar com a ligação nova" 3 CRIADO=2000-01-01T00:00:00Z
+confere sim "recria a API" arrancou 3
+confere sim "prova a ligação à base" na_saida "A API chega à base."
+confere nao "não escreve no publicacoes.log" grep -qF "| $(r 3) | anterior: $(img 3)" /var/log/eurolify/publicacoes.log
+OPCAO=--so-recriar caso "--so-recriar e a API não chega à base" 3 CRIADO=2000-01-01T00:00:00Z CODIGO_ME=500
+confere sim "termina com erro" erro
+confere sim "regista-o" no_registo "não chega à base"
+
 # A acção «publicar» do MCP (eurolify-operar): só a anterior da que está no ar.
 operar() { # operar <n> → 0 se pediu a publicação
   rm -f "$falsos/systemd-run-chamado"
@@ -333,6 +403,10 @@ confere sim "aceita a imediatamente anterior" operar 2
 confere nao "recusa uma mais antiga" operar 1
 confere sim "diz qual se pode pedir" na_saida "imediatamente anterior"
 confere nao "recusa uma que nunca esteve no ar" operar 9
+touch "$falsos/sem-mcp-2"
+confere nao "recusa a anterior se ela não tiver o MCP" operar 2
+confere sim "e di-lo" na_saida "não tem o MCP"
+rm -f "$falsos/sem-mcp-2"
 bash "$f/sbin/eurolify-publicar" "$(r 2)" >/dev/null 2>&1 || falhou "a volta à 2 falhou"
 confere sim "depois de voltar à 2, aceita a 3 (de onde se veio)" operar 3
 confere nao "e recusa a 1" operar 1
