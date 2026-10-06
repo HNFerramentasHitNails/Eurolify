@@ -54,3 +54,40 @@ hc() {
   curl -fsS -m 10 --retry 3 --data-raw "$(printf '%s' "$texto" | filtrar_ip | head -c 10000)" "$url" >/dev/null ||
     echo "aviso: o Healthchecks.io não respondeu ($nome)" >&2
 }
+
+# Migrações da base e de uma imagem (tarefa #113). Só passam nomes com a forma
+# das do migrador (apps/api/src/base/migracoes.ts), sem «.sql», ordenados em C:
+# um nome estranho não chega ao registo nem ao MCP (revisão do #115, P3-2).
+NOME_MIGRACAO='^[0-9]{4}_[a-z0-9_]+$'
+so_migracoes() { { grep -E "$NOME_MIGRACAO" || true; } | LC_ALL=C sort; }
+
+# As da pasta da imagem (o Dockerfile põe-nas em /app/apps/api/migracoes).
+# Lista vazia se não se lê. Contentor sem rede nem capacidades.
+migracoes_da_imagem() {
+  docker run --rm --network none --cap-drop ALL --entrypoint ls "$1" /app/apps/api/migracoes 2>/dev/null |
+    sed -n 's/\.sql$//p' | so_migracoes
+}
+
+# As da base (tabela do migrador). Falha se a base não responde; sem a
+# tabela, lista vazia. Precisa do BASE_NOME (carregar_config).
+migracoes_da_base() {
+  local existe
+  existe="$(docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -Atc \
+    "select to_regclass('public.kysely_migration') is not null" 2>/dev/null)" || return 1
+  [[ "$existe" == t ]] || return 0
+  docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -Atc \
+    "select name from public.kysely_migration" 2>/dev/null | so_migracoes
+}
+
+# As linhas da lista $1 que não estão na lista $2 (uma por linha).
+so_na_primeira() {
+  LC_ALL=C comm -23 <(printf '%s\n' "$1") <(printf '%s\n' "$2") | sed '/^$/d'
+}
+virgulas() { printf '%s\n' "$1" | sed '/^$/d' | paste -sd, -; }
+
+# A imagem que estava no ar antes da última publicação do resumo dado
+# (publicacoes.log: «data | resumo | anterior: imagem»). Vazio se não há.
+anterior_de() {
+  grep -F -- "| $1 |" /var/log/eurolify/publicacoes.log 2>/dev/null | tail -n 1 |
+    sed -n 's/^.* | anterior: //p'
+}

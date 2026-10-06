@@ -69,7 +69,11 @@ servidores de nomes da OVH (`ns200`/`dns200.anycast.me`).
    - correr a **cópia** ou a **reposição** agora;
    - **reiniciar a API**;
    - **voltar a uma publicação**: republicar uma imagem que já está no GHCR
-     (só resumos de imagens construídas pelo GitHub);
+     (só resumos de imagens construídas pelo GitHub). **Desde 06/10/2026, só
+     a publicação imediatamente anterior à que está no ar**, sem correr as
+     migrações dela, e só se a base não tiver migrações que a versão no ar
+     não conheça; mais atrás é uma emergência, à mão (decisão do Diogo,
+     opção A da 2.ª revisão do #115; tarefa #113, `infra/vps/LEIA-ME.md`);
    - **actualizar** (`apt upgrade`) e **reiniciar a VPS**: recusadas em
      horário de trabalho (dias úteis, 08:00–20:00 em Lisboa), a regra 4 do
      `AGENTS.md`.

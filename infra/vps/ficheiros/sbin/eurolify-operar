@@ -62,9 +62,16 @@ case "$pedido" in
     # Na coluna do resumo, como o eurolify-publicar (revisão do #115, P3-1).
     grep -qF -- "| $resumo |" /var/log/eurolify/publicacoes.log 2>/dev/null ||
       falhar "esse resumo nunca foi publicado no ensaio: recusado"
+    carregar_config
+    # Só à publicação imediatamente anterior à que está no ar: é a única com a
+    # compatibilidade garantida com a base (decisão do Diogo, 06/10/2026,
+    # opção A da 2.ª revisão do #115). Mais atrás é uma emergência, à mão e
+    # registada. O eurolify-publicar volta a conferir, pela base.
+    no_ar="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+    [[ -n "$no_ar" && "$(anterior_de "${no_ar#*@}")" == "${IMAGEM_REPO}@${resumo}" ]] ||
+      falhar "pelo MCP só se volta à publicação imediatamente anterior à que está no ar ($(anterior_de "${no_ar#*@}" | sed 's/^.*@//')); mais atrás é uma emergência, à mão"
     # E que tenha o MCP: voltar a uma sem ele desligava o próprio MCP, e só se
     # recuperava pelo GitHub.
-    carregar_config
     docker run --rm --pull=never --entrypoint test "${IMAGEM_REPO}@${resumo}" -f /app/apps/mcp/dist/servidor.js >/dev/null 2>&1 ||
       falhar "essa imagem não tem o MCP (ou já não está na máquina): voltar a ela desligava o MCP; faz-se pelo GitHub"
     # Em segundo plano: a publicação reinicia também o contentor do MCP, que

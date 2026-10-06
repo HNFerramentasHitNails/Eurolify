@@ -96,15 +96,19 @@ trava, não a única.
 - **Migrações compatíveis com a versão anterior:** se o `/health` falhar
   depois de uma publicação, volta-se à imagem anterior com o esquema já
   migrado. Acrescentar primeiro; tirar só numa publicação seguinte.
-- **Voltar a uma publicação** (MCP da VPS, ADR-0033): antes de migrar, o
-  `eurolify-publicar` compara as migrações da imagem com as da base (tabela
-  `kysely_migration`). Se a base tem migrações que a imagem não conhece e
-  nada lhe falta, não migra (o migrador de uma imagem antiga recusava a base;
-  tarefa #113) e regista um **AVISO** com a lista no `acoes.log`, que o
-  `estado_do_ensaio` mostra: o esquema fica o de agora, e só a publicação
-  imediatamente anterior a essas migrações tem a compatibilidade garantida.
-  Se, além disso, lhe falta alguma, recusa e fica a versão no ar. Em qualquer
-  outro caso, migra como sempre.
+- **Voltar a uma publicação** (MCP da VPS, ADR-0033): só à publicação
+  imediatamente anterior à que está no ar (decisão do Diogo, 06/10/2026, opção
+  A da 2.ª revisão do #115); mais atrás é uma emergência, à mão e registada
+  numa memória. Antes de migrar, o `eurolify-publicar` compara as migrações da
+  imagem com as da base (tabela `kysely_migration`): se a base tem migrações
+  que a imagem não conhece, não migra (o migrador de uma imagem antiga recusava
+  a base; tarefa #113) e só segue se for essa anterior e se a versão no ar as
+  conhecer todas; se também lhe falta alguma, recusa. Em qualquer outro caso
+  migra como sempre; se não conseguir comparar, di-lo, e o migrador decide.
+  O `estado_do_ensaio` mostra sempre as migrações da base que a versão no ar
+  não conhece (secção «migrações»). Duas publicações ao mesmo tempo acabam em
+  segurança: se a base mudar entre a comparação e a migração, o migrador
+  recusa e fica a versão no ar.
 
 ## O que ainda não está tratado (revisão do #10, P2)
 

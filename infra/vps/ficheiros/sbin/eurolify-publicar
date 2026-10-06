@@ -123,45 +123,52 @@ fi
 # Antes de migrar, compara-se a base com a imagem (tarefa #113; a prova é a
 # base, não o registo da máquina). O migrador recusa uma base com migrações
 # que não conhece (Kysely: «corrupted migrations … is missing»), o que
-# acontece ao voltar a uma publicação antiga (MCP, ADR-0033). Então:
-# - a base tem migrações que a imagem não conhece e nada lhe falta: não se
-#   migra, e fica registado o aviso com a lista (só a publicação
-#   imediatamente anterior a essas migrações tem a compatibilidade garantida);
-# - também lhe falta alguma: não se publica (a base e a imagem divergem);
-# - de resto (incluindo não se conseguir ler uma das listas): migra-se como
-#   sempre, e o migrador decide.
-migracoes_da_imagem() {
-  docker run --rm --entrypoint ls "$1" /app/apps/api/migracoes 2>/dev/null |
-    sed -n 's/\.sql$//p' | LC_ALL=C sort
-}
-migracoes_da_base() {
-  local existe
-  existe="$(docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -Atc \
-    "select to_regclass('public.kysely_migration') is not null")" || return 1
-  [[ "$existe" == t ]] || return 0
-  docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -Atc \
-    "select name from public.kysely_migration" | LC_ALL=C sort
+# acontece ao voltar a uma publicação antiga (MCP, ADR-0033). Então, se a
+# base tem migrações que a imagem não conhece:
+# - também lhe falta alguma: recusa (a base e a imagem divergem);
+# - só se volta à publicação imediatamente anterior à que está no ar, e só se
+#   as migrações a mais forem todas conhecidas da que está no ar: é a única
+#   com a compatibilidade garantida (acrescentar primeiro, tirar depois).
+#   Mais atrás é uma emergência, à mão e registada (decisão do Diogo,
+#   06/10/2026, opção A da 2.ª revisão do #115). Não se migra, e fica no
+#   registo;
+# - de resto migra-se como sempre; se não se conseguir comparar, diz-se, e o
+#   migrador decide (falha segura: fica a versão no ar).
+# Duas publicações ao mesmo tempo (MCP e GitHub): se a base mudar entre a
+# comparação e a migração, o migrador recusa e fica a versão no ar.
+recusar() {
+  registar "publicação de $resumo recusada: $1"
+  falhar "$1; fica a versão no ar (${anterior:-nenhuma})"
 }
 migrar=0
 tem_migrador=0
-if docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
+if docker run --rm --network none --cap-drop ALL --entrypoint test "$imagem" -f dist/migrar.js; then
   tem_migrador=1
-  migrar=1
-  if da_imagem="$(migracoes_da_imagem "$imagem")" && [[ -n "$da_imagem" ]] &&
-    da_base="$(migracoes_da_base)"; then
-    a_mais="$(LC_ALL=C comm -13 <(printf '%s\n' "$da_imagem") <(printf '%s\n' "$da_base") | sed '/^$/d' | paste -sd, -)"
-    faltam="$(LC_ALL=C comm -23 <(printf '%s\n' "$da_imagem") <(printf '%s\n' "$da_base") | sed '/^$/d' | paste -sd, -)"
-    if [[ -n "$a_mais" && -n "$faltam" ]]; then
-      registar "publicação de $resumo recusada: a base tem $a_mais, que a imagem não conhece, e faltam-lhe $faltam"
-      falhar "a base tem migrações que esta imagem não conhece ($a_mais) e faltam-lhe outras ($faltam): não se publica; fica a versão anterior (${anterior:-nenhuma})"
-    fi
-    if [[ -n "$a_mais" ]]; then
-      migrar=0
-      echo "As migrações desta imagem já estão todas na base; não se migra."
-      echo "AVISO: a base tem migrações que esta versão não conhece: $a_mais."
-      registar "AVISO ao publicar $resumo: a base tem migrações que esta versão não conhece ($a_mais); não se migrou"
-    fi
+fi
+da_imagem=""
+if ((tem_migrador == 1)); then
+  da_imagem="$(migracoes_da_imagem "$imagem")" || da_imagem=""
+fi
+a_mais=""
+if { ((tem_migrador == 0)) || [[ -n "$da_imagem" ]]; } && da_base="$(migracoes_da_base)"; then
+  a_mais="$(so_na_primeira "$da_base" "$da_imagem")"
+  faltam="$(so_na_primeira "$da_imagem" "$da_base")"
+  if [[ -n "$a_mais" ]]; then
+    [[ -z "$faltam" ]] ||
+      recusar "a base tem migrações que esta imagem não conhece ($(virgulas "$a_mais")) e faltam-lhe outras ($(virgulas "$faltam"))"
+    [[ -n "$anterior" && "$(anterior_de "${anterior#*@}")" == "$imagem" ]] ||
+      recusar "a base tem migrações que esta imagem não conhece ($(virgulas "$a_mais")) e ela não é a publicação imediatamente anterior à que está no ar"
+    desconhecidas="$(so_na_primeira "$a_mais" "$(migracoes_da_imagem "$anterior")")"
+    [[ -z "$desconhecidas" ]] ||
+      recusar "a base tem migrações que nem a versão no ar conhece ($(virgulas "$desconhecidas"))"
+    echo "Volta à publicação anterior: as migrações dela já estão na base; não se migra."
+    registar "volta a $resumo: a base fica com migrações que esta versão não conhece ($(virgulas "$a_mais")); não se migrou"
+  elif ((tem_migrador == 1)); then
+    migrar=1
   fi
+elif ((tem_migrador == 1)); then
+  echo "Não se comparou a base com a imagem (lista ilegível ou base sem resposta): migra-se como sempre, e o migrador decide."
+  migrar=1
 fi
 if ((migrar == 1)); then
   echo "A correr as migrações"
@@ -172,7 +179,7 @@ if ((migrar == 1)); then
     --memory 512m --cap-drop ALL --security-opt no-new-privileges \
     "$imagem" node dist/migrar.js ||
     falhar "a migração falhou: fica a versão anterior (${anterior:-nenhuma})"
-elif ((tem_migrador == 0)); then
+elif ((tem_migrador == 0)) && [[ -z "$a_mais" ]]; then
   echo "Sem migrações nesta imagem."
 fi
 

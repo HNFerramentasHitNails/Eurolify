@@ -70,6 +70,33 @@ seccao "actualizações"
 seccao "últimas publicações"
 tail -n 5 /var/log/eurolify/publicacoes.log 2>/dev/null || echo "(nenhuma)"
 
+seccao "migrações (base e versão no ar)"
+# Sempre à vista, enquanto durar: a base à frente da versão no ar depois de
+# voltar a uma publicação (tarefa #113; revisão do #115, P2-2).
+if [[ -r /usr/local/lib/eurolify/comum.sh && -r /etc/eurolify/ensaio.conf ]]; then
+  # shellcheck source=../lib/comum.sh
+  source /usr/local/lib/eurolify/comum.sh
+  # shellcheck source=/dev/null
+  source /etc/eurolify/ensaio.conf
+  no_ar="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null)"
+  if [[ -z "$no_ar" ]]; then
+    echo "sem a API no ar"
+  elif ! da_base="$(migracoes_da_base)"; then
+    echo "a base não respondeu"
+  else
+    da_imagem="$(migracoes_da_imagem "$no_ar")"
+    echo "na base: $(printf '%s\n' "$da_base" | sed '/^$/d' | wc -l) (última: $(printf '%s\n' "$da_base" | tail -n 1))"
+    echo "na versão no ar: $(printf '%s\n' "$da_imagem" | sed '/^$/d' | wc -l) (última: $(printf '%s\n' "$da_imagem" | tail -n 1))"
+    a_mais="$(so_na_primeira "$da_base" "$da_imagem")"
+    faltam="$(so_na_primeira "$da_imagem" "$da_base")"
+    lista() { if [[ -n "$1" ]]; then virgulas "$1"; else echo nenhuma; fi; }
+    echo "na base e não na versão no ar: $(lista "$a_mais")"
+    echo "na versão no ar e não na base: $(lista "$faltam")"
+  fi
+else
+  echo "(sem a configuração da máquina)"
+fi
+
 seccao "últimas acções registadas"
 # A conta de quem pediu fica na máquina: esta saída vai para o MCP e para o
 # GitHub Actions (revisão do #102, P2-1).
