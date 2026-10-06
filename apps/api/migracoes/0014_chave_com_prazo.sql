@@ -8,8 +8,10 @@
 -- Substitui a função da 0012 com a mesma assinatura: o CREATE OR REPLACE
 -- mantém o dono e os privilégios (EXECUTE só para o eurolify_api). Uma chave
 -- sem prazo continua a criar chaves com ou sem prazo. A versão anterior da API
--- funciona com esta (o erro novo chega-lhe como 500, não como 422, até ela ser
--- trocada; a publicação troca as duas ao mesmo tempo).
+-- funciona com esta: a migração corre antes de trocar o contentor, e uma volta
+-- atrás deixa o esquema migrado, por isso nesses momentos a versão anterior
+-- responde 500 (não 422) a este caso; a regra continua a valer e nenhuma chave
+-- indevida se cria.
 
 SET LOCAL lock_timeout = '10s';
 

@@ -120,10 +120,11 @@ P2-2).
   - ler continua a resolver, como o `docs/15` §4 deixa (`suspenso` lê,
     `fechado` exporta);
   - **uma chave com prazo não cria outra sem prazo** (Diogo, 06/10/2026;
-    revisão do #118, P2-4), nem com um prazo mais longo do que o seu: é a
-    mesma coisa por outro caminho (proposta da revisão, incluída na
-    decisão) → `key.expiry_beyond_creator` (422). Vale também para a
-    pública. Migração 0014.
+    revisão do #118, P2-4) → `key.expiry_beyond_creator` (422). Migração
+    0014. **Interpretação de quem implementou, por confirmar pelo Diogo ou
+    pelo Bruno:** também não cria uma com prazo mais longo do que o seu
+    (seria a mesma coisa por outro caminho: um prazo a 100 anos), e a regra
+    vale também para a pública.
 - **Por decidir:**
   - o mesmo para as rotas de domínio que escrevem;
   - a chave pública de uma loja arquivada (hoje continua a resolver e pode
@@ -143,7 +144,7 @@ Erros novos (no formato do `docs/18` §2):
 |---|---|---|---|
 | Quem sou | `GET /me` | qualquer | o comerciante (`mer_…`), a loja (`sto_…`, se pública), os âmbitos e o prefixo da chave — **feito**. Aceita a chave pública, que está no frontend: o id do comerciante e da loja ficam públicos (o uuid v7 traz a data de criação). É de propósito: a montra precisa de saber de que loja é |
 | Listar chaves | `GET /keys` | `keys:write` | nunca devolve o segredo nem o resumo — **feito** |
-| Criar chave | `POST /keys` | `keys:write` | devolve o segredo **uma vez**; uma chave não cria outra com mais âmbitos do que tem — **feito** (§6.1) |
+| Criar chave | `POST /keys` | `keys:write` | devolve o segredo **uma vez**; uma chave não cria outra com mais âmbitos do que tem, e uma chave com prazo só cria chaves com prazo até ao seu — **feito** (§6.1) |
 | Revogar chave | `POST /keys/{id}/revoke` | `keys:write` | imediato; não se revoga a si própria se for a última com `keys:write` — **feito** (§6.1) |
 | Comando do operador | fora da API pública: fluxo `operar` do GitHub | — | **feito** (ver abaixo) |
 
@@ -238,6 +239,12 @@ que a API ganha para escrever chaves:
   estar `suspenso` nem `fechado` → `key.merchant_inactive` (403); revogar
   continua (§5). Uma chave com prazo só cria chaves com prazo igual ou
   anterior ao seu → `key.expiry_beyond_creator` (422; migração 0014).
+- **A ordem das recusas ao criar** (a primeira que falha é a que se
+  devolve): `auth.forbidden` → `key.merchant_inactive` → `key.invalid_expiry`
+  → `key.expiry_beyond_creator` → `key.scope_escalation` →
+  `key.store_not_found`. Ex.: uma chave temporária que peça uma chave sem
+  prazo e com âmbitos a mais recebe o 422 do prazo; corrigido o prazo,
+  recebe o 403 dos âmbitos.
 - **T9, na base:**
   - numa chave de **servidor**, os âmbitos novos têm de estar todos nos de
     quem pede; senão → `key.scope_escalation` (403);
@@ -252,8 +259,12 @@ que a API ganha para escrever chaves:
     pede é sempre uma gestora válida;
   - **limite:** «válida» é agora. Uma gestora que expira daqui a um minuto
     pode revogar a única permanente, e o comerciante fica sem gestora quando
-    ela expirar. O remédio é o comando do operador, que pode criar e revogar
-    sem esta regra (é a porta de emergência; revisão do #118, P3-7);
+    ela expirar. **Desde a 0014, ela já não pode criar uma permanente de
+    substituição**: nesse caso não há saída pela API, e o único remédio é o
+    comando do operador, que pode criar e revogar sem estas regras (é a
+    porta de emergência; revisão do #118, P3-7; revisão do #124, P2-1, **por
+    decidir**: impedir uma chave com prazo de revogar uma gestora que dure
+    mais do que ela, ou manter assim);
   - a verificação corre com uma tranca por comerciante
     (`pg_advisory_xact_lock`), e quem pede volta a ser verificado debaixo da
     tranca: duas chaves que se revoguem ao mesmo tempo não deixam o
@@ -276,8 +287,8 @@ que a API ganha para escrever chaves:
   - um `em_curso` com mais de 60 s conta como órfão e pode ser substituído
     (**proposta**);
   - uma linha expirada é substituída quando a mesma chave volta;
-  - a tarefa diária que apaga as expiradas **fica por fazer**, num pedido
-    próprio.
+  - a tarefa diária que apaga as expiradas é a migração 0013 com o
+    `eurolify-limpeza` na VPS (`docs/18` §4).
 - Nada pessoal na resposta guardada destas duas rotas (o nome da chave e
   `chave:key_…`).
 
@@ -323,9 +334,10 @@ sessão em vez da chave.
 | T9 | uma chave não cria outra com mais âmbitos do que tem — **com o `POST /keys`**, imposto na base |
 | T10 | a mesma `Idempotency-Key`: repetir dá a mesma resposta sem escrever outra vez (o `POST /keys` dá `idempotency.secret_not_repeated`); outro corpo → `idempotency.key_reused`; ao mesmo tempo → `idempotency.in_progress` |
 | T11 | uma chave não se revoga a si própria se for a última com `keys:write`, nem ao mesmo tempo que outra |
+| T12 | uma chave com prazo não cria outra sem prazo nem com prazo mais longo (também a pública, pela rota e pela função na base); prazo igual ou anterior passa (0014) |
 
 Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta.
-Com o `POST /keys` (0012) entram o T9, o T10 e o T11
+Com o `POST /keys` (0012) entram o T9, o T10 e o T11, e com a 0014 o T12
 (`test/identidade-escrita.test.ts`); o T3 pelo corpo fica com as rotas de
 domínio, porque o corpo do `POST /keys` não tem comerciante.
 
