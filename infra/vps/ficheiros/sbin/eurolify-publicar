@@ -2,17 +2,39 @@
 # Publica no ensaio a imagem com o resumo dado (ADR-0026). Corre como root,
 # chamado pelo eurolify-trabalho. Puxa pelo resumo, corre as migrações, troca
 # o contentor, verifica o /health e volta à imagem anterior se falhar.
+# Com --so-recriar (passo 10c do preparar.sh) só recria a API se ela já estiver
+# nesta imagem e a ligação à base tiver mudado; nunca publica outra imagem.
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
 source /usr/local/lib/eurolify/comum.sh
 
 resumo="${1:-}"
 [[ "$resumo" =~ ^sha256:[0-9a-f]{64}$ ]] || falhar "resumo de imagem inválido"
+so_recriar=0
+case "${2:-}" in
+  "") ;;
+  --so-recriar) so_recriar=1 ;;
+  *) falhar "opção desconhecida: '${2}'" ;;
+esac
 carregar_config
+
+# Uma publicação de cada vez, venha do fluxo publicar, do MCP ou do passo 10c
+# do preparar.sh: cada fluxo só se trancava a si próprio, e dois a trocar o
+# contentor ao mesmo tempo podiam deixar no ar uma imagem que nenhum dos dois
+# disse ter publicado (revisão do #116, P2-1).
+exec 8>/run/lock/eurolify-publicar.lock
+flock -w 900 8 || falhar "outra publicação não acabou em 15 minutos"
 
 imagem="${IMAGEM_REPO}@${resumo}"
 token=/etc/eurolify/ghcr.token
 [[ -s "$token" ]] || falhar "falta $token (token clássico com read:packages, ADR-0026)"
+
+# A ligação da API à base vive num ficheiro só dela, que o passo 10b do
+# preparar.sh escreve inteiro; o api.env fica para o resto da configuração
+# (revisão do #116, P2-3). Sem ele, a API corre só com as rotas públicas.
+API_BASE_ENV=/etc/eurolify/api-base.env
+base_env=()
+[[ -f "$API_BASE_ENV" ]] && base_env=(--env-file "$API_BASE_ENV")
 
 arrancar() {
   docker rm -f eurolify-api >/dev/null 2>&1 || true
@@ -21,6 +43,7 @@ arrancar() {
     --network eurolify \
     -p 127.0.0.1:8080:8080 \
     --env-file /etc/eurolify/api.env \
+    "${base_env[@]}" \
     --memory 512m \
     --cap-drop ALL \
     --security-opt no-new-privileges \
@@ -35,6 +58,64 @@ saude() {
       return 0
     fi
     sleep 2
+  done
+  return 1
+}
+
+# Com a ligação no api-base.env (passo 10b), a API tem de chegar à base. Uma
+# chave inventada com a forma certa obriga-a a perguntar à base
+# (chave_resolver): responde 401 se chegou, 500 se não (docs/19 §5, #107).
+# Prova a ligação, não o papel: o 10b é que garante que a linha é a do
+# eurolify_api (revisão do #116, P3-5). Uma imagem anterior ao #110 não tem
+# /me (404): aí não há nada a provar (P2-2).
+# Só se lê se a variável existe; o valor (com a palavra-passe) não sai daqui.
+base_no_api_env() { grep -q '^BASE_DADOS_URL=' "$API_BASE_ENV" 2>/dev/null; }
+printf -v CHAVE_INVENTADA 'eul_sk_%s' "$(printf 'a%.0s' {1..52})"
+chega_a_base() {
+  local i codigo=""
+  for ((i = 0; i < 5; i++)); do
+    codigo="$(curl -sS -m 5 -o /dev/null -w '%{http_code}' \
+      -H "Authorization: Bearer $CHAVE_INVENTADA" http://127.0.0.1:8080/me 2>/dev/null || true)"
+    [[ "$codigo" == 401 ]] && return 0
+    [[ "$codigo" == 404 ]] && return 2
+    sleep 2
+  done
+  echo "A API respondeu ${codigo:-nada} a uma chave inventada (esperava 401). Últimas linhas:"
+  docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
+  return 1
+}
+# Sem ligação no api.env, a API corre só com as rotas públicas: nada a provar.
+# Com ela e sem chegar à base, falha sem voltar atrás: a imagem anterior
+# usaria o mesmo api.env (o problema é a ligação, não a imagem).
+verificar_base() {
+  local rc=0
+  base_no_api_env || return 0
+  chega_a_base || rc=$?
+  if ((rc == 0)); then
+    echo "A API chega à base."
+    return 0
+  fi
+  if ((rc == 2)); then
+    echo "Esta imagem não tem o /me (anterior ao #110): não se prova a ligação à base."
+    return 0
+  fi
+  registar "a API ($1) não chega à base com o api-base.env"
+  echo "ATENÇÃO: a API não chega à base com a ligação do api-base.env."
+  return 1
+}
+
+# O docker só lê o --env-file ao criar o contentor: se o api.env ou o
+# api-base.env mudaram depois (o passo 10b do preparar.sh escreve a ligação),
+# a API recria-se, mesmo com a imagem que já está no ar. Sem um número válido
+# de um dos lados, não se compara (revisão do #116, P3-1).
+api_env_mudou() {
+  local criado ficheiro mudado
+  criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
+  criado="$(date -d "$criado" +%s 2>/dev/null)" || return 1
+  [[ "$criado" =~ ^[0-9]+$ ]] || return 1
+  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV"; do
+    mudado="$(stat -c %Y "$ficheiro" 2>/dev/null)" || continue
+    [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
   done
   return 1
 }
@@ -90,28 +171,57 @@ arrancar_mcp() {
     "$1" node dist/servidor.js >/dev/null
 }
 
-echo "A puxar $imagem"
-docker login ghcr.io -u "$GHCR_UTILIZADOR" --password-stdin <"$token" >/dev/null
-trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
-docker pull --quiet "$imagem" >/dev/null
-
 anterior="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+if ((so_recriar)) && [[ "$anterior" != "$imagem" ]]; then
+  # Outra publicação trocou a imagem entretanto: essa já leu a ligação nova.
+  echo "A API já não está em $resumo (está em ${anterior:-nenhuma}): não recrio."
+  exit 0
+fi
+
+# Uma imagem que já está na máquina não se vai buscar outra vez: recriar não
+# depende do GHCR (revisão do #116, P3-3). Pelo resumo, é a mesma imagem.
+if docker image inspect "$imagem" >/dev/null 2>&1; then
+  echo "A imagem $imagem já está na máquina."
+else
+  echo "A puxar $imagem"
+  docker login ghcr.io -u "$GHCR_UTILIZADOR" --password-stdin <"$token" >/dev/null
+  trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+  docker pull --quiet "$imagem" >/dev/null
+fi
 if [[ "$anterior" == "$imagem" ]]; then
+  recriada=0
+  if api_env_mudou; then
+    echo "A API já está nesta imagem, mas a configuração (api.env ou api-base.env) mudou depois de ela arrancar: recria-se."
+    arrancar "$imagem"
+    if ! saude 8080; then
+      echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
+      docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
+      registar "API recriada com a configuração nova ($resumo), sem /health"
+      falhar "a API não respondeu depois de ler a configuração nova"
+    fi
+    registar "API recriada com a configuração nova ($resumo)"
+    echo "Recriada: $resumo. O /health da API responde."
+    recriada=1
+  fi
+  # O MCP antes da prova da base: uma falha da base não o deixa por actualizar
+  # (revisão do #116, P3-4).
+  estado=0
   if mcp_configurado && [[ "$(docker inspect --format '{{.Config.Image}}' eurolify-mcp 2>/dev/null || true)" != "$imagem" ]]; then
     echo "A API já está nesta imagem; falta o MCP."
-    mcp_para "$imagem" || falhar "o MCP não arrancou"
-    exit 0
-  fi
+    mcp_para "$imagem" || { echo "o MCP não arrancou" >&2; estado=1; }
   # Um MCP de antes do #102 ainda escreve em ficheiros sem prazo: recria-se
   # para o diário do sistema (14 dias, ADR-0018, nota de 05/10/2026).
-  if mcp_configurado && docker inspect eurolify-mcp >/dev/null 2>&1 &&
+  elif mcp_configurado && docker inspect eurolify-mcp >/dev/null 2>&1 &&
     [[ "$(docker inspect --format '{{.HostConfig.LogConfig.Type}}' eurolify-mcp)" != journald ]]; then
     echo "A API já está nesta imagem; o MCP passa a escrever no diário do sistema."
-    mcp_para "$imagem" || falhar "o MCP não arrancou"
-    exit 0
+    mcp_para "$imagem" || { echo "o MCP não arrancou" >&2; estado=1; }
+  elif ((!recriada)); then
+    echo "Esta imagem já é a que está no ar. Nada a fazer."
   fi
-  echo "Esta imagem já é a que está no ar. Nada a fazer."
-  exit 0
+  if ((recriada)); then
+    verificar_base "$resumo" || estado=1
+  fi
+  exit "$estado"
 fi
 
 # As migrações correm antes de trocar; se falharem, fica a versão anterior.
@@ -188,11 +298,14 @@ if saude 8080; then
   printf '%s | %s | anterior: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" >>/var/log/eurolify/publicacoes.log
   registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
   echo "Publicado: $resumo. O /health da API responde."
+  # O MCP primeiro: uma API que não chega à base não deixa o MCP na imagem antiga.
+  estado=0
   if ! mcp_para "$imagem"; then
     registar "publicado $resumo, mas o MCP não arrancou"
-    exit 1
+    estado=1
   fi
-  exit 0
+  verificar_base "$resumo" || estado=1
+  exit "$estado"
 fi
 echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
 docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true

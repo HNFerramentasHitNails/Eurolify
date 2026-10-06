@@ -286,8 +286,18 @@ if [[ -f /etc/eurolify/api.env ]]; then
     aviso "/etc/eurolify/api.env devia ser 600 e de root"
   fi
 else
-  fazer "criar /etc/eurolify/api.env (vazio; a ligação da API à base entra quando a API usar a base)" \
+  fazer "criar /etc/eurolify/api.env (vazio; a ligação à base vai no api-base.env)" \
     install -o root -g root -m 600 /dev/null /etc/eurolify/api.env
+fi
+# A ligação da API à base vive num ficheiro só dela (api-base.env), que o
+# passo 10b escreve inteiro: outra configuração da API vai no api.env, que o
+# script nunca reescreve (revisão do #116, P2-3).
+if [[ -f /etc/eurolify/api-base.env ]]; then
+  if [[ "$(stat -c '%a %U' /etc/eurolify/api-base.env)" == "600 root" ]]; then
+    ok "/etc/eurolify/api-base.env"
+  else
+    aviso "/etc/eurolify/api-base.env devia ser 600 e de root"
+  fi
 fi
 # A ligação do migrador (dono das tabelas) vive num ficheiro à parte: só o
 # contentor das migrações a recebe; a API nunca a vê (docs/15 §5). Escreve-se
@@ -328,13 +338,14 @@ if tem docker && docker inspect eurolify-postgres >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-passo "10b. Utilizadores da base: o migrador (dono) e a API (sem acesso ainda) (docs/15 §5, #70)"
+passo "10b. Utilizadores da base: o migrador (dono) e a API (docs/15 §5, #70, #107)"
 # O eurolify_migrador é dono da base e das tabelas e só o contentor das
 # migrações recebe a ligação dele (migrar.env). O eurolify_api nasce aqui como a
-# migração 0001 o criaria (o migrador não tem CREATEROLE), NOLOGIN e sem
-# palavra-passe: só entra quando a API usar a base (fatia «identidade»;
-# fechado por omissão). As palavras-passe gera-as este script e nunca passam
-# pelo repositório, pelo chat nem pela linha de comandos (vão por stdin).
+# migração 0001 o criaria (o migrador não tem CREATEROLE) e entra com a ligação
+# do api-base.env, que só o contentor da API recebe (docs/19 §6, #107). Os dois
+# seguem o mesmo caminho: palavra-passe gerada na máquina, dada ao PostgreSQL
+# por stdin, e um ficheiro 600 de root com uma só linha. As palavras-passe
+# nunca passam pelo repositório, pelo chat nem pela linha de comandos.
 pg_valor() {
   docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -qAtc "$1"
 }
@@ -355,47 +366,52 @@ pg_stdin() {
     return "$rc"
   fi
 }
-# A ligação do migrar.env entra mesmo? Testa-se como a publicação a usa: de
-# outro contentor, pela rede eurolify, com palavra-passe (dentro do contentor
-# da base, 127.0.0.1 entra sem ela). A palavra-passe vai pelo ambiente do
-# cliente docker, nunca pela linha de comandos (revisão do #71, P2-2).
-# Escreve «entra», «recusada» (sem a linha esperada no ficheiro, ou a base
-# recusa o migrador: renova-se) ou «erro: …» (o docker, a rede ou outra coisa
-# falharam: avisa-se e não se renova; revisão do f1ede40, P2-1). A mensagem do
-# erro não leva a palavra-passe: o psql e o docker não a escrevem.
+# As funções seguintes recebem «ficheiro variável papel»: o migrar.env com
+# BASE_DADOS_URL_MIGRACAO e o eurolify_migrador, ou o api-base.env com
+# BASE_DADOS_URL e o eurolify_api. Os papéis e as variáveis vêm deste script,
+# nunca de fora.
+#
 # A linha tem de ser exactamente a que este script escreve (anfitrião, porta e
 # base incluídos): uma linha editada à mão para outro sítio já não «entra» em
 # falso (revisão do 09882b4, P2-C).
-linha_do_migrador() {
-  printf 'BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:%s@eurolify-postgres:5432/%s' "$1" "$BASE_NOME"
+linha_de_ligacao() {
+  printf '%s=postgres://%s:%s@eurolify-postgres:5432/%s' "$1" "$2" "$3" "$BASE_NOME"
 }
-# A palavra-passe guardada no migrar.env (vazio se o ficheiro não tiver a forma
+# A palavra-passe guardada no ficheiro (vazio se o ficheiro não tiver a forma
 # esperada). O `sed` só leva o padrão na linha de comandos, nunca a palavra-passe.
 senha_no_ficheiro() {
-  sed -n 's#^BASE_DADOS_URL_MIGRACAO=postgres://eurolify_migrador:\([0-9a-f]\{64\}\)@.*#\1#p' /etc/eurolify/migrar.env 2>/dev/null | head -n 1 || true
+  sed -n "s#^$2=postgres://$3:\\([0-9a-f]\\{64\\}\\)@.*#\\1#p" "$1" 2>/dev/null | head -n 1 || true
 }
 # O ficheiro é só a linha que este script escreve? Compara-se dentro do bash
 # (`$(<…)` e `[[ … ]]` não arrancam programas): a palavra-passe não vai para a
 # linha de comandos de nenhum processo (revisão do 6892dae, P1). Só essa linha:
 # outra a seguir seria a que o docker usava (revisão do 6892dae, P2-1).
 ficheiro_e_so_a_linha() {
-  local conteudo
+  local ficheiro="$1" variavel="$2" papel="$3" senha="$4" conteudo
   # Ver primeiro se se pode ler: em certas versões do bash (5.2), um `$(<…)` a
   # um ficheiro em falta, dentro de um `if`, pára o script com o `set -e`, e o
   # `|| return 1` não o apanha (revisão do b43c89e, P2-2).
-  [[ -r /etc/eurolify/migrar.env ]] || return 1
-  conteudo="$(</etc/eurolify/migrar.env)" 2>/dev/null || return 1
-  [[ -n "$1" && "$conteudo" == "$(linha_do_migrador "$1")" ]]
+  [[ -r "$ficheiro" ]] || return 1
+  conteudo="$(<"$ficheiro")" 2>/dev/null || return 1
+  [[ -n "$senha" && "$conteudo" == "$(linha_de_ligacao "$variavel" "$papel" "$senha")" ]]
 }
-estado_da_ligacao_do_migrador() {
-  local senha saida
-  senha="$(senha_no_ficheiro)"
-  if ! ficheiro_e_so_a_linha "$senha"; then
+# A ligação do ficheiro entra mesmo? Testa-se como a publicação a usa: de
+# outro contentor, pela rede eurolify, com palavra-passe (dentro do contentor
+# da base, 127.0.0.1 entra sem ela). A palavra-passe vai pelo ambiente do
+# cliente docker, nunca pela linha de comandos (revisão do #71, P2-2).
+# Escreve «entra», «recusada» (sem a linha esperada no ficheiro, ou a base
+# recusa o papel: renova-se) ou «erro: …» (o docker, a rede ou outra coisa
+# falharam: avisa-se e não se renova; revisão do f1ede40, P2-1). A mensagem do
+# erro não leva a palavra-passe: o psql e o docker não a escrevem.
+estado_da_ligacao() {
+  local ficheiro="$1" variavel="$2" papel="$3" senha saida
+  senha="$(senha_no_ficheiro "$ficheiro" "$variavel" "$papel")"
+  if ! ficheiro_e_so_a_linha "$ficheiro" "$variavel" "$papel" "$senha"; then
     echo recusada
     return 0
   fi
   if saida="$(PGPASSWORD="$senha" docker run --rm --pull never --network eurolify -e PGPASSWORD "$IMAGEM_POSTGRES" \
-    psql -h eurolify-postgres -U eurolify_migrador -d "$BASE_NOME" -qAtc 'SELECT 1' 2>&1 >/dev/null)"; then
+    psql -h eurolify-postgres -U "$papel" -d "$BASE_NOME" -qAtc 'SELECT 1' 2>&1 >/dev/null)"; then
     echo entra
   elif grep -qE 'password authentication failed|is not permitted to log in|too many connections for role' <<<"$saida"; then
     # A renovação também repõe LOGIN, o limite de ligações e a validade
@@ -421,38 +437,70 @@ criar_eurolify_api() {
 # Global, não local: se o script morrer a meio, o trap de saída já corre fora
 # da função e tem de o ver, para o ficheiro temporário com a palavra-passe não
 # ficar para trás (revisão do #71, P2-4).
-TEMPORARIO_MIGRAR=""
-criar_migrador() {
-  local senha existe
-  trap 'rm -f "${TEMPORARIO_MIGRAR:-}"' EXIT
+TEMPORARIO_LIGACAO=""
+criar_ligacao() {
+  local ficheiro="$1" variavel="$2" papel="$3" senha existe
+  trap 'rm -f "${TEMPORARIO_LIGACAO:-}"' EXIT
   senha="$(openssl rand -hex 32)"
-  existe="$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")"
+  existe="$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = '$papel'")"
   {
     # Uma instrução que falhe não vai para o registo do PostgreSQL com a senha.
     echo "SET log_min_error_statement = 'panic';"
     echo "SET log_min_messages = 'panic';"
     echo "SET log_statement = 'none';"
     if [[ "$existe" == 1 ]]; then
-      printf "ALTER ROLE eurolify_migrador LOGIN CONNECTION LIMIT -1 VALID UNTIL 'infinity' PASSWORD '%s';\n" "$senha"
+      printf "ALTER ROLE %s LOGIN CONNECTION LIMIT -1 VALID UNTIL 'infinity' PASSWORD '%s';\n" "$papel" "$senha"
     else
-      printf "CREATE ROLE eurolify_migrador LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '%s';\n" "$senha"
+      printf "CREATE ROLE %s LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '%s';\n" "$papel" "$senha"
     fi
   } | pg_stdin
-  TEMPORARIO_MIGRAR="$(mktemp /etc/eurolify/.migrar.env.XXXXXX)"
+  TEMPORARIO_LIGACAO="$(mktemp "$(dirname "$ficheiro")/.$(basename "$ficheiro").XXXXXX")"
   {
-    linha_do_migrador "$senha"
+    linha_de_ligacao "$variavel" "$papel" "$senha"
     echo
-  } >"$TEMPORARIO_MIGRAR"
-  chown root:root "$TEMPORARIO_MIGRAR"
-  chmod 600 "$TEMPORARIO_MIGRAR"
-  mv -f "$TEMPORARIO_MIGRAR" /etc/eurolify/migrar.env
-  TEMPORARIO_MIGRAR=""
+  } >"$TEMPORARIO_LIGACAO"
+  chown root:root "$TEMPORARIO_LIGACAO"
+  chmod 600 "$TEMPORARIO_LIGACAO"
+  mv -f "$TEMPORARIO_LIGACAO" "$ficheiro"
+  TEMPORARIO_LIGACAO=""
   trap - EXIT
 }
+# Garante o papel com LOGIN e a ligação dele no ficheiro; devolve a ligação a
+# seguir na variável global LIGACAO_RENOVADA (1 se escreveu ou escreveria).
+LIGACAO_RENOVADA=0
+tratar_ligacao() {
+  local ficheiro="$1" variavel="$2" papel="$3" ligacao
+  LIGACAO_RENOVADA=0
+  # Em --mostrar só se lê o ficheiro: experimentar a ligação arranca um
+  # contentor (revisão do f1ede40, P2-2).
+  if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = '$papel' AND rolcanlogin")" != 1 ]]; then
+    ligacao="recusada"
+  elif ((MOSTRAR)); then
+    if ficheiro_e_so_a_linha "$ficheiro" "$variavel" "$papel" "$(senha_no_ficheiro "$ficheiro" "$variavel" "$papel")"; then
+      ligacao="no ficheiro"
+    else
+      ligacao="recusada"
+    fi
+  else
+    ligacao="$(estado_da_ligacao "$ficheiro" "$variavel" "$papel")"
+  fi
+  case "$ligacao" in
+    entra) ok "$papel e a ligação dele em $ficheiro (entra)" ;;
+    "no ficheiro") ok "$papel e a ligação dele em $ficheiro (em --mostrar não se experimenta)" ;;
+    recusada)
+      LIGACAO_RENOVADA=1
+      fazer "dar LOGIN ao $papel (ou criá-lo, ou renovar a palavra-passe) e escrever $ficheiro" \
+        criar_ligacao "$ficheiro" "$variavel" "$papel"
+      ;;
+    *) aviso "não consegui experimentar a ligação do $papel; não a renovo ($ligacao). Ver o docker, a rede eurolify e, na base, o CONNECT do $papel" ;;
+  esac
+}
+API_ENV_RENOVADO=0
 if ! docker inspect eurolify-postgres >/dev/null 2>&1; then
   if ((MOSTRAR)); then
-    echo "   FARIA: criar o eurolify_api (NOLOGIN) e o eurolify_migrador, dono da base $BASE_NOME, e escrever /etc/eurolify/migrar.env"
+    echo "   FARIA: criar o eurolify_migrador, dono da base $BASE_NOME, e o eurolify_api, e escrever /etc/eurolify/migrar.env e /etc/eurolify/api-base.env"
     mudancas=$((mudancas + 1))
+    API_ENV_RENOVADO=1
   else
     aviso "sem o contentor eurolify-postgres: os utilizadores da base ficam para a próxima corrida"
   fi
@@ -464,25 +512,7 @@ else
   else
     ok "papel eurolify_api"
   fi
-  # Em --mostrar só se lê o ficheiro: experimentar a ligação arranca um
-  # contentor (revisão do f1ede40, P2-2).
-  if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")" != 1 ]]; then
-    ligacao="recusada"
-  elif ((MOSTRAR)); then
-    if ficheiro_e_so_a_linha "$(senha_no_ficheiro)"; then
-      ligacao="no ficheiro"
-    else
-      ligacao="recusada"
-    fi
-  else
-    ligacao="$(estado_da_ligacao_do_migrador)"
-  fi
-  case "$ligacao" in
-    entra) ok "eurolify_migrador e a ligação dele em /etc/eurolify/migrar.env (entra)" ;;
-    "no ficheiro") ok "eurolify_migrador e a ligação dele em /etc/eurolify/migrar.env (em --mostrar não se experimenta)" ;;
-    recusada) fazer "criar o eurolify_migrador (ou renovar a palavra-passe) e escrever /etc/eurolify/migrar.env" criar_migrador ;;
-    *) aviso "não consegui experimentar a ligação do migrador; não a renovo ($ligacao). Ver o docker, a rede eurolify e, na base, o CONNECT do eurolify_migrador" ;;
-  esac
+  tratar_ligacao /etc/eurolify/migrar.env BASE_DADOS_URL_MIGRACAO eurolify_migrador
   # Só o dono da base retira o TEMPORARY ao PUBLIC; a migração 0001 pára se
   # não conseguir (docs/15 §5). O esquema public é do dono da base (pg_database_owner).
   if ((MOSTRAR)) && [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_migrador'")" == 0 ]]; then
@@ -494,13 +524,54 @@ else
   else
     ok "a base $BASE_NOME é do eurolify_migrador"
   fi
-  # Nenhum dos dois pode ignorar o RLS (docs/15 §5), e o eurolify_api não
-  # entra enquanto a API não usar a base: se alguém lhes deu mais, avisa
-  # (revisão do #71, P2-3).
+  # A API entra com o eurolify_api, nunca com o dono das tabelas: o RLS forçado
+  # aplica-se a ela e o que pode fazer é o que as migrações lhe dão (docs/15 §5).
+  tratar_ligacao /etc/eurolify/api-base.env BASE_DADOS_URL eurolify_api
+  API_ENV_RENOVADO=$LIGACAO_RENOVADA
+  # Nenhum dos dois pode ignorar o RLS (docs/15 §5): se alguém lhes deu mais,
+  # avisa (revisão do #71, P2-3).
   perigosos="$(pg_valor "SELECT string_agg(rolname, ', ') FROM pg_roles WHERE rolname IN ('eurolify_api', 'eurolify_migrador') AND (rolsuper OR rolbypassrls OR rolcreaterole)")"
   [[ -z "$perigosos" ]] || aviso "superutilizador, BYPASSRLS ou CREATEROLE em: $perigosos"
-  [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_api' AND rolcanlogin")" == 0 ]] ||
-    aviso "o eurolify_api pode entrar (LOGIN), mas a API ainda não usa a base (docs/15 §5)"
+fi
+
+# ---------------------------------------------------------------------------
+passo "10c. A API corre com a ligação do api-base.env (docs/19 §6, #107)"
+# O docker só lê o --env-file quando cria o contentor: uma ligação nova só
+# chega à API quando o contentor for recriado. Quem o recria é o
+# eurolify-publicar --so-recriar, com a imagem que já está no ar (passo 8 já o
+# instalou): espera por outra publicação em curso, não troca de imagem,
+# verifica o /health e que a API chega à base (revisão do #116, P2-1).
+# Sem um número válido de um dos lados, não se compara (revisão do #116, P3-1).
+configuracao_mais_recente_que_a_api() {
+  local criado ficheiro mudado
+  criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
+  criado="$(date -d "$criado" +%s 2>/dev/null)" || return 1
+  [[ "$criado" =~ ^[0-9]+$ ]] || return 1
+  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env; do
+    mudado="$(stat -c %Y "$ficheiro" 2>/dev/null)" || continue
+    [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
+  done
+  return 1
+}
+# Uma falha aqui avisa, fica no registo e não pára o resto do script; a
+# publicação diz porquê (revisão do #116, P3-2).
+recriar_api() {
+  /usr/local/sbin/eurolify-publicar "$1" --so-recriar && return 0
+  registar "falhou recriar o contentor eurolify-api ($1) com a configuração nova"
+  aviso "a API não ficou bem com a configuração nova (ver acima)"
+}
+imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+if [[ -z "$imagem_api" ]]; then
+  ok "sem contentor eurolify-api: a primeira publicação já o cria com a ligação"
+elif ((API_ENV_RENOVADO)) || configuracao_mais_recente_que_a_api; then
+  resumo_api="${imagem_api##*@}"
+  if [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    fazer "recriar o contentor eurolify-api ($resumo_api) para ler a configuração" recriar_api "$resumo_api"
+  else
+    aviso "o eurolify-api corre $imagem_api, sem resumo: não o recrio (a próxima publicação recria-o)"
+  fi
+else
+  ok "o eurolify-api foi criado depois da última mudança do api.env e do api-base.env"
 fi
 
 # ---------------------------------------------------------------------------
