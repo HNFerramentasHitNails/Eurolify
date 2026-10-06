@@ -84,9 +84,14 @@ ao mercado (§2).
 | `linguas` | lista de códigos de duas letras | sim, pelo menos uma | línguas por mercado (`eu-localization`); a lista de cada mercado deixa de esperar por este domínio (`docs/14` §3.8, «as línguas de cada mercado») |
 | `lingua_principal` | uma das `linguas` | sim | a língua por omissão do mercado (**proposta**) |
 | `preco_inclui_iva` | `sim`, `nao` | sim | o comerciante escolhe entre preço com IVA igual em todos os países (absorve a diferença) ou sem IVA igual (o final muda) — **decisão comercial com efeito fiscal, mostrada claramente** (`eu-localization`, «Preço por mercado»); **por omissão `sim`** (decidido, Diogo, 06/10/2026: *«sim, com IVA por omissão»*; §9, Q1) |
-| `lista_base_id` | `prl_` | sim para activar | a lista de preços de base do mercado (§3.3) |
+| lista de base | — | sim para activar | não é um campo: é a única lista `base` activa do mercado (§3.3; índice único na migração 0017). Activar sem ela é recusado (`prices.base_list_required`) |
 | `estado` | `rascunho`, `activo`, `arquivado` | sim | §4.1 |
 | `versao`, `criado_em`, `actualizado_em` | | sim | concorrência optimista, como no Catálogo |
+
+A `moeda` e o `preco_inclui_iva` **não mudam depois de haver preços** em alguma
+lista do mercado (`prices.market_has_prices`): os montantes guardados foram
+escritos nessa moeda e com ou sem IVA, e mudá-los mudaria em silêncio o que
+cada montante quer dizer (código, migração 0017).
 
 ### 3.2 Canal (`chn_`)
 
@@ -98,14 +103,14 @@ Por onde uma loja vende (`docs/14` §9, P1). Na Fase 1, só canais **online**
 | `id`, `loja_id` | | sim | |
 | `nome` | texto (1–100) | sim | ex.: «Loja online», «App» (**proposta**) |
 | `tipo` | `online` (Fase 1); `pos`, `marketplace` só na Fase 2 | sim | **proposta** |
-| `mercados` | lista de `mkt_` da mesma loja | sim para activar | em que mercados este canal vende; a publicação do Catálogo é por canal × mercado e só aceita pares deste conjunto (**proposta**) |
-| `estado` | `activo`, `arquivado` | sim | |
+| `mercados` | lista de `mkt_` da mesma loja | não | em que mercados este canal vende; a publicação do Catálogo é por canal × mercado e só aceita pares deste conjunto (**proposta**). Um mercado de outra loja é recusado como «não existe» |
+| `estado` | `activo`, `arquivado` | sim | **um canal nasce activo** (código, migração 0017): sem mercados não há par canal × mercado, por isso não publica nada; não precisa de rascunho |
 
 ### 3.3 Lista de preços (`prl_`)
 
 | Campo | Tipo / valores | Obrigatório | Regra e fonte |
 |---|---|---|---|
-| `id`, `loja_id`, `mercado_id` | | sim | uma lista é de um mercado e herda a moeda e o `preco_inclui_iva` dele (**proposta**) |
+| `id`, `mercado_id` | | sim | uma lista é de um mercado e herda a moeda, o `preco_inclui_iva` e a loja dele (**proposta**; a loja não se repete na lista) |
 | `nome` | texto | sim | ex.: «Base PT», «Profissionais PT» |
 | `tipo` | `base`, `b2b` | sim | a `base` é a do mercado (uma por mercado); a `b2b` aplica-se a quem tem a etiqueta (§3.6) |
 | `etiqueta_id` | identificador da etiqueta de cliente | só `b2b` | a etiqueta é de Clientes (§2); **por etiqueta, não por relação comercial** (Fase 1; `docs/eurolify/architecture.md` §3.4) |
@@ -120,12 +125,12 @@ histórico** (§3.5); a linha corrente é a última.
 | Campo | Tipo / valores | Obrigatório | Regra e fonte |
 |---|---|---|---|
 | `lista_id`, `variante_id` | | sim | únicos em conjunto (um preço corrente por variante e lista) |
-| `montante` | inteiro ≥ 0 (cêntimos) | sim | na moeda da lista; **inclui ou não IVA conforme o `preco_inclui_iva` do mercado** — o valor mostrado ao cliente vem do Motor de IVA (§2) |
+| `montante` | inteiro de 0 a 100 000 000 000 (cêntimos, até mil milhões na moeda) | sim | na moeda da lista; **inclui ou não IVA conforme o `preco_inclui_iva` do mercado** — o valor mostrado ao cliente vem do Motor de IVA (§2) |
 | `gratuito` | `sim`, `nao` | sim | **nada se vende a 0,00 € sem ser explicitamente gratuito**: `montante = 0` exige `gratuito = sim`, e `gratuito = sim` exige `montante = 0` (`catalog-pim`, regra 2: um gel esteve seis meses e meio a 0,00 € com 149 unidades vendidas) |
 | `quantidade_minima` | inteiro ≥ 1 | sim (1 por omissão) | `docs/05`, Fase 1; o Carrinho recusa menos (**proposta**) |
 | `multiplo` | inteiro ≥ 1 | sim (1 por omissão) | vende-se em múltiplos (ex.: caixas de 6) (**proposta**) |
-| `reducao` | ver §3.6 | não | redução anunciada (preço riscado) |
-| `definido_por`, `definido_em` | | sim | postos pela base, como no Catálogo |
+| `reducao` | ver §3.6 | não | redução anunciada (preço riscado); **parte 2 do código** |
+| `definido_por`, `definido_em` | | sim | postos pela base a partir de quem pede (`eurolify.quem`), como no Catálogo; sem ele, a base recusa |
 
 ### 3.5 Histórico de preços
 
@@ -137,9 +142,16 @@ auditoria da `observability-security`).
 | Campo | Notas |
 |---|---|
 | `lista_id`, `variante_id` | |
-| `montante`, `gratuito`, `reducao_ref` | o que ficou em vigor |
+| `montante`, `gratuito` | o que ficou em vigor (vazio numa saída) |
+| `saiu` | `sim` quando o preço foi tirado da lista ou a variante apagada (então `definido_por = catalogo:variante apagada`) |
+| `reducao_ref` | parte 2 do código, com a redução (§3.6) |
 | `em_vigor_desde` | data posta pela base; o fim é o `em_vigor_desde` da linha seguinte |
 | `definido_por` | quem mudou |
+
+Só o `montante` e o `gratuito` contam como mudança de preço: mudar a
+quantidade mínima ou o múltiplo não escreve linha (código, migração 0017). A
+linha escreve-a a base, num gatilho; a API não tem permissão de escrever no
+histórico.
 
 É daqui que sai o **preço de referência** de uma redução (§3.6) e a resposta a
 «que preço tinha esta variante neste mercado no dia X» (**proposta**: provar
