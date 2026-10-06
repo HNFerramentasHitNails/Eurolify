@@ -33,7 +33,23 @@ const FUNCOES_DA_API = [
   "chave_resolver",
   "chave_revogar_pela_api",
   "comerciante_actual",
+  "conta_nova_com_passkey",
+  "convite_aceitar",
+  "convite_cancelar",
+  "convite_criar",
+  "desafio_criar_entrada",
+  "desafio_criar_registo",
+  "entrar_com_passkey",
   "gtin_valido",
+  "membro_mudar_papel",
+  "membro_terminar",
+  "membros_listar",
+  "passkey_para_entrar",
+  "pessoa_eu",
+  "reautenticar_com_passkey",
+  "sessao_resolver",
+  "sessao_terminar",
+  "sessao_verificar",
 ];
 
 const RASTO = [

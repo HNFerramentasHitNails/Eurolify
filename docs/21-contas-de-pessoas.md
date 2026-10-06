@@ -331,6 +331,39 @@ dois donos.
 | P3 | Fornecedor OIDC já, ou só com aplicações de terceiros? | ✅ **b) só com aplicações de terceiros** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*; CC). O «Já decidido» do `docs/19` e a `headless-commerce` (OAuth 2.1/OIDC na API de Administração) ficam para quando houver terceiros |
 | P4 | Prazos das sessões e das contas | ✅ **12 h sem uso; 30 dias no máximo; 90 dias para pseudonimizar** (Diogo, 06/10/2026: *«sim, concordo, aceito os três prazos»*; CD). Sem fonte legal; os 90 dias para o jurista confirmar (C) |
 
+## 11. Rotas da parte B2 (passkeys, sessões, convites e equipa)
+
+Escritas antes do código da B2 (issue #140), pelas §3, §4 e §5. Todas no
+contrato OpenAPI, com erros RFC 9457 (`docs/18`). **Sessão** = o cookie
+`__Host-eurolify_sessao` (§3); **comerciante** = o cabeçalho
+`Eurolify-Comerciante: mer_…` (§4.6); **recente** = autenticação recente
+(§4.3). Toda a escrita exige o `Origin` do Hub e `Content-Type:
+application/json` (§3); nenhum GET muda nada. Os segredos (de convite, de
+sessão) nunca vão no caminho nem na consulta, só no corpo ou no cookie.
+
+| Rota | Quem | Corpo | Resposta |
+|---|---|---|---|
+| `POST /hub/session/options` | público | nenhum | **200** opções WebAuthn de entrada: desafio de 32 bytes, uso único, 5 minutos (proposta); credenciais detectáveis; `userVerification: required` |
+| `POST /hub/session` | público | a resposta da passkey | **201** e o cookie novo; a mesma recusa (401) para passkey desconhecida, de pessoa desactivada ou que não verifica |
+| `POST /hub/session/reauthenticate` | sessão | a resposta da passkey (da mesma pessoa), com o desafio de `/hub/session/options` | **200**; sessão nova (segredo novo) com autenticação recente; a antiga é revogada (P-T13) |
+| `POST /hub/session/end` | sessão | nenhum | **200**; a sessão é revogada e o cookie apagado |
+| `GET /hub/me` | sessão | — | **200** a pessoa (nome, e-mail) e os comerciantes de que é membro activo, com o papel |
+| `POST /hub/invitations/accept/options` | público | `convite` (o segredo) | **200** opções WebAuthn de registo para a conta nova (o mesmo erro para qualquer convite que não vale) |
+| `POST /hub/invitations/accept-new` | público | `convite`, `nome`, a resposta da passkey | **201** e o cookie: a conta, o membro, a passkey e a sessão nascem na mesma transacção |
+| `POST /hub/invitations/accept` | sessão, recente | `convite` | **200** o comerciante e o papel |
+| `GET /hub/members` | sessão + comerciante | — | **200** os membros activos (nome, e-mail, papel, desde); o dono vê também os convites em aberto |
+| `POST /hub/invitations` | sessão + comerciante, recente (dono; gestor só armazém ou apoio) | `email`, `papel` | **201** o convite e o `segredo` da ligação, que só aparece aqui |
+| `POST /hub/invitations/{id}/cancel` | sessão + comerciante (dono) | nenhum | **200** |
+| `POST /hub/members/{id}/role` | sessão + comerciante, recente (dono) | `papel` | **200** |
+| `POST /hub/members/{id}/end` | sessão + comerciante (o próprio; outro: dono, recente) | nenhum | **200** |
+
+Na base: as tabelas `passkey` (§4.1) e `desafio_webauthn` (o resumo do
+desafio, para que serve, a pessoa quando há, criado e usado em; apaga-se
+depois de usado ou expirado) e as funções que estas rotas chamam, as únicas
+com EXECUTE para a API. **Fica para a B3:** acrescentar e retirar passkeys,
+palavra-passe + TOTP, códigos de recuperação, limites de tentativas e as
+rotas das chaves com sessão (P-T8).
+
 ## O que não foi verificado
 
 - O código, os avisos de segurança e a manutenção das bibliotecas da §2.
