@@ -110,3 +110,36 @@ pedia autorização). Registado no #107.
   Visto ao ler, não medido.
 - O ensaio na VPS: as chaves só servem lá quando o operador criar a primeira
   (falta a chave SSH do fluxo `operar`).
+
+## T14, migração 0015 (06/10/2026, decisão BQ)
+
+- Uma chave com prazo só revoga chaves que expirem no mesmo instante ou antes
+  dela → `key.revoke_beyond_creator` (403). `CREATE OR REPLACE` da
+  `chave_revogar_pela_api`, com a mesma assinatura e os mesmos privilégios.
+- O teste antigo «T11: uma gestora temporária pode revogar a permanente»
+  passou a T14: a temporária já não revoga a permanente nem uma mais longa;
+  revoga uma no mesmo instante ou antes.
+- Medido a 06/10/2026, PostgreSQL 18.6 instalado na sessão (pacote pgdg):
+  439 testes da API passam; sem a regra, 1 falha (o T14); com `>=` em vez de
+  `>`, 1 falha (o caso do mesmo instante).
+
+## T13, migração 0016 (06/10/2026, decisão AY)
+
+- Ao arquivar uma loja, as chaves dela ficam revogadas
+  (`loja_arquivada:sto_<id>`), por um gatilho SECURITY DEFINER na loja (a
+  API não tem privilégios na `chave_api`); se a loja voltar a activa, não
+  voltam (Diogo: «fica a a)»). Criar uma para uma loja arquivada →
+  `key.store_archived` (422), no gatilho da chave, com FOR SHARE na loja.
+- Correcção: na pergunta ao Diogo escrevi que a loja arquivada «não volta
+  atrás (docs/15 linha 90)». Essa regra é da entidade legal; a loja pode
+  voltar a activa (docs/15 §3.3; `loja_antes_de_gravar` não o impede). Dito
+  ao Diogo, que decidiu a a).
+- Medido a 06/10/2026, PostgreSQL 18.6 na sessão: 440 testes da API passam;
+  sem o gatilho da loja, 1 falha; sem a recusa na criação, 1 falha.
+- Revisão do #131 (Claude Opus 5.5): 0 P0/P1, 2 P2, 5 P3. Tratados: testes de
+  concorrência nos dois sentidos (sem o FOR SHARE, falha), chave já revogada
+  e já expirada no arquivo (sem o filtro `revogada_por IS NULL`, falha), loja
+  arquivada de outro comerciante (`key.store_not_found`), gatilho ENABLE
+  ALWAYS, auto-revogação da T14; READ COMMITTED e as ordens das recusas
+  escritas no `docs/19` §6.1. Lojas arquivadas antes da 0016: não tratadas
+  (não há rota que arquive; só SQL à mão).

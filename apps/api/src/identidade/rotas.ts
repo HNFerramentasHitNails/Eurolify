@@ -189,7 +189,7 @@ export function rotasDaIdentidade(
       config: { ambito: "keys:write" },
       schema: {
         description:
-          "Cria uma chave. O segredo só aparece nesta resposta. Uma chave não cria outra com âmbitos que não tem, e uma chave com prazo só cria chaves com prazo até ao seu (docs/19 §6.1). Repetir com a mesma Idempotency-Key não cria outra: dá idempotency.secret_not_repeated.",
+          "Cria uma chave. O segredo só aparece nesta resposta. Uma chave não cria outra com âmbitos que não tem, uma chave com prazo só cria chaves com prazo até ao seu, e não se cria nenhuma para uma loja arquivada (docs/19 §6.1). Repetir com a mesma Idempotency-Key não cria outra: dá idempotency.secret_not_repeated.",
         headers: CabecalhoIdempotencia,
         body: PedidoCriarChave,
         response: { 201: RespostaChaveCriada, ...RESPOSTA_DE_ERRO },
@@ -282,7 +282,7 @@ export function rotasDaIdentidade(
       config: { ambito: "keys:write" },
       schema: {
         description:
-          "Revoga uma chave do comerciante, de imediato e sem volta. Uma chave não se revoga a si própria se for a última que gere chaves (docs/19 §6.1).",
+          "Revoga uma chave do comerciante, de imediato e sem volta. Uma chave não se revoga a si própria se for a última que gere chaves, e uma chave com prazo só revoga chaves com prazo até ao seu (docs/19 §6.1).",
         headers: CabecalhoIdempotencia,
         params: ParametroChave,
         response: { 200: Chave, ...RESPOSTA_DE_ERRO },

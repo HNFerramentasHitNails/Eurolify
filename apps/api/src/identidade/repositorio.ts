@@ -11,7 +11,7 @@ import {
 } from "./chaves.js";
 
 // Acesso às chaves (migração 0010; docs/19 §3 e §5). A API não tem nada na
-// tabela: só as quatro funções da base. Listar, criar e revogar correm no
+// tabela: só as funções da base que lhe são dadas (T7). Listar, criar e revogar correm no
 // contexto do comerciante (comComerciante); resolver não, porque ainda não se
 // sabe de quem é a chave.
 
@@ -169,6 +169,11 @@ const ERROS_DAS_CHAVES = {
     pt: "Um comerciante suspenso ou fechado não cria chaves; pode revogá-las",
     en: "A suspended or closed merchant cannot create keys; it can revoke them",
   },
+  "key.revoke_beyond_creator": {
+    status: 403,
+    pt: "Uma chave com prazo não revoga uma chave sem prazo nem uma que dure mais do que ela",
+    en: "A key with an expiry cannot revoke a key without expiry or expiring later",
+  },
   "key.not_found": {
     status: 404,
     pt: "A chave não existe",
@@ -193,6 +198,11 @@ const ERROS_DAS_CHAVES = {
     status: 422,
     pt: "Uma chave com prazo não cria outra sem prazo nem que dure mais do que ela",
     en: "A key with an expiry cannot create one without expiry or expiring later",
+  },
+  "key.store_archived": {
+    status: 422,
+    pt: "A loja está arquivada; não se criam chaves para ela",
+    en: "The store is archived; keys cannot be created for it",
   },
   "key.store_not_found": {
     status: 422,
