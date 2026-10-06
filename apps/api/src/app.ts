@@ -2,7 +2,11 @@ import Fastify, { type FastifyServerOptions } from "fastify";
 import swagger from "@fastify/swagger";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { Type } from "typebox";
+import type { Kysely } from "kysely";
 import { errosDoFastify, ligarErros, RESPOSTA_DE_ERRO } from "./base/erros.js";
+import type { BaseDados } from "./base/esquema.js";
+import { ligarAutenticacao } from "./identidade/autenticacao.js";
+import { rotasDaIdentidade } from "./identidade/rotas.js";
 import { REGISTO_INICIAL } from "./regras/registo.js";
 import { coberturaPaises, RespostaPaises } from "./regras/rotas.js";
 import type { Registo } from "./regras/tipos.js";
@@ -32,6 +36,7 @@ export function rotasRegistadas(app: object) {
 export function criarApp(
   opcoes: FastifyServerOptions = {},
   registo: Registo = REGISTO_INICIAL,
+  base?: Kysely<BaseDados>,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -43,6 +48,7 @@ export function criarApp(
   }).withTypeProvider<TypeBoxTypeProvider>();
 
   ligarErros(app);
+  ligarAutenticacao(app, base);
   const registadas: { metodo: string; caminho: string }[] = [];
   rotasPorApp.set(app, registadas);
   // Nada fora do contrato (headless-commerce, regra 1): uma rota sem a
@@ -50,7 +56,12 @@ export function criarApp(
   // o próprio contrato, fica de fora.
   app.addHook("onRoute", (rota) => {
     const esquema = rota.schema as
-      { hide?: boolean; response?: Record<string, unknown> } | undefined;
+      | {
+          hide?: boolean;
+          response?: Record<string, unknown>;
+          security?: unknown;
+        }
+      | undefined;
     // Só o próprio contrato se esconde dele.
     if (esquema?.hide === true && rota.url === "/openapi.json") return;
     const respostas = esquema?.response ?? {};
@@ -66,6 +77,17 @@ export function criarApp(
         `rota ${String(rota.method)} ${rota.url} fora do contrato: falta a resposta de sucesso ou a de erro (docs/18 §3)`,
       );
     }
+    // Cada rota diz que chave pede (docs/19 §4); uma rota sem âmbito não
+    // arranca. As que pedem chave aparecem no contrato com a segurança.
+    const ambito = rota.config?.ambito;
+    if (ambito === undefined) {
+      throw new Error(
+        `rota ${String(rota.method)} ${rota.url} sem âmbito: falta config.ambito (docs/19 §4)`,
+      );
+    }
+    if (ambito !== "publico" && esquema !== undefined) {
+      esquema.security = [{ chave: [] }];
+    }
     registadas.push({ metodo: String(rota.method), caminho: rota.url });
   });
   void app.register(swagger, {
@@ -75,7 +97,16 @@ export function criarApp(
         title: "Eurolify API",
         version: "0.1.0",
         description:
-          "Contrato da API do Eurolify (ADR-0025, docs/18). Os erros seguem o RFC 9457 (application/problem+json) com um `codigo` estável.",
+          "Contrato da API do Eurolify (ADR-0025, docs/18). Os erros seguem o RFC 9457 (application/problem+json) com um `codigo` estável. As rotas com chave pedem `Authorization: Bearer eul_sk_…` (docs/19).",
+      },
+      components: {
+        securitySchemes: {
+          chave: {
+            type: "http",
+            scheme: "bearer",
+            description: "Chave de API do comerciante (eul_sk_… ou eul_pk_…)",
+          },
+        },
       },
     },
     // Os esquemas partilhados ficam no contrato com o nome deles
@@ -91,17 +122,29 @@ export function criarApp(
   void app.register((rotas, _opcoes, feito) => {
     rotas.get(
       "/health",
-      { schema: { response: { 200: RespostaSaude, ...RESPOSTA_DE_ERRO } } },
+      {
+        config: { ambito: "publico" },
+        schema: { response: { 200: RespostaSaude, ...RESPOSTA_DE_ERRO } },
+      },
       () => ({ estado: "ok" as const }),
     );
 
     rotas.get(
       "/paises",
-      { schema: { response: { 200: RespostaPaises, ...RESPOSTA_DE_ERRO } } },
+      {
+        config: { ambito: "publico" },
+        schema: { response: { 200: RespostaPaises, ...RESPOSTA_DE_ERRO } },
+      },
       () => coberturaPaises(registo),
     );
 
-    rotas.get("/openapi.json", { schema: { hide: true } }, () => app.swagger());
+    rotas.get(
+      "/openapi.json",
+      { config: { ambito: "publico" }, schema: { hide: true } },
+      () => app.swagger(),
+    );
+    // As rotas que precisam da base só existem com ela (docs/19 §6).
+    if (base !== undefined) rotasDaIdentidade(rotas, base);
     feito();
   });
 

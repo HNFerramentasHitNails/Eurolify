@@ -39,7 +39,7 @@ EUROLIFY_ORIGEM="${EUROLIFY_ORIGEM:-manual por ${SUDO_USER:-root}}"
 # O fluxo aplicar-script já põe o commit na origem: não o repetir.
 [[ "$EUROLIFY_ORIGEM" == *"commit "* ]] || EUROLIFY_ORIGEM+=", commit ${EUROLIFY_COMMIT:-desconhecido}"
 export EUROLIFY_ORIGEM
-FLUXOS=(publicar aplicar medir)
+FLUXOS=(publicar aplicar medir operar)
 mudancas=0
 avisos=0
 mudou=0
@@ -245,7 +245,7 @@ instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
 passo "8. Programas e unidades do Eurolify"
 instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
-for p in trabalho publicar aplicar medir copia reposicao verificacao operar; do
+for p in trabalho publicar aplicar medir copia reposicao verificacao operar operador; do
   instalar "$F/sbin/eurolify-$p" "/usr/local/sbin/eurolify-$p" 700
 done
 unidades_mudaram=0

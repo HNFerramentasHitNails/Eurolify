@@ -28,6 +28,8 @@ const FUNCOES_DA_API = [
   "catalogo_fila_do_artigo",
   "catalogo_marcar_combinacoes",
   "catalogo_verificar_combinacoes",
+  "chave_listar",
+  "chave_resolver",
   "comerciante_actual",
   "gtin_valido",
 ];
@@ -148,6 +150,20 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
             where a.grantee = 0 and a.privilege_type = 'EXECUTE'))
         order by 1`.execute(base.dono);
       expect(rows.map((r) => r.nome)).toEqual([]);
+    });
+
+    it("as funções SECURITY DEFINER têm o search_path fixo", async () => {
+      const { rows } = await sql<{ nome: string; config: string[] | null }>`
+        select p.proname as nome, p.proconfig as config
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.prosecdef
+        order by 1`.execute(base.dono);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const r of rows) {
+        expect(r.config ?? [], r.nome).toContain(
+          "search_path=pg_catalog, public, pg_temp",
+        );
+      }
     });
 
     it("a API só pode chamar as funções da lista", async () => {

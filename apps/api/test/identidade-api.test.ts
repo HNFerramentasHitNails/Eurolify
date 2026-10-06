@@ -1,0 +1,213 @@
+import type { Kysely } from "kysely";
+import { Writable } from "node:stream";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Type } from "typebox";
+import { criarApp } from "../src/app.js";
+import { RESPOSTA_DE_ERRO } from "../src/base/erros.js";
+import { serializadores } from "../src/base/registo.js";
+import { registarComerciante } from "../src/comerciante/repositorio.js";
+import { criarChave, revogarChave } from "../src/identidade/repositorio.js";
+import {
+  criarBaseDeTeste,
+  URL_BASE,
+  type BaseDeTeste,
+} from "./base-de-teste.js";
+import type { BaseDados } from "../src/base/esquema.js";
+
+/**
+ * Criar e revogar chaves só o dono faz (o comando do operador; revisão do
+ * #110, P2-1): a API não tem EXECUTE nessas funções.
+ */
+let comoDono: () => Kysely<BaseDados>;
+
+// A API com chave (docs/19 §5, §6 e §9), contra o PostgreSQL 18 verdadeiro.
+
+describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
+  let base: BaseDeTeste;
+  let app: ReturnType<typeof criarApp>;
+  let registo: string[];
+  let a: string;
+  let b: string;
+  let chaveA: { id: string; segredo: string; prefixo: string };
+  let chaveAAdmin: { id: string; segredo: string };
+  let chaveB: { id: string; segredo: string };
+
+  const pedir = (url: string, segredo?: string) =>
+    app.inject({
+      method: "GET",
+      url,
+      headers:
+        segredo === undefined ? {} : { authorization: `Bearer ${segredo}` },
+    });
+
+  beforeAll(async () => {
+    base = await criarBaseDeTeste(URL_BASE ?? "");
+    comoDono = () => base.dono;
+    registo = [];
+    const destino = new Writable({
+      write(pedaco: Buffer, _codificacao, feito) {
+        registo.push(pedaco.toString());
+        feito();
+      },
+    });
+    app = criarApp(
+      {
+        logger: {
+          level: "info",
+          stream: destino,
+          serializers: serializadores,
+        },
+      },
+      undefined,
+      base.api,
+    );
+    const novo = { nome: "Loja", lingua: "pt", fuso: "Europe/Lisbon" };
+    a = await registarComerciante(base.api, novo);
+    b = await registarComerciante(base.api, novo);
+    const dados = { tipo: "servidor" as const, criadaPor: "operador:teste" };
+    chaveA = await criarChave(comoDono(), a, {
+      ...dados,
+      nome: "Leitura",
+      ambitos: ["catalog:read"],
+    });
+    chaveAAdmin = await criarChave(comoDono(), a, {
+      ...dados,
+      nome: "Chaves",
+      ambitos: ["keys:write"],
+    });
+    chaveB = await criarChave(comoDono(), b, {
+      ...dados,
+      nome: "Chaves de B",
+      ambitos: ["keys:write"],
+    });
+  }, 60_000);
+
+  afterAll(async () => {
+    await app.close();
+    await base.fechar();
+  });
+
+  it("T1: sem chave → 401 auth.required, com o cabeçalho WWW-Authenticate", async () => {
+    const r = await pedir("/me");
+    expect(r.statusCode).toBe(401);
+    expect(r.headers["www-authenticate"]).toBe("Bearer");
+    expect(r.json<{ codigo: string }>().codigo).toBe("auth.required");
+  });
+
+  it("T1: inventada, mal formada e revogada dão o mesmo 401 auth.invalid", async () => {
+    const revogada = await criarChave(comoDono(), a, {
+      tipo: "servidor",
+      nome: "A revogar",
+      ambitos: ["catalog:read"],
+      criadaPor: "operador:teste",
+    });
+    await revogarChave(comoDono(), a, revogada.id, "operador:teste");
+    const corpos = [];
+    for (const segredo of [
+      `eul_sk_${"a".repeat(52)}`,
+      "nada-disto",
+      revogada.segredo,
+    ]) {
+      const r = await pedir("/me", segredo);
+      expect(r.statusCode, segredo.slice(0, 7)).toBe(401);
+      const corpo = r.json<Record<string, unknown>>();
+      delete corpo["instance"];
+      corpos.push(corpo);
+    }
+    expect(corpos[1]).toEqual(corpos[0]);
+    expect(corpos[2]).toEqual(corpos[0]);
+    expect(corpos[0]).toMatchObject({ codigo: "auth.invalid" });
+    const r = await pedir("/me", revogada.segredo);
+    expect(r.headers["www-authenticate"]).toBe('Bearer error="invalid_token"');
+  });
+
+  it("/me diz o comerciante e a chave, com prefixos, sem o segredo", async () => {
+    const r = await pedir("/me", chaveA.segredo);
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({
+      comerciante: `mer_${a}`,
+      loja: null,
+      chave: {
+        id: `key_${chaveA.id}`,
+        tipo: "servidor",
+        prefixo: chaveA.prefixo,
+        ambitos: ["catalog:read"],
+      },
+    });
+    expect(r.body).not.toContain(chaveA.segredo);
+  });
+
+  it("T4: sem o âmbito da rota → 403 auth.forbidden", async () => {
+    const r = await pedir("/keys", chaveA.segredo);
+    expect(r.statusCode).toBe(403);
+    expect(r.json<{ codigo: string }>().codigo).toBe("auth.forbidden");
+  });
+
+  it("T2: cada chave só vê as chaves do seu comerciante", async () => {
+    const deA = await pedir("/keys", chaveAAdmin.segredo);
+    const deB = await pedir("/keys", chaveB.segredo);
+    const ids = (r: typeof deA) =>
+      r.json<{ dados: { id: string }[] }>().dados.map((c) => c.id);
+    expect(ids(deA)).toContain(`key_${chaveA.id}`);
+    expect(ids(deA)).not.toContain(`key_${chaveB.id}`);
+    expect(ids(deB)).toEqual([`key_${chaveB.id}`]);
+    expect(deA.body).not.toContain(chaveA.segredo);
+  });
+
+  it("T3: o comerciante sai da chave; um id no caminho ou na consulta é ignorado", async () => {
+    const r = await pedir(`/keys?comerciante=${b}`, chaveAAdmin.segredo);
+    expect(r.statusCode).toBe(200);
+    expect(
+      r.json<{ dados: { id: string }[] }>().dados.map((c) => c.id),
+    ).not.toContain(`key_${chaveB.id}`);
+  });
+
+  it("T5: o segredo nunca vai para o registo", async () => {
+    await pedir("/me", chaveA.segredo);
+    await pedir("/me", "eul_sk_inventada");
+    const tudo = registo.join("");
+    expect(tudo.length).toBeGreaterThan(0);
+    expect(tudo).not.toContain(chaveA.segredo);
+    expect(tudo).not.toContain("eul_sk_inventada");
+  });
+
+  it("T4: uma rota sem âmbito declarado não se regista", () => {
+    const outra = criarApp();
+    expect(() =>
+      outra.get(
+        "/sem-ambito",
+        { schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } } },
+        () => ({}),
+      ),
+    ).toThrow(/sem âmbito/);
+    void outra.close();
+  });
+
+  it("o contrato mostra a segurança nas rotas com chave e não nas públicas", async () => {
+    const r = await pedir("/openapi.json");
+    const c = r.json<{
+      paths: Record<string, { get: { security?: unknown } }>;
+      components: { securitySchemes: Record<string, unknown> };
+    }>();
+    expect(Object.keys(c.paths).sort()).toEqual([
+      "/health",
+      "/keys",
+      "/me",
+      "/paises",
+    ]);
+    expect(c.paths["/me"]?.get.security).toEqual([{ chave: [] }]);
+    expect(c.paths["/keys"]?.get.security).toEqual([{ chave: [] }]);
+    expect(c.paths["/health"]?.get.security).toBeUndefined();
+    expect(c.components.securitySchemes["chave"]).toMatchObject({
+      type: "http",
+      scheme: "bearer",
+    });
+  });
+
+  it("sem base de dados, as rotas com chave não existem", async () => {
+    const semBase = criarApp();
+    const r = await semBase.inject({ method: "GET", url: "/me" });
+    expect(r.statusCode).toBe(404);
+    await semBase.close();
+  });
+});

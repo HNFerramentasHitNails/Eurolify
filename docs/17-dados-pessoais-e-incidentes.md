@@ -26,6 +26,7 @@ conta de cada comerciante.
 | T4 | Registos técnicos da máquina | responsável | os operadores; quem abre o ensaio ou o MCP | endereços IP (SSH, fail2ban, firewall, nginx) | segurança da máquina | interesse legítimo (segurança) — **C** | VPS | 14 dias (ADR-0018, ADR-0027; `journald-eurolify.conf`) |
 | T5 | Cópias da base | o mesmo de T1 e T2 | os mesmos | toda a base, cifrada (`age`) | recuperar depois de uma falha | a dos tratamentos copiados | OVH Object Storage, Paris (ADR-0032) | 14 dias (`eurolify-copia`) |
 | T6 | Repositório, revisão e CI | responsável | o Diogo e o Bruno | contas, commits e comentários no GitHub | desenvolver o Eurolify | interesse legítimo — **C** | GitHub | o do GitHub — não verifiquei |
+| T7 | Chaves de API (migração 0010; `docs/19`) | responsável | o operador que cria ou revoga (Diogo, Bruno) | `criada_por` e `revogada_por` = `operador:github:<número da conta>` | saber quem criou e revogou cada chave | interesse legítimo (segurança) — **C** | base PostgreSQL (VPS) e cópias | enquanto a chave existir (não se apaga) — **C** |
 
 Falta, e entra com o domínio: cada tratamento novo acrescenta aqui uma linha
 (`eu-gdpr-privacy`, «Antes de dizer está feito»).

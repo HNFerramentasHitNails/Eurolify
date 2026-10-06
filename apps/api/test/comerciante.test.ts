@@ -99,6 +99,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0007_catalogo_categorias_colecoes",
         "0008_rasto_imutavel_e_funcoes_fechadas",
         "0009_catalogo_traducoes",
+        "0010_identidade_chaves",
       ]);
     });
 
@@ -124,9 +125,12 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         order by 1`.execute(base.dono);
       expect(rows.length).toBeGreaterThan(0);
       // Internas: só o migrador (kysely_*) ou funções com os direitos do dono
-      // (combinacoes_por_verificar, 0005) lhes tocam; a API não as lê.
+      // (combinacoes_por_verificar, 0005; chave_api, 0010) lhes tocam; a API
+      // não as lê.
       const interna = (t: string) =>
-        t.startsWith("kysely_") || t === "combinacoes_por_verificar";
+        t.startsWith("kysely_") ||
+        t === "combinacoes_por_verificar" ||
+        t === "chave_api";
       for (const linha of rows) {
         if (interna(linha.tabela)) {
           expect(linha, linha.tabela).toMatchObject({ api_le: false });
