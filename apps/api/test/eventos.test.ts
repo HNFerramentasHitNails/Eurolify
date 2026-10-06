@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  apagarRascunho,
   classificarArtigo,
   criarArtigo,
   mudarEstadoArtigo,
@@ -23,6 +24,7 @@ import {
   criarMercado,
   definirMercadosDoCanal,
   definirPreco,
+  mudarEstadoCanal,
   mudarEstadoMercado,
   tirarPreco,
 } from "../src/precos/repositorio.js";
@@ -231,7 +233,11 @@ describe.skipIf(URL_BASE === undefined)("eventos de domínio na base", () => {
         mercado_id: s.mercado,
       },
     });
-    expect(typeof rasto[0]?.dados["em"]).toBe("string");
+    // O instante vai em UTC, com formato fixo, qualquer que seja o fuso da
+    // sessão que escreveu (revisão do #143, P3-4).
+    expect(rasto[0]?.dados["em"]).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/,
+    );
   });
 
   it("arquivar o artigo deixa product.archived e o product.unpublished em cadeia", async () => {
@@ -239,10 +245,18 @@ describe.skipIf(URL_BASE === undefined)("eventos de domínio na base", () => {
     await publicar(base.api, s.c, QUEM, s.pedido);
     const versao = (await obterArtigo(base.api, s.c, s.artigo)).versao;
     await mudarEstadoArtigo(base.api, s.c, s.artigo, versao, "arquivado");
-    const finais = (await eventos(s.c)).slice(-2);
+    // A lista inteira: nenhum evento a mais nem repetido (revisão do #143,
+    // P3-6).
     expect(
-      finais.map((e) => [e.tipo, e.dados["motivo"], e.dados["quem"]]),
+      (await eventos(s.c)).map((e) => [
+        e.tipo,
+        e.dados["motivo"],
+        e.dados["quem"],
+      ]),
     ).toEqual([
+      ["market.activated", undefined, undefined],
+      ["price.changed", undefined, QUEM],
+      ["product.published", undefined, QUEM],
       ["product.unpublished", "artigo_arquivado", "catalogo:artigo_arquivado"],
       ["product.archived", undefined, undefined],
     ]);
@@ -252,24 +266,157 @@ describe.skipIf(URL_BASE === undefined)("eventos de domínio na base", () => {
     const s = await pronto();
     await publicar(base.api, s.c, QUEM, s.pedido);
     await mudarEstadoMercado(base.api, s.c, s.mercado, 2, "arquivado");
-    const finais = (await eventos(s.c)).slice(-2);
-    expect(finais.map((e) => [e.tipo, e.dados["motivo"]])).toEqual([
+    expect(
+      (await eventos(s.c)).map((e) => [e.tipo, e.dados["motivo"]]),
+    ).toEqual([
+      ["market.activated", undefined],
+      ["price.changed", undefined],
+      ["product.published", undefined],
       ["product.unpublished", "mercado_arquivado"],
       ["market.archived", undefined],
     ]);
   });
 
-  it("uma transacção desfeita não deixa evento", async () => {
+  it("arquivar o canal deixa o product.unpublished em cadeia, e só esse", async () => {
+    const s = await pronto();
+    await publicar(base.api, s.c, QUEM, s.pedido);
+    const { rows } = await sql<{ versao: number }>`
+      select versao from canal where id = ${s.canal}`.execute(base.dono);
+    await mudarEstadoCanal(
+      base.api,
+      s.c,
+      s.canal,
+      rows[0]?.versao ?? 0,
+      "arquivado",
+    );
+    const finais = (await eventos(s.c)).slice(2);
+    expect(finais.map((e) => [e.tipo, e.dados["motivo"]])).toEqual([
+      ["product.published", undefined],
+      ["product.unpublished", "canal_arquivado"],
+    ]);
+  });
+
+  it("um mercado arquivado e activado outra vez deixa um segundo market.activated", async () => {
+    const s = await pronto();
+    await mudarEstadoMercado(base.api, s.c, s.mercado, 2, "arquivado");
+    await mudarEstadoMercado(base.api, s.c, s.mercado, 3, "activo");
+    expect(
+      (await eventos(s.c))
+        .filter((e) => e.tipo.startsWith("market."))
+        .map((e) => e.tipo),
+    ).toEqual(["market.activated", "market.archived", "market.activated"]);
+  });
+
+  it("um preço depois de uma saída tem o montante antigo nulo; duas mudanças na mesma transacção encadeiam-se", async () => {
+    const s = await pronto();
+    await tirarPreco(base.api, s.c, QUEM, s.lista, s.variante);
+    await definirPreco(base.api, s.c, QUEM, s.lista, s.variante, {
+      montante: 1200,
+    });
+    // Duas mudanças na mesma transacção, por SQL à mão no contexto do
+    // comerciante: a segunda vê a primeira como anterior.
+    await comComerciante(base.api, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', ${QUEM}, true)`.execute(trx);
+      await sql`update preco set montante = 1300 where variante_id = ${s.variante}`.execute(
+        trx,
+      );
+      await sql`update preco set montante = 1400 where variante_id = ${s.variante}`.execute(
+        trx,
+      );
+    });
+    const precos = (await eventos(s.c)).filter(
+      (e) => e.tipo === "price.changed",
+    );
+    expect(
+      precos.map((e) => [
+        e.dados["montante_antigo"],
+        e.dados["montante_novo"],
+        e.dados["saiu"],
+      ]),
+    ).toEqual([
+      [null, 990, false],
+      [990, null, true],
+      [null, 1200, false],
+      [1200, 1300, false],
+      [1300, 1400, false],
+    ]);
+  });
+
+  it("apagar o rascunho de um artigo com preço deixa a saída do preço, sem quem declarado", async () => {
+    const s = await pronto();
+    const rascunho = await criarArtigo(
+      base.api,
+      s.c,
+      { tipo: "fisico", nome: "Lima", categoria_fiscal: "normal" },
+      [{ sku: "LIMA-001", unidade_de_venda: "unidade", peso_g: 10 }],
+    );
+    const [variante] = await comComerciante(base.api, s.c, (trx) =>
+      trx
+        .selectFrom("variante")
+        .select("id")
+        .where("artigo_id", "=", rascunho)
+        .execute(),
+    );
+    if (variante === undefined) throw new Error("falta a variante");
+    await definirPreco(base.api, s.c, QUEM, s.lista, variante.id, {
+      montante: 500,
+    });
+    await apagarRascunho(base.api, s.c, rascunho);
+    const daLima = (await eventos(s.c)).filter(
+      (e) => e.agregado_id === variante.id,
+    );
+    expect(
+      daLima.map((e) => [
+        e.tipo,
+        e.dados["montante_antigo"],
+        e.dados["saiu"],
+        e.dados["quem"],
+      ]),
+    ).toEqual([
+      ["price.changed", null, false, QUEM],
+      ["price.changed", 500, true, "catalogo:variante apagada"],
+    ]);
+  });
+
+  it("o evento grava-se na transacção da mudança e desfaz-se com ela", async () => {
     const s = await pronto();
     const antes = (await eventos(s.c)).length;
+    // Lida pelo dono, que vê a tabela: dentro da transacção o evento já lá
+    // está; depois do ROLLBACK, não (revisão do #143, P2-1).
+    const dentro = await base.dono
+      .transaction()
+      .execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${s.c}, true)`.execute(
+          trx,
+        );
+        await sql`select set_config('eurolify.quem', ${QUEM}, true)`.execute(
+          trx,
+        );
+        await sql`update preco set montante = 5000 where variante_id = ${s.variante}`.execute(
+          trx,
+        );
+        const { rows } = await sql<{ n: number }>`
+          select count(*)::int as n from evento_saida
+          where comerciante_id = ${s.c}`.execute(trx);
+        throw Object.assign(new Error("desfazer"), { n: rows[0]?.n });
+      })
+      .catch((erro: unknown) => (erro as { n?: number }).n);
+    expect(dentro).toBe(antes + 1);
+    expect((await eventos(s.c)).length).toBe(antes);
+  });
+
+  it("SQL à mão no contexto do comerciante, pela API, também deixa o evento", async () => {
+    const s = await pronto();
     await comComerciante(base.api, s.c, async (trx) => {
       await sql`select set_config('eurolify.quem', ${QUEM}, true)`.execute(trx);
       await sql`update preco set montante = 5000 where variante_id = ${s.variante}`.execute(
         trx,
       );
-      throw new Error("desfazer");
-    }).catch(() => undefined);
-    expect((await eventos(s.c)).length).toBe(antes);
+    });
+    expect((await eventos(s.c)).at(-1)).toMatchObject({
+      tipo: "price.changed",
+      dados: { montante_antigo: 990, montante_novo: 5000, quem: QUEM },
+    });
   });
 
   it("um evento não se altera nem se apaga; o publicador só marca o envio, e uma vez", async () => {
@@ -322,12 +469,30 @@ describe.skipIf(URL_BASE === undefined)("eventos de domínio na base", () => {
     ]);
   });
 
+  it("os gatilhos que escrevem os eventos ficam no estado normal, como os da 0017", async () => {
+    // Fixa o estado: uma mudança para ALWAYS (ou desligar um) tem de ser
+    // deliberada e passar por aqui (revisão do #143, P3-2).
+    const { rows } = await sql<{ nome: string; estado: string }>`
+      select tgname as nome, tgenabled as estado from pg_trigger
+      where tgname in ('publicacao_evento', 'artigo_evento', 'mercado_evento',
+        'historico_preco_evento') and not tgisinternal
+      order by 1`.execute(base.dono);
+    expect(rows).toEqual([
+      { nome: "artigo_evento", estado: "O" },
+      { nome: "historico_preco_evento", estado: "O" },
+      { nome: "mercado_evento", estado: "O" },
+      { nome: "publicacao_evento", estado: "O" },
+    ]);
+  });
+
   it("a API não lê, não escreve e não chama as funções dos eventos", async () => {
     const s = await pronto();
     for (const consulta of [
       sql`select count(*) from evento_saida`,
       sql`insert into evento_saida (comerciante_id, tipo, agregado_tipo, agregado_id)
           values (${s.c}, 'product.published', 'artigo', ${s.artigo})`,
+      sql`update evento_saida set publicado_em = now()`,
+      sql`delete from evento_saida`,
     ]) {
       expect(
         await mensagemDoErro(
@@ -341,6 +506,6 @@ describe.skipIf(URL_BASE === undefined)("eventos de domínio na base", () => {
           sql`select publicacao_evento()`.execute(trx),
         ),
       ),
-    ).not.toBe("sem erro");
+    ).toMatch(/^42501:/);
   });
 });

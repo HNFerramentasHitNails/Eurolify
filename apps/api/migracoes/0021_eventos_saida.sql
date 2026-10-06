@@ -9,8 +9,11 @@
 --   transacção que a mudança, com o mínimo de dados (identificadores e o que
 --   mudou); o publicador (webhooks, ainda por fazer) pede o resto à API;
 -- - os eventos escrevem-nos gatilhos com os direitos do dono, nas tabelas que
---   mudam: nenhum caminho (API, SQL à mão no contexto do comerciante, gatilhos
---   em cadeia) muda o estado sem o evento. A API **não** escreve na tabela
+--   mudam: a API, o SQL à mão no contexto do comerciante e os gatilhos em
+--   cadeia não mudam o estado sem o evento. O limite é o do rasto da 0008: o
+--   dono pode desligar ou apagar um gatilho por DDL, e isso só entra por
+--   migração revista; os gatilhos que escrevem os eventos ficam no estado
+--   normal, como os da 0017 (revisão do #143, P3-2). A API **não** escreve na tabela
 --   directamente nem a lê (mais fechado do que o docs/18 §5 dizia: «a API só
 --   faz INSERT»); as funções de gatilho não se chamam fora de um gatilho;
 -- - os eventos desta parte:
@@ -24,7 +27,9 @@
 -- - um evento não se altera nem se apaga (como o rasto da 0008): só as
 --   colunas do publicador (`publicado_em`, `tentativas`, `ultimo_erro`)
 --   mudam, e só enquanto o evento não estiver publicado. O prazo de guarda
---   decide-se com os webhooks (docs/18 §5).
+--   decide-se com os webhooks (docs/18 §5);
+-- - os instantes (`em`) vão em UTC, com formato fixo, qualquer que seja o
+--   fuso da sessão (docs/14 §6; revisão do #143, P3-4).
 --
 -- O que não faz (e onde fica):
 -- - o publicador e o seu utilizador da base: com os webhooks (docs/18);
@@ -32,7 +37,15 @@
 --   próprio, a seguir (docs/14 §8);
 -- - os outros eventos da lista (`product.created`, `product.updated`,
 --   `promotion.*`, os do Comerciante e das contas): entram com o domínio ou a
---   parte que os escreve (docs/14 §6, docs/20 §6, docs/15).
+--   parte que os escreve (docs/14 §6, docs/20 §6, docs/15);
+-- - apagar eventos: nem os já publicados nem os de um comerciante apagado; o
+--   prazo de guarda e a forma de apagar (um DELETE só do que está publicado e
+--   fora do prazo, ou partições) entram com o publicador, noutra migração
+--   (revisão do #143, P3-7);
+-- - a ordem global: o publicador lê o conjunto `publicado_em IS NULL` (com
+--   `FOR UPDATE SKIP LOCKED`), nunca «o último `criado_em` visto», porque uma
+--   transacção pode ficar visível depois de outra com `criado_em` posterior; a
+--   ordem só é garantida dentro de um agregado (revisão do #143, P2-3).
 
 SET LOCAL lock_timeout = '10s';
 
@@ -50,7 +63,8 @@ CREATE TABLE evento_saida (
   tentativas integer NOT NULL DEFAULT 0 CHECK (tentativas >= 0),
   ultimo_erro text
 );
--- O publicador lê por ordem os que faltam publicar; o rasto lê por agregado.
+-- O publicador lê os que faltam publicar (sem usar `criado_em` como cursor:
+-- ver acima); o rasto lê por agregado.
 CREATE INDEX evento_saida_por_publicar ON evento_saida (criado_em, id)
   WHERE publicado_em IS NULL;
 CREATE INDEX evento_saida_por_agregado
@@ -104,14 +118,16 @@ BEGIN
       jsonb_build_object(
         'artigo_id', NEW.artigo_id, 'publicacao_id', NEW.id,
         'canal_id', NEW.canal_id, 'mercado_id', NEW.mercado_id,
-        'quem', NEW.publicado_por, 'em', NEW.publicado_em));
+        'quem', NEW.publicado_por,
+        'em', to_char(NEW.publicado_em AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')));
   ELSIF TG_OP = 'UPDATE' AND NEW.estado = 'arquivado' AND OLD.estado <> 'arquivado' THEN
     INSERT INTO public.evento_saida (comerciante_id, tipo, agregado_tipo, agregado_id, dados)
     VALUES (NEW.comerciante_id, 'product.unpublished', 'artigo', NEW.artigo_id,
       jsonb_build_object(
         'artigo_id', NEW.artigo_id, 'publicacao_id', NEW.id,
         'canal_id', NEW.canal_id, 'mercado_id', NEW.mercado_id,
-        'motivo', NEW.motivo_arquivo, 'quem', NEW.arquivado_por, 'em', NEW.arquivado_em));
+        'motivo', NEW.motivo_arquivo, 'quem', NEW.arquivado_por,
+        'em', to_char(NEW.arquivado_em AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')));
   END IF;
   RETURN NULL;
 END
@@ -175,7 +191,8 @@ BEGIN
       'montante_antigo', anterior, 'montante_novo', NEW.montante,
       'gratuito', NEW.gratuito, 'saiu', NEW.saiu, 'moeda', NEW.moeda,
       'preco_inclui_iva', NEW.preco_inclui_iva,
-      'quem', NEW.definido_por, 'em', NEW.em_vigor_desde));
+      'quem', NEW.definido_por,
+      'em', to_char(NEW.em_vigor_desde AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')));
   RETURN NULL;
 END
 $$;

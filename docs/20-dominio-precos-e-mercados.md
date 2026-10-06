@@ -255,7 +255,8 @@ Com outbox, como os do Catálogo (`platform-architect`).
 **Em código** (migração 0021, `docs/18` §5):
 - já se escrevem `price.changed` (uma por linha nova no histórico, com o
   montante antigo e o novo, a moeda, o «preço inclui IVA», se saiu, e quem),
-  `market.activated` e `market.archived`;
+  `market.activated` e `market.archived` — os campos exactos de cada um (o
+  contrato) estão na tabela do `docs/18` §5;
 - `promotion.*` entra com a redução (parte 2).
 
 | Evento | Quando | Leva |
