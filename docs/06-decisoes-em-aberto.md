@@ -72,7 +72,7 @@
 | ✅ BA | Identidade: criar uma chave pela API não tem segundo passo de confirmação; no Hub (parte B), sim, com nova autenticação da pessoa | em vigor | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §10 |
 | ✅ BB | Motor de regras: a data de verificação de um domínio não limita o momento pedido; vale a vigência e a prova de cada versão | em vigor (é o que o código já faz) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.2, #59 |
 | ✅ BC | As contas de pessoas constroem-se na API, com bibliotecas abertas; passkeys primeiro, TOTP como alternativa; revisão de segurança própria | em vigor | Diogo, 06/10/2026 | [ADR-0036](adr/0036-contas-de-pessoas-construidas-na-api.md) |
-| ✅ BD | Motor de regras: quem valida uma regra tem de ter um papel indicado para o tema dela no `docs/03` | em vigor; por programar | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #59 |
+| ✅ BD | Motor de regras: quem valida uma regra tem de ter um papel indicado para o tema dela no `docs/03` | em vigor; no código com o `PAPEIS_POR_DOMINIO` (#59) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #59 |
 | ✅ BE | As faturas emitem-se pelo software certificado de cada país, ligado por adaptador; o Eurolify decide o IVA e guarda o documento como prova (D-4 → a) | em vigor nas Fases 1 a 3 | Diogo, 06/10/2026 | [ADR-0037](adr/0037-faturas-por-software-certificado.md) |
 | ✅ BF | O Eurolify nunca recebe o dinheiro das vendas: cada comerciante liga a sua conta (EuPago, Stripe primeiro) (D-5) | em vigor | Diogo, 06/10/2026 | [ADR-0038](adr/0038-o-eurolify-nunca-recebe-o-dinheiro.md) |
 | ✅ BG | O checkout é alojado pelo Eurolify, com o aspecto e no domínio da loja; API de checkout própria só na Fase 3 (D-7) | em vigor | Diogo, 06/10/2026 | [ADR-0039](adr/0039-checkout-alojado-pelo-eurolify.md) |
@@ -86,6 +86,7 @@
 | ✅ BO | Produção: alertas pelo Healthchecks.io para o Diogo e o Bruno, mais verificação de minuto a minuto da API | em vigor; plano e custo por verificar | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 7 |
 | ✅ BP | O Codex opera a VPS com o mesmo acesso que o Claude, pelo GitHub (pedidos revistos, `medir`, MCP), sem chave SSH | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 8 |
 | ✅ BQ | Identidade: uma chave com prazo só revoga chaves que expirem no mesmo instante ou antes dela | em vigor; por programar (T14) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
+| ✅ BR | Motor de regras: o papel de quem valida confere-se por domínio para já e, a seguir, linha a linha do `docs/03` (cada regra diz de que linha vem) | em vigor; por domínio no código, linha a linha por fazer | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #126 |
 
 ## Por decidir — por esta ordem
 

@@ -1,4 +1,4 @@
-import { podeDecidir } from "./decidir.js";
+import { papelValidaDominio, podeDecidir } from "./decidir.js";
 import { instante } from "./instante.js";
 import { ehLista, ehObjecto, tipo, valor } from "./mostrar.js";
 import {
@@ -236,6 +236,12 @@ export function errosDoRegisto(registo: Registo): string[] {
           erros.push(
             `${nome}: papel de validação desconhecido «${valor(v["papel"])}»`,
           );
+        } else if (!papelValidaDominio(v["papel"], regra.dominio)) {
+          // O papel tem de ser um dos da coluna «Quem valida» do docs/03 para
+          // o tema (Diogo, 06/10/2026, #59).
+          erros.push(
+            `${nome}: o papel «${valor(v["papel"])}» não valida o domínio ${valor(regra.dominio)} (docs/03, «Quem valida»)`,
+          );
         }
         const em = v["em"];
         if (typeof em !== "string" || instante(em) === null) {
@@ -303,8 +309,13 @@ export function errosDoRegisto(registo: Registo): string[] {
     } else if (regra.estadoLegal !== "proposta" && !podeDecidir(regra)) {
       // Num domínio verificado, uma regra que pode decidir precisa de W com
       // o texto lido ou de validação profissional (docs/03; §4.1).
+      // Com uma validação que não conta (papel que não valida o domínio, ou
+      // mal formada), não se diz «sem validação»: o erro dela já está acima
+      // (revisão do #126, P3-1).
       erros.push(
-        `${nome}: marca ${valor(regra.marca)} sem texto legal lido nem validação profissional — não pode decidir (docs/03)`,
+        regra.validacao === null
+          ? `${nome}: marca ${valor(regra.marca)} sem texto legal lido nem validação profissional — não pode decidir (docs/03)`
+          : `${nome}: marca ${valor(regra.marca)} sem texto legal lido e com uma validação que não conta — não pode decidir (docs/03)`,
       );
     }
     if (ehLista(regra.territorios)) {
