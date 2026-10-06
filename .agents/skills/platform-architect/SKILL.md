@@ -52,7 +52,7 @@ description: Arquitectura do Eurolify — monólito modular multi-inquilino, fro
 |---|---|
 | Comerciante | `merchant.created`, `merchant.status_changed`, `legal_entity.created`, `store.created` |
 | Catálogo | `product.created`, `product.updated`, `product.published`, `product.unpublished`, `product.archived` |
-| Preços e mercados | `price.changed`, `promotion.started`, `promotion.ended` |
+| Preços e mercados | `price.changed`, `promotion.started`, `promotion.ended`, `market.activated`, `market.archived` |
 | Carrinho / checkout | `cart.updated`, `checkout.completed` |
 | Encomendas | `order.created`, `order.cancelled`, `order.completed` |
 | Stock | `inventory.reserved`, `inventory.released`, `inventory.adjusted` |

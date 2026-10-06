@@ -202,6 +202,13 @@ Os textos e fluxos abaixo são servidos pelo Eurolify em todas as lojas.
    informação de RAL e o Livro de Reclamações em Portugal.
 6. **Documentos do próprio Eurolify**: contrato de serviço, acordo de
    tratamento de dados, política de privacidade.
+7. **Preços** (`20-dominio-precos-e-mercados.md`): na redução anunciada, o
+   preço anterior é o mais baixo dos 30 dias antes (art. 6.º-A da Dir.
+   98/6/CE, pela Omnibus — **não lemos o texto**). Que excepções e que
+   pormenores tem em cada país (produtos perecíveis, produtos há menos de 30
+   dias à venda, reduções progressivas)? Até haver resposta, o Eurolify recusa
+   uma redução sem 30 dias de histórico. No preço por unidade: que produtos
+   dispensa cada país (art. 5.º — *lido no texto*) e como se arredonda?
 
 **Pergunta.** Como organizar a validação por país — um jurista por país, ou um
 escritório com rede europeia — e por que países começar?
