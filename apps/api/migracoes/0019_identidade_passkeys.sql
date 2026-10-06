@@ -34,7 +34,8 @@ CREATE TABLE passkey (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
   pessoa_id uuid NOT NULL REFERENCES pessoa (id),
   -- O identificador da credencial, em base64url, como o devolve o navegador.
-  credencial_id text NOT NULL CHECK (credencial_id ~ '^[A-Za-z0-9_-]{16,1366}$'),
+  credencial_id text NOT NULL CHECK (length(credencial_id) BETWEEN 16 AND 1366
+                                     AND credencial_id ~ '^[A-Za-z0-9_-]+$'),
   chave_publica bytea NOT NULL CHECK (length(chave_publica) BETWEEN 16 AND 4096),
   contador bigint NOT NULL CHECK (contador >= 0),
   transportes text[] NOT NULL DEFAULT '{}' CHECK (cardinality(transportes) <= 10),

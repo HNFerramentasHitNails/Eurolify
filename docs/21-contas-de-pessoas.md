@@ -357,6 +357,14 @@ sessão) nunca vão no caminho nem na consulta, só no corpo ou no cookie.
 | `POST /hub/members/{id}/role` | sessão + comerciante, recente (dono) | `papel` | **200** |
 | `POST /hub/members/{id}/end` | sessão + comerciante (o próprio; outro: dono, recente) | nenhum | **200** |
 
+Onde o corpo diz «nenhum», vai `{}`: toda a escrita do Hub é JSON. **Sem
+`Idempotency-Key`** nestas rotas (proposta): são do Hub, não da API de
+integração, e repetir um pedido não duplica nada que importe (entrar dá
+outra sessão; convites e papéis recusam a repetição). As rotas só existem
+com a origem do Hub configurada (`HUB_ORIGEM`, só `https://anfitrião`); o
+`rpID` é o anfitrião dela. Como o Hub ainda não está publicado, o ensaio
+corre sem elas.
+
 Na base: as tabelas `passkey` (§4.1) e `desafio_webauthn` (o resumo do
 desafio, para que serve, a pessoa quando há, criado e usado em; apaga-se
 depois de usado ou expirado) e as funções que estas rotas chamam, as únicas

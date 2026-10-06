@@ -1,0 +1,704 @@
+import type { FastifyInstance, FastifyReply } from "fastify";
+import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+  type AuthenticationResponseJSON,
+  type RegistrationResponseJSON,
+} from "@simplewebauthn/server";
+import { sql, type Kysely } from "kysely";
+import { Type } from "typebox";
+import { RESPOSTA_DE_ERRO } from "../base/erros.js";
+import type { BaseDados } from "../base/esquema.js";
+import { comComerciante } from "../comerciante/repositorio.js";
+import { sessaoDo } from "./autenticacao.js";
+import { PAPEIS } from "./papeis.js";
+import {
+  COOKIE_SESSAO,
+  erroConta,
+  FORMATO_CONVITE,
+  IDADE_MAXIMA_COOKIE,
+  OPCOES_COOKIE,
+  resumo,
+  segredoNovo,
+  traduzindoConta,
+  type ConfigHub,
+} from "./sessoes.js";
+
+// Rotas do Hub da parte B2 (docs/21 §11): entrar com passkey, sair,
+// reautenticar, aceitar convites e gerir a equipa. A assinatura WebAuthn
+// verifica-se aqui (@simplewebauthn/server); o desafio de uso único, o
+// contador, a sessão, os convites e os papéis decide-os a base (0018, 0019).
+// Os segredos (sessão, convite) só andam no cookie e no corpo, nunca no
+// caminho nem na consulta, e nunca vão para o registo.
+//
+// Sem Idempotency-Key nestas rotas (proposta, docs/21 §11): são do Hub, não
+// da API de integração, e repetir um pedido não duplica nada que importe —
+// entrar dá outra sessão, os convites e as mudanças de papel recusam a
+// repetição.
+
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+/** Os desafios valem 5 minutos na base (0019); o navegador espera o mesmo. */
+const TEMPO_WEBAUTHN = 5 * 60 * 1000;
+
+const Papel = Type.Union(PAPEIS.map((p) => Type.Literal(p)));
+const Instante = Type.String({ format: "date-time" });
+
+const OpcoesWebAuthn = Type.Object(
+  {},
+  {
+    additionalProperties: true,
+    description:
+      "Opções WebAuthn (PublicKeyCredentialCreationOptionsJSON ou RequestOptionsJSON) para o navegador.",
+  },
+);
+
+// A resposta da passkey, como o navegador a dá (PublicKeyCredential.toJSON()).
+// A biblioteca valida o conteúdo; aqui só a forma e o tamanho.
+const Credencial = Type.Object(
+  {
+    id: Type.String({ minLength: 16, maxLength: 1366 }),
+    rawId: Type.String({ minLength: 16, maxLength: 1366 }),
+    type: Type.Literal("public-key"),
+    response: Type.Object(
+      {
+        clientDataJSON: Type.String({ maxLength: 4096 }),
+      },
+      { additionalProperties: true },
+    ),
+  },
+  { additionalProperties: true },
+);
+
+const SegredoConvite = Type.String({
+  pattern: FORMATO_CONVITE.source,
+  description: "O segredo da ligação do convite (euc_…)",
+});
+
+const RespostaEntrada = Type.Object({
+  pessoa: Type.String({ description: "per_…" }),
+});
+
+const RespostaConta = Type.Object({
+  pessoa: Type.String({ description: "per_…" }),
+  comerciante: Type.String({ description: "mer_…" }),
+});
+
+const RespostaEu = Type.Object({
+  pessoa: Type.String({ description: "per_…" }),
+  nome: Type.String(),
+  email: Type.String(),
+  comerciantes: Type.Array(
+    Type.Object({
+      comerciante: Type.String({ description: "mer_…" }),
+      nome: Type.String(),
+      papel: Papel,
+      membro: Type.String({ description: "mbr_…" }),
+    }),
+  ),
+});
+
+const RespostaMembros = Type.Object({
+  membros: Type.Array(
+    Type.Object({
+      membro: Type.String({ description: "mbr_…" }),
+      pessoa: Type.String({ description: "per_…" }),
+      nome: Type.String(),
+      email: Type.String(),
+      papel: Papel,
+      desde: Instante,
+    }),
+  ),
+  convites: Type.Union([
+    Type.Array(
+      Type.Object({
+        convite: Type.String({ description: "inv_…" }),
+        email: Type.String(),
+        papel: Papel,
+        criado_em: Instante,
+        expira_em: Instante,
+      }),
+    ),
+    Type.Null(),
+  ]),
+});
+
+const RespostaOk = Type.Object({ ok: Type.Literal(true) });
+
+const CabecalhoComerciante = Type.Object({
+  "eurolify-comerciante": Type.String({
+    pattern: `^mer_${UUID}$`,
+    description: "O comerciante do pedido (mer_…), escolhido no Hub",
+  }),
+});
+
+const ParametroConvite = Type.Object({
+  id: Type.String({ pattern: `^inv_${UUID}$`, description: "inv_…" }),
+});
+const ParametroMembro = Type.Object({
+  id: Type.String({ pattern: `^mbr_${UUID}$`, description: "mbr_…" }),
+});
+
+const SemCorpo = Type.Object({}, { additionalProperties: false });
+
+/** O desafio que o navegador assinou, lido do clientDataJSON. */
+function desafioDe(credencial: { response: { clientDataJSON: string } }) {
+  try {
+    const dados = JSON.parse(
+      Buffer.from(credencial.response.clientDataJSON, "base64url").toString(
+        "utf8",
+      ),
+    ) as { challenge?: unknown };
+    if (
+      typeof dados.challenge === "string" &&
+      /^[A-Za-z0-9_-]{16,128}$/.test(dados.challenge)
+    ) {
+      return dados.challenge;
+    }
+  } catch {
+    // cai no erro abaixo
+  }
+  throw erroConta("auth.unauthenticated");
+}
+
+const comPrefixo = (prefixo: string, id: string) => `${prefixo}_${id}`;
+
+function porCookie(resposta: FastifyReply, segredo: string) {
+  void resposta.setCookie(COOKIE_SESSAO, segredo, {
+    ...OPCOES_COOKIE,
+    maxAge: IDADE_MAXIMA_COOKIE,
+  });
+}
+
+export function rotasDoHub(
+  instancia: FastifyInstance,
+  base: Kysely<BaseDados>,
+  hub: ConfigHub,
+) {
+  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+
+  /** Verifica uma passkey de entrada; devolve a passkey e o contador novo. */
+  async function verificarEntrada(credencial: unknown) {
+    const resposta = credencial as AuthenticationResponseJSON;
+    const desafio = desafioDe(resposta);
+    const { rows } = await sql<{
+      passkey_id: string;
+      pessoa_id: string;
+      chave_publica: Buffer;
+      contador: string;
+      transportes: string[];
+    }>`select * from passkey_para_entrar(${resposta.id})`.execute(base);
+    const passkey = rows[0];
+    if (passkey === undefined) throw erroConta("auth.unauthenticated");
+    let verificada;
+    try {
+      verificada = await verifyAuthenticationResponse({
+        response: resposta,
+        expectedChallenge: desafio,
+        expectedOrigin: hub.origem,
+        expectedRPID: hub.rpId,
+        requireUserVerification: true,
+        credential: {
+          id: resposta.id,
+          publicKey: new Uint8Array(passkey.chave_publica),
+          counter: Number(passkey.contador),
+          transports: passkey.transportes,
+        },
+      });
+    } catch {
+      // A mensagem da biblioteca traz o desafio e a origem: não vai para o
+      // registo nem para a resposta (P-T5).
+      throw erroConta("auth.unauthenticated");
+    }
+    if (!verificada.verified) throw erroConta("auth.unauthenticated");
+    return {
+      desafio: resumo(desafio),
+      passkeyId: passkey.passkey_id,
+      contador: verificada.authenticationInfo.newCounter,
+    };
+  }
+
+  rotas.post(
+    "/hub/session/options",
+    {
+      config: { ambito: "publico", hub: true },
+      schema: {
+        description:
+          "Opções WebAuthn para entrar com uma passkey (credenciais detectáveis, sem e-mail). O desafio vale uma vez, 5 minutos.",
+        body: SemCorpo,
+        response: { 200: OpcoesWebAuthn, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async () => {
+      const opcoes = await generateAuthenticationOptions({
+        rpID: hub.rpId,
+        userVerification: "required",
+        timeout: TEMPO_WEBAUTHN,
+      });
+      await sql`select desafio_criar_entrada(${resumo(opcoes.challenge)})`.execute(
+        base,
+      );
+      return opcoes;
+    },
+  );
+
+  rotas.post(
+    "/hub/session",
+    {
+      config: { ambito: "publico", hub: true },
+      schema: {
+        description:
+          "Entrar com uma passkey. Cria uma sessão nova (cookie __Host-eurolify_sessao). O mesmo 401 para passkey desconhecida, de pessoa desactivada ou que não verifica.",
+        body: Type.Object(
+          { credencial: Credencial },
+          { additionalProperties: false },
+        ),
+        response: { 201: RespostaEntrada, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const v = await verificarEntrada(pedido.body.credencial);
+      const segredo = segredoNovo("eus");
+      const pessoa = await traduzindoConta(async () => {
+        await sql`select entrar_com_passkey(${v.desafio}, ${v.passkeyId}::uuid,
+          ${v.contador}, ${resumo(segredo)})`.execute(base);
+        const { rows } = await sql<{ pessoa_id: string }>`
+          select pessoa_id from sessao_verificar(${segredo})`.execute(base);
+        const id = rows[0]?.pessoa_id;
+        if (id === undefined) throw erroConta("auth.unauthenticated");
+        return id;
+      });
+      porCookie(resposta, segredo);
+      return resposta.code(201).send({ pessoa: comPrefixo("per", pessoa) });
+    },
+  );
+
+  rotas.post(
+    "/hub/session/reauthenticate",
+    {
+      config: { ambito: "sessao", hub: true },
+      schema: {
+        description:
+          "Autenticação recente (10 minutos) com uma passkey da mesma pessoa, com o desafio de /hub/session/options. A sessão é trocada por outra, com segredo novo.",
+        body: Type.Object(
+          { credencial: Credencial },
+          { additionalProperties: false },
+        ),
+        response: { 200: RespostaEntrada, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const sessao = sessaoDo(pedido);
+      const v = await verificarEntrada(pedido.body.credencial);
+      const segredo = segredoNovo("eus");
+      await traduzindoConta(() =>
+        sql`select reautenticar_com_passkey(${v.desafio}, ${sessao.segredo},
+          ${v.passkeyId}::uuid, ${v.contador}, ${resumo(segredo)})`.execute(
+          base,
+        ),
+      );
+      porCookie(resposta, segredo);
+      return { pessoa: comPrefixo("per", sessao.pessoaId) };
+    },
+  );
+
+  rotas.post(
+    "/hub/session/end",
+    {
+      config: { ambito: "sessao", hub: true },
+      schema: {
+        description: "Sair: a sessão é revogada e o cookie apagado.",
+        body: SemCorpo,
+        response: { 200: RespostaOk, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const sessao = sessaoDo(pedido);
+      await sql`select sessao_terminar(${sessao.segredo})`.execute(base);
+      void resposta.clearCookie(COOKIE_SESSAO, OPCOES_COOKIE);
+      return { ok: true as const };
+    },
+  );
+
+  rotas.get(
+    "/hub/me",
+    {
+      config: { ambito: "sessao", hub: true },
+      schema: {
+        description:
+          "A pessoa da sessão e os comerciantes de que é membro activo, com o papel.",
+        response: { 200: RespostaEu, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido) => {
+      const sessao = sessaoDo(pedido);
+      const eu = await traduzindoConta(async () => {
+        const { rows } = await sql<{
+          eu: {
+            pessoa: string;
+            nome: string;
+            email: string;
+            comerciantes: {
+              comerciante: string;
+              nome: string;
+              papel: (typeof PAPEIS)[number];
+              membro: string;
+            }[];
+          };
+        }>`select pessoa_eu(${sessao.segredo}) as eu`.execute(base);
+        const linha = rows[0]?.eu;
+        if (linha === undefined) throw erroConta("auth.unauthenticated");
+        return linha;
+      });
+      return {
+        pessoa: comPrefixo("per", eu.pessoa),
+        nome: eu.nome,
+        email: eu.email,
+        comerciantes: eu.comerciantes.map((c) => ({
+          comerciante: comPrefixo("mer", c.comerciante),
+          nome: c.nome,
+          papel: c.papel,
+          membro: comPrefixo("mbr", c.membro),
+        })),
+      };
+    },
+  );
+
+  rotas.post(
+    "/hub/invitations/accept/options",
+    {
+      config: { ambito: "publico", hub: true },
+      schema: {
+        description:
+          "Opções WebAuthn para criar a conta a partir de um convite (registo de uma passkey). O desafio fica preso ao convite e vale uma vez, 5 minutos.",
+        body: Type.Object(
+          { convite: SegredoConvite },
+          { additionalProperties: false },
+        ),
+        response: { 200: OpcoesWebAuthn, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido) => {
+      const convite = pedido.body.convite;
+      // O desafio gera-se antes de se saber o e-mail; guarda-se com o
+      // convite e as opções completam-se com o e-mail dele.
+      const provisorio = await generateRegistrationOptions({
+        rpName: "Eurolify",
+        rpID: hub.rpId,
+        userName: "convite",
+      });
+      const email = await traduzindoConta(async () => {
+        const { rows } = await sql<{ email: string }>`
+          select email from desafio_criar_registo(
+            ${resumo(provisorio.challenge)}, ${convite})`.execute(base);
+        const valor = rows[0]?.email;
+        if (valor === undefined) throw erroConta("invite.invalid");
+        return valor;
+      });
+      return generateRegistrationOptions({
+        rpName: "Eurolify",
+        rpID: hub.rpId,
+        userName: email,
+        challenge: Buffer.from(provisorio.challenge, "base64url"),
+        timeout: TEMPO_WEBAUTHN,
+        attestationType: "none",
+        authenticatorSelection: {
+          residentKey: "required",
+          userVerification: "required",
+        },
+      });
+    },
+  );
+
+  rotas.post(
+    "/hub/invitations/accept-new",
+    {
+      config: { ambito: "publico", hub: true },
+      schema: {
+        description:
+          "Aceitar um convite criando a conta: a pessoa, o membro, a passkey e a sessão nascem na mesma transacção. Para um e-mail que já tem conta, 409 invite.account_exists: entre e use /hub/invitations/accept.",
+        body: Type.Object(
+          {
+            convite: SegredoConvite,
+            nome: Type.String({ minLength: 1, maxLength: 100, pattern: "\\S" }),
+            nome_passkey: Type.Optional(
+              Type.String({ minLength: 1, maxLength: 100, pattern: "\\S" }),
+            ),
+            credencial: Credencial,
+          },
+          { additionalProperties: false },
+        ),
+        response: { 201: RespostaConta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const corpo = pedido.body;
+      const registo = corpo.credencial as unknown as RegistrationResponseJSON;
+      const desafio = desafioDe(registo);
+      let verificado;
+      try {
+        verificado = await verifyRegistrationResponse({
+          response: registo,
+          expectedChallenge: desafio,
+          expectedOrigin: hub.origem,
+          expectedRPID: hub.rpId,
+          requireUserVerification: true,
+        });
+      } catch {
+        throw erroConta("auth.unauthenticated");
+      }
+      if (!verificado.verified) throw erroConta("auth.unauthenticated");
+      const credencial = verificado.registrationInfo.credential;
+      const segredo = segredoNovo("eus");
+      const conta = await traduzindoConta(async () => {
+        const { rows } = await sql<{
+          pessoa_id: string;
+          comerciante_id: string;
+        }>`select * from conta_nova_com_passkey(${resumo(desafio)},
+          ${corpo.convite}, ${corpo.nome}, ${credencial.id},
+          ${Buffer.from(credencial.publicKey)}, ${credencial.counter},
+          ${credencial.transports ?? []}::text[],
+          ${corpo.nome_passkey ?? null}, ${resumo(segredo)})`.execute(base);
+        const linha = rows[0];
+        if (linha === undefined) throw erroConta("invite.invalid");
+        return linha;
+      });
+      porCookie(resposta, segredo);
+      return resposta.code(201).send({
+        pessoa: comPrefixo("per", conta.pessoa_id),
+        comerciante: comPrefixo("mer", conta.comerciante_id),
+      });
+    },
+  );
+
+  rotas.post(
+    "/hub/invitations/accept",
+    {
+      config: { ambito: "sessao", hub: true },
+      schema: {
+        description:
+          "Aceitar um convite com a conta da sessão (o e-mail do convite tem de ser o da pessoa), com autenticação recente.",
+        body: Type.Object(
+          { convite: SegredoConvite },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({
+            comerciante: Type.String({ description: "mer_…" }),
+            membro: Type.String({ description: "mbr_…" }),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido) => {
+      const sessao = sessaoDo(pedido);
+      const linha = await traduzindoConta(async () => {
+        const { rows } = await sql<{
+          comerciante_id: string;
+          membro_id: string;
+        }>`select * from convite_aceitar(${pedido.body.convite}, ${sessao.segredo})`.execute(
+          base,
+        );
+        const r = rows[0];
+        if (r === undefined) throw erroConta("invite.invalid");
+        return r;
+      });
+      return {
+        comerciante: comPrefixo("mer", linha.comerciante_id),
+        membro: comPrefixo("mbr", linha.membro_id),
+      };
+    },
+  );
+
+  rotas.get(
+    "/hub/members",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Os membros activos do comerciante; o dono vê também os convites em aberto (para os outros papéis, `convites` é null).",
+        headers: CabecalhoComerciante,
+        response: { 200: RespostaMembros, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido) => {
+      const sessao = sessaoDo(pedido);
+      const lista = await traduzindoConta(() =>
+        comComerciante(base, sessao.comercianteId ?? "", async (trx) => {
+          const { rows } = await sql<{
+            lista: {
+              membros: {
+                membro: string;
+                pessoa: string;
+                nome: string;
+                email: string;
+                papel: (typeof PAPEIS)[number];
+                desde: string;
+              }[];
+              convites:
+                | {
+                    convite: string;
+                    email: string;
+                    papel: (typeof PAPEIS)[number];
+                    criado_em: string;
+                    expira_em: string;
+                  }[]
+                | null;
+            };
+          }>`select membros_listar(${sessao.segredo}) as lista`.execute(trx);
+          const r = rows[0]?.lista;
+          if (r === undefined) throw erroConta("auth.forbidden");
+          return r;
+        }),
+      );
+      const instante = (t: string) => new Date(t).toISOString();
+      return {
+        membros: lista.membros.map((m) => ({
+          membro: comPrefixo("mbr", m.membro),
+          pessoa: comPrefixo("per", m.pessoa),
+          nome: m.nome,
+          email: m.email,
+          papel: m.papel,
+          desde: instante(m.desde),
+        })),
+        convites:
+          lista.convites === null
+            ? null
+            : lista.convites.map((c) => ({
+                convite: comPrefixo("inv", c.convite),
+                email: c.email,
+                papel: c.papel,
+                criado_em: instante(c.criado_em),
+                expira_em: instante(c.expira_em),
+              })),
+      };
+    },
+  );
+
+  rotas.post(
+    "/hub/invitations",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Convidar (com autenticação recente): o dono com qualquer papel, o gestor só armazém ou apoio. O segredo da ligação só aparece nesta resposta; o dono envia-a (CB). Vale uma vez, 7 dias.",
+        headers: CabecalhoComerciante,
+        body: Type.Object(
+          {
+            email: Type.String({ minLength: 3, maxLength: 254 }),
+            papel: Papel,
+          },
+          { additionalProperties: false },
+        ),
+        response: {
+          201: Type.Object({
+            convite: Type.String({ description: "inv_…" }),
+            segredo: Type.String({
+              description: "O segredo da ligação (euc_…). Só aparece aqui.",
+            }),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      const sessao = sessaoDo(pedido);
+      const segredo = segredoNovo("euc");
+      const id = await traduzindoConta(() =>
+        comComerciante(base, sessao.comercianteId ?? "", async (trx) => {
+          const { rows } = await sql<{ id: string }>`
+            select convite_criar(${sessao.segredo}, ${pedido.body.email},
+              ${pedido.body.papel}, ${resumo(segredo)}) as id`.execute(trx);
+          const r = rows[0]?.id;
+          if (r === undefined) throw new Error("a base não devolveu o convite");
+          return r;
+        }),
+      );
+      return resposta
+        .code(201)
+        .send({ convite: comPrefixo("inv", id), segredo });
+    },
+  );
+
+  rotas.post(
+    "/hub/invitations/:id/cancel",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description: "Cancelar um convite em aberto (só o dono).",
+        headers: CabecalhoComerciante,
+        params: ParametroConvite,
+        body: SemCorpo,
+        response: { 200: RespostaOk, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido) => {
+      const sessao = sessaoDo(pedido);
+      const id = pedido.params.id.slice("inv_".length);
+      await traduzindoConta(() =>
+        comComerciante(base, sessao.comercianteId ?? "", (trx) =>
+          sql`select convite_cancelar(${sessao.segredo}, ${id}::uuid)`.execute(
+            trx,
+          ),
+        ),
+      );
+      return { ok: true as const };
+    },
+  );
+
+  rotas.post(
+    "/hub/members/:id/role",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Mudar o papel de um membro (só o dono, com autenticação recente; nunca o seu). Vale no pedido seguinte.",
+        headers: CabecalhoComerciante,
+        params: ParametroMembro,
+        body: Type.Object({ papel: Papel }, { additionalProperties: false }),
+        response: { 200: RespostaOk, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido) => {
+      const sessao = sessaoDo(pedido);
+      const id = pedido.params.id.slice("mbr_".length);
+      await traduzindoConta(() =>
+        comComerciante(base, sessao.comercianteId ?? "", (trx) =>
+          sql`select membro_mudar_papel(${sessao.segredo}, ${id}::uuid,
+            ${pedido.body.papel})`.execute(trx),
+        ),
+      );
+      return { ok: true as const };
+    },
+  );
+
+  rotas.post(
+    "/hub/members/:id/end",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Tirar um membro da equipa: cada um sai por si; tirar outro é do dono, com autenticação recente. Nunca o último dono. Os convites e as chaves que a pessoa criou neste comerciante fecham-se.",
+        headers: CabecalhoComerciante,
+        params: ParametroMembro,
+        body: SemCorpo,
+        response: { 200: RespostaOk, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido) => {
+      const sessao = sessaoDo(pedido);
+      const id = pedido.params.id.slice("mbr_".length);
+      await traduzindoConta(() =>
+        comComerciante(base, sessao.comercianteId ?? "", (trx) =>
+          sql`select membro_terminar(${sessao.segredo}, ${id}::uuid)`.execute(
+            trx,
+          ),
+        ),
+      );
+      return { ok: true as const };
+    },
+  );
+}

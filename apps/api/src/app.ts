@@ -1,4 +1,5 @@
 import Fastify, { type FastifyServerOptions } from "fastify";
+import cookie from "@fastify/cookie";
 import swagger from "@fastify/swagger";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { Type } from "typebox";
@@ -6,6 +7,8 @@ import type { Kysely } from "kysely";
 import { errosDoFastify, ligarErros, RESPOSTA_DE_ERRO } from "./base/erros.js";
 import type { BaseDados } from "./base/esquema.js";
 import { ligarAutenticacao } from "./identidade/autenticacao.js";
+import { rotasDoHub } from "./identidade/hub.js";
+import type { ConfigHub } from "./identidade/sessoes.js";
 import { rotasDaIdentidade } from "./identidade/rotas.js";
 import { REGISTO_INICIAL } from "./regras/registo.js";
 import { coberturaPaises, RespostaPaises } from "./regras/rotas.js";
@@ -37,6 +40,8 @@ export function criarApp(
   opcoes: FastifyServerOptions = {},
   registo: Registo = REGISTO_INICIAL,
   base?: Kysely<BaseDados>,
+  /** Onde vive o Hub (HUB_ORIGEM); sem ele, as rotas do Hub não existem. */
+  hub?: ConfigHub,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -54,7 +59,10 @@ export function criarApp(
   }).withTypeProvider<TypeBoxTypeProvider>();
 
   ligarErros(app);
-  ligarAutenticacao(app, base);
+  // O cookie da sessão do Hub (docs/21 §3); as opções de cada cookie são
+  // dadas ao escrevê-lo (sessoes.ts), nunca as de omissão da biblioteca.
+  void app.register(cookie);
+  ligarAutenticacao(app, base, hub);
   const registadas: { metodo: string; caminho: string }[] = [];
   rotasPorApp.set(app, registadas);
   // Nada fora do contrato (headless-commerce, regra 1): uma rota sem a
@@ -92,7 +100,10 @@ export function criarApp(
       );
     }
     if (ambito !== "publico" && esquema !== undefined) {
-      esquema.security = [{ chave: [] }];
+      esquema.security =
+        ambito === "sessao" || ambito === "sessao_comerciante"
+          ? [{ sessao: [] }]
+          : [{ chave: [] }];
     }
     registadas.push({ metodo: String(rota.method), caminho: rota.url });
   });
@@ -111,6 +122,13 @@ export function criarApp(
             type: "http",
             scheme: "bearer",
             description: "Chave de API do comerciante (eul_sk_… ou eul_pk_…)",
+          },
+          sessao: {
+            type: "apiKey",
+            in: "cookie",
+            name: "__Host-eurolify_sessao",
+            description:
+              "Sessão de uma pessoa no Hub (docs/21 §3); as escritas pedem o Origin do Hub e JSON",
           },
         },
       },
@@ -151,6 +169,7 @@ export function criarApp(
     );
     // As rotas que precisam da base só existem com ela (docs/19 §6).
     if (base !== undefined) rotasDaIdentidade(rotas, base);
+    if (base !== undefined && hub !== undefined) rotasDoHub(rotas, base, hub);
     feito();
   });
 
