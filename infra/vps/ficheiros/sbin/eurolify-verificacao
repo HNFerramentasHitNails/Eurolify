@@ -28,6 +28,29 @@ if docker inspect eurolify-api >/dev/null 2>&1; then
   curl -fsS -m 5 http://127.0.0.1:8080/health >/dev/null 2>&1 || problemas+=("a API não responde no /health")
 fi
 
+# A limpeza diária da idempotência (eurolify-limpeza, 05:00) corre? A unidade
+# falhada avisa logo (revisão do #119, P2-1); uma linha expirada há mais de um
+# dia avisa também se o temporizador parou. A leitura entra como o papel da
+# limpeza, não como o superutilizador (migração 0013).
+if systemctl is-failed --quiet eurolify-limpeza.service 2>/dev/null; then
+  problemas+=("a limpeza da idempotência falhou na última corrida (journalctl -u eurolify-limpeza)")
+fi
+if [[ "$(docker inspect -f '{{.State.Running}}' eurolify-postgres 2>/dev/null)" == true ]]; then
+  if ! existe="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" -qAtc \
+    "select to_regclass('public.idempotencia') is not null" 2>&1)"; then
+    problemas+=("não consegui entrar na base como eurolify_limpeza (preparar.sh, passo 10b): $(head -n 1 <<<"$existe")")
+  elif [[ "$existe" == t ]]; then
+    if atrasadas="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" -qAtc \
+      "select count(*) from idempotencia where expira_em < now() - interval '1 day'" 2>&1)"; then
+      [[ "$atrasadas" =~ ^[0-9]+$ ]] && ((atrasadas > 0)) &&
+        problemas+=("$atrasadas linha(s) da idempotência expiradas há mais de um dia: a limpeza diária (eurolify-limpeza) não está a correr")
+    else
+      problemas+=("não consegui contar as linhas da idempotência: $(head -n 1 <<<"$atrasadas")")
+    fi
+  fi
+  # Sem a tabela (migração 0012 por publicar) não há nada a limpar.
+fi
+
 seguranca="$(/usr/lib/update-notifier/apt-check 2>&1 | cut -d ';' -f 2)"
 [[ "$seguranca" =~ ^[0-9]+$ ]] && ((seguranca > 0)) &&
   problemas+=("$seguranca actualizações de segurança por aplicar")

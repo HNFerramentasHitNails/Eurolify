@@ -102,6 +102,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0010_identidade_chaves",
         "0011_tirar_lingua_origem_da_loja",
         "0012_identidade_criar_revogar_e_idempotencia",
+        "0013_idempotencia_limpeza",
       ]);
     });
 

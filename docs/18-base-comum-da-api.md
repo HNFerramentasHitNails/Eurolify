@@ -8,10 +8,10 @@
 > REST com OpenAPI 3.1 gerado pelo Fastify + TypeBox + `@fastify/swagger`
 > 9.9.1 (ADR-0025); erros RFC 9457 e `Idempotency-Key` (`docs/02` §4.3).
 >
-> **Hoje** a API só tem `GET /health` e `GET /paises` (`apps/api/src/app.ts`).
-> As rotas de domínio (Comerciante, Catálogo) esperam pela fatia
-> «identidade» (`docs/15` §9, P1): sem saber quem chama, não há comerciante,
-> chave nem loja a que prender a idempotência e os limites.
+> **Nota de 06/10/2026:** desde a fatia «identidade» (`docs/19`), a API tem
+> também `GET /me`, `GET /keys`, `POST /keys` e `POST /keys/{id}/revoke`. As
+> rotas de domínio (Comerciante, Catálogo) ainda esperam por elas. Quando este
+> documento foi escrito, só havia `GET /health` e `GET /paises`.
 
 ## 1. O que entra quando
 
@@ -19,7 +19,7 @@
 |---|---|---|
 | Erros num formato único (RFC 9457) | **já** (pedido A) | vale para as rotas que existem e para os erros do próprio Fastify (404, validação) |
 | Contrato OpenAPI 3.1 gerado e publicado | **já** (pedido A) | «nada é exposto fora do contrato» (`headless-commerce`, regra 1); um teste falha se uma rota ficar fora |
-| Tabelas da idempotência e dos eventos (outbox) | pedido B (próxima migração), antes da primeira rota de escrita | o desenho está aqui; o código liga-se com a fatia «identidade» |
+| Tabelas da idempotência e dos eventos (outbox) | idempotência: **feita** na 0012 (#118), limpeza na 0013; eventos: por fazer | o desenho está aqui; o código liga-se com a fatia «identidade» |
 | `Idempotency-Key` nas rotas | com a primeira rota de escrita | precisa do comerciante de quem chama |
 | Limites de pedidos | com a fatia «identidade» | são «por chave e por loja» (regra 6) |
 | Publicador do outbox (webhooks) | com os webhooks | o evento grava-se já; publica-se depois |
@@ -106,11 +106,30 @@ regra 3; lição 4.1).
   - A ordem das recusas: outro método, caminho ou corpo → `key_reused`,
     mesmo com a linha ainda `em_curso`; o mesmo pedido em curso →
     `in_progress` (revisão do #118, P3-11).
-- **Por fazer:** a tarefa diária que apaga as expiradas. Hoje, uma linha
-  expirada só se substitui quando a mesma chave volta. O RLS da tabela é
-  forçado também ao dono quando ele não é superutilizador (o
-  `eurolify_migrador` na VPS): essa tarefa precisa de uma função própria ou de
-  correr comerciante a comerciante (revisão do #118, P3-9).
+- **A limpeza diária** (migração 0013; Diogo, 06/10/2026: *«avança com a
+  tarefa diária da idempotência»*):
+  - a função `idempotencia_apagar_expiradas()` apaga as linhas com
+    `expira_em <= now()` e diz quantas;
+  - o programa `eurolify-limpeza` da VPS chama-a às 05:00 UTC, depois da
+    cópia das 03:00, e regista quantas apagou no `acoes.log` (também quando
+    falha);
+  - **com o papel `eurolify_limpeza`, não com o superutilizador** (revisão do
+    #119, P2-2). O papel não é superutilizador e passa o RLS forçado
+    (BYPASSRLS), que se aplica também ao dono não superutilizador (revisão do
+    #118, P3-9). Só tem `SELECT`/`DELETE` na `idempotencia` e `EXECUTE` na
+    função. Entra só pelo socket do contentor da base (`LOGIN` sem
+    palavra-passe). Assim, código que o dono das tabelas ponha na função ou
+    num gatilho corre com estes direitos, nunca como superutilizador. Um
+    `SET ROLE` a partir do superutilizador não chegava, porque o código
+    chamado pode fazer `RESET ROLE`. Cria-o o `preparar.sh` (passo 10b);
+  - a verificação diária das 07:00 avisa se a última corrida falhou ou se há
+    linhas expiradas há mais de um dia;
+  - **por decidir** (Diogo ou Bruno; revisão do #119, P3-7): se uma limpeza
+    automática de prazo de retenção fica fora da regra «antes de escrever na
+    base, uma cópia» (`AGENTS.md`, «Operar a VPS», ponto 2). Na prática, cada
+    linha apagada já estava na cópia das 03:00, salvo se essa cópia falhou;
+  - apaga tudo de uma vez, sem lotes: serve para o ensaio. Em produção
+    convém apagar aos bocados (revisão do #119, P3-8).
 
 ## 5. Eventos de domínio (tabela `evento_saida`, outbox, próxima migração)
 
