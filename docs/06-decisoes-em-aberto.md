@@ -99,6 +99,7 @@
 | ✅ CB | Contas de pessoas: na Fase 1, os convites não vão por e-mail; o dono copia a ligação no Hub e envia-a ele (vale uma vez e expira) | em vigor; desenho aprovado | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §10, P2 |
 | ✅ CC | O Eurolify só passa a fornecedor de identidade (OIDC) quando houver aplicações de terceiros; até lá, sessão própria no Hub e chaves de API nas integrações | em vigor; desenho aprovado | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §10, P3 |
 | ✅ CD | Contas de pessoas: a sessão acaba após 12 h sem uso e no máximo 30 dias depois de entrar; a conta sem nenhum comerciante é pseudonimizada 90 dias depois de sair (o prazo dos 90 dias para o jurista confirmar, C) | em vigor; desenho aprovado | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §10, P4 |
+| ✅ CE | O e-mail de um convite não é confirmado na Fase 1 (quem convida tem a ligação, CB): aceita-se o risco de quem convida ficar com a conta desse e-mail e de saber se ele já tem conta; **rede temporária até ao primeiro comerciante real ou 31/03/2027, o que chegar primeiro** — antes disso, a protecção (e-mail confirmado ou convites por e-mail) | em vigor, com data de fim | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §4.7; revisão do #141, P2-1 |
 
 ## Por decidir — por esta ordem
 

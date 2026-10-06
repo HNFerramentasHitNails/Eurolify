@@ -138,6 +138,11 @@ O dono termina o `membro`. No pedido seguinte:
 Dois donos que se retiram ao mesmo tempo não deixam o comerciante sem dono
 (tranca por comerciante, como no T11).
 
+Cada pessoa também sai por si; tirar **outro** é só do dono, com
+autenticação recente (proposta, B1). As chaves criadas **por uma chave** que
+a pessoa criou (`criada_por = chave:key_…`) **não** se revogam em cadeia: o
+dono vê-as na lista e revoga-as (proposta, B1; a rever com o Hub).
+
 ### 4.5 Mudar de papel e desactivar uma pessoa
 
 - Só um dono muda papéis; ninguém muda o seu próprio. Vale no pedido seguinte.
@@ -151,6 +156,55 @@ mer_…`, escolhido no Hub. A função `sessao_resolver(segredo, comerciante)`
 devolve o papel **só se houver um `membro` activo**; sem ele, 403. Nunca do
 corpo nem do caminho (`docs/19` §5). As regras do comerciante `suspenso` ou
 `fechado` (AZ, P2-3) valem igual para as sessões.
+
+### 4.7 O que a parte B1 do código acrescentou (propostas)
+
+Escolhas do código da base (migração `0018`, issue #140) que o desenho não
+dizia; ficam como **proposta** até o Diogo ou o Bruno as mudarem:
+
+- **Convidar exige autenticação recente** (10 minutos), como mudar papéis:
+  dar um papel é dar acesso. Cancelar um convite e sair por si, não.
+- **Só um dono cancela convites** (§4.1: «o dono vê os pendentes e
+  cancela-os»).
+- Um convite com resposta única para «não existe», «já usado», «cancelado»
+  e «expirado» (`invite.invalid`): quem tem uma ligação velha não aprende
+  nada. Um e-mail com conta recusa a criação de outra conta
+  (`invite.account_exists`): só o vê quem tem a ligação.
+- Comerciante `suspenso` ou `fechado` (AZ): não convida, não muda papéis e
+  não aceita convites; tirar alguém da equipa continua (fecha acessos, como
+  revogar chaves).
+- Uma pessoa desactivada não volta; o e-mail de uma pessoa não muda. Nada
+  nestas tabelas se apaga até a tarefa dos prazos (B4).
+- **Quem perde poderes perde o que abriu** (revisão do #141, P1-1, P2-3):
+  ao sair da equipa ou ser desactivado, os convites em aberto que criou
+  são cancelados e as chaves que criou são revogadas; ao mudar de papel, só
+  os convites que o papel novo já não dá e as chaves com âmbitos que o papel
+  novo não tem. Aceitar um convite volta a confirmar que quem o criou ainda
+  pode dar aquele papel.
+- **Desactivar uma pessoa tira-a de todas as equipas** (excepto se for o
+  último dono, que recusa). Desactivar-se a si própria entra com as rotas
+  (B2); nesta parte só o operador desactiva.
+- **Aceitar um convite autenticado exige autenticação recente** (10
+  minutos), como dar um papel.
+- As trancas tomam-se sempre pela mesma ordem: a dos membros do comerciante
+  e depois a das chaves. Criar uma chave a partir de uma sessão (B2) tem de
+  tomar a dos membros e confirmar o membro dentro dela (revisão do #141,
+  P2-4).
+- `sessao_resolver` distingue a sessão inválida (`auth.unauthenticated`,
+  401) de não ser membro do comerciante (`auth.forbidden`, 403).
+- **Rede temporária, com data de fim** (Diogo, 06/10/2026: *«sim,
+  concordo, fica a a)»*; CE; revisão do #141, P2-1): o e-mail de um
+  convite não é confirmado e, com a CB, quem convida tem a ligação — pode
+  abri-la ele próprio, ficar com a conta desse e-mail e saber se o e-mail
+  já tem conta. Aceite **até ao primeiro comerciante real ou 31/03/2027, o
+  que chegar primeiro**; antes disso entra a protecção (e-mail confirmado
+  ou convites enviados por e-mail).
+- **Por resolver** (revisão do #141): uma pessoa desactivada fica com o
+  e-mail preso — um convite novo para ele dá `invite.account_exists` e não
+  há sessão que o aceite (P2-2). O caminho entra com a recuperação pelo
+  operador (§7, ponto 5; parte B3). E o e-mail de um convite não se pode
+  apagar enquanto o rasto apontar para o convite: na B4 pseudonimiza-se
+  (§6; P3-8).
 
 ## 5. Papéis e âmbitos (proposta)
 
