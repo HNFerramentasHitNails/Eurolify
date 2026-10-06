@@ -289,8 +289,12 @@ dois donos.
 - **Enumeração:** a mesma resposta **e o mesmo tempo** para «não existe» e
   «falhou» (calcula-se um Argon2id falso quando o e-mail não existe); passkey
   sem escrever o e-mail (§3).
-- **Palavra-passe:** Argon2id com parâmetros a fixar com medições na VPS, não
-  abaixo dos de uma fonte reconhecida, **a ler antes do código**; mínimo de 12
+- **Palavra-passe:** Argon2id com, **no mínimo, t=3, p=4, m=64 MiB, sal de
+  128 bits e resultado de 256 bits** — a «segunda opção recomendada» do RFC
+  9106 §4 (IETF, 09/2021; lido a 06/10/2026), para quando não há os 2 GiB da
+  primeira (Diogo, 06/10/2026: *«sim, concordo com os 64 MiB»*; CG). O tempo
+  de cada verificação mede-se na VPS (não medido); com 64 MiB cada, os limites
+  de tentativas entram ao mesmo tempo que a palavra-passe. Mínimo de 12
   caracteres e recusa das muito comuns (proposta).
 - **Segredo TOTP:** cifrado com uma chave que **não vive na base** (segredo
   do ambiente, como as outras chaves da VPS; ADR-0028), com troca planeada.
@@ -331,12 +335,67 @@ dois donos.
 | P3 | Fornecedor OIDC já, ou só com aplicações de terceiros? | ✅ **b) só com aplicações de terceiros** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*; CC). O «Já decidido» do `docs/19` e a `headless-commerce` (OAuth 2.1/OIDC na API de Administração) ficam para quando houver terceiros |
 | P4 | Prazos das sessões e das contas | ✅ **12 h sem uso; 30 dias no máximo; 90 dias para pseudonimizar** (Diogo, 06/10/2026: *«sim, concordo, aceito os três prazos»*; CD). Sem fonte legal; os 90 dias para o jurista confirmar (C) |
 
+## 11. Rotas da parte B2 (passkeys, sessões, convites e equipa)
+
+Escritas antes do código da B2 (issue #140), pelas §3, §4 e §5. Todas no
+contrato OpenAPI, com erros RFC 9457 (`docs/18`). **Sessão** = o cookie
+`__Host-eurolify_sessao` (§3); **comerciante** = o cabeçalho
+`Eurolify-Comerciante: mer_…` (§4.6); **recente** = autenticação recente
+(§4.3). Toda a escrita exige o `Origin` do Hub e `Content-Type:
+application/json` (§3); nenhum GET muda nada. Os segredos (de convite, de
+sessão) nunca vão no caminho nem na consulta, só no corpo ou no cookie.
+
+| Rota | Quem | Corpo | Resposta |
+|---|---|---|---|
+| `POST /hub/session/options` | público | nenhum | **200** opções WebAuthn de entrada: desafio de 32 bytes, uso único, 5 minutos (proposta); credenciais detectáveis; `userVerification: required` |
+| `POST /hub/session` | público | a resposta da passkey | **201** e o cookie novo; a mesma recusa (401) para passkey desconhecida, de pessoa desactivada ou que não verifica |
+| `POST /hub/session/reauthenticate` | sessão | a resposta da passkey (da mesma pessoa), com o desafio de `/hub/session/options` | **200**; sessão nova (segredo novo) com autenticação recente; a antiga é revogada (P-T13) |
+| `POST /hub/session/end` | público (com o cookie, se houver) | nenhum | **200**; a sessão do cookie, se ainda valer, é revogada; o cookie é sempre apagado |
+| `GET /hub/me` | sessão | — | **200** a pessoa (nome, e-mail) e os comerciantes de que é membro activo, com o papel |
+| `POST /hub/invitations/accept/options` | público | `convite` (o segredo) | **200** opções WebAuthn de registo para a conta nova (o mesmo erro para qualquer convite que não vale) |
+| `POST /hub/invitations/accept-new` | público | `convite`, `nome`, a resposta da passkey | **201** e o cookie: a conta, o membro, a passkey e a sessão nascem na mesma transacção |
+| `POST /hub/invitations/accept` | sessão, recente | `convite` | **200** o comerciante e o membro |
+| `GET /hub/members` | sessão + comerciante | — | **200** os membros activos (nome, e-mail, papel, desde); o dono vê também os convites em aberto |
+| `POST /hub/invitations` | sessão + comerciante, recente (dono; gestor só armazém ou apoio) | `email`, `papel` | **201** o convite e o `segredo` da ligação, que só aparece aqui |
+| `POST /hub/invitations/{id}/cancel` | sessão + comerciante (dono) | nenhum | **200** |
+| `POST /hub/members/{id}/role` | sessão + comerciante, recente (dono) | `papel` | **200** |
+| `POST /hub/members/{id}/end` | sessão + comerciante (o próprio; outro: dono, recente) | nenhum | **200** |
+
+Onde o corpo diz «nenhum», vai `{}`: toda a escrita do Hub é JSON. **Sem
+`Idempotency-Key`** nestas rotas (proposta): são do Hub, não da API de
+integração, e repetir um pedido não duplica nada que importe (entrar dá
+outra sessão; convites e papéis recusam a repetição). As rotas só existem
+com a origem do Hub configurada (`HUB_ORIGEM`, só `https://anfitrião`); o
+`rpID` é o anfitrião dela. Como o Hub ainda não está publicado, o ensaio
+corre sem elas.
+
+Na base: as tabelas `passkey` (§4.1) e `desafio_webauthn` (o resumo do
+desafio, para que serve e, no registo, o convite; apaga-se depois de usado ou
+passados os 5 minutos, a cada desafio novo) e as funções que estas rotas
+chamam, as únicas com EXECUTE para a API. Um e-mail que já tem conta recusa
+já nas opções do registo. Entrar acaba a sessão que estivesse no cookie
+(computador partilhado). **Fica para a B3:** acrescentar e retirar passkeys,
+palavra-passe + TOTP, códigos de recuperação, limites de tentativas e as
+rotas das chaves com sessão (P-T8).
+
+**Condição (revisão do #142, P2-2):** a `HUB_ORIGEM` não se define em
+nenhum ambiente antes dos limites de tentativas da B3. Até lá, a rota pública
+de desafios só tem o tecto da base (10 000 por usar, proposta).
+
+**Confiança na API (revisão do #142, P2-1):** a assinatura WebAuthn
+verifica-se na API, não na base. Quem tiver a credencial do `eurolify_api`
+cria uma sessão de qualquer pessoa de quem conheça o identificador da
+credencial — o mesmo nível de confiança que a API já tem ao pôr o
+comerciante do contexto (0001). Melhoria escrita, sem data: um papel da base
+só para entrar, num processo à parte.
+
 ## O que não foi verificado
 
 - O código, os avisos de segurança e a manutenção das bibliotecas da §2.
 - As bases legais e os prazos legais da §6 (todos **C**), e como se confere a
   prova do representante legal (§7, ponto 5).
 - O anfitrião do Hub e da API (§3): não há nada escrito no repositório.
-- Os parâmetros do Argon2id (§8): a fonte ainda não foi lida.
+- O tempo de uma verificação Argon2id (§8) na VPS: a fonte foi lida (RFC 9106
+  §4), a medição não.
 - O comportamento real de `SameSite`, do WebAuthn e do `@fastify/cookie`:
   escrito a partir do que se sabe, sem a documentação lida nesta versão.

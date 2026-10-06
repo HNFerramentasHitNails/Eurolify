@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
 import { serializadores } from "./base/registo.js";
+import { configHub } from "./identidade/sessoes.js";
 
 // Por omissão só ouve dentro da máquina (ADR-0027). Dentro do contentor o
 // fluxo de publicação passa ANFITRIAO=0.0.0.0 e a porta só se liga a
@@ -15,6 +16,13 @@ const urlBase = process.env["BASE_DADOS_URL"];
 const base =
   urlBase === undefined || urlBase === "" ? undefined : abrirBase(urlBase);
 
+// A origem do Hub (docs/21 §3 e §11). Sem ela, as rotas do Hub não existem.
+const origemHub = process.env["HUB_ORIGEM"]?.trim();
+const hub =
+  origemHub === undefined || origemHub === ""
+    ? undefined
+    : configHub(origemHub);
+
 const app = criarApp(
   {
     // Um identificador por pedido que não recomeça a cada arranque: é o
@@ -24,6 +32,7 @@ const app = criarApp(
   },
   undefined,
   base,
+  hub,
 );
 
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
