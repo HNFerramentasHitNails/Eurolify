@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
 import { Writable } from "node:stream";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import { serializadores } from "../src/base/registo.js";
@@ -11,7 +12,11 @@ import {
   mudarEstado,
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
-import { FORMATO_SEGREDO, resumoDe } from "../src/identidade/chaves.js";
+import {
+  FORMATO_SEGREDO,
+  gerarChave,
+  resumoDe,
+} from "../src/identidade/chaves.js";
 import { criarChave } from "../src/identidade/repositorio.js";
 import {
   criarBaseDeTeste,
@@ -838,6 +843,38 @@ describe.skipIf(URL_BASE === undefined)(
           criadaPor: "operador:teste",
         });
         expect((await eu(publica.segredo)).statusCode).toBe(200);
+        // Antes do arquivo: uma pública já revogada e outra já expirada
+        // (revisão do #131, P2-2). O arquivo não pode rebentar na revogada
+        // nem mudar o motivo dela.
+        const jaRevogada = await criarChave(comoDono(), comerciante, {
+          tipo: "publica",
+          lojaId: loja,
+          nome: "Já revogada",
+          ambitos: ["storefront"],
+          criadaPor: "operador:teste",
+        });
+        expect(
+          (await revogar(gestoraDaLoja.segredo, `key_${jaRevogada.id}`))
+            .statusCode,
+        ).toBe(200);
+        const expirada = await criarChave(comoDono(), comerciante, {
+          tipo: "publica",
+          lojaId: loja,
+          nome: "Expira já",
+          ambitos: ["storefront"],
+          criadaPor: "operador:teste",
+          expiraEm: new Date(Date.now() + 1500),
+        });
+        await new Promise((r) => setTimeout(r, 1600));
+        const revogacao = async (id: string) => {
+          const { rows } = await sql<{
+            revogada_por: string | null;
+            revogada_em: Date | null;
+          }>`select revogada_por, revogada_em from chave_api
+             where id = ${id}::uuid`.execute(base.dono);
+          return rows[0];
+        };
+        const antesDoArquivo = await revogacao(jaRevogada.id);
 
         // A API arquiva a loja (sem privilégio nenhum na tabela das chaves).
         const mudarLoja = (estado: string) =>
@@ -860,6 +897,10 @@ describe.skipIf(URL_BASE === undefined)(
         );
         expect(rows[0]?.revogada_por).toBe(`loja_arquivada:sto_${loja}`);
         expect(rows[0]?.revogada_em).not.toBeNull();
+        expect(await revogacao(jaRevogada.id)).toEqual(antesDoArquivo);
+        expect((await revogacao(expirada.id))?.revogada_por).toBe(
+          `loja_arquivada:sto_${loja}`,
+        );
         // A da outra loja e a de servidor continuam.
         expect((await eu(daOutra.segredo)).statusCode).toBe(200);
         expect((await eu(gestoraDaLoja.segredo)).statusCode).toBe(200);
@@ -898,6 +939,141 @@ describe.skipIf(URL_BASE === undefined)(
         expect((await eu(nova.json<ChaveCriada>().segredo)).statusCode).toBe(
           200,
         );
+      });
+
+      /** Espera até a promessa acabar ou ficar à espera de um bloqueio. */
+      async function ateBloquear(promessa: Promise<unknown>): Promise<void> {
+        const estado = { acabou: false };
+        void promessa.then(
+          () => (estado.acabou = true),
+          () => (estado.acabou = true),
+        );
+        for (let i = 0; i < 100 && !estado.acabou; i++) {
+          const { rows } = await sql<{ n: number }>`
+            select count(*)::int as n from pg_stat_activity
+            where usename = 'eurolify_api' and wait_event_type = 'Lock'`.execute(
+            base.dono,
+          );
+          if ((rows[0]?.n ?? 0) > 0) return;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
+
+      it("T13 em concorrência: criar uma pública e arquivar a loja ao mesmo tempo nunca deixa uma chave válida numa loja arquivada (revisão do #131, P2-1)", async () => {
+        const { comerciante, chaves } = await comGestoras(1);
+        const [gestoraDaLoja] = chaves;
+        if (gestoraDaLoja === undefined) throw new Error("sem chave");
+        const loja = await criarLoja(base.api, comerciante, {
+          entidade_legal_id: await criarEntidadeLegal(
+            base.api,
+            comerciante,
+            ENTIDADE,
+          ),
+          nome: "Concorrência",
+        });
+        const contexto = "select set_config('eurolify.comerciante', $1, true)";
+        const criarSql =
+          "select chave_criar_pela_api($1, 'publica', $2::uuid, 'Montra', null, $3, $4, null) as id";
+        const mudar = "update loja set estado = $1 where id = $2::uuid";
+        const cria = new pg.Client({ connectionString: base.urlApi });
+        const arquiva = new pg.Client({ connectionString: base.urlApi });
+        await cria.connect();
+        await arquiva.connect();
+        try {
+          // Quem cria primeiro: o arquivo espera e, ao passar, revoga também
+          // a chave nova.
+          const primeira = gerarChave("publica");
+          await cria.query("BEGIN");
+          await cria.query(contexto, [comerciante]);
+          const criada = await cria.query<{ id: string }>(criarSql, [
+            gestoraDaLoja.segredo,
+            loja,
+            primeira.prefixo,
+            primeira.resumo,
+          ]);
+          await arquiva.query("BEGIN");
+          await arquiva.query(contexto, [comerciante]);
+          const arquivo = arquiva.query(mudar, ["arquivada", loja]);
+          await ateBloquear(arquivo);
+          await cria.query("COMMIT");
+          await arquivo;
+          await arquiva.query("COMMIT");
+          const { rows } = await sql<{ revogada_por: string | null }>`
+            select revogada_por from chave_api
+            where id = ${criada.rows[0]?.id ?? ""}::uuid`.execute(base.dono);
+          expect(rows[0]?.revogada_por).toBe(`loja_arquivada:sto_${loja}`);
+          expect((await eu(primeira.segredo)).statusCode).toBe(401);
+
+          // Quem arquiva primeiro: a criação espera e, ao passar, é recusada.
+          await arquiva.query("BEGIN");
+          await arquiva.query(contexto, [comerciante]);
+          await arquiva.query(mudar, ["activa", loja]);
+          await arquiva.query("COMMIT");
+          await arquiva.query("BEGIN");
+          await arquiva.query(contexto, [comerciante]);
+          await arquiva.query(mudar, ["arquivada", loja]);
+          const segunda = gerarChave("publica");
+          await cria.query("BEGIN");
+          await cria.query(contexto, [comerciante]);
+          const criacao = cria.query(criarSql, [
+            gestoraDaLoja.segredo,
+            loja,
+            segunda.prefixo,
+            segunda.resumo,
+          ]);
+          await ateBloquear(criacao);
+          await arquiva.query("COMMIT");
+          await expect(criacao).rejects.toThrow(/^key\.store_archived:/);
+          await cria.query("ROLLBACK");
+          expect((await eu(segunda.segredo)).statusCode).toBe(401);
+        } finally {
+          await cria.end();
+          await arquiva.end();
+        }
+      });
+
+      it("a loja arquivada de outro comerciante dá key.store_not_found, sem revelar que está arquivada (revisão do #131, P3-5)", async () => {
+        const { comerciante: outro } = await comGestoras(1);
+        const lojaAlheia = await criarLoja(base.api, outro, {
+          entidade_legal_id: await criarEntidadeLegal(
+            base.api,
+            outro,
+            ENTIDADE,
+          ),
+          nome: "Alheia",
+        });
+        await comComerciante(base.api, outro, (trx) =>
+          sql`update loja set estado = 'arquivada'
+              where id = ${lojaAlheia}::uuid`.execute(trx),
+        );
+        const r = await criar(gestora.segredo, {
+          tipo: "publica",
+          nome: "Montra alheia",
+          loja: `sto_${lojaAlheia}`,
+        });
+        expect(r.statusCode).toBe(422);
+        expect(r.json<{ codigo: string }>().codigo).toBe("key.store_not_found");
+      });
+
+      it("o gatilho que revoga as chaves ao arquivar está sempre ligado (ENABLE ALWAYS; revisão do #131, P3-5)", async () => {
+        const { rows } = await sql<{ tgenabled: string }>`
+          select tgenabled from pg_trigger
+          where tgname = 'loja_revogar_chaves_ao_arquivar'`.execute(base.dono);
+        expect(rows.map((r) => r.tgenabled)).toEqual(["A"]);
+      });
+
+      it("T14: uma chave com prazo revoga-se a si própria, havendo outra gestora (o mesmo instante passa; revisão do #131, P3-5)", async () => {
+        const { comerciante } = await comGestoras(1);
+        const temporaria = await criarChave(comoDono(), comerciante, {
+          tipo: "servidor",
+          nome: "Temporária",
+          ambitos: ["keys:write"],
+          criadaPor: "operador:teste",
+          expiraEm: new Date(Date.now() + 60 * 60_000),
+        });
+        const r = await revogar(temporaria.segredo, `key_${temporaria.id}`);
+        expect(r.statusCode).toBe(200);
+        expect((await eu(temporaria.segredo)).statusCode).toBe(401);
       });
 
       it("T14: uma chave com prazo não revoga uma sem prazo nem uma que dure mais; no mesmo instante ou antes, sim (decisão do Diogo, 06/10/2026)", async () => {

@@ -11,7 +11,7 @@ import {
 } from "./chaves.js";
 
 // Acesso às chaves (migração 0010; docs/19 §3 e §5). A API não tem nada na
-// tabela: só as quatro funções da base. Listar, criar e revogar correm no
+// tabela: só as funções da base que lhe são dadas (T7). Listar, criar e revogar correm no
 // contexto do comerciante (comComerciante); resolver não, porque ainda não se
 // sabe de quem é a chave.
 

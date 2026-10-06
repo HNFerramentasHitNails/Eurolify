@@ -136,3 +136,10 @@ pedia autorização). Registado no #107.
   ao Diogo, que decidiu a a).
 - Medido a 06/10/2026, PostgreSQL 18.6 na sessão: 440 testes da API passam;
   sem o gatilho da loja, 1 falha; sem a recusa na criação, 1 falha.
+- Revisão do #131 (Claude Opus 5.5): 0 P0/P1, 2 P2, 5 P3. Tratados: testes de
+  concorrência nos dois sentidos (sem o FOR SHARE, falha), chave já revogada
+  e já expirada no arquivo (sem o filtro `revogada_por IS NULL`, falha), loja
+  arquivada de outro comerciante (`key.store_not_found`), gatilho ENABLE
+  ALWAYS, auto-revogação da T14; READ COMMITTED e as ordens das recusas
+  escritas no `docs/19` §6.1. Lojas arquivadas antes da 0016: não tratadas
+  (não há rota que arquive; só SQL à mão).

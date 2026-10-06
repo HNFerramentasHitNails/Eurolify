@@ -163,8 +163,8 @@ Erros novos (no formato do `docs/18` §2):
 |---|---|---|---|
 | Quem sou | `GET /me` | qualquer | o comerciante (`mer_…`), a loja (`sto_…`, se pública), os âmbitos e o prefixo da chave — **feito**. Aceita a chave pública, que está no frontend: o id do comerciante e da loja ficam públicos (o uuid v7 traz a data de criação). É de propósito: a montra precisa de saber de que loja é |
 | Listar chaves | `GET /keys` | `keys:write` | nunca devolve o segredo nem o resumo — **feito** |
-| Criar chave | `POST /keys` | `keys:write` | devolve o segredo **uma vez**; uma chave não cria outra com mais âmbitos do que tem, e uma chave com prazo só cria chaves com prazo até ao seu — **feito** (§6.1) |
-| Revogar chave | `POST /keys/{id}/revoke` | `keys:write` | imediato; não se revoga a si própria se for a última com `keys:write` — **feito** (§6.1) |
+| Criar chave | `POST /keys` | `keys:write` | devolve o segredo **uma vez**; uma chave não cria outra com mais âmbitos do que tem, uma chave com prazo só cria chaves com prazo até ao seu, e não se cria nenhuma para uma loja arquivada — **feito** (§6.1) |
+| Revogar chave | `POST /keys/{id}/revoke` | `keys:write` | imediato; não se revoga a si própria se for a última com `keys:write`, e uma chave com prazo só revoga chaves com prazo até ao seu — **feito** (§6.1) |
 | Comando do operador | fora da API pública: fluxo `operar` do GitHub | — | **feito** (ver abaixo) |
 
 **Comando do operador** (Diogo, 06/10/2026: *«avança com o comando do
@@ -260,10 +260,19 @@ que a API ganha para escrever chaves:
   anterior ao seu → `key.expiry_beyond_creator` (422; migração 0014).
 - **A ordem das recusas ao criar** (a primeira que falha é a que se
   devolve): `auth.forbidden` → `key.merchant_inactive` → `key.invalid_expiry`
-  → `key.expiry_beyond_creator` → `key.scope_escalation` →
+  → `key.expiry_beyond_creator` → `key.scope_escalation` (só na de
+  servidor) → `key.store_archived` (só na pública, 0016) →
   `key.store_not_found`. Ex.: uma chave temporária que peça uma chave sem
   prazo e com âmbitos a mais recebe o 422 do prazo; corrigido o prazo,
   recebe o 403 dos âmbitos.
+- **A ordem das recusas ao revogar:** `auth.forbidden` → `key.not_found` →
+  `key.already_revoked` → `key.revoke_beyond_creator` (0015) →
+  `key.last_key_writer`.
+- **A T13 conta com o isolamento READ COMMITTED** (o da API: nenhuma
+  transacção pede outro). No caso «quem cria primeiro», o arquivo espera pelo
+  FOR SHARE e, ao continuar, vê a chave nova já gravada e revoga-a; em
+  REPEATABLE READ não a veria. Uma rota que mude o isolamento tem de rever
+  isto (revisão do #131, P3-1).
 - **T9, na base:**
   - numa chave de **servidor**, os âmbitos novos têm de estar todos nos de
     quem pede; senão → `key.scope_escalation` (403);

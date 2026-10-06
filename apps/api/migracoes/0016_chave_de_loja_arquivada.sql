@@ -9,14 +9,17 @@
 -- - ao arquivar uma loja, as chaves públicas dela ficam revogadas, com
 --   `revogada_por = 'loja_arquivada:sto_<id>'`. A revogação é a que já existe
 --   (0010): o resolver já não as aceita e a linha fica para o registo. Fica
---   num gatilho da loja, SECURITY DEFINER, porque a API arquiva a loja mas
---   não tem nenhum privilégio na tabela das chaves (T7);
+--   num gatilho da loja, SECURITY DEFINER, porque a API tem o privilégio de
+--   arquivar a loja (ainda sem rota) mas nenhum na tabela das chaves (T7);
 -- - não se cria nenhuma chave para uma loja arquivada, por nenhum caminho (a
 --   API e o comando do operador): o gatilho da chave recusa com
 --   `key.store_archived`. O FOR SHARE na loja põe em fila quem cria e quem
 --   arquiva: quem arquiva primeiro faz a criação ler a loja já arquivada
 --   (recusa); quem cria primeiro faz o arquivo esperar, e a chave nova é
---   revogada com as outras.
+--   revogada com as outras. Conta com o isolamento READ COMMITTED (o da
+--   API): em REPEATABLE READ, o arquivo não veria a chave nova;
+-- - não trata lojas arquivadas antes desta migração: não há rota que arquive
+--   lojas, só SQL à mão (revisão do #131, P3-2).
 --
 -- A versão anterior da API recebe `key.store_archived` como 500 (não 422)
 -- enquanto as duas convivem; nenhuma chave indevida se cria.
