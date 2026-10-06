@@ -20,7 +20,7 @@ resumo="${1:-}"
 # GHCR, se se abriu. Começa logo a seguir a validar o resumo, que é o que vai
 # para o registo (5.ª revisão do #115, P3-2).
 sessao_ghcr=0
-# shellcheck disable=SC2329 # chamada pelo trap EXIT
+# shellcheck disable=SC2317,SC2329 # chamada pelo trap EXIT (SC2317 no shellcheck 0.9 do CI)
 ao_sair() {
   local rc=$?
   ((sessao_ghcr == 0)) || docker logout ghcr.io >/dev/null 2>&1 || true
