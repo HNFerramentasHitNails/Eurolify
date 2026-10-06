@@ -91,6 +91,13 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
     expect(doCodigo).toEqual(doDocumento);
   });
 
+  it("as linhas sem domínio no motor são estas três, e mais nenhuma (decisão BR; mudar é de propósito)", () => {
+    const semDominio = Object.values(TEMAS_DOCS03)
+      .filter((linha) => linha.dominio === null)
+      .map((linha) => linha.id);
+    expect(semDominio).toEqual(["mudanca-nuvem", "ia", "ciberseguranca"]);
+  });
+
   it("os identificadores são só minúsculas, algarismos e hífenes (os repetidos falham ao carregar temas.ts)", () => {
     const ids = Object.keys(TEMAS_DOCS03);
     expect(ids).toHaveLength(60);

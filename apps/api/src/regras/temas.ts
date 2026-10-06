@@ -11,25 +11,18 @@
 
 import type { Dominio, PapelDeValidacao } from "./tipos.js";
 
-/** Os domínios do motor em que uma regra de cada secção do docs/03 pode viver. */
-export const DOMINIOS_DA_SECCAO: Readonly<
-  Record<1 | 2 | 3 | 4 | 5, readonly Dominio[]>
-> = Object.freeze({
-  1: Object.freeze(["iva", "faturacao"] as const),
-  2: Object.freeze(["consumidor"] as const),
-  3: Object.freeze(["produto_ambiente", "acessibilidade_plataforma"] as const),
-  4: Object.freeze([
-    "privacidade_marketing",
-    "acessibilidade_plataforma",
-  ] as const),
-  5: Object.freeze(["pagamentos"] as const),
-});
-
 export interface TemaDocs03 {
   /** Identificador estável, usado no campo `tema` da regra. */
   id: string;
   /** A secção do docs/03 (1 a 5). */
   seccao: 1 | 2 | 3 | 4 | 5;
+  /**
+   * O domínio do motor em que vive uma regra desta linha (decisão do Diogo,
+   * 06/10/2026, revisão do #133, P2-2: «fica a a)»), pelas definições dos
+   * domínios em docs/eurolify/compliance-gaps.md §1. null: a linha não cabe
+   * em nenhum domínio do motor e nenhuma regra a pode usar até se decidir.
+   */
+  dominio: Dominio | null;
   /** O texto da coluna «Tema», sem a formatação. */
   titulo: string;
   /** A coluna «Quem valida», tal como o docs/03 a escreve. */
@@ -47,6 +40,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "oss",
     seccao: 1,
+    dominio: "iva",
     titulo: "IVA nas vendas à distância na UE (OSS)",
     quemValida: "contabilista",
     papeis: C,
@@ -54,6 +48,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "ioss",
     seccao: 1,
+    dominio: "iva",
     titulo: "Importações de baixo valor (IOSS)",
     quemValida: "contabilista",
     papeis: C,
@@ -61,6 +56,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "isencao-aduaneira-150",
     seccao: 1,
+    dominio: "iva",
     titulo: "Fim da isenção aduaneira <150 €",
     quemValida: "despachante",
     papeis: ["despachante"],
@@ -68,6 +64,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "vida",
     seccao: 1,
+    dominio: "iva",
     titulo: "IVA na era digital (ViDA)",
     quemValida: "contabilista",
     papeis: C,
@@ -75,6 +72,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "fornecedor-presumido",
     seccao: 1,
+    dominio: "iva",
     titulo: "Fornecedor presumido em bens (marketplaces)",
     quemValida: "contabilista",
     papeis: C,
@@ -82,6 +80,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "software-certificado-at",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "Software de faturação certificado pela AT",
     quemValida: "contabilista",
     papeis: C,
@@ -89,6 +88,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "atcud-qr",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "ATCUD e código QR",
     quemValida: "contabilista",
     papeis: C,
@@ -96,6 +96,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "pdf-fatura-pt",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "PDF como fatura electrónica (PT)",
     quemValida: "contabilista",
     papeis: C,
@@ -103,6 +104,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "conservacao-pt",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "Conservação de documentos (PT)",
     quemValida: "contabilista",
     papeis: C,
@@ -110,6 +112,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "verifactu-es",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "Espanha — Verifactu",
     quemValida: "asesor fiscal ES",
     papeis: C,
@@ -117,6 +120,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "fatura-electronica-fr",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "França — fatura electrónica",
     quemValida: "expert-comptable FR",
     papeis: C,
@@ -124,6 +128,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "b2b-electronico-be",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "Bélgica — B2B electrónico",
     quemValida: "contabilista BE",
     papeis: C,
@@ -131,6 +136,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "b2b-electronico-de",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "Alemanha — B2B electrónico",
     quemValida: "Steuerberater",
     papeis: C,
@@ -138,6 +144,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "ksef-pl",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "Polónia — KSeF",
     quemValida: "contabilista PL",
     papeis: C,
@@ -145,6 +152,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "sdi-it",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "Itália — SDI",
     quemValida: "commercialista IT",
     papeis: C,
@@ -152,6 +160,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "canarias-ceuta-melilla",
     seccao: 1,
+    dominio: "iva",
     titulo: "Canárias, Ceuta e Melilla",
     quemValida: "contabilista",
     papeis: C,
@@ -159,6 +168,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "acores-madeira",
     seccao: 1,
+    dominio: "iva",
     titulo: "Açores e Madeira",
     quemValida: "contabilista",
     papeis: C,
@@ -166,6 +176,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "lugar-prestacao-eventos",
     seccao: 1,
+    dominio: "iva",
     titulo: "Lugar da prestação — acesso a eventos e ensino",
     quemValida: "contabilista",
     papeis: C,
@@ -173,6 +184,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "ensino-ao-vivo",
     seccao: 1,
+    dominio: "iva",
     titulo: "Ensino ao vivo por vídeo não é «serviço electrónico»",
     quemValida: "contabilista",
     papeis: C,
@@ -180,6 +192,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "bilhete-documento-pt",
     seccao: 1,
+    dominio: "faturacao",
     titulo: "Bilhete como documento em vez de fatura (PT)",
     quemValida: "contabilista",
     papeis: C,
@@ -188,6 +201,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "pre-contratual-livre-resolucao",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Informação pré-contratual e livre resolução de 14 dias",
     quemValida: "jurista",
     papeis: J,
@@ -195,6 +209,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "livre-resolucao-lazer",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Livre resolução — actividades de lazer com data",
     quemValida: "jurista",
     papeis: J,
@@ -202,6 +217,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "servico-comecado-no-prazo",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Serviço começado dentro do prazo de livre resolução",
     quemValida: "jurista",
     papeis: J,
@@ -209,6 +225,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "botao-livre-resolucao",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Botão de livre resolução",
     quemValida: "jurista",
     papeis: J,
@@ -216,6 +233,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "reducoes-30-dias",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Reduções de preço — preço mais baixo dos 30 dias",
     quemValida: "jurista",
     papeis: J,
@@ -223,6 +241,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "preco-por-unidade",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Preço por unidade",
     quemValida: "jurista",
     papeis: J,
@@ -230,6 +249,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "preco-personalizado",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Preço personalizado",
     quemValida: "jurista",
     papeis: J,
@@ -237,6 +257,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "avaliacoes-pesquisa-paga",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Avaliações e resultados de pesquisa pagos",
     quemValida: "jurista",
     papeis: J,
@@ -244,6 +265,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "conteudos-digitais-livre-resolucao",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Conteúdos digitais — livre resolução",
     quemValida: "jurista",
     papeis: J,
@@ -251,6 +273,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "alegacoes-ambientais-garantia",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Alegações ambientais e garantia legal",
     quemValida: "jurista",
     papeis: J,
@@ -258,6 +281,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "direito-reparacao",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Direito à reparação",
     quemValida: "jurista",
     papeis: J,
@@ -265,6 +289,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "odr",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Plataforma europeia de litígios (ODR)",
     quemValida: "jurista",
     papeis: J,
@@ -272,6 +297,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "ral-livro-reclamacoes-pt",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "RAL e Livro de Reclamações electrónico (PT)",
     quemValida: "jurista",
     papeis: J,
@@ -279,6 +305,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "geobloqueio",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Geobloqueio",
     quemValida: "jurista",
     papeis: J,
@@ -286,6 +313,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "digital-fairness-act",
     seccao: 2,
+    dominio: "consumidor",
     titulo: "Digital Fairness Act (equidade digital)",
     quemValida: "—",
     papeis: [],
@@ -294,6 +322,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "gpsr",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Segurança geral dos produtos",
     quemValida: "jurista",
     papeis: J,
@@ -301,6 +330,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "cosmeticos",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Cosméticos",
     quemValida: "técnico regulamentar",
     papeis: T,
@@ -308,6 +338,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "tpo",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Substâncias proibidas — TPO",
     quemValida: "técnico regulamentar",
     papeis: T,
@@ -315,6 +346,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "quimicos-rotulo",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Químicos — rótulo na venda online",
     quemValida: "técnico regulamentar",
     papeis: T,
@@ -322,6 +354,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "ppwr",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Embalagens (PPWR)",
     quemValida: "jurista / entidade gestora",
     papeis: ["jurista", "entidade_gestora"],
@@ -329,6 +362,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "mercadorias-perigosas",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Mercadorias perigosas no transporte",
     quemValida: "transportadora",
     papeis: ["transportadora"],
@@ -336,6 +370,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "informacao-entrega",
     seccao: 3,
+    dominio: "consumidor",
     titulo: "Informação de entrega antes da compra",
     quemValida: "jurista",
     papeis: J,
@@ -343,6 +378,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "cra",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Ciber-resiliência dos produtos com elementos digitais (CRA)",
     quemValida: "jurista",
     papeis: J,
@@ -350,6 +386,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "eudr",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Produtos sem desflorestação (EUDR)",
     quemValida: "jurista",
     papeis: J,
@@ -357,6 +394,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "brinquedos",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Segurança dos brinquedos",
     quemValida: "técnico regulamentar",
     papeis: T,
@@ -364,6 +402,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "acessibilidade",
     seccao: 3,
+    dominio: "acessibilidade_plataforma",
     titulo: "Acessibilidade",
     quemValida: "jurista",
     papeis: J,
@@ -371,6 +410,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "produtos-defeituosos",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Responsabilidade por produtos defeituosos",
     quemValida: "jurista",
     papeis: J,
@@ -378,6 +418,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "baterias",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Baterias — código QR, passaporte e registo de produtor",
     quemValida: "técnico regulamentar",
     papeis: T,
@@ -385,6 +426,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "reee",
     seccao: 3,
+    dominio: "produto_ambiente",
     titulo: "Equipamentos eléctricos e electrónicos (REEE)",
     quemValida: "jurista / entidade gestora",
     papeis: ["jurista", "entidade_gestora"],
@@ -393,6 +435,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "protecao-dados",
     seccao: 4,
+    dominio: "privacidade_marketing",
     titulo: "Protecção de dados",
     quemValida: "encarregado de dados / jurista",
     papeis: ["encarregado_de_dados", "jurista"],
@@ -400,6 +443,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "violacao-dados",
     seccao: 4,
+    dominio: "privacidade_marketing",
     titulo: "Violação de dados pessoais",
     quemValida: "encarregado de dados / jurista",
     papeis: ["encarregado_de_dados", "jurista"],
@@ -407,6 +451,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "cookies",
     seccao: 4,
+    dominio: "privacidade_marketing",
     titulo: "Cookies",
     quemValida: "jurista",
     papeis: J,
@@ -414,6 +459,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "mudanca-nuvem",
     seccao: 4,
+    dominio: null,
     titulo: "Mudança de fornecedor de nuvem/SaaS",
     quemValida: "jurista",
     papeis: J,
@@ -421,6 +467,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "dsa",
     seccao: 4,
+    dominio: "acessibilidade_plataforma",
     titulo: "Serviços digitais (DSA)",
     quemValida: "jurista",
     papeis: J,
@@ -428,6 +475,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "dac7",
     seccao: 4,
+    dominio: "faturacao",
     titulo: "Comunicação de vendedores por plataformas",
     quemValida: "contabilista",
     papeis: C,
@@ -435,6 +483,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "ia",
     seccao: 4,
+    dominio: null,
     titulo: "Inteligência artificial",
     quemValida: "jurista",
     papeis: J,
@@ -442,6 +491,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "ciberseguranca",
     seccao: 4,
+    dominio: null,
     titulo: "Cibersegurança",
     quemValida: "jurista",
     papeis: J,
@@ -450,6 +500,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "psd2-sca",
     seccao: 5,
+    dominio: "pagamentos",
     titulo: "Serviços de pagamento e autenticação forte",
     quemValida: "jurista",
     papeis: J,
@@ -457,11 +508,19 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "psd3-psr",
     seccao: 5,
+    dominio: "pagamentos",
     titulo: "PSD3 / PSR",
     quemValida: "jurista",
     papeis: J,
   },
-  { id: "pci-dss", seccao: 5, titulo: "PCI DSS", quemValida: "—", papeis: [] },
+  {
+    id: "pci-dss",
+    seccao: 5,
+    dominio: "pagamentos",
+    titulo: "PCI DSS",
+    quemValida: "—",
+    papeis: [],
+  },
 ];
 
 // Um identificador repetido faria a última linha apagar a outra sem aviso
@@ -492,9 +551,8 @@ export function temaDoDominio(tema: unknown, dominio: unknown): boolean {
   if (typeof tema !== "string" || !Object.hasOwn(TEMAS_DOCS03, tema))
     return false;
   const linha = TEMAS_DOCS03[tema];
-  if (linha === undefined) return false;
-  return (DOMINIOS_DA_SECCAO[linha.seccao] as readonly unknown[]).includes(
-    dominio,
+  return (
+    linha !== undefined && linha.dominio !== null && linha.dominio === dominio
   );
 }
 

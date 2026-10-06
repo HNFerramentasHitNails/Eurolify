@@ -5,11 +5,7 @@ import { decidir } from "../src/regras/decidir.js";
 import { instante } from "../src/regras/instante.js";
 import { REGISTO_INICIAL } from "../src/regras/registo.js";
 import { RespostaPaises } from "../src/regras/rotas.js";
-import {
-  DOMINIOS_DA_SECCAO,
-  papelValidaTema,
-  TEMAS_DOCS03,
-} from "../src/regras/temas.js";
+import { papelValidaTema, TEMAS_DOCS03 } from "../src/regras/temas.js";
 import {
   CODIGOS_UE,
   DOMINIOS_CONDICIONAIS,
@@ -1872,8 +1868,16 @@ describe("o papel de quem valida confere-se com a linha do docs/03 (#59, #128)",
 
   it("todas as linhas × todos os papéis: valida só quem a linha diz, no validar e no decidir", () => {
     for (const linha of Object.values(TEMAS_DOCS03)) {
-      const dominio = DOMINIOS_DA_SECCAO[linha.seccao][0];
-      if (dominio === undefined) throw new Error("secção sem domínio");
+      const dominio = linha.dominio;
+      if (dominio === null) {
+        // Sem domínio no motor: nenhum papel a valida em nenhum domínio.
+        for (const d of TODOS_OS_DOMINIOS) {
+          for (const papel of PAPEIS_DE_VALIDACAO) {
+            expect(papelValidaTema(papel, linha.id, d), linha.id).toBe(false);
+          }
+        }
+        continue;
+      }
       for (const papel of PAPEIS_DE_VALIDACAO) {
         const aceite = linha.papeis.includes(papel);
         const caso = `${linha.id}/${papel}`;
@@ -2005,12 +2009,50 @@ describe("o papel de quem valida confere-se com a linha do docs/03 (#59, #128)",
     expect(decide(registo, "agencia_comercial")).toBe("revisao_necessaria");
   });
 
+  it("cada linha vive no seu domínio, não no da secção vizinha (revisão do #133, P2-2)", () => {
+    const casos: [Dominio, string, string, boolean][] = [
+      // Cosméticos é produto, não acessibilidade, mesmo na mesma secção.
+      ["produto_ambiente", "cosmeticos", "tecnico_regulamentar", true],
+      [
+        "acessibilidade_plataforma",
+        "cosmeticos",
+        "tecnico_regulamentar",
+        false,
+      ],
+      // A DAC7 é comunicação à autoridade: faturação.
+      ["faturacao", "dac7", "contabilista", true],
+      ["privacidade_marketing", "dac7", "contabilista", false],
+      // A informação de entrega é do consumidor.
+      ["consumidor", "informacao-entrega", "jurista", true],
+      ["produto_ambiente", "informacao-entrega", "jurista", false],
+    ];
+    for (const [dominio, tema, papel, aceite] of casos) {
+      const registo = comRegraValidada(dominio, tema, papel);
+      expect(errosDoRegisto(registo).length === 0, `${dominio}/${tema}`).toBe(
+        aceite,
+      );
+      expect(decide(registo, dominio), `${dominio}/${tema}`).toBe(
+        aceite ? "permitido" : "revisao_necessaria",
+      );
+    }
+  });
+
+  it("as linhas sem domínio no motor (nuvem, IA, cibersegurança) não servem nenhum", () => {
+    for (const tema of ["mudanca-nuvem", "ia", "ciberseguranca"]) {
+      for (const dominio of TODOS_OS_DOMINIOS) {
+        expect(
+          errosDoRegisto(comRegraValidada(dominio, tema, "jurista")).join("\n"),
+          `${tema}/${dominio}`,
+        ).toContain(`o tema ${tema} não é do domínio ${dominio}`);
+      }
+    }
+  });
+
   it("a tabela não se altera em execução", () => {
     expect(Object.isFrozen(TEMAS_DOCS03)).toBe(true);
     for (const linha of Object.values(TEMAS_DOCS03)) {
       expect(Object.isFrozen(linha)).toBe(true);
       expect(Object.isFrozen(linha.papeis)).toBe(true);
     }
-    expect(Object.isFrozen(DOMINIOS_DA_SECCAO)).toBe(true);
   });
 });

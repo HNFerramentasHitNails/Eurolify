@@ -93,6 +93,7 @@
 | ✅ BV | Preços e mercados: numa loja, um país só está num mercado activo (o mesmo cliente nunca vê dois preços) | em vigor; por programar (desenho por aprovar) | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q4; #127 |
 | ✅ BW | Preços e mercados: o preço por unidade mostra-se sempre que a variante tem quantidade e unidade, até haver a lista validada das dispensas de cada país | em vigor; por programar (desenho por aprovar); as dispensas por país são C (jurista, `docs/12` B7) | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q5; #127 |
 | ✅ BX | Preços e mercados: os eventos `market.activated` e `market.archived` entram na lista de eventos (o Catálogo arquiva as publicações de um mercado arquivado) | em vigor; no `docs/02`, no `docs/20` §6 e na skill `platform-architect` | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q6; #127 |
+| ✅ BY | Motor de regras: cada linha do `docs/03` diz o domínio do motor em que vive (não a secção); três linhas sem domínio (nuvem, IA, cibersegurança) | em vigor; no código (`TEMAS_DOCS03`, #133) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #133 |
 
 ## Por decidir — por esta ordem
 
