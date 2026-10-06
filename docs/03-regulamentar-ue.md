@@ -10,7 +10,8 @@
 > dispensa a validação de um contabilista e de um jurista em cada país onde o
 > Eurolify for vendido — ver a coluna «Quem valida».
 >
-> **No motor de regras** (`PAPEIS_POR_DOMINIO`, decisão BD, 06/10/2026), o
+> **No motor de regras** (`TEMAS_DOCS03` em `apps/api/src/regras/temas.ts`,
+> decisões BD e BR, 06/10/2026: cada regra diz de que linha vem), o
 > profissional fiscal de cada país desta coluna (asesor fiscal, expert-comptable,
 > Steuerberater, commercialista, contabilista BE ou PL) regista-se com o papel
 > `contabilista`. É uma convenção de nomes do motor, não uma equivalência

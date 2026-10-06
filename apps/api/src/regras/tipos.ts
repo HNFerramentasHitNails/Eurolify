@@ -108,47 +108,6 @@ export const PAPEIS_DE_VALIDACAO = [
 ] as const;
 export type PapelDeValidacao = (typeof PAPEIS_DE_VALIDACAO)[number];
 
-/** Congela o mapa e cada lista: a regra de quem valida não muda em execução. */
-function congelar<T extends Record<string, readonly string[]>>(
-  mapa: T,
-): Readonly<T> {
-  for (const lista of Object.values(mapa)) Object.freeze(lista);
-  return Object.freeze(mapa);
-}
-
-/**
- * Que papéis podem validar uma regra de cada domínio (Diogo, 06/10/2026, #59:
- * «tem de corresponder»; §4.1 do docs/eurolify/architecture.md). Tirado da
- * coluna «Quem valida» do docs/03, por secção: fiscal → contabilista (os
- * equivalentes de cada país, «asesor fiscal», «Steuerberater»…, são este
- * papel) e despachante (a isenção aduaneira, só no IVA); consumidor →
- * jurista; produto → jurista, técnico regulamentar, entidade gestora e
- * transportadora; dados → encarregado de dados e jurista; acessibilidade e
- * pagamentos → jurista. Os domínios condicionais não têm linha no docs/03:
- * nenhum papel os valida até ela existir, e só decide uma regra W com o texto
- * lido (o lado seguro).
- */
-export const PAPEIS_POR_DOMINIO = congelar<
-  Record<Dominio, readonly PapelDeValidacao[]>
->({
-  consumidor: ["jurista"],
-  iva: ["contabilista", "despachante"],
-  faturacao: ["contabilista"],
-  privacidade_marketing: ["encarregado_de_dados", "jurista"],
-  produto_ambiente: [
-    "jurista",
-    "tecnico_regulamentar",
-    "entidade_gestora",
-    "transportadora",
-  ],
-  acessibilidade_plataforma: ["jurista"],
-  pagamentos: ["jurista"],
-  distribuicao_concorrencia: [],
-  contratos_franchising: [],
-  agencia_comercial: [],
-  termos_plataforma_empresas: [],
-});
-
 export interface Validacao {
   por: string;
   papel: PapelDeValidacao;
@@ -191,6 +150,11 @@ export interface Regra {
   /** Num `W`: o texto legal foi lido, e não só o resumo. Fora de `W`, false. */
   textoLido: boolean;
   validacao: Validacao | null;
+  /**
+   * A linha do docs/03 de onde a regra vem (`id` em temas.ts; decisão BR,
+   * #128). Obrigatória com uma validação: só valida um papel dessa linha.
+   */
+  tema: string | null;
 }
 
 export interface Registo {

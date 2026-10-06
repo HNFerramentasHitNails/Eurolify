@@ -1,9 +1,9 @@
 import { instante } from "./instante.js";
 import { ehLista, ehObjecto, valor } from "./mostrar.js";
-import { PAPEIS_DE_VALIDACAO, PAPEIS_POR_DOMINIO } from "./tipos.js";
+import { papelValidaTema } from "./temas.js";
+import { PAPEIS_DE_VALIDACAO } from "./tipos.js";
 import type {
   Decisao,
-  Dominio,
   EstadoLegal,
   Motivo,
   PedidoDecisao,
@@ -44,20 +44,6 @@ function regraEmVigor(regra: Regra, momento: number): boolean {
 }
 
 /**
- * O papel pode validar uma regra deste domínio (PAPEIS_POR_DOMINIO, tirado do
- * docs/03)? Um domínio ou um papel estranhos: não.
- */
-export function papelValidaDominio(papel: unknown, dominio: unknown): boolean {
-  if (
-    typeof dominio !== "string" ||
-    !Object.hasOwn(PAPEIS_POR_DOMINIO, dominio)
-  )
-    return false;
-  const aceites = PAPEIS_POR_DOMINIO[dominio as Dominio];
-  return (aceites as readonly unknown[]).includes(papel);
-}
-
-/**
  * A regra tem prova para decidir? Só `W` com o texto legal lido, ou uma
  * validação profissional (docs/03: «uma linha C não entra numa decisão sem
  * passar a W com o texto legal lido ou ser validada por um profissional»;
@@ -76,7 +62,7 @@ export function podeDecidir(regra: Regra): boolean {
     typeof por === "string" &&
     por.trim() !== "" &&
     (PAPEIS_DE_VALIDACAO as readonly unknown[]).includes(papel) &&
-    papelValidaDominio(papel, regra.dominio) &&
+    papelValidaTema(papel, regra.tema, regra.dominio) &&
     typeof em === "string" &&
     instante(em) !== null
   );
