@@ -67,6 +67,7 @@
 | ✅ AV | Catálogo: num artigo que já não é rascunho, o texto de uma opção ou de um valor não muda (a ordem sim) | em vigor | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P12 |
 | ✅ AW | Catálogo: uma só língua de origem por comerciante (sai da loja) | em vigor; no código com a parte 3b (migração 0009) | Diogo, 05/10/2026 | [`docs/14`](14-dominio-catalogo.md) §9, P13 |
 | ✅ AX | Identidade: uma chave de acesso nunca cria outra que dure mais do que ela | em vigor; por programar (T12) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
+| ✅ AY | Identidade: a chave pública de uma loja arquivada deixa de funcionar e não se criam novas; o registo fica | em vigor; por programar (T13) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
 
 ## Por decidir — por esta ordem
 

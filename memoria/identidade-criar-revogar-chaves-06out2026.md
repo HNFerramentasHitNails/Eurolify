@@ -76,7 +76,9 @@ Encontrou 0 P0, 0 P1, 5 P2 e 11 P3. Tratados na mesma sessão:
 uma chave nunca cria outra que dure mais do que ela (`docs/19` §5, T12).
 Por programar.
 
-**Por decidir (Diogo ou Bruno):** a pública de uma loja arquivada (`docs/19` §5).
+**Loja arquivada, decidido pelo Diogo (06/10/2026, «sim, concordo, deixa de
+funcionar»):** a chave pública dela não se cria e as que existem deixam de
+resolver; o registo fica (`docs/19` §5, T13). Por programar.
 
 | Protecção tirada | Testes que falham |
 |---|---|
