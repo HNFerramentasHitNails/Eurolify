@@ -43,6 +43,12 @@ export function criarApp(
   const app = Fastify({
     // Sem rotas HEAD automáticas: ficavam expostas e fora do contrato.
     exposeHeadRoutes: false,
+    // Um campo que não está no esquema é recusado (400), não apagado em
+    // silêncio, e um tipo errado não se converte: «nunca um erro engolido»
+    // (headless-commerce, regra 3; revisão do #118, P2-1). Por omissão, o
+    // @fastify/ajv-compiler apagava-os (removeAdditional) e convertia-os
+    // (coerceTypes).
+    ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },
     frameworkErrors: errosDoFastify,
     ...opcoes,
   }).withTypeProvider<TypeBoxTypeProvider>();

@@ -28,8 +28,10 @@ const FUNCOES_DA_API = [
   "catalogo_fila_do_artigo",
   "catalogo_marcar_combinacoes",
   "catalogo_verificar_combinacoes",
+  "chave_criar_pela_api",
   "chave_listar",
   "chave_resolver",
+  "chave_revogar_pela_api",
   "comerciante_actual",
   "gtin_valido",
 ];

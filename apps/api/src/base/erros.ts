@@ -58,6 +58,28 @@ export const CODIGOS_BASE = {
     pt: "Tipo de conteúdo não aceite",
     en: "Unsupported media type",
   },
+  // Idempotência das escritas (docs/18 §2 e §4; docs/19 §6.1). Os estados
+  // HTTP de key_reused e in_progress são proposta do docs/18.
+  "idempotency.key_required": {
+    status: 400,
+    pt: "Falta o cabeçalho Idempotency-Key",
+    en: "Missing Idempotency-Key header",
+  },
+  "idempotency.key_reused": {
+    status: 422,
+    pt: "Esta chave de idempotência já foi usada noutro pedido",
+    en: "This idempotency key was used for a different request",
+  },
+  "idempotency.in_progress": {
+    status: 409,
+    pt: "O pedido com esta chave de idempotência ainda está a ser tratado",
+    en: "A request with this idempotency key is still in progress",
+  },
+  "idempotency.secret_not_repeated": {
+    status: 409,
+    pt: "A chave já foi criada por este pedido; o segredo só se mostra uma vez",
+    en: "The key was already created by this request; the secret is shown only once",
+  },
   "internal.error": {
     status: 500,
     pt: "Erro interno",
@@ -104,6 +126,12 @@ export class ErroApi extends Error {
     super(detalhe ?? mensagens.pt);
     this.name = "ErroApi";
   }
+}
+
+/** Um `ErroApi` com um dos códigos de partida (estado e mensagens da tabela). */
+export function erroBase(codigo: CodigoBase, detalhe?: string): ErroApi {
+  const { status, pt, en } = CODIGOS_BASE[codigo];
+  return new ErroApi(codigo, status, { pt, en }, detalhe);
 }
 
 /** Erros do Fastify com código próprio; os outros 4xx do Fastify são 400. */

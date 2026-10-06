@@ -26,7 +26,7 @@ conta de cada comerciante.
 | T4 | Registos técnicos da máquina | responsável | os operadores; quem abre o ensaio ou o MCP | endereços IP (SSH, fail2ban, firewall, nginx) | segurança da máquina | interesse legítimo (segurança) — **C** | VPS | 14 dias (ADR-0018, ADR-0027; `journald-eurolify.conf`) |
 | T5 | Cópias da base | o mesmo de T1 e T2 | os mesmos | toda a base, cifrada (`age`) | recuperar depois de uma falha | a dos tratamentos copiados | OVH Object Storage, Paris (ADR-0032) | 14 dias (`eurolify-copia`) |
 | T6 | Repositório, revisão e CI | responsável | o Diogo e o Bruno | contas, commits e comentários no GitHub | desenvolver o Eurolify | interesse legítimo — **C** | GitHub | o do GitHub — não verifiquei |
-| T7 | Chaves de API (migração 0010; `docs/19`) | responsável | o operador que cria ou revoga (Diogo, Bruno) | `criada_por` e `revogada_por` = `operador:github:<número da conta>` | saber quem criou e revogou cada chave | interesse legítimo (segurança) — **C** | base PostgreSQL (VPS) e cópias | enquanto a chave existir (não se apaga) — **C** |
+| T7 | Chaves de API (migração 0010; `docs/19`) | responsável | o operador que cria ou revoga (Diogo, Bruno) | `criada_por` e `revogada_por` = `operador:github:<número da conta>`; pela API (0012), `chave:key_<id>`, que não é dado pessoal | saber quem criou e revogou cada chave | interesse legítimo (segurança) — **C** | base PostgreSQL (VPS) e cópias | enquanto a chave existir (não se apaga) — **C** |
 
 Falta, e entra com o domínio: cada tratamento novo acrescenta aqui uma linha
 (`eu-gdpr-privacy`, «Antes de dizer está feito»).
@@ -57,6 +57,7 @@ do CIVA, `docs/03`, **W**), e o Comerciante ainda não emite faturas.
 | Conta e login dos operadores | registo do contentor do MCP | **14 dias**: o contentor escreve no diário do sistema (`--log-driver journald`, `eurolify-publicar`), a partir da publicação seguinte | apagar | Diogo, 05/10/2026: *«14 dias, como os IP»* |
 | Número da conta dos operadores | `/var/log/eurolify/acoes.log` | **14 dias** (`logrotate-eurolify`; diário, a última cópia pode ter até ~15 dias, como o `ufw.log`) | apagar | idem; antes não rodava |
 | Número e login da conta dos operadores | diário do sistema (`logger`; contentor do MCP) | 14 dias (`journald-eurolify.conf`, com um ficheiro por dia, `MaxFileSec=1day`: o journald só apaga ficheiros inteiros) | apagar | estas linhas não vão para o `/var/log/syslog` (`rsyslog-eurolify.conf`), que roda ao fim de semanas |
+| Resposta guardada de uma escrita (`Idempotency-Key`) | `idempotencia` (0012; `docs/18` §4) | **24 h** (`expira_em`, proposta) | apagar | hoje só as rotas das chaves, sem dados pessoais (nome da chave e `chave:key_…`). Uma linha expirada só se apaga quando a mesma chave volta: **falta a tarefa diária** que apaga as expiradas, antes de uma rota com dados pessoais (ex.: morada) usar a idempotência |
 | Cópias | OVH Object Storage | 14 dias | apagar | um apagamento propaga-se quando a cópia expira (`eu-gdpr-privacy`) |
 
 **Exportação e apagamento do titular** (pedidos dos titulares): ficam por

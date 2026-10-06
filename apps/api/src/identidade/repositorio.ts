@@ -1,4 +1,5 @@
-import { sql, type Kysely } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
+import { ErroApi } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import {
@@ -22,6 +23,12 @@ export interface ContextoChave {
   tipo: TipoChave;
   ambitos: Ambito[];
   prefixo: string;
+  /**
+   * O segredo apresentado: a base calcula o resumo e encontra por ele quem
+   * pede ao criar ou revogar (0012; revisão do #118, P2-2). Nunca vai para a
+   * resposta nem para o registo (o serializador do pedido não o vê).
+   */
+  segredo: string;
 }
 
 /**
@@ -33,6 +40,7 @@ export async function resolverChave(
   segredo: string,
 ): Promise<ContextoChave | null> {
   if (!FORMATO_SEGREDO.test(segredo)) return null;
+  const resumo = resumoDe(segredo);
   const { rows } = await sql<{
     id: string;
     comerciante_id: string;
@@ -40,7 +48,7 @@ export async function resolverChave(
     tipo: TipoChave;
     ambitos: Ambito[];
     prefixo: string;
-  }>`select * from chave_resolver(${resumoDe(segredo)})`.execute(db);
+  }>`select * from chave_resolver(${resumo})`.execute(db);
   const linha = rows[0];
   if (linha === undefined) return null;
   return {
@@ -50,6 +58,7 @@ export async function resolverChave(
     tipo: linha.tipo,
     ambitos: linha.ambitos,
     prefixo: linha.prefixo,
+    segredo,
   };
 }
 
@@ -137,5 +146,141 @@ export function revogarChave(
       trx,
     );
     return rows[0]?.revogada === true;
+  });
+}
+
+// Criar e revogar pela API (migração 0012; docs/19 §6.1). A base recebe o
+// segredo de quem pede, calcula o resumo e impõe as regras (keys:write, T9,
+// a última chave que gere chaves); aqui só se traduzem os erros.
+
+const ERROS_DAS_CHAVES = {
+  "auth.forbidden": {
+    status: 403,
+    pt: "A chave não tem o âmbito desta operação",
+    en: "The key lacks the scope for this operation",
+  },
+  "key.scope_escalation": {
+    status: 403,
+    pt: "Uma chave não cria outra com âmbitos que não tem",
+    en: "A key cannot create another with scopes it does not have",
+  },
+  "key.merchant_inactive": {
+    status: 403,
+    pt: "Um comerciante suspenso ou fechado não cria chaves; pode revogá-las",
+    en: "A suspended or closed merchant cannot create keys; it can revoke them",
+  },
+  "key.not_found": {
+    status: 404,
+    pt: "A chave não existe",
+    en: "Key not found",
+  },
+  "key.already_revoked": {
+    status: 409,
+    pt: "A chave já foi revogada",
+    en: "The key was already revoked",
+  },
+  "key.last_key_writer": {
+    status: 409,
+    pt: "É a última chave que gere chaves; crie outra antes de a revogar",
+    en: "This is the last key that can manage keys; create another before revoking it",
+  },
+  "key.invalid_expiry": {
+    status: 422,
+    pt: "A data de expiração tem de ser no futuro",
+    en: "The expiry date must be in the future",
+  },
+  "key.store_not_found": {
+    status: 422,
+    pt: "A loja não existe neste comerciante",
+    en: "The store does not exist for this merchant",
+  },
+} as const;
+export type CodigoErroChave = keyof typeof ERROS_DAS_CHAVES;
+
+export function erroChave(codigo: CodigoErroChave, detalhe?: string): ErroApi {
+  const { status, pt, en } = ERROS_DAS_CHAVES[codigo];
+  return new ErroApi(codigo, status, { pt, en }, detalhe);
+}
+
+/** Traduz um erro da base das chaves; o resto passa como está (dá 500). */
+function traduzirChave(erro: unknown): unknown {
+  if (!(erro instanceof Error)) return erro;
+  const codigo = (Object.keys(ERROS_DAS_CHAVES) as CodigoErroChave[]).find(
+    (c) => erro.message.startsWith(`${c}:`),
+  );
+  if (codigo !== undefined) return erroChave(codigo);
+  const pg = erro as Error & { code?: string; constraint?: string };
+  if (
+    pg.code === "23503" &&
+    pg.constraint === "chave_api_loja_do_comerciante"
+  ) {
+    return erroChave("key.store_not_found");
+  }
+  return erro;
+}
+
+async function traduzindo<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (erro) {
+    throw traduzirChave(erro);
+  }
+}
+
+/** Uma chave do comerciante do contexto, como a lista a devolve. */
+export async function chaveDoContexto(
+  trx: Transaction<BaseDados>,
+  id: string,
+): Promise<ChaveListada> {
+  const { rows } = await sql<ChaveListada>`
+    select * from chave_listar() where id = ${id}::uuid`.execute(trx);
+  const chave = rows[0];
+  if (chave === undefined) throw erroChave("key.not_found");
+  return chave;
+}
+
+export interface PedidoDeChave {
+  tipo: TipoChave;
+  lojaId: string | null;
+  nome: string;
+  /** Na pública, a base põe a lista fixa (`storefront`). */
+  ambitos: Ambito[];
+  expiraEm: Date | null;
+}
+
+/**
+ * Cria uma chave em nome da chave que pede (`segredoQuem`), dentro da
+ * transacção dada (com o contexto do comerciante). O segredo vem na resposta
+ * e não se guarda.
+ */
+export function criarChavePelaApi(
+  trx: Transaction<BaseDados>,
+  segredoQuem: string,
+  dados: PedidoDeChave,
+): Promise<{ chave: ChaveListada; segredo: string }> {
+  return traduzindo(async () => {
+    const nova = gerarChave(dados.tipo);
+    const { rows } = await sql<{ id: string }>`
+      select chave_criar_pela_api(${segredoQuem}, ${dados.tipo},
+        ${dados.lojaId}::uuid, ${dados.nome}, ${dados.ambitos}::text[],
+        ${nova.prefixo}, ${nova.resumo},
+        ${dados.expiraEm}::timestamptz) as id`.execute(trx);
+    const id = rows[0]?.id;
+    if (id === undefined) throw new Error("a base não devolveu a chave criada");
+    return { chave: await chaveDoContexto(trx, id), segredo: nova.segredo };
+  });
+}
+
+/** Revoga uma chave em nome da chave que pede, dentro da transacção dada. */
+export function revogarChavePelaApi(
+  trx: Transaction<BaseDados>,
+  segredoQuem: string,
+  id: string,
+): Promise<ChaveListada> {
+  return traduzindo(async () => {
+    await sql`select chave_revogar_pela_api(${segredoQuem}, ${id}::uuid)`.execute(
+      trx,
+    );
+    return chaveDoContexto(trx, id);
   });
 }
