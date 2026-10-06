@@ -164,6 +164,11 @@ const ERROS_DAS_CHAVES = {
     pt: "Uma chave não cria outra com âmbitos que não tem",
     en: "A key cannot create another with scopes it does not have",
   },
+  "key.merchant_inactive": {
+    status: 403,
+    pt: "Um comerciante suspenso ou fechado não cria chaves; pode revogá-las",
+    en: "A suspended or closed merchant cannot create keys; it can revoke them",
+  },
   "key.not_found": {
     status: 404,
     pt: "A chave não existe",

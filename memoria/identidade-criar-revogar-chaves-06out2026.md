@@ -49,7 +49,7 @@ Contra o PostgreSQL 18.6 local, com o resumo do `ensaio.conf`, a 06/10/2026:
 | Sem o T9 na 0012 | 2 testes falham (`T9…` e «uma escrita que falha liberta a chave») |
 | Sem a tranca na revogação | 2 testes falham (as duas corridas de T11, 5 voltas cada) |
 | Sem a regra da última | 2 testes falham |
-| Depois da revisão | **412** na API e 58 no MCP; `lint`, `tipos` e `construir` passam |
+| Depois da revisão e do P2-3 | **413** na API e 58 no MCP; `lint`, `tipos` e `construir` passam |
 
 ## Revisão do agente (Claude Opus 5.5, ADR-0035), publicada no #118
 
@@ -67,10 +67,13 @@ Encontrou 0 P0, 0 P1, 5 P2 e 11 P3. Tratados na mesma sessão:
   expirada). Nos documentos: T7, o passo 5, a ordem das recusas e o RLS
   forçado na tarefa de limpeza.
 
-**Por decidir (Diogo ou Bruno):**
-- **P2-3:** a chave de um comerciante `suspenso` ou `fechado` cria chaves? O
-  `docs/19` §5 pedia esta decisão antes das rotas que escrevem.
-- **P2-4:** uma chave com prazo pode criar outra sem prazo?
+**P2-3, decidido pelo Diogo (06/10/2026, «Não cria; revoga»):**
+- a chave de um comerciante `suspenso` ou `fechado` não cria chaves
+  (`key.merchant_inactive`), mas revoga;
+- fica na `chave_criar_pela_api`, com teste. Tirada a regra, o teste falha.
+
+**Por decidir (Diogo ou Bruno):** o P2-4, uma chave com prazo pode criar outra
+sem prazo? Também a pública de uma loja arquivada (`docs/19` §5).
 
 | Protecção tirada | Testes que falham |
 |---|---|

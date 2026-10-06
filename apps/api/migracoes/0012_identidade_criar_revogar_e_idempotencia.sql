@@ -10,8 +10,9 @@
 --   SEGREDO apresentado e calcula ela o resumo (não aceita um id nem um
 --   resumo que a aplicação escolhesse: o resumo das chaves do operador
 --   passa pelo GitHub; revisão do #118, P2-2) e impõe: chave válida, do
---   comerciante do contexto, com `keys:write`; a nova não tem âmbitos que
---   quem pede não tem (T9); nenhuma revogação deixa o comerciante sem uma
+--   comerciante do contexto, com `keys:write`; um comerciante suspenso ou
+--   fechado não cria chaves, mas revoga; a nova não tem âmbitos que quem
+--   pede não tem (T9); nenhuma revogação deixa o comerciante sem uma
 --   chave válida com `keys:write` (T11), com uma tranca por comerciante;
 --   o segredo não se guarda nem vai para o registo da base (o PostgreSQL
 --   não regista parâmetros por omissão: log_statement = none,
@@ -62,6 +63,12 @@ BEGIN
   PERFORM pg_advisory_xact_lock(
     hashtextextended('chave_api:' || public.comerciante_actual()::text, 0));
   quem := public.chave_que_pede(p_segredo_quem);
+  -- Um comerciante suspenso ou fechado não cria chaves; revogar continua,
+  -- para poder fechar acessos (Diogo, 06/10/2026, revisão do #118, P2-3).
+  IF (SELECT m.estado FROM public.comerciante m WHERE m.id = quem.comerciante_id)
+     IN ('suspenso', 'fechado') THEN
+    RAISE EXCEPTION 'key.merchant_inactive: um comerciante suspenso ou fechado não cria chaves; pode revogá-las';
+  END IF;
   IF p_expira_em IS NOT NULL AND p_expira_em <= now() THEN
     RAISE EXCEPTION 'key.invalid_expiry: a data de expiração tem de ser no futuro';
   END IF;

@@ -8,6 +8,7 @@ import {
   comComerciante,
   criarEntidadeLegal,
   criarLoja,
+  mudarEstado,
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
 import { FORMATO_SEGREDO, resumoDe } from "../src/identidade/chaves.js";
@@ -689,6 +690,35 @@ describe.skipIf(URL_BASE === undefined)(
             and 'keys:write' = any (ambitos)`.execute(base.dono);
         return rows[0]?.n ?? 0;
       };
+
+      it("um comerciante suspenso ou fechado não cria chaves, mas revoga (decisão do Diogo, 06/10/2026)", async () => {
+        for (const estado of ["suspenso", "fechado"] as const) {
+          const { comerciante, chaves } = await comGestoras(2);
+          const [um, dois] = chaves;
+          if (um === undefined || dois === undefined)
+            throw new Error("sem chaves");
+          await mudarEstado(base.api, comerciante, {
+            de: "rascunho",
+            para: estado,
+            motivo: "teste",
+            quem: "operador:teste",
+          });
+          const antes = await contarChaves(comerciante);
+          const r = await criar(um.segredo, {
+            tipo: "servidor",
+            nome: "Depois de parar",
+            ambitos: ["keys:write"],
+          });
+          expect(r.statusCode, estado).toBe(403);
+          expect(r.json<{ codigo: string }>().codigo).toBe(
+            "key.merchant_inactive",
+          );
+          expect(await contarChaves(comerciante)).toBe(antes);
+          // Revogar continua: fechar acessos.
+          const rev = await revogar(um.segredo, `key_${dois.id}`);
+          expect(rev.statusCode, estado).toBe(200);
+        }
+      });
 
       it("T11: não se revoga a si própria se for a última com keys:write", async () => {
         const { comerciante, chaves } = await comGestoras(1);

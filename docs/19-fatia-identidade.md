@@ -113,10 +113,18 @@ P2-2).
   só no `Authorization`.
 - `eurolify.quem` passará a ser `chave:key_…` em vez de texto livre; na parte
   B, `pessoa:per_…`.
-- **Por decidir antes das rotas que escrevem:** se a chave de um comerciante
-  `suspenso` ou `fechado`, ou a pública de uma loja arquivada, continua a
-  resolver. Hoje continua (o `docs/15` §4 deixa `suspenso` ler e `fechado`
-  exportar).
+- **Decidido para as chaves** (Diogo, 06/10/2026, revisão do #118, P2-3):
+  - a chave de um comerciante `suspenso` ou `fechado` **não cria chaves**
+    (`key.merchant_inactive`, 403), mas **revoga**, para poder fechar
+    acessos;
+  - ler continua a resolver, como o `docs/15` §4 deixa (`suspenso` lê,
+    `fechado` exporta).
+- **Por decidir:**
+  - o mesmo para as rotas de domínio que escrevem;
+  - a chave pública de uma loja arquivada (hoje continua a resolver e pode
+    ser criada);
+  - se uma chave com prazo pode criar outra sem prazo (revisão do #118,
+    P2-4).
 
 Erros novos (no formato do `docs/18` §2):
 
@@ -223,7 +231,9 @@ que a API ganha para escrever chaves:
   - ser do comerciante do contexto;
   - ter `keys:write`.
 
-  Senão → `auth.forbidden` (403).
+  Senão → `auth.forbidden` (403). Para **criar**, o comerciante não pode
+  estar `suspenso` nem `fechado` → `key.merchant_inactive` (403); revogar
+  continua (§5).
 - **T9, na base:**
   - numa chave de **servidor**, os âmbitos novos têm de estar todos nos de
     quem pede; senão → `key.scope_escalation` (403);
