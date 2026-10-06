@@ -82,7 +82,8 @@ altera nem se apaga; o contexto do comerciante vem da sessão (`docs/19` §5).
    convite.
 2. **Convite:** um dono ou gestor convida um e-mail com um papel. A pessoa
    abre a ligação, cria a passkey (e, se quiser, o TOTP) e recebe os códigos
-   de recuperação. Como chega a ligação: §9 P2.
+   de recuperação. A ligação, na Fase 1, copia-a o dono no Hub e envia-a ele
+   (decisão CB, §9 P2); vale uma vez.
 3. **Entrar:** passkey; o Hub pede outra vez a autenticação para os actos
    sensíveis (criar uma chave de API — decisão BA; mudar papéis; mudar os
    dados fiscais).
@@ -162,7 +163,7 @@ recomenda dois donos.
 | # | Pergunta | Proposta |
 |---|---|---|
 | P1 | A alternativa à passkey (decidido: TOTP): com que primeiro passo? | ✅ **Decidido: a) e-mail + palavra-passe (resumo Argon2id) + TOTP** (Diogo, 06/10/2026: *«sim, concordo, fica a a)»*; decisão CA): entrar não depende de um fornecedor de e-mail |
-| P2 | Como chegam os convites e os avisos? a) um fornecedor de e-mail na UE (subcontratante novo, acordo de tratamento); b) na Fase 1, o dono copia a ligação e envia-a ele | por decidir |
+| P2 | Como chegam os convites e os avisos? | ✅ **Decidido: b) na Fase 1, sem e-mail** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*; decisão CB): o dono cria o convite no Hub, copia a ligação e envia-a ele; vale uma vez e expira (proposta: 7 dias, **C**). Um fornecedor de e-mail na UE escolhe-se quando houver mais comerciantes |
 | P3 | O Eurolify como fornecedor OIDC (`oidc-provider`) já na parte B, ou só quando houver aplicações de terceiros (Fase 3)? | só depois: o Hub usa a sessão própria (§2) |
 | P4 | Prazos: duração da sessão; quanto tempo a conta de uma pessoa sem nenhum `membro` fica antes de ser pseudonimizada | por decidir, com o jurista (C) |
 
