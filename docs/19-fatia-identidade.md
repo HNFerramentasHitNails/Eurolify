@@ -171,9 +171,9 @@ Limites, tal como está (revisão do #110):
   VPS», regra 1): escreve na base.
 - **A API na VPS liga-se à base desde o #107** (passos 10b e 10c do
   `preparar.sh`, 06/10/2026): o `eurolify_api` entra com uma palavra-passe
-  gerada na máquina, escrita no `api.env`, que só o contentor da API recebe.
-  Cada publicação verifica que a API chega à base (uma chave inventada tem
-  de dar 401, não 500). As chaves passam a servir lá quando o operador
+  gerada na máquina, escrita no `api-base.env`, que só o contentor da API
+  recebe. Cada publicação verifica que a API chega à base (uma chave
+  inventada tem de dar 401, não 500). As chaves passam a servir lá quando o operador
   criar uma (falta a chave SSH do fluxo, abaixo).
 - Na máquina há dois nomes parecidos: `eurolify-operar` é o utilizador do
   fluxo (e o programa das acções do MCP); `eurolify-operador` é o programa

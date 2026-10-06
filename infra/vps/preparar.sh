@@ -286,8 +286,18 @@ if [[ -f /etc/eurolify/api.env ]]; then
     aviso "/etc/eurolify/api.env devia ser 600 e de root"
   fi
 else
-  fazer "criar /etc/eurolify/api.env (vazio; a ligação da API à base escreve-a o passo 10b)" \
+  fazer "criar /etc/eurolify/api.env (vazio; a ligação à base vai no api-base.env)" \
     install -o root -g root -m 600 /dev/null /etc/eurolify/api.env
+fi
+# A ligação da API à base vive num ficheiro só dela (api-base.env), que o
+# passo 10b escreve inteiro: outra configuração da API vai no api.env, que o
+# script nunca reescreve (revisão do #116, P2-3).
+if [[ -f /etc/eurolify/api-base.env ]]; then
+  if [[ "$(stat -c '%a %U' /etc/eurolify/api-base.env)" == "600 root" ]]; then
+    ok "/etc/eurolify/api-base.env"
+  else
+    aviso "/etc/eurolify/api-base.env devia ser 600 e de root"
+  fi
 fi
 # A ligação do migrador (dono das tabelas) vive num ficheiro à parte: só o
 # contentor das migrações a recebe; a API nunca a vê (docs/15 §5). Escreve-se
@@ -332,7 +342,7 @@ passo "10b. Utilizadores da base: o migrador (dono) e a API (docs/15 §5, #70, #
 # O eurolify_migrador é dono da base e das tabelas e só o contentor das
 # migrações recebe a ligação dele (migrar.env). O eurolify_api nasce aqui como a
 # migração 0001 o criaria (o migrador não tem CREATEROLE) e entra com a ligação
-# do api.env, que só o contentor da API recebe (docs/19 §6, #107). Os dois
+# do api-base.env, que só o contentor da API recebe (docs/19 §6, #107). Os dois
 # seguem o mesmo caminho: palavra-passe gerada na máquina, dada ao PostgreSQL
 # por stdin, e um ficheiro 600 de root com uma só linha. As palavras-passe
 # nunca passam pelo repositório, pelo chat nem pela linha de comandos.
@@ -357,7 +367,7 @@ pg_stdin() {
   fi
 }
 # As funções seguintes recebem «ficheiro variável papel»: o migrar.env com
-# BASE_DADOS_URL_MIGRACAO e o eurolify_migrador, ou o api.env com
+# BASE_DADOS_URL_MIGRACAO e o eurolify_migrador, ou o api-base.env com
 # BASE_DADOS_URL e o eurolify_api. Os papéis e as variáveis vêm deste script,
 # nunca de fora.
 #
@@ -488,7 +498,7 @@ tratar_ligacao() {
 API_ENV_RENOVADO=0
 if ! docker inspect eurolify-postgres >/dev/null 2>&1; then
   if ((MOSTRAR)); then
-    echo "   FARIA: criar o eurolify_migrador, dono da base $BASE_NOME, e o eurolify_api, e escrever /etc/eurolify/migrar.env e /etc/eurolify/api.env"
+    echo "   FARIA: criar o eurolify_migrador, dono da base $BASE_NOME, e o eurolify_api, e escrever /etc/eurolify/migrar.env e /etc/eurolify/api-base.env"
     mudancas=$((mudancas + 1))
     API_ENV_RENOVADO=1
   else
@@ -516,7 +526,7 @@ else
   fi
   # A API entra com o eurolify_api, nunca com o dono das tabelas: o RLS forçado
   # aplica-se a ela e o que pode fazer é o que as migrações lhe dão (docs/15 §5).
-  tratar_ligacao /etc/eurolify/api.env BASE_DADOS_URL eurolify_api
+  tratar_ligacao /etc/eurolify/api-base.env BASE_DADOS_URL eurolify_api
   API_ENV_RENOVADO=$LIGACAO_RENOVADA
   # Nenhum dos dois pode ignorar o RLS (docs/15 §5): se alguém lhes deu mais,
   # avisa (revisão do #71, P2-3).
@@ -525,32 +535,43 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-passo "10c. A API corre com a ligação do api.env (docs/19 §6, #107)"
-# O docker só lê o --env-file quando cria o contentor: uma ligação nova no
-# api.env só chega à API quando o contentor for recriado. Quem o recria é o
-# eurolify-publicar, com a imagem que já está no ar (passo 8 já o instalou):
-# verifica o /health e que a API chega à base.
-api_env_mais_recente_que_a_api() {
-  local criado
+passo "10c. A API corre com a ligação do api-base.env (docs/19 §6, #107)"
+# O docker só lê o --env-file quando cria o contentor: uma ligação nova só
+# chega à API quando o contentor for recriado. Quem o recria é o
+# eurolify-publicar --so-recriar, com a imagem que já está no ar (passo 8 já o
+# instalou): espera por outra publicação em curso, não troca de imagem,
+# verifica o /health e que a API chega à base (revisão do #116, P2-1).
+# Sem um número válido de um dos lados, não se compara (revisão do #116, P3-1).
+configuracao_mais_recente_que_a_api() {
+  local criado ficheiro mudado
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
-  (($(stat -c %Y /etc/eurolify/api.env) > $(date -d "$criado" +%s)))
+  criado="$(date -d "$criado" +%s 2>/dev/null)" || return 1
+  [[ "$criado" =~ ^[0-9]+$ ]] || return 1
+  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env; do
+    mudado="$(stat -c %Y "$ficheiro" 2>/dev/null)" || continue
+    [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
+  done
+  return 1
 }
-# Uma falha aqui avisa e não pára o resto do script; a publicação diz porquê.
+# Uma falha aqui avisa, fica no registo e não pára o resto do script; a
+# publicação diz porquê (revisão do #116, P3-2).
 recriar_api() {
-  /usr/local/sbin/eurolify-publicar "$1" || aviso "a API não ficou bem com o api.env novo (ver acima)"
+  /usr/local/sbin/eurolify-publicar "$1" --so-recriar && return 0
+  registar "falhou recriar o contentor eurolify-api ($1) com a configuração nova"
+  aviso "a API não ficou bem com a configuração nova (ver acima)"
 }
 imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
 if [[ -z "$imagem_api" ]]; then
-  ok "sem contentor eurolify-api: a primeira publicação já o cria com o api.env"
-elif ((API_ENV_RENOVADO)) || api_env_mais_recente_que_a_api; then
+  ok "sem contentor eurolify-api: a primeira publicação já o cria com a ligação"
+elif ((API_ENV_RENOVADO)) || configuracao_mais_recente_que_a_api; then
   resumo_api="${imagem_api##*@}"
   if [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-    fazer "recriar o contentor eurolify-api ($resumo_api) para ler o api.env" recriar_api "$resumo_api"
+    fazer "recriar o contentor eurolify-api ($resumo_api) para ler a configuração" recriar_api "$resumo_api"
   else
     aviso "o eurolify-api corre $imagem_api, sem resumo: não o recrio (a próxima publicação recria-o)"
   fi
 else
-  ok "o eurolify-api foi criado depois da última mudança do api.env"
+  ok "o eurolify-api foi criado depois da última mudança do api.env e do api-base.env"
 fi
 
 # ---------------------------------------------------------------------------
