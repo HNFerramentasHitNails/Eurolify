@@ -276,9 +276,11 @@ O que o Diogo faz, fora do repositório:
    máquina, mais uma cópia completa diária — **perda máxima de 5 minutos**
    e **volta em até 4 horas**. Os dois números são proposta do Claude e
    confirmam-se num ensaio de reposição antes do primeiro comerciante; o
-   custo do armazenamento não foi verificado. Continua por decidir onde
-   (com VPS e cópias no mesmo fornecedor e na mesma conta, um problema na
-   conta leva as duas, ADR-0032).
+   custo do armazenamento não foi verificado. **Onde** (Diogo, 06/10/2026:
+   *«sim, concordo, fica a b)»*): na OVH **e** uma segunda cópia, cifrada,
+   noutro fornecedor da UE, para sobreviver a um problema na conta da OVH
+   (ADR-0032). O Diogo indicou a **PTISP** (*«Vamos utilizar VPS da
+   PTISP»*); o papel dela por confirmar.
 5. **Segunda máquina para a base**, e a partir de quando.
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
