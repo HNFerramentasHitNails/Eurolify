@@ -78,22 +78,26 @@ if [[ -r /usr/local/lib/eurolify/comum.sh && -r /etc/eurolify/ensaio.conf ]]; th
   source /usr/local/lib/eurolify/comum.sh
   # shellcheck source=/dev/null
   source /etc/eurolify/ensaio.conf
-  no_ar="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null)"
-  if [[ -z "$no_ar" ]]; then
-    echo "sem a API no ar"
-  elif ! da_base="$(migracoes_da_base)"; then
-    echo "a base não respondeu"
-  elif ! da_imagem="$(migracoes_da_imagem "$no_ar")"; then
-    echo "não se leu a lista de migrações da versão no ar"
-  else
+  mostrar_migracoes() {
+    local no_ar da_base da_imagem="" rc=0 a_mais faltam
+    no_ar="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null)"
+    [[ -n "$no_ar" ]] || { echo "sem a API no ar"; return; }
+    da_base="$(migracoes_da_base)" || { echo "a base não respondeu"; return; }
+    # Uma versão sem migrador não tem migrações: lista vazia, e a base à
+    # frente vê-se na mesma (4.ª revisão do #115, P3-2).
+    tem_migrador "$no_ar" || rc=$?
+    if ((rc == 2)) || { ((rc == 0)) && ! da_imagem="$(migracoes_da_imagem "$no_ar")"; }; then
+      echo "não se leu a lista de migrações da versão no ar"
+      return
+    fi
     echo "na base: $(printf '%s\n' "$da_base" | sed '/^$/d' | wc -l) (última: $(printf '%s\n' "$da_base" | tail -n 1))"
     echo "na versão no ar: $(printf '%s\n' "$da_imagem" | sed '/^$/d' | wc -l) (última: $(printf '%s\n' "$da_imagem" | tail -n 1))"
     a_mais="$(so_na_primeira "$da_base" "$da_imagem")"
     faltam="$(so_na_primeira "$da_imagem" "$da_base")"
-    lista() { if [[ -n "$1" ]]; then virgulas "$1"; else echo nenhuma; fi; }
-    echo "na base e não na versão no ar: $(lista "$a_mais")"
-    echo "na versão no ar e não na base: $(lista "$faltam")"
-  fi
+    echo "na base e não na versão no ar: $(if [[ -n "$a_mais" ]]; then virgulas "$a_mais"; else echo nenhuma; fi)"
+    echo "na versão no ar e não na base: $(if [[ -n "$faltam" ]]; then virgulas "$faltam"; else echo nenhuma; fi)"
+  }
+  mostrar_migracoes
 else
   echo "(sem a configuração da máquina)"
 fi

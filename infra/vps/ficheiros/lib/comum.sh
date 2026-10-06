@@ -62,8 +62,21 @@ NOME_MIGRACAO='^[0-9]{4}_[a-z0-9_]+$'
 so_migracoes() { { grep -E "$NOME_MIGRACAO" || true; } | LC_ALL=C sort; }
 
 # As da pasta da imagem (o Dockerfile põe-nas em /app/apps/api/migracoes).
-# Falha se não se lê. Contentor sem rede nem capacidades, e só com a imagem
-# que já está na máquina (não a vai buscar).
+# Se a imagem tem o migrador (dist/migrar.js): 0 sim, 1 não, 2 não se sabe
+# (erro do docker, código 125 ou mais; revisão do #115, 4.ª, P3-1).
+# Contentores sem rede nem capacidades, e só com a imagem que já está na
+# máquina (não a vão buscar).
+tem_migrador() {
+  local rc=0
+  docker run --rm --pull=never --network none --cap-drop ALL --entrypoint test "$1" -f dist/migrar.js >/dev/null 2>&1 || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    1) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+# Falha se não se lê (uma pasta vazia lê-se: lista vazia).
 migracoes_da_imagem() {
   docker run --rm --pull=never --network none --cap-drop ALL --entrypoint ls "$1" /app/apps/api/migracoes 2>/dev/null |
     sed -n 's/\.sql$//p' | so_migracoes
@@ -86,9 +99,24 @@ so_na_primeira() {
 }
 virgulas() { printf '%s\n' "$1" | sed '/^$/d' | paste -sd, -; }
 
-# A imagem que estava no ar antes da última publicação do resumo dado
-# (publicacoes.log: «data | resumo | anterior: imagem»). Vazio se não há.
+# O publicacoes.log tem uma linha por publicação: «data | resumo | anterior:
+# imagem | migrou: a,b» (o «migrou» desde a 4.ª revisão do #115: as migrações
+# que essa publicação aplicou; «?» se não se soube; linhas antigas não o têm).
+ultima_publicacao_de() {
+  grep -F -- "| $1 |" /var/log/eurolify/publicacoes.log 2>/dev/null | tail -n 1
+}
+# A imagem que estava no ar antes da última publicação do resumo dado. Vazio
+# se não há.
 anterior_de() {
-  grep -F -- "| $1 |" /var/log/eurolify/publicacoes.log 2>/dev/null | tail -n 1 |
-    sed -n 's/^.* | anterior: //p'
+  ultima_publicacao_de "$1" | sed -n 's/^.* | anterior: \([^ |]*\).*$/\1/p'
+}
+# As migrações que a última publicação do resumo dado aplicou, uma por linha.
+# Falha se a linha não as tem ou se ficaram por saber («?»).
+migrou_de() {
+  local linha
+  linha="$(ultima_publicacao_de "$1")" || return 1
+  [[ "$linha" == *" | migrou: "* ]] || return 1
+  linha="${linha##* | migrou: }"
+  [[ "$linha" != "?" ]] || return 1
+  printf '%s\n' "$linha" | tr ',' '\n' | so_migracoes
 }

@@ -4,6 +4,9 @@
 # o contentor, verifica o /health e volta à imagem anterior se falhar.
 # Com --so-recriar (passo 10c do preparar.sh) só recria a API se ela já estiver
 # nesta imagem e a ligação à base tiver mudado; nunca publica outra imagem.
+# Com --emergencia (só root, à mão por SSH; infra/vps/LEIA-ME.md) volta a uma
+# publicação mais antiga do que a imediatamente anterior: nunca migra uma base
+# à frente da imagem, e fica registado como emergência.
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
 source /usr/local/lib/eurolify/comum.sh
@@ -11,9 +14,11 @@ source /usr/local/lib/eurolify/comum.sh
 resumo="${1:-}"
 [[ "$resumo" =~ ^sha256:[0-9a-f]{64}$ ]] || falhar "resumo de imagem inválido"
 so_recriar=0
+emergencia=0
 case "${2:-}" in
   "") ;;
   --so-recriar) so_recriar=1 ;;
+  --emergencia) emergencia=1 ;;
   *) falhar "opção desconhecida: '${2}'" ;;
 esac
 carregar_config
@@ -23,7 +28,22 @@ carregar_config
 # contentor ao mesmo tempo podiam deixar no ar uma imagem que nenhum dos dois
 # disse ter publicado (revisão do #116, P2-1).
 exec 8>/run/lock/eurolify-publicar.lock
+
+# Qualquer saída com erro fica no registo de acções, que o estado_do_ensaio
+# mostra: pelo MCP a publicação corre em segundo plano, e o resto só ficava
+# no diário da unidade (4.ª revisão do #115, P2-1). Também fecha a sessão no
+# GHCR, se se abriu.
+sessao_ghcr=0
+# shellcheck disable=SC2329 # chamada pelo trap EXIT
+ao_sair() {
+  local rc=$?
+  ((sessao_ghcr == 0)) || docker logout ghcr.io >/dev/null 2>&1 || true
+  ((rc == 0)) || registar "publicação de $resumo terminou com erro (código $rc)"
+}
+trap ao_sair EXIT
+
 flock -w 900 8 || falhar "outra publicação não acabou em 15 minutos"
+((emergencia == 0)) || registar "EMERGÊNCIA: publicação de $resumo à mão, fora da regra da anterior (LEIA-ME)"
 
 imagem="${IMAGEM_REPO}@${resumo}"
 token=/etc/eurolify/ghcr.token
@@ -185,7 +205,7 @@ if docker image inspect "$imagem" >/dev/null 2>&1; then
 else
   echo "A puxar $imagem"
   docker login ghcr.io -u "$GHCR_UTILIZADOR" --password-stdin <"$token" >/dev/null
-  trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+  sessao_ghcr=1
   docker pull --quiet "$imagem" >/dev/null
 fi
 if [[ "$anterior" == "$imagem" ]]; then
@@ -237,11 +257,12 @@ fi
 # base tem migrações que a imagem não conhece:
 # - também lhe falta alguma: recusa (a base e a imagem divergem);
 # - só se volta à publicação imediatamente anterior à que está no ar, e só se
-#   as migrações a mais forem todas conhecidas da que está no ar: é a única
-#   com a compatibilidade garantida (acrescentar primeiro, tirar depois).
-#   Mais atrás é uma emergência, à mão e registada (decisão do Diogo,
-#   06/10/2026, opção A da 2.ª revisão do #115). Não se migra, e fica no
-#   registo;
+#   as migrações a mais forem todas das que a publicação no ar aplicou (o
+#   «migrou» do publicacoes.log). As migrações são escritas para a versão
+#   anterior no código; depois de voltas e correcções, a anterior no registo
+#   pode não ser essa, e só o que a publicação no ar aplicou o prova (4.ª
+#   revisão do #115, P2-2). Mais atrás é uma emergência (--emergencia). Não
+#   se corre o migrador, e fica no registo;
 # - de resto migra-se como sempre; se não se conseguir comparar, diz-se, e o
 #   migrador decide (falha segura: fica a versão no ar); uma imagem sem
 #   migrador que não se consegue comparar não se publica.
@@ -249,37 +270,49 @@ fi
 # vale para a comparação, a migração e a troca do contentor.
 recusar() {
   registar "publicação de $resumo recusada: $1"
+  trap - EXIT
+  ((sessao_ghcr == 0)) || docker logout ghcr.io >/dev/null 2>&1 || true
   falhar "$1; fica a versão no ar (${anterior:-nenhuma})"
 }
 migrar=0
-tem_migrador=0
-if docker run --rm --pull=never --network none --cap-drop ALL --entrypoint test "$imagem" -f dist/migrar.js; then
-  tem_migrador=1
-fi
+rc=0
+tem_migrador "$imagem" || rc=$?
+((rc != 2)) || recusar "não se conseguiu ver se a imagem tem o migrador (erro do docker)"
+com_migrador=$((rc == 0 ? 1 : 0))
 da_imagem=""
-if ((tem_migrador == 1)); then
-  da_imagem="$(migracoes_da_imagem "$imagem")" || da_imagem=""
+lida=0
+if ((com_migrador == 0)); then
+  lida=1
+elif da_imagem="$(migracoes_da_imagem "$imagem")"; then
+  lida=1
 fi
 a_mais=""
-if { ((tem_migrador == 0)) || [[ -n "$da_imagem" ]]; } && da_base="$(migracoes_da_base)"; then
+migrou="?"
+if ((lida == 1)) && da_base="$(migracoes_da_base)"; then
   a_mais="$(so_na_primeira "$da_base" "$da_imagem")"
   faltam="$(so_na_primeira "$da_imagem" "$da_base")"
   if [[ -n "$a_mais" ]]; then
     [[ -z "$faltam" ]] ||
       recusar "a base tem migrações que esta imagem não conhece ($(virgulas "$a_mais")) e faltam-lhe outras ($(virgulas "$faltam"))"
-    [[ -n "$anterior" && "$(anterior_de "${anterior#*@}")" == "$imagem" ]] ||
-      recusar "a base tem migrações que esta imagem não conhece ($(virgulas "$a_mais")) e ela não é a publicação imediatamente anterior à que está no ar"
-    da_no_ar="$(migracoes_da_imagem "$anterior")" ||
-      recusar "não se leu a lista de migrações da versão no ar, para saber se conhece as da base ($(virgulas "$a_mais"))"
-    desconhecidas="$(so_na_primeira "$a_mais" "$da_no_ar")"
-    [[ -z "$desconhecidas" ]] ||
-      recusar "a base tem migrações que nem a versão no ar conhece ($(virgulas "$desconhecidas"))"
-    echo "Volta à publicação anterior: as migrações dela já estão na base; não se migra."
-    registar "volta a $resumo: a base fica com migrações que esta versão não conhece ($(virgulas "$a_mais")); não se migrou"
-  elif ((tem_migrador == 1)); then
+    if ((emergencia == 0)); then
+      [[ -n "$anterior" && "$(anterior_de "${anterior#*@}")" == "$imagem" ]] ||
+        recusar "a base tem migrações que esta imagem não conhece ($(virgulas "$a_mais")) e ela não é a publicação imediatamente anterior à que está no ar"
+      aplicadas="$(migrou_de "${anterior#*@}")" ||
+        recusar "a publicação no ar não registou as migrações que aplicou: não se prova que as da base a mais ($(virgulas "$a_mais")) são só dela"
+      fora="$(so_na_primeira "$a_mais" "$aplicadas")"
+      [[ -z "$fora" ]] ||
+        recusar "a base tem migrações que a publicação no ar não aplicou ($(virgulas "$fora")): a compatibilidade com esta imagem não está garantida"
+    fi
+    echo "Volta a uma publicação anterior: as migrações dela já estão na base; não se corre o migrador."
+    registar "volta a $resumo: a base fica com migrações que esta versão não conhece ($(virgulas "$a_mais")); não se correu o migrador"
+    migrou=""
+  elif ((com_migrador == 1)); then
     migrar=1
+    migrou="$(virgulas "$faltam")"
+  else
+    migrou=""
   fi
-elif ((tem_migrador == 1)); then
+elif ((com_migrador == 1)); then
   echo "Não se comparou a base com a imagem (lista ilegível ou base sem resposta): migra-se como sempre, e o migrador decide."
   migrar=1
 else
@@ -294,13 +327,13 @@ if ((migrar == 1)); then
     --memory 512m --cap-drop ALL --security-opt no-new-privileges \
     "$imagem" node dist/migrar.js ||
     falhar "a migração falhou: fica a versão anterior (${anterior:-nenhuma})"
-elif ((tem_migrador == 0)) && [[ -z "$a_mais" ]]; then
+elif ((com_migrador == 0)) && [[ -z "$a_mais" ]]; then
   echo "Sem migrações nesta imagem."
 fi
 
 arrancar "$imagem"
 if saude 8080; then
-  printf '%s | %s | anterior: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" >>/var/log/eurolify/publicacoes.log
+  printf '%s | %s | anterior: %s | migrou: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" "$migrou" >>/var/log/eurolify/publicacoes.log
   registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
   echo "Publicado: $resumo. O /health da API responde."
   # O MCP primeiro: uma API que não chega à base não deixa o MCP na imagem antiga.

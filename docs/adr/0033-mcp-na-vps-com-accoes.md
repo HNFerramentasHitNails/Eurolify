@@ -72,10 +72,10 @@ servidores de nomes da OVH (`ns200`/`dns200.anycast.me`).
      (só resumos de imagens construídas pelo GitHub). **Desde 06/10/2026, só
      a publicação imediatamente anterior à que está no ar** (depois de uma
      volta, é a publicação de onde se veio: o MCP só alterna entre as duas),
-     sem correr as migrações que a base já tem a mais, e só se a versão no ar
-     as conhecer todas; mais atrás é uma emergência, à mão (decisão do
-     Diogo, opção A da 2.ª revisão do #115; tarefa #113,
-     `infra/vps/LEIA-ME.md`);
+     sem correr o migrador, e só se as migrações que a base tem a mais forem
+     todas das que a publicação no ar aplicou; mais atrás é uma emergência,
+     por SSH, com o `--emergencia` do `eurolify-publicar` (decisão do Diogo,
+     opção A da 2.ª revisão do #115; tarefa #113, `infra/vps/LEIA-ME.md`);
    - **actualizar** (`apt upgrade`) e **reiniciar a VPS**: recusadas em
      horário de trabalho (dias úteis, 08:00–20:00 em Lisboa), a regra 4 do
      `AGENTS.md`.

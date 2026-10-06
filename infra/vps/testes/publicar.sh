@@ -49,11 +49,13 @@ case "$1" in
           [[ -f "$FALSOS/ls-$n" ]] || exit 2
           cat "$FALSOS/ls-$n"
         elif [[ "$cmd" == test && "${args[*]}" == *dist/migrar.js* ]]; then
+          [[ ! -f "$FALSOS/erro-docker-$n" ]] || exit 125
           [[ ! -f "$FALSOS/sem-migrador-$n" ]] || exit 1
         fi
         exit 0
       fi
     done
+    if [[ " $* " == *" node dist/migrar.js "* ]]; then exit "${MIGRAR_FALHA:-0}"; fi
     if [[ " $* " == *" -d "* ]]; then echo "${*: -1}" >"$FALSOS/no-ar"; fi ;;
 esac
 exit 0
@@ -73,11 +75,11 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
-  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos/docker-chamado" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
+  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/erro-docker-* "$falsos/docker-chamado" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
   cat >/var/log/eurolify/publicacoes.log <<REG
-2026-10-01T10:00:00Z | $(r 1) | anterior: nenhuma
-2026-10-02T10:00:00Z | $(r 2) | anterior: $(img 1)
-2026-10-03T10:00:00Z | $(r 3) | anterior: $(img 2)
+2026-10-01T10:00:00Z | $(r 1) | anterior: nenhuma | migrou: 0001_a
+2026-10-02T10:00:00Z | $(r 2) | anterior: $(img 1) | migrou: 0002_b
+2026-10-03T10:00:00Z | $(r 3) | anterior: $(img 2) | migrou: 0003_c
 REG
   [[ -z "${SEM_REGISTO:-}" ]] || rm -f /var/log/eurolify/publicacoes.log
   img 3 >"$falsos/no-ar"
@@ -90,7 +92,7 @@ REG
 caso() {
   local descricao="$1" n="$2"; shift 2
   codigo=0
-  env "$@" bash "$f/sbin/eurolify-publicar" "$(r "$n")" >"$falsos/saida" 2>&1 || codigo=$?
+  env "$@" bash "$f/sbin/eurolify-publicar" "$(r "$n")" ${OPCAO:+"$OPCAO"} >"$falsos/saida" 2>&1 || codigo=$?
   echo "== $descricao (código $codigo)"
 }
 migrou() { grep -q "node dist/migrar.js" "$falsos/docker-chamado"; }
@@ -111,6 +113,7 @@ printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
 caso "imagem nova, com uma migração que falta à base" 4
 confere sim "migra" migrou
 confere sim "arranca" arrancou 4
+confere sim "regista no publicacoes.log as migrações que aplicou" grep -qE "\| $(r 4) \| anterior: $(img 3) \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
 
 preparar
 cp "$falsos/ls-3" "$falsos/ls-4"
@@ -140,7 +143,54 @@ preparar
 printf '0001_a\n0002_b\n0003_c\n0004_d\n' >"$falsos/base"
 caso "voltar à anterior com a base à frente da que está no ar" 2
 confere nao "não arranca" arrancou 2
-confere sim "regista a recusa" no_registo "nem a versão no ar conhece (0004_d)"
+confere sim "regista a recusa" no_registo "que a publicação no ar não aplicou (0004_d)"
+
+preparar
+caso "voltar, publicar uma correcção e voltar outra vez (2.ª ordem)" 2
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+caso "… publicar a 4" 4
+confere sim "a 4 migra" migrou
+printf '0001_a\n0002_b\n0003_c\n0004_d\n' >"$falsos/base"
+rm -f "$falsos/docker-chamado"
+caso "… voltar outra vez à 2" 2
+confere nao "não arranca: a 3 aplicou a c, não a 4" arrancou 2
+confere sim "regista a recusa" no_registo "que a publicação no ar não aplicou (0003_c)"
+
+preparar
+sed -i 's/ | migrou: 0003_c$//' /var/log/eurolify/publicacoes.log
+caso "voltar quando a publicação no ar é de antes do «migrou»" 2
+confere nao "não arranca" arrancou 2
+confere sim "regista a recusa" no_registo "não registou as migrações que aplicou"
+
+preparar
+OPCAO=--emergencia caso "voltar mais atrás em emergência" 1
+confere nao "não migra" migrou
+confere sim "arranca" arrancou 1
+confere sim "regista a emergência" no_registo "EMERGÊNCIA"
+
+preparar
+printf '0001_a.sql\n0004_d.sql\n' >"$falsos/ls-1"
+OPCAO=--emergencia caso "emergência com a base e a imagem a divergir" 1
+confere nao "não arranca" arrancou 1
+confere sim "regista a recusa" no_registo "faltam-lhe outras (0004_d)"
+
+preparar
+touch "$falsos/erro-docker-4"
+caso "o docker falha a ver se a imagem tem o migrador" 4
+confere nao "não arranca" arrancou 4
+confere sim "regista a recusa" no_registo "não se conseguiu ver se a imagem tem o migrador"
+
+preparar
+: >"$falsos/ls-4"
+caso "imagem com o migrador e a pasta vazia" 4
+confere nao "não diz que não comparou" na_saida "Não se comparou"
+confere nao "não arranca (a base está à frente e não é a anterior)" arrancou 4
+
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+caso "a migração falha" 4 MIGRAR_FALHA=1
+confere nao "não arranca" arrancou 4
+confere sim "fica no registo de acções" no_registo "terminou com erro (código 1)"
 
 preparar
 printf '0001_a.sql\n0002_b.sql\n0004_d.sql\n' >"$falsos/ls-4"
@@ -176,8 +226,8 @@ preparar
 touch "$falsos/sem-migrador-2"
 caso "voltar à anterior, que não tem o migrador" 2
 confere nao "não migra" migrou
-confere sim "arranca (a que está no ar conhece as da base)" arrancou 2
-confere sim "regista a volta" no_registo "volta a $(r 2)"
+confere nao "não arranca (a base tem a e b, que a 3 não aplicou)" arrancou 2
+confere sim "regista a recusa" no_registo "não aplicou (0001_a,0002_b)"
 
 preparar
 printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
@@ -191,11 +241,6 @@ else
   falhou "a volta migrou"
 fi
 
-preparar
-rm -f "$falsos/ls-3"
-caso "voltar à anterior sem se ler a lista da versão no ar" 2
-confere nao "não arranca" arrancou 2
-confere sim "diz que não leu a lista da versão no ar" no_registo "não se leu a lista de migrações da versão no ar"
 
 preparar
 touch "$falsos/sem-migrador-2"
@@ -240,6 +285,9 @@ confere nao "recusa uma que nunca esteve no ar" operar 9
 bash "$f/sbin/eurolify-publicar" "$(r 2)" >/dev/null 2>&1 || falhou "a volta à 2 falhou"
 confere sim "depois de voltar à 2, aceita a 3 (de onde se veio)" operar 3
 confere nao "e recusa a 1" operar 1
+sed -i 's|^IMAGEM_REPO=.*|IMAGEM_REPO=ghcr.io/outro/eurolify-api|' /etc/eurolify/ensaio.conf
+confere nao "com outro repositório de imagens, recusa (a referência inteira)" operar 3
+sed -i "s|^IMAGEM_REPO=.*|IMAGEM_REPO=$repo_img|" /etc/eurolify/ensaio.conf
 preparar
 img 7 >"$falsos/no-ar"
 confere nao "com a versão no ar fora do registo, recusa" operar 2
@@ -260,6 +308,11 @@ confere sim "e «nenhuma» quando estão iguais" linha_na_saida "na base e não 
 rm -f "$falsos/ls-3"
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "diz quando não lê a lista da versão no ar" linha_na_saida "não se leu a lista de migrações da versão no ar"
+img 1 >"$falsos/no-ar"
+touch "$falsos/sem-migrador-1"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "uma versão no ar sem migrador mostra a base à frente" linha_na_saida "na base e não na versão no ar: 0001_a,0002_b,0003_c"
+img 3 >"$falsos/no-ar"
 BASE_EM_BAIXO=1 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "diz quando a base não responde" linha_na_saida "a base não respondeu"
 rm -f "$falsos/no-ar"
