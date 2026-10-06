@@ -44,7 +44,13 @@ describe("FilaDePedidos", () => {
     pasta = await mkdtemp(join(tmpdir(), "eurolify-pedidos-"));
     recebidos = [];
     // Faz de serviço da máquina: lê o pedido e responde em resultado.<id>.
+    // Uma volta de cada vez, como o serviço verdadeiro: sem a trava, num
+    // executor lento, duas voltas liam o mesmo pedido (a conta ficava duas
+    // vezes e a segunda remoção dava ENOENT; CI do #115, 06/10/2026).
+    let ocupada = false;
     maquina = setInterval(() => {
+      if (ocupada) return;
+      ocupada = true;
       void (async () => {
         const nomes = await readdir(pasta);
         if (!nomes.includes("pedido")) return;
@@ -57,7 +63,9 @@ describe("FilaDePedidos", () => {
           join(pasta, `resultado.${String(id)}`),
           `0\nfeito: ${String(comando)}\n`,
         );
-      })();
+      })().finally(() => {
+        ocupada = false;
+      });
     }, 20);
   });
 

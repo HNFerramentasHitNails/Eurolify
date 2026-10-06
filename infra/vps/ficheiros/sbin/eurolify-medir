@@ -70,6 +70,38 @@ seccao "actualizações"
 seccao "últimas publicações"
 tail -n 5 /var/log/eurolify/publicacoes.log 2>/dev/null || echo "(nenhuma)"
 
+seccao "migrações (base e versão no ar)"
+# Sempre à vista, enquanto durar: a base à frente da versão no ar depois de
+# voltar a uma publicação (tarefa #113; revisão do #115, P2-2).
+if [[ -r /usr/local/lib/eurolify/comum.sh && -r /etc/eurolify/ensaio.conf ]]; then
+  # shellcheck source=../lib/comum.sh
+  source /usr/local/lib/eurolify/comum.sh
+  # shellcheck source=/dev/null
+  source /etc/eurolify/ensaio.conf
+  mostrar_migracoes() {
+    local no_ar da_base da_imagem="" rc=0 a_mais faltam
+    no_ar="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null)"
+    [[ -n "$no_ar" ]] || { echo "sem a API no ar"; return; }
+    da_base="$(migracoes_da_base)" || { echo "a base não respondeu"; return; }
+    # Uma versão sem migrador não tem migrações: lista vazia, e a base à
+    # frente vê-se na mesma (4.ª revisão do #115, P3-2).
+    tem_migrador "$no_ar" || rc=$?
+    if ((rc == 2)) || { ((rc == 0)) && ! da_imagem="$(migracoes_da_imagem "$no_ar")"; }; then
+      echo "não se leu a lista de migrações da versão no ar"
+      return
+    fi
+    echo "na base: $(printf '%s\n' "$da_base" | sed '/^$/d' | wc -l) (última: $(printf '%s\n' "$da_base" | tail -n 1))"
+    echo "na versão no ar: $(printf '%s\n' "$da_imagem" | sed '/^$/d' | wc -l) (última: $(printf '%s\n' "$da_imagem" | tail -n 1))"
+    a_mais="$(so_na_primeira "$da_base" "$da_imagem")"
+    faltam="$(so_na_primeira "$da_imagem" "$da_base")"
+    echo "na base e não na versão no ar: $(if [[ -n "$a_mais" ]]; then virgulas "$a_mais"; else echo nenhuma; fi)"
+    echo "na versão no ar e não na base: $(if [[ -n "$faltam" ]]; then virgulas "$faltam"; else echo nenhuma; fi)"
+  }
+  mostrar_migracoes
+else
+  echo "(sem a configuração da máquina)"
+fi
+
 seccao "últimas acções registadas"
 # A conta de quem pediu fica na máquina: esta saída vai para o MCP e para o
 # GitHub Actions (revisão do #102, P2-1).

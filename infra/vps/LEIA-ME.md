@@ -101,7 +101,35 @@ trava, não a única.
   uma tabela exige que a versão anterior já não a use.
 - **Uma publicação de cada vez:** o `eurolify-publicar` tranca
   `/run/lock/eurolify-publicar.lock` (espera até 15 min), venha do fluxo
-  publicar, do MCP ou do passo 10c.
+  publicar, do MCP ou do passo 10c. O cadeado vale para a comparação das
+  migrações, a migração e a troca do contentor.
+- **Voltar a uma publicação** (MCP da VPS, ADR-0033): só à publicação
+  imediatamente anterior à que está no ar (decisão do Diogo, 06/10/2026, opção
+  A da 2.ª revisão do #115). Depois de uma volta, a «anterior» é a publicação
+  de onde se veio: o MCP só alterna entre as duas. Antes de migrar, o
+  `eurolify-publicar` compara as migrações da imagem com as da base (tabela
+  `kysely_migration`). Se a base tem migrações que a imagem não conhece, não
+  corre o migrador (o de uma imagem antiga recusava a base; tarefa #113) e só
+  segue se for essa anterior e se as migrações a mais forem todas das que a
+  publicação no ar aplicou (o `migrou:` de cada linha do `publicacoes.log`;
+  ao avançar outra vez para uma imagem com a mesma anterior, herda as que
+  aplicou da outra vez e ainda estão na base); se também lhe falta alguma,
+  recusa. As linhas de antes desta regra não têm o `migrou:`: até à primeira
+  publicação depois dela, uma volta com a base à frente é recusada. As migrações são escritas para a versão
+  anterior no código, e depois de voltas e correcções a anterior no registo
+  pode não ser essa (4.ª revisão do #115, P2-2). Em qualquer outro caso migra
+  como sempre; se não conseguir comparar, di-lo, e o migrador decide (uma
+  imagem sem migrador que não se consegue comparar é recusada). Qualquer saída
+  com erro depois de validar o resumo fica no `acoes.log` (uma falha do /health
+  com as migrações que ficaram na base). O `estado_do_ensaio` mostra sempre as
+  migrações da base que a versão no ar não conhece (secção «migrações»).
+- **Voltar mais atrás (emergência):** por SSH, com a chave pessoal (ADR-0020),
+  `sudo EUROLIFY_ORIGEM="emergencia:<nome>" /usr/local/sbin/eurolify-publicar
+  <resumo> --emergencia`, com um resumo do `publicacoes.log`. Passa pelo
+  cadeado, nunca corre o migrador numa base à frente da imagem, recusa se a
+  base e a imagem divergem, e fica no `acoes.log` como «EMERGÊNCIA» e marcada
+  na linha do `publicacoes.log` («| emergência»). A compatibilidade dessa versão com a base é de quem a
+  pede; o uso fica numa memória (`AGENTS.md`, «Operar a VPS», regra 9).
 
 ## O que ainda não está tratado (revisão do #10, P2)
 
