@@ -175,6 +175,29 @@ dizia; ficam como **proposta** até o Diogo ou o Bruno as mudarem:
   revogar chaves).
 - Uma pessoa desactivada não volta; o e-mail de uma pessoa não muda. Nada
   nestas tabelas se apaga até a tarefa dos prazos (B4).
+- **Quem perde poderes perde o que abriu** (revisão do #141, P1-1, P2-3):
+  ao sair da equipa ou ser desactivado, os convites em aberto que criou
+  são cancelados e as chaves que criou são revogadas; ao mudar de papel, só
+  os convites que o papel novo já não dá e as chaves com âmbitos que o papel
+  novo não tem. Aceitar um convite volta a confirmar que quem o criou ainda
+  pode dar aquele papel.
+- **Desactivar uma pessoa tira-a de todas as equipas** (excepto se for o
+  último dono, que recusa). Desactivar-se a si própria entra com as rotas
+  (B2); nesta parte só o operador desactiva.
+- **Aceitar um convite autenticado exige autenticação recente** (10
+  minutos), como dar um papel.
+- As trancas tomam-se sempre pela mesma ordem: a dos membros do comerciante
+  e depois a das chaves. Criar uma chave a partir de uma sessão (B2) tem de
+  tomar a dos membros e confirmar o membro dentro dela (revisão do #141,
+  P2-4).
+- `sessao_resolver` distingue a sessão inválida (`auth.unauthenticated`,
+  401) de não ser membro do comerciante (`auth.forbidden`, 403).
+- **Por resolver** (revisão do #141): uma pessoa desactivada fica com o
+  e-mail preso — um convite novo para ele dá `invite.account_exists` e não
+  há sessão que o aceite (P2-2). O caminho entra com a recuperação pelo
+  operador (§7, ponto 5; parte B3). E o e-mail de um convite não se pode
+  apagar enquanto o rasto apontar para o convite: na B4 pseudonimiza-se
+  (§6; P3-8).
 
 ## 5. Papéis e âmbitos (proposta)
 

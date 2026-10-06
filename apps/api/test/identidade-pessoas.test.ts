@@ -5,7 +5,7 @@ import {
   mudarEstado,
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
-import { gerarChave, resumoDe } from "../src/identidade/chaves.js";
+import { gerarChave, resumoDe, type Ambito } from "../src/identidade/chaves.js";
 import { AMBITOS_DO_PAPEL, PAPEIS } from "../src/identidade/papeis.js";
 import { registarChave } from "../src/identidade/repositorio.js";
 import {
@@ -523,7 +523,9 @@ describe.skipIf(URL_BASE === undefined)("contas de pessoas (0019)", () => {
         /^member\.last_owner:/,
       );
       await desactivar(g.pessoa);
-      expect(await resolver(g.sessao, c)).toEqual([]);
+      expect(await mensagemDoErro(resolver(g.sessao, c))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
       const { rows } = await sql<{ motivo: string }>`
         select revogada_motivo as motivo from sessao
         where pessoa_id = ${g.pessoa}::uuid`.execute(dono);
@@ -567,7 +569,9 @@ describe.skipIf(URL_BASE === undefined)("contas de pessoas (0019)", () => {
           trx,
         ),
       );
-      expect(await resolver(rui.sessao, a)).toEqual([]);
+      expect(await mensagemDoErro(resolver(rui.sessao, a))).toMatch(
+        /^auth\.forbidden:/,
+      );
       expect((await resolver(rui.sessao, b))[0]?.papel).toBe("apoio");
 
       const { rows } = await sql<{ id: string; revogada_por: string | null }>`
@@ -598,7 +602,9 @@ describe.skipIf(URL_BASE === undefined)("contas de pessoas (0019)", () => {
         /^member\.role_escalation:/,
       );
       await terminar(ap.sessao, ap.membro);
-      expect(await resolver(ap.sessao, c)).toEqual([]);
+      expect(await mensagemDoErro(resolver(ap.sessao, c))).toMatch(
+        /^auth\.forbidden:/,
+      );
     });
 
     it("P-T10: o dono de A não chega aos membros de B nem às outras lojas da pessoa", async () => {
@@ -628,7 +634,193 @@ describe.skipIf(URL_BASE === undefined)("contas de pessoas (0019)", () => {
       expect(await mensagemDoErro(aceitar(convite, dA.sessao))).toMatch(
         /^invite\.other_person:/,
       );
-      expect(await resolver(dA.sessao, b)).toEqual([]);
+      expect(await mensagemDoErro(resolver(dA.sessao, b))).toMatch(
+        /^auth\.forbidden:/,
+      );
+    });
+  });
+
+  describe("quem perde poderes perde o que abriu (revisão do #141)", () => {
+    const novoComerciante = (nome: string) =>
+      registarComerciante(base.api, {
+        nome,
+        lingua: "pt",
+        fuso: "Europe/Lisbon",
+      });
+    const chaveDe = async (
+      comerciante: string,
+      pessoa: string,
+      ambitos: Ambito[],
+    ) => {
+      const k = gerarChave("servidor");
+      return registarChave(base.dono, comerciante, {
+        tipo: "servidor",
+        nome: "Chave de teste",
+        ambitos,
+        prefixo: k.prefixo,
+        resumo: k.resumo,
+        criadaPor: `pessoa:per_${pessoa}`,
+      });
+    };
+    const revogadaPor = async (id: string) => {
+      const { rows } = await sql<{ por: string | null }>`
+        select revogada_por as por from chave_api where id = ${id}::uuid`.execute(
+        dono,
+      );
+      return rows[0]?.por;
+    };
+
+    it("P1-1: o convite de quem saiu ou foi despromovido deixa de valer", async () => {
+      const c = await novoComerciante("Loja Convites");
+      const d = await pessoaCom(c, "dono");
+      const g = await pessoaCom(c, "gestor");
+      const d2 = await pessoaCom(c, "dono");
+      const deG = await convidar(c, g.sessao, "de-g@exemplo.test", "apoio");
+      const deD2 = await convidar(c, d2.sessao, "de-d2@exemplo.test", "dono");
+      const deD2Apoio = await convidar(
+        c,
+        d2.sessao,
+        "de-d2-apoio@exemplo.test",
+        "apoio",
+      );
+      await em(c, (trx) =>
+        sql`select membro_terminar(${d.sessao}, ${g.membro}::uuid)`.execute(
+          trx,
+        ),
+      );
+      expect(await mensagemDoErro(contaNova(deG, "Depois"))).toMatch(
+        /^invite\.invalid:/,
+      );
+      // Um dono despromovido a gestor: o convite «dono» cai; o «apoio», que
+      // um gestor ainda dá, fica.
+      await em(c, (trx) =>
+        sql`select membro_mudar_papel(${d.sessao}, ${d2.membro}::uuid, 'gestor')`.execute(
+          trx,
+        ),
+      );
+      expect(await mensagemDoErro(contaNova(deD2, "Dono"))).toMatch(
+        /^invite\.invalid:/,
+      );
+      await contaNova(deD2Apoio, "Apoio");
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from evento_conta
+        where comerciante_id = ${c}::uuid and acto = 'convite_cancelado'`.execute(
+        dono,
+      );
+      expect(rows[0]?.n).toBe(2);
+    });
+
+    it("P2-3: despromover revoga as chaves com âmbitos que o papel novo não tem", async () => {
+      const c = await novoComerciante("Loja Despromover");
+      const d = await pessoaCom(c, "dono");
+      const d2 = await pessoaCom(c, "dono");
+      const gestora = await chaveDe(c, d2.pessoa, [
+        "keys:write",
+        "catalog:read",
+      ]);
+      const leitora = await chaveDe(c, d2.pessoa, ["catalog:read"]);
+      await em(c, (trx) =>
+        sql`select membro_mudar_papel(${d.sessao}, ${d2.membro}::uuid, 'apoio')`.execute(
+          trx,
+        ),
+      );
+      expect(await revogadaPor(gestora)).toBe(`papel_mudado:per_${d2.pessoa}`);
+      expect(await revogadaPor(leitora)).toBeNull();
+      const { rows } = await sql<{ papel: string; papel_antes: string }>`
+        select papel, papel_antes from evento_conta
+        where membro_id = ${d2.membro}::uuid and acto = 'papel_mudado'`.execute(
+        dono,
+      );
+      expect(rows).toEqual([{ papel: "apoio", papel_antes: "dono" }]);
+    });
+
+    it("P2-3: desactivar sai de todas as equipas e revoga as chaves e os convites em todas", async () => {
+      const c1 = await novoComerciante("Loja D1");
+      const c2 = await novoComerciante("Loja D2");
+      await pessoaCom(c1, "dono");
+      await pessoaCom(c2, "dono");
+      const g = await pessoaCom(c1, "gestor");
+      await aceitar(
+        await convidarPeloOperador(c2, g.email, "gestor"),
+        g.sessao,
+      );
+      const k1 = await chaveDe(c1, g.pessoa, ["catalog:read"]);
+      const k2 = await chaveDe(c2, g.pessoa, ["catalog:read"]);
+      const convite = await convidar(
+        c2,
+        g.sessao,
+        "de-g2@exemplo.test",
+        "apoio",
+      );
+      await sql`select pessoa_desactivar(${g.pessoa}::uuid, ${OPERADOR})`.execute(
+        dono,
+      );
+      expect(await revogadaPor(k1)).toBe(`pessoa_desactivada:per_${g.pessoa}`);
+      expect(await revogadaPor(k2)).toBe(`pessoa_desactivada:per_${g.pessoa}`);
+      expect(await mensagemDoErro(contaNova(convite, "Depois"))).toMatch(
+        /^invite\.invalid:/,
+      );
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from membro
+        where pessoa_id = ${g.pessoa}::uuid and ate is null`.execute(dono);
+      expect(rows[0]?.n).toBe(0);
+    });
+
+    it("T-2: uma pessoa desactivada não resolve, mesmo com a sessão por revogar", async () => {
+      const p = await pessoaCom(a, "apoio");
+      await sql`update pessoa set estado = 'desactivada' where id = ${p.pessoa}::uuid`.execute(
+        dono,
+      );
+      expect(await mensagemDoErro(resolver(p.sessao, a))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
+    });
+
+    it("P3-5: aceitar um convite exige autenticação recente", async () => {
+      const p = await pessoaCom(b, "apoio");
+      const convite = await convidarPeloOperador(a, p.email, "apoio");
+      await envelhecer(
+        "sessao",
+        "autenticada_em",
+        await sessaoId(p.sessao),
+        "11 minutes",
+      );
+      expect(await mensagemDoErro(aceitar(convite, p.sessao))).toMatch(
+        /^auth\.reauthentication_required:/,
+      );
+    });
+
+    it("T-1: dois aceites autenticados ao mesmo tempo: o segundo espera e vê o convite usado", async () => {
+      const p = await pessoaCom(b, "apoio");
+      const convite = await convidarPeloOperador(a, p.email, "apoio");
+      let libertar = () => {};
+      const aberta = new Promise<void>((r) => (libertar = r));
+      let aceitou = () => {};
+      const feito = new Promise<void>((r) => (aceitou = r));
+      const primeiro = dono.transaction().execute(async (trx) => {
+        await sql`select * from convite_aceitar(${convite}, ${p.sessao})`.execute(
+          trx,
+        );
+        aceitou();
+        await aberta;
+      });
+      await feito;
+      const segundo = aceitar(convite, p.sessao);
+      const corrida = await Promise.race([
+        segundo.then(
+          () => "passou",
+          () => "falhou",
+        ),
+        new Promise((r) =>
+          setTimeout(() => {
+            r("à espera");
+          }, 300),
+        ),
+      ]);
+      expect(corrida).toBe("à espera");
+      libertar();
+      await primeiro;
+      expect(await mensagemDoErro(segundo)).toMatch(/^invite\.invalid:/);
     });
   });
 
@@ -642,7 +834,9 @@ describe.skipIf(URL_BASE === undefined)("contas de pessoas (0019)", () => {
         await sessaoId(parada),
         "12 hours 1 minute",
       );
-      expect(await resolver(parada, a)).toEqual([]);
+      expect(await mensagemDoErro(resolver(parada, a))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
 
       const velha = await sessaoDe(p.pessoa);
       await envelhecer(
@@ -651,16 +845,22 @@ describe.skipIf(URL_BASE === undefined)("contas de pessoas (0019)", () => {
         await sessaoId(velha),
         "30 days 1 minute",
       );
-      expect(await resolver(velha, a)).toEqual([]);
+      expect(await mensagemDoErro(resolver(velha, a))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
 
       const terminada = await sessaoDe(p.pessoa);
       const { rows } = await sql<{ ok: boolean }>`
         select sessao_terminar(${terminada}) as ok`.execute(dono);
       expect(rows[0]?.ok).toBe(true);
-      expect(await resolver(terminada, a)).toEqual([]);
+      expect(await mensagemDoErro(resolver(terminada, a))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
 
       expect((await resolver(p.sessao, a))[0]?.papel).toBe("apoio");
-      expect(await resolver(segredo(), a)).toEqual([]);
+      expect(await mensagemDoErro(resolver(segredo(), a))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
     });
   });
 

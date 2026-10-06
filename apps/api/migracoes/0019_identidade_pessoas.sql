@@ -102,7 +102,7 @@ CREATE TABLE convite (
   aceite_em timestamptz,
   aceite_por uuid REFERENCES pessoa (id),
   cancelado_em timestamptz,
-  cancelado_por text,
+  cancelado_por text CHECK (cancelado_por IS NULL OR length(btrim(cancelado_por)) BETWEEN 1 AND 200),
   CONSTRAINT convite_resumo_unico UNIQUE (resumo),
   CONSTRAINT convite_aceite_inteiro CHECK ((aceite_em IS NULL) = (aceite_por IS NULL)),
   CONSTRAINT convite_cancelamento_inteiro CHECK ((cancelado_em IS NULL) = (cancelado_por IS NULL)),
@@ -137,6 +137,8 @@ CREATE TABLE evento_conta (
   convite_id uuid REFERENCES convite (id),
   membro_id uuid REFERENCES membro (id),
   papel text CHECK (papel IN ('dono', 'gestor', 'armazem', 'apoio')),
+  -- Numa mudança de papel, o de antes (revisão do #141, P3-7).
+  papel_antes text CHECK (papel_antes IN ('dono', 'gestor', 'armazem', 'apoio')),
   quem text NOT NULL CHECK (length(btrim(quem)) BETWEEN 1 AND 200)
 );
 CREATE INDEX evento_conta_por_pessoa ON evento_conta (pessoa_id, quando);
@@ -364,6 +366,48 @@ BEGIN
 END
 $$;
 
+-- Que papéis um papel pode dar num convite (docs/21 §4.2, ponto 1).
+CREATE FUNCTION papel_pode_convidar(p_quem text, p_papel text) RETURNS boolean
+  LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT p_quem = 'dono' OR (p_quem = 'gestor' AND p_papel IN ('armazem', 'apoio'))
+$$;
+
+-- Fechar o que uma pessoa abriu num comerciante quando perde poderes nele
+-- (revisão do #141, P1-1, P2-3 e P2-4): os convites em aberto que criou e
+-- as chaves de API que criou. Com `p_papel_novo` nulo (saiu, desactivada),
+-- tudo; numa mudança de papel, só os convites que o papel novo já não dá e
+-- as chaves com âmbitos que o papel novo não tem. Chama-se com a tranca de
+-- membros do comerciante; toma a das chaves a seguir (por esta ordem em todo
+-- o lado), para uma chave criada ao mesmo tempo não escapar.
+CREATE FUNCTION pessoa_fechar_acessos(p_comerciante uuid, p_pessoa uuid,
+                                      p_papel_novo text, p_motivo text,
+                                      p_quem text)
+  RETURNS void
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  autor text := 'pessoa:per_' || p_pessoa::text;
+  c public.convite;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('chave_api:' || p_comerciante::text, 0));
+  FOR c IN SELECT x.* FROM public.convite x
+           WHERE x.comerciante_id = p_comerciante
+             AND x.convidado_por = autor
+             AND x.aceite_em IS NULL AND x.cancelado_em IS NULL
+             AND (p_papel_novo IS NULL OR NOT public.papel_pode_convidar(p_papel_novo, x.papel))
+           ORDER BY x.id
+           FOR UPDATE LOOP
+    UPDATE public.convite x SET cancelado_por = p_motivo WHERE x.id = c.id;
+    INSERT INTO public.evento_conta (acto, comerciante_id, convite_id, quem)
+    VALUES ('convite_cancelado', p_comerciante, c.id, p_quem);
+  END LOOP;
+  UPDATE public.chave_api k SET revogada_por = p_motivo
+  WHERE k.comerciante_id = p_comerciante
+    AND k.criada_por = autor
+    AND k.revogada_por IS NULL
+    AND (p_papel_novo IS NULL OR NOT (k.ambitos <@ public.papel_ambitos(p_papel_novo)));
+END
+$$;
+
 -- O convite em aberto de um segredo, trancado: dois aceites ao mesmo tempo,
 -- o segundo espera e vê-o aceite.
 CREATE FUNCTION convite_em_aberto(p_segredo text) RETURNS public.convite
@@ -392,6 +436,23 @@ DECLARE
   novo uuid;
 BEGIN
   PERFORM public.membros_trancar(p_convite.comerciante_id);
+  -- Quem convidou ainda pode dar este papel aqui (revisão do #141, P1-1); o
+  -- convite do operador não depende de ninguém.
+  IF p_convite.convidado_por LIKE 'pessoa:per\_%' AND NOT EXISTS (
+       SELECT 1 FROM public.membro x
+       JOIN public.pessoa q ON q.id = x.pessoa_id
+       WHERE x.comerciante_id = p_convite.comerciante_id
+         AND 'pessoa:per_' || x.pessoa_id::text = p_convite.convidado_por
+         AND x.ate IS NULL
+         AND q.estado = 'activa'
+         AND public.papel_pode_convidar(x.papel, p_convite.papel)) THEN
+    RAISE EXCEPTION 'invite.invalid: o convite não existe, já foi usado, foi cancelado ou expirou';
+  END IF;
+  -- Quem aceita está activa; o FOR SHARE espera por uma desactivação em curso.
+  PERFORM 1 FROM public.pessoa q WHERE q.id = p_pessoa AND q.estado = 'activa' FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'auth.unauthenticated: pessoa inexistente ou desactivada';
+  END IF;
   IF EXISTS (SELECT 1 FROM public.membro x
              WHERE x.comerciante_id = p_convite.comerciante_id
                AND x.pessoa_id = p_pessoa AND x.ate IS NULL) THEN
@@ -427,33 +488,32 @@ END
 $$;
 
 -- De um segredo de sessão e do comerciante do cabeçalho para o papel e os
--- âmbitos (docs/21 §4.6). Nenhuma linha sem sessão válida ou sem membro
--- activo. Marca o último uso no máximo uma vez por minuto.
+-- âmbitos (docs/21 §4.6). Sem sessão válida, `auth.unauthenticated` (401);
+-- sem membro activo nesse comerciante, `auth.forbidden` (403; revisão do
+-- #141, P3-2). Marca o último uso no máximo uma vez por minuto.
 CREATE FUNCTION sessao_resolver(p_segredo text, p_comerciante uuid)
   RETURNS TABLE (sessao_id uuid, pessoa_id uuid, membro_id uuid, papel text,
                  ambitos text[], recente boolean)
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
-  r text;
+  s public.sessao;
+  m public.membro;
 BEGIN
-  r := public.resumo_do_segredo(p_segredo);
-  RETURN QUERY
-    SELECT s.id, s.pessoa_id, m.id, m.papel, public.papel_ambitos(m.papel),
-           s.autenticada_em > now() - interval '10 minutes'
-    FROM public.sessao s
-    JOIN public.pessoa p ON p.id = s.pessoa_id
-    JOIN public.membro m ON m.pessoa_id = s.pessoa_id
-                        AND m.comerciante_id = p_comerciante
-                        AND m.ate IS NULL
-    WHERE s.resumo = r
-      AND s.revogada_em IS NULL
-      AND s.ultimo_uso_em > now() - interval '12 hours'
-      AND s.criada_em > now() - interval '30 days'
-      AND p.estado = 'activa';
-  IF FOUND THEN
-    UPDATE public.sessao s SET ultimo_uso_em = now()
-    WHERE s.resumo = r AND s.ultimo_uso_em < now() - interval '1 minute';
+  s := public.sessao_valida(p_segredo);
+  SELECT x.* INTO m FROM public.membro x
+  WHERE x.pessoa_id = s.pessoa_id
+    AND x.comerciante_id = p_comerciante
+    AND x.ate IS NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'auth.forbidden: a pessoa não é membro deste comerciante';
   END IF;
+  -- Só uma sessão ainda em vigor: uma revogada entretanto fica como está
+  -- (revisão do #141, P3-1).
+  UPDATE public.sessao x SET ultimo_uso_em = now()
+  WHERE x.id = s.id AND x.revogada_em IS NULL
+    AND x.ultimo_uso_em < now() - interval '1 minute';
+  RETURN QUERY SELECT s.id, s.pessoa_id, m.id, m.papel, public.papel_ambitos(m.papel),
+                      s.autenticada_em > now() - interval '10 minutes';
 END
 $$;
 
@@ -483,9 +543,7 @@ BEGIN
   quem := public.membro_de_quem_pede(p_segredo_sessao, true);
   PERFORM public.convite_validar(p_email, p_papel, p_resumo);
   PERFORM public.comerciante_escreve(quem.comerciante_id);
-  IF quem.papel = 'gestor' AND p_papel IN ('armazem', 'apoio') THEN
-    NULL;
-  ELSIF quem.papel <> 'dono' THEN
+  IF NOT public.papel_pode_convidar(quem.papel, p_papel) THEN
     RAISE EXCEPTION 'member.role_escalation: só um dono convida com este papel';
   END IF;
   INSERT INTO public.convite (comerciante_id, email, papel, resumo, convidado_por, expira_em)
@@ -570,8 +628,14 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.pessoa p WHERE lower(p.email) = lower(c.email)) THEN
     RAISE EXCEPTION 'invite.account_exists: já há uma conta com este e-mail; entre nela para aceitar';
   END IF;
-  INSERT INTO public.pessoa (email, nome) VALUES (c.email, btrim(p_nome))
-  RETURNING pessoa.id INTO nova;
+  BEGIN
+    INSERT INTO public.pessoa (email, nome) VALUES (c.email, btrim(p_nome))
+    RETURNING pessoa.id INTO nova;
+  EXCEPTION WHEN unique_violation THEN
+    -- Outra conta com o mesmo e-mail nasceu ao mesmo tempo (revisão do #141,
+    -- P3-4).
+    RAISE EXCEPTION 'invite.account_exists: já há uma conta com este e-mail; entre nela para aceitar';
+  END;
   INSERT INTO public.evento_conta (acto, comerciante_id, pessoa_id, convite_id, quem)
   VALUES ('conta_criada', c.comerciante_id, nova, c.id, 'pessoa:per_' || nova::text);
   RETURN QUERY SELECT nova, c.comerciante_id, public.convite_concluir(c, nova);
@@ -588,6 +652,10 @@ DECLARE
   c public.convite;
 BEGIN
   s := public.sessao_valida(p_segredo_sessao);
+  -- Autenticação recente, como para dar um papel (revisão do #141, P3-5).
+  IF s.autenticada_em <= now() - interval '10 minutes' THEN
+    RAISE EXCEPTION 'auth.reauthentication_required: autentique-se outra vez para esta operação';
+  END IF;
   c := public.convite_em_aberto(p_segredo_convite);
   IF NOT EXISTS (SELECT 1 FROM public.pessoa p
                  WHERE p.id = s.pessoa_id AND lower(p.email) = lower(c.email)) THEN
@@ -631,9 +699,12 @@ BEGIN
     PERFORM public.membro_nao_e_o_ultimo_dono(alvo);
   END IF;
   UPDATE public.membro x SET papel = p_papel WHERE x.id = alvo.id;
-  INSERT INTO public.evento_conta (acto, comerciante_id, pessoa_id, membro_id, papel, quem)
+  INSERT INTO public.evento_conta (acto, comerciante_id, pessoa_id, membro_id, papel,
+                                   papel_antes, quem)
   VALUES ('papel_mudado', alvo.comerciante_id, alvo.pessoa_id, alvo.id, p_papel,
-          'pessoa:per_' || quem.pessoa_id::text);
+          alvo.papel, 'pessoa:per_' || quem.pessoa_id::text);
+  PERFORM public.pessoa_fechar_acessos(alvo.comerciante_id, alvo.pessoa_id, p_papel,
+    'papel_mudado:per_' || alvo.pessoa_id::text, 'pessoa:per_' || quem.pessoa_id::text);
 END
 $$;
 
@@ -666,40 +737,63 @@ BEGIN
   PERFORM public.membro_nao_e_o_ultimo_dono(alvo);
   UPDATE public.membro x SET terminado_por = 'pessoa:per_' || quem.pessoa_id::text
   WHERE x.id = alvo.id;
-  UPDATE public.chave_api k SET revogada_por = 'membro_terminado:per_' || alvo.pessoa_id::text
-  WHERE k.comerciante_id = alvo.comerciante_id
-    AND k.criada_por = 'pessoa:per_' || alvo.pessoa_id::text
-    AND k.revogada_por IS NULL;
+  PERFORM public.pessoa_fechar_acessos(alvo.comerciante_id, alvo.pessoa_id, NULL,
+    'membro_terminado:per_' || alvo.pessoa_id::text, 'pessoa:per_' || quem.pessoa_id::text);
   INSERT INTO public.evento_conta (acto, comerciante_id, pessoa_id, membro_id, papel, quem)
   VALUES ('membro_terminado', alvo.comerciante_id, alvo.pessoa_id, alvo.id, alvo.papel,
           'pessoa:per_' || quem.pessoa_id::text);
 END
 $$;
 
--- Desactivar uma pessoa (o operador; docs/21 §4.5): todas as sessões caem;
--- recusa se for o último dono activo de algum comerciante. As trancas por
--- ordem do comerciante, para dois pedidos não se esperarem um ao outro.
+-- Desactivar uma pessoa (o operador; docs/21 §4.5): recusa se for o último
+-- dono activo de algum comerciante; senão, todas as sessões caem, sai de
+-- todas as equipas e os convites e as chaves que criou fecham-se (revisão
+-- do #141, P2-3). As trancas de todos os comerciantes dela primeiro, por
+-- ordem, e só depois a da pessoa: a mesma ordem das outras funções (revisão
+-- do #141, P3-3).
 CREATE FUNCTION pessoa_desactivar(p_pessoa uuid, p_quem text) RETURNS void
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
+  comerciante uuid;
   m public.membro;
 BEGIN
   IF p_quem IS NULL OR p_quem !~ '^operador:github:[0-9]{1,20}$' THEN
     RAISE EXCEPTION 'invite.invalid_operator: quem tem de ser operador:github:<número>';
   END IF;
+  FOR comerciante IN SELECT DISTINCT x.comerciante_id FROM public.membro x
+                     WHERE x.pessoa_id = p_pessoa AND x.ate IS NULL
+                     ORDER BY 1 LOOP
+    PERFORM public.membros_trancar(comerciante);
+  END LOOP;
   PERFORM 1 FROM public.pessoa p WHERE p.id = p_pessoa AND p.estado = 'activa' FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'person.not_found: a pessoa não existe ou já está desactivada';
   END IF;
+  -- Releitura com as trancas: um membro novo entretanto (com outra tranca)
+  -- faz recusar, para não ficar de fora.
+  IF EXISTS (SELECT 1 FROM public.membro x
+             WHERE x.pessoa_id = p_pessoa AND x.ate IS NULL
+               AND NOT pg_catalog.pg_try_advisory_xact_lock(
+                 hashtextextended('membro:' || x.comerciante_id::text, 0))) THEN
+    RAISE EXCEPTION 'person.busy: a equipa desta pessoa mudou entretanto; tente outra vez';
+  END IF;
   FOR m IN SELECT x.* FROM public.membro x
-           WHERE x.pessoa_id = p_pessoa AND x.ate IS NULL AND x.papel = 'dono'
+           WHERE x.pessoa_id = p_pessoa AND x.ate IS NULL
            ORDER BY x.comerciante_id LOOP
-    PERFORM public.membros_trancar(m.comerciante_id);
     PERFORM public.membro_nao_e_o_ultimo_dono(m);
   END LOOP;
   UPDATE public.pessoa p SET estado = 'desactivada' WHERE p.id = p_pessoa;
   UPDATE public.sessao s SET revogada_motivo = 'pessoa_desactivada'
   WHERE s.pessoa_id = p_pessoa AND s.revogada_em IS NULL;
+  FOR m IN SELECT x.* FROM public.membro x
+           WHERE x.pessoa_id = p_pessoa AND x.ate IS NULL
+           ORDER BY x.comerciante_id LOOP
+    UPDATE public.membro x SET terminado_por = p_quem WHERE x.id = m.id;
+    INSERT INTO public.evento_conta (acto, comerciante_id, pessoa_id, membro_id, papel, quem)
+    VALUES ('membro_terminado', m.comerciante_id, p_pessoa, m.id, m.papel, p_quem);
+    PERFORM public.pessoa_fechar_acessos(m.comerciante_id, p_pessoa, NULL,
+      'pessoa_desactivada:per_' || p_pessoa::text, p_quem);
+  END LOOP;
   INSERT INTO public.evento_conta (acto, pessoa_id, quem)
   VALUES ('pessoa_desactivada', p_pessoa, p_quem);
 END
@@ -711,6 +805,8 @@ REVOKE ALL ON FUNCTION papel_ambitos(text), resumo_do_segredo(text),
   comerciante_escreve(uuid), membros_trancar(uuid),
   membro_nao_e_o_ultimo_dono(membro), convite_validar(text, text, text),
   convite_em_aberto(text), convite_concluir(convite, uuid),
+  papel_pode_convidar(text, text),
+  pessoa_fechar_acessos(uuid, uuid, text, text, text),
   sessao_criar(uuid, text), sessao_resolver(text, uuid), sessao_terminar(text),
   convite_criar(text, text, text, text),
   convite_criar_pelo_operador(uuid, text, text, text, text),
