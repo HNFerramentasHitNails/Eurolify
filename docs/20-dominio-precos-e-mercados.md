@@ -1,7 +1,8 @@
 # Domínio Preços e mercados — modelo e lista da API
 
-> **Estado: desenho, para aprovação** (issue #127; pedido do Diogo,
-> 06/10/2026: *«sim, começa pelo desenho de Preços e mercados»*). É o passo 4
+> **Estado: desenho, para aprovação; as seis perguntas da §9 decididas**
+> (issue #127; pedido do Diogo, 06/10/2026: *«sim, começa pelo desenho de
+> Preços e mercados»*; decisões BS a BX do `docs/06`). É o passo 4
 > do [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md) e é
 > preciso antes da parte 4 do Catálogo (#77): a publicação por canal × mercado
 > e a verificação «pode publicar?» (C2 do [`docs/14`](14-dominio-catalogo.md)
@@ -212,7 +213,7 @@ preço não tem estados: muda-se (linha nova no histórico) ou tira-se da lista
 | R4 | `montante = 0` só com `gratuito = sim`; a C2 recusa publicar uma variante sem preço na lista de base do mercado, ou a 0,00 € sem ser gratuita | `catalog-pim`, regra 2; `docs/14` §5, C2 |
 | R5 | O histórico não se altera nem se apaga; corrige-se com uma linha nova | `observability-security` (registo de auditoria); como a 0008 |
 | R6 | O preço de referência de uma redução vem do histórico, calculado pelo servidor; sem 30 dias de histórico, não há redução (até o jurista responder) | Dir. 98/6/CE, art. 6.º-A (**C**); **proposta** para o caso sem histórico |
-| R7 | O preço por unidade é calculado pelo servidor sempre que a variante tem quantidade e unidade | Dir. 98/6/CE, arts. 2.º, 3.º e 5.º (**W**); a dispensa por país é **C** |
+| R7 | O preço por unidade é calculado pelo servidor e mostrado sempre que a variante tem quantidade e unidade (Q5, decidida) | Dir. 98/6/CE, arts. 2.º, 3.º e 5.º (**W**); a dispensa por país é **C** |
 | R8 | O mercado de um visitante decide-se pelo **país de entrega** quando o há; antes disso, pela escolha dele, **nunca pelo IP** | `eu-localization`, «Mercado»; Reg. (UE) 2018/302 (geobloqueio, **C**, `consumer-rights-eu`) |
 | R9 | Se um preço for personalizado com base numa decisão automatizada (por uma extensão), a resposta da API traz o aviso, e a loja mostra-o | Dir. 2011/83/UE, art. 6.º, n.º 1, alínea e-A) (**W** · texto lido, `docs/03` linha 67) |
 | R10 | Uma lista B2B só se aplica a quem tem a etiqueta e compra como profissional nessa encomenda; **ter NIF não faz de alguém profissional**, e a lista B2B nunca tira direitos de consumidor | `consumer-rights-eu`, «Consumidor ou profissional»; `eurolify-b2b-channels-eu` |
@@ -226,7 +227,8 @@ Com outbox, como os do Catálogo (`platform-architect`).
 |---|---|---|
 | `price.changed` | um preço corrente mudou (linha nova no histórico) | `prl_`, `var_`, montante antigo e novo, moeda |
 | `promotion.started` | uma redução entrou em vigor | `prl_`, `var_`, preço reduzido, preço de referência, fim |
-| `market.activated`, `market.archived` | o mercado mudou de estado | `mkt_` — **proposta**: o Catálogo precisa de saber que um mercado foi arquivado para arquivar as publicações (§4.1); acrescentá-los ao `docs/02` é a pergunta Q6 |
+| `promotion.ended` | uma redução acabou (chegou ao fim ou foi tirada) | `prl_`, `var_` — já estava na lista da skill `platform-architect` |
+| `market.activated`, `market.archived` | o mercado mudou de estado | `mkt_` — o Catálogo precisa de saber que um mercado foi arquivado para arquivar as publicações (§4.1); acrescentados ao `docs/02` e à skill `platform-architect` (decidido, Diogo, 06/10/2026; §9, Q6; `docs/06`, BX) |
 
 ## 7. Lista da API
 
@@ -285,4 +287,4 @@ escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
 | Q3 | Códigos de desconto e regras de carrinho entram na Fase 1? | ✅ **Decidido: ficam para depois**; na Fase 1 só a redução anunciada (preço riscado, §3.6), e os códigos e as regras de carrinho chegam com o domínio Carrinho (Diogo, 06/10/2026: *«sim, ficam para depois»*; `docs/06`, BU) |
 | Q4 | Numa loja, o mesmo país pode estar em dois mercados activos? | ✅ **Decidido: não**; um país, um mercado activo por loja, para o mesmo cliente nunca ver dois preços (Diogo, 06/10/2026: *«sim, um país só num mercado activo»*; `docs/06`, BV) |
 | Q5 | O preço por unidade mostra-se sempre que a variante tem quantidade e unidade, até haver a lista das dispensas por país validada? | ✅ **Decidido: sim**; mostrar a mais não viola a regra, esconder sem saber pode violar (Diogo, 06/10/2026: *«sim, mostra sempre o preço por unidade»*; `docs/06`, BW) |
-| Q6 | Acrescentar `market.activated` e `market.archived` à lista de eventos do `docs/02`? | **Sim**: o Catálogo precisa deles para arquivar as publicações de um mercado arquivado |
+| Q6 | Acrescentar `market.activated` e `market.archived` à lista de eventos do `docs/02`? | ✅ **Decidido: sim**; o Catálogo precisa deles para arquivar as publicações de um mercado arquivado (Diogo, 06/10/2026: *«sim, acrescenta os eventos ao docs/02»*; `docs/06`, BX) |
