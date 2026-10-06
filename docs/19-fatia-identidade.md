@@ -1,6 +1,6 @@
 # Fatia «identidade»: quem chama a API e em nome de que comerciante
 
-> **Versão de 06/10/2026 — desenho, por decidir.** Pedido do Diogo: *«avança
+> **Versão de 06/10/2026 — desenho; parte A decidida** (Diogo, 06/10/2026: *«sim, começa pela parte A»*); parte B por decidir (P1). Pedido do Diogo: *«avança
 > com o desenho da fatia identidade»* (issue #107). Responde à P1 do `docs/15`
 > §9 e desbloqueia a API de domínio, a `Idempotency-Key` e os limites de
 > pedidos (`docs/18` §1). Skills: `headless-commerce` (autenticação, âmbitos,
@@ -157,8 +157,8 @@ sessão em vez da chave.
 
 ## 10. O que fica por decidir
 
-- **Começar pela parte A** (chaves) e deixar as pessoas para depois da P1 — a
-  pergunta desta versão.
+- ~~Começar pela parte A~~ — **decidido** (Diogo, 06/10/2026: *«sim, começa
+  pela parte A»*).
 - A P1 (§7): opção a), b) ou c).
 - Os nomes finais dos âmbitos e se `keys:write` precisa de dois passos, como as
   acções do MCP.
