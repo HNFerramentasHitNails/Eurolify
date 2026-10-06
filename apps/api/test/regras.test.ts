@@ -2000,7 +2000,23 @@ describe("o papel de quem valida confere-se com a linha do docs/03 (#59, #128)",
     );
   });
 
-  it("um domínio condicional não tem linhas: nenhuma validação conta", () => {
+  it("um domínio condicional só aceita a sua linha (secção 7; #135)", () => {
+    const certo = comRegraValidada(
+      "agencia_comercial",
+      "agentes-comerciais",
+      "jurista",
+    );
+    expect(errosDoRegisto(certo)).toEqual([]);
+    expect(decide(certo, "agencia_comercial")).toBe("permitido");
+    const contabilista = comRegraValidada(
+      "agencia_comercial",
+      "agentes-comerciais",
+      "contabilista",
+    );
+    expect(errosDoRegisto(contabilista).join("\n")).toContain(
+      "o papel «contabilista» não valida o tema agentes-comerciais",
+    );
+
     const registo = comRegraValidada("agencia_comercial", "dsa", "jurista");
     expect(errosDoRegisto(registo).join("\n")).toContain(
       "o tema dsa não é do domínio agencia_comercial",

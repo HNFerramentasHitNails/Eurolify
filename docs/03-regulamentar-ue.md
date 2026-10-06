@@ -1,6 +1,7 @@
 # Mapa regulamentar europeu do Eurolify
 
-> **Versão de 03/10/2026**, revista no mesmo dia: datas lidas no texto do
+> **Versão de 03/10/2026**, revista a 06/10/2026 (secção 7, #135) e, antes,
+> no mesmo dia: datas lidas no texto do
 > EUR-Lex (Omnibus da IA e art. 50.º, Dir. 2024/2853, Dir. 2024/1799,
 > baterias) e o DSA na Fase 1 como pergunta ao jurista; depois, alinhado com
 > as skills (preço por unidade, preço personalizado, avaliações, conteúdos
@@ -32,7 +33,8 @@ um profissional.
 
 **W · texto lido** quer dizer que os artigos citados na linha foram lidos no
 texto publicado no EUR-Lex (a versão do Jornal Oficial, não a consolidada), na
-data indicada; o resto do acto não. Alterações posteriores a esse texto não
+data indicada — ou, quando a linha o diz, no mesmo texto do Jornal Oficial
+servido pelo Serviço das Publicações da UE; o resto do acto não. Alterações posteriores a esse texto não
 foram vistas, salvo as que a linha cita.
 
 ---
@@ -140,10 +142,33 @@ foram vistas, salvo as que a linha cita.
 do comércio por agentes. Razão para o Eurolify falar estes protocolos em vez de
 inventar um próprio.
 
+## 7. Canais comerciais e plataformas para empresas
+
+> Acrescentada a 06/10/2026 (tarefa #135; pedido do Diogo: *«avança com as
+> linhas dos domínios condicionais»*): uma linha por domínio condicional do
+> motor de regras (`docs/eurolify/architecture.md` §4). Os artigos das linhas
+> **W · texto lido** foram lidos no texto do Jornal Oficial servido pelo
+> Serviço das Publicações da UE, na versão inglesa (o EUR-Lex não respondeu a
+> pedidos automáticos nesse dia). O motor tem um só papel `jurista`: não
+> distingue o especialista em concorrência. A transposição e a lei de cada país **não foram
+> verificadas**.
+
+| Tema | Instrumento | Desde | O que obriga | Verif. | Quem valida |
+|---|---|---|---|---|---|
+| Distribuição e revenda (acordos verticais) | Reg. (UE) 2022/720 | 01/06/2022 a 31/05/2034 (art. 11.º) | Entre outras condições (art. 2.º, não lido), a isenção por categoria pede uma quota de mercado até 30 % do fornecedor e do comprador (art. 3.º, n.º 1), com dois anos civis de tolerância quando a quota passa os 30 % (art. 8.º, al. d)). Cai com as restrições graves do art. 4.º, entre elas impor um preço de revenda fixo ou mínimo (al. a)), restringir o território ou os clientes fora das excepções, conforme o sistema seja exclusivo, selectivo ou outro (als. b), c) e d)), e impedir o uso efectivo da internet para vender (al. e)). O Eurolify **não trará** nenhuma destas cláusulas como opção por omissão; cada uma vê-a um jurista (`eurolify-b2b-channels-eu`; `docs/eurolify/architecture.md` §3) | **W** · texto lido (arts. 3.º, n.º 1, 4.º, als. a) a e), 8.º, al. d), e 11.º; Serviço das Publicações da UE, publications.europa.eu, versão inglesa do JO, 06/10/2026) | jurista |
+| Franchising (informação pré-contratual e contrato) | lei de cada país; o Reg. (UE) 2022/720 quando o acordo é vertical (pelas orientações da Comissão, não lidas; o texto do regulamento não usa a palavra «franchising») | — | Rever por país a informação pré-contratual, a licença de marca, o know-how, os royalties, a duração, a não concorrência e a saída (`eurolify-legal-briefing-eu`, `channels-contracts.md`). O pacote de skills remete para a lei nacional; não verifiquei se há um acto da UE próprio do franchising | **C** | jurista |
+| Agentes comerciais | Dir. 86/653/CEE | transposição antes de 01/01/1990 (art. 22.º, n.º 1; o n.º 3 dá outras datas à Irlanda e, para as obrigações do art. 17.º, à Itália) | Agente comercial é o intermediário independente com poder permanente para negociar a venda ou a compra **de bens** por conta de outro, ou para as negociar e concluir em nome dele (art. 1.º, n.º 2); ficam de fora os não remunerados e os que operam em bolsas de mercadorias, e cada país pode excluir a actividade acessória (art. 2.º). No fim do contrato, cada país garante-lhe uma indemnização ou a reparação do dano (art. 17.º, n.º 1): a indemnização só quando trouxe clientes e for equitativa, até um ano de remuneração (n.º 2); perde o direito se não avisar o principal no ano seguinte ao fim (n.º 5); não há direito nos casos do art. 18.º, e isto não se afasta em prejuízo dele antes do fim do contrato (art. 19.º). Um agente não se trata como revendedor (`channels-contracts.md`) | **W** · texto lido (arts. 1.º, 2.º, 17.º, 18.º, 19.º e 22.º; Serviço das Publicações da UE, publications.europa.eu, versão inglesa do JO, 06/10/2026) | jurista |
+| Condições da plataforma para empresas (P2B) | Reg. (UE) 2019/1150 | 12/07/2020 (art. 19.º) | Para os serviços de intermediação em linha prestados a empresas estabelecidas na UE que, por eles, oferecem bens ou serviços a **consumidores** na UE (art. 1.º, n.º 2; um comerciante só B2B fica de fora); não abrange os serviços de pagamento nem a publicidade (n.º 3). Serviço de intermediação em linha: serviço da sociedade da informação que deixa as empresas oferecer bens ou serviços a consumidores para facilitar transacções directas, com contrato com essas empresas (art. 2.º, ponto 2). Obriga a condições claras e disponíveis em todas as fases (art. 3.º, n.º 1); alterações notificadas em suporte duradouro com pelo menos 15 dias de aviso (art. 3.º, n.º 2, com as excepções do n.º 4); motivos ao restringir ou suspender, e pelo menos 30 dias de aviso antes de terminar todo o serviço (art. 4.º, com as excepções do n.º 4); sistema interno de reclamações (art. 11.º), **salvo para as pequenas empresas** da Recomendação 2003/361/CE (art. 11.º, n.º 5). ❓ Se o Eurolify, que serve a loja do próprio comerciante, cabe na definição do art. 2.º é **pergunta para o jurista** (o Reg. 2022/720 também trata quem presta estes serviços como fornecedor: art. 1.º, n.º 1, al. d), não lido) | **W** · texto lido (arts. 1.º, 2.º, ponto 2, 3.º, 4.º, 11.º e 19.º; Serviço das Publicações da UE, publications.europa.eu, versão inglesa do JO, 06/10/2026) | jurista |
+
 ---
 
 ## O que ficou por verificar nesta versão
 
+- **Secção 7 (06/10/2026):** a transposição da Dir. 86/653/CEE e a lei do
+  franchising de cada país; se o Eurolify cabe na definição de «serviço de
+  intermediação em linha» (art. 2.º, ponto 2, do Reg. 2019/1150, lido); as
+  orientações da Comissão sobre os acordos verticais e o art. 2.º do Reg.
+  2022/720 (não lidos); alterações a estes actos depois da publicação no JO.
 - **Nenhum texto legal foi lido por inteiro.** Nas linhas **W · texto lido**
   leram-se só os artigos citados (EUR-Lex, 03/10/2026); no resto, só resumos de
   pesquisa e títulos.
