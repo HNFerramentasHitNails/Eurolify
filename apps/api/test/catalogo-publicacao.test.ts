@@ -952,7 +952,9 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
 
     /** Espera até alguma ligação estar bloqueada pela de `pid`. */
     async function bloqueadaPor(pid: number): Promise<void> {
-      for (let i = 0; i < 100; i++) {
+      // Até 10 s, o dobro do lock_timeout: uma operação que desiste antes de
+      // ser vista à espera não passa por «não esperou» (3.ª revisão, P3-3).
+      for (let i = 0; i < 200; i++) {
         const { rows } = await sql<{ n: number }>`
           select count(*)::int as n from pg_stat_activity
           where ${pid}::int = any (pg_blocking_pids(pid))`.execute(base.dono);
@@ -1041,10 +1043,12 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       const verificacao = JSON.stringify(
         await verificarPublicacao(base.api, s.c, s.pedido),
       );
-      await publicar(base.api, s.c, QUEM, {
+      const preparada = await publicar(base.api, s.c, QUEM, {
         ...s.pedido,
         variantes_fora: [s.v1, s.v2],
-      }).catch(() => undefined);
+      });
+      expect(preparada.publicada).toBe(false);
+      expect(preparada.publicacao?.estado).toBe("rascunho");
       const r = await corrida(
         s.c,
         async (l) => {
@@ -1131,6 +1135,109 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
         { codigo: "peso_em_falta", variantes: ["GEL-003"] },
         { codigo: "preco_em_falta", variantes: ["GEL-003"] },
       ]);
+    });
+
+    it("criar uma variante enquanto se publica pela primeira vez (sem linha): a publicação espera e verifica-a (3.ª revisão, P2-1)", async () => {
+      const s = await pronto();
+      expect(await publicacoesDoArtigo(base.api, s.c, s.artigo)).toEqual([]);
+      const r = resultadoDe(
+        await corrida(
+          s.c,
+          (l) =>
+            l.query(
+              `insert into variante (comerciante_id, artigo_id, sku, unidade_de_venda)
+               values ($1, $2, 'GEL-003', 'unidade')`,
+              [s.c, s.artigo],
+            ),
+          () => publicar(base.api, s.c, QUEM, s.pedido),
+        ),
+      );
+      expect(r.publicada).toBe(false);
+      expect(r.verificacao.impedimentos).toEqual([
+        { codigo: "peso_em_falta", variantes: ["GEL-003"] },
+        { codigo: "preco_em_falta", variantes: ["GEL-003"] },
+      ]);
+    });
+
+    it("publicar pela primeira vez e criar uma variante a seguir: a variante espera e nasce fora (3.ª revisão, P2-1)", async () => {
+      const s = await pronto();
+      // A publica por SQL (a verificação feita antes) e fica aberta; B cria
+      // uma variante, que tem de esperar e entrar fora.
+      const verificacao = JSON.stringify(
+        await verificarPublicacao(base.api, s.c, s.pedido),
+      );
+      const r = await corrida(
+        s.c,
+        async (l) => {
+          await l.query("select catalogo_fila_do_artigo($1, $2)", [
+            s.c,
+            s.artigo,
+          ]);
+          await l.query(
+            `insert into publicacao (comerciante_id, artigo_id, loja_id, canal_id, mercado_id)
+             values ($1, $2, $3, $4, $5)`,
+            [s.c, s.artigo, s.loja, s.canal, s.mercado],
+          );
+          await l.query(
+            `update publicacao set estado = 'publicado', ultima_verificacao = $1::jsonb
+             where artigo_id = $2 and canal_id = $3 and mercado_id = $4`,
+            [verificacao, s.artigo, s.canal, s.mercado],
+          );
+        },
+        () =>
+          criarVariante(base.api, s.c, s.artigo, {
+            sku: "GEL-003",
+            unidade_de_venda: "unidade",
+          }),
+      );
+      expect(typeof r).toBe("string");
+      const publicada = (await publicacoesDoArtigo(base.api, s.c, s.artigo))[0];
+      expect(publicada?.estado).toBe("publicado");
+      expect(publicada?.variantes_fora).toEqual([r]);
+    });
+
+    it("arquivar o artigo enquanto se publica: a publicação espera e vê o artigo arquivado", async () => {
+      const s = await pronto();
+      const r = resultadoDe(
+        await corrida(
+          s.c,
+          (l) =>
+            l.query("update artigo set estado = 'arquivado' where id = $1", [
+              s.artigo,
+            ]),
+          () => publicar(base.api, s.c, QUEM, s.pedido),
+        ),
+      );
+      expect(r.publicada).toBe(false);
+      expect(r.verificacao.impedimentos).toEqual([
+        { codigo: "artigo_nao_activo" },
+      ]);
+    });
+
+    it("duas publicações do mesmo artigo ao mesmo tempo, em mercados diferentes: as duas saem", async () => {
+      const s = await pronto();
+      const fr = await criarMercado(base.api, s.c, {
+        loja_id: s.loja,
+        nome: "França",
+        paises: ["FR"],
+        moeda: "EUR",
+        linguas: ["pt"],
+        lingua_principal: "pt",
+      });
+      const listaFr = await criarLista(base.api, s.c, {
+        mercado_id: fr,
+        nome: "Base FR",
+        tipo: "base",
+      });
+      await mudarEstadoMercado(base.api, s.c, fr, 1, "activo");
+      await definirMercadosDoCanal(base.api, s.c, s.canal, [s.mercado, fr]);
+      await definirPreco(base.api, s.c, QUEM, listaFr, s.v1, { montante: 990 });
+      await definirPreco(base.api, s.c, QUEM, listaFr, s.v2, { montante: 990 });
+      const [a, b] = await Promise.all([
+        publicar(base.api, s.c, QUEM, s.pedido),
+        publicar(base.api, s.c, QUEM, { ...s.pedido, mercado_id: fr }),
+      ]);
+      expect([a.publicada, b.publicada]).toEqual([true, true]);
     });
 
     it(`quem espera mais de ${ESPERA_MAXIMA} por um lock recebe catalog.retry`, async () => {

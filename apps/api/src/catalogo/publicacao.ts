@@ -248,6 +248,7 @@ function foraDoPedido(pedido: PedidoDePublicacao): string[] {
  */
 async function tomar(
   trx: Transaction<BaseDados>,
+  comercianteId: string,
   pedido: PedidoDePublicacao,
 ): Promise<string | undefined> {
   const artigo = await trx
@@ -256,6 +257,16 @@ async function tomar(
     .where("id", "=", pedido.artigo_id)
     .forShare()
     .executeTakeFirst();
+  // A fila do artigo (0005), depois da linha dele, como o resto do Catálogo:
+  // quem cria uma variante entra nela antes de mexer nas publicações, e
+  // assim espera por esta publicação, ou esta espera por ela e vê a variante
+  // nova, também quando a publicação ainda não tem linha (3.ª revisão do
+  // #139, P2-1 e P3-1).
+  if (artigo !== undefined) {
+    await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${pedido.artigo_id}::uuid)`.execute(
+      trx,
+    );
+  }
   await trx
     .selectFrom("mercado")
     .select("id")
@@ -277,6 +288,24 @@ async function tomar(
     .forShare()
     .execute();
   return artigo?.estado;
+}
+
+/**
+ * Toma a lista de base activa do mercado (FOR SHARE), antes das variantes e
+ * dos preços, pela ordem do gatilho da publicação (3.ª revisão, P3-4).
+ */
+async function tomarListaDeBase(
+  trx: Transaction<BaseDados>,
+  pedido: PedidoDePublicacao,
+): Promise<void> {
+  await trx
+    .selectFrom("lista_precos")
+    .select("id")
+    .where("mercado_id", "=", pedido.mercado_id)
+    .where("tipo", "=", "base")
+    .where("estado", "=", "activa")
+    .forShare()
+    .execute();
 }
 
 /**
@@ -395,11 +424,13 @@ export async function publicar(
   return noCatalogo(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
     const fora = foraDoPedido(pedido);
-    // Por esta ordem: o artigo, o mercado, o canal, a tradução do nome, as
-    // variantes, os preços e a linha da publicação; só depois se verifica.
+    // Por esta ordem: o artigo e a fila dele, o mercado, o canal, a tradução
+    // do nome, a lista de base, as variantes, os preços e a linha da
+    // publicação; só depois se verifica.
     // A verificação guardada é a verdadeira até ao fim da transacção
     // (revisões do #139: 1.ª, P2-1 e P2-3; 2.ª, P2-A, P3-A e P3-B).
-    const estadoDoArtigo = await tomar(trx, pedido);
+    const estadoDoArtigo = await tomar(trx, comercianteId, pedido);
+    await tomarListaDeBase(trx, pedido);
     await tomarVariantes(trx, pedido);
     await tomarPrecos(trx, pedido);
     const canal = await trx

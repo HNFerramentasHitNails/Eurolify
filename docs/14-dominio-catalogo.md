@@ -406,10 +406,14 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   ficam, como registo (decisão do Diogo, 06/10/2026, revisão do #139, P2-2,
   opção a).
 - **Publicar.** Publicar corre a verificação (C2) no servidor e guarda-a na
-  publicação. Antes de verificar, toma, por esta ordem, o artigo, o
-  mercado, o canal, a tradução do nome, as variantes, os preços e a linha da
-  publicação, para que ninguém os mude a meio: quem os muda espera, e a
-  verificação guardada é a verdadeira (revisões do #139, 1.ª e 2.ª).
+  publicação. Antes de verificar, toma, por esta ordem, o artigo e a fila
+  dele (a da 0005), o mercado, o canal, a tradução do nome, a lista de base,
+  as variantes, os preços e a linha da publicação, para que ninguém os mude
+  a meio: quem os muda espera, e a verificação guardada é a verdadeira
+  (revisões do #139, 1.ª a 3.ª). Quem cria uma variante entra na mesma fila
+  antes de mexer nas publicações: uma variante criada ao mesmo tempo que a
+  primeira publicação espera por ela e nasce fora, ou a publicação espera e
+  vê-a.
   - Sem impedimentos, passa a publicada.
   - Com impedimentos, fica como estava; a resposta diz `publicada: false` e
     traz a lista (a rota da API devolve-a como recusa, com a lista).

@@ -35,11 +35,12 @@
 -- alternativo da media (parte 5). A verificação diz-o sempre em
 -- `nao_verificado`; a rede tem fim escrito no docs/14 §5.
 --
--- Concorrência: o servidor (publicacao.ts) toma, por esta ordem, o artigo,
--- o mercado, o canal (que guarda também o par canal × mercado: tirá-lo toma
--- o canal em exclusivo), a tradução do nome, as variantes e os preços (FOR
--- SHARE), depois a linha da publicação (FOR UPDATE), e só então verifica;
--- o gatilho volta a tomá-los. Arquivar um deles, mudar o artigo, tirar o par ou um desses
+-- Concorrência: o servidor (publicacao.ts) toma, por esta ordem, o artigo e
+-- a fila dele (0005; quem cria uma variante entra nela), o mercado, o canal
+-- (que guarda também o par canal × mercado: tirá-lo toma o canal em
+-- exclusivo), a tradução do nome, a lista de base, as variantes e os preços
+-- (FOR SHARE), depois a linha da publicação (FOR UPDATE), e só então
+-- verifica; o gatilho volta a tomá-los. Arquivar um deles, mudar o artigo, tirar o par ou um desses
 -- preços espera e depois vê a publicação. Uma variante nova toma as
 -- publicações do artigo (FOR UPDATE) antes de decidir se nasce fora. Os
 -- arquivos em cadeia tomam as publicações por ordem do id. Assumem READ
@@ -345,10 +346,14 @@ CREATE TRIGGER preco_de_variante_publicada
 -- Uma variante nova de um artigo publicado nasce fora das publicações
 -- publicadas: vende-se só depois de a pôr dentro, com nova verificação
 -- (proposta). Corre com os direitos de quem cria a variante (a API tem
--- UPDATE em `variantes_fora`; revisão do #139, P3-2).
+-- UPDATE em `variantes_fora`; revisão do #139, P3-2). Entra primeiro na fila
+-- do artigo (0005), onde quem publica também está: assim uma publicação que
+-- ainda não tem linha também espera pela variante nova, ou a variante espera
+-- por ela e entra fora (3.ª revisão do #139, P2-1 e P3-1).
 CREATE FUNCTION variante_nova_fica_fora() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+  PERFORM public.catalogo_fila_do_artigo(NEW.comerciante_id, NEW.artigo_id);
   PERFORM FROM public.publicacao p
   WHERE p.comerciante_id = NEW.comerciante_id AND p.artigo_id = NEW.artigo_id
   ORDER BY p.id
