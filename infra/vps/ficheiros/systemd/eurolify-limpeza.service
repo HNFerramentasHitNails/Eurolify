@@ -1,0 +1,7 @@
+[Unit]
+Description=Eurolify: limpeza diária da idempotência (docs/18 §4)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/eurolify-limpeza
+TimeoutStartSec=600

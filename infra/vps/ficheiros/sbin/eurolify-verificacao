@@ -28,6 +28,18 @@ if docker inspect eurolify-api >/dev/null 2>&1; then
   curl -fsS -m 5 http://127.0.0.1:8080/health >/dev/null 2>&1 || problemas+=("a API não responde no /health")
 fi
 
+# A limpeza diária da idempotência (eurolify-limpeza, 05:00) corre? Uma linha
+# expirada há mais de um dia quer dizer que não (docs/18 §4).
+if [[ "$(docker inspect -f '{{.State.Running}}' eurolify-postgres 2>/dev/null)" == true ]]; then
+  if atrasadas="$(docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -qAtc \
+    "select count(*) from idempotencia where expira_em < now() - interval '1 day'" 2>/dev/null)"; then
+    [[ "$atrasadas" =~ ^[0-9]+$ ]] && ((atrasadas > 0)) &&
+      problemas+=("$atrasadas linha(s) da idempotência expiradas há mais de um dia: a limpeza diária (eurolify-limpeza) não está a correr")
+  else
+    problemas+=("não consegui ler a tabela idempotencia (migração 0012 aplicada?)")
+  fi
+fi
+
 seguranca="$(/usr/lib/update-notifier/apt-check 2>&1 | cut -d ';' -f 2)"
 [[ "$seguranca" =~ ^[0-9]+$ ]] && ((seguranca > 0)) &&
   problemas+=("$seguranca actualizações de segurança por aplicar")

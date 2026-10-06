@@ -245,7 +245,7 @@ instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
 passo "8. Programas e unidades do Eurolify"
 instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
-for p in trabalho publicar aplicar medir copia reposicao verificacao operar operador; do
+for p in trabalho publicar aplicar medir copia reposicao verificacao limpeza operar operador; do
   instalar "$F/sbin/eurolify-$p" "/usr/local/sbin/eurolify-$p" 700
 done
 unidades_mudaram=0
@@ -632,8 +632,8 @@ for fluxo in "${FLUXOS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-passo "12. Tarefas: cópia, reposição, verificação (ADR-0027, ADR-0029)"
-for t in copia reposicao verificacao; do
+passo "12. Tarefas: cópia, reposição, verificação, limpeza (ADR-0027, ADR-0029, docs/18 §4)"
+for t in copia reposicao verificacao limpeza; do
   if tem systemctl && systemctl is-enabled --quiet "eurolify-$t.timer" 2>/dev/null &&
     systemctl is-active --quiet "eurolify-$t.timer" 2>/dev/null; then
     ok "eurolify-$t.timer"

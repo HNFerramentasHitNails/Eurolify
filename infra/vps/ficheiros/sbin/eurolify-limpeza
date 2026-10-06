@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Limpeza diária da base do ensaio (docs/18 §4; docs/17 §3): apaga as
+# respostas guardadas da idempotência que já expiraram (24 h) e regista
+# quantas. Corre como root, pelo eurolify-limpeza.timer, depois da cópia.
+# Se parar, a verificação diária avisa (linhas expiradas há mais de um dia).
+set -Eeuo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+carregar_config
+
+# O superutilizador, como a cópia: a tabela tem RLS forçado também ao dono
+# (migração 0013). A regra do que está expirado vive na função da base.
+apagadas="$(docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" \
+  -v ON_ERROR_STOP=1 -qAtc 'select idempotencia_apagar_expiradas()')" ||
+  falhar "a limpeza da idempotência falhou"
+[[ "$apagadas" =~ ^[0-9]+$ ]] || falhar "a limpeza devolveu '$apagadas', não um número"
+registar "limpeza: $apagadas linha(s) expirada(s) da idempotência apagada(s)"
+echo "Limpeza: $apagadas linha(s) expirada(s) da idempotência apagada(s)."

@@ -1,0 +1,9 @@
+[Unit]
+Description=Eurolify: limpeza diária às 05:00 UTC, depois da cópia das 03:00 (docs/18 §4)
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

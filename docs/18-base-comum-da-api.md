@@ -106,11 +106,17 @@ regra 3; lição 4.1).
   - A ordem das recusas: outro método, caminho ou corpo → `key_reused`,
     mesmo com a linha ainda `em_curso`; o mesmo pedido em curso →
     `in_progress` (revisão do #118, P3-11).
-- **Por fazer:** a tarefa diária que apaga as expiradas. Hoje, uma linha
-  expirada só se substitui quando a mesma chave volta. O RLS da tabela é
-  forçado também ao dono quando ele não é superutilizador (o
-  `eurolify_migrador` na VPS): essa tarefa precisa de uma função própria ou de
-  correr comerciante a comerciante (revisão do #118, P3-9).
+- **A limpeza diária** (migração 0013; Diogo, 06/10/2026: *«avança com a
+  tarefa diária da idempotência»*):
+  - a função `idempotencia_apagar_expiradas()` apaga as linhas com
+    `expira_em <= now()` e diz quantas;
+  - o programa `eurolify-limpeza` da VPS chama-a às 05:00 UTC, depois da
+    cópia das 03:00, como o superutilizador do PostgreSQL (o mesmo da cópia).
+    O RLS forçado aplica-se também ao dono não superutilizador (o
+    `eurolify_migrador`; revisão do #118, P3-9). Regista quantas apagou no
+    `acoes.log`;
+  - a verificação diária das 07:00 avisa se houver linhas expiradas há mais
+    de um dia, isto é, se a limpeza parou.
 
 ## 5. Eventos de domínio (tabela `evento_saida`, outbox, próxima migração)
 
