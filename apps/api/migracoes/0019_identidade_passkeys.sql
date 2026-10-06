@@ -11,17 +11,25 @@
 --   válido 5 minutos (proposta, §11); o de registo fica preso ao convite;
 -- - as funções que as rotas da B2 chamam, as únicas com EXECUTE para a API.
 --   A verificação da assinatura WebAuthn faz-se na API (@simplewebauthn): a
---   base não a sabe fazer, e confia na API para ela, como confia no resumo
---   de uma chave (0010). A base impõe o resto: o desafio que ela deu, de uso
---   único e gasto na mesma transacção que cria a sessão; o contador; a
---   pessoa activa; os convites e os papéis (B1);
+--   base não a sabe fazer e **confia na API para ela**. Ao contrário das
+--   chaves (0010), onde a base exige o resumo de um segredo que já lá está,
+--   aqui quem tiver a credencial do eurolify_api consegue criar um desafio e
+--   uma sessão de qualquer pessoa de quem conheça o identificador da
+--   credencial, sem assinatura (revisão do #142, P2-1). É o mesmo nível de
+--   confiança que a API já tem ao pôr o comerciante do contexto
+--   (`eurolify.comerciante`, 0001); um papel da base só para entrar, num
+--   processo à parte, fica escrito como melhoria (docs/21 §8). A base impõe o
+--   resto: o desafio que ela deu, de uso único e gasto na mesma transacção
+--   que cria a sessão; o contador (até 2^32 − 1, o máximo da especificação);
+--   a pessoa activa; os convites e os papéis (B1);
 -- - reautenticar troca a sessão por uma nova, com segredo novo (P-T13): a
 --   antiga fica revogada com o motivo `substituida`.
 --
 -- O que não faz (e onde fica): acrescentar e retirar passkeys, palavra-passe
--- + TOTP, códigos de recuperação e limites de tentativas (B3); apagar os
--- desafios velhos por tarefa (B4; até lá, cada desafio novo apaga os que
--- passaram de um dia).
+-- + TOTP, códigos de recuperação e limites de tentativas por conta (B3).
+-- Cada desafio novo apaga os usados e os que passaram dos 5 minutos, e há um
+-- tecto de desafios por usar (revisão do #142, P2-2); a `HUB_ORIGEM` não se
+-- define em nenhum ambiente antes dos limites da B3 (docs/21 §11).
 
 SET LOCAL lock_timeout = '10s';
 
@@ -116,7 +124,7 @@ BEGIN
   WHERE k.id = p_passkey
     AND p.id = k.pessoa_id
     AND p.estado = 'activa'
-    AND p_contador IS NOT NULL AND p_contador >= 0
+    AND p_contador IS NOT NULL AND p_contador BETWEEN 0 AND 4294967295
     AND ((p_contador = 0 AND k.contador = 0) OR p_contador > k.contador)
   RETURNING k.pessoa_id INTO dona;
   IF dona IS NULL THEN
@@ -126,20 +134,37 @@ BEGIN
 END
 $$;
 
+-- Apoio (interna): apagar os desafios usados ou com mais de 5 minutos e
+-- recusar quando há desafios por usar demais (um script pode pôr o Origin que
+-- quiser; revisão do #142, P2-2). O tecto (10 000 nos últimos 5 minutos) é
+-- proposta, a rever com as medições.
+CREATE FUNCTION desafio_arrumar() RETURNS void
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  DELETE FROM public.desafio_webauthn d
+  WHERE d.usado_em IS NOT NULL OR d.criado_em < now() - interval '5 minutes';
+  IF (SELECT count(*) FROM public.desafio_webauthn) >= 10000 THEN
+    RAISE EXCEPTION 'auth.busy: desafios por usar demais; tente daqui a pouco';
+  END IF;
+END
+$$;
+
 -- As portas da API.
 
--- Guardar um desafio de entrada. Apaga os desafios com mais de um dia.
+-- Guardar um desafio de entrada.
 CREATE FUNCTION desafio_criar_entrada(p_resumo text) RETURNS void
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-  DELETE FROM public.desafio_webauthn d WHERE d.criado_em < now() - interval '1 day';
+  PERFORM public.desafio_arrumar();
   INSERT INTO public.desafio_webauthn (resumo, finalidade) VALUES (p_resumo, 'entrar');
 END
 $$;
 
 -- Guardar um desafio de registo, preso a um convite em aberto. Devolve o
 -- e-mail do convite (o nome da credencial no dispositivo) e o identificador
--- do convite, que serve de identificador do utilizador no WebAuthn.
+-- do convite. Um e-mail que já tem conta recusa já aqui, antes de o
+-- dispositivo criar uma passkey que não serviria (revisão do #142, P3-3; quem
+-- tem a ligação já o sabe pela CE).
 CREATE FUNCTION desafio_criar_registo(p_resumo text, p_segredo_convite text)
   RETURNS TABLE (convite_id uuid, email text)
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
@@ -147,7 +172,10 @@ DECLARE
   c public.convite;
 BEGIN
   c := public.convite_em_aberto(p_segredo_convite);
-  DELETE FROM public.desafio_webauthn d WHERE d.criado_em < now() - interval '1 day';
+  IF EXISTS (SELECT 1 FROM public.pessoa p WHERE lower(p.email) = lower(c.email)) THEN
+    RAISE EXCEPTION 'invite.account_exists: já há uma conta com este e-mail; entre nela para aceitar';
+  END IF;
+  PERFORM public.desafio_arrumar();
   INSERT INTO public.desafio_webauthn (resumo, finalidade, convite_id)
   VALUES (p_resumo, 'registar', c.id);
   RETURN QUERY SELECT c.id, c.email;
@@ -218,6 +246,11 @@ BEGIN
   PERFORM public.passkey_usar(p_passkey, p_contador);
   UPDATE public.sessao x SET revogada_motivo = 'substituida'
   WHERE x.id = s.id AND x.revogada_em IS NULL;
+  -- Duas reautenticações da mesma sessão ao mesmo tempo: só uma troca
+  -- (revisão do #142, P3-6).
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'auth.unauthenticated: a sessão já foi trocada ou revogada';
+  END IF;
   RETURN public.sessao_nova(s.pessoa_id, p_resumo_nova);
 END
 $$;
@@ -314,6 +347,7 @@ END
 $$;
 
 REVOKE ALL ON FUNCTION passkey_antes_de_gravar(), sessao_nova(uuid, text),
+  desafio_arrumar(),
   passkey_usar(uuid, bigint), desafio_criar_entrada(text),
   desafio_criar_registo(text, text), desafio_gastar(text, text, text),
   passkey_para_entrar(text), entrar_com_passkey(text, uuid, bigint, text),

@@ -248,9 +248,13 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0019)", () => {
     it("um e-mail com conta não cria outra: 409, e aceita-se autenticado", async () => {
       const p = await pessoaCom(b, "apoio");
       const convite = await conviteDoOperador(a, p.email, "gestor");
-      const { resposta } = await contaPeloConvite(convite);
-      expect(resposta.statusCode).toBe(409);
-      expect(codigo(resposta)).toBe("invite.account_exists");
+      // Já nas opções, antes de o dispositivo criar uma passkey que não
+      // serviria (revisão do #142, P3-3).
+      const opcoes = await pedir("POST", "/hub/invitations/accept/options", {
+        corpo: { convite },
+      });
+      expect(opcoes.statusCode).toBe(409);
+      expect(codigo(opcoes)).toBe("invite.account_exists");
       const aceite = await pedir("POST", "/hub/invitations/accept", {
         sessao: p.sessao,
         corpo: { convite },
@@ -643,6 +647,207 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0019)", () => {
       });
       expect(r.statusCode).toBe(403);
       expect(codigo(r)).toBe("member.merchant_inactive");
+    });
+  });
+
+  describe("revisão do #142", () => {
+    const dono = () => base.dono;
+    const hex = () => randomBytes(32).toString("hex");
+    const mensagem = async (p: Promise<unknown>) => {
+      try {
+        await p;
+      } catch (e) {
+        return (e as Error).message;
+      }
+      return "sem erro";
+    };
+    async function passkeyDe(pessoa: string) {
+      const { rows } = await sql<{ id: string; contador: string }>`
+        select id, contador from passkey where pessoa_id = ${pessoa}::uuid`.execute(
+        dono(),
+      );
+      const linha = rows[0];
+      if (linha === undefined) throw new Error("sem passkey");
+      return linha;
+    }
+
+    it("P2-5: a base recusa o contador a recuar e acima de 2^32 − 1, mesmo sem a biblioteca", async () => {
+      const p = await pessoaCom(a, "apoio");
+      const k = await passkeyDe(p.pessoa);
+      const entrarComo = async (contador: number) => {
+        const d = hex();
+        await sql`select desafio_criar_entrada(${d})`.execute(dono());
+        return sql`select entrar_com_passkey(${d}, ${k.id}::uuid, ${contador}, ${hex()})`.execute(
+          dono(),
+        );
+      };
+      await entrarComo(10);
+      expect(await mensagem(entrarComo(9))).toMatch(/^auth\.unauthenticated:/);
+      expect(await mensagem(entrarComo(10))).toMatch(/^auth\.unauthenticated:/);
+      expect(await mensagem(entrarComo(2 ** 32))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
+      expect((await passkeyDe(p.pessoa)).contador).toBe("10");
+    });
+
+    it("P2-5: desafio expirado, de outra finalidade ou de outro convite não vale", async () => {
+      const p = await pessoaCom(a, "apoio");
+      const k = await passkeyDe(p.pessoa);
+      const velho = hex();
+      await sql`select desafio_criar_entrada(${velho})`.execute(dono());
+      await sql`update desafio_webauthn set criado_em = now() - interval '5 minutes 1 second'
+        where resumo = ${velho}`.execute(dono());
+      expect(
+        await mensagem(
+          sql`select entrar_com_passkey(${velho}, ${k.id}::uuid, 100, ${hex()})`.execute(
+            dono(),
+          ),
+        ),
+      ).toMatch(/^auth\.unauthenticated:/);
+
+      const convite1 = await conviteDoOperador(a, "um@exemplo.test", "apoio");
+      const convite2 = await conviteDoOperador(a, "dois@exemplo.test", "apoio");
+      const doConvite1 = hex();
+      await sql`select * from desafio_criar_registo(${doConvite1}, ${convite1})`.execute(
+        dono(),
+      );
+      const contaNova = (desafio: string, convite: string) =>
+        sql`select * from conta_nova_com_passkey(${desafio}, ${convite}, 'Nome',
+          ${randomBytes(32).toString("base64url")}, ${randomBytes(77)}, 0, '{}'::text[],
+          null, ${hex()})`.execute(dono());
+      expect(await mensagem(contaNova(doConvite1, convite2))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
+      // Um desafio de entrada não serve para registar, nem o de registo para entrar.
+      const deEntrada = hex();
+      await sql`select desafio_criar_entrada(${deEntrada})`.execute(dono());
+      expect(await mensagem(contaNova(deEntrada, convite1))).toMatch(
+        /^auth\.unauthenticated:/,
+      );
+      expect(
+        await mensagem(
+          sql`select entrar_com_passkey(${doConvite1}, ${k.id}::uuid, 100, ${hex()})`.execute(
+            dono(),
+          ),
+        ),
+      ).toMatch(/^auth\.unauthenticated:/);
+      await contaNova(doConvite1, convite1);
+    });
+
+    it("P2-5: o eurolify_api não escreve nem lê passkey e desafio_webauthn", async () => {
+      for (const t of ["passkey", "desafio_webauthn"]) {
+        const { rows } = await sql<{ algum: boolean }>`
+          select has_table_privilege('eurolify_api', ${t},
+            'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') as algum`.execute(
+          dono(),
+        );
+        expect(rows[0]?.algum, t).toBe(false);
+      }
+    });
+
+    it("P2-3: uma rota com sessão sem `hub: true` não arranca", () => {
+      expect(() =>
+        app.get(
+          "/hub/sem-guarda",
+          {
+            config: { ambito: "sessao" },
+            schema: { response: { 200: {}, "4xx": {}, "5xx": {} } },
+          },
+          () => ({}),
+        ),
+      ).toThrow();
+    });
+
+    it("P3-1: uma resposta de dentro de uma moldura de outro site não entra", async () => {
+      const p = await pessoaCom(a, "apoio");
+      const r = await entrar(
+        p.autenticador.assinar(await desafioDeEntrada(), {
+          origem: ORIGEM,
+          rpId: HUB.rpId,
+          crossOrigin: true,
+        }),
+      );
+      expect(r.statusCode).toBe(401);
+    });
+
+    it("P3-4: sair com a sessão expirada apaga o cookie; entrar acaba a sessão que estava no cookie", async () => {
+      const p = await pessoaCom(a, "apoio");
+      await envelhecerSessao(p.sessao, "ultimo_uso_em", "13 hours");
+      const fim = await pedir("POST", "/hub/session/end", { sessao: p.sessao });
+      expect(fim.statusCode, fim.body).toBe(200);
+      expect(String(fim.headers["set-cookie"])).toContain(`${COOKIE}=;`);
+
+      const q = await pessoaCom(a, "apoio");
+      const r = await pedir("POST", "/hub/session", {
+        sessao: q.sessao,
+        corpo: {
+          credencial: q.autenticador.assinar(await desafioDeEntrada(), {
+            origem: ORIGEM,
+            rpId: HUB.rpId,
+          }),
+        },
+      });
+      expect(r.statusCode, r.body).toBe(201);
+      expect(
+        (await pedir("GET", "/hub/me", { sessao: q.sessao })).statusCode,
+      ).toBe(401);
+    });
+
+    it("P3-5: o convite de um comerciante suspenso dá o mesmo erro que um que não vale", async () => {
+      const c = await registarComerciante(base.api, {
+        nome: "Loja Parada",
+        lingua: "pt",
+        fuso: "Europe/Lisbon",
+      });
+      const convite = await conviteDoOperador(
+        c,
+        "parada@exemplo.test",
+        "apoio",
+      );
+      await mudarEstado(base.api, c, {
+        de: "rascunho",
+        para: "suspenso",
+        motivo: "teste",
+        quem: "teste",
+      });
+      const r = await pedir("POST", "/hub/invitations/accept/options", {
+        corpo: { convite },
+      });
+      expect(r.statusCode).toBe(404);
+      expect(codigo(r)).toBe("invite.invalid");
+    });
+
+    it("P2-4: transportes fora da lista recusam-se com 400, não com 500", async () => {
+      const convite = await conviteDoOperador(
+        a,
+        "transportes@exemplo.test",
+        "apoio",
+      );
+      const opcoes = await pedir("POST", "/hub/invitations/accept/options", {
+        corpo: { convite },
+      });
+      const { challenge } = opcoes.json<{ challenge: string }>();
+      const credencial = new AutenticadorDeTeste().registar(challenge, {
+        origem: ORIGEM,
+        rpId: HUB.rpId,
+      });
+      const r = await pedir("POST", "/hub/invitations/accept-new", {
+        corpo: {
+          convite,
+          nome: "T",
+          credencial: {
+            ...credencial,
+            response: { ...credencial.response, transports: "x" },
+          },
+        },
+      });
+      expect(r.statusCode).toBe(400);
+    });
+
+    it("P3-7: a origem do Hub não pode ser um IP nem ter caminho", () => {
+      expect(() => configHub("https://1.2.3.4")).toThrow();
+      expect(() => configHub("https://hub.exemplo.test/x")).toThrow();
+      expect(() => configHub("http://hub.exemplo.test")).toThrow();
     });
   });
 

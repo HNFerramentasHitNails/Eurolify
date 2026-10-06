@@ -99,6 +99,16 @@ export function criarApp(
         `rota ${String(rota.method)} ${rota.url} sem âmbito: falta config.ambito (docs/19 §4)`,
       );
     }
+    // Uma rota com sessão é do Hub: sem `hub: true` ficava sem a guarda da
+    // origem e do JSON (revisão do #142, P2-3).
+    if (
+      (ambito === "sessao" || ambito === "sessao_comerciante") &&
+      rota.config?.hub !== true
+    ) {
+      throw new Error(
+        `rota ${String(rota.method)} ${rota.url} com sessão sem config.hub (docs/21 §3)`,
+      );
+    }
     if (ambito !== "publico" && esquema !== undefined) {
       esquema.security =
         ambito === "sessao" || ambito === "sessao_comerciante"

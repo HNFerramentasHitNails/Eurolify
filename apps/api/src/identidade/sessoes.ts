@@ -31,6 +31,10 @@ export function configHub(origem: string): ConfigHub {
       "HUB_ORIGEM: tem de ser só a origem em https (ex.: https://hub.exemplo.eu)",
     );
   }
+  // Um IP não serve de rpID no WebAuthn (revisão do #142, P3-7).
+  if (/^[0-9.]+$/.test(url.hostname) || url.hostname.startsWith("[")) {
+    throw new Error("HUB_ORIGEM: o anfitrião tem de ser um nome, não um IP");
+  }
   return { origem, rpId: url.hostname };
 }
 
@@ -89,6 +93,11 @@ const ERROS_DAS_CONTAS = {
     status: 403,
     pt: "Autentique-se outra vez para esta operação",
     en: "Authenticate again for this operation",
+  },
+  "auth.busy": {
+    status: 503,
+    pt: "Pedidos de entrada demais; tente daqui a pouco",
+    en: "Too many sign-in requests; try again shortly",
   },
   "auth.origin_rejected": {
     status: 403,

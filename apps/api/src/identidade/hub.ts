@@ -10,7 +10,7 @@ import {
 } from "@simplewebauthn/server";
 import { sql, type Kysely } from "kysely";
 import { Type } from "typebox";
-import { RESPOSTA_DE_ERRO } from "../base/erros.js";
+import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { sessaoDo } from "./autenticacao.js";
@@ -19,6 +19,7 @@ import {
   COOKIE_SESSAO,
   erroConta,
   FORMATO_CONVITE,
+  FORMATO_SESSAO,
   IDADE_MAXIMA_COOKIE,
   OPCOES_COOKIE,
   resumo,
@@ -57,14 +58,44 @@ const OpcoesWebAuthn = Type.Object(
 
 // A resposta da passkey, como o navegador a dá (PublicKeyCredential.toJSON()).
 // A biblioteca valida o conteúdo; aqui só a forma e o tamanho.
+// Os campos que a API lê têm tamanho e forma limitados (revisão do #142,
+// P2-4); os outros que o navegador mande ficam de fora da base.
+const Base64Url = (maximo: number) =>
+  Type.String({ maxLength: maximo, pattern: "^[A-Za-z0-9_-]*$" });
+const TRANSPORTES = [
+  "ble",
+  "cable",
+  "hybrid",
+  "internal",
+  "nfc",
+  "smart-card",
+  "usb",
+] as const;
 const Credencial = Type.Object(
   {
-    id: Type.String({ minLength: 16, maxLength: 1366 }),
-    rawId: Type.String({ minLength: 16, maxLength: 1366 }),
+    id: Type.String({
+      minLength: 16,
+      maxLength: 1366,
+      pattern: "^[A-Za-z0-9_-]+$",
+    }),
+    rawId: Type.String({
+      minLength: 16,
+      maxLength: 1366,
+      pattern: "^[A-Za-z0-9_-]+$",
+    }),
     type: Type.Literal("public-key"),
     response: Type.Object(
       {
-        clientDataJSON: Type.String({ maxLength: 4096 }),
+        clientDataJSON: Base64Url(4096),
+        attestationObject: Type.Optional(Base64Url(16384)),
+        authenticatorData: Type.Optional(Base64Url(4096)),
+        signature: Type.Optional(Base64Url(1024)),
+        userHandle: Type.Optional(Base64Url(128)),
+        transports: Type.Optional(
+          Type.Array(Type.Union(TRANSPORTES.map((t) => Type.Literal(t))), {
+            maxItems: 10,
+          }),
+        ),
       },
       { additionalProperties: true },
     ),
@@ -150,7 +181,10 @@ function desafioDe(credencial: { response: { clientDataJSON: string } }) {
       Buffer.from(credencial.response.clientDataJSON, "base64url").toString(
         "utf8",
       ),
-    ) as { challenge?: unknown };
+    ) as { challenge?: unknown; crossOrigin?: unknown };
+    // O Hub nunca corre dentro de uma moldura de outro site (revisão do #142,
+    // P3-1): uma resposta de outra origem de topo recusa-se aqui.
+    if (dados.crossOrigin === true) throw erroConta("auth.unauthenticated");
     if (
       typeof dados.challenge === "string" &&
       /^[A-Za-z0-9_-]{16,128}$/.test(dados.challenge)
@@ -178,6 +212,30 @@ export function rotasDoHub(
   hub: ConfigHub,
 ) {
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+
+  /** Revoga a sessão de um cookie, se o houver e tiver o formato. */
+  async function terminarSessaoDoCookie(segredo: string | undefined) {
+    if (segredo === undefined || !FORMATO_SESSAO.test(segredo)) return;
+    await sql`select sessao_terminar(${segredo})`.execute(base);
+  }
+
+  /**
+   * Num convite, um comerciante suspenso ou fechado dá o mesmo erro que um
+   * convite que não vale (docs/21 §11; revisão do #142, P3-5).
+   */
+  async function noConvite<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await traduzindoConta(fn);
+    } catch (erro) {
+      if (
+        erro instanceof ErroApi &&
+        erro.codigo === "member.merchant_inactive"
+      ) {
+        throw erroConta("invite.invalid");
+      }
+      throw erro;
+    }
+  }
 
   /** Verifica uma passkey de entrada; devolve a passkey e o contador novo. */
   async function verificarEntrada(credencial: unknown) {
@@ -260,6 +318,9 @@ export function rotasDoHub(
     },
     async (pedido, resposta) => {
       const v = await verificarEntrada(pedido.body.credencial);
+      // Num computador partilhado, a sessão que estava no cookie acaba
+      // (revisão do #142, P3-4).
+      await terminarSessaoDoCookie(pedido.cookies[COOKIE_SESSAO]);
       const segredo = segredoNovo("eus");
       const pessoa = await traduzindoConta(async () => {
         await sql`select entrar_com_passkey(${v.desafio}, ${v.passkeyId}::uuid,
@@ -307,16 +368,18 @@ export function rotasDoHub(
   rotas.post(
     "/hub/session/end",
     {
-      config: { ambito: "sessao", hub: true },
+      // Pública: sair apaga o cookie mesmo com a sessão já expirada
+      // (revisão do #142, P3-4).
+      config: { ambito: "publico", hub: true },
       schema: {
-        description: "Sair: a sessão é revogada e o cookie apagado.",
+        description:
+          "Sair: a sessão do cookie, se ainda valer, é revogada; o cookie é sempre apagado.",
         body: SemCorpo,
         response: { 200: RespostaOk, ...RESPOSTA_DE_ERRO },
       },
     },
     async (pedido, resposta) => {
-      const sessao = sessaoDo(pedido);
-      await sql`select sessao_terminar(${sessao.segredo})`.execute(base);
+      await terminarSessaoDoCookie(pedido.cookies[COOKIE_SESSAO]);
       void resposta.clearCookie(COOKIE_SESSAO, OPCOES_COOKIE);
       return { ok: true as const };
     },
@@ -383,13 +446,15 @@ export function rotasDoHub(
     async (pedido) => {
       const convite = pedido.body.convite;
       // O desafio gera-se antes de se saber o e-mail; guarda-se com o
-      // convite e as opções completam-se com o e-mail dele.
+      // convite e as opções completam-se com o e-mail dele. O identificador
+      // do utilizador no WebAuthn é aleatório: a passkey encontra-se pelo
+      // identificador da credencial, nunca por ele.
       const provisorio = await generateRegistrationOptions({
         rpName: "Eurolify",
         rpID: hub.rpId,
         userName: "convite",
       });
-      const email = await traduzindoConta(async () => {
+      const email = await noConvite(async () => {
         const { rows } = await sql<{ email: string }>`
           select email from desafio_criar_registo(
             ${resumo(provisorio.challenge)}, ${convite})`.execute(base);
@@ -451,8 +516,9 @@ export function rotasDoHub(
       }
       if (!verificado.verified) throw erroConta("auth.unauthenticated");
       const credencial = verificado.registrationInfo.credential;
+      await terminarSessaoDoCookie(pedido.cookies[COOKIE_SESSAO]);
       const segredo = segredoNovo("eus");
-      const conta = await traduzindoConta(async () => {
+      const conta = await noConvite(async () => {
         const { rows } = await sql<{
           pessoa_id: string;
           comerciante_id: string;

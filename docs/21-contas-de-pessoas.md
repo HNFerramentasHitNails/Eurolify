@@ -350,11 +350,11 @@ sessão) nunca vão no caminho nem na consulta, só no corpo ou no cookie.
 | `POST /hub/session/options` | público | nenhum | **200** opções WebAuthn de entrada: desafio de 32 bytes, uso único, 5 minutos (proposta); credenciais detectáveis; `userVerification: required` |
 | `POST /hub/session` | público | a resposta da passkey | **201** e o cookie novo; a mesma recusa (401) para passkey desconhecida, de pessoa desactivada ou que não verifica |
 | `POST /hub/session/reauthenticate` | sessão | a resposta da passkey (da mesma pessoa), com o desafio de `/hub/session/options` | **200**; sessão nova (segredo novo) com autenticação recente; a antiga é revogada (P-T13) |
-| `POST /hub/session/end` | sessão | nenhum | **200**; a sessão é revogada e o cookie apagado |
+| `POST /hub/session/end` | público (com o cookie, se houver) | nenhum | **200**; a sessão do cookie, se ainda valer, é revogada; o cookie é sempre apagado |
 | `GET /hub/me` | sessão | — | **200** a pessoa (nome, e-mail) e os comerciantes de que é membro activo, com o papel |
 | `POST /hub/invitations/accept/options` | público | `convite` (o segredo) | **200** opções WebAuthn de registo para a conta nova (o mesmo erro para qualquer convite que não vale) |
 | `POST /hub/invitations/accept-new` | público | `convite`, `nome`, a resposta da passkey | **201** e o cookie: a conta, o membro, a passkey e a sessão nascem na mesma transacção |
-| `POST /hub/invitations/accept` | sessão, recente | `convite` | **200** o comerciante e o papel |
+| `POST /hub/invitations/accept` | sessão, recente | `convite` | **200** o comerciante e o membro |
 | `GET /hub/members` | sessão + comerciante | — | **200** os membros activos (nome, e-mail, papel, desde); o dono vê também os convites em aberto |
 | `POST /hub/invitations` | sessão + comerciante, recente (dono; gestor só armazém ou apoio) | `email`, `papel` | **201** o convite e o `segredo` da ligação, que só aparece aqui |
 | `POST /hub/invitations/{id}/cancel` | sessão + comerciante (dono) | nenhum | **200** |
@@ -370,11 +370,24 @@ com a origem do Hub configurada (`HUB_ORIGEM`, só `https://anfitrião`); o
 corre sem elas.
 
 Na base: as tabelas `passkey` (§4.1) e `desafio_webauthn` (o resumo do
-desafio, para que serve, a pessoa quando há, criado e usado em; apaga-se
-depois de usado ou expirado) e as funções que estas rotas chamam, as únicas
-com EXECUTE para a API. **Fica para a B3:** acrescentar e retirar passkeys,
+desafio, para que serve e, no registo, o convite; apaga-se depois de usado ou
+passados os 5 minutos, a cada desafio novo) e as funções que estas rotas
+chamam, as únicas com EXECUTE para a API. Um e-mail que já tem conta recusa
+já nas opções do registo. Entrar acaba a sessão que estivesse no cookie
+(computador partilhado). **Fica para a B3:** acrescentar e retirar passkeys,
 palavra-passe + TOTP, códigos de recuperação, limites de tentativas e as
 rotas das chaves com sessão (P-T8).
+
+**Condição (revisão do #142, P2-2):** a `HUB_ORIGEM` não se define em
+nenhum ambiente antes dos limites de tentativas da B3. Até lá, a rota pública
+de desafios só tem o tecto da base (10 000 por usar, proposta).
+
+**Confiança na API (revisão do #142, P2-1):** a assinatura WebAuthn
+verifica-se na API, não na base. Quem tiver a credencial do `eurolify_api`
+cria uma sessão de qualquer pessoa de quem conheça o identificador da
+credencial — o mesmo nível de confiança que a API já tem ao pôr o
+comerciante do contexto (0001). Melhoria escrita, sem data: um papel da base
+só para entrar, num processo à parte.
 
 ## O que não foi verificado
 

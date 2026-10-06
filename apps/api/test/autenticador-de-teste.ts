@@ -62,6 +62,8 @@ export interface OpcoesDeAssinatura {
   semVerificacao?: boolean;
   /** Contador a usar; por omissão, o seguinte. */
   contador?: number;
+  /** O pedido veio de dentro de uma moldura de outra origem. */
+  crossOrigin?: boolean;
 }
 
 export class AutenticadorDeTeste {
@@ -98,13 +100,14 @@ export class AutenticadorDeTeste {
     tipo: "webauthn.create" | "webauthn.get",
     desafio: string,
     origem: string,
+    crossOrigin = false,
   ) {
     return Buffer.from(
       JSON.stringify({
         type: tipo,
         challenge: desafio,
         origin: origem,
-        crossOrigin: false,
+        crossOrigin,
       }),
       "utf8",
     );
@@ -170,7 +173,12 @@ export class AutenticadorDeTeste {
       this.contador,
       false,
     );
-    const clientData = this.clientData("webauthn.get", desafio, opcoes.origem);
+    const clientData = this.clientData(
+      "webauthn.get",
+      desafio,
+      opcoes.origem,
+      opcoes.crossOrigin,
+    );
     const assinatura = sign(
       "sha256",
       Buffer.concat([authData, sha256(clientData)]),
