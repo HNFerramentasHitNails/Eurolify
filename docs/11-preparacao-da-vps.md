@@ -303,7 +303,11 @@ O que o Diogo faz, fora do repositório:
    os alertas vão para o **Diogo e o Bruno**; e uma verificação nova, de
    minuto a minuto, de que a API responde. Por verificar antes de programar:
    se o plano em uso permite a verificação de minuto a minuto e o custo.
-8. **O Codex na VPS** (ADR-0016: não está decidido).
+8. ~~O Codex na VPS~~ → ✅ **o mesmo acesso que o Claude, pelo mesmo
+   caminho** (Diogo, 06/10/2026: *«sim, concordo, mesmo acesso que o
+   Claude»*): pedidos de alteração revistos, o fluxo `medir` e o MCP da VPS
+   se o ligarem à conta dele (ADR-0028, ADR-0033); **nenhuma chave SSH**
+   (ficam para emergências das pessoas, ADR-0020).
 9. ~~O que se faz à conta da Scaleway~~ → ✅ **deixa de se usar; a OVH é o
    fornecedor único** (ADR-0032, §6).
 
