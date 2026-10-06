@@ -76,6 +76,7 @@
 | ✅ BE | As faturas emitem-se pelo software certificado de cada país, ligado por adaptador; o Eurolify decide o IVA e guarda o documento como prova (D-4 → a) | em vigor nas Fases 1 a 3 | Diogo, 06/10/2026 | [ADR-0037](adr/0037-faturas-por-software-certificado.md) |
 | ✅ BF | O Eurolify nunca recebe o dinheiro das vendas: cada comerciante liga a sua conta (EuPago, Stripe primeiro) (D-5) | em vigor | Diogo, 06/10/2026 | [ADR-0038](adr/0038-o-eurolify-nunca-recebe-o-dinheiro.md) |
 | ✅ BG | O checkout é alojado pelo Eurolify, com o aspecto e no domínio da loja; API de checkout própria só na Fase 3 (D-7) | em vigor | Diogo, 06/10/2026 | [ADR-0039](adr/0039-checkout-alojado-pelo-eurolify.md) |
+| ✅ BH | As IAs dos comerciantes só lêem na Fase 1; escrita com confirmação humana na Fase 3; nunca faturas, reembolsos, fusões de clientes nem lotes (D-9) | em vigor | Diogo, 06/10/2026 | [ADR-0040](adr/0040-ia-so-le-na-fase-1.md) |
 
 ## Por decidir — por esta ordem
 
@@ -229,6 +230,9 @@ TypeScript. É o que os construtores de frontends com IA e os modelos com
 chamada de funções leem melhor. GraphQL só com necessidade medida.
 
 ### D-9 · IA
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: só ler na Fase 1**
+> ([ADR-0040](adr/0040-ia-so-le-na-fase-1.md)).
 
 **Recomendação:** MCP de **leitura** na Fase 1; escrita com confirmação humana
 na Fase 3; protocolos de comércio por agentes (UCP, ACP) na Fase 3. **Nunca**
