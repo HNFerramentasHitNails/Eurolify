@@ -9,6 +9,13 @@
 > Cada linha diz **de onde veio** e **com que grau de certeza**. Nada disto
 > dispensa a validação de um contabilista e de um jurista em cada país onde o
 > Eurolify for vendido — ver a coluna «Quem valida».
+>
+> **No motor de regras** (`PAPEIS_POR_DOMINIO`, decisão BD, 06/10/2026), o
+> profissional fiscal de cada país desta coluna (asesor fiscal, expert-comptable,
+> Steuerberater, commercialista, contabilista BE ou PL) regista-se com o papel
+> `contabilista`. É uma convenção de nomes do motor, não uma equivalência
+> legal entre profissões: quem valida continua a ser o profissional do país
+> que a linha indica.
 
 ## Como ler a coluna «Verificação»
 

@@ -1850,12 +1850,114 @@ describe("o papel de quem valida tem de corresponder ao domínio (#59)", () => {
     },
   );
 
-  it("todos os domínios têm a sua lista, e só com papéis conhecidos", () => {
+  // A tabela esperada, escrita à mão a partir do docs/03: alargar ou
+  // estreitar um papel no código faz falhar este teste (revisão do #126,
+  // P2-3).
+  const ESPERADO: Record<Dominio, readonly string[]> = {
+    consumidor: ["jurista"],
+    iva: ["contabilista", "despachante"],
+    faturacao: ["contabilista"],
+    privacidade_marketing: ["encarregado_de_dados", "jurista"],
+    produto_ambiente: [
+      "jurista",
+      "tecnico_regulamentar",
+      "entidade_gestora",
+      "transportadora",
+    ],
+    acessibilidade_plataforma: ["jurista"],
+    pagamentos: ["jurista"],
+    distribuicao_concorrencia: [],
+    contratos_franchising: [],
+    agencia_comercial: [],
+    termos_plataforma_empresas: [],
+  };
+
+  it("a tabela é exactamente a do docs/03", () => {
+    expect(PAPEIS_POR_DOMINIO).toEqual(ESPERADO);
     expect(Object.keys(PAPEIS_POR_DOMINIO).sort()).toEqual(
       [...TODOS_OS_DOMINIOS].sort(),
     );
-    for (const papeis of Object.values(PAPEIS_POR_DOMINIO)) {
-      for (const papel of papeis) expect(PAPEIS_DE_VALIDACAO).toContain(papel);
+  });
+
+  it("todos os domínios × todos os papéis: valida só o que a tabela diz, no validar e no decidir", () => {
+    for (const dominio of TODOS_OS_DOMINIOS) {
+      for (const papel of PAPEIS_DE_VALIDACAO) {
+        const aceite = ESPERADO[dominio].includes(papel);
+        const caso = `${dominio}/${papel}`;
+        expect(papelValidaDominio(papel, dominio), caso).toBe(aceite);
+        const registo = comRegraValidada(dominio, papel);
+        expect(errosDoRegisto(registo), caso).toEqual(
+          aceite ? [] : expect.arrayContaining([expect.any(String)]),
+        );
+        expect(
+          decidir(registo, { pais: "PT", dominios: [dominio], momento: AGORA })
+            .estado,
+          caso,
+        ).toBe(aceite ? "permitido" : "revisao_necessaria");
+      }
+    }
+  });
+
+  it("o erro diz que a validação não conta, não que falta (revisão do #126, P3-1)", () => {
+    const erros = errosDoRegisto(comRegraValidada("iva", "jurista"));
+    expect(erros.join("\n")).toContain("com uma validação que não conta");
+    expect(erros.join("\n")).not.toContain("nem validação profissional");
+  });
+
+  it("uma W com o texto lido decide pelo texto; o validar recusa na mesma o papel errado", () => {
+    const registo = comRegraValidada("iva", "jurista");
+    const regra = {
+      ...registo.regras[0],
+      marca: "W",
+      textoLido: true,
+    } as Regra;
+    const comW = { ...registo, regras: [regra] };
+    expect(errosDoRegisto(comW).join("\n")).toContain(
+      "o papel «jurista» não valida o domínio iva",
+    );
+    expect(
+      decidir(comW, { pais: "PT", dominios: ["iva"], momento: AGORA }).estado,
+    ).toBe("permitido");
+  });
+
+  it("uma proposta com um papel errado também é recusada ao carregar", () => {
+    const registo = comRegraValidada("iva", "jurista");
+    const proposta = {
+      ...registo.regras[0],
+      estadoLegal: "proposta",
+    } as Regra;
+    expect(
+      errosDoRegisto({ ...registo, regras: [proposta] }).join("\n"),
+    ).toContain("o papel «jurista» não valida o domínio iva");
+  });
+
+  it("uma regra com um domínio estranho não rebenta nem decide", () => {
+    for (const dominio of ["toString", "__proto__", "constructor"]) {
+      const registo = registoComPortugal([
+        regraTeste({
+          id: "r",
+          dominio: dominio as Dominio,
+          marca: "C",
+          textoLido: false,
+          validacao: validadaPor("jurista"),
+        }),
+      ]);
+      expect(() => errosDoRegisto(registo)).not.toThrow();
+      expect(errosDoRegisto(registo)).not.toEqual([]);
+      expect(
+        decidir(registo, {
+          pais: "PT",
+          dominios: ["consumidor"],
+          momento: AGORA,
+        }).estado,
+      ).not.toBe("permitido");
+    }
+  });
+
+  it("a tabela não se altera em execução", () => {
+    expect(Object.isFrozen(PAPEIS_POR_DOMINIO)).toBe(true);
+    for (const lista of Object.values(PAPEIS_POR_DOMINIO)) {
+      expect(Object.isFrozen(lista)).toBe(true);
     }
   });
 

@@ -108,6 +108,14 @@ export const PAPEIS_DE_VALIDACAO = [
 ] as const;
 export type PapelDeValidacao = (typeof PAPEIS_DE_VALIDACAO)[number];
 
+/** Congela o mapa e cada lista: a regra de quem valida não muda em execução. */
+function congelar<T extends Record<string, readonly string[]>>(
+  mapa: T,
+): Readonly<T> {
+  for (const lista of Object.values(mapa)) Object.freeze(lista);
+  return Object.freeze(mapa);
+}
+
 /**
  * Que papéis podem validar uma regra de cada domínio (Diogo, 06/10/2026, #59:
  * «tem de corresponder»; §4.1 do docs/eurolify/architecture.md). Tirado da
@@ -120,9 +128,9 @@ export type PapelDeValidacao = (typeof PAPEIS_DE_VALIDACAO)[number];
  * nenhum papel os valida até ela existir, e só decide uma regra W com o texto
  * lido (o lado seguro).
  */
-export const PAPEIS_POR_DOMINIO: Readonly<
+export const PAPEIS_POR_DOMINIO = congelar<
   Record<Dominio, readonly PapelDeValidacao[]>
-> = {
+>({
   consumidor: ["jurista"],
   iva: ["contabilista", "despachante"],
   faturacao: ["contabilista"],
@@ -139,7 +147,7 @@ export const PAPEIS_POR_DOMINIO: Readonly<
   contratos_franchising: [],
   agencia_comercial: [],
   termos_plataforma_empresas: [],
-};
+});
 
 export interface Validacao {
   por: string;

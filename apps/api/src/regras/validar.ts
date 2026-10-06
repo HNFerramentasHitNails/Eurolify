@@ -309,8 +309,13 @@ export function errosDoRegisto(registo: Registo): string[] {
     } else if (regra.estadoLegal !== "proposta" && !podeDecidir(regra)) {
       // Num domínio verificado, uma regra que pode decidir precisa de W com
       // o texto lido ou de validação profissional (docs/03; §4.1).
+      // Com uma validação que não conta (papel que não valida o domínio, ou
+      // mal formada), não se diz «sem validação»: o erro dela já está acima
+      // (revisão do #126, P3-1).
       erros.push(
-        `${nome}: marca ${valor(regra.marca)} sem texto legal lido nem validação profissional — não pode decidir (docs/03)`,
+        regra.validacao === null
+          ? `${nome}: marca ${valor(regra.marca)} sem texto legal lido nem validação profissional — não pode decidir (docs/03)`
+          : `${nome}: marca ${valor(regra.marca)} sem texto legal lido e com uma validação que não conta — não pode decidir (docs/03)`,
       );
     }
     if (ehLista(regra.territorios)) {
