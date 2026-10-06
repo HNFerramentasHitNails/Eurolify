@@ -78,7 +78,7 @@ ao mercado (§2).
 |---|---|---|---|
 | `id`, `loja_id` | | sim | um mercado é de uma loja (`docs/15` §2) |
 | `nome` | texto (1–100) | sim | para o Hub; ex.: «Portugal», «Espanha e Portugal» (**proposta**) |
-| `paises` | lista de códigos ISO 3166-1 alfa-2 | sim, pelo menos um | **país em código ISO em todo o lado** (`eu-localization`). Numa loja, **um país só está num mercado activo** (**proposta**; §9, Q4) |
+| `paises` | lista de códigos ISO 3166-1 alfa-2 | sim, pelo menos um | **país em código ISO em todo o lado** (`eu-localization`). Numa loja, **um país só está num mercado activo** (decidido, Diogo, 06/10/2026; §9, Q4; `docs/06`, BV) |
 | `moeda` | código ISO 4217 | sim | uma moeda por mercado (**proposta**); que moedas usa cada país da UE: **não verifiquei — C** |
 | `linguas` | lista de códigos de duas letras | sim, pelo menos uma | línguas por mercado (`eu-localization`); a lista de cada mercado deixa de esperar por este domínio (`docs/14` §3.8, «as línguas de cada mercado») |
 | `lingua_principal` | uma das `linguas` | sim | a língua por omissão do mercado (**proposta**) |
@@ -192,7 +192,7 @@ da `consumer-rights-eu`: um frasco de 15 ml a 9,90 € mostra 660,00 €/l.
 
 | De | Para | Condição |
 |---|---|---|
-| rascunho | activo | tem países, moeda, línguas e a lista de base com o mesmo mercado; nenhum dos países está noutro mercado activo da loja (§3.1, **proposta**) |
+| rascunho | activo | tem países, moeda, línguas e a lista de base com o mesmo mercado; nenhum dos países está noutro mercado activo da loja (§3.1, Q4 decidida) |
 | activo | arquivado | as publicações do Catálogo nesse mercado passam a arquivado (o Catálogo ouve o evento, §6) |
 | arquivado | activo | volta sem republicar (como o artigo no `docs/14` §4.1) |
 
@@ -283,6 +283,6 @@ escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
 | Q1 | Por omissão, um mercado novo tem os preços **com IVA** (o cliente vê o mesmo preço em todos os países e o comerciante absorve a diferença) ou **sem IVA** (o preço final muda com o país)? | ✅ **Decidido: com IVA por omissão**; o comerciante pode mudar por mercado (Diogo, 06/10/2026: *«sim, com IVA por omissão»*; `docs/06`, BS) |
 | Q2 | Na Fase 1, cada mercado tem os preços escritos à mão na sua moeda, ou o Eurolify converte de uma moeda para outra? | ✅ **Decidido: sem conversão na Fase 1**; cada lista escreve os seus preços, e a conversão (com taxa, fonte e data, R3) fica para depois (Diogo, 06/10/2026: *«sim, sem conversão na Fase 1»*; `docs/06`, BT) |
 | Q3 | Códigos de desconto e regras de carrinho entram na Fase 1? | ✅ **Decidido: ficam para depois**; na Fase 1 só a redução anunciada (preço riscado, §3.6), e os códigos e as regras de carrinho chegam com o domínio Carrinho (Diogo, 06/10/2026: *«sim, ficam para depois»*; `docs/06`, BU) |
-| Q4 | Numa loja, o mesmo país pode estar em dois mercados activos? | **Não**: um país, um mercado activo por loja (evita dois preços para o mesmo cliente) |
+| Q4 | Numa loja, o mesmo país pode estar em dois mercados activos? | ✅ **Decidido: não**; um país, um mercado activo por loja, para o mesmo cliente nunca ver dois preços (Diogo, 06/10/2026: *«sim, um país só num mercado activo»*; `docs/06`, BV) |
 | Q5 | O preço por unidade mostra-se sempre que a variante tem quantidade e unidade, até haver a lista das dispensas por país validada? | **Sim**: mostrar a mais não viola a regra; esconder sem saber pode violar |
 | Q6 | Acrescentar `market.activated` e `market.archived` à lista de eventos do `docs/02`? | **Sim**: o Catálogo precisa deles para arquivar as publicações de um mercado arquivado |
