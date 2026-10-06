@@ -33,6 +33,7 @@
 - [VPS, passo 10b (#70): eurolify_migrador dono da base com a ligação em migrar.env gerada na máquina; eurolify_api NOLOGIN até a API usar a base; ensaio local com a migração 0001 a correr como o dono — 04/10/2026](vps-utilizadores-da-base-04out2026.md)
 - [VPS, passos 10b e 10c (#107): eurolify_api com LOGIN e a ligação em api-base.env gerada na máquina; a API recria-se, publicações trancadas, cada uma prova que chega à base (chave inventada → 401) — 06/10/2026](vps-api-ligada-a-base-06out2026.md)
 - [Identidade: POST /keys e revogação (#107, 0012): a base acha quem pede pelo resumo do segredo, T9 e a última gestora na base, tranca por comerciante; idempotência em tabela, o segredo não se repete (409) — 06/10/2026](identidade-criar-revogar-chaves-06out2026.md)
+- [Identidade, parte B: opções para contas de pessoas (biblioteca, servidor na VPS, gerido na UE), licenças e memória lidas por resumo; VPS medida: 781 MiB usados de 3,7 GiB, 2 núcleos; nada decidido — 06/10/2026](identidade-parte-b-opcoes-06out2026.md)
 
 ## Negócio, fases e estimativa
 
