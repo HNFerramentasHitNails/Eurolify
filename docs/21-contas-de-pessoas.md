@@ -389,6 +389,38 @@ credencial — o mesmo nível de confiança que a API já tem ao pôr o
 comerciante do contexto (0001). Melhoria escrita, sem data: um papel da base
 só para entrar, num processo à parte.
 
+## 12. Rotas da parte B3 (credenciais, recuperação e chaves pelo Hub)
+
+Escritas antes do código da B3 (issue #140), pelas §4.3, §7 e §8, com as
+mesmas regras da §11 (cookie, `Origin` e JSON, `{}` sem corpo, sem
+`Idempotency-Key`, só com `HUB_ORIGEM`). Em três pedidos, cada um com a sua
+revisão de segurança: **B3a** (passkeys, sessões abertas, códigos de
+recuperação, recuperar, registo de entradas), **B3b** (palavra-passe + TOTP)
+e **B3c** (chaves pelo Hub).
+
+| Parte | Rota | Quem | Corpo | Resposta |
+|---|---|---|---|---|
+| B3a | `GET /hub/passkeys` | sessão | — | **200** as passkeys da pessoa: nome, criada, último uso |
+| B3a | `POST /hub/passkeys/options` | sessão, recente | nenhum | **200** opções WebAuthn de registo, sem as credenciais que a pessoa já tem |
+| B3a | `POST /hub/passkeys` | sessão, recente | `nome`, a resposta da passkey | **201** a passkey nova |
+| B3a | `POST /hub/passkeys/{id}/remove` | sessão, recente | nenhum | **200**; recusa a última forma de entrar (sem outra passkey nem palavra-passe + TOTP); **todas as sessões caem** e quem pediu recebe uma nova (§7) |
+| B3a | `GET /hub/sessions` | sessão | — | **200** as sessões abertas da pessoa: criada, último uso, se é esta |
+| B3a | `POST /hub/sessions/end-all` | sessão, recente | nenhum | **200**; todas as sessões caem e quem pediu recebe uma nova (§7) |
+| B3a | `POST /hub/recovery-codes` | sessão, recente | nenhum | **201** 10 códigos novos (80 bits cada, `XXXX-XXXX-XXXX-XXXX`), mostrados só aqui; os antigos deixam de valer |
+| B3a | `POST /hub/recovery/options` | público | `email`, `codigo` | **200** opções WebAuthn de registo; a mesma recusa (401) para e-mail sem conta, código errado ou usado; **5 falhas em 15 minutos por e-mail → 15 minutos de bloqueio** (429; proposta, §8) |
+| B3a | `POST /hub/recovery` | público | `email`, `codigo`, a resposta da passkey | **201** e o cookie: o código gasta-se, a passkey nova entra, **todas as sessões caem** e nasce uma (§7) |
+| B3b | `POST /hub/password/setup` | sessão, recente | `palavra_passe` (≥ 12) | **200** o segredo TOTP e o URI `otpauth://` para o autenticador; nada fica activo ainda |
+| B3b | `POST /hub/password/confirm` | sessão, recente | `codigo` (6 dígitos) | **200**; a palavra-passe e o TOTP ficam activos juntos (CA); as outras sessões caem |
+| B3b | `POST /hub/password/remove` | sessão, recente | nenhum | **200**; recusa se não houver passkey |
+| B3b | `POST /hub/session/password` | público | `email`, `palavra_passe`, `codigo` | **201** e o cookie; a mesma recusa (401) e o mesmo tempo para tudo o que falha (Argon2id falso sem conta); 5 falhas em 15 minutos → 429 |
+| B3c | `GET /hub/keys`, `POST /hub/keys`, `POST /hub/keys/{id}/revoke` | sessão + comerciante, recente (só o dono: `keys:write`) | como `/keys` (`docs/19` §6.1) | como `/keys`; `criada_por = pessoa:per_…`; a tranca dos membros e a das chaves (§4.7) |
+
+Na base (B3a): `codigo_recuperacao` (o resumo sha256 — com 80 bits
+aleatórios basta, não precisa de Argon2id), `entrada` (pessoa ou resumo do
+e-mail tentado, método, resultado, IP; 14 dias, apagados na B4) e o
+desafio de recuperação, preso à pessoa. A conta nova pelo convite (§11)
+passa a devolver também os 10 códigos (§4.2, ponto 3).
+
 ## O que não foi verificado
 
 - O código, os avisos de segurança e a manutenção das bibliotecas da §2.

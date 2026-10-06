@@ -12,6 +12,13 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
 - **B2 (#142, em curso):** migração `0020_identidade_passkeys` (a 0019 foi do #139) (passkey,
   desafio_webauthn, portas da API), rotas do Hub do `docs/21` §11,
   autenticador WebAuthn de teste em `apps/api/test/autenticador-de-teste.ts`.
+- **B2 juntado e publicado** (#142; corrida 37501816877: «migrar: aplicadas
+  0020_identidade_passkeys», /health responde). Revisão Opus 5.5: 0 P0, 0
+  P1, 5 P2, 10 P3; tratados menos o P3-8. Decisão CG: Argon2id 64 MiB
+  (RFC 9106 §4).
+- **B3 em três pedidos** (docs/21 §12): B3a (#143: passkeys, sessões
+  abertas, códigos de recuperação, recuperar, entradas; migração 0021), B3b
+  (palavra-passe + TOTP), B3c (chaves pelo Hub).
 - O #139 (Catálogo, outra sessão) também queria a 0018 e a 0019: quem junta
   em segundo renumera (avisos no #139).
 
@@ -19,7 +26,11 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
 
 - 06/10/2026, `npm audit` num pacote só com `@simplewebauthn/server@14.0.3` e
   `@fastify/cookie@11.1.2` (92 linhas no `npm ls --all`): 0 vulnerabilidades.
-- 06/10/2026, `pnpm run teste` local (PostgreSQL 18.6): API 538, MCP 58.
+- 06/10/2026, `pnpm run teste` local (PostgreSQL 18.6): API 538, MCP 58 (B2);
+  API 594, MCP 58 (B3a, com o #139 no main).
+- 06/10/2026, `npm audit` com `otplib@13.5.0` e `@node-rs/argon2@2.2.2`: 0
+  vulnerabilidades; a imagem é Debian (`trixie-slim`), com o binário
+  `linux-x64-gnu` do Argon2.
 - Publicação do #141 (corrida 37495008666): «migrar: aplicadas
   0018_identidade_pessoas»; «O /health da API responde».
 

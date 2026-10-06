@@ -179,6 +179,21 @@ const ERROS_DAS_CONTAS = {
     pt: "O nome tem de ter entre 1 e 100 caracteres",
     en: "The name must have between 1 and 100 characters",
   },
+  "auth.locked": {
+    status: 429,
+    pt: "Tentativas a mais; tente daqui a 15 minutos",
+    en: "Too many attempts; try again in 15 minutes",
+  },
+  "passkey.not_found": {
+    status: 404,
+    pt: "A passkey não existe nesta conta",
+    en: "Passkey not found in this account",
+  },
+  "passkey.last_credential": {
+    status: 409,
+    pt: "É a última forma de entrar; acrescente outra antes",
+    en: "This is the last way to sign in; add another first",
+  },
   "passkey.already_registered": {
     status: 409,
     pt: "Esta passkey já está registada",

@@ -8,6 +8,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
+import { randomBytes } from "node:crypto";
 import { sql, type Kysely } from "kysely";
 import { Type } from "typebox";
 import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
@@ -42,12 +43,12 @@ import {
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 /** Os desafios valem 5 minutos na base (0020); o navegador espera o mesmo. */
-const TEMPO_WEBAUTHN = 5 * 60 * 1000;
+export const TEMPO_WEBAUTHN = 5 * 60 * 1000;
 
 const Papel = Type.Union(PAPEIS.map((p) => Type.Literal(p)));
 const Instante = Type.String({ format: "date-time" });
 
-const OpcoesWebAuthn = Type.Object(
+export const OpcoesWebAuthn = Type.Object(
   {},
   {
     additionalProperties: true,
@@ -71,7 +72,7 @@ const TRANSPORTES = [
   "smart-card",
   "usb",
 ] as const;
-const Credencial = Type.Object(
+export const Credencial = Type.Object(
   {
     id: Type.String({
       minLength: 16,
@@ -112,9 +113,17 @@ const RespostaEntrada = Type.Object({
   pessoa: Type.String({ description: "per_…" }),
 });
 
+export const CodigosRecuperacao = Type.Array(Type.String(), {
+  minItems: 10,
+  maxItems: 10,
+  description:
+    "Os 10 códigos de recuperação (XXXX-XXXX-XXXX-XXXX). Só aparecem nesta resposta: guarde-os já.",
+});
+
 const RespostaConta = Type.Object({
   pessoa: Type.String({ description: "per_…" }),
   comerciante: Type.String({ description: "mer_…" }),
+  codigos: CodigosRecuperacao,
 });
 
 const RespostaEu = Type.Object({
@@ -156,7 +165,7 @@ const RespostaMembros = Type.Object({
   ]),
 });
 
-const RespostaOk = Type.Object({ ok: Type.Literal(true) });
+export const RespostaOk = Type.Object({ ok: Type.Literal(true) });
 
 const CabecalhoComerciante = Type.Object({
   "eurolify-comerciante": Type.String({
@@ -172,10 +181,12 @@ const ParametroMembro = Type.Object({
   id: Type.String({ pattern: `^mbr_${UUID}$`, description: "mbr_…" }),
 });
 
-const SemCorpo = Type.Object({}, { additionalProperties: false });
+export const SemCorpo = Type.Object({}, { additionalProperties: false });
 
 /** O desafio que o navegador assinou, lido do clientDataJSON. */
-function desafioDe(credencial: { response: { clientDataJSON: string } }) {
+export function desafioDe(credencial: {
+  response: { clientDataJSON: string };
+}) {
   try {
     const dados = JSON.parse(
       Buffer.from(credencial.response.clientDataJSON, "base64url").toString(
@@ -197,9 +208,81 @@ function desafioDe(credencial: { response: { clientDataJSON: string } }) {
   throw erroConta("auth.unauthenticated");
 }
 
-const comPrefixo = (prefixo: string, id: string) => `${prefixo}_${id}`;
+export const comPrefixo = (prefixo: string, id: string) => `${prefixo}_${id}`;
 
-function porCookie(resposta: FastifyReply, segredo: string) {
+/** Verifica o registo de uma passkey nova; devolve o desafio e a credencial. */
+export async function verificarRegisto(credencial: unknown, hub: ConfigHub) {
+  const registo = credencial as RegistrationResponseJSON;
+  const desafio = desafioDe(registo);
+  let verificado;
+  try {
+    verificado = await verifyRegistrationResponse({
+      response: registo,
+      expectedChallenge: desafio,
+      expectedOrigin: hub.origem,
+      expectedRPID: hub.rpId,
+      requireUserVerification: true,
+    });
+  } catch {
+    // A mensagem da biblioteca traz o desafio e a origem (P-T5).
+    throw erroConta("auth.unauthenticated");
+  }
+  if (!verificado.verified) throw erroConta("auth.unauthenticated");
+  return { desafio, credencial: verificado.registrationInfo.credential };
+}
+
+/** As opções WebAuthn de registo de uma passkey (detectável, verificada). */
+export function opcoesDeRegisto(
+  hub: ConfigHub,
+  email: string,
+  desafio: string,
+  excluir: string[] = [],
+) {
+  return generateRegistrationOptions({
+    rpName: "Eurolify",
+    rpID: hub.rpId,
+    userName: email,
+    challenge: Buffer.from(desafio, "base64url"),
+    timeout: TEMPO_WEBAUTHN,
+    attestationType: "none",
+    excludeCredentials: excluir.map((id) => ({ id })),
+    authenticatorSelection: {
+      residentKey: "required",
+      userVerification: "required",
+    },
+  });
+}
+
+/** Um desafio novo de 32 bytes, em base64url (como o da biblioteca). */
+export const desafioNovo = () => randomBytes(32).toString("base64url");
+
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+/** 10 códigos de recuperação de 80 bits, `XXXX-XXXX-XXXX-XXXX` (§7). */
+export function codigosNovos(): { codigos: string[]; resumos: string[] } {
+  const codigos = Array.from({ length: 10 }, () => {
+    const bytes = randomBytes(10);
+    let bits = 0;
+    let valor = 0;
+    let texto = "";
+    for (const byte of bytes) {
+      valor = (valor << 8) | byte;
+      bits += 8;
+      while (bits >= 5) {
+        texto += BASE32.charAt((valor >>> (bits - 5)) & 31);
+        bits -= 5;
+      }
+    }
+    return texto.match(/.{4}/g)?.join("-") ?? texto;
+  });
+  return { codigos, resumos: codigos.map(resumoDoCodigo) };
+}
+
+/** O resumo de um código, sem traços, espaços nem minúsculas. */
+export const resumoDoCodigo = (codigo: string) =>
+  resumo(codigo.toUpperCase().replace(/[^A-Z2-7]/g, ""));
+
+export function porCookie(resposta: FastifyReply, segredo: string) {
   void resposta.setCookie(COOKIE_SESSAO, segredo, {
     ...OPCOES_COOKIE,
     maxAge: IDADE_MAXIMA_COOKIE,
@@ -324,7 +407,7 @@ export function rotasDoHub(
       const segredo = segredoNovo("eus");
       const pessoa = await traduzindoConta(async () => {
         await sql`select entrar_com_passkey(${v.desafio}, ${v.passkeyId}::uuid,
-          ${v.contador}, ${resumo(segredo)})`.execute(base);
+          ${v.contador}, ${resumo(segredo)}, ${pedido.ip}::inet)`.execute(base);
         const { rows } = await sql<{ pessoa_id: string }>`
           select pessoa_id from sessao_verificar(${segredo})`.execute(base);
         const id = rows[0]?.pessoa_id;
@@ -462,18 +545,7 @@ export function rotasDoHub(
         if (valor === undefined) throw erroConta("invite.invalid");
         return valor;
       });
-      return generateRegistrationOptions({
-        rpName: "Eurolify",
-        rpID: hub.rpId,
-        userName: email,
-        challenge: Buffer.from(provisorio.challenge, "base64url"),
-        timeout: TEMPO_WEBAUTHN,
-        attestationType: "none",
-        authenticatorSelection: {
-          residentKey: "required",
-          userVerification: "required",
-        },
-      });
+      return opcoesDeRegisto(hub, email, provisorio.challenge);
     },
   );
 
@@ -500,24 +572,13 @@ export function rotasDoHub(
     },
     async (pedido, resposta) => {
       const corpo = pedido.body;
-      const registo = corpo.credencial as unknown as RegistrationResponseJSON;
-      const desafio = desafioDe(registo);
-      let verificado;
-      try {
-        verificado = await verifyRegistrationResponse({
-          response: registo,
-          expectedChallenge: desafio,
-          expectedOrigin: hub.origem,
-          expectedRPID: hub.rpId,
-          requireUserVerification: true,
-        });
-      } catch {
-        throw erroConta("auth.unauthenticated");
-      }
-      if (!verificado.verified) throw erroConta("auth.unauthenticated");
-      const credencial = verificado.registrationInfo.credential;
+      const { desafio, credencial } = await verificarRegisto(
+        corpo.credencial,
+        hub,
+      );
       await terminarSessaoDoCookie(pedido.cookies[COOKIE_SESSAO]);
       const segredo = segredoNovo("eus");
+      const { codigos, resumos } = codigosNovos();
       const conta = await noConvite(async () => {
         const { rows } = await sql<{
           pessoa_id: string;
@@ -526,7 +587,8 @@ export function rotasDoHub(
           ${corpo.convite}, ${corpo.nome}, ${credencial.id},
           ${Buffer.from(credencial.publicKey)}, ${credencial.counter},
           ${credencial.transports ?? []}::text[],
-          ${corpo.nome_passkey ?? null}, ${resumo(segredo)})`.execute(base);
+          ${corpo.nome_passkey ?? null}, ${resumo(segredo)},
+          ${resumos}::text[], ${pedido.ip}::inet)`.execute(base);
         const linha = rows[0];
         if (linha === undefined) throw erroConta("invite.invalid");
         return linha;
@@ -535,6 +597,7 @@ export function rotasDoHub(
       return resposta.code(201).send({
         pessoa: comPrefixo("per", conta.pessoa_id),
         comerciante: comPrefixo("mer", conta.comerciante_id),
+        codigos,
       });
     },
   );
