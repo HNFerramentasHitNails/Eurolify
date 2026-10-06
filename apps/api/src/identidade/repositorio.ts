@@ -199,6 +199,11 @@ const ERROS_DAS_CHAVES = {
     pt: "Uma chave com prazo não cria outra sem prazo nem que dure mais do que ela",
     en: "A key with an expiry cannot create one without expiry or expiring later",
   },
+  "key.store_archived": {
+    status: 422,
+    pt: "A loja está arquivada; não se criam chaves para ela",
+    en: "The store is archived; keys cannot be created for it",
+  },
   "key.store_not_found": {
     status: 422,
     pt: "A loja não existe neste comerciante",

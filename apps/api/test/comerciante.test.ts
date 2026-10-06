@@ -105,6 +105,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0013_idempotencia_limpeza",
         "0014_chave_com_prazo",
         "0015_revogar_com_prazo",
+        "0016_chave_de_loja_arquivada",
       ]);
     });
 

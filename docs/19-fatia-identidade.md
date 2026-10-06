@@ -136,8 +136,12 @@ P2-2).
   a chave pública de uma loja **arquivada** deixa de funcionar — não se cria
   nenhuma para ela e as que existem deixam de resolver (401 `auth.invalid`,
   como uma revogada) a partir do momento em que a loja é arquivada. O registo
-  das chaves fica, para se saber quem teve acesso e quando. **Por programar**
-  (T13 no §9).
+  das chaves fica, para se saber quem teve acesso e quando. **Se a loja
+  voltar a activa, as antigas não voltam** (Diogo, 06/10/2026: *«fica a
+  a)»*): ao arquivar, ficam revogadas com `revogada_por =
+  'loja_arquivada:sto_<id>'`; cria-se uma nova. Criar uma chave para uma loja
+  arquivada → `key.store_archived` (422), pela API e pelo operador. Migração
+  0016 (T13 no §9).
 - **Decidido** (Diogo, 06/10/2026: *«sim, concordo, recusa as escritas»*):
   um comerciante `suspenso` ou `fechado` **não escreve** pelas rotas de
   domínio — recusa `merchant.inactive` (403), imposta na base. Excepções:
@@ -353,7 +357,7 @@ sessão em vez da chave.
 | T10 | a mesma `Idempotency-Key`: repetir dá a mesma resposta sem escrever outra vez (o `POST /keys` dá `idempotency.secret_not_repeated`); outro corpo → `idempotency.key_reused`; ao mesmo tempo → `idempotency.in_progress` |
 | T11 | uma chave não se revoga a si própria se for a última com `keys:write`, nem ao mesmo tempo que outra |
 | T12 | uma chave com prazo não cria outra sem prazo nem com prazo mais longo (também a pública, pela rota e pela função na base); prazo igual ou anterior passa (0014) |
-| T13 | uma loja arquivada: criar-lhe uma chave pública é recusado; uma chave pública que já existia dá 401 `auth.invalid` logo a seguir ao arquivo — **por programar** (decisão de 06/10/2026) |
+| T13 | uma loja arquivada: criar-lhe uma chave pública é recusado (pela API e pelo operador); as que existiam dão 401 `auth.invalid` logo a seguir ao arquivo e ficam revogadas com o motivo; se a loja voltar a activa, não voltam (0016) |
 | T14 | uma chave com prazo não revoga uma chave sem prazo nem uma que expire depois dela (pela rota e pela função na base); uma que expire antes ou no mesmo instante, sim (0015) |
 
 Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta.

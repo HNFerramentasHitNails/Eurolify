@@ -117,3 +117,17 @@ resolver; o registo fica (`docs/19` §5, T13). Por programar.
 - Medido a 06/10/2026, PostgreSQL 18.6 instalado na sessão (pacote pgdg):
   439 testes da API passam; sem a regra, 1 falha (o T14); com `>=` em vez de
   `>`, 1 falha (o caso do mesmo instante).
+
+## T13, migração 0016 (06/10/2026, decisão AY)
+
+- Ao arquivar uma loja, as chaves dela ficam revogadas
+  (`loja_arquivada:sto_<id>`), por um gatilho SECURITY DEFINER na loja (a
+  API não tem privilégios na `chave_api`); se a loja voltar a activa, não
+  voltam (Diogo: «fica a a)»). Criar uma para uma loja arquivada →
+  `key.store_archived` (422), no gatilho da chave, com FOR SHARE na loja.
+- Correcção: na pergunta ao Diogo escrevi que a loja arquivada «não volta
+  atrás (docs/15 linha 90)». Essa regra é da entidade legal; a loja pode
+  voltar a activa (docs/15 §3.3; `loja_antes_de_gravar` não o impede). Dito
+  ao Diogo, que decidiu a a).
+- Medido a 06/10/2026, PostgreSQL 18.6 na sessão: 440 testes da API passam;
+  sem o gatilho da loja, 1 falha; sem a recusa na criação, 1 falha.

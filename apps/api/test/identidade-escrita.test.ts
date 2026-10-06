@@ -806,6 +806,100 @@ describe.skipIf(URL_BASE === undefined)(
         expect(await gestorasActivas(comerciante)).toBe(1);
       });
 
+      it("T13: ao arquivar a loja, as chaves públicas dela deixam de funcionar e não se criam outras; se a loja voltar, as antigas não voltam (decisões do Diogo, 06/10/2026)", async () => {
+        const { comerciante, chaves } = await comGestoras(1);
+        const [gestoraDaLoja] = chaves;
+        if (gestoraDaLoja === undefined) throw new Error("sem chave");
+        const entidade = await criarEntidadeLegal(
+          base.api,
+          comerciante,
+          ENTIDADE,
+        );
+        const loja = await criarLoja(base.api, comerciante, {
+          entidade_legal_id: entidade,
+          nome: "Espanha",
+        });
+        const outraLoja = await criarLoja(base.api, comerciante, {
+          entidade_legal_id: entidade,
+          nome: "Portugal",
+        });
+        const montra = await criar(gestoraDaLoja.segredo, {
+          tipo: "publica",
+          nome: "Montra",
+          loja: `sto_${loja}`,
+        });
+        expect(montra.statusCode).toBe(201);
+        const publica = montra.json<ChaveCriada>();
+        const daOutra = await criarChave(comoDono(), comerciante, {
+          tipo: "publica",
+          lojaId: outraLoja,
+          nome: "Montra PT",
+          ambitos: ["storefront"],
+          criadaPor: "operador:teste",
+        });
+        expect((await eu(publica.segredo)).statusCode).toBe(200);
+
+        // A API arquiva a loja (sem privilégio nenhum na tabela das chaves).
+        const mudarLoja = (estado: string) =>
+          comComerciante(base.api, comerciante, (trx) =>
+            sql`update loja set estado = ${estado}
+                where id = ${loja}::uuid`.execute(trx),
+          );
+        await mudarLoja("arquivada");
+
+        const depois = await eu(publica.segredo);
+        expect(depois.statusCode).toBe(401);
+        expect(depois.json<{ codigo: string }>().codigo).toBe("auth.invalid");
+        // O registo fica, com o motivo.
+        const { rows } = await sql<{
+          revogada_por: string | null;
+          revogada_em: Date | null;
+        }>`select revogada_por, revogada_em from chave_api
+           where id = ${publica.id.slice("key_".length)}::uuid`.execute(
+          base.dono,
+        );
+        expect(rows[0]?.revogada_por).toBe(`loja_arquivada:sto_${loja}`);
+        expect(rows[0]?.revogada_em).not.toBeNull();
+        // A da outra loja e a de servidor continuam.
+        expect((await eu(daOutra.segredo)).statusCode).toBe(200);
+        expect((await eu(gestoraDaLoja.segredo)).statusCode).toBe(200);
+
+        // Não se cria nenhuma: nem pela API, nem pelo operador.
+        const antes = await contarChaves(comerciante);
+        const r = await criar(gestoraDaLoja.segredo, {
+          tipo: "publica",
+          nome: "Outra montra",
+          loja: `sto_${loja}`,
+        });
+        expect(r.statusCode).toBe(422);
+        expect(r.json<{ codigo: string }>().codigo).toBe("key.store_archived");
+        expect(
+          await mensagemDoErro(
+            criarChave(comoDono(), comerciante, {
+              tipo: "publica",
+              lojaId: loja,
+              nome: "Pelo operador",
+              ambitos: ["storefront"],
+              criadaPor: "operador:teste",
+            }),
+          ),
+        ).toMatch(/^key\.store_archived:/);
+        expect(await contarChaves(comerciante)).toBe(antes);
+
+        // A loja volta a activa: a antiga não volta; uma nova cria-se.
+        await mudarLoja("activa");
+        expect((await eu(publica.segredo)).statusCode).toBe(401);
+        const nova = await criar(gestoraDaLoja.segredo, {
+          tipo: "publica",
+          nome: "Montra nova",
+          loja: `sto_${loja}`,
+        });
+        expect(nova.statusCode).toBe(201);
+        expect((await eu(nova.json<ChaveCriada>().segredo)).statusCode).toBe(
+          200,
+        );
+      });
+
       it("T14: uma chave com prazo não revoga uma sem prazo nem uma que dure mais; no mesmo instante ou antes, sim (decisão do Diogo, 06/10/2026)", async () => {
         const { comerciante, chaves } = await comGestoras(1);
         const [permanente] = chaves;
