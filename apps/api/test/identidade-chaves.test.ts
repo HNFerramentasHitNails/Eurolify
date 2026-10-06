@@ -67,7 +67,6 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
     lojaA = await criarLoja(base.api, a, {
       entidade_legal_id: entidade,
       nome: "Loja A",
-      lingua_origem: "pt",
     });
   }, 60_000);
 
