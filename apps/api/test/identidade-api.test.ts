@@ -186,18 +186,26 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
   it("o contrato mostra a segurança nas rotas com chave e não nas públicas", async () => {
     const r = await pedir("/openapi.json");
     const c = r.json<{
-      paths: Record<string, { get: { security?: unknown } }>;
+      paths: Record<
+        string,
+        { get?: { security?: unknown }; post?: { security?: unknown } }
+      >;
       components: { securitySchemes: Record<string, unknown> };
     }>();
     expect(Object.keys(c.paths).sort()).toEqual([
       "/health",
       "/keys",
+      "/keys/{id}/revoke",
       "/me",
       "/paises",
     ]);
-    expect(c.paths["/me"]?.get.security).toEqual([{ chave: [] }]);
-    expect(c.paths["/keys"]?.get.security).toEqual([{ chave: [] }]);
-    expect(c.paths["/health"]?.get.security).toBeUndefined();
+    expect(c.paths["/me"]?.get?.security).toEqual([{ chave: [] }]);
+    expect(c.paths["/keys"]?.get?.security).toEqual([{ chave: [] }]);
+    expect(c.paths["/keys"]?.post?.security).toEqual([{ chave: [] }]);
+    expect(c.paths["/keys/{id}/revoke"]?.post?.security).toEqual([
+      { chave: [] },
+    ]);
+    expect(c.paths["/health"]?.get?.security).toBeUndefined();
     expect(c.components.securitySchemes["chave"]).toMatchObject({
       type: "http",
       scheme: "bearer",

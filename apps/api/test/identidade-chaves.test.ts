@@ -91,6 +91,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
       tipo: "servidor",
       ambitos: ["catalog:read"],
       prefixo: nova.prefixo,
+      segredo: nova.segredo,
     });
   });
 

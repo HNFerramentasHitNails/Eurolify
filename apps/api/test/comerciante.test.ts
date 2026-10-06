@@ -101,6 +101,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0009_catalogo_traducoes",
         "0010_identidade_chaves",
         "0011_tirar_lingua_origem_da_loja",
+        "0012_identidade_criar_revogar_e_idempotencia",
       ]);
     });
 
@@ -150,8 +151,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           });
         }
       }
-      // 6 do Comerciante (0001) e 11 do Catálogo (0002, 0004, 0005, 0007 e 0008).
-      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(17);
+      // 6 do Comerciante (0001), 11 do Catálogo (0002, 0004, 0005, 0007 e
+      // 0008) e a da idempotência (0012).
+      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(18);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {
