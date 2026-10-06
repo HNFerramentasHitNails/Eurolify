@@ -1,6 +1,6 @@
 # Fatia «identidade»: quem chama a API e em nome de que comerciante
 
-> **Versão de 06/10/2026 — desenho; parte A decidida** (Diogo, 06/10/2026: *«sim, começa pela parte A»*); parte B por decidir (P1). Pedido do Diogo: *«avança
+> **Versão de 06/10/2026 — desenho; parte A decidida** (Diogo, 06/10/2026: *«sim, começa pela parte A»*); parte B decidida: construir na API (ADR-0036). Pedido do Diogo: *«avança
 > com o desenho da fatia identidade»* (issue #107). Responde à P1 do `docs/15`
 > §9 e desbloqueia a API de domínio, a `Idempotency-Key` e os limites de
 > pedidos (`docs/18` §1). Skills: `headless-commerce` (autenticação, âmbitos,
@@ -295,7 +295,11 @@ Com isto, as rotas do `docs/15` §8 (Comerciante) e do `docs/14` §7 (Catálogo)
 podem abrir, cada uma com o seu âmbito, e a `Idempotency-Key` e os limites do
 `docs/18` passam a ter a quem se prender (o comerciante e a chave).
 
-## 7. Parte B — as pessoas (P1, por decidir)
+## 7. Parte B — as pessoas (P1, decidida: a), ADR-0036)
+
+> ✅ **Decidido** (Diogo, 06/10/2026, [ADR-0036](adr/0036-contas-de-pessoas-construidas-na-api.md)):
+> **a) construir na API**, com passkeys como forma principal e TOTP como
+> alternativa, e uma revisão de segurança própria. A tabela fica como registo.
 
 O que a parte B tem de dar: conta de pessoa, início de sessão forte, papéis
 por comerciante (dono, gestor, armazém, apoio — `observability-security`,
@@ -345,7 +349,7 @@ domínio, porque o corpo do `POST /keys` não tem comerciante.
 
 - ~~Começar pela parte A~~ — **decidido** (Diogo, 06/10/2026: *«sim, começa
   pela parte A»*).
-- A P1 (§7): opção a), b) ou c).
+- ~~A P1 (§7)~~ — **a)** (ADR-0036).
 - ~~Os nomes finais dos âmbitos~~ — os do §4 (rotina, 06/10/2026).
 - ~~Se `keys:write` precisa de dois passos~~ — **decidido: não na API**
   (Diogo, 06/10/2026: *«sim, concordo, sem dois passos na API»*). A protecção
