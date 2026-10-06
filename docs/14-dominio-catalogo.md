@@ -331,7 +331,9 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   (**proposta**: os originais e as traduções ficavam trocados); criar o
   primeiro artigo, categoria ou colecção espera por quem a esteja a mudar, e
   vice-versa (revisão do #105, P1-1).
-- A migração **pára** se um comerciante tiver lojas em línguas diferentes:
+- A migração 0009 **pára** se um comerciante tiver lojas em línguas diferentes
+  (aplicada na VPS a 06/10/2026 sem parar; o passo abaixo só serve a uma
+  base que ainda não a tenha):
   uma pessoa decide a língua de origem dele antes (revisão do #105, P3-A).
   A mensagem da paragem diz os ids. O passo da pessoa, com o Diogo ou o
   Bruno a decidir a língua: por um pedido de alteração revisto (ADR-0028),
@@ -346,10 +348,10 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   artigos e depois alteram o comerciante esperam uma pela outra (medido na
   2.ª revisão do #105, P2-1). Hoje nenhum código o faz; vale para as
   importações (§3.11) quando existirem.
-- A `loja.lingua_origem` fica, sem obrigação e sem uso, para a versão
+- A `loja.lingua_origem` ficou, sem obrigação e sem uso, para a versão
   anterior da aplicação poder voltar (`infra/vps/LEIA-ME.md`, migrações
-  compatíveis); sai numa migração seguinte, **até 31/10/2026** (revisão do
-  #105, P2-4; tarefa #109).
+  compatíveis; revisão do #105, P2-4) e **saiu na migração 0011** (tarefa
+  #109, 06/10/2026), antes da data de fim de 31/10/2026.
 - As línguas são códigos de duas letras minúsculas, como a `lingua` do
   comerciante (**proposta**; a lista das línguas de cada mercado é de Preços
   e mercados, `eu-localization`).
