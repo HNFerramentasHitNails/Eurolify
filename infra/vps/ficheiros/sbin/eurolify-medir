@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Medição fixa da VPS, só leitura (ADR-0028). Corre como root, chamado pelo
+# Medição fixa da VPS, só leitura (ADR-0028): a secção «migrações» lança até
+# dois contentores descartáveis da imagem no ar, sem rede nem capacidades, só
+# para ler a lista (#120, P3-4). Corre como root, chamado pelo
 # eurolify-trabalho, que ainda tira os endereços IP da saída. Mudar a lista é
 # mudar este ficheiro, por pedido de alteração revisto.
 set -uo pipefail
