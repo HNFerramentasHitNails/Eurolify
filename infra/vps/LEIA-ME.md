@@ -18,7 +18,8 @@ noutra máquina). Decisões: ADR-0015, 0016, 0018, 0021, 0026 a 0030; guia
 | 8 | programas `eurolify-*` e unidades do `systemd` | ADR-0026, 0028 |
 | 9 | Docker e a rede interna `eurolify` | ADR-0026 |
 | 10 | PostgreSQL 18 num contentor, **sem porta publicada**; palavra-passe gerada na máquina | ADR-0025, `AGENTS.md` |
-| 10b | Utilizadores da base: `eurolify_migrador` (dono da base e das tabelas, ligação em `migrar.env`, palavra-passe gerada na máquina) e `eurolify_api` (`NOLOGIN` até a API usar a base) | `docs/15` §5, #70 |
+| 10b | Utilizadores da base: `eurolify_migrador` (dono da base e das tabelas, ligação em `migrar.env`) e `eurolify_api` (a API, ligação em `api-base.env`, um ficheiro só dela; o `api.env` fica para o resto da configuração e o script não o reescreve); cada um com palavra-passe gerada na máquina, renovada se a ligação do ficheiro deixar de entrar | `docs/15` §5, #70, #107 |
+| 10c | Se o `api.env` ou o `api-base.env` mudaram depois de o contentor `eurolify-api` ser criado, recria-o com a mesma imagem (`eurolify-publicar --so-recriar`: espera por outra publicação em curso e não troca de imagem), que verifica o `/health` e que a API chega à base | `docs/19` §6, #107 |
 | 11 | utilizadores `eurolify-publicar`, `-aplicar`, `-medir`, `-operar`: sem sudo nem docker, casa de root; cada chave só corre `eurolify-pedido <fluxo>`. O `operar` (comando do operador, `docs/19` §6): o utilizador, a pasta e o serviço criam-se já; só falta a chave, `chaves/fluxos/operar.pub` (sem ela, o `preparar.sh` avisa e ninguém entra). Não confundir com o programa `eurolify-operar` (acções do MCP); o do comando é o `eurolify-operador` | ADR-0026, 0028; `docs/19` |
 | 12 | tarefas: cópia 03:00 UTC, reposição ao domingo 04:00, verificação 07:00 | ADR-0027, 0029 |
 | 13 | MCP da VPS: utilizador `eurolify-mcp` e a pasta dos pedidos; certificado de `mcp.eurolify.eu` (Let's Encrypt, desafio DNS da OVH, sem abrir a 80); `nginx` só com o site do MCP, ligado depois de haver certificado e de o `nginx -t` passar: o login aberto a todos, o resto só para `160.79.104.0/21` | ADR-0033 |
@@ -95,7 +96,12 @@ trava, não a única.
 
 - **Migrações compatíveis com a versão anterior:** se o `/health` falhar
   depois de uma publicação, volta-se à imagem anterior com o esquema já
-  migrado. Acrescentar primeiro; tirar só numa publicação seguinte.
+  migrado. Acrescentar primeiro; tirar só numa publicação seguinte. Desde o
+  #107 (06/10/2026) a versão anterior também abre a base: tirar uma coluna ou
+  uma tabela exige que a versão anterior já não a use.
+- **Uma publicação de cada vez:** o `eurolify-publicar` tranca
+  `/run/lock/eurolify-publicar.lock` (espera até 15 min), venha do fluxo
+  publicar, do MCP ou do passo 10c.
 
 ## O que ainda não está tratado (revisão do #10, P2)
 
