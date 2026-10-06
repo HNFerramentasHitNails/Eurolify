@@ -74,6 +74,7 @@
 | ✅ BC | As contas de pessoas constroem-se na API, com bibliotecas abertas; passkeys primeiro, TOTP como alternativa; revisão de segurança própria | em vigor | Diogo, 06/10/2026 | [ADR-0036](adr/0036-contas-de-pessoas-construidas-na-api.md) |
 | ✅ BD | Motor de regras: quem valida uma regra tem de ter um papel indicado para o tema dela no `docs/03` | em vigor; por programar | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #59 |
 | ✅ BE | As faturas emitem-se pelo software certificado de cada país, ligado por adaptador; o Eurolify decide o IVA e guarda o documento como prova (D-4 → a) | em vigor nas Fases 1 a 3 | Diogo, 06/10/2026 | [ADR-0037](adr/0037-faturas-por-software-certificado.md) |
+| ✅ BF | O Eurolify nunca recebe o dinheiro das vendas: cada comerciante liga a sua conta (EuPago, Stripe primeiro) (D-5) | em vigor | Diogo, 06/10/2026 | [ADR-0038](adr/0038-o-eurolify-nunca-recebe-o-dinheiro.md) |
 
 ## Por decidir — por esta ordem
 
@@ -178,6 +179,9 @@ e esse alojamento é deles.
 **Quem decide:** Diogo ou Bruno.
 
 ### D-5 · Pagamentos
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: nunca recebe o dinheiro**
+> ([ADR-0038](adr/0038-o-eurolify-nunca-recebe-o-dinheiro.md)).
 
 **Recomendação:** o Eurolify **nunca recebe o dinheiro dos comerciantes**
 (guardar fundos de terceiros exige licença de instituição de pagamento); cada
