@@ -289,8 +289,12 @@ dois donos.
 - **Enumeração:** a mesma resposta **e o mesmo tempo** para «não existe» e
   «falhou» (calcula-se um Argon2id falso quando o e-mail não existe); passkey
   sem escrever o e-mail (§3).
-- **Palavra-passe:** Argon2id com parâmetros a fixar com medições na VPS, não
-  abaixo dos de uma fonte reconhecida, **a ler antes do código**; mínimo de 12
+- **Palavra-passe:** Argon2id com, **no mínimo, t=3, p=4, m=64 MiB, sal de
+  128 bits e resultado de 256 bits** — a «segunda opção recomendada» do RFC
+  9106 §4 (IETF, 09/2021; lido a 06/10/2026), para quando não há os 2 GiB da
+  primeira (Diogo, 06/10/2026: *«sim, concordo com os 64 MiB»*; CF). O tempo
+  de cada verificação mede-se na VPS (não medido); com 64 MiB cada, os limites
+  de tentativas entram ao mesmo tempo que a palavra-passe. Mínimo de 12
   caracteres e recusa das muito comuns (proposta).
 - **Segredo TOTP:** cifrado com uma chave que **não vive na base** (segredo
   do ambiente, como as outras chaves da VPS; ADR-0028), com troca planeada.
@@ -378,6 +382,7 @@ rotas das chaves com sessão (P-T8).
 - As bases legais e os prazos legais da §6 (todos **C**), e como se confere a
   prova do representante legal (§7, ponto 5).
 - O anfitrião do Hub e da API (§3): não há nada escrito no repositório.
-- Os parâmetros do Argon2id (§8): a fonte ainda não foi lida.
+- O tempo de uma verificação Argon2id (§8) na VPS: a fonte foi lida (RFC 9106
+  §4), a medição não.
 - O comportamento real de `SameSite`, do WebAuthn e do `@fastify/cookie`:
   escrito a partir do que se sabe, sem a documentação lida nesta versão.
