@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   alterarArtigo,
   apagarRascunho,
+  arquivarVariante,
   classificarArtigo,
   criarArtigo,
   criarVariante,
@@ -751,6 +752,16 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       ).toBe("catalog.published_in_use");
     });
 
+    it("uma variante arquivada já não prende o preço (2.ª revisão, P3-C; o peso de uma arquivada já não muda)", async () => {
+      const s = await pronto();
+      await publicar(base.api, s.c, QUEM, s.pedido);
+      expect(
+        await codigoDoErro(tirarPreco(base.api, s.c, QUEM, s.lista, s.v2)),
+      ).toBe("prices.published_variant");
+      await arquivarVariante(base.api, s.c, s.v2);
+      expect(await tirarPreco(base.api, s.c, QUEM, s.lista, s.v2)).toBe(true);
+    });
+
     it("republicar: uma arquivada volta a publicada, limpa o arquivo; uma publicada com impedimentos continua publicada", async () => {
       const s = await pronto();
       const r = await publicar(base.api, s.c, QUEM, s.pedido);
@@ -915,112 +926,217 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
   });
 
   describe("em concorrência", () => {
+    // Cada caso abre uma transacção do eurolify_api (A), faz nela a primeira
+    // escrita, e corre a operação do repositório (B). Confirma-se que B está
+    // à espera de A (pg_blocking_pids), e A acaba sempre: commit no caso
+    // normal, rollback se alguma coisa falhar antes (2.ª revisão, P3-D).
     const abertas: pg.Client[] = [];
     afterAll(async () => {
       await Promise.all(abertas.map((l) => l.end()));
     });
 
-    it("tirar o preço e publicar ao mesmo tempo: a publicação espera e é recusada", async () => {
-      const s = await pronto();
-      const a = new pg.Client({ connectionString: base.urlApi });
-      await a.connect();
-      abertas.push(a);
-      await a.query("begin");
-      await a.query(
-        "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.quem', $2, true)",
-        [s.c, QUEM],
-      );
-      await a.query(
-        "delete from preco where lista_id = $1 and variante_id = $2",
-        [s.lista, s.v1],
-      );
-      const publicacao = publicar(base.api, s.c, QUEM, s.pedido).then(
-        (r) => r,
-        (erro: unknown) => erro,
-      );
-      for (let i = 0; i < 100; i++) {
-        const { rows } = await sql<{ n: number }>`
-          select count(*)::int as n from pg_stat_activity
-          where usename = 'eurolify_api' and datname = current_database()
-            and wait_event_type = 'Lock'`.execute(base.dono);
-        if ((rows[0]?.n ?? 0) > 0) break;
-        if (i === 99) throw new Error("a publicação não esperou");
-        await new Promise((r) => setTimeout(r, 50));
-      }
-      await a.query("commit");
-      const resultado = await publicacao;
-      expect(resultado).toBeInstanceOf(ErroCatalogo);
-      expect((resultado as ErroCatalogo).codigo).toBe(
-        "catalog.publish_blocked",
-      );
-    });
-
-    /** Uma transacção aberta do eurolify_api, com o comerciante e quem. */
-    async function aberta(c: string): Promise<pg.Client> {
+    async function aberta(c: string): Promise<{ l: pg.Client; pid: number }> {
       const l = new pg.Client({ connectionString: base.urlApi });
       await l.connect();
       abertas.push(l);
+      const { rows } = await l.query<{ pid: number }>(
+        "select pg_backend_pid() as pid",
+      );
       await l.query("begin");
       await l.query(
         "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.quem', $2, true)",
         [c, QUEM],
       );
-      return l;
+      return { l, pid: rows[0]?.pid ?? -1 };
     }
 
-    async function alguemEspera(): Promise<void> {
+    /** Espera até alguma ligação estar bloqueada pela de `pid`. */
+    async function bloqueadaPor(pid: number): Promise<void> {
       for (let i = 0; i < 100; i++) {
         const { rows } = await sql<{ n: number }>`
           select count(*)::int as n from pg_stat_activity
-          where usename = 'eurolify_api' and datname = current_database()
-            and wait_event_type = 'Lock'`.execute(base.dono);
+          where ${pid}::int = any (pg_blocking_pids(pid))`.execute(base.dono);
         if ((rows[0]?.n ?? 0) > 0) return;
         await new Promise((r) => setTimeout(r, 50));
       }
-      throw new Error("ninguém esperou");
+      throw new Error("a operação não esperou pela transacção aberta");
     }
 
-    function resultado<T>(p: Promise<T>): Promise<unknown> {
+    /** Uma promessa que nunca é recusada: dá o valor ou o erro. */
+    function assente<T>(p: Promise<T>): Promise<T | Error> {
       return p.then(
         (r) => r,
-        (erro: unknown) => erro,
+        (erro: unknown) =>
+          erro instanceof Error ? erro : new Error(String(erro)),
       );
     }
 
-    it("mudar o artigo enquanto se publica: a publicação espera e verifica o artigo novo (P2-1)", async () => {
+    /**
+     * Abre A, faz `primeiro` nela, corre `depois` (B), confirma que B espera
+     * por A, confirma A e devolve o que B deu.
+     */
+    async function corrida<T>(
+      c: string,
+      primeiro: (l: pg.Client) => Promise<unknown>,
+      depois: () => Promise<T>,
+    ): Promise<T | Error> {
+      const { l, pid } = await aberta(c);
+      let acabou = false;
+      try {
+        await primeiro(l);
+        const b = assente(depois());
+        await bloqueadaPor(pid);
+        await l.query("commit");
+        acabou = true;
+        return await b;
+      } finally {
+        if (!acabou) await l.query("rollback");
+      }
+    }
+
+    function resultadoDe(r: unknown): ResultadoDaPublicacao {
+      if (r instanceof Error) throw r;
+      return r as ResultadoDaPublicacao;
+    }
+
+    it("tirar o preço enquanto se publica: a publicação espera e diz que falta o preço", async () => {
       const s = await pronto();
-      const a = await aberta(s.c);
-      await a.query("update artigo set categoria_fiscal = null where id = $1", [
-        s.artigo,
+      const r = resultadoDe(
+        await corrida(
+          s.c,
+          (l) =>
+            l.query(
+              "delete from preco where lista_id = $1 and variante_id = $2",
+              [s.lista, s.v1],
+            ),
+          () => publicar(base.api, s.c, QUEM, s.pedido),
+        ),
+      );
+      expect(r.publicada).toBe(false);
+      expect(r.verificacao.impedimentos).toEqual([
+        { codigo: "preco_em_falta", variantes: ["GEL-001"] },
       ]);
-      const publicacao = resultado(publicar(base.api, s.c, QUEM, s.pedido));
-      await alguemEspera();
-      await a.query("commit");
-      const r = (await publicacao) as Awaited<ReturnType<typeof publicar>>;
+    });
+
+    it("apagar o peso enquanto se publica: a publicação espera e diz que falta o peso (2.ª revisão, P2-A)", async () => {
+      const s = await pronto();
+      const r = resultadoDe(
+        await corrida(
+          s.c,
+          (l) =>
+            l.query("update variante set peso_g = null where id = $1", [s.v1]),
+          () => publicar(base.api, s.c, QUEM, s.pedido),
+        ),
+      );
+      expect(r.publicada).toBe(false);
+      expect(r.verificacao.impedimentos).toEqual([
+        { codigo: "peso_em_falta", variantes: ["GEL-001"] },
+      ]);
+    });
+
+    it("publicar e depois apagar o peso: quem apaga espera e é recusado (2.ª revisão, P2-A)", async () => {
+      const s = await pronto();
+      // A publica (por SQL, com a verificação feita antes) e fica aberta; B
+      // tenta apagar o peso.
+      const verificacao = JSON.stringify(
+        await verificarPublicacao(base.api, s.c, s.pedido),
+      );
+      await publicar(base.api, s.c, QUEM, {
+        ...s.pedido,
+        variantes_fora: [s.v1, s.v2],
+      }).catch(() => undefined);
+      const r = await corrida(
+        s.c,
+        async (l) => {
+          await l.query(
+            `insert into publicacao (comerciante_id, artigo_id, loja_id, canal_id, mercado_id)
+             values ($1, $2, $3, $4, $5) on conflict do nothing`,
+            [s.c, s.artigo, s.loja, s.canal, s.mercado],
+          );
+          await l.query(
+            `update publicacao set estado = 'publicado', variantes_fora = '{}',
+               ultima_verificacao = $1::jsonb
+             where artigo_id = $2 and canal_id = $3 and mercado_id = $4`,
+            [verificacao, s.artigo, s.canal, s.mercado],
+          );
+        },
+        () =>
+          noCatalogo(base.api, s.c, (trx) =>
+            trx
+              .updateTable("variante")
+              .set({ peso_g: null })
+              .where("id", "=", s.v1)
+              .execute(),
+          ),
+      );
+      expect(r).toBeInstanceOf(ErroCatalogo);
+      expect((r as ErroCatalogo).codigo).toBe("catalog.published_in_use");
+    });
+
+    it("mudar o artigo enquanto se publica: a publicação espera e verifica o artigo novo", async () => {
+      const s = await pronto();
+      const r = resultadoDe(
+        await corrida(
+          s.c,
+          (l) =>
+            l.query("update artigo set categoria_fiscal = null where id = $1", [
+              s.artigo,
+            ]),
+          () => publicar(base.api, s.c, QUEM, s.pedido),
+        ),
+      );
       expect(r.publicada).toBe(false);
       expect(r.verificacao.impedimentos).toEqual([
         { codigo: "categoria_fiscal_em_falta" },
       ]);
     });
 
-    it("tirar o mercado do canal enquanto se publica: a publicação espera e vê o par tirado (P2-2)", async () => {
+    it("tirar o mercado do canal enquanto se publica: a publicação espera e vê o par tirado", async () => {
       const s = await pronto();
-      const a = await aberta(s.c);
-      await a.query("delete from canal_mercado where canal_id = $1", [s.canal]);
-      const publicacao = resultado(publicar(base.api, s.c, QUEM, s.pedido));
-      await alguemEspera();
-      await a.query("commit");
-      const r = (await publicacao) as Awaited<ReturnType<typeof publicar>>;
+      const r = resultadoDe(
+        await corrida(
+          s.c,
+          (l) =>
+            l.query("delete from canal_mercado where canal_id = $1", [s.canal]),
+          () => publicar(base.api, s.c, QUEM, s.pedido),
+        ),
+      );
       expect(r.publicacao).toBeNull();
       expect(r.verificacao.impedimentos).toContainEqual({
         codigo: "canal_nao_vende_no_mercado",
       });
     });
 
-    it(`quem espera mais de ${ESPERA_MAXIMA} por um lock recebe catalog.retry (P2-4)`, async () => {
+    it("criar uma variante enquanto se publica: a publicação espera e verifica-a", async () => {
       const s = await pronto();
-      const a = await aberta(s.c);
-      await a.query("update artigo set nome = 'Gel (a mudar)' where id = $1", [
+      // A linha da publicação já existe (rascunho): a variante nova toma-a.
+      await publicar(base.api, s.c, QUEM, {
+        ...s.pedido,
+        variantes_fora: [s.v1, s.v2],
+      });
+      const r = resultadoDe(
+        await corrida(
+          s.c,
+          (l) =>
+            l.query(
+              `insert into variante (comerciante_id, artigo_id, sku, unidade_de_venda)
+               values ($1, $2, 'GEL-003', 'unidade')`,
+              [s.c, s.artigo],
+            ),
+          () => publicar(base.api, s.c, QUEM, s.pedido),
+        ),
+      );
+      expect(r.publicada).toBe(false);
+      expect(r.verificacao.impedimentos).toEqual([
+        { codigo: "peso_em_falta", variantes: ["GEL-003"] },
+        { codigo: "preco_em_falta", variantes: ["GEL-003"] },
+      ]);
+    });
+
+    it(`quem espera mais de ${ESPERA_MAXIMA} por um lock recebe catalog.retry`, async () => {
+      const s = await pronto();
+      const { l } = await aberta(s.c);
+      await l.query("update artigo set nome = 'Gel (a mudar)' where id = $1", [
         s.artigo,
       ]);
       try {
@@ -1028,7 +1144,7 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
           await codigoDoErro(publicar(base.api, s.c, QUEM, s.pedido)),
         ).toBe("catalog.retry");
       } finally {
-        await a.query("rollback");
+        await l.query("rollback");
       }
     }, 20_000);
   });

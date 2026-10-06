@@ -280,6 +280,23 @@ async function tomar(
 }
 
 /**
+ * Toma as variantes do artigo (FOR SHARE), por ordem do id: quem lhes apaga
+ * o peso espera pelo fim da publicação e depois vê-a (2.ª revisão, P2-A).
+ */
+async function tomarVariantes(
+  trx: Transaction<BaseDados>,
+  pedido: PedidoDePublicacao,
+): Promise<void> {
+  await trx
+    .selectFrom("variante")
+    .select("id")
+    .where("artigo_id", "=", pedido.artigo_id)
+    .orderBy("id")
+    .forShare()
+    .execute();
+}
+
+/**
  * Toma os preços das variantes do artigo na lista de base do mercado (FOR
  * SHARE), antes da linha da publicação: quem tira um preço espera, e quem o
  * tirou primeiro faz a publicação esperar sem se cruzarem (P2-3).
@@ -377,27 +394,41 @@ export async function publicar(
 ): Promise<ResultadoDaPublicacao> {
   return noCatalogo(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
+    const fora = foraDoPedido(pedido);
+    // Por esta ordem: o artigo, o mercado, o canal, a tradução do nome, as
+    // variantes, os preços e a linha da publicação; só depois se verifica.
+    // A verificação guardada é a verdadeira até ao fim da transacção
+    // (revisões do #139: 1.ª, P2-1 e P2-3; 2.ª, P2-A, P3-A e P3-B).
     const estadoDoArtigo = await tomar(trx, pedido);
-    const verificacao = await verificarNa(trx, comercianteId, pedido);
-    // Sem par onde existir (o canal não vende no mercado) ou com o artigo em
-    // rascunho, não se cria a linha: um rascunho apaga-se, e uma publicação
-    // não (revisão do #139, P2-5). A verificação diz porquê.
-    if (
-      estadoDoArtigo === "rascunho" ||
-      verificacao.impedimentos.some(
-        (i) => i.codigo === "canal_nao_vende_no_mercado",
-      )
-    ) {
-      return { publicada: false, verificacao, publicacao: null };
-    }
+    await tomarVariantes(trx, pedido);
     await tomarPrecos(trx, pedido);
     const canal = await trx
       .selectFrom("canal")
       .select("loja_id")
       .where("id", "=", pedido.canal_id)
-      .executeTakeFirstOrThrow();
-    const fora = foraDoPedido(pedido);
-    // A linha da publicação: a que existe, ou uma nova em rascunho.
+      .executeTakeFirst();
+    const par = await trx
+      .selectFrom("canal_mercado")
+      .select("mercado_id")
+      .where("canal_id", "=", pedido.canal_id)
+      .where("mercado_id", "=", pedido.mercado_id)
+      .executeTakeFirst();
+    // Sem par onde existir (o canal não vende no mercado), com o artigo em
+    // rascunho, ou com algo que não existe, não se cria a linha: um rascunho
+    // apaga-se, e uma publicação não (1.ª revisão, P2-5). A verificação diz
+    // porquê (ou dá «não existe»).
+    if (
+      canal === undefined ||
+      par === undefined ||
+      estadoDoArtigo === undefined ||
+      estadoDoArtigo === "rascunho"
+    ) {
+      const verificacao = await verificarNa(trx, comercianteId, pedido);
+      return { publicada: false, verificacao, publicacao: null };
+    }
+    // A linha da publicação: a que existe, ou uma nova em rascunho, tomada
+    // antes de verificar (uma variante nova espera por ela, ou já entrou e
+    // a verificação vê-a).
     await trx
       .insertInto("publicacao")
       .values({
@@ -420,6 +451,7 @@ export async function publicar(
       .where("mercado_id", "=", pedido.mercado_id)
       .forUpdate()
       .executeTakeFirstOrThrow();
+    const verificacao = await verificarNa(trx, comercianteId, pedido);
     const publicada = verificacao.impedimentos.length === 0;
     // Com impedimentos, só se guarda a verificação: o estado e as variantes
     // fora ficam como estavam (uma publicação publicada continua com o que

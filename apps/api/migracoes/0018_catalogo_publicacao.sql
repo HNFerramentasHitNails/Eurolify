@@ -37,9 +37,9 @@
 --
 -- Concorrência: o servidor (publicacao.ts) toma, por esta ordem, o artigo,
 -- o mercado, o canal (que guarda também o par canal × mercado: tirá-lo toma
--- o canal em exclusivo), a tradução do nome e os preços das variantes
--- vendidas (FOR SHARE), e só depois a linha da publicação; o gatilho volta a
--- tomá-los. Arquivar um deles, mudar o artigo, tirar o par ou um desses
+-- o canal em exclusivo), a tradução do nome, as variantes e os preços (FOR
+-- SHARE), depois a linha da publicação (FOR UPDATE), e só então verifica;
+-- o gatilho volta a tomá-los. Arquivar um deles, mudar o artigo, tirar o par ou um desses
 -- preços espera e depois vê a publicação. Uma variante nova toma as
 -- publicações do artigo (FOR UPDATE) antes de decidir se nasce fora. Os
 -- arquivos em cadeia tomam as publicações por ordem do id. Assumem READ
@@ -201,6 +201,12 @@ BEGIN
       AND l.tipo = 'base' AND l.estado = 'activa'
     FOR SHARE;
 
+    -- As variantes do artigo ficam tomadas: quem lhes apaga o peso espera
+    -- (2.ª revisão do #139, P2-A).
+    PERFORM FROM public.variante v
+    WHERE v.comerciante_id = NEW.comerciante_id AND v.artigo_id = NEW.artigo_id
+    ORDER BY v.id
+    FOR SHARE;
     SELECT count(*) INTO vendidas FROM public.variante v
     WHERE v.comerciante_id = NEW.comerciante_id AND v.artigo_id = NEW.artigo_id
       AND v.estado = 'activa' AND NOT (v.id = ANY (NEW.variantes_fora));
@@ -308,7 +314,8 @@ CREATE TRIGGER canal_arquiva_publicacoes
   FOR EACH ROW EXECUTE FUNCTION arquivar_publicacoes_em_cadeia('canal_arquivado');
 
 -- O preço de uma variante vendida numa publicação publicada não sai da lista
--- de base do mercado: retira-se primeiro a publicação (proposta). A saída em
+-- de base do mercado: retira-se primeiro a publicação (proposta). Só conta a
+-- variante activa: uma arquivada já não se vende (2.ª revisão, P3-C). A saída em
 -- cadeia de uma variante apagada não chega aqui com publicação publicada (só
 -- um rascunho apaga variantes, e um rascunho não se publica).
 CREATE FUNCTION preco_de_variante_publicada() RETURNS trigger
@@ -321,7 +328,7 @@ BEGIN
   JOIN public.publicacao p ON p.comerciante_id = l.comerciante_id AND p.mercado_id = l.mercado_id
   JOIN public.variante v ON v.comerciante_id = p.comerciante_id AND v.artigo_id = p.artigo_id
   WHERE l.comerciante_id = OLD.comerciante_id AND l.id = OLD.lista_id AND l.tipo = 'base'
-    AND v.id = OLD.variante_id AND p.estado = 'publicado'
+    AND v.id = OLD.variante_id AND v.estado = 'activa' AND p.estado = 'publicado'
     AND NOT (OLD.variante_id = ANY (p.variantes_fora))
   LIMIT 1
   FOR SHARE OF p;
@@ -388,7 +395,7 @@ CREATE TRIGGER canal_mercado_sem_publicadas
 CREATE FUNCTION variante_publicada_sem_peso() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-  IF NEW.peso_g IS NULL AND OLD.peso_g IS NOT NULL AND EXISTS (
+  IF NEW.peso_g IS NULL AND OLD.peso_g IS NOT NULL AND NEW.estado = 'activa' AND EXISTS (
     SELECT FROM public.publicacao p
     JOIN public.artigo a ON a.comerciante_id = p.comerciante_id AND a.id = p.artigo_id
     WHERE p.comerciante_id = NEW.comerciante_id AND p.artigo_id = NEW.artigo_id

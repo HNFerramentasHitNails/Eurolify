@@ -406,8 +406,10 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   ficam, como registo (decisão do Diogo, 06/10/2026, revisão do #139, P2-2,
   opção a).
 - **Publicar.** Publicar corre a verificação (C2) no servidor e guarda-a na
-  publicação. Antes de verificar, toma o artigo, o mercado, o canal, a
-  tradução do nome e os preços, para que ninguém os mude a meio.
+  publicação. Antes de verificar, toma, por esta ordem, o artigo, o
+  mercado, o canal, a tradução do nome, as variantes, os preços e a linha da
+  publicação, para que ninguém os mude a meio: quem os muda espera, e a
+  verificação guardada é a verdadeira (revisões do #139, 1.ª e 2.ª).
   - Sem impedimentos, passa a publicada.
   - Com impedimentos, fica como estava; a resposta diz `publicada: false` e
     traz a lista (a rota da API devolve-a como recusa, com a lista).
@@ -437,7 +439,14 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   um evento). Arquivar a **loja** ainda não tem rota (0016) e não arquiva as
   publicações dos canais e mercados dela: trata-se quando a rota existir.
 - **Uma operação do Catálogo espera no máximo 5 s** por outra que tenha o
-  que precisa tomado; depois recebe `catalog.retry`.
+  que precisa tomado; depois recebe `catalog.retry`. Vale para todas as
+  operações do Catálogo, também as leituras. As rotas da API tratam o
+  `catalog.retry` como repetível.
+- **Os gatilhos correm com o RLS de quem escreve.** Uma ligação de
+  administração sem o comerciante posto (`eurolify.comerciante`) não vê as
+  publicações. Por isso não arquiva em cadeia nem é travada pelas regras do
+  peso e da categoria fiscal. Escreve-se sempre no contexto do comerciante
+  (2.ª revisão do #139, P3-F).
 
 ### 3.10 Atributos regulamentares
 
