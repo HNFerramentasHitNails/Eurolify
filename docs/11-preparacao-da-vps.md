@@ -284,6 +284,11 @@ O que o Diogo faz, fora do repositório:
    segunda cópia — a produção continua na VPS-3 da OVH em Paris, ADR-0017).
    Antes de lá entrar alguma cópia: o centro de dados, o preço e o acordo de
    tratamento de dados da PTISP lidos e escritos aqui.
+   Pesquisa de 06/10/2026 (resumos, páginas não abertas): empresa portuguesa
+   fundada em 2001, centros de dados em Lisboa (Lis1; entrada no Equinix LS2)
+   e um em Madrid — [datacentermap.com](https://www.datacentermap.com/c/ptisp/),
+   [echoboomer.pt](https://echoboomer.pt/ptisp-entrada-novo-datacenter-ls2-equinix-lisboa/).
+   Em que centro fica a VPS contratada: não verifiquei.
 5. **Segunda máquina para a base**, e a partir de quando.
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
