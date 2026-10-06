@@ -63,7 +63,11 @@ case "$1" in
       [[ -z "${MIGRAR_DEIXA:-}" ]] || echo "$MIGRAR_DEIXA" >>"$FALSOS/base"
       exit "${MIGRAR_FALHA:-0}"
     fi
-    if [[ " $* " == *" -d "* ]]; then echo "${*: -1}" >"$FALSOS/no-ar"; fi ;;
+    if [[ " $* " == *" -d "* ]]; then
+      # Uma imagem que já não está na máquina não arranca (run-falha-n).
+      [[ ! -f "$FALSOS/run-falha-$(n_de "${*: -1}")" ]] || exit 125
+      echo "${*: -1}" >"$FALSOS/no-ar"
+    fi ;;
 esac
 exit 0
 FALSO
@@ -84,7 +88,7 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
-  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/erro-docker-* "$falsos/docker-chamado" /etc/eurolify/api-base.env \
+  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos/docker-chamado" /etc/eurolify/api-base.env \
     "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
   echo token >/etc/eurolify/ghcr.token
   cat >/var/log/eurolify/publicacoes.log <<REG
@@ -112,6 +116,11 @@ no_registo() { grep -qF -- "$1" /var/log/eurolify/acoes.log 2>/dev/null; }
 na_saida() { grep -qF -- "$1" "$falsos/saida"; }
 linha_na_saida() { grep -qxF -- "$1" "$falsos/saida"; }
 erro() { ((codigo != 0)); }
+operar() { # operar <n> → 0 se pediu a publicação
+  rm -f "$falsos/systemd-run-chamado"
+  bash "$f/sbin/eurolify-operar" "publicar $(r "$1")" >"$falsos/saida" 2>&1 || true
+  [[ -f "$falsos/systemd-run-chamado" ]]
+}
 confere() { # confere <sim|nao> <o que se espera> <condição…>
   local espera="$1" texto="$2" obtido=nao
   shift 2
@@ -347,6 +356,63 @@ caso "… e volta-se à 3 pelo MCP" 3
 confere sim "a 3 arranca" arrancou 3
 confere nao "sem correr o migrador" migrou
 
+# #122, P2-1: duas falhas seguidas não perdem a herança.
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n0005_e.sql\n' >"$falsos/ls-4"
+printf '0001_a\n0002_b\n0003_c\n' >"$falsos/base"
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+caso "a 4 falha o /health depois de aplicar a d …" 4 CURL_FALHA=1
+printf '0001_a\n0002_b\n0003_c\n0004_d\n' >"$falsos/base"
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n0005_e.sql\n' >"$falsos/ls-4"
+caso "… repete-se a 4 e a migração falha sem deixar nada" 4 MIGRAR_FALHA=1
+confere sim "a linha «falhou» guarda a d herdada" grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
+caso "… repete-se a 4 e corre bem" 4
+confere sim "a 4 herda a d e aplica a e" grep -qE "\| $(r 4) \| anterior: $(img 3) \| migrou: 0004_d,0005_e\$" /var/log/eurolify/publicacoes.log
+printf '0001_a\n0002_b\n0003_c\n0004_d\n0005_e\n' >"$falsos/base"
+rm -f "$falsos/docker-chamado"
+caso "… e volta-se à 3 pelo MCP" 3
+confere sim "a 3 arranca" arrancou 3
+
+# Falhar e publicar outra imagem a seguir: a migração da falhada não é desta.
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+caso "a 4 falha o /health (a d fica na base) …" 4 CURL_FALHA=1
+printf '0001_a\n0002_b\n0003_c\n0004_d\n' >"$falsos/base"
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n0005_e.sql\n' >"$falsos/ls-5"
+caso "… publica-se a 5" 5
+confere sim "a 5 regista só a e" grep -qE "\| $(r 5) \| anterior: $(img 3) \| migrou: 0005_e\$" /var/log/eurolify/publicacoes.log
+printf '0001_a\n0002_b\n0003_c\n0004_d\n0005_e\n' >"$falsos/base"
+rm -f "$falsos/docker-chamado"
+caso "… e volta-se à 3" 3
+confere nao "não arranca (a d não é da 5)" arrancou 3
+confere sim "regista a recusa" no_registo "que a publicação no ar não aplicou (0004_d)"
+
+# A volta que falha o /health deixa a sua linha «falhou» e repõe a que estava.
+preparar
+caso "voltar à 2 e o /health falha" 2 CURL_FALHA=1
+confere sim "fica a linha «falhou» da 2" grep -qE "\| $(r 2) \| anterior: $(img 3) \| falhou \| migrou: \$" /var/log/eurolify/publicacoes.log
+if [[ "$(cat "$falsos/no-ar")" == "$(img 3)" ]]; then echo "ok: a 3 volta ao ar"; else falhou "a 3 não voltou ao ar"; fi
+confere sim "e o MCP continua a poder pedir a 2" operar 2
+
+# Emergência que falha: marcada nas duas coisas.
+preparar
+OPCAO=--emergencia caso "emergência que falha o /health" 1 CURL_FALHA=1
+confere sim "a linha diz «emergência» e «falhou»" grep -qE "\| $(r 1) \| anterior: $(img 3) \| emergência \| falhou \| migrou: \$" /var/log/eurolify/publicacoes.log
+
+# A migração falha sem se ter comparado: «migrou: ?».
+preparar
+cp "$falsos/ls-3" "$falsos/ls-4"
+caso "a migração falha com a base sem resposta" 4 BASE_EM_BAIXO=1 MIGRAR_FALHA=1
+confere sim "a linha «falhou» fica com «?»" grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \| migrou: \?\$" /var/log/eurolify/publicacoes.log
+
+# A anterior já não arranca depois de a nova falhar: a linha «falhou» fica na mesma.
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+touch "$falsos/run-falha-3"
+caso "a 4 falha o /health e a 3 já não arranca" 4 CURL_FALHA=1
+confere sim "fica a linha «falhou» da 4 com a d" grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
+confere sim "regista que a anterior não arrancou" no_registo "não se conseguiu arrancar a anterior"
+
 # #120, P3-1: a migração falha a meio e deixa migrações na base.
 preparar
 printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n0005_e.sql\n' >"$falsos/ls-4"
@@ -392,17 +458,15 @@ confere sim "termina com erro" erro
 confere sim "regista-o" no_registo "não chega à base"
 
 # A acção «publicar» do MCP (eurolify-operar): só a anterior da que está no ar.
-operar() { # operar <n> → 0 se pediu a publicação
-  rm -f "$falsos/systemd-run-chamado"
-  bash "$f/sbin/eurolify-operar" "publicar $(r "$1")" >"$falsos/saida" 2>&1 || true
-  [[ -f "$falsos/systemd-run-chamado" ]]
-}
 preparar
 echo "== MCP"
 confere sim "aceita a imediatamente anterior" operar 2
 confere nao "recusa uma mais antiga" operar 1
 confere sim "diz qual se pode pedir" na_saida "imediatamente anterior"
 confere nao "recusa uma que nunca esteve no ar" operar 9
+echo "2026-10-04T10:00:00Z | $(r 8) | anterior: $(img 3) | falhou | migrou: " >>/var/log/eurolify/publicacoes.log
+confere nao "recusa uma que só tem linha «falhou»" operar 8
+confere sim "e diz que nunca ficou no ar" na_saida "nunca ficou no ar"
 touch "$falsos/sem-mcp-2"
 confere nao "recusa a anterior se ela não tiver o MCP" operar 2
 confere sim "e di-lo" na_saida "não tem o MCP"

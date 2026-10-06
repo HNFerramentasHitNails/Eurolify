@@ -77,7 +77,10 @@ servidores de nomes da OVH (`ns200`/`dns200.anycast.me`).
      aplicou (as linhas antigas do registo não o dizem: a primeira volta
      depois desta regra, com a base à frente, é recusada); de resto migra-se
      como numa publicação. O MCP aceita o pedido e a publicação, em segundo
-     plano, ainda pode recusá-lo (vê-se no `estado_do_ensaio`). Mais atrás é
+     plano, ainda pode recusá-lo (vê-se no `estado_do_ensaio`). Uma tentativa
+     que falha deixa no `publicacoes.log` uma linha «falhou» com as migrações
+     que ficaram na base; a imagem dela nunca fica no ar nem é candidata a
+     voltar, e repetida com a mesma anterior herda-as (#120). Mais atrás é
      uma emergência, por SSH, com o `--emergencia` do `eurolify-publicar`
      (decisão do Diogo, opção A da 2.ª revisão do #115; tarefas #113 e #120,
      `infra/vps/LEIA-ME.md`);

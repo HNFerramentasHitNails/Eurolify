@@ -327,9 +327,13 @@ fi
 # anterior: as migrações que ela aplicou da outra vez continuam a ser dela, se
 # ainda estão na base (foram aplicadas com a mesma anterior no ar). Sem isto, o
 # MCP só alternava uma vez (5.ª revisão do #115, P1-1).
+# Também as de uma tentativa que falhou (linha «falhou»), que por sua vez já
+# as tinha herdado (#122, P2-1).
+herdadas=""
 if ((comparou == 1)) && [[ -n "$anterior" && "$(anterior_de "$resumo")" == "$anterior" ]] &&
   antes="$(migrou_de "$resumo")"; then
-  migrou="$(printf '%s\n%s\n' "$migrou" "$(em_ambas "$antes" "$da_base")" | so_migracoes | uniq)"
+  herdadas="$(em_ambas "$antes" "$da_base")"
+  migrou="$(printf '%s\n%s\n' "$migrou" "$herdadas" | so_migracoes | uniq)"
 fi
 [[ "$migrou" == "?" ]] || migrou="$(virgulas "$migrou")"
 
@@ -354,7 +358,9 @@ if ((migrar == 1)); then
     # O que chegou a ficar na base, se se consegue ler (#120, P3-1).
     ficaram="?"
     if ((comparou == 1)) && depois="$(migracoes_da_base)"; then
-      ficaram="$(virgulas "$(so_na_primeira "$depois" "$da_base")")"
+      # As que esta tentativa deixou, mais as herdadas que ainda lá estão.
+      ficaram="$(printf '%s\n%s\n' "$(so_na_primeira "$depois" "$da_base")" "$(em_ambas "$herdadas" "$depois")" | so_migracoes | uniq)"
+      ficaram="$(virgulas "$ficaram")"
     fi
     linha_publicacao falhou "$ficaram"
     registar "a migração de $resumo falhou; ficaram na base: ${ficaram:-nenhuma}"
@@ -381,17 +387,23 @@ fi
 echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
 docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
 
+# As migrações que esta publicação aplicou ficam na base: ficam numa linha
+# «falhou» do publicacoes.log e no registo de acções (5.ª revisão do #115,
+# P3-1; #120, P2), antes de voltar à anterior, que também pode falhar (#122,
+# P2-2).
+linha_publicacao falhou "$migrou"
+registar "publicação de $resumo falhou no /health; migrou: ${migrou:-nenhuma}"
+
 if [[ -n "$anterior" ]]; then
   echo "A voltar à imagem anterior: $anterior"
-  arrancar "$anterior"
+  if ! arrancar "$anterior"; then
+    registar "ATENÇÃO: não se conseguiu arrancar a anterior ($anterior) depois de $resumo falhar"
+    falhar "não se conseguiu arrancar a anterior ($anterior): a API está em baixo"
+  fi
   mcp_para "$anterior" || true
   if saude 8080; then echo "A anterior voltou e responde."; else echo "ATENÇÃO: a anterior também não responde."; fi
 else
   docker rm -f eurolify-api eurolify-mcp >/dev/null 2>&1 || true
 fi
-# As migrações que esta publicação aplicou ficam na base: ficam numa linha
-# «falhou» do publicacoes.log e no registo de acções (5.ª revisão do #115,
-# P3-1; #120, P2).
-linha_publicacao falhou "$migrou"
-registar "publicação de $resumo falhou; reposta: ${anterior:-nenhuma}; migrou: ${migrou:-nenhuma}"
+registar "publicação de $resumo falhou; reposta: ${anterior:-nenhuma}"
 exit 1
