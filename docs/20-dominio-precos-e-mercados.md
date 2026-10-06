@@ -223,6 +223,14 @@ recusado (`prices.base_list_duplicate`). Um
 preço não tem estados: muda-se (linha nova no histórico) ou tira-se da lista
 (a variante deixa de ter preço nessa lista, e a C2 diz-o).
 
+Com a publicação do Catálogo (migração 0018, #77; **proposta**):
+- o preço de uma variante à venda numa publicação publicada não sai da lista
+  de base do mercado (`prices.published_variant`); retira-se primeiro a
+  publicação;
+- tirar de um canal um mercado onde há publicações é recusado
+  (`prices.channel_market_in_use`);
+- arquivar o mercado ou o canal arquiva as publicações deles.
+
 ## 5. Regras do domínio
 
 | # | Regra | Fonte |

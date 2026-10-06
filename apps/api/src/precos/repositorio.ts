@@ -35,6 +35,8 @@ export type CodigoErroPrecos =
   | "prices.priority_duplicate"
   | "prices.label_duplicate"
   | "prices.channel_market_duplicate"
+  | "prices.channel_market_in_use"
+  | "prices.published_variant"
   | "prices.invalid_field"
   | "prices.retry";
 
@@ -61,6 +63,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroPrecos[] = [
   "prices.list_archived",
   "prices.country_invalid",
   "prices.language_invalid",
+  // Da 0018 (Catálogo, publicação): o preço de uma variante publicada.
+  "prices.published_variant",
 ];
 
 /** As restrições da 0017 com código próprio. */
@@ -137,6 +141,15 @@ export function traduzir(erro: unknown): unknown {
   // Uma referência que falha (a loja, o mercado, a lista ou a variante não
   // existem ou são de outro comerciante, ou o mercado é de outra loja): o
   // RLS esconde-as igual, sem oráculo.
+  // Tirar de um canal um mercado onde há publicações (0018): a chave da
+  // publicação recusa. Vem antes da regra geral, que diria «não existe».
+  if (pg.code === "23503" && pg.constraint === "publicacao_do_canal_mercado") {
+    return new ErroPrecos(
+      "prices.channel_market_in_use",
+      "o canal tem publicações neste mercado; retirá-las primeiro",
+      { cause: erro },
+    );
+  }
   if (pg.code === "23503" && pg.table !== undefined && TABELAS.has(pg.table)) {
     return new ErroPrecos("prices.not_found", "referência inexistente", {
       cause: erro,
@@ -360,6 +373,8 @@ export async function definirMercadosDoCanal(
   canalId: string,
   mercadoIds: readonly string[],
 ): Promise<void> {
+  // O pg devolve os uuid em minúsculas: compara-se assim.
+  const pedidos = mercadoIds.map((m) => m.toLowerCase());
   await noDominio(db, comercianteId, async (trx) => {
     const canal = await trx
       .selectFrom("canal")
@@ -370,15 +385,37 @@ export async function definirMercadosDoCanal(
     if (canal === undefined) {
       throw new ErroPrecos("prices.not_found", "canal inexistente");
     }
-    await trx
-      .deleteFrom("canal_mercado")
+    if (new Set(pedidos).size !== pedidos.length) {
+      throw new ErroPrecos(
+        "prices.channel_market_duplicate",
+        "um mercado repetido na lista",
+      );
+    }
+    // Só sai o que deixou de estar na lista, e só entra o que é novo: um
+    // par com publicações (0018) fica onde está, e tirá-lo é recusado com
+    // prices.channel_market_in_use.
+    const actuais = await trx
+      .selectFrom("canal_mercado")
+      .select("mercado_id")
       .where("canal_id", "=", canalId)
       .execute();
-    if (mercadoIds.length > 0) {
+    const queSaem = actuais
+      .map((a) => a.mercado_id)
+      .filter((m) => !pedidos.includes(m));
+    if (queSaem.length > 0) {
+      await trx
+        .deleteFrom("canal_mercado")
+        .where("canal_id", "=", canalId)
+        .where("mercado_id", "in", queSaem)
+        .execute();
+    }
+    const jaLa = new Set(actuais.map((a) => a.mercado_id));
+    const queEntram = pedidos.filter((m) => !jaLa.has(m));
+    if (queEntram.length > 0) {
       await trx
         .insertInto("canal_mercado")
         .values(
-          mercadoIds.map((mercado_id) => ({
+          queEntram.map((mercado_id) => ({
             comerciante_id: comercianteId,
             loja_id: canal.loja_id,
             canal_id: canalId,
@@ -660,51 +697,60 @@ export async function verificarPrecos(
   mercadoId: string,
   varianteIds: readonly string[],
 ): Promise<VerificacaoDePreco[]> {
-  return noDominio(db, comercianteId, async (trx) => {
-    const mercado = await trx
-      .selectFrom("mercado")
-      .select("estado")
-      .where("id", "=", mercadoId)
-      .executeTakeFirst();
-    if (mercado === undefined) {
-      throw new ErroPrecos("prices.not_found", "mercado inexistente");
-    }
-    const precos =
-      varianteIds.length === 0
-        ? []
-        : await trx
-            .selectFrom("preco")
-            .innerJoin("lista_precos", (j) =>
-              j
-                .onRef(
-                  "lista_precos.comerciante_id",
-                  "=",
-                  "preco.comerciante_id",
-                )
-                .onRef("lista_precos.id", "=", "preco.lista_id"),
-            )
-            .select(["preco.variante_id", "preco.gratuito"])
-            .where("lista_precos.mercado_id", "=", mercadoId)
-            .where("lista_precos.tipo", "=", "base")
-            .where("lista_precos.estado", "=", "activa")
-            .where("preco.variante_id", "in", [...varianteIds])
-            .execute();
-    const porVariante = new Map(precos.map((p) => [p.variante_id, p.gratuito]));
-    return varianteIds.map((variante_id) => {
-      const gratuito = porVariante.get(variante_id);
-      const com_preco = gratuito !== undefined;
-      const impedimento: ImpedimentoDePreco | null =
-        mercado.estado !== "activo"
-          ? "prices.market_inactive"
-          : com_preco
-            ? null
-            : "prices.no_price";
-      return {
-        variante_id,
-        com_preco,
-        gratuito: gratuito ?? false,
-        impedimento,
-      };
-    });
+  return noDominio(db, comercianteId, (trx) =>
+    verificarPrecosNa(trx, mercadoId, varianteIds),
+  );
+}
+
+/**
+ * A mesma pergunta dentro de uma transacção já aberta no contexto do
+ * comerciante: a publicação do Catálogo pergunta-a na sua (docs/14 §5, C2).
+ * Os erros saem por traduzir: quem chama traduz-os no seu domínio.
+ */
+export async function verificarPrecosNa(
+  trx: Transaction<BaseDados>,
+  mercadoId: string,
+  varianteIds: readonly string[],
+): Promise<VerificacaoDePreco[]> {
+  const mercado = await trx
+    .selectFrom("mercado")
+    .select("estado")
+    .where("id", "=", mercadoId)
+    .executeTakeFirst();
+  if (mercado === undefined) {
+    throw new ErroPrecos("prices.not_found", "mercado inexistente");
+  }
+  const precos =
+    varianteIds.length === 0
+      ? []
+      : await trx
+          .selectFrom("preco")
+          .innerJoin("lista_precos", (j) =>
+            j
+              .onRef("lista_precos.comerciante_id", "=", "preco.comerciante_id")
+              .onRef("lista_precos.id", "=", "preco.lista_id"),
+          )
+          .select(["preco.variante_id", "preco.gratuito"])
+          .where("lista_precos.mercado_id", "=", mercadoId)
+          .where("lista_precos.tipo", "=", "base")
+          .where("lista_precos.estado", "=", "activa")
+          .where("preco.variante_id", "in", [...varianteIds])
+          .execute();
+  const porVariante = new Map(precos.map((p) => [p.variante_id, p.gratuito]));
+  return varianteIds.map((variante_id) => {
+    const gratuito = porVariante.get(variante_id);
+    const com_preco = gratuito !== undefined;
+    const impedimento: ImpedimentoDePreco | null =
+      mercado.estado !== "activo"
+        ? "prices.market_inactive"
+        : com_preco
+          ? null
+          : "prices.no_price";
+    return {
+      variante_id,
+      com_preco,
+      gratuito: gratuito ?? false,
+      impedimento,
+    };
   });
 }

@@ -95,6 +95,7 @@
 | ✅ BX | Preços e mercados: os eventos `market.activated` e `market.archived` entram na lista de eventos (o Catálogo arquiva as publicações de um mercado arquivado) | em vigor; no `docs/02`, no `docs/20` §6 e na skill `platform-architect` | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q6; #127 |
 | ✅ BY | Motor de regras: cada linha do `docs/03` diz o domínio do motor em que vive (não a secção); três linhas sem domínio (nuvem, IA, cibersegurança) | em vigor; no código (`TEMAS_DOCS03`, #133) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #133 |
 | ✅ BZ | Motor de regras: a DAC7 e o fim da isenção aduaneira ficam sem domínio até o contabilista e o despachante dizerem onde pertencem | em vigor; no código (`TEMAS_DOCS03`, #133) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #133 |
+| ✅ CA | Catálogo: a publicação verifica já o que existe (artigo, mercado e canal activos, categoria fiscal, classificação, preço, peso, tradução do nome) e diz sempre que a Conformidade e a media **não foram verificadas**; rede com fim: quando a Conformidade existir ou antes de haver produção | em vigor; no código (migração 0018, #77) | Diogo, 06/10/2026 | [`docs/14`](14-dominio-catalogo.md) §5, C2 |
 
 ## Por decidir — por esta ordem
 

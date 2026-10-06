@@ -478,6 +478,45 @@ export interface TabelaHistoricoPreco {
   definido_por: ColumnType<string, never, never>;
 }
 
+export const ESTADOS_PUBLICACAO = [
+  "rascunho",
+  "publicado",
+  "arquivado",
+] as const;
+export type EstadoPublicacao = (typeof ESTADOS_PUBLICACAO)[number];
+
+export const MOTIVOS_ARQUIVO_PUBLICACAO = [
+  "retirada",
+  "artigo_arquivado",
+  "mercado_arquivado",
+  "canal_arquivado",
+] as const;
+export type MotivoArquivoPublicacao =
+  (typeof MOTIVOS_ARQUIVO_PUBLICACAO)[number];
+
+// Catálogo, parte 4: publicação por canal × mercado (migração 0018; docs/14
+// §3.9). Quem e quando publicou ou arquivou são postos pela base.
+export interface TabelaPublicacao {
+  id: Generated<string>;
+  comerciante_id: string;
+  artigo_id: string;
+  loja_id: string;
+  canal_id: string;
+  mercado_id: string;
+  estado: ColumnType<EstadoPublicacao, never, EstadoPublicacao>;
+  variantes_fora: ColumnType<string[], string[] | undefined, string[]>;
+  ultima_verificacao: ColumnType<unknown, never, string>;
+  verificado_em: ColumnType<Date | null, never, Date>;
+  publicado_por: ColumnType<string | null, never, never>;
+  publicado_em: ColumnType<Date | null, never, never>;
+  arquivado_por: ColumnType<string | null, never, never>;
+  arquivado_em: ColumnType<Date | null, never, never>;
+  motivo_arquivo: ColumnType<MotivoArquivoPublicacao | null, never, never>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -503,4 +542,5 @@ export interface BaseDados {
   lista_precos: TabelaListaPrecos;
   preco: TabelaPreco;
   historico_preco: TabelaHistoricoPreco;
+  publicacao: TabelaPublicacao;
 }
