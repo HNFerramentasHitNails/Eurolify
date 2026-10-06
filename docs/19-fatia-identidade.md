@@ -130,8 +130,12 @@ P2-2).
   como uma revogada) a partir do momento em que a loja é arquivada. O registo
   das chaves fica, para se saber quem teve acesso e quando. **Por programar**
   (T13 no §9).
-- **Por decidir:**
-  - o mesmo para as rotas de domínio que escrevem;
+- **Decidido** (Diogo, 06/10/2026: *«sim, concordo, recusa as escritas»*):
+  um comerciante `suspenso` ou `fechado` **não escreve** pelas rotas de
+  domínio — recusa `merchant.inactive` (403), imposta na base. Excepções:
+  tratar as encomendas pendentes (só `suspenso`, `docs/15` §4), revogar
+  chaves e pedir a exportação. Entra em cada domínio quando ele abrir rotas que
+  escrevem (a 06/10/2026 só há as duas `POST` de `identidade/rotas.ts`).
 
 Erros novos (no formato do `docs/18` §2):
 

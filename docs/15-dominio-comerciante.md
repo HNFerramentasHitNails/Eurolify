@@ -143,6 +143,11 @@ Do pacote (onboarding, regra 3), com os nomes em português:
 | `suspenso` | ler e exportar; **as encomendas pendentes continuam a ser tratadas** (direitos dos clientes) | decisão com motivo |
 | `fechado` | exportar durante o prazo da exportação; documentos fiscais guardados 10 anos | pedido do comerciante ou decisão com motivo |
 
+**Escritas** (Diogo, 06/10/2026, decisão AZ): `suspenso` e `fechado` não
+escrevem pelas rotas de domínio (`merchant.inactive`, 403, imposto na base),
+excepto tratar as encomendas pendentes (só `suspenso`), revogar chaves e pedir
+a exportação (`docs/19` §5).
+
 Transições permitidas: `rascunho → prova_pendente → em_revisao →
 aprovado_limitado → activo`; `rascunho → em_revisao` (quando o pedido de
 activação já traz a prova); `em_revisao → prova_pendente` (recusada, com
