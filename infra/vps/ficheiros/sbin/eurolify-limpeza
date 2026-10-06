@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Limpeza diária da base do ensaio (docs/18 §4; docs/17 §3): apaga as
+# respostas guardadas da idempotência que já expiraram (24 h) e regista
+# quantas. Corre como root, pelo eurolify-limpeza.timer, depois da cópia.
+# Uma falha fica no registo e a verificação diária avisa (unidade falhada, ou
+# linhas expiradas há mais de um dia).
+set -Eeuo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+carregar_config
+
+# Qualquer saída com erro fica no registo: nunca em silêncio (revisão do #119,
+# P3-3).
+terminar() {
+  local codigo=$?
+  ((codigo == 0)) || registar "limpeza da idempotência falhou (código $codigo); ver journalctl -u eurolify-limpeza"
+}
+trap terminar EXIT
+
+# Entra como eurolify_limpeza, não como o superutilizador: o código da função
+# e da tabela é do dono das tabelas e corre com os direitos de quem entra
+# (migração 0013; revisão do #119, P2-2). O papel não tem palavra-passe: só
+# entra pelo socket do contentor. Um limite de tempo, para não ficar presa.
+apagadas="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
+  -v ON_ERROR_STOP=1 -qAt -c "SET statement_timeout = '5min'" \
+  -c 'select idempotencia_apagar_expiradas()')" ||
+  falhar "a limpeza da idempotência falhou"
+[[ "$apagadas" =~ ^[0-9]+$ ]] || falhar "a limpeza devolveu '$apagadas', não um número"
+registar "limpeza: $apagadas linha(s) expirada(s) da idempotência apagada(s)"
+echo "Limpeza: $apagadas linha(s) expirada(s) da idempotência apagada(s)."
