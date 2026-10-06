@@ -50,6 +50,7 @@ Contra o PostgreSQL 18.6 local, com o resumo do `ensaio.conf`, a 06/10/2026:
 | Sem a tranca na revogação | 2 testes falham (as duas corridas de T11, 5 voltas cada) |
 | Sem a regra da última | 2 testes falham |
 | Depois da revisão e do P2-3 | **413** na API e 58 no MCP; `lint`, `tipos` e `construir` passam |
+| Depois da 0014 e da revisão do #124 (ramo do #124) | **419** na API e 58 no MCP; `lint`, `tipos` e `construir` passam |
 
 ## Revisão do agente (Claude Opus 5.5, ADR-0035), publicada no #118
 
@@ -75,6 +76,9 @@ Encontrou 0 P0, 0 P1, 5 P2 e 11 P3. Tratados na mesma sessão:
 **P2-4, decidido pelo Diogo (06/10/2026, «sim, concordo, nunca dura mais»):**
 uma chave nunca cria outra que dure mais do que ela (`docs/19` §5, T12);
 programada noutra sessão no #124 (migração 0014, `key.expiry_beyond_creator`).
+Revisão do #124 (Claude Opus 5.5): 0 P0/P1, 1 P2 e 7 P3; os P3 tratados no
+#124; o P2-1 decidido pelo Diogo («não pode revogar», `docs/19` §5, T14), por
+programar.
 
 **Loja arquivada, decidido pelo Diogo (06/10/2026, «sim, concordo, deixa de
 funcionar»):** a chave pública dela não se cria e as que existem deixam de
@@ -85,12 +89,14 @@ resolver; o registo fica (`docs/19` §5, T13). Por programar.
 | Desfazer a escrita cuja reserva foi substituída | 1 (o do pedido lento) |
 | O validador estrito (P2-1) | 1 (o das recusas) |
 | A base aceitar o resumo (P2-2) | 1 (o da função na base) |
+| Sem a regra da 0014 (06/10/2026) | 1 (o da chave com prazo) |
+| `>` trocado por `>=` na 0014 (06/10/2026) | 1 (o da chave com prazo: o caso do prazo igual) |
 
 ## O que ficou por verificar
 
-- A tarefa diária que apaga as linhas expiradas da `idempotencia`. Hoje, uma
-  linha expirada só se substitui quando a mesma chave volta. Tem de existir
-  antes de uma rota com dados pessoais usar a idempotência (`docs/17` §3).
+- ~~A tarefa diária que apaga as linhas expiradas da `idempotencia`~~ — feita
+  na 0013 (#119), com o `eurolify-limpeza` na VPS
+  (`memoria/idempotencia-limpeza-06out2026.md`).
 - Os estados HTTP de `idempotency.key_reused` (422) e `in_progress` (409)
   continuam **proposta** do `docs/18`, sem fonte lida.
 - Uma escrita que falha apaga o `em_curso` com o mesmo resumo. Se, nesse
