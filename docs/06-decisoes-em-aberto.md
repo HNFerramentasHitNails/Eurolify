@@ -89,6 +89,7 @@
 | ✅ BR | Motor de regras: o papel de quem valida confere-se por domínio para já e, a seguir, linha a linha do `docs/03` (cada regra diz de que linha vem) | em vigor; por domínio no código, linha a linha por fazer | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #126 |
 | ✅ BS | Preços e mercados: um mercado novo tem os preços **com IVA** por omissão (o mesmo preço em todos os países; o comerciante pode mudar por mercado) | em vigor; por programar (desenho por aprovar) | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q1; #127 |
 | ✅ BT | Preços e mercados: na Fase 1 não há conversão automática de moeda; cada lista de preços escreve os seus preços na moeda do mercado | em vigor; por programar (desenho por aprovar) | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q2; #127 |
+| ✅ BU | Preços e mercados: os códigos de desconto e as regras de carrinho ficam para depois (com o domínio Carrinho); na Fase 1 só a redução anunciada com o preço anterior dos 30 dias | em vigor | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q3; #127 |
 
 ## Por decidir — por esta ordem
 

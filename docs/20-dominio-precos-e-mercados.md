@@ -42,7 +42,7 @@
 
 | Fica fora da Fase 1 (ou por decidir) | Porquê |
 |---|---|
-| códigos de desconto, regras de carrinho («leve 3 pague 2») | **pergunta** (§9, Q3); o `docs/02` põe as promoções neste domínio, mas o `docs/05` não as lista na Fase 1 |
+| códigos de desconto, regras de carrinho («leve 3 pague 2») | **decidido: ficam para depois**, com o domínio Carrinho; na Fase 1 só a redução anunciada (§3.6) (Diogo, 06/10/2026; §9, Q3; `docs/06`, BU) |
 | conversão automática de moeda entre mercados | **decidido: sem conversão na Fase 1** (Diogo, 06/10/2026; §9, Q2; `docs/06`, BT); quando entrar, guarda a taxa, a fonte e a data de cada conversão (`eu-localization`) |
 | preço de compra e preço recomendado de revenda, listas por relação comercial (distribuidor, revendedor, franchisado) | Fase 2 (`docs/eurolify/architecture.md` §3; Diogo, 05/10/2026) |
 | preço na loja física (POS) | Fase 2 (`docs/05`) |
@@ -282,7 +282,7 @@ escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
 |---|---|---|
 | Q1 | Por omissão, um mercado novo tem os preços **com IVA** (o cliente vê o mesmo preço em todos os países e o comerciante absorve a diferença) ou **sem IVA** (o preço final muda com o país)? | ✅ **Decidido: com IVA por omissão**; o comerciante pode mudar por mercado (Diogo, 06/10/2026: *«sim, com IVA por omissão»*; `docs/06`, BS) |
 | Q2 | Na Fase 1, cada mercado tem os preços escritos à mão na sua moeda, ou o Eurolify converte de uma moeda para outra? | ✅ **Decidido: sem conversão na Fase 1**; cada lista escreve os seus preços, e a conversão (com taxa, fonte e data, R3) fica para depois (Diogo, 06/10/2026: *«sim, sem conversão na Fase 1»*; `docs/06`, BT) |
-| Q3 | Códigos de desconto e regras de carrinho entram na Fase 1? | **Não**: na Fase 1 só a redução anunciada (preço riscado, §3.6); os códigos e as regras de carrinho com o domínio Carrinho, depois |
+| Q3 | Códigos de desconto e regras de carrinho entram na Fase 1? | ✅ **Decidido: ficam para depois**; na Fase 1 só a redução anunciada (preço riscado, §3.6), e os códigos e as regras de carrinho chegam com o domínio Carrinho (Diogo, 06/10/2026: *«sim, ficam para depois»*; `docs/06`, BU) |
 | Q4 | Numa loja, o mesmo país pode estar em dois mercados activos? | **Não**: um país, um mercado activo por loja (evita dois preços para o mesmo cliente) |
 | Q5 | O preço por unidade mostra-se sempre que a variante tem quantidade e unidade, até haver a lista das dispensas por país validada? | **Sim**: mostrar a mais não viola a regra; esconder sem saber pode violar |
 | Q6 | Acrescentar `market.activated` e `market.archived` à lista de eventos do `docs/02`? | **Sim**: o Catálogo precisa deles para arquivar as publicações de um mercado arquivado |
