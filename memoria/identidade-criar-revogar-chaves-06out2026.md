@@ -143,3 +143,7 @@ pedia autorização). Registado no #107.
   ALWAYS, auto-revogação da T14; READ COMMITTED e as ordens das recusas
   escritas no `docs/19` §6.1. Lojas arquivadas antes da 0016: não tratadas
   (não há rota que arquive; só SQL à mão).
+- Publicado no ensaio a 06/10/2026: o fluxo `publicar` do commit 346676f
+  (#131) registou «migrar: aplicadas 0015_revogar_com_prazo,
+  0016_chave_de_loja_arquivada» e «O /health da API responde» (registo da
+  corrida do GitHub Actions, lido a 06/10/2026).
