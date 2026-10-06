@@ -67,6 +67,7 @@ o migrador, sem ser superutilizador, corre as migrações):
 | 10b, 2.ª corrida | 0 alterações |
 | Privilégios tirados à mão, 10b de novo | 2 alterações (os dois GRANT), como se a migração tivesse corrido antes |
 | Limpeza com 2 expiradas | 2 apagadas; registo; a verificação deixa de avisar |
+| Migração antes do papel (papel apagado), 10b | 3 alterações numa corrida (criar e os dois GRANT); a limpeza logo a seguir corre (0 apagadas); 2.ª corrida 0 |
 | Sem a função | saída 1, «limpeza da idempotência falhou (código 1)» no `acoes.log` |
 | Sem a tabela / papel sem LOGIN | sem aviso / «não consegui entrar na base como eurolify_limpeza…» |
 | `eurolify_limpeza` de fora do contentor | recusado (`no password supplied`) |

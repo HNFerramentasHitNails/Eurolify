@@ -539,6 +539,15 @@ else
       pg_valor "CREATE ROLE eurolify_limpeza LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT"
   else
     ok "papel eurolify_limpeza"
+  fi
+  # Os privilégios na mesma corrida que cria o papel: se a migração 0013
+  # correu antes dele, não os deu. Em --mostrar, sem o papel, diz o que faria.
+  if ((MOSTRAR)) && [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_limpeza'")" == 0 ]]; then
+    if [[ "$(pg_valor "SELECT to_regclass('public.idempotencia') IS NOT NULL")" == t ]]; then
+      echo "   FARIA: dar ao eurolify_limpeza os privilégios na idempotencia e na função da limpeza"
+      mudancas=$((mudancas + 1))
+    fi
+  else
     if [[ "$(pg_valor "SELECT to_regclass('public.idempotencia') IS NOT NULL")" == t ]]; then
       if [[ "$(pg_valor "SELECT has_table_privilege('eurolify_limpeza', 'public.idempotencia', 'SELECT') AND has_table_privilege('eurolify_limpeza', 'public.idempotencia', 'DELETE')")" == t ]]; then
         ok "eurolify_limpeza lê e apaga na idempotencia"
