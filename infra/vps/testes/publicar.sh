@@ -33,7 +33,8 @@ cat >"$falsos/docker" <<'FALSO'
 echo "docker $*" >>"$FALSOS/docker-chamado"
 n_de() { local x="${1##*:}"; echo $((10#$x)); }
 case "$1" in
-  image) exit 0 ;; # a imagem já está na máquina
+  image) [[ -f "$FALSOS/fora-da-maquina" ]] && exit 1 || exit 0 ;; # a imagem já está na máquina?
+  login | logout | pull) exit 0 ;;
   inspect)
     [[ " $* " == *" eurolify-api "* && -f "$FALSOS/no-ar" ]] || exit 1
     cat "$FALSOS/no-ar" ;;
@@ -75,7 +76,9 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
-  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/erro-docker-* "$falsos/docker-chamado" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
+  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/erro-docker-* "$falsos/docker-chamado" \
+    "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
+  echo token >/etc/eurolify/ghcr.token
   cat >/var/log/eurolify/publicacoes.log <<REG
 2026-10-01T10:00:00Z | $(r 1) | anterior: nenhuma | migrou: 0001_a
 2026-10-02T10:00:00Z | $(r 2) | anterior: $(img 1) | migrou: 0002_b
@@ -269,6 +272,54 @@ rm -f "$falsos/docker-chamado"
 caso "… e avançar para a 3" 3
 confere sim "a 3 arranca" arrancou 3
 confere sim "a 3 migra (o migrador não faz nada)" migrou
+confere sim "a 3 herda a migração que aplicou da outra vez" grep -qE "\| $(r 3) \| anterior: $(img 2) \| migrou: 0003_c\$" /var/log/eurolify/publicacoes.log
+rm -f "$falsos/docker-chamado"
+caso "… e voltar outra vez à 2" 2
+confere sim "a 2 arranca outra vez" arrancou 2
+rm -f "$falsos/docker-chamado"
+caso "… e avançar outra vez para a 3" 3
+caso "… e voltar à 2 uma terceira vez" 2
+confere sim "o MCP continua a alternar" arrancou 2
+
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+caso "o /health da 4 falha (a d fica na base) …" 4 CURL_FALHA=1
+confere sim "o registo de acções diz a migração que ficou" no_registo "migrou: 0004_d"
+printf '0001_a\n0002_b\n0003_c\n0004_d\n' >"$falsos/base"
+rm -f "$falsos/docker-chamado"
+caso "… e depois voltar à 2 pelo MCP" 2
+confere nao "não arranca: a d não é da 3" arrancou 2
+
+preparar
+OPCAO=--emergencia caso "emergência marcada no publicacoes.log" 1
+confere sim "a linha diz «emergência»" grep -qE "\| $(r 1) \| anterior: $(img 3) \| emergência \| migrou: \$" /var/log/eurolify/publicacoes.log
+
+preparar
+OPCAO=--so-recriar caso "--so-recriar com a imagem no ar" 3
+confere nao "não migra" migrou
+confere nao "não escreve no publicacoes.log" grep -qF "| $(r 3) | anterior: $(img 3)" /var/log/eurolify/publicacoes.log
+OPCAO=--so-recriar caso "--so-recriar com outra imagem" 4
+confere nao "não arranca" arrancou 4
+confere nao "termina com erro" erro
+
+preparar
+cp "$falsos/ls-3" "$falsos/ls-4"
+touch "$falsos/fora-da-maquina"
+caso "imagem que não está na máquina" 4
+confere sim "abre a sessão no GHCR" grep -q "docker login ghcr.io" "$falsos/docker-chamado"
+confere sim "e fecha-a" grep -q "docker logout ghcr.io" "$falsos/docker-chamado"
+
+preparar
+rm -f /etc/eurolify/ghcr.token
+cp "$falsos/ls-3" "$falsos/ls-4"
+caso "falta o token do GHCR" 4
+confere sim "fica no registo de acções" no_registo "terminou com erro (código 1)"
+
+preparar
+mv /etc/eurolify/ensaio.conf /etc/eurolify/ensaio.conf.fora
+caso "falta a configuração da máquina" 4
+mv /etc/eurolify/ensaio.conf.fora /etc/eurolify/ensaio.conf
+confere sim "fica no registo de acções" no_registo "terminou com erro (código 1)"
 
 # A acção «publicar» do MCP (eurolify-operar): só a anterior da que está no ar.
 operar() { # operar <n> → 0 se pediu a publicação

@@ -97,11 +97,16 @@ migracoes_da_base() {
 so_na_primeira() {
   LC_ALL=C comm -23 <(printf '%s\n' "$1") <(printf '%s\n' "$2") | sed '/^$/d'
 }
+# As linhas que estão nas duas listas (uma por linha).
+em_ambas() {
+  LC_ALL=C comm -12 <(printf '%s\n' "$1") <(printf '%s\n' "$2") | sed '/^$/d'
+}
 virgulas() { printf '%s\n' "$1" | sed '/^$/d' | paste -sd, -; }
 
 # O publicacoes.log tem uma linha por publicação: «data | resumo | anterior:
-# imagem | migrou: a,b» (o «migrou» desde a 4.ª revisão do #115: as migrações
-# que essa publicação aplicou; «?» se não se soube; linhas antigas não o têm).
+# imagem [| emergência] | migrou: a,b» (o «migrou» desde a 4.ª revisão do
+# #115: as migrações que essa publicação aplicou, ou herdou da vez anterior
+# com a mesma anterior; «?» se não se soube; linhas antigas não o têm).
 ultima_publicacao_de() {
   grep -F -- "| $1 |" /var/log/eurolify/publicacoes.log 2>/dev/null | tail -n 1
 }

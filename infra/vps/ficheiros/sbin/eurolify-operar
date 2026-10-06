@@ -33,7 +33,7 @@ case "$pedido" in
     exec /usr/local/sbin/eurolify-medir
     ;;
   publicacoes)
-    echo "Últimas publicações (data | resumo | anterior):"
+    echo "Últimas publicações (data | resumo | anterior [| emergência] | migrou: as migrações que aplicou):"
     tail -n 10 /var/log/eurolify/publicacoes.log 2>/dev/null || echo "(nenhuma)"
     ;;
   copia | reposicao)

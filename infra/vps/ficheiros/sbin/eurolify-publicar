@@ -13,6 +13,21 @@ source /usr/local/lib/eurolify/comum.sh
 
 resumo="${1:-}"
 [[ "$resumo" =~ ^sha256:[0-9a-f]{64}$ ]] || falhar "resumo de imagem inválido"
+
+# Qualquer saída com erro fica no registo de acções, que o estado_do_ensaio
+# mostra: pelo MCP a publicação corre em segundo plano, e o resto só ficava
+# no diário da unidade (4.ª revisão do #115, P2-1). Também fecha a sessão no
+# GHCR, se se abriu. Começa logo a seguir a validar o resumo, que é o que vai
+# para o registo (5.ª revisão do #115, P3-2).
+sessao_ghcr=0
+# shellcheck disable=SC2329 # chamada pelo trap EXIT
+ao_sair() {
+  local rc=$?
+  ((sessao_ghcr == 0)) || docker logout ghcr.io >/dev/null 2>&1 || true
+  ((rc == 0)) || registar "publicação de $resumo terminou com erro (código $rc)"
+}
+trap ao_sair EXIT
+
 so_recriar=0
 emergencia=0
 case "${2:-}" in
@@ -28,19 +43,6 @@ carregar_config
 # contentor ao mesmo tempo podiam deixar no ar uma imagem que nenhum dos dois
 # disse ter publicado (revisão do #116, P2-1).
 exec 8>/run/lock/eurolify-publicar.lock
-
-# Qualquer saída com erro fica no registo de acções, que o estado_do_ensaio
-# mostra: pelo MCP a publicação corre em segundo plano, e o resto só ficava
-# no diário da unidade (4.ª revisão do #115, P2-1). Também fecha a sessão no
-# GHCR, se se abriu.
-sessao_ghcr=0
-# shellcheck disable=SC2329 # chamada pelo trap EXIT
-ao_sair() {
-  local rc=$?
-  ((sessao_ghcr == 0)) || docker logout ghcr.io >/dev/null 2>&1 || true
-  ((rc == 0)) || registar "publicação de $resumo terminou com erro (código $rc)"
-}
-trap ao_sair EXIT
 
 flock -w 900 8 || falhar "outra publicação não acabou em 15 minutos"
 ((emergencia == 0)) || registar "EMERGÊNCIA: publicação de $resumo à mão, fora da regra da anterior (LEIA-ME)"
@@ -288,7 +290,10 @@ elif da_imagem="$(migracoes_da_imagem "$imagem")"; then
 fi
 a_mais=""
 migrou="?"
+da_base=""
+comparou=0
 if ((lida == 1)) && da_base="$(migracoes_da_base)"; then
+  comparou=1
   a_mais="$(so_na_primeira "$da_base" "$da_imagem")"
   faltam="$(so_na_primeira "$da_imagem" "$da_base")"
   if [[ -n "$a_mais" ]]; then
@@ -308,7 +313,7 @@ if ((lida == 1)) && da_base="$(migracoes_da_base)"; then
     migrou=""
   elif ((com_migrador == 1)); then
     migrar=1
-    migrou="$(virgulas "$faltam")"
+    migrou="$faltam"
   else
     migrou=""
   fi
@@ -318,6 +323,16 @@ elif ((com_migrador == 1)); then
 else
   recusar "imagem sem migrador e a base não respondeu: não se sabe se a base está à frente dela"
 fi
+# Avançar outra vez para uma imagem que já esteve no ar com esta mesma
+# anterior: as migrações que ela aplicou da outra vez continuam a ser dela, se
+# ainda estão na base (foram aplicadas com a mesma anterior no ar). Sem isto, o
+# MCP só alternava uma vez (5.ª revisão do #115, P1-1).
+if ((comparou == 1)) && [[ -n "$anterior" && "$(anterior_de "$resumo")" == "$anterior" ]] &&
+  antes="$(migrou_de "$resumo")"; then
+  migrou="$(printf '%s\n%s\n' "$migrou" "$(em_ambas "$antes" "$da_base")" | so_migracoes | uniq)"
+fi
+[[ "$migrou" == "?" ]] || migrou="$(virgulas "$migrou")"
+
 if ((migrar == 1)); then
   echo "A correr as migrações"
   [[ -f /etc/eurolify/migrar.env ]] || falhar "falta /etc/eurolify/migrar.env (preparar.sh, passos 10 e 10b)"
@@ -333,7 +348,9 @@ fi
 
 arrancar "$imagem"
 if saude 8080; then
-  printf '%s | %s | anterior: %s | migrou: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" "$migrou" >>/var/log/eurolify/publicacoes.log
+  marca=""
+  ((emergencia == 0)) || marca=" | emergência"
+  printf '%s | %s | anterior: %s%s | migrou: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" "$marca" "$migrou" >>/var/log/eurolify/publicacoes.log
   registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
   echo "Publicado: $resumo. O /health da API responde."
   # O MCP primeiro: uma API que não chega à base não deixa o MCP na imagem antiga.
@@ -356,5 +373,7 @@ if [[ -n "$anterior" ]]; then
 else
   docker rm -f eurolify-api eurolify-mcp >/dev/null 2>&1 || true
 fi
-registar "publicação de $resumo falhou; reposta: ${anterior:-nenhuma}"
+# As migrações que esta publicação aplicou ficam na base sem linha no
+# publicacoes.log: ficam aqui (5.ª revisão do #115, P3-1).
+registar "publicação de $resumo falhou; reposta: ${anterior:-nenhuma}; migrou: ${migrou:-nenhuma}"
 exit 1

@@ -132,7 +132,7 @@ export function criarServidorMcp(
     {
       title: "Publicações recentes",
       description:
-        "As últimas imagens publicadas no ensaio (data, resumo sha256 e a anterior). «voltar_a_publicacao» só aceita a «anterior» da que está no ar (depois de uma volta, é a publicação de onde se veio).",
+        "As últimas imagens publicadas no ensaio (data, resumo sha256, a anterior e as migrações que cada uma aplicou). «voltar_a_publicacao» só aceita a «anterior» da que está no ar (depois de uma volta, é a publicação de onde se veio).",
       annotations: leitura,
     },
     () => responder("publicacoes"),
