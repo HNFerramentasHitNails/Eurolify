@@ -1,5 +1,6 @@
 [Unit]
 Description=Eurolify: limpeza diária da idempotência (docs/18 §4)
+After=docker.service
 
 [Service]
 Type=oneshot

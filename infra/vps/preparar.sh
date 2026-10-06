@@ -338,7 +338,7 @@ if tem docker && docker inspect eurolify-postgres >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-passo "10b. Utilizadores da base: o migrador (dono) e a API (docs/15 §5, #70, #107)"
+passo "10b. Utilizadores da base: o migrador (dono), a API e a limpeza (docs/15 §5, #70, #107)"
 # O eurolify_migrador é dono da base e das tabelas e só o contentor das
 # migrações recebe a ligação dele (migrar.env). O eurolify_api nasce aqui como a
 # migração 0001 o criaria (o migrador não tem CREATEROLE) e entra com a ligação
@@ -528,6 +528,36 @@ else
   # aplica-se a ela e o que pode fazer é o que as migrações lhe dão (docs/15 §5).
   tratar_ligacao /etc/eurolify/api-base.env BASE_DADOS_URL eurolify_api
   API_ENV_RENOVADO=$LIGACAO_RENOVADA
+  # O papel da limpeza diária da idempotência (migração 0013; revisão do #119,
+  # P2-2): entra só pelo socket do contentor (LOGIN sem palavra-passe: de fora,
+  # o PostgreSQL pede palavra-passe e ele não tem), não é superutilizador,
+  # passa o RLS forçado (BYPASSRLS) e só toca na idempotência. O migrador não
+  # o pode criar (nem dar BYPASSRLS); a migração dá-lhe os privilégios se ele
+  # já existir, e aqui dão-se se ela correu antes dele.
+  if [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_limpeza'")" == 0 ]]; then
+    fazer "criar o papel eurolify_limpeza (LOGIN sem palavra-passe, BYPASSRLS, sem superutilizador)" \
+      pg_valor "CREATE ROLE eurolify_limpeza LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT"
+  else
+    ok "papel eurolify_limpeza"
+    if [[ "$(pg_valor "SELECT to_regclass('public.idempotencia') IS NOT NULL")" == t ]]; then
+      if [[ "$(pg_valor "SELECT has_table_privilege('eurolify_limpeza', 'public.idempotencia', 'SELECT') AND has_table_privilege('eurolify_limpeza', 'public.idempotencia', 'DELETE')")" == t ]]; then
+        ok "eurolify_limpeza lê e apaga na idempotencia"
+      else
+        fazer "dar SELECT e DELETE na idempotencia ao eurolify_limpeza" \
+          pg_valor "GRANT SELECT, DELETE ON public.idempotencia TO eurolify_limpeza"
+      fi
+    fi
+    if [[ "$(pg_valor "SELECT to_regprocedure('public.idempotencia_apagar_expiradas()') IS NOT NULL")" == t ]]; then
+      if [[ "$(pg_valor "SELECT has_function_privilege('eurolify_limpeza', 'public.idempotencia_apagar_expiradas()', 'EXECUTE')")" == t ]]; then
+        ok "eurolify_limpeza chama idempotencia_apagar_expiradas()"
+      else
+        fazer "dar EXECUTE em idempotencia_apagar_expiradas() ao eurolify_limpeza" \
+          pg_valor "GRANT EXECUTE ON FUNCTION public.idempotencia_apagar_expiradas() TO eurolify_limpeza"
+      fi
+    fi
+    [[ "$(pg_valor "SELECT count(*) FROM pg_authid WHERE rolname = 'eurolify_limpeza' AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolpassword IS NOT NULL)")" == 0 ]] ||
+      aviso "o eurolify_limpeza tem superutilizador, CREATEROLE, CREATEDB ou palavra-passe: devia entrar só pelo contentor e só tocar na idempotência"
+  fi
   # Nenhum dos dois pode ignorar o RLS (docs/15 §5): se alguém lhes deu mais,
   # avisa (revisão do #71, P2-3).
   perigosos="$(pg_valor "SELECT string_agg(rolname, ', ') FROM pg_roles WHERE rolname IN ('eurolify_api', 'eurolify_migrador') AND (rolsuper OR rolbypassrls OR rolcreaterole)")"

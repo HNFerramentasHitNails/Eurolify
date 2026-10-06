@@ -16,13 +16,13 @@ free -h
 df -h /
 
 seccao "serviços"
-for s in ssh docker fail2ban ufw nginx eurolify-copia.timer eurolify-reposicao.timer eurolify-verificacao.timer \
+for s in ssh docker fail2ban ufw nginx eurolify-copia.timer eurolify-reposicao.timer eurolify-verificacao.timer eurolify-limpeza.timer \
   eurolify-pedido@publicar.path eurolify-pedido@aplicar.path eurolify-pedido@medir.path eurolify-pedido@mcp.path; do
   printf '%s: %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null)"
 done
 
 seccao "tarefas (última vez)"
-for t in copia reposicao verificacao; do
+for t in copia reposicao verificacao limpeza; do
   printf '%s: %s, resultado %s, fim %s\n' "$t" \
     "$(systemctl show "eurolify-$t.service" -p ActiveState --value 2>/dev/null)" \
     "$(systemctl show "eurolify-$t.service" -p Result --value 2>/dev/null)" \
