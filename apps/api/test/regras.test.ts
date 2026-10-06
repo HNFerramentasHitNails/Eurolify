@@ -1945,6 +1945,66 @@ describe("o papel de quem valida confere-se com a linha do docs/03 (#59, #128)",
     ).toContain("o papel «jurista» não valida o tema oss");
   });
 
+  it("uma validação com o tema em falta (registo vindo de JSON) é recusada, também numa proposta e numa W com texto lido (revisão do #133, P2-1)", () => {
+    for (const extra of [
+      { estadoLegal: "proposta" },
+      { marca: "W", textoLido: true },
+      {},
+    ]) {
+      const registo = comRegraValidada("iva", "oss", "contabilista");
+      const regra = { ...registo.regras[0], ...extra } as Partial<Regra>;
+      delete regra.tema;
+      const semTema = { ...registo, regras: [regra as Regra] };
+      expect(errosDoRegisto(semTema).join("\n")).toContain(
+        "validação sem «tema»",
+      );
+    }
+  });
+
+  it("um tema vazio ou que não é texto é recusado com a mensagem certa", () => {
+    const vazio = comRegraValidada("iva", "", "contabilista");
+    expect(errosDoRegisto(vazio).join("\n")).toContain("tema desconhecido");
+    for (const tema of [42, {}, new Proxy({}, {})]) {
+      const registo = comRegraValidada(
+        "iva",
+        tema as unknown as string,
+        "contabilista",
+      );
+      const erros = errosDoRegisto(registo).join("\n");
+      expect(erros).toContain("«tema» que não é texto nem null");
+      expect(erros).toContain("validação sem «tema»");
+      expect(decide(registo, "iva")).toBe("revisao_necessaria");
+    }
+  });
+
+  it("o segundo domínio de uma secção também serve: acessibilidade com um tema da secção 3 ou 4, e não com um de outra", () => {
+    for (const tema of ["acessibilidade", "dsa"]) {
+      const registo = comRegraValidada(
+        "acessibilidade_plataforma",
+        tema,
+        "jurista",
+      );
+      expect(errosDoRegisto(registo), tema).toEqual([]);
+      expect(decide(registo, "acessibilidade_plataforma")).toBe("permitido");
+    }
+    const deFora = comRegraValidada(
+      "acessibilidade_plataforma",
+      "botao-livre-resolucao",
+      "jurista",
+    );
+    expect(errosDoRegisto(deFora).join("\n")).toContain(
+      "não é do domínio acessibilidade_plataforma",
+    );
+  });
+
+  it("um domínio condicional não tem linhas: nenhuma validação conta", () => {
+    const registo = comRegraValidada("agencia_comercial", "dsa", "jurista");
+    expect(errosDoRegisto(registo).join("\n")).toContain(
+      "o tema dsa não é do domínio agencia_comercial",
+    );
+    expect(decide(registo, "agencia_comercial")).toBe("revisao_necessaria");
+  });
+
   it("a tabela não se altera em execução", () => {
     expect(Object.isFrozen(TEMAS_DOCS03)).toBe(true);
     for (const linha of Object.values(TEMAS_DOCS03)) {

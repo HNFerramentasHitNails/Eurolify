@@ -76,21 +76,24 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
           `«Quem valida» desconhecido no docs/03: «${quem}» (${titulo}); acrescentar a PAPEIS_DO_TEXTO`,
         );
       }
-      return { seccao, titulo, papeis: [...papeis].sort() };
+      return { seccao, titulo, quemValida: quem, papeis: [...papeis].sort() };
     });
     const doCodigo = Object.values(TEMAS_DOCS03).map(
-      ({ seccao, titulo, papeis }) => ({
+      ({ seccao, titulo, quemValida, papeis }) => ({
         seccao,
         titulo,
+        // O texto da coluna também: trocar o profissional de um país no
+        // docs/03 faz falhar (revisão do #133, P3-1).
+        quemValida,
         papeis: [...papeis].sort(),
       }),
     );
     expect(doCodigo).toEqual(doDocumento);
   });
 
-  it("os identificadores são únicos e só minúsculas, algarismos e hífenes", () => {
+  it("os identificadores são só minúsculas, algarismos e hífenes (os repetidos falham ao carregar temas.ts)", () => {
     const ids = Object.keys(TEMAS_DOCS03);
-    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toHaveLength(60);
     for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
   });
 });

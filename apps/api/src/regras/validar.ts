@@ -237,7 +237,9 @@ export function errosDoRegisto(registo: Registo): string[] {
           erros.push(
             `${nome}: papel de validação desconhecido «${valor(v["papel"])}»`,
           );
-        } else if (regra.tema === null) {
+        } else if (typeof regra.tema !== "string") {
+          // Também em falta (undefined, num registo vindo de JSON) ou com
+          // outro tipo (revisão do #133, P2-1).
           // Com validação, a regra diz de que linha do docs/03 vem (#128).
           erros.push(`${nome}: validação sem «tema» (a linha do docs/03)`);
         } else if (
@@ -257,14 +259,16 @@ export function errosDoRegisto(registo: Registo): string[] {
       }
     }
     const tema: unknown = regra.tema;
-    if (tema !== null && tema !== undefined) {
-      if (typeof tema !== "string" || !Object.hasOwn(TEMAS_DOCS03, tema)) {
+    if (typeof tema === "string") {
+      if (!Object.hasOwn(TEMAS_DOCS03, tema)) {
         erros.push(`${nome}: tema desconhecido «${valor(tema)}» (docs/03)`);
       } else if (!temaDoDominio(tema, regra.dominio)) {
         erros.push(
           `${nome}: o tema ${valor(tema)} não é do domínio ${valor(regra.dominio)}`,
         );
       }
+    } else if (tema !== null && tema !== undefined) {
+      erros.push(`${nome}: «tema» que não é texto nem null`);
     }
     if (!ehLista(regra.territorios)) {
       erros.push(`${nome}: «territorios» não é uma lista`);
