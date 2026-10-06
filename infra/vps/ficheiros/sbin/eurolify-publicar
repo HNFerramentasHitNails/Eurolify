@@ -120,20 +120,50 @@ fi
 # (acrescentar primeiro, tirar só numa publicação seguinte). O migrador lê o
 # migrar.env (a ligação do dono das tabelas), que a API nunca recebe.
 #
-# Uma imagem que já esteve no ar (está no publicacoes.log) já teve as suas
-# migrações aplicadas, e a base nunca as desfaz: voltar a ela (MCP, ADR-0033)
-# não migra. O migrador dela não conhece as migrações que vieram depois e
-# recusava a base (Kysely: «corrupted migrations … is missing»; tarefa #113).
-# O esquema fica o de agora: só a publicação imediatamente anterior tem a
-# compatibilidade garantida (infra/vps/LEIA-ME.md, «Regras para quem mexer»).
-ja_publicada() { grep -qF -- "| $1 |" /var/log/eurolify/publicacoes.log 2>/dev/null; }
-if ja_publicada "$resumo"; then
-  echo "Esta imagem já esteve no ar: as migrações dela já estão na base; não se migra."
-  antes_da_actual="$(tail -n 1 /var/log/eurolify/publicacoes.log | sed -n 's/^.* | anterior: //p')"
-  if [[ "$antes_da_actual" != "$imagem" ]]; then
-    echo "AVISO: não é a publicação imediatamente anterior; a base pode ter migrações que esta versão não espera."
+# Antes de migrar, compara-se a base com a imagem (tarefa #113; a prova é a
+# base, não o registo da máquina). O migrador recusa uma base com migrações
+# que não conhece (Kysely: «corrupted migrations … is missing»), o que
+# acontece ao voltar a uma publicação antiga (MCP, ADR-0033). Então:
+# - a base tem migrações que a imagem não conhece e nada lhe falta: não se
+#   migra, e fica registado o aviso com a lista (só a publicação
+#   imediatamente anterior a essas migrações tem a compatibilidade garantida);
+# - também lhe falta alguma: não se publica (a base e a imagem divergem);
+# - de resto (incluindo não se conseguir ler uma das listas): migra-se como
+#   sempre, e o migrador decide.
+migracoes_da_imagem() {
+  docker run --rm --entrypoint ls "$1" /app/apps/api/migracoes 2>/dev/null |
+    sed -n 's/\.sql$//p' | LC_ALL=C sort
+}
+migracoes_da_base() {
+  local existe
+  existe="$(docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -Atc \
+    "select to_regclass('public.kysely_migration') is not null")" || return 1
+  [[ "$existe" == t ]] || return 0
+  docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -Atc \
+    "select name from public.kysely_migration" | LC_ALL=C sort
+}
+migrar=0
+tem_migrador=0
+if docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
+  tem_migrador=1
+  migrar=1
+  if da_imagem="$(migracoes_da_imagem "$imagem")" && [[ -n "$da_imagem" ]] &&
+    da_base="$(migracoes_da_base)"; then
+    a_mais="$(LC_ALL=C comm -13 <(printf '%s\n' "$da_imagem") <(printf '%s\n' "$da_base") | sed '/^$/d' | paste -sd, -)"
+    faltam="$(LC_ALL=C comm -23 <(printf '%s\n' "$da_imagem") <(printf '%s\n' "$da_base") | sed '/^$/d' | paste -sd, -)"
+    if [[ -n "$a_mais" && -n "$faltam" ]]; then
+      registar "publicação de $resumo recusada: a base tem $a_mais, que a imagem não conhece, e faltam-lhe $faltam"
+      falhar "a base tem migrações que esta imagem não conhece ($a_mais) e faltam-lhe outras ($faltam): não se publica; fica a versão anterior (${anterior:-nenhuma})"
+    fi
+    if [[ -n "$a_mais" ]]; then
+      migrar=0
+      echo "As migrações desta imagem já estão todas na base; não se migra."
+      echo "AVISO: a base tem migrações que esta versão não conhece: $a_mais."
+      registar "AVISO ao publicar $resumo: a base tem migrações que esta versão não conhece ($a_mais); não se migrou"
+    fi
   fi
-elif docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
+fi
+if ((migrar == 1)); then
   echo "A correr as migrações"
   [[ -f /etc/eurolify/migrar.env ]] || falhar "falta /etc/eurolify/migrar.env (preparar.sh, passos 10 e 10b)"
   # As mesmas protecções da API: é o contentor com a ligação mais poderosa
@@ -142,7 +172,7 @@ elif docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
     --memory 512m --cap-drop ALL --security-opt no-new-privileges \
     "$imagem" node dist/migrar.js ||
     falhar "a migração falhou: fica a versão anterior (${anterior:-nenhuma})"
-else
+elif ((tem_migrador == 0)); then
   echo "Sem migrações nesta imagem."
 fi
 

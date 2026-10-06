@@ -59,7 +59,8 @@ case "$pedido" in
   publicar\ *)
     resumo="${pedido#publicar }"
     # Só uma imagem que já esteve no ar (está no registo das publicações).
-    grep -q -- "$resumo" /var/log/eurolify/publicacoes.log 2>/dev/null ||
+    # Na coluna do resumo, como o eurolify-publicar (revisão do #115, P3-1).
+    grep -qF -- "| $resumo |" /var/log/eurolify/publicacoes.log 2>/dev/null ||
       falhar "esse resumo nunca foi publicado no ensaio: recusado"
     # E que tenha o MCP: voltar a uma sem ele desligava o próprio MCP, e só se
     # recuperava pelo GitHub.
