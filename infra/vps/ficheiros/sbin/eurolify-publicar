@@ -39,6 +39,47 @@ saude() {
   return 1
 }
 
+# Com a ligação no api.env (passo 10b), a API tem de chegar à base com o
+# eurolify_api. Uma chave inventada com a forma certa obriga-a a perguntar à
+# base (chave_resolver): responde 401 se chegou, 500 se não (docs/19 §5, #107).
+# Só se lê se a variável existe; o valor (com a palavra-passe) não sai daqui.
+base_no_api_env() { grep -q '^BASE_DADOS_URL=' /etc/eurolify/api.env 2>/dev/null; }
+printf -v CHAVE_INVENTADA 'eul_sk_%s' "$(printf 'a%.0s' {1..52})"
+chega_a_base() {
+  local i codigo=""
+  for ((i = 0; i < 5; i++)); do
+    codigo="$(curl -sS -m 5 -o /dev/null -w '%{http_code}' \
+      -H "Authorization: Bearer $CHAVE_INVENTADA" http://127.0.0.1:8080/me 2>/dev/null || true)"
+    [[ "$codigo" == 401 ]] && return 0
+    sleep 2
+  done
+  echo "A API respondeu ${codigo:-nada} a uma chave inventada (esperava 401). Últimas linhas:"
+  docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
+  return 1
+}
+# Sem ligação no api.env, a API corre só com as rotas públicas: nada a provar.
+# Com ela e sem chegar à base, falha sem voltar atrás: a imagem anterior
+# usaria o mesmo api.env (o problema é a ligação, não a imagem).
+verificar_base() {
+  base_no_api_env || return 0
+  if chega_a_base; then
+    echo "A API chega à base (eurolify_api)."
+    return 0
+  fi
+  registar "a API ($1) não chega à base com o api.env"
+  echo "ATENÇÃO: a API não chega à base com a ligação do api.env."
+  return 1
+}
+
+# O docker só lê o --env-file ao criar o contentor: se o api.env mudou depois
+# (o passo 10b do preparar.sh escreve a ligação), a API recria-se, mesmo com a
+# imagem que já está no ar.
+api_env_mudou() {
+  local criado
+  criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
+  (($(stat -c %Y /etc/eurolify/api.env) > $(date -d "$criado" +%s)))
+}
+
 # O MCP da VPS (ADR-0033) corre da mesma imagem: uma publicação actualiza os
 # dois, e voltar atrás volta com os dois. Sem github-oauth.env não arranca.
 # Uma falha do MCP não desfaz a publicação da API (revisão do #30): avisa, e a
@@ -97,6 +138,21 @@ docker pull --quiet "$imagem" >/dev/null
 
 anterior="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
 if [[ "$anterior" == "$imagem" ]]; then
+  recriada=0
+  if api_env_mudou; then
+    echo "A API já está nesta imagem, mas o api.env mudou depois de ela arrancar: recria-se."
+    arrancar "$imagem"
+    if ! saude 8080; then
+      echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
+      docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
+      registar "API recriada com o api.env novo ($resumo), sem /health"
+      falhar "a API não respondeu depois de ler o api.env novo"
+    fi
+    registar "API recriada com o api.env novo ($resumo)"
+    echo "Recriada: $resumo. O /health da API responde."
+    verificar_base "$resumo" || exit 1
+    recriada=1
+  fi
   if mcp_configurado && [[ "$(docker inspect --format '{{.Config.Image}}' eurolify-mcp 2>/dev/null || true)" != "$imagem" ]]; then
     echo "A API já está nesta imagem; falta o MCP."
     mcp_para "$imagem" || falhar "o MCP não arrancou"
@@ -110,7 +166,7 @@ if [[ "$anterior" == "$imagem" ]]; then
     mcp_para "$imagem" || falhar "o MCP não arrancou"
     exit 0
   fi
-  echo "Esta imagem já é a que está no ar. Nada a fazer."
+  ((recriada)) || echo "Esta imagem já é a que está no ar. Nada a fazer."
   exit 0
 fi
 
@@ -137,11 +193,14 @@ if saude 8080; then
   printf '%s | %s | anterior: %s\n' "$(date -u +%FT%TZ)" "$resumo" "${anterior:-nenhuma}" >>/var/log/eurolify/publicacoes.log
   registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
   echo "Publicado: $resumo. O /health da API responde."
+  # O MCP primeiro: uma API que não chega à base não deixa o MCP na imagem antiga.
+  estado=0
   if ! mcp_para "$imagem"; then
     registar "publicado $resumo, mas o MCP não arrancou"
-    exit 1
+    estado=1
   fi
-  exit 0
+  verificar_base "$resumo" || estado=1
+  exit "$estado"
 fi
 echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
 docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true

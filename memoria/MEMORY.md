@@ -31,6 +31,7 @@
 - [⚠️ Sem efeito com a VPS (ADR-0015). Scaleway: conta preparada (R, ADR-0011), ensaio + chave só de leitura, `scw` 2.63.0; o MCP só de leitura deixa ler segredos, `--read-only` falha; listas sem permissão dão vazio; portador da chave por ver — 03/10/2026](scaleway-mcp-e-deploy-03out2026.md)
 - [⚠️ O ensaio passou para a VPS (ADR-0015). Publicação na Scaleway: um só ensaio, actualizado a cada entrada no `main` (U, ADR-0014); o endereço fica público; base do ensaio em PostgreSQL gerido, não a SQL sem servidor; ≈ 12–28 €/mês — 03/10/2026](scaleway-publicacao-ensaio-03out2026.md)
 - [VPS, passo 10b (#70): eurolify_migrador dono da base com a ligação em migrar.env gerada na máquina; eurolify_api NOLOGIN até a API usar a base; ensaio local com a migração 0001 a correr como o dono — 04/10/2026](vps-utilizadores-da-base-04out2026.md)
+- [VPS, passos 10b e 10c (#107): eurolify_api com LOGIN e a ligação em api.env gerada na máquina; a API recria-se e cada publicação prova que chega à base (chave inventada → 401); ensaio local completo — 06/10/2026](vps-api-ligada-a-base-06out2026.md)
 
 ## Negócio, fases e estimativa
 
