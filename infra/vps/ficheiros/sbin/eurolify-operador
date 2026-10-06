@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Comando do operador (docs/19 §6; issue #107). Corre como root, chamado pelo
+# eurolify-trabalho (fluxo «operar»), que já validou o pedido — aqui valida-se
+# outra vez. Cria um comerciante ou a primeira chave de servidor dele, num
+# contentor de uma vez com a imagem da API que está no ar e a ligação do dono
+# das tabelas (migrar.env), como as migrações. O segredo da chave nunca chega
+# aqui: só o prefixo e o resumo.
+set -Eeuo pipefail
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+
+pedido="${1:-}"
+padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20})$'
+[[ ${#pedido} -le 600 && "$pedido" =~ $padrao ]] || falhar "pedido fora do formato"
+
+imagem="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null)" ||
+  falhar "a API não está no ar: não há imagem de onde correr o comando"
+docker run --rm --entrypoint test "$imagem" -f dist/operador.js >/dev/null 2>&1 ||
+  falhar "a imagem no ar ainda não tem o comando do operador (publicar primeiro)"
+[[ -f /etc/eurolify/migrar.env ]] || falhar "falta /etc/eurolify/migrar.env (preparar.sh, passo 10b)"
+
+# AGENTS.md, «Operar a VPS», regra 2: antes de escrever na base, uma cópia.
+systemctl start eurolify-copia.service || true
+[[ "$(systemctl show eurolify-copia.service -p Result --value)" == success ]] ||
+  falhar "a cópia antes de escrever falhou: nada foi escrito"
+echo "Cópia da base feita."
+
+# As mesmas protecções do contentor das migrações (eurolify-publicar).
+docker run --rm --network eurolify --env-file /etc/eurolify/migrar.env \
+  --memory 256m --cap-drop ALL --security-opt no-new-privileges \
+  "$imagem" node dist/operador.js "$pedido"
+registar "operar: «${pedido%% *}» feito"

@@ -1,0 +1,117 @@
+# Comando do operador (docs/19 §6; issue #107): criar um comerciante no
+# ensaio, ou a primeira chave de servidor dele. Lança-se à mão (ADR-0028: a
+# VPS opera-se pelo GitHub). Só quem pode escrever no repositório o lança, e
+# o ambiente «ensaio» só aceita o main.
+#
+# A chave: corre-se primeiro, NO PRÓPRIO COMPUTADOR,
+#   node apps/api/scripts/gerar-chave.mjs
+# e guarda-se o segredo num cofre. Aqui põe-se só o prefixo e o resumo: o
+# segredo nunca passa pelo GitHub nem pela VPS.
+#
+# Na VPS, antes de escrever, faz-se uma cópia da base (AGENTS.md, «Operar a
+# VPS», regra 2). Quem lançou fica na chave como `operador:github:<número>`.
+name: operar
+
+on:
+  workflow_dispatch:
+    inputs:
+      accao:
+        description: "O que fazer"
+        type: choice
+        options: [comerciante, chave]
+        required: true
+      nome:
+        description: "Nome do comerciante, ou da chave (1 a 100 caracteres)"
+        type: string
+        required: true
+      lingua:
+        description: "Comerciante: língua (duas letras)"
+        type: string
+        default: pt
+      fuso:
+        description: "Comerciante: fuso horário IANA"
+        type: string
+        default: Europe/Lisbon
+      comerciante:
+        description: "Chave: o comerciante (mer_… ou o uuid)"
+        type: string
+        default: ""
+      ambitos:
+        description: "Chave: âmbitos separados por vírgulas"
+        type: string
+        default: "keys:write,merchant:read,catalog:read"
+      prefixo:
+        description: "Chave: o prefixo dado pelo gerar-chave.mjs"
+        type: string
+        default: ""
+      resumo:
+        description: "Chave: o resumo dado pelo gerar-chave.mjs (nunca o segredo)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operar-ensaio
+  cancel-in-progress: false
+
+jobs:
+  operar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ensaio
+    steps:
+      - name: Montar o pedido
+        id: pedido
+        # As entradas vão por variáveis de ambiente, nunca escritas no script
+        # (sem injecção). A VPS valida outra vez.
+        env:
+          ACCAO: ${{ inputs.accao }}
+          NOME: ${{ inputs.nome }}
+          LINGUA: ${{ inputs.lingua }}
+          FUSO: ${{ inputs.fuso }}
+          COMERCIANTE: ${{ inputs.comerciante }}
+          AMBITOS: ${{ inputs.ambitos }}
+          PREFIXO: ${{ inputs.prefixo }}
+          RESUMO: ${{ inputs.resumo }}
+        run: |
+          set -euo pipefail
+          nome64="$(printf '%s' "$NOME" | basenc --base64url -w0 | tr -d '=')"
+          quem="github:${GITHUB_ACTOR_ID}"
+          case "$ACCAO" in
+            comerciante)
+              pedido="comerciante ${LINGUA} ${FUSO} ${nome64} ${quem}"
+              ;;
+            chave)
+              if [[ "$RESUMO" =~ ^eul_ ]]; then
+                echo "Puseste o SEGREDO no campo do resumo: revoga essa chave e gera outra." >&2
+                exit 1
+              fi
+              comerciante="${COMERCIANTE#mer_}"
+              pedido="chave ${comerciante} ${AMBITOS// /} ${PREFIXO} ${RESUMO} ${nome64} ${quem}"
+              ;;
+          esac
+          {
+            echo "pedido<<FIM_DO_PEDIDO"
+            echo "$pedido"
+            echo "FIM_DO_PEDIDO"
+          } >>"$GITHUB_OUTPUT"
+      - name: Pedir à VPS
+        env:
+          CHAVE: ${{ secrets.VPS_CHAVE_OPERAR }}
+          ANFITRIOES: ${{ vars.VPS_KNOWN_HOSTS }}
+          VPS: ${{ secrets.VPS_ENDERECO }}
+          PEDIDO: ${{ steps.pedido.outputs.pedido }}
+        run: |
+          set -euo pipefail
+          [[ -n "$CHAVE" ]] || { echo "Falta o segredo VPS_CHAVE_OPERAR no ambiente ensaio." >&2; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/chave
+          chmod 600 ~/.ssh/chave
+          printf '%s\n' "$ANFITRIOES" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/chave "eurolify-operar@${VPS}" "$PEDIDO"
+      - name: Apagar a chave do executor
+        if: always()
+        run: rm -f ~/.ssh/chave

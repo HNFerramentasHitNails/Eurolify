@@ -88,23 +88,40 @@ export interface DadosChave {
   expiraEm?: Date | null;
 }
 
+/**
+ * Regista uma chave de que só se conhece o resumo e o prefixo: o segredo foi
+ * gerado noutro sítio (o comando do operador, docs/19 §6) e nunca passa aqui.
+ */
+export function registarChave(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  dados: DadosChave & { prefixo: string; resumo: string },
+): Promise<string> {
+  return comComerciante(db, comercianteId, async (trx) => {
+    const { rows } = await sql<{ id: string }>`
+      select chave_criar(${dados.tipo}, ${dados.lojaId ?? null}::uuid,
+        ${dados.nome}, ${dados.ambitos}::text[], ${dados.prefixo},
+        ${dados.resumo}, ${dados.criadaPor},
+        ${dados.expiraEm ?? null}::timestamptz) as id`.execute(trx);
+    const id = rows[0]?.id;
+    if (id === undefined) throw new Error("a base não devolveu a chave criada");
+    return id;
+  });
+}
+
 /** Cria uma chave; o segredo vem na resposta e não se guarda. */
-export function criarChave(
+export async function criarChave(
   db: Kysely<BaseDados>,
   comercianteId: string,
   dados: DadosChave,
 ): Promise<{ id: string; segredo: string; prefixo: string }> {
   const nova = gerarChave(dados.tipo);
-  return comComerciante(db, comercianteId, async (trx) => {
-    const { rows } = await sql<{ id: string }>`
-      select chave_criar(${dados.tipo}, ${dados.lojaId ?? null}::uuid,
-        ${dados.nome}, ${dados.ambitos}::text[], ${nova.prefixo},
-        ${nova.resumo}, ${dados.criadaPor},
-        ${dados.expiraEm ?? null}::timestamptz) as id`.execute(trx);
-    const id = rows[0]?.id;
-    if (id === undefined) throw new Error("a base não devolveu a chave criada");
-    return { id, segredo: nova.segredo, prefixo: nova.prefixo };
+  const id = await registarChave(db, comercianteId, {
+    ...dados,
+    prefixo: nova.prefixo,
+    resumo: nova.resumo,
   });
+  return { id, segredo: nova.segredo, prefixo: nova.prefixo };
 }
 
 /** Revoga uma chave do comerciante; falso se não existe nele ou já estava revogada. */

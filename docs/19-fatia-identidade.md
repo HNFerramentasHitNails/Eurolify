@@ -42,7 +42,7 @@ dependem da P1 (§7).
 | `loja_id` | uuid | **obrigatório na pública, proibido na de servidor** |
 | `nome` | texto, 1–100 | para o comerciante a reconhecer («Software de gestão») |
 | `ambitos` | lista de texto | só os da lista de §4; a pública tem uma lista fixa, que não se escolhe |
-| `prefixo` | texto, 12 | o início visível da chave (`eul_sk_ab12…`), para a reconhecer sem a guardar |
+| `prefixo` | texto, 12 | o início visível da chave (`eul_sk_ab2c…`), para a reconhecer sem a guardar |
 | `resumo` | texto (sha256 do segredo) | **o segredo nunca se guarda**; mostra-se uma vez, ao criar |
 | `criada_por`, `criada_em` | texto, instante | quem: o operador (parte A) ou a pessoa (parte B) |
 | `expira_em` | instante, opcional | |
@@ -56,14 +56,17 @@ dependem da P1 (§7).
 - **A API não lê a tabela.** A procura da chave faz-se numa função
   `SECURITY DEFINER` (`chave_resolver(resumo)`), que devolve só o comerciante, a
   loja, os âmbitos e o id, e só a uma chave válida (não revogada, não expirada).
-  Só a API tem `EXECUTE` nela (a 0008 fecha as outras). A tabela fica fechada
-  ao `eurolify_api`, para uma falha da aplicação não listar as chaves de todos.
+  A tabela fica fechada ao `eurolify_api`, para uma falha da aplicação não
+  listar as chaves de todos.
 - Rasto: a própria linha é o rasto. Uma chave **não se altera nem se apaga**
   (gatilho); só se revoga uma vez (`revogada_por`, `revogada_em` da base) e se
   marca o último uso. Quem e quando ficam na linha para sempre.
 - **Feito na migração 0010** (pedido da parte A): a tabela, o gatilho, e as
   quatro funções `chave_resolver`, `chave_listar`, `chave_criar` e
-  `chave_revogar`. O RLS por comerciante não pode ser **forçado** nesta tabela,
+  `chave_revogar`. **A API só tem `EXECUTE` em `chave_resolver` e
+  `chave_listar`**; criar e revogar ficam com o dono das tabelas (o comando do
+  operador) até o `POST /keys` entrar com a verificação do T9 na base (revisão
+  do #110, P2-1). O RLS por comerciante não pode ser **forçado** nesta tabela,
   porque a procura da chave atravessa comerciantes antes de haver contexto e
   as políticas da 0001 dão erro sem ele; por isso fica ligado sem `FORCE`, e a
   API não tem nenhum privilégio na tabela.
@@ -87,8 +90,12 @@ dependem da P1 (§7).
 
 ## 5. Do pedido à base: o contexto do comerciante
 
-Fecha o risco do `docs/15` §10: *«o eurolify_api pode pôr qualquer uuid no
-SET LOCAL»*.
+Fecha, **do lado da aplicação**, o risco do `docs/15` §10: *«o eurolify_api pode
+pôr qualquer uuid no SET LOCAL»*. Na base o risco continua: nada liga o
+`SET LOCAL` à chave resolvida, e o isolamento depende de as rotas tirarem o
+comerciante da chave (passo 3). Uma função da base que abra o contexto a partir
+do resumo ajudava, mas não impedia um `set_config` directo (revisão do #110,
+P2-2).
 
 | Passo | O quê |
 |---|---|
@@ -96,12 +103,19 @@ SET LOCAL»*.
 | 2 | Calcula o resumo e chama `chave_resolver`; desconhecida, revogada ou expirada → `auth.invalid` (401), **sempre o mesmo erro**, para não dizer qual das três |
 | 3 | Guarda no pedido `{comerciante, loja, chave, ambitos}`; **o código das rotas nunca recebe o `comerciante_id` do corpo nem do caminho** |
 | 4 | A rota confere o âmbito; sem ele → `auth.forbidden` (403) |
-| 5 | Cada transacção abre com `SET LOCAL eurolify.comerciante` e `eurolify.quem = 'chave:key_…'`, tirados do passo 3, por uma só função (`comComerciante`, já existe em `src/comerciante/repositorio.ts`) |
+| 5 | Cada transacção abre com `SET LOCAL eurolify.comerciante` tirado do passo 3, por uma só função (`comComerciante`, em `src/comerciante/repositorio.ts`). **Por fazer:** `eurolify.quem = 'chave:key_…'`, com as rotas que escrevem |
 
-- A chave **nunca** vai para o registo: o serializador do pedido já não
-  regista cabeçalhos (`servidor.ts`); um teste confere-o.
-- `eurolify.quem` passa a ser `chave:key_…` em vez de texto livre; na parte B,
-  `pessoa:per_…`.
+- A chave **nunca** vai para o registo: o serializador do pedido não regista
+  cabeçalhos (`src/base/registo.ts`, usado pelo `servidor.ts` e pelo teste, que
+  falha se os cabeçalhos entrarem). Uma chave posta por engano no URL
+  (`?key=…`) iria para o registo com o `url`: não é um modo aceite — a chave vai
+  só no `Authorization`.
+- `eurolify.quem` passará a ser `chave:key_…` em vez de texto livre; na parte
+  B, `pessoa:per_…`.
+- **Por decidir antes das rotas que escrevem:** se a chave de um comerciante
+  `suspenso` ou `fechado`, ou a pública de uma loja arquivada, continua a
+  resolver. Hoje continua (o `docs/15` §4 deixa `suspenso` ler e `fechado`
+  exportar).
 
 Erros novos (no formato do `docs/18` §2):
 
@@ -115,11 +129,32 @@ Erros novos (no formato do `docs/18` §2):
 
 | Operação | Método e caminho | Âmbito | Notas |
 |---|---|---|---|
-| Quem sou | `GET /me` | qualquer | o comerciante (`mer_…`), a loja (`sto_…`, se pública), os âmbitos e o prefixo da chave — **feito** |
+| Quem sou | `GET /me` | qualquer | o comerciante (`mer_…`), a loja (`sto_…`, se pública), os âmbitos e o prefixo da chave — **feito**. Aceita a chave pública, que está no frontend: o id do comerciante e da loja ficam públicos (o uuid v7 traz a data de criação). É de propósito: a montra precisa de saber de que loja é |
 | Listar chaves | `GET /keys` | `keys:write` | nunca devolve o segredo nem o resumo — **feito** |
 | Criar chave | `POST /keys` | `keys:write` | devolve o segredo **uma vez**; uma chave não cria outra com mais âmbitos do que tem |
 | Revogar chave | `POST /keys/{id}/revoke` | `keys:write` | imediato; não se revoga a si própria se for a última com `keys:write` |
-| Comando do operador | fora da API pública | — | criar comerciante e a primeira chave; corre na VPS e fica no registo de acções (proposta: um programa `eurolify-admin` no contentor da API, chamado só pelo serviço da máquina, como o MCP — ADR-0033) |
+| Comando do operador | fora da API pública: fluxo `operar` do GitHub | — | **feito** (ver abaixo) |
+
+**Comando do operador** (Diogo, 06/10/2026: *«avança com o comando do
+operador»*). Pelo GitHub e não pelo MCP, porque o MCP não muda a base
+(ADR-0033; `AGENTS.md`, «Operar a VPS», regra 9):
+
+1. No próprio computador, `node apps/api/scripts/gerar-chave.mjs` mostra o
+   **segredo** (guarda-se num cofre; não se mostra outra vez) e o **prefixo** e o
+   **resumo**. O segredo nunca passa pelo GitHub nem pela VPS.
+2. No GitHub, o fluxo `operar` (lançado à mão; só o `main` chega ao ambiente
+   `ensaio`) com a acção `comerciante` (nome, língua, fuso) devolve o `mer_…`; com
+   a acção `chave` (comerciante, âmbitos, prefixo, resumo, nome) devolve o `key_…`.
+3. Na VPS, o utilizador `eurolify-operar` só tem um comando fixo
+   (`eurolify-pedido operar`); o serviço da máquina valida o pedido outra vez,
+   **faz uma cópia da base antes de escrever** (`AGENTS.md`, regra 2) e corre
+   `node dist/operador.js` num contentor de uma vez, com a imagem da API que
+   está no ar e a ligação do dono das tabelas, como as migrações. Quem lançou
+   fica na chave como `operador:github:<número da conta>`.
+
+Falta, para o fluxo entrar: o Diogo ou o Bruno criar a chave SSH do fluxo
+(a pública em `infra/vps/chaves/fluxos/operar.pub`, a privada no segredo
+`VPS_CHAVE_OPERAR` do ambiente `ensaio`), como as dos outros fluxos.
 
 Criar e revogar pela API entram no pedido seguinte, com a `Idempotency-Key`
 (`docs/18` §4), que todas as escritas pedem. Os prefixos `mer_` (comerciante) e
@@ -147,8 +182,8 @@ sessão em vez da chave.
 
 ## 8. Dados pessoais
 
-- Parte A: só `criada_por` e `revogada_por` (o operador ou, na parte B, a
-  pessoa). Entra no `docs/17` §1 (tratamento novo) quando a tabela existir.
+- Parte A: só `criada_por` e `revogada_por` (`operador:github:<número>`; na
+  parte B, a pessoa). Está no `docs/17` §1 (T7).
 - Parte B: contas de pessoas (e-mail, nome, segundo factor), com o registo de
   tratamentos, a retenção e o apagamento escritos antes do código.
 
@@ -162,9 +197,12 @@ sessão em vez da chave.
 | T4 | uma rota sem o âmbito → 403; uma rota sem âmbito declarado não arranca |
 | T5 | o segredo só aparece na resposta da criação; nunca no registo, na lista nem na base (só o resumo) |
 | T6 | uma chave pública não consegue âmbitos de Administração (recusa na base) |
-| T7 | o `eurolify_api` não lê a tabela `chave_api`; só chama `chave_resolver` |
+| T7 | o `eurolify_api` não lê a tabela `chave_api`; só chama `chave_resolver` e `chave_listar` |
 | T8 | revogar é imediato: o pedido seguinte com a chave dá 401 |
-| T9 | uma chave não cria outra com mais âmbitos do que tem |
+| T9 | uma chave não cria outra com mais âmbitos do que tem — **com o `POST /keys`**, imposto na base |
+
+Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta (não
+há rotas com corpo); o T9 entra com o `POST /keys`.
 
 ## 10. O que fica por decidir
 

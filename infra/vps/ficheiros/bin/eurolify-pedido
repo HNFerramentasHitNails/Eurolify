@@ -26,13 +26,20 @@ case "$fluxo" in
     padrao='^$'
     espera=120
     ;;
+  # O comando do operador (docs/19 §6): criar um comerciante ou a primeira
+  # chave dele. Espera mais, porque antes de escrever faz uma cópia da base.
+  operar)
+    padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20})$'
+    espera=900
+    maximo=600
+    ;;
   *)
     echo "eurolify-pedido: fluxo desconhecido" >&2
     exit 64
     ;;
 esac
 
-if [[ ${#pedido} -gt 200 || ! "$pedido" =~ $padrao ]]; then
+if [[ ${#pedido} -gt ${maximo:-200} || ! "$pedido" =~ $padrao ]]; then
   echo "eurolify-pedido: pedido recusado para o fluxo '$fluxo'" >&2
   exit 65
 fi

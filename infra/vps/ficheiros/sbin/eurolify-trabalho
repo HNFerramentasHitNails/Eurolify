@@ -21,6 +21,8 @@ case "$fluxo" in
   medir) padrao='^$' ;;
   # O MCP da VPS (ADR-0033): a lista fixa de leituras e operações.
   mcp) padrao='^(medir|publicacoes|copia|reposicao|reiniciar-api|actualizar|reiniciar-vps|publicar sha256:[0-9a-f]{64})$' ;;
+  # O comando do operador (docs/19 §6); o mesmo formato do eurolify-pedido.
+  operar) padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20})$' ;;
   *) falhar "fluxo desconhecido: '$fluxo'" ;;
 esac
 
@@ -45,9 +47,12 @@ if [[ -L "$recebido" || ! -f "$recebido" ]]; then
   registar "fluxo $fluxo: pedido recusado (não é um ficheiro normal)"
   exit 1
 fi
-pedido="$(head -c 300 -- "$recebido" | sed -n 1p)"
-id="$(head -c 300 -- "$recebido" | sed -n 2p)"
-conta="$(head -c 300 -- "$recebido" | sed -n 3p)"
+# O pedido do operador pode ter até 600 caracteres; os outros, 200.
+limite=200
+[[ "$fluxo" == operar ]] && limite=600
+pedido="$(head -c $((limite + 100)) -- "$recebido" | sed -n 1p)"
+id="$(head -c $((limite + 100)) -- "$recebido" | sed -n 2p)"
+conta="$(head -c $((limite + 100)) -- "$recebido" | sed -n 3p)"
 
 # Sem um identificador válido não há a quem responder.
 if [[ ! "$id" =~ ^[0-9]{10,40}$ ]]; then
@@ -73,7 +78,7 @@ fi
 saida="$(mktemp "$trabalho/saida.XXXXXX")"
 trap 'rm -f "$recebido" "$saida"' EXIT
 codigo=0
-if [[ ${#pedido} -gt 200 || ! "$pedido" =~ $padrao || $conta_invalida -eq 1 ]]; then
+if [[ ${#pedido} -gt $limite || ! "$pedido" =~ $padrao || $conta_invalida -eq 1 ]]; then
   # O conteúdo recusado não vai para o registo nem volta ao cliente.
   echo "Pedido recusado pelo serviço da máquina." >"$saida"
   codigo=65
@@ -94,9 +99,15 @@ else
     mcp)
       EUROLIFY_ORIGEM="$origem_mcp" /usr/local/sbin/eurolify-operar "$pedido" >"$saida" 2>&1 || codigo=$?
       ;;
+    operar)
+      EUROLIFY_ORIGEM="fluxo operar" /usr/local/sbin/eurolify-operador "$pedido" >"$saida" 2>&1 || codigo=$?
+      ;;
   esac
   if [[ "$fluxo" == mcp ]]; then
     EUROLIFY_ORIGEM="fluxo mcp, ${origem_mcp#mcp, }" registar "pedido $id '$pedido' tratado, código $codigo"
+  elif [[ "$fluxo" == operar ]]; then
+    # Só a acção: o resto do pedido leva o nome de um comerciante.
+    EUROLIFY_ORIGEM="fluxo operar" registar "pedido $id '${pedido%% *}' tratado, código $codigo"
   else
     EUROLIFY_ORIGEM="fluxo $fluxo" registar "pedido $id '${pedido:-(vazio)}' tratado, código $codigo"
   fi

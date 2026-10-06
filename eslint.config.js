@@ -26,4 +26,13 @@ export default defineConfig([
     files: ["**/*.js"],
     extends: [tseslint.configs.disableTypeChecked],
   },
+  // Programas soltos para correr com o Node no computador de quem opera
+  // (ex.: apps/api/scripts/gerar-chave.mjs), fora do projecto TypeScript.
+  {
+    files: ["**/*.mjs"],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: { console: "readonly", process: "readonly" },
+    },
+  },
 ]);
