@@ -1,8 +1,9 @@
 # Domínio Preços e mercados — modelo e lista da API
 
-> **Estado: desenho, para aprovação; as seis perguntas da §9 decididas**
-> (issue #127; pedido do Diogo, 06/10/2026: *«sim, começa pelo desenho de
-> Preços e mercados»*; decisões BS a BX do `docs/06`). É o passo 4
+> **Estado: desenho aprovado** (Diogo, 06/10/2026: *«sim, aprovo; junta o
+> #129 e começa o código»*); as seis perguntas da §9 decididas (BS a BX do
+> `docs/06`); as marcadas **proposta** passam a regra deste desenho (issue
+> #127). É o passo 4
 > do [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md) e é
 > preciso antes da parte 4 do Catálogo (#77): a publicação por canal × mercado
 > e a verificação «pode publicar?» (C2 do [`docs/14`](14-dominio-catalogo.md)
