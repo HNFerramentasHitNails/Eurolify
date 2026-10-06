@@ -139,7 +139,7 @@ este motor antes de agir.
 | | `base` | URL oficial, título, artigo |
 | | `verificadaEm`, `revistaPor` | |
 | | `marca` | `W`, `M` ou `C`, com o significado do `docs/03` (tabela «Como ler a coluna Verificação»); `textoLido` diz se, num `W`, o texto legal foi lido (e não só o resumo) — decisão do Diogo, 05/10/2026 (*«avança com a marca W/M/C no motor de regras»*; P1 da auditoria `docs/16`) |
-| | `validacao` | `null` ou `{ por, papel, em }`, com `papel` um dos da coluna «Quem valida» do `docs/03` (`jurista`, `contabilista`, `tecnico_regulamentar`, `despachante`, `entidade_gestora`, `encarregado_de_dados`, `transportadora`): a validação profissional da regra. O motor **não** liga o papel ao domínio (um jurista pode validar uma regra de IVA) — por decidir. Num `W` com texto lido, a data da leitura é o `verificadaEm` |
+| | `validacao` | `null` ou `{ por, papel, em }`, com `papel` um dos da coluna «Quem valida» do `docs/03` (`jurista`, `contabilista`, `tecnico_regulamentar`, `despachante`, `entidade_gestora`, `encarregado_de_dados`, `transportadora`): a validação profissional da regra. **O papel tem de corresponder ao domínio** (Diogo, 06/10/2026, #59: *«sim, concordo, tem de corresponder»*): só valida um papel indicado para o tema na coluna «Quem valida» do `docs/03`; senão o `validar` recusa o registo. **Por programar** (tabela domínio → papéis aceites, tirada do `docs/03`). Num `W` com texto lido, a data da leitura é o `verificadaEm` |
 | | **pode decidir** | uma regra que não é `proposta` só entra num domínio `verificado` se tiver **`W` com texto lido** ou **validação profissional** — a regra do `docs/03` («uma linha C não entra numa decisão sem passar a W com o texto legal lido ou ser validada por um profissional»), estendida a `M` e a `W` só de resumo por decisão do Diogo, 05/10/2026 (*«mantém para M e W só de resumo»*). O `validar` recusa o registo; o `decidir`, se lhe chegar uma assim, não a aplica (`regra_sem_prova`) |
 
 **Domínios obrigatórios** (do pacote): consumidor, IVA, faturação, privacidade
@@ -153,6 +153,12 @@ Entrada: país, território (opcional), domínios pedidos (pelo menos um),
 momento (ISO 8601 com fuso).
 Saída: `estado` (`permitido`, `revisao_necessaria`, `recusado`), regras
 aplicadas, versão do registo e motivos.
+
+**A data de verificação de um domínio não limita o momento pedido**
+(Diogo, 06/10/2026, #59: *«sim, concordo, fica a a)»*): diz quando se leu;
+o que vale para cada momento é a vigência e a prova de **cada versão** da
+regra. Ex.: uma nota de crédito de 2027 sobre uma venda de 10/11/2026 decide
+com a versão em vigor a 10/11/2026, desde que essa versão tenha prova.
 
 **Nunca sai `permitido` sem pelo menos uma regra aplicada** (corrigido a
 04/10/2026, revisão do #37, P0-1: uma lista de domínios vazia saía

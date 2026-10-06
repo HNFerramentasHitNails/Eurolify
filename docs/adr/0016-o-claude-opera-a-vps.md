@@ -57,7 +57,8 @@ ADR-0005. Resposta do Diogo, a 03/10/2026: *«O claude vai controlar tudo!! esta
   o Claude Code no computador do Diogo ou do Bruno, que chega por SSH; ou um
   servidor MCP na VPS por HTTPS, com o endereço autorizado na rede do ambiente.
 - **O Codex não está nesta decisão.** O ADR-0008 dizia que, na Scaleway, o
-  Codex também só lia. Na VPS: por decidir.
+  Codex também só lia. Na VPS: decidido a 06/10/2026 (decisão BP, `docs/11`
+  §7, ponto 8) — o mesmo acesso que o Claude, pelo GitHub, sem chave SSH.
 - **O que pode partir:**
   - um comando errado do Claude chega directamente à produção, incluindo à
     base onde estão os pedidos de fatura de outras empresas — a confirmação de

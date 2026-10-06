@@ -118,8 +118,10 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
     entrou desde a noite anterior;
   - **ensaio de reposição agendado** — uma cópia que nunca foi reposta não é
     uma cópia (skill `observability-security`);
-  - **quanto se pode perder e em quanto tempo se volta**: por decidir (§7).
-- **Segunda máquina para a base** (réplica pronta a assumir): por decidir (§7).
+  - **quanto se pode perder e em quanto tempo se volta**: na produção, até
+    5 minutos e até 4 horas (§7, ponto 4; decisão BL).
+- **Segunda máquina para a base** (réplica pronta a assumir): não no arranque
+  (§7, ponto 5; decisão BN).
 
 ### 3.6 Publicação a partir do GitHub
 
@@ -154,7 +156,8 @@ da máquina, que puxa a imagem pelo resumo, migra, troca e volta atrás se o
 - A data de fim da VPS no Reino Unido e a troca da chave do Diogo, ambas a
   **31/03/2027** (ADR-0019, decisão AB): aviso a partir de 01/03/2027
   (proposta).
-- Para onde vão (e-mail, com fornecedor na UE): por decidir (§7).
+- Para onde vão: no ensaio, o Diogo (ADR-0027); na produção, o Diogo e o
+  Bruno, mais a verificação de minuto a minuto da API (§7, ponto 7; decisão BO).
 - Lição: o recálculo diário esteve parado 15 dias sem ninguém saber (repo
   `claude`, 05/09/2026).
 
@@ -262,20 +265,51 @@ O que o Diogo faz, fora do repositório:
    migração para Paris, até 31/03/2027 (ADR-0018, ADR-0019, ADR-0021).
 2. ~~Como o Claude chega à máquina~~ → ✅ **o Claude Code no computador do
    Diogo, por SSH** (ADR-0020); passos no §5.1.
-3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
-   antes do primeiro comerciante de fora).
+3. ~~Ensaio e produção na mesma máquina ou separados~~ → ✅ **separados**
+   (Diogo, 06/10/2026: *«sim, concordo, separados»*): até ao primeiro
+   comerciante de fora basta a VPS actual; a partir dele, a produção numa
+   máquina própria, na OVH em Paris (o produto escolhe-se na migração, com
+   a carga medida — ADR-0021; a 03/10/2026 Paris não estava na lista das
+   VPS da OVH, ADR-0018).
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
    para voltar). ✅ **Para o ensaio** (ADR-0027): `pg_dump` diário cifrado
    para o ~~Scaleway Object Storage em Paris~~ **OVH Object Storage em
    Paris, três zonas** (ADR-0032), 14 dias, reposição semanal; até 24 h de perda.
-   Para a produção, por decidir — com VPS e cópias no mesmo fornecedor e na
-   mesma conta, um problema na conta leva as duas (ADR-0032).
-5. **Segunda máquina para a base**, e a partir de quando.
+   ✅ **Para a produção** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*):
+   cópia **contínua** do registo de transacções (WAL), cifrada e fora da
+   máquina, mais uma cópia completa diária — **perda máxima de 5 minutos**
+   e **volta em até 4 horas**. Os dois números são proposta do Claude e
+   confirmam-se num ensaio de reposição antes do primeiro comerciante; o
+   custo do armazenamento não foi verificado. **Onde** (Diogo, 06/10/2026:
+   *«sim, concordo, fica a b)»*): na OVH **e** uma segunda cópia, cifrada,
+   noutro fornecedor da UE, para sobreviver a um problema na conta da OVH
+   (ADR-0032). A segunda cópia vai para uma **VPS da PTISP** (Diogo,
+   06/10/2026: *«Vamos utilizar VPS da PTISP»*; confirmado: só para a
+   segunda cópia — a produção continua na OVH em Paris, ADR-0021).
+   Antes de lá entrar alguma cópia: o centro de dados, o preço e o acordo de
+   tratamento de dados da PTISP lidos e escritos aqui.
+   Pesquisa de 06/10/2026 (resumos, páginas não abertas): empresa portuguesa
+   fundada em 2001, centros de dados em Lisboa (Lis1; entrada no Equinix LS2)
+   e um em Madrid — [datacentermap.com](https://www.datacentermap.com/c/ptisp/),
+   [echoboomer.pt](https://echoboomer.pt/ptisp-entrada-novo-datacenter-ls2-equinix-lisboa/).
+   Em que centro fica a VPS contratada: não verifiquei.
+5. ~~Segunda máquina para a base~~ → ✅ **sem réplica no arranque** (Diogo,
+   06/10/2026: *«sim, concordo, sem réplica no arranque»*): volta-se pelas
+   cópias (ponto 4). Entra quando um comerciante precisar, por contrato, de
+   voltar em menos de 4 horas, ou na passagem à Fase 2.
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
    Healthchecks.io (Letónia) vigia as tarefas e manda e-mail ao Diogo; a
-   verificação diária da VPS avisa por ele. Para a produção, por decidir.
-8. **O Codex na VPS** (ADR-0016: não está decidido).
+   verificação diária da VPS avisa por ele. ✅ **Para a produção** (Diogo,
+   06/10/2026: *«sim, concordo, os dois recebem»*): o mesmo Healthchecks.io;
+   os alertas vão para o **Diogo e o Bruno**; e uma verificação nova, de
+   minuto a minuto, de que a API responde. Por verificar antes de programar:
+   se o plano em uso permite a verificação de minuto a minuto e o custo.
+8. ~~O Codex na VPS~~ → ✅ **o mesmo acesso que o Claude, pelo mesmo
+   caminho** (Diogo, 06/10/2026: *«sim, concordo, mesmo acesso que o
+   Claude»*): pedidos de alteração revistos, o fluxo `medir` e o MCP da VPS
+   se o ligarem à conta dele (ADR-0028, ADR-0033); **nenhuma chave SSH**
+   (ficam para emergências das pessoas, ADR-0020).
 9. ~~O que se faz à conta da Scaleway~~ → ✅ **deixa de se usar; a OVH é o
    fornecedor único** (ADR-0032, §6).
 
