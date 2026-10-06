@@ -87,6 +87,7 @@
 | ✅ BP | O Codex opera a VPS com o mesmo acesso que o Claude, pelo GitHub (pedidos revistos, `medir`, MCP), sem chave SSH | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 8 |
 | ✅ BQ | Identidade: uma chave com prazo só revoga chaves que expirem no mesmo instante ou antes dela | em vigor; por programar (T14) | Diogo, 06/10/2026 | [`docs/19`](19-fatia-identidade.md) §5 |
 | ✅ BR | Motor de regras: o papel de quem valida confere-se por domínio para já e, a seguir, linha a linha do `docs/03` (cada regra diz de que linha vem) | em vigor; por domínio no código, linha a linha por fazer | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #126 |
+| ✅ BS | Preços e mercados: um mercado novo tem os preços **com IVA** por omissão (o mesmo preço em todos os países; o comerciante pode mudar por mercado) | em vigor; por programar (desenho por aprovar) | Diogo, 06/10/2026 | [`docs/20`](20-dominio-precos-e-mercados.md) §9, Q1; #127 |
 
 ## Por decidir — por esta ordem
 

@@ -82,7 +82,7 @@ ao mercado (§2).
 | `moeda` | código ISO 4217 | sim | uma moeda por mercado (**proposta**); que moedas usa cada país da UE: **não verifiquei — C** |
 | `linguas` | lista de códigos de duas letras | sim, pelo menos uma | línguas por mercado (`eu-localization`); a lista de cada mercado deixa de esperar por este domínio (`docs/14` §3.8, «as línguas de cada mercado») |
 | `lingua_principal` | uma das `linguas` | sim | a língua por omissão do mercado (**proposta**) |
-| `preco_inclui_iva` | `sim`, `nao` | sim | o comerciante escolhe entre preço com IVA igual em todos os países (absorve a diferença) ou sem IVA igual (o final muda) — **decisão comercial com efeito fiscal, mostrada claramente** (`eu-localization`, «Preço por mercado»); o valor por omissão é **pergunta** (§9, Q1) |
+| `preco_inclui_iva` | `sim`, `nao` | sim | o comerciante escolhe entre preço com IVA igual em todos os países (absorve a diferença) ou sem IVA igual (o final muda) — **decisão comercial com efeito fiscal, mostrada claramente** (`eu-localization`, «Preço por mercado»); **por omissão `sim`** (decidido, Diogo, 06/10/2026: *«sim, com IVA por omissão»*; §9, Q1) |
 | `lista_base_id` | `prl_` | sim para activar | a lista de preços de base do mercado (§3.3) |
 | `estado` | `rascunho`, `activo`, `arquivado` | sim | §4.1 |
 | `versao`, `criado_em`, `actualizado_em` | | sim | concorrência optimista, como no Catálogo |
@@ -280,7 +280,7 @@ escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q1 | Por omissão, um mercado novo tem os preços **com IVA** (o cliente vê o mesmo preço em todos os países e o comerciante absorve a diferença) ou **sem IVA** (o preço final muda com o país)? | **Com IVA**: ao consumidor mostra-se o preço total com impostos (`consumer-rights-eu`, «Antes da compra»), e com IVA igual o preço anunciado não muda de país para país; o comerciante pode mudar por mercado. Como faz hoje a loja online actual: **não verifiquei** |
+| Q1 | Por omissão, um mercado novo tem os preços **com IVA** (o cliente vê o mesmo preço em todos os países e o comerciante absorve a diferença) ou **sem IVA** (o preço final muda com o país)? | ✅ **Decidido: com IVA por omissão**; o comerciante pode mudar por mercado (Diogo, 06/10/2026: *«sim, com IVA por omissão»*; `docs/06`, BS) |
 | Q2 | Na Fase 1, cada mercado tem os preços escritos à mão na sua moeda, ou o Eurolify converte de uma moeda para outra? | **Sem conversão na Fase 1**: cada lista escreve os seus preços; a conversão (com taxa, fonte e data, R3) fica para depois |
 | Q3 | Códigos de desconto e regras de carrinho entram na Fase 1? | **Não**: na Fase 1 só a redução anunciada (preço riscado, §3.6); os códigos e as regras de carrinho com o domínio Carrinho, depois |
 | Q4 | Numa loja, o mesmo país pode estar em dois mercados activos? | **Não**: um país, um mercado activo por loja (evita dois preços para o mesmo cliente) |
