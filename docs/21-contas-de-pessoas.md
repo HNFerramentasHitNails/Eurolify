@@ -1,6 +1,7 @@
 # Contas de pessoas (identidade, parte B) — desenho antes do código
 
-> **Versão de 06/10/2026 — desenho, por aprovar.** Pedido do Diogo: *«sim,
+> **Versão de 06/10/2026 — desenho, por aprovar; as quatro perguntas da §9
+> decididas (CA a CD do `docs/06`).** Pedido do Diogo: *«sim,
 > avança com a a)»* (a parte B da identidade, antes do código). Cumpre as
 > consequências do [ADR-0036](adr/0036-contas-de-pessoas-construidas-na-api.md):
 > a escolha das bibliotecas, o tratamento dos dados pessoais e a recuperação
@@ -69,7 +70,7 @@ quem mantém cada uma.
 | `palavra_passe` | pessoa, **resumo** Argon2id, mudada_em | só serve com o TOTP (P1); nunca sozinha |
 | `codigo_recuperacao` | pessoa, **resumo** do código, usado_em | 10 códigos, cada um usa-se uma vez (§6) |
 | `convite` | comerciante, e-mail, papel, resumo do segredo, expira_em, aceite_em, quem convidou | expira (proposta: 7 dias, **C**) |
-| `sessao` | pessoa, resumo do segredo, criada_em, expira_em, último uso, revogada_em | expira por inactividade e por prazo máximo (§9 P4) |
+| `sessao` | pessoa, resumo do segredo, criada_em, expira_em, último uso, revogada_em | expira após 12 h sem uso e, no máximo, 30 dias depois de entrar (decisão CD) |
 | `entrada` | pessoa (ou e-mail tentado), quando, resultado, IP | o registo de entradas, para segurança (§5) |
 
 Todas com o padrão das chaves: a API só chama funções da base; o rasto não se
@@ -100,7 +101,7 @@ verifiquei; para o jurista ou o encarregado de dados).
 
 | Dado | Para quê | Base legal (C) | Prazo proposto (C) | No fim |
 |---|---|---|---|---|
-| E-mail e nome | entrar, ser convidado, saber quem fez o quê | execução do contrato com o comerciante | enquanto a pessoa tiver um `membro` activo; depois, §9 P4 | pseudonimizar (`pessoa:per_<id>` fica no rasto) |
+| E-mail e nome | entrar, ser convidado, saber quem fez o quê | execução do contrato com o comerciante | enquanto a pessoa tiver um `membro` activo; depois, **90 dias** (decisão CD) | pseudonimizar (`pessoa:per_<id>` fica no rasto) |
 | Chave pública da passkey, nome do dispositivo | entrar | idem | enquanto a passkey existir | apagar |
 | Segredo TOTP (cifrado) | entrar | idem | enquanto estiver activo | apagar |
 | Resumo da palavra-passe | entrar (com o TOTP) | idem | enquanto a pessoa tiver conta | apagar |
@@ -165,7 +166,7 @@ recomenda dois donos.
 | P1 | A alternativa à passkey (decidido: TOTP): com que primeiro passo? | ✅ **Decidido: a) e-mail + palavra-passe (resumo Argon2id) + TOTP** (Diogo, 06/10/2026: *«sim, concordo, fica a a)»*; decisão CA): entrar não depende de um fornecedor de e-mail |
 | P2 | Como chegam os convites e os avisos? | ✅ **Decidido: b) na Fase 1, sem e-mail** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*; decisão CB): o dono cria o convite no Hub, copia a ligação e envia-a ele; vale uma vez e expira (proposta: 7 dias, **C**). Um fornecedor de e-mail na UE escolhe-se quando houver mais comerciantes |
 | P3 | O Eurolify como fornecedor OIDC (`oidc-provider`) já na parte B, ou só quando houver aplicações de terceiros (Fase 3)? | ✅ **Decidido: b) só quando houver aplicações de terceiros** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*; decisão CC). Até lá, o Hub usa a sessão própria (§2) e as integrações as chaves de API; o OAuth 2.1/OIDC da API de Administração (`docs/19`, «Já decidido») entra com os terceiros |
-| P4 | Prazos: duração da sessão; quanto tempo a conta de uma pessoa sem nenhum `membro` fica antes de ser pseudonimizada | por decidir, com o jurista (C) |
+| P4 | Prazos: duração da sessão; quanto tempo a conta de uma pessoa sem nenhum `membro` fica antes de ser pseudonimizada | ✅ **Decidido** (Diogo, 06/10/2026: *«sim, concordo, aceito os três prazos»*; decisão CD): a sessão acaba após **12 h sem uso** e, de qualquer forma, **30 dias** depois de entrar; a conta sem nenhum `membro` é pseudonimizada **90 dias** depois de sair. Sem fonte legal: escolha de segurança e de negócio; o prazo dos 90 dias fica para o jurista confirmar (**C**) |
 
 ## O que não foi verificado
 
