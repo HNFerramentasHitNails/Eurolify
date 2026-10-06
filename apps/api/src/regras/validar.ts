@@ -1,4 +1,4 @@
-import { podeDecidir } from "./decidir.js";
+import { papelValidaDominio, podeDecidir } from "./decidir.js";
 import { instante } from "./instante.js";
 import { ehLista, ehObjecto, tipo, valor } from "./mostrar.js";
 import {
@@ -235,6 +235,12 @@ export function errosDoRegisto(registo: Registo): string[] {
         if (!(PAPEIS_DE_VALIDACAO as readonly unknown[]).includes(v["papel"])) {
           erros.push(
             `${nome}: papel de validação desconhecido «${valor(v["papel"])}»`,
+          );
+        } else if (!papelValidaDominio(v["papel"], regra.dominio)) {
+          // O papel tem de ser um dos da coluna «Quem valida» do docs/03 para
+          // o tema (Diogo, 06/10/2026, #59).
+          erros.push(
+            `${nome}: o papel «${valor(v["papel"])}» não valida o domínio ${valor(regra.dominio)} (docs/03, «Quem valida»)`,
           );
         }
         const em = v["em"];

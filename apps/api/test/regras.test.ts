@@ -1,7 +1,7 @@
 import { Value } from "typebox/value";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
-import { decidir } from "../src/regras/decidir.js";
+import { decidir, papelValidaDominio } from "../src/regras/decidir.js";
 import { instante } from "../src/regras/instante.js";
 import { REGISTO_INICIAL } from "../src/regras/registo.js";
 import { RespostaPaises } from "../src/regras/rotas.js";
@@ -9,6 +9,9 @@ import {
   CODIGOS_UE,
   DOMINIOS_CONDICIONAIS,
   DOMINIOS_OBRIGATORIOS,
+  PAPEIS_DE_VALIDACAO,
+  PAPEIS_POR_DOMINIO,
+  type Dominio,
   type PedidoDecisao,
   type PerfilPais,
   type Regra,
@@ -1770,5 +1773,94 @@ describe("marca W/M/C: só decide uma regra com texto lido ou validação", () =
       ]);
       expect(decidir(registo, pedido).estado).toBe("revisao_necessaria");
     }
+  });
+});
+
+describe("o papel de quem valida tem de corresponder ao domínio (#59)", () => {
+  // Diogo, 06/10/2026: «tem de corresponder». A lista vem da coluna «Quem
+  // valida» do docs/03 (PAPEIS_POR_DOMINIO).
+  const validadaPor = (papel: string) =>
+    ({ por: "teste", papel, em: "2026-10-04T00:00:00Z" }) as Regra["validacao"];
+
+  /** Portugal com o domínio pedido verificado, e uma regra C validada. */
+  function comRegraValidada(dominio: Dominio, papel: string): Registo {
+    return {
+      versao: 2,
+      regras: [
+        regraTeste({
+          id: "r",
+          dominio,
+          marca: "C",
+          textoLido: false,
+          validacao: validadaPor(papel),
+        }),
+      ],
+      paises: REGISTO_INICIAL.paises.map((perfil): PerfilPais =>
+        perfil.codigo === "PT"
+          ? {
+              ...perfil,
+              dominios: { ...perfil.dominios, [dominio]: VERIFICADO },
+            }
+          : perfil,
+      ),
+    };
+  }
+
+  it.each([
+    ["iva", "contabilista"],
+    ["iva", "despachante"],
+    ["faturacao", "contabilista"],
+    ["consumidor", "jurista"],
+    ["privacidade_marketing", "encarregado_de_dados"],
+    ["produto_ambiente", "tecnico_regulamentar"],
+    ["pagamentos", "jurista"],
+  ] as const)("%s validado por %s: vale e decide", (dominio, papel) => {
+    const registo = comRegraValidada(dominio, papel);
+    expect(errosDoRegisto(registo)).toEqual([]);
+    expect(
+      decidir(registo, { pais: "PT", dominios: [dominio], momento: AGORA })
+        .estado,
+    ).toBe("permitido");
+  });
+
+  it.each([
+    ["iva", "jurista"],
+    ["faturacao", "despachante"],
+    ["consumidor", "contabilista"],
+    ["pagamentos", "transportadora"],
+    ["agencia_comercial", "jurista"],
+  ] as const)(
+    "%s validado por %s: o validar recusa e o decidir não a aplica",
+    (dominio, papel) => {
+      const registo = comRegraValidada(dominio, papel);
+      expect(errosDoRegisto(registo).join("\n")).toContain(
+        `o papel «${papel}» não valida o domínio ${dominio}`,
+      );
+      const decisao = decidir(registo, {
+        pais: "PT",
+        dominios: [dominio],
+        momento: AGORA,
+      });
+      expect(decisao.estado).toBe("revisao_necessaria");
+      expect(decisao.motivos).toContainEqual({
+        codigo: "regra_sem_prova",
+        dominio,
+        regra: "r@1",
+      });
+    },
+  );
+
+  it("todos os domínios têm a sua lista, e só com papéis conhecidos", () => {
+    expect(Object.keys(PAPEIS_POR_DOMINIO).sort()).toEqual(
+      [...TODOS_OS_DOMINIOS].sort(),
+    );
+    for (const papeis of Object.values(PAPEIS_POR_DOMINIO)) {
+      for (const papel of papeis) expect(PAPEIS_DE_VALIDACAO).toContain(papel);
+    }
+  });
+
+  it("um domínio estranho não aceita nenhum papel", () => {
+    expect(papelValidaDominio("jurista", "toString")).toBe(false);
+    expect(papelValidaDominio("jurista", undefined)).toBe(false);
   });
 });

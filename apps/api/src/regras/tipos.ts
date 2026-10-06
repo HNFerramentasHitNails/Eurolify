@@ -108,6 +108,39 @@ export const PAPEIS_DE_VALIDACAO = [
 ] as const;
 export type PapelDeValidacao = (typeof PAPEIS_DE_VALIDACAO)[number];
 
+/**
+ * Que papéis podem validar uma regra de cada domínio (Diogo, 06/10/2026, #59:
+ * «tem de corresponder»; §4.1 do docs/eurolify/architecture.md). Tirado da
+ * coluna «Quem valida» do docs/03, por secção: fiscal → contabilista (os
+ * equivalentes de cada país, «asesor fiscal», «Steuerberater»…, são este
+ * papel) e despachante (a isenção aduaneira, só no IVA); consumidor →
+ * jurista; produto → jurista, técnico regulamentar, entidade gestora e
+ * transportadora; dados → encarregado de dados e jurista; acessibilidade e
+ * pagamentos → jurista. Os domínios condicionais não têm linha no docs/03:
+ * nenhum papel os valida até ela existir, e só decide uma regra W com o texto
+ * lido (o lado seguro).
+ */
+export const PAPEIS_POR_DOMINIO: Readonly<
+  Record<Dominio, readonly PapelDeValidacao[]>
+> = {
+  consumidor: ["jurista"],
+  iva: ["contabilista", "despachante"],
+  faturacao: ["contabilista"],
+  privacidade_marketing: ["encarregado_de_dados", "jurista"],
+  produto_ambiente: [
+    "jurista",
+    "tecnico_regulamentar",
+    "entidade_gestora",
+    "transportadora",
+  ],
+  acessibilidade_plataforma: ["jurista"],
+  pagamentos: ["jurista"],
+  distribuicao_concorrencia: [],
+  contratos_franchising: [],
+  agencia_comercial: [],
+  termos_plataforma_empresas: [],
+};
+
 export interface Validacao {
   por: string;
   papel: PapelDeValidacao;
