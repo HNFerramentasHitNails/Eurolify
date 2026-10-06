@@ -148,7 +148,7 @@ auditoria da `observability-security`).
 | `moeda`, `preco_inclui_iva` | os do mercado no momento da linha, para cada linha ser prova por si (R2; revisão do #134, P2-1) |
 | `saiu` | `sim` quando o preço foi tirado da lista ou a variante apagada (então `definido_por = catalogo:variante apagada`) |
 | `reducao_ref` | parte 2 do código, com a redução (§3.6) |
-| `em_vigor_desde` | data posta pela base, à hora em que a escrita tomou o preço (não a hora a que a transacção começou), para a ordem das linhas ser a das escritas; o fim é o `em_vigor_desde` da linha seguinte |
+| `em_vigor_desde` | data posta pela base depois de gravar, com a linha do preço já tomada ou inserida (não a hora a que a transacção começou), para a ordem das linhas ser a das escritas; o fim é o `em_vigor_desde` da linha seguinte |
 | `definido_por` | quem mudou |
 
 Só o `montante` e o `gratuito` contam como mudança de preço: mudar a

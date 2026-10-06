@@ -17,6 +17,7 @@ import {
   definirMercadosDoCanal,
   definirPreco,
   ErroPrecos,
+  ESPERA_MAXIMA,
   historicoDoPreco,
   mercadosDoCanal,
   mudarEstadoLista,
@@ -494,9 +495,16 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
     await apagarRascunho(base.api, c, artigo);
     expect(await precosDaLista(base.api, c, lista)).toEqual([]);
     const historico = await historicoDoPreco(base.api, c, lista, v1);
-    expect(historico.map((h) => [h.saiu, h.definido_por])).toEqual([
-      [false, QUEM],
-      [true, "catalogo:variante apagada"],
+    expect(
+      historico.map((h) => [
+        h.saiu,
+        h.definido_por,
+        h.moeda,
+        h.preco_inclui_iva,
+      ]),
+    ).toEqual([
+      [false, QUEM, "EUR", true],
+      [true, "catalogo:variante apagada", "EUR", true],
     ]);
   });
 
@@ -900,10 +908,16 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       await Promise.all(abertas.map((l) => l.end()));
     });
 
+    const pids = new Map<pg.Client, number>();
+
     async function ligacao(c: string): Promise<pg.Client> {
       const l = new pg.Client({ connectionString: base.urlApi });
       await l.connect();
       abertas.push(l);
+      const { rows } = await l.query<{ pid: number }>(
+        "select pg_backend_pid() as pid",
+      );
+      pids.set(l, rows[0]?.pid ?? -1);
       await l.query("begin");
       await l.query(
         "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.quem', $2, true)",
@@ -912,13 +926,29 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       return l;
     }
 
-    /** Espera até uma ligação do eurolify_api estar à espera de um lock. */
-    async function alguemEspera(): Promise<void> {
+    /**
+     * Uma escrita que vai ficar à espera. A promessa nunca é recusada: dá o
+     * erro (ou `undefined`), para a recusa não chegar antes de alguém a ouvir
+     * (o CI do ef85440 contou-a como «Unhandled Rejection»; 2.ª ronda, P3-D).
+     */
+    function escreve(
+      l: pg.Client,
+      texto: string,
+      valores: unknown[],
+    ): Promise<unknown> {
+      return l.query(texto, valores).then(
+        () => undefined,
+        (erro: unknown) => erro ?? new Error("recusa sem erro"),
+      );
+    }
+
+    /** Espera até a ligação `l` estar à espera de um lock. */
+    async function espera(l: pg.Client): Promise<void> {
+      const pid = pids.get(l) ?? -1;
       for (let i = 0; i < 100; i++) {
         const { rows } = await sql<{ n: number }>`
           select count(*)::int as n from pg_stat_activity
-          where usename = 'eurolify_api' and datname = current_database()
-            and wait_event_type = 'Lock'`.execute(base.dono);
+          where pid = ${pid} and wait_event_type = 'Lock'`.execute(base.dono);
         if ((rows[0]?.n ?? 0) > 0) return;
         await new Promise((r) => setTimeout(r, 50));
       }
@@ -930,15 +960,15 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       l: pg.Client,
       escrita: Promise<unknown>,
     ): Promise<string> {
-      try {
-        await escrita;
+      const erro = await escrita;
+      if (erro === undefined) {
         await l.query("commit");
         return "sem erro";
-      } catch (erro) {
-        await l.query("rollback");
-        const t = traduzir(erro);
-        return t instanceof ErroPrecos ? t.codigo : String(erro);
       }
+      await l.query("rollback");
+      const t = traduzir(erro);
+      if (t instanceof ErroPrecos) return t.codigo;
+      return erro instanceof Error ? erro.message : JSON.stringify(erro);
     }
 
     it("mudar a moeda e escrever o primeiro preço: quem chega depois espera e vê o outro", async () => {
@@ -950,11 +980,12 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
         mercado,
       ]);
       const b = await ligacao(c);
-      const escrita = b.query(
+      const escrita = escreve(
+        b,
         "insert into preco (comerciante_id, lista_id, variante_id, montante) values ($1, $2, $3, 990)",
         [c, lista, v1],
       );
-      await alguemEspera();
+      await espera(b);
       await a.query("commit");
       expect(await resultado(b, escrita)).toBe("sem erro");
       expect(
@@ -973,11 +1004,12 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
         [c, outro.lista, v2],
       );
       const e = await ligacao(c);
-      const mudanca = e.query(
+      const mudanca = escreve(
+        e,
         "update mercado set moeda = 'SEK' where id = $1",
         [outro.mercado],
       );
-      await alguemEspera();
+      await espera(e);
       await d.query("commit");
       expect(await resultado(e, mudanca)).toBe("prices.market_has_prices");
     });
@@ -998,11 +1030,12 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
         [b2b],
       );
       const b = await ligacao(c);
-      const escrita = b.query(
+      const escrita = escreve(
+        b,
         "insert into preco (comerciante_id, lista_id, variante_id, montante) values ($1, $2, $3, 990)",
         [c, b2b, v1],
       );
-      await alguemEspera();
+      await espera(b);
       await a.query("commit");
       expect(await resultado(b, escrita)).toBe("prices.list_archived");
     });
@@ -1020,11 +1053,12 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
         "update preco set montante = 1100 where lista_id = $1 and variante_id = $2",
         [lista, v1],
       );
-      const escrita = a.query(
+      const escrita = escreve(
+        a,
         "update preco set montante = 1200 where lista_id = $1 and variante_id = $2",
         [lista, v1],
       );
-      await alguemEspera();
+      await espera(a);
       await b.query("commit");
       expect(await resultado(a, escrita)).toBe("sem erro");
       const historico = await historicoDoPreco(base.api, c, lista, v1);
@@ -1050,11 +1084,12 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       const a = await ligacao(c);
       await a.query("update mercado set estado = 'activo' where id = $1", [m1]);
       const b = await ligacao(c);
-      const activar = b.query(
+      const activar = escreve(
+        b,
         "update mercado set estado = 'activo' where id = $1",
         [m2],
       );
-      await alguemEspera();
+      await espera(b);
       await a.query("commit");
       expect(await resultado(b, activar)).toBe(
         "prices.country_in_other_market",
@@ -1076,11 +1111,12 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
         [l1],
       );
       const b = await ligacao(c);
-      const activar = b.query(
+      const activar = escreve(
+        b,
         "update mercado set estado = 'activo' where id = $1",
         [m1],
       );
-      await alguemEspera();
+      await espera(b);
       await a.query("commit");
       expect(await resultado(b, activar)).toBe("prices.base_list_required");
       // Activar primeiro: o arquivo espera e é recusado.
@@ -1102,13 +1138,67 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       const d = await ligacao(c);
       await d.query("update mercado set estado = 'activo' where id = $1", [m2]);
       const e = await ligacao(c);
-      const arquivar = e.query(
+      const arquivar = escreve(
+        e,
         "update lista_precos set estado = 'arquivada' where id = $1",
         [l2],
       );
-      await alguemEspera();
+      await espera(e);
       await d.query("commit");
       expect(await resultado(e, arquivar)).toBe("prices.base_list_in_use");
     });
+
+    it("um preço que volta depois de sair fica no histórico depois da saída", async () => {
+      const { c, loja, v1 } = await cenario();
+      const { lista } = await mercadoActivo(c, loja);
+      await definirPreco(base.api, c, QUEM, lista, v1, { montante: 990 });
+      const a = await ligacao(c);
+      await a.query(
+        "delete from preco where lista_id = $1 and variante_id = $2",
+        [lista, v1],
+      );
+      // O INSERT de B espera pela saída de A (a mesma chave).
+      const volta = definirPreco(base.api, c, QUEM, lista, v1, {
+        montante: 1100,
+      }).then(
+        () => undefined,
+        (erro: unknown) => erro,
+      );
+      for (let i = 0; i < 100; i++) {
+        const { rows } = await sql<{ n: number }>`
+          select count(*)::int as n from pg_stat_activity
+          where usename = 'eurolify_api' and datname = current_database()
+            and wait_event_type = 'Lock'`.execute(base.dono);
+        if ((rows[0]?.n ?? 0) > 0) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await a.query("commit");
+      expect(await volta).toBeUndefined();
+      const historico = await historicoDoPreco(base.api, c, lista, v1);
+      expect(historico.map((h) => [h.montante, h.saiu])).toEqual([
+        [990, false],
+        [null, true],
+        [1100, false],
+      ]);
+    });
+
+    it(`quem espera mais de ${ESPERA_MAXIMA} por um lock recebe prices.retry (P3-C)`, async () => {
+      const { c, loja, v1 } = await cenario();
+      const { mercado, lista } = await mercadoActivo(c, loja);
+      const a = await ligacao(c);
+      await a.query(
+        "update mercado set nome = 'Portugal (a mudar)' where id = $1",
+        [mercado],
+      );
+      try {
+        expect(
+          await codigoDoErro(
+            definirPreco(base.api, c, QUEM, lista, v1, { montante: 990 }),
+          ),
+        ).toBe("prices.retry");
+      } finally {
+        await a.query("rollback");
+      }
+    }, 20_000);
   });
 });

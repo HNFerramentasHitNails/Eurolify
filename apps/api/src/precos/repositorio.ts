@@ -145,13 +145,23 @@ export function traduzir(erro: unknown): unknown {
   return erro;
 }
 
+/** O tempo máximo que uma operação espera por um lock (`lock_timeout`). */
+export const ESPERA_MAXIMA = "5s";
+
 async function noDominio<T>(
   db: Kysely<BaseDados>,
   comercianteId: string,
   fn: (trx: Transaction<BaseDados>) => Promise<T>,
 ): Promise<T> {
   try {
-    return await comComerciante(db, comercianteId, fn);
+    return await comComerciante(db, comercianteId, async (trx) => {
+      // Uma escrita não espera sem fim por outra que tenha a lista ou o
+      // mercado tomados: ao fim do prazo, `prices.retry` (2.ª ronda, P3-C).
+      await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+        trx,
+      );
+      return fn(trx);
+    });
   } catch (erro) {
     throw traduzir(erro);
   }

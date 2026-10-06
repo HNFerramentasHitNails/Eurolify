@@ -36,7 +36,9 @@
 -- escritas de preços tomam a linha da lista e a do mercado (a lista arquivada,
 -- a moeda e o «preço inclui IVA»; revisão do #134, P1-1 e P2-2). O histórico
 -- data-se com a hora do relógio, já com a linha do preço tomada, para a ordem
--- das linhas ser a das escritas (P2-3). Assumem READ COMMITTED
+-- das linhas ser a das escritas (P2-3): a hora é a do gatilho depois de
+-- gravar, quando a linha do preço já está tomada ou inserida (também num
+-- INSERT que esperou por um DELETE; 2.ª ronda, P3-B). Assumem READ COMMITTED
 -- (base/ligacao.ts).
 
 SET LOCAL lock_timeout = '10s';
@@ -354,6 +356,7 @@ CREATE FUNCTION preco_antes_de_gravar() RETURNS trigger
 DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
   estado_da_lista text;
+  mercado_da_lista uuid;
 BEGIN
   IF quem IS NULL THEN
     RAISE EXCEPTION 'prices.defined_by_required: quem define o preço (eurolify.quem) é obrigatório';
@@ -365,11 +368,15 @@ BEGIN
   -- a lista ou muda a moeda ou o «preço inclui IVA» espera, e depois vê este
   -- preço no histórico (revisão do #134, P1-1 e P2-2). Sem linha (lista de
   -- outro comerciante ou inexistente), a chave estrangeira recusa a seguir.
-  SELECT l.estado INTO estado_da_lista
+  -- Primeiro a lista, depois o mercado: a mesma ordem da escrita numa lista
+  -- (2.ª ronda, P3-E).
+  SELECT l.estado, l.mercado_id INTO estado_da_lista, mercado_da_lista
   FROM public.lista_precos l
-  JOIN public.mercado m ON m.comerciante_id = l.comerciante_id AND m.id = l.mercado_id
   WHERE l.comerciante_id = NEW.comerciante_id AND l.id = NEW.lista_id
-  FOR SHARE OF l, m;
+  FOR SHARE;
+  PERFORM FROM public.mercado m
+  WHERE m.comerciante_id = NEW.comerciante_id AND m.id = mercado_da_lista
+  FOR SHARE;
   IF estado_da_lista = 'arquivada' THEN
     RAISE EXCEPTION 'prices.list_archived: não se escrevem preços numa lista arquivada';
   END IF;
@@ -420,6 +427,11 @@ BEGIN
   FROM public.lista_precos l
   JOIN public.mercado m ON m.comerciante_id = l.comerciante_id AND m.id = l.mercado_id
   WHERE l.comerciante_id = linha.comerciante_id AND l.id = linha.lista_id;
+  -- Sem o comerciante na ligação, o RLS esconde a lista: pára com motivo
+  -- próprio em vez de um nulo no histórico (2.ª ronda, P3-F).
+  IF moeda_do_mercado IS NULL THEN
+    RAISE EXCEPTION 'prices.not_found: a lista do preço não se vê (falta o comerciante na ligação?)';
+  END IF;
   IF TG_OP = 'DELETE' THEN
     IF quem IS NULL THEN
       IF EXISTS (
@@ -438,9 +450,9 @@ BEGIN
   IF TG_OP = 'INSERT' OR NEW.montante <> OLD.montante OR NEW.gratuito <> OLD.gratuito THEN
     INSERT INTO public.historico_preco
       (comerciante_id, lista_id, variante_id, montante, gratuito, saiu, moeda, preco_inclui_iva,
-       em_vigor_desde, definido_por)
+       definido_por)
     VALUES (NEW.comerciante_id, NEW.lista_id, NEW.variante_id, NEW.montante, NEW.gratuito, false,
-            moeda_do_mercado, com_iva, NEW.definido_em, NEW.definido_por);
+            moeda_do_mercado, com_iva, NEW.definido_por);
   END IF;
   RETURN NEW;
 END
@@ -449,10 +461,11 @@ $$;
 CREATE TRIGGER preco_depois_de_gravar
   AFTER INSERT OR UPDATE OR DELETE ON preco
   FOR EACH ROW EXECUTE FUNCTION preco_depois_de_gravar();
--- Também num restauro com `session_replication_role = replica`: o histórico
--- não fica para trás dos preços (revisão do #134, P3-3).
-ALTER TABLE preco ENABLE ALWAYS TRIGGER preco_antes_de_gravar;
-ALTER TABLE preco ENABLE ALWAYS TRIGGER preco_depois_de_gravar;
+-- Os gatilhos do preço ficam no modo normal (não ALWAYS): numa réplica ou num
+-- restauro com `session_replication_role = replica`, o histórico chega
+-- copiado com os preços e não se escreve outra vez. Só os gatilhos que
+-- protegem o histórico são ALWAYS, como na 0008 (revisão do #134, 2.ª
+-- ronda, P3-A).
 
 -- RLS forçado em todas, com a política por comerciante (como a 0007).
 DO $$
