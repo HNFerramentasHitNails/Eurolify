@@ -122,9 +122,12 @@ trava, não a única.
   anterior: imagem [| emergência] [| falhou] | migrou: a,b». O `migrou:` são
   as migrações que essa publicação aplicou («?» se não se soube); ao avançar
   outra vez para uma imagem com a mesma anterior, herda as que ela aplicou da
-  outra vez e ainda estão na base. Uma tentativa que falhou (a migração a meio
-  ou o /health) também deixa linha, marcada «falhou», com as migrações que
-  ficaram na base: repetida a mesma imagem, herda-as (#120). As linhas de
+  outra vez e ainda estão na base. Uma tentativa que falhou (a migração a
+  meio, a imagem que nem arranca ou o /health) também deixa linha, marcada
+  «falhou», com as migrações que ficaram na base: repetida a mesma imagem,
+  herda-as (#120). Uma falha a escrever no `publicacoes.log` ou no
+  `acoes.log` não impede a reposição da anterior nem a actualização do MCP;
+  fica dito na saída. As linhas de
   antes desta regra não têm o `migrou:`: até à primeira publicação depois
   dela, uma volta com a base à frente é recusada. Qualquer saída com erro
   depois de validar o resumo fica também no `acoes.log`.

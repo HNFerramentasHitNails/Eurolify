@@ -417,8 +417,9 @@ printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
 touch "$falsos/run-falha-4"
 caso "a 4 não arranca (docker run falha)" 4
 confere sim "termina com erro" erro
+confere sim "diz que a nova não arrancou" na_saida "A imagem nova não arrancou"
 confere sim "fica a linha «falhou» da 4 com a d" grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
-if [[ "$(cat "$falsos/no-ar")" == "$(img 3)" ]]; then echo "ok: a 3 volta ao ar"; else falhou "a 3 não voltou ao ar"; fi
+confere sim "arranca outra vez a 3" arrancou 3
 
 # 2.ª revisão do #122, P3-1: não se consegue escrever no publicacoes.log.
 preparar
@@ -429,6 +430,26 @@ caso "o /health da 4 falha e o publicacoes.log não aceita escrita" 4 CURL_FALHA
 rmdir /var/log/eurolify/publicacoes.log
 mv /var/log/eurolify/publicacoes.log.guardado /var/log/eurolify/publicacoes.log
 if [[ "$(cat "$falsos/no-ar")" == "$(img 3)" ]]; then echo "ok: a 3 volta ao ar na mesma"; else falhou "a 3 não voltou ao ar"; fi
+
+# 3.ª revisão do #122, P3-B: a publicação corre bem e o publicacoes.log não aceita escrita.
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+mv /var/log/eurolify/publicacoes.log /var/log/eurolify/publicacoes.log.guardado
+mkdir /var/log/eurolify/publicacoes.log
+caso "a 4 fica no ar e o publicacoes.log não aceita escrita" 4
+rmdir /var/log/eurolify/publicacoes.log
+mv /var/log/eurolify/publicacoes.log.guardado /var/log/eurolify/publicacoes.log
+confere sim "a 4 fica no ar" arrancou 4
+confere sim "termina com erro" erro
+confere sim "diz que não escreveu a linha" na_saida "não se escreveu a linha da publicação"
+confere sim "regista na mesma a publicação" no_registo "publicado $(r 4)"
+
+# 3.ª revisão do #122, P3-D: sem publicação anterior, diz que a API ficou em baixo.
+preparar
+rm -f "$falsos/no-ar"
+cp "$falsos/ls-3" "$falsos/ls-4"
+caso "primeira publicação e o /health falha" 4 CURL_FALHA=1
+confere sim "diz que a API está em baixo" na_saida "não havia publicação anterior para repor"
 
 # 2.ª revisão do #122, P3-3: herança de uma linha boa e a migração falha a meio.
 preparar

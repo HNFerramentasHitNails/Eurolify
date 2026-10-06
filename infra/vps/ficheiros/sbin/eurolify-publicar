@@ -376,11 +376,16 @@ fi
 arrancou=1
 arrancar "$imagem" || arrancou=0
 if ((arrancou == 1)) && saude 8080; then
-  linha_publicacao "" "$migrou"
-  registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
+  # A API nova já está no ar: uma falha a escrever não a deixa sem MCP
+  # (3.ª revisão do #122, P3-B).
+  estado=0
+  if ! linha_publicacao "" "$migrou"; then
+    echo "ATENÇÃO: não se escreveu a linha da publicação no publicacoes.log (o MCP não poderá voltar atrás)" >&2
+    estado=1
+  fi
+  registar "publicado $resumo (anterior: ${anterior:-nenhuma})" || estado=1
   echo "Publicado: $resumo. O /health da API responde."
   # O MCP primeiro: uma API que não chega à base não deixa o MCP na imagem antiga.
-  estado=0
   if ! mcp_para "$imagem"; then
     registar "publicado $resumo, mas o MCP não arrancou"
     estado=1
@@ -413,6 +418,7 @@ if [[ -n "$anterior" ]]; then
   if saude 8080; then echo "A anterior voltou e responde."; else echo "ATENÇÃO: a anterior também não responde."; fi
 else
   docker rm -f eurolify-api eurolify-mcp >/dev/null 2>&1 || true
+  echo "ATENÇÃO: não havia publicação anterior para repor: a API está em baixo."
 fi
 registar "publicação de $resumo falhou; reposta: ${anterior:-nenhuma}"
 exit 1
