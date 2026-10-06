@@ -104,7 +104,7 @@ P2-2).
 | 2 | Calcula o resumo e chama `chave_resolver`; desconhecida, revogada ou expirada → `auth.invalid` (401), **sempre o mesmo erro**, para não dizer qual das três |
 | 3 | Guarda no pedido `{comerciante, loja, chave, ambitos}`; **o código das rotas nunca recebe o `comerciante_id` do corpo nem do caminho** |
 | 4 | A rota confere o âmbito; sem ele → `auth.forbidden` (403) |
-| 5 | Cada transacção abre com `SET LOCAL eurolify.comerciante` tirado do passo 3, por uma só função (`comComerciante`, em `src/comerciante/repositorio.ts`). **Por fazer:** `eurolify.quem = 'chave:key_…'`, com as rotas que escrevem |
+| 5 | Cada transacção abre com `SET LOCAL eurolify.comerciante` tirado do passo 3, por uma só função (`comComerciante`, em `src/comerciante/repositorio.ts`). Nas chaves (0012), quem escreve é `chave:key_…`, calculado pela base a partir do segredo; o `eurolify.quem` com `chave:key_…` fica para as rotas de domínio que escrevem |
 
 - A chave **nunca** vai para o registo: o serializador do pedido não regista
   cabeçalhos (`src/base/registo.ts`, usado pelo `servidor.ts` e pelo teste, que
@@ -203,11 +203,22 @@ As duas exigem o âmbito `keys:write` e o cabeçalho `Idempotency-Key`.
 **As regras vivem na base** (migração 0012), em duas funções novas, as únicas
 que a API ganha para escrever chaves:
 
-- `chave_criar_pela_api(p_resumo_quem, …)` e
-  `chave_revogar_pela_api(p_resumo_quem, p_id)`. **A base encontra quem pede
-  pelo resumo do segredo apresentado**, não por um id que a aplicação
-  escolhesse. Uma falha da aplicação não consegue criar nem revogar em nome de
-  outra chave sem ter o segredo dela. A chave que pede tem de:
+- `chave_criar_pela_api(p_segredo_quem, …)` e
+  `chave_revogar_pela_api(p_segredo_quem, p_id)`. **A base recebe o segredo
+  apresentado e calcula ela o resumo**: não aceita um id nem um resumo que a
+  aplicação escolhesse.
+  - Uma falha da aplicação não consegue criar nem revogar em nome de outra
+    chave sem ter o segredo dela.
+  - O resumo não chega: o das chaves do operador passa pelas entradas do
+    fluxo `operar` no GitHub (revisão do #118, P2-2).
+  - O segredo não se guarda nem vai para o registo da base: o PostgreSQL não
+    regista parâmetros por omissão (`log_statement = none`,
+    `log_parameter_max_length_on_error = 0`).
+  - **Não verifiquei** a configuração de registo da base na VPS: a imagem é a
+    oficial, com os valores por omissão e só `-c shared_buffers` e
+    `-c max_connections`.
+
+  A chave que pede tem de:
   - ser válida (não revogada, não expirada);
   - ser do comerciante do contexto;
   - ter `keys:write`.
@@ -222,8 +233,13 @@ que a API ganha para escrever chaves:
     sempre criar uma pública).
 - `criada_por` e `revogada_por` passam a `chave:key_<id>` (§5).
 - **Revogar a última:**
-  - uma chave não se revoga a si própria se for a última válida com
-    `keys:write` do comerciante → `key.last_key_writer` (409);
+  - nenhuma revogação pela API deixa o comerciante sem uma chave válida com
+    `keys:write` → `key.last_key_writer` (409). Na prática é a própria: quem
+    pede é sempre uma gestora válida;
+  - **limite:** «válida» é agora. Uma gestora que expira daqui a um minuto
+    pode revogar a única permanente, e o comerciante fica sem gestora quando
+    ela expirar. O remédio é o comando do operador, que pode criar e revogar
+    sem esta regra (é a porta de emergência; revisão do #118, P3-7);
   - a verificação corre com uma tranca por comerciante
     (`pg_advisory_xact_lock`), e quem pede volta a ser verificado debaixo da
     tranca: duas chaves que se revoguem ao mesmo tempo não deixam o
@@ -288,7 +304,7 @@ sessão em vez da chave.
 | T4 | uma rota sem o âmbito → 403; uma rota sem âmbito declarado não arranca |
 | T5 | o segredo só aparece na resposta da criação; nunca no registo, na lista nem na base (só o resumo) |
 | T6 | uma chave pública não consegue âmbitos de Administração (recusa na base) |
-| T7 | o `eurolify_api` não lê a tabela `chave_api`; só chama `chave_resolver` e `chave_listar` |
+| T7 | o `eurolify_api` não lê a tabela `chave_api`; só chama `chave_resolver`, `chave_listar` e, desde a 0012, `chave_criar_pela_api` e `chave_revogar_pela_api` |
 | T8 | revogar é imediato: o pedido seguinte com a chave dá 401 |
 | T9 | uma chave não cria outra com mais âmbitos do que tem — **com o `POST /keys`**, imposto na base |
 | T10 | a mesma `Idempotency-Key`: repetir dá a mesma resposta sem escrever outra vez (o `POST /keys` dá `idempotency.secret_not_repeated`); outro corpo → `idempotency.key_reused`; ao mesmo tempo → `idempotency.in_progress` |

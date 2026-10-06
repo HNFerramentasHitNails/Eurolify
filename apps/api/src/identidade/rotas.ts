@@ -70,7 +70,7 @@ const CabecalhoIdempotencia = Type.Object({
   "idempotency-key": Type.Optional(
     Type.String({
       description:
-        "Obrigatório nas escritas: 1 a 255 caracteres visíveis em ASCII. Repetir o pedido com a mesma chave não escreve outra vez (docs/18 §4).",
+        "Obrigatório (sem ele: 400 idempotency.key_required). 1 a 255 caracteres visíveis em ASCII. Repetir o pedido com a mesma chave não escreve outra vez (docs/18 §4).",
     }),
   ),
 });
@@ -88,7 +88,8 @@ const PedidoCriarChave = Type.Object(
     ),
     loja: Type.Optional(
       Type.String({
-        pattern: "^sto_[0-9a-f-]{36}$",
+        pattern:
+          "^sto_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
         description: "sto_…; só na chave pública, e obrigatória nela",
       }),
     ),
@@ -98,7 +99,11 @@ const PedidoCriarChave = Type.Object(
 );
 
 const ParametroChave = Type.Object({
-  id: Type.String({ pattern: "^key_[0-9a-f-]{36}$", description: "key_…" }),
+  id: Type.String({
+    pattern:
+      "^key_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    description: "key_…",
+  }),
 });
 
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
@@ -123,13 +128,13 @@ function paraResposta(c: ChaveListada) {
 /** O caminho sem a consulta, para a idempotência. */
 const caminhoDe = (url: string) => url.split("?")[0] ?? url;
 
-/** O cabeçalho Idempotency-Key; repetido no pedido é inválido. */
+/**
+ * O cabeçalho Idempotency-Key. Repetido no pedido, o Node junta-o com «, »,
+ * e o formato (sem espaços) recusa-o.
+ */
 function chaveDeIdempotencia(pedido: FastifyRequest): string | undefined {
   const valor = pedido.headers["idempotency-key"];
-  if (Array.isArray(valor)) {
-    throw erroBase("request.invalid", "Idempotency-Key repetido no pedido");
-  }
-  return valor;
+  return Array.isArray(valor) ? valor.join(", ") : valor;
 }
 
 export function rotasDaIdentidade(
@@ -212,6 +217,13 @@ export function rotasDaIdentidade(
           "`loja` é obrigatória na chave pública e proibida na de servidor",
         );
       }
+      const expiraEm =
+        corpo.expira_em === undefined ? null : new Date(corpo.expira_em);
+      // O formato aceita um segundo intercalar (23:59:60), que o Date não lê
+      // (revisão do #118, P3-4).
+      if (expiraEm !== null && Number.isNaN(expiraEm.getTime())) {
+        throw erroBase("request.invalid", "`expira_em` não é uma data válida");
+      }
       const ambitos: Ambito[] = publica
         ? ["storefront"]
         : (corpo.ambitos ?? []);
@@ -227,16 +239,13 @@ export function rotasDaIdentidade(
         async (trx) => {
           const { chave: nova, segredo } = await criarChavePelaApi(
             trx,
-            chave.resumo,
+            chave.segredo,
             {
               tipo: corpo.tipo,
               lojaId: corpo.loja?.slice("sto_".length) ?? null,
               nome: corpo.nome,
               ambitos,
-              expiraEm:
-                corpo.expira_em === undefined
-                  ? null
-                  : new Date(corpo.expira_em),
+              expiraEm,
             },
           );
           const guardada = paraResposta(nova);
@@ -293,7 +302,7 @@ export function rotasDaIdentidade(
         },
         async (trx) => {
           const revogada = paraResposta(
-            await revogarChavePelaApi(trx, chave.resumo, id),
+            await revogarChavePelaApi(trx, chave.segredo, id),
           );
           return { status: 200, corpo: revogada, guardar: revogada };
         },

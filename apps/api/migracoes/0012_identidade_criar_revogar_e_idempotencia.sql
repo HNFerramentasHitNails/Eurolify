@@ -6,12 +6,16 @@
 --
 -- O que esta migração faz:
 -- - duas funções SECURITY DEFINER, as únicas por onde a API escreve chaves:
---   `chave_criar_pela_api` e `chave_revogar_pela_api`. A base encontra quem
---   pede pelo RESUMO do segredo apresentado (não por um id que a aplicação
---   escolhesse) e impõe: chave válida, do comerciante do contexto, com
---   `keys:write`; a nova não tem âmbitos que quem pede não tem (T9); uma
---   chave não se revoga a si própria se for a última com `keys:write` (T11),
---   com uma tranca por comerciante;
+--   `chave_criar_pela_api` e `chave_revogar_pela_api`. A base recebe o
+--   SEGREDO apresentado e calcula ela o resumo (não aceita um id nem um
+--   resumo que a aplicação escolhesse: o resumo das chaves do operador
+--   passa pelo GitHub; revisão do #118, P2-2) e impõe: chave válida, do
+--   comerciante do contexto, com `keys:write`; a nova não tem âmbitos que
+--   quem pede não tem (T9); nenhuma revogação deixa o comerciante sem uma
+--   chave válida com `keys:write` (T11), com uma tranca por comerciante;
+--   o segredo não se guarda nem vai para o registo da base (o PostgreSQL
+--   não regista parâmetros por omissão: log_statement = none,
+--   log_parameter_max_length_on_error = 0);
 -- - a tabela `idempotencia` (docs/18 §4), com RLS forçado por comerciante.
 --
 -- Só acrescenta: a versão anterior da API (que já abre a base na VPS desde o
@@ -19,16 +23,17 @@
 
 SET LOCAL lock_timeout = '10s';
 
--- A chave que pede, a partir do resumo do segredo apresentado: válida, do
--- comerciante do contexto e com `keys:write`. Sem isso, `auth.forbidden`.
+-- A chave que pede, a partir do segredo apresentado (o resumo calcula-se
+-- aqui, como em src/identidade/chaves.ts): válida, do comerciante do
+-- contexto e com `keys:write`. Sem isso, `auth.forbidden`.
 -- Não se dá à API: só as duas funções abaixo a chamam.
-CREATE FUNCTION chave_que_pede(p_resumo text) RETURNS public.chave_api
+CREATE FUNCTION chave_que_pede(p_segredo text) RETURNS public.chave_api
   LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   quem public.chave_api;
 BEGIN
   SELECT c.* INTO quem FROM public.chave_api c
-  WHERE c.resumo = p_resumo
+  WHERE c.resumo = encode(sha256(convert_to(coalesce(p_segredo, ''), 'UTF8')), 'hex')
     AND c.comerciante_id = public.comerciante_actual()
     AND c.revogada_em IS NULL
     AND (c.expira_em IS NULL OR c.expira_em > now());
@@ -41,7 +46,7 @@ $$;
 
 -- Criar uma chave no comerciante do contexto, em nome da chave que pede. O
 -- segredo nunca chega à base: vem só o resumo e o prefixo da nova.
-CREATE FUNCTION chave_criar_pela_api(p_resumo_quem text, p_tipo text,
+CREATE FUNCTION chave_criar_pela_api(p_segredo_quem text, p_tipo text,
                                      p_loja_id uuid, p_nome text,
                                      p_ambitos text[], p_prefixo text,
                                      p_resumo text, p_expira_em timestamptz)
@@ -56,7 +61,7 @@ BEGIN
   -- ser revogada nesse instante.
   PERFORM pg_advisory_xact_lock(
     hashtextextended('chave_api:' || public.comerciante_actual()::text, 0));
-  quem := public.chave_que_pede(p_resumo_quem);
+  quem := public.chave_que_pede(p_segredo_quem);
   IF p_expira_em IS NOT NULL AND p_expira_em <= now() THEN
     RAISE EXCEPTION 'key.invalid_expiry: a data de expiração tem de ser no futuro';
   END IF;
@@ -84,8 +89,11 @@ $$;
 -- Revogar uma chave do comerciante do contexto, em nome da chave que pede.
 -- A tranca por comerciante põe as revogações em fila: quem pede volta a ser
 -- verificado debaixo dela, por isso duas chaves que se revoguem ao mesmo
--- tempo não deixam o comerciante sem nenhuma com keys:write (T11).
-CREATE FUNCTION chave_revogar_pela_api(p_resumo_quem text, p_id uuid)
+-- tempo não deixam o comerciante sem nenhuma com keys:write (T11). A regra
+-- vale para qualquer revogação de uma chave que gere chaves, não só a
+-- própria (revisão do #118, P3-7). O comando do operador (chave_revogar,
+-- 0010) pode revogar a última: é a porta de emergência.
+CREATE FUNCTION chave_revogar_pela_api(p_segredo_quem text, p_id uuid)
   RETURNS void
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -94,7 +102,7 @@ DECLARE
 BEGIN
   PERFORM pg_advisory_xact_lock(
     hashtextextended('chave_api:' || public.comerciante_actual()::text, 0));
-  quem := public.chave_que_pede(p_resumo_quem);
+  quem := public.chave_que_pede(p_segredo_quem);
   SELECT c.* INTO alvo FROM public.chave_api c
   WHERE c.id = p_id AND c.comerciante_id = quem.comerciante_id
   FOR UPDATE;
@@ -104,10 +112,10 @@ BEGIN
   IF alvo.revogada_em IS NOT NULL THEN
     RAISE EXCEPTION 'key.already_revoked: a chave já foi revogada';
   END IF;
-  IF alvo.id = quem.id AND NOT EXISTS (
+  IF 'keys:write' = ANY (alvo.ambitos) AND NOT EXISTS (
        SELECT 1 FROM public.chave_api c
        WHERE c.comerciante_id = quem.comerciante_id
-         AND c.id <> quem.id
+         AND c.id <> alvo.id
          AND c.revogada_em IS NULL
          AND (c.expira_em IS NULL OR c.expira_em > now())
          AND 'keys:write' = ANY (c.ambitos)) THEN

@@ -213,20 +213,32 @@ describe.skipIf(URL_BASE === undefined)(
         expect(await contarChaves(a)).toBe(antes);
       });
 
-      it("T9 na base: com o segredo de outra chave ou de outro comerciante, a função recusa", async () => {
-        const chamar = (resumo: string) =>
+      it("na base: sem o segredo de uma gestora válida do comerciante, a função recusa", async () => {
+        const expirada = await criarChave(comoDono(), a, {
+          tipo: "servidor",
+          nome: "Expira já",
+          ambitos: ["keys:write", "catalog:read"],
+          criadaPor: "operador:teste",
+          expiraEm: new Date(Date.now() + 1500),
+        });
+        await new Promise((r) => setTimeout(r, 1600));
+        const chamar = (segredo: string) =>
           comComerciante(base.api, a, (trx) =>
-            sql`select chave_criar_pela_api(${resumo}, 'servidor', null, 'x',
+            sql`select chave_criar_pela_api(${segredo}, 'servidor', null, 'x',
                   array['catalog:read'], 'eul_sk_abcde', ${"e".repeat(64)},
                   null)`.execute(trx),
           );
-        // Uma chave sem keys:write, uma de B no contexto de A, e um resumo inventado.
-        for (const resumo of [
-          resumoDe(leitora.segredo),
-          resumoDe(deB.segredo),
-          "f".repeat(64),
+        for (const segredo of [
+          // Sem keys:write; de B no contexto de A; inventado; expirada.
+          leitora.segredo,
+          deB.segredo,
+          `eul_sk_${"a".repeat(52)}`,
+          expirada.segredo,
+          // O resumo de uma gestora não chega: é público para as chaves do
+          // operador (revisão do #118, P2-2).
+          resumoDe(gestora.segredo),
         ]) {
-          expect(await mensagemDoErro(chamar(resumo))).toMatch(
+          expect(await mensagemDoErro(chamar(segredo))).toMatch(
             /^auth\.forbidden:/,
           );
         }
@@ -294,17 +306,51 @@ describe.skipIf(URL_BASE === undefined)(
             422,
             "key.invalid_expiry",
           ],
+          // Campos a mais e tipos errados recusam-se, não se apagam nem
+          // se convertem (revisão do #118, P2-1).
+          [
+            {
+              tipo: "servidor",
+              nome: "x",
+              ambitos: ["catalog:read"],
+              expires_at: "2030-01-01T00:00:00Z",
+            },
+            400,
+            "request.invalid",
+          ],
+          [
+            { tipo: "servidor", nome: "x", ambitos: "catalog:read" },
+            400,
+            "request.invalid",
+          ],
+          [
+            { tipo: "publica", nome: "x", loja: `sto_${"-".repeat(36)}` },
+            400,
+            "request.invalid",
+          ],
+          [
+            {
+              tipo: "servidor",
+              nome: "x",
+              ambitos: ["catalog:read"],
+              expira_em: "2030-12-31T23:59:60Z",
+            },
+            400,
+            "request.invalid",
+          ],
           [
             { tipo: "servidor", nome: "   ", ambitos: ["catalog:read"] },
             400,
             "request.invalid",
           ],
         ];
+        const antes = await contarChaves(a);
         for (const [corpo, status, codigo] of casos) {
           const r = await criar(gestora.segredo, corpo);
           expect(r.statusCode, JSON.stringify(corpo)).toBe(status);
           expect(r.json<{ codigo: string }>().codigo).toBe(codigo);
         }
+        expect(await contarChaves(a)).toBe(antes);
       });
     });
 
@@ -439,6 +485,111 @@ describe.skipIf(URL_BASE === undefined)(
         expect(outra.statusCode).toBe(201);
       });
 
+      it("uma chave de idempotência com 256 caracteres recusa-se", async () => {
+        const r = await criar(
+          gestora.segredo,
+          { tipo: "servidor", nome: "x", ambitos: ["catalog:read"] },
+          "k".repeat(256),
+        );
+        expect(r.statusCode).toBe(400);
+        expect(r.json<{ codigo: string }>().codigo).toBe("request.invalid");
+      });
+
+      it("a mesma chave de idempotência noutra chave a revogar → 422 key_reused", async () => {
+        const r1 = await criar(gestora.segredo, {
+          tipo: "servidor",
+          nome: "Alvo 1",
+          ambitos: ["catalog:read"],
+        });
+        const r2 = await criar(gestora.segredo, {
+          tipo: "servidor",
+          nome: "Alvo 2",
+          ambitos: ["catalog:read"],
+        });
+        const chave = randomUUID();
+        expect(
+          (await revogar(gestora.segredo, r1.json<ChaveCriada>().id, chave))
+            .statusCode,
+        ).toBe(200);
+        const outra = await revogar(
+          gestora.segredo,
+          r2.json<ChaveCriada>().id,
+          chave,
+        );
+        expect(outra.statusCode).toBe(422);
+        expect(outra.json<{ codigo: string }>().codigo).toBe(
+          "idempotency.key_reused",
+        );
+        expect((await eu(r2.json<ChaveCriada>().segredo)).statusCode).toBe(200);
+      });
+
+      it("a API só escreve as colunas dela e só no seu comerciante", async () => {
+        const tentativas = [
+          sql`insert into idempotencia (comerciante_id, chave, metodo, caminho,
+                resumo_corpo, criado_em)
+              values (${a}::uuid, 'c1', 'POST', '/x', ${"0".repeat(64)}, now())`,
+          sql`update idempotencia set expira_em = now() + interval '10 years'`,
+          sql`insert into idempotencia (comerciante_id, chave, metodo, caminho,
+                resumo_corpo)
+              values (${b}::uuid, 'c2', 'POST', '/x', ${"0".repeat(64)})`,
+        ];
+        for (const consulta of tentativas) {
+          expect(
+            await mensagemDoErro(
+              comComerciante(base.api, a, (trx) => consulta.execute(trx)),
+            ),
+          ).toMatch(/permission denied|row-level security/);
+        }
+      });
+
+      it("um pedido lento cuja reserva foi substituída (órfã) não escreve uma segunda vez", async () => {
+        const { comIdempotencia } = await import("../src/base/idempotencia.js");
+        const { criarChavePelaApi } =
+          await import("../src/identidade/repositorio.js");
+        const chave = randomUUID();
+        const pedido = {
+          chave,
+          metodo: "POST" as const,
+          caminho: "/keys",
+          corpo: { nome: "Órfã" },
+        };
+        const escrever = (trx: Parameters<typeof criarChavePelaApi>[0]) =>
+          criarChavePelaApi(trx, gestora.segredo, {
+            tipo: "servidor",
+            lojaId: null,
+            nome: "Órfã",
+            ambitos: ["catalog:read"],
+            expiraEm: null,
+          }).then(() => ({ status: 201, corpo: {}, guardar: {} }));
+        let soltar = () => {};
+        const solto = new Promise<void>((r) => (soltar = r));
+        let comecou = () => {};
+        const começado = new Promise<void>((r) => (comecou = r));
+        // O primeiro reserva e fica parado antes de escrever.
+        const primeiro = comIdempotencia(base.api, a, pedido, async (trx) => {
+          comecou();
+          await solto;
+          return escrever(trx);
+        });
+        await começado;
+        // A reserva dele envelhece: passa a órfã, e um segundo igual entra.
+        await sql`update idempotencia set criado_em = now() - interval '61 seconds'
+          where chave = ${chave}`.execute(base.dono);
+        const segundo = await comIdempotencia(base.api, a, pedido, escrever);
+        expect(segundo.repetida).toBe(false);
+        soltar();
+        const r = await primeiro.catch((e: unknown) => e);
+        expect((r as { codigo?: string }).codigo).toBe(
+          "idempotency.in_progress",
+        );
+        const { rows } = await sql<{ n: number }>`
+          select count(*)::int as n from chave_api
+          where comerciante_id = ${a}::uuid and nome = 'Órfã'`.execute(
+          base.dono,
+        );
+        expect(rows[0]?.n).toBe(1);
+      });
+
       it("a idempotência de um comerciante não se vê do outro (RLS forçado)", async () => {
         const chave = randomUUID();
         expect(
@@ -550,6 +701,33 @@ describe.skipIf(URL_BASE === undefined)(
         expect(await gestorasActivas(comerciante)).toBe(1);
       });
 
+      it("T11: uma gestora temporária pode revogar a permanente (limite registado no docs/19 §6.1); depois é a última e não se revoga", async () => {
+        const { comerciante, chaves } = await comGestoras(2);
+        const [um, dois] = chaves;
+        if (um === undefined || dois === undefined)
+          throw new Error("sem chaves");
+        // Um revoga dois: fica um.
+        expect((await revogar(um.segredo, `key_${dois.id}`)).statusCode).toBe(
+          200,
+        );
+        // Uma nova gestora, criada por um, que expira em breve, não consegue
+        // revogar a única permanente se ficar ela própria como a última…
+        const nova = await criar(um.segredo, {
+          tipo: "servidor",
+          nome: "Temporária",
+          ambitos: ["keys:write"],
+          expira_em: new Date(Date.now() + 60_000).toISOString(),
+        });
+        expect(nova.statusCode).toBe(201);
+        const n = nova.json<ChaveCriada>();
+        // …revogar «um» deixa «n»: é permitido (fica uma válida).
+        expect((await revogar(n.segredo, `key_${um.id}`)).statusCode).toBe(200);
+        // Agora «n» é a última: ninguém a revoga pela API.
+        const r = await revogar(n.segredo, n.id);
+        expect(r.json<{ codigo: string }>().codigo).toBe("key.last_key_writer");
+        expect(await gestorasActivas(comerciante)).toBe(1);
+      });
+
       it("T11: com outra que gere chaves, revoga-se a si própria", async () => {
         const { comerciante, chaves } = await comGestoras(2);
         const [primeira] = chaves;
@@ -585,8 +763,12 @@ describe.skipIf(URL_BASE === undefined)(
             revogar(um.segredo, `key_${dois.id}`),
             revogar(dois.segredo, `key_${um.id}`),
           ]);
-          // A segunda já não pode pedir: foi revogada pela primeira.
-          expect([r1.statusCode, r2.statusCode].sort()).toEqual([200, 403]);
+          // A segunda já não pode pedir: foi revogada pela primeira. Conforme
+          // o momento, a autenticação dá 401 ou a base dá 403 (revisão do
+          // #118, P3-8).
+          const [ganhou, perdeu] = [r1.statusCode, r2.statusCode].sort();
+          expect(ganhou).toBe(200);
+          expect([401, 403]).toContain(perdeu);
           expect(await gestorasActivas(comerciante)).toBe(1);
         }
       });

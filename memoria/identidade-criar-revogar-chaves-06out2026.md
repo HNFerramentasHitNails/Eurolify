@@ -13,15 +13,17 @@ Pedido do Diogo, 06/10/2026: *«avança com o POST /keys e a revogação»*
     cria outra.
   - Fica escrito como decisão técnica de rotina; não foi pergunta ao Diogo.
 - **Migração 0012:**
-  - `chave_criar_pela_api` e `chave_revogar_pela_api`: a base encontra quem
-    pede pelo **resumo do segredo apresentado** (`chave_que_pede`, que a API
-    não pode chamar sozinha);
+  - `chave_criar_pela_api` e `chave_revogar_pela_api`: a base recebe o
+    **segredo** de quem pede e calcula ela o resumo (`chave_que_pede`, que a
+    API não pode chamar sozinha). Na primeira versão recebia o resumo, mas o
+    das chaves do operador passa pelo GitHub (revisão, P2-2);
   - exige uma chave válida, do comerciante do contexto e com `keys:write`;
   - T9: os âmbitos da nova estão todos nos de quem pede. A pública tem só
     `storefront` e qualquer gestora a cria (**proposta**: a regra literal
     impediria sempre a pública, porque `storefront` nunca está numa de
     servidor);
-  - não se revoga a última com `keys:write` (`key.last_key_writer`);
+  - nenhuma revogação pela API deixa o comerciante sem uma gestora válida
+    (`key.last_key_writer`);
   - uma tranca por comerciante (`pg_advisory_xact_lock`) em criar e revogar,
     com quem pede verificado de novo debaixo dela;
   - `criada_por` e `revogada_por` passam a `chave:key_<id>`;
@@ -47,6 +49,34 @@ Contra o PostgreSQL 18.6 local, com o resumo do `ensaio.conf`, a 06/10/2026:
 | Sem o T9 na 0012 | 2 testes falham (`T9…` e «uma escrita que falha liberta a chave») |
 | Sem a tranca na revogação | 2 testes falham (as duas corridas de T11, 5 voltas cada) |
 | Sem a regra da última | 2 testes falham |
+| Depois da revisão | **412** na API e 58 no MCP; `lint`, `tipos` e `construir` passam |
+
+## Revisão do agente (Claude Opus 5.5, ADR-0035), publicada no #118
+
+Encontrou 0 P0, 0 P1, 5 P2 e 11 P3. Tratados na mesma sessão:
+- **P2-1:** o validador recusa campos a mais e tipos errados
+  (`removeAdditional` e `coerceTypes` desligados no `criarApp`). Antes, apagava
+  em silêncio um `expires_at` mal escrito e criava a chave sem expiração.
+- **P2-2:** a base recebe o segredo, não o resumo.
+- **P2-5:** o teste do pedido lento cuja reserva órfã foi substituída. Sem a
+  protecção, criava uma segunda chave.
+- **P3:** o padrão do uuid, o segundo intercalar, o cabeçalho repetido, o
+  contrato a dizer «obrigatório», a regra da última em qualquer revogação, o
+  teste das revogações cruzadas aceita 401 ou 403, e os testes novos (256
+  caracteres, os privilégios por coluna, a mesma chave noutro alvo, a chave
+  expirada). Nos documentos: T7, o passo 5, a ordem das recusas e o RLS
+  forçado na tarefa de limpeza.
+
+**Por decidir (Diogo ou Bruno):**
+- **P2-3:** a chave de um comerciante `suspenso` ou `fechado` cria chaves? O
+  `docs/19` §5 pedia esta decisão antes das rotas que escrevem.
+- **P2-4:** uma chave com prazo pode criar outra sem prazo?
+
+| Protecção tirada | Testes que falham |
+|---|---|
+| Desfazer a escrita cuja reserva foi substituída | 1 (o do pedido lento) |
+| O validador estrito (P2-1) | 1 (o das recusas) |
+| A base aceitar o resumo (P2-2) | 1 (o da função na base) |
 
 ## O que ficou por verificar
 

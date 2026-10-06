@@ -24,10 +24,11 @@ export interface ContextoChave {
   ambitos: Ambito[];
   prefixo: string;
   /**
-   * O resumo do segredo apresentado: é por ele que a base encontra quem pede
-   * ao criar ou revogar (0012). Nunca vai para a resposta nem para o registo.
+   * O segredo apresentado: a base calcula o resumo e encontra por ele quem
+   * pede ao criar ou revogar (0012; revisão do #118, P2-2). Nunca vai para a
+   * resposta nem para o registo (o serializador do pedido não o vê).
    */
-  resumo: string;
+  segredo: string;
 }
 
 /**
@@ -57,7 +58,7 @@ export async function resolverChave(
     tipo: linha.tipo,
     ambitos: linha.ambitos,
     prefixo: linha.prefixo,
-    resumo,
+    segredo,
   };
 }
 
@@ -148,8 +149,8 @@ export function revogarChave(
   });
 }
 
-// Criar e revogar pela API (migração 0012; docs/19 §6.1). A base encontra quem
-// pede pelo resumo do segredo apresentado e impõe as regras (keys:write, T9,
+// Criar e revogar pela API (migração 0012; docs/19 §6.1). A base recebe o
+// segredo de quem pede, calcula o resumo e impõe as regras (keys:write, T9,
 // a última chave que gere chaves); aqui só se traduzem os erros.
 
 const ERROS_DAS_CHAVES = {
@@ -243,19 +244,19 @@ export interface PedidoDeChave {
 }
 
 /**
- * Cria uma chave em nome da chave que pede (`resumoQuem`), dentro da
+ * Cria uma chave em nome da chave que pede (`segredoQuem`), dentro da
  * transacção dada (com o contexto do comerciante). O segredo vem na resposta
  * e não se guarda.
  */
 export function criarChavePelaApi(
   trx: Transaction<BaseDados>,
-  resumoQuem: string,
+  segredoQuem: string,
   dados: PedidoDeChave,
 ): Promise<{ chave: ChaveListada; segredo: string }> {
   return traduzindo(async () => {
     const nova = gerarChave(dados.tipo);
     const { rows } = await sql<{ id: string }>`
-      select chave_criar_pela_api(${resumoQuem}, ${dados.tipo},
+      select chave_criar_pela_api(${segredoQuem}, ${dados.tipo},
         ${dados.lojaId}::uuid, ${dados.nome}, ${dados.ambitos}::text[],
         ${nova.prefixo}, ${nova.resumo},
         ${dados.expiraEm}::timestamptz) as id`.execute(trx);
@@ -268,11 +269,11 @@ export function criarChavePelaApi(
 /** Revoga uma chave em nome da chave que pede, dentro da transacção dada. */
 export function revogarChavePelaApi(
   trx: Transaction<BaseDados>,
-  resumoQuem: string,
+  segredoQuem: string,
   id: string,
 ): Promise<ChaveListada> {
   return traduzindo(async () => {
-    await sql`select chave_revogar_pela_api(${resumoQuem}, ${id}::uuid)`.execute(
+    await sql`select chave_revogar_pela_api(${segredoQuem}, ${id}::uuid)`.execute(
       trx,
     );
     return chaveDoContexto(trx, id);

@@ -103,8 +103,14 @@ regra 3; lição 4.1).
   - o resumo é o sha256 do JSON com as chaves ordenadas;
   - uma resposta com segredo não se guarda: guarda-se sem ele e repetir dá
     `idempotency.secret_not_repeated`.
+  - A ordem das recusas: outro método, caminho ou corpo → `key_reused`,
+    mesmo com a linha ainda `em_curso`; o mesmo pedido em curso →
+    `in_progress` (revisão do #118, P3-11).
 - **Por fazer:** a tarefa diária que apaga as expiradas. Hoje, uma linha
-  expirada só se substitui quando a mesma chave volta.
+  expirada só se substitui quando a mesma chave volta. O RLS da tabela é
+  forçado também ao dono quando ele não é superutilizador (o
+  `eurolify_migrador` na VPS): essa tarefa precisa de uma função própria ou de
+  correr comerciante a comerciante (revisão do #118, P3-9).
 
 ## 5. Eventos de domínio (tabela `evento_saida`, outbox, próxima migração)
 
