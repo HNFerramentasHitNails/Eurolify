@@ -140,10 +140,31 @@ foram vistas, salvo as que a linha cita.
 do comércio por agentes. Razão para o Eurolify falar estes protocolos em vez de
 inventar um próprio.
 
+## 7. Canais comerciais e plataformas para empresas
+
+> Acrescentada a 06/10/2026 (tarefa #135; pedido do Diogo: *«avança com as
+> linhas dos domínios condicionais»*): uma linha por domínio condicional do
+> motor de regras (`docs/eurolify/architecture.md` §4). Os artigos das linhas
+> **W · texto lido** foram lidos no texto do Jornal Oficial servido pelo
+> Serviço das Publicações da UE (o EUR-Lex não respondeu a pedidos
+> automáticos nesse dia). A transposição e a lei de cada país **não foram
+> verificadas**.
+
+| Tema | Instrumento | Desde | O que obriga | Verif. | Quem valida |
+|---|---|---|---|---|---|
+| Distribuição e revenda (acordos verticais) | Reg. (UE) 2022/720 | 01/06/2022 a 31/05/2034 (art. 11.º) | A isenção por categoria só vale com uma quota de mercado até 30 % do fornecedor e do comprador (art. 3.º, n.º 1) e cai com as restrições graves do art. 4.º, entre elas impor um preço de revenda fixo ou mínimo (al. a)), restringir o território ou os clientes fora das excepções (al. b)) e impedir o uso efectivo da internet para vender (al. e)). O Eurolify não traz nenhuma destas cláusulas como opção por omissão; cada uma vê-a um jurista (`eurolify-b2b-channels-eu`) | **W** · texto lido (arts. 3.º, n.º 1, 4.º, als. a), b) e e), e 11.º; Serviço das Publicações da UE, publications.europa.eu, 06/10/2026) | jurista |
+| Franchising (informação pré-contratual e contrato) | lei de cada país; o Reg. (UE) 2022/720 quando o acordo é vertical | — | Rever por país a informação pré-contratual, a licença de marca, o know-how, os royalties, a duração, a não concorrência e a saída (`eurolify-legal-briefing-eu`, `channels-contracts.md`). O pacote de skills remete para a lei nacional; não verifiquei se há um acto da UE próprio do franchising | **C** | jurista |
+| Agentes comerciais | Dir. 86/653/CEE | transposição até 01/01/1990 (art. 22.º; outras datas para a Irlanda e, no art. 17.º, para a Itália) | Agente comercial é o intermediário independente com poder permanente para negociar, ou negociar e concluir, vendas ou compras em nome de outro (art. 1.º, n.º 2). No fim do contrato tem direito a indemnização ou a reparação do dano (art. 17.º), salvo nos casos do art. 18.º, e isso não se afasta em prejuízo dele antes do fim do contrato (art. 19.º). Um agente não se trata como revendedor | **W** · texto lido (arts. 1.º, 17.º, 18.º, 19.º e 22.º; Serviço das Publicações da UE, publications.europa.eu, 06/10/2026) | jurista |
+| Condições da plataforma para empresas (P2B) | Reg. (UE) 2019/1150 | 12/07/2020 (art. 19.º) | Para os serviços de intermediação em linha prestados a empresas estabelecidas na UE (art. 1.º): condições claras e disponíveis em todas as fases (art. 3.º, n.º 1); alterações notificadas em suporte duradouro com pelo menos 15 dias de aviso (art. 3.º, n.º 2); motivos ao restringir ou suspender, e pelo menos 30 dias de aviso antes de terminar todo o serviço (art. 4.º); sistema interno de reclamações (art. 11.º). ❓ Se o Eurolify é um «serviço de intermediação em linha» (definição do art. 2.º, não lida) é **pergunta para o jurista** | **W** · texto lido (arts. 1.º, 3.º, 4.º, 11.º e 19.º; Serviço das Publicações da UE, publications.europa.eu, 06/10/2026) | jurista |
+
 ---
 
 ## O que ficou por verificar nesta versão
 
+- **Secção 7 (06/10/2026):** a transposição da Dir. 86/653/CEE e a lei do
+  franchising de cada país; a definição de «serviço de intermediação em linha»
+  (art. 2.º do Reg. 2019/1150) e se o Eurolify cabe nela; as orientações da
+  Comissão sobre os acordos verticais (não lidas).
 - **Nenhum texto legal foi lido por inteiro.** Nas linhas **W · texto lido**
   leram-se só os artigos citados (EUR-Lex, 03/10/2026); no resto, só resumos de
   pesquisa e títulos.

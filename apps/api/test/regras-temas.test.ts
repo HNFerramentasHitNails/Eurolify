@@ -31,7 +31,7 @@ const PAPEIS_DO_TEXTO: Record<string, readonly string[]> = {
 const semFormatacao = (texto: string) =>
   texto.replace(/\*\*/g, "").replace(/\*/g, "").trim();
 
-/** As linhas das secções 1 a 5 do docs/03: secção, tema e quem valida. */
+/** As linhas do docs/03 com «Quem valida» (secções 1 a 5 e 7). */
 function linhasDoDocs03() {
   const linhas: { seccao: number; titulo: string; quem: string }[] = [];
   let seccao = 0;
@@ -44,7 +44,9 @@ function linhasDoDocs03() {
       continue;
     }
     if (linha.startsWith("## ")) seccao = 0;
-    if (seccao < 1 || seccao > 5 || !linha.startsWith("|")) continue;
+    // Todas as secções numeradas; a 6 (protocolos) não tem a coluna «Quem
+    // valida» e fica de fora pelo cabeçalho.
+    if (seccao < 1 || !linha.startsWith("|")) continue;
     const celulas = linha
       .split("|")
       .slice(1, -1)
@@ -64,8 +66,8 @@ function linhasDoDocs03() {
 }
 
 describe("os temas do motor são as linhas do docs/03 (#128)", () => {
-  it("lê as 60 linhas das secções 1 a 5", () => {
-    expect(linhasDoDocs03()).toHaveLength(60);
+  it("lê as 64 linhas das secções 1 a 5 e 7", () => {
+    expect(linhasDoDocs03()).toHaveLength(64);
   });
 
   it("cada linha do docs/03 tem o tema, pela mesma ordem, com os mesmos papéis", () => {
@@ -164,6 +166,10 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
       acessibilidade_plataforma: ["acessibilidade", "dsa"],
       privacidade_marketing: ["protecao-dados", "violacao-dados", "cookies"],
       pagamentos: ["psd2-sca", "psd3-psr", "pci-dss"],
+      distribuicao_concorrencia: ["acordos-verticais"],
+      contratos_franchising: ["franchising"],
+      agencia_comercial: ["agentes-comerciais"],
+      termos_plataforma_empresas: ["p2b"],
       sem_dominio: [
         "isencao-aduaneira-150",
         "mudanca-nuvem",
@@ -186,7 +192,7 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
 
   it("os identificadores são só minúsculas, algarismos e hífenes (os repetidos falham ao carregar temas.ts)", () => {
     const ids = Object.keys(TEMAS_DOCS03);
-    expect(ids).toHaveLength(60);
+    expect(ids).toHaveLength(64);
     for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
   });
 });
