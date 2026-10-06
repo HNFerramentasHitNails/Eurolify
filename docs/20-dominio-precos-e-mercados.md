@@ -7,9 +7,8 @@
 > do [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md) e é
 > preciso antes da parte 4 do Catálogo (#77): a publicação por canal × mercado
 > e a verificação «pode publicar?» (C2 do [`docs/14`](14-dominio-catalogo.md)
-> §5). **Não há código deste domínio** até este desenho estar aprovado
-> (`AGENTS.md`, ponto 3; ADR-0023). **As perguntas da §9 decidem-se antes de
-> programar** o que delas depende.
+> §5). Com o desenho aprovado e as perguntas da §9 decididas, o código deste
+> domínio pode começar (`AGENTS.md`, ponto 3; ADR-0023).
 >
 > Skills seguidas: `eu-localization` (mercado, moedas, línguas, montantes),
 > `consumer-rights-eu` (preço total, preço por unidade, redução com o preço
