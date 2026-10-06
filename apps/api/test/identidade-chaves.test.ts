@@ -1,4 +1,4 @@
-import { sql } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   criarEntidadeLegal,
@@ -21,6 +21,13 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+import type { BaseDados } from "../src/base/esquema.js";
+
+/**
+ * Criar e revogar chaves só o dono faz (o comando do operador; revisão do
+ * #110, P2-1): a API não tem EXECUTE nessas funções.
+ */
+let comoDono: () => Kysely<BaseDados>;
 
 // Chaves de API na base (migração 0010; docs/19 §3 e §9). Contra o
 // PostgreSQL 18 verdadeiro, com o eurolify_api (ADR-0025).
@@ -52,6 +59,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
 
   beforeAll(async () => {
     base = await criarBaseDeTeste(URL_BASE ?? "");
+    comoDono = () => base.dono;
     const novo = { nome: "Loja", lingua: "pt", fuso: "Europe/Lisbon" };
     a = await registarComerciante(base.api, novo);
     b = await registarComerciante(base.api, novo);
@@ -68,7 +76,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
   });
 
   it("cria uma chave de servidor e resolve-a para o comerciante dela", async () => {
-    const nova = await criarChave(base.api, a, {
+    const nova = await criarChave(comoDono(), a, {
       tipo: "servidor",
       nome: "Software de gestão",
       ambitos: ["catalog:read"],
@@ -96,7 +104,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
   });
 
   it("T5: o segredo não fica na base, só o resumo", async () => {
-    const nova = await criarChave(base.api, a, {
+    const nova = await criarChave(comoDono(), a, {
       tipo: "servidor",
       nome: "Procurar o segredo",
       ambitos: ["merchant:read"],
@@ -135,7 +143,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
   });
 
   it("listar e revogar só vêem as chaves do próprio comerciante", async () => {
-    const deA = await criarChave(base.api, a, {
+    const deA = await criarChave(comoDono(), a, {
       tipo: "servidor",
       nome: "Só de A",
       ambitos: ["catalog:read"],
@@ -143,24 +151,24 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
     });
     const listaB = await listarChaves(base.api, b);
     expect(listaB.map((c) => c.id)).not.toContain(deA.id);
-    expect(await revogarChave(base.api, b, deA.id, "operador:teste")).toBe(
+    expect(await revogarChave(comoDono(), b, deA.id, "operador:teste")).toBe(
       false,
     );
     expect(await resolverChave(base.api, deA.segredo)).not.toBe(null);
   });
 
   it("T8: revogar é imediato e só uma vez", async () => {
-    const nova = await criarChave(base.api, a, {
+    const nova = await criarChave(comoDono(), a, {
       tipo: "servidor",
       nome: "A revogar",
       ambitos: ["catalog:read"],
       criadaPor: "operador:teste",
     });
-    expect(await revogarChave(base.api, a, nova.id, "operador:teste")).toBe(
+    expect(await revogarChave(comoDono(), a, nova.id, "operador:teste")).toBe(
       true,
     );
     expect(await resolverChave(base.api, nova.segredo)).toBe(null);
-    expect(await revogarChave(base.api, a, nova.id, "operador:teste")).toBe(
+    expect(await revogarChave(comoDono(), a, nova.id, "operador:teste")).toBe(
       false,
     );
     const listada = (await listarChaves(base.api, a)).find(
@@ -171,7 +179,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
   });
 
   it("uma chave expirada não resolve", async () => {
-    const nova = await criarChave(base.api, a, {
+    const nova = await criarChave(comoDono(), a, {
       tipo: "servidor",
       nome: "Expira já",
       ambitos: ["catalog:read"],
@@ -184,7 +192,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
   });
 
   it("T6: a chave pública é de uma loja e só tem o âmbito da Loja", async () => {
-    const publica = await criarChave(base.api, a, {
+    const publica = await criarChave(comoDono(), a, {
       tipo: "publica",
       lojaId: lojaA,
       nome: "Montra",
@@ -219,7 +227,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
     ]) {
       expect(
         await mensagemDoErro(
-          criarChave(base.api, a, {
+          criarChave(comoDono(), a, {
             ...dados,
             nome: "Errada",
             criadaPor: "operador:teste",
@@ -232,7 +240,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
   it("a chave pública não aponta para a loja de outro comerciante", async () => {
     expect(
       await mensagemDoErro(
-        criarChave(base.api, b, {
+        criarChave(comoDono(), b, {
           tipo: "publica",
           lojaId: lojaA,
           nome: "Loja alheia",
@@ -244,7 +252,7 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
   });
 
   it("uma chave não se altera nem se apaga, nem pelo dono", async () => {
-    const nova = await criarChave(base.api, a, {
+    const nova = await criarChave(comoDono(), a, {
       tipo: "servidor",
       nome: "Imutável",
       ambitos: ["catalog:read"],
@@ -260,6 +268,73 @@ describe.skipIf(URL_BASE === undefined)("chaves de API na base (0010)", () => {
         /^(key\.immutable|audit\.append_only):/,
       );
     }
+  });
+
+  it("a API não cria nem revoga chaves: só resolve e lista (revisão do #110, P2-1)", async () => {
+    for (const consulta of [
+      sql`select chave_criar('servidor', null, 'x', array['keys:write'],
+            'eul_sk_abcde', ${"c".repeat(64)}, 'api', null)`,
+      sql`select chave_revogar(uuidv7(), 'api')`,
+    ]) {
+      expect(await mensagemDoErro(consulta.execute(base.api))).toMatch(
+        /permission denied/,
+      );
+    }
+  });
+
+  it("as funções do comerciante dão erro sem contexto", async () => {
+    for (const consulta of [
+      sql`select * from chave_listar()`,
+      sql`select chave_criar('servidor', null, 'x', array['keys:write'],
+            'eul_sk_abcde', ${"d".repeat(64)}, 'dono', null)`,
+      sql`select chave_revogar(uuidv7(), 'dono')`,
+    ]) {
+      expect(await mensagemDoErro(consulta.execute(base.dono))).toMatch(
+        /eurolify\.comerciante|invalid input syntax for type uuid/,
+      );
+    }
+  });
+
+  it("revogar exige quem revoga, e uma revogação não se desfaz", async () => {
+    const nova = await criarChave(comoDono(), a, {
+      tipo: "servidor",
+      nome: "Revogar duas vezes",
+      ambitos: ["catalog:read"],
+      criadaPor: "operador:teste",
+    });
+    expect(
+      await mensagemDoErro(revogarChave(comoDono(), a, nova.id, "  ")),
+    ).toMatch(/key\.revoked_by_required/);
+    expect(await resolverChave(base.api, nova.segredo)).not.toBe(null);
+    await revogarChave(comoDono(), a, nova.id, "operador:teste");
+    expect(
+      await mensagemDoErro(
+        sql`update chave_api set revogada_por = null, revogada_em = null
+            where id = ${nova.id}`.execute(base.dono),
+      ),
+    ).toMatch(/^key\.already_revoked:/);
+  });
+
+  it("o último uso marca-se ao resolver, no máximo uma vez por minuto", async () => {
+    const nova = await criarChave(comoDono(), a, {
+      tipo: "servidor",
+      nome: "Uso",
+      ambitos: ["catalog:read"],
+      criadaPor: "operador:teste",
+    });
+    const uso = async () => {
+      const { rows } = await sql<{ uso: Date | null }>`
+        select ultimo_uso_em as uso from chave_api where id = ${nova.id}`.execute(
+        base.dono,
+      );
+      return rows[0]?.uso ?? null;
+    };
+    expect(await uso()).toBe(null);
+    await resolverChave(base.api, nova.segredo);
+    const primeiro = await uso();
+    expect(primeiro).toBeInstanceOf(Date);
+    await resolverChave(base.api, nova.segredo);
+    expect(await uso()).toEqual(primeiro);
   });
 
   it("os âmbitos do código são os da base", async () => {

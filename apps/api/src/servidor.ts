@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyError } from "fastify";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
+import { serializadores } from "./base/registo.js";
 
 // Por omissão só ouve dentro da máquina (ADR-0027). Dentro do contentor o
 // fluxo de publicação passa ANFITRIAO=0.0.0.0 e a porta só se liga a
@@ -20,26 +20,7 @@ const app = criarApp(
     // Um identificador por pedido que não recomeça a cada arranque: é o
     // `instance` dos erros (revisão do #106, P3-2).
     genReqId: () => randomUUID(),
-    logger: {
-      // Sem endereços IP nem cabeçalhos nos registos: são dados pessoais
-      // (skill eu-gdpr-privacy, regra 7).
-      serializers: {
-        req: (pedido) => ({
-          id: pedido.id,
-          metodo: pedido.method,
-          url: pedido.url,
-        }),
-        // Do erro só o tipo, o código, a mensagem e a pilha: um erro do pg
-        // traz no `detail` os valores da linha (eu-gdpr-privacy, regra 7;
-        // revisão do #106, P2-6).
-        err: (erro: FastifyError) => ({
-          type: erro.name,
-          code: erro.code,
-          message: erro.message,
-          stack: erro.stack ?? "",
-        }),
-      },
-    },
+    logger: { serializers: serializadores },
   },
   undefined,
   base,
@@ -48,13 +29,16 @@ const app = criarApp(
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
     app.log.info({ sinal }, "a fechar");
-    app.close().then(
-      () => process.exit(0),
-      (erro: unknown) => {
-        app.log.error({ erro }, "erro ao fechar");
-        process.exit(1);
-      },
-    );
+    app
+      .close()
+      .then(() => base?.destroy())
+      .then(
+        () => process.exit(0),
+        (erro: unknown) => {
+          app.log.error({ erro }, "erro ao fechar");
+          process.exit(1);
+        },
+      );
   });
 }
 

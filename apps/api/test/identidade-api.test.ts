@@ -1,8 +1,10 @@
+import type { Kysely } from "kysely";
 import { Writable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Type } from "typebox";
 import { criarApp } from "../src/app.js";
 import { RESPOSTA_DE_ERRO } from "../src/base/erros.js";
+import { serializadores } from "../src/base/registo.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { criarChave, revogarChave } from "../src/identidade/repositorio.js";
 import {
@@ -10,6 +12,13 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+import type { BaseDados } from "../src/base/esquema.js";
+
+/**
+ * Criar e revogar chaves só o dono faz (o comando do operador; revisão do
+ * #110, P2-1): a API não tem EXECUTE nessas funções.
+ */
+let comoDono: () => Kysely<BaseDados>;
 
 // A API com chave (docs/19 §5, §6 e §9), contra o PostgreSQL 18 verdadeiro.
 
@@ -33,6 +42,7 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
 
   beforeAll(async () => {
     base = await criarBaseDeTeste(URL_BASE ?? "");
+    comoDono = () => base.dono;
     registo = [];
     const destino = new Writable({
       write(pedaco: Buffer, _codificacao, feito) {
@@ -41,7 +51,13 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       },
     });
     app = criarApp(
-      { logger: { level: "info", stream: destino } },
+      {
+        logger: {
+          level: "info",
+          stream: destino,
+          serializers: serializadores,
+        },
+      },
       undefined,
       base.api,
     );
@@ -49,17 +65,17 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
     a = await registarComerciante(base.api, novo);
     b = await registarComerciante(base.api, novo);
     const dados = { tipo: "servidor" as const, criadaPor: "operador:teste" };
-    chaveA = await criarChave(base.api, a, {
+    chaveA = await criarChave(comoDono(), a, {
       ...dados,
       nome: "Leitura",
       ambitos: ["catalog:read"],
     });
-    chaveAAdmin = await criarChave(base.api, a, {
+    chaveAAdmin = await criarChave(comoDono(), a, {
       ...dados,
       nome: "Chaves",
       ambitos: ["keys:write"],
     });
-    chaveB = await criarChave(base.api, b, {
+    chaveB = await criarChave(comoDono(), b, {
       ...dados,
       nome: "Chaves de B",
       ambitos: ["keys:write"],
@@ -79,13 +95,13 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
   });
 
   it("T1: inventada, mal formada e revogada dão o mesmo 401 auth.invalid", async () => {
-    const revogada = await criarChave(base.api, a, {
+    const revogada = await criarChave(comoDono(), a, {
       tipo: "servidor",
       nome: "A revogar",
       ambitos: ["catalog:read"],
       criadaPor: "operador:teste",
     });
-    await revogarChave(base.api, a, revogada.id, "operador:teste");
+    await revogarChave(comoDono(), a, revogada.id, "operador:teste");
     const corpos = [];
     for (const segredo of [
       `eul_sk_${"a".repeat(52)}`,
@@ -101,6 +117,8 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
     expect(corpos[1]).toEqual(corpos[0]);
     expect(corpos[2]).toEqual(corpos[0]);
     expect(corpos[0]).toMatchObject({ codigo: "auth.invalid" });
+    const r = await pedir("/me", revogada.segredo);
+    expect(r.headers["www-authenticate"]).toBe('Bearer error="invalid_token"');
   });
 
   it("/me diz o comerciante e a chave, com prefixos, sem o segredo", async () => {

@@ -6,10 +6,12 @@
 -- O que esta migração faz:
 -- - a tabela `chave_api`: o segredo nunca se guarda, só o resumo (sha256);
 --   uma chave nunca se apaga; revogar é uma vez e não tem volta;
--- - quatro funções SECURITY DEFINER, as únicas portas da API para a tabela:
---   resolver um segredo (atravessa comerciantes, porque ainda não se sabe de
---   quem é a chave), listar, criar e revogar (estas três sempre no comerciante
---   do contexto, `comerciante_actual()`);
+-- - quatro funções SECURITY DEFINER, as únicas portas para a tabela: resolver
+--   um segredo (atravessa comerciantes, porque ainda não se sabe de quem é a
+--   chave), listar, criar e revogar (estas três sempre no comerciante do
+--   contexto, `comerciante_actual()`). A API só recebe EXECUTE nas duas que
+--   usa (resolver e listar); criar e revogar ficam para o comando do operador
+--   (dono das tabelas) até o POST /keys entrar (revisão do #110, P2-1);
 -- - a loja ganha UNIQUE (comerciante_id, id), para a chave pública apontar
 --   para uma loja do mesmo comerciante.
 --
@@ -179,6 +181,9 @@ CREATE FUNCTION chave_revogar(p_id uuid, p_revogada_por text)
   RETURNS boolean
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+  IF p_revogada_por IS NULL OR pg_catalog.btrim(p_revogada_por) = '' THEN
+    RAISE EXCEPTION 'key.revoked_by_required: revogar exige quem revoga';
+  END IF;
   UPDATE public.chave_api c SET revogada_por = p_revogada_por
   WHERE c.id = p_id
     AND c.comerciante_id = public.comerciante_actual()
@@ -187,12 +192,11 @@ BEGIN
 END
 $$;
 
--- A API não tem nada na tabela; só as quatro portas (a 0008 já fecha as
--- funções a PUBLIC por omissão).
+-- A API não tem nada na tabela; só as duas portas que usa (a 0008 já fecha
+-- as funções a PUBLIC por omissão). Criar e revogar: só o dono (o comando do
+-- operador) até o POST /keys entrar com a sua própria verificação (T9).
 REVOKE ALL ON chave_api FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION chave_resolver(text), chave_listar(),
   chave_criar(text, uuid, text, text[], text, text, text, timestamptz),
   chave_revogar(uuid, text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION chave_resolver(text), chave_listar(),
-  chave_criar(text, uuid, text, text[], text, text, text, timestamptz),
-  chave_revogar(uuid, text) TO eurolify_api;
+GRANT EXECUTE ON FUNCTION chave_resolver(text), chave_listar() TO eurolify_api;
