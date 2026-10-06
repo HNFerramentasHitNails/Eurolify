@@ -75,6 +75,7 @@
 | ✅ BD | Motor de regras: quem valida uma regra tem de ter um papel indicado para o tema dela no `docs/03` | em vigor; por programar | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #59 |
 | ✅ BE | As faturas emitem-se pelo software certificado de cada país, ligado por adaptador; o Eurolify decide o IVA e guarda o documento como prova (D-4 → a) | em vigor nas Fases 1 a 3 | Diogo, 06/10/2026 | [ADR-0037](adr/0037-faturas-por-software-certificado.md) |
 | ✅ BF | O Eurolify nunca recebe o dinheiro das vendas: cada comerciante liga a sua conta (EuPago, Stripe primeiro) (D-5) | em vigor | Diogo, 06/10/2026 | [ADR-0038](adr/0038-o-eurolify-nunca-recebe-o-dinheiro.md) |
+| ✅ BG | O checkout é alojado pelo Eurolify, com o aspecto e no domínio da loja; API de checkout própria só na Fase 3 (D-7) | em vigor | Diogo, 06/10/2026 | [ADR-0039](adr/0039-checkout-alojado-pelo-eurolify.md) |
 
 ## Por decidir — por esta ordem
 
@@ -208,6 +209,9 @@ Agréée — `03-regulamentar-ue.md` §1), com a regra validada pelo contabilist
 desse país (D-4).
 
 ### D-7 · Checkout alojado pelo Eurolify ou feito por cada frontend?
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: alojado**
+> ([ADR-0039](adr/0039-checkout-alojado-pelo-eurolify.md)).
 
 **Recomendação: alojado** (com o aspecto da loja, no domínio da loja). Um
 frontend gerado por IA não é sítio para decidir IVA, aceitar condições ou
