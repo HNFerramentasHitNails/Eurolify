@@ -32,5 +32,5 @@ Diogo, 06/10/2026: *«sim, concordo, nunca recebe o dinheiro»*.
 - Os adaptadores de pagamento seguem a skill `payments-psd2-sca` e o contrato
   do `docs/08`; a prontidão de cada comerciante, a
   `eurolify-payment-readiness-eu`.
-- A margem sobre pagamentos (A5, `docs/12` §§ 147–156) continua pergunta para
+- A margem sobre pagamentos (A5, `docs/12`, linhas 147–156) continua pergunta para
   o jurista; esta decisão não a decide.
