@@ -73,6 +73,7 @@
 | ✅ BB | Motor de regras: a data de verificação de um domínio não limita o momento pedido; vale a vigência e a prova de cada versão | em vigor (é o que o código já faz) | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.2, #59 |
 | ✅ BC | As contas de pessoas constroem-se na API, com bibliotecas abertas; passkeys primeiro, TOTP como alternativa; revisão de segurança própria | em vigor | Diogo, 06/10/2026 | [ADR-0036](adr/0036-contas-de-pessoas-construidas-na-api.md) |
 | ✅ BD | Motor de regras: quem valida uma regra tem de ter um papel indicado para o tema dela no `docs/03` | em vigor; por programar | Diogo, 06/10/2026 | [`docs/eurolify/architecture.md`](eurolify/architecture.md) §4.1, #59 |
+| ✅ BE | As faturas emitem-se pelo software certificado de cada país, ligado por adaptador; o Eurolify decide o IVA e guarda o documento como prova (D-4 → a) | em vigor nas Fases 1 a 3 | Diogo, 06/10/2026 | [ADR-0037](adr/0037-faturas-por-software-certificado.md) |
 
 ## Por decidir — por esta ordem
 
@@ -163,6 +164,10 @@ viver na Vercel, no Lovable ou onde quiserem** — é para isso que a API existe
 e esse alojamento é deles.
 
 ### D-4 · Quem emite as faturas?
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: a)**
+> ([ADR-0037](adr/0037-faturas-por-software-certificado.md)). O texto abaixo
+> fica como registo das opções.
 
 | Opção | O que quer dizer |
 |---|---|
