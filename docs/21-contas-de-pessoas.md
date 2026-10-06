@@ -192,6 +192,13 @@ dizia; ficam como **proposta** até o Diogo ou o Bruno as mudarem:
   P2-4).
 - `sessao_resolver` distingue a sessão inválida (`auth.unauthenticated`,
   401) de não ser membro do comerciante (`auth.forbidden`, 403).
+- **Rede temporária, com data de fim** (Diogo, 06/10/2026: *«sim,
+  concordo, fica a a)»*; CE; revisão do #141, P2-1): o e-mail de um
+  convite não é confirmado e, com a CB, quem convida tem a ligação — pode
+  abri-la ele próprio, ficar com a conta desse e-mail e saber se o e-mail
+  já tem conta. Aceite **até ao primeiro comerciante real ou 31/03/2027, o
+  que chegar primeiro**; antes disso entra a protecção (e-mail confirmado
+  ou convites enviados por e-mail).
 - **Por resolver** (revisão do #141): uma pessoa desactivada fica com o
   e-mail preso — um convite novo para ele dá `invite.account_exists` e não
   há sessão que o aceite (P2-2). O caminho entra com a recuperação pelo
