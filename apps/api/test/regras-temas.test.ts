@@ -91,11 +91,17 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
     expect(doCodigo).toEqual(doDocumento);
   });
 
-  it("as linhas sem domínio no motor são estas três, e mais nenhuma (decisão BY; mudar é de propósito)", () => {
+  it("as linhas sem domínio no motor são estas cinco, e mais nenhuma (decisões BY e BZ; mudar é de propósito)", () => {
     const semDominio = Object.values(TEMAS_DOCS03)
       .filter((linha) => linha.dominio === null)
       .map((linha) => linha.id);
-    expect(semDominio).toEqual(["mudanca-nuvem", "ia", "ciberseguranca"]);
+    expect(semDominio).toEqual([
+      "isencao-aduaneira-150",
+      "mudanca-nuvem",
+      "dac7",
+      "ia",
+      "ciberseguranca",
+    ]);
   });
 
   it("o domínio de cada linha é o da tabela escrita à mão (decisão BY; revisão do #133, 2.ª, P2)", () => {
@@ -103,7 +109,6 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
       iva: [
         "oss",
         "ioss",
-        "isencao-aduaneira-150",
         "vida",
         "fornecedor-presumido",
         "canarias-ceuta-melilla",
@@ -123,7 +128,6 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
         "ksef-pl",
         "sdi-it",
         "bilhete-documento-pt",
-        "dac7",
       ],
       consumidor: [
         "pre-contratual-livre-resolucao",
@@ -160,7 +164,13 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
       acessibilidade_plataforma: ["acessibilidade", "dsa"],
       privacidade_marketing: ["protecao-dados", "violacao-dados", "cookies"],
       pagamentos: ["psd2-sca", "psd3-psr", "pci-dss"],
-      sem_dominio: ["mudanca-nuvem", "ia", "ciberseguranca"],
+      sem_dominio: [
+        "isencao-aduaneira-150",
+        "mudanca-nuvem",
+        "dac7",
+        "ia",
+        "ciberseguranca",
+      ],
     };
     const doCodigo: Record<string, string[]> = {};
     for (const linha of Object.values(TEMAS_DOCS03)) {

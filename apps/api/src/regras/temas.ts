@@ -25,7 +25,9 @@ export interface TemaDocs03 {
    * O domínio do motor em que vive uma regra desta linha (decisão do Diogo,
    * 06/10/2026, revisão do #133, P2-2: «fica a a)»), pelas definições dos
    * domínios em docs/eurolify/compliance-gaps.md §1. null: a linha não cabe
-   * em nenhum domínio do motor e nenhuma regra a pode usar até se decidir.
+   * em nenhum domínio do motor e nenhuma regra a pode usar até se decidir
+   * (também a DAC7 e o fim da isenção aduaneira, até um profissional dizer
+   * onde ficam: decisão BZ, Diogo, 06/10/2026).
    */
   dominio: Dominio | null;
   /** O texto da coluna «Tema», sem a formatação. */
@@ -61,7 +63,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "isencao-aduaneira-150",
     seccao: 1,
-    dominio: "iva",
+    dominio: null,
     titulo: "Fim da isenção aduaneira <150 €",
     quemValida: "despachante",
     papeis: ["despachante"],
@@ -480,7 +482,7 @@ const LINHAS: readonly TemaDocs03[] = [
   {
     id: "dac7",
     seccao: 4,
-    dominio: "faturacao",
+    dominio: null,
     titulo: "Comunicação de vendedores por plataformas",
     quemValida: "contabilista",
     papeis: C,

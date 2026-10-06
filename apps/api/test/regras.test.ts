@@ -1827,7 +1827,6 @@ describe("o papel de quem valida confere-se com a linha do docs/03 (#59, #128)",
 
   it.each([
     ["iva", "oss", "contabilista"],
-    ["iva", "isencao-aduaneira-150", "despachante"],
     ["faturacao", "atcud-qr", "contabilista"],
     ["consumidor", "botao-livre-resolucao", "jurista"],
     ["privacidade_marketing", "protecao-dados", "encarregado_de_dados"],
@@ -2019,8 +2018,8 @@ describe("o papel de quem valida confere-se com a linha do docs/03 (#59, #128)",
         "tecnico_regulamentar",
         false,
       ],
-      // A DAC7 é comunicação à autoridade: faturação.
-      ["faturacao", "dac7", "contabilista", true],
+      // A DAC7 fica sem domínio até o contabilista dizer onde (BZ).
+      ["faturacao", "dac7", "contabilista", false],
       ["privacidade_marketing", "dac7", "contabilista", false],
       // A informação de entrega é do consumidor.
       ["consumidor", "informacao-entrega", "jurista", true],
@@ -2037,8 +2036,14 @@ describe("o papel de quem valida confere-se com a linha do docs/03 (#59, #128)",
     }
   });
 
-  it("as linhas sem domínio no motor (nuvem, IA, cibersegurança) não servem nenhum", () => {
-    for (const tema of ["mudanca-nuvem", "ia", "ciberseguranca"]) {
+  it("as linhas sem domínio no motor não servem nenhum (BY e BZ)", () => {
+    for (const tema of [
+      "isencao-aduaneira-150",
+      "mudanca-nuvem",
+      "dac7",
+      "ia",
+      "ciberseguranca",
+    ]) {
       for (const dominio of TODOS_OS_DOMINIOS) {
         expect(
           errosDoRegisto(comRegraValidada(dominio, tema, "jurista")).join("\n"),
