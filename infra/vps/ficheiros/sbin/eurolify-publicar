@@ -370,8 +370,12 @@ elif ((com_migrador == 0)) && [[ -z "$a_mais" ]]; then
   echo "Sem migrações nesta imagem."
 fi
 
-arrancar "$imagem"
-if saude 8080; then
+# Se a imagem nova nem arranca (o docker run falha), segue o mesmo caminho de
+# um /health que não responde: linha «falhou» e volta à anterior (2.ª revisão
+# do #122, P2-1).
+arrancou=1
+arrancar "$imagem" || arrancou=0
+if ((arrancou == 1)) && saude 8080; then
   linha_publicacao "" "$migrou"
   registar "publicado $resumo (anterior: ${anterior:-nenhuma})"
   echo "Publicado: $resumo. O /health da API responde."
@@ -384,15 +388,20 @@ if saude 8080; then
   verificar_base "$resumo" || estado=1
   exit "$estado"
 fi
-echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
-docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
+if ((arrancou == 1)); then
+  echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"
+  docker logs --tail 30 eurolify-api 2>&1 | filtrar_ip || true
+else
+  echo "A imagem nova não arrancou (docker run falhou)."
+fi
 
 # As migrações que esta publicação aplicou ficam na base: ficam numa linha
 # «falhou» do publicacoes.log e no registo de acções (5.ª revisão do #115,
 # P3-1; #120, P2), antes de voltar à anterior, que também pode falhar (#122,
-# P2-2).
-linha_publicacao falhou "$migrou"
-registar "publicação de $resumo falhou no /health; migrou: ${migrou:-nenhuma}"
+# P2-2). Uma falha a escrever não impede a reposição (2.ª revisão do #122,
+# P3-1).
+linha_publicacao falhou "$migrou" || echo "ATENÇÃO: não se escreveu a linha «falhou» no publicacoes.log" >&2
+registar "publicação de $resumo falhou no arranque ou no /health; migrou: ${migrou:-nenhuma}" || true
 
 if [[ -n "$anterior" ]]; then
   echo "A voltar à imagem anterior: $anterior"

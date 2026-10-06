@@ -358,8 +358,6 @@ confere nao "sem correr o migrador" migrou
 
 # #122, P2-1: duas falhas seguidas não perdem a herança.
 preparar
-printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n0005_e.sql\n' >"$falsos/ls-4"
-printf '0001_a\n0002_b\n0003_c\n' >"$falsos/base"
 printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
 caso "a 4 falha o /health depois de aplicar a d …" 4 CURL_FALHA=1
 printf '0001_a\n0002_b\n0003_c\n0004_d\n' >"$falsos/base"
@@ -412,6 +410,31 @@ touch "$falsos/run-falha-3"
 caso "a 4 falha o /health e a 3 já não arranca" 4 CURL_FALHA=1
 confere sim "fica a linha «falhou» da 4 com a d" grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
 confere sim "regista que a anterior não arrancou" no_registo "não se conseguiu arrancar a anterior"
+
+# 2.ª revisão do #122, P2-1: a imagem nova nem arranca.
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+touch "$falsos/run-falha-4"
+caso "a 4 não arranca (docker run falha)" 4
+confere sim "termina com erro" erro
+confere sim "fica a linha «falhou» da 4 com a d" grep -qE "\| $(r 4) \| anterior: $(img 3) \| falhou \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
+if [[ "$(cat "$falsos/no-ar")" == "$(img 3)" ]]; then echo "ok: a 3 volta ao ar"; else falhou "a 3 não voltou ao ar"; fi
+
+# 2.ª revisão do #122, P3-1: não se consegue escrever no publicacoes.log.
+preparar
+printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
+mv /var/log/eurolify/publicacoes.log /var/log/eurolify/publicacoes.log.guardado
+mkdir /var/log/eurolify/publicacoes.log
+caso "o /health da 4 falha e o publicacoes.log não aceita escrita" 4 CURL_FALHA=1
+rmdir /var/log/eurolify/publicacoes.log
+mv /var/log/eurolify/publicacoes.log.guardado /var/log/eurolify/publicacoes.log
+if [[ "$(cat "$falsos/no-ar")" == "$(img 3)" ]]; then echo "ok: a 3 volta ao ar na mesma"; else falhou "a 3 não voltou ao ar"; fi
+
+# 2.ª revisão do #122, P3-3: herança de uma linha boa e a migração falha a meio.
+preparar
+caso "voltar à 2 …" 2
+caso "… avançar para a 3 e a migração falha sem deixar nada" 3 MIGRAR_FALHA=1
+confere sim "a linha «falhou» da 3 guarda a c herdada" grep -qE "\| $(r 3) \| anterior: $(img 2) \| falhou \| migrou: 0003_c\$" /var/log/eurolify/publicacoes.log
 
 # #120, P3-1: a migração falha a meio e deixa migrações na base.
 preparar
