@@ -80,6 +80,7 @@
 | ✅ BI | Um comerciante com sistema de gestão continua a emitir por ele; o Eurolify não fala com o software de faturação nessas vendas (D-10) | em vigor | Diogo, 06/10/2026 | [ADR-0041](adr/0041-com-sistema-de-gestao-emite-o-sistema-dele.md) |
 | ✅ BJ | **Não** se põe nenhuma nota sobre o Eurolify no repositório `bruno-88/claude`: o Eurolify é um projecto totalmente separado (D-11 → não) | em vigor | Diogo, 06/10/2026 (*«Não. O Eurolify é um projeto totalmente separado»*) | D-11 abaixo |
 | ✅ BK | Ensaio e produção em máquinas separadas a partir do primeiro comerciante de fora (produção na VPS-3 em Paris) | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 3 |
+| ✅ BL | Produção: cópia contínua (WAL) mais completa diária — perda máxima de 5 minutos, volta em até 4 horas; números a confirmar num ensaio de reposição | em vigor; onde ficam as cópias por decidir | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 4 |
 
 ## Por decidir — por esta ordem
 

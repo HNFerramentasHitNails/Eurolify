@@ -118,7 +118,8 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
     entrou desde a noite anterior;
   - **ensaio de reposição agendado** — uma cópia que nunca foi reposta não é
     uma cópia (skill `observability-security`);
-  - **quanto se pode perder e em quanto tempo se volta**: por decidir (§7).
+  - **quanto se pode perder e em quanto tempo se volta**: na produção, até
+    5 minutos e até 4 horas (§7, ponto 4; decisão BL).
 - **Segunda máquina para a base** (réplica pronta a assumir): por decidir (§7).
 
 ### 3.6 Publicação a partir do GitHub
@@ -270,8 +271,14 @@ O que o Diogo faz, fora do repositório:
    para voltar). ✅ **Para o ensaio** (ADR-0027): `pg_dump` diário cifrado
    para o ~~Scaleway Object Storage em Paris~~ **OVH Object Storage em
    Paris, três zonas** (ADR-0032), 14 dias, reposição semanal; até 24 h de perda.
-   Para a produção, por decidir — com VPS e cópias no mesmo fornecedor e na
-   mesma conta, um problema na conta leva as duas (ADR-0032).
+   ✅ **Para a produção** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*):
+   cópia **contínua** do registo de transacções (WAL), cifrada e fora da
+   máquina, mais uma cópia completa diária — **perda máxima de 5 minutos**
+   e **volta em até 4 horas**. Os dois números são proposta do Claude e
+   confirmam-se num ensaio de reposição antes do primeiro comerciante; o
+   custo do armazenamento não foi verificado. Continua por decidir onde
+   (com VPS e cópias no mesmo fornecedor e na mesma conta, um problema na
+   conta leva as duas, ADR-0032).
 5. **Segunda máquina para a base**, e a partir de quando.
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
