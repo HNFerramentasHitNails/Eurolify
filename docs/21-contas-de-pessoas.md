@@ -1,6 +1,7 @@
 # Contas de pessoas (identidade, parte B) — desenho antes do código
 
-> **Versão de 06/10/2026 — desenho, por aprovar; as quatro perguntas da §10
+> **Versão de 06/10/2026 — desenho aprovado** (Diogo, 06/10/2026: *«sim,
+> aprovo; junta o #138 e começa o código»*)**; as quatro perguntas da §10
 > decididas (CA a CD do `docs/06`); revisto depois da revisão do agente
 > publicada no #138 (2 P0, 9 P1).** Pedido do Diogo: *«sim, avança com a a)»*
 > (a parte B da identidade, antes do código). Cumpre as consequências do
