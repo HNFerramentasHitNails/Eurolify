@@ -137,19 +137,32 @@ async function colecaoNaVersao(
 }
 
 /**
- * Só o que muda de facto: `undefined` quer dizer «não mexer», e um valor igual
- * ao actual não conta (a versão só sobe quando algo muda; revisão do #97,
- * P3-2).
+ * Só os campos permitidos e só o que muda de facto: `undefined` quer dizer
+ * «não mexer», e um valor igual ao actual não conta (a versão só sobe quando
+ * algo muda; revisão do #97, P3-2). Um campo fora da lista é ignorado, mesmo
+ * que chegue por fora do tipo (2.ª revisão do #97, P3-C).
  */
 function soOQueMuda<T extends object>(
   alteracao: T,
+  permitidos: readonly string[],
   actual: Record<string, unknown>,
 ): Partial<T> {
   return Object.fromEntries(
     Object.entries(alteracao).filter(
-      ([campo, valor]) => valor !== undefined && valor !== actual[campo],
+      ([campo, valor]) =>
+        permitidos.includes(campo) &&
+        valor !== undefined &&
+        valor !== actual[campo],
     ),
   ) as Partial<T>;
+}
+
+/**
+ * Os ids na forma da base (minúsculas): o mesmo uuid em maiúsculas é o mesmo
+ * id (2.ª revisão do #97, P3-B).
+ */
+function canonico(id: string): string {
+  return id.toLowerCase();
 }
 
 export type AlteracaoCategoria = {
@@ -168,7 +181,11 @@ export async function alterarCategoria(
   return noCatalogo(db, comercianteId, async (trx) => {
     await filaDasCategorias(trx, comercianteId);
     const linha = await categoriaNaVersao(trx, categoriaId, versao);
-    const campos = soOQueMuda(alteracao, linha);
+    const campos = soOQueMuda(
+      alteracao,
+      ["nome", "endereco_amigavel", "posicao"],
+      linha,
+    );
     if (Object.keys(campos).length === 0) return versao;
     const { versao: nova } = await trx
       .updateTable("categoria")
@@ -189,8 +206,9 @@ export async function moverCategoria(
   comercianteId: string,
   categoriaId: string,
   versao: number,
-  paiId: string | null,
+  paiIdDado: string | null,
 ): Promise<number> {
+  const paiId = paiIdDado === null ? null : canonico(paiIdDado);
   return noCatalogo(db, comercianteId, async (trx) => {
     await filaDasCategorias(trx, comercianteId);
     const linha = await categoriaNaVersao(trx, categoriaId, versao);
@@ -238,8 +256,9 @@ export async function definirCategoriasDoArtigo(
   comercianteId: string,
   artigoId: string,
   versao: number,
-  categoriaIds: readonly string[],
+  categoriaIdsDados: readonly string[],
 ): Promise<number> {
+  const categoriaIds = categoriaIdsDados.map(canonico);
   if (new Set(categoriaIds).size !== categoriaIds.length) {
     throw new ErroCatalogo(
       "catalog.category_duplicate",
@@ -377,7 +396,11 @@ export async function alterarColecao(
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
     const linha = await colecaoNaVersao(trx, colecaoId, versao);
-    const campos = soOQueMuda(alteracao, linha);
+    const campos = soOQueMuda(
+      alteracao,
+      ["nome", "descricao", "endereco_amigavel"],
+      linha,
+    );
     if (Object.keys(campos).length === 0) return versao;
     const { versao: nova } = await trx
       .updateTable("colecao")
@@ -419,8 +442,9 @@ export async function definirArtigosDaColecao(
   comercianteId: string,
   colecaoId: string,
   versao: number,
-  artigoIds: readonly string[],
+  artigoIdsDados: readonly string[],
 ): Promise<number> {
+  const artigoIds = artigoIdsDados.map(canonico);
   if (new Set(artigoIds).size !== artigoIds.length) {
     throw new ErroCatalogo(
       "catalog.collection_product_duplicate",

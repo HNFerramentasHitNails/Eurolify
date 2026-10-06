@@ -22,6 +22,7 @@
 - [Catálogo, parte 2a: kits (migração 0004, sem ciclos com bloqueio por comerciante, componente novo activo, componente em uso não se apaga), 16 testes; regras da parte são proposta — 05/10/2026](catalogo-kits-05out2026.md)
 - [Catálogo, parte 2b: opções e valores (migração 0005; opções só num rascunho; com opções, cada variante activa completa e sem combinação repetida; fila por artigo; P12: textos fixos fora do rascunho), 27 testes; regras da parte são proposta — 05/10/2026](catalogo-opcoes-05out2026.md)
 - [Catálogo, parte 3a: categorias e colecções (migração 0007; árvore sem ciclos com fila por comerciante; arquivam-se, não se apagam; endereço único; a fila antes da linha), 22 testes; regras da parte são proposta — 05/10/2026](catalogo-categorias-05out2026.md)
+- [Catálogo, parte 3b: traduções (migração 0009; original guardado, estado calculado; quem traduz; revisão só de IA; língua de origem passa para o comerciante e fica fixa com catálogo; publicada a 06/10), 15+4 testes; regras são proposta — 05/10/2026](catalogo-traducoes-05out2026.md)
 
 ## Alojamento e VPS
 

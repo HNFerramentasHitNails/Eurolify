@@ -68,7 +68,7 @@ PostgreSQL 18.6 a 04/10/2026), mostrados para fora com prefixo do tipo (`mer_…
 | `estado` | lista | sim | §4 |
 | `nome` | texto | sim | nome comercial, para mostrar; **nunca serve para decidir identidade** (`AGENTS.md`, regra fiscal 6): dois comerciantes com o mesmo nome são dois |
 | `lingua` | código (pt, es, en…) | sim | a do Hub e das comunicações do Eurolify |
-| `lingua_origem` | código | sim | a língua em que o comerciante escreve o catálogo, **uma só para todo o catálogo** (`docs/14` §9, P13; Diogo, 05/10/2026: *«sim, uma só língua de origem por comerciante»*). Passa da loja para aqui com a parte 3b do Catálogo |
+| `lingua_origem` | código | sim | a língua em que o comerciante escreve o catálogo, **uma só para todo o catálogo** (`docs/14` §9, P13; Diogo, 05/10/2026: *«sim, uma só língua de origem por comerciante»*). Passou da loja para aqui com a parte 3b do Catálogo (migração 0009): os que já existiam ficam com a das lojas (se as lojas de um comerciante tiverem línguas diferentes, a migração pára e decide uma pessoa) ou, sem loja, a `lingua`; um novo, sem ela, fica com a `lingua` (posta pela base); não muda depois de haver catálogo (**proposta**, `docs/14` §3.8) |
 | `fuso` | IANA (ex.: `Europe/Lisbon`) | sim | para mostrar; guarda-se sempre UTC (`eu-localization`) |
 | ~~`plano`~~ | — | — | **não entra nesta fatia** (P5): entra com a D-14 (ADR-0007, ADR-0012) |
 | `criado_em`, `actualizado_em`, `versao` | | sim | `versao` sobe em cada alteração; escrita com versão antiga recusada |
@@ -96,7 +96,7 @@ regra 4).
 | `comerciante_id` | uuid | sim | |
 | `entidade_legal_id` | uuid | sim | quem vende nesta loja (aparece ao cliente: `consumer-rights-eu`, identidade do vendedor) |
 | `nome` | texto | sim | marca |
-| ~~`lingua_origem`~~ | código | sim | **passa para o comerciante** (§3.1; `docs/14` §9, P13): o artigo é do comerciante, não da loja. Sai da loja com a parte 3b do Catálogo |
+| ~~`lingua_origem`~~ | código | não | **passou para o comerciante** (§3.1; `docs/14` §9, P13). Fica, sem obrigação e sem uso, para a versão anterior da aplicação poder voltar; sai numa migração seguinte, até 31/10/2026 (migração 0009; revisão do #105, P2-4; tarefa #109) |
 | `estado` | activa, arquivada | sim | |
 
 ### 3.4 Aceitação de um contrato

@@ -35,6 +35,8 @@ export interface TabelaComerciante {
   estado_antes_de_suspenso: ColumnType<EstadoComerciante | null, never, never>;
   nome: string;
   lingua: string;
+  /** A língua do original do catálogo, uma só (docs/14 §9, P13; 0009). */
+  lingua_origem: ColumnType<string, string | undefined, string>;
   fuso: string;
   criado_em: Instante;
   actualizado_em: ColumnType<Date, never, never>;
@@ -60,7 +62,6 @@ export interface TabelaLoja {
   comerciante_id: string;
   entidade_legal_id: string;
   nome: string;
-  lingua_origem: string;
   estado: ColumnType<"activa" | "arquivada", "activa" | undefined>;
   criado_em: Instante;
 }
@@ -359,6 +360,40 @@ export interface TabelaColecaoArtigo {
   posicao: number;
 }
 
+// Catálogo, parte 3b (migração 0009; docs/14 §3.8 e §4.3).
+export const ORIGENS_TRADUCAO = ["pessoa", "ia"] as const;
+export type OrigemTraducao = (typeof ORIGENS_TRADUCAO)[number];
+
+export interface TabelaTraducao {
+  id: Generated<string>;
+  comerciante_id: string;
+  artigo_id: ColumnType<string | null, string | null | undefined, never>;
+  opcao_id: ColumnType<string | null, string | null | undefined, never>;
+  valor_opcao_id: ColumnType<string | null, string | null | undefined, never>;
+  categoria_id: ColumnType<string | null, string | null | undefined, never>;
+  colecao_id: ColumnType<string | null, string | null | undefined, never>;
+  recurso_id: ColumnType<string, never, never>;
+  campo: ColumnType<string, string, never>;
+  lingua: ColumnType<string, string, never>;
+  texto: string;
+  original: ColumnType<string, never, never>;
+  origem: OrigemTraducao;
+  traduzido_por: ColumnType<string, never, never>;
+  traduzido_em: ColumnType<Date, never, never>;
+  revista: ColumnType<boolean, never, boolean>;
+  revisto_por: ColumnType<string | null, never, never>;
+  revisto_em: ColumnType<Date | null, never, never>;
+}
+
+/** Vista: os textos originais traduzíveis (0009). */
+export interface VistaTextoOriginal {
+  comerciante_id: string;
+  tipo: string;
+  recurso_id: string;
+  campo: string;
+  texto: string | null;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -376,4 +411,6 @@ export interface BaseDados {
   artigo_categoria: TabelaArtigoCategoria;
   colecao: TabelaColecao;
   colecao_artigo: TabelaColecaoArtigo;
+  traducao: TabelaTraducao;
+  texto_original: VistaTextoOriginal;
 }

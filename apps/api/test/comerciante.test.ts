@@ -98,6 +98,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0006_catalogo_classificacao",
         "0007_catalogo_categorias_colecoes",
         "0008_rasto_imutavel_e_funcoes_fechadas",
+        "0009_catalogo_traducoes",
         "0010_identidade_chaves",
       ]);
     });
@@ -140,8 +141,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           });
         }
       }
-      // 6 do Comerciante (0001) e 10 do Catálogo (0002, 0004, 0005 e 0007).
-      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(16);
+      // 6 do Comerciante (0001) e 11 do Catálogo (0002, 0004, 0005, 0007 e 0008).
+      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(17);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {
@@ -244,7 +245,6 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         criarLoja(base.api, a, {
           entidade_legal_id: entidadeB,
           nome: "Loja",
-          lingua_origem: "pt",
         }),
       );
       expect(erro).toMatch(/^pg:23503:/);
@@ -328,7 +328,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         comComerciante(base.api, id, (trx) =>
           trx
             .insertInto("comerciante")
-            .values({ id, ...NOVO, estado: "activo" })
+            .values({ id, ...NOVO, lingua_origem: "pt", estado: "activo" })
             .execute(),
         ),
       );
@@ -799,7 +799,6 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       const loja = await criarLoja(base.api, id, {
         entidade_legal_id: pt,
         nome: "Loja",
-        lingua_origem: "pt",
       });
       const arquivar = (entidade: string) =>
         comComerciante(base.api, id, (trx) =>
@@ -816,7 +815,6 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           criarLoja(base.api, id, {
             entidade_legal_id: es,
             nome: "Outra",
-            lingua_origem: "es",
           }),
         ),
       ).toBe("store.legal_entity_archived");
@@ -848,7 +846,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       await arquivo.connect();
       const contexto = "select set_config('eurolify.comerciante', $1, true)";
       const abrirLoja =
-        "INSERT INTO loja (comerciante_id, entidade_legal_id, nome, lingua_origem) VALUES ($1, $2, 'Loja', 'pt')";
+        "INSERT INTO loja (comerciante_id, entidade_legal_id, nome) VALUES ($1, $2, 'Loja')";
       const arquivar =
         "UPDATE entidade_legal SET estado = 'arquivada' WHERE id = $1";
       try {
