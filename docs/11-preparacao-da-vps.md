@@ -279,8 +279,11 @@ O que o Diogo faz, fora do repositório:
    custo do armazenamento não foi verificado. **Onde** (Diogo, 06/10/2026:
    *«sim, concordo, fica a b)»*): na OVH **e** uma segunda cópia, cifrada,
    noutro fornecedor da UE, para sobreviver a um problema na conta da OVH
-   (ADR-0032). O Diogo indicou a **PTISP** (*«Vamos utilizar VPS da
-   PTISP»*); o papel dela por confirmar.
+   (ADR-0032). A segunda cópia vai para uma **VPS da PTISP** (Diogo,
+   06/10/2026: *«Vamos utilizar VPS da PTISP»*; confirmado: só para a
+   segunda cópia — a produção continua na VPS-3 da OVH em Paris, ADR-0017).
+   Antes de lá entrar alguma cópia: o centro de dados, o preço e o acordo de
+   tratamento de dados da PTISP lidos e escritos aqui.
 5. **Segunda máquina para a base**, e a partir de quando.
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o

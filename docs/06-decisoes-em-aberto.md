@@ -81,7 +81,7 @@
 | ✅ BJ | **Não** se põe nenhuma nota sobre o Eurolify no repositório `bruno-88/claude`: o Eurolify é um projecto totalmente separado (D-11 → não) | em vigor | Diogo, 06/10/2026 (*«Não. O Eurolify é um projeto totalmente separado»*) | D-11 abaixo |
 | ✅ BK | Ensaio e produção em máquinas separadas a partir do primeiro comerciante de fora (produção na VPS-3 em Paris) | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 3 |
 | ✅ BL | Produção: cópia contínua (WAL) mais completa diária — perda máxima de 5 minutos, volta em até 4 horas; números a confirmar num ensaio de reposição | em vigor; onde ficam: BM | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 4 |
-| ✅ BM | Produção: as cópias ficam na OVH e numa segunda cópia cifrada noutro fornecedor da UE (só produção; o ensaio fica como no ADR-0032) | em vigor; fornecedor indicado: PTISP, papel por confirmar | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 4 |
+| ✅ BM | Produção: as cópias ficam na OVH e numa segunda cópia cifrada noutro fornecedor da UE (só produção; o ensaio fica como no ADR-0032) | em vigor; a segunda cópia numa VPS da PTISP (só cópias; centro de dados, preço e acordo por verificar) | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 4 |
 
 ## Por decidir — por esta ordem
 
