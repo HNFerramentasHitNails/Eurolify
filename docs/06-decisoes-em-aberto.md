@@ -78,6 +78,7 @@
 | ✅ BG | O checkout é alojado pelo Eurolify, com o aspecto e no domínio da loja; API de checkout própria só na Fase 3 (D-7) | em vigor | Diogo, 06/10/2026 | [ADR-0039](adr/0039-checkout-alojado-pelo-eurolify.md) |
 | ✅ BH | As IAs dos comerciantes só lêem na Fase 1; escrita com confirmação humana na Fase 3; nunca faturas, reembolsos, fusões de clientes nem lotes (D-9) | em vigor | Diogo, 06/10/2026 | [ADR-0040](adr/0040-ia-so-le-na-fase-1.md) |
 | ✅ BI | Um comerciante com sistema de gestão continua a emitir por ele; o Eurolify não fala com o software de faturação nessas vendas (D-10) | em vigor | Diogo, 06/10/2026 | [ADR-0041](adr/0041-com-sistema-de-gestao-emite-o-sistema-dele.md) |
+| ✅ BJ | **Não** se põe nenhuma nota sobre o Eurolify no repositório `bruno-88/claude`: o Eurolify é um projecto totalmente separado (D-11 → não) | em vigor | Diogo, 06/10/2026 (*«Não. O Eurolify é um projeto totalmente separado»*) | D-11 abaixo |
 
 ## Por decidir — por esta ordem
 
@@ -252,6 +253,9 @@ a emissão para o Eurolify é uma decisão posterior, cliente a cliente, com o
 Eurolify já provado. **Quem decide:** Diogo ou Bruno.
 
 ### D-11 · Ponte para a memória de trabalho existente
+
+> ✅ **Decidido a 06/10/2026 pelo Diogo: não** — *«O Eurolify é um projeto
+> totalmente separado»*. Nada se escreve no `bruno-88/claude`.
 
 A memória do Eurolify vive aqui (decisão B). **Por decidir pelo Diogo ou pelo Bruno:** pôr no
 repo `bruno-88/claude` **uma** memória curta a apontar para este repositório,
