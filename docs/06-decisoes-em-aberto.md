@@ -220,6 +220,10 @@ verificação.
 
 ### D-8 · Estilo da API
 
+> ✅ **Já decidida com o ADR-0025** (Diogo, 04/10/2026): o ADR das ferramentas
+> do código parte da recomendação abaixo — REST com OpenAPI 3.1 — e o código
+> segue-a desde o #106 (`docs/18`). Registado a 06/10/2026, sem pergunta nova.
+
 **Recomendação: REST com contrato OpenAPI 3.1**, webhooks assinados e SDK
 TypeScript. É o que os construtores de frontends com IA e os modelos com
 chamada de funções leem melhor. GraphQL só com necessidade medida.
