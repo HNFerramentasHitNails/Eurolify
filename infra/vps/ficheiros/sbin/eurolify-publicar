@@ -119,7 +119,21 @@ fi
 # migrado: por isso as migrações têm de ser compatíveis com a versão anterior
 # (acrescentar primeiro, tirar só numa publicação seguinte). O migrador lê o
 # migrar.env (a ligação do dono das tabelas), que a API nunca recebe.
-if docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
+#
+# Uma imagem que já esteve no ar (está no publicacoes.log) já teve as suas
+# migrações aplicadas, e a base nunca as desfaz: voltar a ela (MCP, ADR-0033)
+# não migra. O migrador dela não conhece as migrações que vieram depois e
+# recusava a base (Kysely: «corrupted migrations … is missing»; tarefa #113).
+# O esquema fica o de agora: só a publicação imediatamente anterior tem a
+# compatibilidade garantida (infra/vps/LEIA-ME.md, «Regras para quem mexer»).
+ja_publicada() { grep -qF -- "| $1 |" /var/log/eurolify/publicacoes.log 2>/dev/null; }
+if ja_publicada "$resumo"; then
+  echo "Esta imagem já esteve no ar: as migrações dela já estão na base; não se migra."
+  antes_da_actual="$(tail -n 1 /var/log/eurolify/publicacoes.log | sed -n 's/^.* | anterior: //p')"
+  if [[ "$antes_da_actual" != "$imagem" ]]; then
+    echo "AVISO: não é a publicação imediatamente anterior; a base pode ter migrações que esta versão não espera."
+  fi
+elif docker run --rm --entrypoint test "$imagem" -f dist/migrar.js; then
   echo "A correr as migrações"
   [[ -f /etc/eurolify/migrar.env ]] || falhar "falta /etc/eurolify/migrar.env (preparar.sh, passos 10 e 10b)"
   # As mesmas protecções da API: é o contentor com a ligação mais poderosa
