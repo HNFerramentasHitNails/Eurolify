@@ -32,7 +32,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Eventos de domínio na outbox (docs/18 §5; migração 0020): escritos pelos
+// Eventos de domínio na outbox (docs/18 §5; migração 0021): escritos pelos
 // gatilhos na mesma transacção que a mudança, imutáveis, fora do alcance da
 // API. Contra o PostgreSQL 18 verdadeiro.
 

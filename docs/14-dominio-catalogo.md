@@ -621,7 +621,7 @@ em UTC e o **mínimo de dados** (o resto pede-se pela API) (`platform-architect`
 | `product.unpublished` | publicação passou a arquivado | `prd_…`, `pub_…`, motivo — decidido na §9 (P6) |
 | `product.archived` | artigo arquivado | `prd_…` — decidido na §9 (P6) |
 
-**Em código** (migração 0020, `docs/18` §5): já se escrevem `product.published`,
+**Em código** (migração 0021, `docs/18` §5): já se escrevem `product.published`,
 `product.unpublished` (com quem, quando e o motivo) e `product.archived`.
 `product.created` e `product.updated` entram com a parte 5.
 
@@ -745,7 +745,7 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   derrubar o resto; 4.ª revisão do #139, P3-A). O peso de uma variante à
   venda e a categoria fiscal já não se apagam depois de publicado (0019).
 - **O rasto das transições da publicação** é feito pelos eventos (migração
-  0020). Cada publicação, retirada ou nova publicação deixa um evento
+  0021). Cada publicação, retirada ou nova publicação deixa um evento
   `product.published` ou `product.unpublished` que não se altera nem se
   apaga. O evento guarda quem, quando e, na retirada, o motivo. A linha da
   publicação continua a guardar só a última passagem (revisão do #139, P3-1).

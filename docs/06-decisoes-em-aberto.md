@@ -101,6 +101,7 @@
 | ✅ CD | Contas de pessoas: a sessão acaba após 12 h sem uso e no máximo 30 dias depois de entrar; a conta sem nenhum comerciante é pseudonimizada 90 dias depois de sair (o prazo dos 90 dias para o jurista confirmar, C) | em vigor; desenho aprovado | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §10, P4 |
 | ✅ CE | O e-mail de um convite não é confirmado na Fase 1 (quem convida tem a ligação, CB): aceita-se o risco de quem convida ficar com a conta desse e-mail e de saber se ele já tem conta; **rede temporária até ao primeiro comerciante real ou 31/03/2027, o que chegar primeiro** — antes disso, a protecção (e-mail confirmado ou convites por e-mail) | em vigor, com data de fim | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §4.7; revisão do #141, P2-1 |
 | ✅ CF | Catálogo: a publicação verifica já o que existe (artigo, mercado e canal activos, categoria fiscal, classificação, preço, peso, tradução do nome) e diz sempre que a Conformidade e a media **não foram verificadas**; rede com fim: quando a Conformidade existir ou antes de haver produção | em vigor; no código (migração 0019, #77) | Diogo, 06/10/2026 | [`docs/14`](14-dominio-catalogo.md) §5, C2 |
+| ✅ CG | A palavra-passe das contas guarda-se com Argon2id, no mínimo t=3, p=4, 64 MiB, sal de 128 bits e resultado de 256 bits (RFC 9106 §4, segunda opção recomendada); o tempo mede-se na VPS | em vigor; o código entra na B3 | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §8 |
 
 ## Por decidir — por esta ordem
 

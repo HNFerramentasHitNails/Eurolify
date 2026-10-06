@@ -1,24 +1,45 @@
 import type { Kysely } from "kysely";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { ErroApi } from "../base/erros.js";
+import { erroBase, ErroApi } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import type { Ambito } from "./chaves.js";
 import { resolverChave, type ContextoChave } from "./repositorio.js";
+import {
+  COOKIE_SESSAO,
+  erroConta,
+  resolverSessao,
+  verificarSessao,
+  type ConfigHub,
+  type ContextoSessao,
+} from "./sessoes.js";
 
-// Autenticação por chave (docs/19 §5). Cada rota declara em `config.ambito`
-// o que pede: «publico» (sem chave), «qualquer» (uma chave válida) ou um
-// âmbito. O comerciante do pedido sai sempre da chave, nunca do corpo nem do
-// caminho.
+// Autenticação por chave (docs/19 §5) e por sessão do Hub (docs/21 §3 e
+// §4.6). Cada rota declara em `config.ambito` o que pede: «publico» (sem
+// chave), «qualquer» (uma chave válida), um âmbito, «sessao» (uma sessão do
+// Hub) ou «sessao_comerciante» (uma sessão e o cabeçalho
+// Eurolify-Comerciante, com um membro activo). O comerciante do pedido sai
+// sempre da chave ou do cabeçalho validado pela base, nunca do corpo nem do
+// caminho. As rotas com `config.hub` (as do Hub, também as públicas como
+// entrar) recusam escritas de outra origem ou sem JSON (CSRF, docs/21 §3).
 
-export type AmbitoDaRota = Ambito | "publico" | "qualquer";
+export type AmbitoDaRota =
+  Ambito | "publico" | "qualquer" | "sessao" | "sessao_comerciante";
+
+const CABECALHO_COMERCIANTE = "eurolify-comerciante";
+const FORMATO_COMERCIANTE =
+  /^mer_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
 declare module "fastify" {
   interface FastifyContextConfig {
     ambito?: AmbitoDaRota;
+    /** Rota do Hub: escritas só da origem do Hub e em JSON. */
+    hub?: boolean;
   }
   interface FastifyRequest {
     /** A chave autenticada; `null` nas rotas públicas. */
     chave: ContextoChave | null;
+    /** A sessão do Hub; `null` fora das rotas com sessão. */
+    sessao: ContextoSessao | null;
   }
 }
 
@@ -53,18 +74,60 @@ function segredoDe(pedido: FastifyRequest): string | undefined {
   return partes?.[1];
 }
 
+/** A escrita vem do Hub e em JSON (docs/21 §3); um GET não muda nada. */
+function conferirOrigem(pedido: FastifyRequest, hub: ConfigHub | undefined) {
+  if (pedido.method === "GET") return;
+  if (hub === undefined) throw new Error("rota do Hub sem HUB_ORIGEM");
+  if (pedido.headers.origin !== hub.origem) {
+    throw erroConta("auth.origin_rejected");
+  }
+  const tipo = pedido.headers["content-type"];
+  const base = typeof tipo === "string" ? tipo.split(";")[0] : undefined;
+  if (base?.trim().toLowerCase() !== "application/json") {
+    throw erroBase("media_type.unsupported", "as escritas do Hub são em JSON");
+  }
+}
+
+/** O comerciante do cabeçalho Eurolify-Comerciante, sem o prefixo. */
+function comercianteDe(pedido: FastifyRequest): string {
+  const valor = pedido.headers[CABECALHO_COMERCIANTE];
+  const partes =
+    typeof valor === "string" ? FORMATO_COMERCIANTE.exec(valor) : null;
+  const id = partes?.[1];
+  if (id === undefined) throw erroConta("merchant.header_required");
+  return id;
+}
+
 export function ligarAutenticacao(
   app: FastifyInstance,
   base: Kysely<BaseDados> | undefined,
+  hub?: ConfigHub,
 ) {
   app.decorateRequest("chave", null);
+  app.decorateRequest("sessao", null);
 
   app.addHook(
     "onRequest",
     async (pedido: FastifyRequest, resposta: FastifyReply) => {
-      const ambito = pedido.routeOptions.config.ambito;
+      const config = pedido.routeOptions.config;
+      const ambito = config.ambito;
+      if (config.hub === true) conferirOrigem(pedido, hub);
       // Sem âmbito: o 404 (as rotas registadas têm sempre um, pela guarda).
       if (ambito === undefined || ambito === "publico") return;
+      if (ambito === "sessao" || ambito === "sessao_comerciante") {
+        if (base === undefined) {
+          throw new Error("rota com sessão sem base de dados ligada");
+        }
+        const segredo = pedido.cookies[COOKIE_SESSAO];
+        if (segredo === undefined || segredo === "") {
+          throw erroConta("auth.session_required");
+        }
+        pedido.sessao =
+          ambito === "sessao"
+            ? await verificarSessao(base, segredo)
+            : await resolverSessao(base, segredo, comercianteDe(pedido));
+        return;
+      }
       const segredo = segredoDe(pedido);
       if (segredo === undefined) {
         void resposta.header("WWW-Authenticate", "Bearer");
@@ -96,4 +159,12 @@ export function chaveDo(pedido: FastifyRequest): ContextoChave {
     throw new Error("rota sem chave: falta config.ambito na rota");
   }
   return pedido.chave;
+}
+
+/** A sessão do pedido, numa rota que a exige (nunca `null` lá). */
+export function sessaoDo(pedido: FastifyRequest): ContextoSessao {
+  if (pedido.sessao === null) {
+    throw new Error("rota sem sessão: falta config.ambito na rota");
+  }
+  return pedido.sessao;
 }
