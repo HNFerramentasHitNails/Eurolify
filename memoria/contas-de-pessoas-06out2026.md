@@ -16,7 +16,7 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
   0020_identidade_passkeys», /health responde). Revisão Opus 5.5: 0 P0, 0
   P1, 5 P2, 10 P3; tratados menos o P3-8. Decisão CG: Argon2id 64 MiB
   (RFC 9106 §4).
-- **B3 em três pedidos** (docs/21 §12): B3a (#143: passkeys, sessões
+- **B3 em três pedidos** (docs/21 §12): B3a (#144: passkeys, sessões
   abertas, códigos de recuperação, recuperar, entradas; migração 0021), B3b
   (palavra-passe + TOTP), B3c (chaves pelo Hub).
 - O #139 (Catálogo, outra sessão) também queria a 0018 e a 0019: quem junta

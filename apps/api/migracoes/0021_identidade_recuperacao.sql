@@ -34,6 +34,12 @@
 
 SET LOCAL lock_timeout = '10s';
 
+-- Retirar uma passkey tem motivo próprio na sessão (revisão do #144, P3-6).
+ALTER TABLE sessao DROP CONSTRAINT sessao_revogada_motivo_check;
+ALTER TABLE sessao ADD CONSTRAINT sessao_revogada_motivo_check CHECK (
+  revogada_motivo IN ('saiu', 'pessoa_desactivada', 'recuperacao',
+                      'terminar_todas', 'substituida', 'passkey_retirada'));
+
 ALTER TABLE evento_conta DROP CONSTRAINT evento_conta_acto_check;
 ALTER TABLE evento_conta ADD CONSTRAINT evento_conta_acto_check CHECK (acto IN (
   'convite_criado', 'convite_cancelado', 'convite_aceite', 'conta_criada',
@@ -143,10 +149,21 @@ END
 $$;
 
 -- Apoio (interna): todas as sessões da pessoa caem; nasce uma nova (§7).
-CREATE FUNCTION sessoes_trocar_todas(p_pessoa uuid, p_motivo text, p_resumo_nova text)
+-- Tranca a pessoa e, se a troca vem de uma sessão, confirma-a outra vez
+-- depois da tranca: um «terminar todas» de uma sessão roubada, ao mesmo
+-- tempo que a recuperação, não deixa uma sessão nova viva (revisão do
+-- #144, P2-5).
+CREATE FUNCTION sessoes_trocar_todas(p_pessoa uuid, p_motivo text, p_resumo_nova text,
+                                     p_sessao_de_quem uuid)
   RETURNS uuid
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+  PERFORM 1 FROM public.pessoa p WHERE p.id = p_pessoa FOR UPDATE;
+  IF p_sessao_de_quem IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM public.sessao x
+       WHERE x.id = p_sessao_de_quem AND x.revogada_em IS NULL) THEN
+    RAISE EXCEPTION 'auth.unauthenticated: a sessão já foi revogada';
+  END IF;
   UPDATE public.sessao s SET revogada_motivo = p_motivo
   WHERE s.pessoa_id = p_pessoa AND s.revogada_em IS NULL;
   RETURN public.sessao_nova(p_pessoa, p_resumo_nova);
@@ -290,7 +307,7 @@ BEGIN
   DELETE FROM public.passkey k WHERE k.id = p_passkey;
   INSERT INTO public.evento_conta (acto, pessoa_id, quem)
   VALUES ('passkey_retirada', s.pessoa_id, 'pessoa:per_' || s.pessoa_id::text);
-  RETURN public.sessoes_trocar_todas(s.pessoa_id, 'terminar_todas', p_resumo_nova);
+  RETURN public.sessoes_trocar_todas(s.pessoa_id, 'passkey_retirada', p_resumo_nova, s.id);
 END
 $$;
 
@@ -323,7 +340,7 @@ BEGIN
   s := public.sessao_recente(p_segredo_sessao);
   INSERT INTO public.evento_conta (acto, pessoa_id, quem)
   VALUES ('sessoes_terminadas', s.pessoa_id, 'pessoa:per_' || s.pessoa_id::text);
-  RETURN public.sessoes_trocar_todas(s.pessoa_id, 'terminar_todas', p_resumo_nova);
+  RETURN public.sessoes_trocar_todas(s.pessoa_id, 'terminar_todas', p_resumo_nova, s.id);
 END
 $$;
 
@@ -342,10 +359,11 @@ END
 $$;
 
 -- Recuperar, passo 1: e-mail + código. Devolve 'ok' (e guarda o desafio de
--- registo preso à pessoa), 'falhou' ou 'bloqueado' — e regista sempre. Não
--- levanta erro de propósito: a falha tem de ficar registada para contar no
--- limite (5 em 15 minutos por e-mail; proposta, §8). O código não se gasta
--- aqui; só no passo 2, com a passkey nova.
+-- registo preso à pessoa), 'falhou' ou 'bloqueado'; regista as falhas e os
+-- bloqueios (o êxito regista-se no passo 2). Não levanta erro de propósito:
+-- a falha tem de ficar registada para contar no limite — 5 falhas nos
+-- últimos 15 minutos por e-mail, uma janela que desliza (proposta, §8). O
+-- código não se gasta aqui; só no passo 2, com a passkey nova.
 CREATE FUNCTION recuperacao_iniciar(p_resumo_desafio text, p_email text,
                                     p_resumo_codigo text, p_ip inet)
   RETURNS text
@@ -382,8 +400,10 @@ BEGIN
 END
 $$;
 
--- Recuperar, passo 2: o código gasta-se, a passkey nova entra, todas as
--- sessões caem e nasce uma (§7). Devolve a pessoa.
+-- Recuperar, passo 2: o desafio do passo 1 decide a pessoa — sem ele, o
+-- código nem se lê (revisão do #144, P2-1: o passo 2 não serve para
+-- experimentar códigos fora do limite). Depois o código dessa pessoa
+-- gasta-se, a passkey nova entra, todas as sessões caem e nasce uma (§7).
 CREATE FUNCTION recuperacao_concluir(p_desafio text, p_email text, p_resumo_codigo text,
                                      p_credencial text, p_chave_publica bytea,
                                      p_contador bigint, p_transportes text[],
@@ -392,35 +412,45 @@ CREATE FUNCTION recuperacao_concluir(p_desafio text, p_email text, p_resumo_codi
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   pessoa uuid;
+  codigo uuid;
 BEGIN
-  -- O código e a pessoa outra vez, trancando o código: dois passos 2 ao
+  UPDATE public.desafio_webauthn d SET usado_em = now()
+  WHERE d.resumo = p_desafio
+    AND d.finalidade = 'recuperar'
+    AND d.usado_em IS NULL
+    AND d.criado_em > now() - interval '5 minutes'
+  RETURNING d.pessoa_id INTO pessoa;
+  IF pessoa IS NULL THEN
+    RAISE EXCEPTION 'auth.unauthenticated: desafio desconhecido, já usado ou expirado';
+  END IF;
+  -- O código dessa pessoa, com o e-mail dela, trancado: dois passos 2 ao
   -- mesmo tempo, só um passa.
-  SELECT p.id INTO pessoa
-  FROM public.pessoa p JOIN public.codigo_recuperacao c ON c.pessoa_id = p.id
-  WHERE lower(p.email) = lower(btrim(coalesce(p_email, '')))
+  SELECT c.id INTO codigo
+  FROM public.codigo_recuperacao c JOIN public.pessoa p ON p.id = c.pessoa_id
+  WHERE c.pessoa_id = pessoa
+    AND lower(p.email) = lower(btrim(coalesce(p_email, '')))
     AND p.estado = 'activa'
     AND c.resumo = p_resumo_codigo
     AND c.usado_em IS NULL
   FOR UPDATE OF c;
-  IF pessoa IS NULL THEN
+  IF codigo IS NULL THEN
     RAISE EXCEPTION 'auth.unauthenticated: código desconhecido ou já usado';
   END IF;
-  PERFORM public.desafio_gastar_da_pessoa(p_desafio, 'recuperar', pessoa);
-  UPDATE public.codigo_recuperacao c SET usado_em = now() WHERE c.resumo = p_resumo_codigo;
+  UPDATE public.codigo_recuperacao c SET usado_em = now() WHERE c.id = codigo;
   PERFORM public.passkey_guardar(pessoa, p_credencial, p_chave_publica, p_contador,
                                  p_transportes, p_nome_passkey);
   INSERT INTO public.entrada (pessoa_id, metodo, resultado, ip)
   VALUES (pessoa, 'recuperacao', 'ok', p_ip);
   INSERT INTO public.evento_conta (acto, pessoa_id, quem)
   VALUES ('recuperou', pessoa, 'pessoa:per_' || pessoa::text);
-  PERFORM public.sessoes_trocar_todas(pessoa, 'recuperacao', p_resumo_sessao);
+  PERFORM public.sessoes_trocar_todas(pessoa, 'recuperacao', p_resumo_sessao, NULL);
   RETURN pessoa;
 END
 $$;
 
 REVOKE ALL ON FUNCTION email_resumo(text), desafio_gastar_da_pessoa(text, text, uuid),
   passkey_guardar(uuid, text, bytea, bigint, text[], text),
-  codigos_guardar(uuid, text[]), sessoes_trocar_todas(uuid, text, text),
+  codigos_guardar(uuid, text[]), sessoes_trocar_todas(uuid, text, text, uuid),
   sessao_recente(text),
   entrar_com_passkey(text, uuid, bigint, text, inet),
   conta_nova_com_passkey(text, text, text, text, bytea, bigint, text[], text, text, text[], inet),

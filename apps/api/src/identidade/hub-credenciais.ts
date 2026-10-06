@@ -20,7 +20,9 @@ import {
   verificarRegisto,
 } from "./hub.js";
 import {
+  COOKIE_SESSAO,
   erroConta,
+  FORMATO_SESSAO,
   resumo,
   segredoNovo,
   traduzindoConta,
@@ -45,7 +47,7 @@ const Email = Type.String({ minLength: 3, maxLength: 254 });
 const Codigo = Type.String({
   minLength: 16,
   maxLength: 32,
-  pattern: "^[A-Za-z2-7 -]+$",
+  pattern: "^[A-Za-z0-9 -]+$",
   description: "Um código de recuperação (XXXX-XXXX-XXXX-XXXX)",
 });
 
@@ -286,6 +288,7 @@ export function rotasDasCredenciais(
           base,
         ),
       );
+      void resposta.header("cache-control", "no-store");
       return resposta.code(201).send({ codigos });
     },
   );
@@ -296,7 +299,7 @@ export function rotasDasCredenciais(
       config: { ambito: "publico", hub: true },
       schema: {
         description:
-          "Recuperar a conta, passo 1: e-mail e um código de recuperação. Devolve as opções WebAuthn para registar uma passkey nova. A mesma recusa (401) para e-mail sem conta, código errado ou já usado; 5 falhas em 15 minutos por e-mail bloqueiam 15 minutos (429).",
+          "Recuperar a conta, passo 1: e-mail e um código de recuperação. Devolve as opções WebAuthn para registar uma passkey nova. A mesma recusa (401) para e-mail sem conta, código errado ou já usado; com 5 falhas nos últimos 15 minutos por e-mail, recusa-se (429) até a mais antiga sair da janela.",
         body: Type.Object(
           { email: Email, codigo: Codigo },
           { additionalProperties: false },
@@ -348,6 +351,12 @@ export function rotasDasCredenciais(
         corpo.credencial,
         hub,
       );
+      // Num computador partilhado, a sessão que estava no cookie acaba
+      // (revisão do #144, P3-2).
+      const antiga = pedido.cookies[COOKIE_SESSAO];
+      if (antiga !== undefined && FORMATO_SESSAO.test(antiga)) {
+        await sql`select sessao_terminar(${antiga})`.execute(base);
+      }
       const segredo = segredoNovo("eus");
       const pessoa = await traduzindoConta(async () => {
         const { rows } = await sql<{ id: string }>`

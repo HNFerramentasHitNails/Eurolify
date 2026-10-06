@@ -278,9 +278,20 @@ export function codigosNovos(): { codigos: string[]; resumos: string[] } {
   return { codigos, resumos: codigos.map(resumoDoCodigo) };
 }
 
-/** O resumo de um código, sem traços, espaços nem minúsculas. */
+/**
+ * O resumo de um código, sem traços, espaços nem minúsculas. Os algarismos
+ * que se confundem com letras do alfabeto (0, 1, 8) lêem-se como O, I e B
+ * (revisão do #144, P3-4).
+ */
 export const resumoDoCodigo = (codigo: string) =>
-  resumo(codigo.toUpperCase().replace(/[^A-Z2-7]/g, ""));
+  resumo(
+    codigo
+      .toUpperCase()
+      .replace(/0/g, "O")
+      .replace(/1/g, "I")
+      .replace(/8/g, "B")
+      .replace(/[^A-Z2-7]/g, ""),
+  );
 
 export function porCookie(resposta: FastifyReply, segredo: string) {
   void resposta.setCookie(COOKIE_SESSAO, segredo, {
@@ -594,6 +605,8 @@ export function rotasDoHub(
         return linha;
       });
       porCookie(resposta, segredo);
+      // Os códigos de recuperação não ficam em nenhuma cache.
+      void resposta.header("cache-control", "no-store");
       return resposta.code(201).send({
         pessoa: comPrefixo("per", conta.pessoa_id),
         comerciante: comPrefixo("mer", conta.comerciante_id),

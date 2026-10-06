@@ -407,7 +407,7 @@ e **B3c** (chaves pelo Hub).
 | B3a | `GET /hub/sessions` | sessão | — | **200** as sessões abertas da pessoa: criada, último uso, se é esta |
 | B3a | `POST /hub/sessions/end-all` | sessão, recente | nenhum | **200**; todas as sessões caem e quem pediu recebe uma nova (§7) |
 | B3a | `POST /hub/recovery-codes` | sessão, recente | nenhum | **201** 10 códigos novos (80 bits cada, `XXXX-XXXX-XXXX-XXXX`), mostrados só aqui; os antigos deixam de valer |
-| B3a | `POST /hub/recovery/options` | público | `email`, `codigo` | **200** opções WebAuthn de registo; a mesma recusa (401) para e-mail sem conta, código errado ou usado; **5 falhas em 15 minutos por e-mail → 15 minutos de bloqueio** (429; proposta, §8) |
+| B3a | `POST /hub/recovery/options` | público | `email`, `codigo` | **200** opções WebAuthn de registo; a mesma recusa (401) para e-mail sem conta, código errado ou usado; **com 5 falhas nos últimos 15 minutos por e-mail, recusa (429) até a mais antiga sair da janela** (proposta, §8) |
 | B3a | `POST /hub/recovery` | público | `email`, `codigo`, a resposta da passkey | **201** e o cookie: o código gasta-se, a passkey nova entra, **todas as sessões caem** e nasce uma (§7) |
 | B3b | `POST /hub/password/setup` | sessão, recente | `palavra_passe` (≥ 12) | **200** o segredo TOTP e o URI `otpauth://` para o autenticador; nada fica activo ainda |
 | B3b | `POST /hub/password/confirm` | sessão, recente | `codigo` (6 dígitos) | **200**; a palavra-passe e o TOTP ficam activos juntos (CA); as outras sessões caem |
@@ -420,6 +420,23 @@ aleatórios basta, não precisa de Argon2id), `entrada` (pessoa ou resumo do
 e-mail tentado, método, resultado, IP; 14 dias, apagados na B4) e o
 desafio de recuperação, preso à pessoa. A conta nova pelo convite (§11)
 passa a devolver também os 10 códigos (§4.2, ponto 3).
+
+**Condição para ligar o Hub** (revisões do #142, P2-2, e do #144, P2-3): a
+`HUB_ORIGEM` só se define num ambiente depois de (1) a B3b, (2) a B4 — sem
+ela, o IP do registo de entradas fica além dos 14 dias da §6 — e (3) um
+limite geral de pedidos por IP, no proxy ou na API. Não é rede temporária:
+é a ordem de ligar.
+
+**Notas da revisão do #144:**
+- **O IP** é o `request.ip` do Fastify, sem `trustProxy`: atrás de um
+  proxy fica o IP do proxy (P2-4). Ao ligar o Hub, configura-se o
+  `trustProxy` só para o endereço exacto do proxy, que reescreve o
+  `X-Forwarded-For`.
+- **O resumo do e-mail** tentado (sha256 sem sal) desfaz-se com uma lista de
+  e-mails: é dado pessoal e entra assim no T8 do `docs/17` (B4; P3-5).
+- **Depois de uma recuperação**, o Hub mostra o aviso (o `evento_conta`
+  «recuperou») e propõe retirar as passkeys antigas — a do telemóvel perdido
+  continua a valer até se retirar (P3-7, P3-8; ecrã do Hub, por fazer).
 
 ## O que não foi verificado
 

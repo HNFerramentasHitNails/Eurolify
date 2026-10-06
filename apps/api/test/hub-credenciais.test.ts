@@ -1,6 +1,9 @@
+import { randomBytes } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
+import { resumoDoCodigo } from "../src/identidade/hub.js";
+import { resumo } from "../src/identidade/sessoes.js";
 import { AutenticadorDeTeste } from "./autenticador-de-teste.js";
 import {
   criarBaseDeTeste,
@@ -263,6 +266,99 @@ describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0021)", () => {
     });
   });
 
+  describe("revisão do #144", () => {
+    it("P2-1: o passo 2 sem o desafio do passo 1 nem lê o código, e o código continua a valer", async () => {
+      const p = await h.pessoaCom(a, "apoio");
+      const x = new AutenticadorDeTeste();
+      const r = await h.pedir("POST", "/hub/recovery", {
+        corpo: {
+          email: p.email,
+          codigo: p.codigos[0],
+          credencial: x.registar(randomBytes(32).toString("base64url"), NO_HUB),
+        },
+      });
+      expect(r.statusCode).toBe(401);
+      expect(await vale(p.sessao)).toBe(200);
+      const depois = await h.pedir("POST", "/hub/recovery/options", {
+        corpo: { email: p.email, codigo: p.codigos[0] },
+      });
+      expect(depois.statusCode).toBe(200);
+    });
+
+    it("uma pessoa desactivada não recupera", async () => {
+      const p = await h.pessoaCom(a, "apoio");
+      await sql`select pessoa_desactivar(${p.pessoa}::uuid, 'operador:github:1001')`.execute(
+        base.dono,
+      );
+      const r = await h.pedir("POST", "/hub/recovery/options", {
+        corpo: { email: p.email, codigo: p.codigos[0] },
+      });
+      expect(r.statusCode).toBe(401);
+    });
+
+    it("P2-5: dois «terminar todas» ao mesmo tempo: o segundo espera e já não cria sessão", async () => {
+      const p = await h.pessoaCom(a, "apoio");
+      const s1 = `eus_${randomBytes(32).toString("base64url")}`;
+      const s2 = `eus_${randomBytes(32).toString("base64url")}`;
+      for (const s of [s1, s2]) {
+        await sql`select sessao_criar(${p.pessoa}::uuid, ${resumo(s)})`.execute(
+          base.dono,
+        );
+      }
+      const nova2 = `eus_${randomBytes(32).toString("base64url")}`;
+      let libertar = () => {};
+      const aberta = new Promise<void>((r) => (libertar = r));
+      let feito = () => {};
+      const trocou = new Promise<void>((r) => (feito = r));
+      const primeiro = base.dono.transaction().execute(async (trx) => {
+        await sql`select sessoes_terminar_todas(${s1}, ${resumo(`eus_${randomBytes(32).toString("base64url")}`)})`.execute(
+          trx,
+        );
+        feito();
+        await aberta;
+      });
+      await trocou;
+      const segundo =
+        sql`select sessoes_terminar_todas(${s2}, ${resumo(nova2)})`.execute(
+          base.dono,
+        );
+      const corrida = await Promise.race([
+        segundo.then(
+          () => "passou",
+          () => "falhou",
+        ),
+        new Promise((r) =>
+          setTimeout(() => {
+            r("à espera");
+          }, 300),
+        ),
+      ]);
+      expect(corrida).toBe("à espera");
+      libertar();
+      await primeiro;
+      await expect(segundo).rejects.toThrow(/^auth\.unauthenticated:/);
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from sessao where resumo = ${resumo(nova2)}`.execute(
+        base.dono,
+      );
+      expect(rows[0]?.n).toBe(0);
+    });
+
+    it("P3-4: 0, 1 e 8 escritos por engano valem como O, I e B", () => {
+      expect(resumoDoCodigo("O1B8-ab2c-0000-1111")).toBe(
+        resumoDoCodigo("OIBB-AB2C-OOOO-IIII"),
+      );
+    });
+
+    it("as respostas com códigos não ficam em cache", async () => {
+      const p = await h.pessoaCom(a, "apoio");
+      const r = await h.pedir("POST", "/hub/recovery-codes", {
+        sessao: p.sessao,
+      });
+      expect(r.headers["cache-control"]).toBe("no-store");
+    });
+  });
+
   it("cada entrada com passkey fica registada, com o IP", async () => {
     const p = await h.pessoaCom(a, "apoio");
     expect((await h.entrar(p.autenticador)).statusCode).toBe(201);
@@ -280,6 +376,8 @@ describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0021)", () => {
     await recuperar(p.email, p.codigos[0] ?? "");
     const texto = h.registo.join("");
     expect(texto.length).toBeGreaterThan(0);
+    // O IP dos pedidos de teste (127.0.0.1) também não.
+    expect(texto).not.toContain("127.0.0.1");
     for (const proibido of [p.email, p.sessao, ...p.codigos]) {
       expect(texto).not.toContain(proibido);
     }
