@@ -3,10 +3,12 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   alterarArtigo,
+  apagarRascunho,
   classificarArtigo,
   criarArtigo,
   criarVariante,
   ErroCatalogo,
+  ESPERA_MAXIMA,
   mudarEstadoArtigo,
   noCatalogo,
   obterArtigo,
@@ -212,7 +214,15 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
     ]);
     // O canal não vende em Espanha: não há onde a publicação exista.
     expect(r.publicacao).toBeNull();
-    // Em Portugal, a publicação fica em rascunho com a verificação guardada.
+    // Com o artigo em rascunho, não se cria a linha (um rascunho apaga-se,
+    // e uma publicação não; revisão do #139, P2-5).
+    const emRascunho = await publicar(base.api, s.c, QUEM, s.pedido);
+    expect(emRascunho.publicacao).toBeNull();
+    expect(emRascunho.verificacao.impedimentos[0]).toEqual({
+      codigo: "artigo_nao_activo",
+    });
+    // Activo, em Portugal: a publicação fica em rascunho com a verificação.
+    await mudarEstadoArtigo(base.api, s.c, s.artigo, 2, "activo");
     const pt = await publicar(base.api, s.c, QUEM, s.pedido);
     expect(pt.publicada).toBe(false);
     expect(pt.publicacao?.estado).toBe("rascunho");
@@ -451,6 +461,7 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
 
   it("transições: uma publicação não se apaga, e um rascunho não se arquiva", async () => {
     const s = await cenario();
+    await mudarEstadoArtigo(base.api, s.c, s.artigo, 1, "activo");
     const r = await publicar(base.api, s.c, QUEM, s.pedido);
     expect(
       await codigoDoErro(
@@ -493,7 +504,7 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
           variantes_fora: [b.v1],
         }),
       ),
-    ).toBe("sem erro");
+    ).toBe("catalog.not_found");
     expect(
       await codigoDoErro(
         publicar(base.api, a.c, QUEM, { ...a.pedido, variantes_fora: [b.v1] }),
@@ -582,6 +593,40 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       );
     });
 
+    it("transições, quem até 200, variantes do artigo e o par canal × mercado, por SQL directo", async () => {
+      const s = await rascunho();
+      expect(
+        await mensagem(
+          noCatalogo(base.api, s.c, async (trx) => {
+            await sql`select set_config('eurolify.quem', ${QUEM}, true)`.execute(
+              trx,
+            );
+            await sql`update publicacao set estado = 'arquivado' where id = ${s.id}`.execute(
+              trx,
+            );
+          }),
+        ),
+      ).toMatch(/^catalog.invalid_transition: rascunho → arquivado/);
+      const versao = (await obterArtigo(base.api, s.c, s.artigo)).versao;
+      await mudarEstadoArtigo(base.api, s.c, s.artigo, versao, "activo");
+      expect(
+        await mensagem(forcar(s.c, s.id, { quem: "x".repeat(201) })),
+      ).toMatch(
+        /^catalog.published_by_required: quem publica ou retira tem no máximo 200/,
+      );
+      const outro = await pronto();
+      expect(await mensagem(forcar(s.c, s.id, { fora: [outro.v1] }))).toMatch(
+        /^catalog.not_found: uma variante de variantes_fora/,
+      );
+      // Publicada, retirada, o par tirado: republicar por SQL é recusado.
+      await forcar(s.c, s.id);
+      await retirarPublicacao(base.api, s.c, QUEM, s.id);
+      await definirMercadosDoCanal(base.api, s.c, s.canal, []);
+      expect(await mensagem(forcar(s.c, s.id))).toMatch(
+        /^catalog.publish_blocked: o canal não vende neste mercado/,
+      );
+    });
+
     it("só num mercado e num canal activos", async () => {
       const m = await pronto();
       const rm = await publicar(base.api, m.c, QUEM, m.pedido);
@@ -644,6 +689,231 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
     });
   });
 
+  describe("achados da 1.ª revisão do #139", () => {
+    it("um mercado sai do canal quando as publicações desse par estão retiradas (P2-2, opção a)", async () => {
+      const s = await pronto();
+      const r = await publicar(base.api, s.c, QUEM, s.pedido);
+      expect(
+        await codigoDoErro(definirMercadosDoCanal(base.api, s.c, s.canal, [])),
+      ).toBe("prices.channel_market_in_use");
+      await retirarPublicacao(base.api, s.c, QUEM, publicacaoDe(r).id);
+      await definirMercadosDoCanal(base.api, s.c, s.canal, []);
+      // A publicação retirada fica, como registo.
+      expect(
+        (await publicacoesDoArtigo(base.api, s.c, s.artigo)).map(
+          (p) => p.estado,
+        ),
+      ).toEqual(["arquivado"]);
+      // E não volta a publicar-se sem o par.
+      const outra = await publicar(base.api, s.c, QUEM, s.pedido);
+      expect(outra.publicacao).toBeNull();
+      expect(outra.verificacao.impedimentos).toContainEqual({
+        codigo: "canal_nao_vende_no_mercado",
+      });
+    });
+
+    it("um rascunho onde se tentou publicar continua a poder apagar-se (P2-5)", async () => {
+      const s = await cenario();
+      const r = await publicar(base.api, s.c, QUEM, s.pedido);
+      expect(r.publicacao).toBeNull();
+      await apagarRascunho(base.api, s.c, s.artigo);
+      expect(await codigoDoErro(obterArtigo(base.api, s.c, s.artigo))).toBe(
+        "catalog.not_found",
+      );
+    });
+
+    it("depois de publicado, o peso de uma variante à venda e a categoria fiscal não se apagam (P2-6)", async () => {
+      const s = await pronto();
+      await publicar(base.api, s.c, QUEM, {
+        ...s.pedido,
+        variantes_fora: [s.v2],
+      });
+      const semPeso = (id: string) =>
+        noCatalogo(base.api, s.c, (trx) =>
+          trx
+            .updateTable("variante")
+            .set({ peso_g: null })
+            .where("id", "=", id)
+            .execute(),
+        );
+      expect(await codigoDoErro(semPeso(s.v1))).toBe(
+        "catalog.published_in_use",
+      );
+      // Uma variante fora da publicação pode perdê-lo.
+      expect(await codigoDoErro(semPeso(s.v2))).toBe("sem erro");
+      const versao = (await obterArtigo(base.api, s.c, s.artigo)).versao;
+      expect(
+        await codigoDoErro(
+          alterarArtigo(base.api, s.c, s.artigo, versao, {
+            categoria_fiscal: null,
+          }),
+        ),
+      ).toBe("catalog.published_in_use");
+    });
+
+    it("republicar: uma arquivada volta a publicada, limpa o arquivo; uma publicada com impedimentos continua publicada", async () => {
+      const s = await pronto();
+      const r = await publicar(base.api, s.c, QUEM, s.pedido);
+      await retirarPublicacao(
+        base.api,
+        s.c,
+        "pessoa:outra",
+        publicacaoDe(r).id,
+      );
+      expect(
+        await codigoDoErro(
+          retirarPublicacao(base.api, s.c, QUEM, publicacaoDe(r).id),
+        ),
+      ).toBe("catalog.invalid_transition");
+      const de_novo = await publicar(
+        base.api,
+        s.c,
+        "pessoa:terceira",
+        s.pedido,
+      );
+      expect(de_novo.publicacao).toMatchObject({
+        estado: "publicado",
+        publicado_por: "pessoa:terceira",
+        arquivado_por: null,
+        arquivado_em: null,
+        motivo_arquivo: null,
+      });
+      // Um impedimento novo (uma variante sem preço que se quer pôr à venda
+      // não muda nada: a variante nova nasce fora); a classificação restrita
+      // aparece na verificação guardada, e a publicação continua publicada.
+      const versao = (await obterArtigo(base.api, s.c, s.artigo)).versao;
+      await classificarArtigo(
+        base.api,
+        s.c,
+        s.artigo,
+        versao,
+        { familias: ["alcool_tabaco"], natureza_consumidor: "bem" },
+        QUEM,
+      );
+      const comImpedimento = await publicar(base.api, s.c, QUEM, s.pedido);
+      expect(comImpedimento.publicada).toBe(false);
+      expect(comImpedimento.publicacao?.estado).toBe("publicado");
+      expect(comImpedimento.publicacao?.ultima_verificacao).toEqual(
+        comImpedimento.verificacao,
+      );
+    });
+
+    it("uma variante nova só entra «fora» nas publicações publicadas, e só do seu artigo", async () => {
+      const s = await pronto();
+      // Publicada em Portugal; arquivada em França; em rascunho em Espanha.
+      const outroMercado = async (nome: string, pais: string) => {
+        const m = await criarMercado(base.api, s.c, {
+          loja_id: s.loja,
+          nome,
+          paises: [pais],
+          moeda: "EUR",
+          linguas: ["pt"],
+          lingua_principal: "pt",
+        });
+        const l = await criarLista(base.api, s.c, {
+          mercado_id: m,
+          nome: "Base",
+          tipo: "base",
+        });
+        await mudarEstadoMercado(base.api, s.c, m, 1, "activo");
+        return { m, l };
+      };
+      const fr = await outroMercado("França", "FR");
+      const es = await outroMercado("Espanha", "ES");
+      await definirMercadosDoCanal(base.api, s.c, s.canal, [
+        s.mercado,
+        fr.m,
+        es.m,
+      ]);
+      for (const lista of [fr.l]) {
+        await definirPreco(base.api, s.c, QUEM, lista, s.v1, { montante: 990 });
+        await definirPreco(base.api, s.c, QUEM, lista, s.v2, { montante: 990 });
+      }
+      await publicar(base.api, s.c, QUEM, s.pedido);
+      const rf = await publicar(base.api, s.c, QUEM, {
+        ...s.pedido,
+        mercado_id: fr.m,
+      });
+      expect(rf.publicada).toBe(true);
+      await retirarPublicacao(base.api, s.c, QUEM, publicacaoDe(rf).id);
+      const re = await publicar(base.api, s.c, QUEM, {
+        ...s.pedido,
+        mercado_id: es.m,
+      });
+      expect(re.publicacao?.estado).toBe("rascunho");
+      // Outro comerciante cria uma variante: nada muda aqui.
+      const b = await pronto();
+      await criarVariante(base.api, b.c, b.artigo, {
+        sku: "B-NOVA",
+        unidade_de_venda: "unidade",
+      });
+      const nova = await criarVariante(base.api, s.c, s.artigo, {
+        sku: "GEL-NOVA",
+        unidade_de_venda: "unidade",
+      });
+      const porMercado = new Map(
+        (await publicacoesDoArtigo(base.api, s.c, s.artigo)).map((p) => [
+          p.mercado_id,
+          p,
+        ]),
+      );
+      expect(porMercado.get(s.mercado)?.variantes_fora).toEqual([nova]);
+      expect(porMercado.get(fr.m)?.variantes_fora).toEqual([]);
+      expect(porMercado.get(es.m)?.variantes_fora).toEqual([]);
+    });
+
+    it("variantes fora mal escritas são campo inválido; um serviço sem data nem local não se publica", async () => {
+      const s = await pronto();
+      expect(
+        await codigoDoErro(
+          publicar(base.api, s.c, QUEM, { ...s.pedido, variantes_fora: ["x"] }),
+        ),
+      ).toBe("catalog.invalid_field");
+      const servico = await criarArtigo(
+        base.api,
+        s.c,
+        { tipo: "servico", nome: "Formação", categoria_fiscal: "normal" },
+        [{ sku: "FORM-1", unidade_de_venda: "unidade" }],
+      );
+      await classificarArtigo(
+        base.api,
+        s.c,
+        servico,
+        1,
+        {
+          familias: ["retalho_geral"],
+          natureza_consumidor: "servico_presencial",
+          modo: "presencial",
+        },
+        QUEM,
+      );
+      const v = await verificarPublicacao(base.api, s.c, {
+        ...s.pedido,
+        artigo_id: servico,
+      });
+      expect(v.impedimentos.map((i) => i.codigo)).toContain(
+        "data_ou_local_em_falta",
+      );
+    });
+
+    it("a API não escreve quem publicou nem muda o par de uma publicação (GRANT por coluna)", async () => {
+      const s = await pronto();
+      const r = await publicar(base.api, s.c, QUEM, s.pedido);
+      const id = publicacaoDe(r).id;
+      for (const coluna of ["publicado_por", "artigo_id", "motivo_arquivo"]) {
+        expect(
+          await codigoDoErro(
+            comComerciante(base.api, s.c, (trx) =>
+              sql`update publicacao set ${sql.ref(coluna)} = ${coluna === "artigo_id" ? s.artigo : "x"} where id = ${id}`.execute(
+                trx,
+              ),
+            ),
+          ),
+        ).toMatch(/^pg:42501/);
+      }
+    });
+  });
+
   describe("em concorrência", () => {
     const abertas: pg.Client[] = [];
     afterAll(async () => {
@@ -684,5 +954,82 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
         "catalog.publish_blocked",
       );
     });
+
+    /** Uma transacção aberta do eurolify_api, com o comerciante e quem. */
+    async function aberta(c: string): Promise<pg.Client> {
+      const l = new pg.Client({ connectionString: base.urlApi });
+      await l.connect();
+      abertas.push(l);
+      await l.query("begin");
+      await l.query(
+        "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.quem', $2, true)",
+        [c, QUEM],
+      );
+      return l;
+    }
+
+    async function alguemEspera(): Promise<void> {
+      for (let i = 0; i < 100; i++) {
+        const { rows } = await sql<{ n: number }>`
+          select count(*)::int as n from pg_stat_activity
+          where usename = 'eurolify_api' and datname = current_database()
+            and wait_event_type = 'Lock'`.execute(base.dono);
+        if ((rows[0]?.n ?? 0) > 0) return;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      throw new Error("ninguém esperou");
+    }
+
+    function resultado<T>(p: Promise<T>): Promise<unknown> {
+      return p.then(
+        (r) => r,
+        (erro: unknown) => erro,
+      );
+    }
+
+    it("mudar o artigo enquanto se publica: a publicação espera e verifica o artigo novo (P2-1)", async () => {
+      const s = await pronto();
+      const a = await aberta(s.c);
+      await a.query("update artigo set categoria_fiscal = null where id = $1", [
+        s.artigo,
+      ]);
+      const publicacao = resultado(publicar(base.api, s.c, QUEM, s.pedido));
+      await alguemEspera();
+      await a.query("commit");
+      const r = (await publicacao) as Awaited<ReturnType<typeof publicar>>;
+      expect(r.publicada).toBe(false);
+      expect(r.verificacao.impedimentos).toEqual([
+        { codigo: "categoria_fiscal_em_falta" },
+      ]);
+    });
+
+    it("tirar o mercado do canal enquanto se publica: a publicação espera e vê o par tirado (P2-2)", async () => {
+      const s = await pronto();
+      const a = await aberta(s.c);
+      await a.query("delete from canal_mercado where canal_id = $1", [s.canal]);
+      const publicacao = resultado(publicar(base.api, s.c, QUEM, s.pedido));
+      await alguemEspera();
+      await a.query("commit");
+      const r = (await publicacao) as Awaited<ReturnType<typeof publicar>>;
+      expect(r.publicacao).toBeNull();
+      expect(r.verificacao.impedimentos).toContainEqual({
+        codigo: "canal_nao_vende_no_mercado",
+      });
+    });
+
+    it(`quem espera mais de ${ESPERA_MAXIMA} por um lock recebe catalog.retry (P2-4)`, async () => {
+      const s = await pronto();
+      const a = await aberta(s.c);
+      await a.query("update artigo set nome = 'Gel (a mudar)' where id = $1", [
+        s.artigo,
+      ]);
+      try {
+        expect(
+          await codigoDoErro(publicar(base.api, s.c, QUEM, s.pedido)),
+        ).toBe("catalog.retry");
+      } finally {
+        await a.query("rollback");
+      }
+    }, 20_000);
   });
 });

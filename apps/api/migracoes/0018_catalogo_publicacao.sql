@@ -9,7 +9,7 @@
 -- `ultima_verificacao`. A base repete aqui o que não pode falhar nunca, mesmo
 -- com SQL escrito à mão pela API (decisão do Diogo, 06/10/2026, opção a):
 -- - só se publica um artigo activo, num mercado activo, num canal activo que
---   vende nesse mercado (a chave para canal_mercado), com a última
+--   vende nesse mercado (o par em canal_mercado), com a última
 --   verificação sem impedimentos;
 -- - cada variante vendida (activa e fora de `variantes_fora`) tem preço na
 --   lista de base activa do mercado (e nunca 0,00 € sem ser gratuita: a 0017
@@ -19,7 +19,12 @@
 -- - o preço de uma variante vendida numa publicação publicada não se tira da
 --   lista de base: retira-se primeiro a publicação;
 -- - uma variante nova de um artigo já publicado nasce fora das publicações
---   publicadas, para não se vender sem verificação.
+--   publicadas, para não se vender sem verificação;
+-- - depois de publicado, o peso de uma variante à venda (artigo físico) e a
+--   categoria fiscal do artigo não se apagam (revisão do #139, P2-6);
+-- - um mercado sai de um canal só se não houver publicação publicada nesse
+--   par; as retiradas e os rascunhos ficam, como registo (decisão do Diogo,
+--   06/10/2026, revisão do #139, P2-2, opção a).
 --
 -- Arquivar o artigo, o mercado ou o canal arquiva as publicações publicadas,
 -- com o motivo (docs/14 §4.1 e §4.2; docs/20 §4.1). Os eventos
@@ -30,18 +35,17 @@
 -- alternativo da media (parte 5). A verificação diz-o sempre em
 -- `nao_verificado`; a rede tem fim escrito no docs/14 §5.
 --
--- Concorrência: publicar toma a linha da publicação (UPDATE) e, no gatilho,
--- o artigo, o mercado, o canal, a lista de base e os preços das variantes
--- vendidas (FOR SHARE): arquivar um deles ou tirar um desses preços espera e
--- depois vê a publicação. Uma variante nova toma as publicações do artigo
--- (FOR UPDATE) antes de decidir se nasce fora. Assumem READ COMMITTED.
+-- Concorrência: o servidor (publicacao.ts) toma, por esta ordem, o artigo,
+-- o mercado, o canal (que guarda também o par canal × mercado: tirá-lo toma
+-- o canal em exclusivo), a tradução do nome e os preços das variantes
+-- vendidas (FOR SHARE), e só depois a linha da publicação; o gatilho volta a
+-- tomá-los. Arquivar um deles, mudar o artigo, tirar o par ou um desses
+-- preços espera e depois vê a publicação. Uma variante nova toma as
+-- publicações do artigo (FOR UPDATE) antes de decidir se nasce fora. Os
+-- arquivos em cadeia tomam as publicações por ordem do id. Assumem READ
+-- COMMITTED; uma espera acima do `lock_timeout` da ligação dá `retry`.
 
 SET LOCAL lock_timeout = '10s';
-
--- A publicação aponta para o par canal × mercado pela chave completa (o
--- comerciante, a loja, o canal e o mercado).
-ALTER TABLE canal_mercado
-  ADD CONSTRAINT canal_mercado_completo UNIQUE (comerciante_id, loja_id, canal_id, mercado_id);
 
 CREATE TABLE publicacao (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -70,10 +74,13 @@ CREATE TABLE publicacao (
   CONSTRAINT publicacao_unica UNIQUE (artigo_id, canal_id, mercado_id),
   CONSTRAINT publicacao_do_artigo FOREIGN KEY (comerciante_id, artigo_id)
     REFERENCES artigo (comerciante_id, id),
-  -- O canal vende neste mercado: tirar o mercado do canal com publicações
-  -- é recusado (prices.channel_market_in_use).
-  CONSTRAINT publicacao_do_canal_mercado FOREIGN KEY (comerciante_id, loja_id, canal_id, mercado_id)
-    REFERENCES canal_mercado (comerciante_id, loja_id, canal_id, mercado_id),
+  -- O canal e o mercado são da mesma loja (as chaves levam a loja). Que o
+  -- canal vende no mercado confere-se ao publicar; tirar o par com uma
+  -- publicação publicada é recusado (gatilho em canal_mercado, abaixo).
+  CONSTRAINT publicacao_do_canal FOREIGN KEY (comerciante_id, loja_id, canal_id)
+    REFERENCES canal (comerciante_id, loja_id, id),
+  CONSTRAINT publicacao_do_mercado FOREIGN KEY (comerciante_id, loja_id, mercado_id)
+    REFERENCES mercado (comerciante_id, loja_id, id),
   CONSTRAINT publicacao_verificacao_e_objecto CHECK (
     ultima_verificacao IS NULL OR jsonb_typeof(ultima_verificacao) = 'object')
 );
@@ -86,6 +93,7 @@ DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
   motivo text := nullif(current_setting('eurolify.motivo_arquivo', true), '');
   estado_do_artigo text;
+  par_existe boolean;
   tipo_do_artigo text;
   estado_do_mercado text;
   estado_do_canal text;
@@ -118,11 +126,19 @@ BEGIN
     NEW.versao := OLD.versao + 1;
   END IF;
 
-  -- As variantes fora são do artigo, sem repetidos.
-  IF cardinality(NEW.variantes_fora) <> (SELECT count(DISTINCT v) FROM unnest(NEW.variantes_fora) v) THEN
+  IF length(quem) > 200 THEN
+    RAISE EXCEPTION 'catalog.published_by_required: quem publica ou retira tem no máximo 200 caracteres';
+  END IF;
+
+  -- As variantes fora são do artigo, sem repetidos (só quando mudam: uma
+  -- variante de um rascunho apagada depois não encrava a publicação;
+  -- revisão do #139, P3-3).
+  IF (TG_OP = 'INSERT' OR NEW.variantes_fora IS DISTINCT FROM OLD.variantes_fora)
+     AND cardinality(NEW.variantes_fora) <> (SELECT count(DISTINCT v) FROM unnest(NEW.variantes_fora) v) THEN
     RAISE EXCEPTION 'catalog.invalid_field: uma variante repetida em variantes_fora';
   END IF;
-  IF EXISTS (
+  IF (TG_OP = 'INSERT' OR NEW.variantes_fora IS DISTINCT FROM OLD.variantes_fora)
+     AND EXISTS (
     SELECT FROM unnest(NEW.variantes_fora) f
     WHERE NOT EXISTS (
       SELECT FROM public.variante v
@@ -137,7 +153,7 @@ BEGIN
       RAISE EXCEPTION 'catalog.published_by_required: quem retira a publicação (eurolify.quem) é obrigatório';
     END IF;
     NEW.motivo_arquivo := coalesce(motivo, 'retirada');
-    NEW.arquivado_por := left(coalesce(quem, 'catalogo:' || motivo), 200);
+    NEW.arquivado_por := coalesce(quem, 'catalogo:' || motivo);
     NEW.arquivado_em := clock_timestamp();
   END IF;
 
@@ -171,6 +187,14 @@ BEGIN
     FOR SHARE;
     IF estado_do_canal IS DISTINCT FROM 'activo' THEN
       RAISE EXCEPTION 'catalog.publish_blocked: o canal não está activo';
+    END IF;
+    -- O canal já está tomado (FOR SHARE, acima): quem tira o par toma-o em
+    -- exclusivo (gatilho em canal_mercado) e espera, ou já o tirou.
+    SELECT true INTO par_existe FROM public.canal_mercado cm
+    WHERE cm.comerciante_id = NEW.comerciante_id AND cm.canal_id = NEW.canal_id
+      AND cm.mercado_id = NEW.mercado_id;
+    IF par_existe IS NULL THEN
+      RAISE EXCEPTION 'catalog.publish_blocked: o canal não vende neste mercado';
     END IF;
     SELECT l.id INTO lista_base FROM public.lista_precos l
     WHERE l.comerciante_id = NEW.comerciante_id AND l.mercado_id = NEW.mercado_id
@@ -213,7 +237,7 @@ BEGIN
     END IF;
 
     IF TG_OP = 'INSERT' OR OLD.estado <> 'publicado' THEN
-      NEW.publicado_por := left(quem, 200);
+      NEW.publicado_por := quem;
       NEW.publicado_em := clock_timestamp();
       NEW.arquivado_por := NULL;
       NEW.arquivado_em := NULL;
@@ -250,6 +274,17 @@ DECLARE
 BEGIN
   IF NEW.estado = 'arquivado' AND OLD.estado <> 'arquivado' THEN
     PERFORM set_config('eurolify.motivo_arquivo', motivo, true);
+    -- Por ordem do id, para dois arquivos em cadeia ao mesmo tempo não se
+    -- esperarem um ao outro (revisão do #139, P3-5).
+    PERFORM FROM public.publicacao p
+    WHERE p.comerciante_id = NEW.comerciante_id AND p.estado = 'publicado'
+      AND CASE TG_TABLE_NAME
+            WHEN 'artigo' THEN p.artigo_id = NEW.id
+            WHEN 'mercado' THEN p.mercado_id = NEW.id
+            WHEN 'canal' THEN p.canal_id = NEW.id
+          END
+    ORDER BY p.id
+    FOR UPDATE;
     UPDATE public.publicacao p SET estado = 'arquivado'
     WHERE p.comerciante_id = NEW.comerciante_id AND p.estado = 'publicado'
       AND CASE TG_TABLE_NAME
@@ -302,13 +337,14 @@ CREATE TRIGGER preco_de_variante_publicada
 
 -- Uma variante nova de um artigo publicado nasce fora das publicações
 -- publicadas: vende-se só depois de a pôr dentro, com nova verificação
--- (proposta). Corre com os direitos do dono, porque quem cria variantes pode
--- não ter direito a mudar publicações.
+-- (proposta). Corre com os direitos de quem cria a variante (a API tem
+-- UPDATE em `variantes_fora`; revisão do #139, P3-2).
 CREATE FUNCTION variante_nova_fica_fora() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   PERFORM FROM public.publicacao p
   WHERE p.comerciante_id = NEW.comerciante_id AND p.artigo_id = NEW.artigo_id
+  ORDER BY p.id
   FOR UPDATE;
   UPDATE public.publicacao p
   SET variantes_fora = p.variantes_fora || NEW.id
@@ -320,6 +356,68 @@ $$;
 CREATE TRIGGER variante_nova_fica_fora
   AFTER INSERT ON variante
   FOR EACH ROW EXECUTE FUNCTION variante_nova_fica_fora();
+
+-- Um mercado sai de um canal só sem publicação publicada nesse par (decisão
+-- do Diogo, 06/10/2026, revisão do #139, P2-2, opção a). As retiradas e os
+-- rascunhos ficam, como registo.
+CREATE FUNCTION canal_mercado_sem_publicadas() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  -- O canal em exclusivo: quem publica neste canal toma-o FOR SHARE e faz
+  -- esperar; quem chega depois vê o par já tirado.
+  PERFORM FROM public.canal c
+  WHERE c.comerciante_id = OLD.comerciante_id AND c.id = OLD.canal_id
+  FOR NO KEY UPDATE;
+  PERFORM FROM public.publicacao p
+  WHERE p.comerciante_id = OLD.comerciante_id AND p.canal_id = OLD.canal_id
+    AND p.mercado_id = OLD.mercado_id AND p.estado = 'publicado';
+  IF FOUND THEN
+    RAISE EXCEPTION 'prices.channel_market_in_use: o canal tem publicações publicadas neste mercado; retirá-las primeiro';
+  END IF;
+  RETURN OLD;
+END
+$$;
+CREATE TRIGGER canal_mercado_sem_publicadas
+  BEFORE DELETE ON canal_mercado
+  FOR EACH ROW EXECUTE FUNCTION canal_mercado_sem_publicadas();
+
+-- Depois de publicado: o peso de uma variante à venda num artigo físico e a
+-- categoria fiscal do artigo não se apagam (revisão do #139, P2-6). O resto
+-- (classificação, nome, tradução) volta a verificar-se com a outbox (parte 5,
+-- docs/14 §8).
+CREATE FUNCTION variante_publicada_sem_peso() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NEW.peso_g IS NULL AND OLD.peso_g IS NOT NULL AND EXISTS (
+    SELECT FROM public.publicacao p
+    JOIN public.artigo a ON a.comerciante_id = p.comerciante_id AND a.id = p.artigo_id
+    WHERE p.comerciante_id = NEW.comerciante_id AND p.artigo_id = NEW.artigo_id
+      AND p.estado = 'publicado' AND a.tipo = 'fisico'
+      AND NOT (NEW.id = ANY (p.variantes_fora))) THEN
+    RAISE EXCEPTION 'catalog.published_in_use: a variante está à venda numa publicação; o peso não se apaga';
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER variante_publicada_sem_peso
+  BEFORE UPDATE OF peso_g ON variante
+  FOR EACH ROW EXECUTE FUNCTION variante_publicada_sem_peso();
+
+CREATE FUNCTION artigo_publicado_com_categoria_fiscal() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NEW.categoria_fiscal IS NULL AND OLD.categoria_fiscal IS NOT NULL AND EXISTS (
+    SELECT FROM public.publicacao p
+    WHERE p.comerciante_id = NEW.comerciante_id AND p.artigo_id = NEW.id
+      AND p.estado = 'publicado') THEN
+    RAISE EXCEPTION 'catalog.published_in_use: o artigo está publicado; a categoria fiscal não se apaga';
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER artigo_publicado_com_categoria_fiscal
+  BEFORE UPDATE OF categoria_fiscal ON artigo
+  FOR EACH ROW EXECUTE FUNCTION artigo_publicado_com_categoria_fiscal();
 
 ALTER TABLE publicacao ENABLE ROW LEVEL SECURITY;
 ALTER TABLE publicacao FORCE ROW LEVEL SECURITY;

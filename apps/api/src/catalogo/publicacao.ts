@@ -65,7 +65,7 @@ export async function verificarNa(
   pedido: PedidoDePublicacao,
 ): Promise<Verificacao> {
   const impedimentos: ImpedimentoPublicacao[] = [];
-  const fora = (pedido.variantes_fora ?? []).map((v) => v.toLowerCase());
+  const fora = foraDoPedido(pedido);
 
   const artigo = await trx
     .selectFrom("artigo")
@@ -127,15 +127,24 @@ export async function verificarNa(
   }
   impedimentos.push(...impedimentosDaClassificacao(artigo));
 
-  // As variantes vendidas: activas e fora de `variantes_fora`.
-  const variantes = await trx
+  // As variantes vendidas: activas e fora de `variantes_fora`. Uma variante
+  // de `variantes_fora` que não é deste artigo é «não existe», como ao
+  // publicar (revisão do #139, P3-3).
+  const todas = await trx
     .selectFrom("variante")
-    .select(["id", "sku", "peso_g"])
+    .select(["id", "sku", "peso_g", "estado"])
     .where("artigo_id", "=", artigo.id)
-    .where("estado", "=", "activa")
     .orderBy("sku")
     .execute();
-  const vendidas = variantes.filter((v) => !fora.includes(v.id));
+  if (fora.some((f) => !todas.some((v) => v.id === f))) {
+    throw new ErroCatalogo(
+      "catalog.not_found",
+      "uma variante de variantes_fora não é deste artigo",
+    );
+  }
+  const vendidas = todas.filter(
+    (v) => v.estado === "activa" && !fora.includes(v.id),
+  );
   if (vendidas.length === 0) {
     impedimentos.push({ codigo: "sem_variantes_a_venda" });
   }
@@ -212,6 +221,83 @@ export async function verificarNa(
   return { impedimentos, nao_verificado: [...NAO_VERIFICADO] };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** As variantes fora do pedido, sem repetidas, em minúsculas e validadas. */
+function foraDoPedido(pedido: PedidoDePublicacao): string[] {
+  const fora = [
+    ...new Set((pedido.variantes_fora ?? []).map((v) => v.toLowerCase())),
+  ];
+  if (fora.some((v) => !UUID.test(v))) {
+    throw new ErroCatalogo(
+      "catalog.invalid_field",
+      "variantes_fora: um identificador mal escrito",
+    );
+  }
+  return fora;
+}
+
+/**
+ * Toma, por esta ordem, o artigo, o mercado, o canal (que guarda também o
+ * par canal × mercado: tirá-lo toma o canal em exclusivo) e a tradução do
+ * nome (FOR SHARE), antes de verificar: quem muda um deles
+ * espera pelo fim da publicação, e a verificação guardada é a verdadeira
+ * (revisão do #139, P2-1). É a ordem dos arquivos em cadeia (o pai antes da
+ * publicação), para não se esperarem um ao outro (P2-3). Devolve o estado do
+ * artigo, ou `undefined` se não existir.
+ */
+async function tomar(
+  trx: Transaction<BaseDados>,
+  pedido: PedidoDePublicacao,
+): Promise<string | undefined> {
+  const artigo = await trx
+    .selectFrom("artigo")
+    .select("estado")
+    .where("id", "=", pedido.artigo_id)
+    .forShare()
+    .executeTakeFirst();
+  await trx
+    .selectFrom("mercado")
+    .select("id")
+    .where("id", "=", pedido.mercado_id)
+    .forShare()
+    .execute();
+  await trx
+    .selectFrom("canal")
+    .select("id")
+    .where("id", "=", pedido.canal_id)
+    .forShare()
+    .execute();
+  await trx
+    .selectFrom("traducao")
+    .select("id")
+    .where("recurso_id", "=", pedido.artigo_id.toLowerCase())
+    .where("campo", "=", "nome")
+    .orderBy("id")
+    .forShare()
+    .execute();
+  return artigo?.estado;
+}
+
+/**
+ * Toma os preços das variantes do artigo na lista de base do mercado (FOR
+ * SHARE), antes da linha da publicação: quem tira um preço espera, e quem o
+ * tirou primeiro faz a publicação esperar sem se cruzarem (P2-3).
+ */
+async function tomarPrecos(
+  trx: Transaction<BaseDados>,
+  pedido: PedidoDePublicacao,
+): Promise<void> {
+  await sql`
+    select p.variante_id from preco p
+    join lista_precos l on l.comerciante_id = p.comerciante_id and l.id = p.lista_id
+    join variante v on v.comerciante_id = p.comerciante_id and v.id = p.variante_id
+    where l.mercado_id = ${pedido.mercado_id} and l.tipo = 'base' and l.estado = 'activa'
+      and v.artigo_id = ${pedido.artigo_id}
+    order by p.variante_id
+    for share of p`.execute(trx);
+}
+
 /** A verificação «pode publicar?» (§7.1, `POST …/publications/check`). */
 export async function verificarPublicacao(
   db: Kysely<BaseDados>,
@@ -268,7 +354,7 @@ const COLUNAS = [
 ] as const;
 
 async function comQuem(trx: Transaction<BaseDados>, quem: string) {
-  if (quem.trim() === "") {
+  if (quem.trim() === "" || quem.trim().length > 200) {
     throw new ErroCatalogo(
       "catalog.published_by_required",
       "quem publica é obrigatório",
@@ -291,22 +377,26 @@ export async function publicar(
 ): Promise<ResultadoDaPublicacao> {
   return noCatalogo(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
+    const estadoDoArtigo = await tomar(trx, pedido);
     const verificacao = await verificarNa(trx, comercianteId, pedido);
+    // Sem par onde existir (o canal não vende no mercado) ou com o artigo em
+    // rascunho, não se cria a linha: um rascunho apaga-se, e uma publicação
+    // não (revisão do #139, P2-5). A verificação diz porquê.
     if (
+      estadoDoArtigo === "rascunho" ||
       verificacao.impedimentos.some(
         (i) => i.codigo === "canal_nao_vende_no_mercado",
       )
     ) {
       return { publicada: false, verificacao, publicacao: null };
     }
+    await tomarPrecos(trx, pedido);
     const canal = await trx
       .selectFrom("canal")
       .select("loja_id")
       .where("id", "=", pedido.canal_id)
       .executeTakeFirstOrThrow();
-    const fora = [...new Set(pedido.variantes_fora ?? [])].map((v) =>
-      v.toLowerCase(),
-    );
+    const fora = foraDoPedido(pedido);
     // A linha da publicação: a que existe, ou uma nova em rascunho.
     await trx
       .insertInto("publicacao")
@@ -333,7 +423,7 @@ export async function publicar(
     const publicada = verificacao.impedimentos.length === 0;
     // Com impedimentos, só se guarda a verificação: o estado e as variantes
     // fora ficam como estavam (uma publicação publicada continua com o que
-    // tinha à venda).
+    // tinha à venda, e quem a lê vê os impedimentos).
     const linha = await trx
       .updateTable("publicacao")
       .set({
@@ -363,9 +453,22 @@ export async function retirarPublicacao(
       .updateTable("publicacao")
       .set({ estado: "arquivado" })
       .where("id", "=", publicacaoId)
+      .where("estado", "=", "publicado")
       .returning(COLUNAS)
       .executeTakeFirst();
     if (linha === undefined) {
+      // Só se retira o que está publicado (revisão do #139, P3-5).
+      const existe = await trx
+        .selectFrom("publicacao")
+        .select("estado")
+        .where("id", "=", publicacaoId)
+        .executeTakeFirst();
+      if (existe !== undefined) {
+        throw new ErroCatalogo(
+          "catalog.invalid_transition",
+          `a publicação está em ${existe.estado}`,
+        );
+      }
       throw new ErroCatalogo("catalog.not_found", `publicação ${publicacaoId}`);
     }
     return linha;

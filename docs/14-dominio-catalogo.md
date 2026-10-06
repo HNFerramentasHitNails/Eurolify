@@ -398,18 +398,32 @@ Diz se um artigo está à venda num **canal** e num **mercado**
 **Em código** (migração `0018_catalogo_publicacao.sql` e
 `apps/api/src/catalogo/publicacao.ts`, 06/10/2026, #77):
 
-- **Onde pode existir.** Uma publicação só existe num par canal × mercado em
-  que o canal vende (a chave para `canal_mercado`). Por isso, tirar de um
-  canal um mercado com publicações é recusado (`prices.channel_market_in_use`).
-  Uma publicação não se apaga.
+- **Onde pode existir.** Uma publicação nasce num par canal × mercado em
+  que o canal vende, e nunca para um artigo em rascunho: um rascunho
+  apaga-se, e uma publicação não (revisão do #139, P2-5). Tirar de um canal
+  um mercado é recusado só enquanto houver uma publicação **publicada**
+  nesse par (`prices.channel_market_in_use`). As retiradas e os rascunhos
+  ficam, como registo (decisão do Diogo, 06/10/2026, revisão do #139, P2-2,
+  opção a).
 - **Publicar.** Publicar corre a verificação (C2) no servidor e guarda-a na
-  publicação.
+  publicação. Antes de verificar, toma o artigo, o mercado, o canal, a
+  tradução do nome e os preços, para que ninguém os mude a meio.
   - Sem impedimentos, passa a publicada.
-  - Com impedimentos, fica como estava, e a resposta traz a lista.
-- **O que a base repete.** A base repete o que não pode falhar nunca: artigo,
-  mercado e canal activos; a última verificação sem impedimentos; pelo menos
-  uma variante à venda; preço na lista de base de cada variante à venda; e
-  peso, num artigo físico. Nem SQL escrito à mão pela API passa sem isto.
+  - Com impedimentos, fica como estava; a resposta diz `publicada: false` e
+    traz a lista (a rota da API devolve-a como recusa, com a lista).
+  - Retirar só vale para uma publicação publicada.
+- **O que a base repete no instante de publicar.** A base repete o que não
+  pode falhar nunca: artigo, mercado e canal activos; o canal vende no
+  mercado; a última verificação sem impedimentos; pelo menos uma variante à
+  venda; preço na lista de base de cada variante à venda; e peso, num artigo
+  físico. Nem SQL escrito à mão pela API passa sem isto.
+- **Depois de publicado**, a base não deixa:
+  - tirar o preço de uma variante à venda (abaixo);
+  - apagar o peso de uma variante à venda num artigo físico, nem a categoria
+    fiscal do artigo (`catalog.published_in_use`; revisão do #139, P2-6).
+
+  O resto ainda não volta a verificar-se depois de publicado (§8): a
+  classificação, o nome e a tradução.
 - **Propostas desta parte** (para o Diogo ou o Bruno confirmarem):
   - o preço de uma variante à venda numa publicação publicada **não sai** da
     lista de base (`prices.published_variant`); retira-se primeiro a
@@ -419,7 +433,11 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   - publicar outra vez uma publicação que tem impedimentos não a tira de
     venda: a verificação fica guardada, e quem a lê vê-os.
 - **Em cadeia.** Arquivar o artigo, o mercado ou o canal arquiva as
-  publicações publicadas, com o motivo.
+  publicações publicadas, com o motivo, na mesma transacção (um gatilho, não
+  um evento). Arquivar a **loja** ainda não tem rota (0016) e não arquiva as
+  publicações dos canais e mercados dela: trata-se quando a rota existir.
+- **Uma operação do Catálogo espera no máximo 5 s** por outra que tenha o
+  que precisa tomado; depois recebe `catalog.retry`.
 
 ### 3.10 Atributos regulamentares
 
@@ -463,7 +481,7 @@ classificações guardam-se **à parte** e **uma não se deduz da outra**
 | `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` presencial; **proibido** no que é virtual ou à distância (o lugar do IVA é onde está o cliente) |
 | `modo` | `presencial`, `virtual` | obrigatório no `acesso_com_data` e no `servico_humano_a_distancia` (que é `virtual`); no `servico_presencial` é `presencial`; muda o lugar da prestação para o IVA (Dir. 2006/112/CE arts. 53.º e 54.º, **W**, `docs/03` §1) |
 | `lazer_com_data` | `nao` (por omissão), `sim` | o comerciante declara que é uma actividade de **lazer** com data marcada; **só com `sim` e a regra validada pelo jurista** é que se aplica a excepção à livre resolução (§ abaixo) |
-| `classificado_por`, `classificado_em` | | postos pela base (o «quem» vem da transacção, como no Comerciante; até à fatia de identidade é texto declarado, sem ligação a um utilizador); entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) |
+| `classificado_por`, `classificado_em` | | postos pela base (o «quem» vem da transacção, como no Comerciante; até à fatia de identidade é texto declarado, sem ligação a um utilizador); entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) — **ainda não**: entra com a outbox (parte 5, §8) |
 
 **Em código** (migração `0006_catalogo_classificacao.sql`, 05/10/2026): as
 famílias, a natureza para o consumidor, o modo, a data e o local, o lazer com
@@ -626,7 +644,7 @@ cursor, com indicação de que há mais e **o total explícito** (regra 4; liç�
 | Traduções | `GET /translations?resource=…&locale=…`, `PUT /translations/{resource}/{field}/{locale}` | read / write | |
 | Fila de traduções | `GET /translations?state=outdated,missing&locale=…` | read | o que falta traduzir |
 | Verificar publicação | `POST /products/{id}/publications/check` | read | **não escreve**: devolve os impedimentos por canal × mercado (C2) |
-| Publicar | `POST /products/{id}/publications` | publish | corre a verificação; recusa com `catalog.publish_blocked` e a lista |
+| Publicar | `POST /products/{id}/publications` | publish | corre a verificação; com impedimentos, recusa e devolve a lista (o repositório responde `publicada: false` com a verificação; `catalog.publish_blocked` é o que a base diz se alguém tentar contornar) |
 | Retirar | `POST /publications/{id}/archive` | publish | |
 | Ver publicações | `GET /products/{id}/publications` | read | |
 | Atributos regulamentares | `PUT /products/{id}/regulatory`, `PUT /variants/{id}/regulatory` | write | valor, quem e quando |
@@ -703,8 +721,14 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   gratuito (a base de Preços), e o preço de uma variante à venda não sai da
   lista de base (0018).
   **O que ainda não cobre** (fica para a outbox, parte 5): mudar a
-  classificação, a categoria fiscal, o peso ou o nome (com a tradução) de um
-  artigo já publicado não volta a verificar a publicação.
+  classificação ou o nome (com a tradução) de um artigo já publicado não
+  volta a verificar a publicação. O peso de uma variante à venda e a
+  categoria fiscal já não se apagam depois de publicado (0018).
+- **Sem rasto das transições da publicação.** Publicar, retirar e voltar a
+  publicar guardam só a última passagem (quem e quando). A prova do que
+  esteve à venda e quando (pós-venda, direitos do consumidor) precisa do
+  rasto completo (C7): entra com a outbox e os eventos (parte 5; revisão do
+  #139, P3-1).
 - **Listas cortadas.** A procura de artigos sem total explícito repete a lição
   4.7.
 - **SKU reutilizado.** A P7 decidiu que o SKU de uma variante arquivada não

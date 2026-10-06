@@ -64,7 +64,8 @@ export type CodigoErroCatalogo =
   | "catalog.translation_not_ai"
   | "catalog.translation_self_review"
   | "catalog.publish_blocked"
-  | "catalog.published_by_required";
+  | "catalog.published_by_required"
+  | "catalog.published_in_use";
 
 export class ErroCatalogo extends Error {
   constructor(
@@ -101,6 +102,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   // Publicação (0018).
   "catalog.publish_blocked",
   "catalog.published_by_required",
+  "catalog.published_in_use",
   "catalog.not_found",
   "catalog.invalid_field",
 ];
@@ -254,7 +256,9 @@ export function traduzir(
   // Duas transacções que esperavam uma pela outra (40P01) ou um conflito de
   // serialização (40001): nada ficou gravado; tentar outra vez (revisão do
   // #83, P2-2).
-  if (pg.code === "40P01" || pg.code === "40001") {
+  // 55P03: uma espera por um lock passou o `lock_timeout` (noCatalogo;
+  // revisão do #139, P2-4).
+  if (pg.code === "40P01" || pg.code === "40001" || pg.code === "55P03") {
     return new ErroCatalogo("catalog.retry", "tentar outra vez", {
       cause: erro,
     });
@@ -269,6 +273,9 @@ export function traduzir(
   return erro;
 }
 
+/** O tempo máximo que uma operação espera por um lock (`lock_timeout`). */
+export const ESPERA_MAXIMA = "5s";
+
 /**
  * Corre `fn` no contexto do comerciante e traduz os erros do Catálogo.
  * Exportada só para os outros ficheiros do domínio (categorias.ts).
@@ -280,7 +287,15 @@ export async function noCatalogo<T>(
   opcoes: OpcoesDeTraducao = {},
 ): Promise<T> {
   try {
-    return await comComerciante(db, comercianteId, fn);
+    return await comComerciante(db, comercianteId, async (trx) => {
+      // Uma escrita não espera sem fim por outra que tenha o artigo, a
+      // publicação ou um preço tomados: ao fim do prazo, `catalog.retry`
+      // (revisão do #139, P2-4).
+      await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+        trx,
+      );
+      return fn(trx);
+    });
   } catch (erro) {
     throw traduzir(erro, opcoes);
   }

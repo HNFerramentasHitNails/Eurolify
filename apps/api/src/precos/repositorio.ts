@@ -63,8 +63,10 @@ const CODIGOS_DA_BASE: readonly CodigoErroPrecos[] = [
   "prices.list_archived",
   "prices.country_invalid",
   "prices.language_invalid",
-  // Da 0018 (Catálogo, publicação): o preço de uma variante publicada.
+  // Da 0018 (Catálogo, publicação): o preço de uma variante publicada e o
+  // par canal × mercado com publicações publicadas.
   "prices.published_variant",
+  "prices.channel_market_in_use",
 ];
 
 /** As restrições da 0017 com código próprio. */
@@ -141,15 +143,6 @@ export function traduzir(erro: unknown): unknown {
   // Uma referência que falha (a loja, o mercado, a lista ou a variante não
   // existem ou são de outro comerciante, ou o mercado é de outra loja): o
   // RLS esconde-as igual, sem oráculo.
-  // Tirar de um canal um mercado onde há publicações (0018): a chave da
-  // publicação recusa. Vem antes da regra geral, que diria «não existe».
-  if (pg.code === "23503" && pg.constraint === "publicacao_do_canal_mercado") {
-    return new ErroPrecos(
-      "prices.channel_market_in_use",
-      "o canal tem publicações neste mercado; retirá-las primeiro",
-      { cause: erro },
-    );
-  }
   if (pg.code === "23503" && pg.table !== undefined && TABELAS.has(pg.table)) {
     return new ErroPrecos("prices.not_found", "referência inexistente", {
       cause: erro,
@@ -392,8 +385,8 @@ export async function definirMercadosDoCanal(
       );
     }
     // Só sai o que deixou de estar na lista, e só entra o que é novo: um
-    // par com publicações (0018) fica onde está, e tirá-lo é recusado com
-    // prices.channel_market_in_use.
+    // par com publicações publicadas (0018) fica onde está, e tirá-lo é
+    // recusado com prices.channel_market_in_use.
     const actuais = await trx
       .selectFrom("canal_mercado")
       .select("mercado_id")
