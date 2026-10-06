@@ -22,7 +22,7 @@ fora_de_horas() {
 tarefa() {
   local unidade="eurolify-$1.service" resultado
   systemctl start "$unidade" || true
-  resultado="$(systemctl show "$unidade" -p Result --value)"
+  resultado="$(systemctl show "$unidade" -p Result --value)" || resultado="desconhecido"
   journalctl -u "$unidade" -n 8 --no-pager -o cat --since '-15min' |
     grep -vE '^(Starting|Finished|.*Deactivated successfully|.*Consumed )' || true
   [[ "$resultado" == success ]] || falhar "$unidade terminou com «$resultado»"
@@ -33,7 +33,7 @@ case "$pedido" in
     exec /usr/local/sbin/eurolify-medir
     ;;
   publicacoes)
-    echo "Últimas publicações (data | resumo | anterior):"
+    echo "Últimas publicações (data | resumo | anterior [| emergência] | migrou: as migrações que aplicou):"
     tail -n 10 /var/log/eurolify/publicacoes.log 2>/dev/null || echo "(nenhuma)"
     ;;
   copia | reposicao)
@@ -59,12 +59,24 @@ case "$pedido" in
   publicar\ *)
     resumo="${pedido#publicar }"
     # Só uma imagem que já esteve no ar (está no registo das publicações).
-    grep -q -- "$resumo" /var/log/eurolify/publicacoes.log 2>/dev/null ||
+    # Na coluna do resumo, como o eurolify-publicar (revisão do #115, P3-1).
+    grep -qF -- "| $resumo |" /var/log/eurolify/publicacoes.log 2>/dev/null ||
       falhar "esse resumo nunca foi publicado no ensaio: recusado"
+    carregar_config
+    # Só à publicação imediatamente anterior à que está no ar: é a única com a
+    # compatibilidade garantida com a base (decisão do Diogo, 06/10/2026,
+    # opção A da 2.ª revisão do #115). Mais atrás é uma emergência, à mão e
+    # registada. O eurolify-publicar volta a conferir, pela base.
+    # Depois de uma volta, a «anterior» é a publicação de onde se veio: o MCP
+    # só alterna entre as duas (3.ª revisão do #115, P3-3).
+    no_ar="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+    # A referência inteira, como o eurolify-publicar (4.ª revisão do #115, P3-5).
+    pode="$(anterior_de "${no_ar#*@}")" || pode=""
+    [[ -n "$no_ar" && -n "$pode" && "$pode" == "${IMAGEM_REPO}@${resumo}" ]] ||
+      falhar "pelo MCP só se volta à publicação imediatamente anterior à que está no ar (${pode:-sem registo da que está no ar}); mais atrás é uma emergência, à mão (infra/vps/LEIA-ME.md)"
     # E que tenha o MCP: voltar a uma sem ele desligava o próprio MCP, e só se
     # recuperava pelo GitHub.
-    carregar_config
-    docker run --rm --pull=never --entrypoint test "${IMAGEM_REPO}@${resumo}" -f /app/apps/mcp/dist/servidor.js >/dev/null 2>&1 ||
+    docker run --rm --pull=never --network none --cap-drop ALL --entrypoint test "${IMAGEM_REPO}@${resumo}" -f /app/apps/mcp/dist/servidor.js >/dev/null 2>&1 ||
       falhar "essa imagem não tem o MCP (ou já não está na máquina): voltar a ela desligava o MCP; faz-se pelo GitHub"
     # Em segundo plano: a publicação reinicia também o contentor do MCP, que
     # está à espera desta resposta.
