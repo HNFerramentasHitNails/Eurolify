@@ -5,7 +5,7 @@ import type { BaseDados } from "../base/esquema.js";
 import type { Ambito } from "./chaves.js";
 import type { Papel } from "./papeis.js";
 
-// Sessões das pessoas no Hub (docs/21 §3, §4.6 e §11; migrações 0018 e 0019).
+// Sessões das pessoas no Hub (docs/21 §3, §4.6 e §11; migrações 0018 e 0020).
 // A sessão é uma linha na base com o resumo de um segredo de 256 bits; o
 // cookie leva o segredo. A base decide (sessão válida, membro, papel); aqui
 // só se lê o cookie, se chama a base e se traduzem os erros.

@@ -9,7 +9,7 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
   papéis na base. Revisão do agente (Opus 5.5): 0 P0, 1 P1, 4 P2, 10 P3,
   tratados. P2-1 decidido pelo Diogo (CE): o e-mail do convite fica sem
   confirmação até ao primeiro comerciante real ou 31/03/2027.
-- **B2 (#142, em curso):** migração `0019_identidade_passkeys` (passkey,
+- **B2 (#142, em curso):** migração `0020_identidade_passkeys` (a 0019 foi do #139) (passkey,
   desafio_webauthn, portas da API), rotas do Hub do `docs/21` §11,
   autenticador WebAuthn de teste em `apps/api/test/autenticador-de-teste.ts`.
 - O #139 (Catálogo, outra sessão) também queria a 0018 e a 0019: quem junta

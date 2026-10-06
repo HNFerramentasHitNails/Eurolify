@@ -292,7 +292,7 @@ dois donos.
 - **Palavra-passe:** Argon2id com, **no mínimo, t=3, p=4, m=64 MiB, sal de
   128 bits e resultado de 256 bits** — a «segunda opção recomendada» do RFC
   9106 §4 (IETF, 09/2021; lido a 06/10/2026), para quando não há os 2 GiB da
-  primeira (Diogo, 06/10/2026: *«sim, concordo com os 64 MiB»*; CF). O tempo
+  primeira (Diogo, 06/10/2026: *«sim, concordo com os 64 MiB»*; CG). O tempo
   de cada verificação mede-se na VPS (não medido); com 64 MiB cada, os limites
   de tentativas entram ao mesmo tempo que a palavra-passe. Mínimo de 12
   caracteres e recusa das muito comuns (proposta).

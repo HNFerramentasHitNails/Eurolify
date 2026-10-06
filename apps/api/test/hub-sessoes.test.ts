@@ -16,7 +16,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Rotas do Hub da parte B2 (docs/21 §3, §4 e §11; migração 0019; testes
+// Rotas do Hub da parte B2 (docs/21 §3, §4 e §11; migração 0020; testes
 // P-T1, P-T3, P-T5, P-T12, P-T13, P-T14 e P-T16 do §9; issue #140). Contra o
 // PostgreSQL 18 verdadeiro, com o eurolify_api e um autenticador WebAuthn em
 // software.
@@ -28,7 +28,7 @@ const COOKIE = "__Host-eurolify_sessao";
 
 type Resposta = Awaited<ReturnType<ReturnType<typeof criarApp>["inject"]>>;
 
-describe.skipIf(URL_BASE === undefined)("rotas do Hub (0019)", () => {
+describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
   let base: BaseDeTeste;
   let app: ReturnType<typeof criarApp>;
   let registo: string[];

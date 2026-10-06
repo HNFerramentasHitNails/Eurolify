@@ -209,7 +209,7 @@ da `consumer-rights-eu`: um frasco de 15 ml a 9,90 € mostra 660,00 €/l.
 | De | Para | Condição |
 |---|---|---|
 | rascunho | activo | tem países, moeda, línguas e a lista de base com o mesmo mercado; nenhum dos países está noutro mercado activo da loja (§3.1, Q4 decidida) |
-| activo | arquivado | as publicações do Catálogo nesse mercado passam a arquivado (o Catálogo ouve o evento, §6) |
+| activo | arquivado | as publicações do Catálogo nesse mercado passam a arquivado, na mesma transacção (um gatilho da migração 0019; o evento do §6 é para os outros domínios) |
 | arquivado | activo | volta sem republicar (como o artigo no `docs/14` §4.1) |
 
 ### 4.2 Lista e preço
@@ -222,6 +222,15 @@ rascunho. Repor uma lista de base quando o mercado já tem outra activa é
 recusado (`prices.base_list_duplicate`). Um
 preço não tem estados: muda-se (linha nova no histórico) ou tira-se da lista
 (a variante deixa de ter preço nessa lista, e a C2 diz-o).
+
+Com a publicação do Catálogo (migração 0019, #77; **proposta**):
+- o preço de uma variante à venda numa publicação publicada não sai da lista
+  de base do mercado (`prices.published_variant`); retira-se primeiro a
+  publicação;
+- tirar de um canal um mercado onde há uma publicação **publicada** é
+  recusado (`prices.channel_market_in_use`); as retiradas ficam, como
+  registo (decisão do Diogo, 06/10/2026, revisão do #139, P2-2, opção a);
+- arquivar o mercado ou o canal arquiva as publicações deles.
 
 ## 5. Regras do domínio
 
@@ -248,7 +257,7 @@ Com outbox, como os do Catálogo (`platform-architect`).
 | `price.changed` | um preço corrente mudou (linha nova no histórico) | `prl_`, `var_`, montante antigo e novo, moeda |
 | `promotion.started` | uma redução entrou em vigor | `prl_`, `var_`, preço reduzido, preço de referência, fim |
 | `promotion.ended` | uma redução acabou (chegou ao fim ou foi tirada) | `prl_`, `var_` — já estava na lista da skill `platform-architect` |
-| `market.activated`, `market.archived` | o mercado mudou de estado | `mkt_` — o Catálogo precisa de saber que um mercado foi arquivado para arquivar as publicações (§4.1); acrescentados ao `docs/02` e à skill `platform-architect` (decidido, Diogo, 06/10/2026; §9, Q6; `docs/06`, BX) |
+| `market.activated`, `market.archived` | o mercado mudou de estado | `mkt_` — para os domínios que precisam de saber que um mercado mudou de estado (o Catálogo já arquiva as publicações na mesma transacção, 0019; §4.1); acrescentados ao `docs/02` e à skill `platform-architect` (decidido, Diogo, 06/10/2026; §9, Q6; `docs/06`, BX) |
 
 ## 7. Lista da API
 

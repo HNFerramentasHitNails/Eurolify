@@ -31,7 +31,7 @@ import {
 // Rotas do Hub da parte B2 (docs/21 §11): entrar com passkey, sair,
 // reautenticar, aceitar convites e gerir a equipa. A assinatura WebAuthn
 // verifica-se aqui (@simplewebauthn/server); o desafio de uso único, o
-// contador, a sessão, os convites e os papéis decide-os a base (0018, 0019).
+// contador, a sessão, os convites e os papéis decide-os a base (0018, 0020).
 // Os segredos (sessão, convite) só andam no cookie e no corpo, nunca no
 // caminho nem na consulta, e nunca vão para o registo.
 //
@@ -41,7 +41,7 @@ import {
 // repetição.
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-/** Os desafios valem 5 minutos na base (0019); o navegador espera o mesmo. */
+/** Os desafios valem 5 minutos na base (0020); o navegador espera o mesmo. */
 const TEMPO_WEBAUTHN = 5 * 60 * 1000;
 
 const Papel = Type.Union(PAPEIS.map((p) => Type.Literal(p)));
