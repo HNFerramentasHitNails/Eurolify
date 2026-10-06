@@ -19,7 +19,7 @@ description: Desenho das interfaces do Eurolify — API da Loja (pública) e de 
 | | API da Loja | API de Administração |
 |---|---|---|
 | Para quem | frontends (Lovable, Vercel, Bolt, Emergent, apps, balcão) | Hub do Eurolify, integrações, aplicações, sistemas de gestão dos comerciantes |
-| Autenticação | chave **pública** por loja + sessão do visitante/cliente | **OAuth 2.1 / OIDC** com âmbitos; chaves de servidor para integrações |
+| Autenticação | chave **pública** por loja + sessão do visitante/cliente | **OAuth 2.1 / OIDC** com âmbitos quando houver aplicações de terceiros (até lá, as pessoas do Hub usam a sessão própria: decisão CC do Diogo, 06/10/2026, `docs/21`); chaves de servidor para integrações |
 | Pode | ler catálogo e preços do mercado, gerir o próprio carrinho, iniciar o checkout alojado, área de cliente | tudo o que o papel e os âmbitos permitirem |
 | Não pode | decidir preço, IVA, disponibilidade ou elegibilidade | contornar as travas fiscais (vivem no domínio, não na API) |
 
