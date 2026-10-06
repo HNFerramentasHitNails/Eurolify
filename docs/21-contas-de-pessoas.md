@@ -159,7 +159,7 @@ corpo nem do caminho (`docs/19` §5). As regras do comerciante `suspenso` ou
 
 ### 4.7 O que a parte B1 do código acrescentou (propostas)
 
-Escolhas do código da base (migração `0019`, issue #140) que o desenho não
+Escolhas do código da base (migração `0018`, issue #140) que o desenho não
 dizia; ficam como **proposta** até o Diogo ou o Bruno as mudarem:
 
 - **Convidar exige autenticação recente** (10 minutos), como mudar papéis:

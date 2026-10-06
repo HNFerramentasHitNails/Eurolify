@@ -14,7 +14,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Contas de pessoas, parte B1 (migração 0019; docs/21 §4 e §5; testes P-T2,
+// Contas de pessoas, parte B1 (migração 0018; docs/21 §4 e §5; testes P-T2,
 // P-T4, P-T6, P-T7, P-T9, P-T10 e P-T15 do §9; issue #140). Contra o
 // PostgreSQL 18 verdadeiro. As funções ainda não são da API (chegam com as
 // rotas, B2): chamam-se como o dono das tabelas, que é como as chamará o
@@ -40,7 +40,7 @@ async function mensagemDoErro(promessa: Promise<unknown>): Promise<string> {
   return "sem erro";
 }
 
-describe.skipIf(URL_BASE === undefined)("contas de pessoas (0019)", () => {
+describe.skipIf(URL_BASE === undefined)("contas de pessoas (0018)", () => {
   let base: BaseDeTeste;
   let dono: Kysely<unknown>;
   let a: string;
