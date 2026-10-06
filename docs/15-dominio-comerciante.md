@@ -247,7 +247,7 @@ acordo de tratamento — **qual** (construir ou fornecedor) decide-se nesse ADR.
 
 | # | Pergunta | Decisão |
 |---|---|---|
-| P1 | Identidade: construímos o OAuth 2.1/OIDC ou usamos um fornecedor **na UE**? Decide quem é o «dono» e quando a API desta fatia abre | fatia própria a seguir a esta, com ADR; fornecedor só na UE e com acordo de tratamento (`AGENTS.md`, regra 4) |
+| P1 | Identidade: construímos o OAuth 2.1/OIDC ou usamos um fornecedor **na UE**? Decide quem é o «dono» e quando a API desta fatia abre | fatia própria a seguir a esta, com ADR; fornecedor só na UE e com acordo de tratamento (`AGENTS.md`, regra 4). **Desenho: `docs/19`** (issue #107, 06/10/2026) |
 | P2 | O que pode um comerciante `aprovado_limitado`? | vender só em modo de ensaio, sem dinheiro real |
 | P3 | Que verificação se exige para activar? (número fiscal pelo VIES, certidão do registo comercial…) | número fiscal com prova (manual ou VIES) e aceitação dos dois contratos; o resto, por país, **C** até jurista |
 | P4 | Os registos fiscais (OSS, IOSS, outros países) ficam no Motor de IVA? | sim; a entidade legal referencia-os |
