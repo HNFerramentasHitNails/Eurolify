@@ -44,7 +44,7 @@ código **não foi lido**.
 | Código de autenticação (TOTP, RFC 6238) | `otplib` | 13.5.0 · 21/08/2026 | MIT | **usar** |
 | Resumo de palavra-passe (P1 = a)) | `@node-rs/argon2` (Argon2id) | 2.2.2 · 06/10/2026 | MIT | **usar** |
 | Cookie da sessão | `@fastify/cookie` | 11.1.2 · 15/07/2026 | MIT | **usar** (a API é Fastify 5.12.5) |
-| Fornecedor OIDC | `oidc-provider` | 9.12.2 · 05/09/2026 | MIT | **não agora** (§9 P3) |
+| Fornecedor OIDC | `oidc-provider` | 9.12.2 · 05/09/2026 | MIT | **não agora**: só com aplicações de terceiros (decisão CC) |
 | Tudo feito (contas, sessões, 2FA) | `better-auth` | 1.7.7 · 30/09/2026 | MIT | **não**: traz as suas tabelas e sessões, fora das funções da base, do RLS e do rasto que o Eurolify já tem (`docs/19` §3) |
 | — | `@oslojs/otp` | 1.1.0 · 11/12/2024 | MIT | **não**: marcada como descontinuada no npm |
 
@@ -164,7 +164,7 @@ recomenda dois donos.
 |---|---|---|
 | P1 | A alternativa à passkey (decidido: TOTP): com que primeiro passo? | ✅ **Decidido: a) e-mail + palavra-passe (resumo Argon2id) + TOTP** (Diogo, 06/10/2026: *«sim, concordo, fica a a)»*; decisão CA): entrar não depende de um fornecedor de e-mail |
 | P2 | Como chegam os convites e os avisos? | ✅ **Decidido: b) na Fase 1, sem e-mail** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*; decisão CB): o dono cria o convite no Hub, copia a ligação e envia-a ele; vale uma vez e expira (proposta: 7 dias, **C**). Um fornecedor de e-mail na UE escolhe-se quando houver mais comerciantes |
-| P3 | O Eurolify como fornecedor OIDC (`oidc-provider`) já na parte B, ou só quando houver aplicações de terceiros (Fase 3)? | só depois: o Hub usa a sessão própria (§2) |
+| P3 | O Eurolify como fornecedor OIDC (`oidc-provider`) já na parte B, ou só quando houver aplicações de terceiros (Fase 3)? | ✅ **Decidido: b) só quando houver aplicações de terceiros** (Diogo, 06/10/2026: *«sim, concordo, fica a b)»*; decisão CC). Até lá, o Hub usa a sessão própria (§2) e as integrações as chaves de API; o OAuth 2.1/OIDC da API de Administração (`docs/19`, «Já decidido») entra com os terceiros |
 | P4 | Prazos: duração da sessão; quanto tempo a conta de uma pessoa sem nenhum `membro` fica antes de ser pseudonimizada | por decidir, com o jurista (C) |
 
 ## O que não foi verificado
