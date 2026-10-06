@@ -120,7 +120,8 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
     uma cópia (skill `observability-security`);
   - **quanto se pode perder e em quanto tempo se volta**: na produção, até
     5 minutos e até 4 horas (§7, ponto 4; decisão BL).
-- **Segunda máquina para a base** (réplica pronta a assumir): por decidir (§7).
+- **Segunda máquina para a base** (réplica pronta a assumir): não no arranque
+  (§7, ponto 5; decisão BN).
 
 ### 3.6 Publicação a partir do GitHub
 
@@ -289,7 +290,10 @@ O que o Diogo faz, fora do repositório:
    e um em Madrid — [datacentermap.com](https://www.datacentermap.com/c/ptisp/),
    [echoboomer.pt](https://echoboomer.pt/ptisp-entrada-novo-datacenter-ls2-equinix-lisboa/).
    Em que centro fica a VPS contratada: não verifiquei.
-5. **Segunda máquina para a base**, e a partir de quando.
+5. ~~Segunda máquina para a base~~ → ✅ **sem réplica no arranque** (Diogo,
+   06/10/2026: *«sim, concordo, sem réplica no arranque»*): volta-se pelas
+   cópias (ponto 4). Entra quando um comerciante precisar, por contrato, de
+   voltar em menos de 4 horas, ou na passagem à Fase 2.
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
    Healthchecks.io (Letónia) vigia as tarefas e manda e-mail ao Diogo; a
