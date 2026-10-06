@@ -735,8 +735,11 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   lista de base (0019).
   **O que ainda não cobre** (fica para a outbox, parte 5): mudar a
   classificação ou o nome (com a tradução) de um artigo já publicado não
-  volta a verificar a publicação. O peso de uma variante à venda e a
-  categoria fiscal já não se apagam depois de publicado (0019).
+  volta a verificar a publicação. Arquivar a última variante à venda de uma
+  publicação publicada também não a retira: fica publicada sem nada para
+  vender até se publicar outra vez (C6 deixa arquivar a variante sem
+  derrubar o resto; 4.ª revisão do #139, P3-A). O peso de uma variante à
+  venda e a categoria fiscal já não se apagam depois de publicado (0019).
 - **Sem rasto das transições da publicação.** Publicar, retirar e voltar a
   publicar guardam só a última passagem (quem e quando). A prova do que
   esteve à venda e quando (pós-venda, direitos do consumidor) precisa do

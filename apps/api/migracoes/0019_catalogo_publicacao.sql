@@ -40,11 +40,15 @@
 -- (que guarda também o par canal × mercado: tirá-lo toma o canal em
 -- exclusivo), a tradução do nome, a lista de base, as variantes e os preços
 -- (FOR SHARE), depois a linha da publicação (FOR UPDATE), e só então
--- verifica; o gatilho volta a tomá-los. Arquivar um deles, mudar o artigo, tirar o par ou um desses
--- preços espera e depois vê a publicação. Uma variante nova toma as
--- publicações do artigo (FOR UPDATE) antes de decidir se nasce fora. Os
--- arquivos em cadeia tomam as publicações por ordem do id. Assumem READ
--- COMMITTED; uma espera acima do `lock_timeout` da ligação dá `retry`.
+-- verifica; o gatilho volta a tomá-los. Arquivar um deles, mudar o
+-- artigo, tirar o par ou um desses preços espera e depois vê a publicação.
+-- Uma variante nova entra na fila do artigo e toma as publicações dele (FOR
+-- UPDATE) antes de decidir se nasce fora. Os arquivos em cadeia tomam as
+-- publicações por ordem do id. Assumem READ COMMITTED. Em funcionamento,
+-- cada operação do Catálogo espera no máximo 5 s por um lock (o
+-- `lock_timeout` de noCatalogo) e depois dá `catalog.retry`; os 10 s abaixo
+-- são só desta migração, para as alterações às tabelas (4.ª revisão do #139,
+-- P3-B).
 
 SET LOCAL lock_timeout = '10s';
 
