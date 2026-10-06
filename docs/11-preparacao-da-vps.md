@@ -262,8 +262,10 @@ O que o Diogo faz, fora do repositório:
    migração para Paris, até 31/03/2027 (ADR-0018, ADR-0019, ADR-0021).
 2. ~~Como o Claude chega à máquina~~ → ✅ **o Claude Code no computador do
    Diogo, por SSH** (ADR-0020); passos no §5.1.
-3. **Ensaio e produção na mesma máquina ou separados** (proposta: separados
-   antes do primeiro comerciante de fora).
+3. ~~Ensaio e produção na mesma máquina ou separados~~ → ✅ **separados**
+   (Diogo, 06/10/2026: *«sim, concordo, separados»*): até ao primeiro
+   comerciante de fora basta a VPS actual; a partir dele, a produção numa
+   máquina própria (a VPS-3 em Paris do ADR-0017).
 4. **Onde ficam as cópias e quanto se pode perder** (minutos de dados e horas
    para voltar). ✅ **Para o ensaio** (ADR-0027): `pg_dump` diário cifrado
    para o ~~Scaleway Object Storage em Paris~~ **OVH Object Storage em
