@@ -282,7 +282,7 @@ export function rotasDaIdentidade(
       config: { ambito: "keys:write" },
       schema: {
         description:
-          "Revoga uma chave do comerciante, de imediato e sem volta. Uma chave não se revoga a si própria se for a última que gere chaves (docs/19 §6.1).",
+          "Revoga uma chave do comerciante, de imediato e sem volta. Uma chave não se revoga a si própria se for a última que gere chaves, e uma chave com prazo só revoga chaves com prazo até ao seu (docs/19 §6.1).",
         headers: CabecalhoIdempotencia,
         params: ParametroChave,
         response: { 200: Chave, ...RESPOSTA_DE_ERRO },

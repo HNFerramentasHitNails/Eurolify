@@ -105,3 +105,15 @@ resolver; o registo fica (`docs/19` §5, T13). Por programar.
   Visto ao ler, não medido.
 - O ensaio na VPS: as chaves só servem lá quando o operador criar a primeira
   (falta a chave SSH do fluxo `operar`).
+
+## T14, migração 0015 (06/10/2026, decisão BQ)
+
+- Uma chave com prazo só revoga chaves que expirem no mesmo instante ou antes
+  dela → `key.revoke_beyond_creator` (403). `CREATE OR REPLACE` da
+  `chave_revogar_pela_api`, com a mesma assinatura e os mesmos privilégios.
+- O teste antigo «T11: uma gestora temporária pode revogar a permanente»
+  passou a T14: a temporária já não revoga a permanente nem uma mais longa;
+  revoga uma no mesmo instante ou antes.
+- Medido a 06/10/2026, PostgreSQL 18.6 instalado na sessão (pacote pgdg):
+  439 testes da API passam; sem a regra, 1 falha (o T14); com `>=` em vez de
+  `>`, 1 falha (o caso do mesmo instante).

@@ -169,6 +169,11 @@ const ERROS_DAS_CHAVES = {
     pt: "Um comerciante suspenso ou fechado não cria chaves; pode revogá-las",
     en: "A suspended or closed merchant cannot create keys; it can revoke them",
   },
+  "key.revoke_beyond_creator": {
+    status: 403,
+    pt: "Uma chave com prazo não revoga uma chave sem prazo nem uma que dure mais do que ela",
+    en: "A key with an expiry cannot revoke a key without expiry or expiring later",
+  },
   "key.not_found": {
     status: 404,
     pt: "A chave não existe",

@@ -131,7 +131,7 @@ P2-2).
   pode revogar»*): uma chave com prazo **só revoga chaves que expirem no mesmo
   instante ou antes dela**; não revoga uma sem prazo nem uma que dure mais.
   Assim uma chave temporária não deixa o comerciante sem gestora permanente.
-  **Por programar** (T14 no §9).
+  Migração 0015 (`key.revoke_beyond_creator`, 403; T14 no §9).
 - **Decidido** (Diogo, 06/10/2026: *«sim, concordo, deixa de funcionar»*):
   a chave pública de uma loja **arquivada** deixa de funcionar — não se cria
   nenhuma para ela e as que existem deixam de resolver (401 `auth.invalid`,
@@ -272,14 +272,13 @@ que a API ganha para escrever chaves:
   - nenhuma revogação pela API deixa o comerciante sem uma chave válida com
     `keys:write` → `key.last_key_writer` (409). Na prática é a própria: quem
     pede é sempre uma gestora válida;
-  - **limite:** «válida» é agora. Uma gestora que expira daqui a um minuto
-    pode revogar a única permanente, e o comerciante fica sem gestora quando
-    ela expirar. **Desde a 0014, ela já não pode criar uma permanente de
-    substituição**: nesse caso não há saída pela API, e o único remédio é o
-    comando do operador, que pode criar e revogar sem estas regras (é a
-    porta de emergência; revisão do #118, P3-7). **Decidido** (revisão do
-    #124, P2-1, §5): uma chave com prazo deixa de revogar uma que dure mais
-    do que ela — **por programar** (T14);
+  - **uma chave com prazo só revoga chaves com prazo até ao seu** (T14,
+    migração 0015, decisão BQ) → `key.revoke_beyond_creator` (403). Assim
+    uma gestora temporária já não revoga a permanente — antes da 0015
+    podia, e desde a 0014 já não podia criar outra de substituição, o que
+    deixava o comerciante sem gestora quando ela expirasse. O comando do
+    operador continua sem estas regras (porta de emergência; revisão do
+    #118, P3-7);
   - a verificação corre com uma tranca por comerciante
     (`pg_advisory_xact_lock`), e quem pede volta a ser verificado debaixo da
     tranca: duas chaves que se revoguem ao mesmo tempo não deixam o
@@ -355,7 +354,7 @@ sessão em vez da chave.
 | T11 | uma chave não se revoga a si própria se for a última com `keys:write`, nem ao mesmo tempo que outra |
 | T12 | uma chave com prazo não cria outra sem prazo nem com prazo mais longo (também a pública, pela rota e pela função na base); prazo igual ou anterior passa (0014) |
 | T13 | uma loja arquivada: criar-lhe uma chave pública é recusado; uma chave pública que já existia dá 401 `auth.invalid` logo a seguir ao arquivo — **por programar** (decisão de 06/10/2026) |
-| T14 | uma chave com prazo não revoga uma chave sem prazo nem uma que expire depois dela; uma que expire antes ou no mesmo instante, sim — **por programar** (decisão de 06/10/2026) |
+| T14 | uma chave com prazo não revoga uma chave sem prazo nem uma que expire depois dela (pela rota e pela função na base); uma que expire antes ou no mesmo instante, sim (0015) |
 
 Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta.
 Com o `POST /keys` (0012) entram o T9, o T10 e o T11, e com a 0014 o T12

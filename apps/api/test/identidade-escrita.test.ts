@@ -806,30 +806,63 @@ describe.skipIf(URL_BASE === undefined)(
         expect(await gestorasActivas(comerciante)).toBe(1);
       });
 
-      it("T11: uma gestora temporária pode revogar a permanente (limite registado no docs/19 §6.1); depois é a última e não se revoga", async () => {
-        const { comerciante, chaves } = await comGestoras(2);
-        const [um, dois] = chaves;
-        if (um === undefined || dois === undefined)
-          throw new Error("sem chaves");
-        // Um revoga dois: fica um.
-        expect((await revogar(um.segredo, `key_${dois.id}`)).statusCode).toBe(
-          200,
-        );
-        // Uma nova gestora, criada por um, que expira em breve, não consegue
-        // revogar a única permanente se ficar ela própria como a última…
-        const nova = await criar(um.segredo, {
+      it("T14: uma chave com prazo não revoga uma sem prazo nem uma que dure mais; no mesmo instante ou antes, sim (decisão do Diogo, 06/10/2026)", async () => {
+        const { comerciante, chaves } = await comGestoras(1);
+        const [permanente] = chaves;
+        if (permanente === undefined) throw new Error("sem chave");
+        const daquiA = (minutos: number) =>
+          new Date(Date.now() + minutos * 60_000);
+        const prazo = daquiA(60);
+        const temporaria = await criarChave(comoDono(), comerciante, {
           tipo: "servidor",
           nome: "Temporária",
           ambitos: ["keys:write"],
-          expira_em: new Date(Date.now() + 60_000).toISOString(),
+          criadaPor: "operador:teste",
+          expiraEm: prazo,
         });
-        expect(nova.statusCode).toBe(201);
-        const n = nova.json<ChaveCriada>();
-        // …revogar «um» deixa «n»: é permitido (fica uma válida).
-        expect((await revogar(n.segredo, `key_${um.id}`)).statusCode).toBe(200);
-        // Agora «n» é a última: ninguém a revoga pela API.
-        const r = await revogar(n.segredo, n.id);
-        expect(r.json<{ codigo: string }>().codigo).toBe("key.last_key_writer");
+        const maisLonga = await criarChave(comoDono(), comerciante, {
+          tipo: "servidor",
+          nome: "Mais longa",
+          ambitos: ["catalog:read"],
+          criadaPor: "operador:teste",
+          expiraEm: daquiA(120),
+        });
+        for (const alvo of [permanente.id, maisLonga.id]) {
+          const r = await revogar(temporaria.segredo, `key_${alvo}`);
+          expect(r.statusCode, alvo).toBe(403);
+          expect(r.json<{ codigo: string }>().codigo).toBe(
+            "key.revoke_beyond_creator",
+          );
+        }
+        expect((await eu(permanente.segredo)).statusCode).toBe(200);
+        expect((await eu(maisLonga.segredo)).statusCode).toBe(200);
+        // A regra está na base, não só na rota.
+        expect(
+          await mensagemDoErro(
+            comComerciante(base.api, comerciante, (trx) =>
+              sql`select chave_revogar_pela_api(${temporaria.segredo},
+                    ${permanente.id}::uuid)`.execute(trx),
+            ),
+          ),
+        ).toMatch(/^key\.revoke_beyond_creator:/);
+        // No mesmo instante (a fronteira: `>` e não `>=`) e antes, revoga.
+        for (const expiraEm of [prazo, daquiA(30)]) {
+          const alvo = await criarChave(comoDono(), comerciante, {
+            tipo: "servidor",
+            nome: "Dentro do prazo",
+            ambitos: ["catalog:read"],
+            criadaPor: "operador:teste",
+            expiraEm,
+          });
+          expect(
+            (await revogar(temporaria.segredo, `key_${alvo.id}`)).statusCode,
+          ).toBe(200);
+        }
+        // A permanente revoga a temporária (uma sem prazo revoga qualquer).
+        expect(
+          (await revogar(permanente.segredo, `key_${temporaria.id}`))
+            .statusCode,
+        ).toBe(200);
         expect(await gestorasActivas(comerciante)).toBe(1);
       });
 
