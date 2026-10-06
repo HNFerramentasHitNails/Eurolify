@@ -8,6 +8,11 @@
 // regista-se como `contabilista` (convenção escrita no docs/03). Uma linha com
 // «—» não tem papel: nenhum profissional a valida até o docs/03 o dizer.
 // A secção 6 do docs/03 (protocolos) não é lei e fica de fora.
+//
+// O domínio de cada linha (decisão BY) segue as definições do
+// docs/eurolify/compliance-gaps.md §1. As Canárias, Ceuta e Melilla e os Açores
+// e a Madeira ficam em `iva` («território de IVA») e passam para `territorios`
+// quando esse domínio entrar no motor (revisão do #133, 2.ª, P3).
 
 import type { Dominio, PapelDeValidacao } from "./tipos.js";
 

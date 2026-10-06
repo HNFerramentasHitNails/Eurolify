@@ -91,11 +91,87 @@ describe("os temas do motor são as linhas do docs/03 (#128)", () => {
     expect(doCodigo).toEqual(doDocumento);
   });
 
-  it("as linhas sem domínio no motor são estas três, e mais nenhuma (decisão BR; mudar é de propósito)", () => {
+  it("as linhas sem domínio no motor são estas três, e mais nenhuma (decisão BY; mudar é de propósito)", () => {
     const semDominio = Object.values(TEMAS_DOCS03)
       .filter((linha) => linha.dominio === null)
       .map((linha) => linha.id);
     expect(semDominio).toEqual(["mudanca-nuvem", "ia", "ciberseguranca"]);
+  });
+
+  it("o domínio de cada linha é o da tabela escrita à mão (decisão BY; revisão do #133, 2.ª, P2)", () => {
+    const POR_DOMINIO: Record<string, readonly string[]> = {
+      iva: [
+        "oss",
+        "ioss",
+        "isencao-aduaneira-150",
+        "vida",
+        "fornecedor-presumido",
+        "canarias-ceuta-melilla",
+        "acores-madeira",
+        "lugar-prestacao-eventos",
+        "ensino-ao-vivo",
+      ],
+      faturacao: [
+        "software-certificado-at",
+        "atcud-qr",
+        "pdf-fatura-pt",
+        "conservacao-pt",
+        "verifactu-es",
+        "fatura-electronica-fr",
+        "b2b-electronico-be",
+        "b2b-electronico-de",
+        "ksef-pl",
+        "sdi-it",
+        "bilhete-documento-pt",
+        "dac7",
+      ],
+      consumidor: [
+        "pre-contratual-livre-resolucao",
+        "livre-resolucao-lazer",
+        "servico-comecado-no-prazo",
+        "botao-livre-resolucao",
+        "reducoes-30-dias",
+        "preco-por-unidade",
+        "preco-personalizado",
+        "avaliacoes-pesquisa-paga",
+        "conteudos-digitais-livre-resolucao",
+        "alegacoes-ambientais-garantia",
+        "direito-reparacao",
+        "odr",
+        "ral-livro-reclamacoes-pt",
+        "geobloqueio",
+        "digital-fairness-act",
+        "informacao-entrega",
+      ],
+      produto_ambiente: [
+        "gpsr",
+        "cosmeticos",
+        "tpo",
+        "quimicos-rotulo",
+        "ppwr",
+        "mercadorias-perigosas",
+        "cra",
+        "eudr",
+        "brinquedos",
+        "produtos-defeituosos",
+        "baterias",
+        "reee",
+      ],
+      acessibilidade_plataforma: ["acessibilidade", "dsa"],
+      privacidade_marketing: ["protecao-dados", "violacao-dados", "cookies"],
+      pagamentos: ["psd2-sca", "psd3-psr", "pci-dss"],
+      sem_dominio: ["mudanca-nuvem", "ia", "ciberseguranca"],
+    };
+    const doCodigo: Record<string, string[]> = {};
+    for (const linha of Object.values(TEMAS_DOCS03)) {
+      const chave = linha.dominio ?? "sem_dominio";
+      (doCodigo[chave] ??= []).push(linha.id);
+    }
+    for (const lista of Object.values(doCodigo)) lista.sort();
+    const esperado = Object.fromEntries(
+      Object.entries(POR_DOMINIO).map(([d, ids]) => [d, [...ids].sort()]),
+    );
+    expect(doCodigo).toEqual(esperado);
   });
 
   it("os identificadores são só minúsculas, algarismos e hífenes (os repetidos falham ao carregar temas.ts)", () => {

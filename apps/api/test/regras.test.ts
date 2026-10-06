@@ -2048,6 +2048,34 @@ describe("o papel de quem valida confere-se com a linha do docs/03 (#59, #128)",
     }
   });
 
+  it("o decidir não aceita uma validação com um tema sem domínio, mesmo sem passar pelo validar", () => {
+    const registo = comRegraValidada(
+      "acessibilidade_plataforma",
+      "ia",
+      "jurista",
+    );
+    const decisao = decidir(registo, {
+      pais: "PT",
+      dominios: ["acessibilidade_plataforma"],
+      momento: AGORA,
+    });
+    expect(decisao.estado).toBe("revisao_necessaria");
+    expect(decisao.motivos).toContainEqual({
+      codigo: "regra_sem_prova",
+      dominio: "acessibilidade_plataforma",
+      regra: "r@1",
+    });
+  });
+
+  it("sem validação, um tema de outro domínio também é recusado ao carregar", () => {
+    const registo = registoComPortugal([
+      regraTeste({ id: "r", dominio: "consumidor", tema: "oss" }),
+    ]);
+    expect(errosDoRegisto(registo).join("\n")).toContain(
+      "o tema oss não é do domínio consumidor",
+    );
+  });
+
   it("a tabela não se altera em execução", () => {
     expect(Object.isFrozen(TEMAS_DOCS03)).toBe(true);
     for (const linha of Object.values(TEMAS_DOCS03)) {
