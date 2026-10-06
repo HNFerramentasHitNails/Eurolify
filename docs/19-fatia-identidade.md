@@ -37,7 +37,7 @@ dependem da P1 (§7).
 | Campo | Tipo | Nota |
 |---|---|---|
 | `id` | uuid v7 | publica-se como `key_…` (identificador opaco com prefixo, `headless-commerce`, regra 2) |
-| `comerciante_id` | uuid | RLS por comerciante |
+| `comerciante_id` | uuid | isolamento pelas funções da base (ver abaixo); RLS ligado sem `FORCE`, como segunda barreira |
 | `tipo` | `servidor`, `publica` | |
 | `loja_id` | uuid | **obrigatório na pública, proibido na de servidor** |
 | `nome` | texto, 1–100 | para o comerciante a reconhecer («Software de gestão») |
@@ -58,8 +58,15 @@ dependem da P1 (§7).
   loja, os âmbitos e o id, e só a uma chave válida (não revogada, não expirada).
   Só a API tem `EXECUTE` nela (a 0008 fecha as outras). A tabela fica fechada
   ao `eurolify_api`, para uma falha da aplicação não listar as chaves de todos.
-- Rasto: criar e revogar uma chave ficam num rasto próprio (quem, quando,
-  que âmbitos), que **só se acrescenta**, como o do Comerciante na 0008.
+- Rasto: a própria linha é o rasto. Uma chave **não se altera nem se apaga**
+  (gatilho); só se revoga uma vez (`revogada_por`, `revogada_em` da base) e se
+  marca o último uso. Quem e quando ficam na linha para sempre.
+- **Feito na migração 0010** (pedido da parte A): a tabela, o gatilho, e as
+  quatro funções `chave_resolver`, `chave_listar`, `chave_criar` e
+  `chave_revogar`. O RLS por comerciante não pode ser **forçado** nesta tabela,
+  porque a procura da chave atravessa comerciantes antes de haver contexto e
+  as políticas da 0001 dão erro sem ele; por isso fica ligado sem `FORCE`, e a
+  API não tem nenhum privilégio na tabela.
 - Uma chave pública nunca recebe um âmbito de escrita de Administração; a base
   recusa-o (CHECK), não só a aplicação.
 
@@ -108,11 +115,15 @@ Erros novos (no formato do `docs/18` §2):
 
 | Operação | Método e caminho | Âmbito | Notas |
 |---|---|---|---|
-| Quem sou | `GET /me` | qualquer | o comerciante, a loja (se pública), os âmbitos e o prefixo da chave |
-| Listar chaves | `GET /keys` | `keys:write` | nunca devolve o segredo nem o resumo |
+| Quem sou | `GET /me` | qualquer | o comerciante (`mer_…`), a loja (`sto_…`, se pública), os âmbitos e o prefixo da chave — **feito** |
+| Listar chaves | `GET /keys` | `keys:write` | nunca devolve o segredo nem o resumo — **feito** |
 | Criar chave | `POST /keys` | `keys:write` | devolve o segredo **uma vez**; uma chave não cria outra com mais âmbitos do que tem |
 | Revogar chave | `POST /keys/{id}/revoke` | `keys:write` | imediato; não se revoga a si própria se for a última com `keys:write` |
 | Comando do operador | fora da API pública | — | criar comerciante e a primeira chave; corre na VPS e fica no registo de acções (proposta: um programa `eurolify-admin` no contentor da API, chamado só pelo serviço da máquina, como o MCP — ADR-0033) |
+
+Criar e revogar pela API entram no pedido seguinte, com a `Idempotency-Key`
+(`docs/18` §4), que todas as escritas pedem. Os prefixos `mer_` (comerciante) e
+`sto_` (loja) são **proposta**: o `docs/15` ainda não os tinha.
 
 Com isto, as rotas do `docs/15` §8 (Comerciante) e do `docs/14` §7 (Catálogo)
 podem abrir, cada uma com o seu âmbito, e a `Idempotency-Key` e os limites do

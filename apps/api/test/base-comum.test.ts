@@ -53,6 +53,7 @@ describe("base comum da API", () => {
       app.post(
         "/teste-validacao",
         {
+          config: { ambito: "publico" },
           schema: {
             body: Type.Object({ nome: Type.String({ minLength: 1 }) }),
             response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO },
@@ -81,6 +82,7 @@ describe("base comum da API", () => {
       app.post(
         "/teste-falta",
         {
+          config: { ambito: "publico" },
           schema: {
             body: Type.Object({ nome: Type.String() }),
             response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO },
@@ -115,7 +117,10 @@ describe("base comum da API", () => {
     it("um erro de domínio (ErroApi) mantém o estado e o código", async () => {
       app.get(
         "/teste-conflito",
-        { schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } } },
+        {
+          config: { ambito: "publico" },
+          schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } },
+        },
         () => {
           throw new ErroApi(
             "merchant.version_conflict",
@@ -138,7 +143,10 @@ describe("base comum da API", () => {
     it("um erro de fora com estado 4xx não passa o estado nem o texto: dá 500", async () => {
       app.get(
         "/teste-externo",
-        { schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } } },
+        {
+          config: { ambito: "publico" },
+          schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } },
+        },
         () => {
           throw Object.assign(new Error("cliente ana@exemplo.pt recusado"), {
             statusCode: 409,
@@ -154,7 +162,10 @@ describe("base comum da API", () => {
     it("um tipo de conteúdo que a rota não aceita dá 415", async () => {
       app.post(
         "/teste-tipo",
-        { schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } } },
+        {
+          config: { ambito: "publico" },
+          schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } },
+        },
         () => ({}),
       );
       const r = await app.inject({
@@ -172,7 +183,10 @@ describe("base comum da API", () => {
     it("um erro interno dá 500 sem pormenor para o cliente", async () => {
       app.get(
         "/teste-rebenta",
-        { schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } } },
+        {
+          config: { ambito: "publico" },
+          schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } },
+        },
         () => {
           throw new Error("segredo da base: password=abc");
         },
