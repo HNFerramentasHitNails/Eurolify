@@ -83,6 +83,7 @@
 | ✅ BL | Produção: cópia contínua (WAL) mais completa diária — perda máxima de 5 minutos, volta em até 4 horas; números a confirmar num ensaio de reposição | em vigor; onde ficam: BM | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 4 |
 | ✅ BM | Produção: as cópias ficam na OVH e numa segunda cópia cifrada noutro fornecedor da UE (só produção; o ensaio fica como no ADR-0032) | em vigor; a segunda cópia numa VPS da PTISP (só cópias; centro de dados, preço e acordo por verificar) | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 4 |
 | ✅ BN | Produção sem réplica da base no arranque; entra quando um comerciante precisar de voltar em menos de 4 h ou na Fase 2 | em vigor | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 5 |
+| ✅ BO | Produção: alertas pelo Healthchecks.io para o Diogo e o Bruno, mais verificação de minuto a minuto da API | em vigor; plano e custo por verificar | Diogo, 06/10/2026 | [`docs/11`](11-preparacao-da-vps.md) §7, ponto 7 |
 
 ## Por decidir — por esta ordem
 

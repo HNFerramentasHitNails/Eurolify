@@ -156,7 +156,8 @@ da máquina, que puxa a imagem pelo resumo, migra, troca e volta atrás se o
 - A data de fim da VPS no Reino Unido e a troca da chave do Diogo, ambas a
   **31/03/2027** (ADR-0019, decisão AB): aviso a partir de 01/03/2027
   (proposta).
-- Para onde vão (e-mail, com fornecedor na UE): por decidir (§7).
+- Para onde vão: no ensaio, o Diogo (ADR-0027); na produção, o Diogo e o
+  Bruno, mais a verificação de minuto a minuto da API (§7, ponto 7; decisão BO).
 - Lição: o recálculo diário esteve parado 15 dias sem ninguém saber (repo
   `claude`, 05/09/2026).
 
@@ -297,7 +298,11 @@ O que o Diogo faz, fora do repositório:
 6. ~~Coolify ou o GitHub por SSH~~ → ✅ **o GitHub por SSH** (ADR-0026, §3.6).
 7. **Para onde vão os alertas.** ✅ **Para o ensaio** (ADR-0027): o
    Healthchecks.io (Letónia) vigia as tarefas e manda e-mail ao Diogo; a
-   verificação diária da VPS avisa por ele. Para a produção, por decidir.
+   verificação diária da VPS avisa por ele. ✅ **Para a produção** (Diogo,
+   06/10/2026: *«sim, concordo, os dois recebem»*): o mesmo Healthchecks.io;
+   os alertas vão para o **Diogo e o Bruno**; e uma verificação nova, de
+   minuto a minuto, de que a API responde. Por verificar antes de programar:
+   se o plano em uso permite a verificação de minuto a minuto e o custo.
 8. **O Codex na VPS** (ADR-0016: não está decidido).
 9. ~~O que se faz à conta da Scaleway~~ → ✅ **deixa de se usar; a OVH é o
    fornecedor único** (ADR-0032, §6).
