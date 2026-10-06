@@ -393,9 +393,9 @@ Diz se um artigo está à venda num **canal** e num **mercado**
 | `variantes_fora` | variantes do artigo que não se vendem nesta publicação; tirar uma **não retira** o artigo (`catalog-pim`, regra 6) |
 | `publicado_por`, `publicado_em`, `arquivado_por`, `arquivado_em` | |
 | `ultima_verificacao` | o resultado da última verificação «pode publicar?» (§5, regra C2) |
-| `motivo_arquivo` | retirada, artigo arquivado, mercado arquivado ou canal arquivado (código, migração 0018) |
+| `motivo_arquivo` | retirada, artigo arquivado, mercado arquivado ou canal arquivado (código, migração 0019) |
 
-**Em código** (migração `0018_catalogo_publicacao.sql` e
+**Em código** (migração `0019_catalogo_publicacao.sql` e
 `apps/api/src/catalogo/publicacao.ts`, 06/10/2026, #77):
 
 - **Onde pode existir.** Uma publicação nasce num par canal × mercado em
@@ -597,7 +597,7 @@ artigo com todas as variantes arquivadas ficava preso: não voltava a activo
 | # | Regra | Fonte |
 |---|---|---|
 | C1 | **A ficha vive num sítio só.** Campo novo de artigo nasce no domínio, na API de Administração e na ficha do Hub no mesmo passo; o Hub usa a API como qualquer cliente | `catalog-pim`, «Primeira regra»; `headless-commerce` |
-| C2 | **«Pode publicar?» é uma pergunta ao servidor**, que responde sim ou a lista de impedimentos com código: sem SKU, sem unidade, sem categoria fiscal, sem preço no mercado ou a 0,00 € sem ser gratuito (pergunta a Preços), atributo obrigatório em falta no mercado (pergunta à Conformidade), classificação em falta ou incompatível, ou família restrita (§3.10, «Classificação do artigo»), nome ou avisos sem tradução numa língua do mercado, media sem texto alternativo. **Rede temporária** (decisão do Diogo, 06/10/2026, opção a; `docs/06`, CE): a Conformidade e a media ainda não existem, por isso não se verificam. A resposta diz sempre `nao_verificado: [conformidade, media]`, e ninguém lê «sem impedimentos» como «conforme». **Fim:** quando a Conformidade existir, ou antes de haver produção (ADR-0027), o que vier primeiro. Os avisos traduzidos esperam pela Conformidade; do texto, verifica-se o nome do artigo | `catalog-pim`, regra 2 e «Antes de dizer está feito»; o gel a 0,00 € seis meses e meio com 149 unidades |
+| C2 | **«Pode publicar?» é uma pergunta ao servidor**, que responde sim ou a lista de impedimentos com código: sem SKU, sem unidade, sem categoria fiscal, sem preço no mercado ou a 0,00 € sem ser gratuito (pergunta a Preços), atributo obrigatório em falta no mercado (pergunta à Conformidade), classificação em falta ou incompatível, ou família restrita (§3.10, «Classificação do artigo»), nome ou avisos sem tradução numa língua do mercado, media sem texto alternativo. **Rede temporária** (decisão do Diogo, 06/10/2026, opção a; `docs/06`, CF): a Conformidade e a media ainda não existem, por isso não se verificam. A resposta diz sempre `nao_verificado: [conformidade, media]`, e ninguém lê «sem impedimentos» como «conforme». **Fim:** quando a Conformidade existir, ou antes de haver produção (ADR-0027), o que vier primeiro. Os avisos traduzidos esperam pela Conformidade; do texto, verifica-se o nome do artigo | `catalog-pim`, regra 2 e «Antes de dizer está feito»; o gel a 0,00 € seis meses e meio com 149 unidades |
 | C3 | SKU obrigatório e único por comerciante; unidade de venda obrigatória | `catalog-pim`, regra 3 |
 | C4 | Código de barras com origem guardada | `catalog-pim`, regra 4 |
 | C5 | Mudar o original marca as traduções desactualizadas e avisa | `catalog-pim`, regra 5 |
@@ -732,11 +732,11 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   só ao publicar (**proposta**; os eventos da P6 já estão decididos).
   **O que a parte 4 já cobre:** o preço não pode ficar a 0,00 € sem ser
   gratuito (a base de Preços), e o preço de uma variante à venda não sai da
-  lista de base (0018).
+  lista de base (0019).
   **O que ainda não cobre** (fica para a outbox, parte 5): mudar a
   classificação ou o nome (com a tradução) de um artigo já publicado não
   volta a verificar a publicação. O peso de uma variante à venda e a
-  categoria fiscal já não se apagam depois de publicado (0018).
+  categoria fiscal já não se apagam depois de publicado (0019).
 - **Sem rasto das transições da publicação.** Publicar, retirar e voltar a
   publicar guardam só a última passagem (quem e quando). A prova do que
   esteve à venda e quando (pós-venda, direitos do consumidor) precisa do

@@ -48,7 +48,7 @@ import {
 } from "./base-de-teste.js";
 
 // Catálogo, parte 4: publicação por canal × mercado e a verificação «pode
-// publicar?» (docs/14 §3.9, §4.2 e §5, C2; migração 0018; issue #77), contra
+// publicar?» (docs/14 §3.9, §4.2 e §5, C2; migração 0019; issue #77), contra
 // o PostgreSQL 18 verdadeiro e com o eurolify_api.
 
 const NOVO = { nome: "Loja de Teste", lingua: "pt", fuso: "Europe/Lisbon" };

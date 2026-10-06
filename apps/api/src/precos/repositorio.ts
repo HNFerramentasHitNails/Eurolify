@@ -63,7 +63,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroPrecos[] = [
   "prices.list_archived",
   "prices.country_invalid",
   "prices.language_invalid",
-  // Da 0018 (Catálogo, publicação): o preço de uma variante publicada e o
+  // Da 0019 (Catálogo, publicação): o preço de uma variante publicada e o
   // par canal × mercado com publicações publicadas.
   "prices.published_variant",
   "prices.channel_market_in_use",
@@ -385,7 +385,7 @@ export async function definirMercadosDoCanal(
       );
     }
     // Só sai o que deixou de estar na lista, e só entra o que é novo: um
-    // par com publicações publicadas (0018) fica onde está, e tirá-lo é
+    // par com publicações publicadas (0019) fica onde está, e tirá-lo é
     // recusado com prices.channel_market_in_use.
     const actuais = await trx
       .selectFrom("canal_mercado")

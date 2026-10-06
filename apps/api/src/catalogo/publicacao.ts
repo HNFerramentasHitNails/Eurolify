@@ -9,7 +9,7 @@ import { impedimentosDaClassificacao } from "./classificacao.js";
 import { ErroCatalogo, noCatalogo } from "./repositorio.js";
 
 // Catálogo, parte 4: publicação por canal × mercado e a verificação «pode
-// publicar?» (docs/14 §3.9, §4.2 e §5, regra C2; migração 0018; issue #77).
+// publicar?» (docs/14 §3.9, §4.2 e §5, regra C2; migração 0019; issue #77).
 // A verificação é do servidor: devolve sim, ou a lista de impedimentos com
 // código. A base repete o que não pode falhar nunca (artigo, mercado e canal
 // activos, preço e peso das variantes vendidas) e só aceita «publicado» com
@@ -377,7 +377,7 @@ export interface ResultadoDaPublicacao {
   verificacao: Verificacao;
   /**
    * Nula quando o canal não vende no mercado: não há par onde a publicação
-   * possa existir (a chave da 0018), e a verificação diz porquê.
+   * possa existir (as chaves da 0019), e a verificação diz porquê.
    */
   publicacao: Publicacao | null;
 }

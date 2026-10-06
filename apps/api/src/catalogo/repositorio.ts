@@ -99,7 +99,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   "catalog.translation_no_original",
   "catalog.translation_not_ai",
   "catalog.translation_self_review",
-  // Publicação (0018).
+  // Publicação (0019).
   "catalog.publish_blocked",
   "catalog.published_by_required",
   "catalog.published_in_use",

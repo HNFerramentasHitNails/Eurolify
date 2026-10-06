@@ -494,7 +494,7 @@ export const MOTIVOS_ARQUIVO_PUBLICACAO = [
 export type MotivoArquivoPublicacao =
   (typeof MOTIVOS_ARQUIVO_PUBLICACAO)[number];
 
-// Catálogo, parte 4: publicação por canal × mercado (migração 0018; docs/14
+// Catálogo, parte 4: publicação por canal × mercado (migração 0019; docs/14
 // §3.9). Quem e quando publicou ou arquivou são postos pela base.
 export interface TabelaPublicacao {
   id: Generated<string>;

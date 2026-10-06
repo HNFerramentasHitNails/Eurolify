@@ -107,7 +107,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0015_revogar_com_prazo",
         "0016_chave_de_loja_arquivada",
         "0017_precos_mercados",
-        "0018_catalogo_publicacao",
+        "0018_identidade_pessoas",
+        "0019_catalogo_publicacao",
       ]);
     });
 
@@ -141,12 +142,19 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         order by 1`.execute(base.dono);
       expect(rows.length).toBeGreaterThan(0);
       // Internas: só o migrador (kysely_*) ou funções com os direitos do dono
-      // (combinacoes_por_verificar, 0005; chave_api, 0010) lhes tocam; a API
-      // não as lê.
+      // (combinacoes_por_verificar, 0005; chave_api, 0010; as contas de
+      // pessoas, 0018) lhes tocam; a API não as lê.
       const interna = (t: string) =>
         t.startsWith("kysely_") ||
-        t === "combinacoes_por_verificar" ||
-        t === "chave_api";
+        [
+          "combinacoes_por_verificar",
+          "chave_api",
+          "pessoa",
+          "membro",
+          "convite",
+          "sessao",
+          "evento_conta",
+        ].includes(t);
       for (const linha of rows) {
         if (interna(linha.tabela)) {
           expect(linha, linha.tabela).toMatchObject({ api_le: false });
@@ -159,7 +167,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       }
       // 6 do Comerciante (0001), 11 do Catálogo (0002, 0004, 0005, 0007 e
       // 0008), a da idempotência (0012), 6 de Preços e mercados (0017) e a
-      // publicação (0018).
+      // publicação (0019).
       expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(25);
     });
 
