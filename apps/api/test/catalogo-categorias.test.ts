@@ -858,5 +858,84 @@ describe.skipIf(URL_BASE === undefined)(
       }
       expect(await artigosDaColecao(base.api, c, col)).toHaveLength(1);
     });
+
+    it("entrar numa categoria que está a ser arquivada: espera e é recusado (2.ª revisão do #97, P3-A)", async () => {
+      const { c, construcao } = await arvore();
+      const artigoId = await artigo(c, "gel-p3a");
+      const t1 = await transaccaoAberta(
+        c,
+        `update categoria set estado = 'arquivada' where id = '${construcao}'`,
+      );
+      const entrar = codigoDoErro(
+        definirCategoriasDoArtigo(base.api, c, artigoId, 1, [construcao]),
+      );
+      const bloqueou = await esperaBloqueio(entrar);
+      await t1.fechar();
+      expect([bloqueou, await entrar]).toEqual([
+        true,
+        "catalog.category_archived",
+      ]);
+      expect(await categoriasDoArtigo(base.api, c, artigoId)).toEqual([]);
+    });
+
+    it("o mesmo id em maiúsculas é o mesmo id (2.ª revisão do #97, P3-B)", async () => {
+      const { c, unhas, gel } = await arvore();
+      expect(
+        await moverCategoria(base.api, c, gel, 1, unhas.toUpperCase()),
+      ).toBe(1);
+      const a = await artigo(c, "gel-p3b");
+      const b = await artigo(c, "gel-p3b2");
+      expect(await definirCategoriasDoArtigo(base.api, c, a, 1, [unhas])).toBe(
+        2,
+      );
+      expect(
+        await definirCategoriasDoArtigo(base.api, c, a, 2, [
+          unhas.toUpperCase(),
+        ]),
+      ).toBe(2);
+      expect(
+        await codigoDoErro(
+          definirCategoriasDoArtigo(base.api, c, a, 2, [
+            unhas,
+            unhas.toUpperCase(),
+          ]),
+        ),
+      ).toBe("catalog.category_duplicate");
+      const col = await criarColecao(base.api, c, {
+        nome: "P3B",
+        endereco_amigavel: "p3b",
+      });
+      expect(await definirArtigosDaColecao(base.api, c, col, 1, [a, b])).toBe(
+        2,
+      );
+      expect(
+        await definirArtigosDaColecao(base.api, c, col, 2, [
+          a.toUpperCase(),
+          b,
+        ]),
+      ).toBe(2);
+      expect(
+        await codigoDoErro(
+          definirArtigosDaColecao(base.api, c, col, 2, [a, a.toUpperCase()]),
+        ),
+      ).toBe("catalog.collection_product_duplicate");
+    });
+
+    it("um campo fora da lista é ignorado ao alterar (2.ª revisão do #97, P3-C)", async () => {
+      const { c, gel } = await arvore();
+      const fora = { estado: "arquivada", versao: 9 } as unknown as {
+        nome?: string;
+      };
+      expect(await alterarCategoria(base.api, c, gel, 1, fora)).toBe(1);
+      expect(await obterCategoria(base.api, c, gel)).toMatchObject({
+        estado: "activa",
+        versao: 1,
+      });
+      const col = await criarColecao(base.api, c, {
+        nome: "P3C",
+        endereco_amigavel: "p3c",
+      });
+      expect(await alterarColecao(base.api, c, col, 1, fora)).toBe(1);
+    });
   },
 );

@@ -256,7 +256,16 @@ dela):
   pela outra (a chave estrangeira da filha pede a linha de B; revisão do #97,
   P1-1);
 - a versão de uma categoria ou de uma colecção só sobe quando algo muda: um
-  valor igual ao actual, ou o pai que já tinha, não conta.
+  valor igual ao actual, ou o pai que já tinha, não conta;
+- substituir as categorias de um artigo ou os artigos de uma colecção não
+  entra na fila: prende a linha do artigo (ou da colecção); os artigos de
+  uma colecção levam `KEY SHARE`, e uma categoria nova leva `FOR SHARE` (lê
+  o estado e espera por quem a esteja a arquivar; parte 3b, 2.ª revisão do
+  #97, P3-A). Nenhum destes choca com a fila, que só as escritas nas
+  categorias tomam;
+- os ids comparam-se em minúsculas (o mesmo uuid em maiúsculas é o mesmo id),
+  e alterar ignora campos fora da lista; a validação do corpo dos pedidos fica
+  na camada da API, quando existir (2.ª revisão do #97, P3-B e P3-C).
 
 ### 3.7 Colecção (`col_`)
 
@@ -282,13 +291,93 @@ origem.
 |---|---|
 | `recurso_id`, `campo`, `lingua` | ex.: `prd_…`, `descricao`, `es` |
 | `texto` | |
-| `estado` | completa, desactualizada, em falta (§4.3) |
-| `versao_do_original` | a `versao` do recurso quando foi traduzido; mudar o original marca a tradução **desactualizada** e avisa |
+| `estado` | completa, desactualizada, em falta (§4.3) — **calculado**, não guardado (abaixo) |
+| `original` | o texto do original quando se traduziu, posto pela base (**proposta**, em vez de `versao_do_original`, abaixo) |
 | `origem` | pessoa ou proposta de IA. Uma proposta de IA **não se publica** em textos legais nem em avisos de segurança sem revisão de uma pessoa (`eu-localization`) |
 | `traduzido_por`, `traduzido_em` | |
+| `revisto_por`, `revisto_em` | só numa proposta de IA: a pessoa que a reviu (**proposta**) |
 
 As traduções **vivem no Eurolify**, nunca numa app de terceiros (`catalog-pim`,
 regra 5).
+
+Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
+
+| Recurso | Campos traduzíveis |
+|---|---|
+| artigo | `nome`, `descricao` |
+| opção | `nome` |
+| valor da opção | `valor` |
+| categoria | `nome`, `endereco_amigavel` |
+| colecção | `nome`, `descricao`, `endereco_amigavel` |
+
+(Os `avisos` do artigo e o texto alternativo da media entram com esses campos.)
+
+- **Desactualizada por campo, não pela versão do recurso (proposta).** A
+  `versao` do artigo sobe com qualquer mudança (estado, categorias): com ela,
+  activar um artigo marcava todas as traduções como desactualizadas. A base
+  guarda, com a tradução, o texto do original nesse momento; a tradução está
+  **completa** se o original ainda é esse texto, **desactualizada** se mudou
+  (ou se o original ficou vazio) e **em falta** se não há tradução nessa
+  língua para um campo com original. O estado calcula-se ao ler, por isso
+  nunca fica para trás. O «avisa» da C5 chega com os eventos (parte 5);
+  até lá, a fila de traduções (§7.1) mostra-o.
+- Não se traduz para a língua de origem do comerciante, nem um campo sem
+  original (ex.: um artigo sem descrição).
+- A **língua de origem passa da loja para o comerciante** (P13). Os
+  comerciantes que já existem ficam com a da primeira loja ou, sem loja, com
+  a `lingua` do Hub; um comerciante novo, se não a disser, fica com a do Hub
+  (**proposta**; é a base que o põe). Depois de o comerciante ter catálogo
+  (um artigo, uma categoria ou uma colecção), a língua de origem **não muda**
+  (**proposta**: os originais e as traduções ficavam trocados); criar o
+  primeiro artigo, categoria ou colecção espera por quem a esteja a mudar, e
+  vice-versa (revisão do #105, P1-1).
+- A migração **pára** se um comerciante tiver lojas em línguas diferentes:
+  uma pessoa decide a língua de origem dele antes (revisão do #105, P3-A).
+  A mensagem da paragem diz os ids. O passo da pessoa, com o Diogo ou o
+  Bruno a decidir a língua: por um pedido de alteração revisto (ADR-0028),
+  uma migração própria que corra antes da 0009 (o migrador ordena pelo nome:
+  por exemplo `0009_acertar_linguas_das_lojas.sql`), que põe a
+  `loja.lingua_origem` das lojas desse comerciante na língua decidida (com
+  `set_config('eurolify.comerciante', <id>, true)`, por causa do RLS
+  forçado), com a cópia antes (AGENTS.md, «Operar a VPS», regra 2).
+- **Ordem dos bloqueios com o comerciante:** criar catálogo prende a linha do
+  comerciante (`FOR SHARE`). Numa mesma transacção, **o comerciante altera-se
+  antes de se criar catálogo, nunca depois**: duas transacções que criam
+  artigos e depois alteram o comerciante esperam uma pela outra (medido na
+  2.ª revisão do #105, P2-1). Hoje nenhum código o faz; vale para as
+  importações (§3.11) quando existirem.
+- A `loja.lingua_origem` fica, sem obrigação e sem uso, para a versão
+  anterior da aplicação poder voltar (`infra/vps/LEIA-ME.md`, migrações
+  compatíveis); sai numa migração seguinte, **até 31/10/2026** (revisão do
+  #105, P2-4; tarefa #109).
+- As línguas são códigos de duas letras minúsculas, como a `lingua` do
+  comerciante (**proposta**; a lista das línguas de cada mercado é de Preços
+  e mercados, `eu-localization`).
+- Quem traduz vem da sessão (`eurolify.quem`, como na classificação); a data
+  é da base. Traduzir outra vez substitui o texto, a origem e quem, e apaga a
+  revisão. Só uma proposta de IA se revê; quem a traduziu não a revê; uma
+  revisão não se repete (se o original mudou, traduz-se ou confirma-se outra
+  vez; revisão do #105, P2-1 e P2-2).
+- Quem traduz diz o **original que viu**; se já não é o de agora, a tradução
+  é recusada com `catalog.version_conflict` (como a escrita do artigo com a
+  versão antiga; revisão do #105, P2-3). Esta comparação vive no
+  repositório (a base não sabe o que o chamador viu): só o repositório
+  escreve traduções; quem tivesse as credenciais da base podia confirmar
+  uma tradução sem a comparação (2.ª revisão do #105, P3-6).
+- **Pessoa ou IA** (`eu-localization`: a tradução por IA é proposta, revista
+  por uma pessoa): a base não sabe quem é pessoa. Quando a API existir, a
+  `origem` e o «é uma pessoa» de quem revê vêm da **conta que chama** (pessoa
+  ou agente), nunca do corpo do pedido, e um agente não revê (revisão do
+  #105, P2-2).
+- Limites (**proposta**): nomes e valores traduzidos até 200 caracteres,
+  descrições até 20 000.
+- **Falta:** o rasto do texto anterior de cada tradução (C7, «antes e
+  depois») entra com a linha do tempo (parte 5); hoje traduzir outra vez ou
+  apagar não guarda o texto anterior (revisão do #105, P3-F).
+- O endereço amigável traduzido segue o formato do original (§3.6) e é único
+  por comerciante e por língua, entre as categorias e, à parte, entre as
+  colecções.
+- Apagar o recurso apaga as traduções dele.
 
 ### 3.9 Publicação (`pub_`)
 
@@ -439,9 +528,9 @@ artigo com todas as variantes arquivadas ficava preso: não voltava a activo
 
 | Estado | Quando |
 |---|---|
-| em falta | a língua é do mercado e não há texto |
-| completa | há texto e `versao_do_original` = versão actual |
-| desactualizada | o original mudou depois da tradução |
+| em falta | a língua é do mercado e não há texto (até haver mercados, na fila de uma língua pedida) |
+| completa | há texto e o original guardado com ele é o original de agora (§3.8) |
+| desactualizada | o original mudou depois da tradução, ou ficou vazio |
 
 ## 5. Regras do domínio
 
@@ -541,7 +630,11 @@ aqui. Da parte 3a (também **proposta**): `catalog.category_cycle`,
 categoria arquivada), `catalog.category_has_children`,
 `catalog.category_duplicate` (a mesma categoria duas vezes na lista),
 `catalog.slug_invalid`, `catalog.slug_duplicate` e
-`catalog.collection_product_duplicate`.
+`catalog.collection_product_duplicate`. Da parte 3b (também **proposta**):
+`catalog.translated_by_required`, `catalog.translation_same_language`,
+`catalog.translation_no_original`, `catalog.translation_not_ai` (rever uma
+tradução que não é proposta de IA) e `catalog.translation_self_review`; no Comerciante,
+`merchant.origin_language_locked`.
 
 ### 7.2 API da Loja
 
