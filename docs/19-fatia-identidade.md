@@ -348,7 +348,8 @@ sessão em vez da chave.
 - Parte A: só `criada_por` e `revogada_por` (`operador:github:<número>`; na
   parte B, a pessoa). Está no `docs/17` §1 (T7).
 - Parte B: contas de pessoas (e-mail, nome, segundo factor), com o registo de
-  tratamentos, a retenção e o apagamento escritos antes do código.
+  tratamentos, a retenção e o apagamento escritos antes do código: desenho no
+  [`docs/21`](21-contas-de-pessoas.md) §5 (por aprovar).
 
 ## 9. Testes que o código tem de trazer
 
