@@ -64,9 +64,10 @@ dependem da P1 (§7).
 - **Feito na migração 0010** (pedido da parte A): a tabela, o gatilho, e as
   quatro funções `chave_resolver`, `chave_listar`, `chave_criar` e
   `chave_revogar`. **A API só tem `EXECUTE` em `chave_resolver` e
-  `chave_listar`**; criar e revogar ficam com o dono das tabelas (o comando do
-  operador) até o `POST /keys` entrar com a verificação do T9 na base (revisão
-  do #110, P2-1). O RLS por comerciante não pode ser **forçado** nesta tabela,
+  `chave_listar`**; `chave_criar` e `chave_revogar` ficam com o dono das
+  tabelas (o comando do operador; revisão do #110, P2-1). Desde a migração
+  0012 a API cria e revoga pelas suas próprias funções, que verificam quem
+  pede e o T9 na base (§6.1). O RLS por comerciante não pode ser **forçado** nesta tabela,
   porque a procura da chave atravessa comerciantes antes de haver contexto e
   as políticas da 0001 dão erro sem ele; por isso fica ligado sem `FORCE`, e a
   API não tem nenhum privilégio na tabela.
@@ -131,8 +132,8 @@ Erros novos (no formato do `docs/18` §2):
 |---|---|---|---|
 | Quem sou | `GET /me` | qualquer | o comerciante (`mer_…`), a loja (`sto_…`, se pública), os âmbitos e o prefixo da chave — **feito**. Aceita a chave pública, que está no frontend: o id do comerciante e da loja ficam públicos (o uuid v7 traz a data de criação). É de propósito: a montra precisa de saber de que loja é |
 | Listar chaves | `GET /keys` | `keys:write` | nunca devolve o segredo nem o resumo — **feito** |
-| Criar chave | `POST /keys` | `keys:write` | devolve o segredo **uma vez**; uma chave não cria outra com mais âmbitos do que tem |
-| Revogar chave | `POST /keys/{id}/revoke` | `keys:write` | imediato; não se revoga a si própria se for a última com `keys:write` |
+| Criar chave | `POST /keys` | `keys:write` | devolve o segredo **uma vez**; uma chave não cria outra com mais âmbitos do que tem — **feito** (§6.1) |
+| Revogar chave | `POST /keys/{id}/revoke` | `keys:write` | imediato; não se revoga a si própria se for a última com `keys:write` — **feito** (§6.1) |
 | Comando do operador | fora da API pública: fluxo `operar` do GitHub | — | **feito** (ver abaixo) |
 
 **Comando do operador** (Diogo, 06/10/2026: *«avança com o comando do
@@ -183,9 +184,72 @@ Falta, para o fluxo entrar: o Diogo ou o Bruno criar a chave SSH do fluxo
 (a pública em `infra/vps/chaves/fluxos/operar.pub`, a privada no segredo
 `VPS_CHAVE_OPERAR` do ambiente `ensaio`), como as dos outros fluxos.
 
-Criar e revogar pela API entram no pedido seguinte, com a `Idempotency-Key`
-(`docs/18` §4), que todas as escritas pedem. Os prefixos `mer_` (comerciante) e
-`sto_` (loja) são **proposta**: o `docs/15` ainda não os tinha.
+Os prefixos `mer_` (comerciante) e `sto_` (loja) são **proposta**: o
+`docs/15` ainda não os tinha.
+
+### 6.1 Criar e revogar pela API (pedido do Diogo, 06/10/2026)
+
+*«avança com o POST /keys e a revogação»* (#107). Entra com a
+`Idempotency-Key` do `docs/18` §4, que todas as escritas pedem, e com a
+migração 0012.
+
+| Operação | Corpo | Resposta |
+|---|---|---|
+| `POST /keys` | `tipo` (`servidor`, `publica`); `nome` (1–100); `ambitos` (só na de servidor; a pública tem a lista fixa `storefront`); `loja` (`sto_…`, só na pública); `expira_em` (opcional, no futuro) | **201** com a chave e o `segredo`, que só aparece aqui |
+| `POST /keys/{id}/revoke` | nenhum | **200** com a chave revogada (sem segredo) |
+
+As duas exigem o âmbito `keys:write` e o cabeçalho `Idempotency-Key`.
+
+**As regras vivem na base** (migração 0012), em duas funções novas, as únicas
+que a API ganha para escrever chaves:
+
+- `chave_criar_pela_api(p_resumo_quem, …)` e
+  `chave_revogar_pela_api(p_resumo_quem, p_id)`. **A base encontra quem pede
+  pelo resumo do segredo apresentado**, não por um id que a aplicação
+  escolhesse. Uma falha da aplicação não consegue criar nem revogar em nome de
+  outra chave sem ter o segredo dela. A chave que pede tem de:
+  - ser válida (não revogada, não expirada);
+  - ser do comerciante do contexto;
+  - ter `keys:write`.
+
+  Senão → `auth.forbidden` (403).
+- **T9, na base:**
+  - numa chave de **servidor**, os âmbitos novos têm de estar todos nos de
+    quem pede; senão → `key.scope_escalation` (403);
+  - uma chave **pública** tem só `storefront` (leitura da Loja, lista fixa),
+    e qualquer chave com `keys:write` a pode criar (**proposta**: `storefront`
+    nunca está numa chave de servidor, por isso a regra literal impediria
+    sempre criar uma pública).
+- `criada_por` e `revogada_por` passam a `chave:key_<id>` (§5).
+- **Revogar a última:**
+  - uma chave não se revoga a si própria se for a última válida com
+    `keys:write` do comerciante → `key.last_key_writer` (409);
+  - a verificação corre com uma tranca por comerciante
+    (`pg_advisory_xact_lock`), e quem pede volta a ser verificado debaixo da
+    tranca: duas chaves que se revoguem ao mesmo tempo não deixam o
+    comerciante sem nenhuma.
+- Uma chave de outro comerciante, ou que não existe → `key.not_found` (404).
+  Uma já revogada → `key.already_revoked` (409).
+
+**Idempotência** (tabela `idempotencia`, `docs/18` §4, com RLS forçado):
+
+- sem o cabeçalho → `idempotency.key_required` (400);
+- valor de 1 a 255 caracteres visíveis em ASCII;
+- uma por comerciante;
+- o resumo do corpo é o sha256 do JSON com as chaves ordenadas.
+- **O segredo não se repete:** a resposta guardada do `POST /keys` não leva o
+  segredo (T5: nunca na base). Repetir o pedido com a mesma chave de
+  idempotência dá `idempotency.secret_not_repeated` (409), que diz qual a
+  chave criada, para a revogar e criar outra. Não se cria uma segunda chave.
+- **Prazos:**
+  - guarda 24 h (**proposta** do `docs/18`);
+  - um `em_curso` com mais de 60 s conta como órfão e pode ser substituído
+    (**proposta**);
+  - uma linha expirada é substituída quando a mesma chave volta;
+  - a tarefa diária que apaga as expiradas **fica por fazer**, num pedido
+    próprio.
+- Nada pessoal na resposta guardada destas duas rotas (o nome da chave e
+  `chave:key_…`).
 
 Com isto, as rotas do `docs/15` §8 (Comerciante) e do `docs/14` §7 (Catálogo)
 podem abrir, cada uma com o seu âmbito, e a `Idempotency-Key` e os limites do
@@ -227,9 +291,13 @@ sessão em vez da chave.
 | T7 | o `eurolify_api` não lê a tabela `chave_api`; só chama `chave_resolver` e `chave_listar` |
 | T8 | revogar é imediato: o pedido seguinte com a chave dá 401 |
 | T9 | uma chave não cria outra com mais âmbitos do que tem — **com o `POST /keys`**, imposto na base |
+| T10 | a mesma `Idempotency-Key`: repetir dá a mesma resposta sem escrever outra vez (o `POST /keys` dá `idempotency.secret_not_repeated`); outro corpo → `idempotency.key_reused`; ao mesmo tempo → `idempotency.in_progress` |
+| T11 | uma chave não se revoga a si própria se for a última com `keys:write`, nem ao mesmo tempo que outra |
 
-Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta (não
-há rotas com corpo); o T9 entra com o `POST /keys`.
+Na parte A entram T1, T2, T4 a T8; o T3 só pelo caminho e pela consulta.
+Com o `POST /keys` (0012) entram o T9, o T10 e o T11
+(`test/identidade-escrita.test.ts`); o T3 pelo corpo fica com as rotas de
+domínio, porque o corpo do `POST /keys` não tem comerciante.
 
 ## 10. O que fica por decidir
 

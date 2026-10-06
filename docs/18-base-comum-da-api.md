@@ -57,6 +57,7 @@ e um erro dentro do próprio gestor de erros.
 | `idempotency.key_required` | 400 | escrita sem `Idempotency-Key` (com as rotas de escrita) |
 | `idempotency.key_reused` | 422 | a mesma chave com outro corpo (**proposta**: o estado HTTP não tem fonte lida) |
 | `idempotency.in_progress` | 409 | a mesma chave ainda a ser tratada (**proposta**, idem) |
+| `idempotency.secret_not_repeated` | 409 | repetir um pedido cuja resposta tinha um segredo (o `POST /keys`): o segredo não se guarda nem se repete (`docs/19` §6.1) |
 | `rate_limit.exceeded` | 429 | acima do limite (com a fatia «identidade») |
 | `internal.error` | 500 | tudo o resto; o pormenor vai só para o registo, com o `instance` |
 
@@ -73,7 +74,7 @@ regra 3; lição 4.1).
 | Erro no contrato | um esquema `Problema` partilhado, referido em todas as respostas de erro |
 | Versão por data | **por desenhar** (`headless-commerce`, regra 7): entra antes da primeira rota de domínio |
 
-## 4. Idempotência (tabela `idempotencia`, próxima migração)
+## 4. Idempotência (tabela `idempotencia`, migração 0012)
 
 | Campo | Tipo | Nota |
 |---|---|---|
@@ -93,8 +94,17 @@ regra 3; lição 4.1).
   **mesma** transacção; se a escrita falhar, apaga-se a linha `em_curso` e o
   cliente pode repetir. Um `em_curso` órfão (processo morto) expira ao fim de
   um prazo curto, a decidir com a migração.
-- O corpo guardado pode ter dados pessoais (ex.: uma morada): fica 24 h e entra
-  no `docs/17` §3 quando a tabela existir.
+- O corpo guardado pode ter dados pessoais (ex.: uma morada): fica 24 h e
+  está no `docs/17` §3.
+- **Feito na 0012** (`src/base/idempotencia.ts`; `docs/19` §6.1), com as
+  rotas das chaves:
+  - o `em_curso` órfão conta ao fim de **60 s** (proposta);
+  - a chave tem de 1 a 255 caracteres visíveis em ASCII;
+  - o resumo é o sha256 do JSON com as chaves ordenadas;
+  - uma resposta com segredo não se guarda: guarda-se sem ele e repetir dá
+    `idempotency.secret_not_repeated`.
+- **Por fazer:** a tarefa diária que apaga as expiradas. Hoje, uma linha
+  expirada só se substitui quando a mesma chave volta.
 
 ## 5. Eventos de domínio (tabela `evento_saida`, outbox, próxima migração)
 
