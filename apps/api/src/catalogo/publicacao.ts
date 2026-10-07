@@ -4,9 +4,9 @@ import type {
   EstadoPublicacao,
   MotivoArquivoPublicacao,
 } from "../base/esquema.js";
-import { verificarPrecosNa } from "../precos/repositorio.js";
+import { verificarPrecosNa } from "../precos/verificacao.js";
 import { impedimentosDaClassificacao } from "./classificacao.js";
-import { ErroCatalogo, noCatalogo } from "./repositorio.js";
+import { ErroCatalogo, noCatalogo } from "./erros.js";
 
 // Catálogo, parte 4: publicação por canal × mercado e a verificação «pode
 // publicar?» (docs/14 §3.9, §4.2 e §5, regra C2; migração 0019; issue #77).

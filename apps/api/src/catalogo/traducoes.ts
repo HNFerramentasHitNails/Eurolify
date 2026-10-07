@@ -1,7 +1,7 @@
 import { sql, type Kysely } from "kysely";
 import type { BaseDados, OrigemTraducao } from "../base/esquema.js";
 import { reverificarPublicacoes } from "./publicacao.js";
-import { ErroCatalogo, noCatalogo } from "./repositorio.js";
+import { ErroCatalogo, noCatalogo } from "./erros.js";
 
 // Catálogo, parte 3b: traduções (docs/14 §3.8 e §4.3; migração 0009; issue
 // #77). As regras vivem na base: quem traduz (`eurolify.quem`), o original
@@ -141,11 +141,15 @@ export async function apagarTraducao(
   await noCatalogo(db, comercianteId, async (trx) => {
     // Num artigo, a tradução do nome em falta tira-o de venda nos mercados
     // dessa língua: reverifica-se depois de apagar (docs/14 §8; docs/06, CJ).
-    const artigo = await trx
-      .selectFrom("artigo")
-      .select("id")
-      .where("id", "=", recursoId.toLowerCase())
-      .executeTakeFirst();
+    // Só o nome se verifica (revisão do #146, P3-1).
+    const artigo =
+      campo === "nome"
+        ? await trx
+            .selectFrom("artigo")
+            .select("id")
+            .where("id", "=", recursoId.toLowerCase())
+            .executeTakeFirst()
+        : undefined;
     const resultado = await trx
       .deleteFrom("traducao")
       .where("recurso_id", "=", recursoId.toLowerCase())

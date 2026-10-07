@@ -6,51 +6,20 @@ import type {
 } from "../base/esquema.js";
 import { reverificarPublicacoes } from "../catalogo/publicacao.js";
 import { comComerciante } from "../comerciante/repositorio.js";
+import { ErroPrecos, type CodigoErroPrecos } from "./erros.js";
+import { verificarPrecosNa, type VerificacaoDePreco } from "./verificacao.js";
 
 // Preços e mercados, parte 1 (docs/20 §3.1 a §3.5; migração 0017; issue
 // #127). Como o Catálogo, ainda sem API: as regras vivem na base (CHECK,
 // índices únicos e gatilhos da 0017); aqui só se traduzem os erros, se impõe
 // a versão nas escritas e se converte o montante (bigint) em número.
 
-export type CodigoErroPrecos =
-  | "prices.not_found"
-  | "prices.invalid_transition"
-  | "prices.immutable_identity"
-  | "prices.market_has_prices"
-  | "prices.base_list_required"
-  | "prices.base_list_in_use"
-  | "prices.base_list_duplicate"
-  | "prices.country_in_other_market"
-  | "prices.defined_by_required"
-  | "prices.list_archived"
-  | "prices.version_conflict"
-  | "prices.name_required"
-  | "prices.country_invalid"
-  | "prices.currency_invalid"
-  | "prices.language_invalid"
-  | "prices.main_language_not_listed"
-  | "prices.free_only_at_zero"
-  | "prices.amount_invalid"
-  | "prices.quantity_invalid"
-  | "prices.b2b_label_required"
-  | "prices.priority_duplicate"
-  | "prices.label_duplicate"
-  | "prices.channel_market_duplicate"
-  | "prices.channel_market_in_use"
-  | "prices.published_variant"
-  | "prices.invalid_field"
-  | "prices.retry";
-
-export class ErroPrecos extends Error {
-  constructor(
-    readonly codigo: CodigoErroPrecos,
-    mensagem: string,
-    options?: ErrorOptions,
-  ) {
-    super(mensagem, options);
-    this.name = "ErroPrecos";
-  }
-}
+export { ErroPrecos, type CodigoErroPrecos } from "./erros.js";
+export {
+  verificarPrecosNa,
+  type ImpedimentoDePreco,
+  type VerificacaoDePreco,
+} from "./verificacao.js";
 
 /** Os códigos que os gatilhos da 0017 põem no início da mensagem. */
 const CODIGOS_DA_BASE: readonly CodigoErroPrecos[] = [
@@ -288,6 +257,14 @@ export async function alterarMercado(
     throw new ErroPrecos("prices.invalid_field", "nada a alterar");
   }
   return noDominio(db, comercianteId, async (trx) => {
+    // As línguas de antes, sem tomar a linha (a ordem dos bloqueios fica a
+    // da 0017: a loja, depois o mercado). Duas alterações ao mesmo tempo
+    // levam a mesma versão: a segunda não acha a linha e dá conflito.
+    const antes = await trx
+      .selectFrom("mercado")
+      .select("linguas")
+      .where("id", "=", mercadoId)
+      .executeTakeFirst();
     const linha = await trx
       .updateTable("mercado")
       .set(valores)
@@ -299,7 +276,14 @@ export async function alterarMercado(
     // Uma língua nova no mercado pede o nome traduzido: as publicações que
     // deixam de passar saem de venda (docs/14 §8; docs/06, CJ). A
     // verificação é do Catálogo (C2); o mercado já está tomado (o UPDATE).
-    await reverificarPublicacoes(trx, comercianteId, { mercado_id: mercadoId });
+    // Só uma língua que entra conta: o nome, os países, a moeda e uma língua
+    // que sai não tiram nada de venda (revisão do #146, P2-2 e P3-1).
+    const novas = valores.linguas ?? [];
+    if (novas.some((l) => !(antes?.linguas ?? []).includes(l))) {
+      await reverificarPublicacoes(trx, comercianteId, {
+        mercado_id: mercadoId,
+      });
+    }
     return linha.versao;
   });
 }
@@ -676,15 +660,6 @@ export async function historicoDoPreco(
 
 // ------------------------------------- A pergunta da C2 do Catálogo (R4)
 
-export type ImpedimentoDePreco = "prices.market_inactive" | "prices.no_price";
-
-export interface VerificacaoDePreco {
-  variante_id: string;
-  com_preco: boolean;
-  gratuito: boolean;
-  impedimento: ImpedimentoDePreco | null;
-}
-
 /**
  * «Há preço neste mercado, e não é 0,00 € sem ser gratuito?» (docs/14 §5,
  * C2; docs/20 R4). Não escreve. Responde por variante, pela lista de base
@@ -699,57 +674,4 @@ export async function verificarPrecos(
   return noDominio(db, comercianteId, (trx) =>
     verificarPrecosNa(trx, mercadoId, varianteIds),
   );
-}
-
-/**
- * A mesma pergunta dentro de uma transacção já aberta no contexto do
- * comerciante: a publicação do Catálogo pergunta-a na sua (docs/14 §5, C2).
- * Os erros saem por traduzir: quem chama traduz-os no seu domínio.
- */
-export async function verificarPrecosNa(
-  trx: Transaction<BaseDados>,
-  mercadoId: string,
-  varianteIds: readonly string[],
-): Promise<VerificacaoDePreco[]> {
-  const mercado = await trx
-    .selectFrom("mercado")
-    .select("estado")
-    .where("id", "=", mercadoId)
-    .executeTakeFirst();
-  if (mercado === undefined) {
-    throw new ErroPrecos("prices.not_found", "mercado inexistente");
-  }
-  const precos =
-    varianteIds.length === 0
-      ? []
-      : await trx
-          .selectFrom("preco")
-          .innerJoin("lista_precos", (j) =>
-            j
-              .onRef("lista_precos.comerciante_id", "=", "preco.comerciante_id")
-              .onRef("lista_precos.id", "=", "preco.lista_id"),
-          )
-          .select(["preco.variante_id", "preco.gratuito"])
-          .where("lista_precos.mercado_id", "=", mercadoId)
-          .where("lista_precos.tipo", "=", "base")
-          .where("lista_precos.estado", "=", "activa")
-          .where("preco.variante_id", "in", [...varianteIds])
-          .execute();
-  const porVariante = new Map(precos.map((p) => [p.variante_id, p.gratuito]));
-  return varianteIds.map((variante_id) => {
-    const gratuito = porVariante.get(variante_id);
-    const com_preco = gratuito !== undefined;
-    const impedimento: ImpedimentoDePreco | null =
-      mercado.estado !== "activo"
-        ? "prices.market_inactive"
-        : com_preco
-          ? null
-          : "prices.no_price";
-    return {
-      variante_id,
-      com_preco,
-      gratuito: gratuito ?? false,
-      impedimento,
-    };
-  });
 }
