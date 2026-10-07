@@ -51,6 +51,15 @@ case "$1" in
           cat "$FALSOS/ls-$n"
         elif [[ "$cmd" == test && "${args[*]}" == *servidor.js* ]]; then
           [[ ! -f "$FALSOS/sem-mcp-$n" ]] || exit 1
+        elif [[ "$cmd" == test && "${args[*]}" == *hub/index.html* ]]; then
+          [[ -f "$FALSOS/hub-$n" ]] || exit 1
+        elif [[ "$cmd" == tar ]]; then
+          # Os ecrãs do Hub da imagem n (hub-n); hub-tar-falha-n faz o tar falhar.
+          [[ -f "$FALSOS/hub-$n" && ! -f "$FALSOS/hub-tar-falha-$n" ]] || exit 1
+          d="$(mktemp -d)"
+          echo "<p>hub $n</p>" >"$d/index.html"
+          tar -C "$d" -cf - .
+          rm -rf "$d"
         elif [[ "$cmd" == test && "${args[*]}" == *dist/migrar.js* ]]; then
           [[ ! -f "$FALSOS/erro-docker-$n" ]] || exit 125
           [[ ! -f "$FALSOS/sem-migrador-$n" ]] || exit 1
@@ -88,7 +97,7 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
-  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos/docker-chamado" /etc/eurolify/api-base.env \
+  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos"/hub-* "$falsos/docker-chamado" /etc/eurolify/api-base.env /etc/eurolify/api-hub.env \
     "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
   echo token >/etc/eurolify/ghcr.token
   cat >/var/log/eurolify/publicacoes.log <<REG
@@ -527,6 +536,60 @@ confere nao "com a versão no ar fora do registo, recusa" operar 2
 confere sim "e di-lo" na_saida "sem registo da que está no ar"
 rm -f /var/log/eurolify/publicacoes.log
 confere nao "sem o registo, recusa" operar 2
+
+# Os ecrãs do Hub (docs/22 §7): copiam-se da imagem para a pasta do nginx,
+# voltam atrás com a API, e uma falha não desfaz a publicação.
+hub_actual() { readlink /var/lib/eurolify/hub/actual 2>/dev/null || true; }
+sem_erro() { ((codigo == 0)); }
+legivel() { [[ "$(stat -c %a /var/lib/eurolify/hub/actual/index.html)" == 644 ]]; }
+copias() { find /var/lib/eurolify/hub -mindepth 1 -maxdepth 1 -type d -name '[0-9a-f]*' | wc -l; }
+tres_copias() { [[ "$(copias)" == 3 ]]; }
+hub_e() { [[ "$(hub_actual)" == "/var/lib/eurolify/hub/$(printf '%064d' "$1")" ]] && grep -q "hub $1" /var/lib/eurolify/hub/actual/index.html; }
+rm -rf /var/lib/eurolify/hub
+preparar
+cp "$falsos/ls-3" "$falsos/ls-4"
+touch "$falsos/hub-4"
+caso "imagem nova com os ecrãs do Hub" 4
+confere sim "arranca" arrancou 4
+confere sim "os ecrãs da 4 ficam no ar" hub_e 4
+confere sim "e sem erro" sem_erro
+confere sim "a pasta é legível pelo nginx" legivel
+img 4 >"$falsos/no-ar"
+rm -f "$falsos/docker-chamado"
+caso "a mesma imagem outra vez" 4
+confere sim "nada a fazer" na_saida "Nada a fazer"
+confere nao "não volta a copiar" grep -q -- "--entrypoint tar" "$falsos/docker-chamado"
+rm -f /var/lib/eurolify/hub/actual
+caso "a mesma imagem sem os ecrãs no ar" 4
+confere sim "copia os ecrãs" hub_e 4
+confere sim "sem erro" sem_erro
+
+preparar
+cp "$falsos/ls-3" "$falsos/ls-5"
+touch "$falsos/hub-5" "$falsos/hub-tar-falha-5"
+caso "os ecrãs não se copiam" 5
+confere sim "a API fica publicada" arrancou 5
+confere sim "termina com erro" erro
+confere sim "regista" no_registo "os ecrãs do Hub não se copiaram"
+confere sim "fica o que estava" hub_e 4
+
+preparar
+cp "$falsos/ls-3" "$falsos/ls-6"
+touch "$falsos/hub-6" "$falsos/hub-3"
+caso "o /health falha: volta à anterior com os ecrãs dela" 6 CURL_FALHA=7
+confere sim "volta à 3" arrancou 3
+confere sim "com os ecrãs da 3" hub_e 3
+
+preparar
+for n in 7 8 9; do
+  cp "$falsos/ls-3" "$falsos/ls-$n"
+  touch "$falsos/hub-$n"
+  caso "publicar a $n" "$n"
+  img "$n" >"$falsos/no-ar"
+done
+confere sim "ficam só as 3 cópias mais recentes" tres_copias
+confere sim "a actual é a 9" hub_e 9
+rm -rf /var/lib/eurolify/hub
 
 # O estado_do_ensaio (eurolify-medir) mostra sempre a base à frente da versão
 # no ar (revisão do #115, P2-2).

@@ -11,7 +11,7 @@ noutra máquina). Decisões: ADR-0015, 0016, 0018, 0021, 0026 a 0030; guia
 | 1 | pacotes: `docker.io`, `ufw`, `fail2ban`, `age`, `rclone`, `git`, `curl`, `openssh-server` | ADR-0025, 0026, 0027 |
 | 2 | chaves de emergência de `chaves/pessoais/` no `ubuntu`: acrescenta, nunca apaga; avisa das que não conhece | ADR-0028 |
 | 3 | `00-eurolify.conf`: SSH só por chave, sem root — **só se o `ubuntu` tiver pelo menos uma chave**; `sshd -t` antes de recarregar, e volta ao anterior se falhar | memória da VPS |
-| 4 | `ufw`: entrada fechada, só a 22/tcp e a 443/tcp (MCP); avisa de regras que não conhece | ADR-0027, 0033 |
+| 4 | `ufw`: entrada fechada, só a 22/tcp e a 443/tcp (MCP e Hub); avisa de regras que não conhece | ADR-0027, 0033 |
 | 5 | `fail2ban` activo; jaula `sshd` com bloqueio de 1 h; `dbpurgeage = 14d` no `fail2ban.d` (é opção do `fail2ban.conf`) | ADR-0027 |
 | 6 | journal (um ficheiro por dia), `ufw.log` e `acoes.log`: 14 dias; as linhas com a conta dos operadores não vão para o `/var/log/syslog` | ADR-0018 (nota de 05/10/2026), 0027 |
 | 7 | pastas e `/etc/eurolify/ensaio.conf` (sem segredos) | — |
@@ -23,6 +23,7 @@ noutra máquina). Decisões: ADR-0015, 0016, 0018, 0021, 0026 a 0030; guia
 | 11 | utilizadores `eurolify-publicar`, `-aplicar`, `-medir`, `-operar`: sem sudo nem docker, casa de root; cada chave só corre `eurolify-pedido <fluxo>`. O `operar` (comando do operador, `docs/19` §6): o utilizador, a pasta e o serviço criam-se já; só falta a chave, `chaves/fluxos/operar.pub` (sem ela, o `preparar.sh` avisa e ninguém entra). Não confundir com o programa `eurolify-operar` (acções do MCP); o do comando é o `eurolify-operador` | ADR-0026, 0028; `docs/19` |
 | 12 | tarefas: cópia 03:00 UTC, reposição ao domingo 04:00, limpeza 05:00 (`eurolify-limpeza`: a idempotência e os prazos das contas de pessoas, `docs/21` §13; a verificação avisa se houver linhas com o prazo passado há mais de um dia), verificação 07:00 | ADR-0027, 0029; `docs/18` §4 |
 | 13 | MCP da VPS: utilizador `eurolify-mcp` e a pasta dos pedidos; certificado de `mcp.eurolify.eu` (Let's Encrypt, desafio DNS da OVH, sem abrir a 80); `nginx` só com o site do MCP, ligado depois de haver certificado e de o `nginx -t` passar: o login aberto a todos, o resto só para `160.79.104.0/21` | ADR-0033 |
+| 14 | Hub de gestão (`docs/22` §7): pasta `/var/lib/eurolify/hub` (os ecrãs, que o `eurolify-publicar` copia da imagem para `<resumo>/` e liga em `actual`); certificado de `hub.eurolify.eu` pelo desafio DNS da OVH, **só depois de o registo A existir** (criado à mão na zona da OVH); site `nginx-hub.conf` ligado com o certificado e o `nginx -t`; `/etc/eurolify/api-hub.env` (600) com `HUB_ORIGEM` e `PROXY_CONFIAVEL` = gateway da rede `eurolify`, lido em cada corrida (vazio com o site desligado); se mudar, recria a API com a mesma imagem; mede `/entrar` 200 e `/hub/me` 401 | ADR-0025; `docs/22` §7; revisão do #154, P1-1 |
 
 Pode correr-se várias vezes. Com `--mostrar` não muda nada. **Nunca apaga
 sozinho** o que não conhece (chaves, regras, contentores): avisa.

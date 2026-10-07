@@ -57,6 +57,12 @@ token=/etc/eurolify/ghcr.token
 API_BASE_ENV=/etc/eurolify/api-base.env
 base_env=()
 [[ -f "$API_BASE_ENV" ]] && base_env=(--env-file "$API_BASE_ENV")
+# A configuração do Hub (HUB_ORIGEM e PROXY_CONFIAVEL), que o passo 14 do
+# preparar.sh escreve só com o site do Hub ligado (docs/22 §7). Vazio ou sem
+# ele, as rotas do Hub não existem.
+API_HUB_ENV=/etc/eurolify/api-hub.env
+hub_env=()
+[[ -f "$API_HUB_ENV" ]] && hub_env=(--env-file "$API_HUB_ENV")
 
 arrancar() {
   docker rm -f eurolify-api >/dev/null 2>&1 || true
@@ -66,6 +72,7 @@ arrancar() {
     -p 127.0.0.1:8080:8080 \
     --env-file /etc/eurolify/api.env \
     "${base_env[@]}" \
+    "${hub_env[@]}" \
     --memory 512m \
     --cap-drop ALL \
     --security-opt no-new-privileges \
@@ -135,7 +142,7 @@ api_env_mudou() {
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
   criado="$(date -d "$criado" +%s 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV"; do
+  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV" "$API_HUB_ENV"; do
     mudado="$(stat -c %Y "$ficheiro" 2>/dev/null)" || continue
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
   done
@@ -193,6 +200,44 @@ arrancar_mcp() {
     "$1" node dist/servidor.js >/dev/null
 }
 
+# Os ecrãs do Hub (docs/22 §7) vêm na mesma imagem, em /app/hub: copiam-se
+# para /var/lib/eurolify/hub/<resumo> e a ligação «actual», que o nginx serve,
+# passa a apontar para lá de uma vez (mv -T). Voltar atrás volta também com os
+# ecrãs. Uma falha aqui não desfaz a publicação da API (como o MCP): avisa.
+# Ficam as 3 cópias mais recentes, além da actual.
+HUB_PASTA=/var/lib/eurolify/hub
+tem_hub() { docker run --rm --network none --entrypoint test "$1" -f /app/hub/index.html >/dev/null 2>&1; }
+pasta_hub() { echo "$HUB_PASTA/${1##*sha256:}"; }
+hub_no_ar() { [[ "$(readlink "$HUB_PASTA/actual" 2>/dev/null || true)" == "$(pasta_hub "$1")" ]]; }
+hub_para() {
+  local destino tmp
+  if ! tem_hub "$1"; then
+    echo "Hub: esta imagem não tem os ecrãs do Hub."
+    return 0
+  fi
+  destino="$(pasta_hub "$1")"
+  install -d -o root -g root -m 755 "$HUB_PASTA"
+  if [[ ! -f "$destino/index.html" ]]; then
+    tmp="$(mktemp -d "$HUB_PASTA/.novo.XXXXXX")"
+    if ! docker run --rm --network none --entrypoint tar "$1" -C /app/hub -cf - . |
+      tar -C "$tmp" --no-same-owner --no-same-permissions -xf - || [[ ! -f "$tmp/index.html" ]]; then
+      rm -rf "$tmp"
+      echo "ATENÇÃO: não se copiaram os ecrãs do Hub desta imagem (fica o que estava)."
+      return 1
+    fi
+    chmod -R u=rwX,go=rX "$tmp"
+    rm -rf "$destino"
+    mv "$tmp" "$destino"
+  fi
+  ln -sfn "$destino" "$HUB_PASTA/.actual.novo"
+  mv -Tf "$HUB_PASTA/.actual.novo" "$HUB_PASTA/actual"
+  local velha
+  while IFS= read -r velha; do
+    [[ "$velha" == "$destino" ]] || rm -rf "$velha"
+  done < <(find "$HUB_PASTA" -mindepth 1 -maxdepth 1 -type d -name '[0-9a-f]*' -printf '%T@ %p\n' | sort -rn | tail -n +4 | cut -d' ' -f2-)
+  echo "Hub: os ecrãs desta publicação estão no ar."
+}
+
 anterior="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
 if ((so_recriar)) && [[ "$anterior" != "$imagem" ]]; then
   # Outra publicação trocou a imagem entretanto: essa já leu a ligação nova.
@@ -237,8 +282,12 @@ if [[ "$anterior" == "$imagem" ]]; then
     [[ "$(docker inspect --format '{{.HostConfig.LogConfig.Type}}' eurolify-mcp)" != journald ]]; then
     echo "A API já está nesta imagem; o MCP passa a escrever no diário do sistema."
     mcp_para "$imagem" || { echo "o MCP não arrancou" >&2; estado=1; }
-  elif ((!recriada)); then
+  elif ((!recriada)) && (hub_no_ar "$imagem" || ! tem_hub "$imagem"); then
     echo "Esta imagem já é a que está no ar. Nada a fazer."
+  fi
+  if ! hub_no_ar "$imagem" && tem_hub "$imagem"; then
+    echo "A API já está nesta imagem; faltam os ecrãs do Hub."
+    hub_para "$imagem" || estado=1
   fi
   if ((recriada)); then
     verificar_base "$resumo" || estado=1
@@ -390,6 +439,10 @@ if ((arrancou == 1)) && saude 8080; then
     registar "publicado $resumo, mas o MCP não arrancou"
     estado=1
   fi
+  if ! hub_para "$imagem"; then
+    registar "publicado $resumo, mas os ecrãs do Hub não se copiaram"
+    estado=1
+  fi
   verificar_base "$resumo" || estado=1
   exit "$estado"
 fi
@@ -415,6 +468,7 @@ if [[ -n "$anterior" ]]; then
     falhar "não se conseguiu arrancar a anterior ($anterior): a API está em baixo"
   fi
   mcp_para "$anterior" || true
+  hub_para "$anterior" || true
   if saude 8080; then echo "A anterior voltou e responde."; else echo "ATENÇÃO: a anterior também não responde."; fi
 else
   docker rm -f eurolify-api eurolify-mcp >/dev/null 2>&1 || true

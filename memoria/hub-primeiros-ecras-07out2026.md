@@ -38,8 +38,9 @@ de teste (ADR-0019). Desenho em `docs/22`.
 
 - **Revisão Opus 5.5 (#158):** 0 P0, 0 P1, 4 P2, 12 P3. P2-1: o segredo
   do convite fica no histórico do navegador (medido no Chromium) — escrito
-  no `docs/22` §2 e no aviso a quem convida; o prazo mais curto fica por
-  decidir. P2-2: o gestor só vê armazém e apoio. P2-3: mais códigos com
+  no `docs/22` §2 e no aviso a quem convida; o prazo mais curto ficou
+  por decidir — **decidido depois: fica nos 7 dias** (Diogo, 07/10/2026,
+  *«fica nos 7 dias, junta o #158»*). P2-2: o gestor só vê armazém e apoio. P2-3: mais códigos com
   texto nas três línguas. P2-4: o `capturas.mjs` passou a 41 verificações
   (reautenticação, passkey recusada, cancelar duas vezes, rede, ligação
   estragada, gestor, apoio); fica manual, fora do CI.
@@ -47,4 +48,4 @@ de teste (ADR-0019). Desenho em `docs/22`.
 ## O que ficou por verificar
 
 - Passkeys em navegadores e telemóveis reais (só o autenticador virtual).
-- A publicação (nome, certificado, nginx, rede Docker fixa, `PROXY_CONFIAVEL`).
+- A publicação: tratada em `publicacao-hub-07out2026.md`.
