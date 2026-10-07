@@ -28,7 +28,7 @@
   - Os testes do `main`, já com o #154, passaram na mesma corrida.
 - **`docs/14` §7.1:** descreve as escritas e as faltas conhecidas:
   - o «quem» só fica registado na classificação e na publicação (C7);
-  - a categoria fiscal ainda não é confirmada no Motor de IVA (**C**), com fim proposto por confirmar pelo Diogo ou pelo Bruno.
+  - a categoria fiscal ainda não é confirmada no Motor de IVA (**C**). É uma rede temporária, com fim quando o Motor de IVA existir ou antes de haver produção, o que vier primeiro (decisão do Diogo, 07/10/2026: «sim, confirmo esse prazo»; `docs/06`, CM).
 
 ## Números (com data e como se contaram)
 
