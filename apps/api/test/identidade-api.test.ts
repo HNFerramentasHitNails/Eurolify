@@ -198,6 +198,10 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       "/keys/{id}/revoke",
       "/me",
       "/paises",
+      "/products",
+      "/products/{id}",
+      "/products/{id}/publications",
+      "/products/{id}/publications/check",
     ]);
     expect(c.paths["/me"]?.get?.security).toEqual([{ chave: [] }]);
     expect(c.paths["/keys"]?.get?.security).toEqual([{ chave: [] }]);

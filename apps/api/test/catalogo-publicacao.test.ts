@@ -489,7 +489,10 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
     const a = await pronto();
     const b = await pronto();
     await publicar(base.api, a.c, QUEM, a.pedido);
-    expect(await publicacoesDoArtigo(base.api, b.c, a.artigo)).toEqual([]);
+    // O artigo de outro comerciante «não existe» (revisão do #150, P3-8).
+    expect(
+      await codigoDoErro(publicacoesDoArtigo(base.api, b.c, a.artigo)),
+    ).toBe("catalog.not_found");
     expect(await codigoDoErro(publicar(base.api, b.c, QUEM, a.pedido))).toBe(
       "catalog.not_found",
     );
