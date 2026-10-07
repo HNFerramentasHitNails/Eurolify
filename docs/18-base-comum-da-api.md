@@ -187,18 +187,16 @@ regra 3; lição 4.1).
 | `price.changed` | variante | `lista_id`, `variante_id`, `montante_antigo` (nulo no primeiro preço e depois de uma saída), `montante_novo` (nulo se saiu), `gratuito`, `saiu`, `moeda`, `preco_inclui_iva`, `quem`\*, `em` |
 | `market.activated`, `market.archived` | mercado | `mercado_id`, `loja_id` |
 
-\* Guardado na base; **não sai** nos webhooks até à decisão da nota abaixo.
+\* Guardado na base; **não sai** nos webhooks (`docs/06`, CH).
 
 - `em` vai em UTC, com formato fixo (`2026-10-06T17:24:42.123456Z`),
   qualquer que seja o fuso da sessão que escreveu.
-- **`quem` dentro do evento — por decidir** (revisão do #143, P2-4): hoje é
-  texto declarado (`pessoa:…` depois da fatia de identidade) e fica guardado
-  na base, onde é o rasto das transições. Como o evento não se altera, um
-  pedido de apagamento não o pseudonimiza. **Até ao Diogo ou ao Bruno
-  decidirem, o publicador não envia `quem` para fora**; o registo está no
-  `docs/17` §3. **Fim desta reserva:** a decisão, que tem de estar tomada
-  antes de o pedido do publicador ser juntado (revisão do #143, ronda 2,
-  P3-C).
+- **`quem` dentro do evento — decidido** (Diogo, 07/10/2026, opção a;
+  `docs/06`, CH; revisão do #143, P2-4): fica guardado na base, onde é o
+  rasto das transições, mas **o publicador nunca o envia** nos webhooks; quem
+  recebe e precisar dele pede-o à API, que verifica as permissões. Como o
+  evento não se altera, um pedido de apagamento não o pseudonimiza dentro da
+  base: isso fica com o desenho do apagamento (`docs/17` §3).
 - **Ainda não escritos:** os outros eventos entram com a parte que os
   escreve.
 - Um evento não se altera nem se apaga (gatilho, como o rasto na 0008), nem
