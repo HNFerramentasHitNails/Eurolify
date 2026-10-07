@@ -238,7 +238,7 @@ trabalhadora do comerciante e não parte do contrato — **para o jurista**.
 |---|---|---|---|---|
 | E-mail e nome | entrar, ser convidado, saber quem fez o quê | execução do contrato com o comerciante, ou interesse legítimo (jurista) | enquanto houver um `membro` activo; depois, **90 dias** (CD) | pseudonimizar |
 | `membro` (onde trabalha, papel, desde, até, quem convidou) | permissões e prova | idem | o da pessoa | pseudonimizar com ela |
-| E-mail de um convite | convidar | idem | até ser aceite, cancelado ou expirar, e mais 30 dias (proposta) | apagar |
+| E-mail de um convite | convidar | idem | até ser aceite, cancelado ou expirar, e mais 30 dias (proposta) | pseudonimizar (o rasto aponta para o convite; §13) |
 | Passkey: chave pública, nome do dispositivo, último uso | entrar | idem | enquanto a passkey existir | apagar |
 | Palavra-passe (resumo) e data da mudança | entrar (com o TOTP) | idem | enquanto houver conta | apagar |
 | Segredo TOTP (cifrado), último passo | entrar | idem | enquanto estiver activo | apagar |
@@ -483,6 +483,9 @@ limite geral de pedidos por IP, no proxy ou na API. Não é rede temporária:
   `X-Forwarded-For`.
 - **O resumo do e-mail** tentado (sha256 sem sal) desfaz-se com uma lista de
   e-mails: é dado pessoal e entra assim no T8 do `docs/17` (B4; P3-5).
+- **Depois de uma recuperação**, o Hub mostra o aviso (o `evento_conta`
+  «recuperou») e propõe retirar as passkeys antigas — a do telemóvel perdido
+  continua a valer até se retirar (P3-7, P3-8; ecrã do Hub, por fazer).
 
 ## 13. Parte B4: a tarefa dos prazos
 
@@ -507,8 +510,8 @@ tratou; o programa escreve-as no `acoes.log`.
 | 2 | Códigos de recuperação | usados (`usado_em` preenchido); os trocados já se apagam ao gerar (0022) | apagar |
 | 3 | Desafios WebAuthn | usados ou com mais de 5 minutos (a mesma regra do `desafio_arrumar`, 0020) | apagar |
 | 4 | Palavra-passe `pendente` (nunca confirmada) | criada há mais de **1 dia** (proposta: só servia para o primeiro código) | apagar |
-| 5 | Sessões | acabadas há mais de **30 dias**: o fim é a revogação, ou a expiração (12 h sem uso ou 30 dias desde a criação, a regra do `sessao_valida`) | apagar |
-| 6 | E-mail de um convite | **30 dias** depois de aceite, cancelado ou expirado | pseudonimizar: o rasto (`evento_conta`) e os desafios apontam para o convite, por isso a linha fica com o e-mail `pseudonimo+<id>@eurolify.invalid` |
+| 5 | Sessões | acabadas há mais de **30 dias**: o fim é o que vier primeiro — a revogação ou a expiração (12 h sem uso ou 30 dias desde a criação, a regra do `sessao_valida`) | apagar |
+| 6 | E-mail de um convite | **30 dias** depois de aceite, cancelado ou expirado (o que vier primeiro) | pseudonimizar: o rasto (`evento_conta`) e os desafios apontam para o convite, por isso a linha fica com o e-mail `pseudonimo+<id>@eurolify.invalid` |
 | 7 | Pessoa | sem nenhum membro activo, **90 dias** depois de sair do último comerciante (CD) | pseudonimizar: e-mail `pseudonimo+<id>@eurolify.invalid`, nome «Pessoa pseudonimizada», estado `desactivada`; apagar as passkeys, a palavra-passe e o TOTP, os códigos e os desafios dela; revogar as sessões ainda válidas (apagam-se pelo ponto 5); fica um `evento_conta` «pessoa_pseudonimizada» com `quem = sistema:prazos` |
 
 O domínio `.invalid` está reservado e nunca recebe correio (RFC 2606 §2;
@@ -529,10 +532,25 @@ depois da tranca. Aceitar um convite tranca a pessoa com `FOR SHARE` e só
 aceita uma pessoa `activa` (0018): ou aceita antes, e a pessoa tem um membro
 activo e não se pseudonimiza; ou espera, e encontra-a desactivada e recusa.
 
+**Depois da revisão do #152** (2 P2, 4 P3, tratados):
+- **Nada de novo para quem foi pseudonimizado** (P2-1): uma passkey, uma
+  palavra-passe, um código ou uma sessão que uma função da API grave
+  enquanto a limpeza pseudonimiza a pessoa é recusada por um gatilho em cada
+  tabela, que espera pela limpeza e relê a pessoa.
+- **Uma pessoa não estraga a corrida** (P2-2): uma entrada com passkey
+  tranca a passkey e depois a pessoa, e a limpeza ao contrário. Cada pessoa
+  trata-se numa subtransacção com espera de 2 s pelas trancas; um impasse
+  ou uma espera longa adiam só essa pessoa (`pessoas_adiadas`) para o dia
+  seguinte.
+- **O fim é o que vier primeiro** (P3-1): uma sessão já expirada que se
+  revoga depois, ou um convite cancelado depois de expirar, contam da
+  expiração.
+
 **Verificação das 07:00.** `contas_prazos_em_atraso()` conta o que a tarefa
 devia ter tratado há mais de um dia (entradas com mais de 15 dias, sessões
 acabadas há mais de 31, convites e pessoas com o prazo passado há mais de
-um dia); acima de zero, o Healthchecks avisa que a limpeza das contas não
+um dia, e as credenciais que tenham ficado a uma pessoa
+pseudonimizada); acima de zero, o Healthchecks avisa que a limpeza das contas não
 está a correr (P-T17).
 
 **O que resolve:** o e-mail preso de uma pessoa desactivada (§4.7, P2-2)
@@ -543,9 +561,6 @@ nos 14 dias (condição para ligar o Hub, §12).
 **O que não faz:** os pedidos dos titulares (exportar e apagar a pedido) e o
 prazo do rasto (**C**, §6); a pessoa que nunca foi membro (não acontece: a
 conta nasce com o convite, §4.2) conta como saída na data da criação.
-- **Depois de uma recuperação**, o Hub mostra o aviso (o `evento_conta`
-  «recuperou») e propõe retirar as passkeys antigas — a do telemóvel perdido
-  continua a valer até se retirar (P3-7, P3-8; ecrã do Hub, por fazer).
 
 ## O que não foi verificado
 

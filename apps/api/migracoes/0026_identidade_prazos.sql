@@ -17,6 +17,10 @@
 -- - os gatilhos (0018) passam a deixar apagar uma sessão e pseudonimizar um
 --   convite ou uma pessoa **só quando o prazo passou**: a regra mora na
 --   tabela, e um erro noutra função não apaga cedo demais.
+-- - depois da revisão do #152: um gatilho recusa uma credencial ou sessão
+--   nova para uma pessoa pseudonimizada (P2-1); cada pessoa trata-se numa
+--   subtransacção e um impasse adia só essa pessoa (P2-2); o fim de uma
+--   sessão ou de um convite é o que vier primeiro (P3-1).
 --
 -- Quem chama as duas funções é o papel `eurolify_limpeza` (0013), pelo
 -- programa `eurolify-limpeza` da VPS. São SECURITY DEFINER (correm como o
@@ -48,9 +52,12 @@ $$;
 -- uso ou 30 dias desde a criação, a regra do `sessao_valida`, 0018).
 CREATE FUNCTION sessao_fim(s public.sessao) RETURNS timestamptz
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT coalesce(s.revogada_em,
-                  least(s.ultimo_uso_em + interval '12 hours',
-                        s.criada_em + interval '30 days'))
+  -- O que vier primeiro: uma sessão já expirada que se revoga depois (um
+  -- «terminar todas») acabou na expiração (revisão do #152, P3-1). O least
+  -- ignora o NULL.
+  SELECT least(s.revogada_em,
+               s.ultimo_uso_em + interval '12 hours',
+               s.criada_em + interval '30 days')
 $$;
 
 -- Apoio (interna): a pessoa não tem nenhum membro activo e saiu do último
@@ -64,10 +71,13 @@ CREATE FUNCTION pessoa_saiu_ha(p_pessoa uuid, p_criada timestamptz, p_prazo inte
                   p_criada) < now() - p_prazo
 $$;
 
--- Apoio (interna): quando acabou um convite (aceite, cancelado ou expirado).
+-- Apoio (interna): quando acabou um convite (aceite, cancelado ou expirado,
+-- o que vier primeiro).
 CREATE FUNCTION convite_fim(x public.convite) RETURNS timestamptz
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT coalesce(x.aceite_em, x.cancelado_em, x.expira_em)
+  -- Um convite cancelado depois de expirar acabou na expiração (revisão do
+  -- #152, P3-1).
+  SELECT least(coalesce(x.aceite_em, x.cancelado_em), x.expira_em)
 $$;
 
 -- Os gatilhos da 0018, com as três excepções dos prazos (o resto igual).
@@ -183,6 +193,37 @@ BEGIN
 END
 $$;
 
+-- Nada de novo para uma pessoa pseudonimizada (revisão do #152, P2-1): as
+-- funções da API conferem a sessão e só depois gravam; se a limpeza
+-- pseudonimiza a pessoa nesse intervalo, uma passkey, uma palavra-passe, um
+-- código ou uma sessão gravados a seguir ficavam para sempre. O FOR SHARE
+-- espera pela limpeza e relê a pessoa já pseudonimizada.
+CREATE FUNCTION credencial_de_pessoa_viva() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  PERFORM 1 FROM public.pessoa p
+  WHERE p.id = NEW.pessoa_id AND p.pseudonimizada_em IS NULL
+  FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'auth.unauthenticated: a pessoa foi pseudonimizada';
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+DO $$
+DECLARE
+  tabela text;
+BEGIN
+  FOREACH tabela IN ARRAY ARRAY['passkey', 'palavra_passe', 'codigo_recuperacao', 'sessao'] LOOP
+    EXECUTE format('CREATE TRIGGER %I BEFORE INSERT ON %I
+                    FOR EACH ROW EXECUTE FUNCTION credencial_de_pessoa_viva()',
+                   tabela || '_de_pessoa_viva', tabela);
+    EXECUTE format('ALTER TABLE %I ENABLE ALWAYS TRIGGER %I', tabela, tabela || '_de_pessoa_viva');
+  END LOOP;
+END
+$$;
+
 -- A tarefa diária (eurolify-limpeza, 05:00 UTC). Uma pessoa trancada por um
 -- pedido em curso fica para o dia seguinte (SKIP LOCKED); as condições
 -- conferem-se outra vez depois da tranca. Aceitar um convite tranca a pessoa
@@ -195,6 +236,8 @@ DECLARE
   n integer;
   alvo record;
   pessoas integer := 0;
+  adiadas integer := 0;
+  espera_antes text;
 BEGIN
   DELETE FROM public.entrada e WHERE e.quando < now() - interval '14 days';
   GET DIAGNOSTICS n = ROW_COUNT;
@@ -215,6 +258,12 @@ BEGIN
   GET DIAGNOSTICS n = ROW_COUNT;
   o_que := 'palavras_passe_pendentes'; quantas := n; RETURN NEXT;
 
+  -- Cada pessoa numa subtransacção, com espera curta pelas trancas (revisão
+  -- do #152, P2-2): uma entrada com passkey tranca a passkey e depois a
+  -- pessoa, a limpeza ao contrário. Um impasse ou uma espera longa adiam só
+  -- essa pessoa para o dia seguinte, sem desfazer o resto da corrida.
+  espera_antes := current_setting('lock_timeout');
+  PERFORM set_config('lock_timeout', '2s', true);
   FOR alvo IN SELECT x.id, x.criada_em FROM public.pessoa x
               WHERE x.pseudonimizada_em IS NULL
                 AND public.pessoa_saiu_ha(x.id, x.criada_em, interval '90 days')
@@ -222,22 +271,28 @@ BEGIN
               FOR UPDATE SKIP LOCKED LOOP
     -- Releitura depois da tranca: um membro novo entretanto faz saltar.
     CONTINUE WHEN NOT public.pessoa_saiu_ha(alvo.id, alvo.criada_em, interval '90 days');
-    DELETE FROM public.passkey k WHERE k.pessoa_id = alvo.id;
-    DELETE FROM public.palavra_passe w WHERE w.pessoa_id = alvo.id;
-    DELETE FROM public.codigo_recuperacao c WHERE c.pessoa_id = alvo.id;
-    DELETE FROM public.desafio_webauthn d WHERE d.pessoa_id = alvo.id;
-    UPDATE public.sessao s SET revogada_motivo = 'pessoa_desactivada'
-    WHERE s.pessoa_id = alvo.id AND s.revogada_em IS NULL
-      AND public.sessao_fim(s) > now();
-    UPDATE public.pessoa p
-    SET email = public.pseudonimo(p.id), nome = 'Pessoa pseudonimizada',
-        estado = 'desactivada', pseudonimizada_em = now()
-    WHERE p.id = alvo.id;
-    INSERT INTO public.evento_conta (acto, pessoa_id, quem)
-    VALUES ('pessoa_pseudonimizada', alvo.id, 'sistema:prazos');
-    pessoas := pessoas + 1;
+    BEGIN
+      DELETE FROM public.passkey k WHERE k.pessoa_id = alvo.id;
+      DELETE FROM public.palavra_passe w WHERE w.pessoa_id = alvo.id;
+      DELETE FROM public.codigo_recuperacao c WHERE c.pessoa_id = alvo.id;
+      DELETE FROM public.desafio_webauthn d WHERE d.pessoa_id = alvo.id;
+      UPDATE public.sessao s SET revogada_motivo = 'pessoa_desactivada'
+      WHERE s.pessoa_id = alvo.id AND s.revogada_em IS NULL
+        AND public.sessao_fim(s) > now();
+      UPDATE public.pessoa p
+      SET email = public.pseudonimo(p.id), nome = 'Pessoa pseudonimizada',
+          estado = 'desactivada', pseudonimizada_em = now()
+      WHERE p.id = alvo.id;
+      INSERT INTO public.evento_conta (acto, pessoa_id, quem)
+      VALUES ('pessoa_pseudonimizada', alvo.id, 'sistema:prazos');
+      pessoas := pessoas + 1;
+    EXCEPTION WHEN deadlock_detected OR lock_not_available THEN
+      adiadas := adiadas + 1;
+    END;
   END LOOP;
+  PERFORM set_config('lock_timeout', espera_antes, true);
   o_que := 'pessoas'; quantas := pessoas; RETURN NEXT;
+  o_que := 'pessoas_adiadas'; quantas := adiadas; RETURN NEXT;
 
   DELETE FROM public.sessao s WHERE public.sessao_fim(s) < now() - interval '30 days';
   GET DIAGNOSTICS n = ROW_COUNT;
@@ -264,10 +319,18 @@ CREATE FUNCTION contas_prazos_em_atraso() RETURNS integer
              AND public.convite_fim(x) < now() - interval '31 days')
         + (SELECT count(*) FROM public.pessoa p
            WHERE p.pseudonimizada_em IS NULL
-             AND public.pessoa_saiu_ha(p.id, p.criada_em, interval '91 days')))::integer
+             AND public.pessoa_saiu_ha(p.id, p.criada_em, interval '91 days'))
+        -- Credenciais de quem já foi pseudonimizado (revisão do #152, P2-1).
+        + (SELECT count(*) FROM public.passkey k
+           JOIN public.pessoa p ON p.id = k.pessoa_id WHERE p.pseudonimizada_em IS NOT NULL)
+        + (SELECT count(*) FROM public.palavra_passe w
+           JOIN public.pessoa p ON p.id = w.pessoa_id WHERE p.pseudonimizada_em IS NOT NULL)
+        + (SELECT count(*) FROM public.codigo_recuperacao c
+           JOIN public.pessoa p ON p.id = c.pessoa_id WHERE p.pseudonimizada_em IS NOT NULL))::integer
 $$;
 
 REVOKE ALL ON FUNCTION
+  credencial_de_pessoa_viva(),
   pseudonimo(uuid),
   sessao_fim(public.sessao),
   pessoa_saiu_ha(uuid, timestamptz, interval),

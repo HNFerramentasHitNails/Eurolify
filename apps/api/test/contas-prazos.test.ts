@@ -143,6 +143,51 @@ describe.skipIf(URL_BASE === undefined)("prazos das contas (0026)", () => {
     return rows[0]?.n ?? -1;
   }
 
+  /** Uma ligação à parte (o pool dos testes tem duas). */
+  async function outraLigacao(): Promise<pg.Client & { pid: number }> {
+    const u = new URL(base.urlApi);
+    const superior = new URL(URL_BASE ?? "");
+    u.username = superior.username;
+    u.password = superior.password;
+    const c = new pg.Client({ connectionString: u.toString() });
+    await c.connect();
+    const { rows } = await c.query<{ pid: number }>(
+      "select pg_backend_pid() as pid",
+    );
+    return Object.assign(c, { pid: rows[0]?.pid ?? -1 });
+  }
+
+  /** A ligação `pid` fica à espera de uma tranca (revisão do #152, P3-4). */
+  async function aEspera(pid: number): Promise<boolean> {
+    for (let i = 0; i < 100; i++) {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from pg_stat_activity
+        where pid = ${pid} and wait_event_type = 'Lock'`.execute(dono);
+      if ((rows[0]?.n ?? 0) > 0) return true;
+      await new Promise((r) => {
+        setTimeout(r, 50);
+      });
+    }
+    return false;
+  }
+
+  /** Uma transacção aberta até `soltar()`, depois de `fn` correr. */
+  async function aberta<T>(fn: (trx: Kysely<unknown>) => Promise<T>) {
+    let soltar = () => {};
+    const portao = new Promise<void>((r) => {
+      soltar = r;
+    });
+    let entrou: (valor: T) => void = () => {};
+    const dentro = new Promise<T>((r) => {
+      entrou = r;
+    });
+    const fim = dono.transaction().execute(async (trx) => {
+      entrou(await fn(trx));
+      await portao;
+    });
+    return { resultado: await dentro, soltar, fim };
+  }
+
   beforeAll(async () => {
     base = await criarBaseDeTeste(URL_BASE ?? "");
     dono = base.dono;
@@ -461,32 +506,12 @@ describe.skipIf(URL_BASE === undefined)("prazos das contas (0026)", () => {
     });
     await dentro;
     expect(feito["pessoas"]).toBe(1);
-    // Noutra ligação: o pool dos testes tem duas, e a limpeza ocupa uma.
-    const u = new URL(base.urlApi);
-    const superior = new URL(URL_BASE ?? "");
-    u.username = superior.username;
-    u.password = superior.password;
-    const outra = new pg.Client({ connectionString: u.toString() });
-    await outra.connect();
+    const outra = await outraLigacao();
     const aceitar = mensagemDoErro(
       outra.query("select convite_aceitar($1, $2)", [c.segredo, sessao]),
     ).finally(() => outra.end());
     // Tem de ficar à espera da limpeza (não passar ao lado da tranca).
-    let esperou = false;
-    for (let i = 0; i < 100 && !esperou; i++) {
-      const { rows } = await sql<{ n: number }>`
-        select count(*)::int as n from pg_stat_activity
-        where datname = current_database() and wait_event_type = 'Lock'`.execute(
-        dono,
-      );
-      esperou = (rows[0]?.n ?? 0) > 0;
-      if (!esperou) {
-        await new Promise((r) => {
-          setTimeout(r, 50);
-        });
-      }
-    }
-    expect(esperou).toBe(true);
+    expect(await aEspera(outra.pid)).toBe(true);
     soltar();
     await limpar;
     expect(await aceitar).toContain("auth.unauthenticated");
@@ -566,7 +591,131 @@ describe.skipIf(URL_BASE === undefined)("prazos das contas (0026)", () => {
       "entradas",
       "palavras_passe_pendentes",
       "pessoas",
+      "pessoas_adiadas",
       "sessoes",
     ]);
+    // A limpeza não ganha nenhuma tabela das contas (revisão do #152, P3-4).
+    const { rows: tabelas } = await sql<{ tabela: string }>`
+      select t as tabela from unnest(array['pessoa', 'membro', 'convite', 'sessao',
+        'passkey', 'palavra_passe', 'codigo_recuperacao', 'entrada', 'evento_conta',
+        'desafio_webauthn']) as t
+      where has_table_privilege('eurolify_limpeza', t, 'SELECT')
+         or has_table_privilege('eurolify_limpeza', t, 'INSERT')
+         or has_table_privilege('eurolify_limpeza', t, 'UPDATE')
+         or has_table_privilege('eurolify_limpeza', t, 'DELETE')`.execute(dono);
+    expect(tabelas).toEqual([]);
+  });
+
+  it("P3-1: uma sessão ou um convite que já tinham acabado contam do fim, não da revogação", async () => {
+    await aplicar();
+    const p = await pessoaEm(a);
+    const s = await sessaoId(await sessaoDe(p.pessoa));
+    // Expirou há 40 dias (sem uso) e foi revogada hoje por um «terminar todas».
+    await envelhecer(
+      "sessao",
+      "sessao_antes_de_gravar",
+      "criada_em = now() - interval '45 days', ultimo_uso_em = now() - interval '40 days 12 hours', revogada_em = now(), revogada_motivo = 'terminar_todas'",
+      s,
+    );
+    const c = (await convidar(a, "tarde@exemplo.test")).id;
+    // Expirou há 40 dias e foi cancelado hoje.
+    await envelhecer(
+      "convite",
+      "convite_antes_de_gravar",
+      "criado_em = now() - interval '47 days', expira_em = now() - interval '40 days', cancelado_em = now(), cancelado_por = 'saiu'",
+      c,
+    );
+    const feito = await aplicar();
+    expect(feito["sessoes"]).toBe(1);
+    expect(feito["convites"]).toBe(1);
+  });
+
+  it("P2-1: uma credencial gravada enquanto a limpeza pseudonimiza a pessoa é recusada", async () => {
+    await aplicar();
+    const p = await pessoaEm(a);
+    await saiuHa(p.membro, 91);
+    const limpar = await aberta((trx) => aplicar(trx));
+    expect(limpar.resultado["pessoas"]).toBe(1);
+    const outra = await outraLigacao();
+    const gravar = mensagemDoErro(
+      outra.query(
+        "insert into codigo_recuperacao (pessoa_id, resumo) values ($1, $2)",
+        [p.pessoa, hex64()],
+      ),
+    ).finally(() => outra.end());
+    expect(await aEspera(outra.pid)).toBe(true);
+    limpar.soltar();
+    await limpar.fim;
+    expect(await gravar).toContain("pseudonimizada");
+    expect(await contar("codigo_recuperacao", p.pessoa)).toBe(0);
+    // Uma credencial que escape (aqui, posta à mão sem o gatilho) avisa às 07:00.
+    await dono.transaction().execute(async (trx) => {
+      await sql`alter table codigo_recuperacao disable trigger codigo_recuperacao_de_pessoa_viva`.execute(
+        trx,
+      );
+      await sql`insert into codigo_recuperacao (pessoa_id, resumo)
+        values (${p.pessoa}::uuid, ${hex64()})`.execute(trx);
+      await sql`alter table codigo_recuperacao enable always trigger codigo_recuperacao_de_pessoa_viva`.execute(
+        trx,
+      );
+    });
+    expect(await emAtraso()).toBe(1);
+    await sql`delete from codigo_recuperacao where pessoa_id = ${p.pessoa}::uuid`.execute(
+      dono,
+    );
+  });
+
+  it("P2-2: uma passkey trancada por uma entrada adia só essa pessoa; o resto da corrida fica", async () => {
+    await aplicar();
+    const p = await pessoaEm(a);
+    await sql`insert into passkey (pessoa_id, credencial_id, chave_publica, contador, nome)
+      values (${p.pessoa}::uuid, ${"B".repeat(20)}, ${randomBytes(32)}, 0, 'Telemóvel')`.execute(
+      dono,
+    );
+    await saiuHa(p.membro, 91);
+    await sql`insert into entrada (quando, email_resumo, metodo, resultado)
+      values (now() - interval '15 days', ${hex64()}, 'passkey', 'falhou')`.execute(
+      dono,
+    );
+    // Uma entrada com esta passkey em curso: tem a passkey trancada.
+    const entrada = await aberta((trx) =>
+      sql`select id from passkey where pessoa_id = ${p.pessoa}::uuid for update`.execute(
+        trx,
+      ),
+    );
+    const outra = await outraLigacao();
+    try {
+      const { rows } = await outra.query<{ o_que: string; quantas: number }>(
+        "select * from contas_aplicar_prazos()",
+      );
+      const feito = Object.fromEntries(rows.map((r) => [r.o_que, r.quantas]));
+      expect(feito["pessoas"]).toBe(0);
+      expect(feito["pessoas_adiadas"]).toBe(1);
+      expect(feito["entradas"]).toBe(1);
+    } finally {
+      await outra.end();
+      entrada.soltar();
+      await entrada.fim;
+    }
+    expect((await pessoa(p.pessoa))?.pseudonimizada).toBe(false);
+    // No dia seguinte, sem a tranca, passa.
+    expect((await aplicar())["pessoas"]).toBe(1);
+  }, 20_000);
+
+  it("P3-4: a base recusa pseudonimizar à mão quem ainda tem um membro activo", async () => {
+    const p = await pessoaEm(a);
+    await envelhecer(
+      "pessoa",
+      "pessoa_antes_de_gravar",
+      "criada_em = now() - interval '200 days'",
+      p.pessoa,
+    );
+    expect(
+      await mensagemDoErro(
+        sql`update pessoa set email = pseudonimo(id), nome = 'Pessoa pseudonimizada',
+              estado = 'desactivada', pseudonimizada_em = now()
+            where id = ${p.pessoa}::uuid`.execute(dono),
+      ),
+    ).toContain("account.retention");
   });
 });

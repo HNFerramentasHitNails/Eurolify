@@ -43,6 +43,11 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
   Um teste antigo (`identidade-pessoas`, «nada se apaga») apanhou um erro:
   no PL/pgSQL, `TG_TABLE_NAME = 'sessao' AND sessao_fim(OLD)` falha nas
   outras tabelas (o OLD não é `sessao`); vai em dois IF.
+  Revisão Opus 5.5 (#152): 0 P0, 0 P1, 2 P2, 4 P3, tratados. P2-1: uma
+  credencial gravada enquanto a limpeza pseudonimiza a pessoa ficava para
+  sempre (gatilho que relê a pessoa). P2-2: impasse passkey → pessoa
+  contra pessoa → passkey anulava a corrida inteira (subtransacção por
+  pessoa, espera de 2 s, `pessoas_adiadas`).
 - O #139 (Catálogo, outra sessão) também queria a 0018 e a 0019: quem junta
   em segundo renumera (avisos no #139).
 
@@ -59,6 +64,9 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
   MCP 58. Provas por mutação da B4: tirar o prazo do gatilho da sessão, da
   pessoa ou do convite, pôr 13 dias nas entradas ou tirar o `SKIP LOCKED`
   faz falhar 1 a 4 dos 9 testes de `contas-prazos.test.ts`.
+  Depois da revisão: 13 testes; API 694, MCP 58. Tirar o gatilho da
+  credencial, a subtransacção ou o `least` do fim faz falhar o teste de
+  cada um.
 - 07/10/2026, programa `eurolify-limpeza` corrido contra uma base local
   migrada até à 0026 (com o `docker` substituído por um `psql` local):
   «prazos das contas: entradas=1 codigos_usados=0 … convites=0», saída 0;
