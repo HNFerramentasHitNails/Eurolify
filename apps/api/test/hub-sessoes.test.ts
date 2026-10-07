@@ -677,7 +677,7 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
       const entrarComo = async (contador: number) => {
         const d = hex();
         await sql`select desafio_criar_entrada(${d})`.execute(dono());
-        return sql`select entrar_com_passkey(${d}, ${k.id}::uuid, ${contador}, ${hex()})`.execute(
+        return sql`select entrar_com_passkey(${d}, ${k.id}::uuid, ${contador}, ${hex()}, null)`.execute(
           dono(),
         );
       };
@@ -699,7 +699,7 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
         where resumo = ${velho}`.execute(dono());
       expect(
         await mensagem(
-          sql`select entrar_com_passkey(${velho}, ${k.id}::uuid, 100, ${hex()})`.execute(
+          sql`select entrar_com_passkey(${velho}, ${k.id}::uuid, 100, ${hex()}, null)`.execute(
             dono(),
           ),
         ),
@@ -714,7 +714,9 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
       const contaNova = (desafio: string, convite: string) =>
         sql`select * from conta_nova_com_passkey(${desafio}, ${convite}, 'Nome',
           ${randomBytes(32).toString("base64url")}, ${randomBytes(77)}, 0, '{}'::text[],
-          null, ${hex()})`.execute(dono());
+          null, ${hex()}, ${Array.from({ length: 10 }, hex)}::text[], null)`.execute(
+          dono(),
+        );
       expect(await mensagem(contaNova(doConvite1, convite2))).toMatch(
         /^auth\.unauthenticated:/,
       );
@@ -726,7 +728,7 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
       );
       expect(
         await mensagem(
-          sql`select entrar_com_passkey(${doConvite1}, ${k.id}::uuid, 100, ${hex()})`.execute(
+          sql`select entrar_com_passkey(${doConvite1}, ${k.id}::uuid, 100, ${hex()}, null)`.execute(
             dono(),
           ),
         ),

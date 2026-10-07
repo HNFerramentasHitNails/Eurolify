@@ -8,6 +8,7 @@ import { errosDoFastify, ligarErros, RESPOSTA_DE_ERRO } from "./base/erros.js";
 import type { BaseDados } from "./base/esquema.js";
 import { ligarAutenticacao } from "./identidade/autenticacao.js";
 import { rotasDoHub } from "./identidade/hub.js";
+import { rotasDasCredenciais } from "./identidade/hub-credenciais.js";
 import type { ConfigHub } from "./identidade/sessoes.js";
 import { rotasDaIdentidade } from "./identidade/rotas.js";
 import { REGISTO_INICIAL } from "./regras/registo.js";
@@ -179,7 +180,10 @@ export function criarApp(
     );
     // As rotas que precisam da base só existem com ela (docs/19 §6).
     if (base !== undefined) rotasDaIdentidade(rotas, base);
-    if (base !== undefined && hub !== undefined) rotasDoHub(rotas, base, hub);
+    if (base !== undefined && hub !== undefined) {
+      rotasDoHub(rotas, base, hub);
+      rotasDasCredenciais(rotas, base, hub);
+    }
     feito();
   });
 
