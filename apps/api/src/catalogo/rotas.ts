@@ -311,6 +311,7 @@ const OpcaoEsquema = Type.Object({
 const ComponenteEsquema = Type.Object({
   variante: Type.String({ description: "var_… (o componente)" }),
   quantidade: Type.Integer({ minimum: 1 }),
+  estado: EstadoVariante,
 });
 
 const RespostaArtigos = Type.Object({
@@ -838,9 +839,14 @@ function paraOpcao(o: {
   };
 }
 
-const paraComponente = (c: { componente_id: string; quantidade: number }) => ({
+const paraComponente = (c: {
+  componente_id: string;
+  quantidade: number;
+  estado: "activa" | "arquivada";
+}) => ({
   variante: `var_${c.componente_id}`,
   quantidade: c.quantidade,
+  estado: c.estado,
 });
 
 /**
@@ -1547,7 +1553,7 @@ export function rotasDoCatalogo(
       config: { ambito: "catalog:write" },
       schema: {
         description:
-          "Cria uma opção do artigo com os valores, pela ordem (§3.3). Só num artigo em rascunho; outro dá catalog.not_draft. O nome não se repete no artigo, nem um valor na opção.",
+          "Cria uma opção do artigo com os valores, pela ordem (§3.3). Só num artigo em rascunho; outro dá catalog.not_draft. O nome não se repete no artigo, nem um valor na opção, sem distinguir maiúsculas nem os espaços nas pontas (catalog.option_duplicate e catalog.option_value_duplicate, 409); valores exactamente iguais no próprio pedido dão 400.",
         headers: CabecalhoIdempotencia,
         params: ParametroArtigo,
         body: PedidoCriarOpcao,
@@ -1582,7 +1588,7 @@ export function rotasDoCatalogo(
       config: { ambito: "catalog:write" },
       schema: {
         description:
-          "Acrescenta um valor à opção, no fim, em qualquer estado do artigo (§3.3). Devolve a opção com os valores todos.",
+          "Acrescenta um valor à opção, no fim, em qualquer estado do artigo (§3.3); não se repete na opção, sem distinguir maiúsculas nem os espaços nas pontas. Devolve a opção com os valores todos.",
         headers: CabecalhoIdempotencia,
         params: ParametroOpcao,
         body: PedidoAcrescentarValor,
@@ -1649,7 +1655,7 @@ export function rotasDoCatalogo(
       config: { ambito: "catalog:write" },
       schema: {
         description:
-          "Substitui a composição do kit pela lista dada, pela ordem (§3.4); vazia, deixa de ser kit. A base recusa ciclos (catalog.component_cycle), componentes novos arquivados e mexer num kit arquivado. Devolve a composição inteira (no máximo 100).",
+          "Substitui a composição do kit pela lista dada, pela ordem (§3.4); vazia, deixa de ser kit. A base recusa ciclos (catalog.component_cycle), componentes novos arquivados (catalog.component_archived) e mexer num kit arquivado; um componente arquivado que já estava no kit pode ficar. Sem `versao`: o último a escrever ganha. Devolve a composição inteira (no máximo 100), cada componente com o estado.",
         headers: CabecalhoIdempotencia,
         params: ParametroVariante,
         body: PedidoComposicao,

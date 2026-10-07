@@ -439,21 +439,29 @@ export async function composicaoDoKit(
         throw new ErroCatalogo("catalog.not_found", `variante ${kitId}`);
       }
       const doKit = trx
-        .selectFrom("componente")
-        .where("comerciante_id", "=", comercianteId)
-        .where("kit_id", "=", kitId);
+        .selectFrom("componente as c")
+        .where("c.comerciante_id", "=", comercianteId)
+        .where("c.kit_id", "=", kitId);
       const { total } = await doKit
         .select((eb) => eb.fn.countAll<string>().as("total"))
         .executeTakeFirstOrThrow();
-      let pagina = doKit.select(["componente_id", "quantidade", "posicao"]);
+      // O estado do componente: um arquivado que já estava no kit fica lá
+      // (§3.4), e quem lê vê-o (revisão do #161, P3-5).
+      let pagina = doKit
+        .innerJoin("variante as v", (j) =>
+          j
+            .onRef("v.id", "=", "c.componente_id")
+            .onRef("v.comerciante_id", "=", "c.comerciante_id"),
+        )
+        .select(["c.componente_id", "c.quantidade", "c.posicao", "v.estado"]);
       if (depois !== null) {
         pagina = pagina.where(
-          sql<boolean>`(posicao, componente_id) > (${depois.posicao}::int, ${depois.id}::uuid)`,
+          sql<boolean>`(c.posicao, c.componente_id) > (${depois.posicao}::int, ${depois.id}::uuid)`,
         );
       }
       const linhas = await pagina
-        .orderBy("posicao")
-        .orderBy("componente_id")
+        .orderBy("c.posicao")
+        .orderBy("c.componente_id")
         .limit(limite + 1)
         .execute();
       const haMais = linhas.length > limite;

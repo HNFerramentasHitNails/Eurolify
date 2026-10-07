@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
@@ -264,33 +264,30 @@ describe.skipIf(URL_BASE === undefined)(
       expect(mau.statusCode).toBe(400);
     });
 
-    it("a composição do kit: substitui-se inteira, pela ordem; vazia deixa de ser kit; repete-se com a mesma chave", async () => {
+    type Comp = { variante: string; quantidade: number; estado: string };
+
+    it("a composição do kit: substitui-se inteira, pela ordem, com o estado; vazia deixa de ser kit; por páginas", async () => {
       const f = await artigo(["KIT", "GEL", "LIMA", "TOP"]);
       const [kit = "", gel = "", lima = "", top = ""] = f.variantes.map(
         (v) => v.id,
       );
       const url = `/variants/${kit}/components`;
-      const chave = randomUUID();
-      const corpo = {
+      const r = await pedir("PUT", url, {
         componentes: [
           { variante: gel, quantidade: 2 },
           { variante: lima, quantidade: 1 },
         ],
-      };
-      const r = await pedir("PUT", url, corpo, { chave });
+      });
       expect(r.statusCode).toBe(200);
       expect(r.json()).toEqual({
         dados: [
-          { variante: gel, quantidade: 2 },
-          { variante: lima, quantidade: 1 },
+          { variante: gel, quantidade: 2, estado: "activa" },
+          { variante: lima, quantidade: 1, estado: "activa" },
         ],
         total: 2,
         ha_mais: false,
         cursor_seguinte: null,
       });
-      expect((await pedir("PUT", url, corpo, { chave })).json()).toEqual(
-        r.json(),
-      );
       // Substitui: a ordem e as quantidades novas, e o que sai, sai.
       await pedir("PUT", url, {
         componentes: [
@@ -300,37 +297,80 @@ describe.skipIf(URL_BASE === undefined)(
       });
       const lida = (
         await pedir("GET", url, undefined, { segredo: leitura })
-      ).json<Pagina<{ variante: string; quantidade: number }>>();
-      expect(lida.dados).toEqual([
-        { variante: top, quantidade: 3 },
-        { variante: gel, quantidade: 5 },
+      ).json<Pagina<Comp>>();
+      expect(lida.dados.map((d) => [d.variante, d.quantidade])).toEqual([
+        [top, 3],
+        [gel, 5],
       ]);
-      // Por páginas.
-      const p1 = (await pedir("GET", `${url}?limite=1`)).json<
-        Pagina<{ variante: string }>
-      >();
+      const p1 = (await pedir("GET", `${url}?limite=1`)).json<Pagina<Comp>>();
       expect(p1).toMatchObject({ total: 2, ha_mais: true });
       const p2 = (
         await pedir("GET", `${url}?limite=1&cursor=${p1.cursor_seguinte ?? ""}`)
-      ).json<Pagina<{ variante: string }>>();
+      ).json<Pagina<Comp>>();
       expect(p2.dados.map((d) => d.variante)).toEqual([gel]);
       expect(
-        (await pedir("PUT", url, { componentes: [] })).json<Pagina<unknown>>()
+        (await pedir("PUT", url, { componentes: [] })).json<Pagina<Comp>>()
           .total,
       ).toBe(0);
     });
 
-    it("as recusas da composição: ciclo, repetido, componente arquivado, componente ou kit de outro comerciante, quantidade 0", async () => {
-      const f = await artigo(["C-KIT", "C-GEL", "C-VELHO"], true);
-      const [kit = "", gel = "", velho = ""] = f.variantes.map((v) => v.id);
+    it("a idempotência do PUT: a mesma chave devolve a resposta guardada, não o estado de agora; outro corpo dá 422", async () => {
+      const f = await artigo(["I-KIT", "I-GEL", "I-LIMA"]);
+      const [kit = "", gel = "", lima = ""] = f.variantes.map((v) => v.id);
       const url = `/variants/${kit}/components`;
-      const proprio = await pedir("PUT", url, {
-        componentes: [{ variante: kit, quantidade: 1 }],
+      const chave = randomUUID();
+      const comGel = { componentes: [{ variante: gel, quantidade: 2 }] };
+      const r1 = await pedir("PUT", url, comGel, { chave });
+      // Outra escrita, com outra chave, muda a composição.
+      await pedir("PUT", url, {
+        componentes: [{ variante: lima, quantidade: 1 }],
       });
-      expect(proprio.statusCode).toBe(422);
-      expect(proprio.json()).toMatchObject({
-        codigo: "catalog.component_cycle",
-      });
+      // A repetição devolve a resposta guardada e não volta a escrever.
+      const r2 = await pedir("PUT", url, comGel, { chave });
+      expect(r2.statusCode).toBe(200);
+      expect(r2.json()).toEqual(r1.json());
+      expect(
+        (await pedir("GET", url))
+          .json<Pagina<Comp>>()
+          .dados.map((d) => d.variante),
+      ).toEqual([lima]);
+      const outro = await pedir("PUT", url, { componentes: [] }, { chave });
+      expect(outro.statusCode).toBe(422);
+      expect(outro.json()).toMatchObject({ codigo: "idempotency.key_reused" });
+    });
+
+    it("as recusas da composição não mudam nada: ciclo, repetido, componente arquivado, de outro comerciante; o arquivado que já estava fica; kit arquivado recusa", async () => {
+      const f = await artigo(["C-KIT", "C-GEL", "C-LIMA", "C-VELHO"], true);
+      const [kit = "", gel = "", lima = "", velho = ""] = f.variantes.map(
+        (v) => v.id,
+      );
+      const url = `/variants/${kit}/components`;
+      const antes = {
+        componentes: [
+          { variante: gel, quantidade: 2 },
+          { variante: lima, quantidade: 1 },
+        ],
+      };
+      expect((await pedir("PUT", url, antes)).statusCode).toBe(200);
+      const composicao = async () =>
+        (await pedir("GET", url))
+          .json<Pagina<Comp>>()
+          .dados.map((d) => [d.variante, d.quantidade]);
+      const esperada = [
+        [gel, 2],
+        [lima, 1],
+      ];
+      const recusa = async (corpo: object, estado: number, codigo: string) => {
+        const r = await pedir("PUT", url, corpo);
+        expect(r.statusCode, codigo).toBe(estado);
+        expect(r.json()).toMatchObject({ codigo });
+        expect(await composicao(), codigo).toEqual(esperada);
+      };
+      await recusa(
+        { componentes: [{ variante: kit, quantidade: 1 }] },
+        422,
+        "catalog.component_cycle",
+      );
       // Ciclo por outro kit: GEL leva KIT, e depois KIT levaria GEL.
       expect(
         (
@@ -338,37 +378,30 @@ describe.skipIf(URL_BASE === undefined)(
             componentes: [{ variante: kit, quantidade: 1 }],
           })
         ).statusCode,
-      ).toBe(200);
-      const ciclo = await pedir("PUT", url, {
-        componentes: [{ variante: gel, quantidade: 1 }],
-      });
-      expect(ciclo.json()).toMatchObject({ codigo: "catalog.component_cycle" });
-      await pedir("PUT", `/variants/${gel}/components`, { componentes: [] });
-      const repetido = await pedir("PUT", url, {
-        componentes: [
-          { variante: gel, quantidade: 1 },
-          { variante: gel, quantidade: 2 },
-        ],
-      });
-      expect(repetido.statusCode).toBe(422);
-      expect(repetido.json()).toMatchObject({
-        codigo: "catalog.component_duplicate",
-      });
+      ).toBe(422);
+      await recusa(
+        {
+          componentes: [
+            { variante: gel, quantidade: 1 },
+            { variante: gel, quantidade: 2 },
+          ],
+        },
+        422,
+        "catalog.component_duplicate",
+      );
       expect(
         (await pedir("POST", `/variants/${velho}/archive`)).statusCode,
       ).toBe(200);
-      const arquivado = await pedir("PUT", url, {
-        componentes: [{ variante: velho, quantidade: 1 }],
-      });
-      expect(arquivado.statusCode).toBe(422);
-      expect(arquivado.json()).toMatchObject({
-        codigo: "catalog.component_archived",
-      });
-      const zero = await pedir("PUT", url, {
-        componentes: [{ variante: gel, quantidade: 0 }],
-      });
-      expect(zero.statusCode).toBe(400);
-      // Um componente de outro comerciante não existe.
+      await recusa(
+        {
+          componentes: [
+            { variante: gel, quantidade: 2 },
+            { variante: velho, quantidade: 1 },
+          ],
+        },
+        422,
+        "catalog.component_archived",
+      );
       const deB = await pedir(
         "POST",
         "/products",
@@ -381,14 +414,129 @@ describe.skipIf(URL_BASE === undefined)(
         { segredo: escritaDeB },
       );
       const varB = deB.json<Ficha>().variantes[0]?.id ?? "";
-      const alheio = await pedir("PUT", url, {
-        componentes: [{ variante: varB, quantidade: 1 }],
-      });
-      expect(alheio.statusCode).toBe(404);
-      // Nada mudou com as recusas.
-      expect((await pedir("GET", url)).json<Pagina<unknown>>().dados).toEqual(
-        [],
+      await recusa(
+        {
+          componentes: [
+            { variante: gel, quantidade: 2 },
+            { variante: varB, quantidade: 1 },
+          ],
+        },
+        404,
+        "catalog.not_found",
       );
+      // O componente que já estava fica, mesmo arquivado, e vê-se o estado.
+      expect(
+        (await pedir("POST", `/variants/${lima}/archive`)).statusCode,
+      ).toBe(200);
+      const fica = await pedir("PUT", url, {
+        componentes: [
+          { variante: lima, quantidade: 4 },
+          { variante: gel, quantidade: 2 },
+        ],
+      });
+      expect(fica.statusCode).toBe(200);
+      expect(fica.json<Pagina<Comp>>().dados).toEqual([
+        { variante: lima, quantidade: 4, estado: "arquivada" },
+        { variante: gel, quantidade: 2, estado: "activa" },
+      ]);
+      // Um kit arquivado não muda.
+      expect((await pedir("POST", `/variants/${kit}/archive`)).statusCode).toBe(
+        200,
+      );
+      const arquivado = await pedir("PUT", url, { componentes: [] });
+      expect(arquivado.statusCode).toBe(409);
+      expect(arquivado.json()).toMatchObject({
+        codigo: "catalog.variant_archived_is_final",
+      });
+    });
+
+    it("os valores acrescentados: a mesma chave não acrescenta duas vezes; outro corpo dá 422; ao mesmo tempo, cada um com a sua posição, sem repetir", async () => {
+      const f = await artigo(["VAL-1"]);
+      const o = (
+        await pedir("POST", `/products/${f.id}/options`, {
+          nome: "Cor",
+          valores: ["Rosa"],
+        })
+      ).json<Opcao>();
+      const url = `/options/${o.id}/values`;
+      const chave = randomUUID();
+      const r1 = await pedir("POST", url, { valor: "Azul" }, { chave });
+      const r2 = await pedir("POST", url, { valor: "Azul" }, { chave });
+      expect([r1.statusCode, r2.statusCode]).toEqual([201, 201]);
+      expect(r2.json()).toEqual(r1.json());
+      const outro = await pedir("POST", url, { valor: "Verde" }, { chave });
+      expect(outro.json()).toMatchObject({ codigo: "idempotency.key_reused" });
+      const repetido = await pedir("POST", url, { valor: " azul " });
+      expect(repetido.statusCode).toBe(409);
+      expect(repetido.json()).toMatchObject({
+        codigo: "catalog.option_value_duplicate",
+      });
+      // Cinco ao mesmo tempo.
+      const novos = ["V1", "V2", "V3", "V4", "V5"];
+      const rs = await Promise.all(
+        novos.map((valor) => pedir("POST", url, { valor })),
+      );
+      expect(rs.map((r) => r.statusCode)).toEqual([201, 201, 201, 201, 201]);
+      const { rows } = await sql<{ posicao: number }>`
+        select posicao from valor_opcao
+        where opcao_id = ${o.id.slice("opt_".length)}::uuid
+        order by posicao`.execute(base.dono);
+      expect(rows.map((l) => l.posicao)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    });
+
+    it("os limites do contrato: 101 valores, 101 componentes, quantidade fora do inteiro, nome com 101, valor em branco", async () => {
+      const f = await artigo(["LIM-KIT", "LIM-GEL"]);
+      const [kit = "", gel = ""] = f.variantes.map((v) => v.id);
+      const o = (
+        await pedir("POST", `/products/${f.id}/options`, {
+          nome: "Cor",
+          valores: ["Rosa"],
+        })
+      ).json<Opcao>();
+      for (const [metodo, url, corpo] of [
+        [
+          "POST",
+          `/products/${f.id}/options`,
+          {
+            nome: "Muitos",
+            valores: Array.from({ length: 101 }, (_, i) => `v${String(i)}`),
+          },
+        ],
+        [
+          "POST",
+          `/products/${f.id}/options`,
+          { nome: "x".repeat(101), valores: ["a"] },
+        ],
+        ["POST", `/options/${o.id}/values`, { valor: "   " }],
+        [
+          "PUT",
+          `/variants/${kit}/components`,
+          {
+            componentes: Array.from({ length: 101 }, () => ({
+              variante: gel,
+              quantidade: 1,
+            })),
+          },
+        ],
+        [
+          "PUT",
+          `/variants/${kit}/components`,
+          { componentes: [{ variante: gel, quantidade: 2147483648 }] },
+        ],
+        [
+          "PUT",
+          `/variants/${kit}/components`,
+          { componentes: [{ variante: gel, quantidade: "2" }] },
+        ],
+        [
+          "PUT",
+          `/variants/${kit}/components`,
+          { componentes: [{ variante: gel, quantidade: 0 }] },
+        ],
+      ] as const) {
+        const r = await pedir(metodo, url, corpo);
+        expect(r.statusCode, `${metodo} ${url}`).toBe(400);
+      }
     });
 
     it("de outro comerciante: 404 em todas; os âmbitos", async () => {
@@ -441,6 +589,16 @@ describe.skipIf(URL_BASE === undefined)(
             {
               componentes: [],
             },
+            { segredo: leitura },
+          )
+        ).statusCode,
+      ).toBe(403);
+      expect(
+        (
+          await pedir(
+            "POST",
+            `/options/${o.id}/values`,
+            { valor: "Azul" },
             { segredo: leitura },
           )
         ).statusCode,

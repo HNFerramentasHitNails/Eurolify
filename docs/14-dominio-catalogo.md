@@ -771,7 +771,14 @@ Diogo: «sim, avança com as opções e os kits»):
 
 Um artigo, uma opção ou uma variante que não existe (ou de outro
 comerciante) dá `catalog.not_found`, também quando é um componente no
-corpo. **Falta**, por não haver ainda função: mudar o nome de uma opção ou
+corpo. O nome de uma opção e o valor não se repetem sem distinguir
+maiúsculas nem os espaços nas pontas (o índice da 0005); iguais no próprio
+pedido dão 400. Cada componente sai com o estado: um arquivado que já
+estava no kit fica (§3.4). A composição não tem `versao`: o último a
+escrever ganha, como «substitui a lista inteira» já dizia. A página da
+composição só é estável enquanto ninguém a substitui: um `PUT` a meio de
+quem pagina reescreve as posições (a excepção ao `docs/18` §2a; no máximo
+100 componentes, por isso cabe numa página). **Falta**, por não haver ainda função: mudar o nome de uma opção ou
 o texto de um valor, apagar uma opção e mudar a ordem; desenham-se antes do
 código.
 
@@ -801,6 +808,10 @@ rotas, que só as expõem):
   (`GET /products/{id}`) traz todas, e `POST /products/{id}/variants` não
   tem limite. O tecto (ou o `expand` com páginas) é decisão do Diogo ou do
   Bruno, antes de abrir a API para fora.
+- **Sem tecto de valores por opção** (revisão do #161, P3-1): a criação
+  limita a 100, mas `POST /options/{id}/values` não, e a opção sai com os
+  valores todos. O tecto é decisão do Diogo ou do Bruno, com o das
+  variantes, antes de abrir a API para fora.
 - **A categoria fiscal** aceita qualquer código no formato: a lista é do
   Motor de IVA (§2), que ainda não existe, e nada confirma que o código
   existe lá (**C**, não verifiquei). **Rede temporária** (decisão do Diogo,

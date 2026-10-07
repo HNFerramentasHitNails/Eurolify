@@ -586,7 +586,14 @@ export async function criarOpcao(
   });
 }
 
-/** Acrescenta um valor a uma opção, em qualquer estado do artigo. */
+/**
+ * Acrescenta um valor a uma opção, no fim, em qualquer estado do artigo. A
+ * linha do artigo (FOR KEY SHARE) e a fila dele antes de contar, pela ordem
+ * de `criarOpcao` e de quem apaga o rascunho: dois valores acrescentados ao
+ * mesmo tempo ficam em série, cada um com a sua posição (revisão do #161,
+ * P2-1). A opção relê-se já com a fila tomada: se foi apagada entretanto, é
+ * «não existe».
+ */
 export async function acrescentarValor(
   db: Kysely<BaseDados>,
   comercianteId: string,
@@ -594,18 +601,39 @@ export async function acrescentarValor(
   valor: string,
 ): Promise<string> {
   return noCatalogo(db, comercianteId, async (trx) => {
-    const opcao = await trx
-      .selectFrom("opcao")
-      .select("artigo_id")
+    const lerOpcao = () =>
+      trx
+        .selectFrom("opcao")
+        .select("artigo_id")
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", opcaoId)
+        .executeTakeFirst();
+    const vista = await lerOpcao();
+    if (vista === undefined) {
+      throw new ErroCatalogo("catalog.not_found", `opção ${opcaoId}`);
+    }
+    const artigo = await trx
+      .selectFrom("artigo")
+      .select("id")
       .where("comerciante_id", "=", comercianteId)
-      .where("id", "=", opcaoId)
+      .where("id", "=", vista.artigo_id)
+      .forKeyShare()
       .executeTakeFirst();
+    if (artigo === undefined) {
+      throw new ErroCatalogo("catalog.not_found", `opção ${opcaoId}`);
+    }
+    await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${vista.artigo_id}::uuid)`.execute(
+      trx,
+    );
+    const opcao = await lerOpcao();
     if (opcao === undefined) {
       throw new ErroCatalogo("catalog.not_found", `opção ${opcaoId}`);
     }
+    // A seguir à maior (não à contagem): um valor apagado num rascunho não
+    // faz repetir a posição de outro.
     const { n } = await trx
       .selectFrom("valor_opcao")
-      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .select(sql<string>`coalesce(max(posicao) + 1, 0)`.as("n"))
       .where("comerciante_id", "=", comercianteId)
       .where("opcao_id", "=", opcaoId)
       .executeTakeFirstOrThrow();
