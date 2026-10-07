@@ -107,6 +107,7 @@
 | ✅ CJ | Catálogo: uma publicação publicada que deixa de passar na verificação (classificação, nome e tradução, última variante à venda, língua nova no mercado) **sai de venda sozinha**, com o motivo `verificacao_falhou` e os impedimentos guardados | em vigor; no código (migração 0023, #146; issue #77) | Diogo, 07/10/2026: *«sim, avança com a (a)»* | [`docs/14`](14-dominio-catalogo.md) §4.2 e §8 |
 | ✅ CK | Contas de pessoas: as chaves públicas (as do site da loja, que qualquer visitante vê) não se revogam quando quem as criou sai da equipa ou muda de papel; as de servidor revogam-se em cadeia | em vigor; código no #149 | Diogo, 07/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §4.4 e §12; revisão do #149, P2-2 |
 | ✅ CL | API do Catálogo: quem publicou, arquivou ou classificou (`publicado_por`, `arquivado_por`, `classificado_por`) **não sai** nas consultas com `catalog:read`; volta, se for preciso, com um âmbito próprio e uma razão escrita | em vigor; no código (#150) | Diogo, 07/10/2026: *«sim, fica a (a)»* | [`docs/14`](14-dominio-catalogo.md) §7.1; CH |
+| ✅ CM | Catálogo: a categoria fiscal de um artigo aceita qualquer código no formato da base (`^[a-z][a-z0-9_]*$`), sem confirmar que existe na lista do Motor de IVA — **rede temporária**, marcada **C**. **Fim:** quando o Motor de IVA existir, ou antes de haver produção (ADR-0027), o que vier primeiro, como a rede da CF | em vigor; no código (#153) | Diogo, 07/10/2026: *«sim, confirmo esse prazo»* | [`docs/14`](14-dominio-catalogo.md) §2 e §7.1; CF |
 
 ## Por decidir — por esta ordem
 

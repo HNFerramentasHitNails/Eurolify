@@ -747,9 +747,10 @@ rotas, que só as expõem):
   com a linha do tempo.
 - **A categoria fiscal** aceita qualquer código no formato: a lista é do
   Motor de IVA (§2), que ainda não existe, e nada confirma que o código
-  existe lá (**C**, não verifiquei). Fim proposto: quando o Motor de IVA
-  existir, ou antes de haver produção (ADR-0027), o que vier primeiro —
-  como a rede da C2 (`docs/06`, CF). A confirmar pelo Diogo ou pelo Bruno.
+  existe lá (**C**, não verifiquei). **Rede temporária** (decisão do Diogo,
+  07/10/2026, `docs/06`, CM). **Fim:** quando o Motor de IVA existir, ou
+  antes de haver produção (ADR-0027), o que vier primeiro — como a rede da
+  C2 (`docs/06`, CF).
 
 Os nomes dos campos nas respostas são os do modelo (§3), em português, e os
 identificadores levam o prefixo (`prd_`, `var_`, `pub_`, `chn_`, `mkt_`).
