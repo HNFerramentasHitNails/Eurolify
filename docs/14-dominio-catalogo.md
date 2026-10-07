@@ -729,17 +729,28 @@ mesma chave com o mesmo pedido devolve a mesma resposta; com outro pedido,
 das variantes):
 
 - com `catalog:read`: `GET /products/{id}/variants` (também as arquivadas,
-  por posição e SKU), `GET /variants/{id}` e `GET /variants?sku=…` ou
+  por posição, SKU e id, no formato das listas do `docs/18` §2a, com
+  `limite` e `cursor`), `GET /variants/{id}` e `GET /variants?sku=…` ou
   `?gtin=…` (exactamente um dos dois; o SKU sem distinguir maiúsculas, P9;
   o GTIN com os zeros à esquerda ignorados, C4; também arquivada; a lista
-  tem uma variante ou nenhuma, porque os dois são únicos por comerciante);
+  tem uma variante ou nenhuma, porque os dois são únicos por comerciante, e
+  vai no mesmo formato, sem páginas);
 - com `catalog:write`, com a `Idempotency-Key`: `POST /products/{id}/variants`
   (com `valores`, um `ovl_…` por opção; num artigo que já não é rascunho a
   combinação tem de ficar completa e não repetida, e a base confirma-o no
-  fim da transacção) e `POST /variants/{id}/archive` (final; se era a última
-  à venda, a publicação sai de venda, §8).
+  fim da transacção; num artigo publicado, a variante nova nasce fora das
+  publicações, 0019) e `POST /variants/{id}/archive` (final; se era a última
+  à venda, a publicação sai de venda, §8; uma variante já arquivada
+  devolve-se sem mudar nada, como no artigo: decisão do Diogo, 07/10/2026,
+  `docs/06`, CN).
 
-Cada variante sai com o artigo (`prd_…`) e os valores das opções. **Falta**
+Cada variante sai com o artigo (`prd_…`) e os valores das opções (`ovl_…`),
+pela ordem das opções do artigo; a ficha do artigo (`GET /products/{id}`)
+traz as variantes sem os valores. Os `valores` não se repetem (400) e um
+valor que não existe, ou de outro artigo, dá `catalog.not_found`, como
+qualquer referência que não existe (o `detail` diz que é o valor). O GTIN e
+a origem dele vêm juntos, recusados no contrato (400) se vier um sem o
+outro. **Falta**
 `PATCH /variants/{id}`: não há ainda função que altere uma variante, e a
 variante não tem `versao` para a escrita concorrente; desenha-se antes do
 código.
@@ -754,8 +765,9 @@ de cada corpo diz o que a base aceita (medidas positivas, o formato da
 categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
 código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
 com `publicada: false`: quem chama lê `publicada`, nunca só o estado HTTP. Quem escreve fica registado como a chave
-(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções, a
-composição, as traduções e o resto da tabela entram com as rotas seguintes.
+(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes entraram a
+seguir (abaixo); as opções, a composição, as traduções e o resto da tabela
+entram com as rotas seguintes.
 
 **Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas
 rotas, que só as expõem):

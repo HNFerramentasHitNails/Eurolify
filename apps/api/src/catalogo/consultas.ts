@@ -126,26 +126,44 @@ async function valoresDas(
 ): Promise<Map<string, string[]>> {
   const mapa = new Map<string, string[]>(varianteIds.map((id) => [id, []]));
   if (varianteIds.length === 0) return mapa;
+  // Pela ordem das opções do artigo (posição, depois id): com Cor e Tamanho,
+  // a cor vem sempre primeiro (revisão do #159, P3-2).
   const linhas = await trx
-    .selectFrom("variante_valor")
-    .select(["variante_id", "valor_id"])
-    .where("comerciante_id", "=", comercianteId)
-    .where("variante_id", "in", varianteIds)
-    .orderBy("valor_id")
+    .selectFrom("variante_valor as vv")
+    .innerJoin("opcao as o", (j) =>
+      j
+        .onRef("o.id", "=", "vv.opcao_id")
+        .onRef("o.comerciante_id", "=", "vv.comerciante_id"),
+    )
+    .select(["vv.variante_id", "vv.valor_id"])
+    .where("vv.comerciante_id", "=", comercianteId)
+    .where("vv.variante_id", "in", varianteIds)
+    .orderBy("o.posicao")
+    .orderBy("o.id")
     .execute();
   for (const l of linhas) mapa.get(l.variante_id)?.push(l.valor_id);
   return mapa;
 }
 
+/** Onde a página anterior acabou: a ordem da lista é (posição, SKU, id). */
+export interface PosicaoNaLista {
+  posicao: number;
+  sku: string;
+  id: string;
+}
+
 /**
- * As variantes de um artigo (também as arquivadas), por posição e SKU, com os
- * valores das opções. Um artigo que não existe (ou de outro comerciante) é
+ * Uma página das variantes de um artigo (também as arquivadas), por posição,
+ * SKU e id, com os valores das opções e o total (docs/18 §2a; revisão do
+ * #159, P2-1). Um artigo que não existe (ou de outro comerciante) é
  * `catalog.not_found`, não uma lista vazia.
  */
 export async function variantesDoArtigo(
   db: Kysely<BaseDados>,
   comercianteId: string,
   artigoId: string,
+  limite: number,
+  depois: PosicaoNaLista | null,
 ) {
   return noCatalogo(
     db,
@@ -154,24 +172,50 @@ export async function variantesDoArtigo(
       const artigo = await trx
         .selectFrom("artigo")
         .select("id")
+        .where("comerciante_id", "=", comercianteId)
         .where("id", "=", artigoId)
         .executeTakeFirst();
       if (artigo === undefined) {
         throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
       }
-      const variantes = await trx
+      const doArtigo = trx
         .selectFrom("variante")
-        .selectAll()
-        .where("artigo_id", "=", artigoId)
+        .where("comerciante_id", "=", comercianteId)
+        .where("artigo_id", "=", artigoId);
+      const { total } = await doArtigo
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow();
+      let pagina = doArtigo.selectAll();
+      if (depois !== null) {
+        pagina = pagina.where(
+          sql<boolean>`(posicao, sku, id) > (${depois.posicao}::int, ${depois.sku}::text, ${depois.id}::uuid)`,
+        );
+      }
+      const linhas = await pagina
         .orderBy("posicao")
         .orderBy("sku")
+        .orderBy("id")
+        .limit(limite + 1)
         .execute();
+      const haMais = linhas.length > limite;
+      const variantes = haMais ? linhas.slice(0, limite) : linhas;
+      const ultima = haMais ? variantes.at(-1) : undefined;
       const valores = await valoresDas(
         trx,
         comercianteId,
         variantes.map((v) => v.id),
       );
-      return variantes.map((v) => ({ ...v, valores: valores.get(v.id) ?? [] }));
+      return {
+        dados: variantes.map((v) => ({
+          ...v,
+          valores: valores.get(v.id) ?? [],
+        })),
+        total: Number(total),
+        ultima:
+          ultima === undefined
+            ? null
+            : { posicao: ultima.posicao, sku: ultima.sku, id: ultima.id },
+      };
     },
     { soLeitura: true },
   );
@@ -190,6 +234,7 @@ export async function fichaDaVariante(
       const variante = await trx
         .selectFrom("variante")
         .selectAll()
+        .where("comerciante_id", "=", comercianteId)
         .where("id", "=", varianteId)
         .executeTakeFirst();
       if (variante === undefined) {
