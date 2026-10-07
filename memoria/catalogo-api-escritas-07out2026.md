@@ -20,6 +20,12 @@
   - 1.ª ronda: 4 P2 e 7 P3;
   - 2.ª ronda: 6 P3 e nenhum P2.
   - Ficaram todos tratados. Um ponto da 1.ª ronda (o 204 com `Type.Null()`) foi medido no `/openapi.json` e não se confirmou, e o revisor retirou-o na 2.ª.
+- **Publicado no ensaio:** corrida 37637224998 do fluxo `publicar` (main 0f8c012), imagem `sha256:62d1c2121a8f1475dfd77e21962556323e8b8f83b7830d9b6f24cdddb0574cb6`, às 14:34 UTC. O registo da corrida diz:
+  - «migrar: nada em falta.» (as escritas não trouxeram migração);
+  - «O /health da API responde.»;
+  - «MCP: arrancou e responde.»;
+  - «A API chega à base.»
+  - Os testes do `main`, já com o #154, passaram na mesma corrida.
 - **`docs/14` §7.1:** descreve as escritas e as faltas conhecidas:
   - o «quem» só fica registado na classificação e na publicação (C7);
   - a categoria fiscal ainda não é confirmada no Motor de IVA (**C**), com fim proposto por confirmar pelo Diogo ou pelo Bruno.
@@ -49,6 +55,7 @@
 - Não há teste de duas escritas simultâneas com chaves diferentes no mesmo artigo. Ficam protegidas pela `versao` e pelo `FOR UPDATE`.
 - `catalog.no_variants` não se alcança pela API: o esquema exige pelo menos uma variante e não há rota para arquivar variantes.
 - A API não está exposta: na VPS só ouve em `127.0.0.1`.
+- O registo da publicação mostra um aviso do docker na VPS: as credenciais do registo de imagens ficam em `/root/.docker/config.json` sem cifra. Vem de antes deste pedido; procurei «config.json» em `memoria/` (07/10/2026) e só aparece aqui, por isso não está registado noutro sítio. Por tratar.
 - O MCP da VPS continua sem autorização nesta sessão. O Diogo reconectou-o, mas os conectores só se lêem no arranque de uma sessão.
 - Por fazer:
   - as rotas de variantes, opções, composição, traduções e media;
