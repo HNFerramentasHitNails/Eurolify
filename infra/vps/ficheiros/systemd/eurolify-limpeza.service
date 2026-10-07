@@ -1,5 +1,5 @@
 [Unit]
-Description=Eurolify: limpeza diária da idempotência (docs/18 §4)
+Description=Eurolify: limpeza diária da idempotência e prazos das contas (docs/18 §4, docs/21 §13)
 After=docker.service
 
 [Service]

@@ -32,7 +32,17 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
 - **B3b juntado e publicado** (#147; corrida 37603564234: «migrar:
   aplicadas 0024_identidade_palavra_passe»). Revisão Opus 5.5: 1 P1 (o
   limite não aguentava pedidos em paralelo), tratado.
-- **B3c (em curso):** chaves pelo Hub, migração 0025.
+- **B3c juntado e publicado** (#149; corrida 37617162110: «migrar:
+  aplicadas 0025_identidade_chaves_pela_sessao»). Decisão CK: as chaves
+  públicas ficam quando quem as criou sai.
+- **B4 (em curso, 07/10/2026):** a tarefa dos prazos, migração 0026
+  (`docs/21` §13): `contas_aplicar_prazos()` na `eurolify-limpeza` das
+  05:00 e `contas_prazos_em_atraso()` na verificação das 07:00, só com o
+  `EXECUTE` para o `eurolify_limpeza`. Os gatilhos da 0018 só deixam apagar
+  uma sessão e pseudonimizar um convite ou uma pessoa com o prazo passado.
+  Um teste antigo (`identidade-pessoas`, «nada se apaga») apanhou um erro:
+  no PL/pgSQL, `TG_TABLE_NAME = 'sessao' AND sessao_fim(OLD)` falha nas
+  outras tabelas (o OLD não é `sessao`); vai em dois IF.
 - O #139 (Catálogo, outra sessão) também queria a 0018 e a 0019: quem junta
   em segundo renumera (avisos no #139).
 
@@ -45,6 +55,16 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
 - 06/10/2026, `npm audit` com `otplib@13.5.0` e `@node-rs/argon2@2.2.2`: 0
   vulnerabilidades; a imagem é Debian (`trixie-slim`), com o binário
   `linux-x64-gnu` do Argon2.
+- 07/10/2026, `pnpm run teste` local (PostgreSQL 18.6) com a B4: API 673,
+  MCP 58. Provas por mutação da B4: tirar o prazo do gatilho da sessão, da
+  pessoa ou do convite, pôr 13 dias nas entradas ou tirar o `SKIP LOCKED`
+  faz falhar 1 a 4 dos 9 testes de `contas-prazos.test.ts`.
+- 07/10/2026, programa `eurolify-limpeza` corrido contra uma base local
+  migrada até à 0026 (com o `docker` substituído por um `psql` local):
+  «prazos das contas: entradas=1 codigos_usados=0 … convites=0», saída 0;
+  sem o EXECUTE, saída 1 e «limpeza falhou» no registo; sem a função
+  (antes da 0026), só a idempotência, saída 0. O `eurolify_limpeza` lê a
+  `entrada`? Não: «permission denied for table entrada».
 - Publicação do #141 (corrida 37495008666): «migrar: aplicadas
   0018_identidade_pessoas»; «O /health da API responde».
 
