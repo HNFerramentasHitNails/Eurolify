@@ -29,6 +29,10 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
   pnpm 12 recusa versões com menos de um certo tempo publicadas e pedia uma
   excepção no `pnpm-workspace.yaml`; a 2.2.1 (10/09/2026) cumpre sem ela.
   `npm audit` da 2.2.1: 0 vulnerabilidades (07/10/2026).
+- **B3b juntado e publicado** (#147; corrida 37603564234: «migrar:
+  aplicadas 0024_identidade_palavra_passe»). Revisão Opus 5.5: 1 P1 (o
+  limite não aguentava pedidos em paralelo), tratado.
+- **B3c (em curso):** chaves pelo Hub, migração 0025.
 - O #139 (Catálogo, outra sessão) também queria a 0018 e a 0019: quem junta
   em segundo renumera (avisos no #139).
 

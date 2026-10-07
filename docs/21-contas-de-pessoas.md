@@ -445,6 +445,15 @@ conta pela rede /64, também na recuperação (P2-1). No máximo 2 Argon2id ao
 mesmo tempo e 20 à espera; acima disso, 503 (P2-2; valores a medir na
 VPS).
 
+Na base (B3c, migração 0025): `chave_criar_pela_sessao` e
+`chave_revogar_pela_sessao`, só para um papel com `keys:write` (hoje, o
+dono) e com autenticação recente (BA, P-T8), com as trancas pela ordem da
+§4.7 (membros, depois chaves) e o membro conferido dentro delas. A chave
+fica com `criada_por = pessoa:per_…` e cai se a pessoa sair. A regra «a
+última chave que gere chaves não se revoga» (0012) **não se aplica** pelo
+Hub: servia porque só uma chave criava chaves, e o dono cria outra quando
+quiser (proposta).
+
 **Condição para ligar o Hub** (revisões do #142, P2-2, e do #144, P2-3): a
 `HUB_ORIGEM` só se define num ambiente depois de (1) a B3b, (2) a B4 — sem
 ela, o IP do registo de entradas fica além dos 14 dias da §6 — e (3) um
