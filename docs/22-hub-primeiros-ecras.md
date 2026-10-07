@@ -31,7 +31,7 @@ escolhida.
 | O quê | Proposta |
 |---|---|
 | Código | `apps/hub`: React + Vite, ficheiros estáticos (ADR-0025) |
-| Anfitrião | `hub.eurolify.eu` (proposta; decide-se com a publicação): o nginx serve os ficheiros estáticos e encaminha `/hub/*` para a API — o mesmo anfitrião, por isso o cookie `__Host-` e o `SameSite=Strict` funcionam sem CORS (`docs/21` §3) |
+| Anfitrião | `hub.eurolify.eu` (decidido com a publicação, §7): o nginx serve os ficheiros estáticos e encaminha `/hub/*` para a API — o mesmo anfitrião, por isso o cookie `__Host-` e o `SameSite=Strict` funcionam sem CORS (`docs/21` §3) |
 | Caminhos das páginas | `/entrar`, `/convite`, `/equipa`; nunca debaixo de `/hub/`, que é da API |
 | Passkeys no navegador | `@simplewebauthn/browser` (a mesma família do `@simplewebauthn/server` da API); sem suporte de passkey, o ecrã diz isso e não oferece nada que não funcione |
 | Letra | a do sistema (`system-ui`): nada se vai buscar à Internet |
@@ -49,9 +49,9 @@ navegador** guarda o endereço aberto, com o segredo — e, com a sincronizaçã
 ligada, sai da máquina. Num computador partilhado, quem abrir o histórico
 nos 7 dias seguintes cria a conta com o e-mail convidado. Limites: o
 convite vale uma vez e para um e-mail fixo. O aviso a quem convida pede que
-a ligação se abra num computador próprio ou numa janela privada. **Por
-decidir** (Diogo ou Bruno), se se quiser fechar mais: um prazo mais curto
-que 7 dias, ou um código curto enviado à parte.
+a ligação se abra num computador próprio ou numa janela privada. **Decidido
+(Diogo, 07/10/2026): o convite fica nos 7 dias**, sem código à parte; volta-se
+a isto antes de entrarem contas reais.
 
 ## 3. Ecrãs, rotas e estados
 
@@ -128,25 +128,39 @@ pessoal).
       continua por decidir (D-12).
 - [ ] Revisão do agente (ADR-0035) publicada no pedido.
 
-## 7. A publicação (pedido seguinte)
+## 7. A publicação
 
-Escrita aqui para não se perder; faz-se depois do OK ao aspecto:
+Feita depois do OK ao aspecto (Diogo, 07/10/2026). O que muda na VPS entra
+pelo GitHub (ADR-0028): o `aplicar-script` corre o `preparar.sh` e o
+`publicar` traz a imagem.
 
-1. Nome `hub.eurolify.eu` na zona da OVH e certificado (como o do MCP, desafio
-   DNS).
-2. nginx: os estáticos do Hub e `/hub/*` para a API, com o `X-Forwarded-For`
-   reescrito.
-3. Rede Docker `eurolify` com sub-rede e gateway fixos; `PROXY_CONFIAVEL`
-   com o gateway (revisão do #154, P1-1); `HUB_ORIGEM=https://hub.eurolify.eu`.
-4. Cabeçalhos no nginx (revisão do #158, P3-8): `Content-Security-Policy`
-   (`default-src 'self'; connect-src 'self'; frame-ancestors 'none'`), HSTS,
-   `Referrer-Policy: no-referrer`; `try_files $uri /index.html` para
-   `/entrar`, `/convite` e `/equipa`; `Cache-Control: no-cache` no
-   `index.html` (os ficheiros de `assets/` têm o resumo no nome).
-5. Medir: dois clientes pelo proxy contam em separado; o `/health` e o login
-   respondem; o cookie sai com `__Host-`, `Secure`, `HttpOnly`, `SameSite=Strict`.
-6. **Só contas de teste** (ADR-0019): os convites são criados pelo Diogo ou
-   pelo Bruno; nenhum dado pessoal real.
+| O quê | Onde | Como |
+|---|---|---|
+| Os ecrãs na imagem | `Dockerfile` | constrói `@eurolify/hub` e copia o `dist` para `/app/hub`: a API e os ecrãs saem sempre da mesma imagem, com o mesmo resumo |
+| Os ecrãs no disco | `eurolify-publicar` | copia `/app/hub` da imagem (um contentor sem rede, só `tar`) para `/var/lib/eurolify/hub/<resumo>` e troca a ligação `actual` de uma vez; guarda as 3 últimas. Também ao voltar à publicação anterior. Se a cópia falhar, avisa e a API não volta atrás (os ecrãs antigos continuam) |
+| O nome | zona da OVH | registo A `hub.eurolify.eu` → a VPS, **criado à mão pelo Diogo ou pelo Bruno** (o mesmo que o do MCP); sem ele o passo 14 avisa e o Hub fica desligado |
+| O certificado | `preparar.sh`, passo 14 | Let's Encrypt pelo desafio DNS da OVH (a 80 não abre), só depois de o nome resolver |
+| O site | `infra/vps/ficheiros/nginx-hub.conf` | os estáticos, `/hub/` para a API com o `X-Forwarded-For` reescrito pelo nginx; `try_files $uri /index.html` para `/entrar`, `/convite`, `/equipa`; `index.html` sem cache, `assets/` com cache longa; cabeçalhos: CSP (`default-src 'self'`, `frame-ancestors 'none'`), HSTS, `Referrer-Policy: no-referrer`, `nosniff`, `Permissions-Policy`. Liga-se só com o certificado e o `nginx -t`; se falhar, desliga-se outra vez |
+| A configuração da API | `/etc/eurolify/api-hub.env` (600, root) | `HUB_ORIGEM=https://hub.eurolify.eu` e `PROXY_CONFIAVEL=<gateway da rede eurolify>` — o endereço de onde o nginx chega ao contentor (revisão do #154, P1-1). O gateway **lê-se em cada corrida** (`docker network inspect`), por isso a rede não precisa de sub-rede fixa. Sem o site ligado, o ficheiro fica vazio e a API corre sem o Hub. Quando muda, a API é recriada com a mesma imagem |
+| A medição na máquina | passo 14 | pelo nginx: `/entrar` 200 e `/hub/me` 401 (sem sessão) |
+
+**Medido localmente (07/10/2026)**, com o nginx desta configuração (sem a
+linha IPv6, que a máquina de teste não tem) e a API verdadeira com
+`PROXY_CONFIAVEL=127.0.0.1`: `/entrar`, `/index.html` e um ficheiro de
+`assets/` 200; `/hub/me` 401; 20 `POST /hub/session/options` de um endereço
+dão 200 e o 21.º 429 com `Retry-After: 60`; outro endereço continua a 200; um
+`X-Forwarded-For` forjado não muda a contagem (429); um `Origin` de outro
+site, 403.
+
+**Só contas de teste** (ADR-0019): a VPS está no Reino Unido até à migração;
+os convites são criados pelo Diogo ou pelo Bruno, nenhum dado pessoal real.
+**O que falta para alguém entrar** (pedido seguinte): o primeiro dono de um
+comerciante entra por um convite do operador (`docs/21` §7, ponto 5). A base
+já tem a função (`convite_criar_pelo_operador`, que o `scripts/capturas.mjs`
+usa), mas o fluxo `operar` do GitHub só tem as acções `comerciante` e `chave`
+(`.github/workflows/operar.yml`). Falta a acção `convite`, com o segredo
+gerado no computador do operador e só o resumo a passar pelo fluxo. Até lá, o
+Hub publicado abre, mas ninguém tem convite para entrar.
 
 ## 8. Desenvolver localmente
 
