@@ -28,7 +28,14 @@ import {
   caminhoDe,
   chaveDeIdempotencia,
 } from "../identidade/rotas.js";
-import { fichaDoArtigo, listarArtigos } from "./consultas.js";
+import {
+  fichaDaVariante,
+  fichaDoArtigo,
+  listarArtigos,
+  procurarVariantes,
+  variantesDoArtigo,
+  type PosicaoNaLista,
+} from "./consultas.js";
 import { ErroCatalogo, traduzir } from "./erros.js";
 import {
   NAO_VERIFICADO,
@@ -41,15 +48,18 @@ import {
 import {
   alterarArtigo,
   apagarRascunho,
+  arquivarVariante,
   classificarArtigo,
   criarArtigo,
+  criarVarianteComValores,
   mudarEstadoArtigo,
 } from "./repositorio.js";
 
-// API de Administração do Catálogo, parte 1: as consultas (docs/14 §7.1;
-// pedido do Diogo, 07/10/2026: «sim, avança com as consultas da API do
-// Catálogo»). Só leem, com uma chave de servidor com `catalog:read`. As
-// escritas entram noutro pedido, com a Idempotency-Key (docs/18 §4).
+// API de Administração do Catálogo (docs/14 §7.1), por partes, todas pedidas
+// pelo Diogo a 07/10/2026: 1, as consultas (#150); 2, as escritas dos
+// artigos e das publicações, com a Idempotency-Key (docs/18 §4; #153); 3, as
+// variantes (#159). Cada rota pede o seu âmbito (`catalog:read`,
+// `catalog:write` ou `catalog:publish`).
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const idCom = (prefixo: string, descricao: string) =>
@@ -240,6 +250,29 @@ const Artigo = Type.Object({
   variantes: Type.Array(Variante),
 });
 
+/** A variante sozinha: com o artigo e os valores das opções (`ovl_…`). */
+const VarianteCompleta = Type.Object({
+  ...Variante.properties,
+  artigo: Type.String({ description: "prd_…" }),
+  valores: Type.Array(Type.String({ description: "ovl_…" }), {
+    description:
+      "Os valores das opções da variante, um por opção do artigo (§3.3); vazio num artigo sem opções",
+  }),
+});
+
+/** O formato das listas (docs/18 §2a), com variantes. */
+const RespostaVariantes = Type.Object({
+  dados: Type.Array(VarianteCompleta),
+  total: Type.Integer({
+    minimum: 0,
+    description: "Quantas há ao todo, não só nesta página",
+  }),
+  ha_mais: Type.Boolean(),
+  cursor_seguinte: Type.Union([Type.String(), Type.Null()], {
+    description: "Para pedir a página seguinte (`cursor`); nulo na última",
+  }),
+});
+
 const RespostaArtigos = Type.Object({
   dados: Type.Array(ResumoArtigo),
   total: Type.Integer({
@@ -417,6 +450,60 @@ const PedidoCriarArtigo = Type.Object(
   { additionalProperties: false },
 );
 
+const PedidoCriarVariante = Type.Object(
+  {
+    ...NovaVariante.properties,
+    valores: Type.Optional(
+      Type.Array(idCom("ovl", "ovl_…"), {
+        maxItems: 20,
+        uniqueItems: true,
+        description:
+          "Um valor por opção do artigo (§3.3). Num artigo com opções que já não é rascunho, a combinação tem de ficar completa e não repetida",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const ParametroVariante = Type.Object({ id: idCom("var", "var_…") });
+
+const ConsultaVariantesDoArtigo = Type.Object(
+  {
+    limite: Type.Optional(
+      Type.String({
+        pattern: "^[1-9][0-9]?$|^100$",
+        description: "1 a 100; por omissão, 25",
+      }),
+    ),
+    cursor: Type.Optional(
+      Type.String({
+        pattern: "^[A-Za-z0-9_-]{1,400}$",
+        description: "O `cursor_seguinte` da página anterior",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const ConsultaVariantes = Type.Object(
+  {
+    sku: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 64,
+        pattern: "^[^\\x00-\\x1f]+$",
+      }),
+    ),
+    gtin: Type.Optional(
+      Type.String({
+        pattern: "^([0-9]{8}|[0-9]{12,14})$",
+        description: "8, 12, 13 ou 14 dígitos; os zeros à esquerda não contam",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 const ComVersao = { versao: Type.Integer({ minimum: 1 }) };
 
 const PedidoAlterarArtigo = Type.Object(
@@ -529,6 +616,14 @@ function paraVariante(v: LinhaVariante) {
   };
 }
 
+function paraVarianteCompleta(v: LinhaVariante & { valores: string[] }) {
+  return {
+    ...paraVariante(v),
+    artigo: `prd_${v.artigo_id}`,
+    valores: v.valores.map((id) => `ovl_${id}`),
+  };
+}
+
 /**
  * A verificação guardada, normalizada: o que falte (uma linha escrita antes
  * de um campo existir) sai como lista vazia, não como 500 (revisão do #150,
@@ -568,6 +663,57 @@ function paraPublicacao(p: Publicacao) {
 
 /** O cursor é o id do último artigo da página, em base64url: opaco. */
 const cursorDe = (id: string) => Buffer.from(id, "utf8").toString("base64url");
+/**
+ * O cursor das variantes: onde a página acabou (posição, SKU, id), em JSON
+ * e base64url. Opaco para quem chama; validado ao voltar.
+ */
+const cursorDaVariante = (p: PosicaoNaLista) =>
+  Buffer.from(JSON.stringify([p.posicao, p.sku, p.id]), "utf8").toString(
+    "base64url",
+  );
+function posicaoDoCursor(cursor: string): PosicaoNaLista {
+  let valor: unknown;
+  try {
+    valor = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+  } catch {
+    valor = null;
+  }
+  if (
+    Array.isArray(valor) &&
+    valor.length === 3 &&
+    Number.isInteger(valor[0]) &&
+    (valor[0] as number) >= 0 &&
+    (valor[0] as number) <= 2147483647 &&
+    typeof valor[1] === "string" &&
+    valor[1].length >= 1 &&
+    valor[1].length <= 64 &&
+    typeof valor[2] === "string" &&
+    new RegExp(`^${UUID}$`).test(valor[2])
+  ) {
+    return { posicao: valor[0] as number, sku: valor[1], id: valor[2] };
+  }
+  throw erroBase("request.invalid", "`cursor` não é um cursor desta lista");
+}
+
+/**
+ * O GTIN e a origem dele vêm juntos (C4; 0002): recusa-se no contrato, com
+ * uma mensagem que diz qual falta (revisão do #159, P3-5).
+ */
+function gtinComOrigem(
+  variantes: readonly { gtin?: string | null; gtin_origem?: string | null }[],
+) {
+  for (const v of variantes) {
+    const comGtin = v.gtin !== undefined && v.gtin !== null;
+    const comOrigem = v.gtin_origem !== undefined && v.gtin_origem !== null;
+    if (comGtin !== comOrigem) {
+      throw erroBase(
+        "request.invalid",
+        comGtin ? "`gtin` pede `gtin_origem`" : "`gtin_origem` só com `gtin`",
+      );
+    }
+  }
+}
+
 function idDoCursor(cursor: string): string {
   const id = Buffer.from(cursor, "base64url").toString("utf8");
   if (!new RegExp(`^${UUID}$`).test(id)) {
@@ -723,6 +869,103 @@ export function rotasDoCatalogo(
   );
 
   rotas.get(
+    "/products/:id/variants",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "As variantes do artigo, também as arquivadas, por posição e SKU, com os valores das opções (pela ordem das opções), no formato das listas (docs/18 §2a).",
+        params: ParametroArtigo,
+        querystring: ConsultaVariantesDoArtigo,
+        response: { 200: RespostaVariantes, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const q = pedido.query;
+      const limite = q.limite === undefined ? 25 : Number(q.limite);
+      const depois = q.cursor === undefined ? null : posicaoDoCursor(q.cursor);
+      const pagina = await noCatalogoApi(resposta, () =>
+        variantesDoArtigo(
+          base,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+          limite,
+          depois,
+        ),
+      );
+      return {
+        dados: pagina.dados.map(paraVarianteCompleta),
+        total: pagina.total,
+        ha_mais: pagina.ultima !== null,
+        cursor_seguinte:
+          pagina.ultima === null ? null : cursorDaVariante(pagina.ultima),
+      };
+    },
+  );
+
+  rotas.get(
+    "/variants",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "Procura uma variante pelo SKU (sem distinguir maiúsculas) ou pelo GTIN (8, 12, 13 ou 14 dígitos, o mesmo código com zeros à esquerda), também arquivada. Pede-se exactamente um dos dois. O SKU e o GTIN são únicos por comerciante: a lista tem uma variante ou nenhuma.",
+        querystring: ConsultaVariantes,
+        response: { 200: RespostaVariantes, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const { sku, gtin } = pedido.query;
+      if ((sku === undefined) === (gtin === undefined)) {
+        throw erroBase(
+          "request.invalid",
+          "pede-se exactamente um de `sku` ou `gtin`",
+        );
+      }
+      const variantes = await noCatalogoApi(resposta, () =>
+        procurarVariantes(
+          base,
+          chave.comercianteId,
+          sku !== undefined ? { sku } : { gtin: gtin ?? "" },
+        ),
+      );
+      // Uma ou nenhuma: a lista vai inteira, no formato de sempre.
+      return {
+        dados: variantes.map(paraVarianteCompleta),
+        total: variantes.length,
+        ha_mais: false,
+        cursor_seguinte: null,
+      };
+    },
+  );
+
+  rotas.get(
+    "/variants/:id",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description: "Uma variante, com o artigo e os valores das opções.",
+        params: ParametroVariante,
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      return paraVarianteCompleta(
+        await noCatalogoApi(resposta, () =>
+          fichaDaVariante(
+            base,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+          ),
+        ),
+      );
+    },
+  );
+
+  rotas.get(
     "/products/:id/publications",
     {
       config: { ambito: "catalog:read" },
@@ -796,6 +1039,7 @@ export function rotasDoCatalogo(
         201,
         async (trx, chave) => {
           const { variantes, ...dados } = pedido.body;
+          gtinComOrigem(variantes);
           const id = await criarArtigo(
             trx,
             chave.comercianteId,
@@ -959,6 +1203,71 @@ export function rotasDoCatalogo(
           semPrefixo(pedido.params.id),
         );
         return null;
+      }),
+  );
+
+  rotas.post(
+    "/products/:id/variants",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Acrescenta uma variante ao artigo, activa, com os valores das opções (SKU único por comerciante, C3). Também num artigo arquivado (§4.1). Num artigo publicado, a variante nova nasce fora das publicações.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoCriarVariante,
+        response: { 201: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        async (trx, chave) => {
+          const { valores, ...dados } = pedido.body;
+          gtinComOrigem([dados]);
+          const id = await criarVarianteComValores(
+            trx,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+            dados,
+            (valores ?? []).map(semPrefixo),
+          );
+          return paraVarianteCompleta(
+            await fichaDaVariante(trx, chave.comercianteId, id),
+          );
+        },
+        (corpo) => `/variants/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  rotas.post(
+    "/variants/:id/archive",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Arquiva a variante: é final, e o SKU não volta (P7). O artigo e as outras variantes ficam (C6). Se era a última à venda numa publicação, a publicação sai de venda (§8; docs/06, CJ). Uma variante já arquivada devolve-se sem mudar nada, como no artigo (§4.1). Sem corpo e sem `Content-Type`.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroVariante,
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        if (!vazio(pedido.body)) {
+          throw new ErroCatalogo(
+            "catalog.invalid_field",
+            "esta rota não leva corpo",
+          );
+        }
+        const id = semPrefixo(pedido.params.id);
+        await arquivarVariante(trx, chave.comercianteId, id);
+        return paraVarianteCompleta(
+          await fichaDaVariante(trx, chave.comercianteId, id),
+        );
       }),
   );
 

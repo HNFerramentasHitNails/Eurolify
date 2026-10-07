@@ -108,6 +108,7 @@
 | ✅ CK | Contas de pessoas: as chaves públicas (as do site da loja, que qualquer visitante vê) não se revogam quando quem as criou sai da equipa ou muda de papel; as de servidor revogam-se em cadeia | em vigor; código no #149 | Diogo, 07/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §4.4 e §12; revisão do #149, P2-2 |
 | ✅ CL | API do Catálogo: quem publicou, arquivou ou classificou (`publicado_por`, `arquivado_por`, `classificado_por`) **não sai** nas consultas com `catalog:read`; volta, se for preciso, com um âmbito próprio e uma razão escrita | em vigor; no código (#150) | Diogo, 07/10/2026: *«sim, fica a (a)»* | [`docs/14`](14-dominio-catalogo.md) §7.1; CH |
 | ✅ CM | Catálogo: a categoria fiscal de um artigo aceita qualquer código no formato da base (`^[a-z][a-z0-9_]*$`), sem confirmar que existe na lista do Motor de IVA — **rede temporária**, marcada **C**. **Fim:** quando o Motor de IVA existir, ou antes de haver produção (ADR-0027), o que vier primeiro, como a rede da CF | em vigor; no código (#153) | Diogo, 07/10/2026: *«sim, confirmo esse prazo»* | [`docs/14`](14-dominio-catalogo.md) §2 e §7.1; CF |
+| ✅ CN | API do Catálogo: arquivar uma variante que já está arquivada devolve-a sem mudar nada (200), como pedir o estado em que o artigo já está (§4.1); arquivada continua final, não volta a activa | em vigor; no código (#159) | Diogo, 07/10/2026: *«sim, fica como no artigo»* | [`docs/14`](14-dominio-catalogo.md) §7.1 |
 
 ## Por decidir — por esta ordem
 

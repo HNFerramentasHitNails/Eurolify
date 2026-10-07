@@ -117,3 +117,178 @@ export async function fichaDoArtigo(
     { soLeitura: true },
   );
 }
+
+/** Os ids dos valores das opções de cada variante dada (por variante). */
+async function valoresDas(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  varianteIds: readonly string[],
+): Promise<Map<string, string[]>> {
+  const mapa = new Map<string, string[]>(varianteIds.map((id) => [id, []]));
+  if (varianteIds.length === 0) return mapa;
+  // Pela ordem das opções do artigo (posição, depois id): com Cor e Tamanho,
+  // a cor vem sempre primeiro (revisão do #159, P3-2).
+  const linhas = await trx
+    .selectFrom("variante_valor as vv")
+    .innerJoin("opcao as o", (j) =>
+      j
+        .onRef("o.id", "=", "vv.opcao_id")
+        .onRef("o.comerciante_id", "=", "vv.comerciante_id"),
+    )
+    .select(["vv.variante_id", "vv.valor_id"])
+    .where("vv.comerciante_id", "=", comercianteId)
+    .where("vv.variante_id", "in", varianteIds)
+    .orderBy("o.posicao")
+    .orderBy("o.id")
+    .execute();
+  for (const l of linhas) mapa.get(l.variante_id)?.push(l.valor_id);
+  return mapa;
+}
+
+/** Onde a página anterior acabou: a ordem da lista é (posição, SKU, id). */
+export interface PosicaoNaLista {
+  posicao: number;
+  sku: string;
+  id: string;
+}
+
+/**
+ * Uma página das variantes de um artigo (também as arquivadas), por posição,
+ * SKU e id, com os valores das opções e o total (docs/18 §2a; revisão do
+ * #159, P2-1). Um artigo que não existe (ou de outro comerciante) é
+ * `catalog.not_found`, não uma lista vazia.
+ */
+export async function variantesDoArtigo(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+  limite: number,
+  depois: PosicaoNaLista | null,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const artigo = await trx
+        .selectFrom("artigo")
+        .select("id")
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", artigoId)
+        .executeTakeFirst();
+      if (artigo === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+      }
+      const doArtigo = trx
+        .selectFrom("variante")
+        .where("comerciante_id", "=", comercianteId)
+        .where("artigo_id", "=", artigoId);
+      const { total } = await doArtigo
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow();
+      let pagina = doArtigo.selectAll();
+      if (depois !== null) {
+        pagina = pagina.where(
+          sql<boolean>`(posicao, sku, id) > (${depois.posicao}::int, ${depois.sku}::text, ${depois.id}::uuid)`,
+        );
+      }
+      const linhas = await pagina
+        .orderBy("posicao")
+        .orderBy("sku")
+        .orderBy("id")
+        .limit(limite + 1)
+        .execute();
+      const haMais = linhas.length > limite;
+      const variantes = haMais ? linhas.slice(0, limite) : linhas;
+      const ultima = haMais ? variantes.at(-1) : undefined;
+      const valores = await valoresDas(
+        trx,
+        comercianteId,
+        variantes.map((v) => v.id),
+      );
+      return {
+        dados: variantes.map((v) => ({
+          ...v,
+          valores: valores.get(v.id) ?? [],
+        })),
+        total: Number(total),
+        ultima:
+          ultima === undefined
+            ? null
+            : { posicao: ultima.posicao, sku: ultima.sku, id: ultima.id },
+      };
+    },
+    { soLeitura: true },
+  );
+}
+
+/** Uma variante, com os valores das opções. */
+export async function fichaDaVariante(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  varianteId: string,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const variante = await trx
+        .selectFrom("variante")
+        .selectAll()
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", varianteId)
+        .executeTakeFirst();
+      if (variante === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);
+      }
+      const valores = await valoresDas(trx, comercianteId, [variante.id]);
+      return { ...variante, valores: valores.get(variante.id) ?? [] };
+    },
+    { soLeitura: true },
+  );
+}
+
+/**
+ * Procura uma variante pelo SKU (sem distinguir maiúsculas, P9) ou pelo GTIN
+ * (o mesmo código em 8, 12, 13 ou 14 dígitos com zeros à esquerda, C4), também
+ * arquivada: os dois são únicos por comerciante, por isso a lista tem uma ou
+ * nenhuma. O comerciante vai explícito, além do RLS, para os índices servirem
+ * (revisão do #80, P2-1).
+ */
+export async function procurarVariantes(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  filtro: { sku: string } | { gtin: string },
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      let consulta = trx
+        .selectFrom("variante")
+        .selectAll()
+        .where("comerciante_id", "=", comercianteId);
+      consulta =
+        "sku" in filtro
+          ? consulta.where(
+              sql<string>`lower(sku)`,
+              "=",
+              sql<string>`lower(${filtro.sku})`,
+            )
+          : consulta
+              .where("gtin", "is not", null)
+              .where(
+                sql<string>`lpad(gtin, 14, '0')`,
+                "=",
+                sql<string>`lpad(${filtro.gtin}, 14, '0')`,
+              );
+      const variantes = await consulta.execute();
+      const valores = await valoresDas(
+        trx,
+        comercianteId,
+        variantes.map((v) => v.id),
+      );
+      return variantes.map((v) => ({ ...v, valores: valores.get(v.id) ?? [] }));
+    },
+    { soLeitura: true },
+  );
+}

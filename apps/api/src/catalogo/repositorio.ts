@@ -311,22 +311,38 @@ export async function criarVariante(
   return id;
 }
 
-/** Arquiva uma variante; o artigo e as outras variantes ficam (C6). */
+/**
+ * Arquiva uma variante; o artigo e as outras variantes ficam (C6). Uma já
+ * arquivada fica como está, sem erro: pedir o estado em que já está não muda
+ * nada, como no artigo (§4.1; decisão do Diogo, 07/10/2026, revisão do #159,
+ * P2-3). Arquivada continua final: não volta a activa.
+ */
 export async function arquivarVariante(
   db: Kysely<BaseDados>,
   comercianteId: string,
   varianteId: string,
 ): Promise<void> {
   await noCatalogo(db, comercianteId, async (trx) => {
+    // A linha da variante primeiro, com o mesmo bloqueio que o UPDATE do
+    // estado toma (não é chave): não choca com quem escreve um preço ou um
+    // valor dela (revisão do #159, 2.ª, P3-N2).
+    const actual = await trx
+      .selectFrom("variante")
+      .select(["artigo_id", "estado"])
+      .where("comerciante_id", "=", comercianteId)
+      .where("id", "=", varianteId)
+      .forNoKeyUpdate()
+      .executeTakeFirst();
+    if (actual === undefined) {
+      throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);
+    }
+    if (actual.estado === "arquivada") return;
     const variante = await trx
       .updateTable("variante")
       .set({ estado: "arquivada" })
       .where("id", "=", varianteId)
       .returning("artigo_id")
-      .executeTakeFirst();
-    if (variante === undefined) {
-      throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);
-    }
+      .executeTakeFirstOrThrow();
     // A última variante à venda arquivada tira a publicação de venda (docs/14
     // §8; docs/06, CJ; C6 continua: as outras variantes não caem). Dois
     // arquivos de variantes do mesmo artigo ao mesmo tempo ficam em série na
@@ -732,6 +748,24 @@ export async function criarVarianteComValores(
   valorIds: readonly string[],
 ): Promise<string> {
   return noCatalogo(db, comercianteId, async (trx) => {
+    // A linha do artigo e a fila dele antes de inserir, pela ordem de quem
+    // apaga o rascunho (0005): o INSERT prende o artigo pela chave
+    // estrangeira, e sem isto os dois podiam esperar um pelo outro (revisão
+    // do #159, P3-1). Um artigo que não existe (ou de outro comerciante) é
+    // «não existe».
+    const artigo = await trx
+      .selectFrom("artigo")
+      .select("id")
+      .where("comerciante_id", "=", comercianteId)
+      .where("id", "=", artigoId)
+      .forKeyShare()
+      .executeTakeFirst();
+    if (artigo === undefined) {
+      throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+    }
+    await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${artigoId}::uuid)`.execute(
+      trx,
+    );
     const { id } = await trx
       .insertInto("variante")
       .values({ comerciante_id: comercianteId, artigo_id: artigoId, ...dados })
