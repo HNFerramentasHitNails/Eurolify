@@ -9,7 +9,7 @@ import {
 } from "./base-de-teste.js";
 import { hubDeTeste, ipNovo } from "./hub-de-teste.js";
 
-// Rotas do Hub da parte B3b (docs/21 §4.3, §8 e §12; migração 0023; testes
+// Rotas do Hub da parte B3b (docs/21 §4.3, §8 e §12; migração 0024; testes
 // P-T5 e P-T11 do §9; decisões CA, CG e CI; issue #140): a palavra-passe com
 // o TOTP. Contra o PostgreSQL 18, com o Argon2id dos parâmetros da CG.
 
@@ -17,7 +17,7 @@ const agora = () => Math.floor(Date.now() / 1000);
 const codigoEm = (segredo: string, epoch: number) =>
   generate({ secret: segredo, epoch });
 
-describe.skipIf(URL_BASE === undefined)("palavra-passe e TOTP (0023)", () => {
+describe.skipIf(URL_BASE === undefined)("palavra-passe e TOTP (0024)", () => {
   let base: BaseDeTeste;
   let h: ReturnType<typeof hubDeTeste>;
   let a: string;

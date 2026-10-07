@@ -421,7 +421,7 @@ e-mail tentado, método, resultado, IP; 14 dias, apagados na B4) e o
 desafio de recuperação, preso à pessoa. A conta nova pelo convite (§11)
 passa a devolver também os 10 códigos (§4.2, ponto 3).
 
-Na base (B3b, migração 0023): **uma só tabela `palavra_passe`** com o
+Na base (B3b, migração 0024): **uma só tabela `palavra_passe`** com o
 resumo Argon2id e o segredo TOTP cifrado na mesma linha, em vez das duas da
 §4.1 (`palavra_passe` e `segundo_factor`): só existem juntos (CA), e assim
 a base não deixa um sem o outro (proposta). Estados `pendente` (à espera do

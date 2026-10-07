@@ -112,7 +112,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0020_identidade_passkeys",
         "0021_eventos_saida",
         "0022_identidade_recuperacao",
-        "0023_identidade_palavra_passe",
+        "0023_publicacao_reverificada",
+        "0024_identidade_palavra_passe",
       ]);
     });
 
@@ -147,7 +148,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(rows.length).toBeGreaterThan(0);
       // Internas: só o migrador (kysely_*) ou funções com os direitos do dono
       // (combinacoes_por_verificar, 0005; chave_api, 0010; as contas de
-      // pessoas, 0018, 0020, 0022 e 0023; os eventos, 0021) lhes tocam; a API não
+      // pessoas, 0018, 0020, 0022 e 0024; os eventos, 0021) lhes tocam; a API não
       // as lê.
       const interna = (t: string) =>
         t.startsWith("kysely_") ||
