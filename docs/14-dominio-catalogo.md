@@ -157,8 +157,9 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
   COMMITTED da API (em REPEATABLE READ, duas transacções ao mesmo tempo podiam
   não se ver). Ordem dos bloqueios: a linha do artigo, a fila do comerciante
   (kits), a fila do artigo (opções). O repositório segue-a: criar uma opção
-  toma a linha do artigo antes da fila, e dar valores toma a fila antes de
-  prender linhas (os triggers só a tomam depois de prender a linha que
+  e acrescentar um valor tomam a linha do artigo (KEY SHARE) antes da fila
+  (revisão do #161, 2.ª, P3-N3), e dar valores a uma variante toma a fila
+  antes de prender linhas (os triggers só a tomam depois de prender a linha que
   mudam). Por SQL directo, fora do repositório, a ordem pode inverter-se (por
   exemplo, apagar uma variante de um rascunho contra dar-lhe valores, ou
   apagar uma opção contra acrescentar-lhe um valor — a futura função de apagar
@@ -192,7 +193,8 @@ aqui):
   variantes de rascunhos); apagar o rascunho do kit leva a composição, com o
   kit e os componentes no mesmo artigo por qualquer ordem, e também com o kit
   arquivado (P8). Fora de apagar o rascunho, a composição de um kit arquivado
-  não muda, nem num rascunho (nem esvaziá-la). **Limitação conhecida:** o
+  não muda, nem num rascunho (nem esvaziá-la; esvaziar uma composição que
+já está vazia não muda nada, por isso não se recusa). **Limitação conhecida:** o
   rascunho de um artigo cuja variante está no kit de **outro** artigo só se
   apaga depois de a tirar desse kit (um rascunho não se arquiva);
 - a quantidade de um componente é um inteiro > 0, **sem limite máximo** (se o

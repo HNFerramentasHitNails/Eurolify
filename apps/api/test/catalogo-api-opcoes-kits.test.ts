@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
@@ -49,6 +50,7 @@ describe.skipIf(URL_BASE === undefined)(
     let leitura: string;
     let semCatalogo: string;
     let escritaDeB: string;
+    let comA: string;
 
     const pedir = (
       metodo: "POST" | "PUT" | "GET",
@@ -107,6 +109,7 @@ describe.skipIf(URL_BASE === undefined)(
       base = await criarBaseDeTeste(URL_BASE ?? "");
       app = criarApp({ logger: false }, undefined, base.api);
       const a = await registarComerciante(base.api, NOVO);
+      comA = a;
       const b = await registarComerciante(base.api, NOVO);
       const dono: Kysely<BaseDados> = base.dono;
       const chaveDe = async (c: string, nome: string, ambitos: string[]) =>
@@ -471,11 +474,51 @@ describe.skipIf(URL_BASE === undefined)(
       expect(repetido.json()).toMatchObject({
         codigo: "catalog.option_value_duplicate",
       });
-      // Cinco ao mesmo tempo.
+      // Cinco ao mesmo tempo, determinista: uma ligação toma a fila do
+      // artigo, os cinco pedidos ficam todos à espera dela, e só então se
+      // larga. Sem a fila antes de contar, os cinco contavam o mesmo e
+      // repetiam a posição (revisão do #161, 2.ª, P3-N1).
+      const artigoId = f.id.slice("prd_".length);
+      const cliente = new pg.Client({ connectionString: base.urlApi });
+      cliente.on("error", () => undefined);
+      await cliente.connect();
       const novos = ["V1", "V2", "V3", "V4", "V5"];
-      const rs = await Promise.all(
-        novos.map((valor) => pedir("POST", url, { valor })),
-      );
+      let rs: Awaited<ReturnType<typeof pedir>>[];
+      try {
+        await cliente.query("begin");
+        await cliente.query(
+          "select set_config('eurolify.comerciante', $1, true)",
+          [comA],
+        );
+        await cliente.query("select catalogo_fila_do_artigo($1, $2)", [
+          comA,
+          artigoId,
+        ]);
+        const pedidos = Promise.all(
+          novos.map((valor) => pedir("POST", url, { valor })),
+        );
+        let aEspera = 0;
+        for (let i = 0; i < 200 && aEspera < novos.length; i++) {
+          const { rows: w } = await sql<{ n: number }>`
+            select count(*)::int as n from pg_stat_activity
+            where datname = current_database()
+              and wait_event_type = 'Lock' and wait_event = 'advisory'`.execute(
+            base.dono,
+          );
+          aEspera = w[0]?.n ?? 0;
+          if (aEspera < novos.length) {
+            await new Promise((r) => {
+              setTimeout(r, 25);
+            });
+          }
+        }
+        expect(aEspera).toBe(novos.length);
+        await cliente.query("commit");
+        rs = await pedidos;
+      } finally {
+        await cliente.query("rollback").catch(() => undefined);
+        await cliente.end();
+      }
       expect(rs.map((r) => r.statusCode)).toEqual([201, 201, 201, 201, 201]);
       const { rows } = await sql<{ posicao: number }>`
         select posicao from valor_opcao
