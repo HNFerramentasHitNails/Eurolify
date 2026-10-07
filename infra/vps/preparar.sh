@@ -598,7 +598,7 @@ configuracao_mais_recente_que_a_api() {
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
   criado="$(date -d "$criado" +%s 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env; do
+  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env; do
     mudado="$(stat -c %Y "$ficheiro" 2>/dev/null)" || continue
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
   done
@@ -782,6 +782,117 @@ for s in github-oauth.env ovh-dns.ini ovh-dns.expira; do
     aviso "falta o segredo /etc/eurolify/$s (MCP, ADR-0033)"
   fi
 done
+
+# ---------------------------------------------------------------------------
+passo "14. Hub de gestão: certificado, nginx e a configuração da API (docs/22 §7)"
+# Como o MCP: certificado pelo desafio DNS da OVH (a porta 80 não abre); o
+# site só se liga com ele. A API só recebe a HUB_ORIGEM com o site ligado, e
+# com ela a PROXY_CONFIAVEL: o gateway da rede Docker eurolify, que é o
+# endereço de onde o nginx chega ao contentor (revisão do #154, P1-1). O
+# gateway lê-se aqui em cada corrida, por isso não precisa de ficar fixo.
+if [[ -d /var/lib/eurolify/hub ]]; then
+  ok "/var/lib/eurolify/hub"
+else
+  fazer "criar /var/lib/eurolify/hub (os ecrãs do Hub, que o eurolify-publicar copia)" \
+    install -d -o root -g root -m 755 /var/lib/eurolify/hub
+fi
+certificado_hub="/etc/letsencrypt/live/$HUB_DOMINIO/fullchain.pem"
+hub_previsto=0 # no --mostrar: o certificado seria pedido nesta corrida
+if [[ -s "$certificado_hub" ]]; then
+  ok "certificado de $HUB_DOMINIO"
+elif [[ ! -s /etc/eurolify/ovh-dns.ini ]]; then
+  aviso "falta /etc/eurolify/ovh-dns.ini (chave da API da OVH): sem certificado, o Hub fica desligado"
+elif ! getent ahostsv4 "$HUB_DOMINIO" >/dev/null 2>&1; then
+  aviso "$HUB_DOMINIO ainda não resolve (falta o registo A na zona da OVH): o Hub fica desligado"
+else
+  hub_previsto=1
+  fazer "pedir o certificado de $HUB_DOMINIO (Let's Encrypt, desafio DNS da OVH)" \
+    certbot certonly --non-interactive --agree-tos --register-unsafely-without-email \
+    --dns-ovh --dns-ovh-credentials /etc/eurolify/ovh-dns.ini --dns-ovh-propagation-seconds 60 \
+    -d "$HUB_DOMINIO"
+fi
+instalar "$F/nginx-hub.conf" /etc/nginx/sites-available/eurolify-hub.conf 644
+nginx_hub_mudou=$mudou
+site_hub=/etc/nginx/sites-enabled/eurolify-hub.conf
+hub_ligado=0
+if [[ -s "$certificado_hub" ]] || ((MOSTRAR && hub_previsto)); then
+  if [[ -L "$site_hub" ]]; then
+    ok "site do Hub ligado"
+  else
+    fazer "ligar o site do Hub no nginx" ln -s /etc/nginx/sites-available/eurolify-hub.conf "$site_hub"
+    nginx_hub_mudou=1
+  fi
+  hub_ligado=1
+  if ((nginx_hub_mudou && !MOSTRAR)); then
+    if nginx -t 2>/dev/null; then
+      fazer "recarregar o nginx" systemctl reload-or-restart nginx
+    else
+      rm -f "$site_hub"
+      hub_ligado=0
+      aviso "nginx -t falhou: o site do Hub foi desligado outra vez e nada foi recarregado"
+    fi
+  fi
+  [[ -f /var/lib/eurolify/hub/actual/index.html ]] || ((MOSTRAR)) ||
+    aviso "ainda não há ecrãs do Hub em /var/lib/eurolify/hub/actual (a próxima publicação põe-nos)"
+elif [[ -L "$site_hub" ]]; then
+  fazer "desligar o site do Hub (sem certificado)" rm -f "$site_hub"
+else
+  aviso "sem certificado: o site do Hub fica desligado"
+fi
+
+# A configuração do Hub na API: só com o site ligado; sem ele, o ficheiro fica
+# vazio (não se apaga: o eurolify-publicar vê a mudança pela data e recria a API).
+api_hub=/etc/eurolify/api-hub.env
+hub_desejado=""
+if ((hub_ligado)); then
+  gateway="$(docker network inspect eurolify -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)"
+  if [[ "$gateway" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+    hub_desejado="$(printf 'HUB_ORIGEM=https://%s\nPROXY_CONFIAVEL=%s' "$HUB_DOMINIO" "$gateway")"
+  elif ((MOSTRAR)); then
+    hub_desejado="HUB_ORIGEM=https://$HUB_DOMINIO (com o gateway da rede eurolify)"
+  else
+    aviso "não se leu o gateway da rede eurolify: a API fica sem o Hub"
+  fi
+fi
+# Escreve o ficheiro inteiro, 600 e de root, e troca-o de uma vez.
+escrever_api_hub() {
+  (
+    umask 077
+    if [[ -n "$1" ]]; then printf '%s\n' "$1"; fi >"$api_hub.novo"
+  )
+  chown root:root "$api_hub.novo"
+  mv -f "$api_hub.novo" "$api_hub"
+}
+hub_actual_env="$(cat "$api_hub" 2>/dev/null || true)"
+hub_env_mudou=0
+if [[ -f "$api_hub" && "$hub_actual_env" == "$hub_desejado" ]]; then
+  ok "$api_hub ${hub_desejado:+(com o Hub)}${hub_desejado:-(vazio: Hub desligado)}"
+else
+  fazer "escrever $api_hub ${hub_desejado:+(HUB_ORIGEM e PROXY_CONFIAVEL)}${hub_desejado:-(vazio: Hub desligado)}" \
+    escrever_api_hub "$hub_desejado"
+  hub_env_mudou=1
+fi
+if ((hub_env_mudou && !MOSTRAR)); then
+  imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+  resumo_api="${imagem_api##*@}"
+  if [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    fazer "recriar o contentor eurolify-api ($resumo_api) com a configuração do Hub" recriar_api "$resumo_api"
+  else
+    ok "sem contentor eurolify-api com resumo: a próxima publicação já lê a configuração do Hub"
+  fi
+fi
+
+# Com o Hub ligado, uma medição pelo próprio nginx: os ecrãs abrem e a API do
+# Hub responde (sem sessão, 401).
+if ((hub_ligado && !MOSTRAR)) && [[ -n "$hub_desejado" ]]; then
+  pagina="$(curl -sS -m 5 -o /dev/null -w '%{http_code}' --resolve "$HUB_DOMINIO:443:127.0.0.1" "https://$HUB_DOMINIO/entrar" 2>/dev/null || true)"
+  eu="$(curl -sS -m 5 -o /dev/null -w '%{http_code}' --resolve "$HUB_DOMINIO:443:127.0.0.1" "https://$HUB_DOMINIO/hub/me" 2>/dev/null || true)"
+  if [[ "$pagina" == 200 && "$eu" == 401 ]]; then
+    ok "o Hub abre (/entrar 200) e a API do Hub responde (/hub/me 401 sem sessão)"
+  else
+    aviso "o Hub não respondeu como devia: /entrar ${pagina:-nada} (esperava 200), /hub/me ${eu:-nada} (esperava 401)"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 passo "Resumo"
