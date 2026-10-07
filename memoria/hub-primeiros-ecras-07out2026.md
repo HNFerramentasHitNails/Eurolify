@@ -32,8 +32,11 @@ de teste (ADR-0019). Desenho em `docs/22`.
 - Primeiras capturas: os códigos partiam-se a meio a 375 px e o quadro
   «Convidar» encostava à tabela — corrigido e visto outra vez.
 
+- **OK ao aspecto provisório:** Diogo, 07/10/2026 (*«sim, dou o OK ao
+  aspecto provisório»*), sobre 7 capturas enviadas. A identidade visual
+  continua por decidir (D-12).
+
 ## O que ficou por verificar
 
 - Passkeys em navegadores e telemóveis reais (só o autenticador virtual).
-- O OK do Diogo ou do Bruno ao aspecto (regra 1 da `eurolify-design`).
 - A publicação (nome, certificado, nginx, rede Docker fixa, `PROXY_CONFIAVEL`).

@@ -109,7 +109,10 @@ pessoal).
       rotas do Hub já são testadas).
 - [ ] O segredo do convite não aparece em nenhum pedido fora do corpo, nem na
       barra de endereço depois de lido.
-- [ ] O aspecto foi ao Diogo ou ao Bruno com as capturas, e um deles deu o OK.
+- [x] O aspecto foi ao Diogo ou ao Bruno com as capturas, e um deles deu o OK
+      (Diogo, 07/10/2026, sobre 7 das 24 capturas: *«sim, dou o OK ao aspecto
+      provisório»*). Vale para os tokens provisórios; a identidade visual
+      continua por decidir (D-12).
 - [ ] Revisão do agente (ADR-0035) publicada no pedido.
 
 ## 7. A publicação (pedido seguinte)
