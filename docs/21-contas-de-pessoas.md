@@ -46,7 +46,7 @@ Lidas no registo do npm (`registry.npmjs.org`) a 06/10/2026: a versão
 |---|---|---|---|---|
 | Passkeys (WebAuthn) | `@simplewebauthn/server` | 14.0.3 · 25/09/2026 | MIT | **usar** |
 | TOTP (RFC 6238) | `otplib` | 13.5.0 · 21/08/2026 | MIT | **usar** |
-| Resumo da palavra-passe (CA) | `@node-rs/argon2` (Argon2id) | 2.2.2 · 06/10/2026 | MIT | **usar** |
+| Resumo da palavra-passe (CA) | `@node-rs/argon2` (Argon2id) | 2.2.1 · 10/09/2026 (usada); a 2.2.2 de 06/10/2026 só entrava com uma excepção à idade mínima do pnpm 12, e não se abriu | MIT | **usar** |
 | Cookie da sessão | `@fastify/cookie` | 11.1.2 · 15/07/2026 | MIT | **usar** (a API é Fastify 5.12.5) |
 | Fornecedor OIDC | `oidc-provider` | 9.12.2 · 05/09/2026 | MIT | **não agora**: só com aplicações de terceiros (CC) |
 | Tudo feito | `better-auth` | 1.7.7 · 30/09/2026 | MIT | **não**: traz as suas tabelas e sessões, fora das funções da base, do RLS e do rasto (`docs/19` §3) |
@@ -420,6 +420,30 @@ aleatórios basta, não precisa de Argon2id), `entrada` (pessoa ou resumo do
 e-mail tentado, método, resultado, IP; 14 dias, apagados na B4) e o
 desafio de recuperação, preso à pessoa. A conta nova pelo convite (§11)
 passa a devolver também os 10 códigos (§4.2, ponto 3).
+
+Na base (B3b, migração 0024): **uma só tabela `palavra_passe`** com o
+resumo Argon2id e o segredo TOTP cifrado na mesma linha, em vez das duas da
+§4.1 (`palavra_passe` e `segundo_factor`): só existem juntos (CA), e assim
+a base não deixa um sem o outro (proposta). Estados `pendente` (à espera do
+primeiro código certo) e `activa`; os parâmetros abaixo da CG são recusados
+pela base; o último passo do TOTP só avança. O segredo TOTP cifra-se na API
+com AES-256-GCM e a chave `TOTP_CHAVE` (32 bytes, segredo do ambiente, nunca
+na base nem no repositório), com `TOTP_CHAVE_VERSAO`; sem a chave, as rotas
+da palavra-passe não existem. **A `TOTP_CHAVE` não se troca** enquanto o código não
+aceitar a chave actual e a anterior: com outra chave nenhum segredo abre e
+quem só tem palavra-passe fica sem entrar (revisão do #147, P3-4). **Por
+fazer:** essa troca e a recusa das palavras-passe mais comuns (falta
+escolher a lista e a fonte).
+
+**Limites da palavra-passe** (revisão do #147): cada tentativa regista-se
+logo à entrada, como falha, e só passa a `ok` quando tudo está certo (P1-1);
+conta por IP e por e-mail como a recuperação (CI, alargada aqui como
+proposta) e **por conta** (§8): 5 códigos errados depois da palavra-passe
+certa, em 15 minutos, bloqueiam a entrada por palavra-passe dessa conta — só
+quem tem a palavra-passe o provoca, e a passkey continua a entrar. Um IPv6
+conta pela rede /64, também na recuperação (P2-1). No máximo 2 Argon2id ao
+mesmo tempo e 20 à espera; acima disso, 503 (P2-2; valores a medir na
+VPS).
 
 **Condição para ligar o Hub** (revisões do #142, P2-2, e do #144, P2-3): a
 `HUB_ORIGEM` só se define num ambiente depois de (1) a B3b, (2) a B4 — sem

@@ -37,7 +37,13 @@ export function ipNovo(): string {
   return `10.${String((contadorDeIp >> 16) & 255)}.${String((contadorDeIp >> 8) & 255)}.${String(contadorDeIp & 255)}`;
 }
 
-export function hubDeTeste(base: BaseDeTeste) {
+/** Uma chave de teste para os segredos TOTP (nunca a de um ambiente). */
+export const CHAVE_TOTP = { versao: 1, chave: Buffer.alloc(32, 7) };
+
+export function hubDeTeste(
+  base: BaseDeTeste,
+  opcoes: { comTotp?: boolean } = {},
+) {
   const registo: string[] = [];
   const destino = new Writable({
     write(pedaco: Buffer, _codificacao, feito) {
@@ -49,7 +55,7 @@ export function hubDeTeste(base: BaseDeTeste) {
     { logger: { level: "info", stream: destino, serializers: serializadores } },
     undefined,
     base.api,
-    HUB,
+    opcoes.comTotp === true ? { ...HUB, chaveTotp: CHAVE_TOTP } : HUB,
   );
 
   const pedir = (metodo: "GET" | "POST", url: string, p: Pedido = {}) => {

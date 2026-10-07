@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
 import { serializadores } from "./base/registo.js";
+import { chaveTotp } from "./identidade/palavra-passe.js";
 import { configHub } from "./identidade/sessoes.js";
 
 // Por omissão só ouve dentro da máquina (ADR-0027). Dentro do contentor o
@@ -18,10 +19,22 @@ const base =
 
 // A origem do Hub (docs/21 §3 e §11). Sem ela, as rotas do Hub não existem.
 const origemHub = process.env["HUB_ORIGEM"]?.trim();
+// A chave dos segredos TOTP (docs/21 §8): sem ela, não há palavra-passe.
+const chaveTotpBase64 = process.env["TOTP_CHAVE"]?.trim();
 const hub =
   origemHub === undefined || origemHub === ""
     ? undefined
-    : configHub(origemHub);
+    : {
+        ...configHub(origemHub),
+        ...(chaveTotpBase64 === undefined || chaveTotpBase64 === ""
+          ? {}
+          : {
+              chaveTotp: chaveTotp(
+                chaveTotpBase64,
+                process.env["TOTP_CHAVE_VERSAO"]?.trim() || "1",
+              ),
+            }),
+      };
 
 const app = criarApp(
   {

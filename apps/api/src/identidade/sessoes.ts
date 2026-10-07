@@ -3,6 +3,7 @@ import { sql, type Kysely, type Transaction } from "kysely";
 import { ErroApi } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import type { Ambito } from "./chaves.js";
+import type { ChaveTotp } from "./palavra-passe.js";
 import type { Papel } from "./papeis.js";
 
 // Sessões das pessoas no Hub (docs/21 §3, §4.6 e §11; migrações 0018 e 0020).
@@ -16,6 +17,8 @@ export interface ConfigHub {
   origem: string;
   /** O anfitrião da origem (docs/21 §3: o rpID é o anfitrião do Hub). */
   rpId: string;
+  /** A chave dos segredos TOTP; sem ela, não há rotas da palavra-passe. */
+  chaveTotp?: ChaveTotp;
 }
 
 /** Lê e valida a origem do Hub; só `https://anfitrião[:porta]`. */
@@ -183,6 +186,26 @@ const ERROS_DAS_CONTAS = {
     status: 429,
     pt: "Tentativas a mais; tente daqui a 15 minutos",
     en: "Too many attempts; try again in 15 minutes",
+  },
+  "password.not_pending": {
+    status: 409,
+    pt: "Não há palavra-passe à espera de confirmação",
+    en: "No password awaiting confirmation",
+  },
+  "password.invalid_code": {
+    status: 422,
+    pt: "O código não está certo; confira a hora do telemóvel",
+    en: "The code is not valid; check the phone's clock",
+  },
+  "password.not_found": {
+    status: 404,
+    pt: "A conta não tem palavra-passe",
+    en: "The account has no password",
+  },
+  "password.last_credential": {
+    status: 409,
+    pt: "É a última forma de entrar; acrescente uma passkey antes",
+    en: "This is the last way to sign in; add a passkey first",
   },
   "passkey.not_found": {
     status: 404,

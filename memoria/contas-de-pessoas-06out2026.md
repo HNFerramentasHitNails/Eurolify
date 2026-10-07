@@ -19,6 +19,16 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
 - **B3 em três pedidos** (docs/21 §12): B3a (#144: passkeys, sessões
   abertas, códigos de recuperação, recuperar, entradas; migração 0022 — a 0021 foi do #143), B3b
   (palavra-passe + TOTP), B3c (chaves pelo Hub).
+- **B3a juntado e publicado** (#144; corrida 37594866373: «migrar:
+  aplicadas 0022_identidade_recuperacao»). Revisão Opus 5.5: 0 P0, 0 P1, 5
+  P2, 10 P3. Decisão CI (07/10/2026): o limite conta por e-mail e por IP (a
+  CH foi do #143, que também levou a 0021).
+- **B3b (#147):** palavra-passe + TOTP, migração 0024 (o #146 juntou
+  primeiro com a 0023), `@node-rs/argon2` 2.2.1 e `otplib` 13.5.0; a chave `TOTP_CHAVE`
+  fora da base. A 2.2.2 do Argon2 (publicada a 06/10/2026) não se usa: o
+  pnpm 12 recusa versões com menos de um certo tempo publicadas e pedia uma
+  excepção no `pnpm-workspace.yaml`; a 2.2.1 (10/09/2026) cumpre sem ela.
+  `npm audit` da 2.2.1: 0 vulnerabilidades (07/10/2026).
 - O #139 (Catálogo, outra sessão) também queria a 0018 e a 0019: quem junta
   em segundo renumera (avisos no #139).
 
