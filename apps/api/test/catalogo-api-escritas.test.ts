@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
@@ -72,6 +73,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
   let canal: string;
   let mercado: string;
   let lista: string;
+  let deBEscreve: string;
 
   const pedir = (
     metodo: "POST" | "PATCH" | "PUT" | "DELETE" | "GET",
@@ -145,6 +147,13 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
         ...servidor,
         nome: "Leitura",
         ambitos: ["catalog:read"],
+      })
+    ).segredo;
+    deBEscreve = (
+      await criarChave(dono, b, {
+        ...servidor,
+        nome: "Escrita de B",
+        ambitos: ["catalog:write", "catalog:publish"],
       })
     ).segredo;
     deB = await criarArtigo(
@@ -351,7 +360,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
     expect(linha.classificado_por).toBe(`chave:key_${escritaId}`);
   });
 
-  it("apaga um rascunho (204); um activo dá 409/422 sem apagar", async () => {
+  it("apaga um rascunho (204); um activo dá 409 catalog.not_draft sem apagar", async () => {
     const f = await novo("APAGA-1");
     const r = await pedir("DELETE", `/products/${f.id}`);
     expect(r.statusCode).toBe(204);
@@ -360,6 +369,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
     expect(lido.statusCode).toBe(404);
     const act = await activo("APAGA-2");
     const recusa = await pedir("DELETE", `/products/${act.id}`);
+    expect(recusa.statusCode).toBe(409);
     expect(recusa.json()).toMatchObject({ codigo: "catalog.not_draft" });
     expect((await pedir("GET", `/products/${act.id}`)).statusCode).toBe(200);
   });
@@ -374,6 +384,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
         { versao: 1, ...CLASSIFICACAO },
       ],
       ["POST", `/products/${id}/activate`, { versao: 1 }],
+      ["POST", `/products/${id}/archive`, { versao: 1 }],
+      ["POST", `/products/${id}/restore`, { versao: 1 }],
       ["DELETE", `/products/${id}`, undefined],
     ] as const) {
       const r = await pedir(metodo, url, corpo);
@@ -422,7 +434,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
     }>();
     expect(corpo.publicada).toBe(false);
     expect(corpo.verificacao.impedimentos.length).toBeGreaterThan(0);
-    expect(corpo.publicacao?.estado).not.toBe("publicado");
+    expect(corpo.publicacao?.estado).toBe("rascunho");
   });
 
   it("publica e retira: a chave fica como quem, e saem os eventos", async () => {
@@ -454,6 +466,23 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
         .executeTakeFirstOrThrow(),
     );
     expect(quem.publicado_por).toBe(`chave:key_${publicacaoId}`);
+    // A chave de outro comerciante não retira esta publicação: 404.
+    const deOutro = await pedir(
+      "POST",
+      `/publications/${corpo.publicacao.id}/archive`,
+      undefined,
+      { segredo: deBEscreve },
+    );
+    expect(deOutro.statusCode).toBe(404);
+    expect(deOutro.json()).toMatchObject({ codigo: "catalog.not_found" });
+    // Um corpo que a rota não leva recusa-se.
+    const comCorpo = await pedir(
+      "POST",
+      `/publications/${corpo.publicacao.id}/archive`,
+      { motivo: "x" },
+      { segredo: publicacao },
+    );
+    expect(comCorpo.statusCode).toBe(400);
 
     const ret = await pedir(
       "POST",
@@ -473,8 +502,10 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
       undefined,
       { segredo: publicacao },
     );
-    expect(outra.statusCode).toBeGreaterThanOrEqual(400);
-    expect(outra.statusCode).toBeLessThan(500);
+    expect(outra.statusCode).toBe(409);
+    expect(outra.json()).toMatchObject({
+      codigo: "catalog.invalid_transition",
+    });
     // Os eventos lê-os o publicador (o dono), não a API.
     const { rows: eventos } = await sql<{ tipo: string }>`
       select tipo from evento_saida
@@ -485,6 +516,225 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
       "product.published",
       "product.unpublished",
     ]);
+  });
+
+  it("pedir o estado em que o artigo já está devolve a ficha sem mudar a versão (§4.1)", async () => {
+    const f = await activo("MESMO-1");
+    const r = await pedir("POST", `/products/${f.id}/activate`, {
+      versao: f.versao,
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ estado: "activo", versao: f.versao });
+    // `restore` também leva a activo: no activo, nada muda.
+    const rep = await pedir("POST", `/products/${f.id}/restore`, {
+      versao: f.versao,
+    });
+    expect(rep.statusCode).toBe(200);
+    expect(rep.json()).toMatchObject({ estado: "activo", versao: f.versao });
+  });
+
+  it("uma versão antiga dá 409 catalog.version_conflict na classificação e nas mudanças de estado, antes da transição", async () => {
+    const f = await activo("VERSAO-1");
+    const velha = f.versao - 1;
+    for (const [url, corpo] of [
+      [`/products/${f.id}/classification`, { versao: velha, ...CLASSIFICACAO }],
+      [`/products/${f.id}/activate`, { versao: velha }],
+      [`/products/${f.id}/archive`, { versao: velha }],
+      // Estado errado e versão velha: ganha a versão.
+      [`/products/${f.id}/restore`, { versao: velha }],
+    ] as const) {
+      const r = await pedir(
+        url.endsWith("classification") ? "PUT" : "POST",
+        url,
+        corpo,
+      );
+      expect(r.statusCode, url).toBe(409);
+      expect(r.json(), url).toMatchObject({
+        codigo: "catalog.version_conflict",
+      });
+    }
+  });
+
+  it("repetir um DELETE ou um publicar com a mesma chave devolve a resposta guardada", async () => {
+    const f = await novo("REPETE-DEL");
+    const chave = randomUUID();
+    const r1 = await pedir("DELETE", `/products/${f.id}`, undefined, { chave });
+    const r2 = await pedir("DELETE", `/products/${f.id}`, undefined, { chave });
+    expect([r1.statusCode, r2.statusCode]).toEqual([204, 204]);
+    expect(r2.body).toBe("");
+    // Sem a chave guardada, o segundo seria 404 (já não existe).
+    expect((await pedir("DELETE", `/products/${f.id}`)).statusCode).toBe(404);
+
+    const p = await activo("REPETE-PUB");
+    const outra = randomUUID();
+    const corpo = { canal: `chn_${canal}`, mercado: `mkt_${mercado}` };
+    const url = `/products/${p.id}/publications`;
+    const p1 = await pedir("POST", url, corpo, {
+      segredo: publicacao,
+      chave: outra,
+    });
+    const p2 = await pedir("POST", url, corpo, {
+      segredo: publicacao,
+      chave: outra,
+    });
+    expect(p1.statusCode).toBe(200);
+    expect(p2.json()).toEqual(p1.json());
+  });
+
+  it("a escrita e a resposta guardada vão juntas: se a conclusão falha, o artigo não fica criado", async () => {
+    // Um gatilho de teste faz falhar a conclusão (o update da linha da
+    // idempotência) só para esta chave.
+    const chave = `falha-${randomUUID()}`;
+    await sql`
+      create function teste_falha_conclusao() returns trigger
+      language plpgsql as $$
+      begin
+        if new.chave like 'falha-%' then
+          raise exception 'teste: a conclusão falhou';
+        end if;
+        return new;
+      end $$`.execute(base.dono);
+    await sql`
+      create trigger teste_falha_conclusao before update on idempotencia
+      for each row execute function teste_falha_conclusao()`.execute(base.dono);
+    try {
+      const r = await pedir(
+        "POST",
+        "/products",
+        {
+          ...NOVO_ARTIGO,
+          variantes: [{ sku: "ATOMICO-1", unidade_de_venda: "unidade" }],
+        },
+        { chave },
+      );
+      expect(r.statusCode).toBe(500);
+    } finally {
+      await sql`drop trigger teste_falha_conclusao on idempotencia`.execute(
+        base.dono,
+      );
+      await sql`drop function teste_falha_conclusao()`.execute(base.dono);
+    }
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from variante where sku = 'ATOMICO-1'`.execute(
+      base.dono,
+    );
+    expect(rows[0]?.n).toBe(0);
+  });
+
+  it("um erro no COMMIT (restrição diferida) sai com o código do Catálogo, não 500", async () => {
+    await sql`
+      create function teste_diferido() returns trigger
+      language plpgsql as $$
+      begin
+        if new.nome = 'Diferido' then
+          raise exception 'catalog.invalid_transition: teste diferido';
+        end if;
+        return null;
+      end $$`.execute(base.dono);
+    await sql`
+      create constraint trigger teste_diferido after insert on artigo
+      deferrable initially deferred
+      for each row execute function teste_diferido()`.execute(base.dono);
+    try {
+      const r = await pedir("POST", "/products", {
+        ...NOVO_ARTIGO,
+        nome: "Diferido",
+        variantes: [{ sku: "DIFERIDO-1", unidade_de_venda: "unidade" }],
+      });
+      expect(r.statusCode).toBe(409);
+      expect(r.json()).toMatchObject({ codigo: "catalog.invalid_transition" });
+    } finally {
+      await sql`drop trigger teste_diferido on artigo`.execute(base.dono);
+      await sql`drop function teste_diferido()`.execute(base.dono);
+    }
+  });
+
+  it("com o artigo preso: a mesma chave dá idempotency.in_progress e a espera acaba em 503 catalog.retry", async () => {
+    const f = await activo("PRESO-1");
+    const id = f.id.slice("prd_".length);
+    const cliente = new pg.Client({ connectionString: base.urlApi });
+    cliente.on("error", () => undefined);
+    await cliente.connect();
+    try {
+      await cliente.query("begin");
+      await cliente.query(
+        "select set_config('eurolify.comerciante', $1, true)",
+        [a],
+      );
+      await cliente.query("select id from artigo where id = $1 for update", [
+        id,
+      ]);
+      const chave = randomUUID();
+      const url = `/products/${f.id}/archive`;
+      const primeiro = pedir("POST", url, { versao: f.versao }, { chave });
+      // Esperar até o primeiro estar à espera do lock.
+      let aEspera = false;
+      for (let i = 0; i < 100 && !aEspera; i++) {
+        const { rows } = await sql<{ n: number }>`
+          select count(*)::int as n from pg_stat_activity
+          where datname = current_database() and wait_event_type = 'Lock'`.execute(
+          base.dono,
+        );
+        aEspera = (rows[0]?.n ?? 0) > 0;
+        if (!aEspera) {
+          await new Promise((r) => {
+            setTimeout(r, 50);
+          });
+        }
+      }
+      expect(aEspera).toBe(true);
+      const segundo = await pedir("POST", url, { versao: f.versao }, { chave });
+      expect(segundo.statusCode).toBe(409);
+      expect(segundo.json()).toMatchObject({
+        codigo: "idempotency.in_progress",
+      });
+      const r = await primeiro;
+      expect(r.statusCode).toBe(503);
+      expect(r.json()).toMatchObject({ codigo: "catalog.retry" });
+      expect(r.headers["retry-after"]).toBe("1");
+    } finally {
+      await cliente.query("rollback").catch(() => undefined);
+      await cliente.end();
+    }
+    // Nada mudou, e a chave ficou livre.
+    expect((await pedir("GET", `/products/${f.id}`)).json<Ficha>().estado).toBe(
+      "activo",
+    );
+  }, 20_000);
+
+  it("o contrato segue a base: medida 0, categoria fiscal fora do formato e segundo 60 dão 400; criar dá Location", async () => {
+    const zero = await pedir("POST", "/products", {
+      ...NOVO_ARTIGO,
+      variantes: [{ sku: "ZERO-1", unidade_de_venda: "unidade", peso_g: 0 }],
+    });
+    expect(zero.statusCode).toBe(400);
+    // Recusado pelo esquema (o contrato diz o mínimo), não pela base.
+    expect(zero.json()).toMatchObject({ codigo: "request.invalid" });
+    const categoria = await pedir("POST", "/products", {
+      ...NOVO_ARTIGO,
+      categoria_fiscal: "Normal",
+    });
+    expect(categoria.statusCode).toBe(400);
+    expect(categoria.json()).toMatchObject({ codigo: "request.invalid" });
+    const f = await novo("LOCAL-1");
+    const criado = await pedir("POST", "/products", {
+      ...NOVO_ARTIGO,
+      variantes: [{ sku: "LOCAL-2", unidade_de_venda: "unidade" }],
+    });
+    expect(criado.headers["location"]).toBe(
+      `/products/${criado.json<Ficha>().id}`,
+    );
+    const r = await pedir("PUT", `/products/${f.id}/classification`, {
+      versao: f.versao,
+      ...CLASSIFICACAO,
+      prestacao_inicio: "2026-12-31T23:59:60Z",
+    });
+    expect(r.statusCode).toBe(400);
+    // Recusado antes da base, com o valor no detalhe.
+    expect(r.json()).toMatchObject({
+      codigo: "catalog.invalid_field",
+      detail: "data inválida: 2026-12-31T23:59:60Z",
+    });
   });
 
   it("dentro de uma transacção já aberta, o Catálogo só escreve para o comerciante dela", async () => {

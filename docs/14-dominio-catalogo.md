@@ -724,10 +724,28 @@ mesma chave com o mesmo pedido devolve a mesma resposta; com outro pedido,
 - com `catalog:publish`: `POST /products/{id}/publications` e
   `POST /publications/{id}/archive`.
 
-As alterações levam a `versao` lida (outra dá `catalog.version_conflict`) e
-devolvem a ficha. Quem escreve fica registado como a chave
+As alterações levam a `versao` lida (outra dá `catalog.version_conflict`,
+antes de qualquer outra recusa) e devolvem a ficha. Pedir o estado em que o
+artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1). O esquema
+de cada corpo diz o que a base aceita (medidas positivas, o formato da
+categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
+código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
+com `publicada: false`: quem chama lê `publicada`, nunca só o estado HTTP. Quem escreve fica registado como a chave
 (`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções, a
 composição, as traduções e o resto da tabela entram com as rotas seguintes.
+
+**Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas
+rotas, que só as expõem):
+
+- **Quem** fica registado na classificação e na publicação, mas não em
+  criar, alterar, activar, arquivar, repor e apagar: a C7 (rasto de quem,
+  quando, antes e depois) ainda não está cumprida nessas operações; entra
+  com a linha do tempo.
+- **A categoria fiscal** aceita qualquer código no formato: a lista é do
+  Motor de IVA (§2), que ainda não existe, e nada confirma que o código
+  existe lá (**C**, não verifiquei). Fim proposto: quando o Motor de IVA
+  existir, ou antes de haver produção (ADR-0027), o que vier primeiro —
+  como a rede da C2 (`docs/06`, CF). A confirmar pelo Diogo ou pelo Bruno.
 
 Os nomes dos campos nas respostas são os do modelo (§3), em português, e os
 identificadores levam o prefixo (`prd_`, `var_`, `pub_`, `chn_`, `mkt_`).
