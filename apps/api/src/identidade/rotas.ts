@@ -66,7 +66,7 @@ export const RespostaChaveCriada = Type.Object({
   }),
 });
 
-const CabecalhoIdempotencia = Type.Object({
+export const CabecalhoIdempotencia = Type.Object({
   "idempotency-key": Type.Optional(
     Type.String({
       description:
@@ -126,13 +126,15 @@ export function paraResposta(c: ChaveListada) {
 }
 
 /** O caminho sem a consulta, para a idempotência. */
-const caminhoDe = (url: string) => url.split("?")[0] ?? url;
+export const caminhoDe = (url: string) => url.split("?")[0] ?? url;
 
 /**
  * O cabeçalho Idempotency-Key. Repetido no pedido, o Node junta-o com «, »,
  * e o formato (sem espaços) recusa-o.
  */
-function chaveDeIdempotencia(pedido: FastifyRequest): string | undefined {
+export function chaveDeIdempotencia(
+  pedido: FastifyRequest,
+): string | undefined {
   const valor = pedido.headers["idempotency-key"];
   return Array.isArray(valor) ? valor.join(", ") : valor;
 }

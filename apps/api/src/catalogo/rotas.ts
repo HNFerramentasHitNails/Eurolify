@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
@@ -12,18 +12,39 @@ import {
   MOTIVOS_ARQUIVO_PUBLICACAO,
   NATUREZAS_CONSUMIDOR,
   TIPOS_ARTIGO,
+  ORIGENS_GTIN,
+  UNIDADES_DE_CONTEUDO,
   UNIDADES_DE_VENDA,
   type BaseDados,
 } from "../base/esquema.js";
+import {
+  comIdempotencia,
+  type PedidoIdempotente,
+} from "../base/idempotencia.js";
 import { chaveDo } from "../identidade/autenticacao.js";
+import type { ContextoChave } from "../identidade/repositorio.js";
+import {
+  CabecalhoIdempotencia,
+  caminhoDe,
+  chaveDeIdempotencia,
+} from "../identidade/rotas.js";
 import { fichaDoArtigo, listarArtigos } from "./consultas.js";
 import { ErroCatalogo } from "./erros.js";
 import {
   NAO_VERIFICADO,
   publicacoesDoArtigo,
+  publicar,
+  retirarPublicacao,
   verificarPublicacao,
   type Publicacao,
 } from "./publicacao.js";
+import {
+  alterarArtigo,
+  apagarRascunho,
+  classificarArtigo,
+  criarArtigo,
+  mudarEstadoArtigo,
+} from "./repositorio.js";
 
 // API de Administração do Catálogo, parte 1: as consultas (docs/14 §7.1;
 // pedido do Diogo, 07/10/2026: «sim, avança com as consultas da API do
@@ -323,6 +344,108 @@ const PedidoVerificar = Type.Object(
   { additionalProperties: false },
 );
 
+// ---------------------------------------------- Os esquemas das escritas
+
+const Texto = (max: number) =>
+  Type.String({ minLength: 1, maxLength: max, pattern: "\\S" });
+const TextoOuNulo = (max: number) =>
+  Type.Union([Type.String({ maxLength: max }), Type.Null()]);
+const Inteiro = Type.Union([
+  Type.Integer({ minimum: 0, maximum: 2147483647 }),
+  Type.Null(),
+]);
+
+const NovaVariante = Type.Object(
+  {
+    sku: Texto(64),
+    unidade_de_venda: UnidadeDeVenda,
+    gtin: Type.Optional(TextoOuNulo(14)),
+    gtin_origem: Type.Optional(Type.Union([umDe(ORIGENS_GTIN), Type.Null()])),
+    conteudo_quantidade: Type.Optional(Inteiro),
+    conteudo_unidade: Type.Optional(
+      Type.Union([umDe(UNIDADES_DE_CONTEUDO), Type.Null()]),
+    ),
+    peso_g: Type.Optional(Inteiro),
+    comprimento_mm: Type.Optional(Inteiro),
+    largura_mm: Type.Optional(Inteiro),
+    altura_mm: Type.Optional(Inteiro),
+    onu: Type.Optional(
+      Type.Union([Type.String({ pattern: "^UN[0-9]{4}$" }), Type.Null()]),
+    ),
+    classe_adr: Type.Optional(TextoOuNulo(16)),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoCriarArtigo = Type.Object(
+  {
+    tipo: TipoArtigo,
+    nome: Texto(200),
+    descricao: Type.Optional(TextoOuNulo(10000)),
+    marca: Type.Optional(TextoOuNulo(200)),
+    categoria_fiscal: Type.Optional(TextoOuNulo(64)),
+    variantes: Type.Array(NovaVariante, { minItems: 1, maxItems: 100 }),
+  },
+  { additionalProperties: false },
+);
+
+const ComVersao = { versao: Type.Integer({ minimum: 1 }) };
+
+const PedidoAlterarArtigo = Type.Object(
+  {
+    ...ComVersao,
+    nome: Type.Optional(Texto(200)),
+    descricao: Type.Optional(TextoOuNulo(10000)),
+    marca: Type.Optional(TextoOuNulo(200)),
+    categoria_fiscal: Type.Optional(TextoOuNulo(64)),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoClassificar = Type.Object(
+  {
+    ...ComVersao,
+    familias: Type.Array(Familia, { maxItems: 20 }),
+    natureza_consumidor: Type.Union([Natureza, Type.Null()]),
+    modo: Type.Optional(Type.Union([Modo, Type.Null()])),
+    prestacao_inicio: Type.Optional(Type.Union([Instante, Type.Null()])),
+    prestacao_fim: Type.Optional(Type.Union([Instante, Type.Null()])),
+    local_pais: Type.Optional(
+      Type.Union([Type.String({ pattern: "^[A-Z]{2}$" }), Type.Null()]),
+    ),
+    local_territorio: Type.Optional(TextoOuNulo(64)),
+    lazer_com_data: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoVersao = Type.Object(ComVersao, { additionalProperties: false });
+
+const PedidoPublicar = Type.Object(
+  {
+    canal: idCom("chn", "chn_…"),
+    mercado: idCom("mkt", "mkt_…"),
+    variantes_fora: Type.Optional(
+      Type.Array(idCom("var", "var_…"), { maxItems: 500 }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const ParametroPublicacao = Type.Object({ id: idCom("pub", "pub_…") });
+
+const RespostaPublicar = Type.Object({
+  publicada: Type.Boolean({
+    description:
+      "Falso com impedimentos: nada muda além da verificação guardada (docs/14 §4.2)",
+  }),
+  verificacao: Verificacao,
+  publicacao: Type.Union([PublicacaoEsquema, Type.Null()], {
+    description:
+      "Nula quando o canal não vende no mercado ou o artigo está em rascunho: não há onde a publicação exista",
+  }),
+});
+
 // -------------------------------------------------------- As conversões
 
 type FichaDoArtigo = Awaited<ReturnType<typeof fichaDoArtigo>>;
@@ -423,6 +546,68 @@ function idDoCursor(cursor: string): string {
     throw erroBase("request.invalid", "`cursor` não é um cursor desta lista");
   }
   return id;
+}
+
+// --------------------------------------------------- A escrita idempotente
+
+/** Quem escreve: a chave (`chave:key_…`, o formato das migrações 0012, 0014, 0015 e 0025). */
+const quemDa = (chave: ContextoChave) => `chave:key_${chave.chaveId}`;
+
+/**
+ * Corre uma escrita do Catálogo com a Idempotency-Key (docs/18 §4): a
+ * escrita e a resposta guardada vão na mesma transacção (`noCatalogo` corre
+ * na transacção da idempotência). Repetir o pedido com a mesma chave devolve
+ * a mesma resposta sem escrever outra vez.
+ */
+async function escrever(
+  base: Kysely<BaseDados>,
+  pedido: FastifyRequest,
+  resposta: FastifyReply,
+  status: number,
+  fn: (trx: Kysely<BaseDados>, chave: ContextoChave) => Promise<unknown>,
+) {
+  const chave = chaveDo(pedido);
+  const idempotente: PedidoIdempotente = {
+    chave: chaveDeIdempotencia(pedido),
+    metodo: pedido.method as PedidoIdempotente["metodo"],
+    caminho: caminhoDe(pedido.url),
+    corpo: pedido.body ?? null,
+  };
+  const resultado = await noCatalogoApi(resposta, () =>
+    comIdempotencia(
+      base,
+      chave.comercianteId,
+      idempotente,
+      async (trx) => {
+        const corpo = await fn(trx, chave);
+        return { status, corpo, guardar: corpo };
+      },
+      {
+        aoFalharLimpeza: (erro) => {
+          pedido.log.error(
+            { err: erro },
+            "idempotência: linha em curso por apagar",
+          );
+        },
+      },
+    ),
+  );
+  if (resultado.status === 204) return resposta.code(204).send();
+  return resposta.code(resultado.status).send(resultado.corpo);
+}
+
+/** A ficha do artigo como a API a devolve, lida na transacção dada. */
+async function fichaNa(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+) {
+  const { artigo, variantes } = await fichaDoArtigo(
+    trx,
+    comercianteId,
+    artigoId,
+  );
+  return { ...paraArtigo(artigo), variantes: variantes.map(paraVariante) };
 }
 
 // ------------------------------------------------------------ As rotas
@@ -541,5 +726,239 @@ export function rotasDoCatalogo(
       );
       return verificacao;
     },
+  );
+
+  // ---------------------------------------------------------- Escritas
+  // Parte 2 (pedido do Diogo, 07/10/2026: «sim, avança com as escritas da
+  // API do Catálogo»). Todas pedem a Idempotency-Key; quem escreve é a chave.
+
+  rotas.post(
+    "/products",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Cria um artigo em rascunho, com as variantes (pelo menos uma; SKU único por comerciante, C3). Devolve a ficha.",
+        headers: CabecalhoIdempotencia,
+        body: PedidoCriarArtigo,
+        response: { 201: Artigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 201, async (trx, chave) => {
+        const { variantes, ...dados } = pedido.body;
+        const id = await criarArtigo(
+          trx,
+          chave.comercianteId,
+          dados,
+          variantes,
+        );
+        return fichaNa(trx, chave.comercianteId, id);
+      }),
+  );
+
+  rotas.patch(
+    "/products/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Altera o nome, a descrição, a marca ou a categoria fiscal, na `versao` lida (outra dá catalog.version_conflict). Um nome novo volta a verificar as publicações (docs/14 §4.2).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoAlterarArtigo,
+        response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        const { versao, ...alteracao } = pedido.body;
+        await alterarArtigo(trx, chave.comercianteId, id, versao, alteracao);
+        return fichaNa(trx, chave.comercianteId, id);
+      }),
+  );
+
+  rotas.put(
+    "/products/:id/classification",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Classifica o artigo (docs/14 §3.10), na `versao` lida: substitui a classificação toda. Uma que deixa de servir tira as publicações de venda (docs/06, CJ).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoClassificar,
+        response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        const { versao, prestacao_inicio, prestacao_fim, ...resto } =
+          pedido.body;
+        const data = (v: string | null | undefined) =>
+          v === undefined ? undefined : v === null ? null : new Date(v);
+        await classificarArtigo(
+          trx,
+          chave.comercianteId,
+          id,
+          versao,
+          {
+            ...resto,
+            ...(prestacao_inicio === undefined
+              ? {}
+              : { prestacao_inicio: data(prestacao_inicio) ?? null }),
+            ...(prestacao_fim === undefined
+              ? {}
+              : { prestacao_fim: data(prestacao_fim) ?? null }),
+          },
+          quemDa(chave),
+        );
+        return fichaNa(trx, chave.comercianteId, id);
+      }),
+  );
+
+  // `activate` e `restore` levam ambos a `activo`; cada um só parte do seu
+  // estado (um rascunho não se «repõe», um arquivado não se «activa»).
+  for (const [caminho, de, estado, descricao] of [
+    [
+      "activate",
+      "rascunho",
+      "activo",
+      "Activa um artigo em rascunho (C3: SKU e unidade em todas as variantes activas).",
+    ],
+    [
+      "archive",
+      "activo",
+      "arquivado",
+      "Arquiva um artigo activo; as publicações publicadas arquivam-se com ele.",
+    ],
+    [
+      "restore",
+      "arquivado",
+      "activo",
+      "Repõe um artigo arquivado como activo, sem o voltar a publicar.",
+    ],
+  ] as const) {
+    rotas.post(
+      `/products/:id/${caminho}`,
+      {
+        config: { ambito: "catalog:write" },
+        schema: {
+          description: `${descricao} Na \`versao\` lida.`,
+          headers: CabecalhoIdempotencia,
+          params: ParametroArtigo,
+          body: PedidoVersao,
+          response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
+        },
+      },
+      (pedido, resposta) =>
+        escrever(base, pedido, resposta, 200, async (trx, chave) => {
+          const id = semPrefixo(pedido.params.id);
+          const actual = await trx
+            .selectFrom("artigo")
+            .select("estado")
+            .where("id", "=", id)
+            .forUpdate()
+            .executeTakeFirst();
+          if (actual === undefined) {
+            throw new ErroCatalogo("catalog.not_found", `artigo ${id}`);
+          }
+          if (actual.estado !== de) {
+            throw new ErroCatalogo(
+              "catalog.invalid_transition",
+              `${caminho}: o artigo está em ${actual.estado}, não em ${de}`,
+            );
+          }
+          await mudarEstadoArtigo(
+            trx,
+            chave.comercianteId,
+            id,
+            pedido.body.versao,
+            estado,
+          );
+          return fichaNa(trx, chave.comercianteId, id);
+        }),
+    );
+  }
+
+  rotas.delete(
+    "/products/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Apaga um artigo em rascunho que nunca esteve activo (com as variantes); outro dá catalog.not_draft.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 204, async (trx, chave) => {
+        await apagarRascunho(
+          trx,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+        );
+        return null;
+      }),
+  );
+
+  rotas.post(
+    "/products/:id/publications",
+    {
+      config: { ambito: "catalog:publish" },
+      schema: {
+        description:
+          "Publica o artigo num canal × mercado: corre a verificação (C2) e, sem impedimentos, põe-no à venda. Com impedimentos devolve `publicada: false` e a lista, e nada mais muda (docs/14 §4.2).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoPublicar,
+        response: { 200: RespostaPublicar, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const corpo = pedido.body;
+        const r = await publicar(trx, chave.comercianteId, quemDa(chave), {
+          artigo_id: semPrefixo(pedido.params.id),
+          canal_id: semPrefixo(corpo.canal),
+          mercado_id: semPrefixo(corpo.mercado),
+          variantes_fora: (corpo.variantes_fora ?? []).map(semPrefixo),
+        });
+        return {
+          publicada: r.publicada,
+          verificacao: r.verificacao,
+          publicacao:
+            r.publicacao === null ? null : paraPublicacao(r.publicacao),
+        };
+      }),
+  );
+
+  rotas.post(
+    "/publications/:id/archive",
+    {
+      config: { ambito: "catalog:publish" },
+      schema: {
+        description:
+          "Retira uma publicação de venda (publicado → arquivado, motivo `retirada`). Só se retira o que está publicado.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroPublicacao,
+        response: { 200: PublicacaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) =>
+        paraPublicacao(
+          await retirarPublicacao(
+            trx,
+            chave.comercianteId,
+            quemDa(chave),
+            semPrefixo(pedido.params.id),
+          ),
+        ),
+      ),
   );
 }

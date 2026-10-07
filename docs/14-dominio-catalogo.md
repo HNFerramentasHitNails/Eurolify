@@ -710,6 +710,25 @@ servidor com `catalog:read`:
 - `GET /products/{id}/publications`;
 - `POST /products/{id}/publications/check`.
 
+**As escritas em código** (07/10/2026; pedido do Diogo: «sim, avança com as
+escritas da API do Catálogo»), todas com o cabeçalho `Idempotency-Key`
+(`docs/18` §4: a escrita e a resposta guardada vão na mesma transacção; a
+mesma chave com o mesmo pedido devolve a mesma resposta; com outro pedido,
+`idempotency.key_reused`; uma escrita que falha não gasta a chave):
+
+- com `catalog:write`: `POST /products` (rascunho, com pelo menos uma
+  variante), `PATCH /products/{id}`, `PUT /products/{id}/classification`,
+  `POST /products/{id}/activate`, `/archive` e `/restore` (cada um só a
+  partir do seu estado: rascunho, activo e arquivado; outro dá
+  `catalog.invalid_transition`) e `DELETE /products/{id}`;
+- com `catalog:publish`: `POST /products/{id}/publications` e
+  `POST /publications/{id}/archive`.
+
+As alterações levam a `versao` lida (outra dá `catalog.version_conflict`) e
+devolvem a ficha. Quem escreve fica registado como a chave
+(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções, a
+composição, as traduções e o resto da tabela entram com as rotas seguintes.
+
 Os nomes dos campos nas respostas são os do modelo (§3), em português, e os
 identificadores levam o prefixo (`prd_`, `var_`, `pub_`, `chn_`, `mkt_`).
 **Quem fez a mudança não sai** (`publicado_por`, `arquivado_por`,
@@ -739,6 +758,7 @@ actualizado desde) e o `expand` entram com as rotas seguintes.
 | Activar | `POST /products/{id}/activate` | write | exige C3 |
 | Arquivar | `POST /products/{id}/archive` | write | arquiva as publicações |
 | Repor | `POST /products/{id}/restore` | write | volta a activo, sem republicar |
+| Classificar | `PUT /products/{id}/classification` | write | com a `versao`; substitui a classificação toda (§3.10); a que deixa de servir tira as publicações de venda (§8) |
 | Apagar rascunho | `DELETE /products/{id}` | write | só rascunho que nunca foi activo |
 | Linha do tempo | `GET /products/{id}/timeline` | read | |
 | Variantes | `GET /products/{id}/variants`, `POST /products/{id}/variants`, `PATCH /variants/{id}` | read / write | SKU único (C3) |

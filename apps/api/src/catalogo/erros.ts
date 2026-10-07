@@ -271,6 +271,11 @@ export const ESPERA_MAXIMA = "5s";
 /**
  * Corre `fn` no contexto do comerciante e traduz os erros do Catálogo.
  * Exportada só para os outros ficheiros do domínio (categorias.ts).
+ *
+ * Com uma transacção já aberta (a da idempotência de uma escrita da API,
+ * docs/18 §4), corre nela, para a escrita e a resposta guardada irem juntas;
+ * só a aceita se for do mesmo comerciante (o `eurolify.comerciante` dela).
+ * Aí o `soLeitura` não se aplica: a transacção é de quem a abriu.
  */
 export async function noCatalogo<T>(
   db: Kysely<BaseDados>,
@@ -278,6 +283,26 @@ export async function noCatalogo<T>(
   fn: (trx: Transaction<BaseDados>) => Promise<T>,
   opcoes: OpcoesDeTraducao = {},
 ): Promise<T> {
+  if (db.isTransaction) {
+    const trx = db as Transaction<BaseDados>;
+    try {
+      const { rows } = await sql<{ comerciante: string | null }>`
+        select current_setting('eurolify.comerciante', true) as comerciante`.execute(
+        trx,
+      );
+      if (rows[0]?.comerciante !== comercianteId) {
+        throw new Error(
+          "noCatalogo: a transacção aberta é de outro comerciante (ou de nenhum)",
+        );
+      }
+      await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+        trx,
+      );
+      return await fn(trx);
+    } catch (erro) {
+      throw traduzir(erro, opcoes);
+    }
+  }
   try {
     return await comComerciante(
       db,
