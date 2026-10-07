@@ -755,6 +755,26 @@ outro. **Falta**
 variante não tem `versao` para a escrita concorrente; desenha-se antes do
 código.
 
+**As opções e a composição dos kits em código** (07/10/2026; pedido do
+Diogo: «sim, avança com as opções e os kits»):
+
+- com `catalog:read`: `GET /products/{id}/options` (pela posição, cada
+  opção com os valores todos) e `GET /variants/{id}/components` (pela
+  ordem; vazia se a variante não é kit), ambas no formato das listas do
+  `docs/18` §2a, e `GET /options/{id}`;
+- com `catalog:write`, com a `Idempotency-Key`: `POST /products/{id}/options`
+  (com os valores, pelo menos um e sem repetidos; só num rascunho, outro dá
+  `catalog.not_draft`), `POST /options/{id}/values` (um valor no fim, em
+  qualquer estado do artigo) e `PUT /variants/{id}/components` (substitui a
+  composição inteira, no máximo 100, pela ordem; a base recusa ciclos,
+  componentes novos arquivados e mexer num kit arquivado).
+
+Um artigo, uma opção ou uma variante que não existe (ou de outro
+comerciante) dá `catalog.not_found`, também quando é um componente no
+corpo. **Falta**, por não haver ainda função: mudar o nome de uma opção ou
+o texto de um valor, apagar uma opção e mudar a ordem; desenham-se antes do
+código.
+
 As alterações levam a `versao` lida (outra dá `catalog.version_conflict`,
 antes de qualquer outra recusa) e devolvem a ficha. Pedir o estado em que o
 artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1), mas só
@@ -765,8 +785,8 @@ de cada corpo diz o que a base aceita (medidas positivas, o formato da
 categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
 código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
 com `publicada: false`: quem chama lê `publicada`, nunca só o estado HTTP. Quem escreve fica registado como a chave
-(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes entraram a
-seguir (abaixo); as opções, a composição, as traduções e o resto da tabela
+(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções e
+a composição entraram a seguir (abaixo); as traduções e o resto da tabela
 entram com as rotas seguintes.
 
 **Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas

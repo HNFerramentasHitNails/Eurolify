@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely, Transaction } from "kysely";
-import { Type } from "typebox";
+import { Type, type TSchema } from "typebox";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
   ESTADOS_ARTIGO,
@@ -29,11 +29,15 @@ import {
   chaveDeIdempotencia,
 } from "../identidade/rotas.js";
 import {
+  composicaoDoKit,
+  fichaDaOpcao,
   fichaDaVariante,
   fichaDoArtigo,
   listarArtigos,
+  opcoesDoArtigoPaginadas,
   procurarVariantes,
   variantesDoArtigo,
+  type PosicaoEId,
   type PosicaoNaLista,
 } from "./consultas.js";
 import { ErroCatalogo, traduzir } from "./erros.js";
@@ -48,17 +52,20 @@ import {
 import {
   alterarArtigo,
   apagarRascunho,
+  acrescentarValor,
   arquivarVariante,
   classificarArtigo,
   criarArtigo,
+  criarOpcao,
   criarVarianteComValores,
+  definirComponentes,
   mudarEstadoArtigo,
 } from "./repositorio.js";
 
 // API de Administração do Catálogo (docs/14 §7.1), por partes, todas pedidas
 // pelo Diogo a 07/10/2026: 1, as consultas (#150); 2, as escritas dos
 // artigos e das publicações, com a Idempotency-Key (docs/18 §4; #153); 3, as
-// variantes (#159). Cada rota pede o seu âmbito (`catalog:read`,
+// variantes (#159); 4, as opções e a composição dos kits. Cada rota pede o seu âmbito (`catalog:read`,
 // `catalog:write` ou `catalog:publish`).
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -271,6 +278,39 @@ const RespostaVariantes = Type.Object({
   cursor_seguinte: Type.Union([Type.String(), Type.Null()], {
     description: "Para pedir a página seguinte (`cursor`); nulo na última",
   }),
+});
+
+/** O formato das listas (docs/18 §2a), com os itens dados. */
+const Lista = <T extends TSchema>(item: T) =>
+  Type.Object({
+    dados: Type.Array(item),
+    total: Type.Integer({
+      minimum: 0,
+      description: "Quantos há ao todo, não só nesta página",
+    }),
+    ha_mais: Type.Boolean(),
+    cursor_seguinte: Type.Union([Type.String(), Type.Null()], {
+      description: "Para pedir a página seguinte (`cursor`); nulo na última",
+    }),
+  });
+
+const OpcaoEsquema = Type.Object({
+  id: Type.String({ description: "opt_…" }),
+  artigo: Type.String({ description: "prd_…" }),
+  nome: Type.String(),
+  posicao: Type.Integer(),
+  valores: Type.Array(
+    Type.Object({
+      id: Type.String({ description: "ovl_…" }),
+      valor: Type.String(),
+    }),
+    { description: "Pela ordem (posição)" },
+  ),
+});
+
+const ComponenteEsquema = Type.Object({
+  variante: Type.String({ description: "var_… (o componente)" }),
+  quantidade: Type.Integer({ minimum: 1 }),
 });
 
 const RespostaArtigos = Type.Object({
@@ -504,6 +544,64 @@ const ConsultaVariantes = Type.Object(
   { additionalProperties: false },
 );
 
+const ConsultaPagina = Type.Object(
+  {
+    limite: Type.Optional(
+      Type.String({
+        pattern: "^[1-9][0-9]?$|^100$",
+        description: "1 a 100; por omissão, 25",
+      }),
+    ),
+    cursor: Type.Optional(
+      Type.String({
+        pattern: "^[A-Za-z0-9_-]{1,200}$",
+        description: "O `cursor_seguinte` da página anterior",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoCriarOpcao = Type.Object(
+  {
+    nome: Texto(100),
+    valores: Type.Array(Texto(100), {
+      minItems: 1,
+      maxItems: 100,
+      uniqueItems: true,
+      description: "Pelo menos um valor, pela ordem (§3.3)",
+    }),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoAcrescentarValor = Type.Object(
+  { valor: Texto(100) },
+  { additionalProperties: false },
+);
+
+const ParametroOpcao = Type.Object({ id: idCom("opt", "opt_…") });
+
+const PedidoComposicao = Type.Object(
+  {
+    componentes: Type.Array(
+      Type.Object(
+        {
+          variante: idCom("var", "var_…"),
+          quantidade: Type.Integer({ minimum: 1, maximum: 2147483647 }),
+        },
+        { additionalProperties: false },
+      ),
+      {
+        maxItems: 100,
+        description:
+          "A composição inteira, pela ordem; vazia, a variante deixa de ser kit",
+      },
+    ),
+  },
+  { additionalProperties: false },
+);
+
 const ComVersao = { versao: Type.Integer({ minimum: 1 }) };
 
 const PedidoAlterarArtigo = Type.Object(
@@ -694,6 +792,56 @@ function posicaoDoCursor(cursor: string): PosicaoNaLista {
   }
   throw erroBase("request.invalid", "`cursor` não é um cursor desta lista");
 }
+
+/** O cursor das listas por (posição, id): em JSON e base64url, opaco. */
+const cursorPosicaoEId = (p: PosicaoEId) =>
+  Buffer.from(JSON.stringify([p.posicao, p.id]), "utf8").toString("base64url");
+function posicaoEIdDoCursor(cursor: string): PosicaoEId {
+  let valor: unknown;
+  try {
+    valor = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+  } catch {
+    valor = null;
+  }
+  if (
+    Array.isArray(valor) &&
+    valor.length === 2 &&
+    Number.isInteger(valor[0]) &&
+    (valor[0] as number) >= 0 &&
+    (valor[0] as number) <= 2147483647 &&
+    typeof valor[1] === "string" &&
+    new RegExp(`^${UUID}$`).test(valor[1])
+  ) {
+    return { posicao: valor[0] as number, id: valor[1] };
+  }
+  throw erroBase("request.invalid", "`cursor` não é um cursor desta lista");
+}
+
+const paginaDe = (q: { limite?: string; cursor?: string }) => ({
+  limite: q.limite === undefined ? 25 : Number(q.limite),
+  depois: q.cursor === undefined ? null : posicaoEIdDoCursor(q.cursor),
+});
+
+function paraOpcao(o: {
+  id: string;
+  artigo_id: string;
+  nome: string;
+  posicao: number;
+  valores: { id: string; valor: string }[];
+}) {
+  return {
+    id: `opt_${o.id}`,
+    artigo: `prd_${o.artigo_id}`,
+    nome: o.nome,
+    posicao: o.posicao,
+    valores: o.valores.map((v) => ({ id: `ovl_${v.id}`, valor: v.valor })),
+  };
+}
+
+const paraComponente = (c: { componente_id: string; quantidade: number }) => ({
+  variante: `var_${c.componente_id}`,
+  quantidade: c.quantidade,
+});
 
 /**
  * O GTIN e a origem dele vêm juntos (C4; 0002): recusa-se no contrato, com
@@ -1332,6 +1480,207 @@ export function rotasDoCatalogo(
             semPrefixo(pedido.params.id),
           ),
         );
+      }),
+  );
+
+  // ------------------------------------------- Opções e composição dos kits
+  // Parte 4 (pedido do Diogo, 07/10/2026: «sim, avança com as opções e os
+  // kits»; docs/14 §3.3, §3.4 e §7.1).
+
+  rotas.get(
+    "/products/:id/options",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "As opções do artigo (ex.: Cor, Tamanho), pela ordem, cada uma com os valores todos, no formato das listas (docs/18 §2a).",
+        params: ParametroArtigo,
+        querystring: ConsultaPagina,
+        response: { 200: Lista(OpcaoEsquema), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const { limite, depois } = paginaDe(pedido.query);
+      const pagina = await noCatalogoApi(resposta, () =>
+        opcoesDoArtigoPaginadas(
+          base,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+          limite,
+          depois,
+        ),
+      );
+      return {
+        dados: pagina.dados.map(paraOpcao),
+        total: pagina.total,
+        ha_mais: pagina.ultima !== null,
+        cursor_seguinte:
+          pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
+      };
+    },
+  );
+
+  rotas.get(
+    "/options/:id",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description: "Uma opção, com o artigo e os valores todos.",
+        params: ParametroOpcao,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      return paraOpcao(
+        await noCatalogoApi(resposta, () =>
+          fichaDaOpcao(base, chave.comercianteId, semPrefixo(pedido.params.id)),
+        ),
+      );
+    },
+  );
+
+  rotas.post(
+    "/products/:id/options",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Cria uma opção do artigo com os valores, pela ordem (§3.3). Só num artigo em rascunho; outro dá catalog.not_draft. O nome não se repete no artigo, nem um valor na opção.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoCriarOpcao,
+        response: { 201: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        async (trx, chave) => {
+          const opcao = await criarOpcao(
+            trx,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body.nome,
+            pedido.body.valores,
+          );
+          return paraOpcao(
+            await fichaDaOpcao(trx, chave.comercianteId, opcao.id),
+          );
+        },
+        (corpo) => `/options/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  rotas.post(
+    "/options/:id/values",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Acrescenta um valor à opção, no fim, em qualquer estado do artigo (§3.3). Devolve a opção com os valores todos.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroOpcao,
+        body: PedidoAcrescentarValor,
+        response: { 201: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        async (trx, chave) => {
+          const id = semPrefixo(pedido.params.id);
+          await acrescentarValor(
+            trx,
+            chave.comercianteId,
+            id,
+            pedido.body.valor,
+          );
+          return paraOpcao(await fichaDaOpcao(trx, chave.comercianteId, id));
+        },
+        (corpo) => `/options/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  rotas.get(
+    "/variants/:id/components",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "A composição do kit (§3.4), pela ordem, no formato das listas (docs/18 §2a). Vazia se a variante não é kit.",
+        params: ParametroVariante,
+        querystring: ConsultaPagina,
+        response: { 200: Lista(ComponenteEsquema), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const { limite, depois } = paginaDe(pedido.query);
+      const pagina = await noCatalogoApi(resposta, () =>
+        composicaoDoKit(
+          base,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+          limite,
+          depois,
+        ),
+      );
+      return {
+        dados: pagina.dados.map(paraComponente),
+        total: pagina.total,
+        ha_mais: pagina.ultima !== null,
+        cursor_seguinte:
+          pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
+      };
+    },
+  );
+
+  rotas.put(
+    "/variants/:id/components",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Substitui a composição do kit pela lista dada, pela ordem (§3.4); vazia, deixa de ser kit. A base recusa ciclos (catalog.component_cycle), componentes novos arquivados e mexer num kit arquivado. Devolve a composição inteira (no máximo 100).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroVariante,
+        body: PedidoComposicao,
+        response: { 200: Lista(ComponenteEsquema), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        await definirComponentes(
+          trx,
+          chave.comercianteId,
+          id,
+          pedido.body.componentes.map((c) => ({
+            varianteId: semPrefixo(c.variante),
+            quantidade: c.quantidade,
+          })),
+        );
+        const pagina = await composicaoDoKit(
+          trx,
+          chave.comercianteId,
+          id,
+          100,
+          null,
+        );
+        return {
+          dados: pagina.dados.map(paraComponente),
+          total: pagina.total,
+          ha_mais: false,
+          cursor_seguinte: null,
+        };
       }),
   );
 }

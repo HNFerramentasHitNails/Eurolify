@@ -292,3 +292,182 @@ export async function procurarVariantes(
     { soLeitura: true },
   );
 }
+
+/** Onde a página anterior acabou, numa lista ordenada por (posição, id). */
+export interface PosicaoEId {
+  posicao: number;
+  id: string;
+}
+
+/** Os valores das opções dadas, pela posição (e id), agrupados por opção. */
+async function valoresDasOpcoes(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  opcaoIds: readonly string[],
+): Promise<Map<string, { id: string; valor: string }[]>> {
+  const mapa = new Map<string, { id: string; valor: string }[]>(
+    opcaoIds.map((id) => [id, []]),
+  );
+  if (opcaoIds.length === 0) return mapa;
+  const linhas = await trx
+    .selectFrom("valor_opcao")
+    .select(["id", "opcao_id", "valor"])
+    .where("comerciante_id", "=", comercianteId)
+    .where("opcao_id", "in", opcaoIds)
+    .orderBy("posicao")
+    .orderBy("id")
+    .execute();
+  for (const l of linhas) {
+    mapa.get(l.opcao_id)?.push({ id: l.id, valor: l.valor });
+  }
+  return mapa;
+}
+
+/**
+ * Uma página das opções do artigo, por posição e id, cada uma com os valores
+ * todos (docs/18 §2a). Artigo inexistente (ou de outro comerciante) é
+ * `catalog.not_found`.
+ */
+export async function opcoesDoArtigoPaginadas(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+  limite: number,
+  depois: PosicaoEId | null,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const artigo = await trx
+        .selectFrom("artigo")
+        .select("id")
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", artigoId)
+        .executeTakeFirst();
+      if (artigo === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+      }
+      const doArtigo = trx
+        .selectFrom("opcao")
+        .where("comerciante_id", "=", comercianteId)
+        .where("artigo_id", "=", artigoId);
+      const { total } = await doArtigo
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow();
+      let pagina = doArtigo.select(["id", "nome", "posicao", "artigo_id"]);
+      if (depois !== null) {
+        pagina = pagina.where(
+          sql<boolean>`(posicao, id) > (${depois.posicao}::int, ${depois.id}::uuid)`,
+        );
+      }
+      const linhas = await pagina
+        .orderBy("posicao")
+        .orderBy("id")
+        .limit(limite + 1)
+        .execute();
+      const haMais = linhas.length > limite;
+      const opcoes = haMais ? linhas.slice(0, limite) : linhas;
+      const ultima = haMais ? opcoes.at(-1) : undefined;
+      const valores = await valoresDasOpcoes(
+        trx,
+        comercianteId,
+        opcoes.map((o) => o.id),
+      );
+      return {
+        dados: opcoes.map((o) => ({ ...o, valores: valores.get(o.id) ?? [] })),
+        total: Number(total),
+        ultima:
+          ultima === undefined
+            ? null
+            : { posicao: ultima.posicao, id: ultima.id },
+      };
+    },
+    { soLeitura: true },
+  );
+}
+
+/** Uma opção, com o artigo e os valores todos. */
+export async function fichaDaOpcao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  opcaoId: string,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const opcao = await trx
+        .selectFrom("opcao")
+        .select(["id", "nome", "posicao", "artigo_id"])
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", opcaoId)
+        .executeTakeFirst();
+      if (opcao === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `opção ${opcaoId}`);
+      }
+      const valores = await valoresDasOpcoes(trx, comercianteId, [opcao.id]);
+      return { ...opcao, valores: valores.get(opcao.id) ?? [] };
+    },
+    { soLeitura: true },
+  );
+}
+
+/**
+ * Uma página da composição do kit, pela ordem (posição) e pelo id do
+ * componente. Vazia se a variante não é kit; variante inexistente (ou de
+ * outro comerciante) é `catalog.not_found`.
+ */
+export async function composicaoDoKit(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  kitId: string,
+  limite: number,
+  depois: PosicaoEId | null,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const kit = await trx
+        .selectFrom("variante")
+        .select("id")
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", kitId)
+        .executeTakeFirst();
+      if (kit === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `variante ${kitId}`);
+      }
+      const doKit = trx
+        .selectFrom("componente")
+        .where("comerciante_id", "=", comercianteId)
+        .where("kit_id", "=", kitId);
+      const { total } = await doKit
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow();
+      let pagina = doKit.select(["componente_id", "quantidade", "posicao"]);
+      if (depois !== null) {
+        pagina = pagina.where(
+          sql<boolean>`(posicao, componente_id) > (${depois.posicao}::int, ${depois.id}::uuid)`,
+        );
+      }
+      const linhas = await pagina
+        .orderBy("posicao")
+        .orderBy("componente_id")
+        .limit(limite + 1)
+        .execute();
+      const haMais = linhas.length > limite;
+      const dados = haMais ? linhas.slice(0, limite) : linhas;
+      const ultima = haMais ? dados.at(-1) : undefined;
+      return {
+        dados,
+        total: Number(total),
+        ultima:
+          ultima === undefined
+            ? null
+            : { posicao: ultima.posicao, id: ultima.componente_id },
+      };
+    },
+    { soLeitura: true },
+  );
+}
