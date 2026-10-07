@@ -509,6 +509,13 @@ confere nao "não escreve no publicacoes.log" grep -qF "| $(r 3) | anterior: $(i
 OPCAO=--so-recriar caso "--so-recriar e a API não chega à base" 3 CRIADO=2000-01-01T00:00:00Z CODIGO_ME=500
 confere sim "termina com erro" erro
 confere sim "regista-o" no_registo "não chega à base"
+# A configuração mudou no mesmo segundo em que a API foi criada, meio segundo
+# depois (revisão do #162, P3-F): em segundos inteiros não contava.
+preparar
+printf 'HUB_ORIGEM=https://x\n' >/etc/eurolify/api-hub.env
+touch -d @2000000000.5 /etc/eurolify/api-hub.env
+OPCAO=--so-recriar caso "--so-recriar com a configuração do mesmo segundo" 3 CRIADO=2033-05-18T03:33:20Z
+confere sim "recria a API" arrancou 3
 
 # A acção «publicar» do MCP (eurolify-operar): só a anterior da que está no ar.
 preparar
@@ -570,7 +577,7 @@ touch "$falsos/hub-5" "$falsos/hub-tar-falha-5"
 caso "os ecrãs não se copiam" 5
 confere sim "a API fica publicada" arrancou 5
 confere sim "termina com erro" erro
-confere sim "regista" no_registo "os ecrãs do Hub não se copiaram"
+confere sim "regista" no_registo "os ecrãs do Hub não ficaram no ar"
 confere sim "fica o que estava" hub_e 4
 
 preparar
@@ -589,6 +596,20 @@ for n in 7 8 9; do
 done
 confere sim "ficam só as 3 cópias mais recentes" tres_copias
 confere sim "a actual é a 9" hub_e 9
+
+# Uma troca que falha não diz que os ecrãs estão no ar (revisão do #160,
+# P2-1): «actual» é uma pasta com ficheiros, onde o mv -T não escreve.
+preparar
+rm -f /var/lib/eurolify/hub/actual
+mkdir -p /var/lib/eurolify/hub/actual
+echo "outra coisa" >/var/lib/eurolify/hub/actual/index.html
+cp "$falsos/ls-3" "$falsos/ls-10"
+touch "$falsos/hub-10"
+caso "a ligação dos ecrãs não se troca" 10
+confere sim "a API fica publicada" arrancou 10
+confere sim "termina com erro" erro
+confere nao "não diz que estão no ar" na_saida "estão no ar"
+confere sim "regista" no_registo "os ecrãs do Hub não ficaram no ar"
 rm -rf /var/lib/eurolify/hub
 
 # O estado_do_ensaio (eurolify-medir) mostra sempre a base à frente da versão
