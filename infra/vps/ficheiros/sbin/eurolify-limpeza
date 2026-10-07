@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Limpeza diária da base do ensaio (docs/18 §4; docs/17 §3): apaga as
-# respostas guardadas da idempotência que já expiraram (24 h) e regista
-# quantas. Corre como root, pelo eurolify-limpeza.timer, depois da cópia.
-# Uma falha fica no registo e a verificação diária avisa (unidade falhada, ou
-# linhas expiradas há mais de um dia).
+# respostas guardadas da idempotência que já expiraram (24 h) e aplica os
+# prazos das contas de pessoas (migração 0026; docs/21 §13), e regista
+# quantas linhas tratou. Corre como root, pelo eurolify-limpeza.timer, depois
+# da cópia. Uma falha fica no registo e a verificação diária avisa (unidade
+# falhada, ou linhas com o prazo passado há mais de um dia).
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
 source /usr/local/lib/eurolify/comum.sh
@@ -13,7 +14,7 @@ carregar_config
 # P3-3).
 terminar() {
   local codigo=$?
-  ((codigo == 0)) || registar "limpeza da idempotência falhou (código $codigo); ver journalctl -u eurolify-limpeza"
+  ((codigo == 0)) || registar "limpeza falhou (código $codigo); ver journalctl -u eurolify-limpeza"
 }
 trap terminar EXIT
 
@@ -28,3 +29,22 @@ apagadas="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOM
 [[ "$apagadas" =~ ^[0-9]+$ ]] || falhar "a limpeza devolveu '$apagadas', não um número"
 registar "limpeza: $apagadas linha(s) expirada(s) da idempotência apagada(s)"
 echo "Limpeza: $apagadas linha(s) expirada(s) da idempotência apagada(s)."
+
+# Os prazos das contas de pessoas (0026): a função é SECURITY DEFINER e o
+# papel da limpeza só tem o EXECUTE dela, nenhuma tabela das contas. Antes da
+# 0026 publicada, não há nada a fazer.
+existe="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
+  -v ON_ERROR_STOP=1 -qAt -c "select to_regprocedure('public.contas_aplicar_prazos()') is not null")" ||
+  falhar "a limpeza não conseguiu ver se a função dos prazos existe"
+if [[ "$existe" == t ]]; then
+  prazos="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
+    -v ON_ERROR_STOP=1 -qAt -F '=' -c "SET statement_timeout = '5min'" \
+    -c 'select o_que, quantas from contas_aplicar_prazos()')" ||
+    falhar "os prazos das contas falharam"
+  while IFS= read -r linha; do
+    [[ "$linha" =~ ^[a-z_]+=[0-9]+$ ]] || falhar "os prazos devolveram '$linha', não categoria=número"
+  done <<<"$prazos"
+  resumo="$(paste -sd ' ' <<<"$prazos")"
+  registar "prazos das contas: $resumo"
+  echo "Prazos das contas: $resumo."
+fi

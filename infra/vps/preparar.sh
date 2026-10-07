@@ -544,7 +544,7 @@ else
   # correu antes dele, não os deu. Em --mostrar, sem o papel, diz o que faria.
   if ((MOSTRAR)) && [[ "$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_limpeza'")" == 0 ]]; then
     if [[ "$(pg_valor "SELECT to_regclass('public.idempotencia') IS NOT NULL")" == t ]]; then
-      echo "   FARIA: dar ao eurolify_limpeza os privilégios na idempotencia e na função da limpeza"
+      echo "   FARIA: dar ao eurolify_limpeza os privilégios na idempotencia e nas funções da limpeza e dos prazos"
       mudancas=$((mudancas + 1))
     fi
   else
@@ -564,8 +564,20 @@ else
           pg_valor "GRANT EXECUTE ON FUNCTION public.idempotencia_apagar_expiradas() TO eurolify_limpeza"
       fi
     fi
+    # Os prazos das contas de pessoas (migração 0026; docs/21 §13): só o
+    # EXECUTE das duas funções, nenhuma tabela das contas.
+    for f in 'contas_aplicar_prazos()' 'contas_prazos_em_atraso()'; do
+      if [[ "$(pg_valor "SELECT to_regprocedure('public.$f') IS NOT NULL")" == t ]]; then
+        if [[ "$(pg_valor "SELECT has_function_privilege('eurolify_limpeza', 'public.$f', 'EXECUTE')")" == t ]]; then
+          ok "eurolify_limpeza chama $f"
+        else
+          fazer "dar EXECUTE em $f ao eurolify_limpeza" \
+            pg_valor "GRANT EXECUTE ON FUNCTION public.$f TO eurolify_limpeza"
+        fi
+      fi
+    done
     [[ "$(pg_valor "SELECT count(*) FROM pg_authid WHERE rolname = 'eurolify_limpeza' AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolpassword IS NOT NULL)")" == 0 ]] ||
-      aviso "o eurolify_limpeza tem superutilizador, CREATEROLE, CREATEDB ou palavra-passe: devia entrar só pelo contentor e só tocar na idempotência"
+      aviso "o eurolify_limpeza tem superutilizador, CREATEROLE, CREATEDB ou palavra-passe: devia entrar só pelo contentor e só tocar na idempotência e nas funções dos prazos"
   fi
   # Nenhum dos dois pode ignorar o RLS (docs/15 §5): se alguém lhes deu mais,
   # avisa (revisão do #71, P2-3).
