@@ -407,7 +407,7 @@ e **B3c** (chaves pelo Hub).
 | B3a | `GET /hub/sessions` | sessão | — | **200** as sessões abertas da pessoa: criada, último uso, se é esta |
 | B3a | `POST /hub/sessions/end-all` | sessão, recente | nenhum | **200**; todas as sessões caem e quem pediu recebe uma nova (§7) |
 | B3a | `POST /hub/recovery-codes` | sessão, recente | nenhum | **201** 10 códigos novos (80 bits cada, `XXXX-XXXX-XXXX-XXXX`), mostrados só aqui; os antigos deixam de valer |
-| B3a | `POST /hub/recovery/options` | público | `email`, `codigo` | **200** opções WebAuthn de registo; a mesma recusa (401) para e-mail sem conta, código errado ou usado; **com 5 falhas nos últimos 15 minutos por e-mail, recusa (429) até a mais antiga sair da janela** (proposta, §8) |
+| B3a | `POST /hub/recovery/options` | público | `email`, `codigo` | **200** opções WebAuthn de registo; a mesma recusa (401) para e-mail sem conta, código errado ou usado; **limite por e-mail e por IP: um IP com 5 falhas nos últimos 15 minutos é recusado (429) para qualquer e-mail; um e-mail com 5 falhas só recusa quem também falhou desse IP** (Diogo, 07/10/2026: *«sim, concordo, fica a a)»*; CH) |
 | B3a | `POST /hub/recovery` | público | `email`, `codigo`, a resposta da passkey | **201** e o cookie: o código gasta-se, a passkey nova entra, **todas as sessões caem** e nasce uma (§7) |
 | B3b | `POST /hub/password/setup` | sessão, recente | `palavra_passe` (≥ 12) | **200** o segredo TOTP e o URI `otpauth://` para o autenticador; nada fica activo ainda |
 | B3b | `POST /hub/password/confirm` | sessão, recente | `codigo` (6 dígitos) | **200**; a palavra-passe e o TOTP ficam activos juntos (CA); as outras sessões caem |

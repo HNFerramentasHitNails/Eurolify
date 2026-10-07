@@ -299,7 +299,7 @@ export function rotasDasCredenciais(
       config: { ambito: "publico", hub: true },
       schema: {
         description:
-          "Recuperar a conta, passo 1: e-mail e um código de recuperação. Devolve as opções WebAuthn para registar uma passkey nova. A mesma recusa (401) para e-mail sem conta, código errado ou já usado; com 5 falhas nos últimos 15 minutos por e-mail, recusa-se (429) até a mais antiga sair da janela.",
+          "Recuperar a conta, passo 1: e-mail e um código de recuperação. Devolve as opções WebAuthn para registar uma passkey nova. A mesma recusa (401) para e-mail sem conta, código errado ou já usado; um IP com 5 falhas nos últimos 15 minutos é recusado (429) para qualquer e-mail; um e-mail com 5 falhas só recusa quem também falhou desse IP (CH).",
         body: Type.Object(
           { email: Email, codigo: Codigo },
           { additionalProperties: false },

@@ -10,7 +10,7 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
-import { hubDeTeste, NO_HUB } from "./hub-de-teste.js";
+import { hubDeTeste, ipNovo, NO_HUB } from "./hub-de-teste.js";
 
 // Rotas do Hub da parte B3a (docs/21 §7, §8 e §12; migração 0021; testes
 // P-T5, P-T6 e P-T18 do §9; issue #140): acrescentar e retirar passkeys, as
@@ -222,15 +222,18 @@ describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0021)", () => {
       expect(await vale(q.sessao)).toBe(200);
     });
 
-    it("5 falhas em 15 minutos bloqueiam, mesmo com o código certo; fica no registo de entradas sem o e-mail", async () => {
+    it("5 falhas do mesmo IP bloqueiam esse IP, mesmo com o código certo; fica no registo sem o e-mail", async () => {
       const p = await h.pessoaCom(a, "apoio");
+      const ip = ipNovo();
       for (let i = 0; i < 5; i++) {
         const r = await h.pedir("POST", "/hub/recovery/options", {
+          ip,
           corpo: { email: p.email, codigo: "BBBB-BBBB-BBBB-BBBB" },
         });
         expect(r.statusCode).toBe(401);
       }
       const certo = await h.pedir("POST", "/hub/recovery/options", {
+        ip,
         corpo: { email: p.email, codigo: p.codigos[0] },
       });
       expect(certo.statusCode).toBe(429);
@@ -246,6 +249,52 @@ describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0021)", () => {
       const texto = await sql<{ t: string }>`
         select string_agg(e::text, ' ') as t from entrada e`.execute(base.dono);
       expect(texto.rows[0]?.t ?? "").not.toContain(p.email);
+    });
+
+    it("CH: quem sabe o e-mail não bloqueia a recuperação a partir de outro IP", async () => {
+      const p = await h.pessoaCom(a, "apoio");
+      // O atacante falha 5 vezes, cada uma de um IP diferente.
+      for (let i = 0; i < 5; i++) {
+        const r = await h.pedir("POST", "/hub/recovery/options", {
+          corpo: { email: p.email, codigo: "CCCC-CCCC-CCCC-CCCC" },
+        });
+        expect(r.statusCode).toBe(401);
+      }
+      // Desses IPs que falharam, mesmo o código certo é recusado.
+      const doAtacante = ipNovo();
+      await h.pedir("POST", "/hub/recovery/options", {
+        ip: doAtacante,
+        corpo: { email: p.email, codigo: "DDDD-DDDD-DDDD-DDDD" },
+      });
+      const doAtacanteCerto = await h.pedir("POST", "/hub/recovery/options", {
+        ip: doAtacante,
+        corpo: { email: p.email, codigo: p.codigos[0] },
+      });
+      expect(doAtacanteCerto.statusCode).toBe(429);
+      // A pessoa, de um IP sem falhas, recupera.
+      const daPessoa = await h.pedir("POST", "/hub/recovery/options", {
+        corpo: { email: p.email, codigo: p.codigos[0] },
+      });
+      expect(daPessoa.statusCode, daPessoa.body).toBe(200);
+    });
+
+    it("CH: um IP com 5 falhas fica bloqueado para qualquer e-mail", async () => {
+      const ip = ipNovo();
+      for (let i = 0; i < 5; i++) {
+        await h.pedir("POST", "/hub/recovery/options", {
+          ip,
+          corpo: {
+            email: `x${String(i)}@exemplo.test`,
+            codigo: "EEEE-EEEE-EEEE-EEEE",
+          },
+        });
+      }
+      const p = await h.pessoaCom(a, "apoio");
+      const r = await h.pedir("POST", "/hub/recovery/options", {
+        ip,
+        corpo: { email: p.email, codigo: p.codigos[0] },
+      });
+      expect(r.statusCode).toBe(429);
     });
 
     it("gerar códigos novos (recente) faz os antigos deixarem de valer", async () => {
@@ -374,11 +423,13 @@ describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0021)", () => {
   it("P-T5: nem códigos, nem segredos, nem e-mails no registo da aplicação", async () => {
     const p = await h.pessoaCom(a, "apoio");
     await recuperar(p.email, p.codigos[0] ?? "");
+    await h.pedir("POST", "/hub/recovery/options", {
+      ip: "10.99.88.77",
+      corpo: { email: p.email, codigo: "FFFF-FFFF-FFFF-FFFF" },
+    });
     const texto = h.registo.join("");
     expect(texto.length).toBeGreaterThan(0);
-    // O IP dos pedidos de teste (127.0.0.1) também não.
-    expect(texto).not.toContain("127.0.0.1");
-    for (const proibido of [p.email, p.sessao, ...p.codigos]) {
+    for (const proibido of [p.email, p.sessao, "10.99.88.77", ...p.codigos]) {
       expect(texto).not.toContain(proibido);
     }
   });

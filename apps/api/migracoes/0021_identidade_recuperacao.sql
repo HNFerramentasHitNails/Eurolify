@@ -12,8 +12,8 @@
 -- - `entrada`: cada entrada e cada tentativa de recuperação, com o método,
 --   o resultado e o IP; sem conta, só o resumo do e-mail tentado (docs/21
 --   §6); 14 dias (apaga-os a B4);
--- - limite de tentativas da recuperação: 5 falhas em 15 minutos por e-mail
---   (resumo) → 15 minutos de bloqueio (proposta, §8). A falha regista-se e
+-- - limite de tentativas da recuperação: 5 falhas nos últimos 15 minutos,
+--   contadas por e-mail (resumo) e por IP (CH; docs/21 §12). A falha regista-se e
 --   fica (a função devolve o resultado em vez de levantar um erro, para o
 --   registo não se desfazer com a transacção);
 -- - os desafios WebAuthn ganham duas finalidades presas a uma pessoa:
@@ -80,6 +80,7 @@ CREATE TABLE entrada (
 );
 CREATE INDEX entrada_por_email ON entrada (email_resumo, quando) WHERE email_resumo IS NOT NULL;
 CREATE INDEX entrada_por_data ON entrada (quando);
+CREATE INDEX entrada_por_ip ON entrada (ip, quando) WHERE ip IS NOT NULL;
 
 -- Como as outras tabelas das contas (0018): RLS sem políticas, nenhum
 -- privilégio à API. A data é sempre da base.
@@ -362,7 +363,7 @@ $$;
 -- registo preso à pessoa), 'falhou' ou 'bloqueado'; regista as falhas e os
 -- bloqueios (o êxito regista-se no passo 2). Não levanta erro de propósito:
 -- a falha tem de ficar registada para contar no limite — 5 falhas nos
--- últimos 15 minutos por e-mail, uma janela que desliza (proposta, §8). O
+-- últimos 15 minutos, por e-mail e por IP, numa janela que desliza (CH). O
 -- código não se gasta aqui; só no passo 2, com a passkey nova.
 CREATE FUNCTION recuperacao_iniciar(p_resumo_desafio text, p_email text,
                                     p_resumo_codigo text, p_ip inet)
@@ -371,13 +372,27 @@ CREATE FUNCTION recuperacao_iniciar(p_resumo_desafio text, p_email text,
 DECLARE
   tentado text := public.email_resumo(p_email);
   pessoa uuid;
+  falhas_email bigint;
+  falhas_ip bigint;
 BEGIN
-  -- Uma tentativa de cada vez por e-mail: a contagem e o registo não se
-  -- cruzam.
+  -- Uma tentativa de cada vez por e-mail e por IP (por esta ordem, sempre):
+  -- a contagem e o registo não se cruzam.
   PERFORM pg_advisory_xact_lock(hashtextextended('recuperacao:' || tentado, 0));
-  IF (SELECT count(*) FROM public.entrada e
-      WHERE e.email_resumo = tentado AND e.metodo = 'recuperacao'
-        AND e.resultado = 'falhou' AND e.quando > now() - interval '15 minutes') >= 5 THEN
+  IF p_ip IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended('recuperacao-ip:' || host(p_ip), 0));
+  END IF;
+  SELECT count(*) INTO falhas_email FROM public.entrada e
+  WHERE e.email_resumo = tentado AND e.metodo = 'recuperacao'
+    AND e.resultado = 'falhou' AND e.quando > now() - interval '15 minutes';
+  SELECT count(*) INTO falhas_ip FROM public.entrada e
+  WHERE p_ip IS NOT NULL AND e.ip = p_ip AND e.metodo = 'recuperacao'
+    AND e.resultado = 'falhou' AND e.quando > now() - interval '15 minutes';
+  -- O limite conta por e-mail e por IP (Diogo, 07/10/2026: «fica a a)»;
+  -- CH; revisão do #144, P2-2): um IP com 5 falhas fica bloqueado para
+  -- qualquer e-mail; um e-mail com 5 falhas só bloqueia quem também falhou
+  -- desse IP (ou quem chega sem IP). Quem sabe o e-mail da Ana não lhe
+  -- bloqueia a recuperação a partir de outro IP.
+  IF falhas_ip >= 5 OR (falhas_email >= 5 AND (p_ip IS NULL OR falhas_ip > 0)) THEN
     INSERT INTO public.entrada (email_resumo, metodo, resultado, ip)
     VALUES (tentado, 'recuperacao', 'bloqueado', p_ip);
     RETURN 'bloqueado';

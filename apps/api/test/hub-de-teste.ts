@@ -26,6 +26,15 @@ export interface Pedido {
   sessao?: string;
   comerciante?: string;
   origem?: string | null;
+  /** O IP de quem pede; por omissão, um diferente em cada pedido. */
+  ip?: string;
+}
+
+let contadorDeIp = 0;
+/** Um IP de teste novo (10.x.y.z), para os limites por IP não se cruzarem. */
+export function ipNovo(): string {
+  contadorDeIp += 1;
+  return `10.${String((contadorDeIp >> 16) & 255)}.${String((contadorDeIp >> 8) & 255)}.${String(contadorDeIp & 255)}`;
 }
 
 export function hubDeTeste(base: BaseDeTeste) {
@@ -54,6 +63,7 @@ export function hubDeTeste(base: BaseDeTeste) {
     return app.inject({
       method: metodo,
       url,
+      remoteAddress: p.ip ?? ipNovo(),
       headers: cabecalhos,
       ...(metodo === "POST" ? { payload: JSON.stringify(p.corpo ?? {}) } : {}),
     });
