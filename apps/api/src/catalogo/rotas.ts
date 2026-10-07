@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
@@ -40,7 +40,7 @@ const semPrefixo = (id: string) => id.slice(id.indexOf("_") + 1);
  * lista feita com `map` perde o tipo dos literais no TypeScript).
  */
 const umDe = <T extends string>(valores: readonly T[]) =>
-  Type.Unsafe<T>(Type.Union(valores.map((v) => Type.Literal(v))));
+  Type.Unsafe<T>({ type: "string", enum: [...valores] });
 const EstadoArtigo = umDe(ESTADOS_ARTIGO);
 const TipoArtigo = umDe(TIPOS_ARTIGO);
 const EstadoVariante = umDe(ESTADOS_VARIANTE);
@@ -56,11 +56,63 @@ const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 
 // ------------------------------------------------------------ Os erros
 
-/** O estado HTTP de cada código do Catálogo que estas rotas podem dar. */
-const ESTADO_DO_CODIGO: Partial<Record<ErroCatalogo["codigo"], number>> = {
+/**
+ * O estado HTTP de cada código do Catálogo (**proposta**, docs/14 §7.1):
+ * 404 o que não existe, 409 o que choca com o estado ou com outro registo,
+ * 422 o que o servidor recusa por regra, 400 um valor mal formado, 503 o
+ * repetível. Todos os códigos estão aqui: o compilador obriga a decidir cada
+ * código novo (revisão do #150, P3-1).
+ */
+const ESTADO_DO_CODIGO: Record<ErroCatalogo["codigo"], number> = {
   "catalog.not_found": 404,
   "catalog.invalid_field": 400,
   "catalog.retry": 503,
+  "catalog.version_conflict": 409,
+  "catalog.invalid_transition": 409,
+  "catalog.not_draft": 409,
+  "catalog.variant_archived_is_final": 409,
+  "catalog.sku_duplicate": 409,
+  "catalog.gtin_duplicate": 409,
+  "catalog.option_combination_duplicate": 409,
+  "catalog.option_duplicate": 409,
+  "catalog.option_value_duplicate": 409,
+  "catalog.component_in_use": 409,
+  "catalog.category_has_children": 409,
+  "catalog.slug_duplicate": 409,
+  "catalog.publish_blocked": 409,
+  "catalog.published_in_use": 409,
+  "catalog.type_disabled": 422,
+  "catalog.immutable_identity": 422,
+  "catalog.immutable_type": 422,
+  "catalog.no_variants": 422,
+  "catalog.name_required": 422,
+  "catalog.origin_ref_required": 422,
+  "catalog.sku_required": 422,
+  "catalog.sku_invalid": 422,
+  "catalog.unit_required": 422,
+  "catalog.gtin_invalid": 422,
+  "catalog.gtin_origin_required": 422,
+  "catalog.content_incomplete": 422,
+  "catalog.component_cycle": 422,
+  "catalog.component_archived": 422,
+  "catalog.component_duplicate": 422,
+  "catalog.options_incomplete": 422,
+  "catalog.option_repeated": 422,
+  "catalog.option_values_required": 422,
+  "catalog.classified_by_required": 422,
+  "catalog.classification_invalid": 422,
+  "catalog.nature_incompatible": 422,
+  "catalog.category_cycle": 422,
+  "catalog.category_archived": 422,
+  "catalog.category_duplicate": 422,
+  "catalog.slug_invalid": 422,
+  "catalog.collection_product_duplicate": 422,
+  "catalog.translated_by_required": 422,
+  "catalog.translation_same_language": 422,
+  "catalog.translation_no_original": 422,
+  "catalog.translation_not_ai": 422,
+  "catalog.translation_self_review": 422,
+  "catalog.published_by_required": 422,
 };
 
 /**
@@ -69,7 +121,7 @@ const ESTADO_DO_CODIGO: Partial<Record<ErroCatalogo["codigo"], number>> = {
  */
 function paraApi(erro: unknown): unknown {
   if (!(erro instanceof ErroCatalogo)) return erro;
-  const status = ESTADO_DO_CODIGO[erro.codigo] ?? 422;
+  const status = ESTADO_DO_CODIGO[erro.codigo];
   const mensagens =
     erro.codigo === "catalog.not_found"
       ? { pt: "Não encontrado", en: "Not found" }
@@ -82,13 +134,31 @@ function paraApi(erro: unknown): unknown {
             pt: "Pedido recusado pelo Catálogo",
             en: "Rejected by the catalog",
           };
-  return new ErroApi(erro.codigo, status, mensagens, erro.message);
+  // Um valor que a base recusou traz o texto do PostgreSQL: não sai para
+  // fora (docs/18 §2: nunca SQL; revisão do #150, P3-3).
+  const daBase =
+    typeof (erro.cause as { code?: unknown } | undefined)?.code === "string";
+  const detalhe =
+    erro.codigo === "catalog.invalid_field" && daBase
+      ? "um valor do pedido não é aceite"
+      : erro.message;
+  return new ErroApi(erro.codigo, status, mensagens, detalhe);
 }
 
-async function noCatalogoApi<T>(fn: () => Promise<T>): Promise<T> {
+/**
+ * Corre a consulta e devolve os erros do Catálogo no formato da API; um
+ * `catalog.retry` leva `Retry-After: 1` (revisão do #150, P3-2).
+ */
+async function noCatalogoApi<T>(
+  resposta: FastifyReply,
+  fn: () => Promise<T>,
+): Promise<T> {
   try {
     return await fn();
   } catch (erro) {
+    if (erro instanceof ErroCatalogo && erro.codigo === "catalog.retry") {
+      void resposta.header("Retry-After", "1");
+    }
     throw paraApi(erro);
   }
 }
@@ -133,7 +203,6 @@ const CamposArtigo = {
     local_pais: Type.Union([Type.String(), Type.Null()]),
     local_territorio: Type.Union([Type.String(), Type.Null()]),
     lazer_com_data: Type.Boolean(),
-    classificado_por: Type.Union([Type.String(), Type.Null()]),
     classificado_em: Type.Union([Instante, Type.Null()]),
   }),
   versao: Type.Integer(),
@@ -161,8 +230,22 @@ const ConsultaArtigos = Type.Object(
   {
     estado: Type.Optional(EstadoArtigo),
     tipo: Type.Optional(TipoArtigo),
-    sku: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
-    texto: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    // Sem caracteres de controlo (o NUL a base recusa com texto dela;
+    // revisão do #150, P3-3).
+    sku: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 64,
+        pattern: "^[^\\x00-\\x1f]+$",
+      }),
+    ),
+    texto: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 200,
+        pattern: "^[^\\x00-\\x1f]+$",
+      }),
+    ),
     limite: Type.Optional(
       Type.String({
         pattern: "^[1-9][0-9]?$|^100$",
@@ -197,6 +280,17 @@ const Verificacao = Type.Object({
   }),
 });
 
+/**
+ * A verificação guardada numa publicação: a lista do que não se verificava é
+ * a do momento em que se guardou, e muda quando a Conformidade e a media
+ * passarem a verificar-se (CF). Aqui fica aberta, para uma linha antiga não
+ * dar 500 (revisão do #150, P2-3).
+ */
+const VerificacaoGuardada = Type.Object({
+  impedimentos: Type.Array(Impedimento),
+  nao_verificado: Type.Array(Type.String()),
+});
+
 const PublicacaoEsquema = Type.Object({
   id: Type.String({ description: "pub_…" }),
   artigo: Type.String({ description: "prd_…" }),
@@ -204,14 +298,12 @@ const PublicacaoEsquema = Type.Object({
   mercado: Type.String({ description: "mkt_…" }),
   estado: EstadoPublicacao,
   variantes_fora: Type.Array(Type.String({ description: "var_…" })),
-  ultima_verificacao: Type.Union([Verificacao, Type.Null()], {
+  ultima_verificacao: Type.Union([VerificacaoGuardada, Type.Null()], {
     description:
       "A do último pedido de publicação, também se foi recusado (docs/14 §4.2)",
   }),
   verificado_em: Type.Union([Instante, Type.Null()]),
-  publicado_por: Type.Union([Type.String(), Type.Null()]),
   publicado_em: Type.Union([Instante, Type.Null()]),
-  arquivado_por: Type.Union([Type.String(), Type.Null()]),
   arquivado_em: Type.Union([Instante, Type.Null()]),
   motivo_arquivo: Type.Union([MotivoArquivo, Type.Null()]),
   versao: Type.Integer(),
@@ -257,7 +349,6 @@ function paraArtigo(a: LinhaArtigo) {
       local_pais: a.local_pais,
       local_territorio: a.local_territorio,
       lazer_com_data: a.lazer_com_data,
-      classificado_por: a.classificado_por,
       classificado_em: iso(a.classificado_em),
     },
     versao: a.versao,
@@ -287,6 +378,26 @@ function paraVariante(v: LinhaVariante) {
   };
 }
 
+/**
+ * A verificação guardada, normalizada: o que falte (uma linha escrita antes
+ * de um campo existir) sai como lista vazia, não como 500 (revisão do #150,
+ * P2-3).
+ */
+function verificacaoGuardada(valor: unknown) {
+  if (valor === null || typeof valor !== "object") return null;
+  const v = valor as { impedimentos?: unknown; nao_verificado?: unknown };
+  const impedimentos = Array.isArray(v.impedimentos)
+    ? v.impedimentos.filter(
+        (i): i is { codigo: string } =>
+          typeof (i as { codigo?: unknown } | null)?.codigo === "string",
+      )
+    : [];
+  const naoVerificado = Array.isArray(v.nao_verificado)
+    ? v.nao_verificado.filter((n): n is string => typeof n === "string")
+    : [];
+  return { impedimentos, nao_verificado: naoVerificado };
+}
+
 function paraPublicacao(p: Publicacao) {
   return {
     id: `pub_${p.id}`,
@@ -295,17 +406,9 @@ function paraPublicacao(p: Publicacao) {
     mercado: `mkt_${p.mercado_id}`,
     estado: p.estado,
     variantes_fora: p.variantes_fora.map((v) => `var_${v}`),
-    ultima_verificacao:
-      p.ultima_verificacao === null
-        ? null
-        : (p.ultima_verificacao as {
-            impedimentos: { codigo: string }[];
-            nao_verificado: (typeof NAO_VERIFICADO)[number][];
-          }),
+    ultima_verificacao: verificacaoGuardada(p.ultima_verificacao),
     verificado_em: iso(p.verificado_em),
-    publicado_por: p.publicado_por,
     publicado_em: iso(p.publicado_em),
-    arquivado_por: p.arquivado_por,
     arquivado_em: iso(p.arquivado_em),
     motivo_arquivo: p.motivo_arquivo,
     versao: p.versao,
@@ -341,12 +444,12 @@ export function rotasDoCatalogo(
         response: { 200: RespostaArtigos, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido) => {
+    async (pedido, resposta) => {
       const chave = chaveDo(pedido);
       const q = pedido.query;
       const limite = q.limite === undefined ? 25 : Number(q.limite);
       const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
-      const pagina = await noCatalogoApi(() =>
+      const pagina = await noCatalogoApi(resposta, () =>
         listarArtigos(
           base,
           chave.comercianteId,
@@ -381,9 +484,9 @@ export function rotasDoCatalogo(
         response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido) => {
+    async (pedido, resposta) => {
       const chave = chaveDo(pedido);
-      const { artigo, variantes } = await noCatalogoApi(() =>
+      const { artigo, variantes } = await noCatalogoApi(resposta, () =>
         fichaDoArtigo(base, chave.comercianteId, semPrefixo(pedido.params.id)),
       );
       return { ...paraArtigo(artigo), variantes: variantes.map(paraVariante) };
@@ -401,14 +504,14 @@ export function rotasDoCatalogo(
         response: { 200: RespostaPublicacoes, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido) => {
+    async (pedido, resposta) => {
       const chave = chaveDo(pedido);
       const id = semPrefixo(pedido.params.id);
-      const publicacoes = await noCatalogoApi(async () => {
-        // Um artigo que não existe é 404, não uma lista vazia.
-        await fichaDoArtigo(base, chave.comercianteId, id);
-        return publicacoesDoArtigo(base, chave.comercianteId, id);
-      });
+      // Um artigo que não existe é 404, não uma lista vazia (na mesma
+      // transacção que as publicações).
+      const publicacoes = await noCatalogoApi(resposta, () =>
+        publicacoesDoArtigo(base, chave.comercianteId, id),
+      );
       return { dados: publicacoes.map(paraPublicacao) };
     },
   );
@@ -425,10 +528,10 @@ export function rotasDoCatalogo(
         response: { 200: Verificacao, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido) => {
+    async (pedido, resposta) => {
       const chave = chaveDo(pedido);
       const corpo = pedido.body;
-      const verificacao = await noCatalogoApi(() =>
+      const verificacao = await noCatalogoApi(resposta, () =>
         verificarPublicacao(base, chave.comercianteId, {
           artigo_id: semPrefixo(pedido.params.id),
           canal_id: semPrefixo(corpo.canal),

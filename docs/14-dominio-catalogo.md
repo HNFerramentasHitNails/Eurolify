@@ -712,9 +712,17 @@ servidor com `catalog:read`:
 
 Os nomes dos campos nas respostas são os do modelo (§3), em português, e os
 identificadores levam o prefixo (`prd_`, `var_`, `pub_`, `chn_`, `mkt_`).
-Os erros do Catálogo saem com o código estável: `catalog.not_found` (404,
-também para um artigo de outro comerciante), `catalog.invalid_field` (400) e
-`catalog.retry` (503); os outros códigos dão 422 até às rotas que os usam.
+**Quem fez a mudança não sai** (`publicado_por`, `arquivado_por`,
+`classificado_por`; decisão do Diogo, 07/10/2026, `docs/06`, CK): só os
+instantes. As consultas correm numa transacção só de leitura e num só
+momento (REPEATABLE READ, READ ONLY).
+
+Os erros do Catálogo saem com o código estável e o estado HTTP de uma tabela
+fechada em `rotas.ts` (**proposta**): 404 o que não existe (também o de
+outro comerciante), 409 o que choca com o estado ou com outro registo (versão,
+transição, duplicados, em uso), 422 o que o servidor recusa por regra, 400 um
+valor mal formado (sem o texto da base no `detail`) e 503 `catalog.retry`, com
+`Retry-After: 1`. Um código novo não compila sem lá entrar.
 Os outros filtros da tabela (categoria, sem foto, tradução em falta,
 actualizado desde) e o `expand` entram com as rotas seguintes.
 

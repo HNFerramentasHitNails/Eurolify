@@ -77,9 +77,12 @@ cortada em silêncio).
 | `total` | quantos passam no filtro, em todas as páginas (explícito, lição 4.7) |
 | Ordem | pelo identificador (uuid v7, a ordem de criação); estável entre páginas |
 | `limite` | 1 a 100; por omissão, 25. Fora disso, 400 |
-| `cursor` | opaco (o último identificador da página, em base64url); só serve para a página seguinte da mesma lista. Um cursor que não é desta lista dá 400 |
+| `cursor` | opaco (o último identificador da página, em base64url). Não está ligado ao filtro: é só a posição a seguir à qual se lê, e o RLS continua a mostrar só o comerciante da chave. Um cursor que não é um identificador dá 400 (revisão do #150, P3-4) |
 | Filtros | um campo desconhecido na consulta dá 400, nunca se ignora |
-| Concorrência | o total e a página são duas leituras: com escritas ao mesmo tempo podem diferir por um ou dois. Uma página nunca repete nem salta um registo que já existia antes da primeira página (a ordem é pelo id) |
+| Concorrência | o total e a página lêem-se na mesma transacção REPEATABLE READ e READ ONLY: batem certo entre si. Entre páginas, uma página nunca repete nem salta um registo que já existia antes da primeira (a ordem é pelo id) |
+| Números na consulta | chegam como texto com um padrão (o `limite`): o validador não converte tipos (`app.ts`). Um SDK gerado do contrato vê-os como texto (revisão do #150, P3-6) |
+| Listas fechadas | `enum` no contrato, recusadas com 400 fora da lista |
+| Escala | a procura por parte do nome (`ilike`) e pelo SKU percorre os artigos do comerciante, sem índice próprio. Chega ao tamanho de hoje; com milhares de artigos, um índice (trigram ou `lower(sku)`) entra antes de abrir a API (revisão do #150, P3-9) |
 
 ## 3. Contrato OpenAPI
 

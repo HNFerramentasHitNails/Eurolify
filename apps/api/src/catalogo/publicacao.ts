@@ -353,8 +353,11 @@ export async function verificarPublicacao(
   comercianteId: string,
   pedido: PedidoDePublicacao,
 ): Promise<Verificacao> {
-  return noCatalogo(db, comercianteId, (trx) =>
-    verificarNa(trx, comercianteId, pedido),
+  return noCatalogo(
+    db,
+    comercianteId,
+    (trx) => verificarNa(trx, comercianteId, pedido),
+    { soLeitura: true },
   );
 }
 
@@ -614,19 +617,36 @@ export async function retirarPublicacao(
   });
 }
 
-/** As publicações de um artigo (§7.1, `GET /products/{id}/publications`). */
+/**
+ * As publicações de um artigo (§7.1, `GET /products/{id}/publications`). Um
+ * artigo que não existe (ou é de outro comerciante) é `catalog.not_found`,
+ * lido na mesma transacção (revisão do #150, P3-8).
+ */
 export async function publicacoesDoArtigo(
   db: Kysely<BaseDados>,
   comercianteId: string,
   artigoId: string,
 ): Promise<Publicacao[]> {
-  return noCatalogo(db, comercianteId, (trx) =>
-    trx
-      .selectFrom("publicacao")
-      .select(COLUNAS)
-      .where("artigo_id", "=", artigoId)
-      .orderBy("criado_em")
-      .orderBy("id")
-      .execute(),
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const artigo = await trx
+        .selectFrom("artigo")
+        .select("id")
+        .where("id", "=", artigoId)
+        .executeTakeFirst();
+      if (artigo === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+      }
+      return trx
+        .selectFrom("publicacao")
+        .select(COLUNAS)
+        .where("artigo_id", "=", artigoId)
+        .orderBy("criado_em")
+        .orderBy("id")
+        .execute();
+    },
+    { soLeitura: true },
   );
 }

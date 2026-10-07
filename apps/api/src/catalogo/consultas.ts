@@ -32,8 +32,8 @@ function semCuringas(texto: string): string {
  * Uma página de artigos por ordem do id (uuid v7: a ordem de criação), a
  * seguir a `depois`, e o total dos que passam no filtro (headless-commerce,
  * regra 4; lição 4.7: nenhuma lista cortada em silêncio). O total e a página
- * são duas leituras: com escritas ao mesmo tempo, podem não bater certo por
- * um ou dois (docs/18 §2a).
+ * lêem-se na mesma transacção REPEATABLE READ: batem sempre certo entre si
+ * (revisão do #150, P3-5; docs/18 §2a).
  */
 export async function listarArtigos(
   db: Kysely<BaseDados>,
@@ -42,44 +42,49 @@ export async function listarArtigos(
   limite: number,
   depois: string | null,
 ) {
-  return noCatalogo(db, comercianteId, async (trx) => {
-    let consulta = trx.selectFrom("artigo");
-    if (filtro.estado !== undefined) {
-      consulta = consulta.where("estado", "=", filtro.estado);
-    }
-    if (filtro.tipo !== undefined) {
-      consulta = consulta.where("tipo", "=", filtro.tipo);
-    }
-    if (filtro.texto !== undefined) {
-      const padrao = `%${semCuringas(filtro.texto)}%`;
-      consulta = consulta.where(sql<boolean>`nome ilike ${padrao}`);
-    }
-    if (filtro.sku !== undefined) {
-      const sku = filtro.sku;
-      consulta = consulta.where((eb) =>
-        eb.exists(
-          eb
-            .selectFrom("variante as v")
-            .select("v.id")
-            .whereRef("v.artigo_id", "=", "artigo.id")
-            .where(sql<boolean>`lower(v.sku) = lower(${sku})`),
-        ),
-      );
-    }
-    const { total } = await consulta
-      .select((eb) => eb.fn.countAll<string>().as("total"))
-      .executeTakeFirstOrThrow();
-    let pagina = consulta.selectAll("artigo");
-    if (depois !== null) pagina = pagina.where("artigo.id", ">", depois);
-    const linhas = await pagina
-      .orderBy("artigo.id")
-      .limit(limite + 1)
-      .execute();
-    const haMais = linhas.length > limite;
-    const dados = haMais ? linhas.slice(0, limite) : linhas;
-    const ultimo = haMais ? (dados.at(-1)?.id ?? null) : null;
-    return { dados, total: Number(total), ultimo };
-  });
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      let consulta = trx.selectFrom("artigo");
+      if (filtro.estado !== undefined) {
+        consulta = consulta.where("estado", "=", filtro.estado);
+      }
+      if (filtro.tipo !== undefined) {
+        consulta = consulta.where("tipo", "=", filtro.tipo);
+      }
+      if (filtro.texto !== undefined) {
+        const padrao = `%${semCuringas(filtro.texto)}%`;
+        consulta = consulta.where(sql<boolean>`nome ilike ${padrao}`);
+      }
+      if (filtro.sku !== undefined) {
+        const sku = filtro.sku;
+        consulta = consulta.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom("variante as v")
+              .select("v.id")
+              .whereRef("v.artigo_id", "=", "artigo.id")
+              .where(sql<boolean>`lower(v.sku) = lower(${sku})`),
+          ),
+        );
+      }
+      const { total } = await consulta
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow();
+      let pagina = consulta.selectAll("artigo");
+      if (depois !== null) pagina = pagina.where("artigo.id", ">", depois);
+      const linhas = await pagina
+        .orderBy("artigo.id")
+        .limit(limite + 1)
+        .execute();
+      const haMais = linhas.length > limite;
+      const dados = haMais ? linhas.slice(0, limite) : linhas;
+      const ultimo = haMais ? (dados.at(-1)?.id ?? null) : null;
+      return { dados, total: Number(total), ultimo };
+    },
+    { soLeitura: true },
+  );
 }
 
 /** A ficha de um artigo, com todas as variantes (também as arquivadas). */
@@ -88,22 +93,27 @@ export async function fichaDoArtigo(
   comercianteId: string,
   artigoId: string,
 ) {
-  return noCatalogo(db, comercianteId, async (trx) => {
-    const artigo = await trx
-      .selectFrom("artigo")
-      .selectAll()
-      .where("id", "=", artigoId)
-      .executeTakeFirst();
-    if (artigo === undefined) {
-      throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
-    }
-    const variantes = await trx
-      .selectFrom("variante")
-      .selectAll()
-      .where("artigo_id", "=", artigoId)
-      .orderBy("posicao")
-      .orderBy("sku")
-      .execute();
-    return { artigo, variantes };
-  });
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const artigo = await trx
+        .selectFrom("artigo")
+        .selectAll()
+        .where("id", "=", artigoId)
+        .executeTakeFirst();
+      if (artigo === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+      }
+      const variantes = await trx
+        .selectFrom("variante")
+        .selectAll()
+        .where("artigo_id", "=", artigoId)
+        .orderBy("posicao")
+        .orderBy("sku")
+        .execute();
+      return { artigo, variantes };
+    },
+    { soLeitura: true },
+  );
 }
