@@ -396,7 +396,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: consultas", () => {
     expect(antiga.headers["eurolify-versao"]).toBe("2026-10");
   });
 
-  it("quem publicou, arquivou ou classificou não sai nas respostas (docs/06, CK)", async () => {
+  it("quem publicou, arquivou ou classificou não sai nas respostas (docs/06, CL)", async () => {
     const ficha = (await pedir(`/products/prd_${gel}`)).json<{
       classificacao: Record<string, unknown>;
     }>();
@@ -528,6 +528,33 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: consultas", () => {
     expect(repetido.statusCode).toBe(400);
     expect(repetido.json()).toMatchObject({ codigo: "version.unsupported" });
   });
+
+  it("as consultas correm só de leitura: uma escrita na mesma transacção é recusada pela base", async () => {
+    let codigo: unknown;
+    try {
+      await comComerciante(
+        base.api,
+        a,
+        (trx) =>
+          sql`update artigo set nome = nome where id = ${gel}`.execute(trx),
+        { soLeitura: true },
+      );
+    } catch (erro) {
+      codigo = (erro as { code?: unknown }).code;
+    }
+    // 25006: read_only_sql_transaction.
+    expect(codigo).toBe("25006");
+  });
+
+  it("com a tabela tomada por outro, a consulta dá 503 catalog.retry com Retry-After ao fim de 5 s", async () => {
+    const r = await base.dono.transaction().execute(async (trx) => {
+      await sql`lock table artigo in access exclusive mode`.execute(trx);
+      return pedir("/products?limite=1");
+    });
+    expect(r.statusCode).toBe(503);
+    expect(r.json()).toMatchObject({ codigo: "catalog.retry" });
+    expect(r.headers["retry-after"]).toBe("1");
+  }, 20_000);
 
   it("as quatro rotas estão no contrato, com a chave e as listas fechadas", async () => {
     const contrato = (await pedir("/openapi.json", null)).json<{
