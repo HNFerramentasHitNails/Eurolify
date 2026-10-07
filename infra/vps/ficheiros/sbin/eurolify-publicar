@@ -299,7 +299,10 @@ if [[ "$anterior" == "$imagem" ]]; then
   fi
   if ! hub_no_ar "$imagem" && tem_hub "$imagem"; then
     echo "A API já está nesta imagem; faltam os ecrãs do Hub."
-    hub_para "$imagem" || estado=1
+    if ! hub_para "$imagem"; then
+      registar "$resumo: os ecrãs do Hub não ficaram no ar"
+      estado=1
+    fi
   fi
   if ((recriada)); then
     verificar_base "$resumo" || estado=1
@@ -452,7 +455,7 @@ if ((arrancou == 1)) && saude 8080; then
     estado=1
   fi
   if ! hub_para "$imagem"; then
-    registar "publicado $resumo, mas os ecrãs do Hub não se copiaram"
+    registar "publicado $resumo, mas os ecrãs do Hub não ficaram no ar"
     estado=1
   fi
   verificar_base "$resumo" || estado=1

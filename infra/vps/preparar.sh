@@ -595,13 +595,15 @@ passo "10c. A API corre com a ligação do api-base.env (docs/19 §6, #107)"
 # instalou): espera por outra publicação em curso, não troca de imagem,
 # verifica o /health e que a API chega à base (revisão do #116, P2-1).
 # Sem um número válido de um dos lados, não se compara (revisão do #116, P3-1).
+# Em nanossegundos, como o eurolify-publicar (revisão do #162, P3-E).
 configuracao_mais_recente_que_a_api() {
   local criado ficheiro mudado
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
-  criado="$(date -d "$criado" +%s 2>/dev/null)" || return 1
+  criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
   for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env; do
-    mudado="$(stat -c %Y "$ficheiro" 2>/dev/null)" || continue
+    mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
+    mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
   done
   return 1
@@ -709,6 +711,11 @@ passo "13. MCP da VPS: utilizador, pedidos, certificado e nginx (ADR-0033)"
 # passo, e quem ficava desligado era o MCP (revisão do #160, P3-2).
 if [[ -L /etc/nginx/sites-enabled/eurolify-hub.conf && ! -s "/etc/letsencrypt/live/$HUB_DOMINIO/fullchain.pem" ]]; then
   fazer "desligar o site do Hub (sem certificado)" rm -f /etc/nginx/sites-enabled/eurolify-hub.conf
+  # Recarrega já: o passo 14 já não vê a ligação e não recarregaria
+  # (revisão do #162, P3-D).
+  if ((!MOSTRAR)) && nginx -t 2>/dev/null; then
+    fazer "recarregar o nginx" systemctl reload-or-restart nginx
+  fi
 fi
 # O utilizador do contentor do MCP: sem casa, sem consola, sem chave SSH. Só
 # escreve na pasta dos seus pedidos.
@@ -746,7 +753,8 @@ else
   fazer "pedir o certificado de $MCP_DOMINIO (Let's Encrypt, desafio DNS da OVH)" \
     certbot certonly --non-interactive --agree-tos --register-unsafely-without-email \
     --dns-ovh --dns-ovh-credentials /etc/eurolify/ovh-dns.ini --dns-ovh-propagation-seconds 60 \
-    -d "$MCP_DOMINIO"
+    -d "$MCP_DOMINIO" ||
+    aviso "o certificado de $MCP_DOMINIO não foi emitido: o MCP fica desligado (revisão do #162, P3-C)"
 fi
 
 # nginx: só o site do MCP. O site por omissão do pacote (porta 80) sai.

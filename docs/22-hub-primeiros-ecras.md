@@ -150,9 +150,13 @@ linha IPv6, que a máquina de teste não tem) e a API verdadeira com
 `assets/` 200; `/hub/me` 401; 20 `POST /hub/session/options` de um endereço
 dão 200 e o 21.º 429 com `Retry-After: 60`; outro endereço continua a 200; um
 `X-Forwarded-For` forjado não muda a contagem (429); um `Origin` de outro
-site, 403. Depois da revisão do #160 (P1-1): `/products/a%2F..%2F..%2Fhub%2Fb`,
-`/hub/x%2F..%2F..%2Fproducts` e `/hub/..%2Fproducts` dão 404 sem chegar à
-API (antes, o primeiro chegava à rota `/products`: 401 da API).
+site, 403. Depois da revisão do #160 (P1-1), com os ecrãs no lugar:
+`/products/a%2F..%2F..%2Fhub%2Fb` e `//hub/me` dão 404;
+`/hub/x%2F..%2F..%2Fproducts` e `/hub/..%2Fproducts` ficam `/products` depois
+de normalizados e dão 200 com a página do Hub (`try_files`). Nenhum chega à
+API: o registo dela só mostra `/health` e `/hub/me` (antes, o primeiro chegava
+à rota `/products`: 401 da API). Uma primeira medição dizia 404 para os dois
+do meio por faltarem os ecrãs na máquina de teste (revisão do #162, P3-B).
 
 **Só contas de teste** (ADR-0019): a VPS está no Reino Unido até à migração;
 os convites são criados pelo Diogo ou pelo Bruno, **com nomes e e-mails
