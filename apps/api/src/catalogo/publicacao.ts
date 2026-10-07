@@ -503,6 +503,78 @@ export async function publicar(
   });
 }
 
+/** O que se reverifica: as publicações de um artigo, ou as de um mercado. */
+export type AlvoDaReverificacao =
+  { artigo_id: string } | { mercado_id: string };
+
+/**
+ * Reverifica as publicações publicadas do alvo, na transacção de quem mudou
+ * o que a verificação lê (docs/14 §8; decisão do Diogo, 07/10/2026, opção a;
+ * docs/06, CJ; migração 0023). A que deixa de passar sai de venda: fica
+ * arquivada com o motivo `verificacao_falhou` e a verificação guardada (os
+ * impedimentos), e o evento `product.unpublished` (0021) leva o motivo. Quem
+ * arquivou é o `eurolify.quem` da transacção, se houver; senão,
+ * `catalogo:verificacao_falhou`. Devolve as publicações arquivadas.
+ *
+ * Concorrência: quem chama já escreveu a mudança; aqui tomam-se as
+ * publicações publicadas do alvo (FOR UPDATE, por ordem do id) e só depois
+ * se verifica. Duas mudanças que, juntas, partem a mesma publicação (as duas
+ * últimas variantes arquivadas, ou uma língua nova no mercado e a tradução
+ * apagada) tomam ambas essa linha: a segunda verifica depois de a primeira
+ * acabar e vê as duas. `publicar` toma a linha da publicação depois do que
+ * a verificação lê (as variantes e a tradução FOR SHARE), e espera por quem
+ * os está a mudar.
+ */
+export async function reverificarPublicacoes(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  alvo: AlvoDaReverificacao,
+): Promise<string[]> {
+  const filtro =
+    "artigo_id" in alvo
+      ? ({ coluna: "artigo_id", valor: alvo.artigo_id } as const)
+      : ({ coluna: "mercado_id", valor: alvo.mercado_id } as const);
+  const publicadas = await trx
+    .selectFrom("publicacao")
+    .select(["id", "artigo_id", "canal_id", "mercado_id", "variantes_fora"])
+    .where(filtro.coluna, "=", filtro.valor)
+    .where("estado", "=", "publicado")
+    .orderBy("id")
+    .forUpdate()
+    .execute();
+  const arquivadas: string[] = [];
+  for (const p of publicadas) {
+    const verificacao = await verificarNa(trx, comercianteId, {
+      artigo_id: p.artigo_id,
+      canal_id: p.canal_id,
+      mercado_id: p.mercado_id,
+      variantes_fora: p.variantes_fora,
+    });
+    if (verificacao.impedimentos.length === 0) continue;
+    const anterior = await sql<{ motivo: string | null }>`
+      select current_setting('eurolify.motivo_arquivo', true) as motivo`.execute(
+      trx,
+    );
+    await sql`select set_config('eurolify.motivo_arquivo', 'verificacao_falhou', true)`.execute(
+      trx,
+    );
+    await trx
+      .updateTable("publicacao")
+      .set({
+        estado: "arquivado",
+        ultima_verificacao: JSON.stringify(verificacao),
+        verificado_em: sql<Date>`clock_timestamp()`,
+      })
+      .where("id", "=", p.id)
+      .execute();
+    await sql`select set_config('eurolify.motivo_arquivo', ${anterior.rows[0]?.motivo ?? ""}, true)`.execute(
+      trx,
+    );
+    arquivadas.push(p.id);
+  }
+  return arquivadas;
+}
+
 /** Retira uma publicação (publicado → arquivado; §4.2). */
 export async function retirarPublicacao(
   db: Kysely<BaseDados>,

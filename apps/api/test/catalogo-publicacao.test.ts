@@ -762,7 +762,7 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       expect(await tirarPreco(base.api, s.c, QUEM, s.lista, s.v2)).toBe(true);
     });
 
-    it("republicar: uma arquivada volta a publicada, limpa o arquivo; uma publicada com impedimentos continua publicada", async () => {
+    it("republicar: uma arquivada volta a publicada, limpa o arquivo; com impedimentos fica como estava", async () => {
       const s = await pronto();
       const r = await publicar(base.api, s.c, QUEM, s.pedido);
       await retirarPublicacao(
@@ -789,9 +789,10 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
         arquivado_em: null,
         motivo_arquivo: null,
       });
-      // Um impedimento novo (uma variante sem preço que se quer pôr à venda
-      // não muda nada: a variante nova nasce fora); a classificação restrita
-      // aparece na verificação guardada, e a publicação continua publicada.
+      // Uma classificação restrita tira-a de venda logo (docs/06, CJ; os
+      // testes da reverificação estão em catalogo-reverificacao.test.ts).
+      // Publicar outra vez com o impedimento não a muda de estado: guarda só
+      // a verificação.
       const versao = (await obterArtigo(base.api, s.c, s.artigo)).versao;
       await classificarArtigo(
         base.api,
@@ -803,7 +804,10 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       );
       const comImpedimento = await publicar(base.api, s.c, QUEM, s.pedido);
       expect(comImpedimento.publicada).toBe(false);
-      expect(comImpedimento.publicacao?.estado).toBe("publicado");
+      expect(comImpedimento.publicacao).toMatchObject({
+        estado: "arquivado",
+        motivo_arquivo: "verificacao_falhou",
+      });
       expect(comImpedimento.publicacao?.ultima_verificacao).toEqual(
         comImpedimento.verificacao,
       );

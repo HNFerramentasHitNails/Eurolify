@@ -4,6 +4,7 @@ import type {
   EstadoMercado,
   TipoListaPrecos,
 } from "../base/esquema.js";
+import { reverificarPublicacoes } from "../catalogo/publicacao.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 
 // Preços e mercados, parte 1 (docs/20 §3.1 a §3.5; migração 0017; issue
@@ -294,7 +295,12 @@ export async function alterarMercado(
       .where("versao", "=", versao)
       .returning("versao")
       .executeTakeFirst();
-    return linha?.versao ?? semLinha(trx, "mercado", mercadoId);
+    if (linha === undefined) return semLinha(trx, "mercado", mercadoId);
+    // Uma língua nova no mercado pede o nome traduzido: as publicações que
+    // deixam de passar saem de venda (docs/14 §8; docs/06, CJ). A
+    // verificação é do Catálogo (C2); o mercado já está tomado (o UPDATE).
+    await reverificarPublicacoes(trx, comercianteId, { mercado_id: mercadoId });
+    return linha.versao;
   });
 }
 

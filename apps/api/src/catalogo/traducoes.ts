@@ -1,5 +1,6 @@
 import { sql, type Kysely } from "kysely";
 import type { BaseDados, OrigemTraducao } from "../base/esquema.js";
+import { reverificarPublicacoes } from "./publicacao.js";
 import { ErroCatalogo, noCatalogo } from "./repositorio.js";
 
 // Catálogo, parte 3b: traduções (docs/14 §3.8 e §4.3; migração 0009; issue
@@ -138,6 +139,13 @@ export async function apagarTraducao(
   lingua: string,
 ): Promise<void> {
   await noCatalogo(db, comercianteId, async (trx) => {
+    // Num artigo, a tradução do nome em falta tira-o de venda nos mercados
+    // dessa língua: reverifica-se depois de apagar (docs/14 §8; docs/06, CJ).
+    const artigo = await trx
+      .selectFrom("artigo")
+      .select("id")
+      .where("id", "=", recursoId.toLowerCase())
+      .executeTakeFirst();
     const resultado = await trx
       .deleteFrom("traducao")
       .where("recurso_id", "=", recursoId.toLowerCase())
@@ -149,6 +157,11 @@ export async function apagarTraducao(
         "catalog.not_found",
         `tradução ${recursoId} ${campo} ${lingua}`,
       );
+    }
+    if (artigo !== undefined) {
+      await reverificarPublicacoes(trx, comercianteId, {
+        artigo_id: artigo.id,
+      });
     }
   });
 }

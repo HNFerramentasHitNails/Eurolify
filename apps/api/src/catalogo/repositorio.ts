@@ -9,6 +9,7 @@ import type {
 } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import type { Classificacao } from "./classificacao.js";
+import { reverificarPublicacoes } from "./publicacao.js";
 
 // Acesso interno ao domínio Catálogo, parte 1: artigos e variantes
 // (docs/14-dominio-catalogo.md §3.1, §3.2, §4.1 e §5; issue #77). Ainda sem
@@ -433,6 +434,9 @@ export async function alterarArtigo(
       .where("id", "=", artigoId)
       .returning("versao")
       .executeTakeFirstOrThrow();
+    // Um nome novo desactualiza as traduções dele: as publicações que deixam
+    // de passar saem de venda (docs/14 §8; docs/06, CJ).
+    await reverificarPublicacoes(trx, comercianteId, { artigo_id: artigoId });
     return nova;
   });
 }
@@ -500,6 +504,9 @@ export async function classificarArtigo(
       .where("id", "=", artigoId)
       .returning("versao")
       .executeTakeFirstOrThrow();
+    // Uma classificação que deixa de servir tira o artigo de venda (docs/14
+    // §8; docs/06, CJ).
+    await reverificarPublicacoes(trx, comercianteId, { artigo_id: artigoId });
     return depois;
   });
 }
@@ -575,14 +582,23 @@ export async function arquivarVariante(
   varianteId: string,
 ): Promise<void> {
   await noCatalogo(db, comercianteId, async (trx) => {
-    const resultado = await trx
+    const variante = await trx
       .updateTable("variante")
       .set({ estado: "arquivada" })
       .where("id", "=", varianteId)
+      .returning("artigo_id")
       .executeTakeFirst();
-    if (resultado.numUpdatedRows === 0n) {
+    if (variante === undefined) {
       throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);
     }
+    // A última variante à venda arquivada tira a publicação de venda (docs/14
+    // §8; docs/06, CJ; C6 continua: as outras variantes não caem). Dois
+    // arquivos de variantes do mesmo artigo ao mesmo tempo ficam em série na
+    // linha da publicação (FOR UPDATE na reverificação): o segundo verifica
+    // depois de o primeiro acabar e vê-o.
+    await reverificarPublicacoes(trx, comercianteId, {
+      artigo_id: variante.artigo_id,
+    });
   });
 }
 
