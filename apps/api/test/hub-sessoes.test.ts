@@ -10,6 +10,7 @@ import {
 } from "../src/comerciante/repositorio.js";
 import { configHub, resumo } from "../src/identidade/sessoes.js";
 import { AutenticadorDeTeste } from "./autenticador-de-teste.js";
+import { ipNovo } from "./hub-de-teste.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -56,6 +57,9 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
     return app.inject({
       method: metodo,
       url,
+      // Um IP por pedido, para o limite por IP (docs/21 §14) não se cruzar
+      // com estes testes; o limite testa-se em limite.test.ts.
+      remoteAddress: ipNovo(),
       headers: cabecalhos,
       ...(metodo === "POST" ? { payload: JSON.stringify(p.corpo ?? {}) } : {}),
     });

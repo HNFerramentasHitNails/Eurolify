@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
+import { proxyConfiavel } from "./base/limite.js";
 import { serializadores } from "./base/registo.js";
 import { chaveTotp } from "./identidade/palavra-passe.js";
 import { configHub } from "./identidade/sessoes.js";
@@ -42,6 +43,10 @@ const app = criarApp(
     // `instance` dos erros (revisão do #106, P3-2).
     genReqId: () => randomUUID(),
     logger: { serializers: serializadores },
+    // Atrás de um proxy, o IP de quem pede vem no X-Forwarded-For, e só se
+    // aceita do endereço exacto do proxy, que o reescreve (docs/21 §12 e
+    // §14). Sem PROXY_CONFIAVEL, conta o IP da ligação.
+    trustProxy: proxyConfiavel(process.env["PROXY_CONFIAVEL"]),
   },
   undefined,
   base,

@@ -11,6 +11,7 @@ import {
   RESPOSTA_DE_ERRO,
 } from "./base/erros.js";
 import type { BaseDados } from "./base/esquema.js";
+import { LIMITES_HUB, LimitePorIp } from "./base/limite.js";
 import { rotasDoCatalogo } from "./catalogo/rotas.js";
 import { ligarAutenticacao } from "./identidade/autenticacao.js";
 import { rotasDoHub } from "./identidade/hub.js";
@@ -94,6 +95,25 @@ export function criarApp(
   // O cookie da sessão do Hub (docs/21 §3); as opções de cada cookie são
   // dadas ao escrevê-lo (sessoes.ts), nunca as de omissão da biblioteca.
   void app.register(cookie);
+  // O limite geral por IP nas rotas do Hub (docs/21 §14): antes da origem e
+  // da sessão, para um pedido a mais não chegar à base.
+  if (hub !== undefined) {
+    const limites = hub.limites ?? LIMITES_HUB;
+    const todas = new LimitePorIp(limites.todas);
+    const publicas = new LimitePorIp(limites.publicas);
+    app.addHook("onRequest", async (pedido, resposta) => {
+      const config = pedido.routeOptions.config;
+      if (config.hub !== true) return;
+      const espera = Math.max(
+        todas.contar(pedido.ip),
+        config.ambito === "publico" ? publicas.contar(pedido.ip) : 0,
+      );
+      if (espera > 0) {
+        void resposta.header("Retry-After", String(espera));
+        throw erroBase("rate_limit.exceeded");
+      }
+    });
+  }
   ligarAutenticacao(app, base, hub);
   const registadas: { metodo: string; caminho: string }[] = [];
   rotasPorApp.set(app, registadas);
