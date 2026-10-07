@@ -700,6 +700,24 @@ cursor, com indicação de que há mais e **o total explícito** (regra 4; liç�
 
 ### 7.1 API de Administração
 
+**Em código** (07/10/2026; pedido do Diogo: «sim, avança com as consultas
+da API do Catálogo»; `apps/api/src/catalogo/rotas.ts`), com uma chave de
+servidor com `catalog:read`:
+
+- `GET /products`, com os filtros estado, tipo, SKU de uma variante e parte
+  do nome, no formato de lista do `docs/18` §2a;
+- `GET /products/{id}`, com as variantes sempre incluídas;
+- `GET /products/{id}/publications`;
+- `POST /products/{id}/publications/check`.
+
+Os nomes dos campos nas respostas são os do modelo (§3), em português, e os
+identificadores levam o prefixo (`prd_`, `var_`, `pub_`, `chn_`, `mkt_`).
+Os erros do Catálogo saem com o código estável: `catalog.not_found` (404,
+também para um artigo de outro comerciante), `catalog.invalid_field` (400) e
+`catalog.retry` (503); os outros códigos dão 422 até às rotas que os usam.
+Os outros filtros da tabela (categoria, sem foto, tradução em falta,
+actualizado desde) e o `expand` entram com as rotas seguintes.
+
 | Operação | Método e caminho | Âmbito | Notas |
 |---|---|---|---|
 | Procurar artigos | `GET /products` | read | filtros: estado, tipo, categoria, texto, SKU, sem foto, sem SKU, tradução em falta numa língua, actualizado desde |
