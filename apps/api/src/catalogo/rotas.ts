@@ -1,6 +1,6 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import { Type } from "typebox";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
@@ -12,18 +12,39 @@ import {
   MOTIVOS_ARQUIVO_PUBLICACAO,
   NATUREZAS_CONSUMIDOR,
   TIPOS_ARTIGO,
+  ORIGENS_GTIN,
+  UNIDADES_DE_CONTEUDO,
   UNIDADES_DE_VENDA,
   type BaseDados,
 } from "../base/esquema.js";
+import {
+  comIdempotencia,
+  type PedidoIdempotente,
+} from "../base/idempotencia.js";
 import { chaveDo } from "../identidade/autenticacao.js";
+import type { ContextoChave } from "../identidade/repositorio.js";
+import {
+  CabecalhoIdempotencia,
+  caminhoDe,
+  chaveDeIdempotencia,
+} from "../identidade/rotas.js";
 import { fichaDoArtigo, listarArtigos } from "./consultas.js";
-import { ErroCatalogo } from "./erros.js";
+import { ErroCatalogo, traduzir } from "./erros.js";
 import {
   NAO_VERIFICADO,
   publicacoesDoArtigo,
+  publicar,
+  retirarPublicacao,
   verificarPublicacao,
   type Publicacao,
 } from "./publicacao.js";
+import {
+  alterarArtigo,
+  apagarRascunho,
+  classificarArtigo,
+  criarArtigo,
+  mudarEstadoArtigo,
+} from "./repositorio.js";
 
 // API de Administração do Catálogo, parte 1: as consultas (docs/14 §7.1;
 // pedido do Diogo, 07/10/2026: «sim, avança com as consultas da API do
@@ -155,7 +176,11 @@ async function noCatalogoApi<T>(
 ): Promise<T> {
   try {
     return await fn();
-  } catch (erro) {
+  } catch (erroOriginal) {
+    // Um erro que sai fora do `noCatalogo` (o COMMIT da transacção da
+    // idempotência: uma restrição diferida, um conflito de serialização)
+    // também se traduz (revisão do #153, P2-3). Um ErroCatalogo passa igual.
+    const erro = traduzir(erroOriginal);
     if (erro instanceof ErroCatalogo && erro.codigo === "catalog.retry") {
       void resposta.header("Retry-After", "1");
     }
@@ -323,6 +348,132 @@ const PedidoVerificar = Type.Object(
   { additionalProperties: false },
 );
 
+// ---------------------------------------------- Os esquemas das escritas
+
+const Texto = (max: number) =>
+  Type.String({ minLength: 1, maxLength: max, pattern: "\\S" });
+const TextoOuNulo = (max: number) =>
+  Type.Union([Type.String({ maxLength: max }), Type.Null()]);
+/** Uma medida: inteiro positivo, como a base o pede (0002). */
+const Medida = Type.Union([
+  Type.Integer({ minimum: 1, maximum: 2147483647 }),
+  Type.Null(),
+]);
+/** O código da categoria fiscal, no formato da base (0002). */
+const CategoriaFiscal = Type.Union([
+  Type.String({ pattern: "^[a-z][a-z0-9_]*$", maxLength: 64 }),
+  Type.Null(),
+]);
+
+const NovaVariante = Type.Object(
+  {
+    sku: Texto(64),
+    unidade_de_venda: UnidadeDeVenda,
+    gtin: Type.Optional(
+      Type.Union([
+        Type.String({ pattern: "^([0-9]{8}|[0-9]{12,14})$" }),
+        Type.Null(),
+      ]),
+    ),
+    gtin_origem: Type.Optional(Type.Union([umDe(ORIGENS_GTIN), Type.Null()])),
+    conteudo_quantidade: Type.Optional(Medida),
+    conteudo_unidade: Type.Optional(
+      Type.Union([umDe(UNIDADES_DE_CONTEUDO), Type.Null()]),
+    ),
+    peso_g: Type.Optional(Medida),
+    comprimento_mm: Type.Optional(Medida),
+    largura_mm: Type.Optional(Medida),
+    altura_mm: Type.Optional(Medida),
+    onu: Type.Optional(
+      Type.Union([Type.String({ pattern: "^UN[0-9]{4}$" }), Type.Null()]),
+    ),
+    classe_adr: Type.Optional(
+      Type.Union([
+        Type.String({ minLength: 1, maxLength: 16, pattern: "\\S" }),
+        Type.Null(),
+      ]),
+    ),
+    posicao: Type.Optional(
+      Type.Integer({
+        minimum: 0,
+        maximum: 2147483647,
+        description:
+          "A ordem na ficha (as variantes lêem-se por posição e SKU)",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoCriarArtigo = Type.Object(
+  {
+    tipo: TipoArtigo,
+    nome: Texto(200),
+    descricao: Type.Optional(TextoOuNulo(10000)),
+    marca: Type.Optional(TextoOuNulo(200)),
+    categoria_fiscal: Type.Optional(CategoriaFiscal),
+    variantes: Type.Array(NovaVariante, { minItems: 1, maxItems: 100 }),
+  },
+  { additionalProperties: false },
+);
+
+const ComVersao = { versao: Type.Integer({ minimum: 1 }) };
+
+const PedidoAlterarArtigo = Type.Object(
+  {
+    ...ComVersao,
+    nome: Type.Optional(Texto(200)),
+    descricao: Type.Optional(TextoOuNulo(10000)),
+    marca: Type.Optional(TextoOuNulo(200)),
+    categoria_fiscal: Type.Optional(CategoriaFiscal),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoClassificar = Type.Object(
+  {
+    ...ComVersao,
+    familias: Type.Array(Familia, { maxItems: 20 }),
+    natureza_consumidor: Type.Union([Natureza, Type.Null()]),
+    modo: Type.Optional(Type.Union([Modo, Type.Null()])),
+    prestacao_inicio: Type.Optional(Type.Union([Instante, Type.Null()])),
+    prestacao_fim: Type.Optional(Type.Union([Instante, Type.Null()])),
+    local_pais: Type.Optional(
+      Type.Union([Type.String({ pattern: "^[A-Z]{2}$" }), Type.Null()]),
+    ),
+    local_territorio: Type.Optional(TextoOuNulo(64)),
+    lazer_com_data: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoVersao = Type.Object(ComVersao, { additionalProperties: false });
+
+const PedidoPublicar = Type.Object(
+  {
+    canal: idCom("chn", "chn_…"),
+    mercado: idCom("mkt", "mkt_…"),
+    variantes_fora: Type.Optional(
+      Type.Array(idCom("var", "var_…"), { maxItems: 500 }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const ParametroPublicacao = Type.Object({ id: idCom("pub", "pub_…") });
+
+const RespostaPublicar = Type.Object({
+  publicada: Type.Boolean({
+    description:
+      "Falso com impedimentos: nada muda além da verificação guardada (docs/14 §4.2)",
+  }),
+  verificacao: Verificacao,
+  publicacao: Type.Union([PublicacaoEsquema, Type.Null()], {
+    description:
+      "Nula quando o canal não vende no mercado ou o artigo está em rascunho: não há onde a publicação exista",
+  }),
+});
+
 // -------------------------------------------------------- As conversões
 
 type FichaDoArtigo = Awaited<ReturnType<typeof fichaDoArtigo>>;
@@ -423,6 +574,84 @@ function idDoCursor(cursor: string): string {
     throw erroBase("request.invalid", "`cursor` não é um cursor desta lista");
   }
   return id;
+}
+
+// --------------------------------------------------- A escrita idempotente
+
+/** Sem corpo, `null` ou `{}`. */
+const vazio = (corpo: unknown) =>
+  corpo === undefined ||
+  corpo === null ||
+  (typeof corpo === "object" &&
+    !Array.isArray(corpo) &&
+    Object.keys(corpo).length === 0);
+
+/** Quem escreve: a chave (`chave:key_…`, o formato das migrações 0012, 0014, 0015 e 0025). */
+const quemDa = (chave: ContextoChave) => `chave:key_${chave.chaveId}`;
+
+/**
+ * Corre uma escrita do Catálogo com a Idempotency-Key (docs/18 §4): a
+ * escrita e a resposta guardada vão na mesma transacção (`noCatalogo` corre
+ * na transacção da idempotência). Repetir o pedido com a mesma chave devolve
+ * a mesma resposta sem escrever outra vez.
+ */
+async function escrever(
+  base: Kysely<BaseDados>,
+  pedido: FastifyRequest,
+  resposta: FastifyReply,
+  status: number,
+  // Uma Transaction, nunca a base: com a base, o repositório abria outra
+  // transacção e a escrita deixava de ir com a resposta guardada (revisão do
+  // #153, P3-5).
+  fn: (trx: Transaction<BaseDados>, chave: ContextoChave) => Promise<unknown>,
+  local?: (corpo: unknown) => string,
+) {
+  const chave = chaveDo(pedido);
+  const idempotente: PedidoIdempotente = {
+    chave: chaveDeIdempotencia(pedido),
+    metodo: pedido.method as PedidoIdempotente["metodo"],
+    caminho: caminhoDe(pedido.url),
+    // Sem corpo e `{}` são o mesmo pedido (revisão do #153, 2.ª ronda, P3-A).
+    corpo: vazio(pedido.body) ? null : pedido.body,
+  };
+  const resultado = await noCatalogoApi(resposta, () =>
+    comIdempotencia(
+      base,
+      chave.comercianteId,
+      idempotente,
+      async (trx) => {
+        const corpo = await fn(trx, chave);
+        return { status, corpo, guardar: corpo };
+      },
+      {
+        aoFalharLimpeza: (erro) => {
+          pedido.log.error(
+            { err: erro },
+            "idempotência: linha em curso por apagar",
+          );
+        },
+      },
+    ),
+  );
+  if (resultado.status === 204) return resposta.code(204).send();
+  if (local !== undefined) {
+    void resposta.header("Location", local(resultado.corpo));
+  }
+  return resposta.code(resultado.status).send(resultado.corpo);
+}
+
+/** A ficha do artigo como a API a devolve, lida na transacção dada. */
+async function fichaNa(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+) {
+  const { artigo, variantes } = await fichaDoArtigo(
+    trx,
+    comercianteId,
+    artigoId,
+  );
+  return { ...paraArtigo(artigo), variantes: variantes.map(paraVariante) };
 }
 
 // ------------------------------------------------------------ As rotas
@@ -541,5 +770,259 @@ export function rotasDoCatalogo(
       );
       return verificacao;
     },
+  );
+
+  // ---------------------------------------------------------- Escritas
+  // Parte 2 (pedido do Diogo, 07/10/2026: «sim, avança com as escritas da
+  // API do Catálogo»). Todas pedem a Idempotency-Key; quem escreve é a chave.
+
+  rotas.post(
+    "/products",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Cria um artigo em rascunho, com as variantes (pelo menos uma; SKU único por comerciante, C3). Devolve a ficha.",
+        headers: CabecalhoIdempotencia,
+        body: PedidoCriarArtigo,
+        response: { 201: Artigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        async (trx, chave) => {
+          const { variantes, ...dados } = pedido.body;
+          const id = await criarArtigo(
+            trx,
+            chave.comercianteId,
+            dados,
+            variantes,
+          );
+          return fichaNa(trx, chave.comercianteId, id);
+        },
+        (corpo) => `/products/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  rotas.patch(
+    "/products/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Altera o nome, a descrição, a marca ou a categoria fiscal, na `versao` lida (outra dá catalog.version_conflict). Um nome novo volta a verificar as publicações (docs/14 §4.2).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoAlterarArtigo,
+        response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        const { versao, ...alteracao } = pedido.body;
+        await alterarArtigo(trx, chave.comercianteId, id, versao, alteracao);
+        return fichaNa(trx, chave.comercianteId, id);
+      }),
+  );
+
+  rotas.put(
+    "/products/:id/classification",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Classifica o artigo (docs/14 §3.10), na `versao` lida: substitui a classificação toda. Uma que deixa de servir tira as publicações de venda (docs/06, CJ).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoClassificar,
+        response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        const { versao, prestacao_inicio, prestacao_fim, ...resto } =
+          pedido.body;
+        // O formato já o validou o esquema; um instante que o JavaScript não
+        // lê (o segundo 60) recusa-se aqui, com o campo (revisão do #153,
+        // P3-6). O Date guarda milissegundos: os microssegundos perdem-se.
+        const data = (v: string | null | undefined) => {
+          if (v === undefined || v === null) return v;
+          const d = new Date(v);
+          if (Number.isNaN(d.getTime())) {
+            throw new ErroCatalogo(
+              "catalog.invalid_field",
+              `data inválida: ${v}`,
+            );
+          }
+          return d;
+        };
+        await classificarArtigo(
+          trx,
+          chave.comercianteId,
+          id,
+          versao,
+          {
+            ...resto,
+            ...(prestacao_inicio === undefined
+              ? {}
+              : { prestacao_inicio: data(prestacao_inicio) ?? null }),
+            ...(prestacao_fim === undefined
+              ? {}
+              : { prestacao_fim: data(prestacao_fim) ?? null }),
+          },
+          quemDa(chave),
+        );
+        return fichaNa(trx, chave.comercianteId, id);
+      }),
+  );
+
+  // `activate` e `restore` levam ambos a `activo`; cada um só parte do seu
+  // estado (um rascunho não se «repõe», um arquivado não se «activa»). Pedir
+  // o estado em que o artigo já está devolve a ficha sem mudar nada, nem a
+  // versão (§4.1; revisão do #153, P2-2).
+  for (const [caminho, de, estado, descricao] of [
+    [
+      "activate",
+      "rascunho",
+      "activo",
+      "Activa um artigo em rascunho (C3: SKU e unidade em todas as variantes activas).",
+    ],
+    [
+      "archive",
+      "activo",
+      "arquivado",
+      "Arquiva um artigo activo; as publicações publicadas arquivam-se com ele.",
+    ],
+    [
+      "restore",
+      "arquivado",
+      "activo",
+      "Repõe um artigo arquivado como activo, sem o voltar a publicar.",
+    ],
+  ] as const) {
+    rotas.post(
+      `/products/:id/${caminho}`,
+      {
+        config: { ambito: "catalog:write" },
+        schema: {
+          description: `${descricao} Na \`versao\` lida; se o artigo já está nesse estado, nada muda.`,
+          headers: CabecalhoIdempotencia,
+          params: ParametroArtigo,
+          body: PedidoVersao,
+          response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
+        },
+      },
+      (pedido, resposta) =>
+        escrever(base, pedido, resposta, 200, async (trx, chave) => {
+          const id = semPrefixo(pedido.params.id);
+          await mudarEstadoArtigo(
+            trx,
+            chave.comercianteId,
+            id,
+            pedido.body.versao,
+            estado,
+            de,
+          );
+          return fichaNa(trx, chave.comercianteId, id);
+        }),
+    );
+  }
+
+  rotas.delete(
+    "/products/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Apaga um artigo em rascunho que nunca esteve activo (com as variantes); outro dá catalog.not_draft.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        // `type: null`: o @fastify/swagger escreve o 204 sem `content`
+        // (medido a 07/10/2026 no /openapi.json; revisão do #153).
+        response: {
+          204: Type.Null({ description: "Apagado; sem corpo" }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 204, async (trx, chave) => {
+        await apagarRascunho(
+          trx,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+        );
+        return null;
+      }),
+  );
+
+  rotas.post(
+    "/products/:id/publications",
+    {
+      config: { ambito: "catalog:publish" },
+      schema: {
+        description:
+          "Publica o artigo num canal × mercado: corre a verificação (C2) e, sem impedimentos, põe-no à venda. Com impedimentos responde 200 com `publicada: false` e a lista: o artigo não fica à venda, só se guarda a verificação na publicação (que fica em rascunho; docs/14 §4.2). Ler sempre `publicada`, nunca só o estado HTTP. Repetir com a mesma Idempotency-Key devolve a resposta guardada, mesmo que entretanto o impedimento tenha sido resolvido: para verificar outra vez, uma chave nova.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoPublicar,
+        response: { 200: RespostaPublicar, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const corpo = pedido.body;
+        const r = await publicar(trx, chave.comercianteId, quemDa(chave), {
+          artigo_id: semPrefixo(pedido.params.id),
+          canal_id: semPrefixo(corpo.canal),
+          mercado_id: semPrefixo(corpo.mercado),
+          variantes_fora: (corpo.variantes_fora ?? []).map(semPrefixo),
+        });
+        return {
+          publicada: r.publicada,
+          verificacao: r.verificacao,
+          publicacao:
+            r.publicacao === null ? null : paraPublicacao(r.publicacao),
+        };
+      }),
+  );
+
+  rotas.post(
+    "/publications/:id/archive",
+    {
+      config: { ambito: "catalog:publish" },
+      schema: {
+        description:
+          "Retira uma publicação de venda (publicado → arquivado, motivo `retirada`). Só se retira o que está publicado (outro estado dá catalog.invalid_transition). Sem corpo.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroPublicacao,
+        response: { 200: PublicacaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        // Sem corpo (ou `{}`): outro corpo recusa-se, depois da chave de
+        // idempotência (revisão do #153, 2.ª ronda, P3-A).
+        if (!vazio(pedido.body)) {
+          throw new ErroCatalogo(
+            "catalog.invalid_field",
+            "esta rota não leva corpo",
+          );
+        }
+        return paraPublicacao(
+          await retirarPublicacao(
+            trx,
+            chave.comercianteId,
+            quemDa(chave),
+            semPrefixo(pedido.params.id),
+          ),
+        );
+      }),
   );
 }

@@ -710,6 +710,47 @@ servidor com `catalog:read`:
 - `GET /products/{id}/publications`;
 - `POST /products/{id}/publications/check`.
 
+**As escritas em código** (07/10/2026; pedido do Diogo: «sim, avança com as
+escritas da API do Catálogo»), todas com o cabeçalho `Idempotency-Key`
+(`docs/18` §4: a escrita e a resposta guardada vão na mesma transacção; a
+mesma chave com o mesmo pedido devolve a mesma resposta; com outro pedido,
+`idempotency.key_reused`; uma escrita que falha não gasta a chave):
+
+- com `catalog:write`: `POST /products` (rascunho, com pelo menos uma
+  variante), `PATCH /products/{id}`, `PUT /products/{id}/classification`,
+  `POST /products/{id}/activate`, `/archive` e `/restore` (cada um parte
+  do seu estado — rascunho, activo e arquivado — ou do estado a que leva,
+  que não muda nada; outro dá `catalog.invalid_transition`) e
+  `DELETE /products/{id}`;
+- com `catalog:publish`: `POST /products/{id}/publications` e
+  `POST /publications/{id}/archive`.
+
+As alterações levam a `versao` lida (outra dá `catalog.version_conflict`,
+antes de qualquer outra recusa) e devolvem a ficha. Pedir o estado em que o
+artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1), mas só
+com a versão actual: quem perdeu a resposta e repete com uma chave nova e a
+versão antiga recebe `catalog.version_conflict`; com a mesma chave, recebe a
+resposta guardada. O esquema
+de cada corpo diz o que a base aceita (medidas positivas, o formato da
+categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
+código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
+com `publicada: false`: quem chama lê `publicada`, nunca só o estado HTTP. Quem escreve fica registado como a chave
+(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções, a
+composição, as traduções e o resto da tabela entram com as rotas seguintes.
+
+**Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas
+rotas, que só as expõem):
+
+- **Quem** fica registado na classificação e na publicação, mas não em
+  criar, alterar, activar, arquivar, repor e apagar: a C7 (rasto de quem,
+  quando, antes e depois) ainda não está cumprida nessas operações; entra
+  com a linha do tempo.
+- **A categoria fiscal** aceita qualquer código no formato: a lista é do
+  Motor de IVA (§2), que ainda não existe, e nada confirma que o código
+  existe lá (**C**, não verifiquei). Fim proposto: quando o Motor de IVA
+  existir, ou antes de haver produção (ADR-0027), o que vier primeiro —
+  como a rede da C2 (`docs/06`, CF). A confirmar pelo Diogo ou pelo Bruno.
+
 Os nomes dos campos nas respostas são os do modelo (§3), em português, e os
 identificadores levam o prefixo (`prd_`, `var_`, `pub_`, `chn_`, `mkt_`).
 **Quem fez a mudança não sai** (`publicado_por`, `arquivado_por`,
@@ -739,6 +780,7 @@ actualizado desde) e o `expand` entram com as rotas seguintes.
 | Activar | `POST /products/{id}/activate` | write | exige C3 |
 | Arquivar | `POST /products/{id}/archive` | write | arquiva as publicações |
 | Repor | `POST /products/{id}/restore` | write | volta a activo, sem republicar |
+| Classificar | `PUT /products/{id}/classification` | write | com a `versao`; substitui a classificação toda (§3.10); a que deixa de servir tira as publicações de venda (§8) |
 | Apagar rascunho | `DELETE /products/{id}` | write | só rascunho que nunca foi activo |
 | Linha do tempo | `GET /products/{id}/timeline` | read | |
 | Variantes | `GET /products/{id}/variants`, `POST /products/{id}/variants`, `PATCH /variants/{id}` | read / write | SKU único (C3) |
@@ -753,7 +795,7 @@ actualizado desde) e o `expand` entram com as rotas seguintes.
 | Traduções | `GET /translations?resource=…&locale=…`, `PUT /translations/{resource}/{field}/{locale}` | read / write | |
 | Fila de traduções | `GET /translations?state=outdated,missing&locale=…` | read | o que falta traduzir |
 | Verificar publicação | `POST /products/{id}/publications/check` | read | **não escreve**: devolve os impedimentos por canal × mercado (C2) |
-| Publicar | `POST /products/{id}/publications` | publish | corre a verificação; com impedimentos, recusa e devolve a lista (o repositório responde `publicada: false` com a verificação; `catalog.publish_blocked` é o que a base diz se alguém tentar contornar) |
+| Publicar | `POST /products/{id}/publications` | publish | corre a verificação; com impedimentos, não publica e devolve a lista, com 200 e `publicada: false` (o repositório responde `publicada: false` com a verificação; `catalog.publish_blocked` é o que a base diz se alguém tentar contornar) |
 | Retirar | `POST /publications/{id}/archive` | publish | |
 | Ver publicações | `GET /products/{id}/publications` | read | |
 | Atributos regulamentares | `PUT /products/{id}/regulatory`, `PUT /variants/{id}/regulatory` | write | valor, quem e quando |
