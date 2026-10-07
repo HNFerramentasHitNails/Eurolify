@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { LimitesHub } from "../base/limite.js";
 import { sql, type Kysely, type Transaction } from "kysely";
 import { ErroApi } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
@@ -19,6 +20,8 @@ export interface ConfigHub {
   rpId: string;
   /** A chave dos segredos TOTP; sem ela, não há rotas da palavra-passe. */
   chaveTotp?: ChaveTotp;
+  /** Os limites por IP (docs/21 §14); por omissão, `LIMITES_HUB`. */
+  limites?: LimitesHub;
 }
 
 /** Lê e valida a origem do Hub; só `https://anfitrião[:porta]`. */

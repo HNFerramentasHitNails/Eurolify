@@ -474,13 +474,19 @@ quiser (proposta).
 `HUB_ORIGEM` só se define num ambiente depois de (1) a B3b, (2) a B4 — sem
 ela, o IP do registo de entradas fica além dos 14 dias da §6 — e (3) um
 limite geral de pedidos por IP, no proxy ou na API. Não é rede temporária:
-é a ordem de ligar.
+é a ordem de ligar. **Estado (07/10/2026):** a B3b e a B4 estão no ensaio
+(#147, #152); o limite por IP está na API (§14), mas **só protege depois
+de, ao ligar** (revisão do #154, P1-1): (a) fixar a sub-rede e o gateway da
+rede Docker `eurolify` no `preparar.sh`; (b) definir a `PROXY_CONFIAVEL`
+com esse gateway (é o endereço que a API vê dentro do contentor, não
+`127.0.0.1`); (c) medir que dois clientes através do proxy contam em
+separado. Sem a `PROXY_CONFIAVEL`, a API não arranca com a `HUB_ORIGEM`.
 
 **Notas da revisão do #144:**
 - **O IP** é o `request.ip` do Fastify, sem `trustProxy`: atrás de um
   proxy fica o IP do proxy (P2-4). Ao ligar o Hub, configura-se o
   `trustProxy` só para o endereço exacto do proxy, que reescreve o
-  `X-Forwarded-For`.
+  `X-Forwarded-For` — feito na §14 com a `PROXY_CONFIAVEL`.
 - **O resumo do e-mail** tentado (sha256 sem sal) desfaz-se com uma lista de
   e-mails: é dado pessoal e entra assim no T8 do `docs/17` (B4; P3-5).
 - **Depois de uma recuperação**, o Hub mostra o aviso (o `evento_conta`
@@ -561,6 +567,46 @@ nos 14 dias (condição para ligar o Hub, §12).
 **O que não faz:** os pedidos dos titulares (exportar e apagar a pedido) e o
 prazo do rasto (**C**, §6); a pessoa que nunca foi membro (não acontece: a
 conta nasce com o convite, §4.2) conta como saída na data da criação.
+
+## 14. Limite geral de pedidos por IP
+
+A terceira condição para ligar o Hub (§12). Escrito com o código (issue
+#140; pedido do Diogo, 07/10/2026: *«sim, avança com o limite de pedidos
+por IP»*). Skill `observability-security` («limites de pedidos e abuso»).
+
+**Onde: na API, não no proxy.** Hoje a API só ouve em `127.0.0.1` e o nginx
+da VPS só publica o MCP (`docs/18` §6); o anfitrião do Hub ainda não está
+escrito (§3). Na API, o limite vale com qualquer proxy que venha a ser
+escolhido, e corre antes de a sessão ou o desafio chegarem à base. Quando a
+API for publicada, um `limit_req` no nginx pode juntar-se a este, como o do
+MCP (`nginx-mcp.conf`).
+
+| O quê | Proposta |
+|---|---|
+| Que rotas | todas as do Hub (`config.hub`); as outras não contam (as da chave contam por chave, `docs/18` §6, quando entrarem) |
+| Rotas públicas do Hub (entrar, recuperar, aceitar convites) | **20 pedidos por minuto** por IP |
+| Todas as rotas do Hub | **300 pedidos por minuto** por IP |
+| Como se conta | janela fixa de um minuto, em memória (a API é um só processo), com relógio monotónico; na fronteira de duas janelas passam até o dobro (ex.: 40 pedidos públicos em cerca de um segundo); um IPv6 pela rede /64, como a base (0024, `ip_rede`) — excepto um IPv4 dentro de IPv6 (`::ffff:…`), que aqui conta como o IPv4 e na base como `::/64` (hoje o proxy envia IPv4 simples) |
+| Acima do limite | **429** `rate_limit.exceeded`, com `Retry-After` em segundos (RFC 9110 §10.2.3) |
+| Memória | no máximo 100 000 IPs por contador (são dois: cerca de 39 MB com os dois cheios, medido na revisão do #154); os de janela acabada saem de minuto a minuto, e com a tabela cheia sai o mais antigo. Com a tabela cheia (mais de 100 000 redes /64), cada pedido custa até ~0,3 ms (medido) e um atacante pode tirar contadores de outros — aceite: quem tem esse número de redes já contorna um limite por IP |
+| Atrás de um proxy | a `PROXY_CONFIAVEL` (endereços exactos, separados por vírgulas, ou «nenhum») diz em que endereço se confia para o `X-Forwarded-For`; uma rede ou «true» são recusados no arranque, e **com a `HUB_ORIGEM` definida a API não arranca sem ela**. Conta o último endereço da cadeia que não é do proxy, por isso o proxy pode reescrever o cabeçalho (como o do MCP: `$remote_addr`) ou acrescentar-lhe o cliente. **Na VPS a API corre num contentor:** o endereço que ela vê é o gateway da rede Docker `eurolify`, e é esse que vai na `PROXY_CONFIAVEL` (revisão do #154, P1-1). O `trustProxy` passa também a aceitar o `X-Forwarded-Host` e o `X-Forwarded-Proto` desse proxy; hoje nenhum código os usa |
+| Antes de contar | a guarda da origem: um pedido de outro site (POST com outra `Origin`, ou GET com `Sec-Fetch-Site: cross-site`) é recusado **sem gastar** o limite de quem o visitou (revisão do #154, P2-1); um endereço que não é IP (proxy mal configurado) dá 400 e não chega à base |
+
+Os números são **propostas, a rever com medições**: um ecrã de entrada faz
+dois pedidos (opções e entrada); 20 por minuto deixam uma pessoa enganar-se
+várias vezes, e os limites da base (5 falhas em 15 minutos, CI) continuam
+por baixo deste.
+
+**Dados pessoais:** o IP fica só na memória da API, no máximo até a janela
+acabar e a limpeza seguinte passar (até dois minutos) ou sair da tabela; não vai para registos (os
+serializadores já o tiram), nem para a base, nem para métricas. Uma
+reinicialização da API esquece tudo.
+
+**O que não faz:** não partilha a contagem entre processos (se a API passar
+a correr em vários, o limite passa a ser por processo); não limita as rotas
+com chave nem o `/health`; não distingue clientes atrás do mesmo IP
+(escritório, operadora móvel): 300 por minuto é largo para isso, 20 nas
+públicas pode apertar numa equipa grande atrás do mesmo endereço.
 
 ## O que não foi verificado
 

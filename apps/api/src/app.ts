@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import Fastify, { type FastifyServerOptions } from "fastify";
 import cookie from "@fastify/cookie";
 import swagger from "@fastify/swagger";
@@ -11,8 +12,12 @@ import {
   RESPOSTA_DE_ERRO,
 } from "./base/erros.js";
 import type { BaseDados } from "./base/esquema.js";
+import { LIMITES_HUB, LimitePorIp } from "./base/limite.js";
 import { rotasDoCatalogo } from "./catalogo/rotas.js";
-import { ligarAutenticacao } from "./identidade/autenticacao.js";
+import {
+  conferirOrigem,
+  ligarAutenticacao,
+} from "./identidade/autenticacao.js";
 import { rotasDoHub } from "./identidade/hub.js";
 import { rotasDasCredenciais } from "./identidade/hub-credenciais.js";
 import { rotasDaPalavraPasse } from "./identidade/hub-palavra-passe.js";
@@ -94,6 +99,51 @@ export function criarApp(
   // O cookie da sessão do Hub (docs/21 §3); as opções de cada cookie são
   // dadas ao escrevê-lo (sessoes.ts), nunca as de omissão da biblioteca.
   void app.register(cookie);
+  // O limite geral por IP nas rotas do Hub (docs/21 §14): depois da guarda
+  // da origem (um pedido de outro site não gasta o limite de quem o visita;
+  // revisão do #154, P2-1) e antes da sessão, para um pedido a mais não
+  // chegar à base.
+  if (hub !== undefined) {
+    const limites = hub.limites ?? LIMITES_HUB;
+    const todas = new LimitePorIp(limites.todas);
+    const publicas = new LimitePorIp(limites.publicas);
+    // Os contadores acabados saem de minuto a minuto, mesmo sem pedidos novos:
+    // o IP não fica na memória além da janela (revisão do #154, P3-2).
+    const arrumar = setInterval(
+      () => {
+        todas.limpar();
+        publicas.limpar();
+      },
+      Math.min(limites.todas.janelaMs, limites.publicas.janelaMs),
+    );
+    arrumar.unref();
+    app.addHook("onClose", (_instancia, feito) => {
+      clearInterval(arrumar);
+      feito();
+    });
+    app.addHook("onRequest", async (pedido, resposta) => {
+      const config = pedido.routeOptions.config;
+      if (config.hub !== true) return;
+      conferirOrigem(pedido, hub);
+      // Um endereço que não é IP (um proxy de confiança mal configurado, ou
+      // a ligação já fechada) não se conta nem chega à base (P3-4, P3-5).
+      const ip: unknown = pedido.ip;
+      if (typeof ip !== "string" || isIP(ip) === 0 || ip.includes("%")) {
+        throw erroBase(
+          "request.invalid",
+          "o endereço de quem pede não é um IP válido",
+        );
+      }
+      const espera = Math.max(
+        todas.contar(pedido.ip),
+        config.ambito === "publico" ? publicas.contar(pedido.ip) : 0,
+      );
+      if (espera > 0) {
+        void resposta.header("Retry-After", String(espera));
+        throw erroBase("rate_limit.exceeded");
+      }
+    });
+  }
   ligarAutenticacao(app, base, hub);
   const registadas: { metodo: string; caminho: string }[] = [];
   rotasPorApp.set(app, registadas);

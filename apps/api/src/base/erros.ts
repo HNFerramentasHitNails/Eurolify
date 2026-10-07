@@ -86,6 +86,11 @@ export const CODIGOS_BASE = {
     pt: "Versão da API não suportada",
     en: "Unsupported API version",
   },
+  "rate_limit.exceeded": {
+    status: 429,
+    pt: "Pedidos a mais deste endereço; tente daqui a pouco",
+    en: "Too many requests from this address; try again shortly",
+  },
   "internal.error": {
     status: 500,
     pt: "Erro interno",

@@ -35,7 +35,22 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
 - **B3c juntado e publicado** (#149; corrida 37617162110: «migrar:
   aplicadas 0025_identidade_chaves_pela_sessao»). Decisão CK: as chaves
   públicas ficam quando quem as criou sai.
-- **B4 (em curso, 07/10/2026):** a tarefa dos prazos, migração 0026
+- **B4 juntado e publicado** (#152; corrida 37628571362: «migrar:
+  aplicadas 0026_identidade_prazos», /health responde; o script da VPS,
+  corrida 37628571164, «4 alteração(ões) feita(s)»: a `eurolify-limpeza` e
+  a `eurolify-verificacao` novas). Revisão do Codex no #152: 2 P2 tratados
+  (a verificação conta todas as categorias; apagar em lotes de 50 000).
+- **Limite geral por IP (07/10/2026, em curso):** na API, nas rotas do Hub
+  (`docs/21` §14): 20/min nas públicas, 300/min em todas, IPv6 por /64,
+  429 com `Retry-After`; `PROXY_CONFIAVEL` para o `trustProxy` (só
+  endereços exactos). O `hub-sessoes.test.ts` mandava tudo do mesmo IP e
+  esbarrou no limite: passou a um IP por pedido.
+  Revisão Opus 5.5 (#154): 0 P0, 1 P1, 1 P2, 9 P3. P1-1: na VPS a API
+  vê o gateway da rede Docker, não o cliente — com a `HUB_ORIGEM` a API não
+  arranca sem `PROXY_CONFIAVEL`, e ao ligar fixa-se a rede e mede-se (§12).
+  P2-1: pedidos de outro site gastavam o limite — a origem confere-se antes
+  de contar.
+- **B4 (desenho e código, 07/10/2026):** a tarefa dos prazos, migração 0026
   (`docs/21` §13): `contas_aplicar_prazos()` na `eurolify-limpeza` das
   05:00 e `contas_prazos_em_atraso()` na verificação das 07:00, só com o
   `EXECUTE` para o `eurolify_limpeza`. Os gatilhos da 0018 só deixam apagar
@@ -75,6 +90,10 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
   `entrada`? Não: «permission denied for table entrada».
 - Publicação do #141 (corrida 37495008666): «migrar: aplicadas
   0018_identidade_pessoas»; «O /health da API responde».
+
+- 07/10/2026, limite por IP: `pnpm run teste` local, API 703, MCP 58;
+  tirar o gancho, contar o IPv6 inteiro ou tirar o limite das públicas faz
+  falhar 4, 2 e 3 dos 9 testes de `limite.test.ts`.
 
 ## O que se leu no código das bibliotecas (06/10/2026)
 
