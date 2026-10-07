@@ -68,7 +68,9 @@ fazer() {
     return 0
   fi
   echo "   a fazer: $descricao"
-  "$@"
+  # Numa condição (… || aviso) o set -e não vale: sem isto, uma falha ficava
+  # registada como feita (revisão do #160, P3-4).
+  "$@" || return $?
   registar "$descricao"
 }
 
@@ -593,13 +595,15 @@ passo "10c. A API corre com a ligação do api-base.env (docs/19 §6, #107)"
 # instalou): espera por outra publicação em curso, não troca de imagem,
 # verifica o /health e que a API chega à base (revisão do #116, P2-1).
 # Sem um número válido de um dos lados, não se compara (revisão do #116, P3-1).
+# Em nanossegundos, como o eurolify-publicar (revisão do #162, P3-E).
 configuracao_mais_recente_que_a_api() {
   local criado ficheiro mudado
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
-  criado="$(date -d "$criado" +%s 2>/dev/null)" || return 1
+  criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
   for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env; do
-    mudado="$(stat -c %Y "$ficheiro" 2>/dev/null)" || continue
+    mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
+    mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
   done
   return 1
@@ -703,6 +707,16 @@ done
 
 # ---------------------------------------------------------------------------
 passo "13. MCP da VPS: utilizador, pedidos, certificado e nginx (ADR-0033)"
+# O site do Hub ligado sem o seu certificado faria falhar o nginx -t deste
+# passo, e quem ficava desligado era o MCP (revisão do #160, P3-2).
+if [[ -L /etc/nginx/sites-enabled/eurolify-hub.conf && ! -s "/etc/letsencrypt/live/$HUB_DOMINIO/fullchain.pem" ]]; then
+  fazer "desligar o site do Hub (sem certificado)" rm -f /etc/nginx/sites-enabled/eurolify-hub.conf
+  # Recarrega já: o passo 14 já não vê a ligação e não recarregaria
+  # (revisão do #162, P3-D).
+  if ((!MOSTRAR)) && nginx -t 2>/dev/null; then
+    fazer "recarregar o nginx" systemctl reload-or-restart nginx
+  fi
+fi
 # O utilizador do contentor do MCP: sem casa, sem consola, sem chave SSH. Só
 # escreve na pasta dos seus pedidos.
 if id eurolify-mcp >/dev/null 2>&1; then
@@ -739,7 +753,8 @@ else
   fazer "pedir o certificado de $MCP_DOMINIO (Let's Encrypt, desafio DNS da OVH)" \
     certbot certonly --non-interactive --agree-tos --register-unsafely-without-email \
     --dns-ovh --dns-ovh-credentials /etc/eurolify/ovh-dns.ini --dns-ovh-propagation-seconds 60 \
-    -d "$MCP_DOMINIO"
+    -d "$MCP_DOMINIO" ||
+    aviso "o certificado de $MCP_DOMINIO não foi emitido: o MCP fica desligado (revisão do #162, P3-C)"
 fi
 
 # nginx: só o site do MCP. O site por omissão do pacote (porta 80) sai.
@@ -806,10 +821,13 @@ elif ! getent ahostsv4 "$HUB_DOMINIO" >/dev/null 2>&1; then
   aviso "$HUB_DOMINIO ainda não resolve (falta o registo A na zona da OVH): o Hub fica desligado"
 else
   hub_previsto=1
+  # Uma falha não pára o resto do script: o Hub fica desligado (revisão do
+  # #160, P3-4).
   fazer "pedir o certificado de $HUB_DOMINIO (Let's Encrypt, desafio DNS da OVH)" \
     certbot certonly --non-interactive --agree-tos --register-unsafely-without-email \
     --dns-ovh --dns-ovh-credentials /etc/eurolify/ovh-dns.ini --dns-ovh-propagation-seconds 60 \
-    -d "$HUB_DOMINIO"
+    -d "$HUB_DOMINIO" ||
+    aviso "o certificado de $HUB_DOMINIO não foi emitido: o Hub fica desligado"
 fi
 instalar "$F/nginx-hub.conf" /etc/nginx/sites-available/eurolify-hub.conf 644
 nginx_hub_mudou=$mudou
@@ -824,11 +842,12 @@ if [[ -s "$certificado_hub" ]] || ((MOSTRAR && hub_previsto)); then
   fi
   hub_ligado=1
   if ((nginx_hub_mudou && !MOSTRAR)); then
-    if nginx -t 2>/dev/null; then
+    if saida_nginx="$(nginx -t 2>&1)"; then
       fazer "recarregar o nginx" systemctl reload-or-restart nginx
     else
       rm -f "$site_hub"
       hub_ligado=0
+      printf '%s\n' "$saida_nginx" | tail -n 3 | sed 's/^/      /'
       aviso "nginx -t falhou: o site do Hub foi desligado outra vez e nada foi recarregado"
     fi
   fi
@@ -836,6 +855,10 @@ if [[ -s "$certificado_hub" ]] || ((MOSTRAR && hub_previsto)); then
     aviso "ainda não há ecrãs do Hub em /var/lib/eurolify/hub/actual (a próxima publicação põe-nos)"
 elif [[ -L "$site_hub" ]]; then
   fazer "desligar o site do Hub (sem certificado)" rm -f "$site_hub"
+  # Sem recarregar, o nginx em execução continuava a servir o Hub (P3-2).
+  if ((!MOSTRAR)) && nginx -t 2>/dev/null; then
+    fazer "recarregar o nginx" systemctl reload-or-restart nginx
+  fi
 else
   aviso "sem certificado: o site do Hub fica desligado"
 fi
@@ -865,11 +888,13 @@ escrever_api_hub() {
 }
 hub_actual_env="$(cat "$api_hub" 2>/dev/null || true)"
 hub_env_mudou=0
+# Nas mensagens e no registo, só um texto fixo, nunca o conteúdo (revisão do
+# #160, P3-1).
+if [[ -n "$hub_desejado" ]]; then texto_hub="com HUB_ORIGEM e PROXY_CONFIAVEL"; else texto_hub="vazio: Hub desligado"; fi
 if [[ -f "$api_hub" && "$hub_actual_env" == "$hub_desejado" ]]; then
-  ok "$api_hub ${hub_desejado:+(com o Hub)}${hub_desejado:-(vazio: Hub desligado)}"
+  ok "$api_hub ($texto_hub)"
 else
-  fazer "escrever $api_hub ${hub_desejado:+(HUB_ORIGEM e PROXY_CONFIAVEL)}${hub_desejado:-(vazio: Hub desligado)}" \
-    escrever_api_hub "$hub_desejado"
+  fazer "escrever $api_hub ($texto_hub)" escrever_api_hub "$hub_desejado"
   hub_env_mudou=1
 fi
 if ((hub_env_mudou && !MOSTRAR)); then
