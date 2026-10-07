@@ -37,6 +37,17 @@ const hub =
             }),
       };
 
+// Na VPS a API corre num contentor: o que ela vê é o gateway da rede do
+// Docker, não o cliente. Com o Hub ligado e sem PROXY_CONFIAVEL, todos os
+// clientes contavam no mesmo IP — não arranca (revisão do #154, P1-1).
+const textoProxy = process.env["PROXY_CONFIAVEL"]?.trim() ?? "";
+if (hub !== undefined && textoProxy === "") {
+  throw new Error(
+    "PROXY_CONFIAVEL: com HUB_ORIGEM, diga o endereço do proxy visto pela API (na VPS, o gateway da rede Docker), ou «nenhum» se a API recebe os clientes directamente (docs/21 §14)",
+  );
+}
+const trustProxy = proxyConfiavel(textoProxy);
+
 const app = criarApp(
   {
     // Um identificador por pedido que não recomeça a cada arranque: é o
@@ -46,7 +57,7 @@ const app = criarApp(
     // Atrás de um proxy, o IP de quem pede vem no X-Forwarded-For, e só se
     // aceita do endereço exacto do proxy, que o reescreve (docs/21 §12 e
     // §14). Sem PROXY_CONFIAVEL, conta o IP da ligação.
-    trustProxy: proxyConfiavel(process.env["PROXY_CONFIAVEL"]),
+    trustProxy,
   },
   undefined,
   base,

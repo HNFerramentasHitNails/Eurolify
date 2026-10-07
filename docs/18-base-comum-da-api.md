@@ -232,7 +232,7 @@ cortada em silêncio).
 | Por quê | por chave de API e por loja (`headless-commerce`, regra 6) |
 | Cabeçalhos | o que resta e quando volta; o nome dos cabeçalhos segue o rascunho da IETF *RateLimit header fields*, que **não verifiquei** se já é RFC |
 | Valores | **por decidir com medições**; nenhum número aqui é decisão |
-| Hub | **por IP**, na API, antes da base: 20 pedidos por minuto nas rotas públicas e 300 em todas (propostas; `docs/21` §14); 429 `rate_limit.exceeded` com `Retry-After`. O IP só em memória, até um minuto |
+| Hub | **por IP**, na API, antes da base: 20 pedidos por minuto nas rotas públicas e 300 em todas (propostas; `docs/21` §14); 429 `rate_limit.exceeded` com `Retry-After`. O IP só em memória, até dois minutos; atrás do proxy, a `PROXY_CONFIAVEL` (na VPS, o gateway da rede Docker) |
 | Sem identidade | `/health`, `/paises` e `/openapi.json` ficam sem limite por cliente. Hoje a API não está exposta: só ouve em `127.0.0.1` (`servidor.ts`) e o nginx só encaminha o MCP (`infra/vps/ficheiros/nginx-mcp.conf`). O limite à frente da API desenha-se quando ela for publicada |
 | Dados pessoais | contar por chave, não por endereço IP: o IP é dado pessoal (`eu-gdpr-privacy`, «Quando usar») e não deve ir para registos nem métricas (regra 7) |
 

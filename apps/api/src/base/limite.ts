@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { performance } from "node:perf_hooks";
 
 // O limite geral de pedidos por IP nas rotas do Hub (docs/21 §14; condição
 // para ligar o Hub, §12). Conta em memória, numa janela fixa, por IP — um
@@ -82,7 +83,9 @@ export class LimitePorIp {
   constructor(
     private readonly regra: RegraLimite,
     private readonly maximo = 100_000,
-    private readonly agora: () => number = Date.now,
+    // Monotónico: um relógio do sistema que recua não estica a janela
+    // (revisão do #154, P3-6).
+    private readonly agora: () => number = () => performance.now(),
   ) {}
 
   /** Conta um pedido. Devolve 0 se passa, ou os segundos até poder voltar. */
@@ -109,12 +112,17 @@ export class LimitePorIp {
     return this.contas.size;
   }
 
-  private arrumar(t: number) {
+  /** Tira os contadores de janela acabada (chamado de minuto a minuto). */
+  limpar() {
+    this.arrumar(this.agora(), false);
+  }
+
+  private arrumar(t: number, abrirLugar = true) {
     for (const [chave, conta] of this.contas) {
       if (t - conta.desde < this.regra.janelaMs) break;
       this.contas.delete(chave);
     }
-    while (this.contas.size >= this.maximo) {
+    while (abrirLugar && this.contas.size >= this.maximo) {
       const primeira = this.contas.keys().next();
       if (primeira.done === true) break;
       this.contas.delete(primeira.value);
@@ -124,11 +132,13 @@ export class LimitePorIp {
 
 /**
  * Os endereços do proxy em que se confia para o `X-Forwarded-For`
- * (`PROXY_CONFIAVEL`, separados por vírgulas; docs/21 §12 e §14). Só
+ * (`PROXY_CONFIAVEL`, separados por vírgulas, ou «nenhum»; docs/21 §12 e §14). Só
  * endereços exactos: uma rede ou «true» deixava qualquer cliente escolher o
  * IP que é contado. Vazio: não se confia em nenhum.
  */
 export function proxyConfiavel(texto: string | undefined): string[] {
+  // «nenhum»: a API recebe os clientes directamente, sem proxy.
+  if (texto?.trim() === "nenhum") return [];
   const enderecos = (texto ?? "")
     .split(",")
     .map((e) => e.trim())

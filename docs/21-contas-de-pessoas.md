@@ -475,8 +475,12 @@ quiser (proposta).
 ela, o IP do registo de entradas fica além dos 14 dias da §6 — e (3) um
 limite geral de pedidos por IP, no proxy ou na API. Não é rede temporária:
 é a ordem de ligar. **Estado (07/10/2026):** a B3b e a B4 estão no ensaio
-(#147, #152); o limite por IP está na API (§14). Falta, ao ligar: definir a
-`PROXY_CONFIAVEL` com o endereço do proxy que publicar o Hub.
+(#147, #152); o limite por IP está na API (§14), mas **só protege depois
+de, ao ligar** (revisão do #154, P1-1): (a) fixar a sub-rede e o gateway da
+rede Docker `eurolify` no `preparar.sh`; (b) definir a `PROXY_CONFIAVEL`
+com esse gateway (é o endereço que a API vê dentro do contentor, não
+`127.0.0.1`); (c) medir que dois clientes através do proxy contam em
+separado. Sem a `PROXY_CONFIAVEL`, a API não arranca com a `HUB_ORIGEM`.
 
 **Notas da revisão do #144:**
 - **O IP** é o `request.ip` do Fastify, sem `trustProxy`: atrás de um
@@ -582,10 +586,11 @@ MCP (`nginx-mcp.conf`).
 | Que rotas | todas as do Hub (`config.hub`); as outras não contam (as da chave contam por chave, `docs/18` §6, quando entrarem) |
 | Rotas públicas do Hub (entrar, recuperar, aceitar convites) | **20 pedidos por minuto** por IP |
 | Todas as rotas do Hub | **300 pedidos por minuto** por IP |
-| Como se conta | janela fixa de um minuto, em memória (a API é um só processo); um IPv6 pela rede /64, como a base (0024, `ip_rede`) |
+| Como se conta | janela fixa de um minuto, em memória (a API é um só processo), com relógio monotónico; na fronteira de duas janelas passam até o dobro (ex.: 40 pedidos públicos em cerca de um segundo); um IPv6 pela rede /64, como a base (0024, `ip_rede`) — excepto um IPv4 dentro de IPv6 (`::ffff:…`), que aqui conta como o IPv4 e na base como `::/64` (hoje o proxy envia IPv4 simples) |
 | Acima do limite | **429** `rate_limit.exceeded`, com `Retry-After` em segundos (RFC 9110 §10.2.3) |
-| Memória | no máximo 100 000 IPs; saem primeiro os de janela acabada e depois os mais antigos |
-| Atrás de um proxy | a `PROXY_CONFIAVEL` (endereços exactos, separados por vírgulas) diz em que endereço se confia para o `X-Forwarded-For`; uma rede ou «true» são recusados no arranque. Sem ela, conta o IP da ligação. O proxy tem de **reescrever** o `X-Forwarded-For` (como o do MCP: `$remote_addr`), senão um cliente escolhia o IP contado |
+| Memória | no máximo 100 000 IPs por contador (são dois: cerca de 39 MB com os dois cheios, medido na revisão do #154); os de janela acabada saem de minuto a minuto, e com a tabela cheia sai o mais antigo. Com a tabela cheia (mais de 100 000 redes /64), cada pedido custa até ~0,3 ms (medido) e um atacante pode tirar contadores de outros — aceite: quem tem esse número de redes já contorna um limite por IP |
+| Atrás de um proxy | a `PROXY_CONFIAVEL` (endereços exactos, separados por vírgulas, ou «nenhum») diz em que endereço se confia para o `X-Forwarded-For`; uma rede ou «true» são recusados no arranque, e **com a `HUB_ORIGEM` definida a API não arranca sem ela**. Conta o último endereço da cadeia que não é do proxy, por isso o proxy pode reescrever o cabeçalho (como o do MCP: `$remote_addr`) ou acrescentar-lhe o cliente. **Na VPS a API corre num contentor:** o endereço que ela vê é o gateway da rede Docker `eurolify`, e é esse que vai na `PROXY_CONFIAVEL` (revisão do #154, P1-1). O `trustProxy` passa também a aceitar o `X-Forwarded-Host` e o `X-Forwarded-Proto` desse proxy; hoje nenhum código os usa |
+| Antes de contar | a guarda da origem: um pedido de outro site (POST com outra `Origin`, ou GET com `Sec-Fetch-Site: cross-site`) é recusado **sem gastar** o limite de quem o visitou (revisão do #154, P2-1); um endereço que não é IP (proxy mal configurado) dá 400 e não chega à base |
 
 Os números são **propostas, a rever com medições**: um ecrã de entrada faz
 dois pedidos (opções e entrada); 20 por minuto deixam uma pessoa enganar-se
@@ -593,7 +598,7 @@ várias vezes, e os limites da base (5 falhas em 15 minutos, CI) continuam
 por baixo deste.
 
 **Dados pessoais:** o IP fica só na memória da API, no máximo até a janela
-acabar (um minuto) ou sair da tabela; não vai para registos (os
+acabar e a limpeza seguinte passar (até dois minutos) ou sair da tabela; não vai para registos (os
 serializadores já o tiram), nem para a base, nem para métricas. Uma
 reinicialização da API esquece tudo.
 

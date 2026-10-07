@@ -1,3 +1,4 @@
+import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import { chaveDoIp, LimitePorIp, proxyConfiavel } from "../src/base/limite.js";
@@ -60,6 +61,21 @@ describe("o contador por IP", () => {
   });
 });
 
+describe("a limpeza de minuto a minuto", () => {
+  it("tira os contadores acabados sem precisar de um IP novo (revisão do #154, P3-2)", () => {
+    let t = 0;
+    const l = new LimitePorIp({ pedidos: 1, janelaMs: 1_000 }, 100, () => t);
+    l.contar("192.0.2.1");
+    l.contar("192.0.2.2");
+    t = 500;
+    l.limpar();
+    expect(l.tamanho).toBe(2);
+    t = 1_000;
+    l.limpar();
+    expect(l.tamanho).toBe(0);
+  });
+});
+
 describe("o proxy de confiança", () => {
   it("só endereços exactos; vazio não confia em nenhum", () => {
     expect(proxyConfiavel(undefined)).toEqual([]);
@@ -67,6 +83,7 @@ describe("o proxy de confiança", () => {
     expect(proxyConfiavel("127.0.0.1, ::1")).toEqual(["127.0.0.1", "::1"]);
     expect(() => proxyConfiavel("10.0.0.0/8")).toThrow(/PROXY_CONFIAVEL/);
     expect(() => proxyConfiavel("true")).toThrow(/PROXY_CONFIAVEL/);
+    expect(proxyConfiavel("nenhum")).toEqual([]);
   });
 });
 
@@ -211,6 +228,86 @@ describe.skipIf(URL_BASE === undefined)("o limite nas rotas do Hub", () => {
         })
       ).statusCode,
     ).toBe(429);
+    await a.close();
+  });
+
+  it("P2-1: um pedido de outra origem é recusado sem gastar o limite", async () => {
+    const a = app();
+    for (let i = 0; i < 5; i++) {
+      const r = await pedir(a, "/hub/session/options", "203.0.113.70", {
+        origin: "https://mau.example",
+      });
+      expect(r.statusCode).toBe(403);
+    }
+    // Um GET de outro site também não chega a contar.
+    for (let i = 0; i < 6; i++) {
+      const r = await a.inject({
+        method: "GET",
+        url: "/hub/me",
+        remoteAddress: "203.0.113.70",
+        headers: { "sec-fetch-site": "cross-site" },
+      });
+      expect(r.statusCode).toBe(403);
+    }
+    expect(
+      (await pedir(a, "/hub/session/options", "203.0.113.70")).statusCode,
+    ).toBe(200);
+    await a.close();
+  });
+
+  it("o 429 não chega à base: nenhum desafio novo", async () => {
+    const a = app();
+    const desafios = async () => {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from desafio_webauthn`.execute(base.dono);
+      return rows[0]?.n ?? -1;
+    };
+    for (let i = 0; i < 3; i++) {
+      await pedir(a, "/hub/session/options", "203.0.113.80");
+    }
+    const antes = await desafios();
+    expect(
+      (await pedir(a, "/hub/session/options", "203.0.113.80")).statusCode,
+    ).toBe(429);
+    expect(await desafios()).toBe(antes);
+    await a.close();
+  });
+
+  it("uma rota pública também pára no limite geral", async () => {
+    const a = app();
+    for (let i = 0; i < 5; i++) {
+      await a.inject({
+        method: "GET",
+        url: "/hub/me",
+        remoteAddress: "203.0.113.90",
+      });
+    }
+    const r = await pedir(a, "/hub/session/options", "203.0.113.90");
+    expect(r.statusCode).toBe(429);
+    await a.close();
+  });
+
+  it("pelo proxy: uma cadeia conta o último endereço que não é do proxy; um endereço inválido dá 400 sem chegar à base", async () => {
+    const a = app(["127.0.0.1"]);
+    for (let i = 0; i < 3; i++) {
+      await pedir(a, "/hub/session/options", "127.0.0.1", {
+        "x-forwarded-for": `6.6.6.${String(i)}, 198.51.100.120`,
+      });
+    }
+    expect(
+      (
+        await pedir(a, "/hub/session/options", "127.0.0.1", {
+          "x-forwarded-for": "6.6.6.99, 198.51.100.120",
+        })
+      ).statusCode,
+    ).toBe(429);
+    for (const lixo of ["lixo", "fe80::1%eth0"]) {
+      const r = await pedir(a, "/hub/session/options", "127.0.0.1", {
+        "x-forwarded-for": lixo,
+      });
+      expect(r.statusCode).toBe(400);
+      expect(r.body).not.toContain(lixo);
+    }
     await a.close();
   });
 });

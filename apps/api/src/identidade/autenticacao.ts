@@ -75,8 +75,19 @@ function segredoDe(pedido: FastifyRequest): string | undefined {
 }
 
 /** A escrita vem do Hub e em JSON (docs/21 §3); um GET não muda nada. */
-function conferirOrigem(pedido: FastifyRequest, hub: ConfigHub | undefined) {
-  if (pedido.method === "GET") return;
+export function conferirOrigem(
+  pedido: FastifyRequest,
+  hub: ConfigHub | undefined,
+) {
+  if (pedido.method === "GET") {
+    // Um GET de outro site (uma imagem, um fetch sem CORS) não chega ao Hub:
+    // com o cookie SameSite=Strict não traria sessão, e assim também não gasta
+    // o limite por IP de quem visita esse site (revisão do #154, P2-1).
+    if (pedido.headers["sec-fetch-site"] === "cross-site") {
+      throw erroConta("auth.origin_rejected");
+    }
+    return;
+  }
   if (hub === undefined) throw new Error("rota do Hub sem HUB_ORIGEM");
   if (pedido.headers.origin !== hub.origem) {
     throw erroConta("auth.origin_rejected");
