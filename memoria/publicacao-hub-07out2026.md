@@ -38,10 +38,26 @@ Desenho no `docs/22` §7; passo 14 no `infra/vps/LEIA-ME.md`.
   novo («a ligação dos ecrãs não se troca»), que falhava no script antigo
   (3 FALHOU) e passa no novo; `publicar.sh` passou a 154 ok.
 
+- 07/10/2026, no ensaio. O #160 foi juntado às 17:00:57 com o commit
+  anterior às correcções da revisão (o GitHub dava 500 aos envios); as
+  correcções entraram pelo #162 (`9114a37`, 17:16). Registo do
+  `aplicar-script` do #160: certificado de `hub.eurolify.eu` emitido (até
+  05/01/2027), site ligado, `api-hub.env` escrito, API recriada; a
+  publicação (17:09) pôs os ecrãs. Registo do `aplicar-script` do #162:
+  `nginx-hub.conf` novo instalado e nginx recarregado; «o Hub abre (/entrar
+  200) e a API do Hub responde (/hub/me 401 sem sessão)».
+- 07/10/2026, de fora, pelo proxy da sessão, depois do #162: `/entrar`,
+  `/convite`, `/equipa`, `/` 200 (título «Eurolify Hub»); `/hub/me` 401;
+  `/products/a%2F..%2F..%2Fhub%2Fb` 404; `/hub/..%2Fproducts` e `/products`
+  200 (a página do Hub, não a API); 5 cabeçalhos de segurança presentes;
+  `index.html` `no-cache`, `assets/` cache longa. Um pedido em cada lote
+  deu `000` (sem resposta em 20 s) e repetido deu 200 — causa não
+  verificada (o proxy de saída da sessão ou a VPS).
+
 ## O que ficou por verificar
 
-- Na VPS: nada, até este pedido entrar e o `preparar.sh` correr (o
-  `aplicar-script` corre com o push em `infra/vps/**` que este pedido leva).
+- Na VPS: se o limite por IP conta cada cliente à parte (a sessão sai sempre
+  pelo mesmo endereço); se o `stat` aceita `%.9Y`.
 - Se a chave da OVH da VPS pode criar o registo `hub` (por isso fica à mão).
 - O cookie `__Host-` pelo nginx verdadeiro (só medido pelo «proxy» das
   capturas).
