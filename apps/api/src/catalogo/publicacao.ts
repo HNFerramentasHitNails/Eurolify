@@ -12,8 +12,11 @@ import { ErroCatalogo, noCatalogo } from "./erros.js";
 // publicar?» (docs/14 §3.9, §4.2 e §5, regra C2; migração 0019; issue #77).
 // A verificação é do servidor: devolve sim, ou a lista de impedimentos com
 // código. A base repete o que não pode falhar nunca (artigo, mercado e canal
-// activos, preço e peso das variantes vendidas) e só aceita «publicado» com
-// a última verificação sem impedimentos.
+// activos, preço e peso das variantes vendidas) e só aceita passar a
+// «publicado» com a última verificação sem impedimentos. A verificação
+// guardada é a do último pedido: numa publicada que recusou um pedido, é a
+// do pedido recusado, e o que está à venda é o que estava (revisão do #146,
+// 2.ª ronda, P3-A).
 //
 // Decisão do Diogo, 06/10/2026 (opção a): os atributos regulamentares
 // (Conformidade, sem desenho) e o texto alternativo da media (parte 5) ainda
@@ -241,8 +244,8 @@ function foraDoPedido(pedido: PedidoDePublicacao): string[] {
  * Toma, por esta ordem, o artigo, o mercado, o canal (que guarda também o
  * par canal × mercado: tirá-lo toma o canal em exclusivo) e a tradução do
  * nome (FOR SHARE), antes de verificar: quem muda um deles
- * espera pelo fim da publicação, e a verificação guardada é a verdadeira
- * (revisão do #139, P2-1). É a ordem dos arquivos em cadeia (o pai antes da
+ * espera pelo fim da publicação, e a verificação guardada é a verdadeira para
+ * o pedido (revisão do #139, P2-1). É a ordem dos arquivos em cadeia (o pai antes da
  * publicação), para não se esperarem um ao outro (P2-3). Devolve o estado do
  * artigo, ou `undefined` se não existir.
  */
@@ -427,8 +430,9 @@ export async function publicar(
     // Por esta ordem: o artigo e a fila dele, o mercado, o canal, a tradução
     // do nome, a lista de base, as variantes, os preços e a linha da
     // publicação; só depois se verifica.
-    // A verificação guardada é a verdadeira até ao fim da transacção
-    // (revisões do #139: 1.ª, P2-1 e P2-3; 2.ª, P2-A, P3-A e P3-B).
+    // A verificação guardada é a verdadeira para este pedido até ao fim da
+    // transacção (revisões do #139: 1.ª, P2-1 e P2-3; 2.ª, P2-A, P3-A e
+    // P3-B).
     const estadoDoArtigo = await tomar(trx, comercianteId, pedido);
     await tomarListaDeBase(trx, pedido);
     await tomarVariantes(trx, pedido);

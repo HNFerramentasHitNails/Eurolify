@@ -410,7 +410,10 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   dele (a da 0005), o mercado, o canal, a tradução do nome, a lista de base,
   as variantes, os preços e a linha da publicação, para que ninguém os mude
   a meio: quem os muda espera, e a verificação guardada é a verdadeira
-  (revisões do #139, 1.ª a 3.ª). Quem cria uma variante entra na mesma fila
+  para esse pedido (revisões do #139, 1.ª a 3.ª). É sempre a do **último
+  pedido**: uma publicada com a verificação guardada com impedimentos não
+  é anomalia, é um pedido recusado (abaixo; revisão do #146, 2.ª ronda,
+  P3-A). Quem cria uma variante entra na mesma fila
   antes de mexer nas publicações: uma variante criada ao mesmo tempo que a
   primeira publicação espera por ela e nasce fora, ou a publicação espera e
   vê-a.
@@ -466,7 +469,11 @@ Diz se um artigo está à venda num **canal** e num **mercado**
 
   Só a mudança que conta reverifica (revisão do #146, P2-2 e P3-1): mudar
   a descrição, a marca, o nome do mercado ou tirar uma língua não tira de
-  venda uma publicação que já falhasse por outra razão.
+  venda uma publicação que já falhasse por outra razão. Quando corre, reverifica
+  todas as publicações publicadas do artigo ou do mercado, não só as que a
+  mudança toca (ex.: arquivar uma variante que já estava fora, ou apagar o
+  nome numa língua que o mercado não usa); uma publicada que já falhasse
+  por outra razão sai nesse momento (revisão do #146, 2.ª ronda, P3-D).
 
   O resto está travado na base (preço, peso e categoria fiscal de uma
   publicação publicada; o par canal × mercado; a língua de origem depois de
@@ -478,10 +485,12 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   **Duração** (medida a 07/10/2026, no PostgreSQL 18.6 local por docker, 4
   núcleos; uma língua nova num mercado em que nenhum artigo tem o nome
   traduzido, todos arquivados): 100 publicações, 0,84 s; 300 publicações,
-  2,2 s (cerca de 7 ms cada). Durante esse tempo o mercado e as publicações
+  2,2 s (cerca de 7 ms cada). Mediu-se com um teste temporário que
+  publica N artigos e cronometra `alterarMercado`; o método fica na
+  memória do #146. Durante esse tempo o mercado e as publicações
   dele ficam tomados: quem quiser publicar ou mudar o mercado espera, e ao
-  fim de 5 s recebe `catalog.retry` ou `prices.retry`. Pela conta, perto de
-  700 publicações chegam aos 5 s. **Não medido na VPS.** Uma língua nova
+  fim de 5 s recebe `catalog.retry` ou `prices.retry`. Pela conta (7 a 8 ms
+  por publicação), entre 600 e 700 publicações chegam aos 5 s. **Não medido na VPS.** Uma língua nova
   num mercado com muitos artigos pode tirar muitos de venda de uma vez: é o
   efeito decidido (CJ). Se um mercado passar das centenas de publicações,
   esta operação passa a lotes ou a uma tarefa de fundo (por desenhar).
@@ -632,7 +641,7 @@ artigo com todas as variantes arquivadas ficava preso: não voltava a activo
 |---|---|---|
 | — | rascunho | criar a publicação num canal × mercado |
 | rascunho | publicado | a verificação «pode publicar?» (§5, regra C2) não tem impedimentos |
-| publicado | arquivado | retirar; ou artigo arquivado; ou bloqueio vindo da Conformidade (ex.: recolha, substância proibida) |
+| publicado | arquivado | retirar; ou artigo, mercado ou canal arquivado (em cadeia, 0019); ou reverificação falhada (motivo `verificacao_falhou`, 0023; `docs/06`, CJ); ou bloqueio vindo da Conformidade (ex.: recolha, substância proibida) |
 | arquivado | publicado | nova verificação |
 
 ### 4.3 Tradução
