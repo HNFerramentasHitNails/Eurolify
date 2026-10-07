@@ -104,6 +104,7 @@
 | ✅ CG | A palavra-passe das contas guarda-se com Argon2id, no mínimo t=3, p=4, 64 MiB, sal de 128 bits e resultado de 256 bits (RFC 9106 §4, segunda opção recomendada); o tempo mede-se na VPS | em vigor; o código entra na B3 | Diogo, 06/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §8 |
 | ✅ CH | Eventos de domínio: quem fez a mudança (`quem`) fica guardado no Eurolify, como rasto interno, mas **nunca sai** nos webhooks; quem recebe e precisar dele pede-o à API, que verifica as permissões | em vigor; aplica-se no publicador (os webhooks) | Diogo, 07/10/2026: *«fica a (a)»* | [`docs/18`](18-base-comum-da-api.md) §5; [`docs/17`](17-dados-pessoais-e-incidentes.md) §3 |
 | ✅ CI | Recuperar a conta: o limite de tentativas conta por e-mail e por IP — um IP com 5 falhas em 15 minutos fica bloqueado para qualquer e-mail; um e-mail com 5 falhas só bloqueia quem também falhou desse IP; um código certo de um IP sem falhas passa. Só protege quando a API vir o IP verdadeiro (condição para ligar o Hub) | em vigor; código no #144 | Diogo, 07/10/2026 | [`docs/21`](21-contas-de-pessoas.md) §12; revisão do #144, P2-2 |
+| ✅ CJ | Catálogo: uma publicação publicada que deixa de passar na verificação (classificação, nome e tradução, última variante à venda, língua nova no mercado) **sai de venda sozinha**, com o motivo `verificacao_falhou` e os impedimentos guardados | em vigor; no código (migração 0023, #146; issue #77) | Diogo, 07/10/2026: *«sim, avança com a (a)»* | [`docs/14`](14-dominio-catalogo.md) §4.2 e §8 |
 
 ## Por decidir — por esta ordem
 

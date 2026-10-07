@@ -490,6 +490,8 @@ export const MOTIVOS_ARQUIVO_PUBLICACAO = [
   "artigo_arquivado",
   "mercado_arquivado",
   "canal_arquivado",
+  // Reverificação que falhou (migração 0023; docs/06, CJ).
+  "verificacao_falhou",
 ] as const;
 export type MotivoArquivoPublicacao =
   (typeof MOTIVOS_ARQUIVO_PUBLICACAO)[number];

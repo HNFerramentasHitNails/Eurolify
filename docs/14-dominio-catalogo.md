@@ -393,7 +393,7 @@ Diz se um artigo está à venda num **canal** e num **mercado**
 | `variantes_fora` | variantes do artigo que não se vendem nesta publicação; tirar uma **não retira** o artigo (`catalog-pim`, regra 6) |
 | `publicado_por`, `publicado_em`, `arquivado_por`, `arquivado_em` | |
 | `ultima_verificacao` | o resultado da última verificação «pode publicar?» (§5, regra C2) |
-| `motivo_arquivo` | retirada, artigo arquivado, mercado arquivado ou canal arquivado (código, migração 0019) |
+| `motivo_arquivo` | retirada, artigo arquivado, mercado arquivado, canal arquivado (código, migração 0019) ou verificação falhada (`verificacao_falhou`, migração 0023; `docs/06`, CJ) |
 
 **Em código** (migração `0019_catalogo_publicacao.sql` e
 `apps/api/src/catalogo/publicacao.ts`, 06/10/2026, #77):
@@ -410,7 +410,10 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   dele (a da 0005), o mercado, o canal, a tradução do nome, a lista de base,
   as variantes, os preços e a linha da publicação, para que ninguém os mude
   a meio: quem os muda espera, e a verificação guardada é a verdadeira
-  (revisões do #139, 1.ª a 3.ª). Quem cria uma variante entra na mesma fila
+  para esse pedido (revisões do #139, 1.ª a 3.ª). É sempre a do **último
+  pedido**: uma publicada com a verificação guardada com impedimentos não
+  é anomalia, é um pedido recusado (abaixo; revisão do #146, 2.ª ronda,
+  P3-A). Quem cria uma variante entra na mesma fila
   antes de mexer nas publicações: uma variante criada ao mesmo tempo que a
   primeira publicação espera por ela e nasce fora, ou a publicação espera e
   vê-a.
@@ -428,16 +431,73 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   - apagar o peso de uma variante à venda num artigo físico, nem a categoria
     fiscal do artigo (`catalog.published_in_use`; revisão do #139, P2-6).
 
-  O resto ainda não volta a verificar-se depois de publicado (§8): a
-  classificação, o nome e a tradução.
+  A classificação, o nome, a tradução do nome, a última variante à venda e
+  as línguas do mercado voltam a verificar-se quando mudam («Reverificação»,
+  abaixo; 0023).
 - **Propostas desta parte** (para o Diogo ou o Bruno confirmarem):
   - o preço de uma variante à venda numa publicação publicada **não sai** da
     lista de base (`prices.published_variant`); retira-se primeiro a
     publicação;
   - uma variante nova de um artigo já publicado **nasce fora** das
     publicações publicadas, para não se vender sem verificação;
-  - publicar outra vez uma publicação que tem impedimentos não a tira de
-    venda: a verificação fica guardada, e quem a lê vê-os.
+  - publicar outra vez uma publicação que tem impedimentos não lhe muda o
+    estado nem as variantes à venda: uma publicada continua à venda com o
+    que tinha (ex.: pôr à venda uma variante sem preço é recusado e a
+    variante fica fora). A verificação guardada é a do **pedido recusado**,
+    não a do que está à venda; quem a lê vê os impedimentos do pedido
+    (revisão do #146, P2-1). O que está à venda passou na última verificação
+    que o pôs à venda, e a reverificação tira-o se deixar de passar.
+- **Reverificação** (decisão do Diogo, 07/10/2026, opção a; `docs/06`, CJ;
+  migração 0023; `reverificarPublicacoes`). Cada operação que muda o que a
+  verificação lê, e que a base não trava, volta a verificar as publicações
+  publicadas na mesma transacção; a que deixa de passar sai de venda
+  (`arquivado`, motivo `verificacao_falhou`, a verificação guardada), e o
+  `arquivado_por` é quem mudou, quando a operação o pede (a classificação),
+  ou `catalogo:verificacao_falhou` nas outras quatro. O evento
+  `product.unpublished` leva o motivo. Ex.: tirar a classificação de
+  retalho ao «Gel» e pô-lo em álcool e tabaco tira-o de venda em todos os
+  canais. As cinco operações (varridas a 07/10/2026 contra a lista de
+  impedimentos de `verificarNa`):
+
+  | Operação | Quando reverifica | O que pode partir |
+  |---|---|---|
+  | `alterarArtigo` | só quando muda o nome | o nome novo desactualiza as traduções |
+  | `classificarArtigo` | quando a classificação muda | classificação incompatível ou família restrita |
+  | `arquivarVariante` | sempre | a última variante à venda |
+  | `apagarTraducao` | só a do nome de um artigo | a tradução do nome em falta |
+  | `alterarMercado` (Preços) | só quando entra uma língua | uma língua nova sem o nome traduzido |
+
+  Só a mudança que conta reverifica (revisão do #146, P2-2 e P3-1): mudar
+  a descrição, a marca, o nome do mercado ou tirar uma língua não tira de
+  venda uma publicação que já falhasse por outra razão. Quando corre, reverifica
+  todas as publicações publicadas do artigo ou do mercado, não só as que a
+  mudança toca (ex.: arquivar uma variante que já estava fora, ou apagar o
+  nome numa língua que o mercado não usa); uma publicada que já falhasse
+  por outra razão sai nesse momento (revisão do #146, 2.ª ronda, P3-D).
+
+  O resto está travado na base (preço, peso e categoria fiscal de uma
+  publicação publicada; o par canal × mercado; a língua de origem depois de
+  haver catálogo) ou arquiva em cadeia (artigo, mercado, canal). Duas
+  mudanças que juntas partem a mesma publicação tomam ambas a linha dela
+  (FOR UPDATE): a segunda verifica depois da primeira e vê as duas. Limite:
+  SQL à mão que mude um destes campos não reverifica, como a C2 não corre em
+  SQL à mão.
+  **Duração** (medida a 07/10/2026, no PostgreSQL 18.6 local por docker, 4
+  núcleos; uma língua nova num mercado em que nenhum artigo tem o nome
+  traduzido, todos arquivados): 100 publicações, 0,84 s; 300 publicações,
+  2,2 s (cerca de 7 ms cada). Mediu-se com um teste temporário que
+  publica N artigos e cronometra `alterarMercado`; o método fica na
+  memória do #146. Durante esse tempo o mercado e as publicações
+  dele ficam tomados: quem quiser publicar ou mudar o mercado espera, e ao
+  fim de 5 s recebe `catalog.retry` ou `prices.retry`. Pela conta (7 a 8 ms
+  por publicação), entre 600 e 700 publicações chegam aos 5 s. **Não medido na VPS.** Uma língua nova
+  num mercado com muitos artigos pode tirar muitos de venda de uma vez: é o
+  efeito decidido (CJ). Se um mercado passar das centenas de publicações,
+  esta operação passa a lotes ou a uma tarefa de fundo (por desenhar).
+  Se a própria verificação der erro (hoje só com SQL à mão: uma variante
+  apagada que ficou em `variantes_fora`), a operação que reverificava falha
+  toda, com esse erro; `alterarMercado` pode então devolver um erro do
+  Catálogo (revisão do #146, P3-3).
 - **Em cadeia.** Arquivar o artigo, o mercado ou o canal arquiva as
   publicações publicadas, com o motivo, na mesma transacção (um gatilho, não
   um evento). Arquivar a **loja** ainda não tem rota (0016) e não arquiva as
@@ -494,7 +554,7 @@ classificações guardam-se **à parte** e **uma não se deduz da outra**
 | `local_prestacao` | país (e território) onde o serviço é prestado ou o evento acontece | obrigatório no `servico_presencial` e no `acesso_com_data` presencial; **proibido** no que é virtual ou à distância (o lugar do IVA é onde está o cliente) |
 | `modo` | `presencial`, `virtual` | obrigatório no `acesso_com_data` e no `servico_humano_a_distancia` (que é `virtual`); no `servico_presencial` é `presencial`; muda o lugar da prestação para o IVA (Dir. 2006/112/CE arts. 53.º e 54.º, **W**, `docs/03` §1) |
 | `lazer_com_data` | `nao` (por omissão), `sim` | o comerciante declara que é uma actividade de **lazer** com data marcada; **só com `sim` e a regra validada pelo jurista** é que se aplica a excepção à livre resolução (§ abaixo) |
-| `classificado_por`, `classificado_em` | | postos pela base (o «quem» vem da transacção, como no Comerciante; até à fatia de identidade é texto declarado, sem ligação a um utilizador); entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) — **ainda não**: entra com a outbox (parte 5, §8) |
+| `classificado_por`, `classificado_em` | | postos pela base (o «quem» vem da transacção, como no Comerciante; até à fatia de identidade é texto declarado, sem ligação a um utilizador); entram na linha do tempo (C7); mudar a classificação de um artigo publicado **volta a verificar** a publicação (C2) e tira-a de venda se deixar de passar (0023; `docs/06`, CJ; §4.2, «Reverificação») |
 
 **Em código** (migração `0006_catalogo_classificacao.sql`, 05/10/2026): as
 famílias, a natureza para o consumidor, o modo, a data e o local, o lazer com
@@ -581,7 +641,7 @@ artigo com todas as variantes arquivadas ficava preso: não voltava a activo
 |---|---|---|
 | — | rascunho | criar a publicação num canal × mercado |
 | rascunho | publicado | a verificação «pode publicar?» (§5, regra C2) não tem impedimentos |
-| publicado | arquivado | retirar; ou artigo arquivado; ou bloqueio vindo da Conformidade (ex.: recolha, substância proibida) |
+| publicado | arquivado | retirar; ou artigo, mercado ou canal arquivado (em cadeia, 0019); ou reverificação falhada (motivo `verificacao_falhou`, 0023; `docs/06`, CJ); ou bloqueio vindo da Conformidade (ex.: recolha, substância proibida) |
 | arquivado | publicado | nova verificação |
 
 ### 4.3 Tradução
@@ -732,20 +792,15 @@ paginadas (`headless-commerce`, «Servidor MCP»).
 - **Duas fichas.** Um comerciante com sistema de gestão edita o artigo no Hub
   do Eurolify e a ficha de lá não sabe. A P5 decidiu que os campos que vêm de
   lá ficam só de leitura no Hub: o risco fica se a API não o impuser (um teste).
-- **Uma verificação de publicação feita só uma vez.** O preço passa a 0,00 €
-  depois de publicado, ou um documento da Conformidade caduca. A verificação
-  tem de correr também quando Preços ou Conformidade avisam (eventos), e não
-  só ao publicar (**proposta**; os eventos da P6 já estão decididos).
-  **O que a parte 4 já cobre:** o preço não pode ficar a 0,00 € sem ser
-  gratuito (a base de Preços), e o preço de uma variante à venda não sai da
-  lista de base (0019).
-  **O que ainda não cobre** (fica para a outbox, parte 5): mudar a
-  classificação ou o nome (com a tradução) de um artigo já publicado não
-  volta a verificar a publicação. Arquivar a última variante à venda de uma
-  publicação publicada também não a retira: fica publicada sem nada para
-  vender até se publicar outra vez (C6 deixa arquivar a variante sem
-  derrubar o resto; 4.ª revisão do #139, P3-A). O peso de uma variante à
-  venda e a categoria fiscal já não se apagam depois de publicado (0019).
+- **Uma verificação de publicação feita só uma vez.** Coberto desde a
+  0023 (§4.2, «Reverificação»): as cinco operações que mudam o que a
+  verificação lê reverificam na mesma transacção, e o resto está travado na
+  base (0019). **Fica por cobrir:** a Conformidade e a media, que ainda não
+  se verificam (CF); quando existirem, as operações delas entram na tabela
+  da reverificação. E o SQL à mão, que não reverifica. Quando houver carrinhos,
+  reservas e encomendas, um artigo que sai de venda por reverificação tem
+  de ser tratado neles (o evento `product.unpublished` traz o motivo;
+  revisão do #146, P3-6).
 - **O rasto das transições da publicação** é feito pelos eventos (migração
   0021). Cada publicação, retirada ou nova publicação deixa um evento
   `product.published` ou `product.unpublished` que não se altera nem se

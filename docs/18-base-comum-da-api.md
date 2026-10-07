@@ -182,7 +182,7 @@ regra 3; lição 4.1).
 | Tipo | Agregado | `dados` |
 |---|---|---|
 | `product.published` | artigo | `artigo_id`, `publicacao_id`, `canal_id`, `mercado_id`, `quem`\*, `em` |
-| `product.unpublished` | artigo | os mesmos, mais `motivo`: um destes quatro (CHECK da 0019): `retirada`, `artigo_arquivado`, `mercado_arquivado`, `canal_arquivado` |
+| `product.unpublished` | artigo | os mesmos, mais `motivo`: um destes cinco (CHECK da 0019 e da 0023): `retirada`, `artigo_arquivado`, `mercado_arquivado`, `canal_arquivado`, `verificacao_falhou` |
 | `product.archived` | artigo | `artigo_id` |
 | `price.changed` | variante | `lista_id`, `variante_id`, `montante_antigo` (nulo no primeiro preço e depois de uma saída), `montante_novo` (nulo se saiu), `gratuito`, `saiu`, `moeda`, `preco_inclui_iva`, `quem`\*, `em` |
 | `market.activated`, `market.archived` | mercado | `mercado_id`, `loja_id` |
