@@ -589,6 +589,20 @@ for n in 7 8 9; do
 done
 confere sim "ficam só as 3 cópias mais recentes" tres_copias
 confere sim "a actual é a 9" hub_e 9
+
+# Uma troca que falha não diz que os ecrãs estão no ar (revisão do #160,
+# P2-1): «actual» é uma pasta com ficheiros, onde o mv -T não escreve.
+preparar
+rm -f /var/lib/eurolify/hub/actual
+mkdir -p /var/lib/eurolify/hub/actual
+echo "outra coisa" >/var/lib/eurolify/hub/actual/index.html
+cp "$falsos/ls-3" "$falsos/ls-10"
+touch "$falsos/hub-10"
+caso "a ligação dos ecrãs não se troca" 10
+confere sim "a API fica publicada" arrancou 10
+confere sim "termina com erro" erro
+confere nao "não diz que estão no ar" na_saida "estão no ar"
+confere sim "regista" no_registo "os ecrãs do Hub não se copiaram"
 rm -rf /var/lib/eurolify/hub
 
 # O estado_do_ensaio (eurolify-medir) mostra sempre a base à frente da versão

@@ -140,10 +140,13 @@ verificar_base() {
 api_env_mudou() {
   local criado ficheiro mudado
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
-  criado="$(date -d "$criado" +%s 2>/dev/null)" || return 1
+  # Em nanossegundos: em segundos, um ficheiro escrito no mesmo segundo em
+  # que a API foi criada não contava (revisão do #160, P2-2).
+  criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
   for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV" "$API_HUB_ENV"; do
-    mudado="$(stat -c %Y "$ficheiro" 2>/dev/null)" || continue
+    mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
+    mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
   done
   return 1
@@ -204,7 +207,7 @@ arrancar_mcp() {
 # para /var/lib/eurolify/hub/<resumo> e a ligação «actual», que o nginx serve,
 # passa a apontar para lá de uma vez (mv -T). Voltar atrás volta também com os
 # ecrãs. Uma falha aqui não desfaz a publicação da API (como o MCP): avisa.
-# Ficam as 3 cópias mais recentes, além da actual.
+# Ficam as 3 cópias mais recentes, contando a actual (revisão do #160, P3-6).
 HUB_PASTA=/var/lib/eurolify/hub
 tem_hub() { docker run --rm --network none --entrypoint test "$1" -f /app/hub/index.html >/dev/null 2>&1; }
 pasta_hub() { echo "$HUB_PASTA/${1##*sha256:}"; }
@@ -216,21 +219,30 @@ hub_para() {
     return 0
   fi
   destino="$(pasta_hub "$1")"
-  install -d -o root -g root -m 755 "$HUB_PASTA"
+  # A função corre sempre numa condição, onde o set -e não vale: cada passo
+  # devolve 1 se falhar (revisão do #160, P2-1).
+  install -d -o root -g root -m 755 "$HUB_PASTA" || return 1
+  # Restos de uma corrida interrompida (P3-6).
+  find "$HUB_PASTA" -mindepth 1 -maxdepth 1 -name '.novo.*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
   if [[ ! -f "$destino/index.html" ]]; then
-    tmp="$(mktemp -d "$HUB_PASTA/.novo.XXXXXX")"
+    tmp="$(mktemp -d "$HUB_PASTA/.novo.XXXXXX")" || return 1
     if ! docker run --rm --network none --entrypoint tar "$1" -C /app/hub -cf - . |
       tar -C "$tmp" --no-same-owner --no-same-permissions -xf - || [[ ! -f "$tmp/index.html" ]]; then
       rm -rf "$tmp"
       echo "ATENÇÃO: não se copiaram os ecrãs do Hub desta imagem (fica o que estava)."
       return 1
     fi
-    chmod -R u=rwX,go=rX "$tmp"
-    rm -rf "$destino"
-    mv "$tmp" "$destino"
+    if ! { chmod -R u=rwX,go=rX "$tmp" && rm -rf "$destino" && mv "$tmp" "$destino"; }; then
+      rm -rf "$tmp"
+      echo "ATENÇÃO: não se puseram os ecrãs do Hub no lugar (fica o que estava)."
+      return 1
+    fi
   fi
-  ln -sfn "$destino" "$HUB_PASTA/.actual.novo"
-  mv -Tf "$HUB_PASTA/.actual.novo" "$HUB_PASTA/actual"
+  if ! { ln -sfn "$destino" "$HUB_PASTA/.actual.novo" && mv -Tf "$HUB_PASTA/.actual.novo" "$HUB_PASTA/actual"; }; then
+    rm -f "$HUB_PASTA/.actual.novo"
+    echo "ATENÇÃO: não se trocou a ligação dos ecrãs do Hub (fica o que estava)."
+    return 1
+  fi
   local velha
   while IFS= read -r velha; do
     [[ "$velha" == "$destino" ]] || rm -rf "$velha"

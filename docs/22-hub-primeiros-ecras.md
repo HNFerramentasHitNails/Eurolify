@@ -140,8 +140,8 @@ pelo GitHub (ADR-0028): o `aplicar-script` corre o `preparar.sh` e o
 | Os ecrãs no disco | `eurolify-publicar` | copia `/app/hub` da imagem (um contentor sem rede, só `tar`) para `/var/lib/eurolify/hub/<resumo>` e troca a ligação `actual` de uma vez; guarda as 3 últimas. Também ao voltar à publicação anterior. Se a cópia falhar, avisa e a API não volta atrás (os ecrãs antigos continuam) |
 | O nome | zona da OVH | registo A `hub.eurolify.eu` → a VPS, **criado à mão pelo Diogo ou pelo Bruno** (o mesmo que o do MCP); sem ele o passo 14 avisa e o Hub fica desligado |
 | O certificado | `preparar.sh`, passo 14 | Let's Encrypt pelo desafio DNS da OVH (a 80 não abre), só depois de o nome resolver |
-| O site | `infra/vps/ficheiros/nginx-hub.conf` | os estáticos, `/hub/` para a API com o `X-Forwarded-For` reescrito pelo nginx; `try_files $uri /index.html` para `/entrar`, `/convite`, `/equipa`; `index.html` sem cache, `assets/` com cache longa; cabeçalhos: CSP (`default-src 'self'`, `frame-ancestors 'none'`), HSTS, `Referrer-Policy: no-referrer`, `nosniff`, `Permissions-Policy`. Liga-se só com o certificado e o `nginx -t`; se falhar, desliga-se outra vez |
-| A configuração da API | `/etc/eurolify/api-hub.env` (600, root) | `HUB_ORIGEM=https://hub.eurolify.eu` e `PROXY_CONFIAVEL=<gateway da rede eurolify>` — o endereço de onde o nginx chega ao contentor (revisão do #154, P1-1). O gateway **lê-se em cada corrida** (`docker network inspect`), por isso a rede não precisa de sub-rede fixa. Sem o site ligado, o ficheiro fica vazio e a API corre sem o Hub. Quando muda, a API é recriada com a mesma imagem |
+| O site | `infra/vps/ficheiros/nginx-hub.conf` | os estáticos, `/hub/` para a API com o `X-Forwarded-For` reescrito pelo nginx — só se o pedido original começar por `/hub/`, e com o caminho já normalizado (revisão do #160, P1-1: `/products/a%2F..%2F..%2Fhub%2Fb` chegava à rota `/products`); `try_files $uri /index.html` para `/entrar`, `/convite`, `/equipa`; `index.html` sem cache, `assets/` com cache longa; cabeçalhos: CSP (`default-src 'self'`, `frame-ancestors 'none'`), HSTS, `Referrer-Policy: no-referrer`, `nosniff`, `Permissions-Policy`. Liga-se só com o certificado e o `nginx -t`; se falhar, desliga-se outra vez |
+| A configuração da API | `/etc/eurolify/api-hub.env` (600, root) | `HUB_ORIGEM=https://hub.eurolify.eu` e `PROXY_CONFIAVEL=<gateway da rede eurolify>` — o endereço de onde o nginx chega ao contentor (revisão do #154, P1-1). O gateway **lê-se em cada corrida** (`docker network inspect`), por isso a rede não precisa de sub-rede fixa. Sem o site ligado, ou sem se ler o gateway (com aviso; os ecrãs abrem mas `/hub/*` dá 404), o ficheiro fica vazio e a API corre sem o Hub. Quando muda, a API é recriada com a mesma imagem |
 | A medição na máquina | passo 14 | pelo nginx: `/entrar` 200 e `/hub/me` 401 (sem sessão) |
 
 **Medido localmente (07/10/2026)**, com o nginx desta configuração (sem a
@@ -150,10 +150,14 @@ linha IPv6, que a máquina de teste não tem) e a API verdadeira com
 `assets/` 200; `/hub/me` 401; 20 `POST /hub/session/options` de um endereço
 dão 200 e o 21.º 429 com `Retry-After: 60`; outro endereço continua a 200; um
 `X-Forwarded-For` forjado não muda a contagem (429); um `Origin` de outro
-site, 403.
+site, 403. Depois da revisão do #160 (P1-1): `/products/a%2F..%2F..%2Fhub%2Fb`,
+`/hub/x%2F..%2F..%2Fproducts` e `/hub/..%2Fproducts` dão 404 sem chegar à
+API (antes, o primeiro chegava à rota `/products`: 401 da API).
 
 **Só contas de teste** (ADR-0019): a VPS está no Reino Unido até à migração;
-os convites são criados pelo Diogo ou pelo Bruno, nenhum dado pessoal real.
+os convites são criados pelo Diogo ou pelo Bruno, **com nomes e e-mails
+fictícios** — o e-mail verdadeiro de uma pessoa, mesmo o de um de nós, já é um
+dado pessoal real (revisão do #160, P3-12).
 **O que falta para alguém entrar** (pedido seguinte): o primeiro dono de um
 comerciante entra por um convite do operador (`docs/21` §7, ponto 5). A base
 já tem a função (`convite_criar_pelo_operador`, que o `scripts/capturas.mjs`
@@ -170,6 +174,18 @@ tem de ser `https` (revisão do #158, P3-10). Para ver os ecrãs com a API, usa-
 o `scripts/capturas.mjs`, que monta um «proxy» HTTPS local.
 
 ## O que não foi verificado
+
+- **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
+  gateway da rede `eurolify`. Se chegar por outro endereço, o
+  `X-Forwarded-For` não conta e todos os clientes partilham o mesmo limite.
+  Mede-se depois de publicar.
+- Ficam como estão, escritos para o pedido seguinte (revisão do #160): quem
+  tem o Hub aberto durante uma publicação pode pedir um ficheiro que já não
+  está servido (P3-8; hoje há um só ficheiro de código); sem o site do MCP, o
+  Hub passa a ser o servidor por omissão da 443 (P3-9); uma falha do docker
+  ao procurar os ecrãs passa por «imagem sem ecrãs», e voltar a uma imagem de
+  antes do Hub deixa os ecrãs novos (P3-7); a rotação dos registos de acesso
+  do nginx (IP) não foi conferida contra os 14 dias (P3-12).
 
 - Se a chave da OVH que está na VPS (`ovh-dns.ini`) pode criar o registo
   `hub` ou só os registos do desafio do certificado.

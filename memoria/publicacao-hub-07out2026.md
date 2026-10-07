@@ -30,6 +30,12 @@ Desenho no `docs/22` §7; passo 14 no `infra/vps/LEIA-ME.md`.
   vindo de 127.0.0.2 deu 429; `Origin` de outro site deu 403; `/hub/me` 401;
   `/entrar` 200.
 
+- 07/10/2026, revisão Opus 5.5 do #160: 0 P0, 1 P1, 2 P2, 12 P3. P1-1
+  medido (nginx local): `/products/a%2F..%2F..%2Fhub%2Fb` → 401 da rota
+  `/products` da API; depois da correcção, 404 sem chegar à API. P2-1: teste
+  novo («a ligação dos ecrãs não se troca»), que falhava no script antigo
+  (3 FALHOU) e passa no novo; `publicar.sh` passou a 154 ok.
+
 ## O que ficou por verificar
 
 - Na VPS: nada, até este pedido entrar e o `preparar.sh` correr (o
