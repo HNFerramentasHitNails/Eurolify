@@ -54,11 +54,11 @@ const CamposChave = {
   revogada_por: Type.Union([Type.String(), Type.Null()]),
   ultimo_uso_em: InstanteOuNulo,
 };
-const Chave = Type.Object(CamposChave);
+export const Chave = Type.Object(CamposChave);
 
-const RespostaChaves = Type.Object({ dados: Type.Array(Chave) });
+export const RespostaChaves = Type.Object({ dados: Type.Array(Chave) });
 
-const RespostaChaveCriada = Type.Object({
+export const RespostaChaveCriada = Type.Object({
   ...CamposChave,
   segredo: Type.String({
     description:
@@ -75,7 +75,7 @@ const CabecalhoIdempotencia = Type.Object({
   ),
 });
 
-const PedidoCriarChave = Type.Object(
+export const PedidoCriarChave = Type.Object(
   {
     tipo: TipoChave,
     nome: Type.String({ minLength: 1, maxLength: 100, pattern: "\\S" }),
@@ -98,7 +98,7 @@ const PedidoCriarChave = Type.Object(
   { additionalProperties: false },
 );
 
-const ParametroChave = Type.Object({
+export const ParametroChave = Type.Object({
   id: Type.String({
     pattern:
       "^key_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
@@ -108,7 +108,7 @@ const ParametroChave = Type.Object({
 
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 
-function paraResposta(c: ChaveListada) {
+export function paraResposta(c: ChaveListada) {
   return {
     id: `key_${c.id}`,
     tipo: c.tipo,

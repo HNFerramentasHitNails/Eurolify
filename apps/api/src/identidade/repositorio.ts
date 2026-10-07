@@ -2,6 +2,7 @@ import { sql, type Kysely, type Transaction } from "kysely";
 import { ErroApi } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
+import { traduzirConta } from "./sessoes.js";
 import {
   FORMATO_SEGREDO,
   gerarChave,
@@ -294,6 +295,65 @@ export function revogarChavePelaApi(
 ): Promise<ChaveListada> {
   return traduzindo(async () => {
     await sql`select chave_revogar_pela_api(${segredoQuem}, ${id}::uuid)`.execute(
+      trx,
+    );
+    return chaveDoContexto(trx, id);
+  });
+}
+
+// Criar e revogar pelo Hub, com a sessão de uma pessoa (migração 0025;
+// docs/21 §12, B3c). A base confere o papel, a autenticação recente e as
+// regras das chaves; aqui traduzem-se os erros das chaves e os das contas.
+
+async function traduzindoChaveOuConta<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (erro) {
+    // Primeiro como conta: «não é membro» tem o texto das contas, não o das
+    // chaves (revisão do #149, P3-1).
+    const conta = traduzirConta(erro);
+    if (conta !== erro) throw conta;
+    // No Hub quem pede é o papel, não uma chave (P3-2).
+    if (
+      erro instanceof Error &&
+      erro.message.startsWith("key.scope_escalation:")
+    ) {
+      throw erroChave(
+        "key.scope_escalation",
+        "uma chave não recebe âmbitos que o papel não tem",
+      );
+    }
+    throw traduzirChave(erro);
+  }
+}
+
+/** Cria uma chave em nome da pessoa da sessão, dentro da transacção dada. */
+export function criarChavePelaSessao(
+  trx: Transaction<BaseDados>,
+  segredoSessao: string,
+  dados: PedidoDeChave,
+): Promise<{ chave: ChaveListada; segredo: string }> {
+  return traduzindoChaveOuConta(async () => {
+    const nova = gerarChave(dados.tipo);
+    const { rows } = await sql<{ id: string }>`
+      select chave_criar_pela_sessao(${segredoSessao}, ${dados.tipo},
+        ${dados.lojaId}::uuid, ${dados.nome}, ${dados.ambitos}::text[],
+        ${nova.prefixo}, ${nova.resumo},
+        ${dados.expiraEm}::timestamptz) as id`.execute(trx);
+    const id = rows[0]?.id;
+    if (id === undefined) throw new Error("a base não devolveu a chave criada");
+    return { chave: await chaveDoContexto(trx, id), segredo: nova.segredo };
+  });
+}
+
+/** Revoga uma chave em nome da pessoa da sessão, dentro da transacção dada. */
+export function revogarChavePelaSessao(
+  trx: Transaction<BaseDados>,
+  segredoSessao: string,
+  id: string,
+): Promise<ChaveListada> {
+  return traduzindoChaveOuConta(async () => {
+    await sql`select chave_revogar_pela_sessao(${segredoSessao}, ${id}::uuid)`.execute(
       trx,
     );
     return chaveDoContexto(trx, id);

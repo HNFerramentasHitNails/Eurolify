@@ -114,6 +114,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0022_identidade_recuperacao",
         "0023_publicacao_reverificada",
         "0024_identidade_palavra_passe",
+        "0025_identidade_chaves_pela_sessao",
       ]);
     });
 
