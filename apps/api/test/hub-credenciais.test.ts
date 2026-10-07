@@ -12,12 +12,12 @@ import {
 } from "./base-de-teste.js";
 import { hubDeTeste, ipNovo, NO_HUB } from "./hub-de-teste.js";
 
-// Rotas do Hub da parte B3a (docs/21 §7, §8 e §12; migração 0021; testes
+// Rotas do Hub da parte B3a (docs/21 §7, §8 e §12; migração 0022; testes
 // P-T5, P-T6 e P-T18 do §9; issue #140): acrescentar e retirar passkeys, as
 // sessões abertas, os códigos de recuperação e recuperar a conta, com o
 // limite de tentativas e o registo de entradas. Contra o PostgreSQL 18.
 
-describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0021)", () => {
+describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0022)", () => {
   let base: BaseDeTeste;
   let h: ReturnType<typeof hubDeTeste>;
   let a: string;
@@ -251,7 +251,7 @@ describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0021)", () => {
       expect(texto.rows[0]?.t ?? "").not.toContain(p.email);
     });
 
-    it("CH: quem sabe o e-mail não bloqueia a recuperação a partir de outro IP", async () => {
+    it("CI: quem sabe o e-mail não bloqueia a recuperação a partir de outro IP", async () => {
       const p = await h.pessoaCom(a, "apoio");
       // O atacante falha 5 vezes, cada uma de um IP diferente.
       for (let i = 0; i < 5; i++) {
@@ -278,7 +278,7 @@ describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0021)", () => {
       expect(daPessoa.statusCode, daPessoa.body).toBe(200);
     });
 
-    it("CH: um IP com 5 falhas fica bloqueado para qualquer e-mail", async () => {
+    it("CI: um IP com 5 falhas fica bloqueado para qualquer e-mail", async () => {
       const ip = ipNovo();
       for (let i = 0; i < 5; i++) {
         await h.pedir("POST", "/hub/recovery/options", {

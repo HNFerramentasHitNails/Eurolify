@@ -110,7 +110,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0018_identidade_pessoas",
         "0019_catalogo_publicacao",
         "0020_identidade_passkeys",
-        "0021_identidade_recuperacao",
+        "0021_eventos_saida",
+        "0022_identidade_recuperacao",
       ]);
     });
 
@@ -145,7 +146,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       expect(rows.length).toBeGreaterThan(0);
       // Internas: só o migrador (kysely_*) ou funções com os direitos do dono
       // (combinacoes_por_verificar, 0005; chave_api, 0010; as contas de
-      // pessoas, 0018, 0020 e 0021) lhes tocam; a API não as lê.
+      // pessoas, 0018, 0020 e 0022; os eventos, 0021) lhes tocam; a API não
+      // as lê.
       const interna = (t: string) =>
         t.startsWith("kysely_") ||
         [
@@ -160,6 +162,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           "desafio_webauthn",
           "codigo_recuperacao",
           "entrada",
+          // A outbox (0021): escrevem-na os gatilhos do dono; a API não a lê.
+          "evento_saida",
         ].includes(t);
       for (const linha of rows) {
         if (interna(linha.tabela)) {

@@ -17,7 +17,7 @@ Issue #140; desenho aprovado no `docs/21` (Diogo, 06/10/2026).
   P1, 5 P2, 10 P3; tratados menos o P3-8. Decisão CG: Argon2id 64 MiB
   (RFC 9106 §4).
 - **B3 em três pedidos** (docs/21 §12): B3a (#144: passkeys, sessões
-  abertas, códigos de recuperação, recuperar, entradas; migração 0021), B3b
+  abertas, códigos de recuperação, recuperar, entradas; migração 0022 — a 0021 foi do #143), B3b
   (palavra-passe + TOTP), B3c (chaves pelo Hub).
 - O #139 (Catálogo, outra sessão) também queria a 0018 e a 0019: quem junta
   em segundo renumera (avisos no #139).

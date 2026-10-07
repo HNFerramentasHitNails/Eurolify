@@ -3,14 +3,24 @@ import { readdir } from "node:fs/promises";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { abrirBase } from "../src/base/ligacao.js";
 import { migrar, PASTA_MIGRACOES } from "../src/base/migracoes.js";
+import { criarArtigo } from "../src/catalogo/repositorio.js";
 import {
   aceitarContrato,
+  comComerciante,
   criarEntidadeLegal,
+  criarLoja,
   mudarEstado,
   registarComerciante,
   registarVerificacao,
 } from "../src/comerciante/repositorio.js";
+import {
+  criarLista,
+  criarMercado,
+  definirPreco,
+  mudarEstadoMercado,
+} from "../src/precos/repositorio.js";
 import {
   apagarBase,
   criarBaseDeTeste,
@@ -371,5 +381,124 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
         ),
       ).toMatch(/^audit\.append_only:/);
     });
+
+    // Os gatilhos dos eventos (0021) correm com os direitos do dono. Aqui o
+    // dono não é superutilizador e o RLS de evento_saida é forçado, como na
+    // VPS (revisão do #143, P2-2).
+    it("com este dono, os gatilhos gravam os eventos e o RLS só mostra os do comerciante posto", async () => {
+      const migradorPronto = soMigrado();
+      const url = new URL(URL_BASE ?? "");
+      url.pathname = `/${nome}`;
+      url.username = "eurolify_api";
+      url.password = senha;
+      const api = abrirBase(url.toString());
+      try {
+        const novo = {
+          nome: "Loja de Teste",
+          lingua: "pt",
+          fuso: "Europe/Lisbon",
+        };
+        const c = await registarComerciante(api, novo);
+        const outro = await registarComerciante(api, novo);
+        const entidade = await criarEntidadeLegal(api, c, {
+          denominacao: "Exemplo, Lda.",
+          forma_juridica: "sociedade por quotas",
+          pais: "PT",
+          numero_fiscal: "123456789",
+          morada_linha: "Rua de Teste, 1",
+          morada_codigo_postal: "1000-001",
+          morada_localidade: "Lisboa",
+        });
+        const loja = await criarLoja(api, c, {
+          entidade_legal_id: entidade,
+          nome: "Loja online",
+        });
+        const mercado = await criarMercado(api, c, {
+          loja_id: loja,
+          nome: "Portugal",
+          paises: ["PT"],
+          moeda: "EUR",
+          linguas: ["pt"],
+          lingua_principal: "pt",
+        });
+        const lista = await criarLista(api, c, {
+          mercado_id: mercado,
+          nome: "Base PT",
+          tipo: "base",
+        });
+        await mudarEstadoMercado(api, c, mercado, 1, "activo");
+        const artigo = await criarArtigo(
+          api,
+          c,
+          { tipo: "fisico", nome: "Gel", categoria_fiscal: "normal" },
+          [{ sku: "GEL-001", unidade_de_venda: "unidade", peso_g: 30 }],
+        );
+        const [variante] = await comComerciante(api, c, (trx) =>
+          trx
+            .selectFrom("variante")
+            .select("id")
+            .where("artigo_id", "=", artigo)
+            .execute(),
+        );
+        if (variante === undefined) throw new Error("falta a variante");
+        await definirPreco(api, c, "pessoa:teste", lista, variante.id, {
+          montante: 990,
+        });
+        await definirPreco(api, c, "pessoa:teste", lista, variante.id, {
+          montante: 1090,
+        });
+
+        /** O que o dono vê em evento_saida com o comerciante `quem` posto. */
+        async function vistos(quem: string) {
+          return migradorPronto.transaction().execute(async (trx) => {
+            await sql`select set_config('eurolify.comerciante', ${quem}, true)`.execute(
+              trx,
+            );
+            const { rows } = await sql<{
+              comerciante_id: string;
+              tipo: string;
+              antigo: number | null;
+            }>`select comerciante_id, tipo,
+                 (dados->>'montante_antigo')::int as antigo
+               from evento_saida order by criado_em, id`.execute(trx);
+            return rows;
+          });
+        }
+        expect(await vistos(c)).toEqual([
+          { comerciante_id: c, tipo: "market.activated", antigo: null },
+          { comerciante_id: c, tipo: "price.changed", antigo: null },
+          { comerciante_id: c, tipo: "price.changed", antigo: 990 },
+        ]);
+        expect(await vistos(outro)).toEqual([]);
+        // Numa ligação nova, sem o comerciante posto: este dono não lê a
+        // fila (o publicador terá o seu papel, docs/18 §5) nem muda um estado
+        // à mão sem deixar evento — o RLS da tabela de origem chama
+        // comerciante_actual(), que dá erro (revisão do #143, ronda 2, P3-A).
+        const urlMigrador = new URL(URL_BASE ?? "");
+        urlMigrador.pathname = `/${nome}`;
+        urlMigrador.username = papel;
+        urlMigrador.password = senha;
+        const solto = new pg.Client({
+          connectionString: urlMigrador.toString(),
+        });
+        await solto.connect();
+        try {
+          for (const consulta of [
+            "select count(*) from evento_saida",
+            `update mercado set estado = 'arquivado' where id = '${mercado}'`,
+          ]) {
+            expect(
+              await mensagemDoErro(solto.query(consulta)),
+              consulta,
+            ).toMatch(/eurolify\.comerciante/);
+          }
+        } finally {
+          await solto.end();
+        }
+        expect((await vistos(c)).length).toBe(3);
+      } finally {
+        await api.destroy();
+      }
+    }, 30_000);
   });
 });

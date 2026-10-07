@@ -31,7 +31,7 @@ import {
 
 // Rotas do Hub da parte B3a (docs/21 §7, §8 e §12): acrescentar e retirar
 // passkeys, as sessões abertas, os códigos de recuperação e recuperar a
-// conta. As regras ficam na base (0021); aqui verifica-se a passkey
+// conta. As regras ficam na base (0022); aqui verifica-se a passkey
 // (@simplewebauthn) e traduzem-se os erros. O IP de quem pede vai só para o
 // registo de entradas da base (14 dias), nunca para o registo da aplicação.
 
@@ -299,7 +299,7 @@ export function rotasDasCredenciais(
       config: { ambito: "publico", hub: true },
       schema: {
         description:
-          "Recuperar a conta, passo 1: e-mail e um código de recuperação. Devolve as opções WebAuthn para registar uma passkey nova. A mesma recusa (401) para e-mail sem conta, código errado ou já usado; um IP com 5 falhas nos últimos 15 minutos é recusado (429) para qualquer e-mail; um e-mail com 5 falhas só recusa quem também falhou desse IP (CH).",
+          "Recuperar a conta, passo 1: e-mail e um código de recuperação. Devolve as opções WebAuthn para registar uma passkey nova. A mesma recusa (401) para e-mail sem conta, código errado ou já usado; um IP com 5 falhas nos últimos 15 minutos é recusado (429) para qualquer e-mail; um e-mail com 5 falhas só recusa quem também falhou desse IP (CI).",
         body: Type.Object(
           { email: Email, codigo: Codigo },
           { additionalProperties: false },

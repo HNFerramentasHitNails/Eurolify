@@ -19,7 +19,7 @@
 |---|---|---|
 | Erros num formato único (RFC 9457) | **já** (pedido A) | vale para as rotas que existem e para os erros do próprio Fastify (404, validação) |
 | Contrato OpenAPI 3.1 gerado e publicado | **já** (pedido A) | «nada é exposto fora do contrato» (`headless-commerce`, regra 1); um teste falha se uma rota ficar fora |
-| Tabelas da idempotência e dos eventos (outbox) | idempotência: **feita** na 0012 (#118), limpeza na 0013; eventos: por fazer | o desenho está aqui; o código liga-se com a fatia «identidade» |
+| Tabelas da idempotência e dos eventos (outbox) | idempotência: **feita** na 0012 (#118), limpeza na 0013; eventos: **feita** na 0021 (§5) | o desenho está aqui; a idempotência liga-se às rotas de escrita, os eventos escrevem-nos gatilhos da base |
 | `Idempotency-Key` nas rotas | com a primeira rota de escrita | precisa do comerciante de quem chama |
 | Limites de pedidos | com a fatia «identidade» | são «por chave e por loja» (regra 6) |
 | Publicador do outbox (webhooks) | com os webhooks | o evento grava-se já; publica-se depois |
@@ -131,7 +131,7 @@ regra 3; lição 4.1).
   - apaga tudo de uma vez, sem lotes: serve para o ensaio. Em produção
     convém apagar aos bocados (revisão do #119, P3-8).
 
-## 5. Eventos de domínio (tabela `evento_saida`, outbox, próxima migração)
+## 5. Eventos de domínio (tabela `evento_saida`, outbox, migração 0021)
 
 | Campo | Tipo | Nota |
 |---|---|---|
@@ -146,9 +146,64 @@ regra 3; lição 4.1).
 
 - O evento grava-se **na mesma transacção** que a mudança (`platform-architect`,
   regra 5). Nunca «gravar e depois tentar avisar».
-- A API só faz `INSERT`. O publicador terá um utilizador da base próprio.
-- Um evento já publicado não se altera nem se apaga (gatilho, como o rasto na
-  0008); o prazo de guarda decide-se com os webhooks.
+- **Em código** (migração 0021, 06/10/2026): quem escreve os eventos são os
+  gatilhos das tabelas que mudam, com os direitos do dono. A API, o SQL à mão
+  no contexto do comerciante e as cadeias de gatilhos não mudam o estado sem o
+  evento. O limite é o do rasto da 0008: o dono pode desligar ou apagar um
+  gatilho por DDL, e isso só entra por migração revista (revisão do #143,
+  P3-2). Um dono **sem superutilizador nem `BYPASSRLS`** (o migrador da VPS)
+  não muda o estado à mão sem `eurolify.comerciante`: o RLS forçado da
+  tabela de origem chama `comerciante_actual()`, que dá erro sem o
+  comerciante, e a mudança falha em vez de passar sem evento. Um
+  superutilizador ignora o RLS: a mudança passa e o evento grava-se com o
+  comerciante da linha (revisão do #143, ronda 2, P3-A). A API **não** tem privilégios na tabela, nem para
+  ler nem para inserir: é mais fechado do que a proposta inicial («a API só
+  faz `INSERT`»), porque um evento forjado seria aceite pelo publicador como
+  verdadeiro.
+- **O publicador** (com os webhooks; revisão do #143, P2-3):
+  - terá um utilizador da base próprio, criado fora das migrações (o
+    migrador não cria papéis), com `BYPASSRLS` como o `eurolify_limpeza`
+    (§4), `SELECT` na tabela e `UPDATE` só em `publicado_em`, `tentativas` e
+    `ultimo_erro`; o gatilho que recusa o resto fica como segunda barreira;
+  - lê o conjunto `publicado_em IS NULL` (com `FOR UPDATE SKIP LOCKED`) e
+    **nunca** usa «o último `criado_em` visto» como cursor: uma transacção
+    pode ficar visível depois de outra com `criado_em` posterior, e esse
+    evento ficava para trás;
+  - garante a ordem **só dentro da mesma linha**: a mesma publicação (canal
+    × mercado), o mesmo preço (lista × variante) ou o mesmo mercado, cujas
+    escritas são em série. Dois eventos do mesmo agregado vindos de linhas
+    diferentes (o mesmo artigo publicado em dois canais, a mesma variante em
+    duas listas) podem chegar por qualquer ordem (revisão do #143, ronda 2,
+    P3-B).
+- **Eventos já escritos** (o contrato que os receptores vão ler; os
+  identificadores vão em uuid, e os prefixos públicos — `prd_`, `prl_`… —
+  põe-nos o publicador ao montar a mensagem, como a API nas respostas):
+
+| Tipo | Agregado | `dados` |
+|---|---|---|
+| `product.published` | artigo | `artigo_id`, `publicacao_id`, `canal_id`, `mercado_id`, `quem`\*, `em` |
+| `product.unpublished` | artigo | os mesmos, mais `motivo`: um destes quatro (CHECK da 0019): `retirada`, `artigo_arquivado`, `mercado_arquivado`, `canal_arquivado` |
+| `product.archived` | artigo | `artigo_id` |
+| `price.changed` | variante | `lista_id`, `variante_id`, `montante_antigo` (nulo no primeiro preço e depois de uma saída), `montante_novo` (nulo se saiu), `gratuito`, `saiu`, `moeda`, `preco_inclui_iva`, `quem`\*, `em` |
+| `market.activated`, `market.archived` | mercado | `mercado_id`, `loja_id` |
+
+\* Guardado na base; **não sai** nos webhooks (`docs/06`, CH).
+
+- `em` vai em UTC, com formato fixo (`2026-10-06T17:24:42.123456Z`),
+  qualquer que seja o fuso da sessão que escreveu.
+- **`quem` dentro do evento — decidido** (Diogo, 07/10/2026, opção a;
+  `docs/06`, CH; revisão do #143, P2-4): fica guardado na base, onde é o
+  rasto das transições, mas **o publicador nunca o envia** nos webhooks; quem
+  recebe e precisar dele pede-o à API, que verifica as permissões. Como o
+  evento não se altera, um pedido de apagamento não o pseudonimiza dentro da
+  base: isso fica com o desenho do apagamento (`docs/17` §3).
+- **Ainda não escritos:** os outros eventos entram com a parte que os
+  escreve.
+- Um evento não se altera nem se apaga (gatilho, como o rasto na 0008), nem
+  os já publicados, nem os de um comerciante apagado. O prazo de guarda e a
+  forma de apagar (um `DELETE` só do que está publicado e fora do prazo, ou
+  partições) entram com o publicador, noutra migração (revisão do #143,
+  P3-7).
 
 ## 6. Limites de pedidos (com a fatia «identidade»)
 

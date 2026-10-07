@@ -13,7 +13,7 @@
 --   o resultado e o IP; sem conta, só o resumo do e-mail tentado (docs/21
 --   §6); 14 dias (apaga-os a B4);
 -- - limite de tentativas da recuperação: 5 falhas nos últimos 15 minutos,
---   contadas por e-mail (resumo) e por IP (CH; docs/21 §12). A falha regista-se e
+--   contadas por e-mail (resumo) e por IP (CI; docs/21 §12). A falha regista-se e
 --   fica (a função devolve o resultado em vez de levantar um erro, para o
 --   registo não se desfazer com a transacção);
 -- - os desafios WebAuthn ganham duas finalidades presas a uma pessoa:
@@ -363,7 +363,7 @@ $$;
 -- registo preso à pessoa), 'falhou' ou 'bloqueado'; regista as falhas e os
 -- bloqueios (o êxito regista-se no passo 2). Não levanta erro de propósito:
 -- a falha tem de ficar registada para contar no limite — 5 falhas nos
--- últimos 15 minutos, por e-mail e por IP, numa janela que desliza (CH). O
+-- últimos 15 minutos, por e-mail e por IP, numa janela que desliza (CI). O
 -- código não se gasta aqui; só no passo 2, com a passkey nova.
 CREATE FUNCTION recuperacao_iniciar(p_resumo_desafio text, p_email text,
                                     p_resumo_codigo text, p_ip inet)
@@ -388,7 +388,7 @@ BEGIN
   WHERE p_ip IS NOT NULL AND e.ip = p_ip AND e.metodo = 'recuperacao'
     AND e.resultado = 'falhou' AND e.quando > now() - interval '15 minutes';
   -- O limite conta por e-mail e por IP (Diogo, 07/10/2026: «fica a a)»;
-  -- CH; revisão do #144, P2-2): um IP com 5 falhas fica bloqueado para
+  -- CI; revisão do #144, P2-2): um IP com 5 falhas fica bloqueado para
   -- qualquer e-mail; um e-mail com 5 falhas só bloqueia quem também falhou
   -- desse IP (ou quem chega sem IP). Quem sabe o e-mail da Ana não lhe
   -- bloqueia a recuperação a partir de outro IP.
