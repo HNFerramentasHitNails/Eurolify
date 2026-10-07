@@ -20,7 +20,8 @@
 --   aplica aqui: servia porque só uma chave criava chaves; com o Hub, o dono
 --   cria outra quando quiser (proposta, docs/21 §12);
 -- - quem perde poderes perde também as chaves que descendem das suas, em
---   cadeia (`pessoa_fechar_acessos` substituída; revisão do #149, P1-1).
+--   cadeia (`pessoa_fechar_acessos` substituída; revisão do #149, P1-1); as
+--   chaves públicas ficam (CK).
 --
 -- O que não faz: listar continua a ser o `chave_listar()` (0010), que a rota
 -- chama depois de conferir o papel na API (o mesmo nível de confiança do
@@ -138,9 +139,12 @@ BEGIN
     JOIN cadeia ON f.criada_por = 'chave:key_' || cadeia.id::text
     WHERE f.comerciante_id = p_comerciante
   )
+  -- As chaves públicas ficam (Diogo, 07/10/2026: «fica a a)»; CK; revisão
+  -- do #149, P2-2): não são segredo e só dão o que qualquer visitante da
+  -- loja vê; revogá-las partia a montra sem proteger nada.
   UPDATE public.chave_api k SET revogada_por = p_motivo
   FROM cadeia
-  WHERE k.id = cadeia.id AND k.revogada_por IS NULL;
+  WHERE k.id = cadeia.id AND k.revogada_por IS NULL AND k.tipo = 'servidor';
 END
 $$;
 

@@ -144,7 +144,7 @@ a pessoa criou (`criada_por = chave:key_…`) **revogam-se em cadeia** com
 ela, também quando a do meio já estava revogada (B3c, revisão do #149,
 P1-1: com o Hub uma pessoa cria chaves, e sem a cadeia uma «filha» ficava
 viva depois de ela sair). Ao mudar de papel, cai a cadeia das chaves com
-âmbitos que o papel novo não tem.
+âmbitos que o papel novo não tem. As chaves públicas ficam (CK).
 
 ### 4.5 Mudar de papel e desactivar uma pessoa
 
@@ -458,10 +458,10 @@ Hub: servia porque só uma chave criava chaves, e o dono cria outra quando
 quiser (proposta).
 
 **Por decidir ou por fazer** (revisão do #149):
-- **Chaves públicas ao mudar de papel** (P2-2): uma chave pública criada
-  por um dono cai quando ele passa a gestor ou sai — `storefront` não está
-  em nenhum papel — e a montra da loja deixa de responder. Por decidir
-  (Diogo ou Bruno).
+- **Chaves públicas ao mudar de papel ou sair** (P2-2): **ficam** (Diogo,
+  07/10/2026: *«sim, concordo, fica a a)»*; CK). Não são segredo e só dão o
+  que qualquer visitante da loja vê; revogá-las partia a montra sem proteger
+  nada. A cadeia da §4.4 revoga só as chaves de servidor.
 - **Recuperar ou «terminar todas» não fecha as chaves** que a pessoa criou
   (P2-1): uma sessão roubada nos 10 minutos depois de entrar pode criar uma
   chave que fica. Por fazer: o aviso do Hub depois de uma recuperação (§7)

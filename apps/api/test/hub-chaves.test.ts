@@ -1,6 +1,8 @@
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  criarEntidadeLegal,
+  criarLoja,
   mudarEstado,
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
@@ -313,6 +315,80 @@ describe.skipIf(URL_BASE === undefined)("chaves pelo Hub (0025)", () => {
       expect(await vale(gestora)).toBe(401);
       expect(await vale(filha)).toBe(401);
       expect(await vale(leitora)).toBe(200);
+    });
+
+    it("CK: a chave pública de quem sai ou é despromovido fica; as de servidor caem", async () => {
+      const c = await novoComerciante("Loja Montra");
+      const entidade = await criarEntidadeLegal(base.api, c, {
+        denominacao: "Exemplo, Lda.",
+        forma_juridica: "sociedade por quotas",
+        pais: "PT",
+        numero_fiscal: "123456789",
+        morada_linha: "Rua de Teste, 1",
+        morada_codigo_postal: "1000-001",
+        morada_localidade: "Lisboa",
+      });
+      const loja = await criarLoja(base.api, c, {
+        entidade_legal_id: entidade,
+        nome: "Portugal",
+      });
+      const d1 = await h.pessoaCom(c, "dono");
+      const d2 = await h.pessoaCom(c, "dono");
+      const publica = (
+        await criar(d2.sessao, c, {
+          tipo: "publica",
+          nome: "Montra",
+          loja: `sto_${loja}`,
+        })
+      ).json<{ segredo: string }>().segredo;
+      const deServidor = (
+        await criar(d2.sessao, c, {
+          ...servidor,
+          ambitos: ["catalog:read", "keys:write"],
+        })
+      ).json<{
+        segredo: string;
+      }>().segredo;
+      // Uma pública criada por uma chave dela também fica.
+      const r = await h.app.inject({
+        method: "POST",
+        url: "/keys",
+        headers: {
+          authorization: `Bearer ${deServidor}`,
+          "idempotency-key": `ck-${String(Date.now())}`,
+        },
+        payload: { tipo: "publica", nome: "Montra 2", loja: `sto_${loja}` },
+      });
+      expect(r.statusCode, r.body).toBe(201);
+      const publicaFilha = r.json<{ segredo: string }>().segredo;
+      const papel = await h.pedir(
+        "POST",
+        `/hub/members/mbr_${await membroDe(d2.pessoa, c)}/role`,
+        {
+          sessao: d1.sessao,
+          comerciante: c,
+          corpo: { papel: "gestor" },
+        },
+      );
+      expect(papel.statusCode, papel.body).toBe(200);
+      const tirar = await h.pedir(
+        "POST",
+        `/hub/members/mbr_${await membroDe(d2.pessoa, c)}/end`,
+        {
+          sessao: d1.sessao,
+          comerciante: c,
+        },
+      );
+      expect(tirar.statusCode, tirar.body).toBe(200);
+      expect(await vale(deServidor)).toBe(401);
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from chave_api
+        where comerciante_id = ${c}::uuid and tipo = 'publica' and revogada_em is null`.execute(
+        base.dono,
+      );
+      expect(rows[0]?.n).toBe(2);
+      expect(publica.startsWith("eul_pk_")).toBe(true);
+      expect(publicaFilha.startsWith("eul_pk_")).toBe(true);
     });
 
     it("P2-3: criar uma chave espera pela tranca dos membros, mesmo com a das chaves livre", async () => {
