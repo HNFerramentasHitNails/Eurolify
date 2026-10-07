@@ -8,20 +8,24 @@ import { mensagemDeErro, semSessao, type MensagemDeErro } from "../erros";
 export function Inicio() {
   const { t, lingua, navegar } = useHub();
   const [eu, setEu] = useState<Eu | null>(null);
-  const [erro, setErro] = useState<MensagemDeErro | null>(null);
+  // O erro guarda-se cru e traduz-se ao mostrar: mudar a língua não volta a
+  // pedir nada (revisão do #158, P3-7).
+  const [falha, setFalha] = useState<unknown>(null);
+  const erro: MensagemDeErro | null =
+    falha === null ? null : mensagemDeErro(falha, t, lingua);
 
   const carregar = useCallback(async () => {
-    setErro(null);
+    setFalha(null);
     try {
       setEu(await api.eu());
     } catch (e) {
       if (semSessao(e)) {
-        navegar("/entrar");
+        navegar("/entrar", { substituir: true });
         return;
       }
-      setErro(mensagemDeErro(e, t, lingua));
+      setFalha(e);
     }
-  }, [t, lingua, navegar]);
+  }, [navegar]);
 
   useEffect(() => {
     void carregar();

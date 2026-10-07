@@ -4,17 +4,31 @@ import { useHub } from "../contexto";
 /** «Copiar» para a área de transferência, com a confirmação anunciada. */
 export function Copiar({ texto }: { texto: string }) {
   const { t } = useHub();
-  const [copiado, setCopiado] = useState(false);
+  const [estado, setEstado] = useState<"antes" | "copiado" | "falhou">("antes");
   return (
-    <button
-      type="button"
-      onClick={() => {
-        void navigator.clipboard.writeText(texto).then(() => {
-          setCopiado(true);
-        });
-      }}
-    >
-      <span aria-live="polite">{copiado ? t.copiado : t.copiar}</span>
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          navigator.clipboard.writeText(texto).then(
+            () => {
+              setEstado("copiado");
+            },
+            () => {
+              setEstado("falhou");
+            },
+          );
+        }}
+      >
+        <span aria-live="polite">
+          {estado === "copiado" ? t.copiado : t.copiar}
+        </span>
+      </button>
+      {estado === "falhou" ? (
+        <p className="secundario" role="status">
+          {t.copiarFalhou}
+        </p>
+      ) : null}
+    </>
   );
 }

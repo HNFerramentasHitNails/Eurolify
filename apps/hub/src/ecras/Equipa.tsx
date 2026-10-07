@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
-import { api, PAPEIS, type Eu, type Membros, type Papel } from "../api";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from "react";
+import { api, ErroHub, type Eu, type Membros, type Papel } from "../api";
 import { ligacaoDoConvite } from "../convite";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { mensagemDeErro, semSessao, type MensagemDeErro } from "../erros";
+import { papeisQuePodeDar } from "../papeis";
 import { comRecente } from "../passkeys";
 import { preencher, TAG_LINGUA } from "../textos";
 import { Copiar } from "./Copiar";
@@ -18,29 +25,43 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
   const { t, lingua, navegar } = useHub();
   const [eu, setEu] = useState<Eu | null>(null);
   const [dados, setDados] = useState<Membros | null>(null);
-  const [erro, setErro] = useState<MensagemDeErro | null>(null);
+  // Os erros guardam-se crus e traduzem-se ao mostrar: mudar a língua não
+  // volta a pedir nada (revisão do #158, P3-7).
+  const [falha, setFalha] = useState<unknown>(null);
+  const erro: MensagemDeErro | null =
+    falha === null ? null : mensagemDeErro(falha, t, lingua);
+  // O erro de uma acção (cancelar) fica à parte: recarregar a lista não o
+  // apaga.
+  const [falhaAccao, setFalhaAccao] = useState<unknown>(null);
+  const erroAccao: MensagemDeErro | null =
+    falhaAccao === null ? null : mensagemDeErro(falhaAccao, t, lingua);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Só a resposta do último pedido conta (P3-7).
+  const ultimo = useRef(0);
 
   const valido = comerciante !== null && FORMATO_COMERCIANTE.test(comerciante);
 
   const carregar = useCallback(async () => {
     if (!valido) return;
-    setErro(null);
+    const este = ++ultimo.current;
     try {
       const [quem, membros] = await Promise.all([
         api.eu(),
         api.membros(comerciante),
       ]);
+      if (este !== ultimo.current) return;
+      setFalha(null);
       setEu(quem);
       setDados(membros);
     } catch (e) {
+      if (este !== ultimo.current) return;
       if (semSessao(e)) {
-        navegar("/entrar");
+        navegar("/entrar", { substituir: true });
         return;
       }
-      setErro(mensagemDeErro(e, t, lingua));
+      setFalha(e);
     }
-  }, [valido, comerciante, t, lingua, navegar]);
+  }, [valido, comerciante, navegar]);
 
   useEffect(() => {
     void carregar();
@@ -60,14 +81,26 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
     ) {
       return;
     }
-    setErro(null);
+    setFalhaAccao(null);
     setAviso(null);
     try {
       await api.cancelarConvite(comerciante, convite);
       setAviso(t.conviteCancelado);
       await carregar();
     } catch (e) {
-      setErro(mensagemDeErro(e, t, lingua));
+      if (semSessao(e)) {
+        navegar("/entrar", { substituir: true });
+        return;
+      }
+      setFalhaAccao(e);
+      // Já usado ou cancelado noutro separador: a lista volta a ler-se
+      // (revisão do #158, P2-3).
+      if (
+        e instanceof ErroHub &&
+        (e.codigo === "invite.used" || e.codigo === "invite.not_found")
+      ) {
+        await carregar();
+      }
     }
   }
 
@@ -97,6 +130,7 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
       ) : (
         <>
           {erro === null ? null : <CaixaDeErro erro={erro} />}
+          {erroAccao === null ? null : <CaixaDeErro erro={erroAccao} />}
           {aviso === null ? null : (
             <div className="sucesso" role="status">
               {aviso}
@@ -182,11 +216,10 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
             </>
           )}
 
-          {meu === undefined ||
-          meu.papel === "armazem" ||
-          meu.papel === "apoio" ? null : (
+          {papeisQuePodeDar(meu?.papel).length === 0 ? null : (
             <Convidar
               comerciante={comerciante}
+              papeis={papeisQuePodeDar(meu?.papel)}
               aoConvidar={() => void carregar()}
             />
           )}
@@ -198,14 +231,17 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
 
 function Convidar({
   comerciante,
+  papeis,
   aoConvidar,
 }: {
   comerciante: string;
+  papeis: readonly Papel[];
   aoConvidar: () => void;
 }) {
-  const { t, lingua } = useHub();
+  const { t, lingua, navegar } = useHub();
   const [email, setEmail] = useState("");
-  const [papel, setPapel] = useState<Papel>("gestor");
+  // Por omissão, o primeiro papel que a pessoa pode dar (P2-2).
+  const [papel, setPapel] = useState<Papel>(papeis[0] ?? "apoio");
   const [aEspera, setAEspera] = useState(false);
   const [erro, setErro] = useState<MensagemDeErro | null>(null);
   const [ligacao, setLigacao] = useState<string | null>(null);
@@ -226,6 +262,10 @@ function Convidar({
       setEmail("");
       aoConvidar();
     } catch (e) {
+      if (semSessao(e)) {
+        navegar("/entrar", { substituir: true });
+        return;
+      }
       setErro(mensagemDeErro(e, t, lingua));
     } finally {
       setAEspera(false);
@@ -264,6 +304,7 @@ function Convidar({
               <label htmlFor="email">{t.convidarEmail}</label>
               <input
                 id="email"
+                name="email"
                 type="email"
                 autoComplete="off"
                 maxLength={254}
@@ -283,7 +324,7 @@ function Convidar({
                   setPapel(e.target.value as Papel);
                 }}
               >
-                {PAPEIS.map((p) => (
+                {papeis.map((p) => (
                   <option key={p} value={p}>
                     {t[`papel_${p}`]}
                   </option>

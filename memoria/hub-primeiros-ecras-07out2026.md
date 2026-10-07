@@ -16,7 +16,7 @@ de teste (ADR-0019). Desenho em `docs/22`.
   mede os contrastes nos dois temas.
 - `scripts/capturas.mjs`: base nova + API com o Hub + «proxy» HTTPS local +
   Chromium com o autenticador virtual (CDP `WebAuthn.addVirtualAuthenticator`)
-  — percorre o fluxo inteiro e tira 24 capturas.
+  — percorre o fluxo inteiro e tira 27 capturas.
 - As versões recentes recusam-se pela idade mínima do pnpm (a do Argon2 2.2.2
   foi um caso): escolhidas `@vitejs/plugin-react` 6.1.1 (28/08) em vez da
   6.1.2 (05/10) e `vite` 8.3.2 (01/10), a do ADR-0025.
@@ -35,6 +35,14 @@ de teste (ADR-0019). Desenho em `docs/22`.
 - **OK ao aspecto provisório:** Diogo, 07/10/2026 (*«sim, dou o OK ao
   aspecto provisório»*), sobre 7 capturas enviadas. A identidade visual
   continua por decidir (D-12).
+
+- **Revisão Opus 5.5 (#158):** 0 P0, 0 P1, 4 P2, 12 P3. P2-1: o segredo
+  do convite fica no histórico do navegador (medido no Chromium) — escrito
+  no `docs/22` §2 e no aviso a quem convida; o prazo mais curto fica por
+  decidir. P2-2: o gestor só vê armazém e apoio. P2-3: mais códigos com
+  texto nas três línguas. P2-4: o `capturas.mjs` passou a 41 verificações
+  (reautenticação, passkey recusada, cancelar duas vezes, rede, ligação
+  estragada, gestor, apoio); fica manual, fora do CI.
 
 ## O que ficou por verificar
 

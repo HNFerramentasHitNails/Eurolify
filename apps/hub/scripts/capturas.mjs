@@ -58,6 +58,21 @@ const resumo = (s) => createHash("sha256").update(s).digest("hex");
 
 // 1. A base, as migrações e um comerciante com um convite do operador.
 psql(`create database ${nomeBase}`, "postgres");
+// A limpeza corre sempre ao sair, também se algo falhar a meio (revisão do
+// #158, P3-9): a base de teste apaga-se e o eurolify_api fica sem senha.
+let processoApi;
+let arrumado = false;
+process.on("exit", () => {
+  if (arrumado) return;
+  arrumado = true;
+  processoApi?.kill();
+  try {
+    psql(`drop database if exists ${nomeBase} with (force)`, "postgres");
+    psql(`alter role eurolify_api password null`, "postgres");
+  } catch (erro) {
+    console.error(`limpeza: ${String(erro)}`);
+  }
+});
 execFileSync("node", [join(API, "dist/migrar.js")], {
   env: { ...process.env, BASE_DADOS_URL_MIGRACAO: urlDe(nomeBase) },
   stdio: "inherit",
@@ -83,6 +98,8 @@ const convidar = (email, papel) => {
 };
 const conviteDona = convidar("ana@exemplo.test", "dono");
 const conviteParaVer = convidar("rui@exemplo.test", "gestor");
+const conviteGestor = convidar("gil@exemplo.test", "gestor");
+const conviteApoio = convidar("ivo@exemplo.test", "apoio");
 
 // 2. A API com o Hub ligado, atrás do «proxy» de confiança (127.0.0.1).
 const api = spawn("node", [join(API, "dist/servidor.js")], {
@@ -96,6 +113,7 @@ const api = spawn("node", [join(API, "dist/servidor.js")], {
   },
   stdio: ["ignore", "ignore", "inherit"],
 });
+processoApi = api;
 
 // 3. O «nginx»: estáticos do Hub e /hub/* para a API, por HTTPS.
 const chaves = join(tmpdir(), `hub-cert-${randomBytes(4).toString("hex")}`);
@@ -197,23 +215,43 @@ const confere = (condicao, texto) => {
 };
 
 try {
-  const contexto = await navegador.newContext({ ignoreHTTPSErrors: true });
-  const pagina = await contexto.newPage();
+  /** Um navegador novo com uma passkey em software. */
+  async function comPasskey() {
+    const c = await navegador.newContext({ ignoreHTTPSErrors: true });
+    const p = await c.newPage();
+    const cdp = await c.newCDPSession(p);
+    await cdp.send("WebAuthn.enable");
+    const { authenticatorId } = await cdp.send(
+      "WebAuthn.addVirtualAuthenticator",
+      {
+        options: {
+          protocol: "ctap2",
+          transport: "internal",
+          hasResidentKey: true,
+          hasUserVerification: true,
+          isUserVerified: true,
+          automaticPresenceSimulation: true,
+        },
+      },
+    );
+    return { contexto: c, pagina: p, cdp, autenticador: authenticatorId };
+  }
+
+  /** Aceita um convite numa conta nova e fica nos comerciantes. */
+  async function aceitar(p, segredo, nome) {
+    await p.goto(`${ORIGEM}/convite#${segredo}`);
+    await p.getByLabel("O seu nome").fill(nome);
+    await p
+      .getByRole("button", { name: "Criar a conta com uma passkey" })
+      .click();
+    await p.getByRole("button", { name: "Já os guardei" }).click();
+    await p.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
+  }
+
+  const { contexto, pagina, cdp, autenticador } = await comPasskey();
   const pedidosVistos = [];
   pagina.on("request", (p) => {
     pedidosVistos.push(p.url());
-  });
-  const cdp = await contexto.newCDPSession(pagina);
-  await cdp.send("WebAuthn.enable");
-  await cdp.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
   });
 
   // Aceitar o convite: o segredo sai da barra de endereço.
@@ -241,8 +279,16 @@ try {
   await pagina.getByText("Loja de Ensaio").waitFor();
   await pagina.getByRole("link", { name: "Ver a equipa" }).click();
   await pagina.getByRole("heading", { name: /Equipa/ }).waitFor();
-  await pagina.getByText("rui@exemplo.test").waitFor();
-  confere(true, "a equipa mostra o convite em aberto do Rui");
+  confere(
+    await pagina
+      .getByText("rui@exemplo.test")
+      .waitFor({ timeout: 10_000 })
+      .then(
+        () => true,
+        () => false,
+      ),
+    "a equipa mostra o convite em aberto do Rui",
+  );
 
   // Convidar pede autenticação recente? Acabou de criar a conta: não.
   await pagina.getByLabel("E-mail do convidado").fill("eva@exemplo.test");
@@ -264,7 +310,155 @@ try {
   await pagina.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
   await pagina.getByRole("button", { name: "Entrar com passkey" }).click();
   await pagina.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
-  confere(true, "sair e entrar outra vez com a passkey");
+  confere(
+    new URL(pagina.url()).pathname === "/",
+    "sair e entrar outra vez com a passkey",
+  );
+  // «Voltar atrás» depois de entrar não regressa a /entrar (P3-3).
+  await pagina.goBack();
+  await pagina.waitForTimeout(300);
+  confere(
+    new URL(pagina.url()).pathname !== "/entrar",
+    "voltar atrás depois de entrar não volta ao ecrã de entrar",
+  );
+
+  const equipa = `${ORIGEM}/equipa?comerciante=mer_${comerciante}`;
+
+  // Autenticação recente: com a sessão autenticada há uma hora, convidar
+  // pede a passkey outra vez e repete (revisão do #158, P2-4).
+  psql(
+    "update sessao set autenticada_em = now() - interval '1 hour' where revogada_em is null",
+  );
+  const antes = pedidosVistos.length;
+  await pagina.goto(equipa);
+  await pagina.getByLabel("E-mail do convidado").fill("ze@exemplo.test");
+  await pagina.getByLabel("Papel").selectOption("armazem");
+  await pagina.getByRole("button", { name: "Criar o convite" }).click();
+  await pagina.getByText("Ligação do convite").waitFor();
+  confere(
+    pedidosVistos
+      .slice(antes)
+      .some((u) => u.endsWith("/hub/session/reauthenticate")),
+    "convidar com a sessão antiga pede a passkey outra vez e repete",
+  );
+
+  // Passkey recusada (sem verificação do utilizador): fica neutro, não vermelho.
+  psql(
+    "update sessao set autenticada_em = now() - interval '1 hour' where revogada_em is null",
+  );
+  await cdp.send("WebAuthn.setUserVerified", {
+    authenticatorId: autenticador,
+    isUserVerified: false,
+  });
+  await pagina.goto(equipa);
+  await pagina.getByLabel("E-mail do convidado").fill("lia@exemplo.test");
+  await pagina.getByLabel("Papel").selectOption("apoio");
+  await pagina.getByRole("button", { name: "Criar o convite" }).click();
+  await pagina.waitForTimeout(1500);
+  const vermelho = await pagina.locator(".erro").count();
+  const textoNeutro = await pagina
+    .getByText("A passkey foi cancelada", { exact: false })
+    .count();
+  confere(
+    vermelho === 0 && textoNeutro === 1,
+    `passkey recusada: aviso neutro, sem caixa vermelha (vermelho ${String(vermelho)}, neutro ${String(textoNeutro)})`,
+  );
+  await cdp.send("WebAuthn.setUserVerified", {
+    authenticatorId: autenticador,
+    isUserVerified: true,
+  });
+
+  // Cancelar um convite; o mesmo noutro separador já não vale e a lista
+  // volta a ler-se (P2-3).
+  const outroSeparador = await contexto.newPage();
+  await outroSeparador.goto(equipa);
+  await outroSeparador.getByText("rui@exemplo.test").waitFor();
+  await pagina.goto(equipa);
+  pagina.once("dialog", (d) => void d.accept());
+  await pagina
+    .getByRole("button", { name: "Cancelar: rui@exemplo.test" })
+    .click();
+  await pagina.getByText("O convite foi cancelado.").waitFor();
+  confere(
+    (await pagina.getByText("rui@exemplo.test").count()) === 0,
+    "cancelar tira o convite da lista",
+  );
+  outroSeparador.once("dialog", (d) => void d.accept());
+  await outroSeparador
+    .getByRole("button", { name: "Cancelar: rui@exemplo.test" })
+    .click();
+  await outroSeparador
+    .getByText("Este convite já foi aceite ou cancelado.")
+    .waitFor();
+  await outroSeparador.waitForTimeout(500);
+  confere(
+    (await outroSeparador
+      .getByRole("button", { name: "Cancelar: rui@exemplo.test" })
+      .count()) === 0,
+    "cancelar outra vez noutro separador avisa e volta a ler a lista",
+  );
+  await outroSeparador.close();
+
+  // Sem rede: a mensagem própria.
+  await pagina.route("**/hub/members", (r) => r.abort());
+  await pagina.goto(equipa);
+  await pagina.getByText("Sem ligação ao servidor", { exact: false }).waitFor();
+  confere(
+    (await pagina
+      .getByText("Sem ligação ao servidor", { exact: false })
+      .count()) === 1,
+    "sem rede: a mensagem «Sem ligação ao servidor»",
+  );
+  await pagina.unroute("**/hub/members");
+
+  // Uma ligação de convite estragada não deixa a página em branco (P3-1).
+  await pagina.goto(`${ORIGEM}/convite#%E0`);
+  await pagina
+    .getByText("Esta ligação não tem convite", { exact: false })
+    .waitFor();
+  confere(
+    !pagina.url().includes("#"),
+    "ligação estragada: aviso e barra limpa",
+  );
+
+  // O gestor só oferece armazém e apoio; o apoio não convida (P2-2).
+  const gestor = await comPasskey();
+  await aceitar(gestor.pagina, conviteGestor, "Gil Teste");
+  await gestor.pagina.goto(equipa);
+  const opcoes = await gestor.pagina
+    .getByLabel("Papel")
+    .locator("option")
+    .allTextContents();
+  confere(
+    opcoes.join(",") === "Armazém,Apoio",
+    `o gestor só vê Armazém e Apoio (vi ${opcoes.join(",")})`,
+  );
+  await gestor.pagina
+    .getByLabel("E-mail do convidado")
+    .fill("rita@exemplo.test");
+  await gestor.pagina.getByRole("button", { name: "Criar o convite" }).click();
+  await gestor.pagina.getByText("Ligação do convite").waitFor();
+  confere(
+    ((await gestor.pagina.locator(".segredo").textContent()) ?? "").includes(
+      "#euc_",
+    ),
+    "o gestor convida com o papel por omissão (Armazém)",
+  );
+  await gestor.contexto.close();
+  const apoio = await comPasskey();
+  await aceitar(apoio.pagina, conviteApoio, "Ivo Teste");
+  await apoio.pagina.goto(equipa);
+  await apoio.pagina.getByRole("heading", { name: /Equipa/ }).waitFor();
+  await apoio.pagina.getByText("Ana Teste").waitFor();
+  confere(
+    (await apoio.pagina.getByRole("heading", { name: "Convidar" }).count()) ===
+      0 &&
+      (await apoio.pagina
+        .getByRole("heading", { name: "Convites em aberto" })
+        .count()) === 0,
+    "o apoio não vê o formulário nem os convites",
+  );
+  await apoio.contexto.close();
 
   // O segredo do convite nunca foi num pedido (caminho ou consulta).
   confere(
@@ -333,8 +527,6 @@ try {
   servidor.close();
   api.kill();
   await new Promise((r) => setTimeout(r, 300));
-  psql(`drop database if exists ${nomeBase} with (force)`, "postgres");
-  psql(`alter role eurolify_api password null`, "postgres");
 }
 
 console.log(passos.join("\n"));

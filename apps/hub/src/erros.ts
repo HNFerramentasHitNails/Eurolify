@@ -9,6 +9,8 @@ import { preencher, type Lingua, type Textos } from "./textos";
 export interface MensagemDeErro {
   texto: string;
   referencia?: string;
+  /** Não é um erro (ex.: a passkey foi cancelada): mostra-se sem vermelho. */
+  neutro?: boolean;
 }
 
 const POR_CODIGO: Record<string, keyof Textos> = {
@@ -19,6 +21,14 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "auth.locked": "erroBloqueado",
   "invite.invalid": "erroConviteInvalido",
   "invite.account_exists": "conviteContaExiste",
+  "invite.used": "erroConviteUsado",
+  "invite.not_found": "erroConviteUsado",
+  "invite.invalid_email": "erroEmail",
+  "invite.invalid_role": "erroPapel",
+  "member.merchant_inactive": "erroComercianteInactivo",
+  "auth.reauthentication_required": "erroRecente",
+  "auth.busy": "erroOcupado",
+  "auth.origin_rejected": "erroOrigem",
   "person.invalid_name": "erroNome",
 };
 
@@ -27,7 +37,9 @@ export function mensagemDeErro(
   t: Textos,
   lingua: Lingua,
 ): MensagemDeErro {
-  if (erro instanceof Cancelado) return { texto: t.entrarCancelado };
+  if (erro instanceof Cancelado) {
+    return { texto: t.entrarCancelado, neutro: true };
+  }
   if (!(erro instanceof ErroHub)) return { texto: t.erroGenerico };
   if (erro.estado === 0) return { texto: t.erroRede };
   if (erro.codigo === "rate_limit.exceeded") {

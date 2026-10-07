@@ -14,7 +14,7 @@ export const pt = {
     "Entre com a passkey deste dispositivo ou de um telemóvel próximo.",
   entrarBotao: "Entrar com passkey",
   entrarAEspera: "A aguardar a passkey…",
-  entrarCancelado: "A entrada foi cancelada. Pode tentar outra vez.",
+  entrarCancelado: "A passkey foi cancelada. Pode tentar outra vez.",
   semPasskeys:
     "Este navegador não permite passkeys. Use um navegador actual (Chrome, Edge, Firefox ou Safari).",
 
@@ -26,7 +26,7 @@ export const pt = {
   conviteSemSegredo:
     "Esta ligação não tem convite. Abra a ligação completa que recebeu.",
   conviteContaExiste:
-    "Este e-mail já tem conta. Entre no Hub e peça um convite novo a quem o convidou.",
+    "Este e-mail já tem conta. Aceitar um convite com uma conta que já existe ainda não é possível neste ecrã; fale com quem o convidou.",
 
   codigosTitulo: "Os seus códigos de recuperação",
   codigosExplicacao:
@@ -73,7 +73,7 @@ export const pt = {
   convidarBotao: "Criar o convite",
   convidarLigacao: "Ligação do convite",
   convidarAviso:
-    "Esta ligação só aparece agora. Envie-a a quem convidou; vale uma vez, 7 dias.",
+    "Esta ligação só aparece agora. Envie-a a quem convidou; vale uma vez, 7 dias. Peça-lhe que a abra num computador seu ou numa janela privada: o navegador guarda-a no histórico.",
   convidarOutro: "Fechar",
 
   erroGenerico: "Ocorreu um erro. Tente outra vez.",
@@ -88,6 +88,15 @@ export const pt = {
     "Este convite não vale: expirou, já foi usado ou foi cancelado.",
   erroNome: "O nome tem de ter entre 1 e 100 caracteres.",
   erroEmail: "Escreva um e-mail válido.",
+  copiarFalhou: "Não foi possível copiar. Seleccione o texto e copie à mão.",
+  erroComercianteInactivo:
+    "Este comerciante está suspenso ou fechado: não pode convidar nem mudar a equipa.",
+  erroConviteUsado: "Este convite já foi aceite ou cancelado.",
+  erroPapel: "Não pode dar este papel.",
+  erroOcupado: "O serviço está ocupado. Tente daqui a pouco.",
+  erroOrigem:
+    "Pedido recusado por vir de outro sítio. Abra o Hub pelo endereço habitual.",
+  erroRecente: "Esta operação pede que confirme a passkey. Tente outra vez.",
   erroRede: "Sem ligação ao servidor. Verifique a rede e tente outra vez.",
 };
 

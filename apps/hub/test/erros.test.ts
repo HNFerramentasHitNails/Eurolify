@@ -42,13 +42,32 @@ describe("as mensagens de erro", () => {
     );
   });
 
+  it("os códigos dos ecrãs têm texto próprio em espanhol (revisão do #158, P2-3)", () => {
+    for (const codigo of [
+      "invite.used",
+      "invite.not_found",
+      "invite.invalid_email",
+      "invite.invalid_role",
+      "member.merchant_inactive",
+      "auth.reauthentication_required",
+      "auth.busy",
+      "auth.origin_rejected",
+    ]) {
+      expect(
+        mensagemDeErro(erro(409, codigo), TEXTOS.es, "es").texto,
+        codigo,
+      ).not.toBe(TEXTOS.es.erroGenerico);
+    }
+  });
+
   it("sem rede, a cancelar a passkey e um erro qualquer", () => {
     expect(mensagemDeErro(erro(0), TEXTOS.pt, "pt").texto).toBe(
       TEXTOS.pt.erroRede,
     );
-    expect(mensagemDeErro(new Cancelado(), TEXTOS.pt, "pt").texto).toBe(
-      TEXTOS.pt.entrarCancelado,
-    );
+    expect(mensagemDeErro(new Cancelado(), TEXTOS.pt, "pt")).toEqual({
+      texto: TEXTOS.pt.entrarCancelado,
+      neutro: true,
+    });
     expect(mensagemDeErro(new Error("x"), TEXTOS.pt, "pt").texto).toBe(
       TEXTOS.pt.erroGenerico,
     );

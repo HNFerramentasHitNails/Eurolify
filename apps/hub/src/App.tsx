@@ -48,12 +48,19 @@ export function App() {
     document.documentElement.lang = TAG_LINGUA[lingua];
   }, [lingua]);
 
-  const navegar = useCallback((destino: string) => {
-    window.history.pushState(null, "", destino);
-    const url = new URL(destino, window.location.origin);
-    setLocal({ caminho: url.pathname, consulta: url.search });
-    document.getElementById("conteudo")?.focus();
-  }, []);
+  const navegar = useCallback(
+    (destino: string, opcoes: { substituir?: boolean } = {}) => {
+      if (opcoes.substituir === true) {
+        window.history.replaceState(null, "", destino);
+      } else {
+        window.history.pushState(null, "", destino);
+      }
+      const url = new URL(destino, window.location.origin);
+      setLocal({ caminho: url.pathname, consulta: url.search });
+      document.getElementById("conteudo")?.focus();
+    },
+    [],
+  );
 
   const t = TEXTOS[lingua];
   const contexto = useMemo<Contexto>(
@@ -62,6 +69,19 @@ export function App() {
   );
 
   const comSessao = local.caminho === "/" || local.caminho === "/equipa";
+
+  // O título da janela diz a página (WCAG 2.4.2; revisão do #158, P3-6).
+  const tituloDaPagina =
+    local.caminho === "/entrar"
+      ? t.entrarTitulo
+      : local.caminho === "/convite"
+        ? t.conviteTitulo
+        : local.caminho === "/equipa"
+          ? t.equipaTitulo
+          : t.inicioTitulo;
+  useEffect(() => {
+    document.title = `${tituloDaPagina} — ${t.marca}`;
+  }, [tituloDaPagina, t.marca]);
 
   let ecra;
   if (local.caminho === "/entrar") ecra = <Entrar />;
@@ -106,7 +126,7 @@ export function App() {
               type="button"
               onClick={() => {
                 void api.sair().finally(() => {
-                  navegar("/entrar");
+                  navegar("/entrar", { substituir: true });
                 });
               }}
             >

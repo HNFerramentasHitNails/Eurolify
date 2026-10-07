@@ -15,7 +15,7 @@ export const en: Textos = {
     "Sign in with the passkey on this device or on a nearby phone.",
   entrarBotao: "Sign in with a passkey",
   entrarAEspera: "Waiting for the passkey…",
-  entrarCancelado: "Sign-in was cancelled. You can try again.",
+  entrarCancelado: "The passkey was cancelled. You can try again.",
   semPasskeys:
     "This browser does not support passkeys. Use a current browser (Chrome, Edge, Firefox or Safari).",
 
@@ -27,7 +27,7 @@ export const en: Textos = {
   conviteSemSegredo:
     "This link has no invitation. Open the full link you received.",
   conviteContaExiste:
-    "This email already has an account. Sign in to the Hub and ask whoever invited you for a new invitation.",
+    "This email already has an account. Accepting an invitation with an existing account is not yet possible on this screen; talk to whoever invited you.",
 
   codigosTitulo: "Your recovery codes",
   codigosExplicacao:
@@ -74,7 +74,7 @@ export const en: Textos = {
   convidarBotao: "Create the invitation",
   convidarLigacao: "Invitation link",
   convidarAviso:
-    "This link is shown only now. Send it to the person invited; it works once, for 7 days.",
+    "This link is shown only now. Send it to the invitee; it works once, for 7 days. Ask them to open it on their own computer or in a private window: the browser keeps it in its history.",
   convidarOutro: "Close",
 
   erroGenerico: "Something went wrong. Please try again.",
@@ -89,5 +89,15 @@ export const en: Textos = {
     "This invitation is not valid: it expired, was already used or was cancelled.",
   erroNome: "The name must have between 1 and 100 characters.",
   erroEmail: "Enter a valid email.",
+  copiarFalhou: "Could not copy. Select the text and copy it by hand.",
+  erroComercianteInactivo:
+    "This merchant is suspended or closed: you cannot invite or change the team.",
+  erroConviteUsado: "This invitation was already accepted or cancelled.",
+  erroPapel: "You cannot give this role.",
+  erroOcupado: "The service is busy. Try again shortly.",
+  erroOrigem:
+    "Request refused because it came from another site. Open the Hub from its usual address.",
+  erroRecente:
+    "This operation needs you to confirm your passkey. Please try again.",
   erroRede: "No connection to the server. Check the network and try again.",
 };

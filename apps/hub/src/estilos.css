@@ -26,14 +26,14 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--foco);
-  outline-offset: 2px;
+  outline: var(--anel-foco) solid var(--foco);
+  outline-offset: var(--anel-foco);
 }
 
 .salto {
   position: absolute;
   left: var(--espaco-2);
-  top: -100px;
+  top: var(--salto-escondido);
 }
 .salto:focus {
   top: var(--espaco-2);
@@ -48,7 +48,7 @@ body {
   justify-content: space-between;
   gap: var(--espaco-3);
   padding: var(--espaco-3) var(--espaco-4);
-  border-bottom: 1px solid var(--borda);
+  border-bottom: var(--borda-fina) solid var(--borda);
 }
 
 .marca {
@@ -62,20 +62,20 @@ body {
 }
 
 main {
-  max-width: 960px;
+  max-width: var(--largura-pagina);
   margin: 0 auto;
   padding: var(--espaco-6) var(--espaco-4);
 }
 
 .cartao {
   background: var(--superficie-elevada);
-  border: 1px solid var(--borda);
+  border: var(--borda-fina) solid var(--borda);
   border-radius: var(--raio);
   padding: var(--espaco-6);
 }
 
 .estreito {
-  max-width: 440px;
+  max-width: var(--largura-estreita);
   margin: var(--espaco-8) auto 0;
 }
 
@@ -105,7 +105,7 @@ button,
   min-height: var(--alvo-minimo);
   padding: var(--espaco-2) var(--espaco-4);
   border-radius: var(--raio);
-  border: 1px solid var(--borda);
+  border: var(--borda-fina) solid var(--borda);
   background: var(--superficie);
   color: var(--texto);
   cursor: pointer;
@@ -120,7 +120,7 @@ button.principal {
 
 button:disabled {
   cursor: progress;
-  opacity: 0.7;
+  opacity: var(--opacidade-ocupado);
 }
 
 a {
@@ -139,7 +139,7 @@ select {
   width: 100%;
   min-height: var(--alvo-minimo);
   padding: var(--espaco-2) var(--espaco-3);
-  border: 1px solid var(--borda);
+  border: var(--borda-fina) solid var(--borda);
   border-radius: var(--raio);
   background: var(--superficie);
   color: var(--texto);
@@ -157,17 +157,17 @@ select {
 }
 
 .linha > .campo {
-  flex: 1 1 200px;
+  flex: 1 1 var(--largura-campo);
 }
 
 .aviso {
-  border-left: 4px solid var(--estado-aviso);
+  border-left: var(--borda-realce) solid var(--estado-aviso);
   padding: var(--espaco-2) var(--espaco-3);
   margin-bottom: var(--espaco-4);
 }
 
 .erro {
-  border-left: 4px solid var(--estado-erro);
+  border-left: var(--borda-realce) solid var(--estado-erro);
   padding: var(--espaco-2) var(--espaco-3);
   margin-bottom: var(--espaco-4);
 }
@@ -177,7 +177,7 @@ select {
 }
 
 .sucesso {
-  border-left: 4px solid var(--estado-sucesso);
+  border-left: var(--borda-realce) solid var(--estado-sucesso);
   padding: var(--espaco-2) var(--espaco-3);
   margin-bottom: var(--espaco-4);
 }
@@ -186,7 +186,7 @@ select {
   font-family: var(--letra-mono);
   word-break: break-all;
   background: var(--superficie);
-  border: 1px solid var(--borda);
+  border: var(--borda-fina) solid var(--borda);
   border-radius: var(--raio);
   padding: var(--espaco-3);
   margin-bottom: var(--espaco-3);
@@ -195,7 +195,7 @@ select {
 .codigos {
   font-family: var(--letra-mono);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(20ch, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--largura-codigo), 1fr));
   gap: var(--espaco-1) var(--espaco-4);
   list-style: none;
   padding: 0;
@@ -218,7 +218,7 @@ table + section.cartao {
 }
 
 .lista-simples li {
-  border-bottom: 1px solid var(--borda);
+  border-bottom: var(--borda-fina) solid var(--borda);
   padding: var(--espaco-3) 0;
   display: flex;
   justify-content: space-between;
@@ -237,7 +237,7 @@ th,
 td {
   text-align: left;
   padding: var(--espaco-2) var(--espaco-3);
-  border-bottom: 1px solid var(--borda);
+  border-bottom: var(--borda-fina) solid var(--borda);
 }
 
 th {
@@ -246,6 +246,8 @@ th {
   font-weight: 600;
 }
 
+/* Um @media não lê variáveis CSS: o 640px fica aqui (o ponto em que as
+   tabelas passam a cartões). */
 @media (max-width: 640px) {
   thead {
     position: absolute;
@@ -261,7 +263,7 @@ th {
     display: block;
   }
   tr {
-    border: 1px solid var(--borda);
+    border: var(--borda-fina) solid var(--borda);
     border-radius: var(--raio);
     margin-bottom: var(--espaco-3);
     padding: var(--espaco-2) 0;
@@ -278,6 +280,7 @@ th {
   }
 }
 
+/* Escondido à vista, lido pelos leitores de ecrã (o padrão de 1px). */
 .so-leitores {
   position: absolute;
   width: 1px;

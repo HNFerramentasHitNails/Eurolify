@@ -43,15 +43,25 @@ fica nos registos do nginx nem no `Referer`. O ecrã lê-o, tira-o da barra de
 endereço (`history.replaceState`) e envia-o só no corpo do POST (`docs/21`
 §11: os segredos nunca vão no caminho nem na consulta).
 
+**O risco que fica** (revisão do #158, P2-1, medido no Chromium): o
+`replaceState` limpa a barra e a entrada desta sessão, mas o **histórico do
+navegador** guarda o endereço aberto, com o segredo — e, com a sincronização
+ligada, sai da máquina. Num computador partilhado, quem abrir o histórico
+nos 7 dias seguintes cria a conta com o e-mail convidado. Limites: o
+convite vale uma vez e para um e-mail fixo. O aviso a quem convida pede que
+a ligação se abra num computador próprio ou numa janela privada. **Por
+decidir** (Diogo ou Bruno), se se quiser fechar mais: um prazo mais curto
+que 7 dias, ou um código curto enviado à parte.
+
 ## 3. Ecrãs, rotas e estados
 
 | Ecrã | O que mostra | Rotas da API | Estados além do normal |
 |---|---|---|---|
 | **Entrar** (`/entrar`) | o nome do produto, um botão «Entrar com passkey», a escolha da língua | `POST /hub/session/options` → navegador → `POST /hub/session` | a carregar (à espera da passkey); cancelado pela pessoa (volta ao botão, sem erro vermelho); recusado (401: «Não foi possível entrar com esta passkey»); muitas tentativas (429/`auth.locked`: com os minutos); sem suporte de passkey; erro da API (5xx: tentar outra vez) |
-| **Aceitar convite** (`/convite#…`) | «Foi convidado para trabalhar no Hub», campo «O seu nome» (1 a 100 caracteres), botão «Criar a conta com uma passkey» | `POST /hub/invitations/accept/options` → navegador → `POST /hub/invitations/accept-new` | sem segredo na ligação; convite que não vale (a mesma mensagem para expirado, usado, cancelado ou inexistente — a API não distingue, de propósito); o e-mail já tem conta (`invite.account_exists`: «Entre e aceite o convite» — fica para depois, mostra só a mensagem); nome inválido; a carregar; 429. **Depois de criar a conta**, os 10 códigos de recuperação que a API devolve, **uma vez**: «Copiar», o aviso de que não voltam a aparecer e um botão «Já os guardei» antes de seguir (`docs/21` §7) |
+| **Aceitar convite** (`/convite#…`) | «Foi convidado para trabalhar no Hub», campo «O seu nome» (1 a 100 caracteres), botão «Criar a conta com uma passkey» | `POST /hub/invitations/accept/options` → navegador → `POST /hub/invitations/accept-new` | sem segredo na ligação; convite que não vale (a mesma mensagem para expirado, usado, cancelado ou inexistente — a API não distingue, de propósito); o e-mail já tem conta (`invite.account_exists`: aceitar com uma conta existente fica para depois — §1 — e o ecrã diz isso e manda falar com quem convidou); nome inválido; a carregar; 429. **Depois de criar a conta**, os 10 códigos de recuperação que a API devolve, **uma vez**: «Copiar», o aviso de que não voltam a aparecer e um botão «Já os guardei» antes de seguir (`docs/21` §7) |
 | **Os seus comerciantes** (`/`) | quem entrou (nome, e-mail) e a lista de comerciantes de que é membro, com o papel | `GET /hub/me` | vazio («Não pertence a nenhuma equipa»: pode acontecer depois de sair de todas); a carregar; sem sessão (vai para `/entrar`) |
 | **Equipa** (`/equipa?comerciante=mer_…`) | os membros activos (nome, e-mail, papel, desde), em tabela no computador e em cartões no telemóvel; o dono vê também os convites em aberto (e-mail, papel, expira); a contagem à vista | `GET /hub/members` | vazio de convites; sem permissão (403: «Não pode ver esta equipa»); comerciante que não é dele (403); a carregar; erro |
-| **Convidar** (na Equipa, só para quem pode convidar) | e-mail e papel (só os papéis que o servidor aceita para quem convida; se recusar, mostra a recusa); depois de criar, **a ligação do convite, uma vez**, com «Copiar» e o aviso de que não volta a aparecer | `POST /hub/invitations` | precisa de autenticação recente (403 `auth.reauthentication_required` → pede a passkey outra vez com `POST /hub/session/reauthenticate` e repete); comerciante suspenso; e-mail inválido; 429 |
+| **Convidar** (na Equipa, só para quem pode convidar) | e-mail e papel (o dono vê os quatro papéis, o gestor só armazém e apoio — uma cópia da regra da base, `docs/21` §5, só para não oferecer o que ela recusa; **por fazer:** a API devolver a lista; se recusar, mostra a recusa); depois de criar, **a ligação do convite, uma vez**, com «Copiar» e o aviso de que não volta a aparecer | `POST /hub/invitations` | precisa de autenticação recente (403 `auth.reauthentication_required` → pede a passkey outra vez com `POST /hub/session/reauthenticate` e repete); comerciante suspenso; e-mail inválido; 429 |
 | **Cancelar convite** | botão por convite, com confirmação | `POST /hub/invitations/{id}/cancel` | já usado; sem permissão |
 | **Sair** | no menu | `POST /hub/session/end` | sempre volta a `/entrar` |
 
@@ -105,8 +115,11 @@ pessoal).
       API com o Hub ligado atrás de um «proxy» HTTPS local e percorre os
       ecrãs com uma passkey em software (o autenticador virtual do Chromium).
 - [ ] Contrastes medidos nos dois temas.
-- [ ] Todos os estados da §3 vistos (com a API de verdade nos testes, como as
-      rotas do Hub já são testadas).
+- [ ] Todos os estados da §3 vistos com a API de verdade. **Feito no
+      `capturas.mjs`** (manual, fora do CI: precisa do Chromium e de uma base):
+      reautenticação, passkey recusada, cancelar e cancelar outra vez noutro
+      separador, sem rede, ligação estragada, gestor e apoio. **Por ver:** 429,
+      `auth.locked`, comerciante suspenso e sessão expirada a meio.
 - [ ] O segredo do convite não aparece em nenhum pedido fora do corpo, nem na
       barra de endereço depois de lido.
 - [x] O aspecto foi ao Diogo ou ao Bruno com as capturas, e um deles deu o OK
@@ -125,10 +138,22 @@ Escrita aqui para não se perder; faz-se depois do OK ao aspecto:
    reescrito.
 3. Rede Docker `eurolify` com sub-rede e gateway fixos; `PROXY_CONFIAVEL`
    com o gateway (revisão do #154, P1-1); `HUB_ORIGEM=https://hub.eurolify.eu`.
-4. Medir: dois clientes pelo proxy contam em separado; o `/health` e o login
+4. Cabeçalhos no nginx (revisão do #158, P3-8): `Content-Security-Policy`
+   (`default-src 'self'; connect-src 'self'; frame-ancestors 'none'`), HSTS,
+   `Referrer-Policy: no-referrer`; `try_files $uri /index.html` para
+   `/entrar`, `/convite` e `/equipa`; `Cache-Control: no-cache` no
+   `index.html` (os ficheiros de `assets/` têm o resumo no nome).
+5. Medir: dois clientes pelo proxy contam em separado; o `/health` e o login
    respondem; o cookie sai com `__Host-`, `Secure`, `HttpOnly`, `SameSite=Strict`.
-5. **Só contas de teste** (ADR-0019): os convites são criados pelo Diogo ou
+6. **Só contas de teste** (ADR-0019): os convites são criados pelo Diogo ou
    pelo Bruno; nenhum dado pessoal real.
+
+## 8. Desenvolver localmente
+
+O `pnpm --filter @eurolify/hub desenvolver` (Vite em `http://localhost:5173`)
+não deixa entrar: a API só aceita escritas do `Origin` da `HUB_ORIGEM`, que
+tem de ser `https` (revisão do #158, P3-10). Para ver os ecrãs com a API, usa-se
+o `scripts/capturas.mjs`, que monta um «proxy» HTTPS local.
 
 ## O que não foi verificado
 

@@ -37,6 +37,17 @@
   --letra-titulo: 24px;
   --alvo-minimo: 44px;
 
+  /* De componente (revisão do #158, P3-5): medidas com nome */
+  --largura-pagina: 960px;
+  --largura-estreita: 440px;
+  --largura-codigo: 20ch;
+  --largura-campo: 200px;
+  --borda-fina: 1px;
+  --borda-realce: 4px;
+  --anel-foco: 2px;
+  --opacidade-ocupado: 0.7;
+  --salto-escondido: -100px;
+
   /* Semânticos, tema claro */
   --superficie: var(--cinzento-0);
   --superficie-elevada: var(--cinzento-50);

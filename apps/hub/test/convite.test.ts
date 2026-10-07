@@ -12,6 +12,8 @@ describe("o segredo do convite", () => {
     expect(segredoDoFragmento("#euc_curto")).toBeNull();
     expect(segredoDoFragmento(`#eus_${"A".repeat(43)}`)).toBeNull();
     expect(segredoDoFragmento(`#${SEGREDO}&x=1`)).toBeNull();
+    // Mal formado: não rebenta (revisão do #158, P3-1).
+    expect(segredoDoFragmento("#%E0")).toBeNull();
   });
 
   it("a ligação leva o segredo depois do #, que o navegador não envia", () => {

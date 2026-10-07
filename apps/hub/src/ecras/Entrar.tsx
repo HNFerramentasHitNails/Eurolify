@@ -15,7 +15,7 @@ export function Entrar() {
     setAEspera(true);
     try {
       await entrar();
-      navegar("/");
+      navegar("/", { substituir: true });
     } catch (e) {
       setErro(mensagemDeErro(e, t, lingua));
       setAEspera(false);

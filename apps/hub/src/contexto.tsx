@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import type { MensagemDeErro } from "./erros";
-import type { Lingua, Textos } from "./textos";
+import { preencher, type Lingua, type Textos } from "./textos";
 
 // O que todos os ecrãs partilham: os textos da língua escolhida e a
 // navegação entre páginas (sem biblioteca: o History API chega para quatro
@@ -9,7 +9,12 @@ import type { Lingua, Textos } from "./textos";
 export interface Contexto {
   t: Textos;
   lingua: Lingua;
-  navegar: (caminho: string) => void;
+  /**
+   * Vai para outra página. `substituir` nos redireccionamentos (sem sessão,
+   * depois de entrar ou sair), para «voltar atrás» não regressar a eles
+   * (revisão do #158, P3-3).
+   */
+  navegar: (caminho: string, opcoes?: { substituir?: boolean }) => void;
 }
 
 export const ContextoHub = createContext<Contexto | null>(null);
@@ -29,6 +34,13 @@ export function CaixaDeErro({
   aoTentar?: () => void;
 }) {
   const { t } = useHub();
+  if (erro.neutro === true) {
+    return (
+      <p className="secundario" role="status">
+        {erro.texto}
+      </p>
+    );
+  }
   return (
     <div className="erro" role="alert">
       <p>
@@ -36,7 +48,7 @@ export function CaixaDeErro({
       </p>
       {erro.referencia === undefined ? null : (
         <p className="secundario">
-          {t.erroReferencia.replace("{ref}", erro.referencia)}
+          {preencher(t.erroReferencia, { ref: erro.referencia })}
         </p>
       )}
       {aoTentar === undefined ? null : (
