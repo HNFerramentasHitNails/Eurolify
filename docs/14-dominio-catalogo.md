@@ -718,15 +718,19 @@ mesma chave com o mesmo pedido devolve a mesma resposta; com outro pedido,
 
 - com `catalog:write`: `POST /products` (rascunho, com pelo menos uma
   variante), `PATCH /products/{id}`, `PUT /products/{id}/classification`,
-  `POST /products/{id}/activate`, `/archive` e `/restore` (cada um só a
-  partir do seu estado: rascunho, activo e arquivado; outro dá
-  `catalog.invalid_transition`) e `DELETE /products/{id}`;
+  `POST /products/{id}/activate`, `/archive` e `/restore` (cada um parte
+  do seu estado — rascunho, activo e arquivado — ou do estado a que leva,
+  que não muda nada; outro dá `catalog.invalid_transition`) e
+  `DELETE /products/{id}`;
 - com `catalog:publish`: `POST /products/{id}/publications` e
   `POST /publications/{id}/archive`.
 
 As alterações levam a `versao` lida (outra dá `catalog.version_conflict`,
 antes de qualquer outra recusa) e devolvem a ficha. Pedir o estado em que o
-artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1). O esquema
+artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1), mas só
+com a versão actual: quem perdeu a resposta e repete com uma chave nova e a
+versão antiga recebe `catalog.version_conflict`; com a mesma chave, recebe a
+resposta guardada. O esquema
 de cada corpo diz o que a base aceita (medidas positivas, o formato da
 categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
 código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
@@ -791,7 +795,7 @@ actualizado desde) e o `expand` entram com as rotas seguintes.
 | Traduções | `GET /translations?resource=…&locale=…`, `PUT /translations/{resource}/{field}/{locale}` | read / write | |
 | Fila de traduções | `GET /translations?state=outdated,missing&locale=…` | read | o que falta traduzir |
 | Verificar publicação | `POST /products/{id}/publications/check` | read | **não escreve**: devolve os impedimentos por canal × mercado (C2) |
-| Publicar | `POST /products/{id}/publications` | publish | corre a verificação; com impedimentos, recusa e devolve a lista (o repositório responde `publicada: false` com a verificação; `catalog.publish_blocked` é o que a base diz se alguém tentar contornar) |
+| Publicar | `POST /products/{id}/publications` | publish | corre a verificação; com impedimentos, não publica e devolve a lista, com 200 e `publicada: false` (o repositório responde `publicada: false` com a verificação; `catalog.publish_blocked` é o que a base diz se alguém tentar contornar) |
 | Retirar | `POST /publications/{id}/archive` | publish | |
 | Ver publicações | `GET /products/{id}/publications` | read | |
 | Atributos regulamentares | `PUT /products/{id}/regulatory`, `PUT /variants/{id}/regulatory` | write | valor, quem e quando |

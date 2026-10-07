@@ -578,6 +578,14 @@ function idDoCursor(cursor: string): string {
 
 // --------------------------------------------------- A escrita idempotente
 
+/** Sem corpo, `null` ou `{}`. */
+const vazio = (corpo: unknown) =>
+  corpo === undefined ||
+  corpo === null ||
+  (typeof corpo === "object" &&
+    !Array.isArray(corpo) &&
+    Object.keys(corpo).length === 0);
+
 /** Quem escreve: a chave (`chave:key_…`, o formato das migrações 0012, 0014, 0015 e 0025). */
 const quemDa = (chave: ContextoChave) => `chave:key_${chave.chaveId}`;
 
@@ -603,7 +611,8 @@ async function escrever(
     chave: chaveDeIdempotencia(pedido),
     metodo: pedido.method as PedidoIdempotente["metodo"],
     caminho: caminhoDe(pedido.url),
-    corpo: pedido.body ?? null,
+    // Sem corpo e `{}` são o mesmo pedido (revisão do #153, 2.ª ronda, P3-A).
+    corpo: vazio(pedido.body) ? null : pedido.body,
   };
   const resultado = await noCatalogoApi(resposta, () =>
     comIdempotencia(
@@ -996,33 +1005,24 @@ export function rotasDoCatalogo(
         response: { 200: PublicacaoEsquema, ...RESPOSTA_DE_ERRO },
       },
     },
-    (pedido, resposta) => {
-      // Sem corpo (ou `{}`): outro corpo recusa-se, em vez de só entrar no
-      // resumo da idempotência (revisão do #153, ponto sem severidade).
-      const corpo: unknown = pedido.body;
-      if (
-        corpo !== undefined &&
-        corpo !== null &&
-        !(
-          typeof corpo === "object" &&
-          !Array.isArray(corpo) &&
-          Object.keys(corpo).length === 0
-        )
-      ) {
-        throw paraApi(
-          new ErroCatalogo("catalog.invalid_field", "esta rota não leva corpo"),
-        );
-      }
-      return escrever(base, pedido, resposta, 200, async (trx, chave) =>
-        paraPublicacao(
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        // Sem corpo (ou `{}`): outro corpo recusa-se, depois da chave de
+        // idempotência (revisão do #153, 2.ª ronda, P3-A).
+        if (!vazio(pedido.body)) {
+          throw new ErroCatalogo(
+            "catalog.invalid_field",
+            "esta rota não leva corpo",
+          );
+        }
+        return paraPublicacao(
           await retirarPublicacao(
             trx,
             chave.comercianteId,
             quemDa(chave),
             semPrefixo(pedido.params.id),
           ),
-        ),
-      );
-    },
+        );
+      }),
   );
 }

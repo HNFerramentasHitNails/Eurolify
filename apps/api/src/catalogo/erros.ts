@@ -183,6 +183,9 @@ export function traduzir(
   opcoes: OpcoesDeTraducao = {},
 ): unknown {
   if (!(erro instanceof Error)) return erro;
+  // Já traduzido: fica como está, com a causa original (a API traduz outra
+  // vez o que sai do COMMIT; revisão do #153, 2.ª ronda, P3-C).
+  if (erro instanceof ErroCatalogo) return erro;
   const codigo = CODIGOS_DA_BASE.find((c) => erro.message.startsWith(`${c}:`));
   if (codigo !== undefined) {
     return new ErroCatalogo(codigo, erro.message, { cause: erro });

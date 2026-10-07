@@ -655,6 +655,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
     const cliente = new pg.Client({ connectionString: base.urlApi });
     cliente.on("error", () => undefined);
     await cliente.connect();
+    const chave = randomUUID();
+    const url = `/products/${f.id}/archive`;
     try {
       await cliente.query("begin");
       await cliente.query(
@@ -664,17 +666,14 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
       await cliente.query("select id from artigo where id = $1 for update", [
         id,
       ]);
-      const chave = randomUUID();
-      const url = `/products/${f.id}/archive`;
       const primeiro = pedir("POST", url, { versao: f.versao }, { chave });
       // Esperar até o primeiro estar à espera do lock.
       let aEspera = false;
       for (let i = 0; i < 100 && !aEspera; i++) {
         const { rows } = await sql<{ n: number }>`
           select count(*)::int as n from pg_stat_activity
-          where datname = current_database() and wait_event_type = 'Lock'`.execute(
-          base.dono,
-        );
+          where datname = current_database() and wait_event_type = 'Lock'
+            and query ilike '%"artigo"%for update%'`.execute(base.dono);
         aEspera = (rows[0]?.n ?? 0) > 0;
         if (!aEspera) {
           await new Promise((r) => {
@@ -696,11 +695,138 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: escritas", () => {
       await cliente.query("rollback").catch(() => undefined);
       await cliente.end();
     }
-    // Nada mudou, e a chave ficou livre.
+    // Nada mudou, e a chave ficou livre: o mesmo pedido, sem o lock, arquiva.
     expect((await pedir("GET", `/products/${f.id}`)).json<Ficha>().estado).toBe(
       "activo",
     );
+    const depois = await pedir("POST", url, { versao: f.versao }, { chave });
+    expect(depois.statusCode).toBe(200);
+    expect(depois.json()).toMatchObject({ estado: "arquivado" });
   }, 20_000);
+
+  it("a retirada sem corpo e com {} é o mesmo pedido; com corpo e sem chave dá key_required", async () => {
+    const f = await activo("RETIRA-VAZIO");
+    const variante = f.variantes[0]?.id.slice("var_".length) ?? "";
+    await definirPreco(base.api, a, "pessoa:teste", lista, variante, {
+      montante: 500,
+    });
+    const pub = (
+      await pedir(
+        "POST",
+        `/products/${f.id}/publications`,
+        { canal: `chn_${canal}`, mercado: `mkt_${mercado}` },
+        { segredo: publicacao },
+      )
+    ).json<{ publicacao: { id: string } }>().publicacao.id;
+    const url = `/publications/${pub}/archive`;
+    const semChave = await pedir(
+      "POST",
+      url,
+      { motivo: "x" },
+      { segredo: publicacao, chave: null },
+    );
+    expect(semChave.json()).toMatchObject({
+      codigo: "idempotency.key_required",
+    });
+    const chave = randomUUID();
+    const r1 = await pedir("POST", url, {}, { segredo: publicacao, chave });
+    const r2 = await pedir("POST", url, undefined, {
+      segredo: publicacao,
+      chave,
+    });
+    expect(r1.statusCode).toBe(200);
+    expect(r2.statusCode).toBe(200);
+    expect(r2.json()).toEqual(r1.json());
+  });
+
+  it("o texto de um erro da base não sai no detalhe, mesmo traduzido duas vezes", async () => {
+    await sql`
+      create function teste_mascara() returns trigger
+      language plpgsql as $$
+      begin
+        if new.nome = 'Mascarado' then
+          raise exception 'catalog.invalid_field: texto interno da base';
+        end if;
+        return new;
+      end $$`.execute(base.dono);
+    await sql`
+      create trigger teste_mascara before insert on artigo
+      for each row execute function teste_mascara()`.execute(base.dono);
+    try {
+      const r = await pedir("POST", "/products", {
+        ...NOVO_ARTIGO,
+        nome: "Mascarado",
+        variantes: [{ sku: "MASCARA-1", unidade_de_venda: "unidade" }],
+      });
+      expect(r.statusCode).toBe(400);
+      expect(r.json()).toMatchObject({
+        codigo: "catalog.invalid_field",
+        detail: "um valor do pedido não é aceite",
+      });
+    } finally {
+      await sql`drop trigger teste_mascara on artigo`.execute(base.dono);
+      await sql`drop function teste_mascara()`.execute(base.dono);
+    }
+  });
+
+  it("os campos das variantes: GTIN, ONU e ADR no formato da base, a posição dá a ordem; o PATCH limpa com null", async () => {
+    for (const variante of [
+      { gtin: "123", gtin_origem: "interno" },
+      { onu: "1234" },
+      { classe_adr: "   " },
+    ]) {
+      const r = await pedir("POST", "/products", {
+        ...NOVO_ARTIGO,
+        variantes: [
+          { sku: "CAMPOS-X", unidade_de_venda: "unidade", ...variante },
+        ],
+      });
+      expect(r.statusCode, JSON.stringify(variante)).toBe(400);
+      expect(r.json()).toMatchObject({ codigo: "request.invalid" });
+    }
+    const r = await pedir("POST", "/products", {
+      ...NOVO_ARTIGO,
+      descricao: "Uma descrição",
+      marca: "Marca",
+      variantes: [
+        {
+          sku: "ZZ-PRIMEIRA",
+          unidade_de_venda: "unidade",
+          posicao: 0,
+          onu: "UN1263",
+          classe_adr: "3",
+        },
+        { sku: "AA-SEGUNDA", unidade_de_venda: "unidade", posicao: 1 },
+      ],
+    });
+    expect(r.statusCode).toBe(201);
+    const f = r.json<Ficha & { descricao: string | null }>();
+    // Pela posição, não pelo SKU.
+    expect(f.variantes.map((v) => v.sku)).toEqual([
+      "ZZ-PRIMEIRA",
+      "AA-SEGUNDA",
+    ]);
+    expect(f.variantes[0]).toMatchObject({ onu: "UN1263", classe_adr: "3" });
+    const limpo = await pedir("PATCH", `/products/${f.id}`, {
+      versao: f.versao,
+      descricao: null,
+      marca: null,
+    });
+    expect(limpo.statusCode).toBe(200);
+    expect(limpo.json()).toMatchObject({ descricao: null, marca: null });
+  });
+
+  it("o contrato diz o 204 do DELETE sem corpo", async () => {
+    const c = (await pedir("GET", "/openapi.json")).json<{
+      paths: Record<
+        string,
+        Record<string, { responses: Record<string, unknown> }>
+      >;
+    }>();
+    expect(c.paths["/products/{id}"]?.["delete"]?.responses["204"]).toEqual({
+      description: "Apagado; sem corpo",
+    });
+  });
 
   it("o contrato segue a base: medida 0, categoria fiscal fora do formato e segundo 60 dão 400; criar dá Location", async () => {
     const zero = await pedir("POST", "/products", {
