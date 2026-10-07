@@ -240,7 +240,9 @@ export async function classificarArtigo(
 
 /**
  * Muda o estado do artigo (§4.1): activar, arquivar ou repor. A base valida a
- * transição e a variante activa; aqui confirma-se a versão lida.
+ * transição e a variante activa; aqui confirma-se a versão lida e, com `de`,
+ * o estado de partida (a API: `activate` só parte de rascunho e `restore` só
+ * de arquivado, embora os dois levem a activo; revisão do #153, P2-1).
  */
 export async function mudarEstadoArtigo(
   db: Kysely<BaseDados>,
@@ -248,11 +250,18 @@ export async function mudarEstadoArtigo(
   artigoId: string,
   versao: number,
   para: EstadoArtigo,
+  de?: EstadoArtigo,
 ): Promise<number> {
   return noCatalogo(db, comercianteId, async (trx) => {
     const artigo = await artigoNaVersao(trx, artigoId, versao);
     // Já está nesse estado: nada muda e a versão fica (3.ª revisão, P3-1).
     if (artigo.estado === para) return versao;
+    if (de !== undefined && artigo.estado !== de) {
+      throw new ErroCatalogo(
+        "catalog.invalid_transition",
+        `artigo ${artigoId}: está em ${artigo.estado}, não em ${de}`,
+      );
+    }
     const { versao: nova } = await trx
       .updateTable("artigo")
       .set({ estado: para })
