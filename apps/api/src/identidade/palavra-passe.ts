@@ -4,7 +4,7 @@ import { generateSecret, generateURI, verify as verificarOtp } from "otplib";
 
 // A palavra-passe com o TOTP (docs/21 §4.3 e §8; decisões CA e CG). O
 // Argon2id e o TOTP calculam-se aqui; a base guarda o resumo, o segredo TOTP
-// cifrado e o último passo aceite, e decide o resto (migração 0024).
+// cifrado e o último passo aceite, e decide o resto (migração 0023).
 
 /** A chave que cifra os segredos TOTP; vive fora da base (§8). */
 export interface ChaveTotp {
