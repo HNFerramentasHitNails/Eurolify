@@ -59,10 +59,30 @@ e um erro dentro do próprio gestor de erros.
 | `idempotency.in_progress` | 409 | a mesma chave ainda a ser tratada (**proposta**, idem) |
 | `idempotency.secret_not_repeated` | 409 | repetir um pedido cuja resposta tinha um segredo (o `POST /keys`): o segredo não se guarda nem se repete (`docs/19` §6.1) |
 | `rate_limit.exceeded` | 429 | acima do limite (com a fatia «identidade») |
+| `version.unsupported` | 400 | o cabeçalho `Eurolify-Versao` pede uma versão que não existe (§3) |
 | `internal.error` | 500 | tudo o resto; o pormenor vai só para o registo, com o `instance` |
 
 **Nunca um 200 com `ok: false`, nunca um erro engolido** (`headless-commerce`,
 regra 3; lição 4.1).
+
+## 2a. Listas (proposta, em código desde 07/10/2026)
+
+Primeira lista: `GET /products` (`docs/14` §7.1). As seguintes seguem o
+mesmo formato (`headless-commerce`, regra 4; lição 4.7: nenhuma lista
+cortada em silêncio).
+
+| Peça | Como |
+|---|---|
+| Resposta | `{ dados, total, ha_mais, cursor_seguinte }` |
+| `total` | quantos passam no filtro, em todas as páginas (explícito, lição 4.7) |
+| Ordem | pelo identificador (uuid v7, a ordem de criação); estável entre páginas |
+| `limite` | 1 a 100; por omissão, 25. Fora disso, 400 |
+| `cursor` | opaco (o último identificador da página, em base64url). Não está ligado ao filtro: é só a posição a seguir à qual se lê, e o RLS continua a mostrar só o comerciante da chave. Um cursor que não é um identificador dá 400 (revisão do #150, P3-4) |
+| Filtros | um campo desconhecido na consulta dá 400, nunca se ignora |
+| Concorrência | o total e a página lêem-se na mesma transacção REPEATABLE READ e READ ONLY: batem certo entre si. Entre páginas, uma página nunca repete nem salta um registo que já existia antes da primeira (a ordem é pelo id) |
+| Números na consulta | chegam como texto com um padrão (o `limite`): o validador não converte tipos (`app.ts`). Um SDK gerado do contrato vê-os como texto (revisão do #150, P3-6) |
+| Listas fechadas | `enum` no contrato, recusadas com 400 fora da lista |
+| Escala | a procura por parte do nome (`ilike`) e pelo SKU percorre os artigos do comerciante, sem índice próprio. Chega ao tamanho de hoje; com milhares de artigos, um índice (trigram ou `lower(sku)`) entra antes de abrir a API (revisão do #150, P3-9) |
 
 ## 3. Contrato OpenAPI
 
@@ -72,7 +92,7 @@ regra 3; lição 4.1).
 | Publicado | `GET /openapi.json`, sem autenticação: é o que os construtores de frontends e as IA lêem (`docs/02` §4.3) |
 | Nada fora do contrato | uma rota sem a resposta de sucesso **e** a de erro (`application/problem+json`) **não se regista** (gancho `onRoute` em `app.ts`); só o `/openapi.json` fica de fora; o teste confere o contrato publicado |
 | Erro no contrato | um esquema `Problema` partilhado, referido em todas as respostas de erro |
-| Versão por data | **por desenhar** (`headless-commerce`, regra 7): entra antes da primeira rota de domínio |
+| Versão por data | **em código** desde a primeira rota de domínio (07/10/2026, `app.ts`; `headless-commerce`, regra 7): a versão é um mês (`2026-10`). Quem chama pode pedir uma com o cabeçalho `Eurolify-Versao`; sem ele, recebe a mais recente. Uma que não existe dá 400 `version.unsupported`. Todas as respostas trazem `Eurolify-Versao` com a versão servida. Os 12 meses de suporte de cada versão e o anúncio das alterações desenham-se com a segunda versão (**proposta**) |
 
 ## 4. Idempotência (tabela `idempotencia`, migração 0012)
 

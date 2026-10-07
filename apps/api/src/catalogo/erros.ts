@@ -173,6 +173,8 @@ const TABELAS = new Set([
 export interface OpcoesDeTraducao {
   /** A operação apaga variantes: `componente_em_uso` quer dizer «em uso». */
   apagar?: boolean;
+  /** Uma consulta: transacção só de leitura, num só momento (P3-5, #150). */
+  soLeitura?: boolean;
 }
 
 /** Exportada para os testes; o resto do código usa-a por `noCatalogo`. */
@@ -277,15 +279,20 @@ export async function noCatalogo<T>(
   opcoes: OpcoesDeTraducao = {},
 ): Promise<T> {
   try {
-    return await comComerciante(db, comercianteId, async (trx) => {
-      // Uma escrita não espera sem fim por outra que tenha o artigo, a
-      // publicação ou um preço tomados: ao fim do prazo, `catalog.retry`
-      // (revisão do #139, P2-4).
-      await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
-        trx,
-      );
-      return fn(trx);
-    });
+    return await comComerciante(
+      db,
+      comercianteId,
+      async (trx) => {
+        // Uma escrita não espera sem fim por outra que tenha o artigo, a
+        // publicação ou um preço tomados: ao fim do prazo, `catalog.retry`
+        // (revisão do #139, P2-4).
+        await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+          trx,
+        );
+        return fn(trx);
+      },
+      { soLeitura: opcoes.soLeitura === true },
+    );
   } catch (erro) {
     throw traduzir(erro, opcoes);
   }

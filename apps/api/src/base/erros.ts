@@ -80,6 +80,12 @@ export const CODIGOS_BASE = {
     pt: "A chave já foi criada por este pedido; o segredo só se mostra uma vez",
     en: "The key was already created by this request; the secret is shown only once",
   },
+  // A versão da API por data (docs/18 §3; headless-commerce, regra 7).
+  "version.unsupported": {
+    status: 400,
+    pt: "Versão da API não suportada",
+    en: "Unsupported API version",
+  },
   "internal.error": {
     status: 500,
     pt: "Erro interno",

@@ -77,15 +77,26 @@ function traduzir(erro: unknown): unknown {
 
 /**
  * Corre `fn` numa transacção com o contexto do comerciante (`SET LOCAL
- * eurolify.comerciante`). Fora daqui, a base recusa qualquer leitura.
+ * eurolify.comerciante`). Fora daqui, a base recusa qualquer leitura. Com
+ * `soLeitura`, a transacção é REPEATABLE READ e READ ONLY: as leituras vêem
+ * todas o mesmo momento, e uma escrita por engano é recusada pela base
+ * (revisão do #150, P3-5).
  */
 export async function comComerciante<T>(
   db: Kysely<BaseDados>,
   comercianteId: string,
   fn: (trx: Transaction<BaseDados>) => Promise<T>,
+  opcoes: { soLeitura?: boolean } = {},
 ): Promise<T> {
+  const transaccao =
+    opcoes.soLeitura === true
+      ? db
+          .transaction()
+          .setIsolationLevel("repeatable read")
+          .setAccessMode("read only")
+      : db.transaction();
   try {
-    return await db.transaction().execute(async (trx) => {
+    return await transaccao.execute(async (trx) => {
       await sql`select set_config('eurolify.comerciante', ${comercianteId}, true)`.execute(
         trx,
       );

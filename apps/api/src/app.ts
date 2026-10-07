@@ -4,8 +4,14 @@ import swagger from "@fastify/swagger";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { Type } from "typebox";
 import type { Kysely } from "kysely";
-import { errosDoFastify, ligarErros, RESPOSTA_DE_ERRO } from "./base/erros.js";
+import {
+  erroBase,
+  errosDoFastify,
+  ligarErros,
+  RESPOSTA_DE_ERRO,
+} from "./base/erros.js";
 import type { BaseDados } from "./base/esquema.js";
+import { rotasDoCatalogo } from "./catalogo/rotas.js";
 import { ligarAutenticacao } from "./identidade/autenticacao.js";
 import { rotasDoHub } from "./identidade/hub.js";
 import { rotasDasCredenciais } from "./identidade/hub-credenciais.js";
@@ -19,6 +25,15 @@ import type { Registo } from "./regras/tipos.js";
 import { assegurarRegistoValido } from "./regras/validar.js";
 
 const RespostaSaude = Type.Object({ estado: Type.Literal("ok") });
+
+/**
+ * As versões da API por data (docs/18 §3; headless-commerce, regra 7). Quem
+ * chama pode pedir uma com o cabeçalho `Eurolify-Versao`; sem ele, recebe a
+ * mais recente. Uma versão que não está aqui dá 400 version.unsupported. A
+ * resposta diz sempre com que versão foi servida.
+ */
+export const VERSOES_API = ["2026-10"] as const;
+export const VERSAO_API_ACTUAL = "2026-10";
 
 /**
  * Cria a aplicação sem a pôr a ouvir, para os testes a chamarem por
@@ -62,6 +77,20 @@ export function criarApp(
   }).withTypeProvider<TypeBoxTypeProvider>();
 
   ligarErros(app);
+  app.addHook("onRequest", async (pedido, resposta) => {
+    void resposta.header("Eurolify-Versao", VERSAO_API_ACTUAL);
+    const pedida = pedido.headers["eurolify-versao"];
+    if (pedida === undefined) return;
+    if (
+      typeof pedida !== "string" ||
+      !(VERSOES_API as readonly string[]).includes(pedida)
+    ) {
+      throw erroBase(
+        "version.unsupported",
+        `versões suportadas: ${VERSOES_API.join(", ")}`,
+      );
+    }
+  });
   // O cookie da sessão do Hub (docs/21 §3); as opções de cada cookie são
   // dadas ao escrevê-lo (sessoes.ts), nunca as de omissão da biblioteca.
   void app.register(cookie);
@@ -181,7 +210,10 @@ export function criarApp(
       () => app.swagger(),
     );
     // As rotas que precisam da base só existem com ela (docs/19 §6).
-    if (base !== undefined) rotasDaIdentidade(rotas, base);
+    if (base !== undefined) {
+      rotasDaIdentidade(rotas, base);
+      rotasDoCatalogo(rotas, base);
+    }
     if (base !== undefined && hub !== undefined) {
       rotasDoHub(rotas, base, hub);
       rotasDasCredenciais(rotas, base, hub);
