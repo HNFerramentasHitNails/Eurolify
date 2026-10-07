@@ -307,9 +307,23 @@ export function revogarChavePelaApi(
 
 async function traduzindoChaveOuConta<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    return await traduzindo(fn);
+    return await fn();
   } catch (erro) {
-    throw traduzirConta(erro);
+    // Primeiro como conta: «não é membro» tem o texto das contas, não o das
+    // chaves (revisão do #149, P3-1).
+    const conta = traduzirConta(erro);
+    if (conta !== erro) throw conta;
+    // No Hub quem pede é o papel, não uma chave (P3-2).
+    if (
+      erro instanceof Error &&
+      erro.message.startsWith("key.scope_escalation:")
+    ) {
+      throw erroChave(
+        "key.scope_escalation",
+        "uma chave não recebe âmbitos que o papel não tem",
+      );
+    }
+    throw traduzirChave(erro);
   }
 }
 

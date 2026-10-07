@@ -25,8 +25,11 @@ import { erroConta } from "./sessoes.js";
 // Rotas do Hub da parte B3c (docs/21 §4.3 e §12; migração 0025): as chaves
 // de API do comerciante pelo Hub, com a sessão de uma pessoa cujo papel tem
 // `keys:write` (hoje, o dono) e autenticação recente para criar e revogar
-// (BA, P-T8). Os corpos e as respostas são os de /keys (docs/19 §6.1); a
-// base confere tudo outra vez (o papel, a autenticação recente, as regras).
+// (BA, P-T8). Os corpos e as respostas são os de /keys (docs/19 §6.1). Ao
+// criar e revogar, a base confere tudo outra vez (o papel, a autenticação
+// recente, as regras); a lista confere o papel aqui, com a sessão resolvida
+// pela base, e chama `chave_listar()` — o mesmo nível de confiança do
+// GET /keys (revisão do #149, P3-3).
 
 export function rotasDasChavesDoHub(
   instancia: FastifyInstance,

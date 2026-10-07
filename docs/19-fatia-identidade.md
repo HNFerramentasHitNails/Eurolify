@@ -394,3 +394,10 @@ domínio, porque o corpo do `POST /keys` não tem comerciante.
 - Se o sha256 sem sal é a escolha recomendada para chaves aleatórias de 256
   bits: é raciocínio, sem fonte lida.
 - O consumo de memória de qualquer servidor de identidade na VPS.
+
+> **Nota (07/10/2026, B3c das contas de pessoas, `docs/21` §12):** pelo Hub,
+> com a sessão de uma pessoa, a API ganhou também `chave_criar_pela_sessao` e
+> `chave_revogar_pela_sessao` (migração 0025), só para o papel com
+> `keys:write` e com autenticação recente. Pelo Hub, a regra «a última chave
+> que gere chaves não se revoga» não se aplica: o dono cria outra quando
+> quiser. As chaves de uma pessoa que sai revogam-se em cadeia.

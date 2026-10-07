@@ -18,11 +18,13 @@
 --   o papel tem;
 -- - a regra «a última chave que gere chaves não se revoga» (0012) não se
 --   aplica aqui: servia porque só uma chave criava chaves; com o Hub, o dono
---   cria outra quando quiser (proposta, docs/21 §12).
+--   cria outra quando quiser (proposta, docs/21 §12);
+-- - quem perde poderes perde também as chaves que descendem das suas, em
+--   cadeia (`pessoa_fechar_acessos` substituída; revisão do #149, P1-1).
 --
 -- O que não faz: listar continua a ser o `chave_listar()` (0010), que a rota
--- chama depois de conferir o papel; a idempotência (as rotas do Hub não a
--- usam, docs/21 §11).
+-- chama depois de conferir o papel na API (o mesmo nível de confiança do
+-- GET /keys); a idempotência (as rotas do Hub não a usam, docs/21 §11).
 
 SET LOCAL lock_timeout = '10s';
 
@@ -95,6 +97,50 @@ BEGIN
   END IF;
   UPDATE public.chave_api c SET revogada_por = 'pessoa:per_' || quem.pessoa_id::text
   WHERE c.id = alvo.id;
+END
+$$;
+
+-- Fechar o que uma pessoa abriu (substitui a da 0018, mesma assinatura):
+-- as chaves revogam-se **em cadeia** — as que a pessoa criou e as que
+-- descendem delas (`criada_por = chave:key_<pai>`), também quando o pai já
+-- estava revogado (revisão do #149, P1-1: com o Hub, uma pessoa cria uma
+-- chave A e, com ela, uma B; sair só revogava A). Na mudança de papel, a
+-- raiz são as chaves da pessoa com âmbitos que o papel novo não tem; as
+-- descendentes das que ficam não têm mais âmbitos do que elas (T9).
+CREATE OR REPLACE FUNCTION pessoa_fechar_acessos(p_comerciante uuid, p_pessoa uuid,
+                                                 p_papel_novo text, p_motivo text,
+                                                 p_quem text)
+  RETURNS void
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  autor text := 'pessoa:per_' || p_pessoa::text;
+  c public.convite;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('chave_api:' || p_comerciante::text, 0));
+  FOR c IN SELECT x.* FROM public.convite x
+           WHERE x.comerciante_id = p_comerciante
+             AND x.convidado_por = autor
+             AND x.aceite_em IS NULL AND x.cancelado_em IS NULL
+             AND (p_papel_novo IS NULL OR NOT public.papel_pode_convidar(p_papel_novo, x.papel))
+           ORDER BY x.id
+           FOR UPDATE LOOP
+    UPDATE public.convite x SET cancelado_por = p_motivo WHERE x.id = c.id;
+    INSERT INTO public.evento_conta (acto, comerciante_id, convite_id, quem)
+    VALUES ('convite_cancelado', p_comerciante, c.id, p_quem);
+  END LOOP;
+  WITH RECURSIVE cadeia(id) AS (
+    SELECT k.id FROM public.chave_api k
+    WHERE k.comerciante_id = p_comerciante
+      AND k.criada_por = autor
+      AND (p_papel_novo IS NULL OR NOT (k.ambitos <@ public.papel_ambitos(p_papel_novo)))
+    UNION
+    SELECT f.id FROM public.chave_api f
+    JOIN cadeia ON f.criada_por = 'chave:key_' || cadeia.id::text
+    WHERE f.comerciante_id = p_comerciante
+  )
+  UPDATE public.chave_api k SET revogada_por = p_motivo
+  FROM cadeia
+  WHERE k.id = cadeia.id AND k.revogada_por IS NULL;
 END
 $$;
 

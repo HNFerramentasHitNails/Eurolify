@@ -225,4 +225,189 @@ describe.skipIf(URL_BASE === undefined)("chaves pelo Hub (0025)", () => {
     await primeiro;
     await expect(segundo).rejects.toThrow(/^auth\.forbidden:/);
   });
+
+  describe("revisão do #149", () => {
+    /** Uma chave criada pela API com o segredo de outra (criada_por = chave:key_…). */
+    async function criarComChave(segredo: string) {
+      const r = await h.app.inject({
+        method: "POST",
+        url: "/keys",
+        headers: {
+          authorization: `Bearer ${segredo}`,
+          "idempotency-key": `t-${String(Date.now())}-${String(Math.random())}`,
+        },
+        payload: {
+          tipo: "servidor",
+          nome: "Filha",
+          ambitos: ["catalog:read", "keys:write"],
+        },
+      });
+      expect(r.statusCode, r.body).toBe(201);
+      return r.json<{ segredo: string }>().segredo;
+    }
+    const vale = async (segredo: string) =>
+      (
+        await h.app.inject({
+          method: "GET",
+          url: "/me",
+          headers: { authorization: `Bearer ${segredo}` },
+        })
+      ).statusCode;
+
+    it("P1-1: sair da equipa revoga em cadeia as chaves criadas pelas chaves da pessoa", async () => {
+      const c = await novoComerciante("Loja Cadeia");
+      const d1 = await h.pessoaCom(c, "dono");
+      const d2 = await h.pessoaCom(c, "dono");
+      const a = (
+        await criar(d2.sessao, c, {
+          ...servidor,
+          ambitos: ["catalog:read", "keys:write"],
+        })
+      ).json<{
+        segredo: string;
+      }>().segredo;
+      const b = await criarComChave(a);
+      const neta = await criarComChave(b);
+      const tirar = await h.pedir(
+        "POST",
+        `/hub/members/mbr_${await membroDe(d2.pessoa, c)}/end`,
+        {
+          sessao: d1.sessao,
+          comerciante: c,
+        },
+      );
+      expect(tirar.statusCode, tirar.body).toBe(200);
+      expect(await vale(a)).toBe(401);
+      expect(await vale(b)).toBe(401);
+      expect(await vale(neta)).toBe(401);
+    });
+
+    it("P1-1: despromover revoga a cadeia da chave com âmbitos que o papel novo não tem", async () => {
+      const c = await novoComerciante("Loja Despromovida");
+      const d1 = await h.pessoaCom(c, "dono");
+      const d2 = await h.pessoaCom(c, "dono");
+      const gestora = (
+        await criar(d2.sessao, c, {
+          ...servidor,
+          ambitos: ["catalog:read", "keys:write"],
+        })
+      ).json<{
+        segredo: string;
+      }>().segredo;
+      const filha = await criarComChave(gestora);
+      const leitora = (
+        await criar(d2.sessao, c, { ...servidor, ambitos: ["catalog:read"] })
+      ).json<{
+        segredo: string;
+      }>().segredo;
+      const r = await h.pedir(
+        "POST",
+        `/hub/members/mbr_${await membroDe(d2.pessoa, c)}/role`,
+        {
+          sessao: d1.sessao,
+          comerciante: c,
+          corpo: { papel: "gestor" },
+        },
+      );
+      expect(r.statusCode, r.body).toBe(200);
+      expect(await vale(gestora)).toBe(401);
+      expect(await vale(filha)).toBe(401);
+      expect(await vale(leitora)).toBe(200);
+    });
+
+    it("P2-3: criar uma chave espera pela tranca dos membros, mesmo com a das chaves livre", async () => {
+      const c = await novoComerciante("Loja Tranca");
+      const d = await h.pessoaCom(c, "dono");
+      let libertar = () => {};
+      const aberta = new Promise<void>((r) => (libertar = r));
+      let feito = () => {};
+      const trancou = new Promise<void>((r) => (feito = r));
+      const primeiro = base.dono.transaction().execute(async (trx) => {
+        await sql`select membros_trancar(${c}::uuid)`.execute(trx);
+        feito();
+        await aberta;
+      });
+      await trancou;
+      const k = gerarChave("servidor");
+      const segundo = base.dono.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${c}, true)`.execute(
+          trx,
+        );
+        await sql`select chave_criar_pela_sessao(${d.sessao}, 'servidor', null,
+          'Espera', ${["catalog:read"]}::text[], ${k.prefixo}, ${resumoDe(k.segredo)}, null)`.execute(
+          trx,
+        );
+      });
+      const corrida = await Promise.race([
+        segundo.then(
+          () => "passou",
+          () => "falhou",
+        ),
+        new Promise((r) =>
+          setTimeout(() => {
+            r("à espera");
+          }, 300),
+        ),
+      ]);
+      expect(corrida).toBe("à espera");
+      libertar();
+      await primeiro;
+      await segundo;
+    });
+
+    it("P3-6: armazém e apoio também não; o gestor não revoga", async () => {
+      const c = await novoComerciante("Loja Todos");
+      const d = await h.pessoaCom(c, "dono");
+      const id = (await criar(d.sessao, c, servidor)).json<{ id: string }>().id;
+      for (const papel of ["armazem", "apoio", "gestor"]) {
+        const p = await h.pessoaCom(c, papel);
+        expect(h.codigo(await criar(p.sessao, c, servidor)), papel).toBe(
+          "member.role_escalation",
+        );
+        const rev = await h.pedir("POST", `/hub/keys/${id}/revoke`, {
+          sessao: p.sessao,
+          comerciante: c,
+        });
+        expect(h.codigo(rev), papel).toBe("member.role_escalation");
+      }
+    });
+
+    it("P3-6: pelo Hub revoga-se a última chave que gere chaves (o dono cria outra)", async () => {
+      const c = await novoComerciante("Loja Última");
+      const d = await h.pessoaCom(c, "dono");
+      const id = (
+        await criar(d.sessao, c, { ...servidor, ambitos: ["keys:write"] })
+      ).json<{ id: string }>().id;
+      const r = await h.pedir("POST", `/hub/keys/${id}/revoke`, {
+        sessao: d.sessao,
+        comerciante: c,
+      });
+      expect(r.statusCode, r.body).toBe(200);
+    });
+
+    it("P3-1: quem não é membro recebe o texto das contas", async () => {
+      const c = await novoComerciante("Loja Fora");
+      const outro = await novoComerciante("Loja Dentro");
+      const p = await h.pessoaCom(outro, "dono");
+      await h.pessoaCom(c, "dono");
+      const k = gerarChave("servidor");
+      await expect(
+        base.dono.transaction().execute(async (trx) => {
+          await sql`select set_config('eurolify.comerciante', ${c}, true)`.execute(
+            trx,
+          );
+          await sql`select chave_criar_pela_sessao(${p.sessao}, 'servidor', null,
+            'Fora', ${["catalog:read"]}::text[], ${k.prefixo}, ${resumoDe(k.segredo)}, null)`.execute(
+            trx,
+          );
+        }),
+      ).rejects.toThrow(/^auth\.forbidden:/);
+      // Pela rota, o cabeçalho de outro comerciante é recusado antes (403).
+      const r = await criar(p.sessao, c, servidor);
+      expect(h.codigo(r)).toBe("auth.forbidden");
+      expect(r.json<{ mensagem: { pt: string } }>().mensagem.pt).toBe(
+        "Não é membro deste comerciante",
+      );
+    });
+  });
 });
