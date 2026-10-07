@@ -140,8 +140,11 @@ Dois donos que se retiram ao mesmo tempo não deixam o comerciante sem dono
 
 Cada pessoa também sai por si; tirar **outro** é só do dono, com
 autenticação recente (proposta, B1). As chaves criadas **por uma chave** que
-a pessoa criou (`criada_por = chave:key_…`) **não** se revogam em cadeia: o
-dono vê-as na lista e revoga-as (proposta, B1; a rever com o Hub).
+a pessoa criou (`criada_por = chave:key_…`) **revogam-se em cadeia** com
+ela, também quando a do meio já estava revogada (B3c, revisão do #149,
+P1-1: com o Hub uma pessoa cria chaves, e sem a cadeia uma «filha» ficava
+viva depois de ela sair). Ao mudar de papel, cai a cadeia das chaves com
+âmbitos que o papel novo não tem. As chaves públicas ficam (CK).
 
 ### 4.5 Mudar de papel e desactivar uma pessoa
 
@@ -413,7 +416,7 @@ e **B3c** (chaves pelo Hub).
 | B3b | `POST /hub/password/confirm` | sessão, recente | `codigo` (6 dígitos) | **200**; a palavra-passe e o TOTP ficam activos juntos (CA); as outras sessões caem |
 | B3b | `POST /hub/password/remove` | sessão, recente | nenhum | **200**; recusa se não houver passkey |
 | B3b | `POST /hub/session/password` | público | `email`, `palavra_passe`, `codigo` | **201** e o cookie; a mesma recusa (401) e o mesmo tempo para tudo o que falha (Argon2id falso sem conta); 5 falhas em 15 minutos → 429 |
-| B3c | `GET /hub/keys`, `POST /hub/keys`, `POST /hub/keys/{id}/revoke` | sessão + comerciante, recente (só o dono: `keys:write`) | como `/keys` (`docs/19` §6.1) | como `/keys`; `criada_por = pessoa:per_…`; a tranca dos membros e a das chaves (§4.7) |
+| B3c | `GET /hub/keys`, `POST /hub/keys`, `POST /hub/keys/{id}/revoke` | sessão + comerciante (só o dono: `keys:write`); criar e revogar com autenticação recente, listar sem ela | como `/keys` (`docs/19` §6.1) | como `/keys`; `criada_por = pessoa:per_…`; a tranca dos membros e a das chaves (§4.7) |
 
 Na base (B3a): `codigo_recuperacao` (o resumo sha256 — com 80 bits
 aleatórios basta, não precisa de Argon2id), `entrada` (pessoa ou resumo do
@@ -444,6 +447,26 @@ quem tem a palavra-passe o provoca, e a passkey continua a entrar. Um IPv6
 conta pela rede /64, também na recuperação (P2-1). No máximo 2 Argon2id ao
 mesmo tempo e 20 à espera; acima disso, 503 (P2-2; valores a medir na
 VPS).
+
+Na base (B3c, migração 0025): `chave_criar_pela_sessao` e
+`chave_revogar_pela_sessao`, só para um papel com `keys:write` (hoje, o
+dono) e com autenticação recente (BA, P-T8), com as trancas pela ordem da
+§4.7 (membros, depois chaves) e o membro conferido dentro delas. A chave
+fica com `criada_por = pessoa:per_…` e cai se a pessoa sair. A regra «a
+última chave que gere chaves não se revoga» (0012) **não se aplica** pelo
+Hub: servia porque só uma chave criava chaves, e o dono cria outra quando
+quiser (proposta).
+
+**Por decidir ou por fazer** (revisão do #149):
+- **Chaves públicas ao mudar de papel ou sair** (P2-2): **ficam** (Diogo,
+  07/10/2026: *«sim, concordo, fica a a)»*; CK). Não são segredo e só dão o
+  que qualquer visitante da loja vê; revogá-las partia a montra sem proteger
+  nada. A cadeia da §4.4 revoga só as chaves de servidor.
+- **Recuperar ou «terminar todas» não fecha as chaves** que a pessoa criou
+  (P2-1): uma sessão roubada nos 10 minutos depois de entrar pode criar uma
+  chave que fica. Por fazer: o aviso do Hub depois de uma recuperação (§7)
+  lista as chaves que a pessoa criou e propõe revogá-las. Revogá-las sozinho
+  seria decisão do Diogo ou do Bruno.
 
 **Condição para ligar o Hub** (revisões do #142, P2-2, e do #144, P2-3): a
 `HUB_ORIGEM` só se define num ambiente depois de (1) a B3b, (2) a B4 — sem

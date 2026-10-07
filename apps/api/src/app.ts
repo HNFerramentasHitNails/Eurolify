@@ -16,6 +16,7 @@ import { ligarAutenticacao } from "./identidade/autenticacao.js";
 import { rotasDoHub } from "./identidade/hub.js";
 import { rotasDasCredenciais } from "./identidade/hub-credenciais.js";
 import { rotasDaPalavraPasse } from "./identidade/hub-palavra-passe.js";
+import { rotasDasChavesDoHub } from "./identidade/hub-chaves.js";
 import type { ConfigHub } from "./identidade/sessoes.js";
 import { rotasDaIdentidade } from "./identidade/rotas.js";
 import { REGISTO_INICIAL } from "./regras/registo.js";
@@ -216,6 +217,7 @@ export function criarApp(
     if (base !== undefined && hub !== undefined) {
       rotasDoHub(rotas, base, hub);
       rotasDasCredenciais(rotas, base, hub);
+      rotasDasChavesDoHub(rotas, base);
       if (hub.chaveTotp !== undefined) {
         rotasDaPalavraPasse(rotas, base, hub, hub.chaveTotp);
       }
