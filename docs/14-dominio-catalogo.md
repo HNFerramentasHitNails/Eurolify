@@ -776,6 +776,11 @@ rotas, que só as expõem):
   criar, alterar, activar, arquivar, repor e apagar: a C7 (rasto de quem,
   quando, antes e depois) ainda não está cumprida nessas operações; entra
   com a linha do tempo.
+- **Sem tecto de variantes por artigo** (revisão do #159, 2.ª, P3-N3): a
+  lista das variantes vai por páginas, mas a ficha do artigo
+  (`GET /products/{id}`) traz todas, e `POST /products/{id}/variants` não
+  tem limite. O tecto (ou o `expand` com páginas) é decisão do Diogo ou do
+  Bruno, antes de abrir a API para fora.
 - **A categoria fiscal** aceita qualquer código no formato: a lista é do
   Motor de IVA (§2), que ainda não existe, e nada confirma que o código
   existe lá (**C**, não verifiquei). **Rede temporária** (decisão do Diogo,

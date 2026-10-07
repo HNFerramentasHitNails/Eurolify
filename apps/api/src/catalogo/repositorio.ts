@@ -323,13 +323,15 @@ export async function arquivarVariante(
   varianteId: string,
 ): Promise<void> {
   await noCatalogo(db, comercianteId, async (trx) => {
-    // A linha da variante primeiro, como o UPDATE a tomava antes.
+    // A linha da variante primeiro, com o mesmo bloqueio que o UPDATE do
+    // estado toma (não é chave): não choca com quem escreve um preço ou um
+    // valor dela (revisão do #159, 2.ª, P3-N2).
     const actual = await trx
       .selectFrom("variante")
       .select(["artigo_id", "estado"])
       .where("comerciante_id", "=", comercianteId)
       .where("id", "=", varianteId)
-      .forUpdate()
+      .forNoKeyUpdate()
       .executeTakeFirst();
     if (actual === undefined) {
       throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);

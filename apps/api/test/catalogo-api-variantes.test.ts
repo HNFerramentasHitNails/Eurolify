@@ -501,11 +501,22 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: variantes", () => {
       pedir("POST", url, nova("IDEM-4"), { chave: paralela }),
       pedir("POST", url, nova("IDEM-4"), { chave: paralela }),
     ]);
+    // Ou a segunda viu a primeira em curso (409 in_progress), ou recebeu a
+    // mesma resposta guardada (201 igual); nunca o SKU repetido, que é o
+    // que daria sem a idempotência (revisão do #159, 2.ª, P2-N1).
     const estados = [r1.statusCode, r2.statusCode].sort();
     expect([
       [201, 201],
       [201, 409],
     ]).toContainEqual(estados);
+    if (estados[1] === 409) {
+      const emCurso = r1.statusCode === 409 ? r1 : r2;
+      expect(emCurso.json()).toMatchObject({
+        codigo: "idempotency.in_progress",
+      });
+    } else {
+      expect(r2.json()).toEqual(r1.json());
+    }
     const lista = (await pedir("GET", url)).json<{ dados: Variante[] }>();
     expect(lista.dados.filter((d) => d.sku === "IDEM-4")).toHaveLength(1);
   });
@@ -556,9 +567,12 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: variantes", () => {
       versao: ficha.versao,
       ...CLASSIFICACAO,
     });
-    await pedir("POST", `/products/${f.id}/activate`, {
+    expect(c.statusCode).toBe(200);
+    const activado = await pedir("POST", `/products/${f.id}/activate`, {
       versao: c.json<Ficha>().versao,
     });
+    expect(activado.statusCode).toBe(200);
+    expect(activado.json()).toMatchObject({ estado: "activo" });
     const verde = await acrescentarValor(base.api, a, cor.id, "Verde");
     const combinacao = [`ovl_${verde}`, `ovl_${s}`];
     const [p1, p2] = await Promise.all([
