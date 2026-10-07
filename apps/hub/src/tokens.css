@@ -1,0 +1,79 @@
+/*
+ * Tokens do Hub (docs/22 §4). PROVISÓRIOS: a identidade visual do Eurolify
+ * não está decidida (D-12). Três níveis: globais (valores), semânticos (o
+ * que os componentes usam) e de componente. Nenhum componente usa um valor
+ * global directamente.
+ */
+:root {
+  /* Globais */
+  --cinzento-0: #ffffff;
+  --cinzento-50: #f5f6f8;
+  --cinzento-200: #dde1e6;
+  --cinzento-300: #b4bcc6;
+  --cinzento-600: #525b66;
+  --cinzento-700: #3a414a;
+  --cinzento-900: #1b1f24;
+  --cinzento-950: #111418;
+  --azul-300: #93b4fd;
+  --azul-500: #3b82f6;
+  --azul-700: #1d4ed8;
+  --vermelho-300: #fca5a5;
+  --vermelho-700: #b91c1c;
+  --ambar-300: #fcd34d;
+  --ambar-800: #92400e;
+  --verde-300: #86efac;
+  --verde-800: #166534;
+  --espaco-1: 4px;
+  --espaco-2: 8px;
+  --espaco-3: 12px;
+  --espaco-4: 16px;
+  --espaco-6: 24px;
+  --espaco-8: 32px;
+  --raio: 6px;
+  --letra: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --letra-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --letra-base: 16px;
+  --letra-pequena: 14px;
+  --letra-titulo: 24px;
+  --alvo-minimo: 44px;
+
+  /* De componente (revisão do #158, P3-5): medidas com nome */
+  --largura-pagina: 960px;
+  --largura-estreita: 440px;
+  --largura-codigo: 20ch;
+  --largura-campo: 200px;
+  --borda-fina: 1px;
+  --borda-realce: 4px;
+  --anel-foco: 2px;
+  --opacidade-ocupado: 0.7;
+  --salto-escondido: -100px;
+
+  /* Semânticos, tema claro */
+  --superficie: var(--cinzento-0);
+  --superficie-elevada: var(--cinzento-50);
+  --texto: var(--cinzento-900);
+  --texto-secundario: var(--cinzento-600);
+  --borda: var(--cinzento-200);
+  --accao-principal: var(--azul-700);
+  --texto-sobre-accao: var(--cinzento-0);
+  --foco: var(--azul-500);
+  --estado-erro: var(--vermelho-700);
+  --estado-aviso: var(--ambar-800);
+  --estado-sucesso: var(--verde-800);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --superficie: var(--cinzento-950);
+    --superficie-elevada: var(--cinzento-900);
+    --texto: var(--cinzento-50);
+    --texto-secundario: var(--cinzento-300);
+    --borda: var(--cinzento-700);
+    --accao-principal: var(--azul-300);
+    --texto-sobre-accao: var(--cinzento-950);
+    --foco: var(--azul-300);
+    --estado-erro: var(--vermelho-300);
+    --estado-aviso: var(--ambar-300);
+    --estado-sucesso: var(--verde-300);
+  }
+}

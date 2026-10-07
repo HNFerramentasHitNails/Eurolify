@@ -32,7 +32,17 @@ export default defineConfig([
     files: ["**/*.mjs"],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
-      globals: { console: "readonly", process: "readonly" },
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        URL: "readonly",
+        fetch: "readonly",
+        setTimeout: "readonly",
+        // Dentro das funções que o Playwright corre na página
+        // (apps/hub/scripts/capturas.mjs).
+        window: "readonly",
+        document: "readonly",
+      },
     },
   },
 ]);

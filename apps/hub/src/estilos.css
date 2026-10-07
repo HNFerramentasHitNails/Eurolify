@@ -1,0 +1,291 @@
+/* Componentes do Hub: só tokens semânticos (tokens.css), nenhum valor solto. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--letra);
+  font-size: var(--letra-base);
+  line-height: 1.5;
+  color: var(--texto);
+  background: var(--superficie);
+}
+
+body {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+:focus-visible {
+  outline: var(--anel-foco) solid var(--foco);
+  outline-offset: var(--anel-foco);
+}
+
+.salto {
+  position: absolute;
+  left: var(--espaco-2);
+  top: var(--salto-escondido);
+}
+.salto:focus {
+  top: var(--espaco-2);
+  background: var(--superficie);
+  padding: var(--espaco-2);
+}
+
+.cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-3);
+  padding: var(--espaco-3) var(--espaco-4);
+  border-bottom: var(--borda-fina) solid var(--borda);
+}
+
+.marca {
+  font-weight: 600;
+}
+
+.cabecalho-accoes {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-3);
+}
+
+main {
+  max-width: var(--largura-pagina);
+  margin: 0 auto;
+  padding: var(--espaco-6) var(--espaco-4);
+}
+
+.cartao {
+  background: var(--superficie-elevada);
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  padding: var(--espaco-6);
+}
+
+.estreito {
+  max-width: var(--largura-estreita);
+  margin: var(--espaco-8) auto 0;
+}
+
+h1 {
+  font-size: var(--letra-titulo);
+  line-height: 1.25;
+  margin: 0 0 var(--espaco-4);
+}
+
+h2 {
+  font-size: var(--letra-base);
+  margin: var(--espaco-6) 0 var(--espaco-3);
+}
+
+p {
+  margin: 0 0 var(--espaco-4);
+}
+
+.secundario {
+  color: var(--texto-secundario);
+  font-size: var(--letra-pequena);
+}
+
+button,
+.botao {
+  font: inherit;
+  min-height: var(--alvo-minimo);
+  padding: var(--espaco-2) var(--espaco-4);
+  border-radius: var(--raio);
+  border: var(--borda-fina) solid var(--borda);
+  background: var(--superficie);
+  color: var(--texto);
+  cursor: pointer;
+}
+
+button.principal {
+  background: var(--accao-principal);
+  border-color: var(--accao-principal);
+  color: var(--texto-sobre-accao);
+  font-weight: 600;
+}
+
+button:disabled {
+  cursor: progress;
+  opacity: var(--opacidade-ocupado);
+}
+
+a {
+  color: var(--accao-principal);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: var(--espaco-1);
+}
+
+input,
+select {
+  font: inherit;
+  width: 100%;
+  min-height: var(--alvo-minimo);
+  padding: var(--espaco-2) var(--espaco-3);
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+.campo {
+  margin-bottom: var(--espaco-4);
+}
+
+.linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-3);
+  align-items: flex-end;
+}
+
+.linha > .campo {
+  flex: 1 1 var(--largura-campo);
+}
+
+.aviso {
+  border-left: var(--borda-realce) solid var(--estado-aviso);
+  padding: var(--espaco-2) var(--espaco-3);
+  margin-bottom: var(--espaco-4);
+}
+
+.erro {
+  border-left: var(--borda-realce) solid var(--estado-erro);
+  padding: var(--espaco-2) var(--espaco-3);
+  margin-bottom: var(--espaco-4);
+}
+
+.erro strong {
+  color: var(--estado-erro);
+}
+
+.sucesso {
+  border-left: var(--borda-realce) solid var(--estado-sucesso);
+  padding: var(--espaco-2) var(--espaco-3);
+  margin-bottom: var(--espaco-4);
+}
+
+.segredo {
+  font-family: var(--letra-mono);
+  word-break: break-all;
+  background: var(--superficie);
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  padding: var(--espaco-3);
+  margin-bottom: var(--espaco-3);
+}
+
+.codigos {
+  font-family: var(--letra-mono);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--largura-codigo), 1fr));
+  gap: var(--espaco-1) var(--espaco-4);
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--espaco-4);
+}
+
+.codigos li {
+  white-space: nowrap;
+}
+
+section.cartao + section.cartao,
+table + section.cartao {
+  margin-top: var(--espaco-6);
+}
+
+.lista-simples {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.lista-simples li {
+  border-bottom: var(--borda-fina) solid var(--borda);
+  padding: var(--espaco-3) 0;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--espaco-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Tabelas: no telemóvel, cada linha é um cartão (eurolify-design, regra 5). */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: var(--espaco-2) var(--espaco-3);
+  border-bottom: var(--borda-fina) solid var(--borda);
+}
+
+th {
+  font-size: var(--letra-pequena);
+  color: var(--texto-secundario);
+  font-weight: 600;
+}
+
+/* Um @media não lê variáveis CSS: o 640px fica aqui (o ponto em que as
+   tabelas passam a cartões). */
+@media (max-width: 640px) {
+  thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  table,
+  tbody,
+  tr,
+  td {
+    display: block;
+  }
+  tr {
+    border: var(--borda-fina) solid var(--borda);
+    border-radius: var(--raio);
+    margin-bottom: var(--espaco-3);
+    padding: var(--espaco-2) 0;
+  }
+  td {
+    border: none;
+    padding: var(--espaco-1) var(--espaco-3);
+  }
+  td::before {
+    content: attr(data-rotulo);
+    display: block;
+    font-size: var(--letra-pequena);
+    color: var(--texto-secundario);
+  }
+}
+
+/* Escondido à vista, lido pelos leitores de ecrã (o padrão de 1px). */
+.so-leitores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
