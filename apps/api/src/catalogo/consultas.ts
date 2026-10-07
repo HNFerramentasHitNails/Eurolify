@@ -117,3 +117,133 @@ export async function fichaDoArtigo(
     { soLeitura: true },
   );
 }
+
+/** Os ids dos valores das opções de cada variante dada (por variante). */
+async function valoresDas(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  varianteIds: readonly string[],
+): Promise<Map<string, string[]>> {
+  const mapa = new Map<string, string[]>(varianteIds.map((id) => [id, []]));
+  if (varianteIds.length === 0) return mapa;
+  const linhas = await trx
+    .selectFrom("variante_valor")
+    .select(["variante_id", "valor_id"])
+    .where("comerciante_id", "=", comercianteId)
+    .where("variante_id", "in", varianteIds)
+    .orderBy("valor_id")
+    .execute();
+  for (const l of linhas) mapa.get(l.variante_id)?.push(l.valor_id);
+  return mapa;
+}
+
+/**
+ * As variantes de um artigo (também as arquivadas), por posição e SKU, com os
+ * valores das opções. Um artigo que não existe (ou de outro comerciante) é
+ * `catalog.not_found`, não uma lista vazia.
+ */
+export async function variantesDoArtigo(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const artigo = await trx
+        .selectFrom("artigo")
+        .select("id")
+        .where("id", "=", artigoId)
+        .executeTakeFirst();
+      if (artigo === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+      }
+      const variantes = await trx
+        .selectFrom("variante")
+        .selectAll()
+        .where("artigo_id", "=", artigoId)
+        .orderBy("posicao")
+        .orderBy("sku")
+        .execute();
+      const valores = await valoresDas(
+        trx,
+        comercianteId,
+        variantes.map((v) => v.id),
+      );
+      return variantes.map((v) => ({ ...v, valores: valores.get(v.id) ?? [] }));
+    },
+    { soLeitura: true },
+  );
+}
+
+/** Uma variante, com os valores das opções. */
+export async function fichaDaVariante(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  varianteId: string,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const variante = await trx
+        .selectFrom("variante")
+        .selectAll()
+        .where("id", "=", varianteId)
+        .executeTakeFirst();
+      if (variante === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);
+      }
+      const valores = await valoresDas(trx, comercianteId, [variante.id]);
+      return { ...variante, valores: valores.get(variante.id) ?? [] };
+    },
+    { soLeitura: true },
+  );
+}
+
+/**
+ * Procura uma variante pelo SKU (sem distinguir maiúsculas, P9) ou pelo GTIN
+ * (o mesmo código em 8, 12, 13 ou 14 dígitos com zeros à esquerda, C4), também
+ * arquivada: os dois são únicos por comerciante, por isso a lista tem uma ou
+ * nenhuma. O comerciante vai explícito, além do RLS, para os índices servirem
+ * (revisão do #80, P2-1).
+ */
+export async function procurarVariantes(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  filtro: { sku: string } | { gtin: string },
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      let consulta = trx
+        .selectFrom("variante")
+        .selectAll()
+        .where("comerciante_id", "=", comercianteId);
+      consulta =
+        "sku" in filtro
+          ? consulta.where(
+              sql<string>`lower(sku)`,
+              "=",
+              sql<string>`lower(${filtro.sku})`,
+            )
+          : consulta
+              .where("gtin", "is not", null)
+              .where(
+                sql<string>`lpad(gtin, 14, '0')`,
+                "=",
+                sql<string>`lpad(${filtro.gtin}, 14, '0')`,
+              );
+      const variantes = await consulta.execute();
+      const valores = await valoresDas(
+        trx,
+        comercianteId,
+        variantes.map((v) => v.id),
+      );
+      return variantes.map((v) => ({ ...v, valores: valores.get(v.id) ?? [] }));
+    },
+    { soLeitura: true },
+  );
+}

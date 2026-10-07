@@ -28,7 +28,13 @@ import {
   caminhoDe,
   chaveDeIdempotencia,
 } from "../identidade/rotas.js";
-import { fichaDoArtigo, listarArtigos } from "./consultas.js";
+import {
+  fichaDaVariante,
+  fichaDoArtigo,
+  listarArtigos,
+  procurarVariantes,
+  variantesDoArtigo,
+} from "./consultas.js";
 import { ErroCatalogo, traduzir } from "./erros.js";
 import {
   NAO_VERIFICADO,
@@ -41,8 +47,10 @@ import {
 import {
   alterarArtigo,
   apagarRascunho,
+  arquivarVariante,
   classificarArtigo,
   criarArtigo,
+  criarVarianteComValores,
   mudarEstadoArtigo,
 } from "./repositorio.js";
 
@@ -240,6 +248,20 @@ const Artigo = Type.Object({
   variantes: Type.Array(Variante),
 });
 
+/** A variante sozinha: com o artigo e os valores das opções (`ovl_…`). */
+const VarianteCompleta = Type.Object({
+  ...Variante.properties,
+  artigo: Type.String({ description: "prd_…" }),
+  valores: Type.Array(Type.String({ description: "ovl_…" }), {
+    description:
+      "Os valores das opções da variante, um por opção do artigo (§3.3); vazio num artigo sem opções",
+  }),
+});
+
+const RespostaVariantes = Type.Object({
+  dados: Type.Array(VarianteCompleta),
+});
+
 const RespostaArtigos = Type.Object({
   dados: Type.Array(ResumoArtigo),
   total: Type.Integer({
@@ -417,6 +439,41 @@ const PedidoCriarArtigo = Type.Object(
   { additionalProperties: false },
 );
 
+const PedidoCriarVariante = Type.Object(
+  {
+    ...NovaVariante.properties,
+    valores: Type.Optional(
+      Type.Array(idCom("ovl", "ovl_…"), {
+        maxItems: 20,
+        description:
+          "Um valor por opção do artigo (§3.3). Num artigo com opções que já não é rascunho, a combinação tem de ficar completa e não repetida",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const ParametroVariante = Type.Object({ id: idCom("var", "var_…") });
+
+const ConsultaVariantes = Type.Object(
+  {
+    sku: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 64,
+        pattern: "^[^\\x00-\\x1f]+$",
+      }),
+    ),
+    gtin: Type.Optional(
+      Type.String({
+        pattern: "^([0-9]{8}|[0-9]{12,14})$",
+        description: "8, 12, 13 ou 14 dígitos; os zeros à esquerda não contam",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 const ComVersao = { versao: Type.Integer({ minimum: 1 }) };
 
 const PedidoAlterarArtigo = Type.Object(
@@ -526,6 +583,14 @@ function paraVariante(v: LinhaVariante) {
     classe_adr: v.classe_adr,
     posicao: v.posicao,
     criado_em: v.criado_em.toISOString(),
+  };
+}
+
+function paraVarianteCompleta(v: LinhaVariante & { valores: string[] }) {
+  return {
+    ...paraVariante(v),
+    artigo: `prd_${v.artigo_id}`,
+    valores: v.valores.map((id) => `ovl_${id}`),
   };
 }
 
@@ -719,6 +784,85 @@ export function rotasDoCatalogo(
         fichaDoArtigo(base, chave.comercianteId, semPrefixo(pedido.params.id)),
       );
       return { ...paraArtigo(artigo), variantes: variantes.map(paraVariante) };
+    },
+  );
+
+  rotas.get(
+    "/products/:id/variants",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "As variantes do artigo, também as arquivadas, por posição e SKU, com os valores das opções.",
+        params: ParametroArtigo,
+        response: { 200: RespostaVariantes, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const variantes = await noCatalogoApi(resposta, () =>
+        variantesDoArtigo(
+          base,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+        ),
+      );
+      return { dados: variantes.map(paraVarianteCompleta) };
+    },
+  );
+
+  rotas.get(
+    "/variants",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "Procura uma variante pelo SKU (sem distinguir maiúsculas) ou pelo GTIN (8, 12, 13 ou 14 dígitos, o mesmo código com zeros à esquerda), também arquivada. Pede-se exactamente um dos dois. O SKU e o GTIN são únicos por comerciante: a lista tem uma variante ou nenhuma.",
+        querystring: ConsultaVariantes,
+        response: { 200: RespostaVariantes, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const { sku, gtin } = pedido.query;
+      if ((sku === undefined) === (gtin === undefined)) {
+        throw erroBase(
+          "request.invalid",
+          "pede-se exactamente um de `sku` ou `gtin`",
+        );
+      }
+      const variantes = await noCatalogoApi(resposta, () =>
+        procurarVariantes(
+          base,
+          chave.comercianteId,
+          sku !== undefined ? { sku } : { gtin: gtin ?? "" },
+        ),
+      );
+      return { dados: variantes.map(paraVarianteCompleta) };
+    },
+  );
+
+  rotas.get(
+    "/variants/:id",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description: "Uma variante, com o artigo e os valores das opções.",
+        params: ParametroVariante,
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      return paraVarianteCompleta(
+        await noCatalogoApi(resposta, () =>
+          fichaDaVariante(
+            base,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+          ),
+        ),
+      );
     },
   );
 
@@ -959,6 +1103,70 @@ export function rotasDoCatalogo(
           semPrefixo(pedido.params.id),
         );
         return null;
+      }),
+  );
+
+  rotas.post(
+    "/products/:id/variants",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Acrescenta uma variante ao artigo, activa, com os valores das opções (SKU único por comerciante, C3). Também num artigo arquivado (§4.1). Num artigo publicado, a variante nova nasce fora das publicações.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoCriarVariante,
+        response: { 201: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        async (trx, chave) => {
+          const { valores, ...dados } = pedido.body;
+          const id = await criarVarianteComValores(
+            trx,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+            dados,
+            (valores ?? []).map(semPrefixo),
+          );
+          return paraVarianteCompleta(
+            await fichaDaVariante(trx, chave.comercianteId, id),
+          );
+        },
+        (corpo) => `/variants/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  rotas.post(
+    "/variants/:id/archive",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Arquiva a variante: é final, e o SKU não volta (P7). O artigo e as outras variantes ficam (C6). Se era a última à venda numa publicação, a publicação sai de venda (§8; docs/06, CJ). Sem corpo.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroVariante,
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        if (!vazio(pedido.body)) {
+          throw new ErroCatalogo(
+            "catalog.invalid_field",
+            "esta rota não leva corpo",
+          );
+        }
+        const id = semPrefixo(pedido.params.id);
+        await arquivarVariante(trx, chave.comercianteId, id);
+        return paraVarianteCompleta(
+          await fichaDaVariante(trx, chave.comercianteId, id),
+        );
       }),
   );
 

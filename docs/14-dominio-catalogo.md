@@ -725,6 +725,25 @@ mesma chave com o mesmo pedido devolve a mesma resposta; com outro pedido,
 - com `catalog:publish`: `POST /products/{id}/publications` e
   `POST /publications/{id}/archive`.
 
+**As variantes em código** (07/10/2026; pedido do Diogo: «sim», às rotas
+das variantes):
+
+- com `catalog:read`: `GET /products/{id}/variants` (também as arquivadas,
+  por posição e SKU), `GET /variants/{id}` e `GET /variants?sku=…` ou
+  `?gtin=…` (exactamente um dos dois; o SKU sem distinguir maiúsculas, P9;
+  o GTIN com os zeros à esquerda ignorados, C4; também arquivada; a lista
+  tem uma variante ou nenhuma, porque os dois são únicos por comerciante);
+- com `catalog:write`, com a `Idempotency-Key`: `POST /products/{id}/variants`
+  (com `valores`, um `ovl_…` por opção; num artigo que já não é rascunho a
+  combinação tem de ficar completa e não repetida, e a base confirma-o no
+  fim da transacção) e `POST /variants/{id}/archive` (final; se era a última
+  à venda, a publicação sai de venda, §8).
+
+Cada variante sai com o artigo (`prd_…`) e os valores das opções. **Falta**
+`PATCH /variants/{id}`: não há ainda função que altere uma variante, e a
+variante não tem `versao` para a escrita concorrente; desenha-se antes do
+código.
+
 As alterações levam a `versao` lida (outra dá `catalog.version_conflict`,
 antes de qualquer outra recusa) e devolvem a ficha. Pedir o estado em que o
 artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1), mas só
