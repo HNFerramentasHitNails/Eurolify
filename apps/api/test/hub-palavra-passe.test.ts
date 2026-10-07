@@ -216,6 +216,120 @@ describe.skipIf(URL_BASE === undefined)("palavra-passe e TOTP (0024)", () => {
     });
   });
 
+  describe("revisão do #147", () => {
+    /** Um código que não é nenhum dos três da janela actual. */
+    async function codigoInvalido(segredo: string) {
+      const validos = new Set(
+        await Promise.all(
+          [-30, 0, 30].map((d) => codigoEm(segredo, agora() + d)),
+        ),
+      );
+      for (let n = 0; ; n++) {
+        const c = String(n).padStart(6, "0");
+        if (!validos.has(c)) return c;
+      }
+    }
+
+    it("P1-1: 20 tentativas ao mesmo tempo do mesmo IP: no máximo 5 chegam a ser conferidas", async () => {
+      const p = await comPalavraPasse();
+      const ip = ipNovo();
+      const respostas = await Promise.all(
+        Array.from({ length: 20 }, () =>
+          entrar(p.email, "outra frase comprida", "123456", ip),
+        ),
+      );
+      const conferidas = respostas.filter((r) => r.statusCode === 401).length;
+      const bloqueadas = respostas.filter((r) => r.statusCode === 429).length;
+      expect(conferidas).toBeLessThanOrEqual(5);
+      expect(conferidas + bloqueadas).toBe(20);
+    });
+
+    it("§8: 5 códigos errados depois da palavra-passe certa bloqueiam a conta, de qualquer IP", async () => {
+      const p = await comPalavraPasse();
+      const errado = await codigoInvalido(p.segredoTotp);
+      for (let i = 0; i < 5; i++) {
+        expect((await entrar(p.email, p.palavra, errado)).statusCode).toBe(401);
+      }
+      const certo = await entrar(
+        p.email,
+        p.palavra,
+        await codigoEm(p.segredoTotp, agora() + 30),
+      );
+      expect(certo.statusCode).toBe(429);
+      // A passkey continua a entrar.
+      expect((await h.entrar(p.autenticador)).statusCode).toBe(201);
+    });
+
+    it("uma pessoa desactivada não entra com a palavra-passe", async () => {
+      const p = await comPalavraPasse();
+      await sql`select pessoa_desactivar(${p.pessoa}::uuid, 'operador:github:1001')`.execute(
+        base.dono,
+      );
+      const r = await entrar(
+        p.email,
+        p.palavra,
+        await codigoEm(p.segredoTotp, agora() + 30),
+      );
+      expect(r.statusCode).toBe(401);
+    });
+
+    it("escolher, confirmar e retirar pedem autenticação recente", async () => {
+      const p = await h.pessoaCom(a, "apoio");
+      await h.envelhecerSessao(p.sessao, "autenticada_em", "11 minutes");
+      for (const [url, corpo] of [
+        ["/hub/password/setup", { palavra_passe: "uma frase bem comprida" }],
+        ["/hub/password/confirm", { codigo: "123456" }],
+        ["/hub/password/remove", {}],
+      ] as const) {
+        const r = await h.pedir("POST", url, { sessao: p.sessao, corpo });
+        expect(h.codigo(r), url).toBe("auth.reauthentication_required");
+      }
+    });
+
+    it("uma palavra-passe pendente não conta como forma de entrar", async () => {
+      const p = await h.pessoaCom(a, "apoio");
+      await h.pedir("POST", "/hub/password/setup", {
+        sessao: p.sessao,
+        corpo: { palavra_passe: "uma frase bem comprida" },
+      });
+      const lista = await h.pedir("GET", "/hub/passkeys", { sessao: p.sessao });
+      const [unica] = lista.json<{ passkeys: { passkey: string }[] }>()
+        .passkeys;
+      const r = await h.pedir(
+        "POST",
+        `/hub/passkeys/${unica?.passkey ?? ""}/remove`,
+        { sessao: p.sessao },
+      );
+      expect(h.codigo(r)).toBe("passkey.last_credential");
+      const retirar = await h.pedir("POST", "/hub/password/remove", {
+        sessao: p.sessao,
+      });
+      expect(h.codigo(retirar)).toBe("password.not_found");
+    });
+
+    it("P3-1: confirmar não activa uma pendente escolhida entretanto", async () => {
+      const p = await h.pessoaCom(a, "apoio");
+      const primeira = await h.pedir("POST", "/hub/password/setup", {
+        sessao: p.sessao,
+        corpo: { palavra_passe: "a primeira frase longa" },
+      });
+      const { segredo } = primeira.json<{ segredo: string }>();
+      const { rows } = await sql<{ id: string }>`
+        select id from palavra_passe where pessoa_id = ${p.pessoa}::uuid`.execute(
+        base.dono,
+      );
+      await h.pedir("POST", "/hub/password/setup", {
+        sessao: p.sessao,
+        corpo: { palavra_passe: "a segunda frase longa" },
+      });
+      await expect(
+        sql`select palavra_passe_confirmar(${p.sessao}, ${rows[0]?.id}::uuid,
+          ${Math.floor(agora() / 30)}, ${"b".repeat(64)})`.execute(base.dono),
+      ).rejects.toThrow(/^password\.not_pending:/);
+      expect(segredo.length).toBeGreaterThan(0);
+    });
+  });
+
   describe("na base", () => {
     it("o segredo TOTP não fica legível e o resumo é Argon2id com os parâmetros da CG", async () => {
       const p = await comPalavraPasse();
@@ -235,9 +349,16 @@ describe.skipIf(URL_BASE === undefined)("palavra-passe e TOTP (0024)", () => {
         base.dono,
       );
       const passo = Number(rows[0]?.passo ?? 0) + 1;
-      const entrarNaBase = () =>
-        sql`select entrar_com_palavra_passe(${p.pessoa}::uuid, ${passo},
-          ${"a".repeat(64)}, null)`.execute(base.dono);
+      const tentativa = async () => {
+        const t = await sql<{ tentativa: string }>`
+          select tentativa from palavra_passe_para_entrar(${p.email}, null)`.execute(
+          base.dono,
+        );
+        return t.rows[0]?.tentativa ?? "";
+      };
+      const entrarNaBase = async () =>
+        sql`select entrar_com_palavra_passe(${await tentativa()}::uuid, ${p.pessoa}::uuid,
+          ${passo}, ${"a".repeat(64)})`.execute(base.dono);
       await entrarNaBase();
       await expect(entrarNaBase()).rejects.toThrow(/^auth\.unauthenticated:/);
     });

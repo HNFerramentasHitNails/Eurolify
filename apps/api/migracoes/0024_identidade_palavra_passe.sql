@@ -15,9 +15,14 @@
 --   base, `chave_versao` para a troca planeada, §8);
 -- - o mesmo código não vale duas vezes: guarda-se o último passo de tempo
 --   aceite e só passa um maior (§8, P-T11);
--- - o limite de tentativas da entrada por palavra-passe é o da recuperação
---   (CI): 5 falhas em 15 minutos por IP; por e-mail, só para quem também
---   falhou desse IP;
+-- - o limite de tentativas: cada tentativa regista-se logo à entrada, como
+--   falha, dentro das trancas, e só passa a `ok` quando tudo está certo
+--   (revisão do #147, P1-1: pedidos em paralelo já não passam todos); conta
+--   por IP e por e-mail como a recuperação (CI) e, como pede a §8, **por
+--   conta**: 5 códigos errados depois de uma palavra-passe certa, em 15
+--   minutos, bloqueiam a entrada por palavra-passe dessa conta (só quem
+--   tem a palavra-passe o provoca). Um IPv6 conta pela sua rede /64 (P2-1);
+--   a recuperação (0022) passa a contar assim também;
 -- - activar a palavra-passe faz cair todas as sessões e dá uma nova a quem
 --   pediu (§7); retirar também; a última forma de entrar não se retira (a
 --   regra da passkey, 0022, passa a contar com a palavra-passe activa);
@@ -55,9 +60,11 @@ CREATE TABLE palavra_passe (
   pessoa_id uuid NOT NULL REFERENCES pessoa (id),
   estado text NOT NULL CHECK (estado IN ('pendente', 'activa')),
   -- Argon2id em PHC: $argon2id$v=19$m=65536,t=3,p=4$<sal>$<resumo>.
-  resumo text NOT NULL CHECK (resumo ~ '^\$argon2id\$v=19\$m=[0-9]+,t=[0-9]+,p=[0-9]+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$'
+  -- Sal de 128 bits (≥ 22 caracteres) e resultado de 256 bits (≥ 43), CG.
+  resumo text NOT NULL CHECK (resumo ~ '^\$argon2id\$v=19\$m=[0-9]+,t=[0-9]+,p=[0-9]+\$[A-Za-z0-9+/]{22,}\$[A-Za-z0-9+/]{43,}$'
                               AND length(resumo) <= 200),
-  -- iv (12) + etiqueta (16) + o segredo cifrado (20 bytes no TOTP de 160 bits).
+  -- iv (12) + etiqueta (16) + o segredo em base32 cifrado (32 bytes no TOTP
+  -- de 160 bits).
   totp_cifrado bytea NOT NULL CHECK (length(totp_cifrado) BETWEEN 29 AND 128),
   chave_versao integer NOT NULL CHECK (chave_versao BETWEEN 1 AND 1000),
   ultimo_passo bigint NOT NULL DEFAULT 0 CHECK (ultimo_passo >= 0),
@@ -104,6 +111,15 @@ ALTER TABLE palavra_passe ENABLE ALWAYS TRIGGER palavra_passe_antes_de_gravar;
 ALTER TABLE palavra_passe ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON palavra_passe FROM PUBLIC;
 
+-- Apoio (interna): a rede de um IP para o limite — um IPv4 conta por si,
+-- um IPv6 pela rede /64 (revisão do #147, P2-1).
+CREATE FUNCTION ip_rede(p_ip inet) RETURNS cidr
+  LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT CASE WHEN p_ip IS NULL THEN NULL
+              WHEN family(p_ip) = 6 THEN network(set_masklen(p_ip, 64))
+              ELSE network(set_masklen(p_ip, 32)) END
+$$;
+
 -- Apoio (interna): o limite de tentativas da CI para um método. Verdadeiro
 -- se bloqueia.
 CREATE FUNCTION entrada_bloqueada(p_email_resumo text, p_ip inet, p_metodo text)
@@ -117,9 +133,23 @@ BEGIN
   WHERE e.email_resumo = p_email_resumo AND e.metodo = p_metodo
     AND e.resultado = 'falhou' AND e.quando > now() - interval '15 minutes';
   SELECT count(*) INTO falhas_ip FROM public.entrada e
-  WHERE p_ip IS NOT NULL AND e.ip = p_ip AND e.metodo = p_metodo
+  WHERE p_ip IS NOT NULL AND public.ip_rede(e.ip) = public.ip_rede(p_ip)
+    AND e.metodo = p_metodo
     AND e.resultado = 'falhou' AND e.quando > now() - interval '15 minutes';
   RETURN falhas_ip >= 5 OR (falhas_email >= 5 AND (p_ip IS NULL OR falhas_ip > 0));
+END
+$$;
+
+-- Apoio (interna): as trancas do limite, por esta ordem sempre: o e-mail e
+-- depois a rede do IP.
+CREATE FUNCTION entrada_trancar(p_metodo text, p_email_resumo text, p_ip inet) RETURNS void
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_metodo || ':' || p_email_resumo, 0));
+  IF p_ip IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(
+      hashtextextended(p_metodo || '-ip:' || public.ip_rede(p_ip)::text, 0));
+  END IF;
 END
 $$;
 
@@ -151,24 +181,27 @@ END
 $$;
 
 -- O segredo TOTP cifrado da palavra-passe pendente (sessão recente), para a
--- API conferir o primeiro código.
+-- API conferir o primeiro código. Devolve também o id da pendente: a
+-- confirmação só activa essa (revisão do #147, P3-1).
 CREATE FUNCTION palavra_passe_pendente(p_segredo_sessao text)
-  RETURNS TABLE (pessoa_id uuid, totp_cifrado bytea, chave_versao integer)
+  RETURNS TABLE (id uuid, pessoa_id uuid, totp_cifrado bytea, chave_versao integer)
   LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   s public.sessao;
 BEGIN
   s := public.sessao_recente(p_segredo_sessao);
-  RETURN QUERY SELECT w.pessoa_id, w.totp_cifrado, w.chave_versao
+  RETURN QUERY SELECT w.id, w.pessoa_id, w.totp_cifrado, w.chave_versao
                FROM public.palavra_passe w
                WHERE w.pessoa_id = s.pessoa_id AND w.estado = 'pendente';
 END
 $$;
 
 -- Confirmar a pendente com o primeiro código (o passo que a API aceitou):
--- passa a activa, a antiga sai, todas as sessões caem e nasce uma (§7).
-CREATE FUNCTION palavra_passe_confirmar(p_segredo_sessao text, p_passo bigint,
-                                        p_resumo_nova text)
+-- passa a activa, a antiga sai, todas as sessões caem e nasce uma (§7). Só
+-- a pendente cujo código a API conferiu: outra escolhida entretanto (outro
+-- separador) não se activa às cegas.
+CREATE FUNCTION palavra_passe_confirmar(p_segredo_sessao text, p_pendente uuid,
+                                        p_passo bigint, p_resumo_nova text)
   RETURNS uuid
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -177,19 +210,21 @@ BEGIN
   s := public.sessao_recente(p_segredo_sessao);
   PERFORM 1 FROM public.pessoa p WHERE p.id = s.pessoa_id FOR UPDATE;
   IF NOT EXISTS (SELECT 1 FROM public.palavra_passe w
-                 WHERE w.pessoa_id = s.pessoa_id AND w.estado = 'pendente') THEN
+                 WHERE w.id = p_pendente AND w.pessoa_id = s.pessoa_id
+                   AND w.estado = 'pendente') THEN
     RAISE EXCEPTION 'password.not_pending: não há palavra-passe à espera de confirmação';
   END IF;
   DELETE FROM public.palavra_passe w WHERE w.pessoa_id = s.pessoa_id AND w.estado = 'activa';
   UPDATE public.palavra_passe w SET estado = 'activa', ultimo_passo = p_passo
-  WHERE w.pessoa_id = s.pessoa_id AND w.estado = 'pendente';
+  WHERE w.id = p_pendente;
   INSERT INTO public.evento_conta (acto, pessoa_id, quem)
   VALUES ('palavra_passe_activada', s.pessoa_id, 'pessoa:per_' || s.pessoa_id::text);
   RETURN public.sessoes_trocar_todas(s.pessoa_id, 'palavra_passe', p_resumo_nova, s.id);
 END
 $$;
 
--- Retirar a palavra-passe (sessão recente). Nunca a última forma de entrar.
+-- Retirar a palavra-passe activa (sessão recente). Nunca a última forma de
+-- entrar. Uma pendente sai com ela.
 CREATE FUNCTION palavra_passe_retirar(p_segredo_sessao text, p_resumo_nova text)
   RETURNS uuid
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
@@ -198,8 +233,9 @@ DECLARE
 BEGIN
   s := public.sessao_recente(p_segredo_sessao);
   PERFORM 1 FROM public.pessoa p WHERE p.id = s.pessoa_id FOR UPDATE;
-  IF NOT EXISTS (SELECT 1 FROM public.palavra_passe w WHERE w.pessoa_id = s.pessoa_id) THEN
-    RAISE EXCEPTION 'password.not_found: a conta não tem palavra-passe';
+  IF NOT EXISTS (SELECT 1 FROM public.palavra_passe w
+                 WHERE w.pessoa_id = s.pessoa_id AND w.estado = 'activa') THEN
+    RAISE EXCEPTION 'password.not_found: a conta não tem palavra-passe activa';
   END IF;
   IF NOT public.pessoa_tem_passkey(s.pessoa_id) THEN
     RAISE EXCEPTION 'password.last_credential: é a última forma de entrar; acrescente uma passkey antes';
@@ -211,51 +247,60 @@ BEGIN
 END
 $$;
 
--- Entrar, passo 1: o limite e a palavra-passe activa do e-mail. Devolve
--- sempre uma linha: `bloqueado` (e regista-o) ou `ok` com os dados da conta,
--- nulos se não houver conta activa com palavra-passe (a API calcula um
--- Argon2id falso nesse caso: o mesmo tempo, §8).
+-- Entrar, passo 1: dentro das trancas, o limite (IP, e-mail e conta) e, se
+-- não bloqueia, a tentativa fica já registada como falha (passa a `ok` no
+-- passo 2). Devolve sempre uma linha: `bloqueado`, ou `ok` com a tentativa e
+-- os dados da conta — nulos se não houver conta activa com palavra-passe (a
+-- API calcula um Argon2id falso nesse caso: o mesmo tempo, §8).
 CREATE FUNCTION palavra_passe_para_entrar(p_email text, p_ip inet)
-  RETURNS TABLE (resultado text, pessoa_id uuid, resumo text, totp_cifrado bytea,
-                 chave_versao integer, ultimo_passo bigint)
+  RETURNS TABLE (resultado text, tentativa uuid, pessoa_id uuid, resumo text,
+                 totp_cifrado bytea, chave_versao integer, ultimo_passo bigint)
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   tentado text := public.email_resumo(p_email);
+  conta public.palavra_passe;
+  nova uuid;
 BEGIN
-  PERFORM pg_advisory_xact_lock(hashtextextended('palavra_passe:' || tentado, 0));
-  IF p_ip IS NOT NULL THEN
-    PERFORM pg_advisory_xact_lock(hashtextextended('palavra_passe-ip:' || host(p_ip), 0));
-  END IF;
-  IF public.entrada_bloqueada(tentado, p_ip, 'palavra_passe') THEN
+  PERFORM public.entrada_trancar('palavra_passe', tentado, p_ip);
+  SELECT w.* INTO conta
+  FROM public.pessoa p JOIN public.palavra_passe w ON w.pessoa_id = p.id AND w.estado = 'activa'
+  WHERE lower(p.email) = lower(btrim(coalesce(p_email, ''))) AND p.estado = 'activa';
+  IF public.entrada_bloqueada(tentado, p_ip, 'palavra_passe')
+     -- Por conta (§8): códigos errados depois de uma palavra-passe certa.
+     OR (conta.pessoa_id IS NOT NULL AND (
+       SELECT count(*) FROM public.entrada e
+       WHERE e.pessoa_id = conta.pessoa_id AND e.metodo = 'palavra_passe'
+         AND e.resultado = 'falhou' AND e.quando > now() - interval '15 minutes') >= 5) THEN
     INSERT INTO public.entrada (email_resumo, metodo, resultado, ip)
     VALUES (tentado, 'palavra_passe', 'bloqueado', p_ip);
-    RETURN QUERY SELECT 'bloqueado'::text, NULL::uuid, NULL::text, NULL::bytea,
+    RETURN QUERY SELECT 'bloqueado'::text, NULL::uuid, NULL::uuid, NULL::text, NULL::bytea,
                         NULL::integer, NULL::bigint;
     RETURN;
   END IF;
-  RETURN QUERY
-    SELECT 'ok'::text, w.pessoa_id, w.resumo, w.totp_cifrado, w.chave_versao, w.ultimo_passo
-    FROM (SELECT 1) AS um
-    LEFT JOIN public.pessoa p ON lower(p.email) = lower(btrim(coalesce(p_email, '')))
-                             AND p.estado = 'activa'
-    LEFT JOIN public.palavra_passe w ON w.pessoa_id = p.id AND w.estado = 'activa';
+  INSERT INTO public.entrada (email_resumo, metodo, resultado, ip)
+  VALUES (tentado, 'palavra_passe', 'falhou', p_ip)
+  RETURNING entrada.id INTO nova;
+  RETURN QUERY SELECT 'ok'::text, nova, conta.pessoa_id, conta.resumo, conta.totp_cifrado,
+                      conta.chave_versao, conta.ultimo_passo;
 END
 $$;
 
--- Entrar, falhou: regista a falha (conta para o limite).
-CREATE FUNCTION palavra_passe_falhou(p_email text, p_ip inet) RETURNS void
+-- Entrar, palavra-passe certa mas código errado: a tentativa passa a contar
+-- também para a conta (o limite por conta, §8).
+CREATE FUNCTION palavra_passe_codigo_errado(p_tentativa uuid, p_pessoa uuid) RETURNS void
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-  INSERT INTO public.entrada (email_resumo, metodo, resultado, ip)
-  VALUES (public.email_resumo(p_email), 'palavra_passe', 'falhou', p_ip);
+  UPDATE public.entrada e SET pessoa_id = p_pessoa
+  WHERE e.id = p_tentativa AND e.metodo = 'palavra_passe' AND e.resultado = 'falhou'
+    AND e.pessoa_id IS NULL;
 END
 $$;
 
 -- Entrar, passo 2: depois de a API conferir a palavra-passe e o código, o
--- passo de tempo avança (o mesmo código não vale duas vezes) e nasce a
--- sessão.
-CREATE FUNCTION entrar_com_palavra_passe(p_pessoa uuid, p_passo bigint,
-                                         p_resumo_sessao text, p_ip inet)
+-- passo de tempo avança (o mesmo código não vale duas vezes), a tentativa
+-- passa a `ok` e nasce a sessão.
+CREATE FUNCTION entrar_com_palavra_passe(p_tentativa uuid, p_pessoa uuid, p_passo bigint,
+                                         p_resumo_sessao text)
   RETURNS uuid
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
@@ -265,9 +310,47 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'auth.unauthenticated: código já usado ou palavra-passe inexistente';
   END IF;
-  INSERT INTO public.entrada (pessoa_id, metodo, resultado, ip)
-  VALUES (p_pessoa, 'palavra_passe', 'ok', p_ip);
+  UPDATE public.entrada e SET resultado = 'ok', pessoa_id = p_pessoa
+  WHERE e.id = p_tentativa AND e.metodo = 'palavra_passe' AND e.resultado = 'falhou'
+    AND e.quando > now() - interval '5 minutes';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'auth.unauthenticated: tentativa desconhecida';
+  END IF;
   RETURN public.sessao_nova(p_pessoa, p_resumo_sessao);
+END
+$$;
+
+-- Recuperar, passo 1 (substitui a da 0022, mesma assinatura): o mesmo
+-- limite, agora com a rede /64 no IPv6 (revisão do #147, P2-1).
+CREATE OR REPLACE FUNCTION recuperacao_iniciar(p_resumo_desafio text, p_email text,
+                                               p_resumo_codigo text, p_ip inet)
+  RETURNS text
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  tentado text := public.email_resumo(p_email);
+  pessoa uuid;
+BEGIN
+  PERFORM public.entrada_trancar('recuperacao', tentado, p_ip);
+  IF public.entrada_bloqueada(tentado, p_ip, 'recuperacao') THEN
+    INSERT INTO public.entrada (email_resumo, metodo, resultado, ip)
+    VALUES (tentado, 'recuperacao', 'bloqueado', p_ip);
+    RETURN 'bloqueado';
+  END IF;
+  SELECT p.id INTO pessoa
+  FROM public.pessoa p JOIN public.codigo_recuperacao c ON c.pessoa_id = p.id
+  WHERE lower(p.email) = lower(btrim(coalesce(p_email, '')))
+    AND p.estado = 'activa'
+    AND c.resumo = p_resumo_codigo
+    AND c.usado_em IS NULL;
+  IF pessoa IS NULL THEN
+    INSERT INTO public.entrada (email_resumo, metodo, resultado, ip)
+    VALUES (tentado, 'recuperacao', 'falhou', p_ip);
+    RETURN 'falhou';
+  END IF;
+  PERFORM public.desafio_arrumar();
+  INSERT INTO public.desafio_webauthn (resumo, finalidade, pessoa_id)
+  VALUES (p_resumo_desafio, 'recuperar', pessoa);
+  RETURN 'ok';
 END
 $$;
 
@@ -299,16 +382,17 @@ BEGIN
 END
 $$;
 
-REVOKE ALL ON FUNCTION palavra_passe_antes_de_gravar(),
-  entrada_bloqueada(text, inet, text), pessoa_tem_passkey(uuid),
+REVOKE ALL ON FUNCTION palavra_passe_antes_de_gravar(), ip_rede(inet),
+  entrada_bloqueada(text, inet, text), entrada_trancar(text, text, inet),
+  pessoa_tem_passkey(uuid),
   palavra_passe_preparar(text, text, bytea, integer), palavra_passe_pendente(text),
-  palavra_passe_confirmar(text, bigint, text), palavra_passe_retirar(text, text),
-  palavra_passe_para_entrar(text, inet), palavra_passe_falhou(text, inet),
-  entrar_com_palavra_passe(uuid, bigint, text, inet) FROM PUBLIC;
+  palavra_passe_confirmar(text, uuid, bigint, text), palavra_passe_retirar(text, text),
+  palavra_passe_para_entrar(text, inet), palavra_passe_codigo_errado(uuid, uuid),
+  entrar_com_palavra_passe(uuid, uuid, bigint, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION
   palavra_passe_preparar(text, text, bytea, integer), palavra_passe_pendente(text),
-  palavra_passe_confirmar(text, bigint, text), palavra_passe_retirar(text, text),
-  palavra_passe_para_entrar(text, inet), palavra_passe_falhou(text, inet),
-  entrar_com_palavra_passe(uuid, bigint, text, inet)
+  palavra_passe_confirmar(text, uuid, bigint, text), palavra_passe_retirar(text, text),
+  palavra_passe_para_entrar(text, inet), palavra_passe_codigo_errado(uuid, uuid),
+  entrar_com_palavra_passe(uuid, uuid, bigint, text)
   TO eurolify_api;

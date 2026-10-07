@@ -11,6 +11,8 @@ import {
   conferirCodigo,
   conferirPalavraPasse,
   decifrarSegredo,
+  Ocupado,
+  prepararResumoFalso,
   resumirPalavraPasse,
   segredoTotpNovo,
   uriTotp,
@@ -63,6 +65,18 @@ export function rotasDaPalavraPasse(
   chave: ChaveTotp,
 ) {
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+  // O resumo falso (o tempo de quem não tem conta) fica pronto já.
+  void prepararResumoFalso();
+
+  /** O Argon2id com a vez contada: cheio, 503. */
+  async function argon2<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (erro) {
+      if (erro instanceof Ocupado) throw erroConta("auth.busy");
+      throw erro;
+    }
+  }
 
   rotas.post(
     "/hub/password/setup",
@@ -87,8 +101,8 @@ export function rotasDaPalavraPasse(
     async (pedido, resposta) => {
       const sessao = sessaoDo(pedido);
       const segredo = segredoTotpNovo();
-      const resumoPalavra = await resumirPalavraPasse(
-        pedido.body.palavra_passe,
+      const resumoPalavra = await argon2(() =>
+        resumirPalavraPasse(pedido.body.palavra_passe),
       );
       const cifrado = cifrarSegredo(segredo, sessao.pessoaId, chave);
       const email = await traduzindoConta(async () => {
@@ -121,6 +135,7 @@ export function rotasDaPalavraPasse(
       const sessao = sessaoDo(pedido);
       const pendente = await traduzindoConta(async () => {
         const { rows } = await sql<{
+          id: string;
           pessoa_id: string;
           totp_cifrado: Buffer;
           chave_versao: number;
@@ -143,8 +158,8 @@ export function rotasDaPalavraPasse(
       if (passo === null) throw erroConta("password.invalid_code");
       const novo = segredoNovo("eus");
       await traduzindoConta(() =>
-        sql`select palavra_passe_confirmar(${sessao.segredo}, ${passo},
-          ${resumo(novo)})`.execute(base),
+        sql`select palavra_passe_confirmar(${sessao.segredo},
+          ${pendente.id}::uuid, ${passo}, ${resumo(novo)})`.execute(base),
       );
       porCookie(resposta, novo);
       return { ok: true as const };
@@ -197,8 +212,10 @@ export function rotasDaPalavraPasse(
     },
     async (pedido, resposta) => {
       const corpo = pedido.body;
+      // Passo 1: o limite, e a tentativa fica já registada como falha.
       const { rows } = await sql<{
         resultado: "ok" | "bloqueado";
+        tentativa: string | null;
         pessoa_id: string | null;
         resumo: string | null;
         totp_cifrado: Buffer | null;
@@ -207,37 +224,38 @@ export function rotasDaPalavraPasse(
       }>`select * from palavra_passe_para_entrar(${corpo.email},
         ${pedido.ip}::inet)`.execute(base);
       const conta = rows[0];
-      if (conta === undefined) throw erroConta("auth.unauthenticated");
-      if (conta.resultado === "bloqueado") throw erroConta("auth.locked");
-      // Sem conta, o Argon2id corre na mesma, contra um resumo falso.
-      const palavraCerta = await conferirPalavraPasse(
-        conta.resumo,
-        corpo.palavra_passe,
-      );
-      let passo: number | null = null;
-      if (
-        palavraCerta &&
-        conta.pessoa_id !== null &&
-        conta.totp_cifrado !== null &&
-        conta.chave_versao !== null
-      ) {
-        const segredo = abrir(
-          conta.totp_cifrado,
-          conta.chave_versao,
-          conta.pessoa_id,
-          chave,
-        );
-        if (segredo !== null) {
-          passo = await conferirCodigo(
-            segredo,
-            corpo.codigo,
-            Number(conta.ultimo_passo ?? 0),
-          );
-        }
+      if (conta === undefined || conta.tentativa === null) {
+        if (conta?.resultado === "bloqueado") throw erroConta("auth.locked");
+        throw erroConta("auth.unauthenticated");
       }
-      if (passo === null || conta.pessoa_id === null) {
-        await sql`select palavra_passe_falhou(${corpo.email},
-          ${pedido.ip}::inet)`.execute(base);
+      // Sem conta, o Argon2id corre na mesma, contra o resumo falso.
+      const palavraCerta = await argon2(() =>
+        conferirPalavraPasse(conta.resumo, corpo.palavra_passe),
+      );
+      if (!palavraCerta || conta.pessoa_id === null) {
+        throw erroConta("auth.unauthenticated");
+      }
+      const segredoTotp =
+        conta.totp_cifrado === null || conta.chave_versao === null
+          ? null
+          : abrir(
+              conta.totp_cifrado,
+              conta.chave_versao,
+              conta.pessoa_id,
+              chave,
+            );
+      const passo =
+        segredoTotp === null
+          ? null
+          : await conferirCodigo(
+              segredoTotp,
+              corpo.codigo,
+              Number(conta.ultimo_passo ?? 0),
+            );
+      if (passo === null) {
+        // Palavra-passe certa, código errado: conta também para a conta (§8).
+        await sql`select palavra_passe_codigo_errado(${conta.tentativa}::uuid,
+          ${conta.pessoa_id}::uuid)`.execute(base);
         throw erroConta("auth.unauthenticated");
       }
       const antiga = pedido.cookies[COOKIE_SESSAO];
@@ -246,8 +264,10 @@ export function rotasDaPalavraPasse(
       }
       const segredo = segredoNovo("eus");
       await traduzindoConta(() =>
-        sql`select entrar_com_palavra_passe(${conta.pessoa_id}::uuid, ${passo},
-          ${resumo(segredo)}, ${pedido.ip}::inet)`.execute(base),
+        sql`select entrar_com_palavra_passe(${conta.tentativa}::uuid,
+          ${conta.pessoa_id}::uuid, ${passo}, ${resumo(segredo)})`.execute(
+          base,
+        ),
       );
       porCookie(resposta, segredo);
       return resposta

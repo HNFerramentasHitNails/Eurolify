@@ -36,29 +36,55 @@ const PARAMETROS = {
   outputLen: 32,
 } as const;
 
+// No máximo 2 Argon2id ao mesmo tempo (64 MiB cada) e 20 à espera; mais do
+// que isso responde 503 (`auth.busy`) em vez de encher a memória e a fila da
+// VPS (revisão do #147, P2-2; valores a medir na VPS).
+const EM_CURSO_MAXIMO = 2;
+const ESPERA_MAXIMA = 20;
+let emCurso = 0;
+const espera: (() => void)[] = [];
+
+export class Ocupado extends Error {}
+
+async function comVez<T>(fn: () => Promise<T>): Promise<T> {
+  if (emCurso >= EM_CURSO_MAXIMO) {
+    if (espera.length >= ESPERA_MAXIMA) throw new Ocupado("argon2 ocupado");
+    await new Promise<void>((r) => espera.push(r));
+  } else {
+    emCurso += 1;
+  }
+  try {
+    return await fn();
+  } finally {
+    const seguinte = espera.shift();
+    if (seguinte === undefined) emCurso -= 1;
+    else seguinte();
+  }
+}
+
 export const resumirPalavraPasse = (palavra: string) =>
-  hash(palavra, PARAMETROS);
+  comVez(() => hash(palavra, PARAMETROS));
 
 let resumoFalso: Promise<string> | undefined;
 
+/** O resumo falso calcula-se ao registar as rotas, não no primeiro pedido. */
+export function prepararResumoFalso(): Promise<string> {
+  resumoFalso ??= hash(randomBytes(32).toString("base64url"), PARAMETROS);
+  return resumoFalso;
+}
+
 /**
- * Confere uma palavra-passe. Sem resumo (não há conta), confere contra um
- * resumo falso, para o tempo ser o mesmo (§8) — e devolve sempre falso.
+ * Confere uma palavra-passe. Sem resumo (não há conta), confere contra o
+ * resumo falso, para o tempo ser o mesmo (§8) — e devolve sempre falso. Um
+ * erro do Argon2id lança, nos dois casos da mesma maneira.
  */
 export async function conferirPalavraPasse(
   resumo: string | null,
   palavra: string,
 ): Promise<boolean> {
-  if (resumo === null) {
-    resumoFalso ??= hash(randomBytes(32).toString("base64url"), PARAMETROS);
-    await verificarArgon2(await resumoFalso, palavra);
-    return false;
-  }
-  try {
-    return await verificarArgon2(resumo, palavra);
-  } catch {
-    return false;
-  }
+  const alvo = resumo ?? (await prepararResumoFalso());
+  const certa = await comVez(() => verificarArgon2(alvo, palavra));
+  return resumo !== null && certa;
 }
 
 /** Um segredo TOTP novo: 160 bits em base32 (o recomendado pelo RFC 4226). */
