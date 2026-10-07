@@ -421,6 +421,18 @@ e-mail tentado, método, resultado, IP; 14 dias, apagados na B4) e o
 desafio de recuperação, preso à pessoa. A conta nova pelo convite (§11)
 passa a devolver também os 10 códigos (§4.2, ponto 3).
 
+Na base (B3b, migração 0024): **uma só tabela `palavra_passe`** com o
+resumo Argon2id e o segredo TOTP cifrado na mesma linha, em vez das duas da
+§4.1 (`palavra_passe` e `segundo_factor`): só existem juntos (CA), e assim
+a base não deixa um sem o outro (proposta). Estados `pendente` (à espera do
+primeiro código certo) e `activa`; os parâmetros abaixo da CG são recusados
+pela base; o último passo do TOTP só avança. O segredo TOTP cifra-se na API
+com AES-256-GCM e a chave `TOTP_CHAVE` (32 bytes, segredo do ambiente, nunca
+na base nem no repositório), com `TOTP_CHAVE_VERSAO`; sem a chave, as rotas
+da palavra-passe não existem. **Por fazer:** a troca da chave (um segredo
+cifrado com outra versão não abre: a pessoa escolhe outra palavra-passe) e
+a recusa das palavras-passe mais comuns (falta escolher a lista e a fonte).
+
 **Condição para ligar o Hub** (revisões do #142, P2-2, e do #144, P2-3): a
 `HUB_ORIGEM` só se define num ambiente depois de (1) a B3b, (2) a B4 — sem
 ela, o IP do registo de entradas fica além dos 14 dias da §6 — e (3) um
