@@ -239,7 +239,14 @@ DECLARE
   adiadas integer := 0;
   espera_antes text;
 BEGIN
-  DELETE FROM public.entrada e WHERE e.quando < now() - interval '14 days';
+  -- Em lotes de até 50 000 por corrida (revisão do Codex no #152): um
+  -- ataque enche o registo de entradas, e apagar tudo de uma vez podia
+  -- passar os 5 minutos da limpeza e desfazer a corrida todos os dias. O
+  -- resto fica para o dia seguinte, e a verificação das 07:00 avisa se se
+  -- acumular.
+  DELETE FROM public.entrada e WHERE e.id IN (
+    SELECT x.id FROM public.entrada x
+    WHERE x.quando < now() - interval '14 days' LIMIT 50000);
   GET DIAGNOSTICS n = ROW_COUNT;
   o_que := 'entradas'; quantas := n; RETURN NEXT;
 
@@ -294,7 +301,9 @@ BEGIN
   o_que := 'pessoas'; quantas := pessoas; RETURN NEXT;
   o_que := 'pessoas_adiadas'; quantas := adiadas; RETURN NEXT;
 
-  DELETE FROM public.sessao s WHERE public.sessao_fim(s) < now() - interval '30 days';
+  DELETE FROM public.sessao s WHERE s.id IN (
+    SELECT x.id FROM public.sessao x
+    WHERE public.sessao_fim(x) < now() - interval '30 days' LIMIT 50000);
   GET DIAGNOSTICS n = ROW_COUNT;
   o_que := 'sessoes'; quantas := n; RETURN NEXT;
 
@@ -320,6 +329,14 @@ CREATE FUNCTION contas_prazos_em_atraso() RETURNS integer
         + (SELECT count(*) FROM public.pessoa p
            WHERE p.pseudonimizada_em IS NULL
              AND public.pessoa_saiu_ha(p.id, p.criada_em, interval '91 days'))
+        -- Os que se apagam na limpeza seguinte, com um dia de folga
+        -- (revisão do Codex no #152).
+        + (SELECT count(*) FROM public.codigo_recuperacao c
+           WHERE c.usado_em < now() - interval '1 day')
+        + (SELECT count(*) FROM public.desafio_webauthn d
+           WHERE d.criado_em < now() - interval '1 day')
+        + (SELECT count(*) FROM public.palavra_passe w
+           WHERE w.estado = 'pendente' AND w.criada_em < now() - interval '2 days')
         -- Credenciais de quem já foi pseudonimizado (revisão do #152, P2-1).
         + (SELECT count(*) FROM public.passkey k
            JOIN public.pessoa p ON p.id = k.pessoa_id WHERE p.pseudonimizada_em IS NOT NULL)

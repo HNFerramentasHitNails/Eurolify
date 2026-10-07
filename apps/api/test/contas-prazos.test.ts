@@ -533,7 +533,31 @@ describe.skipIf(URL_BASE === undefined)("prazos das contas (0026)", () => {
     );
     const q = await pessoaEm(a);
     await saiuHa(q.membro, 92);
-    expect(await emAtraso()).toBe(2);
+    // Os que se apagam na limpeza seguinte também contam, com um dia de
+    // folga (revisão do Codex no #152).
+    await sql`insert into codigo_recuperacao (pessoa_id, resumo, usado_em) values
+      (${p.pessoa}::uuid, ${hex64()}, now() - interval '25 hours'),
+      (${p.pessoa}::uuid, ${hex64()}, now() - interval '23 hours')`.execute(
+      dono,
+    );
+    await sql`insert into desafio_webauthn (resumo, finalidade, criado_em) values
+      (${hex64()}, 'entrar', now() - interval '25 hours'),
+      (${hex64()}, 'entrar', now() - interval '23 hours')`.execute(dono);
+    await sql`insert into palavra_passe (pessoa_id, estado, resumo, totp_cifrado, chave_versao)
+      values (${p.pessoa}::uuid, 'pendente', ${RESUMO_ARGON}, ${randomBytes(40)}, 1)`.execute(
+      dono,
+    );
+    const { rows: pend } = await sql<{ id: string }>`
+      select id from palavra_passe where pessoa_id = ${p.pessoa}::uuid`.execute(
+      dono,
+    );
+    await envelhecer(
+      "palavra_passe",
+      "palavra_passe_antes_de_gravar",
+      "criada_em = now() - interval '49 hours'",
+      pend[0]?.id ?? "",
+    );
+    expect(await emAtraso()).toBe(5);
     await aplicar();
     expect(await emAtraso()).toBe(0);
   });
