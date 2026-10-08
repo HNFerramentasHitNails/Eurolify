@@ -26,6 +26,13 @@ operador»*). Desenho no `docs/19` §6.0.
   papel que não é dono e o e-mail fora de base64url são recusados, o e-mail
   não vai para o registo.
 
+- 08/10/2026, revisão Opus 5.5 do #165: 0 P0, 0 P1, 1 P2, 7 P3. P2-1: os
+  domínios reservados também no `lerPedido` (3 testes falham sem a
+  protecção) e `infra/vps/testes/fluxo-operar.sh`, que corre o passo do
+  fluxo tirado do YAML (13 ok; 5 falhas sem a protecção). Fim da rede: a
+  31/03/2027 no máximo. P3-5: o segredo gerado aceita o convite na base e
+  faz um dono. `identidade-operador.test.ts` passou a 36 testes.
+
 ## O que ficou por verificar
 
 - **O fluxo `operar` nunca correu na VPS**: falta a chave SSH

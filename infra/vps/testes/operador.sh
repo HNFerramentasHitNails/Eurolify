@@ -34,6 +34,7 @@ case "$1" in
   inspect) echo "ghcr.io/eurolify/api@sha256:abc" ;;
   run)
     if [[ " $* " == *" --entrypoint test "* ]]; then exit "${SEM_COMANDO:-0}"; fi
+    if [[ " $* " == *" --entrypoint grep "* ]]; then exit "${SEM_CONVITE:-0}"; fi
     echo '{"comerciante":"mer_x"}' ;;
 esac
 FIM
@@ -85,6 +86,13 @@ email="$(printf '%s' 'dono@loja.test' | basenc --base64url -w0 | tr -d '=')"
 pedido="convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b $email dono $(printf 'a%.0s' {1..64}) github:1001"
 caso "um convite com cópia desta execução, escreve" sim
 caso "um convite sem cópia: não escreve" nao COPIA_FALHA=1
+rm -f "$falsos/copia-chamada"
+caso "uma imagem sem o convite: não escreve" nao SEM_CONVITE=1
+if [[ ! -f "$falsos/copia-chamada" ]]; then
+  echo "ok: sem o convite na imagem, nem chega a fazer a cópia"
+else
+  falhou "sem o convite na imagem, fez a cópia na mesma"
+fi
 if bash "$f/sbin/eurolify-operador" "${pedido/dono a/gestor a}" >/dev/null 2>&1; then
   falhou "aceitou um convite que não é de dono"
 else

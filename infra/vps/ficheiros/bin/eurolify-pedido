@@ -26,7 +26,8 @@ case "$fluxo" in
     padrao='^$'
     espera=120
     ;;
-  # O comando do operador (docs/19 §6): criar um comerciante ou uma chave.
+  # O comando do operador (docs/19 §6): criar um comerciante, uma chave ou o
+  # convite do primeiro dono (§6.0).
   # Espera mais do que a cópia pode durar (eurolify-copia, 1800 s), para o GitHub
   # não dar falha com o comando a correr (revisão do #110, P2-2).
   operar)

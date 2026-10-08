@@ -102,7 +102,25 @@ describe("pedido do operador", () => {
     ],
     [
       `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome(`${"a".repeat(250)}@x.test`)} dono ${RESUMO} github:1`,
-      /e-mail/,
+      /e-mail: não é base64url/,
+    ],
+    [
+      // 255 caracteres: cabe no base64url, passa do limite da base (P3-4).
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome(`${"a".repeat(248)}@x.test`)} dono ${RESUMO} github:1`,
+      /e-mail: inválido/,
+    ],
+    // Só domínios reservados para testes (ADR-0019; revisão do #165, P2-1).
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("dono@gmail.com")} dono ${RESUMO} github:1`,
+      /domínio reservado/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("dono@notexample.com")} dono ${RESUMO} github:1`,
+      /domínio reservado/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("dono@loja.test.evil.com")} dono ${RESUMO} github:1`,
+      /domínio reservado/,
     ],
     [
       `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b dono@loja.test dono ${RESUMO} github:1`,
@@ -309,6 +327,18 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
       base.dono,
     );
     expect(eventos.rows).toEqual([{ quem: "operador:github:1001" }]);
+
+    // De ponta a ponta: o segredo da ligação gerada aceita o convite e faz
+    // um dono (revisão do #165, P3-5).
+    const aceite = await sql<{ comerciante_id: string }>`
+      select comerciante_id from convite_aceitar_conta_nova(${gerado.segredo},
+        'Ana Teste')`.execute(base.dono);
+    expect(aceite.rows).toEqual([{ comerciante_id: comerciante }]);
+    const donos = await sql<{ papel: string }>`
+      select papel from membro where comerciante_id = ${comerciante}::uuid`.execute(
+      base.dono,
+    );
+    expect(donos.rows).toEqual([{ papel: "dono" }]);
   }, 60_000);
 
   it("um convite para um comerciante que não existe falha sem escrever", async () => {

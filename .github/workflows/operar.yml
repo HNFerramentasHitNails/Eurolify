@@ -119,15 +119,21 @@ jobs:
             convite)
               # Só domínios reservados para testes (RFC 2606 e 6761): o
               # ensaio não recebe dados pessoais (ADR-0019; docs/19 §6.0).
+              # Recusa em vez de limpar: o que se grava é o que se escreveu
+              # (revisão do #165, P3-2); só as maiúsculas passam a minúsculas.
+              if [[ "$EMAIL" =~ [[:space:]] ]]; then
+                echo "O e-mail do convite não pode ter espaços." >&2
+                exit 1
+              fi
               email="${EMAIL,,}"
-              email="${email// /}"
               if [[ ! "$email" =~ ^[^@]+@([a-z0-9-]+\.)*([a-z0-9-]+\.(test|example|invalid)|example\.(com|net|org))$ ]]; then
-                echo "O e-mail do convite tem de ser fictício, de um domínio reservado para testes (ex.: dono@loja.test)." >&2
+                echo "O e-mail do convite tem de ser fictício, de um domínio reservado para testes (ex.: dono@loja.test). Se escreveste um endereço REAL, apaga esta execução do fluxo no GitHub: as entradas ficam nela (docs/19 §6.0)." >&2
                 exit 1
               fi
               email64="$(printf '%s' "$email" | basenc --base64url -w0 | tr -d '=')"
               comerciante="${COMERCIANTE#mer_}"
               pedido="convite ${comerciante} ${email64} dono ${RESUMO} ${quem}"
+              echo "Convite para ${email} (fictício), papel dono."
               ;;
           esac
           fim="FIM_$(openssl rand -hex 16)"

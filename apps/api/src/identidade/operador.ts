@@ -78,6 +78,15 @@ function emailDe(codificado: string): string {
   return email;
 }
 
+// REDE TEMPORÁRIA (revisão do #165, P2-1): enquanto o ensaio está no Reino
+// Unido e não recebe dados pessoais (ADR-0018/0019), o convite do operador só
+// aceita e-mails de domínios reservados para testes (RFC 2606 e 6761). É a
+// mesma lista do fluxo «operar»; aqui fica com testes. FIM: na migração para
+// Paris, no máximo a 31/03/2027 (ADR-0019) — então decide-se, com o Diogo ou
+// o Bruno, o que a substitui (docs/19 §6.0).
+const DOMINIO_DE_TESTE =
+  /@([a-z0-9-]+\.)*([a-z0-9-]+\.(test|example|invalid)|example\.(com|net|org))$/;
+
 /** Lê e valida um pedido; lança um erro com o motivo, sem repetir o pedido. */
 export function lerPedido(linha: string): PedidoOperador {
   // O mesmo limite das camadas da máquina (revisão do #110, P3-1).
@@ -145,10 +154,14 @@ export function lerPedido(linha: string): PedidoOperador {
     if (papel !== "dono") throw new Error("papel: só dono");
     if (!/^[0-9a-f]{64}$/.test(resumo)) throw new Error("resumo: sha256");
     if (!QUEM.test(quem)) throw new Error("quem: github:<número>");
+    const lido = emailDe(email);
+    if (!DOMINIO_DE_TESTE.test(lido.toLowerCase())) {
+      throw new Error("e-mail: só de um domínio reservado para testes");
+    }
     return {
       accao,
       comercianteId,
-      email: emailDe(email),
+      email: lido,
       papel,
       resumo,
       quem,
