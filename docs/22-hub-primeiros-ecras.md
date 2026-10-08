@@ -268,6 +268,22 @@ migrações, 08/10/2026). Chegam com as lojas; o ecrã diz isso.
   para o URL, o armazenamento do navegador nem os registos; mostram-se uma
   vez e o ecrã esquece-os ao sair.
 
+## 10. A gestão da equipa (issue #186)
+
+Pedido do Diogo, 08/10/2026: *«sim, avança com a gestão da equipa no
+Hub»*. As rotas existem e estão no ensaio (`docs/21` §4.2, §4.4, §4.5;
+migração 0018). A base decide; o ecrã só não oferece o que vai ser recusado.
+
+| Ecrã | O que mostra | Rotas da API | Estados além do normal |
+|---|---|---|---|
+| **Equipa: mudar o papel** | na linha de cada membro, para o dono: o papel numa lista de escolha e «Mudar», com confirmação («Mudar o papel de {nome} para {papel}? As chaves e os convites que criou e que o papel novo já não permite fecham-se.»). Não aparece na linha do próprio dono (ninguém muda o seu papel) | `POST /hub/members/{id}/role` | autenticação recente; o último dono não deixa de o ser (`member.last_owner`); membro que já saiu (`member.not_found`: a lista relê-se); comerciante suspenso ou fechado |
+| **Equipa: tirar da equipa** | para o dono, «Tirar da equipa» na linha de cada outro membro, com confirmação («{nome} deixa de entrar neste comerciante; os convites e as chaves que criou aqui fecham-se.») | `POST /hub/members/{id}/end` | autenticação recente; o último dono (`member.last_owner`); membro que já saiu |
+| **Equipa: sair da equipa** | para qualquer membro, «Sair desta equipa» na própria linha, com confirmação; depois volta a «Os seus comerciantes» | `POST /hub/members/{id}/end` (o próprio) | o último dono não sai (`member.last_owner`) |
+| **Convite com uma conta que já existe** | em `/convite`, quando a API diz que o e-mail já tem conta: «Este e-mail já tem conta: entre com ela para aceitar» e «Entrar e aceitar» (passkey); com sessão aberta, «Aceitar com a conta {e-mail}» | `POST /hub/session` (entrar) → `POST /hub/invitations/accept` | o convite é para outro e-mail (`invite.other_person`: sair e entrar com a conta certa); já é membro (`invite.already_member`); convite que já não vale; autenticação recente (acabou de entrar: vale); quem só tem palavra-passe entra primeiro em `/entrar` e volta a abrir a ligação |
+
+O segredo do convite continua só na memória do ecrã enquanto se entra e
+aceita (§2): nunca vai para o endereço nem para o armazenamento.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo

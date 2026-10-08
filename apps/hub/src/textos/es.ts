@@ -27,7 +27,7 @@ export const es: Textos = {
   conviteSemSegredo:
     "Este enlace no tiene invitación. Abra el enlace completo que recibió.",
   conviteContaExiste:
-    "Este correo ya tiene cuenta. Aceptar una invitación con una cuenta existente aún no es posible en esta pantalla; hable con quien le invitó.",
+    "Este correo ya tiene cuenta. Entre con ella para aceptar la invitación.",
 
   codigosTitulo: "Sus códigos de recuperación",
   codigosExplicacao:
@@ -288,4 +288,31 @@ export const es: Textos = {
     "Este comerciante está suspendido o cerrado: no crea claves, pero puede revocarlas.",
   erroChaveAmbitosAMais:
     "No puede dar a una clave ámbitos que su papel no tiene.",
+
+  // La gestión del equipo (docs/22 §10).
+  papelMudar: "Cambiar",
+  papelMudarRotulo: "Papel de {nome}",
+  papelMudarConfirmar:
+    "¿Cambiar el papel de {nome} a {papel}? Las claves y las invitaciones que creó y que el papel nuevo ya no permite se cierran.",
+  papelMudado: "El papel de {nome} pasó a {papel}.",
+  membroTirar: "Quitar del equipo",
+  membroTirarConfirmar:
+    "{nome} deja de entrar en este comerciante; las invitaciones y las claves que creó aquí se cierran. ¿Continuar?",
+  membroTirado: "{nome} salió del equipo.",
+  membroSair: "Salir de este equipo",
+  membroSairConfirmar:
+    "¿Salir de este equipo? Deja de entrar en este comerciante; las invitaciones y las claves que creó aquí se cierran.",
+  erroUltimoDono: "Es el último propietario: nombre a otro propietario antes.",
+  erroProprioPapel: "Nadie cambia su propio papel.",
+  erroMembroNaoExiste: "Este miembro ya no está en el equipo.",
+  erroConviteOutraPessoa:
+    "Esta invitación es para otro correo. Salga y entre con la cuenta de ese correo.",
+  erroJaMembro: "Ya es miembro de este comerciante.",
+  conviteEntrarEAceitar: "Entrar con passkey y aceptar",
+  conviteSoPalavraPasse:
+    "Si entra con contraseña, entre primero en el Hub y vuelva a abrir el enlace de la invitación.",
+  conviteComSessao: "Entró como {nome} ({email}).",
+  conviteAceitarComConta: "Aceptar con esta cuenta",
+  conviteOutraConta:
+    "Si la invitación es para otro correo, salga primero y vuelva a abrir el enlace.",
 };

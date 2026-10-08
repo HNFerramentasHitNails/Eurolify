@@ -48,6 +48,11 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "key.already_revoked": "erroChaveJaRevogada",
   "key.last_key_writer": "erroChaveUltimaGestora",
   "key.invalid_expiry": "erroChaveExpira",
+  "member.last_owner": "erroUltimoDono",
+  "member.self_role_change": "erroProprioPapel",
+  "member.not_found": "erroMembroNaoExiste",
+  "invite.other_person": "erroConviteOutraPessoa",
+  "invite.already_member": "erroJaMembro",
 };
 
 /** Um erro conferido no próprio ecrã, com o texto já escolhido. */

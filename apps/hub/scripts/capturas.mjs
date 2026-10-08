@@ -160,10 +160,19 @@ const servidor = createServer(
           port: PORTA_API,
           path: pedido.url,
           method: pedido.method,
-          headers: {
-            ...pedido.headers,
-            "x-forwarded-for": pedido.socket.remoteAddress ?? "",
-          },
+          // Cada navegador da passagem é uma pessoa diferente, com o seu
+          // endereço (x-ip-de-teste): com todos no mesmo, o limite de 20
+          // pedidos por minuto das rotas públicas apanhava-os juntos.
+          headers: (() => {
+            const { "x-ip-de-teste": ipDeTeste, ...resto } = pedido.headers;
+            return {
+              ...resto,
+              "x-forwarded-for":
+                typeof ipDeTeste === "string"
+                  ? ipDeTeste
+                  : (pedido.socket.remoteAddress ?? ""),
+            };
+          })(),
         },
         (r) => {
           resposta.writeHead(r.statusCode ?? 502, r.headers);
@@ -216,10 +225,15 @@ const confere = (condicao, texto) => {
   if (!condicao) falhas.push(texto);
 };
 
+let proximoIp = 0;
 try {
   /** Um navegador novo com uma passkey em software. */
   async function comPasskey() {
-    const c = await navegador.newContext({ ignoreHTTPSErrors: true });
+    proximoIp += 1;
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      extraHTTPHeaders: { "x-ip-de-teste": `10.9.0.${String(proximoIp)}` },
+    });
     const p = await c.newPage();
     const cdp = await c.newCDPSession(p);
     await cdp.send("WebAuthn.enable");
@@ -309,7 +323,7 @@ try {
   });
 
   // Sair e entrar outra vez com a mesma passkey.
-  await pagina.getByRole("button", { name: "Sair" }).click();
+  await pagina.getByRole("button", { name: "Sair", exact: true }).click();
   await pagina.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
   await pagina.getByRole("button", { name: "Entrar com passkey" }).click();
   await pagina.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
@@ -465,6 +479,12 @@ try {
   await gestor.pagina.goto(`${ORIGEM}/chaves?comerciante=mer_${comerciante}`);
   await gestor.pagina.getByText("Não tem permissão para isto.").waitFor();
   confere(true, "chaves: o gestor que abre a página recebe a recusa da API");
+  // A passkey do Gil guarda-se: mais à frente aceita outro convite com a
+  // conta que já tem (docs/22 §10).
+  const { credentials: credenciaisDoGil } = await gestor.cdp.send(
+    "WebAuthn.getCredentials",
+    { authenticatorId: gestor.autenticador },
+  );
   await gestor.contexto.close();
   const apoio = await comPasskey();
   await aceitar(apoio.pagina, conviteApoio, "Ivo Teste");
@@ -850,7 +870,7 @@ try {
   );
 
   // Sair e entrar com e-mail, palavra-passe e o código seguinte.
-  await rp.getByRole("button", { name: "Sair" }).click();
+  await rp.getByRole("button", { name: "Sair", exact: true }).click();
   await rp.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
   await rp.getByRole("link", { name: "Entrar com palavra-passe" }).click();
   await rp.getByLabel("E-mail").fill("ana@exemplo.test");
@@ -894,6 +914,89 @@ try {
     ),
     "nenhum pedido levou o segredo do autenticador nem a palavra-passe no endereço",
   );
+
+  // A gestão da equipa (docs/22 §10), com a Ana (dona).
+  await rp.goto(equipa);
+  // A 375px a tabela passa a cartões (display: block) e o Chromium deixa de
+  // lhe dar o papel de tabela: procura-se o elemento da linha.
+  await rp.locator("tr", { hasText: "Gil Teste" }).waitFor();
+  confere(
+    (await rp.getByLabel("Papel de Ana Teste").count()) === 0 &&
+      (await rp.getByRole("button", { name: "Sair desta equipa" }).count()) ===
+        1,
+    "equipa: a dona não muda o próprio papel; tem «Sair desta equipa»",
+  );
+  await rp.getByLabel("Papel de Ivo Teste").selectOption("armazem");
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Mudar: Ivo Teste" }).click();
+  await rp.getByText("O papel de Ivo Teste passou a Armazém.").waitFor();
+  confere(
+    (await rp.getByLabel("Papel de Ivo Teste").inputValue()) === "armazem",
+    "equipa: mudar o papel de um membro",
+  );
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Sair desta equipa" }).click();
+  await rp.getByText("É o último dono", { exact: false }).waitFor();
+  confere(true, "equipa: a última dona não sai, e o ecrã explica");
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Tirar da equipa: Gil Teste" }).click();
+  await rp.getByText("Gil Teste saiu da equipa.").waitFor();
+  confere(
+    (await rp.locator("tr", { hasText: "Gil Teste" }).count()) === 0,
+    "equipa: tirar um membro da equipa",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "equipa-gestao-375-claro.png"),
+    fullPage: true,
+  });
+
+  // O Gil, que já tem conta, aceita um convite novo com ela.
+  const conviteDoGil = convidar("gil@exemplo.test", "apoio");
+  const conviteDeOutro = convidar("eva2@exemplo.test", "apoio");
+  const gil = await comPasskey();
+  for (const credencial of credenciaisDoGil) {
+    await gil.cdp.send("WebAuthn.addCredential", {
+      authenticatorId: gil.autenticador,
+      credential: credencial,
+    });
+  }
+  await gil.pagina.goto(`${ORIGEM}/convite#${conviteDoGil}`);
+  await gil.pagina.getByLabel("O seu nome").fill("Gil Teste");
+  await gil.pagina
+    .getByRole("button", { name: "Criar a conta com uma passkey" })
+    .click();
+  await gil.pagina
+    .getByText("Este e-mail já tem conta.", { exact: false })
+    .waitFor();
+  await gil.pagina
+    .getByRole("button", { name: "Entrar com passkey e aceitar" })
+    .click();
+  await gil.pagina
+    .getByRole("heading", { name: "Os seus comerciantes" })
+    .waitFor();
+  await gil.pagina.getByText("Loja de Ensaio").waitFor();
+  confere(
+    (await gil.pagina.getByText("Apoio", { exact: true }).count()) === 1,
+    "convite: quem já tem conta entra e aceita (volta como Apoio)",
+  );
+  // Com a sessão do Gil, um convite para outro e-mail: recusa e sair ali.
+  await gil.pagina.goto(`${ORIGEM}/convite#${conviteDeOutro}`);
+  await gil.pagina
+    .getByText("Entrou como Gil Teste", { exact: false })
+    .waitFor();
+  await gil.pagina
+    .getByRole("button", { name: "Aceitar com esta conta" })
+    .click();
+  await gil.pagina
+    .getByText("Este convite é para outro e-mail.", { exact: false })
+    .waitFor();
+  await gil.pagina.getByRole("button", { name: "Sair", exact: true }).click();
+  await gil.pagina.getByLabel("O seu nome").waitFor();
+  confere(
+    true,
+    "convite: com a sessão de outra pessoa, recusa e sair ali mesmo",
+  );
+  await gil.contexto.close();
 
   // B3c — as chaves de API (docs/22 §9.3), com a Ana (dona).
   const pedidosChaves = [];

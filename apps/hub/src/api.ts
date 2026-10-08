@@ -166,6 +166,27 @@ export const api = {
       comerciante,
       corpo: { email, papel },
     }),
+  // A gestão da equipa (docs/22 §10): só o dono muda papéis e tira outros;
+  // cada um sai por si. A base decide.
+  mudarPapel: (comerciante: string, membro: string, papel: Papel) =>
+    pedir<{ ok: true }>(
+      "POST",
+      `/hub/members/${encodeURIComponent(membro)}/role`,
+      { comerciante, corpo: { papel } },
+    ),
+  terminarMembro: (comerciante: string, membro: string) =>
+    pedir<{ ok: true }>(
+      "POST",
+      `/hub/members/${encodeURIComponent(membro)}/end`,
+      { comerciante },
+    ),
+  /** Aceitar um convite com a conta da sessão (o e-mail tem de ser o do convite). */
+  aceitarConvite: (convite: string) =>
+    pedir<{ comerciante: string; membro: string }>(
+      "POST",
+      "/hub/invitations/accept",
+      { corpo: { convite } },
+    ),
   cancelarConvite: (comerciante: string, convite: string) =>
     pedir<{ ok: true }>(
       "POST",
