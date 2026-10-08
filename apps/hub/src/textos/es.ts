@@ -224,4 +224,68 @@ export const es: Textos = {
     "El correo, la contraseña o el código no son correctos.",
   erroPalavraPasseIndisponivel:
     "Entrar con contraseña no está disponible en este servidor.",
+
+  // Claves de API (docs/22 §9.3).
+  chavesTitulo: "Claves de API",
+  verChaves: "Claves de API",
+  chavesExplicacao:
+    "Las claves dejan que otros programas (una integración, la facturación, una IA) usen la API de este comerciante. Cada clave solo hace lo que permiten sus ámbitos.",
+  chavesVazio: "Todavía no hay claves.",
+  chavesContagem: "{n} claves",
+  chavesContagemUm: "1 clave",
+  colunaTipo: "Tipo",
+  colunaAmbitos: "Ámbitos",
+  colunaPrefixo: "Empieza por",
+  colunaCriadaPor: "Creada por",
+  colunaEstado: "Estado",
+  tipo_servidor: "Servidor",
+  tipo_publica: "Pública (tienda)",
+  estadoActiva: "Activa",
+  estadoRevogada: "Revocada el {data}",
+  estadoExpirada: "Caducó el {data}",
+  semPrazo: "Sin plazo",
+  autorVoce: "Usted",
+  autorOperador: "Operador",
+  autorChave: "La clave «{nome}»",
+  autorChaveSemNome: "Otra clave",
+  autorAntigo: "Alguien que ya salió del equipo",
+  ambito_catalog_read: "Leer el catálogo",
+  ambito_catalog_write: "Cambiar el catálogo",
+  ambito_catalog_publish: "Publicar artículos",
+  ambito_catalog_import: "Importar artículos",
+  ambito_merchant_read: "Leer los datos del comerciante",
+  ambito_merchant_write: "Cambiar los datos del comerciante",
+  ambito_keys_write: "Gestionar claves",
+  ambito_storefront: "Tienda (solo lectura pública)",
+  criarChaveTitulo: "Crear una clave de servidor",
+  criarChaveExplicacao:
+    "Una clave de servidor se guarda solo en el servidor de quien la usa, nunca en una página ni en una aplicación móvil. Las claves públicas, para la tienda, llegarán con las tiendas.",
+  chaveNome: "Nombre (p. ej.: Integración de la facturación)",
+  chaveAmbitos: "Lo que la clave puede hacer",
+  chaveExpira:
+    "Caduca el (opcional; hasta el final de ese día, en la hora de este ordenador)",
+  chaveCriar: "Crear la clave",
+  chaveSegredoTitulo: "El secreto de la clave «{nome}»",
+  chaveSegredoAviso:
+    "Solo aparece ahora. Cópielo donde se vaya a usar; si lo pierde, revoque la clave y cree otra.",
+  chaveFechar: "Ya lo guardé",
+  chaveRevogar: "Revocar",
+  chaveRevogarConfirmar:
+    "¿Revocar la clave «{nome}»? Deja de funcionar ya, y no hay vuelta atrás.",
+  chaveRevogada: "Se revocó la clave.",
+  autorDesconhecido: "Sin identificar",
+  ambitoKeysAviso:
+    "Una clave con «Gestionar claves» puede crear y revocar otras claves de este comerciante: désela solo a quien gestiona las integraciones.",
+  erroChaveTalvezCriada:
+    "No hubo respuesta del servidor: puede que la clave se haya creado. Si aparece en la lista, el secreto se perdió: revóquela y cree otra.",
+  erroChaveAmbitos: "Elija al menos una cosa que la clave pueda hacer.",
+  erroChaveExpira: "La fecha de caducidad tiene que ser futura.",
+  erroChaveJaRevogada: "Esta clave ya estaba revocada.",
+  erroChaveNaoExiste: "Esta clave ya no existe.",
+  erroChaveUltimaGestora:
+    "Es la última clave que gestiona claves; cree otra antes de revocarla.",
+  erroChaveComercianteInactivo:
+    "Este comerciante está suspendido o cerrado: no crea claves, pero puede revocarlas.",
+  erroChaveAmbitosAMais:
+    "No puede dar a una clave ámbitos que su papel no tiene.",
 };

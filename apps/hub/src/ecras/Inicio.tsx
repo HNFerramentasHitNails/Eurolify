@@ -64,6 +64,20 @@ export function Inicio() {
                   >
                     {t.verEquipa}
                   </a>
+                  {/* Só o dono gere chaves (keys:write); a API decide. */}
+                  {c.papel === "dono" ? (
+                    <a
+                      href={`/chaves?comerciante=${encodeURIComponent(c.comerciante)}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navegar(
+                          `/chaves?comerciante=${encodeURIComponent(c.comerciante)}`,
+                        );
+                      }}
+                    >
+                      {t.verChaves}
+                    </a>
+                  ) : null}
                 </li>
               ))}
             </ul>

@@ -452,6 +452,19 @@ try {
     ),
     "o gestor convida com o papel por omissão (Armazém)",
   );
+  // As chaves de API são só do dono (docs/22 §9.3): o gestor não vê a
+  // ligação, e a página diz que não tem permissão (a API recusa, 403).
+  await gestor.pagina.goto(`${ORIGEM}/`);
+  await gestor.pagina.getByText("Loja de Ensaio").waitFor();
+  confere(
+    (await gestor.pagina
+      .getByRole("link", { name: "Chaves de API" })
+      .count()) === 0,
+    "chaves: o gestor não vê a ligação",
+  );
+  await gestor.pagina.goto(`${ORIGEM}/chaves?comerciante=mer_${comerciante}`);
+  await gestor.pagina.getByText("Não tem permissão para isto.").waitFor();
+  confere(true, "chaves: o gestor que abre a página recebe a recusa da API");
   await gestor.contexto.close();
   const apoio = await comPasskey();
   await aceitar(apoio.pagina, conviteApoio, "Ivo Teste");
@@ -882,6 +895,124 @@ try {
     "nenhum pedido levou o segredo do autenticador nem a palavra-passe no endereço",
   );
 
+  // B3c — as chaves de API (docs/22 §9.3), com a Ana (dona).
+  const pedidosChaves = [];
+  rp.on("request", (p) => {
+    pedidosChaves.push(p.url());
+  });
+  await rp.goto(`${ORIGEM}/`);
+  await rp.getByRole("link", { name: "Chaves de API" }).click();
+  await rp.getByRole("heading", { name: /Chaves de API/ }).waitFor();
+  await rp.getByText("Ainda não há chaves.").waitFor();
+  confere(true, "chaves: a dona vê a página, ainda sem chaves");
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O nome tem de ter entre 1 e 100 caracteres.").waitFor();
+  await rp
+    .getByLabel("Nome (ex.: Integração da faturação)")
+    .fill("Integração de teste");
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp
+    .getByText("Escolha pelo menos uma coisa que a chave pode fazer.")
+    .waitFor();
+  confere(true, "chaves: sem nome ou sem âmbitos, o ecrã recusa antes da API");
+  await rp.getByLabel("Ler o catálogo").check();
+  await rp.getByLabel("Gerir chaves").check();
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Integração de teste»").waitFor();
+  const segredoChave = (await rp.locator(".segredo").textContent()) ?? "";
+  confere(
+    /^eul_sk_[a-z2-7]+$/.test(segredoChave),
+    "chaves: o segredo aparece uma vez (eul_sk_…)",
+  );
+  // Depois de a lista se reler (a captura só com o ecrã parado).
+  await rp.getByText("1 chave", { exact: true }).waitFor();
+  await rp.waitForLoadState("networkidle");
+  await rp.screenshot({
+    path: join(SAIDA, "chaves-segredo-375-claro.png"),
+    fullPage: true,
+  });
+  const comChave = (segredo) =>
+    fetch(`http://127.0.0.1:${String(PORTA_API)}/keys`, {
+      headers: { authorization: `Bearer ${segredo}` },
+    }).then((r) => r.status);
+  confere(
+    (await comChave(segredoChave)) === 200,
+    "chaves: o segredo criado no Hub entra na API (GET /keys 200)",
+  );
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  confere(
+    (await rp.locator(".segredo").count()) === 0,
+    "chaves: «Já o guardei» tira o segredo do ecrã",
+  );
+  await rp.getByText("1 chave", { exact: true }).waitFor();
+  const linha = rp.getByRole("row", { name: /Integração de teste/ });
+  confere(
+    (await linha.getByText("Activa", { exact: true }).count()) === 1 &&
+      (await linha.getByText("Você", { exact: true }).count()) === 1 &&
+      (await linha.getByText("Ler o catálogo, Gerir chaves").count()) === 1,
+    "chaves: a lista mostra a chave activa, criada por si, com os âmbitos",
+  );
+  rp.once("dialog", (d) => void d.accept());
+  await rp
+    .getByRole("button", { name: "Revogar: Integração de teste" })
+    .click();
+  await rp.getByText("A chave foi revogada.").waitFor();
+  confere(
+    (await rp.getByText(/^Revogada a /).count()) === 1 &&
+      (await rp.getByRole("button", { name: /^Revogar:/ }).count()) === 0,
+    "chaves: revogar; fica «Revogada», sem o botão",
+  );
+  confere(
+    (await comChave(segredoChave)) === 401,
+    "chaves: a chave revogada deixa de entrar na API (401)",
+  );
+  // Sem resposta ao criar: o ecrã diz que a chave pode ter ficado criada e
+  // relê a lista (revisão do #183, P2-1).
+  await rp.route("**/hub/keys", (r) =>
+    r.request().method() === "POST" ? r.abort() : r.continue(),
+  );
+  await rp
+    .getByLabel("Nome (ex.: Integração da faturação)")
+    .fill("Sem resposta");
+  await rp.getByLabel("Ler o catálogo").check();
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp
+    .getByText("a chave pode ter sido criada", { exact: false })
+    .waitFor();
+  confere(
+    true,
+    "chaves: sem resposta ao criar, o ecrã avisa que pode ter ficado criada",
+  );
+  await rp.unroute("**/hub/keys");
+  // Uma chave com data de fim: a lista mostra a data.
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Sem resposta»").waitFor();
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  const fimDoAno = `${String(new Date().getFullYear() + 1)}-12-31`;
+  await rp.getByLabel("Nome (ex.: Integração da faturação)").fill("Com prazo");
+  await rp.getByLabel("Ler o catálogo").check();
+  await rp.getByLabel(/^Expira a/).fill(fimDoAno);
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Com prazo»").waitFor();
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  await rp.getByText("3 chaves", { exact: true }).waitFor();
+  confere(
+    (await rp
+      .getByRole("row", { name: /Com prazo/ })
+      .getByText(`31/12/${fimDoAno.slice(0, 4)}`)
+      .count()) === 1,
+    "chaves: uma chave com data de fim mostra-a na lista",
+  );
+
+  const guardadoChaves = JSON.stringify(
+    await recuperado.contexto.storageState(),
+  );
+  confere(
+    !pedidosChaves.some((u) => u.includes(segredoChave)) &&
+      !guardadoChaves.includes(segredoChave),
+    "chaves: o segredo nunca foi num endereço nem ficou no navegador",
+  );
+
   const sessao = await recuperado.contexto.storageState();
   const guardado = JSON.stringify(sessao).toUpperCase();
   confere(
@@ -894,13 +1025,14 @@ try {
     "o navegador não guardou nenhum código de recuperação",
   );
 
-  // As capturas: 6 ecrãs × 3 larguras × 2 temas.
+  // As capturas: 7 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
     ["convite", `/convite#${conviteParaVer}`, "Aceitar o convite"],
     ["comerciantes", "/", "Os seus comerciantes"],
     ["equipa", `/equipa?comerciante=mer_${comerciante}`, "Equipa"],
     ["conta", "/conta", "A minha conta"],
+    ["chaves", `/chaves?comerciante=mer_${comerciante}`, "Chaves de API"],
     ["recuperar", "/recuperar", "Recuperar a conta"],
   ];
   for (const tema of ["light", "dark"]) {

@@ -42,6 +42,12 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "password.not_pending": "erroPalavraPasseNaoPendente",
   "password.last_credential": "erroPalavraPasseUltima",
   "password.not_found": "erroPalavraPasseNaoExiste",
+  "key.scope_escalation": "erroChaveAmbitosAMais",
+  "key.merchant_inactive": "erroChaveComercianteInactivo",
+  "key.not_found": "erroChaveNaoExiste",
+  "key.already_revoked": "erroChaveJaRevogada",
+  "key.last_key_writer": "erroChaveUltimaGestora",
+  "key.invalid_expiry": "erroChaveExpira",
 };
 
 /** Um erro conferido no próprio ecrã, com o texto já escolhido. */

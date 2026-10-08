@@ -220,6 +220,70 @@ export const pt = {
     "O e-mail, a palavra-passe ou o código não estão certos.",
   erroPalavraPasseIndisponivel:
     "Entrar com palavra-passe não está disponível neste servidor.",
+
+  // Chaves de API (docs/22 §9.3).
+  chavesTitulo: "Chaves de API",
+  verChaves: "Chaves de API",
+  chavesExplicacao:
+    "As chaves deixam outros programas (uma integração, a faturação, uma IA) usar a API deste comerciante. Cada chave só faz o que os seus âmbitos permitem.",
+  chavesVazio: "Ainda não há chaves.",
+  chavesContagem: "{n} chaves",
+  chavesContagemUm: "1 chave",
+  colunaTipo: "Tipo",
+  colunaAmbitos: "Âmbitos",
+  colunaPrefixo: "Começa por",
+  colunaCriadaPor: "Criada por",
+  colunaEstado: "Estado",
+  tipo_servidor: "Servidor",
+  tipo_publica: "Pública (loja)",
+  estadoActiva: "Activa",
+  estadoRevogada: "Revogada a {data}",
+  estadoExpirada: "Expirou a {data}",
+  semPrazo: "Sem prazo",
+  autorVoce: "Você",
+  autorOperador: "Operador",
+  autorChave: "A chave «{nome}»",
+  autorChaveSemNome: "Outra chave",
+  autorAntigo: "Alguém que já saiu da equipa",
+  ambito_catalog_read: "Ler o catálogo",
+  ambito_catalog_write: "Alterar o catálogo",
+  ambito_catalog_publish: "Publicar artigos",
+  ambito_catalog_import: "Importar artigos",
+  ambito_merchant_read: "Ler os dados do comerciante",
+  ambito_merchant_write: "Alterar os dados do comerciante",
+  ambito_keys_write: "Gerir chaves",
+  ambito_storefront: "Loja (só leitura pública)",
+  criarChaveTitulo: "Criar uma chave de servidor",
+  criarChaveExplicacao:
+    "Uma chave de servidor guarda-se só no servidor de quem a usa, nunca numa página nem numa aplicação de telemóvel. As chaves públicas, para a loja, chegam com as lojas.",
+  chaveNome: "Nome (ex.: Integração da faturação)",
+  chaveAmbitos: "O que a chave pode fazer",
+  chaveExpira:
+    "Expira a (opcional; até ao fim desse dia, na hora deste computador)",
+  chaveCriar: "Criar a chave",
+  chaveSegredoTitulo: "O segredo da chave «{nome}»",
+  chaveSegredoAviso:
+    "Só aparece agora. Copie-o para o sítio onde vai ser usado; se o perder, revogue a chave e crie outra.",
+  chaveFechar: "Já o guardei",
+  chaveRevogar: "Revogar",
+  chaveRevogarConfirmar:
+    "Revogar a chave «{nome}»? Deixa de funcionar já, e não há volta atrás.",
+  chaveRevogada: "A chave foi revogada.",
+  autorDesconhecido: "Não identificado",
+  ambitoKeysAviso:
+    "Uma chave com «Gerir chaves» pode criar e revogar outras chaves deste comerciante: dê-a só a quem gere as integrações.",
+  erroChaveTalvezCriada:
+    "Não houve resposta do servidor: a chave pode ter sido criada. Se aparecer na lista, o segredo perdeu-se: revogue-a e crie outra.",
+  erroChaveAmbitos: "Escolha pelo menos uma coisa que a chave pode fazer.",
+  erroChaveExpira: "A data de expiração tem de ser no futuro.",
+  erroChaveJaRevogada: "Esta chave já tinha sido revogada.",
+  erroChaveNaoExiste: "Esta chave já não existe.",
+  erroChaveUltimaGestora:
+    "É a última chave que gere chaves; crie outra antes de a revogar.",
+  erroChaveComercianteInactivo:
+    "Este comerciante está suspenso ou fechado: não cria chaves, mas pode revogá-las.",
+  erroChaveAmbitosAMais:
+    "Não pode dar a uma chave âmbitos que o seu papel não tem.",
 };
 
 export type Textos = typeof pt;

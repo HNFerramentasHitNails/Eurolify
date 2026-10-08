@@ -5,6 +5,7 @@ import {
   useState,
   type SyntheticEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import { api, ErroHub, type Passkey, type Sessao } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import {
@@ -504,10 +505,14 @@ function Codigos({ vez }: { vez: Vez }) {
       <ResultadoDaAccao accao={accao} />
       {codigos !== null ? (
         <>
-          <div className="aviso" role="alert" tabIndex={-1} ref={avisoRef}>
+          <div className="aviso" role="note" tabIndex={-1} ref={avisoRef}>
             {t.codigosAviso}
           </div>
-          <ul className="codigos" aria-label={t.recuperacaoTitulo}>
+          <ul
+            className="codigos"
+            translate="no"
+            aria-label={t.recuperacaoTitulo}
+          >
             {codigos.map((c) => (
               <li key={c}>{c}</li>
             ))}
@@ -610,10 +615,13 @@ function PalavraPasse({
   // navegador (revisão do #177, P3-8).
   useEffect(() => {
     const aoSair = () => {
-      setPasso({ passo: "ver" });
-      setPalavra("");
-      setRepetida("");
-      setCodigo("");
+      // Já, antes de o navegador congelar a página (revisão do #183, P3-5).
+      flushSync(() => {
+        setPasso({ passo: "ver" });
+        setPalavra("");
+        setRepetida("");
+        setCodigo("");
+      });
     };
     window.addEventListener("pagehide", aoSair);
     return () => {
@@ -802,7 +810,9 @@ function PalavraPasse({
           <p>
             <strong>{t.autenticadorSegredo}</strong>
           </p>
-          <p className="segredo">{segredoEmGrupos(passo.segredo)}</p>
+          <p className="segredo" translate="no" spellCheck={false}>
+            {segredoEmGrupos(passo.segredo)}
+          </p>
           <p>{t.autenticadorDepois}</p>
           <div className="campo">
             <label htmlFor="codigo-totp">{t.autenticadorCodigo}</label>

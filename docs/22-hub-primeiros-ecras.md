@@ -251,9 +251,14 @@ cópia fora da máquina e à parte das cópias da base (`infra/vps/LEIA-ME.md`,
 
 | Ecrã | O que mostra | Rotas da API | Estados |
 |---|---|---|---|
-| **Chaves** (`/chaves?comerciante=mer_…`, ligação ao lado de «Ver a equipa», só para o dono) | as chaves do comerciante: nome, tipo (servidor ou pública), âmbitos, prefixo, criada em/por, expira, estado | `GET /hub/keys` | sem permissão (403, o ecrã não oferece a quem não é dono); vazio |
-| **Criar chave** | nome, tipo, âmbitos (só os que o papel tem), expira (opcional); depois, **o segredo uma vez**, com Copiar e aviso | `POST /hub/keys` | autenticação recente; âmbitos acima do papel (a API recusa) |
-| **Revogar** | botão por chave activa, com confirmação | `POST /hub/keys/{id}/revoke` | autenticação recente; já revogada |
+| **Chaves** (`/chaves?comerciante=mer_…`, ligação «Chaves de API» ao lado de «Ver a equipa», só para o dono) | as chaves do comerciante: nome, tipo, âmbitos (em linguagem comum), o começo da chave, quem a criou (você, o nome de um membro, «alguém que já saiu da equipa», outra chave ou o operador) e quando, expira, estado (activa, revogada a…, expirou a…) | `GET /hub/keys` (e `/hub/me` e `/hub/members` para os nomes) | sem permissão (403: o ecrã não oferece a quem não é dono e mostra a recusa a quem abre a página); vazio |
+| **Criar chave de servidor** | nome, o que a chave pode fazer (os âmbitos do dono, por escolha), expira a (opcional: até ao fim desse dia); depois, **o segredo uma vez**, com Copiar, aviso e «Já o guardei» | `POST /hub/keys` | autenticação recente; sem nome ou sem âmbitos (o ecrã recusa antes); data passada; âmbitos acima do papel e comerciante suspenso (a API recusa, com texto próprio) |
+| **Revogar** | botão por chave activa, com confirmação («deixa de funcionar já, sem volta atrás») | `POST /hub/keys/{id}/revoke` | autenticação recente; já revogada ou que já não existe (outro separador: a lista volta a ler-se) |
+
+**Chaves públicas (para a loja): ainda não se oferecem** (08/10/2026). A API
+pede a loja (`sto_…`), e ainda não há forma de criar lojas: nem rota da
+API, nem acção do operador (procurado com `grep` em `apps/api/src` e nas
+migrações, 08/10/2026). Chegam com as lojas; o ecrã diz isso.
 
 ### 9.4 O que não muda
 
