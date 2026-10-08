@@ -20,8 +20,12 @@ export interface FiltroDeArtigos {
    * desactualizada), com a mesma regra da fila de traduções.
    */
   traducaoEmFalta?: string;
-  /** Alterados (`actualizado_em`) a partir deste instante, inclusive. */
-  actualizadoDesde?: Date;
+  /**
+   * Alterados (`actualizado_em`) a partir deste instante, inclusive. O texto
+   * ISO 8601 tal como veio: a base lê-o com os microssegundos (um `Date`
+   * cortava-os ao milissegundo).
+   */
+  actualizadoDesde?: string;
 }
 
 export interface PaginaDeArtigos<T> {
@@ -105,9 +109,7 @@ export async function listarArtigos(
       }
       if (filtro.actualizadoDesde !== undefined) {
         consulta = consulta.where(
-          "artigo.actualizado_em",
-          ">=",
-          filtro.actualizadoDesde,
+          sql<boolean>`artigo.actualizado_em >= ${filtro.actualizadoDesde}::timestamptz`,
         );
       }
       if (filtro.estado !== undefined) {

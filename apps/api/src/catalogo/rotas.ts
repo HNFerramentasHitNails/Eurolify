@@ -1413,7 +1413,7 @@ export function rotasDoCatalogo(
               : { traducaoEmFalta: q.traducao_em_falta }),
             ...(q.actualizado_desde === undefined
               ? {}
-              : { actualizadoDesde: new Date(q.actualizado_desde) }),
+              : { actualizadoDesde: q.actualizado_desde }),
           },
           limite,
           depois,

@@ -936,12 +936,33 @@ P3-B) e o que se quer pôr dentro de algo arquivado (`category_archived`,
 registo que se muda; revisão do #170, P3-2), 400 um
 valor mal formado (sem o texto da base no `detail`) e 503 `catalog.retry`, com
 `Retry-After: 1`. Um código novo não compila sem lá entrar.
-Os outros filtros da tabela (categoria, sem foto, tradução em falta,
-actualizado desde) e o `expand` entram com as rotas seguintes.
+**Os filtros da procura de artigos** (08/10/2026; pedido do Diogo: «sim,
+avança com os filtros»): `GET /products` junta todos os filtros dados.
+
+- `categoria=cat_…`: os artigos nessa categoria, não nas subcategorias. Uma
+  categoria que não existe (ou de outro comerciante) dá `catalog.not_found`,
+  não uma lista vazia.
+- `traducao_em_falta=es`: os artigos com o nome ou a descrição por traduzir
+  nessa língua (em falta ou desactualizada), com a mesma regra da fila de
+  traduções (`porTraduzir`, um só sítio). Só os campos do próprio artigo,
+  não os das opções e dos valores. A língua de origem dá
+  `catalog.translation_same_language`.
+- `actualizado_desde=2026-10-08T00:00:00Z`: os artigos com `actualizado_em`
+  a partir desse instante, inclusive, ao microssegundo; com o fuso
+  obrigatório. A data é a da linha do artigo: muda ao alterar, classificar,
+  activar, arquivar ou repor o artigo e ao mudar as categorias dele; **não**
+  muda com as variantes, as opções, a composição, as traduções nem as
+  publicações (procurado em 08/10/2026: só `repositorio.ts` e
+  `categorias.ts` actualizam a tabela `artigo`). Quem quer «o que mudou»
+  nessas partes ainda não tem filtro.
+
+Ficam de fora: **sem foto** (entra com a media, §3.5) e **sem SKU** (não
+existe: o SKU é obrigatório em todas as variantes, C3). O `expand` entra com
+as rotas seguintes.
 
 | Operação | Método e caminho | Âmbito | Notas |
 |---|---|---|---|
-| Procurar artigos | `GET /products` | read | filtros: estado, tipo, categoria, texto, SKU, sem foto, sem SKU, tradução em falta numa língua, actualizado desde |
+| Procurar artigos | `GET /products` | read | filtros: estado, tipo, categoria, texto, SKU, tradução em falta numa língua, actualizado desde; sem foto entra com a media; sem SKU não existe (C3) |
 | Ver artigo | `GET /products/{id}` | read | `expand=variants,options,media,translations,publications` |
 | Criar artigo | `POST /products` | write | nasce em rascunho; pode trazer as variantes |
 | Alterar artigo | `PATCH /products/{id}` | write | com a `versao`; recusa versão antiga |
