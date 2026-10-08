@@ -115,8 +115,9 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
     // Uma acção de cada vez, como as outras (revisão do #188, P3-3).
     void accao(async () => {
       await api.cancelarConvite(comerciante, convite);
-      setAviso({ chave: "conviteCancelado" });
+      // O aviso só depois de a lista ser relida, como nas outras acções.
       await carregar();
+      setAviso({ chave: "conviteCancelado" });
     });
   }
 
