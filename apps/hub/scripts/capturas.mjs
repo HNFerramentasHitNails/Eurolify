@@ -97,9 +97,12 @@ const convidar = (email, papel) => {
   return segredo;
 };
 const conviteDona = convidar("ana@exemplo.test", "dono");
-const conviteParaVer = convidar("rui@exemplo.test", "gestor");
+// O convite do Rui fica na lista da equipa (cancela-se na passagem).
+convidar("rui@exemplo.test", "gestor");
 const conviteGestor = convidar("gil@exemplo.test", "gestor");
 const conviteApoio = convidar("ivo@exemplo.test", "apoio");
+// Só para as capturas finais: fica em aberto até ao fim.
+const conviteDasCapturas = convidar("teo@exemplo.test", "armazem");
 
 // 2. A API com o Hub ligado, atrás do «proxy» de confiança (127.0.0.1).
 const api = spawn("node", [join(API, "dist/servidor.js")], {
@@ -338,6 +341,24 @@ try {
   await pagina.goto(`${ORIGEM}/convite#${conviteDona}`);
   await pagina.getByLabel("O seu nome").waitFor();
   confere(!pagina.url().includes("#"), "o segredo saiu da barra de endereço");
+  // Antes de aceitar, o que o convite é (issue #194).
+  confere(
+    (await pagina
+      .getByText(
+        "Foi convidado para a equipa de Loja de Ensaio, com o papel Dono.",
+      )
+      .count()) === 1 &&
+      (await pagina
+        .getByText("O convite é para ana@exemplo.test e expira a", {
+          exact: false,
+        })
+        .count()) === 1,
+    "convite: diz o comerciante, o papel, o e-mail e quando expira",
+  );
+  await pagina.screenshot({
+    path: join(SAIDA, "convite-resumo-claro.png"),
+    fullPage: true,
+  });
   await pagina.getByLabel("O seu nome").fill("Ana Teste");
   await pagina
     .getByRole("button", { name: "Criar a conta com uma passkey" })
@@ -501,6 +522,18 @@ try {
   confere(
     !pagina.url().includes("#"),
     "ligação estragada: aviso e barra limpa",
+  );
+  // Um convite já aceite mostra só a recusa, sem formulário (issue #194).
+  // Primeiro outra página: só mudar o fragmento não volta a carregar.
+  await pagina.goto(`${ORIGEM}/conta`);
+  await pagina.goto(`${ORIGEM}/convite#${conviteDona}`);
+  await pagina.getByText("Este convite não vale", { exact: false }).waitFor();
+  confere(
+    (await pagina.getByLabel("O seu nome").count()) === 0 &&
+      (await pagina
+        .getByRole("button", { name: "Aceitar com esta conta" })
+        .count()) === 0,
+    "convite já aceite: só a recusa, nada para aceitar",
   );
 
   // O gestor só oferece armazém e apoio; o apoio não convida (P2-2).
@@ -1062,12 +1095,21 @@ try {
   await gil.pagina
     .getByText("Entrou como Gil Teste", { exact: false })
     .waitFor();
+  // O ecrã já sabe para que e-mail é e avisa (issue #194); aceitar fica
+  // activo e quem recusa é a base (revisão do #196, P2-1).
+  await gil.pagina
+    .getByText(
+      "Este convite é para eva2@exemplo.test e entrou como gil@exemplo.test.",
+      { exact: false },
+    )
+    .waitFor();
   await gil.pagina
     .getByRole("button", { name: "Aceitar com esta conta" })
     .click();
   await gil.pagina
     .getByText("Este convite é para outro e-mail.", { exact: false })
     .waitFor();
+  confere(true, "convite: para outro e-mail, o aviso antes e a recusa da base");
   await gil.pagina.getByRole("button", { name: "Sair", exact: true }).click();
   await gil.pagina.getByLabel("O seu nome").waitFor();
   confere(
@@ -1209,7 +1251,7 @@ try {
   // As capturas: 7 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
-    ["convite", `/convite#${conviteParaVer}`, "Aceitar o convite"],
+    ["convite", `/convite#${conviteDasCapturas}`, "Aceitar o convite"],
     ["comerciantes", "/", "Os seus comerciantes"],
     ["equipa", `/equipa?comerciante=mer_${comerciante}`, "Equipa"],
     ["conta", "/conta", "A minha conta"],

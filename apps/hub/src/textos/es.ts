@@ -319,4 +319,10 @@ export const es: Textos = {
   conviteAceitarComConta: "Aceptar con esta cuenta",
   conviteOutraConta:
     "Si la invitación es para otro correo, salga primero y vuelva a abrir el enlace.",
+  conviteInstrucao: "Escriba su nombre y cree la cuenta con una passkey.",
+  conviteResumo:
+    "Le han invitado al equipo de {comerciante}, con la función {papel}.",
+  conviteParaEmail: "La invitación es para {email} y caduca el {data}.",
+  conviteEmailDiferente:
+    "Esta invitación es para {email} y ha entrado como {sessao}. Salga y entre con la cuenta de ese correo.",
 };

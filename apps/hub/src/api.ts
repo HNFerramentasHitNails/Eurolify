@@ -86,6 +86,14 @@ export interface ChaveApi {
   ultimo_uso_em: string | null;
 }
 
+/** O que um convite diz, antes de aceitar (docs/22 §10, issue #194). */
+export interface DetalheConvite {
+  comerciante_nome: string;
+  papel: Papel;
+  email: string;
+  expira_em: string;
+}
+
 export interface ContaNova {
   pessoa: string;
   comerciante: string;
@@ -180,6 +188,11 @@ export const api = {
       `/hub/members/${encodeURIComponent(membro)}/end`,
       { comerciante },
     ),
+  /** O que o convite diz; o segredo vai no corpo, nunca no endereço. */
+  verConvite: (convite: string) =>
+    pedir<DetalheConvite>("POST", "/hub/invitations/preview", {
+      corpo: { convite },
+    }),
   /** Aceitar um convite com a conta da sessão (o e-mail tem de ser o do convite). */
   aceitarConvite: (convite: string) =>
     pedir<{ comerciante: string; membro: string }>(
