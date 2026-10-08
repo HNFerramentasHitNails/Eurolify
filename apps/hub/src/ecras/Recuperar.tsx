@@ -1,7 +1,7 @@
 import { useState, type SyntheticEvent } from "react";
 import { ErroHub } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
-import { mensagemDeErro, type MensagemDeErro } from "../erros";
+import { ErroDoEcra, mensagemDeErro, type MensagemDeErro } from "../erros";
 import { recuperar, temPasskeys } from "../passkeys";
 import { codigoBemEscrito, marcarRecuperada } from "../recuperacao";
 
@@ -15,25 +15,29 @@ export function Recuperar() {
   const [codigo, setCodigo] = useState("");
   const [nome, setNome] = useState("");
   const [aEspera, setAEspera] = useState(false);
-  const [erro, setErro] = useState<MensagemDeErro | null>(null);
+  // O erro guarda-se cru e traduz-se ao mostrar: muda com a língua (revisão
+  // do #174, P3-2).
+  const [falha, setFalha] = useState<unknown>(null);
+  const erro: MensagemDeErro | null =
+    falha === null ? null : mensagemDeErro(falha, t, lingua);
 
   async function aoRecuperar(evento: SyntheticEvent) {
     evento.preventDefault();
     const emailLimpo = email.trim();
     const nomeLimpo = nome.trim();
     if (!/^[^@\s]+@[^@\s]+$/.test(emailLimpo)) {
-      setErro({ texto: t.erroEmail });
+      setFalha(new ErroDoEcra("erroEmail"));
       return;
     }
     if (!codigoBemEscrito(codigo)) {
-      setErro({ texto: t.erroCodigo });
+      setFalha(new ErroDoEcra("erroCodigo"));
       return;
     }
     if (nomeLimpo.length > 100) {
-      setErro({ texto: t.erroNomePasskey });
+      setFalha(new ErroDoEcra("erroNomePasskey"));
       return;
     }
-    setErro(null);
+    setFalha(null);
     setAEspera(true);
     try {
       await recuperar(emailLimpo, codigo.trim(), nomeLimpo);
@@ -42,10 +46,12 @@ export function Recuperar() {
       marcarRecuperada();
       navegar("/conta?recuperada=1", { substituir: true });
     } catch (e) {
-      setErro(
+      // O primeiro passo dá a mesma recusa para e-mail sem conta, código
+      // errado ou já usado; o segundo tem a sua (passkeys.ts, P3-6).
+      setFalha(
         e instanceof ErroHub && e.codigo === "auth.unauthenticated"
-          ? { texto: t.erroRecuperar }
-          : mensagemDeErro(e, t, lingua),
+          ? new ErroDoEcra("erroRecuperar")
+          : e,
       );
       setAEspera(false);
     }

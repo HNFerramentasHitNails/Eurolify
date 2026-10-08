@@ -7,38 +7,50 @@ import {
 } from "react";
 import { api, ErroHub, type Passkey, type Sessao } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
-import { mensagemDeErro, semSessao, type MensagemDeErro } from "../erros";
+import {
+  falhaDeAccao,
+  mensagemDeErro,
+  semSessao,
+  type MensagemDeErro,
+} from "../erros";
 import { acrescentarPasskey, comRecente, temPasskeys } from "../passkeys";
 import { fecharAvisoDeRecuperada, foiRecuperada } from "../recuperacao";
-import { preencher, TAG_LINGUA } from "../textos";
+import { preencher, TAG_LINGUA, type Textos } from "../textos";
 import { Copiar } from "./Copiar";
 
 // A minha conta (docs/22 §9.1): as passkeys, as sessões abertas e os códigos
 // de recuperação, cada bloco com o seu carregamento e o seu erro (um bloco
 // que falha não esconde os outros). A API decide; o ecrã só não oferece o
-// que vai ser recusado (terminar as outras sessões quando só há esta).
+// que vai ser recusado (terminar as outras sessões quando só há esta; nada
+// que peça a passkey num navegador sem passkeys).
 
-/** Lê uma lista; só a resposta do último pedido conta; sem sessão, sai. */
+/**
+ * Lê uma lista; só a resposta do último pedido conta; sem sessão, sai.
+ * `carregar` diz se leu (o êxito de uma acção só se mostra com a lista em
+ * dia; revisão do #174, P2-1).
+ */
 function useLista<T>(ler: () => Promise<T>) {
   const { navegar } = useHub();
   const [dados, setDados] = useState<T | null>(null);
   // O erro guarda-se cru e traduz-se ao mostrar (revisão do #158, P3-7).
   const [falha, setFalha] = useState<unknown>(null);
   const ultimo = useRef(0);
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (): Promise<boolean> => {
     const este = ++ultimo.current;
     try {
       const r = await ler();
-      if (este !== ultimo.current) return;
+      if (este !== ultimo.current) return false;
       setFalha(null);
       setDados(r);
+      return true;
     } catch (e) {
-      if (este !== ultimo.current) return;
+      if (este !== ultimo.current) return false;
       if (semSessao(e)) {
         navegar("/entrar", { substituir: true });
-        return;
+        return false;
       }
       setFalha(e);
+      return false;
     }
   }, [ler, navegar]);
   useEffect(() => {
@@ -47,26 +59,39 @@ function useLista<T>(ler: () => Promise<T>) {
   return { dados, falha, carregar };
 }
 
-/** O erro de uma acção; sem sessão, sai (devolve null). */
+/**
+ * O resultado de uma acção: o erro (cru) ou o texto de êxito (a chave, para
+ * mudar com a língua; revisão do #174, P3-2).
+ */
 function useAccao() {
   const { t, lingua, navegar } = useHub();
   const [falha, setFalha] = useState<unknown>(null);
+  const [sucesso, setSucesso] = useState<keyof Textos | null>(null);
   const erro: MensagemDeErro | null =
     falha === null ? null : mensagemDeErro(falha, t, lingua);
   const falhou = useCallback(
-    (e: unknown) => {
-      if (semSessao(e)) {
+    async (e: unknown) => {
+      // Um 401 só manda para «Entrar» se a sessão acabou (P1-1).
+      const mostrar = await falhaDeAccao(e);
+      if (mostrar === null) {
         navegar("/entrar", { substituir: true });
         return;
       }
-      setFalha(e);
+      setFalha(mostrar);
     },
     [navegar],
   );
   const limpar = useCallback(() => {
     setFalha(null);
+    setSucesso(null);
   }, []);
-  return { erro, falhou, limpar };
+  return {
+    erro,
+    sucesso: sucesso === null ? null : t[sucesso],
+    falhou,
+    limpar,
+    setSucesso,
+  };
 }
 
 function useDataHora() {
@@ -78,8 +103,35 @@ function useDataHora() {
     }).format(new Date(iso));
 }
 
+/**
+ * Uma acção de cada vez em toda a conta: retirar, terminar sessões e
+ * reautenticar trocam o cookie, e um segundo pedido com o cookie antigo seria
+ * recusado (revisão do #174, P2-3).
+ */
+interface Vez {
+  ocupado: boolean;
+  correr: (fn: () => Promise<void>) => Promise<void>;
+}
+
+function ResultadoDaAccao({
+  accao,
+}: {
+  accao: { erro: MensagemDeErro | null; sucesso: string | null };
+}) {
+  return (
+    <>
+      {accao.erro === null ? null : <CaixaDeErro erro={accao.erro} />}
+      {accao.sucesso === null ? null : (
+        <div className="sucesso" role="status">
+          {accao.sucesso}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function Conta({ recuperada }: { recuperada: boolean }) {
-  const { t, navegar } = useHub();
+  const { t, lingua, navegar } = useHub();
   const [avisoRecuperada, setAvisoRecuperada] = useState(
     () => recuperada || foiRecuperada(),
   );
@@ -89,6 +141,23 @@ export function Conta({ recuperada }: { recuperada: boolean }) {
   const lerEu = useCallback(() => api.eu(), []);
   const eu = useLista(lerEu);
   const dono = eu.dados?.comerciantes.some((c) => c.papel === "dono") ?? false;
+  const erroEu: MensagemDeErro | null =
+    eu.falha === null ? null : mensagemDeErro(eu.falha, t, lingua);
+
+  const [ocupado, setOcupado] = useState(false);
+  const emCurso = useRef(false);
+  const correr = useCallback(async (fn: () => Promise<void>) => {
+    if (emCurso.current) return;
+    emCurso.current = true;
+    setOcupado(true);
+    try {
+      await fn();
+    } finally {
+      emCurso.current = false;
+      setOcupado(false);
+    }
+  }, []);
+  const vez: Vez = { ocupado, correr };
 
   return (
     <section aria-labelledby="titulo">
@@ -109,8 +178,12 @@ export function Conta({ recuperada }: { recuperada: boolean }) {
           {t.inicioEntrouComo} {eu.dados.nome} ({eu.dados.email})
         </p>
       )}
-      {/* Só depois de saber se é dono: a linha das chaves não aparece a meio. */}
-      {avisoRecuperada && eu.dados !== null ? (
+      {erroEu === null ? null : (
+        <CaixaDeErro erro={erroEu} aoTentar={() => void eu.carregar()} />
+      )}
+      {/* O aviso não espera pelo /hub/me (P2-2); só a linha das chaves, que
+          depende de ser dono. */}
+      {avisoRecuperada ? (
         <div className="aviso" role="note" aria-labelledby="titulo-recuperada">
           <p>
             <strong id="titulo-recuperada">{t.recuperadoTitulo}</strong>
@@ -134,89 +207,85 @@ export function Conta({ recuperada }: { recuperada: boolean }) {
         </div>
       ) : null}
       <Passkeys
+        vez={vez}
         aoRetirar={() => {
           setVersaoSessoes((v) => v + 1);
         }}
       />
-      <Sessoes key={versaoSessoes} />
-      <Codigos />
+      <Sessoes key={versaoSessoes} vez={vez} />
+      <Codigos vez={vez} />
     </section>
   );
 }
 
-function Passkeys({ aoRetirar }: { aoRetirar: () => void }) {
+function Passkeys({ vez, aoRetirar }: { vez: Vez; aoRetirar: () => void }) {
   const { t, lingua } = useHub();
   const dataHora = useDataHora();
   const lerPasskeys = useCallback(() => api.passkeys(), []);
   const lista = useLista(lerPasskeys);
   const accao = useAccao();
   const [nome, setNome] = useState("");
-  const [aEspera, setAEspera] = useState(false);
-  const [sucesso, setSucesso] = useState<string | null>(null);
   // O nome fora dos limites confere-se no ecrã, antes de pedir a passkey.
   const [nomeInvalido, setNomeInvalido] = useState(false);
   const erroLista: MensagemDeErro | null =
     lista.falha === null ? null : mensagemDeErro(lista.falha, t, lingua);
+  // Sem passkeys no navegador não se oferece o que pede a passkey (P3-5).
+  const podeAgir = temPasskeys() && !vez.ocupado;
 
-  async function aoAcrescentar(evento: SyntheticEvent) {
+  function aoAcrescentar(evento: SyntheticEvent) {
     evento.preventDefault();
     const limpo = nome.trim();
     accao.limpar();
-    setSucesso(null);
     setNomeInvalido(limpo.length < 1 || limpo.length > 100);
     if (limpo.length < 1 || limpo.length > 100) return;
-    setAEspera(true);
-    try {
-      await comRecente(() => acrescentarPasskey(limpo));
-      setNome("");
-      await lista.carregar();
-      setSucesso(t.passkeyAcrescentada);
-    } catch (e) {
-      accao.falhou(e);
-    } finally {
-      setAEspera(false);
-    }
+    void vez.correr(async () => {
+      try {
+        await comRecente(() => acrescentarPasskey(limpo));
+        setNome("");
+        if (await lista.carregar()) accao.setSucesso("passkeyAcrescentada");
+      } catch (e) {
+        await accao.falhou(e);
+      }
+    });
   }
 
-  async function retirar(p: Passkey) {
+  function retirar(p: Passkey) {
     if (!window.confirm(preencher(t.passkeyRetirarConfirmar, { nome: p.nome })))
       return;
     accao.limpar();
-    setSucesso(null);
     setNomeInvalido(false);
-    try {
-      await comRecente(() => api.retirarPasskey(p.passkey));
-      aoRetirar();
-      await lista.carregar();
-      setSucesso(t.passkeyRetirada);
-    } catch (e) {
-      accao.falhou(e);
-      // Já retirada noutro separador: a lista volta a ler-se.
-      if (e instanceof ErroHub && e.codigo === "passkey.not_found") {
-        await lista.carregar();
+    void vez.correr(async () => {
+      try {
+        await comRecente(() => api.retirarPasskey(p.passkey));
+        aoRetirar();
+        if (await lista.carregar()) accao.setSucesso("passkeyRetirada");
+      } catch (e) {
+        await accao.falhou(e);
+        // Já retirada noutro separador: a lista volta a ler-se.
+        if (e instanceof ErroHub && e.codigo === "passkey.not_found") {
+          await lista.carregar();
+        }
       }
-    }
+    });
   }
 
   const passkeys = lista.dados?.passkeys ?? null;
   return (
     <section className="cartao" aria-labelledby="titulo-passkeys">
       <h2 id="titulo-passkeys">{t.passkeysTitulo}</h2>
-      {erroLista !== null && passkeys === null ? (
+      {erroLista !== null ? (
         <CaixaDeErro erro={erroLista} aoTentar={() => void lista.carregar()} />
-      ) : passkeys === null ? (
-        <ACarregar />
+      ) : null}
+      {passkeys === null ? (
+        erroLista === null ? (
+          <ACarregar />
+        ) : null
       ) : (
         <>
           {nomeInvalido ? (
             <CaixaDeErro erro={{ texto: t.erroNomePasskey }} />
           ) : null}
-          {accao.erro === null ? null : <CaixaDeErro erro={accao.erro} />}
-          {sucesso === null ? null : (
-            <div className="sucesso" role="status">
-              {sucesso}
-            </div>
-          )}
+          <ResultadoDaAccao accao={accao} />
           <p className="secundario">
             {passkeys.length === 1
               ? t.passkeysContagemUm
@@ -251,20 +320,25 @@ function Passkeys({ aoRetirar }: { aoRetirar: () => void }) {
                       : dataHora(p.ultimo_uso_em)}
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      onClick={() => void retirar(p)}
-                      aria-label={`${t.passkeyRetirar}: ${p.nome}`}
-                    >
-                      {t.passkeyRetirar}
-                    </button>
+                    {temPasskeys() ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          retirar(p);
+                        }}
+                        disabled={!podeAgir}
+                        aria-label={`${t.passkeyRetirar}: ${p.nome}`}
+                      >
+                        {t.passkeyRetirar}
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {temPasskeys() ? (
-            <form onSubmit={(e) => void aoAcrescentar(e)} noValidate>
+            <form onSubmit={aoAcrescentar} noValidate>
               <div className="linha">
                 <div className="campo">
                   <label htmlFor="nome-passkey">{t.passkeyNome}</label>
@@ -274,6 +348,7 @@ function Passkeys({ aoRetirar }: { aoRetirar: () => void }) {
                     autoComplete="off"
                     maxLength={100}
                     value={nome}
+                    aria-invalid={nomeInvalido}
                     onChange={(e) => {
                       setNome(e.target.value);
                     }}
@@ -281,8 +356,8 @@ function Passkeys({ aoRetirar }: { aoRetirar: () => void }) {
                   />
                 </div>
               </div>
-              <button type="submit" className="principal" disabled={aEspera}>
-                {aEspera ? t.entrarAEspera : t.passkeyAcrescentar}
+              <button type="submit" className="principal" disabled={!podeAgir}>
+                {vez.ocupado ? t.entrarAEspera : t.passkeyAcrescentar}
               </button>
             </form>
           ) : (
@@ -296,49 +371,42 @@ function Passkeys({ aoRetirar }: { aoRetirar: () => void }) {
   );
 }
 
-function Sessoes() {
+function Sessoes({ vez }: { vez: Vez }) {
   const { t, lingua } = useHub();
   const dataHora = useDataHora();
   const lerSessoes = useCallback(() => api.sessoes(), []);
   const lista = useLista(lerSessoes);
   const accao = useAccao();
-  const [sucesso, setSucesso] = useState<string | null>(null);
-  const [aEspera, setAEspera] = useState(false);
   const erroLista: MensagemDeErro | null =
     lista.falha === null ? null : mensagemDeErro(lista.falha, t, lingua);
 
-  async function terminarOutras() {
+  function terminarOutras() {
     if (!window.confirm(t.sessoesTerminarConfirmar)) return;
     accao.limpar();
-    setSucesso(null);
-    setAEspera(true);
-    try {
-      await comRecente(() => api.terminarOutrasSessoes());
-      await lista.carregar();
-      setSucesso(t.sessoesTerminadas);
-    } catch (e) {
-      accao.falhou(e);
-    } finally {
-      setAEspera(false);
-    }
+    void vez.correr(async () => {
+      try {
+        await comRecente(() => api.terminarOutrasSessoes());
+        if (await lista.carregar()) accao.setSucesso("sessoesTerminadas");
+      } catch (e) {
+        await accao.falhou(e);
+      }
+    });
   }
 
   const sessoes = lista.dados?.sessoes ?? null;
   return (
     <section className="cartao" aria-labelledby="titulo-sessoes">
       <h2 id="titulo-sessoes">{t.sessoesTitulo}</h2>
-      {erroLista !== null && sessoes === null ? (
+      {erroLista !== null ? (
         <CaixaDeErro erro={erroLista} aoTentar={() => void lista.carregar()} />
-      ) : sessoes === null ? (
-        <ACarregar />
+      ) : null}
+      {sessoes === null ? (
+        erroLista === null ? (
+          <ACarregar />
+        ) : null
       ) : (
         <>
-          {accao.erro === null ? null : <CaixaDeErro erro={accao.erro} />}
-          {sucesso === null ? null : (
-            <div className="sucesso" role="status">
-              {sucesso}
-            </div>
-          )}
+          <ResultadoDaAccao accao={accao} />
           <p className="secundario">
             {sessoes.length === 1
               ? t.sessoesContagemUm
@@ -368,11 +436,11 @@ function Sessoes() {
               ))}
             </tbody>
           </table>
-          {sessoes.some((s) => !s.esta) ? (
+          {sessoes.some((s) => !s.esta) && temPasskeys() ? (
             <button
               type="button"
-              onClick={() => void terminarOutras()}
-              disabled={aEspera}
+              onClick={terminarOutras}
+              disabled={vez.ocupado}
             >
               {t.sessoesTerminar}
             </button>
@@ -383,34 +451,41 @@ function Sessoes() {
   );
 }
 
-function Codigos() {
+function Codigos({ vez }: { vez: Vez }) {
   const { t } = useHub();
   const accao = useAccao();
-  const [aEspera, setAEspera] = useState(false);
   // Os códigos só vivem aqui enquanto se mostram; «Já os guardei» apaga-os.
   const [codigos, setCodigos] = useState<string[] | null>(null);
+  const avisoRef = useRef<HTMLDivElement>(null);
+  const gerarRef = useRef<HTMLButtonElement>(null);
+  // O foco acompanha o que aparece e desaparece (P3-3).
+  const [focar, setFocar] = useState<"aviso" | "gerar" | null>(null);
+  useEffect(() => {
+    if (focar === "aviso") avisoRef.current?.focus();
+    if (focar === "gerar") gerarRef.current?.focus();
+  }, [focar, codigos]);
 
-  async function gerar() {
+  function gerar() {
     if (!window.confirm(t.codigosGerarConfirmar)) return;
     accao.limpar();
-    setAEspera(true);
-    try {
-      const r = await comRecente(() => api.gerarCodigos());
-      setCodigos(r.codigos);
-    } catch (e) {
-      accao.falhou(e);
-    } finally {
-      setAEspera(false);
-    }
+    void vez.correr(async () => {
+      try {
+        const r = await comRecente(() => api.gerarCodigos());
+        setCodigos(r.codigos);
+        setFocar("aviso");
+      } catch (e) {
+        await accao.falhou(e);
+      }
+    });
   }
 
   return (
     <section className="cartao" aria-labelledby="titulo-codigos">
       <h2 id="titulo-codigos">{t.recuperacaoTitulo}</h2>
-      {accao.erro === null ? null : <CaixaDeErro erro={accao.erro} />}
+      <ResultadoDaAccao accao={accao} />
       {codigos !== null ? (
         <>
-          <div className="aviso" role="note">
+          <div className="aviso" role="alert" tabIndex={-1} ref={avisoRef}>
             {t.codigosAviso}
           </div>
           <ul className="codigos" aria-label={t.recuperacaoTitulo}>
@@ -425,6 +500,7 @@ function Codigos() {
               className="principal"
               onClick={() => {
                 setCodigos(null);
+                setFocar("gerar");
               }}
             >
               {t.codigosGuardados}
@@ -434,9 +510,16 @@ function Codigos() {
       ) : (
         <>
           <p>{t.recuperacaoExplicacao}</p>
-          <button type="button" onClick={() => void gerar()} disabled={aEspera}>
-            {aEspera ? t.entrarAEspera : t.codigosGerar}
-          </button>
+          {temPasskeys() ? (
+            <button
+              type="button"
+              ref={gerarRef}
+              onClick={gerar}
+              disabled={vez.ocupado}
+            >
+              {t.codigosGerar}
+            </button>
+          ) : null}
         </>
       )}
     </section>

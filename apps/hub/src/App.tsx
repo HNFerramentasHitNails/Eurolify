@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { lerSegredoDaLigacao } from "./convite";
+import { fecharAvisoDeRecuperada } from "./recuperacao";
 import { ContextoHub, type Contexto } from "./contexto";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
@@ -154,6 +155,9 @@ export function App() {
             <button
               type="button"
               onClick={() => {
+                // O aviso de conta recuperada é desta pessoa, não do
+                // navegador (revisão do #174, P3-1).
+                fecharAvisoDeRecuperada();
                 void api.sair().finally(() => {
                   navegar("/entrar", { substituir: true });
                 });

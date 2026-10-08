@@ -136,6 +136,10 @@ export const en: Textos = {
     "This is the last way to sign in to the account. Add another passkey before removing this one.",
   erroPasskeyJaRegistada: "This device already has a passkey for this account.",
   erroPasskeyNaoExiste: "This passkey no longer exists in the account.",
+  erroPasskeyNaoAceite:
+    "The passkey was not accepted: it may belong to another account, or the request took more than 5 minutes. The session is still open; try again.",
+  erroRecuperarPasskey:
+    "The new passkey was not accepted, or the request took more than 5 minutes. Try again.",
   erroNomePasskey: "The passkey name must have between 1 and 100 characters.",
 
   entrarPerdeu: "Lost your passkey?",

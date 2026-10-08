@@ -122,12 +122,24 @@ export async function recuperar(
     email,
     codigo,
   });
-  await pedir("POST", "/hub/recovery", {
-    corpo: {
-      email,
-      codigo,
-      ...(nomePasskey === "" ? {} : { nome_passkey: nomePasskey }),
-      credencial,
-    },
-  });
+  try {
+    await pedir("POST", "/hub/recovery", {
+      corpo: {
+        email,
+        codigo,
+        ...(nomePasskey === "" ? {} : { nome_passkey: nomePasskey }),
+        credencial,
+      },
+    });
+  } catch (erro) {
+    // O e-mail e o código já passaram no primeiro passo: um 401 aqui é a
+    // passkey nova ou o desafio fora de prazo (revisão do #174, P3-6).
+    if (erro instanceof ErroHub && erro.estado === 401) {
+      throw new RecuperacaoNaoConcluida();
+    }
+    throw erro;
+  }
 }
+
+/** O segundo passo da recuperação foi recusado (a passkey nova ou o prazo). */
+export class RecuperacaoNaoConcluida extends Error {}

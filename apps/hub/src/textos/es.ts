@@ -139,6 +139,10 @@ export const es: Textos = {
   erroPasskeyJaRegistada:
     "Este dispositivo ya tiene una passkey de esta cuenta.",
   erroPasskeyNaoExiste: "Esta passkey ya no existe en la cuenta.",
+  erroPasskeyNaoAceite:
+    "No se aceptó la passkey: puede ser de otra cuenta, o la solicitud tardó más de 5 minutos. La sesión sigue abierta; inténtelo de nuevo.",
+  erroRecuperarPasskey:
+    "No se aceptó la passkey nueva, o la solicitud tardó más de 5 minutos. Inténtelo de nuevo.",
   erroNomePasskey:
     "El nombre de la passkey debe tener entre 1 y 100 caracteres.",
 

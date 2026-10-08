@@ -134,6 +134,10 @@ export const pt = {
     "É a última forma de entrar na conta. Acrescente outra passkey antes de retirar esta.",
   erroPasskeyJaRegistada: "Este dispositivo já tem uma passkey desta conta.",
   erroPasskeyNaoExiste: "Esta passkey já não existe na conta.",
+  erroPasskeyNaoAceite:
+    "A passkey não foi aceite: pode ser de outra conta, ou o pedido demorou mais de 5 minutos. A sessão continua aberta; tente outra vez.",
+  erroRecuperarPasskey:
+    "A passkey nova não foi aceite, ou o pedido demorou mais de 5 minutos. Tente outra vez.",
   erroNomePasskey: "O nome da passkey tem de ter entre 1 e 100 caracteres.",
 
   entrarPerdeu: "Perdeu a passkey?",

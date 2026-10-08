@@ -500,13 +500,25 @@ try {
     "conta: com uma passkey, o conselho de registar a segunda",
   );
 
-  // A mesma passkey outra vez neste dispositivo: o navegador recusa.
+  // A mesma passkey outra vez neste dispositivo: o navegador recusa. Com a
+  // sessão antiga, primeiro pede a passkey outra vez (revisão do #174,
+  // P2-4).
+  psql(
+    "update sessao set autenticada_em = now() - interval '1 hour' where revogada_em is null",
+  );
+  const antesDaConta = pedidosVistos.length;
   await pagina.getByLabel("Nome desta passkey", { exact: false }).fill("Outra");
   await pagina.getByRole("button", { name: "Acrescentar passkey" }).click();
   await pagina
     .getByText("Este dispositivo já tem uma passkey desta conta.")
     .waitFor();
   confere(true, "conta: a passkey já registada neste dispositivo é explicada");
+  confere(
+    pedidosVistos
+      .slice(antesDaConta)
+      .some((u) => u.endsWith("/hub/session/reauthenticate")),
+    "conta: com a sessão antiga, acrescentar pede a passkey outra vez",
+  );
 
   // Uma passkey nova noutro «dispositivo» (outro autenticador em software).
   // A credencial da primeira guarda-se para entrar noutro navegador.
@@ -536,6 +548,26 @@ try {
     (await pagina.getByText("2 passkeys", { exact: true }).count()) === 1,
     "conta: acrescentar uma passkey (ficam 2)",
   );
+
+  // Uma recusa 401 com a sessão aberta (passkey de outra conta, desafio fora
+  // de prazo) mostra-se e não tira a pessoa da conta (revisão do #174, P1-1).
+  await pagina.route("**/hub/passkeys/options", (r) =>
+    r.fulfill({
+      status: 401,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "auth.unauthenticated" }),
+    }),
+  );
+  await pagina.getByLabel("Nome desta passkey", { exact: false }).fill("Teste");
+  await pagina.getByRole("button", { name: "Acrescentar passkey" }).click();
+  await pagina
+    .getByText("A passkey não foi aceite", { exact: false })
+    .waitFor();
+  confere(
+    new URL(pagina.url()).pathname === "/conta",
+    "conta: um 401 com a sessão aberta mostra a recusa e fica na conta",
+  );
+  await pagina.unroute("**/hub/passkeys/options");
 
   // Outra sessão da Ana noutro navegador, com a primeira passkey.
   const outro = await comPasskey();
@@ -616,6 +648,10 @@ try {
   // Recuperar a conta noutro navegador, sem passkey da Ana.
   const recuperado = await comPasskey();
   const rp = recuperado.pagina;
+  const pedidosRecuperar = [];
+  rp.on("request", (p) => {
+    pedidosRecuperar.push(p.url());
+  });
   await rp.goto(`${ORIGEM}/entrar`);
   await rp.getByRole("link", { name: "Perdeu a passkey?" }).click();
   await rp.getByRole("heading", { name: "Recuperar a conta" }).waitFor();
@@ -642,10 +678,15 @@ try {
     .click();
   await rp.getByRole("heading", { name: "A minha conta" }).waitFor();
   await rp.getByText("A conta foi recuperada").waitFor();
-  // Logo na primeira imagem do aviso (o ecrã só o mostra completo).
+  // A linha das chaves espera por saber se é dono (o aviso não; P2-2).
   confere(
-    (await rp.getByText("rever as chaves de API", { exact: false }).count()) ===
-      1,
+    await rp
+      .getByText("rever as chaves de API", { exact: false })
+      .waitFor({ timeout: 10_000 })
+      .then(
+        () => true,
+        () => false,
+      ),
     "recuperar: entra na conta com o aviso, com as chaves (é dona)",
   );
   await rp.getByText("2 passkeys", { exact: true }).waitFor();
@@ -670,14 +711,26 @@ try {
   await pagina.goto(`${ORIGEM}/conta`);
   await pagina.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
   confere(true, "recuperar: a sessão antiga terminou");
+  // Os códigos, com e sem hífenes, nos pedidos dos dois navegadores e no
+  // que o navegador da recuperação guardou (P2-4).
+  const formas = [...codigosDaAna, ...codigosNovos].flatMap((c) => [
+    c,
+    c.replaceAll("-", ""),
+  ]);
   confere(
-    !pedidosVistos.some((u) =>
-      codigosNovos.some((c) => u.toUpperCase().includes(c.replaceAll("-", ""))),
-    ),
+    pedidosRecuperar.length > 0 &&
+      ![...pedidosVistos, ...pedidosRecuperar].some((u) =>
+        formas.some((c) => decodeURIComponent(u).toUpperCase().includes(c)),
+      ),
     "nenhum pedido levou um código de recuperação no endereço",
   );
 
   const sessao = await recuperado.contexto.storageState();
+  const guardado = JSON.stringify(sessao).toUpperCase();
+  confere(
+    !formas.some((c) => guardado.includes(c)),
+    "o navegador não guardou nenhum código de recuperação",
+  );
 
   // As capturas: 6 ecrãs × 3 larguras × 2 temas.
   const ecras = [
