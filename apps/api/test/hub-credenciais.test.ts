@@ -72,6 +72,15 @@ describe.skipIf(URL_BASE === undefined)("credenciais no Hub (0022)", () => {
     await base.fechar();
   });
 
+  it("sem a chave TOTP, o /hub/me não tem o campo da palavra-passe (docs/22 §9.2)", async () => {
+    const p = await h.pessoaCom(a, "apoio");
+    const r = await h.pedir("GET", "/hub/me", { sessao: p.sessao });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json<Record<string, unknown>>()).not.toHaveProperty(
+      "palavra_passe",
+    );
+  });
+
   it("a conta nova recebe 10 códigos diferentes, de 80 bits, só nessa resposta", async () => {
     const p = await h.pessoaCom(a, "apoio");
     expect(p.codigos).toHaveLength(10);

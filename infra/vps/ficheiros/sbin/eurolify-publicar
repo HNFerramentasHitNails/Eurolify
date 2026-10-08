@@ -63,6 +63,23 @@ base_env=()
 API_HUB_ENV=/etc/eurolify/api-hub.env
 hub_env=()
 [[ -f "$API_HUB_ENV" ]] && hub_env=(--env-file "$API_HUB_ENV")
+# A chave dos segredos TOTP (TOTP_CHAVE), que o passo 10 do preparar.sh
+# gera uma vez (docs/22 §9.2). Sem ela, a API corre sem a palavra-passe. Só se
+# passa uma chave válida: uma estragada derrubava a API ao arrancar, sem volta
+# atrás no --so-recriar (revisão do #177, P2-2 da VPS).
+API_TOTP_ENV=/etc/eurolify/api-totp.env
+totp_env=()
+if [[ -e "$API_TOTP_ENV" ]]; then
+  # shellcheck source=../lib/chave-totp.sh
+  if [[ -f /usr/local/lib/eurolify/chave-totp.sh ]] &&
+    source /usr/local/lib/eurolify/chave-totp.sh &&
+    chave_totp_valida "$API_TOTP_ENV"; then
+    totp_env=(--env-file "$API_TOTP_ENV")
+  else
+    echo "AVISO: $API_TOTP_ENV não tem o formato esperado: a API arranca sem a palavra-passe."
+    registar "chave TOTP inválida: a API arranca sem a palavra-passe"
+  fi
+fi
 
 # As imagens dos artigos ficam fora do contentor, na pasta da máquina
 # (docs/06, CQ): sobrevivem a cada publicação. Com MEDIA_PASTA, a API liga as
@@ -81,6 +98,7 @@ arrancar() {
     --env-file /etc/eurolify/api.env \
     "${base_env[@]}" \
     "${hub_env[@]}" \
+    "${totp_env[@]}" \
     --mount type=bind,src=/var/lib/eurolify/media,dst=/media \
     -e MEDIA_PASTA=/media \
     --memory 512m \
@@ -161,7 +179,7 @@ api_env_mudou() {
   # que a API foi criada não contava (revisão do #160, P2-2).
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV" "$API_HUB_ENV"; do
+  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV" "$API_HUB_ENV" "$API_TOTP_ENV"; do
     mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
     mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
@@ -287,7 +305,7 @@ fi
 if [[ "$anterior" == "$imagem" ]]; then
   recriada=0
   if api_env_mudou; then
-    echo "A API já está nesta imagem, mas a configuração (api.env, api-base.env, api-hub.env ou a pasta das imagens) mudou depois de ela arrancar: recria-se."
+    echo "A API já está nesta imagem, mas a configuração (api.env, api-base.env, api-hub.env, api-totp.env ou a pasta das imagens) mudou depois de ela arrancar: recria-se."
     arrancar "$imagem"
     if ! saude 8080; then
       echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"

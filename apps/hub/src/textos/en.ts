@@ -98,7 +98,7 @@ export const en: Textos = {
   erroOrigem:
     "Request refused because it came from another site. Open the Hub from its usual address.",
   erroRecente:
-    "This operation needs you to confirm your passkey. Please try again.",
+    "This operation asks you to confirm who you are (passkey, or sign in again). Try again.",
   erroRede: "No connection to the server. Check the network and try again.",
 
   // My account and recovery (docs/22 §9.1).
@@ -140,6 +140,12 @@ export const en: Textos = {
     "The passkey was not accepted: it may belong to another account, or the request took more than 5 minutes. The session is still open; try again.",
   erroRecuperarPasskey:
     "The new passkey was not accepted, or the request took more than 5 minutes. Try again.",
+  erroReautenticar:
+    "This operation asks you to confirm who you are, and it was not possible with a passkey in this browser. Sign out and sign in again (with the passkey or the password) and repeat within the next 10 minutes.",
+  semPasskeysEntrar:
+    "This browser does not support passkeys. Sign in with the password, if you activated it, or use a current browser (Chrome, Edge, Firefox or Safari).",
+  autenticadorDepois:
+    "When you confirm, the other open sessions end. If you already had Eurolify in this app, delete the old entry afterwards.",
   erroNomePasskey: "The passkey name must have between 1 and 100 characters.",
 
   entrarPerdeu: "Lost your passkey?",
@@ -163,4 +169,54 @@ export const en: Textos = {
   recuperadoCodigos: "generate new recovery codes;",
   recuperadoChaves: "as owner, review the API keys you created.",
   recuperadoFechar: "Close this notice",
+
+  // Password and authenticator (docs/22 §9.2).
+  palavraPasseTitulo: "Password and authenticator",
+  palavraPasseExplicacao:
+    "An alternative to the passkey: sign in with the e-mail, the password and the 6-digit code from an authenticator app. The password alone never signs in.",
+  palavraPasseActiva: "Status: active.",
+  palavraPasseNenhuma: "Status: not activated.",
+  palavraPassePendente:
+    "Status: activation was left halfway. Choose the password again to start over.",
+  palavraPasseActivar: "Activate password and authenticator",
+  palavraPasseTrocar: "Change the password and the authenticator",
+  palavraPasseCampo: "Password (12 characters or more)",
+  palavraPasseRepetir: "Repeat the password",
+  palavraPasseContinuar: "Continue",
+  cancelar: "Cancel",
+  autenticadorPasso:
+    "Scan this QR code with the authenticator app. If you cannot, type the secret into the app by hand.",
+  autenticadorQr: "QR code for the authenticator app",
+  autenticadorSegredo: "Secret",
+  autenticadorAviso:
+    "The QR code and the secret only appear now. Do not keep them anywhere else or send them to anyone.",
+  autenticadorCodigo: "6-digit code from the app",
+  autenticadorConfirmar: "Confirm and activate",
+  palavraPasseActivada:
+    "The password and the authenticator are now active. The other sessions ended.",
+  palavraPasseRetirar: "Remove the password",
+  palavraPasseRetirarConfirmar:
+    "Remove the password and the authenticator? The other open sessions end; this one continues.",
+  palavraPasseRetirada: "The password was removed. The other sessions ended.",
+  erroPalavraPasseCurta:
+    "The password must have between 12 and 256 characters.",
+  erroPalavraPasseDiferente: "The two passwords are not the same.",
+  erroCodigoTotp: "Type the 6 digits of the code.",
+  erroCodigoTotpErrado:
+    "The code is not correct. Check the phone's clock and try the next code.",
+  erroPalavraPasseNaoPendente:
+    "This activation is no longer valid (it was replaced or completed elsewhere). Start again.",
+  erroPalavraPasseUltima:
+    "This is the last way to sign in to the account. Add a passkey before removing the password.",
+  erroPalavraPasseNaoExiste: "The account no longer has a password.",
+
+  entrarComPalavraPasse: "Sign in with password",
+  entrarEmail: "E-mail",
+  entrarPalavraPasse: "Password",
+  entrarCodigo: "6-digit code from the authenticator",
+  entrarPalavraPasseBotao: "Sign in",
+  erroEntrarPalavraPasse:
+    "The e-mail, the password or the code is not correct.",
+  erroPalavraPasseIndisponivel:
+    "Signing in with a password is not available on this server.",
 };

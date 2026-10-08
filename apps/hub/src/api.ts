@@ -9,6 +9,11 @@ export interface Eu {
   pessoa: string;
   nome: string;
   email: string;
+  /**
+   * A palavra-passe com o TOTP (docs/22 §9.2). Sem o campo, a API não tem a
+   * palavra-passe ligada e o Hub não a oferece.
+   */
+  palavra_passe?: "activa" | "pendente" | null;
   comerciantes: {
     comerciante: string;
     nome: string;
@@ -152,4 +157,24 @@ export const api = {
     pedir<{ ok: true }>("POST", "/hub/sessions/end-all"),
   gerarCodigos: () =>
     pedir<{ codigos: string[] }>("POST", "/hub/recovery-codes"),
+  // A palavra-passe com o TOTP (docs/22 §9.2). O segredo e o URI só vêm na
+  // resposta de `prepararPalavraPasse` e nunca se guardam.
+  prepararPalavraPasse: (palavraPasse: string) =>
+    pedir<{ segredo: string; uri: string }>("POST", "/hub/password/setup", {
+      corpo: { palavra_passe: palavraPasse },
+    }),
+  confirmarPalavraPasse: (codigo: string) =>
+    pedir<{ ok: true }>("POST", "/hub/password/confirm", {
+      corpo: { codigo },
+    }),
+  retirarPalavraPasse: () =>
+    pedir<{ ok: true }>("POST", "/hub/password/remove"),
+  entrarComPalavraPasse: (
+    email: string,
+    palavraPasse: string,
+    codigo: string,
+  ) =>
+    pedir<{ pessoa: string }>("POST", "/hub/session/password", {
+      corpo: { email, palavra_passe: palavraPasse, codigo },
+    }),
 };

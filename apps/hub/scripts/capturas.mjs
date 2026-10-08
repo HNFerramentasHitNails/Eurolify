@@ -110,6 +110,8 @@ const api = spawn("node", [join(API, "dist/servidor.js")], {
     BASE_DADOS_URL: urlDe(nomeBase, "eurolify_api", SENHA),
     HUB_ORIGEM: ORIGEM,
     PROXY_CONFIAVEL: "127.0.0.1",
+    // A palavra-passe com o TOTP ligada (docs/22 §9.2), com uma chave nova.
+    TOTP_CHAVE: randomBytes(32).toString("base64"),
   },
   stdio: ["ignore", "ignore", "inherit"],
 });
@@ -343,7 +345,8 @@ try {
     "convidar com a sessão antiga pede a passkey outra vez e repete",
   );
 
-  // Passkey recusada (sem verificação do utilizador): fica neutro, não vermelho.
+  // Passkey recusada na reautenticação (sem verificação do utilizador): fica
+  // neutro, não vermelho, e diz o que fazer (revisão do #177, P2-1).
   psql(
     "update sessao set autenticada_em = now() - interval '1 hour' where revogada_em is null",
   );
@@ -358,11 +361,11 @@ try {
   await pagina.waitForTimeout(1500);
   const vermelho = await pagina.locator(".erro").count();
   const textoNeutro = await pagina
-    .getByText("A passkey foi cancelada", { exact: false })
+    .getByText("Saia e volte a entrar", { exact: false })
     .count();
   confere(
     vermelho === 0 && textoNeutro === 1,
-    `passkey recusada: aviso neutro, sem caixa vermelha (vermelho ${String(vermelho)}, neutro ${String(textoNeutro)})`,
+    `passkey recusada na reautenticação: aviso neutro que diz o que fazer, sem caixa vermelha (vermelho ${String(vermelho)}, neutro ${String(textoNeutro)})`,
   );
   await cdp.send("WebAuthn.setUserVerified", {
     authenticatorId: autenticador,
@@ -725,8 +728,167 @@ try {
     "nenhum pedido levou um código de recuperação no endereço",
   );
 
+  // B3b — a palavra-passe com o autenticador (docs/22 §9.2), no navegador
+  // da recuperação (a Ana, com a sessão acabada de abrir).
+  const { generate } = await import(
+    join(API, "node_modules/otplib/dist/index.js")
+  );
+  const pedidosPalavraPasse = [];
+  rp.on("request", (p) => {
+    pedidosPalavraPasse.push(p.url());
+  });
+  const palavraDaAna = "uma frase bem comprida da Ana";
+  await rp.goto(`${ORIGEM}/conta`);
+  await rp
+    .getByRole("heading", { name: "Palavra-passe e autenticador" })
+    .waitFor();
+  await rp.getByText("Estado: não activada.").waitFor();
+  confere(true, "palavra-passe: o bloco aparece com a API a tê-la ligada");
+  await rp
+    .getByRole("button", { name: "Activar palavra-passe e autenticador" })
+    .click();
+  await rp.getByLabel("Palavra-passe (12 caracteres ou mais)").fill("curta");
+  await rp.getByLabel("Repita a palavra-passe").fill("curta");
+  await rp.getByRole("button", { name: "Continuar" }).click();
+  await rp.getByText("entre 12 e 256 caracteres", { exact: false }).waitFor();
+  await rp.getByLabel("Repita a palavra-passe").fill(`${palavraDaAna}!`);
+  await rp
+    .getByLabel("Palavra-passe (12 caracteres ou mais)")
+    .fill(palavraDaAna);
+  await rp.getByRole("button", { name: "Continuar" }).click();
+  await rp.getByText("não são iguais", { exact: false }).waitFor();
+  confere(
+    true,
+    "palavra-passe: curta ou diferente, o ecrã recusa antes da API",
+  );
+  await rp.getByLabel("Repita a palavra-passe").fill(palavraDaAna);
+  const respostaSetup = rp
+    .waitForResponse((r) => r.url().endsWith("/hub/password/setup"))
+    .then((r) => r.json());
+  await rp.getByRole("button", { name: "Continuar" }).click();
+  await rp
+    .getByRole("img", { name: "Código QR para a aplicação de autenticação" })
+    .waitFor();
+  confere(
+    await rp.evaluate(() =>
+      (document.activeElement?.textContent ?? "").startsWith(
+        "Leia este código QR",
+      ),
+    ),
+    "palavra-passe: depois de «Continuar», o foco vai para as instruções do código QR",
+  );
+  const segredoTotp = (
+    (await rp.locator(".segredo").textContent()) ?? ""
+  ).replaceAll(" ", "");
+  // O código QR desenhado é exactamente o do URI que a API enviou, e o URI
+  // leva o mesmo segredo do texto (revisão do #177, P2-3). Que o uqr gera um
+  // código QR legível provou-se à parte, a descodificar a captura (OpenCV).
+  const uriTotp = (await respostaSetup).uri;
+  const { encode } = await import(join(HUB, "node_modules/uqr/dist/index.mjs"));
+  const esperado = encode(uriTotp, { ecc: "M", border: 4 });
+  const desenhado = new Set(
+    [
+      ...((await rp.locator("svg.qr path").getAttribute("d")) ?? "").matchAll(
+        /M(\d+) (\d+)h1v1h-1z/g,
+      ),
+    ].map((m) => `${m[1]},${m[2]}`),
+  );
+  const escuros = esperado.data.flatMap((linha, y) =>
+    linha.flatMap((escuro, x) => (escuro ? [`${String(x)},${String(y)}`] : [])),
+  );
+  confere(
+    uriTotp.startsWith("otpauth://totp/") &&
+      new URL(uriTotp).searchParams.get("secret") === segredoTotp &&
+      escuros.length === desenhado.size &&
+      escuros.every((m) => desenhado.has(m)) &&
+      (await rp.locator("svg.qr").getAttribute("viewBox")) ===
+        `0 0 ${String(esperado.size)} ${String(esperado.size)}`,
+    "palavra-passe: o código QR desenhado é o do URI otpauth:// com o mesmo segredo",
+  );
+  confere(
+    /^[A-Z2-7]{16,}$/.test(segredoTotp),
+    "palavra-passe: o código QR e o segredo aparecem",
+  );
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.screenshot({
+    path: join(SAIDA, "palavra-passe-qr-375-claro.png"),
+    fullPage: true,
+  });
+  await rp.emulateMedia({ colorScheme: "dark" });
+  await rp.locator("svg.qr").screenshot({
+    path: join(SAIDA, "palavra-passe-qr-escuro.png"),
+  });
+  await rp.emulateMedia({ colorScheme: "light" });
+  await rp.getByLabel("Código de 6 dígitos da aplicação").fill("000000");
+  await rp.getByRole("button", { name: "Confirmar e activar" }).click();
+  await rp.getByText("O código não está certo", { exact: false }).waitFor();
+  confere(true, "palavra-passe: um código errado é explicado");
+  const agoraS = Math.floor(Date.now() / 1000);
+  await rp
+    .getByLabel("Código de 6 dígitos da aplicação")
+    .fill(await generate({ secret: segredoTotp, epoch: agoraS }));
+  await rp.getByRole("button", { name: "Confirmar e activar" }).click();
+  await rp.getByText("ficaram activos", { exact: false }).waitFor();
+  await rp.getByText("Estado: activa.").waitFor();
+  confere(
+    (await rp.locator(".segredo").count()) === 0 &&
+      (await rp.getByRole("img", { name: /Código QR/ }).count()) === 0,
+    "palavra-passe: activa; o código QR e o segredo saem do ecrã",
+  );
+
+  // Sair e entrar com e-mail, palavra-passe e o código seguinte.
+  await rp.getByRole("button", { name: "Sair" }).click();
+  await rp.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
+  await rp.getByRole("link", { name: "Entrar com palavra-passe" }).click();
+  await rp.getByLabel("E-mail").fill("ana@exemplo.test");
+  await rp
+    .getByLabel("Palavra-passe", { exact: true })
+    .fill("errada mas comprida");
+  await rp
+    .getByLabel("Código de 6 dígitos do autenticador")
+    .fill(await generate({ secret: segredoTotp, epoch: agoraS + 30 }));
+  await rp.getByRole("button", { name: "Entrar", exact: true }).click();
+  await rp
+    .getByText("O e-mail, a palavra-passe ou o código não estão certos.")
+    .waitFor();
+  confere(true, "entrar com palavra-passe: a errada é recusada");
+  await rp.screenshot({
+    path: join(SAIDA, "entrar-palavra-passe-375-claro.png"),
+    fullPage: true,
+  });
+  await rp.getByLabel("Palavra-passe", { exact: true }).fill(palavraDaAna);
+  await rp
+    .getByLabel("Código de 6 dígitos do autenticador")
+    .fill(await generate({ secret: segredoTotp, epoch: agoraS + 30 }));
+  await rp.getByRole("button", { name: "Entrar", exact: true }).click();
+  await rp.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
+  confere(true, "entrar com e-mail, palavra-passe e código");
+
+  // Retirar: a Ana tem passkeys, por isso pode.
+  await rp.goto(`${ORIGEM}/conta`);
+  await rp.getByText("Estado: activa.").waitFor();
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Retirar a palavra-passe" }).click();
+  await rp
+    .getByText("A palavra-passe foi retirada.", { exact: false })
+    .waitFor();
+  await rp.getByText("Estado: não activada.").waitFor();
+  confere(true, "palavra-passe: retirar");
+  confere(
+    !pedidosPalavraPasse.some(
+      (u) =>
+        u.includes(segredoTotp) || u.includes(encodeURIComponent(palavraDaAna)),
+    ),
+    "nenhum pedido levou o segredo do autenticador nem a palavra-passe no endereço",
+  );
+
   const sessao = await recuperado.contexto.storageState();
   const guardado = JSON.stringify(sessao).toUpperCase();
+  confere(
+    !guardado.includes(segredoTotp) &&
+      !guardado.includes(palavraDaAna.toUpperCase()),
+    "o navegador não guardou o segredo do autenticador nem a palavra-passe",
+  );
   confere(
     !formas.some((c) => guardado.includes(c)),
     "o navegador não guardou nenhum código de recuperação",

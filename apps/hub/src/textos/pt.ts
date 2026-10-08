@@ -96,7 +96,8 @@ export const pt = {
   erroOcupado: "O serviço está ocupado. Tente daqui a pouco.",
   erroOrigem:
     "Pedido recusado por vir de outro sítio. Abra o Hub pelo endereço habitual.",
-  erroRecente: "Esta operação pede que confirme a passkey. Tente outra vez.",
+  erroRecente:
+    "Esta operação pede que confirme quem é (passkey, ou entrar outra vez). Tente outra vez.",
   erroRede: "Sem ligação ao servidor. Verifique a rede e tente outra vez.",
 
   // A minha conta e recuperar (docs/22 §9.1).
@@ -138,6 +139,12 @@ export const pt = {
     "A passkey não foi aceite: pode ser de outra conta, ou o pedido demorou mais de 5 minutos. A sessão continua aberta; tente outra vez.",
   erroRecuperarPasskey:
     "A passkey nova não foi aceite, ou o pedido demorou mais de 5 minutos. Tente outra vez.",
+  erroReautenticar:
+    "Esta operação pede que confirme quem é, e não foi possível com uma passkey neste navegador. Saia e volte a entrar (com a passkey ou com a palavra-passe) e repita nos 10 minutos seguintes.",
+  semPasskeysEntrar:
+    "Este navegador não permite passkeys. Entre com a palavra-passe, se a tiver activado, ou use um navegador actual (Chrome, Edge, Firefox ou Safari).",
+  autenticadorDepois:
+    "Ao confirmar, as outras sessões abertas terminam. Se já tinha o Eurolify nesta aplicação, apague depois a entrada antiga.",
   erroNomePasskey: "O nome da passkey tem de ter entre 1 e 100 caracteres.",
 
   entrarPerdeu: "Perdeu a passkey?",
@@ -162,6 +169,57 @@ export const pt = {
   recuperadoCodigos: "gerar códigos de recuperação novos;",
   recuperadoChaves: "como dono, rever as chaves de API que criou.",
   recuperadoFechar: "Fechar o aviso",
+
+  // Palavra-passe e autenticador (docs/22 §9.2).
+  palavraPasseTitulo: "Palavra-passe e autenticador",
+  palavraPasseExplicacao:
+    "Uma alternativa à passkey: entra com o e-mail, a palavra-passe e o código de 6 dígitos de uma aplicação de autenticação. A palavra-passe sozinha nunca entra.",
+  palavraPasseActiva: "Estado: activa.",
+  palavraPasseNenhuma: "Estado: não activada.",
+  palavraPassePendente:
+    "Estado: ficou a meio de activar. Escolha a palavra-passe outra vez para recomeçar.",
+  palavraPasseActivar: "Activar palavra-passe e autenticador",
+  palavraPasseTrocar: "Trocar a palavra-passe e o autenticador",
+  palavraPasseCampo: "Palavra-passe (12 caracteres ou mais)",
+  palavraPasseRepetir: "Repita a palavra-passe",
+  palavraPasseContinuar: "Continuar",
+  cancelar: "Cancelar",
+  autenticadorPasso:
+    "Leia este código QR com a aplicação de autenticação. Se não conseguir, escreva o segredo à mão na aplicação.",
+  autenticadorQr: "Código QR para a aplicação de autenticação",
+  autenticadorSegredo: "Segredo",
+  autenticadorAviso:
+    "O código QR e o segredo só aparecem agora. Não os guarde noutro sítio nem os envie a ninguém.",
+  autenticadorCodigo: "Código de 6 dígitos da aplicação",
+  autenticadorConfirmar: "Confirmar e activar",
+  palavraPasseActivada:
+    "A palavra-passe e o autenticador ficaram activos. As outras sessões terminaram.",
+  palavraPasseRetirar: "Retirar a palavra-passe",
+  palavraPasseRetirarConfirmar:
+    "Retirar a palavra-passe e o autenticador? As outras sessões abertas terminam; esta continua.",
+  palavraPasseRetirada:
+    "A palavra-passe foi retirada. As outras sessões terminaram.",
+  erroPalavraPasseCurta:
+    "A palavra-passe tem de ter entre 12 e 256 caracteres.",
+  erroPalavraPasseDiferente: "As duas palavras-passe não são iguais.",
+  erroCodigoTotp: "Escreva os 6 algarismos do código.",
+  erroCodigoTotpErrado:
+    "O código não está certo. Confira a hora do telemóvel e tente com o código seguinte.",
+  erroPalavraPasseNaoPendente:
+    "Esta activação já não vale (foi substituída ou concluída noutro sítio). Comece outra vez.",
+  erroPalavraPasseUltima:
+    "É a última forma de entrar na conta. Acrescente uma passkey antes de retirar a palavra-passe.",
+  erroPalavraPasseNaoExiste: "A conta já não tem palavra-passe.",
+
+  entrarComPalavraPasse: "Entrar com palavra-passe",
+  entrarEmail: "E-mail",
+  entrarPalavraPasse: "Palavra-passe",
+  entrarCodigo: "Código de 6 dígitos do autenticador",
+  entrarPalavraPasseBotao: "Entrar",
+  erroEntrarPalavraPasse:
+    "O e-mail, a palavra-passe ou o código não estão certos.",
+  erroPalavraPasseIndisponivel:
+    "Entrar com palavra-passe não está disponível neste servidor.",
 };
 
 export type Textos = typeof pt;
