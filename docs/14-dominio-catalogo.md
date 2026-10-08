@@ -683,7 +683,7 @@ um ecrã nem a uma decisão de IVA sem a validação indicada:
 | Importação | ficheiro, formato, `modo` (ensaio ou aplicar), `estado` (recebida, analisada, aplicada, falhou), relatório | o **ensaio** diz quantos criaria, alteraria e recusaria, e porquê; só depois se aplica. **Nunca apaga** o que não veio no ficheiro. Importar duas vezes o mesmo ficheiro não duplica nada: a chave é o SKU (`catalog-pim`, «Importação») |
 | Exportação | formato aberto (CSV e JSON, **proposta**), `estado`, ficheiro | exportação **completa**: é também a saída do Data Act (`catalog-pim`); desenho abaixo |
 
-#### Exportação do catálogo — desenho (**proposta**, 08/10/2026, issue #77)
+#### Exportação do catálogo (decidido: Diogo, 08/10/2026, `docs/06`, CS; migração 0030; issue #77)
 
 **Para quê.** O comerciante leva o catálogo inteiro para fora do Eurolify num
 formato aberto, sem pedir a ninguém: para guardar, para mudar de fornecedor
@@ -711,7 +711,7 @@ estados** (rascunho, activo e arquivado):
 | `artigos.csv` | artigo | `id` (`prd_…`), `tipo`, `estado`, `nome`, `descricao`, `marca`, `categoria_fiscal`, `origem`, `origem_ref`, a classificação (`familias`, `natureza_consumidor`, `modo`, prestação e local), `criado_em`, `actualizado_em`, `versao` |
 | `variantes.csv` | variante | `id`, `artigo`, `sku`, `gtin`, `gtin_origem`, unidade e conteúdo, peso e dimensões, `onu`, `classe_adr`, `estado`, `posicao`, os valores das opções |
 | `opcoes.csv`, `valores.csv` | opção, valor | `id`, `artigo` (`opcao`), `nome` (`valor`), `posicao` |
-| `componentes.csv` | componente de um kit | `kit`, `componente` (variante), `quantidade`, `posicao` |
+| `componentes.csv` | componente de um kit | `kit` (a variante do kit), `componente` (variante), `quantidade`, `posicao` |
 | `categorias.csv`, `colecoes.csv` | categoria, colecção | `id`, `pai` (só na categoria), `nome`, `descricao` (só na colecção), `endereco_amigavel`, `posicao`, `estado` |
 | `artigos_categorias.csv`, `colecoes_artigos.csv` | ligação | os dois ids (e a `posicao` na colecção) |
 | `traducoes.csv` | tradução | `recurso` (o id com prefixo), `campo`, `lingua`, `texto`, `original`, `origem` (pessoa ou IA), `revista`, `traduzido_em`; o estado (em dia ou desactualizada) calculado |
@@ -739,14 +739,14 @@ estados** (rascunho, activo e arquivado):
   artigo (variantes, opções, componentes, media, traduções, publicações).
   Mudar o formato é `eurolify.catalogo/2`, nunca mudar o 1.
 
-**Como se pede e se descarrega** (proposta):
+**Como se pede e se descarrega:**
 
 | Operação | Método e caminho | Âmbito | Notas |
 |---|---|---|---|
-| Pedir | `POST /exports` com `{"dominios": ["catalogo"]}` | o de leitura de cada domínio | com `Idempotency-Key`; faz o ZIP **dentro do pedido** e responde 201 com a exportação `pronta` (ou `falhou`, com o código) |
+| Pedir | `POST /exports` com `{"dominios": ["catalogo"]}` | o de leitura de cada domínio | com `Idempotency-Key`; faz o ZIP **dentro do pedido** e responde 201 com a exportação `pronta`; se falhar, responde com o erro e não fica linha (`export.too_large`, 422, acima do que o ZIP sem ZIP64 aguenta: 65 535 ficheiros ou 4 GiB). Repetir com a mesma chave devolve a mesma exportação (o ZIP refeito deita-se fora) |
 | Ver | `GET /exports/{id}` | o mesmo | estado, domínios, tamanho, resumo SHA-256 do ZIP, `criada_em`, `expira_em` |
 | Listar | `GET /exports` | o mesmo | as do comerciante, das mais novas para as mais velhas (docs/18 §2a) |
-| Descarregar | `GET /exports/{id}/file` | o mesmo | o ZIP, com `Content-Disposition`; sem a base aberta enquanto se envia |
+| Descarregar | `GET /exports/{id}/file` | o mesmo | o ZIP, com `Content-Disposition`; sem a base aberta enquanto se envia; depois de `expira_em`, 410 `export.expired`; de outro comerciante, 404 `export.not_found` |
 
 - **Fotografia de um momento:** os dados lêem-se numa transacção só de
   leitura (REPEATABLE READ, como as consultas, `noCatalogo` com
@@ -754,8 +754,17 @@ estados** (rascunho, activo e arquivado):
   e a base fecha antes de o ZIP sair. Uma escrita a meio não fica metade
   dentro.
 - **Uma exportação de cada vez por comerciante** (a segunda ao mesmo tempo
-  dá 429); o ZIP fica **7 dias** e depois apaga-se (a limpeza entra com a
-  da issue #179). Não conta para a quota das imagens.
+  dá 429, com `Retry-After: 5`; contada no processo da API, que é um só
+  na VPS); o ZIP fica **7 dias** e depois já não se descarrega. **O ficheiro
+  continua no disco** até à limpeza, que entra com a da issue #179. Não
+  conta para a quota das imagens.
+- **Onde fica:** no armazenamento das imagens, em
+  `.exportacoes/<comerciante>/<id>.zip` (na VPS,
+  `/var/lib/eurolify/media/.exportacoes`); a cópia diária deixa-a de fora
+  (`eurolify-copia`, `docs/11` §3.5), porque se refaz.
+- **O ZIP** escreve-se sem biblioteca de fora (`apps/api/src/exportacao/zip.ts`,
+  o formato do APPNOTE da PKWARE, sem ZIP64); o texto vai comprimido e as
+  imagens como estão.
 - **Sem custo e sem limite de vezes** a não ser o de cima: a partir de
   12/01/2027 a saída não se pode cobrar (`docs/09` linha 115, **W**).
 - **Fora desta parte:** a exportação em segundo plano (para catálogos em

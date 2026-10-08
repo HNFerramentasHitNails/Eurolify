@@ -130,6 +130,8 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
   API (#176, `armazenamento.ts`) é gravar ao lado, com um nome que acaba em
   `.tmp`, na mesma pasta, e só depois mudar o nome (atómico). Um ficheiro
   que muda durante a cópia é só aviso (a seguinte apanha-o).
+  As exportações dos comerciantes (`media/.exportacoes`, `docs/14` §3.11;
+  `docs/06`, CS) ficam de fora: refazem-se e duram 7 dias.
   - **A reposição das imagens não está automatizada nem testada:** o
     `eurolify-reposicao` e o ensaio semanal só repõem a base. Repor é à mão:
     descarregar o `eurolify-media-….tar.age` da OVH, decifrar com a chave

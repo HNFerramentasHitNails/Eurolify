@@ -77,6 +77,9 @@ limpar() {
   install -d -m 750 "$media/$(printf '%08d-0000-7000-8000-000000000001' 1)"
   echo "imagem" >"$media/00000001-0000-7000-8000-000000000001/$(printf 'a%.0s' {1..64})"
   echo "a meio" >"$media/00000001-0000-7000-8000-000000000001/x.tmp"
+  # Uma exportação (docs/14 §3.11): refaz-se e dura 7 dias, não vai na cópia.
+  install -d -m 750 "$media/.exportacoes/00000001-0000-7000-8000-000000000001"
+  echo "zip" >"$media/.exportacoes/00000001-0000-7000-8000-000000000001/exportacao.zip"
 }
 correr() { # correr <descrição> [VAR=valor…]
   local descricao="$1"
@@ -104,6 +107,7 @@ confere sim "apaga na OVH as bases com mais de 14 dias" grep -q "delete --min-ag
 enviado() { /usr/bin/tar -tf "$(compgen -G "$falsos/s3/eurolify-media-*.tar.age")"; }
 confere sim "a imagem vai no arquivo enviado" bash -c "$(declare -f enviado); falsos=$falsos; enviado | grep -q aaaa"
 confere nao "o ficheiro a meio da API (.tmp) fica de fora" bash -c "$(declare -f enviado); falsos=$falsos; enviado | grep -q x.tmp"
+confere nao "as exportações ficam de fora" bash -c "$(declare -f enviado); falsos=$falsos; enviado | grep -q exportac"
 
 limpar
 correr "o age falha a meio da base" FALHA_AGE=dump
