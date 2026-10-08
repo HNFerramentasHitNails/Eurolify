@@ -606,6 +606,45 @@ describe.skipIf(URL_BASE === undefined)("API das importações", () => {
     }
   }, 20_000);
 
+  it("2.ª revisão: um nulo ou um par partido recusa a linha; o que a API aceita passa; o prd_ em maiúsculas é o mesmo artigo", async () => {
+    const nul = await ensaiar(
+      csv(
+        CAB,
+        "NUL\u0000,fisico,Nulo,,NUL-1,unidade,,,",
+        "OK,fisico,Ok,,NUL-OK,unidade,2147483647,,",
+      ),
+    );
+    expect(nul.relatorio.recusadas).toEqual([
+      expect.objectContaining({
+        codigo: "catalog.invalid_field",
+        campo: "artigo",
+      }),
+    ]);
+    expect(nul.relatorio.criar.variantes).toBe(1);
+    const json = await ensaio(
+      '{"formato":"eurolify.catalogo/1","artigos":[{"id":"x","tipo":"fisico","nome":"Par \\ud800","variantes":[{"sku":"SUR-1","unidade_de_venda":"unidade"}]}]}',
+      { tipo: "application/json" },
+    );
+    expect(json.statusCode, json.body).toBe(201);
+    expect(json.json<Importacao>().relatorio.recusadas).toEqual([
+      expect.objectContaining({
+        codigo: "catalog.invalid_field",
+        campo: "nome",
+      }),
+    ]);
+    const id = await criarArtigo(
+      base.api,
+      a,
+      { tipo: "fisico", nome: "Maiusc" },
+      [{ sku: "MAI-1", unidade_de_venda: "unidade" }],
+    );
+    // Um SKU novo: só o prd_ diz qual é o artigo.
+    const mai = await ensaiar(
+      csv(CAB, `prd_${id.toUpperCase()},,,,MAI-2,unidade,,,`),
+    );
+    expect(mai.relatorio.criar).toEqual({ artigos: 0, variantes: 1 });
+  });
+
   it("a mesma chave e o mesmo ficheiro devolvem o mesmo ensaio; com outro ficheiro, recusa", async () => {
     const chave = randomUUID();
     const f = csv(CAB, "IDEM,fisico,Idem,,IDEM-IMP,unidade,,,");

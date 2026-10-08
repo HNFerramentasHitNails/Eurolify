@@ -140,7 +140,23 @@ export class ErroImportacao extends Error {
   }
 }
 
-const NUMERO = /^[0-9]{1,9}$/;
+// Até 10 algarismos: o máximo (2147483647) confere-o o esquema da API
+// (2.ª revisão do #197, P3-d).
+const NUMERO = /^[0-9]{1,10}$/;
+
+/**
+ * O que o PostgreSQL não guarda num texto nem num jsonb: o carácter nulo e
+ * as metades de um par de substituição sozinhas (2.ª revisão do #197,
+ * P2-A). Uma célula com um deles recusa a linha, em vez de dar 500.
+ */
+const PAR_PARTIDO =
+  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const NULO = String.fromCharCode(0);
+const temMau = (t: string) =>
+  t.includes(NULO) || new RegExp(PAR_PARTIDO.source).test(t);
+/** O texto, com o que não se guarda trocado por «�» (para o relatório). */
+const limpo = (t: string) =>
+  t.replaceAll(NULO, "\uFFFD").replace(PAR_PARTIDO, "\uFFFD");
 
 function numeroOuRecusa(
   valor: string,
@@ -309,7 +325,7 @@ export function lerFicheiro(
       if (variantes.length === 0) {
         recusas.push({
           onde: `artigo ${String(i + 1)}`,
-          artigo: ref,
+          artigo: limpo(ref),
           codigo: "import.no_variants",
         });
       }
@@ -365,6 +381,20 @@ function lerLinha(
 ): { linha: Linha; campos: Partial<Record<CampoArtigo, string>> } {
   const sku = celula("sku");
   const artigo = celula("artigo");
+  const mau = [...colunas].find((c) => temMau(celula(c)));
+  if (mau !== undefined) {
+    recusas.push({
+      onde,
+      sku: limpo(sku),
+      codigo: "catalog.invalid_field",
+      campo: mau,
+      detalhe: "um carácter que não se guarda (o nulo ou um par partido)",
+    });
+    return {
+      linha: { onde, artigo: limpo(artigo), sku: "", campos: {} },
+      campos: {},
+    };
+  }
   const campos: Partial<Record<CampoArtigo, string>> = {};
   for (const c of CAMPOS_ARTIGO) {
     if (!colunas.includes(c)) continue;
@@ -528,8 +558,10 @@ const MAX_NA_LISTA = 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const prdDe = (ref: string) => {
+  // O id em maiúsculas é o mesmo id (2.ª revisão do #197, P3-f4).
   const m = /^prd_(.+)$/.exec(ref);
-  return m !== null && UUID.test(m[1] ?? "") ? (m[1] ?? null) : null;
+  const id = (m?.[1] ?? "").toLowerCase();
+  return UUID.test(id) ? id : null;
 };
 
 const igual = (a: Valor | null | undefined, b: Valor | null | undefined) =>
@@ -654,8 +686,8 @@ export async function ensaiar(
           g.linhas.map((l) => l.sku.toLowerCase()),
         )
         .execute();
-      const daLinha = (l: Linha) =>
-        existentes.find((v) => v.sku.toLowerCase() === l.sku.toLowerCase());
+      const porSku = new Map(existentes.map((v) => [v.sku.toLowerCase(), v]));
+      const daLinha = (l: Linha) => porSku.get(l.sku.toLowerCase());
       // O artigo: o prd_ deste comerciante; senão, o dos SKU que já existem;
       // senão, um novo. Nunca pelo nome.
       let alvo: string | null = null;
@@ -864,7 +896,7 @@ export async function ensaiar(
       contas.iguais.variantes += r.iguais;
       if (r.criar) contas.criar.artigos++;
       else if (Object.keys(r.campos).length > 0) contas.alterar.artigos++;
-      else contas.iguais.artigos++;
+      else if (r.iguais > 0 || r.variantes.length > 0) contas.iguais.artigos++;
       if (
         r.criar ||
         Object.keys(r.campos).length > 0 ||
@@ -917,6 +949,10 @@ async function alterarVariante(
  * depois as variantes, FOR NO KEY UPDATE como ao arquivar), com o prazo de espera do Catálogo (revisão do
  * #197, P2-5). Qualquer erro a meio desfaz tudo (quem chama não faz COMMIT).
  */
+/** A ordem dos locks: pelo id, byte a byte (2.ª revisão do #197, P3-b). */
+const porId = (a: string | null, b: string | null) =>
+  (a ?? "") < (b ?? "") ? -1 : (a ?? "") > (b ?? "") ? 1 : 0;
+
 export async function aplicarPlano(
   trx: Transaction<BaseDados>,
   comercianteId: string,
@@ -937,7 +973,7 @@ export async function aplicarPlano(
   }
   const artigosExistentes = plano.artigos
     .filter((a) => a.id !== null)
-    .sort((x, y) => (x.id ?? "").localeCompare(y.id ?? ""));
+    .sort((x, y) => porId(x.id, y.id));
   for (const a of artigosExistentes) {
     const atual = await trx
       .selectFrom("artigo")
@@ -952,7 +988,7 @@ export async function aplicarPlano(
   const variantesExistentes = plano.artigos
     .flatMap((a) => a.variantes)
     .filter((v) => v.id !== null)
-    .sort((x, y) => (x.id ?? "").localeCompare(y.id ?? ""));
+    .sort((x, y) => porId(x.id, y.id));
   for (const v of variantesExistentes) {
     const atual = await trx
       .selectFrom("variante")
@@ -1002,13 +1038,30 @@ export async function aplicarPlano(
     }
     for (const v of a.variantes) {
       if (v.id === null) {
-        await criarVarianteComValores(
-          trx,
-          comercianteId,
-          artigoId,
-          { sku: v.sku, ...v.campos } as unknown as DadosVariante,
-          [],
-        );
+        try {
+          await criarVarianteComValores(
+            trx,
+            comercianteId,
+            artigoId,
+            { sku: v.sku, ...v.campos } as unknown as DadosVariante,
+            [],
+          );
+        } catch (erro) {
+          // Um SKU criado por outro pedido depois da verificação: é «mudou
+          // desde o ensaio» (2.ª revisão do #197, P3-c).
+          const e = traduzir(erro);
+          if (
+            e instanceof ErroCatalogo &&
+            e.codigo === "catalog.sku_duplicate"
+          ) {
+            throw new ErroImportacao(
+              "import.stale",
+              "o catálogo mudou desde o ensaio; faça outro",
+              [`o SKU ${v.sku} já existe`],
+            );
+          }
+          throw e;
+        }
       } else {
         await alterarVariante(trx, v.id, v.campos);
       }
