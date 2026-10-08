@@ -100,4 +100,67 @@ export const en: Textos = {
   erroRecente:
     "This operation needs you to confirm your passkey. Please try again.",
   erroRede: "No connection to the server. Check the network and try again.",
+
+  // My account and recovery (docs/22 §9.1).
+  contaTitulo: "My account",
+  contaLigacao: "Account",
+  passkeysTitulo: "Passkeys",
+  passkeysContagem: "{n} passkeys",
+  passkeysContagemUm: "1 passkey",
+  passkeysConselho:
+    "You have only one passkey. Register a second one on another device: if you lose this one, you can sign in with the other.",
+  colunaCriadaEm: "Created",
+  colunaUltimoUso: "Last used",
+  nunca: "Never",
+  passkeyNome: "Name for this passkey (e.g. Phone)",
+  passkeyAcrescentar: "Add passkey",
+  passkeyAcrescentada: "The passkey was added.",
+  passkeyRetirar: "Remove",
+  passkeyRetirarConfirmar:
+    "Remove the passkey “{nome}”? The other open sessions end; this one continues.",
+  passkeyRetirada: "The passkey was removed. The other sessions ended.",
+  sessoesTitulo: "Open sessions",
+  sessoesContagem: "{n} open sessions",
+  sessoesContagemUm: "1 open session",
+  sessaoEsta: "This session",
+  sessoesTerminar: "End all other sessions",
+  sessoesTerminarConfirmar:
+    "End all other sessions? Anyone using them will have to sign in again.",
+  sessoesTerminadas: "The other sessions ended.",
+  recuperacaoTitulo: "Recovery codes",
+  recuperacaoExplicacao:
+    "If you lose all your passkeys, a recovery code gives you back the account. Generating new codes cancels the old ones.",
+  codigosGerar: "Generate new codes",
+  codigosGerarConfirmar: "Generate 10 new codes? The old ones stop working.",
+  erroUltimaPasskey:
+    "This is the last way to sign in to the account. Add another passkey before removing this one.",
+  erroPasskeyJaRegistada: "This device already has a passkey for this account.",
+  erroPasskeyNaoExiste: "This passkey no longer exists in the account.",
+  erroPasskeyNaoAceite:
+    "The passkey was not accepted: it may belong to another account, or the request took more than 5 minutes. The session is still open; try again.",
+  erroRecuperarPasskey:
+    "The new passkey was not accepted, or the request took more than 5 minutes. Try again.",
+  erroNomePasskey: "The passkey name must have between 1 and 100 characters.",
+
+  entrarPerdeu: "Lost your passkey?",
+  recuperarTitulo: "Recover the account",
+  recuperarExplicacao:
+    "With the account's e-mail and one of the recovery codes, register a new passkey on this device. The code used stops working.",
+  recuperarEmail: "Account e-mail",
+  recuperarCodigo: "Recovery code",
+  recuperarCodigoAjuda: "It looks like XXXX-XXXX-XXXX-XXXX.",
+  recuperarNome: "Name for the new passkey (optional)",
+  recuperarBotao: "Recover with a new passkey",
+  recuperarVoltar: "Sign in with a passkey",
+  erroRecuperar:
+    "The e-mail or the code is not correct, or the code was already used.",
+  erroCodigo: "Type the full recovery code: 16 letters and digits.",
+  recuperadoTitulo: "The account was recovered",
+  recuperadoTexto:
+    "The other sessions ended and the code used no longer works. Still to do:",
+  recuperadoRetirar:
+    "remove the passkeys you no longer have (the one on the lost device keeps working until you remove it);",
+  recuperadoCodigos: "generate new recovery codes;",
+  recuperadoChaves: "as owner, review the API keys you created.",
+  recuperadoFechar: "Close this notice",
 };

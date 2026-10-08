@@ -266,6 +266,7 @@ try {
     .getByRole("heading", { name: "Os seus códigos de recuperação" })
     .waitFor();
   const codigos = await pagina.locator(".codigos li").count();
+  const codigosDaAna = await pagina.locator(".codigos li").allTextContents();
   confere(codigos === 10, `10 códigos de recuperação (vi ${String(codigos)})`);
   await pagina.setViewportSize({ width: 375, height: 800 });
   await pagina.screenshot({
@@ -425,6 +426,10 @@ try {
   const gestor = await comPasskey();
   await aceitar(gestor.pagina, conviteGestor, "Gil Teste");
   await gestor.pagina.goto(equipa);
+  // Espera pelo formulário: ler as opções antes dele dava uma lista vazia.
+  await gestor.pagina.getByRole("option", { name: "Apoio" }).waitFor({
+    state: "attached",
+  });
   const opcoes = await gestor.pagina
     .getByLabel("Papel")
     .locator("option")
@@ -468,25 +473,273 @@ try {
 
   // Teclado: o primeiro Tab vai ao «Saltar para o conteúdo», e há foco visível.
   await pagina.goto(`${ORIGEM}/entrar`);
+  // O React desenha depois do «load»: um Tab antes disso não tem onde ir.
+  await pagina.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
   await pagina.keyboard.press("Tab");
   const primeiro = await pagina.evaluate(
     () => document.activeElement?.textContent,
   );
-  confere(primeiro === "Saltar para o conteúdo", "o primeiro Tab é o salto");
+  confere(
+    primeiro === "Saltar para o conteúdo",
+    `o primeiro Tab é o salto (foi a «${String(primeiro)}»)`,
+  );
   await pagina.keyboard.press("Tab");
   await pagina.keyboard.press("Tab");
   await pagina.screenshot({
     path: join(SAIDA, "entrar-teclado-375-claro.png"),
   });
 
-  const sessao = await contexto.storageState();
+  // B3a — a minha conta (docs/22 §9.1).
+  await pagina.goto(`${ORIGEM}/`);
+  await pagina.getByRole("link", { name: "Conta", exact: true }).click();
+  await pagina.getByRole("heading", { name: "A minha conta" }).waitFor();
+  await pagina.getByText("1 passkey", { exact: true }).waitFor();
+  confere(
+    (await pagina.getByText("Tem só uma passkey", { exact: false }).count()) ===
+      1,
+    "conta: com uma passkey, o conselho de registar a segunda",
+  );
 
-  // As capturas: 4 ecrãs × 3 larguras × 2 temas.
+  // A mesma passkey outra vez neste dispositivo: o navegador recusa. Com a
+  // sessão antiga, primeiro pede a passkey outra vez (revisão do #174,
+  // P2-4).
+  psql(
+    "update sessao set autenticada_em = now() - interval '1 hour' where revogada_em is null",
+  );
+  const antesDaConta = pedidosVistos.length;
+  await pagina.getByLabel("Nome desta passkey", { exact: false }).fill("Outra");
+  await pagina.getByRole("button", { name: "Acrescentar passkey" }).click();
+  await pagina
+    .getByText("Este dispositivo já tem uma passkey desta conta.")
+    .waitFor();
+  confere(true, "conta: a passkey já registada neste dispositivo é explicada");
+  confere(
+    pedidosVistos
+      .slice(antesDaConta)
+      .some((u) => u.endsWith("/hub/session/reauthenticate")),
+    "conta: com a sessão antiga, acrescentar pede a passkey outra vez",
+  );
+
+  // Uma passkey nova noutro «dispositivo» (outro autenticador em software).
+  // A credencial da primeira guarda-se para entrar noutro navegador.
+  const { credentials: daPrimeira } = await cdp.send(
+    "WebAuthn.getCredentials",
+    { authenticatorId: autenticador },
+  );
+  await cdp.send("WebAuthn.removeVirtualAuthenticator", {
+    authenticatorId: autenticador,
+  });
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  await pagina
+    .getByLabel("Nome desta passkey", { exact: false })
+    .fill("Telemóvel");
+  await pagina.getByRole("button", { name: "Acrescentar passkey" }).click();
+  await pagina.getByText("A passkey foi acrescentada.").waitFor();
+  confere(
+    (await pagina.getByText("2 passkeys", { exact: true }).count()) === 1,
+    "conta: acrescentar uma passkey (ficam 2)",
+  );
+
+  // Uma recusa 401 com a sessão aberta (passkey de outra conta, desafio fora
+  // de prazo) mostra-se e não tira a pessoa da conta (revisão do #174, P1-1).
+  await pagina.route("**/hub/passkeys/options", (r) =>
+    r.fulfill({
+      status: 401,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "auth.unauthenticated" }),
+    }),
+  );
+  await pagina.getByLabel("Nome desta passkey", { exact: false }).fill("Teste");
+  await pagina.getByRole("button", { name: "Acrescentar passkey" }).click();
+  await pagina
+    .getByText("A passkey não foi aceite", { exact: false })
+    .waitFor();
+  confere(
+    new URL(pagina.url()).pathname === "/conta",
+    "conta: um 401 com a sessão aberta mostra a recusa e fica na conta",
+  );
+  await pagina.unroute("**/hub/passkeys/options");
+
+  // Outra sessão da Ana noutro navegador, com a primeira passkey.
+  const outro = await comPasskey();
+  for (const credencial of daPrimeira) {
+    await outro.cdp.send("WebAuthn.addCredential", {
+      authenticatorId: outro.autenticador,
+      credential: credencial,
+    });
+  }
+  await outro.pagina.goto(`${ORIGEM}/entrar`);
+  await outro.pagina
+    .getByRole("button", { name: "Entrar com passkey" })
+    .click();
+  await outro.pagina
+    .getByRole("heading", { name: "Os seus comerciantes" })
+    .waitFor();
+  await pagina.reload();
+  await pagina.getByText("2 sessões abertas").waitFor();
+  confere(
+    (await pagina.locator("td strong", { hasText: "Esta sessão" }).count()) ===
+      1,
+    "conta: duas sessões, esta marcada",
+  );
+  await pagina.screenshot({
+    path: join(SAIDA, "conta-duas-sessoes-375-claro.png"),
+    fullPage: true,
+  });
+  pagina.once("dialog", (d) => void d.accept());
+  await pagina
+    .getByRole("button", { name: "Terminar todas as outras" })
+    .click();
+  await pagina.getByText("As outras sessões terminaram.").waitFor();
+  await pagina.getByText("1 sessão aberta").waitFor();
+  confere(
+    (await pagina
+      .getByRole("button", { name: "Terminar todas as outras" })
+      .count()) === 0,
+    "conta: terminar as outras sessões; fica só esta, sem o botão",
+  );
+  await outro.pagina.goto(`${ORIGEM}/conta`);
+  await outro.pagina.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
+  confere(true, "conta: a outra sessão terminou (vai para Entrar)");
+  await outro.contexto.close();
+
+  // Retirar a primeira passkey (já não está neste navegador); depois a
+  // última é recusada.
+  const retirarPrimeira = pagina.locator(
+    "button[aria-label^='Retirar: ']:not([aria-label='Retirar: Telemóvel'])",
+  );
+  pagina.once("dialog", (d) => void d.accept());
+  await retirarPrimeira.first().click();
+  await pagina.getByText("A passkey foi retirada.", { exact: false }).waitFor();
+  await pagina.getByText("1 passkey", { exact: true }).waitFor();
+  confere(true, "conta: retirar uma passkey (fica 1)");
+  pagina.once("dialog", (d) => void d.accept());
+  await pagina.getByRole("button", { name: "Retirar: Telemóvel" }).click();
+  await pagina
+    .getByText("É a última forma de entrar", { exact: false })
+    .waitFor();
+  confere(true, "conta: a última passkey não se retira, e o ecrã explica");
+
+  // Códigos novos: 10, uma vez; os da conta nova deixam de valer.
+  pagina.once("dialog", (d) => void d.accept());
+  await pagina.getByRole("button", { name: "Gerar códigos novos" }).click();
+  await pagina.locator(".codigos li").first().waitFor();
+  const codigosNovos = await pagina.locator(".codigos li").allTextContents();
+  confere(codigosNovos.length === 10, "conta: 10 códigos novos");
+  await pagina.screenshot({
+    path: join(SAIDA, "conta-codigos-375-claro.png"),
+    fullPage: true,
+  });
+  await pagina.getByRole("button", { name: "Já os guardei" }).click();
+  confere(
+    (await pagina.locator(".codigos li").count()) === 0,
+    "conta: «Já os guardei» esconde os códigos",
+  );
+
+  // Recuperar a conta noutro navegador, sem passkey da Ana.
+  const recuperado = await comPasskey();
+  const rp = recuperado.pagina;
+  const pedidosRecuperar = [];
+  rp.on("request", (p) => {
+    pedidosRecuperar.push(p.url());
+  });
+  await rp.goto(`${ORIGEM}/entrar`);
+  await rp.getByRole("link", { name: "Perdeu a passkey?" }).click();
+  await rp.getByRole("heading", { name: "Recuperar a conta" }).waitFor();
+  await rp.getByLabel("E-mail da conta").fill("ana@exemplo.test");
+  await rp
+    .getByLabel("Código de recuperação", { exact: true })
+    .fill(codigosDaAna[0] ?? "");
+  await rp
+    .getByRole("button", { name: "Recuperar com uma passkey nova" })
+    .click();
+  await rp
+    .getByText("O e-mail ou o código não estão certos", { exact: false })
+    .waitFor();
+  confere(true, "recuperar: um código antigo (já anulado) é recusado");
+  // Um código novo escrito em minúsculas e sem hífenes: a API normaliza.
+  await rp
+    .getByLabel("Código de recuperação", { exact: true })
+    .fill((codigosNovos[0] ?? "").toLowerCase().replaceAll("-", ""));
+  await rp
+    .getByLabel("Nome da passkey nova", { exact: false })
+    .fill("Portátil");
+  await rp
+    .getByRole("button", { name: "Recuperar com uma passkey nova" })
+    .click();
+  await rp.getByRole("heading", { name: "A minha conta" }).waitFor();
+  await rp.getByText("A conta foi recuperada").waitFor();
+  // A linha das chaves espera por saber se é dono (o aviso não; P2-2).
+  confere(
+    await rp
+      .getByText("rever as chaves de API", { exact: false })
+      .waitFor({ timeout: 10_000 })
+      .then(
+        () => true,
+        () => false,
+      ),
+    "recuperar: entra na conta com o aviso, com as chaves (é dona)",
+  );
+  await rp.getByText("2 passkeys", { exact: true }).waitFor();
+  await rp.screenshot({
+    path: join(SAIDA, "recuperada-375-claro.png"),
+    fullPage: true,
+  });
+  await rp.goto(`${ORIGEM}/conta`);
+  await rp.getByRole("heading", { name: "A minha conta" }).waitFor();
+  confere(
+    (await rp.getByText("A conta foi recuperada").count()) === 1,
+    "recuperar: o aviso fica depois de recarregar",
+  );
+  await rp.getByRole("button", { name: "Fechar o aviso" }).click();
+  await rp.reload();
+  await rp.getByRole("heading", { name: "A minha conta" }).waitFor();
+  await rp.getByText("2 passkeys", { exact: true }).waitFor();
+  confere(
+    (await rp.getByText("A conta foi recuperada").count()) === 0,
+    "recuperar: fechado, o aviso não volta",
+  );
+  await pagina.goto(`${ORIGEM}/conta`);
+  await pagina.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
+  confere(true, "recuperar: a sessão antiga terminou");
+  // Os códigos, com e sem hífenes, nos pedidos dos dois navegadores e no
+  // que o navegador da recuperação guardou (P2-4).
+  const formas = [...codigosDaAna, ...codigosNovos].flatMap((c) => [
+    c,
+    c.replaceAll("-", ""),
+  ]);
+  confere(
+    pedidosRecuperar.length > 0 &&
+      ![...pedidosVistos, ...pedidosRecuperar].some((u) =>
+        formas.some((c) => decodeURIComponent(u).toUpperCase().includes(c)),
+      ),
+    "nenhum pedido levou um código de recuperação no endereço",
+  );
+
+  const sessao = await recuperado.contexto.storageState();
+  const guardado = JSON.stringify(sessao).toUpperCase();
+  confere(
+    !formas.some((c) => guardado.includes(c)),
+    "o navegador não guardou nenhum código de recuperação",
+  );
+
+  // As capturas: 6 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
     ["convite", `/convite#${conviteParaVer}`, "Aceitar o convite"],
     ["comerciantes", "/", "Os seus comerciantes"],
     ["equipa", `/equipa?comerciante=mer_${comerciante}`, "Equipa"],
+    ["conta", "/conta", "A minha conta"],
+    ["recuperar", "/recuperar", "Recuperar a conta"],
   ];
   for (const tema of ["light", "dark"]) {
     for (const largura of [375, 768, 1280]) {

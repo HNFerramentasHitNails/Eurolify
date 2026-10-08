@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ErroHub } from "../src/api";
 import { mensagemDeErro, semSessao } from "../src/erros";
-import { Cancelado } from "../src/passkeys";
+import { Cancelado, JaRegistada } from "../src/passkeys";
 import { TEXTOS } from "../src/textos";
 
 // O texto dos erros (docs/22 §3): códigos conhecidos com texto próprio nas
@@ -27,6 +27,25 @@ describe("as mensagens de erro", () => {
       expect(
         mensagemDeErro(erro(400, "invite.invalid"), TEXTOS[l], l).texto,
       ).toBe(TEXTOS[l].erroConviteInvalido);
+    }
+  });
+
+  it("os erros das passkeys da conta têm texto próprio (docs/22 §9.1)", () => {
+    const casos = [
+      ["passkey.last_credential", "erroUltimaPasskey"],
+      ["passkey.already_registered", "erroPasskeyJaRegistada"],
+      ["passkey.not_found", "erroPasskeyNaoExiste"],
+    ] as const;
+    for (const l of ["pt", "es", "en"] as const) {
+      for (const [codigo, chave] of casos) {
+        expect(mensagemDeErro(erro(409, codigo), TEXTOS[l], l).texto).toBe(
+          TEXTOS[l][chave],
+        );
+      }
+      // Recusada pelo navegador, antes da API: o mesmo texto.
+      expect(mensagemDeErro(new JaRegistada(), TEXTOS[l], l).texto).toBe(
+        TEXTOS[l].erroPasskeyJaRegistada,
+      );
     }
   });
 
