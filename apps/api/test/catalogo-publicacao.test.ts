@@ -422,6 +422,27 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       expect(
         (await verificarPublicacao(base.api, s.c, pedido)).nao_verificado,
       ).toEqual(["conformidade", "traducao_do_texto_alternativo"]);
+      // Só com a imagem de uma variante fora do par, não conta (revisão do
+      // #184, P3-1).
+      const so = await pronto();
+      const espanha2 = await criarMercado(base.api, so.c, {
+        loja_id: so.loja,
+        nome: "Espanha",
+        paises: ["ES"],
+        moeda: "EUR",
+        linguas: ["es"],
+        lingua_principal: "es",
+      });
+      await imagem(so.c, so.artigo, "Frasco de gel, 30 ml", so.v2);
+      expect(
+        (
+          await verificarPublicacao(base.api, so.c, {
+            ...so.pedido,
+            mercado_id: espanha2,
+            variantes_fora: [so.v2],
+          })
+        ).nao_verificado,
+      ).toEqual(["conformidade"]);
       // No mercado só em português (a língua de origem), não.
       expect(
         (await verificarPublicacao(base.api, s.c, s.pedido)).nao_verificado,
@@ -436,6 +457,11 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
         true,
       );
       const com = await imagem(s.c, s.artigo, "Frasco de gel, 30 ml");
+      expect((await estado())?.estado).toBe("publicado");
+      // Mudar o texto para outro não tira de venda (revisão do #184, P3-1).
+      await alterarMedia(base.api, s.c, com, 1, {
+        texto_alternativo: "Frasco de gel, de frente",
+      });
       expect((await estado())?.estado).toBe("publicado");
       // Uma variante fora da publicação: a imagem dela não conta.
       await imagem(s.c, s.artigo, null, s.v2);
@@ -1490,6 +1516,42 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
         estado: "arquivado",
         motivo_arquivo: "verificacao_falhou",
       });
+    });
+
+    it("tirar o texto a uma imagem espera pela fila do artigo e tira de venda (revisão do #184, P3-1)", async () => {
+      const s = await pronto();
+      const id = await imagem(s.c, s.artigo, "Frasco de gel, 30 ml");
+      expect((await publicar(base.api, s.c, QUEM, s.pedido)).publicada).toBe(
+        true,
+      );
+      const r = await corrida(
+        s.c,
+        (l) =>
+          l.query("select catalogo_fila_do_artigo($1, $2)", [s.c, s.artigo]),
+        () => alterarMedia(base.api, s.c, id, 1, { texto_alternativo: null }),
+      );
+      if (r instanceof Error) throw r;
+      expect(
+        (await publicacoesDoArtigo(base.api, s.c, s.artigo))[0],
+      ).toMatchObject({
+        estado: "arquivado",
+        motivo_arquivo: "verificacao_falhou",
+      });
+    });
+
+    it("apagar uma imagem espera pela fila do artigo (revisão do #184, P3-1)", async () => {
+      const s = await pronto();
+      const id = await imagem(s.c, s.artigo, null);
+      const r = await corrida(
+        s.c,
+        (l) =>
+          l.query("select catalogo_fila_do_artigo($1, $2)", [s.c, s.artigo]),
+        () => apagarMedia(base.api, s.c, id),
+      );
+      if (r instanceof Error) throw r;
+      expect(
+        (await verificarPublicacao(base.api, s.c, s.pedido)).impedimentos,
+      ).toEqual([]);
     });
 
     it(`quem espera mais de ${ESPERA_MAXIMA} por um lock recebe catalog.retry`, async () => {
