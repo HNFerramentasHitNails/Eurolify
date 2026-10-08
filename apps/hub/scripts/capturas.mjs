@@ -1192,11 +1192,74 @@ try {
   await rp.getByRole("button", { name: "Limpar o filtro" }).click();
   await rp.getByText("30 artigos", { exact: true }).waitFor();
   confere(true, "artigos: sem resultados, «Limpar o filtro» volta aos 30");
+  // «Mostrar mais» que falha deixa as 25 linhas à vista (revisão do #201,
+  // P3-4); «Tentar outra vez» traz as que faltavam.
+  await rp.route("**/hub/products?*cursor=*", (r) =>
+    r.fulfill({
+      status: 429,
+      contentType: "application/problem+json",
+      headers: { "retry-after": "7" },
+      body: JSON.stringify({ codigo: "rate_limit.exceeded", status: 429 }),
+    }),
+  );
   await rp.getByRole("button", { name: "Mostrar mais" }).click();
+  await rp.getByText("Pedidos a mais", { exact: false }).waitFor();
+  confere(
+    (await rp.locator("tbody tr").count()) === 25,
+    "artigos: «Mostrar mais» que falha não apaga as 25 linhas",
+  );
+  await rp.unroute("**/hub/products?*cursor=*");
+  await rp.getByRole("button", { name: "Tentar outra vez" }).click();
+  await rp.waitForFunction(
+    () => document.querySelectorAll("tbody tr").length === 30,
+  );
+  confere(
+    await rp.evaluate(
+      () => document.activeElement?.getAttribute("role") === "status",
+    ),
+    "artigos: na última página, o foco vai para a contagem",
+  );
+  // As 30 linhas já estão à vista (o «Tentar outra vez» de cima).
   await rp
     .getByRole("row", { name: /Verniz Areia 30 \(vem do sistema de gestão\)/ })
     .waitFor();
   confere(true, "artigos: o que vem do sistema de gestão diz-o");
+  // O estado vazio e o 403, com respostas fingidas da API (revisão do #201,
+  // P3-10).
+  await rp.route("**/hub/products?*", (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        dados: [],
+        total: 0,
+        ha_mais: false,
+        cursor_seguinte: null,
+      }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByText("Ainda não há artigos.", { exact: false }).waitFor();
+  confere(
+    (await rp.getByText("0 artigos", { exact: true }).count()) === 1 &&
+      (await rp.locator("table").count()) === 0,
+    "artigos: sem artigos, diz como entram e não mostra a tabela",
+  );
+  await rp.unroute("**/hub/products?*");
+  await rp.route("**/hub/products?*", (r) =>
+    r.fulfill({
+      status: 403,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "auth.forbidden", status: 403 }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByText("Não pode ver este comerciante.").waitFor();
+  confere(
+    (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) === 0,
+    "artigos: 403 diz «Não pode ver este comerciante», sem «Tentar outra vez»",
+  );
+  await rp.unroute("**/hub/products?*");
   confere(
     pedidosArtigos.some((u) => u.includes("/hub/products?")) &&
       !pedidosArtigos.some(

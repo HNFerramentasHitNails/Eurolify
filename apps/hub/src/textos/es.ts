@@ -333,6 +333,7 @@ export const es: Textos = {
   artigosTodos: "Todos",
   artigosSku: "SKU",
   artigosProcurarBotao: "Buscar",
+  artigosSemPermissao: "No puede ver este comerciante.",
   artigosMostrarMais: "Mostrar más",
   artigosDoSistema: "viene del sistema de gestión",
   colunaMarca: "Marca",

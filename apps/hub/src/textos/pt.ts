@@ -327,6 +327,7 @@ export const pt = {
   artigosTodos: "Todos",
   artigosSku: "SKU",
   artigosProcurarBotao: "Procurar",
+  artigosSemPermissao: "Não pode ver este comerciante.",
   artigosMostrarMais: "Mostrar mais",
   artigosDoSistema: "vem do sistema de gestão",
   colunaMarca: "Marca",

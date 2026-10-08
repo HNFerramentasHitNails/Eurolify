@@ -328,6 +328,7 @@ export const en: Textos = {
   artigosTodos: "All",
   artigosSku: "SKU",
   artigosProcurarBotao: "Search",
+  artigosSemPermissao: "You cannot see this merchant.",
   artigosMostrarMais: "Show more",
   artigosDoSistema: "comes from the management system",
   colunaMarca: "Brand",

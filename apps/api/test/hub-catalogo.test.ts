@@ -82,12 +82,13 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     ]);
     for (const papel of PAPEIS) {
       const p = await h.pessoaCom(c.id, papel);
-      for (const q of ["", "?texto=verniz", "?limite=1", "?estado=arquivado"]) {
+      for (const q of ["", "?texto=verniz", "?limite=1", "?estado=rascunho"]) {
         const hub = await h.pedir("GET", `/hub/products${q}`, {
           sessao: p.sessao,
           comerciante: c.id,
         });
         expect(hub.statusCode, `${papel} ${q}: ${hub.body}`).toBe(200);
+        expect(hub.headers["cache-control"]).toBe("private, no-store");
         const api = await pelaChave(c.segredo, q);
         expect(hub.json()).toEqual(api.json());
       }
@@ -186,6 +187,36 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       },
     });
     expect(sessaoNaApi.statusCode).toBe(401);
+    // Só leitura: nenhuma escrita do catálogo com a sessão (docs/22 §11.1).
+    const escreverNoHub = await h.pedir("POST", "/hub/products", {
+      sessao: p.sessao,
+      comerciante: c.id,
+      corpo: { tipo: "fisico", nome: "Não entra" },
+    });
+    expect(escreverNoHub.statusCode).toBe(404);
+    const escreverNaApi = await h.app.inject({
+      method: "POST",
+      url: "/products",
+      headers: {
+        cookie: `__Host-eurolify_sessao=${p.sessao}`,
+        "eurolify-comerciante": `mer_${c.id}`,
+        "content-type": "application/json",
+      },
+      payload: JSON.stringify({ tipo: "fisico", nome: "Não entra" }),
+    });
+    expect(escreverNaApi.statusCode).toBe(401);
+    // Uma sessão terminada deixa de ler.
+    const sair = await h.pedir("POST", "/hub/session/end", {
+      sessao: p.sessao,
+      corpo: {},
+    });
+    expect(sair.statusCode).toBe(200);
+    const depoisDeSair = await h.pedir("GET", "/hub/products", {
+      sessao: p.sessao,
+      comerciante: c.id,
+    });
+    expect(depoisDeSair.statusCode).toBe(401);
+    expect(depoisDeSair.body).not.toContain("Artigo");
   });
 
   it("um membro que saiu deixa de ler", async () => {
@@ -209,35 +240,57 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     expect(depois.body).not.toContain("Artigo");
   });
 
-  it("o comerciante suspenso lê-se como pela chave", async () => {
+  it("o comerciante suspenso e o fechado lêem-se como pela chave (lê)", async () => {
     const c = await comerciante("Loja Suspensa", ["Artigo Parado"]);
     const p = await h.pessoaCom(c.id, "gestor");
+    const ler = async () => {
+      const hub = await h.pedir("GET", "/hub/products", {
+        sessao: p.sessao,
+        comerciante: c.id,
+      });
+      const api = await pelaChave(c.segredo, "");
+      expect(hub.statusCode, hub.body).toBe(200);
+      expect(api.statusCode).toBe(200);
+      expect(hub.body).toContain("Artigo Parado");
+      expect(hub.json()).toEqual(api.json());
+    };
     await mudarEstado(base.api, c.id, {
       de: "rascunho",
       para: "suspenso",
       motivo: "teste",
       quem: "teste",
     });
-    const suspenso = await h.pedir("GET", "/hub/products", {
-      sessao: p.sessao,
-      comerciante: c.id,
+    await ler();
+    await mudarEstado(base.api, c.id, {
+      de: "suspenso",
+      para: "fechado",
+      motivo: "teste",
+      quem: "teste",
     });
-    const pelaApi = await pelaChave(c.segredo, "");
-    expect(suspenso.statusCode).toBe(pelaApi.statusCode);
-    expect(suspenso.json()).toEqual(pelaApi.json());
+    await ler();
   });
 
-  it("um filtro inválido dá o mesmo 400 que no GET /products", async () => {
+  it("um pedido recusado dá a mesma resposta nos dois caminhos (esquema e função)", async () => {
     const c = await comerciante("Loja Filtro", []);
     const p = await h.pessoaCom(c.id, "dono");
-    const hub = await h.pedir("GET", "/hub/products?estado=inventado", {
-      sessao: p.sessao,
-      comerciante: c.id,
-    });
-    const api = await pelaChave(c.segredo, "?estado=inventado");
-    expect(hub.statusCode).toBe(400);
-    expect(api.statusCode).toBe(400);
-    expect(h.codigo(hub)).toBe(h.codigo(api));
+    const casos = [
+      // Recusado pelo esquema, antes da função.
+      "?estado=inventado",
+      // Recusados pela própria listaDeArtigos (revisão do #201, P3-1).
+      "?cursor=nao-e-um-cursor",
+      "?actualizado_desde=0000-01-01T00:00:00Z",
+      "?categoria=cat_00000000-0000-4000-8000-000000000000",
+    ];
+    for (const q of casos) {
+      const hub = await h.pedir("GET", `/hub/products${q}`, {
+        sessao: p.sessao,
+        comerciante: c.id,
+      });
+      const api = await pelaChave(c.segredo, q);
+      expect(hub.statusCode, `${q}: ${hub.body}`).toBeGreaterThanOrEqual(400);
+      expect(hub.statusCode, q).toBe(api.statusCode);
+      expect(h.codigo(hub), q).toBe(h.codigo(api));
+    }
   });
 
   it("o contrato tem o caminho do Hub com a segurança da sessão e a resposta da lista", async () => {

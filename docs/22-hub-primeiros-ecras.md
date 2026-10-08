@@ -292,9 +292,12 @@ entrou e a oferecer «Sair» (revisão do #188, P2-2).
 Pedido do Diogo, 08/10/2026: começar o Catálogo no Hub pelo desenho da
 lista de artigos. Desenho aprovado pelo Diogo a 08/10/2026 (*«sim, aprovo o
 desenho, junta o #200 e avança com o código»*), com a mudança da §11.1
-(*«sim, avança com a saída A»*). O catálogo é da outra sessão (#77): este passo não
-mexe em `apps/api/src/catalogo/` nem no `docs/14` (aviso no #77,
-08/10/2026).
+(*«sim, avança com a saída A»*). O catálogo é da outra sessão (#77). O
+desenho (#200) não mexeu em `apps/api/src/catalogo/` nem no `docs/14`; o
+código (#201) só extraiu o corpo do `GET /products` para a função
+`listaDeArtigos` e exportou a `ConsultaArtigos` e a `RespostaArtigos`, sem
+mudar as respostas (a lista das linhas tocadas está no #77; revisão do
+#201, P2-1).
 
 ### 11.1 Como o Hub lê o catálogo
 
@@ -334,7 +337,13 @@ endereço expõe.
 
 | Ecrã | O que mostra | Rotas da API | Estados além do normal |
 |---|---|---|---|
-| **Artigos** (`/artigos?comerciante=mer_…`; ligação em «Os seus comerciantes», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar por nome ou por SKU de uma variante (`texto`, `sku`). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /hub/products?estado=&texto=&sku=&limite=25&cursor=` (a mesma do `GET /products`) | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante»); filtro inválido (400 da API, mostrado como erro do filtro) |
+| **Artigos** (`/artigos?comerciante=mer_…`; ligação em «Os seus comerciantes», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar pelo nome e pelo SKU de uma variante, em dois campos (`texto`, `sku`: a API junta os filtros, por isso um campo só procuraria os dois ao mesmo tempo). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /hub/products?estado=&texto=&sku=&limite=25&cursor=` (a mesma do `GET /products`) | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante», sem «Tentar outra vez»); «Mostrar mais» que falha mostra o erro por baixo das linhas já lidas; filtro inválido (400: o ecrã só deixa escolher valores válidos; se chegar, aparece como erro geral) |
+
+**Limites aceites** (revisão do #201): «Alterado em» aparece no fuso do
+navegador de quem vê, não no do comerciante (o `/hub/me` não dá o fuso; a
+decidir com a `eu-localization`); com um filtro, o «de M» lê-se uma vez ao
+aplicar o filtro e não se relê no «Mostrar mais» (com artigos a entrar
+entretanto, pode ficar desactualizado até ao próximo filtro).
 
 **O que a lista não mostra, e porquê** (medido a 08/10/2026): o
 `GET /products` devolve o resumo do artigo (`CamposArtigo`: nome, tipo,

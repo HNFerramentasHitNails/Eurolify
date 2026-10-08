@@ -1392,7 +1392,11 @@ async function fichaNa(
 /**
  * A lista de artigos (docs/14 §7.1): a mesma para `GET /products` (com a
  * chave) e `GET /hub/products` (com a sessão do Hub; docs/22 §11.1). Uma
- * função só, para os dois caminhos não se afastarem.
+ * função só, para os dois caminhos não se afastarem. **Outro chamador, fora
+ * do catálogo:** `identidade/hub-catalogo.ts`; o teste
+ * `hub-catalogo.test.ts` compara as duas respostas. Uma regra que dependa de
+ * quem pede (a chave ou a pessoa) não entra aqui sem pensar nos dois
+ * (revisão do #201, P2-2).
  */
 export async function listaDeArtigos(
   base: Kysely<BaseDados>,

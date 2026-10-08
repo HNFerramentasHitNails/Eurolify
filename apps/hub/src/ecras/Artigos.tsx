@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   api,
+  ErroHub,
   ESTADOS_ARTIGO,
   type EstadoArtigo,
   type Eu,
@@ -51,14 +52,25 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
   const [falha, setFalha] = useState<unknown>(null);
   const erro: MensagemDeErro | null =
     falha === null ? null : mensagemDeErro(falha, t, lingua);
+  // O erro de «Mostrar mais» fica à parte: as páginas já lidas ficam à
+  // vista (revisão do #201, P3-4).
+  const [falhaMais, setFalhaMais] = useState<unknown>(null);
+  const erroMais: MensagemDeErro | null =
+    falhaMais === null ? null : mensagemDeErro(falhaMais, t, lingua);
   // Só a resposta do último pedido conta.
   const ultimo = useRef(0);
+  // Quando acaba a última página, o foco vai para a contagem, em vez de se
+  // perder com o botão (revisão do #201, P3-8).
+  const contagem = useRef<HTMLParagraphElement>(null);
 
   const carregar = useCallback(
     async (f: FiltrosArtigos) => {
       if (!valido) return;
       const este = ++ultimo.current;
       setFalha(null);
+      setFalhaMais(null);
+      // Um «Mostrar mais» antigo deixa de contar (revisão do #201, P3-5).
+      setACarregarMais(false);
       setLista(null);
       try {
         const [quem, pagina, todos] = await Promise.all([
@@ -94,6 +106,7 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
     if (!valido || lista?.cursor == null || aCarregarMais) return;
     const este = ultimo.current;
     setACarregarMais(true);
+    setFalhaMais(null);
     try {
       const pagina = await api.artigos(comerciante, filtros, lista.cursor);
       if (este !== ultimo.current) return;
@@ -103,15 +116,20 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
         total: pagina.total,
         cursor: pagina.cursor_seguinte,
       });
+      if (pagina.cursor_seguinte === null) {
+        requestAnimationFrame(() => {
+          contagem.current?.focus();
+        });
+      }
     } catch (e) {
       if (este !== ultimo.current) return;
       if (semSessao(e)) {
         navegar("/entrar", { substituir: true });
         return;
       }
-      setFalha(e);
+      setFalhaMais(e);
     } finally {
-      setACarregarMais(false);
+      if (este === ultimo.current) setACarregarMais(false);
     }
   }
 
@@ -213,13 +231,22 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
             </div>
             <button type="submit">{t.artigosProcurarBotao}</button>
           </form>
-          {erro !== null ? (
+          {falha instanceof ErroHub && falha.estado === 403 ? (
+            // Outro comerciante, ou já saiu da equipa: tentar outra vez não
+            // adianta (revisão do #201, P3-6).
+            <CaixaDeErro erro={{ texto: t.artigosSemPermissao }} />
+          ) : erro !== null ? (
             <CaixaDeErro erro={erro} aoTentar={() => void carregar(filtros)} />
           ) : lista === null ? (
             <ACarregar />
           ) : (
             <>
-              <p className="secundario" role="status">
+              <p
+                className="secundario"
+                role="status"
+                tabIndex={-1}
+                ref={contagem}
+              >
                 {filtrado
                   ? preencher(t.artigosContagemFiltro, {
                       n: lista.total,
@@ -283,7 +310,13 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
                       ))}
                     </tbody>
                   </table>
-                  {lista.cursor === null ? null : (
+                  {erroMais === null ? null : (
+                    <CaixaDeErro
+                      erro={erroMais}
+                      aoTentar={() => void mostrarMais()}
+                    />
+                  )}
+                  {lista.cursor === null || erroMais !== null ? null : (
                     <p>
                       <button
                         type="button"

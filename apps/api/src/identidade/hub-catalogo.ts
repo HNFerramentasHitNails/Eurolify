@@ -39,15 +39,19 @@ export function rotasDoCatalogoNoHub(
     },
     async (pedido, resposta) => {
       const sessao = sessaoDo(pedido);
+      // Hoje os quatro papéis têm catalog:read (docs/21 §5): esta recusa
+      // só se alcança se um papel novo não o tiver (revisão do #201, P3-1).
       if (!sessao.ambitos.includes("catalog:read")) {
         throw erroConta("member.role_escalation", "o papel não lê o catálogo");
       }
-      return listaDeArtigos(
-        base,
-        sessao.comercianteId ?? "",
-        pedido.query,
-        resposta,
-      );
+      if (sessao.comercianteId === null) {
+        throw new Error("rota com comerciante sem o comerciante da sessão");
+      }
+      // O endereço é o mesmo para comerciantes diferentes (o comerciante vai
+      // no cabeçalho): nenhuma cache guarda a resposta (revisão do #201,
+      // P3-3).
+      void resposta.header("cache-control", "private, no-store");
+      return listaDeArtigos(base, sessao.comercianteId, pedido.query, resposta);
     },
   );
 }
