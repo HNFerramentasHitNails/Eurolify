@@ -423,14 +423,14 @@ const Verificacao = Type.Object({
   impedimentos: Type.Array(Impedimento),
   nao_verificado: Type.Array(NaoVerificado, {
     description:
-      "O que a verificação ainda não sabe ver (docs/06, CF): «sem impedimentos» não quer dizer «conforme»",
+      "O que a verificação ainda não sabe ver (docs/06, CF e CR): «sem impedimentos» não quer dizer «conforme»",
   }),
 });
 
 /**
  * A verificação guardada numa publicação: a lista do que não se verificava é
- * a do momento em que se guardou, e muda quando a Conformidade e a media
- * passarem a verificar-se (CF). Aqui fica aberta, para uma linha antiga não
+ * a do momento em que se guardou: uma linha de antes de 08/10/2026 diz
+ * ainda `media`, que passou a verificar-se (CF e CR). Aqui fica aberta, para uma linha antiga não
  * dar 500 (revisão do #150, P2-3).
  */
 const VerificacaoGuardada = Type.Object({

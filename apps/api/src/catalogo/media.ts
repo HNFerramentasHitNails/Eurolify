@@ -1,6 +1,7 @@
 import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados, TipoDeImagem } from "../base/esquema.js";
 import { ErroCatalogo, noCatalogo } from "./erros.js";
+import { reverificarPublicacoes } from "./publicacao.js";
 
 // Catálogo: as imagens dos artigos (docs/14 §3.5; migração 0028; docs/06,
 // CQ). Os bytes vivem no armazenamento (`armazenamento.ts`); aqui só as
@@ -9,8 +10,32 @@ import { ErroCatalogo, noCatalogo } from "./erros.js";
 /**
  * A fila da media de um artigo: a principal e a posição seguinte olham para
  * várias linhas. Toma-se antes de prender qualquer linha da media.
+ *
+ * Antes dela, pela ordem do resto do Catálogo, a linha do artigo (FOR KEY
+ * SHARE) e a fila do artigo (0005), onde quem publica também está: a
+ * verificação «pode publicar?» lê a media (C2; docs/06, CR), e assim uma
+ * publicação espera por uma imagem nova sem texto alternativo e vê-a, ou a
+ * imagem espera pela publicação e reverifica-a. Um artigo que não existe é
+ * `catalog.not_found`.
  */
-async function filaDaMedia(trx: Transaction<BaseDados>, artigoId: string) {
+async function filaDaMedia(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+) {
+  const artigo = await trx
+    .selectFrom("artigo")
+    .select("id")
+    .where("comerciante_id", "=", comercianteId)
+    .where("id", "=", artigoId)
+    .forKeyShare()
+    .executeTakeFirst();
+  if (artigo === undefined) {
+    throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+  }
+  await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${artigoId}::uuid)`.execute(
+    trx,
+  );
   await sql`select pg_advisory_xact_lock(hashtextextended('eurolify.media:' || ${artigoId}::uuid::text, 0))`.execute(
     trx,
   );
@@ -143,7 +168,7 @@ export async function criarMedia(
         );
       }
     }
-    await filaDaMedia(trx, dados.artigoId);
+    await filaDaMedia(trx, comercianteId, dados.artigoId);
     let posicao = dados.posicao;
     if (posicao === undefined) {
       const { seguinte } = await trx
@@ -170,6 +195,13 @@ export async function criarMedia(
       })
       .returning("id")
       .executeTakeFirstOrThrow();
+    // Uma imagem sem texto alternativo parte as publicações do artigo onde
+    // conta: saem de venda (docs/14 §8; docs/06, CJ e CR).
+    if (dados.textoAlternativo === null) {
+      await reverificarPublicacoes(trx, comercianteId, {
+        artigo_id: dados.artigoId,
+      });
+    }
     return id;
   });
 }
@@ -203,7 +235,7 @@ export async function alterarMedia(
       throw new ErroCatalogo("catalog.not_found", `media ${mediaId}`);
     }
     // A fila antes da linha, como nas outras escritas da media.
-    await filaDaMedia(trx, antes.artigo_id);
+    await filaDaMedia(trx, comercianteId, antes.artigo_id);
     const linha = await trx
       .selectFrom("media")
       .selectAll()
@@ -249,6 +281,13 @@ export async function alterarMedia(
       .where("id", "=", mediaId)
       .returning("versao")
       .executeTakeFirstOrThrow();
+    // Tirar o texto alternativo parte as publicações onde a imagem conta
+    // (docs/06, CJ e CR).
+    if (campos.texto_alternativo === null) {
+      await reverificarPublicacoes(trx, comercianteId, {
+        artigo_id: linha.artigo_id,
+      });
+    }
     return nova;
   });
 }
@@ -269,7 +308,7 @@ export async function apagarMedia(
     if (antes === undefined) {
       throw new ErroCatalogo("catalog.not_found", `media ${mediaId}`);
     }
-    await filaDaMedia(trx, antes.artigo_id);
+    await filaDaMedia(trx, comercianteId, antes.artigo_id);
     const { numDeletedRows } = await trx
       .deleteFrom("media")
       .where("comerciante_id", "=", comercianteId)

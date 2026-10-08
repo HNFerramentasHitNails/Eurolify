@@ -19,13 +19,20 @@ import { ErroCatalogo, noCatalogo } from "./erros.js";
 // 2.ª ronda, P3-A).
 //
 // Decisão do Diogo, 06/10/2026 (opção a): os atributos regulamentares
-// (Conformidade, sem desenho) e o texto alternativo da media (parte 5) ainda
-// não se verificam. A resposta diz sempre, em `nao_verificado`, o que ficou
-// de fora, para ninguém ler «sem impedimentos» como «conforme». A rede tem
-// fim escrito no docs/14 §5 (C2).
+// (Conformidade, sem desenho) ainda não se verificam. A resposta diz sempre,
+// em `nao_verificado`, o que ficou de fora, para ninguém ler «sem
+// impedimentos» como «conforme». A rede tem fim escrito no docs/14 §5 (C2).
+// A media verifica-se desde 08/10/2026 (Diogo: «sim, avança com a
+// verificação das imagens»; docs/06, CR): cada imagem do artigo, ou de uma
+// variante vendida, tem texto alternativo. O texto alternativo existe só na
+// língua de origem; num mercado com outra língua, a tradução dele fica em
+// `nao_verificado` (docs/14 §3.5).
 
-/** O que a verificação ainda não sabe ver (decisão do Diogo, opção a). */
-export const NAO_VERIFICADO = ["conformidade", "media"] as const;
+/** O que a verificação ainda não sabe ver (docs/06, CF e CR). */
+export const NAO_VERIFICADO = [
+  "conformidade",
+  "traducao_do_texto_alternativo",
+] as const;
 
 export type ImpedimentoPublicacao =
   | { codigo: "artigo_nao_activo" }
@@ -41,7 +48,8 @@ export type ImpedimentoPublicacao =
   | { codigo: "classificacao_em_falta" }
   | { codigo: "natureza_incompativel" }
   | { codigo: "data_ou_local_em_falta"; falta: ("data" | "local" | "modo")[] }
-  | { codigo: "familia_restrita"; familias: string[] };
+  | { codigo: "familia_restrita"; familias: string[] }
+  | { codigo: "texto_alternativo_em_falta"; media: string[] };
 
 export interface Verificacao {
   /** Vazia: pode publicar-se, no que a verificação sabe ver. */
@@ -221,7 +229,33 @@ export async function verificarNa(
     }
   }
 
-  return { impedimentos, nao_verificado: [...NAO_VERIFICADO] };
+  // A media (C2; docs/06, CR): a do artigo e a das variantes vendidas, cada
+  // uma com texto alternativo. A de uma variante fora deste par não conta.
+  // Os ids vão com o prefixo da API (`med_`), para se poderem corrigir.
+  const media = await trx
+    .selectFrom("media")
+    .select(["id", "variante_id", "texto_alternativo"])
+    .where("artigo_id", "=", artigo.id)
+    .orderBy("posicao")
+    .orderBy("id")
+    .execute();
+  const contadas = media.filter(
+    (m) =>
+      m.variante_id === null || vendidas.some((v) => v.id === m.variante_id),
+  );
+  const semTexto = contadas.filter((m) => m.texto_alternativo === null);
+  if (semTexto.length > 0) {
+    impedimentos.push({
+      codigo: "texto_alternativo_em_falta",
+      media: semTexto.map((m) => `med_${m.id}`),
+    });
+  }
+
+  const naoVerificado: Verificacao["nao_verificado"] = ["conformidade"];
+  if (linguas.length > 0 && contadas.length > 0) {
+    naoVerificado.push("traducao_do_texto_alternativo");
+  }
+  return { impedimentos, nao_verificado: naoVerificado };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
