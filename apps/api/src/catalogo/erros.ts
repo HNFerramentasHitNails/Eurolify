@@ -55,6 +55,7 @@ export type CodigoErroCatalogo =
   | "catalog.translation_self_review"
   | "catalog.publish_blocked"
   | "catalog.published_by_required"
+  | "catalog.media_quota_exceeded"
   | "catalog.published_in_use";
 
 export class ErroCatalogo extends Error {

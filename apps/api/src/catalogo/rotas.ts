@@ -177,6 +177,8 @@ const ESTADO_DO_CODIGO: Record<ErroCatalogo["codigo"], number> = {
   "catalog.translation_not_ai": 422,
   "catalog.translation_self_review": 422,
   "catalog.published_by_required": 422,
+  // O espaço das imagens do comerciante acabou (docs/14 §3.5, **proposta**).
+  "catalog.media_quota_exceeded": 409,
 };
 
 /**

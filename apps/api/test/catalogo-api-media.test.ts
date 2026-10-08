@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sql, type Kysely } from "kysely";
@@ -9,6 +9,7 @@ import type { BaseDados } from "../src/base/esquema.js";
 import {
   ArmazenamentoEmDisco,
   tipoDosBytes,
+  type Armazenamento,
 } from "../src/catalogo/armazenamento.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { criarChave } from "../src/identidade/repositorio.js";
@@ -86,7 +87,12 @@ describe("o armazenamento em disco e os primeiros bytes", () => {
           a.guardar(comerciante ?? "", r ?? "", PNG),
         ).rejects.toThrow(/fora do formato/);
       }
+      // Um ficheiro cortado com o nome certo (uma escrita que a máquina não
+      // acabou) escreve-se outra vez (revisão do #176, P2-2).
+      await mkdir(join(pasta, c), { recursive: true });
+      await writeFile(join(pasta, c, resumo(PNG)), PNG.subarray(0, 3));
       await a.guardar(c, resumo(PNG), PNG);
+      expect(await readFile(join(pasta, c, resumo(PNG)))).toEqual(PNG);
       // Guardar outra vez o mesmo resumo não muda nada.
       await a.guardar(c, resumo(PNG), PNG);
       expect(await a.ler(c, resumo(PNG))).toEqual(PNG);
@@ -433,6 +439,230 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
     }
   });
 
+  it("o Content-Type em maiúsculas ou com parâmetros serve; o corpo vazio não; dois comerciantes com os mesmos bytes ficam cada um com o seu", async () => {
+    const maiusculas = await enviar(PNG, "IMAGE/PNG; q=1");
+    expect(maiusculas.statusCode, maiusculas.body).toBe(201);
+    const vazio = await enviar(Buffer.alloc(0), "image/png");
+    expect(vazio.statusCode).toBe(400);
+    expect(vazio.json()).toMatchObject({ codigo: "request.invalid" });
+    const deB = await enviar(PNG, "image/png", { segredo: escritaDeB });
+    expect(deB.statusCode).toBe(201);
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from ficheiro where resumo = ${resumo(PNG)}`.execute(
+      base.dono,
+    );
+    expect(rows[0]?.n).toBe(2);
+    const { rows: b } = await sql<{ c: string }>`
+      select comerciante_id as c from ficheiro
+      where resumo = ${resumo(PNG)} and comerciante_id <> ${a}`.execute(
+      base.dono,
+    );
+    expect(await readFile(join(pasta, b[0]?.c ?? "", resumo(PNG)))).toEqual(
+      PNG,
+    );
+  });
+
+  it("a lista por páginas, uma a uma", async () => {
+    const f = await artigo("Páginas");
+    const png = await ficheiro(PNG, "image/png");
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      ids.push(
+        (
+          await pedir("POST", `/products/${f.id}/media`, { ficheiro: png.id })
+        ).json<Media>().id,
+      );
+    }
+    const vistos: string[] = [];
+    let cursor: string | null = null;
+    for (let i = 0; i < 5; i++) {
+      const q: string =
+        cursor === null ? "limite=1" : `limite=1&cursor=${cursor}`;
+      const p = (await pedir("GET", `/products/${f.id}/media?${q}`)).json<
+        Pagina<Media>
+      >();
+      expect(p.total).toBe(3);
+      vistos.push(...p.dados.map((m) => m.id));
+      cursor = p.cursor_seguinte;
+      if (!p.ha_mais) break;
+    }
+    expect(vistos).toEqual(ids);
+  });
+
+  it("o espaço de cada comerciante: no limite passa, acima dá 409 e nada se escreve no disco; o mesmo ficheiro outra vez não ocupa", async () => {
+    const pastaQuota = await mkdtemp(join(tmpdir(), "eurolify-quota-"));
+    const comQuota = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      new ArmazenamentoEmDisco(pastaQuota, PNG.length + JPEG.length),
+    );
+    try {
+      const c = await registarComerciante(base.api, NOVO);
+      const { segredo } = await criarChave(base.dono, c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Quota",
+        ambitos: ["catalog:read", "catalog:write"],
+      });
+      const env = (bytes: Buffer, tipo: string) =>
+        comQuota.inject({
+          method: "POST",
+          url: "/media/uploads",
+          headers: {
+            authorization: `Bearer ${segredo}`,
+            "idempotency-key": randomUUID(),
+            "content-type": tipo,
+          },
+          payload: bytes,
+        });
+      expect((await env(PNG, "image/png")).statusCode).toBe(201);
+      expect((await env(JPEG, "image/jpeg")).statusCode).toBe(201);
+      const acima = await env(WEBP, "image/webp");
+      expect(acima.statusCode).toBe(409);
+      expect(acima.json()).toMatchObject({
+        codigo: "catalog.media_quota_exceeded",
+      });
+      await expect(
+        readFile(join(pastaQuota, c, resumo(WEBP))),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      expect((await env(PNG, "image/png")).statusCode).toBe(201);
+    } finally {
+      await comQuota.close();
+      await rm(pastaQuota, { recursive: true, force: true });
+    }
+  });
+
+  it("o espaço com dois envios ao mesmo tempo: cada um cabe, os dois não; o segundo a registar dá 409", async () => {
+    const pastaQ = await mkdtemp(join(tmpdir(), "eurolify-quota2-"));
+    const disco = new ArmazenamentoEmDisco(pastaQ, PNG.length + 1);
+    let soltar: () => void = () => undefined;
+    const portao = new Promise<void>((r) => {
+      soltar = r;
+    });
+    let dentro = 0;
+    const lento: Armazenamento = {
+      quotaPorComerciante: disco.quotaPorComerciante,
+      guardar: async (c, r, b) => {
+        dentro++;
+        await portao;
+        await disco.guardar(c, r, b);
+      },
+      ler: (c, r) => disco.ler(c, r),
+    };
+    const app2 = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      lento,
+    );
+    try {
+      const c = await registarComerciante(base.api, NOVO);
+      const { segredo } = await criarChave(base.dono, c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Quota 2",
+        ambitos: ["catalog:read", "catalog:write"],
+      });
+      const env = (bytes: Buffer) =>
+        app2.inject({
+          method: "POST",
+          url: "/media/uploads",
+          headers: {
+            authorization: `Bearer ${segredo}`,
+            "idempotency-key": randomUUID(),
+            "content-type": "image/png",
+          },
+          payload: bytes,
+        });
+      // Dois PNG diferentes, do mesmo tamanho: cada um cabe sozinho.
+      const p1 = env(PNG);
+      const p2 = env(Buffer.concat([PNG.subarray(0, -1), Buffer.from("!")]));
+      for (let i = 0; i < 100 && dentro < 2; i++) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(dentro).toBe(2);
+      soltar();
+      const codigos = [(await p1).statusCode, (await p2).statusCode].sort();
+      expect(codigos).toEqual([201, 409]);
+    } finally {
+      await app2.close();
+      await rm(pastaQ, { recursive: true, force: true });
+    }
+  });
+
+  it("no máximo 2 envios do mesmo comerciante ao mesmo tempo: o terceiro dá 429; acabados, volta a haver lugar", async () => {
+    const pastaLenta = await mkdtemp(join(tmpdir(), "eurolify-lenta-"));
+    const disco = new ArmazenamentoEmDisco(pastaLenta);
+    let soltar: () => void = () => undefined;
+    const portao = new Promise<void>((r) => {
+      soltar = r;
+    });
+    let dentro = 0;
+    const lento: Armazenamento = {
+      quotaPorComerciante: disco.quotaPorComerciante,
+      guardar: async (c, r, b) => {
+        dentro++;
+        await portao;
+        await disco.guardar(c, r, b);
+      },
+      ler: (c, r) => disco.ler(c, r),
+    };
+    const comLento = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      lento,
+    );
+    try {
+      const env = (bytes: Buffer, tipo: string) =>
+        comLento.inject({
+          method: "POST",
+          url: "/media/uploads",
+          headers: {
+            authorization: `Bearer ${escrita}`,
+            "idempotency-key": randomUUID(),
+            "content-type": tipo,
+          },
+          payload: bytes,
+        });
+      const um = env(PNG, "image/png");
+      const dois = env(JPEG, "image/jpeg");
+      for (let i = 0; i < 100 && dentro < 2; i++) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(dentro).toBe(2);
+      const tres = await env(WEBP, "image/webp");
+      expect(tres.statusCode).toBe(429);
+      expect(tres.json()).toMatchObject({ codigo: "rate_limit.exceeded" });
+      expect(tres.headers["retry-after"]).toBe("1");
+      soltar();
+      expect((await um).statusCode).toBe(201);
+      expect((await dois).statusCode).toBe(201);
+      expect((await env(WEBP, "image/webp")).statusCode).toBe(201);
+    } finally {
+      await comLento.close();
+      await rm(pastaLenta, { recursive: true, force: true });
+    }
+  });
+
+  it("um ficheiro que falta no disco dá 500 sem dizer onde", async () => {
+    const f = await artigo("Sem ficheiro");
+    const bytes = Buffer.concat([PNG, Buffer.from(randomUUID())]);
+    const fid = (await ficheiro(bytes, "image/png")).id;
+    const m = (
+      await pedir("POST", `/products/${f.id}/media`, { ficheiro: fid })
+    ).json<Media>();
+    await rm(join(pasta, a, resumo(bytes)));
+    const r = await pedir("GET", `/media/${m.id}/file`);
+    expect(r.statusCode).toBe(500);
+    expect(r.body).not.toContain(pasta);
+    expect(r.body).not.toContain(resumo(bytes));
+  });
+
   it("a idempotência: a mesma chave não liga duas vezes nem envia outro ficheiro; outro corpo dá key_reused", async () => {
     const f = await artigo("Idem");
     const chave = randomUUID();
@@ -474,7 +704,11 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
 
   it("de outro comerciante: 404 em tudo, e o ficheiro de outro não se liga; os âmbitos; sem MEDIA_PASTA não há rotas", async () => {
     const f = await artigo("Meu");
-    const png = await ficheiro(PNG, "image/png");
+    // Uma imagem que só A enviou (B tem o PNG simples, de outro teste).
+    const png = await ficheiro(
+      Buffer.concat([PNG, Buffer.from("só de A")]),
+      "image/png",
+    );
     const m = (
       await pedir("POST", `/products/${f.id}/media`, { ficheiro: png.id })
     ).json<Media>();

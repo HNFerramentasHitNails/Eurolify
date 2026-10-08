@@ -236,6 +236,14 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
   pelos primeiros bytes do ficheiro, que têm de bater com o `Content-Type`
   do envio; até 10 MB cada (**proposta**). Sem SVG (pode levar código), sem
   vídeo por agora.
+- **Limites** (revisão do #176, **proposta**): 1 GiB de imagens por
+  comerciante, conferido antes de escrever no disco e outra vez ao
+  registar (numa fila por comerciante; acima dele,
+  `catalog.media_quota_exceeded`, 409); no máximo 2 envios do mesmo
+  comerciante ao mesmo tempo (o terceiro dá 429 antes de se ler o corpo:
+  cada envio ocupa até 10 MB de memória). O ficheiro escreve-se ao lado,
+  assegura-se no disco (`fsync`) e só depois muda de nome; um ficheiro com
+  o nome certo e outro tamanho (uma escrita cortada) escreve-se outra vez.
 - **Como:** `POST /media/uploads` recebe os bytes e devolve o ficheiro
   (`fil_` e o resumo); `POST /products/{id}/media` liga-o ao artigo (e, se
   se quiser, a uma variante dele), com o texto alternativo e a posição;
@@ -253,8 +261,13 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
   Tirá-los pede uma biblioteca de imagem; tem de estar feito antes de
   entrarem imagens reais (que só entram depois da migração para Paris,
   `docs/06`, CQ).
-- Um ficheiro deixa de estar ligado a qualquer artigo e fica no disco: a
-  limpeza dos órfãos entra depois.
+- **Ficheiros órfãos ficam no disco e contam para o espaço:** um ficheiro
+  que deixa de estar ligado a qualquer artigo, e o que se escreveu num
+  envio que depois falhou (a linha não entrou, ou a chave de idempotência
+  já tinha servido a outro ficheiro). A limpeza dos órfãos entra depois.
+- **Na VPS do ensaio (Reino Unido, ADR-0018) só entram imagens de teste,
+  sem dados pessoais** (ADR-0019; `docs/06`, CQ): o código guarda os bytes
+  como chegam, com os metadados.
 - Quem enviou ou ligou a imagem não fica registado (C7), como nas categorias.
 - Sem dimensões nem miniaturas: a montra recebe a imagem como foi enviada.
 

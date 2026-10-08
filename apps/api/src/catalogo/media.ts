@@ -16,19 +16,75 @@ async function filaDaMedia(trx: Transaction<BaseDados>, artigoId: string) {
   );
 }
 
-/** Regista o ficheiro (o mesmo resumo outra vez não muda nada). */
+/**
+ * O espaço que um ficheiro novo ocuparia além do que o comerciante já tem:
+ * 0 se o ficheiro já está registado (o mesmo resumo não ocupa duas vezes).
+ */
+export async function espacoDepoisDe(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  resumo: string,
+  bytes: number,
+): Promise<number> {
+  return noCatalogo(
+    db,
+    comercianteId,
+    (trx) => espacoNa(trx, comercianteId, resumo, bytes),
+    { soLeitura: true },
+  );
+}
+
+async function espacoNa(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  resumo: string,
+  bytes: number,
+): Promise<number> {
+  const { usado, ja } = await trx
+    .selectFrom("ficheiro")
+    .select([
+      sql<string>`coalesce(sum(bytes), 0)`.as("usado"),
+      sql<boolean | null>`bool_or(resumo = ${resumo})`.as("ja"),
+    ])
+    .where("comerciante_id", "=", comercianteId)
+    .executeTakeFirstOrThrow();
+  return Number(usado) + ((ja ?? false) ? 0 : bytes);
+}
+
+/**
+ * Regista o ficheiro (o mesmo resumo outra vez não muda nada), dentro do
+ * espaço do comerciante (`quota`): acima dele, `catalog.media_quota_exceeded`.
+ * Os registos de um comerciante passam por uma fila só deles: dois envios ao
+ * mesmo tempo não passam os dois por baixo do limite.
+ */
 export async function registarFicheiro(
   db: Kysely<BaseDados>,
   comercianteId: string,
   dados: { resumo: string; tipo: TipoDeImagem; bytes: number },
+  quota: number,
 ): Promise<void> {
-  await noCatalogo(db, comercianteId, (trx) =>
-    trx
+  await noCatalogo(db, comercianteId, async (trx) => {
+    await sql`select pg_advisory_xact_lock(hashtextextended('eurolify.ficheiro:' || ${comercianteId}::uuid::text, 0))`.execute(
+      trx,
+    );
+    const depois = await espacoNa(
+      trx,
+      comercianteId,
+      dados.resumo,
+      dados.bytes,
+    );
+    if (depois > quota) {
+      throw new ErroCatalogo(
+        "catalog.media_quota_exceeded",
+        `o espaço das imagens (${String(quota)} bytes) acabou`,
+      );
+    }
+    await trx
       .insertInto("ficheiro")
       .values({ comerciante_id: comercianteId, ...dados })
       .onConflict((oc) => oc.columns(["comerciante_id", "resumo"]).doNothing())
-      .execute(),
-  );
+      .execute();
+  });
 }
 
 export interface DadosMedia {
@@ -74,6 +130,32 @@ export async function criarMedia(
       .executeTakeFirst();
     if (artigo === undefined) {
       throw new ErroCatalogo("catalog.not_found", `artigo ${dados.artigoId}`);
+    }
+    // O ficheiro e a variante conferem-se aqui, com a mensagem certa; as
+    // chaves estrangeiras ficam como rede (revisão do #176, P1-1).
+    const ficheiro = await trx
+      .selectFrom("ficheiro")
+      .select("resumo")
+      .where("comerciante_id", "=", comercianteId)
+      .where("resumo", "=", dados.resumo)
+      .executeTakeFirst();
+    if (ficheiro === undefined) {
+      throw new ErroCatalogo("catalog.not_found", `ficheiro ${dados.resumo}`);
+    }
+    if (dados.varianteId !== null) {
+      const variante = await trx
+        .selectFrom("variante")
+        .select("id")
+        .where("comerciante_id", "=", comercianteId)
+        .where("artigo_id", "=", dados.artigoId)
+        .where("id", "=", dados.varianteId)
+        .executeTakeFirst();
+      if (variante === undefined) {
+        throw new ErroCatalogo(
+          "catalog.not_found",
+          `variante ${dados.varianteId} do artigo ${dados.artigoId}`,
+        );
+      }
     }
     await filaDaMedia(trx, dados.artigoId);
     let posicao = dados.posicao;

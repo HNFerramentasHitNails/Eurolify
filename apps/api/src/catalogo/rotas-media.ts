@@ -4,6 +4,7 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
 import { erroBase, RESPOSTA_DE_ERRO } from "../base/erros.js";
+import { ErroCatalogo } from "./erros.js";
 import { TIPOS_DE_IMAGEM, type BaseDados } from "../base/esquema.js";
 import { chaveDo } from "../identidade/autenticacao.js";
 import { CabecalhoIdempotencia } from "../identidade/rotas.js";
@@ -17,6 +18,7 @@ import {
   alterarMedia,
   apagarMedia,
   criarMedia,
+  espacoDepoisDe,
   fichaDaMedia,
   mediaDoArtigo,
   registarFicheiro,
@@ -140,74 +142,13 @@ export function rotasDaMedia(
   base: Kysely<BaseDados>,
   armazenamento: Armazenamento,
 ) {
-  // Os bytes das imagens chegam como estão, só nos tipos aceites e até ao
-  // tamanho máximo; outro tipo dá 415 e acima do máximo 413 (os códigos
-  // da base). Fica dentro deste plugin: o resto da API continua só JSON.
-  instancia.addContentTypeParser(
-    [...TIPOS_DE_IMAGEM],
-    { parseAs: "buffer", bodyLimit: TAMANHO_MAXIMO },
-    (_pedido, corpo, feito) => {
-      feito(null, corpo);
-    },
-  );
+  // O envio num plugin só dele: o leitor dos bytes das imagens e o limite de
+  // envios em simultâneo ficam só nesta rota (revisão do #176, P3-1 e P2-3).
+  void instancia.register((envio, _o, pronto) => {
+    rotaDoEnvio(envio, base, armazenamento);
+    pronto();
+  });
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
-
-  rotas.post(
-    "/media/uploads",
-    {
-      config: { ambito: "catalog:write" },
-      schema: {
-        description: `Envia uma imagem: o corpo são os bytes, com o Content-Type do ficheiro (${TIPOS_DE_IMAGEM.join(", ")}), até ${String(TAMANHO_MAXIMO / 1024 / 1024)} MB. Os primeiros bytes têm de ser os desse tipo. Devolve o ficheiro (fil_ e o resumo SHA-256); o mesmo ficheiro enviado outra vez é o mesmo. Liga-se a um artigo com POST /products/{id}/media.`,
-        headers: CabecalhoIdempotencia,
-        response: { 201: FicheiroEsquema, ...RESPOSTA_DE_ERRO },
-      },
-    },
-    async (pedido, resposta) => {
-      const bytes = pedido.body;
-      const declarado = pedido.headers["content-type"]?.split(";")[0]?.trim();
-      if (
-        !Buffer.isBuffer(bytes) ||
-        declarado === undefined ||
-        !eTipoDeImagem(declarado)
-      ) {
-        throw erroBase(
-          "media_type.unsupported",
-          `envia-se a imagem em bruto, com o Content-Type ${TIPOS_DE_IMAGEM.join(", ")}`,
-        );
-      }
-      const tipo = tipoDosBytes(bytes);
-      if (tipo !== declarado) {
-        throw erroBase(
-          "request.invalid",
-          tipo === null
-            ? "o ficheiro não é uma imagem JPEG, PNG ou WebP"
-            : `o ficheiro é ${tipo}, não ${declarado}`,
-        );
-      }
-      const resumo = createHash("sha256").update(bytes).digest("hex");
-      const chave = chaveDo(pedido);
-      // Os bytes primeiro (o nome é o resumo: guardar outra vez não muda
-      // nada); a linha a seguir, na transacção da idempotência. Se a linha
-      // falhar, o ficheiro fica órfão no disco (docs/14 §3.5).
-      await armazenamento.guardar(chave.comercianteId, resumo, bytes);
-      return escrever(
-        base,
-        pedido,
-        resposta,
-        201,
-        async (trx, c) => {
-          await registarFicheiro(trx, c.comercianteId, {
-            resumo,
-            tipo,
-            bytes: bytes.length,
-          });
-          return { id: `fil_${resumo}`, tipo, bytes: bytes.length };
-        },
-        undefined,
-        { resumo, tipo, bytes: bytes.length },
-      );
-    },
-  );
 
   rotas.post(
     "/products/:id/media",
@@ -328,10 +269,21 @@ export function rotasDaMedia(
       const media = await noCatalogoApi(resposta, () =>
         fichaDaMedia(base, chave.comercianteId, semPrefixo(pedido.params.id)),
       );
-      const bytes = await armazenamento.ler(
-        chave.comercianteId,
-        media.ficheiro_resumo,
-      );
+      let bytes: Buffer;
+      try {
+        bytes = await armazenamento.ler(
+          chave.comercianteId,
+          media.ficheiro_resumo,
+        );
+      } catch (erro) {
+        // A linha existe e o ficheiro não (apagado à mão, cópia reposta só
+        // da base): 500 sem pormenor para fora, e o registo diz qual.
+        pedido.log.error(
+          { err: erro, media: media.id, resumo: media.ficheiro_resumo },
+          "media: o ficheiro não está no armazenamento",
+        );
+        throw erro;
+      }
       // O tipo é o que a API confirmou ao receber; o browser não adivinha
       // outro, e a imagem não corre nada (nem que leve código escondido).
       return resposta
@@ -390,5 +342,144 @@ export function rotasDaMedia(
         );
         return null;
       }),
+  );
+}
+
+/** Quantos envios cada comerciante faz ao mesmo tempo (**proposta**). */
+export const ENVIOS_EM_SIMULTANEO = 2;
+
+/**
+ * O envio dos bytes. Cada envio ocupa até 10 MB de memória até acabar: um
+ * comerciante tem no máximo `ENVIOS_EM_SIMULTANEO` ao mesmo tempo; o
+ * seguinte dá 429 antes de se ler o corpo (revisão do #176, P2-3).
+ */
+function rotaDoEnvio(
+  instancia: FastifyInstance,
+  base: Kysely<BaseDados>,
+  armazenamento: Armazenamento,
+) {
+  // Os bytes das imagens chegam como estão, só nos tipos aceites e até ao
+  // tamanho máximo; outro tipo dá 415 e acima do máximo 413 (os códigos
+  // da base).
+  instancia.addContentTypeParser(
+    [...TIPOS_DE_IMAGEM],
+    { parseAs: "buffer", bodyLimit: TAMANHO_MAXIMO },
+    (_pedido, corpo, feito) => {
+      feito(null, corpo);
+    },
+  );
+  const emCurso = new Map<string, number>();
+  // O pedido contado e de que comerciante: só esses se descontam (um pedido
+  // recusado antes, sem chave ou acima do limite, não conta).
+  const contados = new WeakMap<object, string>();
+  const largar = (pedido: { raw: object }) => {
+    const comercianteId = contados.get(pedido.raw);
+    if (comercianteId === undefined) return;
+    contados.delete(pedido.raw);
+    const n = (emCurso.get(comercianteId) ?? 1) - 1;
+    if (n <= 0) emCurso.delete(comercianteId);
+    else emCurso.set(comercianteId, n);
+  };
+  // Depois da autenticação (o gancho da app corre antes deste) e antes de
+  // ler o corpo.
+  instancia.addHook("onRequest", async (pedido, resposta) => {
+    const { comercianteId } = chaveDo(pedido);
+    const n = emCurso.get(comercianteId) ?? 0;
+    if (n >= ENVIOS_EM_SIMULTANEO) {
+      void resposta.header("Retry-After", "1");
+      throw erroBase(
+        "rate_limit.exceeded",
+        `no máximo ${String(ENVIOS_EM_SIMULTANEO)} envios de imagens ao mesmo tempo`,
+      );
+    }
+    emCurso.set(comercianteId, n + 1);
+    contados.set(pedido.raw, comercianteId);
+  });
+  instancia.addHook("onResponse", (pedido, _resposta, feito) => {
+    largar(pedido);
+    feito();
+  });
+  instancia.addHook("onRequestAbort", (pedido, feito) => {
+    largar(pedido);
+    feito();
+  });
+  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+
+  rotas.post(
+    "/media/uploads",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description: `Envia uma imagem: o corpo são os bytes, com o Content-Type do ficheiro (${TIPOS_DE_IMAGEM.join(", ")}), até ${String(TAMANHO_MAXIMO / 1024 / 1024)} MB. Os primeiros bytes têm de ser os desse tipo. Devolve o ficheiro (fil_ e o resumo SHA-256); o mesmo ficheiro enviado outra vez é o mesmo. Liga-se a um artigo com POST /products/{id}/media.`,
+        headers: CabecalhoIdempotencia,
+        response: { 201: FicheiroEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const bytes = pedido.body;
+      const declarado = pedido.headers["content-type"]
+        ?.split(";")[0]
+        ?.trim()
+        .toLowerCase();
+      if (
+        !Buffer.isBuffer(bytes) ||
+        declarado === undefined ||
+        !eTipoDeImagem(declarado)
+      ) {
+        throw erroBase(
+          "media_type.unsupported",
+          `envia-se a imagem em bruto, com o Content-Type ${TIPOS_DE_IMAGEM.join(", ")}`,
+        );
+      }
+      const tipo = tipoDosBytes(bytes);
+      if (tipo !== declarado) {
+        throw erroBase(
+          "request.invalid",
+          tipo === null
+            ? "o ficheiro não é uma imagem JPEG, PNG ou WebP"
+            : `o ficheiro é ${tipo}, não ${declarado}`,
+        );
+      }
+      const resumo = createHash("sha256").update(bytes).digest("hex");
+      const chave = chaveDo(pedido);
+      // O espaço confere-se antes de escrever no disco (outra vez, na fila,
+      // ao registar): acima dele, nada se escreve (revisão do #176, P2-1).
+      await noCatalogoApi(resposta, async () => {
+        const depois = await espacoDepoisDe(
+          base,
+          chave.comercianteId,
+          resumo,
+          bytes.length,
+        );
+        if (depois > armazenamento.quotaPorComerciante) {
+          throw new ErroCatalogo(
+            "catalog.media_quota_exceeded",
+            `o espaço das imagens (${String(armazenamento.quotaPorComerciante)} bytes) acabou`,
+          );
+        }
+      });
+      // Os bytes primeiro (o nome é o resumo: guardar outra vez não muda
+      // nada); a linha a seguir, na transacção da idempotência. Se a linha
+      // falhar (ou a chave já tiver servido a outro ficheiro), o ficheiro
+      // fica órfão no disco (docs/14 §3.5).
+      await armazenamento.guardar(chave.comercianteId, resumo, bytes);
+      return escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        async (trx, c) => {
+          await registarFicheiro(
+            trx,
+            c.comercianteId,
+            { resumo, tipo, bytes: bytes.length },
+            armazenamento.quotaPorComerciante,
+          );
+          return { id: `fil_${resumo}`, tipo, bytes: bytes.length };
+        },
+        undefined,
+        { resumo, tipo, bytes: bytes.length },
+      );
+    },
   );
 }
