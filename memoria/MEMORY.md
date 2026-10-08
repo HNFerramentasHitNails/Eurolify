@@ -86,3 +86,4 @@
 - [Hub B3 (#174, #177, #183): conta, recuperar, palavra-passe com código QR (0029), chaves de API (só de servidor: não há lojas); chave TOTP na VPS; cópia da chave por fazer; publicado no ensaio — 08/10/2026](hub-b3-conta-e-palavra-passe-08out2026.md)
 - [Hub: gestão da equipa (#188): mudar papel, tirar da equipa, sair, aceitar convite com conta existente; sem mudanças na API; publicado no ensaio; o que fica sem prova no navegador — 08/10/2026](hub-gestao-da-equipa-08out2026.md)
 - [«Pode publicar?» verifica o texto alternativo das imagens (#184, decisão CR): impedimento novo, reverificação ao criar/alterar media, nao_verificado só conformidade; publicado no ensaio — 08/10/2026](catalogo-publicar-media-08out2026.md)
+- [Exportação completa do catálogo (#189, decisão CS): POST /exports, ZIP com JSON, CSV e imagens, limite de 3 por expirar, limpeza; cópia da VPS sem exportações; publicado no ensaio — 08/10/2026](catalogo-exportacao-08out2026.md)
