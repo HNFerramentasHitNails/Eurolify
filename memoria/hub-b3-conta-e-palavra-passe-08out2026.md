@@ -27,6 +27,13 @@ na VPS»*. Issue #156; desenho em `docs/22` §9.
   /usr/local/lib/eurolify/chave-totp.sh», API recriada com a mesma imagem
   (/health e base ok). Publicação, corrida 37783827214, 13:27: «migrar:
   aplicadas 0029_identidade_eu_palavra_passe».
+- **B3c (#183, 2c51580):** `/chaves` (só o dono): lista, criar uma chave
+  de servidor (o segredo uma vez) e revogar. **Chaves públicas não se
+  oferecem**: não há forma de criar lojas (nem rota da API, nem acção do
+  operador; `grep` em `apps/api/src` e migrações, 08/10/2026). Revisão Opus
+  5.5: 0 P0, 0 P1, 3 P2 (sem resposta ao criar; aviso em «Gerir chaves»;
+  `translate="no"` nos segredos de todo o Hub), 10 P3. Publicado: corrida
+  37789807338, 14:12, «migrar: nada em falta».
 - O número da migração passou de 0028 a 0029: o #176 (imagens) juntou
   primeiro com a 0028. O `main` avançou três vezes durante o #177 (#176,
   #178, #180), sempre com a outra sessão nos mesmos ficheiros da VPS.
@@ -39,6 +46,10 @@ na VPS»*. Issue #156; desenho em `docs/22` §9.
   verificações em 84, 5 corridas seguidas (08/10/2026).
 - Testes da VPS depois do #180: `publicar` 170, `chave-totp` 20, `copia`
   37, outros 90; nenhum falhou (neste contentor descartável, 08/10/2026).
+- B3c: Hub 52 testes; `capturas.mjs` 103 em 103, 5 corridas seguidas; a
+  chave criada no Hub entra na API (200) e, revogada, é recusada (401)
+  (08/10/2026). No ensaio, 14:1x: `/chaves` 200, `/hub/keys` sem sessão 401,
+  o código servido tem «Criar uma chave de servidor».
 - No ensaio, às 13:3x de 08/10/2026: `POST /hub/session/password` 401 (era
   404 antes da chave); `/hub/me` sem sessão 401; o código servido tem «Entrar
   com palavra-passe» e o código QR.
@@ -52,4 +63,6 @@ na VPS»*. Issue #156; desenho em `docs/22` §9.
   pelo Bruno (`infra/vps/LEIA-ME.md`, «A chave dos segredos TOTP»).
 - Por decidir: a reautenticação só com a palavra-passe (`docs/22` §9.2) e o
   429 do bloqueio por conta que revela a conta (revisão do #177, P3-9).
-- B3c (chaves de API pelo Hub) por fazer.
+- As chaves públicas no Hub, quando houver forma de criar lojas.
+- O texto do aviso de «Gerir chaves» (proposto; pode ser afinado pelo Diogo
+  ou pelo Bruno).
