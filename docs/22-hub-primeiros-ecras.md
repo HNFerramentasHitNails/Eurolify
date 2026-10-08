@@ -208,7 +208,7 @@ parte. Em três pedidos, pela ordem do `docs/21` §12:
 | **Na conta: palavra-passe** | se não está activa: «Activar palavra-passe e autenticador» → palavra-passe (≥ 12) e confirmação → o segredo para o autenticador → o primeiro código de 6 dígitos → activa; se está activa: «Retirar» com confirmação | `POST /hub/password/setup`, `POST /hub/password/confirm`, `POST /hub/password/remove` | autenticação recente; código errado; retirar quando não há passkey (a API recusa) |
 
 **Na API (feito com a B3b):** o `/hub/me` diz `palavra_passe: "activa" |
-"pendente" | null` (migração 0028; só o estado, nenhum dado secreto). O
+"pendente" | null` (migração 0029; só o estado, nenhum dado secreto). O
 campo só existe quando a API tem a palavra-passe ligada (`TOTP_CHAVE`);
 sem ele, a conta não oferece a palavra-passe. Ao entrar, sem sessão, o Hub
 não sabe se a API a tem: a ligação «Entrar com palavra-passe» aparece, e
