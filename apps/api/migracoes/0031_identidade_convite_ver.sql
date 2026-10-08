@@ -8,7 +8,12 @@
 -- registo no evento_conta. A mesma recusa da convite_em_aberto para «não
 -- existe», «já usado», «cancelado» e «expirado», e também para o
 -- comerciante suspenso ou fechado (a API já o traduz assim nas rotas de
--- aceitar): quem tem uma ligação velha não aprende nada.
+-- aceitar sem sessão): quem tem uma ligação velha não aprende nada.
+--
+-- Não confere se quem convidou ainda pode dar o papel (a convite_concluir
+-- confere-o ao aceitar): pode dar como válido um convite que aceitar recusa.
+-- É raro, porque tirar, mudar o papel e desactivar a pessoa cancelam os
+-- convites dela (pessoa_fechar_acessos; revisão do #196, P3-2).
 
 SET LOCAL lock_timeout = '10s';
 

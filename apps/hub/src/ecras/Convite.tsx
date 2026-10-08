@@ -45,11 +45,14 @@ export function Convite({ segredo }: { segredo: string | null }) {
 
   useEffect(() => {
     if (segredo === null) return;
+    // Só conta a resposta do segredo actual (revisão do #196, P3-4).
+    let activo = true;
     api.verConvite(segredo).then(
       (r) => {
-        setDetalhe(r);
+        if (activo) setDetalhe(r);
       },
       (e: unknown) => {
+        if (!activo) return;
         if (e instanceof ErroHub && e.codigo === "invite.invalid") {
           setInvalido(true);
         } else {
@@ -60,6 +63,9 @@ export function Convite({ segredo }: { segredo: string | null }) {
         setDetalhe(null);
       },
     );
+    return () => {
+      activo = false;
+    };
   }, [segredo]);
 
   if (segredo === null) {
@@ -187,6 +193,18 @@ export function Convite({ segredo }: { segredo: string | null }) {
         <div className="aviso" role="alert">
           {t.erroConviteInvalido}
         </div>
+        {/* Com sessão, uma saída para o Hub (revisão do #196, P3-5). */}
+        {eu === undefined || eu === null ? null : (
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              navegar("/");
+            }}
+          >
+            {t.equipaVoltar}
+          </a>
+        )}
       </section>
     );
   }
@@ -227,8 +245,9 @@ export function Convite({ segredo }: { segredo: string | null }) {
     );
 
   if (eu !== null) {
-    // Uma cópia da regra da base (invite.other_person), só para não oferecer
-    // o que ela recusa; a base decide na mesma.
+    // Só um aviso: quem decide é a base (invite.other_person), e o botão
+    // fica activo — comparar e-mails aqui podia recusar o que ela aceita
+    // (revisão do #196, P2-1).
     const outroEmail =
       detalhe !== null &&
       detalhe.email.toLowerCase() !== eu.email.toLowerCase();
@@ -240,7 +259,7 @@ export function Convite({ segredo }: { segredo: string | null }) {
           {preencher(t.conviteComSessao, { nome: eu.nome, email: eu.email })}
         </p>
         {outroEmail ? (
-          <div className="aviso" role="note">
+          <div className="aviso" role="note" id="convite-outro-email">
             {preencher(t.conviteEmailDiferente, {
               email: detalhe.email,
               sessao: eu.email,
@@ -251,14 +270,16 @@ export function Convite({ segredo }: { segredo: string | null }) {
         <button
           type="button"
           className="principal"
-          disabled={aEspera || outroEmail}
+          disabled={aEspera}
+          aria-describedby={outroEmail ? "convite-outro-email" : undefined}
           onClick={() => void aoAceitar(false)}
         >
           {aEspera ? t.aCarregar : t.conviteAceitarComConta}
         </button>
-        {outroEmail ? null : (
+        {/* Sem o resumo, não se sabe para que e-mail é (P3-6). */}
+        {detalhe === null ? (
           <p className="secundario">{t.conviteOutraConta}</p>
-        )}
+        ) : null}
         <button type="button" disabled={aEspera} onClick={() => void aoSair()}>
           {t.sair}
         </button>

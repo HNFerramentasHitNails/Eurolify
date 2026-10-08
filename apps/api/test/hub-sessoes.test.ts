@@ -273,6 +273,7 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
         corpo: { convite },
       });
       expect(r.statusCode, r.body).toBe(200);
+      expect(r.headers["cache-control"]).toBe("no-store");
       const corpo = r.json<Record<string, string>>();
       // Só isto: nem quem convidou, nem identificadores.
       expect(Object.keys(corpo).sort()).toEqual([
@@ -866,12 +867,23 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
       });
       expect(r.statusCode).toBe(404);
       expect(codigo(r)).toBe("invite.invalid");
-      // Nem o nome do comerciante suspenso se vê (issue #194).
+      // Nem o nome do comerciante suspenso se vê (issue #194), com a mesma
+      // resposta de um convite inventado (revisão do #196, P3-3).
       const ver = await pedir("POST", "/hub/invitations/preview", {
         corpo: { convite },
       });
+      const inventado = await pedir("POST", "/hub/invitations/preview", {
+        corpo: { convite: `euc_${randomBytes(32).toString("base64url")}` },
+      });
       expect(ver.statusCode).toBe(404);
       expect(codigo(ver)).toBe("invite.invalid");
+      expect({
+        ...ver.json<Record<string, unknown>>(),
+        instance: null,
+      }).toEqual({
+        ...inventado.json<Record<string, unknown>>(),
+        instance: null,
+      });
     });
 
     it("P2-4: transportes fora da lista recusam-se com 400, não com 500", async () => {

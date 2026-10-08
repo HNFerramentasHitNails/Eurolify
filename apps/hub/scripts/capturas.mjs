@@ -1095,20 +1095,21 @@ try {
   await gil.pagina
     .getByText("Entrou como Gil Teste", { exact: false })
     .waitFor();
-  // O ecrã já sabe para que e-mail é: diz-o e não oferece aceitar
-  // (issue #194).
+  // O ecrã já sabe para que e-mail é e avisa (issue #194); aceitar fica
+  // activo e quem recusa é a base (revisão do #196, P2-1).
   await gil.pagina
     .getByText(
       "Este convite é para eva2@exemplo.test e entrou como gil@exemplo.test.",
       { exact: false },
     )
     .waitFor();
-  confere(
-    await gil.pagina
-      .getByRole("button", { name: "Aceitar com esta conta" })
-      .isDisabled(),
-    "convite: para outro e-mail, «Aceitar com esta conta» desligado",
-  );
+  await gil.pagina
+    .getByRole("button", { name: "Aceitar com esta conta" })
+    .click();
+  await gil.pagina
+    .getByText("Este convite é para outro e-mail.", { exact: false })
+    .waitFor();
+  confere(true, "convite: para outro e-mail, o aviso antes e a recusa da base");
   await gil.pagina.getByRole("button", { name: "Sair", exact: true }).click();
   await gil.pagina.getByLabel("O seu nome").waitFor();
   confere(

@@ -544,7 +544,7 @@ export function rotasDoHub(
       config: { ambito: "publico", hub: true },
       schema: {
         description:
-          "O que o convite diz, para o ecrã o mostrar antes de aceitar: o comerciante, o papel, o e-mail e quando expira. A mesma recusa das rotas de aceitar para qualquer convite que não vale (issue #194).",
+          "O que o convite diz, para o ecrã o mostrar antes de aceitar: o comerciante, o papel, o e-mail e quando expira. Para qualquer convite que não vale, também com o comerciante suspenso ou fechado, a mesma recusa de /hub/invitations/accept/options e /hub/invitations/accept-new (404 invite.invalid; issue #194).",
         body: Type.Object(
           { convite: SegredoConvite },
           { additionalProperties: false },
@@ -560,7 +560,10 @@ export function rotasDoHub(
         },
       },
     },
-    async (pedido) => {
+    async (pedido, resposta) => {
+      // O e-mail e o nome do comerciante não ficam em nenhuma cache
+      // (revisão do #196, P3-7).
+      void resposta.header("cache-control", "no-store");
       const linha = await noConvite(async () => {
         const { rows } = await sql<{
           comerciante_nome: string;
