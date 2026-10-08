@@ -701,7 +701,6 @@ const PedidoTraduzir = Type.Object(
       description:
         "Nome e valor até 200 caracteres; descrição até 20 000; endereço amigável no formato da base",
     }),
-    origem: umDe(["pessoa", "ia"] as const),
     original_visto: Type.String({
       maxLength: 20000,
       description:
@@ -983,8 +982,12 @@ function campoDe(tipo: RecursoTraduzivel, campo: string) {
  * campo e o limite na mensagem, em vez do erro genérico da base.
  */
 function textoCabe(campo: string, texto: string) {
+  // Conta-se por caracteres (pontos de código), como a base (`length`) e o
+  // contrato; não por unidades UTF-16 (2.ª revisão do #166, P3-B). Os
+  // limites repetem os da 0009: mudam-se nos dois sítios.
+  const caracteres = Array.from(texto).length;
   if (campo === "endereco_amigavel") {
-    if (texto.length > 100) {
+    if (caracteres > 100) {
       throw new ErroCatalogo(
         "catalog.slug_invalid",
         "o endereço amigável traduz-se com até 100 caracteres",
@@ -993,7 +996,7 @@ function textoCabe(campo: string, texto: string) {
     return;
   }
   const limite = campo === "descricao" ? 20000 : 200;
-  if (texto.length > limite) {
+  if (caracteres > limite) {
     throw new ErroCatalogo(
       "catalog.invalid_field",
       `o campo ${campo} traduz-se com até ${String(limite)} caracteres`,
@@ -2006,7 +2009,7 @@ export function rotasDoCatalogo(
       config: { ambito: "catalog:write" },
       schema: {
         description:
-          "Traduz um campo para uma língua, ou traduz outra vez (substitui o texto e a origem e apaga a revisão). `original_visto` é o texto original que quem traduziu viu: se mudou, catalog.version_conflict. Não se traduz para a língua de origem nem um campo sem original. Campos: artigo (nome, descricao), opção (nome), valor (valor), categoria (nome, endereco_amigavel), colecção (nome, descricao, endereco_amigavel).",
+          "Traduz um campo para uma língua, ou traduz outra vez (substitui o texto e apaga a revisão). Por chave, a tradução fica sempre como proposta de IA (`origem: ia`); as de pessoa gravam-se no Hub (docs/06, CP). `original_visto` é o texto original que quem traduziu viu: se mudou, catalog.version_conflict. Não se traduz para a língua de origem nem um campo sem original. Campos: artigo (nome, descricao), opção (nome), valor (valor), categoria (nome, endereco_amigavel), colecção (nome, descricao, endereco_amigavel).",
         headers: CabecalhoIdempotencia,
         params: ParametrosTraducao,
         body: PedidoTraduzir,
@@ -2025,7 +2028,9 @@ export function rotasDoCatalogo(
           campo,
           lingua: pedido.params.lingua,
           texto: pedido.body.texto,
-          origem: pedido.body.origem,
+          // Por chave, é sempre uma proposta de IA: só o Hub, com a sessão
+          // de uma pessoa, grava traduções de pessoa (docs/06, CP).
+          origem: "ia",
           originalVisto: pedido.body.original_visto,
         });
         return traducaoNa(

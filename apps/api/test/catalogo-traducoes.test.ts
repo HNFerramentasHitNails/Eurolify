@@ -370,7 +370,15 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     await definirTraducao(base.api, c, QUEM, nomeEs(artigo));
     expect(
       await codigoDoErro(
-        reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es"),
+        reverTraducao(
+          base.api,
+          c,
+          "rui@exemplo.eu",
+          artigo,
+          "nome",
+          "es",
+          "Gel de construcción",
+        ),
       ),
     ).toBe("catalog.translation_not_ai");
     await definirTraducao(base.api, c, "assistente-ia", {
@@ -378,19 +386,60 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
       origem: "ia",
     });
     expect(
-      await codigoDoErro(reverTraducao(base.api, c, "", artigo, "nome", "es")),
+      await codigoDoErro(
+        reverTraducao(
+          base.api,
+          c,
+          "",
+          artigo,
+          "nome",
+          "es",
+          "Gel de construcción",
+        ),
+      ),
     ).toBe("catalog.translated_by_required");
     // Quem traduziu não se revê (P2-2), nem com outras maiúsculas (2.ª
     // revisão, P3-1).
     for (const proprio of ["assistente-ia", "Assistente-IA"]) {
       expect(
         await codigoDoErro(
-          reverTraducao(base.api, c, proprio, artigo, "nome", "es"),
+          reverTraducao(
+            base.api,
+            c,
+            proprio,
+            artigo,
+            "nome",
+            "es",
+            "Gel de construcción",
+          ),
         ),
         proprio,
       ).toBe("catalog.translation_self_review");
     }
-    await reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es");
+    // Rever um texto que já não é o de agora (alguém traduziu outra vez
+    // entretanto) é recusado (revisão do #166, P2-1).
+    expect(
+      await codigoDoErro(
+        reverTraducao(
+          base.api,
+          c,
+          "rui@exemplo.eu",
+          artigo,
+          "nome",
+          "es",
+          "Gel de construcción antigo",
+        ),
+      ),
+    ).toBe("catalog.version_conflict");
+    await reverTraducao(
+      base.api,
+      c,
+      "rui@exemplo.eu",
+      artigo,
+      "nome",
+      "es",
+      "Gel de construcción",
+    );
     expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
       origem: "ia",
       traduzidoPor: "assistente-ia",
@@ -400,7 +449,15 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     await alterarArtigo(base.api, c, artigo, 1, { nome: "Gel construtor" });
     expect(
       await codigoDoErro(
-        reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es"),
+        reverTraducao(
+          base.api,
+          c,
+          "rui@exemplo.eu",
+          artigo,
+          "nome",
+          "es",
+          "Gel de construcción",
+        ),
       ),
     ).toBe("catalog.invalid_transition");
     expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
@@ -428,7 +485,15 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     });
     expect(
       await codigoDoErro(
-        reverTraducao(base.api, c, QUEM, artigo, "nome", "fr"),
+        reverTraducao(
+          base.api,
+          c,
+          QUEM,
+          artigo,
+          "nome",
+          "fr",
+          "Gel de construcción",
+        ),
       ),
     ).toBe("catalog.not_found");
   });

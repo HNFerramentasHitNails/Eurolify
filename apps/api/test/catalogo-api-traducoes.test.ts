@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
 import { criarCategoria, criarColecao } from "../src/catalogo/categorias.js";
+import { definirTraducao } from "../src/catalogo/traducoes.js";
 import {
   criarEntidadeLegal,
   criarLoja,
@@ -129,14 +130,13 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     campo: string,
     texto: string,
     originalVisto: string,
-    opcoes: { origem?: string; segredo?: string; chave?: string } = {},
+    opcoes: { segredo?: string; chave?: string } = {},
   ) =>
     pedir(
       "PUT",
       `/translations/${recurso}/${campo}/es`,
       {
         texto,
-        origem: opcoes.origem ?? "pessoa",
         original_visto: originalVisto,
       },
       {
@@ -209,7 +209,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
       lingua: "es",
       texto: "Gel constructor",
       estado: "completa",
-      origem: "pessoa",
+      origem: "ia",
       revista: false,
     });
     // Não sai quem traduziu (CL).
@@ -230,7 +230,6 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     // Outra língua: com `locale`, só a pedida.
     await pedir("PUT", `/translations/${f.id}/nome/fr`, {
       texto: "Gel de construction",
-      origem: "pessoa",
       original_visto: "Gel construtor",
     });
     const so = (
@@ -298,7 +297,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     await pedir(
       "PUT",
       `/translations/${f1.id}/nome/es`,
-      { texto: "Uno", origem: "pessoa", original_visto: "Um" },
+      { texto: "Uno", original_visto: "Um" },
       { segredo },
     );
     await pedir(
@@ -365,7 +364,6 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     expect(campo.json()).toMatchObject({ codigo: "request.invalid" });
     const lingua = await pedir("PUT", `/translations/${f.id}/nome/ES`, {
       texto: "x",
-      origem: "pessoa",
       original_visto: "Lima",
     });
     expect(lingua.statusCode).toBe(400);
@@ -401,7 +399,6 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     const f = r.json<Ficha>();
     const origem = await pedir("PUT", `/translations/${f.id}/nome/pt`, {
       texto: "Outro",
-      origem: "pessoa",
       original_visto: "Sem descrição",
     });
     expect(origem.statusCode).toBe(422);
@@ -415,21 +412,50 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     });
   });
 
-  it("rever não está nesta API (CO): a rota não existe; traduzir por IA por cima de uma tradução de pessoa substitui-a", async () => {
+  it("por chave, a tradução é sempre proposta de IA (CP): pedir a origem dá 400; substitui uma tradução de pessoa; a rota de revisão não existe (CO)", async () => {
     const f = await artigo("Verniz", "TR-REV");
-    await traduzir(f.id, "nome", "Barniz", "Verniz");
-    const rever = await pedir("POST", `/translations/${f.id}/nome/es/review`);
-    expect(rever.statusCode).toBe(404);
-    expect(rever.json()).toMatchObject({ codigo: "route.not_found" });
-    // Por desenho, traduzir outra vez substitui sempre (docs/14 §7.1, P3-7).
-    const ia = await traduzir(f.id, "nome", "Esmalte", "Verniz", {
-      origem: "ia",
+    // Uma tradução de pessoa, gravada como o Hub a gravará (pelo repositório).
+    await definirTraducao(base.api, a, "pessoa:ana", {
+      tipo: "artigo",
+      recursoId: f.id.slice("prd_".length),
+      campo: "nome",
+      lingua: "es",
+      texto: "Barniz",
+      origem: "pessoa",
+      originalVisto: "Verniz",
     });
+    for (const origem of ["pessoa", "ia"]) {
+      const r = await pedir("PUT", `/translations/${f.id}/nome/es`, {
+        texto: "Esmalte",
+        origem,
+        original_visto: "Verniz",
+      });
+      expect(r.statusCode, origem).toBe(400);
+      expect(r.json(), origem).toMatchObject({ codigo: "request.invalid" });
+    }
+    const antes = (
+      await pedir("GET", `/translations?resource=${f.id}&locale=es`)
+    ).json<Pagina<Traducao>>();
+    expect(antes.dados[0]).toMatchObject({ texto: "Barniz", origem: "pessoa" });
+    // Por desenho, traduzir outra vez substitui sempre (docs/14 §7.1, P3-7).
+    const ia = await traduzir(f.id, "nome", "Esmalte", "Verniz");
     expect(ia.json()).toMatchObject({
       texto: "Esmalte",
       origem: "ia",
       revista: false,
     });
+    const rever = await pedir("POST", `/translations/${f.id}/nome/es/review`);
+    expect(rever.statusCode).toBe(404);
+    expect(rever.json()).toMatchObject({ codigo: "route.not_found" });
+  });
+
+  it("o limite conta caracteres, não unidades UTF-16: 200 emojis cabem num nome, 201 não", async () => {
+    const f = await artigo("Brilho", "TR-EMO");
+    const cabe = await traduzir(f.id, "nome", "💅".repeat(200), "Brilho");
+    expect(cabe.statusCode).toBe(200);
+    const passa = await traduzir(f.id, "nome", "💅".repeat(201), "Brilho");
+    expect(passa.statusCode).toBe(400);
+    expect(passa.json()).toMatchObject({ codigo: "catalog.invalid_field" });
   });
 
   it("um original vazio ou só com espaços não entra na fila; uma tradução de um original que ficou vazio fica desactualizada", async () => {
@@ -474,14 +500,14 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
       await pedir(
         "PUT",
         `/translations/${f.id}/nome/es`,
-        { texto: `${f.nome} ES`, origem: "pessoa", original_visto: f.nome },
+        { texto: `${f.nome} ES`, original_visto: f.nome },
         { segredo },
       );
     }
     const t = await pedir(
       "PUT",
       `/translations/${fica.id}/descricao/es`,
-      { texto: "Con texto", origem: "pessoa", original_visto: "Com texto" },
+      { texto: "Con texto", original_visto: "Com texto" },
       { segredo },
     );
     expect(t.statusCode).toBe(200);
@@ -755,7 +781,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     const semChavePut = await pedir(
       "PUT",
       `/translations/${f.id}/nome/es`,
-      { texto: "X", origem: "pessoa", original_visto: "Cutícula" },
+      { texto: "X", original_visto: "Cutícula" },
       { chave: null },
     );
     expect(semChavePut.json()).toMatchObject({
@@ -791,7 +817,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
       [
         "PUT",
         `/translations/${f.id}/nome/es`,
-        { texto: "X", origem: "pessoa", original_visto: "Alheio" },
+        { texto: "X", original_visto: "Alheio" },
       ],
       ["DELETE", `/translations/${f.id}/nome/es`, undefined],
     ] as const) {
@@ -817,7 +843,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
         await pedir(
           "PUT",
           `/translations/${f.id}/nome/es`,
-          { texto: "Y", origem: "pessoa", original_visto: "Alheio" },
+          { texto: "Y", original_visto: "Alheio" },
           { segredo: leitura },
         )
       ).statusCode,

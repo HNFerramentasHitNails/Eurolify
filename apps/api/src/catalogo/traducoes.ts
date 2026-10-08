@@ -108,7 +108,10 @@ export async function definirTraducao(
 
 /**
  * Marca uma proposta de IA como revista por `quem` (docs/14 §3.8). Não está
- * na API de chaves: só uma pessoa revê, no Hub (docs/06, CO).
+ * na API de chaves: só uma pessoa revê, no Hub (docs/06, CO). `textoVisto`
+ * é o texto que a pessoa reviu: se entretanto alguém traduziu outra vez, a
+ * revisão é recusada com `catalog.version_conflict`, como o `originalVisto`
+ * ao traduzir (revisões do #166, P2-1 e 2.ª ronda, P3-C).
  */
 export async function reverTraducao(
   db: Kysely<BaseDados>,
@@ -117,22 +120,40 @@ export async function reverTraducao(
   recursoId: string,
   campo: string,
   lingua: string,
+  textoVisto: string,
 ): Promise<void> {
+  const id = recursoId.toLowerCase();
   await noCatalogo(db, comercianteId, async (trx) => {
     await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
-    const resultado = await trx
-      .updateTable("traducao")
-      .set({ revista: true })
-      .where("recurso_id", "=", recursoId.toLowerCase())
+    // A linha presa até ao fim: o texto não muda entre a comparação e a
+    // revisão.
+    const actual = await trx
+      .selectFrom("traducao")
+      .select("texto")
+      .where("recurso_id", "=", id)
       .where("campo", "=", campo)
       .where("lingua", "=", lingua)
+      .forUpdate()
       .executeTakeFirst();
-    if (resultado.numUpdatedRows === 0n) {
+    if (actual === undefined) {
       throw new ErroCatalogo(
         "catalog.not_found",
         `tradução ${recursoId} ${campo} ${lingua}`,
       );
     }
+    if (actual.texto !== textoVisto) {
+      throw new ErroCatalogo(
+        "catalog.version_conflict",
+        `tradução ${recursoId} ${campo} ${lingua}: o texto mudou desde que foi lido`,
+      );
+    }
+    await trx
+      .updateTable("traducao")
+      .set({ revista: true })
+      .where("recurso_id", "=", id)
+      .where("campo", "=", campo)
+      .where("lingua", "=", lingua)
+      .execute();
   });
 }
 
@@ -192,7 +213,13 @@ export interface Traducao {
   revistoEm: Date | null;
 }
 
-/** As traduções de um recurso, com o estado de cada uma (§4.3). */
+/**
+ * As traduções de um recurso, com o estado de cada uma (§4.3) e com quem
+ * traduziu e reviu, que a API não mostra (docs/14 §7.1). Hoje só os testes
+ * da base a usam, para conferir o rasto; a API lê por `traducoesParaApi`.
+ * As duas calculam o estado com `estadoDaTraducao`; a fila (`consultas.ts`)
+ * escreve a mesma regra em SQL (2.ª revisão do #166, P3-A).
+ */
 export async function traducoesDoRecurso(
   db: Kysely<BaseDados>,
   comercianteId: string,

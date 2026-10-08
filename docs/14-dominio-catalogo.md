@@ -361,7 +361,8 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   é da base. Traduzir outra vez substitui o texto, a origem e quem, e apaga a
   revisão. Só uma proposta de IA se revê; quem a traduziu não a revê; uma
   revisão não se repete (se o original mudou, traduz-se ou confirma-se outra
-  vez; revisão do #105, P2-1 e P2-2).
+  vez; revisão do #105, P2-1 e P2-2). Estas regras vivem na base e no
+  repositório; pela API de chaves não se revê (`docs/06`, CO).
 - Quem traduz diz o **original que viu**; se já não é o de agora, a tradução
   é recusada com `catalog.version_conflict` (como a escrita do artigo com a
   versão antiga; revisão do #105, P2-3). Esta comparação vive no
@@ -369,10 +370,11 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   escreve traduções; quem tivesse as credenciais da base podia confirmar
   uma tradução sem a comparação (2.ª revisão do #105, P3-6).
 - **Pessoa ou IA** (`eu-localization`: a tradução por IA é proposta, revista
-  por uma pessoa): a base não sabe quem é pessoa. Quando a API existir, a
-  `origem` e o «é uma pessoa» de quem revê vêm da **conta que chama** (pessoa
-  ou agente), nunca do corpo do pedido, e um agente não revê (revisão do
-  #105, P2-2).
+  por uma pessoa): a base não sabe quem é pessoa. A `origem` e o «é uma
+  pessoa» de quem revê vêm da **conta que chama** (pessoa ou agente), nunca
+  do corpo do pedido, e um agente não revê (revisão do #105, P2-2). Na API
+  de chaves (#166): o que se traduz fica sempre `ia` e não se revê; as
+  traduções de pessoa e as revisões entram pelo Hub (`docs/06`, CO e CP).
 - Limites (**proposta**): nomes e valores traduzidos até 200 caracteres,
   descrições até 20 000.
 - **Falta:** o rasto do texto anterior de cada tradução (C7, «antes e
@@ -795,7 +797,8 @@ as traduções»):
   a fila do que falta traduzir nessa língua (`estado`: `em_falta`,
   `desactualizada`), por páginas (`docs/18` §2a);
 - com `catalog:write`, com a `Idempotency-Key`:
-  `PUT /translations/{recurso}/{campo}/{lingua}` (traduz ou traduz outra vez;
+  `PUT /translations/{recurso}/{campo}/{lingua}` (traduz ou traduz outra vez,
+  sempre como proposta de IA: o corpo não leva a origem, `docs/06`, CP;
   `original_visto` é o original que quem traduziu viu, e se mudou dá
   `catalog.version_conflict`) e `DELETE` (o campo passa a «em falta»; o nome
   de um artigo publicado num mercado dessa língua tira-o de venda, §8; quem
@@ -820,10 +823,22 @@ como na base: uma língua que nenhum mercado usa dá uma fila inteira «em
 falta» (fica para quando os mercados tiverem línguas na API). Pedir as
 traduções de um recurso na língua de origem dá
 `catalog.translation_same_language`, como a fila. Traduzir outra vez
-substitui sempre, também uma tradução de pessoa por uma proposta de IA: quem
-chama decide (por decidir se se quer protecção, revisão do #166, P3-7). Quem
-traduziu fica registado como a chave e não sai nas respostas (`docs/06`, CO,
-que alarga a CL). Os estados
+substitui sempre, também uma tradução de pessoa (gravada no Hub) por uma
+proposta de IA (por decidir se se quer protecção, revisão do #166, P3-7).
+Quem traduziu fica registado como a chave e não sai nas respostas
+(**proposta**, por analogia com a CL; por confirmar com o Diogo ou o Bruno;
+2.ª revisão do #166, P3-D). O limite de texto conta caracteres, como a
+base, e repete os limites da 0009: muda-se nos dois sítios.
+
+**Faltas conhecidas das traduções** (revisões do #166, P3-5 e 2.ª ronda,
+P3-E): a resposta do `GET /translations` é uma de duas listas sem campo que
+as distinga (um SDK gerado vê uma união; quem chama sabe qual pediu); o item
+da fila não traz o original, e as categorias e as colecções ainda não têm
+rota de leitura, por isso o `original_visto` delas só se obtém fora da API
+até essas rotas entrarem. A revisão no Hub (`reverTraducao` já recebe o
+texto que a pessoa viu) não tem ainda rota nem data.
+
+Os estados
 e as línguas são os do desenho: o `docs/14` §7.1 escrevia `outdated` e
 `missing`, e o código usa `desactualizada` e `em_falta`, como o §4.3.
 
