@@ -309,7 +309,7 @@ try {
 
   // Convidar pede autenticação recente? Acabou de criar a conta: não.
   await pagina.getByLabel("E-mail do convidado").fill("eva@exemplo.test");
-  await pagina.getByLabel("Papel").selectOption("apoio");
+  await pagina.getByLabel("Papel", { exact: true }).selectOption("apoio");
   await pagina.getByRole("button", { name: "Criar o convite" }).click();
   await pagina.getByText("Ligação do convite").waitFor();
   const ligacao = await pagina.locator(".segredo").textContent();
@@ -349,7 +349,7 @@ try {
   const antes = pedidosVistos.length;
   await pagina.goto(equipa);
   await pagina.getByLabel("E-mail do convidado").fill("ze@exemplo.test");
-  await pagina.getByLabel("Papel").selectOption("armazem");
+  await pagina.getByLabel("Papel", { exact: true }).selectOption("armazem");
   await pagina.getByRole("button", { name: "Criar o convite" }).click();
   await pagina.getByText("Ligação do convite").waitFor();
   confere(
@@ -370,7 +370,7 @@ try {
   });
   await pagina.goto(equipa);
   await pagina.getByLabel("E-mail do convidado").fill("lia@exemplo.test");
-  await pagina.getByLabel("Papel").selectOption("apoio");
+  await pagina.getByLabel("Papel", { exact: true }).selectOption("apoio");
   await pagina.getByRole("button", { name: "Criar o convite" }).click();
   await pagina.waitForTimeout(1500);
   const vermelho = await pagina.locator(".erro").count();
@@ -448,7 +448,7 @@ try {
     state: "attached",
   });
   const opcoes = await gestor.pagina
-    .getByLabel("Papel")
+    .getByLabel("Papel", { exact: true })
     .locator("option")
     .allTextContents();
   confere(
@@ -934,16 +934,31 @@ try {
     (await rp.getByLabel("Papel de Ivo Teste").inputValue()) === "armazem",
     "equipa: mudar o papel de um membro",
   );
-  rp.once("dialog", (d) => void d.accept());
-  await rp.getByRole("button", { name: "Sair desta equipa" }).click();
-  await rp.getByText("É o último dono", { exact: false }).waitFor();
-  confere(true, "equipa: a última dona não sai, e o ecrã explica");
+  // A última dona não sai: o botão está desligado e o ecrã diz porquê
+  // (revisão do #188, P3-4).
+  confere(
+    (await rp
+      .getByRole("button", { name: "Sair desta equipa" })
+      .isDisabled()) &&
+      (await rp.getByText("É o último dono", { exact: false }).count()) === 1,
+    "equipa: a última dona não sai, e o ecrã explica",
+  );
+  confere(
+    (await rp.getByText("rita@exemplo.test").count()) === 1,
+    "equipa: o convite que o Gil criou está em aberto antes de ele sair",
+  );
   rp.once("dialog", (d) => void d.accept());
   await rp.getByRole("button", { name: "Tirar da equipa: Gil Teste" }).click();
-  await rp.getByText("Gil Teste saiu da equipa.").waitFor();
+  await rp.getByText("Gil Teste foi tirado da equipa.").waitFor();
   confere(
     (await rp.locator("tr", { hasText: "Gil Teste" }).count()) === 0,
     "equipa: tirar um membro da equipa",
+  );
+  // O que o texto de confirmação promete: o convite em aberto que o Gil
+  // criou fica cancelado (revisão do #188, P2-5).
+  confere(
+    (await rp.getByText("rita@exemplo.test").count()) === 0,
+    "equipa: ao tirar o Gil, o convite em aberto que ele criou é cancelado",
   );
   await rp.screenshot({
     path: join(SAIDA, "equipa-gestao-375-claro.png"),

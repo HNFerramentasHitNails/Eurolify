@@ -288,15 +288,19 @@ export const en: Textos = {
   papelMudar: "Change",
   papelMudarRotulo: "Role of {nome}",
   papelMudarConfirmar:
-    "Change {nome}'s role to {papel}? The keys and invitations they created that the new role no longer allows are closed.",
+    "Change {nome}'s role to {papel}? The open invitations and server keys they created that the new role no longer allows are cancelled and revoked, along with keys created from them: the integrations that use them stop working.",
   papelMudado: "{nome}'s role is now {papel}.",
   membroTirar: "Remove from the team",
   membroTirarConfirmar:
-    "{nome} will no longer sign in to this merchant; the invitations and keys they created here are closed. Continue?",
-  membroTirado: "{nome} left the team.",
+    "{nome} will no longer sign in to this merchant. The open invitations they created here are cancelled and the server keys they created (and those created from them) are revoked: the integrations that use them stop working. The store's public keys stay. Continue?",
+  membroTirado: "{nome} was removed from the team.",
   membroSair: "Leave this team",
   membroSairConfirmar:
-    "Leave this team? You will no longer sign in to this merchant; the invitations and keys you created here are closed.",
+    "Leave this team? You will no longer sign in to this merchant. The open invitations you created here are cancelled and the server keys you created (and those created from them) are revoked: the integrations that use them stop working. The store's public keys stay.",
+  membroUltimoDono:
+    "You are the last owner: to leave, appoint another owner first.",
+  conviteJaTemConta:
+    "Already have an account (passkey or password)? Sign in to the Hub first and open this link again.",
   erroUltimoDono: "This is the last owner: appoint another owner first.",
   erroProprioPapel: "Nobody can change their own role.",
   erroMembroNaoExiste: "This member is no longer in the team.",

@@ -49,10 +49,18 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
   const erroAccao: MensagemDeErro | null =
     falhaAccao === null ? null : mensagemDeErro(falhaAccao, t, lingua);
   // A mensagem de êxito guarda a chave do texto: muda com a língua.
+  // O papel guarda-se como código e traduz-se ao mostrar (P3-1).
   const [aviso, setAviso] = useState<{
     chave: keyof Textos;
     valores?: Record<string, string>;
+    papel?: Papel;
   } | null>(null);
+  // A mensagem de êxito recebe o foco: o botão ou a linha desaparecem
+  // (revisão do #188, P3-5).
+  const caixaDoAviso = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (aviso !== null) caixaDoAviso.current?.focus();
+  }, [aviso]);
   // Uma acção de cada vez: as que pedem a passkey trocam o cookie (revisão
   // do #174, P2-3).
   const [ocupado, setOcupado] = useState(false);
@@ -97,37 +105,19 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
 
   const meu = eu?.comerciantes.find((c) => c.comerciante === comerciante);
 
-  async function cancelar(convite: string, email: string) {
+  function cancelar(convite: string, email: string) {
     if (
       comerciante === null ||
       !window.confirm(preencher(t.cancelarConfirmar, { email }))
     ) {
       return;
     }
-    setFalhaAccao(null);
-    setAviso(null);
-    try {
+    // Uma acção de cada vez, como as outras (revisão do #188, P3-3).
+    void accao(async () => {
       await api.cancelarConvite(comerciante, convite);
       setAviso({ chave: "conviteCancelado" });
       await carregar();
-    } catch (e) {
-      // Um 401 só manda para «Entrar» se a sessão acabou (revisão do #174,
-      // P1-1).
-      const mostrar = await falhaDeAccao(e);
-      if (mostrar === null) {
-        navegar("/entrar", { substituir: true });
-        return;
-      }
-      setFalhaAccao(mostrar);
-      // Já usado ou cancelado noutro separador: a lista volta a ler-se
-      // (revisão do #158, P2-3).
-      if (
-        e instanceof ErroHub &&
-        (e.codigo === "invite.used" || e.codigo === "invite.not_found")
-      ) {
-        await carregar();
-      }
-    }
+    });
   }
 
   /** Corre uma acção da equipa: uma de cada vez, e o erro à parte. */
@@ -148,8 +138,14 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
         return;
       }
       setFalhaAccao(mostrar);
-      // O membro já saiu (outro separador): a lista volta a ler-se.
-      if (e instanceof ErroHub && e.codigo === "member.not_found") {
+      // O membro já saiu, ou o convite já foi usado ou cancelado (outro
+      // separador): a lista volta a ler-se (revisão do #158, P2-3).
+      if (
+        e instanceof ErroHub &&
+        (e.codigo === "member.not_found" ||
+          e.codigo === "invite.used" ||
+          e.codigo === "invite.not_found")
+      ) {
         await carregar();
       }
     } finally {
@@ -158,14 +154,36 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
     }
   }
 
+  /** Esquece a escolha da lista de uma linha (P3-2). */
+  const esquecerEscolha = (membro: string) => {
+    setEscolhidos((antes) =>
+      Object.fromEntries(
+        Object.entries(antes).filter(([chave]) => chave !== membro),
+      ),
+    );
+  };
+
   function mudarPapel(m: Membros["membros"][number], papel: Papel) {
     if (comerciante === null || papel === m.papel) return;
-    const valores = { nome: m.nome, papel: t[`papel_${papel}`] };
-    if (!window.confirm(preencher(t.papelMudarConfirmar, valores))) return;
+    if (
+      !window.confirm(
+        preencher(t.papelMudarConfirmar, {
+          nome: m.nome,
+          papel: t[`papel_${papel}`],
+        }),
+      )
+    ) {
+      esquecerEscolha(m.membro);
+      return;
+    }
     void accao(async () => {
-      await comRecente(() => api.mudarPapel(comerciante, m.membro, papel));
-      await carregar();
-      setAviso({ chave: "papelMudado", valores });
+      try {
+        await comRecente(() => api.mudarPapel(comerciante, m.membro, papel));
+        await carregar();
+        setAviso({ chave: "papelMudado", valores: { nome: m.nome }, papel });
+      } finally {
+        esquecerEscolha(m.membro);
+      }
     });
   }
 
@@ -193,6 +211,10 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
   }
 
   const souDono = meu?.papel === "dono";
+  // O último dono não sai: o ecrã não o oferece e diz porquê (P3-4).
+  const ultimoDono =
+    souDono &&
+    (dados?.membros.filter((m) => m.papel === "dono").length ?? 0) <= 1;
 
   return (
     <section aria-labelledby="titulo">
@@ -222,8 +244,18 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
           {erro === null ? null : <CaixaDeErro erro={erro} />}
           {erroAccao === null ? null : <CaixaDeErro erro={erroAccao} />}
           {aviso === null ? null : (
-            <div className="sucesso" role="status">
-              {preencher(t[aviso.chave], aviso.valores ?? {})}
+            <div
+              className="sucesso"
+              role="status"
+              tabIndex={-1}
+              ref={caixaDoAviso}
+            >
+              {preencher(t[aviso.chave], {
+                ...aviso.valores,
+                ...(aviso.papel === undefined
+                  ? {}
+                  : { papel: t[`papel_${aviso.papel}`] }),
+              })}
             </div>
           )}
           <h2>{t.equipaMembros}</h2>
@@ -300,15 +332,25 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
                     <td data-rotulo={t.colunaDesde}>{data(m.desde)}</td>
                     <td>
                       {eu_ ? (
-                        <button
-                          type="button"
-                          disabled={ocupado}
-                          onClick={() => {
-                            sair(m);
-                          }}
-                        >
-                          {t.membroSair}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            disabled={ocupado || ultimoDono}
+                            aria-describedby={
+                              ultimoDono ? "ultimo-dono" : undefined
+                            }
+                            onClick={() => {
+                              sair(m);
+                            }}
+                          >
+                            {t.membroSair}
+                          </button>
+                          {ultimoDono ? (
+                            <p className="secundario" id="ultimo-dono">
+                              {t.membroUltimoDono}
+                            </p>
+                          ) : null}
+                        </>
                       ) : souDono ? (
                         <button
                           type="button"
@@ -366,7 +408,10 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
                           <td>
                             <button
                               type="button"
-                              onClick={() => void cancelar(c.convite, c.email)}
+                              disabled={ocupado}
+                              onClick={() => {
+                                cancelar(c.convite, c.email);
+                              }}
                               aria-label={`${t.cancelarConvite}: ${c.email}`}
                             >
                               {t.cancelarConvite}
@@ -385,6 +430,7 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
             <Convidar
               comerciante={comerciante}
               papeis={papeisQuePodeDar(meu?.papel)}
+              ocupado={ocupado}
               aoConvidar={() => void carregar()}
             />
           )}
@@ -397,10 +443,12 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
 function Convidar({
   comerciante,
   papeis,
+  ocupado,
   aoConvidar,
 }: {
   comerciante: string;
   papeis: readonly Papel[];
+  ocupado: boolean;
   aoConvidar: () => void;
 }) {
   const { t, lingua, navegar } = useHub();
@@ -500,7 +548,11 @@ function Convidar({
               </select>
             </div>
             <div className="campo">
-              <button type="submit" className="principal" disabled={aEspera}>
+              <button
+                type="submit"
+                className="principal"
+                disabled={aEspera || ocupado}
+              >
                 {t.convidarBotao}
               </button>
             </div>

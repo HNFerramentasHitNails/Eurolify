@@ -291,19 +291,23 @@ export const es: Textos = {
 
   // La gestión del equipo (docs/22 §10).
   papelMudar: "Cambiar",
-  papelMudarRotulo: "Papel de {nome}",
+  papelMudarRotulo: "Función de {nome}",
   papelMudarConfirmar:
-    "¿Cambiar el papel de {nome} a {papel}? Las claves y las invitaciones que creó y que el papel nuevo ya no permite se cierran.",
-  papelMudado: "El papel de {nome} pasó a {papel}.",
+    "¿Cambiar la función de {nome} a {papel}? Las invitaciones abiertas y las claves de servidor que creó y que la nueva función ya no permite se cancelan y se revocan, con las claves creadas a partir de ellas: las integraciones que las usan dejan de funcionar.",
+  papelMudado: "La función de {nome} pasó a {papel}.",
   membroTirar: "Quitar del equipo",
   membroTirarConfirmar:
-    "{nome} deja de entrar en este comerciante; las invitaciones y las claves que creó aquí se cierran. ¿Continuar?",
-  membroTirado: "{nome} salió del equipo.",
+    "{nome} deja de entrar en este comerciante. Las invitaciones abiertas que creó aquí se cancelan y las claves de servidor que creó (y las creadas a partir de ellas) se revocan: las integraciones que las usan dejan de funcionar. Las claves públicas de la tienda se mantienen. ¿Continuar?",
+  membroTirado: "{nome} fue retirado del equipo.",
   membroSair: "Salir de este equipo",
   membroSairConfirmar:
-    "¿Salir de este equipo? Deja de entrar en este comerciante; las invitaciones y las claves que creó aquí se cierran.",
+    "¿Salir de este equipo? Deja de entrar en este comerciante. Las invitaciones abiertas que creó aquí se cancelan y las claves de servidor que creó (y las creadas a partir de ellas) se revocan: las integraciones que las usan dejan de funcionar. Las claves públicas de la tienda se mantienen.",
+  membroUltimoDono:
+    "Es el último propietario: para salir, nombre antes a otro propietario.",
+  conviteJaTemConta:
+    "¿Ya tiene cuenta (con passkey o contraseña)? Entre primero en el Hub y vuelva a abrir este enlace.",
   erroUltimoDono: "Es el último propietario: nombre a otro propietario antes.",
-  erroProprioPapel: "Nadie cambia su propio papel.",
+  erroProprioPapel: "Nadie cambia su propia función.",
   erroMembroNaoExiste: "Este miembro ya no está en el equipo.",
   erroConviteOutraPessoa:
     "Esta invitación es para otro correo. Salga y entre con la cuenta de ese correo.",
