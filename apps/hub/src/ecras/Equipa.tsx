@@ -8,7 +8,12 @@ import {
 import { api, ErroHub, type Eu, type Membros, type Papel } from "../api";
 import { ligacaoDoConvite } from "../convite";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
-import { mensagemDeErro, semSessao, type MensagemDeErro } from "../erros";
+import {
+  falhaDeAccao,
+  mensagemDeErro,
+  semSessao,
+  type MensagemDeErro,
+} from "../erros";
 import { papeisQuePodeDar } from "../papeis";
 import { comRecente } from "../passkeys";
 import { preencher, TAG_LINGUA } from "../textos";
@@ -88,11 +93,14 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
       setAviso(t.conviteCancelado);
       await carregar();
     } catch (e) {
-      if (semSessao(e)) {
+      // Um 401 só manda para «Entrar» se a sessão acabou (revisão do #174,
+      // P1-1).
+      const mostrar = await falhaDeAccao(e);
+      if (mostrar === null) {
         navegar("/entrar", { substituir: true });
         return;
       }
-      setFalhaAccao(e);
+      setFalhaAccao(mostrar);
       // Já usado ou cancelado noutro separador: a lista volta a ler-se
       // (revisão do #158, P2-3).
       if (
@@ -262,11 +270,12 @@ function Convidar({
       setEmail("");
       aoConvidar();
     } catch (e) {
-      if (semSessao(e)) {
+      const mostrar = await falhaDeAccao(e);
+      if (mostrar === null) {
         navegar("/entrar", { substituir: true });
         return;
       }
-      setErro(mensagemDeErro(e, t, lingua));
+      setErro(mensagemDeErro(mostrar, t, lingua));
     } finally {
       setAEspera(false);
     }

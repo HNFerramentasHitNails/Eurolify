@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { lerSegredoDaLigacao } from "./convite";
+import { fecharAvisoDeRecuperada } from "./recuperacao";
 import { ContextoHub, type Contexto } from "./contexto";
+import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
 import { Entrar } from "./ecras/Entrar";
 import { Equipa } from "./ecras/Equipa";
 import { Inicio } from "./ecras/Inicio";
+import { Recuperar } from "./ecras/Recuperar";
 import {
   guardarLingua,
   linguaGuardada,
@@ -16,8 +19,8 @@ import {
   type Lingua,
 } from "./textos";
 
-// As páginas do Hub (docs/22 §2): /entrar, /convite, /equipa e /. Nunca
-// debaixo de /hub/, que é da API.
+// As páginas do Hub (docs/22 §2 e §9): /entrar, /recuperar, /convite,
+// /equipa, /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
@@ -68,29 +71,45 @@ export function App() {
     [t, lingua, navegar],
   );
 
-  const comSessao = local.caminho === "/" || local.caminho === "/equipa";
+  const comSessao =
+    local.caminho === "/" ||
+    local.caminho === "/equipa" ||
+    local.caminho === "/conta";
 
   // O título da janela diz a página (WCAG 2.4.2; revisão do #158, P3-6).
   const tituloDaPagina =
     local.caminho === "/entrar"
       ? t.entrarTitulo
-      : local.caminho === "/convite"
-        ? t.conviteTitulo
-        : local.caminho === "/equipa"
-          ? t.equipaTitulo
-          : t.inicioTitulo;
+      : local.caminho === "/recuperar"
+        ? t.recuperarTitulo
+        : local.caminho === "/convite"
+          ? t.conviteTitulo
+          : local.caminho === "/equipa"
+            ? t.equipaTitulo
+            : local.caminho === "/conta"
+              ? t.contaTitulo
+              : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
 
   let ecra;
   if (local.caminho === "/entrar") ecra = <Entrar />;
+  else if (local.caminho === "/recuperar") ecra = <Recuperar />;
   else if (local.caminho === "/convite")
     ecra = <Convite segredo={segredoInicial} />;
   else if (local.caminho === "/equipa")
     ecra = (
       <Equipa
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (local.caminho === "/conta")
+    ecra = (
+      <Conta
+        recuperada={
+          new URLSearchParams(local.consulta).get("recuperada") === "1"
+        }
       />
     );
   else ecra = <Inicio />;
@@ -121,10 +140,24 @@ export function App() {
               </option>
             ))}
           </select>
+          {comSessao && local.caminho !== "/conta" ? (
+            <a
+              href="/conta"
+              onClick={(e) => {
+                e.preventDefault();
+                navegar("/conta");
+              }}
+            >
+              {t.contaLigacao}
+            </a>
+          ) : null}
           {comSessao ? (
             <button
               type="button"
               onClick={() => {
+                // O aviso de conta recuperada é desta pessoa, não do
+                // navegador (revisão do #174, P3-1).
+                fecharAvisoDeRecuperada();
                 void api.sair().finally(() => {
                   navegar("/entrar", { substituir: true });
                 });

@@ -211,6 +211,15 @@ table + section.cartao {
   margin-top: var(--espaco-6);
 }
 
+table + form,
+form + p {
+  margin-top: var(--espaco-4);
+}
+
+.cabecalho-accoes a {
+  white-space: nowrap;
+}
+
 .lista-simples {
   list-style: none;
   padding: 0;
