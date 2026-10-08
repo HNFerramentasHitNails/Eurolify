@@ -9,6 +9,10 @@ import { FORMATO_SEGREDO, resumoDe } from "../src/identidade/chaves.js";
 import { lerPedido } from "../src/identidade/operador.js";
 import { resolverChave } from "../src/identidade/repositorio.js";
 import {
+  FORMATO_CONVITE,
+  resumo as resumoConvite,
+} from "../src/identidade/sessoes.js";
+import {
   criarBaseDeTeste,
   URL_BASE,
   type BaseDeTeste,
@@ -62,8 +66,74 @@ describe("pedido do operador", () => {
     });
   });
 
+  it("lê um pedido de convite", () => {
+    const uuid = "0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b";
+    expect(
+      lerPedido(
+        `convite ${uuid} ${nome(" dono@loja.test ")} dono ${RESUMO} github:1001`,
+      ),
+    ).toEqual({
+      accao: "convite",
+      comercianteId: uuid,
+      email: "dono@loja.test",
+      papel: "dono",
+      resumo: RESUMO,
+      quem: "github:1001",
+    });
+  });
+
   it.each([
     ["", /acção/],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("x@loja.test")} gestor ${RESUMO} github:1`,
+      /papel/,
+    ],
+    [
+      `convite nao-uuid ${nome("x@loja.test")} dono ${RESUMO} github:1`,
+      /comerciante/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("sem-arroba")} dono ${RESUMO} github:1`,
+      /e-mail/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("a@b\u202Ec.test")} dono ${RESUMO} github:1`,
+      /e-mail/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome(`${"a".repeat(250)}@x.test`)} dono ${RESUMO} github:1`,
+      /e-mail: não é base64url/,
+    ],
+    [
+      // 255 caracteres: cabe no base64url, passa do limite da base (P3-4).
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome(`${"a".repeat(248)}@x.test`)} dono ${RESUMO} github:1`,
+      /e-mail: inválido/,
+    ],
+    // Só domínios reservados para testes (ADR-0019; revisão do #165, P2-1).
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("dono@gmail.com")} dono ${RESUMO} github:1`,
+      /domínio reservado/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("dono@notexample.com")} dono ${RESUMO} github:1`,
+      /domínio reservado/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("dono@loja.test.evil.com")} dono ${RESUMO} github:1`,
+      /domínio reservado/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b dono@loja.test dono ${RESUMO} github:1`,
+      /e-mail/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("x@loja.test")} dono euc_segredo github:1`,
+      /resumo/,
+    ],
+    [
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("x@loja.test")} dono ${RESUMO}`,
+      /acção/,
+    ],
     ["apagar tudo", /acção/],
     [`comerciante PT Europe/Lisbon ${nome("x")} github:1`, /língua/],
     [`comerciante pt Europe/Lisbon;rm ${nome("x")} github:1`, /fuso/],
@@ -110,6 +180,23 @@ describe("pedido do operador", () => {
     expect(segredo.startsWith("eul_sk_")).toBe(true);
     expect(prefixo).toBe(segredo.slice(0, 12));
     expect(resumo).toBe(resumoDe(segredo));
+  });
+
+  it("o gerador do convite dá o formato da API, o resumo e a ligação", async () => {
+    const { stdout } = await correr("node", [
+      "scripts/gerar-convite.mjs",
+      "--json",
+      "--hub",
+      "https://hub.exemplo.test",
+    ]);
+    const { segredo, resumo, ligacao } = JSON.parse(stdout) as {
+      segredo: string;
+      resumo: string;
+      ligacao: string;
+    };
+    expect(segredo).toMatch(FORMATO_CONVITE);
+    expect(resumo).toBe(resumoConvite(segredo));
+    expect(ligacao).toBe(`https://hub.exemplo.test/convite#${segredo}`);
   });
 });
 
@@ -191,6 +278,80 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
       base.dono,
     );
     expect(rows[0]?.criada_por).toBe("operador:github:1001");
+  }, 60_000);
+
+  it("cria o convite do primeiro dono, que a base guarda com o resumo e quem", async () => {
+    const c = await operador(
+      `comerciante pt Europe/Lisbon ${nome("Loja do Convite")} github:1001`,
+    );
+    expect(c.codigo, c.stderr).toBe(0);
+    const comerciante = (
+      JSON.parse(c.stdout) as { comerciante: string }
+    ).comerciante.replace(/^mer_/, "");
+    const { stdout } = await correr("node", [
+      "scripts/gerar-convite.mjs",
+      "--json",
+    ]);
+    const gerado = JSON.parse(stdout) as { segredo: string; resumo: string };
+
+    const r = await operador(
+      `convite ${comerciante} ${nome("dono@loja.test")} dono ${gerado.resumo} github:1001`,
+    );
+    expect(r.codigo, r.stderr).toBe(0);
+    const { convite } = JSON.parse(r.stdout) as { convite: string };
+    expect(convite).toMatch(/^inv_[0-9a-f-]{36}$/);
+    expect(r.stdout).not.toContain("dono@loja.test");
+    expect(r.stdout).not.toContain(gerado.resumo);
+
+    const { rows } = await sql<{
+      email: string;
+      papel: string;
+      convidado_por: string;
+      dias: number;
+    }>`
+      select email, papel, convidado_por,
+             round(extract(epoch from expira_em - now()) / 86400)::int as dias
+      from convite where id = ${convite.replace(/^inv_/, "")}::uuid
+        and resumo = ${gerado.resumo}`.execute(base.dono);
+    expect(rows).toEqual([
+      {
+        email: "dono@loja.test",
+        papel: "dono",
+        convidado_por: "operador:github:1001",
+        dias: 7,
+      },
+    ]);
+    const eventos = await sql<{ quem: string }>`
+      select quem from evento_conta
+      where acto = 'convite_criado' and comerciante_id = ${comerciante}::uuid`.execute(
+      base.dono,
+    );
+    expect(eventos.rows).toEqual([{ quem: "operador:github:1001" }]);
+
+    // De ponta a ponta: o segredo da ligação gerada aceita o convite e faz
+    // um dono (revisão do #165, P3-5).
+    const aceite = await sql<{ comerciante_id: string }>`
+      select comerciante_id from convite_aceitar_conta_nova(${gerado.segredo},
+        'Ana Teste')`.execute(base.dono);
+    expect(aceite.rows).toEqual([{ comerciante_id: comerciante }]);
+    const donos = await sql<{ papel: string }>`
+      select papel from membro where comerciante_id = ${comerciante}::uuid`.execute(
+      base.dono,
+    );
+    expect(donos.rows).toEqual([{ papel: "dono" }]);
+  }, 60_000);
+
+  it("um convite para um comerciante que não existe falha sem escrever", async () => {
+    const r = await operador(
+      `convite 0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b ${nome("x@loja.test")} dono ${"c".repeat(64)} github:1001`,
+    );
+    expect(r.codigo).toBe(1);
+    expect(r.stderr).not.toContain("x@loja.test");
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from convite where resumo = ${"c".repeat(64)}`.execute(
+      base.dono,
+    );
+    expect(rows[0]?.n).toBe(0);
   }, 60_000);
 
   it("um pedido inválido sai com 65 e não repete o pedido", async () => {

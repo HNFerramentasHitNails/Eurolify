@@ -220,6 +220,49 @@ Falta, para o fluxo entrar: o Diogo ou o Bruno criar a chave SSH do fluxo
 Os prefixos `mer_` (comerciante) e `sto_` (loja) são **proposta**: o
 `docs/15` ainda não os tinha.
 
+### 6.0 O convite do operador (pedido do Diogo, 08/10/2026)
+
+*«sim, avança com a acção convite do operador»* (issue #156). Sem ela, o Hub
+publicado abre mas ninguém entra: o primeiro dono de um comerciante só nasce
+de um convite, e o único convite sem conta é o do operador (`docs/21` §7,
+ponto 5; função `convite_criar_pelo_operador` da migração 0018).
+
+1. No próprio computador, `node apps/api/scripts/gerar-convite.mjs` mostra a
+   **ligação** (`https://hub.eurolify.eu/convite#euc_…`, com o segredo; dá-se
+   a quem vai ser dono e não se guarda) e o **resumo**. O segredo nunca passa
+   pelo GitHub nem pela VPS — como o `gerar-chave.mjs`.
+2. No GitHub, o fluxo `operar` com a acção `convite` (comerciante, e-mail,
+   resumo) devolve o `inv_…`. Na VPS, como as outras acções: cópia da base
+   antes de escrever, contentor de uma vez com a imagem no ar.
+3. Quem recebe abre a ligação, cria a conta com uma passkey e fica **dono**.
+
+| Regra | Porquê |
+|---|---|
+| Só o papel **dono** | é o primeiro dono ou a recuperação (§7, ponto 5); os outros papéis convida-os um dono no Hub |
+| O e-mail vai em base64url no pedido e é validado em três sítios (fluxo, `lerPedido`, base) | sem espaços nem caracteres de controlo na linha; a base é a última palavra |
+| **No ensaio, só e-mails de domínios reservados para testes** (`.test`, `.example`, `.invalid`, `example.com`, `example.net`, `example.org`): o fluxo e o `lerPedido` recusam outros (`infra/vps/testes/fluxo-operar.sh` corre o passo do fluxo; revisão do #165, P2-1). **Rede temporária: fim na migração para Paris, no máximo a 31/03/2027** (ADR-0019); então decide-se o que a substitui | ADR-0019: a VPS do ensaio está no Reino Unido e não recebe dados pessoais; as entradas de um fluxo lançado à mão ficam no histórico do GitHub. O Hub não envia e-mails: um endereço fictício basta para entrar |
+| O convite vale **7 dias** e uma vez (a base) | decisão do Diogo, 07/10/2026 (`docs/22` §2) |
+| Quem lançou fica como `operador:github:<número>` no convite e no rasto (`evento_conta`) | o mesmo das chaves |
+| A recuperação de um comerciante real (§7, ponto 5: prova escrita do representante legal) **não** está tratada aqui | só ensaio; o como se confere é **C**, para o jurista |
+
+**Se se escrever um e-mail real** (ou colar a ligação com `euc_`), o fluxo
+recusa, mas a entrada fica guardada nessa execução do GitHub: **apaga-se a
+execução** (revisão do #165, P3-1). A ligação colada deixa de servir: gera-se
+outra.
+
+**Limite, como nas chaves:** o operador pode criar um convite de dono para
+qualquer comerciante, mesmo um que já tem dono, sem os avisar. Só no ensaio.
+Antes de dados reais, separa-se o «primeiro dono» (recusado se já houver
+dono) da recuperação com prova (`docs/21` §7, ponto 5, **C**) (revisão do
+#165, P3-6).
+
+**Para a acção chegar à máquina:** a imagem tem de estar publicada (sem ela,
+o `eurolify-operador` recusa antes da cópia: «publicar primeiro») e o script
+aplicado (as três camadas conhecem o formato do convite).
+
+**Por fazer antes de o fluxo correr:** a chave SSH do fluxo (acima, «Falta,
+para o fluxo entrar»): sem ela, nenhuma acção do `operar` chega à VPS.
+
 ### 6.1 Criar e revogar pela API (pedido do Diogo, 06/10/2026)
 
 *«avança com o POST /keys e a revogação»* (#107). Entra com a
