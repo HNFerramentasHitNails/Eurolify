@@ -68,6 +68,11 @@ hub_env=()
 # (docs/06, CQ): sobrevivem a cada publicação. Com MEDIA_PASTA, a API liga as
 # rotas da media.
 arrancar() {
+  # A pasta com o dono da API (o node da imagem, uid 1000): se faltar, cria-se
+  # assim, e não como root pelo docker (revisão do #178, P1-2). O --mount
+  # falha, em vez de a criar, se mesmo assim não existir.
+  [[ -d /var/lib/eurolify/media ]] ||
+    install -d -o 1000 -g 1000 -m 750 /var/lib/eurolify/media
   docker rm -f eurolify-api >/dev/null 2>&1 || true
   docker run -d --name eurolify-api \
     --restart unless-stopped \
@@ -76,7 +81,7 @@ arrancar() {
     --env-file /etc/eurolify/api.env \
     "${base_env[@]}" \
     "${hub_env[@]}" \
-    -v /var/lib/eurolify/media:/media \
+    --mount type=bind,src=/var/lib/eurolify/media,dst=/media \
     -e MEDIA_PASTA=/media \
     --memory 512m \
     --cap-drop ALL \
@@ -145,6 +150,11 @@ verificar_base() {
 api_env_mudou() {
   local criado ficheiro mudado
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
+  # A API no ar sem a pasta das imagens (criada antes do #178) recria-se:
+  # senão, as imagens ficavam dentro do contentor e perdiam-se na publicação
+  # seguinte (revisão do #178, P1-1).
+  docker inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' eurolify-api 2>/dev/null |
+    grep -qw /media || return 0
   # Em nanossegundos: em segundos, um ficheiro escrito no mesmo segundo em
   # que a API foi criada não contava (revisão do #160, P2-2).
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
@@ -275,7 +285,7 @@ fi
 if [[ "$anterior" == "$imagem" ]]; then
   recriada=0
   if api_env_mudou; then
-    echo "A API já está nesta imagem, mas a configuração (api.env ou api-base.env) mudou depois de ela arrancar: recria-se."
+    echo "A API já está nesta imagem, mas a configuração (api.env, api-base.env, api-hub.env ou a pasta das imagens) mudou depois de ela arrancar: recria-se."
     arrancar "$imagem"
     if ! saude 8080; then
       echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"

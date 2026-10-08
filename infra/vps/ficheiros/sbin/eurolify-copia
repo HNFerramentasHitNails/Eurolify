@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 # Cópia diária da base do ensaio (ADR-0027): pg_dump, cifrado com age, enviado
 # para o OVH Object Storage (ADR-0032). Apaga lá as cópias com mais de 14 dias
-# (ADR-0027). Avisa o Healthchecks.io do resultado.
+# (ADR-0027). Avisa o Healthchecks.io do resultado. Desde o #178, também as
+# imagens dos artigos (docs/06, CQ), num tar cifrado à parte.
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
 source /usr/local/lib/eurolify/comum.sh
 carregar_config
 
+MEDIA=/var/lib/eurolify/media
+
+# Os ficheiros a meio ficam com .tmp e só mudam de nome inteiros: uma falha a
+# meio não deixa uma cópia cortada com o nome certo (revisão do #178, P2-2).
+temporarios=()
 # Qualquer saída com erro (comando falhado ou falhar) avisa: nunca em silêncio.
 terminar() {
-  local codigo=$?
+  local codigo=$? t
+  for t in "${temporarios[@]}"; do rm -f "$t"; done
   ((codigo == 0)) || hc COPIA falhou "a cópia falhou (código $codigo); ver journalctl -u eurolify-copia"
 }
 trap terminar EXIT
@@ -22,8 +29,11 @@ install -d -m 700 "$pasta"
 carimbo="$(date -u +%Y%m%dT%H%M%SZ)"
 nome="eurolify-${carimbo}.dump.age"
 
+temporarios+=("$pasta/$nome.tmp")
 docker exec eurolify-postgres pg_dump -U postgres -Fc "$BASE_NOME" |
-  age -R /etc/eurolify/age.pub -o "$pasta/$nome"
+  age -R /etc/eurolify/age.pub -o "$pasta/$nome.tmp"
+[[ -s "$pasta/$nome.tmp" ]] || falhar "a cópia da base ficou vazia"
+mv "$pasta/$nome.tmp" "$pasta/$nome"
 
 rclone --config /etc/eurolify/rclone.conf copyto "$pasta/$nome" "$S3_DESTINO/$nome"
 
@@ -35,17 +45,44 @@ find "$pasta" -type f -name 'eurolify-*.dump.age' -mtime +2 -delete
 rclone --config /etc/eurolify/rclone.conf delete --min-age 14d \
   --include 'eurolify-*.dump.age' "$S3_DESTINO"
 
-# As imagens dos artigos (docs/06, CQ), também cifradas e com os mesmos 14
-# dias. Sem a pasta (antes do passo 7 do preparar.sh), não há o que copiar.
-if [[ -d /var/lib/eurolify/media ]]; then
+tamanho="$(du -h "$pasta/$nome" | cut -f1)"
+resumo_media="sem imagens"
+
+# As imagens dos artigos (docs/06, CQ), cifradas e com os mesmos 14 dias. Sem
+# a pasta (antes do passo 7 do preparar.sh, ou apagada), diz-se no registo e
+# no aviso: a base copia-se na mesma (revisão do #178, P3-3).
+if [[ ! -d "$MEDIA" ]]; then
+  registar "aviso: sem $MEDIA; as imagens não se copiaram"
+  resumo_media="sem a pasta das imagens"
+else
   nome_media="eurolify-media-${carimbo}.tar.age"
-  tar -C /var/lib/eurolify -cf - media | age -R /etc/eurolify/age.pub -o "$pasta/$nome_media"
+  # Espaço: a cópia das imagens precisa, na máquina, de mais ou menos o
+  # tamanho delas (as imagens já vêm comprimidas). Sem espaço, não se começa
+  # (revisão do #178, P2-3).
+  precisa="$(du -sk "$MEDIA" | cut -f1)"
+  livre="$(df -Pk "$pasta" | awk 'NR == 2 { print $4 }')"
+  ((livre > precisa + precisa / 10)) ||
+    falhar "sem espaço para a cópia das imagens (${precisa} KiB; livres ${livre} KiB)"
+  temporarios+=("$pasta/$nome_media.tmp")
+  # A API grava ao lado (.tmp) e muda o nome: os que estão a meio ficam de
+  # fora. Um ficheiro que muda durante a leitura dá o código 1 do tar, que é
+  # só aviso; 2 ou mais é erro (revisão do #178, P2-1).
+  set +e
+  tar -C /var/lib/eurolify --exclude='*.tmp' -cf - media |
+    age -R /etc/eurolify/age.pub -o "$pasta/$nome_media.tmp"
+  estados=("${PIPESTATUS[@]}")
+  set -e
+  ((estados[1] == 0)) || falhar "o age falhou ao cifrar as imagens (código ${estados[1]})"
+  ((estados[0] <= 1)) || falhar "o tar das imagens falhou (código ${estados[0]})"
+  ((estados[0] == 0)) || registar "aviso: uma imagem mudou durante a cópia; a seguinte apanha-a"
+  [[ -s "$pasta/$nome_media.tmp" ]] || falhar "a cópia das imagens ficou vazia"
+  mv "$pasta/$nome_media.tmp" "$pasta/$nome_media"
   rclone --config /etc/eurolify/rclone.conf copyto "$pasta/$nome_media" "$S3_DESTINO/$nome_media"
   find "$pasta" -type f -name 'eurolify-media-*.tar.age' -mtime +2 -delete
   rclone --config /etc/eurolify/rclone.conf delete --min-age 14d \
     --include 'eurolify-media-*.tar.age' "$S3_DESTINO"
+  resumo_media="imagens $nome_media ($(du -h "$pasta/$nome_media" | cut -f1))"
 fi
 
-tamanho="$(du -h "$pasta/$nome" | cut -f1)"
-registar "cópia $nome enviada ($tamanho)"
-hc COPIA ok "cópia $nome ($tamanho)"
+registar "cópia $nome enviada ($tamanho); $resumo_media"
+hc COPIA ok "cópia $nome ($tamanho); $resumo_media"
