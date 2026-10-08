@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
+import { sql } from "kysely";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
   DOMINIOS_EXPORTAVEIS,
@@ -23,6 +24,7 @@ import {
   semPrefixo,
 } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
+import { chaveJaGuardada, FORMATO_CHAVE } from "../base/idempotencia.js";
 import {
   CabecalhoIdempotencia,
   chaveDeIdempotencia,
@@ -135,6 +137,14 @@ async function resumoDoFicheiro(caminho: string): Promise<string> {
   }
 }
 
+/**
+ * Quantas exportações por expirar cada comerciante pode ter (**proposta**,
+ * revisão do #189, P1-1): cada uma pode chegar a 1 GiB no disco da VPS. Não
+ * é um custo (a saída é grátis, Data Act): pode pedir outra quando uma
+ * expirar, e descarregar as que tem as vezes que quiser.
+ */
+export const EXPORTACOES_VALIDAS = 3;
+
 export function rotasDasExportacoes(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -160,10 +170,26 @@ export function rotasDasExportacoes(
     },
     async (pedido, resposta) => {
       const { comercianteId } = chaveDo(pedido);
-      // A chave de idempotência confere-se antes de fazer o ZIP: sem ela, o
-      // trabalho era deitado fora.
-      if (chaveDeIdempotencia(pedido) === undefined) {
+      // A chave de idempotência confere-se antes de fazer o ZIP: sem ela, ou
+      // mal escrita, o trabalho era deitado fora (revisão do #189, P2-4).
+      const chaveIdem = chaveDeIdempotencia(pedido);
+      if (chaveIdem === undefined || chaveIdem === "") {
         throw erroBase("idempotency.key_required");
+      }
+      if (!FORMATO_CHAVE.test(chaveIdem)) {
+        throw erroBase(
+          "request.invalid",
+          "Idempotency-Key: de 1 a 255 caracteres visíveis em ASCII",
+        );
+      }
+      // Uma chave já guardada (a repetição de um pedido feito, ou a mesma
+      // chave com outro corpo): o `escrever` responde sem refazer o ZIP. A
+      // função só corria se a chave expirasse entre as duas leituras; aí, o
+      // cliente repete.
+      if (await chaveJaGuardada(base, comercianteId, chaveIdem)) {
+        return escrever(base, pedido, resposta, 201, () => {
+          throw erroBase("idempotency.in_progress");
+        });
       }
       if (emCurso.has(comercianteId)) {
         void resposta.header("Retry-After", "5");
@@ -175,6 +201,42 @@ export function rotasDasExportacoes(
       emCurso.add(comercianteId);
       let temporario: string | undefined;
       try {
+        // As que valem (não expiradas) ficam; o resto da pasta apaga-se: as
+        // expiradas, os ZIP sem linha e os temporários de um processo que
+        // morreu a meio. Acima do limite, não se faz outra (revisão do
+        // #189, P1-1 e P2-3).
+        const validas = await noCatalogo(
+          base,
+          comercianteId,
+          (trx) =>
+            trx
+              .selectFrom("exportacao")
+              .select("id")
+              .where("expira_em", ">", sql<Date>`now()`)
+              .execute(),
+          { soLeitura: true },
+        );
+        const apagados = await armazenamento.limparExportacoes(
+          comercianteId,
+          new Set(validas.map((v) => v.id)),
+        );
+        if (apagados > 0) {
+          pedido.log.info(
+            { comerciante: comercianteId, apagados },
+            "exportações: ficheiros expirados ou sem linha apagados",
+          );
+        }
+        if (validas.length >= EXPORTACOES_VALIDAS) {
+          throw new ErroApi(
+            "export.limit_reached",
+            409,
+            {
+              pt: "Já há exportações válidas a mais; use uma delas ou espere que expire",
+              en: "Too many valid exports; use one of them or wait for one to expire",
+            },
+            `no máximo ${String(EXPORTACOES_VALIDAS)} exportações por expirar`,
+          );
+        }
         const geradoEm = new Date();
         const lido = await noCatalogoApi(resposta, () =>
           lerCatalogo(base, comercianteId, geradoEm),
@@ -184,9 +246,19 @@ export function rotasDasExportacoes(
         let bytes: number;
         try {
           const zip = new EscritorZip(f, geradoEm);
-          await escreverCatalogo(zip, lido, (resumo) =>
-            armazenamento.ler(comercianteId, resumo),
-          );
+          await escreverCatalogo(zip, lido, async (resumo) => {
+            try {
+              return await armazenamento.ler(comercianteId, resumo);
+            } catch (erro) {
+              // Uma imagem que falta no disco (revisão do #189, P3-7): o
+              // registo diz qual, e a exportação não sai incompleta.
+              pedido.log.error(
+                { err: erro, resumo },
+                "exportação: uma imagem não está no armazenamento",
+              );
+              throw erro;
+            }
+          });
           bytes = await zip.fechar();
         } catch (erro) {
           if (erro instanceof ErroZipGrandeDemais) {
@@ -368,6 +440,13 @@ export function rotasDasExportacoes(
       let ficheiro;
       try {
         ficheiro = await armazenamento.abrirExportacao(comercianteId, linha.id);
+        if (ficheiro.bytes !== Number(linha.bytes)) {
+          // Cortado ou trocado: não se envia (revisão do #189, P3-6).
+          ficheiro.conteudo.destroy();
+          throw new Error(
+            `exportação: o ficheiro tem ${String(ficheiro.bytes)} bytes, a linha diz ${linha.bytes}`,
+          );
+        }
       } catch (erro) {
         // A linha existe e o ficheiro não (apagado à mão, cópia reposta só
         // da base): 500 sem pormenor para fora, e o registo diz qual.
@@ -388,7 +467,7 @@ export function rotasDasExportacoes(
         .header("x-content-type-options", "nosniff")
         .header("cache-control", "private, no-store")
         .header("etag", `"${linha.resumo}"`)
-        .send(ficheiro);
+        .send(ficheiro.conteudo);
     },
   );
 }

@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import {
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  rename,
+  stat,
+  unlink,
+} from "node:fs/promises";
 import { join } from "node:path";
 import type { Readable } from "node:stream";
 import { TIPOS_DE_IMAGEM, type TipoDeImagem } from "../base/esquema.js";
@@ -37,7 +45,20 @@ export interface ArmazenamentoDeExportacoes extends Armazenamento {
     temporario: string,
   ): Promise<void>;
   /** O ZIP para enviar; um que não existe é um erro. */
-  abrirExportacao(comercianteId: string, id: string): Promise<Readable>;
+  abrirExportacao(
+    comercianteId: string,
+    id: string,
+  ): Promise<{ conteudo: Readable; bytes: number }>;
+  /**
+   * Apaga da pasta do comerciante tudo o que não seja o ZIP de uma das
+   * exportações a `manter`: as expiradas, os ZIP sem linha e os temporários
+   * que ficaram. Só se chama com a vez do comerciante (nenhuma exportação
+   * dele a meio). Devolve quantos apagou.
+   */
+  limparExportacoes(
+    comercianteId: string,
+    manter: ReadonlySet<string>,
+  ): Promise<number>;
   /** Apaga um temporário que não chegou a ser guardado (sem erro se não há). */
   largarTemporario(temporario: string): Promise<void>;
 }
@@ -165,7 +186,31 @@ export class ArmazenamentoEmDisco implements ArmazenamentoDeExportacoes {
     const caminho = this.caminhoDaExportacao(comercianteId, id);
     // Abre já: um ficheiro que não existe é erro aqui, não a meio do envio.
     const f = await open(caminho, "r");
-    return f.createReadStream();
+    try {
+      const { size } = await f.stat();
+      return { conteudo: f.createReadStream(), bytes: size };
+    } catch (erro) {
+      await f.close();
+      throw erro;
+    }
+  }
+
+  async limparExportacoes(comercianteId: string, manter: ReadonlySet<string>) {
+    const dir = this.pastaDeExportacoes(comercianteId);
+    let nomes: string[];
+    try {
+      nomes = await readdir(dir);
+    } catch {
+      return 0;
+    }
+    const ficam = new Set([...manter].map((id) => `${id}.zip`));
+    let apagados = 0;
+    for (const nome of nomes) {
+      if (ficam.has(nome)) continue;
+      await unlink(join(dir, nome));
+      apagados++;
+    }
+    return apagados;
   }
 
   async largarTemporario(temporario: string) {

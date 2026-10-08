@@ -62,7 +62,8 @@ else
   # Espaço: a cópia das imagens precisa, na máquina, de mais ou menos o
   # tamanho delas (as imagens já vêm comprimidas). Sem espaço, não se começa
   # (revisão do #178, P2-3).
-  precisa="$(du -sk "$MEDIA" | cut -f1)"
+  # As exportações não entram na cópia, nem na conta (revisão do #189, P2-1).
+  precisa="$(du -sk --exclude=.exportacoes "$MEDIA" | cut -f1)"
   livre="$(df -Pk "$pasta" | awk 'NR == 2 { print $4 }')"
   ((livre > precisa + precisa / 10)) ||
     falhar "sem espaço para a cópia das imagens (${precisa} KiB; livres ${livre} KiB)"

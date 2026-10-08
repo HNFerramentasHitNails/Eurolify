@@ -7,12 +7,14 @@ import { crc32, deflateRawSync } from "node:zlib";
 // escreve-se inteira de uma vez, com o CRC-32 e os tamanhos já sabidos, por
 // isso não há descritores de dados. Os nomes vão em UTF-8 (bit 11).
 //
-// Sem ZIP64, o ZIP tem no máximo 65 535 entradas e 4 GiB menos um byte (e
-// cada deslocamento cabe em 32 bits): acima disso, `ErroZipGrandeDemais`. A
-// quota de imagens (1 GiB) fica bem abaixo; o limite é a rede para o resto.
+// Sem ZIP64, o ZIP tem no máximo 65 534 entradas e 4 GiB menos dois bytes:
+// 0xffff e 0xffffffff são os valores que dizem «ver o ZIP64», e alguns
+// leitores tratam-nos assim (revisão do #189, P3-3). Acima disso,
+// `ErroZipGrandeDemais`. A quota de imagens (1 GiB) fica bem abaixo; o
+// limite é a rede para o resto.
 
-export const MAX_ENTRADAS = 0xffff;
-export const MAX_BYTES = 0xffffffff;
+export const MAX_ENTRADAS = 0xfffe;
+export const MAX_BYTES = 0xfffffffe;
 
 export class ErroZipGrandeDemais extends Error {
   constructor(motivo: string) {
@@ -60,7 +62,18 @@ export class EscritorZip {
     if (this.posicao + bytes.length > MAX_BYTES) {
       throw new ErroZipGrandeDemais("mais de 4 GiB");
     }
-    await this.ficheiro.write(bytes, 0, bytes.length, this.posicao);
+    // Até ao fim: uma escrita pode ficar a meio (revisão do #189, P3-2).
+    let escritos = 0;
+    while (escritos < bytes.length) {
+      const { bytesWritten } = await this.ficheiro.write(
+        bytes,
+        escritos,
+        bytes.length - escritos,
+        this.posicao + escritos,
+      );
+      if (bytesWritten === 0) throw new Error("zip: o disco não escreveu");
+      escritos += bytesWritten;
+    }
     this.posicao += bytes.length;
   }
 
@@ -73,7 +86,7 @@ export class EscritorZip {
       throw new Error(`zip: nome de entrada inválido: ${nome}`);
     }
     if (this.centrais.length >= MAX_ENTRADAS) {
-      throw new ErroZipGrandeDemais("mais de 65 535 ficheiros");
+      throw new ErroZipGrandeDemais("mais de 65 534 ficheiros");
     }
     const nomeBytes = Buffer.from(nome, "utf8");
     const crc = crc32(dados);

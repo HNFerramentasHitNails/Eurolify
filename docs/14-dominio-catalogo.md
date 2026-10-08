@@ -708,7 +708,7 @@ estados** (rascunho, activo e arquivado):
 | Ficheiro no ZIP | Uma linha por | Campos |
 |---|---|---|
 | `catalogo.json` | o catálogo inteiro (abaixo) | o mesmo que os CSV, em árvore; é **o ficheiro completo** |
-| `artigos.csv` | artigo | `id` (`prd_…`), `tipo`, `estado`, `nome`, `descricao`, `marca`, `categoria_fiscal`, `origem`, `origem_ref`, a classificação (`familias`, `natureza_consumidor`, `modo`, prestação e local), `criado_em`, `actualizado_em`, `versao` |
+| `artigos.csv` | artigo | `id` (`prd_…`), `tipo`, `estado`, `nome`, `descricao`, `marca`, `categoria_fiscal`, `origem`, `origem_ref`, `ja_esteve_activo`, a classificação (`familias`, `natureza_consumidor`, `modo`, prestação e local), `criado_em`, `actualizado_em`, `versao` |
 | `variantes.csv` | variante | `id`, `artigo`, `sku`, `gtin`, `gtin_origem`, unidade e conteúdo, peso e dimensões, `onu`, `classe_adr`, `estado`, `posicao`, os valores das opções |
 | `opcoes.csv`, `valores.csv` | opção, valor | `id`, `artigo` (`opcao`), `nome` (`valor`), `posicao` |
 | `componentes.csv` | componente de um kit | `kit` (a variante do kit), `componente` (variante), `quantidade`, `posicao` |
@@ -717,10 +717,13 @@ estados** (rascunho, activo e arquivado):
 | `traducoes.csv` | tradução | `recurso` (o id com prefixo), `campo`, `lingua`, `texto`, `original`, `origem` (pessoa ou IA), `revista`, `traduzido_em`; o estado (em dia ou desactualizada) calculado |
 | `media.csv` | imagem | `id`, `artigo`, `variante`, `ficheiro` (caminho no ZIP), `tipo`, `bytes`, `texto_alternativo`, `posicao`, `principal` |
 | `imagens/<resumo>` | ficheiro de imagem | os bytes tal como foram enviados, pelo resumo SHA-256 (uma vez cada, mesmo ligada a vários artigos) |
-| `publicacoes.csv` | publicação | `id`, `artigo`, `canal`, `mercado`, `estado`, `variantes_fora`, `ultima_verificacao` (JSON), `verificado_em`, `publicado_em`, `arquivado_em`, `motivo_arquivo` |
+| `publicacoes.csv` | publicação | `id`, `artigo`, `loja` (`sto_…`), `canal`, `mercado`, `estado`, `variantes_fora`, `ultima_verificacao` (JSON), `verificado_em`, `publicado_em`, `arquivado_em`, `motivo_arquivo` |
 
 - **Ids como na API** (com o prefixo), para se cruzarem os ficheiros e
-  para a importação os reconhecer.
+  para a importação os reconhecer. As lojas, os canais e os mercados
+  (`sto_`, `chn_`, `mkt_`) vão só pelo id: são do Comerciante e de Preços,
+  e entram quando esses domínios tiverem a sua parte (revisão do #189,
+  P2-2).
 - **Não leva quem fez** (`publicado_por`, `arquivado_por`,
   `classificado_por`, `traduzido_por`, `revisto_por`): são pessoas da equipa
   e a API de leitura também não os dá (`docs/06`, CL). Voltam quando houver
@@ -733,7 +736,8 @@ estados** (rascunho, activo e arquivado):
   JSON na célula. **Um texto que comece por `=`, `+`, `-`, `@`, tabulação
   ou retorno leva um apóstrofo à frente** (injecção de fórmulas numa folha
   de cálculo, OWASP); o `catalogo.json` leva o texto sem mudanças e é ele
-  que faz fé.
+  que faz fé. Um SKU como «-001» sai «'-001» no CSV: a importação lê o
+  JSON, ou tira o apóstrofo que o CSV pôs (fica para o desenho dela).
 - **`catalogo.json`** leva `formato: "eurolify.catalogo/1"`, `gerado_em`,
   o comerciante (`id`, `lingua_origem`) e as listas acima, aninhadas por
   artigo (variantes, opções, componentes, media, traduções, publicações).
@@ -743,7 +747,7 @@ estados** (rascunho, activo e arquivado):
 
 | Operação | Método e caminho | Âmbito | Notas |
 |---|---|---|---|
-| Pedir | `POST /exports` com `{"dominios": ["catalogo"]}` | o de leitura de cada domínio | com `Idempotency-Key`; faz o ZIP **dentro do pedido** e responde 201 com a exportação `pronta`; se falhar, responde com o erro e não fica linha (`export.too_large`, 422, acima do que o ZIP sem ZIP64 aguenta: 65 535 ficheiros ou 4 GiB). Repetir com a mesma chave devolve a mesma exportação (o ZIP refeito deita-se fora) |
+| Pedir | `POST /exports` com `{"dominios": ["catalogo"]}` | o de leitura de cada domínio | com `Idempotency-Key`; faz o ZIP **dentro do pedido** e responde 201 com a exportação `pronta`; se falhar, responde com o erro e não fica linha (`export.too_large`, 422, acima do que o ZIP sem ZIP64 aguenta: 65 534 ficheiros ou 4 GiB). Com 3 por expirar, 409 `export.limit_reached`. Uma chave já usada responde logo, sem refazer o ZIP (a chave confere-se antes do trabalho; revisão do #189, P2-4) |
 | Ver | `GET /exports/{id}` | o mesmo | estado, domínios, tamanho, resumo SHA-256 do ZIP, `criada_em`, `expira_em` |
 | Listar | `GET /exports` | o mesmo | as do comerciante, das mais novas para as mais velhas (docs/18 §2a) |
 | Descarregar | `GET /exports/{id}/file` | o mesmo | o ZIP, com `Content-Disposition`; sem a base aberta enquanto se envia; depois de `expira_em`, 410 `export.expired`; de outro comerciante, 404 `export.not_found` |
@@ -755,9 +759,16 @@ estados** (rascunho, activo e arquivado):
   dentro.
 - **Uma exportação de cada vez por comerciante** (a segunda ao mesmo tempo
   dá 429, com `Retry-After: 5`; contada no processo da API, que é um só
-  na VPS); o ZIP fica **7 dias** e depois já não se descarrega. **O ficheiro
-  continua no disco** até à limpeza, que entra com a da issue #179. Não
-  conta para a quota das imagens.
+  na VPS); o ZIP fica **7 dias** e depois já não se descarrega.
+- **No máximo 3 por expirar por comerciante** (**proposta**, revisão do
+  #189, P1-1): a quarta dá 409 `export.limit_reached`. Não é custo nem
+  limite de vezes: as que tem descarregam-se quantas vezes quiser, e pede
+  outra quando uma expirar. Cada pedido novo, antes de fazer o ZIP, apaga
+  da pasta do comerciante os ZIP expirados, os ZIP sem linha e os
+  temporários que ficaram. Assim o disco de cada comerciante fica em 3
+  ZIP. A linha das expiradas fica (a API não apaga linhas); o ficheiro de
+  quem não volta a pedir fica até à limpeza geral da issue #179. Não conta
+  para a quota das imagens.
 - **Onde fica:** no armazenamento das imagens, em
   `.exportacoes/<comerciante>/<id>.zip` (na VPS,
   `/var/lib/eurolify/media/.exportacoes`); a cópia diária deixa-a de fora
@@ -765,17 +776,25 @@ estados** (rascunho, activo e arquivado):
 - **O ZIP** escreve-se sem biblioteca de fora (`apps/api/src/exportacao/zip.ts`,
   o formato do APPNOTE da PKWARE, sem ZIP64); o texto vai comprimido e as
   imagens como estão.
-- **Sem custo e sem limite de vezes** a não ser o de cima: a partir de
-  12/01/2027 a saída não se pode cobrar (`docs/09` linha 115, **W**).
+- **Sem custo:** a partir de 12/01/2027 a saída não se pode cobrar
+  (`docs/09` linha 115, **W**).
+- **Âmbito:** `catalog:read`, o mesmo de ler o catálogo pela API: a
+  exportação não mostra nada a mais. Quando houver «exportar tudo» de
+  vários domínios (`docs/15` §7), cada domínio pede o seu âmbito.
+- **Sem registo de auditoria** das exportações nem das descargas: fica
+  para quando houver o registo de auditoria das leituras
+  (`observability-security`); hoje só fica a linha da exportação.
 - **Fora desta parte:** a exportação em segundo plano (para catálogos em
   que o pedido demore demais; **não medi** quanto demora), o aviso por
   e-mail quando estiver pronta, e a importação (que lê este formato).
 
-**Riscos** (para a revisão): um catálogo grande com muitas imagens faz um
-ZIP grande no disco da VPS (até à quota de imagens, 1 GiB, mais os dados);
-duas lojas a exportar ao mesmo tempo ocupam o dobro. Mitigação: uma por
-comerciante, 7 dias, e medir o tempo e o tamanho no ensaio antes de abrir
-a comerciantes.
+**Riscos:** um catálogo grande com muitas imagens faz um ZIP grande no
+disco da VPS (até à quota de imagens, 1 GiB, mais os dados), até 3 por
+comerciante. A compressão e o JSON fazem-se na memória e sem largar o
+processo (`deflateRawSync`): um catálogo grande pode parar a API durante a
+compressão (revisão do #189, P3-4). **Não medido:** medir o tempo e o
+tamanho no ensaio antes de abrir a comerciantes; se passar de umas dezenas
+de ms, a compressão passa a assíncrona ou a exportação a segundo plano.
 
 ### 3.12 Linha do tempo
 
@@ -1173,7 +1192,7 @@ as rotas seguintes.
 | Ver publicações | `GET /products/{id}/publications` | read | |
 | Atributos regulamentares | `PUT /products/{id}/regulatory`, `PUT /variants/{id}/regulatory` | write | valor, quem e quando |
 | Importar | `POST /imports` (ensaio por omissão), `GET /imports/{id}`, `POST /imports/{id}/apply` | import | o relatório do ensaio vem antes de escrever |
-| Exportar | `POST /exports` (`{"dominios": ["catalogo"]}`), `GET /exports`, `GET /exports/{id}`, `GET /exports/{id}/file` | read | exportação completa, comum aos domínios (§3.11, «Exportação do catálogo», **proposta**) |
+| Exportar | `POST /exports` (`{"dominios": ["catalogo"]}`), `GET /exports`, `GET /exports/{id}`, `GET /exports/{id}/file` | read | exportação completa, comum aos domínios (§3.11, «Exportação do catálogo»; `docs/06`, CS) |
 
 Erros com código estável (**proposta**): `catalog.not_found` (também quando
 o artigo é de outro comerciante), `catalog.sku_required`, `catalog.sku_invalid`,

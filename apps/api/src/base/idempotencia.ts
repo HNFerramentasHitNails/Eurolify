@@ -16,7 +16,7 @@ import type { BaseDados } from "./esquema.js";
 // Uma linha expirada (24 h) ou um `em_curso` órfão (60 s) substitui-se.
 
 /** Caracteres visíveis em ASCII, 1 a 255 (o mesmo CHECK da 0012). */
-const FORMATO_CHAVE = /^[!-~]{1,255}$/;
+export const FORMATO_CHAVE = /^[!-~]{1,255}$/;
 
 /** O JSON com as chaves ordenadas: o mesmo corpo dá sempre o mesmo resumo. */
 function ordenado(valor: unknown): unknown {
@@ -79,6 +79,26 @@ interface Linha {
  * Corre uma escrita com idempotência. Devolve a resposta nova, ou a guardada
  * se o mesmo pedido já foi feito (`repetida: true`).
  */
+/**
+ * A chave já está guardada (e não expirou) para este comerciante? Para quem
+ * faz trabalho caro antes de escrever (as exportações, docs/14 §3.11): com a
+ * chave já usada, o `comIdempotencia` devolve a resposta guardada (ou diz
+ * porque não) sem o trabalho.
+ */
+export async function chaveJaGuardada(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  chave: string,
+): Promise<boolean> {
+  return comComerciante(db, comercianteId, async (trx) => {
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from idempotencia
+      where comerciante_id = ${comercianteId}::uuid and chave = ${chave}
+        and expira_em > now()`.execute(trx);
+    return (rows[0]?.n ?? 0) > 0;
+  });
+}
+
 export async function comIdempotencia<T>(
   db: Kysely<BaseDados>,
   comercianteId: string,

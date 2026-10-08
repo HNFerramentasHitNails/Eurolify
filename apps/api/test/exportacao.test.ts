@@ -1,11 +1,18 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, open, readdir, readFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { sql, type Kysely } from "kysely";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
 import { ArmazenamentoEmDisco } from "../src/catalogo/armazenamento.js";
@@ -15,7 +22,7 @@ import {
   definirArtigosDaColecao,
   definirCategoriasDoArtigo,
 } from "../src/catalogo/categorias.js";
-import { celula } from "../src/catalogo/exportacao.js";
+import { celula, lerCatalogo } from "../src/catalogo/exportacao.js";
 import {
   comComerciante,
   registarComerciante,
@@ -143,7 +150,7 @@ describe("o escritor de ZIP", () => {
           zip.acrescentar(nome, Buffer.from("x"), false),
         ).rejects.toThrow("nome de entrada inválido");
       }
-      for (let i = 0; i < 0xffff; i++) {
+      for (let i = 0; i < 0xfffe; i++) {
         await zip.acrescentar(`f${String(i)}`, Buffer.alloc(0), false);
       }
       await expect(
@@ -186,6 +193,14 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
     delete porta.soltar;
   };
   const aEspera = () => porta.soltar !== undefined;
+  const modo: { valor: "lento" | "grande" | "falta" } = { valor: "lento" };
+  /** Espera até a exportação da instância lenta estar nas imagens. */
+  async function nasImagens() {
+    for (let i = 0; i < 200 && !aEspera(); i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(aEspera()).toBe(true);
+  }
   let a: string;
   let b: string;
   let leituraA: string;
@@ -232,6 +247,15 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
   async function descarregar(id: string, segredo = leituraA) {
     const r = await pedir("GET", `/exports/${id}/file`, { segredo });
     expect(r.statusCode, r.body).toBe(200);
+    expect(r.headers).toMatchObject({
+      "content-type": "application/zip",
+      "x-content-type-options": "nosniff",
+      "cache-control": "private, no-store",
+      "content-disposition": expect.stringMatching(
+        /^attachment; filename="eurolify-exportacao-\d{4}-\d{2}-\d{2}\.zip"$/,
+      ) as unknown,
+    });
+    expect(r.headers.etag).toMatch(/^"[0-9a-f]{64}"$/);
     return r.rawPayload;
   }
 
@@ -242,8 +266,17 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
     app = criarApp({ logger: false }, undefined, base.api, undefined, disco);
     // Uma instância cuja leitura das imagens espera até se soltar: para ver
     // uma exportação a meio.
+    // O mesmo objecto faz também de disco que falha (`modo`).
     class Lento extends ArmazenamentoEmDisco {
       override async ler(c: string, r: string) {
+        if (modo.valor === "grande") {
+          throw new ErroZipGrandeDemais("mais de 4 GiB");
+        }
+        if (modo.valor === "falta") {
+          throw Object.assign(new Error("ENOENT: não existe"), {
+            code: "ENOENT",
+          });
+        }
         await new Promise<void>((solta) => {
           porta.soltar = solta;
         });
@@ -349,6 +382,14 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
     ]);
   }, 60_000);
 
+  // Cada teste começa sem exportações por expirar (o limite é por
+  // comerciante; os testes não se tocam).
+  beforeEach(async () => {
+    await sql`update exportacao set expira_em = now() - interval '1 second'
+      where expira_em > now()`.execute(base.dono);
+    modo.valor = "lento";
+  });
+
   afterAll(async () => {
     await app.close();
     await lenta.close();
@@ -438,7 +479,7 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
     expect(linhas[2]).toContain(",'=SOMA(1;1),");
     // Uma tabela vazia tem o cabeçalho na mesma.
     expect(linhasCsv(f.get("publicacoes.csv") ?? Buffer.alloc(0))).toEqual([
-      "id,artigo,canal,mercado,estado,variantes_fora,ultima_verificacao,verificado_em,publicado_em,arquivado_em,motivo_arquivo,versao",
+      "id,artigo,loja,canal,mercado,estado,variantes_fora,ultima_verificacao,verificado_em,publicado_em,arquivado_em,motivo_arquivo,versao",
     ]);
     // Nem quem fez, nem o que é de B, em nenhum ficheiro.
     for (const [nome, conteudo] of f) {
@@ -572,11 +613,135 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
     expect((await outra).statusCode).toBe(201);
   });
 
-  it("um ZIP que falta no armazenamento dá 500 sem pormenor", async () => {
+  it("a leitura é de um momento só: uma escrita a meio da recolha não entra", async () => {
+    // A recolha pára depois da primeira leitura; um artigo novo entra noutra
+    // ligação; o artigo não pode aparecer no ZIP (REPEATABLE READ).
+    let parou = false;
+    const comPausa = base.api.withPlugin({
+      transformQuery: (a) => a.node,
+      transformResult: async (a) => {
+        if (!parou) {
+          parou = true;
+          await criarArtigo(
+            base.api,
+            a2,
+            { tipo: "fisico", nome: "Entrou a meio" },
+            [{ sku: `M-${randomUUID()}`, unidade_de_venda: "unidade" }],
+          );
+        }
+        return a.result;
+      },
+    });
+    const a2 = a;
+    const lido = await lerCatalogo(comPausa, a, new Date());
+    expect(parou).toBe(true);
+    const nomes = (lido.json.artigos as { nome: string }[]).map((x) => x.nome);
+    expect(nomes).not.toContain("Entrou a meio");
+    const depois = await lerCatalogo(base.api, a, new Date());
+    expect(
+      (depois.json.artigos as { nome: string }[]).map((x) => x.nome),
+    ).toContain("Entrou a meio");
+  });
+
+  it("à espera das imagens, a exportação já não tem a base presa", async () => {
+    const primeira = pedir("POST", "/exports", { instancia: lenta });
+    await nasImagens();
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from pg_stat_activity
+      where usename = 'eurolify_api' and state like 'idle in transaction%'`.execute(
+      base.dono,
+    );
+    expect(rows[0]?.n).toBe(0);
+    largar();
+    expect((await primeira).statusCode).toBe(201);
+  });
+
+  it("um ZIP grande demais dá 422 e uma imagem em falta 500, sem linha nem temporário; a vez fica livre", async () => {
+    const contar = async () =>
+      (
+        await comComerciante(base.api, a, (trx) =>
+          trx
+            .selectFrom("exportacao")
+            .select((eb) => eb.fn.countAll<string>().as("n"))
+            .executeTakeFirstOrThrow(),
+        )
+      ).n;
+    const antes = await contar();
+    modo.valor = "grande";
+    const grande = await pedir("POST", "/exports", { instancia: lenta });
+    expect(grande.statusCode).toBe(422);
+    expect(grande.json<{ codigo: string }>().codigo).toBe("export.too_large");
+    modo.valor = "falta";
+    const falta = await pedir("POST", "/exports", { instancia: lenta });
+    expect(falta.statusCode).toBe(500);
+    expect(await contar()).toBe(antes);
+    const ficheiros = await readdir(join(pasta, ".exportacoes", a));
+    expect(ficheiros.filter((x) => x.endsWith(".tmp"))).toEqual([]);
+    expect((await pedir("POST", "/exports")).statusCode).toBe(201);
+  });
+
+  it("no máximo 3 por expirar; pedir outra apaga os ZIP expirados, sem linha e temporários", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) ids.push((await exportar()).id.slice(4));
+    const quarta = await pedir("POST", "/exports");
+    expect(quarta.statusCode).toBe(409);
+    expect(quarta.json<{ codigo: string }>().codigo).toBe(
+      "export.limit_reached",
+    );
+    const dir = join(pasta, ".exportacoes", a);
+    await writeFile(join(dir, `${randomUUID()}.zip`), "sem linha");
+    await writeFile(join(dir, `${randomUUID()}.zip.tmp`), "a meio");
+    await sql`update exportacao set expira_em = now() - interval '1 second'
+      where id = ${ids[0] ?? ""}::uuid`.execute(base.dono);
+    const nova = await exportar();
+    expect((await readdir(dir)).sort()).toEqual(
+      [ids[1], ids[2], nova.id.slice(4)].map((id) => `${id ?? ""}.zip`).sort(),
+    );
+    const expirada = await pedir("GET", `/exports/exp_${ids[0] ?? ""}/file`);
+    expect(expirada.statusCode).toBe(410);
+  });
+
+  it("uma chave já usada não refaz o ZIP: a repetição, um corpo inválido ou uma chave mal escrita respondem logo", async () => {
+    const chave = randomUUID();
+    const r1 = await pedir("POST", "/exports", { chave });
+    expect(r1.statusCode).toBe(201);
+    // Pela instância lenta: se refizesse o ZIP, ficava à espera das imagens.
+    const r2 = await pedir("POST", "/exports", { chave, instancia: lenta });
+    expect(r2.json()).toEqual(r1.json());
+    const outro = await pedir("POST", "/exports", {
+      chave,
+      corpo: { dominios: ["catalogo"], x: 1 },
+      instancia: lenta,
+    });
+    expect(outro.statusCode).toBe(400);
+    const malEscrita = await pedir("POST", "/exports", {
+      chave: "x".repeat(300),
+      instancia: lenta,
+    });
+    expect(malEscrita.statusCode).toBe(400);
+    expect(aEspera()).toBe(false);
+  });
+
+  it("um cursor ou um id mal escritos dão 400", async () => {
+    expect((await pedir("GET", "/exports?cursor=AAAA")).statusCode).toBe(400);
+    expect((await pedir("GET", "/exports/exp_x")).statusCode).toBe(400);
+    expect((await pedir("GET", "/exports/exp_x/file")).statusCode).toBe(400);
+  });
+
+  it("um ZIP que falta ou está cortado no armazenamento dá 500 sem pormenor", async () => {
     const e = await exportar();
     await rm(join(pasta, ".exportacoes", a, `${e.id.slice(4)}.zip`));
     const r = await pedir("GET", `/exports/${e.id}/file`);
     expect(r.statusCode).toBe(500);
     expect(r.body).not.toContain(pasta);
+    // Cortado (outro tamanho do que a linha diz): também 500, sem enviar.
+    const outra = await exportar();
+    await writeFile(
+      join(pasta, ".exportacoes", a, `${outra.id.slice(4)}.zip`),
+      "x",
+    );
+    expect((await pedir("GET", `/exports/${outra.id}/file`)).statusCode).toBe(
+      500,
+    );
   });
 });

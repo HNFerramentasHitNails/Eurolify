@@ -40,6 +40,7 @@ const COLUNAS = {
     "categoria_fiscal",
     "origem",
     "origem_ref",
+    "ja_esteve_activo",
     "familias",
     "natureza_consumidor",
     "modo",
@@ -128,6 +129,7 @@ const COLUNAS = {
   publicacoes: [
     "id",
     "artigo",
+    "loja",
     "canal",
     "mercado",
     "estado",
@@ -178,6 +180,7 @@ export async function lerCatalogo(
           "categoria_fiscal",
           "origem",
           "origem_ref",
+          "ja_esteve_activo",
           "familias",
           "natureza_consumidor",
           "modo",
@@ -355,6 +358,7 @@ export async function lerCatalogo(
         .select([
           "id",
           "artigo_id",
+          "loja_id",
           "canal_id",
           "mercado_id",
           "estado",
@@ -383,6 +387,7 @@ export async function lerCatalogo(
         categoria_fiscal: a.categoria_fiscal,
         origem: a.origem,
         origem_ref: a.origem_ref,
+        ja_esteve_activo: a.ja_esteve_activo,
         familias: a.familias,
         natureza_consumidor: a.natureza_consumidor,
         modo: a.modo,
@@ -501,6 +506,7 @@ export async function lerCatalogo(
       const linhaPublicacao = (p: (typeof publicacoes)[number]) => ({
         id: pub(p.id),
         artigo: prd(p.artigo_id),
+        loja: `sto_${p.loja_id}`,
         canal: `chn_${p.canal_id}`,
         mercado: `mkt_${p.mercado_id}`,
         estado: p.estado,
@@ -524,6 +530,7 @@ export async function lerCatalogo(
       const mediaDe = porArtigo(media);
       const publicacoesDe = porArtigo(publicacoes);
       const traducoesDe = agrupar(traducoes, (t) => t.recurso_id);
+      const artigosDaColecao = agrupar(colecoesArtigos, (x) => x.colecao_id);
       // Dentro do recurso, a tradução não repete o id dele.
       const traducoesSem = (id: string) =>
         (traducoesDe.get(id) ?? []).map((t) => {
@@ -568,9 +575,10 @@ export async function lerCatalogo(
         colecoes: colecoes.map((c) => ({
           ...linhaColecao(c),
           traducoes: traducoesSem(c.id),
-          artigos: colecoesArtigos
-            .filter((x) => x.colecao_id === c.id)
-            .map((x) => ({ artigo: prd(x.artigo_id), posicao: x.posicao })),
+          artigos: (artigosDaColecao.get(c.id) ?? []).map((x) => ({
+            artigo: prd(x.artigo_id),
+            posicao: x.posicao,
+          })),
         })),
       };
 
