@@ -35,6 +35,17 @@ find "$pasta" -type f -name 'eurolify-*.dump.age' -mtime +2 -delete
 rclone --config /etc/eurolify/rclone.conf delete --min-age 14d \
   --include 'eurolify-*.dump.age' "$S3_DESTINO"
 
+# As imagens dos artigos (docs/06, CQ), também cifradas e com os mesmos 14
+# dias. Sem a pasta (antes do passo 7 do preparar.sh), não há o que copiar.
+if [[ -d /var/lib/eurolify/media ]]; then
+  nome_media="eurolify-media-${carimbo}.tar.age"
+  tar -C /var/lib/eurolify -cf - media | age -R /etc/eurolify/age.pub -o "$pasta/$nome_media"
+  rclone --config /etc/eurolify/rclone.conf copyto "$pasta/$nome_media" "$S3_DESTINO/$nome_media"
+  find "$pasta" -type f -name 'eurolify-media-*.tar.age' -mtime +2 -delete
+  rclone --config /etc/eurolify/rclone.conf delete --min-age 14d \
+    --include 'eurolify-media-*.tar.age' "$S3_DESTINO"
+fi
+
 tamanho="$(du -h "$pasta/$nome" | cut -f1)"
 registar "cópia $nome enviada ($tamanho)"
 hc COPIA ok "cópia $nome ($tamanho)"

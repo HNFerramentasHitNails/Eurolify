@@ -64,6 +64,9 @@ API_HUB_ENV=/etc/eurolify/api-hub.env
 hub_env=()
 [[ -f "$API_HUB_ENV" ]] && hub_env=(--env-file "$API_HUB_ENV")
 
+# As imagens dos artigos ficam fora do contentor, na pasta da máquina
+# (docs/06, CQ): sobrevivem a cada publicação. Com MEDIA_PASTA, a API liga as
+# rotas da media.
 arrancar() {
   docker rm -f eurolify-api >/dev/null 2>&1 || true
   docker run -d --name eurolify-api \
@@ -73,6 +76,8 @@ arrancar() {
     --env-file /etc/eurolify/api.env \
     "${base_env[@]}" \
     "${hub_env[@]}" \
+    -v /var/lib/eurolify/media:/media \
+    -e MEDIA_PASTA=/media \
     --memory 512m \
     --cap-drop ALL \
     --security-opt no-new-privileges \

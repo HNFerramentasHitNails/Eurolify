@@ -142,6 +142,7 @@ printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
 caso "imagem nova, com uma migração que falta à base" 4
 confere sim "migra" migrou
 confere sim "arranca" arrancou 4
+confere sim "a API arranca com a pasta das imagens (docs/06, CQ)" grep -qE -- "run -d --name eurolify-api .*-v /var/lib/eurolify/media:/media -e MEDIA_PASTA=/media .*@$(r 4)\$" "$falsos/docker-chamado"
 confere sim "regista no publicacoes.log as migrações que aplicou" grep -qE "\| $(r 4) \| anterior: $(img 3) \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
 
 preparar

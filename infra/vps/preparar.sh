@@ -240,6 +240,14 @@ for d in /etc/eurolify:700 /var/lib/eurolify:755 /var/lib/eurolify/pedidos:755 \
     fazer "pasta $caminho ($modo)" install -d -o root -g root -m "$modo" "$caminho"
   fi
 done
+# As imagens dos artigos (docs/06, CQ): a API (utilizador node, uid 1000, no
+# contentor) escreve aqui; mais ninguém além do root lê.
+if [[ -d /var/lib/eurolify/media && "$(stat -c '%a %u' /var/lib/eurolify/media)" == "750 1000" ]]; then
+  ok "/var/lib/eurolify/media"
+else
+  fazer "pasta /var/lib/eurolify/media (750, da API)" \
+    install -d -o 1000 -g 1000 -m 750 /var/lib/eurolify/media
+fi
 instalar "$F/ensaio.conf" /etc/eurolify/ensaio.conf 644
 instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
 
