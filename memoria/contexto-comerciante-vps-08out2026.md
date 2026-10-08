@@ -35,7 +35,10 @@
 
 ## O que ficou por verificar
 
-- Na VPS: aceitar o convite e entrar no Hub, depois de publicado.
+- Na VPS, depois do #168 (publicado às 10:28, `migrar: aplicadas 0027`):
+  o convite foi aceite e o `/hub/me` mostrou a «Loja de Ensaio» (10:36,
+  captura do Diogo). Verificado. O resto do Hub na VPS (equipa, convites
+  pelo Hub, chaves) não foi exercitado.
 - Depois de uma chamada sem contexto antes, a sessão fica com
   `eurolify.comerciante` vazio (não ausente): leituras protegidas falham com
   22P02 em vez de 42704. Coberto por teste; nenhum código conhecido distingue
