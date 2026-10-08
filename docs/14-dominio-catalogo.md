@@ -157,8 +157,9 @@ Regras da parte 2b do código (**proposta**, salvo as que já estavam aqui e no
   COMMITTED da API (em REPEATABLE READ, duas transacções ao mesmo tempo podiam
   não se ver). Ordem dos bloqueios: a linha do artigo, a fila do comerciante
   (kits), a fila do artigo (opções). O repositório segue-a: criar uma opção
-  toma a linha do artigo antes da fila, e dar valores toma a fila antes de
-  prender linhas (os triggers só a tomam depois de prender a linha que
+  e acrescentar um valor tomam a linha do artigo (KEY SHARE) antes da fila
+  (revisão do #161, 2.ª, P3-N3), e dar valores a uma variante toma a fila
+  antes de prender linhas (os triggers só a tomam depois de prender a linha que
   mudam). Por SQL directo, fora do repositório, a ordem pode inverter-se (por
   exemplo, apagar uma variante de um rascunho contra dar-lhe valores, ou
   apagar uma opção contra acrescentar-lhe um valor — a futura função de apagar
@@ -192,7 +193,8 @@ aqui):
   variantes de rascunhos); apagar o rascunho do kit leva a composição, com o
   kit e os componentes no mesmo artigo por qualquer ordem, e também com o kit
   arquivado (P8). Fora de apagar o rascunho, a composição de um kit arquivado
-  não muda, nem num rascunho (nem esvaziá-la). **Limitação conhecida:** o
+  não muda, nem num rascunho (nem esvaziá-la; esvaziar uma composição que
+já está vazia não muda nada, por isso não se recusa). **Limitação conhecida:** o
   rascunho de um artigo cuja variante está no kit de **outro** artigo só se
   apaga depois de a tirar desse kit (um rascunho não se arquiva);
 - a quantidade de um componente é um inteiro > 0, **sem limite máximo** (se o
@@ -755,6 +757,33 @@ outro. **Falta**
 variante não tem `versao` para a escrita concorrente; desenha-se antes do
 código.
 
+**As opções e a composição dos kits em código** (07/10/2026; pedido do
+Diogo: «sim, avança com as opções e os kits»):
+
+- com `catalog:read`: `GET /products/{id}/options` (pela posição, cada
+  opção com os valores todos) e `GET /variants/{id}/components` (pela
+  ordem; vazia se a variante não é kit), ambas no formato das listas do
+  `docs/18` §2a, e `GET /options/{id}`;
+- com `catalog:write`, com a `Idempotency-Key`: `POST /products/{id}/options`
+  (com os valores, pelo menos um e sem repetidos; só num rascunho, outro dá
+  `catalog.not_draft`), `POST /options/{id}/values` (um valor no fim, em
+  qualquer estado do artigo) e `PUT /variants/{id}/components` (substitui a
+  composição inteira, no máximo 100, pela ordem; a base recusa ciclos,
+  componentes novos arquivados e mexer num kit arquivado).
+
+Um artigo, uma opção ou uma variante que não existe (ou de outro
+comerciante) dá `catalog.not_found`, também quando é um componente no
+corpo. O nome de uma opção e o valor não se repetem sem distinguir
+maiúsculas nem os espaços nas pontas (o índice da 0005); iguais no próprio
+pedido dão 400. Cada componente sai com o estado: um arquivado que já
+estava no kit fica (§3.4). A composição não tem `versao`: o último a
+escrever ganha, como «substitui a lista inteira» já dizia. A página da
+composição só é estável enquanto ninguém a substitui: um `PUT` a meio de
+quem pagina reescreve as posições (a excepção ao `docs/18` §2a; no máximo
+100 componentes, por isso cabe numa página). **Falta**, por não haver ainda função: mudar o nome de uma opção ou
+o texto de um valor, apagar uma opção e mudar a ordem; desenham-se antes do
+código.
+
 As alterações levam a `versao` lida (outra dá `catalog.version_conflict`,
 antes de qualquer outra recusa) e devolvem a ficha. Pedir o estado em que o
 artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1), mas só
@@ -765,8 +794,8 @@ de cada corpo diz o que a base aceita (medidas positivas, o formato da
 categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
 código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
 com `publicada: false`: quem chama lê `publicada`, nunca só o estado HTTP. Quem escreve fica registado como a chave
-(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes entraram a
-seguir (abaixo); as opções, a composição, as traduções e o resto da tabela
+(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções e
+a composição entraram a seguir (abaixo); as traduções e o resto da tabela
 entram com as rotas seguintes.
 
 **Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas
@@ -781,6 +810,10 @@ rotas, que só as expõem):
   (`GET /products/{id}`) traz todas, e `POST /products/{id}/variants` não
   tem limite. O tecto (ou o `expand` com páginas) é decisão do Diogo ou do
   Bruno, antes de abrir a API para fora.
+- **Sem tecto de valores por opção** (revisão do #161, P3-1): a criação
+  limita a 100, mas `POST /options/{id}/values` não, e a opção sai com os
+  valores todos. O tecto é decisão do Diogo ou do Bruno, com o das
+  variantes, antes de abrir a API para fora.
 - **A categoria fiscal** aceita qualquer código no formato: a lista é do
   Motor de IVA (§2), que ainda não existe, e nada confirma que o código
   existe lá (**C**, não verifiquei). **Rede temporária** (decisão do Diogo,
