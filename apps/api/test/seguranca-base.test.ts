@@ -246,8 +246,9 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
 
   // Como na VPS (infra/vps/preparar.sh, passo 10b): o eurolify_migrador é
   // dono da base, sem superutilizador, BYPASSRLS, CREATEDB nem CREATEROLE, e
-  // corre as migrações todas. No resto do CI quem migra é o superutilizador,
-  // que não prova nada sobre a VPS (revisão do #104, P3-1).
+  // corre as migrações todas. Desde o #168 a base de teste também migra com
+  // um dono assim; este bloco fica porque confere os atributos do papel e o
+  // resultado das migrações, um a um (revisão do #104, P3-1).
   describe("as migrações todas com um migrador sem poderes, dono da base", () => {
     const sufixo = randomBytes(4).toString("hex");
     const papel = `migrador_vps_${sufixo}`;

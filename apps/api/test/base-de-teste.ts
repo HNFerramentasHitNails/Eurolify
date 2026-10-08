@@ -5,9 +5,10 @@ import type { BaseDados } from "../src/base/esquema.js";
 import { abrirBase } from "../src/base/ligacao.js";
 import { migrar } from "../src/base/migracoes.js";
 
-// Uma base nova por ficheiro de testes, migrada com o superutilizador (como o
-// dono das tabelas) e usada com o `eurolify_api` — o superutilizador ignora o
-// RLS e não provaria nada (docs/15 §5).
+// Uma base nova por ficheiro de testes, migrada por um dono das tabelas como o
+// da VPS (dono da base, sem superutilizador nem BYPASSRLS; pedido #168) e
+// usada com o `eurolify_api` — o superutilizador ignora o RLS e não provaria
+// nada (docs/15 §5).
 export const URL_BASE = process.env["BASE_DADOS_URL"];
 
 const SENHA_DE_TESTE = "so-para-testes";
@@ -104,6 +105,23 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
       `CREATE ROLE ${papel} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '${SENHA_DE_TESTE}'`,
     );
     await admin.query(`CREATE DATABASE ${nome} OWNER ${papel}`);
+    // Os papéis da instância, como os cria o preparar.sh (passo 10b) antes do
+    // migrador, que não os pode criar (sem CREATEROLE). Numa instância vazia,
+    // como a do CI, a 0001 falhava sem o eurolify_api, e sem o
+    // eurolify_limpeza a 0013 e a 0026 não lhe davam os privilégios
+    // (revisão do #168, P1-1).
+    await admin.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_api') THEN
+        CREATE ROLE eurolify_api NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+      END IF;
+    EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+    END $$`);
+    await admin.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_limpeza') THEN
+        CREATE ROLE eurolify_limpeza LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+      END IF;
+    EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+    END $$`);
   } finally {
     await admin.end();
   }

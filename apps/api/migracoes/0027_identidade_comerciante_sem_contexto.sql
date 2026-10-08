@@ -21,6 +21,9 @@
 --
 -- Só as funções da base a chamam (ninguém tem EXECUTE): nunca se chega a ela
 -- pela API, e não dá a ninguém dados de um comerciante que já não tivesse.
+-- 🔴 ATRAVESSA COMERCIANTES: uma função nova que a chame com um id vindo do
+-- pedido daria o nome e o estado de outro comerciante. Os chamadores são uma
+-- lista fixa num teste (identidade-contexto.test.ts; revisão do #168, P3-3).
 
 SET LOCAL lock_timeout = '10s';
 
@@ -42,9 +45,11 @@ BEGIN
 END
 $$;
 
--- 0018: a mesma regra, agora sem depender do contexto de quem chama.
+-- 0018: a mesma regra, agora sem depender do contexto de quem chama. Passa a
+-- VOLATILE, como a pessoa_eu: chamam uma função que muda um parâmetro da
+-- sessão (revisão do #168, P3-2).
 CREATE OR REPLACE FUNCTION comerciante_escreve(p_comerciante uuid) RETURNS void
-  LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   IF (SELECT r.estado FROM public.comerciante_resumo(p_comerciante) r)
      IN ('suspenso', 'fechado') THEN
@@ -56,7 +61,7 @@ $$;
 -- 0020: os comerciantes de que a pessoa é membro activo, cada um lido com o
 -- seu contexto. A mesma resposta de antes.
 CREATE OR REPLACE FUNCTION pessoa_eu(p_segredo text) RETURNS jsonb
-  LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   s public.sessao;
 BEGIN

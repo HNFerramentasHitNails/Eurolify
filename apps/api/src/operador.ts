@@ -37,9 +37,10 @@ try {
     console.log(JSON.stringify({ comerciante: `mer_${id}` }));
   } else if (pedido.accao === "convite") {
     // A base valida o e-mail, o papel e o resumo, e que o comerciante está
-    // activo; o convite vale 7 dias e uma vez (docs/19 §6.0). Com o contexto
-    // do comerciante, como a chave: o dono das tabelas na VPS não salta o RLS
-    // (sem ele, 42704 no primeiro convite no ensaio, 08/10/2026).
+    // activo; o convite vale 7 dias e uma vez (docs/19 §6.0). A correcção do
+    // 42704 do primeiro convite no ensaio (08/10/2026) está na migração 0027;
+    // o contexto do comerciante, como na chave, fica como segunda protecção
+    // (revisão do #168, P3-5).
     const id = await comComerciante(base, pedido.comercianteId, async (trx) => {
       const { rows } = await sql<{ id: string }>`
         select convite_criar_pelo_operador(${pedido.comercianteId}::uuid,

@@ -26,6 +26,12 @@
   `identidade-contexto.test.ts`).
 - Mutação: sem a reposição do contexto na `comerciante_resumo`, 2 dos 4
   testes novos falham.
+- Revisão Opus 5.5 do #168: 0 P0, 1 P1, 0 P2, 6 P3. P1-1 reproduzido numa
+  instância do PostgreSQL vazia (como a do CI): «permission denied to create
+  role» — a base de teste passou a criar o `eurolify_api` e o
+  `eurolify_limpeza` antes de migrar, como o `preparar.sh` (passo 10b).
+  Depois: 794 de 794 na instância vazia (API), Hub 34, MCP 58. Os 777 de
+  antes vinham de uma instância onde os papéis já existiam.
 
 ## O que ficou por verificar
 

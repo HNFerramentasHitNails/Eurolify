@@ -84,6 +84,41 @@ describe.skipIf(URL_BASE === undefined)(
       expect(motivo).toMatch(/invalid input syntax for type uuid/);
     });
 
+    it("uma falha com o contexto mudado a meio desfaz a mudança (subtransacção)", async () => {
+      // O que a 0027 promete se a comerciante_resumo falhar depois do
+      // set_config e antes de repor: o contexto de B posto dentro de um bloco
+      // com EXCEPTION volta a ser o de A quando o bloco falha (P3-4).
+      const depois = await dono.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+          trx,
+        );
+        await sql`do $$ begin
+          begin
+            perform pg_catalog.set_config('eurolify.comerciante', ${sql.lit(b)}, true);
+            raise exception 'falha a meio';
+          exception when others then null;
+          end;
+        end $$`.execute(trx);
+        const { rows } = await sql<{ valor: string }>`
+          select current_setting('eurolify.comerciante') as valor`.execute(trx);
+        return rows[0]?.valor;
+      });
+      expect(depois).toBe(a);
+    });
+
+    it("só as funções conhecidas a chamam (atravessa comerciantes)", async () => {
+      const { rows } = await sql<{ nome: string }>`
+        select p.proname as nome
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname <> 'comerciante_resumo'
+          and p.prosrc like '%comerciante_resumo%'
+        order by 1`.execute(dono);
+      expect(rows.map((r) => r.nome)).toEqual([
+        "comerciante_escreve",
+        "pessoa_eu",
+      ]);
+    });
+
     it("a API não chama a função", async () => {
       const motivo = await mensagemDoErro(
         sql`select * from comerciante_resumo(${a}::uuid)`.execute(base.api),
