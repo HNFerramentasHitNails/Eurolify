@@ -104,6 +104,20 @@ describe("o armazenamento em disco e os primeiros bytes", () => {
 });
 
 describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
+  /** Espera até haver uma transacção à espera de um bloqueio na base. */
+  async function haEspera(): Promise<boolean> {
+    for (let i = 0; i < 100; i++) {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`.execute(
+        base.dono,
+      );
+      if ((rows[0]?.n ?? 0) > 0) return true;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return false;
+  }
+
   let base: BaseDeTeste;
   let app: ReturnType<typeof criarApp>;
   let semMedia: ReturnType<typeof criarApp>;
@@ -580,13 +594,18 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       // Dois PNG diferentes, do mesmo tamanho: cada um cabe sozinho.
       const p1 = env(PNG);
       const p2 = env(Buffer.concat([PNG.subarray(0, -1), Buffer.from("!")]));
-      for (let i = 0; i < 100 && dentro < 2; i++) {
+      // O primeiro grava (preso no portão) com a fila do comerciante; o
+      // segundo espera pela fila na base, sem tocar no disco.
+      for (let i = 0; i < 100 && dentro < 1; i++) {
         await new Promise((r) => setTimeout(r, 20));
       }
-      expect(dentro).toBe(2);
+      expect(dentro).toBe(1);
+      expect(await haEspera()).toBe(true);
       soltar();
       const codigos = [(await p1).statusCode, (await p2).statusCode].sort();
       expect(codigos).toEqual([201, 409]);
+      // O recusado nunca chegou ao disco.
+      expect(dentro).toBe(1);
     } finally {
       await app2.close();
       await rm(pastaQ, { recursive: true, force: true });
@@ -631,10 +650,13 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
         });
       const um = env(PNG, "image/png");
       const dois = env(JPEG, "image/jpeg");
-      for (let i = 0; i < 100 && dentro < 2; i++) {
+      // Um grava (preso no portão); o outro espera pela fila na base: os
+      // dois estão em curso.
+      for (let i = 0; i < 100 && dentro < 1; i++) {
         await new Promise((r) => setTimeout(r, 20));
       }
-      expect(dentro).toBe(2);
+      expect(dentro).toBe(1);
+      expect(await haEspera()).toBe(true);
       const tres = await env(WEBP, "image/webp");
       expect(tres.statusCode).toBe(429);
       expect(tres.json()).toMatchObject({ codigo: "rate_limit.exceeded" });
@@ -670,8 +692,13 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
     const e2 = await enviar(WEBP, "image/webp", { chave });
     expect(e2.statusCode).toBe(201);
     expect(e2.json()).toEqual(e1.json());
-    const outro = await enviar(JPEG, "image/jpeg", { chave });
+    const novos = Buffer.concat([JPEG, Buffer.from(randomUUID())]);
+    const outro = await enviar(novos, "image/jpeg", { chave });
     expect(outro.json()).toMatchObject({ codigo: "idempotency.key_reused" });
+    // Uma chave já usada não escreve no disco (2.ª revisão do #176, P1-N1).
+    await expect(readFile(join(pasta, a, resumo(novos)))).rejects.toMatchObject(
+      { code: "ENOENT" },
+    );
     const fid = e1.json<Ficheiro>().id;
     const k = randomUUID();
     const l1 = await pedir(

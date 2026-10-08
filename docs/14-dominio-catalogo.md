@@ -237,9 +237,12 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
   do envio; até 10 MB cada (**proposta**). Sem SVG (pode levar código), sem
   vídeo por agora.
 - **Limites** (revisão do #176, **proposta**): 1 GiB de imagens por
-  comerciante, conferido antes de escrever no disco e outra vez ao
-  registar (numa fila por comerciante; acima dele,
-  `catalog.media_quota_exceeded`, 409); no máximo 2 envios do mesmo
+  comerciante. A ordem do envio conta (2.ª revisão do #176, P1-N1): primeiro
+  a chave de idempotência (uma chave já usada não escreve no disco), depois
+  o registo, numa fila por comerciante, que confere o espaço (acima dele,
+  `catalog.media_quota_exceeded`, 409, **proposta**: não se resolve a
+  tentar outra vez, ao contrário do 409 da versão), e só então os bytes no
+  disco; se a gravação falhar, o registo desfaz-se. No máximo 2 envios do mesmo
   comerciante ao mesmo tempo (o terceiro dá 429 antes de se ler o corpo:
   cada envio ocupa até 10 MB de memória). O ficheiro escreve-se ao lado,
   assegura-se no disco (`fsync`) e só depois muda de nome; um ficheiro com
@@ -260,11 +263,17 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
   ficam no ficheiro como vieram: podem ser dados pessoais (`eu-gdpr-privacy`).
   Tirá-los pede uma biblioteca de imagem; tem de estar feito antes de
   entrarem imagens reais (que só entram depois da migração para Paris,
-  `docs/06`, CQ).
-- **Ficheiros órfãos ficam no disco e contam para o espaço:** um ficheiro
-  que deixa de estar ligado a qualquer artigo, e o que se escreveu num
-  envio que depois falhou (a linha não entrou, ou a chave de idempotência
-  já tinha servido a outro ficheiro). A limpeza dos órfãos entra depois.
+  `docs/06`, CQ). As próprias imagens podem mostrar pessoas (um rosto é um
+  dado pessoal), e isso não se resolve tirando metadados: entra na análise
+  do `eu-gdpr-privacy` antes das imagens reais. O código não impede nada
+  disto: a regra é desta página e da CQ.
+- **Um ficheiro que deixa de estar ligado a qualquer artigo fica no disco e
+  conta para o espaço:** o espaço só volta com a limpeza dos órfãos, que
+  entra depois. Até lá, um comerciante que chegue ao limite não envia mais
+  nada. Um ficheiro gravado sem registo só fica se o COMMIT falhar depois da
+  gravação; esse não conta para o espaço. A limpeza e os metadados (abaixo) estão no
+  issue #179, com prazo: antes da primeira imagem real, e o mais tardar a
+  31/03/2027 (ADR-0019).
 - **Na VPS do ensaio (Reino Unido, ADR-0018) só entram imagens de teste,
   sem dados pessoais** (ADR-0019; `docs/06`, CQ): o código guarda os bytes
   como chegam, com os metadados.

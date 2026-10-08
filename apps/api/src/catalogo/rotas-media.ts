@@ -4,7 +4,6 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
 import { erroBase, RESPOSTA_DE_ERRO } from "../base/erros.js";
-import { ErroCatalogo } from "./erros.js";
 import { TIPOS_DE_IMAGEM, type BaseDados } from "../base/esquema.js";
 import { chaveDo } from "../identidade/autenticacao.js";
 import { CabecalhoIdempotencia } from "../identidade/rotas.js";
@@ -18,7 +17,6 @@ import {
   alterarMedia,
   apagarMedia,
   criarMedia,
-  espacoDepoisDe,
   fichaDaMedia,
   mediaDoArtigo,
   registarFicheiro,
@@ -394,6 +392,12 @@ function rotaDoEnvio(
     }
     emCurso.set(comercianteId, n + 1);
     contados.set(pedido.raw, comercianteId);
+    // O fecho do pedido dispara sempre, também quando a ligação cai a meio
+    // do corpo ou o tempo acaba (2.ª revisão do #176, P2-N2); o WeakMap não
+    // deixa descontar duas vezes.
+    pedido.raw.once("close", () => {
+      largar(pedido);
+    });
   });
   instancia.addHook("onResponse", (pedido, _resposta, feito) => {
     largar(pedido);
@@ -441,28 +445,12 @@ function rotaDoEnvio(
         );
       }
       const resumo = createHash("sha256").update(bytes).digest("hex");
-      const chave = chaveDo(pedido);
-      // O espaço confere-se antes de escrever no disco (outra vez, na fila,
-      // ao registar): acima dele, nada se escreve (revisão do #176, P2-1).
-      await noCatalogoApi(resposta, async () => {
-        const depois = await espacoDepoisDe(
-          base,
-          chave.comercianteId,
-          resumo,
-          bytes.length,
-        );
-        if (depois > armazenamento.quotaPorComerciante) {
-          throw new ErroCatalogo(
-            "catalog.media_quota_exceeded",
-            `o espaço das imagens (${String(armazenamento.quotaPorComerciante)} bytes) acabou`,
-          );
-        }
-      });
-      // Os bytes primeiro (o nome é o resumo: guardar outra vez não muda
-      // nada); a linha a seguir, na transacção da idempotência. Se a linha
-      // falhar (ou a chave já tiver servido a outro ficheiro), o ficheiro
-      // fica órfão no disco (docs/14 §3.5).
-      await armazenamento.guardar(chave.comercianteId, resumo, bytes);
+      // A ordem conta (2.ª revisão do #176, P1-N1): a chave de idempotência
+      // primeiro (uma chave já usada devolve a resposta guardada ou recusa,
+      // sem tocar no disco); depois o registo, na fila do comerciante, que
+      // confere o espaço; só então os bytes no disco. Se a gravação falhar,
+      // a transacção desfaz o registo. Um órfão só fica se o COMMIT falhar
+      // depois de gravar (docs/14 §3.5).
       return escrever(
         base,
         pedido,
@@ -475,6 +463,7 @@ function rotaDoEnvio(
             { resumo, tipo, bytes: bytes.length },
             armazenamento.quotaPorComerciante,
           );
+          await armazenamento.guardar(c.comercianteId, resumo, bytes);
           return { id: `fil_${resumo}`, tipo, bytes: bytes.length };
         },
         undefined,

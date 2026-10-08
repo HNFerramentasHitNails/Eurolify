@@ -17,23 +17,9 @@ async function filaDaMedia(trx: Transaction<BaseDados>, artigoId: string) {
 }
 
 /**
- * O espaço que um ficheiro novo ocuparia além do que o comerciante já tem:
- * 0 se o ficheiro já está registado (o mesmo resumo não ocupa duas vezes).
+ * O espaço que o comerciante ocupa com um ficheiro novo: o ficheiro já
+ * registado (o mesmo resumo) não ocupa duas vezes.
  */
-export async function espacoDepoisDe(
-  db: Kysely<BaseDados>,
-  comercianteId: string,
-  resumo: string,
-  bytes: number,
-): Promise<number> {
-  return noCatalogo(
-    db,
-    comercianteId,
-    (trx) => espacoNa(trx, comercianteId, resumo, bytes),
-    { soLeitura: true },
-  );
-}
-
 async function espacoNa(
   trx: Kysely<BaseDados>,
   comercianteId: string,
