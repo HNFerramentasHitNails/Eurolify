@@ -2325,22 +2325,16 @@ export function rotasDoCatalogo(
       const q = pedido.query;
       const limite = q.limite === undefined ? 25 : Number(q.limite);
       const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
-      const { dados, total, ultimo } = await noCatalogoApi(
-        resposta,
-        async () => {
-          const pagina = await listarCategoriasOuColecoes(
-            base,
-            chave.comercianteId,
-            "categoria",
-            q.estado ?? null,
-            limite,
-            depois,
-          );
-          return {
-            ...pagina,
-            dados: await categoriasPorId(base, chave.comercianteId, pagina.ids),
-          };
-        },
+      const { dados, total, ultimo } = await noCatalogoApi(resposta, () =>
+        listarCategoriasOuColecoes(
+          base,
+          chave.comercianteId,
+          "categoria",
+          q.estado ?? null,
+          limite,
+          depois,
+          categoriasPorId,
+        ),
       );
       return {
         dados: dados.map(paraCategoria),
@@ -2565,22 +2559,16 @@ export function rotasDoCatalogo(
       const q = pedido.query;
       const limite = q.limite === undefined ? 25 : Number(q.limite);
       const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
-      const { dados, total, ultimo } = await noCatalogoApi(
-        resposta,
-        async () => {
-          const pagina = await listarCategoriasOuColecoes(
-            base,
-            chave.comercianteId,
-            "colecao",
-            q.estado ?? null,
-            limite,
-            depois,
-          );
-          return {
-            ...pagina,
-            dados: await colecoesPorId(base, chave.comercianteId, pagina.ids),
-          };
-        },
+      const { dados, total, ultimo } = await noCatalogoApi(resposta, () =>
+        listarCategoriasOuColecoes(
+          base,
+          chave.comercianteId,
+          "colecao",
+          q.estado ?? null,
+          limite,
+          depois,
+          colecoesPorId,
+        ),
       );
       return {
         dados: dados.map(paraColecao),

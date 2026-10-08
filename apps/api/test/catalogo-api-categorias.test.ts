@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
+import { criarCategoria } from "../src/catalogo/categorias.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { criarChave } from "../src/identidade/repositorio.js";
 import {
@@ -87,16 +88,18 @@ describe.skipIf(URL_BASE === undefined)(
 
     /** Um comerciante novo com uma chave de escrita (listas sem ruído). */
     async function comercianteNovo() {
+      return (await comercianteNovoComId()).segredo;
+    }
+    async function comercianteNovoComId() {
       const c = await registarComerciante(base.api, NOVO);
       const dono: Kysely<BaseDados> = base.dono;
-      return (
-        await criarChave(dono, c, {
-          tipo: "servidor",
-          criadaPor: "operador:teste",
-          nome: "Escrita",
-          ambitos: ["catalog:read", "catalog:write"],
-        })
-      ).segredo;
+      const { segredo } = await criarChave(dono, c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Escrita",
+        ambitos: ["catalog:read", "catalog:write"],
+      });
+      return { c, segredo };
     }
 
     async function categoria(
@@ -614,6 +617,229 @@ describe.skipIf(URL_BASE === undefined)(
       }
     });
 
+    it("os limites: 100 categorias num artigo e na página da lista passam, 101 não; 1000 artigos numa colecção chegam à base, 1001 não", async () => {
+      const { c, segredo } = await comercianteNovoComId();
+      const ids: string[] = [];
+      for (let i = 0; i < 100; i++) {
+        ids.push(
+          `cat_${await criarCategoria(base.api, c, {
+            nome: `C${String(i)}`,
+            endereco_amigavel: `c-${String(i)}`,
+          })}`,
+        );
+      }
+      const pagina = (
+        await pedir("GET", "/categories?limite=100", undefined, { segredo })
+      ).json<Pagina<Categoria>>();
+      expect(pagina).toMatchObject({ total: 100, ha_mais: false });
+      expect(pagina.dados).toHaveLength(100);
+      const f = await artigo("Cem", "LIM-1", segredo);
+      const cem = await pedir(
+        "PUT",
+        `/products/${f.id}/categories`,
+        { versao: f.versao, categorias: ids },
+        { segredo },
+      );
+      expect(cem.statusCode).toBe(200);
+      expect(cem.json<CategoriasDoArtigo>().categorias).toHaveLength(100);
+      const col = (
+        await pedir(
+          "POST",
+          "/collections",
+          { nome: "Grande", endereco_amigavel: "grande" },
+          { segredo },
+        )
+      ).json<Colecao>();
+      const artigos = (n: number) =>
+        Array.from({ length: n }, () => `prd_${randomUUID()}`);
+      // 1000 passam o contrato e chegam à base (que diz que não existem).
+      const mil = await pedir(
+        "PUT",
+        `/collections/${col.id}/products`,
+        { versao: 1, artigos: artigos(1000) },
+        { segredo },
+      );
+      expect(mil.statusCode).toBe(404);
+      const milEUm = await pedir(
+        "PUT",
+        `/collections/${col.id}/products`,
+        { versao: 1, artigos: artigos(1001) },
+        { segredo },
+      );
+      expect(milEUm.statusCode).toBe(400);
+      expect(milEUm.json()).toMatchObject({ codigo: "request.invalid" });
+    });
+
+    it("o que não existe e a versão antiga recusam-se antes da lista repetida", async () => {
+      const segredo = await comercianteNovo();
+      const a = await categoria("A", "a", {}, segredo);
+      const f = await artigo("Rep", "REP-1", segredo);
+      const velha = await pedir(
+        "PUT",
+        `/products/${f.id}/categories`,
+        { versao: f.versao + 5, categorias: [a.id, a.id] },
+        { segredo },
+      );
+      expect(velha.statusCode).toBe(409);
+      expect(velha.json()).toMatchObject({
+        codigo: "catalog.version_conflict",
+      });
+      const semArtigo = await pedir(
+        "PUT",
+        `/products/prd_${randomUUID()}/categories`,
+        { versao: 1, categorias: [a.id, a.id] },
+        { segredo },
+      );
+      expect(semArtigo.statusCode).toBe(404);
+      const col = (
+        await pedir(
+          "POST",
+          "/collections",
+          { nome: "R", endereco_amigavel: "r" },
+          { segredo },
+        )
+      ).json<Colecao>();
+      const colVelha = await pedir(
+        "PUT",
+        `/collections/${col.id}/products`,
+        { versao: 9, artigos: [f.id, f.id] },
+        { segredo },
+      );
+      expect(colVelha.statusCode).toBe(409);
+      const semCol = await pedir(
+        "PUT",
+        `/collections/col_${randomUUID()}/products`,
+        { versao: 1, artigos: [f.id, f.id] },
+        { segredo },
+      );
+      expect(semCol.statusCode).toBe(404);
+    });
+
+    it("a idempotência nas outras escritas: a mesma chave devolve a resposta guardada sem escrever outra vez; outro corpo dá key_reused", async () => {
+      const segredo = await comercianteNovo();
+      const a = await categoria("A", "a", {}, segredo);
+      const b = await categoria("B", "b", {}, segredo);
+      const f = await artigo("Idem", "IDEM-1", segredo);
+      const col = (
+        await pedir(
+          "POST",
+          "/collections",
+          { nome: "I", endereco_amigavel: "i" },
+          { segredo },
+        )
+      ).json<Colecao>();
+      const casos: [string, string, object, object][] = [
+        [
+          "PATCH",
+          `/categories/${a.id}`,
+          { versao: 1, nome: "A2" },
+          { versao: 2, nome: "A3" },
+        ],
+        [
+          "POST",
+          `/categories/${b.id}/move`,
+          { versao: 1, pai: a.id },
+          { versao: 1, pai: null },
+        ],
+        [
+          "PUT",
+          `/products/${f.id}/categories`,
+          { versao: f.versao, categorias: [a.id] },
+          { versao: f.versao, categorias: [b.id] },
+        ],
+        [
+          "PUT",
+          `/collections/${col.id}/products`,
+          { versao: 1, artigos: [f.id] },
+          { versao: 1, artigos: [] },
+        ],
+        [
+          "POST",
+          `/collections/${col.id}/archive`,
+          { versao: 2 },
+          { versao: 3 },
+        ],
+        [
+          "PATCH",
+          `/collections/${col.id}`,
+          { versao: 3, nome: "I2" },
+          { versao: 4, nome: "I3" },
+        ],
+      ];
+      for (const [metodo, url, corpo, outro] of casos) {
+        const chave = randomUUID();
+        const r1 = await pedir(metodo as "POST", url, corpo, {
+          segredo,
+          chave,
+        });
+        expect(r1.statusCode, `${metodo} ${url}`).toBe(200);
+        // Sem a protecção, a repetição dava 409 (a versão já subiu).
+        const r2 = await pedir(metodo as "POST", url, corpo, {
+          segredo,
+          chave,
+        });
+        expect(r2.statusCode, `${metodo} ${url}`).toBe(200);
+        expect(r2.json(), `${metodo} ${url}`).toEqual(r1.json());
+        const r3 = await pedir(metodo as "POST", url, outro, {
+          segredo,
+          chave,
+        });
+        expect(r3.json(), `${metodo} ${url}`).toMatchObject({
+          codigo: "idempotency.key_reused",
+        });
+      }
+      // As versões subiram uma vez só.
+      expect(
+        (
+          await pedir("GET", `/categories/${a.id}`, undefined, { segredo })
+        ).json<Categoria>().versao,
+      ).toBe(2);
+      expect(
+        (
+          await pedir("GET", `/collections/${col.id}`, undefined, { segredo })
+        ).json<Colecao>().versao,
+      ).toBe(4);
+    });
+
+    it("um campo desconhecido dá 400 em cada corpo", async () => {
+      const cat = await categoria("Campos", "campos");
+      const col = (
+        await pedir("POST", "/collections", {
+          nome: "Campos",
+          endereco_amigavel: "campos",
+        })
+      ).json<Colecao>();
+      const f = await artigo("Campos", "CAMPOS-1");
+      for (const [metodo, url, corpo] of [
+        ["PATCH", `/categories/${cat.id}`, { versao: 1, pai: null }],
+        ["POST", `/categories/${cat.id}/move`, { versao: 1, pai: null, x: 1 }],
+        ["POST", `/categories/${cat.id}/archive`, { versao: 1, x: 1 }],
+        ["POST", "/collections", { nome: "C", endereco_amigavel: "c", x: 1 }],
+        ["PATCH", `/collections/${col.id}`, { versao: 1, posicao: 1 }],
+        [
+          "PUT",
+          `/collections/${col.id}/products`,
+          { versao: 1, artigos: [], x: 1 },
+        ],
+        [
+          "PUT",
+          `/products/${f.id}/categories`,
+          { versao: f.versao, categorias: [], x: 1 },
+        ],
+        ["GET", "/categories?pai=raiz", undefined],
+      ] as const) {
+        const r = await pedir(metodo, url, corpo);
+        expect(r.statusCode, `${metodo} ${url}`).toBe(400);
+        expect(r.json(), `${metodo} ${url}`).toMatchObject({
+          codigo: "request.invalid",
+        });
+      }
+      // Nada mudou.
+      expect(
+        (await pedir("GET", `/categories/${cat.id}`)).json<Categoria>().versao,
+      ).toBe(1);
+    });
+
     it("os pedidos estranhos dão 400 com o código", async () => {
       const cat = await categoria("Estranha", "estranha");
       for (const [metodo, url, corpo] of [
@@ -702,14 +928,28 @@ describe.skipIf(URL_BASE === undefined)(
       expect(
         (await pedir("GET", `/collections/${col.id}`)).json<Colecao>(),
       ).toMatchObject({ nome: "Minha", estado: "activa", versao: 1 });
-      // As listas de B não mostram as de A.
-      for (const url of ["/categories", "/collections"]) {
+      // As listas de B só mostram as de B.
+      const deB = await categoria("De B", "de-b", {}, escritaDeB);
+      const colDeB = (
+        await pedir(
+          "POST",
+          "/collections",
+          { nome: "De B", endereco_amigavel: "de-b" },
+          { segredo: escritaDeB },
+        )
+      ).json<Colecao>();
+      for (const [url, so] of [
+        ["/categories", deB.id],
+        ["/collections", colDeB.id],
+      ] as const) {
         const lista = (
           await pedir("GET", url, undefined, { segredo: escritaDeB })
         ).json<Pagina<{ id: string }>>();
-        expect(lista.dados.map((d) => d.id)).not.toContain(
-          url === "/categories" ? cat.id : col.id,
-        );
+        expect(
+          lista.dados.map((d) => d.id),
+          url,
+        ).toEqual([so]);
+        expect(lista.total, url).toBe(1);
       }
       // Os âmbitos: escrever pede catalog:write; ler, catalog:read.
       for (const [metodo, url, corpo] of [

@@ -724,15 +724,21 @@ export async function filaDeTraducoesPaginada(
 /**
  * As categorias ou as colecções do comerciante, por ordem de criação (o id),
  * no formato das listas (docs/18 §2a), também as arquivadas se não se filtrar
- * pelo estado.
+ * pelo estado. O total, os ids e as fichas (`carregar`) lêem-se na mesma
+ * transacção (revisão do #170, P3-1).
  */
-export async function listarCategoriasOuColecoes(
+export async function listarCategoriasOuColecoes<T>(
   db: Kysely<BaseDados>,
   comercianteId: string,
   tabela: "categoria" | "colecao",
   estado: "activa" | "arquivada" | null,
   limite: number,
   depois: string | null,
+  carregar: (
+    trx: Kysely<BaseDados>,
+    comercianteId: string,
+    ids: readonly string[],
+  ) => Promise<T[]>,
 ) {
   return noCatalogo(
     db,
@@ -756,7 +762,7 @@ export async function listarCategoriasOuColecoes(
       const haMais = ids.length > limite;
       const daPagina = haMais ? ids.slice(0, limite) : ids;
       return {
-        ids: daPagina,
+        dados: await carregar(trx, comercianteId, daPagina),
         total: Number(total),
         ultimo: haMais ? (daPagina.at(-1) ?? null) : null,
       };

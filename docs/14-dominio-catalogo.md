@@ -931,7 +931,9 @@ existe (versão, transição, em uso, e um SKU, GTIN, endereço, opção, valor 
 combinação que outro registo já tem), 422 o que o servidor recusa por regra,
 incluindo um valor repetido dentro do próprio pedido (o mesmo componente,
 categoria, artigo de colecção ou opção duas vezes; revisão do #150, 2.ª ronda,
-P3-B), 400 um
+P3-B) e o que se quer pôr dentro de algo arquivado (`category_archived`,
+`component_archived`: a regra é sobre o que se pede, não sobre o estado do
+registo que se muda; revisão do #170, P3-2), 400 um
 valor mal formado (sem o texto da base no `detail`) e 503 `catalog.retry`, com
 `Retry-After: 1`. Um código novo não compila sem lá entrar.
 Os outros filtros da tabela (categoria, sem foto, tradução em falta,
@@ -956,9 +958,9 @@ actualizado desde) e o `expand` entram com as rotas seguintes.
 | Composição do kit | `PUT /variants/{id}/components` | write | substitui a lista inteira; recusa ciclos |
 | Carregar media | `POST /media/uploads` → `POST /products/{id}/media` | write | endereço de envio assinado e depois a ligação ao artigo |
 | Alterar ou tirar media | `PATCH /media/{id}`, `DELETE /media/{id}` | write | texto alternativo, posição, principal |
-| Categorias | `GET`, `POST /categories`, `PATCH /categories/{id}`, `POST /categories/{id}/move`, `/archive`, `/restore` | read / write | recusa ciclos |
+| Categorias | `GET /categories`, `GET /categories/{id}`, `POST /categories`, `PATCH /categories/{id}`, `POST /categories/{id}/move`, `/archive`, `/restore` | read / write | recusa ciclos |
 | Categorias de um artigo | `GET`, `PUT /products/{id}/categories` | read / write | com a versão do artigo |
-| Colecções | `GET`, `POST /collections`, `PATCH /collections/{id}`, `/archive`, `/restore`, `GET` e `PUT /collections/{id}/products` | read / write | lista manual, ordenada |
+| Colecções | `GET /collections`, `GET /collections/{id}`, `POST /collections`, `PATCH /collections/{id}`, `/archive`, `/restore`, `GET` e `PUT /collections/{id}/products` | read / write | lista manual, ordenada |
 | Traduções | `GET /translations?resource=…&locale=…`, `PUT /translations/{resource}/{field}/{locale}` | read / write | |
 | Fila de traduções | `GET /translations?estado=desactualizada,em_falta&locale=…` | read | o que falta traduzir |
 | Verificar publicação | `POST /products/{id}/publications/check` | read | **não escreve**: devolve os impedimentos por canal × mercado (C2) |
