@@ -40,6 +40,17 @@ Pedido do Diogo, 08/10/2026: *«sim, avança com a gestão da equipa no Hub»*;
   um ensaio com VoiceOver e TalkBack. Corrigido também: o aviso de convite
   cancelado aparecia antes de a lista ser relida (defeito do #188).
 
+- **#196 (29a013c), issue #194:** o convite mostra, antes de aceitar, o
+  comerciante, o papel, o e-mail e quando expira. API `POST
+  /hub/invitations/preview` (pública, o segredo no corpo, `no-store`);
+  função `convite_ver` na **migração 0031** (só lê; a mesma recusa
+  `invite.invalid` para inexistente, usado, cancelado, expirado e
+  comerciante suspenso ou fechado). Com a sessão de outra pessoa, o ecrã
+  avisa, mas «Aceitar com esta conta» fica activo: quem recusa é a base
+  (revisão do #196, P2-1 — comparar e-mails no ecrã podia recusar o que a
+  base aceita). Revisão Opus 5.5: 0 P0, 1 P1 (faltava a função na lista
+  fixa de `seguranca-base.test.ts`; a suite inteira apanhou-o), 1 P2, 8 P3.
+
 ## Números (com data e como se contaram)
 
 - Hub: 53 testes passam (`pnpm teste`, 08/10/2026).
@@ -57,8 +68,20 @@ Pedido do Diogo, 08/10/2026: *«sim, avança com a gestão da equipa no Hub»*;
   nome das células (08/10/2026). Publicado: corrida 37802346072, 15:42 UTC,
   «Hub: os ecrãs desta publicação estão no ar»; o código servido
   (`index-DR2eUi1o.js`) tem o mesmo nome que a construção local do `main`.
+- #196: API 857 testes em 857; `capturas.mjs` 132 em 132, 5 corridas
+  seguidas (08/10/2026). **Alteração à máquina** (base do ensaio): corrida
+  37806963432, 16:17 UTC, «migrar: aplicadas 0031_identidade_convite_ver»,
+  «Hub: os ecrãs desta publicação estão no ar». Medido de fora às 16:17: a
+  rota nova responde 404 `invite.invalid` com `cache-control: no-store` a um
+  convite inventado (antes: `route.not_found`); o código servido
+  (`index-CCNlX5F5.js`) tem «Foi convidado para a equipa de» e o mesmo nome
+  que a construção local do `main`.
 
 ## O que ficou por verificar
+
+- #196: o comerciante `fechado` e o 429 na rota nova sem teste; o `accept`
+  com sessão dá 403 `member.merchant_inactive` ao comerciante suspenso (vem
+  de antes); a hora de expirar sai no fuso do navegador.
 
 - Os cartões do telemóvel com VoiceOver e TalkBack reais: se dizem a coluna
   sem o rótulo visível (decide se o rótulo sai do nome da célula).
