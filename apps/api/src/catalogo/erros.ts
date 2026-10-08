@@ -168,6 +168,8 @@ const TABELAS = new Set([
   "colecao_artigo",
   "traducao",
   "publicacao",
+  "ficheiro",
+  "media",
 ]);
 
 export interface OpcoesDeTraducao {

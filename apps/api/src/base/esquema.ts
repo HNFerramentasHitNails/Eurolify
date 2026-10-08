@@ -360,6 +360,36 @@ export interface TabelaColecaoArtigo {
   posicao: number;
 }
 
+// Catálogo: as imagens dos artigos (migração 0028; docs/14 §3.5).
+export const TIPOS_DE_IMAGEM = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+export type TipoDeImagem = (typeof TIPOS_DE_IMAGEM)[number];
+
+export interface TabelaFicheiro {
+  comerciante_id: string;
+  resumo: string;
+  tipo: TipoDeImagem;
+  bytes: number;
+  criado_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaMedia {
+  id: Generated<string>;
+  comerciante_id: string;
+  artigo_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string | null, string | null | undefined, never>;
+  ficheiro_resumo: ColumnType<string, string, never>;
+  texto_alternativo: string | null;
+  posicao: number;
+  principal: ColumnType<boolean, boolean | undefined, boolean>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
 // Catálogo, parte 3b (migração 0009; docs/14 §3.8 e §4.3).
 export const ORIGENS_TRADUCAO = ["pessoa", "ia"] as const;
 export type OrigemTraducao = (typeof ORIGENS_TRADUCAO)[number];
@@ -536,6 +566,8 @@ export interface BaseDados {
   artigo_categoria: TabelaArtigoCategoria;
   colecao: TabelaColecao;
   colecao_artigo: TabelaColecaoArtigo;
+  ficheiro: TabelaFicheiro;
+  media: TabelaMedia;
   traducao: TabelaTraducao;
   texto_original: VistaTextoOriginal;
   mercado: TabelaMercado;

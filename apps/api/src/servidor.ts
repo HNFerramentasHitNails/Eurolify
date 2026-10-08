@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
+import { ArmazenamentoEmDisco } from "./catalogo/armazenamento.js";
 import { proxyConfiavel } from "./base/limite.js";
 import { serializadores } from "./base/registo.js";
 import { chaveTotp } from "./identidade/palavra-passe.js";
@@ -48,6 +49,13 @@ if (hub !== undefined && textoProxy === "") {
 }
 const trustProxy = proxyConfiavel(textoProxy);
 
+// A pasta das imagens (docs/06, CQ). Sem ela, as rotas da media não existem.
+const pastaMedia = process.env["MEDIA_PASTA"]?.trim();
+const armazenamento =
+  pastaMedia === undefined || pastaMedia === ""
+    ? undefined
+    : new ArmazenamentoEmDisco(pastaMedia);
+
 const app = criarApp(
   {
     // Um identificador por pedido que não recomeça a cada arranque: é o
@@ -62,6 +70,7 @@ const app = criarApp(
   undefined,
   base,
   hub,
+  armazenamento,
 );
 
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {

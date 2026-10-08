@@ -223,6 +223,41 @@ lote de cada componente vai na linha expedida (`product-compliance-eu`; ADR-0022
 | `texto_alternativo` | traduzível; **obrigatório para publicar** (**proposta**; o texto alternativo por língua vem da `catalog-pim`, «acessibilidade») |
 | `posicao`, `principal` | uma só principal por artigo |
 
+**A media em código** (08/10/2026; pedido do Diogo: «sim, fica a (a); avança
+com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
+
+- **Onde:** os ficheiros guardam-se numa pasta do disco (`MEDIA_PASTA`), uma
+  subpasta por comerciante, com o nome igual ao resumo SHA-256 do conteúdo.
+  O mesmo ficheiro enviado duas vezes fica uma vez. O acesso passa por uma
+  interface (`Armazenamento`): mudar para um serviço europeu de ficheiros é
+  outra implementação, sem mudar as rotas. Sem `MEDIA_PASTA`, as rotas da
+  media não existem.
+- **O que entra:** só imagens JPEG, PNG e WebP (**proposta**), confirmadas
+  pelos primeiros bytes do ficheiro, que têm de bater com o `Content-Type`
+  do envio; até 10 MB cada (**proposta**). Sem SVG (pode levar código), sem
+  vídeo por agora.
+- **Como:** `POST /media/uploads` recebe os bytes e devolve o ficheiro
+  (`fil_` e o resumo); `POST /products/{id}/media` liga-o ao artigo (e, se
+  se quiser, a uma variante dele), com o texto alternativo e a posição;
+  `PATCH /media/{id}` muda o texto alternativo, a posição ou a principal;
+  `DELETE /media/{id}` tira-a do artigo; `GET /products/{id}/media` lista
+  e `GET /media/{id}/file` devolve os bytes. Marcar uma como principal tira
+  a marca à que a tinha.
+
+**Faltas conhecidas da media** (08/10/2026):
+
+- O texto alternativo é só o da língua de origem: as traduções dele, e o
+  «obrigatório para publicar» (**proposta** acima), entram depois.
+- **Os metadados das fotografias** (EXIF: a localização GPS, o aparelho)
+  ficam no ficheiro como vieram: podem ser dados pessoais (`eu-gdpr-privacy`).
+  Tirá-los pede uma biblioteca de imagem; tem de estar feito antes de
+  entrarem imagens reais (que só entram depois da migração para Paris,
+  `docs/06`, CQ).
+- Um ficheiro deixa de estar ligado a qualquer artigo e fica no disco: a
+  limpeza dos órfãos entra depois.
+- Quem enviou ou ligou a imagem não fica registado (C7), como nas categorias.
+- Sem dimensões nem miniaturas: a montra recebe a imagem como foi enviada.
+
 ### 3.6 Categoria (`cat_`)
 
 Árvore de navegação: `pai_id`, `nome` e `endereco_amigavel` traduzíveis,
