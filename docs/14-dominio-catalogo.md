@@ -784,6 +784,30 @@ quem pagina reescreve as posições (a excepção ao `docs/18` §2a; no máximo
 o texto de um valor, apagar uma opção e mudar a ordem; desenham-se antes do
 código.
 
+**As traduções em código** (08/10/2026; pedido do Diogo: «sim, avança com
+as traduções»):
+
+- com `catalog:read`, `GET /translations` em dois usos, exactamente um de
+  cada vez: com `resource` (`prd_`, `opt_`, `ovl_`, `cat_` ou `col_`), as
+  traduções desse recurso (de uma língua, com `locale`), cada uma com o
+  estado contra o original de agora (§4.3) — poucas por natureza (os campos
+  do tipo × as línguas), por isso vão todas; sem `resource`, com `locale`,
+  a fila do que falta traduzir nessa língua (`estado`: `em_falta`,
+  `desactualizada`), por páginas (`docs/18` §2a);
+- com `catalog:write`, com a `Idempotency-Key`:
+  `PUT /translations/{recurso}/{campo}/{lingua}` (traduz ou traduz outra vez;
+  `original_visto` é o original que quem traduziu viu, e se mudou dá
+  `catalog.version_conflict`), `POST …/review` (só uma proposta de IA, e não
+  por quem a traduziu) e `DELETE` (o campo passa a «em falta»; o nome de um
+  artigo publicado num mercado dessa língua tira-o de venda, §8).
+
+Os campos de cada tipo são os da 0009 (artigo: nome e descrição; opção:
+nome; valor: valor; categoria: nome e endereço amigável; colecção: nome,
+descrição e endereço amigável); outro dá 400 no contrato. Quem traduziu ou
+reviu fica registado como a chave e não sai nas respostas (CL). Os estados
+e as línguas são os do desenho: o `docs/14` §7.1 escrevia `outdated` e
+`missing`, e o código usa `desactualizada` e `em_falta`, como o §4.3.
+
 As alterações levam a `versao` lida (outra dá `catalog.version_conflict`,
 antes de qualquer outra recusa) e devolvem a ficha. Pedir o estado em que o
 artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1), mas só
@@ -794,9 +818,9 @@ de cada corpo diz o que a base aceita (medidas positivas, o formato da
 categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
 código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
 com `publicada: false`: quem chama lê `publicada`, nunca só o estado HTTP. Quem escreve fica registado como a chave
-(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções e
-a composição entraram a seguir (abaixo); as traduções e o resto da tabela
-entram com as rotas seguintes.
+(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções, a
+composição e as traduções entraram a seguir (abaixo); o resto da tabela
+entra com as rotas seguintes.
 
 **Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas
 rotas, que só as expõem):
@@ -863,7 +887,7 @@ actualizado desde) e o `expand` entram com as rotas seguintes.
 | Categorias | `GET`, `POST /categories`, `PATCH /categories/{id}`, `POST /categories/{id}/move` | read / write | recusa ciclos |
 | Colecções | `GET`, `POST /collections`, `PATCH /collections/{id}`, `PUT /collections/{id}/products` | read / write | lista manual, ordenada |
 | Traduções | `GET /translations?resource=…&locale=…`, `PUT /translations/{resource}/{field}/{locale}` | read / write | |
-| Fila de traduções | `GET /translations?state=outdated,missing&locale=…` | read | o que falta traduzir |
+| Fila de traduções | `GET /translations?estado=desactualizada,em_falta&locale=…` | read | o que falta traduzir |
 | Verificar publicação | `POST /products/{id}/publications/check` | read | **não escreve**: devolve os impedimentos por canal × mercado (C2) |
 | Publicar | `POST /products/{id}/publications` | publish | corre a verificação; com impedimentos, não publica e devolve a lista, com 200 e `publicada: false` (o repositório responde `publicada: false` com a verificação; `catalog.publish_blocked` é o que a base diz se alguém tentar contornar) |
 | Retirar | `POST /publications/{id}/archive` | publish | |

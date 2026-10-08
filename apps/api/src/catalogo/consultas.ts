@@ -479,3 +479,220 @@ export async function composicaoDoKit(
     { soLeitura: true },
   );
 }
+
+// ---------------------------------------------------------- Traduções
+
+/** Os recursos traduzíveis e os campos de cada um (0009). */
+export const CAMPOS_TRADUZIVEIS = {
+  artigo: ["nome", "descricao"],
+  opcao: ["nome"],
+  valor_opcao: ["valor"],
+  categoria: ["nome", "endereco_amigavel"],
+  colecao: ["nome", "descricao", "endereco_amigavel"],
+} as const;
+export type RecursoTraduzivel = keyof typeof CAMPOS_TRADUZIVEIS;
+
+/**
+ * Confirma que o recurso existe neste comerciante (o RLS esconde os de
+ * outro); senão, `catalog.not_found`. Lido na transacção dada.
+ */
+export async function recursoTraduzivel(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  tipo: RecursoTraduzivel,
+  recursoId: string,
+): Promise<void> {
+  const linha = await trx
+    .selectFrom(tipo)
+    .select("id")
+    .where("comerciante_id", "=", comercianteId)
+    .where("id", "=", recursoId)
+    .executeTakeFirst();
+  if (linha === undefined) {
+    throw new ErroCatalogo("catalog.not_found", `${tipo} ${recursoId}`);
+  }
+}
+
+/**
+ * As traduções de um recurso (de uma língua, se dada), por campo e língua,
+ * com o estado calculado contra o original de agora (§4.3). Um recurso que
+ * não existe é `catalog.not_found`. São poucas por natureza (os campos do
+ * tipo × as línguas): a lista vai inteira.
+ */
+export async function traducoesParaApi(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  tipo: RecursoTraduzivel,
+  recursoId: string,
+  lingua: string | null,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      await recursoTraduzivel(trx, comercianteId, tipo, recursoId);
+      let consulta = trx
+        .selectFrom("traducao as t")
+        .leftJoin("texto_original as o", (j) =>
+          j
+            .onRef("o.comerciante_id", "=", "t.comerciante_id")
+            .onRef("o.recurso_id", "=", "t.recurso_id")
+            .onRef("o.campo", "=", "t.campo"),
+        )
+        .select([
+          "t.campo",
+          "t.lingua",
+          "t.texto",
+          "t.original",
+          "o.texto as actual",
+          "t.origem",
+          "t.revista",
+          "t.traduzido_em",
+          "t.revisto_em",
+        ])
+        .where("t.comerciante_id", "=", comercianteId)
+        .where("t.recurso_id", "=", recursoId);
+      if (lingua !== null) consulta = consulta.where("t.lingua", "=", lingua);
+      const linhas = await consulta
+        .orderBy("t.campo")
+        .orderBy("t.lingua")
+        .execute();
+      return linhas.map((l) => ({
+        campo: l.campo,
+        lingua: l.lingua,
+        texto: l.texto,
+        estado:
+          l.actual === l.original
+            ? ("completa" as const)
+            : ("desactualizada" as const),
+        origem: l.origem,
+        revista: l.revista,
+        traduzido_em: l.traduzido_em,
+        revisto_em: l.revisto_em,
+      }));
+    },
+    { soLeitura: true },
+  );
+}
+
+/** Onde a página da fila acabou: a ordem é (tipo, recurso, campo). */
+export interface PosicaoNaFila {
+  tipo: string;
+  recursoId: string;
+  campo: string;
+}
+
+/**
+ * Uma página da fila de traduções de uma língua (§7.1): os campos com
+ * original e sem tradução nessa língua (`em_falta`) e os que têm tradução de
+ * um original que mudou ou ficou vazio (`desactualizada`), com o total. Para
+ * a língua de origem não há fila (`catalog.translation_same_language`).
+ */
+export async function filaDeTraducoesPaginada(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  lingua: string,
+  estados: readonly ("em_falta" | "desactualizada")[],
+  limite: number,
+  depois: PosicaoNaFila | null,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const comerciante = await trx
+        .selectFrom("comerciante")
+        .select("lingua_origem")
+        .where("id", "=", comercianteId)
+        .executeTakeFirst();
+      if (comerciante?.lingua_origem === lingua) {
+        throw new ErroCatalogo(
+          "catalog.translation_same_language",
+          `${lingua} é a língua de origem`,
+        );
+      }
+      const emFalta = estados.includes("em_falta");
+      const desactualizada = estados.includes("desactualizada");
+      const fila = trx
+        .selectFrom("texto_original as o")
+        .leftJoin("traducao as t", (j) =>
+          j
+            .onRef("t.comerciante_id", "=", "o.comerciante_id")
+            .onRef("t.recurso_id", "=", "o.recurso_id")
+            .onRef("t.campo", "=", "o.campo")
+            .on("t.lingua", "=", lingua),
+        )
+        .where("o.comerciante_id", "=", comercianteId)
+        .where((eb) =>
+          eb.or([
+            // Em falta: com original e sem tradução.
+            ...(emFalta
+              ? [
+                  eb.and([
+                    sql<boolean>`coalesce(btrim(o.texto), '') <> ''`,
+                    eb("t.id", "is", null),
+                  ]),
+                ]
+              : []),
+            // Desactualizada: com tradução de outro original, ou de um
+            // original que ficou vazio.
+            ...(desactualizada
+              ? [
+                  eb.and([
+                    eb("t.id", "is not", null),
+                    eb.or([
+                      eb("t.original", "is distinct from", eb.ref("o.texto")),
+                      sql<boolean>`coalesce(btrim(o.texto), '') = ''`,
+                    ]),
+                  ]),
+                ]
+              : []),
+          ]),
+        );
+      const { total } = await fila
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow();
+      let pagina = fila.select([
+        "o.tipo",
+        "o.recurso_id",
+        "o.campo",
+        "t.id as traducao",
+      ]);
+      if (depois !== null) {
+        pagina = pagina.where(
+          sql<boolean>`(o.tipo, o.recurso_id, o.campo) > (${depois.tipo}::text, ${depois.recursoId}::uuid, ${depois.campo}::text)`,
+        );
+      }
+      const linhas = await pagina
+        .orderBy("o.tipo")
+        .orderBy("o.recurso_id")
+        .orderBy("o.campo")
+        .limit(limite + 1)
+        .execute();
+      const haMais = linhas.length > limite;
+      const dados = haMais ? linhas.slice(0, limite) : linhas;
+      const ultima = haMais ? dados.at(-1) : undefined;
+      return {
+        dados: dados.map((l) => ({
+          tipo: l.tipo as RecursoTraduzivel,
+          recursoId: l.recurso_id,
+          campo: l.campo,
+          estado:
+            l.traducao === null
+              ? ("em_falta" as const)
+              : ("desactualizada" as const),
+        })),
+        total: Number(total),
+        ultima:
+          ultima === undefined
+            ? null
+            : {
+                tipo: ultima.tipo,
+                recursoId: ultima.recurso_id,
+                campo: ultima.campo,
+              },
+      };
+    },
+    { soLeitura: true },
+  );
+}
