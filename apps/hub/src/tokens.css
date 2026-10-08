@@ -60,6 +60,11 @@
   --estado-erro: var(--vermelho-700);
   --estado-aviso: var(--ambar-800);
   --estado-sucesso: var(--verde-800);
+  /* Os estados do artigo (docs/22 §11.2): um estado, uma cor. Apontam para
+     os semânticos, por isso seguem o tema escuro sem se repetirem. */
+  --estado-artigo-rascunho: var(--estado-aviso);
+  --estado-artigo-activo: var(--estado-sucesso);
+  --estado-artigo-arquivado: var(--texto-secundario);
 }
 
 @media (prefers-color-scheme: dark) {

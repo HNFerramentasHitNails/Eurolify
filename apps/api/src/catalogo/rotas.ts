@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely, Transaction } from "kysely";
-import { Type, type TSchema } from "typebox";
+import { Type, type Static, type TSchema } from "typebox";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
   ESTADOS_ARTIGO,
@@ -342,7 +342,7 @@ const ComponenteEsquema = Type.Object({
   estado: EstadoVariante,
 });
 
-const RespostaArtigos = Type.Object({
+export const RespostaArtigos = Type.Object({
   dados: Type.Array(ResumoArtigo),
   total: Type.Integer({
     description: "Quantos artigos passam no filtro, em todas as páginas",
@@ -353,7 +353,7 @@ const RespostaArtigos = Type.Object({
   }),
 });
 
-const ConsultaArtigos = Type.Object(
+export const ConsultaArtigos = Type.Object(
   {
     estado: Type.Optional(EstadoArtigo),
     tipo: Type.Optional(TipoArtigo),
@@ -1389,6 +1389,62 @@ async function fichaNa(
 
 // ------------------------------------------------------------ As rotas
 
+/**
+ * A lista de artigos (docs/14 §7.1): a mesma para `GET /products` (com a
+ * chave) e `GET /hub/products` (com a sessão do Hub; docs/22 §11.1). Uma
+ * função só, para os dois caminhos não se afastarem. **Outro chamador, fora
+ * do catálogo:** `identidade/hub-catalogo.ts`; o teste
+ * `hub-catalogo.test.ts` compara as duas respostas. Uma regra que dependa de
+ * quem pede (a chave ou a pessoa) não entra aqui sem pensar nos dois
+ * (revisão do #201, P2-2).
+ */
+export async function listaDeArtigos(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  q: Static<typeof ConsultaArtigos>,
+  resposta: FastifyReply,
+): Promise<Static<typeof RespostaArtigos>> {
+  const limite = q.limite === undefined ? 25 : Number(q.limite);
+  const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
+  // O ano 0000 passa o formato `date-time` mas a base não o lê: recusa-se
+  // aqui, com o código dos pedidos mal formados (revisão do #173, P3-6).
+  if (q.actualizado_desde?.startsWith("0000-") === true) {
+    throw erroBase(
+      "request.invalid",
+      "`actualizado_desde` fora do intervalo (o ano 0000 não existe)",
+    );
+  }
+  const pagina = await noCatalogoApi(resposta, () =>
+    listarArtigos(
+      base,
+      comercianteId,
+      {
+        ...(q.estado === undefined ? {} : { estado: q.estado }),
+        ...(q.tipo === undefined ? {} : { tipo: q.tipo }),
+        ...(q.sku === undefined ? {} : { sku: q.sku }),
+        ...(q.texto === undefined ? {} : { texto: q.texto }),
+        ...(q.categoria === undefined
+          ? {}
+          : { categoria: semPrefixo(q.categoria) }),
+        ...(q.traducao_em_falta === undefined
+          ? {}
+          : { traducaoEmFalta: q.traducao_em_falta }),
+        ...(q.actualizado_desde === undefined
+          ? {}
+          : { actualizadoDesde: q.actualizado_desde }),
+      },
+      limite,
+      depois,
+    ),
+  );
+  return {
+    dados: pagina.dados.map(paraArtigo),
+    total: pagina.total,
+    ha_mais: pagina.ultimo !== null,
+    cursor_seguinte: pagina.ultimo === null ? null : cursorDe(pagina.ultimo),
+  };
+}
+
 export function rotasDoCatalogo(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -1406,50 +1462,13 @@ export function rotasDoCatalogo(
         response: { 200: RespostaArtigos, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido, resposta) => {
-      const chave = chaveDo(pedido);
-      const q = pedido.query;
-      const limite = q.limite === undefined ? 25 : Number(q.limite);
-      const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
-      // O ano 0000 passa o formato `date-time` mas a base não o lê: recusa-se
-      // aqui, com o código dos pedidos mal formados (revisão do #173, P3-6).
-      if (q.actualizado_desde?.startsWith("0000-") === true) {
-        throw erroBase(
-          "request.invalid",
-          "`actualizado_desde` fora do intervalo (o ano 0000 não existe)",
-        );
-      }
-      const pagina = await noCatalogoApi(resposta, () =>
-        listarArtigos(
-          base,
-          chave.comercianteId,
-          {
-            ...(q.estado === undefined ? {} : { estado: q.estado }),
-            ...(q.tipo === undefined ? {} : { tipo: q.tipo }),
-            ...(q.sku === undefined ? {} : { sku: q.sku }),
-            ...(q.texto === undefined ? {} : { texto: q.texto }),
-            ...(q.categoria === undefined
-              ? {}
-              : { categoria: semPrefixo(q.categoria) }),
-            ...(q.traducao_em_falta === undefined
-              ? {}
-              : { traducaoEmFalta: q.traducao_em_falta }),
-            ...(q.actualizado_desde === undefined
-              ? {}
-              : { actualizadoDesde: q.actualizado_desde }),
-          },
-          limite,
-          depois,
-        ),
-      );
-      return {
-        dados: pagina.dados.map(paraArtigo),
-        total: pagina.total,
-        ha_mais: pagina.ultimo !== null,
-        cursor_seguinte:
-          pagina.ultimo === null ? null : cursorDe(pagina.ultimo),
-      };
-    },
+    async (pedido, resposta) =>
+      listaDeArtigos(
+        base,
+        chaveDo(pedido).comercianteId,
+        pedido.query,
+        resposta,
+      ),
   );
 
   rotas.get(

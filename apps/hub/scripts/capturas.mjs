@@ -82,6 +82,7 @@ const { abrirBase } = await import(join(API, "dist/base/ligacao.js"));
 const { registarComerciante } = await import(
   join(API, "dist/comerciante/repositorio.js")
 );
+const { criarArtigo } = await import(join(API, "dist/catalogo/repositorio.js"));
 const base = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
 const comerciante = await registarComerciante(base, {
   nome: "Loja de Ensaio",
@@ -214,6 +215,34 @@ for (let i = 0; i < 50; i++) {
     // ainda a arrancar
   }
   await new Promise((r) => setTimeout(r, 200));
+}
+
+// 30 artigos fictícios (mais do que uma página de 25; docs/22 §11), pela
+// mesma função do POST /products, sem chave (uma chave aparecia na lista das
+// chaves). O 30 vem do sistema de gestão do comerciante.
+{
+  const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
+  const baseArtigos = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
+  for (let i = 0; i < 30; i++) {
+    await criarArtigo(
+      baseArtigos,
+      comerciante,
+      {
+        tipo: "fisico",
+        nome: `Verniz ${CORES[i % CORES.length] ?? ""} ${String(i + 1)}`,
+        marca: "Marca de Ensaio",
+        categoria_fiscal: "normal",
+        ...(i === 29 ? { origem_ref: "GESTAO-030" } : {}),
+      },
+      [
+        {
+          sku: `ENS-${String(i + 1).padStart(3, "0")}`,
+          unidade_de_venda: "unidade",
+        },
+      ],
+    );
+  }
+  await baseArtigos.destroy();
 }
 
 // 4. O navegador, com uma passkey em software.
@@ -1118,6 +1147,127 @@ try {
   );
   await gil.contexto.close();
 
+  // O catálogo no Hub (docs/22 §11): a lista de artigos, com a Ana.
+  const pedidosArtigos = [];
+  rp.on("request", (p) => {
+    pedidosArtigos.push(p.url());
+  });
+  await rp.goto(`${ORIGEM}/`);
+  await rp.getByRole("link", { name: "Ver artigos" }).click();
+  await rp.getByText("30 artigos", { exact: true }).waitFor();
+  confere(
+    (await rp
+      .getByRole("heading", { name: "Artigos — Loja de Ensaio" })
+      .count()) === 1 && (await rp.getByRole("row").count()) === 26,
+    "artigos: a contagem (30) e a primeira página (25 linhas)",
+  );
+  await rp.getByRole("button", { name: "Mostrar mais" }).click();
+  await rp.waitForFunction(
+    () => document.querySelectorAll("tbody tr").length === 30,
+  );
+  confere(
+    (await rp.getByRole("button", { name: "Mostrar mais" }).count()) === 0,
+    "artigos: «Mostrar mais» traz os 5 que faltavam e desaparece",
+  );
+  await rp.getByLabel("Nome", { exact: true }).fill("Azul");
+  await rp.getByRole("button", { name: "Procurar" }).click();
+  await rp.getByText("5 de 30 artigos", { exact: true }).waitFor();
+  confere(true, "artigos: filtrar pelo nome diz «5 de 30 artigos»");
+  await rp.getByLabel("Nome", { exact: true }).fill("");
+  await rp.getByLabel("SKU", { exact: true }).fill("ens-007");
+  await rp.getByRole("button", { name: "Procurar" }).click();
+  await rp.getByText("1 de 30 artigos", { exact: true }).waitFor();
+  confere(
+    (await rp.getByRole("row", { name: /Verniz Azul 7\b/ }).count()) === 1,
+    "artigos: o SKU de uma variante encontra o artigo (sem distinguir maiúsculas)",
+  );
+  await rp.getByLabel("SKU", { exact: true }).fill("");
+  await rp.getByLabel("Estado", { exact: true }).selectOption("arquivado");
+  await rp.getByRole("button", { name: "Procurar" }).click();
+  await rp.getByText("Nenhum artigo com este filtro.").waitFor();
+  await rp.screenshot({
+    path: join(SAIDA, "artigos-sem-resultados-375-claro.png"),
+    fullPage: true,
+  });
+  await rp.getByRole("button", { name: "Limpar o filtro" }).click();
+  await rp.getByText("30 artigos", { exact: true }).waitFor();
+  confere(true, "artigos: sem resultados, «Limpar o filtro» volta aos 30");
+  // «Mostrar mais» que falha deixa as 25 linhas à vista (revisão do #201,
+  // P3-4); «Tentar outra vez» traz as que faltavam.
+  await rp.route("**/hub/products?*cursor=*", (r) =>
+    r.fulfill({
+      status: 429,
+      contentType: "application/problem+json",
+      headers: { "retry-after": "7" },
+      body: JSON.stringify({ codigo: "rate_limit.exceeded", status: 429 }),
+    }),
+  );
+  await rp.getByRole("button", { name: "Mostrar mais" }).click();
+  await rp.getByText("Pedidos a mais", { exact: false }).waitFor();
+  confere(
+    (await rp.locator("tbody tr").count()) === 25,
+    "artigos: «Mostrar mais» que falha não apaga as 25 linhas",
+  );
+  await rp.unroute("**/hub/products?*cursor=*");
+  await rp.getByRole("button", { name: "Tentar outra vez" }).click();
+  await rp.waitForFunction(
+    () => document.querySelectorAll("tbody tr").length === 30,
+  );
+  confere(
+    await rp.evaluate(
+      () => document.activeElement?.getAttribute("role") === "status",
+    ),
+    "artigos: na última página, o foco vai para a contagem",
+  );
+  // As 30 linhas já estão à vista (o «Tentar outra vez» de cima).
+  await rp
+    .getByRole("row", { name: /Verniz Areia 30 \(vem do sistema de gestão\)/ })
+    .waitFor();
+  confere(true, "artigos: o que vem do sistema de gestão diz-o");
+  // O estado vazio e o 403, com respostas fingidas da API (revisão do #201,
+  // P3-10).
+  await rp.route("**/hub/products?*", (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        dados: [],
+        total: 0,
+        ha_mais: false,
+        cursor_seguinte: null,
+      }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByText("Ainda não há artigos.", { exact: false }).waitFor();
+  confere(
+    (await rp.getByText("0 artigos", { exact: true }).count()) === 1 &&
+      (await rp.locator("table").count()) === 0,
+    "artigos: sem artigos, diz como entram e não mostra a tabela",
+  );
+  await rp.unroute("**/hub/products?*");
+  await rp.route("**/hub/products?*", (r) =>
+    r.fulfill({
+      status: 403,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "auth.forbidden", status: 403 }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByText("Não pode ver este comerciante.").waitFor();
+  confere(
+    (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) === 0,
+    "artigos: 403 diz «Não pode ver este comerciante», sem «Tentar outra vez»",
+  );
+  await rp.unroute("**/hub/products?*");
+  confere(
+    pedidosArtigos.some((u) => u.includes("/hub/products?")) &&
+      !pedidosArtigos.some(
+        (u) => /\/products\?/.test(u) && !u.includes("/hub/"),
+      ),
+    "artigos: o Hub pede pelo caminho /hub/products",
+  );
+
   // B3c — as chaves de API (docs/22 §9.3), com a Ana (dona).
   const pedidosChaves = [];
   rp.on("request", (p) => {
@@ -1248,12 +1398,13 @@ try {
     "o navegador não guardou nenhum código de recuperação",
   );
 
-  // As capturas: 7 ecrãs × 3 larguras × 2 temas.
+  // As capturas: 8 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
     ["convite", `/convite#${conviteDasCapturas}`, "Aceitar o convite"],
     ["comerciantes", "/", "Os seus comerciantes"],
     ["equipa", `/equipa?comerciante=mer_${comerciante}`, "Equipa"],
+    ["artigos", `/artigos?comerciante=mer_${comerciante}`, "Artigos"],
     ["conta", "/conta", "A minha conta"],
     ["chaves", `/chaves?comerciante=mer_${comerciante}`, "Chaves de API"],
     ["recuperar", "/recuperar", "Recuperar a conta"],

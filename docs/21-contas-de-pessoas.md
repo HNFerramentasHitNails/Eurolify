@@ -371,6 +371,7 @@ sessão) nunca vão no caminho nem na consulta, só no corpo ou no cookie.
 | `POST /hub/invitations/accept-new` | público | `convite`, `nome`, a resposta da passkey | **201** e o cookie: a conta, o membro, a passkey e a sessão nascem na mesma transacção |
 | `POST /hub/invitations/accept` | sessão, recente | `convite` | **200** o comerciante e o membro |
 | `GET /hub/members` | sessão + comerciante | — | **200** os membros activos (nome, e-mail, papel, desde); o dono vê também os convites em aberto |
+| `GET /hub/products` | sessão + comerciante (`catalog:read`: os quatro papéis) | — | **200** a mesma lista, filtros e resposta do `GET /products` (`docs/14` §7.1), pela mesma função: o Hub só chega à API por `/hub/` (`docs/22` §11.1, issue #199) |
 | `POST /hub/invitations` | sessão + comerciante, recente (dono; gestor só armazém ou apoio) | `email`, `papel` | **201** o convite e o `segredo` da ligação, que só aparece aqui |
 | `POST /hub/invitations/{id}/cancel` | sessão + comerciante (dono) | nenhum | **200** |
 | `POST /hub/members/{id}/role` | sessão + comerciante, recente (dono) | `papel` | **200** |
