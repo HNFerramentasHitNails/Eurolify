@@ -259,15 +259,17 @@ export async function definirCategoriasDoArtigo(
   categoriaIdsDados: readonly string[],
 ): Promise<number> {
   const categoriaIds = categoriaIdsDados.map(canonico);
-  if (new Set(categoriaIds).size !== categoriaIds.length) {
-    throw new ErroCatalogo(
-      "catalog.category_duplicate",
-      "a mesma categoria duas vezes na lista",
-    );
-  }
   return noCatalogo(db, comercianteId, async (trx) => {
-    // A linha do artigo primeiro, como nas outras escritas do artigo.
+    // A linha do artigo primeiro, como nas outras escritas do artigo: o que
+    // não existe e a versão antiga recusam-se antes da lista repetida
+    // (docs/14 §7.1; revisão do #170, P2-1).
     await artigoNaVersao(trx, artigoId, versao);
+    if (new Set(categoriaIds).size !== categoriaIds.length) {
+      throw new ErroCatalogo(
+        "catalog.category_duplicate",
+        "a mesma categoria duas vezes na lista",
+      );
+    }
     const actuais = new Set(
       (
         await trx
@@ -445,14 +447,16 @@ export async function definirArtigosDaColecao(
   artigoIdsDados: readonly string[],
 ): Promise<number> {
   const artigoIds = artigoIdsDados.map(canonico);
-  if (new Set(artigoIds).size !== artigoIds.length) {
-    throw new ErroCatalogo(
-      "catalog.collection_product_duplicate",
-      "o mesmo artigo duas vezes na lista",
-    );
-  }
   return noCatalogo(db, comercianteId, async (trx) => {
+    // A colecção na versão lida antes da lista repetida (revisão do #170,
+    // P2-1).
     await colecaoNaVersao(trx, colecaoId, versao);
+    if (new Set(artigoIds).size !== artigoIds.length) {
+      throw new ErroCatalogo(
+        "catalog.collection_product_duplicate",
+        "o mesmo artigo duas vezes na lista",
+      );
+    }
     // Os artigos que entram, presos contra o apagar (`FOR KEY SHARE`) antes
     // de mexer nas linhas da colecção: quem apaga um desses rascunhos espera
     // por esta substituição, ou acaba antes e aqui dá «não existe», em vez de

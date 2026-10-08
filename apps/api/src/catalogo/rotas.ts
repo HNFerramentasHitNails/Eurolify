@@ -35,6 +35,13 @@ import {
   traducoesParaApi,
   type PosicaoNaFila,
   type RecursoTraduzivel,
+  artigosDaColecaoPaginados,
+  categoriasDoArtigoParaApi,
+  categoriasPorId,
+  colecoesPorId,
+  fichaDaCategoria,
+  fichaDaColecao,
+  listarCategoriasOuColecoes,
   composicaoDoKit,
   fichaDaOpcao,
   fichaDaVariante,
@@ -57,6 +64,17 @@ import {
   type Publicacao,
 } from "./publicacao.js";
 import {
+  alterarCategoria,
+  alterarColecao,
+  criarCategoria,
+  criarColecao,
+  definirArtigosDaColecao,
+  definirCategoriasDoArtigo,
+  moverCategoria,
+  mudarEstadoCategoria,
+  mudarEstadoColecao,
+} from "./categorias.js";
+import {
   alterarArtigo,
   apagarRascunho,
   acrescentarValor,
@@ -73,7 +91,7 @@ import {
 // pelo Diogo a 07/10/2026: 1, as consultas (#150); 2, as escritas dos
 // artigos e das publicações, com a Idempotency-Key (docs/18 §4; #153); 3, as
 // variantes (#159); 4, as opções e a composição dos kits (#161); 5, as
-// traduções. Cada rota pede o seu âmbito (`catalog:read`,
+// traduções (#166); 6, as categorias e as colecções. Cada rota pede o seu âmbito (`catalog:read`,
 // `catalog:write` ou `catalog:publish`).
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -1060,6 +1078,201 @@ function idDoCursor(cursor: string): string {
   }
   return id;
 }
+
+// ------------------------------------- Categorias e colecções (parte 6)
+
+const EstadoCategoria = umDe(["activa", "arquivada"] as const);
+const EnderecoAmigavel = Type.String({
+  minLength: 1,
+  maxLength: 100,
+  pattern: "^[a-z0-9]+(-[a-z0-9]+)*$",
+  description:
+    "Minúsculas sem acentos, algarismos e hífenes (ex.: unhas-de-gel); único por comerciante entre as categorias e, à parte, entre as colecções, também as arquivadas",
+});
+const Posicao = Type.Integer({ minimum: 0, maximum: 2147483647 });
+const IdCategoria = idCom("cat", "cat_…");
+const ParametroCategoria = Type.Object({ id: IdCategoria });
+const ParametroColecao = Type.Object({ id: idCom("col", "col_…") });
+
+const CategoriaEsquema = Type.Object({
+  id: Type.String({ description: "cat_…" }),
+  nome: Type.String(),
+  endereco_amigavel: Type.String(),
+  pai: Type.Union([Type.String({ description: "cat_…" }), Type.Null()]),
+  posicao: Type.Integer(),
+  estado: EstadoCategoria,
+  versao: Type.Integer(),
+  criada_em: Instante,
+  actualizada_em: Instante,
+});
+
+const ColecaoEsquema = Type.Object({
+  id: Type.String({ description: "col_…" }),
+  nome: Type.String(),
+  descricao: Type.Union([Type.String(), Type.Null()]),
+  endereco_amigavel: Type.String(),
+  estado: EstadoCategoria,
+  total_artigos: Type.Integer({ minimum: 0 }),
+  versao: Type.Integer(),
+  criada_em: Instante,
+  actualizada_em: Instante,
+});
+
+const ArtigoDaColecaoEsquema = Type.Object({
+  artigo: Type.String({ description: "prd_…" }),
+  posicao: Type.Integer(),
+  estado: EstadoArtigo,
+});
+
+const CategoriasDoArtigoEsquema = Type.Object({
+  artigo: Type.String({ description: "prd_…" }),
+  versao: Type.Integer({ description: "A versão do artigo" }),
+  categorias: Type.Array(CategoriaEsquema, {
+    description: "Pela ordem do id, também as arquivadas",
+  }),
+});
+
+const ConsultaCategoriasOuColecoes = Type.Object(
+  {
+    estado: Type.Optional(EstadoCategoria),
+    limite: Type.Optional(
+      Type.String({
+        pattern: "^[1-9][0-9]?$|^100$",
+        description: "1 a 100; por omissão, 25",
+      }),
+    ),
+    cursor: Type.Optional(
+      Type.String({
+        pattern: "^[A-Za-z0-9_-]{1,64}$",
+        description: "O `cursor_seguinte` da página anterior",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoCriarCategoria = Type.Object(
+  {
+    nome: Texto(200),
+    endereco_amigavel: EnderecoAmigavel,
+    pai: Type.Optional(
+      Type.Union([IdCategoria, Type.Null()], {
+        description: "cat_… activa; nulo ou ausente, na raiz",
+      }),
+    ),
+    posicao: Type.Optional(Posicao),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoAlterarCategoria = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1 }),
+    nome: Type.Optional(Texto(200)),
+    endereco_amigavel: Type.Optional(EnderecoAmigavel),
+    posicao: Type.Optional(Posicao),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoMoverCategoria = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1 }),
+    pai: Type.Union([IdCategoria, Type.Null()], {
+      description: "cat_… activa; nulo, para a raiz",
+    }),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoCategoriasDoArtigo = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1, description: "A versão do artigo" }),
+    categorias: Type.Array(IdCategoria, {
+      maxItems: 100,
+      description:
+        "A lista inteira; vazia, o artigo fica sem categorias. Uma nova tem de estar activa; uma arquivada que o artigo já tinha pode ficar",
+    }),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoCriarColecao = Type.Object(
+  {
+    nome: Texto(200),
+    endereco_amigavel: EnderecoAmigavel,
+    descricao: Type.Optional(TextoOuNulo(10000)),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoAlterarColecao = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1 }),
+    nome: Type.Optional(Texto(200)),
+    endereco_amigavel: Type.Optional(EnderecoAmigavel),
+    descricao: Type.Optional(TextoOuNulo(10000)),
+  },
+  { additionalProperties: false },
+);
+
+const PedidoArtigosDaColecao = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1, description: "A versão da colecção" }),
+    artigos: Type.Array(idCom("prd", "prd_…"), {
+      maxItems: 1000,
+      description:
+        "A lista inteira, pela ordem; vazia, a colecção fica sem artigos. Qualquer artigo, em qualquer estado (a loja só mostra os publicados)",
+    }),
+  },
+  { additionalProperties: false },
+);
+
+interface LinhaCategoria {
+  id: string;
+  nome: string;
+  endereco_amigavel: string;
+  pai_id: string | null;
+  posicao: number;
+  estado: "activa" | "arquivada";
+  versao: number;
+  criado_em: Date;
+  actualizado_em: Date;
+}
+
+const paraCategoria = (c: LinhaCategoria) => ({
+  id: `cat_${c.id}`,
+  nome: c.nome,
+  endereco_amigavel: c.endereco_amigavel,
+  pai: c.pai_id === null ? null : `cat_${c.pai_id}`,
+  posicao: c.posicao,
+  estado: c.estado,
+  versao: c.versao,
+  criada_em: c.criado_em.toISOString(),
+  actualizada_em: c.actualizado_em.toISOString(),
+});
+
+const paraColecao = (c: {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  endereco_amigavel: string;
+  estado: "activa" | "arquivada";
+  total_artigos: number | string | null;
+  versao: number;
+  criado_em: Date;
+  actualizado_em: Date;
+}) => ({
+  id: `col_${c.id}`,
+  nome: c.nome,
+  descricao: c.descricao,
+  endereco_amigavel: c.endereco_amigavel,
+  estado: c.estado,
+  total_artigos: Number(c.total_artigos ?? 0),
+  versao: c.versao,
+  criada_em: c.criado_em.toISOString(),
+  actualizada_em: c.actualizado_em.toISOString(),
+});
 
 // --------------------------------------------------- A escrita idempotente
 
@@ -2073,6 +2286,463 @@ export function rotasDoCatalogo(
           pedido.params.lingua,
         );
         return null;
+      }),
+  );
+
+  // ------------------------------------------- Categorias e colecções
+  // Parte 6 (pedido do Diogo, 08/10/2026: «sim, avança com as categorias»;
+  // docs/14 §3.6, §3.7 e §7.1). As regras vivem na base (0007) e no
+  // repositório (`categorias.ts`): a árvore sem ciclos, o pai activo, os
+  // endereços únicos, a versão. Categorias e colecções não se apagam:
+  // arquivam-se.
+
+  /** A ficha da categoria, lida na transacção dada. */
+  const categoriaNa = async (
+    trx: Kysely<BaseDados>,
+    comercianteId: string,
+    id: string,
+  ) => paraCategoria(await fichaDaCategoria(trx, comercianteId, id));
+  /** A ficha da colecção, lida na transacção dada. */
+  const colecaoNa = async (
+    trx: Kysely<BaseDados>,
+    comercianteId: string,
+    id: string,
+  ) => paraColecao(await fichaDaColecao(trx, comercianteId, id));
+
+  rotas.get(
+    "/categories",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "As categorias do comerciante, por ordem de criação, também as arquivadas (filtro `estado`), no formato das listas (docs/18 §2a). A árvore monta-se pelo `pai` de cada uma.",
+        querystring: ConsultaCategoriasOuColecoes,
+        response: { 200: Lista(CategoriaEsquema), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const q = pedido.query;
+      const limite = q.limite === undefined ? 25 : Number(q.limite);
+      const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
+      const { dados, total, ultimo } = await noCatalogoApi(resposta, () =>
+        listarCategoriasOuColecoes(
+          base,
+          chave.comercianteId,
+          "categoria",
+          q.estado ?? null,
+          limite,
+          depois,
+          categoriasPorId,
+        ),
+      );
+      return {
+        dados: dados.map(paraCategoria),
+        total,
+        ha_mais: ultimo !== null,
+        cursor_seguinte: ultimo === null ? null : cursorDe(ultimo),
+      };
+    },
+  );
+
+  rotas.get(
+    "/categories/:id",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description: "Uma categoria.",
+        params: ParametroCategoria,
+        response: { 200: CategoriaEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      return noCatalogoApi(resposta, () =>
+        categoriaNa(base, chave.comercianteId, semPrefixo(pedido.params.id)),
+      );
+    },
+  );
+
+  rotas.post(
+    "/categories",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Cria uma categoria activa, na raiz ou dentro de uma categoria activa (`pai`). O endereço amigável é único entre as categorias do comerciante, também as arquivadas (catalog.slug_duplicate).",
+        headers: CabecalhoIdempotencia,
+        body: PedidoCriarCategoria,
+        response: { 201: CategoriaEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        async (trx, chave) => {
+          const { pai, ...dados } = pedido.body;
+          const id = await criarCategoria(trx, chave.comercianteId, {
+            ...dados,
+            pai_id: pai === undefined || pai === null ? null : semPrefixo(pai),
+          });
+          return categoriaNa(trx, chave.comercianteId, id);
+        },
+        (corpo) => `/categories/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  rotas.patch(
+    "/categories/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Altera o nome, o endereço amigável ou a posição, na `versao` lida (outra dá catalog.version_conflict). Um valor igual ao actual não sobe a versão. Mudar de sítio na árvore é `POST /categories/{id}/move`.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroCategoria,
+        body: PedidoAlterarCategoria,
+        response: { 200: CategoriaEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        const { versao, ...alteracao } = pedido.body;
+        await alterarCategoria(trx, chave.comercianteId, id, versao, alteracao);
+        return categoriaNa(trx, chave.comercianteId, id);
+      }),
+  );
+
+  rotas.post(
+    "/categories/:id/move",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Muda a categoria de sítio na árvore, na `versao` lida: para dentro de uma categoria activa (`pai`) ou para a raiz (`pai: null`). Uma categoria não fica dentro de si própria, nem por outra (catalog.category_cycle), nem uma activa dentro de uma arquivada (catalog.category_archived).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroCategoria,
+        body: PedidoMoverCategoria,
+        response: { 200: CategoriaEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        const { versao, pai } = pedido.body;
+        await moverCategoria(
+          trx,
+          chave.comercianteId,
+          id,
+          versao,
+          pai === null ? null : semPrefixo(pai),
+        );
+        return categoriaNa(trx, chave.comercianteId, id);
+      }),
+  );
+
+  for (const [caminho, estado, descricao] of [
+    [
+      "archive",
+      "arquivada",
+      "Arquiva a categoria. Os artigos ficam nela (§3.6). Uma categoria com subcategorias activas não se arquiva (catalog.category_has_children): arquiva-se de baixo para cima.",
+    ],
+    [
+      "restore",
+      "activa",
+      "Repõe a categoria. Dentro de uma arquivada não se repõe (catalog.category_archived): repõe-se de cima para baixo.",
+    ],
+  ] as const) {
+    rotas.post(
+      `/categories/:id/${caminho}`,
+      {
+        config: { ambito: "catalog:write" },
+        schema: {
+          description: `${descricao} Na \`versao\` lida; se a categoria já está nesse estado, nada muda.`,
+          headers: CabecalhoIdempotencia,
+          params: ParametroCategoria,
+          body: PedidoVersao,
+          response: { 200: CategoriaEsquema, ...RESPOSTA_DE_ERRO },
+        },
+      },
+      (pedido, resposta) =>
+        escrever(base, pedido, resposta, 200, async (trx, chave) => {
+          const id = semPrefixo(pedido.params.id);
+          await mudarEstadoCategoria(
+            trx,
+            chave.comercianteId,
+            id,
+            pedido.body.versao,
+            estado,
+          );
+          return categoriaNa(trx, chave.comercianteId, id);
+        }),
+    );
+  }
+
+  rotas.get(
+    "/products/:id/categories",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "As categorias do artigo (também as arquivadas), com a versão do artigo, que é a que se manda para as mudar. São no máximo 100: a lista vai inteira.",
+        params: ParametroArtigo,
+        response: { 200: CategoriasDoArtigoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const id = semPrefixo(pedido.params.id);
+      const { versao, categorias } = await noCatalogoApi(resposta, () =>
+        categoriasDoArtigoParaApi(base, chave.comercianteId, id),
+      );
+      return {
+        artigo: `prd_${id}`,
+        versao,
+        categorias: categorias.map(paraCategoria),
+      };
+    },
+  );
+
+  rotas.put(
+    "/products/:id/categories",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Substitui as categorias do artigo pela lista dada, na `versao` do artigo lida (é uma escrita do artigo: sobe-lhe a versão, só se a lista mudou). Uma categoria nova tem de estar activa (catalog.category_archived); uma arquivada que o artigo já tinha pode ficar. A mesma categoria duas vezes dá catalog.category_duplicate.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoCategoriasDoArtigo,
+        response: { 200: CategoriasDoArtigoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        await definirCategoriasDoArtigo(
+          trx,
+          chave.comercianteId,
+          id,
+          pedido.body.versao,
+          pedido.body.categorias.map(semPrefixo),
+        );
+        const { versao, categorias } = await categoriasDoArtigoParaApi(
+          trx,
+          chave.comercianteId,
+          id,
+        );
+        return {
+          artigo: `prd_${id}`,
+          versao,
+          categorias: categorias.map(paraCategoria),
+        };
+      }),
+  );
+
+  rotas.get(
+    "/collections",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "As colecções do comerciante, por ordem de criação, também as arquivadas (filtro `estado`), cada uma com quantos artigos tem, no formato das listas (docs/18 §2a).",
+        querystring: ConsultaCategoriasOuColecoes,
+        response: { 200: Lista(ColecaoEsquema), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const q = pedido.query;
+      const limite = q.limite === undefined ? 25 : Number(q.limite);
+      const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
+      const { dados, total, ultimo } = await noCatalogoApi(resposta, () =>
+        listarCategoriasOuColecoes(
+          base,
+          chave.comercianteId,
+          "colecao",
+          q.estado ?? null,
+          limite,
+          depois,
+          colecoesPorId,
+        ),
+      );
+      return {
+        dados: dados.map(paraColecao),
+        total,
+        ha_mais: ultimo !== null,
+        cursor_seguinte: ultimo === null ? null : cursorDe(ultimo),
+      };
+    },
+  );
+
+  rotas.get(
+    "/collections/:id",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "Uma colecção, com quantos artigos tem; os artigos lêem-se em `GET /collections/{id}/products`.",
+        params: ParametroColecao,
+        response: { 200: ColecaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      return noCatalogoApi(resposta, () =>
+        colecaoNa(base, chave.comercianteId, semPrefixo(pedido.params.id)),
+      );
+    },
+  );
+
+  rotas.get(
+    "/collections/:id/products",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "Os artigos da colecção, pela ordem dela, cada um com o estado, no formato das listas (docs/18 §2a). Como na composição de um kit, um `PUT` reescreve a lista inteira: entre páginas, só é estável enquanto ninguém a substitui.",
+        params: ParametroColecao,
+        querystring: ConsultaPagina,
+        response: { 200: Lista(ArtigoDaColecaoEsquema), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const { limite, depois } = paginaDe(pedido.query);
+      const pagina = await noCatalogoApi(resposta, () =>
+        artigosDaColecaoPaginados(
+          base,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+          limite,
+          depois,
+        ),
+      );
+      return {
+        dados: pagina.dados.map((l) => ({
+          artigo: `prd_${l.artigo_id}`,
+          posicao: l.posicao,
+          estado: l.estado,
+        })),
+        total: pagina.total,
+        ha_mais: pagina.ultima !== null,
+        cursor_seguinte:
+          pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
+      };
+    },
+  );
+
+  rotas.post(
+    "/collections",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Cria uma colecção manual, activa e vazia. O endereço amigável é único entre as colecções do comerciante, também as arquivadas (catalog.slug_duplicate).",
+        headers: CabecalhoIdempotencia,
+        body: PedidoCriarColecao,
+        response: { 201: ColecaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        async (trx, chave) => {
+          const id = await criarColecao(trx, chave.comercianteId, pedido.body);
+          return colecaoNa(trx, chave.comercianteId, id);
+        },
+        (corpo) => `/collections/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  rotas.patch(
+    "/collections/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Altera o nome, a descrição (nula, tira-a) ou o endereço amigável, na `versao` lida. Um valor igual ao actual não sobe a versão.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroColecao,
+        body: PedidoAlterarColecao,
+        response: { 200: ColecaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        const { versao, ...alteracao } = pedido.body;
+        await alterarColecao(trx, chave.comercianteId, id, versao, alteracao);
+        return colecaoNa(trx, chave.comercianteId, id);
+      }),
+  );
+
+  for (const [caminho, estado, descricao] of [
+    [
+      "archive",
+      "arquivada",
+      "Arquiva a colecção. A lista de artigos fica e ainda se pode mudar (prepara-se antes de a repor).",
+    ],
+    ["restore", "activa", "Repõe a colecção."],
+  ] as const) {
+    rotas.post(
+      `/collections/:id/${caminho}`,
+      {
+        config: { ambito: "catalog:write" },
+        schema: {
+          description: `${descricao} Na \`versao\` lida; se a colecção já está nesse estado, nada muda.`,
+          headers: CabecalhoIdempotencia,
+          params: ParametroColecao,
+          body: PedidoVersao,
+          response: { 200: ColecaoEsquema, ...RESPOSTA_DE_ERRO },
+        },
+      },
+      (pedido, resposta) =>
+        escrever(base, pedido, resposta, 200, async (trx, chave) => {
+          const id = semPrefixo(pedido.params.id);
+          await mudarEstadoColecao(
+            trx,
+            chave.comercianteId,
+            id,
+            pedido.body.versao,
+            estado,
+          );
+          return colecaoNa(trx, chave.comercianteId, id);
+        }),
+    );
+  }
+
+  rotas.put(
+    "/collections/:id/products",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Substitui os artigos da colecção pela lista dada, pela ordem dada (até 1000), na `versao` da colecção lida; sobe-lhe a versão só se a lista ou a ordem mudaram. O mesmo artigo duas vezes dá catalog.collection_product_duplicate; um artigo que não existe, catalog.not_found. Devolve a colecção; os artigos lêem-se em `GET /collections/{id}/products`.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroColecao,
+        body: PedidoArtigosDaColecao,
+        response: { 200: ColecaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const id = semPrefixo(pedido.params.id);
+        await definirArtigosDaColecao(
+          trx,
+          chave.comercianteId,
+          id,
+          pedido.body.versao,
+          pedido.body.artigos.map(semPrefixo),
+        );
+        return colecaoNa(trx, chave.comercianteId, id);
       }),
   );
 }

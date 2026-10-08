@@ -833,14 +833,48 @@ base, e repete os limites da 0009: muda-se nos dois sítios.
 **Faltas conhecidas das traduções** (revisões do #166, P3-5 e 2.ª ronda,
 P3-E): a resposta do `GET /translations` é uma de duas listas sem campo que
 as distinga (um SDK gerado vê uma união; quem chama sabe qual pediu); o item
-da fila não traz o original, e as categorias e as colecções ainda não têm
-rota de leitura, por isso o `original_visto` delas só se obtém fora da API
-até essas rotas entrarem. No Hub ainda não há rota nem data
+da fila não traz o original (lê-se na ficha do recurso: as categorias e as
+colecções têm-na desde a parte 6). No Hub ainda não há rota nem data
 para gravar traduções de pessoa nem para rever (`reverTraducao` já recebe o
 texto que a pessoa viu): até lá, todas as traduções feitas pela API ficam
 `ia` e nenhuma pode ser revista. Quando alguma coisa passar a ler `origem`
 ou `revista` (textos legais, avisos), essas rotas do Hub têm de existir
 antes (3.ª revisão do #166, P3-2).
+
+**As categorias e as colecções em código** (08/10/2026; pedido do Diogo:
+«sim, junta o #169 e avança com as categorias»): as regras são as da 0007 e
+do repositório (§3.6 e §3.7); a API só as expõe.
+
+- com `catalog:read`: `GET /categories` e `GET /collections` (por ordem de
+  criação, filtro `estado`, por páginas, `docs/18` §2a; a árvore monta-se
+  pelo `pai` de cada categoria, e cada colecção traz `total_artigos`),
+  `GET /categories/{id}`, `GET /collections/{id}`,
+  `GET /collections/{id}/products` (pela ordem da colecção, com o estado de
+  cada artigo; como a composição de um kit, só é estável entre páginas
+  enquanto ninguém a substitui) e `GET /products/{id}/categories` (com a
+  versão do artigo, que é a que se manda para as mudar);
+- com `catalog:write` e a `Idempotency-Key`: `POST /categories`,
+  `PATCH /categories/{id}`, `POST /categories/{id}/move`,
+  `POST /categories/{id}/archive` e `/restore`, `PUT
+  /products/{id}/categories` (uma escrita do artigo: leva e sobe a versão
+  dele), `POST /collections`, `PATCH /collections/{id}`,
+  `POST /collections/{id}/archive` e `/restore` e
+  `PUT /collections/{id}/products` (devolve a colecção; os artigos lêem-se à
+  parte).
+
+Arquivar e repor não estavam na tabela abaixo e entraram com esta parte,
+como nos artigos: pedir o estado em que já está devolve a ficha sem mudar
+nada. Não há `DELETE`: categorias e colecções arquivam-se (§3.6).
+
+**Faltas conhecidas das categorias e colecções** (08/10/2026):
+
+- **Quem** mudou uma categoria ou uma colecção não fica registado (as
+  tabelas da 0007 não têm a coluna): a C7 ainda não está cumprida aqui, como
+  nas escritas do artigo (abaixo).
+- Os limites do contrato são **proposta**: até 100 categorias por artigo e
+  até 1000 artigos por colecção num `PUT`. A base não tem limite; acima disso
+  é preciso decidir (ou outra forma de mudar a lista, por partes).
+- A lista de categorias não filtra pelo pai nem devolve a árvore montada.
 
 Os estados
 e as línguas são os do desenho: o `docs/14` §7.1 escrevia `outdated` e
@@ -857,7 +891,7 @@ categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
 código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
 com `publicada: false`: quem chama lê `publicada`, nunca só o estado HTTP. Quem escreve fica registado como a chave
 (`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções, a
-composição e as traduções entraram a seguir (abaixo); o resto da tabela
+composição, as traduções, as categorias e as colecções entraram a seguir (abaixo); o resto da tabela
 entra com as rotas seguintes.
 
 **Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas
@@ -897,7 +931,9 @@ existe (versão, transição, em uso, e um SKU, GTIN, endereço, opção, valor 
 combinação que outro registo já tem), 422 o que o servidor recusa por regra,
 incluindo um valor repetido dentro do próprio pedido (o mesmo componente,
 categoria, artigo de colecção ou opção duas vezes; revisão do #150, 2.ª ronda,
-P3-B), 400 um
+P3-B) e o que se quer pôr dentro de algo arquivado (`category_archived`,
+`component_archived`: a regra é sobre o que se pede, não sobre o estado do
+registo que se muda; revisão do #170, P3-2), 400 um
 valor mal formado (sem o texto da base no `detail`) e 503 `catalog.retry`, com
 `Retry-After: 1`. Um código novo não compila sem lá entrar.
 Os outros filtros da tabela (categoria, sem foto, tradução em falta,
@@ -922,8 +958,9 @@ actualizado desde) e o `expand` entram com as rotas seguintes.
 | Composição do kit | `PUT /variants/{id}/components` | write | substitui a lista inteira; recusa ciclos |
 | Carregar media | `POST /media/uploads` → `POST /products/{id}/media` | write | endereço de envio assinado e depois a ligação ao artigo |
 | Alterar ou tirar media | `PATCH /media/{id}`, `DELETE /media/{id}` | write | texto alternativo, posição, principal |
-| Categorias | `GET`, `POST /categories`, `PATCH /categories/{id}`, `POST /categories/{id}/move` | read / write | recusa ciclos |
-| Colecções | `GET`, `POST /collections`, `PATCH /collections/{id}`, `PUT /collections/{id}/products` | read / write | lista manual, ordenada |
+| Categorias | `GET /categories`, `GET /categories/{id}`, `POST /categories`, `PATCH /categories/{id}`, `POST /categories/{id}/move`, `/archive`, `/restore` | read / write | recusa ciclos |
+| Categorias de um artigo | `GET`, `PUT /products/{id}/categories` | read / write | com a versão do artigo |
+| Colecções | `GET /collections`, `GET /collections/{id}`, `POST /collections`, `PATCH /collections/{id}`, `/archive`, `/restore`, `GET` e `PUT /collections/{id}/products` | read / write | lista manual, ordenada |
 | Traduções | `GET /translations?resource=…&locale=…`, `PUT /translations/{resource}/{field}/{locale}` | read / write | |
 | Fila de traduções | `GET /translations?estado=desactualizada,em_falta&locale=…` | read | o que falta traduzir |
 | Verificar publicação | `POST /products/{id}/publications/check` | read | **não escreve**: devolve os impedimentos por canal × mercado (C2) |
