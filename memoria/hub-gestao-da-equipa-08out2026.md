@@ -30,6 +30,16 @@ Pedido do Diogo, 08/10/2026: *«sim, avança com a gestão da equipa no Hub»*;
   menos o P3-9 (o segredo do convite vive na memória da página, como já
   vivia; o §10 diz isso).
 
+- **#192 (f7b2594), issue #191:** a passagem no navegador lê a árvore de
+  acessibilidade do próprio Chromium (CDP) e confere que as tabelas são
+  tabelas e o nome de cada célula. Medido assim, o Chromium mantém as
+  tabelas como tabelas também nos cartões do telemóvel (`display: block`),
+  sem papéis escritos: **a premissa do #191 estava errada** (vinha do
+  `getByRole` do Playwright, que calcula o papel pela etiqueta). Nos cartões
+  o leitor de ecrã recebe «Papel Dono» (o rótulo e o valor); fica assim até
+  um ensaio com VoiceOver e TalkBack. Corrigido também: o aviso de convite
+  cancelado aparecia antes de a lista ser relida (defeito do #188).
+
 ## Números (com data e como se contaram)
 
 - Hub: 53 testes passam (`pnpm teste`, 08/10/2026).
@@ -42,8 +52,16 @@ Pedido do Diogo, 08/10/2026: *«sim, avança com a gestão da equipa no Hub»*;
   15:10: `/equipa` e `/convite` 200, `/hub/me` sem sessão 401; o código
   servido (`index-CUFEunUm.js`) tem «Sair desta equipa», «Aceitar com esta
   conta» e «É o último dono» (o anterior, `index-BO-gbQ9_.js`, não tinha).
+- #192: 129 verificações em 129, 5 corridas seguidas; a verificação nova
+  fica vermelha com `role="presentation"` numa tabela e com texto a mais no
+  nome das células (08/10/2026). Publicado: corrida 37802346072, 15:42 UTC,
+  «Hub: os ecrãs desta publicação estão no ar»; o código servido
+  (`index-DR2eUi1o.js`) tem o mesmo nome que a construção local do `main`.
 
 ## O que ficou por verificar
+
+- Os cartões do telemóvel com VoiceOver e TalkBack reais: se dizem a coluna
+  sem o rótulo visível (decide se o rótulo sai do nome da célula).
 
 - Sem prova no navegador: a passkey de outra conta no ecrã «já tem conta»;
   quem só tem palavra-passe; um membro já tirado noutro separador; as
