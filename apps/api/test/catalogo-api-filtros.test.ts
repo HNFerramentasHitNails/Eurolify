@@ -361,6 +361,15 @@ describe.skipIf(URL_BASE === undefined)(
         });
         return f;
       };
+      // Um artigo na categoria e por traduzir, mas alterado antes da marca:
+      // só o filtro da data o tira (2.ª revisão do #173, P3-B).
+      const velho = await comCat("Velho");
+      const { rows } = await base.dono.executeQuery<{ m: string }>(
+        sql`select to_char((actualizado_em + interval '1 microsecond') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as m from artigo where id = ${velho.id.slice("prd_".length)}`.compile(
+          base.dono,
+        ),
+      );
+      const marca = encodeURIComponent(rows[0]?.m ?? "");
       const a = await comCat("A");
       const b = await comCat("B");
       const c = await comCat("C");
@@ -373,7 +382,7 @@ describe.skipIf(URL_BASE === undefined)(
       // Outro comerciante, com artigos que passariam os mesmos filtros.
       const outro = await comerciante();
       await outro.artigo("Alheio");
-      const filtros = `categoria=${cat.id}&traducao_em_falta=es&actualizado_desde=2000-01-01T00:00:00Z`;
+      const filtros = `categoria=${cat.id}&traducao_em_falta=es&actualizado_desde=${marca}`;
       const vistos: string[] = [];
       let cursor: string | null = null;
       for (let i = 0; i < 6; i++) {
@@ -389,14 +398,21 @@ describe.skipIf(URL_BASE === undefined)(
       }
       expect(cursor).toBeNull();
       expect(vistos).toEqual([a.id, b.id, c.id]);
-      // Só a categoria, por páginas: os quatro.
+      // Sem a data, o velho entra.
+      expect(await ids(`categoria=${cat.id}&traducao_em_falta=es`)).toEqual([
+        velho.id,
+        a.id,
+        b.id,
+        c.id,
+      ]);
+      // Só a categoria, por páginas: os cinco.
       const p1 = (await procurar(`categoria=${cat.id}&limite=3`)).json<
         Pagina<Ficha>
       >();
-      expect(p1).toMatchObject({ total: 4, ha_mais: true });
-      // Só a data, desde sempre: os cinco deste comerciante, nenhum do outro.
+      expect(p1).toMatchObject({ total: 5, ha_mais: true });
+      // Só a data, desde sempre: os seis deste comerciante, nenhum do outro.
       expect(await ids("actualizado_desde=2000-01-01T00:00:00Z")).toHaveLength(
-        5,
+        6,
       );
       expect(await outro.ids("traducao_em_falta=es")).toHaveLength(1);
     });
