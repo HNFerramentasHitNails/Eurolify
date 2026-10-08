@@ -3,6 +3,7 @@ import { api } from "./api";
 import { lerSegredoDaLigacao } from "./convite";
 import { fecharAvisoDeRecuperada } from "./recuperacao";
 import { ContextoHub, type Contexto } from "./contexto";
+import { Artigos } from "./ecras/Artigos";
 import { Chaves } from "./ecras/Chaves";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
@@ -20,8 +21,8 @@ import {
   type Lingua,
 } from "./textos";
 
-// As páginas do Hub (docs/22 §2 e §9): /entrar, /recuperar, /convite,
-// /equipa, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
+// As páginas do Hub (docs/22 §2, §9 e §11): /entrar, /recuperar, /convite,
+// /equipa, /artigos, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
@@ -75,6 +76,7 @@ export function App() {
   const comSessao =
     local.caminho === "/" ||
     local.caminho === "/equipa" ||
+    local.caminho === "/artigos" ||
     local.caminho === "/chaves" ||
     local.caminho === "/conta";
 
@@ -88,11 +90,13 @@ export function App() {
           ? t.conviteTitulo
           : local.caminho === "/equipa"
             ? t.equipaTitulo
-            : local.caminho === "/chaves"
-              ? t.chavesTitulo
-              : local.caminho === "/conta"
-                ? t.contaTitulo
-                : t.inicioTitulo;
+            : local.caminho === "/artigos"
+              ? t.artigosTitulo
+              : local.caminho === "/chaves"
+                ? t.chavesTitulo
+                : local.caminho === "/conta"
+                  ? t.contaTitulo
+                  : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -105,6 +109,14 @@ export function App() {
   else if (local.caminho === "/equipa")
     ecra = (
       <Equipa
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (local.caminho === "/artigos")
+    ecra = (
+      <Artigos
+        // Outro comerciante, outro ecrã: nada do anterior fica.
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
       />
     );
