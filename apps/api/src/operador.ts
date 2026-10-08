@@ -1,6 +1,9 @@
 import { sql } from "kysely";
 import { abrirBase } from "./base/ligacao.js";
-import { registarComerciante } from "./comerciante/repositorio.js";
+import {
+  comComerciante,
+  registarComerciante,
+} from "./comerciante/repositorio.js";
 import { lerPedido } from "./identidade/operador.js";
 import { registarChave } from "./identidade/repositorio.js";
 
@@ -34,12 +37,16 @@ try {
     console.log(JSON.stringify({ comerciante: `mer_${id}` }));
   } else if (pedido.accao === "convite") {
     // A base valida o e-mail, o papel e o resumo, e que o comerciante está
-    // activo; o convite vale 7 dias e uma vez (docs/19 §6.0).
-    const { rows } = await sql<{ id: string }>`
-      select convite_criar_pelo_operador(${pedido.comercianteId}::uuid,
-        ${pedido.email}, ${pedido.papel}, ${pedido.resumo},
-        ${`operador:${pedido.quem}`}) as id`.execute(base);
-    const id = rows[0]?.id;
+    // activo; o convite vale 7 dias e uma vez (docs/19 §6.0). Com o contexto
+    // do comerciante, como a chave: o dono das tabelas na VPS não salta o RLS
+    // (sem ele, 42704 no primeiro convite no ensaio, 08/10/2026).
+    const id = await comComerciante(base, pedido.comercianteId, async (trx) => {
+      const { rows } = await sql<{ id: string }>`
+        select convite_criar_pelo_operador(${pedido.comercianteId}::uuid,
+          ${pedido.email}, ${pedido.papel}, ${pedido.resumo},
+          ${`operador:${pedido.quem}`}) as id`.execute(trx);
+      return rows[0]?.id;
+    });
     if (id === undefined) throw new Error("a base não devolveu o convite");
     console.log(JSON.stringify({ convite: `inv_${id}` }));
   } else {
