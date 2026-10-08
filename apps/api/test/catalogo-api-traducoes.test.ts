@@ -699,7 +699,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
       motivo_arquivo: "verificacao_falhou",
     });
     // Quem apagou fica no arquivo (revisão do #166, P3-1), e não o sistema.
-    const arquivo = await base.dono
+    const dono: Kysely<BaseDados> = base.dono;
+    const arquivo = await dono
       .selectFrom("publicacao")
       .select("arquivado_por")
       .where("artigo_id", "=", f.id.slice("prd_".length))
