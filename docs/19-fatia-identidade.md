@@ -208,14 +208,15 @@ Limites, tal como está (revisão do #110):
   gerada na máquina, escrita no `api-base.env`, que só o contentor da API
   recebe. Cada publicação verifica que a API chega à base (uma chave
   inventada tem de dar 401, não 500). As chaves passam a servir lá quando o operador
-  criar uma (falta a chave SSH do fluxo, abaixo).
+  criar uma (com a chave SSH do fluxo, abaixo).
 - Na máquina há dois nomes parecidos: `eurolify-operar` é o utilizador do
   fluxo (e o programa das acções do MCP); `eurolify-operador` é o programa
   deste comando.
 
-Falta, para o fluxo entrar: o Diogo ou o Bruno criar a chave SSH do fluxo
-(a pública em `infra/vps/chaves/fluxos/operar.pub`, a privada no segredo
-`VPS_CHAVE_OPERAR` do ambiente `ensaio`), como as dos outros fluxos.
+A chave SSH do fluxo foi criada pelo Diogo a 08/10/2026 (ED25519,
+`SHA256:wz3eusHxAkSkUSEvj9Aiwb1bMVLSY0zvhEt418EFyQE`): a pública em
+`infra/vps/chaves/fluxos/operar.pub`, a privada no segredo
+`VPS_CHAVE_OPERAR` do ambiente `ensaio`, como as dos outros fluxos.
 
 Os prefixos `mer_` (comerciante) e `sto_` (loja) são **proposta**: o
 `docs/15` ainda não os tinha.
@@ -260,8 +261,7 @@ dono) da recuperação com prova (`docs/21` §7, ponto 5, **C**) (revisão do
 o `eurolify-operador` recusa antes da cópia: «publicar primeiro») e o script
 aplicado (as três camadas conhecem o formato do convite).
 
-**Por fazer antes de o fluxo correr:** a chave SSH do fluxo (acima, «Falta,
-para o fluxo entrar»): sem ela, nenhuma acção do `operar` chega à VPS.
+**A chave SSH do fluxo** (acima) entrou a 08/10/2026.
 
 ### 6.1 Criar e revogar pela API (pedido do Diogo, 06/10/2026)
 
