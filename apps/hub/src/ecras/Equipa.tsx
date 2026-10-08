@@ -115,8 +115,9 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
     // Uma acção de cada vez, como as outras (revisão do #188, P3-3).
     void accao(async () => {
       await api.cancelarConvite(comerciante, convite);
-      setAviso({ chave: "conviteCancelado" });
+      // O aviso só depois de a lista ser relida, como nas outras acções.
       await carregar();
+      setAviso({ chave: "conviteCancelado" });
     });
   }
 
@@ -264,39 +265,27 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
               ? t.equipaContagemUm
               : preencher(t.equipaContagem, { n: dados.membros.length })}
           </p>
-          <table role="table">
-            <thead role="rowgroup">
-              <tr role="row">
-                <th scope="col" role="columnheader">
-                  {t.colunaNome}
-                </th>
-                <th scope="col" role="columnheader">
-                  {t.colunaEmail}
-                </th>
-                <th scope="col" role="columnheader">
-                  {t.colunaPapel}
-                </th>
-                <th scope="col" role="columnheader">
-                  {t.colunaDesde}
-                </th>
-                <th scope="col" role="columnheader">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">{t.colunaNome}</th>
+                <th scope="col">{t.colunaEmail}</th>
+                <th scope="col">{t.colunaPapel}</th>
+                <th scope="col">{t.colunaDesde}</th>
+                <th scope="col">
                   <span className="so-leitores">{t.colunaAccoes}</span>
                 </th>
               </tr>
             </thead>
-            <tbody role="rowgroup">
+            <tbody>
               {dados.membros.map((m) => {
                 const eu_ = m.pessoa === eu?.pessoa;
                 const escolhido = escolhidos[m.membro] ?? m.papel;
                 return (
-                  <tr role="row" key={m.membro}>
-                    <td role="cell" data-rotulo={t.colunaNome}>
-                      {m.nome}
-                    </td>
-                    <td role="cell" data-rotulo={t.colunaEmail}>
-                      {m.email}
-                    </td>
-                    <td role="cell" data-rotulo={t.colunaPapel}>
+                  <tr key={m.membro}>
+                    <td data-rotulo={t.colunaNome}>{m.nome}</td>
+                    <td data-rotulo={t.colunaEmail}>{m.email}</td>
+                    <td data-rotulo={t.colunaPapel}>
                       {/* Só o dono muda papéis, e nunca o seu (docs/22 §10). */}
                       {souDono && !eu_ ? (
                         <div className="linha">
@@ -341,10 +330,8 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
                         t[`papel_${m.papel}`]
                       )}
                     </td>
-                    <td role="cell" data-rotulo={t.colunaDesde}>
-                      {data(m.desde)}
-                    </td>
-                    <td role="cell">
+                    <td data-rotulo={t.colunaDesde}>{data(m.desde)}</td>
+                    <td>
                       {eu_ ? (
                         <>
                           <button
@@ -398,36 +385,28 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
                           n: dados.convites.length,
                         })}
                   </p>
-                  <table role="table">
-                    <thead role="rowgroup">
-                      <tr role="row">
-                        <th scope="col" role="columnheader">
-                          {t.colunaEmail}
-                        </th>
-                        <th scope="col" role="columnheader">
-                          {t.colunaPapel}
-                        </th>
-                        <th scope="col" role="columnheader">
-                          {t.colunaExpira}
-                        </th>
-                        <th scope="col" role="columnheader">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th scope="col">{t.colunaEmail}</th>
+                        <th scope="col">{t.colunaPapel}</th>
+                        <th scope="col">{t.colunaExpira}</th>
+                        <th scope="col">
                           <span className="so-leitores">{t.colunaAccoes}</span>
                         </th>
                       </tr>
                     </thead>
-                    <tbody role="rowgroup">
+                    <tbody>
                       {dados.convites.map((c) => (
-                        <tr role="row" key={c.convite}>
-                          <td role="cell" data-rotulo={t.colunaEmail}>
-                            {c.email}
-                          </td>
-                          <td role="cell" data-rotulo={t.colunaPapel}>
+                        <tr key={c.convite}>
+                          <td data-rotulo={t.colunaEmail}>{c.email}</td>
+                          <td data-rotulo={t.colunaPapel}>
                             {t[`papel_${c.papel}`]}
                           </td>
-                          <td role="cell" data-rotulo={t.colunaExpira}>
+                          <td data-rotulo={t.colunaExpira}>
                             {data(c.expira_em)}
                           </td>
-                          <td role="cell">
+                          <td>
                             <button
                               type="button"
                               disabled={ocupado}

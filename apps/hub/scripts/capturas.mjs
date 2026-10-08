@@ -220,6 +220,70 @@ const navegador = await chromium.launch({
 });
 const falhas = [];
 const passos = [];
+/**
+ * Confere, na árvore de acessibilidade do Chromium (CDP), que cada table,
+ * tr, th e td tem o papel de tabela e que o nome de cada célula só com
+ * texto acaba nesse texto (nos cartões, o rótulo visível vem antes: «Papel
+ * Armazém»). Devolve as diferenças, ou null se o ecrã não tem tabelas.
+ */
+async function papeisDasTabelas(contexto, pagina) {
+  const esperado = {
+    TABLE: "table",
+    TR: "row",
+    TH: "columnheader",
+    TD: "cell",
+  };
+  const cdp = await contexto.newCDPSession(pagina);
+  try {
+    await cdp.send("DOM.enable");
+    await cdp.send("Accessibility.enable");
+    const { root } = await cdp.send("DOM.getDocument", { depth: 0 });
+    const { nodeIds } = await cdp.send("DOM.querySelectorAll", {
+      nodeId: root.nodeId,
+      selector: "table, tr, th, td",
+    });
+    if (nodeIds.length === 0) return null;
+    const falhas = [];
+    for (const nodeId of nodeIds) {
+      const { node } = await cdp.send("DOM.describeNode", { nodeId });
+      const { nodes } = await cdp.send("Accessibility.getPartialAXTree", {
+        backendNodeId: node.backendNodeId,
+        fetchRelatives: false,
+      });
+      const ax = nodes.find((n) => n.backendDOMNodeId === node.backendNodeId);
+      const papel = String(ax?.role?.value ?? "nenhum").toLowerCase();
+      const etiqueta = node.nodeName.toUpperCase();
+      if (papel !== esperado[etiqueta]) {
+        falhas.push(`${etiqueta.toLowerCase()} com o papel ${papel}`);
+        continue;
+      }
+      if (etiqueta === "TD") {
+        const { object } = await cdp.send("DOM.resolveNode", { nodeId });
+        const { result } = await cdp.send("Runtime.callFunctionOn", {
+          objectId: object.objectId,
+          functionDeclaration:
+            "function () { return this.children.length === 0 && this.hasAttribute('data-rotulo') ? (this.textContent || '').replace(/\\s+/g, ' ').trim() : null; }",
+          returnByValue: true,
+        });
+        const texto = result.value;
+        const nomeAx = String(ax?.name?.value ?? "")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (
+          typeof texto === "string" &&
+          texto !== "" &&
+          !nomeAx.endsWith(texto)
+        ) {
+          falhas.push(`célula «${texto}» com o nome «${nomeAx}»`);
+        }
+      }
+    }
+    return falhas;
+  } finally {
+    await cdp.detach();
+  }
+}
+
 const confere = (condicao, texto) => {
   passos.push(`${condicao ? "ok " : "FALHOU"} ${texto}`);
   if (!condicao) falhas.push(texto);
@@ -917,8 +981,7 @@ try {
 
   // A gestão da equipa (docs/22 §10), com a Ana (dona).
   await rp.goto(equipa);
-  // A 375px a tabela passa a cartões, mas continua tabela (os papéis estão
-  // escritos no ecrã): procura-se a linha pelo papel.
+  // Procura-se a linha (papel ARIA row) pelo nome do membro.
   await rp.getByRole("row", { name: /Gil Teste/ }).waitFor();
   confere(
     (await rp.getByLabel("Papel de Ana Teste").count()) === 0 &&
@@ -1177,36 +1240,15 @@ try {
           `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
         );
         // As tabelas continuam tabelas para os leitores de ecrã, também
-        // quando passam a cartões (display: block), e o rótulo visível de
-        // cada cartão não entra no nome da célula.
-        const tabelas = await p.locator("table").count();
-        if (tabelas > 0) {
-          const celulas = await p.locator("td").count();
-          const cabecalhos = await p.locator("th").count();
-          const simples = await p
-            .locator("td[data-rotulo]")
-            .evaluateAll((tds) =>
-              tds
-                .filter((td) => td.children.length === 0)
-                .map((td) => (td.textContent ?? "").trim())
-                .filter((x) => x !== ""),
-            );
-          let nomes = true;
-          for (const texto of simples) {
-            if (
-              (await p
-                .getByRole("cell", { name: texto, exact: true })
-                .count()) === 0
-            ) {
-              nomes = false;
-            }
-          }
+        // quando passam a cartões (display: block), e cada célula diz o seu
+        // valor. Mede-se a árvore de acessibilidade do próprio Chromium: o
+        // getByRole do Playwright calcula o papel pela etiqueta e não vê o
+        // efeito do CSS (revisão do #192, P2-1).
+        const falhasTabela = await papeisDasTabelas(c, p);
+        if (falhasTabela !== null) {
           confere(
-            (await p.getByRole("table").count()) === tabelas &&
-              (await p.getByRole("columnheader").count()) === cabecalhos &&
-              (await p.getByRole("cell").count()) === celulas &&
-              nomes,
-            `${nome} ${String(largura)} ${tema}: as tabelas são tabelas para os leitores de ecrã`,
+            falhasTabela.length === 0,
+            `${nome} ${String(largura)} ${tema}: as tabelas são tabelas para os leitores de ecrã${falhasTabela.length === 0 ? "" : ` (${falhasTabela.slice(0, 3).join("; ")})`}`,
           );
         }
         await p.screenshot({

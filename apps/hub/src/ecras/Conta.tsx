@@ -316,38 +316,30 @@ function Passkeys({ vez, aoRetirar }: { vez: Vez; aoRetirar: () => void }) {
               {t.passkeysConselho}
             </div>
           ) : null}
-          <table role="table">
-            <thead role="rowgroup">
-              <tr role="row">
-                <th scope="col" role="columnheader">
-                  {t.colunaNome}
-                </th>
-                <th scope="col" role="columnheader">
-                  {t.colunaCriadaEm}
-                </th>
-                <th scope="col" role="columnheader">
-                  {t.colunaUltimoUso}
-                </th>
-                <th scope="col" role="columnheader">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">{t.colunaNome}</th>
+                <th scope="col">{t.colunaCriadaEm}</th>
+                <th scope="col">{t.colunaUltimoUso}</th>
+                <th scope="col">
                   <span className="so-leitores">{t.colunaAccoes}</span>
                 </th>
               </tr>
             </thead>
-            <tbody role="rowgroup">
+            <tbody>
               {passkeys.map((p) => (
-                <tr role="row" key={p.passkey}>
-                  <td role="cell" data-rotulo={t.colunaNome}>
-                    {p.nome}
-                  </td>
-                  <td role="cell" data-rotulo={t.colunaCriadaEm}>
+                <tr key={p.passkey}>
+                  <td data-rotulo={t.colunaNome}>{p.nome}</td>
+                  <td data-rotulo={t.colunaCriadaEm}>
                     {dataHora(p.criada_em)}
                   </td>
-                  <td role="cell" data-rotulo={t.colunaUltimoUso}>
+                  <td data-rotulo={t.colunaUltimoUso}>
                     {p.ultimo_uso_em === null
                       ? t.nunca
                       : dataHora(p.ultimo_uso_em)}
                   </td>
-                  <td role="cell">
+                  <td>
                     {temPasskeys() ? (
                       <button
                         type="button"
@@ -440,32 +432,26 @@ function Sessoes({ vez }: { vez: Vez }) {
               ? t.sessoesContagemUm
               : preencher(t.sessoesContagem, { n: sessoes.length })}
           </p>
-          <table role="table">
-            <thead role="rowgroup">
-              <tr role="row">
-                <th scope="col" role="columnheader">
-                  {t.colunaCriadaEm}
-                </th>
-                <th scope="col" role="columnheader">
-                  {t.colunaUltimoUso}
-                </th>
-                <th scope="col" role="columnheader">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">{t.colunaCriadaEm}</th>
+                <th scope="col">{t.colunaUltimoUso}</th>
+                <th scope="col">
                   <span className="so-leitores">{t.sessaoEsta}</span>
                 </th>
               </tr>
             </thead>
-            <tbody role="rowgroup">
+            <tbody>
               {sessoes.map((s: Sessao) => (
-                <tr role="row" key={s.sessao}>
-                  <td role="cell" data-rotulo={t.colunaCriadaEm}>
+                <tr key={s.sessao}>
+                  <td data-rotulo={t.colunaCriadaEm}>
                     {dataHora(s.criada_em)}
                   </td>
-                  <td role="cell" data-rotulo={t.colunaUltimoUso}>
+                  <td data-rotulo={t.colunaUltimoUso}>
                     {dataHora(s.ultimo_uso_em)}
                   </td>
-                  <td role="cell">
-                    {s.esta ? <strong>{t.sessaoEsta}</strong> : null}
-                  </td>
+                  <td>{s.esta ? <strong>{t.sessaoEsta}</strong> : null}</td>
                 </tr>
               ))}
             </tbody>
