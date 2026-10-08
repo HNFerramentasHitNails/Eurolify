@@ -768,6 +768,37 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     expect(await traducoesDoRecurso(base.api, c, artigo)).toEqual([]);
   });
 
+  it("rever enquanto alguém traduz outra vez: espera e é recusado pelo texto visto (2.ª revisão do #166, P3-C)", async () => {
+    const { c, artigo } = await gel();
+    await definirTraducao(base.api, c, "assistente-ia", {
+      ...nomeEs(artigo),
+      origem: "ia",
+    });
+    const t1 = await transaccaoAberta(
+      c,
+      `select set_config('eurolify.quem', 'outra-ia', true); update traducao set texto = 'Gel nuevo' where artigo_id = '${artigo}' and campo = 'nome' and lingua = 'es'`,
+    );
+    const rever = codigoDoErro(
+      reverTraducao(
+        base.api,
+        c,
+        "rui@exemplo.eu",
+        artigo,
+        "nome",
+        "es",
+        "Gel de construcción",
+      ),
+    );
+    expect(await esperaBloqueio(rever)).toBe(true);
+    await t1.fechar();
+    // Sem o FOR UPDATE, a revisão lia o texto velho e marcava o novo.
+    expect(await rever).toBe("catalog.version_conflict");
+    expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
+      texto: "Gel nuevo",
+      revistoPor: null,
+    });
+  });
+
   it.each(["artigo", "categoria", "colecao"] as const)(
     "criar %s ao mesmo tempo que se muda a língua de origem: espera por ela (P1-1)",
     async (tipo) => {

@@ -1878,7 +1878,7 @@ export function rotasDoCatalogo(
   // ---------------------------------------------------------- Traduções
   // Parte 5 (pedido do Diogo, 08/10/2026: «sim, avança com as traduções»;
   // docs/14 §3.8, §4.3 e §7.1). Quem traduziu fica registado como a chave e
-  // não sai nas respostas (extensão da CL, docs/06 CO). Rever uma proposta
+  // não sai nas respostas (proposta, docs/14 §7.1). Rever uma proposta
   // de IA não se faz por chave: faz-se no Hub, com a sessão de uma pessoa
   // (docs/06, CO; revisão do #166, P1-1).
 

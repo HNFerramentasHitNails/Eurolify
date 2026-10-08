@@ -212,7 +212,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
       origem: "ia",
       revista: false,
     });
-    // Não sai quem traduziu (CL).
+    // Não sai quem traduziu (proposta, docs/14 §7.1).
     expect(Object.keys(r.json<object>())).not.toContain("traduzido_por");
     await traduzir(
       f.id,

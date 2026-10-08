@@ -835,8 +835,12 @@ P3-E): a resposta do `GET /translations` é uma de duas listas sem campo que
 as distinga (um SDK gerado vê uma união; quem chama sabe qual pediu); o item
 da fila não traz o original, e as categorias e as colecções ainda não têm
 rota de leitura, por isso o `original_visto` delas só se obtém fora da API
-até essas rotas entrarem. A revisão no Hub (`reverTraducao` já recebe o
-texto que a pessoa viu) não tem ainda rota nem data.
+até essas rotas entrarem. No Hub ainda não há rota nem data
+para gravar traduções de pessoa nem para rever (`reverTraducao` já recebe o
+texto que a pessoa viu): até lá, todas as traduções feitas pela API ficam
+`ia` e nenhuma pode ser revista. Quando alguma coisa passar a ler `origem`
+ou `revista` (textos legais, avisos), essas rotas do Hub têm de existir
+antes (3.ª revisão do #166, P3-2).
 
 Os estados
 e as línguas são os do desenho: o `docs/14` §7.1 escrevia `outdated` e
