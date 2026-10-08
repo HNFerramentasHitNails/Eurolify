@@ -19,7 +19,7 @@
 | Aceitar um convite e criar a conta (nome + passkey); com uma conta que já existe (§10) | — |
 | Escolher o comerciante (quem é membro de vários); mudar de papel, tirar da equipa, sair (§10) | — |
 | Equipa: ver membros e convites em aberto; convidar; cancelar um convite | Palavra-passe e autenticador, chaves de API (B3b e B3c: desenho na §9, 08/10/2026). A minha conta e recuperar a conta entraram na B3a (§9.1, pedido #174) |
-| Sair | A montra, o checkout e o resto do Hub |
+| Sair | A montra, o checkout e o resto do Hub. O Catálogo começa pela lista de artigos (desenho na §11) |
 
 Cada ecrã só mostra o que o servidor decide: o papel, o que se pode fazer e
 os erros vêm da API (`eurolify-design`, regra 8). O Hub não guarda nada no
@@ -286,6 +286,74 @@ O segredo do convite continua só na memória da página (lido uma vez ao
 abrir, §2) enquanto se entra e aceita: nunca vai para o endereço nem para o
 armazenamento. Com a passkey de outra conta, o ecrã passa a dizer quem
 entrou e a oferecer «Sair» (revisão do #188, P2-2).
+
+## 11. Catálogo: a lista de artigos (issue #199, proposta)
+
+Pedido do Diogo, 08/10/2026: começar o Catálogo no Hub pelo desenho da
+lista de artigos. **Só desenho**: o código vem num pedido seguinte, depois
+deste estar aprovado. O catálogo é da outra sessão (#77): este passo não
+mexe em `apps/api/src/catalogo/` nem no `docs/14` (aviso no #77,
+08/10/2026).
+
+### 11.1 Como o Hub lê o catálogo
+
+**O Hub usa a mesma API que os outros clientes**, `GET /products`
+(`docs/14` §7.1), e não uma rota sua: a ficha vive num sítio só (`docs/14`,
+regra C1; `catalog-pim`, «Primeira regra»), e o `docs/21` §5 já diz que «a
+sessão traz o papel; a base traduz-o nos âmbitos [...] que as rotas já
+conferem».
+
+**O que falta para isso** (medido a 08/10/2026): as rotas do catálogo só
+aceitam chaves de API — `GET /products` tem `config.ambito: "catalog:read"`
+(`apps/api/src/catalogo/rotas.ts`) e o gancho de autenticação só aceita a
+sessão nas rotas `sessao` e `sessao_comerciante` (`apps/api/src/app.ts`).
+**Proposta para o pedido do código:**
+
+| Ponto | Proposta |
+|---|---|
+| Quem entra | numa rota com âmbito `catalog:*`, além da chave, a sessão do Hub com o cabeçalho `Eurolify-Comerciante`, de um membro activo desse comerciante |
+| Que âmbitos | os do papel, pela tabela do `docs/21` §5: os quatro papéis têm `catalog:read`; `catalog:write` e `catalog:publish` só dono e gestor. A tabela vive num sítio só (na base, como os papéis), e um teste confere-a |
+| Neste primeiro pedido | **só leitura** (`catalog:read`). As escritas com sessão (editar, publicar) ficam para quando houver ecrãs que as usem, cada uma com o seu desenho: pedem as guardas do Hub (origem e JSON, `docs/21` §3) e decidir quais exigem autenticação recente |
+| Quem fez | numa escrita futura, `quem = pessoa:per_…` (`docs/21`, tabela do §1), como no resto do Hub |
+| Comerciante suspenso ou fechado | o mesmo que a chave tem hoje nessas rotas (lê) |
+| O que não muda | as rotas e as respostas do catálogo; uma chave continua a entrar como hoje |
+| A alternativa recusada | uma rota `/hub/products` só do Hub: duplicava a lista e os filtros, e a regra C1 diz que o Hub usa a API como qualquer cliente |
+
+### 11.2 O ecrã
+
+| Ecrã | O que mostra | Rotas da API | Estados além do normal |
+|---|---|---|---|
+| **Artigos** (`/artigos?comerciante=mer_…`; ligação em «Os seus comerciantes», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar por nome ou por SKU de uma variante (`texto`, `sku`). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /products?estado=&texto=&sku=&limite=25&cursor=` | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante»); filtro inválido (400 da API, mostrado como erro do filtro) |
+
+**O que a lista não mostra, e porquê** (medido a 08/10/2026): o
+`GET /products` devolve o resumo do artigo (`CamposArtigo`: nome, tipo,
+estado, marca, origem, datas…), **sem preço, sem variantes e sem
+publicação**. O preço é do domínio Preços (`docs/20`) e a publicação lê-se
+artigo a artigo (`GET /products/{id}/publications`): pedir isso por linha
+seriam 25 pedidos por página. Ficam para depois, quando a API os der na
+lista ou numa rota de resumo — a pedir ao dono do catálogo, nunca
+calculado no ecrã (`eurolify-design`, regra 8).
+
+**Fica para depois** (a lista é o primeiro passo): abrir a ficha do artigo;
+criar e editar (com os campos que vêm do sistema de gestão só de leitura,
+P5); publicar; traduções e revisão de pessoa (`docs/14`, «Rever uma
+proposta de IA»); colunas que cada pessoa escolhe e filtros guardados
+(`eurolify-design`, «Vistas»); categoria e «tradução em falta» como
+filtros (a API já os tem).
+
+### 11.3 Antes de dizer que está feito (o pedido do código)
+
+- **API:** cada papel lê a lista com a sessão; uma sessão sem cabeçalho,
+  com o comerciante de outro, de um membro que saiu ou terminada é
+  recusada como hoje nas rotas do Hub; uma escrita do catálogo com sessão
+  continua recusada neste pedido; uma chave continua a entrar como antes;
+  o contrato mostra as duas formas de entrar nas rotas do catálogo.
+- **Hub:** a passagem no navegador (`capturas.mjs`) cria artigos fictícios
+  pela API, confere a contagem, os filtros, «Mostrar mais», o vazio e os
+  cartões a 375 px; capturas a 375, 768 e 1280 px, claro e escuro, para o
+  OK do Diogo ou do Bruno.
+- **A outra sessão** vê a lista das rotas tocadas no #77 antes de o pedido
+  ser juntado.
 
 ## O que não foi verificado
 
