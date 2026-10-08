@@ -154,7 +154,7 @@ export function rotasDaMedia(
       config: { ambito: "catalog:write" },
       schema: {
         description:
-          "Liga um ficheiro enviado ao artigo (e, se se quiser, a uma variante dele), com o texto alternativo e a posição (por omissão, a seguir à última). `principal: true` tira a marca à que a tinha. Um ficheiro, uma variante de outro artigo ou um artigo que não existe dão catalog.not_found. **Sem `texto_alternativo`, a imagem impede a publicação** (texto_alternativo_em_falta, docs/14 §5, C2): se for do artigo, ou de uma variante à venda, as publicações publicadas dele saem de venda (motivo verificacao_falhou), e pôr o texto depois não as repõe — publica-se outra vez. Ligue a imagem já com o texto.",
+          "Liga um ficheiro enviado ao artigo (e, se se quiser, a uma variante dele), com o texto alternativo e a posição (por omissão, a seguir à última). `principal: true` tira a marca à que a tinha. Um ficheiro, uma variante de outro artigo ou um artigo que não existe dão catalog.not_found. **Sem `texto_alternativo`, a imagem impede a publicação** (texto_alternativo_em_falta, docs/14 §5, C2): se for do artigo, ou de uma variante à venda, reverificam-se todas as publicações publicadas dele, e as que não passam (por esta imagem ou por outra razão) saem de venda (motivo verificacao_falhou), e pôr o texto depois não as repõe — publica-se outra vez. Ligue a imagem já com o texto.",
         headers: CabecalhoIdempotencia,
         params: ParametroArtigo,
         body: PedidoLigarMedia,
@@ -300,7 +300,7 @@ export function rotasDaMedia(
       config: { ambito: "catalog:write" },
       schema: {
         description:
-          "Altera o texto alternativo (nulo, tira-o), a posição ou a principal, na `versao` lida. Tirar o texto alternativo a uma imagem que conta tira de venda as publicações publicadas do artigo (motivo verificacao_falhou; docs/14 §5, C2). `principal: true` tira a marca à que a tinha. Um valor igual ao actual não sobe a versão.",
+          "Altera o texto alternativo (nulo, tira-o), a posição ou a principal, na `versao` lida. Tirar o texto alternativo reverifica todas as publicações publicadas do artigo, e as que não passam (por esta imagem ou por outra razão) saem de venda (motivo verificacao_falhou; docs/14 §5, C2). `principal: true` tira a marca à que a tinha. Um valor igual ao actual não sobe a versão.",
         headers: CabecalhoIdempotencia,
         params: ParametroMedia,
         body: PedidoAlterarMedia,

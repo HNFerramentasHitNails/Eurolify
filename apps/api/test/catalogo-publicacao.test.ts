@@ -458,11 +458,23 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       );
       const com = await imagem(s.c, s.artigo, "Frasco de gel, 30 ml");
       expect((await estado())?.estado).toBe("publicado");
-      // Mudar o texto para outro não tira de venda (revisão do #184, P3-1).
+      // Uma imagem nova com texto, ou mudar o texto para outro, não
+      // reverifica (revisões do #184, P3-1 e
+      // 2.ª, P3-A): com o mercado a falhar por outra razão (uma língua sem o
+      // nome traduzido, posta por SQL do dono, que não reverifica), uma
+      // reverificação tirava-o de venda.
+      await sql`update mercado set linguas = array['pt', 'es'] where id = ${s.mercado}`.execute(
+        base.dono,
+      );
+      await imagem(s.c, s.artigo, "Frasco de gel, de lado");
+      expect((await estado())?.estado).toBe("publicado");
       await alterarMedia(base.api, s.c, com, 1, {
         texto_alternativo: "Frasco de gel, de frente",
       });
       expect((await estado())?.estado).toBe("publicado");
+      await sql`update mercado set linguas = array['pt'] where id = ${s.mercado}`.execute(
+        base.dono,
+      );
       // Uma variante fora da publicação: a imagem dela não conta.
       await imagem(s.c, s.artigo, null, s.v2);
       await publicar(base.api, s.c, QUEM, {
