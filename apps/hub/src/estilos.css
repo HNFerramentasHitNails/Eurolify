@@ -307,3 +307,38 @@ th {
   height: auto;
   margin-bottom: var(--espaco-3);
 }
+
+/* As escolhas de uma lista (os âmbitos de uma chave; docs/22 §9.3). */
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--espaco-4);
+}
+
+legend {
+  font-weight: 600;
+  margin-bottom: var(--espaco-2);
+}
+
+.opcao {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--espaco-2);
+  min-height: var(--alvo-minimo);
+  font-weight: normal;
+}
+
+/* A caixa de escolha não herda o tamanho dos campos de texto. */
+.opcao input[type="checkbox"] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+code {
+  font-family: var(--letra-mono);
+}

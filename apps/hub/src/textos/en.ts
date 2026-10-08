@@ -219,4 +219,62 @@ export const en: Textos = {
     "The e-mail, the password or the code is not correct.",
   erroPalavraPasseIndisponivel:
     "Signing in with a password is not available on this server.",
+
+  // API keys (docs/22 §9.3).
+  chavesTitulo: "API keys",
+  verChaves: "API keys",
+  chavesExplicacao:
+    "Keys let other programs (an integration, invoicing, an AI) use this merchant's API. Each key only does what its scopes allow.",
+  chavesVazio: "There are no keys yet.",
+  chavesContagem: "{n} keys",
+  chavesContagemUm: "1 key",
+  colunaTipo: "Type",
+  colunaAmbitos: "Scopes",
+  colunaPrefixo: "Starts with",
+  colunaCriadaPor: "Created by",
+  colunaEstado: "Status",
+  tipo_servidor: "Server",
+  tipo_publica: "Public (store)",
+  estadoActiva: "Active",
+  estadoRevogada: "Revoked on {data}",
+  estadoExpirada: "Expired on {data}",
+  semPrazo: "No expiry",
+  autorVoce: "You",
+  autorOperador: "Operator",
+  autorChave: "The key “{nome}”",
+  autorChaveSemNome: "Another key",
+  autorAntigo: "Someone who left the team",
+  ambito_catalog_read: "Read the catalogue",
+  ambito_catalog_write: "Change the catalogue",
+  ambito_catalog_publish: "Publish products",
+  ambito_catalog_import: "Import products",
+  ambito_merchant_read: "Read the merchant's details",
+  ambito_merchant_write: "Change the merchant's details",
+  ambito_keys_write: "Manage keys",
+  ambito_storefront: "Store (public read only)",
+  criarChaveTitulo: "Create a server key",
+  criarChaveExplicacao:
+    "A server key is kept only on the server of whoever uses it, never in a web page or a phone app. Public keys, for the store, will come with stores.",
+  chaveNome: "Name (e.g. Invoicing integration)",
+  chaveAmbitos: "What the key can do",
+  chaveExpira: "Expires on (optional)",
+  chaveCriar: "Create the key",
+  chaveSegredoTitulo: "The secret of the key “{nome}”",
+  chaveSegredoAviso:
+    "It only appears now. Copy it to where it will be used; if you lose it, revoke the key and create another.",
+  chaveFechar: "I have saved it",
+  chaveRevogar: "Revoke",
+  chaveRevogarConfirmar:
+    "Revoke the key “{nome}”? It stops working at once, and it cannot be undone.",
+  chaveRevogada: "The key was revoked.",
+  erroChaveAmbitos: "Choose at least one thing the key can do.",
+  erroChaveExpira: "The expiry date must be in the future.",
+  erroChaveJaRevogada: "This key had already been revoked.",
+  erroChaveNaoExiste: "This key no longer exists.",
+  erroChaveUltimaGestora:
+    "This is the last key that manages keys; create another before revoking it.",
+  erroChaveComercianteInactivo:
+    "This merchant is suspended or closed: it cannot create keys, but it can revoke them.",
+  erroChaveAmbitosAMais:
+    "You cannot give a key scopes your role does not have.",
 };
