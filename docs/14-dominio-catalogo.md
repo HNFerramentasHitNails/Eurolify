@@ -220,7 +220,7 @@ lote de cada componente vai na linha expedida (`product-compliance-eu`; ADR-0022
 | `artigo_id`, `variante_id` (opcional) | uma imagem pode ser de uma variante |
 | `tipo` | imagem, vídeo |
 | `ficheiro` | no armazenamento do Eurolify, na UE (`AGENTS.md`, «Os dados ficam na UE») |
-| `texto_alternativo` | traduzível; **obrigatório para publicar** (**proposta**; o texto alternativo por língua vem da `catalog-pim`, «acessibilidade») |
+| `texto_alternativo` | traduzível; **obrigatório para publicar** (decidido: Diogo, 08/10/2026, `docs/06`, CR; o texto alternativo por língua vem da `catalog-pim`, «acessibilidade») |
 | `posicao`, `principal` | uma só principal por artigo |
 
 **A media em código** (08/10/2026; pedido do Diogo: «sim, fica a (a); avança
@@ -271,8 +271,10 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
 
 **Faltas conhecidas da media** (08/10/2026):
 
-- O texto alternativo é só o da língua de origem: as traduções dele, e o
-  «obrigatório para publicar» (**proposta** acima), entram depois.
+- O texto alternativo é só o da língua de origem: as traduções dele entram
+  depois. O «obrigatório para publicar» verifica-se desde 08/10/2026 (C2;
+  `docs/06`, CR) só nessa língua; num mercado com outra língua e com
+  imagens, a verificação diz `nao_verificado: traducao_do_texto_alternativo`.
 - **Os metadados das fotografias** (EXIF: a localização GPS, o aparelho)
   ficam no ficheiro como vieram: podem ser dados pessoais (`eu-gdpr-privacy`).
   Tirá-los pede uma biblioteca de imagem; tem de estar feito antes de
@@ -506,9 +508,9 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   - apagar o peso de uma variante à venda num artigo físico, nem a categoria
     fiscal do artigo (`catalog.published_in_use`; revisão do #139, P2-6).
 
-  A classificação, o nome, a tradução do nome, a última variante à venda e
-  as línguas do mercado voltam a verificar-se quando mudam («Reverificação»,
-  abaixo; 0023).
+  A classificação, o nome, a tradução do nome, a última variante à venda,
+  as línguas do mercado e o texto alternativo das imagens voltam a
+  verificar-se quando mudam («Reverificação», abaixo; 0023; CR).
 - **Propostas desta parte** (para o Diogo ou o Bruno confirmarem):
   - o preço de uma variante à venda numa publicação publicada **não sai** da
     lista de base (`prices.published_variant`); retira-se primeiro a
@@ -528,11 +530,11 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   publicadas na mesma transacção; a que deixa de passar sai de venda
   (`arquivado`, motivo `verificacao_falhou`, a verificação guardada), e o
   `arquivado_por` é quem mudou, quando a operação o pede (a classificação),
-  ou `catalogo:verificacao_falhou` nas outras quatro. O evento
+  ou `catalogo:verificacao_falhou` nas outras. O evento
   `product.unpublished` leva o motivo. Ex.: tirar a classificação de
   retalho ao «Gel» e pô-lo em álcool e tabaco tira-o de venda em todos os
-  canais. As cinco operações (varridas a 07/10/2026 contra a lista de
-  impedimentos de `verificarNa`):
+  canais. As sete operações (varridas a 07/10/2026 contra a lista de
+  impedimentos de `verificarNa`, e a 08/10/2026 com a media, CR):
 
   | Operação | Quando reverifica | O que pode partir |
   |---|---|---|
@@ -541,6 +543,8 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   | `arquivarVariante` | sempre | a última variante à venda |
   | `apagarTraducao` | só a do nome de um artigo | a tradução do nome em falta |
   | `alterarMercado` (Preços) | só quando entra uma língua | uma língua nova sem o nome traduzido |
+  | `criarMedia` | só quando a imagem nova não tem texto alternativo | uma imagem do artigo, ou de uma variante à venda, sem texto alternativo |
+  | `alterarMedia` | só quando se tira o texto alternativo | idem |
 
   Só a mudança que conta reverifica (revisão do #146, P2-2 e P3-1): mudar
   a descrição, a marca, o nome do mercado ou tirar uma língua não tira de
@@ -732,7 +736,7 @@ artigo com todas as variantes arquivadas ficava preso: não voltava a activo
 | # | Regra | Fonte |
 |---|---|---|
 | C1 | **A ficha vive num sítio só.** Campo novo de artigo nasce no domínio, na API de Administração e na ficha do Hub no mesmo passo; o Hub usa a API como qualquer cliente | `catalog-pim`, «Primeira regra»; `headless-commerce` |
-| C2 | **«Pode publicar?» é uma pergunta ao servidor**, que responde sim ou a lista de impedimentos com código: sem SKU, sem unidade, sem categoria fiscal, sem preço no mercado ou a 0,00 € sem ser gratuito (pergunta a Preços), atributo obrigatório em falta no mercado (pergunta à Conformidade), classificação em falta ou incompatível, ou família restrita (§3.10, «Classificação do artigo»), nome ou avisos sem tradução numa língua do mercado, media sem texto alternativo. **Rede temporária** (decisão do Diogo, 06/10/2026, opção a; `docs/06`, CF): a Conformidade e a media ainda não existem, por isso não se verificam. A resposta diz sempre `nao_verificado: [conformidade, media]`, e ninguém lê «sem impedimentos» como «conforme». **Fim:** quando a Conformidade existir, ou antes de haver produção (ADR-0027), o que vier primeiro. Os avisos traduzidos esperam pela Conformidade; do texto, verifica-se o nome do artigo | `catalog-pim`, regra 2 e «Antes de dizer está feito»; o gel a 0,00 € seis meses e meio com 149 unidades |
+| C2 | **«Pode publicar?» é uma pergunta ao servidor**, que responde sim ou a lista de impedimentos com código: sem SKU, sem unidade, sem categoria fiscal, sem preço no mercado ou a 0,00 € sem ser gratuito (pergunta a Preços), atributo obrigatório em falta no mercado (pergunta à Conformidade), classificação em falta ou incompatível, ou família restrita (§3.10, «Classificação do artigo»), nome ou avisos sem tradução numa língua do mercado, media sem texto alternativo. **Rede temporária** (decisão do Diogo, 06/10/2026, opção a; `docs/06`, CF): a Conformidade ainda não existe, por isso não se verifica. A resposta diz sempre `nao_verificado: [conformidade]`, e ninguém lê «sem impedimentos» como «conforme». A media verifica-se desde 08/10/2026 (`docs/06`, CR): cada imagem do artigo, ou de uma variante à venda no par, tem texto alternativo (impedimento `texto_alternativo_em_falta`, com os `med_…`); o texto alternativo só existe na língua de origem, e num mercado com outra língua e com imagens a resposta junta `traducao_do_texto_alternativo` ao `nao_verificado`. **Fim:** quando a Conformidade existir, ou antes de haver produção (ADR-0027), o que vier primeiro. Os avisos traduzidos esperam pela Conformidade; do texto, verifica-se o nome do artigo | `catalog-pim`, regra 2 e «Antes de dizer está feito»; o gel a 0,00 € seis meses e meio com 149 unidades |
 | C3 | SKU obrigatório e único por comerciante; unidade de venda obrigatória | `catalog-pim`, regra 3 |
 | C4 | Código de barras com origem guardada | `catalog-pim`, regra 4 |
 | C5 | Mudar o original marca as traduções desactualizadas e avisa | `catalog-pim`, regra 5 |
@@ -1140,11 +1144,11 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   do Eurolify e a ficha de lá não sabe. A P5 decidiu que os campos que vêm de
   lá ficam só de leitura no Hub: o risco fica se a API não o impuser (um teste).
 - **Uma verificação de publicação feita só uma vez.** Coberto desde a
-  0023 (§4.2, «Reverificação»): as cinco operações que mudam o que a
+  0023 (§4.2, «Reverificação»): as sete operações que mudam o que a
   verificação lê reverificam na mesma transacção, e o resto está travado na
-  base (0019). **Fica por cobrir:** a Conformidade e a media, que ainda não
-  se verificam (CF); quando existirem, as operações delas entram na tabela
-  da reverificação. E o SQL à mão, que não reverifica. Quando houver carrinhos,
+  base (0019). **Fica por cobrir:** a Conformidade, que ainda não se
+  verifica (CF); quando existir, as operações dela entram na tabela da
+  reverificação. A media verifica-se desde 08/10/2026 (CR). E o SQL à mão, que não reverifica. Quando houver carrinhos,
   reservas e encomendas, um artigo que sai de venda por reverificação tem
   de ser tratado neles (o evento `product.unpublished` traz o motivo;
   revisão do #146, P3-6).
