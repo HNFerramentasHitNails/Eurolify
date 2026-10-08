@@ -291,6 +291,18 @@ caso "publicar a imagem que já está no ar" 3
 confere nao "não migra" migrou
 confere sim "nada a fazer" na_saida "Nada a fazer"
 
+# A mesma regra «a API sem a pasta das imagens recria-se» vive no
+# eurolify-publicar e no passo 10c do preparar.sh (ao aplicar o #178, o passo
+# 10c não a tinha e a API não se recriou). A função do passo 10c corre aqui,
+# com o docker de mentira (revisão do #180, P2-1).
+preparar
+eval "$(sed -n '/^configuracao_mais_recente_que_a_api()/,/^}/p' "$repo/infra/vps/preparar.sh")"
+confere sim "10c: a API sem a pasta das imagens recria-se" bash -c "$(declare -f configuracao_mais_recente_que_a_api); touch '$falsos/sem-media'; configuracao_mais_recente_que_a_api"
+rm -f "$falsos/sem-media"
+confere nao "10c: com a pasta e a configuração antiga, não" bash -c "$(declare -f configuracao_mais_recente_que_a_api); configuracao_mais_recente_que_a_api"
+confere nao "10c: um docker inspect que falha não recria" bash -c "$(declare -f configuracao_mais_recente_que_a_api); rm -f '$falsos/no-ar'; touch '$falsos/sem-media'; configuracao_mais_recente_que_a_api"
+img 3 >"$falsos/no-ar"
+
 preparar
 touch "$falsos/sem-media"
 caso "a imagem que já está no ar, numa API de antes da pasta das imagens" 3
