@@ -111,7 +111,9 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       const { rows } = await sql<{ n: number }>`
         select count(*)::int as n from pg_stat_activity
         where datname = current_database() and wait_event_type = 'Lock'
-          and wait_event = 'advisory'`.execute(base.dono);
+          and wait_event = 'advisory' and query like '%eurolify.ficheiro%'`.execute(
+        base.dono,
+      );
       if ((rows[0]?.n ?? 0) > 0) return true;
       await new Promise((r) => setTimeout(r, 20));
     }
@@ -607,6 +609,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       // O recusado nunca chegou ao disco.
       expect(dentro).toBe(1);
     } finally {
+      soltar();
       await app2.close();
       await rm(pastaQ, { recursive: true, force: true });
     }
@@ -676,6 +679,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       expect((await dois).statusCode).toBe(201);
       expect((await env(WEBP, "image/webp")).statusCode).toBe(201);
     } finally {
+      soltar();
       await comLento.close();
       await rm(pastaLenta, { recursive: true, force: true });
     }
@@ -693,6 +697,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       },
       ler: (c, r) => disco.ler(c, r),
     };
+    let p1: ReturnType<typeof connect> | undefined;
+    let p2: ReturnType<typeof connect> | undefined;
     const appC = criarApp(
       { logger: false },
       undefined,
@@ -735,8 +741,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
           });
           s.on("error", () => undefined);
         });
-      const p1 = await pendurado();
-      const p2 = await pendurado();
+      p1 = await pendurado();
+      p2 = await pendurado();
       // Os dois lugares estão ocupados.
       let cheio = 0;
       for (let i = 0; i < 100 && cheio !== 429; i++) {
@@ -756,7 +762,11 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       expect(estado).toBe(500);
       const bytes = Buffer.concat([PNG, Buffer.from(randomUUID())]);
       const chave = randomUUID();
-      expect((await env(bytes, chave)).status).toBe(500);
+      const falhou = await env(bytes, chave);
+      expect(falhou.status).toBe(500);
+      const corpo = await falhou.text();
+      expect(corpo).not.toContain("disco cheio");
+      expect(corpo).not.toContain(pastaC);
       const { rows } = await sql<{ n: number }>`
         select count(*)::int as n from ficheiro
         where comerciante_id = ${a} and resumo = ${resumo(bytes)}`.execute(
@@ -768,6 +778,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       falhar = false;
       expect((await env(bytes, chave)).status).toBe(201);
     } finally {
+      p1?.destroy();
+      p2?.destroy();
       await appC.close();
       await rm(pastaC, { recursive: true, force: true });
     }

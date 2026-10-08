@@ -251,7 +251,12 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
   registo, fora do espaço); as ligações à base são 10 (`ligacao.ts`), e com
   2 envios por comerciante, cinco comerciantes a enviar ao mesmo tempo
   ocupam-nas todas enquanto gravam. Num disco lento, grava-se o temporário
-  antes da fila e faz-se só a mudança de nome dentro dela. No máximo 2 envios do mesmo
+  antes da fila e faz-se só a mudança de nome dentro dela. Duas faltas
+  conhecidas (4.ª revisão do #176): o pool de ligações não tem tempo máximo
+  de espera, por isso com as 10 ligações ocupadas os pedidos de todos os
+  comerciantes esperam sem limite; e um cliente que mande o corpo devagar,
+  sem cortar, ocupa um lugar de envio até ao tempo do Node (300 s por
+  omissão), e com a chave de um comerciante bloqueia os envios dele. No máximo 2 envios do mesmo
   comerciante ao mesmo tempo (o terceiro dá 429 antes de se ler o corpo:
   cada envio ocupa até 10 MB de memória). O ficheiro escreve-se ao lado,
   assegura-se no disco (`fsync`) e só depois muda de nome; um ficheiro com
