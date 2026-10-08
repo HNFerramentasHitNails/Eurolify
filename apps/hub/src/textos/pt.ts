@@ -26,7 +26,7 @@ export const pt = {
   conviteSemSegredo:
     "Esta ligação não tem convite. Abra a ligação completa que recebeu.",
   conviteContaExiste:
-    "Este e-mail já tem conta. Aceitar um convite com uma conta que já existe ainda não é possível neste ecrã; fale com quem o convidou.",
+    "Este e-mail já tem conta. Entre com ela para aceitar o convite.",
 
   codigosTitulo: "Os seus códigos de recuperação",
   codigosExplicacao:
@@ -284,6 +284,36 @@ export const pt = {
     "Este comerciante está suspenso ou fechado: não cria chaves, mas pode revogá-las.",
   erroChaveAmbitosAMais:
     "Não pode dar a uma chave âmbitos que o seu papel não tem.",
+
+  // A gestão da equipa (docs/22 §10).
+  papelMudar: "Mudar",
+  papelMudarRotulo: "Papel de {nome}",
+  papelMudarConfirmar:
+    "Mudar o papel de {nome} para {papel}? Os convites em aberto e as chaves de servidor que criou e que o papel novo já não permite são cancelados e revogados, com as chaves criadas a partir delas: as integrações que as usam deixam de funcionar.",
+  papelMudado: "O papel de {nome} passou a {papel}.",
+  membroTirar: "Tirar da equipa",
+  membroTirarConfirmar:
+    "{nome} deixa de entrar neste comerciante. Os convites em aberto que criou aqui são cancelados e as chaves de servidor que criou (e as criadas a partir delas) são revogadas: as integrações que as usam deixam de funcionar. As chaves públicas da loja ficam. Continuar?",
+  membroTirado: "{nome} foi tirado da equipa.",
+  membroSair: "Sair desta equipa",
+  membroSairConfirmar:
+    "Sair desta equipa? Deixa de entrar neste comerciante. Os convites em aberto que criou aqui são cancelados e as chaves de servidor que criou (e as criadas a partir delas) são revogadas: as integrações que as usam deixam de funcionar. As chaves públicas da loja ficam.",
+  membroUltimoDono: "É o último dono: para sair, nomeie outro dono antes.",
+  conviteJaTemConta:
+    "Já tem conta (com passkey ou palavra-passe)? Entre primeiro no Hub e volte a abrir esta ligação.",
+  erroUltimoDono: "É o último dono: nomeie outro dono antes.",
+  erroProprioPapel: "Ninguém muda o seu próprio papel.",
+  erroMembroNaoExiste: "Este membro já não está na equipa.",
+  erroConviteOutraPessoa:
+    "Este convite é para outro e-mail. Saia e entre com a conta desse e-mail.",
+  erroJaMembro: "Já é membro deste comerciante.",
+  conviteEntrarEAceitar: "Entrar com passkey e aceitar",
+  conviteSoPalavraPasse:
+    "Se entra com a palavra-passe, entre primeiro no Hub e volte a abrir a ligação do convite.",
+  conviteComSessao: "Entrou como {nome} ({email}).",
+  conviteAceitarComConta: "Aceitar com esta conta",
+  conviteOutraConta:
+    "Se o convite é para outro e-mail, saia primeiro e volte a abrir a ligação.",
 };
 
 export type Textos = typeof pt;

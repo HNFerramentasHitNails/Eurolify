@@ -1,11 +1,16 @@
-import { useState, type SyntheticEvent } from "react";
-import { CaixaDeErro, useHub } from "../contexto";
-import { mensagemDeErro, type MensagemDeErro } from "../erros";
-import { criarConta, temPasskeys } from "../passkeys";
+import { useEffect, useState, type SyntheticEvent } from "react";
+import { api, ErroHub, type Eu } from "../api";
+import { ACarregar, CaixaDeErro, useHub } from "../contexto";
+import { mensagemDeErro, semSessao, type MensagemDeErro } from "../erros";
+import { comRecente, criarConta, entrar, temPasskeys } from "../passkeys";
+import { fecharAvisoDeRecuperada } from "../recuperacao";
+import { preencher } from "../textos";
 import { Copiar } from "./Copiar";
 
-// Aceitar um convite e criar a conta (docs/22 §3). O segredo chega do
-// fragmento da ligação, já lido e apagado da barra de endereço pela App.
+// Aceitar um convite: com uma conta nova (docs/22 §3) ou com a conta que o
+// e-mail já tem (§10: entrar e aceitar; com sessão, aceitar logo). O segredo
+// chega do fragmento da ligação, já lido e apagado da barra de endereço pela
+// App, e só vive na memória do ecrã.
 
 export function Convite({ segredo }: { segredo: string | null }) {
   const { t, lingua, navegar } = useHub();
@@ -13,6 +18,21 @@ export function Convite({ segredo }: { segredo: string | null }) {
   const [aEspera, setAEspera] = useState(false);
   const [erro, setErro] = useState<MensagemDeErro | null>(null);
   const [codigos, setCodigos] = useState<string[] | null>(null);
+  // Quem já tem sessão aberta (undefined: ainda a ler; null: ninguém).
+  const [eu, setEu] = useState<Eu | null | undefined>(undefined);
+  // A API disse que o e-mail já tem conta: oferece-se entrar e aceitar.
+  const [contaExiste, setContaExiste] = useState(false);
+
+  useEffect(() => {
+    api.eu().then(
+      (r) => {
+        setEu(r);
+      },
+      () => {
+        setEu(null);
+      },
+    );
+  }, []);
 
   if (segredo === null) {
     return (
@@ -68,10 +88,124 @@ export function Convite({ segredo }: { segredo: string | null }) {
       const conta = await criarConta(convite, limpo);
       setCodigos(conta.codigos);
     } catch (e) {
-      setErro(mensagemDeErro(e, t, lingua));
+      if (e instanceof ErroHub && e.codigo === "invite.account_exists") {
+        setContaExiste(true);
+        setErro(null);
+      } else {
+        setErro(mensagemDeErro(e, t, lingua));
+      }
     } finally {
       setAEspera(false);
     }
+  }
+
+  /** Aceitar com a conta que já existe: entra (se preciso) e aceita. */
+  async function aoAceitar(entrarAntes: boolean) {
+    setErro(null);
+    setAEspera(true);
+    try {
+      if (entrarAntes) await entrar();
+      // Acabou de entrar: a sessão é recente. Com uma sessão antiga, pede a
+      // passkey outra vez.
+      await comRecente(() => api.aceitarConvite(convite));
+      navegar("/", { substituir: true });
+    } catch (e) {
+      setErro(mensagemDeErro(e, t, lingua));
+      setAEspera(false);
+      if (entrarAntes) {
+        // Entrou com a passkey de outra conta (num computador partilhado):
+        // o ecrã passa a dizer quem entrou e a oferecer «Sair» (revisão do
+        // #188, P2-2).
+        await lerQuemEntrou();
+      } else if (semSessao(e)) {
+        // A sessão acabou entre abrir e aceitar: volta ao ecrã sem sessão,
+        // que diz como entrar (P3-8).
+        setEu(null);
+      }
+    }
+  }
+
+  /** Quem tem a sessão deste navegador, ou ninguém. */
+  async function lerQuemEntrou() {
+    try {
+      setEu(await api.eu());
+    } catch {
+      setEu(null);
+    }
+  }
+
+  /** Sair aqui mesmo; o segredo do convite continua na memória do ecrã. */
+  async function aoSair() {
+    setErro(null);
+    setAEspera(true);
+    // O aviso de conta recuperada é desta pessoa (revisão do #174, P3-1;
+    // revisão do #188, P2-3).
+    fecharAvisoDeRecuperada();
+    try {
+      await api.sair();
+    } catch (e) {
+      setErro(mensagemDeErro(e, t, lingua));
+    }
+    // Só muda de ecrã se a sessão terminou mesmo.
+    await lerQuemEntrou();
+    setAEspera(false);
+  }
+
+  if (eu === undefined) {
+    // Ainda não se sabe se há sessão: nada que engane (P3-7).
+    return (
+      <section className="cartao estreito" aria-labelledby="titulo">
+        <h1 id="titulo">{t.conviteTitulo}</h1>
+        <ACarregar />
+      </section>
+    );
+  }
+
+  if (eu !== null) {
+    return (
+      <section className="cartao estreito" aria-labelledby="titulo">
+        <h1 id="titulo">{t.conviteTitulo}</h1>
+        <p>
+          {preencher(t.conviteComSessao, { nome: eu.nome, email: eu.email })}
+        </p>
+        {erro === null ? null : <CaixaDeErro erro={erro} />}
+        <button
+          type="button"
+          className="principal"
+          disabled={aEspera}
+          onClick={() => void aoAceitar(false)}
+        >
+          {aEspera ? t.aCarregar : t.conviteAceitarComConta}
+        </button>
+        <p className="secundario">{t.conviteOutraConta}</p>
+        <button type="button" disabled={aEspera} onClick={() => void aoSair()}>
+          {t.sair}
+        </button>
+      </section>
+    );
+  }
+
+  if (contaExiste) {
+    return (
+      <section className="cartao estreito" aria-labelledby="titulo">
+        <h1 id="titulo">{t.conviteTitulo}</h1>
+        <div className="aviso" role="note">
+          {t.conviteContaExiste}
+        </div>
+        {erro === null ? null : <CaixaDeErro erro={erro} />}
+        {temPasskeys() ? (
+          <button
+            type="button"
+            className="principal"
+            disabled={aEspera}
+            onClick={() => void aoAceitar(true)}
+          >
+            {aEspera ? t.entrarAEspera : t.conviteEntrarEAceitar}
+          </button>
+        ) : null}
+        <p className="secundario">{t.conviteSoPalavraPasse}</p>
+      </section>
+    );
   }
 
   return (
@@ -107,6 +241,20 @@ export function Convite({ segredo }: { segredo: string | null }) {
           {aEspera ? t.entrarAEspera : t.conviteBotao}
         </button>
       </form>
+      {/* Quem já tem conta (também só com a palavra-passe) entra primeiro
+          (revisão do #188, P2-4). */}
+      <p>
+        {t.conviteJaTemConta}{" "}
+        <a
+          href="/entrar"
+          onClick={(e) => {
+            e.preventDefault();
+            navegar("/entrar");
+          }}
+        >
+          {t.entrarTitulo}
+        </a>
+      </p>
     </section>
   );
 }
