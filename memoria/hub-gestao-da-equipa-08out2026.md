@@ -37,6 +37,11 @@ Pedido do Diogo, 08/10/2026: *«sim, avança com a gestão da equipa no Hub»*;
   (08/10/2026).
 - Verificações do GitHub no head a7f5070: codigo, imagem, script-vps e
   segredos verdes (08/10/2026, 14:59).
+- Publicado no ensaio: corrida 37797820415, 15:10 UTC, «migrar: nada em
+  falta», «Hub: os ecrãs desta publicação estão no ar». Medido de fora às
+  15:10: `/equipa` e `/convite` 200, `/hub/me` sem sessão 401; o código
+  servido (`index-CUFEunUm.js`) tem «Sair desta equipa», «Aceitar com esta
+  conta» e «É o último dono» (o anterior, `index-BO-gbQ9_.js`, não tinha).
 
 ## O que ficou por verificar
 
