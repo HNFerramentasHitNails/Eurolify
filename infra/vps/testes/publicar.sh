@@ -38,7 +38,10 @@ case "$1" in
   login | logout | pull) exit 0 ;;
   inspect)
     [[ " $* " == *" eurolify-api "* && -f "$FALSOS/no-ar" ]] || exit 1
-    if [[ "$*" == *"{{.Created}}"* ]]; then echo "${CRIADO:-2099-01-01T00:00:00Z}"; else cat "$FALSOS/no-ar"; fi ;;
+    if [[ "$*" == *"{{.Created}}"* ]]; then echo "${CRIADO:-2099-01-01T00:00:00Z}"
+    # As montagens da API no ar: sem-media faz de API de antes do #178.
+    elif [[ "$*" == *"{{range .Mounts}}"* ]]; then [[ -f "$FALSOS/sem-media" ]] || echo "/media "
+    else cat "$FALSOS/no-ar"; fi ;;
   exec)
     [[ "${BASE_EM_BAIXO:-0}" == 0 ]] || exit 2
     if [[ "$*" == *to_regclass* ]]; then echo "${TABELA:-t}"; else cat "$FALSOS/base"; fi ;;
@@ -99,7 +102,7 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
   rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos"/hub-* "$falsos/docker-chamado" /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env \
-    "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
+    "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" "$falsos/sem-media" /var/log/eurolify/acoes.log
   echo token >/etc/eurolify/ghcr.token
   cat >/var/log/eurolify/publicacoes.log <<REG
 2026-10-01T10:00:00Z | $(r 1) | anterior: nenhuma | migrou: 0001_a
@@ -143,6 +146,8 @@ printf '0001_a.sql\n0002_b.sql\n0003_c.sql\n0004_d.sql\n' >"$falsos/ls-4"
 caso "imagem nova, com uma migração que falta à base" 4
 confere sim "migra" migrou
 confere sim "arranca" arrancou 4
+confere sim "a API arranca com a pasta das imagens (docs/06, CQ)" grep -qE -- "run -d --name eurolify-api .*--mount type=bind,src=/var/lib/eurolify/media,dst=/media -e MEDIA_PASTA=/media .*@$(r 4)\$" "$falsos/docker-chamado"
+confere sim "a pasta das imagens fica com o dono da API (revisão do #178, P1-2)" test "$(stat -c '%a %u %g' /var/lib/eurolify/media)" == "750 1000 1000"
 confere sim "regista no publicacoes.log as migrações que aplicou" grep -qE "\| $(r 4) \| anterior: $(img 3) \| migrou: 0004_d\$" /var/log/eurolify/publicacoes.log
 
 preparar
@@ -286,6 +291,12 @@ preparar
 caso "publicar a imagem que já está no ar" 3
 confere nao "não migra" migrou
 confere sim "nada a fazer" na_saida "Nada a fazer"
+
+preparar
+touch "$falsos/sem-media"
+caso "a imagem que já está no ar, numa API de antes da pasta das imagens" 3
+confere sim "recria a API (revisão do #178, P1-1)" arrancou 3
+confere sim "com a pasta das imagens" grep -qE -- "--mount type=bind,src=/var/lib/eurolify/media,dst=/media" "$falsos/docker-chamado"
 
 SEM_REGISTO=1 preparar
 caso "voltar atrás sem o registo das publicações" 2
