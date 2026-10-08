@@ -287,6 +287,15 @@ dois donos.
 
 ## 8. Segurança (`observability-security`)
 
+- **As funções das contas e o RLS do comerciante** (migração 0027, pedido
+  #168, 08/10/2026): as funções da base correm como o dono das tabelas, que na
+  VPS não é superutilizador nem salta o RLS; a tabela `comerciante` exige o
+  contexto `eurolify.comerciante`. Quando uma função das contas precisa do
+  nome ou do estado de um comerciante sem ter o contexto dele (aceitar um
+  convite, o `/hub/me`), lê-os por `comerciante_resumo(id)`, que põe o
+  contexto desse comerciante só durante a leitura e repõe o que havia. Os
+  testes usam um dono das tabelas como o da VPS (`test/base-de-teste.ts`).
+
 - **Tentativas:** limite por conta para a palavra-passe, o TOTP e os códigos
   de recuperação, com bloqueio temporário (proposta: 5 falhas → 15 minutos;
   valores a medir); TOTP com no máximo ±1 janela de 30 s e o último passo

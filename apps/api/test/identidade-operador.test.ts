@@ -3,7 +3,11 @@ import { randomBytes } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { sql } from "kysely";
+import { Kysely, PostgresDialect, sql } from "kysely";
+import pg from "pg";
+import type { BaseDados } from "../src/base/esquema.js";
+import { abrirBase } from "../src/base/ligacao.js";
+import { migrar } from "../src/base/migracoes.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FORMATO_SEGREDO, resumoDe } from "../src/identidade/chaves.js";
 import { lerPedido } from "../src/identidade/operador.js";
@@ -12,11 +16,7 @@ import {
   FORMATO_CONVITE,
   resumo as resumoConvite,
 } from "../src/identidade/sessoes.js";
-import {
-  criarBaseDeTeste,
-  URL_BASE,
-  type BaseDeTeste,
-} from "./base-de-teste.js";
+import { apagarBase, URL_BASE } from "./base-de-teste.js";
 
 // O comando do operador (docs/19 §6): a leitura do pedido, o gerador de
 // chaves do computador do operador, e o comando contra a base verdadeira.
@@ -201,16 +201,59 @@ describe("pedido do operador", () => {
 });
 
 describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
-  let base: BaseDeTeste;
+  // Como na VPS: o comando liga-se com o dono das tabelas, que NÃO é
+  // superutilizador nem salta o RLS. Com um superutilizador, o convite sem o
+  // contexto do comerciante passava aqui e falhava lá (42704, 08/10/2026).
+  const sufixo = randomBytes(4).toString("hex");
+  const papel = `operador_vps_${sufixo}`;
+  const nomeBase = `eurolify_operador_${sufixo}`;
+  const SENHA = "so-para-testes";
+  let admin: pg.Client;
   let urlDono: string;
+  // `dono` (superutilizador) só para inspeccionar; `api` como a API.
+  const base = {} as { dono: Kysely<unknown>; api: Kysely<BaseDados> };
+
+  const urlCom = (utilizador?: string) => {
+    const u = new URL(URL_BASE ?? "");
+    u.pathname = `/${nomeBase}`;
+    if (utilizador !== undefined) {
+      u.username = utilizador;
+      u.password = SENHA;
+    }
+    return u.toString();
+  };
 
   beforeAll(async () => {
-    base = await criarBaseDeTeste(URL_BASE ?? "");
-    const { rows } = await sql<{ nome: string }>`
-      select current_database() as nome`.execute(base.dono);
-    const u = new URL(URL_BASE ?? "");
-    u.pathname = `/${rows[0]?.nome ?? ""}`;
-    urlDono = u.toString();
+    admin = new pg.Client({ connectionString: URL_BASE });
+    await admin.connect();
+    await admin.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_api') THEN
+        CREATE ROLE eurolify_api NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+      END IF;
+    EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+    END $$`);
+    await admin.query(
+      `CREATE ROLE ${papel} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '${SENHA}'`,
+    );
+    await admin.query(`CREATE DATABASE ${nomeBase} OWNER ${papel}`);
+    urlDono = urlCom(papel);
+    const migrador = new Kysely<unknown>({
+      dialect: new PostgresDialect({
+        pool: new pg.Pool({ connectionString: urlDono, max: 1 }),
+      }),
+    });
+    try {
+      await migrar(migrador);
+    } finally {
+      await migrador.destroy();
+    }
+    await admin.query(`ALTER ROLE eurolify_api LOGIN PASSWORD '${SENHA}'`);
+    base.dono = new Kysely<unknown>({
+      dialect: new PostgresDialect({
+        pool: new pg.Pool({ connectionString: urlCom(), max: 2 }),
+      }),
+    });
+    base.api = abrirBase(urlCom("eurolify_api"));
     await mkdir(PASTA, { recursive: true });
     await correr(TSC, [
       "-p",
@@ -222,7 +265,28 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
 
   afterAll(async () => {
     await rm(PASTA, { recursive: true, force: true });
-    await base.fechar();
+    try {
+      await base.api.destroy();
+      await base.dono.destroy();
+    } finally {
+      try {
+        await apagarBase(admin, nomeBase);
+      } finally {
+        try {
+          await admin.query(`DROP ROLE IF EXISTS ${papel}`);
+        } finally {
+          await admin.end();
+        }
+      }
+    }
+  });
+
+  it("o dono das tabelas é como o da VPS: sem poderes", async () => {
+    const r = await admin.query<{ super: boolean; bypass: boolean }>(
+      "select rolsuper as super, rolbypassrls as bypass from pg_roles where rolname = $1",
+      [papel],
+    );
+    expect(r.rows).toEqual([{ super: false, bypass: false }]);
   });
 
   /** Corre o comando como na VPS: `node dist/operador.js`, com a ligação do dono. */

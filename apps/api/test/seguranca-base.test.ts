@@ -223,8 +223,16 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
     });
 
     it("uma função nova de quem migra nasce fechada", async () => {
-      await sql`create function funcao_nova_de_teste() returns int
-        language sql as 'select 1'`.execute(base.dono);
+      // Criada como o dono da base, que é quem migra (como na VPS): o ALTER
+      // DEFAULT PRIVILEGES da 0008 vale para esse papel.
+      await base.dono.transaction().execute(async (trx) => {
+        const { rows } = await sql<{ dono: string }>`
+          select pg_get_userbyid(datdba) as dono from pg_database
+          where datname = current_database()`.execute(trx);
+        await sql`set local role ${sql.id(rows[0]?.dono ?? "")}`.execute(trx);
+        await sql`create function funcao_nova_de_teste() returns int
+          language sql as 'select 1'`.execute(trx);
+      });
       try {
         const { rows } = await sql<{ pode: boolean }>`
           select has_function_privilege('eurolify_api',
@@ -238,8 +246,9 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
 
   // Como na VPS (infra/vps/preparar.sh, passo 10b): o eurolify_migrador é
   // dono da base, sem superutilizador, BYPASSRLS, CREATEDB nem CREATEROLE, e
-  // corre as migrações todas. No resto do CI quem migra é o superutilizador,
-  // que não prova nada sobre a VPS (revisão do #104, P3-1).
+  // corre as migrações todas. Desde o #168 a base de teste também migra com
+  // um dono assim; este bloco fica porque confere os atributos do papel e o
+  // resultado das migrações, um a um (revisão do #104, P3-1).
   describe("as migrações todas com um migrador sem poderes, dono da base", () => {
     const sufixo = randomBytes(4).toString("hex");
     const papel = `migrador_vps_${sufixo}`;
