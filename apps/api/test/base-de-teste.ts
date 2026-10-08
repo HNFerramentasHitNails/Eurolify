@@ -5,9 +5,10 @@ import type { BaseDados } from "../src/base/esquema.js";
 import { abrirBase } from "../src/base/ligacao.js";
 import { migrar } from "../src/base/migracoes.js";
 
-// Uma base nova por ficheiro de testes, migrada com o superutilizador (como o
-// dono das tabelas) e usada com o `eurolify_api` — o superutilizador ignora o
-// RLS e não provaria nada (docs/15 §5).
+// Uma base nova por ficheiro de testes, migrada por um dono das tabelas como o
+// da VPS (dono da base, sem superutilizador nem BYPASSRLS; pedido #168) e
+// usada com o `eurolify_api` — o superutilizador ignora o RLS e não provaria
+// nada (docs/15 §5).
 export const URL_BASE = process.env["BASE_DADOS_URL"];
 
 const SENHA_DE_TESTE = "so-para-testes";
@@ -93,10 +94,49 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
   const nome = `eurolify_teste_${randomBytes(6).toString("hex")}`;
   const admin = new pg.Client({ connectionString: urlBase });
   await admin.connect();
+  // O dono das tabelas é como o da VPS: dono da base, sem superutilizador
+  // nem BYPASSRLS. Com um superutilizador, as funções SECURITY DEFINER
+  // saltavam o RLS e um erro que só acontecia na VPS passava aqui (42704 no
+  // primeiro convite do ensaio, 08/10/2026; pedido #168). `dono` continua a
+  // ser uma ligação de superutilizador, só para preparar e inspeccionar.
+  const papel = `dono_${nome.slice(-12)}`;
   try {
-    await admin.query(`CREATE DATABASE ${nome}`);
+    await admin.query(
+      `CREATE ROLE ${papel} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '${SENHA_DE_TESTE}'`,
+    );
+    await admin.query(`CREATE DATABASE ${nome} OWNER ${papel}`);
+    // Os papéis da instância, como os cria o preparar.sh (passo 10b) antes do
+    // migrador, que não os pode criar (sem CREATEROLE). Numa instância vazia,
+    // como a do CI, a 0001 falhava sem o eurolify_api, e sem o
+    // eurolify_limpeza a 0013 e a 0026 não lhe davam os privilégios
+    // (revisão do #168, P1-1).
+    await admin.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_api') THEN
+        CREATE ROLE eurolify_api NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+      END IF;
+    EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+    END $$`);
+    await admin.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_limpeza') THEN
+        CREATE ROLE eurolify_limpeza LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+      END IF;
+    EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+    END $$`);
   } finally {
     await admin.end();
+  }
+  const migrador = new Kysely<unknown>({
+    dialect: new PostgresDialect({
+      pool: new pg.Pool({
+        connectionString: comBase(urlBase, nome, papel),
+        max: 1,
+      }),
+    }),
+  });
+  try {
+    await migrar(migrador);
+  } finally {
+    await migrador.destroy();
   }
 
   const dono = new Kysely<unknown>({
@@ -104,7 +144,6 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
       pool: new pg.Pool({ connectionString: comBase(urlBase, nome), max: 2 }),
     }),
   });
-  await migrar(dono);
   // A palavra-passe do eurolify_api é da configuração de cada ambiente, nunca
   // da migração; aqui é a dos testes.
   const cliente = new pg.Client({ connectionString: comBase(urlBase, nome) });
@@ -141,7 +180,11 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
         try {
           await fim.query("ALTER ROLE eurolify_api NOLOGIN PASSWORD NULL");
         } finally {
-          await fim.end();
+          try {
+            await fim.query(`DROP ROLE IF EXISTS ${papel}`);
+          } finally {
+            await fim.end();
+          }
         }
       }
     },
