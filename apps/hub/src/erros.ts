@@ -33,6 +33,10 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "passkey.last_credential": "erroUltimaPasskey",
   "passkey.already_registered": "erroPasskeyJaRegistada",
   "passkey.not_found": "erroPasskeyNaoExiste",
+  "password.invalid_code": "erroCodigoTotpErrado",
+  "password.not_pending": "erroPalavraPasseNaoPendente",
+  "password.last_credential": "erroPalavraPasseUltima",
+  "password.not_found": "erroPalavraPasseNaoExiste",
 };
 
 /** Um erro conferido no próprio ecrã, com o texto já escolhido. */

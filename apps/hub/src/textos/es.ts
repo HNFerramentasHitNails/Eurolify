@@ -168,4 +168,54 @@ export const es: Textos = {
   recuperadoCodigos: "generar códigos de recuperación nuevos;",
   recuperadoChaves: "como propietario, revisar las claves de API que creó.",
   recuperadoFechar: "Cerrar el aviso",
+
+  // Contraseña y autenticador (docs/22 §9.2).
+  palavraPasseTitulo: "Contraseña y autenticador",
+  palavraPasseExplicacao:
+    "Una alternativa a la passkey: entra con el correo, la contraseña y el código de 6 dígitos de una aplicación de autenticación. La contraseña sola nunca entra.",
+  palavraPasseActiva: "Estado: activa.",
+  palavraPasseNenhuma: "Estado: no activada.",
+  palavraPassePendente:
+    "Estado: la activación quedó a medias. Elija la contraseña de nuevo para empezar otra vez.",
+  palavraPasseActivar: "Activar contraseña y autenticador",
+  palavraPasseTrocar: "Cambiar la contraseña y el autenticador",
+  palavraPasseCampo: "Contraseña (12 caracteres o más)",
+  palavraPasseRepetir: "Repita la contraseña",
+  palavraPasseContinuar: "Continuar",
+  cancelar: "Cancelar",
+  autenticadorPasso:
+    "Lea este código QR con la aplicación de autenticación. Si no puede, escriba el secreto a mano en la aplicación.",
+  autenticadorQr: "Código QR para la aplicación de autenticación",
+  autenticadorSegredo: "Secreto",
+  autenticadorAviso:
+    "El código QR y el secreto solo aparecen ahora. No los guarde en otro sitio ni los envíe a nadie.",
+  autenticadorCodigo: "Código de 6 dígitos de la aplicación",
+  autenticadorConfirmar: "Confirmar y activar",
+  palavraPasseActivada:
+    "La contraseña y el autenticador quedaron activos. Las demás sesiones terminaron.",
+  palavraPasseRetirar: "Quitar la contraseña",
+  palavraPasseRetirarConfirmar:
+    "¿Quitar la contraseña y el autenticador? Las demás sesiones abiertas terminan; esta continúa.",
+  palavraPasseRetirada:
+    "Se quitó la contraseña. Las demás sesiones terminaron.",
+  erroPalavraPasseCurta: "La contraseña debe tener entre 12 y 256 caracteres.",
+  erroPalavraPasseDiferente: "Las dos contraseñas no son iguales.",
+  erroCodigoTotp: "Escriba los 6 dígitos del código.",
+  erroCodigoTotpErrado:
+    "El código no es correcto. Compruebe la hora del móvil y pruebe con el código siguiente.",
+  erroPalavraPasseNaoPendente:
+    "Esta activación ya no vale (se sustituyó o se completó en otro sitio). Empiece de nuevo.",
+  erroPalavraPasseUltima:
+    "Es la última forma de entrar en la cuenta. Añada una passkey antes de quitar la contraseña.",
+  erroPalavraPasseNaoExiste: "La cuenta ya no tiene contraseña.",
+
+  entrarComPalavraPasse: "Entrar con contraseña",
+  entrarEmail: "Correo",
+  entrarPalavraPasse: "Contraseña",
+  entrarCodigo: "Código de 6 dígitos del autenticador",
+  entrarPalavraPasseBotao: "Entrar",
+  erroEntrarPalavraPasse:
+    "El correo, la contraseña o el código no son correctos.",
+  erroPalavraPasseIndisponivel:
+    "Entrar con contraseña no está disponible en este servidor.",
 };

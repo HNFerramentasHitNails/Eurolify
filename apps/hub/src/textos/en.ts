@@ -163,4 +163,54 @@ export const en: Textos = {
   recuperadoCodigos: "generate new recovery codes;",
   recuperadoChaves: "as owner, review the API keys you created.",
   recuperadoFechar: "Close this notice",
+
+  // Password and authenticator (docs/22 §9.2).
+  palavraPasseTitulo: "Password and authenticator",
+  palavraPasseExplicacao:
+    "An alternative to the passkey: sign in with the e-mail, the password and the 6-digit code from an authenticator app. The password alone never signs in.",
+  palavraPasseActiva: "Status: active.",
+  palavraPasseNenhuma: "Status: not activated.",
+  palavraPassePendente:
+    "Status: activation was left halfway. Choose the password again to start over.",
+  palavraPasseActivar: "Activate password and authenticator",
+  palavraPasseTrocar: "Change the password and the authenticator",
+  palavraPasseCampo: "Password (12 characters or more)",
+  palavraPasseRepetir: "Repeat the password",
+  palavraPasseContinuar: "Continue",
+  cancelar: "Cancel",
+  autenticadorPasso:
+    "Scan this QR code with the authenticator app. If you cannot, type the secret into the app by hand.",
+  autenticadorQr: "QR code for the authenticator app",
+  autenticadorSegredo: "Secret",
+  autenticadorAviso:
+    "The QR code and the secret only appear now. Do not keep them anywhere else or send them to anyone.",
+  autenticadorCodigo: "6-digit code from the app",
+  autenticadorConfirmar: "Confirm and activate",
+  palavraPasseActivada:
+    "The password and the authenticator are now active. The other sessions ended.",
+  palavraPasseRetirar: "Remove the password",
+  palavraPasseRetirarConfirmar:
+    "Remove the password and the authenticator? The other open sessions end; this one continues.",
+  palavraPasseRetirada: "The password was removed. The other sessions ended.",
+  erroPalavraPasseCurta:
+    "The password must have between 12 and 256 characters.",
+  erroPalavraPasseDiferente: "The two passwords are not the same.",
+  erroCodigoTotp: "Type the 6 digits of the code.",
+  erroCodigoTotpErrado:
+    "The code is not correct. Check the phone's clock and try the next code.",
+  erroPalavraPasseNaoPendente:
+    "This activation is no longer valid (it was replaced or completed elsewhere). Start again.",
+  erroPalavraPasseUltima:
+    "This is the last way to sign in to the account. Add a passkey before removing the password.",
+  erroPalavraPasseNaoExiste: "The account no longer has a password.",
+
+  entrarComPalavraPasse: "Sign in with password",
+  entrarEmail: "E-mail",
+  entrarPalavraPasse: "Password",
+  entrarCodigo: "6-digit code from the authenticator",
+  entrarPalavraPasseBotao: "Sign in",
+  erroEntrarPalavraPasse:
+    "The e-mail, the password or the code is not correct.",
+  erroPalavraPasseIndisponivel:
+    "Signing in with a password is not available on this server.",
 };

@@ -130,6 +130,15 @@ const RespostaEu = Type.Object({
   pessoa: Type.String({ description: "per_…" }),
   nome: Type.String(),
   email: Type.String(),
+  palavra_passe: Type.Optional(
+    Type.Union(
+      [Type.Literal("activa"), Type.Literal("pendente"), Type.Null()],
+      {
+        description:
+          "A palavra-passe com o TOTP: activa, à espera do primeiro código, ou nenhuma (null). Só existe quando a API tem a palavra-passe ligada (TOTP_CHAVE).",
+      },
+    ),
+  ),
   comerciantes: Type.Array(
     Type.Object({
       comerciante: Type.String({ description: "mer_…" }),
@@ -497,6 +506,7 @@ export function rotasDoHub(
             pessoa: string;
             nome: string;
             email: string;
+            palavra_passe: "activa" | "pendente" | null;
             comerciantes: {
               comerciante: string;
               nome: string;
@@ -513,6 +523,11 @@ export function rotasDoHub(
         pessoa: comPrefixo("per", eu.pessoa),
         nome: eu.nome,
         email: eu.email,
+        // Sem a chave TOTP não há palavra-passe: o campo não aparece, e o
+        // Hub não a oferece (docs/22 §9.2).
+        ...(hub.chaveTotp === undefined
+          ? {}
+          : { palavra_passe: eu.palavra_passe }),
         comerciantes: eu.comerciantes.map((c) => ({
           comerciante: comPrefixo("mer", c.comerciante),
           nome: c.nome,

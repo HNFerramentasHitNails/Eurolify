@@ -298,3 +298,12 @@ th {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* O código QR do autenticador (docs/22 §9.2): tamanho fixo e legível. */
+.qr {
+  display: block;
+  width: 14rem;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: var(--espaco-3);
+}

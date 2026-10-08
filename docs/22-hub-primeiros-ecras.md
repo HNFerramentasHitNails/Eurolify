@@ -207,14 +207,24 @@ parte. Em três pedidos, pela ordem do `docs/21` §12:
 | **Entrar com palavra-passe** (em `/entrar`, ligação «Entrar com palavra-passe») | e-mail, palavra-passe, código de 6 dígitos do autenticador | `POST /hub/session/password` | a mesma recusa para tudo o que falha (401); 429 com os minutos; 503 (muitos pedidos ao mesmo tempo: tentar daqui a pouco) |
 | **Na conta: palavra-passe** | se não está activa: «Activar palavra-passe e autenticador» → palavra-passe (≥ 12) e confirmação → o segredo para o autenticador → o primeiro código de 6 dígitos → activa; se está activa: «Retirar» com confirmação | `POST /hub/password/setup`, `POST /hub/password/confirm`, `POST /hub/password/remove` | autenticação recente; código errado; retirar quando não há passkey (a API recusa) |
 
-**Falta na API:** o `/hub/me` não diz se a pessoa tem a palavra-passe
-activa. Proposta: um campo `palavra_passe: "activa" | "pendente" | null`
-(sem nenhum dado secreto), no mesmo pedido da B3b, com teste.
+**Na API (feito com a B3b):** o `/hub/me` diz `palavra_passe: "activa" |
+"pendente" | null` (migração 0028; só o estado, nenhum dado secreto). O
+campo só existe quando a API tem a palavra-passe ligada (`TOTP_CHAVE`);
+sem ele, o Hub não oferece a palavra-passe (nem na conta, nem ao entrar: a
+rota dá 404 e o ecrã diz que não está disponível).
 
-**Por decidir (Diogo ou Bruno), antes da B3b:** o segredo do autenticador
-mostra-se **só como texto** (escreve-se à mão na aplicação; nenhuma
-biblioteca nova) ou também **como código QR** (mais simples para quem
-configura; uma biblioteca nova no Hub, a escolher e a rever).
+**Decidido (Diogo, 08/10/2026: *«sim, com código QR»*):** o segredo do
+autenticador mostra-se **como código QR e como texto** (em grupos de 4,
+para se escrever à mão). O código QR desenha-se no próprio Hub com a
+biblioteca `uqr` 0.1.3 (MIT, sem dependências, 79 KB, publicada a
+03/04/2026; `pnpm audit` sem vulnerabilidades conhecidas, 08/10/2026),
+sempre preto sobre branco, também no tema escuro. O código QR e o segredo
+só vivem no ecrã enquanto se configura (§9.4).
+
+**No ensaio, a palavra-passe ainda não existe:** a VPS não tem a
+`TOTP_CHAVE` (medido a 08/10/2026: `POST /hub/session/password` dá 404).
+Pô-la lá é uma chave nova na máquina, com a confirmação do Diogo ou do
+Bruno (`AGENTS.md`, «Operar a VPS»).
 
 ### 9.3 B3c — chaves de API
 

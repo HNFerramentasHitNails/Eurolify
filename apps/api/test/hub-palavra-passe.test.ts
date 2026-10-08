@@ -184,6 +184,42 @@ describe.skipIf(URL_BASE === undefined)("palavra-passe e TOTP (0024)", () => {
     });
   });
 
+  it("o /hub/me diz o estado: nenhuma, pendente, activa e, depois de retirar, nenhuma (docs/22 §9.2)", async () => {
+    const estado = async (sessao: string) => {
+      const r = await h.pedir("GET", "/hub/me", { sessao });
+      expect(r.statusCode, r.body).toBe(200);
+      const eu = r.json<Record<string, unknown>>();
+      // Só o estado: nada do resumo nem do segredo.
+      expect(Object.keys(eu).sort()).toEqual(
+        ["comerciantes", "email", "nome", "palavra_passe", "pessoa"].sort(),
+      );
+      return eu["palavra_passe"];
+    };
+    const p = await h.pessoaCom(a, "apoio");
+    expect(await estado(p.sessao)).toBeNull();
+    const setup = await h.pedir("POST", "/hub/password/setup", {
+      sessao: p.sessao,
+      corpo: { palavra_passe: "uma frase bem comprida" },
+    });
+    const { segredo } = setup.json<{ segredo: string }>();
+    expect(await estado(p.sessao)).toBe("pendente");
+    const confirmar = await h.pedir("POST", "/hub/password/confirm", {
+      sessao: p.sessao,
+      corpo: { codigo: await codigoEm(segredo, agora()) },
+    });
+    const sessao = h.cookieDe(confirmar);
+    expect(await estado(sessao)).toBe("activa");
+    // Uma troca por confirmar não esconde a activa.
+    await h.pedir("POST", "/hub/password/setup", {
+      sessao,
+      corpo: { palavra_passe: "outra frase bem comprida" },
+    });
+    expect(await estado(sessao)).toBe("activa");
+    const retirar = await h.pedir("POST", "/hub/password/remove", { sessao });
+    expect(retirar.statusCode, retirar.body).toBe(200);
+    expect(await estado(h.cookieDe(retirar))).toBeNull();
+  });
+
   describe("retirar e a última forma de entrar", () => {
     it("com a palavra-passe activa, a última passkey sai; depois a palavra-passe já não", async () => {
       const p = await comPalavraPasse();
