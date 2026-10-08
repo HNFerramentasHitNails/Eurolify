@@ -1,14 +1,16 @@
 import { useEffect, useState, type SyntheticEvent } from "react";
-import { api, ErroHub, type Eu } from "../api";
+import { api, ErroHub, type DetalheConvite, type Eu } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { mensagemDeErro, semSessao, type MensagemDeErro } from "../erros";
 import { comRecente, criarConta, entrar, temPasskeys } from "../passkeys";
 import { fecharAvisoDeRecuperada } from "../recuperacao";
-import { preencher } from "../textos";
+import { preencher, TAG_LINGUA } from "../textos";
 import { Copiar } from "./Copiar";
 
 // Aceitar um convite: com uma conta nova (docs/22 §3) ou com a conta que o
-// e-mail já tem (§10: entrar e aceitar; com sessão, aceitar logo). O segredo
+// e-mail já tem (§10: entrar e aceitar; com sessão, aceitar logo). Antes,
+// o que o convite diz: o comerciante, o papel, o e-mail e quando expira
+// (§10, issue #194). O segredo
 // chega do fragmento da ligação, já lido e apagado da barra de endereço pela
 // App, e só vive na memória do ecrã.
 
@@ -22,6 +24,13 @@ export function Convite({ segredo }: { segredo: string | null }) {
   const [eu, setEu] = useState<Eu | null | undefined>(undefined);
   // A API disse que o e-mail já tem conta: oferece-se entrar e aceitar.
   const [contaExiste, setContaExiste] = useState(false);
+  // O que o convite diz (undefined: ainda a ler; null: não se conseguiu ler,
+  // e o erro fica em `erroDetalhe`). Um convite que não vale fica à parte.
+  const [detalhe, setDetalhe] = useState<DetalheConvite | null | undefined>(
+    undefined,
+  );
+  const [erroDetalhe, setErroDetalhe] = useState<unknown>(null);
+  const [invalido, setInvalido] = useState(false);
 
   useEffect(() => {
     api.eu().then(
@@ -33,6 +42,25 @@ export function Convite({ segredo }: { segredo: string | null }) {
       },
     );
   }, []);
+
+  useEffect(() => {
+    if (segredo === null) return;
+    api.verConvite(segredo).then(
+      (r) => {
+        setDetalhe(r);
+      },
+      (e: unknown) => {
+        if (e instanceof ErroHub && e.codigo === "invite.invalid") {
+          setInvalido(true);
+        } else {
+          // Sem rede ou 429: mostra o erro e deixa seguir; aceitar dá a sua
+          // própria resposta.
+          setErroDetalhe(e);
+        }
+        setDetalhe(null);
+      },
+    );
+  }, [segredo]);
 
   if (segredo === null) {
     return (
@@ -151,7 +179,19 @@ export function Convite({ segredo }: { segredo: string | null }) {
     setAEspera(false);
   }
 
-  if (eu === undefined) {
+  if (invalido) {
+    // Expirado, usado, cancelado ou inexistente: nada para aceitar.
+    return (
+      <section className="cartao estreito" aria-labelledby="titulo">
+        <h1 id="titulo">{t.conviteTitulo}</h1>
+        <div className="aviso" role="alert">
+          {t.erroConviteInvalido}
+        </div>
+      </section>
+    );
+  }
+
+  if (eu === undefined || detalhe === undefined) {
     // Ainda não se sabe se há sessão: nada que engane (P3-7).
     return (
       <section className="cartao estreito" aria-labelledby="titulo">
@@ -161,23 +201,64 @@ export function Convite({ segredo }: { segredo: string | null }) {
     );
   }
 
+  const resumo =
+    detalhe === null ? (
+      erroDetalhe === null ? null : (
+        <CaixaDeErro erro={mensagemDeErro(erroDetalhe, t, lingua)} />
+      )
+    ) : (
+      <div>
+        <p>
+          {preencher(t.conviteResumo, {
+            comerciante: detalhe.comerciante_nome,
+            papel: t[`papel_${detalhe.papel}`],
+          })}
+        </p>
+        <p>
+          {preencher(t.conviteParaEmail, {
+            email: detalhe.email,
+            data: new Intl.DateTimeFormat(TAG_LINGUA[lingua], {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(detalhe.expira_em)),
+          })}
+        </p>
+      </div>
+    );
+
   if (eu !== null) {
+    // Uma cópia da regra da base (invite.other_person), só para não oferecer
+    // o que ela recusa; a base decide na mesma.
+    const outroEmail =
+      detalhe !== null &&
+      detalhe.email.toLowerCase() !== eu.email.toLowerCase();
     return (
       <section className="cartao estreito" aria-labelledby="titulo">
         <h1 id="titulo">{t.conviteTitulo}</h1>
+        {resumo}
         <p>
           {preencher(t.conviteComSessao, { nome: eu.nome, email: eu.email })}
         </p>
+        {outroEmail ? (
+          <div className="aviso" role="note">
+            {preencher(t.conviteEmailDiferente, {
+              email: detalhe.email,
+              sessao: eu.email,
+            })}
+          </div>
+        ) : null}
         {erro === null ? null : <CaixaDeErro erro={erro} />}
         <button
           type="button"
           className="principal"
-          disabled={aEspera}
+          disabled={aEspera || outroEmail}
           onClick={() => void aoAceitar(false)}
         >
           {aEspera ? t.aCarregar : t.conviteAceitarComConta}
         </button>
-        <p className="secundario">{t.conviteOutraConta}</p>
+        {outroEmail ? null : (
+          <p className="secundario">{t.conviteOutraConta}</p>
+        )}
         <button type="button" disabled={aEspera} onClick={() => void aoSair()}>
           {t.sair}
         </button>
@@ -189,6 +270,7 @@ export function Convite({ segredo }: { segredo: string | null }) {
     return (
       <section className="cartao estreito" aria-labelledby="titulo">
         <h1 id="titulo">{t.conviteTitulo}</h1>
+        {resumo}
         <div className="aviso" role="note">
           {t.conviteContaExiste}
         </div>
@@ -211,7 +293,8 @@ export function Convite({ segredo }: { segredo: string | null }) {
   return (
     <section className="cartao estreito" aria-labelledby="titulo">
       <h1 id="titulo">{t.conviteTitulo}</h1>
-      <p>{t.conviteExplicacao}</p>
+      {resumo}
+      <p>{detalhe === null ? t.conviteExplicacao : t.conviteInstrucao}</p>
       {temPasskeys() ? null : (
         <div className="aviso" role="alert">
           {t.semPasskeys}

@@ -339,6 +339,14 @@ describe.skipIf(URL_BASE === undefined)("contas de pessoas (0018)", () => {
       expect(await mensagemDoErro(contaNova(segredo(), "Nenhum"))).toMatch(
         /^invite\.invalid:/,
       );
+      // Nem se vê antes de aceitar: a mesma recusa (issue #194).
+      for (const x of [usado, cancelado, expirado, segredo()]) {
+        expect(
+          await mensagemDoErro(
+            sql`select * from convite_ver(${x})`.execute(base.api),
+          ),
+        ).toMatch(/^invite\.invalid:/);
+      }
     });
 
     it("dois aceites do mesmo convite ao mesmo tempo: só um passa", async () => {

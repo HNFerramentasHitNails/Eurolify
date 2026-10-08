@@ -267,6 +267,51 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
       expect(aceite.json()).toMatchObject({ comerciante: `mer_${a}` });
     });
 
+    it("antes de aceitar, o convite diz o comerciante, o papel, o e-mail e quando expira (issue #194)", async () => {
+      const convite = await conviteDoOperador(a, "ver@exemplo.test", "armazem");
+      const r = await pedir("POST", "/hub/invitations/preview", {
+        corpo: { convite },
+      });
+      expect(r.statusCode, r.body).toBe(200);
+      const corpo = r.json<Record<string, string>>();
+      // Só isto: nem quem convidou, nem identificadores.
+      expect(Object.keys(corpo).sort()).toEqual([
+        "comerciante_nome",
+        "email",
+        "expira_em",
+        "papel",
+      ]);
+      expect(corpo).toMatchObject({
+        comerciante_nome: "Loja A",
+        papel: "armazem",
+        email: "ver@exemplo.test",
+      });
+      expect(Date.parse(corpo["expira_em"] ?? "")).toBeGreaterThan(Date.now());
+      // Ver não gasta o convite: vê-se outra vez e aceita-se a seguir.
+      const outraVez = await pedir("POST", "/hub/invitations/preview", {
+        corpo: { convite },
+      });
+      expect(outraVez.statusCode).toBe(200);
+      const { resposta } = await contaPeloConvite(convite);
+      expect(resposta.statusCode, resposta.body).toBe(201);
+      // Aceite, deixa de se ver, com a mesma recusa de um que não existe.
+      const depois = await pedir("POST", "/hub/invitations/preview", {
+        corpo: { convite },
+      });
+      const inventado = await pedir("POST", "/hub/invitations/preview", {
+        corpo: { convite: `euc_${randomBytes(32).toString("base64url")}` },
+      });
+      expect(depois.statusCode).toBe(404);
+      expect(codigo(depois)).toBe("invite.invalid");
+      expect(inventado.statusCode).toBe(404);
+      // A mesma resposta, menos o identificador do pedido.
+      const semPedido = (x: Resposta) => ({
+        ...x.json<Record<string, unknown>>(),
+        instance: null,
+      });
+      expect(semPedido(depois)).toEqual(semPedido(inventado));
+    });
+
     it("um convite que não vale dá 404 já nas opções", async () => {
       const r = await pedir("POST", "/hub/invitations/accept/options", {
         corpo: { convite: `euc_${randomBytes(32).toString("base64url")}` },
@@ -821,6 +866,12 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
       });
       expect(r.statusCode).toBe(404);
       expect(codigo(r)).toBe("invite.invalid");
+      // Nem o nome do comerciante suspenso se vê (issue #194).
+      const ver = await pedir("POST", "/hub/invitations/preview", {
+        corpo: { convite },
+      });
+      expect(ver.statusCode).toBe(404);
+      expect(codigo(ver)).toBe("invite.invalid");
     });
 
     it("P2-4: transportes fora da lista recusam-se com 400, não com 500", async () => {

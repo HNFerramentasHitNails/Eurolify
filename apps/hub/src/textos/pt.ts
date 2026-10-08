@@ -314,6 +314,12 @@ export const pt = {
   conviteAceitarComConta: "Aceitar com esta conta",
   conviteOutraConta:
     "Se o convite é para outro e-mail, saia primeiro e volte a abrir a ligação.",
+  conviteInstrucao: "Escreva o seu nome e crie a conta com uma passkey.",
+  conviteResumo:
+    "Foi convidado para a equipa de {comerciante}, com o papel {papel}.",
+  conviteParaEmail: "O convite é para {email} e expira a {data}.",
+  conviteEmailDiferente:
+    "Este convite é para {email} e entrou como {sessao}. Saia e entre com a conta desse e-mail.",
 };
 
 export type Textos = typeof pt;
