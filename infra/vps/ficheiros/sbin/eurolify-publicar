@@ -153,8 +153,10 @@ api_env_mudou() {
   # A API no ar sem a pasta das imagens (criada antes do #178) recria-se:
   # senão, as imagens ficavam dentro do contentor e perdiam-se na publicação
   # seguinte (revisão do #178, P1-1).
-  docker inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' eurolify-api 2>/dev/null |
-    grep -qw /media || return 0
+  # Um inspect que falha não recria (como o de cima); a comparação é exacta.
+  local montagens
+  montagens="$(docker inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' eurolify-api 2>/dev/null)" || return 1
+  [[ " $montagens " == *" /media "* ]] || return 0
   # Em nanossegundos: em segundos, um ficheiro escrito no mesmo segundo em
   # que a API foi criada não contava (revisão do #160, P2-2).
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1

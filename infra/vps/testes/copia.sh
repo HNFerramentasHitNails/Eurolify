@@ -26,8 +26,9 @@ echo "HC_COPIA=http://hc/copia" >/etc/eurolify/healthchecks.env
 
 falsos="$(mktemp -d)"
 export FALSOS="$falsos"
-# docker: só o pg_dump. age: escreve no -o o que lê, tal e qual (a meio, se
-# FALHA_AGE). rclone: copyto copia para $FALSOS/s3. curl: regista o
+# docker: só o pg_dump (a falhar, com FALHA_DUMP). age: escreve no -o o que
+# lê, tal e qual; FALHA_AGE=<texto> fá-lo falhar a meio quando o -o contém
+# esse texto (dump ou media). rclone: copyto copia para $FALSOS/s3. curl: regista o
 # aviso ao Healthchecks.io. tar: o verdadeiro, ou o código TAR_CODIGO depois
 # de escrever (faz de «um ficheiro mudou»).
 cat >"$falsos/docker" <<'FALSO'
@@ -40,7 +41,7 @@ cat >"$falsos/age" <<'FALSO'
 saida=""
 while (($#)); do [[ "$1" == -o ]] && saida="$2"; shift; done
 # «Cifra» sem mudar nada: o teste lê o que foi enviado.
-if [[ -n "${FALHA_AGE:-}" ]]; then cat >/dev/null; printf 'meio' >"$saida"; exit 1; fi
+if [[ -n "${FALHA_AGE:-}" && "$saida" == *"${FALHA_AGE}"* ]]; then cat >/dev/null; printf 'meio' >"$saida"; exit 1; fi
 cat >"$saida"
 FALSO
 cat >"$falsos/rclone" <<'FALSO'
@@ -105,12 +106,33 @@ confere sim "a imagem vai no arquivo enviado" bash -c "$(declare -f enviado); fa
 confere nao "o ficheiro a meio da API (.tmp) fica de fora" bash -c "$(declare -f enviado); falsos=$falsos; enviado | grep -q x.tmp"
 
 limpar
-correr "o age falha a meio da base" FALHA_AGE=1
+correr "o age falha a meio da base" FALHA_AGE=dump
 confere sim "sai com erro" test "$codigo" != 0
 confere nao "não fica a cópia cortada com o nome certo" na_maquina 'eurolify-*.dump.age'
 confere nao "nem o .tmp" na_maquina '*.tmp'
 confere nao "nada vai para a OVH" test -d "$falsos/s3"
 confere sim "o aviso diz falhou" hc_falhou
+
+limpar
+correr "o pg_dump falha (o age acaba bem sobre o que recebeu)" FALHA_DUMP=1
+confere sim "sai com erro (pipefail)" test "$codigo" != 0
+confere nao "nada vai para a OVH" test -d "$falsos/s3"
+confere nao "nem fica cópia nem .tmp" na_maquina 'eurolify-*'
+confere sim "o aviso diz falhou" hc_falhou
+
+limpar
+correr "o age falha a meio das imagens" FALHA_AGE=media
+confere sim "sai com erro" test "$codigo" != 0
+confere sim "a base já foi" no_s3 'eurolify-*.dump.age'
+confere nao "as imagens não vão" no_s3 'eurolify-media-*.tar.age'
+confere nao "nem fica o .tmp" na_maquina '*.tmp'
+confere sim "diz que foi o age" grep -q "o age falhou ao cifrar as imagens" "$falsos/saida"
+
+limpar
+install -d -m 700 "$copias"
+touch -d '3 days ago' "$copias/eurolify-velho.dump.age.tmp"
+correr "um .tmp de uma cópia morta à força, com 3 dias"
+confere nao "sai do disco" test -e "$copias/eurolify-velho.dump.age.tmp"
 
 limpar
 correr "um ficheiro mudou durante o tar (código 1)" TAR_CODIGO=1

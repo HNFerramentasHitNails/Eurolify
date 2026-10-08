@@ -26,6 +26,9 @@ trap terminar EXIT
 
 pasta=/var/lib/eurolify/copias
 install -d -m 700 "$pasta"
+# Os temporários de uma cópia morta à força (sem trap) não ficam a ocupar o
+# disco (2.ª revisão do #178, P3-2).
+find "$pasta" -type f -name '*.tmp' -mtime +1 -delete
 carimbo="$(date -u +%Y%m%dT%H%M%SZ)"
 nome="eurolify-${carimbo}.dump.age"
 
@@ -64,8 +67,9 @@ else
   ((livre > precisa + precisa / 10)) ||
     falhar "sem espaço para a cópia das imagens (${precisa} KiB; livres ${livre} KiB)"
   temporarios+=("$pasta/$nome_media.tmp")
-  # A API grava ao lado (.tmp) e muda o nome: os que estão a meio ficam de
-  # fora. Um ficheiro que muda durante a leitura dá o código 1 do tar, que é
+  # O contrato com a API (#176, armazenamento.ts): cada imagem grava-se ao
+  # lado, com um nome que acaba em .tmp, na mesma pasta, e só depois muda de
+  # nome (rename atómico); os que estão a meio ficam de fora. Um ficheiro que muda durante a leitura dá o código 1 do tar, que é
   # só aviso; 2 ou mais é erro (revisão do #178, P2-1).
   set +e
   tar -C /var/lib/eurolify --exclude='*.tmp' -cf - media |
