@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Comando do operador (docs/19 §6; issue #107). Corre como root, chamado pelo
 # eurolify-trabalho (fluxo «operar»), que já validou o pedido — aqui valida-se
-# outra vez. Cria um comerciante ou uma chave de servidor dele, num contentor
-# de uma vez com a imagem da API que está no ar e a ligação do dono das
-# tabelas (migrar.env), como as migrações. O segredo da chave nunca chega
-# aqui: só o prefixo e o resumo.
+# outra vez. Cria um comerciante, uma chave de servidor dele ou o convite do
+# primeiro dono (§6.0), num contentor de uma vez com a imagem da API que está
+# no ar e a ligação do dono das tabelas (migrar.env), como as migrações. Os
+# segredos (da chave e do convite) nunca chegam aqui: só os resumos.
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
 source /usr/local/lib/eurolify/comum.sh
 
 pedido="${1:-}"
-padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20})$'
+padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|convite [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [A-Za-z0-9_-]{1,340} dono [0-9a-f]{64} github:[0-9]{1,20})$'
 [[ ${#pedido} -le 600 && "$pedido" =~ $padrao ]] || falhar "pedido fora do formato"
 
 imagem="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null)" ||

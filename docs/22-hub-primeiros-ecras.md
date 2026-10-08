@@ -162,13 +162,12 @@ do meio por faltarem os ecrãs na máquina de teste (revisão do #162, P3-B).
 os convites são criados pelo Diogo ou pelo Bruno, **com nomes e e-mails
 fictícios** — o e-mail verdadeiro de uma pessoa, mesmo o de um de nós, já é um
 dado pessoal real (revisão do #160, P3-12).
-**O que falta para alguém entrar** (pedido seguinte): o primeiro dono de um
-comerciante entra por um convite do operador (`docs/21` §7, ponto 5). A base
-já tem a função (`convite_criar_pelo_operador`, que o `scripts/capturas.mjs`
-usa), mas o fluxo `operar` do GitHub só tem as acções `comerciante` e `chave`
-(`.github/workflows/operar.yml`). Falta a acção `convite`, com o segredo
-gerado no computador do operador e só o resumo a passar pelo fluxo. Até lá, o
-Hub publicado abre, mas ninguém tem convite para entrar.
+**Para alguém entrar** (`docs/19` §6.0, 08/10/2026): o operador gera o
+convite no computador (`node apps/api/scripts/gerar-convite.mjs`), lança o
+fluxo `operar` com a acção `convite` (comerciante, e-mail fictício de um
+domínio reservado para testes, resumo) e dá a ligação a quem vai ser dono.
+**Falta a chave SSH do fluxo `operar`** (`infra/vps/chaves/fluxos/operar.pub`
+e o segredo `VPS_CHAVE_OPERAR`): sem ela, nenhuma acção do fluxo chega à VPS.
 
 ## 8. Desenvolver localmente
 

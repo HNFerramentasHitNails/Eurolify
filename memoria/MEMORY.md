@@ -75,3 +75,4 @@
 - [API do Catálogo, parte 2 (#153): 9 escritas com Idempotency-Key, escrita e resposta na mesma transacção, quem = chave:key_…, estados só do seu; 2 revisões Sonnet; 18/18 mutações; publicado no ensaio (corrida 37637224998) — 07/10/2026](catalogo-api-escritas-07out2026.md)
 - [Hub, primeiros ecrãs (#156): apps/hub em React+Vite, entrar com passkey, convite, equipa; tokens provisórios (D-12); capturas com passkey em software — 07/10/2026](hub-primeiros-ecras-07out2026.md)
 - [Publicação do Hub (#156): imagem leva os ecrãs, nginx-hub, passo 14 (certificado, api-hub.env com o gateway); limite por IP medido pelo nginx; falta a acção convite do operador — 07/10/2026](publicacao-hub-07out2026.md)
+- [Convite do operador (#156): gerar-convite.mjs, acção convite no fluxo operar, só dono e e-mails de domínios de teste; falta a chave SSH do fluxo — 08/10/2026](convite-do-operador-08out2026.md)

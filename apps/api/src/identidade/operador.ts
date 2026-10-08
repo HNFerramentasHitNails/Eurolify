@@ -1,13 +1,15 @@
 import { AMBITOS, type Ambito } from "./chaves.js";
 
-// O comando do operador (docs/19 §6): criar um comerciante e a primeira chave
-// de servidor dele, fora da API pública. O pedido chega numa linha, pelo
+// O comando do operador (docs/19 §6): criar um comerciante, a primeira chave
+// de servidor dele e o convite do primeiro dono (§6.0), fora da API pública. O pedido chega numa linha, pelo
 // fluxo «operar» do GitHub (ADR-0028), e valida-se aqui e na máquina. O
 // segredo da chave nunca chega cá: o operador gera-o no computador dele
-// (scripts/gerar-chave.mjs) e só manda o prefixo e o resumo.
+// (scripts/gerar-chave.mjs) e só manda o prefixo e o resumo. O do convite
+// também: scripts/gerar-convite.mjs, e só o resumo vem.
 //
 //   comerciante <lingua> <fuso> <nome em base64url> <quem>
 //   chave <comerciante uuid> <âmbitos,separados> <prefixo> <resumo> <nome em base64url> <quem>
+//   convite <comerciante uuid> <e-mail em base64url> dono <resumo> <quem>
 //
 // <quem> é `github:<número da conta>`, o operador que lançou o fluxo.
 
@@ -26,6 +28,14 @@ export type PedidoOperador =
       prefixo: string;
       resumo: string;
       nome: string;
+      quem: string;
+    }
+  | {
+      accao: "convite";
+      comercianteId: string;
+      email: string;
+      papel: "dono";
+      resumo: string;
       quem: string;
     };
 
@@ -47,6 +57,25 @@ function nomeDe(codificado: string): string {
     throw new Error("nome: entre 1 e 100 caracteres");
   }
   return limpo;
+}
+
+// As mesmas regras da base (convite_validar, migração 0018), sem caracteres
+// de controlo nem de formato. A base valida outra vez.
+function emailDe(codificado: string): string {
+  if (!/^[A-Za-z0-9_-]{1,340}$/.test(codificado)) {
+    throw new Error("e-mail: não é base64url");
+  }
+  const email = Buffer.from(codificado, "base64url").toString("utf8").trim();
+  if (
+    email.includes("\uFFFD") ||
+    /[\p{Cc}\p{Cf}]/u.test(email) ||
+    email.length < 3 ||
+    email.length > 254 ||
+    !/^[^@\s]+@[^@\s]+$/.test(email)
+  ) {
+    throw new Error("e-mail: inválido");
+  }
+  return email;
 }
 
 /** Lê e valida um pedido; lança um erro com o motivo, sem repetir o pedido. */
@@ -98,6 +127,30 @@ export function lerPedido(linha: string): PedidoOperador {
       prefixo,
       resumo,
       nome: nomeDe(nome),
+      quem,
+    };
+  }
+  if (accao === "convite" && partes.length === 6) {
+    const [
+      ,
+      comercianteId = "",
+      email = "",
+      papel = "",
+      resumo = "",
+      quem = "",
+    ] = partes;
+    if (!UUID.test(comercianteId)) throw new Error("comerciante: uuid");
+    // Só o primeiro dono (ou a recuperação): os outros papéis convida-os um
+    // dono no Hub (docs/19 §6.0).
+    if (papel !== "dono") throw new Error("papel: só dono");
+    if (!/^[0-9a-f]{64}$/.test(resumo)) throw new Error("resumo: sha256");
+    if (!QUEM.test(quem)) throw new Error("quem: github:<número>");
+    return {
+      accao,
+      comercianteId,
+      email: emailDe(email),
+      papel,
+      resumo,
       quem,
     };
   }

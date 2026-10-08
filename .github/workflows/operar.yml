@@ -1,5 +1,6 @@
 # Comando do operador (docs/19 §6; issue #107): criar um comerciante no
-# ensaio, ou a primeira chave de servidor dele. Lança-se à mão (ADR-0028: a
+# ensaio, a primeira chave de servidor dele, ou o convite do primeiro dono
+# (§6.0; issue #156). Lança-se à mão (ADR-0028: a
 # VPS opera-se pelo GitHub). Só quem pode escrever no repositório o lança, e
 # o ambiente «ensaio» só aceita o main.
 #
@@ -7,6 +8,13 @@
 #   node apps/api/scripts/gerar-chave.mjs
 # e guarda-se o segredo num cofre. Aqui põe-se só o prefixo e o resumo: o
 # segredo nunca passa pelo GitHub nem pela VPS.
+#
+# O convite: corre-se primeiro, NO PRÓPRIO COMPUTADOR,
+#   node apps/api/scripts/gerar-convite.mjs
+# e dá-se a ligação (com o segredo) a quem vai ser dono. Aqui põe-se só o
+# resumo e um e-mail FICTÍCIO de um domínio reservado para testes (ex.:
+# dono@loja.test): o ensaio não recebe dados pessoais (ADR-0019) e as
+# entradas ficam no histórico do GitHub.
 #
 # Na VPS, antes de escrever, faz-se uma cópia da base (AGENTS.md, «Operar a
 # VPS», regra 2). Quem lançou fica na chave como `operador:github:<número>`.
@@ -18,12 +26,12 @@ on:
       accao:
         description: "O que fazer"
         type: choice
-        options: [comerciante, chave]
+        options: [comerciante, chave, convite]
         required: true
       nome:
-        description: "Nome do comerciante (SÓ DE ENSAIO, fictício: a VPS do ensaio não recebe dados reais) ou da chave; até 100 caracteres sem acentos, menos com acentos"
+        description: "Nome do comerciante (SÓ DE ENSAIO, fictício: a VPS do ensaio não recebe dados reais) ou da chave; até 100 caracteres sem acentos, menos com acentos. No convite não se usa"
         type: string
-        required: true
+        default: ""
       lingua:
         description: "Comerciante: língua (duas letras)"
         type: string
@@ -33,7 +41,7 @@ on:
         type: string
         default: Europe/Lisbon
       comerciante:
-        description: "Chave: o comerciante (mer_… ou o uuid)"
+        description: "Chave e convite: o comerciante (mer_… ou o uuid)"
         type: string
         default: ""
       ambitos:
@@ -45,7 +53,11 @@ on:
         type: string
         default: ""
       resumo:
-        description: "Chave: o resumo dado pelo gerar-chave.mjs (nunca o segredo)"
+        description: "Chave ou convite: o resumo dado pelo gerar-chave.mjs ou pelo gerar-convite.mjs (nunca o segredo nem a ligação)"
+        type: string
+        default: ""
+      email:
+        description: "Convite: e-mail FICTÍCIO do primeiro dono, de um domínio reservado para testes (.test, .example, .invalid, example.com/net/org)"
         type: string
         default: ""
 
@@ -75,13 +87,18 @@ jobs:
           AMBITOS: ${{ inputs.ambitos }}
           PREFIXO: ${{ inputs.prefixo }}
           RESUMO: ${{ inputs.resumo }}
+          EMAIL: ${{ inputs.email }}
         run: |
           set -euo pipefail
           # Nenhuma entrada pode trazer um segredo nem quebras de linha
           # (revisão do #110, P2-4 e P3-4).
-          for valor in "$ACCAO" "$NOME" "$LINGUA" "$FUSO" "$COMERCIANTE" "$AMBITOS" "$PREFIXO" "$RESUMO"; do
+          for valor in "$ACCAO" "$NOME" "$LINGUA" "$FUSO" "$COMERCIANTE" "$AMBITOS" "$PREFIXO" "$RESUMO" "$EMAIL"; do
             if [[ "$valor" =~ eul_(sk|pk)_[a-z2-7]{6,} ]]; then
               echo "Uma das entradas tem um SEGREDO de chave: não uses esse segredo; gera outro com o gerar-chave.mjs." >&2
+              exit 1
+            fi
+            if [[ "$valor" == *euc_* ]]; then
+              echo "Uma das entradas tem o SEGREDO de um convite: não uses essa ligação; gera outra com o gerar-convite.mjs." >&2
               exit 1
             fi
             if [[ "$valor" == *$'\n'* || "$valor" == *$'\r'* ]]; then
@@ -98,6 +115,19 @@ jobs:
             chave)
               comerciante="${COMERCIANTE#mer_}"
               pedido="chave ${comerciante} ${AMBITOS// /} ${PREFIXO} ${RESUMO} ${nome64} ${quem}"
+              ;;
+            convite)
+              # Só domínios reservados para testes (RFC 2606 e 6761): o
+              # ensaio não recebe dados pessoais (ADR-0019; docs/19 §6.0).
+              email="${EMAIL,,}"
+              email="${email// /}"
+              if [[ ! "$email" =~ ^[^@]+@([a-z0-9-]+\.)*([a-z0-9-]+\.(test|example|invalid)|example\.(com|net|org))$ ]]; then
+                echo "O e-mail do convite tem de ser fictício, de um domínio reservado para testes (ex.: dono@loja.test)." >&2
+                exit 1
+              fi
+              email64="$(printf '%s' "$email" | basenc --base64url -w0 | tr -d '=')"
+              comerciante="${COMERCIANTE#mer_}"
+              pedido="convite ${comerciante} ${email64} dono ${RESUMO} ${quem}"
               ;;
           esac
           fim="FIM_$(openssl rand -hex 16)"
