@@ -95,9 +95,9 @@ import {
 // `catalog:write` ou `catalog:publish`).
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-const idCom = (prefixo: string, descricao: string) =>
+export const idCom = (prefixo: string, descricao: string) =>
   Type.String({ pattern: `^${prefixo}_${UUID}$`, description: descricao });
-const semPrefixo = (id: string) => id.slice(id.indexOf("_") + 1);
+export const semPrefixo = (id: string) => id.slice(id.indexOf("_") + 1);
 
 /**
  * Uma lista fechada de valores, com o tipo deles (o `Type.Union` de uma
@@ -115,8 +115,8 @@ const Modo = umDe(MODOS);
 const EstadoPublicacao = umDe(ESTADOS_PUBLICACAO);
 const MotivoArquivo = umDe(MOTIVOS_ARQUIVO_PUBLICACAO);
 const NaoVerificado = umDe(NAO_VERIFICADO);
-const Instante = Type.String({ format: "date-time" });
-const iso = (d: Date | null) => (d === null ? null : d.toISOString());
+export const Instante = Type.String({ format: "date-time" });
+export const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 
 // ------------------------------------------------------------ Os erros
 
@@ -177,6 +177,8 @@ const ESTADO_DO_CODIGO: Record<ErroCatalogo["codigo"], number> = {
   "catalog.translation_not_ai": 422,
   "catalog.translation_self_review": 422,
   "catalog.published_by_required": 422,
+  // O espaço das imagens do comerciante acabou (docs/14 §3.5, **proposta**).
+  "catalog.media_quota_exceeded": 409,
 };
 
 /**
@@ -213,7 +215,7 @@ function paraApi(erro: unknown): unknown {
  * Corre a consulta e devolve os erros do Catálogo no formato da API; um
  * `catalog.retry` leva `Retry-After: 1` (revisão do #150, P3-2).
  */
-async function noCatalogoApi<T>(
+export async function noCatalogoApi<T>(
   resposta: FastifyReply,
   fn: () => Promise<T>,
 ): Promise<T> {
@@ -307,7 +309,7 @@ const RespostaVariantes = Type.Object({
 });
 
 /** O formato das listas (docs/18 §2a), com os itens dados. */
-const Lista = <T extends TSchema>(item: T) =>
+export const Lista = <T extends TSchema>(item: T) =>
   Type.Object({
     dados: Type.Array(item),
     total: Type.Integer({
@@ -407,7 +409,7 @@ const ConsultaArtigos = Type.Object(
   { additionalProperties: false },
 );
 
-const ParametroArtigo = Type.Object({ id: idCom("prd", "prd_…") });
+export const ParametroArtigo = Type.Object({ id: idCom("prd", "prd_…") });
 
 const Impedimento = Type.Object(
   { codigo: Type.String() },
@@ -591,7 +593,7 @@ const ConsultaVariantes = Type.Object(
   { additionalProperties: false },
 );
 
-const ConsultaPagina = Type.Object(
+export const ConsultaPagina = Type.Object(
   {
     limite: Type.Optional(
       Type.String({
@@ -778,7 +780,9 @@ const PedidoClassificar = Type.Object(
   { additionalProperties: false },
 );
 
-const PedidoVersao = Type.Object(ComVersao, { additionalProperties: false });
+export const PedidoVersao = Type.Object(ComVersao, {
+  additionalProperties: false,
+});
 
 const PedidoPublicar = Type.Object(
   {
@@ -940,7 +944,7 @@ function posicaoDoCursor(cursor: string): PosicaoNaLista {
 }
 
 /** O cursor das listas por (posição, id): em JSON e base64url, opaco. */
-const cursorPosicaoEId = (p: PosicaoEId) =>
+export const cursorPosicaoEId = (p: PosicaoEId) =>
   Buffer.from(JSON.stringify([p.posicao, p.id]), "utf8").toString("base64url");
 function posicaoEIdDoCursor(cursor: string): PosicaoEId {
   let valor: unknown;
@@ -963,7 +967,7 @@ function posicaoEIdDoCursor(cursor: string): PosicaoEId {
   throw erroBase("request.invalid", "`cursor` não é um cursor desta lista");
 }
 
-const paginaDe = (q: { limite?: string; cursor?: string }) => ({
+export const paginaDe = (q: { limite?: string; cursor?: string }) => ({
   limite: q.limite === undefined ? 25 : Number(q.limite),
   depois: q.cursor === undefined ? null : posicaoEIdDoCursor(q.cursor),
 });
@@ -1313,7 +1317,7 @@ const quemDa = (chave: ContextoChave) => `chave:key_${chave.chaveId}`;
  * na transacção da idempotência). Repetir o pedido com a mesma chave devolve
  * a mesma resposta sem escrever outra vez.
  */
-async function escrever(
+export async function escrever(
   base: Kysely<BaseDados>,
   pedido: FastifyRequest,
   resposta: FastifyReply,
@@ -1323,6 +1327,12 @@ async function escrever(
   // #153, P3-5).
   fn: (trx: Transaction<BaseDados>, chave: ContextoChave) => Promise<unknown>,
   local?: (corpo: unknown) => string,
+  /**
+   * O que conta como corpo para a idempotência, quando não é o JSON do
+   * pedido (o envio de uma imagem: o resumo, o tipo e o tamanho, não os
+   * bytes).
+   */
+  corpoIdempotente?: unknown,
 ) {
   const chave = chaveDo(pedido);
   const idempotente: PedidoIdempotente = {
@@ -1330,7 +1340,12 @@ async function escrever(
     metodo: pedido.method as PedidoIdempotente["metodo"],
     caminho: caminhoDe(pedido.url),
     // Sem corpo e `{}` são o mesmo pedido (revisão do #153, 2.ª ronda, P3-A).
-    corpo: vazio(pedido.body) ? null : pedido.body,
+    corpo:
+      corpoIdempotente !== undefined
+        ? corpoIdempotente
+        : vazio(pedido.body)
+          ? null
+          : pedido.body,
   };
   const resultado = await noCatalogoApi(resposta, () =>
     comIdempotencia(

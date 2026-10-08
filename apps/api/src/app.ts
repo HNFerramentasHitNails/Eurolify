@@ -13,7 +13,9 @@ import {
 } from "./base/erros.js";
 import type { BaseDados } from "./base/esquema.js";
 import { LIMITES_HUB, LimitePorIp } from "./base/limite.js";
+import type { Armazenamento } from "./catalogo/armazenamento.js";
 import { rotasDoCatalogo } from "./catalogo/rotas.js";
+import { rotasDaMedia } from "./catalogo/rotas-media.js";
 import {
   conferirOrigem,
   ligarAutenticacao,
@@ -65,6 +67,11 @@ export function criarApp(
   base?: Kysely<BaseDados>,
   /** Onde vive o Hub (HUB_ORIGEM); sem ele, as rotas do Hub não existem. */
   hub?: ConfigHub,
+  /**
+   * Onde se guardam as imagens (MEDIA_PASTA; docs/06, CQ); sem ele, as rotas
+   * da media não existem.
+   */
+  armazenamento?: Armazenamento,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -263,6 +270,13 @@ export function criarApp(
     if (base !== undefined) {
       rotasDaIdentidade(rotas, base);
       rotasDoCatalogo(rotas, base);
+      if (armazenamento !== undefined) {
+        // Num plugin próprio: o leitor dos bytes das imagens fica só lá.
+        void rotas.register((media, _o, pronto) => {
+          rotasDaMedia(media, base, armazenamento);
+          pronto();
+        });
+      }
     }
     if (base !== undefined && hub !== undefined) {
       rotasDoHub(rotas, base, hub);

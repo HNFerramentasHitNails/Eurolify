@@ -223,6 +223,77 @@ lote de cada componente vai na linha expedida (`product-compliance-eu`; ADR-0022
 | `texto_alternativo` | traduzível; **obrigatório para publicar** (**proposta**; o texto alternativo por língua vem da `catalog-pim`, «acessibilidade») |
 | `posicao`, `principal` | uma só principal por artigo |
 
+**A media em código** (08/10/2026; pedido do Diogo: «sim, fica a (a); avança
+com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
+
+- **Onde:** os ficheiros guardam-se numa pasta do disco (`MEDIA_PASTA`), uma
+  subpasta por comerciante, com o nome igual ao resumo SHA-256 do conteúdo.
+  O mesmo ficheiro enviado duas vezes fica uma vez. O acesso passa por uma
+  interface (`Armazenamento`): mudar para um serviço europeu de ficheiros é
+  outra implementação, sem mudar as rotas. Sem `MEDIA_PASTA`, as rotas da
+  media não existem.
+- **O que entra:** só imagens JPEG, PNG e WebP (**proposta**), confirmadas
+  pelos primeiros bytes do ficheiro, que têm de bater com o `Content-Type`
+  do envio; até 10 MB cada (**proposta**). Sem SVG (pode levar código), sem
+  vídeo por agora.
+- **Limites** (revisão do #176, **proposta**): 1 GiB de imagens por
+  comerciante. A ordem do envio conta (2.ª revisão do #176, P1-N1): primeiro
+  a chave de idempotência (uma chave já usada não escreve no disco), depois
+  o registo, numa fila por comerciante, que confere o espaço (acima dele,
+  `catalog.media_quota_exceeded`, 409, **proposta**: não se resolve a
+  tentar outra vez, ao contrário do 409 da versão), e só então os bytes no
+  disco; se a gravação falhar, o registo desfaz-se. A gravação corre com a fila do
+  comerciante tomada e uma ligação à base aberta (3.ª revisão do #176,
+  P2-2): um segundo envio do mesmo comerciante espera por ela até 5 s
+  (`lock_timeout`) e depois dá 503 `catalog.retry`; a reserva da chave de
+  idempotência dura 60 s, e uma gravação mais lenta do que isso pode deixar
+  outro pedido tomar a chave (a transacção desfaz-se e o ficheiro fica sem
+  registo, fora do espaço); as ligações à base são 10 (`ligacao.ts`), e com
+  2 envios por comerciante, cinco comerciantes a enviar ao mesmo tempo
+  ocupam-nas todas enquanto gravam. Num disco lento, grava-se o temporário
+  antes da fila e faz-se só a mudança de nome dentro dela. Duas faltas
+  conhecidas (4.ª revisão do #176): o pool de ligações não tem tempo máximo
+  de espera, por isso com as 10 ligações ocupadas os pedidos de todos os
+  comerciantes esperam sem limite; e um cliente que mande o corpo devagar,
+  sem cortar, ocupa um lugar de envio até ao tempo do Node (300 s por
+  omissão), e com a chave de um comerciante bloqueia os envios dele. No máximo 2 envios do mesmo
+  comerciante ao mesmo tempo (o terceiro dá 429 antes de se ler o corpo:
+  cada envio ocupa até 10 MB de memória). O ficheiro escreve-se ao lado,
+  assegura-se no disco (`fsync`) e só depois muda de nome; um ficheiro com
+  o nome certo e outro tamanho (uma escrita cortada) escreve-se outra vez.
+- **Como:** `POST /media/uploads` recebe os bytes e devolve o ficheiro
+  (`fil_` e o resumo); `POST /products/{id}/media` liga-o ao artigo (e, se
+  se quiser, a uma variante dele), com o texto alternativo e a posição;
+  `PATCH /media/{id}` muda o texto alternativo, a posição ou a principal;
+  `DELETE /media/{id}` tira-a do artigo; `GET /products/{id}/media` lista
+  e `GET /media/{id}/file` devolve os bytes. Marcar uma como principal tira
+  a marca à que a tinha.
+
+**Faltas conhecidas da media** (08/10/2026):
+
+- O texto alternativo é só o da língua de origem: as traduções dele, e o
+  «obrigatório para publicar» (**proposta** acima), entram depois.
+- **Os metadados das fotografias** (EXIF: a localização GPS, o aparelho)
+  ficam no ficheiro como vieram: podem ser dados pessoais (`eu-gdpr-privacy`).
+  Tirá-los pede uma biblioteca de imagem; tem de estar feito antes de
+  entrarem imagens reais (que só entram depois da migração para Paris,
+  `docs/06`, CQ). As próprias imagens podem mostrar pessoas (um rosto é um
+  dado pessoal), e isso não se resolve tirando metadados: entra na análise
+  do `eu-gdpr-privacy` antes das imagens reais. O código não impede nada
+  disto: a regra é desta página e da CQ.
+- **Um ficheiro que deixa de estar ligado a qualquer artigo fica no disco e
+  conta para o espaço:** o espaço só volta com a limpeza dos órfãos, que
+  entra depois. Até lá, um comerciante que chegue ao limite não envia mais
+  nada. Um ficheiro gravado sem registo só fica se o COMMIT falhar depois da
+  gravação; esse não conta para o espaço. A limpeza e os metadados (abaixo) estão no
+  issue #179, com prazo: antes da primeira imagem real, e o mais tardar a
+  31/03/2027 (ADR-0019).
+- **Na VPS do ensaio (Reino Unido, ADR-0018) só entram imagens de teste,
+  sem dados pessoais** (ADR-0019; `docs/06`, CQ): o código guarda os bytes
+  como chegam, com os metadados.
+- Quem enviou ou ligou a imagem não fica registado (C7), como nas categorias.
+- Sem dimensões nem miniaturas: a montra recebe a imagem como foi enviada.
+
 ### 3.6 Categoria (`cat_`)
 
 Árvore de navegação: `pai_id`, `nome` e `endereco_amigavel` traduzíveis,
@@ -990,7 +1061,8 @@ as rotas seguintes.
 | Procurar por SKU ou GTIN | `GET /variants?sku=…` · `GET /variants?gtin=…` | read | |
 | Opções | `POST /products/{id}/options`, `PATCH /options/{id}`, valores idem | write | |
 | Composição do kit | `PUT /variants/{id}/components` | write | substitui a lista inteira; recusa ciclos |
-| Carregar media | `POST /media/uploads` → `POST /products/{id}/media` | write | endereço de envio assinado e depois a ligação ao artigo |
+| Carregar media | `POST /media/uploads` → `POST /products/{id}/media` | write | os bytes vão à API (sem endereço assinado enquanto os ficheiros estão no disco da VPS, CQ) e depois a ligação ao artigo |
+| Ler media | `GET /products/{id}/media`, `GET /media/{id}`, `GET /media/{id}/file` | read | a lista, uma, e os bytes |
 | Alterar ou tirar media | `PATCH /media/{id}`, `DELETE /media/{id}` | write | texto alternativo, posição, principal |
 | Categorias | `GET /categories`, `GET /categories/{id}`, `POST /categories`, `PATCH /categories/{id}`, `POST /categories/{id}/move`, `/archive`, `/restore` | read / write | recusa ciclos |
 | Categorias de um artigo | `GET`, `PUT /products/{id}/categories` | read / write | com a versão do artigo |
