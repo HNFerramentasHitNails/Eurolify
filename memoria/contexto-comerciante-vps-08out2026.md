@@ -18,6 +18,10 @@
   `comerciante_escreve` e `pessoa_eu`; `test/base-de-teste.ts` cria a base
   com um dono como o da VPS.
 
+- Verificado na VPS, depois do #168 (publicado às 10:28, `migrar: aplicadas 0027`):
+  o convite foi aceite e o `/hub/me` mostrou a «Loja de Ensaio» (10:36,
+  captura do Diogo).
+
 ## Números (com data e como se contaram)
 
 - 08/10/2026, `vitest run` da API com a base de teste com dono como o da
@@ -35,10 +39,8 @@
 
 ## O que ficou por verificar
 
-- Na VPS, depois do #168 (publicado às 10:28, `migrar: aplicadas 0027`):
-  o convite foi aceite e o `/hub/me` mostrou a «Loja de Ensaio» (10:36,
-  captura do Diogo). Verificado. O resto do Hub na VPS (equipa, convites
-  pelo Hub, chaves) não foi exercitado.
+- O resto do Hub na VPS (equipa, convites pelo Hub, chaves) não foi
+  exercitado.
 - Depois de uma chamada sem contexto antes, a sessão fica com
   `eurolify.comerciante` vazio (não ausente): leituras protegidas falham com
   22P02 em vez de 42704. Coberto por teste; nenhum código conhecido distingue

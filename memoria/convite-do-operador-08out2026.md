@@ -52,7 +52,11 @@ operador»*). Desenho no `docs/19` §6.0.
   - 10:32 e 10:34: dois pedidos recusados à entrada da VPS, sem escrever:
     o comerciante com «;» no fim e a acção deixada em «comerciante» sem
     nome. Daí o fluxo passar a conferir os campos de cada acção e dizer o
-    que falta (pedido seguinte; `infra/vps/testes/fluxo-operar.sh`, 22 ok).
+    que falta (#172; `infra/vps/testes/fluxo-operar.sh`, 32 ok; sem a
+    verificação do comerciante falham 2, sem o filtro de segredos 3).
+  - O GitHub mostra no registo de cada execução o bloco `env:` com todas as
+    entradas, sem esconder nada (execução das 10:36): um segredo colado
+    num campo fica lá; as mensagens mandam apagar a execução.
   - 10:36: convite criado, `inv_01a11b16-52c7-7316-b46c-2da6b7ab9fe8`, com
     cópia da base antes.
   - O Diogo aceitou-o e entrou no Hub com uma passkey: «Entrou como Dono

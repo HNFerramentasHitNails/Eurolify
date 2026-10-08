@@ -77,7 +77,10 @@ jobs:
       - name: Montar o pedido
         id: pedido
         # As entradas vão por variáveis de ambiente, nunca escritas no script
-        # (sem injecção). A VPS valida outra vez.
+        # (sem injecção). A VPS valida outra vez. O GitHub mostra o bloco env
+        # no registo da execução, sem esconder nada (medido a 08/10/2026):
+        # um segredo colado num campo fica lá, e a execução tem de ser
+        # apagada (revisão do #172, P2-2).
         env:
           ACCAO: ${{ inputs.accao }}
           NOME: ${{ inputs.nome }}
@@ -94,15 +97,15 @@ jobs:
           # (revisão do #110, P2-4 e P3-4).
           for valor in "$ACCAO" "$NOME" "$LINGUA" "$FUSO" "$COMERCIANTE" "$AMBITOS" "$PREFIXO" "$RESUMO" "$EMAIL"; do
             if [[ "$valor" =~ eul_(sk|pk)_[a-z2-7]{6,} ]]; then
-              echo "Uma das entradas tem um SEGREDO de chave: não uses esse segredo; gera outro com o gerar-chave.mjs." >&2
+              echo "Uma das entradas tem um SEGREDO de chave: APAGA esta execução do fluxo no GitHub (as entradas ficam no registo dela) e gera outra chave com o gerar-chave.mjs; esta não se usa." >&2
               exit 1
             fi
             if [[ "$valor" == *euc_* ]]; then
-              echo "Uma das entradas tem o SEGREDO de um convite: não uses essa ligação; gera outra com o gerar-convite.mjs." >&2
+              echo "Uma das entradas tem o SEGREDO de um convite: APAGA esta execução do fluxo no GitHub (as entradas ficam no registo dela) e gera outra ligação com o gerar-convite.mjs; esta não se usa." >&2
               exit 1
             fi
-            if [[ "$valor" == *$'\n'* || "$valor" == *$'\r'* ]]; then
-              echo "Uma das entradas tem quebras de linha: recusado." >&2
+            if [[ "$valor" =~ [[:cntrl:]] ]]; then
+              echo "Uma das entradas tem quebras de linha ou outros caracteres de controlo: recusado." >&2
               exit 1
             fi
           done
@@ -112,11 +115,20 @@ jobs:
           # ir à VPS, que só respondia «pedido recusado» (dois enganos no
           # primeiro ensaio, 08/10/2026). A VPS valida outra vez.
           recusar() { echo "Acção «${ACCAO}»: $*" >&2; exit 1; }
+          # Nunca se repete o valor recebido: só o tamanho (revisão do #172,
+          # P3-3).
+          tem_texto() { [[ "$1" =~ [^[:space:]] ]]; }
+          nome_valido() {
+            tem_texto "$NOME" || recusar "$1"
+            # O lerPedido aceita até 100 caracteres; a VPS, até 200 em base64url.
+            ((${#nome64} <= 200)) && ((${#NOME} <= 100)) ||
+              recusar "o nome tem no máximo 100 caracteres (menos com acentos)."
+          }
           uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
           comerciante_valido() {
             comerciante="${COMERCIANTE#mer_}"
             [[ "$comerciante" =~ $uuid_re ]] ||
-              recusar "o comerciante tem de ser o mer_… devolvido pela acção «comerciante», sem espaços nem outros caracteres (recebido: «${COMERCIANTE}»)."
+              recusar "o comerciante é o mer_… (ou só o uuid) devolvido pela acção «comerciante», sem espaços nem outros caracteres (recebidos ${#COMERCIANTE} caracteres)."
           }
           resumo_valido() {
             [[ "$RESUMO" =~ ^[0-9a-f]{64}$ ]] ||
@@ -125,16 +137,30 @@ jobs:
           echo "Acção: ${ACCAO}."
           case "$ACCAO" in
             comerciante)
-              [[ -n "${NOME// /}" ]] || recusar "falta o nome do comerciante (fictício). Se querias um convite, escolhe «convite» em «O que fazer»."
+              nome_valido "falta o nome do comerciante (fictício). Se querias um convite, escolhe «convite» em «O que fazer»."
               [[ "$LINGUA" =~ ^[a-z]{2}$ ]] || recusar "a língua tem duas letras minúsculas (ex.: pt)."
+              [[ "$FUSO" =~ ^[A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2}$ ]] ||
+                recusar "o fuso horário é um nome IANA (ex.: Europe/Lisbon)."
               pedido="comerciante ${LINGUA} ${FUSO} ${nome64} ${quem}"
               ;;
             chave)
-              [[ -n "${NOME// /}" ]] || recusar "falta o nome da chave."
+              nome_valido "falta o nome da chave."
               comerciante_valido
+              # Os âmbitos de servidor de src/identidade/chaves.ts (sem
+              # storefront); têm de acompanhar essa lista (revisão do #172,
+              # P3-2).
+              ambitos="${AMBITOS// /}"
+              [[ -n "$ambitos" ]] || recusar "faltam os âmbitos."
+              IFS=, read -r -a lista <<<"$ambitos"
+              for ambito in "${lista[@]}"; do
+                case "$ambito" in
+                  merchant:read | merchant:write | catalog:read | catalog:write | catalog:publish | catalog:import | keys:write) ;;
+                  *) recusar "âmbito desconhecido: «${ambito}» (os de servidor: merchant:read, merchant:write, catalog:read, catalog:write, catalog:publish, catalog:import, keys:write)." ;;
+                esac
+              done
               [[ "$PREFIXO" =~ ^eul_sk_[a-z2-7]{5}$ ]] || recusar "o prefixo é o que o gerar-chave.mjs mostra (eul_sk_ e 5 caracteres)."
               resumo_valido gerar-chave.mjs
-              pedido="chave ${comerciante} ${AMBITOS// /} ${PREFIXO} ${RESUMO} ${nome64} ${quem}"
+              pedido="chave ${comerciante} ${ambitos} ${PREFIXO} ${RESUMO} ${nome64} ${quem}"
               ;;
             convite)
               # Só domínios reservados para testes (RFC 2606 e 6761): o
@@ -144,19 +170,15 @@ jobs:
               comerciante_valido
               resumo_valido gerar-convite.mjs
               [[ -n "$EMAIL" ]] || recusar "falta o e-mail fictício do primeiro dono (ex.: dono@loja.test)."
-              if [[ "$EMAIL" =~ [[:space:]] ]]; then
-                echo "O e-mail do convite não pode ter espaços." >&2
-                exit 1
-              fi
+              [[ ! "$EMAIL" =~ [[:space:]] ]] || recusar "o e-mail não pode ter espaços."
               email="${EMAIL,,}"
-              if [[ ! "$email" =~ ^[^@]+@([a-z0-9-]+\.)*([a-z0-9-]+\.(test|example|invalid)|example\.(com|net|org))$ ]]; then
-                echo "O e-mail do convite tem de ser fictício, de um domínio reservado para testes (ex.: dono@loja.test). Se escreveste um endereço REAL, apaga esta execução do fluxo no GitHub: as entradas ficam nela (docs/19 §6.0)." >&2
-                exit 1
-              fi
+              [[ "$email" =~ ^[^@]+@([a-z0-9-]+\.)*([a-z0-9-]+\.(test|example|invalid)|example\.(com|net|org))$ ]] ||
+                recusar "o e-mail tem de ser fictício, de um domínio reservado para testes (ex.: dono@loja.test). Se escreveste um endereço REAL, apaga esta execução do fluxo no GitHub: as entradas ficam nela (docs/19 §6.0)."
               email64="$(printf '%s' "$email" | basenc --base64url -w0 | tr -d '=')"
               pedido="convite ${comerciante} ${email64} dono ${RESUMO} ${quem}"
               echo "Convite para ${email} (fictício), papel dono."
               ;;
+            *) recusar "acção desconhecida." ;;
           esac
           fim="FIM_$(openssl rand -hex 16)"
           {

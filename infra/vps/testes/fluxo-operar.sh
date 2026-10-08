@@ -66,11 +66,11 @@ if montar chave "" "eul_sk_abcdefghij"; then falhou "aceitou um segredo de chave
 
 # Cada acção confere os campos dela e diz o que falta (os dois enganos do
 # primeiro ensaio, 08/10/2026).
-correr() { # correr <ACCAO> <NOME> <COMERCIANTE> <RESUMO> <EMAIL> [PREFIXO] — saída em $pasta/erro
+correr() { # correr <ACCAO> <NOME> <COMERCIANTE> <RESUMO> <EMAIL> [PREFIXO] [AMBITOS] [FUSO] — saída em $pasta/erro
   : >"$pasta/saida"
   env -i PATH="$pasta:$PATH" GITHUB_OUTPUT="$pasta/saida" GITHUB_ACTOR_ID=1001 \
-    ACCAO="$1" NOME="$2" LINGUA=pt FUSO=Europe/Lisbon COMERCIANTE="$3" \
-    AMBITOS="catalog:read" PREFIXO="${6:-eul_sk_abcde}" RESUMO="$4" EMAIL="$5" \
+    ACCAO="$1" NOME="$2" LINGUA=pt FUSO="${8:-Europe/Lisbon}" COMERCIANTE="$3" \
+    AMBITOS="${7:-catalog:read}" PREFIXO="${6:-eul_sk_abcde}" RESUMO="$4" EMAIL="$5" \
     bash "$pasta/montar.sh" >/dev/null 2>"$pasta/erro"
 }
 recusa_com() { # recusa_com <descrição> <texto esperado na mensagem> <argumentos do correr…>
@@ -84,12 +84,24 @@ recusa_com() { # recusa_com <descrição> <texto esperado na mensagem> <argument
   fi
 }
 recusa_com "comerciante sem nome (a acção ficou em «comerciante»)" "falta o nome do comerciante" comerciante "" "" "" ""
-recusa_com "convite com «;» no fim do comerciante" "o comerciante tem de ser o mer_" convite "" "mer_$uuid;" "$resumo" dono@loja.test
-recusa_com "convite sem comerciante" "o comerciante tem de ser o mer_" convite "" "" "$resumo" dono@loja.test
+recusa_com "convite com «;» no fim do comerciante" "o comerciante é o mer_" convite "" "mer_$uuid;" "$resumo" dono@loja.test
+recusa_com "convite sem comerciante" "o comerciante é o mer_" convite "" "" "$resumo" dono@loja.test
 recusa_com "convite com o resumo cortado" "o resumo tem de ser" convite "" "mer_$uuid" "${resumo:0:60}" dono@loja.test
 recusa_com "convite sem e-mail" "falta o e-mail" convite "" "mer_$uuid" "$resumo" ""
 recusa_com "chave sem nome" "falta o nome da chave" chave "" "mer_$uuid" "$resumo" ""
 recusa_com "chave com o prefixo errado" "o prefixo" chave "Gestão" "mer_$uuid" "$resumo" "" eul_pk_abcde
+# Os segredos em campos que de outro modo passariam, com o resto válido
+# (revisão do #172, P2-1): sem o filtro, estes casos eram aceites.
+recusa_com "segredo de chave no nome de uma chave completa" "SEGREDO de chave" chave "eul_sk_abcdefghij" "mer_$uuid" "$resumo" ""
+recusa_com "segredo de convite no e-mail de um convite completo" "SEGREDO de um convite" convite "" "mer_$uuid" "$resumo" "euc_x@loja.test"
+recusa_com "segredo no comerciante" "SEGREDO de chave" convite "" "eul_sk_abcdefghij" "$resumo" dono@loja.test
+if grep -qF eul_sk_abcdefghij "$pasta/erro"; then falhou "o segredo foi repetido na mensagem"; else echo "ok: o segredo não é repetido na mensagem"; fi
+recusa_com "comerciante só com espaços no nome" "falta o nome do comerciante" comerciante "   " "" "" ""
+recusa_com "nome com tabulação" "caracteres de controlo" comerciante "$(printf 'Loja\tA')" "" "" ""
+recusa_com "nome com mais de 100 caracteres" "no máximo 100" comerciante "$(printf 'a%.0s' {1..101})" "" "" ""
+recusa_com "âmbito desconhecido" "âmbito desconhecido" chave "Gestão" "mer_$uuid" "$resumo" "" eul_sk_abcde "catalog:raed"
+recusa_com "âmbito storefront numa chave de servidor" "âmbito desconhecido" chave "Gestão" "mer_$uuid" "$resumo" "" eul_sk_abcde "storefront"
+recusa_com "fuso com «;»" "fuso horário" comerciante "Loja" "" "" "" "" "" "Europe/Lisbon;rm"
 if correr comerciante "Loja de Ensaio" "" "" "" && grep -q "^comerciante pt Europe/Lisbon " "$pasta/saida"; then
   echo "ok: aceita um comerciante com nome"
 else
