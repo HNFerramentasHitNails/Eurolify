@@ -160,10 +160,19 @@ const servidor = createServer(
           port: PORTA_API,
           path: pedido.url,
           method: pedido.method,
-          headers: {
-            ...pedido.headers,
-            "x-forwarded-for": pedido.socket.remoteAddress ?? "",
-          },
+          // Cada navegador da passagem é uma pessoa diferente, com o seu
+          // endereço (x-ip-de-teste): com todos no mesmo, o limite de 20
+          // pedidos por minuto das rotas públicas apanhava-os juntos.
+          headers: (() => {
+            const { "x-ip-de-teste": ipDeTeste, ...resto } = pedido.headers;
+            return {
+              ...resto,
+              "x-forwarded-for":
+                typeof ipDeTeste === "string"
+                  ? ipDeTeste
+                  : (pedido.socket.remoteAddress ?? ""),
+            };
+          })(),
         },
         (r) => {
           resposta.writeHead(r.statusCode ?? 502, r.headers);
@@ -211,15 +220,84 @@ const navegador = await chromium.launch({
 });
 const falhas = [];
 const passos = [];
+/**
+ * Confere, na árvore de acessibilidade do Chromium (CDP), que cada table,
+ * tr, th e td tem o papel de tabela e que o nome de cada célula só com
+ * texto acaba nesse texto (nos cartões, o rótulo visível vem antes: «Papel
+ * Armazém»). Devolve as diferenças, ou null se o ecrã não tem tabelas.
+ */
+async function papeisDasTabelas(contexto, pagina) {
+  const esperado = {
+    TABLE: "table",
+    TR: "row",
+    TH: "columnheader",
+    TD: "cell",
+  };
+  const cdp = await contexto.newCDPSession(pagina);
+  try {
+    await cdp.send("DOM.enable");
+    await cdp.send("Accessibility.enable");
+    const { root } = await cdp.send("DOM.getDocument", { depth: 0 });
+    const { nodeIds } = await cdp.send("DOM.querySelectorAll", {
+      nodeId: root.nodeId,
+      selector: "table, tr, th, td",
+    });
+    if (nodeIds.length === 0) return null;
+    const falhas = [];
+    for (const nodeId of nodeIds) {
+      const { node } = await cdp.send("DOM.describeNode", { nodeId });
+      const { nodes } = await cdp.send("Accessibility.getPartialAXTree", {
+        backendNodeId: node.backendNodeId,
+        fetchRelatives: false,
+      });
+      const ax = nodes.find((n) => n.backendDOMNodeId === node.backendNodeId);
+      const papel = String(ax?.role?.value ?? "nenhum").toLowerCase();
+      const etiqueta = node.nodeName.toUpperCase();
+      if (papel !== esperado[etiqueta]) {
+        falhas.push(`${etiqueta.toLowerCase()} com o papel ${papel}`);
+        continue;
+      }
+      if (etiqueta === "TD") {
+        const { object } = await cdp.send("DOM.resolveNode", { nodeId });
+        const { result } = await cdp.send("Runtime.callFunctionOn", {
+          objectId: object.objectId,
+          functionDeclaration:
+            "function () { return this.children.length === 0 && this.hasAttribute('data-rotulo') ? (this.textContent || '').replace(/\\s+/g, ' ').trim() : null; }",
+          returnByValue: true,
+        });
+        const texto = result.value;
+        const nomeAx = String(ax?.name?.value ?? "")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (
+          typeof texto === "string" &&
+          texto !== "" &&
+          !nomeAx.endsWith(texto)
+        ) {
+          falhas.push(`célula «${texto}» com o nome «${nomeAx}»`);
+        }
+      }
+    }
+    return falhas;
+  } finally {
+    await cdp.detach();
+  }
+}
+
 const confere = (condicao, texto) => {
   passos.push(`${condicao ? "ok " : "FALHOU"} ${texto}`);
   if (!condicao) falhas.push(texto);
 };
 
+let proximoIp = 0;
 try {
   /** Um navegador novo com uma passkey em software. */
   async function comPasskey() {
-    const c = await navegador.newContext({ ignoreHTTPSErrors: true });
+    proximoIp += 1;
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      extraHTTPHeaders: { "x-ip-de-teste": `10.9.0.${String(proximoIp)}` },
+    });
     const p = await c.newPage();
     const cdp = await c.newCDPSession(p);
     await cdp.send("WebAuthn.enable");
@@ -295,7 +373,7 @@ try {
 
   // Convidar pede autenticação recente? Acabou de criar a conta: não.
   await pagina.getByLabel("E-mail do convidado").fill("eva@exemplo.test");
-  await pagina.getByLabel("Papel").selectOption("apoio");
+  await pagina.getByLabel("Papel", { exact: true }).selectOption("apoio");
   await pagina.getByRole("button", { name: "Criar o convite" }).click();
   await pagina.getByText("Ligação do convite").waitFor();
   const ligacao = await pagina.locator(".segredo").textContent();
@@ -309,7 +387,7 @@ try {
   });
 
   // Sair e entrar outra vez com a mesma passkey.
-  await pagina.getByRole("button", { name: "Sair" }).click();
+  await pagina.getByRole("button", { name: "Sair", exact: true }).click();
   await pagina.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
   await pagina.getByRole("button", { name: "Entrar com passkey" }).click();
   await pagina.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
@@ -335,7 +413,7 @@ try {
   const antes = pedidosVistos.length;
   await pagina.goto(equipa);
   await pagina.getByLabel("E-mail do convidado").fill("ze@exemplo.test");
-  await pagina.getByLabel("Papel").selectOption("armazem");
+  await pagina.getByLabel("Papel", { exact: true }).selectOption("armazem");
   await pagina.getByRole("button", { name: "Criar o convite" }).click();
   await pagina.getByText("Ligação do convite").waitFor();
   confere(
@@ -356,7 +434,7 @@ try {
   });
   await pagina.goto(equipa);
   await pagina.getByLabel("E-mail do convidado").fill("lia@exemplo.test");
-  await pagina.getByLabel("Papel").selectOption("apoio");
+  await pagina.getByLabel("Papel", { exact: true }).selectOption("apoio");
   await pagina.getByRole("button", { name: "Criar o convite" }).click();
   await pagina.waitForTimeout(1500);
   const vermelho = await pagina.locator(".erro").count();
@@ -434,7 +512,7 @@ try {
     state: "attached",
   });
   const opcoes = await gestor.pagina
-    .getByLabel("Papel")
+    .getByLabel("Papel", { exact: true })
     .locator("option")
     .allTextContents();
   confere(
@@ -465,6 +543,12 @@ try {
   await gestor.pagina.goto(`${ORIGEM}/chaves?comerciante=mer_${comerciante}`);
   await gestor.pagina.getByText("Não tem permissão para isto.").waitFor();
   confere(true, "chaves: o gestor que abre a página recebe a recusa da API");
+  // A passkey do Gil guarda-se: mais à frente aceita outro convite com a
+  // conta que já tem (docs/22 §10).
+  const { credentials: credenciaisDoGil } = await gestor.cdp.send(
+    "WebAuthn.getCredentials",
+    { authenticatorId: gestor.autenticador },
+  );
   await gestor.contexto.close();
   const apoio = await comPasskey();
   await aceitar(apoio.pagina, conviteApoio, "Ivo Teste");
@@ -850,7 +934,7 @@ try {
   );
 
   // Sair e entrar com e-mail, palavra-passe e o código seguinte.
-  await rp.getByRole("button", { name: "Sair" }).click();
+  await rp.getByRole("button", { name: "Sair", exact: true }).click();
   await rp.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
   await rp.getByRole("link", { name: "Entrar com palavra-passe" }).click();
   await rp.getByLabel("E-mail").fill("ana@exemplo.test");
@@ -894,6 +978,103 @@ try {
     ),
     "nenhum pedido levou o segredo do autenticador nem a palavra-passe no endereço",
   );
+
+  // A gestão da equipa (docs/22 §10), com a Ana (dona).
+  await rp.goto(equipa);
+  // Procura-se a linha (papel ARIA row) pelo nome do membro.
+  await rp.getByRole("row", { name: /Gil Teste/ }).waitFor();
+  confere(
+    (await rp.getByLabel("Papel de Ana Teste").count()) === 0 &&
+      (await rp.getByRole("button", { name: "Sair desta equipa" }).count()) ===
+        1,
+    "equipa: a dona não muda o próprio papel; tem «Sair desta equipa»",
+  );
+  await rp.getByLabel("Papel de Ivo Teste").selectOption("armazem");
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Mudar: Ivo Teste" }).click();
+  await rp.getByText("O papel de Ivo Teste passou a Armazém.").waitFor();
+  confere(
+    (await rp.getByLabel("Papel de Ivo Teste").inputValue()) === "armazem",
+    "equipa: mudar o papel de um membro",
+  );
+  // A última dona não sai: o botão está desligado e o ecrã diz porquê
+  // (revisão do #188, P3-4).
+  confere(
+    (await rp
+      .getByRole("button", { name: "Sair desta equipa" })
+      .isDisabled()) &&
+      (await rp.getByText("É o último dono", { exact: false }).count()) === 1,
+    "equipa: a última dona não sai, e o ecrã explica",
+  );
+  confere(
+    (await rp.getByText("rita@exemplo.test").count()) === 1,
+    "equipa: o convite que o Gil criou está em aberto antes de ele sair",
+  );
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Tirar da equipa: Gil Teste" }).click();
+  await rp.getByText("Gil Teste foi tirado da equipa.").waitFor();
+  confere(
+    (await rp.getByRole("row", { name: /Gil Teste/ }).count()) === 0,
+    "equipa: tirar um membro da equipa",
+  );
+  // O que o texto de confirmação promete: o convite em aberto que o Gil
+  // criou fica cancelado (revisão do #188, P2-5).
+  confere(
+    (await rp.getByText("rita@exemplo.test").count()) === 0,
+    "equipa: ao tirar o Gil, o convite em aberto que ele criou é cancelado",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "equipa-gestao-375-claro.png"),
+    fullPage: true,
+  });
+
+  // O Gil, que já tem conta, aceita um convite novo com ela.
+  const conviteDoGil = convidar("gil@exemplo.test", "apoio");
+  const conviteDeOutro = convidar("eva2@exemplo.test", "apoio");
+  const gil = await comPasskey();
+  for (const credencial of credenciaisDoGil) {
+    await gil.cdp.send("WebAuthn.addCredential", {
+      authenticatorId: gil.autenticador,
+      credential: credencial,
+    });
+  }
+  await gil.pagina.goto(`${ORIGEM}/convite#${conviteDoGil}`);
+  await gil.pagina.getByLabel("O seu nome").fill("Gil Teste");
+  await gil.pagina
+    .getByRole("button", { name: "Criar a conta com uma passkey" })
+    .click();
+  await gil.pagina
+    .getByText("Este e-mail já tem conta.", { exact: false })
+    .waitFor();
+  await gil.pagina
+    .getByRole("button", { name: "Entrar com passkey e aceitar" })
+    .click();
+  await gil.pagina
+    .getByRole("heading", { name: "Os seus comerciantes" })
+    .waitFor();
+  await gil.pagina.getByText("Loja de Ensaio").waitFor();
+  confere(
+    (await gil.pagina.getByText("Apoio", { exact: true }).count()) === 1,
+    "convite: quem já tem conta entra e aceita (volta como Apoio)",
+  );
+  // Com a sessão do Gil, um convite para outro e-mail: recusa e sair ali.
+  await gil.pagina.goto(`${ORIGEM}/convite#${conviteDeOutro}`);
+  await gil.pagina
+    .getByText("Entrou como Gil Teste", { exact: false })
+    .waitFor();
+  await gil.pagina
+    .getByRole("button", { name: "Aceitar com esta conta" })
+    .click();
+  await gil.pagina
+    .getByText("Este convite é para outro e-mail.", { exact: false })
+    .waitFor();
+  await gil.pagina.getByRole("button", { name: "Sair", exact: true }).click();
+  await gil.pagina.getByLabel("O seu nome").waitFor();
+  confere(
+    true,
+    "convite: com a sessão de outra pessoa, recusa e sair ali mesmo",
+  );
+  await gil.contexto.close();
 
   // B3c — as chaves de API (docs/22 §9.3), com a Ana (dona).
   const pedidosChaves = [];
@@ -1058,6 +1239,18 @@ try {
           !largo,
           `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
         );
+        // As tabelas continuam tabelas para os leitores de ecrã, também
+        // quando passam a cartões (display: block), e cada célula diz o seu
+        // valor. Mede-se a árvore de acessibilidade do próprio Chromium: o
+        // getByRole do Playwright calcula o papel pela etiqueta e não vê o
+        // efeito do CSS (revisão do #192, P2-1).
+        const falhasTabela = await papeisDasTabelas(c, p);
+        if (falhasTabela !== null) {
+          confere(
+            falhasTabela.length === 0,
+            `${nome} ${String(largura)} ${tema}: as tabelas são tabelas para os leitores de ecrã${falhasTabela.length === 0 ? "" : ` (${falhasTabela.slice(0, 3).join("; ")})`}`,
+          );
+        }
         await p.screenshot({
           path: join(
             SAIDA,

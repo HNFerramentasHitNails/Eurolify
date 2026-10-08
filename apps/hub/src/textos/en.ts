@@ -27,7 +27,7 @@ export const en: Textos = {
   conviteSemSegredo:
     "This link has no invitation. Open the full link you received.",
   conviteContaExiste:
-    "This email already has an account. Accepting an invitation with an existing account is not yet possible on this screen; talk to whoever invited you.",
+    "This e-mail already has an account. Sign in with it to accept the invitation.",
 
   codigosTitulo: "Your recovery codes",
   codigosExplicacao:
@@ -283,4 +283,35 @@ export const en: Textos = {
     "This merchant is suspended or closed: it cannot create keys, but it can revoke them.",
   erroChaveAmbitosAMais:
     "You cannot give a key scopes your role does not have.",
+
+  // Team management (docs/22 §10).
+  papelMudar: "Change",
+  papelMudarRotulo: "Role of {nome}",
+  papelMudarConfirmar:
+    "Change {nome}'s role to {papel}? The open invitations and server keys they created that the new role no longer allows are cancelled and revoked, along with keys created from them: the integrations that use them stop working.",
+  papelMudado: "{nome}'s role is now {papel}.",
+  membroTirar: "Remove from the team",
+  membroTirarConfirmar:
+    "{nome} will no longer sign in to this merchant. The open invitations they created here are cancelled and the server keys they created (and those created from them) are revoked: the integrations that use them stop working. The store's public keys stay. Continue?",
+  membroTirado: "{nome} was removed from the team.",
+  membroSair: "Leave this team",
+  membroSairConfirmar:
+    "Leave this team? You will no longer sign in to this merchant. The open invitations you created here are cancelled and the server keys you created (and those created from them) are revoked: the integrations that use them stop working. The store's public keys stay.",
+  membroUltimoDono:
+    "You are the last owner: to leave, appoint another owner first.",
+  conviteJaTemConta:
+    "Already have an account (passkey or password)? Sign in to the Hub first and open this link again.",
+  erroUltimoDono: "This is the last owner: appoint another owner first.",
+  erroProprioPapel: "Nobody can change their own role.",
+  erroMembroNaoExiste: "This member is no longer in the team.",
+  erroConviteOutraPessoa:
+    "This invitation is for another e-mail. Sign out and sign in with that e-mail's account.",
+  erroJaMembro: "You are already a member of this merchant.",
+  conviteEntrarEAceitar: "Sign in with a passkey and accept",
+  conviteSoPalavraPasse:
+    "If you sign in with a password, sign in to the Hub first and open the invitation link again.",
+  conviteComSessao: "Signed in as {nome} ({email}).",
+  conviteAceitarComConta: "Accept with this account",
+  conviteOutraConta:
+    "If the invitation is for another e-mail, sign out first and open the link again.",
 };

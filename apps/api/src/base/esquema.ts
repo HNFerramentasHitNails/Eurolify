@@ -390,6 +390,24 @@ export interface TabelaMedia {
   versao: ColumnType<number, never, never>;
 }
 
+// As exportações (migração 0030; docs/14 §3.11; docs/06, CS). A linha só
+// nasce com o ZIP feito; a API não a muda nem apaga.
+export const DOMINIOS_EXPORTAVEIS = ["catalogo"] as const;
+export type DominioExportavel = (typeof DOMINIOS_EXPORTAVEIS)[number];
+export const FORMATO_DO_CATALOGO = "eurolify.catalogo/1";
+
+export interface TabelaExportacao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  dominios: ColumnType<DominioExportavel[], DominioExportavel[], never>;
+  estado: ColumnType<"pronta", never, never>;
+  formato: ColumnType<string, string, never>;
+  bytes: ColumnType<string, number, never>;
+  resumo: ColumnType<string, string, never>;
+  criada_em: ColumnType<Date, never, never>;
+  expira_em: ColumnType<Date, never, never>;
+}
+
 // Catálogo, parte 3b (migração 0009; docs/14 §3.8 e §4.3).
 export const ORIGENS_TRADUCAO = ["pessoa", "ia"] as const;
 export type OrigemTraducao = (typeof ORIGENS_TRADUCAO)[number];
@@ -568,6 +586,7 @@ export interface BaseDados {
   colecao_artigo: TabelaColecaoArtigo;
   ficheiro: TabelaFicheiro;
   media: TabelaMedia;
+  exportacao: TabelaExportacao;
   traducao: TabelaTraducao;
   texto_original: VistaTextoOriginal;
   mercado: TabelaMercado;
