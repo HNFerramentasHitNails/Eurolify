@@ -639,8 +639,14 @@ passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub
 # Sem um número válido de um dos lados, não se compara (revisão do #116, P3-1).
 # Em nanossegundos, como o eurolify-publicar (revisão do #162, P3-E).
 configuracao_mais_recente_que_a_api() {
-  local criado ficheiro mudado
+  local criado ficheiro mudado montagens
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
+  # A API no ar sem a pasta das imagens (criada antes do #178) também se
+  # recria, como no eurolify-publicar: sem isto, a pasta só chegava na
+  # publicação seguinte (o que aconteceu ao aplicar o #178, 08/10/2026). Um
+  # inspect que falha não recria.
+  montagens="$(docker inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' eurolify-api 2>/dev/null)" || return 1
+  [[ " $montagens " == *" /media "* ]] || return 0
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
   for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env; do
@@ -662,13 +668,17 @@ if [[ -z "$imagem_api" ]]; then
   ok "sem contentor eurolify-api: a primeira publicação já o cria com a ligação"
 elif ((API_ENV_RENOVADO || TOTP_GERADA)) || configuracao_mais_recente_que_a_api; then
   resumo_api="${imagem_api##*@}"
-  if [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  # O eurolify-publicar só recria a imagem do IMAGEM_REPO desta máquina: com
+  # outro repositório, dizia «não recrio» e saía bem (revisão do #180, P3-1).
+  if [[ -n "$imagem_api" && "${imagem_api%@*}" != "$IMAGEM_REPO" ]]; then
+    aviso "o eurolify-api corre $imagem_api, de outro repositório que não $IMAGEM_REPO: não o recrio (a próxima publicação recria-o)"
+  elif [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
     fazer "recriar o contentor eurolify-api ($resumo_api) para ler a configuração" recriar_api "$resumo_api"
   else
     aviso "o eurolify-api corre $imagem_api, sem resumo: não o recrio (a próxima publicação recria-o)"
   fi
 else
-  ok "o eurolify-api foi criado depois da última mudança da sua configuração"
+  ok "o eurolify-api foi criado depois da última mudança da sua configuração (e, se as montagens se leram, tem a pasta das imagens)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -942,7 +952,11 @@ fi
 if ((hub_env_mudou && !MOSTRAR)); then
   imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
   resumo_api="${imagem_api##*@}"
-  if [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  # O eurolify-publicar só recria a imagem do IMAGEM_REPO desta máquina: com
+  # outro repositório, dizia «não recrio» e saía bem (revisão do #180, P3-1).
+  if [[ -n "$imagem_api" && "${imagem_api%@*}" != "$IMAGEM_REPO" ]]; then
+    aviso "o eurolify-api corre $imagem_api, de outro repositório que não $IMAGEM_REPO: não o recrio (a próxima publicação recria-o)"
+  elif [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
     fazer "recriar o contentor eurolify-api ($resumo_api) com a configuração do Hub" recriar_api "$resumo_api"
   else
     ok "sem contentor eurolify-api com resumo: a próxima publicação já lê a configuração do Hub"
