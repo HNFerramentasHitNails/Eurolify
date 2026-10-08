@@ -224,35 +224,53 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
                 : preencher(t.chavesContagem, { n: dados.chaves.length })}
           </p>
           {dados.chaves.length === 0 ? null : (
-            <table className="tabela-larga">
-              <thead>
-                <tr>
-                  <th scope="col">{t.colunaNome}</th>
-                  <th scope="col">{t.colunaTipo}</th>
-                  <th scope="col">{t.colunaAmbitos}</th>
-                  <th scope="col">{t.colunaPrefixo}</th>
-                  <th scope="col">{t.colunaCriadaPor}</th>
-                  <th scope="col">{t.colunaExpira}</th>
-                  <th scope="col">{t.colunaEstado}</th>
-                  <th scope="col">
+            <table role="table" className="tabela-larga">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">
+                    {t.colunaNome}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {t.colunaTipo}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {t.colunaAmbitos}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {t.colunaPrefixo}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {t.colunaCriadaPor}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {t.colunaExpira}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {t.colunaEstado}
+                  </th>
+                  <th scope="col" role="columnheader">
                     <span className="so-leitores">{t.colunaAccoes}</span>
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {dados.chaves.map((c) => {
                   const estado = estadoDaChave(c, agora);
                   return (
-                    <tr key={c.id}>
-                      <td data-rotulo={t.colunaNome}>{c.nome}</td>
-                      <td data-rotulo={t.colunaTipo}>{t[`tipo_${c.tipo}`]}</td>
-                      <td data-rotulo={t.colunaAmbitos}>
+                    <tr role="row" key={c.id}>
+                      <td role="cell" data-rotulo={t.colunaNome}>
+                        {c.nome}
+                      </td>
+                      <td role="cell" data-rotulo={t.colunaTipo}>
+                        {t[`tipo_${c.tipo}`]}
+                      </td>
+                      <td role="cell" data-rotulo={t.colunaAmbitos}>
                         {c.ambitos.map((a) => rotuloDoAmbito(t, a)).join(", ")}
                       </td>
-                      <td data-rotulo={t.colunaPrefixo}>
+                      <td role="cell" data-rotulo={t.colunaPrefixo}>
                         <code>{c.prefixo}…</code>
                       </td>
-                      <td data-rotulo={t.colunaCriadaPor}>
+                      <td role="cell" data-rotulo={t.colunaCriadaPor}>
                         <span>
                           {textoDoAutor(
                             autorDe(
@@ -266,10 +284,10 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
                         <br />
                         <span className="secundario">{data(c.criada_em)}</span>
                       </td>
-                      <td data-rotulo={t.colunaExpira}>
+                      <td role="cell" data-rotulo={t.colunaExpira}>
                         {c.expira_em === null ? t.semPrazo : data(c.expira_em)}
                       </td>
-                      <td data-rotulo={t.colunaEstado}>
+                      <td role="cell" data-rotulo={t.colunaEstado}>
                         {estado.estado === "activa"
                           ? t.estadoActiva
                           : preencher(
@@ -279,7 +297,7 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
                               { data: data(estado.em) },
                             )}
                       </td>
-                      <td>
+                      <td role="cell">
                         {estado.estado === "activa" ? (
                           <button
                             type="button"

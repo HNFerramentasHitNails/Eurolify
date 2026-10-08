@@ -917,9 +917,9 @@ try {
 
   // A gestão da equipa (docs/22 §10), com a Ana (dona).
   await rp.goto(equipa);
-  // A 375px a tabela passa a cartões (display: block) e o Chromium deixa de
-  // lhe dar o papel de tabela: procura-se o elemento da linha.
-  await rp.locator("tr", { hasText: "Gil Teste" }).waitFor();
+  // A 375px a tabela passa a cartões, mas continua tabela (os papéis estão
+  // escritos no ecrã): procura-se a linha pelo papel.
+  await rp.getByRole("row", { name: /Gil Teste/ }).waitFor();
   confere(
     (await rp.getByLabel("Papel de Ana Teste").count()) === 0 &&
       (await rp.getByRole("button", { name: "Sair desta equipa" }).count()) ===
@@ -951,7 +951,7 @@ try {
   await rp.getByRole("button", { name: "Tirar da equipa: Gil Teste" }).click();
   await rp.getByText("Gil Teste foi tirado da equipa.").waitFor();
   confere(
-    (await rp.locator("tr", { hasText: "Gil Teste" }).count()) === 0,
+    (await rp.getByRole("row", { name: /Gil Teste/ }).count()) === 0,
     "equipa: tirar um membro da equipa",
   );
   // O que o texto de confirmação promete: o convite em aberto que o Gil
@@ -1176,6 +1176,39 @@ try {
           !largo,
           `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
         );
+        // As tabelas continuam tabelas para os leitores de ecrã, também
+        // quando passam a cartões (display: block), e o rótulo visível de
+        // cada cartão não entra no nome da célula.
+        const tabelas = await p.locator("table").count();
+        if (tabelas > 0) {
+          const celulas = await p.locator("td").count();
+          const cabecalhos = await p.locator("th").count();
+          const simples = await p
+            .locator("td[data-rotulo]")
+            .evaluateAll((tds) =>
+              tds
+                .filter((td) => td.children.length === 0)
+                .map((td) => (td.textContent ?? "").trim())
+                .filter((x) => x !== ""),
+            );
+          let nomes = true;
+          for (const texto of simples) {
+            if (
+              (await p
+                .getByRole("cell", { name: texto, exact: true })
+                .count()) === 0
+            ) {
+              nomes = false;
+            }
+          }
+          confere(
+            (await p.getByRole("table").count()) === tabelas &&
+              (await p.getByRole("columnheader").count()) === cabecalhos &&
+              (await p.getByRole("cell").count()) === celulas &&
+              nomes,
+            `${nome} ${String(largura)} ${tema}: as tabelas são tabelas para os leitores de ecrã`,
+          );
+        }
         await p.screenshot({
           path: join(
             SAIDA,

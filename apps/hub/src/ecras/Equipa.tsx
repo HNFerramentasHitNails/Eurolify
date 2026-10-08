@@ -264,27 +264,39 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
               ? t.equipaContagemUm
               : preencher(t.equipaContagem, { n: dados.membros.length })}
           </p>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">{t.colunaNome}</th>
-                <th scope="col">{t.colunaEmail}</th>
-                <th scope="col">{t.colunaPapel}</th>
-                <th scope="col">{t.colunaDesde}</th>
-                <th scope="col">
+          <table role="table">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader">
+                  {t.colunaNome}
+                </th>
+                <th scope="col" role="columnheader">
+                  {t.colunaEmail}
+                </th>
+                <th scope="col" role="columnheader">
+                  {t.colunaPapel}
+                </th>
+                <th scope="col" role="columnheader">
+                  {t.colunaDesde}
+                </th>
+                <th scope="col" role="columnheader">
                   <span className="so-leitores">{t.colunaAccoes}</span>
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {dados.membros.map((m) => {
                 const eu_ = m.pessoa === eu?.pessoa;
                 const escolhido = escolhidos[m.membro] ?? m.papel;
                 return (
-                  <tr key={m.membro}>
-                    <td data-rotulo={t.colunaNome}>{m.nome}</td>
-                    <td data-rotulo={t.colunaEmail}>{m.email}</td>
-                    <td data-rotulo={t.colunaPapel}>
+                  <tr role="row" key={m.membro}>
+                    <td role="cell" data-rotulo={t.colunaNome}>
+                      {m.nome}
+                    </td>
+                    <td role="cell" data-rotulo={t.colunaEmail}>
+                      {m.email}
+                    </td>
+                    <td role="cell" data-rotulo={t.colunaPapel}>
                       {/* Só o dono muda papéis, e nunca o seu (docs/22 §10). */}
                       {souDono && !eu_ ? (
                         <div className="linha">
@@ -329,8 +341,10 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
                         t[`papel_${m.papel}`]
                       )}
                     </td>
-                    <td data-rotulo={t.colunaDesde}>{data(m.desde)}</td>
-                    <td>
+                    <td role="cell" data-rotulo={t.colunaDesde}>
+                      {data(m.desde)}
+                    </td>
+                    <td role="cell">
                       {eu_ ? (
                         <>
                           <button
@@ -384,28 +398,36 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
                           n: dados.convites.length,
                         })}
                   </p>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th scope="col">{t.colunaEmail}</th>
-                        <th scope="col">{t.colunaPapel}</th>
-                        <th scope="col">{t.colunaExpira}</th>
-                        <th scope="col">
+                  <table role="table">
+                    <thead role="rowgroup">
+                      <tr role="row">
+                        <th scope="col" role="columnheader">
+                          {t.colunaEmail}
+                        </th>
+                        <th scope="col" role="columnheader">
+                          {t.colunaPapel}
+                        </th>
+                        <th scope="col" role="columnheader">
+                          {t.colunaExpira}
+                        </th>
+                        <th scope="col" role="columnheader">
                           <span className="so-leitores">{t.colunaAccoes}</span>
                         </th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody role="rowgroup">
                       {dados.convites.map((c) => (
-                        <tr key={c.convite}>
-                          <td data-rotulo={t.colunaEmail}>{c.email}</td>
-                          <td data-rotulo={t.colunaPapel}>
+                        <tr role="row" key={c.convite}>
+                          <td role="cell" data-rotulo={t.colunaEmail}>
+                            {c.email}
+                          </td>
+                          <td role="cell" data-rotulo={t.colunaPapel}>
                             {t[`papel_${c.papel}`]}
                           </td>
-                          <td data-rotulo={t.colunaExpira}>
+                          <td role="cell" data-rotulo={t.colunaExpira}>
                             {data(c.expira_em)}
                           </td>
-                          <td>
+                          <td role="cell">
                             <button
                               type="button"
                               disabled={ocupado}

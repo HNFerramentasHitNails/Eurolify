@@ -282,7 +282,10 @@ th {
     padding: var(--espaco-1) var(--espaco-3);
   }
   td::before {
+    /* Primeiro sem o texto alternativo, para os navegadores que não o lêem.
+       O rótulo é só visual: o leitor de ecrã já diz a coluna. */
     content: attr(data-rotulo);
+    content: attr(data-rotulo) / "";
     display: block;
     font-size: var(--letra-pequena);
     color: var(--texto-secundario);
@@ -370,7 +373,10 @@ code {
     padding: var(--espaco-1) var(--espaco-3);
   }
   .tabela-larga td::before {
+    /* Primeiro sem o texto alternativo, para os navegadores que não o lêem.
+       O rótulo é só visual: o leitor de ecrã já diz a coluna. */
     content: attr(data-rotulo);
+    content: attr(data-rotulo) / "";
     display: block;
     font-size: var(--letra-pequena);
     color: var(--texto-secundario);
