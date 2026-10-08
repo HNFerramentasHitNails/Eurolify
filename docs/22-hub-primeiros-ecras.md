@@ -287,11 +287,12 @@ abrir, §2) enquanto se entra e aceita: nunca vai para o endereço nem para o
 armazenamento. Com a passkey de outra conta, o ecrã passa a dizer quem
 entrou e a oferecer «Sair» (revisão do #188, P2-2).
 
-## 11. Catálogo: a lista de artigos (issue #199, proposta)
+## 11. Catálogo: a lista de artigos (issue #199)
 
 Pedido do Diogo, 08/10/2026: começar o Catálogo no Hub pelo desenho da
-lista de artigos. **Só desenho**: o código vem num pedido seguinte, depois
-deste estar aprovado. O catálogo é da outra sessão (#77): este passo não
+lista de artigos. Desenho aprovado pelo Diogo a 08/10/2026 (*«sim, aprovo o
+desenho, junta o #200 e avança com o código»*), com a mudança da §11.1
+(*«sim, avança com a saída A»*). O catálogo é da outra sessão (#77): este passo não
 mexe em `apps/api/src/catalogo/` nem no `docs/14` (aviso no #77,
 08/10/2026).
 
@@ -307,23 +308,33 @@ conferem».
 aceitam chaves de API — `GET /products` tem `config.ambito: "catalog:read"`
 (`apps/api/src/catalogo/rotas.ts`) e o gancho de autenticação só aceita a
 sessão nas rotas `sessao` e `sessao_comerciante` (`apps/api/src/app.ts`).
-**Proposta para o pedido do código:**
+**O caminho** (descoberto ao começar o código, 08/10/2026): no ensaio, o
+endereço do Hub só passa à API os caminhos que começam por `/hub/`
+(`infra/vps/ficheiros/nginx-hub.conf`, a trava da revisão do #160, P1-1), por
+isso um `GET /products` do Hub nunca chegava à API. **Decidido (saída A):**
+a mesma lista responde também em **`GET /hub/products`**, com o mesmo código,
+os mesmos filtros e a mesma resposta do `GET /products` (uma função só, em
+`apps/api/src/catalogo/rotas.ts`); a VPS não muda. A saída B, abrir no nginx
+do Hub um caminho para o catálogo, ficou de fora: alargava o que esse
+endereço expõe.
+
+**O que o pedido do código faz:**
 
 | Ponto | Proposta |
 |---|---|
-| Quem entra | numa rota com âmbito `catalog:*`, além da chave, a sessão do Hub com o cabeçalho `Eurolify-Comerciante`, de um membro activo desse comerciante |
+| Quem entra | em `GET /hub/products`, a sessão do Hub com o cabeçalho `Eurolify-Comerciante`, de um membro activo desse comerciante (como as outras rotas `/hub/*` com comerciante); em `GET /products`, a chave, como hoje |
 | Que âmbitos | os do papel, pela tabela do `docs/21` §5: os quatro papéis têm `catalog:read`; `catalog:write` e `catalog:publish` só dono e gestor. A tabela vive num sítio só (na base, como os papéis), e um teste confere-a |
 | Neste primeiro pedido | **só leitura** (`catalog:read`). As escritas com sessão (editar, publicar) ficam para quando houver ecrãs que as usem, cada uma com o seu desenho: pedem as guardas do Hub (origem e JSON, `docs/21` §3) e decidir quais exigem autenticação recente |
 | Quem fez | numa escrita futura, `quem = pessoa:per_…` (`docs/21`, tabela do §1), como no resto do Hub |
 | Comerciante suspenso ou fechado | o mesmo que a chave tem hoje nessas rotas (lê) |
 | O que não muda | as rotas e as respostas do catálogo; uma chave continua a entrar como hoje |
-| A alternativa recusada | uma rota `/hub/products` só do Hub: duplicava a lista e os filtros, e a regra C1 diz que o Hub usa a API como qualquer cliente |
+| A alternativa recusada | uma lista própria do Hub, com o seu código: duplicava a lista e os filtros (regra C1). O `/hub/products` não é isso: é a mesma função num segundo caminho |
 
 ### 11.2 O ecrã
 
 | Ecrã | O que mostra | Rotas da API | Estados além do normal |
 |---|---|---|---|
-| **Artigos** (`/artigos?comerciante=mer_…`; ligação em «Os seus comerciantes», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar por nome ou por SKU de uma variante (`texto`, `sku`). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /products?estado=&texto=&sku=&limite=25&cursor=` | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante»); filtro inválido (400 da API, mostrado como erro do filtro) |
+| **Artigos** (`/artigos?comerciante=mer_…`; ligação em «Os seus comerciantes», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar por nome ou por SKU de uma variante (`texto`, `sku`). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /hub/products?estado=&texto=&sku=&limite=25&cursor=` (a mesma do `GET /products`) | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante»); filtro inválido (400 da API, mostrado como erro do filtro) |
 
 **O que a lista não mostra, e porquê** (medido a 08/10/2026): o
 `GET /products` devolve o resumo do artigo (`CamposArtigo`: nome, tipo,
