@@ -804,7 +804,7 @@ comerciante, e nada confere o espaço livre antes de começar; sem espaço, o
 pedido dá 500 e o temporário apaga-se. O alerta de disco da VPS (`docs/11`
 §3.8) é a rede, até haver comerciantes.
 
-#### Importação do catálogo — desenho (**proposta**, 08/10/2026, issue #77)
+#### Importação do catálogo (decidido: Diogo, 08/10/2026, `docs/06`, CT; migração 0032; issue #77)
 
 **Para quê.** O comerciante traz os artigos de uma folha de cálculo ou de
 outro sistema sem os criar um a um. Diogo, 08/10/2026: «sim, avança com o
@@ -839,8 +839,10 @@ que foi ignorado):
   `artigo`, `sku` e, para criar, `nome`, `tipo` e `unidade_de_venda` são
   obrigatórias; uma coluna desconhecida recusa o ficheiro (um erro de
   escrita no cabeçalho não pode passar por campo vazio). Os campos do
-  artigo repetem-se em cada linha dele e têm de ser iguais em todas; se
-  não forem, as linhas desse artigo são recusadas. O apóstrofo que a
+  artigo vão em qualquer linha dele (basta numa); se duas linhas do mesmo
+  artigo tiverem valores diferentes no mesmo campo, as linhas desse artigo
+  são recusadas (`import.product_fields_differ`). No JSON, um campo com
+  uma lista ou um objecto onde se espera texto recusa a linha. O apóstrofo que a
   exportação põe à frente de uma fórmula (`'=`, `'+`, `'-`, `'@`) tira-se
   ao ler, e só esse.
 
@@ -851,9 +853,11 @@ que foi ignorado):
   se reutiliza, P7: alterar uma arquivada é recusado).
 - **O artigo é a coluna `artigo`:** um `prd_…` deste comerciante é esse
   artigo; outro texto qualquer (`GEL-ROSA`, um id de outro sistema) é uma
-  referência dentro do ficheiro, que junta as variantes de um artigo novo.
-  Um `prd_…` que não existe neste comerciante (um ficheiro de outra conta)
-  conta como referência: cria um artigo novo.
+  referência dentro do ficheiro, que junta as variantes. Se algum SKU dela
+  já existe, o artigo é o desses SKU (por isso importar o mesmo ficheiro
+  outra vez não cria outro artigo); se são de artigos diferentes, recusa-se;
+  se nenhum existe, é um artigo novo. Um `prd_…` que não existe neste
+  comerciante (um ficheiro de outra conta) conta como referência.
 - **Um SKU que já existe noutro artigo** do que o ficheiro diz é recusado,
   sem mudar nada (não se muda uma variante de artigo).
 - **Um artigo com origem num sistema externo** (`origem: externo`, P5) não
@@ -881,7 +885,7 @@ que a falta).
   de antes e o de depois; e o que foi ignorado (ex.: «opções: 12 artigos»).
   Ex.: `{"criar": {"artigos": 40, "variantes": 280}, "alterar":
   {"artigos": 3, "variantes": 12}, "iguais": 0, "recusadas": [{"linha":
-  17, "sku": "GEL-001", "codigo": "catalog.sku_taken_by_other_product"}]}`. Códigos novos (proposta): `catalog.sku_taken_by_other_product`, `import.stale`, `import.too_large`, `import.expired`.
+  17, "sku": "GEL-001", "codigo": "catalog.sku_taken_by_other_product"}]}`. Códigos novos: `catalog.sku_taken_by_other_product`, `import.sku_repeated`, `import.product_fields_differ`, `import.bad_row`, `import.no_variants`, `import.external_product`, `import.invalid_file` (422), `import.too_large` (422), `import.stale` (409), `import.expired` (410), `import.not_found` (404).
 - **As recusadas não impedem o resto:** o plano é o que passou. Quem
   quiser tudo ou nada vê o relatório e não aplica.
 - **Importar duas vezes o mesmo ficheiro:** o segundo ensaio diz «iguais»
@@ -891,8 +895,18 @@ que a falta).
 - **Limites** (proposta): o ficheiro até 10 MB e até 5000 variantes; acima
   disso, 413 ou 422 `import.too_large`. Uma importação aplica-se uma vez
   (`aplicada`); aplicar outra vez devolve o resultado da primeira.
-- **Os eventos:** cada artigo criado ou alterado deixa o seu evento
-  (`product.created`, `product.updated`, §6), como se fosse pela API.
+- **Como o ensaio confere:** faz as escritas a sério, cada artigo e cada
+  variante num ponto de retorno (savepoint) da transacção, e desfaz tudo no
+  fim. As regras da base correm todas como correriam (formatos, SKU único,
+  GTIN, os gatilhos, e a das combinações de opções, que a base deixa para
+  o fim da transacção e o ensaio força no fim de cada artigo: num artigo
+  activo com opções, uma variante nova sem valores recusa-se já no ensaio).
+  As variantes novas criam-se pela mesma função da API
+  (`criarVarianteComValores`), e o artigo altera-se pela `alterarArtigo`
+  (que reverifica as publicações quando o nome muda, §4.2).
+- **Aplicar** pede `Idempotency-Key`, como as outras escritas.
+- **Os eventos:** saem os mesmos que pelas funções da API (§6); **não
+  verifiquei** quais saem hoje em cada uma.
 
 **Guarda-se** (migração nova, `importacao`): o comerciante, o formato, o
 resumo SHA-256 do ficheiro, o tamanho, o estado (`analisada`, `aplicada`,
@@ -1308,7 +1322,7 @@ as rotas seguintes.
 | Retirar | `POST /publications/{id}/archive` | publish | |
 | Ver publicações | `GET /products/{id}/publications` | read | |
 | Atributos regulamentares | `PUT /products/{id}/regulatory`, `PUT /variants/{id}/regulatory` | write | valor, quem e quando |
-| Importar | `POST /imports` (o ensaio: o ficheiro, CSV ou o `catalogo.json`), `GET /imports`, `GET /imports/{id}`, `POST /imports/{id}/apply` | import | o relatório do ensaio vem antes de escrever; aplicar grava o plano do ensaio, tudo ou nada (§3.11, «Importação do catálogo», **proposta**) |
+| Importar | `POST /imports` (o ensaio: o ficheiro, CSV ou o `catalogo.json`), `GET /imports`, `GET /imports/{id}`, `POST /imports/{id}/apply` | import | o relatório do ensaio vem antes de escrever; aplicar grava o plano do ensaio, tudo ou nada (§3.11, «Importação do catálogo»; `docs/06`, CT) |
 | Exportar | `POST /exports` (`{"dominios": ["catalogo"]}`), `GET /exports`, `GET /exports/{id}`, `GET /exports/{id}/file` | read | exportação completa, comum aos domínios (§3.11, «Exportação do catálogo»; `docs/06`, CS) |
 
 Erros com código estável (**proposta**): `catalog.not_found` (também quando

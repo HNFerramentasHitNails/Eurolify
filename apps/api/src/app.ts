@@ -20,6 +20,7 @@ import {
 import { rotasDoCatalogo } from "./catalogo/rotas.js";
 import { rotasDaMedia } from "./catalogo/rotas-media.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
+import { rotasDasImportacoes } from "./importacao/rotas.js";
 import {
   conferirOrigem,
   ligarAutenticacao,
@@ -274,6 +275,7 @@ export function criarApp(
     if (base !== undefined) {
       rotasDaIdentidade(rotas, base);
       rotasDoCatalogo(rotas, base);
+      rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.
         void rotas.register((media, _o, pronto) => {
