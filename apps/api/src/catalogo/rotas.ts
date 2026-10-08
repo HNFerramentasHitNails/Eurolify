@@ -371,6 +371,26 @@ const ConsultaArtigos = Type.Object(
         pattern: "^[^\\x00-\\x1f]+$",
       }),
     ),
+    categoria: Type.Optional(
+      idCom(
+        "cat",
+        "cat_…: os artigos nessa categoria (não nas subcategorias); uma que não existe dá catalog.not_found",
+      ),
+    ),
+    traducao_em_falta: Type.Optional(
+      Type.String({
+        pattern: "^[a-z]{2}$",
+        description:
+          "Uma língua (ISO 639-1): os artigos com o nome ou a descrição por traduzir nela (em falta ou desactualizada), como na fila de traduções; a língua de origem dá catalog.translation_same_language",
+      }),
+    ),
+    actualizado_desde: Type.Optional(
+      Type.String({
+        format: "date-time",
+        description:
+          "Os artigos alterados (actualizado_em) a partir deste instante, inclusive; com o fuso (ex.: 2026-10-08T00:00:00Z)",
+      }),
+    ),
     limite: Type.Optional(
       Type.String({
         pattern: "^[1-9][0-9]?$|^100$",
@@ -1366,7 +1386,7 @@ export function rotasDoCatalogo(
       config: { ambito: "catalog:read" },
       schema: {
         description:
-          "Procura artigos do comerciante, por ordem de criação, com o total dos que passam no filtro (docs/14 §7.1; docs/18 §2a). Filtros: estado, tipo, SKU de uma variante (sem distinguir maiúsculas) e parte do nome.",
+          "Procura artigos do comerciante, por ordem de criação, com o total dos que passam no filtro (docs/14 §7.1; docs/18 §2a). Filtros, que se juntam todos: estado, tipo, SKU de uma variante (sem distinguir maiúsculas), parte do nome, categoria, tradução em falta numa língua e alterados desde um instante.",
         querystring: ConsultaArtigos,
         response: { 200: RespostaArtigos, ...RESPOSTA_DE_ERRO },
       },
@@ -1385,6 +1405,15 @@ export function rotasDoCatalogo(
             ...(q.tipo === undefined ? {} : { tipo: q.tipo }),
             ...(q.sku === undefined ? {} : { sku: q.sku }),
             ...(q.texto === undefined ? {} : { texto: q.texto }),
+            ...(q.categoria === undefined
+              ? {}
+              : { categoria: semPrefixo(q.categoria) }),
+            ...(q.traducao_em_falta === undefined
+              ? {}
+              : { traducaoEmFalta: q.traducao_em_falta }),
+            ...(q.actualizado_desde === undefined
+              ? {}
+              : { actualizadoDesde: new Date(q.actualizado_desde) }),
           },
           limite,
           depois,

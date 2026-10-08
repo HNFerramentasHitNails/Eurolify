@@ -1,4 +1,4 @@
-import { sql, type Kysely } from "kysely";
+import { sql, type Kysely, type RawBuilder } from "kysely";
 import type { BaseDados, EstadoArtigo, TipoArtigo } from "../base/esquema.js";
 import { ErroCatalogo, noCatalogo } from "./erros.js";
 
@@ -13,6 +13,15 @@ export interface FiltroDeArtigos {
   sku?: string;
   /** Parte do nome, sem distinguir maiúsculas. */
   texto?: string;
+  /** Numa categoria (só nela, não nas subcategorias); tem de existir. */
+  categoria?: string;
+  /**
+   * Com o nome ou a descrição por traduzir nesta língua (em falta ou
+   * desactualizada), com a mesma regra da fila de traduções.
+   */
+  traducaoEmFalta?: string;
+  /** Alterados (`actualizado_em`) a partir deste instante, inclusive. */
+  actualizadoDesde?: Date;
 }
 
 export interface PaginaDeArtigos<T> {
@@ -46,7 +55,61 @@ export async function listarArtigos(
     db,
     comercianteId,
     async (trx) => {
-      let consulta = trx.selectFrom("artigo");
+      let consulta = trx
+        .selectFrom("artigo")
+        .where("artigo.comerciante_id", "=", comercianteId);
+      if (filtro.categoria !== undefined) {
+        // Uma categoria que não existe (ou de outro comerciante) é «não
+        // existe», não uma lista vazia: um id mal copiado não passa por
+        // «nenhum artigo».
+        const categoria = await trx
+          .selectFrom("categoria")
+          .select("id")
+          .where("comerciante_id", "=", comercianteId)
+          .where("id", "=", filtro.categoria)
+          .executeTakeFirst();
+        if (categoria === undefined) {
+          throw new ErroCatalogo(
+            "catalog.not_found",
+            `categoria ${filtro.categoria}`,
+          );
+        }
+        const categoriaId = filtro.categoria;
+        consulta = consulta.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom("artigo_categoria as ac")
+              .select("ac.artigo_id")
+              .whereRef("ac.comerciante_id", "=", "artigo.comerciante_id")
+              .whereRef("ac.artigo_id", "=", "artigo.id")
+              .where("ac.categoria_id", "=", categoriaId),
+          ),
+        );
+      }
+      if (filtro.traducaoEmFalta !== undefined) {
+        const lingua = filtro.traducaoEmFalta;
+        await naoELinguaDeOrigem(trx, comercianteId, lingua);
+        consulta = consulta.where(
+          sql<boolean>`exists (
+            select from texto_original o
+            left join traducao t
+              on t.comerciante_id = o.comerciante_id
+             and t.recurso_id = o.recurso_id
+             and t.campo = o.campo
+             and t.lingua = ${lingua}
+            where o.comerciante_id = artigo.comerciante_id
+              and o.tipo = 'artigo'
+              and o.recurso_id = artigo.id
+              and ${porTraduzir(["em_falta", "desactualizada"])})`,
+        );
+      }
+      if (filtro.actualizadoDesde !== undefined) {
+        consulta = consulta.where(
+          "artigo.actualizado_em",
+          ">=",
+          filtro.actualizadoDesde,
+        );
+      }
       if (filtro.estado !== undefined) {
         consulta = consulta.where("estado", "=", filtro.estado);
       }
@@ -503,6 +566,32 @@ export const estadoDaTraducao = (
 ): "completa" | "desactualizada" =>
   actual === original ? "completa" : "desactualizada";
 
+/**
+ * O que está por traduzir numa língua (§4.3), sobre `texto_original as o`
+ * com `traducao as t` dessa língua junta à esquerda: em falta, com original
+ * e sem tradução; desactualizada, com tradução de outro original ou de um
+ * original que ficou vazio. A única regra, para a fila e para o filtro dos
+ * artigos.
+ */
+function porTraduzir(
+  estados: readonly ("em_falta" | "desactualizada")[],
+): RawBuilder<boolean> {
+  const partes: RawBuilder<boolean>[] = [];
+  if (estados.includes("em_falta")) {
+    partes.push(
+      sql<boolean>`(coalesce(btrim(o.texto), '') <> '' and t.id is null)`,
+    );
+  }
+  if (estados.includes("desactualizada")) {
+    partes.push(
+      sql<boolean>`(t.id is not null and (t.original is distinct from o.texto or coalesce(btrim(o.texto), '') = ''))`,
+    );
+  }
+  return partes.length === 0
+    ? sql<boolean>`false`
+    : sql<boolean>`(${sql.join(partes, sql` or `)})`;
+}
+
 /** A língua de origem não se traduz (§4.3). */
 async function naoELinguaDeOrigem(
   trx: Kysely<BaseDados>,
@@ -633,8 +722,6 @@ export async function filaDeTraducoesPaginada(
     comercianteId,
     async (trx) => {
       await naoELinguaDeOrigem(trx, comercianteId, lingua);
-      const emFalta = estados.includes("em_falta");
-      const desactualizada = estados.includes("desactualizada");
       const fila = trx
         .selectFrom("texto_original as o")
         .leftJoin("traducao as t", (j) =>
@@ -645,32 +732,7 @@ export async function filaDeTraducoesPaginada(
             .on("t.lingua", "=", lingua),
         )
         .where("o.comerciante_id", "=", comercianteId)
-        .where((eb) =>
-          eb.or([
-            // Em falta: com original e sem tradução.
-            ...(emFalta
-              ? [
-                  eb.and([
-                    sql<boolean>`coalesce(btrim(o.texto), '') <> ''`,
-                    eb("t.id", "is", null),
-                  ]),
-                ]
-              : []),
-            // Desactualizada: com tradução de outro original, ou de um
-            // original que ficou vazio.
-            ...(desactualizada
-              ? [
-                  eb.and([
-                    eb("t.id", "is not", null),
-                    eb.or([
-                      eb("t.original", "is distinct from", eb.ref("o.texto")),
-                      sql<boolean>`coalesce(btrim(o.texto), '') = ''`,
-                    ]),
-                  ]),
-                ]
-              : []),
-          ]),
-        );
+        .where(porTraduzir(estados));
       const { total } = await fila
         .select((eb) => eb.fn.countAll<string>().as("total"))
         .executeTakeFirstOrThrow();
