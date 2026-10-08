@@ -301,6 +301,27 @@ if [[ -f /etc/eurolify/api-base.env ]]; then
     aviso "/etc/eurolify/api-base.env devia ser 600 e de root"
   fi
 fi
+# A chave que cifra os segredos TOTP das palavras-passe (docs/21 §8; docs/22
+# §9.2): fora da base, num ficheiro só da API. Gera-se UMA vez e nunca se
+# reescreve: trocá-la deixava ilegíveis os autenticadores já configurados
+# (cada pessoa teria de os configurar outra vez). Sem ela, a API corre sem a
+# palavra-passe. Pedido pelo Diogo, 08/10/2026 (pedido #177).
+api_totp=/etc/eurolify/api-totp.env
+if [[ -f "$api_totp" ]]; then
+  # Nas mensagens, nunca o conteúdo.
+  if [[ "$(stat -c '%a %U' "$api_totp")" != "600 root" ]]; then
+    aviso "$api_totp devia ser 600 e de root"
+  elif ! grep -Eq '^TOTP_CHAVE=[A-Za-z0-9+/]{43}=$' "$api_totp" ||
+    ! grep -Eq '^TOTP_CHAVE_VERSAO=[1-9][0-9]{0,3}$' "$api_totp"; then
+    aviso "$api_totp não tem o formato esperado (TOTP_CHAVE com 32 bytes em base64 e TOTP_CHAVE_VERSAO): não o reescrevo; ver à mão"
+  else
+    ok "$api_totp (a chave dos segredos TOTP)"
+  fi
+else
+  # shellcheck disable=SC2016 # de propósito: o $(openssl …) expande-se dentro do bash -c, ao fazer
+  fazer "gerar a chave dos segredos TOTP em $api_totp" bash -c \
+    'umask 077 && f=/etc/eurolify/api-totp.env && printf "TOTP_CHAVE=%s\nTOTP_CHAVE_VERSAO=1\n" "$(openssl rand -base64 32)" > "$f.novo" && chown root:root "$f.novo" && if [ -e "$f" ]; then rm -f "$f.novo"; else mv "$f.novo" "$f"; fi'
+fi
 # A ligação do migrador (dono das tabelas) vive num ficheiro à parte: só o
 # contentor das migrações a recebe; a API nunca a vê (docs/15 §5). Escreve-se
 # CHAVE=valor, sem aspas nem espaços: o Docker não os tira.
@@ -601,7 +622,7 @@ configuracao_mais_recente_que_a_api() {
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env; do
+  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env; do
     mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
     mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
@@ -626,7 +647,7 @@ elif ((API_ENV_RENOVADO)) || configuracao_mais_recente_que_a_api; then
     aviso "o eurolify-api corre $imagem_api, sem resumo: não o recrio (a próxima publicação recria-o)"
   fi
 else
-  ok "o eurolify-api foi criado depois da última mudança do api.env e do api-base.env"
+  ok "o eurolify-api foi criado depois da última mudança da sua configuração"
 fi
 
 # ---------------------------------------------------------------------------

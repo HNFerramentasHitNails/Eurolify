@@ -224,7 +224,12 @@ só vivem no ecrã enquanto se configura (§9.4).
 **No ensaio, a palavra-passe ainda não existe:** a VPS não tem a
 `TOTP_CHAVE` (medido a 08/10/2026: `POST /hub/session/password` dá 404).
 Pô-la lá é uma chave nova na máquina, com a confirmação do Diogo ou do
-Bruno (`AGENTS.md`, «Operar a VPS»).
+Bruno (`AGENTS.md`, «Operar a VPS»): **autorizada pelo Diogo a 08/10/2026**
+(*«sim, prepara o pedido da chave na VPS»*). O passo 10 do `preparar.sh`
+gera-a uma vez em `/etc/eurolify/api-totp.env` (600, root; nunca a
+reescreve) e o `eurolify-publicar` passa-a à API. Se se perder, os
+autenticadores já configurados deixam de valer e cada pessoa configura o
+seu outra vez; as passkeys e o resto da conta não mudam.
 
 ### 9.3 B3c — chaves de API
 

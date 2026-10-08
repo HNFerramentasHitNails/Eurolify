@@ -63,6 +63,11 @@ base_env=()
 API_HUB_ENV=/etc/eurolify/api-hub.env
 hub_env=()
 [[ -f "$API_HUB_ENV" ]] && hub_env=(--env-file "$API_HUB_ENV")
+# A chave dos segredos TOTP (TOTP_CHAVE), que o passo 10 do preparar.sh
+# gera uma vez (docs/22 §9.2). Sem ela, a API corre sem a palavra-passe.
+API_TOTP_ENV=/etc/eurolify/api-totp.env
+totp_env=()
+[[ -f "$API_TOTP_ENV" ]] && totp_env=(--env-file "$API_TOTP_ENV")
 
 arrancar() {
   docker rm -f eurolify-api >/dev/null 2>&1 || true
@@ -73,6 +78,7 @@ arrancar() {
     --env-file /etc/eurolify/api.env \
     "${base_env[@]}" \
     "${hub_env[@]}" \
+    "${totp_env[@]}" \
     --memory 512m \
     --cap-drop ALL \
     --security-opt no-new-privileges \
@@ -144,7 +150,7 @@ api_env_mudou() {
   # que a API foi criada não contava (revisão do #160, P2-2).
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV" "$API_HUB_ENV"; do
+  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV" "$API_HUB_ENV" "$API_TOTP_ENV"; do
     mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
     mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0

@@ -97,7 +97,7 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
-  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos"/hub-* "$falsos/docker-chamado" /etc/eurolify/api-base.env /etc/eurolify/api-hub.env \
+  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos"/hub-* "$falsos/docker-chamado" /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env \
     "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" /var/log/eurolify/acoes.log
   echo token >/etc/eurolify/ghcr.token
   cat >/var/log/eurolify/publicacoes.log <<REG
@@ -516,6 +516,18 @@ printf 'HUB_ORIGEM=https://x\n' >/etc/eurolify/api-hub.env
 touch -d @2000000000.5 /etc/eurolify/api-hub.env
 OPCAO=--so-recriar caso "--so-recriar com a configuração do mesmo segundo" 3 CRIADO=2033-05-18T03:33:20Z
 confere sim "recria a API" arrancou 3
+# A chave dos segredos TOTP (docs/22 §9.2; pedido #177): uma chave nova
+# recria a API, e a API recebe-a.
+preparar
+printf 'TOTP_CHAVE=x\n' >/etc/eurolify/api-totp.env
+touch -d @2000000000.5 /etc/eurolify/api-totp.env
+OPCAO=--so-recriar caso "--so-recriar com a chave TOTP nova" 3 CRIADO=2033-05-18T03:33:20Z
+confere sim "recria a API" arrancou 3
+confere sim "passa a chave TOTP à API" grep -q -- "--env-file /etc/eurolify/api-totp.env" "$falsos/docker-chamado"
+preparar
+caso "publicar sem a chave TOTP" 4
+confere sim "publica" arrancou 4
+confere nao "não passa a chave que não existe" grep -q -- "api-totp.env" "$falsos/docker-chamado"
 
 # A acção «publicar» do MCP (eurolify-operar): só a anterior da que está no ar.
 preparar
