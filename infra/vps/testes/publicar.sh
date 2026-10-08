@@ -17,6 +17,7 @@ r() { printf 'sha256:%064d' "$1"; } # resumo da imagem n
 img() { echo "$repo_img@$(r "$1")"; }
 install -d /usr/local/lib/eurolify /etc/eurolify /var/log/eurolify /run/lock
 install -m 644 "$f/lib/comum.sh" /usr/local/lib/eurolify/comum.sh
+install -m 644 "$f/lib/chave-totp.sh" /usr/local/lib/eurolify/chave-totp.sh
 printf 'IMAGEM_REPO=%s\nGHCR_UTILIZADOR=ensaio\nBASE_NOME=eurolify\n' "$repo_img" >/etc/eurolify/ensaio.conf
 echo token >/etc/eurolify/ghcr.token
 : >/etc/eurolify/migrar.env
@@ -519,7 +520,7 @@ confere sim "recria a API" arrancou 3
 # A chave dos segredos TOTP (docs/22 §9.2; pedido #177): uma chave nova
 # recria a API, e a API recebe-a.
 preparar
-printf 'TOTP_CHAVE=x\n' >/etc/eurolify/api-totp.env
+printf 'TOTP_CHAVE=%s\nTOTP_CHAVE_VERSAO=1\n' "$(printf 'a%.0s' {1..43})=" >/etc/eurolify/api-totp.env
 touch -d @2000000000.5 /etc/eurolify/api-totp.env
 OPCAO=--so-recriar caso "--so-recriar com a chave TOTP nova" 3 CRIADO=2033-05-18T03:33:20Z
 confere sim "recria a API" arrancou 3
@@ -528,6 +529,15 @@ preparar
 caso "publicar sem a chave TOTP" 4
 confere sim "publica" arrancou 4
 confere nao "não passa a chave que não existe" grep -q -- "api-totp.env" "$falsos/docker-chamado"
+# Uma chave estragada não chega à API: derrubava-a ao arrancar (revisão do
+# #177, P2-2 da VPS).
+preparar
+printf 'TOTP_CHAVE=x\nTOTP_CHAVE_VERSAO=1\n' >/etc/eurolify/api-totp.env
+caso "publicar com a chave TOTP estragada" 4
+confere sim "publica" arrancou 4
+confere nao "não passa a chave estragada" grep -q -- "api-totp.env" "$falsos/docker-chamado"
+confere sim "avisa" na_saida "a API arranca sem a palavra-passe"
+confere sim "regista-o" no_registo "chave TOTP inválida"
 
 # A acção «publicar» do MCP (eurolify-operar): só a anterior da que está no ar.
 preparar

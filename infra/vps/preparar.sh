@@ -89,7 +89,7 @@ instalar() {
 
 # ---------------------------------------------------------------------------
 passo "1. Pacotes"
-pacotes=(docker.io ufw fail2ban age rclone git curl openssh-server nginx certbot python3-certbot-dns-ovh)
+pacotes=(docker.io ufw fail2ban age rclone git curl openssl openssh-server nginx certbot python3-certbot-dns-ovh)
 falta=()
 for p in "${pacotes[@]}"; do
   estado="$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null || true)"
@@ -246,6 +246,7 @@ instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
 # ---------------------------------------------------------------------------
 passo "8. Programas e unidades do Eurolify"
 instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
+instalar "$F/lib/chave-totp.sh" /usr/local/lib/eurolify/chave-totp.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
 for p in trabalho publicar aplicar medir copia reposicao verificacao limpeza operar operador; do
   instalar "$F/sbin/eurolify-$p" "/usr/local/sbin/eurolify-$p" 700
@@ -305,22 +306,29 @@ fi
 # §9.2): fora da base, num ficheiro só da API. Gera-se UMA vez e nunca se
 # reescreve: trocá-la deixava ilegíveis os autenticadores já configurados
 # (cada pessoa teria de os configurar outra vez). Sem ela, a API corre sem a
-# palavra-passe. Pedido pelo Diogo, 08/10/2026 (pedido #177).
+# palavra-passe. Pedido pelo Diogo, 08/10/2026 (pedido #177). Nas mensagens,
+# nunca o conteúdo.
+# shellcheck source=ficheiros/lib/chave-totp.sh
+source "$F/lib/chave-totp.sh"
 api_totp=/etc/eurolify/api-totp.env
-if [[ -f "$api_totp" ]]; then
-  # Nas mensagens, nunca o conteúdo.
-  if [[ "$(stat -c '%a %U' "$api_totp")" != "600 root" ]]; then
+TOTP_GERADA=0
+if [[ -e "$api_totp" || -L "$api_totp" ]]; then
+  if [[ ! -f "$api_totp" || -L "$api_totp" ]]; then
+    aviso "$api_totp existe mas não é um ficheiro normal: não lhe toco; a API arranca sem a palavra-passe (LEIA-ME, «A chave dos segredos TOTP»)"
+  elif [[ "$(stat -c '%a %U' "$api_totp")" != "600 root" ]]; then
     aviso "$api_totp devia ser 600 e de root"
-  elif ! grep -Eq '^TOTP_CHAVE=[A-Za-z0-9+/]{43}=$' "$api_totp" ||
-    ! grep -Eq '^TOTP_CHAVE_VERSAO=[1-9][0-9]{0,3}$' "$api_totp"; then
-    aviso "$api_totp não tem o formato esperado (TOTP_CHAVE com 32 bytes em base64 e TOTP_CHAVE_VERSAO): não o reescrevo; ver à mão"
+  elif ! chave_totp_valida "$api_totp"; then
+    aviso "$api_totp não tem o formato esperado: não o reescrevo, e a API arranca sem a palavra-passe até se corrigir à mão (LEIA-ME, «A chave dos segredos TOTP»)"
   else
     ok "$api_totp (a chave dos segredos TOTP)"
   fi
 else
-  # shellcheck disable=SC2016 # de propósito: o $(openssl …) expande-se dentro do bash -c, ao fazer
-  fazer "gerar a chave dos segredos TOTP em $api_totp" bash -c \
-    'umask 077 && f=/etc/eurolify/api-totp.env && printf "TOTP_CHAVE=%s\nTOTP_CHAVE_VERSAO=1\n" "$(openssl rand -base64 32)" > "$f.novo" && chown root:root "$f.novo" && if [ -e "$f" ]; then rm -f "$f.novo"; else mv "$f.novo" "$f"; fi'
+  # O 10c recria a API para a ler; no --mostrar, diz que o faria (P3-3).
+  if fazer "gerar a chave dos segredos TOTP em $api_totp" gerar_chave_totp "$api_totp"; then
+    TOTP_GERADA=1
+  else
+    aviso "não se gerou a chave dos segredos TOTP: a API corre sem a palavra-passe"
+  fi
 fi
 # A ligação do migrador (dono das tabelas) vive num ficheiro à parte: só o
 # contentor das migrações a recebe; a API nunca a vê (docs/15 §5). Escreve-se
@@ -609,7 +617,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-passo "10c. A API corre com a ligação do api-base.env (docs/19 §6, #107)"
+passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub.env e api-totp.env (docs/19 §6, #107)"
 # O docker só lê o --env-file quando cria o contentor: uma ligação nova só
 # chega à API quando o contentor for recriado. Quem o recria é o
 # eurolify-publicar --so-recriar, com a imagem que já está no ar (passo 8 já o
@@ -639,7 +647,7 @@ recriar_api() {
 imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
 if [[ -z "$imagem_api" ]]; then
   ok "sem contentor eurolify-api: a primeira publicação já o cria com a ligação"
-elif ((API_ENV_RENOVADO)) || configuracao_mais_recente_que_a_api; then
+elif ((API_ENV_RENOVADO || TOTP_GERADA)) || configuracao_mais_recente_que_a_api; then
   resumo_api="${imagem_api##*@}"
   if [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
     fazer "recriar o contentor eurolify-api ($resumo_api) para ler a configuração" recriar_api "$resumo_api"

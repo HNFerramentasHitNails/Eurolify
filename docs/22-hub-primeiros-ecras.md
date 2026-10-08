@@ -240,9 +240,12 @@ Pô-la lá é uma chave nova na máquina, com a confirmação do Diogo ou do
 Bruno (`AGENTS.md`, «Operar a VPS»): **autorizada pelo Diogo a 08/10/2026**
 (*«sim, prepara o pedido da chave na VPS»*). O passo 10 do `preparar.sh`
 gera-a uma vez em `/etc/eurolify/api-totp.env` (600, root; nunca a
-reescreve) e o `eurolify-publicar` passa-a à API. Se se perder, os
-autenticadores já configurados deixam de valer e cada pessoa configura o
-seu outra vez; as passkeys e o resto da conta não mudam.
+reescreve; só uma chave válida chega à API) e o `eurolify-publicar`
+passa-a à API. Se se perder, os autenticadores já configurados deixam de
+valer: quem tem passkey entra e configura o seu outra vez; quem só tem a
+palavra-passe fica com os códigos de recuperação. Por isso guarda-se uma
+cópia fora da máquina e à parte das cópias da base (`infra/vps/LEIA-ME.md`,
+«A chave dos segredos TOTP»; revisão do #177, P2-3 da VPS).
 
 ### 9.3 B3c — chaves de API
 
