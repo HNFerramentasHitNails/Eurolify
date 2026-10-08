@@ -361,7 +361,8 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   é da base. Traduzir outra vez substitui o texto, a origem e quem, e apaga a
   revisão. Só uma proposta de IA se revê; quem a traduziu não a revê; uma
   revisão não se repete (se o original mudou, traduz-se ou confirma-se outra
-  vez; revisão do #105, P2-1 e P2-2).
+  vez; revisão do #105, P2-1 e P2-2). Estas regras vivem na base e no
+  repositório; pela API de chaves não se revê (`docs/06`, CO).
 - Quem traduz diz o **original que viu**; se já não é o de agora, a tradução
   é recusada com `catalog.version_conflict` (como a escrita do artigo com a
   versão antiga; revisão do #105, P2-3). Esta comparação vive no
@@ -369,10 +370,11 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   escreve traduções; quem tivesse as credenciais da base podia confirmar
   uma tradução sem a comparação (2.ª revisão do #105, P3-6).
 - **Pessoa ou IA** (`eu-localization`: a tradução por IA é proposta, revista
-  por uma pessoa): a base não sabe quem é pessoa. Quando a API existir, a
-  `origem` e o «é uma pessoa» de quem revê vêm da **conta que chama** (pessoa
-  ou agente), nunca do corpo do pedido, e um agente não revê (revisão do
-  #105, P2-2).
+  por uma pessoa): a base não sabe quem é pessoa. A `origem` e o «é uma
+  pessoa» de quem revê vêm da **conta que chama** (pessoa ou agente), nunca
+  do corpo do pedido, e um agente não revê (revisão do #105, P2-2). Na API
+  de chaves (#166): o que se traduz fica sempre `ia` e não se revê; as
+  traduções de pessoa e as revisões entram pelo Hub (`docs/06`, CO e CP).
 - Limites (**proposta**): nomes e valores traduzidos até 200 caracteres,
   descrições até 20 000.
 - **Falta:** o rasto do texto anterior de cada tradução (C7, «antes e
@@ -784,6 +786,66 @@ quem pagina reescreve as posições (a excepção ao `docs/18` §2a; no máximo
 o texto de um valor, apagar uma opção e mudar a ordem; desenham-se antes do
 código.
 
+**As traduções em código** (08/10/2026; pedido do Diogo: «sim, avança com
+as traduções»):
+
+- com `catalog:read`, `GET /translations` em dois usos, exactamente um de
+  cada vez: com `resource` (`prd_`, `opt_`, `ovl_`, `cat_` ou `col_`), as
+  traduções desse recurso (de uma língua, com `locale`), cada uma com o
+  estado contra o original de agora (§4.3) — poucas por natureza (os campos
+  do tipo × as línguas), por isso vão todas; sem `resource`, com `locale`,
+  a fila do que falta traduzir nessa língua (`estado`: `em_falta`,
+  `desactualizada`), por páginas (`docs/18` §2a);
+- com `catalog:write`, com a `Idempotency-Key`:
+  `PUT /translations/{recurso}/{campo}/{lingua}` (traduz ou traduz outra vez,
+  sempre como proposta de IA: o corpo não leva a origem, `docs/06`, CP;
+  `original_visto` é o original que quem traduziu viu, e se mudou dá
+  `catalog.version_conflict`) e `DELETE` (o campo passa a «em falta»; o nome
+  de um artigo publicado num mercado dessa língua tira-o de venda, §8; quem
+  apagou fica registado no arquivo da publicação).
+
+**Rever uma proposta de IA não está nesta API** (`docs/06`, CO; revisão do
+#166, P1-1): as chaves podem ser de agentes de IA, e só uma pessoa revê. A
+revisão entra no Hub, com a sessão de uma pessoa (`docs/21`), e deve
+comparar o texto que a pessoa viu, como o `original_visto` (revisão do
+#166, P2-1). Até lá, `revista` só pode ficar verdadeira por quem tem acesso
+directo à base; nada no Eurolify lê ainda esse campo (a publicação só
+verifica o nome, §8).
+
+Os campos de cada tipo são os da 0009 (artigo: nome e descrição; opção:
+nome; valor: valor; categoria: nome e endereço amigável; colecção: nome,
+descrição e endereço amigável); outro dá 400 `request.invalid`, recusado
+antes de escrever. O texto também se recusa antes de escrever acima do
+limite do campo, com o campo e o limite na mensagem: nome e valor até 200
+(`catalog.invalid_field`), descrição até 20 000, endereço amigável até 100
+(`catalog.slug_invalid`). A língua só se confere pelo formato (`^[a-z]{2}$`),
+como na base: uma língua que nenhum mercado usa dá uma fila inteira «em
+falta» (fica para quando os mercados tiverem línguas na API). Pedir as
+traduções de um recurso na língua de origem dá
+`catalog.translation_same_language`, como a fila. Traduzir outra vez
+substitui sempre, também uma tradução de pessoa (gravada no Hub) por uma
+proposta de IA (por decidir se se quer protecção, revisão do #166, P3-7).
+Quem traduziu fica registado como a chave e não sai nas respostas
+(**proposta**, por analogia com a CL; por confirmar com o Diogo ou o Bruno;
+2.ª revisão do #166, P3-D). O limite de texto conta caracteres, como a
+base, e repete os limites da 0009: muda-se nos dois sítios.
+
+**Faltas conhecidas das traduções** (revisões do #166, P3-5 e 2.ª ronda,
+P3-E): a resposta do `GET /translations` é uma de duas listas sem campo que
+as distinga (um SDK gerado vê uma união; quem chama sabe qual pediu); o item
+da fila não traz o original, e as categorias e as colecções ainda não têm
+rota de leitura, por isso o `original_visto` delas só se obtém fora da API
+até essas rotas entrarem. No Hub ainda não há rota nem data
+para gravar traduções de pessoa nem para rever (`reverTraducao` já recebe o
+texto que a pessoa viu): até lá, todas as traduções feitas pela API ficam
+`ia` e nenhuma pode ser revista. Quando alguma coisa passar a ler `origem`
+ou `revista` (textos legais, avisos), essas rotas do Hub têm de existir
+antes (3.ª revisão do #166, P3-2).
+
+Os estados
+e as línguas são os do desenho: o `docs/14` §7.1 escrevia `outdated` e
+`missing`, e o código usa `desactualizada` e `em_falta`, como o §4.3.
+
 As alterações levam a `versao` lida (outra dá `catalog.version_conflict`,
 antes de qualquer outra recusa) e devolvem a ficha. Pedir o estado em que o
 artigo já está devolve a ficha sem mudar nada, nem a versão (§4.1), mas só
@@ -794,9 +856,9 @@ de cada corpo diz o que a base aceita (medidas positivas, o formato da
 categoria fiscal, do GTIN e do ONU), e um erro no fim da transacção sai com o
 código do Catálogo (revisão do #153). Publicar com impedimentos responde 200
 com `publicada: false`: quem chama lê `publicada`, nunca só o estado HTTP. Quem escreve fica registado como a chave
-(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções e
-a composição entraram a seguir (abaixo); as traduções e o resto da tabela
-entram com as rotas seguintes.
+(`chave:key_<id>`), o formato que as migrações 0012, 0014, 0015 e 0025 já usam. As variantes, as opções, a
+composição e as traduções entraram a seguir (abaixo); o resto da tabela
+entra com as rotas seguintes.
 
 **Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas
 rotas, que só as expõem):
@@ -863,7 +925,7 @@ actualizado desde) e o `expand` entram com as rotas seguintes.
 | Categorias | `GET`, `POST /categories`, `PATCH /categories/{id}`, `POST /categories/{id}/move` | read / write | recusa ciclos |
 | Colecções | `GET`, `POST /collections`, `PATCH /collections/{id}`, `PUT /collections/{id}/products` | read / write | lista manual, ordenada |
 | Traduções | `GET /translations?resource=…&locale=…`, `PUT /translations/{resource}/{field}/{locale}` | read / write | |
-| Fila de traduções | `GET /translations?state=outdated,missing&locale=…` | read | o que falta traduzir |
+| Fila de traduções | `GET /translations?estado=desactualizada,em_falta&locale=…` | read | o que falta traduzir |
 | Verificar publicação | `POST /products/{id}/publications/check` | read | **não escreve**: devolve os impedimentos por canal × mercado (C2) |
 | Publicar | `POST /products/{id}/publications` | publish | corre a verificação; com impedimentos, não publica e devolve a lista, com 200 e `publicada: false` (o repositório responde `publicada: false` com a verificação; `catalog.publish_blocked` é o que a base diz se alguém tentar contornar) |
 | Retirar | `POST /publications/{id}/archive` | publish | |

@@ -29,6 +29,12 @@ import {
   chaveDeIdempotencia,
 } from "../identidade/rotas.js";
 import {
+  CAMPOS_TRADUZIVEIS,
+  filaDeTraducoesPaginada,
+  recursoTraduzivel,
+  traducoesParaApi,
+  type PosicaoNaFila,
+  type RecursoTraduzivel,
   composicaoDoKit,
   fichaDaOpcao,
   fichaDaVariante,
@@ -41,6 +47,7 @@ import {
   type PosicaoNaLista,
 } from "./consultas.js";
 import { ErroCatalogo, traduzir } from "./erros.js";
+import { apagarTraducao, definirTraducao } from "./traducoes.js";
 import {
   NAO_VERIFICADO,
   publicacoesDoArtigo,
@@ -65,7 +72,8 @@ import {
 // API de Administração do Catálogo (docs/14 §7.1), por partes, todas pedidas
 // pelo Diogo a 07/10/2026: 1, as consultas (#150); 2, as escritas dos
 // artigos e das publicações, com a Idempotency-Key (docs/18 §4; #153); 3, as
-// variantes (#159); 4, as opções e a composição dos kits. Cada rota pede o seu âmbito (`catalog:read`,
+// variantes (#159); 4, as opções e a composição dos kits (#161); 5, as
+// traduções. Cada rota pede o seu âmbito (`catalog:read`,
 // `catalog:write` ou `catalog:publish`).
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -603,6 +611,105 @@ const PedidoComposicao = Type.Object(
   { additionalProperties: false },
 );
 
+/** O prefixo de cada recurso traduzível (docs/14 §3). */
+const PREFIXO_DO_RECURSO = {
+  artigo: "prd",
+  opcao: "opt",
+  valor_opcao: "ovl",
+  categoria: "cat",
+  colecao: "col",
+} as const satisfies Record<RecursoTraduzivel, string>;
+const RECURSO_DO_PREFIXO = Object.fromEntries(
+  Object.entries(PREFIXO_DO_RECURSO).map(([tipo, prefixo]) => [prefixo, tipo]),
+) as Record<string, RecursoTraduzivel>;
+
+const IdRecurso = Type.String({
+  pattern: `^(prd|opt|ovl|cat|col)_${UUID}$`,
+  description: "prd_…, opt_…, ovl_…, cat_… ou col_…",
+});
+const Lingua = Type.String({
+  pattern: "^[a-z]{2}$",
+  description: "ISO 639-1, em minúsculas (ex.: es)",
+});
+const CampoTraduzivel = umDe([
+  "nome",
+  "descricao",
+  "valor",
+  "endereco_amigavel",
+] as const);
+
+const ParametrosTraducao = Type.Object({
+  recurso: IdRecurso,
+  campo: CampoTraduzivel,
+  lingua: Lingua,
+});
+
+const ConsultaTraducoes = Type.Object(
+  {
+    resource: Type.Optional(IdRecurso),
+    locale: Type.Optional(Lingua),
+    estado: Type.Optional(
+      Type.String({
+        pattern: "^(em_falta|desactualizada)(,(em_falta|desactualizada))?$",
+        description:
+          "Só na fila: em_falta, desactualizada, ou as duas separadas por vírgula (por omissão, as duas)",
+      }),
+    ),
+    limite: Type.Optional(
+      Type.String({
+        pattern: "^[1-9][0-9]?$|^100$",
+        description: "Só na fila: 1 a 100; por omissão, 25",
+      }),
+    ),
+    cursor: Type.Optional(
+      Type.String({
+        pattern: "^[A-Za-z0-9_-]{1,400}$",
+        description: "Só na fila: o `cursor_seguinte` da página anterior",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const TraducaoEsquema = Type.Object({
+  recurso: Type.String({ description: "prd_…, opt_…, ovl_…, cat_… ou col_…" }),
+  campo: Type.String(),
+  lingua: Type.String(),
+  texto: Type.String(),
+  estado: umDe(["completa", "desactualizada"] as const),
+  origem: umDe(["pessoa", "ia"] as const),
+  revista: Type.Boolean({
+    description:
+      "Só uma proposta de IA se revê, no Hub, por uma pessoa (não por chave); uma de pessoa fica falsa",
+  }),
+  traduzida_em: Instante,
+  revista_em: Type.Union([Instante, Type.Null()]),
+});
+
+const PorTraduzirEsquema = Type.Object({
+  recurso: Type.String({ description: "prd_…, opt_…, ovl_…, cat_… ou col_…" }),
+  campo: Type.String(),
+  estado: umDe(["em_falta", "desactualizada"] as const),
+});
+
+const PedidoTraduzir = Type.Object(
+  {
+    texto: Type.String({
+      minLength: 1,
+      maxLength: 20000,
+      pattern: "\\S",
+      description:
+        "Nome e valor até 200 caracteres; descrição até 20 000; endereço amigável no formato da base",
+    }),
+    original_visto: Type.String({
+      maxLength: 20000,
+      description:
+        "O texto original que quem traduziu viu; se entretanto mudou, catalog.version_conflict",
+    }),
+  },
+  { additionalProperties: false },
+);
+
 const ComVersao = { versao: Type.Integer({ minimum: 1 }) };
 
 const PedidoAlterarArtigo = Type.Object(
@@ -848,6 +955,84 @@ const paraComponente = (c: {
   quantidade: c.quantidade,
   estado: c.estado,
 });
+
+/** Do id com prefixo ao tipo e ao uuid do recurso traduzível. */
+function recursoDe(id: string): { tipo: RecursoTraduzivel; id: string } {
+  const tipo = RECURSO_DO_PREFIXO[id.slice(0, id.indexOf("_"))];
+  if (tipo === undefined) {
+    throw erroBase("request.invalid", "recurso desconhecido");
+  }
+  return { tipo, id: semPrefixo(id) };
+}
+
+/** O campo tem de ser traduzível neste tipo de recurso (0009). */
+function campoDe(tipo: RecursoTraduzivel, campo: string) {
+  if (!(CAMPOS_TRADUZIVEIS[tipo] as readonly string[]).includes(campo)) {
+    throw erroBase(
+      "request.invalid",
+      `${tipo} traduz-se em: ${CAMPOS_TRADUZIVEIS[tipo].join(", ")}`,
+    );
+  }
+  return campo;
+}
+
+/**
+ * O texto cabe no limite do campo (0009, `traducao_texto_comprimento` e
+ * `traducao_endereco_valido`; revisão do #166, P2-5): recusa-se aqui, com o
+ * campo e o limite na mensagem, em vez do erro genérico da base.
+ */
+function textoCabe(campo: string, texto: string) {
+  // Conta-se por caracteres (pontos de código), como a base (`length`) e o
+  // contrato; não por unidades UTF-16 (2.ª revisão do #166, P3-B). Os
+  // limites repetem os da 0009: mudam-se nos dois sítios.
+  const caracteres = Array.from(texto).length;
+  if (campo === "endereco_amigavel") {
+    if (caracteres > 100) {
+      throw new ErroCatalogo(
+        "catalog.slug_invalid",
+        "o endereço amigável traduz-se com até 100 caracteres",
+      );
+    }
+    return;
+  }
+  const limite = campo === "descricao" ? 20000 : 200;
+  if (caracteres > limite) {
+    throw new ErroCatalogo(
+      "catalog.invalid_field",
+      `o campo ${campo} traduz-se com até ${String(limite)} caracteres`,
+    );
+  }
+}
+
+const comPrefixoDo = (tipo: RecursoTraduzivel, id: string) =>
+  `${PREFIXO_DO_RECURSO[tipo]}_${id}`;
+
+/** O cursor da fila: (tipo, recurso, campo) em JSON e base64url. */
+const cursorDaFila = (p: PosicaoNaFila) =>
+  Buffer.from(JSON.stringify([p.tipo, p.recursoId, p.campo]), "utf8").toString(
+    "base64url",
+  );
+function posicaoDaFila(cursor: string): PosicaoNaFila {
+  let valor: unknown;
+  try {
+    valor = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+  } catch {
+    valor = null;
+  }
+  if (
+    Array.isArray(valor) &&
+    valor.length === 3 &&
+    typeof valor[0] === "string" &&
+    Object.hasOwn(CAMPOS_TRADUZIVEIS, valor[0]) &&
+    typeof valor[1] === "string" &&
+    new RegExp(`^${UUID}$`).test(valor[1]) &&
+    typeof valor[2] === "string" &&
+    /^[a-z_]{1,40}$/.test(valor[2])
+  ) {
+    return { tipo: valor[0], recursoId: valor[1], campo: valor[2] };
+  }
+  throw erroBase("request.invalid", "`cursor` não é um cursor desta lista");
+}
 
 /**
  * O GTIN e a origem dele vêm juntos (C4; 0002): recusa-se no contrato, com
@@ -1687,6 +1872,207 @@ export function rotasDoCatalogo(
           ha_mais: false,
           cursor_seguinte: null,
         };
+      }),
+  );
+
+  // ---------------------------------------------------------- Traduções
+  // Parte 5 (pedido do Diogo, 08/10/2026: «sim, avança com as traduções»;
+  // docs/14 §3.8, §4.3 e §7.1). Quem traduziu fica registado como a chave e
+  // não sai nas respostas (proposta, docs/14 §7.1). Rever uma proposta
+  // de IA não se faz por chave: faz-se no Hub, com a sessão de uma pessoa
+  // (docs/06, CO; revisão do #166, P1-1).
+
+  rotas.get(
+    "/translations",
+    {
+      config: { ambito: "catalog:read" },
+      schema: {
+        description:
+          "Dois usos, exactamente um de cada vez. Com `resource`: as traduções desse recurso (de uma língua, com `locale`), cada uma com o estado contra o original de agora; são poucas, vão todas. Sem `resource`, com `locale`: a fila do que falta traduzir nessa língua (`estado`: em_falta, desactualizada), por páginas (docs/18 §2a); para a língua de origem dá catalog.translation_same_language.",
+        querystring: ConsultaTraducoes,
+        response: {
+          200: Type.Union([Lista(TraducaoEsquema), Lista(PorTraduzirEsquema)]),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      const q = pedido.query;
+      if (q.resource !== undefined) {
+        if (
+          q.estado !== undefined ||
+          q.limite !== undefined ||
+          q.cursor !== undefined
+        ) {
+          throw erroBase(
+            "request.invalid",
+            "`estado`, `limite` e `cursor` são só da fila (sem `resource`)",
+          );
+        }
+        const { tipo, id } = recursoDe(q.resource);
+        const traducoes = await noCatalogoApi(resposta, () =>
+          traducoesParaApi(
+            base,
+            chave.comercianteId,
+            tipo,
+            id,
+            q.locale ?? null,
+          ),
+        );
+        return {
+          dados: traducoes.map((t) => ({
+            recurso: comPrefixoDo(tipo, id),
+            campo: t.campo,
+            lingua: t.lingua,
+            texto: t.texto,
+            estado: t.estado,
+            origem: t.origem,
+            revista: t.revista,
+            traduzida_em: t.traduzido_em.toISOString(),
+            revista_em: iso(t.revisto_em),
+          })),
+          total: traducoes.length,
+          ha_mais: false,
+          cursor_seguinte: null,
+        };
+      }
+      if (q.locale === undefined) {
+        throw erroBase(
+          "request.invalid",
+          "pede-se `resource` (as traduções dele) ou `locale` (a fila)",
+        );
+      }
+      const estados = (q.estado ?? "em_falta,desactualizada").split(",") as (
+        "em_falta" | "desactualizada"
+      )[];
+      const limite = q.limite === undefined ? 25 : Number(q.limite);
+      const depois = q.cursor === undefined ? null : posicaoDaFila(q.cursor);
+      const pagina = await noCatalogoApi(resposta, () =>
+        filaDeTraducoesPaginada(
+          base,
+          chave.comercianteId,
+          q.locale ?? "",
+          estados,
+          limite,
+          depois,
+        ),
+      );
+      return {
+        dados: pagina.dados.map((p) => ({
+          recurso: comPrefixoDo(p.tipo, p.recursoId),
+          campo: p.campo,
+          estado: p.estado,
+        })),
+        total: pagina.total,
+        ha_mais: pagina.ultima !== null,
+        cursor_seguinte:
+          pagina.ultima === null ? null : cursorDaFila(pagina.ultima),
+      };
+    },
+  );
+
+  /** A tradução de um campo numa língua, lida na transacção dada. */
+  async function traducaoNa(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    tipo: RecursoTraduzivel,
+    id: string,
+    campo: string,
+    lingua: string,
+  ) {
+    const t = (
+      await traducoesParaApi(trx, comercianteId, tipo, id, lingua)
+    ).find((x) => x.campo === campo);
+    if (t === undefined) {
+      throw new ErroCatalogo(
+        "catalog.not_found",
+        `tradução ${id} ${campo} ${lingua}`,
+      );
+    }
+    return {
+      recurso: comPrefixoDo(tipo, id),
+      campo: t.campo,
+      lingua: t.lingua,
+      texto: t.texto,
+      estado: t.estado,
+      origem: t.origem,
+      revista: t.revista,
+      traduzida_em: t.traduzido_em.toISOString(),
+      revista_em: iso(t.revisto_em),
+    };
+  }
+
+  rotas.put(
+    "/translations/:recurso/:campo/:lingua",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Traduz um campo para uma língua, ou traduz outra vez (substitui o texto e apaga a revisão). Por chave, a tradução fica sempre como proposta de IA (`origem: ia`); as de pessoa gravam-se no Hub (docs/06, CP). `original_visto` é o texto original que quem traduziu viu: se mudou, catalog.version_conflict. Não se traduz para a língua de origem nem um campo sem original. Campos: artigo (nome, descricao), opção (nome), valor (valor), categoria (nome, endereco_amigavel), colecção (nome, descricao, endereco_amigavel).",
+        headers: CabecalhoIdempotencia,
+        params: ParametrosTraducao,
+        body: PedidoTraduzir,
+        response: { 200: TraducaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) => {
+        const { tipo, id } = recursoDe(pedido.params.recurso);
+        const campo = campoDe(tipo, pedido.params.campo);
+        textoCabe(campo, pedido.body.texto);
+        await recursoTraduzivel(trx, chave.comercianteId, tipo, id);
+        await definirTraducao(trx, chave.comercianteId, quemDa(chave), {
+          tipo,
+          recursoId: id,
+          campo,
+          lingua: pedido.params.lingua,
+          texto: pedido.body.texto,
+          // Por chave, é sempre uma proposta de IA: só o Hub, com a sessão
+          // de uma pessoa, grava traduções de pessoa (docs/06, CP).
+          origem: "ia",
+          originalVisto: pedido.body.original_visto,
+        });
+        return traducaoNa(
+          trx,
+          chave.comercianteId,
+          tipo,
+          id,
+          campo,
+          pedido.params.lingua,
+        );
+      }),
+  );
+
+  rotas.delete(
+    "/translations/:recurso/:campo/:lingua",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Tira a tradução (o campo passa a «em falta» nessa língua). Tirar a tradução do nome de um artigo publicado num mercado dessa língua tira-o de venda (§8; CJ).",
+        headers: CabecalhoIdempotencia,
+        params: ParametrosTraducao,
+        response: {
+          204: Type.Null({ description: "Tirada; sem corpo" }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 204, async (trx, chave) => {
+        const { tipo, id } = recursoDe(pedido.params.recurso);
+        const campo = campoDe(tipo, pedido.params.campo);
+        await recursoTraduzivel(trx, chave.comercianteId, tipo, id);
+        await apagarTraducao(
+          trx,
+          chave.comercianteId,
+          quemDa(chave),
+          id,
+          campo,
+          pedido.params.lingua,
+        );
+        return null;
       }),
   );
 }

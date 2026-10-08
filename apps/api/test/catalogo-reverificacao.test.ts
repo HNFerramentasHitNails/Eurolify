@@ -294,7 +294,7 @@ describe.skipIf(URL_BASE === undefined)("reverificar as publicações", () => {
       artigos.push(artigo);
     }
     const [gel, lima] = artigos as [string, string];
-    await apagarTraducao(base.api, l.c, gel, "nome", "es");
+    await apagarTraducao(base.api, l.c, "rui@exemplo.eu", gel, "nome", "es");
     const p = await aPublicacao(l, gel);
     expect(p.estado).toBe("arquivado");
     expect(codigos(p.ultima_verificacao)).toEqual(["traducao_em_falta"]);
@@ -567,7 +567,15 @@ describe.skipIf(URL_BASE === undefined)("reverificar as publicações", () => {
           await reverificarPublicacoes(trx, l.c, { mercado_id: l.mercado }),
         ).toEqual([]);
       },
-      () => apagarTraducao(base.api, l.c, gel.artigo, "nome", "es"),
+      () =>
+        apagarTraducao(
+          base.api,
+          l.c,
+          "rui@exemplo.eu",
+          gel.artigo,
+          "nome",
+          "es",
+        ),
     );
     expect(esperou).toBe(true);
     const p = await aPublicacao(l, gel.artigo);
@@ -688,7 +696,14 @@ describe.skipIf(URL_BASE === undefined)("reverificar as publicações", () => {
     await alterarMercado(base.api, l.c, l.mercado, await versaoDoMercado(l), {
       linguas: ["pt"],
     });
-    await apagarTraducao(base.api, l.c, gel, "descricao", "es");
+    await apagarTraducao(
+      base.api,
+      l.c,
+      "rui@exemplo.eu",
+      gel,
+      "descricao",
+      "es",
+    );
     expect((await aPublicacao(l, gel)).estado).toBe("publicado");
     // O nome conta: agora sai.
     await alterarArtigo(base.api, l.c, gel, await versaoDoArtigo(l, gel), {

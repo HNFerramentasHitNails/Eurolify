@@ -19,11 +19,14 @@ import {
 import {
   apagarTraducao,
   definirTraducao,
-  filaDeTraducoes,
   reverTraducao,
   traducoesDoRecurso,
   type DadosTraducao,
 } from "../src/catalogo/traducoes.js";
+import {
+  filaDeTraducoesPaginada,
+  type PosicaoNaFila,
+} from "../src/catalogo/consultas.js";
 import {
   comComerciante,
   ErroComerciante,
@@ -35,6 +38,29 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+
+/** A fila inteira de uma língua, página a página (a única implementação). */
+async function filaDeTraducoes(
+  db: Parameters<typeof filaDeTraducoesPaginada>[0],
+  comercianteId: string,
+  lingua: string,
+) {
+  const fila = [];
+  let depois: PosicaoNaFila | null = null;
+  for (;;) {
+    const pagina = await filaDeTraducoesPaginada(
+      db,
+      comercianteId,
+      lingua,
+      ["em_falta", "desactualizada"],
+      2,
+      depois,
+    );
+    fila.push(...pagina.dados);
+    if (pagina.ultima === null) return fila;
+    depois = pagina.ultima;
+  }
+}
 
 // Catálogo, parte 3b: traduções (docs/14 §3.8 e §4.3; migração 0009; issue
 // #77), contra o PostgreSQL 18 verdadeiro e com o eurolify_api.
@@ -344,7 +370,15 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     await definirTraducao(base.api, c, QUEM, nomeEs(artigo));
     expect(
       await codigoDoErro(
-        reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es"),
+        reverTraducao(
+          base.api,
+          c,
+          "rui@exemplo.eu",
+          artigo,
+          "nome",
+          "es",
+          "Gel de construcción",
+        ),
       ),
     ).toBe("catalog.translation_not_ai");
     await definirTraducao(base.api, c, "assistente-ia", {
@@ -352,19 +386,60 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
       origem: "ia",
     });
     expect(
-      await codigoDoErro(reverTraducao(base.api, c, "", artigo, "nome", "es")),
+      await codigoDoErro(
+        reverTraducao(
+          base.api,
+          c,
+          "",
+          artigo,
+          "nome",
+          "es",
+          "Gel de construcción",
+        ),
+      ),
     ).toBe("catalog.translated_by_required");
     // Quem traduziu não se revê (P2-2), nem com outras maiúsculas (2.ª
     // revisão, P3-1).
     for (const proprio of ["assistente-ia", "Assistente-IA"]) {
       expect(
         await codigoDoErro(
-          reverTraducao(base.api, c, proprio, artigo, "nome", "es"),
+          reverTraducao(
+            base.api,
+            c,
+            proprio,
+            artigo,
+            "nome",
+            "es",
+            "Gel de construcción",
+          ),
         ),
         proprio,
       ).toBe("catalog.translation_self_review");
     }
-    await reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es");
+    // Rever um texto que já não é o de agora (alguém traduziu outra vez
+    // entretanto) é recusado (revisão do #166, P2-1).
+    expect(
+      await codigoDoErro(
+        reverTraducao(
+          base.api,
+          c,
+          "rui@exemplo.eu",
+          artigo,
+          "nome",
+          "es",
+          "Gel de construcción antigo",
+        ),
+      ),
+    ).toBe("catalog.version_conflict");
+    await reverTraducao(
+      base.api,
+      c,
+      "rui@exemplo.eu",
+      artigo,
+      "nome",
+      "es",
+      "Gel de construcción",
+    );
     expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
       origem: "ia",
       traduzidoPor: "assistente-ia",
@@ -374,7 +449,15 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     await alterarArtigo(base.api, c, artigo, 1, { nome: "Gel construtor" });
     expect(
       await codigoDoErro(
-        reverTraducao(base.api, c, "rui@exemplo.eu", artigo, "nome", "es"),
+        reverTraducao(
+          base.api,
+          c,
+          "rui@exemplo.eu",
+          artigo,
+          "nome",
+          "es",
+          "Gel de construcción",
+        ),
       ),
     ).toBe("catalog.invalid_transition");
     expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
@@ -402,7 +485,15 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     });
     expect(
       await codigoDoErro(
-        reverTraducao(base.api, c, QUEM, artigo, "nome", "fr"),
+        reverTraducao(
+          base.api,
+          c,
+          QUEM,
+          artigo,
+          "nome",
+          "fr",
+          "Gel de construcción",
+        ),
       ),
     ).toBe("catalog.not_found");
   });
@@ -601,7 +692,9 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     )) as { rows: { n: number }[] };
     expect(traducoesVistas[0]?.n).toBe(0);
     expect(
-      await codigoDoErro(apagarTraducao(base.api, outro, artigo, "nome", "es")),
+      await codigoDoErro(
+        apagarTraducao(base.api, outro, QUEM, artigo, "nome", "es"),
+      ),
     ).toBe("catalog.not_found");
     expect(await filaDeTraducoes(base.api, outro, "es")).toEqual([]);
     // O mesmo id em maiúsculas é o mesmo recurso.
@@ -653,7 +746,7 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
   it("apagar uma tradução passa-a a «em falta»", async () => {
     const { c, artigo } = await gel();
     await definirTraducao(base.api, c, QUEM, nomeEs(artigo));
-    await apagarTraducao(base.api, c, artigo, "nome", "es");
+    await apagarTraducao(base.api, c, QUEM, artigo, "nome", "es");
     expect(await traducoesDoRecurso(base.api, c, artigo)).toEqual([]);
     expect(
       (await filaDeTraducoes(base.api, c, "es")).map((l) => l.campo).sort(),
@@ -673,6 +766,37 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     await t1.fechar();
     expect(await traduzir).toBe("catalog.version_conflict");
     expect(await traducoesDoRecurso(base.api, c, artigo)).toEqual([]);
+  });
+
+  it("rever enquanto alguém traduz outra vez: espera e é recusado pelo texto visto (2.ª revisão do #166, P3-C)", async () => {
+    const { c, artigo } = await gel();
+    await definirTraducao(base.api, c, "assistente-ia", {
+      ...nomeEs(artigo),
+      origem: "ia",
+    });
+    const t1 = await transaccaoAberta(
+      c,
+      `select set_config('eurolify.quem', 'outra-ia', true); update traducao set texto = 'Gel nuevo' where artigo_id = '${artigo}' and campo = 'nome' and lingua = 'es'`,
+    );
+    const rever = codigoDoErro(
+      reverTraducao(
+        base.api,
+        c,
+        "rui@exemplo.eu",
+        artigo,
+        "nome",
+        "es",
+        "Gel de construcción",
+      ),
+    );
+    expect(await esperaBloqueio(rever)).toBe(true);
+    await t1.fechar();
+    // Sem o FOR UPDATE, a revisão lia o texto velho e marcava o novo.
+    expect(await rever).toBe("catalog.version_conflict");
+    expect((await traducoesDoRecurso(base.api, c, artigo))[0]).toMatchObject({
+      texto: "Gel nuevo",
+      revistoPor: null,
+    });
   });
 
   it.each(["artigo", "categoria", "colecao"] as const)(
