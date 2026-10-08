@@ -17,9 +17,9 @@ noutra máquina). Decisões: ADR-0015, 0016, 0018, 0021, 0026 a 0030; guia
 | 7 | pastas e `/etc/eurolify/ensaio.conf` (sem segredos) | — |
 | 8 | programas `eurolify-*` e unidades do `systemd` | ADR-0026, 0028 |
 | 9 | Docker e a rede interna `eurolify` | ADR-0026 |
-| 10 | PostgreSQL 18 num contentor, **sem porta publicada**; palavra-passe gerada na máquina | ADR-0025, `AGENTS.md` |
+| 10 | PostgreSQL 18 num contentor, **sem porta publicada**; palavra-passe gerada na máquina. A chave dos segredos TOTP (`/etc/eurolify/api-totp.env`, 600, root) **gera-se uma vez e nunca se reescreve** (trocá-la obrigava cada pessoa a configurar outra vez o autenticador); a API recebe-a e é recriada quando ela aparece | ADR-0025, `AGENTS.md`; `docs/22` §9.2, pedido #177 |
 | 10b | Utilizadores da base: `eurolify_migrador` (dono da base e das tabelas, ligação em `migrar.env`) e `eurolify_api` (a API, ligação em `api-base.env`, um ficheiro só dela; o `api.env` fica para o resto da configuração e o script não o reescreve); cada um com palavra-passe gerada na máquina, renovada se a ligação do ficheiro deixar de entrar ; e `eurolify_limpeza` (a limpeza diária da idempotência: `LOGIN` sem palavra-passe, só pelo socket do contentor, sem superutilizador, `BYPASSRLS`, só a `idempotencia` e o `EXECUTE` das duas funções dos prazos das contas, sem nenhuma tabela das contas; os privilégios dão-nos as migrações 0013 e 0026 ou, se correram antes, este passo) | `docs/15` §5, #70, #107, #119 |
-| 10c | Se o `api.env` ou o `api-base.env` mudaram depois de o contentor `eurolify-api` ser criado, ou se ele não tem a pasta das imagens montada (#178, #180), recria-o com a mesma imagem (`eurolify-publicar --so-recriar`: espera por outra publicação em curso e não troca de imagem), que verifica o `/health` e que a API chega à base | `docs/19` §6, #107 |
+| 10c | Se o `api.env`, o `api-base.env`, o `api-hub.env` ou o `api-totp.env` mudaram depois de o contentor `eurolify-api` ser criado (ou a chave TOTP acabou de nascer), ou se ele não tem a pasta das imagens montada (#178, #180), recria-o com a mesma imagem (`eurolify-publicar --so-recriar`: espera por outra publicação em curso e não troca de imagem), que verifica o `/health` e que a API chega à base | `docs/19` §6, #107 |
 | 11 | utilizadores `eurolify-publicar`, `-aplicar`, `-medir`, `-operar`: sem sudo nem docker, casa de root; cada chave só corre `eurolify-pedido <fluxo>`. O `operar` (comando do operador, `docs/19` §6): o utilizador, a pasta e o serviço criam-se já; só falta a chave, `chaves/fluxos/operar.pub` (sem ela, o `preparar.sh` avisa e ninguém entra). Não confundir com o programa `eurolify-operar` (acções do MCP); o do comando é o `eurolify-operador` | ADR-0026, 0028; `docs/19` |
 | 12 | tarefas: cópia 03:00 UTC, reposição ao domingo 04:00, limpeza 05:00 (`eurolify-limpeza`: a idempotência e os prazos das contas de pessoas, `docs/21` §13; a verificação avisa se houver linhas com o prazo passado há mais de um dia), verificação 07:00 | ADR-0027, 0029; `docs/18` §4 |
 | 13 | MCP da VPS: utilizador `eurolify-mcp` e a pasta dos pedidos; certificado de `mcp.eurolify.eu` (Let's Encrypt, desafio DNS da OVH, sem abrir a 80); `nginx` só com o site do MCP, ligado depois de haver certificado e de o `nginx -t` passar: o login aberto a todos, o resto só para `160.79.104.0/21` | ADR-0033 |
@@ -59,6 +59,7 @@ sozinho** o que não conhece (chaves, regras, contentores): avisa.
 | `github-oauth.env` | `GITHUB_CLIENT_ID=`, `GITHUB_CLIENT_SECRET=` da aplicação OAuth do GitHub (login no MCP, ADR-0033), **sem aspas** (o `docker --env-file` guarda-as como parte do valor) |
 | `ovh-dns.ini` | chave da API da OVH só para a zona `eurolify.eu`, no formato do `certbot` (`dns_ovh_endpoint`, `…_application_key`, `…_application_secret`, `…_consumer_key`) |
 | `ovh-dns.expira` | data de troca dessa chave, `AAAA-MM-DD` (a chave actual não expira; troca-se a 2027-03-31) |
+| `api-totp.env` | `TOTP_CHAVE=` (32 bytes em base64) e `TOTP_CHAVE_VERSAO=`: a chave que cifra os segredos TOTP das palavras-passe; **gerada na máquina pelo passo 10, uma vez**. Uma cópia guarda-se **fora da máquina e à parte das cópias da base** (como a `age.key`, também com o Diogo; nunca dentro do dump, senão a cifra deixa de servir). Ver «A chave dos segredos TOTP» abaixo |
 
 O `preparar.sh` avisa de cada um que falte; as tarefas que precisam dele
 falham e avisam.
@@ -92,6 +93,23 @@ Os 14 dias na OVH são garantidos pelo `eurolify-copia` (`rclone delete
 --min-age 14d`); uma regra de expiração no contentor (*lifecycle*,
 `Expiration` com `Days`, que a documentação da OVH descreve) é uma segunda
 trava, não a única.
+
+## A chave dos segredos TOTP (`api-totp.env`; pedido #177)
+
+- **Nunca se reescreve.** O passo 10 só a cria se faltar; se o ficheiro
+  existir com outro formato, avisa e não lhe toca, e o `eurolify-publicar`
+  arranca a API **sem** a palavra-passe até se corrigir à mão (uma chave
+  estragada derrubava a API).
+- **Se se perder**, os autenticadores já configurados deixam de valer: quem
+  tem passkey entra e configura o seu outra vez; quem só tem a palavra-passe
+  fica com os códigos de recuperação. Por isso guarda-se uma cópia à parte
+  (tabela acima).
+- **Mudança de máquina (Paris, ADR-0018):** copiar o `api-totp.env` para a
+  máquina nova **antes** de correr o `preparar.sh`, ou ele gera outra chave.
+- **Chave exposta:** revoga-se primeiro (`AGENTS.md`): tirar o ficheiro à
+  mão, gerar outro com a `TOTP_CHAVE_VERSAO` acima da anterior (para a falha
+  ser explícita na API) e avisar que todos voltam a configurar o
+  autenticador. Fica registado numa memória.
 
 ## Regras para quem mexer
 

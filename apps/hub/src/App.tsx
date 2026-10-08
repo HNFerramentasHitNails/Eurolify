@@ -3,6 +3,7 @@ import { api } from "./api";
 import { lerSegredoDaLigacao } from "./convite";
 import { fecharAvisoDeRecuperada } from "./recuperacao";
 import { ContextoHub, type Contexto } from "./contexto";
+import { Chaves } from "./ecras/Chaves";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
 import { Entrar } from "./ecras/Entrar";
@@ -20,7 +21,7 @@ import {
 } from "./textos";
 
 // As páginas do Hub (docs/22 §2 e §9): /entrar, /recuperar, /convite,
-// /equipa, /conta e /. Nunca debaixo de /hub/, que é da API.
+// /equipa, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
@@ -74,6 +75,7 @@ export function App() {
   const comSessao =
     local.caminho === "/" ||
     local.caminho === "/equipa" ||
+    local.caminho === "/chaves" ||
     local.caminho === "/conta";
 
   // O título da janela diz a página (WCAG 2.4.2; revisão do #158, P3-6).
@@ -86,9 +88,11 @@ export function App() {
           ? t.conviteTitulo
           : local.caminho === "/equipa"
             ? t.equipaTitulo
-            : local.caminho === "/conta"
-              ? t.contaTitulo
-              : t.inicioTitulo;
+            : local.caminho === "/chaves"
+              ? t.chavesTitulo
+              : local.caminho === "/conta"
+                ? t.contaTitulo
+                : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -101,6 +105,15 @@ export function App() {
   else if (local.caminho === "/equipa")
     ecra = (
       <Equipa
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (local.caminho === "/chaves")
+    ecra = (
+      <Chaves
+        // Outro comerciante, outro ecrã: nada do anterior fica (revisão do
+        // #183, P3-9).
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
       />
     );

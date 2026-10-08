@@ -34,7 +34,7 @@ export function Convite({ segredo }: { segredo: string | null }) {
         <div className="aviso" role="note">
           {t.codigosAviso}
         </div>
-        <ul className="codigos" aria-label={t.codigosTitulo}>
+        <ul className="codigos" translate="no" aria-label={t.codigosTitulo}>
           {codigos.map((c) => (
             <li key={c}>{c}</li>
           ))}

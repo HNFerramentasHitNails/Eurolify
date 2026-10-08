@@ -293,7 +293,9 @@ function Convidar({
           <div className="aviso" role="note">
             {t.convidarAviso}
           </div>
-          <p className="segredo">{ligacao}</p>
+          <p className="segredo" translate="no" spellCheck={false}>
+            {ligacao}
+          </p>
           <div className="linha">
             <Copiar texto={ligacao} />
             <button

@@ -64,12 +64,27 @@ export async function comRecente<T>(fn: () => Promise<T>): Promise<T> {
       erro instanceof ErroHub &&
       erro.codigo === "auth.reauthentication_required"
     ) {
-      await reautenticar();
+      // Só há reautenticação com passkey. Sem passkeys no navegador, ou sem
+      // uma desta conta (a janela fecha-se), diz-se o que fazer: entrar
+      // outra vez, também com a palavra-passe (revisão do #177, P2-1).
+      if (!temPasskeys()) throw new ReautenticacaoPorFazer();
+      try {
+        await reautenticar();
+      } catch (e) {
+        if (e instanceof Cancelado) throw new ReautenticacaoPorFazer();
+        throw e;
+      }
       return fn();
     }
     throw erro;
   }
 }
+
+/**
+ * A operação pede autenticação recente e ela não se fez com uma passkey
+ * (docs/21 §4.3): a pessoa entra outra vez e tem 10 minutos.
+ */
+export class ReautenticacaoPorFazer extends Error {}
 
 /** Pede as opções a `caminhoOpcoes` e cria uma passkey nova no navegador. */
 async function registar(caminhoOpcoes: string, corpo?: unknown) {

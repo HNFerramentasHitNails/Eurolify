@@ -110,6 +110,8 @@ const api = spawn("node", [join(API, "dist/servidor.js")], {
     BASE_DADOS_URL: urlDe(nomeBase, "eurolify_api", SENHA),
     HUB_ORIGEM: ORIGEM,
     PROXY_CONFIAVEL: "127.0.0.1",
+    // A palavra-passe com o TOTP ligada (docs/22 §9.2), com uma chave nova.
+    TOTP_CHAVE: randomBytes(32).toString("base64"),
   },
   stdio: ["ignore", "ignore", "inherit"],
 });
@@ -343,7 +345,8 @@ try {
     "convidar com a sessão antiga pede a passkey outra vez e repete",
   );
 
-  // Passkey recusada (sem verificação do utilizador): fica neutro, não vermelho.
+  // Passkey recusada na reautenticação (sem verificação do utilizador): fica
+  // neutro, não vermelho, e diz o que fazer (revisão do #177, P2-1).
   psql(
     "update sessao set autenticada_em = now() - interval '1 hour' where revogada_em is null",
   );
@@ -358,11 +361,11 @@ try {
   await pagina.waitForTimeout(1500);
   const vermelho = await pagina.locator(".erro").count();
   const textoNeutro = await pagina
-    .getByText("A passkey foi cancelada", { exact: false })
+    .getByText("Saia e volte a entrar", { exact: false })
     .count();
   confere(
     vermelho === 0 && textoNeutro === 1,
-    `passkey recusada: aviso neutro, sem caixa vermelha (vermelho ${String(vermelho)}, neutro ${String(textoNeutro)})`,
+    `passkey recusada na reautenticação: aviso neutro que diz o que fazer, sem caixa vermelha (vermelho ${String(vermelho)}, neutro ${String(textoNeutro)})`,
   );
   await cdp.send("WebAuthn.setUserVerified", {
     authenticatorId: autenticador,
@@ -449,6 +452,19 @@ try {
     ),
     "o gestor convida com o papel por omissão (Armazém)",
   );
+  // As chaves de API são só do dono (docs/22 §9.3): o gestor não vê a
+  // ligação, e a página diz que não tem permissão (a API recusa, 403).
+  await gestor.pagina.goto(`${ORIGEM}/`);
+  await gestor.pagina.getByText("Loja de Ensaio").waitFor();
+  confere(
+    (await gestor.pagina
+      .getByRole("link", { name: "Chaves de API" })
+      .count()) === 0,
+    "chaves: o gestor não vê a ligação",
+  );
+  await gestor.pagina.goto(`${ORIGEM}/chaves?comerciante=mer_${comerciante}`);
+  await gestor.pagina.getByText("Não tem permissão para isto.").waitFor();
+  confere(true, "chaves: o gestor que abre a página recebe a recusa da API");
   await gestor.contexto.close();
   const apoio = await comPasskey();
   await aceitar(apoio.pagina, conviteApoio, "Ivo Teste");
@@ -725,20 +741,298 @@ try {
     "nenhum pedido levou um código de recuperação no endereço",
   );
 
+  // B3b — a palavra-passe com o autenticador (docs/22 §9.2), no navegador
+  // da recuperação (a Ana, com a sessão acabada de abrir).
+  const { generate } = await import(
+    join(API, "node_modules/otplib/dist/index.js")
+  );
+  const pedidosPalavraPasse = [];
+  rp.on("request", (p) => {
+    pedidosPalavraPasse.push(p.url());
+  });
+  const palavraDaAna = "uma frase bem comprida da Ana";
+  await rp.goto(`${ORIGEM}/conta`);
+  await rp
+    .getByRole("heading", { name: "Palavra-passe e autenticador" })
+    .waitFor();
+  await rp.getByText("Estado: não activada.").waitFor();
+  confere(true, "palavra-passe: o bloco aparece com a API a tê-la ligada");
+  await rp
+    .getByRole("button", { name: "Activar palavra-passe e autenticador" })
+    .click();
+  await rp.getByLabel("Palavra-passe (12 caracteres ou mais)").fill("curta");
+  await rp.getByLabel("Repita a palavra-passe").fill("curta");
+  await rp.getByRole("button", { name: "Continuar" }).click();
+  await rp.getByText("entre 12 e 256 caracteres", { exact: false }).waitFor();
+  await rp.getByLabel("Repita a palavra-passe").fill(`${palavraDaAna}!`);
+  await rp
+    .getByLabel("Palavra-passe (12 caracteres ou mais)")
+    .fill(palavraDaAna);
+  await rp.getByRole("button", { name: "Continuar" }).click();
+  await rp.getByText("não são iguais", { exact: false }).waitFor();
+  confere(
+    true,
+    "palavra-passe: curta ou diferente, o ecrã recusa antes da API",
+  );
+  await rp.getByLabel("Repita a palavra-passe").fill(palavraDaAna);
+  const respostaSetup = rp
+    .waitForResponse((r) => r.url().endsWith("/hub/password/setup"))
+    .then((r) => r.json());
+  await rp.getByRole("button", { name: "Continuar" }).click();
+  await rp
+    .getByRole("img", { name: "Código QR para a aplicação de autenticação" })
+    .waitFor();
+  confere(
+    await rp.evaluate(() =>
+      (document.activeElement?.textContent ?? "").startsWith(
+        "Leia este código QR",
+      ),
+    ),
+    "palavra-passe: depois de «Continuar», o foco vai para as instruções do código QR",
+  );
+  const segredoTotp = (
+    (await rp.locator(".segredo").textContent()) ?? ""
+  ).replaceAll(" ", "");
+  // O código QR desenhado é exactamente o do URI que a API enviou, e o URI
+  // leva o mesmo segredo do texto (revisão do #177, P2-3). Que o uqr gera um
+  // código QR legível provou-se à parte, a descodificar a captura (OpenCV).
+  const uriTotp = (await respostaSetup).uri;
+  const { encode } = await import(join(HUB, "node_modules/uqr/dist/index.mjs"));
+  const esperado = encode(uriTotp, { ecc: "M", border: 4 });
+  const desenhado = new Set(
+    [
+      ...((await rp.locator("svg.qr path").getAttribute("d")) ?? "").matchAll(
+        /M(\d+) (\d+)h1v1h-1z/g,
+      ),
+    ].map((m) => `${m[1]},${m[2]}`),
+  );
+  const escuros = esperado.data.flatMap((linha, y) =>
+    linha.flatMap((escuro, x) => (escuro ? [`${String(x)},${String(y)}`] : [])),
+  );
+  confere(
+    uriTotp.startsWith("otpauth://totp/") &&
+      new URL(uriTotp).searchParams.get("secret") === segredoTotp &&
+      escuros.length === desenhado.size &&
+      escuros.every((m) => desenhado.has(m)) &&
+      (await rp.locator("svg.qr").getAttribute("viewBox")) ===
+        `0 0 ${String(esperado.size)} ${String(esperado.size)}`,
+    "palavra-passe: o código QR desenhado é o do URI otpauth:// com o mesmo segredo",
+  );
+  confere(
+    /^[A-Z2-7]{16,}$/.test(segredoTotp),
+    "palavra-passe: o código QR e o segredo aparecem",
+  );
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.screenshot({
+    path: join(SAIDA, "palavra-passe-qr-375-claro.png"),
+    fullPage: true,
+  });
+  await rp.emulateMedia({ colorScheme: "dark" });
+  await rp.locator("svg.qr").screenshot({
+    path: join(SAIDA, "palavra-passe-qr-escuro.png"),
+  });
+  await rp.emulateMedia({ colorScheme: "light" });
+  await rp.getByLabel("Código de 6 dígitos da aplicação").fill("000000");
+  await rp.getByRole("button", { name: "Confirmar e activar" }).click();
+  await rp.getByText("O código não está certo", { exact: false }).waitFor();
+  confere(true, "palavra-passe: um código errado é explicado");
+  const agoraS = Math.floor(Date.now() / 1000);
+  await rp
+    .getByLabel("Código de 6 dígitos da aplicação")
+    .fill(await generate({ secret: segredoTotp, epoch: agoraS }));
+  await rp.getByRole("button", { name: "Confirmar e activar" }).click();
+  await rp.getByText("ficaram activos", { exact: false }).waitFor();
+  await rp.getByText("Estado: activa.").waitFor();
+  confere(
+    (await rp.locator(".segredo").count()) === 0 &&
+      (await rp.getByRole("img", { name: /Código QR/ }).count()) === 0,
+    "palavra-passe: activa; o código QR e o segredo saem do ecrã",
+  );
+
+  // Sair e entrar com e-mail, palavra-passe e o código seguinte.
+  await rp.getByRole("button", { name: "Sair" }).click();
+  await rp.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
+  await rp.getByRole("link", { name: "Entrar com palavra-passe" }).click();
+  await rp.getByLabel("E-mail").fill("ana@exemplo.test");
+  await rp
+    .getByLabel("Palavra-passe", { exact: true })
+    .fill("errada mas comprida");
+  await rp
+    .getByLabel("Código de 6 dígitos do autenticador")
+    .fill(await generate({ secret: segredoTotp, epoch: agoraS + 30 }));
+  await rp.getByRole("button", { name: "Entrar", exact: true }).click();
+  await rp
+    .getByText("O e-mail, a palavra-passe ou o código não estão certos.")
+    .waitFor();
+  confere(true, "entrar com palavra-passe: a errada é recusada");
+  await rp.screenshot({
+    path: join(SAIDA, "entrar-palavra-passe-375-claro.png"),
+    fullPage: true,
+  });
+  await rp.getByLabel("Palavra-passe", { exact: true }).fill(palavraDaAna);
+  await rp
+    .getByLabel("Código de 6 dígitos do autenticador")
+    .fill(await generate({ secret: segredoTotp, epoch: agoraS + 30 }));
+  await rp.getByRole("button", { name: "Entrar", exact: true }).click();
+  await rp.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
+  confere(true, "entrar com e-mail, palavra-passe e código");
+
+  // Retirar: a Ana tem passkeys, por isso pode.
+  await rp.goto(`${ORIGEM}/conta`);
+  await rp.getByText("Estado: activa.").waitFor();
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Retirar a palavra-passe" }).click();
+  await rp
+    .getByText("A palavra-passe foi retirada.", { exact: false })
+    .waitFor();
+  await rp.getByText("Estado: não activada.").waitFor();
+  confere(true, "palavra-passe: retirar");
+  confere(
+    !pedidosPalavraPasse.some(
+      (u) =>
+        u.includes(segredoTotp) || u.includes(encodeURIComponent(palavraDaAna)),
+    ),
+    "nenhum pedido levou o segredo do autenticador nem a palavra-passe no endereço",
+  );
+
+  // B3c — as chaves de API (docs/22 §9.3), com a Ana (dona).
+  const pedidosChaves = [];
+  rp.on("request", (p) => {
+    pedidosChaves.push(p.url());
+  });
+  await rp.goto(`${ORIGEM}/`);
+  await rp.getByRole("link", { name: "Chaves de API" }).click();
+  await rp.getByRole("heading", { name: /Chaves de API/ }).waitFor();
+  await rp.getByText("Ainda não há chaves.").waitFor();
+  confere(true, "chaves: a dona vê a página, ainda sem chaves");
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O nome tem de ter entre 1 e 100 caracteres.").waitFor();
+  await rp
+    .getByLabel("Nome (ex.: Integração da faturação)")
+    .fill("Integração de teste");
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp
+    .getByText("Escolha pelo menos uma coisa que a chave pode fazer.")
+    .waitFor();
+  confere(true, "chaves: sem nome ou sem âmbitos, o ecrã recusa antes da API");
+  await rp.getByLabel("Ler o catálogo").check();
+  await rp.getByLabel("Gerir chaves").check();
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Integração de teste»").waitFor();
+  const segredoChave = (await rp.locator(".segredo").textContent()) ?? "";
+  confere(
+    /^eul_sk_[a-z2-7]+$/.test(segredoChave),
+    "chaves: o segredo aparece uma vez (eul_sk_…)",
+  );
+  // Depois de a lista se reler (a captura só com o ecrã parado).
+  await rp.getByText("1 chave", { exact: true }).waitFor();
+  await rp.waitForLoadState("networkidle");
+  await rp.screenshot({
+    path: join(SAIDA, "chaves-segredo-375-claro.png"),
+    fullPage: true,
+  });
+  const comChave = (segredo) =>
+    fetch(`http://127.0.0.1:${String(PORTA_API)}/keys`, {
+      headers: { authorization: `Bearer ${segredo}` },
+    }).then((r) => r.status);
+  confere(
+    (await comChave(segredoChave)) === 200,
+    "chaves: o segredo criado no Hub entra na API (GET /keys 200)",
+  );
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  confere(
+    (await rp.locator(".segredo").count()) === 0,
+    "chaves: «Já o guardei» tira o segredo do ecrã",
+  );
+  await rp.getByText("1 chave", { exact: true }).waitFor();
+  const linha = rp.getByRole("row", { name: /Integração de teste/ });
+  confere(
+    (await linha.getByText("Activa", { exact: true }).count()) === 1 &&
+      (await linha.getByText("Você", { exact: true }).count()) === 1 &&
+      (await linha.getByText("Ler o catálogo, Gerir chaves").count()) === 1,
+    "chaves: a lista mostra a chave activa, criada por si, com os âmbitos",
+  );
+  rp.once("dialog", (d) => void d.accept());
+  await rp
+    .getByRole("button", { name: "Revogar: Integração de teste" })
+    .click();
+  await rp.getByText("A chave foi revogada.").waitFor();
+  confere(
+    (await rp.getByText(/^Revogada a /).count()) === 1 &&
+      (await rp.getByRole("button", { name: /^Revogar:/ }).count()) === 0,
+    "chaves: revogar; fica «Revogada», sem o botão",
+  );
+  confere(
+    (await comChave(segredoChave)) === 401,
+    "chaves: a chave revogada deixa de entrar na API (401)",
+  );
+  // Sem resposta ao criar: o ecrã diz que a chave pode ter ficado criada e
+  // relê a lista (revisão do #183, P2-1).
+  await rp.route("**/hub/keys", (r) =>
+    r.request().method() === "POST" ? r.abort() : r.continue(),
+  );
+  await rp
+    .getByLabel("Nome (ex.: Integração da faturação)")
+    .fill("Sem resposta");
+  await rp.getByLabel("Ler o catálogo").check();
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp
+    .getByText("a chave pode ter sido criada", { exact: false })
+    .waitFor();
+  confere(
+    true,
+    "chaves: sem resposta ao criar, o ecrã avisa que pode ter ficado criada",
+  );
+  await rp.unroute("**/hub/keys");
+  // Uma chave com data de fim: a lista mostra a data.
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Sem resposta»").waitFor();
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  const fimDoAno = `${String(new Date().getFullYear() + 1)}-12-31`;
+  await rp.getByLabel("Nome (ex.: Integração da faturação)").fill("Com prazo");
+  await rp.getByLabel("Ler o catálogo").check();
+  await rp.getByLabel(/^Expira a/).fill(fimDoAno);
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Com prazo»").waitFor();
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  await rp.getByText("3 chaves", { exact: true }).waitFor();
+  confere(
+    (await rp
+      .getByRole("row", { name: /Com prazo/ })
+      .getByText(`31/12/${fimDoAno.slice(0, 4)}`)
+      .count()) === 1,
+    "chaves: uma chave com data de fim mostra-a na lista",
+  );
+
+  const guardadoChaves = JSON.stringify(
+    await recuperado.contexto.storageState(),
+  );
+  confere(
+    !pedidosChaves.some((u) => u.includes(segredoChave)) &&
+      !guardadoChaves.includes(segredoChave),
+    "chaves: o segredo nunca foi num endereço nem ficou no navegador",
+  );
+
   const sessao = await recuperado.contexto.storageState();
   const guardado = JSON.stringify(sessao).toUpperCase();
+  confere(
+    !guardado.includes(segredoTotp) &&
+      !guardado.includes(palavraDaAna.toUpperCase()),
+    "o navegador não guardou o segredo do autenticador nem a palavra-passe",
+  );
   confere(
     !formas.some((c) => guardado.includes(c)),
     "o navegador não guardou nenhum código de recuperação",
   );
 
-  // As capturas: 6 ecrãs × 3 larguras × 2 temas.
+  // As capturas: 7 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
     ["convite", `/convite#${conviteParaVer}`, "Aceitar o convite"],
     ["comerciantes", "/", "Os seus comerciantes"],
     ["equipa", `/equipa?comerciante=mer_${comerciante}`, "Equipa"],
     ["conta", "/conta", "A minha conta"],
+    ["chaves", `/chaves?comerciante=mer_${comerciante}`, "Chaves de API"],
     ["recuperar", "/recuperar", "Recuperar a conta"],
   ];
   for (const tema of ["light", "dark"]) {

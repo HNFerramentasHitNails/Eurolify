@@ -5,6 +5,7 @@ import {
   useState,
   type SyntheticEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import { api, ErroHub, type Passkey, type Sessao } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import {
@@ -14,9 +15,15 @@ import {
   type MensagemDeErro,
 } from "../erros";
 import { acrescentarPasskey, comRecente, temPasskeys } from "../passkeys";
+import {
+  codigoTotpLimpo,
+  palavraPasseValida,
+  segredoEmGrupos,
+} from "../palavra-passe";
 import { fecharAvisoDeRecuperada, foiRecuperada } from "../recuperacao";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 import { Copiar } from "./Copiar";
+import { Qr } from "./Qr";
 
 // A minha conta (docs/22 §9.1): as passkeys, as sessões abertas e os códigos
 // de recuperação, cada bloco com o seu carregamento e o seu erro (um bloco
@@ -212,6 +219,19 @@ export function Conta({ recuperada }: { recuperada: boolean }) {
           setVersaoSessoes((v) => v + 1);
         }}
       />
+      {/* Só com a palavra-passe ligada na API (o campo existe; §9.2). */}
+      {eu.dados !== null && eu.dados.palavra_passe !== undefined ? (
+        <PalavraPasse
+          vez={vez}
+          estado={eu.dados.palavra_passe}
+          email={eu.dados.email}
+          aoMudar={async () => {
+            // Activar e retirar fazem cair as outras sessões.
+            setVersaoSessoes((v) => v + 1);
+            return eu.carregar();
+          }}
+        />
+      ) : null}
       <Sessoes key={versaoSessoes} vez={vez} />
       <Codigos vez={vez} />
     </section>
@@ -485,10 +505,14 @@ function Codigos({ vez }: { vez: Vez }) {
       <ResultadoDaAccao accao={accao} />
       {codigos !== null ? (
         <>
-          <div className="aviso" role="alert" tabIndex={-1} ref={avisoRef}>
+          <div className="aviso" role="note" tabIndex={-1} ref={avisoRef}>
             {t.codigosAviso}
           </div>
-          <ul className="codigos" aria-label={t.recuperacaoTitulo}>
+          <ul
+            className="codigos"
+            translate="no"
+            aria-label={t.recuperacaoTitulo}
+          >
             {codigos.map((c) => (
               <li key={c}>{c}</li>
             ))}
@@ -521,6 +545,300 @@ function Codigos({ vez }: { vez: Vez }) {
             </button>
           ) : null}
         </>
+      )}
+    </section>
+  );
+}
+
+type PassoPalavraPasse =
+  | { passo: "ver" }
+  | { passo: "escolher" }
+  | { passo: "confirmar"; segredo: string; uri: string };
+
+/**
+ * A palavra-passe com o TOTP (docs/22 §9.2): activar (palavra-passe, o código
+ * QR e o segredo, o primeiro código), trocar e retirar. O segredo e o URI só
+ * vivem neste componente enquanto se configura; nunca vão para o endereço nem
+ * para o armazenamento do navegador, e saem ao deixar a página (§9.4).
+ */
+function PalavraPasse({
+  vez,
+  estado,
+  email,
+  aoMudar,
+}: {
+  vez: Vez;
+  estado: "activa" | "pendente" | null;
+  email: string;
+  aoMudar: () => Promise<boolean>;
+}) {
+  const { t } = useHub();
+  const accao = useAccao();
+  const [passo, setPasso] = useState<PassoPalavraPasse>({ passo: "ver" });
+  const [palavra, setPalavra] = useState("");
+  const [repetida, setRepetida] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [invalido, setInvalido] = useState<keyof Textos | null>(null);
+  // Activar oferece-se também sem passkeys no navegador: quem acabou de
+  // entrar com a palavra-passe tem a sessão recente; passados 10 minutos, o
+  // ecrã diz-lhe que entre outra vez (revisão do #177, P2-1).
+  const podeAgir = !vez.ocupado;
+
+  // O foco acompanha o passo (revisão do #177, P2-2): o primeiro campo, as
+  // instruções do código QR e, no fim, o botão do estado. Não na primeira
+  // imagem do ecrã.
+  const mudouDePasso = useRef(false);
+  const primeiroCampo = useRef<HTMLInputElement>(null);
+  const instrucoes = useRef<HTMLParagraphElement>(null);
+  const botaoDoEstado = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mudouDePasso.current) return;
+    mudouDePasso.current = false;
+    if (passo.passo === "escolher") primeiroCampo.current?.focus();
+    else if (passo.passo === "confirmar") instrucoes.current?.focus();
+    else botaoDoEstado.current?.focus();
+  }, [passo]);
+  const irPara = useCallback((p: PassoPalavraPasse) => {
+    mudouDePasso.current = true;
+    setPasso(p);
+  }, []);
+
+  const recomecar = useCallback(() => {
+    irPara({ passo: "ver" });
+    setPalavra("");
+    setRepetida("");
+    setCodigo("");
+    setInvalido(null);
+  }, [irPara]);
+
+  // Ao deixar a página, o segredo sai também da cache de retrocesso do
+  // navegador (revisão do #177, P3-8).
+  useEffect(() => {
+    const aoSair = () => {
+      // Já, antes de o navegador congelar a página (revisão do #183, P3-5).
+      flushSync(() => {
+        setPasso({ passo: "ver" });
+        setPalavra("");
+        setRepetida("");
+        setCodigo("");
+      });
+    };
+    window.addEventListener("pagehide", aoSair);
+    return () => {
+      window.removeEventListener("pagehide", aoSair);
+    };
+  }, []);
+
+  function aoEscolher(evento: SyntheticEvent) {
+    evento.preventDefault();
+    accao.limpar();
+    const problema: keyof Textos | null = !palavraPasseValida(palavra)
+      ? "erroPalavraPasseCurta"
+      : palavra !== repetida
+        ? "erroPalavraPasseDiferente"
+        : null;
+    setInvalido(problema);
+    if (problema !== null) return;
+    void vez.correr(async () => {
+      try {
+        const r = await comRecente(() => api.prepararPalavraPasse(palavra));
+        // A palavra-passe já não é precisa no ecrã.
+        setPalavra("");
+        setRepetida("");
+        irPara({ passo: "confirmar", segredo: r.segredo, uri: r.uri });
+        // A base tem agora uma pendente: o estado relê-se (P3-2).
+        await aoMudar();
+      } catch (e) {
+        await accao.falhou(e);
+      }
+    });
+  }
+
+  function aoConfirmar(evento: SyntheticEvent) {
+    evento.preventDefault();
+    accao.limpar();
+    const limpo = codigoTotpLimpo(codigo);
+    setInvalido(limpo === null ? "erroCodigoTotp" : null);
+    if (limpo === null) return;
+    void vez.correr(async () => {
+      try {
+        await comRecente(() => api.confirmarPalavraPasse(limpo));
+        recomecar();
+        if (await aoMudar()) accao.setSucesso("palavraPasseActivada");
+      } catch (e) {
+        // O mesmo código não vale duas vezes: pede-se o seguinte.
+        setCodigo("");
+        // Substituída ou concluída noutro sítio: o código QR já não vale,
+        // recomeça-se (P3-1).
+        if (e instanceof ErroHub && e.codigo === "password.not_pending") {
+          recomecar();
+          await aoMudar();
+        }
+        await accao.falhou(e);
+      }
+    });
+  }
+
+  function cancelar() {
+    recomecar();
+    accao.limpar();
+    void aoMudar();
+  }
+
+  function retirar() {
+    if (!window.confirm(t.palavraPasseRetirarConfirmar)) return;
+    accao.limpar();
+    void vez.correr(async () => {
+      try {
+        await comRecente(() => api.retirarPalavraPasse());
+        if (await aoMudar()) accao.setSucesso("palavraPasseRetirada");
+      } catch (e) {
+        await accao.falhou(e);
+      }
+    });
+  }
+
+  const ERRO_DO_CAMPO = "erro-palavra-passe";
+  const descrito = (chave: keyof Textos) =>
+    invalido === chave
+      ? { "aria-invalid": true, "aria-describedby": ERRO_DO_CAMPO }
+      : {};
+
+  return (
+    <section className="cartao" aria-labelledby="titulo-palavra-passe">
+      <h2 id="titulo-palavra-passe">{t.palavraPasseTitulo}</h2>
+      <p>{t.palavraPasseExplicacao}</p>
+      {invalido === null ? null : (
+        <CaixaDeErro erro={{ texto: t[invalido] }} id={ERRO_DO_CAMPO} />
+      )}
+      <ResultadoDaAccao accao={accao} />
+      {passo.passo === "ver" ? (
+        <>
+          <p>
+            <strong>
+              {estado === "activa"
+                ? t.palavraPasseActiva
+                : estado === "pendente"
+                  ? t.palavraPassePendente
+                  : t.palavraPasseNenhuma}
+            </strong>
+          </p>
+          <div className="linha">
+            <button
+              type="button"
+              ref={botaoDoEstado}
+              onClick={() => {
+                accao.limpar();
+                irPara({ passo: "escolher" });
+              }}
+              disabled={!podeAgir}
+            >
+              {estado === "activa"
+                ? t.palavraPasseTrocar
+                : t.palavraPasseActivar}
+            </button>
+            {estado === "activa" ? (
+              <button type="button" onClick={retirar} disabled={!podeAgir}>
+                {t.palavraPasseRetirar}
+              </button>
+            ) : null}
+          </div>
+        </>
+      ) : passo.passo === "escolher" ? (
+        <form onSubmit={aoEscolher} noValidate>
+          {/* O e-mail da conta, para o gestor de palavras-passe a guardar
+              com a conta certa (P3-3). */}
+          <input
+            type="email"
+            name="email"
+            autoComplete="username"
+            value={email}
+            readOnly
+            hidden
+          />
+          <div className="campo">
+            <label htmlFor="palavra-nova">{t.palavraPasseCampo}</label>
+            <input
+              id="palavra-nova"
+              ref={primeiroCampo}
+              name="palavra-nova"
+              type="password"
+              autoComplete="new-password"
+              maxLength={256}
+              value={palavra}
+              {...descrito("erroPalavraPasseCurta")}
+              onChange={(e) => {
+                setPalavra(e.target.value);
+              }}
+              required
+            />
+          </div>
+          <div className="campo">
+            <label htmlFor="palavra-repetida">{t.palavraPasseRepetir}</label>
+            <input
+              id="palavra-repetida"
+              name="palavra-repetida"
+              type="password"
+              autoComplete="new-password"
+              maxLength={256}
+              value={repetida}
+              {...descrito("erroPalavraPasseDiferente")}
+              onChange={(e) => {
+                setRepetida(e.target.value);
+              }}
+              required
+            />
+          </div>
+          <div className="linha">
+            <button type="submit" className="principal" disabled={vez.ocupado}>
+              {t.palavraPasseContinuar}
+            </button>
+            <button type="button" onClick={cancelar} disabled={vez.ocupado}>
+              {t.cancelar}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={aoConfirmar} noValidate>
+          <p tabIndex={-1} ref={instrucoes}>
+            {t.autenticadorPasso}
+          </p>
+          <div className="aviso" role="note">
+            {t.autenticadorAviso}
+          </div>
+          <Qr texto={passo.uri} rotulo={t.autenticadorQr} />
+          <p>
+            <strong>{t.autenticadorSegredo}</strong>
+          </p>
+          <p className="segredo" translate="no" spellCheck={false}>
+            {segredoEmGrupos(passo.segredo)}
+          </p>
+          <p>{t.autenticadorDepois}</p>
+          <div className="campo">
+            <label htmlFor="codigo-totp">{t.autenticadorCodigo}</label>
+            <input
+              id="codigo-totp"
+              name="codigo-totp"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={7}
+              value={codigo}
+              {...descrito("erroCodigoTotp")}
+              onChange={(e) => {
+                setCodigo(e.target.value);
+              }}
+              required
+            />
+          </div>
+          <div className="linha">
+            <button type="submit" className="principal" disabled={vez.ocupado}>
+              {t.autenticadorConfirmar}
+            </button>
+            <button type="button" onClick={cancelar} disabled={vez.ocupado}>
+              {t.cancelar}
+            </button>
+          </div>
+        </form>
       )}
     </section>
   );

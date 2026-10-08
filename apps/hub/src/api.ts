@@ -9,6 +9,11 @@ export interface Eu {
   pessoa: string;
   nome: string;
   email: string;
+  /**
+   * A palavra-passe com o TOTP (docs/22 §9.2). Sem o campo, a API não tem a
+   * palavra-passe ligada e o Hub não a oferece.
+   */
+  palavra_passe?: "activa" | "pendente" | null;
   comerciantes: {
     comerciante: string;
     nome: string;
@@ -51,6 +56,34 @@ export interface Sessao {
   ultimo_uso_em: string;
   /** A sessão deste navegador. */
   esta: boolean;
+}
+
+/** Os âmbitos de uma chave de servidor que o Hub oferece (docs/22 §9.3). */
+export const AMBITOS_SERVIDOR = [
+  "catalog:read",
+  "catalog:write",
+  "catalog:publish",
+  "catalog:import",
+  "merchant:read",
+  "merchant:write",
+  "keys:write",
+] as const;
+export type Ambito = (typeof AMBITOS_SERVIDOR)[number] | "storefront";
+
+export interface ChaveApi {
+  id: string;
+  tipo: "servidor" | "publica";
+  loja: string | null;
+  nome: string;
+  ambitos: Ambito[];
+  prefixo: string;
+  /** pessoa:per_…, chave:key_… ou operador:… */
+  criada_por: string;
+  criada_em: string;
+  expira_em: string | null;
+  revogada_em: string | null;
+  revogada_por: string | null;
+  ultimo_uso_em: string | null;
 }
 
 export interface ContaNova {
@@ -152,4 +185,40 @@ export const api = {
     pedir<{ ok: true }>("POST", "/hub/sessions/end-all"),
   gerarCodigos: () =>
     pedir<{ codigos: string[] }>("POST", "/hub/recovery-codes"),
+  // As chaves de API do comerciante (docs/22 §9.3; só o dono). O segredo só
+  // vem na resposta de `criarChave` e nunca se guarda.
+  chaves: (comerciante: string) =>
+    pedir<{ dados: ChaveApi[] }>("GET", "/hub/keys", { comerciante }),
+  criarChave: (
+    comerciante: string,
+    dados: { nome: string; ambitos: Ambito[]; expira_em?: string },
+  ) =>
+    pedir<ChaveApi & { segredo: string }>("POST", "/hub/keys", {
+      comerciante,
+      corpo: { tipo: "servidor", ...dados },
+    }),
+  revogarChave: (comerciante: string, chave: string) =>
+    pedir<ChaveApi>("POST", `/hub/keys/${encodeURIComponent(chave)}/revoke`, {
+      comerciante,
+    }),
+  // A palavra-passe com o TOTP (docs/22 §9.2). O segredo e o URI só vêm na
+  // resposta de `prepararPalavraPasse` e nunca se guardam.
+  prepararPalavraPasse: (palavraPasse: string) =>
+    pedir<{ segredo: string; uri: string }>("POST", "/hub/password/setup", {
+      corpo: { palavra_passe: palavraPasse },
+    }),
+  confirmarPalavraPasse: (codigo: string) =>
+    pedir<{ ok: true }>("POST", "/hub/password/confirm", {
+      corpo: { codigo },
+    }),
+  retirarPalavraPasse: () =>
+    pedir<{ ok: true }>("POST", "/hub/password/remove"),
+  entrarComPalavraPasse: (
+    email: string,
+    palavraPasse: string,
+    codigo: string,
+  ) =>
+    pedir<{ pessoa: string }>("POST", "/hub/session/password", {
+      corpo: { email, palavra_passe: palavraPasse, codigo },
+    }),
 };

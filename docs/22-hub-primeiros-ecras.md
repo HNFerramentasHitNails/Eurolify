@@ -15,7 +15,7 @@
 
 | Entra (esta parte) | Fica para depois |
 |---|---|
-| Entrar com passkey | Entrar com palavra-passe + TOTP (B3b; as rotas existem) |
+| Entrar com passkey; com palavra-passe + TOTP (B3b, §9.2) | — |
 | Aceitar um convite e criar a conta (nome + passkey) | Aceitar um convite com uma conta que já existe (`/hub/invitations/accept`) |
 | Escolher o comerciante (quem é membro de vários) | Mudar de papel, tirar da equipa (rotas existem) |
 | Equipa: ver membros e convites em aberto; convidar; cancelar um convite | Palavra-passe e autenticador, chaves de API (B3b e B3c: desenho na §9, 08/10/2026). A minha conta e recuperar a conta entraram na B3a (§9.1, pedido #174) |
@@ -207,22 +207,58 @@ parte. Em três pedidos, pela ordem do `docs/21` §12:
 | **Entrar com palavra-passe** (em `/entrar`, ligação «Entrar com palavra-passe») | e-mail, palavra-passe, código de 6 dígitos do autenticador | `POST /hub/session/password` | a mesma recusa para tudo o que falha (401); 429 com os minutos; 503 (muitos pedidos ao mesmo tempo: tentar daqui a pouco) |
 | **Na conta: palavra-passe** | se não está activa: «Activar palavra-passe e autenticador» → palavra-passe (≥ 12) e confirmação → o segredo para o autenticador → o primeiro código de 6 dígitos → activa; se está activa: «Retirar» com confirmação | `POST /hub/password/setup`, `POST /hub/password/confirm`, `POST /hub/password/remove` | autenticação recente; código errado; retirar quando não há passkey (a API recusa) |
 
-**Falta na API:** o `/hub/me` não diz se a pessoa tem a palavra-passe
-activa. Proposta: um campo `palavra_passe: "activa" | "pendente" | null`
-(sem nenhum dado secreto), no mesmo pedido da B3b, com teste.
+**Na API (feito com a B3b):** o `/hub/me` diz `palavra_passe: "activa" |
+"pendente" | null` (migração 0029; só o estado, nenhum dado secreto). O
+campo só existe quando a API tem a palavra-passe ligada (`TOTP_CHAVE`);
+sem ele, a conta não oferece a palavra-passe. Ao entrar, sem sessão, o Hub
+não sabe se a API a tem: a ligação «Entrar com palavra-passe» aparece, e
+sem a chave a rota dá 404 e o ecrã diz que não está disponível (revisão do
+#177, P3-5).
 
-**Por decidir (Diogo ou Bruno), antes da B3b:** o segredo do autenticador
-mostra-se **só como texto** (escreve-se à mão na aplicação; nenhuma
-biblioteca nova) ou também **como código QR** (mais simples para quem
-configura; uma biblioteca nova no Hub, a escolher e a rever).
+**Autenticação recente sem passkey (revisão do #177, P2-1):** só há
+reautenticação com passkey. Quem não a pode usar neste navegador recebe o
+aviso de sair e voltar a entrar (também com a palavra-passe), e tem 10
+minutos. Uma rota de reautenticação com a palavra-passe fica por decidir
+(`docs/21` §4.3).
+
+**Fica para o desenho das contas (`docs/21` §8; revisão do #177, P3-9):** o
+bloqueio por conta responde 429 a qualquer tentativa sobre essa conta,
+mesmo com a palavra-passe errada; de um IP limpo, um 429 diz que a conta
+existe e tem palavra-passe activa.
+
+**Decidido (Diogo, 08/10/2026: *«sim, com código QR»*):** o segredo do
+autenticador mostra-se **como código QR e como texto** (em grupos de 4,
+para se escrever à mão). O código QR desenha-se no próprio Hub com a
+biblioteca `uqr` 0.1.3 (MIT, sem dependências, 79 KB, publicada a
+03/04/2026; `pnpm audit` sem vulnerabilidades conhecidas, 08/10/2026),
+sempre preto sobre branco, também no tema escuro. O código QR e o segredo
+só vivem no ecrã enquanto se configura (§9.4).
+
+**No ensaio, a palavra-passe ainda não existe:** a VPS não tem a
+`TOTP_CHAVE` (medido a 08/10/2026: `POST /hub/session/password` dá 404).
+Pô-la lá é uma chave nova na máquina, com a confirmação do Diogo ou do
+Bruno (`AGENTS.md`, «Operar a VPS»): **autorizada pelo Diogo a 08/10/2026**
+(*«sim, prepara o pedido da chave na VPS»*). O passo 10 do `preparar.sh`
+gera-a uma vez em `/etc/eurolify/api-totp.env` (600, root; nunca a
+reescreve; só uma chave válida chega à API) e o `eurolify-publicar`
+passa-a à API. Se se perder, os autenticadores já configurados deixam de
+valer: quem tem passkey entra e configura o seu outra vez; quem só tem a
+palavra-passe fica com os códigos de recuperação. Por isso guarda-se uma
+cópia fora da máquina e à parte das cópias da base (`infra/vps/LEIA-ME.md`,
+«A chave dos segredos TOTP»; revisão do #177, P2-3 da VPS).
 
 ### 9.3 B3c — chaves de API
 
 | Ecrã | O que mostra | Rotas da API | Estados |
 |---|---|---|---|
-| **Chaves** (`/chaves?comerciante=mer_…`, ligação ao lado de «Ver a equipa», só para o dono) | as chaves do comerciante: nome, tipo (servidor ou pública), âmbitos, prefixo, criada em/por, expira, estado | `GET /hub/keys` | sem permissão (403, o ecrã não oferece a quem não é dono); vazio |
-| **Criar chave** | nome, tipo, âmbitos (só os que o papel tem), expira (opcional); depois, **o segredo uma vez**, com Copiar e aviso | `POST /hub/keys` | autenticação recente; âmbitos acima do papel (a API recusa) |
-| **Revogar** | botão por chave activa, com confirmação | `POST /hub/keys/{id}/revoke` | autenticação recente; já revogada |
+| **Chaves** (`/chaves?comerciante=mer_…`, ligação «Chaves de API» ao lado de «Ver a equipa», só para o dono) | as chaves do comerciante: nome, tipo, âmbitos (em linguagem comum), o começo da chave, quem a criou (você, o nome de um membro, «alguém que já saiu da equipa», outra chave ou o operador) e quando, expira, estado (activa, revogada a…, expirou a…) | `GET /hub/keys` (e `/hub/me` e `/hub/members` para os nomes) | sem permissão (403: o ecrã não oferece a quem não é dono e mostra a recusa a quem abre a página); vazio |
+| **Criar chave de servidor** | nome, o que a chave pode fazer (os âmbitos do dono, por escolha), expira a (opcional: até ao fim desse dia); depois, **o segredo uma vez**, com Copiar, aviso e «Já o guardei» | `POST /hub/keys` | autenticação recente; sem nome ou sem âmbitos (o ecrã recusa antes); data passada; âmbitos acima do papel e comerciante suspenso (a API recusa, com texto próprio) |
+| **Revogar** | botão por chave activa, com confirmação («deixa de funcionar já, sem volta atrás») | `POST /hub/keys/{id}/revoke` | autenticação recente; já revogada ou que já não existe (outro separador: a lista volta a ler-se) |
+
+**Chaves públicas (para a loja): ainda não se oferecem** (08/10/2026). A API
+pede a loja (`sto_…`), e ainda não há forma de criar lojas: nem rota da
+API, nem acção do operador (procurado com `grep` em `apps/api/src` e nas
+migrações, 08/10/2026). Chegam com as lojas; o ecrã diz isso.
 
 ### 9.4 O que não muda
 

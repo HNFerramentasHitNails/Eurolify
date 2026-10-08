@@ -298,3 +298,81 @@ th {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* O código QR do autenticador (docs/22 §9.2): tamanho fixo e legível. */
+.qr {
+  display: block;
+  width: 14rem;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: var(--espaco-3);
+}
+
+/* As escolhas de uma lista (os âmbitos de uma chave; docs/22 §9.3). */
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--espaco-4);
+}
+
+legend {
+  font-weight: 600;
+  margin-bottom: var(--espaco-2);
+}
+
+.opcao {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--espaco-2);
+  min-height: var(--alvo-minimo);
+  font-weight: normal;
+}
+
+/* A caixa de escolha não herda o tamanho dos campos de texto. */
+.opcao input[type="checkbox"] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+code {
+  font-family: var(--letra-mono);
+}
+
+/* Uma tabela com muitas colunas (as chaves de API: oito) passa a cartões
+   mais cedo, até 960px: a 768px não cabia (revisão do #183). */
+@media (max-width: 960px) {
+  .tabela-larga thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .tabela-larga,
+  .tabela-larga tbody,
+  .tabela-larga tr,
+  .tabela-larga td {
+    display: block;
+  }
+  .tabela-larga tr {
+    border: var(--borda-fina) solid var(--borda);
+    border-radius: var(--raio);
+    margin-bottom: var(--espaco-3);
+    padding: var(--espaco-2) 0;
+  }
+  .tabela-larga td {
+    border: none;
+    padding: var(--espaco-1) var(--espaco-3);
+  }
+  .tabela-larga td::before {
+    content: attr(data-rotulo);
+    display: block;
+    font-size: var(--letra-pequena);
+    color: var(--texto-secundario);
+  }
+}

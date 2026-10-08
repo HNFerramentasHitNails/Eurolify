@@ -1,5 +1,10 @@
 import { api, ErroHub } from "./api";
-import { Cancelado, JaRegistada, RecuperacaoNaoConcluida } from "./passkeys";
+import {
+  Cancelado,
+  JaRegistada,
+  ReautenticacaoPorFazer,
+  RecuperacaoNaoConcluida,
+} from "./passkeys";
 import { preencher, type Lingua, type Textos } from "./textos";
 
 // O texto de um erro, na língua escolhida (docs/22 §3). Os códigos conhecidos
@@ -33,6 +38,16 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "passkey.last_credential": "erroUltimaPasskey",
   "passkey.already_registered": "erroPasskeyJaRegistada",
   "passkey.not_found": "erroPasskeyNaoExiste",
+  "password.invalid_code": "erroCodigoTotpErrado",
+  "password.not_pending": "erroPalavraPasseNaoPendente",
+  "password.last_credential": "erroPalavraPasseUltima",
+  "password.not_found": "erroPalavraPasseNaoExiste",
+  "key.scope_escalation": "erroChaveAmbitosAMais",
+  "key.merchant_inactive": "erroChaveComercianteInactivo",
+  "key.not_found": "erroChaveNaoExiste",
+  "key.already_revoked": "erroChaveJaRevogada",
+  "key.last_key_writer": "erroChaveUltimaGestora",
+  "key.invalid_expiry": "erroChaveExpira",
 };
 
 /** Um erro conferido no próprio ecrã, com o texto já escolhido. */
@@ -59,6 +74,10 @@ export function mensagemDeErro(
   if (erro instanceof JaRegistada) return { texto: t.erroPasskeyJaRegistada };
   if (erro instanceof PasskeyNaoAceite)
     return { texto: t.erroPasskeyNaoAceite };
+  if (erro instanceof ReautenticacaoPorFazer) {
+    // Como a passkey cancelada: não é um erro, é um passo por fazer.
+    return { texto: t.erroReautenticar, neutro: true };
+  }
   if (erro instanceof RecuperacaoNaoConcluida) {
     return { texto: t.erroRecuperarPasskey };
   }

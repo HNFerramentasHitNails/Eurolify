@@ -23,6 +23,12 @@ import {
   type Publicacao,
   type ResultadoDaPublicacao,
 } from "../src/catalogo/publicacao.js";
+import {
+  alterarMedia,
+  apagarMedia,
+  criarMedia,
+  registarFicheiro,
+} from "../src/catalogo/media.js";
 import { definirTraducao } from "../src/catalogo/traducoes.js";
 import {
   comComerciante,
@@ -172,7 +178,7 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
     const s = await pronto();
     expect(await verificarPublicacao(base.api, s.c, s.pedido)).toEqual({
       impedimentos: [],
-      nao_verificado: ["conformidade", "media"],
+      nao_verificado: ["conformidade"],
     });
     const r = await publicar(base.api, s.c, QUEM, s.pedido);
     expect(r.publicada).toBe(true);
@@ -182,7 +188,7 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       variantes_fora: [],
       ultima_verificacao: {
         impedimentos: [],
-        nao_verificado: ["conformidade", "media"],
+        nao_verificado: ["conformidade"],
       },
     });
     expect(r.publicacao?.publicado_em).toBeInstanceOf(Date);
@@ -320,6 +326,204 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
     ).toEqual([
       { codigo: "traducao_desactualizada", campo: "nome", linguas: ["es"] },
     ]);
+  });
+
+  /** Regista um ficheiro (sem bytes: a base só guarda o registo) e liga-o. */
+  async function imagem(
+    c: string,
+    artigo: string,
+    textoAlternativo: string | null,
+    varianteId: string | null = null,
+  ): Promise<string> {
+    const resumo = (Math.random().toString(16).slice(2) + "0".repeat(64)).slice(
+      0,
+      64,
+    );
+    await registarFicheiro(
+      base.api,
+      c,
+      { resumo, tipo: "image/png", bytes: 10 },
+      1_000_000,
+    );
+    return criarMedia(base.api, c, {
+      artigoId: artigo,
+      varianteId,
+      resumo,
+      textoAlternativo,
+      principal: false,
+    });
+  }
+
+  describe("a media (C2; docs/06, CR)", () => {
+    it("uma imagem sem texto alternativo impede; com ele, passa", async () => {
+      const s = await pronto();
+      const sem = await imagem(s.c, s.artigo, null);
+      await imagem(s.c, s.artigo, "Frasco de gel, 30 ml");
+      expect(await verificarPublicacao(base.api, s.c, s.pedido)).toEqual({
+        impedimentos: [
+          { codigo: "texto_alternativo_em_falta", media: [`med_${sem}`] },
+        ],
+        nao_verificado: ["conformidade"],
+      });
+      const r = await publicar(base.api, s.c, QUEM, s.pedido);
+      expect(r.publicada).toBe(false);
+      const { versao } = await comComerciante(base.api, s.c, (trx) =>
+        trx
+          .selectFrom("media")
+          .select("versao")
+          .where("id", "=", sem)
+          .executeTakeFirstOrThrow(),
+      );
+      await alterarMedia(base.api, s.c, sem, versao, {
+        texto_alternativo: "Frasco de gel, de lado",
+      });
+      expect((await publicar(base.api, s.c, QUEM, s.pedido)).publicada).toBe(
+        true,
+      );
+    });
+
+    it("a imagem de uma variante só conta se a variante se vende neste par", async () => {
+      const s = await pronto();
+      const daV2 = await imagem(s.c, s.artigo, null, s.v2);
+      expect(
+        (await verificarPublicacao(base.api, s.c, s.pedido)).impedimentos,
+      ).toEqual([
+        { codigo: "texto_alternativo_em_falta", media: [`med_${daV2}`] },
+      ]);
+      expect(
+        (
+          await verificarPublicacao(base.api, s.c, {
+            ...s.pedido,
+            variantes_fora: [s.v2],
+          })
+        ).impedimentos,
+      ).toEqual([]);
+      await arquivarVariante(base.api, s.c, s.v2);
+      expect(
+        (await verificarPublicacao(base.api, s.c, s.pedido)).impedimentos,
+      ).toEqual([]);
+    });
+
+    it("num mercado com outra língua, a tradução do texto alternativo fica por verificar, só se houver imagens", async () => {
+      const s = await pronto();
+      const espanha = await criarMercado(base.api, s.c, {
+        loja_id: s.loja,
+        nome: "Espanha",
+        paises: ["ES"],
+        moeda: "EUR",
+        linguas: ["es"],
+        lingua_principal: "es",
+      });
+      const pedido = { ...s.pedido, mercado_id: espanha };
+      expect(
+        (await verificarPublicacao(base.api, s.c, pedido)).nao_verificado,
+      ).toEqual(["conformidade"]);
+      await imagem(s.c, s.artigo, "Frasco de gel, 30 ml");
+      expect(
+        (await verificarPublicacao(base.api, s.c, pedido)).nao_verificado,
+      ).toEqual(["conformidade", "traducao_do_texto_alternativo"]);
+      // Só com a imagem de uma variante fora do par, não conta (revisão do
+      // #184, P3-1).
+      const so = await pronto();
+      const espanha2 = await criarMercado(base.api, so.c, {
+        loja_id: so.loja,
+        nome: "Espanha",
+        paises: ["ES"],
+        moeda: "EUR",
+        linguas: ["es"],
+        lingua_principal: "es",
+      });
+      await imagem(so.c, so.artigo, "Frasco de gel, 30 ml", so.v2);
+      expect(
+        (
+          await verificarPublicacao(base.api, so.c, {
+            ...so.pedido,
+            mercado_id: espanha2,
+            variantes_fora: [so.v2],
+          })
+        ).nao_verificado,
+      ).toEqual(["conformidade"]);
+      // No mercado só em português (a língua de origem), não.
+      expect(
+        (await verificarPublicacao(base.api, s.c, s.pedido)).nao_verificado,
+      ).toEqual(["conformidade"]);
+    });
+
+    it("uma imagem nova sem texto, ou tirar o texto a uma, tira o artigo de venda; com texto, ou apagar, não", async () => {
+      const s = await pronto();
+      const estado = async () =>
+        (await publicacoesDoArtigo(base.api, s.c, s.artigo))[0];
+      expect((await publicar(base.api, s.c, QUEM, s.pedido)).publicada).toBe(
+        true,
+      );
+      const com = await imagem(s.c, s.artigo, "Frasco de gel, 30 ml");
+      expect((await estado())?.estado).toBe("publicado");
+      // Uma imagem nova com texto, ou mudar o texto para outro, não
+      // reverifica (revisões do #184, P3-1 e
+      // 2.ª, P3-A): com o mercado a falhar por outra razão (uma língua sem o
+      // nome traduzido, posta por SQL do dono, que não reverifica), uma
+      // reverificação tirava-o de venda.
+      await sql`update mercado set linguas = array['pt', 'es'] where id = ${s.mercado}`.execute(
+        base.dono,
+      );
+      await imagem(s.c, s.artigo, "Frasco de gel, de lado");
+      expect((await estado())?.estado).toBe("publicado");
+      await alterarMedia(base.api, s.c, com, 1, {
+        texto_alternativo: "Frasco de gel, de frente",
+      });
+      expect((await estado())?.estado).toBe("publicado");
+      await sql`update mercado set linguas = array['pt'] where id = ${s.mercado}`.execute(
+        base.dono,
+      );
+      // Uma variante fora da publicação: a imagem dela não conta.
+      await imagem(s.c, s.artigo, null, s.v2);
+      await publicar(base.api, s.c, QUEM, {
+        ...s.pedido,
+        variantes_fora: [s.v2],
+      });
+      expect((await estado())?.estado).toBe("publicado");
+      const versao = (
+        await comComerciante(base.api, s.c, (trx) =>
+          trx
+            .selectFrom("media")
+            .select("versao")
+            .where("id", "=", com)
+            .executeTakeFirstOrThrow(),
+        )
+      ).versao;
+      await alterarMedia(base.api, s.c, com, versao, {
+        texto_alternativo: null,
+      });
+      expect(await estado()).toMatchObject({
+        estado: "arquivado",
+        motivo_arquivo: "verificacao_falhou",
+        ultima_verificacao: {
+          impedimentos: [
+            { codigo: "texto_alternativo_em_falta", media: [`med_${com}`] },
+          ],
+        },
+      });
+      // Apagar a imagem sem texto deixa publicar outra vez.
+      await apagarMedia(base.api, s.c, com);
+      expect(
+        (
+          await publicar(base.api, s.c, QUEM, {
+            ...s.pedido,
+            variantes_fora: [s.v2],
+          })
+        ).publicada,
+      ).toBe(true);
+      const nova = await imagem(s.c, s.artigo, null);
+      expect(await estado()).toMatchObject({
+        estado: "arquivado",
+        motivo_arquivo: "verificacao_falhou",
+        ultima_verificacao: {
+          impedimentos: [
+            { codigo: "texto_alternativo_em_falta", media: [`med_${nova}`] },
+          ],
+        },
+      });
+    });
   });
 
   it("uma família restrita não se publica", async () => {
@@ -1245,6 +1449,121 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
         publicar(base.api, s.c, QUEM, { ...s.pedido, mercado_id: fr }),
       ]);
       expect([a.publicada, b.publicada]).toEqual([true, true]);
+    });
+
+    it("uma imagem sem texto entra enquanto se publica: a publicação espera e vê-a (CR)", async () => {
+      const s = await pronto();
+      const resumo = "c".repeat(64);
+      await registarFicheiro(
+        base.api,
+        s.c,
+        { resumo, tipo: "image/png", bytes: 10 },
+        1_000_000,
+      );
+      // A: o que criarMedia faz, na mesma ordem (o artigo, a fila dele, a
+      // fila da media e a linha nova).
+      const r = resultadoDe(
+        await corrida(
+          s.c,
+          async (l) => {
+            await l.query("select id from artigo where id = $1 for key share", [
+              s.artigo,
+            ]);
+            await l.query("select catalogo_fila_do_artigo($1, $2)", [
+              s.c,
+              s.artigo,
+            ]);
+            await l.query(
+              `insert into media (comerciante_id, artigo_id, ficheiro_resumo, posicao)
+               values ($1, $2, $3, 0)`,
+              [s.c, s.artigo, resumo],
+            );
+          },
+          () => publicar(base.api, s.c, QUEM, s.pedido),
+        ),
+      );
+      expect(r.publicada).toBe(false);
+      expect(r.verificacao.impedimentos.map((i) => i.codigo)).toEqual([
+        "texto_alternativo_em_falta",
+      ]);
+    });
+
+    it("uma imagem sem texto espera pela fila do artigo e tira de venda o que lá está publicado (CR)", async () => {
+      const s = await pronto();
+      expect((await publicar(base.api, s.c, QUEM, s.pedido)).publicada).toBe(
+        true,
+      );
+      const resumo = "d".repeat(64);
+      await registarFicheiro(
+        base.api,
+        s.c,
+        { resumo, tipo: "image/png", bytes: 10 },
+        1_000_000,
+      );
+      // A: quem publica, a meio (a linha do artigo e a fila dele).
+      const id = await corrida(
+        s.c,
+        async (l) => {
+          await l.query("select id from artigo where id = $1 for share", [
+            s.artigo,
+          ]);
+          await l.query("select catalogo_fila_do_artigo($1, $2)", [
+            s.c,
+            s.artigo,
+          ]);
+        },
+        () =>
+          criarMedia(base.api, s.c, {
+            artigoId: s.artigo,
+            varianteId: null,
+            resumo,
+            textoAlternativo: null,
+            principal: false,
+          }),
+      );
+      if (id instanceof Error) throw id;
+      expect(
+        (await publicacoesDoArtigo(base.api, s.c, s.artigo))[0],
+      ).toMatchObject({
+        estado: "arquivado",
+        motivo_arquivo: "verificacao_falhou",
+      });
+    });
+
+    it("tirar o texto a uma imagem espera pela fila do artigo e tira de venda (revisão do #184, P3-1)", async () => {
+      const s = await pronto();
+      const id = await imagem(s.c, s.artigo, "Frasco de gel, 30 ml");
+      expect((await publicar(base.api, s.c, QUEM, s.pedido)).publicada).toBe(
+        true,
+      );
+      const r = await corrida(
+        s.c,
+        (l) =>
+          l.query("select catalogo_fila_do_artigo($1, $2)", [s.c, s.artigo]),
+        () => alterarMedia(base.api, s.c, id, 1, { texto_alternativo: null }),
+      );
+      if (r instanceof Error) throw r;
+      expect(
+        (await publicacoesDoArtigo(base.api, s.c, s.artigo))[0],
+      ).toMatchObject({
+        estado: "arquivado",
+        motivo_arquivo: "verificacao_falhou",
+      });
+    });
+
+    it("apagar uma imagem espera pela fila do artigo (revisão do #184, P3-1)", async () => {
+      const s = await pronto();
+      const id = await imagem(s.c, s.artigo, null);
+      const r = await corrida(
+        s.c,
+        (l) =>
+          l.query("select catalogo_fila_do_artigo($1, $2)", [s.c, s.artigo]),
+        () => apagarMedia(base.api, s.c, id),
+      );
+      if (r instanceof Error) throw r;
+      expect(
+        (await verificarPublicacao(base.api, s.c, s.pedido)).impedimentos,
+      ).toEqual([]);
     });
 
     it(`quem espera mais de ${ESPERA_MAXIMA} por um lock recebe catalog.retry`, async () => {

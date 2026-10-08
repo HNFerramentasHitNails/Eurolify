@@ -6,7 +6,10 @@ import {
   mensagemDeErro,
   PasskeyNaoAceite,
 } from "../src/erros";
-import { RecuperacaoNaoConcluida } from "../src/passkeys";
+import {
+  ReautenticacaoPorFazer,
+  RecuperacaoNaoConcluida,
+} from "../src/passkeys";
 import { TEXTOS } from "../src/textos";
 
 // Um 401 numa acção nem sempre é «sem sessão» (revisão do #174, P1-1): a API
@@ -84,6 +87,14 @@ describe("o erro de uma acção", () => {
       expect(
         mensagemDeErro(new RecuperacaoNaoConcluida(), TEXTOS[l], l).texto,
       ).toBe(TEXTOS[l].erroRecuperarPasskey);
+    }
+  });
+
+  it("sem reautenticação possível com passkey, diz que entre outra vez, sem vermelho (revisão do #177, P2-1)", () => {
+    for (const l of ["pt", "es", "en"] as const) {
+      expect(
+        mensagemDeErro(new ReautenticacaoPorFazer(), TEXTOS[l], l),
+      ).toEqual({ texto: TEXTOS[l].erroReautenticar, neutro: true });
     }
   });
 });

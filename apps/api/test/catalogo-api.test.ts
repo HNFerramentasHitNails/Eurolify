@@ -318,7 +318,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: consultas", () => {
           estado: "publicado",
           ultima_verificacao: {
             impedimentos: [],
-            nao_verificado: ["conformidade", "media"],
+            nao_verificado: ["conformidade"],
           },
         },
       ],
@@ -349,7 +349,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: consultas", () => {
       "classificacao_em_falta",
       "preco_em_falta",
     ]);
-    expect(corpo.nao_verificado).toEqual(["conformidade", "media"]);
+    expect(corpo.nao_verificado).toEqual(["conformidade"]);
     const depois = await sql<{ n: number }>`
       select count(*)::int as n from publicacao`.execute(base.dono);
     expect(depois.rows[0]?.n).toBe(antes.rows[0]?.n);
