@@ -639,13 +639,17 @@ if [[ -z "$imagem_api" ]]; then
   ok "sem contentor eurolify-api: a primeira publicação já o cria com a ligação"
 elif ((API_ENV_RENOVADO)) || configuracao_mais_recente_que_a_api; then
   resumo_api="${imagem_api##*@}"
-  if [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  # O eurolify-publicar só recria a imagem do IMAGEM_REPO desta máquina: com
+  # outro repositório, dizia «não recrio» e saía bem (revisão do #180, P3-1).
+  if [[ -n "$imagem_api" && "${imagem_api%@*}" != "$IMAGEM_REPO" ]]; then
+    aviso "o eurolify-api corre $imagem_api, de outro repositório que não $IMAGEM_REPO: não o recrio (a próxima publicação recria-o)"
+  elif [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
     fazer "recriar o contentor eurolify-api ($resumo_api) para ler a configuração" recriar_api "$resumo_api"
   else
     aviso "o eurolify-api corre $imagem_api, sem resumo: não o recrio (a próxima publicação recria-o)"
   fi
 else
-  ok "o eurolify-api foi criado depois da última mudança do api.env e do api-base.env, e tem a pasta das imagens"
+  ok "o eurolify-api foi criado depois da última mudança do api.env e do api-base.env (e, se as montagens se leram, tem a pasta das imagens)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -919,7 +923,11 @@ fi
 if ((hub_env_mudou && !MOSTRAR)); then
   imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
   resumo_api="${imagem_api##*@}"
-  if [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  # O eurolify-publicar só recria a imagem do IMAGEM_REPO desta máquina: com
+  # outro repositório, dizia «não recrio» e saía bem (revisão do #180, P3-1).
+  if [[ -n "$imagem_api" && "${imagem_api%@*}" != "$IMAGEM_REPO" ]]; then
+    aviso "o eurolify-api corre $imagem_api, de outro repositório que não $IMAGEM_REPO: não o recrio (a próxima publicação recria-o)"
+  elif [[ "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
     fazer "recriar o contentor eurolify-api ($resumo_api) com a configuração do Hub" recriar_api "$resumo_api"
   else
     ok "sem contentor eurolify-api com resumo: a próxima publicação já lê a configuração do Hub"
