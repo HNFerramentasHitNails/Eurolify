@@ -93,10 +93,32 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
   const nome = `eurolify_teste_${randomBytes(6).toString("hex")}`;
   const admin = new pg.Client({ connectionString: urlBase });
   await admin.connect();
+  // O dono das tabelas é como o da VPS: dono da base, sem superutilizador
+  // nem BYPASSRLS. Com um superutilizador, as funções SECURITY DEFINER
+  // saltavam o RLS e um erro que só acontecia na VPS passava aqui (42704 no
+  // primeiro convite do ensaio, 08/10/2026; pedido #168). `dono` continua a
+  // ser uma ligação de superutilizador, só para preparar e inspeccionar.
+  const papel = `dono_${nome.slice(-12)}`;
   try {
-    await admin.query(`CREATE DATABASE ${nome}`);
+    await admin.query(
+      `CREATE ROLE ${papel} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '${SENHA_DE_TESTE}'`,
+    );
+    await admin.query(`CREATE DATABASE ${nome} OWNER ${papel}`);
   } finally {
     await admin.end();
+  }
+  const migrador = new Kysely<unknown>({
+    dialect: new PostgresDialect({
+      pool: new pg.Pool({
+        connectionString: comBase(urlBase, nome, papel),
+        max: 1,
+      }),
+    }),
+  });
+  try {
+    await migrar(migrador);
+  } finally {
+    await migrador.destroy();
   }
 
   const dono = new Kysely<unknown>({
@@ -104,7 +126,6 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
       pool: new pg.Pool({ connectionString: comBase(urlBase, nome), max: 2 }),
     }),
   });
-  await migrar(dono);
   // A palavra-passe do eurolify_api é da configuração de cada ambiente, nunca
   // da migração; aqui é a dos testes.
   const cliente = new pg.Client({ connectionString: comBase(urlBase, nome) });
@@ -141,7 +162,11 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
         try {
           await fim.query("ALTER ROLE eurolify_api NOLOGIN PASSWORD NULL");
         } finally {
-          await fim.end();
+          try {
+            await fim.query(`DROP ROLE IF EXISTS ${papel}`);
+          } finally {
+            await fim.end();
+          }
         }
       }
     },

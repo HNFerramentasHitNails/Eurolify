@@ -78,3 +78,4 @@
 - [Hub, primeiros ecrãs (#156): apps/hub em React+Vite, entrar com passkey, convite, equipa; tokens provisórios (D-12); capturas com passkey em software — 07/10/2026](hub-primeiros-ecras-07out2026.md)
 - [Publicação do Hub (#156): imagem leva os ecrãs, nginx-hub, passo 14 (certificado, api-hub.env com o gateway); limite por IP medido pelo nginx; falta a acção convite do operador — 07/10/2026](publicacao-hub-07out2026.md)
 - [Convite do operador (#156): gerar-convite.mjs, acção convite no fluxo operar, só dono e e-mails de domínios de teste; falta a chave SSH do fluxo — 08/10/2026](convite-do-operador-08out2026.md)
+- [Funções das contas sem contexto do comerciante na VPS (#168): 42704 no primeiro convite; 0027 comerciante_resumo; testes com dono como o da VPS (109 falhas → 0) — 08/10/2026](contexto-comerciante-vps-08out2026.md)
