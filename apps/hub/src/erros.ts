@@ -1,5 +1,5 @@
 import { ErroHub } from "./api";
-import { Cancelado } from "./passkeys";
+import { Cancelado, JaRegistada } from "./passkeys";
 import { preencher, type Lingua, type Textos } from "./textos";
 
 // O texto de um erro, na língua escolhida (docs/22 §3). Os códigos conhecidos
@@ -30,6 +30,9 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "auth.busy": "erroOcupado",
   "auth.origin_rejected": "erroOrigem",
   "person.invalid_name": "erroNome",
+  "passkey.last_credential": "erroUltimaPasskey",
+  "passkey.already_registered": "erroPasskeyJaRegistada",
+  "passkey.not_found": "erroPasskeyNaoExiste",
 };
 
 export function mensagemDeErro(
@@ -40,6 +43,7 @@ export function mensagemDeErro(
   if (erro instanceof Cancelado) {
     return { texto: t.entrarCancelado, neutro: true };
   }
+  if (erro instanceof JaRegistada) return { texto: t.erroPasskeyJaRegistada };
   if (!(erro instanceof ErroHub)) return { texto: t.erroGenerico };
   if (erro.estado === 0) return { texto: t.erroRede };
   if (erro.codigo === "rate_limit.exceeded") {

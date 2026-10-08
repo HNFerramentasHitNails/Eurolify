@@ -38,6 +38,21 @@ export interface Membros {
     | null;
 }
 
+export interface Passkey {
+  passkey: string;
+  nome: string;
+  criada_em: string;
+  ultimo_uso_em: string | null;
+}
+
+export interface Sessao {
+  sessao: string;
+  criada_em: string;
+  ultimo_uso_em: string;
+  /** A sessão deste navegador. */
+  esta: boolean;
+}
+
 export interface ContaNova {
   pessoa: string;
   comerciante: string;
@@ -124,4 +139,17 @@ export const api = {
       `/hub/invitations/${encodeURIComponent(convite)}/cancel`,
       { comerciante },
     ),
+  // A minha conta (docs/22 §9.1). As que mudam algo pedem autenticação
+  // recente: chamam-se dentro de `comRecente`.
+  passkeys: () => pedir<{ passkeys: Passkey[] }>("GET", "/hub/passkeys"),
+  retirarPasskey: (passkey: string) =>
+    pedir<{ ok: true }>(
+      "POST",
+      `/hub/passkeys/${encodeURIComponent(passkey)}/remove`,
+    ),
+  sessoes: () => pedir<{ sessoes: Sessao[] }>("GET", "/hub/sessions"),
+  terminarOutrasSessoes: () =>
+    pedir<{ ok: true }>("POST", "/hub/sessions/end-all"),
+  gerarCodigos: () =>
+    pedir<{ codigos: string[] }>("POST", "/hub/recovery-codes"),
 };

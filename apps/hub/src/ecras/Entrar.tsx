@@ -44,6 +44,17 @@ export function Entrar() {
           {t.semPasskeys}
         </div>
       )}
+      <p>
+        <a
+          href="/recuperar"
+          onClick={(e) => {
+            e.preventDefault();
+            navegar("/recuperar");
+          }}
+        >
+          {t.entrarPerdeu}
+        </a>
+      </p>
     </section>
   );
 }

@@ -98,6 +98,66 @@ export const pt = {
     "Pedido recusado por vir de outro sítio. Abra o Hub pelo endereço habitual.",
   erroRecente: "Esta operação pede que confirme a passkey. Tente outra vez.",
   erroRede: "Sem ligação ao servidor. Verifique a rede e tente outra vez.",
+
+  // A minha conta e recuperar (docs/22 §9.1).
+  contaTitulo: "A minha conta",
+  contaLigacao: "Conta",
+  passkeysTitulo: "Passkeys",
+  passkeysContagem: "{n} passkeys",
+  passkeysContagemUm: "1 passkey",
+  passkeysConselho:
+    "Tem só uma passkey. Registe uma segunda noutro dispositivo: se perder esta, entra com a outra.",
+  colunaCriadaEm: "Criada em",
+  colunaUltimoUso: "Último uso",
+  nunca: "Nunca",
+  passkeyNome: "Nome desta passkey (ex.: Telemóvel)",
+  passkeyAcrescentar: "Acrescentar passkey",
+  passkeyAcrescentada: "A passkey foi acrescentada.",
+  passkeyRetirar: "Retirar",
+  passkeyRetirarConfirmar:
+    "Retirar a passkey «{nome}»? As outras sessões abertas terminam; esta continua.",
+  passkeyRetirada: "A passkey foi retirada. As outras sessões terminaram.",
+  sessoesTitulo: "Sessões abertas",
+  sessoesContagem: "{n} sessões abertas",
+  sessoesContagemUm: "1 sessão aberta",
+  sessaoEsta: "Esta sessão",
+  sessoesTerminar: "Terminar todas as outras",
+  sessoesTerminarConfirmar:
+    "Terminar todas as outras sessões? Quem estiver nelas tem de entrar outra vez.",
+  sessoesTerminadas: "As outras sessões terminaram.",
+  recuperacaoTitulo: "Códigos de recuperação",
+  recuperacaoExplicacao:
+    "Se perder todas as passkeys, um código de recuperação devolve-lhe a conta. Gerar códigos novos anula os antigos.",
+  codigosGerar: "Gerar códigos novos",
+  codigosGerarConfirmar: "Gerar 10 códigos novos? Os antigos deixam de valer.",
+  erroUltimaPasskey:
+    "É a última forma de entrar na conta. Acrescente outra passkey antes de retirar esta.",
+  erroPasskeyJaRegistada: "Este dispositivo já tem uma passkey desta conta.",
+  erroPasskeyNaoExiste: "Esta passkey já não existe na conta.",
+  erroNomePasskey: "O nome da passkey tem de ter entre 1 e 100 caracteres.",
+
+  entrarPerdeu: "Perdeu a passkey?",
+  recuperarTitulo: "Recuperar a conta",
+  recuperarExplicacao:
+    "Com o e-mail da conta e um dos códigos de recuperação, registe uma passkey nova neste dispositivo. O código usado deixa de valer.",
+  recuperarEmail: "E-mail da conta",
+  recuperarCodigo: "Código de recuperação",
+  recuperarCodigoAjuda: "Tem o formato XXXX-XXXX-XXXX-XXXX.",
+  recuperarNome: "Nome da passkey nova (opcional)",
+  recuperarBotao: "Recuperar com uma passkey nova",
+  recuperarVoltar: "Entrar com uma passkey",
+  erroRecuperar:
+    "O e-mail ou o código não estão certos, ou o código já foi usado.",
+  erroCodigo:
+    "Escreva o código de recuperação completo: 16 letras e algarismos.",
+  recuperadoTitulo: "A conta foi recuperada",
+  recuperadoTexto:
+    "As outras sessões terminaram e o código usado já não vale. Falta:",
+  recuperadoRetirar:
+    "retirar as passkeys que já não tem (a do dispositivo perdido continua a valer até a retirar);",
+  recuperadoCodigos: "gerar códigos de recuperação novos;",
+  recuperadoChaves: "como dono, rever as chaves de API que criou.",
+  recuperadoFechar: "Fechar o aviso",
 };
 
 export type Textos = typeof pt;
