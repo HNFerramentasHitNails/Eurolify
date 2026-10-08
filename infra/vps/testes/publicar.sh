@@ -291,6 +291,14 @@ caso "publicar a imagem que já está no ar" 3
 confere nao "não migra" migrou
 confere sim "nada a fazer" na_saida "Nada a fazer"
 
+# A mesma regra «a API sem a pasta das imagens recria-se» vive no
+# eurolify-publicar e no passo 10c do preparar.sh: as duas cópias têm de ser
+# iguais (ao aplicar o #178, o passo 10c não a tinha e a API não se recriou).
+# shellcheck disable=SC2016 # o texto da regra, não para expandir
+regra='[[ " $montagens " == *" /media "* ]] || return 0'
+confere sim "a regra da pasta das imagens está no eurolify-publicar" grep -qF -- "$regra" "$f/sbin/eurolify-publicar"
+confere sim "e igual no passo 10c do preparar.sh" grep -qF -- "$regra" "$repo/infra/vps/preparar.sh"
+
 preparar
 touch "$falsos/sem-media"
 caso "a imagem que já está no ar, numa API de antes da pasta das imagens" 3

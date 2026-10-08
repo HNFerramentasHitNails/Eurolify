@@ -610,8 +610,14 @@ passo "10c. A API corre com a ligação do api-base.env (docs/19 §6, #107)"
 # Sem um número válido de um dos lados, não se compara (revisão do #116, P3-1).
 # Em nanossegundos, como o eurolify-publicar (revisão do #162, P3-E).
 configuracao_mais_recente_que_a_api() {
-  local criado ficheiro mudado
+  local criado ficheiro mudado montagens
   criado="$(docker inspect -f '{{.Created}}' eurolify-api 2>/dev/null)" || return 1
+  # A API no ar sem a pasta das imagens (criada antes do #178) também se
+  # recria, como no eurolify-publicar: sem isto, a pasta só chegava na
+  # publicação seguinte (o que aconteceu ao aplicar o #178, 08/10/2026). Um
+  # inspect que falha não recria.
+  montagens="$(docker inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' eurolify-api 2>/dev/null)" || return 1
+  [[ " $montagens " == *" /media "* ]] || return 0
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
   for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env; do
@@ -639,7 +645,7 @@ elif ((API_ENV_RENOVADO)) || configuracao_mais_recente_que_a_api; then
     aviso "o eurolify-api corre $imagem_api, sem resumo: não o recrio (a próxima publicação recria-o)"
   fi
 else
-  ok "o eurolify-api foi criado depois da última mudança do api.env e do api-base.env"
+  ok "o eurolify-api foi criado depois da última mudança do api.env e do api-base.env, e tem a pasta das imagens"
 fi
 
 # ---------------------------------------------------------------------------
