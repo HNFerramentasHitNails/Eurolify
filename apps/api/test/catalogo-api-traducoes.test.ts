@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
+import { criarCategoria, criarColecao } from "../src/catalogo/categorias.js";
 import {
   criarEntidadeLegal,
   criarLoja,
@@ -69,7 +70,6 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
   let app: ReturnType<typeof criarApp>;
   let a: string;
   let escrita: string;
-  let revisora: string;
   let publicacao: string;
   let leitura: string;
   let semCatalogo: string;
@@ -161,7 +161,6 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
         })
       ).segredo;
     escrita = await chaveDe(a, "Escrita", ["catalog:read", "catalog:write"]);
-    revisora = await chaveDe(a, "Revisora", ["catalog:read", "catalog:write"]);
     publicacao = await chaveDe(a, "Publicação", ["catalog:publish"]);
     leitura = await chaveDe(a, "Leitura", ["catalog:read"]);
     semCatalogo = await chaveDe(a, "Chaves", ["keys:write"]);
@@ -358,8 +357,9 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     ]) {
       const r = await pedir("GET", url);
       expect(r.statusCode, url).toBe(400);
+      expect(r.json(), url).toMatchObject({ codigo: "request.invalid" });
     }
-    // Recusado pelo contrato (o campo não é deste tipo), não pela base.
+    // Recusado antes de escrever (o campo não é deste tipo), não pela base.
     const campo = await traduzir(f.id, "valor", "x", "Lima");
     expect(campo.statusCode).toBe(400);
     expect(campo.json()).toMatchObject({ codigo: "request.invalid" });
@@ -369,8 +369,26 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
       original_visto: "Lima",
     });
     expect(lingua.statusCode).toBe(400);
+    expect(lingua.json()).toMatchObject({ codigo: "request.invalid" });
+    // Só espaços: o contrato recusa (a base daria catalog.invalid_field).
     const vazio = await traduzir(f.id, "nome", "   ", "Lima");
     expect(vazio.statusCode).toBe(400);
+    expect(vazio.json()).toMatchObject({ codigo: "request.invalid" });
+    // Acima do limite do campo: recusado antes da base, com o campo e o
+    // limite na mensagem (revisão do #166, P2-5).
+    const longo = await traduzir(f.id, "nome", "x".repeat(201), "Lima");
+    expect(longo.statusCode).toBe(400);
+    expect(longo.json()).toMatchObject({ codigo: "catalog.invalid_field" });
+    expect(JSON.stringify(longo.json())).toContain("200");
+    const cabe = await traduzir(f.id, "nome", "x".repeat(200), "Lima");
+    expect(cabe.statusCode).toBe(200);
+    const descricao = await traduzir(
+      f.id,
+      "descricao",
+      "x".repeat(20000),
+      "Descrição de Lima",
+    );
+    expect(descricao.statusCode).toBe(200);
   });
 
   it("as recusas da base: língua de origem, campo sem original", async () => {
@@ -397,38 +415,240 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     });
   });
 
-  it("rever: só uma proposta de IA, e não por quem a traduziu; traduzir outra vez apaga a revisão", async () => {
+  it("rever não está nesta API (CO): a rota não existe; traduzir por IA por cima de uma tradução de pessoa substitui-a", async () => {
     const f = await artigo("Verniz", "TR-REV");
-    const rever = (segredo: string) =>
-      pedir("POST", `/translations/${f.id}/nome/es/review`, undefined, {
-        segredo,
-      });
     await traduzir(f.id, "nome", "Barniz", "Verniz");
-    const dePessoa = await rever(revisora);
-    expect(dePessoa.statusCode).toBe(422);
-    expect(dePessoa.json()).toMatchObject({
-      codigo: "catalog.translation_not_ai",
-    });
-    await traduzir(f.id, "nome", "Esmalte", "Verniz", { origem: "ia" });
-    const propria = await rever(escrita);
-    expect(propria.statusCode).toBe(422);
-    expect(propria.json()).toMatchObject({
-      codigo: "catalog.translation_self_review",
-    });
-    const revista = await rever(revisora);
-    expect(revista.statusCode).toBe(200);
-    expect(revista.json()).toMatchObject({ revista: true, origem: "ia" });
-    const outraVez = await traduzir(f.id, "nome", "Esmalte 2", "Verniz", {
+    const rever = await pedir("POST", `/translations/${f.id}/nome/es/review`);
+    expect(rever.statusCode).toBe(404);
+    expect(rever.json()).toMatchObject({ codigo: "route.not_found" });
+    // Por desenho, traduzir outra vez substitui sempre (docs/14 §7.1, P3-7).
+    const ia = await traduzir(f.id, "nome", "Esmalte", "Verniz", {
       origem: "ia",
     });
-    expect(outraVez.json()).toMatchObject({ revista: false });
-    const comCorpo = await pedir(
-      "POST",
-      `/translations/${f.id}/nome/es/review`,
-      { x: 1 },
-      { segredo: revisora },
+    expect(ia.json()).toMatchObject({
+      texto: "Esmalte",
+      origem: "ia",
+      revista: false,
+    });
+  });
+
+  it("um original vazio ou só com espaços não entra na fila; uma tradução de um original que ficou vazio fica desactualizada", async () => {
+    const r = await registarComerciante(base.api, NOVO);
+    const segredo = (
+      await criarChave(base.dono, r, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Vazios",
+        ambitos: ["catalog:read", "catalog:write"],
+      })
+    ).segredo;
+    const criar = async (corpo: object) =>
+      (
+        await pedir(
+          "POST",
+          "/products",
+          {
+            tipo: "fisico",
+            categoria_fiscal: "normal",
+            ...corpo,
+          },
+          { segredo },
+        )
+      ).json<Ficha>();
+    const nulo = await criar({
+      nome: "Nulo",
+      descricao: null,
+      variantes: [{ sku: "V-1", unidade_de_venda: "unidade" }],
+    });
+    const espacos = await criar({
+      nome: "Espaços",
+      descricao: "   ",
+      variantes: [{ sku: "V-2", unidade_de_venda: "unidade" }],
+    });
+    const fica = await criar({
+      nome: "Fica vazio",
+      descricao: "Com texto",
+      variantes: [{ sku: "V-3", unidade_de_venda: "unidade" }],
+    });
+    for (const f of [nulo, espacos, fica]) {
+      await pedir(
+        "PUT",
+        `/translations/${f.id}/nome/es`,
+        { texto: `${f.nome} ES`, origem: "pessoa", original_visto: f.nome },
+        { segredo },
+      );
+    }
+    const t = await pedir(
+      "PUT",
+      `/translations/${fica.id}/descricao/es`,
+      { texto: "Con texto", origem: "pessoa", original_visto: "Com texto" },
+      { segredo },
     );
-    expect(comCorpo.statusCode).toBe(400);
+    expect(t.statusCode).toBe(200);
+    const fila = async () =>
+      (
+        await pedir("GET", "/translations?locale=es", undefined, { segredo })
+      ).json<Pagina<{ recurso: string; campo: string; estado: string }>>();
+    // Nada por traduzir: os nomes estão traduzidos e as descrições nula e
+    // só com espaços não pedem tradução.
+    expect((await fila()).dados).toEqual([]);
+    const p = await pedir(
+      "PATCH",
+      `/products/${fica.id}`,
+      { versao: fica.versao, descricao: null },
+      { segredo },
+    );
+    expect(p.statusCode).toBe(200);
+    expect((await fila()).dados).toEqual([
+      { recurso: fica.id, campo: "descricao", estado: "desactualizada" },
+    ]);
+    const lidas = (
+      await pedir(
+        "GET",
+        `/translations?resource=${fica.id}&locale=es`,
+        undefined,
+        { segredo },
+      )
+    ).json<Pagina<Traducao>>();
+    expect(lidas.dados.find((d) => d.campo === "descricao")?.estado).toBe(
+      "desactualizada",
+    );
+    // Pedir as traduções na língua de origem diz-se, como na fila (P3-6).
+    const origem = await pedir(
+      "GET",
+      `/translations?resource=${fica.id}&locale=pt`,
+      undefined,
+      { segredo },
+    );
+    expect(origem.statusCode).toBe(422);
+    expect(origem.json()).toMatchObject({
+      codigo: "catalog.translation_same_language",
+    });
+  });
+
+  it("a fila percorre-se até ao fim com limite=1 sem repetir nem saltar, entre campos do mesmo recurso e entre tipos", async () => {
+    const r = await registarComerciante(base.api, NOVO);
+    const segredo = (
+      await criarChave(base.dono, r, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Páginas",
+        ambitos: ["catalog:read", "catalog:write"],
+      })
+    ).segredo;
+    const f = (
+      await pedir(
+        "POST",
+        "/products",
+        {
+          tipo: "fisico",
+          nome: "Dois campos",
+          descricao: "Com descrição",
+          categoria_fiscal: "normal",
+          variantes: [{ sku: "P-1", unidade_de_venda: "unidade" }],
+        },
+        { segredo },
+      )
+    ).json<Ficha>();
+    const o = (
+      await pedir(
+        "POST",
+        `/products/${f.id}/options`,
+        { nome: "Cor", valores: ["Rosa"] },
+        { segredo },
+      )
+    ).json<{ id: string; valores: { id: string }[] }>();
+    const esperados = [
+      [f.id, "descricao"],
+      [f.id, "nome"],
+      [o.id, "nome"],
+      [o.valores[0]?.id ?? "", "valor"],
+    ];
+    const vistos: string[][] = [];
+    let cursor: string | null = null;
+    for (let i = 0; i < 10; i++) {
+      const q: string = cursor === null ? "" : `&cursor=${cursor}`;
+      const pagina = (
+        await pedir("GET", `/translations?locale=es&limite=1${q}`, undefined, {
+          segredo,
+        })
+      ).json<Pagina<{ recurso: string; campo: string }>>();
+      expect(pagina.total).toBe(4);
+      vistos.push(...pagina.dados.map((d) => [d.recurso, d.campo]));
+      cursor = pagina.cursor_seguinte;
+      if (!pagina.ha_mais) break;
+    }
+    expect(cursor).toBeNull();
+    expect(vistos).toHaveLength(4);
+    expect([...vistos].sort()).toEqual([...esperados].sort());
+  });
+
+  it("categorias e colecções: cat_ e col_, o endereço amigável recusado pela base (422) e repetido (409)", async () => {
+    const cat = await criarCategoria(base.api, a, {
+      nome: "Unhas",
+      endereco_amigavel: "unhas",
+    });
+    const cat2 = await criarCategoria(base.api, a, {
+      nome: "Pés",
+      endereco_amigavel: "pes",
+    });
+    const col = await criarColecao(base.api, a, {
+      nome: "Verão",
+      endereco_amigavel: "verao",
+      descricao: "Cores de verão",
+    });
+    const nome = await traduzir(`cat_${cat}`, "nome", "Uñas", "Unhas");
+    expect(nome.statusCode).toBe(200);
+    expect(nome.json()).toMatchObject({ recurso: `cat_${cat}` });
+    const end = await traduzir(
+      `cat_${cat}`,
+      "endereco_amigavel",
+      "unas",
+      "unhas",
+    );
+    expect(end.statusCode).toBe(200);
+    const mau = await traduzir(
+      `cat_${cat2}`,
+      "endereco_amigavel",
+      "Pies!",
+      "pes",
+    );
+    expect(mau.statusCode).toBe(422);
+    expect(mau.json()).toMatchObject({ codigo: "catalog.slug_invalid" });
+    const repetido = await traduzir(
+      `cat_${cat2}`,
+      "endereco_amigavel",
+      "unas",
+      "pes",
+    );
+    expect(repetido.statusCode).toBe(409);
+    expect(repetido.json()).toMatchObject({ codigo: "catalog.slug_duplicate" });
+    const longo = await traduzir(
+      `cat_${cat2}`,
+      "endereco_amigavel",
+      "a".repeat(101),
+      "pes",
+    );
+    expect(longo.statusCode).toBe(422);
+    expect(longo.json()).toMatchObject({ codigo: "catalog.slug_invalid" });
+    expect(JSON.stringify(longo.json())).toContain("100");
+    const descricao = await traduzir(
+      `col_${col}`,
+      "descricao",
+      "Colores de verano",
+      "Cores de verão",
+    );
+    expect(descricao.json()).toMatchObject({
+      recurso: `col_${col}`,
+      campo: "descricao",
+    });
+    const lidas = (
+      await pedir("GET", `/translations?resource=col_${col}`)
+    ).json<Pagina<Traducao>>();
+    expect(lidas.dados.map((t) => t.recurso)).toEqual([`col_${col}`]);
+    // Uma categoria não tem descrição.
+    const semCampo = await traduzir(`cat_${cat}`, "descricao", "x", "");
+    expect(semCampo.json()).toMatchObject({ codigo: "request.invalid" });
   });
 
   it("a idempotência: a mesma chave devolve a resposta guardada; outro corpo dá 422", async () => {
@@ -478,8 +698,73 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
       estado: "arquivado",
       motivo_arquivo: "verificacao_falhou",
     });
+    // Quem apagou fica no arquivo (revisão do #166, P3-1), e não o sistema.
+    const arquivo = await base.dono
+      .selectFrom("publicacao")
+      .select("arquivado_por")
+      .where("artigo_id", "=", f.id.slice("prd_".length))
+      .executeTakeFirstOrThrow();
+    expect(arquivo.arquivado_por).toMatch(/^chave:key_/);
     const outra = await pedir("DELETE", `/translations/${f.id}/nome/es`);
     expect(outra.statusCode).toBe(404);
+  });
+
+  it("tirar a tradução: a mesma chave devolve o 204 guardado, outra rota com a mesma chave dá key_reused, sem chave dá 400", async () => {
+    const f = await artigo("Cutícula", "TR-DEL");
+    await traduzir(f.id, "nome", "Cutícula ES", "Cutícula");
+    await traduzir(f.id, "descricao", "Desc ES", "Descrição de Cutícula");
+    const chave = randomUUID();
+    const r1 = await pedir(
+      "DELETE",
+      `/translations/${f.id}/nome/es`,
+      undefined,
+      {
+        chave,
+      },
+    );
+    expect(r1.statusCode).toBe(204);
+    // Sem a protecção, a repetição daria 404 (já não há tradução).
+    const r2 = await pedir(
+      "DELETE",
+      `/translations/${f.id}/nome/es`,
+      undefined,
+      {
+        chave,
+      },
+    );
+    expect(r2.statusCode).toBe(204);
+    expect(r2.body).toBe("");
+    const outra = await pedir(
+      "DELETE",
+      `/translations/${f.id}/descricao/es`,
+      undefined,
+      { chave },
+    );
+    expect(outra.json()).toMatchObject({ codigo: "idempotency.key_reused" });
+    const semChave = await pedir(
+      "DELETE",
+      `/translations/${f.id}/descricao/es`,
+      undefined,
+      { chave: null },
+    );
+    expect(semChave.statusCode).toBe(400);
+    expect(semChave.json()).toMatchObject({
+      codigo: "idempotency.key_required",
+    });
+    const semChavePut = await pedir(
+      "PUT",
+      `/translations/${f.id}/nome/es`,
+      { texto: "X", origem: "pessoa", original_visto: "Cutícula" },
+      { chave: null },
+    );
+    expect(semChavePut.json()).toMatchObject({
+      codigo: "idempotency.key_required",
+    });
+    // A descrição continua lá.
+    const lidas = (await pedir("GET", `/translations?resource=${f.id}`)).json<
+      Pagina<Traducao>
+    >();
+    expect(lidas.dados.map((t) => t.campo)).toEqual(["descricao"]);
   });
 
   it("as opções e os valores também se traduzem", async () => {
@@ -507,7 +792,6 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
         `/translations/${f.id}/nome/es`,
         { texto: "X", origem: "pessoa", original_visto: "Alheio" },
       ],
-      ["POST", `/translations/${f.id}/nome/es/review`, undefined],
       ["DELETE", `/translations/${f.id}/nome/es`, undefined],
     ] as const) {
       const r = await pedir(metodo, url, corpo, { segredo: escritaDeB });
@@ -539,10 +823,25 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: traduções", () => {
     ).toBe(403);
     expect(
       (
-        await pedir("GET", `/translations?resource=${f.id}`, undefined, {
-          segredo: semCatalogo,
+        await pedir("DELETE", `/translations/${f.id}/nome/es`, undefined, {
+          segredo: leitura,
         })
       ).statusCode,
     ).toBe(403);
+    for (const segredo of [semCatalogo, publicacao]) {
+      expect(
+        (
+          await pedir("GET", `/translations?resource=${f.id}`, undefined, {
+            segredo,
+          })
+        ).statusCode,
+      ).toBe(403);
+    }
+    // Nada mudou com os 403.
+    expect(
+      (await pedir("GET", `/translations?resource=${f.id}`)).json<
+        Pagina<Traducao>
+      >().dados[0]?.texto,
+    ).toBe("Ajeno");
   });
 });

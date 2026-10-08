@@ -797,14 +797,33 @@ as traduções»):
 - com `catalog:write`, com a `Idempotency-Key`:
   `PUT /translations/{recurso}/{campo}/{lingua}` (traduz ou traduz outra vez;
   `original_visto` é o original que quem traduziu viu, e se mudou dá
-  `catalog.version_conflict`), `POST …/review` (só uma proposta de IA, e não
-  por quem a traduziu) e `DELETE` (o campo passa a «em falta»; o nome de um
-  artigo publicado num mercado dessa língua tira-o de venda, §8).
+  `catalog.version_conflict`) e `DELETE` (o campo passa a «em falta»; o nome
+  de um artigo publicado num mercado dessa língua tira-o de venda, §8; quem
+  apagou fica registado no arquivo da publicação).
+
+**Rever uma proposta de IA não está nesta API** (`docs/06`, CO; revisão do
+#166, P1-1): as chaves podem ser de agentes de IA, e só uma pessoa revê. A
+revisão entra no Hub, com a sessão de uma pessoa (`docs/21`), e deve
+comparar o texto que a pessoa viu, como o `original_visto` (revisão do
+#166, P2-1). Até lá, `revista` só pode ficar verdadeira por quem tem acesso
+directo à base; nada no Eurolify lê ainda esse campo (a publicação só
+verifica o nome, §8).
 
 Os campos de cada tipo são os da 0009 (artigo: nome e descrição; opção:
 nome; valor: valor; categoria: nome e endereço amigável; colecção: nome,
-descrição e endereço amigável); outro dá 400 no contrato. Quem traduziu ou
-reviu fica registado como a chave e não sai nas respostas (CL). Os estados
+descrição e endereço amigável); outro dá 400 `request.invalid`, recusado
+antes de escrever. O texto também se recusa antes de escrever acima do
+limite do campo, com o campo e o limite na mensagem: nome e valor até 200
+(`catalog.invalid_field`), descrição até 20 000, endereço amigável até 100
+(`catalog.slug_invalid`). A língua só se confere pelo formato (`^[a-z]{2}$`),
+como na base: uma língua que nenhum mercado usa dá uma fila inteira «em
+falta» (fica para quando os mercados tiverem línguas na API). Pedir as
+traduções de um recurso na língua de origem dá
+`catalog.translation_same_language`, como a fila. Traduzir outra vez
+substitui sempre, também uma tradução de pessoa por uma proposta de IA: quem
+chama decide (por decidir se se quer protecção, revisão do #166, P3-7). Quem
+traduziu fica registado como a chave e não sai nas respostas (`docs/06`, CO,
+que alarga a CL). Os estados
 e as línguas são os do desenho: o `docs/14` §7.1 escrevia `outdated` e
 `missing`, e o código usa `desactualizada` e `em_falta`, como o §4.3.
 

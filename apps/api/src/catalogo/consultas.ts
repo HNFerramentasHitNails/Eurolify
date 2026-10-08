@@ -493,6 +493,36 @@ export const CAMPOS_TRADUZIVEIS = {
 export type RecursoTraduzivel = keyof typeof CAMPOS_TRADUZIVEIS;
 
 /**
+ * O estado de uma tradução que existe (§4.3): completa se foi feita sobre o
+ * original de agora; desactualizada se o original mudou, ficou vazio ou
+ * deixou de existir. A única regra (revisão do #166, P2-2).
+ */
+export const estadoDaTraducao = (
+  actual: string | null,
+  original: string | null,
+): "completa" | "desactualizada" =>
+  actual === original ? "completa" : "desactualizada";
+
+/** A língua de origem não se traduz (§4.3). */
+async function naoELinguaDeOrigem(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  lingua: string,
+) {
+  const comerciante = await trx
+    .selectFrom("comerciante")
+    .select("lingua_origem")
+    .where("id", "=", comercianteId)
+    .executeTakeFirst();
+  if (comerciante?.lingua_origem === lingua) {
+    throw new ErroCatalogo(
+      "catalog.translation_same_language",
+      `${lingua} é a língua de origem`,
+    );
+  }
+}
+
+/**
  * Confirma que o recurso existe neste comerciante (o RLS esconde os de
  * outro); senão, `catalog.not_found`. Lido na transacção dada.
  */
@@ -531,6 +561,11 @@ export async function traducoesParaApi(
     comercianteId,
     async (trx) => {
       await recursoTraduzivel(trx, comercianteId, tipo, recursoId);
+      // Na língua de origem não há traduções: diz-se, como na fila
+      // (revisão do #166, P3-6).
+      if (lingua !== null) {
+        await naoELinguaDeOrigem(trx, comercianteId, lingua);
+      }
       let consulta = trx
         .selectFrom("traducao as t")
         .leftJoin("texto_original as o", (j) =>
@@ -561,10 +596,7 @@ export async function traducoesParaApi(
         campo: l.campo,
         lingua: l.lingua,
         texto: l.texto,
-        estado:
-          l.actual === l.original
-            ? ("completa" as const)
-            : ("desactualizada" as const),
+        estado: estadoDaTraducao(l.actual, l.original),
         origem: l.origem,
         revista: l.revista,
         traduzido_em: l.traduzido_em,
@@ -600,17 +632,7 @@ export async function filaDeTraducoesPaginada(
     db,
     comercianteId,
     async (trx) => {
-      const comerciante = await trx
-        .selectFrom("comerciante")
-        .select("lingua_origem")
-        .where("id", "=", comercianteId)
-        .executeTakeFirst();
-      if (comerciante?.lingua_origem === lingua) {
-        throw new ErroCatalogo(
-          "catalog.translation_same_language",
-          `${lingua} é a língua de origem`,
-        );
-      }
+      await naoELinguaDeOrigem(trx, comercianteId, lingua);
       const emFalta = estados.includes("em_falta");
       const desactualizada = estados.includes("desactualizada");
       const fila = trx

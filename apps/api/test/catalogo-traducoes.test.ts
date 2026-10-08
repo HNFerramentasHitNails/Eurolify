@@ -19,11 +19,14 @@ import {
 import {
   apagarTraducao,
   definirTraducao,
-  filaDeTraducoes,
   reverTraducao,
   traducoesDoRecurso,
   type DadosTraducao,
 } from "../src/catalogo/traducoes.js";
+import {
+  filaDeTraducoesPaginada,
+  type PosicaoNaFila,
+} from "../src/catalogo/consultas.js";
 import {
   comComerciante,
   ErroComerciante,
@@ -35,6 +38,29 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+
+/** A fila inteira de uma língua, página a página (a única implementação). */
+async function filaDeTraducoes(
+  db: Parameters<typeof filaDeTraducoesPaginada>[0],
+  comercianteId: string,
+  lingua: string,
+) {
+  const fila = [];
+  let depois: PosicaoNaFila | null = null;
+  for (;;) {
+    const pagina = await filaDeTraducoesPaginada(
+      db,
+      comercianteId,
+      lingua,
+      ["em_falta", "desactualizada"],
+      2,
+      depois,
+    );
+    fila.push(...pagina.dados);
+    if (pagina.ultima === null) return fila;
+    depois = pagina.ultima;
+  }
+}
 
 // Catálogo, parte 3b: traduções (docs/14 §3.8 e §4.3; migração 0009; issue
 // #77), contra o PostgreSQL 18 verdadeiro e com o eurolify_api.
@@ -601,7 +627,9 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
     )) as { rows: { n: number }[] };
     expect(traducoesVistas[0]?.n).toBe(0);
     expect(
-      await codigoDoErro(apagarTraducao(base.api, outro, artigo, "nome", "es")),
+      await codigoDoErro(
+        apagarTraducao(base.api, outro, QUEM, artigo, "nome", "es"),
+      ),
     ).toBe("catalog.not_found");
     expect(await filaDeTraducoes(base.api, outro, "es")).toEqual([]);
     // O mesmo id em maiúsculas é o mesmo recurso.
@@ -653,7 +681,7 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
   it("apagar uma tradução passa-a a «em falta»", async () => {
     const { c, artigo } = await gel();
     await definirTraducao(base.api, c, QUEM, nomeEs(artigo));
-    await apagarTraducao(base.api, c, artigo, "nome", "es");
+    await apagarTraducao(base.api, c, QUEM, artigo, "nome", "es");
     expect(await traducoesDoRecurso(base.api, c, artigo)).toEqual([]);
     expect(
       (await filaDeTraducoes(base.api, c, "es")).map((l) => l.campo).sort(),

@@ -47,7 +47,7 @@ import {
   type PosicaoNaLista,
 } from "./consultas.js";
 import { ErroCatalogo, traduzir } from "./erros.js";
-import { apagarTraducao, definirTraducao, reverTraducao } from "./traducoes.js";
+import { apagarTraducao, definirTraducao } from "./traducoes.js";
 import {
   NAO_VERIFICADO,
   publicacoesDoArtigo,
@@ -679,7 +679,8 @@ const TraducaoEsquema = Type.Object({
   estado: umDe(["completa", "desactualizada"] as const),
   origem: umDe(["pessoa", "ia"] as const),
   revista: Type.Boolean({
-    description: "Só uma proposta de IA se revê; uma de pessoa fica falsa",
+    description:
+      "Só uma proposta de IA se revê, no Hub, por uma pessoa (não por chave); uma de pessoa fica falsa",
   }),
   traduzida_em: Instante,
   revista_em: Type.Union([Instante, Type.Null()]),
@@ -974,6 +975,30 @@ function campoDe(tipo: RecursoTraduzivel, campo: string) {
     );
   }
   return campo;
+}
+
+/**
+ * O texto cabe no limite do campo (0009, `traducao_texto_comprimento` e
+ * `traducao_endereco_valido`; revisão do #166, P2-5): recusa-se aqui, com o
+ * campo e o limite na mensagem, em vez do erro genérico da base.
+ */
+function textoCabe(campo: string, texto: string) {
+  if (campo === "endereco_amigavel") {
+    if (texto.length > 100) {
+      throw new ErroCatalogo(
+        "catalog.slug_invalid",
+        "o endereço amigável traduz-se com até 100 caracteres",
+      );
+    }
+    return;
+  }
+  const limite = campo === "descricao" ? 20000 : 200;
+  if (texto.length > limite) {
+    throw new ErroCatalogo(
+      "catalog.invalid_field",
+      `o campo ${campo} traduz-se com até ${String(limite)} caracteres`,
+    );
+  }
 }
 
 const comPrefixoDo = (tipo: RecursoTraduzivel, id: string) =>
@@ -1849,8 +1874,10 @@ export function rotasDoCatalogo(
 
   // ---------------------------------------------------------- Traduções
   // Parte 5 (pedido do Diogo, 08/10/2026: «sim, avança com as traduções»;
-  // docs/14 §3.8, §4.3 e §7.1). Quem traduziu ou reviu fica registado como a
-  // chave e não sai nas respostas (CL).
+  // docs/14 §3.8, §4.3 e §7.1). Quem traduziu fica registado como a chave e
+  // não sai nas respostas (extensão da CL, docs/06 CO). Rever uma proposta
+  // de IA não se faz por chave: faz-se no Hub, com a sessão de uma pessoa
+  // (docs/06, CO; revisão do #166, P1-1).
 
   rotas.get(
     "/translations",
@@ -1990,6 +2017,7 @@ export function rotasDoCatalogo(
       escrever(base, pedido, resposta, 200, async (trx, chave) => {
         const { tipo, id } = recursoDe(pedido.params.recurso);
         const campo = campoDe(tipo, pedido.params.campo);
+        textoCabe(campo, pedido.body.texto);
         await recursoTraduzivel(trx, chave.comercianteId, tipo, id);
         await definirTraducao(trx, chave.comercianteId, quemDa(chave), {
           tipo,
@@ -2000,48 +2028,6 @@ export function rotasDoCatalogo(
           origem: pedido.body.origem,
           originalVisto: pedido.body.original_visto,
         });
-        return traducaoNa(
-          trx,
-          chave.comercianteId,
-          tipo,
-          id,
-          campo,
-          pedido.params.lingua,
-        );
-      }),
-  );
-
-  rotas.post(
-    "/translations/:recurso/:campo/:lingua/review",
-    {
-      config: { ambito: "catalog:write" },
-      schema: {
-        description:
-          "Marca uma proposta de IA como revista. Só uma proposta de IA se revê (catalog.translation_not_ai), e quem a traduziu não a revê (catalog.translation_self_review: a mesma chave). Sem corpo.",
-        headers: CabecalhoIdempotencia,
-        params: ParametrosTraducao,
-        response: { 200: TraducaoEsquema, ...RESPOSTA_DE_ERRO },
-      },
-    },
-    (pedido, resposta) =>
-      escrever(base, pedido, resposta, 200, async (trx, chave) => {
-        if (!vazio(pedido.body)) {
-          throw new ErroCatalogo(
-            "catalog.invalid_field",
-            "esta rota não leva corpo",
-          );
-        }
-        const { tipo, id } = recursoDe(pedido.params.recurso);
-        const campo = campoDe(tipo, pedido.params.campo);
-        await recursoTraduzivel(trx, chave.comercianteId, tipo, id);
-        await reverTraducao(
-          trx,
-          chave.comercianteId,
-          quemDa(chave),
-          id,
-          campo,
-          pedido.params.lingua,
-        );
         return traducaoNa(
           trx,
           chave.comercianteId,
@@ -2076,6 +2062,7 @@ export function rotasDoCatalogo(
         await apagarTraducao(
           trx,
           chave.comercianteId,
+          quemDa(chave),
           id,
           campo,
           pedido.params.lingua,
