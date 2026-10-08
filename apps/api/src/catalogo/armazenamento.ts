@@ -63,6 +63,9 @@ export interface ArmazenamentoDeExportacoes extends Armazenamento {
   largarTemporario(temporario: string): Promise<void>;
 }
 
+/** Há quanto tempo um ficheiro sem linha tem de estar parado para se apagar. */
+export const LIMPAR_DEPOIS_DE_MS = 60 * 60 * 1000;
+
 /** O tamanho máximo de uma imagem (**proposta**, docs/14 §3.5): 10 MB. */
 export const TAMANHO_MAXIMO = 10 * 1024 * 1024;
 
@@ -204,11 +207,24 @@ export class ArmazenamentoEmDisco implements ArmazenamentoDeExportacoes {
       return 0;
     }
     const ficam = new Set([...manter].map((id) => `${id}.zip`));
+    // Só o que tem mais de uma hora: um ZIP ou um temporário recente pode
+    // ser de outra instância da API a meio (ao publicar, a antiga e a nova
+    // atendem ao mesmo tempo; 2.ª revisão do #189, P2-A).
+    const antes = Date.now() - LIMPAR_DEPOIS_DE_MS;
     let apagados = 0;
     for (const nome of nomes) {
       if (ficam.has(nome)) continue;
-      await unlink(join(dir, nome));
-      apagados++;
+      const caminho = join(dir, nome);
+      try {
+        const info = await stat(caminho);
+        if (!info.isFile() || info.mtimeMs > antes) continue;
+        await unlink(caminho);
+        apagados++;
+      } catch {
+        // Um ficheiro que outro já apagou, ou que não se deixa apagar, não
+        // impede a exportação (2.ª revisão do #189, P2-B); a limpeza geral
+        // (#179) apanha-o.
+      }
     }
     return apagados;
   }

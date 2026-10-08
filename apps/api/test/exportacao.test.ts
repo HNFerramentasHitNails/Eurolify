@@ -1,11 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
+  mkdir,
   mkdtemp,
   open,
   readdir,
   readFile,
   rm,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -434,6 +436,7 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
       artigos: {
         id: string;
         nome: string;
+        ja_esteve_activo: boolean;
         variantes: { sku: string; componentes: unknown[] }[];
         traducoes: unknown[];
         categorias: string[];
@@ -446,6 +449,7 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
     expect(json.artigos.map((x) => x.nome)).toEqual(["Gel rosa", "=SOMA(1;1)"]);
     const g = json.artigos[0];
     expect(g?.variantes.map((v) => v.sku)).toEqual(["GEL-001", "GEL-002"]);
+    expect(g?.ja_esteve_activo).toBe(false);
     expect(g?.traducoes).toEqual([
       expect.objectContaining({
         campo: "nome",
@@ -689,14 +693,39 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
       "export.limit_reached",
     );
     const dir = join(pasta, ".exportacoes", a);
-    await writeFile(join(dir, `${randomUUID()}.zip`), "sem linha");
-    await writeFile(join(dir, `${randomUUID()}.zip.tmp`), "a meio");
+    // Parados há mais de uma hora: o ZIP sem linha, o temporário e a
+    // expirada saem. Recentes (podem ser de outra instância a meio, 2.ª
+    // revisão, P2-A): ficam. Uma pasta lá dentro não faz falhar (P2-B), e a
+    // pasta de outro comerciante não se toca (P3-3).
+    const velho = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const semLinha = `${randomUUID()}.zip`;
+    const temporario = `${randomUUID()}.zip.tmp`;
+    const recente = `${randomUUID()}.zip.tmp`;
+    await writeFile(join(dir, semLinha), "sem linha");
+    await writeFile(join(dir, temporario), "a meio");
+    await writeFile(join(dir, recente), "a meio, de outra instância");
+    await mkdir(join(dir, "uma-pasta"), { recursive: true });
+    await utimes(join(dir, semLinha), velho, velho);
+    await utimes(join(dir, temporario), velho, velho);
+    await utimes(join(dir, "uma-pasta"), velho, velho);
+    await utimes(join(dir, `${ids[0] ?? ""}.zip`), velho, velho);
+    const deB = join(pasta, ".exportacoes", b);
+    await mkdir(deB, { recursive: true });
+    await writeFile(join(deB, semLinha), "de B");
+    await utimes(join(deB, semLinha), velho, velho);
     await sql`update exportacao set expira_em = now() - interval '1 second'
       where id = ${ids[0] ?? ""}::uuid`.execute(base.dono);
     const nova = await exportar();
-    expect((await readdir(dir)).sort()).toEqual(
-      [ids[1], ids[2], nova.id.slice(4)].map((id) => `${id ?? ""}.zip`).sort(),
-    );
+    const ficaram = await readdir(dir);
+    for (const id of [ids[1], ids[2], nova.id.slice(4)]) {
+      expect(ficaram).toContain(`${id ?? ""}.zip`);
+    }
+    expect(ficaram).toContain(recente);
+    expect(ficaram).toContain("uma-pasta");
+    expect(ficaram).not.toContain(semLinha);
+    expect(ficaram).not.toContain(temporario);
+    expect(ficaram).not.toContain(`${ids[0] ?? ""}.zip`);
+    expect(await readdir(deB)).toContain(semLinha);
     const expirada = await pedir("GET", `/exports/exp_${ids[0] ?? ""}/file`);
     expect(expirada.statusCode).toBe(410);
   });
@@ -720,6 +749,16 @@ describe.skipIf(URL_BASE === undefined)("API das exportações", () => {
     });
     expect(malEscrita.statusCode).toBe(400);
     expect(aEspera()).toBe(false);
+  });
+
+  it("uma chave abandonada a meio há mais de 60 s não dá 409: a exportação faz-se (2.ª revisão, P3-1)", async () => {
+    const chave = randomUUID();
+    await sql`insert into idempotencia
+      (comerciante_id, chave, metodo, caminho, resumo_corpo, criado_em)
+      values (${a}::uuid, ${chave}, 'POST', '/exports', ${"0".repeat(64)},
+        now() - interval '2 minutes')`.execute(base.dono);
+    const r = await pedir("POST", "/exports", { chave });
+    expect(r.statusCode, r.body).toBe(201);
   });
 
   it("um cursor ou um id mal escritos dão 400", async () => {

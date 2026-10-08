@@ -765,8 +765,12 @@ estados** (rascunho, activo e arquivado):
   limite de vezes: as que tem descarregam-se quantas vezes quiser, e pede
   outra quando uma expirar. Cada pedido novo, antes de fazer o ZIP, apaga
   da pasta do comerciante os ZIP expirados, os ZIP sem linha e os
-  temporários que ficaram. Assim o disco de cada comerciante fica em 3
-  ZIP. A linha das expiradas fica (a API não apaga linhas); o ficheiro de
+  temporários que ficaram, **parados há mais de uma hora**: um recente
+  pode ser de outra instância da API a meio (ao publicar, a antiga e a
+  nova atendem ao mesmo tempo; 2.ª revisão do #189, P2-A). Um ficheiro que
+  não se deixa apagar não faz falhar a exportação (P2-B). Assim o disco de
+  cada comerciante fica em 3 ZIP e o que ficou de uma falha na última
+  hora. A linha das expiradas fica (a API não apaga linhas); o ficheiro de
   quem não volta a pedir fica até à limpeza geral da issue #179. Não conta
   para a quota das imagens.
 - **Onde fica:** no armazenamento das imagens, em
@@ -795,6 +799,10 @@ processo (`deflateRawSync`): um catálogo grande pode parar a API durante a
 compressão (revisão do #189, P3-4). **Não medido:** medir o tempo e o
 tamanho no ensaio antes de abrir a comerciantes; se passar de umas dezenas
 de ms, a compressão passa a assíncrona ou a exportação a segundo plano.
+**Sem tecto para o disco todo** (2.ª revisão do #189, P3-6): o limite é por
+comerciante, e nada confere o espaço livre antes de começar; sem espaço, o
+pedido dá 500 e o temporário apaga-se. O alerta de disco da VPS (`docs/11`
+§3.8) é a rede, até haver comerciantes.
 
 ### 3.12 Linha do tempo
 

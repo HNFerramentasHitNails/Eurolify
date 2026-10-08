@@ -94,7 +94,10 @@ export async function chaveJaGuardada(
     const { rows } = await sql<{ n: number }>`
       select count(*)::int as n from idempotencia
       where comerciante_id = ${comercianteId}::uuid and chave = ${chave}
-        and expira_em > now()`.execute(trx);
+        and expira_em > now()
+        and not (estado = 'em_curso' and criado_em < now() - interval '60 seconds')`.execute(
+      trx,
+    );
     return (rows[0]?.n ?? 0) > 0;
   });
 }
