@@ -18,7 +18,7 @@
 | Entrar com passkey | Entrar com palavra-passe + TOTP (B3b; as rotas existem) |
 | Aceitar um convite e criar a conta (nome + passkey) | Aceitar um convite com uma conta que já existe (`/hub/invitations/accept`) |
 | Escolher o comerciante (quem é membro de vários) | Mudar de papel, tirar da equipa (rotas existem) |
-| Equipa: ver membros e convites em aberto; convidar; cancelar um convite | Passkeys, sessões abertas, códigos de recuperação, recuperar a conta, chaves de API (B3) |
+| Equipa: ver membros e convites em aberto; convidar; cancelar um convite | Passkeys, sessões abertas, códigos de recuperação, recuperar a conta, chaves de API (B3: desenho na §9, 08/10/2026) |
 | Sair | A montra, o checkout e o resto do Hub |
 
 Cada ecrã só mostra o que o servidor decide: o papel, o que se pode fazer e
@@ -175,6 +175,60 @@ O `pnpm --filter @eurolify/hub desenvolver` (Vite em `http://localhost:5173`)
 não deixa entrar: a API só aceita escritas do `Origin` da `HUB_ORIGEM`, que
 tem de ser `https` (revisão do #158, P3-10). Para ver os ecrãs com a API, usa-se
 o `scripts/capturas.mjs`, que monta um «proxy» HTTPS local.
+
+## 9. Parte B3 dos ecrãs: a conta, recuperar, palavra-passe e chaves
+
+Pedido do Diogo, 08/10/2026: *«sim, avança com os ecrãs da parte B3»*
+(issue #156). As rotas existem e estão no ensaio (`docs/21` §12). Mesmos
+tokens provisórios, línguas, regras de erro e de autenticação recente da §3;
+as capturas vão ao Diogo ou ao Bruno antes de juntar, como na primeira
+parte. Em três pedidos, pela ordem do `docs/21` §12:
+
+### 9.1 B3a — a minha conta e recuperar
+
+| Ecrã | O que mostra | Rotas da API | Estados além do normal |
+|---|---|---|---|
+| **A minha conta** (`/conta`, ligação no cabeçalho) | três blocos: Passkeys, Sessões abertas, Códigos de recuperação | os de cada bloco | sem sessão (vai para `/entrar`); a carregar; erro por bloco (um bloco que falha não esconde os outros) |
+| **Passkeys** | nome, criada em, último uso (ou «nunca»); a contagem; o conselho de ter duas (`docs/21` §7: o Hub pede para registar duas) quando só há uma | `GET /hub/passkeys` | — |
+| **Acrescentar passkey** | campo «Nome desta passkey» (ex.: «Telemóvel»; 1 a 100), botão | `POST /hub/passkeys/options` → navegador → `POST /hub/passkeys` | autenticação recente (§3); cancelada pela pessoa (sem vermelho); passkey já registada neste dispositivo; sem suporte |
+| **Retirar passkey** | botão por passkey, com confirmação que diz que **todas as sessões terminam** (as outras; esta continua) | `POST /hub/passkeys/{id}/remove` | é a última forma de entrar (a API recusa: o ecrã explica que é preciso outra passkey ou a palavra-passe primeiro); autenticação recente |
+| **Sessões abertas** | criada em, último uso, «esta sessão» marcada; a contagem | `GET /hub/sessions` | só há esta (o botão de terminar as outras fica escondido) |
+| **Terminar todas as outras** | botão com confirmação | `POST /hub/sessions/end-all` | autenticação recente; depois, a lista volta a ler-se (fica só esta) |
+| **Códigos de recuperação** | o que são; botão «Gerar códigos novos» com confirmação de que **os antigos deixam de valer**; depois, os 10 códigos **uma vez**, como no convite (Copiar, aviso, «Já os guardei») | `POST /hub/recovery-codes` | autenticação recente |
+| **Recuperar a conta** (`/recuperar`, ligação no ecrã de entrar: «Perdeu a passkey?») | e-mail, um código de recuperação (`XXXX-XXXX-XXXX-XXXX`; a API aceita minúsculas, espaços e sem hífenes, e lê 0, 1 e 8 como O, I e B — o ecrã envia como foi escrito), nome da passkey nova, botão «Recuperar com uma passkey nova» | `POST /hub/recovery/options` → navegador → `POST /hub/recovery` | a mesma recusa para e-mail sem conta, código errado ou usado (401: a API não distingue, de propósito); muitas tentativas (429, com os minutos); cancelada; sem suporte |
+| **Depois de recuperar** | entra na conta com o aviso: as outras sessões terminaram, o código usado já não vale, **retire as passkeys que já não tem** (a do dispositivo perdido continua a valer até se retirar, `docs/21` §12, revisão do #144, P3-7) e gere códigos novos; e, se for dono, **reveja as chaves de API** que criou (revisão do #149, P2-1) | os de cima | o aviso fica até a pessoa o fechar (só neste navegador; a API não guarda «visto») |
+
+### 9.2 B3b — palavra-passe e autenticador
+
+| Ecrã | O que mostra | Rotas da API | Estados |
+|---|---|---|---|
+| **Entrar com palavra-passe** (em `/entrar`, ligação «Entrar com palavra-passe») | e-mail, palavra-passe, código de 6 dígitos do autenticador | `POST /hub/session/password` | a mesma recusa para tudo o que falha (401); 429 com os minutos; 503 (muitos pedidos ao mesmo tempo: tentar daqui a pouco) |
+| **Na conta: palavra-passe** | se não está activa: «Activar palavra-passe e autenticador» → palavra-passe (≥ 12) e confirmação → o segredo para o autenticador → o primeiro código de 6 dígitos → activa; se está activa: «Retirar» com confirmação | `POST /hub/password/setup`, `POST /hub/password/confirm`, `POST /hub/password/remove` | autenticação recente; código errado; retirar quando não há passkey (a API recusa) |
+
+**Falta na API:** o `/hub/me` não diz se a pessoa tem a palavra-passe
+activa. Proposta: um campo `palavra_passe: "activa" | "pendente" | null`
+(sem nenhum dado secreto), no mesmo pedido da B3b, com teste.
+
+**Por decidir (Diogo ou Bruno), antes da B3b:** o segredo do autenticador
+mostra-se **só como texto** (escreve-se à mão na aplicação; nenhuma
+biblioteca nova) ou também **como código QR** (mais simples para quem
+configura; uma biblioteca nova no Hub, a escolher e a rever).
+
+### 9.3 B3c — chaves de API
+
+| Ecrã | O que mostra | Rotas da API | Estados |
+|---|---|---|---|
+| **Chaves** (`/chaves?comerciante=mer_…`, ligação ao lado de «Ver a equipa», só para o dono) | as chaves do comerciante: nome, tipo (servidor ou pública), âmbitos, prefixo, criada em/por, expira, estado | `GET /hub/keys` | sem permissão (403, o ecrã não oferece a quem não é dono); vazio |
+| **Criar chave** | nome, tipo, âmbitos (só os que o papel tem), expira (opcional); depois, **o segredo uma vez**, com Copiar e aviso | `POST /hub/keys` | autenticação recente; âmbitos acima do papel (a API recusa) |
+| **Revogar** | botão por chave activa, com confirmação | `POST /hub/keys/{id}/revoke` | autenticação recente; já revogada |
+
+### 9.4 O que não muda
+
+- Nada disto mexe nas regras: a API e a base decidem; os ecrãs só não
+  oferecem o que vai ser recusado e mostram a recusa.
+- Os segredos (códigos, segredo do autenticador, segredo da chave) nunca vão
+  para o URL, o armazenamento do navegador nem os registos; mostram-se uma
+  vez e o ecrã esquece-os ao sair.
 
 ## O que não foi verificado
 
