@@ -41,10 +41,30 @@ operador»*). Desenho no `docs/19` §6.0.
   `SHA256:wz3eusHxAkSkUSEvj9Aiwb1bMVLSY0zvhEt418EFyQE`, calculada da linha
   colada.
 
+- 08/10/2026, primeiro uso no ensaio (registos do fluxo `operar` e do
+  `medir`):
+  - 09:16 e 09:19: acção `comerciante` duas vezes, código 0 nas duas — há
+    **dois** comerciantes de teste; o da segunda é
+    `mer_01a11acf-d2bb-758b-bad7-e4af11226519` («Loja de Ensaio»). A
+    primeira execução aparecia como cancelada no GitHub e o registo dela
+    já não se lê (404); o nome dela não foi verificado.
+  - 09:24: convite com 42704, sem escrever (corrigido no #168, 0027).
+  - 10:32 e 10:34: dois pedidos recusados à entrada da VPS, sem escrever:
+    o comerciante com «;» no fim e a acção deixada em «comerciante» sem
+    nome. Daí o fluxo passar a conferir os campos de cada acção e dizer o
+    que falta (#172; `infra/vps/testes/fluxo-operar.sh`, 32 ok; sem a
+    verificação do comerciante falham 2, sem o filtro de segredos 3).
+  - O GitHub mostra no registo de cada execução o bloco `env:` com todas as
+    entradas, sem esconder nada (execução das 10:36): um segredo colado
+    num campo fica lá; as mensagens mandam apagar a execução.
+  - 10:36: convite criado, `inv_01a11b16-52c7-7316-b46c-2da6b7ab9fe8`, com
+    cópia da base antes.
+  - O Diogo aceitou-o e entrou no Hub com uma passkey: «Entrou como Dono
+    de Ensaio (dono@loja.test)», «Loja de Ensaio — Dono» (captura dele).
+- O Diogo colou uma vez a ligação de um convite no chat; esse par foi
+  deitado fora antes de ser usado (o convite só nasce com o resumo no fluxo).
+
 ## O que ficou por verificar
 
-- **O fluxo `operar` nunca correu na VPS**: falta a chave SSH
-  (`infra/vps/chaves/fluxos/operar.pub` e o segredo `VPS_CHAVE_OPERAR` do
-  ambiente `ensaio`), a criar pelo Diogo ou pelo Bruno. O `preparar.sh`
-  avisa disso em cada corrida (registo de 07/10/2026).
-- Entrar de facto no Hub do ensaio com a ligação gerada: depois da chave.
+- A Equipa e os convites feitos a partir do Hub, na VPS (só a entrada foi
+  vista).
