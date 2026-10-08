@@ -13,9 +13,13 @@ import {
 } from "./base/erros.js";
 import type { BaseDados } from "./base/esquema.js";
 import { LIMITES_HUB, LimitePorIp } from "./base/limite.js";
-import type { Armazenamento } from "./catalogo/armazenamento.js";
+import {
+  guardaExportacoes,
+  type Armazenamento,
+} from "./catalogo/armazenamento.js";
 import { rotasDoCatalogo } from "./catalogo/rotas.js";
 import { rotasDaMedia } from "./catalogo/rotas-media.js";
+import { rotasDasExportacoes } from "./exportacao/rotas.js";
 import {
   conferirOrigem,
   ligarAutenticacao,
@@ -276,6 +280,10 @@ export function criarApp(
           rotasDaMedia(media, base, armazenamento);
           pronto();
         });
+        // As exportações levam as imagens, por isso vivem com elas.
+        if (guardaExportacoes(armazenamento)) {
+          rotasDasExportacoes(rotas, base, armazenamento);
+        }
       }
     }
     if (base !== undefined && hub !== undefined) {

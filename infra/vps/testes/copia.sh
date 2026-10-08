@@ -59,6 +59,12 @@ cat >"$falsos/curl" <<'FALSO'
 #!/usr/bin/env bash
 echo "curl $*" >>"$FALSOS/hc"
 FALSO
+# df: o verdadeiro; com LIVRE_KIB, diz que há só esse espaço livre.
+cat >"$falsos/df" <<'FALSO'
+#!/usr/bin/env bash
+[[ -z "${LIVRE_KIB:-}" ]] && exec /usr/bin/df "$@"
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted\nfalso 99999999 0 %s 1%% /\n' "$LIVRE_KIB"
+FALSO
 cat >"$falsos/tar" <<'FALSO'
 #!/usr/bin/env bash
 /usr/bin/tar "$@"
@@ -77,6 +83,9 @@ limpar() {
   install -d -m 750 "$media/$(printf '%08d-0000-7000-8000-000000000001' 1)"
   echo "imagem" >"$media/00000001-0000-7000-8000-000000000001/$(printf 'a%.0s' {1..64})"
   echo "a meio" >"$media/00000001-0000-7000-8000-000000000001/x.tmp"
+  # Uma exportação (docs/14 §3.11): refaz-se e dura 7 dias, não vai na cópia.
+  install -d -m 750 "$media/.exportacoes/00000001-0000-7000-8000-000000000001"
+  echo "zip" >"$media/.exportacoes/00000001-0000-7000-8000-000000000001/exportacao.zip"
 }
 correr() { # correr <descrição> [VAR=valor…]
   local descricao="$1"
@@ -104,6 +113,15 @@ confere sim "apaga na OVH as bases com mais de 14 dias" grep -q "delete --min-ag
 enviado() { /usr/bin/tar -tf "$(compgen -G "$falsos/s3/eurolify-media-*.tar.age")"; }
 confere sim "a imagem vai no arquivo enviado" bash -c "$(declare -f enviado); falsos=$falsos; enviado | grep -q aaaa"
 confere nao "o ficheiro a meio da API (.tmp) fica de fora" bash -c "$(declare -f enviado); falsos=$falsos; enviado | grep -q x.tmp"
+confere nao "as exportações ficam de fora" bash -c "$(declare -f enviado); falsos=$falsos; enviado | grep -q exportac"
+
+limpar
+# Uma exportação de 2 MiB e só 1000 KiB livres: as imagens cabem, porque a
+# exportação não entra na conta (revisão do #189, P2-1).
+head -c 2097152 /dev/zero >"$media/.exportacoes/00000001-0000-7000-8000-000000000001/grande.zip"
+correr "uma exportação grande, pouco espaço livre" LIVRE_KIB=1000
+confere sim "sai bem" test "$codigo" == 0
+confere sim "as imagens vão para a OVH" no_s3 'eurolify-media-*.tar.age'
 
 limpar
 correr "o age falha a meio da base" FALHA_AGE=dump
