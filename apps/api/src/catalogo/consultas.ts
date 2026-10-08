@@ -718,3 +718,266 @@ export async function filaDeTraducoesPaginada(
     { soLeitura: true },
   );
 }
+
+// ------------------------------------------------ Categorias e colecções
+
+/**
+ * As categorias ou as colecções do comerciante, por ordem de criação (o id),
+ * no formato das listas (docs/18 §2a), também as arquivadas se não se filtrar
+ * pelo estado.
+ */
+export async function listarCategoriasOuColecoes(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  tabela: "categoria" | "colecao",
+  estado: "activa" | "arquivada" | null,
+  limite: number,
+  depois: string | null,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      let consulta = trx
+        .selectFrom(tabela)
+        .where("comerciante_id", "=", comercianteId);
+      if (estado !== null) consulta = consulta.where("estado", "=", estado);
+      const { total } = await consulta
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow();
+      let pagina = consulta.select("id");
+      if (depois !== null) pagina = pagina.where("id", ">", depois);
+      const ids = (
+        await pagina
+          .orderBy("id")
+          .limit(limite + 1)
+          .execute()
+      ).map((l) => l.id);
+      const haMais = ids.length > limite;
+      const daPagina = haMais ? ids.slice(0, limite) : ids;
+      return {
+        ids: daPagina,
+        total: Number(total),
+        ultimo: haMais ? (daPagina.at(-1) ?? null) : null,
+      };
+    },
+    { soLeitura: true },
+  );
+}
+
+/** Uma categoria; outra do comerciante, ou de outro, é `catalog.not_found`. */
+export async function fichaDaCategoria(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  categoriaId: string,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const linha = await trx
+        .selectFrom("categoria")
+        .selectAll()
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", categoriaId)
+        .executeTakeFirst();
+      if (linha === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `categoria ${categoriaId}`);
+      }
+      return linha;
+    },
+    { soLeitura: true },
+  );
+}
+
+/** As categorias dadas, pela ordem do id (para as listas). */
+export async function categoriasPorId(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  ids: readonly string[],
+) {
+  if (ids.length === 0) return [];
+  return noCatalogo(
+    db,
+    comercianteId,
+    (trx) =>
+      trx
+        .selectFrom("categoria")
+        .selectAll()
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "in", ids)
+        .orderBy("id")
+        .execute(),
+    { soLeitura: true },
+  );
+}
+
+/**
+ * Uma colecção, com quantos artigos tem; outra do comerciante, ou de outro, é
+ * `catalog.not_found`.
+ */
+export async function fichaDaColecao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  colecaoId: string,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const linha = await trx
+        .selectFrom("colecao")
+        .selectAll()
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", colecaoId)
+        .executeTakeFirst();
+      if (linha === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `colecção ${colecaoId}`);
+      }
+      const { total } = await trx
+        .selectFrom("colecao_artigo")
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .where("comerciante_id", "=", comercianteId)
+        .where("colecao_id", "=", colecaoId)
+        .executeTakeFirstOrThrow();
+      return { ...linha, total_artigos: Number(total) };
+    },
+    { soLeitura: true },
+  );
+}
+
+/** As colecções dadas, pela ordem do id, com quantos artigos tem cada uma. */
+export async function colecoesPorId(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  ids: readonly string[],
+) {
+  if (ids.length === 0) return [];
+  return noCatalogo(
+    db,
+    comercianteId,
+    (trx) =>
+      trx
+        .selectFrom("colecao as c")
+        .selectAll("c")
+        .select((eb) =>
+          eb
+            .selectFrom("colecao_artigo as ca")
+            .select((e) => e.fn.countAll<string>().as("n"))
+            .whereRef("ca.comerciante_id", "=", "c.comerciante_id")
+            .whereRef("ca.colecao_id", "=", "c.id")
+            .as("total_artigos"),
+        )
+        .where("c.comerciante_id", "=", comercianteId)
+        .where("c.id", "in", ids)
+        .orderBy("c.id")
+        .execute(),
+    { soLeitura: true },
+  );
+}
+
+/**
+ * Os artigos de uma colecção, pela ordem dela (posição e id), com o estado de
+ * cada artigo, no formato das listas. Uma colecção que não existe é
+ * `catalog.not_found`.
+ */
+export async function artigosDaColecaoPaginados(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  colecaoId: string,
+  limite: number,
+  depois: PosicaoEId | null,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const colecao = await trx
+        .selectFrom("colecao")
+        .select("id")
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", colecaoId)
+        .executeTakeFirst();
+      if (colecao === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `colecção ${colecaoId}`);
+      }
+      const daColecao = trx
+        .selectFrom("colecao_artigo as ca")
+        .where("ca.comerciante_id", "=", comercianteId)
+        .where("ca.colecao_id", "=", colecaoId);
+      const { total } = await daColecao
+        .select((eb) => eb.fn.countAll<string>().as("total"))
+        .executeTakeFirstOrThrow();
+      let pagina = daColecao
+        .innerJoin("artigo as a", (j) =>
+          j
+            .onRef("a.id", "=", "ca.artigo_id")
+            .onRef("a.comerciante_id", "=", "ca.comerciante_id"),
+        )
+        .select(["ca.artigo_id", "ca.posicao", "a.estado"]);
+      if (depois !== null) {
+        pagina = pagina.where(
+          sql<boolean>`(ca.posicao, ca.artigo_id) > (${depois.posicao}::int, ${depois.id}::uuid)`,
+        );
+      }
+      const linhas = await pagina
+        .orderBy("ca.posicao")
+        .orderBy("ca.artigo_id")
+        .limit(limite + 1)
+        .execute();
+      const haMais = linhas.length > limite;
+      const dados = haMais ? linhas.slice(0, limite) : linhas;
+      const ultima = haMais ? dados.at(-1) : undefined;
+      return {
+        dados,
+        total: Number(total),
+        ultima:
+          ultima === undefined
+            ? null
+            : { posicao: ultima.posicao, id: ultima.artigo_id },
+      };
+    },
+    { soLeitura: true },
+  );
+}
+
+/**
+ * As categorias de um artigo (fichas inteiras, também as arquivadas), pela
+ * ordem do id. Um artigo que não existe é `catalog.not_found`. São poucas:
+ * a API aceita até 100 por artigo, e a lista vai inteira.
+ */
+export async function categoriasDoArtigoParaApi(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+) {
+  return noCatalogo(
+    db,
+    comercianteId,
+    async (trx) => {
+      const artigo = await trx
+        .selectFrom("artigo")
+        .select(["id", "versao"])
+        .where("comerciante_id", "=", comercianteId)
+        .where("id", "=", artigoId)
+        .executeTakeFirst();
+      if (artigo === undefined) {
+        throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+      }
+      const categorias = await trx
+        .selectFrom("artigo_categoria as ac")
+        .innerJoin("categoria as c", (j) =>
+          j
+            .onRef("c.id", "=", "ac.categoria_id")
+            .onRef("c.comerciante_id", "=", "ac.comerciante_id"),
+        )
+        .selectAll("c")
+        .where("ac.comerciante_id", "=", comercianteId)
+        .where("ac.artigo_id", "=", artigoId)
+        .orderBy("c.id")
+        .execute();
+      return { versao: artigo.versao, categorias };
+    },
+    { soLeitura: true },
+  );
+}
