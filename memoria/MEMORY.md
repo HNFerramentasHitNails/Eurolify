@@ -80,3 +80,4 @@
 - [Convite do operador (#156): gerar-convite.mjs, acção convite no fluxo operar, só dono e e-mails de domínios de teste; falta a chave SSH do fluxo — 08/10/2026](convite-do-operador-08out2026.md)
 - [Funções das contas sem contexto do comerciante na VPS (#168): 42704 no primeiro convite; 0027 comerciante_resumo; testes com dono como o da VPS (109 falhas → 0) — 08/10/2026](contexto-comerciante-vps-08out2026.md)
 - [API do Catálogo, parte 5 (#166): traduções — ler, fila por páginas, traduzir e apagar; CO (rever só no Hub) e CP (por chave, sempre IA); 3 revisões Sonnet; publicado no ensaio — 08/10/2026](catalogo-api-traducoes-08out2026.md)
+- [API do Catálogo, parte 6 (#170): categorias e colecções — ler, criar, alterar, mover, arquivar, categorias de um artigo, artigos de uma colecção; 2 revisões Sonnet; publicado no ensaio — 08/10/2026](catalogo-api-categorias-08out2026.md)
