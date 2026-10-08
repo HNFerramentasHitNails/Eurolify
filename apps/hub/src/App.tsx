@@ -111,6 +111,9 @@ export function App() {
   else if (local.caminho === "/chaves")
     ecra = (
       <Chaves
+        // Outro comerciante, outro ecrã: nada do anterior fica (revisão do
+        // #183, P3-9).
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
       />
     );

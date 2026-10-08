@@ -342,3 +342,37 @@ legend {
 code {
   font-family: var(--letra-mono);
 }
+
+/* Uma tabela com muitas colunas (as chaves de API: oito) passa a cartões
+   mais cedo, até 960px: a 768px não cabia (revisão do #183). */
+@media (max-width: 960px) {
+  .tabela-larga thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .tabela-larga,
+  .tabela-larga tbody,
+  .tabela-larga tr,
+  .tabela-larga td {
+    display: block;
+  }
+  .tabela-larga tr {
+    border: var(--borda-fina) solid var(--borda);
+    border-radius: var(--raio);
+    margin-bottom: var(--espaco-3);
+    padding: var(--espaco-2) 0;
+  }
+  .tabela-larga td {
+    border: none;
+    padding: var(--espaco-1) var(--espaco-3);
+  }
+  .tabela-larga td::before {
+    content: attr(data-rotulo);
+    display: block;
+    font-size: var(--letra-pequena);
+    color: var(--texto-secundario);
+  }
+}

@@ -78,6 +78,10 @@ describe("as chaves de API no Hub", () => {
     expect(autorDe("operador:github:1001", "per_a", membros, chaves)).toEqual({
       autor: "operador",
     });
+    // Outro formato: não se afirma que a pessoa saiu (revisão do #183, P3-3).
+    expect(autorDe("migracao inicial", "per_a", membros, chaves)).toEqual({
+      autor: "desconhecido",
+    });
   });
 
   it("expira no fim do dia escolhido; uma data que não existe é recusada", () => {

@@ -258,7 +258,8 @@ export const pt = {
     "Uma chave de servidor guarda-se só no servidor de quem a usa, nunca numa página nem numa aplicação de telemóvel. As chaves públicas, para a loja, chegam com as lojas.",
   chaveNome: "Nome (ex.: Integração da faturação)",
   chaveAmbitos: "O que a chave pode fazer",
-  chaveExpira: "Expira a (opcional)",
+  chaveExpira:
+    "Expira a (opcional; até ao fim desse dia, na hora deste computador)",
   chaveCriar: "Criar a chave",
   chaveSegredoTitulo: "O segredo da chave «{nome}»",
   chaveSegredoAviso:
@@ -268,6 +269,11 @@ export const pt = {
   chaveRevogarConfirmar:
     "Revogar a chave «{nome}»? Deixa de funcionar já, e não há volta atrás.",
   chaveRevogada: "A chave foi revogada.",
+  autorDesconhecido: "Não identificado",
+  ambitoKeysAviso:
+    "Uma chave com «Gerir chaves» pode criar e revogar outras chaves deste comerciante: dê-a só a quem gere as integrações.",
+  erroChaveTalvezCriada:
+    "Não houve resposta do servidor: a chave pode ter sido criada. Se aparecer na lista, o segredo perdeu-se: revogue-a e crie outra.",
   erroChaveAmbitos: "Escolha pelo menos uma coisa que a chave pode fazer.",
   erroChaveExpira: "A data de expiração tem de ser no futuro.",
   erroChaveJaRevogada: "Esta chave já tinha sido revogada.",

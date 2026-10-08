@@ -262,7 +262,8 @@ export const es: Textos = {
     "Una clave de servidor se guarda solo en el servidor de quien la usa, nunca en una página ni en una aplicación móvil. Las claves públicas, para la tienda, llegarán con las tiendas.",
   chaveNome: "Nombre (p. ej.: Integración de la facturación)",
   chaveAmbitos: "Lo que la clave puede hacer",
-  chaveExpira: "Caduca el (opcional)",
+  chaveExpira:
+    "Caduca el (opcional; hasta el final de ese día, en la hora de este ordenador)",
   chaveCriar: "Crear la clave",
   chaveSegredoTitulo: "El secreto de la clave «{nome}»",
   chaveSegredoAviso:
@@ -272,6 +273,11 @@ export const es: Textos = {
   chaveRevogarConfirmar:
     "¿Revocar la clave «{nome}»? Deja de funcionar ya, y no hay vuelta atrás.",
   chaveRevogada: "Se revocó la clave.",
+  autorDesconhecido: "Sin identificar",
+  ambitoKeysAviso:
+    "Una clave con «Gestionar claves» puede crear y revocar otras claves de este comerciante: désela solo a quien gestiona las integraciones.",
+  erroChaveTalvezCriada:
+    "No hubo respuesta del servidor: puede que la clave se haya creado. Si aparece en la lista, el secreto se perdió: revóquela y cree otra.",
   erroChaveAmbitos: "Elija al menos una cosa que la clave pueda hacer.",
   erroChaveExpira: "La fecha de caducidad tiene que ser futura.",
   erroChaveJaRevogada: "Esta clave ya estaba revocada.",

@@ -21,9 +21,10 @@ export type Autor =
   | { autor: "membro"; nome: string }
   | { autor: "antigo" }
   | { autor: "chave"; nome: string | null }
-  | { autor: "operador" };
+  | { autor: "operador" }
+  | { autor: "desconhecido" };
 
-/** Quem criou (ou revogou) uma chave: `pessoa:per_…`, `chave:key_…`, `operador:…`. */
+/** Quem criou uma chave: `pessoa:per_…`, `chave:key_…`, `operador:…`. */
 export function autorDe(
   texto: string,
   eu: string,
@@ -46,7 +47,9 @@ export function autorDe(
       nome: chaves.find((c) => c.id === id)?.nome ?? null,
     };
   }
-  return { autor: "antigo" };
+  // Outro formato (texto livre na base): não se afirma quem foi (revisão do
+  // #183, P3-3).
+  return { autor: "desconhecido" };
 }
 
 /**

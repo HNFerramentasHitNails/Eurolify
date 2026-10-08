@@ -966,6 +966,44 @@ try {
     (await comChave(segredoChave)) === 401,
     "chaves: a chave revogada deixa de entrar na API (401)",
   );
+  // Sem resposta ao criar: o ecrã diz que a chave pode ter ficado criada e
+  // relê a lista (revisão do #183, P2-1).
+  await rp.route("**/hub/keys", (r) =>
+    r.request().method() === "POST" ? r.abort() : r.continue(),
+  );
+  await rp
+    .getByLabel("Nome (ex.: Integração da faturação)")
+    .fill("Sem resposta");
+  await rp.getByLabel("Ler o catálogo").check();
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp
+    .getByText("a chave pode ter sido criada", { exact: false })
+    .waitFor();
+  confere(
+    true,
+    "chaves: sem resposta ao criar, o ecrã avisa que pode ter ficado criada",
+  );
+  await rp.unroute("**/hub/keys");
+  // Uma chave com data de fim: a lista mostra a data.
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Sem resposta»").waitFor();
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  const fimDoAno = `${String(new Date().getFullYear() + 1)}-12-31`;
+  await rp.getByLabel("Nome (ex.: Integração da faturação)").fill("Com prazo");
+  await rp.getByLabel("Ler o catálogo").check();
+  await rp.getByLabel(/^Expira a/).fill(fimDoAno);
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Com prazo»").waitFor();
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  await rp.getByText("3 chaves", { exact: true }).waitFor();
+  confere(
+    (await rp
+      .getByRole("row", { name: /Com prazo/ })
+      .getByText(`31/12/${fimDoAno.slice(0, 4)}`)
+      .count()) === 1,
+    "chaves: uma chave com data de fim mostra-a na lista",
+  );
+
   const guardadoChaves = JSON.stringify(
     await recuperado.contexto.storageState(),
   );

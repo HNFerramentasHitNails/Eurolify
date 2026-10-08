@@ -5,6 +5,7 @@ import {
   useState,
   type SyntheticEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import {
   AMBITOS_SERVIDOR,
   api,
@@ -59,6 +60,16 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
   const [ocupado, setOcupado] = useState(false);
   const emCurso = useRef(false);
   const ultimo = useRef(0);
+  // Com um segredo acabado de criar à vista, uma sessão que acabou não tira
+  // a pessoa da página antes de o guardar (revisão do #183, P3-4).
+  const segredoAVista = useRef(false);
+  // As chaves revogadas aqui: um segredo à vista de uma delas sai (P3-10).
+  const [revogadas, setRevogadas] = useState<readonly string[]>([]);
+  // A mensagem de êxito recebe o foco: o botão de revogar desaparece (P3-6).
+  const caixaDeSucesso = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (sucesso !== null) caixaDeSucesso.current?.focus();
+  }, [sucesso]);
 
   const valido = comerciante !== null && FORMATO_COMERCIANTE.test(comerciante);
 
@@ -77,7 +88,7 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
       return true;
     } catch (e) {
       if (este !== ultimo.current) return false;
-      if (semSessao(e)) {
+      if (semSessao(e) && !segredoAVista.current) {
         navegar("/entrar", { substituir: true });
         return false;
       }
@@ -133,6 +144,7 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
     void correr(async () => {
       try {
         await comRecente(() => api.revogarChave(comerciante, c.id));
+        setRevogadas((antes) => [...antes, c.id]);
         if (await carregar()) setSucesso("chaveRevogada");
       } catch (e) {
         await falhou(e);
@@ -160,7 +172,9 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
             ? a.nome === null
               ? t.autorChaveSemNome
               : preencher(t.autorChave, { nome: a.nome })
-            : t.autorAntigo;
+            : a.autor === "antigo"
+              ? t.autorAntigo
+              : t.autorDesconhecido;
 
   return (
     <section aria-labelledby="titulo">
@@ -193,7 +207,12 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
           )}
           {erroAccao === null ? null : <CaixaDeErro erro={erroAccao} />}
           {sucesso === null ? null : (
-            <div className="sucesso" role="status">
+            <div
+              className="sucesso"
+              role="status"
+              tabIndex={-1}
+              ref={caixaDeSucesso}
+            >
               {t[sucesso]}
             </div>
           )}
@@ -205,7 +224,7 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
                 : preencher(t.chavesContagem, { n: dados.chaves.length })}
           </p>
           {dados.chaves.length === 0 ? null : (
-            <table>
+            <table className="tabela-larga">
               <thead>
                 <tr>
                   <th scope="col">{t.colunaNome}</th>
@@ -284,6 +303,10 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
             comerciante={comerciante}
             ocupado={ocupado}
             correr={correr}
+            revogadas={revogadas}
+            aoMostrarSegredo={(sim) => {
+              segredoAVista.current = sim;
+            }}
             aoCriar={async () => {
               setSucesso(null);
               setFalhaAccao(null);
@@ -300,11 +323,15 @@ function CriarChave({
   comerciante,
   ocupado,
   correr,
+  revogadas,
+  aoMostrarSegredo,
   aoCriar,
 }: {
   comerciante: string;
   ocupado: boolean;
   correr: (fn: () => Promise<void>) => Promise<void>;
+  revogadas: readonly string[];
+  aoMostrarSegredo: (sim: boolean) => void;
   aoCriar: () => Promise<void>;
 }) {
   const { t, lingua, navegar } = useHub();
@@ -317,9 +344,25 @@ function CriarChave({
   // O segredo só vive aqui enquanto se mostra; «Já o guardei» apaga-o, e sai
   // ao deixar a página (docs/22 §9.4).
   const [criada, setCriada] = useState<{
+    id: string;
     nome: string;
     segredo: string;
   } | null>(null);
+  useEffect(() => {
+    aoMostrarSegredo(criada !== null);
+  }, [criada, aoMostrarSegredo]);
+  // A chave do segredo à vista foi revogada: o segredo já não serve (P3-10).
+  useEffect(() => {
+    if (criada !== null && revogadas.includes(criada.id)) setCriada(null);
+  }, [criada, revogadas]);
+  // Que campo tem o erro do ecrã, para lhe apontar (P3-7).
+  const [campoInvalido, setCampoInvalido] = useState<
+    "nome" | "ambitos" | "expira" | null
+  >(null);
+  const descrito = (campo: "nome" | "ambitos" | "expira") =>
+    campoInvalido === campo
+      ? { "aria-invalid": true, "aria-describedby": "erro-chave" }
+      : {};
   const aviso = useRef<HTMLDivElement>(null);
   const campoNome = useRef<HTMLInputElement>(null);
   const [focar, setFocar] = useState<"aviso" | "nome" | null>(null);
@@ -329,7 +372,10 @@ function CriarChave({
   }, [focar, criada]);
   useEffect(() => {
     const aoSair = () => {
-      setCriada(null);
+      // Já, antes de o navegador congelar a página (P3-5).
+      flushSync(() => {
+        setCriada(null);
+      });
     };
     window.addEventListener("pagehide", aoSair);
     return () => {
@@ -337,10 +383,9 @@ function CriarChave({
     };
   }, []);
 
-  // O mínimo do calendário: amanhã (hoje já não serve se a hora passou).
-  const amanha = new Date();
-  amanha.setDate(amanha.getDate() + 1);
-  const minimo = `${String(amanha.getFullYear())}-${String(amanha.getMonth() + 1).padStart(2, "0")}-${String(amanha.getDate()).padStart(2, "0")}`;
+  // O mínimo do calendário: hoje, que vale até ao fim do dia (P3-1).
+  const hoje = new Date();
+  const minimo = `${String(hoje.getFullYear())}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
 
   function aoEnviar(evento: SyntheticEvent) {
     evento.preventDefault();
@@ -358,9 +403,17 @@ function CriarChave({
             : null;
     if (problema !== null) {
       setFalha(new ErroDoEcra(problema));
+      setCampoInvalido(
+        problema === "erroNome"
+          ? "nome"
+          : problema === "erroChaveAmbitos"
+            ? "ambitos"
+            : "expira",
+      );
       return;
     }
     setFalha(null);
+    setCampoInvalido(null);
     void correr(async () => {
       try {
         const r = await comRecente(() =>
@@ -370,7 +423,7 @@ function CriarChave({
             ...(expiraEm === undefined ? {} : { expira_em: expiraEm }),
           }),
         );
-        setCriada({ nome: r.nome, segredo: r.segredo });
+        setCriada({ id: r.id, nome: r.nome, segredo: r.segredo });
         setFocar("aviso");
         setNome("");
         setAmbitos([]);
@@ -382,6 +435,16 @@ function CriarChave({
         const mostrar = await falhaDeAccao(e);
         if (mostrar === null) {
           navegar("/entrar", { substituir: true });
+          return;
+        }
+        // Sem resposta (rede, 5xx), a chave pode ter ficado criada sem
+        // ninguém ter o segredo: a lista relê-se e o ecrã di-lo (P2-1).
+        if (
+          mostrar instanceof ErroHub &&
+          (mostrar.estado === 0 || mostrar.estado >= 500)
+        ) {
+          setFalha(new ErroDoEcra("erroChaveTalvezCriada"));
+          await aoCriar();
           return;
         }
         setFalha(mostrar);
@@ -399,10 +462,12 @@ function CriarChave({
               {preencher(t.chaveSegredoTitulo, { nome: criada.nome })}
             </strong>
           </p>
-          <div className="aviso" role="alert" tabIndex={-1} ref={aviso}>
+          <div className="aviso" role="note" tabIndex={-1} ref={aviso}>
             {t.chaveSegredoAviso}
           </div>
-          <p className="segredo">{criada.segredo}</p>
+          <p className="segredo" translate="no" spellCheck={false}>
+            {criada.segredo}
+          </p>
           <div className="linha">
             <Copiar texto={criada.segredo} />
             <button
@@ -431,13 +496,14 @@ function CriarChave({
                 autoComplete="off"
                 maxLength={100}
                 value={nome}
+                {...descrito("nome")}
                 onChange={(e) => {
                   setNome(e.target.value);
                 }}
                 required
               />
             </div>
-            <fieldset className="campo">
+            <fieldset className="campo" {...descrito("ambitos")}>
               <legend>{t.chaveAmbitos}</legend>
               {AMBITOS_SERVIDOR.map((a) => (
                 <label key={a} className="opcao">
@@ -457,6 +523,8 @@ function CriarChave({
                   {rotuloDoAmbito(t, a)}
                 </label>
               ))}
+              {/* O que «Gerir chaves» dá a quem a tiver (revisão do #183, P2-2). */}
+              <p className="secundario">{t.ambitoKeysAviso}</p>
             </fieldset>
             <div className="campo">
               <label htmlFor="expira-chave">{t.chaveExpira}</label>
@@ -466,6 +534,7 @@ function CriarChave({
                 type="date"
                 min={minimo}
                 value={expira}
+                {...descrito("expira")}
                 onChange={(e) => {
                   setExpira(e.target.value);
                 }}

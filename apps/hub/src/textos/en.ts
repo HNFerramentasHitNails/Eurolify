@@ -257,7 +257,8 @@ export const en: Textos = {
     "A server key is kept only on the server of whoever uses it, never in a web page or a phone app. Public keys, for the store, will come with stores.",
   chaveNome: "Name (e.g. Invoicing integration)",
   chaveAmbitos: "What the key can do",
-  chaveExpira: "Expires on (optional)",
+  chaveExpira:
+    "Expires on (optional; until the end of that day, in this computer's time)",
   chaveCriar: "Create the key",
   chaveSegredoTitulo: "The secret of the key “{nome}”",
   chaveSegredoAviso:
@@ -267,6 +268,11 @@ export const en: Textos = {
   chaveRevogarConfirmar:
     "Revoke the key “{nome}”? It stops working at once, and it cannot be undone.",
   chaveRevogada: "The key was revoked.",
+  autorDesconhecido: "Unidentified",
+  ambitoKeysAviso:
+    "A key with “Manage keys” can create and revoke this merchant's other keys: give it only to whoever manages the integrations.",
+  erroChaveTalvezCriada:
+    "The server did not answer: the key may have been created. If it appears in the list, its secret is lost: revoke it and create another.",
   erroChaveAmbitos: "Choose at least one thing the key can do.",
   erroChaveExpira: "The expiry date must be in the future.",
   erroChaveJaRevogada: "This key had already been revoked.",
