@@ -84,3 +84,4 @@
 - [API do Catálogo, filtros (#173): GET /products por categoria, tradução em falta numa língua e alterados desde (não serve, sozinho, para sincronizar); porTraduzir num só sítio; publicado no ensaio — 08/10/2026](catalogo-api-filtros-08out2026.md)
 - [Imagens dos artigos (#176, #178, #180): API (0028, envio, ligação, quota 1 GiB, 2 envios), pasta na VPS e cópias; decisão CQ; issue #179 (EXIF, órfãos); publicado no ensaio — 08/10/2026](catalogo-imagens-08out2026.md)
 - [Hub B3 (#174, #177, #183): conta, recuperar, palavra-passe com código QR (0029), chaves de API (só de servidor: não há lojas); chave TOTP na VPS; cópia da chave por fazer; publicado no ensaio — 08/10/2026](hub-b3-conta-e-palavra-passe-08out2026.md)
+- [«Pode publicar?» verifica o texto alternativo das imagens (#184, decisão CR): impedimento novo, reverificação ao criar/alterar media, nao_verificado só conformidade; publicado no ensaio — 08/10/2026](catalogo-publicar-media-08out2026.md)
