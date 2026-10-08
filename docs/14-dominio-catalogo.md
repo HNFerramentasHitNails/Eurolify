@@ -1025,7 +1025,8 @@ as rotas seguintes.
 | Procurar por SKU ou GTIN | `GET /variants?sku=…` · `GET /variants?gtin=…` | read | |
 | Opções | `POST /products/{id}/options`, `PATCH /options/{id}`, valores idem | write | |
 | Composição do kit | `PUT /variants/{id}/components` | write | substitui a lista inteira; recusa ciclos |
-| Carregar media | `POST /media/uploads` → `POST /products/{id}/media` | write | endereço de envio assinado e depois a ligação ao artigo |
+| Carregar media | `POST /media/uploads` → `POST /products/{id}/media` | write | os bytes vão à API (sem endereço assinado enquanto os ficheiros estão no disco da VPS, CQ) e depois a ligação ao artigo |
+| Ler media | `GET /products/{id}/media`, `GET /media/{id}`, `GET /media/{id}/file` | read | a lista, uma, e os bytes |
 | Alterar ou tirar media | `PATCH /media/{id}`, `DELETE /media/{id}` | write | texto alternativo, posição, principal |
 | Categorias | `GET /categories`, `GET /categories/{id}`, `POST /categories`, `PATCH /categories/{id}`, `POST /categories/{id}/move`, `/archive`, `/restore` | read / write | recusa ciclos |
 | Categorias de um artigo | `GET`, `PUT /products/{id}/categories` | read / write | com a versão do artigo |
