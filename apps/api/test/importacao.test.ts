@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
@@ -46,6 +47,8 @@ interface Relatorio {
     antes: unknown;
     depois: unknown;
   }[];
+  recusadas_a_mais: number;
+  avisos: string[];
   ignorado: Record<string, number>;
 }
 interface Importacao {
@@ -464,6 +467,144 @@ describe.skipIf(URL_BASE === undefined)("API das importações", () => {
     expect((await aplicar(imp.id)).statusCode).toBe(200);
     expect(await varianteDe(a, "COR-AZUL")).toBeUndefined();
   });
+
+  it("dois grupos do ficheiro que dão o mesmo artigo: o segundo recusa-se e o primeiro aplica-se (revisão do #197, P1-2)", async () => {
+    const id = await criarArtigo(base.api, a, { tipo: "fisico", nome: "Par" }, [
+      { sku: "PAR-1", unidade_de_venda: "unidade" },
+      { sku: "PAR-2", unidade_de_venda: "unidade" },
+    ]);
+    const imp = await ensaiar(
+      csv(
+        CAB,
+        "A,,Par novo,,PAR-1,,,,",
+        "B,,Outro nome,,PAR-2,,,,",
+        `prd_${randomUUID()},fisico,Fantasma,,PAR-FANT,unidade,,,`,
+      ),
+    );
+    expect(imp.relatorio.recusadas).toEqual([
+      expect.objectContaining({
+        sku: "PAR-2",
+        codigo: "import.product_repeated",
+      }),
+    ]);
+    expect(imp.relatorio.alterar.artigos).toBe(1);
+    expect(imp.relatorio.avisos).toHaveLength(1);
+    expect((await aplicar(imp.id)).statusCode).toBe(200);
+    expect((await obterArtigo(base.api, a, id)).nome).toBe("Par novo");
+  });
+
+  it("o relatório mostra no máximo 1000 recusas e conta as outras; as linhas contam todas para o limite (P1-1)", async () => {
+    const mas = Array.from({ length: 1500 }, () => ",fisico,X,,,unidade,,,");
+    const imp = await ensaiar(csv(CAB, ...mas));
+    expect(imp.relatorio.recusadas).toHaveLength(1000);
+    expect(
+      (imp.relatorio as unknown as { recusadas_a_mais: number })
+        .recusadas_a_mais,
+    ).toBe(500);
+    const demais = Array.from({ length: 5001 }, () => "x");
+    const r = await ensaio(csv(CAB, ...demais));
+    expect(r.json<{ codigo: string }>().codigo).toBe("import.too_large");
+  });
+
+  it("valores fora dos limites da API, UTF-8 inválido, JSON nulo e um corpo acima de 10 MB recusam-se (P2-1, P2-2, P3-1)", async () => {
+    const imp = await ensaiar(
+      csv(
+        CAB,
+        `LONGO,fisico,${"n".repeat(201)},,LIM-1,unidade,,,`,
+        "ESP,fisico,   ,,LIM-2,unidade,,,",
+        "UNI,fisico,U,,LIM-3,caixote,,,",
+      ),
+    );
+    expect(
+      imp.relatorio.recusadas.map((x) => [x.sku, x.codigo, x.campo]),
+    ).toEqual([
+      ["LIM-1", "catalog.invalid_field", "nome"],
+      ["LIM-2", "catalog.invalid_field", "nome"],
+      ["LIM-3", "catalog.invalid_field", "unidade_de_venda"],
+    ]);
+    const latin1 = await app.inject({
+      method: "POST",
+      url: "/imports",
+      headers: {
+        authorization: `Bearer ${importA}`,
+        "idempotency-key": randomUUID(),
+        "content-type": "text/csv",
+      },
+      payload: Buffer.concat([
+        Buffer.from(CAB + "\r\nV,fisico,Verniz "),
+        Buffer.from([0xe1]),
+        Buffer.from(",,VER-1,unidade,,,\r\n"),
+      ]),
+    });
+    expect(latin1.statusCode).toBe(422);
+    expect(latin1.json<{ codigo: string }>().codigo).toBe(
+      "import.invalid_file",
+    );
+    // Um artigo novo com mais de 100 variantes, como na criação pela API.
+    const cem = await ensaiar(
+      csv(
+        CAB,
+        ...Array.from(
+          { length: 101 },
+          (_, i) => `CEM,fisico,Cem,,CEM-${String(i)},unidade,,,`,
+        ),
+      ),
+    );
+    expect(cem.relatorio.criar.artigos).toBe(0);
+    expect(cem.relatorio.recusadas[0]?.codigo).toBe("catalog.invalid_field");
+    const nulo = await ensaio("null", { tipo: "application/json" });
+    expect(nulo.statusCode).toBe(422);
+    const grande = await ensaio("a".repeat(10 * 1024 * 1024 + 1));
+    expect(grande.statusCode).toBe(413);
+  });
+
+  it("uma variante mudada ou arquivada depois do ensaio dá 409 (P3-3)", async () => {
+    await criarArtigo(base.api, a, { tipo: "fisico", nome: "Var" }, [
+      { sku: "VAR-MUDA", unidade_de_venda: "unidade", peso_g: 5 },
+      { sku: "VAR-ARQ", unidade_de_venda: "unidade", peso_g: 5 },
+      { sku: "VAR-FICA", unidade_de_venda: "unidade" },
+    ]);
+    const imp = await ensaiar(csv(CAB, "V,,,,VAR-MUDA,,7,,"));
+    await sql`update variante set peso_g = 6 where sku = 'VAR-MUDA'`.execute(
+      base.dono,
+    );
+    const r = await aplicar(imp.id);
+    expect(r.statusCode).toBe(409);
+    expect(r.json<{ detail: string }>().detail).toContain(
+      "VAR-MUDA mudou (peso_g)",
+    );
+    const imp2 = await ensaiar(csv(CAB, "V,,,,VAR-ARQ,,7,,"));
+    const arq = await varianteDe(a, "VAR-ARQ");
+    await arquivarVariante(base.api, a, arq?.id ?? "");
+    const r2 = await aplicar(imp2.id);
+    expect(r2.statusCode).toBe(409);
+    expect(r2.json<{ codigo: string; detail: string }>()).toMatchObject({
+      codigo: "import.stale",
+      detail: expect.stringContaining("foi arquivada") as unknown,
+    });
+  });
+
+  it("um ensaio à espera de outra escrita mais de 5 s falha inteiro (503), não inventa uma recusa (P2-4)", async () => {
+    const id = await criarArtigo(
+      base.api,
+      a,
+      { tipo: "fisico", nome: "Preso" },
+      [{ sku: "PRESO-1", unidade_de_venda: "unidade" }],
+    );
+    const l = new pg.Client({ connectionString: base.urlApi });
+    await l.connect();
+    try {
+      await l.query("begin");
+      await l.query("select set_config('eurolify.comerciante', $1, true)", [a]);
+      await l.query("select id from artigo where id = $1 for update", [id]);
+      const r = await ensaio(csv(CAB, `prd_${id},,Mudado,,PRESO-1,,,,`));
+      expect(r.statusCode).toBe(503);
+      expect(r.json<{ codigo: string }>().codigo).toBe("catalog.retry");
+    } finally {
+      await l.query("rollback");
+      await l.end();
+    }
+  }, 20_000);
 
   it("a mesma chave e o mesmo ficheiro devolvem o mesmo ensaio; com outro ficheiro, recusa", async () => {
     const chave = randomUUID();

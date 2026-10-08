@@ -1,13 +1,25 @@
 import { sql, type Transaction } from "kysely";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import type { BaseDados } from "../base/esquema.js";
 import { ErroCsv, lerCsv, semGuarda } from "../importacao/csv.js";
-import { ErroCatalogo, traduzir } from "./erros.js";
+import { ErroCatalogo, ESPERA_MAXIMA, traduzir } from "./erros.js";
 import {
   alterarArtigo,
   criarArtigo,
   criarVarianteComValores,
   type DadosVariante,
 } from "./repositorio.js";
+import {
+  CamposDoArtigo,
+  MAX_VARIANTES_POR_ARTIGO_NOVO,
+  NovaVariante,
+} from "./rotas.js";
+
+// Os valores lêem-se pelos mesmos esquemas da API (o tamanho do nome, os
+// formatos): uma regra, um sítio (revisão do #197, P2-1).
+const ArtigoParcial = Type.Partial(CamposDoArtigo);
+const VarianteParcial = Type.Partial(NovaVariante);
 
 // A importação do catálogo, com ensaio antes de gravar (docs/14 §3.11,
 // «Importação do catálogo»; docs/06, CT; issue #77). Diogo, 08/10/2026:
@@ -166,7 +178,18 @@ export function lerFicheiro(
     linha: Linha;
     campos: Partial<Record<CampoArtigo, string>>;
   }[] = [];
-  const texto = bytes.toString("utf8");
+  // UTF-8 a sério: um ficheiro noutra codificação (o Windows-1252 de uma
+  // folha de cálculo antiga) recusa-se em vez de gravar «�» (revisão do
+  // #197, P2-2).
+  let texto: string;
+  try {
+    texto = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new ErroImportacao(
+      "import.invalid_file",
+      "o ficheiro não está em UTF-8",
+    );
+  }
   if (tipo === "csv") {
     let csv;
     try {
@@ -202,6 +225,14 @@ export function lerFicheiro(
         );
       }
     }
+    // O limite conta as linhas todas, boas ou más: uma chave não enche o
+    // relatório com milhões de recusas (revisão do #197, P1-1).
+    if (resto.length > MAX_VARIANTES) {
+      throw new ErroImportacao(
+        "import.too_large",
+        `${String(resto.length)} linhas; no máximo ${String(MAX_VARIANTES)}`,
+      );
+    }
     for (const l of resto) {
       const onde = `linha ${String(l.numero)}`;
       if (l.celulas.length !== colunas.length) {
@@ -222,6 +253,12 @@ export function lerFicheiro(
       json = JSON.parse(texto);
     } catch {
       throw new ErroImportacao("import.invalid_file", "JSON inválido");
+    }
+    if (typeof json !== "object" || json === null || Array.isArray(json)) {
+      throw new ErroImportacao(
+        "import.invalid_file",
+        "não é um catalogo.json no formato eurolify.catalogo/1",
+      );
     }
     const raiz = json as {
       formato?: unknown;
@@ -244,6 +281,16 @@ export function lerFicheiro(
     if (Array.isArray(raiz.categorias))
       contar("categorias", raiz.categorias.length);
     if (Array.isArray(raiz.colecoes)) contar("colecoes", raiz.colecoes.length);
+    const total = raiz.artigos.reduce((n: number, a: unknown) => {
+      const v = (a as { variantes?: unknown } | null)?.variantes;
+      return n + Math.max(1, Array.isArray(v) ? v.length : 0);
+    }, 0);
+    if (total > MAX_VARIANTES) {
+      throw new ErroImportacao(
+        "import.too_large",
+        `${String(total)} variantes; no máximo ${String(MAX_VARIANTES)}`,
+      );
+    }
     raiz.artigos.forEach((a: unknown, i) => {
       const artigo = (a ?? {}) as Record<string, unknown>;
       for (const chave of [
@@ -340,7 +387,28 @@ function lerLinha(
     else variante[c] = n;
   }
   const linha = { onde, artigo, sku, campos: variante };
-  if (!numerosBons) linha.sku = "";
+  if (!numerosBons) {
+    linha.sku = "";
+    return { linha, campos };
+  }
+  // Os mesmos esquemas da API (o tamanho, o formato, o texto não vazio).
+  for (const [esquema, valor] of [
+    [ArtigoParcial, campos],
+    [VarianteParcial, { ...variante, sku }],
+  ] as const) {
+    const erro = Value.Errors(esquema, valor)[0];
+    if (erro !== undefined) {
+      recusas.push({
+        onde,
+        sku,
+        codigo: "catalog.invalid_field",
+        campo: erro.instancePath.replace(/^\//, "") || undefined,
+        detalhe: erro.message,
+      } as Recusa);
+      linha.sku = "";
+      return { linha, campos };
+    }
+  }
   return { linha, campos };
 }
 
@@ -448,13 +516,15 @@ export interface Relatorio {
   alterar: { artigos: number; variantes: number };
   iguais: { artigos: number; variantes: number };
   recusadas: Recusa[];
+  recusadas_a_mais: number;
   alteracoes: Alteracao[];
   alteracoes_a_mais: number;
+  avisos: string[];
   ignorado: Record<string, number>;
 }
 
-/** Quantas alterações o relatório mostra uma a uma (as outras só se contam). */
-const MAX_ALTERACOES = 1000;
+/** Quantas alterações e recusas o relatório mostra uma a uma (as outras contam-se). */
+const MAX_NA_LISTA = 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const prdDe = (ref: string) => {
@@ -470,7 +540,15 @@ const igual = (a: Valor | null | undefined, b: Valor | null | undefined) =>
     b !== undefined &&
     String(a) === String(b));
 
-/** Corre `fn` num ponto de retorno; com erro, desfaz só esse bocado. */
+/** Um erro que não é de uma linha: a espera por outra escrita. */
+const eDeEspera = (erro: unknown) =>
+  erro instanceof ErroCatalogo && erro.codigo === "catalog.retry";
+
+/**
+ * Corre `fn` num ponto de retorno; com erro, desfaz só esse bocado. Uma
+ * espera por outra escrita (`catalog.retry`) não é recusa de uma linha:
+ * sobe, e o ensaio inteiro falha para se repetir (revisão do #197, P2-4).
+ */
 async function aParte<T>(
   trx: Transaction<BaseDados>,
   nome: string,
@@ -481,9 +559,11 @@ async function aParte<T>(
     const valor = await fn();
     await sql.raw(`release savepoint ${nome}`).execute(trx);
     return { ok: true, valor };
-  } catch (erro) {
+  } catch (erroOriginal) {
     await sql.raw(`rollback to savepoint ${nome}`).execute(trx);
     await sql.raw(`release savepoint ${nome}`).execute(trx);
+    const erro = traduzir(erroOriginal);
+    if (eDeEspera(erro)) throw erro;
     return { ok: false, erro };
   }
 }
@@ -494,13 +574,21 @@ async function conferirJa(trx: Transaction<BaseDados>) {
   await sql`set constraints all deferred`.execute(trx);
 }
 
+/** O prazo de espera por outra escrita, como no resto do Catálogo. */
+async function comPrazo(trx: Transaction<BaseDados>) {
+  await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+    trx,
+  );
+}
+
 function codigoDo(erro: unknown): { codigo: string; detalhe?: string } {
-  const e = traduzir(erro);
-  if (e instanceof ErroCatalogo)
-    return { codigo: e.codigo, detalhe: e.message };
-  if (e instanceof ErroImportacao)
-    return { codigo: e.codigo, detalhe: e.message };
-  throw e;
+  if (erro instanceof ErroCatalogo) {
+    return { codigo: erro.codigo, detalhe: erro.message };
+  }
+  if (erro instanceof ErroImportacao) {
+    return { codigo: erro.codigo, detalhe: erro.message };
+  }
+  throw erro;
 }
 
 const COLUNAS_VARIANTE = [
@@ -511,37 +599,43 @@ const COLUNAS_VARIANTE = [
   ...CAMPOS_VARIANTE,
 ] as const;
 
+class SemVariantes extends Error {}
+
 /**
  * O ensaio, dentro da transacção dada (de quem chama): escreve o que o
  * ficheiro pede, cada artigo e cada variante no seu ponto de retorno, e
- * desfaz tudo no fim. Devolve o relatório e o plano.
+ * desfaz tudo no fim. Devolve o relatório e o plano. As alterações e as
+ * recusas de um artigo só entram no relatório quando o artigo passa (ou,
+ * se não passar, só a recusa dele, uma por linha; revisão do #197, P2-3).
  */
 export async function ensaiar(
   trx: Transaction<BaseDados>,
   comercianteId: string,
   lido: FicheiroLido,
 ): Promise<{ relatorio: Relatorio; plano: Plano }> {
-  const relatorio: Relatorio = {
+  const recusadas: Recusa[] = [...lido.recusas];
+  const alteracoes: Alteracao[] = [];
+  const avisos: string[] = [];
+  const contas = {
     criar: { artigos: 0, variantes: 0 },
     alterar: { artigos: 0, variantes: 0 },
     iguais: { artigos: 0, variantes: 0 },
-    recusadas: [...lido.recusas],
-    alteracoes: [],
-    alteracoes_a_mais: 0,
-    ignorado: lido.ignorado,
   };
   const plano: Plano = { artigos: [] };
-  const anotar = (a: Alteracao) => {
-    if (relatorio.alteracoes.length < MAX_ALTERACOES)
-      relatorio.alteracoes.push(a);
-    else relatorio.alteracoes_a_mais++;
-  };
+  // Cada artigo que já existe trata-se uma vez: dois grupos do ficheiro que
+  // dão o mesmo artigo recusam-se no segundo (revisão do #197, P1-2).
+  const tratados = new Set<string>();
+  await comPrazo(trx);
   await sql.raw("savepoint ensaio").execute(trx);
   try {
     for (const g of lido.grupos) {
-      const recusar = (codigo: string, detalhe?: string, campo?: string) => {
+      const recusarGrupo = (
+        codigo: string,
+        detalhe?: string,
+        campo?: string,
+      ) => {
         for (const l of g.linhas) {
-          relatorio.recusadas.push({
+          recusadas.push({
             onde: l.onde,
             artigo: g.artigo,
             sku: l.sku,
@@ -573,11 +667,16 @@ export async function ensaiar(
           .where("id", "=", prd)
           .executeTakeFirst();
         if (existe !== undefined) alvo = existe.id;
+        else {
+          avisos.push(
+            `${g.artigo} não existe nesta conta: conta como referência (revisão do #197, P3-5)`,
+          );
+        }
       }
       if (alvo === null) {
         const artigosDosSku = new Set(existentes.map((v) => v.artigo_id));
         if (artigosDosSku.size > 1) {
-          recusar(
+          recusarGrupo(
             "catalog.sku_taken_by_other_product",
             "os SKU deste artigo já são de artigos diferentes",
           );
@@ -585,6 +684,23 @@ export async function ensaiar(
         }
         alvo = [...artigosDosSku][0] ?? null;
       }
+      if (alvo !== null && tratados.has(alvo)) {
+        recusarGrupo(
+          "import.product_repeated",
+          `o artigo prd_${alvo} já vem noutro grupo do ficheiro`,
+        );
+        continue;
+      }
+      if (alvo === null && g.linhas.length > MAX_VARIANTES_POR_ARTIGO_NOVO) {
+        recusarGrupo(
+          "catalog.invalid_field",
+          `no máximo ${String(MAX_VARIANTES_POR_ARTIGO_NOVO)} variantes num artigo novo`,
+          "variantes",
+        );
+        continue;
+      }
+      const alteracoesDoArtigo: Alteracao[] = [];
+      const recusasDoArtigo: Recusa[] = [];
       const resultado = await aParte(trx, "artigo", async () => {
         let artigoId: string;
         let versao: number | null = null;
@@ -631,7 +747,7 @@ export async function ensaiar(
             const v = g.campos[c];
             if (v !== undefined && !igual(v, a[c])) {
               campos[c] = v;
-              anotar({
+              alteracoesDoArtigo.push({
                 recurso: `prd_${a.id}`,
                 campo: c,
                 antes: a[c],
@@ -649,7 +765,7 @@ export async function ensaiar(
         for (const l of g.linhas) {
           const v = daLinha(l);
           if (v !== undefined && v.artigo_id !== artigoId) {
-            relatorio.recusadas.push({
+            recusasDoArtigo.push({
               onde: l.onde,
               artigo: g.artigo,
               sku: l.sku,
@@ -666,9 +782,9 @@ export async function ensaiar(
                   "unidade_de_venda: obrigatória para criar a variante",
                 );
               }
-              // Pela função da API (a linha do artigo e a fila dele antes do
-              // INSERT), sem valores de opções: num artigo com opções, fora
-              // do rascunho, a combinação fica incompleta e recusa-se.
+              // Pela função da API (a linha do artigo e a fila dele antes
+              // do INSERT), sem valores de opções: num artigo com opções,
+              // fora do rascunho, a combinação fica incompleta e recusa-se.
               await criarVarianteComValores(
                 trx,
                 comercianteId,
@@ -677,7 +793,7 @@ export async function ensaiar(
                 [],
               );
               await conferirJa(trx);
-              return { id: null, campos: l.campos, antes: {} };
+              return { id: null, campos: l.campos, antes: {}, mudancas: [] };
             }
             const mudar: Partial<Record<CampoVariante, Valor>> = {};
             const antes: Partial<Record<CampoVariante, Valor | null>> = {};
@@ -697,18 +813,18 @@ export async function ensaiar(
             }
             await alterarVariante(trx, v.id, mudar);
             await conferirJa(trx);
-            for (const c of Object.keys(mudar) as CampoVariante[]) {
-              anotar({
-                recurso: `var_${v.id}`,
-                campo: c,
-                antes: antes[c] ?? null,
-                depois: mudar[c] as Valor,
-              });
-            }
-            return { id: v.id, campos: mudar, antes };
+            const mudancas: Alteracao[] = (
+              Object.keys(mudar) as CampoVariante[]
+            ).map((c) => ({
+              recurso: `var_${v.id}`,
+              campo: c,
+              antes: antes[c] ?? null,
+              depois: mudar[c] as Valor,
+            }));
+            return { id: v.id, campos: mudar, antes, mudancas };
           });
           if (!r.ok) {
-            relatorio.recusadas.push({
+            recusasDoArtigo.push({
               onde: l.onde,
               artigo: g.artigo,
               sku: l.sku,
@@ -717,7 +833,9 @@ export async function ensaiar(
           } else if (r.valor === null) {
             iguais++;
           } else {
-            variantes.push({ onde: l.onde, sku: l.sku, ...r.valor });
+            const { mudancas, ...variante } = r.valor;
+            alteracoesDoArtigo.push(...mudancas);
+            variantes.push({ onde: l.onde, sku: l.sku, ...variante });
           }
         }
         if (criar && variantes.length === 0) {
@@ -728,21 +846,25 @@ export async function ensaiar(
         return { artigoId, versao, campos, variantes, iguais, criar };
       });
       if (!resultado.ok) {
-        if (!(resultado.erro instanceof SemVariantes)) {
+        if (resultado.erro instanceof SemVariantes) {
+          recusadas.push(...recusasDoArtigo);
+        } else {
           const { codigo, detalhe } = codigoDo(resultado.erro);
-          recusar(codigo, detalhe);
+          recusarGrupo(codigo, detalhe);
         }
         continue;
       }
       const r = resultado.valor;
+      recusadas.push(...recusasDoArtigo);
+      alteracoes.push(...alteracoesDoArtigo);
+      if (!r.criar) tratados.add(r.artigoId);
       const novas = r.variantes.filter((v) => v.id === null).length;
-      const alteradas = r.variantes.length - novas;
-      relatorio.criar.variantes += novas;
-      relatorio.alterar.variantes += alteradas;
-      relatorio.iguais.variantes += r.iguais;
-      if (r.criar) relatorio.criar.artigos++;
-      else if (Object.keys(r.campos).length > 0) relatorio.alterar.artigos++;
-      else relatorio.iguais.artigos++;
+      contas.criar.variantes += novas;
+      contas.alterar.variantes += r.variantes.length - novas;
+      contas.iguais.variantes += r.iguais;
+      if (r.criar) contas.criar.artigos++;
+      else if (Object.keys(r.campos).length > 0) contas.alterar.artigos++;
+      else contas.iguais.artigos++;
       if (
         r.criar ||
         Object.keys(r.campos).length > 0 ||
@@ -761,10 +883,17 @@ export async function ensaiar(
     await sql.raw("rollback to savepoint ensaio").execute(trx);
     await sql.raw("release savepoint ensaio").execute(trx);
   }
+  const relatorio: Relatorio = {
+    ...contas,
+    recusadas: recusadas.slice(0, MAX_NA_LISTA),
+    recusadas_a_mais: Math.max(0, recusadas.length - MAX_NA_LISTA),
+    alteracoes: alteracoes.slice(0, MAX_NA_LISTA),
+    alteracoes_a_mais: Math.max(0, alteracoes.length - MAX_NA_LISTA),
+    avisos: avisos.slice(0, MAX_NA_LISTA),
+    ignorado: lido.ignorado,
+  };
   return { relatorio, plano };
 }
-
-class SemVariantes extends Error {}
 
 /** Muda os campos dados de uma variante (as regras são da base). */
 async function alterarVariante(
@@ -781,16 +910,19 @@ async function alterarVariante(
 
 /**
  * Aplica o plano do ensaio, na transacção dada: primeiro confere que nada
- * mudou desde o ensaio (a versão de cada artigo, o antes de cada campo de
- * variante, e que nenhum SKU a criar passou a existir); com uma diferença,
- * `import.stale` com a lista, e nada se grava. Qualquer erro a meio desfaz
- * tudo (quem chama não faz COMMIT).
+ * mudou desde o ensaio (a versão de cada artigo, o estado e o antes de cada
+ * campo de variante, e que nenhum SKU a criar passou a existir); com uma
+ * diferença, `import.stale` com a lista, e nada se grava. As linhas
+ * prendem-se por ordem do id (os artigos FOR UPDATE, como a `alterarArtigo`;
+ * depois as variantes, FOR NO KEY UPDATE como ao arquivar), com o prazo de espera do Catálogo (revisão do
+ * #197, P2-5). Qualquer erro a meio desfaz tudo (quem chama não faz COMMIT).
  */
 export async function aplicarPlano(
   trx: Transaction<BaseDados>,
   comercianteId: string,
   plano: Plano,
 ): Promise<{ artigos: string[]; variantes: number }> {
+  await comPrazo(trx);
   const mudou: string[] = [];
   const skusNovos = plano.artigos.flatMap((a) =>
     a.variantes.filter((v) => v.id === null).map((v) => v.sku.toLowerCase()),
@@ -803,33 +935,43 @@ export async function aplicarPlano(
       .execute();
     for (const v of ja) mudou.push(`o SKU ${v.sku} já existe`);
   }
-  for (const a of plano.artigos) {
-    if (a.id !== null) {
-      const atual = await trx
-        .selectFrom("artigo")
-        .select("versao")
-        .where("id", "=", a.id)
-        .forUpdate()
-        .executeTakeFirst();
-      if (atual?.versao !== a.versao) mudou.push(`o artigo prd_${a.id} mudou`);
+  const artigosExistentes = plano.artigos
+    .filter((a) => a.id !== null)
+    .sort((x, y) => (x.id ?? "").localeCompare(y.id ?? ""));
+  for (const a of artigosExistentes) {
+    const atual = await trx
+      .selectFrom("artigo")
+      .select("versao")
+      .where("id", "=", a.id ?? "")
+      // FOR UPDATE, como a `alterarArtigo` a seguir: sem subir o lock.
+      .forUpdate()
+      .executeTakeFirst();
+    if (atual?.versao !== a.versao)
+      mudou.push(`o artigo prd_${a.id ?? ""} mudou`);
+  }
+  const variantesExistentes = plano.artigos
+    .flatMap((a) => a.variantes)
+    .filter((v) => v.id !== null)
+    .sort((x, y) => (x.id ?? "").localeCompare(y.id ?? ""));
+  for (const v of variantesExistentes) {
+    const atual = await trx
+      .selectFrom("variante")
+      .select(COLUNAS_VARIANTE)
+      .where("id", "=", v.id ?? "")
+      .forNoKeyUpdate()
+      .executeTakeFirst();
+    if (atual === undefined) {
+      mudou.push(`a variante ${v.sku} já não existe`);
+      continue;
     }
-    for (const v of a.variantes) {
-      if (v.id === null) continue;
-      const atual = await trx
-        .selectFrom("variante")
-        .select(COLUNAS_VARIANTE)
-        .where("id", "=", v.id)
-        .forUpdate()
-        .executeTakeFirst();
-      if (atual === undefined) {
-        mudou.push(`a variante ${v.sku} já não existe`);
-        continue;
-      }
-      for (const [c, antes] of Object.entries(v.antes)) {
-        if (!igual(atual[c as CampoVariante], antes)) {
-          mudou.push(`a variante ${v.sku} mudou (${c})`);
-          break;
-        }
+    if (atual.estado !== "activa") {
+      mudou.push(`a variante ${v.sku} foi arquivada`);
+      continue;
+    }
+    for (const [c, antes] of Object.entries(v.antes)) {
+      if (!igual(atual[c as CampoVariante], antes)) {
+        mudou.push(`a variante ${v.sku} mudou (${c})`);
+        break;
       }
     }
   }

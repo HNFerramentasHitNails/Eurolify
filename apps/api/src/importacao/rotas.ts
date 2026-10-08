@@ -117,6 +117,10 @@ const RelatorioEsquema = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    recusadas_a_mais: Type.Integer({
+      description: "As recusas que já não cabem na lista (só se contam)",
+    }),
+    avisos: Type.Array(Type.String()),
     alteracoes_a_mais: Type.Integer({
       description: "As alterações que já não cabem na lista (só se contam)",
     }),

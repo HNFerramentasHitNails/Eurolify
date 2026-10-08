@@ -876,7 +876,7 @@ que a falta).
 | Ensaio | `POST /imports` com o ficheiro (o corpo são os bytes, `Content-Type` `text/csv` ou `application/json`) | com `Idempotency-Key`; lê, confere tudo contra o catálogo e devolve o relatório, **sem escrever no catálogo**. Fica `analisada` 24 h |
 | Ver | `GET /imports/{id}` | o estado e o relatório |
 | Listar | `GET /imports` | das mais novas para as mais velhas (docs/18 §2a) |
-| Aplicar | `POST /imports/{id}/apply` | grava **exactamente o plano do ensaio**, numa transacção só: ou tudo, ou nada. Se, entretanto, um artigo do plano mudou (a `versao`) ou um SKU a criar passou a existir, nada se grava e a resposta diz quais (409 `import.stale`): faz-se outro ensaio |
+| Aplicar | `POST /imports/{id}/apply` | grava **exactamente o plano do ensaio**, numa transacção só: ou tudo, ou nada. Se, entretanto, um artigo do plano mudou (a `versao`), uma variante do plano mudou num campo que se ia alterar ou foi arquivada, ou um SKU a criar passou a existir, nada se grava e a resposta diz quais (409 `import.stale`): faz-se outro ensaio |
 
 - **O relatório:** quantos artigos e variantes se criam, alteram, ficam
   iguais e se recusam; por linha (CSV) ou por artigo (JSON) recusado, o
@@ -884,16 +884,29 @@ que a falta).
   `catalog.gtin_invalid`) e o campo; para cada alteração, o campo, o valor
   de antes e o de depois; e o que foi ignorado (ex.: «opções: 12 artigos»).
   Ex.: `{"criar": {"artigos": 40, "variantes": 280}, "alterar":
-  {"artigos": 3, "variantes": 12}, "iguais": 0, "recusadas": [{"linha":
-  17, "sku": "GEL-001", "codigo": "catalog.sku_taken_by_other_product"}]}`. Códigos novos: `catalog.sku_taken_by_other_product`, `import.sku_repeated`, `import.product_fields_differ`, `import.bad_row`, `import.no_variants`, `import.external_product`, `import.invalid_file` (422), `import.too_large` (422), `import.stale` (409), `import.expired` (410), `import.not_found` (404).
+  {"artigos": 3, "variantes": 12}, "recusadas": [{"onde": "linha 17",
+  "sku": "GEL-001", "codigo": "catalog.sku_taken_by_other_product"}]}`.
+  As listas de recusas e de alterações mostram no máximo 1000 cada uma e
+  contam as outras (`recusadas_a_mais`, `alteracoes_a_mais`); os `avisos`
+  dizem, por exemplo, que um `prd_…` não existe nesta conta. Quem tem
+  `catalog:import` vê no relatório os valores de antes dos campos: importar
+  pede ler o que se vai mudar. Códigos novos: `catalog.sku_taken_by_other_product`, `import.sku_repeated`, `import.product_fields_differ`, `import.bad_row`, `import.no_variants`, `import.product_repeated`, `import.external_product`, `import.invalid_file` (422), `import.too_large` (422), `import.stale` (409), `import.expired` (410), `import.not_found` (404).
 - **As recusadas não impedem o resto:** o plano é o que passou. Quem
   quiser tudo ou nada vê o relatório e não aplica.
 - **Importar duas vezes o mesmo ficheiro:** o segundo ensaio diz «iguais»
   para tudo o que o primeiro criou ou alterou; aplicá-lo não muda nada.
 - **Uma importação de cada vez por comerciante** a aplicar (a segunda dá
   429), como a exportação.
-- **Limites** (proposta): o ficheiro até 10 MB e até 5000 variantes; acima
-  disso, 413 ou 422 `import.too_large`. Uma importação aplica-se uma vez
+- **Limites** (proposta): o ficheiro até 10 MB (acima, 413) e até 5000
+  linhas ou variantes, boas ou más (acima, 422 `import.too_large`); um
+  artigo novo até 100 variantes, como na criação pela API. Os valores
+  conferem-se pelos mesmos esquemas da API (o nome até 200 caracteres, a
+  descrição até 10000, os formatos); um ficheiro que não esteja em UTF-8
+  recusa-se.
+- **Dois grupos do ficheiro que dão o mesmo artigo:** o segundo recusa-se
+  (`import.product_repeated`).
+- **Uma espera por outra escrita** (mais de 5 s, `catalog.retry`) faz
+  falhar o ensaio ou a aplicação inteira (503), em vez de virar recusa. Uma importação aplica-se uma vez
   (`aplicada`); aplicar outra vez devolve o resultado da primeira.
 - **Como o ensaio confere:** faz as escritas a sério, cada artigo e cada
   variante num ponto de retorno (savepoint) da transacção, e desfaz tudo no
@@ -908,10 +921,11 @@ que a falta).
 - **Os eventos:** saem os mesmos que pelas funções da API (§6); **não
   verifiquei** quais saem hoje em cada uma.
 
-**Guarda-se** (migração nova, `importacao`): o comerciante, o formato, o
-resumo SHA-256 do ficheiro, o tamanho, o estado (`analisada`, `aplicada`,
-`expirada`), o relatório e o plano (JSON), quando foi analisada e
-aplicada, e o prazo. O ficheiro em si **não se guarda**: o plano chega para
+**Guarda-se** (migração 0032, `importacao`): o comerciante, o formato, o
+resumo SHA-256 do ficheiro, o tamanho, o estado (`analisada` ou `aplicada`;
+`expirada` calcula-se na resposta), o relatório e o plano (JSON), quando
+foi analisada e aplicada, e o prazo. **Sem prazo de retenção** das linhas:
+fica por decidir (revisão do #197, P3-6). O ficheiro em si **não se guarda**: o plano chega para
 aplicar, e um ficheiro de outro sistema pode trazer dados que não são do
 catálogo.
 
@@ -922,7 +936,10 @@ catálogo.
   arquiva e os artigos novos ficam em rascunho (não vão para venda sem
   passar pela publicação, C2).
 - **Uma transacção com 5000 variantes** prende muitas linhas durante
-  segundos; **não medi** quanto.
+  segundos, no ensaio e na aplicação; quem escreve nesses artigos espera
+  até 5 s e recebe `catalog.retry`. **Não medi** quanto demora. Num artigo
+  com opções e muitas variantes novas, a verificação das combinações corre
+  a cada variante e pode ficar lenta (revisão do #197, P3-7).
 - O que vier de outro sistema (uma folha de cálculo exportada de outra
   plataforma) pode trazer campos com outro significado: só as colunas da
   lista acima entram.
