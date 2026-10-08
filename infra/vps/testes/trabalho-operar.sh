@@ -46,9 +46,19 @@ caso "comerciante pt Europe/Lisbon Loja de Ensaio github:1001" 65
 caso "chave $uuid keys:write eul_sk_abcde eul_sk_segredo $nome github:1001" 65
 caso "chave $uuid keys:write eul_pk_abcde $resumo $nome github:1001" 65
 caso "apagar tudo" 65
-# Só os dois válidos chegaram ao operador, e o registo não leva o nome.
-[[ "$(wc -l </tmp/operador-recebeu)" -eq 2 ]] || { echo "FALHOU: o operador recebeu $(wc -l </tmp/operador-recebeu) pedidos, não 2"; falhas=$((falhas + 1)); }
+# O convite do primeiro dono (docs/19 §6.0): só dono, só o resumo.
+email="$(printf '%s' 'dono@loja.test' | basenc --base64url -w0 | tr -d '=')"
+caso "convite $uuid $email dono $resumo github:1001" 0
+caso "convite $uuid $email gestor $resumo github:1001" 65
+caso "convite $uuid dono@loja.test dono $resumo github:1001" 65
+caso "convite $uuid $email dono euc_segredo github:1001" 65
+# Só os três válidos chegaram ao operador, e o registo não leva o nome nem o
+# e-mail.
+[[ "$(wc -l </tmp/operador-recebeu)" -eq 3 ]] || { echo "FALHOU: o operador recebeu $(wc -l </tmp/operador-recebeu) pedidos, não 3"; falhas=$((falhas + 1)); }
 if grep -q "$nome" /var/log/eurolify/acoes.log; then
   echo "FALHOU: o nome do comerciante foi para o registo"; falhas=$((falhas + 1))
+fi
+if grep -q "$email" /var/log/eurolify/acoes.log; then
+  echo "FALHOU: o e-mail do convite foi para o registo"; falhas=$((falhas + 1))
 fi
 ((falhas == 0))

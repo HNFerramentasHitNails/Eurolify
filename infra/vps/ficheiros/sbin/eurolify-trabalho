@@ -22,7 +22,7 @@ case "$fluxo" in
   # O MCP da VPS (ADR-0033): a lista fixa de leituras e operações.
   mcp) padrao='^(medir|publicacoes|copia|reposicao|reiniciar-api|actualizar|reiniciar-vps|publicar sha256:[0-9a-f]{64})$' ;;
   # O comando do operador (docs/19 §6); o mesmo formato do eurolify-pedido.
-  operar) padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20})$' ;;
+  operar) padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|convite [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [A-Za-z0-9_-]{1,340} dono [0-9a-f]{64} github:[0-9]{1,20})$' ;;
   *) falhar "fluxo desconhecido: '$fluxo'" ;;
 esac
 
