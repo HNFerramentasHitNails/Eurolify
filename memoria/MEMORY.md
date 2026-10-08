@@ -82,3 +82,4 @@
 - [API do Catálogo, parte 5 (#166): traduções — ler, fila por páginas, traduzir e apagar; CO (rever só no Hub) e CP (por chave, sempre IA); 3 revisões Sonnet; publicado no ensaio — 08/10/2026](catalogo-api-traducoes-08out2026.md)
 - [API do Catálogo, parte 6 (#170): categorias e colecções — ler, criar, alterar, mover, arquivar, categorias de um artigo, artigos de uma colecção; 2 revisões Sonnet; publicado no ensaio — 08/10/2026](catalogo-api-categorias-08out2026.md)
 - [API do Catálogo, filtros (#173): GET /products por categoria, tradução em falta numa língua e alterados desde (não serve, sozinho, para sincronizar); porTraduzir num só sítio; publicado no ensaio — 08/10/2026](catalogo-api-filtros-08out2026.md)
+- [Imagens dos artigos (#176, #178, #180): API (0028, envio, ligação, quota 1 GiB, 2 envios), pasta na VPS e cópias; decisão CQ; issue #179 (EXIF, órfãos); publicado no ensaio — 08/10/2026](catalogo-imagens-08out2026.md)
