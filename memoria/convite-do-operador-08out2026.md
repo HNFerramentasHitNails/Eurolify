@@ -33,6 +33,14 @@ operador»*). Desenho no `docs/19` §6.0.
   31/03/2027 no máximo. P3-5: o segredo gerado aceita o convite na base e
   faz um dono. `identidade-operador.test.ts` passou a 36 testes.
 
+- 08/10/2026: o Diogo criou a chave do fluxo `operar` no computador dele
+  (Git Bash, ED25519 sem frase-passe, em `~/.eurolify-chaves`, a pasta
+  criada outra vez e fechada com `icacls /inheritance:r`) e pôs a privada
+  no segredo `VPS_CHAVE_OPERAR` do ambiente `ensaio` (dito por ele; não
+  verificado daqui). A pública entrou em `infra/vps/chaves/fluxos/operar.pub`:
+  `SHA256:wz3eusHxAkSkUSEvj9Aiwb1bMVLSY0zvhEt418EFyQE`, calculada da linha
+  colada.
+
 ## O que ficou por verificar
 
 - **O fluxo `operar` nunca correu na VPS**: falta a chave SSH
