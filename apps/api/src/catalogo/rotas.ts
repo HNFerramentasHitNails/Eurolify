@@ -778,7 +778,9 @@ const PedidoClassificar = Type.Object(
   { additionalProperties: false },
 );
 
-export const PedidoVersao = Type.Object(ComVersao, { additionalProperties: false });
+export const PedidoVersao = Type.Object(ComVersao, {
+  additionalProperties: false,
+});
 
 const PedidoPublicar = Type.Object(
   {
