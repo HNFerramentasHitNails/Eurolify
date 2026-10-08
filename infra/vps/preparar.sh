@@ -240,6 +240,19 @@ for d in /etc/eurolify:700 /var/lib/eurolify:755 /var/lib/eurolify/pedidos:755 \
     fazer "pasta $caminho ($modo)" install -d -o root -g root -m "$modo" "$caminho"
   fi
 done
+# As imagens dos artigos (docs/06, CQ): a API (utilizador node, uid 1000, no
+# contentor) escreve aqui; mais ninguém além do root lê.
+if [[ -d /var/lib/eurolify/media && "$(stat -c '%a %u %g' /var/lib/eurolify/media)" == "750 1000 1000" ]]; then
+  ok "/var/lib/eurolify/media"
+else
+  fazer "pasta /var/lib/eurolify/media (750, da API)" \
+    install -d -o 1000 -g 1000 -m 750 /var/lib/eurolify/media
+fi
+# Uma conta da máquina com o uid ou o gid 1000 leria as imagens (revisão do
+# #178, P3-1): diz-se, para se decidir (um uid próprio para a API).
+if getent passwd 1000 >/dev/null || getent group 1000 >/dev/null; then
+  aviso "há uma conta ou um grupo com o número 1000 na máquina ($(getent passwd 1000 | cut -d: -f1)$(getent group 1000 | cut -d: -f1 | sed 's/^/ \/ grupo /')): pode ler as imagens da API"
+fi
 instalar "$F/ensaio.conf" /etc/eurolify/ensaio.conf 644
 instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
 

@@ -122,6 +122,31 @@ Lista de operações; os pormenores ficam no script e na revisão dele.
     5 minutos e até 4 horas (§7, ponto 4; decisão BL).
 - **Segunda máquina para a base** (réplica pronta a assumir): não no arranque
   (§7, ponto 5; decisão BN).
+- **As imagens dos artigos** (`docs/06`, CQ; #178) vivem em
+  `/var/lib/eurolify/media`, fora do contentor da API (montada em `/media`,
+  da API, uid 1000, 750). Entram na cópia diária num `tar` à parte, cifrado
+  com a mesma chave (`eurolify-media-<carimbo>.tar.age`), com os mesmos 14
+  dias na OVH. Os ficheiros a meio de gravar ficam de fora: o contrato com a
+  API (#176, `armazenamento.ts`) é gravar ao lado, com um nome que acaba em
+  `.tmp`, na mesma pasta, e só depois mudar o nome (atómico). Um ficheiro
+  que muda durante a cópia é só aviso (a seguinte apanha-o).
+  - **A reposição das imagens não está automatizada nem testada:** o
+    `eurolify-reposicao` e o ensaio semanal só repõem a base. Repor é à mão:
+    descarregar o `eurolify-media-….tar.age` da OVH, decifrar com a chave
+    privada do `age` e extrair em `/var/lib/eurolify` com o dono 1000. Até o
+    ensaio de reposição as cobrir, não se sabe se uma cópia das imagens se
+    repõe.
+  - **Tamanho e custo:** a cópia é completa todos os dias (14 na OVH; na máquina,
+    até 3 antigas mais a de agora, cada uma do tamanho das imagens; imagens já comprimidas não
+    encolhem). O serviço tem 30 minutos (`TimeoutStartSec=1800`) e confere o
+    espaço livre antes de começar. Com imagens a sério, mede-se o tamanho e
+    decide-se (Diogo ou Bruno) entre manter a cópia completa ou passar a uma
+    cópia incremental. Se a cópia das imagens falhar todos os dias, as de
+    mais de 14 dias na OVH não se apagam (o apagar vem depois do envio); o
+    aviso de cada dia diz «falhou».
+  - **A primeira publicação depois do #178 recria a API** uma vez (para
+    lhe montar a pasta), também com a imagem que já estava no ar: lançar
+    fora do horário de trabalho.
 
 ### 3.6 Publicação a partir do GitHub
 
