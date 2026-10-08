@@ -237,7 +237,7 @@ regra 6; auditoria `docs/16`).
 | Aceitar contrato | `POST /agreements` | dono | tipo e versão; só se acrescenta |
 | Provas | `GET /verifications`, `POST /verifications` (documento) | dono | |
 | Linha do tempo | `GET /merchants/me/timeline` | equipa | |
-| Exportar tudo | `POST /exports` | dono | Data Act; o que existe em todos os domínios |
+| Exportar tudo | `POST /exports` | dono | Data Act; o que existe em todos os domínios. O recurso é comum: cada domínio entra com a sua parte (`dominios`), e o catálogo é o primeiro (`docs/14` §3.11, **proposta**, 08/10/2026) |
 | Fechar | `POST /merchants/me/close` | dono | `fechado`; não apaga documentos fiscais |
 | Rever (equipa do Eurolify) | `POST /admin/merchants/{id}/review` | equipa do Eurolify | P6 |
 

@@ -681,7 +681,92 @@ um ecrã nem a uma decisão de IVA sem a validação indicada:
 | Entidade | Campos | Notas |
 |---|---|---|
 | Importação | ficheiro, formato, `modo` (ensaio ou aplicar), `estado` (recebida, analisada, aplicada, falhou), relatório | o **ensaio** diz quantos criaria, alteraria e recusaria, e porquê; só depois se aplica. **Nunca apaga** o que não veio no ficheiro. Importar duas vezes o mesmo ficheiro não duplica nada: a chave é o SKU (`catalog-pim`, «Importação») |
-| Exportação | formato aberto (CSV e JSON, **proposta**), `estado`, ficheiro | exportação **completa**: é também a saída do Data Act (`catalog-pim`) |
+| Exportação | formato aberto (CSV e JSON, **proposta**), `estado`, ficheiro | exportação **completa**: é também a saída do Data Act (`catalog-pim`); desenho abaixo |
+
+#### Exportação do catálogo — desenho (**proposta**, 08/10/2026, issue #77)
+
+**Para quê.** O comerciante leva o catálogo inteiro para fora do Eurolify num
+formato aberto, sem pedir a ninguém: para guardar, para mudar de fornecedor
+(Regulamento (UE) 2023/2854, o Data Act, `docs/03` linha 118, **W**, lido só
+em resumos; o que ele exige ao Eurolify está nas perguntas do jurista,
+`docs/12`) e, depois, como o formato da importação. Ex.: a loja com 300
+artigos pede a exportação e recebe um ZIP com os 300 artigos, as variantes,
+as traduções e as imagens.
+
+**Um recurso só para os dois documentos.** O `docs/15` §7 já tem
+`POST /exports` («exportar tudo», todos os domínios, só o dono). Para não
+haver dois `POST /exports`, a exportação é um recurso comum com a lista dos
+domínios: `{"dominios": ["catalogo"]}`. Nesta parte só existe `catalogo`;
+os outros domínios (Preços, Comerciante, e os que vierem) entram no mesmo
+recurso quando tiverem a sua parte, e «exportar tudo» é pedir todos. O
+âmbito pedido é o de leitura de cada domínio pedido (`catalog:read` para o
+catálogo): a exportação não mostra nada que a API de leitura não mostre.
+
+**O que leva.** Tudo o que o comerciante pôs no catálogo, em **todos os
+estados** (rascunho, activo e arquivado):
+
+| Ficheiro no ZIP | Uma linha por | Campos |
+|---|---|---|
+| `catalogo.json` | o catálogo inteiro (abaixo) | o mesmo que os CSV, em árvore; é **o ficheiro completo** |
+| `artigos.csv` | artigo | `id` (`prd_…`), `tipo`, `estado`, `nome`, `descricao`, `marca`, `categoria_fiscal`, `origem`, `origem_ref`, a classificação (`familias`, `natureza_consumidor`, `modo`, prestação e local), `criado_em`, `actualizado_em`, `versao` |
+| `variantes.csv` | variante | `id`, `artigo`, `sku`, `gtin`, `gtin_origem`, unidade e conteúdo, peso e dimensões, `onu`, `classe_adr`, `estado`, `posicao`, os valores das opções |
+| `opcoes.csv`, `valores.csv` | opção, valor | `id`, `artigo` (`opcao`), `nome` (`valor`), `posicao` |
+| `componentes.csv` | componente de um kit | `kit`, `componente` (variante), `quantidade`, `posicao` |
+| `categorias.csv`, `colecoes.csv` | categoria, colecção | `id`, `pai` (só na categoria), `nome`, `descricao` (só na colecção), `endereco_amigavel`, `posicao`, `estado` |
+| `artigos_categorias.csv`, `colecoes_artigos.csv` | ligação | os dois ids (e a `posicao` na colecção) |
+| `traducoes.csv` | tradução | `recurso` (o id com prefixo), `campo`, `lingua`, `texto`, `original`, `origem` (pessoa ou IA), `revista`, `traduzido_em`; o estado (em dia ou desactualizada) calculado |
+| `media.csv` | imagem | `id`, `artigo`, `variante`, `ficheiro` (caminho no ZIP), `tipo`, `bytes`, `texto_alternativo`, `posicao`, `principal` |
+| `imagens/<resumo>` | ficheiro de imagem | os bytes tal como foram enviados, pelo resumo SHA-256 (uma vez cada, mesmo ligada a vários artigos) |
+| `publicacoes.csv` | publicação | `id`, `artigo`, `canal`, `mercado`, `estado`, `variantes_fora`, `ultima_verificacao` (JSON), `verificado_em`, `publicado_em`, `arquivado_em`, `motivo_arquivo` |
+
+- **Ids como na API** (com o prefixo), para se cruzarem os ficheiros e
+  para a importação os reconhecer.
+- **Não leva quem fez** (`publicado_por`, `arquivado_por`,
+  `classificado_por`, `traduzido_por`, `revisto_por`): são pessoas da equipa
+  e a API de leitura também não os dá (`docs/06`, CL). Voltam quando houver
+  linha do tempo e um âmbito próprio.
+- **Não leva preços nem stock**: são de Preços e mercados e de Encomendas;
+  entram quando esses domínios tiverem a sua parte na exportação.
+- **Formato dos CSV:** RFC 4180, vírgula, UTF-8 com a marca de ordem dos
+  bytes (para a folha de cálculo ler os acentos; **não verifiquei** como o
+  Excel em português abre a vírgula), datas em ISO 8601 UTC, listas como
+  JSON na célula. **Um texto que comece por `=`, `+`, `-`, `@`, tabulação
+  ou retorno leva um apóstrofo à frente** (injecção de fórmulas numa folha
+  de cálculo, OWASP); o `catalogo.json` leva o texto sem mudanças e é ele
+  que faz fé.
+- **`catalogo.json`** leva `formato: "eurolify.catalogo/1"`, `gerado_em`,
+  o comerciante (`id`, `lingua_origem`) e as listas acima, aninhadas por
+  artigo (variantes, opções, componentes, media, traduções, publicações).
+  Mudar o formato é `eurolify.catalogo/2`, nunca mudar o 1.
+
+**Como se pede e se descarrega** (proposta):
+
+| Operação | Método e caminho | Âmbito | Notas |
+|---|---|---|---|
+| Pedir | `POST /exports` com `{"dominios": ["catalogo"]}` | o de leitura de cada domínio | com `Idempotency-Key`; faz o ZIP **dentro do pedido** e responde 201 com a exportação `pronta` (ou `falhou`, com o código) |
+| Ver | `GET /exports/{id}` | o mesmo | estado, domínios, tamanho, resumo SHA-256 do ZIP, `criada_em`, `expira_em` |
+| Listar | `GET /exports` | o mesmo | as do comerciante, das mais novas para as mais velhas (docs/18 §2a) |
+| Descarregar | `GET /exports/{id}/file` | o mesmo | o ZIP, com `Content-Disposition`; sem a base aberta enquanto se envia |
+
+- **Fotografia de um momento:** os dados lêem-se numa transacção só de
+  leitura (REPEATABLE READ, como as consultas, `noCatalogo` com
+  `soLeitura`), escrevem-se para um ficheiro temporário no armazenamento
+  e a base fecha antes de o ZIP sair. Uma escrita a meio não fica metade
+  dentro.
+- **Uma exportação de cada vez por comerciante** (a segunda ao mesmo tempo
+  dá 429); o ZIP fica **7 dias** e depois apaga-se (a limpeza entra com a
+  da issue #179). Não conta para a quota das imagens.
+- **Sem custo e sem limite de vezes** a não ser o de cima: a partir de
+  12/01/2027 a saída não se pode cobrar (`docs/09` linha 115, **W**).
+- **Fora desta parte:** a exportação em segundo plano (para catálogos em
+  que o pedido demore demais; **não medi** quanto demora), o aviso por
+  e-mail quando estiver pronta, e a importação (que lê este formato).
+
+**Riscos** (para a revisão): um catálogo grande com muitas imagens faz um
+ZIP grande no disco da VPS (até à quota de imagens, 1 GiB, mais os dados);
+duas lojas a exportar ao mesmo tempo ocupam o dobro. Mitigação: uma por
+comerciante, 7 dias, e medir o tempo e o tamanho no ensaio antes de abrir
+a comerciantes.
 
 ### 3.12 Linha do tempo
 
@@ -1079,7 +1164,7 @@ as rotas seguintes.
 | Ver publicações | `GET /products/{id}/publications` | read | |
 | Atributos regulamentares | `PUT /products/{id}/regulatory`, `PUT /variants/{id}/regulatory` | write | valor, quem e quando |
 | Importar | `POST /imports` (ensaio por omissão), `GET /imports/{id}`, `POST /imports/{id}/apply` | import | o relatório do ensaio vem antes de escrever |
-| Exportar | `POST /exports`, `GET /exports/{id}` | read | exportação completa |
+| Exportar | `POST /exports` (`{"dominios": ["catalogo"]}`), `GET /exports`, `GET /exports/{id}`, `GET /exports/{id}/file` | read | exportação completa, comum aos domínios (§3.11, «Exportação do catálogo», **proposta**) |
 
 Erros com código estável (**proposta**): `catalog.not_found` (também quando
 o artigo é de outro comerciante), `catalog.sku_required`, `catalog.sku_invalid`,
