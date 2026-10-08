@@ -242,7 +242,16 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
   o registo, numa fila por comerciante, que confere o espaço (acima dele,
   `catalog.media_quota_exceeded`, 409, **proposta**: não se resolve a
   tentar outra vez, ao contrário do 409 da versão), e só então os bytes no
-  disco; se a gravação falhar, o registo desfaz-se. No máximo 2 envios do mesmo
+  disco; se a gravação falhar, o registo desfaz-se. A gravação corre com a fila do
+  comerciante tomada e uma ligação à base aberta (3.ª revisão do #176,
+  P2-2): um segundo envio do mesmo comerciante espera por ela até 5 s
+  (`lock_timeout`) e depois dá 503 `catalog.retry`; a reserva da chave de
+  idempotência dura 60 s, e uma gravação mais lenta do que isso pode deixar
+  outro pedido tomar a chave (a transacção desfaz-se e o ficheiro fica sem
+  registo, fora do espaço); as ligações à base são 10 (`ligacao.ts`), e com
+  2 envios por comerciante, cinco comerciantes a enviar ao mesmo tempo
+  ocupam-nas todas enquanto gravam. Num disco lento, grava-se o temporário
+  antes da fila e faz-se só a mudança de nome dentro dela. No máximo 2 envios do mesmo
   comerciante ao mesmo tempo (o terceiro dá 429 antes de se ler o corpo:
   cada envio ocupa até 10 MB de memória). O ficheiro escreve-se ao lado,
   assegura-se no disco (`fsync`) e só depois muda de nome; um ficheiro com

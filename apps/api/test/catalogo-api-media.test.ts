@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { connect } from "node:net";
 import { join } from "node:path";
 import { sql, type Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -109,9 +110,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
     for (let i = 0; i < 100; i++) {
       const { rows } = await sql<{ n: number }>`
         select count(*)::int as n from pg_stat_activity
-        where datname = current_database() and wait_event_type = 'Lock'`.execute(
-        base.dono,
-      );
+        where datname = current_database() and wait_event_type = 'Lock'
+          and wait_event = 'advisory'`.execute(base.dono);
       if ((rows[0]?.n ?? 0) > 0) return true;
       await new Promise((r) => setTimeout(r, 20));
     }
@@ -637,17 +637,25 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       lento,
     );
     try {
-      const env = (bytes: Buffer, tipo: string) =>
-        comLento.inject({
+      // Um servidor a escutar, com ligações a sério: o `inject` não mostra
+      // quando o Node dá o pedido por fechado (3.ª revisão do #176, P2-1).
+      const endereco = await comLento.listen({ port: 0, host: "127.0.0.1" });
+      const env = async (bytes: Buffer, tipo: string) => {
+        const r = await fetch(`${endereco}/media/uploads`, {
           method: "POST",
-          url: "/media/uploads",
           headers: {
             authorization: `Bearer ${escrita}`,
             "idempotency-key": randomUUID(),
             "content-type": tipo,
           },
-          payload: bytes,
+          body: bytes,
         });
+        return {
+          statusCode: r.status,
+          headers: { "retry-after": r.headers.get("retry-after") },
+          json: async () => await r.json(),
+        };
+      };
       const um = env(PNG, "image/png");
       const dois = env(JPEG, "image/jpeg");
       // Um grava (preso no portão); o outro espera pela fila na base: os
@@ -659,7 +667,9 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       expect(await haEspera()).toBe(true);
       const tres = await env(WEBP, "image/webp");
       expect(tres.statusCode).toBe(429);
-      expect(tres.json()).toMatchObject({ codigo: "rate_limit.exceeded" });
+      expect(await tres.json()).toMatchObject({
+        codigo: "rate_limit.exceeded",
+      });
       expect(tres.headers["retry-after"]).toBe("1");
       soltar();
       expect((await um).statusCode).toBe(201);
@@ -668,6 +678,98 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
     } finally {
       await comLento.close();
       await rm(pastaLenta, { recursive: true, force: true });
+    }
+  });
+
+  it("um envio cortado a meio liberta o lugar; uma gravação que falha não deixa registo e a chave volta a servir", async () => {
+    const pastaC = await mkdtemp(join(tmpdir(), "eurolify-corte-"));
+    const disco = new ArmazenamentoEmDisco(pastaC);
+    let falhar = true;
+    const falivel: Armazenamento = {
+      quotaPorComerciante: disco.quotaPorComerciante,
+      guardar: async (c, r, b) => {
+        if (falhar) throw new Error("disco cheio (de mentira)");
+        await disco.guardar(c, r, b);
+      },
+      ler: (c, r) => disco.ler(c, r),
+    };
+    const appC = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      falivel,
+    );
+    try {
+      const endereco = new URL(
+        await appC.listen({ port: 0, host: "127.0.0.1" }),
+      );
+      const env = async (bytes: Buffer, chave = randomUUID()) =>
+        fetch(`${endereco.origin}/media/uploads`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${escrita}`,
+            "idempotency-key": chave,
+            "content-type": "image/png",
+          },
+          body: bytes,
+        });
+      // Dois envios que mandam só parte do corpo e ficam pendurados.
+      const pendurado = () =>
+        new Promise<ReturnType<typeof connect>>((resolve) => {
+          const s = connect(Number(endereco.port), "127.0.0.1", () => {
+            s.write(
+              [
+                "POST /media/uploads HTTP/1.1",
+                `Host: ${endereco.host}`,
+                `Authorization: Bearer ${escrita}`,
+                `Idempotency-Key: ${randomUUID()}`,
+                "Content-Type: image/png",
+                "Content-Length: 1000",
+                "",
+                "",
+              ].join("\r\n"),
+            );
+            s.write(PNG);
+            resolve(s);
+          });
+          s.on("error", () => undefined);
+        });
+      const p1 = await pendurado();
+      const p2 = await pendurado();
+      // Os dois lugares estão ocupados.
+      let cheio = 0;
+      for (let i = 0; i < 100 && cheio !== 429; i++) {
+        cheio = (await env(PNG)).status;
+        if (cheio !== 429) await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(cheio).toBe(429);
+      // Cortadas as ligações, os lugares voltam.
+      p1.destroy();
+      p2.destroy();
+      let estado = 429;
+      for (let i = 0; i < 100 && estado === 429; i++) {
+        await new Promise((r) => setTimeout(r, 20));
+        estado = (await env(PNG)).status;
+      }
+      // A gravação falha (500): nem registo nem ficheiro.
+      expect(estado).toBe(500);
+      const bytes = Buffer.concat([PNG, Buffer.from(randomUUID())]);
+      const chave = randomUUID();
+      expect((await env(bytes, chave)).status).toBe(500);
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from ficheiro
+        where comerciante_id = ${a} and resumo = ${resumo(bytes)}`.execute(
+        base.dono,
+      );
+      expect(rows[0]?.n).toBe(0);
+      // Com o disco de volta, a mesma chave serve (a falha não ficou
+      // guardada como resposta).
+      falhar = false;
+      expect((await env(bytes, chave)).status).toBe(201);
+    } finally {
+      await appC.close();
+      await rm(pastaC, { recursive: true, force: true });
     }
   });
 

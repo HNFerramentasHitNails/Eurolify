@@ -392,10 +392,12 @@ function rotaDoEnvio(
     }
     emCurso.set(comercianteId, n + 1);
     contados.set(pedido.raw, comercianteId);
-    // O fecho do pedido dispara sempre, também quando a ligação cai a meio
-    // do corpo ou o tempo acaba (2.ª revisão do #176, P2-N2); o WeakMap não
-    // deixa descontar duas vezes.
-    pedido.raw.once("close", () => {
+    // O fecho da resposta dispara quando ela acaba ou quando a ligação cai
+    // (também a meio do corpo, ou quando o tempo acaba); o do pedido
+    // disparava logo que o corpo chegava, e libertava o lugar cedo demais
+    // (3.ª revisão do #176, P2-1, medido com um servidor a escutar). O
+    // WeakMap não deixa descontar duas vezes.
+    resposta.raw.once("close", () => {
       largar(pedido);
     });
   });
