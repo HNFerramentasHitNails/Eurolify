@@ -314,4 +314,10 @@ export const en: Textos = {
   conviteAceitarComConta: "Accept with this account",
   conviteOutraConta:
     "If the invitation is for another e-mail, sign out first and open the link again.",
+  conviteInstrucao: "Enter your name and create the account with a passkey.",
+  conviteResumo:
+    "You were invited to the {comerciante} team, with the role {papel}.",
+  conviteParaEmail: "The invitation is for {email} and expires on {data}.",
+  conviteEmailDiferente:
+    "This invitation is for {email} and you are signed in as {sessao}. Sign out and sign in with that e-mail's account.",
 };

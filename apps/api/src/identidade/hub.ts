@@ -539,6 +539,52 @@ export function rotasDoHub(
   );
 
   rotas.post(
+    "/hub/invitations/preview",
+    {
+      config: { ambito: "publico", hub: true },
+      schema: {
+        description:
+          "O que o convite diz, para o ecrã o mostrar antes de aceitar: o comerciante, o papel, o e-mail e quando expira. Para qualquer convite que não vale, também com o comerciante suspenso ou fechado, a mesma recusa de /hub/invitations/accept/options e /hub/invitations/accept-new (404 invite.invalid; issue #194).",
+        body: Type.Object(
+          { convite: SegredoConvite },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({
+            comerciante_nome: Type.String(),
+            papel: Papel,
+            email: Type.String(),
+            expira_em: Instante,
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      // O e-mail e o nome do comerciante não ficam em nenhuma cache
+      // (revisão do #196, P3-7).
+      void resposta.header("cache-control", "no-store");
+      const linha = await noConvite(async () => {
+        const { rows } = await sql<{
+          comerciante_nome: string;
+          papel: (typeof PAPEIS)[number];
+          email: string;
+          expira_em: string;
+        }>`select * from convite_ver(${pedido.body.convite})`.execute(base);
+        const r = rows[0];
+        if (r === undefined) throw erroConta("invite.invalid");
+        return r;
+      });
+      return {
+        comerciante_nome: linha.comerciante_nome,
+        papel: linha.papel,
+        email: linha.email,
+        expira_em: new Date(linha.expira_em).toISOString(),
+      };
+    },
+  );
+
+  rotas.post(
     "/hub/invitations/accept/options",
     {
       config: { ambito: "publico", hub: true },

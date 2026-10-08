@@ -50,6 +50,7 @@ const FUNCOES_DA_API = [
   "convite_aceitar",
   "convite_cancelar",
   "convite_criar",
+  "convite_ver",
   "desafio_criar_acrescentar",
   "desafio_criar_entrada",
   "desafio_criar_registo",
