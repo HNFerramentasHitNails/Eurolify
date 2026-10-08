@@ -57,7 +57,7 @@ export function Entrar() {
       )}
       {comPalavraPasse && !temPasskeys() ? (
         <div className="aviso" role="note">
-          {t.semPasskeys}
+          {t.semPasskeysEntrar}
         </div>
       ) : null}
       <p>

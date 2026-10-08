@@ -98,7 +98,7 @@ export const en: Textos = {
   erroOrigem:
     "Request refused because it came from another site. Open the Hub from its usual address.",
   erroRecente:
-    "This operation needs you to confirm your passkey. Please try again.",
+    "This operation asks you to confirm who you are (passkey, or sign in again). Try again.",
   erroRede: "No connection to the server. Check the network and try again.",
 
   // My account and recovery (docs/22 §9.1).
@@ -140,6 +140,12 @@ export const en: Textos = {
     "The passkey was not accepted: it may belong to another account, or the request took more than 5 minutes. The session is still open; try again.",
   erroRecuperarPasskey:
     "The new passkey was not accepted, or the request took more than 5 minutes. Try again.",
+  erroReautenticar:
+    "This operation asks you to confirm who you are, and it was not possible with a passkey in this browser. Sign out and sign in again (with the passkey or the password) and repeat within the next 10 minutes.",
+  semPasskeysEntrar:
+    "This browser does not support passkeys. Sign in with the password, if you activated it, or use a current browser (Chrome, Edge, Firefox or Safari).",
+  autenticadorDepois:
+    "When you confirm, the other open sessions end. If you already had Eurolify in this app, delete the old entry afterwards.",
   erroNomePasskey: "The passkey name must have between 1 and 100 characters.",
 
   entrarPerdeu: "Lost your passkey?",

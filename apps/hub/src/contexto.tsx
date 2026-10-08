@@ -29,20 +29,23 @@ export function useHub(): Contexto {
 export function CaixaDeErro({
   erro,
   aoTentar,
+  id,
 }: {
   erro: MensagemDeErro;
   aoTentar?: () => void;
+  /** Para um campo a apontar para o erro (`aria-describedby`). */
+  id?: string;
 }) {
   const { t } = useHub();
   if (erro.neutro === true) {
     return (
-      <p className="secundario" role="status">
+      <p className="secundario" role="status" id={id}>
         {erro.texto}
       </p>
     );
   }
   return (
-    <div className="erro" role="alert">
+    <div className="erro" role="alert" id={id}>
       <p>
         <strong>{erro.texto}</strong>
       </p>

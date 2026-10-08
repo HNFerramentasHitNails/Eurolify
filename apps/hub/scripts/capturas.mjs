@@ -345,7 +345,8 @@ try {
     "convidar com a sessão antiga pede a passkey outra vez e repete",
   );
 
-  // Passkey recusada (sem verificação do utilizador): fica neutro, não vermelho.
+  // Passkey recusada na reautenticação (sem verificação do utilizador): fica
+  // neutro, não vermelho, e diz o que fazer (revisão do #177, P2-1).
   psql(
     "update sessao set autenticada_em = now() - interval '1 hour' where revogada_em is null",
   );
@@ -360,11 +361,11 @@ try {
   await pagina.waitForTimeout(1500);
   const vermelho = await pagina.locator(".erro").count();
   const textoNeutro = await pagina
-    .getByText("A passkey foi cancelada", { exact: false })
+    .getByText("Saia e volte a entrar", { exact: false })
     .count();
   confere(
     vermelho === 0 && textoNeutro === 1,
-    `passkey recusada: aviso neutro, sem caixa vermelha (vermelho ${String(vermelho)}, neutro ${String(textoNeutro)})`,
+    `passkey recusada na reautenticação: aviso neutro que diz o que fazer, sem caixa vermelha (vermelho ${String(vermelho)}, neutro ${String(textoNeutro)})`,
   );
   await cdp.send("WebAuthn.setUserVerified", {
     authenticatorId: autenticador,
@@ -761,13 +762,49 @@ try {
     "palavra-passe: curta ou diferente, o ecrã recusa antes da API",
   );
   await rp.getByLabel("Repita a palavra-passe").fill(palavraDaAna);
+  const respostaSetup = rp
+    .waitForResponse((r) => r.url().endsWith("/hub/password/setup"))
+    .then((r) => r.json());
   await rp.getByRole("button", { name: "Continuar" }).click();
   await rp
     .getByRole("img", { name: "Código QR para a aplicação de autenticação" })
     .waitFor();
+  confere(
+    await rp.evaluate(() =>
+      (document.activeElement?.textContent ?? "").startsWith(
+        "Leia este código QR",
+      ),
+    ),
+    "palavra-passe: depois de «Continuar», o foco vai para as instruções do código QR",
+  );
   const segredoTotp = (
     (await rp.locator(".segredo").textContent()) ?? ""
   ).replaceAll(" ", "");
+  // O código QR desenhado é exactamente o do URI que a API enviou, e o URI
+  // leva o mesmo segredo do texto (revisão do #177, P2-3). Que o uqr gera um
+  // código QR legível provou-se à parte, a descodificar a captura (OpenCV).
+  const uriTotp = (await respostaSetup).uri;
+  const { encode } = await import(join(HUB, "node_modules/uqr/dist/index.mjs"));
+  const esperado = encode(uriTotp, { ecc: "M", border: 4 });
+  const desenhado = new Set(
+    [
+      ...((await rp.locator("svg.qr path").getAttribute("d")) ?? "").matchAll(
+        /M(\d+) (\d+)h1v1h-1z/g,
+      ),
+    ].map((m) => `${m[1]},${m[2]}`),
+  );
+  const escuros = esperado.data.flatMap((linha, y) =>
+    linha.flatMap((escuro, x) => (escuro ? [`${String(x)},${String(y)}`] : [])),
+  );
+  confere(
+    uriTotp.startsWith("otpauth://totp/") &&
+      new URL(uriTotp).searchParams.get("secret") === segredoTotp &&
+      escuros.length === desenhado.size &&
+      escuros.every((m) => desenhado.has(m)) &&
+      (await rp.locator("svg.qr").getAttribute("viewBox")) ===
+        `0 0 ${String(esperado.size)} ${String(esperado.size)}`,
+    "palavra-passe: o código QR desenhado é o do URI otpauth:// com o mesmo segredo",
+  );
   confere(
     /^[A-Z2-7]{16,}$/.test(segredoTotp),
     "palavra-passe: o código QR e o segredo aparecem",
@@ -777,6 +814,11 @@ try {
     path: join(SAIDA, "palavra-passe-qr-375-claro.png"),
     fullPage: true,
   });
+  await rp.emulateMedia({ colorScheme: "dark" });
+  await rp.locator("svg.qr").screenshot({
+    path: join(SAIDA, "palavra-passe-qr-escuro.png"),
+  });
+  await rp.emulateMedia({ colorScheme: "light" });
   await rp.getByLabel("Código de 6 dígitos da aplicação").fill("000000");
   await rp.getByRole("button", { name: "Confirmar e activar" }).click();
   await rp.getByText("O código não está certo", { exact: false }).waitFor();

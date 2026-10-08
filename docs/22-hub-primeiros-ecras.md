@@ -15,7 +15,7 @@
 
 | Entra (esta parte) | Fica para depois |
 |---|---|
-| Entrar com passkey | Entrar com palavra-passe + TOTP (B3b; as rotas existem) |
+| Entrar com passkey; com palavra-passe + TOTP (B3b, §9.2) | — |
 | Aceitar um convite e criar a conta (nome + passkey) | Aceitar um convite com uma conta que já existe (`/hub/invitations/accept`) |
 | Escolher o comerciante (quem é membro de vários) | Mudar de papel, tirar da equipa (rotas existem) |
 | Equipa: ver membros e convites em aberto; convidar; cancelar um convite | Palavra-passe e autenticador, chaves de API (B3b e B3c: desenho na §9, 08/10/2026). A minha conta e recuperar a conta entraram na B3a (§9.1, pedido #174) |
@@ -210,8 +210,21 @@ parte. Em três pedidos, pela ordem do `docs/21` §12:
 **Na API (feito com a B3b):** o `/hub/me` diz `palavra_passe: "activa" |
 "pendente" | null` (migração 0028; só o estado, nenhum dado secreto). O
 campo só existe quando a API tem a palavra-passe ligada (`TOTP_CHAVE`);
-sem ele, o Hub não oferece a palavra-passe (nem na conta, nem ao entrar: a
-rota dá 404 e o ecrã diz que não está disponível).
+sem ele, a conta não oferece a palavra-passe. Ao entrar, sem sessão, o Hub
+não sabe se a API a tem: a ligação «Entrar com palavra-passe» aparece, e
+sem a chave a rota dá 404 e o ecrã diz que não está disponível (revisão do
+#177, P3-5).
+
+**Autenticação recente sem passkey (revisão do #177, P2-1):** só há
+reautenticação com passkey. Quem não a pode usar neste navegador recebe o
+aviso de sair e voltar a entrar (também com a palavra-passe), e tem 10
+minutos. Uma rota de reautenticação com a palavra-passe fica por decidir
+(`docs/21` §4.3).
+
+**Fica para o desenho das contas (`docs/21` §8; revisão do #177, P3-9):** o
+bloqueio por conta responde 429 a qualquer tentativa sobre essa conta,
+mesmo com a palavra-passe errada; de um IP limpo, um 429 diz que a conta
+existe e tem palavra-passe activa.
 
 **Decidido (Diogo, 08/10/2026: *«sim, com código QR»*):** o segredo do
 autenticador mostra-se **como código QR e como texto** (em grupos de 4,

@@ -96,7 +96,8 @@ export const pt = {
   erroOcupado: "O serviço está ocupado. Tente daqui a pouco.",
   erroOrigem:
     "Pedido recusado por vir de outro sítio. Abra o Hub pelo endereço habitual.",
-  erroRecente: "Esta operação pede que confirme a passkey. Tente outra vez.",
+  erroRecente:
+    "Esta operação pede que confirme quem é (passkey, ou entrar outra vez). Tente outra vez.",
   erroRede: "Sem ligação ao servidor. Verifique a rede e tente outra vez.",
 
   // A minha conta e recuperar (docs/22 §9.1).
@@ -138,6 +139,12 @@ export const pt = {
     "A passkey não foi aceite: pode ser de outra conta, ou o pedido demorou mais de 5 minutos. A sessão continua aberta; tente outra vez.",
   erroRecuperarPasskey:
     "A passkey nova não foi aceite, ou o pedido demorou mais de 5 minutos. Tente outra vez.",
+  erroReautenticar:
+    "Esta operação pede que confirme quem é, e não foi possível com uma passkey neste navegador. Saia e volte a entrar (com a passkey ou com a palavra-passe) e repita nos 10 minutos seguintes.",
+  semPasskeysEntrar:
+    "Este navegador não permite passkeys. Entre com a palavra-passe, se a tiver activado, ou use um navegador actual (Chrome, Edge, Firefox ou Safari).",
+  autenticadorDepois:
+    "Ao confirmar, as outras sessões abertas terminam. Se já tinha o Eurolify nesta aplicação, apague depois a entrada antiga.",
   erroNomePasskey: "O nome da passkey tem de ter entre 1 e 100 caracteres.",
 
   entrarPerdeu: "Perdeu a passkey?",

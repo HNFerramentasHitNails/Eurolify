@@ -98,7 +98,7 @@ export const es: Textos = {
   erroOrigem:
     "Solicitud rechazada por venir de otro sitio. Abra el Hub desde la dirección habitual.",
   erroRecente:
-    "Esta operación pide que confirme la passkey. Inténtelo de nuevo.",
+    "Esta operación pide que confirme quién es (passkey, o entrar de nuevo). Inténtelo de nuevo.",
   erroRede:
     "Sin conexión con el servidor. Compruebe la red e inténtelo de nuevo.",
 
@@ -143,6 +143,12 @@ export const es: Textos = {
     "No se aceptó la passkey: puede ser de otra cuenta, o la solicitud tardó más de 5 minutos. La sesión sigue abierta; inténtelo de nuevo.",
   erroRecuperarPasskey:
     "No se aceptó la passkey nueva, o la solicitud tardó más de 5 minutos. Inténtelo de nuevo.",
+  erroReautenticar:
+    "Esta operación pide que confirme quién es, y no fue posible con una passkey en este navegador. Salga y vuelva a entrar (con la passkey o con la contraseña) y repita en los 10 minutos siguientes.",
+  semPasskeysEntrar:
+    "Este navegador no permite passkeys. Entre con la contraseña, si la activó, o use un navegador actual (Chrome, Edge, Firefox o Safari).",
+  autenticadorDepois:
+    "Al confirmar, las demás sesiones abiertas terminan. Si ya tenía Eurolify en esta aplicación, borre después la entrada anterior.",
   erroNomePasskey:
     "El nombre de la passkey debe tener entre 1 y 100 caracteres.",
 

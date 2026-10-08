@@ -223,6 +223,7 @@ export function Conta({ recuperada }: { recuperada: boolean }) {
         <PalavraPasse
           vez={vez}
           estado={eu.dados.palavra_passe}
+          email={eu.dados.email}
           aoMudar={async () => {
             // Activar e retirar fazem cair as outras sessões.
             setVersaoSessoes((v) => v + 1);
@@ -551,17 +552,19 @@ type PassoPalavraPasse =
 
 /**
  * A palavra-passe com o TOTP (docs/22 §9.2): activar (palavra-passe, o código
- * QR e o segredo, o primeiro código) e retirar. O segredo e o URI só vivem
- * neste componente enquanto se configura; nunca vão para o endereço nem para
- * o armazenamento do navegador (§9.4).
+ * QR e o segredo, o primeiro código), trocar e retirar. O segredo e o URI só
+ * vivem neste componente enquanto se configura; nunca vão para o endereço nem
+ * para o armazenamento do navegador, e saem ao deixar a página (§9.4).
  */
 function PalavraPasse({
   vez,
   estado,
+  email,
   aoMudar,
 }: {
   vez: Vez;
   estado: "activa" | "pendente" | null;
+  email: string;
   aoMudar: () => Promise<boolean>;
 }) {
   const { t } = useHub();
@@ -571,18 +574,52 @@ function PalavraPasse({
   const [repetida, setRepetida] = useState("");
   const [codigo, setCodigo] = useState("");
   const [invalido, setInvalido] = useState<keyof Textos | null>(null);
-  const podeAgir = temPasskeys() && !vez.ocupado;
   // Activar oferece-se também sem passkeys no navegador: quem acabou de
-  // entrar com a palavra-passe tem a sessão recente e não precisa delas.
-  const podeAgirSemPasskey = !vez.ocupado;
+  // entrar com a palavra-passe tem a sessão recente; passados 10 minutos, o
+  // ecrã diz-lhe que entre outra vez (revisão do #177, P2-1).
+  const podeAgir = !vez.ocupado;
 
-  function recomecar() {
-    setPasso({ passo: "ver" });
+  // O foco acompanha o passo (revisão do #177, P2-2): o primeiro campo, as
+  // instruções do código QR e, no fim, o botão do estado. Não na primeira
+  // imagem do ecrã.
+  const mudouDePasso = useRef(false);
+  const primeiroCampo = useRef<HTMLInputElement>(null);
+  const instrucoes = useRef<HTMLParagraphElement>(null);
+  const botaoDoEstado = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mudouDePasso.current) return;
+    mudouDePasso.current = false;
+    if (passo.passo === "escolher") primeiroCampo.current?.focus();
+    else if (passo.passo === "confirmar") instrucoes.current?.focus();
+    else botaoDoEstado.current?.focus();
+  }, [passo]);
+  const irPara = useCallback((p: PassoPalavraPasse) => {
+    mudouDePasso.current = true;
+    setPasso(p);
+  }, []);
+
+  const recomecar = useCallback(() => {
+    irPara({ passo: "ver" });
     setPalavra("");
     setRepetida("");
     setCodigo("");
     setInvalido(null);
-  }
+  }, [irPara]);
+
+  // Ao deixar a página, o segredo sai também da cache de retrocesso do
+  // navegador (revisão do #177, P3-8).
+  useEffect(() => {
+    const aoSair = () => {
+      setPasso({ passo: "ver" });
+      setPalavra("");
+      setRepetida("");
+      setCodigo("");
+    };
+    window.addEventListener("pagehide", aoSair);
+    return () => {
+      window.removeEventListener("pagehide", aoSair);
+    };
+  }, []);
 
   function aoEscolher(evento: SyntheticEvent) {
     evento.preventDefault();
@@ -600,7 +637,9 @@ function PalavraPasse({
         // A palavra-passe já não é precisa no ecrã.
         setPalavra("");
         setRepetida("");
-        setPasso({ passo: "confirmar", segredo: r.segredo, uri: r.uri });
+        irPara({ passo: "confirmar", segredo: r.segredo, uri: r.uri });
+        // A base tem agora uma pendente: o estado relê-se (P3-2).
+        await aoMudar();
       } catch (e) {
         await accao.falhou(e);
       }
@@ -621,9 +660,21 @@ function PalavraPasse({
       } catch (e) {
         // O mesmo código não vale duas vezes: pede-se o seguinte.
         setCodigo("");
+        // Substituída ou concluída noutro sítio: o código QR já não vale,
+        // recomeça-se (P3-1).
+        if (e instanceof ErroHub && e.codigo === "password.not_pending") {
+          recomecar();
+          await aoMudar();
+        }
         await accao.falhou(e);
       }
     });
+  }
+
+  function cancelar() {
+    recomecar();
+    accao.limpar();
+    void aoMudar();
   }
 
   function retirar() {
@@ -639,11 +690,19 @@ function PalavraPasse({
     });
   }
 
+  const ERRO_DO_CAMPO = "erro-palavra-passe";
+  const descrito = (chave: keyof Textos) =>
+    invalido === chave
+      ? { "aria-invalid": true, "aria-describedby": ERRO_DO_CAMPO }
+      : {};
+
   return (
     <section className="cartao" aria-labelledby="titulo-palavra-passe">
       <h2 id="titulo-palavra-passe">{t.palavraPasseTitulo}</h2>
       <p>{t.palavraPasseExplicacao}</p>
-      {invalido === null ? null : <CaixaDeErro erro={{ texto: t[invalido] }} />}
+      {invalido === null ? null : (
+        <CaixaDeErro erro={{ texto: t[invalido] }} id={ERRO_DO_CAMPO} />
+      )}
       <ResultadoDaAccao accao={accao} />
       {passo.passo === "ver" ? (
         <>
@@ -659,11 +718,12 @@ function PalavraPasse({
           <div className="linha">
             <button
               type="button"
+              ref={botaoDoEstado}
               onClick={() => {
                 accao.limpar();
-                setPasso({ passo: "escolher" });
+                irPara({ passo: "escolher" });
               }}
-              disabled={!podeAgirSemPasskey}
+              disabled={!podeAgir}
             >
               {estado === "activa"
                 ? t.palavraPasseTrocar
@@ -678,16 +738,27 @@ function PalavraPasse({
         </>
       ) : passo.passo === "escolher" ? (
         <form onSubmit={aoEscolher} noValidate>
+          {/* O e-mail da conta, para o gestor de palavras-passe a guardar
+              com a conta certa (P3-3). */}
+          <input
+            type="email"
+            name="email"
+            autoComplete="username"
+            value={email}
+            readOnly
+            hidden
+          />
           <div className="campo">
             <label htmlFor="palavra-nova">{t.palavraPasseCampo}</label>
             <input
               id="palavra-nova"
+              ref={primeiroCampo}
               name="palavra-nova"
               type="password"
               autoComplete="new-password"
               maxLength={256}
               value={palavra}
-              aria-invalid={invalido === "erroPalavraPasseCurta"}
+              {...descrito("erroPalavraPasseCurta")}
               onChange={(e) => {
                 setPalavra(e.target.value);
               }}
@@ -703,7 +774,7 @@ function PalavraPasse({
               autoComplete="new-password"
               maxLength={256}
               value={repetida}
-              aria-invalid={invalido === "erroPalavraPasseDiferente"}
+              {...descrito("erroPalavraPasseDiferente")}
               onChange={(e) => {
                 setRepetida(e.target.value);
               }}
@@ -714,14 +785,16 @@ function PalavraPasse({
             <button type="submit" className="principal" disabled={vez.ocupado}>
               {t.palavraPasseContinuar}
             </button>
-            <button type="button" onClick={recomecar} disabled={vez.ocupado}>
+            <button type="button" onClick={cancelar} disabled={vez.ocupado}>
               {t.cancelar}
             </button>
           </div>
         </form>
       ) : (
         <form onSubmit={aoConfirmar} noValidate>
-          <p>{t.autenticadorPasso}</p>
+          <p tabIndex={-1} ref={instrucoes}>
+            {t.autenticadorPasso}
+          </p>
           <div className="aviso" role="note">
             {t.autenticadorAviso}
           </div>
@@ -730,6 +803,7 @@ function PalavraPasse({
             <strong>{t.autenticadorSegredo}</strong>
           </p>
           <p className="segredo">{segredoEmGrupos(passo.segredo)}</p>
+          <p>{t.autenticadorDepois}</p>
           <div className="campo">
             <label htmlFor="codigo-totp">{t.autenticadorCodigo}</label>
             <input
@@ -739,7 +813,7 @@ function PalavraPasse({
               autoComplete="one-time-code"
               maxLength={7}
               value={codigo}
-              aria-invalid={invalido === "erroCodigoTotp"}
+              {...descrito("erroCodigoTotp")}
               onChange={(e) => {
                 setCodigo(e.target.value);
               }}
@@ -750,7 +824,7 @@ function PalavraPasse({
             <button type="submit" className="principal" disabled={vez.ocupado}>
               {t.autenticadorConfirmar}
             </button>
-            <button type="button" onClick={recomecar} disabled={vez.ocupado}>
+            <button type="button" onClick={cancelar} disabled={vez.ocupado}>
               {t.cancelar}
             </button>
           </div>
