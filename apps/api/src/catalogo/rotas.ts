@@ -1396,6 +1396,14 @@ export function rotasDoCatalogo(
       const q = pedido.query;
       const limite = q.limite === undefined ? 25 : Number(q.limite);
       const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
+      // O ano 0000 passa o formato `date-time` mas a base não o lê: recusa-se
+      // aqui, com o código dos pedidos mal formados (revisão do #173, P3-6).
+      if (q.actualizado_desde?.startsWith("0000-") === true) {
+        throw erroBase(
+          "request.invalid",
+          "`actualizado_desde` fora do intervalo (o ano 0000 não existe)",
+        );
+      }
       const pagina = await noCatalogoApi(resposta, () =>
         listarArtigos(
           base,

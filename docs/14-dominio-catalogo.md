@@ -955,6 +955,19 @@ avança com os filtros»): `GET /products` junta todos os filtros dados.
   publicações (procurado em 08/10/2026: só `repositorio.ts` e
   `categorias.ts` actualizam a tabela `artigo`). Quem quer «o que mudou»
   nessas partes ainda não tem filtro.
+  **Não serve, sozinho, para sincronizar** (revisão do #173, P2-1): a data
+  é a do início da transacção que alterou o artigo (`now()`, 0002), não a do
+  momento em que a alteração ficou visível. Uma transacção que começa antes
+  da última data que um cliente leu e acaba depois fica com uma data mais
+  antiga do que essa marca, e um cliente que peça «desde a marca» não a vê.
+  Quem sincroniza tem de recuar a marca e aceitar repetidos (o `id` e a
+  `versao` dizem se já o tinha). Não há margem medida: o `lock_timeout` de
+  5 s limita as esperas, não a duração de uma transacção. A resposta mostra
+  `actualizado_em` ao milissegundo e o filtro compara ao microssegundo: usar
+  a data da resposta como marca só dá repetidos, nunca perde artigos. Uma
+  sincronização segura (um cursor pela ordem das alterações) fica, como
+  **proposta**, para os eventos de saída (migração 0021). Sem índice próprio para estes filtros:
+  fica na nota «Escala» do `docs/18`.
 
 Ficam de fora: **sem foto** (entra com a media, §3.5) e **sem SKU** (não
 existe: o SKU é obrigatório em todas as variantes, C3). O `expand` entra com

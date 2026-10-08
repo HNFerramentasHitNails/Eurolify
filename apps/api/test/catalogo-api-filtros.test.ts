@@ -11,7 +11,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// A procura de artigos com os filtros da docs/14 §7.1 (linha 944):
+// A procura de artigos com os filtros da docs/14 §7.1 («Procurar artigos»):
 // categoria, tradução em falta numa língua e alterados desde um instante.
 // Contra o PostgreSQL 18 verdadeiro, pela app inteira; cada teste usa um
 // comerciante novo (língua de origem «pt»), para as listas não terem ruído.
@@ -219,53 +219,44 @@ describe.skipIf(URL_BASE === undefined)(
       }
     });
 
-    it("alterados desde um instante: inclusive, e um artigo alterado depois volta a entrar", async () => {
+    it("alterados desde um instante: inclusive ao microssegundo, com o fuso; um artigo alterado volta a entrar", async () => {
       const { ap, artigo, ids, procurar } = await comerciante();
       const antigo = await artigo("Antigo");
       const novo = await artigo("Novo");
-      const desde = encodeURIComponent(novo.actualizado_em);
-      // O próprio instante conta (inclusive).
-      expect(await ids(`actualizado_desde=${desde}`)).toEqual([novo.id]);
-      // Ao microssegundo, como a base o guarda: o próprio entra, um a mais não.
-      const { rows } = await base.dono.executeQuery<{ exacto: string }>(
-        sql`select to_char(actualizado_em at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as exacto from artigo where id = ${novo.id.slice("prd_".length)}`.compile(
-          base.dono,
+      // O instante como a base o guarda (ao microssegundo), sem aritmética
+      // sobre o texto (revisão do #173, P3-1).
+      const marca = async (id: string, expressao: string) => {
+        const { rows } = await base.dono.executeQuery<{ m: string }>(
+          sql`select ${sql.raw(expressao)} as m from artigo where id = ${id.slice("prd_".length)}`.compile(
+            base.dono,
+          ),
+        );
+        return encodeURIComponent(rows[0]?.m ?? "");
+      };
+      const utc = (mais: string) =>
+        `to_char((actualizado_em ${mais}) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+      const exacto = await marca(novo.id, utc(""));
+      expect(decodeURIComponent(exacto)).toMatch(/\.\d{6}Z$/);
+      // O próprio instante conta (inclusive); um microssegundo depois, não.
+      expect(await ids(`actualizado_desde=${exacto}`)).toEqual([novo.id]);
+      expect(
+        await ids(
+          `actualizado_desde=${await marca(novo.id, utc("+ interval '1 microsecond'"))}`,
         ),
-      );
-      const exacto = rows[0]?.exacto ?? "";
-      expect(exacto).toMatch(/\.\d{6}Z$/);
-      expect(
-        await ids(`actualizado_desde=${encodeURIComponent(exacto)}`),
-      ).toEqual([novo.id]);
-      const microDepois = exacto.replace(
-        /(\d{6})Z$/,
-        (_m, us: string) => `${String(Number(us) + 1).padStart(6, "0")}Z`,
-      );
-      expect(
-        await ids(`actualizado_desde=${encodeURIComponent(microDepois)}`),
       ).toEqual([]);
-      // Um instante a seguir ao último: nenhum.
-      const depois = encodeURIComponent(
-        new Date(Date.parse(novo.actualizado_em) + 60_000).toISOString(),
+      // O mesmo instante noutro fuso.
+      const menosUmaHora = await marca(
+        novo.id,
+        `to_char((actualizado_em - interval '1 hour') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') || '-01:00'`,
       );
-      expect(await ids(`actualizado_desde=${depois}`)).toEqual([]);
+      expect(await ids(`actualizado_desde=${menosUmaHora}`)).toEqual([novo.id]);
       // Alterar o antigo: passa a entrar.
       const p = await ap("PATCH", `/products/${antigo.id}`, {
         versao: antigo.versao,
         nome: "Antigo alterado",
       });
       expect(p.statusCode).toBe(200);
-      expect(await ids(`actualizado_desde=${desde}`)).toEqual([
-        antigo.id,
-        novo.id,
-      ]);
-      // Com outro fuso, o mesmo instante.
-      const emLisboa = encodeURIComponent(
-        new Date(Date.parse(novo.actualizado_em) - 3_600_000)
-          .toISOString()
-          .replace("Z", "-01:00"),
-      );
-      expect(await ids(`actualizado_desde=${emLisboa}`)).toEqual([
+      expect(await ids(`actualizado_desde=${exacto}`)).toEqual([
         antigo.id,
         novo.id,
       ]);
@@ -274,11 +265,140 @@ describe.skipIf(URL_BASE === undefined)(
         "actualizado_desde=2026-10-08",
         "actualizado_desde=2026-10-08T00:00:00",
         "actualizado_desde=2026-13-08T00:00:00Z",
+        "actualizado_desde=0000-01-01T00:00:00Z",
+        "actualizado_desde=2026-10-08T25:00:00Z",
+        "actualizado_desde=2026-10-08T00:00:00+25:00",
       ]) {
         const mau = await procurar(q);
         expect(mau.statusCode, q).toBe(400);
         expect(mau.json(), q).toMatchObject({ codigo: "request.invalid" });
       }
+    });
+
+    it("o que muda a data do artigo: alterar, classificar e as categorias; não as variantes, as opções nem as traduções", async () => {
+      const { ap, artigo, ids } = await comerciante();
+      const f = await artigo("Gel", "Gel UV");
+      const cat = (
+        await ap("POST", "/categories", { nome: "C", endereco_amigavel: "c" })
+      ).json<{ id: string }>();
+      // A marca: um microssegundo depois da data actual do artigo.
+      const marca = async () => {
+        const { rows } = await base.dono.executeQuery<{ m: string }>(
+          sql`select to_char((actualizado_em + interval '1 microsecond') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as m from artigo where id = ${f.id.slice("prd_".length)}`.compile(
+            base.dono,
+          ),
+        );
+        return encodeURIComponent(rows[0]?.m ?? "");
+      };
+      const versao = async () =>
+        (await ap("GET", `/products/${f.id}`)).json<Ficha>().versao;
+      const muda = async (
+        descricao: string,
+        fazer: () => Promise<{ statusCode: number; body: string }>,
+      ) => {
+        const m = await marca();
+        const r = await fazer();
+        expect(r.statusCode, `${descricao}: ${r.body}`).toBeLessThan(300);
+        expect(await ids(`actualizado_desde=${m}`), descricao).toEqual([f.id]);
+      };
+      const naoMuda = async (
+        descricao: string,
+        fazer: () => Promise<{ statusCode: number }>,
+      ) => {
+        const m = await marca();
+        expect((await fazer()).statusCode, descricao).toBeLessThan(300);
+        expect(await ids(`actualizado_desde=${m}`), descricao).toEqual([]);
+      };
+      await naoMuda("criar uma variante", () =>
+        ap("POST", `/products/${f.id}/variants`, {
+          sku: `V-${randomUUID()}`,
+          unidade_de_venda: "unidade",
+        }),
+      );
+      await naoMuda("criar uma opção", () =>
+        ap("POST", `/products/${f.id}/options`, {
+          nome: "Cor",
+          valores: ["Rosa"],
+        }),
+      );
+      await naoMuda("traduzir", () =>
+        ap("PUT", `/translations/${f.id}/nome/es`, {
+          texto: "Gel ES",
+          original_visto: "Gel",
+        }),
+      );
+      await muda("as categorias", async () =>
+        ap("PUT", `/products/${f.id}/categories`, {
+          versao: await versao(),
+          categorias: [cat.id],
+        }),
+      );
+      await muda("classificar", async () =>
+        ap("PUT", `/products/${f.id}/classification`, {
+          versao: await versao(),
+          familias: ["retalho_geral"],
+          natureza_consumidor: "bem",
+        }),
+      );
+      await muda("alterar o nome", async () =>
+        ap("PATCH", `/products/${f.id}`, {
+          versao: await versao(),
+          nome: "Gel novo",
+        }),
+      );
+    });
+
+    it("os três filtros juntos, por páginas; e as listas só têm os artigos do comerciante, com os dos outros na base", async () => {
+      const { ap, artigo, ids, procurar } = await comerciante();
+      const cat = (
+        await ap("POST", "/categories", { nome: "X", endereco_amigavel: "x" })
+      ).json<{ id: string }>();
+      const comCat = async (nome: string) => {
+        const f = await artigo(nome);
+        await ap("PUT", `/products/${f.id}/categories`, {
+          versao: f.versao,
+          categorias: [cat.id],
+        });
+        return f;
+      };
+      const a = await comCat("A");
+      const b = await comCat("B");
+      const c = await comCat("C");
+      const traduzido = await comCat("D");
+      await ap("PUT", `/translations/${traduzido.id}/nome/es`, {
+        texto: "D ES",
+        original_visto: "D",
+      });
+      await artigo("Fora da categoria");
+      // Outro comerciante, com artigos que passariam os mesmos filtros.
+      const outro = await comerciante();
+      await outro.artigo("Alheio");
+      const filtros = `categoria=${cat.id}&traducao_em_falta=es&actualizado_desde=2000-01-01T00:00:00Z`;
+      const vistos: string[] = [];
+      let cursor: string | null = null;
+      for (let i = 0; i < 6; i++) {
+        const q: string =
+          cursor === null
+            ? `${filtros}&limite=1`
+            : `${filtros}&limite=1&cursor=${cursor}`;
+        const pagina = (await procurar(q)).json<Pagina<Ficha>>();
+        expect(pagina.total).toBe(3);
+        vistos.push(...pagina.dados.map((f) => f.id));
+        cursor = pagina.cursor_seguinte;
+        if (!pagina.ha_mais) break;
+      }
+      expect(cursor).toBeNull();
+      expect(vistos).toEqual([a.id, b.id, c.id]);
+      // Só a categoria, por páginas: os quatro.
+      const p1 = (await procurar(`categoria=${cat.id}&limite=3`)).json<
+        Pagina<Ficha>
+      >();
+      expect(p1).toMatchObject({ total: 4, ha_mais: true });
+      // Só a data, desde sempre: os cinco deste comerciante, nenhum do outro.
+      expect(await ids("actualizado_desde=2000-01-01T00:00:00Z")).toHaveLength(
+        5,
+      );
+      expect(await outro.ids("traducao_em_falta=es")).toHaveLength(1);
     });
   },
 );
