@@ -5,10 +5,15 @@
 - **Porquê:** no #256, as verificações obrigatórias `imagem` e `script-vps` falharam duas vezes seguidas. O Docker Hub recusou as descargas anónimas das imagens base com `429 Too Many Requests` e `toomanyrequests: You have reached your unauthenticated pull rate limit`. As imagens eram `node:24.21.0-trixie-slim` e `ubuntu:26.04`. O limite anónimo é partilhado pelos executores do GitHub.
 - **Decisão do Diogo (09/10/2026):** uma conta Docker Hub grátis, com uma chave só de leitura. O Diogo criou a conta e os dois segredos do repositório, `DOCKERHUB_UTILIZADOR` e `DOCKERHUB_TOKEN`. São segredos do repositório e não do ambiente `ensaio`, porque as verificações dos pedidos não correm nele.
 - **Fluxos alterados** (`docker/login-action`, a mesma versão fixada que o `publicar.yml` já usava):
-  - `verificar.yml`: as tarefas `script-vps` e `imagem` entram no Docker Hub antes de descarregar.
+  - `verificar.yml`: as tarefas `codigo`, `script-vps` e `imagem` entram no Docker Hub antes de descarregar.
   - `publicar.yml`: a tarefa `imagem` entra também, e o fluxo passa os dois segredos ao `verificar` que chama.
-  - Sem os segredos, as tarefas continuam sem conta, como antes.
-- **Fora disto:** o PostgreSQL da tarefa `codigo` é um serviço, e o GitHub descarrega-o antes dos passos. Não tem conta, porque as credenciais de um serviço não se podem pôr condicionais. Se também falhar por 429, trata-se à parte.
+  - Sem os segredos, as tarefas continuam sem conta, como antes. A entrada tem `continue-on-error`: se o Docker Hub falhar a entrada ou a chave expirar, as tarefas continuam sem conta.
+- **Correcções da revisão do #267:**
+  - A entrada passou para antes do `setup-buildx`, porque este descarrega `moby/buildkit` do Docker Hub.
+  - O PostgreSQL da tarefa `codigo` deixou de ser um serviço e passou a arrancar num passo (`docker run`) depois da entrada. No #267 falhou com 429 sem conta.
+  - O primeiro CI do #267 mostrou que a entrada pode falhar do lado do Docker Hub: `500 Internal Server Error` na tarefa `imagem`.
+- **Dependabot:** o repositório não tem `.github/dependabot.yml` (procurado com `ls`, 09/10/2026), por isso não há pedidos do Dependabot sem segredos. Se um dia houver, correm sem conta.
+- **Se houver suspeita de fuga da chave:** revoga-se primeiro no Docker Hub e investiga-se depois. A chave só dá descargas de imagens públicas.
 
 ## Números (com data e como se contaram)
 
@@ -18,7 +23,10 @@
   - Team: 15 a 16 $ por utilizador e por mês.
   - Business: 24 $ por utilizador e por mês.
   - A página não diz a moeda.
-- Descargas do Docker Hub por pedido de alteração: 2 imagens nas tarefas com conta, contadas no `verificar.yml`.
+- Imagens que cada pedido de alteração descarrega do Docker Hub, todas agora com conta (contadas no `verificar.yml` e no `Dockerfile`, 09/10/2026):
+  - `postgres:18.6`, na tarefa `codigo`;
+  - `ubuntu:26.04`, na tarefa `script-vps`, uma vez por teste e mais uma vez para o `--mostrar`;
+  - `moby/buildkit` e `node:24.21.0-trixie-slim`, na tarefa `imagem`.
 
 ## O que ficou por verificar
 
