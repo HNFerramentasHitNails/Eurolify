@@ -54,6 +54,7 @@ import {
   RespostaLinhaDoTempo,
 } from "../catalogo/rotas-linha-do-tempo.js";
 import { comComerciante } from "../comerciante/repositorio.js";
+import { precosDoArtigoApi, RespostaPrecosDoArtigo } from "../precos/rotas.js";
 import { TIPOS_DE_IMAGEM } from "../base/esquema.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { sessaoDo } from "./autenticacao.js";
@@ -249,6 +250,38 @@ export function rotasDoCatalogoNoHub(
         pedido.params.id,
         resposta,
       ),
+  );
+
+  // Os preços do artigo (docs/22 §17; issue #249): a mesma função do
+  // GET /products/{id}/prices, com a sessão de quem tem prices:read (os
+  // quatro papéis).
+  rotas.get(
+    "/hub/products/:id/prices",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Os preços de um artigo para o Hub: os mesmos do GET /products/{id}/prices (as listas activas, o mercado, os preços das variantes, a redução em vigor e o preço por unidade), com a sessão de quem tem prices:read (docs/22 §17.2).",
+        params: ParametroArtigo,
+        querystring: ConsultaPagina,
+        response: { 200: RespostaPrecosDoArtigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const sessao = sessaoDo(pedido);
+      // Primeiro o comerciante (põe o no-store, também na recusa a seguir).
+      const comercianteId = comercianteLeitor(pedido, resposta);
+      if (!sessao.ambitos.includes("prices:read")) {
+        throw erroConta("member.role_escalation", "o papel não lê os preços");
+      }
+      return precosDoArtigoApi(
+        base,
+        comercianteId,
+        pedido.params.id,
+        pedido.query,
+        resposta,
+      );
+    },
   );
 
   // O histórico do artigo (docs/22 §16; issue #239): a mesma função do
