@@ -71,7 +71,8 @@ mesma área útil que um ecrã de 640 × 512 px a 200 % e de 320 × 256 px a
 - **Entrada e escolha do comerciante, a 200 % e 400 %, claro e escuro:**
   sem deslocação horizontal, nada fora do ecrã, nada cortado; as 11
   paragens do Tab ficam todas visíveis; a pesquisa sem resultados também
-  não desloca (24 verificações «ok», 0 falhas).
+  não desloca (16 verificações «ok», 0 falhas, contadas com `grep -c` no
+  registo).
 - **Equipa, Artigos e Conta, nas mesmas condições:** sem deslocação
   horizontal (largura da página igual à do ecrã). A medição marcou «cortado»
   o `thead` das tabelas, mas é o padrão de propósito dos cartões no
