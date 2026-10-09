@@ -2438,7 +2438,9 @@ try {
 
   // O histórico do artigo (docs/22 §16), com a Ana (dona): 30 alterações
   // ao peso de uma variante (mais do que uma página de 25), uma descrição
-  // longa e uma alteração automática, cada uma na sua transacção.
+  // longa e uma alteração automática, cada uma na sua transacção. Depois da
+  // 8.ª, uma alteração com duas entradas (a variante e o artigo), que fica
+  // partida entre a 1.ª e a 2.ª página (revisão do #242, P2-5).
   {
     const ana = psql("select id from pessoa where email = 'ana@exemplo.test'");
     const como = (quem, alteracao) =>
@@ -2451,6 +2453,14 @@ try {
           `update variante set peso_g = ${String(10 * i)} where artigo_id = '${artigoDoHistorico}'`,
         ),
       );
+      if (i === 8) {
+        alteracoes.push(
+          como(
+            `pessoa:per_${ana}`,
+            `update variante set peso_g = 85 where artigo_id = '${artigoDoHistorico}'; update artigo set descricao = 'Curta.' where id = '${artigoDoHistorico}'`,
+          ),
+        );
+      }
     }
     alteracoes.push(
       como(
@@ -2500,9 +2510,8 @@ try {
   await longo.locator("summary").press("Enter");
   // As capturas sem o anel do foco no «Ver tudo».
   await rp.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    const activo = document.activeElement;
+    if (activo !== null && "blur" in activo) activo.blur();
   });
   for (const [largura, tema] of [
     [375, "light"],
@@ -2527,23 +2536,75 @@ try {
   }
   await rp.setViewportSize({ width: 375, height: 800 });
   await rp.emulateMedia({ colorScheme: "light" });
+  // «Mostrar mais» que falha diz o erro, com o foco nele, e as 25 ficam.
+  let falhouMais = false;
+  await rp.route("**/timeline?cursor=*", async (pedido) => {
+    if (falhouMais) return pedido.fallback();
+    falhouMais = true;
+    await pedido.abort("failed");
+  });
   await rp.getByRole("button", { name: "Mostrar mais" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.id === "historico-falha-mais",
+  );
+  confere(
+    (await grupos.count()) === 25 &&
+      (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) ===
+        1,
+    "histórico: «Mostrar mais» que falha diz o erro, com o foco nele; as 25 ficam",
+  );
+  await rp.getByRole("button", { name: "Tentar outra vez" }).focus();
   await rp.keyboard.press("Enter");
   await rp.waitForFunction(
     () => document.querySelectorAll(".historico > li").length > 25,
   );
+  await rp.unroute("**/timeline?cursor=*");
   const focado = await rp.evaluate(() => document.activeElement?.id ?? "");
-  const vigesimoSexto = await grupos.nth(25).locator("h2").getAttribute("id");
+  // A alteração partida: a 25.ª fica com as duas entradas, e o foco vai
+  // para a primeira entrada nova, que é a segunda dela (P3-6).
+  const partida = grupos.nth(24).locator("ul > li");
   const ultimo = (await grupos.last().textContent()) ?? "";
   confere(
-    (await grupos.count()) === 33 &&
-      focado === vigesimoSexto &&
+    (await grupos.count()) === 34 &&
+      (await partida.count()) === 2 &&
+      focado === (await partida.nth(1).getAttribute("id")) &&
       ultimo.includes("passagem:preparar") &&
       ultimo.includes("criou o artigo") &&
       ultimo.includes("criou a variante ENS-003") &&
       (await rp.getByRole("button", { name: "Mostrar mais" }).count()) === 0,
-    "histórico: «Mostrar mais» traz as seguintes, com o foco na primeira nova, até à criação",
+    "histórico: «Tentar outra vez» traz as seguintes; a alteração partida entre páginas fica junta, com o foco na primeira entrada nova, até à criação",
   );
+  // O que a passagem fez pelo Hub aparece no histórico: a edição do
+  // artigo 2 e a imagem acrescentada e tirada do artigo criado.
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoEditavel}/historico?comerciante=mer_${comerciante}`,
+  );
+  await grupos.first().waitFor();
+  const doEditavel = (await rp.locator(".historico").textContent()) ?? "";
+  await rp.goto(fichaVerde31.replace("?", "/historico?"));
+  await grupos.first().waitFor();
+  const doCriado = (await rp.locator(".historico").textContent()) ?? "";
+  confere(
+    doEditavel.includes("Ana Teste") &&
+      doEditavel.includes("alterou o artigo") &&
+      doCriado.includes("criou uma imagem") &&
+      doCriado.includes("apagou uma imagem") &&
+      doCriado.includes("criou o artigo"),
+    "histórico: a edição, a imagem acrescentada e a tirada pelo Hub aparecem com a Ana",
+  );
+  // Com a sessão terminada, o histórico vai para «Entrar».
+  await rp.route("**/hub/products/*/timeline*", (pedido) =>
+    pedido.fulfill({
+      status: 401,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "auth.session_required", status: 401 }),
+    }),
+  );
+  await rp.goto(fichaVerde31.replace("?", "/historico?"));
+  await rp.waitForURL(/\/entrar$/);
+  await rp.unroute("**/hub/products/*/timeline*");
+  confere(true, "histórico: com a sessão terminada, vai para «Entrar»");
   await rp.goto(
     `${ORIGEM}/artigos/prd_00000000-0000-7000-8000-000000000000/historico?comerciante=mer_${comerciante}`,
   );

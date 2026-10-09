@@ -138,7 +138,7 @@ describe.skipIf(URL_BASE === undefined)(
 
     it("dá as mesmas entradas, ordem e páginas da rota pela chave, com o nome de quem fez", async () => {
       const c = await comerciante("Loja Histórico");
-      const dono = await h.pessoaCom(c.id, "dono");
+      const dono = await h.pessoaCom(c.id, "dono", "Ana Teste");
       await mudarNome(c, dono.sessao, "Gel UV 15 ml transparente");
       await mudarNome(c, dono.sessao, "Gel UV 15 ml (novo)");
 
@@ -165,7 +165,7 @@ describe.skipIf(URL_BASE === undefined)(
       expect(hub.dados[0]?.quem).toBe(`pessoa:per_${dono.pessoa}`);
       expect(hub.dados[0]?.autor).toEqual({
         tipo: "pessoa",
-        nome: "Pessoa Teste",
+        nome: "Ana Teste",
       });
 
       // A página seguinte chega à criação, feita pela chave «Escrita».
@@ -205,11 +205,45 @@ describe.skipIf(URL_BASE === undefined)(
       }
     });
 
+    it("numa página só com alterações automáticas (sem nomes a procurar), o armazém continua a receber 403", async () => {
+      const c = await comerciante("Loja Automática");
+      await escreverComo(c.artigo.id, "sistema:teste", "Pela tarefa");
+      const dono = await h.pessoaCom(c.id, "dono");
+      const ok = await historico(c, dono.sessao, "?limite=1");
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(ok.json<Pagina>().dados.map((e) => e.quem)).toEqual([
+        "sistema:teste",
+      ]);
+      const armazem = await h.pessoaCom(c.id, "armazem");
+      const r = await historico(c, armazem.sessao, "?limite=1");
+      expect(r.statusCode, r.body).toBe(403);
+      expect(h.codigo(r)).toBe("member.role_escalation");
+      expect(r.headers["cache-control"]).toBe("private, no-store");
+    });
+
+    it("o contrato tem o caminho do Hub com a segurança da sessão e o autor", async () => {
+      const r = await h.app.inject({ method: "GET", url: "/openapi.json" });
+      const contrato = r.json<{
+        paths: Record<
+          string,
+          Record<string, { security?: unknown; responses?: unknown }>
+        >;
+      }>();
+      const doHub = contrato.paths["/hub/products/{id}/timeline"]?.["get"];
+      const daApi = contrato.paths["/products/{id}/timeline"]?.["get"];
+      expect(doHub?.security).toEqual([{ sessao: [] }]);
+      expect(daApi?.security).toEqual([{ chave: [] }]);
+      const resposta = JSON.stringify(doHub?.responses);
+      expect(resposta).toContain('"autor"');
+      expect(JSON.stringify(daApi?.responses)).not.toContain('"autor"');
+    });
+
     it("quem saiu da equipa continua com o nome; quem nunca foi membro, e a chave de outro comerciante, vêm sem nome", async () => {
       const c = await comerciante("Loja Equipa");
       const outro = await comerciante("Outra Loja");
-      const dono = await h.pessoaCom(c.id, "dono");
-      const saiu = await h.pessoaCom(c.id, "gestor");
+      const dono = await h.pessoaCom(c.id, "dono", "Ana Teste");
+      const saiu = await h.pessoaCom(c.id, "gestor", "Rui Teste");
+      await mudarNome(c, dono.sessao, "Mudado pela dona");
       await mudarNome(c, saiu.sessao, "Mudado por quem saiu");
       await sql`update membro set ate = now(), terminado_por = 'operador:teste'
         where pessoa_id = ${saiu.pessoa}::uuid
@@ -227,9 +261,14 @@ describe.skipIf(URL_BASE === undefined)(
       const porQuem = new Map(
         r.json<Pagina>().dados.map((e) => [e.quem, e.autor]),
       );
+      // Cada um com o seu nome: o de quem saiu continua (P2-2 da revisão).
+      expect(porQuem.get(`pessoa:per_${dono.pessoa}`)).toEqual({
+        tipo: "pessoa",
+        nome: "Ana Teste",
+      });
       expect(porQuem.get(`pessoa:per_${saiu.pessoa}`)).toEqual({
         tipo: "pessoa",
-        nome: "Pessoa Teste",
+        nome: "Rui Teste",
       });
       expect(porQuem.get(`pessoa:per_${deFora.pessoa}`)).toEqual({
         tipo: "pessoa",

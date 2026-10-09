@@ -11,6 +11,7 @@ import {
   type AlteracaoArtigo,
   type AutorAlteracao,
   type FichaArtigo,
+  type PublicacaoArtigo,
 } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { mensagemDeErro, semSessao } from "../erros";
@@ -156,6 +157,7 @@ function nomeDoAutor(autor: AutorAlteracao, quem: string, t: Textos): string {
 function frase(
   e: AlteracaoArtigo,
   skus: Map<string, string>,
+  publicacoes: Map<string, PublicacaoArtigo>,
   t: Textos,
 ): string {
   const verbo =
@@ -175,6 +177,25 @@ function frase(
       sku === undefined
         ? t.historicoParte_varianteSemSku
         : preencher(t.historicoParte_variante, { sku });
+  } else if (e.entidade === "traducao") {
+    // A língua e o campo só vêm na criação (não mudam depois; §16.4).
+    const lingua = e.campos["lingua"]?.depois;
+    const campo = e.campos["campo"]?.depois;
+    parte =
+      typeof lingua === "string" && typeof campo === "string"
+        ? preencher(t.historicoParte_traducaoDe, { campo, lingua })
+        : t.historicoParte_traducao;
+  } else if (e.entidade === "publicacao") {
+    // Canal e mercado pelo identificador, como a ficha (§12.2).
+    const p =
+      e.entidade_id === null ? undefined : publicacoes.get(e.entidade_id);
+    parte =
+      p === undefined
+        ? t.historicoParte_publicacao
+        : preencher(t.historicoParte_publicacaoEm, {
+            canal: p.canal,
+            mercado: p.mercado,
+          });
   } else {
     parte = textoDe(t, `historicoParte_${e.entidade}`, e.entidade);
   }
@@ -197,6 +218,7 @@ export function Historico({
     FORMATO_COMERCIANTE.test(comerciante) &&
     FORMATO_ARTIGO.test(artigo);
   const [ficha, setFicha] = useState<FichaArtigo | null>(null);
+  const [publicacoes, setPublicacoes] = useState<PublicacaoArtigo[]>([]);
   const [entradas, setEntradas] = useState<AlteracaoArtigo[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [falha, setFalha] = useState<unknown>(null);
@@ -224,6 +246,14 @@ export function Historico({
       if (!montado.current) return;
       setFicha(dados);
       setEntradas(pagina.dados);
+      // As publicações só dão o canal e o mercado às linhas delas: se
+      // falharem, a linha diz «uma publicação» e o resto fica.
+      api.publicacoesDoArtigo(comerciante, artigo).then(
+        (p) => {
+          if (montado.current) setPublicacoes(p.dados);
+        },
+        () => undefined,
+      );
       setCursor(pagina.ha_mais ? pagina.cursor_seguinte : null);
     } catch (e) {
       if (!montado.current) return;
@@ -254,15 +284,11 @@ export function Historico({
       const pagina = await api.historicoDoArtigo(comerciante, artigo, cursor);
       if (!montado.current) return;
       const primeira = pagina.dados[0];
-      if (primeira !== undefined) {
-        // A primeira nova pode continuar a última alteração já à vista.
-        const antes = entradas?.at(-1);
-        focarDepois.current =
-          antes?.transacao === primeira.transacao
-            ? `alteracao-${grupoDe(antes.id)}`
-            : `alteracao-${primeira.id}`;
-      }
-      setEntradas([...(entradas ?? []), ...pagina.dados]);
+      // O foco vai para a primeira entrada nova, também quando ela continua
+      // a última alteração já à vista (revisão do #242, P3-6).
+      if (primeira !== undefined)
+        focarDepois.current = `entrada-${primeira.id}`;
+      setEntradas((antes) => [...(antes ?? []), ...pagina.dados]);
       setCursor(pagina.ha_mais ? pagina.cursor_seguinte : null);
     } catch (e) {
       if (!montado.current) return;
@@ -278,18 +304,19 @@ export function Historico({
   }
 
   const grupos = agrupar(entradas ?? []);
-  // O grupo de uma entrada (o id da primeira entrada dele).
-  function grupoDe(id: string): string {
-    return (
-      grupos.find((g) => g.entradas.some((e) => e.id === id))?.primeira ?? id
-    );
-  }
   const skus = new Map(
     (ficha?.variantes ?? []).map((v) => [v.id, v.sku] as const),
   );
+  const porPublicacao = new Map(publicacoes.map((p) => [p.id, p] as const));
 
   const naoExiste =
     !valido || (falha instanceof ErroHub && falha.estado === 404);
+  // Só o papel sem catalog:history é «o seu papel não vê»; outro 403
+  // (membro que saiu, comerciante suspenso) é o da ficha (P3-4).
+  const semPapel =
+    falha instanceof ErroHub &&
+    falha.estado === 403 &&
+    falha.codigo === "member.role_escalation";
   const semPermissao = falha instanceof ErroHub && falha.estado === 403;
 
   return (
@@ -302,14 +329,17 @@ export function Historico({
             navegar(destinoFicha);
           }}
         >
-          {ficha === null ? t.artigoVoltar : ficha.nome}
+          {t.historicoVoltarFicha}
         </a>
       </p>
       <h1 id="titulo">{t.historicoTitulo}</h1>
+      {ficha === null ? null : <p className="secundario">{ficha.nome}</p>}
       {naoExiste ? (
         <CaixaDeErro erro={{ texto: t.artigoNaoExiste }} />
-      ) : semPermissao ? (
+      ) : semPapel ? (
         <CaixaDeErro erro={{ texto: t.historicoSemPermissao }} />
+      ) : semPermissao ? (
+        <CaixaDeErro erro={{ texto: t.artigosSemPermissao }} />
       ) : falha !== null ? (
         <CaixaDeErro
           erro={mensagemDeErro(falha, t, lingua)}
@@ -329,6 +359,7 @@ export function Historico({
                   key={g.primeira}
                   grupo={g}
                   skus={skus}
+                  publicacoes={porPublicacao}
                   lingua={lingua}
                 />
               ))}
@@ -362,10 +393,12 @@ export function Historico({
 function Alteracao({
   grupo,
   skus,
+  publicacoes,
   lingua,
 }: {
   grupo: Grupo;
   skus: Map<string, string>;
+  publicacoes: Map<string, PublicacaoArtigo>;
   lingua: Lingua;
 }) {
   const { t } = useHub();
@@ -389,8 +422,8 @@ function Alteracao({
       </h2>
       <ul>
         {grupo.entradas.map((e) => (
-          <li key={e.id}>
-            {frase(e, skus, t)}
+          <li key={e.id} id={`entrada-${e.id}`} tabIndex={-1}>
+            {frase(e, skus, publicacoes, t)}
             {e.operacao !== "alterado" ? null : (
               <dl className="campos-historico">
                 {Object.entries(e.campos).map(([campo, { antes, depois }]) => {

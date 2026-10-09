@@ -545,6 +545,10 @@ export const pt = {
   historicoNao: "não",
   historicoVerTudo: "Ver tudo",
   historicoPosicao: "Posição",
+  historicoVoltarFicha: "Voltar à ficha",
+  historicoParte_traducaoDe: "a tradução de «{campo}» ({lingua})",
+  historicoParte_publicacaoEm:
+    "a publicação no canal {canal}, mercado {mercado}",
 };
 
 export type Textos = typeof pt;

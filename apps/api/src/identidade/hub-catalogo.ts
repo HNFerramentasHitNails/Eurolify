@@ -268,13 +268,14 @@ export function rotasDoCatalogoNoHub(
     },
     async (pedido, resposta) => {
       const sessao = sessaoDo(pedido);
+      // Primeiro o comerciante (põe o no-store, também na recusa a seguir).
+      const comercianteId = comercianteLeitor(pedido, resposta);
       if (!sessao.ambitos.includes("catalog:history")) {
         throw erroConta(
           "member.role_escalation",
           "o papel não vê a linha do tempo",
         );
       }
-      const comercianteId = comercianteLeitor(pedido, resposta);
       const lista = await linhaDoTempoDeArtigo(
         base,
         comercianteId,

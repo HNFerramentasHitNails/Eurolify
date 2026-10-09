@@ -544,4 +544,8 @@ export const en: Textos = {
   historicoNao: "no",
   historicoVerTudo: "Show all",
   historicoPosicao: "Position",
+  historicoVoltarFicha: "Back to the product",
+  historicoParte_traducaoDe: "the translation of “{campo}” ({lingua})",
+  historicoParte_publicacaoEm:
+    "the publication on channel {canal}, market {mercado}",
 };

@@ -552,4 +552,8 @@ export const es: Textos = {
   historicoNao: "no",
   historicoVerTudo: "Ver todo",
   historicoPosicao: "Posición",
+  historicoVoltarFicha: "Volver a la ficha",
+  historicoParte_traducaoDe: "la traducción de «{campo}» ({lingua})",
+  historicoParte_publicacaoEm:
+    "la publicación en el canal {canal}, mercado {mercado}",
 };

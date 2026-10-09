@@ -23,12 +23,13 @@ DECLARE
   quem public.membro;
 BEGIN
   quem := public.membro_de_quem_pede(p_segredo, false);
-  IF NOT ('catalog:history' = ANY (public.papel_ambitos(quem.papel))) THEN
+  -- IS NOT TRUE: um papel sem âmbitos (NULL) também é recusado.
+  IF ('catalog:history' = ANY (public.papel_ambitos(quem.papel))) IS NOT TRUE THEN
     RAISE EXCEPTION 'member.role_escalation: o papel não vê a linha do tempo';
   END IF;
   IF coalesce(cardinality(p_pessoas), 0) > 200
      OR coalesce(cardinality(p_chaves), 0) > 200 THEN
-    RAISE EXCEPTION 'autores_da_linha_do_tempo: no máximo 200 identificadores de cada vez';
+    RAISE EXCEPTION 'request.invalid: no máximo 200 identificadores de cada vez';
   END IF;
   RETURN QUERY
     SELECT 'pessoa'::text, p.id, p.nome
