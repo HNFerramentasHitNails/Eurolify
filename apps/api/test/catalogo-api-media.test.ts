@@ -720,7 +720,12 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
           },
           body: bytes,
         });
-      // Dois envios que mandam só parte do corpo e ficam pendurados.
+      // Dois envios que mandam só parte do corpo e ficam pendurados. Um
+      // pendurado que recebe resposta não ficou com lugar: o envio do ciclo
+      // de baixo chegou ao servidor antes dele e ele levou o 429 (medido a
+      // 09/10/2026: 2 em 25 corridas seguidas). Substitui-se, até os dois
+      // lugares serem dos pendurados.
+      const responderam = new WeakSet<ReturnType<typeof connect>>();
       const pendurado = () =>
         new Promise<ReturnType<typeof connect>>((resolve) => {
           const s = connect(Number(endereco.port), "127.0.0.1", () => {
@@ -739,6 +744,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
             s.write(PNG);
             resolve(s);
           });
+          s.on("data", () => responderam.add(s));
           s.on("error", () => undefined);
         });
       p1 = await pendurado();
@@ -746,8 +752,16 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       // Os dois lugares estão ocupados.
       let cheio = 0;
       for (let i = 0; i < 100 && cheio !== 429; i++) {
+        if (responderam.has(p1)) {
+          p1.destroy();
+          p1 = await pendurado();
+        }
+        if (responderam.has(p2)) {
+          p2.destroy();
+          p2 = await pendurado();
+        }
+        await new Promise((r) => setTimeout(r, 20));
         cheio = (await env(PNG)).status;
-        if (cheio !== 429) await new Promise((r) => setTimeout(r, 20));
       }
       expect(cheio).toBe(429);
       // Cortadas as ligações, os lugares voltam.
