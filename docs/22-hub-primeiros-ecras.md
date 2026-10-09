@@ -375,6 +375,70 @@ filtros (a API já os tem).
 - **A outra sessão** vê a lista das rotas tocadas no #77 antes de o pedido
   ser juntado.
 
+## 12. Catálogo: a ficha do artigo, só para consulta (issue #204, proposta)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da ficha do
+artigo»*. Só desenho: o código vem num pedido seguinte, depois de aprovado.
+O catálogo é da outra sessão (#77): o código não muda nenhuma regra nem
+resposta do catálogo, só junta caminhos `/hub/…` às mesmas funções, como na
+§11.1 (aviso no #77 antes do código).
+
+### 12.1 Como o Hub lê a ficha
+
+Pela mesma API, com os caminhos `/hub/` que o nginx do ensaio deixa passar
+(§11.1, saída A). Cada caminho novo chama **a mesma função** da rota da API,
+com a sessão de quem tem `catalog:read` (os quatro papéis, `docs/21` §5) e o
+cabeçalho `Eurolify-Comerciante`, como o `GET /hub/products`:
+
+| Caminho do Hub | A mesma de | O que dá (medido a 09/10/2026) |
+|---|---|---|
+| `GET /hub/products/{id}` | `GET /products/{id}` | o artigo com as variantes, também as arquivadas (`Artigo`); outro comerciante dá `catalog.not_found` |
+| `GET /hub/products/{id}/media` | `GET /products/{id}/media` | as imagens pela ordem, com o texto alternativo, a variante e a principal |
+| `GET /hub/media/{id}/file` | `GET /media/{id}/file` | os bytes da imagem, com o tipo dela |
+| `GET /hub/products/{id}/publications` | `GET /products/{id}/publications` | as publicações por canal × mercado, com o estado e o motivo de quem arquivou |
+
+**As imagens no ecrã**: um `<img src>` não leva o cabeçalho do comerciante,
+por isso o Hub pede os bytes com `fetch` (com o cabeçalho) e mostra-os por
+um endereço `blob:` local, que apaga ao sair da ficha. A resposta leva
+`cache-control: private, no-store`, como a lista.
+
+### 12.2 O ecrã
+
+| Ecrã | O que mostra | Rotas da API | Estados além do normal |
+|---|---|---|---|
+| **Ficha do artigo** (`/artigos/{prd_…}?comerciante=mer_…`; abre-se a partir do nome na lista de artigos, que passa a ligação) | **Cabeçalho**: nome, estado (a cor da §11.2), tipo, marca, «vem do sistema de gestão» com a referência de lá (`origem_ref`; `docs/14` §9, P5), criado e alterado em. **Descrição** (texto simples, sem formatação; vazia: «Sem descrição»). **Variantes**: uma tabela com SKU, estado (activa, arquivada), unidade de venda, GTIN, conteúdo (quantidade e unidade) e peso; cartões no telemóvel. **Imagens**: miniaturas pela ordem, a principal marcada, cada uma com o texto alternativo por baixo; uma sem texto diz «Sem texto alternativo — impede a publicação» (`docs/14` §5, C2, como a API avisa). **Publicações**: uma linha por canal × mercado, com o estado (rascunho, publicado, arquivado), a data e, se arquivada, o motivo em linguagem comum. «Voltar aos artigos» mantém os filtros da lista | as quatro da §12.1 | a carregar (cada parte à sua: o cabeçalho primeiro, as imagens e as publicações depois); artigo que não existe ou de outro comerciante (404: «Este artigo não existe neste comerciante»); sem permissão (403, como a lista); erro numa parte (essa parte diz o erro com «Tentar outra vez»; as outras ficam); sem imagens («Sem imagens»); sem publicações («Ainda não está publicado em nenhuma loja»); sessão terminada (para «Entrar») |
+
+**O que a ficha não mostra, e porquê** (medido a 09/10/2026):
+
+- **O nome do canal e do mercado** de cada publicação: a API só dá os
+  identificadores (`chn_…`, `mkt_…`) e não há rota que dê os nomes
+  (procurei `/markets`, `/channels` e `/stores` em `apps/api/src`, 09/10). A
+  ficha mostra «Canal» e «Mercado» com o identificador (sem o inventar em
+  nome) até a API os dar — **a pedir ao dono do domínio Preços e mercados**
+  (`docs/20`); os nomes nunca se escrevem à mão no ecrã.
+- **O preço**: é do domínio Preços (`docs/20`), sem rota de leitura por
+  artigo para o Hub.
+- **Opções, kits, categorias, traduções e atributos regulamentares**: têm
+  rotas próprias e ficam para depois, um de cada vez.
+- **Editar**: a ficha é só de consulta; editar, com os campos que vêm do
+  sistema de gestão só de leitura (P5), é um desenho à parte.
+
+### 12.3 Antes de dizer que está feito (o pedido do código)
+
+- **API**: para cada um dos quatro caminhos, a resposta é igual à da rota
+  da API pela chave (o mesmo artigo, as mesmas imagens, os mesmos bytes, as
+  mesmas publicações); outro comerciante, membro que saiu, sessão terminada
+  e sem cabeçalho são recusados; os bytes de uma imagem de outro comerciante
+  não saem; `no-store` nas quatro; o contrato com a sessão nos caminhos do
+  Hub.
+- **Hub**: a passagem no navegador cria um artigo fictício com duas
+  variantes, uma imagem com texto e outra sem, abre a ficha a partir da
+  lista e confere cada parte, o 404 e «Voltar aos artigos» com os filtros;
+  capturas a 375, 768 e 1280 px, claro e escuro, para o OK do Diogo ou do
+  Bruno; a lista de artigos (§11) entra na página de aprovação.
+- **A outra sessão** vê no #77 a lista das funções do catálogo que passam a
+  ter um segundo chamador.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
