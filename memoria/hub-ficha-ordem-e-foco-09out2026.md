@@ -32,7 +32,37 @@ P2 que a revisão do #247 tinha achado só a ler o código), pedido #260.
   - O P2-2 não se aplica: o `pedir` não repete pedidos.
   - Os P3 foram respondidos.
 - Os outros ecrãs com o mesmo padrão ficaram no #262: `PrecosDoArtigo.tsx`,
-  que é de outra sessão, e mais quatro que o agente não leu.
+  que é de outra sessão, e mais quatro que o agente não leu. Foram medidos
+  e o problema não se confirmou (ver abaixo); o Diogo mandou fechar o #262
+  a 09/10/2026 (*«sim, fecha o #262»*).
+
+## Os outros cinco ecrãs (#262), medidos a 09/10/2026
+
+Pedido do Diogo: *«sim, avança com a medição do #262»*. Não se mudou
+código.
+
+- **Por leitura** (`main` em `f715c8b`), cada ecrã só carrega ao abrir e com
+  «Tentar outra vez»:
+  - Preços, Histórico, Editar e Novo recomeçam por artigo e comerciante
+    (`key` em `App.tsx`);
+  - o Início só lê o `/hub/me`;
+  - o «Tentar outra vez» só aparece depois de a leitura acabar e sai ao
+    primeiro clique;
+  - a releitura do 409 em Editar e as procuras de Novo são esperadas
+    (`await`).
+
+  Nenhum destes ecrãs tem acções que recarreguem sem esperar, como a ficha
+  tinha.
+- **No navegador** (uma cópia do `capturas.mjs` fora do repositório,
+  PostgreSQL 18.6 e Chromium 1194): em Preços, Histórico, Editar, Novo e
+  Início deu sempre o mesmo resultado.
+  - Ao abrir: 1 pedido.
+  - Primeira leitura com um 500 fingido e duplo clique em «Tentar outra
+    vez», com a resposta atrasada 1 s: 2 pedidos (1 falhado + 1
+    repetição), e o erro saiu. Duas leituras em paralelo dariam 3.
+  - A volta completa: 439 «ok» e 0 falhas.
+- **Se um destes ecrãs ganhar uma acção que recarregue sem esperar**, usa-se
+  o contador do `Equipa.tsx:72` e do `Artigo.tsx`.
 
 ## Números (com data e como se contaram)
 
