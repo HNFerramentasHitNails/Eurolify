@@ -39,6 +39,22 @@ describe("os tamanhos de letra", () => {
     expect(semComentarios).toContain("@media (max-width: 60em)");
   });
 
+  it("os pontos da grelha da entrada estão em rem e dão os mesmos px por omissão", () => {
+    // Com letra grande, menos colunas e rótulos inteiros (revisão do #241).
+    const semComentarios = estilos.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(semComentarios).not.toMatch(/@container[^{]*width:\s*[\d.]+px/);
+    const pontos = [
+      ...semComentarios.matchAll(/@container \(min-width: ([\d.]+)rem\)/g),
+    ].map((m) => Number(m[1]) * 16);
+    expect(pontos).toEqual([480, 640, 880, 1040]);
+  });
+
+  it("a grelha dos códigos de recuperação nunca passa a largura da coluna", () => {
+    // 20ch cresce com a letra; com letra grande passava a largura do
+    // telemóvel (revisão do #241, P2-2).
+    expect(estilos).toContain("minmax(min(var(--largura-codigo), 100%), 1fr)");
+  });
+
   it("nenhum tamanho de letra fica escrito em px nos estilos", () => {
     const semComentarios = estilos.replace(/\/\*[\s\S]*?\*\//g, "");
     expect(semComentarios).not.toMatch(/font-size:\s*[\d.]+px/);

@@ -3038,7 +3038,7 @@ try {
   // separador novo por página: o protocolo do Chromium pode esquecer a
   // definição entre navegações na mesma página.
   {
-    for (const largura of [375, 1280]) {
+    for (const largura of [375, 768, 1280]) {
       const c = await navegador.newContext({
         ignoreHTTPSErrors: true,
         viewport: { width: largura, height: 900 },
@@ -3073,8 +3073,30 @@ try {
               .fontSize,
             largo: document.documentElement.scrollWidth > window.innerWidth,
             largura: document.documentElement.scrollWidth,
+            // Os pontos das tabelas em em seguem a letra (revisão do #241,
+            // P3-1): a 32 px, 40em são 1280 px.
+            cartoes: window.matchMedia("(max-width: 40em)").matches,
+            // Nenhum rótulo de módulo parte uma palavra a meio (P2-1): sem
+            // a quebra forçada, cada palavra tem de caber na largura.
+            partidos: [...document.querySelectorAll(".rotulo-modulo")]
+              .filter((e) => {
+                const antes = e.style.overflowWrap;
+                e.style.overflowWrap = "normal";
+                const largo = e.scrollWidth > e.clientWidth + 1;
+                e.style.overflowWrap = antes;
+                return largo;
+              })
+              .map((e) => e.textContent),
           };
         });
+        confere(
+          m.cartoes === largura <= 1280,
+          `letra do navegador a 32 px, ${nome} a ${String(largura)} px: as tabelas ${m.cartoes ? "passam" : "não passam"} a cartões (40em = 1280 px)`,
+        );
+        confere(
+          m.partidos.length === 0,
+          `letra do navegador a 32 px, ${nome} a ${String(largura)} px: nenhum rótulo de módulo parte palavras${m.partidos.length > 0 ? ` (${m.partidos.join(", ")})` : ""}`,
+        );
         confere(
           m.medio === "32px" &&
             m.letra === "32px" &&

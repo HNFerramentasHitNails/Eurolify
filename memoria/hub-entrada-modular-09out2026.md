@@ -84,13 +84,14 @@ mesma área útil que um ecrã de 640 × 512 px a 200 % e de 320 × 256 px a
   (rótulos), porque as letras estão em píxeis fixos (`tokens.css:39-41`).
   Quem aumenta só a letra nas definições do navegador não a vê maior no Hub;
   o zoom funciona. Mudar isto toca em todo o Hub e é decisão de aspecto.
+  **Resolvido no #241 (issue #237, pedido do Diogo):** as letras passaram a
+  rem; ver `hub-letras-relativas-09out2026.md`.
 
 ## O que ficou por verificar
 
 Safari e Firefox (só o Chromium correu); aparelhos reais; leitor de ecrã;
 zoom real num aparelho (o de 200 % e 400 % foi medido por emulação no
-Chromium, ver acima); letra maior pelas definições do navegador (não
-aumenta: ver acima); teclado virtual e rotação; desempenho
+Chromium, ver acima); teclado virtual e rotação; desempenho
 antes/depois; um navegador sem `backdrop-filter` (a base opaca foi vista com
 o modo opaco, não num navegador antigo); a instabilidade do passo «Mover
 para depois» do `capturas.mjs` (#217).

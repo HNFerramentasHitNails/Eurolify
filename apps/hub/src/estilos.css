@@ -202,7 +202,12 @@ textarea {
 .codigos {
   font-family: var(--letra-mono);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--largura-codigo), 1fr));
+  /* Nunca mais larga do que a coluna: com letra grande, 20ch passa a largura
+     do telemóvel (revisão do #241, P2-2). */
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(var(--largura-codigo), 100%), 1fr)
+  );
   gap: var(--espaco-1) var(--espaco-4);
   list-style: none;
   padding: 0;
@@ -353,9 +358,8 @@ code {
 }
 
 /* Uma tabela com muitas colunas (as chaves de API: oito) passa a cartões
-   mais cedo, até 960px: a 768px não cabia (revisão do #183). */
-/* As tabelas largas passam a cartões mais cedo: 60em dá 960 px com a letra
-   por omissão e cresce com ela (issue #237). */
+   mais cedo: a 768 px não cabia (revisão do #183). 60em dá 960 px com a
+   letra por omissão e cresce com ela (issue #237). */
 @media (max-width: 60em) {
   .tabela-larga thead {
     position: absolute;
@@ -569,9 +573,11 @@ body:has(.entrada) {
 /* As colunas pela largura da própria grelha (container queries), não pelo
    aparelho: 2 abaixo de 480 px, depois 3, 4, 5 e 6. Com a página de 960 px
    (--largura-pagina), a grelha mede no máximo 928 px e fica nas 5; a regra
-   das 6 só conta se a página alargar (revisão do #219, P2-1). Uma
-   @container não lê variáveis, por isso os pontos ficam aqui e só aqui.
-   Sem suporte, ficam 2. */
+   das 6 só conta se a página alargar (revisão do #219, P2-1). Os pontos
+   estão em rem (30, 40, 55 e 65rem: 480, 640, 880 e 1040 px com a letra por
+   omissão), para que, com letra grande, haja menos colunas e os rótulos
+   não partam (revisão do #241, P2-1). Uma @container não lê variáveis, por
+   isso os pontos ficam aqui e só aqui. Sem suporte, ficam 2. */
 .grelha-modulos {
   list-style: none;
   margin: 0 0 var(--espaco-6);
@@ -581,13 +587,13 @@ body:has(.entrada) {
   gap: var(--espaco-6) var(--espaco-3);
 }
 
-@container (min-width: 480px) {
+@container (min-width: 30rem) {
   .grelha-modulos {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@container (min-width: 640px) {
+@container (min-width: 40rem) {
   .grelha-modulos {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     column-gap: var(--espaco-6);
@@ -597,13 +603,13 @@ body:has(.entrada) {
   }
 }
 
-@container (min-width: 880px) {
+@container (min-width: 55rem) {
   .grelha-modulos {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
-@container (min-width: 1040px) {
+@container (min-width: 65rem) {
   .grelha-modulos {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
