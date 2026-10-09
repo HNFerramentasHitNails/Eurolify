@@ -1,8 +1,10 @@
 # Imagem do Eurolify: a API, o MCP da VPS (ADR-0033) e os ecrãs do Hub
 # (estáticos, docs/22 §7) na mesma imagem, para uma publicação actualizar os
 # três. Constrói-se no GitHub (ADR-0026), nunca na VPS. A imagem base está
-# fixada pelo resumo: muda-se num pedido de alteração.
-ARG NODE_IMAGEM=node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe
+# fixada pelo resumo: muda-se num pedido de alteração. Vem do espelho do
+# Docker Hub da Google (o Docker Hub recusava as descargas sem conta, 429,
+# 09/10/2026); o resumo garante que é a mesma imagem.
+ARG NODE_IMAGEM=mirror.gcr.io/library/node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe
 
 FROM ${NODE_IMAGEM} AS construir
 RUN npm install -g pnpm@12.9.1

@@ -6,11 +6,6 @@ name: verificar
 on:
   pull_request:
   workflow_call:
-    secrets:
-      DOCKERHUB_UTILIZADOR:
-        required: false
-      DOCKERHUB_TOKEN:
-        required: false
 
 permissions:
   contents: read
@@ -23,69 +18,30 @@ jobs:
   codigo:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # O PostgreSQL arranca num passo, e não em `services:`, para vir da
-    # cópia no GHCR (#268) ou, se faltar, do Docker Hub depois da entrada
-    # (falhou com 429 no #267, revisão P2-3).
-    permissions:
-      contents: read
-      packages: read
+    services:
+      postgres:
+        # As imagens vêm do espelho do Docker Hub da Google (mirror.gcr.io):
+        # o Docker Hub recusava as descargas sem conta (429, 09/10/2026). O
+        # resumo fixa o conteúdo: é exactamente a mesma imagem.
+        image: mirror.gcr.io/library/postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+        env:
+          # Palavra-passe de uma base descartável, que só existe durante o
+          # fluxo e só ouve no executor: não é um segredo.
+          POSTGRES_PASSWORD: verificar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     env:
       BASE_DADOS_URL: postgres://postgres:verificar@127.0.0.1:5432/postgres
       EXIGIR_BASE: "1"
-      TEM_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: entrar no Docker Hub (só leitura; sem os segredos, sem conta)
-        if: env.TEM_DOCKERHUB == 'true'
-        # Se o Docker Hub falhar a entrada (500 no #267) ou a chave expirar,
-        # continua sem conta, como antes (revisão do #267, P2-2).
-        continue-on-error: true
-        # Até 5 tentativas: o Docker Hub respondeu 500 à entrada, umas vezes
-        # sim e outras não, no CI do #267.
-        env:
-          UTILIZADOR: ${{ secrets.DOCKERHUB_UTILIZADOR }}
-          CHAVE: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          for tentativa in 1 2 3 4 5; do
-            if printf '%s' "$CHAVE" |
-              docker login -u "$UTILIZADOR" --password-stdin; then
-              exit 0
-            fi
-            sleep $((tentativa * 10))
-          done
-          exit 1
-      - name: entrar no GHCR (as cópias das imagens base, #268)
-        # Sem a entrada, o script abaixo cai para o Docker Hub.
-        continue-on-error: true
-        env:
-          ACTOR: ${{ github.actor }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          printf '%s' "$TOKEN" |
-            docker login ghcr.io -u "$ACTOR" --password-stdin
-      - id: base
-        name: imagens base (a cópia do GHCR; o Docker Hub se faltar)
-        env:
-          DONO: ${{ github.repository_owner }}
-        run: infra/ci/imagem-base.sh "${DONO,,}" postgres >> "$GITHUB_OUTPUT"
-      - name: PostgreSQL 18.6
-        # Palavra-passe de uma base descartável, que só existe durante o
-        # fluxo e só ouve no executor: não é um segredo.
-        env:
-          IMAGEM: ${{ steps.base.outputs.postgres }}
-        run: |
-          docker run -d --name postgres -e POSTGRES_PASSWORD=verificar \
-            -p 127.0.0.1:5432:5432 "$IMAGEM"
-          for _ in $(seq 1 60); do
-            if docker exec postgres pg_isready -U postgres -h 127.0.0.1; then
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs postgres
-          exit 1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -102,37 +58,10 @@ jobs:
     # Ubuntu 26.04 vazia. Não toca na VPS.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    permissions:
-      contents: read
-      packages: read
-    # As descargas anónimas do Docker Hub têm um limite partilhado pelos
-    # executores do GitHub (falhou com 429 no #256): com a conta da empresa,
-    # só de leitura (#266). Sem os segredos, continua sem conta.
-    env:
-      TEM_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: entrar no Docker Hub (só leitura; sem os segredos, sem conta)
-        if: env.TEM_DOCKERHUB == 'true'
-        # Se o Docker Hub falhar a entrada (500 no #267) ou a chave expirar,
-        # continua sem conta, como antes (revisão do #267, P2-2).
-        continue-on-error: true
-        # Até 5 tentativas: o Docker Hub respondeu 500 à entrada, umas vezes
-        # sim e outras não, no CI do #267.
-        env:
-          UTILIZADOR: ${{ secrets.DOCKERHUB_UTILIZADOR }}
-          CHAVE: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          for tentativa in 1 2 3 4 5; do
-            if printf '%s' "$CHAVE" |
-              docker login -u "$UTILIZADOR" --password-stdin; then
-              exit 0
-            fi
-            sleep $((tentativa * 10))
-          done
-          exit 1
       - name: shellcheck
         run: |
           shellcheck --version | head -n 2
@@ -141,96 +70,33 @@ jobs:
             infra/vps/ficheiros/lib/comum.sh \
             infra/vps/ficheiros/bin/eurolify-pedido \
             infra/vps/ficheiros/sbin/eurolify-* \
-            infra/vps/testes/*.sh \
-            infra/ci/imagem-base.sh
-      - name: entrar no GHCR (as cópias das imagens base, #268)
-        # Sem a entrada, o script abaixo cai para o Docker Hub.
-        continue-on-error: true
-        env:
-          ACTOR: ${{ github.actor }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          printf '%s' "$TOKEN" |
-            docker login ghcr.io -u "$ACTOR" --password-stdin
-      - id: base
-        name: imagens base (a cópia do GHCR; o Docker Hub se faltar)
-        env:
-          DONO: ${{ github.repository_owner }}
-        run: infra/ci/imagem-base.sh "${DONO,,}" ubuntu >> "$GITHUB_OUTPUT"
+            infra/vps/testes/*.sh
       - name: testes do serviço da máquina num Ubuntu 26.04 vazio
         # Cada teste num contentor novo: não herdam o que o outro instalou.
-        env:
-          IMAGEM: ${{ steps.base.outputs.ubuntu }}
         run: |
           for teste in infra/vps/testes/*.sh; do
             echo "== $teste"
             docker run --rm -e EUROLIFY_TESTE_DESCARTAVEL=1 -v "$PWD:/repo:ro" \
-              "$IMAGEM" bash "/repo/$teste"
+              mirror.gcr.io/library/ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7 \
+              bash "/repo/$teste"
           done
       - name: preparar.sh --mostrar num Ubuntu 26.04 vazio
-        env:
-          IMAGEM: ${{ steps.base.outputs.ubuntu }}
         run: |
           docker run --rm -v "$PWD:/repo:ro" \
-            "$IMAGEM" bash /repo/infra/vps/preparar.sh --mostrar
+            mirror.gcr.io/library/ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7 \
+            bash /repo/infra/vps/preparar.sh --mostrar
 
   imagem:
     # Prova que o Dockerfile constrói; não envia nada para lado nenhum.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    permissions:
-      contents: read
-      packages: read
-    # As descargas anónimas do Docker Hub têm um limite partilhado pelos
-    # executores do GitHub (falhou com 429 no #256): com a conta da empresa,
-    # só de leitura (#266). Sem os segredos, continua sem conta.
-    env:
-      TEM_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Antes do buildx: ele descarrega a moby/buildkit do Docker Hub (revisão
-      # do #267, P1-1).
-      - name: entrar no Docker Hub (só leitura; sem os segredos, sem conta)
-        if: env.TEM_DOCKERHUB == 'true'
-        # Se o Docker Hub falhar a entrada (500 no #267) ou a chave expirar,
-        # continua sem conta, como antes (revisão do #267, P2-2).
-        continue-on-error: true
-        # Até 5 tentativas: o Docker Hub respondeu 500 à entrada, umas vezes
-        # sim e outras não, no CI do #267.
-        env:
-          UTILIZADOR: ${{ secrets.DOCKERHUB_UTILIZADOR }}
-          CHAVE: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          for tentativa in 1 2 3 4 5; do
-            if printf '%s' "$CHAVE" |
-              docker login -u "$UTILIZADOR" --password-stdin; then
-              exit 0
-            fi
-            sleep $((tentativa * 10))
-          done
-          exit 1
-      - name: entrar no GHCR (as cópias das imagens base, #268)
-        # Sem a entrada, o script abaixo cai para o Docker Hub.
-        continue-on-error: true
-        env:
-          ACTOR: ${{ github.actor }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          printf '%s' "$TOKEN" |
-            docker login ghcr.io -u "$ACTOR" --password-stdin
-      - id: base
-        name: imagens base (a cópia do GHCR; o Docker Hub se faltar)
-        env:
-          DONO: ${{ github.repository_owner }}
-        run: infra/ci/imagem-base.sh "${DONO,,}" buildkit node >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-        with:
-          driver-opts: image=${{ steps.base.outputs.buildkit }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           push: false
-          build-args: NODE_IMAGEM=${{ steps.base.outputs.node }}
