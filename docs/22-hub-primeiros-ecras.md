@@ -1216,6 +1216,81 @@ Unidade…» para «ENS-001 · 15 ml · Activa · Unidade…».
   artigo com opções e nada num sem opções; as capturas da ficha vão à
   página de aprovação.
 
+## 21. Catálogo: escrever as opções do artigo (issue #285)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da escrita das
+opções»*. **Proposta, por aprovar.** A §20 pôs as opções na ficha só para
+consulta; este passo deixa escrevê-las pelo Hub. Ex.: a gestora da «Loja de
+Ensaio» cria o rascunho «Verniz Verde 31» com duas variantes (§14), abre
+«Editar opções», cria «Tamanho» com «15 ml» e «30 ml», dá «15 ml» à
+`ENS-031` e «30 ml» à `ENS-031-B`, e activa o artigo; depois de activo,
+acrescenta «50 ml» e passa-o para o primeiro lugar, mas já não pode mudar
+«15 ml» para «15ml».
+
+### 21.1 O que entra e o que fica de fora
+
+| Entra | Rota da API (o `docs/14` §7.1, «A escrita das opções») |
+|---|---|
+| Criar uma opção com os valores (rascunho) | `POST /products/{id}/options` (já existe) |
+| Acrescentar um valor no fim (sempre) | `POST /options/{id}/values` (já existe) |
+| Mudar o nome de uma opção ou o texto de um valor (rascunho) | `PATCH /options/{id}`, `PATCH /options/{id}/values/{valor}` (novas) |
+| Apagar uma opção ou um valor (rascunho) | `DELETE /options/{id}`, `DELETE /options/{id}/values/{valor}` (novas) |
+| Mudar a ordem das opções e dos valores (sempre) | `PUT /products/{id}/options/order`, `PUT /options/{id}/values/order` (novas) |
+| Dar valores às variantes (rascunho) | `PUT /variants/{id}/values` (nova) |
+
+| Fica de fora, e porquê |
+|---|
+| **Criar uma variante num artigo que já existe**: o Hub só cria variantes com o artigo (§14). Num artigo activo com opções, uma variante nova entra já com os valores (`docs/14` §3.3); é um passo próprio. |
+| **Traduzir os nomes e os valores**: o passo das traduções (`docs/14` §3.3, parte 3). |
+| **Arrastar para ordenar**: «Mover para antes» e «Mover para depois», como nas imagens (§13.4), por serem do teclado e dos leitores de ecrã. |
+
+### 21.2 Como o Hub escreve
+
+- **Os caminhos** são `/hub/…` com a mesma função de cada rota pela chave
+  (como na §13.2), com a sessão de quem tem `catalog:write` (o dono e o
+  gestor; o armazém e o apoio recebem 403), sem `Idempotency-Key` e com o
+  `eurolify.quem` da pessoa.
+- **A `versao` da opção** (`docs/14` §7.1): o formulário guarda a que leu. Se
+  outra pessoa mudou a opção entretanto, a API dá
+  `catalog.version_conflict` (409) e nada se grava; o ecrã diz «Outra pessoa
+  alterou esta opção entretanto. Não guardámos a sua alteração.», recarrega
+  as opções e deixa o texto escrito à vista.
+- **O ecrã não decide o que é permitido**: num artigo que não é rascunho, os
+  campos do nome e do texto e os botões de apagar não aparecem, com a frase
+  «O nome e os valores só mudam enquanto o artigo é rascunho»; se aparecerem
+  por o estado ter mudado entretanto, a API recusa com `catalog.not_draft` e
+  o ecrã diz o motivo dela.
+- **Artigos do sistema de gestão** (§13.3): num artigo `externo`, nada disto
+  aparece, e a API do Hub recusa com `catalog.external_field`.
+
+### 21.3 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Ficha** (§20.2), por cima da tabela das variantes | Com `catalog:write` e um artigo que não é externo: «Editar opções» (num artigo sem opções: «Criar opções»). | — |
+| **Editar opções** (`/artigos/{prd_…}/opcoes`) | Uma caixa por opção, pela ordem: o nome (campo, só em rascunho), os valores pela ordem, cada um com o texto (campo, só em rascunho), «Mover para antes», «Mover para depois» e «Apagar» (só em rascunho); no fim da caixa, «Acrescentar valor» (sempre). Por baixo das caixas, «Criar opção» (só em rascunho: o nome e um valor por linha). «Voltar à ficha» leva de volta. | a guardar; erro da API ao lado do campo (ex.: «Já há uma opção com este nome»); conflito de versão (§21.2) |
+| **Apagar** | Pede confirmação. Uma opção: «Apagar a opção Tamanho tira-a das 2 variantes. Não se desfaz.» Um valor: «As variantes com 30 ml ficam sem valor em Tamanho.» | duas variantes iguais depois de apagar: a frase da API («duas variantes activas com a mesma combinação») |
+| **Valores das variantes** (na mesma página, só em rascunho) | Uma tabela com uma linha por variante activa (SKU) e uma lista de escolha por opção («—» sem valor); «Guardar» por linha. Por cima, quantas variantes estão incompletas: «1 variante sem valor em todas as opções: o artigo não se activa assim.» | a guardar; erro da API na linha |
+| **Activar** (cabeçalho da ficha, §13.4) | Sem mudanças: se faltar um valor, a API recusa com `catalog.options_incomplete` e o ecrã diz «Cada variante activa leva um valor de cada opção», com a ligação «Editar opções». | — |
+
+Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
+
+### 21.4 Antes de dizer que está feito (o pedido do código)
+
+- **API**: cada rota nova pela chave e pelo Hub; as recusas da §7.1 do
+  `docs/14` (fora do rascunho, nome repetido, ordem que não bate, valor de
+  outro artigo, combinação repetida ao apagar); a `versao` antiga dá 409 sem
+  gravar; o armazém e o apoio recebem 403; outro comerciante não chega à
+  opção dele (com a prova pela falha); o `artigo externo` recusa pelo Hub e
+  aceita pela chave; a linha do tempo tem cada mudança com quem fez; uma
+  tradução fica «desactualizada» depois de mudar o nome; a migração da
+  `versao` corre num artigo com opções antigas.
+- **Hub**: a passagem faz o exemplo do início (criar, dar valores, activar,
+  acrescentar e mudar a ordem depois de activo), confere que o nome já não
+  se edita depois de activo, apaga um valor com confirmação e o conflito de
+  versão com duas sessões; capturas a 375, 768 e 1280 px, claro e escuro, e
+  só com teclado; as capturas vão à página de aprovação.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
