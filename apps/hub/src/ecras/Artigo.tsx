@@ -19,6 +19,7 @@ import {
 } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { PrecosDoArtigo } from "./PrecosDoArtigo";
+import { celulaDoCanal, celulaDoMercado, type Celula } from "../publicacoes";
 import { mensagemDeErro, semSessao } from "../erros";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 
@@ -1423,12 +1424,13 @@ function Publicacoes({
           const d = quando(p);
           return (
             <tr key={p.id}>
-              {/* O nome; o identificador só se o nome não vier (§18.2). */}
+              {/* O nome; a loja ou o identificador por baixo só quando o
+                  nome se repete (§18.2, §19.2). */}
               <td data-rotulo={t.colunaCanal}>
-                {p.canal_nome ?? <code translate="no">{p.canal}</code>}
+                <CelulaPublicacao celula={celulaDoCanal(publicacoes, p)} />
               </td>
               <td data-rotulo={t.colunaMercado}>
-                {p.mercado_nome ?? <code translate="no">{p.mercado}</code>}
+                <CelulaPublicacao celula={celulaDoMercado(publicacoes, p)} />
               </td>
               <td data-rotulo={t.colunaEstado}>
                 {textoDe(t, `estadoPublicacao_${p.estado}`, p.estado)}
@@ -1449,4 +1451,32 @@ function Publicacoes({
       </tbody>
     </table>
   );
+}
+
+/** O canal ou o mercado de uma publicação (docs/22 §19.2). */
+function CelulaPublicacao({ celula }: { celula: Celula }) {
+  switch (celula.tipo) {
+    case "identificador":
+      return <code translate="no">{celula.identificador}</code>;
+    case "nome":
+      return <>{celula.nome}</>;
+    case "nome_e_loja":
+      return (
+        <>
+          {celula.nome}
+          <br />
+          <span className="secundario">{celula.loja}</span>
+        </>
+      );
+    case "nome_e_identificador":
+      return (
+        <>
+          {celula.nome}
+          <br />
+          <code className="secundario" translate="no">
+            {celula.identificador}
+          </code>
+        </>
+      );
+  }
 }
