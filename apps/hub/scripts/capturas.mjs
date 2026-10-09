@@ -11,7 +11,9 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, existsSync } from "node:fs";
+import { Buffer } from "node:buffer";
 import { request as pedidoHttp } from "node:http";
+import { deflateSync, crc32 } from "node:zlib";
 import { createServer } from "node:https";
 import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
@@ -83,6 +85,18 @@ const { registarComerciante } = await import(
   join(API, "dist/comerciante/repositorio.js")
 );
 const { criarArtigo } = await import(join(API, "dist/catalogo/repositorio.js"));
+const { registarFicheiro, criarMedia } = await import(
+  join(API, "dist/catalogo/media.js")
+);
+const { ArmazenamentoEmDisco } = await import(
+  join(API, "dist/catalogo/armazenamento.js")
+);
+// As imagens dos artigos (docs/22 §12): uma pasta temporária, como a da VPS.
+const PASTA_MEDIA = join(
+  tmpdir(),
+  `hub-media-${randomBytes(4).toString("hex")}`,
+);
+mkdirSync(PASTA_MEDIA);
 const base = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
 const comerciante = await registarComerciante(base, {
   nome: "Loja de Ensaio",
@@ -116,6 +130,7 @@ const api = spawn("node", [join(API, "dist/servidor.js")], {
     PROXY_CONFIAVEL: "127.0.0.1",
     // A palavra-passe com o TOTP ligada (docs/22 §9.2), com uma chave nova.
     TOTP_CHAVE: randomBytes(32).toString("base64"),
+    MEDIA_PASTA: PASTA_MEDIA,
   },
   stdio: ["ignore", "ignore", "inherit"],
 });
@@ -217,14 +232,44 @@ for (let i = 0; i < 50; i++) {
   await new Promise((r) => setTimeout(r, 200));
 }
 
+/** Um PNG de uma cor só (64 × 64), feito aqui: nenhuma imagem de fora. */
+function pngDeUmaCor([r, g, b]) {
+  const pedaco = (tipo, dados) => {
+    const tamanho = Buffer.alloc(4);
+    tamanho.writeUInt32BE(dados.length);
+    const corpo = Buffer.concat([Buffer.from(tipo, "ascii"), dados]);
+    const soma = Buffer.alloc(4);
+    soma.writeUInt32BE(crc32(corpo));
+    return Buffer.concat([tamanho, corpo, soma]);
+  };
+  const lado = 64;
+  const cabecalho = Buffer.alloc(13);
+  cabecalho.writeUInt32BE(lado, 0);
+  cabecalho.writeUInt32BE(lado, 4);
+  cabecalho.writeUInt8(8, 8); // 8 bits por canal
+  cabecalho.writeUInt8(2, 9); // RGB
+  const linha = Buffer.alloc(1 + lado * 3);
+  for (let x = 0; x < lado; x++) linha.set([r, g, b], 1 + x * 3);
+  const pixeis = Buffer.concat(Array.from({ length: lado }, () => linha));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pedaco("IHDR", cabecalho),
+    pedaco("IDAT", deflateSync(pixeis)),
+    pedaco("IEND", Buffer.alloc(0)),
+  ]);
+}
+
 // 30 artigos fictícios (mais do que uma página de 25; docs/22 §11), pela
 // mesma função do POST /products, sem chave (uma chave aparecia na lista das
-// chaves). O 30 vem do sistema de gestão do comerciante.
+// chaves). O 30 vem do sistema de gestão do comerciante. O 1 tem a ficha
+// completa (docs/22 §12.3): duas variantes, uma descrição e duas imagens,
+// uma com texto alternativo e outra sem.
+let artigoDaFicha = "";
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
   const baseArtigos = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
   for (let i = 0; i < 30; i++) {
-    await criarArtigo(
+    const id = await criarArtigo(
       baseArtigos,
       comerciante,
       {
@@ -233,14 +278,49 @@ for (let i = 0; i < 50; i++) {
         marca: "Marca de Ensaio",
         categoria_fiscal: "normal",
         ...(i === 29 ? { origem_ref: "GESTAO-030" } : {}),
+        ...(i === 0
+          ? {
+              descricao:
+                "Verniz de secagem rápida.\nAplicar duas camadas finas.",
+            }
+          : {}),
       },
       [
         {
           sku: `ENS-${String(i + 1).padStart(3, "0")}`,
           unidade_de_venda: "unidade",
+          ...(i === 0
+            ? { conteudo_quantidade: 15, conteudo_unidade: "ml", peso_g: 60 }
+            : {}),
         },
+        ...(i === 0
+          ? [{ sku: "ENS-001-B", unidade_de_venda: "caixa", peso_g: 720 }]
+          : []),
       ],
     );
+    if (i === 0) artigoDaFicha = id;
+  }
+  const armazenamento = new ArmazenamentoEmDisco(PASTA_MEDIA);
+  for (const [cor, texto, principal] of [
+    [[37, 99, 235], "Frasco de verniz azul, de frente", true],
+    [[219, 39, 119], null, false],
+  ]) {
+    const bytes = pngDeUmaCor(cor);
+    const resumo = createHash("sha256").update(bytes).digest("hex");
+    await armazenamento.guardar(comerciante, resumo, bytes);
+    await registarFicheiro(
+      baseArtigos,
+      comerciante,
+      { resumo, tipo: "image/png", bytes: bytes.length },
+      armazenamento.quotaPorComerciante,
+    );
+    await criarMedia(baseArtigos, comerciante, {
+      artigoId: artigoDaFicha,
+      varianteId: null,
+      resumo,
+      textoAlternativo: texto,
+      principal,
+    });
   }
   await baseArtigos.destroy();
 }
@@ -1268,6 +1348,141 @@ try {
     "artigos: o Hub pede pelo caminho /hub/products",
   );
 
+  // A ficha do artigo (docs/22 §12), a partir da lista filtrada.
+  const pedidosFicha = [];
+  rp.on("request", (p) => {
+    pedidosFicha.push(p.url());
+  });
+  await rp.reload();
+  await rp.getByText("30 artigos", { exact: true }).waitFor();
+  await rp.getByLabel("Nome", { exact: true }).fill("Azul");
+  await rp.getByRole("button", { name: "Procurar" }).click();
+  await rp.getByText("5 de 30 artigos", { exact: true }).waitFor();
+  await rp.getByRole("link", { name: "Verniz Azul 1", exact: true }).click();
+  await rp.getByRole("heading", { name: "Verniz Azul 1", level: 1 }).waitFor();
+  await rp.getByText("Ainda não está publicado em nenhuma loja.").waitFor();
+  await rp.waitForFunction(
+    () =>
+      document.querySelectorAll(".imagens-artigo img").length === 2 &&
+      [...document.querySelectorAll(".imagens-artigo img")].every(
+        (i) => i.complete && i.naturalWidth === 64,
+      ),
+  );
+  confere(
+    new URL(rp.url()).searchParams.get("texto") === "Azul" &&
+      (await rp
+        .getByText("Verniz de secagem rápida.", { exact: false })
+        .count()) === 1,
+    "ficha: abre pelo nome na lista, com a descrição e os filtros no endereço",
+  );
+  confere(
+    (await rp
+      .getByRole("row", { name: /ENS-001\b.*Unidade.*15 ml.*60 g/ })
+      .count()) === 1 &&
+      (await rp
+        .getByRole("row", { name: /ENS-001-B.*Caixa.*720 g/ })
+        .count()) === 1,
+    "ficha: as duas variantes, com a unidade, o conteúdo e o peso",
+  );
+  const imagensDaFicha = await rp.evaluate(() =>
+    [...document.querySelectorAll(".imagens-artigo img")].map((i) => ({
+      blob: i.src.startsWith("blob:"),
+      alt: i.alt,
+    })),
+  );
+  confere(
+    imagensDaFicha.every((i) => i.blob) &&
+      imagensDaFicha[0]?.alt === "Frasco de verniz azul, de frente" &&
+      imagensDaFicha[1]?.alt === "" &&
+      (await rp.getByText("Principal", { exact: true }).count()) === 1 &&
+      (await rp
+        .getByText("Sem texto alternativo — impede a publicação.")
+        .count()) === 1,
+    "ficha: as imagens por blob:, a principal marcada e a que não tem texto avisa",
+  );
+  confere(
+    pedidosFicha.some((u) => /\/hub\/media\/med_[^/]+\/file$/.test(u)) &&
+      !pedidosFicha.some(
+        (u) => /\/(products|media)\//.test(u) && !u.includes("/hub/"),
+      ),
+    "ficha: o Hub pede tudo pelos caminhos /hub/",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "artigo-ficha-375-claro.png"),
+    fullPage: true,
+  });
+  // Cada parte falha sozinha: as imagens dão erro, as variantes ficam.
+  await rp.route("**/hub/products/*/media?*", (r) =>
+    r.fulfill({
+      status: 500,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "internal", status: 500 }),
+    }),
+  );
+  await rp.route("**/hub/products/*/publications", (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        dados: [
+          {
+            id: "pub_00000000-0000-4000-8000-000000000001",
+            artigo: `prd_${artigoDaFicha}`,
+            canal: "chn_00000000-0000-4000-8000-000000000002",
+            mercado: "mkt_00000000-0000-4000-8000-000000000003",
+            estado: "arquivado",
+            variantes_fora: [],
+            ultima_verificacao: null,
+            verificado_em: "2026-10-01T09:00:00Z",
+            publicado_em: "2026-10-02T09:00:00Z",
+            arquivado_em: "2026-10-05T09:00:00Z",
+            motivo_arquivo: "verificacao_falhou",
+            versao: 3,
+          },
+        ],
+      }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByRole("button", { name: "Tentar outra vez" }).waitFor();
+  await rp
+    .getByRole("row", { name: /Arquivado.*Deixou de cumprir as regras/ })
+    .waitFor();
+  confere(
+    (await rp.getByRole("row", { name: /ENS-001-B/ }).count()) === 1 &&
+      (await rp.locator(".imagens-artigo").count()) === 0 &&
+      (await rp
+        .getByText("chn_00000000-0000-4000-8000-000000000002")
+        .count()) === 1,
+    "ficha: as imagens falham sozinhas; a publicação arquivada diz o motivo e o canal",
+  );
+  await rp.unroute("**/hub/products/*/media?*");
+  await rp.unroute("**/hub/products/*/publications");
+  await rp.getByRole("button", { name: "Tentar outra vez" }).click();
+  await rp.waitForFunction(
+    () => document.querySelectorAll(".imagens-artigo img").length === 2,
+  );
+  confere(true, "ficha: «Tentar outra vez» traz as imagens");
+  await rp.getByRole("link", { name: "Voltar aos artigos" }).click();
+  await rp.getByText("5 de 30 artigos", { exact: true }).waitFor();
+  confere(
+    (await rp.getByLabel("Nome", { exact: true }).inputValue()) === "Azul",
+    "ficha: «Voltar aos artigos» volta à lista com o mesmo filtro",
+  );
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${randomBytes(16)
+      .toString("hex")
+      .replace(
+        /^(.{8})(.{4})(.{4})(.{4})(.{12})$/,
+        "$1-$2-$3-$4-$5",
+      )}?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByText("Este artigo não existe neste comerciante.").waitFor();
+  confere(
+    (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) === 0,
+    "ficha: um artigo que não existe diz-o, sem «Tentar outra vez»",
+  );
+
   // B3c — as chaves de API (docs/22 §9.3), com a Ana (dona).
   const pedidosChaves = [];
   rp.on("request", (p) => {
@@ -1398,13 +1613,18 @@ try {
     "o navegador não guardou nenhum código de recuperação",
   );
 
-  // As capturas: 8 ecrãs × 3 larguras × 2 temas.
+  // As capturas: 9 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
     ["convite", `/convite#${conviteDasCapturas}`, "Aceitar o convite"],
     ["comerciantes", "/", "Os seus comerciantes"],
     ["equipa", `/equipa?comerciante=mer_${comerciante}`, "Equipa"],
     ["artigos", `/artigos?comerciante=mer_${comerciante}`, "Artigos"],
+    [
+      "artigo",
+      `/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`,
+      "Verniz Azul 1",
+    ],
     ["conta", "/conta", "A minha conta"],
     ["chaves", `/chaves?comerciante=mer_${comerciante}`, "Chaves de API"],
     ["recuperar", "/recuperar", "Recuperar a conta"],

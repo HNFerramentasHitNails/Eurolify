@@ -37,16 +37,53 @@ interface Lista {
 const semFiltro = (f: FiltrosArtigos) =>
   f.estado === undefined && f.texto === undefined && f.sku === undefined;
 
-export function Artigos({ comerciante }: { comerciante: string | null }) {
+/**
+ * Os filtros que vêm no endereço (a ficha devolve-os em «Voltar aos
+ * artigos», docs/22 §12.2); um valor fora do formato não conta.
+ */
+function filtrosDoEndereco(consulta: string): FiltrosArtigos {
+  const q = new URLSearchParams(consulta);
+  const estado = q.get("estado");
+  const texto = q.get("texto")?.trim() ?? "";
+  const sku = q.get("sku")?.trim() ?? "";
+  return {
+    ...(ESTADOS_ARTIGO.some((x) => x === estado)
+      ? { estado: estado as EstadoArtigo }
+      : {}),
+    ...(texto === "" || texto.length > 200 ? {} : { texto }),
+    ...(sku === "" || sku.length > 64 ? {} : { sku }),
+  };
+}
+
+/** A consulta da lista: o comerciante e os filtros aplicados. */
+function consultaDaLista(comerciante: string, f: FiltrosArtigos): string {
+  const q = new URLSearchParams({ comerciante });
+  if (f.estado !== undefined) q.set("estado", f.estado);
+  if (f.texto !== undefined) q.set("texto", f.texto);
+  if (f.sku !== undefined) q.set("sku", f.sku);
+  return q.toString();
+}
+
+export function Artigos({
+  comerciante,
+  consulta,
+}: {
+  comerciante: string | null;
+  consulta: string;
+}) {
   const { t, lingua, navegar } = useHub();
   const valido = comerciante !== null && FORMATO_COMERCIANTE.test(comerciante);
   const [eu, setEu] = useState<Eu | null>(null);
   const [lista, setLista] = useState<Lista | null>(null);
-  const [filtros, setFiltros] = useState<FiltrosArtigos>({});
+  // Os filtros do endereço só se lêem ao abrir a lista.
+  const [iniciais] = useState(() => filtrosDoEndereco(consulta));
+  const [filtros, setFiltros] = useState<FiltrosArtigos>(iniciais);
   // O que está escrito nos campos, antes de «Procurar».
-  const [estado, setEstado] = useState<EstadoArtigo | "">("");
-  const [texto, setTexto] = useState("");
-  const [sku, setSku] = useState("");
+  const [estado, setEstado] = useState<EstadoArtigo | "">(
+    iniciais.estado ?? "",
+  );
+  const [texto, setTexto] = useState(iniciais.texto ?? "");
+  const [sku, setSku] = useState(iniciais.sku ?? "");
   const [aCarregarMais, setACarregarMais] = useState(false);
   // Os erros guardam-se crus e traduzem-se ao mostrar (revisão do #158, P3-7).
   const [falha, setFalha] = useState<unknown>(null);
@@ -99,8 +136,19 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
   );
 
   useEffect(() => {
-    void carregar({});
-  }, [carregar]);
+    void carregar(iniciais);
+  }, [carregar, iniciais]);
+
+  // Os filtros aplicados ficam no endereço, sem nova entrada no histórico
+  // nem mudar o foco (o navegar() do Hub leva o foco ao conteúdo).
+  function guardarNoEndereco(f: FiltrosArtigos) {
+    if (!valido) return;
+    window.history.replaceState(
+      null,
+      "",
+      `/artigos?${consultaDaLista(comerciante, f)}`,
+    );
+  }
 
   async function mostrarMais() {
     if (!valido || lista?.cursor == null || aCarregarMais) return;
@@ -141,6 +189,7 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
       ...(sku.trim() === "" ? {} : { sku: sku.trim() }),
     };
     setFiltros(f);
+    guardarNoEndereco(f);
     void carregar(f);
   }
 
@@ -149,6 +198,7 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
     setTexto("");
     setSku("");
     setFiltros({});
+    guardarNoEndereco({});
     void carregar({});
   }
 
@@ -156,6 +206,10 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
     new Intl.DateTimeFormat(TAG_LINGUA[lingua], { dateStyle: "medium" }).format(
       new Date(iso),
     );
+
+  // A ficha leva os filtros, para «Voltar aos artigos» os repor.
+  const fichaDe = (id: string) =>
+    `/artigos/${id}?${valido ? consultaDaLista(comerciante, filtros) : ""}`;
 
   const meu = eu?.comerciantes.find((c) => c.comerciante === comerciante);
   const filtrado = !semFiltro(filtros);
@@ -281,7 +335,15 @@ export function Artigos({ comerciante }: { comerciante: string | null }) {
                       {lista.artigos.map((a) => (
                         <tr key={a.id}>
                           <td data-rotulo={t.colunaNome}>
-                            {a.nome}
+                            <a
+                              href={fichaDe(a.id)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                navegar(fichaDe(a.id));
+                              }}
+                            >
+                              {a.nome}
+                            </a>
                             {a.origem === "externo" ? (
                               <>
                                 {" "}

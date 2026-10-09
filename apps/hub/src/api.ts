@@ -114,6 +114,55 @@ export interface FiltrosArtigos {
   sku?: string;
 }
 
+/** Uma variante na ficha do artigo (o `Variante` do GET /products/{id}). */
+export interface VarianteArtigo {
+  id: string;
+  sku: string;
+  estado: "activa" | "arquivada";
+  unidade_de_venda: "unidade" | "par" | "caixa" | "embalagem" | "conjunto";
+  gtin: string | null;
+  conteudo_quantidade: number | null;
+  conteudo_unidade: string | null;
+  peso_g: number | null;
+}
+
+/** A ficha do artigo (docs/22 §12; o `Artigo` do GET /products/{id}). */
+export interface FichaArtigo extends ResumoArtigo {
+  descricao: string | null;
+  origem_ref: string | null;
+  criado_em: string;
+  variantes: VarianteArtigo[];
+}
+
+/** Uma imagem do artigo (o `MediaEsquema` do GET /products/{id}/media). */
+export interface ImagemArtigo {
+  id: string;
+  variante: string | null;
+  texto_alternativo: string | null;
+  posicao: number;
+  principal: boolean;
+}
+
+export const MOTIVOS_ARQUIVO = [
+  "retirada",
+  "artigo_arquivado",
+  "mercado_arquivado",
+  "canal_arquivado",
+  "verificacao_falhou",
+] as const;
+
+/** Uma publicação por canal × mercado (GET /products/{id}/publications). */
+export interface PublicacaoArtigo {
+  id: string;
+  canal: string;
+  mercado: string;
+  estado: "rascunho" | "publicado" | "arquivado";
+  verificado_em: string | null;
+  publicado_em: string | null;
+  arquivado_em: string | null;
+  motivo_arquivo: (typeof MOTIVOS_ARQUIVO)[number] | null;
+}
+
 /** O que um convite diz, antes de aceitar (docs/22 §10, issue #194). */
 export interface DetalheConvite {
   comerciante_nome: string;
@@ -173,6 +222,32 @@ export async function pedir<T>(
     throw new ErroHub(0, undefined, {}, undefined, undefined);
   }
   if (resposta.ok) return (await resposta.json()) as T;
+  throw await erroDe(resposta);
+}
+
+/**
+ * Os bytes de uma imagem (docs/22 §12.1): um `<img src>` não leva o
+ * cabeçalho do comerciante, por isso pedem-se aqui e mostram-se por `blob:`.
+ */
+export async function pedirBytes(
+  caminho: string,
+  comerciante: string,
+): Promise<Blob> {
+  let resposta: Response;
+  try {
+    resposta = await fetch(caminho, {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { "eurolify-comerciante": comerciante },
+    });
+  } catch {
+    throw new ErroHub(0, undefined, {}, undefined, undefined);
+  }
+  if (resposta.ok) return resposta.blob();
+  throw await erroDe(resposta);
+}
+
+async function erroDe(resposta: Response): Promise<ErroHub> {
   let problema: Problema = {};
   try {
     problema = (await resposta.json()) as Problema;
@@ -180,7 +255,7 @@ export async function pedir<T>(
     // Um corpo que não é JSON (ex.: o proxy): fica o estado.
   }
   const esperar = Number(resposta.headers.get("retry-after"));
-  throw new ErroHub(
+  return new ErroHub(
     resposta.status,
     texto(problema.codigo),
     {
@@ -231,6 +306,33 @@ export const api = {
       comerciante,
     });
   },
+  /** A ficha do artigo (docs/22 §12.1): a mesma do GET /products/{id}. */
+  artigo: (comerciante: string, artigo: string) =>
+    pedir<FichaArtigo>("GET", `/hub/products/${artigo}`, { comerciante }),
+  /** Todas as imagens do artigo, pela ordem (página a página, 100 de cada vez). */
+  imagensDoArtigo: async (comerciante: string, artigo: string) => {
+    const imagens: ImagemArtigo[] = [];
+    let cursor: string | null = null;
+    do {
+      const q = new URLSearchParams({ limite: "100" });
+      if (cursor !== null) q.set("cursor", cursor);
+      const pagina: { dados: ImagemArtigo[]; cursor_seguinte: string | null } =
+        await pedir("GET", `/hub/products/${artigo}/media?${q.toString()}`, {
+          comerciante,
+        });
+      imagens.push(...pagina.dados);
+      cursor = pagina.cursor_seguinte;
+    } while (cursor !== null);
+    return imagens;
+  },
+  bytesDaImagem: (comerciante: string, imagem: string) =>
+    pedirBytes(`/hub/media/${imagem}/file`, comerciante),
+  publicacoesDoArtigo: (comerciante: string, artigo: string) =>
+    pedir<{ dados: PublicacaoArtigo[] }>(
+      "GET",
+      `/hub/products/${artigo}/publications`,
+      { comerciante },
+    ),
   /** O que o convite diz; o segredo vai no corpo, nunca no endereço. */
   verConvite: (convite: string) =>
     pedir<DetalheConvite>("POST", "/hub/invitations/preview", {

@@ -405,3 +405,51 @@ code {
   flex: 1 1 var(--largura-campo);
   margin-bottom: 0;
 }
+
+/* A ficha do artigo (docs/22 §12.2). A descrição é texto simples: as
+   mudanças de linha contam, nenhuma formatação. */
+.descricao-artigo {
+  white-space: pre-line;
+}
+
+/* As imagens: uma grelha de miniaturas, com o texto alternativo por baixo
+   de cada uma; a falta dele diz-se com a cor de aviso e com palavras. */
+.imagens-artigo {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(var(--largura-miniatura), 1fr)
+  );
+  gap: var(--espaco-4);
+}
+.imagens-artigo figure {
+  margin: 0;
+}
+.moldura-imagem {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie-elevada);
+  overflow: hidden;
+}
+.moldura-imagem img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.imagens-artigo figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-1);
+  margin-top: var(--espaco-2);
+  font-size: var(--letra-pequena);
+}
+.aviso-texto {
+  color: var(--estado-aviso);
+  font-weight: 600;
+}
