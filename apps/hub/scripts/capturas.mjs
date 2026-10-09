@@ -90,6 +90,7 @@ const {
   criarLista,
   criarMercado,
   definirMercadosDoCanal,
+  anunciarReducao,
   definirPreco,
   mudarEstadoMercado,
 } = await import(join(API, "dist/precos/repositorio.js"));
@@ -429,7 +430,7 @@ let canalDaFicha;
   const variantes = await comComerciante(baseArtigos, comerciante, (trx) =>
     trx
       .selectFrom("variante")
-      .select("id")
+      .select(["id", "sku"])
       .where("artigo_id", "=", artigoDaFicha)
       .execute(),
   );
@@ -438,6 +439,37 @@ let canalDaFicha;
       montante: 990,
     });
   }
+  // Os preços do artigo (docs/22 §17): a ENS-001 com 40 dias a 9,90 € e
+  // uma redução para 7,90 € com fim; um segundo mercado (Espanha, preços
+  // sem IVA, em rascunho) em que só a ENS-001-B tem preço, gratuito.
+  const ens001 = variantes.find((v) => v.sku === "ENS-001")?.id ?? "";
+  const ens001b = variantes.find((v) => v.sku === "ENS-001-B")?.id ?? "";
+  psql(`insert into historico_preco (comerciante_id, lista_id, variante_id, montante,
+          gratuito, saiu, moeda, preco_inclui_iva, em_vigor_desde, definido_por)
+        values ('${comerciante}', '${lista}', '${ens001}', 990, false, false, 'EUR',
+          true, now() - interval '960 hours', 'passagem:antes')`);
+  await anunciarReducao(baseArtigos, comerciante, quem, lista, ens001, {
+    montante: 790,
+    fim: new Date(Date.now() + 21 * 24 * 3600 * 1000),
+  });
+  const espanha = await criarMercado(baseArtigos, comerciante, {
+    loja_id: loja,
+    nome: "Espanha",
+    paises: ["ES"],
+    moeda: "EUR",
+    linguas: ["es"],
+    lingua_principal: "es",
+    preco_inclui_iva: false,
+  });
+  const listaEspanha = await criarLista(baseArtigos, comerciante, {
+    mercado_id: espanha,
+    nome: "Base ES",
+    tipo: "base",
+  });
+  await definirPreco(baseArtigos, comerciante, quem, listaEspanha, ens001b, {
+    montante: 0,
+    gratuito: true,
+  });
   const publicacao = await publicar(baseArtigos, comerciante, quem, {
     artigo_id: artigoDaFicha,
     canal_id: canal,
@@ -1562,6 +1594,58 @@ try {
         .count()) === 1,
     "ficha: as duas variantes, com a unidade, o conteúdo e o peso",
   );
+  // Os preços (docs/22 §17.3): uma caixa por lista, com o que o servidor deu.
+  await rp.getByRole("heading", { name: "Base ES", level: 3 }).waitFor();
+  const caixaPt = rp.locator(".lista-precos").nth(0);
+  const caixaEs = rp.locator(".lista-precos").nth(1);
+  const textoPt = (await caixaPt.textContent()) ?? "";
+  const textoEs = (await caixaEs.textContent()) ?? "";
+  confere(
+    textoPt.includes("lista base · Portugal · EUR · preços com IVA") &&
+      (await caixaPt
+        .getByRole("row", {
+          name: /ENS-001\b.*7,90\s€.*antes 9,90\s€ — o mais baixo dos 30 dias · até .*526,6667\s€\/l, sem arredondar/,
+        })
+        .count()) === 1 &&
+      (await caixaPt
+        .getByRole("row", { name: /ENS-001-B.*9,90\s€.*—/ })
+        .count()) === 1,
+    "preços: a lista base de Portugal com IVA, a redução com o preço de antes e o fim, e o preço por unidade sem arredondar",
+  );
+  confere(
+    textoEs.includes(
+      "lista base · Espanha (mercado em rascunho) · EUR · preços sem IVA",
+    ) &&
+      (await caixaEs
+        .getByRole("row", { name: /ENS-001\b.*Sem preço nesta lista/ })
+        .count()) === 1 &&
+      (await caixaEs
+        .getByRole("row", { name: /ENS-001-B.*Gratuito/ })
+        .count()) === 1,
+    "preços: o mercado em rascunho sem IVA, a variante sem preço e a gratuita",
+  );
+  for (const [largura, tema] of [
+    [375, "light"],
+    [768, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `preços: a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.locator(".precos-artigo").screenshot({
+      path: join(
+        SAIDA,
+        `artigo-precos-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+    });
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
   const imagensDaFicha = await rp.evaluate(() =>
     [...document.querySelectorAll(".imagens-artigo img")].map((i) => ({
       blob: i.src.startsWith("blob:"),
@@ -1627,7 +1711,7 @@ try {
     .getByRole("row", { name: /Arquivado.*Deixou de cumprir as regras/ })
     .waitFor();
   confere(
-    (await rp.getByRole("row", { name: /ENS-001-B/ }).count()) === 1 &&
+    (await rp.getByRole("row", { name: /ENS-001-B.*Caixa/ }).count()) === 1 &&
       (await rp.locator(".imagens-artigo").count()) === 0 &&
       (await rp
         .getByText("chn_00000000-0000-4000-8000-000000000002")
@@ -1641,6 +1725,32 @@ try {
     () => document.querySelectorAll(".imagens-artigo img").length === 2,
   );
   confere(true, "ficha: «Tentar outra vez» traz as imagens");
+  // Os preços falham sozinhos (docs/22 §17.3): o erro na secção, o resto fica.
+  await rp.route("**/hub/products/*/prices*", (r) =>
+    r.fulfill({
+      status: 500,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "internal", status: 500 }),
+    }),
+  );
+  await rp.reload();
+  const precosDaFicha = rp.locator(".precos-artigo");
+  await precosDaFicha
+    .getByRole("button", { name: "Tentar outra vez" })
+    .waitFor();
+  await rp.waitForFunction(
+    () => document.querySelectorAll(".imagens-artigo img").length === 2,
+  );
+  confere(
+    (await rp.getByRole("row", { name: /ENS-001-B.*Caixa/ }).count()) === 1 &&
+      (await precosDaFicha.locator(".lista-precos").count()) === 0,
+    "preços: falham sozinhos, com «Tentar outra vez»; as variantes e as imagens ficam",
+  );
+  await rp.unroute("**/hub/products/*/prices*");
+  await precosDaFicha.getByRole("button", { name: "Tentar outra vez" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Base PT", level: 3 }).waitFor();
+  confere(true, "preços: «Tentar outra vez», com o teclado, traz as listas");
   // Uma imagem que falha sozinha tem o seu «Tentar outra vez» (revisão do
   // #206, P2-1).
   let falhar = true;
@@ -1908,7 +2018,10 @@ try {
     void d.accept();
   });
   await rp.getByRole("button", { name: "Arquivar variante ENS-002" }).click();
-  await rp.getByRole("row", { name: /ENS-002.*Arquivada/ }).waitFor();
+  await rp
+    .locator(".variantes-artigo")
+    .getByRole("row", { name: /ENS-002.*Arquivada/ })
+    .waitFor();
   confere(ultima, "edição: arquivar a última variante avisa e fica Arquivada");
   // Sem variante activa, repor diz o motivo da API (P2-5).
   rp.once("dialog", (d) => void d.accept());
