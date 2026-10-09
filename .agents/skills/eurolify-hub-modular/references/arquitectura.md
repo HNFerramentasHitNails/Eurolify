@@ -20,9 +20,9 @@ Não introduzas outro router sem necessidade demonstrada e decisão técnica.
 
 | Entrada candidata | Rota observada | Contexto |
 |---|---|---|
-| Artigos | `/artigos?comerciante=…` | Comerciante; API confirma acesso |
+| Artigos | `/artigos?comerciante=…` | Comerciante; a entrada aparece com `catalog:read` nos âmbitos do `/hub/me`; API confirma acesso |
 | Equipa | `/equipa?comerciante=…` | Comerciante; ações limitadas pela API |
-| Chaves de API | `/chaves?comerciante=…` | Comerciante; entrada atual só para `dono`, API decide |
+| Chaves de API | `/chaves?comerciante=…` | Comerciante; a entrada aparece com `keys:write` nos âmbitos do `/hub/me`; API decide |
 | A minha conta | `/conta` | Pessoa; manter no cabeçalho, não duplicar sem razão |
 
 Não há aqui prova de que outros domínios não existam. Pesquisa novamente
@@ -40,8 +40,10 @@ A lista de domínios planeados não comprova que uma interface funcione.
    ou ignorar respostas atrasadas. Uma resposta do comerciante A nunca preenche B.
 7. Contexto na URL, quando necessário, validado contra a API; não o tratar como
    autorização. Preservar ligações diretas, refresh e voltar/avançar.
-8. Se a API não expõe capacidades, reutilizar apenas as regras de apresentação
-   já documentadas. Não construir um motor paralelo de permissões no cliente.
+8. O `/hub/me` dá, em cada comerciante, os âmbitos do papel da pessoa
+   (`ambitos`, #212; `docs/22` §13.2). Mostrar ou esconder um cartão lê-se
+   daí, nunca de uma cópia da tabela dos papéis no cliente; a API continua a
+   conferir em cada pedido. Não construir um motor paralelo de permissões.
 
 ## Registo e componentes
 
