@@ -6,6 +6,11 @@ name: verificar
 on:
   pull_request:
   workflow_call:
+    secrets:
+      DOCKERHUB_UTILIZADOR:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -55,10 +60,21 @@ jobs:
     # Ubuntu 26.04 vazia. Não toca na VPS.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # As descargas anónimas do Docker Hub têm um limite partilhado pelos
+    # executores do GitHub (falhou com 429 no #256): com a conta da empresa,
+    # só de leitura (#266). Sem os segredos, continua sem conta.
+    env:
+      TEM_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: entrar no Docker Hub (só leitura; sem os segredos, sem conta)
+        if: env.TEM_DOCKERHUB == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_UTILIZADOR }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: shellcheck
         run: |
           shellcheck --version | head -n 2
@@ -88,11 +104,22 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # As descargas anónimas do Docker Hub têm um limite partilhado pelos
+    # executores do GitHub (falhou com 429 no #256): com a conta da empresa,
+    # só de leitura (#266). Sem os segredos, continua sem conta.
+    env:
+      TEM_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: entrar no Docker Hub (só leitura; sem os segredos, sem conta)
+        if: env.TEM_DOCKERHUB == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_UTILIZADOR }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
