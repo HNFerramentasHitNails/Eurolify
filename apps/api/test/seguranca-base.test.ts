@@ -34,6 +34,8 @@ import {
 
 /** As funções que a API pode chamar; qualquer outra tem de ser recusada. */
 const FUNCOES_DA_API = [
+  // O nome de quem fez, no histórico do Hub (0038).
+  "autores_da_linha_do_tempo",
   "catalogo_estado_do_artigo",
   "catalogo_fila_do_artigo",
   "catalogo_marcar_combinacoes",

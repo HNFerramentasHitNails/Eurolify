@@ -106,7 +106,11 @@ export function hubDeTeste(
   }
 
   /** Uma pessoa nova pelo convite, com a sessão, os códigos e a passkey. */
-  async function pessoaCom(comerciante: string, papel: string) {
+  async function pessoaCom(
+    comerciante: string,
+    papel: string,
+    nome = "Pessoa Teste",
+  ) {
     const email = `p${randomBytes(4).toString("hex")}@exemplo.test`;
     const convite = await conviteDoOperador(comerciante, email, papel);
     const opcoes = await pedir("POST", "/hub/invitations/accept/options", {
@@ -117,7 +121,7 @@ export function hubDeTeste(
     const r = await pedir("POST", "/hub/invitations/accept-new", {
       corpo: {
         convite,
-        nome: "Pessoa Teste",
+        nome,
         credencial: autenticador.registar(
           opcoes.json<{ challenge: string }>().challenge,
           NO_HUB,

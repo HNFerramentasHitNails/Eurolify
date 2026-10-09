@@ -7,6 +7,7 @@ import { Artigo } from "./ecras/Artigo";
 import { ArtigoEditar } from "./ecras/ArtigoEditar";
 import { ArtigoNovo } from "./ecras/ArtigoNovo";
 import { Artigos } from "./ecras/Artigos";
+import { Historico } from "./ecras/Historico";
 import { Chaves } from "./ecras/Chaves";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
@@ -34,13 +35,14 @@ import {
 
 // As páginas do Hub (docs/22 §2, §9 e §11): /entrar, /recuperar, /convite,
 // /equipa, /artigos, /artigos/novo, /artigos/{prd_…},
-// /artigos/{prd_…}/editar, /chaves,
+// /artigos/{prd_…}/editar, /artigos/{prd_…}/historico, /chaves,
 // /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
 const CAMINHO_ARTIGO = /^\/artigos\/([^/]+)$/;
 const CAMINHO_EDITAR = /^\/artigos\/([^/]+)\/editar$/;
+const CAMINHO_HISTORICO = /^\/artigos\/([^/]+)\/historico$/;
 
 const segredoInicial =
   window.location.pathname === "/convite" ? lerSegredoDaLigacao() : null;
@@ -128,10 +130,12 @@ export function App() {
     ? null
     : (CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null);
   const editar = CAMINHO_EDITAR.exec(local.caminho)?.[1] ?? null;
+  const historico = CAMINHO_HISTORICO.exec(local.caminho)?.[1] ?? null;
   const comSessao =
     novo ||
     artigo !== null ||
     editar !== null ||
+    historico !== null ||
     local.caminho === "/" ||
     local.caminho === "/equipa" ||
     local.caminho === "/artigos" ||
@@ -156,11 +160,13 @@ export function App() {
                   ? t.artigoTitulo
                   : editar !== null
                     ? t.artigoEditarTitulo
-                    : local.caminho === "/chaves"
-                      ? t.chavesTitulo
-                      : local.caminho === "/conta"
-                        ? t.contaTitulo
-                        : t.inicioTitulo;
+                    : historico !== null
+                      ? t.historicoTitulo
+                      : local.caminho === "/chaves"
+                        ? t.chavesTitulo
+                        : local.caminho === "/conta"
+                          ? t.contaTitulo
+                          : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -201,6 +207,15 @@ export function App() {
         key={`${editar} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
         artigo={editar}
+        consulta={local.consulta}
+      />
+    );
+  else if (historico !== null)
+    ecra = (
+      <Historico
+        key={`${historico} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        artigo={historico}
         consulta={local.consulta}
       />
     );

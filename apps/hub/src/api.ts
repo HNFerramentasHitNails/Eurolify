@@ -230,6 +230,36 @@ export interface PublicacaoArtigo {
   motivo_arquivo: (typeof MOTIVOS_ARQUIVO)[number] | null;
 }
 
+/** Quem fez uma alteração, decidido pelo servidor (docs/22 §16.2). */
+export interface AutorAlteracao {
+  tipo: "pessoa" | "chave" | "sistema" | "outro";
+  /** O nome de quem é ou foi da equipa, ou o da chave; null nos outros. */
+  nome: string | null;
+}
+
+/** Uma entrada do histórico do artigo (GET /hub/products/{id}/timeline). */
+export interface AlteracaoArtigo {
+  id: string;
+  em: string;
+  quem: string;
+  /** `importacao:imp_…` numa importação; null numa escrita normal. */
+  origem: string | null;
+  /** As entradas com a mesma transacção são uma só alteração. */
+  transacao: string;
+  entidade: string;
+  entidade_id: string | null;
+  operacao: "criado" | "alterado" | "apagado";
+  campos: Record<string, { antes: unknown; depois: unknown }>;
+  autor: AutorAlteracao;
+}
+
+export interface PaginaHistorico {
+  dados: AlteracaoArtigo[];
+  total: number;
+  ha_mais: boolean;
+  cursor_seguinte: string | null;
+}
+
 /** O que um convite diz, antes de aceitar (docs/22 §10, issue #194). */
 export interface DetalheConvite {
   comerciante_nome: string;
@@ -509,6 +539,21 @@ export const api = {
       `/hub/products/${artigo}/publications`,
       { comerciante },
     ),
+  /** O histórico do artigo (docs/22 §16), 25 de cada vez. */
+  historicoDoArtigo: (
+    comerciante: string,
+    artigo: string,
+    cursor: string | null,
+  ) => {
+    const q = new URLSearchParams();
+    if (cursor !== null) q.set("cursor", cursor);
+    const sufixo = q.size === 0 ? "" : `?${q.toString()}`;
+    return pedir<PaginaHistorico>(
+      "GET",
+      `/hub/products/${artigo}/timeline${sufixo}`,
+      { comerciante },
+    );
+  },
   /** Criar um artigo físico em rascunho (docs/22 §14): o POST /products. */
   criarArtigo: (comerciante: string, corpo: ArtigoNovo) =>
     pedir<FichaArtigo>("POST", "/hub/products", { comerciante, corpo }),

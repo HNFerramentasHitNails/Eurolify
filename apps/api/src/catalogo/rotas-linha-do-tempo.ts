@@ -1,7 +1,7 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import { erroBase, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
   ENTIDADES_DA_LINHA_DO_TEMPO,
@@ -41,7 +41,7 @@ const PREFIXO: Partial<Record<string, string>> = {
 
 const Entidade = umDe(ENTIDADES_DA_LINHA_DO_TEMPO);
 
-const ConsultaLinhaDoTempo = Type.Object(
+export const ConsultaLinhaDoTempo = Type.Object(
   {
     limite: ConsultaPagina.properties.limite,
     cursor: ConsultaPagina.properties.cursor,
@@ -62,7 +62,7 @@ const ConsultaLinhaDoTempo = Type.Object(
   { additionalProperties: false },
 );
 
-const Alteracao = Type.Object({
+export const Alteracao = Type.Object({
   id: idCom("chg", "chg_…"),
   em: Instante,
   quem: Type.String({
@@ -96,6 +96,8 @@ const Alteracao = Type.Object({
   ),
 });
 
+export const RespostaLinhaDoTempo = Lista(Alteracao);
+
 const cursorDe = (id: string) => Buffer.from(id, "utf8").toString("base64url");
 function idDoCursor(cursor: string): string {
   const id = Buffer.from(cursor, "base64url").toString("utf8");
@@ -120,101 +122,116 @@ export function rotasDaLinhaDoTempo(
           "A linha do tempo do artigo (docs/14 §3.12): cada mudança no artigo, nas variantes, opções, traduções, imagens, categorias, colecções e publicações dele, com quem, quando, o antes e o depois, da mais recente para a mais antiga, no formato das listas (docs/18 §2a). Começa no dia em que esta parte entrou: não há entradas de antes. Um artigo apagado (um rascunho) mantém as entradas. Pede catalog:history, porque traz quem fez.",
         params: ParametroArtigo,
         querystring: ConsultaLinhaDoTempo,
-        response: { 200: Lista(Alteracao), ...RESPOSTA_DE_ERRO },
+        response: { 200: RespostaLinhaDoTempo, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido, resposta) => {
-      const { comercianteId } = chaveDo(pedido);
-      const artigoId = semPrefixo(pedido.params.id);
-      const q = pedido.query;
-      const limite = q.limite === undefined ? 25 : Number(q.limite);
-      const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
-      // O ano 0000 passa o formato `date-time` mas a base não o lê (como no
-      // GET /products).
-      if (q.desde?.startsWith("0000-") === true) {
-        throw erroBase(
-          "request.invalid",
-          "`desde` fora do intervalo (o ano 0000 não existe)",
-        );
-      }
-      const { linhas, total } = await noCatalogoApi(resposta, () =>
-        noCatalogo(
-          base,
-          comercianteId,
-          async (trx) => {
-            let filtro = trx
-              .selectFrom("alteracao_catalogo")
-              .where("artigo_id", "=", artigoId);
-            if (q.desde !== undefined) {
-              filtro = filtro.where("em", ">=", new Date(q.desde));
-            }
-            if (q.entidade !== undefined) {
-              filtro = filtro.where("entidade", "=", q.entidade);
-            }
-            const { n } = await filtro
-              .select((eb) => eb.fn.countAll<string>().as("n"))
-              .executeTakeFirstOrThrow();
-            if (Number(n) === 0) {
-              // Sem entradas: o artigo tem de existir, ou ter existido (um
-              // rascunho apagado mantém as entradas; um artigo criado antes
-              // da 0033 e nunca mudado não tem nenhuma).
-              const existe = await trx
-                .selectFrom("artigo")
-                .select("id")
-                .where("id", "=", artigoId)
-                .executeTakeFirst();
-              const teveEntradas = await trx
-                .selectFrom("alteracao_catalogo")
-                .select("id")
-                .where("artigo_id", "=", artigoId)
-                .limit(1)
-                .executeTakeFirst();
-              const artigo = existe ?? teveEntradas;
-              if (artigo === undefined) {
-                throw new ErroCatalogo(
-                  "catalog.not_found",
-                  `artigo ${artigoId}`,
-                );
-              }
-            }
-            let consulta = filtro.selectAll();
-            if (depois !== null) consulta = consulta.where("id", "<", depois);
-            const linhas = await consulta
-              .orderBy("id", "desc")
-              .limit(limite + 1)
-              .execute();
-            return { linhas, total: Number(n) };
-          },
-          { soLeitura: true },
-        ),
-      );
-      const haMais = linhas.length > limite;
-      const dados = haMais ? linhas.slice(0, limite) : linhas;
-      const ultima = haMais ? dados.at(-1) : undefined;
-      return {
-        dados: dados.map((a) => {
-          const prefixo = PREFIXO[a.entidade];
-          return {
-            id: `chg_${a.id}`,
-            em: a.em.toISOString(),
-            quem: a.quem,
-            origem: a.origem,
-            transacao: a.transacao,
-            entidade: a.entidade,
-            entidade_id:
-              a.entidade_id === null
-                ? null
-                : prefixo === undefined
-                  ? a.entidade_id
-                  : `${prefixo}_${a.entidade_id}`,
-            operacao: a.operacao,
-            campos: a.campos,
-          };
-        }),
-        total,
-        ha_mais: haMais,
-        cursor_seguinte: ultima === undefined ? null : cursorDe(ultima.id),
-      };
-    },
+    async (pedido, resposta) =>
+      linhaDoTempoDeArtigo(
+        base,
+        chaveDo(pedido).comercianteId,
+        pedido.params.id,
+        pedido.query,
+        resposta,
+      ),
   );
+}
+
+/**
+ * A linha do tempo de um artigo (docs/14 §3.12): a mesma para
+ * `GET /products/{id}/timeline` e `GET /hub/products/{id}/timeline`
+ * (docs/22 §16.2). **Outro chamador:** `identidade/hub-catalogo.ts`.
+ */
+export async function linhaDoTempoDeArtigo(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  q: Static<typeof ConsultaLinhaDoTempo>,
+  resposta: FastifyReply,
+): Promise<Static<typeof RespostaLinhaDoTempo>> {
+  const artigoId = semPrefixo(id);
+  const limite = q.limite === undefined ? 25 : Number(q.limite);
+  const depois = q.cursor === undefined ? null : idDoCursor(q.cursor);
+  // O ano 0000 passa o formato `date-time` mas a base não o lê (como no
+  // GET /products).
+  if (q.desde?.startsWith("0000-") === true) {
+    throw erroBase(
+      "request.invalid",
+      "`desde` fora do intervalo (o ano 0000 não existe)",
+    );
+  }
+  const { linhas, total } = await noCatalogoApi(resposta, () =>
+    noCatalogo(
+      base,
+      comercianteId,
+      async (trx) => {
+        let filtro = trx
+          .selectFrom("alteracao_catalogo")
+          .where("artigo_id", "=", artigoId);
+        if (q.desde !== undefined) {
+          filtro = filtro.where("em", ">=", new Date(q.desde));
+        }
+        if (q.entidade !== undefined) {
+          filtro = filtro.where("entidade", "=", q.entidade);
+        }
+        const { n } = await filtro
+          .select((eb) => eb.fn.countAll<string>().as("n"))
+          .executeTakeFirstOrThrow();
+        if (Number(n) === 0) {
+          // Sem entradas: o artigo tem de existir, ou ter existido (um
+          // rascunho apagado mantém as entradas; um artigo criado antes
+          // da 0033 e nunca mudado não tem nenhuma).
+          const existe = await trx
+            .selectFrom("artigo")
+            .select("id")
+            .where("id", "=", artigoId)
+            .executeTakeFirst();
+          const teveEntradas = await trx
+            .selectFrom("alteracao_catalogo")
+            .select("id")
+            .where("artigo_id", "=", artigoId)
+            .limit(1)
+            .executeTakeFirst();
+          const artigo = existe ?? teveEntradas;
+          if (artigo === undefined) {
+            throw new ErroCatalogo("catalog.not_found", `artigo ${artigoId}`);
+          }
+        }
+        let consulta = filtro.selectAll();
+        if (depois !== null) consulta = consulta.where("id", "<", depois);
+        const linhas = await consulta
+          .orderBy("id", "desc")
+          .limit(limite + 1)
+          .execute();
+        return { linhas, total: Number(n) };
+      },
+      { soLeitura: true },
+    ),
+  );
+  const haMais = linhas.length > limite;
+  const dados = haMais ? linhas.slice(0, limite) : linhas;
+  const ultima = haMais ? dados.at(-1) : undefined;
+  return {
+    dados: dados.map((a) => {
+      const prefixo = PREFIXO[a.entidade];
+      return {
+        id: `chg_${a.id}`,
+        em: a.em.toISOString(),
+        quem: a.quem,
+        origem: a.origem,
+        transacao: a.transacao,
+        entidade: a.entidade,
+        entidade_id:
+          a.entidade_id === null
+            ? null
+            : prefixo === undefined
+              ? a.entidade_id
+              : `${prefixo}_${a.entidade_id}`,
+        operacao: a.operacao,
+        campos: a.campos,
+      };
+    }),
+    total,
+    ha_mais: haMais,
+    cursor_seguinte: ultima === undefined ? null : cursorDe(ultima.id),
+  };
 }

@@ -127,6 +127,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0035_catalogo_ficheiros_sem_uso",
         "0036_precos_reducao_e_ambitos",
         "0037_clientes",
+        "0038_hub_autores_da_linha_do_tempo",
       ]);
     });
 
