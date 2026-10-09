@@ -475,7 +475,7 @@ export const pt = {
   artigoNovoInteiro: "Um número inteiro, sem casas decimais.",
   artigoNovoCorrigir: "Há campos por corrigir.",
   artigoNovoNaoCriado:
-    "A ligação falhou e o artigo não ficou criado. Pode tentar outra vez.",
+    "A ligação falhou e não encontrámos o artigo. Pode tentar outra vez: se tiver ficado criado, o ecrã abre-o.",
   artigoCriado: "Artigo criado em rascunho.",
   artigoJaCriado: "O artigo já tinha sido criado.",
   artigoSkuDuplicado: "Um dos SKU já existe neste comerciante.",

@@ -158,7 +158,11 @@ export const ORIGENS_GTIN = [
   "fornecedor",
   "interno",
 ] as const;
-/** Quantas variantes um artigo criado no Hub traz (docs/22 §14.1). */
+/**
+ * Quantas variantes um artigo criado no Hub traz (docs/22 §14.1): cópia de
+ * `MAX_VARIANTES_NO_HUB` em apps/api/src/identidade/hub-catalogo.ts, para o
+ * ecrã tirar o botão; a API recusa na mesma (revisão do #223, P3-8).
+ */
 export const MAX_VARIANTES_NO_HUB = 20;
 
 /** Uma variante de um artigo novo (o corpo do POST /hub/products). */

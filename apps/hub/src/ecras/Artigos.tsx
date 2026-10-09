@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type SyntheticEvent,
@@ -112,6 +113,12 @@ export function Artigos({
   // Quando acaba a última página, o foco vai para a contagem, em vez de se
   // perder com o botão (revisão do #201, P3-8).
   const contagem = useRef<HTMLParagraphElement>(null);
+  const contagemPorFocar = useRef(false);
+  useLayoutEffect(() => {
+    if (!contagemPorFocar.current || contagem.current === null) return;
+    contagemPorFocar.current = false;
+    contagem.current.focus();
+  }, [lista]);
 
   const carregar = useCallback(
     async (f: FiltrosArtigos) => {
@@ -177,11 +184,10 @@ export function Artigos({
         total: pagina.total,
         cursor: pagina.cursor_seguinte,
       });
-      if (pagina.cursor_seguinte === null) {
-        requestAnimationFrame(() => {
-          contagem.current?.focus();
-        });
-      }
+      // O foco muda antes de pintar, quando a contagem já está no ecrã: um
+      // pedido de animação podia chegar antes e perder-se (como na ficha,
+      // revisão do #223).
+      if (pagina.cursor_seguinte === null) contagemPorFocar.current = true;
     } catch (e) {
       if (este !== ultimo.current) return;
       if (semSessao(e)) {

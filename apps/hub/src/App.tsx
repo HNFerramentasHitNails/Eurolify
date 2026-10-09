@@ -25,7 +25,8 @@ import {
 } from "./textos";
 
 // As páginas do Hub (docs/22 §2, §9 e §11): /entrar, /recuperar, /convite,
-// /equipa, /artigos, /artigos/{prd_…}, /artigos/{prd_…}/editar, /chaves,
+// /equipa, /artigos, /artigos/novo, /artigos/{prd_…},
+// /artigos/{prd_…}/editar, /chaves,
 // /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da

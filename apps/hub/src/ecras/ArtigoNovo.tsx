@@ -26,6 +26,11 @@ import { preencher, type Textos } from "../textos";
 // e o ecrã põe a resposta ao lado do campo quando sabe qual é.
 
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
+// Cópias do servidor, para o ecrã dizer o erro ao lado do campo antes de
+// pedir (revisão do #223, P3-8): o formato do GTIN e o maior inteiro são os
+// de `NovaVariante` (apps/api/src/catalogo/rotas.ts) e da migração 0002; o
+// limite de variantes é o de `MAX_VARIANTES_NO_HUB` (hub-catalogo.ts). Se
+// mudarem lá, mudam aqui; a API recusa na mesma.
 const FORMATO_GTIN = /^([0-9]{8}|[0-9]{12,14})$/;
 const SO_ALGARISMOS = /^[0-9]+$/;
 const MAXIMO_NOME = 200;
@@ -106,6 +111,9 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
   const [falha, setFalha] = useState<unknown>(null);
   const [aviso, setAviso] = useState<keyof Textos | null>(null);
   const [aCriar, setACriar] = useState(false);
+  // Houve uma tentativa sem resposta: um 409 a seguir pode ser o próprio
+  // artigo, já gravado (revisão do #223, P2-1).
+  const semRespostaAntes = useRef(false);
   const montado = useRef(true);
   useEffect(() => {
     montado.current = true;
@@ -179,7 +187,25 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
     };
   }, [escrito, definirGuarda, t]);
 
+  /** Um campo corrigido deixa de mostrar o erro antigo (revisão do #223, P3-6). */
+  function limparErro(...chaves: string[]) {
+    if (!chaves.some((c) => erros[c] !== undefined)) return;
+    setErros((es) =>
+      Object.fromEntries(
+        Object.entries(es).filter(([c]) => !chaves.includes(c)),
+      ),
+    );
+  }
+
   function mudar(chave: number, campo: CampoLinha, valor: string) {
+    const k = String(chave);
+    limparErro(
+      `${k}-${campo}`,
+      ...(campo === "gtin" ? [`${k}-gtinOrigem`] : []),
+      ...(campo === "quantidade" || campo === "unidadeConteudo"
+        ? [`${k}-quantidade`, `${k}-unidadeConteudo`]
+        : []),
+    );
     setLinhas((ls) =>
       ls.map((l) => {
         if (l.chave !== chave) return l;
@@ -199,7 +225,7 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
     if (focarDepois.current === null) return;
     document.getElementById(focarDepois.current)?.focus();
     focarDepois.current = null;
-  }, [linhas, erros, aviso]);
+  }, [linhas, erros, aviso, falha]);
 
   function acrescentar() {
     if (linhas.length >= MAX_VARIANTES_NO_HUB) return;
@@ -245,11 +271,14 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
         )
           e[`${k}-${m}`] = "artigoNovoInteiro";
       }
-      if (
-        e[`${k}-quantidade`] === undefined &&
-        (l.quantidade.trim() === "") !== (l.unidadeConteudo === "")
-      )
-        e[`${k}-quantidade`] = "artigoNovoConteudoIncompleto";
+      // O erro vai para o que falta: a unidade ou a quantidade (revisão do
+      // #223, P3-5).
+      if (e[`${k}-quantidade`] === undefined) {
+        if (l.quantidade.trim() !== "" && l.unidadeConteudo === "")
+          e[`${k}-unidadeConteudo`] = "artigoNovoConteudoIncompleto";
+        else if (l.quantidade.trim() === "" && l.unidadeConteudo !== "")
+          e[`${k}-quantidade`] = "artigoNovoConteudoIncompleto";
+      }
     }
     return e;
   }
@@ -295,7 +324,17 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
       return;
     }
     for (const l of linhas) {
-      for (const c of ["sku", "gtin", "gtinOrigem", ...MEDIDAS] as const) {
+      for (const c of [
+        "sku",
+        "gtin",
+        "gtinOrigem",
+        "quantidade",
+        "unidadeConteudo",
+        "peso",
+        "comprimento",
+        "largura",
+        "altura",
+      ] as const) {
         if (e[`${String(l.chave)}-${c}`] !== undefined) {
           focarDepois.current = idDe(l, c);
           return;
@@ -336,16 +375,30 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
   }
 
   /**
-   * A resposta perdeu-se (sem rede, ou o servidor não respondeu): o pedido
-   * pode ter gravado. O SKU da primeira variante diz se o artigo existe
-   * (§14.2); com o mesmo nome, é este.
+   * O pedido pode ter gravado sem o ecrã saber (§14.2). É este artigo só se
+   * estiver em rascunho, com o mesmo nome e exactamente os SKU do
+   * formulário (revisão do #223, P2-2): um artigo antigo com o mesmo SKU,
+   * arquivado ou com outras variantes, não se abre por engano.
    */
   async function procurarOCriado(): Promise<string | null> {
     if (comerciante === null) return null;
-    const primeiro = linhas[0]?.sku.trim() ?? "";
-    const pagina = await api.artigos(comerciante, { sku: primeiro }, null);
-    const achado = pagina.dados.find((a) => a.nome === nome.trim());
-    return achado?.id ?? null;
+    const skus = linhas.map((l) => l.sku.trim().toLowerCase()).sort();
+    const pagina = await api.artigos(
+      comerciante,
+      { sku: linhas[0]?.sku.trim() ?? "" },
+      null,
+    );
+    for (const a of pagina.dados) {
+      if (a.estado !== "rascunho" || a.nome !== nome.trim()) continue;
+      const ficha = await api.artigo(comerciante, a.id);
+      const deles = ficha.variantes.map((v) => v.sku.toLowerCase()).sort();
+      if (
+        deles.length === skus.length &&
+        deles.every((sku, n) => sku === skus[n])
+      )
+        return a.id;
+    }
+    return null;
   }
 
   async function criar(evento: React.SyntheticEvent) {
@@ -378,18 +431,31 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
   }
 
   async function depoisDaFalha(erro: unknown) {
+    // Sem resposta da API: a rede, um 5xx sem o corpo da API (do nginx) ou
+    // uma resposta que não se leu até ao fim. Um 5xx com o código da API
+    // mostra-se como erro, com a referência (revisão do #223, P2-1, P3-7).
     const semResposta =
-      erro instanceof ErroHub && (erro.estado === 0 || erro.estado >= 500);
+      !(erro instanceof ErroHub) ||
+      erro.estado === 0 ||
+      (erro.estado >= 500 && erro.codigo === undefined);
     try {
-      if (semResposta) {
+      if (
+        semResposta ||
+        (semRespostaAntes.current &&
+          erro instanceof ErroHub &&
+          erro.codigo === "catalog.sku_duplicate")
+      ) {
         const id = await procurarOCriado();
         if (!aindaAqui()) return;
         if (id !== null) {
           abrir(id, "ja");
           return;
         }
-        mostrarAviso("artigoNovoNaoCriado");
-        return;
+        if (semResposta) {
+          semRespostaAntes.current = true;
+          mostrarAviso("artigoNovoNaoCriado");
+          return;
+        }
       }
       if (erro instanceof ErroHub && erro.codigo === "catalog.sku_duplicate") {
         const doCampo = await skusQueJaExistem();
@@ -421,7 +487,7 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
         focarPrimeiroErro(doCampo);
         return;
       }
-      setFalha(erro);
+      mostrarFalha(erro);
     } catch (e2) {
       if (!aindaAqui()) return;
       if (semSessao(e2)) {
@@ -429,12 +495,17 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
         return;
       }
       // A procura falhou: fica o erro do pedido, que é o que a pessoa viu.
-      setFalha(
-        semResposta
-          ? new ErroHub(0, undefined, {}, undefined, undefined)
-          : erro,
-      );
+      if (semResposta) {
+        semRespostaAntes.current = true;
+        mostrarAviso("artigoNovoNaoCriado");
+      } else mostrarFalha(erro);
     }
+  }
+
+  /** Um erro sem campo: a caixa no topo recebe o foco (revisão do #223, P2-3). */
+  function mostrarFalha(erro: unknown) {
+    setFalha(erro);
+    focarDepois.current = "artigo-novo-falha";
   }
 
   function voltar() {
@@ -525,7 +596,9 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
             </div>
           )}
           {falha === null ? null : (
-            <CaixaDeErro erro={mensagemDeErro(falha, t, lingua)} />
+            <div id="artigo-novo-falha" tabIndex={-1}>
+              <CaixaDeErro erro={mensagemDeErro(falha, t, lingua)} />
+            </div>
           )}
           <p>
             <strong>{t.artigoNovoTipo}:</strong> {t.tipoArtigo_fisico}
@@ -540,6 +613,7 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
               {...nomeErro.props}
               onChange={(e) => {
                 setNome(e.target.value);
+                limparErro("nome");
               }}
             />
             {nomeErro.mensagem}
@@ -581,6 +655,10 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
             const sku = erroDe(idDe(l, "sku"), `${k}-sku`);
             const gtin = erroDe(idDe(l, "gtin"), `${k}-gtin`);
             const origem = erroDe(idDe(l, "gtinOrigem"), `${k}-gtinOrigem`);
+            const unidadeConteudo = erroDe(
+              idDe(l, "unidadeConteudo"),
+              `${k}-unidadeConteudo`,
+            );
             return (
               <fieldset key={l.chave} className="variante-nova">
                 <legend>{preencher(t.artigoNovoVariante, { n })}</legend>
@@ -667,6 +745,7 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
                     <select
                       id={idDe(l, "unidadeConteudo")}
                       value={l.unidadeConteudo}
+                      {...unidadeConteudo.props}
                       onChange={(e) => {
                         mudar(l.chave, "unidadeConteudo", e.target.value);
                       }}
@@ -678,6 +757,7 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
                         </option>
                       ))}
                     </select>
+                    {unidadeConteudo.mensagem}
                   </div>
                 </div>
                 <div className="linha">
@@ -715,7 +795,9 @@ export function ArtigoNovo({ comerciante }: { comerciante: string | null }) {
             <button type="submit" className="principal" disabled={aCriar}>
               {aCriar ? t.aCarregar : t.artigoCriar}
             </button>
-            <button type="button" onClick={voltar}>
+            {/* Enquanto cria, não se cancela: o artigo podia ficar criado sem
+                aviso (revisão do #223, P3-10). */}
+            <button type="button" onClick={voltar} disabled={aCriar}>
               {t.cancelar}
             </button>
           </div>

@@ -476,7 +476,7 @@ export const en: Textos = {
   artigoNovoInteiro: "A whole number, no decimals.",
   artigoNovoCorrigir: "Some fields need correcting.",
   artigoNovoNaoCriado:
-    "The connection failed and the product was not created. You can try again.",
+    "The connection failed and we did not find the product. You can try again: if it was created, the screen opens it.",
   artigoCriado: "Product created as a draft.",
   artigoJaCriado: "The product had already been created.",
   artigoSkuDuplicado: "One of the SKUs already exists for this merchant.",

@@ -140,6 +140,42 @@ describe.skipIf(URL_BASE === undefined)("criar artigos no Hub (#221)", () => {
     }
   });
 
+  it("o artigo criado pelo Hub é igual ao criado pela chave com o mesmo corpo; o cabeçalho de outro comerciante é recusado (revisão do #223, P3-1)", async () => {
+    const c = await comerciante("Loja Criacao Igual");
+    const outro = await comerciante("Loja Criacao Outra");
+    const p = await h.pessoaCom(c.id, "dono");
+    const doHub = await h.pedir("POST", "/hub/products", {
+      sessao: p.sessao,
+      comerciante: c.id,
+      corpo: artigoNovo("H"),
+    });
+    expect(doHub.statusCode, doHub.body).toBe(201);
+    const daChave = await comChave(c.segredo, "POST", "/products", {
+      ...artigoNovo("K"),
+    });
+    expect(daChave.statusCode, daChave.body).toBe(201);
+    // Iguais, tirando o que é de cada linha: ids, datas e o SKU pedido.
+    const semIdentidade = (f: Ficha) =>
+      JSON.parse(
+        JSON.stringify(f, (k, v: unknown) =>
+          ["id", "criado_em", "actualizado_em", "sku", "artigo"].includes(k)
+            ? undefined
+            : v,
+        ),
+      ) as unknown;
+    expect(semIdentidade(doHub.json<Ficha>())).toEqual(
+      semIdentidade(daChave.json<Ficha>()),
+    );
+    // A pessoa não é membro do outro comerciante: o cabeçalho dele é recusado.
+    const deOutro = await h.pedir("POST", "/hub/products", {
+      sessao: p.sessao,
+      comerciante: outro.id,
+      corpo: artigoNovo(),
+    });
+    expect(deOutro.statusCode).toBe(403);
+    expect(await contarArtigos(outro.id)).toBe(0);
+  });
+
   it("o mesmo pedido duas vezes não cria um segundo artigo: o SKU dá catalog.sku_duplicate", async () => {
     const c = await comerciante("Loja Criacao Repetida");
     const p = await h.pessoaCom(c.id, "dono");
@@ -207,13 +243,20 @@ describe.skipIf(URL_BASE === undefined)("criar artigos no Hub (#221)", () => {
       expect(r.statusCode, nome).toBe(400);
     }
     expect(await contarArtigos(c.id)).toBe(0);
-    // Pela chave, a categoria fiscal e as mercadorias perigosas entram.
+    // Pela chave, a categoria fiscal, as mercadorias perigosas, a posição e
+    // outro tipo entram (revisão do #223, P3-1).
     const pelaChave = await comChave(c.segredo, "POST", "/products", {
       ...base_,
       categoria_fiscal: "normal",
-      variantes: [{ ...variante, onu: "UN1263", classe_adr: "3" }],
+      variantes: [{ ...variante, onu: "UN1263", classe_adr: "3", posicao: 0 }],
     });
     expect(pelaChave.statusCode, pelaChave.body).toBe(201);
+    const servico = await comChave(c.segredo, "POST", "/products", {
+      tipo: "servico",
+      nome: "Aplicação de verniz",
+      variantes: [{ sku: `S-${randomUUID()}`, unidade_de_venda: "unidade" }],
+    });
+    expect(servico.statusCode, servico.body).toBe(201);
     // Vinte variantes entram pelo Hub.
     const vinte = await h.pedir("POST", "/hub/products", {
       sessao: p.sessao,

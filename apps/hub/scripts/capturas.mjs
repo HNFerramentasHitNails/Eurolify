@@ -1918,6 +1918,17 @@ try {
   // Criar um artigo (docs/22 §14; issue #221), só com o teclado: «Criar
   // artigo» na lista, o formulário com as recusas dele e as da API, e a
   // ficha nova com o aviso no foco.
+  // Escrever e escolher só com o teclado (revisão do #223, P3-1): o foco
+  // no campo e as teclas; numa lista, as primeiras letras da opção.
+  const escrever = async (campo, texto) => {
+    await campo.focus();
+    await rp.keyboard.press("Control+A");
+    await rp.keyboard.type(texto);
+  };
+  const escolher = async (lista, letras) => {
+    await lista.focus();
+    await rp.keyboard.type(letras);
+  };
   await rp.goto(`${ORIGEM}/artigos?comerciante=mer_${comerciante}`);
   await rp.getByRole("link", { name: "Criar artigo" }).focus();
   await rp.keyboard.press("Enter");
@@ -1948,12 +1959,13 @@ try {
     "criar: o SKU repetido no formulário (sem distinguir maiúsculas) diz-se nos dois campos, sem pedir à API",
   );
   const variante2 = rp.getByRole("group", { name: "Variante 2" });
-  await variante2.getByLabel("SKU", { exact: true }).fill("ENS-002");
+  await escrever(variante2.getByLabel("SKU", { exact: true }), "ENS-002");
   const v1 = rp.getByRole("group", { name: "Variante 1" });
-  await v1.getByLabel("GTIN", { exact: true }).fill("5601234567892");
-  await v1.getByLabel("Quantidade do conteúdo").fill("15");
-  await v1.getByLabel("Peso (g)").fill("6,5");
-  await rp.getByRole("button", { name: "Criar artigo" }).click();
+  await escrever(v1.getByLabel("GTIN", { exact: true }), "5601234567892");
+  await escrever(v1.getByLabel("Quantidade do conteúdo"), "15");
+  await escrever(v1.getByLabel("Peso (g)"), "6,5");
+  await rp.getByRole("button", { name: "Criar artigo" }).focus();
+  await rp.keyboard.press("Enter");
   await v1.getByText("Escolha a origem do GTIN.").waitFor();
   confere(
     (await v1
@@ -1966,12 +1978,24 @@ try {
       )),
     "criar: GTIN sem origem, conteúdo incompleto e peso com casas decimais, ao lado de cada campo, com o foco no primeiro",
   );
-  await v1
-    .getByLabel("Origem do GTIN")
-    .selectOption({ label: "Do fornecedor" });
-  await v1.getByLabel("Unidade do conteúdo").selectOption("ml");
-  await v1.getByLabel("Peso (g)").fill("60");
-  await rp.getByRole("button", { name: "Criar artigo" }).click();
+  confere(
+    (await v1
+      .getByLabel("Unidade do conteúdo")
+      .getAttribute("aria-invalid")) === "true",
+    "criar: falta a unidade do conteúdo: o erro fica na lista da unidade (revisão do #223, P3-5)",
+  );
+  await escolher(v1.getByLabel("Origem do GTIN"), "Do f");
+  await escolher(v1.getByLabel("Unidade do conteúdo"), "ml");
+  await escrever(v1.getByLabel("Peso (g)"), "60");
+  confere(
+    (await v1.getByText("Um número inteiro, sem casas decimais.").count()) ===
+      0 &&
+      (await v1.getByLabel("Origem do GTIN").inputValue()) === "fornecedor" &&
+      (await v1.getByLabel("Unidade do conteúdo").inputValue()) === "ml",
+    "criar: um campo corrigido deixa de mostrar o erro; as listas escolhem-se com o teclado",
+  );
+  await rp.getByRole("button", { name: "Criar artigo" }).focus();
+  await rp.keyboard.press("Enter");
   await variante2
     .getByText("Este SKU já existe neste comerciante", { exact: false })
     .waitFor();
@@ -1985,8 +2009,8 @@ try {
     path: join(SAIDA, "artigo-novo-erros-375-claro.png"),
     fullPage: true,
   });
-  await variante2.getByLabel("SKU", { exact: true }).fill("ENS-031-B");
-  await variante2.getByLabel("Unidade de venda").selectOption("caixa");
+  await escrever(variante2.getByLabel("SKU", { exact: true }), "ENS-031-B");
+  await escolher(variante2.getByLabel("Unidade de venda"), "Cai");
   await rp.getByLabel("Nome", { exact: true }).focus();
   await rp.keyboard.press("Enter");
   await rp
@@ -2014,11 +2038,16 @@ try {
     new URL(rp.url()).pathname === "/artigos",
     "criar: o «voltar» depois de criar vai para a lista, não para o formulário",
   );
-  // A resposta perde-se: o pedido gravou, o navegador não soube (§14.2).
+  // A resposta perde-se: o pedido gravou e o nginx deu 502, sem o corpo da
+  // API (§14.2; revisão do #223, P2-1).
   await rp.route("**/hub/products", async (r) => {
     if (r.request().method() !== "POST") return r.fallback();
     await r.fetch();
-    await r.abort("failed");
+    await r.fulfill({
+      status: 502,
+      contentType: "text/html",
+      body: "<html>502 Bad Gateway</html>",
+    });
   });
   await rp.goto(`${ORIGEM}/artigos/novo?comerciante=mer_${comerciante}`);
   await rp.getByLabel("Nome", { exact: true }).fill("Verniz Verde 32");
@@ -2028,9 +2057,13 @@ try {
     .getByRole("heading", { name: "Verniz Verde 32", level: 1 })
     .waitFor();
   await rp.getByText("O artigo já tinha sido criado.").waitFor();
-  confere(true, "criar: a resposta perdida encontra o artigo criado e abre-o");
+  confere(
+    true,
+    "criar: um 502 depois de gravar encontra o artigo criado e abre-o",
+  );
   await rp.unroute("**/hub/products");
-  // A ligação falha antes de gravar: diz que não ficou criado.
+  // A ligação falha antes de gravar: diz que não encontrou o artigo, e
+  // tentar outra vez cria-o.
   await rp.route("**/hub/products", (r) =>
     r.request().method() === "POST" ? r.abort("failed") : r.fallback(),
   );
@@ -2039,7 +2072,7 @@ try {
   await rp.getByLabel("SKU", { exact: true }).fill("ENS-033");
   await rp.getByRole("button", { name: "Criar artigo" }).click();
   await rp
-    .getByText("A ligação falhou e o artigo não ficou criado.", {
+    .getByText("A ligação falhou e não encontrámos o artigo.", {
       exact: false,
     })
     .waitFor();
@@ -2048,6 +2081,62 @@ try {
     "criar: a ligação que falha antes de gravar diz-o e deixa o formulário",
   );
   await rp.unroute("**/hub/products");
+  await rp.getByRole("button", { name: "Criar artigo" }).click();
+  await rp
+    .getByRole("heading", { name: "Verniz Verde 33", level: 1 })
+    .waitFor();
+  confere(true, "criar: depois da ligação falhada, tentar outra vez cria");
+  // O GTIN que a API recusa (422) vai para o campo dele; o limite das 20
+  // variantes; retirar uma variante com o teclado (revisão do #223, P3-1).
+  await rp.goto(`${ORIGEM}/artigos/novo?comerciante=mer_${comerciante}`);
+  await escrever(rp.getByLabel("Nome", { exact: true }), "Verniz Verde 34");
+  await escrever(rp.getByLabel("SKU", { exact: true }), "ENS-034");
+  await escrever(rp.getByLabel("GTIN", { exact: true }), "5601234567897");
+  await escolher(rp.getByLabel("Origem do GTIN"), "Int");
+  await rp.getByRole("button", { name: "Criar artigo" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByText("O GTIN não é válido", { exact: false }).waitFor();
+  confere(
+    (await rp.evaluate(
+      () => document.activeElement?.getAttribute("aria-invalid") === "true",
+    )) &&
+      (await rp
+        .getByLabel("GTIN", { exact: true })
+        .getAttribute("aria-invalid")) === "true",
+    "criar: o GTIN que a API recusa (422) fica ao lado do campo, com o foco",
+  );
+  for (let n = 2; n <= 20; n++) {
+    await rp
+      .getByRole("button", { name: "Acrescentar outra variante" })
+      .click();
+    await rp.getByRole("group", { name: `Variante ${String(n)}` }).waitFor();
+  }
+  confere(
+    (await rp
+      .getByRole("button", { name: "Acrescentar outra variante" })
+      .count()) === 0 &&
+      (await rp
+        .getByText("No máximo 20 variantes aqui; mais pela importação.")
+        .count()) === 1,
+    "criar: com 20 variantes, o botão sai e a frase diz porquê",
+  );
+  await rp.getByRole("button", { name: "Retirar a variante 20" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByRole("button", { name: "Acrescentar outra variante" })
+    .waitFor();
+  confere(
+    (await rp.getByRole("group", { name: "Variante 20" }).count()) === 0 &&
+      (await rp.evaluate(() => {
+        const a = document.activeElement;
+        return (
+          a?.id.endsWith("-sku") === true &&
+          a.closest("fieldset")?.querySelector("legend")?.textContent ===
+            "Variante 19"
+        );
+      })),
+    "criar: retirar a variante 20 com o teclado põe o foco no SKU da 19",
+  );
   // Cancelar com alguma coisa escrita pergunta antes.
   let perguntouCriar = false;
   rp.once("dialog", (d) => {

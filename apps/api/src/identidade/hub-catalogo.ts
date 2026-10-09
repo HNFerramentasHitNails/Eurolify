@@ -376,7 +376,8 @@ function comercianteLeitor(
  * transacção no contexto do comerciante do cabeçalho e a pessoa como «quem
  * fez» (`pessoa:per_…`, a linha do tempo, docs/14 §3.12). Sem
  * Idempotency-Key, como as outras rotas do Hub (docs/21 §11): a `versao` no
- * corpo recusa a repetição de uma alteração (docs/22 §13.2).
+ * corpo recusa a repetição de uma alteração (docs/22 §13.2), e na criação
+ * é o SKU único que recusa um segundo artigo (§14.2).
  */
 async function escreverNoHub<T>(
   base: Kysely<BaseDados>,

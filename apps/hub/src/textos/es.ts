@@ -481,7 +481,7 @@ export const es: Textos = {
   artigoNovoInteiro: "Un número entero, sin decimales.",
   artigoNovoCorrigir: "Hay campos por corregir.",
   artigoNovoNaoCriado:
-    "La conexión falló y el artículo no se creó. Puede intentarlo de nuevo.",
+    "La conexión falló y no encontramos el artículo. Puede intentarlo de nuevo: si se creó, la pantalla lo abre.",
   artigoCriado: "Artículo creado en borrador.",
   artigoJaCriado: "El artículo ya se había creado.",
   artigoSkuDuplicado: "Uno de los SKU ya existe en este comerciante.",

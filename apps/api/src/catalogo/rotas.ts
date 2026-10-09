@@ -1417,11 +1417,6 @@ export const MUDANCAS_DE_ESTADO = [
 ] as const;
 
 /**
- * Altera o artigo na transacção dada e devolve a ficha. Chamam-na o
- * PATCH /products/{id} (pela chave) e o PATCH /hub/products/{id} (pela
- * sessão; docs/22 §13.2): a mesma escrita, o mesmo resultado.
- */
-/**
  * Cria o artigo em rascunho, com as variantes, e devolve a ficha (a
  * escrita do POST /products; também a do Hub, docs/22 §14.2).
  */
@@ -1436,6 +1431,11 @@ export async function criacaoDoArtigo(
   return fichaNa(trx, comercianteId, id);
 }
 
+/**
+ * Altera o artigo na transacção dada e devolve a ficha. Chamam-na o
+ * PATCH /products/{id} (pela chave) e o PATCH /hub/products/{id} (pela
+ * sessão; docs/22 §13.2): a mesma escrita, o mesmo resultado.
+ */
 export async function alteracaoDoArtigo(
   trx: Transaction<BaseDados>,
   comercianteId: string,

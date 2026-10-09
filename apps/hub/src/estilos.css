@@ -773,6 +773,11 @@ textarea {
   padding: var(--espaco-3) var(--espaco-4);
   margin-bottom: var(--espaco-4);
 }
+/* Um campo com o erro por baixo não desalinha os do lado (revisão do
+   #223, P3-9). */
+.variante-nova .linha {
+  align-items: flex-start;
+}
 .variante-nova legend {
   padding: 0 var(--espaco-1);
 }
