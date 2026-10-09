@@ -1885,7 +1885,7 @@ try {
     }),
   );
   await rp.reload();
-  await rp.getByText("Loja Sul", { exact: true }).waitFor();
+  await rp.getByRole("row", { name: /Loja Sul/ }).waitFor();
   const tabelaPublicacoes = rp.locator("table", {
     has: rp.getByRole("columnheader", { name: "Mercado" }),
   });
