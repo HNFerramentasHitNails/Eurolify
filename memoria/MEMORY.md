@@ -108,3 +108,4 @@
 - [Testes do GitHub: imagens do espelho mirror.gcr.io (opção 3 do Diogo, #263): Docker Hub dava 429; mesmo resumo SHA-256; VPS de fora; ao mudar um resumo, conferir o espelho — 09/10/2026](ci-imagens-espelho-09out2026.md)
 - [Passagem do Hub: o limite de 300 pedidos/minuto (#253, #270): a página da Ana fazia ~300 pedidos em 19 s; um a mais dava 429 num passo qualquer; um endereço por parte longa — 09/10/2026](hub-capturas-limite-09out2026.md)
 - [CI: imagens base copiadas para o GHCR (#268): postgres, ubuntu, node e buildkit pelo resumo; fluxo espelhar-imagens com skopeo; imagem-base.sh cai para o mirror.gcr.io e o Docker Hub se faltar a cópia — 09/10/2026](ci-imagens-base-ghcr-09out2026.md)
+- [Hub: canais e mercados com o mesmo nome (#271, #272, #275): loja_nome no caminho do Hub; a loja ou o identificador por baixo só quando o nome se repete; «Loja:» para leitores de ecrã; no ensaio — 09/10/2026](hub-canais-mesmo-nome-09out2026.md)
