@@ -392,6 +392,8 @@ export const pt = {
   artigoSemPublicacoes: "Ainda não está publicado em nenhuma loja.",
   colunaCanal: "Canal",
   colunaMercado: "Mercado",
+  /** Só para leitores de ecrã, antes do nome da loja (docs/22 §19.2). */
+  publicacaoLoja: "Loja:",
   colunaData: "Data",
   colunaMotivo: "Motivo",
   estadoPublicacao_rascunho: "Rascunho",

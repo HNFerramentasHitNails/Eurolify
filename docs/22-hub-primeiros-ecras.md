@@ -1138,7 +1138,10 @@ comerciantes tem uma loja, e a tabela fica como hoje.
   nome).
 - **Leitores de ecrã**: a loja ou o identificador ficam dentro da mesma
   célula, por isso são lidos com o nome. O identificador leva
-  `translate="no"`.
+  `translate="no"`. Antes da loja, um «Loja:» só para leitores de ecrã
+  (invisível no ecrã), para se ouvir «Loja online, Loja: Norte» (decisão
+  do Diogo, 09/10/2026, *«sim, acrescenta o «Loja:» para leitores de
+  ecrã»*; revisão do #275, P3-6).
 - **Telemóvel** (cartões, `data-rotulo`): a mesma célula, sem mudar o
   rótulo.
 
@@ -1148,10 +1151,70 @@ comerciantes tem uma loja, e a tabela fica como hoje.
   arquivada mantém o nome; o nome de uma loja de outro comerciante não
   vem; o contrato do Hub tem o campo e o da chave não.
 - **Prova pela falha**: tirar o filtro do comerciante na leitura da loja
-  faz falhar o teste de outro comerciante (como na §18.3).
+  faz falhar o teste de outro comerciante (como na §18.3). *Nota do
+  código (revisão do #275, P2-2):* a loja lê-se pelo JOIN com o canal, que
+  já tem o filtro do comerciante; o filtro escrito na loja é uma segunda
+  guarda e tirá-lo sozinho não muda o resultado. A prova é a do canal
+  (§18.3), e a de que cada publicação traz a sua loja é um teste com duas
+  lojas do mesmo comerciante.
 - **Hub**: testes da regra (os quatro casos da tabela da §19.2, por
   coluna); a passagem confere uma linha só com o nome e duas linhas com a
   loja por baixo; as capturas da ficha vão à página de aprovação.
+
+## 20. Catálogo: as opções do artigo na ficha, só para consulta (issue #278)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho das opções»*. Desenho
+aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o desenho, junta o
+#279»*). As
+opções são as escolhas que distinguem as variantes de um artigo (ex.: «Cor»
+com «Azul» e «Rosa», «Tamanho» com «15 ml» e «30 ml»; `docs/14` §3.3). A
+ficha hoje mostra as variantes só pelo SKU, sem dizer qual é a azul. Este
+passo **só lê** e não muda a VPS; criar, renomear ou ordenar opções fica
+para um passo próprio (as regras do rascunho, `docs/14` §3.3, pedem um
+desenho dessa escrita).
+
+Ex.: o «Verniz Azul 1» com a opção «Tamanho» passa de «ENS-001 · Activa ·
+Unidade…» para «ENS-001 · 15 ml · Activa · Unidade…».
+
+### 20.1 Como o Hub lê
+
+- **As opções**: `GET /hub/products/{id}/options` chama a mesma função da
+  rota pela chave (`GET /products/{id}/options`, `catalog:read`): as opções
+  pela ordem, cada uma com os valores pela ordem, no formato das listas. O
+  Hub pede páginas de 100 até ao fim (um artigo com mais de 100 opções não
+  é um caso real, mas não se corta em silêncio).
+- **Que valor tem cada variante**: a ficha lê as variantes sem os valores
+  (`GET /hub/products/{id}`), e a rota pela chave só os dá variante a
+  variante (`GET /variants/{id}`). A API do Hub **junta** a cada valor
+  `variantes` (os `var_…` que o têm, também as arquivadas), lidos da tabela
+  `variante_valor` (migração 0005) na mesma transacção, no contexto do
+  comerciante e com o filtro dele escrito — como o `autor` do histórico
+  (§16.2) e os nomes das publicações (§18.1). A rota pela chave não muda.
+- **Os textos**: o nome da opção e o valor como estão guardados (a língua
+  de origem); as traduções (`docs/14` §3.3, parte 3) ficam para o passo das
+  traduções.
+- **Quem vê**: os mesmos da ficha (`catalog:read`, os quatro papéis).
+
+### 20.2 O ecrã
+
+| Ecrã | O que muda |
+|---|---|
+| **Ficha do artigo**, tabela «Variantes» (§12.2) | Uma coluna por opção, pela ordem das opções, entre o SKU e o estado, com o valor da variante (ex.: «Tamanho: 15 ml»). Uma variante sem valor nessa opção (um rascunho incompleto, `docs/14` §3.3) mostra «—». Nos cartões do telemóvel, o rótulo é o nome da opção (`data-rotulo`). |
+| **Ficha do artigo**, por cima da tabela | Uma linha «Opções: Tamanho (15 ml, 30 ml) · Cor (Azul, Rosa)», com todos os valores pela ordem, também os que nenhuma variante usa. |
+| Artigo **sem opções** | Nada muda: nem colunas nem a linha. |
+| As opções **falham ao ler** | A tabela fica como hoje e, por cima, «Não foi possível ler as opções» com «Tentar outra vez» (cada parte falha sozinha, §12.2). |
+
+### 20.3 Antes de dizer que está feito (o pedido do código)
+
+- **API**: o caminho do Hub dá as mesmas opções que a rota pela chave,
+  mais `variantes` em cada valor; uma variante arquivada aparece no seu
+  valor; um valor sem variantes vem com a lista vazia; as variantes de
+  outro comerciante não aparecem (prova pela falha: tirar o filtro faz
+  falhar o teste); o contrato do Hub tem o campo e o da chave não.
+- **Hub**: testes de como se monta a coluna (variante com valor, sem
+  valor, artigo sem opções); a passagem confere a coluna e a linha num
+  artigo com opções e nada num sem opções; as capturas da ficha vão à
+  página de aprovação.
 
 ## O que não foi verificado
 
