@@ -34,16 +34,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 import { hubDeTeste } from "./hub-de-teste.js";
-
-/** Imagens mínimas: os primeiros bytes de cada formato e um resto. */
-const PNG = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.from("resto do png"),
-]);
-const JPEG = Buffer.concat([
-  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
-  Buffer.from("resto do jpeg"),
-]);
+import { JPEG, PNG } from "./imagens-de-teste.js";
 
 // A lista de artigos no Hub (docs/22 §11; issue #199): GET /hub/products é a
 // mesma função, filtros e resposta do GET /products, com a sessão de uma

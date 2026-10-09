@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
 import { ArmazenamentoEmDisco } from "./catalogo/armazenamento.js";
+import { agendarLimpezaDosFicheiros } from "./catalogo/limpeza-ficheiros.js";
 import { proxyConfiavel } from "./base/limite.js";
 import { serializadores } from "./base/registo.js";
 import { chaveTotp } from "./identidade/palavra-passe.js";
@@ -73,8 +74,16 @@ const app = criarApp(
   armazenamento,
 );
 
+// Os ficheiros de imagem sem uso há mais de 7 dias saem uma vez por dia
+// (docs/14 §3.5; issue #179). Só com a base e a pasta das imagens.
+const pararLimpeza =
+  base !== undefined && armazenamento !== undefined
+    ? agendarLimpezaDosFicheiros(base, armazenamento, app.log)
+    : () => undefined;
+
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
+    pararLimpeza();
     app.log.info({ sinal }, "a fechar");
     app
       .close()

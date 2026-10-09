@@ -19,26 +19,13 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+import { JPEG, PNG, WEBP, png as pngCom } from "./imagens-de-teste.js";
 
 // As imagens dos artigos (docs/14 §3.5; docs/06, CQ), contra o PostgreSQL 18
 // verdadeiro e uma pasta temporária no lugar do disco da VPS.
 
 const NOVO = { nome: "Loja de Teste", lingua: "pt", fuso: "Europe/Lisbon" };
 
-/** Imagens mínimas: só os primeiros bytes de cada formato e um resto. */
-const PNG = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.from("resto do png"),
-]);
-const JPEG = Buffer.concat([
-  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
-  Buffer.from("resto do jpeg"),
-]);
-const WEBP = Buffer.concat([
-  Buffer.from("RIFF"),
-  Buffer.from([0x10, 0, 0, 0]),
-  Buffer.from("WEBPVP8 resto"),
-]);
 const resumo = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 
 interface Ficheiro {
@@ -566,6 +553,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
         await disco.guardar(c, r, b);
       },
       ler: (c, r) => disco.ler(c, r),
+      apagar: (c, r) => disco.apagar(c, r),
     };
     const app2 = criarApp(
       { logger: false },
@@ -631,6 +619,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
         await disco.guardar(c, r, b);
       },
       ler: (c, r) => disco.ler(c, r),
+      apagar: (c, r) => disco.apagar(c, r),
     };
     const comLento = criarApp(
       { logger: false },
@@ -696,6 +685,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
         await disco.guardar(c, r, b);
       },
       ler: (c, r) => disco.ler(c, r),
+      apagar: (c, r) => disco.apagar(c, r),
     };
     let p1: ReturnType<typeof connect> | undefined;
     let p2: ReturnType<typeof connect> | undefined;
@@ -782,7 +772,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       }
       // A gravação falha (500): nem registo nem ficheiro.
       expect(estado).toBe(500);
-      const bytes = Buffer.concat([PNG, Buffer.from(randomUUID())]);
+      const bytes = pngCom(randomUUID());
       const chave = randomUUID();
       const falhou = await env(bytes, chave);
       expect(falhou.status).toBe(500);
@@ -810,7 +800,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
 
   it("um ficheiro que falta no disco dá 500 sem dizer onde", async () => {
     const f = await artigo("Sem ficheiro");
-    const bytes = Buffer.concat([PNG, Buffer.from(randomUUID())]);
+    const bytes = pngCom(randomUUID());
     const fid = (await ficheiro(bytes, "image/png")).id;
     const m = (
       await pedir("POST", `/products/${f.id}/media`, { ficheiro: fid })
@@ -829,8 +819,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
     const e2 = await enviar(WEBP, "image/webp", { chave });
     expect(e2.statusCode).toBe(201);
     expect(e2.json()).toEqual(e1.json());
-    const novos = Buffer.concat([JPEG, Buffer.from(randomUUID())]);
-    const outro = await enviar(novos, "image/jpeg", { chave });
+    const novos = pngCom(randomUUID());
+    const outro = await enviar(novos, "image/png", { chave });
     expect(outro.json()).toMatchObject({ codigo: "idempotency.key_reused" });
     // Uma chave já usada não escreve no disco (2.ª revisão do #176, P1-N1).
     await expect(readFile(join(pasta, a, resumo(novos)))).rejects.toMatchObject(
@@ -869,10 +859,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
   it("de outro comerciante: 404 em tudo, e o ficheiro de outro não se liga; os âmbitos; sem MEDIA_PASTA não há rotas", async () => {
     const f = await artigo("Meu");
     // Uma imagem que só A enviou (B tem o PNG simples, de outro teste).
-    const png = await ficheiro(
-      Buffer.concat([PNG, Buffer.from("só de A")]),
-      "image/png",
-    );
+    const png = await ficheiro(pngCom("só de A"), "image/png");
     const m = (
       await pedir("POST", `/products/${f.id}/media`, { ficheiro: png.id })
     ).json<Media>();
