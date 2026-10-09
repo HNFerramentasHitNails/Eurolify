@@ -1346,8 +1346,9 @@ o texto de um valor, apagar uma opção e mudar a ordem; desenham-se antes do
 código.
 
 **A escrita das opções** (desenho de 09/10/2026, issue #285; pedido do
-Diogo: *«sim, avança com o desenho da escrita das opções»*; **proposta, por
-aprovar**). As regras são as da §3.3 e já estão na base (migração 0005:
+Diogo: *«sim, avança com o desenho da escrita das opções»*; aprovado pelo Diogo a
+09/10/2026: *«sim, aprovo o desenho, junta o #286»*, com a `versao` da
+opção). As regras são as da §3.3 e já estão na base (migração 0005:
 `opcao_antes_de_gravar`, `valor_opcao_antes_de_gravar`,
 `variante_valor_antes_de_gravar` e a verificação das combinações no fim de
 cada transacção); as rotas novas só as usam, sem as repetir. Todas com
@@ -1363,7 +1364,7 @@ cada transacção); as rotas novas só as usam, sem as repetir. Todas com
 | `PUT /options/{id}/values/order` | `valores`: todos os `ovl_…` da opção, pela ordem nova; `versao` | sempre | `catalog.order_mismatch`; `catalog.version_conflict` |
 | `PUT /variants/{id}/values` | `valores`: um `ovl_…` por opção, ou menos (num rascunho pode ficar incompleta) | só num rascunho (depois de vendida, a variante não muda de identidade, §3.3) | `catalog.not_draft`; dois valores da mesma opção, ou um valor de outro artigo: 400 e `catalog.not_found`, como no `POST /products/{id}/variants` |
 
-- **A `versao` da opção** (proposta): a tabela `opcao` ganha `versao`, que
+- **A `versao` da opção**: a tabela `opcao` ganha `versao`, que
   sobe com qualquer mudança à opção ou aos valores dela (nome, texto de um
   valor, ordem dos valores, valor novo, valor apagado). Sem ela, duas pessoas
   a mudar o nome ao mesmo tempo gravavam as duas e ficava a última, sem

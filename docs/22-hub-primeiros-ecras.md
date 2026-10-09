@@ -1219,7 +1219,8 @@ Unidade…» para «ENS-001 · 15 ml · Activa · Unidade…».
 ## 21. Catálogo: escrever as opções do artigo (issue #285)
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da escrita das
-opções»*. **Proposta, por aprovar.** A §20 pôs as opções na ficha só para
+opções»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
+desenho, junta o #286»*). A §20 pôs as opções na ficha só para
 consulta; este passo deixa escrevê-las pelo Hub. Ex.: a gestora da «Loja de
 Ensaio» cria o rascunho «Verniz Verde 31» com duas variantes (§14), abre
 «Editar opções», cria «Tamanho» com «15 ml» e «30 ml», dá «15 ml» à
