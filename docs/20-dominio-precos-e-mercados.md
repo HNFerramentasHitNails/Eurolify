@@ -270,8 +270,8 @@ Com outbox, como os do Catálogo (`platform-architect`).
 
 Versão por data (`headless-commerce`, regra 7). Listas por cursor, com o
 total explícito. Erros RFC 9457 com código estável (`docs/18`). Todas as
-escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
-`prices:write`, `markets:read`, `markets:write`.
+escritas com `Idempotency-Key`. Âmbitos: `prices:read` e `prices:write`,
+também para os mercados e os canais (§10.1; `docs/06`, CW).
 
 ### 7.1 API de Administração
 
@@ -434,3 +434,22 @@ Regras:
 | O preço muda por baixo de uma redução | `prices.reduction_active` |
 | Uma chave com `catalog:write` muda preços | os âmbitos são outros; o teste das rotas verifica-o em cada caminho |
 | O preço por unidade arredondado de uma forma que um país não aceita | devolve-se o valor sem arredondar para mostrar (quatro casas); a regra é **C** |
+
+### 10.6 Em código (09/10/2026; migração 0036; `docs/06`, CW)
+
+- `migracoes/0036_precos_reducao_e_ambitos.sql`: a tabela `reducao`, a função
+  `preco_referencia`, os gatilhos (o preço de referência e as recusas, o
+  preço que não muda por baixo de uma redução, os eventos `promotion.*`) e os
+  âmbitos `prices:read` e `prices:write` nas chaves e nos papéis.
+- `precos/rotas.ts`: as rotas, com o `escrever` do Catálogo (a
+  Idempotency-Key e o `eurolify.quem` da chave na mesma transacção);
+  `precos/repositorio.ts` corre na transacção do pedido (`noDominio`), e tem
+  as listas, as reduções e o preço por unidade.
+- **Diferenças do §7.1:** os mercados de um canal mudam-se com
+  `PUT /channels/{id}/markets` (não com um `PATCH` do canal), e os canais e as
+  listas arquivam-se e repõem-se com `POST …/archive` e `…/restore`; o nome de
+  um canal ou de uma lista ainda não se muda pela API (não houve pedido).
+- **A variante de um rascunho apagada** com uma redução em vigor termina a
+  redução, com quem apagou.
+- **Os testes** (`precos-api.test.ts`) correm numa base sem o «quem» por
+  omissão: cada escrita prova que traz o seu.
