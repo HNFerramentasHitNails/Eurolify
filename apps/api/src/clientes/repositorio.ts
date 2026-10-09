@@ -2,6 +2,7 @@ import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { ErroClientes, type CodigoErroClientes } from "./erros.js";
+import type { PedidoVies, RespostaVies } from "./vies.js";
 
 // Clientes e perfis de faturação, parte 1 (docs/23 §3; migração 0037; issue
 // #233). As regras vivem na base (a régua do NIF, o principal, o perfil
@@ -21,6 +22,11 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.primary_profile",
   "customers.tag_in_use",
   "customers.tag_archived",
+  // Da 0039 (VIES e isenção manual).
+  "customers.change_without_who",
+  "customers.exemption_by_person",
+  "customers.exemption_immutable",
+  "customers.vies_not_applicable",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -39,6 +45,7 @@ const RESTRICOES: Readonly<Record<string, CodigoErroClientes>> = {
   // Dois primeiros perfis da mesma ficha ao mesmo tempo: o gatilho toma a
   // ficha, mas fica a rede.
   perfil_um_principal: "customers.retry",
+  isencao_uma_em_vigor: "customers.exemption_active",
 };
 
 const TABELAS = new Set([
@@ -46,6 +53,7 @@ const TABELAS = new Set([
   "perfil_faturacao",
   "etiqueta_cliente",
   "cliente_etiqueta",
+  "isencao_manual",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -377,16 +385,36 @@ const camposDaMorada = (m: Morada | null) => ({
 });
 
 function perfisComNif(trx: Transaction<BaseDados>, comercianteId: string) {
-  return trx
-    .selectFrom("perfil_faturacao")
-    .selectAll()
-    .select(
-      sql<
-        string | null
-      >`nif_com_prefixo(pais_contribuinte, nif_numero, pais_do_comerciante(${comercianteId}::uuid))`.as(
-        "nif",
-      ),
-    );
+  return (
+    trx
+      .selectFrom("perfil_faturacao")
+      .selectAll()
+      .select(
+        sql<
+          string | null
+        >`nif_com_prefixo(pais_contribuinte, nif_numero, pais_do_comerciante(${comercianteId}::uuid))`.as(
+          "nif",
+        ),
+      )
+      // A data da última resposta do VIES ao NIF actual (válido ou inválido),
+      // lida das provas: o perfil não muda a cada revalidação (revisão do #244,
+      // P2-6).
+      .select(
+        sql<Date | null>`(select coalesce(v.data_vies, v.consultado_em)
+        from validacao_vies v
+        where v.perfil_id = perfil_faturacao.id
+          and v.pais_consultado = perfil_faturacao.pais_contribuinte
+          and v.numero_consultado = perfil_faturacao.nif_numero
+          and v.resultado in ('valido', 'invalido')
+        order by v.consultado_em desc limit 1)`.as("validado_em"),
+      )
+      .select(
+        sql<boolean>`exists (select from isencao_manual i
+        where i.perfil_id = perfil_faturacao.id and i.retirada_em is null)`.as(
+          "isencao_em_vigor",
+        ),
+      )
+  );
 }
 
 export async function criarPerfil(
@@ -748,5 +776,246 @@ export async function linhaDoTempo(
       total: Number(n),
       ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
     };
+  });
+}
+
+// ----------------------------------------------- VIES (parte 3, §13)
+
+export type MotivoVies = "perfil_novo" | "nif_mudou" | "revalidacao" | "pedido";
+
+async function requerente(
+  trx: Transaction<BaseDados>,
+): Promise<PedidoVies["requerente"]> {
+  const { rows } = await sql<{ pais: string | null; numero: string | null }>`
+    select pais, numero from vies_requerente()`.execute(trx);
+  const r = rows[0];
+  return r?.pais && r.numero ? { pais: r.pais, numero: r.numero } : null;
+}
+
+/** Grava a resposta como prova (a `vies_registar`); devolve o id da prova. */
+export async function registarVies(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+  pedido: PedidoVies,
+  resposta: RespostaVies,
+  consultadoEm: Date,
+  motivo: MotivoVies,
+): Promise<string> {
+  return noClientes(db, comercianteId, async (trx) => {
+    const { rows } = await sql<{ id: string }>`
+      select vies_registar(
+        ${perfilId}::uuid, ${pedido.pais}, ${pedido.numero},
+        ${resposta.requerente?.pais ?? null}, ${resposta.requerente?.numero ?? null},
+        ${consultadoEm}, ${resposta.dataVies}, ${resposta.resultado},
+        ${resposta.codigoErro}, ${resposta.identificador}, ${resposta.nome},
+        ${resposta.morada}, ${motivo}) as id`.execute(trx);
+    const id = rows[0]?.id;
+    if (id === undefined) throw new Error("vies_registar sem id");
+    return id;
+  });
+}
+
+export async function obterValidacao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+) {
+  const v = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("validacao_vies")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst(),
+  );
+  if (v === undefined) {
+    throw new ErroClientes("customers.not_found", "prova inexistente");
+  }
+  return v;
+}
+
+/** As provas de um perfil, da mais recente para a mais antiga. */
+export async function listarValidacoes(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+  limite: number,
+  antes: string | null,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const existe = await trx
+      .selectFrom("perfil_faturacao")
+      .select("id")
+      .where("id", "=", perfilId)
+      .executeTakeFirst();
+    if (existe === undefined) {
+      throw new ErroClientes("customers.not_found", "perfil inexistente");
+    }
+    const { n } = await trx
+      .selectFrom("validacao_vies")
+      .where("perfil_id", "=", perfilId)
+      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .executeTakeFirstOrThrow();
+    let q = trx
+      .selectFrom("validacao_vies")
+      .selectAll()
+      .where("perfil_id", "=", perfilId);
+    if (antes !== null) q = q.where("id", "<", antes);
+    const linhas = await q
+      .orderBy("id", "desc")
+      .limit(limite + 1)
+      .execute();
+    const haMais = linhas.length > limite;
+    const dados = haMais ? linhas.slice(0, limite) : linhas;
+    return {
+      dados,
+      total: Number(n),
+      ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
+    };
+  });
+}
+
+/** Os comerciantes com consultas para fazer agora (a fila, §13.4). */
+export async function comerciantesComFilaVies(
+  db: Kysely<BaseDados>,
+): Promise<string[]> {
+  const { rows } = await sql<{ id: string }>`
+    select id from vies_comerciantes_com_fila() as id`.execute(db);
+  return rows.map((r) => r.id);
+}
+
+/** As consultas para fazer agora num comerciante, com o requerente dele. */
+export async function filaViesDoComerciante(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  limite: number,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const { rows } = await sql<{
+      perfil_id: string;
+      pais: string;
+      numero: string;
+      motivo: MotivoVies;
+    }>`select perfil_id, pais, numero, motivo from vies_por_consultar(${limite})`.execute(
+      trx,
+    );
+    return { consultas: rows, requerente: await requerente(trx) };
+  });
+}
+
+// ------------------------------------------ A isenção manual (§13.5)
+
+export async function porIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+  motivo: string,
+  nota: string | null,
+): Promise<string> {
+  const { id } = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .insertInto("isencao_manual")
+      .values({
+        comerciante_id: comercianteId,
+        perfil_id: perfilId,
+        motivo,
+        nota,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow(),
+  );
+  return id;
+}
+
+/** Retira a isenção em vigor; devolve o id dela. */
+export async function retirarIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+  motivoRetirada: string,
+): Promise<string> {
+  return noClientes(db, comercianteId, async (trx) => {
+    const r = await trx
+      .updateTable("isencao_manual")
+      .set({ motivo_retirada: motivoRetirada })
+      .where("perfil_id", "=", perfilId)
+      .where("retirada_em", "is", null)
+      .returning("id")
+      .executeTakeFirst();
+    if (r === undefined) {
+      throw new ErroClientes(
+        "customers.not_found",
+        "o perfil não tem uma isenção em vigor",
+      );
+    }
+    return r.id;
+  });
+}
+
+export async function obterIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+) {
+  const i = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("isencao_manual")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst(),
+  );
+  if (i === undefined) {
+    throw new ErroClientes("customers.not_found", "isenção inexistente");
+  }
+  return i;
+}
+
+/** As isenções de um perfil (a em vigor e as retiradas), mais recentes primeiro. */
+export async function listarIsencoes(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const existe = await trx
+      .selectFrom("perfil_faturacao")
+      .select("id")
+      .where("id", "=", perfilId)
+      .executeTakeFirst();
+    if (existe === undefined) {
+      throw new ErroClientes("customers.not_found", "perfil inexistente");
+    }
+    return trx
+      .selectFrom("isencao_manual")
+      .selectAll()
+      .where("perfil_id", "=", perfilId)
+      .orderBy("id", "desc")
+      .execute();
+  });
+}
+
+/** A consulta pedida: o perfil passa à frente da fila (revisão do #244, P1-1). */
+export async function pedirVies(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+): Promise<Date> {
+  return noClientes(db, comercianteId, async (trx) => {
+    const { rows } = await sql<{ quando: Date }>`
+      select vies_pedir(${perfilId}::uuid) as quando`.execute(trx);
+    const quando = rows[0]?.quando;
+    if (quando === undefined) throw new Error("vies_pedir sem resposta");
+    return quando;
+  });
+}
+
+/** Uma consulta que falhou antes de gravar: a linha vai para trás (P2-1). */
+export async function adiarVies(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+): Promise<void> {
+  await noClientes(db, comercianteId, async (trx) => {
+    await sql`select vies_adiar(${perfilId}::uuid)`.execute(trx);
   });
 }

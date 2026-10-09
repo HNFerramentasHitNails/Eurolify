@@ -21,6 +21,7 @@ import { rotasDoCatalogo } from "./catalogo/rotas.js";
 import { rotasDaLinhaDoTempo } from "./catalogo/rotas-linha-do-tempo.js";
 import { rotasDaMedia } from "./catalogo/rotas-media.js";
 import { rotasDosClientes } from "./clientes/rotas.js";
+import type { ConsultaVies } from "./clientes/vies.js";
 import { rotasDosPrecos } from "./precos/rotas.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
 import { rotasDasImportacoes } from "./importacao/rotas.js";
@@ -84,6 +85,8 @@ export function criarApp(
    * da media não existem.
    */
   armazenamento?: Armazenamento,
+  /** Quem consulta o VIES (docs/23 §13.2); sem ele, a consulta pedida dá 503. */
+  vies?: ConsultaVies,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -284,7 +287,7 @@ export function criarApp(
       rotasDoCatalogo(rotas, base);
       rotasDaLinhaDoTempo(rotas, base);
       rotasDosPrecos(rotas, base);
-      rotasDosClientes(rotas, base);
+      rotasDosClientes(rotas, base, vies);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.

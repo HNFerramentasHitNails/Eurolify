@@ -3,7 +3,8 @@
 > **Estado: desenho aprovado; parte 1 no código** (issue #233; `docs/06`,
 > CX). Diogo, 09/10/2026: *«sim, avança com o desenho da fatia 5»* e *«sim,
 > aprovo; avança com o código da fatia 5»* (as cinco respostas da §9 como
-> propostas). É a fatia 5 do
+> propostas). **Parte 3 (VIES e isenção manual): aprovada e no código, §13**
+> (`docs/06`, CY). É a fatia 5 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Clientes e perfis de faturação; finalidade por encomenda») e é preciso
 > antes do Motor de IVA (fatia 6) e do checkout (fatia 7): o Motor de IVA
@@ -477,3 +478,199 @@ apontavam para etiquetas (`test/migracao-0037.test.ts`, com um migrador sem
 poderes, como o da VPS; as duas mutações — sem desligar o RLS forçado, sem o
 voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 **não verifiquei** (o MCP da VPS pede autorização nesta sessão).
+
+## 13. Parte 3 — VIES com prova e isenção manual (desenho de 09/10/2026)
+
+> **Estado: aprovado; no código** (migração 0039; `docs/06`, CY). Diogo,
+> 09/10/2026: *«sim, avança com o desenho da parte 3»* e *«sim, aprovo; avança
+> com o código da parte 3»* (Q6 e Q7 como propostas). Detalha os §3.4 e §3.9 para o código. Vem antes da
+> parte 2 porque o Motor de IVA (fatia 6) decide com isto
+> (`eu-vat-oss-ioss`, «A ordem da decisão», 2.1 e 2.2).
+
+### 13.1 O que entra
+
+| Entra | Fonte |
+|---|---|
+| a consulta ao VIES, feita **só pelo servidor**, e a prova de cada consulta, que não se altera nem se apaga | `eu-vat-oss-ioss`, regra 5; §3.4 |
+| o `estado_vies` do perfil mudado pelas respostas; os eventos `billing_profile.validated` e `billing_profile.invalidated` | §4.2, §6 |
+| a revalidação diária e a consulta pedida por uma pessoa | `eu-vat-oss-ioss`, regra 5 |
+| a isenção manual com motivo, nota e anexos, que **nenhum processo automático desliga**, com o âmbito `customers:exemptions`, só do dono | `eu-vat-oss-ioss`, regra 4; §3.9; Q4 |
+
+| Fica fora | Porquê |
+|---|---|
+| decidir se a venda é isenta | Motor de IVA (fatia 6): lê o estado, a prova e a isenção no checkout e guarda a cópia |
+| há quanto tempo pode ter sido a última resposta «válido» para isentar uma venda | regra fiscal, **C** — vai para o contabilista com a fatia 6 (V5, §13.8) |
+| o registo do comerciante para a venda (OSS, etc.) | Motor de IVA |
+
+### 13.2 O serviço VIES — o que se mediu
+
+A API REST pública da Comissão Europeia
+(`https://ec.europa.eu/taxation_customs/vies/rest-api/`), medida a
+09/10/2026 a partir da sessão de trabalho (não da VPS):
+
+| Pedido | Resultado medido |
+|---|---|
+| `GET …/check-status` | `{"vow":{"available":true},"countries":[{"countryCode":"AT","availability":"Available"},…]}` — o estado de cada país |
+| `POST …/check-vat-number` com `{"countryCode":"DE","vatNumber":"000000000"}` | `valid: false`, `requestDate`, `requestIdentifier: ""` (**vazio sem requerente**), `name`/`address` `"---"` |
+| o mesmo, com `requesterMemberStateCode`/`requesterNumber` de um NIF inventado | `{"actionSucceed":false,"errorWrappers":[{"error":"INVALID_REQUESTER_INFO"}]}` |
+| um pedido sem requerente, logo a seguir | `{"actionSucceed":false,"errorWrappers":[{"error":"MS_MAX_CONCURRENT_REQ"}]}` — o serviço do país recusou por excesso de pedidos |
+
+Conclusões (**M**, medidas; o resto não verifiquei):
+- **o número de consulta só vem com um requerente válido** — o NIF do
+  comerciante (a entidade legal dele). Sem requerente, a resposta vem sem
+  número. Se isso vale como prova para o fisco é a V3 (**C**);
+- **há erros que não são resposta** (`MS_MAX_CONCURRENT_REQ`,
+  `INVALID_REQUESTER_INFO`); a lista completa dos códigos **não verifiquei**.
+  Regra: tudo o que não traz `valid: true` ou `valid: false` é
+  `indisponivel`;
+- os limites de pedidos do VIES **não verifiquei**; o serviço do país recusa
+  pedidos em simultâneo.
+
+### 13.3 A prova (`validacao_vies`, `vvc_`)
+
+Uma linha por consulta, **só se acrescenta** (como o histórico de preços), RLS
+forçado.
+
+| Campo | Notas | Marca |
+|---|---|---|
+| `perfil_id`, `pais_consultado`, `numero_consultado` | exactamente o que se enviou | regra (`eu-vat-oss-ioss`, regra 5) |
+| `requerente` | o NIF do comerciante enviado como requerente, ou vazio | proposta (Q7) |
+| `consultado_em` | do nosso relógio, antes de enviar | regra |
+| `data_vies` | o `requestDate` da resposta | proposta |
+| `resultado` | `valido`, `invalido` ou `indisponivel` | proposta |
+| `codigo_erro` | o código do VIES num `indisponivel` (`MS_MAX_CONCURRENT_REQ`, tempo esgotado…) | proposta |
+| `identificador_consulta` | o `requestIdentifier`, quando vem | regra; o valor como prova é **C** (V3) |
+| `nome_devolvido`, `morada_devolvida` | o que o VIES devolveu (`"---"` guarda-se como vazio) | proposta; o prazo de guarda é **C** (V2) |
+| `motivo` | `perfil_novo`, `nif_mudou`, `revalidacao`, `pedido` | proposta |
+| `quem` | `sistema:vies` nas automáticas; a chave ou a pessoa num pedido | regra (`observability-security`) |
+
+### 13.4 Como corre
+
+| Passo | O quê | Marca |
+|---|---|---|
+| 1 | Um perfil novo, ou com o NIF mudado, fica `por_validar` (já na parte 1) | regra |
+| 2 | Uma tarefa da API, como a limpeza dos ficheiros (`agendarLimpezaDosFicheiros`), **de minuto a minuto** pega nos `por_validar`, **um de cada vez**, com pausa entre pedidos | proposta |
+| 3 | A consulta é HTTP **fora de qualquer transacção** da base (nunca se seguram locks à espera do VIES); tempo máximo de 10 s | proposta |
+| 4 | O resultado grava-se numa função da base (`vies_registar`) que escreve a prova e muda o `estado_vies` **só se o NIF do perfil ainda for o consultado** (se mudou entretanto, a prova fica e o estado não) | proposta |
+| 5 | `valido` ou `invalido` passam para o `estado_vies` com `validado_em`; um `indisponivel` **não apaga** a última resposta: um perfil `valido` continua `valido` com a data antiga; um perfil sem resposta nenhuma fica `indisponivel` | **pergunta Q6** |
+| 6 | Revalidação diária, fora do horário de trabalho, dos perfis activos com VIES aplicável cuja última resposta tem mais de 24 h, espalhada pela noite | regra (`eu-vat-oss-ioss`, regra 5); o horário, proposta |
+| 7 | De `valido` para `invalido`: `billing_profile.invalidated`; para `valido`: `billing_profile.validated`. A isenção manual não se toca | regra (regra 4) |
+| 8 | `POST /billing-profiles/{id}/vies-checks`: uma pessoa pede a consulta; o perfil passa à frente da fila e a tarefa consulta-o no minuto seguinte (202); a prova lê-se em `GET …/vies-checks` (revisão do #244, P1-1: nenhum pedido HTTP prende uma ligação à base) | proposta |
+
+Um `indisponivel` volta à fila com espera crescente (1 min, 5 min, 30 min,
+depois a revalidação diária) — proposta. Os erros vão para o registo da
+aplicação **sem o NIF** (só o `bpf_` e o código; R12).
+
+**Requerente:** o NIF da entidade legal do comerciante, quando ele tem uma só
+entidade activa num país da UE (`pais_do_comerciante`). Se o VIES responder
+`INVALID_REQUESTER_INFO`, repete sem requerente e a prova fica sem número de
+consulta — proposta (Q7).
+
+### 13.5 A isenção manual (`isencao_manual`, `exm_`) e os anexos
+
+| Campo | Notas | Marca |
+|---|---|---|
+| `perfil_id` | uma isenção **em vigor** por perfil (índice único parcial) | proposta |
+| `motivo` | texto obrigatório, 1 a 500 caracteres; ex.: «transportadora própria, declaração aduaneira entregue» | regra (`eu-vat-oss-ioss`, «As peças») |
+| `nota` | texto livre | regra |
+| `posta_por`, `posta_em` | a chave ou a pessoa; **nunca** `sistema:` | regra (regra 4) |
+| `retirada_por`, `retirada_em`, `motivo_retirada` | só uma pessoa; a base recusa `sistema:` | regra (regra 4) |
+
+- Não se altera: muda-se retirando e pondo outra (o histórico fica inteiro) —
+  proposta.
+- **Anexos** (`anexo_isencao`): PDF, JPEG ou PNG, até 10 MB cada, até 5 por
+  isenção; no mesmo armazenamento das imagens, numa pasta privada, nunca
+  públicos; lêem-se pela API com `customers:exemptions` — proposta. O prazo de
+  guarda é o fiscal (**C**, V2).
+- Eventos `billing_profile.exemption_set` e `billing_profile.exemption_removed`
+  (`bpf_`, `exm_`, quem) — proposta (novos).
+
+### 13.6 Lista da API (parte 3)
+
+| Operação | Método e caminho | Âmbito |
+|---|---|---|
+| Pedir uma consulta (202; a fila consulta no minuto seguinte) | `POST /billing-profiles/{id}/vies-checks` | `customers:billing` |
+| As provas | `GET /billing-profiles/{id}/vies-checks` | `customers:read` |
+| Pôr uma isenção | `PUT /billing-profiles/{id}/exemption` (`{ motivo, nota }`) | `customers:exemptions` |
+| Retirar | `DELETE /billing-profiles/{id}/exemption` (`{ motivo_retirada }`) | `customers:exemptions` |
+| A isenção e o histórico | `GET /billing-profiles/{id}/exemptions` | `customers:read` |
+| Anexos | `POST /exemptions/{id}/attachments`, `GET /exemptions/{id}/attachments`, `GET /exemptions/{id}/attachments/{anexo}` | `customers:exemptions` |
+
+O perfil passa a mostrar `validado_em` e se tem isenção em vigor.
+
+### 13.7 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| Uma venda sai isenta com o VIES em baixo | `indisponivel` nunca é `valido` (R7); o Motor de IVA cobra |
+| Um NIF mudado durante a consulta fica «válido» com a resposta do antigo | §13.4, passo 4: o estado só muda se o NIF ainda for o consultado |
+| A revalidação desliga a isenção de uma pessoa | a isenção é outra tabela; a base recusa retirá-la com `quem` de sistema |
+| Pedidos a mais e o VIES recusa | um de cada vez, com pausa e espera crescente (§13.4) |
+| A API presa à espera do VIES | a consulta é fora das transacções, com 10 s de tempo máximo |
+| O NIF nos registos da aplicação | só o `bpf_` e o código de erro (R12) |
+| A VPS sem saída para `ec.europa.eu` | **não verifiquei** se a rede do contentor da API sai para a Internet; mede-se no ensaio antes de ligar a tarefa |
+| Uma prova sem número de consulta não vale para o fisco | V3 (**C**); o servidor guarda tudo o que o VIES devolve |
+
+### 13.8 Perguntas
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q6 | Quando o VIES não responde, o perfil que estava «válido» continua «válido» (com a data da última resposta) ou passa logo a «sem resposta»? | ✅ **Decidido** (Diogo, 09/10/2026): **continua «válido», com a data**; quanto tempo essa resposta serve para isentar uma venda decide-o o Motor de IVA com o contabilista (V5). Passar logo a «sem resposta» faria cobrar IVA a um cliente válido sempre que o VIES falha |
+| Q7 | Enviar o NIF do comerciante como requerente em cada consulta? | ✅ **Decidido** (Diogo, 09/10/2026): **sim**: é o único modo de o VIES devolver o número de consulta (medido, §13.2), que é o que se guarda como prova |
+
+Para o contabilista (bloqueiam a produção, não o código):
+
+| # | Pergunta |
+|---|---|
+| V3 | (já na §10) O número de consulta exige o requerente (medido: sim) — e vale como prova? |
+| V5 | Quanto tempo antes do checkout pode ter sido a última resposta «válido» do VIES para isentar a venda? |
+
+### 13.9 Como entra no código
+
+Uma migração (a próxima livre) com `validacao_vies`, `vies_registar`,
+`isencao_manual`, `anexo_isencao`, o âmbito `customers:exemptions` (só o
+dono) e os eventos; o adaptador do VIES em `src/clientes/vies.ts`, com um
+servidor falso nos testes (nenhum teste chama a Comissão); a tarefa de
+minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
+
+### 13.10 Em código (09/10/2026; migração 0039; `docs/06`, CY)
+
+| O quê | Onde |
+|---|---|
+| a prova (`validacao_vies`), que só se acrescenta; `vies_registar`, que muda o estado só se o NIF ainda for o consultado e se não houver resposta mais recente gravada, mantém a última resposta num `indisponivel` (Q6), só altera o perfil quando o estado muda e emite `validated`/`invalidated`; a data da última resposta (`validado_em`) lê-se das provas | migração 0039 |
+| a fila (`vies_fila`, interna): o gatilho do perfil põe e tira; depois de uma resposta, a próxima na janela da noite (01:00–05:00 UTC) a pelo menos 24 h; sem resposta, 1, 5 e 30 min, depois a noite | migração 0039 |
+| o requerente (Q7): o NIF da entidade legal, só com uma activa num país da UE (`vies_requerente`) | migração 0039 |
+| a isenção manual (`isencao_manual`): uma em vigor por perfil, com o NIF do perfil no momento, não se altera nem se apaga, retira-se uma vez; só com `quem` `pessoa:per_…` ou `chave:key_…` (lista branca) | migração 0039 |
+| o adaptador da API REST do VIES (EL para a Grécia, `---` como vazio, tudo o que não é `valid` é `indisponivel`, repete sem requerente num `INVALID_REQUESTER_INFO`, 10 s) | `src/clientes/vies.ts` |
+| a tarefa de minuto a minuto, um pedido de cada vez com 1 s de pausa, até 5 por comerciante e 30 por volta, um país que diz «pedidos a mais» fica de fora até à volta seguinte, uma falha adia a linha; `quem` «sistema:vies». **Desligada por omissão**: liga-se com `VIES_URL` (o endereço da API REST), depois de medir a saída da VPS | `src/clientes/vies-fila.ts`; `src/servidor.ts` |
+| as rotas: `POST/GET /billing-profiles/{id}/vies-checks`, `PUT/DELETE /billing-profiles/{id}/exemption`, `GET /billing-profiles/{id}/exemptions`; o perfil com `validado_em` e `isencao_em_vigor` | `src/clientes/rotas.ts` |
+| o âmbito `customers:exemptions`, só do dono (Q4) | migração 0039; `src/identidade/` |
+| 20 testes (o adaptador contra um servidor HTTP falso; a API e a fila contra uma consulta falsa — nenhum chama a Comissão); 19 mutações desta versão, todas apanhadas | `test/clientes-vies.test.ts` |
+
+**Desvios do desenho:**
+- **Os anexos da isenção ficam para um pedido à parte**: a pasta das imagens
+  tem uma limpeza de ficheiros sem linha (`docs/14` §3.5), e os anexos
+  precisam de armazenamento próprio e privado, e das cópias da VPS. O motivo e
+  a nota já entram.
+- **A consulta pedida** (`POST …/vies-checks`) não espera pelo VIES: põe o
+  perfil à frente da fila e responde 202 (revisão do #244, P1-1).
+- **A fila vem desligada** até se medir a saída da VPS para a Comissão
+  (`VIES_URL`; revisão do #244, P2-5): ligar é um pedido à parte.
+- A isenção e a prova não entram na linha do tempo da ficha: são registos que
+  só se acrescentam, com o seu quem e quando.
+
+**Depois da revisão do agente** (#244): P1-1, P2-1 a P2-8 tratados como
+acima, com testes; dos P3, o `TEMPO_ESGOTADO` a meio do corpo (P3-3), o NIF
+na isenção (P3-8) e o `FOR SHARE` do perfil ao pôr a isenção (P3-9).
+**Ficam escritos para depois:** a prova sem o corpo bruto da resposta (P3-1;
+guarda os campos); a Grécia guarda-se como `GR` e envia-se `EL` (P3-2); um
+varrimento que reponha linhas da fila em falta (P3-4); o Motor de IVA exige
+idade máxima da resposta (P3-5, V5); duas instâncias da API duplicavam
+consultas (P3-7; há uma); `valido → por_validar` por NIF novo sem evento
+próprio (P3-10); a pseudonimização do nome e morada devolvidos, na parte 2
+(P3-11); a isenção num perfil sem VIES aplicável fica para o Motor de IVA
+(P3-14).
+
+**Não verificado:** se o contentor da API na VPS sai para `ec.europa.eu`
+(sem saída, as provas ficam `indisponivel` com `SEM_LIGACAO`, e nada fica
+isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.

@@ -217,7 +217,7 @@ rotas já conferem.
 
 | Papel | Âmbitos | Notas |
 |---|---|---|
-| dono | todos, incluindo `keys:write`, `customers:read`, `customers:write` e `customers:billing` (0037) e mudar papéis | pelo menos um activo |
+| dono | todos, incluindo `keys:write`, `customers:read`, `customers:write`, `customers:billing` (0037) e `customers:exemptions` (0039) e mudar papéis | pelo menos um activo |
 | gestor | `merchant:read`, `catalog:*` (com `catalog:history`, 0033), `prices:read`, `prices:write` (0036), `customers:read`, `customers:write` (0037; não `customers:billing`) | não muda papéis, não cria chaves, não muda dados fiscais |
 | armazém | `catalog:read`, `prices:read` (0036; o preço de venda) (e os de stock e expedição, quando existirem) | sem preços de custo nem margens |
 | apoio | `merchant:read`, `catalog:read`, `prices:read` (0036), `customers:read`, `customers:write` (0037) (e os de encomendas, quando existirem) | sem preços de custo |

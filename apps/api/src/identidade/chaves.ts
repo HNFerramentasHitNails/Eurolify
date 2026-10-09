@@ -21,6 +21,7 @@ export const AMBITOS = [
   "customers:read",
   "customers:write",
   "customers:billing",
+  "customers:exemptions",
   "keys:write",
   "storefront",
 ] as const;
