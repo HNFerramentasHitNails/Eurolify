@@ -57,6 +57,15 @@ jobs:
         # Palavra-passe de uma base descartável, que só existe durante o
         # fluxo e só ouve no executor: não é um segredo.
         run: |
+          # Até 5 tentativas: o serviço de autenticação do Docker Hub
+          # esgotou o tempo umas vezes sim e outras não (CI do #267).
+          for tentativa in 1 2 3 4 5; do
+            if docker pull postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722; then
+              break
+            fi
+            if [ "$tentativa" = 5 ]; then exit 1; fi
+            sleep $((tentativa * 10))
+          done
           docker run -d --name postgres -e POSTGRES_PASSWORD=verificar \
             -p 127.0.0.1:5432:5432 \
             postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
@@ -121,6 +130,17 @@ jobs:
             infra/vps/ficheiros/bin/eurolify-pedido \
             infra/vps/ficheiros/sbin/eurolify-* \
             infra/vps/testes/*.sh
+      - name: descarregar o Ubuntu 26.04
+        run: |
+          # Até 5 tentativas: o serviço de autenticação do Docker Hub
+          # esgotou o tempo umas vezes sim e outras não (CI do #267).
+          for tentativa in 1 2 3 4 5; do
+            if docker pull ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7; then
+              break
+            fi
+            if [ "$tentativa" = 5 ]; then exit 1; fi
+            sleep $((tentativa * 10))
+          done
       - name: testes do serviço da máquina num Ubuntu 26.04 vazio
         # Cada teste num contentor novo: não herdam o que o outro instalou.
         run: |
