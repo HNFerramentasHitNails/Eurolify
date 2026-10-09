@@ -289,13 +289,15 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       },
     });
     expect(sessaoNaApi.statusCode).toBe(401);
-    // Só leitura: nenhuma escrita do catálogo com a sessão (docs/22 §11.1).
+    // Desde a §14 do docs/22 (#221) o Hub cria artigos: o caminho existe
+    // e um corpo sem variantes é recusado antes de escrever (os testes da
+    // criação estão em hub-criacao.test.ts).
     const escreverNoHub = await h.pedir("POST", "/hub/products", {
       sessao: p.sessao,
       comerciante: c.id,
       corpo: { tipo: "fisico", nome: "Não entra" },
     });
-    expect(escreverNoHub.statusCode).toBe(404);
+    expect(escreverNoHub.statusCode).toBe(400);
     const escreverNaApi = await h.app.inject({
       method: "POST",
       url: "/products",
