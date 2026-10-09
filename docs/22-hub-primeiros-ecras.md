@@ -450,10 +450,12 @@ política, lida do ficheiro.
 - **A outra sessão** vê no #77 a lista das funções do catálogo que passam a
   ter um segundo chamador.
 
-## 13. Catálogo: editar o artigo (issue #210, proposta)
+## 13. Catálogo: editar o artigo (issue #210)
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da edição do
-artigo»*. Só desenho: o código vem depois de aprovado. A edição parte da
+artigo»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista da §13.3
+(*«sim, aceito a lista, junta o #211»*); o código vem depois do código do
+#208 (§13.2). A edição parte da
 ficha (§12). Ex.: a gestora da «Loja de Ensaio» abre o «Verniz Azul 1», vê
 «Sem texto alternativo — impede a publicação» na segunda imagem, escreve
 «Frasco de verniz rosa, de lado» e guarda; a publicação volta a ser
@@ -519,7 +521,7 @@ no Hub; as traduções, a media e a publicação editam-se no Eurolify), mas
 `import.external_product`). A regra vive no servidor, nas rotas `/hub/…`,
 não no ecrã: o sistema de gestão continua a escrever pela chave.
 
-**Proposta (a decidir pelo Diogo ou pelo Bruno):** num artigo com
+**Decidido** (Diogo, 09/10/2026: *«sim, aceito a lista»*): num artigo com
 `origem: externo`, ficam só de leitura no Hub o **nome, a descrição, a marca,
 a categoria fiscal, o estado do artigo e todos os dados das variantes**
 (SKU, GTIN, unidade, conteúdo, peso, dimensões, arquivar). Editam-se no Hub
