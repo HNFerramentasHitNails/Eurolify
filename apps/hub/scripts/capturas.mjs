@@ -2196,9 +2196,19 @@ try {
     focoNoErro,
     `edição: mover falha e o foco vai para o erro (foco em: ${await rp.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? "nada")})`,
   );
-  await rp.locator(".falha-accao").screenshot({
-    path: join(SAIDA, "artigo-falha-com-foco.png"),
-  });
+  // Com uma margem, para o anel de foco (que fica por fora) aparecer.
+  const caixaFalha = await rp.locator(".falha-accao").boundingBox();
+  if (caixaFalha !== null) {
+    await rp.screenshot({
+      path: join(SAIDA, "artigo-falha-com-foco.png"),
+      clip: {
+        x: Math.max(caixaFalha.x - 16, 0),
+        y: Math.max(caixaFalha.y - 16, 0),
+        width: caixaFalha.width + 32,
+        height: caixaFalha.height + 32,
+      },
+    });
+  }
   // Arquivar a única variante: a confirmação diz que é a última.
   let ultima = false;
   rp.once("dialog", (d) => {
