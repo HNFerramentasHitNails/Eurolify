@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Descarrega as imagens base pedidas (#268): primeiro a cópia do GHCR, pelo
-# resumo; se faltar, do Docker Hub, com repetições. Escreve <nome>=<referência
-# usada> por cada uma, para o $GITHUB_OUTPUT.
+# resumo; se faltar, o espelho da Google (mirror.gcr.io, #263); por fim o
+# Docker Hub, com repetições. O resumo é o mesmo nos três, por isso a imagem
+# também. Escreve <nome>=<referência usada> por cada uma, para o
+# $GITHUB_OUTPUT.
 #
 #   infra/ci/imagem-base.sh <dono-em-minúsculas> <nome>...
 set -euo pipefail
@@ -34,10 +36,14 @@ for nome in "$@"; do
   copia="ghcr.io/$dono/eurolify-base/$nome@$resumo"
   # Duas tentativas no GHCR: se a cópia não existe, repetir não a cria
   # (revisão do #269, P2-1).
+  espelho="mirror.gcr.io/${origem#docker.io/}"
   if descarregar "$copia" 2; then
     echo "$nome=$copia"
-  elif descarregar "$origem" 5; then
-    echo "::warning::imagem-base: sem a cópia do GHCR para $nome; veio do Docker Hub" >&2
+  elif descarregar "$espelho" 3; then
+    echo "::warning::imagem-base: sem a cópia do GHCR para $nome; veio do mirror.gcr.io" >&2
+    echo "$nome=$espelho"
+  elif descarregar "$origem" 3; then
+    echo "::warning::imagem-base: sem a cópia do GHCR nem o espelho para $nome; veio do Docker Hub" >&2
     echo "$nome=$origem"
   else
     echo "imagem-base: não consegui descarregar $nome" >&2
