@@ -9,6 +9,7 @@ export type Papel = (typeof PAPEIS)[number];
 
 export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
   dono: [
+    "catalog:history",
     "catalog:import",
     "catalog:publish",
     "catalog:read",
@@ -18,6 +19,7 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "merchant:write",
   ],
   gestor: [
+    "catalog:history",
     "catalog:import",
     "catalog:publish",
     "catalog:read",

@@ -86,6 +86,7 @@ dependem da P1 (§7).
 | `merchant:read` | ver o comerciante, entidades legais, lojas | `docs/15` §8 |
 | `merchant:write` | alterá-los, pedir activação, aceitar contratos | idem |
 | `catalog:read`, `catalog:write`, `catalog:publish`, `catalog:import` | o Catálogo | `docs/14` §7 (já propostos) |
+| `catalog:history` | a linha do tempo do artigo, com quem fez (migração 0033) | `docs/14` §3.12; `docs/06`, CU |
 | `keys:write` | criar e revogar chaves | este documento |
 | `storefront` | a lista fixa da chave pública | `docs/02` §4.1 |
 

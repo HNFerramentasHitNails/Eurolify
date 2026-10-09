@@ -47,6 +47,11 @@ describe.skipIf(URL_BASE === undefined)("migração 0003 sobre dados", () => {
     try {
       await admin.connect();
       await admin.query(`CREATE DATABASE ${nome}`);
+      // A linha do tempo (0033) recusa mudar o catálogo sem quem (como em
+      // base-de-teste.ts).
+      await admin.query(
+        `ALTER DATABASE ${nome} SET eurolify.quem = 'teste:base'`,
+      );
     } finally {
       await admin.end();
     }
