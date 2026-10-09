@@ -469,3 +469,250 @@ td code {
   padding: var(--espaco-2);
   text-align: center;
 }
+
+/*
+ * A entrada por módulos (docs/hub-modular-glassmorphism.md). Primeiro tudo
+ * opaco; o vidro só se acrescenta onde o navegador o sabe fazer, e sai com
+ * «Superfícies opacas», com prefers-reduced-transparency e com as cores
+ * forçadas. Tabelas, formulários e as outras páginas não mudam.
+ */
+body:has(.entrada) {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: linear-gradient(
+    180deg,
+    var(--fundo-entrada-inicio),
+    var(--fundo-entrada-fim)
+  );
+}
+
+.contexto-comerciante {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2) var(--espaco-4);
+  margin-bottom: var(--espaco-4);
+}
+
+.contexto-comerciante p {
+  margin: 0;
+}
+
+.ligacao-alvo {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo-minimo);
+}
+
+.escolha-comerciante a {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espaco-1) var(--espaco-3);
+  min-height: var(--alvo-minimo);
+  overflow-wrap: anywhere;
+}
+
+.pesquisa-modulos {
+  max-width: var(--hub-pesquisa-largura-maxima);
+  margin: 0 auto var(--espaco-4);
+}
+
+.pesquisa-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+}
+
+.pesquisa-linha input {
+  flex: 1 1 var(--largura-campo);
+  min-height: var(--hub-pesquisa-altura-minima);
+  border-color: var(--vidro-borda);
+  border-radius: var(--hub-icone-raio);
+  box-shadow: var(--vidro-sombra);
+}
+
+.pesquisa-linha button {
+  min-height: var(--hub-pesquisa-altura-minima);
+}
+
+.contagem-modulos {
+  min-height: 1lh;
+  margin: var(--espaco-2) 0 0;
+}
+
+.modulos {
+  container-type: inline-size;
+}
+
+.modulos h2 {
+  margin-top: 0;
+}
+
+/* As colunas pela largura da própria grelha (container queries), não pelo
+   aparelho: 2 abaixo de 480 px, depois 3, 4, 5 e 6. Uma @container não lê
+   variáveis, por isso os pontos ficam aqui e só aqui. Sem suporte, ficam 2. */
+.grelha-modulos {
+  list-style: none;
+  margin: 0 0 var(--espaco-6);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--espaco-6) var(--espaco-3);
+}
+
+@container (min-width: 480px) {
+  .grelha-modulos {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 640px) {
+  .grelha-modulos {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: var(--espaco-6);
+  }
+  .superficie-icone {
+    --hub-icone-superficie: var(--hub-icone-superficie-larga);
+  }
+}
+
+@container (min-width: 880px) {
+  .grelha-modulos {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1040px) {
+  .grelha-modulos {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.grelha-modulos li {
+  min-width: 0;
+}
+
+/* O ícone e o rótulo são uma só ligação, e é ela que tem o foco e o toque. */
+.atalho-modulo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--espaco-2);
+  min-height: var(--alvo-minimo);
+  padding: var(--espaco-1);
+  border-radius: var(--hub-icone-raio);
+  color: var(--texto);
+  text-align: center;
+  text-decoration: none;
+}
+
+.superficie-icone {
+  display: grid;
+  place-items: center;
+  width: var(--hub-icone-superficie);
+  height: var(--hub-icone-superficie);
+  border: var(--borda-fina) solid var(--vidro-borda);
+  border-radius: var(--hub-icone-raio);
+  background: var(--superficie-elevada);
+  box-shadow: var(--vidro-sombra);
+  color: var(--accao-principal);
+  transition: border-color var(--hub-transicao);
+}
+
+.superficie-icone svg {
+  width: var(--hub-icone-tamanho);
+  height: var(--hub-icone-tamanho);
+}
+
+.rotulo-modulo {
+  max-width: 100%;
+  font-size: var(--letra-pequena);
+  line-height: var(--hub-rotulo-entrelinha);
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .atalho-modulo:hover .superficie-icone {
+    border-color: var(--accao-principal);
+  }
+  .atalho-modulo:hover .rotulo-modulo {
+    text-decoration: underline;
+  }
+}
+
+.opcoes-entrada {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.opcoes-entrada button[aria-pressed="true"] {
+  border-color: var(--accao-principal);
+  font-weight: 600;
+}
+
+/* O vidro: só com backdrop-filter e color-mix. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))
+  and (background: color-mix(in srgb, white 50%, transparent)) {
+  .superficie-icone.vidro {
+    background: color-mix(
+      in srgb,
+      var(--vidro-cor) var(--vidro-opacidade),
+      transparent
+    );
+    -webkit-backdrop-filter: blur(var(--vidro-desfoque-pequeno));
+    backdrop-filter: blur(var(--vidro-desfoque-pequeno));
+  }
+  .pesquisa-linha input.vidro {
+    background: color-mix(
+      in srgb,
+      var(--vidro-cor) var(--vidro-opacidade-forte),
+      transparent
+    );
+    -webkit-backdrop-filter: blur(var(--vidro-desfoque));
+    backdrop-filter: blur(var(--vidro-desfoque));
+  }
+}
+
+/* Sem vidro: depois do vidro e mais específico, para ganhar sempre. */
+:root[data-superficie="opaca"] .superficie-icone.vidro {
+  background: var(--superficie-elevada);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-superficie="opaca"] .pesquisa-linha input.vidro {
+  background: var(--superficie);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root .superficie-icone.vidro {
+    background: var(--superficie-elevada);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  :root .pesquisa-linha input.vidro {
+    background: var(--superficie);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (forced-colors: active) {
+  :root .superficie-icone.vidro,
+  :root .pesquisa-linha input.vidro {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .superficie-icone {
+    border-color: CanvasText;
+    color: CanvasText;
+  }
+  body:has(.entrada) {
+    background: Canvas;
+  }
+}

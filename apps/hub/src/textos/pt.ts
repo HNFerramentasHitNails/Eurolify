@@ -37,11 +37,32 @@ export const pt = {
   copiado: "Copiado",
   codigosGuardados: "Já os guardei",
 
-  inicioTitulo: "Os seus comerciantes",
+  inicioTitulo: "Início",
   inicioEntrouComo: "Entrou como",
   inicioVazio:
     "Não pertence a nenhuma equipa. Peça um convite a quem gere o comerciante.",
-  verEquipa: "Ver a equipa",
+  inicioComerciante: "Comerciante",
+  inicioEscolher: "Escolha o comerciante",
+  inicioEscolherExplicacao:
+    "Pertence a mais do que uma equipa. Escolha com qual quer trabalhar.",
+  inicioComercianteDesconhecido:
+    "Este comerciante não está entre os seus. Escolha um da lista.",
+  inicioMudarComerciante: "Mudar de comerciante",
+  modulosTitulo: "Módulos",
+  modulosPesquisar: "Pesquisar módulos",
+  modulosLimpar: "Limpar a pesquisa",
+  modulosContagem: "{n} módulos",
+  modulosContagemUm: "1 módulo",
+  modulosSemResultados: "Nenhum módulo corresponde a «{consulta}».",
+  modulosNenhum:
+    "O seu papel neste comerciante ainda não tem módulos disponíveis.",
+  modulosOpacos: "Superfícies opacas",
+  modulo_equipa: "Equipa",
+  modulo_artigos: "Artigos",
+  modulo_chaves: "Chaves de API",
+  termos_equipa: "membros convites papéis pessoas",
+  termos_artigos: "catálogo produtos variantes",
+  termos_chaves: "api integrações servidor",
 
   papel_dono: "Dono",
   papel_gestor: "Gestor",
@@ -49,7 +70,7 @@ export const pt = {
   papel_apoio: "Apoio",
 
   equipaTitulo: "Equipa",
-  equipaVoltar: "Os seus comerciantes",
+  equipaVoltar: "Voltar ao início",
   equipaMembros: "Membros",
   equipaContagem: "{n} membros",
   equipaContagemUm: "1 membro",
@@ -223,7 +244,6 @@ export const pt = {
 
   // Chaves de API (docs/22 §9.3).
   chavesTitulo: "Chaves de API",
-  verChaves: "Chaves de API",
   chavesExplicacao:
     "As chaves deixam outros programas (uma integração, a faturação, uma IA) usar a API deste comerciante. Cada chave só faz o que os seus âmbitos permitem.",
   chavesVazio: "Ainda não há chaves.",
@@ -315,7 +335,6 @@ export const pt = {
   conviteOutraConta:
     "Se o convite é para outro e-mail, saia primeiro e volte a abrir a ligação.",
   artigosTitulo: "Artigos",
-  verArtigos: "Ver artigos",
   artigosContagem: "{n} artigos",
   artigosContagemUm: "1 artigo",
   artigosContagemFiltro: "{n} de {total} artigos",

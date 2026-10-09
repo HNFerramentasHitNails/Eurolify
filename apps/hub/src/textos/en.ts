@@ -38,11 +38,31 @@ export const en: Textos = {
   copiado: "Copied",
   codigosGuardados: "I have stored them",
 
-  inicioTitulo: "Your merchants",
+  inicioTitulo: "Home",
   inicioEntrouComo: "Signed in as",
   inicioVazio:
     "You are not part of any team. Ask whoever manages the merchant for an invitation.",
-  verEquipa: "View the team",
+  inicioComerciante: "Merchant",
+  inicioEscolher: "Choose the merchant",
+  inicioEscolherExplicacao:
+    "You belong to more than one team. Choose which one to work with.",
+  inicioComercianteDesconhecido:
+    "This merchant is not one of yours. Choose one from the list.",
+  inicioMudarComerciante: "Change merchant",
+  modulosTitulo: "Modules",
+  modulosPesquisar: "Search modules",
+  modulosLimpar: "Clear the search",
+  modulosContagem: "{n} modules",
+  modulosContagemUm: "1 module",
+  modulosSemResultados: "No module matches “{consulta}”.",
+  modulosNenhum: "Your role at this merchant has no modules available yet.",
+  modulosOpacos: "Opaque surfaces",
+  modulo_equipa: "Team",
+  modulo_artigos: "Products",
+  modulo_chaves: "API keys",
+  termos_equipa: "members invitations roles people",
+  termos_artigos: "catalogue products variants",
+  termos_chaves: "api integrations server",
 
   papel_dono: "Owner",
   papel_gestor: "Manager",
@@ -50,7 +70,7 @@ export const en: Textos = {
   papel_apoio: "Support",
 
   equipaTitulo: "Team",
-  equipaVoltar: "Your merchants",
+  equipaVoltar: "Back to home",
   equipaMembros: "Members",
   equipaContagem: "{n} members",
   equipaContagemUm: "1 member",
@@ -222,7 +242,6 @@ export const en: Textos = {
 
   // API keys (docs/22 §9.3).
   chavesTitulo: "API keys",
-  verChaves: "API keys",
   chavesExplicacao:
     "Keys let other programs (an integration, invoicing, an AI) use this merchant's API. Each key only does what its scopes allow.",
   chavesVazio: "There are no keys yet.",
@@ -315,7 +334,6 @@ export const en: Textos = {
   conviteOutraConta:
     "If the invitation is for another e-mail, sign out first and open the link again.",
   artigosTitulo: "Products",
-  verArtigos: "View products",
   artigosContagem: "{n} products",
   artigosContagemUm: "1 product",
   artigosContagemFiltro: "{n} of {total} products",

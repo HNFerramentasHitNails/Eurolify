@@ -1,4 +1,9 @@
-import { createContext, useContext } from "react";
+import {
+  createContext,
+  useContext,
+  type AnchorHTMLAttributes,
+  type ReactNode,
+} from "react";
 import type { MensagemDeErro } from "./erros";
 import { preencher, type Lingua, type Textos } from "./textos";
 
@@ -15,6 +20,12 @@ export interface Contexto {
    * (revisão do #158, P3-3).
    */
   navegar: (caminho: string, opcoes?: { substituir?: boolean }) => void;
+  /**
+   * «Superfícies opacas» (docs/hub-modular-glassmorphism.md): tira o vidro.
+   * Só na memória da página, até fechar ou recarregar; nada no navegador.
+   */
+  opaco: boolean;
+  mudarOpaco: (opaco: boolean) => void;
 }
 
 export const ContextoHub = createContext<Contexto | null>(null);
@@ -70,5 +81,43 @@ export function ACarregar() {
     <p className="secundario" role="status">
       {t.aCarregar}
     </p>
+  );
+}
+
+/**
+ * Uma ligação para outra página do Hub. O clique simples navega sem
+ * recarregar; com Ctrl/Cmd, Shift, Alt ou o botão do meio, fica o
+ * comportamento do navegador (abrir noutro separador ou janela).
+ */
+export function LigacaoInterna({
+  href,
+  children,
+  ...resto
+}: Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "onClick"> & {
+  href: string;
+  children: ReactNode;
+}) {
+  const { navegar } = useHub();
+  return (
+    <a
+      {...resto}
+      href={href}
+      onClick={(e) => {
+        if (
+          e.defaultPrevented ||
+          e.button !== 0 ||
+          e.metaKey ||
+          e.ctrlKey ||
+          e.shiftKey ||
+          e.altKey
+        ) {
+          return;
+        }
+        e.preventDefault();
+        navegar(href);
+      }}
+    >
+      {children}
+    </a>
   );
 }

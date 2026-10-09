@@ -17,17 +17,51 @@ function valor(texto: string, nome: string): string | undefined {
   return new RegExp(`--${nome}:\\s*([^;]+);`).exec(texto)?.[1]?.trim();
 }
 
-/** A cor final de um token semântico, resolvendo var(--global). */
-function cor(tema: "claro" | "escuro", nome: string): string {
+/**
+ * O valor final de um token no tema, seguindo as cadeias var(--…) até ao
+ * fim (global → semântico → componente): no escuro, o que o bloco escuro
+ * redefine ganha ao claro, em qualquer nível.
+ */
+function resolver(tema: "claro" | "escuro", nome: string, passos = 0): string {
+  if (passos > 5) throw new Error(`--${nome}: cadeia de var() longa demais`);
   const b = blocos();
   const bruto = valor(b[tema], nome) ?? valor(b.claro, nome);
   if (bruto === undefined) throw new Error(`sem --${nome}`);
   const ref = /^var\(--([\w-]+)\)$/.exec(bruto)?.[1];
-  const final = ref === undefined ? bruto : valor(b.claro, ref);
-  if (final === undefined || !/^#[0-9a-f]{6}$/i.test(final)) {
-    throw new Error(`--${nome} não é uma cor #rrggbb (${String(final)})`);
+  return ref === undefined ? bruto : resolver(tema, ref, passos + 1);
+}
+
+/** A cor final de um token, #rrggbb. */
+function cor(tema: "claro" | "escuro", nome: string): string {
+  const final = resolver(tema, nome);
+  if (!/^#[0-9a-f]{6}$/i.test(final)) {
+    throw new Error(`--${nome} não é uma cor #rrggbb (${final})`);
   }
   return final;
+}
+
+/** Uma opacidade em percentagem (`84%`), como 0,84. */
+function opacidade(tema: "claro" | "escuro", nome: string): number {
+  const bruto = resolver(tema, nome);
+  const m = /^(\d+(?:\.\d+)?)%$/.exec(bruto);
+  if (m?.[1] === undefined) throw new Error(`--${nome} não é uma percentagem`);
+  return Number(m[1]) / 100;
+}
+
+/**
+ * A cor que se vê: `frente` com opacidade `alfa` por cima de `fundo`
+ * (o color-mix com transparent dá esta cor com esse alfa; o navegador
+ * compõe-a sobre o que está atrás).
+ */
+function composta(frente: string, alfa: number, fundo: string): string {
+  const canal = (hex: string, i: number) => parseInt(hex.slice(i, i + 2), 16);
+  return `#${[1, 3, 5]
+    .map((i) =>
+      Math.round(alfa * canal(frente, i) + (1 - alfa) * canal(fundo, i))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 }
 
 function luminancia(hex: string): number {
@@ -75,4 +109,66 @@ describe("os contrastes dos tokens", () => {
       });
     }
   }
+});
+
+// A entrada por módulos (docs/hub-modular-glassmorphism.md): o fundo é um
+// gradiente entre dois tons e o vidro é translúcido. Mede-se a cor que se
+// vê nos dois extremos do gradiente (cada canal muda sempre no mesmo
+// sentido, por isso o pior caso está num extremo); um alfa mais alto só
+// aproxima a cor da do vidro, que também se mede opaca.
+describe("os contrastes da entrada, com o vidro composto", () => {
+  for (const tema of ["claro", "escuro"] as const) {
+    for (const fundo of [
+      "fundo-entrada-inicio",
+      "fundo-entrada-fim",
+    ] as const) {
+      it(`${tema}: texto, secundário e ligações sobre ${fundo} ≥ 4,5:1`, () => {
+        for (const n of ["texto", "texto-secundario", "accao-principal"]) {
+          expect(
+            contraste(cor(tema, n), cor(tema, fundo)),
+            n,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+
+      it(`${tema}: foco sobre ${fundo} ≥ 3:1`, () => {
+        expect(
+          contraste(cor(tema, "foco"), cor(tema, fundo)),
+        ).toBeGreaterThanOrEqual(3);
+      });
+
+      for (const alfa of [
+        "vidro-opacidade",
+        "vidro-opacidade-forte",
+      ] as const) {
+        it(`${tema}: sobre o vidro (${alfa}) em ${fundo}, texto ≥ 4,5:1 e ícone ≥ 3:1`, () => {
+          const vidro = composta(
+            cor(tema, "vidro-cor"),
+            opacidade(tema, alfa),
+            cor(tema, fundo),
+          );
+          expect(contraste(cor(tema, "texto"), vidro)).toBeGreaterThanOrEqual(
+            4.5,
+          );
+          expect(
+            contraste(cor(tema, "accao-principal"), vidro),
+          ).toBeGreaterThanOrEqual(3);
+        });
+      }
+    }
+
+    it(`${tema}: sobre o vidro opaco, texto ≥ 4,5:1 e ícone ≥ 3:1`, () => {
+      const vidro = cor(tema, "vidro-cor");
+      expect(contraste(cor(tema, "texto"), vidro)).toBeGreaterThanOrEqual(4.5);
+      expect(
+        contraste(cor(tema, "accao-principal"), vidro),
+      ).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  it("a cor composta está certa nos extremos", () => {
+    expect(composta("#ffffff", 1, "#000000")).toBe("#ffffff");
+    expect(composta("#ffffff", 0, "#000000")).toBe("#000000");
+    expect(composta("#ffffff", 0.5, "#000000")).toBe("#808080");
+  });
 });

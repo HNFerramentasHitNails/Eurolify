@@ -25,6 +25,7 @@ import { papeisQuePodeDar } from "../papeis";
 import { comRecente } from "../passkeys";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 import { Copiar } from "./Copiar";
+import { entradaDe } from "../modulos";
 
 // A equipa de um comerciante: membros, convites em aberto (só o dono os
 // recebe), convidar e cancelar (docs/22 §3); mudar o papel, tirar da equipa
@@ -221,10 +222,10 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
     <section aria-labelledby="titulo">
       <p>
         <a
-          href="/"
+          href={entradaDe(comerciante)}
           onClick={(e) => {
             e.preventDefault();
-            navegar("/");
+            navegar(entradaDe(comerciante));
           }}
         >
           {t.equipaVoltar}

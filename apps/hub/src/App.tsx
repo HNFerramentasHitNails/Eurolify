@@ -70,10 +70,17 @@ export function App() {
     [],
   );
 
+  // O vidro sai em toda a página enquanto estiver ligado; não se guarda.
+  const [opaco, mudarOpaco] = useState(false);
+  useEffect(() => {
+    if (opaco) document.documentElement.dataset.superficie = "opaca";
+    else delete document.documentElement.dataset.superficie;
+  }, [opaco]);
+
   const t = TEXTOS[lingua];
   const contexto = useMemo<Contexto>(
-    () => ({ t, lingua, navegar }),
-    [t, lingua, navegar],
+    () => ({ t, lingua, navegar, opaco, mudarOpaco }),
+    [t, lingua, navegar, opaco],
   );
 
   const artigo = CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null;
@@ -155,7 +162,12 @@ export function App() {
         }
       />
     );
-  else ecra = <Inicio />;
+  else
+    ecra = (
+      <Inicio
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
 
   return (
     <ContextoHub.Provider value={contexto}>
