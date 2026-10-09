@@ -720,7 +720,12 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
           },
           body: bytes,
         });
-      // Dois envios que mandam só parte do corpo e ficam pendurados.
+      // Dois envios que mandam só parte do corpo e ficam pendurados. Um
+      // pendurado que recebe resposta não ficou com lugar: o envio do ciclo
+      // de baixo chegou ao servidor antes dele e ele levou o 429 (medido a
+      // 09/10/2026: 2 em 25 corridas seguidas). Substitui-se, até os dois
+      // lugares serem dos pendurados.
+      const responderam = new WeakSet<ReturnType<typeof connect>>();
       const pendurado = () =>
         new Promise<ReturnType<typeof connect>>((resolve) => {
           const s = connect(Number(endereco.port), "127.0.0.1", () => {
@@ -739,17 +744,34 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
             s.write(PNG);
             resolve(s);
           });
+          s.on("data", () => responderam.add(s));
           s.on("error", () => undefined);
         });
       p1 = await pendurado();
       p2 = await pendurado();
-      // Os dois lugares estão ocupados.
+      // Os dois lugares estão ocupados: dois 429 seguidos sem nenhum
+      // pendurado ter recebido resposta (um só podia vir de um lugar ainda
+      // preso pelo envio da volta anterior).
       let cheio = 0;
-      for (let i = 0; i < 100 && cheio !== 429; i++) {
+      let seguidos = 0;
+      for (let i = 0; i < 100 && seguidos < 2; i++) {
+        if (responderam.has(p1)) {
+          p1.destroy();
+          p1 = await pendurado();
+        }
+        if (responderam.has(p2)) {
+          p2.destroy();
+          p2 = await pendurado();
+        }
+        await new Promise((r) => setTimeout(r, 20));
         cheio = (await env(PNG)).status;
-        if (cheio !== 429) await new Promise((r) => setTimeout(r, 20));
+        seguidos =
+          cheio === 429 && !responderam.has(p1) && !responderam.has(p2)
+            ? seguidos + 1
+            : 0;
       }
       expect(cheio).toBe(429);
+      expect(seguidos).toBe(2);
       // Cortadas as ligações, os lugares voltam.
       p1.destroy();
       p2.destroy();
@@ -783,7 +805,8 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
       await appC.close();
       await rm(pastaC, { recursive: true, force: true });
     }
-  });
+    // Os dois ciclos podem ir a 100 voltas cada num CI lento.
+  }, 30_000);
 
   it("um ficheiro que falta no disco dá 500 sem dizer onde", async () => {
     const f = await artigo("Sem ficheiro");
