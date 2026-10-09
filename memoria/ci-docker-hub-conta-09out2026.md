@@ -19,7 +19,7 @@
 ## Números (com data e como se contaram)
 
 - Preços (página docker.com/pricing, 09/10/2026):
-  - Personal: grátis, 100 descargas por hora com conta.
+  - Personal: grátis. A página de preços diz 100 descargas por hora com conta. A documentação (docs.docker.com/docker-hub/usage/, 09/10/2026) diz 200 por 6 horas com conta, e 100 por 6 horas por endereço IP sem conta. As duas fontes não batem certo; vale a mais baixa até se medir.
   - Pro: 9 a 11 $ por utilizador e por mês.
   - Team: 15 a 16 $ por utilizador e por mês.
   - Business: 24 $ por utilizador e por mês.
@@ -30,6 +30,8 @@
   - `moby/buildkit` e `node:24.21.0-trixie-slim`, na tarefa `imagem`.
 
 ## O que ficou por verificar
+
+- As descargas da conta vêem-se em https://hub.docker.com/usage/pulls (por mês, com um CSV enviado por e-mail), e a última utilização da chave em app.docker.com → Account settings → Personal access tokens. O Docker Hub não mostra os erros do lado dele; esses só aparecem nos registos do GitHub.
 
 - A data de expiração da chave: fica com o Diogo, que a criou; **não verifiquei**. Quando expirar, as tarefas falham na entrada no Docker Hub, porque o segredo existe mas é inválido.
 - Se a condição de uso do plano grátis permite uma conta usada por uma empresa: **não verifiquei**.
