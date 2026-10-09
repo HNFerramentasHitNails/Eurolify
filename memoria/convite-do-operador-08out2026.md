@@ -77,11 +77,12 @@ operador»*). Desenho no `docs/19` §6.0.
     `inv_01a12278-3546-778a-845d-492fa2490288`.
   - O Diogo aceitou-o e entrou («entrei, já está», dito por ele; não
     verificado daqui). A conta antiga (`dono@loja.test`) continua, com a
-    passkey do outro computador: a loja tem agora dois donos.
+    passkey do outro computador: a loja tem agora dois donos. O Diogo
+    decidiu manter as duas («mantém a conta antiga», 09/10/2026).
 
 ## O que ficou por verificar
 
 - A Equipa e os convites feitos a partir do Hub, na VPS (só a entrada foi
   vista).
 - Se o Diogo acrescentou uma segunda passkey ou a palavra-passe na conta
-  nova (recomendado, 09/10/2026), e se a conta antiga fica ou se retira.
+  nova (recomendado, 09/10/2026).
