@@ -2109,9 +2109,14 @@ try {
     "edição: tornar principal e mudar a ordem; o foco vai para «Alterações guardadas»",
   );
   // Uma lista pedida antes de outra gravação chega depois dela: não pode
-  // repor o que já mudou (issue #251). A primeira releitura da lista vem
-  // atrasada 1,5 s; entretanto grava-se o texto da outra imagem.
+  // repor o que já mudou (issue #251). A primeira releitura da lista fica
+  // retida até a releitura da segunda gravação estar no ecrã (revisão do
+  // #260, P2-1: sem depender de tempos).
   let listasAtrasadas = 0;
+  let soltarLista = () => undefined;
+  const listaSolta = new Promise((ok) => {
+    soltarLista = ok;
+  });
   await rp.route("**/hub/products/*/media?*", async (r) => {
     if (r.request().method() !== "GET" || listasAtrasadas > 0) {
       await r.fallback();
@@ -2119,9 +2124,12 @@ try {
     }
     listasAtrasadas++;
     // A API responde já; a resposta é que chega atrasada, como numa rede
-    // lenta.
+    // lenta (no máximo 15 s, para a passagem nunca ficar presa).
     const resposta = await r.fetch();
-    await new Promise((ok) => setTimeout(ok, 1500));
+    await Promise.race([
+      listaSolta,
+      new Promise((ok) => setTimeout(ok, 15_000)),
+    ]);
     await r.fulfill({ response: resposta });
   });
   const guardarTexto = async (indice, texto) => {
@@ -2136,7 +2144,14 @@ try {
   await guardarTexto(1, "Frasco de verniz, de lado");
   await guardarTexto(0, "Frasco de verniz laranja, de frente");
   await rp.getByText("Frasco de verniz laranja, de frente").waitFor();
-  await rp.waitForTimeout(2500);
+  // O texto novo no ecrã veio da segunda releitura; agora chega a primeira.
+  const listaAntiga = rp.waitForResponse(
+    (r) => /\/hub\/products\/[^/]+\/media\?/.test(r.url()),
+    { timeout: 15_000 },
+  );
+  soltarLista();
+  await listaAntiga;
+  await rp.waitForTimeout(300);
   await rp.unroute("**/hub/products/*/media?*");
   confere(
     listasAtrasadas === 1 &&
@@ -2167,9 +2182,9 @@ try {
   await rp.locator(".erro[role=alert]").first().waitFor();
   const focoNoErro = await rp
     .waitForFunction(
-      () =>
-        document.activeElement?.querySelector(".erro[role=alert]") !== null ||
-        document.activeElement?.closest(".erro[role=alert]") !== null,
+      // O próprio elemento com o foco, nunca o <body> (revisão do #260,
+      // P1-1: o body também contém o erro).
+      () => document.activeElement?.matches(".falha-accao") === true,
       undefined,
       { timeout: 5_000 },
     )
