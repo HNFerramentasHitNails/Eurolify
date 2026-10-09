@@ -143,7 +143,7 @@ export function criarApp(
     app.addHook("onRequest", async (pedido, resposta) => {
       const config = pedido.routeOptions.config;
       if (config.hub !== true) return;
-      conferirOrigem(pedido, hub);
+      conferirOrigem(pedido, hub, config.hubImagem === true);
       // Um endereço que não é IP (um proxy de confiança mal configurado, ou
       // a ligação já fechada) não se conta nem chega à base (P3-4, P3-5).
       const ip: unknown = pedido.ip;
