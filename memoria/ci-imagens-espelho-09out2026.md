@@ -30,11 +30,16 @@ opções eram esperar ou uma conta no Docker Hub). Pedido #263.
   `preparar.sh` (linhas 359-373) a cada corrida. Numa máquina nova (a
   migração para Paris, ADR-0018) a descarga pode levar o mesmo 429:
   trata-se nesse passo.
-- **O BuildKit do `setup-buildx-action`** (revisão do #263, P2-1, hipótese
-  do revisor): não se mudou. Medido: na corrida 37992053661 (21:13 UTC) o
-  Docker Hub recusou a base `node` com 429 e o construtor do buildx
-  arrancou na mesma, por isso o BuildKit não dependeu do Docker Hub nessa
-  corrida. Não verifiquei de onde vem (provavelmente já está no executor).
+- **O BuildKit do `setup-buildx-action`** (revisão do #263, P2-1): a
+  hipótese do revisor estava certa e eu tinha-a posto de lado cedo de mais.
+  A publicação do #263 (corrida 37993770813, 09/10/2026, 21:35 UTC) falhou
+  a descarregar `moby/buildkit:buildx-stable-1` do Docker Hub (tempo
+  esgotado no `auth.docker.io`); o ensaio ficou com a versão anterior.
+  Corrigido no #270: `driver-opts: image=mirror.gcr.io/moby/buildkit:v0.33.1@sha256:cec9f139…`
+  nos dois fluxos (a v0.33.1 tinha o mesmo resumo que a `buildx-stable-1`
+  no espelho a 09/10/2026, pela lista de etiquetas). Nas corridas do
+  `verificar` antes disso o BuildKit veio de algum lado sem falhar; não
+  verifiquei de onde.
 - **A conta do Docker Hub** (a opção 2, feita noutra sessão: issue #266,
   pedido #267, segredos `DOCKERHUB_UTILIZADOR` e `DOCKERHUB_TOKEN`): o
   Diogo decidiu ficar com o espelho (09/10/2026, *«sim, fica o #263, fecha
@@ -56,5 +61,4 @@ opções eram esperar ou uma conta no Docker Hub). Pedido #263.
 
 - **Ao mudar um resumo**, confirmar primeiro que o novo existe no espelho
   (o `curl` acima); se não existir, a corrida falha.
-- De onde vem o BuildKit do buildx (P2-1).
 - A VPS numa máquina nova (P3-1).
