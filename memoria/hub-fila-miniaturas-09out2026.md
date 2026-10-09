@@ -54,7 +54,10 @@ incluía o #270.
 
 - Só se testou no Chromium. Não foi verificado em Safari, Firefox ou rede
   móvel real.
-- A última volta das capturas foi antes do #275 (canais e mercados com o
-  mesmo nome), que entrou no `main` antes da junção. O `capturas.mjs` não
-  corre no CI, e não o voltei a correr depois.
+- ~~A última volta das capturas foi antes do #275~~ — **verificado depois,
+  a 09/10/2026 às 23:22 UTC**, a pedido do Diogo (*«sim, avança com a
+  volta»*): o `main` em `d261eed`, que já inclui o #275 (`d7cb370`), deu
+  441 «ok» e 0 falhas numa volta, no mesmo contentor (PostgreSQL 18.6,
+  Chromium 1194), contado com `grep -c`. O `capturas.mjs` continua a não
+  correr no CI.
 - O ensaio não foi aberto à mão. A correcção só se vê com a rede parada.
