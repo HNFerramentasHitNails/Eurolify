@@ -22,7 +22,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.primary_profile",
   "customers.tag_in_use",
   "customers.tag_archived",
-  // Da 0038 (VIES e isenção manual).
+  // Da 0039 (VIES e isenção manual).
   "customers.change_without_who",
   "customers.exemption_by_person",
   "customers.exemption_immutable",

@@ -734,7 +734,7 @@ export interface TabelaAlteracaoCliente {
   em: ColumnType<Date, never, never>;
 }
 
-// O VIES e a isenção manual (migração 0038; docs/23 §13). A prova só a
+// O VIES e a isenção manual (migração 0039; docs/23 §13). A prova só a
 // escreve a `vies_registar`; a isenção, a API, com quem e quando postos pela base.
 export interface TabelaValidacaoVies {
   id: ColumnType<string, never, never>;

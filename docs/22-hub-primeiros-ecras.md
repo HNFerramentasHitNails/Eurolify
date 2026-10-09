@@ -841,6 +841,7 @@ transparente»». (Nome fictício, como os dados do ensaio, `docs/21` linha 37.)
 | **Notas da equipa e anexos**: ainda não existem (`docs/14` §3.12). |
 | **Exportar o histórico**: fica para quando houver um pedido de prova concreto. |
 | **O que mudou antes da migração 0033**: não há entradas, e não se inventa um passado (`docs/14` §3.12). |
+| **O histórico de um rascunho apagado**: a API mantém as entradas, mas o ecrã abre-se pela ficha, e a ficha de um artigo apagado dá 404 (revisão do #242, P3-8). Entra se houver onde o pedir (ex.: uma lista dos apagados). |
 
 ### 16.2 Como o Hub lê, e o nome de quem fez
 
@@ -905,6 +906,12 @@ nome técnico, sem se inventar o que significam.
 | `conteudo_quantidade`, `conteudo_unidade`, `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | Conteúdo, Unidade do conteúdo, Peso (g), Comprimento, Largura, Altura (mm) |
 | `texto_alternativo`, `principal`, `posicao` | Texto alternativo, Principal, Posição |
 | `motivo_arquivo` | Motivo (com os textos da ficha, §12.2) |
+
+**A junção por alteração** junta as entradas **seguidas** com a mesma
+`transacao`. Duas escritas ao mesmo tempo no mesmo artigo podem intercalar
+as entradas (os `id` são da hora de cada linha), e então a mesma alteração
+aparece em dois blocos, cada um com o seu quem e a sua hora: fica assim, por
+ser raro e por não esconder nada (revisão do #242, P3-7).
 
 **Os valores:** vazio diz «vazio»; `true`/`false` dizem «sim»/«não»; um
 texto com mais de 160 caracteres mostra o começo e «Ver tudo» (um

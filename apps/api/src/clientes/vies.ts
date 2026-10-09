@@ -1,6 +1,6 @@
 // O adaptador do VIES (docs/23 §13.2; a API REST pública da Comissão
 // Europeia, medida a 09/10/2026). Só o servidor consulta; o resultado guarda-se
-// como prova pela `vies_registar` (migração 0038). Tudo o que não traz
+// como prova pela `vies_registar` (migração 0039). Tudo o que não traz
 // `valid: true` ou `valid: false` é `indisponivel`, com o código do erro: um
 // VIES em baixo nunca isenta uma venda (R7).
 

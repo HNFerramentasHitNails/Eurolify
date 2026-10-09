@@ -481,7 +481,7 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 
 ## 13. Parte 3 — VIES com prova e isenção manual (desenho de 09/10/2026)
 
-> **Estado: aprovado; no código** (migração 0038; `docs/06`, CY). Diogo,
+> **Estado: aprovado; no código** (migração 0039; `docs/06`, CY). Diogo,
 > 09/10/2026: *«sim, avança com o desenho da parte 3»* e *«sim, aprovo; avança
 > com o código da parte 3»* (Q6 e Q7 como propostas). Detalha os §3.4 e §3.9 para o código. Vem antes da
 > parte 2 porque o Motor de IVA (fatia 6) decide com isto
@@ -633,18 +633,18 @@ dono) e os eventos; o adaptador do VIES em `src/clientes/vies.ts`, com um
 servidor falso nos testes (nenhum teste chama a Comissão); a tarefa de
 minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
 
-### 13.10 Em código (09/10/2026; migração 0038; `docs/06`, CY)
+### 13.10 Em código (09/10/2026; migração 0039; `docs/06`, CY)
 
 | O quê | Onde |
 |---|---|
-| a prova (`validacao_vies`), que só se acrescenta; `vies_registar`, que muda o estado só se o NIF ainda for o consultado, mantém a última resposta num `indisponivel` (Q6) e emite `validated`/`invalidated` | migração 0038 |
-| a fila (`vies_fila`, interna): o gatilho do perfil põe e tira; depois de uma resposta, a próxima na janela da noite (01:00–05:00 UTC) a pelo menos 24 h; sem resposta, 1, 5 e 30 min, depois a noite | migração 0038 |
-| o requerente (Q7): o NIF da entidade legal, só com uma activa num país da UE (`vies_requerente`) | migração 0038 |
-| a isenção manual (`isencao_manual`): uma em vigor por perfil, não se altera nem se apaga, retira-se uma vez, e a base recusa `quem` de sistema | migração 0038 |
+| a prova (`validacao_vies`), que só se acrescenta; `vies_registar`, que muda o estado só se o NIF ainda for o consultado, mantém a última resposta num `indisponivel` (Q6) e emite `validated`/`invalidated` | migração 0039 |
+| a fila (`vies_fila`, interna): o gatilho do perfil põe e tira; depois de uma resposta, a próxima na janela da noite (01:00–05:00 UTC) a pelo menos 24 h; sem resposta, 1, 5 e 30 min, depois a noite | migração 0039 |
+| o requerente (Q7): o NIF da entidade legal, só com uma activa num país da UE (`vies_requerente`) | migração 0039 |
+| a isenção manual (`isencao_manual`): uma em vigor por perfil, não se altera nem se apaga, retira-se uma vez, e a base recusa `quem` de sistema | migração 0039 |
 | o adaptador da API REST do VIES (EL para a Grécia, `---` como vazio, tudo o que não é `valid` é `indisponivel`, repete sem requerente num `INVALID_REQUESTER_INFO`, 10 s) | `src/clientes/vies.ts` |
 | a tarefa de minuto a minuto, um pedido de cada vez com 1 s de pausa, com `quem` «sistema:vies»; `VIES_URL` muda o endereço, «desligado» desliga | `src/clientes/vies-fila.ts`; `src/servidor.ts` |
 | as rotas: `POST/GET /billing-profiles/{id}/vies-checks`, `PUT/DELETE /billing-profiles/{id}/exemption`, `GET /billing-profiles/{id}/exemptions`; o perfil com `validado_em` e `isencao_em_vigor` | `src/clientes/rotas.ts` |
-| o âmbito `customers:exemptions`, só do dono (Q4) | migração 0038; `src/identidade/` |
+| o âmbito `customers:exemptions`, só do dono (Q4) | migração 0039; `src/identidade/` |
 | 14 testes (o adaptador contra um servidor HTTP falso; a API e a fila contra uma consulta falsa — nenhum chama a Comissão); 14 mutações, todas apanhadas | `test/clientes-vies.test.ts` |
 
 **Desvios do desenho:**

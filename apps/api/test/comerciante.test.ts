@@ -127,7 +127,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0035_catalogo_ficheiros_sem_uso",
         "0036_precos_reducao_e_ambitos",
         "0037_clientes",
-        "0038_clientes_vies_isencao",
+        "0038_hub_autores_da_linha_do_tempo",
+        "0039_clientes_vies_isencao",
       ]);
     });
 
@@ -184,7 +185,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // Os ficheiros sem uso (0035): escrevem-na os gatilhos, lêem-na as
           // funções do dono; a API não lhe toca.
           "ficheiro_sem_uso",
-          // A fila do VIES (0038): só as funções do dono lhe tocam.
+          // A fila do VIES (0039): só as funções do dono lhe tocam.
           "vies_fila",
         ].includes(t);
       for (const linha of rows) {
@@ -201,7 +202,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // 0008), a da idempotência (0012), 6 de Preços e mercados (0017), a
       // publicação (0019), as duas da media (0028), as exportações (0030), as
       // importações (0032), a linha do tempo (0033), as reduções (0036) e as
-      // 5 de Clientes (0037) e as 2 do VIES e da isenção (0038).
+      // 5 de Clientes (0037) e as 2 do VIES e da isenção (0039).
       expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(38);
     });
 

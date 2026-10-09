@@ -4,7 +4,6 @@ import type { AddressInfo } from "node:net";
 import { sql, type Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
-import type { BaseDados } from "../src/base/esquema.js";
 import {
   consultaVies,
   type PedidoVies,
@@ -23,7 +22,7 @@ import {
 } from "./base-de-teste.js";
 
 // Clientes, parte 3: o VIES com prova e a isenção manual (docs/23 §13;
-// migração 0038). Nenhum teste chama a Comissão: o adaptador fala com um
+// migração 0039). Nenhum teste chama a Comissão: o adaptador fala com um
 // servidor HTTP falso, e a app e a fila com uma consulta falsa.
 
 type Json = Record<string, unknown>;
@@ -261,7 +260,7 @@ describe.skipIf(URL_BASE === undefined)(
 
     async function noComerciante<T>(
       c: string,
-      fn: (trx: Kysely<BaseDados>) => Promise<T>,
+      fn: (trx: Kysely<unknown>) => Promise<T>,
     ) {
       return base.dono.transaction().execute(async (trx) => {
         await sql`select set_config('eurolify.comerciante', ${c}, true)`.execute(
