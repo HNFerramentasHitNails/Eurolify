@@ -154,9 +154,12 @@ describe.skipIf(URL_BASE === undefined)(
       const hub = r.json<Pagina>();
       const chave = pelaChave.json<Pagina>();
       // As mesmas entradas, sem o autor, e o mesmo cursor.
-      expect(hub.dados.map(({ autor: _a, ...resto }) => resto)).toEqual(
-        chave.dados,
-      );
+      const semAutor = hub.dados.map((e) => {
+        const resto = { ...e };
+        delete resto.autor;
+        return resto;
+      });
+      expect(semAutor).toEqual(chave.dados);
       expect({ ...hub, dados: [] }).toEqual({ ...chave, dados: [] });
       expect(hub.ha_mais).toBe(true);
       expect(hub.dados[0]?.quem).toBe(`pessoa:per_${dono.pessoa}`);
