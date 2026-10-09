@@ -89,3 +89,4 @@
 - [«Pode publicar?» verifica o texto alternativo das imagens (#184, decisão CR): impedimento novo, reverificação ao criar/alterar media, nao_verificado só conformidade; publicado no ensaio — 08/10/2026](catalogo-publicar-media-08out2026.md)
 - [Exportação completa do catálogo (#189, decisão CS): POST /exports, ZIP com JSON, CSV e imagens, limite de 3 por expirar, limpeza; cópia da VPS sem exportações; publicado no ensaio — 08/10/2026](catalogo-exportacao-08out2026.md)
 - [Importação do catálogo com ensaio (#197, decisão CT): ensaio sem gravar, aplicar tudo ou nada, SKU como identidade, 0032; faturação do GitHub parou as Actions a 08–09/10; publicado no ensaio — 09/10/2026](catalogo-importacao-09out2026.md)
+- [Hub: ficha do artigo só para consulta (#205, #206): quatro caminhos /hub/ com as funções da API; imagens por blob:, CSP do nginx do Hub com img-src blob: (VPS); publicado no ensaio — 09/10/2026](hub-ficha-do-artigo-09out2026.md)
