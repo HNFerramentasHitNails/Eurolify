@@ -138,6 +138,8 @@ export interface FichaArtigo extends ResumoArtigo {
   descricao: string | null;
   origem_ref: string | null;
   criado_em: string;
+  /** A versão lida: cada alteração leva-a (docs/22 §13.2). */
+  versao: number;
   variantes: VarianteArtigo[];
 }
 
@@ -148,6 +150,7 @@ export interface ImagemArtigo {
   texto_alternativo: string | null;
   posicao: number;
   principal: boolean;
+  versao: number;
 }
 
 export const MOTIVOS_ARQUIVO = [
@@ -206,12 +209,13 @@ interface Problema {
 const texto = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 export async function pedir<T>(
-  metodo: "GET" | "POST",
+  metodo: "GET" | "POST" | "PATCH",
   caminho: string,
   opcoes: { corpo?: unknown; comerciante?: string } = {},
 ): Promise<T> {
   const cabecalhos: Record<string, string> = { accept: "application/json" };
-  if (metodo === "POST") cabecalhos["content-type"] = "application/json";
+  const comCorpo = metodo !== "GET";
+  if (comCorpo) cabecalhos["content-type"] = "application/json";
   if (opcoes.comerciante !== undefined) {
     cabecalhos["eurolify-comerciante"] = opcoes.comerciante;
   }
@@ -221,9 +225,7 @@ export async function pedir<T>(
       method: metodo,
       credentials: "same-origin",
       headers: cabecalhos,
-      ...(metodo === "POST"
-        ? { body: JSON.stringify(opcoes.corpo ?? {}) }
-        : {}),
+      ...(comCorpo ? { body: JSON.stringify(opcoes.corpo ?? {}) } : {}),
     });
   } catch {
     throw new ErroHub(0, undefined, {}, undefined, undefined);
@@ -367,6 +369,51 @@ export const api = {
       `/hub/products/${artigo}/publications`,
       { comerciante },
     ),
+  // Editar o artigo (docs/22 §13): as mesmas escritas da API, pelos
+  // caminhos /hub/, cada uma com a `versao` lida.
+  alterarArtigo: (
+    comerciante: string,
+    artigo: string,
+    corpo: {
+      versao: number;
+      nome?: string;
+      descricao?: string | null;
+      marca?: string | null;
+    },
+  ) =>
+    pedir<FichaArtigo>("PATCH", `/hub/products/${artigo}`, {
+      comerciante,
+      corpo,
+    }),
+  mudarEstadoDoArtigo: (
+    comerciante: string,
+    artigo: string,
+    accao: "activate" | "archive" | "restore",
+    versao: number,
+  ) =>
+    pedir<FichaArtigo>("POST", `/hub/products/${artigo}/${accao}`, {
+      comerciante,
+      corpo: { versao },
+    }),
+  arquivarVariante: (comerciante: string, variante: string) =>
+    pedir<VarianteArtigo>("POST", `/hub/variants/${variante}/archive`, {
+      comerciante,
+      corpo: {},
+    }),
+  alterarImagem: (
+    comerciante: string,
+    imagem: string,
+    corpo: {
+      versao: number;
+      texto_alternativo?: string | null;
+      posicao?: number;
+      principal?: boolean;
+    },
+  ) =>
+    pedir<ImagemArtigo>("PATCH", `/hub/media/${imagem}`, {
+      comerciante,
+      corpo,
+    }),
   /** O que o convite diz; o segredo vai no corpo, nunca no endereço. */
   verConvite: (convite: string) =>
     pedir<DetalheConvite>("POST", "/hub/invitations/preview", {

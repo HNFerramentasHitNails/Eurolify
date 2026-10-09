@@ -179,6 +179,7 @@ const ESTADO_DO_CODIGO: Record<ErroCatalogo["codigo"], number> = {
   "catalog.published_by_required": 422,
   // O espaço das imagens do comerciante acabou (docs/14 §3.5, **proposta**).
   "catalog.media_quota_exceeded": 409,
+  "catalog.external_field": 409,
 };
 
 /**
@@ -286,7 +287,7 @@ export const Artigo = Type.Object({
 });
 
 /** A variante sozinha: com o artigo e os valores das opções (`ovl_…`). */
-const VarianteCompleta = Type.Object({
+export const VarianteCompleta = Type.Object({
   ...Variante.properties,
   artigo: Type.String({ description: "prd_…" }),
   valores: Type.Array(Type.String({ description: "ovl_…" }), {
@@ -565,7 +566,7 @@ const PedidoCriarVariante = Type.Object(
   { additionalProperties: false },
 );
 
-const ParametroVariante = Type.Object({ id: idCom("var", "var_…") });
+export const ParametroVariante = Type.Object({ id: idCom("var", "var_…") });
 
 const ConsultaVariantesDoArtigo = Type.Object(
   {
@@ -763,7 +764,7 @@ const PedidoTraduzir = Type.Object(
 
 const ComVersao = { versao: Type.Integer({ minimum: 1 }) };
 
-const PedidoAlterarArtigo = Type.Object(
+export const PedidoAlterarArtigo = Type.Object(
   {
     ...ComVersao,
     nome: Type.Optional(Texto(200)),
@@ -1390,6 +1391,79 @@ export async function escrever(
   return resposta.code(resultado.status).send(resultado.corpo);
 }
 
+/**
+ * As mudanças de estado do artigo (§4.1): o caminho, o estado de partida,
+ * o de chegada e a descrição. Também as usam as rotas /hub/ (docs/22 §13).
+ */
+export const MUDANCAS_DE_ESTADO = [
+  [
+    "activate",
+    "rascunho",
+    "activo",
+    "Activa um artigo em rascunho (C3: SKU e unidade em todas as variantes activas).",
+  ],
+  [
+    "archive",
+    "activo",
+    "arquivado",
+    "Arquiva um artigo activo; as publicações publicadas arquivam-se com ele.",
+  ],
+  [
+    "restore",
+    "arquivado",
+    "activo",
+    "Repõe um artigo arquivado como activo, sem o voltar a publicar.",
+  ],
+] as const;
+
+/**
+ * Altera o artigo na transacção dada e devolve a ficha. Chamam-na o
+ * PATCH /products/{id} (pela chave) e o PATCH /hub/products/{id} (pela
+ * sessão; docs/22 §13.2): a mesma escrita, o mesmo resultado.
+ */
+export async function alteracaoDoArtigo(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  idComPrefixo: string,
+  corpo: Static<typeof PedidoAlterarArtigo>,
+): Promise<Static<typeof Artigo>> {
+  const id = semPrefixo(idComPrefixo);
+  const { versao, ...alteracao } = corpo;
+  await alterarArtigo(trx, comercianteId, id, versao, alteracao);
+  return fichaNa(trx, comercianteId, id);
+}
+
+/**
+ * Muda o estado do artigo (§4.1) na transacção dada e devolve a ficha;
+ * chamam-na as rotas activate, archive e restore, pela chave e pelo Hub.
+ */
+export async function mudancaDeEstado(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  idComPrefixo: string,
+  versao: number,
+  estado: (typeof MUDANCAS_DE_ESTADO)[number][2],
+  de: (typeof MUDANCAS_DE_ESTADO)[number][1],
+): Promise<Static<typeof Artigo>> {
+  const id = semPrefixo(idComPrefixo);
+  await mudarEstadoArtigo(trx, comercianteId, id, versao, estado, de);
+  return fichaNa(trx, comercianteId, id);
+}
+
+/**
+ * Arquiva a variante na transacção dada e devolve-a; chamam-na o
+ * POST /variants/{id}/archive e o POST /hub/variants/{id}/archive.
+ */
+export async function arquivoDaVariante(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  idComPrefixo: string,
+): Promise<Static<typeof VarianteCompleta>> {
+  const id = semPrefixo(idComPrefixo);
+  await arquivarVariante(trx, comercianteId, id);
+  return paraVarianteCompleta(await fichaDaVariante(trx, comercianteId, id));
+}
+
 /** A ficha do artigo como a API a devolve, lida na transacção dada. */
 async function fichaNa(
   trx: Kysely<BaseDados>,
@@ -1739,12 +1813,14 @@ export function rotasDoCatalogo(
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 200, async (trx, chave) => {
-        const id = semPrefixo(pedido.params.id);
-        const { versao, ...alteracao } = pedido.body;
-        await alterarArtigo(trx, chave.comercianteId, id, versao, alteracao);
-        return fichaNa(trx, chave.comercianteId, id);
-      }),
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        alteracaoDoArtigo(
+          trx,
+          chave.comercianteId,
+          pedido.params.id,
+          pedido.body,
+        ),
+      ),
   );
 
   rotas.put(
@@ -1803,26 +1879,7 @@ export function rotasDoCatalogo(
   // estado (um rascunho não se «repõe», um arquivado não se «activa»). Pedir
   // o estado em que o artigo já está devolve a ficha sem mudar nada, nem a
   // versão (§4.1; revisão do #153, P2-2).
-  for (const [caminho, de, estado, descricao] of [
-    [
-      "activate",
-      "rascunho",
-      "activo",
-      "Activa um artigo em rascunho (C3: SKU e unidade em todas as variantes activas).",
-    ],
-    [
-      "archive",
-      "activo",
-      "arquivado",
-      "Arquiva um artigo activo; as publicações publicadas arquivam-se com ele.",
-    ],
-    [
-      "restore",
-      "arquivado",
-      "activo",
-      "Repõe um artigo arquivado como activo, sem o voltar a publicar.",
-    ],
-  ] as const) {
+  for (const [caminho, de, estado, descricao] of MUDANCAS_DE_ESTADO) {
     rotas.post(
       `/products/:id/${caminho}`,
       {
@@ -1836,18 +1893,16 @@ export function rotasDoCatalogo(
         },
       },
       (pedido, resposta) =>
-        escrever(base, pedido, resposta, 200, async (trx, chave) => {
-          const id = semPrefixo(pedido.params.id);
-          await mudarEstadoArtigo(
+        escrever(base, pedido, resposta, 200, (trx, chave) =>
+          mudancaDeEstado(
             trx,
             chave.comercianteId,
-            id,
+            pedido.params.id,
             pedido.body.versao,
             estado,
             de,
-          );
-          return fichaNa(trx, chave.comercianteId, id);
-        }),
+          ),
+        ),
     );
   }
 
@@ -1936,11 +1991,7 @@ export function rotasDoCatalogo(
             "esta rota não leva corpo",
           );
         }
-        const id = semPrefixo(pedido.params.id);
-        await arquivarVariante(trx, chave.comercianteId, id);
-        return paraVarianteCompleta(
-          await fichaDaVariante(trx, chave.comercianteId, id),
-        );
+        return arquivoDaVariante(trx, chave.comercianteId, pedido.params.id);
       }),
   );
 
