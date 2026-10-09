@@ -32,7 +32,9 @@ for nome in "$@"; do
   fi
   resumo="${origem##*@}"
   copia="ghcr.io/$dono/eurolify-base/$nome@$resumo"
-  if descarregar "$copia" 3; then
+  # Duas tentativas no GHCR: se a cópia não existe, repetir não a cria
+  # (revisão do #269, P2-1).
+  if descarregar "$copia" 2; then
     echo "$nome=$copia"
   elif descarregar "$origem" 5; then
     echo "::warning::imagem-base: sem a cópia do GHCR para $nome; veio do Docker Hub" >&2

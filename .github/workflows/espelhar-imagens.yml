@@ -1,5 +1,6 @@
 # Copia as imagens base de infra/ci/imagens-base.txt do Docker Hub para o
-# GHCR, com o mesmo resumo (#268). Quem as usa descarrega-as pelo resumo, por
+# GHCR, com o mesmo resumo (#268), em ghcr.io/<dono>/eurolify-base/<nome>
+# com a etiqueta <etiqueta>-<12 primeiros do resumo>. Quem as usa descarrega-as pelo resumo, por
 # isso uma cópia trocada não passa: o resumo não bate. Corre quando a lista
 # muda (no pedido e no main) e à mão.
 name: espelhar-imagens
@@ -60,16 +61,35 @@ jobs:
             while read -r nome origem; do
               etiqueta="${origem%@*}"
               etiqueta="${etiqueta##*:}"
-              destino="ghcr.io/${DONO,,}/eurolify-base/$nome:$etiqueta"
-              echo "== $origem -> $destino"
+              resumo_lista="${origem##*@}"
+              # A etiqueta leva o início do resumo: uma cópia nunca move uma
+              # etiqueta existente, nem a partir de um pedido (revisão do
+              # #269, P2-2). Quem usa as cópias usa o resumo.
+              hex="${resumo_lista#sha256:}"
+              destino="ghcr.io/${DONO,,}/eurolify-base/$nome:$etiqueta-${hex:0:12}"
               # O skopeo não aceita etiqueta e resumo juntos: a origem vai
               # só pelo resumo, que é o que a fixa.
-              fonte="${origem%%:*}@${origem##*@}"
-              # --preserve-digests: falha em vez de mudar o resumo.
-              skopeo copy --all --preserve-digests --retry-times 5 \
-                "docker://$fonte" "docker://$destino"
-              resumo="$(skopeo inspect --raw "docker://$destino" | sha256sum | cut -d' ' -f1)"
-              if [ "sha256:$resumo" != "${origem##*@}" ]; then
+              fonte="${origem%%:*}@$resumo_lista"
+              echo "== $fonte -> $destino"
+              # Até 6 tentativas, com esperas até 2 min: o Docker Hub deu 429,
+              # 500 e 504 a 09/10/2026. --preserve-digests: falha em vez de
+              # mudar o resumo. </dev/null: não come as linhas da lista
+              # (revisão do #269, P3-1).
+              copiado=false
+              for tentativa in 1 2 3 4 5 6; do
+                if skopeo copy --all --preserve-digests --retry-times 3 \
+                  "docker://$fonte" "docker://$destino" </dev/null; then
+                  copiado=true
+                  break
+                fi
+                sleep $((tentativa * 20))
+              done
+              if [ "$copiado" != true ]; then
+                echo "não consegui copiar $fonte" >&2
+                exit 1
+              fi
+              resumo="$(skopeo inspect --raw "docker://$destino" </dev/null | sha256sum | cut -d' ' -f1)"
+              if [ "sha256:$resumo" != "$resumo_lista" ]; then
                 echo "resumo diferente em $destino: sha256:$resumo" >&2
                 exit 1
               fi

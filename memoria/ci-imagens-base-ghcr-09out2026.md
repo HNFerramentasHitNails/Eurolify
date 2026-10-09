@@ -18,11 +18,20 @@
 
 ## Números (com data e como se contaram)
 
-- Quatro imagens base, contadas na lista e no registo do CI do #267 a 09/10/2026. O `moby/buildkit:buildx-stable-1` tinha o resumo `sha256:cec9f139…`, lido no registo do `docker pull` da tarefa `imagem` desse CI.
+- Quatro imagens base, contadas na lista e no registo do CI do #267 a 09/10/2026. De onde veio cada resumo:
+  - `postgres`: o que já estava no `verificar.yml` e em `infra/vps/ficheiros/ensaio.conf`;
+  - `ubuntu`: o que já estava no `verificar.yml`, na tarefa `script-vps`;
+  - `node`: o `NODE_IMAGEM` do `Dockerfile`;
+  - `moby/buildkit:buildx-stable-1`: `sha256:cec9f139…`, lido no registo do `docker pull` da tarefa `imagem` do CI do #267 (as tarefas 114028640293 e 114036691676).
+- A 09/10/2026, entre as 21h45 e as 21h48 UTC, a cópia falhou duas vezes:
+  - na primeira, o skopeo 1.13 recusou a origem com etiqueta e resumo juntos (corrigido);
+  - na segunda, o `auth.docker.io` respondeu `504 Gateway Timeout`.
+
+  A cópia passou a tentar até 6 vezes, com esperas até 2 minutos.
 
 ## O que ficou por verificar
 
-- Se o pacote criado no GHCR pelo `GITHUB_TOKEN` fica ligado ao repositório e é privado, como o repositório: **não verifiquei**. A prova é o primeiro CI que descarregar a cópia.
+- Se o pacote criado no GHCR pelo `GITHUB_TOKEN` fica ligado ao repositório e é privado, como o repositório: **não verifiquei**. A prova é o primeiro CI que descarregar a cópia. Se o registo mostrar o aviso «sem a cópia do GHCR», o Diogo ou o Bruno ligam cada pacote ao repositório em github.com → o pacote → «Package settings» → «Manage Actions access», com leitura.
 - Se o GHCR tem limites de descarga para os fluxos do próprio repositório: **não verifiquei**.
 - Se a VPS descarrega alguma coisa do Docker Hub ao publicar (a imagem da API vem do GHCR): **não verifiquei**.
 - A etiqueta `buildx-stable-1` muda no Docker Hub; a nossa cópia fica presa ao resumo copiado até se mudar a lista.
