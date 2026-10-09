@@ -375,10 +375,11 @@ filtros (a API já os tem).
 - **A outra sessão** vê a lista das rotas tocadas no #77 antes de o pedido
   ser juntado.
 
-## 12. Catálogo: a ficha do artigo, só para consulta (issue #204, proposta)
+## 12. Catálogo: a ficha do artigo, só para consulta (issue #204)
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da ficha do
-artigo»*. Só desenho: o código vem num pedido seguinte, depois de aprovado.
+artigo»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o desenho,
+junta o #205 e avança com o código»*); o código vem no pedido seguinte.
 O catálogo é da outra sessão (#77): o código não muda nenhuma regra nem
 resposta do catálogo, só junta caminhos `/hub/…` às mesmas funções, como na
 §11.1 (aviso no #77 antes do código).

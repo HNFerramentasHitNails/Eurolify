@@ -280,7 +280,7 @@ const CamposArtigo = {
   actualizado_em: Instante,
 };
 const ResumoArtigo = Type.Object(CamposArtigo);
-const Artigo = Type.Object({
+export const Artigo = Type.Object({
   ...CamposArtigo,
   variantes: Type.Array(Variante),
 });
@@ -455,7 +455,7 @@ const PublicacaoEsquema = Type.Object({
   motivo_arquivo: Type.Union([MotivoArquivo, Type.Null()]),
   versao: Type.Integer(),
 });
-const RespostaPublicacoes = Type.Object({
+export const RespostaPublicacoes = Type.Object({
   dados: Type.Array(PublicacaoEsquema),
 });
 
@@ -1456,6 +1456,42 @@ export async function listaDeArtigos(
   };
 }
 
+/**
+ * A ficha de um artigo, com as variantes (docs/14 §7.1): a mesma para
+ * `GET /products/{id}` e `GET /hub/products/{id}` (docs/22 §12.1). **Outro
+ * chamador, fora do catálogo:** `identidade/hub-catalogo.ts`.
+ */
+export async function fichaDeArtigo(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  resposta: FastifyReply,
+): Promise<Static<typeof Artigo>> {
+  const { artigo, variantes } = await noCatalogoApi(resposta, () =>
+    fichaDoArtigo(base, comercianteId, semPrefixo(id)),
+  );
+  return { ...paraArtigo(artigo), variantes: variantes.map(paraVariante) };
+}
+
+/**
+ * As publicações de um artigo (docs/14 §3.9): as mesmas para
+ * `GET /products/{id}/publications` e `GET /hub/products/{id}/publications`
+ * (docs/22 §12.1). **Outro chamador:** `identidade/hub-catalogo.ts`.
+ */
+export async function publicacoesDeArtigo(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  resposta: FastifyReply,
+): Promise<Static<typeof RespostaPublicacoes>> {
+  // Um artigo que não existe é 404, não uma lista vazia (na mesma
+  // transacção que as publicações).
+  const publicacoes = await noCatalogoApi(resposta, () =>
+    publicacoesDoArtigo(base, comercianteId, semPrefixo(id)),
+  );
+  return { dados: publicacoes.map(paraPublicacao) };
+}
+
 export function rotasDoCatalogo(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -1493,13 +1529,13 @@ export function rotasDoCatalogo(
         response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido, resposta) => {
-      const chave = chaveDo(pedido);
-      const { artigo, variantes } = await noCatalogoApi(resposta, () =>
-        fichaDoArtigo(base, chave.comercianteId, semPrefixo(pedido.params.id)),
-      );
-      return { ...paraArtigo(artigo), variantes: variantes.map(paraVariante) };
-    },
+    async (pedido, resposta) =>
+      fichaDeArtigo(
+        base,
+        chaveDo(pedido).comercianteId,
+        pedido.params.id,
+        resposta,
+      ),
   );
 
   rotas.get(
@@ -1610,16 +1646,13 @@ export function rotasDoCatalogo(
         response: { 200: RespostaPublicacoes, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido, resposta) => {
-      const chave = chaveDo(pedido);
-      const id = semPrefixo(pedido.params.id);
-      // Um artigo que não existe é 404, não uma lista vazia (na mesma
-      // transacção que as publicações).
-      const publicacoes = await noCatalogoApi(resposta, () =>
-        publicacoesDoArtigo(base, chave.comercianteId, id),
-      );
-      return { dados: publicacoes.map(paraPublicacao) };
-    },
+    async (pedido, resposta) =>
+      publicacoesDeArtigo(
+        base,
+        chaveDo(pedido).comercianteId,
+        pedido.params.id,
+        resposta,
+      ),
   );
 
   rotas.post(

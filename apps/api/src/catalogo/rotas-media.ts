@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import type { FastifyInstance } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import { erroBase, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { TIPOS_DE_IMAGEM, type BaseDados } from "../base/esquema.js";
 import { chaveDo } from "../identidade/autenticacao.js";
@@ -54,7 +54,7 @@ const TextoAlternativo = Type.String({
     "Na língua de origem; descreve a imagem a quem não a vê (acessibilidade)",
 });
 const Posicao = Type.Integer({ minimum: 0, maximum: 2147483647 });
-const ParametroMedia = Type.Object({ id: idCom("med", "med_…") });
+export const ParametroMedia = Type.Object({ id: idCom("med", "med_…") });
 
 const FicheiroEsquema = Type.Object({
   id: Type.String({ description: "fil_…" }),
@@ -62,7 +62,7 @@ const FicheiroEsquema = Type.Object({
   bytes: Type.Integer({ minimum: 1 }),
 });
 
-const MediaEsquema = Type.Object({
+export const MediaEsquema = Type.Object({
   id: Type.String({ description: "med_…" }),
   artigo: Type.String({ description: "prd_…" }),
   variante: Type.Union([Type.String({ description: "var_…" }), Type.Null()]),
@@ -135,6 +135,72 @@ const paraMedia = (m: LinhaMedia) => ({
   actualizada_em: m.actualizado_em.toISOString(),
 });
 
+/**
+ * As imagens de um artigo (docs/14 §3.8): as mesmas para
+ * `GET /products/{id}/media` e `GET /hub/products/{id}/media` (docs/22
+ * §12.1). **Outro chamador, fora do catálogo:** `identidade/hub-catalogo.ts`.
+ */
+export async function imagensDeArtigo(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  consulta: Static<typeof ConsultaPagina>,
+  resposta: FastifyReply,
+) {
+  const { limite, depois } = paginaDe(consulta);
+  const pagina = await noCatalogoApi(resposta, () =>
+    mediaDoArtigo(base, comercianteId, semPrefixo(id), limite, depois),
+  );
+  return {
+    dados: pagina.dados.map(paraMedia),
+    total: pagina.total,
+    ha_mais: pagina.ultima !== null,
+    cursor_seguinte:
+      pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
+  };
+}
+
+/**
+ * Os bytes de uma imagem: os mesmos para `GET /media/{id}/file` e
+ * `GET /hub/media/{id}/file` (docs/22 §12.1), com as mesmas guardas; só o
+ * `cache-control` muda (o Hub não guarda: o endereço é o mesmo para
+ * comerciantes diferentes). **Outro chamador:** `identidade/hub-catalogo.ts`.
+ */
+export async function enviarBytesDaMedia(
+  base: Kysely<BaseDados>,
+  armazenamento: Armazenamento,
+  comercianteId: string,
+  id: string,
+  registo: FastifyBaseLogger,
+  resposta: FastifyReply,
+  cache: string,
+) {
+  const media = await noCatalogoApi(resposta, () =>
+    fichaDaMedia(base, comercianteId, semPrefixo(id)),
+  );
+  let bytes: Buffer;
+  try {
+    bytes = await armazenamento.ler(comercianteId, media.ficheiro_resumo);
+  } catch (erro) {
+    // A linha existe e o ficheiro não (apagado à mão, cópia reposta só
+    // da base): 500 sem pormenor para fora, e o registo diz qual.
+    registo.error(
+      { err: erro, media: media.id, resumo: media.ficheiro_resumo },
+      "media: o ficheiro não está no armazenamento",
+    );
+    throw erro;
+  }
+  // O tipo é o que a API confirmou ao receber; o browser não adivinha
+  // outro, e a imagem não corre nada (nem que leve código escondido).
+  return resposta
+    .header("content-type", media.tipo)
+    .header("x-content-type-options", "nosniff")
+    .header("content-security-policy", "default-src 'none'; sandbox")
+    .header("cache-control", cache)
+    .header("etag", `"${media.ficheiro_resumo}"`)
+    .send(bytes);
+}
+
 export function rotasDaMedia(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -198,26 +264,14 @@ export function rotasDaMedia(
         response: { 200: Lista(MediaEsquema), ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido, resposta) => {
-      const chave = chaveDo(pedido);
-      const { limite, depois } = paginaDe(pedido.query);
-      const pagina = await noCatalogoApi(resposta, () =>
-        mediaDoArtigo(
-          base,
-          chave.comercianteId,
-          semPrefixo(pedido.params.id),
-          limite,
-          depois,
-        ),
-      );
-      return {
-        dados: pagina.dados.map(paraMedia),
-        total: pagina.total,
-        ha_mais: pagina.ultima !== null,
-        cursor_seguinte:
-          pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
-      };
-    },
+    async (pedido, resposta) =>
+      imagensDeArtigo(
+        base,
+        chaveDo(pedido).comercianteId,
+        pedido.params.id,
+        pedido.query,
+        resposta,
+      ),
   );
 
   rotas.get(
@@ -262,36 +316,16 @@ export function rotasDaMedia(
         },
       },
     },
-    async (pedido, resposta) => {
-      const chave = chaveDo(pedido);
-      const media = await noCatalogoApi(resposta, () =>
-        fichaDaMedia(base, chave.comercianteId, semPrefixo(pedido.params.id)),
-      );
-      let bytes: Buffer;
-      try {
-        bytes = await armazenamento.ler(
-          chave.comercianteId,
-          media.ficheiro_resumo,
-        );
-      } catch (erro) {
-        // A linha existe e o ficheiro não (apagado à mão, cópia reposta só
-        // da base): 500 sem pormenor para fora, e o registo diz qual.
-        pedido.log.error(
-          { err: erro, media: media.id, resumo: media.ficheiro_resumo },
-          "media: o ficheiro não está no armazenamento",
-        );
-        throw erro;
-      }
-      // O tipo é o que a API confirmou ao receber; o browser não adivinha
-      // outro, e a imagem não corre nada (nem que leve código escondido).
-      return resposta
-        .header("content-type", media.tipo)
-        .header("x-content-type-options", "nosniff")
-        .header("content-security-policy", "default-src 'none'; sandbox")
-        .header("cache-control", "private, no-cache")
-        .header("etag", `"${media.ficheiro_resumo}"`)
-        .send(bytes);
-    },
+    async (pedido, resposta) =>
+      enviarBytesDaMedia(
+        base,
+        armazenamento,
+        chaveDo(pedido).comercianteId,
+        pedido.params.id,
+        pedido.log,
+        resposta,
+        "private, no-cache",
+      ),
   );
 
   rotas.patch(

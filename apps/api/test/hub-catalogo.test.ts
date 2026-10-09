@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ArmazenamentoEmDisco } from "../src/catalogo/armazenamento.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   mudarEstado,
@@ -13,6 +17,16 @@ import {
 } from "./base-de-teste.js";
 import { hubDeTeste } from "./hub-de-teste.js";
 
+/** Imagens mínimas: os primeiros bytes de cada formato e um resto. */
+const PNG = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.from("resto do png"),
+]);
+const JPEG = Buffer.concat([
+  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+  Buffer.from("resto do jpeg"),
+]);
+
 // A lista de artigos no Hub (docs/22 §11; issue #199): GET /hub/products é a
 // mesma função, filtros e resposta do GET /products, com a sessão de uma
 // pessoa cujo papel tem catalog:read. Contra o PostgreSQL 18.
@@ -20,6 +34,7 @@ import { hubDeTeste } from "./hub-de-teste.js";
 describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
   let base: BaseDeTeste;
   let h: ReturnType<typeof hubDeTeste>;
+  let pasta: string;
 
   /** Um comerciante com uma chave de escrita e N artigos criados por ela. */
   async function comerciante(nome: string, artigos: string[]) {
@@ -57,6 +72,66 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     return { id: c, segredo };
   }
 
+  const comChave = (
+    segredo: string,
+    metodo: "GET" | "POST",
+    url: string,
+    corpo?: Buffer | object,
+    tipo = "application/json",
+  ) =>
+    h.app.inject({
+      method: metodo,
+      url,
+      headers: {
+        authorization: `Bearer ${segredo}`,
+        ...(metodo === "POST"
+          ? { "idempotency-key": randomUUID(), "content-type": tipo }
+          : {}),
+      },
+      ...(corpo === undefined
+        ? {}
+        : {
+            payload: Buffer.isBuffer(corpo) ? corpo : JSON.stringify(corpo),
+          }),
+    });
+
+  /** Um artigo com duas variantes, uma imagem com texto e outra sem. */
+  async function artigoCompleto(c: { id: string; segredo: string }) {
+    const r = await comChave(c.segredo, "POST", "/products", {
+      tipo: "fisico",
+      nome: "Verniz Completo",
+      marca: "Marca de Ensaio",
+      categoria_fiscal: "normal",
+      variantes: [
+        { sku: `C-${randomUUID()}`, unidade_de_venda: "unidade" },
+        { sku: `C-${randomUUID()}`, unidade_de_venda: "unidade" },
+      ],
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    const artigo = r.json<{ id: string }>().id;
+    const imagens: string[] = [];
+    for (const [bytes, texto] of [
+      [PNG, "Frasco de verniz azul"],
+      [JPEG, null],
+    ] as const) {
+      const f = await comChave(
+        c.segredo,
+        "POST",
+        "/media/uploads",
+        bytes,
+        bytes === PNG ? "image/png" : "image/jpeg",
+      );
+      expect(f.statusCode, f.body).toBe(201);
+      const m = await comChave(c.segredo, "POST", `/products/${artigo}/media`, {
+        ficheiro: f.json<{ id: string }>().id,
+        texto_alternativo: texto,
+      });
+      expect(m.statusCode, m.body).toBe(201);
+      imagens.push(m.json<{ id: string }>().id);
+    }
+    return { artigo, imagens };
+  }
+
   const pelaChave = (segredo: string, q: string) =>
     h.app.inject({
       method: "GET",
@@ -66,12 +141,14 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
 
   beforeAll(async () => {
     base = await criarBaseDeTeste(URL_BASE ?? "");
-    h = hubDeTeste(base);
+    pasta = await mkdtemp(join(tmpdir(), "eurolify-hub-media-"));
+    h = hubDeTeste(base, { armazenamento: new ArmazenamentoEmDisco(pasta) });
   }, 60_000);
 
   afterAll(async () => {
     await h.app.close();
     await base.fechar();
+    await rm(pasta, { recursive: true, force: true });
   });
 
   it("os quatro papéis lêem a lista; é igual à do GET /products, com os mesmos filtros e páginas", async () => {
@@ -293,6 +370,137 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     }
   });
 
+  it("a ficha, as imagens, os bytes e as publicações são os mesmos pelo Hub e pela chave (#204)", async () => {
+    const c = await comerciante("Loja Ficha", []);
+    const { artigo, imagens } = await artigoCompleto(c);
+    for (const papel of PAPEIS) {
+      const p = await h.pessoaCom(c.id, papel);
+      for (const caminho of [
+        `/products/${artigo}`,
+        `/products/${artigo}/media`,
+        `/products/${artigo}/publications`,
+      ]) {
+        const hub = await h.pedir("GET", `/hub${caminho}`, {
+          sessao: p.sessao,
+          comerciante: c.id,
+        });
+        expect(hub.statusCode, `${papel} ${caminho}: ${hub.body}`).toBe(200);
+        expect(hub.headers["cache-control"]).toBe("private, no-store");
+        const api = await comChave(c.segredo, "GET", caminho);
+        expect(hub.json()).toEqual(api.json());
+      }
+      for (const imagem of imagens) {
+        const hub = await h.pedir("GET", `/hub/media/${imagem}/file`, {
+          sessao: p.sessao,
+          comerciante: c.id,
+        });
+        const api = await comChave(c.segredo, "GET", `/media/${imagem}/file`);
+        expect(hub.statusCode, hub.body).toBe(200);
+        expect(hub.rawPayload).toEqual(api.rawPayload);
+        expect(hub.headers["content-type"]).toBe(api.headers["content-type"]);
+        expect(hub.headers["x-content-type-options"]).toBe("nosniff");
+        expect(hub.headers["content-security-policy"]).toBe(
+          api.headers["content-security-policy"],
+        );
+        expect(hub.headers["cache-control"]).toBe("private, no-store");
+      }
+    }
+    const p = await h.pessoaCom(c.id, "apoio");
+    const ficha = await h.pedir("GET", `/hub/products/${artigo}`, {
+      sessao: p.sessao,
+      comerciante: c.id,
+    });
+    expect(ficha.json<{ variantes: unknown[] }>().variantes).toHaveLength(2);
+    const media = await h.pedir("GET", `/hub/products/${artigo}/media`, {
+      sessao: p.sessao,
+      comerciante: c.id,
+    });
+    expect(
+      media
+        .json<{ dados: { texto_alternativo: string | null }[] }>()
+        .dados.map((m) => m.texto_alternativo),
+    ).toEqual(["Frasco de verniz azul", null]);
+  });
+
+  it("a ficha e as imagens de outro comerciante não saem pelo Hub (#204)", async () => {
+    const a = await comerciante("Loja A Ficha", []);
+    const b = await comerciante("Loja B Ficha", []);
+    const deB = await artigoCompleto(b);
+    const p = await h.pessoaCom(a.id, "dono");
+    // Com o cabeçalho de A, o artigo de B não existe.
+    for (const caminho of [
+      `/hub/products/${deB.artigo}`,
+      `/hub/products/${deB.artigo}/media`,
+      `/hub/products/${deB.artigo}/publications`,
+      `/hub/media/${deB.imagens[0] ?? ""}/file`,
+    ]) {
+      const r = await h.pedir("GET", caminho, {
+        sessao: p.sessao,
+        comerciante: a.id,
+      });
+      expect(r.statusCode, `${caminho}: ${r.body}`).toBe(404);
+      expect(r.body).not.toContain("Verniz Completo");
+      expect(r.rawPayload.includes(PNG)).toBe(false);
+      // Com o cabeçalho de B, sem ser membro de B, nem chega à função.
+      const comB = await h.pedir("GET", caminho, {
+        sessao: p.sessao,
+        comerciante: b.id,
+      });
+      expect(comB.statusCode, caminho).toBe(403);
+    }
+    // Sem sessão, recusado.
+    const semSessao = await h.pedir("GET", `/hub/products/${deB.artigo}`, {
+      comerciante: b.id,
+    });
+    expect(semSessao.statusCode).toBe(401);
+  });
+
+  it("sem cabeçalho, membro que saiu e sessão terminada não lêem a ficha (#204)", async () => {
+    const c = await comerciante("Loja Ficha Saida", []);
+    const { artigo, imagens } = await artigoCompleto(c);
+    const caminhos = [
+      `/hub/products/${artigo}`,
+      `/hub/products/${artigo}/media`,
+      `/hub/products/${artigo}/publications`,
+      `/hub/media/${imagens[0] ?? ""}/file`,
+    ];
+    const recusados = async (sessao: string, estado: number) => {
+      for (const caminho of caminhos) {
+        const r = await h.pedir("GET", caminho, { sessao, comerciante: c.id });
+        expect(r.statusCode, `${caminho}: ${r.body}`).toBe(estado);
+        expect(r.body).not.toContain("Verniz Completo");
+        expect(r.rawPayload.includes(PNG)).toBe(false);
+      }
+    };
+    // Sem o cabeçalho Eurolify-Comerciante.
+    const semCabecalho = await h.pessoaCom(c.id, "dono");
+    for (const caminho of caminhos) {
+      const r = await h.pedir("GET", caminho, { sessao: semCabecalho.sessao });
+      expect(r.statusCode, caminho).toBe(400);
+    }
+    // Um membro que saiu.
+    const p = await h.pessoaCom(c.id, "apoio");
+    const eu = await h.pedir("GET", "/hub/me", { sessao: p.sessao });
+    const membro =
+      eu.json<{ comerciantes: { membro: string }[] }>().comerciantes[0]
+        ?.membro ?? "";
+    const sair = await h.pedir("POST", `/hub/members/${membro}/end`, {
+      sessao: p.sessao,
+      comerciante: c.id,
+      corpo: {},
+    });
+    expect(sair.statusCode, sair.body).toBe(200);
+    await recusados(p.sessao, 403);
+    // Uma sessão terminada.
+    const q = await h.pessoaCom(c.id, "gestor");
+    const fim = await h.pedir("POST", "/hub/session/end", {
+      sessao: q.sessao,
+      corpo: {},
+    });
+    expect(fim.statusCode).toBe(200);
+    await recusados(q.sessao, 401);
+  });
+
   it("o contrato tem o caminho do Hub com a segurança da sessão e a resposta da lista", async () => {
     const r = await h.app.inject({ method: "GET", url: "/openapi.json" });
     const contrato = r.json<{
@@ -305,6 +513,19 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     const api = contrato.paths["/products"]?.["get"];
     expect(hub?.security).toEqual([{ sessao: [] }]);
     expect(api?.security).toEqual([{ chave: [] }]);
+    for (const caminho of [
+      "/products/{id}",
+      "/products/{id}/media",
+      "/products/{id}/publications",
+      "/media/{id}/file",
+    ]) {
+      const doHub = contrato.paths[`/hub${caminho}`]?.["get"];
+      const daApi = contrato.paths[caminho]?.["get"];
+      expect(doHub?.security, caminho).toEqual([{ sessao: [] }]);
+      expect(JSON.stringify(doHub?.responses), caminho).toBe(
+        JSON.stringify(daApi?.responses),
+      );
+    }
     expect(
       JSON.stringify(
         (hub?.responses as Record<string, unknown> | undefined)?.["200"],
