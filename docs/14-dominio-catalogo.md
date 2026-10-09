@@ -269,38 +269,39 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
   e `GET /media/{id}/file` devolve os bytes. Marcar uma como principal tira
   a marca à que a tinha.
 
-**Faltas conhecidas da media** (08/10/2026):
+**Em código** (09/10/2026; migração 0035; issue #179; `docs/06`, CV):
+`catalogo/sem-metadados.ts` (os metadados), `catalogo/limpeza-ficheiros.ts`
+(a limpeza, agendada em `servidor.ts`), o aviso na `eurolify-verificacao`, e
+as imagens de teste em `apps/api/test/imagens/` (geradas por `gerar.py`,
+inventadas).
+
+**Faltas conhecidas da media** (08/10/2026; a 2.ª e a 3.ª resolvidas a
+09/10/2026, acima):
 
 - O texto alternativo é só o da língua de origem: as traduções dele entram
   depois. O «obrigatório para publicar» verifica-se desde 08/10/2026 (C2;
   `docs/06`, CR) só nessa língua; num mercado com outra língua e com
   imagens, a verificação diz `nao_verificado: traducao_do_texto_alternativo`.
-- **Os metadados das fotografias** (EXIF: a localização GPS, o aparelho)
-  ficam no ficheiro como vieram: podem ser dados pessoais (`eu-gdpr-privacy`).
-  Tirá-los pede uma biblioteca de imagem; tem de estar feito antes de
-  entrarem imagens reais (que só entram depois da migração para Paris,
-  `docs/06`, CQ). As próprias imagens podem mostrar pessoas (um rosto é um
-  dado pessoal), e isso não se resolve tirando metadados: entra na análise
-  do `eu-gdpr-privacy` antes das imagens reais. O código não impede nada
-  disto: a regra é desta página e da CQ.
-- **Um ficheiro que deixa de estar ligado a qualquer artigo fica no disco e
-  conta para o espaço:** o espaço só volta com a limpeza dos órfãos, que
-  entra depois. Até lá, um comerciante que chegue ao limite não envia mais
-  nada. Um ficheiro gravado sem registo só fica se o COMMIT falhar depois da
-  gravação; esse não conta para o espaço. A limpeza e os metadados (abaixo) estão no
-  issue #179, com prazo: antes da primeira imagem real, e o mais tardar a
-  31/03/2027 (ADR-0019).
+- **Os metadados das fotografias** saem ao receber desde 09/10/2026 (abaixo,
+  #179). As próprias imagens podem mostrar pessoas (um rosto é um dado
+  pessoal): isso não se resolve tirando metadados, e fica com o comerciante e
+  com a pergunta ao jurista (abaixo). Os ficheiros que já estavam no ensaio
+  antes disso são imagens de teste e ficam como estavam.
+- **Um ficheiro que deixa de estar ligado a qualquer artigo** sai ao fim de 7
+  dias desde 09/10/2026 (abaixo, #179), e o espaço volta. Um ficheiro
+  gravado sem registo só fica se o COMMIT falhar depois da gravação; esse
+  não conta para o espaço e a limpeza não o vê (fica para depois).
 - **Na VPS do ensaio (Reino Unido, ADR-0018) só entram imagens de teste,
-  sem dados pessoais** (ADR-0019; `docs/06`, CQ): o código guarda os bytes
-  como chegam, com os metadados.
+  sem dados pessoais** (ADR-0019; `docs/06`, CQ).
 - Quem enviou ou ligou a imagem fica na linha do tempo (§3.12, migração 0033).
 - Sem dimensões nem miniaturas: a montra recebe a imagem como foi enviada.
 
 #### Metadados, pessoas nas imagens e ficheiros sem uso (issue #179)
 
-**Desenho de 09/10/2026** (Diogo: *«sim, avança com o desenho da #179»*).
-Tudo **proposta** até ao OK. Prazo do issue: antes da primeira imagem real, e
-o mais tardar a 31/03/2027 (ADR-0019).
+**Desenho de 09/10/2026** (Diogo: *«sim, avança com o desenho da #179»*;
+aprovado: *«sim, aprovo; avança com o código da #179»*; `docs/06`, CV). Os 7
+dias e os 500 ficheiros por volta são **proposta**. Prazo do issue: antes da
+primeira imagem real, e o mais tardar a 31/03/2027 (ADR-0019).
 
 **1. Tirar os metadados ao receber.** Ex.: uma fotografia do «Gel UV» tirada
 com um telemóvel traz, no EXIF, a latitude e a longitude da casa de quem a
@@ -326,8 +327,9 @@ tirou, a data e o modelo do aparelho. Guarda-se sem nada disso.
   novo escrito pelo Eurolify. No WebP não passa (**não verifiquei** quantos
   navegadores a aplicam no WebP).
 - **Um ficheiro que não se consegue percorrer até ao fim** (cortado, com um
-  bloco de tamanho errado) **recusa-se** com 422 `catalog.invalid_image`:
-  nunca se guarda uma imagem que não se conseguiu limpar.
+  bloco de tamanho errado, um bloco crítico desconhecido no PNG) **recusa-se**
+  com 400 `request.invalid`, como os bytes que não são imagem: nunca se
+  guarda uma imagem que não se conseguiu limpar.
 - **O resumo** (`fil_`, o nome no disco, o espaço contado) passa a ser o dos
   bytes **já limpos**: o mesmo ficheiro enviado uma vez com GPS e outra sem
   ele fica um ficheiro só. A idempotência do envio continua a contar com os
@@ -366,9 +368,16 @@ foi ligada e a que foi desligada saem do disco ao fim de **7 dias** sem uso
 (**proposta**), e o espaço volta.
 
 - **Sem uso** é um `ficheiro` sem nenhuma `media` que o use, em nenhum
-  artigo. Uma coluna nova, `sem_uso_desde`, diz desde quando: posta pela
-  base ao gravar o ficheiro e quando a última `media` dele sai; vazia
-  enquanto houver uma. A API não a escreve.
+  artigo. Uma tabela interna, `ficheiro_sem_uso`, diz desde quando: os
+  gatilhos põem a linha ao gravar o ficheiro e quando a última `media` dele
+  sai, e tiram-na quando uma `media` o liga. A API não lhe toca. Fica à parte
+  da `ficheiro` (que tem o RLS forçado) para a função que diz que
+  comerciantes têm ficheiros a apagar os ver a todos, só com os
+  identificadores.
+- **Enviar outra vez** os mesmos bytes de um ficheiro sem uso volta a contar
+  os 7 dias (quem o envia vai ligá-lo); corre na mesma fila que a limpeza,
+  por isso ou a limpeza já o apagou e o envio grava de novo, ou o envio
+  renovou e a limpeza não o apaga.
 - **Os 7 dias** dão tempo para ligar a imagem depois de a enviar e para
   voltar atrás num engano. Não há forma de recuperar uma media apagada; os 7
   dias são só para o ficheiro.
