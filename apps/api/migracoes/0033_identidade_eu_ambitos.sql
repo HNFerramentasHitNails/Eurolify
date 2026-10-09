@@ -4,7 +4,10 @@
 -- issue #210; eurolify-design, regra 8). O servidor recusa na mesma: isto só
 -- decide o que o ecrã oferece.
 --
--- A mesma pessoa_eu da 0029, com o campo `ambitos` em cada comerciante.
+-- A mesma pessoa_eu da 0029, com o campo `ambitos` em cada comerciante
+-- (uma lista vazia, nunca null, se um papel não tiver âmbitos; revisão do
+-- #212, P3-1). Um âmbito novo acrescentado aqui por uma migração futura não
+-- parte a API anterior: a rota só passa os que conhece (P1-1).
 
 SET LOCAL lock_timeout = '10s';
 
@@ -26,7 +29,7 @@ BEGIN
         SELECT jsonb_agg(jsonb_build_object(
                  'comerciante', m.comerciante_id, 'nome', c.nome,
                  'papel', m.papel, 'membro', m.id,
-                 'ambitos', to_jsonb(public.papel_ambitos(m.papel)))
+                 'ambitos', to_jsonb(coalesce(public.papel_ambitos(m.papel), '{}'::text[])))
                ORDER BY c.nome, m.comerciante_id)
         FROM public.membro m
         CROSS JOIN LATERAL public.comerciante_resumo(m.comerciante_id) c

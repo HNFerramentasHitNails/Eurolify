@@ -154,6 +154,22 @@ const RespostaEu = Type.Object({
   ),
 });
 
+/**
+ * Os âmbitos que esta versão da API conhece, pela ordem da base. Um âmbito
+ * novo, acrescentado aos papéis por uma migração que corre antes de a API
+ * mudar (eurolify-publicar), não pode fazer o /hub/me dar 500 à API
+ * anterior: fica de fora, e o ecrã só esconde um botão (o servidor confere
+ * na mesma em cada pedido). Sem a 0033, uma lista vazia (revisão do #212,
+ * P1-1 e P3-2).
+ */
+export function ambitosConhecidos(
+  ambitos: readonly string[] | null | undefined,
+): Ambito[] {
+  return (ambitos ?? []).filter((a): a is Ambito =>
+    (AMBITOS as readonly string[]).includes(a),
+  );
+}
+
 const RespostaMembros = Type.Object({
   membros: Type.Array(
     Type.Object({
@@ -517,7 +533,7 @@ export function rotasDoHub(
               nome: string;
               papel: (typeof PAPEIS)[number];
               membro: string;
-              ambitos: Ambito[];
+              ambitos?: string[] | null;
             }[];
           };
         }>`select pessoa_eu(${sessao.segredo}) as eu`.execute(base);
@@ -539,7 +555,7 @@ export function rotasDoHub(
           nome: c.nome,
           papel: c.papel,
           membro: comPrefixo("mbr", c.membro),
-          ambitos: c.ambitos,
+          ambitos: ambitosConhecidos(c.ambitos),
         })),
       };
     },

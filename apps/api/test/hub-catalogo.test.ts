@@ -34,6 +34,7 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+import { ambitosConhecidos } from "../src/identidade/hub.js";
 import { hubDeTeste } from "./hub-de-teste.js";
 
 /** Imagens mínimas: os primeiros bytes de cada formato e um resto. */
@@ -653,18 +654,35 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       }>`select papel_ambitos(${papel}) as ambitos`.execute(base.dono);
       expect(meu?.ambitos, papel).toEqual(rows[0]?.ambitos);
     }
-    // O que o ecrã vai usar para mostrar «Editar» (§13.2): só o dono e o
-    // gestor escrevem no catálogo.
-    const escrevem: string[] = [];
-    for (const papel of PAPEIS) {
-      const { rows } = await sql<{
-        ambitos: string[];
-      }>`select papel_ambitos(${papel}) as ambitos`.execute(base.dono);
-      if (rows[0]?.ambitos.includes("catalog:write") === true) {
-        escrevem.push(papel);
-      }
-    }
-    expect(escrevem.sort()).toEqual(["dono", "gestor"]);
+    // A mesma pessoa, dona de um comerciante e de apoio noutro: cada um com
+    // os âmbitos do seu papel (revisão do #212, P2-1 e P2-2).
+    const outro = await comerciante("Loja Ambitos B", []);
+    const dona = await h.pessoaCom(c.id, "dono");
+    await sql`insert into membro (comerciante_id, pessoa_id, papel, convidado_por)
+      values (${outro.id}::uuid, ${dona.pessoa}::uuid, 'apoio', 'operador:teste')`.execute(
+      base.dono,
+    );
+    const eu = await h.pedir("GET", "/hub/me", { sessao: dona.sessao });
+    const porComerciante = new Map(
+      eu
+        .json<{
+          comerciantes: { comerciante: string; ambitos: string[] }[];
+        }>()
+        .comerciantes.map((x) => [x.comerciante, x.ambitos]),
+    );
+    expect(porComerciante.get(`mer_${c.id}`)).toContain("catalog:write");
+    expect(porComerciante.get(`mer_${outro.id}`)).not.toContain(
+      "catalog:write",
+    );
+    expect(porComerciante.get(`mer_${outro.id}`)).toContain("catalog:read");
+  });
+
+  it("um âmbito que esta versão da API não conhece fica de fora do /hub/me (revisão do #212, P1-1)", () => {
+    expect(
+      ambitosConhecidos(["catalog:read", "catalog:history", "catalog:write"]),
+    ).toEqual(["catalog:read", "catalog:write"]);
+    expect(ambitosConhecidos(null)).toEqual([]);
+    expect(ambitosConhecidos(undefined)).toEqual([]);
   });
 
   it("o contrato tem o caminho do Hub com a segurança da sessão e a resposta da lista", async () => {
