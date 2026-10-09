@@ -43,7 +43,7 @@ import {
   PedidoVersao,
   publicacoesDeArtigo,
   RespostaArtigos,
-  RespostaPublicacoes,
+  PublicacaoEsquema,
   semPrefixo,
   VarianteCompleta,
 } from "../catalogo/rotas.js";
@@ -54,6 +54,7 @@ import {
   RespostaLinhaDoTempo,
 } from "../catalogo/rotas-linha-do-tempo.js";
 import { comComerciante } from "../comerciante/repositorio.js";
+import { nomesDeCanaisEMercados } from "../precos/repositorio.js";
 import { precosDoArtigoApi, RespostaPrecosDoArtigo } from "../precos/rotas.js";
 import { TIPOS_DE_IMAGEM } from "../base/esquema.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
@@ -122,6 +123,20 @@ const Autor = Type.Object({
     description:
       "O nome de quem é ou foi da equipa deste comerciante, ou o nome da chave dele; vazio nos outros casos",
   }),
+});
+/** As publicações com os nomes do canal e do mercado (docs/22 §18.1). */
+const RespostaPublicacoesNoHub = Type.Object({
+  dados: Type.Array(
+    Type.Object({
+      ...PublicacaoEsquema.properties,
+      canal_nome: Type.Union([Type.String(), Type.Null()], {
+        description: "O nome do canal; vazio se não se encontrar",
+      }),
+      mercado_nome: Type.Union([Type.String(), Type.Null()], {
+        description: "O nome do mercado; vazio se não se encontrar",
+      }),
+    }),
+  ),
 });
 const RespostaLinhaDoTempoNoHub = Type.Object({
   ...RespostaLinhaDoTempo.properties,
@@ -238,18 +253,33 @@ export function rotasDoCatalogoNoHub(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "As publicações de um artigo para o Hub: as mesmas do GET /products/{id}/publications (docs/22 §12.1).",
+          "As publicações de um artigo para o Hub: as mesmas do GET /products/{id}/publications (docs/22 §12.1), com o nome do canal e do mercado de cada uma (§18.1).",
         params: ParametroArtigo,
-        response: { 200: RespostaPublicacoes, ...RESPOSTA_DE_ERRO },
+        response: { 200: RespostaPublicacoesNoHub, ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido, resposta) =>
-      publicacoesDeArtigo(
+    async (pedido, resposta) => {
+      const comercianteId = comercianteLeitor(pedido, resposta);
+      const { dados } = await publicacoesDeArtigo(
         base,
-        comercianteLeitor(pedido, resposta),
+        comercianteId,
         pedido.params.id,
         resposta,
-      ),
+      );
+      const nomes = await nomesDeCanaisEMercados(
+        base,
+        comercianteId,
+        [...new Set(dados.map((p) => semPrefixo(p.canal)))],
+        [...new Set(dados.map((p) => semPrefixo(p.mercado)))],
+      );
+      return {
+        dados: dados.map((p) => ({
+          ...p,
+          canal_nome: nomes.canais.get(semPrefixo(p.canal)) ?? null,
+          mercado_nome: nomes.mercados.get(semPrefixo(p.mercado)) ?? null,
+        })),
+      };
+    },
   );
 
   // Os preços do artigo (docs/22 §17; issue #249): a mesma função do

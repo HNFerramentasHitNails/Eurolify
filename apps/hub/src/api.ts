@@ -223,6 +223,10 @@ export interface PublicacaoArtigo {
   id: string;
   canal: string;
   mercado: string;
+  /** O nome do canal; vazio se não se encontrar (docs/22 §18.1). */
+  canal_nome: string | null;
+  /** O nome do mercado; vazio se não se encontrar. */
+  mercado_nome: string | null;
   estado: "rascunho" | "publicado" | "arquivado";
   verificado_em: string | null;
   publicado_em: string | null;
