@@ -35,6 +35,12 @@ opções eram esperar ou uma conta no Docker Hub). Pedido #263.
   Docker Hub recusou a base `node` com 429 e o construtor do buildx
   arrancou na mesma, por isso o BuildKit não dependeu do Docker Hub nessa
   corrida. Não verifiquei de onde vem (provavelmente já está no executor).
+- **A conta do Docker Hub** (a opção 2, feita noutra sessão: issue #266,
+  pedido #267, segredos `DOCKERHUB_UTILIZADOR` e `DOCKERHUB_TOKEN`): o
+  Diogo decidiu ficar com o espelho (09/10/2026, *«sim, fica o #263, fecha
+  o #267»*). O #267 foi fechado sem juntar; a conta e os segredos ficam
+  para a VPS nova, onde o espelho não chega. A data de expiração da chave
+  não verifiquei.
 - **Os dados ficam na UE**: o espelho só serve imagens públicas aos
   executores do GitHub; não recebe dados pessoais nem fala com a VPS.
 
