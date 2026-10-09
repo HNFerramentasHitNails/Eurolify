@@ -62,9 +62,12 @@ jobs:
               etiqueta="${etiqueta##*:}"
               destino="ghcr.io/${DONO,,}/eurolify-base/$nome:$etiqueta"
               echo "== $origem -> $destino"
+              # O skopeo não aceita etiqueta e resumo juntos: a origem vai
+              # só pelo resumo, que é o que a fixa.
+              fonte="${origem%%:*}@${origem##*@}"
               # --preserve-digests: falha em vez de mudar o resumo.
               skopeo copy --all --preserve-digests --retry-times 5 \
-                "docker://$origem" "docker://$destino"
+                "docker://$fonte" "docker://$destino"
               resumo="$(skopeo inspect --raw "docker://$destino" | sha256sum | cut -d' ' -f1)"
               if [ "sha256:$resumo" != "${origem##*@}" ]; then
                 echo "resumo diferente em $destino: sha256:$resumo" >&2
