@@ -1163,7 +1163,9 @@ comerciantes tem uma loja, e a tabela fica como hoje.
 
 ## 20. Catálogo: as opções do artigo na ficha, só para consulta (issue #278)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho das opções»*. As
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho das opções»*. Desenho
+aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o desenho, junta o
+#279»*). As
 opções são as escolhas que distinguem as variantes de um artigo (ex.: «Cor»
 com «Azul» e «Rosa», «Tamanho» com «15 ml» e «30 ml»; `docs/14` §3.3). A
 ficha hoje mostra as variantes só pelo SKU, sem dizer qual é a azul. Este
