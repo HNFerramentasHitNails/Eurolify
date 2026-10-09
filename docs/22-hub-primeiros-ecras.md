@@ -1034,6 +1034,54 @@ com a unidade dela (kg, l, m, m², m³).
   para o OK do Diogo ou do Bruno.
 - **Quem trabalha em Preços** vê o aviso da rota nova.
 
+## 18. Catálogo: os nomes do canal e do mercado nas publicações (issue #258)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com os nomes do canal e do
+mercado»*. A secção «Publicações» da ficha mostra só os identificadores
+(`chn_…`, `mkt_…`), porque, quando a ficha foi feita, nenhuma rota dava os
+nomes (§12.2). O domínio de Preços já os tem: o canal e o mercado têm `nome`
+(`docs/20` §3.1 e §3.2; migração 0017). Este passo **só lê** e não muda a
+VPS.
+
+Ex.: a publicação do «Gel UV 15 ml» passa de «`chn_0192…` · `mkt_0192…` ·
+Rascunho» para «Loja online · Portugal · Rascunho».
+
+### 18.1 Como o Hub lê
+
+- **O caminho é o mesmo**: `GET /hub/products/{id}/publications` continua a
+  chamar a mesma função da rota pela chave (`publicacoesDeArtigo`, §12.1). A
+  API do Hub **junta** a cada publicação `canal_nome` e `mercado_nome`, lidos
+  do domínio de Preços numa só consulta (os canais e os mercados das
+  publicações daquele artigo, no contexto do comerciante), como o `autor`
+  do histórico (§16.2).
+- **A rota pela chave não muda** (`GET /products/{id}/publications`): é do
+  Catálogo (#77), e quem integra já tem `GET /channels` e `GET /markets`
+  para os nomes. Acrescentar campos a ela fica para o dono do Catálogo
+  decidir.
+- **Um canal ou mercado arquivado** continua com o nome (arquiva-se, não
+  se apaga: a API só tem `DELETE` em `canal_mercado` e `preco`, migração
+  0017, linhas 492–499). Se um nome não vier (não devia acontecer), o ecrã mostra o
+  identificador, como hoje.
+- **Quem vê**: os mesmos da ficha (`catalog:read`, os quatro papéis). Os
+  nomes de canais e mercados não são dados pessoais nem preços.
+
+### 18.2 O ecrã
+
+| Ecrã | O que muda |
+|---|---|
+| **Ficha do artigo**, secção «Publicações» (§12.2) | As colunas «Canal» e «Mercado» mostram o nome. O identificador deixa de aparecer na tabela (fica no endereço da API para quem integra). Um nome em falta mostra o identificador, como hoje. Nada mais muda: o estado, a data e o motivo ficam como estão. |
+
+### 18.3 Antes de dizer que está feito (o pedido do código)
+
+- **API**: o caminho do Hub dá as mesmas publicações que a rota pela chave,
+  mais os dois nomes; um canal arquivado mantém o nome; os nomes são os do
+  comerciante da sessão (outro comerciante com um canal do mesmo nome não
+  interfere); o contrato do Hub com os dois campos e o da chave sem eles.
+- **Prova pela falha**: tirar o filtro do comerciante na consulta dos nomes
+  faz falhar o teste de outro comerciante.
+- **Hub**: a passagem confere «Loja online» e «Portugal» na tabela das
+  publicações; as capturas da ficha mudam e vão à página de aprovação.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
