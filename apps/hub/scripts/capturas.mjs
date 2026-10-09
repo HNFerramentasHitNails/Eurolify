@@ -1725,7 +1725,96 @@ try {
     "preços: «Mostrar mais listas» traz a seguinte, com o foco no título dela",
   );
   await rp.unroute("**/hub/products/*/prices*");
-  await rp.reload();
+  // Os preços de um artigo que chegam depois de se abrir outro não aparecem
+  // no segundo (issue #262). A resposta do primeiro fica retida até os
+  // preços do segundo estarem no ecrã (sem depender de tempos, como no #260).
+  const fichaAzul1 = rp.url();
+  // O endereço da ficha do Verniz Azul 2, lido da lista filtrada.
+  await rp.getByRole("link", { name: "Voltar aos artigos" }).click();
+  const fichaAzul2 =
+    (await rp
+      .getByRole("link", { name: "Verniz Azul 2", exact: true })
+      .getAttribute("href")) ?? "";
+  let precosRetidos = 0;
+  let soltarPrecos = () => undefined;
+  const precosSoltos = new Promise((ok) => {
+    soltarPrecos = ok;
+  });
+  await rp.route("**/hub/products/*/prices*", async (r) => {
+    if (precosRetidos === 0) {
+      precosRetidos++;
+      const resposta = await r.fetch();
+      await Promise.race([
+        precosSoltos,
+        new Promise((ok) => setTimeout(ok, 15_000)),
+      ]);
+      await r.fulfill({ response: resposta });
+      return;
+    }
+    await r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        dados: [
+          {
+            lista: {
+              id: "prl_00000000-0000-7000-8000-0000000000cc",
+              mercado: "mkt_00000000-0000-7000-8000-0000000000dd",
+              nome: "Lista do Verniz Azul 2",
+              tipo: "base",
+              etiqueta: null,
+              prioridade: null,
+              estado: "activa",
+              versao: 1,
+              criado_em: "2026-10-09T10:00:00Z",
+            },
+            mercado: {
+              id: "mkt_00000000-0000-7000-8000-0000000000dd",
+              nome: "Portugal",
+              estado: "activo",
+              moeda: "EUR",
+              preco_inclui_iva: true,
+            },
+            precos: [],
+          },
+        ],
+        total: 1,
+        ha_mais: false,
+        cursor_seguinte: null,
+      }),
+    });
+  });
+  await rp.goto(fichaAzul1);
+  await rp.getByRole("heading", { name: "Verniz Azul 1", level: 1 }).waitFor();
+  // De uma ficha para a outra sem passar por outro ecrã (como o «voltar»
+  // do navegador entre duas fichas seguidas).
+  await rp.evaluate((destino) => {
+    window.history.pushState(null, "", destino);
+    window.dispatchEvent(new window.PopStateEvent("popstate"));
+  }, fichaAzul2);
+  await rp.getByRole("heading", { name: "Verniz Azul 2", level: 1 }).waitFor();
+  await rp
+    .getByRole("heading", { name: "Lista do Verniz Azul 2", level: 3 })
+    .waitFor();
+  // Os preços do segundo estão no ecrã; agora chegam os do primeiro.
+  const precosAntigos = rp.waitForResponse(
+    (r) => /\/hub\/products\/[^/]+\/prices/.test(r.url()),
+    { timeout: 15_000 },
+  );
+  soltarPrecos();
+  await precosAntigos;
+  await rp.waitForTimeout(300);
+  await rp.unroute("**/hub/products/*/prices*");
+  confere(
+    precosRetidos === 1 &&
+      (await rp
+        .getByRole("heading", { name: "Lista do Verniz Azul 2", level: 3 })
+        .count()) === 1 &&
+      (await rp.getByRole("heading", { name: "Base PT", level: 3 }).count()) ===
+        0,
+    "preços: os de um artigo que chegam depois de abrir outro não aparecem no segundo",
+  );
+  await rp.goto(fichaAzul1);
   await rp
     .getByRole("heading", { name: "Profissionais PT", level: 3 })
     .waitFor();
