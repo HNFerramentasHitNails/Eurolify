@@ -293,7 +293,7 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
 - **Na VPS do ensaio (Reino Unido, ADR-0018) só entram imagens de teste,
   sem dados pessoais** (ADR-0019; `docs/06`, CQ): o código guarda os bytes
   como chegam, com os metadados.
-- Quem enviou ou ligou a imagem não fica registado (C7), como nas categorias.
+- Quem enviou ou ligou a imagem fica na linha do tempo (§3.12, migração 0033).
 - Sem dimensões nem miniaturas: a montra recebe a imagem como foi enviada.
 
 ### 3.6 Categoria (`cat_`)
@@ -450,9 +450,9 @@ Na parte 3b do código (migração 0009; as marcadas **proposta** são dela):
   traduções de pessoa e as revisões entram pelo Hub (`docs/06`, CO e CP).
 - Limites (**proposta**): nomes e valores traduzidos até 200 caracteres,
   descrições até 20 000.
-- **Falta:** o rasto do texto anterior de cada tradução (C7, «antes e
-  depois») entra com a linha do tempo (parte 5); hoje traduzir outra vez ou
-  apagar não guarda o texto anterior (revisão do #105, P3-F).
+- O texto anterior de cada tradução (C7, «antes e depois») fica na linha do
+  tempo desde a migração 0033 (§3.12): traduzir outra vez ou apagar deixa o
+  texto antes e depois (revisão do #105, P3-F).
 - O endereço amigável traduzido segue o formato do original (§3.6) e é único
   por comerciante e por língua, entre as categorias e, à parte, entre as
   colecções.
@@ -529,8 +529,12 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   verificação lê, e que a base não trava, volta a verificar as publicações
   publicadas na mesma transacção; a que deixa de passar sai de venda
   (`arquivado`, motivo `verificacao_falhou`, a verificação guardada), e o
-  `arquivado_por` é quem mudou, quando a operação o pede (a classificação),
-  ou `catalogo:verificacao_falhou` nas outras. O evento
+  `arquivado_por` é quem mudou. Desde a linha do tempo (0033), uma mudança
+  no artigo e nas suas tabelas traz sempre quem; o
+  `catalogo:verificacao_falhou` e o `catalogo:<motivo>` dos arquivos em
+  cadeia ficam só para o que vem de Preços sem quem (mercado ou canal
+  arquivado, língua nova no mercado), e a linha do tempo usa-os como quem
+  (revisão do #208, P1-2). O evento
   `product.unpublished` leva o motivo. Ex.: tirar a classificação de
   retalho ao «Gel» e pô-lo em álcool e tabaco tira-o de venda em todos os
   canais. As sete operações (varridas a 07/10/2026 contra a lista de
@@ -944,11 +948,101 @@ catálogo.
   plataforma) pode trazer campos com outro significado: só as colunas da
   lista acima entram.
 
-### 3.12 Linha do tempo
+### 3.12 Linha do tempo (`chg_`)
 
 Cada artigo tem a linha do tempo da `platform-architect`: mudanças de estado e
 dos campos (quem, quando, antes → depois), notas da equipa, anexos. Alimenta-se
 dos eventos (§6) e do registo de auditoria; **não é outra fonte de verdade**.
+
+**Desenho de 09/10/2026** (Diogo: *«sim, avança com o desenho do histórico do
+artigo»*; issue #77; cumpre a C7). Ex.: às 10:02 a chave `key_…` muda o **nome**
+do «Gel UV 15 ml» para «Gel UV 15 ml transparente». A linha do tempo do artigo mostra uma alteração com quem
+(`chave:key_…`), quando (UTC), o campo `nome`, o antes e o depois. Se o artigo
+estava à venda e o nome deixou de ter tradução num mercado, a mesma alteração
+mostra também a publicação a sair de venda (`verificacao_falhou`).
+
+**O registo é a base, não a API.** Gatilhos com os direitos do dono das
+tabelas escrevem uma entrada por cada linha que muda, na mesma transacção,
+como os eventos da 0021. Assim, a API, a importação, os gatilhos em cadeia (a
+reverificação) e o SQL escrito à mão no contexto do comerciante não mudam o
+catálogo sem deixar rasto. A linha do tempo é só a leitura desse registo, que é
+o registo de auditoria do Catálogo (`observability-security`, «Registo de
+auditoria»).
+
+| Campo | Notas |
+|---|---|
+| `id` (`chg_`) | uuidv7: a ordem dentro do mesmo comerciante |
+| `comerciante_id` | RLS forçado, como as outras tabelas |
+| `artigo_id` | o artigo a que a mudança pertence; numa tradução de opção ou valor, o da opção (num rascunho apagado, o que a opção deixou aqui); vazio numa categoria ou colecção, e nas traduções delas |
+| `entidade`, `entidade_id` | a tabela e a linha: `artigo`, `variante`, `opcao`, `valor_opcao`, `variante_valor`, `componente`, `traducao`, `artigo_categoria`, `colecao_artigo`, `media`, `publicacao`, `categoria`, `colecao` |
+| `operacao` | `criado`, `alterado`, `apagado` |
+| `campos` | os campos que mudaram e, para cada um, `antes` e `depois` (JSON); só os que mudaram |
+| `quem` | o `eurolify.quem` da transacção: `chave:key_…`, `pessoa:per_…` (o Hub), `sistema:<tarefa>` (uma tarefa automática que mude o catálogo tem de o pôr). **Sem ele, a escrita falha** (como na 0001), excepto o arquivo em cadeia de uma publicação, que leva o `arquivado_por` (`catalogo:<motivo>`) |
+| `origem` | o `eurolify.origem` da transacção, quando existir: `importacao:imp_…`; vazio numa escrita normal da API (a reverificação vai na mesma transacção de quem mudou, com o motivo na publicação) |
+| `transacao` | um identificador opaco (uuid) por transacção, guardado na sessão só durante ela: junta as entradas de um pedido numa só «alteração»; não é o número da transacção do PostgreSQL, que é da instância e dizia quantas escritas os outros comerciantes fizeram (revisão do #208, P2-1) |
+| `em` | o instante da transacção, em UTC |
+
+Regras (todas **proposta**):
+
+- **Só se acrescenta** (gatilhos da 0008: sem `UPDATE`, `DELETE` nem
+  `TRUNCATE`, nem pelo dono). Corrige-se com uma entrada nova.
+- **Ficam de fora** os campos técnicos e os que já dizem quem
+  (`versao`, `criado_em`, `atualizado_em`, `publicado_por`, `arquivado_por`,
+  `classificado_por`, `traduzido_por`, `revisto_por`): o «quem» de cada
+  entrada é o da entrada. Os bytes das imagens também ficam de fora: entra a
+  linha da `media` (o texto alternativo, a ordem, o resumo do ficheiro).
+- **O valor fica inteiro** (uma descrição longa entra toda no antes e no
+  depois), porque a C7 pede o antes e o depois. **Não medi** quanto ocupa:
+  mede-se no ensaio com uma importação de 5000 variantes antes de abrir a
+  comerciantes.
+- **Uma escrita que não muda nada não deixa entrada** (pedir o estado em que
+  o artigo já está, §4.1).
+- **Não há entradas de antes da migração**: a linha do tempo começa no dia em
+  que ela entra no ensaio e diz `desde`. Não se inventa um passado.
+- **Apagar um rascunho** (§4.1) deixa as entradas: o artigo some, o rasto não.
+- As **notas da equipa e os anexos** ficam para depois: são dados que alguém
+  escreve, com outro risco de dados pessoais (`platform-architect`).
+
+**Quem vê o quê** (`docs/06`, CL: quem fez **não sai** com `catalog:read`):
+`GET /products/{id}/timeline` pede um âmbito novo, `catalog:history`, que dá
+tudo, `quem` incluído. No Hub, o `dono` e o `gestor` têm-no; o `armazém` e o
+`apoio`, não (`docs/21` §5). Um âmbito novo entra na lista da base (o
+`CHECK` da 0010, `AMBITOS` em `identidade/chaves.ts`) e nos papéis (a função
+da 0018), na mesma migração; uma chave de servidor só o tem se quem a cria o
+escolher. **Esta é a decisão
+pedida ao Diogo ou ao Bruno.**
+
+**Dados pessoais** (`docs/17`): `quem` é um identificador (`per_…`,
+`key_…`), nunca o nome nem o e-mail; quando a pessoa é pseudonimizada (90 dias,
+CD), o rasto fica com o `per_…`, como o `evento_conta`. Os valores do catálogo
+não são dados pessoais, mas um texto livre (descrição, texto alternativo) pode
+trazer um nome escrito à mão. O prazo de guarda do rasto é **por decidir — C**,
+como o dos eventos (`docs/17` §3, linha do `quem`): fica enquanto o
+comerciante tiver conta, até haver decisão.
+
+**Leitura:** a mais recente primeiro, por páginas (cursor sobre o `id`; 25 por
+omissão, até 100, como as outras listas); filtros `desde` e `entidade`.
+
+**Em código** (migração 0033, issue #77; `docs/06`, CU):
+
+- a tabela `alteracao_catalogo` e os gatilhos nas 13 tabelas; o teste falha
+  se uma tabela com `artigo_id` ficar sem gatilho;
+- `escrever` (`catalogo/rotas.ts`) põe o `eurolify.quem` (`chave:key_…`) em
+  todas as escritas da API; a importação põe a origem;
+- `GET /products/{id}/timeline` (`catalogo/rotas-linha-do-tempo.ts`), com
+  `catalog:history`; o `entidade_id` sai com o prefixo quando a entidade o
+  tem, e os `campos` como estão guardados (os identificadores sem prefixo);
+- a política de escrita da tabela deixa o gatilho escrever sem
+  `eurolify.comerciante` (o comerciante da entrada é o da linha que mudou);
+  ler, só as do comerciante posto;
+- **nos testes**, a base de teste traz `eurolify.quem = 'teste:base'` para
+  os testes que preparam o catálogo por SQL ou pelo repositório; o teste da
+  linha do tempo cria a sua sem ele, para provar que a API não depende dele.
+
+**Faltas conhecidas:** a linha do tempo de uma categoria ou colecção (as
+entradas existem, a rota não); o Hub ainda não mostra a linha do tempo nem
+oferece `catalog:history` nas chaves (a lista do Hub é do `docs/22`, §9.3);
+o espaço ocupado não foi medido.
 
 ## 4. Estados
 
@@ -1204,9 +1298,10 @@ nada. Não há `DELETE`: categorias e colecções arquivam-se (§3.6).
 
 **Faltas conhecidas das categorias e colecções** (08/10/2026):
 
-- **Quem** mudou uma categoria ou uma colecção não fica registado (as
-  tabelas da 0007 não têm a coluna): a C7 ainda não está cumprida aqui, como
-  nas escritas do artigo (abaixo).
+- **Quem** mudou uma categoria ou uma colecção fica na linha do tempo desde
+  a migração 0033 (§3.12), sem artigo; ainda não há rota que a mostre por
+  categoria ou colecção (só `GET /products/{id}/timeline`, que mostra as
+  ligações do artigo às categorias e colecções).
 - Os limites do contrato são **proposta**: até 100 categorias por artigo e
   até 1000 artigos por colecção num `PUT`. A base não tem limite; acima disso
   é preciso decidir (ou outra forma de mudar a lista, por partes).
@@ -1233,10 +1328,8 @@ entra com as rotas seguintes.
 **Faltas conhecidas** (revisão do #153, 07/10/2026; vinham de antes destas
 rotas, que só as expõem):
 
-- **Quem** fica registado na classificação e na publicação, mas não em
-  criar, alterar, activar, arquivar, repor e apagar: a C7 (rasto de quem,
-  quando, antes e depois) ainda não está cumprida nessas operações; entra
-  com a linha do tempo.
+- **Quem**, quando, antes e depois (C7) ficam na linha do tempo em todas as
+  escritas desde a migração 0033 (§3.12).
 - **Sem tecto de variantes por artigo** (revisão do #159, 2.ª, P3-N3): a
   lista das variantes vai por páginas, mas a ficha do artigo
   (`GET /products/{id}`) traz todas, e `POST /products/{id}/variants` não
@@ -1320,7 +1413,7 @@ as rotas seguintes.
 | Repor | `POST /products/{id}/restore` | write | volta a activo, sem republicar |
 | Classificar | `PUT /products/{id}/classification` | write | com a `versao`; substitui a classificação toda (§3.10); a que deixa de servir tira as publicações de venda (§8) |
 | Apagar rascunho | `DELETE /products/{id}` | write | só rascunho que nunca foi activo |
-| Linha do tempo | `GET /products/{id}/timeline` | read | |
+| Linha do tempo | `GET /products/{id}/timeline` | history | §3.12: as entradas do artigo, das variantes, opções, traduções, media, categorias, colecções e publicações dele, com quem, quando, antes e depois; âmbito `catalog:history` (**proposta**; CL) |
 | Variantes | `GET /products/{id}/variants`, `POST /products/{id}/variants`, `PATCH /variants/{id}` | read / write | SKU único (C3) |
 | Arquivar variante | `POST /variants/{id}/archive` | write | não toca no artigo (C6) |
 | Procurar por SKU ou GTIN | `GET /variants?sku=…` · `GET /variants?gtin=…` | read | |
@@ -1427,6 +1520,15 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   reservas nem documentos: quando esses domínios existirem, têm de o garantir.
 - **A lista de campos regulamentares por categoria** não está validada por um
   técnico (**C** até lá).
+
+- **Linha do tempo (§3.12):** uma tabela do Catálogo nova, ou uma coluna
+  nova numa tabela que já existe, fica sem rasto se ninguém lhe puser o
+  gatilho. O teste da linha do tempo compara a lista das tabelas do Catálogo
+  com as que têm o gatilho e falha se faltar alguma. Uma escrita sem
+  `eurolify.quem` falha (como na 0001): o código que hoje escreve sem ele
+  (criar, alterar, activar, arquivar, repor, apagar, variantes, opções,
+  traduções, categorias, colecções, media, importação) passa a pô-lo, num
+  sítio só, de uma vez; uma tarefa de sistema põe `sistema:<tarefa>`.
 
 ## 9. Perguntas para o Diogo ou o Bruno
 

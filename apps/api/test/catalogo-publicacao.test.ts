@@ -614,7 +614,9 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
     ).toMatchObject({
       estado: "arquivado",
       motivo_arquivo: "artigo_arquivado",
-      arquivado_por: "catalogo:artigo_arquivado",
+      // Desde a linha do tempo (0033), toda a mudança no catálogo traz quem
+      // (aqui, o da base de teste); o «catalogo:artigo_arquivado» deixou de se ver.
+      arquivado_por: "teste:base",
     });
 
     const m = await pronto();
@@ -730,11 +732,10 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       opcoes: { quem?: string; fora?: string[]; verificacao?: string } = {},
     ) {
       return noCatalogo(base.api, c, async (trx) => {
-        if (opcoes.quem !== "") {
-          await sql`select set_config('eurolify.quem', ${opcoes.quem ?? QUEM}, true)`.execute(
-            trx,
-          );
-        }
+        // Com `quem: ""`, tira o «quem» da base de teste (base-de-teste.ts).
+        await sql`select set_config('eurolify.quem', ${opcoes.quem ?? QUEM}, true)`.execute(
+          trx,
+        );
         await sql`update publicacao set estado = 'publicado',
             ultima_verificacao = ${opcoes.verificacao ?? LIMPA}::jsonb,
             variantes_fora = ${opcoes.fora ?? []}::uuid[]
@@ -887,11 +888,15 @@ describe.skipIf(URL_BASE === undefined)("publicação na base", () => {
       await forcar(s.c, s.id);
       expect(
         await mensagem(
-          noCatalogo(base.api, s.c, (trx) =>
-            sql`update publicacao set estado = 'arquivado' where id = ${s.id}`.execute(
+          noCatalogo(base.api, s.c, async (trx) => {
+            // Sem quem: tira o da base de teste (base-de-teste.ts).
+            await sql`select set_config('eurolify.quem', '', true)`.execute(
               trx,
-            ),
-          ),
+            );
+            await sql`update publicacao set estado = 'arquivado' where id = ${s.id}`.execute(
+              trx,
+            );
+          }),
         ),
       ).toMatch(/^catalog.published_by_required/);
     });

@@ -3,6 +3,7 @@ import { Writable } from "node:stream";
 import { sql } from "kysely";
 import { expect } from "vitest";
 import { criarApp } from "../src/app.js";
+import type { Armazenamento } from "../src/catalogo/armazenamento.js";
 import { serializadores } from "../src/base/registo.js";
 import { configHub, resumo } from "../src/identidade/sessoes.js";
 import { AutenticadorDeTeste } from "./autenticador-de-teste.js";
@@ -42,7 +43,7 @@ export const CHAVE_TOTP = { versao: 1, chave: Buffer.alloc(32, 7) };
 
 export function hubDeTeste(
   base: BaseDeTeste,
-  opcoes: { comTotp?: boolean } = {},
+  opcoes: { comTotp?: boolean; armazenamento?: Armazenamento } = {},
 ) {
   const registo: string[] = [];
   const destino = new Writable({
@@ -56,6 +57,7 @@ export function hubDeTeste(
     undefined,
     base.api,
     opcoes.comTotp === true ? { ...HUB, chaveTotp: CHAVE_TOTP } : HUB,
+    opcoes.armazenamento,
   );
 
   const pedir = (metodo: "GET" | "POST", url: string, p: Pedido = {}) => {

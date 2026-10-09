@@ -95,11 +95,10 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
   async function sqlComo(c: string, texto: string, quem?: string) {
     try {
       return await comComerciante(base.api, c, async (trx) => {
-        if (quem !== undefined) {
-          await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(
-            trx,
-          );
-        }
+        // Sem quem: tira o da base de teste (base-de-teste.ts).
+        await sql`select set_config('eurolify.quem', ${quem ?? ""}, true)`.execute(
+          trx,
+        );
         return sql.raw(texto).execute(trx);
       });
     } catch (erro) {
@@ -724,8 +723,8 @@ describe.skipIf(URL_BASE === undefined)("traduções na base", () => {
         originalVisto: original,
       });
     }
-    await sqlComo(c, `delete from valor_opcao where id = '${valor}'`);
-    await sqlComo(c, `delete from opcao where id = '${cor.id}'`);
+    await sqlComo(c, `delete from valor_opcao where id = '${valor}'`, QUEM);
+    await sqlComo(c, `delete from opcao where id = '${cor.id}'`, QUEM);
     await sql`delete from categoria where id = ${unhas}`.execute(base.dono);
     const { rows: restam } = await sql<{ n: number }>`
       select count(*)::int as n from traducao

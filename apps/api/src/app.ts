@@ -18,6 +18,7 @@ import {
   type Armazenamento,
 } from "./catalogo/armazenamento.js";
 import { rotasDoCatalogo } from "./catalogo/rotas.js";
+import { rotasDaLinhaDoTempo } from "./catalogo/rotas-linha-do-tempo.js";
 import { rotasDaMedia } from "./catalogo/rotas-media.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
 import { rotasDasImportacoes } from "./importacao/rotas.js";
@@ -26,7 +27,10 @@ import {
   ligarAutenticacao,
 } from "./identidade/autenticacao.js";
 import { rotasDoHub } from "./identidade/hub.js";
-import { rotasDoCatalogoNoHub } from "./identidade/hub-catalogo.js";
+import {
+  rotasDasImagensNoHub,
+  rotasDoCatalogoNoHub,
+} from "./identidade/hub-catalogo.js";
 import { rotasDasCredenciais } from "./identidade/hub-credenciais.js";
 import { rotasDaPalavraPasse } from "./identidade/hub-palavra-passe.js";
 import { rotasDasChavesDoHub } from "./identidade/hub-chaves.js";
@@ -276,6 +280,7 @@ export function criarApp(
     if (base !== undefined) {
       rotasDaIdentidade(rotas, base);
       rotasDoCatalogo(rotas, base);
+      rotasDaLinhaDoTempo(rotas, base);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.
@@ -294,6 +299,9 @@ export function criarApp(
       rotasDasCredenciais(rotas, base, hub);
       rotasDasChavesDoHub(rotas, base);
       rotasDoCatalogoNoHub(rotas, base);
+      if (armazenamento !== undefined) {
+        rotasDasImagensNoHub(rotas, base, armazenamento);
+      }
       if (hub.chaveTotp !== undefined) {
         rotasDaPalavraPasse(rotas, base, hub, hub.chaveTotp);
       }
