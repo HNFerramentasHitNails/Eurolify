@@ -1,6 +1,6 @@
 ---
 name: eurolify-design
-description: Design do Eurolify — montra (kit de loja e temas de cada comerciante), checkout alojado e momentos legais, Hub de gestão (vistas de lista, quadro, calendário e tabela dinâmica, filtros guardados), e-mails e documentos impressos; sistema de design com tokens e um tema por comerciante, claro/escuro, acessibilidade (EAA), PT/ES/EN, estados de ecrã, pesquisa com comerciantes e revisão. Traz uma biblioteca de 38 referências de terceiros (Anthropic, Vercel, designer-skills) a ler por etapa. Usar antes de desenhar, propor ou rever qualquer ecrã, componente, tema ou fluxo, e antes de falar com comerciantes sobre o produto.
+description: "Define e revê o design Eurolify: montra, checkout, Hub, temas, componentes, acessibilidade, línguas, documentos e pesquisa com comerciantes. Usa antes de desenhar interfaces ou fluxos; não para decidir regras fiscais ou permissões. Encaminha o Hub modular para as skills específicas e mantém 38 referências por etapa."
 ---
 
 # Design do Eurolify
@@ -19,7 +19,7 @@ description: Design do Eurolify — montra (kit de loja e temas de cada comercia
 |---|---|---|---|
 | **Montra** (kit de loja, temas, páginas de produto) | o cliente final | a marca **do comerciante**, por tema | muito: aqui serve a `frontend-design` |
 | **Checkout alojado e momentos legais** (confirmação, livre resolução, garantia, faturas) | o cliente final | **clareza e prova**; o que a lei obriga não se personaliza | pouco: o comerciante muda cores, letra e logótipo, nunca o conteúdo legal nem a ordem |
-| **Hub de gestão** | o comerciante e a equipa dele, todos os dias | **densidade, rapidez, estados claros** | nenhum: ferramenta de trabalho, sem decoração |
+| **Hub de gestão** | o comerciante e a equipa dele, todos os dias | **densidade, rapidez, estados claros** | Glassmorphism discreto na entrada modular e shell; conteúdo operacional legível, sem decoração gratuita |
 
 A montra (kit e temas) é da **Fase 2** (Diogo, 05/10/2026; `docs/05`).
 
@@ -66,6 +66,13 @@ A montra (kit e temas) é da **Fase 2** (Diogo, 05/10/2026; `docs/05`).
    viram (`handover-responsivo-12-13set2026.md`).
 
 ## Hub: vistas e documentos impressos
+
+Para a entrada por módulos, lê `docs/hub-modular-glassmorphism.md` e
+`.agents/skills/eurolify-hub-modular/SKILL.md`; ao estilizar, lê
+`.agents/skills/eurolify-hub-glass-responsive/SKILL.md`; ao verificar, lê
+`.agents/skills/eurolify-hub-quality-gate/SKILL.md`. A direção pedida em
+09/10/2026 permite vidro discreto, não decide D-12 nem dispensa o
+antes/depois e aprovação da regra 1.
 
 Ideias vistas nos guias do repositório `mart337i/odoo-skills` e adaptadas ao
 Eurolify — não se usa o Odoo (memória `odoo-skills-avaliado-03out2026.md`).

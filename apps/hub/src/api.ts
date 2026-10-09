@@ -19,6 +19,13 @@ export interface Eu {
     nome: string;
     papel: Papel;
     membro: string;
+    /**
+     * Os âmbitos do papel neste comerciante, lidos da base: o que o ecrã
+     * oferece (docs/22 §13.2); o servidor confere na mesma. Texto, e não
+     * `Ambito`: a API pode ter âmbitos que este ecrã não oferece nas chaves
+     * (ex.: `catalog:history`, #208).
+     */
+    ambitos: string[];
   }[];
 }
 

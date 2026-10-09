@@ -64,20 +64,22 @@ export function Inicio() {
                   >
                     {t.verEquipa}
                   </a>
-                  {/* Os quatro papéis lêem o catálogo (docs/21 §5); a API decide. */}
-                  <a
-                    href={`/artigos?comerciante=${encodeURIComponent(c.comerciante)}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navegar(
-                        `/artigos?comerciante=${encodeURIComponent(c.comerciante)}`,
-                      );
-                    }}
-                  >
-                    {t.verArtigos}
-                  </a>
-                  {/* Só o dono gere chaves (keys:write); a API decide. */}
-                  {c.papel === "dono" ? (
+                  {/* Os âmbitos vêm da base (/hub/me, docs/22 §13.2); a API
+                      confere na mesma em cada pedido. */}
+                  {c.ambitos.includes("catalog:read") ? (
+                    <a
+                      href={`/artigos?comerciante=${encodeURIComponent(c.comerciante)}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navegar(
+                          `/artigos?comerciante=${encodeURIComponent(c.comerciante)}`,
+                        );
+                      }}
+                    >
+                      {t.verArtigos}
+                    </a>
+                  ) : null}
+                  {c.ambitos.includes("keys:write") ? (
                     <a
                       href={`/chaves?comerciante=${encodeURIComponent(c.comerciante)}`}
                       onClick={(e) => {

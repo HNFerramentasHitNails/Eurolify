@@ -15,6 +15,7 @@ import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { sessaoDo } from "./autenticacao.js";
+import { AMBITOS, type Ambito } from "./chaves.js";
 import { PAPEIS } from "./papeis.js";
 import {
   COOKIE_SESSAO,
@@ -145,9 +146,29 @@ const RespostaEu = Type.Object({
       nome: Type.String(),
       papel: Papel,
       membro: Type.String({ description: "mbr_…" }),
+      ambitos: Type.Array(Type.Union(AMBITOS.map((a) => Type.Literal(a))), {
+        description:
+          "Os âmbitos do papel neste comerciante, lidos da base (papel_ambitos): o que o Hub oferece; o servidor confere na mesma em cada pedido (docs/22 §13.2).",
+      }),
     }),
   ),
 });
+
+/**
+ * Os âmbitos que esta versão da API conhece, pela ordem da base. Um âmbito
+ * novo, acrescentado aos papéis por uma migração que corre antes de a API
+ * mudar (eurolify-publicar), não pode fazer o /hub/me dar 500 à API
+ * anterior: fica de fora, e o ecrã só esconde um botão (o servidor confere
+ * na mesma em cada pedido). Sem a 0033, uma lista vazia (revisão do #212,
+ * P1-1 e P3-2).
+ */
+export function ambitosConhecidos(
+  ambitos: readonly string[] | null | undefined,
+): Ambito[] {
+  return (ambitos ?? []).filter((a): a is Ambito =>
+    (AMBITOS as readonly string[]).includes(a),
+  );
+}
 
 const RespostaMembros = Type.Object({
   membros: Type.Array(
@@ -494,7 +515,7 @@ export function rotasDoHub(
       config: { ambito: "sessao", hub: true },
       schema: {
         description:
-          "A pessoa da sessão e os comerciantes de que é membro activo, com o papel.",
+          "A pessoa da sessão e os comerciantes de que é membro activo, com o papel e os âmbitos dele.",
         response: { 200: RespostaEu, ...RESPOSTA_DE_ERRO },
       },
     },
@@ -512,6 +533,7 @@ export function rotasDoHub(
               nome: string;
               papel: (typeof PAPEIS)[number];
               membro: string;
+              ambitos?: string[] | null;
             }[];
           };
         }>`select pessoa_eu(${sessao.segredo}) as eu`.execute(base);
@@ -533,6 +555,7 @@ export function rotasDoHub(
           nome: c.nome,
           papel: c.papel,
           membro: comPrefixo("mbr", c.membro),
+          ambitos: ambitosConhecidos(c.ambitos),
         })),
       };
     },
