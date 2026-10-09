@@ -2445,6 +2445,45 @@ try {
       },
     });
   }
+  // Miniaturas que ficam sem resposta ao sair da ficha não podem prender a
+  // fila das imagens (4 de cada vez): na visita seguinte, as miniaturas
+  // ficavam em «A carregar…» até se recarregar a página (issue #253).
+  // Os presos continuam presos até ao fim do passo: deixar de interceptar
+  // soltava-os (o Playwright continua os pedidos que ainda segura).
+  const pendurados = [];
+  let prender = true;
+  const rotaPresa = (r) => {
+    if (prender) pendurados.push(r);
+    else void r.fallback();
+  };
+  await rp.route("**/hub/media/*/file", rotaPresa);
+  await rp.getByRole("link", { name: "Histórico", exact: true }).click();
+  await rp.getByRole("heading", { name: /Histórico/ }).waitFor();
+  for (let visita = 0; visita < 2; visita++) {
+    await rp.goBack();
+    await rp.locator(".imagens-artigo > li").nth(1).waitFor();
+    await rp.goForward();
+    await rp.getByRole("heading", { name: /Histórico/ }).waitFor();
+  }
+  const penduradosAntes = pendurados.length;
+  prender = false;
+  await rp.goBack();
+  const imagensVoltaram = await rp
+    .waitForFunction(
+      () => document.querySelectorAll(".imagens-artigo img").length === 2,
+      undefined,
+      { timeout: 10_000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  for (const r of pendurados) await r.abort().catch(() => undefined);
+  await rp.unroute("**/hub/media/*/file", rotaPresa);
+  confere(
+    penduradosAntes === 4 && imagensVoltaram,
+    `ficha: miniaturas sem resposta noutra visita não prendem a fila (${String(penduradosAntes)} sem resposta)`,
+  );
   // Arquivar a única variante: a confirmação diz que é a última.
   let ultima = false;
   rp.once("dialog", (d) => {
