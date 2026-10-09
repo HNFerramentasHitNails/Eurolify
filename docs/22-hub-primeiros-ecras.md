@@ -1080,6 +1080,18 @@ Rascunho» para «Loja online · Portugal · Rascunho».
 - **Hub**: a passagem confere «Loja online» e «Portugal» na tabela das
   publicações; as capturas da ficha mudam e vão à página de aprovação.
 
+### 18.4 O que ficou em aberto (código no #261)
+
+- **Dois canais ou dois mercados com o mesmo nome** (revisão do #261,
+  P2-1): a base não obriga o nome a ser único (migração 0017 só tem
+  `UNIQUE (comerciante_id, id)` e `UNIQUE (comerciante_id, loja_id, id)`),
+  e a ficha mostra duas linhas iguais (ex.: uma «Loja online» em cada uma
+  de duas lojas). O Diogo decidiu juntar como está (09/10/2026, *«sim,
+  junta como está»*); trata-se num passo próprio (ex.: juntar o nome da
+  loja). Não verifiquei se acontece com dados reais.
+- **Um erro na leitura dos nomes** sai com o código `prices.*` numa rota do
+  Catálogo (revisão do #261, P3-6): é raro numa leitura; fica registado.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
