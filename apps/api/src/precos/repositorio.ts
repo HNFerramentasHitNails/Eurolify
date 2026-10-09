@@ -1406,3 +1406,96 @@ export async function precosDoArtigo(
     };
   });
 }
+
+/** O preço de uma variante para vender num mercado (docs/25 §2; docs/20 R1). */
+export interface PrecoParaVenda {
+  variante_id: string;
+  lista_id: string;
+  /** O preço da lista, em cêntimos. */
+  montante_lista: number;
+  /** O que se cobra: o da redução em vigor, ou o da lista. */
+  montante: number;
+  gratuito: boolean;
+  quantidade_minima: number;
+  multiplo: number;
+  reducao: {
+    id: string;
+    preco_referencia: number;
+    fim: Date | null;
+  } | null;
+  preco_por_unidade: { valor: string; unidade: string } | null;
+}
+
+/**
+ * Os preços para vender destas variantes num mercado: a lista de base activa
+ * do mercado activo, com a redução em vigor no relógio da base (a mesma
+ * regra da API de Administração). Uma variante sem preço não vem.
+ * **Chamador:** o checkout (`checkout/repositorio.ts`), dentro da transacção
+ * dele; as listas B2B ficam para quando o checkout tiver contas (docs/25,
+ * Q6).
+ */
+export async function precosParaVenda(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  mercadoId: string,
+  varianteIds: string[],
+): Promise<Map<string, PrecoParaVenda>> {
+  return noDominio(db, comercianteId, async (trx) => {
+    const resultado = new Map<string, PrecoParaVenda>();
+    if (varianteIds.length === 0) return resultado;
+    const linhas = await trx
+      .selectFrom("preco")
+      .innerJoin("lista_precos", "lista_precos.id", "preco.lista_id")
+      .innerJoin("mercado", "mercado.id", "lista_precos.mercado_id")
+      .innerJoin("variante", "variante.id", "preco.variante_id")
+      .select([
+        "preco.lista_id",
+        "preco.variante_id",
+        "preco.montante",
+        "preco.gratuito",
+        "preco.quantidade_minima",
+        "preco.multiplo",
+        "variante.conteudo_quantidade",
+        "variante.conteudo_unidade",
+      ])
+      .where("preco.comerciante_id", "=", comercianteId)
+      .where("lista_precos.mercado_id", "=", mercadoId)
+      .where("lista_precos.tipo", "=", "base")
+      .where("lista_precos.estado", "=", "activa")
+      .where("mercado.estado", "=", "activo")
+      .where("preco.variante_id", "in", varianteIds)
+      .execute();
+    const reducoes = await reducoesEmVigor(
+      trx,
+      [...new Set(linhas.map((l) => l.lista_id))],
+      varianteIds,
+    );
+    for (const l of linhas) {
+      const r =
+        reducoes.find(
+          (x) => x.lista_id === l.lista_id && x.variante_id === l.variante_id,
+        ) ?? null;
+      const montanteLista = Number(l.montante);
+      const montante = r === null ? montanteLista : r.montante;
+      resultado.set(l.variante_id, {
+        variante_id: l.variante_id,
+        lista_id: l.lista_id,
+        montante_lista: montanteLista,
+        montante,
+        gratuito: l.gratuito,
+        quantidade_minima: l.quantidade_minima,
+        multiplo: l.multiplo,
+        reducao:
+          r === null
+            ? null
+            : { id: r.id, preco_referencia: r.preco_referencia, fim: r.fim },
+        preco_por_unidade: precoPorUnidade(
+          montante,
+          l.conteudo_quantidade,
+          l.conteudo_unidade,
+        ),
+      });
+    }
+    return resultado;
+  });
+}
