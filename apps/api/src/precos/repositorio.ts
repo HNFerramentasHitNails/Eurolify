@@ -1173,32 +1173,223 @@ export async function precosDaListaComReducoes(
       limite,
       depois,
     );
-    const ids = p.dados.map((x) => x.variante_id);
-    const reducoes =
-      ids.length === 0
-        ? []
-        : (
-            await trx
-              .selectFrom("reducao")
-              .select(COLUNAS_REDUCAO)
-              .where("lista_id", "=", listaId)
-              .where("variante_id", "in", ids)
-              .where("terminada_em", "is", null)
-              .where(sql<boolean>`inicio <= clock_timestamp()`)
-              .where((eb) =>
-                eb.or([
-                  eb("fim", "is", null),
-                  eb(sql`fim`, ">", sql`clock_timestamp()`),
-                ]),
-              )
-              .execute()
-          ).map(paraReducao);
+    const reducoes = await reducoesEmVigor(
+      trx,
+      [listaId],
+      p.dados.map((x) => x.variante_id),
+    );
     return {
       ...p,
       dados: p.dados.map((x) => ({
         ...x,
         reducao: reducoes.find((r) => r.variante_id === x.variante_id) ?? null,
       })),
+    };
+  });
+}
+
+/**
+ * As reduções em vigor, no relógio da base, destas listas e variantes: a
+ * mesma regra para os preços de uma lista e para os de um artigo.
+ */
+async function reducoesEmVigor(
+  trx: Transaction<BaseDados>,
+  listas: string[],
+  variantes: string[],
+): Promise<Reducao[]> {
+  if (listas.length === 0 || variantes.length === 0) return [];
+  return (
+    await trx
+      .selectFrom("reducao")
+      .select(COLUNAS_REDUCAO)
+      .where("lista_id", "in", listas)
+      .where("variante_id", "in", variantes)
+      .where("terminada_em", "is", null)
+      .where(sql<boolean>`inicio <= clock_timestamp()`)
+      .where((eb) =>
+        eb.or([
+          eb("fim", "is", null),
+          eb(sql`fim`, ">", sql`clock_timestamp()`),
+        ]),
+      )
+      .execute()
+  ).map(paraReducao);
+}
+
+/**
+ * Os nomes dos canais e dos mercados pedidos (docs/22 §18.1), no contexto do
+ * comerciante e com o filtro dele escrito (não só a RLS): um id de outro
+ * comerciante não vem. **Chamador:** a lista das
+ * publicações do Hub (`identidade/hub-catalogo.ts`).
+ */
+export async function nomesDeCanaisEMercados(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  canais: string[],
+  mercados: string[],
+): Promise<{ canais: Map<string, string>; mercados: Map<string, string> }> {
+  return noDominio(db, comercianteId, async (trx) => {
+    const deCanais =
+      canais.length === 0
+        ? []
+        : await trx
+            .selectFrom("canal")
+            .select(["id", "nome"])
+            .where("comerciante_id", "=", comercianteId)
+            .where("id", "in", canais)
+            .execute();
+    const deMercados =
+      mercados.length === 0
+        ? []
+        : await trx
+            .selectFrom("mercado")
+            .select(["id", "nome"])
+            .where("comerciante_id", "=", comercianteId)
+            .where("id", "in", mercados)
+            .execute();
+    return {
+      canais: new Map(deCanais.map((c) => [c.id, c.nome])),
+      mercados: new Map(deMercados.map((m) => [m.id, m.nome])),
+    };
+  });
+}
+
+/** Uma lista activa com o mercado dela e os preços das variantes de um artigo. */
+export interface PrecosDoArtigoNaLista {
+  id: string;
+  lista: Awaited<ReturnType<typeof obterLista>>;
+  mercado: {
+    id: string;
+    nome: string;
+    estado: EstadoMercado;
+    moeda: string;
+    preco_inclui_iva: boolean;
+  };
+  precos: PrecoDaLista[];
+}
+
+/**
+ * Os preços de um artigo (docs/22 §17.2): as listas **activas** do
+ * comerciante, por ordem de criação e por páginas, cada uma com o mercado e
+ * os preços das variantes **deste** artigo (também as arquivadas), com a
+ * redução em vigor. **Chamadores:** `GET /products/{id}/prices` e
+ * `GET /hub/products/{id}/prices`.
+ */
+export async function precosDoArtigo(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  artigoId: string,
+  limite: number,
+  depois: string | null,
+): Promise<Pagina<PrecosDoArtigoNaLista>> {
+  return noDominio(db, comercianteId, async (trx) => {
+    const existe = await trx
+      .selectFrom("artigo")
+      .select("id")
+      .where("id", "=", artigoId)
+      .executeTakeFirst();
+    if (existe === undefined) {
+      throw new ErroPrecos("prices.not_found", "artigo inexistente");
+    }
+    const p = await pagina(
+      async (d, n) => {
+        let q = trx
+          .selectFrom("lista_precos as l")
+          .innerJoin("mercado as m", (j) =>
+            j
+              .onRef("m.comerciante_id", "=", "l.comerciante_id")
+              .onRef("m.id", "=", "l.mercado_id"),
+          )
+          .selectAll("l")
+          .select([
+            "m.nome as mercado_nome",
+            "m.estado as mercado_estado",
+            "m.moeda as mercado_moeda",
+            "m.preco_inclui_iva as mercado_preco_inclui_iva",
+          ])
+          .where("l.estado", "=", "activa");
+        if (d !== null) q = q.where("l.id", ">", d);
+        return q.orderBy("l.id").limit(n).execute();
+      },
+      async () =>
+        Number(
+          (
+            await trx
+              .selectFrom("lista_precos")
+              .select((eb) => eb.fn.countAll<string>().as("n"))
+              .where("estado", "=", "activa")
+              .executeTakeFirstOrThrow()
+          ).n,
+        ),
+      limite,
+      depois,
+    );
+    const listas = p.dados.map((l) => l.id);
+    const precos =
+      listas.length === 0
+        ? []
+        : await trx
+            .selectFrom("preco as p")
+            .innerJoin("variante as v", (j) =>
+              j
+                .onRef("v.comerciante_id", "=", "p.comerciante_id")
+                .onRef("v.id", "=", "p.variante_id"),
+            )
+            .select([
+              "p.lista_id",
+              "p.variante_id",
+              "p.montante",
+              "p.gratuito",
+              "p.quantidade_minima",
+              "p.multiplo",
+              "p.definido_por",
+              "p.definido_em",
+              "p.versao",
+              "v.conteudo_quantidade",
+              "v.conteudo_unidade",
+            ])
+            .where("p.lista_id", "in", listas)
+            .where("v.artigo_id", "=", artigoId)
+            // A ordem da ficha (catalogo/consultas.ts): a posição e o SKU.
+            .orderBy("v.posicao")
+            .orderBy("v.sku")
+            .execute();
+    const reducoes = await reducoesEmVigor(trx, listas, [
+      ...new Set(precos.map((x) => x.variante_id)),
+    ]);
+    return {
+      ...p,
+      dados: p.dados.map((l) => {
+        const {
+          mercado_nome,
+          mercado_estado,
+          mercado_moeda,
+          mercado_preco_inclui_iva,
+          ...lista
+        } = l;
+        return {
+          id: l.id,
+          lista,
+          mercado: {
+            id: l.mercado_id,
+            nome: mercado_nome,
+            estado: mercado_estado,
+            moeda: mercado_moeda,
+            preco_inclui_iva: mercado_preco_inclui_iva,
+          },
+          precos: precos
+            .filter((x) => x.lista_id === l.id)
+            .map((x) => ({
+              ...paraPreco(x),
+              conteudo_quantidade: x.conteudo_quantidade,
+              conteudo_unidade: x.conteudo_unidade,
+              reducao:
+                reducoes.find(
+                  (r) => r.lista_id === l.id && r.variante_id === x.variante_id,
+                ) ?? null,
+            })),
+        };
+      }),
     };
   });
 }

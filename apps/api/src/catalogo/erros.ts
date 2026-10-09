@@ -27,6 +27,7 @@ export type CodigoErroCatalogo =
   | "catalog.gtin_origin_required"
   | "catalog.content_incomplete"
   | "catalog.invalid_field"
+  | "catalog.tax_category_unknown"
   | "catalog.component_cycle"
   | "catalog.component_archived"
   | "catalog.component_duplicate"
@@ -99,6 +100,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroCatalogo[] = [
   "catalog.published_in_use",
   "catalog.not_found",
   "catalog.invalid_field",
+  // Da 0040 (o fim da rede CM): a categoria fiscal tem de existir.
+  "catalog.tax_category_unknown",
 ];
 
 /** As restrições da base que têm código próprio (§7.1). */

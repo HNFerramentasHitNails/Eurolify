@@ -90,6 +90,7 @@ const {
   criarLista,
   criarMercado,
   definirMercadosDoCanal,
+  anunciarReducao,
   definirPreco,
   mudarEstadoMercado,
 } = await import(join(API, "dist/precos/repositorio.js"));
@@ -303,6 +304,7 @@ let artigoExterno = "";
 // O 3 tem o histórico com mais de uma página (docs/22 §16).
 let artigoDoHistorico = "";
 let canalDaFicha;
+let mercadoDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
   // A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
@@ -429,7 +431,7 @@ let canalDaFicha;
   const variantes = await comComerciante(baseArtigos, comerciante, (trx) =>
     trx
       .selectFrom("variante")
-      .select("id")
+      .select(["id", "sku"])
       .where("artigo_id", "=", artigoDaFicha)
       .execute(),
   );
@@ -438,6 +440,59 @@ let canalDaFicha;
       montante: 990,
     });
   }
+  // Os preços do artigo (docs/22 §17): a ENS-001 com 40 dias a 9,90 € e
+  // uma redução para 7,90 € com fim; um segundo mercado (Espanha, preços
+  // sem IVA, em rascunho) em que só a ENS-001-B tem preço, gratuito.
+  const ens001 = variantes.find((v) => v.sku === "ENS-001")?.id ?? "";
+  const ens001b = variantes.find((v) => v.sku === "ENS-001-B")?.id ?? "";
+  psql(`insert into historico_preco (comerciante_id, lista_id, variante_id, montante,
+          gratuito, saiu, moeda, preco_inclui_iva, em_vigor_desde, definido_por)
+        values ('${comerciante}', '${lista}', '${ens001}', 990, false, false, 'EUR',
+          true, now() - interval '960 hours', 'passagem:antes')`);
+  await anunciarReducao(baseArtigos, comerciante, quem, lista, ens001, {
+    montante: 790,
+    fim: new Date(Date.now() + 21 * 24 * 3600 * 1000),
+  });
+  const espanha = await criarMercado(baseArtigos, comerciante, {
+    loja_id: loja,
+    nome: "Espanha",
+    paises: ["ES"],
+    moeda: "EUR",
+    linguas: ["es"],
+    lingua_principal: "es",
+    preco_inclui_iva: false,
+  });
+  const listaEspanha = await criarLista(baseArtigos, comerciante, {
+    mercado_id: espanha,
+    nome: "Base ES",
+    tipo: "base",
+  });
+  await definirPreco(baseArtigos, comerciante, quem, listaEspanha, ens001b, {
+    montante: 0,
+    gratuito: true,
+  });
+  // Uma lista B2B em Portugal (revisão do #252, P3-3): a ENS-001 a 9,00 €,
+  // em caixas de 6 (mínimo e múltiplo), sem redução.
+  const etiqueta = psql(`begin;
+    select set_config('eurolify.quem', 'passagem:etiqueta', true);
+    insert into etiqueta_cliente (comerciante_id, nome)
+      values ('${comerciante}', 'Profissionais') returning id;
+    commit;`)
+    .split("\n")
+    .filter((l) => /^[0-9a-f-]{36}$/.test(l))
+    .at(-1);
+  const listaB2b = await criarLista(baseArtigos, comerciante, {
+    mercado_id: mercado,
+    nome: "Profissionais PT",
+    tipo: "b2b",
+    etiqueta_id: etiqueta,
+    prioridade: 10,
+  });
+  await definirPreco(baseArtigos, comerciante, quem, listaB2b, ens001, {
+    montante: 900,
+    quantidade_minima: 6,
+    multiplo: 6,
+  });
   const publicacao = await publicar(baseArtigos, comerciante, quem, {
     artigo_id: artigoDaFicha,
     canal_id: canal,
@@ -447,6 +502,7 @@ let canalDaFicha;
     throw new Error("a publicação do artigo 1 devia ficar em rascunho");
   }
   canalDaFicha = canal;
+  mercadoDaFicha = mercado;
   await baseArtigos.destroy();
 }
 
@@ -1536,9 +1592,15 @@ try {
   await rp.getByText("5 de 30 artigos", { exact: true }).waitFor();
   await rp.getByRole("link", { name: "Verniz Azul 1", exact: true }).click();
   await rp.getByRole("heading", { name: "Verniz Azul 1", level: 1 }).waitFor();
+  // Os nomes do canal e do mercado, não os identificadores (docs/22 §18.2).
   await rp
-    .getByRole("row", { name: new RegExp(`chn_${canalDaFicha}.*Rascunho`) })
+    .getByRole("row", { name: /Loja online.*Portugal.*Rascunho/ })
     .waitFor();
+  confere(
+    (await rp.getByText(`chn_${canalDaFicha}`).count()) === 0 &&
+      (await rp.getByText(`mkt_${mercadoDaFicha}`).count()) === 0,
+    "ficha: as publicações mostram o nome do canal e do mercado, sem o identificador",
+  );
   await rp.waitForFunction(
     () =>
       document.querySelectorAll(".imagens-artigo img").length === 2 &&
@@ -1562,6 +1624,133 @@ try {
         .count()) === 1,
     "ficha: as duas variantes, com a unidade, o conteúdo e o peso",
   );
+  // Os preços (docs/22 §17.3): uma caixa por lista, com o que o servidor deu.
+  await rp.getByRole("heading", { name: "Base ES", level: 3 }).waitFor();
+  const caixaPt = rp.locator(".lista-precos").nth(0);
+  const caixaEs = rp.locator(".lista-precos").nth(1);
+  const caixaB2b = rp.locator(".lista-precos").nth(2);
+  const textoPt = (await caixaPt.textContent()) ?? "";
+  const textoEs = (await caixaEs.textContent()) ?? "";
+  const textoB2b = (await caixaB2b.textContent()) ?? "";
+  confere(
+    textoPt.includes("lista base · Portugal · EUR · preços com IVA") &&
+      (await caixaPt
+        .getByRole("row", {
+          name: /ENS-001(?!-).*7,90\s€.*antes 9,90\s€ — o mais baixo dos 30 dias antes da redução · termina a .*\d{2}:\d{2}.*526,6667\s€\/l, com quatro casas/,
+        })
+        .count()) === 1 &&
+      (await caixaPt
+        .getByRole("row", { name: /ENS-001-B.*9,90\s€.*—/ })
+        .count()) === 1,
+    "preços: a lista base de Portugal com IVA, a redução com o preço de antes e o fim (com a hora), e o preço por unidade com quatro casas",
+  );
+  confere(
+    textoEs.includes(
+      "lista base · Espanha (mercado em rascunho) · EUR · preços sem IVA",
+    ) &&
+      (await caixaEs
+        .getByRole("row", { name: /ENS-001(?!-).*Sem preço nesta lista/ })
+        .count()) === 1 &&
+      (await caixaEs
+        .getByRole("row", { name: /ENS-001-B.*Gratuito/ })
+        .count()) === 1,
+    "preços: o mercado em rascunho sem IVA, a variante sem preço e a gratuita",
+  );
+  confere(
+    textoB2b.includes("lista B2B · Portugal · EUR · preços com IVA") &&
+      (await caixaB2b
+        .getByRole("row", {
+          name: /ENS-001(?!-).*9,00\s€.*mínimo 6 · múltiplos de 6/,
+        })
+        .count()) === 1 &&
+      !textoB2b.includes("antes"),
+    "preços: a lista B2B, com o mínimo e o múltiplo e sem a redução da lista base",
+  );
+  // «Mostrar mais listas» (respostas fingidas: a primeira página diz que há
+  // mais; a segunda traz uma lista), com o foco no título da lista nova.
+  await rp.route("**/hub/products/*/prices*", async (pedido) => {
+    if (pedido.request().url().includes("cursor=")) {
+      await pedido.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          dados: [
+            {
+              lista: {
+                id: "prl_00000000-0000-7000-8000-0000000000aa",
+                mercado: "mkt_00000000-0000-7000-8000-0000000000bb",
+                nome: "Lista seguinte",
+                tipo: "base",
+                etiqueta: null,
+                prioridade: null,
+                estado: "activa",
+                versao: 1,
+                criado_em: "2026-10-09T10:00:00Z",
+              },
+              mercado: {
+                id: "mkt_00000000-0000-7000-8000-0000000000bb",
+                nome: "França",
+                estado: "activo",
+                moeda: "EUR",
+                preco_inclui_iva: true,
+              },
+              precos: [],
+            },
+          ],
+          total: 4,
+          ha_mais: false,
+          cursor_seguinte: null,
+        }),
+      });
+      return;
+    }
+    const real = await pedido.fetch();
+    const corpo = await real.json();
+    await pedido.fulfill({
+      response: real,
+      body: JSON.stringify({ ...corpo, ha_mais: true, cursor_seguinte: "eA" }),
+    });
+  });
+  await rp.reload();
+  await rp.getByRole("button", { name: "Mostrar mais listas" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Lista seguinte", level: 3 }).waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) ===
+      "precos-prl_00000000-0000-7000-8000-0000000000aa" &&
+      (await rp.locator(".lista-precos").count()) === 4 &&
+      (await rp
+        .getByRole("button", { name: "Mostrar mais listas" })
+        .count()) === 0,
+    "preços: «Mostrar mais listas» traz a seguinte, com o foco no título dela",
+  );
+  await rp.unroute("**/hub/products/*/prices*");
+  await rp.reload();
+  await rp
+    .getByRole("heading", { name: "Profissionais PT", level: 3 })
+    .waitFor();
+  for (const [largura, tema] of [
+    [375, "light"],
+    [768, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `preços: a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.locator(".precos-artigo").screenshot({
+      path: join(
+        SAIDA,
+        `artigo-precos-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+    });
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
   const imagensDaFicha = await rp.evaluate(() =>
     [...document.querySelectorAll(".imagens-artigo img")].map((i) => ({
       blob: i.src.startsWith("blob:"),
@@ -1608,6 +1797,9 @@ try {
             artigo: `prd_${artigoDaFicha}`,
             canal: "chn_00000000-0000-4000-8000-000000000002",
             mercado: "mkt_00000000-0000-4000-8000-000000000003",
+            // Sem os nomes (não devia acontecer): fica o identificador.
+            canal_nome: null,
+            mercado_nome: null,
             estado: "arquivado",
             variantes_fora: [],
             ultima_verificacao: null,
@@ -1627,12 +1819,12 @@ try {
     .getByRole("row", { name: /Arquivado.*Deixou de cumprir as regras/ })
     .waitFor();
   confere(
-    (await rp.getByRole("row", { name: /ENS-001-B/ }).count()) === 1 &&
+    (await rp.getByRole("row", { name: /ENS-001-B.*Caixa/ }).count()) === 1 &&
       (await rp.locator(".imagens-artigo").count()) === 0 &&
       (await rp
         .getByText("chn_00000000-0000-4000-8000-000000000002")
         .count()) === 1,
-    "ficha: as imagens falham sozinhas; a publicação arquivada diz o motivo e o canal",
+    "ficha: as imagens falham sozinhas; a publicação arquivada diz o motivo e, sem o nome, o identificador do canal",
   );
   await rp.unroute("**/hub/products/*/media?*");
   await rp.unroute("**/hub/products/*/publications");
@@ -1641,6 +1833,32 @@ try {
     () => document.querySelectorAll(".imagens-artigo img").length === 2,
   );
   confere(true, "ficha: «Tentar outra vez» traz as imagens");
+  // Os preços falham sozinhos (docs/22 §17.3): o erro na secção, o resto fica.
+  await rp.route("**/hub/products/*/prices*", (r) =>
+    r.fulfill({
+      status: 500,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "internal", status: 500 }),
+    }),
+  );
+  await rp.reload();
+  const precosDaFicha = rp.locator(".precos-artigo");
+  await precosDaFicha
+    .getByRole("button", { name: "Tentar outra vez" })
+    .waitFor();
+  await rp.waitForFunction(
+    () => document.querySelectorAll(".imagens-artigo img").length === 2,
+  );
+  confere(
+    (await rp.getByRole("row", { name: /ENS-001-B.*Caixa/ }).count()) === 1 &&
+      (await precosDaFicha.locator(".lista-precos").count()) === 0,
+    "preços: falham sozinhos, com «Tentar outra vez»; as variantes e as imagens ficam",
+  );
+  await rp.unroute("**/hub/products/*/prices*");
+  await precosDaFicha.getByRole("button", { name: "Tentar outra vez" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Base PT", level: 3 }).waitFor();
+  confere(true, "preços: «Tentar outra vez», com o teclado, traz as listas");
   // Uma imagem que falha sozinha tem o seu «Tentar outra vez» (revisão do
   // #206, P2-1).
   let falhar = true;
@@ -1901,6 +2119,107 @@ try {
     (await rp.locator(".imagens-artigo img").count()) === 2,
     "edição: tornar principal e mudar a ordem; o foco vai para «Alterações guardadas»",
   );
+  // Uma lista pedida antes de outra gravação chega depois dela: não pode
+  // repor o que já mudou (issue #251). A primeira releitura da lista fica
+  // retida até a releitura da segunda gravação estar no ecrã (revisão do
+  // #260, P2-1: sem depender de tempos).
+  let listasAtrasadas = 0;
+  let soltarLista = () => undefined;
+  const listaSolta = new Promise((ok) => {
+    soltarLista = ok;
+  });
+  await rp.route("**/hub/products/*/media?*", async (r) => {
+    if (r.request().method() !== "GET" || listasAtrasadas > 0) {
+      await r.fallback();
+      return;
+    }
+    listasAtrasadas++;
+    // A API responde já; a resposta é que chega atrasada, como numa rede
+    // lenta (no máximo 15 s, para a passagem nunca ficar presa).
+    const resposta = await r.fetch();
+    await Promise.race([
+      listaSolta,
+      new Promise((ok) => setTimeout(ok, 15_000)),
+    ]);
+    await r.fulfill({ response: resposta });
+  });
+  const guardarTexto = async (indice, texto) => {
+    const li = imagensEditaveis.nth(indice);
+    await li.getByRole("button", { name: "Editar texto alternativo" }).click();
+    await li.getByLabel("Texto alternativo").fill(texto);
+    await li.getByRole("button", { name: "Guardar" }).click();
+    await li
+      .getByRole("button", { name: "Editar texto alternativo" })
+      .waitFor();
+  };
+  await guardarTexto(1, "Frasco de verniz, de lado");
+  await guardarTexto(0, "Frasco de verniz laranja, de frente");
+  await rp.getByText("Frasco de verniz laranja, de frente").waitFor();
+  // O texto novo no ecrã veio da segunda releitura; agora chega a primeira.
+  const listaAntiga = rp.waitForResponse(
+    (r) => /\/hub\/products\/[^/]+\/media\?/.test(r.url()),
+    { timeout: 15_000 },
+  );
+  soltarLista();
+  await listaAntiga;
+  await rp.waitForTimeout(300);
+  await rp.unroute("**/hub/products/*/media?*");
+  confere(
+    listasAtrasadas === 1 &&
+      (await rp.getByText("Frasco de verniz laranja, de frente").count()) ===
+        1 &&
+      (await rp.getByText("Frasco de verniz, de lado").count()) === 1,
+    "edição: uma lista antiga que chega depois não repõe o texto já gravado",
+  );
+  // Uma acção que falha com o teclado: o foco vai para o erro, não se perde
+  // no início da página (issue #251).
+  await rp.route(
+    "**/hub/media/*",
+    (r) =>
+      r.request().method() === "PATCH"
+        ? r.fulfill({
+            status: 500,
+            contentType: "application/problem+json",
+            body: JSON.stringify({ codigo: "internal.error", status: 500 }),
+          })
+        : r.fallback(),
+    { times: 1 },
+  );
+  await imagensEditaveis
+    .nth(0)
+    .getByRole("button", { name: "Mover para depois" })
+    .focus();
+  await rp.keyboard.press("Enter");
+  await rp.locator(".erro[role=alert]").first().waitFor();
+  const focoNoErro = await rp
+    .waitForFunction(
+      // O próprio elemento com o foco, nunca o <body> (revisão do #260,
+      // P1-1: o body também contém o erro).
+      () => document.activeElement?.matches(".falha-accao") === true,
+      undefined,
+      { timeout: 5_000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  confere(
+    focoNoErro,
+    `edição: mover falha e o foco vai para o erro (foco em: ${await rp.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? "nada")})`,
+  );
+  // Com uma margem, para o anel de foco (que fica por fora) aparecer.
+  const caixaFalha = await rp.locator(".falha-accao").boundingBox();
+  if (caixaFalha !== null) {
+    await rp.screenshot({
+      path: join(SAIDA, "artigo-falha-com-foco.png"),
+      clip: {
+        x: Math.max(caixaFalha.x - 16, 0),
+        y: Math.max(caixaFalha.y - 16, 0),
+        width: caixaFalha.width + 32,
+        height: caixaFalha.height + 32,
+      },
+    });
+  }
   // Arquivar a única variante: a confirmação diz que é a última.
   let ultima = false;
   rp.once("dialog", (d) => {
@@ -1908,7 +2227,10 @@ try {
     void d.accept();
   });
   await rp.getByRole("button", { name: "Arquivar variante ENS-002" }).click();
-  await rp.getByRole("row", { name: /ENS-002.*Arquivada/ }).waitFor();
+  await rp
+    .locator(".variantes-artigo")
+    .getByRole("row", { name: /ENS-002.*Arquivada/ })
+    .waitFor();
   confere(ultima, "edição: arquivar a última variante avisa e fica Arquivada");
   // Sem variante activa, repor diz o motivo da API (P2-5).
   rp.once("dialog", (d) => void d.accept());
@@ -2241,8 +2563,16 @@ try {
     buffer: Buffer.from("isto não é um png"),
   });
   confere(
-    (await rp.evaluate(() => document.activeElement?.id)) ===
-      "nova-imagem-texto",
+    await rp
+      .waitForFunction(
+        () => document.activeElement?.id === "nova-imagem-texto",
+        undefined,
+        { timeout: 5_000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      ),
     "imagens: escolhido o ficheiro, o foco vai para o texto alternativo",
   );
   await rp.keyboard.press("Enter");
@@ -2273,6 +2603,8 @@ try {
             id: "pub_00000000-0000-7000-8000-000000000001",
             canal: "chn_00000000-0000-7000-8000-000000000001",
             mercado: "mkt_00000000-0000-7000-8000-000000000001",
+            canal_nome: "Loja online",
+            mercado_nome: "Portugal",
             estado: "publicado",
             verificado_em: null,
             publicado_em: "2026-10-09T10:00:00Z",
@@ -2369,13 +2701,23 @@ try {
   );
   await rp.unroute("**/hub/products/*/media");
   await rp.locator(".imagens-artigo > li").first().waitFor();
+  // A miniatura pede os bytes depois de a linha aparecer («A carregar…»):
+  // contar logo falhava às vezes (issue #246). Espera-se pela imagem; se não
+  // vier em 10 s, a contagem abaixo falha e diz porquê (revisão do #247).
+  const semImagem = await rp
+    .getByRole("img", { name: "Frasco de verniz verde, de frente" })
+    .waitFor({ timeout: 10_000 })
+    .then(
+      () => "",
+      (e) => ` (a imagem não apareceu: ${String(e).split("\n")[0]})`,
+    );
   confere(
     (await rp.locator(".imagens-artigo > li").count()) === 1 &&
       (await rp.getByText("Principal", { exact: true }).count()) === 1 &&
       (await rp
         .getByRole("img", { name: "Frasco de verniz verde, de frente" })
         .count()) === 1,
-    "imagens: só com o teclado, a imagem fica principal com o texto; a resposta perdida ao ligar não a duplica",
+    `imagens: só com o teclado, a imagem fica principal com o texto; a resposta perdida ao ligar não a duplica${semImagem}`,
   );
   // Uma segunda imagem, e a captura do formulário aberto.
   await escolherFicheiro(comGps);

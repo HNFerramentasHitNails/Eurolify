@@ -549,6 +549,25 @@ export const pt = {
   historicoParte_traducaoDe: "a tradução de «{campo}» ({lingua})",
   historicoParte_publicacaoEm:
     "a publicação no canal {canal}, mercado {mercado}",
+  artigoPrecos: "Preços",
+  precosSemListas: "Ainda não há listas de preços activas.",
+  precosSemPermissao: "O seu papel não vê os preços.",
+  precosMostrarMais: "Mostrar mais listas",
+  precosListaBase: "lista base",
+  precosListaB2b: "lista B2B",
+  estadoMercado_rascunho: "mercado em rascunho",
+  estadoMercado_arquivado: "mercado arquivado",
+  precosComIva: "preços com IVA",
+  precosSemIva: "preços sem IVA",
+  colunaPreco: "Preço",
+  colunaPrecoUnidade: "Preço por unidade",
+  precosSemPreco: "Sem preço nesta lista",
+  precosGratuito: "Gratuito",
+  precosAntes: "antes {preco} — o mais baixo dos 30 dias antes da redução",
+  precosAte: "· termina a {data}",
+  precosMinimo: "mínimo {n}",
+  precosMultiplo: "múltiplos de {n}",
+  precosPorUnidade: "{valor}/{unidade}, com quatro casas",
 };
 
 export type Textos = typeof pt;

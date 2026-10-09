@@ -279,7 +279,8 @@ export function Historico({
   async function mostrarMais() {
     if (!valido || cursor === null || aCarregarMais) return;
     setACarregarMais(true);
-    setFalhaMais(null);
+    // O erro anterior e o «Tentar outra vez» ficam até à resposta: o foco
+    // não cai na página enquanto se espera (revisão do #252, P3-8).
     try {
       const pagina = await api.historicoDoArtigo(comerciante, artigo, cursor);
       if (!montado.current) return;
@@ -288,6 +289,7 @@ export function Historico({
       // a última alteração já à vista (revisão do #242, P3-6).
       if (primeira !== undefined)
         focarDepois.current = `entrada-${primeira.id}`;
+      setFalhaMais(null);
       setEntradas((antes) => [...(antes ?? []), ...pagina.dados]);
       setCursor(pagina.ha_mais ? pagina.cursor_seguinte : null);
     } catch (e) {
@@ -377,7 +379,7 @@ export function Historico({
             <p>
               <button
                 type="button"
-                disabled={aCarregarMais}
+                aria-disabled={aCarregarMais}
                 onClick={() => void mostrarMais()}
               >
                 {aCarregarMais ? t.aCarregar : t.historicoMostrarMais}

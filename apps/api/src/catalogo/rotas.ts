@@ -130,6 +130,7 @@ export const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 const ESTADO_DO_CODIGO: Record<ErroCatalogo["codigo"], number> = {
   "catalog.not_found": 404,
   "catalog.invalid_field": 400,
+  "catalog.tax_category_unknown": 422,
   "catalog.retry": 503,
   "catalog.version_conflict": 409,
   "catalog.invalid_transition": 409,
@@ -439,7 +440,7 @@ const VerificacaoGuardada = Type.Object({
   nao_verificado: Type.Array(Type.String()),
 });
 
-const PublicacaoEsquema = Type.Object({
+export const PublicacaoEsquema = Type.Object({
   id: Type.String({ description: "pub_…" }),
   artigo: Type.String({ description: "prd_…" }),
   canal: Type.String({ description: "chn_…" }),

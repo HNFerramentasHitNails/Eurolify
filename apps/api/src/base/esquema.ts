@@ -765,6 +765,7 @@ export interface TabelaIsencaoManual {
   perfil_id: ColumnType<string, string, never>;
   pais_contribuinte: ColumnType<string | null, never, never>;
   nif_numero: ColumnType<string | null, never, never>;
+  codigo_motivo: ColumnType<string | null, string | null | undefined, never>;
   motivo: ColumnType<string, string, never>;
   nota: ColumnType<string | null, string | null | undefined, never>;
   posta_por: ColumnType<string, never, never>;
@@ -772,6 +773,62 @@ export interface TabelaIsencaoManual {
   motivo_retirada: ColumnType<string | null, never, string>;
   retirada_por: ColumnType<string | null, never, never>;
   retirada_em: ColumnType<Date | null, never, never>;
+}
+
+// O Motor de IVA (migração 0040; docs/24 §3). As tabelas globais só se
+// lêem; a declaração do regime só se acrescenta.
+export interface TabelaCategoriaFiscal {
+  codigo: ColumnType<string, never, never>;
+  descricao_pt: ColumnType<string, never, never>;
+  descricao_en: ColumnType<string, never, never>;
+  estado: ColumnType<"activa" | "por_validar" | "arquivada", never, never>;
+}
+
+export interface TabelaTaxaIva {
+  id: ColumnType<string, never, never>;
+  pais: ColumnType<string, never, never>;
+  regiao: ColumnType<string | null, never, never>;
+  categoria: ColumnType<string, never, never>;
+  tipo: ColumnType<"taxa" | "isenta", never, never>;
+  percentagem: ColumnType<number | null, never, never>;
+  codigo_motivo: ColumnType<string | null, never, never>;
+  inicio: ColumnType<Date | string, never, never>;
+  fonte: ColumnType<string, never, never>;
+  verificado: ColumnType<boolean, never, never>;
+  verificado_por: ColumnType<string | null, never, never>;
+}
+
+export interface TabelaTerritorioFiscal {
+  id: ColumnType<string, never, never>;
+  pais: ColumnType<string, never, never>;
+  prefixo_cp: ColumnType<string, never, never>;
+  efeito: ColumnType<"fora_do_iva_ue" | "regiao" | "por_validar", never, never>;
+  regiao: ColumnType<string | null, never, never>;
+  nome: ColumnType<string, never, never>;
+  fonte: ColumnType<string, never, never>;
+}
+
+export interface TabelaMotivoIva {
+  pais: ColumnType<string, never, never>;
+  codigo: ColumnType<string, never, never>;
+  tipo: ColumnType<
+    "exportacao" | "intracomunitaria" | "isento_natureza" | "outro",
+    never,
+    never
+  >;
+  descricao: ColumnType<string, never, never>;
+  fonte: ColumnType<string, never, never>;
+}
+
+export interface TabelaDeclaracaoRegime {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  entidade_legal_id: ColumnType<string, string, never>;
+  regime: ColumnType<"origem" | "destino", "origem" | "destino", never>;
+  oss_desde: ColumnType<Date | string | null, string | null | undefined, never>;
+  registos: ColumnType<unknown, string | undefined, never>;
+  declarado_por: ColumnType<string, never, never>;
+  declarado_em: ColumnType<Date, never, never>;
 }
 
 export interface BaseDados {
@@ -813,4 +870,9 @@ export interface BaseDados {
   alteracao_cliente: TabelaAlteracaoCliente;
   validacao_vies: TabelaValidacaoVies;
   isencao_manual: TabelaIsencaoManual;
+  categoria_fiscal: TabelaCategoriaFiscal;
+  taxa_iva: TabelaTaxaIva;
+  territorio_fiscal: TabelaTerritorioFiscal;
+  motivo_iva: TabelaMotivoIva;
+  declaracao_regime: TabelaDeclaracaoRegime;
 }
