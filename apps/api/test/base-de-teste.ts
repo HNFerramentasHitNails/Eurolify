@@ -90,7 +90,10 @@ export async function apagarBase(
   if (erroDaEspera !== undefined) throw erroDaEspera;
 }
 
-export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
+export async function criarBaseDeTeste(
+  urlBase: string,
+  opcoes: { quemPorOmissao?: boolean } = {},
+): Promise<BaseDeTeste> {
   const nome = `eurolify_teste_${randomBytes(6).toString("hex")}`;
   const admin = new pg.Client({ connectionString: urlBase });
   await admin.connect();
@@ -152,6 +155,17 @@ export async function criarBaseDeTeste(urlBase: string): Promise<BaseDeTeste> {
     await cliente.query(
       `ALTER ROLE eurolify_api LOGIN PASSWORD '${SENHA_DE_TESTE}'`,
     );
+    // A linha do tempo (migração 0033) recusa uma mudança no catálogo sem
+    // `eurolify.quem`. Os testes que preparam o catálogo por SQL ou pelas
+    // funções do repositório, sem pedido, ficam com este «quem» só nesta
+    // base. A API põe o seu em `escrever` (catalogo/rotas.ts); o teste da
+    // linha do tempo cria a base sem ele, para provar que nenhuma escrita
+    // pela API depende deste.
+    if (opcoes.quemPorOmissao !== false) {
+      await cliente.query(
+        `ALTER DATABASE ${nome} SET eurolify.quem = 'teste:base'`,
+      );
+    }
   } finally {
     await cliente.end();
   }

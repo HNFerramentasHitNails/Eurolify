@@ -276,6 +276,11 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
         `CREATE ROLE ${papel} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '${senha}'`,
       );
       await admin.query(`CREATE DATABASE ${nome} OWNER ${papel}`);
+      // A linha do tempo (0033) recusa mudar o catálogo sem quem (como em
+      // base-de-teste.ts).
+      await admin.query(
+        `ALTER DATABASE ${nome} SET eurolify.quem = 'teste:base'`,
+      );
       const url = new URL(URL_BASE ?? "");
       url.pathname = `/${nome}`;
       url.username = papel;

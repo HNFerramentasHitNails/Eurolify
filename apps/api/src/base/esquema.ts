@@ -408,6 +408,44 @@ export interface TabelaExportacao {
   expira_em: ColumnType<Date, never, never>;
 }
 
+// A linha do tempo do Catálogo (migração 0033; docs/14 §3.12; C7). Só se
+// lê: escrevem-na os gatilhos.
+export const ENTIDADES_DA_LINHA_DO_TEMPO = [
+  "artigo",
+  "variante",
+  "opcao",
+  "valor_opcao",
+  "variante_valor",
+  "componente",
+  "traducao",
+  "artigo_categoria",
+  "colecao_artigo",
+  "media",
+  "publicacao",
+  "categoria",
+  "colecao",
+] as const;
+export type EntidadeDaLinhaDoTempo =
+  (typeof ENTIDADES_DA_LINHA_DO_TEMPO)[number];
+
+export interface TabelaAlteracaoCatalogo {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  artigo_id: ColumnType<string | null, never, never>;
+  entidade: ColumnType<EntidadeDaLinhaDoTempo, never, never>;
+  entidade_id: ColumnType<string | null, never, never>;
+  operacao: ColumnType<"criado" | "alterado" | "apagado", never, never>;
+  campos: ColumnType<
+    Record<string, { antes: unknown; depois: unknown }>,
+    never,
+    never
+  >;
+  quem: ColumnType<string, never, never>;
+  origem: ColumnType<string | null, never, never>;
+  transacao: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
+}
+
 // As importações (migração 0032; docs/14 §3.11; docs/06, CT).
 export const FORMATOS_DE_IMPORTACAO = ["csv", "eurolify.catalogo/1"] as const;
 export type FormatoDeImportacao = (typeof FORMATOS_DE_IMPORTACAO)[number];
@@ -607,6 +645,7 @@ export interface BaseDados {
   media: TabelaMedia;
   exportacao: TabelaExportacao;
   importacao: TabelaImportacao;
+  alteracao_catalogo: TabelaAlteracaoCatalogo;
   traducao: TabelaTraducao;
   texto_original: VistaTextoOriginal;
   mercado: TabelaMercado;
