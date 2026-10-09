@@ -540,7 +540,7 @@ export const CamposDoArtigo = Type.Object({
   categoria_fiscal: Type.Optional(CategoriaFiscal),
 });
 
-const PedidoCriarArtigo = Type.Object(
+export const PedidoCriarArtigo = Type.Object(
   {
     ...CamposDoArtigo.properties,
     variantes: Type.Array(NovaVariante, {
@@ -1417,6 +1417,21 @@ export const MUDANCAS_DE_ESTADO = [
 ] as const;
 
 /**
+ * Cria o artigo em rascunho, com as variantes, e devolve a ficha (a
+ * escrita do POST /products; também a do Hub, docs/22 §14.2).
+ */
+export async function criacaoDoArtigo(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  corpo: Static<typeof PedidoCriarArtigo>,
+): Promise<Static<typeof Artigo>> {
+  const { variantes, ...dados } = corpo;
+  gtinComOrigem(variantes);
+  const id = await criarArtigo(trx, comercianteId, dados, variantes);
+  return fichaNa(trx, comercianteId, id);
+}
+
+/**
  * Altera o artigo na transacção dada e devolve a ficha. Chamam-na o
  * PATCH /products/{id} (pela chave) e o PATCH /hub/products/{id} (pela
  * sessão; docs/22 §13.2): a mesma escrita, o mesmo resultado.
@@ -1784,17 +1799,7 @@ export function rotasDoCatalogo(
         pedido,
         resposta,
         201,
-        async (trx, chave) => {
-          const { variantes, ...dados } = pedido.body;
-          gtinComOrigem(variantes);
-          const id = await criarArtigo(
-            trx,
-            chave.comercianteId,
-            dados,
-            variantes,
-          );
-          return fichaNa(trx, chave.comercianteId, id);
-        },
+        (trx, chave) => criacaoDoArtigo(trx, chave.comercianteId, pedido.body),
         (corpo) => `/products/${(corpo as { id: string }).id}`,
       ),
   );

@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   api,
   ErroHub,
@@ -65,8 +71,14 @@ export function Artigo({
   // Mover uma imagem que gravou uma parte e falhou na outra.
   const [ordemAMeio, setOrdemAMeio] = useState(false);
   const [falhaAccao, setFalhaAccao] = useState<unknown>(null);
-  const [aviso, setAviso] = useState<string | null>(() =>
-    new URLSearchParams(consulta).get("guardado") === "1" ? "guardado" : null,
+  const [aviso, setAviso] = useState<"guardado" | "criado" | "jaCriado" | null>(
+    () => {
+      const q = new URLSearchParams(consulta);
+      if (q.get("criado") === "1") return "criado";
+      // A resposta de criar perdeu-se e o artigo já lá estava (§14.2).
+      if (q.get("criado") === "ja") return "jaCriado";
+      return q.get("guardado") === "1" ? "guardado" : null;
+    },
   );
   // Ao sair da ficha, as respostas que ainda cheguem deixam de contar.
   const montado = useRef(true);
@@ -163,12 +175,13 @@ export function Artigo({
     void carregarFicha();
   }, [carregarFicha]);
 
-  // A marca «guardado» (vinda da edição) sai do endereço: recarregar a
-  // página não volta a dizer que guardou.
+  // A marca «guardado» (vinda da edição) ou «criado» (vinda de criar,
+  // docs/22 §14.4) sai do endereço: recarregar a página não volta a dizê-lo.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("guardado") !== "1") return;
+    if (q.get("guardado") === null && q.get("criado") === null) return;
     q.delete("guardado");
+    q.delete("criado");
     window.history.replaceState(
       window.history.state,
       "",
@@ -178,16 +191,19 @@ export function Artigo({
 
   // O aviso de que gravou recebe o foco: o botão usado pode ter saído do
   // ecrã (revisão do #217, P2-2 e P3-6).
+  // O foco muda depois de o React pôr o aviso no ecrã e antes de o pintar:
+  // um pedido de animação podia chegar antes do aviso e perder-se. Ao abrir
+  // vindo da edição ou de criar, o aviso só aparece quando a ficha chega.
   const avisoRef = useRef<HTMLParagraphElement>(null);
+  const avisoPorFocar = useRef(aviso !== null);
   const focarAviso = () => {
-    requestAnimationFrame(() => {
-      avisoRef.current?.focus();
-    });
+    avisoPorFocar.current = true;
   };
-  useEffect(() => {
-    if (aviso !== null) focarAviso();
-    // Só ao abrir (vindo da edição, com «guardado»).
-  }, []);
+  useLayoutEffect(() => {
+    if (!avisoPorFocar.current || avisoRef.current === null) return;
+    avisoPorFocar.current = false;
+    avisoRef.current.focus();
+  }, [aviso, ficha.tipo]);
 
   /**
    * Corre uma acção da §13 e diz se gravou. Um conflito de versão (outra
@@ -396,7 +412,11 @@ export function Artigo({
               tabIndex={-1}
               ref={avisoRef}
             >
-              {t.artigoGuardado}
+              {aviso === "criado"
+                ? t.artigoCriado
+                : aviso === "jaCriado"
+                  ? t.artigoJaCriado
+                  : t.artigoGuardado}
             </p>
           )}
           {ordemAMeio ? (
