@@ -35,9 +35,13 @@ opções eram esperar ou uma conta no Docker Hub). Pedido #263.
   A publicação do #263 (corrida 37993770813, 09/10/2026, 21:35 UTC) falhou
   a descarregar `moby/buildkit:buildx-stable-1` do Docker Hub (tempo
   esgotado no `auth.docker.io`); o ensaio ficou com a versão anterior.
-  Corrigido no #270: `driver-opts: image=mirror.gcr.io/moby/buildkit:v0.33.1@sha256:cec9f139…`
-  nos dois fluxos (a v0.33.1 tinha o mesmo resumo que a `buildx-stable-1`
-  no espelho a 09/10/2026, pela lista de etiquetas). Nas corridas do
+  Preparado no #270: `driver-opts: image=mirror.gcr.io/moby/buildkit:v0.33.1@sha256:cec9f139…`
+  nos dois fluxos; a prova é a primeira publicação depois de o juntar
+  (revisão do #270, P3-3). A v0.33.1 e a `buildx-stable-1` deram o mesmo
+  resumo no espelho a 09/10/2026 (`curl` ao
+  `/v2/moby/buildkit/manifests/<etiqueta>`, HTTP 200 e
+  `docker-content-digest: sha256:cec9f139…` nas duas e no próprio resumo;
+  revisão do #270, P3-4). Nas corridas do
   `verificar` antes disso o BuildKit veio de algum lado sem falhar; não
   verifiquei de onde.
 - **A conta do Docker Hub** (a opção 2, feita noutra sessão: issue #266,
@@ -56,6 +60,17 @@ opções eram esperar ou uma conta no Docker Hub). Pedido #263.
   `public.ecr.aws`, dois dos três deram 429.
 - 09/10/2026, corrida 37992414036 (1134a42): `imagem` e `script-vps`
   verdes com o espelho.
+
+- **A vigilância** (revisão do #270, P2-1): o fluxo `vigiar` tem a tarefa
+  `espelho`, que todas as manhãs (e em cada entrada no `main`) confere,
+  pelo resumo, cada imagem `mirror.gcr.io/…@sha256:` escrita nos fluxos e
+  no `Dockerfile`; se uma sair do espelho, a corrida falha e abre o issue
+  «vigiar: a corrida da manhã falhou». Provado a 09/10/2026: as quatro
+  deram 200; um resumo inventado deu 404 e saída 1.
+- **Actualizar as versões** (revisão do #270, P3-5): com os resumos
+  fixos, nada se actualiza sozinho (não há Dependabot). Quem mexer nos
+  fluxos revê as quatro versões; o aviso de segurança de uma delas é
+  motivo para um pedido próprio.
 
 ## O que ficou por verificar
 
