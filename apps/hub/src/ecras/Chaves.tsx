@@ -16,7 +16,7 @@ import {
   type Membros,
 } from "../api";
 import { autorDe, estadoDaChave, fimDoDia, type Autor } from "../chaves";
-import { ACarregar, CaixaDeErro, useHub } from "../contexto";
+import { ACarregar, CaixaDeErro, useHub, LigacaoInterna } from "../contexto";
 import {
   ErroDoEcra,
   falhaDeAccao,
@@ -27,6 +27,7 @@ import {
 import { comRecente } from "../passkeys";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 import { Copiar } from "./Copiar";
+import { entradaDe } from "../modulos";
 
 // As chaves de API de um comerciante (docs/22 §9.3): a lista, criar uma
 // chave de servidor (o segredo aparece uma vez) e revogar. Só o dono as gere
@@ -179,15 +180,9 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
   return (
     <section aria-labelledby="titulo">
       <p>
-        <a
-          href="/"
-          onClick={(e) => {
-            e.preventDefault();
-            navegar("/");
-          }}
-        >
+        <LigacaoInterna href={entradaDe(comerciante)}>
           {t.equipaVoltar}
-        </a>
+        </LigacaoInterna>
       </p>
       <h1 id="titulo">
         {t.chavesTitulo}

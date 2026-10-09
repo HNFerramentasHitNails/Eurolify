@@ -209,6 +209,13 @@ Os textos e fluxos abaixo são servidos pelo Eurolify em todas as lojas.
    dias à venda, reduções progressivas)? Até haver resposta, o Eurolify recusa
    uma redução sem 30 dias de histórico. No preço por unidade: que produtos
    dispensa cada país (art. 5.º — *lido no texto*) e como se arredonda?
+8. **Imagens do catálogo com pessoas** (`14-dominio-catalogo.md` §3.5,
+   issue #179): o comerciante envia fotografias dos artigos, e algumas
+   mostram pessoas (um modelo, um funcionário). O Eurolify guarda-as e
+   mostra-as por conta dele. Basta o acordo de tratamento de dados, ou os
+   termos do serviço precisam de uma cláusula própria (o comerciante garante
+   que tem a autorização de quem aparece)? Que prazo para apagar depois de a
+   conta acabar? **Não lemos** nenhum texto sobre isto.
 
 **Pergunta.** Como organizar a validação por país — um jurista por país, ou um
 escritório com rede europeia — e por que países começar?

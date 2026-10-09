@@ -296,10 +296,23 @@ function pngDeUmaCor([r, g, b]) {
 // completa (docs/22 §12.3): duas variantes, uma descrição e duas imagens,
 // uma com texto alternativo e outra sem.
 let artigoDaFicha = "";
+// O 2 edita-se na passagem (docs/22 §13), com duas imagens sem texto; o 30
+// vem do sistema de gestão (P5).
+let artigoEditavel = "";
+let artigoExterno = "";
 let canalDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
-  const baseArtigos = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
+  // A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
+  // escrita sem «quem». A preparação escreve pelas funções do repositório,
+  // sem pedido: o «quem» vai só nas ligações dela (revisão do #217, P3-1); a
+  // API e o Hub põem o seu em cada escrita.
+  const urlDaPreparacao = new URL(urlDe(nomeBase, "eurolify_api", SENHA));
+  urlDaPreparacao.searchParams.set(
+    "options",
+    "-c eurolify.quem=passagem:preparar",
+  );
+  const baseArtigos = abrirBase(urlDaPreparacao.toString());
   for (let i = 0; i < 30; i++) {
     const id = await criarArtigo(
       baseArtigos,
@@ -331,11 +344,15 @@ let canalDaFicha;
       ],
     );
     if (i === 0) artigoDaFicha = id;
+    if (i === 1) artigoEditavel = id;
+    if (i === 29) artigoExterno = id;
   }
   const armazenamento = new ArmazenamentoEmDisco(PASTA_MEDIA);
-  for (const [cor, texto, principal] of [
-    [[37, 99, 235], "Frasco de verniz azul, de frente", true],
-    [[219, 39, 119], null, false],
+  for (const [cor, texto, principal, artigoId] of [
+    [[37, 99, 235], "Frasco de verniz azul, de frente", true, artigoDaFicha],
+    [[219, 39, 119], null, false, artigoDaFicha],
+    [[22, 163, 74], null, true, artigoEditavel],
+    [[234, 88, 12], null, false, artigoEditavel],
   ]) {
     const bytes = pngDeUmaCor(cor);
     const resumo = createHash("sha256").update(bytes).digest("hex");
@@ -347,7 +364,7 @@ let canalDaFicha;
       armazenamento.quotaPorComerciante,
     );
     await criarMedia(baseArtigos, comerciante, {
-      artigoId: artigoDaFicha,
+      artigoId,
       varianteId: null,
       resumo,
       textoAlternativo: texto,
@@ -542,7 +559,7 @@ try {
       .getByRole("button", { name: "Criar a conta com uma passkey" })
       .click();
     await p.getByRole("button", { name: "Já os guardei" }).click();
-    await p.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
+    await p.getByRole("heading", { name: "Início", exact: true }).waitFor();
   }
 
   const { contexto, pagina, cdp, autenticador } = await comPasskey();
@@ -591,9 +608,9 @@ try {
   await pagina.getByRole("button", { name: "Já os guardei" }).click();
 
   // Os comerciantes e a equipa.
-  await pagina.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
+  await pagina.getByRole("heading", { name: "Início", exact: true }).waitFor();
   await pagina.getByText("Loja de Ensaio").waitFor();
-  await pagina.getByRole("link", { name: "Ver a equipa" }).click();
+  await pagina.getByRole("link", { name: "Equipa", exact: true }).click();
   await pagina.getByRole("heading", { name: /Equipa/ }).waitFor();
   confere(
     await pagina
@@ -625,7 +642,7 @@ try {
   await pagina.getByRole("button", { name: "Sair", exact: true }).click();
   await pagina.getByRole("heading", { name: "Entrar no Hub" }).waitFor();
   await pagina.getByRole("button", { name: "Entrar com passkey" }).click();
-  await pagina.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
+  await pagina.getByRole("heading", { name: "Início", exact: true }).waitFor();
   confere(
     new URL(pagina.url()).pathname === "/",
     "sair e entrar outra vez com a passkey",
@@ -810,6 +827,26 @@ try {
         .count()) === 0,
     "o apoio não vê o formulário nem os convites",
   );
+  // O apoio lê a ficha mas não a edita (docs/22 §13.2: os âmbitos vêm do
+  // /hub/me; o servidor recusa na mesma).
+  await apoio.pagina.goto(
+    `${ORIGEM}/artigos/prd_${artigoEditavel}?comerciante=mer_${comerciante}`,
+  );
+  await apoio.pagina
+    .getByRole("heading", { name: /Verniz Rosa 2/, level: 1 })
+    .waitFor();
+  await apoio.pagina
+    .getByText("Ainda não está publicado", { exact: false })
+    .waitFor();
+  confere(
+    (await apoio.pagina
+      .getByRole("link", { name: "Editar", exact: true })
+      .count()) === 0 &&
+      (await apoio.pagina
+        .getByRole("button", { name: /Activar|Arquivar|Editar texto/ })
+        .count()) === 0,
+    "edição: o apoio vê a ficha sem «Editar» nem acções",
+  );
   await apoio.contexto.close();
 
   // O segredo do convite nunca foi num pedido (caminho ou consulta).
@@ -929,7 +966,7 @@ try {
     .getByRole("button", { name: "Entrar com passkey" })
     .click();
   await outro.pagina
-    .getByRole("heading", { name: "Os seus comerciantes" })
+    .getByRole("heading", { name: "Início", exact: true })
     .waitFor();
   await pagina.reload();
   await pagina.getByText("2 sessões abertas").waitFor();
@@ -1205,7 +1242,7 @@ try {
     .getByLabel("Código de 6 dígitos do autenticador")
     .fill(await generate({ secret: segredoTotp, epoch: agoraS + 30 }));
   await rp.getByRole("button", { name: "Entrar", exact: true }).click();
-  await rp.getByRole("heading", { name: "Os seus comerciantes" }).waitFor();
+  await rp.getByRole("heading", { name: "Início", exact: true }).waitFor();
   confere(true, "entrar com e-mail, palavra-passe e código");
 
   // Retirar: a Ana tem passkeys, por isso pode.
@@ -1297,7 +1334,7 @@ try {
     .getByRole("button", { name: "Entrar com passkey e aceitar" })
     .click();
   await gil.pagina
-    .getByRole("heading", { name: "Os seus comerciantes" })
+    .getByRole("heading", { name: "Início", exact: true })
     .waitFor();
   await gil.pagina.getByText("Loja de Ensaio").waitFor();
   confere(
@@ -1338,7 +1375,7 @@ try {
     pedidosArtigos.push(p.url());
   });
   await rp.goto(`${ORIGEM}/`);
-  await rp.getByRole("link", { name: "Ver artigos" }).click();
+  await rp.getByRole("link", { name: "Artigos", exact: true }).click();
   await rp.getByText("30 artigos", { exact: true }).waitFor();
   confere(
     (await rp
@@ -1660,6 +1697,204 @@ try {
     (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) === 0,
     "ficha: um artigo que não existe diz-o, sem «Tentar outra vez»",
   );
+  // Editar o artigo (docs/22 §13), com a Ana (dona), no «Verniz Rosa 2».
+  const fichaEditavel = `${ORIGEM}/artigos/prd_${artigoEditavel}?comerciante=mer_${comerciante}`;
+  await rp.goto(fichaEditavel);
+  await rp.getByRole("heading", { name: "Verniz Rosa 2", level: 1 }).waitFor();
+  // Só com o teclado (docs/22 §13.5; revisão do #217, P2-6): «Editar» com
+  // Enter, escrever, e Enter no nome grava.
+  await rp.getByRole("link", { name: "Editar", exact: true }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Editar o artigo" }).waitFor();
+  // O «voltar» do navegador com alterações por guardar pergunta; recusar
+  // fica no formulário (P2-1).
+  await rp
+    .getByLabel("Descrição", { exact: true })
+    .fill("Acabamento brilhante.");
+  let perguntouAoVoltar = false;
+  rp.once("dialog", (d) => {
+    perguntouAoVoltar = true;
+    void d.dismiss();
+  });
+  await rp.goBack();
+  await rp.waitForTimeout(300);
+  confere(
+    perguntouAoVoltar &&
+      (await rp.getByLabel("Descrição", { exact: true }).inputValue()) ===
+        "Acabamento brilhante.",
+    "edição: o «voltar» do navegador com alterações por guardar pergunta e, recusado, fica",
+  );
+  await rp.getByLabel("Nome", { exact: true }).focus();
+  await rp.keyboard.press("Control+A");
+  await rp.keyboard.type("Verniz Rosa 2 Brilho");
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByRole("heading", { name: "Verniz Rosa 2 Brilho", level: 1 })
+    .waitFor();
+  confere(
+    (await rp.getByText("Alterações guardadas.").count()) === 1 &&
+      (await rp.getByText("Acabamento brilhante.").count()) === 1 &&
+      !new URL(rp.url()).searchParams.has("guardado"),
+    "edição: guardar o nome e a descrição volta à ficha com «Alterações guardadas»",
+  );
+  // Um conflito: outra escrita (aqui, um fetch do mesmo navegador) muda o
+  // artigo entre abrir o formulário e guardar.
+  await rp.getByRole("link", { name: "Editar", exact: true }).click();
+  await rp.getByLabel("Nome", { exact: true }).waitFor();
+  const outraEscrita = await rp.evaluate(
+    async ({ c, a }) => {
+      const ficha = await (
+        await fetch(`/hub/products/${a}`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      const r = await fetch(`/hub/products/${a}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "eurolify-comerciante": c,
+        },
+        body: JSON.stringify({ versao: ficha.versao, marca: "Outra Marca" }),
+      });
+      return r.status;
+    },
+    { c: `mer_${comerciante}`, a: `prd_${artigoEditavel}` },
+  );
+  await rp.getByLabel("Nome", { exact: true }).fill("Verniz Rosa 2 Mate");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp
+    .getByText("Outra pessoa alterou este artigo entretanto.", { exact: false })
+    .waitFor();
+  confere(
+    outraEscrita === 200 &&
+      (await rp.getByLabel("Nome", { exact: true }).inputValue()) ===
+        "Verniz Rosa 2 Mate" &&
+      (await rp.getByText("Outra Marca", { exact: true }).count()) === 1,
+    "edição: um conflito não grava, mostra o que está guardado e deixa o que se escreveu",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "artigo-editar-conflito-375-claro.png"),
+    fullPage: true,
+  });
+  // Cancelar com alterações por guardar pergunta antes.
+  let perguntou = false;
+  rp.once("dialog", (d) => {
+    perguntou = true;
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Cancelar" }).click();
+  await rp
+    .getByRole("heading", { name: "Verniz Rosa 2 Brilho", level: 1 })
+    .waitFor();
+  confere(
+    perguntou,
+    "edição: cancelar com alterações por guardar pergunta antes",
+  );
+  // O estado: activar, arquivar (com confirmação) e repor.
+  await rp.getByRole("button", { name: "Activar" }).click();
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).waitFor();
+  let confirmouArquivo = false;
+  rp.once("dialog", (d) => {
+    confirmouArquivo = d.message().includes("tira-o de venda");
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).click();
+  await rp.getByRole("button", { name: "Repor" }).waitFor();
+  await rp.getByRole("button", { name: "Repor" }).click();
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).waitFor();
+  confere(
+    confirmouArquivo &&
+      (await rp.locator(".estado-artigo", { hasText: "Activo" }).count()) === 1,
+    "edição: activar, arquivar com confirmação e repor",
+  );
+  // As imagens: o texto alternativo que faltava, a principal e a ordem.
+  await rp.waitForFunction(
+    () =>
+      [...document.querySelectorAll(".imagens-artigo img")].filter(
+        (i) => i.complete && i.naturalWidth === 64,
+      ).length === 2,
+  );
+  const imagensEditaveis = rp.locator(".imagens-artigo > li");
+  await imagensEditaveis
+    .nth(1)
+    .getByRole("button", { name: "Editar texto alternativo" })
+    .click();
+  await imagensEditaveis
+    .nth(1)
+    .getByLabel("Texto alternativo")
+    .fill("Frasco de verniz laranja");
+  await imagensEditaveis
+    .nth(1)
+    .getByRole("button", { name: "Guardar" })
+    .click();
+  await rp.getByText("Frasco de verniz laranja").waitFor();
+  confere(
+    (await rp
+      .getByText("Sem texto alternativo — impede a publicação.")
+      .count()) === 1,
+    "edição: o texto alternativo que faltava grava-se e o aviso sai dessa imagem",
+  );
+  await imagensEditaveis
+    .nth(1)
+    .getByRole("button", { name: "Tornar principal" })
+    .click();
+  await rp.waitForFunction(
+    () =>
+      document
+        .querySelectorAll(".imagens-artigo > li")[1]
+        ?.textContent?.includes("Principal") === true,
+  );
+  // Mover com o teclado: o foco fica no aviso, não se perde (P2-2).
+  await imagensEditaveis
+    .nth(0)
+    .getByRole("button", { name: "Mover para depois" })
+    .focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () =>
+      document
+        .querySelectorAll(".imagens-artigo > li")[0]
+        ?.textContent?.includes("Frasco de verniz laranja") === true,
+  );
+  await rp.waitForFunction(
+    () => document.activeElement?.getAttribute("role") === "status",
+  );
+  confere(
+    (await rp.locator(".imagens-artigo img").count()) === 2,
+    "edição: tornar principal e mudar a ordem; o foco vai para «Alterações guardadas»",
+  );
+  // Arquivar a única variante: a confirmação diz que é a última.
+  let ultima = false;
+  rp.once("dialog", (d) => {
+    ultima = d.message().includes("última variante activa");
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Arquivar variante ENS-002" }).click();
+  await rp.getByRole("row", { name: /ENS-002.*Arquivada/ }).waitFor();
+  confere(ultima, "edição: arquivar a última variante avisa e fica Arquivada");
+  // Sem variante activa, repor diz o motivo da API (P2-5).
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).click();
+  await rp.getByRole("button", { name: "Repor" }).click();
+  await rp
+    .getByText("precisa de pelo menos uma variante activa", { exact: false })
+    .waitFor();
+  confere(true, "edição: repor sem variante activa diz porquê");
+  // Um artigo do sistema de gestão (P5): sem «Editar» nem estado; o aviso.
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoExterno}?comerciante=mer_${comerciante}`,
+  );
+  await rp
+    .getByText("Este artigo vem do sistema de gestão:", { exact: false })
+    .waitFor();
+  confere(
+    (await rp.getByRole("link", { name: "Editar", exact: true }).count()) ===
+      0 &&
+      (await rp.getByRole("button", { name: /Activar|Arquivar/ }).count()) ===
+        0,
+    "edição: num artigo do sistema de gestão, sem «Editar» nem estado, com o aviso",
+  );
+
   // Sem permissão (403) e sessão que acabou (401), com respostas fingidas.
   const fichaReal = `${ORIGEM}/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`;
   await rp.route("**/hub/products/prd_*", (r) =>
@@ -1818,17 +2053,369 @@ try {
     "o navegador não guardou nenhum código de recuperação",
   );
 
+  // A entrada por módulos (docs/hub-modular-glassmorphism.md; skill
+  // eurolify-hub-quality-gate): as 8 larguras nos dois temas, as línguas, a
+  // pesquisa, o teclado, o modo opaco, as preferências e vários comerciantes.
+  {
+    const LARGURAS = [320, 375, 390, 768, 820, 1024, 1280, 1440];
+    const colunasPara = (w) =>
+      w < 480 ? 2 : w < 640 ? 3 : w < 880 ? 4 : w < 1040 ? 5 : 6;
+    const destinosDoDono = ["equipa", "artigos", "chaves"].map(
+      (c) => `/${c}?comerciante=mer_${comerciante}`,
+    );
+    const medirEntrada = (p) =>
+      p.evaluate(() => {
+        const grelha = document.querySelector(".grelha-modulos");
+        const nav = document.querySelector(".modulos");
+        const cartoes = [...document.querySelectorAll(".atalho-modulo")];
+        return {
+          largo: document.documentElement.scrollWidth > window.innerWidth,
+          colunas: window
+            .getComputedStyle(grelha)
+            .gridTemplateColumns.split(" ").length,
+          larguraGrelha: nav.clientWidth,
+          pequenos: cartoes.filter((a) => {
+            const r = a.getBoundingClientRect();
+            return r.width < 44 || r.height < 44;
+          }).length,
+          cortados: [...document.querySelectorAll(".rotulo-modulo")].filter(
+            (e) =>
+              e.scrollWidth > e.clientWidth + 1 ||
+              e.scrollHeight > e.clientHeight + 1,
+          ).length,
+          destinos: cartoes.map((a) => a.getAttribute("href")),
+        };
+      });
+    // O vidro lê-se nos dois elementos que o têm, pelo desfoque e pela cor
+    // de fundo (translúcida ou opaca) (revisão do #219, P2-4).
+    const lerVidro = (p) =>
+      p.evaluate(() =>
+        [".superficie-icone", ".pesquisa-linha input"].map((sel) => {
+          const cs = window.getComputedStyle(document.querySelector(sel));
+          return { sel, filtro: cs.backdropFilter, fundo: cs.backgroundColor };
+        }),
+      );
+    const opacoDe = (fundo) => /^rgb\(\d+, \d+, \d+\)$/.test(fundo);
+    const comVidro = (l) =>
+      l.every((x) => x.filtro.includes("blur") && !opacoDe(x.fundo));
+    const semVidro = (l) =>
+      l.every((x) => x.filtro === "none" && opacoDe(x.fundo));
+    const mostrar = (l) =>
+      l.map((x) => `${x.sel}: ${x.filtro}, ${x.fundo}`).join("; ");
+    const ficheiro = (nome, largura, tema) =>
+      join(
+        SAIDA,
+        `${nome}-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      );
+
+    for (const tema of ["light", "dark"]) {
+      for (const largura of LARGURAS) {
+        const c = await navegador.newContext({
+          ignoreHTTPSErrors: true,
+          colorScheme: tema,
+          viewport: { width: largura, height: 900 },
+          storageState: sessao,
+        });
+        const p = await c.newPage();
+        await p.goto(`${ORIGEM}/`);
+        await p.locator(".grelha-modulos").waitFor();
+        const m = await medirEntrada(p);
+        const vidro = await lerVidro(p);
+        const nome = `entrada ${String(largura)} ${tema}`;
+        confere(!m.largo, `${nome}: sem deslocação horizontal`);
+        confere(
+          m.colunas === colunasPara(m.larguraGrelha),
+          `${nome}: ${String(m.colunas)} colunas para ${String(m.larguraGrelha)} px de grelha`,
+        );
+        confere(
+          m.pequenos === 0,
+          `${nome}: cada módulo tem pelo menos 44 × 44 px`,
+        );
+        confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
+        confere(
+          JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
+          `${nome}: os três módulos do dono, com o comerciante no endereço`,
+        );
+        confere(
+          comVidro(vidro),
+          `${nome}: o vidro está ligado no ícone e no campo (${mostrar(vidro)})`,
+        );
+        await p.screenshot({
+          path: ficheiro("entrada", largura, tema),
+          fullPage: true,
+        });
+        await c.close();
+      }
+    }
+
+    // As outras línguas, a 375, 768 e 1280 px.
+    for (const [lingua, rotulo] of [
+      ["es", "Claves de API"],
+      ["en", "API keys"],
+    ]) {
+      for (const largura of [375, 768, 1280]) {
+        const c = await navegador.newContext({
+          ignoreHTTPSErrors: true,
+          viewport: { width: largura, height: 900 },
+          storageState: sessao,
+        });
+        await c.addInitScript((l) => {
+          window.localStorage.setItem("eurolify-hub-lingua", l);
+        }, lingua);
+        const p = await c.newPage();
+        await p.goto(`${ORIGEM}/`);
+        await p.locator(".grelha-modulos").waitFor();
+        const m = await medirEntrada(p);
+        const nome = `entrada ${lingua} ${String(largura)}`;
+        confere(
+          !m.largo && m.cortados === 0,
+          `${nome}: sem deslocação nem rótulos cortados`,
+        );
+        confere(
+          (await p.getByRole("link", { name: rotulo, exact: true }).count()) ===
+            1,
+          `${nome}: o módulo das chaves na língua («${rotulo}»)`,
+        );
+        await p.screenshot({
+          path: join(SAIDA, `entrada-${lingua}-${String(largura)}-claro.png`),
+          fullPage: true,
+        });
+        await c.close();
+      }
+    }
+
+    // Pesquisa, teclado, Ctrl+clique e modo opaco.
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 375, height: 900 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/`);
+    await p.locator(".grelha-modulos").waitFor();
+    const campo = p.getByLabel("Pesquisar módulos");
+    await campo.fill("  CONVITES ");
+    confere(
+      (await p.locator(".atalho-modulo").allTextContents()).join() ===
+        "Equipa" &&
+        (await p.locator(".contagem-modulos").textContent()) === "1 módulo",
+      "entrada: a pesquisa encontra a equipa pelos termos, sem acentos nem maiúsculas, e anuncia 1 módulo",
+    );
+    await campo.fill("faturas");
+    await p
+      .getByText("Nenhum módulo corresponde a «faturas».")
+      .waitFor({ timeout: 5_000 });
+    confere(
+      (await p.locator(".atalho-modulo").count()) === 0,
+      "entrada: uma pesquisa sem resultados diz qual foi e não mostra módulos",
+    );
+    await p.screenshot({
+      path: join(SAIDA, "entrada-sem-resultados-375-claro.png"),
+      fullPage: true,
+    });
+    await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
+    confere(
+      (await campo.inputValue()) === "" &&
+        (await p.locator(".atalho-modulo").count()) === 3 &&
+        (await campo.evaluate((e) => e === document.activeElement)),
+      "entrada: «Limpar a pesquisa» volta aos três módulos e devolve o foco ao campo",
+    );
+    // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
+    await campo.focus();
+    await p.keyboard.press("Tab");
+    const primeiro = await p.evaluate(
+      () => document.activeElement?.textContent,
+    );
+    await p.keyboard.press("Tab");
+    const segundoFoco = await p.evaluate(
+      () => document.activeElement?.textContent,
+    );
+    confere(
+      primeiro === "Equipa" && segundoFoco === "Artigos",
+      `entrada: Tab do campo vai à Equipa e depois aos Artigos (${String(primeiro)}, ${String(segundoFoco)})`,
+    );
+    await p.keyboard.press("Enter");
+    await p.getByRole("heading", { name: /Artigos/ }).waitFor();
+    confere(
+      new URL(p.url()).pathname === "/artigos",
+      "entrada: Enter num módulo abre a página",
+    );
+    await p.getByRole("link", { name: "Voltar ao início" }).click();
+    await p.locator(".grelha-modulos").waitFor();
+    confere(
+      new URL(p.url()).search === `?comerciante=mer_${comerciante}`,
+      "entrada: «Voltar ao início» volta com o comerciante no endereço",
+    );
+    // Ctrl/Cmd+clique abre noutro separador e esta página fica.
+    const [nova] = await Promise.all([
+      c.waitForEvent("page"),
+      p
+        .getByRole("link", { name: "Chaves de API", exact: true })
+        .click({ modifiers: ["ControlOrMeta"] }),
+    ]);
+    await nova.waitForLoadState();
+    confere(
+      new URL(nova.url()).pathname === "/chaves" &&
+        new URL(p.url()).pathname === "/",
+      "entrada: Ctrl/Cmd+clique abre o módulo noutro separador e a entrada fica",
+    );
+    await nova.close();
+
+    // «Superfícies opacas»: tira o vidro, dura na sessão da página, não se
+    // guarda no navegador.
+    const antesDeOpaco = JSON.stringify(await c.storageState());
+    const opaco = p.getByRole("button", { name: "Superfícies opacas" });
+    await opaco.click();
+    const vidroOpaco = await lerVidro(p);
+    confere(
+      (await opaco.getAttribute("aria-pressed")) === "true" &&
+        semVidro(vidroOpaco),
+      `entrada: «Superfícies opacas» tira o vidro do ícone e do campo (${mostrar(vidroOpaco)})`,
+    );
+    await p.screenshot({
+      path: join(SAIDA, "entrada-opaca-375-claro.png"),
+      fullPage: true,
+    });
+    await p.getByRole("link", { name: "Equipa", exact: true }).click();
+    await p.getByRole("heading", { name: /Equipa/ }).waitFor();
+    await p.getByRole("link", { name: "Voltar ao início" }).click();
+    await p.locator(".grelha-modulos").waitFor();
+    confere(
+      (await p
+        .getByRole("button", { name: "Superfícies opacas" })
+        .getAttribute("aria-pressed")) === "true",
+      "entrada: o modo opaco continua ao navegar dentro do Hub",
+    );
+    confere(
+      JSON.stringify(await c.storageState()) === antesDeOpaco,
+      "entrada: o modo opaco não escreve nada no navegador",
+    );
+    await p.reload();
+    await p.locator(".grelha-modulos").waitFor();
+    confere(
+      (await p
+        .getByRole("button", { name: "Superfícies opacas" })
+        .getAttribute("aria-pressed")) === "false",
+      "entrada: recarregar volta ao vidro (nada guardado)",
+    );
+
+    // As preferências do sistema: menos transparência (pelo protocolo do
+    // Chromium; o Playwright não a tem), cores forçadas e menos movimento.
+    const cdp = await c.newCDPSession(p);
+    await cdp.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-transparency", value: "reduce" }],
+    });
+    const suportada = await p.evaluate(
+      () => window.matchMedia("(prefers-reduced-transparency: reduce)").matches,
+    );
+    if (suportada) {
+      const vidroReduzido = await lerVidro(p);
+      confere(
+        semVidro(vidroReduzido),
+        `entrada: com prefers-reduced-transparency, sem vidro no ícone nem no campo (${mostrar(vidroReduzido)})`,
+      );
+    } else {
+      passos.push(
+        "NV   entrada: este Chromium não emula prefers-reduced-transparency",
+      );
+    }
+    await cdp.send("Emulation.setEmulatedMedia", { features: [] });
+    await p.emulateMedia({ forcedColors: "active" });
+    const vidroForcado = await lerVidro(p);
+    confere(
+      semVidro(vidroForcado),
+      `entrada: com cores forçadas, sem vidro no ícone nem no campo (${mostrar(vidroForcado)})`,
+    );
+    await p.screenshot({
+      path: join(SAIDA, "entrada-cores-forcadas-375.png"),
+      fullPage: true,
+    });
+    await p.emulateMedia({ forcedColors: "none", reducedMotion: "reduce" });
+    const transicao = await p
+      .locator(".superficie-icone")
+      .first()
+      .evaluate((e) => window.getComputedStyle(e).transitionDuration);
+    confere(
+      transicao === "0s",
+      `entrada: com menos movimento, as superfícies dos ícones sem transição (${transicao})`,
+    );
+    await c.close();
+
+    // Vários comerciantes: a Ana passa a ser apoio de uma segunda loja (só
+    // nesta base descartável, direito na tabela, como o faria um convite).
+    const baseDois = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
+    const segundo = await registarComerciante(baseDois, {
+      nome: "Segunda Loja de Ensaio",
+      lingua: "pt",
+      fuso: "Europe/Lisbon",
+    });
+    await baseDois.destroy();
+    psql(
+      `insert into membro (comerciante_id, pessoa_id, papel, convidado_por)
+       select '${segundo}'::uuid, id, 'apoio', 'operador:capturas'
+       from pessoa where email = 'ana@exemplo.test'`,
+    );
+    const cv = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 375, height: 900 },
+      storageState: sessao,
+    });
+    const pv = await cv.newPage();
+    await pv.goto(`${ORIGEM}/`);
+    await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
+    confere(
+      (await pv.locator(".grelha-modulos").count()) === 0,
+      "entrada: com dois comerciantes e nenhum no endereço, pede a escolha e não mostra módulos",
+    );
+    await pv.screenshot({
+      path: join(SAIDA, "entrada-escolher-375-claro.png"),
+      fullPage: true,
+    });
+    await pv.getByRole("link", { name: /Segunda Loja de Ensaio/ }).click();
+    await pv.locator(".grelha-modulos").waitFor();
+    confere(
+      new URL(pv.url()).search === `?comerciante=mer_${segundo}` &&
+        JSON.stringify(await pv.locator(".atalho-modulo").allTextContents()) ===
+          JSON.stringify(["Equipa", "Artigos"]),
+      "entrada: na segunda loja, o apoio vê a equipa e os artigos, sem as chaves",
+    );
+    await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
+    await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
+    await pv.goBack();
+    await pv.locator(".grelha-modulos").waitFor();
+    confere(
+      new URL(pv.url()).search === `?comerciante=mer_${segundo}`,
+      "entrada: voltar atrás regressa ao comerciante escolhido",
+    );
+    await pv.goto(
+      `${ORIGEM}/?comerciante=mer_00000000-0000-7000-8000-000000000000`,
+    );
+    await pv
+      .getByText("Este comerciante não está entre os seus.")
+      .waitFor({ timeout: 5_000 });
+    confere(
+      (await pv.locator(".grelha-modulos").count()) === 0,
+      "entrada: um comerciante no endereço que não é da pessoa não abre módulos",
+    );
+    await cv.close();
+  }
+
   // As capturas: 9 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
     ["convite", `/convite#${conviteDasCapturas}`, "Aceitar o convite"],
-    ["comerciantes", "/", "Os seus comerciantes"],
+    ["inicio", `/?comerciante=mer_${comerciante}`, "Início"],
     ["equipa", `/equipa?comerciante=mer_${comerciante}`, "Equipa"],
     ["artigos", `/artigos?comerciante=mer_${comerciante}`, "Artigos"],
     [
       "artigo",
       `/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`,
       "Verniz Azul 1",
+    ],
+    [
+      "artigo-editar",
+      `/artigos/prd_${artigoEditavel}/editar?comerciante=mer_${comerciante}`,
+      "Editar o artigo",
     ],
     ["conta", "/conta", "A minha conta"],
     ["chaves", `/chaves?comerciante=mer_${comerciante}`, "Chaves de API"],

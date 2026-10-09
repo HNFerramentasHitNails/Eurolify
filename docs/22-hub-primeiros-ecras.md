@@ -61,7 +61,7 @@ a isto antes de entrarem contas reais.
 |---|---|---|---|
 | **Entrar** (`/entrar`) | o nome do produto, um botão «Entrar com passkey», a escolha da língua | `POST /hub/session/options` → navegador → `POST /hub/session` | a carregar (à espera da passkey); cancelado pela pessoa (volta ao botão, sem erro vermelho); recusado (401: «Não foi possível entrar com esta passkey»); muitas tentativas (429/`auth.locked`: com os minutos); sem suporte de passkey; erro da API (5xx: tentar outra vez) |
 | **Aceitar convite** (`/convite#…`) | «Foi convidado para trabalhar no Hub», campo «O seu nome» (1 a 100 caracteres), botão «Criar a conta com uma passkey» | `POST /hub/invitations/accept/options` → navegador → `POST /hub/invitations/accept-new` | sem segredo na ligação; convite que não vale (a mesma mensagem para expirado, usado, cancelado ou inexistente — a API não distingue, de propósito); o e-mail já tem conta (`invite.account_exists`: entrar e aceitar, §10); nome inválido; a carregar; 429. **Depois de criar a conta**, os 10 códigos de recuperação que a API devolve, **uma vez**: «Copiar», o aviso de que não voltam a aparecer e um botão «Já os guardei» antes de seguir (`docs/21` §7) |
-| **Os seus comerciantes** (`/`) | quem entrou (nome, e-mail) e a lista de comerciantes de que é membro, com o papel | `GET /hub/me` | vazio («Não pertence a nenhuma equipa»: pode acontecer depois de sair de todas); a carregar; sem sessão (vai para `/entrar`) |
+| **Início** (`/`; antes «Os seus comerciantes»; desde o #218, a entrada por módulos: `docs/hub-modular-glassmorphism.md`) | quem entrou (nome, e-mail); o comerciante activo (no endereço, `/?comerciante=mer_…`; com vários, escolhe-se, nunca o primeiro sozinho) e os seus módulos pelos âmbitos do `/hub/me`, com a pesquisa de módulos | `GET /hub/me` | vazio («Não pertence a nenhuma equipa»: pode acontecer depois de sair de todas); escolher o comerciante; comerciante do endereço que não é da pessoa; sem módulos; pesquisa sem resultados; a carregar; sem sessão (vai para `/entrar`) |
 | **Equipa** (`/equipa?comerciante=mer_…`) | os membros activos (nome, e-mail, papel, desde), em tabela no computador e em cartões no telemóvel; o dono vê também os convites em aberto (e-mail, papel, expira); a contagem à vista | `GET /hub/members` | vazio de convites; sem permissão (403: «Não pode ver esta equipa»); comerciante que não é dele (403); a carregar; erro |
 | **Convidar** (na Equipa, só para quem pode convidar) | e-mail e papel (o dono vê os quatro papéis, o gestor só armazém e apoio — uma cópia da regra da base, `docs/21` §5, só para não oferecer o que ela recusa; **por fazer:** a API devolver a lista; se recusar, mostra a recusa); depois de criar, **a ligação do convite, uma vez**, com «Copiar» e o aviso de que não volta a aparecer | `POST /hub/invitations` | precisa de autenticação recente (403 `auth.reauthentication_required` → pede a passkey outra vez com `POST /hub/session/reauthenticate` e repete); comerciante suspenso; e-mail inválido; 429 |
 | **Cancelar convite** | botão por convite, com confirmação | `POST /hub/invitations/{id}/cancel` | já usado; sem permissão |
@@ -278,8 +278,8 @@ migração 0018). A base decide; o ecrã só não oferece o que vai ser recusado
 |---|---|---|---|
 | **Equipa: mudar o papel** | na linha de cada membro, para o dono: o papel numa lista de escolha e «Mudar» (só depois de escolher outro), com confirmação: os convites em aberto e as chaves de servidor que a pessoa criou e que o papel novo já não permite são cancelados e revogados, com as chaves criadas a partir delas (`pessoa_fechar_acessos`, 0025); as integrações que as usam deixam de funcionar. Não aparece na linha do próprio dono (ninguém muda o seu papel) | `POST /hub/members/{id}/role` | autenticação recente; o último dono não deixa de o ser (`member.last_owner`); membro que já saiu (`member.not_found`: a lista relê-se); comerciante suspenso ou fechado |
 | **Equipa: tirar da equipa** | para o dono, «Tirar da equipa» na linha de cada outro membro, com confirmação: deixa de entrar; os convites em aberto que criou são cancelados e as chaves de servidor que criou (e as criadas a partir delas) são revogadas; as chaves públicas da loja ficam | `POST /hub/members/{id}/end` | autenticação recente; o último dono (`member.last_owner`); membro que já saiu |
-| **Equipa: sair da equipa** | para qualquer membro, «Sair desta equipa» na própria linha, com confirmação (o mesmo que fecha); depois volta a «Os seus comerciantes». O último dono vê o botão desligado e porquê | `POST /hub/members/{id}/end` (o próprio) | o último dono não sai (`member.last_owner`) |
-| **Convite: o que é, antes de aceitar** (issue #194) | em `/convite`, por cima de tudo: «Foi convidado para a equipa de {comerciante}, com o papel {papel}. O convite é para {e-mail} e expira a {data}.» Um convite que já não vale mostra só a recusa, sem formulário. Com a sessão de outra pessoa, «Este convite é para {e-mail} e entrou como {e-mail da sessão}: saia e entre com a conta desse e-mail»; «Aceitar com esta conta» continua activo, porque quem decide é a base (`invite.other_person`) — o ecrã comparar e-mails podia recusar o que ela aceita (revisão do #196, P2-1). Com sessão e um convite que não vale, uma ligação para «Os seus comerciantes» | `POST /hub/invitations/preview` | a carregar; convite que não vale (a mesma mensagem para expirado, usado, cancelado, inexistente ou comerciante suspenso); 429; sem rede (mostra o erro e deixa seguir: aceitar dá a sua própria resposta) |
+| **Equipa: sair da equipa** | para qualquer membro, «Sair desta equipa» na própria linha, com confirmação (o mesmo que fecha); depois volta ao «Início». O último dono vê o botão desligado e porquê | `POST /hub/members/{id}/end` (o próprio) | o último dono não sai (`member.last_owner`) |
+| **Convite: o que é, antes de aceitar** (issue #194) | em `/convite`, por cima de tudo: «Foi convidado para a equipa de {comerciante}, com o papel {papel}. O convite é para {e-mail} e expira a {data}.» Um convite que já não vale mostra só a recusa, sem formulário. Com a sessão de outra pessoa, «Este convite é para {e-mail} e entrou como {e-mail da sessão}: saia e entre com a conta desse e-mail»; «Aceitar com esta conta» continua activo, porque quem decide é a base (`invite.other_person`) — o ecrã comparar e-mails podia recusar o que ela aceita (revisão do #196, P2-1). Com sessão e um convite que não vale, uma ligação para o «Início» | `POST /hub/invitations/preview` | a carregar; convite que não vale (a mesma mensagem para expirado, usado, cancelado, inexistente ou comerciante suspenso); 429; sem rede (mostra o erro e deixa seguir: aceitar dá a sua própria resposta) |
 | **Convite com uma conta que já existe** | em `/convite`, quando a API diz que o e-mail já tem conta: «Este e-mail já tem conta. Entre com ela para aceitar o convite.» e «Entrar com passkey e aceitar»; com sessão aberta, «Entrou como {nome} ({e-mail})», «Aceitar com esta conta» e «Sair»; no formulário de conta nova, sempre «Já tem conta? Entre primeiro no Hub e volte a abrir esta ligação» | `POST /hub/session` (entrar) → `POST /hub/invitations/accept` | o convite é para outro e-mail (`invite.other_person`: sair e entrar com a conta certa); já é membro (`invite.already_member`); convite que já não vale; autenticação recente (acabou de entrar: vale); quem só tem palavra-passe entra primeiro em `/entrar` e volta a abrir a ligação |
 
 O segredo do convite continua só na memória da página (lido uma vez ao
@@ -337,7 +337,7 @@ endereço expõe.
 
 | Ecrã | O que mostra | Rotas da API | Estados além do normal |
 |---|---|---|---|
-| **Artigos** (`/artigos?comerciante=mer_…`; ligação em «Os seus comerciantes», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar pelo nome e pelo SKU de uma variante, em dois campos (`texto`, `sku`: a API junta os filtros, por isso um campo só procuraria os dois ao mesmo tempo). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /hub/products?estado=&texto=&sku=&limite=25&cursor=` (a mesma do `GET /products`) | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante», sem «Tentar outra vez»); «Mostrar mais» que falha mostra o erro por baixo das linhas já lidas; filtro inválido (400: o ecrã só deixa escolher valores válidos; se chegar, aparece como erro geral) |
+| **Artigos** (`/artigos?comerciante=mer_…`; módulo no «Início», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar pelo nome e pelo SKU de uma variante, em dois campos (`texto`, `sku`: a API junta os filtros, por isso um campo só procuraria os dois ao mesmo tempo). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /hub/products?estado=&texto=&sku=&limite=25&cursor=` (a mesma do `GET /products`) | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante», sem «Tentar outra vez»); «Mostrar mais» que falha mostra o erro por baixo das linhas já lidas; filtro inválido (400: o ecrã só deixa escolher valores válidos; se chegar, aparece como erro geral) |
 
 **Limites aceites** (revisão do #201): «Alterado em» aparece no fuso do
 navegador de quem vê, não no do comerciante (o `/hub/me` não dá o fuso; a
@@ -492,10 +492,12 @@ rotas pela chave (como na §11.1): nenhuma regra nova do catálogo nasce no Hub
 - **Quem pode**: a sessão com `catalog:write` no comerciante do cabeçalho;
   hoje o `dono` e o `gestor` (`apps/api/src/identidade/papeis.ts`). O
   `armazém` e o `apoio` recebem 403, como na lista (§11.1).
-- **O ecrã não decide quem pode**: hoje o `/hub/me` dá o papel, não os
-  âmbitos (`apps/hub/src/api.ts`, `Eu`). Passa a dar, por comerciante, os
-  âmbitos do papel (lidos da base, `papel_ambitos`); o Hub mostra «Editar»
-  só com `catalog:write`, e o servidor recusa na mesma.
+- **O ecrã não decide quem pode**: o `/hub/me` dá, por comerciante, os
+  âmbitos do papel, lidos da base (`papel_ambitos`; migração 0034, pedido
+  #212); um âmbito que a API ainda não conhece fica de fora, para uma
+  migração nova não partir a versão anterior. O Hub mostra «Editar» só com
+  `catalog:write` (e as ligações «Ver artigos» e «Chaves» com `catalog:read`
+  e `keys:write`), e o servidor recusa na mesma.
 - **Quem fez**: cada escrita leva `pessoa:per_…` como `eurolify.quem`, o
   formato que o #208 prevê para o Hub (`docs/14` §3.12, proposta). **O código
   da edição entra depois do código da linha do tempo** (#208): uma escrita do
@@ -558,6 +560,114 @@ externo, como na §13.3.
   conflito de versão com duas sessões; capturas a 375, 768 e 1280 px, claro e
   escuro, e a passagem só com teclado.
 - **A outra sessão** vê no #77 e no #208 os caminhos novos e quando entram.
+
+## 14. Catálogo: criar artigos (issue #221)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da criação de
+artigos»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que
+fica de fora e o limite de 20 variantes (*«sim, aprovo o desenho, junta o
+#222»*). A §13.1 deixou de fora «criar artigos e variantes»; este passo
+trata da primeira parte. Ex.: a gestora da «Loja de Ensaio» carrega em
+«Criar artigo» na lista, escreve «Verniz Verde 31», a marca «Marca de
+Ensaio», uma variante com o SKU `ENS-031`, «Unidade», 15 ml e 60 g, e guarda;
+abre-se a ficha do artigo novo, em rascunho, com «Artigo criado em
+rascunho».
+
+### 14.1 O que entra neste passo e o que fica de fora
+
+Como na §13.1, entra só o que a API já sabe fazer, pela mesma função da rota
+pela chave (medido a 09/10/2026 em `apps/api/src/catalogo/rotas.ts`).
+
+| Entra | Rota da API |
+|---|---|
+| Criar um artigo **físico**, em rascunho, com o nome, a descrição e a marca | `POST /products` (`criarArtigo` + `fichaNa`), linhas 1769–1797 |
+| As variantes do artigo novo, pelo menos uma: SKU, unidade de venda, GTIN com a origem, conteúdo (quantidade e unidade), peso e dimensões | o mesmo pedido (`variantes`, `NovaVariante`, linhas 491–533) |
+
+| Fica de fora, e porquê |
+|---|
+| **Serviço e bilhete**: só se publicam com a classificação (`docs/14` §3.10, P11) e a classificação tem regras **C** e desenho à parte (§13.1). Criá-los no Hub deixava rascunhos que o Hub não consegue levar a lado nenhum. Entram com o formulário da classificação. |
+| **Digital e cartão-oferta**: desligados na base até às portas deles (migração 0002, `catalog.type_disabled`; ADR-0034). |
+| **Categoria fiscal**: como na §13.1 (decide o IVA; só com uma lista dada pelo servidor). A API aceita criar sem ela. |
+| **`onu` e `classe_adr`** (mercadorias perigosas): **C** (`docs/14` linha 122; `product-compliance-eu`). Um valor escrito à mão decide o transporte; entra com o desenho dos campos regulamentares. |
+| **Opções** (cor, tamanho) e os valores de cada variante: formulário próprio. |
+| **Acrescentar uma variante a um artigo que já existe** (`POST /products/{id}/variants`): num artigo com opções pede os valores (a regra `options_incomplete`), e o Hub ainda não mostra opções. Entra com elas. |
+| **Imagens novas**: como na §13.1 (nginx a 64 KB e escritas só em JSON). |
+| **Preço**: é do domínio Preços e mercados (#127), ainda sem código. |
+
+**Decidido** (Diogo, 09/10/2026): no máximo **20 variantes** por artigo criado no Hub (a API
+aceita 100, `MAX_VARIANTES_POR_ARTIGO_NOVO`). Um formulário com mais é
+difícil de usar no telemóvel; mais do que isso entra pela importação (#197).
+É um limite do ecrã, não uma regra do catálogo.
+
+### 14.2 Como o Hub escreve
+
+- **O caminho** é `POST /hub/products`, com a mesma função de
+  `POST /products` (saída A, como na §13.2). Responde 201 com a ficha e
+  `Location: /hub/products/{prd_…}`.
+- **O corpo é mais estreito que o da chave**, num esquema próprio do Hub
+  (como o PATCH da §13, revisão do #217, P1-1): `tipo` só `fisico`; sem
+  `categoria_fiscal`; nas variantes, sem `onu`, `classe_adr` e `posicao` (a
+  ordem é a do formulário); `additionalProperties: false`. O resto valida-o a
+  API, como pela chave (SKU, unidade, GTIN e dígito de controlo, GTIN com
+  origem, conteúdo completo).
+- **Quem pode, quem fez, sem cache**: como na §13.2 (`catalog:write`;
+  `pessoa:per_…` na linha do tempo; `private, no-store`). O artigo nasce com
+  `origem: eurolify`: o Hub não manda `origem_ref`.
+- **Sem `Idempotency-Key`**, como as outras rotas do Hub, e aqui não há
+  `versao`. **O SKU faz de guarda**: é único por comerciante, também nos
+  arquivados (P7), por isso um pedido repetido não cria um segundo artigo:
+  dá `catalog.sku_duplicate` (409). Se a resposta se perder (sem rede, o
+  pedido sai mas a resposta não chega), o ecrã não repete sozinho: procura o
+  SKU da primeira variante (`GET /hub/products?sku=`, que também vê
+  variantes arquivadas, `consultas.ts` linhas 125–135) e, se encontrar um
+  artigo com o mesmo nome, diz «O artigo já tinha sido criado» e abre-o.
+- **Que SKU está repetido**: a API não o diz (o pormenor do 409 é o texto da
+  restrição da base: `paraApi`, `rotas.ts` linhas 204–211). O ecrã compara os SKU do
+  próprio formulário antes de enviar (sem distinguir maiúsculas, P9) e,
+  depois de um 409, procura cada SKU com `GET /hub/products?sku=` e marca ao
+  lado do campo os que já existem. Para o GTIN repetido não há essa procura
+  no Hub: o erro fica no topo. **A pedir ao dono do catálogo (#77)**: o
+  `sku`/`gtin` repetido no pormenor do erro, o que tornava as procuras
+  desnecessárias.
+
+### 14.3 Comerciantes com sistema de gestão
+
+Num comerciante cujos artigos vêm do sistema de gestão (P5), criar no Hub
+faz um artigo `eurolify` ao lado dos de lá. **Não há na base nenhuma marca de
+«este comerciante tem sistema de gestão»** (procurei `sistema_de_gestao`,
+`sistema_gestao` e `tem_sistema` em `apps/api/src` e `apps/api/migracoes`).
+O SKU único protege da cópia: um SKU que já veio de lá dá
+`catalog.sku_duplicate`. Neste passo «Criar artigo» aparece a quem tem
+`catalog:write`, como «Editar».
+
+### 14.4 O ecrã
+
+| Onde | O que mostra | Estados além do normal |
+|---|---|---|
+| **Lista** (§11.2) | Com `catalog:write`, «Criar artigo» no topo. A lista vazia passa a dizer «Ainda não há artigos.» com «Criar artigo» (sem permissão, fica a frase da §11.2). | — |
+| **Criar** (`/artigos/novo?comerciante=mer_…`) | O tipo, escrito: «Físico» (sem escolha neste passo). O nome (obrigatório, até 200), a descrição (texto simples, até 10 000, com a contagem) e a marca (até 200), como na §13.4. Depois, **Variantes**, uma caixa por variante, com: SKU (obrigatório, até 64), unidade de venda (lista da API: unidade, par, caixa, embalagem, conjunto), GTIN (8, 12, 13 ou 14 algarismos) e a origem dele (só aparece com GTIN: «GS1 do comerciante», «Do fornecedor», «Interno»), conteúdo (quantidade e unidade, os dois ou nenhum: mg, g, kg, ml, cl, l, mm, cm, m, m², m³), peso em gramas e dimensões em milímetros. Sem peso, uma nota ao lado: «Sem peso, não se pode publicar» (C2). «Acrescentar outra variante» e, a partir da segunda, «Retirar esta variante». «Criar artigo» e «Cancelar»; sair com alguma coisa escrita pergunta antes (§13.4). | a criar; erro ao lado do campo (nome, SKU repetido no formulário ou já existente, GTIN inválido, GTIN sem origem, conteúdo incompleto); a resposta perdida (§14.2); sem permissão (403); 20 variantes (o botão de acrescentar sai, com «No máximo 20 variantes aqui; mais pela importação») |
+| **Depois de criar** | A ficha do artigo novo (§12), com «Artigo criado em rascunho.» no aviso, que recebe o foco, e o histórico sem o formulário (`substituir`, como na §13.4). Dali seguem «Editar», «Activar» e as imagens. | — |
+
+Os números (`peso_g`, dimensões, quantidade) são inteiros positivos (a
+API recusa 0 e decimais): o campo só aceita algarismos e diz «Um número
+inteiro, sem casas decimais».
+
+### 14.5 Antes de dizer que está feito (o pedido do código)
+
+- **API**: `POST /hub/products` chama a mesma função de `POST /products`
+  e o artigo é igual ao criado pela chave; o corpo recusa `categoria_fiscal`,
+  `onu`, `classe_adr`, `posicao`, `origem_ref` e um tipo que não seja
+  `fisico` (400), e pela chave continuam a aceitar-se; `armazém` e `apoio`
+  recebem 403; membro que saiu e sessão terminada, outro comerciante, sem a
+  origem do Hub ou sem JSON são recusados; o `eurolify.quem` é
+  `pessoa:per_…`; o mesmo pedido duas vezes dá `catalog.sku_duplicate` e não
+  cria um segundo artigo.
+- **Hub**: a passagem cria um artigo com duas variantes e abre a ficha;
+  confere o SKU repetido no formulário e o já existente (marcado no campo),
+  o GTIN sem origem, o conteúdo incompleto, a resposta perdida, o apoio sem
+  «Criar artigo» e a lista vazia com o botão; capturas a 375, 768 e 1280 px,
+  claro e escuro; tudo só com o teclado.
+- **A outra sessão** vê no #77 o caminho novo e o pedido do SKU no erro.
 
 ## O que não foi verificado
 

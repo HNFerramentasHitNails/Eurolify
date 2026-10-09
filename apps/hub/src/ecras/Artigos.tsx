@@ -14,9 +14,10 @@ import {
   type FiltrosArtigos,
   type ResumoArtigo,
 } from "../api";
-import { ACarregar, CaixaDeErro, useHub } from "../contexto";
+import { ACarregar, CaixaDeErro, useHub, LigacaoInterna } from "../contexto";
 import { mensagemDeErro, semSessao, type MensagemDeErro } from "../erros";
 import { preencher, TAG_LINGUA } from "../textos";
+import { entradaDe } from "../modulos";
 
 // A lista de artigos de um comerciante (docs/22 §11.2): a mesma lista, os
 // mesmos filtros e as mesmas páginas do GET /products, pelo caminho do Hub
@@ -229,15 +230,9 @@ export function Artigos({
   return (
     <section aria-labelledby="titulo">
       <p>
-        <a
-          href="/"
-          onClick={(e) => {
-            e.preventDefault();
-            navegar("/");
-          }}
-        >
+        <LigacaoInterna href={entradaDe(comerciante)}>
           {t.equipaVoltar}
-        </a>
+        </LigacaoInterna>
       </p>
       <h1 id="titulo">
         {t.artigosTitulo}

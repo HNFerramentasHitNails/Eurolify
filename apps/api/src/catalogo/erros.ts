@@ -56,7 +56,10 @@ export type CodigoErroCatalogo =
   | "catalog.publish_blocked"
   | "catalog.published_by_required"
   | "catalog.media_quota_exceeded"
-  | "catalog.published_in_use";
+  | "catalog.published_in_use"
+  // Um campo de um artigo que vem do sistema de gestão, mudado pelo Hub
+  // (P5; docs/22 §13.3): altera-se lá. Só as rotas /hub/ o lançam.
+  | "catalog.external_field";
 
 export class ErroCatalogo extends Error {
   constructor(

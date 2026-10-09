@@ -95,6 +95,9 @@ export async function registarFicheiro(
       .values({ comerciante_id: comercianteId, ...dados })
       .onConflict((oc) => oc.columns(["comerciante_id", "resumo"]).doNothing())
       .execute();
+    // Se já existia sem uso, os 7 dias da limpeza voltam a contar (docs/14
+    // §3.5; migração 0035): com esta fila tomada, a limpeza não o apaga.
+    await sql`select ficheiro_sem_uso_renovar(${dados.resumo})`.execute(trx);
   });
 }
 

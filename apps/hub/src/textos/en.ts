@@ -38,11 +38,31 @@ export const en: Textos = {
   copiado: "Copied",
   codigosGuardados: "I have stored them",
 
-  inicioTitulo: "Your merchants",
+  inicioTitulo: "Home",
   inicioEntrouComo: "Signed in as",
   inicioVazio:
     "You are not part of any team. Ask whoever manages the merchant for an invitation.",
-  verEquipa: "View the team",
+  inicioComerciante: "Merchant",
+  inicioEscolher: "Choose the merchant",
+  inicioEscolherExplicacao:
+    "You belong to more than one team. Choose which one to work with.",
+  inicioComercianteDesconhecido:
+    "This merchant is not one of yours. Choose one from the list.",
+  inicioMudarComerciante: "Change merchant",
+  modulosTitulo: "Modules",
+  modulosPesquisar: "Search modules",
+  modulosLimpar: "Clear the search",
+  modulosContagem: "{n} modules",
+  modulosContagemUm: "1 module",
+  modulosSemResultados: "No module matches “{consulta}”.",
+  modulosNenhum: "Your role at this merchant has no modules available yet.",
+  modulosOpacos: "Opaque surfaces",
+  modulo_equipa: "Team",
+  modulo_artigos: "Products",
+  modulo_chaves: "API keys",
+  termos_equipa: "members invitations roles people",
+  termos_artigos: "catalogue products variants",
+  termos_chaves: "api integrations server",
 
   papel_dono: "Owner",
   papel_gestor: "Manager",
@@ -50,7 +70,7 @@ export const en: Textos = {
   papel_apoio: "Support",
 
   equipaTitulo: "Team",
-  equipaVoltar: "Your merchants",
+  equipaVoltar: "Back to home",
   equipaMembros: "Members",
   equipaContagem: "{n} members",
   equipaContagemUm: "1 member",
@@ -222,7 +242,6 @@ export const en: Textos = {
 
   // API keys (docs/22 §9.3).
   chavesTitulo: "API keys",
-  verChaves: "API keys",
   chavesExplicacao:
     "Keys let other programs (an integration, invoicing, an AI) use this merchant's API. Each key only does what its scopes allow.",
   chavesVazio: "There are no keys yet.",
@@ -315,7 +334,6 @@ export const en: Textos = {
   conviteOutraConta:
     "If the invitation is for another e-mail, sign out first and open the link again.",
   artigosTitulo: "Products",
-  verArtigos: "View products",
   artigosContagem: "{n} products",
   artigosContagemUm: "1 product",
   artigosContagemFiltro: "{n} of {total} products",
@@ -380,6 +398,43 @@ export const en: Textos = {
   motivoArquivo_mercado_arquivado: "The market was archived",
   motivoArquivo_canal_arquivado: "The channel was archived",
   motivoArquivo_verificacao_falhou: "No longer meets the publishing rules",
+  artigoEditar: "Edit",
+  artigoEditarTitulo: "Edit the product",
+  artigoActivar: "Activate",
+  artigoArquivar: "Archive",
+  artigoRepor: "Restore",
+  artigoConfirmarArquivar:
+    "Archiving the product takes it off sale in every store. Publications do not come back on their own when it is restored. Archive?",
+  artigoExternoAviso:
+    "This product comes from the management system: the name, description, brand, status and variants are changed there. Images are changed here.",
+  artigoGuardado: "Changes saved.",
+  artigoGuardar: "Save",
+  artigoConflito:
+    "Someone else changed this product in the meantime. Your changes were not saved.",
+  artigoConflitoActual:
+    "What is saved now is shown below; what you typed is still in the fields. Saving again replaces what is saved.",
+  artigoSairSemGuardar: "You have unsaved changes. Leave without saving?",
+  artigoCaracteres: "{n} of {max} characters",
+  artigoNomeObrigatorio: "The name is required.",
+  artigoExternoCampo:
+    "This field comes from the management system: change it there.",
+  artigoArquivarVariante: "Archive variant",
+  artigoConfirmarArquivarVariante:
+    "Archiving variant {sku} cannot be undone. Archive?",
+  artigoUltimaVariante:
+    "This is the last active variant: the product cannot be published until it has another. Archive variant {sku}, for good?",
+  artigoEditarTexto: "Edit alternative text",
+  artigoTextoAlternativo: "Alternative text",
+  artigoTornarPrincipal: "Make main",
+  artigoMoverAntes: "Move earlier",
+  artigoMoverDepois: "Move later",
+  artigoSemVariantesActivas:
+    "To activate it, the product needs at least one active variant.",
+  artigoTransicaoInvalida:
+    "The product was no longer in the status shown. The page has been reloaded.",
+  artigoVarianteJaArquivada: "The variant was already archived.",
+  artigoOrdemAMeio:
+    "The image order was only partly saved: check it and move again if needed.",
   conviteInstrucao: "Enter your name and create the account with a passkey.",
   conviteResumo:
     "You were invited to the {comerciante} team, with the role {papel}.",

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import { Type, type Static } from "typebox";
 import { erroBase, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { TIPOS_DE_IMAGEM, type BaseDados } from "../base/esquema.js";
@@ -21,6 +21,7 @@ import {
   mediaDoArtigo,
   registarFicheiro,
 } from "./media.js";
+import { ErroImagem, semMetadados } from "./sem-metadados.js";
 import {
   ConsultaPagina,
   cursorPosicaoEId,
@@ -40,7 +41,8 @@ import {
 
 const IdFicheiro = Type.String({
   pattern: "^fil_[0-9a-f]{64}$",
-  description: "fil_ e o resumo SHA-256 do conteúdo",
+  description:
+    "fil_ e o resumo SHA-256 do conteúdo guardado, já sem os metadados (não o do ficheiro enviado, se ele os tinha)",
 });
 const TipoImagem = Type.Unsafe<(typeof TIPOS_DE_IMAGEM)[number]>({
   type: "string",
@@ -95,7 +97,7 @@ const PedidoLigarMedia = Type.Object(
   { additionalProperties: false },
 );
 
-const PedidoAlterarMedia = Type.Object(
+export const PedidoAlterarMedia = Type.Object(
   {
     versao: Type.Integer({ minimum: 1 }),
     texto_alternativo: Type.Optional(
@@ -134,6 +136,23 @@ const paraMedia = (m: LinhaMedia) => ({
   criada_em: m.criado_em.toISOString(),
   actualizada_em: m.actualizado_em.toISOString(),
 });
+
+/**
+ * Altera a imagem na transacção dada e devolve-a. Chamam-na o
+ * PATCH /media/{id} (pela chave) e o PATCH /hub/media/{id} (pela sessão;
+ * docs/22 §13.2).
+ */
+export async function alteracaoDaMedia(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  idComPrefixo: string,
+  corpo: Static<typeof PedidoAlterarMedia>,
+): Promise<Static<typeof MediaEsquema>> {
+  const id = semPrefixo(idComPrefixo);
+  const { versao, ...alteracao } = corpo;
+  await alterarMedia(trx, comercianteId, id, versao, alteracao);
+  return paraMedia(await fichaDaMedia(trx, comercianteId, id));
+}
 
 /**
  * As imagens de um artigo (docs/14 §3.8): as mesmas para
@@ -342,12 +361,14 @@ export function rotasDaMedia(
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 200, async (trx, chave) => {
-        const id = semPrefixo(pedido.params.id);
-        const { versao, ...alteracao } = pedido.body;
-        await alterarMedia(trx, chave.comercianteId, id, versao, alteracao);
-        return paraMedia(await fichaDaMedia(trx, chave.comercianteId, id));
-      }),
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        alteracaoDaMedia(
+          trx,
+          chave.comercianteId,
+          pedido.params.id,
+          pedido.body,
+        ),
+      ),
   );
 
   rotas.delete(
@@ -450,7 +471,7 @@ function rotaDoEnvio(
     {
       config: { ambito: "catalog:write" },
       schema: {
-        description: `Envia uma imagem: o corpo são os bytes, com o Content-Type do ficheiro (${TIPOS_DE_IMAGEM.join(", ")}), até ${String(TAMANHO_MAXIMO / 1024 / 1024)} MB. Os primeiros bytes têm de ser os desse tipo. Devolve o ficheiro (fil_ e o resumo SHA-256); o mesmo ficheiro enviado outra vez é o mesmo. Liga-se a um artigo com POST /products/{id}/media.`,
+        description: `Envia uma imagem: o corpo são os bytes, com o Content-Type do ficheiro (${TIPOS_DE_IMAGEM.join(", ")}), até ${String(TAMANHO_MAXIMO / 1024 / 1024)} MB. Os primeiros bytes têm de ser os desse tipo. Os metadados (EXIF, XMP, IPTC, textos do PNG; a localização, a data, o aparelho) saem antes de guardar, sem voltar a codificar a imagem; no JPEG fica só a orientação. Uma imagem que não se consegue ler até ao fim dá 400. Devolve o ficheiro, já sem os metadados (fil_ e o resumo SHA-256); o mesmo ficheiro enviado outra vez é o mesmo. Liga-se a um artigo com POST /products/{id}/media.`,
         headers: CabecalhoIdempotencia,
         response: { 201: FicheiroEsquema, ...RESPOSTA_DE_ERRO },
       },
@@ -480,7 +501,24 @@ function rotaDoEnvio(
             : `o ficheiro é ${tipo}, não ${declarado}`,
         );
       }
-      const resumo = createHash("sha256").update(bytes).digest("hex");
+      // Os metadados saem antes de tudo (docs/14 §3.5; issue #179): o que se
+      // guarda, se conta no espaço e dá o nome no disco são os bytes limpos.
+      // A idempotência continua a contar com os recebidos (abaixo). Um
+      // ficheiro que não se consegue limpar recusa-se.
+      let limpos: Buffer;
+      try {
+        limpos = semMetadados(bytes, tipo);
+      } catch (erro) {
+        if (erro instanceof ErroImagem) {
+          throw erroBase(
+            "request.invalid",
+            `a imagem não se conseguiu ler até ao fim: ${erro.message}`,
+          );
+        }
+        throw erro;
+      }
+      const resumo = createHash("sha256").update(limpos).digest("hex");
+      const recebido = createHash("sha256").update(bytes).digest("hex");
       // A ordem conta (2.ª revisão do #176, P1-N1): a chave de idempotência
       // primeiro (uma chave já usada devolve a resposta guardada ou recusa,
       // sem tocar no disco); depois o registo, na fila do comerciante, que
@@ -496,14 +534,14 @@ function rotaDoEnvio(
           await registarFicheiro(
             trx,
             c.comercianteId,
-            { resumo, tipo, bytes: bytes.length },
+            { resumo, tipo, bytes: limpos.length },
             armazenamento.quotaPorComerciante,
           );
-          await armazenamento.guardar(c.comercianteId, resumo, bytes);
-          return { id: `fil_${resumo}`, tipo, bytes: bytes.length };
+          await armazenamento.guardar(c.comercianteId, resumo, limpos);
+          return { id: `fil_${resumo}`, tipo, bytes: limpos.length };
         },
         undefined,
-        { resumo, tipo, bytes: bytes.length },
+        { resumo: recebido, tipo, bytes: bytes.length },
       );
     },
   );

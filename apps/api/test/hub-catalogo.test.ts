@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "kysely";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,17 +34,9 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+import { ambitosConhecidos } from "../src/identidade/hub.js";
 import { hubDeTeste } from "./hub-de-teste.js";
-
-/** Imagens mínimas: os primeiros bytes de cada formato e um resto. */
-const PNG = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.from("resto do png"),
-]);
-const JPEG = Buffer.concat([
-  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
-  Buffer.from("resto do jpeg"),
-]);
+import { JPEG, PNG } from "./imagens-de-teste.js";
 
 // A lista de artigos no Hub (docs/22 §11; issue #199): GET /hub/products é a
 // mesma função, filtros e resposta do GET /products, com a sessão de uma
@@ -636,6 +629,51 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     });
     expect(fim.statusCode).toBe(200);
     await recusados(q.sessao, 401);
+  });
+
+  it("o /hub/me dá, por comerciante, os âmbitos do papel lidos da base (docs/22 §13.2)", async () => {
+    const c = await comerciante("Loja Ambitos", []);
+    for (const papel of PAPEIS) {
+      const p = await h.pessoaCom(c.id, papel);
+      const eu = await h.pedir("GET", "/hub/me", { sessao: p.sessao });
+      expect(eu.statusCode, eu.body).toBe(200);
+      const meu = eu
+        .json<{ comerciantes: { comerciante: string; ambitos: string[] }[] }>()
+        .comerciantes.find((x) => x.comerciante === `mer_${c.id}`);
+      const { rows } = await sql<{
+        ambitos: string[];
+      }>`select papel_ambitos(${papel}) as ambitos`.execute(base.dono);
+      expect(meu?.ambitos, papel).toEqual(rows[0]?.ambitos);
+    }
+    // A mesma pessoa, dona de um comerciante e de apoio noutro: cada um com
+    // os âmbitos do seu papel (revisão do #212, P2-1 e P2-2).
+    const outro = await comerciante("Loja Ambitos B", []);
+    const dona = await h.pessoaCom(c.id, "dono");
+    await sql`insert into membro (comerciante_id, pessoa_id, papel, convidado_por)
+      values (${outro.id}::uuid, ${dona.pessoa}::uuid, 'apoio', 'operador:teste')`.execute(
+      base.dono,
+    );
+    const eu = await h.pedir("GET", "/hub/me", { sessao: dona.sessao });
+    const porComerciante = new Map(
+      eu
+        .json<{
+          comerciantes: { comerciante: string; ambitos: string[] }[];
+        }>()
+        .comerciantes.map((x) => [x.comerciante, x.ambitos]),
+    );
+    expect(porComerciante.get(`mer_${c.id}`)).toContain("catalog:write");
+    expect(porComerciante.get(`mer_${outro.id}`)).not.toContain(
+      "catalog:write",
+    );
+    expect(porComerciante.get(`mer_${outro.id}`)).toContain("catalog:read");
+  });
+
+  it("um âmbito que esta versão da API não conhece fica de fora do /hub/me (revisão do #212, P1-1)", () => {
+    expect(
+      ambitosConhecidos(["catalog:read", "catalog:futuro", "catalog:write"]),
+    ).toEqual(["catalog:read", "catalog:write"]);
+    expect(ambitosConhecidos(null)).toEqual([]);
+    expect(ambitosConhecidos(undefined)).toEqual([]);
   });
 
   it("o contrato tem o caminho do Hub com a segurança da sessão e a resposta da lista", async () => {

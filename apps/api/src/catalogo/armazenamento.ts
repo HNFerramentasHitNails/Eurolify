@@ -26,6 +26,11 @@ export interface Armazenamento {
   guardar(comercianteId: string, resumo: string, bytes: Buffer): Promise<void>;
   /** Os bytes guardados; um que não existe é um erro. */
   ler(comercianteId: string, resumo: string): Promise<Buffer>;
+  /**
+   * Apaga os bytes (a limpeza dos ficheiros sem uso, docs/14 §3.5); um que
+   * já não existe não é erro.
+   */
+  apagar(comercianteId: string, resumo: string): Promise<void>;
 }
 
 /**
@@ -134,6 +139,23 @@ export class ArmazenamentoEmDisco implements ArmazenamentoDeExportacoes {
 
   async ler(comercianteId: string, resumo: string) {
     return readFile(this.caminho(comercianteId, resumo).ficheiro);
+  }
+
+  async apagar(comercianteId: string, resumo: string) {
+    const { dir, ficheiro } = this.caminho(comercianteId, resumo);
+    try {
+      await unlink(ficheiro);
+    } catch (erro) {
+      if ((erro as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw erro;
+    }
+    // Como ao guardar: a mudança na pasta fica no disco.
+    const pastaAberta = await open(dir, "r");
+    try {
+      await pastaAberta.sync();
+    } finally {
+      await pastaAberta.close();
+    }
   }
 
   /**

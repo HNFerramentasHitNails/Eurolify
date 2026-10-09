@@ -38,11 +38,31 @@ export const es: Textos = {
   copiado: "Copiado",
   codigosGuardados: "Ya los he guardado",
 
-  inicioTitulo: "Sus comerciantes",
+  inicioTitulo: "Inicio",
   inicioEntrouComo: "Ha entrado como",
   inicioVazio:
     "No pertenece a ningún equipo. Pida una invitación a quien gestiona el comerciante.",
-  verEquipa: "Ver el equipo",
+  inicioComerciante: "Comerciante",
+  inicioEscolher: "Elija el comerciante",
+  inicioEscolherExplicacao:
+    "Pertenece a más de un equipo. Elija con cuál quiere trabajar.",
+  inicioComercianteDesconhecido:
+    "Este comerciante no está entre los suyos. Elija uno de la lista.",
+  inicioMudarComerciante: "Cambiar de comerciante",
+  modulosTitulo: "Módulos",
+  modulosPesquisar: "Buscar módulos",
+  modulosLimpar: "Borrar la búsqueda",
+  modulosContagem: "{n} módulos",
+  modulosContagemUm: "1 módulo",
+  modulosSemResultados: "Ningún módulo coincide con «{consulta}».",
+  modulosNenhum: "Su rol en este comerciante aún no tiene módulos disponibles.",
+  modulosOpacos: "Superficies opacas",
+  modulo_equipa: "Equipo",
+  modulo_artigos: "Artículos",
+  modulo_chaves: "Claves de API",
+  termos_equipa: "miembros invitaciones roles personas",
+  termos_artigos: "catálogo productos variantes",
+  termos_chaves: "api integraciones servidor",
 
   papel_dono: "Propietario",
   papel_gestor: "Gestor",
@@ -50,7 +70,7 @@ export const es: Textos = {
   papel_apoio: "Soporte",
 
   equipaTitulo: "Equipo",
-  equipaVoltar: "Sus comerciantes",
+  equipaVoltar: "Volver al inicio",
   equipaMembros: "Miembros",
   equipaContagem: "{n} miembros",
   equipaContagemUm: "1 miembro",
@@ -227,7 +247,6 @@ export const es: Textos = {
 
   // Claves de API (docs/22 §9.3).
   chavesTitulo: "Claves de API",
-  verChaves: "Claves de API",
   chavesExplicacao:
     "Las claves dejan que otros programas (una integración, la facturación, una IA) usen la API de este comerciante. Cada clave solo hace lo que permiten sus ámbitos.",
   chavesVazio: "Todavía no hay claves.",
@@ -320,7 +339,6 @@ export const es: Textos = {
   conviteOutraConta:
     "Si la invitación es para otro correo, salga primero y vuelva a abrir el enlace.",
   artigosTitulo: "Artículos",
-  verArtigos: "Ver artículos",
   artigosContagem: "{n} artículos",
   artigosContagemUm: "1 artículo",
   artigosContagemFiltro: "{n} de {total} artículos",
@@ -386,6 +404,43 @@ export const es: Textos = {
   motivoArquivo_canal_arquivado: "El canal se ha archivado",
   motivoArquivo_verificacao_falhou:
     "Ha dejado de cumplir las reglas de publicación",
+  artigoEditar: "Editar",
+  artigoEditarTitulo: "Editar el artículo",
+  artigoActivar: "Activar",
+  artigoArquivar: "Archivar",
+  artigoRepor: "Restaurar",
+  artigoConfirmarArquivar:
+    "Archivar el artículo lo retira de la venta en todas las tiendas. Las publicaciones no vuelven solas al restaurarlo. ¿Archivar?",
+  artigoExternoAviso:
+    "Este artículo viene del sistema de gestión: el nombre, la descripción, la marca, el estado y las variantes se cambian allí. Las imágenes se cambian aquí.",
+  artigoGuardado: "Cambios guardados.",
+  artigoGuardar: "Guardar",
+  artigoConflito:
+    "Otra persona ha cambiado este artículo mientras tanto. No hemos guardado sus cambios.",
+  artigoConflitoActual:
+    "Lo que está guardado ahora aparece debajo; lo que escribió sigue en los campos. Guardar de nuevo sustituye lo guardado.",
+  artigoSairSemGuardar: "Tiene cambios sin guardar. ¿Salir sin guardar?",
+  artigoCaracteres: "{n} de {max} caracteres",
+  artigoNomeObrigatorio: "El nombre es obligatorio.",
+  artigoExternoCampo:
+    "Este campo viene del sistema de gestión: se cambia allí.",
+  artigoArquivarVariante: "Archivar variante",
+  artigoConfirmarArquivarVariante:
+    "Archivar la variante {sku} no se puede deshacer. ¿Archivar?",
+  artigoUltimaVariante:
+    "Es la última variante activa: el artículo no se podrá publicar hasta tener otra. ¿Archivar la variante {sku}, sin vuelta atrás?",
+  artigoEditarTexto: "Editar texto alternativo",
+  artigoTextoAlternativo: "Texto alternativo",
+  artigoTornarPrincipal: "Hacer principal",
+  artigoMoverAntes: "Mover antes",
+  artigoMoverDepois: "Mover después",
+  artigoSemVariantesActivas:
+    "Para activarlo, el artículo necesita al menos una variante activa.",
+  artigoTransicaoInvalida:
+    "El artículo ya no estaba en el estado que mostraba la pantalla. Se ha recargado la ficha.",
+  artigoVarianteJaArquivada: "La variante ya estaba archivada.",
+  artigoOrdemAMeio:
+    "El orden de las imágenes quedó a medias: revíselo y vuelva a moverlas si hace falta.",
   conviteInstrucao: "Escriba su nombre y cree la cuenta con una passkey.",
   conviteResumo:
     "Le han invitado al equipo de {comerciante}, con la función {papel}.",
