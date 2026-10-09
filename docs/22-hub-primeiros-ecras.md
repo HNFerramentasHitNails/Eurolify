@@ -1095,7 +1095,8 @@ Rascunho» para «Loja online · Portugal · Rascunho».
 ## 19. Catálogo: canais e mercados com o mesmo nome nas publicações (issue #271)
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho dos canais com o
-mesmo nome»*. Vem do P2-1 da revisão do #261 (§18.4). Este passo **só
+mesmo nome»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
+desenho, junta o #272»*). Vem do P2-1 da revisão do #261 (§18.4). Este passo **só
 lê** e não muda a VPS.
 
 **O problema**: a base não obriga o nome a ser único, nem o do canal e do
