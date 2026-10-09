@@ -691,6 +691,7 @@ export interface TabelaPerfilFaturacao {
   morada_pais: string | null;
   principal: ColumnType<boolean, never, boolean>;
   estado_vies: ColumnType<EstadoVies, never, never>;
+  validado_em: ColumnType<Date | null, never, never>;
   estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
   usado_em_documento: ColumnType<boolean, never, never>;
   criado_em: ColumnType<Date, never, never>;
@@ -733,6 +734,45 @@ export interface TabelaAlteracaoCliente {
   em: ColumnType<Date, never, never>;
 }
 
+// O VIES e a isenção manual (migração 0038; docs/23 §13). A prova só a
+// escreve a `vies_registar`; a isenção, a API, com quem e quando postos pela base.
+export interface TabelaValidacaoVies {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  perfil_id: ColumnType<string, never, never>;
+  pais_consultado: ColumnType<string, never, never>;
+  numero_consultado: ColumnType<string, never, never>;
+  requerente_pais: ColumnType<string | null, never, never>;
+  requerente_numero: ColumnType<string | null, never, never>;
+  consultado_em: ColumnType<Date, never, never>;
+  data_vies: ColumnType<Date | null, never, never>;
+  resultado: ColumnType<"valido" | "invalido" | "indisponivel", never, never>;
+  codigo_erro: ColumnType<string | null, never, never>;
+  identificador_consulta: ColumnType<string | null, never, never>;
+  nome_devolvido: ColumnType<string | null, never, never>;
+  morada_devolvida: ColumnType<string | null, never, never>;
+  motivo: ColumnType<
+    "perfil_novo" | "nif_mudou" | "revalidacao" | "pedido",
+    never,
+    never
+  >;
+  quem: ColumnType<string, never, never>;
+  registado_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaIsencaoManual {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  perfil_id: ColumnType<string, string, never>;
+  motivo: ColumnType<string, string, never>;
+  nota: ColumnType<string | null, string | null | undefined, never>;
+  posta_por: ColumnType<string, never, never>;
+  posta_em: ColumnType<Date, never, never>;
+  motivo_retirada: ColumnType<string | null, never, string>;
+  retirada_por: ColumnType<string | null, never, never>;
+  retirada_em: ColumnType<Date | null, never, never>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -770,4 +810,6 @@ export interface BaseDados {
   etiqueta_cliente: TabelaEtiquetaCliente;
   cliente_etiqueta: TabelaClienteEtiqueta;
   alteracao_cliente: TabelaAlteracaoCliente;
+  validacao_vies: TabelaValidacaoVies;
+  isencao_manual: TabelaIsencaoManual;
 }

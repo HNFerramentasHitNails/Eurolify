@@ -100,6 +100,11 @@ const FUNCOES_DA_API = [
   "sessoes_listar",
   "sessoes_terminar_todas",
   "telefones_validos",
+  // O VIES (0038): a fila e a prova, pelas funções do dono.
+  "vies_comerciantes_com_fila",
+  "vies_por_consultar",
+  "vies_registar",
+  "vies_requerente",
 ];
 
 const RASTO = [
