@@ -232,6 +232,12 @@ form + p {
   white-space: nowrap;
 }
 
+/* Com as colunas das opções, a tabela aperta: o SKU não parte a meio
+   (revisão do #281, P3-1). */
+.variantes-artigo code {
+  white-space: nowrap;
+}
+
 .lista-simples {
   list-style: none;
   padding: 0;

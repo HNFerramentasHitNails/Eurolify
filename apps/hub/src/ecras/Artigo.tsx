@@ -576,6 +576,7 @@ export function Artigo({
           <Variantes
             variantes={ficha.dados.variantes}
             opcoes={opcoes.tipo === "pronto" ? opcoes.dados : []}
+            estadoOpcoes={opcoes.tipo}
             podeArquivar={podeEscrever && ficha.dados.origem !== "externo"}
             ocupado={ocupadoNaFicha}
             aoArquivar={arquivarVariante}
@@ -679,9 +680,16 @@ function ErroDaParte({
   if (erro instanceof ErroHub && erro.estado === 404) {
     return <CaixaDeErro erro={{ texto: t.artigoNaoExiste }} />;
   }
+  const mensagem = mensagemDeErro(erro, t, lingua);
   return (
     <CaixaDeErro
-      erro={texto === undefined ? mensagemDeErro(erro, t, lingua) : { texto }}
+      // O texto da parte vem antes da razão (ex.: esperar uns segundos), que
+      // as outras partes também dizem (revisão do #281, P3-2).
+      erro={
+        texto === undefined
+          ? mensagem
+          : { ...mensagem, texto: `${texto} ${mensagem.texto}` }
+      }
       aoTentar={aoTentar}
     />
   );
@@ -789,6 +797,7 @@ function Cabecalho({
 function Variantes({
   variantes,
   opcoes,
+  estadoOpcoes,
   podeArquivar,
   ocupado,
   aoArquivar,
@@ -796,6 +805,7 @@ function Variantes({
   variantes: VarianteArtigo[];
   /** Uma coluna por opção, entre o SKU e o estado (docs/22 §20.2). */
   opcoes: OpcaoArtigo[];
+  estadoOpcoes: "a_carregar" | "erro" | "pronto";
   podeArquivar: boolean;
   ocupado: boolean;
   aoArquivar: (v: VarianteArtigo) => void;
@@ -804,7 +814,11 @@ function Variantes({
   const numero = (n: number) =>
     new Intl.NumberFormat(TAG_LINGUA[lingua]).format(n);
   return (
-    <table className="tabela-larga variantes-artigo">
+    <table
+      className="tabela-larga variantes-artigo"
+      // Para a passagem saber que as opções chegaram (revisão do #281, P3-3).
+      data-opcoes={estadoOpcoes}
+    >
       <thead>
         <tr>
           <th scope="col">{t.artigosSku}</th>
@@ -844,10 +858,11 @@ function Variantes({
             <td data-rotulo={t.colunaConteudo}>
               {v.conteudo_quantidade === null
                 ? "—"
-                : `${numero(v.conteudo_quantidade)} ${v.conteudo_unidade ?? ""}`.trim()}
+                : // Espaço que não parte: «720 g» fica junto (#281, P3-1).
+                  `${numero(v.conteudo_quantidade)}\u00a0${v.conteudo_unidade ?? ""}`.trim()}
             </td>
             <td data-rotulo={t.colunaPeso}>
-              {v.peso_g === null ? "—" : `${numero(v.peso_g)} g`}
+              {v.peso_g === null ? "—" : `${numero(v.peso_g)}\u00a0g`}
             </td>
             {podeArquivar ? (
               <td data-rotulo={t.colunaAccoes}>

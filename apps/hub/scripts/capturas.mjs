@@ -2170,7 +2170,9 @@ try {
   await rp.getByRole("heading", { name: "Verniz Rosa 2", level: 1 }).waitFor();
   // Um artigo sem opções (docs/22 §20.2): nem colunas nem a linha.
   await opcoesSemNada;
-  await rp.locator(".variantes-artigo").waitFor();
+  // Depois de o ecrã as tratar, não só de a resposta chegar (revisão do
+  // #281, P3-3).
+  await rp.locator('.variantes-artigo[data-opcoes="pronto"]').waitFor();
   confere(
     (await rp.getByText("Opções:", { exact: false }).count()) === 0 &&
       (await rp.locator(".variantes-artigo thead th").allTextContents())

@@ -874,8 +874,8 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
             valores: d.valores.map((v) => ({ id: v.id, valor: v.valor })),
           })),
         }).toEqual(api.json());
-        // A chave não as dá.
-        expect(api.body).not.toContain("variantes");
+        // Que a chave não as dá prova-o o contrato (o Fastify tira do corpo o
+        // que o esquema não tem; revisão do #281, P3-5).
       }
     }
     const p = await h.pessoaCom(c.id, "apoio");
