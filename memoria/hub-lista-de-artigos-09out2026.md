@@ -50,4 +50,14 @@ com o código»* e *«sim, avança com a saída A»*. Issue #199; desenho em
   não se relê no «Mostrar mais».
 - Fica de fora: preço e publicação na lista, a ficha, criar e editar,
   colunas à escolha, filtros guardados.
-- O aspecto do ecrã: para o OK do Diogo ou do Bruno.
+- O aspecto do ecrã `/artigos`: para o OK do Diogo ou do Bruno (os outros
+  9 ecrãs já o têm, ver abaixo).
+
+## O aspecto aprovado (08/10/2026)
+
+Na página de aprovação (https://claude.ai/artifact/AQk53xNmRUGqeCBurFCtvK,
+privada, só da conta dona — a do Diogo), os 9 ecrãs que estavam no ensaio
+foram todos aprovados, sem notas, a 08/10/2026 entre as 16:31 e as 16:32
+UTC: entrar, comerciantes, equipa, convite, conta, palavra-passe, chaves,
+recuperar e códigos de recuperação (lido com o `ArtifactData`, 09/10/2026).
+A lista de artigos ainda não estava na página.
