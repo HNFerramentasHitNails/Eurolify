@@ -2196,6 +2196,9 @@ try {
     focoNoErro,
     `edição: mover falha e o foco vai para o erro (foco em: ${await rp.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? "nada")})`,
   );
+  await rp.locator(".falha-accao").screenshot({
+    path: join(SAIDA, "artigo-falha-com-foco.png"),
+  });
   // Arquivar a única variante: a confirmação diz que é a última.
   let ultima = false;
   rp.once("dialog", (d) => {
