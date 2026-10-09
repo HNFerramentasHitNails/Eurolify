@@ -46,4 +46,5 @@ Safari e Firefox (o `Page.setFontSizes` só existe no Chromium); aparelhos
 reais; os cartões estreitos com letra grande (o de entrar, 440 px) só se
 viram quebrar, não se mediram. Um passo do `capturas.mjs` do #235
 («imagens: só com o teclado, a imagem fica principal…») falhou uma vez em
-quatro voltas deste ramo e passou nas outras — causa não verificada.
+quatro voltas deste ramo e passou nas outras. Causa verificada e corrigida
+no #247 (`hub-capturas-instaveis-09out2026.md`).

@@ -53,8 +53,9 @@ Chromium 1194 do Playwright):
   com a correcção do `eurolify.quem`, 181 e 68. Depois de juntar o #217 ao
   ramo: 324 «ok» e 0 falhas na segunda volta (o `main` sozinho, 198); a
   primeira volta parou no passo «Mover para depois» do #217
-  (`waitForFunction` do foco), num ecrã que este trabalho não muda — causa
-  não verificada. Contadas com `grep -c '^ok'` no registo e `ls | wc -l`
+  (`waitForFunction` do foco), num ecrã que este trabalho não muda. Causa
+  verificada depois, no #247: o foco dado num `requestAnimationFrame`, já
+  corrigido pelo #223 (`hub-capturas-instaveis-09out2026.md`). Contadas com `grep -c '^ok'` no registo e `ls | wc -l`
   na pasta.
 - Colunas medidas: 2 a 320, 375 e 390 px; 4 a 768 e 820; 5 a 1024, 1280 e
   1440 (a página tem 960 px no máximo, por isso a grelha fica em 928 px e
@@ -93,5 +94,5 @@ Safari e Firefox (só o Chromium correu); aparelhos reais; leitor de ecrã;
 zoom real num aparelho (o de 200 % e 400 % foi medido por emulação no
 Chromium, ver acima); teclado virtual e rotação; desempenho
 antes/depois; um navegador sem `backdrop-filter` (a base opaca foi vista com
-o modo opaco, não num navegador antigo); a instabilidade do passo «Mover
-para depois» do `capturas.mjs` (#217).
+o modo opaco, não num navegador antigo). A instabilidade do passo «Mover
+para depois» ficou resolvida no #247 (ver acima).
