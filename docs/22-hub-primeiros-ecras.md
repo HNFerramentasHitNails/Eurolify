@@ -674,7 +674,7 @@ inteiro, sem casas decimais».
 ## 15. Catálogo: enviar imagens novas (issue #229)
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho do envio de
-imagens»*. As §13.1 e §14.1 deixaram de fora as imagens novas: o nginx do Hub
+imagens»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica de fora (*«sim, aprovo o desenho, junta o #230»*). As §13.1 e §14.1 deixaram de fora as imagens novas: o nginx do Hub
 aceita corpos até 64 KB e as escritas do Hub são só JSON. O #215 (#179) tirou
 o terceiro motivo: os metadados (localização, data, aparelho) saem ao receber.
 Ex.: a gestora abre o «Verniz Verde 31», que ainda não tem imagens, carrega em
