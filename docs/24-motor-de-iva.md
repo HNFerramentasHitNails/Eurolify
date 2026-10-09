@@ -1,12 +1,14 @@
 # Motor de IVA — modelo e lista da API
 
-> **Estado: desenho para aprovar** (issue #255). Diogo, 09/10/2026: *«sim,
-> avança com o desenho da fatia 6»*. É a fatia 6 do
+> **Estado: desenho aprovado; no código** (issue #255; migração 0040;
+> `docs/06`, CZ). Diogo, 09/10/2026: *«sim, avança com o desenho da fatia 6»*
+> e *«sim, aprovo; avança com o código da fatia 6»* (Q1 a Q5 como propostas).
+> O que está programado e os desvios dizem-se na §13. É a fatia 6 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («categorias, taxas com vigência, territórios»). Usa o que a fatia 5 já
 > guarda (`docs/23`: perfil de faturação, prova do VIES, isenção manual,
 > finalidade por encomenda) e é preciso antes do checkout (fatia 7) e do
-> documento fiscal (fatia 10). **Nada deste documento está programado.**
+> documento fiscal (fatia 10).
 >
 > Skills seguidas: `eu-vat-oss-ioss` (as peças, **a ordem da decisão do
 > Bruno**, territórios, OSS, arredondamentos, «na dúvida, retém»),
@@ -280,11 +282,11 @@ O checkout (fatia 7) chama a função por dentro, não por esta API.
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q1 | Num mercado com preços **com IVA**, uma venda **isenta** (empresa noutro país com VIES válido, exportação, isenção manual): o cliente paga o preço **sem o IVA do país do comerciante**, ou paga o mesmo preço? | **Sem o IVA do país do comerciante** (ex.: 12,30 € com IVA a 23 % → 10,00 €): é o que o cliente espera numa venda isenta, e não esconde IVA num preço sem IVA |
-| Q2 | Enquanto o comerciante **não declarar o regime** (origem ou destino), as vendas a consumidores de **outros países da UE** ficam bloqueadas? | **Sim, bloqueadas**, com a mensagem «o comerciante ainda não configurou o IVA para este país»; o Eurolify não sabe as vendas que ele faz fora daqui, por isso não pode decidir o limiar por ele |
-| Q3 | Um comerciante do continente que entrega nos **Açores ou na Madeira**: até o contabilista responder qual a taxa (`docs/03` §1, por responder), o que se faz? | **Bloquear essas vendas** até à resposta, e fazer a pergunta ao contabilista já: escolher uma taxa sem fonte é inventar (`AGENTS.md`, «Nunca inventar») |
-| Q4 | A **isenção manual** passa a levar o **código do motivo** do documento (ex.: `M05`, `M07`), escolhido pelo dono de uma lista do país dele? | **Sim**: sem código, a isenção não chega à fatura; o código é obrigatório ao pôr uma isenção nova |
-| Q5 | Na Fase 1, os **serviços e eventos** só se vendem com o lugar no **país do comerciante**? | **Sim**; fora dele, ou à distância, ficam bloqueados até o contabilista validar o lugar e o registo |
+| Q1 | Num mercado com preços **com IVA**, uma venda **isenta** (empresa noutro país com VIES válido, exportação, isenção manual): o cliente paga o preço **sem o IVA do país do comerciante**, ou paga o mesmo preço? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CZ): **Sem o IVA do país do comerciante** (ex.: 12,30 € com IVA a 23 % → 10,00 €): é o que o cliente espera numa venda isenta, e não esconde IVA num preço sem IVA |
+| Q2 | Enquanto o comerciante **não declarar o regime** (origem ou destino), as vendas a consumidores de **outros países da UE** ficam bloqueadas? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CZ): **Sim, bloqueadas**, com a mensagem «o comerciante ainda não configurou o IVA para este país»; o Eurolify não sabe as vendas que ele faz fora daqui, por isso não pode decidir o limiar por ele |
+| Q3 | Um comerciante do continente que entrega nos **Açores ou na Madeira**: até o contabilista responder qual a taxa (`docs/03` §1, por responder), o que se faz? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CZ): **Bloquear essas vendas** até à resposta, e fazer a pergunta ao contabilista já: escolher uma taxa sem fonte é inventar (`AGENTS.md`, «Nunca inventar») |
+| Q4 | A **isenção manual** passa a levar o **código do motivo** do documento (ex.: `M05`, `M07`), escolhido pelo dono de uma lista do país dele? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CZ): **Sim**: sem código, a isenção não chega à fatura; o código é obrigatório ao pôr uma isenção nova |
+| Q5 | Na Fase 1, os **serviços e eventos** só se vendem com o lugar no **país do comerciante**? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CZ): **Sim**; fora dele, ou à distância, ficam bloqueados até o contabilista validar o lugar e o registo |
 
 ## 11. Para o contabilista (bloqueiam a produção, não o código)
 
@@ -306,3 +308,35 @@ O checkout (fatia 7) chama a função por dentro, não por esta API.
 | 2 | a função da decisão, pura, com um teste por ramo da §5 (incluindo a #D4248, o bilhete comprado para outra pessoa, o `000000000` e as Canárias — `eu-vat-oss-ioss`, «Antes de dizer está feito») e o arredondamento; a simulação |
 
 Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
+
+## 13. Em código (09/10/2026; migração 0040; `docs/06`, CZ)
+
+| O quê | Onde |
+|---|---|
+| `categoria_fiscal` (só `normal`), `taxa_iva` (só se acrescenta; PT continente 23 %, Açores 16 %, Madeira 22 % na normal, **M**, `verificado = false`), `territorio_fiscal` (Canárias, Ceuta, Melilla **M**; ilhas portuguesas e os C por validar), `motivo_iva` (`M05`, `M16`, `M07`, **C**) — tabelas globais, a API só as lê | migração 0040 |
+| `declaracao_regime`: o regime de cada entidade legal, só se acrescenta (a última vale), só por `pessoa:per_…` ou `chave:key_…`; evento `tax.regime_changed` | migração 0040 |
+| o código do motivo na isenção manual, da lista do país do comerciante (Q4) | migração 0040; `src/clientes/` |
+| o fim da rede CM: uma categoria fiscal nova ou mudada num artigo tem de estar na lista (`catalog.tax_category_unknown`); os artigos já gravados ficam | migração 0040 |
+| a decisão, função pura pela ordem do Bruno, com a regra, a versão (`2026-10-09.1`) e a evidência; montantes em cêntimos, metade para cima, por linha | `src/iva/decisao.ts` |
+| a API: `GET /tax/categories`, `/tax/rates`, `/tax/territories`, `/tax/reasons`, `GET /tax/registrations`, `PUT /tax/registrations/{id}`, `POST /tax/decisions/simulate` | `src/iva/rotas.ts` |
+| os âmbitos `tax:read` (dono, gestor, apoio) e `tax:write` (dono) | migração 0040; `src/identidade/` |
+| 17 testes da decisão (um por ramo: a #D4248, as Canárias e Palma de Maiorca, o VIES antigo e em baixo, o consumidor com NIF, as ilhas, Åland, os regimes, os serviços, a vigência, o arredondamento) e 5 pela API; 17 mutações, todas apanhadas | `test/iva-decisao.test.ts`, `test/iva-api.test.ts` |
+
+**Desvios do desenho:**
+- **As taxas dos outros 26 países não entram aqui:** carregam-se num pedido
+  próprio, da base de dados de taxas da Comissão (TEDB), com a fonte e a data
+  de cada linha, e com o contabilista (V6). Até lá, uma venda que precise
+  delas (regime destino, ou um país sem taxa) fica **bloqueada**
+  (`taxa_em_falta`).
+- **A `natureza_iva` ainda não está no artigo:** entra com o checkout (fatia
+  7), que é quem a lê; a simulação recebe-a explícita.
+- **O aviso dos 10.000 €** (§3.5) espera pelas encomendas: hoje não há vendas
+  para contar.
+- **`tax.rate_added`** não sai: as taxas são globais e o evento é por
+  comerciante; uma taxa nova vê-se em `GET /tax/rates`.
+- **Os registos noutros países** guardam-se na declaração (lista), sem tabela
+  própria; a decisão ainda não os usa (os serviços fora do país estão
+  bloqueados, Q5).
+- **A idade máxima da resposta «válido» do VIES** é 72 h — **C**, até à V5.
+- **Uma empresa sem VIES válido** paga à taxa do país do comerciante
+  (`b2b_sem_vies_origem`) — **C**, a confirmar com o contabilista.
