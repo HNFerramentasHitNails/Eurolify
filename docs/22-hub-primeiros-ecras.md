@@ -1049,7 +1049,7 @@ Rascunho» para «Loja online · Portugal · Rascunho».
 - **O caminho é o mesmo**: `GET /hub/products/{id}/publications` continua a
   chamar a mesma função da rota pela chave (`publicacoesDeArtigo`, §12.1). A
   API do Hub **junta** a cada publicação `canal_nome` e `mercado_nome`, lidos
-  do domínio de Preços numa só consulta (os canais e os mercados das
+  do domínio de Preços em duas consultas na mesma transacção (os canais e os mercados das
   publicações daquele artigo, no contexto do comerciante), como o `autor`
   do histórico (§16.2).
 - **A rota pela chave não muda** (`GET /products/{id}/publications`): é do
@@ -1079,6 +1079,18 @@ Rascunho» para «Loja online · Portugal · Rascunho».
   faz falhar o teste de outro comerciante.
 - **Hub**: a passagem confere «Loja online» e «Portugal» na tabela das
   publicações; as capturas da ficha mudam e vão à página de aprovação.
+
+### 18.4 O que ficou em aberto (código no #261)
+
+- **Dois canais ou dois mercados com o mesmo nome** (revisão do #261,
+  P2-1): a base não obriga o nome a ser único (migração 0017 só tem
+  `UNIQUE (comerciante_id, id)` e `UNIQUE (comerciante_id, loja_id, id)`),
+  e a ficha mostra duas linhas iguais (ex.: uma «Loja online» em cada uma
+  de duas lojas). O Diogo decidiu juntar como está (09/10/2026, *«sim,
+  junta como está»*); trata-se num passo próprio (ex.: juntar o nome da
+  loja). Não verifiquei se acontece com dados reais.
+- **Um erro na leitura dos nomes** sai com o código `prices.*` numa rota do
+  Catálogo (revisão do #261, P3-6): é raro numa leitura; fica registado.
 
 ## O que não foi verificado
 
