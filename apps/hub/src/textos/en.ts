@@ -488,4 +488,26 @@ export const en: Textos = {
   artigoGtinInvalido:
     "One of the GTINs is not valid: the last digit does not match.",
   artigoConteudoIncompleto: "Enter the content quantity and unit, or neither.",
+  artigoAcrescentarImagem: "Add image",
+  artigoImagemRegras: "JPEG, PNG or WebP, up to 10 MB.",
+  artigoImagemEscolhida: "{nome} · {tamanho}",
+  artigoImagemTextoAjuda:
+    "Describe the image for those who cannot see it. E.g. “Bottle of green nail polish, front view”.",
+  artigoImagemSemTextoAgora:
+    "Save without alternative text (blocks publication until it is written)",
+  artigoImagemSemTexto:
+    "Write the alternative text, or tick that you save without it.",
+  artigoImagemAEnviar: "Uploading… {p}%",
+  artigoImagemGrande: "The image is larger than 10 MB.",
+  artigoImagemTipo: "Only JPEG, PNG or WebP images are accepted.",
+  artigoImagemIlegivel:
+    "The file is not a JPEG, PNG or WebP image that can be read to the end.",
+  artigoImagemOutroEnvio:
+    "Other image uploads are running for this merchant; try again shortly.",
+  artigoImagemSemEspaco: "This merchant's image storage is full.",
+  artigoImagemAcrescentada: "Image added.",
+  artigoImagemTirada: "Image removed from the product.",
+  artigoTirarImagem: "Remove image",
+  artigoConfirmarTirarImagem:
+    "Remove the image from the product? The file stays stored.",
 };

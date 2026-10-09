@@ -494,4 +494,27 @@ export const es: Textos = {
     "Uno de los GTIN no es válido: el último dígito no coincide.",
   artigoConteudoIncompleto:
     "Escriba la cantidad y la unidad del contenido, o ninguna.",
+  artigoAcrescentarImagem: "Añadir imagen",
+  artigoImagemRegras: "JPEG, PNG o WebP, hasta 10 MB.",
+  artigoImagemEscolhida: "{nome} · {tamanho}",
+  artigoImagemTextoAjuda:
+    "Describa la imagen a quien no la ve. Ej.: «Frasco de esmalte verde, de frente».",
+  artigoImagemSemTextoAgora:
+    "Guardar sin texto alternativo (impide la publicación hasta escribirlo)",
+  artigoImagemSemTexto:
+    "Escriba el texto alternativo, o marque que guarda sin él.",
+  artigoImagemAEnviar: "Enviando… {p}%",
+  artigoImagemGrande: "La imagen supera los 10 MB.",
+  artigoImagemTipo: "Solo se aceptan imágenes JPEG, PNG o WebP.",
+  artigoImagemIlegivel:
+    "El archivo no es una imagen JPEG, PNG o WebP que se pueda leer hasta el final.",
+  artigoImagemOutroEnvio:
+    "Hay otros envíos de imágenes en curso en este comerciante; inténtelo dentro de poco.",
+  artigoImagemSemEspaco:
+    "El espacio de imágenes de este comerciante está lleno.",
+  artigoImagemAcrescentada: "Imagen añadida.",
+  artigoImagemTirada: "Imagen quitada del artículo.",
+  artigoTirarImagem: "Quitar la imagen",
+  artigoConfirmarTirarImagem:
+    "¿Quitar la imagen del artículo? El archivo queda guardado.",
 };

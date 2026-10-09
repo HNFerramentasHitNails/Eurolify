@@ -843,9 +843,11 @@ try {
       .getByRole("link", { name: "Editar", exact: true })
       .count()) === 0 &&
       (await apoio.pagina
-        .getByRole("button", { name: /Activar|Arquivar|Editar texto/ })
+        .getByRole("button", {
+          name: /Activar|Arquivar|Editar texto|Acrescentar imagem|Tirar a imagem/,
+        })
         .count()) === 0,
-    "edição: o apoio vê a ficha sem «Editar» nem acções",
+    "edição: o apoio vê a ficha sem «Editar» nem acções (nem acrescentar ou tirar imagens)",
   );
   // O apoio não cria (docs/22 §14.4): sem o botão na lista, e o endereço
   // directo diz que não pode.
@@ -2032,6 +2034,7 @@ try {
       !new URL(rp.url()).search.includes("criado"),
     "criar: o artigo abre em rascunho, com as duas variantes e «Artigo criado em rascunho.» no foco",
   );
+  const fichaVerde31 = rp.url();
   await rp.goBack();
   await rp.getByRole("heading", { name: /^Artigos/ }).waitFor();
   confere(
@@ -2174,6 +2177,142 @@ try {
     "criar: a lista vazia diz «Ainda não há artigos.» com «Criar artigo»",
   );
   await rp.unroute("**/hub/products?*");
+
+  // Enviar imagens (docs/22 §15; issue #229), no «Verniz Verde 31», que não
+  // tem nenhuma: só com o teclado; as recusas antes de enviar (o tamanho e o
+  // tipo), a da API, o 429, a resposta perdida ao ligar e tirar.
+  const comGps = resolve(HUB, "..", "api", "test", "imagens", "com-gps.jpg");
+  let enviosFeitos = 0;
+  const contarEnvios = (q) => {
+    if (q.method() === "POST" && q.url().endsWith("/hub/media/uploads")) {
+      enviosFeitos += 1;
+    }
+  };
+  rp.on("request", contarEnvios);
+  await rp.goto(fichaVerde31);
+  await rp
+    .getByRole("heading", { name: "Verniz Verde 31", level: 1 })
+    .waitFor();
+  await rp.getByText("Sem imagens", { exact: false }).waitFor();
+  const escolherFicheiro = async (ficheiro) => {
+    const escolha = rp.waitForEvent("filechooser");
+    await rp.getByRole("button", { name: "Acrescentar imagem" }).focus();
+    await rp.keyboard.press("Enter");
+    await (await escolha).setFiles(ficheiro);
+  };
+  await escolherFicheiro({
+    name: "grande.png",
+    mimeType: "image/png",
+    buffer: Buffer.alloc(11 * 1024 * 1024),
+  });
+  await rp.getByText("A imagem passa de 10 MB.").waitFor();
+  await escolherFicheiro({
+    name: "nota.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("não é uma imagem"),
+  });
+  await rp.getByText("Só se aceitam imagens JPEG, PNG ou WebP.").waitFor();
+  confere(
+    enviosFeitos === 0 &&
+      (await rp.evaluate(() => document.activeElement?.id)) ===
+        "nova-imagem-recusa",
+    "imagens: o tamanho e o tipo recusam-se antes de enviar, com o foco no motivo",
+  );
+  // Um ficheiro com o tipo certo mas que não é uma imagem: recusa da API.
+  await escolherFicheiro({
+    name: "falso.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("isto não é um png"),
+  });
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) ===
+      "nova-imagem-texto",
+    "imagens: escolhido o ficheiro, o foco vai para o texto alternativo",
+  );
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByText("Escreva o texto alternativo, ou marque que guarda sem ele.")
+    .waitFor();
+  await rp.keyboard.type("Ficheiro estragado");
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByText("que se consiga ler até ao fim", { exact: false })
+    .waitFor();
+  confere(
+    enviosFeitos === 1,
+    "imagens: sem texto alternativo pede-o; um ficheiro que não é imagem é recusado pela API",
+  );
+  await rp.getByRole("button", { name: "Cancelar" }).click();
+  // Outros envios a decorrer (resposta fingida da API).
+  await rp.route("**/hub/media/uploads", (r) =>
+    r.fulfill({
+      status: 429,
+      contentType: "application/problem+json",
+      headers: { "retry-after": "1" },
+      body: JSON.stringify({ codigo: "rate_limit.exceeded", status: 429 }),
+    }),
+  );
+  await escolherFicheiro(comGps);
+  await rp.keyboard.type("Frasco de verniz verde, de frente");
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByText("Há outros envios de imagens a decorrer", { exact: false })
+    .waitFor();
+  confere(true, "imagens: o 429 diz que há outros envios a decorrer");
+  await rp.unroute("**/hub/media/uploads");
+  // A ligação grava mas a resposta perde-se: o ecrã relê e dá-a por feita.
+  await rp.route("**/hub/products/*/media", async (r) => {
+    if (r.request().method() !== "POST") return r.fallback();
+    await r.fetch();
+    await r.abort("failed");
+  });
+  await rp.getByRole("button", { name: "Guardar" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem acrescentada.",
+  );
+  await rp.unroute("**/hub/products/*/media");
+  await rp.locator(".imagens-artigo > li").first().waitFor();
+  confere(
+    (await rp.locator(".imagens-artigo > li").count()) === 1 &&
+      (await rp.getByText("Principal", { exact: true }).count()) === 1 &&
+      (await rp
+        .getByRole("img", { name: "Frasco de verniz verde, de frente" })
+        .count()) === 1,
+    "imagens: só com o teclado, a imagem fica principal com o texto; a resposta perdida ao ligar não a duplica",
+  );
+  // Uma segunda imagem, e a captura do formulário aberto.
+  await escolherFicheiro(comGps);
+  await rp.keyboard.type("Frasco de verniz verde, de lado");
+  await rp.screenshot({
+    path: join(SAIDA, "artigo-imagem-nova-375-claro.png"),
+    fullPage: true,
+  });
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem acrescentada.",
+  );
+  await rp.locator(".imagens-artigo > li").nth(1).waitFor();
+  // Tirar a segunda, com confirmação.
+  let perguntouTirar = false;
+  rp.once("dialog", (d) => {
+    perguntouTirar = true;
+    void d.accept();
+  });
+  await rp
+    .locator(".imagens-artigo > li")
+    .nth(1)
+    .getByRole("button", { name: "Tirar a imagem" })
+    .focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem tirada do artigo.",
+  );
+  confere(
+    perguntouTirar && (await rp.locator(".imagens-artigo > li").count()) === 1,
+    "imagens: tirar pergunta antes, tira a imagem e o foco vai para o aviso",
+  );
+  rp.off("request", contarEnvios);
 
   // Sem permissão (403) e sessão que acabou (401), com respostas fingidas.
   const fichaReal = `${ORIGEM}/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`;

@@ -787,3 +787,25 @@ textarea {
 .variante-nova legend {
   padding: 0 var(--espaco-1);
 }
+
+/* Acrescentar uma imagem (docs/22 §15.4): a pré-visualização ao lado do
+   nome, num tamanho fixo; no telemóvel, por cima. */
+.nova-imagem {
+  margin-bottom: var(--espaco-4);
+}
+.previa-imagem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-3);
+  align-items: center;
+  margin-bottom: var(--espaco-3);
+}
+.previa-imagem img {
+  width: var(--largura-miniatura);
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie-elevada);
+}

@@ -488,6 +488,28 @@ export const pt = {
     "Um dos GTIN não é válido: o último algarismo não confere.",
   artigoConteudoIncompleto:
     "Escreva a quantidade e a unidade do conteúdo, ou nenhuma.",
+  artigoAcrescentarImagem: "Acrescentar imagem",
+  artigoImagemRegras: "JPEG, PNG ou WebP, até 10 MB.",
+  artigoImagemEscolhida: "{nome} · {tamanho}",
+  artigoImagemTextoAjuda:
+    "Descreva a imagem a quem não a vê. Ex.: «Frasco de verniz verde, de frente».",
+  artigoImagemSemTextoAgora:
+    "Guardar sem texto alternativo (impede a publicação até o escrever)",
+  artigoImagemSemTexto:
+    "Escreva o texto alternativo, ou marque que guarda sem ele.",
+  artigoImagemAEnviar: "A enviar… {p}%",
+  artigoImagemGrande: "A imagem passa de 10 MB.",
+  artigoImagemTipo: "Só se aceitam imagens JPEG, PNG ou WebP.",
+  artigoImagemIlegivel:
+    "O ficheiro não é uma imagem JPEG, PNG ou WebP que se consiga ler até ao fim.",
+  artigoImagemOutroEnvio:
+    "Há outros envios de imagens a decorrer neste comerciante; tente daqui a pouco.",
+  artigoImagemSemEspaco: "O espaço das imagens deste comerciante está cheio.",
+  artigoImagemAcrescentada: "Imagem acrescentada.",
+  artigoImagemTirada: "Imagem tirada do artigo.",
+  artigoTirarImagem: "Tirar a imagem",
+  artigoConfirmarTirarImagem:
+    "Tirar a imagem do artigo? O ficheiro fica guardado.",
 };
 
 export type Textos = typeof pt;

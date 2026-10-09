@@ -202,6 +202,8 @@ export interface FichaArtigo extends ResumoArtigo {
 export interface ImagemArtigo {
   id: string;
   variante: string | null;
+  /** O ficheiro guardado (fil_…): reconhece uma ligação já feita (§15.2). */
+  ficheiro: { id: string };
   texto_alternativo: string | null;
   posicao: number;
   principal: boolean;
@@ -264,7 +266,7 @@ interface Problema {
 const texto = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 export async function pedir<T>(
-  metodo: "GET" | "POST" | "PATCH",
+  metodo: "GET" | "POST" | "PATCH" | "DELETE",
   caminho: string,
   opcoes: { corpo?: unknown; comerciante?: string } = {},
 ): Promise<T> {
@@ -285,8 +287,91 @@ export async function pedir<T>(
   } catch {
     throw new ErroHub(0, undefined, {}, undefined, undefined);
   }
+  // 204: sem corpo (tirar uma imagem).
+  if (resposta.status === 204) return undefined as T;
   if (resposta.ok) return (await resposta.json()) as T;
   throw await erroDe(resposta);
+}
+
+/** O ficheiro guardado depois de um envio (o `Ficheiro` da API). */
+export interface FicheiroEnviado {
+  id: string;
+  tipo: string;
+  bytes: number;
+}
+
+/** Os tipos de imagem que a API aceita (docs/22 §15.1); confere-os na mesma. */
+export const TIPOS_DE_IMAGEM = ["image/jpeg", "image/png", "image/webp"];
+/** O tamanho máximo de uma imagem: o `TAMANHO_MAXIMO` da API (10 MB). */
+export const TAMANHO_MAXIMO_IMAGEM = 10 * 1024 * 1024;
+
+/** Um envio cancelado por quem o fez (não é um erro). */
+export class EnvioCancelado extends Error {}
+
+/**
+ * Envia os bytes de uma imagem (docs/22 §15.2) com o progresso: o `fetch`
+ * não diz quanto já subiu, o `XMLHttpRequest` diz. O corpo vai como está,
+ * com o tipo do ficheiro; a origem é a do Hub (o mesmo site).
+ */
+export function enviarImagem(
+  comerciante: string,
+  ficheiro: Blob,
+  aoProgresso: (percentagem: number) => void,
+  sinal: AbortSignal,
+): Promise<FicheiroEnviado> {
+  return new Promise((resolver, rejeitar) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", "/hub/media/uploads");
+    x.withCredentials = true;
+    x.setRequestHeader("content-type", ficheiro.type);
+    x.setRequestHeader("accept", "application/json");
+    x.setRequestHeader("eurolify-comerciante", comerciante);
+    x.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        aoProgresso(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+      }
+    };
+    x.onerror = () => {
+      rejeitar(new ErroHub(0, undefined, {}, undefined, undefined));
+    };
+    x.onabort = () => {
+      rejeitar(new EnvioCancelado());
+    };
+    x.onload = () => {
+      if (x.status === 201) {
+        try {
+          resolver(JSON.parse(x.responseText) as FicheiroEnviado);
+        } catch {
+          // A resposta chegou cortada: como uma resposta perdida.
+          rejeitar(new ErroHub(0, undefined, {}, undefined, undefined));
+        }
+        return;
+      }
+      let problema: Problema = {};
+      try {
+        problema = JSON.parse(x.responseText) as Problema;
+      } catch {
+        // Um corpo que não é JSON (ex.: o nginx): fica o estado.
+      }
+      const esperar = Number(x.getResponseHeader("retry-after"));
+      rejeitar(
+        new ErroHub(
+          x.status,
+          texto(problema.codigo),
+          {
+            pt: texto(problema.mensagem?.pt),
+            en: texto(problema.mensagem?.en),
+          },
+          texto(problema.instance),
+          Number.isFinite(esperar) && esperar > 0 ? esperar : undefined,
+        ),
+      );
+    };
+    sinal.addEventListener("abort", () => {
+      x.abort();
+    });
+    x.send(ficheiro);
+  });
 }
 
 /**
@@ -427,6 +512,26 @@ export const api = {
   /** Criar um artigo físico em rascunho (docs/22 §14): o POST /products. */
   criarArtigo: (comerciante: string, corpo: ArtigoNovo) =>
     pedir<FichaArtigo>("POST", "/hub/products", { comerciante, corpo }),
+  /** Ligar um ficheiro enviado ao artigo (docs/22 §15.2). */
+  ligarImagem: (
+    comerciante: string,
+    artigo: string,
+    corpo: {
+      ficheiro: string;
+      texto_alternativo: string | null;
+      principal: boolean;
+    },
+  ) =>
+    pedir<ImagemArtigo>("POST", `/hub/products/${artigo}/media`, {
+      comerciante,
+      corpo,
+    }),
+  /** Tirar a imagem do artigo (o ficheiro fica); o corpo é `{}`. */
+  tirarImagem: (comerciante: string, imagem: string) =>
+    pedir<undefined>("DELETE", `/hub/media/${imagem}`, {
+      comerciante,
+      corpo: {},
+    }),
   // Editar o artigo (docs/22 §13): as mesmas escritas da API, pelos
   // caminhos /hub/, cada uma com a `versao` lida.
   alterarArtigo: (
