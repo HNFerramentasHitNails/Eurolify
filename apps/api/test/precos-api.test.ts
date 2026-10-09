@@ -219,6 +219,22 @@ describe.skipIf(URL_BASE === undefined)("API de Preços e mercados", () => {
     });
   }
 
+  /** Uma etiqueta de cliente (docs/23 §3.5), com o quem que a base pede. */
+  async function etiquetaDeCliente(nome: string) {
+    return base.dono.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+        trx,
+      );
+      await sql`select set_config('eurolify.quem', 'teste:etiqueta', true)`.execute(
+        trx,
+      );
+      const { rows } = await sql<{ id: string }>`
+        insert into etiqueta_cliente (comerciante_id, nome)
+        values (${a}, ${nome}) returning id`.execute(trx);
+      return `ctg_${rows[0]?.id ?? ""}`;
+    });
+  }
+
   /** Um preço com 40 dias de história (uma linha antiga no histórico, como se viesse de trás). */
   async function comHistoria(
     lista: string,
@@ -798,7 +814,7 @@ describe.skipIf(URL_BASE === undefined)("API de Preços e mercados", () => {
         mercado,
         nome: "Profissionais",
         tipo: "b2b",
-        etiqueta: randomUUID(),
+        etiqueta: await etiquetaDeCliente("Profissionais FI"),
         prioridade: 1,
       }),
       201,

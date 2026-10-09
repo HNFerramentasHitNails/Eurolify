@@ -639,6 +639,100 @@ export interface TabelaPublicacao {
   versao: ColumnType<number, never, never>;
 }
 
+// Clientes e perfis de faturação, parte 1 (migração 0037; docs/23 §3). Os
+// campos que a base põe (a régua do NIF, o principal, o estado do VIES, a
+// marca de uso num documento) não se escrevem pela API.
+export const ESTADOS_VIES = [
+  "nao_aplicavel",
+  "por_validar",
+  "valido",
+  "invalido",
+  "indisponivel",
+] as const;
+export type EstadoVies = (typeof ESTADOS_VIES)[number];
+export const ENTIDADES_DO_RASTO_CLIENTE = [
+  "cliente",
+  "perfil_faturacao",
+  "etiqueta_cliente",
+  "cliente_etiqueta",
+] as const;
+export type EntidadeDoRastoCliente =
+  (typeof ENTIDADES_DO_RASTO_CLIENTE)[number];
+
+export interface TabelaCliente {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  nome: string;
+  emails: ColumnType<string[], string[] | undefined, string[]>;
+  telefones: ColumnType<string[], string[] | undefined, string[]>;
+  lingua: string | null;
+  pais: string | null;
+  estado: ColumnType<"activo" | "fundido" | "pseudonimizado", never, never>;
+  fundido_em: ColumnType<string | null, never, never>;
+  limitado: ColumnType<boolean, never, never>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaPerfilFaturacao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  cliente_id: ColumnType<string, string, never>;
+  tipo: "particular" | "empresa";
+  nome_documento: string;
+  nif_escrito: string | null;
+  pais_contribuinte: string | null;
+  nif_numero: ColumnType<string | null, never, never>;
+  morada_linha1: string | null;
+  morada_linha2: string | null;
+  morada_codigo_postal: string | null;
+  morada_localidade: string | null;
+  morada_pais: string | null;
+  principal: ColumnType<boolean, never, boolean>;
+  estado_vies: ColumnType<EstadoVies, never, never>;
+  estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
+  usado_em_documento: ColumnType<boolean, never, never>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaEtiquetaCliente {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  nome: string;
+  estado: ColumnType<"activa" | "arquivada", never, "activa" | "arquivada">;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, never>;
+}
+
+export interface TabelaClienteEtiqueta {
+  comerciante_id: ColumnType<string, string, never>;
+  cliente_id: ColumnType<string, string, never>;
+  etiqueta_id: ColumnType<string, string, never>;
+  posta_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaAlteracaoCliente {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_id: ColumnType<string | null, never, never>;
+  entidade: ColumnType<EntidadeDoRastoCliente, never, never>;
+  entidade_id: ColumnType<string | null, never, never>;
+  operacao: ColumnType<"criado" | "alterado" | "apagado", never, never>;
+  campos: ColumnType<
+    Record<string, { antes: unknown; depois: unknown }>,
+    never,
+    never
+  >;
+  quem: ColumnType<string, never, never>;
+  origem: ColumnType<string | null, never, never>;
+  transacao: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -671,4 +765,9 @@ export interface BaseDados {
   historico_preco: TabelaHistoricoPreco;
   reducao: TabelaReducao;
   publicacao: TabelaPublicacao;
+  cliente: TabelaCliente;
+  perfil_faturacao: TabelaPerfilFaturacao;
+  etiqueta_cliente: TabelaEtiquetaCliente;
+  cliente_etiqueta: TabelaClienteEtiqueta;
+  alteracao_cliente: TabelaAlteracaoCliente;
 }

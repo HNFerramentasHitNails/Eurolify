@@ -193,6 +193,10 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       components: { securitySchemes: Record<string, unknown> };
     }>();
     expect(Object.keys(c.paths).sort()).toEqual([
+      "/billing-profiles/{id}",
+      "/billing-profiles/{id}/archive",
+      "/billing-profiles/{id}/make-primary",
+      "/billing-profiles/{id}/restore",
       "/categories",
       "/categories/{id}",
       "/categories/{id}/archive",
@@ -208,6 +212,16 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       "/collections/{id}/archive",
       "/collections/{id}/products",
       "/collections/{id}/restore",
+      "/customer-tags",
+      "/customer-tags/{id}",
+      "/customer-tags/{id}/archive",
+      "/customer-tags/{id}/restore",
+      "/customers",
+      "/customers/search",
+      "/customers/{id}",
+      "/customers/{id}/billing-profiles",
+      "/customers/{id}/tags/{etiqueta}",
+      "/customers/{id}/timeline",
       "/health",
       "/imports",
       "/imports/{id}",
