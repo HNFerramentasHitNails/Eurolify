@@ -561,6 +561,114 @@ externo, como na §13.3.
   escuro, e a passagem só com teclado.
 - **A outra sessão** vê no #77 e no #208 os caminhos novos e quando entram.
 
+## 14. Catálogo: criar artigos (issue #221)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da criação de
+artigos»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que
+fica de fora e o limite de 20 variantes (*«sim, aprovo o desenho, junta o
+#222»*). A §13.1 deixou de fora «criar artigos e variantes»; este passo
+trata da primeira parte. Ex.: a gestora da «Loja de Ensaio» carrega em
+«Criar artigo» na lista, escreve «Verniz Verde 31», a marca «Marca de
+Ensaio», uma variante com o SKU `ENS-031`, «Unidade», 15 ml e 60 g, e guarda;
+abre-se a ficha do artigo novo, em rascunho, com «Artigo criado em
+rascunho».
+
+### 14.1 O que entra neste passo e o que fica de fora
+
+Como na §13.1, entra só o que a API já sabe fazer, pela mesma função da rota
+pela chave (medido a 09/10/2026 em `apps/api/src/catalogo/rotas.ts`).
+
+| Entra | Rota da API |
+|---|---|
+| Criar um artigo **físico**, em rascunho, com o nome, a descrição e a marca | `POST /products` (`criarArtigo` + `fichaNa`), linhas 1769–1797 |
+| As variantes do artigo novo, pelo menos uma: SKU, unidade de venda, GTIN com a origem, conteúdo (quantidade e unidade), peso e dimensões | o mesmo pedido (`variantes`, `NovaVariante`, linhas 491–533) |
+
+| Fica de fora, e porquê |
+|---|
+| **Serviço e bilhete**: só se publicam com a classificação (`docs/14` §3.10, P11) e a classificação tem regras **C** e desenho à parte (§13.1). Criá-los no Hub deixava rascunhos que o Hub não consegue levar a lado nenhum. Entram com o formulário da classificação. |
+| **Digital e cartão-oferta**: desligados na base até às portas deles (migração 0002, `catalog.type_disabled`; ADR-0034). |
+| **Categoria fiscal**: como na §13.1 (decide o IVA; só com uma lista dada pelo servidor). A API aceita criar sem ela. |
+| **`onu` e `classe_adr`** (mercadorias perigosas): **C** (`docs/14` linha 122; `product-compliance-eu`). Um valor escrito à mão decide o transporte; entra com o desenho dos campos regulamentares. |
+| **Opções** (cor, tamanho) e os valores de cada variante: formulário próprio. |
+| **Acrescentar uma variante a um artigo que já existe** (`POST /products/{id}/variants`): num artigo com opções pede os valores (a regra `options_incomplete`), e o Hub ainda não mostra opções. Entra com elas. |
+| **Imagens novas**: como na §13.1 (nginx a 64 KB e escritas só em JSON). |
+| **Preço**: é do domínio Preços e mercados (#127), ainda sem código. |
+
+**Decidido** (Diogo, 09/10/2026): no máximo **20 variantes** por artigo criado no Hub (a API
+aceita 100, `MAX_VARIANTES_POR_ARTIGO_NOVO`). Um formulário com mais é
+difícil de usar no telemóvel; mais do que isso entra pela importação (#197).
+É um limite do ecrã, não uma regra do catálogo.
+
+### 14.2 Como o Hub escreve
+
+- **O caminho** é `POST /hub/products`, com a mesma função de
+  `POST /products` (saída A, como na §13.2). Responde 201 com a ficha e
+  `Location: /hub/products/{prd_…}`.
+- **O corpo é mais estreito que o da chave**, num esquema próprio do Hub
+  (como o PATCH da §13, revisão do #217, P1-1): `tipo` só `fisico`; sem
+  `categoria_fiscal`; nas variantes, sem `onu`, `classe_adr` e `posicao` (a
+  ordem é a do formulário); `additionalProperties: false`. O resto valida-o a
+  API, como pela chave (SKU, unidade, GTIN e dígito de controlo, GTIN com
+  origem, conteúdo completo).
+- **Quem pode, quem fez, sem cache**: como na §13.2 (`catalog:write`;
+  `pessoa:per_…` na linha do tempo; `private, no-store`). O artigo nasce com
+  `origem: eurolify`: o Hub não manda `origem_ref`.
+- **Sem `Idempotency-Key`**, como as outras rotas do Hub, e aqui não há
+  `versao`. **O SKU faz de guarda**: é único por comerciante, também nos
+  arquivados (P7), por isso um pedido repetido não cria um segundo artigo:
+  dá `catalog.sku_duplicate` (409). Se a resposta se perder (sem rede, o
+  pedido sai mas a resposta não chega), o ecrã não repete sozinho: procura o
+  SKU da primeira variante (`GET /hub/products?sku=`, que também vê
+  variantes arquivadas, `consultas.ts` linhas 125–135) e, se encontrar um
+  artigo com o mesmo nome, diz «O artigo já tinha sido criado» e abre-o.
+- **Que SKU está repetido**: a API não o diz (o pormenor do 409 é o texto da
+  restrição da base: `paraApi`, `rotas.ts` linhas 204–211). O ecrã compara os SKU do
+  próprio formulário antes de enviar (sem distinguir maiúsculas, P9) e,
+  depois de um 409, procura cada SKU com `GET /hub/products?sku=` e marca ao
+  lado do campo os que já existem. Para o GTIN repetido não há essa procura
+  no Hub: o erro fica no topo. **A pedir ao dono do catálogo (#77)**: o
+  `sku`/`gtin` repetido no pormenor do erro, o que tornava as procuras
+  desnecessárias.
+
+### 14.3 Comerciantes com sistema de gestão
+
+Num comerciante cujos artigos vêm do sistema de gestão (P5), criar no Hub
+faz um artigo `eurolify` ao lado dos de lá. **Não há na base nenhuma marca de
+«este comerciante tem sistema de gestão»** (procurei `sistema_de_gestao`,
+`sistema_gestao` e `tem_sistema` em `apps/api/src` e `apps/api/migracoes`).
+O SKU único protege da cópia: um SKU que já veio de lá dá
+`catalog.sku_duplicate`. Neste passo «Criar artigo» aparece a quem tem
+`catalog:write`, como «Editar».
+
+### 14.4 O ecrã
+
+| Onde | O que mostra | Estados além do normal |
+|---|---|---|
+| **Lista** (§11.2) | Com `catalog:write`, «Criar artigo» no topo. A lista vazia passa a dizer «Ainda não há artigos.» com «Criar artigo» (sem permissão, fica a frase da §11.2). | — |
+| **Criar** (`/artigos/novo?comerciante=mer_…`) | O tipo, escrito: «Físico» (sem escolha neste passo). O nome (obrigatório, até 200), a descrição (texto simples, até 10 000, com a contagem) e a marca (até 200), como na §13.4. Depois, **Variantes**, uma caixa por variante, com: SKU (obrigatório, até 64), unidade de venda (lista da API: unidade, par, caixa, embalagem, conjunto), GTIN (8, 12, 13 ou 14 algarismos) e a origem dele (só aparece com GTIN: «GS1 do comerciante», «Do fornecedor», «Interno»), conteúdo (quantidade e unidade, os dois ou nenhum: mg, g, kg, ml, cl, l, mm, cm, m, m², m³), peso em gramas e dimensões em milímetros. Sem peso, uma nota ao lado: «Sem peso, não se pode publicar» (C2). «Acrescentar outra variante» e, a partir da segunda, «Retirar esta variante». «Criar artigo» e «Cancelar»; sair com alguma coisa escrita pergunta antes (§13.4). | a criar; erro ao lado do campo (nome, SKU repetido no formulário ou já existente, GTIN inválido, GTIN sem origem, conteúdo incompleto); a resposta perdida (§14.2); sem permissão (403); 20 variantes (o botão de acrescentar sai, com «No máximo 20 variantes aqui; mais pela importação») |
+| **Depois de criar** | A ficha do artigo novo (§12), com «Artigo criado em rascunho.» no aviso, que recebe o foco, e o histórico sem o formulário (`substituir`, como na §13.4). Dali seguem «Editar», «Activar» e as imagens. | — |
+
+Os números (`peso_g`, dimensões, quantidade) são inteiros positivos (a
+API recusa 0 e decimais): o campo só aceita algarismos e diz «Um número
+inteiro, sem casas decimais».
+
+### 14.5 Antes de dizer que está feito (o pedido do código)
+
+- **API**: `POST /hub/products` chama a mesma função de `POST /products`
+  e o artigo é igual ao criado pela chave; o corpo recusa `categoria_fiscal`,
+  `onu`, `classe_adr`, `posicao`, `origem_ref` e um tipo que não seja
+  `fisico` (400), e pela chave continuam a aceitar-se; `armazém` e `apoio`
+  recebem 403; membro que saiu e sessão terminada, outro comerciante, sem a
+  origem do Hub ou sem JSON são recusados; o `eurolify.quem` é
+  `pessoa:per_…`; o mesmo pedido duas vezes dá `catalog.sku_duplicate` e não
+  cria um segundo artigo.
+- **Hub**: a passagem cria um artigo com duas variantes e abre a ficha;
+  confere o SKU repetido no formulário e o já existente (marcado no campo),
+  o GTIN sem origem, o conteúdo incompleto, a resposta perdida, o apoio sem
+  «Criar artigo» e a lista vazia com o botão; capturas a 375, 768 e 1280 px,
+  claro e escuro; tudo só com o teclado.
+- **A outra sessão** vê no #77 o caminho novo e o pedido do SKU no erro.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
