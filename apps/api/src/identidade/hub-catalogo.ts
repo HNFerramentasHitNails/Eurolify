@@ -266,6 +266,7 @@ export function rotasDoCatalogoNoHub(
         pedido.params.id,
         resposta,
       );
+      if (dados.length === 0) return { dados: [] };
       const nomes = await nomesDeCanaisEMercados(
         base,
         comercianteId,

@@ -304,6 +304,7 @@ let artigoExterno = "";
 // O 3 tem o histórico com mais de uma página (docs/22 §16).
 let artigoDoHistorico = "";
 let canalDaFicha;
+let mercadoDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
   // A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
@@ -501,6 +502,7 @@ let canalDaFicha;
     throw new Error("a publicação do artigo 1 devia ficar em rascunho");
   }
   canalDaFicha = canal;
+  mercadoDaFicha = mercado;
   await baseArtigos.destroy();
 }
 
@@ -1592,10 +1594,11 @@ try {
   await rp.getByRole("heading", { name: "Verniz Azul 1", level: 1 }).waitFor();
   // Os nomes do canal e do mercado, não os identificadores (docs/22 §18.2).
   await rp
-    .getByRole("row", { name: /^Loja online Portugal Rascunho/ })
+    .getByRole("row", { name: /Loja online.*Portugal.*Rascunho/ })
     .waitFor();
   confere(
-    (await rp.getByText(`chn_${canalDaFicha}`).count()) === 0,
+    (await rp.getByText(`chn_${canalDaFicha}`).count()) === 0 &&
+      (await rp.getByText(`mkt_${mercadoDaFicha}`).count()) === 0,
     "ficha: as publicações mostram o nome do canal e do mercado, sem o identificador",
   );
   await rp.waitForFunction(

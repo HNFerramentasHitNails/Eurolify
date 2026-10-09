@@ -1373,8 +1373,8 @@ function Publicacoes({
         ? p.publicado_em
         : p.verificado_em;
   return (
-    // Cinco colunas, duas com identificadores longos: cartões até 960 px,
-    // como as chaves (revisão do #206, P2-2).
+    // Cinco colunas (e, sem o nome, um identificador longo): cartões até
+    // 960 px, como as chaves (revisão do #206, P2-2).
     <table className="tabela-larga">
       <thead>
         <tr>

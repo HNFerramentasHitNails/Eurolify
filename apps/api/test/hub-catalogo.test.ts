@@ -573,7 +573,10 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
         return copia;
       });
       expect({ ...hub.json<object>(), dados: semNomes }).toEqual(api.json());
-      expect(JSON.stringify(api.json())).not.toContain("_nome");
+      for (const d of api.json<{ dados: object[] }>().dados) {
+        expect(Object.keys(d)).not.toContain("canal_nome");
+        expect(Object.keys(d)).not.toContain("mercado_nome");
+      }
       return dados;
     };
     expect(await comparar(incompleto)).toMatchObject([
@@ -816,15 +819,37 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       );
     }
     // As publicações do Hub têm os dois nomes; as da chave não (§18.1).
-    const publicacoes = (caminho: string) =>
-      JSON.stringify(contrato.paths[caminho]?.["get"]?.responses);
-    expect(publicacoes("/hub/products/{id}/publications")).toContain(
-      "canal_nome",
+    // Os campos de cada publicação (as chaves do esquema, não o texto).
+    const campos = (caminho: string) => {
+      const respostas = contrato.paths[caminho]?.["get"]?.responses as
+        | Record<
+            string,
+            {
+              content?: Record<
+                string,
+                {
+                  schema?: {
+                    properties?: {
+                      dados?: { items?: { properties?: object } };
+                    };
+                  };
+                }
+              >;
+            }
+          >
+        | undefined;
+      return Object.keys(
+        respostas?.["200"]?.content?.["application/json"]?.schema?.properties
+          ?.dados?.items?.properties ?? {},
+      ).sort();
+    };
+    const daChave = campos("/products/{id}/publications");
+    expect(daChave).toContain("canal");
+    expect(daChave).not.toContain("canal_nome");
+    expect(daChave).not.toContain("mercado_nome");
+    expect(campos("/hub/products/{id}/publications")).toEqual(
+      [...daChave, "canal_nome", "mercado_nome"].sort(),
     );
-    expect(publicacoes("/hub/products/{id}/publications")).toContain(
-      "mercado_nome",
-    );
-    expect(publicacoes("/products/{id}/publications")).not.toContain("_nome");
     expect(
       contrato.paths["/hub/products/{id}/publications"]?.["get"]?.security,
     ).toEqual([{ sessao: [] }]);
