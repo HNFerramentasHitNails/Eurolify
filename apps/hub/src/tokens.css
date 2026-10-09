@@ -10,6 +10,7 @@
   --cinzento-50: #f5f6f8;
   --cinzento-200: #dde1e6;
   --cinzento-300: #b4bcc6;
+  --cinzento-500: #7d8590;
   --cinzento-600: #525b66;
   --cinzento-700: #3a414a;
   --cinzento-900: #1b1f24;
@@ -23,6 +24,9 @@
   --ambar-800: #92400e;
   --verde-300: #86efac;
   --verde-800: #166534;
+  /* Os tons muito leves do fundo da entrada (docs/hub-modular-glassmorphism.md). */
+  --azul-50: #eef3fd;
+  --azul-950: #141b29;
   --espaco-1: 4px;
   --espaco-2: 8px;
   --espaco-3: 12px;
@@ -49,6 +53,22 @@
   --opacidade-ocupado: 0.7;
   --salto-escondido: -100px;
 
+  /* De componente: a entrada por módulos (proposta; vai com as capturas ao
+     Diogo ou ao Bruno). Só a entrada os usa. */
+  --hub-icone-superficie: 64px;
+  --hub-icone-superficie-larga: 72px;
+  --hub-icone-tamanho: 32px;
+  --hub-icone-raio: 16px;
+  --hub-pesquisa-largura-maxima: 640px;
+  --hub-pesquisa-altura-minima: 48px;
+  --hub-rotulo-entrelinha: 1.4;
+  --hub-transicao: 150ms;
+  --vidro-desfoque: 12px;
+  --vidro-desfoque-pequeno: 8px;
+  --sombra-curta-clara:
+    0 1px 2px rgb(17 20 24 / 8%), 0 4px 12px rgb(17 20 24 / 6%);
+  --sombra-curta-escura: 0 1px 2px rgb(0 0 0 / 30%);
+
   /* Semânticos, tema claro */
   --superficie: var(--cinzento-0);
   --superficie-elevada: var(--cinzento-50);
@@ -66,6 +86,19 @@
   --estado-artigo-rascunho: var(--estado-aviso);
   --estado-artigo-activo: var(--estado-sucesso);
   --estado-artigo-arquivado: var(--texto-secundario);
+  /* O vidro da entrada: uma cor, a opacidade (percentagem, para o
+     color-mix) e o fundo estático com um gradiente muito leve. O teste de
+     contraste mede as cores compostas. */
+  --fundo-entrada-inicio: var(--superficie);
+  --fundo-entrada-fim: var(--azul-50);
+  --vidro-cor: var(--cinzento-0);
+  --vidro-opacidade: 84%;
+  --vidro-opacidade-forte: 96%;
+  --vidro-borda: var(--borda);
+  --vidro-sombra: var(--sombra-curta-clara);
+  /* A borda do campo de pesquisa, o controlo principal da entrada: ≥ 3:1
+     contra o fundo nos dois temas (WCAG 1.4.11; revisão do #219, P2-5). */
+  --borda-controlo: var(--cinzento-500);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -81,5 +114,10 @@
     --estado-erro: var(--vermelho-300);
     --estado-aviso: var(--ambar-300);
     --estado-sucesso: var(--verde-300);
+    --fundo-entrada-fim: var(--azul-950);
+    --vidro-cor: var(--cinzento-900);
+    --vidro-opacidade: 90%;
+    --vidro-opacidade-forte: 97%;
+    --vidro-sombra: var(--sombra-curta-escura);
   }
 }

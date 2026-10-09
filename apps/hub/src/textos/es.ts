@@ -38,11 +38,31 @@ export const es: Textos = {
   copiado: "Copiado",
   codigosGuardados: "Ya los he guardado",
 
-  inicioTitulo: "Sus comerciantes",
+  inicioTitulo: "Inicio",
   inicioEntrouComo: "Ha entrado como",
   inicioVazio:
     "No pertenece a ningún equipo. Pida una invitación a quien gestiona el comerciante.",
-  verEquipa: "Ver el equipo",
+  inicioComerciante: "Comerciante",
+  inicioEscolher: "Elija el comerciante",
+  inicioEscolherExplicacao:
+    "Pertenece a más de un equipo. Elija con cuál quiere trabajar.",
+  inicioComercianteDesconhecido:
+    "Este comerciante no está entre los suyos. Elija uno de la lista.",
+  inicioMudarComerciante: "Cambiar de comerciante",
+  modulosTitulo: "Módulos",
+  modulosPesquisar: "Buscar módulos",
+  modulosLimpar: "Borrar la búsqueda",
+  modulosContagem: "{n} módulos",
+  modulosContagemUm: "1 módulo",
+  modulosSemResultados: "Ningún módulo coincide con «{consulta}».",
+  modulosNenhum: "Su rol en este comerciante aún no tiene módulos disponibles.",
+  modulosOpacos: "Superficies opacas",
+  modulo_equipa: "Equipo",
+  modulo_artigos: "Artículos",
+  modulo_chaves: "Claves de API",
+  termos_equipa: "miembros invitaciones roles personas",
+  termos_artigos: "catálogo productos variantes",
+  termos_chaves: "api integraciones servidor",
 
   papel_dono: "Propietario",
   papel_gestor: "Gestor",
@@ -50,7 +70,7 @@ export const es: Textos = {
   papel_apoio: "Soporte",
 
   equipaTitulo: "Equipo",
-  equipaVoltar: "Sus comerciantes",
+  equipaVoltar: "Volver al inicio",
   equipaMembros: "Miembros",
   equipaContagem: "{n} miembros",
   equipaContagemUm: "1 miembro",
@@ -227,7 +247,6 @@ export const es: Textos = {
 
   // Claves de API (docs/22 §9.3).
   chavesTitulo: "Claves de API",
-  verChaves: "Claves de API",
   chavesExplicacao:
     "Las claves dejan que otros programas (una integración, la facturación, una IA) usen la API de este comerciante. Cada clave solo hace lo que permiten sus ámbitos.",
   chavesVazio: "Todavía no hay claves.",
@@ -320,7 +339,6 @@ export const es: Textos = {
   conviteOutraConta:
     "Si la invitación es para otro correo, salga primero y vuelva a abrir el enlace.",
   artigosTitulo: "Artículos",
-  verArtigos: "Ver artículos",
   artigosContagem: "{n} artículos",
   artigosContagemUm: "1 artículo",
   artigosContagemFiltro: "{n} de {total} artículos",

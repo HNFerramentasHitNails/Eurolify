@@ -94,10 +94,17 @@ export function App() {
     guarda.current = pergunta;
   }, []);
 
+  // O vidro sai em toda a página enquanto estiver ligado; não se guarda.
+  const [opaco, mudarOpaco] = useState(false);
+  useEffect(() => {
+    if (opaco) document.documentElement.dataset.superficie = "opaca";
+    else delete document.documentElement.dataset.superficie;
+  }, [opaco]);
+
   const t = TEXTOS[lingua];
   const contexto = useMemo<Contexto>(
-    () => ({ t, lingua, navegar, definirGuarda }),
-    [t, lingua, navegar, definirGuarda],
+    () => ({ t, lingua, navegar, definirGuarda, opaco, mudarOpaco }),
+    [t, lingua, navegar, definirGuarda, opaco],
   );
 
   const artigo = CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null;
@@ -144,6 +151,9 @@ export function App() {
   else if (local.caminho === "/equipa")
     ecra = (
       <Equipa
+        // Outro comerciante, outro ecrã: os membros de um nunca ficam por
+        // baixo do título de outro (revisão do #219, P2-2).
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
       />
     );
@@ -192,7 +202,12 @@ export function App() {
         }
       />
     );
-  else ecra = <Inicio />;
+  else
+    ecra = (
+      <Inicio
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
 
   return (
     <ContextoHub.Provider value={contexto}>
