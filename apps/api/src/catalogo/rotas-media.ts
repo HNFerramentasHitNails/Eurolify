@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import { Type, type Static } from "typebox";
 import { erroBase, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { TIPOS_DE_IMAGEM, type BaseDados } from "../base/esquema.js";
@@ -97,7 +97,7 @@ const PedidoLigarMedia = Type.Object(
   { additionalProperties: false },
 );
 
-const PedidoAlterarMedia = Type.Object(
+export const PedidoAlterarMedia = Type.Object(
   {
     versao: Type.Integer({ minimum: 1 }),
     texto_alternativo: Type.Optional(
@@ -136,6 +136,23 @@ const paraMedia = (m: LinhaMedia) => ({
   criada_em: m.criado_em.toISOString(),
   actualizada_em: m.actualizado_em.toISOString(),
 });
+
+/**
+ * Altera a imagem na transacção dada e devolve-a. Chamam-na o
+ * PATCH /media/{id} (pela chave) e o PATCH /hub/media/{id} (pela sessão;
+ * docs/22 §13.2).
+ */
+export async function alteracaoDaMedia(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  idComPrefixo: string,
+  corpo: Static<typeof PedidoAlterarMedia>,
+): Promise<Static<typeof MediaEsquema>> {
+  const id = semPrefixo(idComPrefixo);
+  const { versao, ...alteracao } = corpo;
+  await alterarMedia(trx, comercianteId, id, versao, alteracao);
+  return paraMedia(await fichaDaMedia(trx, comercianteId, id));
+}
 
 /**
  * As imagens de um artigo (docs/14 §3.8): as mesmas para
@@ -344,12 +361,14 @@ export function rotasDaMedia(
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 200, async (trx, chave) => {
-        const id = semPrefixo(pedido.params.id);
-        const { versao, ...alteracao } = pedido.body;
-        await alterarMedia(trx, chave.comercianteId, id, versao, alteracao);
-        return paraMedia(await fichaDaMedia(trx, chave.comercianteId, id));
-      }),
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        alteracaoDaMedia(
+          trx,
+          chave.comercianteId,
+          pedido.params.id,
+          pedido.body,
+        ),
+      ),
   );
 
   rotas.delete(

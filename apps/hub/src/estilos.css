@@ -134,7 +134,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   font: inherit;
   width: 100%;
   min-height: var(--alvo-minimo);
@@ -468,4 +469,42 @@ td code {
   gap: var(--espaco-2);
   padding: var(--espaco-2);
   text-align: center;
+}
+
+/* Editar o artigo (docs/22 §13.4): os botões em linha, que passam à linha
+   seguinte no telemóvel; uma ligação com aspecto de botão («Editar»). */
+.accoes-artigo,
+.accoes-imagem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+  margin: var(--espaco-3) 0;
+}
+a.botao {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--texto);
+}
+textarea {
+  resize: vertical;
+}
+.editar-imagem {
+  margin-top: var(--espaco-2);
+}
+/* O que está guardado agora, depois de um conflito de versão (§13.2). */
+.valores-actuais dt {
+  font-weight: 600;
+  margin-top: var(--espaco-2);
+}
+.valores-actuais dd {
+  margin: 0;
+}
+
+/* O erro de um campo, ao lado dele (docs/22 §13.4): a cor do erro e as
+   palavras, nunca só a cor. */
+.erro-campo {
+  color: var(--estado-erro);
+  font-weight: 600;
+  margin: var(--espaco-1) 0 0;
 }
