@@ -44,6 +44,7 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
   let soLer: string;
   let precos: string;
   let semClientes: string;
+  let semFaturacao: string;
   let deB: string;
 
   const pedir = (
@@ -120,21 +121,76 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
         nome,
         ambitos: ambitos as never,
       });
-    const c = await chave(a, "Clientes", ["customers:read", "customers:write"]);
+    const c = await chave(a, "Clientes", [
+      "customers:read",
+      "customers:write",
+      "customers:billing",
+    ]);
     clientes = c.segredo;
     clientesId = c.id;
     soLer = (await chave(a, "Ler clientes", ["customers:read"])).segredo;
     precos = (await chave(a, "Preços", ["prices:read", "prices:write"]))
       .segredo;
     semClientes = (await chave(a, "Catálogo", ["catalog:read"])).segredo;
+    semFaturacao = (
+      await chave(a, "Clientes sem faturação", [
+        "customers:read",
+        "customers:write",
+      ])
+    ).segredo;
     deB = (
-      await chave(b, "Clientes de B", ["customers:read", "customers:write"])
+      await chave(b, "Clientes de B", [
+        "customers:read",
+        "customers:write",
+        "customers:billing",
+      ])
     ).segredo;
   }, 60_000);
 
   afterAll(async () => {
     await app.close();
     await base.fechar();
+  });
+
+  it("os perfis de faturação só com customers:billing (o dono): o gestor e o apoio mudam a ficha, não o NIF", async () => {
+    const f = await ok(
+      pedir("POST", "/customers", { nome: "Só ficha" }, semFaturacao),
+      201,
+    );
+    expect(
+      (
+        await perfil(
+          f["id"],
+          { tipo: "empresa", nome_documento: "X, Lda", nif: "263631656" },
+          semFaturacao,
+        )
+      ).statusCode,
+    ).toBe(403);
+    const p = await ok(
+      perfil(f["id"], {
+        tipo: "empresa",
+        nome_documento: "X, Lda",
+        nif: "263631656",
+      }),
+      201,
+    );
+    const id = String(p["id"]);
+    for (const [metodo, url, corpo] of [
+      ["PATCH", `/billing-profiles/${id}`, { versao: 1, nif: "513207384" }],
+      ["POST", `/billing-profiles/${id}/make-primary`, undefined],
+      ["POST", `/billing-profiles/${id}/archive`, { versao: 1 }],
+      ["POST", `/billing-profiles/${id}/restore`, { versao: 1 }],
+    ] as const) {
+      expect(
+        (await pedir(metodo, url, corpo, semFaturacao)).statusCode,
+        url,
+      ).toBe(403);
+    }
+    // Ler, sim.
+    expect(
+      (await pedir("GET", `/billing-profiles/${id}`, undefined, semFaturacao))
+        .statusCode,
+    ).toBe(200);
   });
 
   it("os âmbitos: ler não escreve; sem customers:* não se vê nada", async () => {

@@ -322,7 +322,8 @@ Preços na 0036):
 | Âmbito | Dá | Papéis (proposta) |
 |---|---|---|
 | `customers:read` | ler fichas, perfis, etiquetas, consentimentos, candidatos a duplicado | dono, gestor, apoio |
-| `customers:write` | criar e alterar fichas, perfis e etiquetas; registar consentimentos; pedir uma validação | dono, gestor, apoio |
+| `customers:write` | criar e alterar fichas e etiquetas; registar consentimentos | dono, gestor, apoio |
+| `customers:billing` | criar e alterar perfis de faturação (NIF, morada fiscal), o principal, arquivar e repor; pedir uma validação | **só o dono** (Diogo, 09/10/2026: *«sim, só o dono»*; `docs/06`, CX) |
 | `customers:exemptions` | pôr e tirar isenções manuais | dono (✅ Q4) |
 | `customers:merge` | fundir fichas | dono, gestor |
 | `customers:privacy` | exportar e pseudonimizar a pedido do titular; ligar a limitação | dono |
@@ -336,9 +337,9 @@ O armazém não lê clientes: a morada de que precisa vem na encomenda
 |---|---|---|---|
 | Clientes | `GET /customers`, `GET /customers/{id}`, `POST /customers`, `PATCH /customers/{id}` | read / write | nunca devolve fichas de outro comerciante |
 | Procurar | `POST /customers/search` (`{ procura, limite, cursor }`) | read | por e-mail, telefone ou NIF (pelo número, §3.3), nunca pelo nome; no corpo, para o valor não ficar nos registos (R12; revisão do #234, P1-1) |
-| Perfis | `GET /customers/{id}/billing-profiles`, `POST …`, `PATCH /billing-profiles/{id}` | read / write | recusa a régua do NIF (`customers.nif_invalid`) e R4 (`customers.profile_used`) |
-| Perfil principal | `POST /billing-profiles/{id}/make-primary` | write | troca o principal na mesma transacção |
-| Arquivar perfil | `POST /billing-profiles/{id}/archive`, `…/restore` | write | |
+| Perfis | `GET /customers/{id}/billing-profiles`, `POST …`, `PATCH /billing-profiles/{id}` | read / billing | recusa a régua do NIF (`customers.nif_invalid`) e R4 (`customers.profile_used`) |
+| Perfil principal | `POST /billing-profiles/{id}/make-primary` | billing | troca o principal na mesma transacção |
+| Arquivar perfil | `POST /billing-profiles/{id}/archive`, `…/restore` | billing | |
 | Validar no VIES | `POST /billing-profiles/{id}/vies-checks`, `GET …/vies-checks` | write / read | a consulta e o histórico das provas |
 | Isenção manual | `PUT /billing-profiles/{id}/exemption`, `DELETE …/exemption` | exemptions | com motivo obrigatório |
 | Etiquetas | `GET /customer-tags`, `POST`, `PATCH`, `…/archive` | read / write | |
@@ -428,8 +429,8 @@ Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
 | a linha do tempo (`alteracao_cliente`), que só se acrescenta e recusa a escrita sem quem | migração 0037; `GET /customers/{id}/timeline` |
 | os eventos `customer.created`, `customer.updated`, `billing_profile.created`, `billing_profile.updated`, só com identificadores e os nomes dos campos | migração 0037 |
 | a API de Administração: fichas (com a procura por e-mail, telefone ou NIF), perfis, principal, arquivar/repor, etiquetas, pôr e tirar etiquetas | `src/clientes/rotas.ts` |
-| os âmbitos `customers:read` e `customers:write` (dono, gestor, apoio) | migração 0037; `src/identidade/` |
-| 15 testes pela API e 1 da migração sobre dados; 19 mutações, todas apanhadas (a lista de impossíveis, o principal, R4, o prefixo, a etiqueta em uso, a etiqueta arquivada, a procura pelo número, o país antigo num NIF novo, o quem, o VIES no país do comerciante, os valores nos eventos, a dedução do PT) | `test/clientes-api.test.ts` |
+| os âmbitos `customers:read` e `customers:write` (dono, gestor, apoio) e `customers:billing` (só o dono: os perfis de faturação) | migração 0037; `src/identidade/` |
+| 16 testes pela API e 1 da migração sobre dados; 20 mutações, todas apanhadas (a lista de impossíveis, o principal, R4, o prefixo, a etiqueta em uso, a etiqueta arquivada, a procura pelo número, o país antigo num NIF novo, o quem, o VIES no país do comerciante, os valores nos eventos, a dedução do PT) | `test/clientes-api.test.ts` |
 
 
 **Depois da revisão do agente** (#234, 09/10/2026):

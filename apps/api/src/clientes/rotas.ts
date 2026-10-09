@@ -407,6 +407,9 @@ export function rotasDosClientes(
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
   const ler = { ambito: "customers:read" as const };
   const escrita = { ambito: "customers:write" as const };
+  // Os perfis de faturação (NIF, morada fiscal) só o dono os escreve (Diogo,
+  // 09/10/2026: «sim, só o dono»; docs/06, CX).
+  const faturacao = { ambito: "customers:billing" as const };
 
   // ---- Fichas
 
@@ -604,7 +607,7 @@ export function rotasDosClientes(
   rotas.post(
     "/customers/:id/billing-profiles",
     {
-      config: escrita,
+      config: faturacao,
       schema: {
         description:
           "Cria um perfil de faturação na ficha. O NIF passa pela régua (docs/23 §3.3): sem prefixo nem país, só se aceita um NIF português válido; um número impossível é recusado. O primeiro perfil activo é o principal.",
@@ -653,7 +656,7 @@ export function rotasDosClientes(
   rotas.patch(
     "/billing-profiles/:id",
     {
-      config: escrita,
+      config: faturacao,
       schema: {
         description:
           "Altera um perfil, na versão lida. Um NIF novo sem país é deduzido dele. Um perfil usado num documento não muda de NIF, tipo nem país (customers.profile_used): crie outro.",
@@ -677,7 +680,7 @@ export function rotasDosClientes(
   rotas.post(
     "/billing-profiles/:id/make-primary",
     {
-      config: escrita,
+      config: faturacao,
       schema: {
         description:
           "Torna o perfil (activo) o principal da ficha; o anterior deixa de o ser na mesma transacção.",
@@ -711,7 +714,7 @@ export function rotasDosClientes(
     rotas.post(
       `/billing-profiles/:id/${caminho}`,
       {
-        config: escrita,
+        config: faturacao,
         schema: {
           description: `${texto}, na versão lida.`,
           headers: CabecalhoIdempotencia,

@@ -30,7 +30,9 @@
 --   `billing_profile.created` e `billing_profile.updated` (§6), só com
 --   identificadores e os nomes dos campos (R12);
 -- - os âmbitos `customers:read` e `customers:write` (§7): nas chaves e nos
---   papéis dono, gestor e apoio.
+--   papéis dono, gestor e apoio; e `customers:billing` (os perfis de
+--   faturação: NIF e morada fiscal), só no dono (Diogo, 09/10/2026: «sim, só
+--   o dono»; revisão do #234, P3-13).
 --
 -- O que não faz (e onde fica): consentimentos, duplicados, fusões e pedidos
 -- dos titulares (parte 2); VIES e isenção manual (parte 3); os dígitos de
@@ -830,15 +832,17 @@ ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
     'merchant:read', 'merchant:write',
     'catalog:read', 'catalog:write', 'catalog:publish', 'catalog:import',
     'catalog:history', 'prices:read', 'prices:write',
-    'customers:read', 'customers:write', 'keys:write', 'storefront'
+    'customers:read', 'customers:write', 'customers:billing', 'keys:write',
+    'storefront'
   ]::text[]);
 
 CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT CASE p_papel
     WHEN 'dono' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
-                           'catalog:read', 'catalog:write', 'customers:read',
-                           'customers:write', 'keys:write', 'merchant:read',
+                           'catalog:read', 'catalog:write', 'customers:billing',
+                           'customers:read', 'customers:write', 'keys:write',
+                           'merchant:read',
                            'merchant:write', 'prices:read', 'prices:write']
     WHEN 'gestor' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
                              'catalog:read', 'catalog:write', 'customers:read',
