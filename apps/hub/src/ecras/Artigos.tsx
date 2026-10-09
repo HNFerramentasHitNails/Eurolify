@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type SyntheticEvent,
@@ -112,6 +113,12 @@ export function Artigos({
   // Quando acaba a última página, o foco vai para a contagem, em vez de se
   // perder com o botão (revisão do #201, P3-8).
   const contagem = useRef<HTMLParagraphElement>(null);
+  const contagemPorFocar = useRef(false);
+  useLayoutEffect(() => {
+    if (!contagemPorFocar.current || contagem.current === null) return;
+    contagemPorFocar.current = false;
+    contagem.current.focus();
+  }, [lista]);
 
   const carregar = useCallback(
     async (f: FiltrosArtigos) => {
@@ -177,11 +184,10 @@ export function Artigos({
         total: pagina.total,
         cursor: pagina.cursor_seguinte,
       });
-      if (pagina.cursor_seguinte === null) {
-        requestAnimationFrame(() => {
-          contagem.current?.focus();
-        });
-      }
+      // O foco muda antes de pintar, quando a contagem já está no ecrã: um
+      // pedido de animação podia chegar antes e perder-se (como na ficha,
+      // revisão do #223).
+      if (pagina.cursor_seguinte === null) contagemPorFocar.current = true;
     } catch (e) {
       if (este !== ultimo.current) return;
       if (semSessao(e)) {
@@ -226,6 +232,9 @@ export function Artigos({
 
   const meu = eu?.comerciantes.find((c) => c.comerciante === comerciante);
   const filtrado = !semFiltro(filtros);
+  // Só decide o que o ecrã oferece; a API recusa na mesma (§14.2).
+  const podeCriar = valido && meu?.ambitos.includes("catalog:write") === true;
+  const destinoCriar = `/artigos/novo?comerciante=${encodeURIComponent(comerciante ?? "")}`;
 
   return (
     <section aria-labelledby="titulo">
@@ -238,6 +247,13 @@ export function Artigos({
         {t.artigosTitulo}
         {meu === undefined ? "" : ` — ${meu.nome}`}
       </h1>
+      {podeCriar ? (
+        <p>
+          <LigacaoInterna className="botao" href={destinoCriar}>
+            {t.artigoCriar}
+          </LigacaoInterna>
+        </p>
+      ) : null}
       {!valido ? (
         <CaixaDeErro erro={{ texto: t.erroSemPermissao }} />
       ) : (
@@ -318,7 +334,8 @@ export function Artigos({
                     : preencher(t.artigosContagem, { n: lista.total })}
               </p>
               {lista.totalSemFiltro === 0 && !filtrado ? (
-                <p>{t.artigosVazio}</p>
+                // Com catalog:write, o botão está por cima (§14.4).
+                <p>{podeCriar ? t.artigosVazioCriar : t.artigosVazio}</p>
               ) : lista.artigos.length === 0 ? (
                 <>
                   <p>{t.artigosSemResultados}</p>
