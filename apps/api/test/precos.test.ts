@@ -9,6 +9,7 @@ import {
   criarLoja,
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
+import { criarEtiqueta } from "../src/clientes/repositorio.js";
 import {
   alterarMercado,
   criarCanal,
@@ -317,7 +318,7 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
         }),
       ),
     ).toBe("prices.b2b_label_required");
-    const etiqueta = "0192a3b4-0000-7000-8000-000000000001";
+    const etiqueta = await criarEtiqueta(base.api, c, "Profissionais");
     await criarLista(base.api, c, {
       mercado_id: mercado,
       nome: "Profissionais",
@@ -331,7 +332,7 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
           mercado_id: mercado,
           nome: "Salões",
           tipo: "b2b",
-          etiqueta_id: "0192a3b4-0000-7000-8000-000000000002",
+          etiqueta_id: await criarEtiqueta(base.api, c, "Salões"),
           prioridade: 10,
         }),
       ),
@@ -461,7 +462,7 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       mercado_id: mercado,
       nome: "Pro",
       tipo: "b2b",
-      etiqueta_id: "0192a3b4-0000-7000-8000-000000000003",
+      etiqueta_id: await criarEtiqueta(base.api, c, "Pro"),
       prioridade: 1,
     });
     await mudarEstadoLista(base.api, c, b2b, 1, "arquivada");
@@ -709,7 +710,7 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       mercado_id: rascunho,
       nome: "Pro",
       tipo: "b2b",
-      etiqueta_id: "0192a3b4-0000-7000-8000-000000000004",
+      etiqueta_id: await criarEtiqueta(base.api, c, "Pro"),
       prioridade: 1,
     });
     await definirPreco(base.api, c, QUEM, b2b, v2, { montante: 500 });
@@ -1023,7 +1024,7 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
         mercado_id: mercado,
         nome: "Pro",
         tipo: "b2b",
-        etiqueta_id: "0192a3b4-0000-7000-8000-000000000005",
+        etiqueta_id: await criarEtiqueta(base.api, c, "Pro"),
         prioridade: 1,
       });
       const a = await ligacao(c);
