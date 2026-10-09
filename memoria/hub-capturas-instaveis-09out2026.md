@@ -28,6 +28,8 @@ o Hub não mudou.
 - Os dois P2 de produto em `Artigo.tsx` passaram ao #251:
   - respostas fora de ordem ao recarregar as imagens;
   - foco depois de uma falha.
+  Os dois foram reproduzidos e corrigidos no #260
+  (`hub-ficha-ordem-e-foco-09out2026.md`).
 - Uma falha rara ficou sem causa, no #253: a miniatura não apareceu em 10 s,
   1 vez em 28 voltas.
 
@@ -60,6 +62,6 @@ volta. Uma volta completa demora cerca de 110 s e tem 427 verificações «ok».
 - Ficou afastado o limite de 300 pedidos por minuto
   (`apps/api/src/base/limite.ts:26-29`): nas voltas com diagnóstico, todas as
   recusas 429 eram fingidas pelo próprio teste.
-- Os dois P2 do #251 foram achados só a ler o código; não se reproduziram.
+- Os dois P2 do #251: reproduzidos e corrigidos depois, no #260.
 - Só se correu no Chromium, e só neste contentor. No CI do GitHub, o
   `capturas.mjs` não corre.
