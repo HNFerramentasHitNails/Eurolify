@@ -78,7 +78,8 @@ operador»*). Desenho no `docs/19` §6.0.
   - O Diogo aceitou-o e entrou («entrei, já está», dito por ele; não
     verificado daqui). A conta antiga (`dono@loja.test`) continua, com a
     passkey do outro computador: a loja tem agora dois donos. O Diogo
-    decidiu manter as duas («mantém a conta antiga», 09/10/2026).
+    decidiu manter as duas («mantém a conta antiga», 09/10/2026), e
+    confirmou-o noutra sessão: «fica como segundo dono» (09/10/2026).
 
 ## O que ficou por verificar
 
