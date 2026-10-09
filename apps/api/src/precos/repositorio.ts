@@ -1216,6 +1216,44 @@ async function reducoesEmVigor(
   ).map(paraReducao);
 }
 
+/**
+ * Os nomes dos canais e dos mercados pedidos (docs/22 §18.1), no contexto do
+ * comerciante e com o filtro dele escrito (não só a RLS): um id de outro
+ * comerciante não vem. **Chamador:** a lista das
+ * publicações do Hub (`identidade/hub-catalogo.ts`).
+ */
+export async function nomesDeCanaisEMercados(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  canais: string[],
+  mercados: string[],
+): Promise<{ canais: Map<string, string>; mercados: Map<string, string> }> {
+  return noDominio(db, comercianteId, async (trx) => {
+    const deCanais =
+      canais.length === 0
+        ? []
+        : await trx
+            .selectFrom("canal")
+            .select(["id", "nome"])
+            .where("comerciante_id", "=", comercianteId)
+            .where("id", "in", canais)
+            .execute();
+    const deMercados =
+      mercados.length === 0
+        ? []
+        : await trx
+            .selectFrom("mercado")
+            .select(["id", "nome"])
+            .where("comerciante_id", "=", comercianteId)
+            .where("id", "in", mercados)
+            .execute();
+    return {
+      canais: new Map(deCanais.map((c) => [c.id, c.nome])),
+      mercados: new Map(deMercados.map((m) => [m.id, m.nome])),
+    };
+  });
+}
+
 /** Uma lista activa com o mercado dela e os preços das variantes de um artigo. */
 export interface PrecosDoArtigoNaLista {
   id: string;

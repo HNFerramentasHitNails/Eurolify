@@ -440,7 +440,7 @@ const VerificacaoGuardada = Type.Object({
   nao_verificado: Type.Array(Type.String()),
 });
 
-const PublicacaoEsquema = Type.Object({
+export const PublicacaoEsquema = Type.Object({
   id: Type.String({ description: "pub_…" }),
   artigo: Type.String({ description: "prd_…" }),
   canal: Type.String({ description: "chn_…" }),

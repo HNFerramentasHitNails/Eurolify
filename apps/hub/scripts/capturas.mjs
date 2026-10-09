@@ -304,6 +304,7 @@ let artigoExterno = "";
 // O 3 tem o histórico com mais de uma página (docs/22 §16).
 let artigoDoHistorico = "";
 let canalDaFicha;
+let mercadoDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
   // A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
@@ -501,6 +502,7 @@ let canalDaFicha;
     throw new Error("a publicação do artigo 1 devia ficar em rascunho");
   }
   canalDaFicha = canal;
+  mercadoDaFicha = mercado;
   await baseArtigos.destroy();
 }
 
@@ -1590,9 +1592,15 @@ try {
   await rp.getByText("5 de 30 artigos", { exact: true }).waitFor();
   await rp.getByRole("link", { name: "Verniz Azul 1", exact: true }).click();
   await rp.getByRole("heading", { name: "Verniz Azul 1", level: 1 }).waitFor();
+  // Os nomes do canal e do mercado, não os identificadores (docs/22 §18.2).
   await rp
-    .getByRole("row", { name: new RegExp(`chn_${canalDaFicha}.*Rascunho`) })
+    .getByRole("row", { name: /Loja online.*Portugal.*Rascunho/ })
     .waitFor();
+  confere(
+    (await rp.getByText(`chn_${canalDaFicha}`).count()) === 0 &&
+      (await rp.getByText(`mkt_${mercadoDaFicha}`).count()) === 0,
+    "ficha: as publicações mostram o nome do canal e do mercado, sem o identificador",
+  );
   await rp.waitForFunction(
     () =>
       document.querySelectorAll(".imagens-artigo img").length === 2 &&
@@ -1789,6 +1797,9 @@ try {
             artigo: `prd_${artigoDaFicha}`,
             canal: "chn_00000000-0000-4000-8000-000000000002",
             mercado: "mkt_00000000-0000-4000-8000-000000000003",
+            // Sem os nomes (não devia acontecer): fica o identificador.
+            canal_nome: null,
+            mercado_nome: null,
             estado: "arquivado",
             variantes_fora: [],
             ultima_verificacao: null,
@@ -1813,7 +1824,7 @@ try {
       (await rp
         .getByText("chn_00000000-0000-4000-8000-000000000002")
         .count()) === 1,
-    "ficha: as imagens falham sozinhas; a publicação arquivada diz o motivo e o canal",
+    "ficha: as imagens falham sozinhas; a publicação arquivada diz o motivo e, sem o nome, o identificador do canal",
   );
   await rp.unroute("**/hub/products/*/media?*");
   await rp.unroute("**/hub/products/*/publications");
@@ -2108,6 +2119,107 @@ try {
     (await rp.locator(".imagens-artigo img").count()) === 2,
     "edição: tornar principal e mudar a ordem; o foco vai para «Alterações guardadas»",
   );
+  // Uma lista pedida antes de outra gravação chega depois dela: não pode
+  // repor o que já mudou (issue #251). A primeira releitura da lista fica
+  // retida até a releitura da segunda gravação estar no ecrã (revisão do
+  // #260, P2-1: sem depender de tempos).
+  let listasAtrasadas = 0;
+  let soltarLista = () => undefined;
+  const listaSolta = new Promise((ok) => {
+    soltarLista = ok;
+  });
+  await rp.route("**/hub/products/*/media?*", async (r) => {
+    if (r.request().method() !== "GET" || listasAtrasadas > 0) {
+      await r.fallback();
+      return;
+    }
+    listasAtrasadas++;
+    // A API responde já; a resposta é que chega atrasada, como numa rede
+    // lenta (no máximo 15 s, para a passagem nunca ficar presa).
+    const resposta = await r.fetch();
+    await Promise.race([
+      listaSolta,
+      new Promise((ok) => setTimeout(ok, 15_000)),
+    ]);
+    await r.fulfill({ response: resposta });
+  });
+  const guardarTexto = async (indice, texto) => {
+    const li = imagensEditaveis.nth(indice);
+    await li.getByRole("button", { name: "Editar texto alternativo" }).click();
+    await li.getByLabel("Texto alternativo").fill(texto);
+    await li.getByRole("button", { name: "Guardar" }).click();
+    await li
+      .getByRole("button", { name: "Editar texto alternativo" })
+      .waitFor();
+  };
+  await guardarTexto(1, "Frasco de verniz, de lado");
+  await guardarTexto(0, "Frasco de verniz laranja, de frente");
+  await rp.getByText("Frasco de verniz laranja, de frente").waitFor();
+  // O texto novo no ecrã veio da segunda releitura; agora chega a primeira.
+  const listaAntiga = rp.waitForResponse(
+    (r) => /\/hub\/products\/[^/]+\/media\?/.test(r.url()),
+    { timeout: 15_000 },
+  );
+  soltarLista();
+  await listaAntiga;
+  await rp.waitForTimeout(300);
+  await rp.unroute("**/hub/products/*/media?*");
+  confere(
+    listasAtrasadas === 1 &&
+      (await rp.getByText("Frasco de verniz laranja, de frente").count()) ===
+        1 &&
+      (await rp.getByText("Frasco de verniz, de lado").count()) === 1,
+    "edição: uma lista antiga que chega depois não repõe o texto já gravado",
+  );
+  // Uma acção que falha com o teclado: o foco vai para o erro, não se perde
+  // no início da página (issue #251).
+  await rp.route(
+    "**/hub/media/*",
+    (r) =>
+      r.request().method() === "PATCH"
+        ? r.fulfill({
+            status: 500,
+            contentType: "application/problem+json",
+            body: JSON.stringify({ codigo: "internal.error", status: 500 }),
+          })
+        : r.fallback(),
+    { times: 1 },
+  );
+  await imagensEditaveis
+    .nth(0)
+    .getByRole("button", { name: "Mover para depois" })
+    .focus();
+  await rp.keyboard.press("Enter");
+  await rp.locator(".erro[role=alert]").first().waitFor();
+  const focoNoErro = await rp
+    .waitForFunction(
+      // O próprio elemento com o foco, nunca o <body> (revisão do #260,
+      // P1-1: o body também contém o erro).
+      () => document.activeElement?.matches(".falha-accao") === true,
+      undefined,
+      { timeout: 5_000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  confere(
+    focoNoErro,
+    `edição: mover falha e o foco vai para o erro (foco em: ${await rp.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? "nada")})`,
+  );
+  // Com uma margem, para o anel de foco (que fica por fora) aparecer.
+  const caixaFalha = await rp.locator(".falha-accao").boundingBox();
+  if (caixaFalha !== null) {
+    await rp.screenshot({
+      path: join(SAIDA, "artigo-falha-com-foco.png"),
+      clip: {
+        x: Math.max(caixaFalha.x - 16, 0),
+        y: Math.max(caixaFalha.y - 16, 0),
+        width: caixaFalha.width + 32,
+        height: caixaFalha.height + 32,
+      },
+    });
+  }
   // Arquivar a única variante: a confirmação diz que é a última.
   let ultima = false;
   rp.once("dialog", (d) => {
@@ -2491,6 +2603,8 @@ try {
             id: "pub_00000000-0000-7000-8000-000000000001",
             canal: "chn_00000000-0000-7000-8000-000000000001",
             mercado: "mkt_00000000-0000-7000-8000-000000000001",
+            canal_nome: "Loja online",
+            mercado_nome: "Portugal",
             estado: "publicado",
             verificado_em: null,
             publicado_em: "2026-10-09T10:00:00Z",

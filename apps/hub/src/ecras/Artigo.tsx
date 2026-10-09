@@ -110,16 +110,26 @@ export function Artigo({
     [navegar],
   );
 
+  // Só a resposta do último pedido de cada parte conta: uma acção recarrega
+  // sem esperar, e uma resposta antiga que chegue depois repunha o que outra
+  // gravação já mudou (issue #251).
+  const ultimaFicha = useRef(0);
+  const ultimasImagens = useRef(0);
+  const ultimasPublicacoes = useRef(0);
+
   // `manter`: depois de uma acção, recarrega sem tirar a parte do ecrã, para
   // o foco e as miniaturas ficarem (revisão do #217, P2-2 e P3-8).
   const carregarImagens = useCallback(
     async (manter = false) => {
       if (!valido) return;
+      const este = ++ultimasImagens.current;
       if (!manter) setImagens({ tipo: "a_carregar" });
       try {
         const dados = await api.imagensDoArtigo(comerciante, artigo);
+        if (este !== ultimasImagens.current) return;
         if (montado.current) setImagens({ tipo: "pronto", dados });
       } catch (e) {
+        if (este !== ultimasImagens.current) return;
         aoFalhar(e, (erro) => {
           setImagens({ tipo: "erro", erro });
         });
@@ -133,11 +143,14 @@ export function Artigo({
   const carregarPublicacoes = useCallback(
     async (manter = false) => {
       if (!valido) return;
+      const este = ++ultimasPublicacoes.current;
       if (!manter) setPublicacoes({ tipo: "a_carregar" });
       try {
         const r = await api.publicacoesDoArtigo(comerciante, artigo);
+        if (este !== ultimasPublicacoes.current) return;
         if (montado.current) setPublicacoes({ tipo: "pronto", dados: r.dados });
       } catch (e) {
+        if (este !== ultimasPublicacoes.current) return;
         aoFalhar(e, (erro) => {
           setPublicacoes({ tipo: "erro", erro });
         });
@@ -149,13 +162,14 @@ export function Artigo({
   const carregarFicha = useCallback(
     async (manter = false) => {
       if (!valido) return;
+      const este = ++ultimaFicha.current;
       if (!manter) setFicha({ tipo: "a_carregar" });
       try {
         const [dados, eu] = await Promise.all([
           api.artigo(comerciante, artigo),
           api.eu(),
         ]);
-        if (!montado.current) return;
+        if (este !== ultimaFicha.current || !montado.current) return;
         const ambitos =
           eu.comerciantes.find((c) => c.comerciante === comerciante)?.ambitos ??
           [];
@@ -165,6 +179,7 @@ export function Artigo({
         void carregarImagens(manter);
         void carregarPublicacoes(manter);
       } catch (e) {
+        if (este !== ultimaFicha.current) return;
         aoFalhar(e, (erro) => {
           setFicha({ tipo: "erro", erro });
         });
@@ -214,6 +229,15 @@ export function Artigo({
     avisoRef.current.focus();
   }, [aviso, ficha.tipo]);
 
+  // O mesmo para a falha de uma acção (issue #251).
+  const erroRef = useRef<HTMLDivElement>(null);
+  const erroPorFocar = useRef(false);
+  useLayoutEffect(() => {
+    if (!erroPorFocar.current || erroRef.current === null) return;
+    erroPorFocar.current = false;
+    erroRef.current.focus();
+  }, [falhaAccao, ordemAMeio]);
+
   /**
    * Corre uma acção da §13 e diz se gravou. Um conflito de versão (outra
    * pessoa mudou) ou um 404 recarregam a ficha, para o ecrã mostrar o que
@@ -241,6 +265,7 @@ export function Artigo({
         return false;
       }
       setFalhaAccao(e);
+      erroPorFocar.current = true;
       if (e instanceof ErroHub && (e.estado === 409 || e.estado === 404)) {
         void carregarFicha(true);
       }
@@ -264,6 +289,8 @@ export function Artigo({
         versao,
       );
       if (!montado.current) return;
+      // Uma leitura da ficha ainda a caminho é mais antiga do que isto.
+      ultimaFicha.current++;
       setFicha({ tipo: "pronto", dados });
       // Arquivar arquiva as publicações (§4.1).
       void carregarPublicacoes(true);
@@ -483,13 +510,19 @@ export function Artigo({
               {t[TEXTO_DO_AVISO[aviso]]}
             </p>
           )}
-          {ordemAMeio ? (
-            <p className="erro-campo" role="alert">
-              {t.artigoOrdemAMeio}
-            </p>
-          ) : null}
-          {falhaAccao === null ? null : (
-            <CaixaDeErro erro={mensagemDeErro(falhaAccao, t, lingua)} />
+          {falhaAccao === null && !ordemAMeio ? null : (
+            // O foco vem para aqui quando uma acção falha: o botão usado
+            // esteve desactivado e o foco ia para o início da página (#251).
+            <div tabIndex={-1} ref={erroRef} className="falha-accao">
+              {ordemAMeio ? (
+                <p className="erro-campo" role="alert">
+                  {t.artigoOrdemAMeio}
+                </p>
+              ) : null}
+              {falhaAccao === null ? null : (
+                <CaixaDeErro erro={mensagemDeErro(falhaAccao, t, lingua)} />
+              )}
+            </div>
           )}
           <h2>{t.artigoDescricao}</h2>
           {ficha.dados.descricao === null ||
@@ -1373,8 +1406,8 @@ function Publicacoes({
         ? p.publicado_em
         : p.verificado_em;
   return (
-    // Cinco colunas, duas com identificadores longos: cartões até 960 px,
-    // como as chaves (revisão do #206, P2-2).
+    // Cinco colunas (e, sem o nome, um identificador longo): cartões até
+    // 960 px, como as chaves (revisão do #206, P2-2).
     <table className="tabela-larga">
       <thead>
         <tr>
@@ -1390,12 +1423,12 @@ function Publicacoes({
           const d = quando(p);
           return (
             <tr key={p.id}>
-              {/* Só o identificador: a API ainda não dá os nomes (§12.2). */}
+              {/* O nome; o identificador só se o nome não vier (§18.2). */}
               <td data-rotulo={t.colunaCanal}>
-                <code translate="no">{p.canal}</code>
+                {p.canal_nome ?? <code translate="no">{p.canal}</code>}
               </td>
               <td data-rotulo={t.colunaMercado}>
-                <code translate="no">{p.mercado}</code>
+                {p.mercado_nome ?? <code translate="no">{p.mercado}</code>}
               </td>
               <td data-rotulo={t.colunaEstado}>
                 {textoDe(t, `estadoPublicacao_${p.estado}`, p.estado)}
