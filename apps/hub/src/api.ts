@@ -133,6 +133,57 @@ export interface VarianteArtigo {
   peso_g: number | null;
 }
 
+export const UNIDADES_DE_VENDA = [
+  "unidade",
+  "par",
+  "caixa",
+  "embalagem",
+  "conjunto",
+] as const;
+export const UNIDADES_DE_CONTEUDO = [
+  "mg",
+  "g",
+  "kg",
+  "ml",
+  "cl",
+  "l",
+  "mm",
+  "cm",
+  "m",
+  "m2",
+  "m3",
+] as const;
+export const ORIGENS_GTIN = [
+  "gs1_comerciante",
+  "fornecedor",
+  "interno",
+] as const;
+/** Quantas variantes um artigo criado no Hub traz (docs/22 §14.1). */
+export const MAX_VARIANTES_NO_HUB = 20;
+
+/** Uma variante de um artigo novo (o corpo do POST /hub/products). */
+export interface VarianteNova {
+  sku: string;
+  unidade_de_venda: (typeof UNIDADES_DE_VENDA)[number];
+  gtin?: string;
+  gtin_origem?: (typeof ORIGENS_GTIN)[number];
+  conteudo_quantidade?: number;
+  conteudo_unidade?: (typeof UNIDADES_DE_CONTEUDO)[number];
+  peso_g?: number;
+  comprimento_mm?: number;
+  largura_mm?: number;
+  altura_mm?: number;
+}
+
+/** Um artigo novo pelo Hub: só físico (docs/22 §14.2). */
+export interface ArtigoNovo {
+  tipo: "fisico";
+  nome: string;
+  descricao: string | null;
+  marca: string | null;
+  variantes: VarianteNova[];
+}
+
 /** A ficha do artigo (docs/22 §12; o `Artigo` do GET /products/{id}). */
 export interface FichaArtigo extends ResumoArtigo {
   descricao: string | null;
@@ -369,6 +420,9 @@ export const api = {
       `/hub/products/${artigo}/publications`,
       { comerciante },
     ),
+  /** Criar um artigo físico em rascunho (docs/22 §14): o POST /products. */
+  criarArtigo: (comerciante: string, corpo: ArtigoNovo) =>
+    pedir<FichaArtigo>("POST", "/hub/products", { comerciante, corpo }),
   // Editar o artigo (docs/22 §13): as mesmas escritas da API, pelos
   // caminhos /hub/, cada uma com a `versao` lida.
   alterarArtigo: (

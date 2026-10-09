@@ -763,3 +763,16 @@ textarea {
   font-weight: 600;
   margin: var(--espaco-1) 0 0;
 }
+
+/* Criar o artigo (docs/22 §14.4): cada variante numa caixa, com o número
+   na legenda; os campos lado a lado no computador, um por linha no
+   telemóvel (.linha). */
+.variante-nova {
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  padding: var(--espaco-3) var(--espaco-4);
+  margin-bottom: var(--espaco-4);
+}
+.variante-nova legend {
+  padding: 0 var(--espaco-1);
+}

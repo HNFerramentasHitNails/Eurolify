@@ -5,6 +5,7 @@ import { fecharAvisoDeRecuperada } from "./recuperacao";
 import { ContextoHub, type Contexto } from "./contexto";
 import { Artigo } from "./ecras/Artigo";
 import { ArtigoEditar } from "./ecras/ArtigoEditar";
+import { ArtigoNovo } from "./ecras/ArtigoNovo";
 import { Artigos } from "./ecras/Artigos";
 import { Chaves } from "./ecras/Chaves";
 import { Conta } from "./ecras/Conta";
@@ -107,9 +108,14 @@ export function App() {
     [t, lingua, navegar, definirGuarda, opaco],
   );
 
-  const artigo = CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null;
+  // «/artigos/novo» é o ecrã de criar, não a ficha de um artigo «novo».
+  const novo = local.caminho === "/artigos/novo";
+  const artigo = novo
+    ? null
+    : (CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null);
   const editar = CAMINHO_EDITAR.exec(local.caminho)?.[1] ?? null;
   const comSessao =
+    novo ||
     artigo !== null ||
     editar !== null ||
     local.caminho === "/" ||
@@ -130,15 +136,17 @@ export function App() {
             ? t.equipaTitulo
             : local.caminho === "/artigos"
               ? t.artigosTitulo
-              : artigo !== null
-                ? t.artigoTitulo
-                : editar !== null
-                  ? t.artigoEditarTitulo
-                  : local.caminho === "/chaves"
-                    ? t.chavesTitulo
-                    : local.caminho === "/conta"
-                      ? t.contaTitulo
-                      : t.inicioTitulo;
+              : novo
+                ? t.artigoNovoTitulo
+                : artigo !== null
+                  ? t.artigoTitulo
+                  : editar !== null
+                    ? t.artigoEditarTitulo
+                    : local.caminho === "/chaves"
+                      ? t.chavesTitulo
+                      : local.caminho === "/conta"
+                        ? t.contaTitulo
+                        : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -164,6 +172,13 @@ export function App() {
         key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
         consulta={local.consulta}
+      />
+    );
+  else if (novo)
+    ecra = (
+      <ArtigoNovo
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
       />
     );
   else if (editar !== null)

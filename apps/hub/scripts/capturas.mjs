@@ -847,6 +847,22 @@ try {
         .count()) === 0,
     "edição: o apoio vê a ficha sem «Editar» nem acções",
   );
+  // O apoio não cria (docs/22 §14.4): sem o botão na lista, e o endereço
+  // directo diz que não pode.
+  await apoio.pagina.goto(`${ORIGEM}/artigos?comerciante=mer_${comerciante}`);
+  await apoio.pagina.getByText("30 artigos", { exact: true }).waitFor();
+  const semCriarNaLista =
+    (await apoio.pagina.getByRole("link", { name: "Criar artigo" }).count()) ===
+    0;
+  await apoio.pagina.goto(
+    `${ORIGEM}/artigos/novo?comerciante=mer_${comerciante}`,
+  );
+  await apoio.pagina.getByText("Não tem permissão para isto.").waitFor();
+  confere(
+    semCriarNaLista &&
+      (await apoio.pagina.getByLabel("Nome", { exact: true }).count()) === 0,
+    "criar: o apoio não vê «Criar artigo» nem o formulário",
+  );
   await apoio.contexto.close();
 
   // O segredo do convite nunca foi num pedido (caminho ou consulta).
@@ -1731,11 +1747,15 @@ try {
   await rp
     .getByRole("heading", { name: "Verniz Rosa 2 Brilho", level: 1 })
     .waitFor();
+  // O aviso recebe o foco quando a ficha chega (revisão do #217, P3-6).
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Alterações guardadas.",
+  );
   confere(
     (await rp.getByText("Alterações guardadas.").count()) === 1 &&
       (await rp.getByText("Acabamento brilhante.").count()) === 1 &&
       !new URL(rp.url()).searchParams.has("guardado"),
-    "edição: guardar o nome e a descrição volta à ficha com «Alterações guardadas»",
+    "edição: guardar o nome e a descrição volta à ficha com «Alterações guardadas» no foco",
   );
   // Um conflito: outra escrita (aqui, um fetch do mesmo navegador) muda o
   // artigo entre abrir o formulário e guardar.
@@ -1894,6 +1914,177 @@ try {
         0,
     "edição: num artigo do sistema de gestão, sem «Editar» nem estado, com o aviso",
   );
+
+  // Criar um artigo (docs/22 §14; issue #221), só com o teclado: «Criar
+  // artigo» na lista, o formulário com as recusas dele e as da API, e a
+  // ficha nova com o aviso no foco.
+  await rp.goto(`${ORIGEM}/artigos?comerciante=mer_${comerciante}`);
+  await rp.getByRole("link", { name: "Criar artigo" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Criar artigo", level: 1 }).waitFor();
+  await rp.getByLabel("Nome", { exact: true }).focus();
+  await rp.keyboard.type("Verniz Verde 31");
+  await rp.getByLabel("SKU", { exact: true }).focus();
+  await rp.keyboard.type("ENS-031");
+  await rp.getByRole("button", { name: "Acrescentar outra variante" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("group", { name: "Variante 2" }).waitFor();
+  confere(
+    await rp.evaluate(
+      () => document.activeElement?.id.endsWith("-sku") === true,
+    ),
+    "criar: «Acrescentar outra variante» põe o foco no SKU da nova",
+  );
+  await rp.keyboard.type("ens-031");
+  await rp.getByRole("button", { name: "Criar artigo" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByText("Este SKU está repetido neste formulário.")
+    .first()
+    .waitFor();
+  confere(
+    (await rp.getByText("Este SKU está repetido neste formulário.").count()) ===
+      2,
+    "criar: o SKU repetido no formulário (sem distinguir maiúsculas) diz-se nos dois campos, sem pedir à API",
+  );
+  const variante2 = rp.getByRole("group", { name: "Variante 2" });
+  await variante2.getByLabel("SKU", { exact: true }).fill("ENS-002");
+  const v1 = rp.getByRole("group", { name: "Variante 1" });
+  await v1.getByLabel("GTIN", { exact: true }).fill("5601234567892");
+  await v1.getByLabel("Quantidade do conteúdo").fill("15");
+  await v1.getByLabel("Peso (g)").fill("6,5");
+  await rp.getByRole("button", { name: "Criar artigo" }).click();
+  await v1.getByText("Escolha a origem do GTIN.").waitFor();
+  confere(
+    (await v1
+      .getByText("Escreva a quantidade e a unidade do conteúdo, ou nenhuma.")
+      .count()) === 1 &&
+      (await v1.getByText("Um número inteiro, sem casas decimais.").count()) ===
+        1 &&
+      (await rp.evaluate(
+        () => document.activeElement?.getAttribute("aria-invalid") === "true",
+      )),
+    "criar: GTIN sem origem, conteúdo incompleto e peso com casas decimais, ao lado de cada campo, com o foco no primeiro",
+  );
+  await v1
+    .getByLabel("Origem do GTIN")
+    .selectOption({ label: "Do fornecedor" });
+  await v1.getByLabel("Unidade do conteúdo").selectOption("ml");
+  await v1.getByLabel("Peso (g)").fill("60");
+  await rp.getByRole("button", { name: "Criar artigo" }).click();
+  await variante2
+    .getByText("Este SKU já existe neste comerciante", { exact: false })
+    .waitFor();
+  confere(
+    (await v1
+      .getByText("Este SKU já existe neste comerciante", { exact: false })
+      .count()) === 0,
+    "criar: o SKU que já existe (409 da API) marca só o campo dele",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "artigo-novo-erros-375-claro.png"),
+    fullPage: true,
+  });
+  await variante2.getByLabel("SKU", { exact: true }).fill("ENS-031-B");
+  await variante2.getByLabel("Unidade de venda").selectOption("caixa");
+  await rp.getByLabel("Nome", { exact: true }).focus();
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByRole("heading", { name: "Verniz Verde 31", level: 1 })
+    .waitFor();
+  await rp.waitForFunction(
+    () =>
+      document.activeElement?.getAttribute("role") === "status" &&
+      document.activeElement.textContent === "Artigo criado em rascunho.",
+  );
+  confere(
+    (await rp.getByText("Rascunho", { exact: true }).count()) >= 1 &&
+      (await rp
+        .getByRole("row", {
+          name: /ENS-031\b.*Unidade.*5601234567892.*15 ml.*60 g/,
+        })
+        .count()) === 1 &&
+      (await rp.getByRole("row", { name: /ENS-031-B.*Caixa/ }).count()) === 1 &&
+      !new URL(rp.url()).search.includes("criado"),
+    "criar: o artigo abre em rascunho, com as duas variantes e «Artigo criado em rascunho.» no foco",
+  );
+  await rp.goBack();
+  await rp.getByRole("heading", { name: /^Artigos/ }).waitFor();
+  confere(
+    new URL(rp.url()).pathname === "/artigos",
+    "criar: o «voltar» depois de criar vai para a lista, não para o formulário",
+  );
+  // A resposta perde-se: o pedido gravou, o navegador não soube (§14.2).
+  await rp.route("**/hub/products", async (r) => {
+    if (r.request().method() !== "POST") return r.fallback();
+    await r.fetch();
+    await r.abort("failed");
+  });
+  await rp.goto(`${ORIGEM}/artigos/novo?comerciante=mer_${comerciante}`);
+  await rp.getByLabel("Nome", { exact: true }).fill("Verniz Verde 32");
+  await rp.getByLabel("SKU", { exact: true }).fill("ENS-032");
+  await rp.getByRole("button", { name: "Criar artigo" }).click();
+  await rp
+    .getByRole("heading", { name: "Verniz Verde 32", level: 1 })
+    .waitFor();
+  await rp.getByText("O artigo já tinha sido criado.").waitFor();
+  confere(true, "criar: a resposta perdida encontra o artigo criado e abre-o");
+  await rp.unroute("**/hub/products");
+  // A ligação falha antes de gravar: diz que não ficou criado.
+  await rp.route("**/hub/products", (r) =>
+    r.request().method() === "POST" ? r.abort("failed") : r.fallback(),
+  );
+  await rp.goto(`${ORIGEM}/artigos/novo?comerciante=mer_${comerciante}`);
+  await rp.getByLabel("Nome", { exact: true }).fill("Verniz Verde 33");
+  await rp.getByLabel("SKU", { exact: true }).fill("ENS-033");
+  await rp.getByRole("button", { name: "Criar artigo" }).click();
+  await rp
+    .getByText("A ligação falhou e o artigo não ficou criado.", {
+      exact: false,
+    })
+    .waitFor();
+  confere(
+    (await rp.getByLabel("SKU", { exact: true }).inputValue()) === "ENS-033",
+    "criar: a ligação que falha antes de gravar diz-o e deixa o formulário",
+  );
+  await rp.unroute("**/hub/products");
+  // Cancelar com alguma coisa escrita pergunta antes.
+  let perguntouCriar = false;
+  rp.once("dialog", (d) => {
+    perguntouCriar = true;
+    void d.dismiss();
+  });
+  await rp.getByRole("button", { name: "Cancelar" }).click();
+  confere(
+    perguntouCriar &&
+      (await rp
+        .getByRole("heading", { name: "Criar artigo", level: 1 })
+        .count()) === 1,
+    "criar: cancelar com alguma coisa escrita pergunta antes",
+  );
+  // A lista sem artigos (resposta fingida): a frase e o botão.
+  await rp.route("**/hub/products?*", (r) =>
+    r.request().method() === "GET"
+      ? r.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            dados: [],
+            total: 0,
+            ha_mais: false,
+            cursor_seguinte: null,
+          }),
+        })
+      : r.fallback(),
+  );
+  rp.once("dialog", (d) => void d.accept());
+  await rp.goto(`${ORIGEM}/artigos?comerciante=mer_${comerciante}`);
+  await rp.getByText("Ainda não há artigos.", { exact: true }).waitFor();
+  confere(
+    (await rp.getByRole("link", { name: "Criar artigo" }).count()) === 1,
+    "criar: a lista vazia diz «Ainda não há artigos.» com «Criar artigo»",
+  );
+  await rp.unroute("**/hub/products?*");
 
   // Sem permissão (403) e sessão que acabou (401), com respostas fingidas.
   const fichaReal = `${ORIGEM}/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`;
@@ -2411,6 +2602,11 @@ try {
       "artigo",
       `/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`,
       "Verniz Azul 1",
+    ],
+    [
+      "artigo-novo",
+      `/artigos/novo?comerciante=mer_${comerciante}`,
+      "Criar artigo",
     ],
     [
       "artigo-editar",

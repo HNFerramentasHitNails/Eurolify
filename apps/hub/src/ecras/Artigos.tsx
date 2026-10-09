@@ -226,6 +226,9 @@ export function Artigos({
 
   const meu = eu?.comerciantes.find((c) => c.comerciante === comerciante);
   const filtrado = !semFiltro(filtros);
+  // Só decide o que o ecrã oferece; a API recusa na mesma (§14.2).
+  const podeCriar = valido && meu?.ambitos.includes("catalog:write") === true;
+  const destinoCriar = `/artigos/novo?comerciante=${encodeURIComponent(comerciante ?? "")}`;
 
   return (
     <section aria-labelledby="titulo">
@@ -238,6 +241,13 @@ export function Artigos({
         {t.artigosTitulo}
         {meu === undefined ? "" : ` — ${meu.nome}`}
       </h1>
+      {podeCriar ? (
+        <p>
+          <LigacaoInterna className="botao" href={destinoCriar}>
+            {t.artigoCriar}
+          </LigacaoInterna>
+        </p>
+      ) : null}
       {!valido ? (
         <CaixaDeErro erro={{ texto: t.erroSemPermissao }} />
       ) : (
@@ -318,7 +328,8 @@ export function Artigos({
                     : preencher(t.artigosContagem, { n: lista.total })}
               </p>
               {lista.totalSemFiltro === 0 && !filtrado ? (
-                <p>{t.artigosVazio}</p>
+                // Com catalog:write, o botão está por cima (§14.4).
+                <p>{podeCriar ? t.artigosVazioCriar : t.artigosVazio}</p>
               ) : lista.artigos.length === 0 ? (
                 <>
                   <p>{t.artigosSemResultados}</p>
