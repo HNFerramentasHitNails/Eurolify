@@ -492,10 +492,12 @@ rotas pela chave (como na §11.1): nenhuma regra nova do catálogo nasce no Hub
 - **Quem pode**: a sessão com `catalog:write` no comerciante do cabeçalho;
   hoje o `dono` e o `gestor` (`apps/api/src/identidade/papeis.ts`). O
   `armazém` e o `apoio` recebem 403, como na lista (§11.1).
-- **O ecrã não decide quem pode**: hoje o `/hub/me` dá o papel, não os
-  âmbitos (`apps/hub/src/api.ts`, `Eu`). Passa a dar, por comerciante, os
-  âmbitos do papel (lidos da base, `papel_ambitos`); o Hub mostra «Editar»
-  só com `catalog:write`, e o servidor recusa na mesma.
+- **O ecrã não decide quem pode**: o `/hub/me` dá, por comerciante, os
+  âmbitos do papel, lidos da base (`papel_ambitos`; migração 0034, pedido
+  #212); um âmbito que a API ainda não conhece fica de fora, para uma
+  migração nova não partir a versão anterior. O Hub mostra «Editar» só com
+  `catalog:write` (e as ligações «Ver artigos» e «Chaves» com `catalog:read`
+  e `keys:write`), e o servidor recusa na mesma.
 - **Quem fez**: cada escrita leva `pessoa:per_…` como `eurolify.quem`, o
   formato que o #208 prevê para o Hub (`docs/14` §3.12, proposta). **O código
   da edição entra depois do código da linha do tempo** (#208): uma escrita do

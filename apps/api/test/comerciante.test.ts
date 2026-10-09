@@ -123,6 +123,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0031_identidade_convite_ver",
         "0032_importacoes",
         "0033_catalogo_linha_do_tempo",
+        "0034_identidade_eu_ambitos",
       ]);
     });
 
