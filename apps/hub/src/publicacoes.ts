@@ -27,11 +27,15 @@ function celula(
 ): Celula {
   const n = nome(p);
   if (n === null) return { tipo: "identificador", identificador: id(p) };
-  // Os outros canais (mercados) da tabela com o mesmo nome.
-  const iguais = linhas.filter((l) => nome(l) === n && id(l) !== id(p));
+  // Os outros canais (mercados) da tabela com o mesmo nome. A comparação
+  // ignora os espaços nas pontas: à vista, «Loja online» e «Loja online »
+  // são iguais (a base não os tira; revisão do #275, P3-2).
+  const igual = (a: string | null, b: string | null) =>
+    a !== null && b !== null && a.trim() === b.trim();
+  const iguais = linhas.filter((l) => igual(nome(l), n) && id(l) !== id(p));
   if (iguais.length === 0) return { tipo: "nome", nome: n };
   const loja = p.loja_nome;
-  if (loja !== null && iguais.every((l) => l.loja_nome !== loja)) {
+  if (loja !== null && iguais.every((l) => !igual(l.loja_nome, loja))) {
     return { tipo: "nome_e_loja", nome: n, loja };
   }
   return { tipo: "nome_e_identificador", nome: n, identificador: id(p) };

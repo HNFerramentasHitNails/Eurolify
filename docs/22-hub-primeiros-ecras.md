@@ -1148,7 +1148,12 @@ comerciantes tem uma loja, e a tabela fica como hoje.
   arquivada mantém o nome; o nome de uma loja de outro comerciante não
   vem; o contrato do Hub tem o campo e o da chave não.
 - **Prova pela falha**: tirar o filtro do comerciante na leitura da loja
-  faz falhar o teste de outro comerciante (como na §18.3).
+  faz falhar o teste de outro comerciante (como na §18.3). *Nota do
+  código (revisão do #275, P2-2):* a loja lê-se pelo JOIN com o canal, que
+  já tem o filtro do comerciante; o filtro escrito na loja é uma segunda
+  guarda e tirá-lo sozinho não muda o resultado. A prova é a do canal
+  (§18.3), e a de que cada publicação traz a sua loja é um teste com duas
+  lojas do mesmo comerciante.
 - **Hub**: testes da regra (os quatro casos da tabela da §19.2, por
   coluna); a passagem confere uma linha só com o nome e duas linhas com a
   loja por baixo; as capturas da ficha vão à página de aprovação.

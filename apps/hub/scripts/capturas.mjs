@@ -1815,6 +1815,7 @@ try {
             // Sem os nomes (não devia acontecer): fica o identificador.
             canal_nome: null,
             mercado_nome: null,
+            loja_nome: null,
             estado: "arquivado",
             variantes_fora: [],
             ultima_verificacao: null,
@@ -1848,6 +1849,9 @@ try {
     () => document.querySelectorAll(".imagens-artigo img").length === 2,
   );
   confere(true, "ficha: «Tentar outra vez» traz as imagens");
+  // Com o seu endereço: estes recarregamentos somavam-se aos pedidos da
+  // ficha no mesmo minuto (limite do Hub, issue #253; revisão do #275, P3-1).
+  await enderecoNovo(rp);
   // Dois canais com o mesmo nome em lojas diferentes (docs/22 §19.2): a
   // loja por baixo do canal; os mercados, com nomes diferentes, só com o
   // nome (respostas fingidas da API).
@@ -2679,6 +2683,7 @@ try {
             mercado: "mkt_00000000-0000-7000-8000-000000000001",
             canal_nome: "Loja online",
             mercado_nome: "Portugal",
+            loja_nome: "Loja online",
             estado: "publicado",
             verificado_em: null,
             publicado_em: "2026-10-09T10:00:00Z",

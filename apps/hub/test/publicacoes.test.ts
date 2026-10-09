@@ -90,6 +90,32 @@ describe("o canal e o mercado nas publicações da ficha", () => {
     });
   });
 
+  it("os mercados seguem a mesma regra: a loja ou o identificador por baixo", () => {
+    const a = linha("chn_1", "mkt_1", "Loja online", "Portugal", "Norte");
+    const b = linha("chn_2", "mkt_2", "Revenda", "Portugal", "Sul");
+    expect(celulaDoMercado([a, b], a)).toEqual({
+      tipo: "nome_e_loja",
+      nome: "Portugal",
+      loja: "Norte",
+    });
+    const c = linha("chn_3", "mkt_3", "Revenda", "Portugal", "Norte");
+    expect(celulaDoMercado([a, c], c)).toEqual({
+      tipo: "nome_e_identificador",
+      nome: "Portugal",
+      identificador: "mkt_3",
+    });
+  });
+
+  it("os espaços nas pontas não fazem nomes diferentes (revisão do #275, P3-2)", () => {
+    const a = linha("chn_1", "mkt_1", "Loja online", "Portugal", "Norte");
+    const b = linha("chn_2", "mkt_2", "Loja online ", "Espanha", "Norte ");
+    expect(celulaDoCanal([a, b], a)).toEqual({
+      tipo: "nome_e_identificador",
+      nome: "Loja online",
+      identificador: "chn_1",
+    });
+  });
+
   it("sem o nome, o identificador, como antes (§18.2)", () => {
     const a = linha("chn_1", "mkt_1", null, null, "Norte");
     expect(celulaDoCanal([a], a)).toEqual({
