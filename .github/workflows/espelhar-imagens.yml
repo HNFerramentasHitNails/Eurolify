@@ -1,0 +1,144 @@
+# Copia as imagens base de infra/ci/imagens-base.txt do Docker Hub para o
+# GHCR, com o mesmo resumo (#268), em ghcr.io/<dono>/eurolify-base/<nome>
+# com a etiqueta <etiqueta>-<12 primeiros do resumo>. Quem as usa
+# descarrega-as pelo resumo, por isso uma cópia trocada não passa.
+#
+# Num pedido, só confere que cada resumo existe na origem, sem escrever no
+# GHCR; a cópia faz-se no main (depois da revisão) ou à mão (revisão do
+# #269, P2-1 e P3-3).
+name: espelhar-imagens
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/ci/imagens-base.txt"
+      - ".github/workflows/espelhar-imagens.yml"
+  # Num pedido, só a tarefa conferir (sem escrita).
+  pull_request:
+    paths:
+      - "infra/ci/imagens-base.txt"
+      - ".github/workflows/espelhar-imagens.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: espelhar-imagens-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  conferir:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: conferir os resumos na origem (Docker Hub ou o espelho)
+        run: |
+          set -euo pipefail
+          command -v skopeo >/dev/null || {
+            sudo apt-get update -q && sudo apt-get install -y -q skopeo
+          }
+          grep -Ev '^\s*(#|$)' infra/ci/imagens-base.txt |
+            while read -r nome origem; do
+              resumo_lista="${origem##*@}"
+              fonte="${origem%%:*}@$resumo_lista"
+              conferido=false
+              for o in "$fonte" "mirror.gcr.io/${fonte#docker.io/}"; do
+                if raw="$(skopeo inspect --raw --retry-times 3 "docker://$o" </dev/null)"; then
+                  resumo="sha256:$(printf '%s' "$raw" | sha256sum | cut -d' ' -f1)"
+                  if [ "$resumo" = "$resumo_lista" ]; then
+                    echo "$nome: $resumo_lista existe em $o"
+                    conferido=true
+                    break
+                  fi
+                  echo "::warning::$nome: em $o o resumo é $resumo"
+                fi
+              done
+              if [ "$conferido" != true ]; then
+                echo "$nome: não encontrei $resumo_lista" >&2
+                exit 1
+              fi
+            done
+
+  copiar:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TEM_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: copiar para o GHCR
+        env:
+          DONO: ${{ github.repository_owner }}
+          ACTOR: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UTILIZADOR: ${{ secrets.DOCKERHUB_UTILIZADOR }}
+          CHAVE: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          command -v skopeo >/dev/null || {
+            sudo apt-get update -q && sudo apt-get install -y -q skopeo
+          }
+          skopeo --version
+          printf '%s' "$TOKEN" |
+            skopeo login --username "$ACTOR" --password-stdin ghcr.io
+          if [ "$TEM_DOCKERHUB" = true ]; then
+            printf '%s' "$CHAVE" |
+              skopeo login --username "$UTILIZADOR" --password-stdin docker.io ||
+              echo "::warning::sem entrada no Docker Hub; copia sem conta"
+          fi
+          grep -Ev '^\s*(#|$)' infra/ci/imagens-base.txt |
+            while read -r nome origem; do
+              etiqueta="${origem%@*}"
+              etiqueta="${etiqueta##*:}"
+              resumo_lista="${origem##*@}"
+              # A etiqueta leva o início do resumo: uma cópia nunca move uma
+              # etiqueta existente, nem a partir de um pedido (revisão do
+              # #269, P2-2). Quem usa as cópias usa o resumo.
+              hex="${resumo_lista#sha256:}"
+              destino="ghcr.io/${DONO,,}/eurolify-base/$nome:$etiqueta-${hex:0:12}"
+              # O skopeo não aceita etiqueta e resumo juntos: a origem vai
+              # só pelo resumo, que é o que a fixa.
+              fonte="${origem%%:*}@$resumo_lista"
+              echo "== $fonte -> $destino"
+              # Primeiro o Docker Hub; se falhar, o espelho da Google, que
+              # guarda as mesmas imagens (decisão do Diogo, 09/10/2026: «sim,
+              # usa o espelho da Google se falhar»). O resumo é o mesmo nos
+              # dois, e --preserve-digests e a verificação abaixo garantem
+              # que a cópia é a da lista. 3 tentativas em cada um: o Docker
+              # Hub deu 429, 500 e 504 a 09/10/2026. </dev/null: não come as
+              # linhas da lista (revisão do #269, P3-1).
+              copiado=false
+              for origem_copia in "$fonte" "mirror.gcr.io/${fonte#docker.io/}"; do
+                for tentativa in 1 2 3; do
+                  if skopeo copy --all --preserve-digests --retry-times 3 \
+                    "docker://$origem_copia" "docker://$destino" </dev/null; then
+                    copiado=true
+                    echo "copiado de $origem_copia"
+                    break 2
+                  fi
+                  sleep $((tentativa * 20))
+                done
+                echo "::warning::$nome: falhou a cópia de $origem_copia"
+              done
+              if [ "$copiado" != true ]; then
+                echo "não consegui copiar $fonte" >&2
+                exit 1
+              fi
+              resumo="$(skopeo inspect --raw "docker://$destino" </dev/null | sha256sum | cut -d' ' -f1)"
+              if [ "sha256:$resumo" != "$resumo_lista" ]; then
+                echo "resumo diferente em $destino: sha256:$resumo" >&2
+                exit 1
+              fi
+            done

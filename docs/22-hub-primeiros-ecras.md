@@ -1092,6 +1092,67 @@ Rascunho» para «Loja online · Portugal · Rascunho».
 - **Um erro na leitura dos nomes** sai com o código `prices.*` numa rota do
   Catálogo (revisão do #261, P3-6): é raro numa leitura; fica registado.
 
+## 19. Catálogo: canais e mercados com o mesmo nome nas publicações (issue #271)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho dos canais com o
+mesmo nome»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
+desenho, junta o #272»*). Vem do P2-1 da revisão do #261 (§18.4). Este passo **só
+lê** e não muda a VPS.
+
+**O problema**: a base não obriga o nome a ser único, nem o do canal e do
+mercado (migração 0017: só `UNIQUE (comerciante_id, id)` e
+`UNIQUE (comerciante_id, loja_id, id)`), nem o da loja (migração 0001,
+tabela `loja`). Ex.: um comerciante com duas lojas, «Norte» e «Sul», cada
+uma com um canal «Loja online» e um mercado «Portugal»; o mesmo artigo
+publicado nas duas dá duas linhas «Loja online · Portugal · Publicado» que
+não se distinguem.
+
+### 19.1 Como o Hub lê
+
+- **A loja de cada publicação**: a publicação tem a loja, e o canal e o
+  mercado são dela (as duas chaves estrangeiras levam o `loja_id`,
+  migração 0019, linhas 85–87). A API do Hub junta a cada publicação
+  `loja_nome`, lido na mesma leitura dos nomes da §18.1 (no contexto do
+  comerciante e com o filtro dele escrito), como o `canal_nome` e o
+  `mercado_nome`. Uma loja arquivada continua com o nome.
+- **A rota pela chave não muda** (`GET /products/{id}/publications`, do
+  Catálogo, #77), como na §18.1.
+- **Quem vê**: os mesmos da ficha (`catalog:read`). O nome da loja não é
+  dado pessoal.
+
+### 19.2 O ecrã
+
+A regra é **só acrescentar quando há repetição**: a maioria dos
+comerciantes tem uma loja, e a tabela fica como hoje.
+
+| Caso, dentro da tabela «Publicações» de um artigo | O que a coluna «Canal» (ou «Mercado») mostra |
+|---|---|
+| O nome não se repete noutra linha com outro canal (mercado) | Só o nome, como hoje: «Loja online» |
+| O mesmo nome noutra linha, com outro canal (mercado), de **outra loja com outro nome** | O nome e, por baixo, a loja em texto secundário: «Loja online» / «Loja Norte» |
+| O mesmo nome e **a mesma loja** (dois canais com o mesmo nome na mesma loja), ou duas lojas também com o mesmo nome | O nome e, por baixo, o identificador em texto secundário (`chn_…`, `mkt_…`), como antes da §18: é o único que os distingue |
+| O nome não veio | O identificador, como hoje (§18.2) |
+
+- A decisão é **por coluna**: o canal e o mercado avaliam-se à parte (ex.:
+  dois canais «Loja online» de lojas diferentes, com mercados «Portugal» e
+  «Espanha»: a loja aparece por baixo do canal, o mercado fica só com o
+  nome).
+- **Leitores de ecrã**: a loja ou o identificador ficam dentro da mesma
+  célula, por isso são lidos com o nome. O identificador leva
+  `translate="no"`.
+- **Telemóvel** (cartões, `data-rotulo`): a mesma célula, sem mudar o
+  rótulo.
+
+### 19.3 Antes de dizer que está feito (o pedido do código)
+
+- **API**: o `loja_nome` de cada publicação é o da loja dela; uma loja
+  arquivada mantém o nome; o nome de uma loja de outro comerciante não
+  vem; o contrato do Hub tem o campo e o da chave não.
+- **Prova pela falha**: tirar o filtro do comerciante na leitura da loja
+  faz falhar o teste de outro comerciante (como na §18.3).
+- **Hub**: testes da regra (os quatro casos da tabela da §19.2, por
+  coluna); a passagem confere uma linha só com o nome e duas linhas com a
+  loja por baixo; as capturas da ficha vão à página de aprovação.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
