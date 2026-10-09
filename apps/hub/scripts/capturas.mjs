@@ -81,6 +81,21 @@ execFileSync("node", [join(API, "dist/migrar.js")], {
 });
 psql(`alter role eurolify_api login password '${SENHA}'`);
 const { abrirBase } = await import(join(API, "dist/base/ligacao.js"));
+const { publicar } = await import(join(API, "dist/catalogo/publicacao.js"));
+const { classificarArtigo, mudarEstadoArtigo, obterArtigo } = await import(
+  join(API, "dist/catalogo/repositorio.js")
+);
+const {
+  criarCanal,
+  criarLista,
+  criarMercado,
+  definirMercadosDoCanal,
+  definirPreco,
+  mudarEstadoMercado,
+} = await import(join(API, "dist/precos/repositorio.js"));
+const { comComerciante, criarEntidadeLegal, criarLoja } = await import(
+  join(API, "dist/comerciante/repositorio.js")
+);
 const { registarComerciante } = await import(
   join(API, "dist/comerciante/repositorio.js")
 );
@@ -281,6 +296,7 @@ function pngDeUmaCor([r, g, b]) {
 // completa (docs/22 §12.3): duas variantes, uma descrição e duas imagens,
 // uma com texto alternativo e outra sem.
 let artigoDaFicha = "";
+let canalDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
   const baseArtigos = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
@@ -338,6 +354,79 @@ let artigoDaFicha = "";
       principal,
     });
   }
+  // Uma publicação real do artigo 1 (revisão do #206, P2-3): fica em
+  // rascunho, porque a segunda imagem não tem texto alternativo.
+  const quem = "pessoa:passagem";
+  const versao = async () =>
+    (await obterArtigo(baseArtigos, comerciante, artigoDaFicha)).versao;
+  await classificarArtigo(
+    baseArtigos,
+    comerciante,
+    artigoDaFicha,
+    await versao(),
+    { familias: ["retalho_geral"], natureza_consumidor: "bem" },
+    quem,
+  );
+  await mudarEstadoArtigo(
+    baseArtigos,
+    comerciante,
+    artigoDaFicha,
+    await versao(),
+    "activo",
+  );
+  const entidade = await criarEntidadeLegal(baseArtigos, comerciante, {
+    denominacao: "Loja de Ensaio, Lda.",
+    forma_juridica: "sociedade por quotas",
+    pais: "PT",
+    numero_fiscal: "123456789",
+    morada_linha: "Rua de Ensaio, 1",
+    morada_codigo_postal: "1000-001",
+    morada_localidade: "Lisboa",
+  });
+  const loja = await criarLoja(baseArtigos, comerciante, {
+    entidade_legal_id: entidade,
+    nome: "Loja online",
+  });
+  const mercado = await criarMercado(baseArtigos, comerciante, {
+    loja_id: loja,
+    nome: "Portugal",
+    paises: ["PT"],
+    moeda: "EUR",
+    linguas: ["pt"],
+    lingua_principal: "pt",
+  });
+  const lista = await criarLista(baseArtigos, comerciante, {
+    mercado_id: mercado,
+    nome: "Base PT",
+    tipo: "base",
+  });
+  await mudarEstadoMercado(baseArtigos, comerciante, mercado, 1, "activo");
+  const canal = await criarCanal(baseArtigos, comerciante, {
+    loja_id: loja,
+    nome: "Loja online",
+  });
+  await definirMercadosDoCanal(baseArtigos, comerciante, canal, [mercado]);
+  const variantes = await comComerciante(baseArtigos, comerciante, (trx) =>
+    trx
+      .selectFrom("variante")
+      .select("id")
+      .where("artigo_id", "=", artigoDaFicha)
+      .execute(),
+  );
+  for (const v of variantes) {
+    await definirPreco(baseArtigos, comerciante, quem, lista, v.id, {
+      montante: 990,
+    });
+  }
+  const publicacao = await publicar(baseArtigos, comerciante, quem, {
+    artigo_id: artigoDaFicha,
+    canal_id: canal,
+    mercado_id: mercado,
+  });
+  if (publicacao.publicada) {
+    throw new Error("a publicação do artigo 1 devia ficar em rascunho");
+  }
+  canalDaFicha = canal;
   await baseArtigos.destroy();
 }
 
@@ -1376,7 +1465,9 @@ try {
   await rp.getByText("5 de 30 artigos", { exact: true }).waitFor();
   await rp.getByRole("link", { name: "Verniz Azul 1", exact: true }).click();
   await rp.getByRole("heading", { name: "Verniz Azul 1", level: 1 }).waitFor();
-  await rp.getByText("Ainda não está publicado em nenhuma loja.").waitFor();
+  await rp
+    .getByRole("row", { name: new RegExp(`chn_${canalDaFicha}.*Rascunho`) })
+    .waitFor();
   await rp.waitForFunction(
     () =>
       document.querySelectorAll(".imagens-artigo img").length === 2 &&
@@ -1479,11 +1570,82 @@ try {
     () => document.querySelectorAll(".imagens-artigo img").length === 2,
   );
   confere(true, "ficha: «Tentar outra vez» traz as imagens");
+  // Uma imagem que falha sozinha tem o seu «Tentar outra vez» (revisão do
+  // #206, P2-1).
+  let falhar = true;
+  await rp.route("**/hub/media/*/file", (r) =>
+    falhar
+      ? r.fulfill({
+          status: 429,
+          contentType: "application/problem+json",
+          headers: { "retry-after": "5" },
+          body: JSON.stringify({ codigo: "rate_limit.exceeded", status: 429 }),
+        })
+      : r.continue(),
+  );
+  await rp.reload();
+  await rp.locator(".falha-imagem").nth(1).waitFor();
+  confere(
+    (await rp.locator(".falha-imagem").count()) === 2 &&
+      (await rp
+        .locator(".falha-imagem", { hasText: "Pedidos a mais" })
+        .count()) === 2,
+    "ficha: uma imagem que falha diz porquê, na moldura dela",
+  );
+  falhar = false;
+  await rp
+    .locator(".falha-imagem")
+    .first()
+    .getByRole("button", { name: "Tentar outra vez" })
+    .click();
+  await rp.waitForFunction(
+    () => document.querySelectorAll(".imagens-artigo img").length === 1,
+  );
+  confere(
+    (await rp.locator(".falha-imagem").count()) === 1,
+    "ficha: «Tentar outra vez» numa imagem só traz essa",
+  );
+  await rp.unroute("**/hub/media/*/file");
+  await rp.reload();
+  await rp.waitForFunction(
+    () =>
+      [...document.querySelectorAll(".imagens-artigo img")].filter(
+        (i) => i.complete && i.naturalWidth === 64,
+      ).length === 2,
+  );
+  // Os endereços blob: apagam-se ao sair da ficha (docs/22 §12.1).
+  const enderecosBlob = await rp.evaluate(() =>
+    [...document.querySelectorAll(".imagens-artigo img")].map((i) => i.src),
+  );
   await rp.getByRole("link", { name: "Voltar aos artigos" }).click();
   await rp.getByText("5 de 30 artigos", { exact: true }).waitFor();
   confere(
     (await rp.getByLabel("Nome", { exact: true }).inputValue()) === "Azul",
     "ficha: «Voltar aos artigos» volta à lista com o mesmo filtro",
+  );
+  const blobsVivos = await rp.evaluate(async (enderecos) => {
+    let vivos = 0;
+    for (const e of enderecos) {
+      try {
+        await fetch(e);
+        vivos++;
+      } catch {
+        // apagado
+      }
+    }
+    return vivos;
+  }, enderecosBlob);
+  confere(
+    enderecosBlob.length === 2 && blobsVivos === 0,
+    "ficha: ao sair, os endereços blob: das imagens já não existem",
+  );
+  // Um filtro no endereço que a API recusaria não fica preso num erro
+  // (revisão do #206, P3-2).
+  await rp.goto(`${ORIGEM}/artigos?comerciante=mer_${comerciante}&texto=a%01b`);
+  await rp.getByText("30 artigos", { exact: true }).waitFor();
+  confere(
+    true,
+    "artigos: um filtro com caracteres de controlo no endereço não conta",
   );
   await rp.goto(
     `${ORIGEM}/artigos/prd_${randomBytes(16)
@@ -1498,6 +1660,33 @@ try {
     (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) === 0,
     "ficha: um artigo que não existe diz-o, sem «Tentar outra vez»",
   );
+  // Sem permissão (403) e sessão que acabou (401), com respostas fingidas.
+  const fichaReal = `${ORIGEM}/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`;
+  await rp.route("**/hub/products/prd_*", (r) =>
+    r.fulfill({
+      status: 403,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "member.inactive", status: 403 }),
+    }),
+  );
+  await rp.goto(fichaReal);
+  await rp.getByText("Não pode ver este comerciante.").waitFor();
+  confere(
+    (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) === 0,
+    "ficha: 403 diz «Não pode ver este comerciante», sem «Tentar outra vez»",
+  );
+  await rp.unroute("**/hub/products/prd_*");
+  await rp.route("**/hub/products/prd_*", (r) =>
+    r.fulfill({
+      status: 401,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "auth.session_required", status: 401 }),
+    }),
+  );
+  await rp.goto(fichaReal);
+  await rp.waitForURL(/\/entrar$/);
+  confere(true, "ficha: com a sessão terminada, vai para «Entrar»");
+  await rp.unroute("**/hub/products/prd_*");
 
   // B3c — as chaves de API (docs/22 §9.3), com a Ana (dona).
   const pedidosChaves = [];

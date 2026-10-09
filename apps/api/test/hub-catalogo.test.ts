@@ -4,10 +4,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ArmazenamentoEmDisco } from "../src/catalogo/armazenamento.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Classificacao } from "../src/catalogo/classificacao.js";
+import { publicar } from "../src/catalogo/publicacao.js";
 import {
+  classificarArtigo,
+  mudarEstadoArtigo,
+  obterArtigo,
+} from "../src/catalogo/repositorio.js";
+import {
+  comComerciante,
+  criarEntidadeLegal,
+  criarLoja,
   mudarEstado,
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
+import {
+  criarCanal,
+  criarLista,
+  criarMercado,
+  definirMercadosDoCanal,
+  definirPreco,
+  mudarEstadoMercado,
+} from "../src/precos/repositorio.js";
 import { criarChave } from "../src/identidade/repositorio.js";
 import { PAPEIS } from "../src/identidade/papeis.js";
 import {
@@ -96,15 +114,20 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     });
 
   /** Um artigo com duas variantes, uma imagem com texto e outra sem. */
-  async function artigoCompleto(c: { id: string; segredo: string }) {
+  async function artigoCompleto(
+    c: { id: string; segredo: string },
+    /** Com peso e os dois textos alternativos: pode publicar-se. */
+    publicavel = false,
+  ) {
+    const peso = publicavel ? { peso_g: 30 } : {};
     const r = await comChave(c.segredo, "POST", "/products", {
       tipo: "fisico",
       nome: "Verniz Completo",
       marca: "Marca de Ensaio",
       categoria_fiscal: "normal",
       variantes: [
-        { sku: `C-${randomUUID()}`, unidade_de_venda: "unidade" },
-        { sku: `C-${randomUUID()}`, unidade_de_venda: "unidade" },
+        { sku: `C-${randomUUID()}`, unidade_de_venda: "unidade", ...peso },
+        { sku: `C-${randomUUID()}`, unidade_de_venda: "unidade", ...peso },
       ],
     });
     expect(r.statusCode, r.body).toBe(201);
@@ -112,7 +135,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     const imagens: string[] = [];
     for (const [bytes, texto] of [
       [PNG, "Frasco de verniz azul"],
-      [JPEG, null],
+      [JPEG, publicavel ? "Frasco de verniz, de lado" : null],
     ] as const) {
       const f = await comChave(
         c.segredo,
@@ -395,6 +418,11 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
           comerciante: c.id,
         });
         const api = await comChave(c.segredo, "GET", `/media/${imagem}/file`);
+        // A rota pela chave fica como estava antes da extracção (revisão do
+        // #206, P3-1): só o Hub muda o cache-control.
+        expect(api.headers["cache-control"]).toBe("private, no-cache");
+        expect(hub.headers["etag"]).toBe(api.headers["etag"]);
+        expect(api.headers["etag"]).toMatch(/^"[0-9a-f]{64}"$/);
         expect(hub.statusCode, hub.body).toBe(200);
         expect(hub.rawPayload).toEqual(api.rawPayload);
         expect(hub.headers["content-type"]).toBe(api.headers["content-type"]);
@@ -420,6 +448,115 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
         .json<{ dados: { texto_alternativo: string | null }[] }>()
         .dados.map((m) => m.texto_alternativo),
     ).toEqual(["Frasco de verniz azul", null]);
+  });
+
+  it("as publicações reais, publicada e depois arquivada, são as mesmas pelo Hub e pela chave (revisão do #206, P2-3)", async () => {
+    const c = await comerciante("Loja Ficha Publicada", []);
+    const incompleto = (await artigoCompleto(c)).artigo;
+    const { artigo } = await artigoCompleto(c, true);
+    const quem = "pessoa:teste";
+    const classificacao: Classificacao = {
+      familias: ["retalho_geral"],
+      natureza_consumidor: "bem",
+    };
+    const versao = async (id: string) =>
+      (await obterArtigo(base.api, c.id, id)).versao;
+    const semPrefixo = (a: string) => a.replace(/^prd_/, "");
+    for (const a of [incompleto, artigo].map(semPrefixo)) {
+      await classificarArtigo(
+        base.api,
+        c.id,
+        a,
+        await versao(a),
+        classificacao,
+        quem,
+      );
+      await mudarEstadoArtigo(base.api, c.id, a, await versao(a), "activo");
+    }
+    const id = semPrefixo(artigo);
+    const entidade = await criarEntidadeLegal(base.api, c.id, {
+      denominacao: "Exemplo, Lda.",
+      forma_juridica: "sociedade por quotas",
+      pais: "PT",
+      numero_fiscal: "123456789",
+      morada_linha: "Rua de Teste, 1",
+      morada_codigo_postal: "1000-001",
+      morada_localidade: "Lisboa",
+    });
+    const loja = await criarLoja(base.api, c.id, {
+      entidade_legal_id: entidade,
+      nome: "Loja online",
+    });
+    const mercado = await criarMercado(base.api, c.id, {
+      loja_id: loja,
+      nome: "Portugal",
+      paises: ["PT"],
+      moeda: "EUR",
+      linguas: ["pt"],
+      lingua_principal: "pt",
+    });
+    const lista = await criarLista(base.api, c.id, {
+      mercado_id: mercado,
+      nome: "Base PT",
+      tipo: "base",
+    });
+    await mudarEstadoMercado(base.api, c.id, mercado, 1, "activo");
+    const canal = await criarCanal(base.api, c.id, {
+      loja_id: loja,
+      nome: "Loja online",
+    });
+    await definirMercadosDoCanal(base.api, c.id, canal, [mercado]);
+    const variantes = await comComerciante(base.api, c.id, (trx) =>
+      trx
+        .selectFrom("variante")
+        .select("id")
+        .where("artigo_id", "in", [id, semPrefixo(incompleto)])
+        .execute(),
+    );
+    for (const v of variantes) {
+      await definirPreco(base.api, c.id, quem, lista, v.id, { montante: 990 });
+    }
+    const r = await publicar(base.api, c.id, quem, {
+      artigo_id: id,
+      canal_id: canal,
+      mercado_id: mercado,
+    });
+    expect(r.publicada, JSON.stringify(r)).toBe(true);
+    // O incompleto fica em rascunho, com o que impede a publicação.
+    const recusada = await publicar(base.api, c.id, quem, {
+      artigo_id: semPrefixo(incompleto),
+      canal_id: canal,
+      mercado_id: mercado,
+    });
+    expect(recusada.publicada).toBe(false);
+    const p = await h.pessoaCom(c.id, "armazem");
+    const comparar = async (de = artigo) => {
+      const hub = await h.pedir("GET", `/hub/products/${de}/publications`, {
+        sessao: p.sessao,
+        comerciante: c.id,
+      });
+      const api = await comChave(
+        c.segredo,
+        "GET",
+        `/products/${de}/publications`,
+      );
+      expect(hub.statusCode, hub.body).toBe(200);
+      expect(hub.json()).toEqual(api.json());
+      return hub.json<{
+        dados: { estado: string; motivo_arquivo: string | null }[];
+      }>().dados;
+    };
+    expect(await comparar(incompleto)).toMatchObject([
+      { estado: "rascunho", motivo_arquivo: null },
+    ]);
+    expect(await comparar()).toMatchObject([
+      { estado: "publicado", motivo_arquivo: null },
+    ]);
+    // Arquivar o artigo arquiva a publicação, com o motivo.
+    await mudarEstadoArtigo(base.api, c.id, id, await versao(id), "arquivado");
+    expect(await comparar()).toMatchObject([
+      { estado: "arquivado", motivo_arquivo: "artigo_arquivado" },
+    ]);
   });
 
   it("a ficha e as imagens de outro comerciante não saem pelo Hub (#204)", async () => {

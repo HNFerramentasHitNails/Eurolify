@@ -50,10 +50,22 @@ function filtrosDoEndereco(consulta: string): FiltrosArtigos {
     ...(ESTADOS_ARTIGO.some((x) => x === estado)
       ? { estado: estado as EstadoArtigo }
       : {}),
-    ...(texto === "" || texto.length > 200 ? {} : { texto }),
-    ...(sku === "" || sku.length > 64 ? {} : { sku }),
+    ...(aceite(texto, 200) ? { texto } : {}),
+    ...(aceite(sku, 64) ? { sku } : {}),
   };
 }
+
+/**
+ * O que a API aceita num filtro de texto: até ao tamanho e sem caracteres de
+ * controlo; outro valor dava um 400 que «Tentar outra vez» repetia (revisão
+ * do #206, P3-2).
+ */
+const aceite = (v: string, tamanho: number) =>
+  v !== "" &&
+  v.length <= tamanho &&
+  Array.from({ length: v.length }, (_, i) => v.charCodeAt(i)).every(
+    (c) => c > 0x1f,
+  );
 
 /** A consulta da lista: o comerciante e os filtros aplicados. */
 function consultaDaLista(comerciante: string, f: FiltrosArtigos): string {

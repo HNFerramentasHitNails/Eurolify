@@ -9,7 +9,7 @@ import {
 } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { mensagemDeErro, semSessao } from "../erros";
-import { preencher, TAG_LINGUA } from "../textos";
+import { preencher, TAG_LINGUA, type Textos } from "../textos";
 
 // A ficha do artigo, só para consulta (docs/22 §12.2): o artigo com as
 // variantes, as imagens e as publicações, pelas mesmas funções da API
@@ -18,7 +18,10 @@ import { preencher, TAG_LINGUA } from "../textos";
 // primeiro, as imagens e as publicações depois de o artigo existir.
 
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
-const FORMATO_ARTIGO = /^prd_[0-9a-f-]{36}$/;
+// O mesmo formato que a API aceita: um endereço mal escrito diz «não existe»
+// em vez de um erro que se repete (revisão do #206, P3-3).
+const FORMATO_ARTIGO =
+  /^prd_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Os filtros da lista que a ficha guarda para «Voltar aos artigos». */
 const FILTROS_DA_LISTA = ["estado", "texto", "sku"] as const;
@@ -40,10 +43,9 @@ export function Artigo({
   consulta: string;
 }) {
   const { t, lingua, navegar } = useHub();
-  const valido =
-    comerciante !== null &&
-    FORMATO_COMERCIANTE.test(comerciante) &&
-    FORMATO_ARTIGO.test(artigo);
+  const comercianteValido =
+    comerciante !== null && FORMATO_COMERCIANTE.test(comerciante);
+  const valido = comercianteValido && FORMATO_ARTIGO.test(artigo);
   const [ficha, setFicha] = useState<Parte<FichaArtigo>>({
     tipo: "a_carregar",
   });
@@ -142,6 +144,8 @@ export function Artigo({
       new Date(iso),
     );
 
+  // Sem comerciante, como a lista (revisão do #206, P3-4).
+  const semComerciante = !comercianteValido;
   const naoExiste =
     !valido ||
     (ficha.tipo === "erro" &&
@@ -168,7 +172,9 @@ export function Artigo({
       <h1 id="titulo">
         {ficha.tipo === "pronto" ? ficha.dados.nome : t.artigoTitulo}
       </h1>
-      {naoExiste ? (
+      {semComerciante ? (
+        <CaixaDeErro erro={{ texto: t.erroSemPermissao }} />
+      ) : naoExiste ? (
         <CaixaDeErro erro={{ texto: t.artigoNaoExiste }} />
       ) : semPermissao ? (
         <CaixaDeErro erro={{ texto: t.artigosSemPermissao }} />
@@ -195,8 +201,8 @@ export function Artigo({
           {imagens.tipo === "a_carregar" ? (
             <ACarregar />
           ) : imagens.tipo === "erro" ? (
-            <CaixaDeErro
-              erro={mensagemDeErro(imagens.erro, t, lingua)}
+            <ErroDaParte
+              erro={imagens.erro}
               aoTentar={() => void carregarImagens()}
             />
           ) : imagens.dados.length === 0 ? (
@@ -217,8 +223,8 @@ export function Artigo({
           {publicacoes.tipo === "a_carregar" ? (
             <ACarregar />
           ) : publicacoes.tipo === "erro" ? (
-            <CaixaDeErro
-              erro={mensagemDeErro(publicacoes.erro, t, lingua)}
+            <ErroDaParte
+              erro={publicacoes.erro}
               aoTentar={() => void carregarPublicacoes()}
             />
           ) : publicacoes.dados.length === 0 ? (
@@ -230,6 +236,35 @@ export function Artigo({
       )}
     </section>
   );
+}
+
+/**
+ * O erro de uma parte da ficha. Um 403 (a pessoa saiu da equipa) e um 404 (o
+ * artigo deixou de existir) não se resolvem a tentar outra vez (revisão do
+ * #206, P3-3).
+ */
+function ErroDaParte({
+  erro,
+  aoTentar,
+}: {
+  erro: unknown;
+  aoTentar: () => void;
+}) {
+  const { t, lingua } = useHub();
+  if (erro instanceof ErroHub && erro.estado === 403) {
+    return <CaixaDeErro erro={{ texto: t.artigosSemPermissao }} />;
+  }
+  if (erro instanceof ErroHub && erro.estado === 404) {
+    return <CaixaDeErro erro={{ texto: t.artigoNaoExiste }} />;
+  }
+  return (
+    <CaixaDeErro erro={mensagemDeErro(erro, t, lingua)} aoTentar={aoTentar} />
+  );
+}
+
+/** O texto de um valor da API, ou o próprio valor se o Hub ainda não o tem. */
+function textoDe(t: Textos, chave: string, valor: string): string {
+  return chave in t ? t[chave as keyof Textos] : valor;
 }
 
 function Cabecalho({
@@ -244,10 +279,10 @@ function Cabecalho({
     <div className="cabecalho-artigo">
       <p>
         <span className="estado-artigo" data-estado={ficha.estado}>
-          {t[`estadoArtigo_${ficha.estado}`]}
+          {textoDe(t, `estadoArtigo_${ficha.estado}`, ficha.estado)}
         </span>
         {" · "}
-        {t[`tipoArtigo_${ficha.tipo}`]}
+        {textoDe(t, `tipoArtigo_${ficha.tipo}`, ficha.tipo)}
         {ficha.marca === null ? null : ` · ${ficha.marca}`}
       </p>
       {ficha.origem === "externo" ? (
@@ -290,10 +325,10 @@ function Variantes({ variantes }: { variantes: VarianteArtigo[] }) {
               <code translate="no">{v.sku}</code>
             </td>
             <td data-rotulo={t.colunaEstado}>
-              {t[`estadoVariante_${v.estado}`]}
+              {textoDe(t, `estadoVariante_${v.estado}`, v.estado)}
             </td>
             <td data-rotulo={t.colunaUnidade}>
-              {t[`unidade_${v.unidade_de_venda}`]}
+              {textoDe(t, `unidade_${v.unidade_de_venda}`, v.unidade_de_venda)}
             </td>
             <td data-rotulo={t.colunaGtin}>
               {v.gtin === null ? "—" : <code translate="no">{v.gtin}</code>}
@@ -326,13 +361,16 @@ function Miniatura({
   imagem: ImagemArtigo;
   variantes: VarianteArtigo[];
 }) {
-  const { t, navegar } = useHub();
+  const { t, lingua, navegar } = useHub();
   const [endereco, setEndereco] = useState<string | null>(null);
-  const [falhou, setFalhou] = useState(false);
+  const [falha, setFalha] = useState<unknown>(null);
+  // Cada «Tentar outra vez» volta a pedir os bytes desta imagem.
+  const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
     let vivo = true;
     let criado: string | null = null;
+    setFalha(null);
     api.bytesDaImagem(comerciante, imagem.id).then(
       (bytes) => {
         if (!vivo) return;
@@ -345,16 +383,17 @@ function Miniatura({
           navegar("/entrar", { substituir: true });
           return;
         }
-        setFalhou(true);
+        setFalha(e);
       },
     );
     return () => {
       vivo = false;
       if (criado !== null) URL.revokeObjectURL(criado);
     };
-  }, [comerciante, imagem.id, navegar]);
+  }, [comerciante, imagem.id, navegar, tentativa]);
 
   const texto = imagem.texto_alternativo;
+  const temTexto = texto !== null && texto.trim() !== "";
   const sku =
     imagem.variante === null
       ? null
@@ -364,9 +403,21 @@ function Miniatura({
       <figure>
         <div className="moldura-imagem">
           {endereco !== null ? (
-            <img src={endereco} alt={texto ?? ""} />
-          ) : falhou ? (
-            <p className="secundario">{t.artigoImagemFalhou}</p>
+            <img src={endereco} alt={temTexto ? texto : ""} />
+          ) : falha !== null ? (
+            <div className="falha-imagem">
+              <p className="secundario" role="alert">
+                {mensagemDeErro(falha, t, lingua).texto}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setTentativa((n) => n + 1);
+                }}
+              >
+                {t.tentarOutraVez}
+              </button>
+            </div>
           ) : (
             <p className="secundario">{t.aCarregar}</p>
           )}
@@ -377,10 +428,12 @@ function Miniatura({
               {t.artigoImagemPrincipal}
             </strong>
           ) : null}
-          {texto === null || texto.trim() === "" ? (
-            <span className="aviso-texto">{t.artigoSemTextoAlternativo}</span>
+          {temTexto ? (
+            // O leitor de ecrã já o lê no alt da imagem: aqui é só para a
+            // vista, sem o ler duas vezes (revisão do #206, P3-5).
+            <span aria-hidden="true">{texto}</span>
           ) : (
-            <span>{texto}</span>
+            <span className="aviso-texto">{t.artigoSemTextoAlternativo}</span>
           )}
           {sku === null ? null : (
             <span className="secundario">
@@ -409,7 +462,9 @@ function Publicacoes({
         ? p.publicado_em
         : p.verificado_em;
   return (
-    <table>
+    // Cinco colunas, duas com identificadores longos: cartões até 960 px,
+    // como as chaves (revisão do #206, P2-2).
+    <table className="tabela-larga">
       <thead>
         <tr>
           <th scope="col">{t.colunaCanal}</th>
@@ -432,13 +487,17 @@ function Publicacoes({
                 <code translate="no">{p.mercado}</code>
               </td>
               <td data-rotulo={t.colunaEstado}>
-                {t[`estadoPublicacao_${p.estado}`]}
+                {textoDe(t, `estadoPublicacao_${p.estado}`, p.estado)}
               </td>
               <td data-rotulo={t.colunaData}>{d === null ? "—" : data(d)}</td>
               <td data-rotulo={t.colunaMotivo}>
                 {p.motivo_arquivo === null
                   ? "—"
-                  : t[`motivoArquivo_${p.motivo_arquivo}`]}
+                  : textoDe(
+                      t,
+                      `motivoArquivo_${p.motivo_arquivo}`,
+                      p.motivo_arquivo,
+                    )}
               </td>
             </tr>
           );

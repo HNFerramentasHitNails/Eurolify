@@ -453,3 +453,19 @@ code {
   color: var(--estado-aviso);
   font-weight: 600;
 }
+
+/* Os identificadores longos (chn_…, mkt_…) quebram em vez de alargar a
+   página. */
+td code {
+  overflow-wrap: anywhere;
+}
+
+/* Uma imagem que não carregou: o erro e «Tentar outra vez» na moldura. */
+.falha-imagem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--espaco-2);
+  padding: var(--espaco-2);
+  text-align: center;
+}

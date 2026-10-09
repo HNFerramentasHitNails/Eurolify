@@ -379,7 +379,7 @@ filtros (a API já os tem).
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da ficha do
 artigo»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o desenho,
-junta o #205 e avança com o código»*); o código vem no pedido seguinte.
+junta o #205 e avança com o código»*); o código está no pedido #206.
 O catálogo é da outra sessão (#77): o código não muda nenhuma regra nem
 resposta do catálogo, só junta caminhos `/hub/…` às mesmas funções, como na
 §11.1 (aviso no #77 antes do código).
@@ -401,7 +401,17 @@ cabeçalho `Eurolify-Comerciante`, como o `GET /hub/products`:
 **As imagens no ecrã**: um `<img src>` não leva o cabeçalho do comerciante,
 por isso o Hub pede os bytes com `fetch` (com o cabeçalho) e mostra-os por
 um endereço `blob:` local, que apaga ao sair da ficha. A resposta leva
-`cache-control: private, no-store`, como a lista.
+`cache-control: private, no-store`, como a lista. Os bytes pedem-se no
+máximo 4 de cada vez (o limite de pedidos do Hub é por endereço IP), e cada
+imagem que falha diz porquê e tem o seu «Tentar outra vez» (revisão do #206,
+P2-1).
+
+**A VPS muda numa linha** (ao contrário da §11.1): a política de segurança
+dos ecrãs do Hub (`infra/vps/ficheiros/nginx-hub.conf`) passa a aceitar
+`img-src blob:`; sem isso, o navegador bloqueava as imagens. Um `blob:` só o
+cria código da própria página. Aplica-se pelo fluxo `aplicar-script` quando
+o pedido entra no `main` (ADR-0028), e a passagem no navegador usa a mesma
+política, lida do ficheiro.
 
 ### 12.2 O ecrã
 

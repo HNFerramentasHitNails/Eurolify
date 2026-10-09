@@ -247,6 +247,30 @@ export async function pedirBytes(
   throw await erroDe(resposta);
 }
 
+/**
+ * Uma fila para os bytes das imagens: no máximo 4 pedidos ao mesmo tempo,
+ * para um artigo com muitas imagens não gastar de uma vez o limite de
+ * pedidos do Hub nem ler todos os ficheiros na API em paralelo.
+ */
+const MAXIMO_IMAGENS_EM_CURSO = 4;
+let imagensEmCurso = 0;
+const imagensEmEspera: (() => void)[] = [];
+
+async function naFilaDasImagens<T>(pedido: () => Promise<T>): Promise<T> {
+  if (imagensEmCurso >= MAXIMO_IMAGENS_EM_CURSO) {
+    await new Promise<void>((avancar) => {
+      imagensEmEspera.push(avancar);
+    });
+  }
+  imagensEmCurso++;
+  try {
+    return await pedido();
+  } finally {
+    imagensEmCurso--;
+    imagensEmEspera.shift()?.();
+  }
+}
+
 async function erroDe(resposta: Response): Promise<ErroHub> {
   let problema: Problema = {};
   try {
@@ -325,8 +349,11 @@ export const api = {
     } while (cursor !== null);
     return imagens;
   },
+  /** Os bytes de uma imagem, no máximo 4 ao mesmo tempo (revisão do #206, P2-1). */
   bytesDaImagem: (comerciante: string, imagem: string) =>
-    pedirBytes(`/hub/media/${imagem}/file`, comerciante),
+    naFilaDasImagens(() =>
+      pedirBytes(`/hub/media/${imagem}/file`, comerciante),
+    ),
   publicacoesDoArtigo: (comerciante: string, artigo: string) =>
     pedir<{ dados: PublicacaoArtigo[] }>(
       "GET",
