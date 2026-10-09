@@ -25,6 +25,7 @@ export type CodigoErroPrecos =
   | "prices.b2b_label_required"
   | "prices.priority_duplicate"
   | "prices.label_duplicate"
+  | "prices.label_archived"
   | "prices.channel_market_duplicate"
   | "prices.channel_market_in_use"
   | "prices.published_variant"
