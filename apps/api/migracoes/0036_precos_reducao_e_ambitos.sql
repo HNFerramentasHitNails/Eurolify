@@ -63,7 +63,10 @@ CREATE FUNCTION preco_referencia(p_comerciante uuid, p_lista uuid, p_variante uu
                                  p_inicio timestamptz) RETURNS bigint
   LANGUAGE plpgsql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
-  janela timestamptz := p_inicio - interval '30 days';
+  -- 30 dias de 24 horas (720 h), qualquer que seja o fuso da sessão e a
+  -- mudança da hora (revisão do #224, P3-1); o que a lei conta como «30 dias»
+  -- é C (docs/12, B, ponto 7).
+  janela timestamptz := p_inicio - make_interval(hours => 720);
   primeira public.historico_preco;
   do_historico bigint;
   das_reducoes bigint;
@@ -118,8 +121,10 @@ BEGIN
         OLD.preco_referencia, OLD.inicio, OLD.fim, OLD.criada_por) THEN
       RAISE EXCEPTION 'prices.immutable_identity: uma redução não muda; tira-se e anuncia-se outra';
     END IF;
-    IF OLD.terminada_em IS NOT NULL OR NEW.terminada_em IS NULL THEN
-      RAISE EXCEPTION 'prices.invalid_transition: uma redução só se tira uma vez';
+    IF NEW.terminada_em IS NULL OR NOT public.reducao_em_vigor(OLD, clock_timestamp()) THEN
+      -- Só se tira uma em vigor: nem uma já tirada, nem uma passada do fim
+      -- (revisão do #224, P3-3).
+      RAISE EXCEPTION 'prices.invalid_transition: só se tira uma redução em vigor, e uma vez';
     END IF;
     NEW.terminada_em := clock_timestamp();
     NEW.terminada_por := quem;
@@ -127,8 +132,11 @@ BEGIN
   END IF;
 
   -- O preço da variante na lista, tomado: quem o mudar espera, e vê a
-  -- redução (e é recusado) depois (§10.2). A mesma ordem da escrita de um
-  -- preço: a lista, depois o preço.
+  -- redução (e é recusado) depois (§10.2). Aqui toma-se a lista (FOR SHARE)
+  -- e depois o preço; numa escrita de preço, o PostgreSQL toma a linha do
+  -- preço antes dos gatilhos, que tomam a lista depois. Os bloqueios da lista
+  -- são todos partilhados, por isso as duas ordens não se prendem uma à outra
+  -- (revisão do #224, P3-9); um impasse inesperado sai como prices.retry.
   SELECT l.estado INTO estado_da_lista FROM public.lista_precos l
   WHERE l.comerciante_id = NEW.comerciante_id AND l.id = NEW.lista_id
   FOR SHARE;
@@ -172,8 +180,14 @@ BEGIN
 END
 $$;
 CREATE TRIGGER reducao_antes_de_gravar
-  BEFORE INSERT OR UPDATE OR DELETE ON reducao
+  BEFORE INSERT ON reducao
   FOR EACH ROW EXECUTE FUNCTION reducao_antes_de_gravar();
+-- A redução é prova do que se mostrou: não se altera nem se apaga, também
+-- no modo `replica` (como o histórico, 0017; revisão do #224, P3-2).
+CREATE TRIGGER reducao_so_se_tira
+  BEFORE UPDATE OR DELETE ON reducao
+  FOR EACH ROW EXECUTE FUNCTION reducao_antes_de_gravar();
+ALTER TABLE reducao ENABLE ALWAYS TRIGGER reducao_so_se_tira;
 CREATE TRIGGER reducao_sem_truncate
   BEFORE TRUNCATE ON reducao
   FOR EACH STATEMENT EXECUTE FUNCTION rasto_so_se_acrescenta();
@@ -209,6 +223,9 @@ CREATE TRIGGER reducao_evento
 
 -- O preço não muda nem sai com uma redução em vigor (§10.2). A variante de
 -- um rascunho apagada (a cascata) leva o preço; a redução fica terminada.
+-- Vê as reduções pelo RLS: com o comerciante posto (sempre, pela API). Um
+-- SQL à mão do dono sem `eurolify.comerciante` não as vê e não é travado
+-- aqui (revisão do #224, P3-4); é o mesmo limite das outras regras do dono.
 CREATE FUNCTION preco_com_reducao() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -258,6 +275,49 @@ REVOKE EXECUTE ON FUNCTION reducao_em_vigor(public.reducao, timestamptz),
 -- a base (no gatilho, com os direitos de quem escreve: precisa do EXECUTE).
 GRANT EXECUTE ON FUNCTION reducao_em_vigor(public.reducao, timestamptz),
   preco_referencia(uuid, uuid, uuid, timestamptz) TO eurolify_api;
+
+-- A lista de outro comerciante não se denuncia pelos índices únicos (a 0017
+-- verificava o mercado depois deles).
+CREATE OR REPLACE FUNCTION lista_precos_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  estado_do_mercado text;
+BEGIN
+  SELECT m.estado INTO estado_do_mercado FROM public.mercado m
+  WHERE m.comerciante_id = NEW.comerciante_id AND m.id = NEW.mercado_id
+  FOR SHARE;
+  -- Um mercado que não se vê (de outro comerciante, ou inexistente) pára
+  -- aqui, antes dos índices únicos por mercado: sem isto, criar uma lista no
+  -- mercado de outro respondia «já há uma lista de base» e dizia que ele
+  -- existe (revisão do #224, encontrado pelo teste das rotas, P2-1).
+  IF estado_do_mercado IS NULL THEN
+    RAISE EXCEPTION 'prices.not_found: o mercado não existe';
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.estado <> 'activa' THEN
+      RAISE EXCEPTION 'prices.invalid_transition: uma lista nasce activa';
+    END IF;
+    NEW.versao := 1;
+    NEW.criado_em := now();
+    NEW.actualizado_em := now();
+    RETURN NEW;
+  END IF;
+
+  IF NEW.id <> OLD.id OR NEW.comerciante_id <> OLD.comerciante_id
+     OR NEW.mercado_id <> OLD.mercado_id OR NEW.tipo <> OLD.tipo THEN
+    RAISE EXCEPTION 'prices.immutable_identity: o id, o comerciante, o mercado e o tipo de uma lista não mudam';
+  END IF;
+  IF OLD.estado = 'activa' AND NEW.estado = 'arquivada' AND NEW.tipo = 'base'
+     AND estado_do_mercado = 'activo' THEN
+    RAISE EXCEPTION 'prices.base_list_in_use: a lista de base de um mercado activo não se arquiva';
+  END IF;
+  NEW.criado_em := OLD.criado_em;
+  NEW.actualizado_em := now();
+  NEW.versao := OLD.versao + 1;
+  RETURN NEW;
+END
+$$;
 
 -- Os âmbitos novos (§10.1; docs/06, CW).
 ALTER TABLE chave_api DROP CONSTRAINT chave_api_ambitos_validos;

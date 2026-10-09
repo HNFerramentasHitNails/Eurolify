@@ -231,7 +231,7 @@ const PedidoCanal = Type.Object(
   { additionalProperties: false },
 );
 const PedidoMercadosDoCanal = Type.Object(
-  { mercados: Type.Array(IdMercado, { maxItems: 100 }) },
+  { ...Versao, mercados: Type.Array(IdMercado, { maxItems: 100 }) },
   { additionalProperties: false },
 );
 
@@ -304,7 +304,7 @@ const PorUnidade = Type.Union([
   Type.Object({
     valor: Type.String({
       description:
-        "Em unidades da moeda, com quatro casas, sem arredondar para mostrar (o arredondamento é por verificar, docs/20 §10.3)",
+        "Em unidades da moeda, com quatro casas (arredondado ao mais próximo na quarta); o arredondamento para mostrar ao consumidor é por verificar (docs/20 §10.3)",
     }),
     unidade: Type.String({ description: "kg, l, m, m2 ou m3" }),
     inclui_iva: Type.Boolean(),
@@ -617,7 +617,7 @@ export function rotasDosPrecos(
       config: escrita,
       schema: {
         description:
-          "Substitui os mercados do canal. Tirar um mercado onde há uma publicação publicada é recusado (prices.channel_market_in_use).",
+          "Substitui os mercados do canal, na versão lida (sobe-a). Tirar um mercado onde há uma publicação publicada é recusado (prices.channel_market_in_use).",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdCanal),
         body: PedidoMercadosDoCanal,
@@ -633,6 +633,7 @@ export function rotasDosPrecos(
             c.comercianteId,
             id,
             pedido.body.mercados.map(semPrefixo),
+            pedido.body.versao,
           );
           return paraCanal(await obterCanal(trx, c.comercianteId, id));
         }),
@@ -1041,8 +1042,9 @@ function paraPreco(
   incluiIva: boolean,
   agora: Date,
 ): Static<typeof PrecoEsquema> {
-  const emVigorAgora =
-    p.reducao !== null && emVigor(p.reducao, agora) ? p.reducao : null;
+  // A base já só devolve a redução em vigor no relógio dela: não se volta a
+  // filtrar com o relógio da API (revisão do #224, P3-6).
+  const emVigorAgora = p.reducao;
   const aMostrar = emVigorAgora?.montante ?? p.montante;
   const unidade = precoPorUnidade(
     aMostrar,
@@ -1056,7 +1058,10 @@ function paraPreco(
     quantidade_minima: p.quantidade_minima,
     multiplo: p.multiplo,
     definido_em: p.definido_em.toISOString(),
-    reducao: emVigorAgora === null ? null : paraReducao(emVigorAgora, agora),
+    reducao:
+      emVigorAgora === null
+        ? null
+        : { ...paraReducao(emVigorAgora, agora), em_vigor: true },
     preco_por_unidade:
       unidade === null ? null : { ...unidade, inclui_iva: incluiIva },
   };

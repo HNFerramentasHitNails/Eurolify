@@ -209,6 +209,10 @@ Os textos e fluxos abaixo são servidos pelo Eurolify em todas as lojas.
    dias à venda, reduções progressivas)? Até haver resposta, o Eurolify recusa
    uma redução sem 30 dias de histórico. No preço por unidade: que produtos
    dispensa cada país (art. 5.º — *lido no texto*) e como se arredonda?
+   Duas leituras que o Eurolify fez sem ler o texto (`20-dominio-precos-e-mercados.md`
+   §10): «30 dias» como 720 horas antes do início da redução; e o preço
+   «praticado» como o preço da lista nesse tempo, mesmo que o produto não
+   estivesse à venda (mercado ainda não aberto). Estão certas?
 8. **Imagens do catálogo com pessoas** (`14-dominio-catalogo.md` §3.5,
    issue #179): o comerciante envia fotografias dos artigos, e algumas
    mostram pessoas (um modelo, um funcionário). O Eurolify guarda-as e

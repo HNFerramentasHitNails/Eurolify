@@ -453,3 +453,22 @@ Regras:
   redução, com quem apagou.
 - **Os testes** (`precos-api.test.ts`) correm numa base sem o «quem» por
   omissão: cada escrita prova que traz o seu.
+- **Revisão do #224** (09/10/2026):
+  - **«30 dias» são 720 horas**, qualquer que seja o fuso da sessão e a mudança
+    da hora; o que a lei conta como «30 dias» é **C**.
+  - **«30 dias seguidos de preço» não é «30 dias à venda»** (P2-4): conta o
+    histórico do preço na lista, mesmo com o mercado em rascunho ou sem
+    publicação. É a leitura mais simples do art. 6.º-A, que **não lemos**;
+    está na pergunta ao jurista (`docs/12`, B, ponto 7).
+  - **Os mercados de um canal** mudam-se com a versão lida do canal, e a
+    versão sobe (P2-3).
+  - **Arquivar a lista ou o mercado** não termina as reduções em vigor, nem
+    escreve `promotion.ended` (P3-5): ao repor, a redução está como estava (o
+    preço não pôde mudar entretanto).
+  - **O histórico** (`GET …/history`) não vem por páginas (P3-8): fica para
+    quando houver integrações a mudar preços muitas vezes.
+  - **O teste das rotas encontrou dois problemas que vinham da parte 1:**
+    criar uma lista no mercado de outro comerciante respondia «já há uma
+    lista de base» (dizia que o mercado existia), e pôr um preço numa lista
+    de outro dava 500. Os dois dão agora 404 (a 0036 refaz o gatilho das
+    listas; `definirPreco` confere a lista antes de escrever).

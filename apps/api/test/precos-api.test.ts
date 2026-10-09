@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
 import {
+  comComerciante,
   criarEntidadeLegal,
   criarLoja,
   registarComerciante,
@@ -212,7 +213,7 @@ describe.skipIf(URL_BASE === undefined)("API de Preços e mercados", () => {
       await sql`insert into historico_preco (comerciante_id, lista_id, variante_id, montante,
                   gratuito, saiu, moeda, preco_inclui_iva, em_vigor_desde, definido_por)
                 values (${a}, ${lista.slice(4)}, ${variante.slice(4)}, ${montante}, false, false,
-                  'EUR', true, now() - make_interval(days => ${dias}), 'teste:antes')`.execute(
+                  'EUR', true, now() - make_interval(hours => ${dias * 24}), 'teste:antes')`.execute(
         trx,
       );
     });
@@ -595,6 +596,263 @@ describe.skipIf(URL_BASE === undefined)("API de Preços e mercados", () => {
     expect(rows).toEqual([
       { estado: "arquivado", arquivado_por: `chave:key_${precosId}` },
     ]);
+  });
+
+  it("todas as rotas: só leitura não escreve, a chave do Catálogo não entra, e outro comerciante não vê nem muda (revisão do #224, P2-1)", async () => {
+    const { mercado, lista, canal, versaoMercado, versaoCanal } =
+      await mercadoActivo("AT");
+    const { variante } = await artigo("ROT-1");
+    await comHistoria(lista, variante, 990);
+    const preco = `/price-lists/${lista}/prices/${variante}`;
+    const escritas: ["POST" | "PATCH" | "PUT" | "DELETE", string, unknown][] = [
+      [
+        "POST",
+        "/markets",
+        {
+          loja,
+          nome: "X",
+          paises: ["LU"],
+          moeda: "EUR",
+          linguas: ["pt"],
+          lingua_principal: "pt",
+        },
+      ],
+      ["PATCH", `/markets/${mercado}`, { versao: versaoMercado, nome: "X" }],
+      ["POST", `/markets/${mercado}/activate`, { versao: versaoMercado }],
+      ["POST", `/markets/${mercado}/archive`, { versao: versaoMercado }],
+      ["POST", "/channels", { loja, nome: "X" }],
+      [
+        "PUT",
+        `/channels/${canal}/markets`,
+        { versao: versaoCanal, mercados: [] },
+      ],
+      ["POST", `/channels/${canal}/archive`, { versao: versaoCanal }],
+      ["POST", `/channels/${canal}/restore`, { versao: versaoCanal }],
+      ["POST", "/price-lists", { mercado, nome: "X", tipo: "base" }],
+      ["POST", `/price-lists/${lista}/archive`, { versao: 1 }],
+      ["POST", `/price-lists/${lista}/restore`, { versao: 1 }],
+      ["PUT", preco, { montante: 1 }],
+      ["DELETE", preco, undefined],
+      ["PUT", `${preco}/reduction`, { montante: 1 }],
+      ["DELETE", `${preco}/reduction`, undefined],
+    ];
+    const leituras = [
+      "/markets",
+      `/markets/${mercado}`,
+      "/channels",
+      `/channels/${canal}`,
+      "/price-lists",
+      `/price-lists/${lista}`,
+      `/price-lists/${lista}/prices`,
+      `${preco}/history`,
+    ];
+    for (const [metodo, url, corpo] of escritas) {
+      expect(
+        (await pedir(metodo, url, corpo, soLer)).statusCode,
+        `${metodo} ${url}`,
+      ).toBe(403);
+      expect(
+        (await pedir(metodo, url, corpo, catalogo)).statusCode,
+        `${metodo} ${url}`,
+      ).toBe(403);
+      const deOutro = await pedir(metodo, url, corpo, deB);
+      expect(deOutro.statusCode, `${metodo} ${url} ${deOutro.body}`).toBe(404);
+    }
+    for (const url of leituras) {
+      expect(
+        (await pedir("GET", url, undefined, catalogo)).statusCode,
+        url,
+      ).toBe(403);
+      expect((await pedir("GET", url, undefined, soLer)).statusCode, url).toBe(
+        200,
+      );
+    }
+    for (const url of leituras.filter((u) => u.includes("_"))) {
+      expect((await pedir("GET", url, undefined, deB)).statusCode, url).toBe(
+        404,
+      );
+    }
+    // Nada mudou com as tentativas: o preço continua o mesmo, sem redução.
+    const p = (await ok(pedir("GET", `/price-lists/${lista}/prices`))) as {
+      dados: Preco[];
+    };
+    expect(p.dados[0]).toMatchObject({ montante: 990, reducao: null });
+  });
+
+  it("a fronteira dos 30 dias, o preço mais baixo a meio da janela, as reduções anteriores dentro e fora dela (revisão do #224, P2-2)", async () => {
+    const { lista } = await mercadoActivo("SE");
+    // 29 dias de preço: não chega.
+    const a29 = await artigo("JAN-29");
+    await comHistoria(lista, a29.variante, 990, 29);
+    const r29 = await pedir(
+      "PUT",
+      `/price-lists/${lista}/prices/${a29.variante}/reduction`,
+      { montante: 800 },
+    );
+    expect(r29.json()).toMatchObject({
+      codigo: "prices.reduction_without_history",
+    });
+    // 30 dias (720 h): chega.
+    const a30 = await artigo("JAN-30");
+    await comHistoria(lista, a30.variante, 990, 30);
+    await ok(
+      pedir("PUT", `/price-lists/${lista}/prices/${a30.variante}/reduction`, {
+        montante: 800,
+      }),
+    );
+    // Um preço mais baixo a meio da janela conta.
+    const meio = await artigo("JAN-MEIO");
+    await comHistoria(lista, meio.variante, 990, 40);
+    await linhaAntiga(lista, meio.variante, 850, 5);
+    const rm = (await ok(
+      pedir("PUT", `/price-lists/${lista}/prices/${meio.variante}/reduction`, {
+        montante: 800,
+      }),
+    )) as unknown as Preco;
+    expect(rm.reducao?.preco_referencia).toBe(850);
+    // Reduções anteriores: uma acabada há 35 dias não conta; uma tirada há 20, sim.
+    const ant = await artigo("JAN-ANT");
+    await comHistoria(lista, ant.variante, 990, 60);
+    await base.dono.transaction().execute(async (trx) => {
+      // Sem os gatilhos normais (modo replica), para recuar o início: a
+      // API não o deixa escolher.
+      await sql`set local session_replication_role = replica`.execute(trx);
+      await sql`insert into reducao (comerciante_id, lista_id, variante_id, montante,
+                  preco_referencia, inicio, fim, criada_por)
+                values (${a}, ${lista.slice(4)}, ${ant.variante.slice(4)}, 500, 990,
+                  now() - interval '45 days', now() - interval '35 days', 'teste:antes')`.execute(
+        trx,
+      );
+    });
+    const fora = (await ok(
+      pedir("PUT", `/price-lists/${lista}/prices/${ant.variante}/reduction`, {
+        montante: 900,
+      }),
+    )) as unknown as Preco;
+    expect(fora.reducao?.preco_referencia).toBe(990);
+    await ok(
+      pedir("DELETE", `/price-lists/${lista}/prices/${ant.variante}/reduction`),
+    );
+    await base.dono.transaction().execute(async (trx) => {
+      await sql`set local session_replication_role = replica`.execute(trx);
+      await sql`insert into reducao (comerciante_id, lista_id, variante_id, montante,
+                  preco_referencia, inicio, terminada_em, terminada_por, criada_por)
+                values (${a}, ${lista.slice(4)}, ${ant.variante.slice(4)}, 600, 990,
+                  now() - interval '25 days', now() - interval '20 days', 'teste', 'teste:antes')`.execute(
+        trx,
+      );
+    });
+    const dentro = (await ok(
+      pedir("PUT", `/price-lists/${lista}/prices/${ant.variante}/reduction`, {
+        montante: 550,
+      }),
+    )) as unknown as Preco;
+    expect(dentro.reducao?.preco_referencia).toBe(600);
+  });
+
+  it("duas reduções ao mesmo tempo: uma entra, a outra dá reduction_active; uma redução que passou do fim deixa mudar o preço", async () => {
+    const { lista } = await mercadoActivo("DK");
+    const { variante } = await artigo("CON-1");
+    await comHistoria(lista, variante, 990);
+    const url = `/price-lists/${lista}/prices/${variante}`;
+    const [r1, r2] = await Promise.all([
+      pedir("PUT", `${url}/reduction`, { montante: 800 }),
+      pedir("PUT", `${url}/reduction`, { montante: 700 }),
+    ]);
+    expect([r1.statusCode, r2.statusCode].sort()).toEqual([200, 409]);
+    await ok(pedir("DELETE", `${url}/reduction`));
+    // Uma que acaba daqui a um segundo (abaixo da que esteve em vigor).
+    await ok(
+      pedir("PUT", `${url}/reduction`, {
+        montante: 600,
+        fim: new Date(Date.now() + 1000).toISOString(),
+      }),
+    );
+    expect((await pedir("PUT", url, { montante: 1100 })).statusCode).toBe(409);
+    await new Promise((r) => setTimeout(r, 1300));
+    const depois = (await ok(
+      pedir("PUT", url, { montante: 1100 }),
+    )) as unknown as Preco;
+    expect(depois.reducao).toBeNull();
+    // Passada do fim, já não se tira: nem pela API, nem por SQL com os
+    // direitos da API (revisão do #224, P3-3).
+    expect((await pedir("DELETE", `${url}/reduction`)).statusCode).toBe(404);
+    await expect(
+      comComerciante(base.api, a, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'teste', true)`.execute(
+          trx,
+        );
+        await sql`update reducao set terminada_em = now()
+                  where variante_id = ${variante.slice(4)} and terminada_em is null`.execute(
+          trx,
+        );
+      }),
+    ).rejects.toThrow(/prices.invalid_transition/);
+  });
+
+  it("numa lista arquivada não há redução; um preço gratuito não se reduz; os mercados do canal levam a versão", async () => {
+    const { mercado, canal, versaoCanal } = await mercadoActivo("FI");
+    const { variante } = await artigo("ARQ-1");
+    const b2b = await ok(
+      pedir("POST", "/price-lists", {
+        mercado,
+        nome: "Profissionais",
+        tipo: "b2b",
+        etiqueta: randomUUID(),
+        prioridade: 1,
+      }),
+      201,
+    );
+    const lb = String(b2b["id"]);
+    await comHistoria(lb, variante, 990);
+    await ok(
+      pedir("POST", `/price-lists/${lb}/archive`, { versao: b2b["versao"] }),
+    );
+    const r = await pedir(
+      "PUT",
+      `/price-lists/${lb}/prices/${variante}/reduction`,
+      { montante: 800 },
+    );
+    expect(r.statusCode).toBe(409);
+    expect(r.json()).toMatchObject({ codigo: "prices.list_archived" });
+    // Gratuito há 40 dias: o preço de referência é 0 e nada fica abaixo dele.
+    const { lista } = await mercadoActivo("IE");
+    const g = await artigo("GRA-1");
+    await ok(
+      pedir("PUT", `/price-lists/${lista}/prices/${g.variante}`, {
+        montante: 0,
+        gratuito: true,
+      }),
+    );
+    await base.dono.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+        trx,
+      );
+      await sql`insert into historico_preco (comerciante_id, lista_id, variante_id, montante,
+                  gratuito, saiu, moeda, preco_inclui_iva, em_vigor_desde, definido_por)
+                values (${a}, ${lista.slice(4)}, ${g.variante.slice(4)}, 0, true, false, 'EUR', true,
+                  now() - interval '40 days', 'teste:antes')`.execute(trx);
+    });
+    const rg = await pedir(
+      "PUT",
+      `/price-lists/${lista}/prices/${g.variante}/reduction`,
+      { montante: 1 },
+    );
+    expect(rg.json()).toMatchObject({ codigo: "prices.reduction_not_lower" });
+    // Os mercados do canal: a versão sobe e uma antiga é recusada.
+    const c = await ok(
+      pedir("PUT", `/channels/${canal}/markets`, {
+        versao: versaoCanal,
+        mercados: [mercado],
+      }),
+    );
+    expect(c["versao"]).toBe(versaoCanal + 1);
+    const antiga = await pedir("PUT", `/channels/${canal}/markets`, {
+      versao: versaoCanal,
+      mercados: [],
+    });
+    expect(antiga.statusCode).toBe(409);
+    expect(antiga.json()).toMatchObject({ codigo: "prices.version_conflict" });
   });
 
   it("os âmbitos dos papéis: dono e gestor escrevem; armazém e apoio só lêem", async () => {

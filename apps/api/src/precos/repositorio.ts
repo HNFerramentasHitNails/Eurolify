@@ -385,6 +385,11 @@ export async function definirMercadosDoCanal(
   comercianteId: string,
   canalId: string,
   mercadoIds: readonly string[],
+  /**
+   * A versão lida do canal (a API exige-a, docs/20 §10.1): mudar os
+   * mercados sobe-a, e uma versão antiga é recusada (revisão do #224, P2-3).
+   */
+  versao?: number,
 ): Promise<void> {
   // O pg devolve os uuid em minúsculas: compara-se assim.
   const pedidos = mercadoIds.map((m) => m.toLowerCase());
@@ -397,6 +402,16 @@ export async function definirMercadosDoCanal(
       .executeTakeFirst();
     if (canal === undefined) {
       throw new ErroPrecos("prices.not_found", "canal inexistente");
+    }
+    if (versao !== undefined) {
+      const subiu = await trx
+        .updateTable("canal")
+        .set((eb) => ({ nome: eb.ref("nome") }))
+        .where("id", "=", canalId)
+        .where("versao", "=", versao)
+        .returning("versao")
+        .executeTakeFirst();
+      if (subiu === undefined) await semLinha(trx, "canal", canalId);
     }
     if (new Set(pedidos).size !== pedidos.length) {
       throw new ErroPrecos(
@@ -583,6 +598,18 @@ export async function definirPreco(
   };
   const linha = await noDominio(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
+    // A lista tem de ser deste comerciante antes do INSERT … ON CONFLICT: o
+    // preço de outro comerciante com a mesma lista e variante chocava na
+    // chave primária e o UPDATE escondido pelo RLS dava 500 (revisão do #224,
+    // encontrado pelo teste das rotas, P2-1).
+    const lista = await trx
+      .selectFrom("lista_precos")
+      .select("id")
+      .where("id", "=", listaId)
+      .executeTakeFirst();
+    if (lista === undefined) {
+      throw new ErroPrecos("prices.not_found", "lista inexistente");
+    }
     return trx
       .insertInto("preco")
       .values({
@@ -1019,26 +1046,6 @@ export async function reducoesDoPreco(
   return linhas.map(paraReducao);
 }
 
-/** As reduções em vigor numa lista (uma por variante). */
-export async function reducoesEmVigorDaLista(
-  db: Kysely<BaseDados>,
-  comercianteId: string,
-  listaId: string,
-): Promise<Reducao[]> {
-  const linhas = await noDominio(db, comercianteId, (trx) =>
-    trx
-      .selectFrom("reducao")
-      .select(COLUNAS_REDUCAO)
-      .where("lista_id", "=", listaId)
-      .where("terminada_em", "is", null)
-      .where((eb) =>
-        eb.or([eb("fim", "is", null), eb(sql`fim`, ">", sql`now()`)]),
-      )
-      .execute(),
-  );
-  return linhas.map(paraReducao);
-}
-
 /** Por kg, l, m, m² ou m³ (§3.7; R7). */
 const UNIDADE_BASE: Readonly<Record<string, { base: string; fator: number }>> =
   {
@@ -1058,21 +1065,31 @@ const UNIDADE_BASE: Readonly<Record<string, { base: string; fator: number }>> =
 /**
  * O preço por unidade (§3.7, §10.3): o montante (cêntimos) a dividir pela
  * quantidade na unidade de base, em unidades da moeda, com quatro casas
- * decimais e sem arredondar para mostrar (o arredondamento é **C**). Sem
- * quantidade ou unidade conhecida, nada.
+ * decimais, arredondado ao mais próximo na quarta casa (só para caber nas
+ * quatro); o arredondamento para mostrar ao consumidor é **C** e não se faz
+ * aqui. Sem quantidade ou unidade conhecida, nada.
  */
 export function precoPorUnidade(
   montante: number,
   quantidade: number | null,
   unidade: string | null,
 ): { valor: string; unidade: string } | null {
-  if (quantidade === null || unidade === null || quantidade <= 0) return null;
+  if (
+    quantidade === null ||
+    unidade === null ||
+    !Number.isFinite(quantidade) ||
+    quantidade <= 0
+  ) {
+    return null;
+  }
   const u = UNIDADE_BASE[unidade];
   if (u === undefined) return null;
   // Em inteiros grandes: centésimos de cêntimo (quatro casas na moeda),
   // arredondado ao mais próximo na quarta casa.
   const escala = 1_000_000n;
   const q = BigInt(Math.round(quantidade * Number(escala)));
+  // Uma quantidade tão pequena que não se representa (revisão do #224, P3-7).
+  if (q === 0n) return null;
   const numerador = BigInt(montante) * BigInt(u.fator) * escala * 100n;
   const dezMilesimos = (numerador + q / 2n) / q;
   const inteiro = dezMilesimos / 10_000n;
