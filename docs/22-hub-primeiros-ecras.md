@@ -1037,7 +1037,8 @@ com a unidade dela (kg, l, m, m², m³).
 ## 18. Catálogo: os nomes do canal e do mercado nas publicações (issue #258)
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com os nomes do canal e do
-mercado»*. A secção «Publicações» da ficha mostra só os identificadores
+mercado»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
+desenho, junta o #259»*). A secção «Publicações» da ficha mostra só os identificadores
 (`chn_…`, `mkt_…`), porque, quando a ficha foi feita, nenhuma rota dava os
 nomes (§12.2). O domínio de Preços já os tem: o canal e o mercado têm `nome`
 (`docs/20` §3.1 e §3.2; migração 0017). Este passo **só lê** e não muda a
