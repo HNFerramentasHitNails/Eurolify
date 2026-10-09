@@ -80,6 +80,10 @@ execFileSync("node", [join(API, "dist/migrar.js")], {
   stdio: "inherit",
 });
 psql(`alter role eurolify_api login password '${SENHA}'`);
+// A linha do tempo (0033) recusa mudar o catálogo sem `eurolify.quem`; os
+// artigos de ensaio criam-se pelas funções do repositório, sem pedido, como
+// nos testes da API (test/base-de-teste.ts). Só nesta base descartável.
+psql(`alter database ${nomeBase} set eurolify.quem = 'capturas:base'`);
 const { abrirBase } = await import(join(API, "dist/base/ligacao.js"));
 const { publicar } = await import(join(API, "dist/catalogo/publicacao.js"));
 const { classificarArtigo, mudarEstadoArtigo, obterArtigo } = await import(
