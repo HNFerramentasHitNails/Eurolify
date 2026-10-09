@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { lerSegredoDaLigacao } from "./convite";
 import { fecharAvisoDeRecuperada } from "./recuperacao";
 import { ContextoHub, type Contexto } from "./contexto";
 import { Artigo } from "./ecras/Artigo";
+import { ArtigoEditar } from "./ecras/ArtigoEditar";
 import { Artigos } from "./ecras/Artigos";
 import { Chaves } from "./ecras/Chaves";
 import { Conta } from "./ecras/Conta";
@@ -23,11 +24,13 @@ import {
 } from "./textos";
 
 // As páginas do Hub (docs/22 §2, §9 e §11): /entrar, /recuperar, /convite,
-// /equipa, /artigos, /artigos/{prd_…}, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
+// /equipa, /artigos, /artigos/{prd_…}, /artigos/{prd_…}/editar, /chaves,
+// /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
 const CAMINHO_ARTIGO = /^\/artigos\/([^/]+)$/;
+const CAMINHO_EDITAR = /^\/artigos\/([^/]+)\/editar$/;
 
 const segredoInicial =
   window.location.pathname === "/convite" ? lerSegredoDaLigacao() : null;
@@ -39,8 +42,22 @@ export function App() {
     consulta: window.location.search,
   }));
 
+  // A guarda de saída do ecrã aberto (contexto.tsx, definirGuarda).
+  const guarda = useRef<(() => boolean) | null>(null);
+  const podeSair = useCallback(() => guarda.current?.() ?? true, []);
+  // O endereço que está à vista: o «voltar» recusado volta a pô-lo.
+  const enderecoActual = useRef(
+    `${window.location.pathname}${window.location.search}`,
+  );
+
   useEffect(() => {
     const aoVoltar = () => {
+      if (!podeSair()) {
+        window.history.pushState(null, "", enderecoActual.current);
+        return;
+      }
+      guarda.current = null;
+      enderecoActual.current = `${window.location.pathname}${window.location.search}`;
       setLocal({
         caminho: window.location.pathname,
         consulta: window.location.search,
@@ -50,7 +67,7 @@ export function App() {
     return () => {
       window.removeEventListener("popstate", aoVoltar);
     };
-  }, []);
+  }, [podeSair]);
 
   useEffect(() => {
     document.documentElement.lang = TAG_LINGUA[lingua];
@@ -58,17 +75,24 @@ export function App() {
 
   const navegar = useCallback(
     (destino: string, opcoes: { substituir?: boolean } = {}) => {
+      if (!podeSair()) return;
+      guarda.current = null;
       if (opcoes.substituir === true) {
         window.history.replaceState(null, "", destino);
       } else {
         window.history.pushState(null, "", destino);
       }
       const url = new URL(destino, window.location.origin);
+      enderecoActual.current = `${url.pathname}${url.search}`;
       setLocal({ caminho: url.pathname, consulta: url.search });
       document.getElementById("conteudo")?.focus();
     },
-    [],
+    [podeSair],
   );
+
+  const definirGuarda = useCallback((pergunta: (() => boolean) | null) => {
+    guarda.current = pergunta;
+  }, []);
 
   // O vidro sai em toda a página enquanto estiver ligado; não se guarda.
   const [opaco, mudarOpaco] = useState(false);
@@ -79,13 +103,15 @@ export function App() {
 
   const t = TEXTOS[lingua];
   const contexto = useMemo<Contexto>(
-    () => ({ t, lingua, navegar, opaco, mudarOpaco }),
-    [t, lingua, navegar, opaco],
+    () => ({ t, lingua, navegar, definirGuarda, opaco, mudarOpaco }),
+    [t, lingua, navegar, definirGuarda, opaco],
   );
 
   const artigo = CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null;
+  const editar = CAMINHO_EDITAR.exec(local.caminho)?.[1] ?? null;
   const comSessao =
     artigo !== null ||
+    editar !== null ||
     local.caminho === "/" ||
     local.caminho === "/equipa" ||
     local.caminho === "/artigos" ||
@@ -106,11 +132,13 @@ export function App() {
               ? t.artigosTitulo
               : artigo !== null
                 ? t.artigoTitulo
-                : local.caminho === "/chaves"
-                  ? t.chavesTitulo
-                  : local.caminho === "/conta"
-                    ? t.contaTitulo
-                    : t.inicioTitulo;
+                : editar !== null
+                  ? t.artigoEditarTitulo
+                  : local.caminho === "/chaves"
+                    ? t.chavesTitulo
+                    : local.caminho === "/conta"
+                      ? t.contaTitulo
+                      : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -135,6 +163,15 @@ export function App() {
         // Outro comerciante, outro ecrã: nada do anterior fica.
         key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        consulta={local.consulta}
+      />
+    );
+  else if (editar !== null)
+    ecra = (
+      <ArtigoEditar
+        key={`${editar} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        artigo={editar}
         consulta={local.consulta}
       />
     );
@@ -213,6 +250,10 @@ export function App() {
             <button
               type="button"
               onClick={() => {
+                // Com alterações por guardar, pergunta antes de sair (uma
+                // vez: a guarda sai depois de aceite).
+                if (!podeSair()) return;
+                guarda.current = null;
                 // O aviso de conta recuperada é desta pessoa, não do
                 // navegador (revisão do #174, P3-1).
                 fecharAvisoDeRecuperada();

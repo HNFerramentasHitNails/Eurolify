@@ -398,6 +398,43 @@ export const en: Textos = {
   motivoArquivo_mercado_arquivado: "The market was archived",
   motivoArquivo_canal_arquivado: "The channel was archived",
   motivoArquivo_verificacao_falhou: "No longer meets the publishing rules",
+  artigoEditar: "Edit",
+  artigoEditarTitulo: "Edit the product",
+  artigoActivar: "Activate",
+  artigoArquivar: "Archive",
+  artigoRepor: "Restore",
+  artigoConfirmarArquivar:
+    "Archiving the product takes it off sale in every store. Publications do not come back on their own when it is restored. Archive?",
+  artigoExternoAviso:
+    "This product comes from the management system: the name, description, brand, status and variants are changed there. Images are changed here.",
+  artigoGuardado: "Changes saved.",
+  artigoGuardar: "Save",
+  artigoConflito:
+    "Someone else changed this product in the meantime. Your changes were not saved.",
+  artigoConflitoActual:
+    "What is saved now is shown below; what you typed is still in the fields. Saving again replaces what is saved.",
+  artigoSairSemGuardar: "You have unsaved changes. Leave without saving?",
+  artigoCaracteres: "{n} of {max} characters",
+  artigoNomeObrigatorio: "The name is required.",
+  artigoExternoCampo:
+    "This field comes from the management system: change it there.",
+  artigoArquivarVariante: "Archive variant",
+  artigoConfirmarArquivarVariante:
+    "Archiving variant {sku} cannot be undone. Archive?",
+  artigoUltimaVariante:
+    "This is the last active variant: the product cannot be published until it has another. Archive variant {sku}, for good?",
+  artigoEditarTexto: "Edit alternative text",
+  artigoTextoAlternativo: "Alternative text",
+  artigoTornarPrincipal: "Make main",
+  artigoMoverAntes: "Move earlier",
+  artigoMoverDepois: "Move later",
+  artigoSemVariantesActivas:
+    "To activate it, the product needs at least one active variant.",
+  artigoTransicaoInvalida:
+    "The product was no longer in the status shown. The page has been reloaded.",
+  artigoVarianteJaArquivada: "The variant was already archived.",
+  artigoOrdemAMeio:
+    "The image order was only partly saved: check it and move again if needed.",
   conviteInstrucao: "Enter your name and create the account with a passkey.",
   conviteResumo:
     "You were invited to the {comerciante} team, with the role {papel}.",

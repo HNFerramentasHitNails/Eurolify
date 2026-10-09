@@ -404,6 +404,43 @@ export const es: Textos = {
   motivoArquivo_canal_arquivado: "El canal se ha archivado",
   motivoArquivo_verificacao_falhou:
     "Ha dejado de cumplir las reglas de publicación",
+  artigoEditar: "Editar",
+  artigoEditarTitulo: "Editar el artículo",
+  artigoActivar: "Activar",
+  artigoArquivar: "Archivar",
+  artigoRepor: "Restaurar",
+  artigoConfirmarArquivar:
+    "Archivar el artículo lo retira de la venta en todas las tiendas. Las publicaciones no vuelven solas al restaurarlo. ¿Archivar?",
+  artigoExternoAviso:
+    "Este artículo viene del sistema de gestión: el nombre, la descripción, la marca, el estado y las variantes se cambian allí. Las imágenes se cambian aquí.",
+  artigoGuardado: "Cambios guardados.",
+  artigoGuardar: "Guardar",
+  artigoConflito:
+    "Otra persona ha cambiado este artículo mientras tanto. No hemos guardado sus cambios.",
+  artigoConflitoActual:
+    "Lo que está guardado ahora aparece debajo; lo que escribió sigue en los campos. Guardar de nuevo sustituye lo guardado.",
+  artigoSairSemGuardar: "Tiene cambios sin guardar. ¿Salir sin guardar?",
+  artigoCaracteres: "{n} de {max} caracteres",
+  artigoNomeObrigatorio: "El nombre es obligatorio.",
+  artigoExternoCampo:
+    "Este campo viene del sistema de gestión: se cambia allí.",
+  artigoArquivarVariante: "Archivar variante",
+  artigoConfirmarArquivarVariante:
+    "Archivar la variante {sku} no se puede deshacer. ¿Archivar?",
+  artigoUltimaVariante:
+    "Es la última variante activa: el artículo no se podrá publicar hasta tener otra. ¿Archivar la variante {sku}, sin vuelta atrás?",
+  artigoEditarTexto: "Editar texto alternativo",
+  artigoTextoAlternativo: "Texto alternativo",
+  artigoTornarPrincipal: "Hacer principal",
+  artigoMoverAntes: "Mover antes",
+  artigoMoverDepois: "Mover después",
+  artigoSemVariantesActivas:
+    "Para activarlo, el artículo necesita al menos una variante activa.",
+  artigoTransicaoInvalida:
+    "El artículo ya no estaba en el estado que mostraba la pantalla. Se ha recargado la ficha.",
+  artigoVarianteJaArquivada: "La variante ya estaba archivada.",
+  artigoOrdemAMeio:
+    "El orden de las imágenes quedó a medias: revíselo y vuelva a moverlas si hace falta.",
   conviteInstrucao: "Escriba su nombre y cree la cuenta con una passkey.",
   conviteResumo:
     "Le han invitado al equipo de {comerciante}, con la función {papel}.",
