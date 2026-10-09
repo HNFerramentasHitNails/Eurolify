@@ -424,9 +424,19 @@ describe.skipIf(URL_BASE === undefined)("editar o artigo no Hub (#210)", () => {
       c.segredo,
       "PATCH",
       `/products/${c.artigo.id}`,
-      { versao: c.artigo.versao, categoria_fiscal: "isento" },
+      { versao: c.artigo.versao, categoria_fiscal: "normal" },
     );
     expect(pelaChave.statusCode, pelaChave.body).toBe(200);
+    const versao = pelaChave.json<{ versao: number }>().versao;
+    // Uma categoria que não está na lista do Motor de IVA é recusada (o fim
+    // da rede CM, migração 0040).
+    const fora = await comChave(
+      c.segredo,
+      "PATCH",
+      `/products/${c.artigo.id}`,
+      { versao, categoria_fiscal: "isento" },
+    );
+    expect(fora.statusCode, fora.body).toBe(422);
   });
 
   it("um membro que saiu e uma sessão terminada não escrevem (revisão do #217, P3-9)", async () => {

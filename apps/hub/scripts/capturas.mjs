@@ -610,6 +610,21 @@ try {
     return { contexto: c, pagina: p, cdp, autenticador: authenticatorId };
   }
 
+  /**
+   * Um endereço novo para a página. O limite do Hub (300 pedidos por minuto
+   * por endereço, apps/api/src/base/limite.ts) contava a passagem da Ana
+   * toda junta: perto de 300 pedidos em 20 s, e um pedido a mais dava 429 no
+   * passo seguinte, a um passo diferente de cada vez (issue #253, medido a
+   * 09/10/2026). Cada parte longa começa com o seu endereço, como uma
+   * pessoa que volta mais tarde.
+   */
+  async function enderecoNovo(pagina) {
+    proximoIp += 1;
+    await pagina.setExtraHTTPHeaders({
+      "x-ip-de-teste": `10.9.0.${String(proximoIp)}`,
+    });
+  }
+
   /** Aceita um convite numa conta nova e fica nos comerciantes. */
   async function aceitar(p, segredo, nome) {
     await p.goto(`${ORIGEM}/convite#${segredo}`);
@@ -1949,6 +1964,7 @@ try {
     (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) === 0,
     "ficha: um artigo que não existe diz-o, sem «Tentar outra vez»",
   );
+  await enderecoNovo(rp);
   // Editar o artigo (docs/22 §13), com a Ana (dona), no «Verniz Rosa 2».
   const fichaEditavel = `${ORIGEM}/artigos/prd_${artigoEditavel}?comerciante=mer_${comerciante}`;
   await rp.goto(fichaEditavel);
@@ -2516,6 +2532,7 @@ try {
   );
   await rp.unroute("**/hub/products?*");
 
+  await enderecoNovo(rp);
   // Enviar imagens (docs/22 §15; issue #229), no «Verniz Verde 31», que não
   // tem nenhuma: só com o teclado; as recusas antes de enviar (o tamanho e o
   // tipo), a da API, o 429, a resposta perdida ao ligar e tirar.
@@ -2981,6 +2998,7 @@ try {
   confere(true, "ficha: com a sessão terminada, vai para «Entrar»");
   await rp.unroute("**/hub/products/prd_*");
 
+  await enderecoNovo(rp);
   // B3c — as chaves de API (docs/22 §9.3), com a Ana (dona).
   const pedidosChaves = [];
   rp.on("request", (p) => {

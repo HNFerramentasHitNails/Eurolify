@@ -36,7 +36,7 @@
 
 ## O que ficou por verificar
 
-- Se o `mirror.gcr.io` serve o `moby/buildkit` (fora de `library/`): nunca foi preciso; as cópias vieram do Docker Hub (revisão do #269, P3-4).
+- Se o `mirror.gcr.io` serve o `moby/buildkit` (fora de `library/`), pela referência só com o resumo: o #270, de outra sessão, já usa `mirror.gcr.io/moby/buildkit:v0.33.1@sha256:cec9f139…` (o mesmo resumo) no `main`, por isso o espelho tem-no. O caminho deste script (sem a etiqueta) não foi exercitado.
 
 - Se o pacote criado no GHCR pelo `GITHUB_TOKEN` fica ligado ao repositório e é privado, como o repositório: **não verifiquei**. A prova é o primeiro CI que descarregar a cópia. Se o registo mostrar o aviso «sem a cópia do GHCR», o Diogo ou o Bruno ligam cada pacote ao repositório em github.com → o pacote → «Package settings» → «Manage Actions access», com leitura.
 - Se o GHCR tem limites de descarga para os fluxos do próprio repositório: **não verifiquei**.

@@ -91,6 +91,7 @@ dependem da P1 (§7).
 | `customers:read`, `customers:write` | Clientes: fichas, etiquetas e a linha do tempo; ler os perfis de faturação (migração 0037) | `docs/23` §7; `docs/06`, CX |
 | `customers:billing` | Clientes: criar e mudar perfis de faturação (NIF, morada fiscal), consultar o VIES — só o dono (migração 0037) | `docs/23` §7; `docs/06`, CX |
 | `customers:exemptions` | Clientes: pôr e retirar a isenção manual de IVA — só o dono (migração 0039) | `docs/23` §13; `docs/06`, CY |
+| `tax:read`, `tax:write` | Motor de IVA: ler as tabelas, simular a decisão; declarar o regime de cada entidade legal (só o dono) (migração 0040) | `docs/24` §8; `docs/06`, CZ |
 | `keys:write` | criar e revogar chaves | este documento |
 | `storefront` | a lista fixa da chave pública | `docs/02` §4.1 |
 

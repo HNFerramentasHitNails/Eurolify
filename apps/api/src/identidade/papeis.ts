@@ -23,6 +23,8 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "merchant:write",
     "prices:read",
     "prices:write",
+    "tax:read",
+    "tax:write",
   ],
   gestor: [
     "catalog:history",
@@ -35,6 +37,7 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "merchant:read",
     "prices:read",
     "prices:write",
+    "tax:read",
   ],
   armazem: ["catalog:read", "prices:read"],
   apoio: [
@@ -43,5 +46,6 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "customers:write",
     "merchant:read",
     "prices:read",
+    "tax:read",
   ],
 };

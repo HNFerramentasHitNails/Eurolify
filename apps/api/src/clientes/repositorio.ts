@@ -27,6 +27,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.exemption_by_person",
   "customers.exemption_immutable",
   "customers.vies_not_applicable",
+  // Da 0040: o código do motivo da isenção (docs/24, Q4).
+  "customers.exemption_reason_code",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -911,6 +913,7 @@ export async function porIsencao(
   perfilId: string,
   motivo: string,
   nota: string | null,
+  codigoMotivo: string,
 ): Promise<string> {
   const { id } = await noClientes(db, comercianteId, (trx) =>
     trx
@@ -920,6 +923,7 @@ export async function porIsencao(
         perfil_id: perfilId,
         motivo,
         nota,
+        codigo_motivo: codigoMotivo,
       })
       .returning("id")
       .executeTakeFirstOrThrow(),
