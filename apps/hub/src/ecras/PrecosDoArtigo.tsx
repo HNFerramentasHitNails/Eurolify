@@ -102,7 +102,8 @@ export function PrecosDoArtigo({
       return;
     }
     setACarregarMais(true);
-    setFalhaMais(null);
+    // O erro anterior e o «Tentar outra vez» ficam até à resposta: o foco
+    // não cai na página enquanto se espera (revisão do #252, P3-8).
     try {
       const p = await api.precosDoArtigo(comerciante, artigo, estado.cursor);
       if (!montado.current) return;
@@ -110,6 +111,7 @@ export function PrecosDoArtigo({
       if (primeira !== undefined) {
         focarDepois.current = `precos-${primeira.lista.id}`;
       }
+      setFalhaMais(null);
       setEstado((antes) =>
         antes.tipo !== "pronto"
           ? antes
@@ -177,7 +179,7 @@ export function PrecosDoArtigo({
         <p>
           <button
             type="button"
-            disabled={aCarregarMais}
+            aria-disabled={aCarregarMais}
             onClick={() => void mostrarMais()}
           >
             {aCarregarMais ? t.aCarregar : t.precosMostrarMais}
@@ -228,7 +230,7 @@ function ListaDePrecos({
         {" · "}
         {mercado.preco_inclui_iva ? t.precosComIva : t.precosSemIva}
       </p>
-      <table className="tabela-larga">
+      <table className="tabela-larga" aria-labelledby={id}>
         <thead>
           <tr>
             <th scope="col">{t.artigosSku}</th>
@@ -258,9 +260,9 @@ function ListaDePrecos({
                   )}
                 </td>
                 <td data-rotulo={t.colunaPrecoUnidade}>
-                  {p?.preco_por_unidade == null
+                  {p === undefined || p.gratuito || p.preco_por_unidade === null
                     ? "—"
-                    : porUnidade(p, mercado.moeda, lingua, t)}
+                    : porUnidade(p.preco_por_unidade, mercado.moeda, lingua, t)}
                 </td>
               </tr>
             );
@@ -283,9 +285,12 @@ function Preco({
 }) {
   const { t } = useHub();
   const data = (iso: string) =>
-    new Intl.DateTimeFormat(TAG_LINGUA[lingua], { dateStyle: "medium" }).format(
-      new Date(iso),
-    );
+    // Com a hora: o fim é o instante em que deixa de valer (revisão do #252,
+    // P3-5), na hora deste dispositivo, como os outros ecrãs do Hub.
+    new Intl.DateTimeFormat(TAG_LINGUA[lingua], {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
   const condicoes: string[] = [];
   if (preco.quantidade_minima !== 1) {
     condicoes.push(preencher(t.precosMinimo, { n: preco.quantidade_minima }));
@@ -324,21 +329,41 @@ function Preco({
   );
 }
 
-/** «526,6667 €/l, sem arredondar» (o valor da API, com as quatro casas). */
+/**
+ * «526,6667 €/l, com quatro casas»: o valor da API tal como vem, formatado a
+ * partir do texto (sem passar por um número, que perde casas em valores
+ * grandes; revisão do #252, P3-6).
+ */
 function porUnidade(
-  p: PrecoVariante,
+  u: NonNullable<PrecoVariante["preco_por_unidade"]>,
   moeda: string,
   lingua: Lingua,
   t: Textos,
 ): string {
-  const u = p.preco_por_unidade;
-  if (u === null) return "—";
-  const valor = new Intl.NumberFormat(TAG_LINGUA[lingua], {
+  const [inteira = "0", casas = ""] = u.valor.split(".");
+  const formato = new Intl.NumberFormat(TAG_LINGUA[lingua], {
     style: "currency",
     currency: moeda,
     minimumFractionDigits: 4,
     maximumFractionDigits: 4,
-  }).format(Number(u.valor));
+  });
+  const inteiraFormatada = new Intl.NumberFormat(TAG_LINGUA[lingua], {
+    useGrouping: true,
+  }).format(BigInt(inteira));
+  let jaPosInteira = false;
+  const valor = formato
+    .formatToParts(1)
+    .map((parte) => {
+      if (parte.type === "integer") {
+        if (jaPosInteira) return "";
+        jaPosInteira = true;
+        return inteiraFormatada;
+      }
+      if (parte.type === "group") return "";
+      if (parte.type === "fraction") return casas.padEnd(4, "0").slice(0, 4);
+      return parte.value;
+    })
+    .join("");
   return preencher(t.precosPorUnidade, {
     valor,
     unidade: UNIDADE[u.unidade] ?? u.unidade,

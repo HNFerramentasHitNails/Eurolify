@@ -562,9 +562,9 @@ export const en: Textos = {
   colunaPrecoUnidade: "Unit price",
   precosSemPreco: "No price in this list",
   precosGratuito: "Free",
-  precosAntes: "was {preco} — the lowest in the last 30 days",
-  precosAte: "· until {data}",
+  precosAntes: "was {preco} — the lowest in the 30 days before the reduction",
+  precosAte: "· ends {data}",
   precosMinimo: "minimum {n}",
   precosMultiplo: "multiples of {n}",
-  precosPorUnidade: "{valor}/{unidade}, not rounded",
+  precosPorUnidade: "{valor}/{unidade}, to four decimal places",
 };

@@ -1312,8 +1312,9 @@ export async function precosDoArtigo(
             ])
             .where("p.lista_id", "in", listas)
             .where("v.artigo_id", "=", artigoId)
+            // A ordem da ficha (catalogo/consultas.ts): a posição e o SKU.
             .orderBy("v.posicao")
-            .orderBy("p.variante_id")
+            .orderBy("v.sku")
             .execute();
     const reducoes = await reducoesEmVigor(trx, listas, [
       ...new Set(precos.map((x) => x.variante_id)),

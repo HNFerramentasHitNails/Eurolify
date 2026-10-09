@@ -336,6 +336,145 @@ describe.skipIf(URL_BASE === undefined)(
       }
     });
 
+    it("a redução fica na sua lista; uma terminada sai; a variante arquivada fica; a ordem é a da ficha; a lista B2B", async () => {
+      const c = await comerciante("Loja Pormenores");
+      const s = c.segredo;
+      // A v1 também na lista de Espanha, sem redução (revisão do #252, P2-3).
+      await ok(
+        comChave(s, "PUT", `/price-lists/${c.l2}/prices/${c.v1}`, {
+          montante: 990,
+        }),
+      );
+      // Uma lista B2B no mercado de Portugal, com a v1 sem redução.
+      const etiqueta = await base.dono.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${c.id}, true)`.execute(
+          trx,
+        );
+        await sql`select set_config('eurolify.quem', 'teste:etiqueta', true)`.execute(
+          trx,
+        );
+        const { rows } = await sql<{ id: string }>`
+          insert into etiqueta_cliente (comerciante_id, nome)
+          values (${c.id}, 'Profissionais') returning id`.execute(trx);
+        return `ctg_${rows[0]?.id ?? ""}`;
+      });
+      const listas = await ok(
+        comChave(s, "GET", `/products/${c.artigo}/prices`),
+      );
+      const mercadoPt = (listas["dados"] as ListaComPrecos[])[0]?.mercado.id;
+      const b2b = await ok(
+        comChave(s, "POST", "/price-lists", {
+          mercado: mercadoPt,
+          nome: "Profissionais PT",
+          tipo: "b2b",
+          etiqueta,
+          prioridade: 10,
+        }),
+        201,
+      );
+      await ok(
+        comChave(s, "PUT", `/price-lists/${String(b2b["id"])}/prices/${c.v1}`, {
+          montante: 900,
+          quantidade_minima: 6,
+          multiplo: 6,
+        }),
+      );
+      // A v2 arquivada continua a ter o preço de Espanha.
+      const arquivar = await h.app.inject({
+        method: "POST",
+        url: `/variants/${c.v2}/archive`,
+        headers: {
+          authorization: `Bearer ${s}`,
+          "idempotency-key": randomUUID(),
+        },
+      });
+      expect(arquivar.statusCode, arquivar.body).toBe(200);
+
+      const r = await comChave(s, "GET", `/products/${c.artigo}/prices`);
+      expect(r.statusCode, r.body).toBe(200);
+      const [pt, es, pro] = r.json<Pagina>().dados;
+      expect(pt?.precos[0]?.reducao).toMatchObject({ montante: 790 });
+      // Em Espanha, a v1 sem a redução de Portugal e com o preço por unidade
+      // de 990 (sem IVA, como o mercado).
+      const v1Es = es?.precos.find((x) => x.variante === c.v1);
+      expect(v1Es).toMatchObject({
+        montante: 990,
+        reducao: null,
+        preco_por_unidade: {
+          valor: "660.0000",
+          unidade: "l",
+          inclui_iva: false,
+        },
+      });
+      expect(es?.precos.find((x) => x.variante === c.v2)).toMatchObject({
+        gratuito: true,
+      });
+      expect(pro?.lista).toMatchObject({
+        nome: "Profissionais PT",
+        tipo: "b2b",
+      });
+      expect(pro?.precos).toEqual([
+        expect.objectContaining({
+          variante: c.v1,
+          montante: 900,
+          quantidade_minima: 6,
+          multiplo: 6,
+          reducao: null,
+        }),
+      ]);
+
+      // A redução terminada sai; o preço por unidade volta ao de 990.
+      const tirar = await h.app.inject({
+        method: "DELETE",
+        url: `/price-lists/${c.l1}/prices/${c.v1}/reduction`,
+        headers: {
+          authorization: `Bearer ${s}`,
+          "idempotency-key": randomUUID(),
+        },
+      });
+      expect(tirar.statusCode, tirar.body).toBe(200);
+      const depois = await comChave(s, "GET", `/products/${c.artigo}/prices`);
+      expect(depois.json<Pagina>().dados[0]?.precos[0]).toMatchObject({
+        reducao: null,
+        preco_por_unidade: { valor: "660.0000" },
+      });
+    });
+
+    it("as variantes pela ordem da ficha (posição e SKU)", async () => {
+      const c = await comerciante("Loja Ordem");
+      const artigo = await ok(
+        comChave(c.segredo, "POST", "/products", {
+          tipo: "fisico",
+          nome: "Três variantes",
+          variantes: ["ORD-C", "ORD-A", "ORD-B"].map((sku) => ({
+            sku: `${sku}-${c.id.slice(0, 8)}`,
+            unidade_de_venda: "unidade",
+          })),
+        }),
+        201,
+      );
+      const variantes = artigo["variantes"] as { id: string; sku: string }[];
+      for (const v of variantes) {
+        await ok(
+          comChave(c.segredo, "PUT", `/price-lists/${c.l1}/prices/${v.id}`, {
+            montante: 100,
+          }),
+        );
+      }
+      const ficha = await ok(
+        comChave(c.segredo, "GET", `/products/${String(artigo["id"])}`),
+      );
+      const daFicha = (ficha["variantes"] as { id: string }[]).map((v) => v.id);
+      const r = await comChave(
+        c.segredo,
+        "GET",
+        `/products/${String(artigo["id"])}/prices`,
+      );
+      expect(r.json<Pagina>().dados[0]?.precos.map((x) => x.variante)).toEqual(
+        daFicha,
+      );
+    });
+
     it("pagina as listas pelo cursor", async () => {
       const c = await comerciante("Loja Páginas");
       const primeira = await comChave(

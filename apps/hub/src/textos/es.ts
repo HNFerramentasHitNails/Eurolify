@@ -570,9 +570,10 @@ export const es: Textos = {
   colunaPrecoUnidade: "Precio por unidad",
   precosSemPreco: "Sin precio en esta lista",
   precosGratuito: "Gratuito",
-  precosAntes: "antes {preco} — el más bajo de los 30 días",
-  precosAte: "· hasta {data}",
+  precosAntes:
+    "antes {preco} — el más bajo de los 30 días anteriores a la reducción",
+  precosAte: "· termina el {data}",
   precosMinimo: "mínimo {n}",
   precosMultiplo: "múltiplos de {n}",
-  precosPorUnidade: "{valor}/{unidade}, sin redondear",
+  precosPorUnidade: "{valor}/{unidade}, con cuatro decimales",
 };

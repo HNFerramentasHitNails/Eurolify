@@ -563,11 +563,11 @@ export const pt = {
   colunaPrecoUnidade: "Preço por unidade",
   precosSemPreco: "Sem preço nesta lista",
   precosGratuito: "Gratuito",
-  precosAntes: "antes {preco} — o mais baixo dos 30 dias",
-  precosAte: "· até {data}",
+  precosAntes: "antes {preco} — o mais baixo dos 30 dias antes da redução",
+  precosAte: "· termina a {data}",
   precosMinimo: "mínimo {n}",
   precosMultiplo: "múltiplos de {n}",
-  precosPorUnidade: "{valor}/{unidade}, sem arredondar",
+  precosPorUnidade: "{valor}/{unidade}, com quatro casas",
 };
 
 export type Textos = typeof pt;

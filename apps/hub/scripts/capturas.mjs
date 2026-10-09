@@ -470,6 +470,28 @@ let canalDaFicha;
     montante: 0,
     gratuito: true,
   });
+  // Uma lista B2B em Portugal (revisão do #252, P3-3): a ENS-001 a 9,00 €,
+  // em caixas de 6 (mínimo e múltiplo), sem redução.
+  const etiqueta = psql(`begin;
+    select set_config('eurolify.quem', 'passagem:etiqueta', true);
+    insert into etiqueta_cliente (comerciante_id, nome)
+      values ('${comerciante}', 'Profissionais') returning id;
+    commit;`)
+    .split("\n")
+    .filter((l) => /^[0-9a-f-]{36}$/.test(l))
+    .at(-1);
+  const listaB2b = await criarLista(baseArtigos, comerciante, {
+    mercado_id: mercado,
+    nome: "Profissionais PT",
+    tipo: "b2b",
+    etiqueta_id: etiqueta,
+    prioridade: 10,
+  });
+  await definirPreco(baseArtigos, comerciante, quem, listaB2b, ens001, {
+    montante: 900,
+    quantidade_minima: 6,
+    multiplo: 6,
+  });
   const publicacao = await publicar(baseArtigos, comerciante, quem, {
     artigo_id: artigoDaFicha,
     canal_id: canal,
@@ -1598,32 +1620,107 @@ try {
   await rp.getByRole("heading", { name: "Base ES", level: 3 }).waitFor();
   const caixaPt = rp.locator(".lista-precos").nth(0);
   const caixaEs = rp.locator(".lista-precos").nth(1);
+  const caixaB2b = rp.locator(".lista-precos").nth(2);
   const textoPt = (await caixaPt.textContent()) ?? "";
   const textoEs = (await caixaEs.textContent()) ?? "";
+  const textoB2b = (await caixaB2b.textContent()) ?? "";
   confere(
     textoPt.includes("lista base · Portugal · EUR · preços com IVA") &&
       (await caixaPt
         .getByRole("row", {
-          name: /ENS-001\b.*7,90\s€.*antes 9,90\s€ — o mais baixo dos 30 dias · até .*526,6667\s€\/l, sem arredondar/,
+          name: /ENS-001(?!-).*7,90\s€.*antes 9,90\s€ — o mais baixo dos 30 dias antes da redução · termina a .*\d{2}:\d{2}.*526,6667\s€\/l, com quatro casas/,
         })
         .count()) === 1 &&
       (await caixaPt
         .getByRole("row", { name: /ENS-001-B.*9,90\s€.*—/ })
         .count()) === 1,
-    "preços: a lista base de Portugal com IVA, a redução com o preço de antes e o fim, e o preço por unidade sem arredondar",
+    "preços: a lista base de Portugal com IVA, a redução com o preço de antes e o fim (com a hora), e o preço por unidade com quatro casas",
   );
   confere(
     textoEs.includes(
       "lista base · Espanha (mercado em rascunho) · EUR · preços sem IVA",
     ) &&
       (await caixaEs
-        .getByRole("row", { name: /ENS-001\b.*Sem preço nesta lista/ })
+        .getByRole("row", { name: /ENS-001(?!-).*Sem preço nesta lista/ })
         .count()) === 1 &&
       (await caixaEs
         .getByRole("row", { name: /ENS-001-B.*Gratuito/ })
         .count()) === 1,
     "preços: o mercado em rascunho sem IVA, a variante sem preço e a gratuita",
   );
+  confere(
+    textoB2b.includes("lista B2B · Portugal · EUR · preços com IVA") &&
+      (await caixaB2b
+        .getByRole("row", {
+          name: /ENS-001(?!-).*9,00\s€.*mínimo 6 · múltiplos de 6/,
+        })
+        .count()) === 1 &&
+      !textoB2b.includes("antes"),
+    "preços: a lista B2B, com o mínimo e o múltiplo e sem a redução da lista base",
+  );
+  // «Mostrar mais listas» (respostas fingidas: a primeira página diz que há
+  // mais; a segunda traz uma lista), com o foco no título da lista nova.
+  await rp.route("**/hub/products/*/prices*", async (pedido) => {
+    if (pedido.request().url().includes("cursor=")) {
+      await pedido.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          dados: [
+            {
+              lista: {
+                id: "prl_00000000-0000-7000-8000-0000000000aa",
+                mercado: "mkt_00000000-0000-7000-8000-0000000000bb",
+                nome: "Lista seguinte",
+                tipo: "base",
+                etiqueta: null,
+                prioridade: null,
+                estado: "activa",
+                versao: 1,
+                criado_em: "2026-10-09T10:00:00Z",
+              },
+              mercado: {
+                id: "mkt_00000000-0000-7000-8000-0000000000bb",
+                nome: "França",
+                estado: "activo",
+                moeda: "EUR",
+                preco_inclui_iva: true,
+              },
+              precos: [],
+            },
+          ],
+          total: 4,
+          ha_mais: false,
+          cursor_seguinte: null,
+        }),
+      });
+      return;
+    }
+    const real = await pedido.fetch();
+    const corpo = await real.json();
+    await pedido.fulfill({
+      response: real,
+      body: JSON.stringify({ ...corpo, ha_mais: true, cursor_seguinte: "eA" }),
+    });
+  });
+  await rp.reload();
+  await rp.getByRole("button", { name: "Mostrar mais listas" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Lista seguinte", level: 3 }).waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) ===
+      "precos-prl_00000000-0000-7000-8000-0000000000aa" &&
+      (await rp.locator(".lista-precos").count()) === 4 &&
+      (await rp
+        .getByRole("button", { name: "Mostrar mais listas" })
+        .count()) === 0,
+    "preços: «Mostrar mais listas» traz a seguinte, com o foco no título dela",
+  );
+  await rp.unroute("**/hub/products/*/prices*");
+  await rp.reload();
+  await rp
+    .getByRole("heading", { name: "Profissionais PT", level: 3 })
+    .waitFor();
   for (const [largura, tema] of [
     [375, "light"],
     [768, "light"],
