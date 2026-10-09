@@ -529,10 +529,12 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   verificação lê, e que a base não trava, volta a verificar as publicações
   publicadas na mesma transacção; a que deixa de passar sai de venda
   (`arquivado`, motivo `verificacao_falhou`, a verificação guardada), e o
-  `arquivado_por` é quem mudou. Desde a linha do tempo (0033), toda a
-  mudança no catálogo traz quem; o `catalogo:verificacao_falhou` (e o
-  `catalogo:<motivo>` dos arquivos em cadeia) só se via quando faltava, e
-  deixou de se ver. O evento
+  `arquivado_por` é quem mudou. Desde a linha do tempo (0033), uma mudança
+  no artigo e nas suas tabelas traz sempre quem; o
+  `catalogo:verificacao_falhou` e o `catalogo:<motivo>` dos arquivos em
+  cadeia ficam só para o que vem de Preços sem quem (mercado ou canal
+  arquivado, língua nova no mercado), e a linha do tempo usa-os como quem
+  (revisão do #208, P1-2). O evento
   `product.unpublished` leva o motivo. Ex.: tirar a classificação de
   retalho ao «Gel» e pô-lo em álcool e tabaco tira-o de venda em todos os
   canais. As sete operações (varridas a 07/10/2026 contra a lista de
@@ -971,13 +973,13 @@ auditoria»).
 |---|---|
 | `id` (`chg_`) | uuidv7: a ordem dentro do mesmo comerciante |
 | `comerciante_id` | RLS forçado, como as outras tabelas |
-| `artigo_id` | o artigo a que a mudança pertence; vazio numa categoria ou colecção mudadas sem tocar num artigo |
+| `artigo_id` | o artigo a que a mudança pertence; numa tradução de opção ou valor, o da opção (num rascunho apagado, o que a opção deixou aqui); vazio numa categoria ou colecção, e nas traduções delas |
 | `entidade`, `entidade_id` | a tabela e a linha: `artigo`, `variante`, `opcao`, `valor_opcao`, `variante_valor`, `componente`, `traducao`, `artigo_categoria`, `colecao_artigo`, `media`, `publicacao`, `categoria`, `colecao` |
 | `operacao` | `criado`, `alterado`, `apagado` |
 | `campos` | os campos que mudaram e, para cada um, `antes` e `depois` (JSON); só os que mudaram |
-| `quem` | o `eurolify.quem` da transacção: `chave:key_…`, `pessoa:per_…` (o Hub), `sistema:<tarefa>`. **Sem ele, a escrita falha** (como na 0001) |
+| `quem` | o `eurolify.quem` da transacção: `chave:key_…`, `pessoa:per_…` (o Hub), `sistema:<tarefa>` (uma tarefa automática que mude o catálogo tem de o pôr). **Sem ele, a escrita falha** (como na 0001), excepto o arquivo em cadeia de uma publicação, que leva o `arquivado_por` (`catalogo:<motivo>`) |
 | `origem` | o `eurolify.origem` da transacção, quando existir: `importacao:imp_…`; vazio numa escrita normal da API (a reverificação vai na mesma transacção de quem mudou, com o motivo na publicação) |
-| `transacao` | o identificador da transacção: junta as entradas de um pedido numa só «alteração» na linha do tempo |
+| `transacao` | um identificador opaco (uuid) por transacção, guardado na sessão só durante ela: junta as entradas de um pedido numa só «alteração»; não é o número da transacção do PostgreSQL, que é da instância e dizia quantas escritas os outros comerciantes fizeram (revisão do #208, P2-1) |
 | `em` | o instante da transacção, em UTC |
 
 Regras (todas **proposta**):

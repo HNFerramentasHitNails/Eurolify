@@ -15,11 +15,13 @@ import {
 } from "../src/comerciante/repositorio.js";
 import { criarChave } from "../src/identidade/repositorio.js";
 import {
+  alterarMercado,
   criarCanal,
   criarLista,
   criarMercado,
   definirMercadosDoCanal,
   definirPreco,
+  mudarEstadoCanal,
   mudarEstadoMercado,
 } from "../src/precos/repositorio.js";
 import {
@@ -414,7 +416,7 @@ describe.skipIf(URL_BASE === undefined)("linha do tempo do artigo", () => {
     await expect(
       comComerciante(base.api, a, (trx) =>
         sql`insert into alteracao_catalogo (comerciante_id, entidade, operacao, campos, quem, transacao)
-            values (${a}, 'artigo', 'criado', '{"x":{"antes":null,"depois":1}}', 'eu', 1)`.execute(
+            values (${a}, 'artigo', 'criado', '{"x":{"antes":null,"depois":1}}', 'eu', gen_random_uuid())`.execute(
           trx,
         ),
       ),
@@ -427,6 +429,209 @@ describe.skipIf(URL_BASE === undefined)("linha do tempo do artigo", () => {
         .executeTakeFirstOrThrow(),
     );
     expect(Number(deB.n)).toBe(0);
+  });
+
+  it("as outras tabelas do artigo: opções, valores, traduções delas, categorias, colecções e a composição, todas com o artigo e o comerciante certos", async () => {
+    const r = await pedir("POST", "/products", {
+      tipo: "fisico",
+      nome: "Kit de unhas",
+      categoria_fiscal: "normal",
+      variantes: [
+        { sku: "TL-K1", unidade_de_venda: "unidade" },
+        { sku: "TL-K2", unidade_de_venda: "unidade" },
+      ],
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    const f = r.json<Ficha>();
+    const [kit = "", gel = ""] = f.variantes.map((v) => v.id);
+    const o = await pedir("POST", `/products/${f.id}/options`, {
+      nome: "Cor",
+      valores: ["Rosa"],
+    });
+    expect(o.statusCode, o.body).toBe(201);
+    const opcao = o.json<{ id: string; valores: { id: string }[] }>();
+    const valor = opcao.valores[0]?.id ?? "";
+    for (const [recurso, campo, original] of [
+      [opcao.id, "nome", "Cor"],
+      [valor, "valor", "Rosa"],
+    ] as const) {
+      const t = await pedir("PUT", `/translations/${recurso}/${campo}/es`, {
+        texto: "x",
+        original_visto: original,
+      });
+      expect(t.statusCode, t.body).toBeLessThan(300);
+    }
+    const cat = await pedir("POST", "/categories", {
+      nome: "Unhas",
+      endereco_amigavel: "unhas-tl",
+    });
+    expect(cat.statusCode, cat.body).toBe(201);
+    const catId = cat.json<{ id: string }>().id;
+    const ficha = await pedir("GET", `/products/${f.id}`);
+    const ligar = await pedir("PUT", `/products/${f.id}/categories`, {
+      versao: ficha.json<Ficha>().versao,
+      categorias: [catId],
+    });
+    expect(ligar.statusCode, ligar.body).toBe(200);
+    const col = await pedir("POST", "/collections", {
+      nome: "Novidades",
+      endereco_amigavel: "novidades-tl",
+    });
+    expect(col.statusCode, col.body).toBe(201);
+    const colecao = col.json<{ id: string; versao: number }>();
+    const naColecao = await pedir(
+      "PUT",
+      `/collections/${colecao.id}/products`,
+      {
+        versao: colecao.versao,
+        artigos: [f.id],
+      },
+    );
+    expect(naColecao.statusCode, naColecao.body).toBe(200);
+    const comp = await pedir("PUT", `/variants/${kit}/components`, {
+      componentes: [{ variante: gel, quantidade: 2 }],
+    });
+    expect(comp.statusCode, comp.body).toBe(200);
+
+    const { dados } = await linhaDoTempo(f.id);
+    const entidades = new Set(dados.map((d) => d.entidade));
+    for (const e of [
+      "artigo",
+      "variante",
+      "opcao",
+      "valor_opcao",
+      "traducao",
+      "artigo_categoria",
+      "colecao_artigo",
+      "componente",
+    ]) {
+      expect(entidades.has(e), e).toBe(true);
+    }
+    // As duas traduções (da opção e do valor) estão no artigo.
+    expect(dados.filter((d) => d.entidade === "traducao")).toHaveLength(2);
+    // A categoria e a colecção em si não são do artigo.
+    expect(entidades.has("categoria")).toBe(false);
+    expect(entidades.has("colecao")).toBe(false);
+    // O comerciante de cada entrada é o do artigo.
+    const { rows } = await sql<{ comerciante_id: string }>`
+      select distinct comerciante_id from alteracao_catalogo
+      where artigo_id = ${sem(f.id)} or entidade_id in (${sem(catId)}, ${sem(colecao.id)})`.execute(
+      base.dono,
+    );
+    expect(rows.map((x) => x.comerciante_id)).toEqual([a]);
+
+    // Apagar o rascunho: as traduções da opção e do valor, apagadas em
+    // cascata, continuam no artigo (revisão do #208, P1-1).
+    expect((await pedir("DELETE", `/products/${f.id}`)).statusCode).toBe(204);
+    const depois = await linhaDoTempo(f.id);
+    expect(
+      depois.dados.filter(
+        (d) => d.entidade === "traducao" && d.operacao === "apagado",
+      ),
+    ).toHaveLength(2);
+    const { rows: soltas } = await sql<{ n: number }>`
+      select count(*)::int as n from alteracao_catalogo
+      where entidade = 'traducao' and artigo_id is null`.execute(base.dono);
+    expect(soltas[0]?.n).toBe(0);
+  });
+
+  it("arquivar o mercado ou o canal, ou uma língua nova no mercado, sem quem, tira de venda com o quem da cadeia (revisão do #208, P1-2)", async () => {
+    // Um mercado e um canal só deste teste.
+    const loja = await comComerciante(base.api, a, (trx) =>
+      trx.selectFrom("loja").select("id").executeTakeFirstOrThrow(),
+    );
+    const publicado = async (
+      sku: string,
+      { m, c, l }: { m: string; c: string; l: string },
+    ) => {
+      const f = await novo(sku);
+      const cl = await pedir("PUT", `/products/${f.id}/classification`, {
+        versao: f.versao,
+        familias: ["retalho_geral"],
+        natureza_consumidor: "bem",
+      });
+      const act = await pedir("POST", `/products/${f.id}/activate`, {
+        versao: cl.json<Ficha>().versao,
+      });
+      expect(act.statusCode, act.body).toBe(200);
+      await definirPreco(
+        base.api,
+        a,
+        "pessoa:per_teste",
+        l,
+        sem(f.variantes[0]?.id ?? ""),
+        {
+          montante: 500,
+        },
+      );
+      const pub = await pedir(
+        "POST",
+        `/products/${f.id}/publications`,
+        { canal: `chn_${c}`, mercado: `mkt_${m}` },
+        publica,
+      );
+      expect(pub.json<{ publicada: boolean }>().publicada, pub.body).toBe(true);
+      return f;
+    };
+    const novoPar = async (nome: string, pais: string) => {
+      const m = await criarMercado(base.api, a, {
+        loja_id: loja.id,
+        nome,
+        paises: [pais],
+        moeda: "EUR",
+        linguas: ["pt"],
+        lingua_principal: "pt",
+      });
+      const l = await criarLista(base.api, a, {
+        mercado_id: m,
+        nome: `Base ${nome}`,
+        tipo: "base",
+      });
+      await mudarEstadoMercado(base.api, a, m, 1, "activo");
+      const c = await criarCanal(base.api, a, { loja_id: loja.id, nome });
+      await definirMercadosDoCanal(base.api, a, c, [m]);
+      return { m, c, l };
+    };
+    const p1 = await novoPar("Mercado TL 1", "ES");
+    const f1 = await publicado("TL-M1", p1);
+    await mudarEstadoMercado(base.api, a, p1.m, 2, "arquivado");
+    const p2 = await novoPar("Mercado TL 2", "FR");
+    const f2 = await publicado("TL-C1", p2);
+    const { versao: vCanal } = await comComerciante(base.api, a, (trx) =>
+      trx
+        .selectFrom("canal")
+        .select("versao")
+        .where("id", "=", p2.c)
+        .executeTakeFirstOrThrow(),
+    );
+    await mudarEstadoCanal(base.api, a, p2.c, vCanal, "arquivado");
+    // Uma língua nova no mercado, sem a tradução do nome: a reverificação
+    // tira de venda.
+    const p3 = await novoPar("Mercado TL 3", "IT");
+    const f3 = await publicado("TL-L1", p3);
+    const { versao: vMercado } = await comComerciante(base.api, a, (trx) =>
+      trx
+        .selectFrom("mercado")
+        .select("versao")
+        .where("id", "=", p3.m)
+        .executeTakeFirstOrThrow(),
+    );
+    await alterarMercado(base.api, a, p3.m, vMercado, {
+      linguas: ["pt", "it"],
+    });
+    for (const [f, quem] of [
+      [f1, "catalogo:mercado_arquivado"],
+      [f2, "catalogo:canal_arquivado"],
+      [f3, "catalogo:verificacao_falhou"],
+    ] as const) {
+      const { dados } = await linhaDoTempo(f.id);
+      const saida = dados.find(
+        (d) =>
+          d.entidade === "publicacao" &&
+          (d.campos["estado"]?.depois as string | undefined) === "arquivado",
+      );
+      expect(saida?.quem).toBe(quem);
+    }
   });
 
   it("todas as tabelas do Catálogo têm o gatilho; o âmbito novo é do dono e do gestor", async () => {
@@ -451,7 +656,7 @@ describe.skipIf(URL_BASE === undefined)("linha do tempo do artigo", () => {
     const { rows: comGatilho } = await sql<{ tabela: string }>`
       select c.relname as tabela from pg_trigger t
       join pg_class c on c.oid = t.tgrelid
-      where t.tgname = c.relname || '_linha_do_tempo' and t.tgenabled <> 'D'
+      where t.tgname = c.relname || '_linha_do_tempo' and t.tgenabled = 'A'
       order by 1`.execute(base.dono);
     expect(comGatilho.map((r) => r.tabela)).toEqual(esperadas);
     expect(esperadas).toEqual([...ENTIDADES_DA_LINHA_DO_TEMPO].sort());
