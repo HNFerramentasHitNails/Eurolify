@@ -2369,6 +2369,13 @@ try {
   );
   await rp.unroute("**/hub/products/*/media");
   await rp.locator(".imagens-artigo > li").first().waitFor();
+  // A miniatura pede os bytes depois de a linha aparecer («A carregar…»):
+  // contar logo falhava às vezes (issue #246). Espera-se pela imagem; se não
+  // vier em 10 s, a contagem abaixo falha.
+  await rp
+    .getByRole("img", { name: "Frasco de verniz verde, de frente" })
+    .waitFor({ timeout: 10_000 })
+    .catch(() => undefined);
   confere(
     (await rp.locator(".imagens-artigo > li").count()) === 1 &&
       (await rp.getByText("Principal", { exact: true }).count()) === 1 &&
