@@ -18,6 +18,7 @@ import {
   type VarianteArtigo,
 } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
+import { PrecosDoArtigo } from "./PrecosDoArtigo";
 import { mensagemDeErro, semSessao } from "../erros";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 
@@ -504,6 +505,14 @@ export function Artigo({
             ocupado={ocupadoNaFicha}
             aoArquivar={arquivarVariante}
           />
+          <h2>{t.artigoPrecos}</h2>
+          <div className="precos-artigo">
+            <PrecosDoArtigo
+              comerciante={comerciante}
+              artigo={artigo}
+              variantes={ficha.dados.variantes}
+            />
+          </div>
           <h2>{t.artigoImagens}</h2>
           {podeEscrever && imagens.tipo === "pronto" ? (
             <NovaImagem
@@ -711,7 +720,7 @@ function Variantes({
   const numero = (n: number) =>
     new Intl.NumberFormat(TAG_LINGUA[lingua]).format(n);
   return (
-    <table className="tabela-larga">
+    <table className="tabela-larga variantes-artigo">
       <thead>
         <tr>
           <th scope="col">{t.artigosSku}</th>

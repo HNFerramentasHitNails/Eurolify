@@ -468,6 +468,12 @@ Regras:
     preço não pôde mudar entretanto).
   - **O histórico** (`GET …/history`) não vem por páginas (P3-8): fica para
     quando houver integrações a mudar preços muitas vezes.
+- **Os preços de um artigo** (09/10/2026, `docs/22` §17; #249, #252):
+  `GET /products/{id}/prices` (`prices:read`) dá as listas activas, cada uma
+  com o mercado e os preços das variantes do artigo (o mesmo esquema de
+  `GET /price-lists/{id}/prices`). Chamadores: a API pela chave e
+  `GET /hub/products/{id}/prices` (a ficha do Hub). As reduções em vigor saem
+  de uma só função (`reducoesEmVigor`) para as duas leituras.
   - **O teste das rotas encontrou dois problemas que vinham da parte 1:**
     criar uma lista no mercado de outro comerciante respondia «já há uma
     lista de base» (dizia que o mercado existia), e pôr um preço numa lista
