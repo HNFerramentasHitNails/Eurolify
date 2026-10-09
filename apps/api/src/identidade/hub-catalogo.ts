@@ -8,11 +8,19 @@ import type { Armazenamento } from "../catalogo/armazenamento.js";
 import { ErroCatalogo } from "../catalogo/erros.js";
 import {
   alteracaoDaMedia,
+  DESCRICAO_DO_ENVIO,
   enviarBytesDaMedia,
+  FicheiroEsquema,
+  guardarImagem,
   imagensDeArtigo,
+  ligacaoDaMedia,
   MediaEsquema,
   ParametroMedia,
   PedidoAlterarMedia,
+  PedidoLigarMedia,
+  prepararEnvio,
+  receberImagem,
+  remocaoDaMedia,
 } from "../catalogo/rotas-media.js";
 import {
   alteracaoDoArtigo,
@@ -264,12 +272,107 @@ export function rotasDoCatalogoNoHub(
  * As imagens no Hub (docs/22 §12.1): só existem com o armazenamento das
  * imagens, como as rotas da API delas.
  */
+/**
+ * Ligar uma imagem pelo Hub (docs/22 §15.1): o ficheiro, o texto
+ * alternativo e se é a principal. A imagem de uma variante e a posição ficam
+ * de fora (a nova vai para o fim).
+ */
+const PedidoLigarMediaNoHub = Type.Pick(
+  PedidoLigarMedia,
+  ["ficheiro", "texto_alternativo", "principal"],
+  { additionalProperties: false },
+);
+
 export function rotasDasImagensNoHub(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
   armazenamento: Armazenamento,
 ) {
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+
+  // Enviar uma imagem nova (docs/22 §15; issue #229): as mesmas funções do
+  // POST /media/uploads, num plugin só dele (o leitor dos bytes e o limite de
+  // envios em simultâneo, partilhado com a chave). A única rota do Hub que
+  // recebe outra coisa além de JSON (§15.2). Quem não escreve no catálogo é
+  // recusado antes de se ler o corpo.
+  void instancia.register((envio, _o, pronto) => {
+    prepararEnvio(envio, base, (pedido) => comercianteEscritor(pedido));
+    envio.withTypeProvider<TypeBoxTypeProvider>().post(
+      "/hub/media/uploads",
+      {
+        config: { ambito: "sessao_comerciante", hub: true, hubImagem: true },
+        schema: {
+          description: `Envia uma imagem pelo Hub, como o POST /media/uploads (docs/22 §15.2): ${DESCRICAO_DO_ENVIO} Só da origem do Hub, com a sessão de quem tem catalog:write. Liga-se ao artigo com POST /hub/products/{id}/media.`,
+          response: { 201: FicheiroEsquema, ...RESPOSTA_DE_ERRO },
+        },
+      },
+      async (pedido, resposta) => {
+        const imagem = receberImagem(
+          pedido.body,
+          pedido.headers["content-type"],
+        );
+        const ficheiro = await escreverNoHub(
+          base,
+          pedido,
+          resposta,
+          (trx, comercianteId) =>
+            guardarImagem(trx, comercianteId, armazenamento, imagem),
+        );
+        void resposta.code(201);
+        return ficheiro;
+      },
+    );
+    pronto();
+  });
+
+  rotas.post(
+    "/hub/products/:id/media",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Liga um ficheiro enviado ao artigo pelo Hub, como o POST /products/{id}/media, com o texto alternativo e se é a principal (docs/22 §15.2). Também num artigo externo (P5: a media edita-se no Eurolify, §13.3). O mesmo ficheiro duas vezes faz duas imagens: depois de uma resposta perdida, releia as imagens.",
+        params: ParametroArtigo,
+        body: PedidoLigarMediaNoHub,
+        response: { 201: MediaEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const media = await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        (trx, comercianteId) =>
+          ligacaoDaMedia(trx, comercianteId, pedido.params.id, pedido.body),
+      );
+      void resposta.code(201).header("location", `/hub/media/${media.id}`);
+      return media;
+    },
+  );
+
+  rotas.delete(
+    "/hub/media/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Tira a imagem do artigo pelo Hub, como o DELETE /media/{id}: o ficheiro continua guardado e as publicações não mudam. O corpo é `{}`, porque as escritas do Hub são JSON (docs/22 §15.2).",
+        params: ParametroMedia,
+        body: Type.Object({}, { additionalProperties: false }),
+        response: {
+          204: Type.Null({ description: "Tirada; sem corpo" }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      await escreverNoHub(base, pedido, resposta, (trx, comercianteId) =>
+        remocaoDaMedia(trx, comercianteId, pedido.params.id),
+      );
+      void resposta.code(204);
+      return null;
+    },
+  );
 
   rotas.get(
     "/hub/products/:id/media",
@@ -368,6 +471,24 @@ function comercianteLeitor(
     throw new Error("rota com comerciante sem o comerciante da sessão");
   }
   void resposta.header("cache-control", "private, no-store");
+  return sessao.comercianteId;
+}
+
+/**
+ * O comerciante de quem escreve no catálogo pelo Hub, antes de ler o corpo
+ * (o envio de uma imagem: quem não escreve não ocupa um lugar nos envios).
+ */
+function comercianteEscritor(pedido: FastifyRequest): string {
+  const sessao = sessaoDo(pedido);
+  if (!sessao.ambitos.includes("catalog:write")) {
+    throw erroConta(
+      "member.role_escalation",
+      "o papel não escreve no catálogo",
+    );
+  }
+  if (sessao.comercianteId === null) {
+    throw new Error("rota com comerciante sem o comerciante da sessão");
+  }
   return sessao.comercianteId;
 }
 
