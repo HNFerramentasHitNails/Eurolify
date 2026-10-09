@@ -37,6 +37,8 @@ import {
   MUDANCAS_DE_ESTADO,
   noCatalogoApi,
   NovaVariante,
+  OpcaoEsquema,
+  opcoesDeArtigoComVariantes,
   ParametroArtigo,
   ParametroVariante,
   PedidoAlterarArtigo,
@@ -142,6 +144,22 @@ const RespostaPublicacoesNoHub = Type.Object({
     }),
   ),
 });
+const RespostaOpcoesNoHub = Lista(
+  Type.Object({
+    ...OpcaoEsquema.properties,
+    valores: Type.Array(
+      Type.Object({
+        id: Type.String({ description: "ovl_…" }),
+        valor: Type.String(),
+        variantes: Type.Array(Type.String({ description: "var_…" }), {
+          description:
+            "As variantes que têm este valor, também as arquivadas; vazia se nenhuma o usa (docs/22 §20.1)",
+        }),
+      }),
+      { description: "Pela ordem (posição)" },
+    ),
+  }),
+);
 const RespostaLinhaDoTempoNoHub = Type.Object({
   ...RespostaLinhaDoTempo.properties,
   dados: Type.Array(Type.Object({ ...Alteracao.properties, autor: Autor })),
@@ -286,6 +304,30 @@ export function rotasDoCatalogoNoHub(
         })),
       };
     },
+  );
+
+  // As opções do artigo (docs/22 §20; issue #278): a mesma função do
+  // GET /products/{id}/options, com as variantes de cada valor (§20.1).
+  rotas.get(
+    "/hub/products/:id/options",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "As opções de um artigo para o Hub: as mesmas do GET /products/{id}/options (pela ordem, com os valores pela ordem, no formato das listas), e cada valor com as `variantes` que o têm, também as arquivadas, com a sessão de quem tem catalog:read (docs/22 §20.1).",
+        params: ParametroArtigo,
+        querystring: ConsultaPagina,
+        response: { 200: RespostaOpcoesNoHub, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      opcoesDeArtigoComVariantes(
+        base,
+        comercianteLeitor(pedido, resposta),
+        pedido.params.id,
+        pedido.query,
+        resposta,
+      ),
   );
 
   // Os preços do artigo (docs/22 §17; issue #249): a mesma função do

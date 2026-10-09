@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { ArmazenamentoEmDisco } from "../src/catalogo/armazenamento.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Classificacao } from "../src/catalogo/classificacao.js";
+import { opcoesDoArtigoPaginadas } from "../src/catalogo/consultas.js";
 import { publicar } from "../src/catalogo/publicacao.js";
 import {
   classificarArtigo,
@@ -794,6 +795,169 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     );
   });
 
+  /**
+   * Um rascunho com as opções «Tamanho» (15 ml, 30 ml, 50 ml) e «Cor» (Azul),
+   * as duas variantes de `artigoCompleto` sem valores, uma de 15 ml azul e
+   * uma de 30 ml arquivada; os 50 ml não estão em nenhuma (docs/22 §20.3).
+   */
+  async function comOpcoes(c: { id: string; segredo: string }) {
+    const { artigo } = await artigoCompleto(c);
+    type Opcao = { id: string; valores: { id: string; valor: string }[] };
+    const tamanho = await comChave(
+      c.segredo,
+      "POST",
+      `/products/${artigo}/options`,
+      { nome: "Tamanho", valores: ["15 ml", "30 ml", "50 ml"] },
+    );
+    expect(tamanho.statusCode, tamanho.body).toBe(201);
+    const cor = await comChave(
+      c.segredo,
+      "POST",
+      `/products/${artigo}/options`,
+      {
+        nome: "Cor",
+        valores: ["Azul"],
+      },
+    );
+    expect(cor.statusCode, cor.body).toBe(201);
+    const [ml15, ml30, ml50] = tamanho.json<Opcao>().valores.map((v) => v.id);
+    const azul = cor.json<Opcao>().valores[0]?.id ?? "";
+    const variante = async (valores: string[]) => {
+      const r = await comChave(
+        c.segredo,
+        "POST",
+        `/products/${artigo}/variants`,
+        { sku: `O-${randomUUID()}`, unidade_de_venda: "unidade", valores },
+      );
+      expect(r.statusCode, r.body).toBe(201);
+      return r.json<{ id: string }>().id;
+    };
+    const v15 = await variante([ml15 ?? "", azul]);
+    const v30 = await variante([ml30 ?? ""]);
+    const arquivo = await comChave(
+      c.segredo,
+      "POST",
+      `/variants/${v30}/archive`,
+      {},
+    );
+    expect(arquivo.statusCode, arquivo.body).toBe(200);
+    return { artigo, ml15, ml30, ml50, azul, v15, v30 };
+  }
+
+  type OpcaoNoHub = {
+    id: string;
+    nome: string;
+    valores: { id: string; valor: string; variantes?: string[] }[];
+  };
+
+  it("as opções no Hub são as da chave, cada valor com as variantes que o têm, também as arquivadas (docs/22 §20.1)", async () => {
+    const c = await comerciante("Loja Opcoes", []);
+    const o = await comOpcoes(c);
+    for (const papel of PAPEIS) {
+      const p = await h.pessoaCom(c.id, papel);
+      for (const consulta of ["", "?limite=1"]) {
+        const caminho = `/products/${o.artigo}/options${consulta}`;
+        const hub = await h.pedir("GET", `/hub${caminho}`, {
+          sessao: p.sessao,
+          comerciante: c.id,
+        });
+        expect(hub.statusCode, `${papel} ${caminho}: ${hub.body}`).toBe(200);
+        expect(hub.headers["cache-control"]).toBe("private, no-store");
+        const api = await comChave(c.segredo, "GET", caminho);
+        expect(api.statusCode, api.body).toBe(200);
+        const corpo = hub.json<{ dados: OpcaoNoHub[] }>();
+        // Sem as `variantes`, é exactamente a resposta da chave.
+        expect({
+          ...corpo,
+          dados: corpo.dados.map((d) => ({
+            ...d,
+            valores: d.valores.map((v) => ({ id: v.id, valor: v.valor })),
+          })),
+        }).toEqual(api.json());
+        // A chave não as dá.
+        expect(api.body).not.toContain("variantes");
+      }
+    }
+    const p = await h.pessoaCom(c.id, "apoio");
+    const r = await h.pedir("GET", `/hub/products/${o.artigo}/options`, {
+      sessao: p.sessao,
+      comerciante: c.id,
+    });
+    expect(
+      r
+        .json<{ dados: OpcaoNoHub[] }>()
+        .dados.map((d) => [
+          d.nome,
+          d.valores.map((v) => [v.valor, v.variantes]),
+        ]),
+    ).toEqual([
+      [
+        "Tamanho",
+        [
+          ["15 ml", [o.v15]],
+          // A arquivada aparece no seu valor.
+          ["30 ml", [o.v30]],
+          // Um valor que nenhuma variante usa: a lista vazia.
+          ["50 ml", []],
+        ],
+      ],
+      ["Cor", [["Azul", [o.v15]]]],
+    ]);
+  });
+
+  it("as variantes de outro comerciante não entram nos valores, nem pela RLS nem pelo filtro escrito (docs/22 §20.3)", async () => {
+    const a = await comerciante("Loja Opcoes A", []);
+    const b = await comerciante("Loja Opcoes B", []);
+    const deA = await comOpcoes(a);
+    const deB = await comOpcoes(b);
+    const sem = (x: string) => x.replace(/^[a-z]+_/, "");
+    // Uma linha de B que aponta para o valor «50 ml» de A. As chaves
+    // compostas não a deixam existir; só sem elas (modo réplica, só neste
+    // teste) se pode provar o filtro escrito: com o dono, que passa a RLS,
+    // sem o `comerciante_id` na leitura este teste falha.
+    const ml50 = sem(deA.ml50 ?? "");
+    const linhaDeB = {
+      comerciante_id: b.id,
+      artigo_id: sem(deB.artigo),
+      variante_id: sem(deB.v15),
+      opcao_id: randomUUID(),
+      valor_id: ml50,
+    };
+    await (base.dono as Kysely<BaseDados>)
+      .transaction()
+      .execute(async (trx) => {
+        await sql`set local session_replication_role = replica`.execute(trx);
+        await trx.insertInto("variante_valor").values(linhaDeB).execute();
+      });
+    try {
+      for (const db of [base.api, base.dono as Kysely<BaseDados>]) {
+        const r = await opcoesDoArtigoPaginadas(
+          db,
+          a.id,
+          sem(deA.artigo),
+          100,
+          null,
+          true,
+        );
+        const valores = r.dados.flatMap((d) => d.valores);
+        expect(valores.find((v) => v.id === ml50)?.variantes).toEqual([]);
+        expect(JSON.stringify(r)).not.toContain(sem(deB.v15));
+      }
+    } finally {
+      // Também sem os gatilhos, como entrou.
+      await (base.dono as Kysely<BaseDados>)
+        .transaction()
+        .execute(async (trx) => {
+          await sql`set local session_replication_role = replica`.execute(trx);
+          await trx
+            .deleteFrom("variante_valor")
+            .where("comerciante_id", "=", b.id)
+            .where("valor_id", "=", ml50)
+            .execute();
+        });
+    }
+  });
+
   it("a ficha e as imagens de outro comerciante não saem pelo Hub (#204)", async () => {
     const a = await comerciante("Loja A Ficha", []);
     const b = await comerciante("Loja B Ficha", []);
@@ -804,6 +968,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       `/hub/products/${deB.artigo}`,
       `/hub/products/${deB.artigo}/media`,
       `/hub/products/${deB.artigo}/publications`,
+      `/hub/products/${deB.artigo}/options`,
       `/hub/media/${deB.imagens[0] ?? ""}/file`,
     ]) {
       const r = await h.pedir("GET", caminho, {
@@ -978,6 +1143,44 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     );
     expect(
       contrato.paths["/hub/products/{id}/publications"]?.["get"]?.security,
+    ).toEqual([{ sessao: [] }]);
+    // As opções do Hub têm as `variantes` em cada valor; as da chave não
+    // (docs/22 §20.1).
+    const camposDosValores = (caminho: string) => {
+      const esquema = (
+        contrato.paths[caminho]?.["get"]?.responses as
+          | Record<string, { content?: Record<string, { schema?: unknown }> }>
+          | undefined
+      )?.["200"]?.content?.["application/json"]?.schema as
+        | {
+            properties?: {
+              dados?: {
+                items?: {
+                  properties?: {
+                    valores?: { items?: { properties?: object } };
+                  };
+                };
+              };
+            };
+          }
+        | undefined;
+      return Object.keys(
+        esquema?.properties?.dados?.items?.properties?.valores?.items
+          ?.properties ?? {},
+      ).sort();
+    };
+    const valoresDaChave = camposDosValores("/products/{id}/options");
+    expect(valoresDaChave).toEqual(["id", "valor"]);
+    expect(camposDosValores("/hub/products/{id}/options")).toEqual([
+      "id",
+      "valor",
+      "variantes",
+    ]);
+    expect(campos("/hub/products/{id}/options")).toEqual(
+      campos("/products/{id}/options"),
+    );
+    expect(
+      contrato.paths["/hub/products/{id}/options"]?.["get"]?.security,
     ).toEqual([{ sessao: [] }]);
     expect(
       JSON.stringify(
