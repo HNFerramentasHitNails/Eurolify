@@ -105,3 +105,4 @@
 - [Preços parte 2 (#224, #127, decisão CW): API de Administração, redução com referência de 720 h, preço por unidade, prices:read/write, dois 404 corrigidos da parte 1, 0036; publicado no ensaio — 09/10/2026](precos-parte2-09out2026.md)
 - [Hub: nomes do canal e do mercado nas publicações (#258, #259, #261): canal_nome e mercado_nome só no caminho do Hub; ficha com os nomes; dois canais com o mesmo nome em aberto; no ensaio — 09/10/2026](hub-nomes-canal-mercado-09out2026.md)
 - [Testes do GitHub: imagens do espelho mirror.gcr.io (opção 3 do Diogo, #263): Docker Hub dava 429; mesmo resumo SHA-256; VPS de fora; ao mudar um resumo, conferir o espelho — 09/10/2026](ci-imagens-espelho-09out2026.md)
+- [Passagem do Hub: o limite de 300 pedidos/minuto (#253, #270): a página da Ana fazia ~300 pedidos em 19 s; um a mais dava 429 num passo qualquer; um endereço por parte longa — 09/10/2026](hub-capturas-limite-09out2026.md)

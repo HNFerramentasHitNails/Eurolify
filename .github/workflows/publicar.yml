@@ -49,6 +49,11 @@ jobs:
           DONO: ${{ github.repository_owner }}
         run: echo "imagem=ghcr.io/${DONO,,}/eurolify-api" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # O BuildKit também do espelho, fixado pelo resumo: do Docker Hub
+          # falhou a publicação do #263 (corrida 37993770813, 09/10/2026).
+          # v0.33.1 é a buildx-stable-1 desse dia (o mesmo resumo).
+          driver-opts: image=mirror.gcr.io/moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
