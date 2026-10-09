@@ -1217,8 +1217,11 @@ function Miniatura({
   useEffect(() => {
     let vivo = true;
     let criado: string | null = null;
+    // Sair da ficha cancela o pedido: um pedido sem resposta prendia um
+    // lugar da fila das imagens (issue #253).
+    const cancelar = new AbortController();
     setFalha(null);
-    api.bytesDaImagem(comerciante, imagem.id).then(
+    api.bytesDaImagem(comerciante, imagem.id, cancelar.signal).then(
       (bytes) => {
         if (!vivo) return;
         criado = URL.createObjectURL(bytes);
@@ -1235,6 +1238,7 @@ function Miniatura({
     );
     return () => {
       vivo = false;
+      cancelar.abort();
       if (criado !== null) URL.revokeObjectURL(criado);
     };
   }, [comerciante, imagem.id, navegar, tentativa]);

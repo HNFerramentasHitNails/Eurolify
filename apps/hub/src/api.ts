@@ -452,6 +452,9 @@ export function enviarImagem(
   });
 }
 
+/** O tempo máximo de uma miniatura, do pedido ao último byte (issue #253). */
+export const PRAZO_DA_IMAGEM_MS = 30_000;
+
 /**
  * Os bytes de uma imagem (docs/22 §12.1): um `<img src>` não leva o
  * cabeçalho do comerciante, por isso pedem-se aqui e mostram-se por `blob:`.
@@ -459,19 +462,40 @@ export function enviarImagem(
 export async function pedirBytes(
   caminho: string,
   comerciante: string,
+  sinal?: AbortSignal,
+  prazoMs: number = PRAZO_DA_IMAGEM_MS,
 ): Promise<Blob> {
-  let resposta: Response;
+  // Sem prazo, um pedido sem resposta ocupava um lugar da fila para sempre
+  // (issue #253). O prazo cobre também a descarga dos bytes.
+  const controlo = new AbortController();
+  const parar = () => {
+    controlo.abort();
+  };
+  if (sinal?.aborted === true) parar();
+  sinal?.addEventListener("abort", parar, { once: true });
+  const relogio = setTimeout(parar, prazoMs);
   try {
-    resposta = await fetch(caminho, {
-      method: "GET",
-      credentials: "same-origin",
-      headers: { "eurolify-comerciante": comerciante },
-    });
-  } catch {
-    throw new ErroHub(0, undefined, {}, undefined, undefined);
+    let resposta: Response;
+    try {
+      resposta = await fetch(caminho, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "eurolify-comerciante": comerciante },
+        signal: controlo.signal,
+      });
+    } catch {
+      throw new ErroHub(0, undefined, {}, undefined, undefined);
+    }
+    if (!resposta.ok) throw await erroDe(resposta);
+    try {
+      return await resposta.blob();
+    } catch {
+      throw new ErroHub(0, undefined, {}, undefined, undefined);
+    }
+  } finally {
+    clearTimeout(relogio);
+    sinal?.removeEventListener("abort", parar);
   }
-  if (resposta.ok) return resposta.blob();
-  throw await erroDe(resposta);
 }
 
 /**
@@ -483,7 +507,10 @@ const MAXIMO_IMAGENS_EM_CURSO = 4;
 let imagensEmCurso = 0;
 const imagensEmEspera: (() => void)[] = [];
 
-async function naFilaDasImagens<T>(pedido: () => Promise<T>): Promise<T> {
+export async function naFilaDasImagens<T>(
+  pedido: () => Promise<T>,
+  sinal?: AbortSignal,
+): Promise<T> {
   if (imagensEmCurso >= MAXIMO_IMAGENS_EM_CURSO) {
     await new Promise<void>((avancar) => {
       imagensEmEspera.push(avancar);
@@ -491,6 +518,11 @@ async function naFilaDasImagens<T>(pedido: () => Promise<T>): Promise<T> {
   }
   imagensEmCurso++;
   try {
+    // Quem saiu enquanto esperava (a miniatura já não está no ecrã) não
+    // chega a pedir.
+    if (sinal?.aborted === true) {
+      throw new ErroHub(0, undefined, {}, undefined, undefined);
+    }
     return await pedido();
   } finally {
     imagensEmCurso--;
@@ -576,10 +608,15 @@ export const api = {
     } while (cursor !== null);
     return imagens;
   },
-  /** Os bytes de uma imagem, no máximo 4 ao mesmo tempo (revisão do #206, P2-1). */
-  bytesDaImagem: (comerciante: string, imagem: string) =>
-    naFilaDasImagens(() =>
-      pedirBytes(`/hub/media/${imagem}/file`, comerciante),
+  /**
+   * Os bytes de uma imagem, no máximo 4 ao mesmo tempo (revisão do #206,
+   * P2-1). O `sinal` cancela o pedido quando a miniatura sai do ecrã, para
+   * não prender a fila (issue #253).
+   */
+  bytesDaImagem: (comerciante: string, imagem: string, sinal?: AbortSignal) =>
+    naFilaDasImagens(
+      () => pedirBytes(`/hub/media/${imagem}/file`, comerciante, sinal),
+      sinal,
     ),
   publicacoesDoArtigo: (comerciante: string, artigo: string) =>
     pedir<{ dados: PublicacaoArtigo[] }>(
