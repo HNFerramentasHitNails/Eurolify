@@ -287,6 +287,9 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 | `observability-security` | ameaças, permissões, segredos, auditoria, registos |
 | `eu-localization` | línguas, moedas, mercados, moradas, fusos, métodos por país |
 | `eurolify-design` | qualquer ecrã, tema, componente ou fluxo; pesquisa com comerciantes; revisão de interface (traz 38 referências de terceiros em `referencias/`) |
+| `eurolify-hub-modular` | entrada do Hub por módulos: inventário real, comerciante, pesquisa e navegação; desenho em `docs/hub-modular-glassmorphism.md` |
+| `eurolify-hub-glass-responsive` | Glassmorphism funcional no Hub, tokens, opaco alternativo, mobile/tablet/desktop; não decide identidade final |
+| `eurolify-hub-quality-gate` | validar o Hub modular: matriz responsiva, contraste composto, permissões, regressões e capturas antes de concluir |
 | `third-party-extensions` | contratos de adaptadores (pagamento, envio, faturação), pontos de extensão, permissões de aplicações, loja de extensões, parceiros que escrevem o seu adaptador |
 | `digital-products-eu` | conteúdo digital, serviço digital e serviço humano à distância: classificação, livre resolução, IVA electrónico, entrega e acessos (tudo **C**) |
 | `gift-cards-eu` | cartões-oferta: SPV/MPV, IVA na venda e no resgate, saldo por movimentos, reembolso, porta PSD2 (tudo **C**) |
