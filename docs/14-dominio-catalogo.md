@@ -662,7 +662,8 @@ Diz se um artigo está à venda num **canal** e num **mercado**
   `catalogo:verificacao_falhou` e o `catalogo:<motivo>` dos arquivos em
   cadeia ficam só para o que vem de Preços sem quem (mercado ou canal
   arquivado, língua nova no mercado), e a linha do tempo usa-os como quem
-  (revisão do #208, P1-2). O evento
+  (revisão do #208, P1-2). Desde a API de Preços (0036, `docs/20` §10), essas
+  operações pela API trazem a chave; o `catalogo:…` fica para o SQL à mão. O evento
   `product.unpublished` leva o motivo. Ex.: tirar a classificação de
   retalho ao «Gel» e pô-lo em álcool e tabaco tira-o de venda em todos os
   canais. As sete operações (varridas a 07/10/2026 contra a lista de

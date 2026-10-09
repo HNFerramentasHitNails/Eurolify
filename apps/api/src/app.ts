@@ -20,6 +20,7 @@ import {
 import { rotasDoCatalogo } from "./catalogo/rotas.js";
 import { rotasDaLinhaDoTempo } from "./catalogo/rotas-linha-do-tempo.js";
 import { rotasDaMedia } from "./catalogo/rotas-media.js";
+import { rotasDosPrecos } from "./precos/rotas.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
 import { rotasDasImportacoes } from "./importacao/rotas.js";
 import {
@@ -281,6 +282,7 @@ export function criarApp(
       rotasDaIdentidade(rotas, base);
       rotasDoCatalogo(rotas, base);
       rotasDaLinhaDoTempo(rotas, base);
+      rotasDosPrecos(rotas, base);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.

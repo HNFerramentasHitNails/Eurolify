@@ -16,6 +16,8 @@ export const AMBITOS = [
   "catalog:publish",
   "catalog:import",
   "catalog:history",
+  "prices:read",
+  "prices:write",
   "keys:write",
   "storefront",
 ] as const;

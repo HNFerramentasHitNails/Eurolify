@@ -37,6 +37,12 @@ const CODIGOS_DA_BASE: readonly CodigoErroPrecos[] = [
   // par canal × mercado com publicações publicadas.
   "prices.published_variant",
   "prices.channel_market_in_use",
+  // Da 0036 (a redução anunciada).
+  "prices.reduction_without_history",
+  "prices.reduction_not_lower",
+  "prices.reduction_active",
+  "prices.not_found",
+  "prices.invalid_field",
 ];
 
 /** As restrições da 0017 com código próprio. */
@@ -65,6 +71,7 @@ const TABELAS = new Set([
   "lista_precos",
   "preco",
   "historico_preco",
+  "reducao",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noDominio`. */
@@ -129,6 +136,29 @@ async function noDominio<T>(
   comercianteId: string,
   fn: (trx: Transaction<BaseDados>) => Promise<T>,
 ): Promise<T> {
+  // Numa transacção já aberta (a da idempotência de um pedido da API,
+  // docs/20 §10.1), corre nela, depois de confirmar que é do mesmo
+  // comerciante, como o `noCatalogo`.
+  if (db.isTransaction) {
+    const trx = db as Transaction<BaseDados>;
+    try {
+      const { rows } = await sql<{ comerciante: string | null }>`
+        select current_setting('eurolify.comerciante', true) as comerciante`.execute(
+        trx,
+      );
+      if (rows[0]?.comerciante !== comercianteId) {
+        throw new Error(
+          "noDominio: a transacção aberta é de outro comerciante (ou de nenhum)",
+        );
+      }
+      await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+        trx,
+      );
+      return await fn(trx);
+    } catch (erro) {
+      throw traduzir(erro);
+    }
+  }
   try {
     return await comComerciante(db, comercianteId, async (trx) => {
       // Uma escrita não espera sem fim por outra que tenha a lista ou o
@@ -355,6 +385,11 @@ export async function definirMercadosDoCanal(
   comercianteId: string,
   canalId: string,
   mercadoIds: readonly string[],
+  /**
+   * A versão lida do canal (a API exige-a, docs/20 §10.1): mudar os
+   * mercados sobe-a, e uma versão antiga é recusada (revisão do #224, P2-3).
+   */
+  versao?: number,
 ): Promise<void> {
   // O pg devolve os uuid em minúsculas: compara-se assim.
   const pedidos = mercadoIds.map((m) => m.toLowerCase());
@@ -367,6 +402,16 @@ export async function definirMercadosDoCanal(
       .executeTakeFirst();
     if (canal === undefined) {
       throw new ErroPrecos("prices.not_found", "canal inexistente");
+    }
+    if (versao !== undefined) {
+      const subiu = await trx
+        .updateTable("canal")
+        .set((eb) => ({ nome: eb.ref("nome") }))
+        .where("id", "=", canalId)
+        .where("versao", "=", versao)
+        .returning("versao")
+        .executeTakeFirst();
+      if (subiu === undefined) await semLinha(trx, "canal", canalId);
     }
     if (new Set(pedidos).size !== pedidos.length) {
       throw new ErroPrecos(
@@ -553,6 +598,18 @@ export async function definirPreco(
   };
   const linha = await noDominio(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
+    // A lista tem de ser deste comerciante antes do INSERT … ON CONFLICT: o
+    // preço de outro comerciante com a mesma lista e variante chocava na
+    // chave primária e o UPDATE escondido pelo RLS dava 500 (revisão do #224,
+    // encontrado pelo teste das rotas, P2-1).
+    const lista = await trx
+      .selectFrom("lista_precos")
+      .select("id")
+      .where("id", "=", listaId)
+      .executeTakeFirst();
+    if (lista === undefined) {
+      throw new ErroPrecos("prices.not_found", "lista inexistente");
+    }
     return trx
       .insertInto("preco")
       .values({
@@ -674,4 +731,472 @@ export async function verificarPrecos(
   return noDominio(db, comercianteId, (trx) =>
     verificarPrecosNa(trx, mercadoId, varianteIds),
   );
+}
+
+// ------------------------------------------------- Parte 2 (docs/20 §10)
+
+/** Uma página de uma lista por cursor (o id), da mais antiga à mais nova. */
+export interface Pagina<T> {
+  dados: T[];
+  total: number;
+  ultimo: string | null;
+}
+
+async function pagina<T extends { id: string }>(
+  consulta: (depois: string | null, limite: number) => Promise<T[]>,
+  total: () => Promise<number>,
+  limite: number,
+  depois: string | null,
+): Promise<Pagina<T>> {
+  const linhas = await consulta(depois, limite + 1);
+  const haMais = linhas.length > limite;
+  const dados = haMais ? linhas.slice(0, limite) : linhas;
+  return {
+    dados,
+    total: await total(),
+    ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
+  };
+}
+
+export async function listarMercados(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  limite: number,
+  depois: string | null,
+) {
+  return noDominio(db, comercianteId, (trx) =>
+    pagina(
+      (d, n) => {
+        let q = trx.selectFrom("mercado").selectAll();
+        if (d !== null) q = q.where("id", ">", d);
+        return q.orderBy("id").limit(n).execute();
+      },
+      async () =>
+        Number(
+          (
+            await trx
+              .selectFrom("mercado")
+              .select((eb) => eb.fn.countAll<string>().as("n"))
+              .executeTakeFirstOrThrow()
+          ).n,
+        ),
+      limite,
+      depois,
+    ),
+  );
+}
+
+/** Um canal, com os mercados dele. */
+export async function obterCanal(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  canalId: string,
+) {
+  return noDominio(db, comercianteId, async (trx) => {
+    const canal = await trx
+      .selectFrom("canal")
+      .selectAll()
+      .where("id", "=", canalId)
+      .executeTakeFirst();
+    if (canal === undefined) {
+      throw new ErroPrecos("prices.not_found", "canal inexistente");
+    }
+    const mercados = await trx
+      .selectFrom("canal_mercado")
+      .select("mercado_id")
+      .where("canal_id", "=", canalId)
+      .orderBy("mercado_id")
+      .execute();
+    return { ...canal, mercados: mercados.map((m) => m.mercado_id) };
+  });
+}
+
+export async function listarCanais(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  limite: number,
+  depois: string | null,
+) {
+  return noDominio(db, comercianteId, async (trx) => {
+    const p = await pagina(
+      (d, n) => {
+        let q = trx.selectFrom("canal").selectAll();
+        if (d !== null) q = q.where("id", ">", d);
+        return q.orderBy("id").limit(n).execute();
+      },
+      async () =>
+        Number(
+          (
+            await trx
+              .selectFrom("canal")
+              .select((eb) => eb.fn.countAll<string>().as("n"))
+              .executeTakeFirstOrThrow()
+          ).n,
+        ),
+      limite,
+      depois,
+    );
+    const ids = p.dados.map((c) => c.id);
+    const ligacoes =
+      ids.length === 0
+        ? []
+        : await trx
+            .selectFrom("canal_mercado")
+            .select(["canal_id", "mercado_id"])
+            .where("canal_id", "in", ids)
+            .orderBy("mercado_id")
+            .execute();
+    return {
+      ...p,
+      dados: p.dados.map((c) => ({
+        ...c,
+        mercados: ligacoes
+          .filter((l) => l.canal_id === c.id)
+          .map((l) => l.mercado_id),
+      })),
+    };
+  });
+}
+
+export async function obterLista(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  listaId: string,
+) {
+  const lista = await noDominio(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("lista_precos")
+      .selectAll()
+      .where("id", "=", listaId)
+      .executeTakeFirst(),
+  );
+  if (lista === undefined) {
+    throw new ErroPrecos("prices.not_found", "lista inexistente");
+  }
+  return lista;
+}
+
+export async function listarListas(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  mercadoId: string | null,
+  limite: number,
+  depois: string | null,
+) {
+  return noDominio(db, comercianteId, (trx) =>
+    pagina(
+      (d, n) => {
+        let q = trx.selectFrom("lista_precos").selectAll();
+        if (mercadoId !== null) q = q.where("mercado_id", "=", mercadoId);
+        if (d !== null) q = q.where("id", ">", d);
+        return q.orderBy("id").limit(n).execute();
+      },
+      async () => {
+        let q = trx
+          .selectFrom("lista_precos")
+          .select((eb) => eb.fn.countAll<string>().as("n"));
+        if (mercadoId !== null) q = q.where("mercado_id", "=", mercadoId);
+        return Number((await q.executeTakeFirstOrThrow()).n);
+      },
+      limite,
+      depois,
+    ),
+  );
+}
+
+/** Uma redução, com os montantes em número. */
+export interface Reducao {
+  id: string;
+  lista_id: string;
+  variante_id: string;
+  montante: number;
+  preco_referencia: number;
+  inicio: Date;
+  fim: Date | null;
+  terminada_em: Date | null;
+  terminada_por: string | null;
+  criada_por: string;
+}
+
+const paraReducao = (r: {
+  id: string;
+  lista_id: string;
+  variante_id: string;
+  montante: string;
+  preco_referencia: string;
+  inicio: Date;
+  fim: Date | null;
+  terminada_em: Date | null;
+  terminada_por: string | null;
+  criada_por: string;
+}): Reducao => ({
+  ...r,
+  montante: Number(r.montante),
+  preco_referencia: Number(r.preco_referencia),
+});
+
+const COLUNAS_REDUCAO = [
+  "id",
+  "lista_id",
+  "variante_id",
+  "montante",
+  "preco_referencia",
+  "inicio",
+  "fim",
+  "terminada_em",
+  "terminada_por",
+  "criada_por",
+] as const;
+
+/** Em vigor: começou, não foi tirada, e não passou do fim. */
+export const emVigor = (r: Reducao, agora: Date) =>
+  r.inicio <= agora &&
+  r.terminada_em === null &&
+  (r.fim === null || r.fim > agora);
+
+/**
+ * Anuncia uma redução (§3.6, §10.2). O preço de referência calcula-o a base
+ * (0036): sem 30 dias seguidos de preço, recusa; abaixo dele, ou igual,
+ * também. `quem` é obrigatório.
+ */
+export async function anunciarReducao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  quem: string,
+  listaId: string,
+  varianteId: string,
+  dados: { montante: number; fim?: Date | null },
+): Promise<Reducao> {
+  if (
+    !Number.isInteger(dados.montante) ||
+    dados.montante < 1 ||
+    dados.montante > MONTANTE_MAXIMO
+  ) {
+    throw new ErroPrecos("prices.amount_invalid", "montante fora do limite");
+  }
+  return noDominio(db, comercianteId, async (trx) => {
+    await comQuem(trx, quem);
+    const r = await trx
+      .insertInto("reducao")
+      .values({
+        comerciante_id: comercianteId,
+        lista_id: listaId,
+        variante_id: varianteId,
+        montante: dados.montante,
+        fim: dados.fim ?? null,
+      })
+      .returning(COLUNAS_REDUCAO)
+      .executeTakeFirstOrThrow();
+    return paraReducao(r);
+  });
+}
+
+/** Tira a redução em vigor; sem nenhuma, `prices.not_found`. */
+export async function tirarReducao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  quem: string,
+  listaId: string,
+  varianteId: string,
+): Promise<Reducao> {
+  return noDominio(db, comercianteId, async (trx) => {
+    await comQuem(trx, quem);
+    const r = await trx
+      .updateTable("reducao")
+      .set({ terminada_em: new Date() })
+      .where("lista_id", "=", listaId)
+      .where("variante_id", "=", varianteId)
+      .where("terminada_em", "is", null)
+      .where(sql<boolean>`inicio <= clock_timestamp()`)
+      .where((eb) =>
+        eb.or([
+          eb("fim", "is", null),
+          eb(sql`fim`, ">", sql`clock_timestamp()`),
+        ]),
+      )
+      .returning(COLUNAS_REDUCAO)
+      .executeTakeFirst();
+    if (r === undefined) {
+      throw new ErroPrecos(
+        "prices.not_found",
+        "nenhuma redução em vigor nesta variante e lista",
+      );
+    }
+    return paraReducao(r);
+  });
+}
+
+/** As reduções de uma variante numa lista, da mais antiga à mais nova. */
+export async function reducoesDoPreco(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  listaId: string,
+  varianteId: string,
+): Promise<Reducao[]> {
+  const linhas = await noDominio(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("reducao")
+      .select(COLUNAS_REDUCAO)
+      .where("lista_id", "=", listaId)
+      .where("variante_id", "=", varianteId)
+      .orderBy("inicio")
+      .orderBy("id")
+      .execute(),
+  );
+  return linhas.map(paraReducao);
+}
+
+/** Por kg, l, m, m² ou m³ (§3.7; R7). */
+const UNIDADE_BASE: Readonly<Record<string, { base: string; fator: number }>> =
+  {
+    mg: { base: "kg", fator: 1_000_000 },
+    g: { base: "kg", fator: 1_000 },
+    kg: { base: "kg", fator: 1 },
+    ml: { base: "l", fator: 1_000 },
+    cl: { base: "l", fator: 100 },
+    l: { base: "l", fator: 1 },
+    mm: { base: "m", fator: 1_000 },
+    cm: { base: "m", fator: 100 },
+    m: { base: "m", fator: 1 },
+    m2: { base: "m2", fator: 1 },
+    m3: { base: "m3", fator: 1 },
+  };
+
+/**
+ * O preço por unidade (§3.7, §10.3): o montante (cêntimos) a dividir pela
+ * quantidade na unidade de base, em unidades da moeda, com quatro casas
+ * decimais, arredondado ao mais próximo na quarta casa (só para caber nas
+ * quatro); o arredondamento para mostrar ao consumidor é **C** e não se faz
+ * aqui. Sem quantidade ou unidade conhecida, nada.
+ */
+export function precoPorUnidade(
+  montante: number,
+  quantidade: number | null,
+  unidade: string | null,
+): { valor: string; unidade: string } | null {
+  if (
+    quantidade === null ||
+    unidade === null ||
+    !Number.isFinite(quantidade) ||
+    quantidade <= 0
+  ) {
+    return null;
+  }
+  const u = UNIDADE_BASE[unidade];
+  if (u === undefined) return null;
+  // Em inteiros grandes: centésimos de cêntimo (quatro casas na moeda),
+  // arredondado ao mais próximo na quarta casa.
+  const escala = 1_000_000n;
+  const q = BigInt(Math.round(quantidade * Number(escala)));
+  // Uma quantidade tão pequena que não se representa (revisão do #224, P3-7).
+  if (q === 0n) return null;
+  const numerador = BigInt(montante) * BigInt(u.fator) * escala * 100n;
+  const dezMilesimos = (numerador + q / 2n) / q;
+  const inteiro = dezMilesimos / 10_000n;
+  const resto = (dezMilesimos % 10_000n).toString().padStart(4, "0");
+  return { valor: `${inteiro.toString()}.${resto}`, unidade: u.base };
+}
+
+/** Um preço da lista como a API o mostra: com a redução em vigor e o conteúdo da variante. */
+export interface PrecoDaLista extends Preco {
+  reducao: Reducao | null;
+  conteudo_quantidade: number | null;
+  conteudo_unidade: string | null;
+}
+
+export async function precosDaListaComReducoes(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  listaId: string,
+  limite: number,
+  depois: string | null,
+  /** Só esta variante (a resposta de uma escrita). */
+  soVariante?: string,
+): Promise<Pagina<PrecoDaLista & { id: string }>> {
+  return noDominio(db, comercianteId, async (trx) => {
+    const existe = await trx
+      .selectFrom("lista_precos")
+      .select("id")
+      .where("id", "=", listaId)
+      .executeTakeFirst();
+    if (existe === undefined) {
+      throw new ErroPrecos("prices.not_found", "lista inexistente");
+    }
+    const p = await pagina(
+      async (d, n) => {
+        let q = trx
+          .selectFrom("preco as p")
+          .innerJoin("variante as v", (j) =>
+            j
+              .onRef("v.comerciante_id", "=", "p.comerciante_id")
+              .onRef("v.id", "=", "p.variante_id"),
+          )
+          .select([
+            "p.lista_id",
+            "p.variante_id",
+            "p.montante",
+            "p.gratuito",
+            "p.quantidade_minima",
+            "p.multiplo",
+            "p.definido_por",
+            "p.definido_em",
+            "p.versao",
+            "v.conteudo_quantidade",
+            "v.conteudo_unidade",
+          ])
+          .where("p.lista_id", "=", listaId);
+        if (soVariante !== undefined) {
+          q = q.where("p.variante_id", "=", soVariante);
+        }
+        if (d !== null) q = q.where("p.variante_id", ">", d);
+        const linhas = await q.orderBy("p.variante_id").limit(n).execute();
+        return linhas.map((l) => ({
+          ...paraPreco(l),
+          id: l.variante_id,
+          conteudo_quantidade: l.conteudo_quantidade,
+          conteudo_unidade: l.conteudo_unidade,
+          reducao: null as Reducao | null,
+        }));
+      },
+      async () =>
+        Number(
+          (
+            await trx
+              .selectFrom("preco")
+              .select((eb) => eb.fn.countAll<string>().as("n"))
+              .where("lista_id", "=", listaId)
+              .executeTakeFirstOrThrow()
+          ).n,
+        ),
+      limite,
+      depois,
+    );
+    const ids = p.dados.map((x) => x.variante_id);
+    const reducoes =
+      ids.length === 0
+        ? []
+        : (
+            await trx
+              .selectFrom("reducao")
+              .select(COLUNAS_REDUCAO)
+              .where("lista_id", "=", listaId)
+              .where("variante_id", "in", ids)
+              .where("terminada_em", "is", null)
+              .where(sql<boolean>`inicio <= clock_timestamp()`)
+              .where((eb) =>
+                eb.or([
+                  eb("fim", "is", null),
+                  eb(sql`fim`, ">", sql`clock_timestamp()`),
+                ]),
+              )
+              .execute()
+          ).map(paraReducao);
+    return {
+      ...p,
+      dados: p.dados.map((x) => ({
+        ...x,
+        reducao: reducoes.find((r) => r.variante_id === x.variante_id) ?? null,
+      })),
+    };
+  });
 }

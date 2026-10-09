@@ -76,9 +76,12 @@ const FUNCOES_DA_API = [
   "passkey_retirar",
   "passkeys_listar",
   "pessoa_eu",
+  // A redução anunciada (0036): o gatilho corre com quem escreve.
+  "preco_referencia",
   "reautenticar_com_passkey",
   "recuperacao_concluir",
   "recuperacao_iniciar",
+  "reducao_em_vigor",
   "sessao_resolver",
   "sessao_terminar",
   "sessao_verificar",

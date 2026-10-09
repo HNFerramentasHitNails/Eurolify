@@ -583,6 +583,21 @@ export interface TabelaHistoricoPreco {
   definido_por: ColumnType<string, never, never>;
 }
 
+// A redução anunciada (migração 0036; docs/20 §3.6 e §10.2).
+export interface TabelaReducao {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  lista_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string, string, never>;
+  montante: ColumnType<string, number, never>;
+  preco_referencia: ColumnType<string, never, never>;
+  inicio: ColumnType<Date, never, never>;
+  fim: ColumnType<Date | null, Date | string | null | undefined, never>;
+  terminada_em: ColumnType<Date | null, never, Date | string>;
+  terminada_por: ColumnType<string | null, never, never>;
+  criada_por: ColumnType<string, never, never>;
+}
+
 export const ESTADOS_PUBLICACAO = [
   "rascunho",
   "publicado",
@@ -654,5 +669,6 @@ export interface BaseDados {
   lista_precos: TabelaListaPrecos;
   preco: TabelaPreco;
   historico_preco: TabelaHistoricoPreco;
+  reducao: TabelaReducao;
   publicacao: TabelaPublicacao;
 }
