@@ -82,6 +82,7 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.exemption_active": 409,
   "customers.exemption_immutable": 409,
   "customers.exemption_by_person": 422,
+  "customers.exemption_reason_code": 422,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -442,6 +443,10 @@ const Isencao = Type.Object({
   id: Type.String({ description: "exm_…" }),
   perfil: Type.String({ description: "bpf_…" }),
   motivo: Type.String(),
+  codigo_motivo: Type.Union([Type.String(), Type.Null()], {
+    description:
+      "O código do motivo que sai no documento (docs/24, Q4; GET /tax/reasons)",
+  }),
   nota: Type.Union([Type.String(), Type.Null()]),
   posta_por: Type.String(),
   posta_em: Instante,
@@ -455,6 +460,7 @@ const paraIsencao = (i: LinhaIsencao): Static<typeof Isencao> => ({
   id: `exm_${i.id}`,
   perfil: `bpf_${i.perfil_id}`,
   motivo: i.motivo,
+  codigo_motivo: i.codigo_motivo,
   nota: i.nota,
   posta_por: i.posta_por,
   posta_em: i.posta_em.toISOString(),
@@ -465,6 +471,11 @@ const paraIsencao = (i: LinhaIsencao): Static<typeof Isencao> => ({
 });
 const PedidoIsencao = Type.Object(
   {
+    codigo_motivo: Type.String({
+      pattern: "^[A-Z0-9]{1,10}$",
+      description:
+        "O código do motivo de isenção do país do comerciante (ex.: M05; GET /tax/reasons)",
+    }),
     motivo: Type.String({
       minLength: 1,
       maxLength: 500,
@@ -1131,6 +1142,7 @@ export function rotasDosClientes(
             semPrefixo(pedido.params.id),
             pedido.body.motivo,
             pedido.body.nota ?? null,
+            pedido.body.codigo_motivo,
           );
           return paraIsencao(await obterIsencao(trx, c.comercianteId, id));
         }),

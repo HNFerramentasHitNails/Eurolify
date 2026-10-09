@@ -129,6 +129,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0037_clientes",
         "0038_hub_autores_da_linha_do_tempo",
         "0039_clientes_vies_isencao",
+        "0040_motor_de_iva",
       ]);
     });
 
@@ -188,7 +189,23 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // A fila do VIES (0039): só as funções do dono lhe tocam.
           "vies_fila",
         ].includes(t);
+      // As tabelas globais do Motor de IVA (0040): iguais para todos os
+      // comerciantes, a API só as lê, sem RLS.
+      const global = (t: string) =>
+        [
+          "categoria_fiscal",
+          "taxa_iva",
+          "territorio_fiscal",
+          "motivo_iva",
+        ].includes(t);
       for (const linha of rows) {
+        if (global(linha.tabela)) {
+          expect(linha, linha.tabela).toMatchObject({
+            rls: false,
+            api_le: true,
+          });
+          continue;
+        }
         if (interna(linha.tabela)) {
           expect(linha, linha.tabela).toMatchObject({ api_le: false });
         } else {
@@ -202,8 +219,11 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // 0008), a da idempotência (0012), 6 de Preços e mercados (0017), a
       // publicação (0019), as duas da media (0028), as exportações (0030), as
       // importações (0032), a linha do tempo (0033), as reduções (0036) e as
-      // 5 de Clientes (0037) e as 2 do VIES e da isenção (0039).
-      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(38);
+      // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
+      // declaração do regime do IVA (0040).
+      expect(
+        rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
+      ).toHaveLength(39);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {
