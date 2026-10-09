@@ -124,7 +124,7 @@ const Autor = Type.Object({
       "O nome de quem é ou foi da equipa deste comerciante, ou o nome da chave dele; vazio nos outros casos",
   }),
 });
-/** As publicações com os nomes do canal e do mercado (docs/22 §18.1). */
+/** As publicações com os nomes do canal, do mercado e da loja (docs/22 §18.1, §19.1). */
 const RespostaPublicacoesNoHub = Type.Object({
   dados: Type.Array(
     Type.Object({
