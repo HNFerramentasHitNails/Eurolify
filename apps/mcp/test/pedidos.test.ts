@@ -1,4 +1,11 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -39,10 +46,14 @@ describe("FilaDePedidos", () => {
   let pasta: string;
   let maquina: NodeJS.Timeout;
   let recebidos: string[];
+  // A volta em curso do serviço fingido: o afterEach espera por ela antes
+  // de apagar a pasta (revisão do #245, P3-1).
+  let volta: Promise<void>;
 
   beforeEach(async () => {
     pasta = await mkdtemp(join(tmpdir(), "eurolify-pedidos-"));
     recebidos = [];
+    volta = Promise.resolve();
     // Faz de serviço da máquina: lê o pedido e responde em resultado.<id>.
     // Uma volta de cada vez, como o serviço verdadeiro: sem a trava, num
     // executor lento, duas voltas liam o mesmo pedido (a conta ficava duas
@@ -51,7 +62,7 @@ describe("FilaDePedidos", () => {
     maquina = setInterval(() => {
       if (ocupada) return;
       ocupada = true;
-      void (async () => {
+      volta = (async () => {
         const nomes = await readdir(pasta);
         if (!nomes.includes("pedido")) return;
         const [comando, id, conta] = (
@@ -59,10 +70,13 @@ describe("FilaDePedidos", () => {
         ).split("\n");
         recebidos.push(String(conta));
         await rm(join(pasta, "pedido"));
-        await writeFile(
-          join(pasta, `resultado.${String(id)}`),
-          `0\nfeito: ${String(comando)}\n`,
-        );
+        // Como o serviço verdadeiro (eurolify-trabalho: mv -fT): a resposta
+        // escreve-se ao lado e só depois toma o nome. Escrita directa, num
+        // executor lento, a fila lia o ficheiro ainda vazio (publicar do
+        // e554e19, 09/10/2026).
+        const temporario = join(pasta, `.resultado.${String(id)}`);
+        await writeFile(temporario, `0\nfeito: ${String(comando)}\n`);
+        await rename(temporario, join(pasta, `resultado.${String(id)}`));
       })().finally(() => {
         ocupada = false;
       });
@@ -71,6 +85,7 @@ describe("FilaDePedidos", () => {
 
   afterEach(async () => {
     clearInterval(maquina);
+    await volta;
     await rm(pasta, { recursive: true, force: true });
   });
 

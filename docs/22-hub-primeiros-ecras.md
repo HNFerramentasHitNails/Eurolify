@@ -841,6 +841,7 @@ transparente»». (Nome fictício, como os dados do ensaio, `docs/21` linha 37.)
 | **Notas da equipa e anexos**: ainda não existem (`docs/14` §3.12). |
 | **Exportar o histórico**: fica para quando houver um pedido de prova concreto. |
 | **O que mudou antes da migração 0033**: não há entradas, e não se inventa um passado (`docs/14` §3.12). |
+| **O histórico de um rascunho apagado**: a API mantém as entradas, mas o ecrã abre-se pela ficha, e a ficha de um artigo apagado dá 404 (revisão do #242, P3-8). Entra se houver onde o pedir (ex.: uma lista dos apagados). |
 
 ### 16.2 Como o Hub lê, e o nome de quem fez
 
@@ -906,6 +907,12 @@ nome técnico, sem se inventar o que significam.
 | `texto_alternativo`, `principal`, `posicao` | Texto alternativo, Principal, Posição |
 | `motivo_arquivo` | Motivo (com os textos da ficha, §12.2) |
 
+**A junção por alteração** junta as entradas **seguidas** com a mesma
+`transacao`. Duas escritas ao mesmo tempo no mesmo artigo podem intercalar
+as entradas (os `id` são da hora de cada linha), e então a mesma alteração
+aparece em dois blocos, cada um com o seu quem e a sua hora: fica assim, por
+ser raro e por não esconder nada (revisão do #242, P3-7).
+
 **Os valores:** vazio diz «vazio»; `true`/`false` dizem «sim»/«não»; um
 texto com mais de 160 caracteres mostra o começo e «Ver tudo» (um
 `<details>`, que abre com o teclado); um valor que não é texto nem número
@@ -931,6 +938,92 @@ como texto, nunca como HTML.
   para o OK do Diogo ou do Bruno.
 - **A outra sessão** vê no #77 que a função da linha do tempo passa a ter
   um segundo chamador.
+
+## 17. Catálogo: os preços do artigo na ficha, só para consulta (issue #249)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho dos preços do
+artigo»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica de
+fora (*«sim, aprovo o desenho dos preços»*). A parte 2 de Preços (`docs/20` §10, #224) pôs na API as listas, os
+preços por variante, as reduções e o preço por unidade. A ficha ainda diz
+que não mostra o preço (§12.2), porque não havia como o ler. Este passo **só
+lê**: não grava nada e não muda a VPS (o nginx já deixa passar os `GET` em
+`/hub/`, §11.1). Skills: `consumer-rights-eu`, `eu-localization`,
+`eu-vat-oss-ioss`, `headless-commerce`, `eurolify-design`.
+
+Ex.: na ficha do «Gel UV 15 ml», a secção «Preços» mostra a lista «Base PT»
+(mercado Portugal, EUR, preços com IVA): a variante GEL-15 a 7,90 €, com
+«redução: antes 9,90 € (o mais baixo dos 30 dias), até 31/10/2026» e o preço
+por unidade 526,6667 €/l.
+
+### 17.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| Os preços das variantes do artigo em cada lista **activa** do comerciante: o montante, «gratuito», a quantidade mínima e o múltiplo (quando não são 1), a redução em vigor (o preço reduzido, o de referência e o fim) e o preço por unidade, com o nome da lista, o tipo (base ou B2B), o mercado (nome, estado, moeda) e se os preços incluem IVA |
+| Numa lista sem preço para uma variante: «Sem preço nesta lista» (sem preço na lista base de um mercado, o artigo não se publica nesse mercado, C2) |
+
+| Fica de fora, e porquê |
+|---|
+| **Alterar preços, criar ou tirar reduções**: são escritas com regras próprias (`docs/20` §10.2: o preço de referência, `prices.reduction_active`); desenho à parte, se for pedido. |
+| **O histórico de cada preço** (`GET …/history`): existe na API; entra quando houver onde o mostrar sem encher a ficha. |
+| **As listas arquivadas**: não vendem; o histórico delas fica na API. |
+| **O preço com o IVA de cada país**: só sai com o Motor de IVA (fatia 6). O Hub mostra o montante como está guardado e diz se inclui IVA (`preco_inclui_iva` do mercado); **nunca calcula IVA** (`eu-vat-oss-ioss`; uma regra, um sítio). |
+| **Arredondar o preço por unidade** para mostrar: a regra é **C** (`docs/20` §3.7 e §10.3). O Hub mostra o valor que o servidor dá, com as quatro casas, e diz que é o cálculo sem arredondar. |
+| **Os nomes do canal e do mercado nas publicações** (§12.2): a API já dá os nomes dos mercados (`GET /markets`), mas é outra parte da ficha; entra num passo próprio. |
+
+### 17.2 Como o Hub lê
+
+Hoje a API só lê os preços **lista a lista** (`GET /price-lists/{id}/prices`,
+todas as variantes da lista, 25 de cada vez; `precos/rotas.ts` linhas
+818–853). Para a ficha, isso obrigava o Hub a ler todas as listas e todos os
+preços do comerciante e a filtrar ele próprio. Por isso o desenho propõe
+**uma leitura nova, na API e no Hub**, com a mesma função (uma regra, um
+sítio):
+
+| Caminho | Quem | O que dá |
+|---|---|---|
+| `GET /products/{id}/prices` (chave) | `prices:read` | as listas **activas** do comerciante, por ordem de criação e por páginas (o formato das listas, `docs/18` §2a; 25 por omissão), cada uma com o nome, o tipo, o mercado (`id`, `nome`, `estado`, `moeda`, `preco_inclui_iva`) e os preços das variantes **deste artigo** (o mesmo `PrecoEsquema` de `GET /price-lists/{id}/prices`: o montante, gratuito, mínimo, múltiplo, a redução em vigor e o preço por unidade) |
+| `GET /hub/products/{id}/prices` | a sessão com `prices:read` (os quatro papéis, `docs/21` §5 e migração 0036) e o cabeçalho `Eurolify-Comerciante` | o mesmo, pela mesma função |
+
+- **A função** fica no domínio de Preços (`precos/repositorio.ts`), ao lado
+  de `precosDaListaComReducoes`, e usa o mesmo cálculo da redução em vigor e
+  do preço por unidade (`paraPreco`, `precoPorUnidade`). Nada se recalcula
+  no ecrã.
+- **Um artigo de outro comerciante, ou que não existe**: 404, como a ficha.
+- `cache-control: private, no-store`, como as outras leituras do Hub.
+- **Quem trabalha em Preços** vê no #127 (fechado) e nas notas do `docs/20`
+  que a rota nova existe e quem a chama (como o aviso do #77 para o
+  Catálogo).
+
+### 17.3 O ecrã
+
+| Ecrã | O que mostra | Rotas da API | Estados além do normal |
+|---|---|---|---|
+| **Ficha do artigo**, secção nova **«Preços»** (entre «Variantes» e «Imagens»; para os quatro papéis) | Uma caixa por lista: o nome da lista, «base» ou «B2B», o mercado (nome e, se não estiver activo, o estado: «mercado em rascunho»), a moeda e «preços com IVA» ou «preços sem IVA». Por baixo, uma linha por variante do artigo (pela ordem da ficha, também as arquivadas, marcadas): SKU; o preço na moeda da lista (`Intl.NumberFormat` com a moeda, a partir dos cêntimos) ou «Gratuito»; numa redução em vigor, o preço reduzido em destaque e «antes {preço de referência} — o mais baixo dos 30 dias» e, se tiver fim, «até {data}»; o preço por unidade («526,6667 €/l, sem arredondar»); a quantidade mínima e o múltiplo só quando não são 1. Uma variante sem preço nessa lista: «Sem preço nesta lista». «Mostrar mais listas» quando há mais de 25 | `GET /hub/products/{id}/prices` | a carregar (a secção à sua, como as imagens e as publicações, §12.2); sem listas activas («Ainda não há listas de preços activas»); erro só nesta parte (o erro e «Tentar outra vez»; o resto da ficha fica); sem permissão (403: a secção diz que não pode ver os preços) |
+
+**Os textos dos preços** dizem o que o servidor decidiu e nada mais:
+«com IVA» ou «sem IVA» vem do mercado; o preço de referência vem calculado
+(`docs/20` §3.6), e o Hub só o mostra. O preço por unidade é o que a API dá,
+com a unidade dela (kg, l, m, m², m³).
+
+### 17.4 Antes de dizer que está feito (o pedido do código)
+
+- **API**: a rota pela chave e a do Hub dão o mesmo; só listas activas; só
+  as variantes do artigo; a redução em vigor e o preço por unidade iguais aos
+  de `GET /price-lists/{id}/prices` para a mesma variante; um artigo de outro
+  comerciante ou que não existe dá 404; sem `prices:read` (uma chave só com
+  `catalog:read`) dá 403; outro comerciante pelo cabeçalho, membro que saiu
+  e sessão terminada são recusados; `no-store`; o contrato (a rota pela chave
+  com `chave`, a do Hub com `sessao`).
+- **Prova pela falha**: tirar o filtro do artigo faz aparecer variantes de
+  outro artigo no teste; tirar o filtro das listas activas faz aparecer a
+  arquivada.
+- **Hub**: a passagem cria duas listas (uma base com IVA e uma B2B), preços
+  para uma das duas variantes, uma redução com fim e uma variante sem preço;
+  confere cada texto, «Gratuito», o preço por unidade e o erro só nesta
+  parte; tudo com o teclado; capturas a 375, 768 e 1280 px (claro e escuro)
+  para o OK do Diogo ou do Bruno.
+- **Quem trabalha em Preços** vê o aviso da rota nova.
 
 ## O que não foi verificado
 

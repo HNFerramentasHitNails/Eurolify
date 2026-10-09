@@ -70,6 +70,8 @@ export function Artigo({
   // Os âmbitos da pessoa neste comerciante (/hub/me, §13.2): só decidem o
   // que o ecrã oferece.
   const [podeEscrever, setPodeEscrever] = useState(false);
+  // O histórico (docs/22 §16): só com catalog:history (o dono e o gestor).
+  const [podeVerHistorico, setPodeVerHistorico] = useState(false);
   // Uma acção de cada vez; o erro dela fica à vista até à seguinte.
   const [ocupado, setOcupado] = useState(false);
   // Mover uma imagem que gravou uma parte e falhou na outra.
@@ -153,11 +155,11 @@ export function Artigo({
           api.eu(),
         ]);
         if (!montado.current) return;
-        setPodeEscrever(
-          eu.comerciantes
-            .find((c) => c.comerciante === comerciante)
-            ?.ambitos.includes("catalog:write") === true,
-        );
+        const ambitos =
+          eu.comerciantes.find((c) => c.comerciante === comerciante)?.ambitos ??
+          [];
+        setPodeEscrever(ambitos.includes("catalog:write"));
+        setPodeVerHistorico(ambitos.includes("catalog:history"));
         setFicha({ tipo: "pronto", dados });
         void carregarImagens(manter);
         void carregarPublicacoes(manter);
@@ -463,6 +465,11 @@ export function Artigo({
             podeEscrever={podeEscrever}
             ocupado={ocupadoNaFicha}
             destinoEditar={`/artigos/${artigo}/editar?${voltar.toString()}`}
+            destinoHistorico={
+              podeVerHistorico
+                ? `/artigos/${artigo}/historico?${voltar.toString()}`
+                : null
+            }
             aoMudarEstado={mudarEstado}
           />
           {aviso === null ? null : (
@@ -591,7 +598,7 @@ function ErroDaParte({
 }
 
 /** O texto de um valor da API, ou o próprio valor se o Hub ainda não o tem. */
-function textoDe(t: Textos, chave: string, valor: string): string {
+export function textoDe(t: Textos, chave: string, valor: string): string {
   return chave in t ? t[chave as keyof Textos] : valor;
 }
 
@@ -608,6 +615,7 @@ function Cabecalho({
   podeEscrever,
   ocupado,
   destinoEditar,
+  destinoHistorico,
   aoMudarEstado,
 }: {
   ficha: FichaArtigo;
@@ -615,6 +623,8 @@ function Cabecalho({
   podeEscrever: boolean;
   ocupado: boolean;
   destinoEditar: string;
+  /** null para quem não tem catalog:history. */
+  destinoHistorico: string | null;
   aoMudarEstado: (accao: "activate" | "archive" | "restore") => void;
 }) {
   const { t, navegar } = useHub();
@@ -642,6 +652,20 @@ function Cabecalho({
           criado: data(ficha.criado_em),
           alterado: data(ficha.actualizado_em),
         })}
+        {destinoHistorico === null ? null : (
+          <>
+            {" · "}
+            <a
+              href={destinoHistorico}
+              onClick={(e) => {
+                e.preventDefault();
+                navegar(destinoHistorico);
+              }}
+            >
+              {t.artigoHistorico}
+            </a>
+          </>
+        )}
       </p>
       {!podeEscrever ? null : externo ? (
         <p className="secundario">{t.artigoExternoAviso}</p>

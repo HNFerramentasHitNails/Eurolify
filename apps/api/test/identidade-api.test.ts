@@ -195,8 +195,11 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
     expect(Object.keys(c.paths).sort()).toEqual([
       "/billing-profiles/{id}",
       "/billing-profiles/{id}/archive",
+      "/billing-profiles/{id}/exemption",
+      "/billing-profiles/{id}/exemptions",
       "/billing-profiles/{id}/make-primary",
       "/billing-profiles/{id}/restore",
+      "/billing-profiles/{id}/vies-checks",
       "/categories",
       "/categories/{id}",
       "/categories/{id}/archive",

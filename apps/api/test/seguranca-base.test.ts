@@ -34,6 +34,8 @@ import {
 
 /** As funções que a API pode chamar; qualquer outra tem de ser recusada. */
 const FUNCOES_DA_API = [
+  // O nome de quem fez, no histórico do Hub (0038).
+  "autores_da_linha_do_tempo",
   "catalogo_estado_do_artigo",
   "catalogo_fila_do_artigo",
   "catalogo_marcar_combinacoes",
@@ -100,6 +102,13 @@ const FUNCOES_DA_API = [
   "sessoes_listar",
   "sessoes_terminar_todas",
   "telefones_validos",
+  // O VIES (0039): a fila e a prova, pelas funções do dono.
+  "vies_adiar",
+  "vies_comerciantes_com_fila",
+  "vies_pedir",
+  "vies_por_consultar",
+  "vies_registar",
+  "vies_requerente",
 ];
 
 const RASTO = [

@@ -20,6 +20,13 @@ Desenho em `docs/22` §4.
   numa página à parte com o CSS construído); com a correcção, 375 px.
 - Revisão do agente (Sonnet 5.5, ADR-0035), publicada no #241: 0 P0, 0 P1,
   2 P2 e 2 P3, todos tratados.
+- Aspecto aprovado pelo Diogo a 09/10/2026, sobre 4 capturas com a letra
+  a 32 px (antes; Entrada a 1280 e 375 px; Chaves a 1280 px): *«sim, dou o
+  OK ao aspecto, junta»* (comentário no #241).
+- Juntado no `main` a 09/10/2026 (`47ca64e`). Publicado no ensaio pelo
+  fluxo `publicar` (corrida 37947042839, acabou com sucesso às 14:55 UTC:
+  «O /health da API responde», «Hub: os ecrãs desta publicação estão no
+  ar») e verificado pelo Diogo no ensaio no mesmo dia (*«verificado»*).
 
 ## Números (com data e como se contaram)
 

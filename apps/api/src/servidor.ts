@@ -3,6 +3,8 @@ import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
 import { ArmazenamentoEmDisco } from "./catalogo/armazenamento.js";
 import { agendarLimpezaDosFicheiros } from "./catalogo/limpeza-ficheiros.js";
+import { consultaVies } from "./clientes/vies.js";
+import { agendarFilaVies } from "./clientes/vies-fila.js";
 import { proxyConfiavel } from "./base/limite.js";
 import { serializadores } from "./base/registo.js";
 import { chaveTotp } from "./identidade/palavra-passe.js";
@@ -57,6 +59,16 @@ const armazenamento =
     ? undefined
     : new ArmazenamentoEmDisco(pastaMedia);
 
+// O VIES (docs/23 §13): desligado por omissão (revisão do #244, P2-5: a
+// saída da VPS para a Comissão mede-se no ensaio antes de ligar). Liga-se com
+// VIES_URL, o endereço da API REST do VIES
+// (https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number).
+const textoVies = process.env["VIES_URL"]?.trim();
+const vies =
+  textoVies === undefined || textoVies === ""
+    ? undefined
+    : consultaVies(textoVies);
+
 const app = criarApp(
   {
     // Um identificador por pedido que não recomeça a cada arranque: é o
@@ -72,6 +84,7 @@ const app = criarApp(
   base,
   hub,
   armazenamento,
+  vies,
 );
 
 // Os ficheiros de imagem sem uso há mais de 7 dias saem uma vez por dia
@@ -81,9 +94,16 @@ const pararLimpeza =
     ? agendarLimpezaDosFicheiros(base, armazenamento, app.log)
     : () => undefined;
 
+// A fila do VIES, de minuto a minuto (docs/23 §13.4).
+const pararVies =
+  base !== undefined && vies !== undefined
+    ? agendarFilaVies(base, vies, app.log)
+    : () => undefined;
+
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
     pararLimpeza();
+    pararVies();
     app.log.info({ sinal }, "a fechar");
     app
       .close()

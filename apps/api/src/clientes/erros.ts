@@ -20,7 +20,13 @@ export type CodigoErroClientes =
   | "customers.primary_profile"
   | "customers.tag_duplicate"
   | "customers.tag_in_use"
-  | "customers.tag_archived";
+  | "customers.tag_archived"
+  | "customers.change_without_who"
+  | "customers.vies_not_applicable"
+  | "customers.vies_disabled"
+  | "customers.exemption_active"
+  | "customers.exemption_by_person"
+  | "customers.exemption_immutable";
 
 export class ErroClientes extends Error {
   constructor(

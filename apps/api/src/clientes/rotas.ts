@@ -20,6 +20,7 @@ import {
 import { chaveDo } from "../identidade/autenticacao.js";
 import { CabecalhoIdempotencia } from "../identidade/rotas.js";
 import { ErroClientes, type CodigoErroClientes } from "./erros.js";
+import type { ConsultaVies } from "./vies.js";
 import {
   alterarCliente,
   alterarEtiqueta,
@@ -28,6 +29,13 @@ import {
   criarEtiqueta,
   criarPerfil,
   linhaDoTempo,
+  listarIsencoes,
+  listarValidacoes,
+  obterIsencao,
+  obterValidacao,
+  pedirVies,
+  porIsencao,
+  retirarIsencao,
   listarClientes,
   listarEtiquetas,
   listarPerfis,
@@ -68,6 +76,12 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.nif_country_required": 422,
   "customers.company_requires_nif": 422,
   "customers.address_incomplete": 422,
+  "customers.change_without_who": 500,
+  "customers.vies_not_applicable": 409,
+  "customers.vies_disabled": 503,
+  "customers.exemption_active": 409,
+  "customers.exemption_immutable": 409,
+  "customers.exemption_by_person": 422,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -231,6 +245,13 @@ const Perfil = Type.Object({
   morada: MoradaResposta,
   principal: Type.Boolean(),
   estado_vies: umDe(ESTADOS_VIES),
+  validado_em: Type.Union([Instante, Type.Null()], {
+    description:
+      "A data da última resposta do VIES (válido ou inválido); sem resposta, a anterior fica (Q6)",
+  }),
+  isencao_em_vigor: Type.Boolean({
+    description: "Se tem uma isenção manual em vigor (§13.5)",
+  }),
   estado: Type.String(),
   usado_em_documento: Type.Boolean({
     description:
@@ -261,6 +282,8 @@ const paraPerfil = (p: LinhaPerfil): Static<typeof Perfil> => ({
         },
   principal: p.principal,
   estado_vies: p.estado_vies,
+  validado_em: p.validado_em === null ? null : p.validado_em.toISOString(),
+  isencao_em_vigor: p.isencao_em_vigor,
   estado: p.estado,
   usado_em_documento: p.usado_em_documento,
   versao: p.versao,
@@ -370,6 +393,95 @@ const PedidoProcura = Type.Object(
   { additionalProperties: false },
 );
 
+const Validacao = Type.Object({
+  id: Type.String({ description: "vvc_…" }),
+  perfil: Type.String({ description: "bpf_…" }),
+  pais_consultado: Type.String(),
+  numero_consultado: Type.String(),
+  requerente: Type.Union([Type.String(), Type.Null()], {
+    description: "O NIF do comerciante enviado como requerente (Q7)",
+  }),
+  consultado_em: Instante,
+  data_vies: Type.Union([Instante, Type.Null()]),
+  resultado: Type.Union([
+    Type.Literal("valido"),
+    Type.Literal("invalido"),
+    Type.Literal("indisponivel"),
+  ]),
+  codigo_erro: Type.Union([Type.String(), Type.Null()]),
+  identificador_consulta: Type.Union([Type.String(), Type.Null()], {
+    description: "O número de consulta do VIES; só vem com requerente",
+  }),
+  nome_devolvido: Type.Union([Type.String(), Type.Null()]),
+  morada_devolvida: Type.Union([Type.String(), Type.Null()]),
+  motivo: Type.String(),
+  quem: Type.String(),
+});
+type LinhaValidacao = Awaited<ReturnType<typeof obterValidacao>>;
+const paraValidacao = (v: LinhaValidacao): Static<typeof Validacao> => ({
+  id: `vvc_${v.id}`,
+  perfil: `bpf_${v.perfil_id}`,
+  pais_consultado: v.pais_consultado,
+  numero_consultado: v.numero_consultado,
+  requerente:
+    v.requerente_pais === null || v.requerente_numero === null
+      ? null
+      : `${v.requerente_pais}${v.requerente_numero}`,
+  consultado_em: v.consultado_em.toISOString(),
+  data_vies: v.data_vies === null ? null : v.data_vies.toISOString(),
+  resultado: v.resultado,
+  codigo_erro: v.codigo_erro,
+  identificador_consulta: v.identificador_consulta,
+  nome_devolvido: v.nome_devolvido,
+  morada_devolvida: v.morada_devolvida,
+  motivo: v.motivo,
+  quem: v.quem,
+});
+
+const Isencao = Type.Object({
+  id: Type.String({ description: "exm_…" }),
+  perfil: Type.String({ description: "bpf_…" }),
+  motivo: Type.String(),
+  nota: Type.Union([Type.String(), Type.Null()]),
+  posta_por: Type.String(),
+  posta_em: Instante,
+  em_vigor: Type.Boolean(),
+  motivo_retirada: Type.Union([Type.String(), Type.Null()]),
+  retirada_por: Type.Union([Type.String(), Type.Null()]),
+  retirada_em: Type.Union([Instante, Type.Null()]),
+});
+type LinhaIsencao = Awaited<ReturnType<typeof obterIsencao>>;
+const paraIsencao = (i: LinhaIsencao): Static<typeof Isencao> => ({
+  id: `exm_${i.id}`,
+  perfil: `bpf_${i.perfil_id}`,
+  motivo: i.motivo,
+  nota: i.nota,
+  posta_por: i.posta_por,
+  posta_em: i.posta_em.toISOString(),
+  em_vigor: i.retirada_em === null,
+  motivo_retirada: i.motivo_retirada,
+  retirada_por: i.retirada_por,
+  retirada_em: i.retirada_em === null ? null : i.retirada_em.toISOString(),
+});
+const PedidoIsencao = Type.Object(
+  {
+    motivo: Type.String({
+      minLength: 1,
+      maxLength: 500,
+      description:
+        "Porquê, com a prova que existe (ex.: «transportadora própria, declaração aduaneira entregue»)",
+    }),
+    nota: Type.Optional(
+      Type.Union([Type.String({ maxLength: 2000 }), Type.Null()]),
+    ),
+  },
+  { additionalProperties: false },
+);
+const PedidoRetirarIsencao = Type.Object(
+  { motivo_retirada: Type.String({ minLength: 1, maxLength: 500 }) },
+  { additionalProperties: false },
+);
+
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });
 const ParametroEtiquetaDoCliente = Type.Object({
   id: IdCliente,
@@ -403,6 +515,8 @@ const comPagina = <T, U>(
 export function rotasDosClientes(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
+  /** Quem consulta o VIES (docs/23 §13.2); sem ele, a consulta pedida dá 503. */
+  vies?: ConsultaVies,
 ) {
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
   const ler = { ambito: "customers:read" as const };
@@ -410,6 +524,8 @@ export function rotasDosClientes(
   // Os perfis de faturação (NIF, morada fiscal) só o dono os escreve (Diogo,
   // 09/10/2026: «sim, só o dono»; docs/06, CX).
   const faturacao = { ambito: "customers:billing" as const };
+  // A isenção manual de IVA, só o dono (Q4; docs/23 §13.5).
+  const isencoes = { ambito: "customers:exemptions" as const };
 
   // ---- Fichas
 
@@ -926,5 +1042,152 @@ export function rotasDosClientes(
           return paraCliente(await obterCliente(trx, c.comercianteId, id));
         }),
       ),
+  );
+
+  // ---- VIES (§13.2–13.4)
+
+  rotas.post(
+    "/billing-profiles/:id/vies-checks",
+    {
+      config: faturacao,
+      schema: {
+        description:
+          "Pede uma consulta ao VIES: o perfil passa à frente da fila, que corre de minuto a minuto (docs/23 §13.4). A prova aparece em GET …/vies-checks; pode ser «indisponivel», que nunca conta como válido. Só num perfil activo com NIF de outro país da UE. O pedido não espera pelo VIES (revisão do #244, P1-1).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdPerfil),
+        response: {
+          202: Type.Object({
+            perfil: Type.String({ description: "bpf_…" }),
+            na_fila_desde: Instante,
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 202, (trx, c) =>
+        emClientes(resposta, async () => {
+          if (vies === undefined) {
+            throw new ErroClientes(
+              "customers.vies_disabled",
+              "a consulta ao VIES está desligada neste servidor",
+            );
+          }
+          const id = semPrefixo(pedido.params.id);
+          const quando = await pedirVies(trx, c.comercianteId, id);
+          return { perfil: `bpf_${id}`, na_fila_desde: quando.toISOString() };
+        }),
+      ),
+  );
+
+  rotas.get(
+    "/billing-profiles/:id/vies-checks",
+    {
+      config: ler,
+      schema: {
+        description:
+          "As provas das consultas ao VIES do perfil (docs/23 §13.3), da mais recente para a mais antiga, no formato das listas.",
+        params: ParametroId(IdPerfil),
+        querystring: ConsultaPagina,
+        response: { 200: Lista(Validacao), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      comPagina(
+        await emClientes(resposta, () =>
+          listarValidacoes(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+            limiteDe(pedido.query),
+            idDoCursor(pedido.query.cursor),
+          ),
+        ),
+        paraValidacao,
+      ),
+  );
+
+  // ---- Isenção manual (§13.5)
+
+  rotas.put(
+    "/billing-profiles/:id/exemption",
+    {
+      config: isencoes,
+      schema: {
+        description:
+          "Põe uma isenção manual de IVA no perfil, com o motivo (docs/23 §13.5). Só uma em vigor (customers.exemption_active); não se altera: retira-se e põe-se outra. Nenhum processo automático a retira.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdPerfil),
+        body: PedidoIsencao,
+        response: { 201: Isencao, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 201, (trx, c) =>
+        emClientes(resposta, async () => {
+          const id = await porIsencao(
+            trx,
+            c.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body.motivo,
+            pedido.body.nota ?? null,
+          );
+          return paraIsencao(await obterIsencao(trx, c.comercianteId, id));
+        }),
+      ),
+  );
+
+  rotas.delete(
+    "/billing-profiles/:id/exemption",
+    {
+      config: isencoes,
+      schema: {
+        description:
+          "Retira a isenção em vigor, com o motivo; fica no histórico do perfil.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdPerfil),
+        body: PedidoRetirarIsencao,
+        response: { 200: Isencao, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, c) =>
+        emClientes(resposta, async () => {
+          const id = await retirarIsencao(
+            trx,
+            c.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body.motivo_retirada,
+          );
+          return paraIsencao(await obterIsencao(trx, c.comercianteId, id));
+        }),
+      ),
+  );
+
+  rotas.get(
+    "/billing-profiles/:id/exemptions",
+    {
+      config: ler,
+      schema: {
+        description:
+          "As isenções manuais do perfil (a em vigor e as retiradas), as mais recentes primeiro.",
+        params: ParametroId(IdPerfil),
+        response: {
+          200: Type.Object({ dados: Type.Array(Isencao) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => ({
+      dados: (
+        await emClientes(resposta, () =>
+          listarIsencoes(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+          ),
+        )
+      ).map(paraIsencao),
+    }),
   );
 }
