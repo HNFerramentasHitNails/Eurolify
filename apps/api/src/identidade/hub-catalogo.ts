@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { sql, type Kysely, type Transaction } from "kysely";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import { RESPOSTA_DE_ERRO } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import type { Armazenamento } from "../catalogo/armazenamento.js";
@@ -47,11 +47,17 @@ import {
   semPrefixo,
   VarianteCompleta,
 } from "../catalogo/rotas.js";
+import {
+  Alteracao,
+  ConsultaLinhaDoTempo,
+  linhaDoTempoDeArtigo,
+  RespostaLinhaDoTempo,
+} from "../catalogo/rotas-linha-do-tempo.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { TIPOS_DE_IMAGEM } from "../base/esquema.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { sessaoDo } from "./autenticacao.js";
-import { erroConta } from "./sessoes.js";
+import { erroConta, traduzindoConta } from "./sessoes.js";
 
 // O catálogo no Hub (docs/22 §11 e §12; issues #199 e #204). No ensaio, o endereço do Hub
 // só passa à API os caminhos /hub/ (nginx-hub.conf, revisão do #160, P1-1):
@@ -98,6 +104,85 @@ const PedidoCriarArtigoNoHub = Type.Object(
   },
   { additionalProperties: false },
 );
+
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const QUEM_PESSOA = new RegExp(`^pessoa:per_(${UUID})$`);
+const QUEM_CHAVE = new RegExp(`^chave:key_(${UUID})$`);
+
+/** Quem fez uma entrada do histórico, para o Hub (docs/22 §16.2). */
+const Autor = Type.Object({
+  tipo: Type.Union([
+    Type.Literal("pessoa"),
+    Type.Literal("chave"),
+    Type.Literal("sistema"),
+    Type.Literal("outro"),
+  ]),
+  nome: Type.Union([Type.String(), Type.Null()], {
+    description:
+      "O nome de quem é ou foi da equipa deste comerciante, ou o nome da chave dele; vazio nos outros casos",
+  }),
+});
+const RespostaLinhaDoTempoNoHub = Type.Object({
+  ...RespostaLinhaDoTempo.properties,
+  dados: Type.Array(Type.Object({ ...Alteracao.properties, autor: Autor })),
+});
+
+/**
+ * Os nomes das pessoas e das chaves de uma página do histórico, pela função
+ * fechada da base (0038): só os de quem é ou foi membro deste comerciante e
+ * só as chaves dele, e só para quem tem catalog:history.
+ */
+async function nomesDosAutores(
+  base: Kysely<BaseDados>,
+  segredo: string,
+  comercianteId: string,
+  quens: string[],
+): Promise<Map<string, string>> {
+  const pessoas = new Set<string>();
+  const chaves = new Set<string>();
+  for (const quem of quens) {
+    const p = QUEM_PESSOA.exec(quem)?.[1];
+    if (p !== undefined) pessoas.add(p);
+    const c = QUEM_CHAVE.exec(quem)?.[1];
+    if (c !== undefined) chaves.add(c);
+  }
+  const nomes = new Map<string, string>();
+  if (pessoas.size === 0 && chaves.size === 0) return nomes;
+  const linhas = await traduzindoConta(() =>
+    comComerciante(base, comercianteId, async (trx) => {
+      const { rows } = await sql<{ tipo: string; id: string; nome: string }>`
+        select tipo, id, nome from autores_da_linha_do_tempo(
+          ${segredo}, ${[...pessoas]}::uuid[], ${[...chaves]}::uuid[])`.execute(
+        trx,
+      );
+      return rows;
+    }),
+  );
+  for (const l of linhas) {
+    nomes.set(
+      l.tipo === "pessoa" ? `pessoa:per_${l.id}` : `chave:key_${l.id}`,
+      l.nome,
+    );
+  }
+  return nomes;
+}
+
+/** O autor de uma entrada, com o nome que a base deu (§16.2). */
+function autorDe(
+  quem: string,
+  nomes: Map<string, string>,
+): Static<typeof Autor> {
+  if (QUEM_PESSOA.test(quem)) {
+    return { tipo: "pessoa", nome: nomes.get(quem) ?? null };
+  }
+  if (QUEM_CHAVE.test(quem)) {
+    return { tipo: "chave", nome: nomes.get(quem) ?? null };
+  }
+  if (quem.startsWith("sistema:") || quem.startsWith("catalogo:")) {
+    return { tipo: "sistema", nome: null };
+  }
+  return { tipo: "outro", nome: null };
+}
 
 export function rotasDoCatalogoNoHub(
   instancia: FastifyInstance,
@@ -164,6 +249,53 @@ export function rotasDoCatalogoNoHub(
         pedido.params.id,
         resposta,
       ),
+  );
+
+  // O histórico do artigo (docs/22 §16; issue #239): a mesma função do
+  // GET /products/{id}/timeline, com o nome de quem fez (§16.2), só para
+  // quem tem catalog:history (o dono e o gestor).
+  rotas.get(
+    "/hub/products/:id/timeline",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "O histórico de um artigo para o Hub: as mesmas entradas, ordem e páginas do GET /products/{id}/timeline, com o `autor` de cada uma (o nome de quem é ou foi da equipa, ou o nome da chave), com a sessão de quem tem catalog:history (docs/22 §16.2).",
+        params: ParametroArtigo,
+        querystring: ConsultaLinhaDoTempo,
+        response: { 200: RespostaLinhaDoTempoNoHub, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const sessao = sessaoDo(pedido);
+      if (!sessao.ambitos.includes("catalog:history")) {
+        throw erroConta(
+          "member.role_escalation",
+          "o papel não vê a linha do tempo",
+        );
+      }
+      const comercianteId = comercianteLeitor(pedido, resposta);
+      const lista = await linhaDoTempoDeArtigo(
+        base,
+        comercianteId,
+        pedido.params.id,
+        pedido.query,
+        resposta,
+      );
+      const nomes = await nomesDosAutores(
+        base,
+        sessao.segredo,
+        comercianteId,
+        lista.dados.map((a) => a.quem),
+      );
+      return {
+        ...lista,
+        dados: lista.dados.map((a) => ({
+          ...a,
+          autor: autorDe(a.quem, nomes),
+        })),
+      };
+    },
   );
 
   // Criar um artigo (docs/22 §14; issue #221): a mesma função do POST
