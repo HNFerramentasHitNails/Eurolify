@@ -18,14 +18,17 @@ import {
   alteracaoDoArtigo,
   arquivoDaVariante,
   Artigo,
+  CamposDoArtigo,
   ConsultaArtigos,
   ConsultaPagina,
+  criacaoDoArtigo,
   fichaDeArtigo,
   Lista,
   listaDeArtigos,
   mudancaDeEstado,
   MUDANCAS_DE_ESTADO,
   noCatalogoApi,
+  NovaVariante,
   ParametroArtigo,
   ParametroVariante,
   PedidoAlterarArtigo,
@@ -60,6 +63,31 @@ import { erroConta } from "./sessoes.js";
 const PedidoAlterarArtigoNoHub = Type.Omit(
   PedidoAlterarArtigo,
   ["categoria_fiscal"],
+  { additionalProperties: false },
+);
+
+/** Quantas variantes um artigo criado no Hub traz (decisão do Diogo, 09/10/2026). */
+export const MAX_VARIANTES_NO_HUB = 20;
+
+/**
+ * O que o Hub cria (docs/22 §14.1 e §14.2): um artigo físico, sem a
+ * categoria fiscal (decide o IVA), e variantes sem `onu` e `classe_adr`
+ * (mercadorias perigosas, C) nem `posicao` (a ordem é a do formulário). O
+ * artigo nasce `eurolify`: não há `origem_ref`.
+ */
+const PedidoCriarArtigoNoHub = Type.Object(
+  {
+    tipo: Type.Literal("fisico"),
+    nome: CamposDoArtigo.properties.nome,
+    descricao: CamposDoArtigo.properties.descricao,
+    marca: CamposDoArtigo.properties.marca,
+    variantes: Type.Array(
+      Type.Omit(NovaVariante, ["onu", "classe_adr", "posicao"], {
+        additionalProperties: false,
+      }),
+      { minItems: 1, maxItems: MAX_VARIANTES_NO_HUB },
+    ),
+  },
   { additionalProperties: false },
 );
 
@@ -128,6 +156,33 @@ export function rotasDoCatalogoNoHub(
         pedido.params.id,
         resposta,
       ),
+  );
+
+  // Criar um artigo (docs/22 §14; issue #221): a mesma função do POST
+  // /products. Sem Idempotency-Key: o SKU único por comerciante (também
+  // arquivado, P7) recusa um segundo artigo com o mesmo pedido (§14.2).
+  rotas.post(
+    "/hub/products",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Cria um artigo físico em rascunho pelo Hub, com 1 a 20 variantes: a mesma escrita do POST /products, sem a categoria fiscal, `onu`, `classe_adr` e `posicao`, com a sessão de quem tem catalog:write (docs/22 §14.2). Um SKU que já existe dá catalog.sku_duplicate.",
+        body: PedidoCriarArtigoNoHub,
+        response: { 201: Artigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const ficha = await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        (trx, comercianteId) =>
+          criacaoDoArtigo(trx, comercianteId, pedido.body),
+      );
+      void resposta.code(201).header("location", `/hub/products/${ficha.id}`);
+      return ficha;
+    },
   );
 
   // Editar o artigo (docs/22 §13; issue #210): as mesmas funções das rotas
