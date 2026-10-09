@@ -51,6 +51,11 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "catalog.no_variants": "artigoSemVariantesActivas",
   "catalog.invalid_transition": "artigoTransicaoInvalida",
   "catalog.variant_archived_is_final": "artigoVarianteJaArquivada",
+  // Criar o artigo (docs/22 §14.4), quando o ecrã não sabe o campo.
+  "catalog.sku_duplicate": "artigoSkuDuplicado",
+  "catalog.gtin_duplicate": "artigoGtinDuplicado",
+  "catalog.gtin_invalid": "artigoGtinInvalido",
+  "catalog.content_incomplete": "artigoConteudoIncompleto",
   "key.merchant_inactive": "erroChaveComercianteInactivo",
   "key.not_found": "erroChaveNaoExiste",
   "key.already_revoked": "erroChaveJaRevogada",

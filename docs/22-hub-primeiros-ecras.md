@@ -657,7 +657,9 @@ inteiro, sem casas decimais».
 - **API**: `POST /hub/products` chama a mesma função de `POST /products`
   e o artigo é igual ao criado pela chave; o corpo recusa `categoria_fiscal`,
   `onu`, `classe_adr`, `posicao`, `origem_ref` e um tipo que não seja
-  `fisico` (400), e pela chave continuam a aceitar-se; `armazém` e `apoio`
+  `fisico` (400), e pela chave continuam a aceitar-se (menos o
+  `origem_ref`, que a criação pela chave nunca aceitou: só a importação o
+  escreve; revisão do #223, P3-2); `armazém` e `apoio`
   recebem 403; membro que saiu e sessão terminada, outro comerciante, sem a
   origem do Hub ou sem JSON são recusados; o `eurolify.quem` é
   `pessoa:per_…`; o mesmo pedido duas vezes dá `catalog.sku_duplicate` e não
