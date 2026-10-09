@@ -454,7 +454,12 @@ export function enviarImagem(
   });
 }
 
-/** O tempo máximo de uma miniatura, do pedido ao último byte (issue #253). */
+/**
+ * O tempo máximo sem receber nada de uma miniatura (issue #253): até à
+ * resposta e entre dois pedaços dos bytes. Conta-se do último pedaço, não do
+ * início, para uma imagem grande (até 10 MiB, `TAMANHO_MAXIMO` da API) numa
+ * rede lenta não falhar enquanto ainda chegam bytes (revisão do #280, P2).
+ */
 export const PRAZO_DA_IMAGEM_MS = 30_000;
 
 /**
@@ -468,14 +473,22 @@ export async function pedirBytes(
   prazoMs: number = PRAZO_DA_IMAGEM_MS,
 ): Promise<Blob> {
   // Sem prazo, um pedido sem resposta ocupava um lugar da fila para sempre
-  // (issue #253). O prazo cobre também a descarga dos bytes.
+  // (issue #253).
   const controlo = new AbortController();
+  let leitor: ReadableStreamDefaultReader<Uint8Array> | null = null;
   const parar = () => {
     controlo.abort();
+    // A leitura dos bytes também pára (nem todos os corpos seguem o sinal).
+    void leitor?.cancel().catch(() => undefined);
   };
   if (sinal?.aborted === true) parar();
   sinal?.addEventListener("abort", parar, { once: true });
-  const relogio = setTimeout(parar, prazoMs);
+  let relogio = setTimeout(parar, prazoMs);
+  const recomecar = () => {
+    clearTimeout(relogio);
+    relogio = setTimeout(parar, prazoMs);
+  };
+  const semRede = () => new ErroHub(0, undefined, {}, undefined, undefined);
   try {
     let resposta: Response;
     try {
@@ -486,14 +499,27 @@ export async function pedirBytes(
         signal: controlo.signal,
       });
     } catch {
-      throw new ErroHub(0, undefined, {}, undefined, undefined);
+      throw semRede();
     }
     if (!resposta.ok) throw await erroDe(resposta);
+    const tipo = resposta.headers.get("content-type") ?? "";
+    if (resposta.body === null) return new Blob([], { type: tipo });
+    const corpo = resposta.body.getReader();
+    leitor = corpo;
+    const pedacos: Uint8Array<ArrayBuffer>[] = [];
     try {
-      return await resposta.blob();
+      for (;;) {
+        recomecar();
+        const { done, value } = await corpo.read();
+        if (done) break;
+        pedacos.push(value);
+      }
     } catch {
-      throw new ErroHub(0, undefined, {}, undefined, undefined);
+      throw semRede();
     }
+    // Cancelada a meio, a leitura acaba como se tivesse chegado ao fim.
+    if (controlo.signal.aborted) throw semRede();
+    return new Blob(pedacos, { type: tipo });
   } finally {
     clearTimeout(relogio);
     sinal?.removeEventListener("abort", parar);
@@ -504,31 +530,53 @@ export async function pedirBytes(
  * Uma fila para os bytes das imagens: no máximo 4 pedidos ao mesmo tempo,
  * para um artigo com muitas imagens não gastar de uma vez o limite de
  * pedidos do Hub nem ler todos os ficheiros na API em paralelo.
+ *
+ * Quem acaba passa o lugar directamente ao primeiro em espera: com o lugar
+ * libertado e só depois ocupado, um pedido novo no intervalo passava à
+ * frente e ficavam 5 ao mesmo tempo (revisão do #280, P3). Quem é cancelado
+ * enquanto espera sai logo da fila.
  */
 const MAXIMO_IMAGENS_EM_CURSO = 4;
 let imagensEmCurso = 0;
 const imagensEmEspera: (() => void)[] = [];
 
+/** Para os testes: quantos pedidos de imagens estão a correr agora. */
+export function imagensACorrer(): number {
+  return imagensEmCurso;
+}
+
 export async function naFilaDasImagens<T>(
   pedido: () => Promise<T>,
   sinal?: AbortSignal,
 ): Promise<T> {
-  if (imagensEmCurso >= MAXIMO_IMAGENS_EM_CURSO) {
-    await new Promise<void>((avancar) => {
-      imagensEmEspera.push(avancar);
+  // Quem saiu (a miniatura já não está no ecrã) não chega a pedir.
+  if (sinal?.aborted === true) {
+    throw new ErroHub(0, undefined, {}, undefined, undefined);
+  }
+  if (imagensEmCurso < MAXIMO_IMAGENS_EM_CURSO) {
+    imagensEmCurso++;
+  } else {
+    // O lugar vem de quem acabar (ver o `finally`), já contado.
+    await new Promise<void>((avancar, desistir) => {
+      const minhaVez = () => {
+        sinal?.removeEventListener("abort", saiu);
+        avancar();
+      };
+      const saiu = () => {
+        const n = imagensEmEspera.indexOf(minhaVez);
+        if (n >= 0) imagensEmEspera.splice(n, 1);
+        desistir(new ErroHub(0, undefined, {}, undefined, undefined));
+      };
+      sinal?.addEventListener("abort", saiu, { once: true });
+      imagensEmEspera.push(minhaVez);
     });
   }
-  imagensEmCurso++;
   try {
-    // Quem saiu enquanto esperava (a miniatura já não está no ecrã) não
-    // chega a pedir.
-    if (sinal?.aborted === true) {
-      throw new ErroHub(0, undefined, {}, undefined, undefined);
-    }
     return await pedido();
   } finally {
-    imagensEmCurso--;
-    imagensEmEspera.shift()?.();
+    const seguinte = imagensEmEspera.shift();
+    if (seguinte === undefined) imagensEmCurso--;
+    else seguinte();
   }
 }
 

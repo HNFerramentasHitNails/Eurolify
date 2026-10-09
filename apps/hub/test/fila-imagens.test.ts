@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ErroHub, naFilaDasImagens, pedirBytes } from "../src/api";
+import {
+  ErroHub,
+  imagensACorrer,
+  naFilaDasImagens,
+  pedirBytes,
+} from "../src/api";
 
 // A fila das miniaturas (issue #253): um pedido sem resposta não pode
 // prender um lugar para sempre.
@@ -80,7 +85,124 @@ describe("o prazo de uma miniatura", () => {
   });
 });
 
+/** Uma resposta cujos bytes chegam aos pedaços, um a cada `intervaloMs`. */
+function respostaAosPedacos(
+  pedacos: number,
+  intervaloMs: number,
+  parar = false,
+) {
+  let enviados = 0;
+  const corpo = new ReadableStream<Uint8Array>({
+    pull(c) {
+      return new Promise<void>((ok) => {
+        if (parar && enviados === 1) return; // fica parado depois do 1.º
+        setTimeout(() => {
+          if (enviados === pedacos) c.close();
+          else {
+            enviados++;
+            c.enqueue(new Uint8Array([enviados]));
+          }
+          ok();
+        }, intervaloMs);
+      });
+    },
+  });
+  return new Response(corpo, { headers: { "content-type": "image/png" } });
+}
+
+describe("o prazo conta o tempo sem receber nada (revisão do #280, P2)", () => {
+  it("uma imagem que demora mais do que o prazo, mas vai chegando, não falha", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(respostaAosPedacos(5, 800))),
+    );
+    const pedido = pedirBytes(
+      "/hub/media/med_1/file",
+      "mer_1",
+      undefined,
+      1000,
+    );
+    await vi.advanceTimersByTimeAsync(5000);
+    const blob = await pedido;
+    expect(blob.size).toBe(5);
+    expect(blob.type).toBe("image/png");
+  });
+
+  it("uma descarga que pára a meio acaba em erro de rede", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(respostaAosPedacos(5, 100, true))),
+    );
+    const pedido = pedirBytes(
+      "/hub/media/med_1/file",
+      "mer_1",
+      undefined,
+      1000,
+    );
+    const resultado = expect(pedido).rejects.toMatchObject({ estado: 0 });
+    await vi.advanceTimersByTimeAsync(1200);
+    await resultado;
+  });
+});
+
 describe("a fila das miniaturas", () => {
+  it("nunca corre mais de 4 ao mesmo tempo, e no fim fica a 0", async () => {
+    let aCorrer = 0;
+    let maximo = 0;
+    const soltar: (() => void)[] = [];
+    const pedido = () =>
+      new Promise<string>((ok) => {
+        aCorrer++;
+        maximo = Math.max(maximo, aCorrer);
+        soltar.push(() => {
+          aCorrer--;
+          ok("ok");
+        });
+      });
+    const todos = Array.from({ length: 10 }, () => naFilaDasImagens(pedido));
+    await Promise.resolve();
+    expect(imagensACorrer()).toBe(4);
+    while (soltar.length > 0) {
+      soltar.shift()?.();
+      // um pedido novo entre um acabar e o seguinte arrancar não passa à
+      // frente (revisão do #280, P3)
+      void naFilaDasImagens(() => Promise.resolve("à frente")).then(() => {
+        maximo = Math.max(maximo, aCorrer);
+      });
+      await new Promise((ok) => setTimeout(ok, 0));
+    }
+    await Promise.all(todos);
+    await new Promise((ok) => setTimeout(ok, 0));
+    expect(maximo).toBeLessThanOrEqual(4);
+    expect(imagensACorrer()).toBe(0);
+  });
+
+  it("quem é cancelado enquanto espera sai logo da fila", async () => {
+    const soltar: (() => void)[] = [];
+    const presos = Array.from({ length: 4 }, () =>
+      naFilaDasImagens(
+        () =>
+          new Promise<string>((ok) => {
+            soltar.push(() => {
+              ok("ok");
+            });
+          }),
+      ),
+    );
+    const desistiu = new AbortController();
+    const emEspera = naFilaDasImagens(
+      () => Promise.resolve("não devia correr"),
+      desistiu.signal,
+    );
+    desistiu.abort();
+    await expect(emEspera).rejects.toBeInstanceOf(ErroHub);
+    for (const s of soltar) s();
+    await Promise.all(presos);
+    expect(imagensACorrer()).toBe(0);
+  });
+
   it("quatro pedidos parados e cancelados não prendem o quinto", async () => {
     vi.stubGlobal("fetch", fetchParado());
     const presos = Array.from({ length: 4 }, () => new AbortController());
