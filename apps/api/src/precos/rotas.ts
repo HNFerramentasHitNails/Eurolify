@@ -70,6 +70,7 @@ const ESTADO_DO_CODIGO: Record<CodigoErroPrecos, number> = {
   "prices.list_archived": 409,
   "prices.priority_duplicate": 409,
   "prices.label_duplicate": 409,
+  "prices.label_archived": 409,
   "prices.channel_market_duplicate": 409,
   "prices.channel_market_in_use": 409,
   "prices.published_variant": 409,
@@ -134,6 +135,7 @@ const IdCanal = idCom("chn", "chn_…");
 const IdLista = idCom("prl", "prl_…");
 const IdVariante = idCom("var", "var_…");
 const IdLoja = idCom("sto", "sto_…");
+const IdEtiqueta = idCom("ctg", "ctg_… (só nas listas b2b)");
 const Montante = Type.Integer({
   minimum: 0,
   maximum: 100_000_000_000,
@@ -240,7 +242,7 @@ const ListaPrecos = Type.Object({
   mercado: Type.String({ description: "mkt_…" }),
   nome: Type.String(),
   tipo: Type.String(),
-  etiqueta: Type.Union([Type.String(), Type.Null()]),
+  etiqueta: Type.Union([Type.String({ description: "ctg_…" }), Type.Null()]),
   prioridade: Type.Union([Type.Integer(), Type.Null()]),
   estado: Type.String(),
   versao: Type.Integer(),
@@ -252,7 +254,7 @@ const paraLista = (l: LinhaLista): Static<typeof ListaPrecos> => ({
   mercado: `mkt_${l.mercado_id}`,
   nome: l.nome,
   tipo: l.tipo,
-  etiqueta: l.etiqueta_id,
+  etiqueta: l.etiqueta_id === null ? null : `ctg_${l.etiqueta_id}`,
   prioridade: l.prioridade,
   estado: l.estado,
   versao: l.versao,
@@ -263,13 +265,9 @@ const PedidoLista = Type.Object(
     mercado: IdMercado,
     nome: Nome,
     tipo: Type.Union([Type.Literal("base"), Type.Literal("b2b")]),
-    etiqueta: Type.Optional(
-      Type.String({
-        pattern:
-          "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-        description: "A etiqueta de cliente (só nas listas b2b)",
-      }),
-    ),
+    // A etiqueta de cliente (docs/23 §3.5; migração 0037), com o prefixo
+    // `ctg_` como as outras referências.
+    etiqueta: Type.Optional(IdEtiqueta),
     prioridade: Type.Optional(Type.Integer({ minimum: 0, maximum: 1000 })),
   },
   { additionalProperties: false },
@@ -745,7 +743,9 @@ export function rotasDosPrecos(
             mercado_id: semPrefixo(b.mercado),
             nome: b.nome,
             tipo: b.tipo,
-            ...(b.etiqueta === undefined ? {} : { etiqueta_id: b.etiqueta }),
+            ...(b.etiqueta === undefined
+              ? {}
+              : { etiqueta_id: semPrefixo(b.etiqueta) }),
             ...(b.prioridade === undefined ? {} : { prioridade: b.prioridade }),
           });
           return paraLista(await obterLista(trx, c.comercianteId, id));

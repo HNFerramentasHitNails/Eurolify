@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
+import type {
+  FastifyBaseLogger,
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely, Transaction } from "kysely";
 import { Type, type Static } from "typebox";
@@ -58,7 +63,7 @@ const TextoAlternativo = Type.String({
 const Posicao = Type.Integer({ minimum: 0, maximum: 2147483647 });
 export const ParametroMedia = Type.Object({ id: idCom("med", "med_…") });
 
-const FicheiroEsquema = Type.Object({
+export const FicheiroEsquema = Type.Object({
   id: Type.String({ description: "fil_…" }),
   tipo: TipoImagem,
   bytes: Type.Integer({ minimum: 1 }),
@@ -77,7 +82,7 @@ export const MediaEsquema = Type.Object({
   actualizada_em: Instante,
 });
 
-const PedidoLigarMedia = Type.Object(
+export const PedidoLigarMedia = Type.Object(
   {
     ficheiro: IdFicheiro,
     variante: Type.Optional(
@@ -136,6 +141,43 @@ const paraMedia = (m: LinhaMedia) => ({
   criada_em: m.criado_em.toISOString(),
   actualizada_em: m.actualizado_em.toISOString(),
 });
+
+/**
+ * Liga um ficheiro enviado ao artigo e devolve a imagem. Chamam-na o
+ * POST /products/{id}/media (pela chave) e o POST /hub/products/{id}/media
+ * (pela sessão; docs/22 §15.2).
+ */
+export async function ligacaoDaMedia(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  artigoComPrefixo: string,
+  corpo: Static<typeof PedidoLigarMedia>,
+): Promise<Static<typeof MediaEsquema>> {
+  const id = await criarMedia(trx, comercianteId, {
+    artigoId: semPrefixo(artigoComPrefixo),
+    varianteId:
+      corpo.variante === undefined || corpo.variante === null
+        ? null
+        : semPrefixo(corpo.variante),
+    resumo: semPrefixo(corpo.ficheiro),
+    textoAlternativo: corpo.texto_alternativo ?? null,
+    ...(corpo.posicao === undefined ? {} : { posicao: corpo.posicao }),
+    principal: corpo.principal ?? false,
+  });
+  return paraMedia(await fichaDaMedia(trx, comercianteId, id));
+}
+
+/**
+ * Tira a imagem do artigo (o ficheiro fica). Chamam-na o DELETE /media/{id}
+ * (pela chave) e o DELETE /hub/media/{id} (pela sessão; docs/22 §15.2).
+ */
+export async function remocaoDaMedia(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  idComPrefixo: string,
+): Promise<void> {
+  await apagarMedia(trx, comercianteId, semPrefixo(idComPrefixo));
+}
 
 /**
  * Altera a imagem na transacção dada e devolve-a. Chamam-na o
@@ -252,21 +294,13 @@ export function rotasDaMedia(
         pedido,
         resposta,
         201,
-        async (trx, chave) => {
-          const c = pedido.body;
-          const id = await criarMedia(trx, chave.comercianteId, {
-            artigoId: semPrefixo(pedido.params.id),
-            varianteId:
-              c.variante === undefined || c.variante === null
-                ? null
-                : semPrefixo(c.variante),
-            resumo: semPrefixo(c.ficheiro),
-            textoAlternativo: c.texto_alternativo ?? null,
-            ...(c.posicao === undefined ? {} : { posicao: c.posicao }),
-            principal: c.principal ?? false,
-          });
-          return paraMedia(await fichaDaMedia(trx, chave.comercianteId, id));
-        },
+        (trx, chave) =>
+          ligacaoDaMedia(
+            trx,
+            chave.comercianteId,
+            pedido.params.id,
+            pedido.body,
+          ),
         (corpo) => `/media/${(corpo as { id: string }).id}`,
       ),
   );
@@ -388,11 +422,7 @@ export function rotasDaMedia(
     },
     (pedido, resposta) =>
       escrever(base, pedido, resposta, 204, async (trx, chave) => {
-        await apagarMedia(
-          trx,
-          chave.comercianteId,
-          semPrefixo(pedido.params.id),
-        );
+        await remocaoDaMedia(trx, chave.comercianteId, pedido.params.id);
         return null;
       }),
   );
@@ -402,18 +432,33 @@ export function rotasDaMedia(
 export const ENVIOS_EM_SIMULTANEO = 2;
 
 /**
- * O envio dos bytes. Cada envio ocupa até 10 MB de memória até acabar: um
- * comerciante tem no máximo `ENVIOS_EM_SIMULTANEO` ao mesmo tempo; o
- * seguinte dá 429 antes de se ler o corpo (revisão do #176, P2-3).
+ * Os envios em curso por comerciante, um contador por base: a chave e o Hub
+ * contam no mesmo (docs/22 §15.2). Duas apps na mesma base (nos testes)
+ * partilham-no também.
  */
-function rotaDoEnvio(
+const enviosPorBase = new WeakMap<object, Map<string, number>>();
+function enviosEmCurso(base: object): Map<string, number> {
+  let m = enviosPorBase.get(base);
+  if (m === undefined) {
+    m = new Map();
+    enviosPorBase.set(base, m);
+  }
+  return m;
+}
+
+/**
+ * Prepara uma instância (um plugin só do envio) para receber os bytes de uma
+ * imagem: o leitor dos três tipos até ao tamanho máximo (outro tipo dá 415 e
+ * acima do máximo 413) e o limite de envios em simultâneo por comerciante,
+ * que dá 429 antes de se ler o corpo (revisão do #176, P2-3). Cada envio
+ * ocupa até 10 MB de memória até acabar. `comercianteDe` corre depois da
+ * autenticação (o gancho da app corre antes deste) e pode recusar.
+ */
+export function prepararEnvio(
   instancia: FastifyInstance,
-  base: Kysely<BaseDados>,
-  armazenamento: Armazenamento,
+  base: object,
+  comercianteDe: (pedido: FastifyRequest) => string,
 ) {
-  // Os bytes das imagens chegam como estão, só nos tipos aceites e até ao
-  // tamanho máximo; outro tipo dá 415 e acima do máximo 413 (os códigos
-  // da base).
   instancia.addContentTypeParser(
     [...TIPOS_DE_IMAGEM],
     { parseAs: "buffer", bodyLimit: TAMANHO_MAXIMO },
@@ -421,7 +466,7 @@ function rotaDoEnvio(
       feito(null, corpo);
     },
   );
-  const emCurso = new Map<string, number>();
+  const emCurso = enviosEmCurso(base);
   // O pedido contado e de que comerciante: só esses se descontam (um pedido
   // recusado antes, sem chave ou acima do limite, não conta).
   const contados = new WeakMap<object, string>();
@@ -433,10 +478,8 @@ function rotaDoEnvio(
     if (n <= 0) emCurso.delete(comercianteId);
     else emCurso.set(comercianteId, n);
   };
-  // Depois da autenticação (o gancho da app corre antes deste) e antes de
-  // ler o corpo.
   instancia.addHook("onRequest", async (pedido, resposta) => {
-    const { comercianteId } = chaveDo(pedido);
+    const comercianteId = comercianteDe(pedido);
     const n = emCurso.get(comercianteId) ?? 0;
     if (n >= ENVIOS_EM_SIMULTANEO) {
       void resposta.header("Retry-After", "1");
@@ -464,6 +507,104 @@ function rotaDoEnvio(
     largar(pedido);
     feito();
   });
+}
+
+/** Uma imagem recebida, já sem os metadados, pronta a guardar. */
+export interface ImagemRecebida {
+  tipo: (typeof TIPOS_DE_IMAGEM)[number];
+  limpos: Buffer;
+  /** O resumo dos bytes limpos: o nome no disco e o `fil_`. */
+  resumo: string;
+  /** O resumo dos bytes recebidos (a idempotência da chave conta com eles). */
+  recebido: string;
+  bytesRecebidos: number;
+}
+
+/**
+ * Confere os bytes recebidos (o tipo declarado, os primeiros bytes) e tira
+ * os metadados (docs/14 §3.5; issue #179). Um ficheiro que não se consegue
+ * limpar recusa-se.
+ */
+export function receberImagem(
+  bytes: unknown,
+  contentType: string | undefined,
+): ImagemRecebida {
+  const declarado = contentType?.split(";")[0]?.trim().toLowerCase();
+  if (
+    !Buffer.isBuffer(bytes) ||
+    declarado === undefined ||
+    !eTipoDeImagem(declarado)
+  ) {
+    throw erroBase(
+      "media_type.unsupported",
+      `envia-se a imagem em bruto, com o Content-Type ${TIPOS_DE_IMAGEM.join(", ")}`,
+    );
+  }
+  const tipo = tipoDosBytes(bytes);
+  if (tipo !== declarado) {
+    throw erroBase(
+      "request.invalid",
+      tipo === null
+        ? "o ficheiro não é uma imagem JPEG, PNG ou WebP"
+        : `o ficheiro é ${tipo}, não ${declarado}`,
+    );
+  }
+  let limpos: Buffer;
+  try {
+    limpos = semMetadados(bytes, tipo);
+  } catch (erro) {
+    if (erro instanceof ErroImagem) {
+      throw erroBase(
+        "request.invalid",
+        `a imagem não se conseguiu ler até ao fim: ${erro.message}`,
+      );
+    }
+    throw erro;
+  }
+  return {
+    tipo,
+    limpos,
+    resumo: createHash("sha256").update(limpos).digest("hex"),
+    recebido: createHash("sha256").update(bytes).digest("hex"),
+    bytesRecebidos: bytes.length,
+  };
+}
+
+/**
+ * Regista o ficheiro na fila do comerciante (que confere o espaço) e só
+ * então grava os bytes; se a gravação falhar, a transacção desfaz o
+ * registo. Um órfão só fica se o COMMIT falhar depois de gravar (docs/14
+ * §3.5). Chamam-na o POST /media/uploads e o POST /hub/media/uploads.
+ */
+export async function guardarImagem(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  armazenamento: Armazenamento,
+  imagem: ImagemRecebida,
+): Promise<Static<typeof FicheiroEsquema>> {
+  await registarFicheiro(
+    trx,
+    comercianteId,
+    { resumo: imagem.resumo, tipo: imagem.tipo, bytes: imagem.limpos.length },
+    armazenamento.quotaPorComerciante,
+  );
+  await armazenamento.guardar(comercianteId, imagem.resumo, imagem.limpos);
+  return {
+    id: `fil_${imagem.resumo}`,
+    tipo: imagem.tipo,
+    bytes: imagem.limpos.length,
+  };
+}
+
+export const DESCRICAO_DO_ENVIO = `o corpo são os bytes, com o Content-Type do ficheiro (${TIPOS_DE_IMAGEM.join(", ")}), até ${String(TAMANHO_MAXIMO / 1024 / 1024)} MB. Os primeiros bytes têm de ser os desse tipo. Os metadados (EXIF, XMP, IPTC, textos do PNG; a localização, a data, o aparelho) saem antes de guardar, sem voltar a codificar a imagem; no JPEG fica só a orientação. Uma imagem que não se consegue ler até ao fim dá 400. Devolve o ficheiro, já sem os metadados (fil_ e o resumo SHA-256); o mesmo ficheiro enviado outra vez é o mesmo.`;
+
+/** O envio dos bytes pela chave (POST /media/uploads). */
+function rotaDoEnvio(
+  instancia: FastifyInstance,
+  base: Kysely<BaseDados>,
+  armazenamento: Armazenamento,
+) {
+  prepararEnvio(instancia, base, (pedido) => chaveDo(pedido).comercianteId);
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
 
   rotas.post(
@@ -471,77 +612,29 @@ function rotaDoEnvio(
     {
       config: { ambito: "catalog:write" },
       schema: {
-        description: `Envia uma imagem: o corpo são os bytes, com o Content-Type do ficheiro (${TIPOS_DE_IMAGEM.join(", ")}), até ${String(TAMANHO_MAXIMO / 1024 / 1024)} MB. Os primeiros bytes têm de ser os desse tipo. Os metadados (EXIF, XMP, IPTC, textos do PNG; a localização, a data, o aparelho) saem antes de guardar, sem voltar a codificar a imagem; no JPEG fica só a orientação. Uma imagem que não se consegue ler até ao fim dá 400. Devolve o ficheiro, já sem os metadados (fil_ e o resumo SHA-256); o mesmo ficheiro enviado outra vez é o mesmo. Liga-se a um artigo com POST /products/{id}/media.`,
+        description: `Envia uma imagem: ${DESCRICAO_DO_ENVIO} Liga-se a um artigo com POST /products/{id}/media.`,
         headers: CabecalhoIdempotencia,
         response: { 201: FicheiroEsquema, ...RESPOSTA_DE_ERRO },
       },
     },
     async (pedido, resposta) => {
-      const bytes = pedido.body;
-      const declarado = pedido.headers["content-type"]
-        ?.split(";")[0]
-        ?.trim()
-        .toLowerCase();
-      if (
-        !Buffer.isBuffer(bytes) ||
-        declarado === undefined ||
-        !eTipoDeImagem(declarado)
-      ) {
-        throw erroBase(
-          "media_type.unsupported",
-          `envia-se a imagem em bruto, com o Content-Type ${TIPOS_DE_IMAGEM.join(", ")}`,
-        );
-      }
-      const tipo = tipoDosBytes(bytes);
-      if (tipo !== declarado) {
-        throw erroBase(
-          "request.invalid",
-          tipo === null
-            ? "o ficheiro não é uma imagem JPEG, PNG ou WebP"
-            : `o ficheiro é ${tipo}, não ${declarado}`,
-        );
-      }
-      // Os metadados saem antes de tudo (docs/14 §3.5; issue #179): o que se
-      // guarda, se conta no espaço e dá o nome no disco são os bytes limpos.
-      // A idempotência continua a contar com os recebidos (abaixo). Um
-      // ficheiro que não se consegue limpar recusa-se.
-      let limpos: Buffer;
-      try {
-        limpos = semMetadados(bytes, tipo);
-      } catch (erro) {
-        if (erro instanceof ErroImagem) {
-          throw erroBase(
-            "request.invalid",
-            `a imagem não se conseguiu ler até ao fim: ${erro.message}`,
-          );
-        }
-        throw erro;
-      }
-      const resumo = createHash("sha256").update(limpos).digest("hex");
-      const recebido = createHash("sha256").update(bytes).digest("hex");
+      const imagem = receberImagem(pedido.body, pedido.headers["content-type"]);
       // A ordem conta (2.ª revisão do #176, P1-N1): a chave de idempotência
       // primeiro (uma chave já usada devolve a resposta guardada ou recusa,
-      // sem tocar no disco); depois o registo, na fila do comerciante, que
-      // confere o espaço; só então os bytes no disco. Se a gravação falhar,
-      // a transacção desfaz o registo. Um órfão só fica se o COMMIT falhar
-      // depois de gravar (docs/14 §3.5).
+      // sem tocar no disco); depois o registo e os bytes (guardarImagem). A
+      // idempotência conta com os bytes recebidos, não com os limpos.
       return escrever(
         base,
         pedido,
         resposta,
         201,
-        async (trx, c) => {
-          await registarFicheiro(
-            trx,
-            c.comercianteId,
-            { resumo, tipo, bytes: limpos.length },
-            armazenamento.quotaPorComerciante,
-          );
-          await armazenamento.guardar(c.comercianteId, resumo, limpos);
-          return { id: `fil_${resumo}`, tipo, bytes: limpos.length };
-        },
+        (trx, c) => guardarImagem(trx, c.comercianteId, armazenamento, imagem),
         undefined,
-        { resumo: recebido, tipo, bytes: bytes.length },
+        {
+          resumo: imagem.recebido,
+          tipo: imagem.tipo,
+          bytes: imagem.bytesRecebidos,
+        },
       );
     },
   );

@@ -54,6 +54,9 @@ const FUNCOES_DA_API = [
   "desafio_criar_acrescentar",
   "desafio_criar_entrada",
   "desafio_criar_registo",
+  // Clientes (0037): a régua do NIF e os CHECK da ficha correm com quem
+  // escreve; o principal troca-se por uma função.
+  "emails_validos",
   "entrar_com_palavra_passe",
   "entrar_com_passkey",
   // Os ficheiros de imagem sem uso (0035).
@@ -65,6 +68,13 @@ const FUNCOES_DA_API = [
   "membro_mudar_papel",
   "membro_terminar",
   "membros_listar",
+  "nif_com_prefixo",
+  "nif_limpo",
+  "nif_para_procura",
+  "nif_portugues_valido",
+  "nif_regua",
+  "pais_do_comerciante",
+  "pais_do_prefixo_fiscal",
   "palavra_passe_codigo_errado",
   "palavra_passe_confirmar",
   "palavra_passe_para_entrar",
@@ -75,9 +85,11 @@ const FUNCOES_DA_API = [
   "passkey_para_entrar",
   "passkey_retirar",
   "passkeys_listar",
+  "perfil_tornar_principal",
   "pessoa_eu",
   // A redução anunciada (0036): o gatilho corre com quem escreve.
   "preco_referencia",
+  "prefixo_fiscal",
   "reautenticar_com_passkey",
   "recuperacao_concluir",
   "recuperacao_iniciar",
@@ -87,6 +99,7 @@ const FUNCOES_DA_API = [
   "sessao_verificar",
   "sessoes_listar",
   "sessoes_terminar_todas",
+  "telefones_validos",
 ];
 
 const RASTO = [
