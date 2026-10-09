@@ -64,7 +64,24 @@ operador»*). Desenho no `docs/19` §6.0.
 - O Diogo colou uma vez a ligação de um convite no chat; esse par foi
   deitado fora antes de ser usado (o convite só nasce com o resumo no fluxo).
 
+- 09/10/2026, recuperar o acesso do Diogo sem a passkey (que ficou noutro
+  computador; a palavra-passe com autenticador não estava activada). Não se
+  mexeu na base à mão nem por SSH: convite de dono novo pelo fluxo
+  `operar`. O segredo foi gerado pelo Diogo no navegador dele (a mesma
+  conta do `gerar-convite.mjs`: `crypto.getRandomValues` 32 bytes,
+  base64url, SHA-256; igual ao script em 5 corridas lado a lado, neste
+  contentor); só o resumo chegou ao chat.
+  - Corrida 37990784021, 21:00–21:01 UTC: comerciante
+    `mer_01a11acf-…` («Loja de Ensaio»), e-mail `diogo@loja.test`, papel
+    dono; «Cópia da base feita.»; convite
+    `inv_01a12278-3546-778a-845d-492fa2490288`.
+  - O Diogo aceitou-o e entrou («entrei, já está», dito por ele; não
+    verificado daqui). A conta antiga (`dono@loja.test`) continua, com a
+    passkey do outro computador: a loja tem agora dois donos.
+
 ## O que ficou por verificar
 
 - A Equipa e os convites feitos a partir do Hub, na VPS (só a entrada foi
   vista).
+- Se o Diogo acrescentou uma segunda passkey ou a palavra-passe na conta
+  nova (recomendado, 09/10/2026), e se a conta antiga fica ou se retira.
