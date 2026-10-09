@@ -104,3 +104,4 @@
 - [Imagens sem metadados e limpeza dos ficheiros sem uso (#215, #179, decisão CV): leitor próprio JPEG/PNG/WebP, orientação fica, 7 dias, limpeza na API, aviso na VPS, 0035; publicado no ensaio — 09/10/2026](imagens-metadados-e-limpeza-09out2026.md)
 - [Preços parte 2 (#224, #127, decisão CW): API de Administração, redução com referência de 720 h, preço por unidade, prices:read/write, dois 404 corrigidos da parte 1, 0036; publicado no ensaio — 09/10/2026](precos-parte2-09out2026.md)
 - [CI: descargas do Docker Hub com conta (#266): limite anónimo (429) partiu imagem e script-vps no #256; login só de leitura com DOCKERHUB_UTILIZADOR/TOKEN, sem segredos continua anónimo — 09/10/2026](ci-docker-hub-conta-09out2026.md)
+- [CI: imagens base copiadas para o GHCR (#268): postgres, ubuntu, node e buildkit pelo resumo; fluxo espelhar-imagens com skopeo; imagem-base.sh cai para o Docker Hub se faltar a cópia — 09/10/2026](ci-imagens-base-ghcr-09out2026.md)
