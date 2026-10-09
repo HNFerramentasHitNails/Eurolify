@@ -314,6 +314,38 @@ export const pt = {
   conviteAceitarComConta: "Aceitar com esta conta",
   conviteOutraConta:
     "Se o convite é para outro e-mail, saia primeiro e volte a abrir a ligação.",
+  artigosTitulo: "Artigos",
+  verArtigos: "Ver artigos",
+  artigosContagem: "{n} artigos",
+  artigosContagemUm: "1 artigo",
+  artigosContagemFiltro: "{n} de {total} artigos",
+  artigosVazio: "Ainda não há artigos. Entram pela API ou por importação.",
+  artigosSemResultados: "Nenhum artigo com este filtro.",
+  artigosLimparFiltro: "Limpar o filtro",
+  artigosFiltros: "Filtrar os artigos",
+  artigosFiltroEstado: "Estado",
+  artigosTodos: "Todos",
+  artigosSku: "SKU",
+  artigosProcurarBotao: "Procurar",
+  artigosSemPermissao: "Não pode ver este comerciante.",
+  artigosMostrarMais: "Mostrar mais",
+  artigosDoSistema: "vem do sistema de gestão",
+  colunaMarca: "Marca",
+  colunaAlterado: "Alterado em",
+  estadoArtigo_rascunho: "Rascunho",
+  estadoArtigo_activo: "Activo",
+  estadoArtigo_arquivado: "Arquivado",
+  tipoArtigo_fisico: "Físico",
+  tipoArtigo_servico: "Serviço",
+  tipoArtigo_digital: "Digital",
+  tipoArtigo_bilhete: "Bilhete",
+  tipoArtigo_cartao_oferta: "Cartão-oferta",
+  conviteInstrucao: "Escreva o seu nome e crie a conta com uma passkey.",
+  conviteResumo:
+    "Foi convidado para a equipa de {comerciante}, com o papel {papel}.",
+  conviteParaEmail: "O convite é para {email} e expira a {data}.",
+  conviteEmailDiferente:
+    "Este convite é para {email} e entrou como {sessao}. Saia e entre com a conta desse e-mail.",
 };
 
 export type Textos = typeof pt;

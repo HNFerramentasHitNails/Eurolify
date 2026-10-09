@@ -19,7 +19,7 @@
 | Aceitar um convite e criar a conta (nome + passkey); com uma conta que já existe (§10) | — |
 | Escolher o comerciante (quem é membro de vários); mudar de papel, tirar da equipa, sair (§10) | — |
 | Equipa: ver membros e convites em aberto; convidar; cancelar um convite | Palavra-passe e autenticador, chaves de API (B3b e B3c: desenho na §9, 08/10/2026). A minha conta e recuperar a conta entraram na B3a (§9.1, pedido #174) |
-| Sair | A montra, o checkout e o resto do Hub |
+| Sair | A montra, o checkout e o resto do Hub. O Catálogo começa pela lista de artigos (desenho na §11) |
 
 Cada ecrã só mostra o que o servidor decide: o papel, o que se pode fazer e
 os erros vêm da API (`eurolify-design`, regra 8). O Hub não guarda nada no
@@ -279,12 +279,101 @@ migração 0018). A base decide; o ecrã só não oferece o que vai ser recusado
 | **Equipa: mudar o papel** | na linha de cada membro, para o dono: o papel numa lista de escolha e «Mudar» (só depois de escolher outro), com confirmação: os convites em aberto e as chaves de servidor que a pessoa criou e que o papel novo já não permite são cancelados e revogados, com as chaves criadas a partir delas (`pessoa_fechar_acessos`, 0025); as integrações que as usam deixam de funcionar. Não aparece na linha do próprio dono (ninguém muda o seu papel) | `POST /hub/members/{id}/role` | autenticação recente; o último dono não deixa de o ser (`member.last_owner`); membro que já saiu (`member.not_found`: a lista relê-se); comerciante suspenso ou fechado |
 | **Equipa: tirar da equipa** | para o dono, «Tirar da equipa» na linha de cada outro membro, com confirmação: deixa de entrar; os convites em aberto que criou são cancelados e as chaves de servidor que criou (e as criadas a partir delas) são revogadas; as chaves públicas da loja ficam | `POST /hub/members/{id}/end` | autenticação recente; o último dono (`member.last_owner`); membro que já saiu |
 | **Equipa: sair da equipa** | para qualquer membro, «Sair desta equipa» na própria linha, com confirmação (o mesmo que fecha); depois volta a «Os seus comerciantes». O último dono vê o botão desligado e porquê | `POST /hub/members/{id}/end` (o próprio) | o último dono não sai (`member.last_owner`) |
+| **Convite: o que é, antes de aceitar** (issue #194) | em `/convite`, por cima de tudo: «Foi convidado para a equipa de {comerciante}, com o papel {papel}. O convite é para {e-mail} e expira a {data}.» Um convite que já não vale mostra só a recusa, sem formulário. Com a sessão de outra pessoa, «Este convite é para {e-mail} e entrou como {e-mail da sessão}: saia e entre com a conta desse e-mail»; «Aceitar com esta conta» continua activo, porque quem decide é a base (`invite.other_person`) — o ecrã comparar e-mails podia recusar o que ela aceita (revisão do #196, P2-1). Com sessão e um convite que não vale, uma ligação para «Os seus comerciantes» | `POST /hub/invitations/preview` | a carregar; convite que não vale (a mesma mensagem para expirado, usado, cancelado, inexistente ou comerciante suspenso); 429; sem rede (mostra o erro e deixa seguir: aceitar dá a sua própria resposta) |
 | **Convite com uma conta que já existe** | em `/convite`, quando a API diz que o e-mail já tem conta: «Este e-mail já tem conta. Entre com ela para aceitar o convite.» e «Entrar com passkey e aceitar»; com sessão aberta, «Entrou como {nome} ({e-mail})», «Aceitar com esta conta» e «Sair»; no formulário de conta nova, sempre «Já tem conta? Entre primeiro no Hub e volte a abrir esta ligação» | `POST /hub/session` (entrar) → `POST /hub/invitations/accept` | o convite é para outro e-mail (`invite.other_person`: sair e entrar com a conta certa); já é membro (`invite.already_member`); convite que já não vale; autenticação recente (acabou de entrar: vale); quem só tem palavra-passe entra primeiro em `/entrar` e volta a abrir a ligação |
 
 O segredo do convite continua só na memória da página (lido uma vez ao
 abrir, §2) enquanto se entra e aceita: nunca vai para o endereço nem para o
 armazenamento. Com a passkey de outra conta, o ecrã passa a dizer quem
 entrou e a oferecer «Sair» (revisão do #188, P2-2).
+
+## 11. Catálogo: a lista de artigos (issue #199)
+
+Pedido do Diogo, 08/10/2026: começar o Catálogo no Hub pelo desenho da
+lista de artigos. Desenho aprovado pelo Diogo a 08/10/2026 (*«sim, aprovo o
+desenho, junta o #200 e avança com o código»*), com a mudança da §11.1
+(*«sim, avança com a saída A»*). O catálogo é da outra sessão (#77). O
+desenho (#200) não mexeu em `apps/api/src/catalogo/` nem no `docs/14`; o
+código (#201) só extraiu o corpo do `GET /products` para a função
+`listaDeArtigos` e exportou a `ConsultaArtigos` e a `RespostaArtigos`, sem
+mudar as respostas (a lista das linhas tocadas está no #77; revisão do
+#201, P2-1).
+
+### 11.1 Como o Hub lê o catálogo
+
+**O Hub usa a mesma API que os outros clientes**, `GET /products`
+(`docs/14` §7.1), e não uma rota sua: a ficha vive num sítio só (`docs/14`,
+regra C1; `catalog-pim`, «Primeira regra»), e o `docs/21` §5 já diz que «a
+sessão traz o papel; a base traduz-o nos âmbitos [...] que as rotas já
+conferem».
+
+**O que falta para isso** (medido a 08/10/2026): as rotas do catálogo só
+aceitam chaves de API — `GET /products` tem `config.ambito: "catalog:read"`
+(`apps/api/src/catalogo/rotas.ts`) e o gancho de autenticação só aceita a
+sessão nas rotas `sessao` e `sessao_comerciante` (`apps/api/src/app.ts`).
+**O caminho** (descoberto ao começar o código, 08/10/2026): no ensaio, o
+endereço do Hub só passa à API os caminhos que começam por `/hub/`
+(`infra/vps/ficheiros/nginx-hub.conf`, a trava da revisão do #160, P1-1), por
+isso um `GET /products` do Hub nunca chegava à API. **Decidido (saída A):**
+a mesma lista responde também em **`GET /hub/products`**, com o mesmo código,
+os mesmos filtros e a mesma resposta do `GET /products` (uma função só, em
+`apps/api/src/catalogo/rotas.ts`); a VPS não muda. A saída B, abrir no nginx
+do Hub um caminho para o catálogo, ficou de fora: alargava o que esse
+endereço expõe.
+
+**O que o pedido do código faz:**
+
+| Ponto | Proposta |
+|---|---|
+| Quem entra | em `GET /hub/products`, a sessão do Hub com o cabeçalho `Eurolify-Comerciante`, de um membro activo desse comerciante (como as outras rotas `/hub/*` com comerciante); em `GET /products`, a chave, como hoje |
+| Que âmbitos | os do papel, pela tabela do `docs/21` §5: os quatro papéis têm `catalog:read`; `catalog:write` e `catalog:publish` só dono e gestor. A tabela vive num sítio só (na base, como os papéis), e um teste confere-a |
+| Neste primeiro pedido | **só leitura** (`catalog:read`). As escritas com sessão (editar, publicar) ficam para quando houver ecrãs que as usem, cada uma com o seu desenho: pedem as guardas do Hub (origem e JSON, `docs/21` §3) e decidir quais exigem autenticação recente |
+| Quem fez | numa escrita futura, `quem = pessoa:per_…` (`docs/21`, tabela do §1), como no resto do Hub |
+| Comerciante suspenso ou fechado | o mesmo que a chave tem hoje nessas rotas (lê) |
+| O que não muda | as rotas e as respostas do catálogo; uma chave continua a entrar como hoje |
+| A alternativa recusada | uma lista própria do Hub, com o seu código: duplicava a lista e os filtros (regra C1). O `/hub/products` não é isso: é a mesma função num segundo caminho |
+
+### 11.2 O ecrã
+
+| Ecrã | O que mostra | Rotas da API | Estados além do normal |
+|---|---|---|---|
+| **Artigos** (`/artigos?comerciante=mer_…`; ligação em «Os seus comerciantes», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar pelo nome e pelo SKU de uma variante, em dois campos (`texto`, `sku`: a API junta os filtros, por isso um campo só procuraria os dois ao mesmo tempo). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /hub/products?estado=&texto=&sku=&limite=25&cursor=` (a mesma do `GET /products`) | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante», sem «Tentar outra vez»); «Mostrar mais» que falha mostra o erro por baixo das linhas já lidas; filtro inválido (400: o ecrã só deixa escolher valores válidos; se chegar, aparece como erro geral) |
+
+**Limites aceites** (revisão do #201): «Alterado em» aparece no fuso do
+navegador de quem vê, não no do comerciante (o `/hub/me` não dá o fuso; a
+decidir com a `eu-localization`); com um filtro, o «de M» lê-se uma vez ao
+aplicar o filtro e não se relê no «Mostrar mais» (com artigos a entrar
+entretanto, pode ficar desactualizado até ao próximo filtro).
+
+**O que a lista não mostra, e porquê** (medido a 08/10/2026): o
+`GET /products` devolve o resumo do artigo (`CamposArtigo`: nome, tipo,
+estado, marca, origem, datas…), **sem preço, sem variantes e sem
+publicação**. O preço é do domínio Preços (`docs/20`) e a publicação lê-se
+artigo a artigo (`GET /products/{id}/publications`): pedir isso por linha
+seriam 25 pedidos por página. Ficam para depois, quando a API os der na
+lista ou numa rota de resumo — a pedir ao dono do catálogo, nunca
+calculado no ecrã (`eurolify-design`, regra 8).
+
+**Fica para depois** (a lista é o primeiro passo): abrir a ficha do artigo;
+criar e editar (com os campos que vêm do sistema de gestão só de leitura,
+P5); publicar; traduções e revisão de pessoa (`docs/14`, «Rever uma
+proposta de IA»); colunas que cada pessoa escolhe e filtros guardados
+(`eurolify-design`, «Vistas»); categoria e «tradução em falta» como
+filtros (a API já os tem).
+
+### 11.3 Antes de dizer que está feito (o pedido do código)
+
+- **API:** cada papel lê a lista com a sessão; uma sessão sem cabeçalho,
+  com o comerciante de outro, de um membro que saiu ou terminada é
+  recusada como hoje nas rotas do Hub; uma escrita do catálogo com sessão
+  continua recusada neste pedido; uma chave continua a entrar como antes;
+  o contrato mostra as duas formas de entrar nas rotas do catálogo.
+- **Hub:** a passagem no navegador (`capturas.mjs`) cria artigos fictícios
+  pela API, confere a contagem, os filtros, «Mostrar mais», o vazio e os
+  cartões a 375 px; capturas a 375, 768 e 1280 px, claro e escuro, para o
+  OK do Diogo ou do Bruno.
+- **A outra sessão** vê a lista das rotas tocadas no #77 antes de o pedido
+  ser juntado.
 
 ## O que não foi verificado
 

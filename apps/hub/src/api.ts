@@ -86,6 +86,42 @@ export interface ChaveApi {
   ultimo_uso_em: string | null;
 }
 
+/** Um artigo na lista do catálogo (docs/22 §11; o resumo do GET /products). */
+export interface ResumoArtigo {
+  id: string;
+  tipo: "fisico" | "servico" | "digital" | "bilhete" | "cartao_oferta";
+  estado: EstadoArtigo;
+  nome: string;
+  marca: string | null;
+  origem: "eurolify" | "externo";
+  actualizado_em: string;
+}
+
+export const ESTADOS_ARTIGO = ["rascunho", "activo", "arquivado"] as const;
+export type EstadoArtigo = (typeof ESTADOS_ARTIGO)[number];
+
+export interface PaginaArtigos {
+  dados: ResumoArtigo[];
+  total: number;
+  ha_mais: boolean;
+  cursor_seguinte: string | null;
+}
+
+/** Os filtros da lista; os vazios não vão no pedido. */
+export interface FiltrosArtigos {
+  estado?: EstadoArtigo;
+  texto?: string;
+  sku?: string;
+}
+
+/** O que um convite diz, antes de aceitar (docs/22 §10, issue #194). */
+export interface DetalheConvite {
+  comerciante_nome: string;
+  papel: Papel;
+  email: string;
+  expira_em: string;
+}
+
 export interface ContaNova {
   pessoa: string;
   comerciante: string;
@@ -180,6 +216,26 @@ export const api = {
       `/hub/members/${encodeURIComponent(membro)}/end`,
       { comerciante },
     ),
+  /** A lista de artigos (docs/22 §11.1): a mesma do GET /products. */
+  artigos: (
+    comerciante: string,
+    filtros: FiltrosArtigos,
+    cursor: string | null,
+  ) => {
+    const q = new URLSearchParams({ limite: "25" });
+    if (filtros.estado !== undefined) q.set("estado", filtros.estado);
+    if (filtros.texto !== undefined) q.set("texto", filtros.texto);
+    if (filtros.sku !== undefined) q.set("sku", filtros.sku);
+    if (cursor !== null) q.set("cursor", cursor);
+    return pedir<PaginaArtigos>("GET", `/hub/products?${q.toString()}`, {
+      comerciante,
+    });
+  },
+  /** O que o convite diz; o segredo vai no corpo, nunca no endereço. */
+  verConvite: (convite: string) =>
+    pedir<DetalheConvite>("POST", "/hub/invitations/preview", {
+      corpo: { convite },
+    }),
   /** Aceitar um convite com a conta da sessão (o e-mail tem de ser o do convite). */
   aceitarConvite: (convite: string) =>
     pedir<{ comerciante: string; membro: string }>(

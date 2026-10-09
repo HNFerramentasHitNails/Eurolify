@@ -120,6 +120,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0028_catalogo_media",
         "0029_identidade_eu_palavra_passe",
         "0030_exportacoes",
+        "0031_identidade_convite_ver",
+        "0032_importacoes",
       ]);
     });
 
@@ -186,8 +188,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       }
       // 6 do Comerciante (0001), 11 do Catálogo (0002, 0004, 0005, 0007 e
       // 0008), a da idempotência (0012), 6 de Preços e mercados (0017), a
-      // publicação (0019), as duas da media (0028) e as exportações (0030).
-      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(28);
+      // publicação (0019), as duas da media (0028), as exportações (0030) e as importações (0032).
+      expect(rows.filter((r) => !interna(r.tabela))).toHaveLength(29);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

@@ -115,6 +115,7 @@ describe.skipIf(URL_BASE === undefined)(
         order by 1`.execute(dono);
       expect(rows.map((r) => r.nome)).toEqual([
         "comerciante_escreve",
+        "convite_ver",
         "pessoa_eu",
       ]);
     });

@@ -408,6 +408,25 @@ export interface TabelaExportacao {
   expira_em: ColumnType<Date, never, never>;
 }
 
+// As importações (migração 0032; docs/14 §3.11; docs/06, CT).
+export const FORMATOS_DE_IMPORTACAO = ["csv", "eurolify.catalogo/1"] as const;
+export type FormatoDeImportacao = (typeof FORMATOS_DE_IMPORTACAO)[number];
+
+export interface TabelaImportacao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  formato: ColumnType<FormatoDeImportacao, FormatoDeImportacao, never>;
+  resumo: ColumnType<string, string, never>;
+  bytes: ColumnType<number, number, never>;
+  estado: ColumnType<"analisada" | "aplicada", never, "aplicada">;
+  relatorio: ColumnType<unknown, string, never>;
+  plano: ColumnType<unknown, string, never>;
+  resultado: ColumnType<unknown, never, string>;
+  analisada_em: ColumnType<Date, never, never>;
+  aplicada_em: ColumnType<Date | null, never, never>;
+  expira_em: ColumnType<Date, never, never>;
+}
+
 // Catálogo, parte 3b (migração 0009; docs/14 §3.8 e §4.3).
 export const ORIGENS_TRADUCAO = ["pessoa", "ia"] as const;
 export type OrigemTraducao = (typeof ORIGENS_TRADUCAO)[number];
@@ -587,6 +606,7 @@ export interface BaseDados {
   ficheiro: TabelaFicheiro;
   media: TabelaMedia;
   exportacao: TabelaExportacao;
+  importacao: TabelaImportacao;
   traducao: TabelaTraducao;
   texto_original: VistaTextoOriginal;
   mercado: TabelaMercado;

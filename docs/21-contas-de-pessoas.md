@@ -366,10 +366,12 @@ sessão) nunca vão no caminho nem na consulta, só no corpo ou no cookie.
 | `POST /hub/session/reauthenticate` | sessão | a resposta da passkey (da mesma pessoa), com o desafio de `/hub/session/options` | **200**; sessão nova (segredo novo) com autenticação recente; a antiga é revogada (P-T13) |
 | `POST /hub/session/end` | público (com o cookie, se houver) | nenhum | **200**; a sessão do cookie, se ainda valer, é revogada; o cookie é sempre apagado |
 | `GET /hub/me` | sessão | — | **200** a pessoa (nome, e-mail) e os comerciantes de que é membro activo, com o papel |
+| `POST /hub/invitations/preview` | público | `convite` (o segredo) | **200** o que o convite diz, para o ecrã o mostrar antes de aceitar: o nome do comerciante, o papel, o e-mail e quando expira; nada mais (nem quem convidou, nem identificadores). Para qualquer convite que não vale, também com o comerciante suspenso ou fechado, a mesma recusa de `accept/options` e `accept-new` (404 `invite.invalid`; o `accept` com sessão dá 403 `member.merchant_inactive` ao comerciante suspenso). Pode dar como válido um convite que o `accept` ainda recusa, se quem convidou já não pode dar o papel (raro: tirar, mudar o papel e desactivar cancelam os convites dessa pessoa). Issue #194; migração 0031 |
 | `POST /hub/invitations/accept/options` | público | `convite` (o segredo) | **200** opções WebAuthn de registo para a conta nova (o mesmo erro para qualquer convite que não vale) |
 | `POST /hub/invitations/accept-new` | público | `convite`, `nome`, a resposta da passkey | **201** e o cookie: a conta, o membro, a passkey e a sessão nascem na mesma transacção |
 | `POST /hub/invitations/accept` | sessão, recente | `convite` | **200** o comerciante e o membro |
 | `GET /hub/members` | sessão + comerciante | — | **200** os membros activos (nome, e-mail, papel, desde); o dono vê também os convites em aberto |
+| `GET /hub/products` | sessão + comerciante (`catalog:read`: os quatro papéis) | — | **200** a mesma lista, filtros e resposta do `GET /products` (`docs/14` §7.1), pela mesma função: o Hub só chega à API por `/hub/` (`docs/22` §11.1, issue #199) |
 | `POST /hub/invitations` | sessão + comerciante, recente (dono; gestor só armazém ou apoio) | `email`, `papel` | **201** o convite e o `segredo` da ligação, que só aparece aqui |
 | `POST /hub/invitations/{id}/cancel` | sessão + comerciante (dono) | nenhum | **200** |
 | `POST /hub/members/{id}/role` | sessão + comerciante, recente (dono) | `papel` | **200** |

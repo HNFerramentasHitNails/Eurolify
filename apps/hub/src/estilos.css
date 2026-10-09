@@ -376,3 +376,32 @@ code {
     color: var(--texto-secundario);
   }
 }
+
+/* O estado de um artigo (docs/22 §11.2): a cor do estado e o nome, nunca só
+   a cor. */
+.estado-artigo {
+  font-weight: 600;
+}
+.estado-artigo[data-estado="rascunho"] {
+  color: var(--estado-artigo-rascunho);
+}
+.estado-artigo[data-estado="activo"] {
+  color: var(--estado-artigo-activo);
+}
+.estado-artigo[data-estado="arquivado"] {
+  color: var(--estado-artigo-arquivado);
+}
+
+/* Os filtros da lista: lado a lado no computador, um por linha no
+   telemóvel. */
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-3);
+  align-items: flex-end;
+  margin-bottom: var(--espaco-4);
+}
+.filtros > .campo {
+  flex: 1 1 var(--largura-campo);
+  margin-bottom: 0;
+}

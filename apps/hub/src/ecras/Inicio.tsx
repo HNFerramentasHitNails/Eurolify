@@ -64,6 +64,18 @@ export function Inicio() {
                   >
                     {t.verEquipa}
                   </a>
+                  {/* Os quatro papéis lêem o catálogo (docs/21 §5); a API decide. */}
+                  <a
+                    href={`/artigos?comerciante=${encodeURIComponent(c.comerciante)}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navegar(
+                        `/artigos?comerciante=${encodeURIComponent(c.comerciante)}`,
+                      );
+                    }}
+                  >
+                    {t.verArtigos}
+                  </a>
                   {/* Só o dono gere chaves (keys:write); a API decide. */}
                   {c.papel === "dono" ? (
                     <a

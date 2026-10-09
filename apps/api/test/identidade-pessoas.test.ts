@@ -339,6 +339,31 @@ describe.skipIf(URL_BASE === undefined)("contas de pessoas (0018)", () => {
       expect(await mensagemDoErro(contaNova(segredo(), "Nenhum"))).toMatch(
         /^invite\.invalid:/,
       );
+      // Nem se vê antes de aceitar: a mesma recusa (issue #194).
+      for (const x of [usado, cancelado, expirado, segredo()]) {
+        expect(
+          await mensagemDoErro(
+            sql`select * from convite_ver(${x})`.execute(base.api),
+          ),
+        ).toMatch(/^invite\.invalid:/);
+      }
+    });
+
+    it("ver um convite de B dentro do contexto de A deixa o contexto de A (revisão do #196, P3-3)", async () => {
+      const convite = await convidarPeloOperador(
+        b,
+        "contexto@exemplo.test",
+        "apoio",
+      );
+      const depois = await em(a, async (trx) => {
+        const { rows } = await sql<{ comerciante_nome: string }>`
+          select * from convite_ver(${convite})`.execute(trx);
+        expect(rows[0]?.comerciante_nome).toBe("Loja B");
+        const r = await sql<{ valor: string }>`
+          select current_setting('eurolify.comerciante') as valor`.execute(trx);
+        return r.rows[0]?.valor;
+      });
+      expect(depois).toBe(a);
     });
 
     it("dois aceites do mesmo convite ao mesmo tempo: só um passa", async () => {
