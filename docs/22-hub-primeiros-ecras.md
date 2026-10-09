@@ -448,12 +448,9 @@ política, lida do ficheiro.
 
 **O que a ficha não mostra, e porquê** (medido a 09/10/2026):
 
-- **O nome do canal e do mercado** de cada publicação: a API só dá os
-  identificadores (`chn_…`, `mkt_…`) e não há rota que dê os nomes
-  (procurei `/markets`, `/channels` e `/stores` em `apps/api/src`, 09/10). A
-  ficha mostra «Canal» e «Mercado» com o identificador (sem o inventar em
-  nome) até a API os dar — **a pedir ao dono do domínio Preços e mercados**
-  (`docs/20`); os nomes nunca se escrevem à mão no ecrã.
+- **O nome do canal e do mercado** de cada publicação: até 09/10/2026 a
+  ficha mostrava só os identificadores (`chn_…`, `mkt_…`); desde o #261
+  mostra os nomes, que a API do Hub junta (§18).
 - **O preço**: é do domínio Preços (`docs/20`); desde 09/10/2026 a ficha
   mostra-o pela leitura `GET /hub/products/{id}/prices` (§17).
 - **Opções, kits, categorias, traduções e atributos regulamentares**: têm
@@ -894,7 +891,7 @@ nome técnico, sem se inventar o que significam.
 | `variante` | «a variante {SKU}» (o SKU vem da ficha, que traz também as arquivadas; sem ele, «uma variante») |
 | `media` | «uma imagem» |
 | `traducao` | «uma tradução» (com a língua e o campo, se vierem nos `campos`) |
-| `publicacao` | «uma publicação» (canal e mercado pelo identificador, como a ficha, §12.2) |
+| `publicacao` | «uma publicação» (canal e mercado pelo identificador; a ficha mostra os nomes desde a §18, o histórico ainda não) |
 | `opcao`, `valor_opcao`, `variante_valor` | «uma opção», «um valor de opção», «o valor de uma variante» |
 | `componente` | «um componente do kit» |
 | `artigo_categoria`, `colecao_artigo` | «uma categoria», «uma colecção» |
@@ -970,7 +967,7 @@ por unidade 526,6667 €/l.
 | **As listas arquivadas**: não vendem; o histórico delas fica na API. |
 | **O preço com o IVA de cada país**: só sai com o Motor de IVA (fatia 6). O Hub mostra o montante como está guardado e diz se inclui IVA (`preco_inclui_iva` do mercado); **nunca calcula IVA** (`eu-vat-oss-ioss`; uma regra, um sítio). |
 | **Arredondar o preço por unidade** para mostrar: a regra é **C** (`docs/20` §3.7 e §10.3). O Hub mostra o valor que o servidor dá, com as quatro casas (arredondado na quarta pelo servidor, `docs/20` §10.3), e diz «com quatro casas». |
-| **Os nomes do canal e do mercado nas publicações** (§12.2): a API já dá os nomes dos mercados (`GET /markets`), mas é outra parte da ficha; entra num passo próprio. |
+| **Os nomes do canal e do mercado nas publicações** (§12.2): a API já dá os nomes dos mercados (`GET /markets`), mas é outra parte da ficha; entrou num passo próprio (§18). |
 
 ### 17.2 Como o Hub lê
 

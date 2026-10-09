@@ -304,6 +304,7 @@ let artigoExterno = "";
 // O 3 tem o histórico com mais de uma página (docs/22 §16).
 let artigoDoHistorico = "";
 let canalDaFicha;
+let mercadoDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
   // A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
@@ -501,6 +502,7 @@ let canalDaFicha;
     throw new Error("a publicação do artigo 1 devia ficar em rascunho");
   }
   canalDaFicha = canal;
+  mercadoDaFicha = mercado;
   await baseArtigos.destroy();
 }
 
@@ -1590,9 +1592,15 @@ try {
   await rp.getByText("5 de 30 artigos", { exact: true }).waitFor();
   await rp.getByRole("link", { name: "Verniz Azul 1", exact: true }).click();
   await rp.getByRole("heading", { name: "Verniz Azul 1", level: 1 }).waitFor();
+  // Os nomes do canal e do mercado, não os identificadores (docs/22 §18.2).
   await rp
-    .getByRole("row", { name: new RegExp(`chn_${canalDaFicha}.*Rascunho`) })
+    .getByRole("row", { name: /Loja online.*Portugal.*Rascunho/ })
     .waitFor();
+  confere(
+    (await rp.getByText(`chn_${canalDaFicha}`).count()) === 0 &&
+      (await rp.getByText(`mkt_${mercadoDaFicha}`).count()) === 0,
+    "ficha: as publicações mostram o nome do canal e do mercado, sem o identificador",
+  );
   await rp.waitForFunction(
     () =>
       document.querySelectorAll(".imagens-artigo img").length === 2 &&
@@ -1789,6 +1797,9 @@ try {
             artigo: `prd_${artigoDaFicha}`,
             canal: "chn_00000000-0000-4000-8000-000000000002",
             mercado: "mkt_00000000-0000-4000-8000-000000000003",
+            // Sem os nomes (não devia acontecer): fica o identificador.
+            canal_nome: null,
+            mercado_nome: null,
             estado: "arquivado",
             variantes_fora: [],
             ultima_verificacao: null,
@@ -1813,7 +1824,7 @@ try {
       (await rp
         .getByText("chn_00000000-0000-4000-8000-000000000002")
         .count()) === 1,
-    "ficha: as imagens falham sozinhas; a publicação arquivada diz o motivo e o canal",
+    "ficha: as imagens falham sozinhas; a publicação arquivada diz o motivo e, sem o nome, o identificador do canal",
   );
   await rp.unroute("**/hub/products/*/media?*");
   await rp.unroute("**/hub/products/*/publications");
@@ -2491,6 +2502,8 @@ try {
             id: "pub_00000000-0000-7000-8000-000000000001",
             canal: "chn_00000000-0000-7000-8000-000000000001",
             mercado: "mkt_00000000-0000-7000-8000-000000000001",
+            canal_nome: "Loja online",
+            mercado_nome: "Portugal",
             estado: "publicado",
             verificado_em: null,
             publicado_em: "2026-10-09T10:00:00Z",

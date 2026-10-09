@@ -1373,8 +1373,8 @@ function Publicacoes({
         ? p.publicado_em
         : p.verificado_em;
   return (
-    // Cinco colunas, duas com identificadores longos: cartões até 960 px,
-    // como as chaves (revisão do #206, P2-2).
+    // Cinco colunas (e, sem o nome, um identificador longo): cartões até
+    // 960 px, como as chaves (revisão do #206, P2-2).
     <table className="tabela-larga">
       <thead>
         <tr>
@@ -1390,12 +1390,12 @@ function Publicacoes({
           const d = quando(p);
           return (
             <tr key={p.id}>
-              {/* Só o identificador: a API ainda não dá os nomes (§12.2). */}
+              {/* O nome; o identificador só se o nome não vier (§18.2). */}
               <td data-rotulo={t.colunaCanal}>
-                <code translate="no">{p.canal}</code>
+                {p.canal_nome ?? <code translate="no">{p.canal}</code>}
               </td>
               <td data-rotulo={t.colunaMercado}>
-                <code translate="no">{p.mercado}</code>
+                {p.mercado_nome ?? <code translate="no">{p.mercado}</code>}
               </td>
               <td data-rotulo={t.colunaEstado}>
                 {textoDe(t, `estadoPublicacao_${p.estado}`, p.estado)}
