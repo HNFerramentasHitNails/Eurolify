@@ -46,10 +46,14 @@ describe("FilaDePedidos", () => {
   let pasta: string;
   let maquina: NodeJS.Timeout;
   let recebidos: string[];
+  // A volta em curso do serviço fingido: o afterEach espera por ela antes
+  // de apagar a pasta (revisão do #245, P3-1).
+  let volta: Promise<void>;
 
   beforeEach(async () => {
     pasta = await mkdtemp(join(tmpdir(), "eurolify-pedidos-"));
     recebidos = [];
+    volta = Promise.resolve();
     // Faz de serviço da máquina: lê o pedido e responde em resultado.<id>.
     // Uma volta de cada vez, como o serviço verdadeiro: sem a trava, num
     // executor lento, duas voltas liam o mesmo pedido (a conta ficava duas
@@ -58,7 +62,7 @@ describe("FilaDePedidos", () => {
     maquina = setInterval(() => {
       if (ocupada) return;
       ocupada = true;
-      void (async () => {
+      volta = (async () => {
         const nomes = await readdir(pasta);
         if (!nomes.includes("pedido")) return;
         const [comando, id, conta] = (
@@ -81,6 +85,7 @@ describe("FilaDePedidos", () => {
 
   afterEach(async () => {
     clearInterval(maquina);
+    await volta;
     await rm(pasta, { recursive: true, force: true });
   });
 
