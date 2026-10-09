@@ -124,6 +124,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0032_importacoes",
         "0033_catalogo_linha_do_tempo",
         "0034_identidade_eu_ambitos",
+        "0035_catalogo_ficheiros_sem_uso",
       ]);
     });
 
@@ -177,6 +178,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           "palavra_passe",
           // A outbox (0021): escrevem-na os gatilhos do dono; a API não a lê.
           "evento_saida",
+          // Os ficheiros sem uso (0035): escrevem-na os gatilhos, lêem-na as
+          // funções do dono; a API não lhe toca.
+          "ficheiro_sem_uso",
         ].includes(t);
       for (const linha of rows) {
         if (interna(linha.tabela)) {
