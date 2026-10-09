@@ -787,3 +787,35 @@ textarea {
 .variante-nova legend {
   padding: 0 var(--espaco-1);
 }
+
+/* Acrescentar uma imagem (docs/22 §15.4): a pré-visualização ao lado do
+   nome, num tamanho fixo; no telemóvel, por cima. */
+.nova-imagem {
+  margin-bottom: var(--espaco-4);
+}
+.previa-imagem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-3);
+  align-items: center;
+  margin-bottom: var(--espaco-3);
+}
+/* Um nome de ficheiro comprido parte, não alarga a página (revisão do
+   #235, P3-7). */
+.previa-imagem p {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.previa-imagem progress,
+.nova-imagem progress {
+  width: 100%;
+}
+.previa-imagem img {
+  width: var(--largura-miniatura);
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie-elevada);
+}

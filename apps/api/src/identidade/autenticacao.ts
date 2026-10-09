@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { erroBase, ErroApi } from "../base/erros.js";
-import type { BaseDados } from "../base/esquema.js";
+import { TIPOS_DE_IMAGEM, type BaseDados } from "../base/esquema.js";
 import type { Ambito } from "./chaves.js";
 import { resolverChave, type ContextoChave } from "./repositorio.js";
 import {
@@ -34,6 +34,11 @@ declare module "fastify" {
     ambito?: AmbitoDaRota;
     /** Rota do Hub: escritas só da origem do Hub e em JSON. */
     hub?: boolean;
+    /**
+     * Rota do Hub que recebe os bytes de uma imagem em vez de JSON (só o
+     * POST /hub/media/uploads; docs/22 §15.2). A origem continua obrigatória.
+     */
+    hubImagem?: boolean;
   }
   interface FastifyRequest {
     /** A chave autenticada; `null` nas rotas públicas. */
@@ -78,6 +83,7 @@ function segredoDe(pedido: FastifyRequest): string | undefined {
 export function conferirOrigem(
   pedido: FastifyRequest,
   hub: ConfigHub | undefined,
+  aceitaImagem = false,
 ) {
   if (pedido.method === "GET") {
     // Um GET de outro site (uma imagem, um fetch sem CORS) não chega ao Hub:
@@ -94,7 +100,19 @@ export function conferirOrigem(
   }
   const tipo = pedido.headers["content-type"];
   const base = typeof tipo === "string" ? tipo.split(";")[0] : undefined;
-  if (base?.trim().toLowerCase() !== "application/json") {
+  const declarado = base?.trim().toLowerCase();
+  // A única excepção: os bytes de uma imagem, só na rota que os recebe
+  // (docs/22 §15.2). Um formulário de outro site não manda estes tipos sem
+  // um pedido prévio de CORS, que a API não autoriza; e a origem já se
+  // conferiu acima.
+  if (
+    aceitaImagem &&
+    declarado !== undefined &&
+    (TIPOS_DE_IMAGEM as readonly string[]).includes(declarado)
+  ) {
+    return;
+  }
+  if (declarado !== "application/json") {
     throw erroBase("media_type.unsupported", "as escritas do Hub são em JSON");
   }
 }
@@ -122,7 +140,9 @@ export function ligarAutenticacao(
     async (pedido: FastifyRequest, resposta: FastifyReply) => {
       const config = pedido.routeOptions.config;
       const ambito = config.ambito;
-      if (config.hub === true) conferirOrigem(pedido, hub);
+      if (config.hub === true) {
+        conferirOrigem(pedido, hub, config.hubImagem === true);
+      }
       // Sem âmbito: o 404 (as rotas registadas têm sempre um, pela guarda).
       if (ambito === undefined || ambito === "publico") return;
       if (ambito === "sessao" || ambito === "sessao_comerciante") {

@@ -7,7 +7,11 @@ import {
 } from "react";
 import {
   api,
+  EnvioCancelado,
+  enviarImagem,
   ErroHub,
+  TAMANHO_MAXIMO_IMAGEM,
+  TIPOS_DE_IMAGEM,
   type FichaArtigo,
   type ImagemArtigo,
   type PublicacaoArtigo,
@@ -71,15 +75,17 @@ export function Artigo({
   // Mover uma imagem que gravou uma parte e falhou na outra.
   const [ordemAMeio, setOrdemAMeio] = useState(false);
   const [falhaAccao, setFalhaAccao] = useState<unknown>(null);
-  const [aviso, setAviso] = useState<"guardado" | "criado" | "jaCriado" | null>(
-    () => {
-      const q = new URLSearchParams(consulta);
-      if (q.get("criado") === "1") return "criado";
-      // A resposta de criar perdeu-se e o artigo já lá estava (§14.2).
-      if (q.get("criado") === "ja") return "jaCriado";
-      return q.get("guardado") === "1" ? "guardado" : null;
-    },
-  );
+  // Um envio de imagem em curso: as outras acções da ficha esperam, para a
+  // ligação no fim não encontrar outra acção a meio (revisão do #235, P3-3).
+  const [aEnviarImagem, setAEnviarImagem] = useState(false);
+  const ocupadoNaFicha = ocupado || aEnviarImagem;
+  const [aviso, setAviso] = useState<Aviso | null>(() => {
+    const q = new URLSearchParams(consulta);
+    if (q.get("criado") === "1") return "criado";
+    // A resposta de criar perdeu-se e o artigo já lá estava (§14.2).
+    if (q.get("criado") === "ja") return "jaCriado";
+    return q.get("guardado") === "1" ? "guardado" : null;
+  });
   // Ao sair da ficha, as respostas que ainda cheguem deixam de contar.
   const montado = useRef(true);
   useEffect(() => {
@@ -210,7 +216,10 @@ export function Artigo({
    * pessoa mudou) ou um 404 recarregam a ficha, para o ecrã mostrar o que
    * está guardado agora.
    */
-  async function agir(fn: () => Promise<void>): Promise<boolean> {
+  async function agir(
+    fn: () => Promise<void>,
+    avisoFinal: Aviso = "guardado",
+  ): Promise<boolean> {
     if (ocupado) return false;
     setOcupado(true);
     setFalhaAccao(null);
@@ -219,7 +228,7 @@ export function Artigo({
     try {
       await fn();
       if (!montado.current) return false;
-      setAviso("guardado");
+      setAviso(avisoFinal);
       focarAviso();
       return true;
     } catch (e) {
@@ -291,6 +300,57 @@ export function Artigo({
       void carregarImagens(true);
       void carregarPublicacoes(true);
     });
+  }
+
+  /** Tira a imagem do artigo, com confirmação (docs/22 §15.4). */
+  function tirarImagem(m: ImagemArtigo) {
+    if (!valido || !window.confirm(t.artigoConfirmarTirarImagem)) return;
+    void agir(async () => {
+      await api.tirarImagem(comerciante, m.id);
+      if (!montado.current) return;
+      await carregarImagens(true);
+      void carregarPublicacoes(true);
+    }, "imagemTirada");
+  }
+
+  /**
+   * Liga um ficheiro já enviado ao artigo (docs/22 §15.2). Uma resposta
+   * perdida relê as imagens: se o ficheiro já lá está, ficou ligado (a base
+   * não impede o mesmo ficheiro duas vezes). Diz se ficou ligado.
+   */
+  function ligarImagem(
+    ficheiro: string,
+    textoAlternativo: string | null,
+  ): Promise<boolean> {
+    if (!valido || imagens.tipo !== "pronto") return Promise.resolve(false);
+    const principal = imagens.dados.length === 0;
+    // As imagens de antes: depois de uma resposta perdida, só conta uma
+    // imagem NOVA com este ficheiro (o mesmo ficheiro dá o mesmo fil_, e o
+    // artigo pode já o ter; revisão do #235, P2-3).
+    const antes = new Set(imagens.dados.map((m) => m.id));
+    return agir(async () => {
+      try {
+        await api.ligarImagem(comerciante, artigo, {
+          ficheiro,
+          texto_alternativo: textoAlternativo,
+          principal,
+        });
+      } catch (e) {
+        const semResposta =
+          !(e instanceof ErroHub) ||
+          e.estado === 0 ||
+          (e.estado >= 500 && e.codigo === undefined);
+        if (!semResposta) throw e;
+        const agora = await api.imagensDoArtigo(comerciante, artigo);
+        const nova = agora.some(
+          (m) => m.ficheiro.id === ficheiro && !antes.has(m.id),
+        );
+        if (!nova) throw e;
+      }
+      if (!montado.current) return;
+      await carregarImagens(true);
+      void carregarPublicacoes(true);
+    }, "imagemAcrescentada");
   }
 
   /**
@@ -401,7 +461,7 @@ export function Artigo({
             ficha={ficha.dados}
             data={data}
             podeEscrever={podeEscrever}
-            ocupado={ocupado}
+            ocupado={ocupadoNaFicha}
             destinoEditar={`/artigos/${artigo}/editar?${voltar.toString()}`}
             aoMudarEstado={mudarEstado}
           />
@@ -412,11 +472,7 @@ export function Artigo({
               tabIndex={-1}
               ref={avisoRef}
             >
-              {aviso === "criado"
-                ? t.artigoCriado
-                : aviso === "jaCriado"
-                  ? t.artigoJaCriado
-                  : t.artigoGuardado}
+              {t[TEXTO_DO_AVISO[aviso]]}
             </p>
           )}
           {ordemAMeio ? (
@@ -438,10 +494,22 @@ export function Artigo({
           <Variantes
             variantes={ficha.dados.variantes}
             podeArquivar={podeEscrever && ficha.dados.origem !== "externo"}
-            ocupado={ocupado}
+            ocupado={ocupadoNaFicha}
             aoArquivar={arquivarVariante}
           />
           <h2>{t.artigoImagens}</h2>
+          {podeEscrever && imagens.tipo === "pronto" ? (
+            <NovaImagem
+              comerciante={comerciante}
+              ocupado={ocupado}
+              publicado={
+                publicacoes.tipo === "pronto" &&
+                publicacoes.dados.some((x) => x.estado === "publicado")
+              }
+              aoEnviar={setAEnviarImagem}
+              aoLigar={ligarImagem}
+            />
+          ) : null}
           {imagens.tipo === "a_carregar" ? (
             <ACarregar />
           ) : imagens.tipo === "erro" ? (
@@ -462,10 +530,13 @@ export function Artigo({
                   edicao={
                     podeEscrever
                       ? {
-                          ocupado,
+                          ocupado: ocupadoNaFicha,
                           primeira: i === 0,
                           ultima: i === todas.length - 1,
                           aoGuardar: (corpo) => guardarImagem(m, corpo),
+                          aoTirar: () => {
+                            tirarImagem(m);
+                          },
                           aoMover: (passo) => {
                             moverImagem(i, i + passo);
                           },
@@ -690,6 +761,371 @@ interface EdicaoDaImagem {
     principal?: boolean;
   }) => Promise<boolean>;
   aoMover: (passo: -1 | 1) => void;
+  aoTirar: () => void;
+}
+
+/** Os avisos de que uma acção gravou, e o texto de cada um. */
+type Aviso =
+  "guardado" | "criado" | "jaCriado" | "imagemAcrescentada" | "imagemTirada";
+const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
+  guardado: "artigoGuardado",
+  criado: "artigoCriado",
+  jaCriado: "artigoJaCriado",
+  imagemAcrescentada: "artigoImagemAcrescentada",
+  imagemTirada: "artigoImagemTirada",
+};
+
+/** O erro de um envio, em linguagem comum (docs/22 §15.4). */
+function erroDoEnvio(erro: unknown): keyof Textos | null {
+  if (!(erro instanceof ErroHub)) return null;
+  if (erro.estado === 413) return "artigoImagemGrande";
+  if (erro.codigo === "media_type.unsupported") return "artigoImagemTipo";
+  if (erro.codigo === "request.invalid") return "artigoImagemIlegivel";
+  // O limite dos envios do comerciante e o limite geral por IP dão o mesmo
+  // código: o texto serve aos dois (revisão do #235, P3-1).
+  if (erro.codigo === "rate_limit.exceeded") return "artigoImagemOutroEnvio";
+  if (erro.codigo === "catalog.media_quota_exceeded") {
+    return "artigoImagemSemEspaco";
+  }
+  return null;
+}
+
+/**
+ * O tipo verdadeiro de uma imagem, pelos primeiros bytes: um PNG gravado
+ * como `.jpg` vai como PNG (revisão do #235, P3-2). A API confere na mesma;
+ * se não for nenhum dos três, fica o tipo que o navegador deu.
+ */
+async function tipoDaImagem(f: File): Promise<string> {
+  const b = new Uint8Array(await f.slice(0, 12).arrayBuffer());
+  const comeca = (...xs: number[]) => xs.every((x, i) => b[i] === x);
+  if (comeca(0xff, 0xd8, 0xff)) return "image/jpeg";
+  if (comeca(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) {
+    return "image/png";
+  }
+  const riff = String.fromCharCode(...b.slice(0, 4));
+  const webp = String.fromCharCode(...b.slice(8, 12));
+  if (riff === "RIFF" && webp === "WEBP") return "image/webp";
+  return f.type;
+}
+
+/**
+ * Acrescentar uma imagem (docs/22 §15.4): escolher o ficheiro, ver a
+ * pré-visualização, escrever o texto alternativo e guardar. Os bytes vão
+ * primeiro (com o progresso e «Cancelar»); depois liga-se ao artigo. O
+ * ecrã confere o tipo e o tamanho antes de enviar; a API confere na mesma.
+ */
+function NovaImagem({
+  comerciante,
+  ocupado,
+  publicado,
+  aoEnviar,
+  aoLigar,
+}: {
+  comerciante: string;
+  ocupado: boolean;
+  /** O artigo está à venda nalguma loja: guardar sem texto tira-o (C2). */
+  publicado: boolean;
+  /** Avisa a ficha de que há um envio em curso. */
+  aoEnviar: (emCurso: boolean) => void;
+  aoLigar: (ficheiro: string, texto: string | null) => Promise<boolean>;
+}) {
+  const { t, lingua, navegar } = useHub();
+  const entrada = useRef<HTMLInputElement>(null);
+  const [escolhido, setEscolhido] = useState<File | null>(null);
+  const [previa, setPrevia] = useState<string | null>(null);
+  const [texto, setTexto] = useState("");
+  const [semTexto, setSemTexto] = useState(false);
+  const [recusa, setRecusa] = useState<keyof Textos | null>(null);
+  // Muda em cada recusa, também na mesma duas vezes: o foco volta a ir para
+  // onde deve (revisão do #235, P3-5).
+  const [vezes, setVezes] = useState(0);
+  const [falha, setFalha] = useState<unknown>(null);
+  const [progresso, setProgresso] = useState<number | null>(null);
+  const [aLigar, setALigar] = useState(false);
+  // O ficheiro já enviado: se ligar falhar, não se volta a enviar.
+  const [enviado, setEnviado] = useState<string | null>(null);
+  const cancelar = useRef<AbortController | null>(null);
+  const focarDepois = useRef<string | null>(null);
+  const vivo = useRef(true);
+  useEffect(() => {
+    vivo.current = true;
+    return () => {
+      vivo.current = false;
+      cancelar.current?.abort();
+    };
+  }, []);
+  useEffect(() => {
+    if (escolhido === null) return;
+    const url = URL.createObjectURL(escolhido);
+    setPrevia(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [escolhido]);
+  // O foco muda antes de pintar (como na ficha, revisão do #223).
+  useLayoutEffect(() => {
+    if (focarDepois.current === null) return;
+    document.getElementById(focarDepois.current)?.focus();
+    focarDepois.current = null;
+  }, [escolhido, vezes, falha, progresso, aLigar]);
+  const aindaAqui = () => vivo.current;
+
+  function recusar(chave: keyof Textos, foco: string) {
+    setRecusa(chave);
+    setVezes((n) => n + 1);
+    focarDepois.current = foco;
+  }
+
+  function limpar() {
+    setEscolhido(null);
+    setPrevia(null);
+    setTexto("");
+    setSemTexto(false);
+    setRecusa(null);
+    setFalha(null);
+    setProgresso(null);
+    setEnviado(null);
+    if (entrada.current !== null) entrada.current.value = "";
+    focarDepois.current = "nova-imagem-botao";
+    setVezes((n) => n + 1);
+  }
+
+  function aoEscolher(f: File | undefined) {
+    setFalha(null);
+    if (f === undefined) return;
+    if (!TIPOS_DE_IMAGEM.includes(f.type)) {
+      setEscolhido(null);
+      recusar("artigoImagemTipo", "nova-imagem-recusa");
+      return;
+    }
+    if (f.size > TAMANHO_MAXIMO_IMAGEM) {
+      setEscolhido(null);
+      recusar("artigoImagemGrande", "nova-imagem-recusa");
+      return;
+    }
+    setRecusa(null);
+    setEnviado(null);
+    setEscolhido(f);
+    focarDepois.current = "nova-imagem-texto";
+  }
+
+  async function guardar(e: React.SyntheticEvent) {
+    e.preventDefault();
+    if (escolhido === null || progresso !== null || aLigar || ocupado) return;
+    const limpo = texto.trim();
+    if (limpo === "" && !semTexto) {
+      recusar("artigoImagemSemTexto", "nova-imagem-texto");
+      return;
+    }
+    // Sem texto, num artigo à venda: a API reverifica as publicações e as
+    // que não passam saem de venda; escrever o texto depois não as repõe
+    // (revisão do #235, P2-1).
+    if (
+      limpo === "" &&
+      publicado &&
+      !window.confirm(t.artigoImagemSemTextoConfirmar)
+    ) {
+      return;
+    }
+    setRecusa(null);
+    setFalha(null);
+    let ficheiro = enviado;
+    if (ficheiro === null) {
+      const controlo = new AbortController();
+      cancelar.current = controlo;
+      setProgresso(0);
+      aoEnviar(true);
+      try {
+        const tipo = await tipoDaImagem(escolhido);
+        const r = await enviarImagem(
+          comerciante,
+          tipo === escolhido.type
+            ? escolhido
+            : escolhido.slice(0, escolhido.size, tipo),
+          (p) => {
+            if (aindaAqui()) setProgresso(p);
+          },
+          controlo.signal,
+        );
+        ficheiro = r.id;
+        if (aindaAqui()) setEnviado(r.id);
+      } catch (erro) {
+        if (!aindaAqui()) return;
+        setProgresso(null);
+        if (erro instanceof EnvioCancelado) return;
+        if (semSessao(erro)) {
+          navegar("/entrar", { substituir: true });
+          return;
+        }
+        const chave = erroDoEnvio(erro);
+        if (chave !== null) recusar(chave, "nova-imagem-recusa");
+        else {
+          setFalha(erro);
+          focarDepois.current = "nova-imagem-recusa";
+        }
+        return;
+      } finally {
+        cancelar.current = null;
+        if (aindaAqui()) aoEnviar(false);
+      }
+    }
+    if (!aindaAqui()) return;
+    setProgresso(null);
+    setALigar(true);
+    try {
+      const ligou = await aoLigar(ficheiro, limpo === "" ? null : limpo);
+      if (ligou && aindaAqui()) limpar();
+    } finally {
+      if (aindaAqui()) setALigar(false);
+    }
+  }
+
+  const erro =
+    recusa !== null
+      ? t[recusa]
+      : falha !== null
+        ? mensagemDeErro(falha, t, lingua).texto
+        : null;
+  const textoEmFalta = recusa === "artigoImagemSemTexto";
+  // Anunciado de 25 em 25 %, para um leitor de ecrã não ler cada 1 %
+  // (revisão do #235, P3-6); a barra mostra o valor certo.
+  const degrau = progresso === null ? null : Math.floor(progresso / 25) * 25;
+
+  return (
+    <div className="nova-imagem">
+      <input
+        ref={entrada}
+        id="nova-imagem-ficheiro"
+        type="file"
+        accept={TIPOS_DE_IMAGEM.join(",")}
+        className="so-leitores"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          aoEscolher(e.target.files?.[0]);
+        }}
+      />
+      {escolhido === null ? (
+        <p>
+          <button
+            type="button"
+            id="nova-imagem-botao"
+            disabled={ocupado}
+            aria-describedby="nova-imagem-regras"
+            onClick={() => entrada.current?.click()}
+          >
+            {t.artigoAcrescentarImagem}
+          </button>{" "}
+          <span id="nova-imagem-regras" className="secundario">
+            {t.artigoImagemRegras}
+          </span>
+        </p>
+      ) : (
+        <form className="editar-imagem" onSubmit={(e) => void guardar(e)}>
+          <div className="previa-imagem">
+            {previa === null ? null : <img src={previa} alt="" />}
+            <p className="secundario">
+              {preencher(t.artigoImagemEscolhida, {
+                nome: escolhido.name,
+                tamanho: tamanhoLegivel(escolhido.size, lingua),
+              })}
+            </p>
+          </div>
+          <div className="campo">
+            <label htmlFor="nova-imagem-texto">
+              {t.artigoTextoAlternativo}
+            </label>
+            <input
+              id="nova-imagem-texto"
+              maxLength={500}
+              value={texto}
+              aria-invalid={textoEmFalta}
+              aria-describedby={
+                textoEmFalta
+                  ? "nova-imagem-recusa nova-imagem-ajuda"
+                  : "nova-imagem-ajuda"
+              }
+              onChange={(e) => {
+                setTexto(e.target.value);
+                if (textoEmFalta) setRecusa(null);
+              }}
+            />
+            <p id="nova-imagem-ajuda" className="secundario">
+              {t.artigoImagemTextoAjuda}
+            </p>
+          </div>
+          <label className="opcao">
+            <input
+              type="checkbox"
+              checked={semTexto}
+              onChange={(e) => {
+                setSemTexto(e.target.checked);
+                if (textoEmFalta) setRecusa(null);
+              }}
+            />
+            {t.artigoImagemSemTextoAgora}
+          </label>
+          {progresso === null ? null : (
+            <div className="campo">
+              <label htmlFor="nova-imagem-progresso">
+                {t.artigoImagemProgresso}
+              </label>
+              <progress
+                id="nova-imagem-progresso"
+                max={100}
+                value={progresso}
+              />
+              <p role="status" className="secundario">
+                {preencher(t.artigoImagemAEnviar, { p: degrau ?? 0 })}
+              </p>
+            </div>
+          )}
+          <div className="accoes-imagem">
+            <button
+              type="submit"
+              className="principal"
+              disabled={ocupado || progresso !== null || aLigar}
+            >
+              {aLigar ? t.aCarregar : t.artigoGuardar}
+            </button>
+            {/* Enquanto liga, já não se cancela: a imagem ficava ligada sem
+                aviso (revisão do #235, P3-4). */}
+            <button
+              type="button"
+              disabled={aLigar}
+              onClick={() => {
+                if (progresso !== null) {
+                  cancelar.current?.abort();
+                  setProgresso(null);
+                  return;
+                }
+                limpar();
+              }}
+            >
+              {t.cancelar}
+            </button>
+          </div>
+        </form>
+      )}
+      {erro === null ? null : (
+        <p
+          id="nova-imagem-recusa"
+          className="erro-campo"
+          role="alert"
+          tabIndex={-1}
+        >
+          {erro}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** «2,4 MB», «850 KB»: o tamanho do ficheiro na língua do ecrã. */
+function tamanhoLegivel(bytes: number, lingua: string): string {
+  const mb = bytes / (1024 * 1024);
+  const f = new Intl.NumberFormat(lingua, { maximumFractionDigits: 1 });
+  return mb >= 1 ? `${f.format(mb)} MB` : `${f.format(bytes / 1024)} KB`;
 }
 
 function Miniatura({
@@ -875,6 +1311,13 @@ function Miniatura({
               {t.artigoMoverDepois}
             </button>
           )}
+          <button
+            type="button"
+            disabled={edicao.ocupado}
+            onClick={edicao.aoTirar}
+          >
+            {t.artigoTirarImagem}
+          </button>
         </div>
       )}
     </li>
