@@ -60,10 +60,36 @@ Chromium 1194 do Playwright):
   1440 (a página tem 960 px no máximo, por isso a grelha fica em 928 px e
   nunca chega às 6 colunas).
 
+## Zoom e tamanho de letra, medidos a 09/10/2026
+
+Pedido do Diogo (*«sim, avança com a medição»*). Só medição, sem mudar
+código: uma cópia do `capturas.mjs` fora do repositório, sobre o `main` em
+`4c58880`, Chromium 1194. O zoom do navegador num ecrã de 1280 × 1024 dá a
+mesma área útil que um ecrã de 640 × 512 px a 200 % e de 320 × 256 px a
+400 %; foi assim que se mediu (com a densidade de píxeis 2 e 4).
+
+- **Entrada e escolha do comerciante, a 200 % e 400 %, claro e escuro:**
+  sem deslocação horizontal, nada fora do ecrã, nada cortado; as 11
+  paragens do Tab ficam todas visíveis; a pesquisa sem resultados também
+  não desloca (24 verificações «ok», 0 falhas).
+- **Equipa, Artigos e Conta, nas mesmas condições:** sem deslocação
+  horizontal (largura da página igual à do ecrã). A medição marcou «cortado»
+  o `thead` das tabelas, mas é o padrão de propósito dos cartões no
+  telemóvel (`estilos.css`, `@media (max-width: 640px)`: o cabeçalho fica
+  escondido à vista e lido pelos leitores de ecrã) — não é falha.
+- **Tamanho de letra do navegador** (definição «tamanho da letra» a 32 px,
+  pelo protocolo do Chromium, `Page.setFontSizes`): o navegador passou a 32
+  px, mas a página continuou em 16 px (`html`), 24 px (`h1`) e 14 px
+  (rótulos), porque as letras estão em píxeis fixos (`tokens.css:39-41`).
+  Quem aumenta só a letra nas definições do navegador não a vê maior no Hub;
+  o zoom funciona. Mudar isto toca em todo o Hub e é decisão de aspecto.
+
 ## O que ficou por verificar
 
 Safari e Firefox (só o Chromium correu); aparelhos reais; leitor de ecrã;
-zoom de 400 % e texto a 200 %; teclado virtual e rotação; desempenho
+zoom real num aparelho (o de 200 % e 400 % foi medido por emulação no
+Chromium, ver acima); letra maior pelas definições do navegador (não
+aumenta: ver acima); teclado virtual e rotação; desempenho
 antes/depois; um navegador sem `backdrop-filter` (a base opaca foi vista com
 o modo opaco, não num navegador antigo); a instabilidade do passo «Mover
 para depois» do `capturas.mjs` (#217).
