@@ -218,9 +218,9 @@ rotas já conferem.
 | Papel | Âmbitos | Notas |
 |---|---|---|
 | dono | todos, incluindo `keys:write` e mudar papéis | pelo menos um activo |
-| gestor | `merchant:read`, `catalog:*` (com `catalog:history`, 0033) | não muda papéis, não cria chaves, não muda dados fiscais |
-| armazém | `catalog:read` (e os de stock e expedição, quando existirem) | sem preços de custo nem margens |
-| apoio | `merchant:read`, `catalog:read` (e os de encomendas e clientes, quando existirem) | sem preços de custo |
+| gestor | `merchant:read`, `catalog:*` (com `catalog:history`, 0033), `prices:read`, `prices:write` (0036) | não muda papéis, não cria chaves, não muda dados fiscais |
+| armazém | `catalog:read`, `prices:read` (0036; o preço de venda) (e os de stock e expedição, quando existirem) | sem preços de custo nem margens |
+| apoio | `merchant:read`, `catalog:read`, `prices:read` (0036) (e os de encomendas e clientes, quando existirem) | sem preços de custo |
 
 A camada «campos» da skill (ex.: o preço de custo só para dono e gestor)
 desenha-se com cada domínio que tiver campos assim.

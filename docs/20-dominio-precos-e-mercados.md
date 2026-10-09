@@ -270,8 +270,8 @@ Com outbox, como os do Catálogo (`platform-architect`).
 
 Versão por data (`headless-commerce`, regra 7). Listas por cursor, com o
 total explícito. Erros RFC 9457 com código estável (`docs/18`). Todas as
-escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
-`prices:write`, `markets:read`, `markets:write`.
+escritas com `Idempotency-Key`. Âmbitos: `prices:read` e `prices:write`,
+também para os mercados e os canais (§10.1; `docs/06`, CW).
 
 ### 7.1 API de Administração
 
@@ -324,3 +324,151 @@ escritas com `Idempotency-Key`. Âmbitos (**proposta**): `prices:read`,
 | Q4 | Numa loja, o mesmo país pode estar em dois mercados activos? | ✅ **Decidido: não**; um país, um mercado activo por loja, para o mesmo cliente nunca ver dois preços (Diogo, 06/10/2026: *«sim, um país só num mercado activo»*; `docs/06`, BV) |
 | Q5 | O preço por unidade mostra-se sempre que a variante tem quantidade e unidade, até haver a lista das dispensas por país validada? | ✅ **Decidido: sim**; mostrar a mais não viola a regra, esconder sem saber pode violar (Diogo, 06/10/2026: *«sim, mostra sempre o preço por unidade»*; `docs/06`, BW) |
 | Q6 | Acrescentar `market.activated` e `market.archived` à lista de eventos do `docs/02`? | ✅ **Decidido: sim**; o Catálogo precisa deles para arquivar as publicações de um mercado arquivado (Diogo, 06/10/2026: *«sim, acrescenta os eventos ao docs/02»*; `docs/06`, BX) |
+
+## 10. Parte 2 — a API, a redução e o preço por unidade (desenho de 09/10/2026)
+
+Diogo, 09/10/2026: *«sim, avança com o desenho da segunda parte de Preços»*
+(issue #127). A parte 1 (migração 0017) tem o modelo e as funções do
+repositório, sem rotas. Esta parte põe a API de Administração (§7.1), a
+redução anunciada (§3.6), o preço por unidade (§3.7) e os eventos
+`promotion.*` (§6). Tudo **proposta** até ao OK, salvo o que já estava
+decidido (Q1–Q6).
+
+Ex.: o «Gel UV 15 ml» custa 9,90 € na lista «Base PT» desde 01/09/2026. A
+09/10/2026 o comerciante anuncia uma redução para 7,90 € até 31/10/2026. O
+servidor procura o preço mais baixo praticado entre 09/09/2026 e 08/10/2026
+(9,90 €), guarda-o como preço de referência, e a API devolve 7,90 €, o
+preço de referência 9,90 € e o preço por unidade 526,67 €/l (a casa
+decimal é **C**, abaixo).
+
+### 10.1 A API (§7.1)
+
+- **Âmbitos:** dois novos, `prices:read` e `prices:write` (os mercados, os
+  canais, as listas, os preços e as reduções; em vez dos quatro do §7, para
+  não ter permissões que andam sempre juntas). Nos papéis (`docs/21` §5):
+  o `dono` e o `gestor` têm os dois; o `armazém` e o `apoio`, só
+  `prices:read` (o preço de venda não é preço de custo, que esses papéis não
+  vêem). Entram no `CHECK` das chaves e na `papel_ambitos`, como o
+  `catalog:history` (0033). **Esta é a decisão pedida.**
+- **As rotas** são as do §7.1, com a mesma base comum das do Catálogo
+  (`docs/18`: idempotência, versões, erros RFC 9457, listas por cursor). O
+  `GET /markets/{id}/price-check` fica de fora: a C2 do Catálogo já o faz
+  por dentro, e não há quem o peça de fora.
+- **Quem fez:** cada escrita pela API põe `eurolify.quem` (`chave:key_…`) na
+  transacção, como o `escrever` do Catálogo. Fecha a falta da revisão do
+  #208 (P1-2): arquivar um mercado ou um canal passa a dizer quem foi, e o
+  `catalogo:mercado_arquivado` fica só para o SQL à mão.
+- **A versão:** mercados, canais e listas levam a `versao` lida, como os
+  artigos; o preço não tem versão (um `PUT` substitui, e o histórico guarda
+  tudo).
+
+### 10.2 A redução anunciada (§3.6)
+
+| Campo | Notas |
+|---|---|
+| `id` (`red_`) | |
+| `lista_id`, `variante_id` | uma redução de cada vez por variante e lista |
+| `montante` | o preço reduzido, em cêntimos; **maior que 0 e menor que o preço de referência**; uma redução para 0,00 € não existe (o gratuito é o preço, R4) |
+| `preco_referencia` | **calculado pelo servidor** ao criar e guardado (R6); nunca escrito por quem pede |
+| `inicio` | o instante em que é criada (**proposta**: sem reduções marcadas para o futuro na parte 2; o preço de referência calcula-se no momento em que a redução começa, e uma marcada para daqui a uma semana teria de se calcular nesse dia) |
+| `fim` | opcional; depois do início; sem ele, dura até se tirar |
+| `terminada_em`, `terminada_por` | quando se tira antes do fim (`DELETE …/reduction`) |
+| `criada_por` | de `eurolify.quem` |
+
+Regras:
+
+- **O preço de referência** é o montante mais baixo **praticado** na
+  variante e lista nos 30 dias antes do início: o preço do histórico (§3.5)
+  em vigor em cada momento desse intervalo, ou o preço de uma redução
+  anterior, quando estava em vigor. **Sem 30 dias de histórico seguidos**
+  (o primeiro preço depois do início do intervalo, ou o preço a ter saído
+  da lista em algum momento dele), **recusa-se** com
+  `prices.reduction_without_history` (R6, até o jurista responder; as
+  excepções do art. 6.º-A são **C**, `docs/12`, B, ponto 7).
+- **Um preço reduzido igual ou acima do de referência** recusa-se
+  (`prices.reduction_not_lower`): não é uma redução.
+- **Enquanto há uma redução em vigor, o preço da lista não muda**
+  (`prices.reduction_active`): tira-se primeiro a redução. Mudar o preço por
+  baixo de uma redução deixava a redução e o preço de referência sem
+  sentido.
+- **Nada se apaga:** a redução tirada ou acabada fica, como prova do que se
+  mostrou (R11); o histórico de uma variante e lista inclui as reduções.
+- **A publicação** (C2) não olha para a redução: o preço da lista é o que
+  conta para «tem preço».
+- **Eventos:** `promotion.started` ao criar; `promotion.ended` ao tirar.
+  Uma redução que acaba sozinha no `fim` **não** escreve evento (não há
+  tarefa que o faça; o `promotion.started` leva o `fim`, e quem o recebe
+  sabe quando acaba).
+
+### 10.3 O preço por unidade (§3.7)
+
+- **Calculado pelo servidor** em cada leitura de um preço (a lista, o
+  histórico, a ficha), a partir do preço em vigor (o reduzido, se houver) e
+  da `conteudo_quantidade` e `conteudo_unidade` da variante: `mg`, `g`, `kg`
+  → por kg; `ml`, `cl`, `l` → por l; `mm`, `cm`, `m` → por m; `m2` → por m²;
+  `m3` → por m³ (R7; Q5).
+- **Com IVA ou sem IVA, como o mercado** (`preco_inclui_iva`), e a resposta
+  diz qual. O valor que o consumidor vê, com o IVA do país, só sai com o
+  Motor de IVA (fatia 6) e com a API da Loja (§7.2), que **não entram nesta
+  parte**.
+- **O arredondamento** é **C** (§3.7): a API devolve o valor com quatro
+  casas decimais, em texto (ex.: `"526.6667"`), e a regra de arredondar para
+  mostrar fica para quando houver fonte. Sem quantidade ou unidade na
+  variante, vem vazio.
+
+### 10.4 Fora desta parte
+
+- A API da Loja (§7.2) e o MCP de leitura (§7.3): pedem o Motor de IVA.
+- Reduções marcadas para o futuro, reduções progressivas e o que o art.
+  6.º-A diz de produtos perecíveis ou novos: **C**, à espera do jurista.
+- Códigos de desconto e regras de carrinho (Q3, decidido: depois).
+- Listas B2B por etiqueta: a etiqueta é de Clientes, que ainda não existe;
+  as rotas aceitam-nas como na parte 1 (o identificador guardado).
+
+### 10.5 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| Um preço de referência mais alto do que o praticado (o «falso desconto») | calculado do histórico e das reduções anteriores, nunca escrito à mão; sem 30 dias seguidos, recusa |
+| Uma redução «encadeada» que esconde a subida anterior | o preço de referência conta também com as reduções anteriores (o mais baixo praticado); as regras finas das reduções progressivas são **C** |
+| O preço muda por baixo de uma redução | `prices.reduction_active` |
+| Uma chave com `catalog:write` muda preços | os âmbitos são outros; o teste das rotas verifica-o em cada caminho |
+| O preço por unidade arredondado de uma forma que um país não aceita | devolve-se o valor sem arredondar para mostrar (quatro casas); a regra é **C** |
+
+### 10.6 Em código (09/10/2026; migração 0036; `docs/06`, CW)
+
+- `migracoes/0036_precos_reducao_e_ambitos.sql`: a tabela `reducao`, a função
+  `preco_referencia`, os gatilhos (o preço de referência e as recusas, o
+  preço que não muda por baixo de uma redução, os eventos `promotion.*`) e os
+  âmbitos `prices:read` e `prices:write` nas chaves e nos papéis.
+- `precos/rotas.ts`: as rotas, com o `escrever` do Catálogo (a
+  Idempotency-Key e o `eurolify.quem` da chave na mesma transacção);
+  `precos/repositorio.ts` corre na transacção do pedido (`noDominio`), e tem
+  as listas, as reduções e o preço por unidade.
+- **Diferenças do §7.1:** os mercados de um canal mudam-se com
+  `PUT /channels/{id}/markets` (não com um `PATCH` do canal), e os canais e as
+  listas arquivam-se e repõem-se com `POST …/archive` e `…/restore`; o nome de
+  um canal ou de uma lista ainda não se muda pela API (não houve pedido).
+- **A variante de um rascunho apagada** com uma redução em vigor termina a
+  redução, com quem apagou.
+- **Os testes** (`precos-api.test.ts`) correm numa base sem o «quem» por
+  omissão: cada escrita prova que traz o seu.
+- **Revisão do #224** (09/10/2026):
+  - **«30 dias» são 720 horas**, qualquer que seja o fuso da sessão e a mudança
+    da hora; o que a lei conta como «30 dias» é **C**.
+  - **«30 dias seguidos de preço» não é «30 dias à venda»** (P2-4): conta o
+    histórico do preço na lista, mesmo com o mercado em rascunho ou sem
+    publicação. É a leitura mais simples do art. 6.º-A, que **não lemos**;
+    está na pergunta ao jurista (`docs/12`, B, ponto 7).
+  - **Os mercados de um canal** mudam-se com a versão lida do canal, e a
+    versão sobe (P2-3).
+  - **Arquivar a lista ou o mercado** não termina as reduções em vigor, nem
+    escreve `promotion.ended` (P3-5): ao repor, a redução está como estava (o
+    preço não pôde mudar entretanto).
+  - **O histórico** (`GET …/history`) não vem por páginas (P3-8): fica para
+    quando houver integrações a mudar preços muitas vezes.
+  - **O teste das rotas encontrou dois problemas que vinham da parte 1:**
+    criar uma lista no mercado de outro comerciante respondia «já há uma
+    lista de base» (dizia que o mercado existia), e pôr um preço numa lista
+    de outro dava 500. Os dois dão agora 404 (a 0036 refaz o gatilho das
+    listas; `definirPreco` confere a lista antes de escrever).
