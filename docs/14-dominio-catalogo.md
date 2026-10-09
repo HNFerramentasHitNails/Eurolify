@@ -296,6 +296,112 @@ com as imagens»; `docs/06`, CQ). As marcadas **proposta** são desta parte:
 - Quem enviou ou ligou a imagem fica na linha do tempo (§3.12, migração 0033).
 - Sem dimensões nem miniaturas: a montra recebe a imagem como foi enviada.
 
+#### Metadados, pessoas nas imagens e ficheiros sem uso (issue #179)
+
+**Desenho de 09/10/2026** (Diogo: *«sim, avança com o desenho da #179»*).
+Tudo **proposta** até ao OK. Prazo do issue: antes da primeira imagem real, e
+o mais tardar a 31/03/2027 (ADR-0019).
+
+**1. Tirar os metadados ao receber.** Ex.: uma fotografia do «Gel UV» tirada
+com um telemóvel traz, no EXIF, a latitude e a longitude da casa de quem a
+tirou, a data e o modelo do aparelho. Guarda-se sem nada disso.
+
+- **Como:** o próprio Eurolify percorre o ficheiro e deixa de fora os
+  blocos de metadados, **sem voltar a codificar a imagem** (a imagem fica
+  igual, pixel a pixel; não há perda de qualidade). Sem biblioteca de fora:
+  como o ZIP da exportação (§3.11), são poucas regras de formato, e evita-se
+  uma dependência nativa na VPS. A alternativa, uma biblioteca que volta a
+  codificar a imagem (ex.: `sharp`, sobre a `libvips`), fica para quando
+  houver miniaturas.
+- **O que sai e o que fica, por formato:**
+
+  | Formato | Sai | Fica |
+  |---|---|---|
+  | JPEG | APP1 (EXIF e XMP), APP13 (IPTC), os outros APPn que não são precisos para mostrar a imagem, comentários (COM) | APP0 (JFIF), APP2 só com o perfil de cor (ICC), APP14 (Adobe, conversão de cor), as tabelas e a imagem; a **orientação** do EXIF passa para um EXIF novo, só com ela |
+  | PNG | `tEXt`, `zTXt`, `iTXt`, `eXIf`, `tIME` | os blocos da imagem e da cor (`IHDR`, `PLTE`, `IDAT`, `IEND`, `tRNS`, `iCCP`, `sRGB`, `gAMA`, `cHRM`, `sBIT`, `pHYs`, `bKGD`) |
+  | WebP | `EXIF`, `XMP ` (e a marca deles no `VP8X`) | a imagem, a animação, a transparência e o perfil de cor (`ICCP`) |
+
+- **A orientação** fica no JPEG porque, sem ela, uma fotografia tirada com o
+  telemóvel ao alto aparecia deitada. É o único campo que passa, num EXIF
+  novo escrito pelo Eurolify. No WebP não passa (**não verifiquei** quantos
+  navegadores a aplicam no WebP).
+- **Um ficheiro que não se consegue percorrer até ao fim** (cortado, com um
+  bloco de tamanho errado) **recusa-se** com 422 `catalog.invalid_image`:
+  nunca se guarda uma imagem que não se conseguiu limpar.
+- **O resumo** (`fil_`, o nome no disco, o espaço contado) passa a ser o dos
+  bytes **já limpos**: o mesmo ficheiro enviado uma vez com GPS e outra sem
+  ele fica um ficheiro só. A idempotência do envio continua a contar com os
+  bytes recebidos.
+- **Os ficheiros que já estão no ensaio** não se limpam: são imagens de
+  teste, sem dados pessoais (ADR-0019; `docs/06`, CQ). Se alguma vez lá
+  entrar uma imagem real, apaga-se.
+- **Teste:** uma fotografia com GPS enviada pela API sai de
+  `GET /media/{id}/file` sem o GPS e com a orientação; os pixels são os
+  mesmos (a imagem descodificada igual antes e depois); um PNG com texto e
+  um WebP com EXIF saem sem eles; um ficheiro cortado dá 422.
+
+**2. Pessoas nas imagens.** Tirar os metadados não resolve uma imagem que
+mostra uma pessoa (um rosto, uma mão com uma tatuagem, um modelo a usar o
+artigo): a imagem em si é um dado pessoal dessa pessoa. O desenho:
+
+- **Quem decide é o comerciante.** As imagens são do catálogo dele; o
+  Eurolify guarda-as e mostra-as por conta dele (subcontratante, como em T2
+  do `docs/17`). A autorização da pessoa que aparece (o modelo, um
+  funcionário) é do comerciante. Ver se basta o acordo de tratamento de dados
+  (`acordo_tratamento_dados`) ou se os termos do serviço precisam de uma
+  cláusula própria sobre imagens com pessoas é uma pergunta para o jurista
+  (`docs/12`, B, ponto 8), **C**.
+- **O que o Eurolify faz:** guarda na UE (`AGENTS.md`), tira os metadados
+  (acima), apaga quando o comerciante tira a imagem (abaixo, ficheiros sem
+  uso) e quando a conta acaba (`docs/17` §3, por desenhar), e a imagem não
+  vai para nenhum serviço de fora (nem para reconhecer rostos, nem para
+  treinar nada).
+- **O que não faz:** não detecta rostos nem decide se uma imagem pode ser
+  publicada. Uma regra destas sem fonte seria inventada.
+- **Registo:** uma linha nova no `docs/17` (T9, imagens do catálogo).
+
+**3. Ficheiros sem uso.** Ex.: o comerciante envia três fotografias do
+«Gel UV», liga duas ao artigo e apaga uma delas mais tarde. A que nunca
+foi ligada e a que foi desligada saem do disco ao fim de **7 dias** sem uso
+(**proposta**), e o espaço volta.
+
+- **Sem uso** é um `ficheiro` sem nenhuma `media` que o use, em nenhum
+  artigo. Uma coluna nova, `sem_uso_desde`, diz desde quando: posta pela
+  base ao gravar o ficheiro e quando a última `media` dele sai; vazia
+  enquanto houver uma. A API não a escreve.
+- **Os 7 dias** dão tempo para ligar a imagem depois de a enviar e para
+  voltar atrás num engano. Não há forma de recuperar uma media apagada; os 7
+  dias são só para o ficheiro.
+- **Quem apaga:** a própria API, uma vez por dia (ao arrancar e depois de 24
+  em 24 horas), e não o script `eurolify-limpeza` da VPS. Só a API pode
+  tomar a fila dos envios de cada comerciante (o bloqueio
+  `eurolify.ficheiro:<comerciante>` de `registarFicheiro`), e é isso que
+  impede apagar um ficheiro que está a ser enviado outra vez no mesmo
+  momento. Para cada comerciante com ficheiros sem uso há mais de 7 dias, e
+  até 500 por vez: toma a fila, apaga a linha (só se continuar sem
+  `media`; a chave estrangeira da `media` recusa o resto), apaga o ficheiro
+  do disco e confirma. Se o disco falhar, a transacção desfaz-se e o
+  ficheiro fica para o dia seguinte. Se a confirmação falhar depois de o
+  disco apagar, fica uma linha sem ficheiro, ainda sem uso: o dia seguinte
+  apaga-a; até lá, um envio dos mesmos bytes volta a escrevê-lo (o ficheiro
+  com o nome certo que falta escreve-se outra vez).
+- **Vários comerciantes:** a lista dos que têm ficheiros a apagar vem de uma
+  função da base com os direitos do dono, que só devolve os
+  identificadores; o resto corre no contexto de cada um (RLS).
+- **Não fica em silêncio** (`observability-security`): cada volta deixa no
+  registo quantos ficheiros apagou e de quantos comerciantes; a verificação
+  diária das 07:00 (`eurolify-verificacao`) avisa se houver ficheiros sem
+  uso há mais de 9 dias (a limpeza parou).
+- **As cópias:** um ficheiro apagado continua nas cópias da VPS até elas
+  rodarem (14 dias, `docs/11`).
+- **Fora:** os ficheiros gravados sem linha (só se o COMMIT do envio falhar,
+  acima). São raros; uma volta que compare o disco com a tabela fica para
+  depois.
+- **Teste:** um ficheiro sem uso há 8 dias sai do disco e da tabela e o
+  espaço volta; um com 6 dias fica; um ligado a uma media fica; um envio dos
+  mesmos bytes ao mesmo tempo que a limpeza acaba com o ficheiro no disco e
+  a linha na tabela (as duas, ou nenhuma).
+
 ### 3.6 Categoria (`cat_`)
 
 Árvore de navegação: `pai_id`, `nome` e `endereco_amigavel` traduzíveis,
