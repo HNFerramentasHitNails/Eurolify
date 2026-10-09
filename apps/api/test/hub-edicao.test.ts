@@ -17,17 +17,13 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 import { hubDeTeste } from "./hub-de-teste.js";
+import { PNG } from "./imagens-de-teste.js";
 
 // Editar o artigo pelo Hub (docs/22 §13; issue #210): as mesmas funções das
 // rotas pela chave, com a sessão de quem tem catalog:write e a pessoa como
 // «quem fez» na linha do tempo (docs/14 §3.12). A base é criada sem o «quem»
 // por omissão dos testes: cada escrita tem de pôr o seu. Contra o
 // PostgreSQL 18.
-
-const PNG = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.from("resto do png"),
-]);
 
 interface Ficha {
   id: string;
