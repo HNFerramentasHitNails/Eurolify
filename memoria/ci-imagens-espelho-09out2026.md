@@ -60,6 +60,9 @@ opções eram esperar ou uma conta no Docker Hub). Pedido #263.
   `public.ecr.aws`, dois dos três deram 429.
 - 09/10/2026, corrida 37992414036 (1134a42): `imagem` e `script-vps`
   verdes com o espelho.
+- 09/10/2026, primeira publicação com o BuildKit do espelho: `publicar`
+  37996645550 (26bf049, o #270) verde às 22:10 UTC; depois, 37999525392
+  (d7cb370) também.
 
 - **A vigilância** (revisão do #270, P2-1): o fluxo `vigiar` tem a tarefa
   `espelho`, que todas as manhãs (e em cada entrada no `main`) confere,
