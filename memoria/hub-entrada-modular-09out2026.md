@@ -23,16 +23,20 @@ Pedido do Diogo, 09/10/2026 («avança»), issue #218, pedido #219. Desenho em
   recarregar; Ctrl/Cmd, Shift, Alt e o botão do meio ficam com o navegador.
   As ligações antigas dos outros ecrãs continuam a apanhar todos os cliques.
 - O `capturas.mjs` estava partido desde a migração 0033 (#208): criar
-  artigos sem `eurolify.quem` falhava. A base descartável das capturas passou
-  a ter `eurolify.quem = 'capturas:base'`, como a dos testes da API.
+  artigos sem `eurolify.quem` falhava. Só a ligação de preparação dos
+  artigos de ensaio leva `eurolify.quem=capturas:base` (opção da ligação);
+  a API que a passagem arranca fica sem ele, para uma escrita sem «quem»
+  continuar a falhar (revisão do #219, P2-3).
+- Revisão do agente (Sonnet 5.5, ADR-0035), publicada no #219: 0 P0, 0 P1,
+  6 P2 e 9 P3; os P2 tratados e os P3 tratados ou respondidos.
 
 ## Números (com data e como se contaram)
 
 Em 09/10/2026, neste contentor (Node 22.22.0; PostgreSQL 18.6 por Docker;
 Chromium 1194 do Playwright):
 
-- Testes do Hub (`pnpm --filter @eurolify/hub run teste`): 87 passaram:
-  53 que já havia no `main` e 34 novos (15 em `modulos.test.ts`, 19 de
+- Testes do Hub (`pnpm --filter @eurolify/hub run teste`): 91 passaram:
+  53 que já havia no `main` e 38 novos (15 em `modulos.test.ts`, 23 de
   contraste), contados com `vitest --reporter=verbose` por ficheiro. Ao estragar as regras dos módulos e o tom do
   fundo de propósito, falharam 7.
 - `capturas.mjs`: 307 verificações «ok», 0 falhas, 94 capturas; no `main`
