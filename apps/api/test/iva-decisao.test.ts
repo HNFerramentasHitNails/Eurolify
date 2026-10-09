@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   decidirIva,
   dividirArredondado,
+  MONTANTE_MAXIMO,
   type EntradaDecisao,
   type Tabelas,
   type Taxa,
@@ -77,6 +78,20 @@ const TABELAS: Tabelas = {
       regiao: null,
       nome: "Åland",
     },
+    {
+      pais: "GB",
+      prefixo_cp: "BT",
+      efeito: "por_validar",
+      regiao: null,
+      nome: "Irlanda do Norte",
+    },
+    {
+      pais: "MC",
+      prefixo_cp: "",
+      efeito: "por_validar",
+      regiao: null,
+      nome: "Mónaco",
+    },
   ],
   motivos: [
     { pais: "PT", codigo: "M05", tipo: "exportacao" },
@@ -89,12 +104,13 @@ const AGORA = new Date("2026-10-10T12:00:00Z");
 
 const entrada = (mudancas: Partial<EntradaDecisao> = {}): EntradaDecisao => ({
   momento: AGORA,
-  comerciante: { pais: "PT", regime: "por_declarar" },
+  comerciante: { pais: "PT", regime: "por_declarar", fuso: "Europe/Lisbon" },
   linha: {
     categoria: "normal",
     natureza: "bem",
     local_prestacao: null,
     montante: 1230,
+    moeda: "EUR",
     preco_inclui_iva: true,
   },
   entrega: { pais: "PT", codigo_postal: "1000-001" },
@@ -178,7 +194,11 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
       base: 1000,
       iva: 0,
       total: 1000,
-      evidencia: { isencao: "exm-1", verificado: false },
+      evidencia: {
+        isencao: "exm_exm-1",
+        isencao_ignorada: false,
+        verificado: false,
+      },
     });
   });
 
@@ -205,7 +225,11 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
           }),
         }),
       ),
-    ).toMatchObject({ resultado: "tributada", regra: "nacional" });
+    ).toMatchObject({
+      resultado: "tributada",
+      regra: "nacional",
+      evidencia: { isencao: null, isencao_ignorada: true },
+    });
     expect(
       decidirIva(
         TABELAS,
@@ -251,11 +275,14 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
       regra: "vies_intracomunitaria",
       base: 1000,
       total: 1000,
-      evidencia: { vies: { estado: "valido", prova: "prova-1" } },
+      evidencia: {
+        moeda: "EUR",
+        vies: { estado: "valido", prova: "vvc_prova-1" },
+      },
     });
   });
 
-  it("a entrega em Portugal anula o VIES; ter NIF não faz de alguém profissional; um VIES antigo ou em baixo não isenta", () => {
+  it("a entrega em Portugal anula o VIES; ter NIF não faz de alguém profissional; sem VIES válido, uma empresa não compra como empresa (P1-3)", () => {
     const base = {
       entrega: { pais: "FR", codigo_postal: "75001" },
       finalidade: "profissional" as const,
@@ -287,11 +314,31 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
           }),
         }),
       ),
-    ).toMatchObject({
-      resultado: "tributada",
-      regra: "b2b_sem_vies_origem",
-      taxa: 2300,
-    });
+    ).toMatchObject({ resultado: "bloqueada", motivo: "b2b_sem_vies" });
+    // Uma resposta «do futuro» também não conta (P2-8).
+    expect(
+      decidirIva(
+        TABELAS,
+        entrada({
+          ...base,
+          perfil: empresaFrancesa({
+            validado_em: new Date(AGORA.getTime() + 3600_000),
+          }),
+        }),
+      ),
+    ).toMatchObject({ resultado: "bloqueada", motivo: "b2b_sem_vies" });
+    // Mesmo a 72 h certas, conta (o limite inclui-se).
+    expect(
+      decidirIva(
+        TABELAS,
+        entrada({
+          ...base,
+          perfil: empresaFrancesa({
+            validado_em: new Date(AGORA.getTime() - 72 * 3600_000),
+          }),
+        }),
+      ),
+    ).toMatchObject({ resultado: "isenta", regra: "vies_intracomunitaria" });
     expect(
       decidirIva(
         TABELAS,
@@ -300,7 +347,7 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
           perfil: empresaFrancesa({ estado_vies: "indisponivel" }),
         }),
       ),
-    ).toMatchObject({ resultado: "tributada", regra: "b2b_sem_vies_origem" });
+    ).toMatchObject({ resultado: "bloqueada", motivo: "b2b_sem_vies" });
     // Uma empresa portuguesa com VIES válido a receber em França não é
     // intracomunitária (o NIF é do país do comerciante).
     expect(
@@ -311,11 +358,11 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
           perfil: empresaFrancesa({ pais: "PT", numero: "263631656" }),
         }),
       ),
-    ).toMatchObject({ resultado: "tributada", regra: "b2b_sem_vies_origem" });
-    // Uma empresa sem perfil, a revender: paga à taxa de origem.
+    ).toMatchObject({ resultado: "bloqueada", motivo: "b2b_sem_vies" });
+    // Uma empresa sem perfil, a revender: não compra como empresa.
     expect(
       decidirIva(TABELAS, entrada({ ...base, finalidade: "revenda" })),
-    ).toMatchObject({ resultado: "tributada", regra: "b2b_sem_vies_origem" });
+    ).toMatchObject({ resultado: "bloqueada", motivo: "b2b_sem_vies" });
   });
 
   it("exportação: Las Palmas (35xxx) e a Suíça; Palma de Maiorca (07xxx) não é Canárias", () => {
@@ -338,7 +385,7 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
         TABELAS,
         entrada({
           entrega: { pais: "ES", codigo_postal: "07001" },
-          comerciante: { pais: "PT", regime: "destino" },
+          comerciante: { pais: "PT", regime: "destino", fuso: "Europe/Lisbon" },
         }),
       ),
     ).toMatchObject({ resultado: "bloqueada", motivo: "taxa_em_falta" });
@@ -366,7 +413,10 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
     expect(
       decidirIva(
         TABELAS,
-        entrada({ ...fr, comerciante: { pais: "PT", regime: "origem" } }),
+        entrada({
+          ...fr,
+          comerciante: { pais: "PT", regime: "origem", fuso: "Europe/Lisbon" },
+        }),
       ),
     ).toMatchObject({
       resultado: "tributada",
@@ -381,7 +431,10 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
     expect(
       decidirIva(
         comFranca,
-        entrada({ ...fr, comerciante: { pais: "PT", regime: "destino" } }),
+        entrada({
+          ...fr,
+          comerciante: { pais: "PT", regime: "destino", fuso: "Europe/Lisbon" },
+        }),
       ),
     ).toMatchObject({
       resultado: "tributada",
@@ -505,5 +558,197 @@ describe("a decisão de IVA (a ordem do Bruno)", () => {
         entrada({ entrega: { pais: "CH", codigo_postal: "8001" } }),
       ),
     ).toMatchObject({ resultado: "bloqueada", motivo: "motivo_em_falta" });
+  });
+
+  it("um país que não existe bloqueia, nunca é «fora da UE»; um comerciante fora da UE também (P1-1)", () => {
+    for (const pais of ["XX", "EL", "XI"]) {
+      expect(
+        decidirIva(TABELAS, entrada({ entrega: { pais, codigo_postal: "1" } })),
+      ).toMatchObject({ resultado: "bloqueada", motivo: "pais_invalido" });
+    }
+    expect(
+      decidirIva(
+        TABELAS,
+        entrada({
+          comerciante: { pais: "CH", regime: "origem", fuso: "Europe/Zurich" },
+        }),
+      ),
+    ).toMatchObject({ resultado: "bloqueada", motivo: "pais_invalido" });
+  });
+
+  it("territórios: a Irlanda do Norte (BT) e o Mónaco (o país todo) por validar; o resto do Reino Unido é exportação", () => {
+    for (const entrega of [
+      { pais: "GB", codigo_postal: "BT1 1AA" },
+      { pais: "MC", codigo_postal: "98000" },
+      { pais: "MC", codigo_postal: null },
+    ]) {
+      expect(decidirIva(TABELAS, entrada({ entrega }))).toMatchObject({
+        resultado: "bloqueada",
+        motivo: "territorio_por_validar",
+      });
+    }
+    expect(
+      decidirIva(
+        TABELAS,
+        entrada({ entrega: { pais: "GB", codigo_postal: "SW1A 1AA" } }),
+      ),
+    ).toMatchObject({ resultado: "isenta", regra: "exportacao" });
+  });
+
+  it("onde há territórios especiais, o código postal é obrigatório e tem de ter a forma do país (P1-2)", () => {
+    for (const entrega of [
+      { pais: "PT", codigo_postal: null },
+      { pais: "ES", codigo_postal: " - " },
+      { pais: "GB", codigo_postal: null },
+    ]) {
+      expect(decidirIva(TABELAS, entrada({ entrega }))).toMatchObject({
+        resultado: "bloqueada",
+        motivo: "codigo_postal_em_falta",
+      });
+    }
+    // «9OOO» com a letra O (Madeira escrita mal) e um símbolo nas Canárias.
+    for (const entrega of [
+      { pais: "PT", codigo_postal: "9OOO-018" },
+      { pais: "ES", codigo_postal: "35.001" },
+      { pais: "GB", codigo_postal: "SW1A.1AA" },
+    ]) {
+      expect(decidirIva(TABELAS, entrada({ entrega }))).toMatchObject({
+        resultado: "bloqueada",
+        motivo: "codigo_postal_invalido",
+      });
+    }
+    // Num país sem territórios na tabela, o código postal não decide.
+    expect(
+      decidirIva(
+        TABELAS,
+        entrada({ entrega: { pais: "CH", codigo_postal: null } }),
+      ),
+    ).toMatchObject({ resultado: "isenta", regra: "exportacao" });
+  });
+
+  it("verificada só com a regra validada e a taxa verificada (P2-1)", () => {
+    const verificada: Tabelas = {
+      ...TABELAS,
+      taxas: [{ ...taxa("PT", null, 2300), verificado: true }],
+    };
+    expect(decidirIva(verificada, entrada())).toMatchObject({
+      evidencia: { verificado: false, taxa: { verificado: true } },
+    });
+    expect(
+      decidirIva(verificada, entrada(), {
+        regrasValidadas: new Set(["nacional"]),
+      }),
+    ).toMatchObject({ evidencia: { verificado: true } });
+    expect(
+      decidirIva(TABELAS, entrada(), {
+        regrasValidadas: new Set(["nacional"]),
+      }),
+    ).toMatchObject({ evidencia: { verificado: false } });
+  });
+
+  it("o dia da taxa conta-se no fuso do comerciante (P2-2); um fuso que não existe bloqueia", () => {
+    const tabelas: Tabelas = {
+      ...TABELAS,
+      taxas: [...TABELAS.taxas, taxa("PT", null, 2400, "2027-07-01")],
+    };
+    // 23 h 30 UTC de 30/06 são 0 h 30 de 01/07 em Lisboa (hora de Verão).
+    const d = decidirIva(
+      tabelas,
+      entrada({ momento: new Date("2027-06-30T23:30:00Z") }),
+    );
+    expect(d).toMatchObject({ taxa: 2400, evidencia: { dia: "2027-07-01" } });
+    expect(
+      decidirIva(
+        tabelas,
+        entrada({
+          momento: new Date("2027-06-30T23:30:00Z"),
+          comerciante: { pais: "PT", regime: "origem", fuso: "UTC" },
+        }),
+      ),
+    ).toMatchObject({ taxa: 2300 });
+    expect(
+      decidirIva(
+        TABELAS,
+        entrada({
+          comerciante: { pais: "PT", regime: "origem", fuso: "Lua/Mar" },
+        }),
+      ),
+    ).toMatchObject({ resultado: "bloqueada", motivo: "fuso_invalido" });
+  });
+
+  it("montantes: inteiros, não negativos e até ao limite seguro (P2-3)", () => {
+    const com = (montante: number) =>
+      decidirIva(TABELAS, entrada({ linha: { ...entrada().linha, montante } }));
+    for (const m of [1.5, -1, MONTANTE_MAXIMO + 1, Number.NaN]) {
+      expect(com(m)).toMatchObject({
+        resultado: "bloqueada",
+        motivo: "montante_invalido",
+      });
+    }
+    const d = com(MONTANTE_MAXIMO);
+    expect(d).toMatchObject({ resultado: "tributada" });
+    if (d.resultado !== "tributada") throw new Error("tributada");
+    expect(d.base + d.iva).toBe(MONTANTE_MAXIMO);
+    expect(com(0)).toMatchObject({ base: 0, iva: 0, total: 0 });
+  });
+
+  it("um serviço presencial a uma empresa de outro país (ou sem perfil) fica por validar (P2-4)", () => {
+    const servico = (
+      natureza: EntradaDecisao["linha"]["natureza"],
+      mudancas: Partial<EntradaDecisao>,
+    ) =>
+      decidirIva(
+        TABELAS,
+        entrada({
+          linha: { ...entrada().linha, natureza, local_prestacao: "PT" },
+          entrega: null,
+          ...mudancas,
+        }),
+      );
+    expect(
+      servico("servico_presencial", { finalidade: "profissional" }),
+    ).toMatchObject({
+      resultado: "bloqueada",
+      motivo: "servico_b2b_por_validar",
+    });
+    expect(
+      servico("servico_presencial", {
+        finalidade: "profissional",
+        perfil: empresaFrancesa(),
+      }),
+    ).toMatchObject({
+      resultado: "bloqueada",
+      motivo: "servico_b2b_por_validar",
+    });
+    expect(
+      servico("servico_presencial", {
+        finalidade: "profissional",
+        perfil: empresaFrancesa({ pais: "PT", numero: "263631656" }),
+      }),
+    ).toMatchObject({ resultado: "tributada", regra: "servico_no_lugar" });
+    expect(
+      servico("acesso_evento_presencial", { finalidade: "profissional" }),
+    ).toMatchObject({ resultado: "tributada", regra: "servico_no_lugar" });
+  });
+
+  it("uma taxa sem percentagem não se aplica como 0 % (P3)", () => {
+    const tabelas: Tabelas = {
+      ...TABELAS,
+      taxas: [{ ...taxa("PT", null, 2300), percentagem: null }],
+    };
+    expect(decidirIva(tabelas, entrada())).toMatchObject({
+      resultado: "bloqueada",
+      motivo: "taxa_sem_percentagem",
+    });
+    // Também quando é a taxa de origem de uma isenção num preço com IVA.
+    expect(
+      decidirIva(
+        tabelas,
+        entrada({ entrega: { pais: "CH", codigo_postal: "8001" } }),
+      ),
+    ).toMatchObject({
+      resultado: "bloqueada",
+      motivo: "taxa_sem_percentagem",
+    });
   });
 });

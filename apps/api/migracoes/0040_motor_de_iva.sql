@@ -88,6 +88,11 @@ CREATE TRIGGER taxa_iva_so_se_acrescenta
   BEFORE UPDATE OR DELETE ON taxa_iva
   FOR EACH ROW EXECUTE FUNCTION rasto_so_se_acrescenta();
 ALTER TABLE taxa_iva ENABLE ALWAYS TRIGGER taxa_iva_so_se_acrescenta;
+-- Sem coluna `fim` (desvio do docs/24 §3.3, escrito no §13): uma taxa vale
+-- até à linha seguinte do mesmo país, região e categoria. Uma linha errada
+-- corrige-se com outra de início posterior; as decisões entre as duas ficam
+-- com a errada (e com a cópia dela na encomenda), por isso as taxas só entram
+-- por migração revista, com a fonte.
 
 -- Medidas nos sistemas actuais (M), sem verificação do contabilista; com
 -- início no dia desta migração (não se afirma desde quando vigoram).
@@ -104,8 +109,8 @@ INSERT INTO taxa_iva (pais, regiao, categoria, tipo, percentagem, inicio, fonte)
 CREATE TABLE territorio_fiscal (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
   pais text NOT NULL CHECK (pais ~ '^[A-Z]{2}$'),
-  -- O prefixo do código postal, sem espaços nem hífenes.
-  prefixo_cp text NOT NULL CHECK (prefixo_cp ~ '^[0-9A-Z]{1,10}$'),
+  -- O prefixo do código postal, sem espaços nem hífenes; vazio é o país todo.
+  prefixo_cp text NOT NULL CHECK (prefixo_cp ~ '^[0-9A-Z]{0,10}$'),
   efeito text NOT NULL CHECK (efeito IN ('fora_do_iva_ue', 'regiao', 'por_validar')),
   regiao text,
   nome text NOT NULL,
@@ -128,11 +133,35 @@ INSERT INTO territorio_fiscal (pais, prefixo_cp, efeito, nome, fonte) VALUES
   ('DE', '27498', 'por_validar', 'Heligoland', 'C: idem'),
   ('IT', '23041', 'por_validar', 'Livigno', 'C: idem'),
   ('IT', '22061', 'por_validar', 'Campione d''Italia', 'C: idem'),
-  ('FR', '971', 'por_validar', 'Guadalupe', 'C: idem'),
-  ('FR', '972', 'por_validar', 'Martinica', 'C: idem'),
-  ('FR', '973', 'por_validar', 'Guiana Francesa', 'C: idem'),
-  ('FR', '974', 'por_validar', 'Reunião', 'C: idem'),
-  ('FR', '976', 'por_validar', 'Maiote', 'C: idem');
+  -- Todo o 97xxx e 98xxx de França (departamentos e colectividades
+  -- ultramarinos), até validar quais estão dentro do IVA da UE (revisão do
+  -- #256, P2-5).
+  ('FR', '97', 'por_validar', 'França ultramarina (97xxx)', 'C: idem'),
+  ('FR', '98', 'por_validar', 'França ultramarina (98xxx)', 'C: idem'),
+  -- A Irlanda do Norte (XI na skill) tem regras próprias nos bens: o código
+  -- postal começa por BT (revisão do #256, P1-1). C.
+  ('GB', 'BT', 'por_validar', 'Irlanda do Norte', 'C: eu-vat-oss-ioss, «As peças» (XI); prefixo BT por confirmar'),
+  -- Mónaco e Ilha de Man: tratamento de IVA próprio, não verificado (C).
+  ('MC', '', 'por_validar', 'Mónaco', 'C: revisão do #256, P1-1; não verificado'),
+  ('IM', '', 'por_validar', 'Ilha de Man', 'C: idem'),
+  -- Os territórios com código ISO próprio ligados a um país da UE (o
+  -- ultramar francês, Åland) e os enclaves com acordos com Itália: na
+  -- dúvida, por validar, nunca «exportação» por omissão. C.
+  ('GP', '', 'por_validar', 'Guadalupe', 'C: idem'),
+  ('MQ', '', 'por_validar', 'Martinica', 'C: idem'),
+  ('GF', '', 'por_validar', 'Guiana Francesa', 'C: idem'),
+  ('RE', '', 'por_validar', 'Reunião', 'C: idem'),
+  ('YT', '', 'por_validar', 'Maiote', 'C: idem'),
+  ('MF', '', 'por_validar', 'São Martinho', 'C: idem'),
+  ('BL', '', 'por_validar', 'São Bartolomeu', 'C: idem'),
+  ('PM', '', 'por_validar', 'São Pedro e Miquelão', 'C: idem'),
+  ('NC', '', 'por_validar', 'Nova Caledónia', 'C: idem'),
+  ('PF', '', 'por_validar', 'Polinésia Francesa', 'C: idem'),
+  ('WF', '', 'por_validar', 'Wallis e Futuna', 'C: idem'),
+  ('TF', '', 'por_validar', 'Terras Austrais Francesas', 'C: idem'),
+  ('AX', '', 'por_validar', 'Åland', 'C: idem'),
+  ('SM', '', 'por_validar', 'São Marinho', 'C: idem'),
+  ('VA', '', 'por_validar', 'Vaticano', 'C: idem');
 
 -- --------------------------------------------------------------- Motivos
 
@@ -175,6 +204,10 @@ BEGIN
   IF quem IS NULL OR quem !~ '^(pessoa:per_|chave:key_)' THEN
     RAISE EXCEPTION 'tax.declaration_by_person: o regime do IVA só o declara uma pessoa (ou a chave dela)';
   END IF;
+  -- Coerência (revisão do #256): o OSS é do regime destino.
+  IF NEW.regime = 'origem' AND NEW.oss_desde IS NOT NULL THEN
+    RAISE EXCEPTION 'tax.invalid_registration: o regime origem não tem OSS (com OSS, o regime é destino)';
+  END IF;
   IF jsonb_array_length(NEW.registos) > 30 THEN
     RAISE EXCEPTION 'tax.invalid_registration: no máximo 30 registos';
   END IF;
@@ -199,6 +232,10 @@ CREATE TRIGGER declaracao_regime_so_se_acrescenta
   BEFORE UPDATE OR DELETE ON declaracao_regime
   FOR EACH ROW EXECUTE FUNCTION rasto_so_se_acrescenta();
 ALTER TABLE declaracao_regime ENABLE ALWAYS TRIGGER declaracao_regime_so_se_acrescenta;
+CREATE TRIGGER declaracao_regime_sem_truncate
+  BEFORE TRUNCATE ON declaracao_regime
+  FOR EACH STATEMENT EXECUTE FUNCTION rasto_so_se_acrescenta();
+ALTER TABLE declaracao_regime ENABLE ALWAYS TRIGGER declaracao_regime_sem_truncate;
 
 CREATE FUNCTION declaracao_regime_evento() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$

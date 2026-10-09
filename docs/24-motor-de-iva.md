@@ -199,7 +199,8 @@ isenção manual em vigor, país e código postal de **entrega**); o momento.
 | 2b | **NIF válido no VIES**, finalidade `profissional` ou `revenda`, entrega **noutro país da UE** (dentro do IVA da UE) | isenta, autoliquidação (`M16`, **C**) | regra (ordem, 2.2; regra 1); a idade máxima da resposta «válido» é **C** (V5) |
 | 2c | Entrega **fora do território de IVA da UE** (país terceiro, Canárias, Ceuta, Melilla) | isenta, exportação (`M05`, **C**) | regra (ordem, 2.3) |
 | 4 | Entrega **no país do comerciante** | anula 2b e 2c (não anula 2a) | regra (ordem, 4) |
-| 3a | B2C (ou B2B sem 2b) para outro país da UE, regime `destino` | tributada à **taxa do país (e região) de entrega** | regra (ordem, 3; OSS) |
+| 3 | B2B sem 2b para outro país da UE (sem VIES válido, finalidade `profissional` ou `revenda`) | **bloqueada** (`b2b_sem_vies`); o cliente pode comprar como consumidor | revisão do #256, P1-3 (o desenho tinha «à taxa de origem», **C**) |
+| 3a | B2C para outro país da UE, regime `destino` | tributada à **taxa do país (e região) de entrega** | regra (ordem, 3; OSS) |
 | 3b | o mesmo, regime `origem` | tributada à taxa do país do comerciante | regra (`docs/03` §1, limiar, **C**) |
 | 3c | Entrega no país do comerciante | tributada à taxa nacional (região: **pergunta Q3**) | regra (ordem, 3) |
 
@@ -257,10 +258,11 @@ os registos fiscais) — proposta.
 | Operação | Método e caminho | Âmbito |
 |---|---|---|
 | Categorias fiscais | `GET /tax/categories` | `tax:read` |
-| Taxas | `GET /tax/rates?pais=&categoria=&em=` | `tax:read` |
+| Taxas | `GET /tax/rates?pais=&categoria=` | `tax:read` |
 | Territórios | `GET /tax/territories` | `tax:read` |
-| Registo fiscal da entidade | `GET /legal-entities/{id}/tax-registration`, `PUT …` | `tax:read` / `tax:write` |
-| Simular uma decisão | `POST /tax/decisions/simulate` (a linha, a entrega, a finalidade, o perfil) | `tax:read`; **não grava** e não é a decisão da encomenda |
+| Motivos de isenção | `GET /tax/reasons?pais=` | `tax:read` |
+| Regime de cada entidade legal | `GET /tax/registrations`; `PUT /tax/registrations/{lgl_…}` | `tax:read` / `tax:write` |
+| Simular uma decisão | `POST /tax/decisions/simulate` (a linha, a moeda, a entrega, a finalidade, o perfil) | `tax:read`, e também `customers:read` quando leva um perfil; **não grava** e não é a decisão da encomenda |
 
 O checkout (fatia 7) chama a função por dentro, não por esta API.
 
@@ -317,10 +319,10 @@ Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
 | `declaracao_regime`: o regime de cada entidade legal, só se acrescenta (a última vale), só por `pessoa:per_…` ou `chave:key_…`; evento `tax.regime_changed` | migração 0040 |
 | o código do motivo na isenção manual, da lista do país do comerciante (Q4) | migração 0040; `src/clientes/` |
 | o fim da rede CM: uma categoria fiscal nova ou mudada num artigo tem de estar na lista (`catalog.tax_category_unknown`); os artigos já gravados ficam | migração 0040 |
-| a decisão, função pura pela ordem do Bruno, com a regra, a versão (`2026-10-09.1`) e a evidência; montantes em cêntimos, metade para cima, por linha | `src/iva/decisao.ts` |
+| a decisão, função pura pela ordem do Bruno, com a regra, a versão (`2026-10-09.2`) e a evidência; montantes em cêntimos, metade para cima, por linha | `src/iva/decisao.ts` |
 | a API: `GET /tax/categories`, `/tax/rates`, `/tax/territories`, `/tax/reasons`, `GET /tax/registrations`, `PUT /tax/registrations/{id}`, `POST /tax/decisions/simulate` | `src/iva/rotas.ts` |
 | os âmbitos `tax:read` (dono, gestor, apoio) e `tax:write` (dono) | migração 0040; `src/identidade/` |
-| 17 testes da decisão (um por ramo: a #D4248, as Canárias e Palma de Maiorca, o VIES antigo e em baixo, o consumidor com NIF, as ilhas, Åland, os regimes, os serviços, a vigência, o arredondamento) e 5 pela API; 17 mutações, todas apanhadas | `test/iva-decisao.test.ts`, `test/iva-api.test.ts` |
+| 22 testes da decisão (um por ramo: a #D4248, as Canárias e Palma de Maiorca, o VIES antigo, em baixo e «do futuro», o consumidor com NIF, as ilhas, Åland, a Irlanda do Norte, o Mónaco, os regimes, os serviços, a vigência no fuso, o arredondamento, os montantes, os países e códigos postais inválidos) e 6 pela API; 17 mutações antes da revisão e 21 depois, todas apanhadas (09/10/2026) | `test/iva-decisao.test.ts`, `test/iva-api.test.ts` |
 
 **Desvios do desenho:**
 - **As taxas dos outros 26 países não entram aqui:** carregam-se num pedido
@@ -338,5 +340,45 @@ Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
   própria; a decisão ainda não os usa (os serviços fora do país estão
   bloqueados, Q5).
 - **A idade máxima da resposta «válido» do VIES** é 72 h — **C**, até à V5.
-- **Uma empresa sem VIES válido** paga à taxa do país do comerciante
-  (`b2b_sem_vies_origem`) — **C**, a confirmar com o contabilista.
+- **Uma empresa sem VIES válido noutro país da UE** não compra como empresa:
+  **bloqueada** (`b2b_sem_vies`); pode comprar como consumidor (revisão do
+  #256, P1-3).
+
+**Da revisão do #256 (09/10/2026):**
+- **Países:** só os 249 códigos da ISO 3166-1; um código fora dela
+  (`XX`, `EL`, `XI`) bloqueia (`pais_invalido`), nunca é «fora da UE». O
+  comerciante tem de ser de um país da UE.
+- **Territórios por validar acrescentados** (todos **C**): Irlanda do Norte
+  (`GB`, prefixo `BT`), Mónaco e Ilha de Man (o país todo, prefixo vazio), o
+  ultramar francês (`FR` 97 e 98, e os códigos ISO próprios: GP, MQ, GF, RE,
+  YT, MF, BL, PM, NC, PF, WF, TF), Åland (`AX`), São Marinho e Vaticano.
+- **Código postal:** num país com territórios especiais é obrigatório
+  (`codigo_postal_em_falta`) e tem de ter a forma do país
+  (`codigo_postal_invalido`: um símbolo, ou letras onde os prefixos são só
+  algarismos).
+- **Sem coluna `fim` nas taxas** (§3.3): uma taxa vale até à linha seguinte do
+  mesmo país, região e categoria; uma correcção é uma linha nova, por
+  migração revista.
+- **«Verificada»:** só com a taxa verificada **e** a regra na lista das
+  validadas pelo contabilista, hoje vazia — nenhuma decisão sai verificada.
+- **O dia da taxa** conta-se no fuso do comerciante (**C**: não verifiquei se
+  a lei de cada país o conta assim); um fuso desconhecido bloqueia.
+- **Montantes:** inteiros, não negativos e até 225 179 981 368 cêntimos por
+  linha (o limite em que as contas não perdem precisão); fora disso,
+  `montante_invalido`.
+- **Serviço presencial a uma empresa** de outro país, ou sem perfil:
+  **bloqueado** (`servico_b2b_por_validar`, **C**).
+- **O VIES na decisão:** o estado e a data vêm da mesma prova; uma resposta com
+  data posterior ao momento não conta; o limite das 72 h inclui-se.
+- **A isenção manual** sobrepõe-se a um território por validar (é do NIF, e
+  quem a deu responde por ela com o código); uma isenção de outro NIF fica na
+  evidência como ignorada (`isencao_ignorada`).
+- **A evidência** leva a moeda, o dia usado e os identificadores com prefixo
+  (`exm_…`, `vvc_…`). Uma taxa sem percentagem bloqueia
+  (`taxa_sem_percentagem`), nunca vale 0 %. Um perfil arquivado não decide
+  (`tax.profile_archived`).
+- **`versao_regras`** sobe a cada mudança da função (hoje `2026-10-09.2`); a
+  encomenda guarda a versão com a decisão.
+- **Por fazer:** a publicação de um artigo exigir uma categoria `activa` entra
+  com o checkout (fatia 7); os artigos e as isenções já gravados sem código
+  ficam (uma isenção sem código bloqueia a venda, `isencao_sem_codigo`).

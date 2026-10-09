@@ -5,7 +5,8 @@ export type CodigoErroIva =
   | "tax.invalid_field"
   | "tax.retry"
   | "tax.declaration_by_person"
-  | "tax.invalid_registration";
+  | "tax.invalid_registration"
+  | "tax.profile_archived";
 
 export class ErroIva extends Error {
   constructor(

@@ -38,6 +38,7 @@ const ESTADO_DO_CODIGO: Record<CodigoErroIva, number> = {
   "tax.retry": 503,
   "tax.declaration_by_person": 422,
   "tax.invalid_registration": 422,
+  "tax.profile_archived": 422,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -159,6 +160,7 @@ const PedidoSimulacao = Type.Object(
     }),
     local_prestacao: Type.Optional(Type.Union([Pais, Type.Null()])),
     montante: Type.Integer({ minimum: 0, maximum: 100_000_000_000 }),
+    moeda: Type.Optional(Type.String({ pattern: "^[A-Z]{3}$" })),
     preco_inclui_iva: Type.Boolean(),
     entrega: Type.Optional(
       Type.Union([
@@ -433,8 +435,26 @@ export function rotasDoIva(
     },
     async (pedido, resposta) =>
       emIva(resposta, async () => {
-        const c = chaveDo(pedido).comercianteId;
+        const chave = chaveDo(pedido);
+        const c = chave.comercianteId;
         const b = pedido.body;
+        // O perfil é um dado de Clientes: lê-lo pede também esse âmbito
+        // (revisão do #256, P3).
+        if (
+          b.perfil !== undefined &&
+          b.perfil !== null &&
+          !chave.ambitos.includes("customers:read")
+        ) {
+          throw new ErroApi(
+            "auth.forbidden",
+            403,
+            {
+              pt: "A chave não tem o âmbito desta operação",
+              en: "The key lacks the scope for this operation",
+            },
+            "âmbito pedido: customers:read",
+          );
+        }
         const [tabelas, comerciante, perfil] = await Promise.all([
           carregarTabelas(base),
           comercianteParaDecisao(base, c, semPrefixo(b.entidade_legal)),
@@ -451,6 +471,7 @@ export function rotasDoIva(
               natureza: b.natureza,
               local_prestacao: b.local_prestacao ?? null,
               montante: b.montante,
+              moeda: b.moeda ?? "EUR",
               preco_inclui_iva: b.preco_inclui_iva,
             },
             entrega:

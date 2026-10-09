@@ -8,7 +8,21 @@
 // (eu-vat-oss-ioss, «Regra zero»).
 
 /** A versão do conjunto de regras (sobe a cada mudança desta função). */
-export const VERSAO_REGRAS = "2026-10-09.1";
+export const VERSAO_REGRAS = "2026-10-09.2";
+
+/**
+ * As regras já validadas pelo contabilista (R8). Vazio enquanto as perguntas
+ * V3 a V11 estão em aberto: até lá nenhuma decisão sai «verificada», mesmo com
+ * uma taxa verificada (revisão do #256, P2-1).
+ */
+export const REGRAS_VALIDADAS: ReadonlySet<Regra> = new Set<Regra>([]);
+
+/**
+ * O maior montante (em cêntimos) que as contas fazem sem perder precisão:
+ * `dividirArredondado(montante × 10000, …)` dobra o numerador (revisão do
+ * #256, P2-3). Uns 2 250 milhões de euros por linha.
+ */
+export const MONTANTE_MAXIMO = Math.floor(Number.MAX_SAFE_INTEGER / 40_000);
 
 /**
  * Há quanto tempo pode ter sido a última resposta «válido» do VIES para
@@ -47,6 +61,27 @@ export const PAISES_UE: ReadonlySet<string> = new Set([
   "ES",
   "SE",
 ]);
+
+/**
+ * Os códigos de país atribuídos da ISO 3166-1 alfa-2 (249). Um código fora
+ * desta lista bloqueia: nunca se trata como «fora da UE» (revisão do #256,
+ * P1-1). Os territórios com tratamento próprio estão em `territorio_fiscal`.
+ */
+export const PAISES_ISO: ReadonlySet<string> = new Set(
+  `AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE
+BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD
+CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM
+DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF
+GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU
+ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN
+KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME
+MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA
+NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM
+PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI
+SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK
+TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI
+VN VU WF WS YE YT ZA ZM ZW`.split(/\s+/),
+);
 
 export const NATUREZAS_IVA = [
   "bem",
@@ -102,14 +137,18 @@ export interface EntradaDecisao {
     /** O país da entidade legal que vende. */
     pais: string;
     regime: "origem" | "destino" | "por_declarar";
+    /** O fuso do comerciante: o dia da taxa conta-se nele (P2-2, C). */
+    fuso: string;
   };
   linha: {
     categoria: string;
     natureza: NaturezaIva;
     /** O país do lugar da prestação, nos serviços e eventos. */
     local_prestacao: string | null;
-    /** Em cêntimos. */
+    /** Em cêntimos da `moeda`. */
     montante: number;
+    /** ISO 4217; só fica na evidência (a decisão não converte). */
+    moeda: string;
     preco_inclui_iva: boolean;
   };
   /** A morada de entrega (nos bens). */
@@ -133,6 +172,14 @@ export interface EntradaDecisao {
 }
 
 export const MOTIVOS_DE_BLOQUEIO = [
+  "montante_invalido",
+  "fuso_invalido",
+  "pais_invalido",
+  "codigo_postal_em_falta",
+  "codigo_postal_invalido",
+  "b2b_sem_vies",
+  "servico_b2b_por_validar",
+  "taxa_sem_percentagem",
   "categoria_por_validar",
   "natureza_bloqueada",
   "entrega_em_falta",
@@ -153,12 +200,14 @@ export type Regra =
   | "nacional"
   | "distancia_destino"
   | "distancia_origem"
-  | "b2b_sem_vies_origem"
   | "servico_no_lugar"
   | "bloqueio";
 
 export interface Evidencia {
   momento: string;
+  /** O dia, no fuso do comerciante, com que se escolheu a taxa. */
+  dia: string;
+  moeda: string;
   pais_comerciante: string;
   regime: string;
   categoria: string;
@@ -171,9 +220,13 @@ export interface Evidencia {
   vies: {
     estado: string;
     validado_em: string | null;
+    /** `vvc_…`. */
     prova: string | null;
   } | null;
+  /** A isenção usada (`exm_…`). */
   isencao: string | null;
+  /** Havia uma isenção, mas de outro NIF: não contou (R3). */
+  isencao_ignorada: boolean;
   taxa: { id: string; fonte: string; verificado: boolean } | null;
   /** Falso quando entra uma taxa, um motivo ou um território por validar (R8). */
   verificado: boolean;
@@ -217,8 +270,8 @@ export function territorioDe(
   pais: string,
   codigoPostal: string | null,
 ): Territorio | null {
-  if (codigoPostal === null) return null;
-  const cp = codigoPostalLimpo(codigoPostal);
+  // Sem código postal, só conta a linha do país todo (prefixo vazio).
+  const cp = codigoPostal === null ? "" : codigoPostalLimpo(codigoPostal);
   let melhor: Territorio | null = null;
   for (const t of tabelas.territorios) {
     if (t.pais !== pais || !cp.startsWith(t.prefixo_cp)) continue;
@@ -229,15 +282,32 @@ export function territorioDe(
   return melhor;
 }
 
-/** A taxa em vigor no momento (a de início mais recente até ao dia). */
+/**
+ * O dia (AAAA-MM-DD) do momento no fuso dado; `null` se o fuso não existe.
+ * Uma taxa nova às 0 h de Lisboa vale às 23 h 30 UTC da véspera (P2-2). C:
+ * não verifiquei se a lei de cada país conta o dia no fuso do vendedor.
+ */
+export function diaNoFuso(momento: Date, fuso: string): string | null {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: fuso,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(momento);
+  } catch {
+    return null;
+  }
+}
+
+/** A taxa em vigor no dia (a de início mais recente até ele). */
 export function taxaEmVigor(
   tabelas: Tabelas,
   pais: string,
   regiao: string | null,
   categoria: string,
-  momento: Date,
+  dia: string,
 ): Taxa | null {
-  const dia = momento.toISOString().slice(0, 10);
   let melhor: Taxa | null = null;
   for (const t of tabelas.taxas) {
     if (t.pais !== pais || t.regiao !== regiao || t.categoria !== categoria) {
@@ -252,13 +322,27 @@ export function taxaEmVigor(
 const motivoDo = (tabelas: Tabelas, pais: string, tipo: Motivo["tipo"]) =>
   tabelas.motivos.find((m) => m.pais === pais && m.tipo === tipo) ?? null;
 
-export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
+export function decidirIva(
+  tabelas: Tabelas,
+  e: EntradaDecisao,
+  opcoes: { regrasValidadas: ReadonlySet<Regra> } = {
+    regrasValidadas: REGRAS_VALIDADAS,
+  },
+): Decisao {
   const territorio =
     e.entrega === null
       ? null
       : territorioDe(tabelas, e.entrega.pais, e.entrega.codigo_postal);
+  const dia = diaNoFuso(e.momento, e.comerciante.fuso);
+  const isencaoDoPerfil = e.perfil?.isencao ?? null;
+  const isencaoConta =
+    isencaoDoPerfil !== null &&
+    isencaoDoPerfil.pais === e.perfil?.pais &&
+    isencaoDoPerfil.numero === e.perfil.numero;
   const evidencia: Evidencia = {
     momento: e.momento.toISOString(),
+    dia: dia ?? "",
+    moeda: e.linha.moeda,
     pais_comerciante: e.comerciante.pais,
     regime: e.comerciante.regime,
     categoria: e.linha.categoria,
@@ -277,12 +361,16 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
         : {
             estado: e.perfil.estado_vies,
             validado_em: e.perfil.validado_em?.toISOString() ?? null,
-            prova: e.perfil.prova_vies,
+            prova:
+              e.perfil.prova_vies === null
+                ? null
+                : `vvc_${e.perfil.prova_vies}`,
           },
     isencao: null,
+    isencao_ignorada: isencaoDoPerfil !== null && !isencaoConta,
     taxa: null,
-    // Fica falso quando entra uma taxa ou um motivo por validar (R8).
-    verificado: true,
+    // Só verdadeiro com a regra validada e a taxa verificada (R8, P2-1).
+    verificado: false,
   };
 
   const bloqueia = (motivo: MotivoDeBloqueio): Decisao => ({
@@ -294,6 +382,12 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
   });
 
   // 0. O que não se decide: na dúvida, não vende.
+  const m0 = e.linha.montante;
+  if (!Number.isSafeInteger(m0) || m0 < 0 || m0 > MONTANTE_MAXIMO) {
+    return bloqueia("montante_invalido");
+  }
+  if (dia === null) return bloqueia("fuso_invalido");
+  if (!PAISES_UE.has(e.comerciante.pais)) return bloqueia("pais_invalido");
   const categoria = tabelas.categorias.find(
     (c) => c.codigo === e.linha.categoria,
   );
@@ -313,19 +407,14 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
     regiao: string | null,
     regra: Regra,
   ): Decisao => {
-    const taxa = taxaEmVigor(
-      tabelas,
-      pais,
-      regiao,
-      e.linha.categoria,
-      e.momento,
-    );
+    const taxa = taxaEmVigor(tabelas, pais, regiao, e.linha.categoria, dia);
     if (taxa === null) return bloqueia("taxa_em_falta");
     if (taxa.tipo === "isenta") {
       if (taxa.codigo_motivo === null) return bloqueia("motivo_em_falta");
       return isenta(taxa.codigo_motivo, "isento_natureza", taxa, pais, regiao);
     }
-    const t = taxa.percentagem ?? 0;
+    if (taxa.percentagem === null) return bloqueia("taxa_sem_percentagem");
+    const t = taxa.percentagem;
     let base: number;
     let iva: number;
     if (e.linha.preco_inclui_iva) {
@@ -349,7 +438,7 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
       evidencia: {
         ...evidencia,
         taxa: { id: taxa.id, fonte: taxa.fonte, verificado: taxa.verificado },
-        verificado: evidencia.verificado && taxa.verificado,
+        verificado: taxa.verificado && opcoes.regrasValidadas.has(regra),
       },
     };
   };
@@ -373,14 +462,17 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
         e.comerciante.pais,
         null,
         e.linha.categoria,
-        e.momento,
+        dia,
       );
       if (taxaOrigem === null) return bloqueia("taxa_em_falta");
       // Isento por natureza na origem: o preço não leva IVA nenhum.
       if (taxaOrigem.tipo === "taxa") {
+        if (taxaOrigem.percentagem === null) {
+          return bloqueia("taxa_sem_percentagem");
+        }
         base = dividirArredondado(
           e.linha.montante * 10000,
-          10000 + (taxaOrigem.percentagem ?? 0),
+          10000 + taxaOrigem.percentagem,
         );
       }
     }
@@ -417,7 +509,7 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
     e.comerciante.pais,
     null,
     e.linha.categoria,
-    e.momento,
+    dia,
   );
   if (natural?.tipo === "isenta") {
     if (natural.codigo_motivo === null) return bloqueia("motivo_em_falta");
@@ -431,17 +523,15 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
   }
 
   // 2a. A isenção manual: vale sempre, também com entrega no país do
-  // comerciante (a #D4248), se for do NIF do perfil (R3).
-  const isencao = e.perfil?.isencao ?? null;
-  if (
-    isencao !== null &&
-    isencao.pais === e.perfil?.pais &&
-    isencao.numero === e.perfil.numero
-  ) {
-    evidencia.isencao = isencao.id;
-    if (isencao.codigo_motivo === null) return bloqueia("isencao_sem_codigo");
+  // comerciante (a #D4248) e num território por validar, se for do NIF do
+  // perfil (R3). Quem a deu responde por ela, com o código e o motivo.
+  if (isencaoConta) {
+    evidencia.isencao = `exm_${isencaoDoPerfil.id}`;
+    if (isencaoDoPerfil.codigo_motivo === null) {
+      return bloqueia("isencao_sem_codigo");
+    }
     return isenta(
-      isencao.codigo_motivo,
+      isencaoDoPerfil.codigo_motivo,
       "isencao_manual",
       null,
       e.comerciante.pais,
@@ -455,11 +545,36 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
     if (e.linha.local_prestacao !== e.comerciante.pais) {
       return bloqueia("servico_fora_do_pais");
     }
+    // A uma empresa de outro país (ou sem perfil), o lugar de um serviço
+    // presencial pode ser o do cliente (P2-4): por validar (C).
+    if (
+      natureza === "servico_presencial" &&
+      e.finalidade !== "consumo" &&
+      e.perfil?.pais !== e.comerciante.pais
+    ) {
+      return bloqueia("servico_b2b_por_validar");
+    }
     return tributa(e.comerciante.pais, null, "servico_no_lugar");
   }
 
   // Bens: a entrega decide.
   if (e.entrega === null) return bloqueia("entrega_em_falta");
+  if (!PAISES_ISO.has(e.entrega.pais)) return bloqueia("pais_invalido");
+  // Um país com territórios especiais precisa do código postal (P1-2).
+  const prefixos = tabelas.territorios
+    .filter((t) => t.pais === e.entrega?.pais && t.prefixo_cp !== "")
+    .map((t) => t.prefixo_cp);
+  if (prefixos.length > 0) {
+    const cp =
+      e.entrega.codigo_postal === null
+        ? ""
+        : codigoPostalLimpo(e.entrega.codigo_postal);
+    if (cp === "") return bloqueia("codigo_postal_em_falta");
+    const soAlgarismos = prefixos.every((x) => /^[0-9]+$/.test(x));
+    if (!/^[0-9A-Z]+$/.test(cp) || (soAlgarismos && !/^[0-9]+$/.test(cp))) {
+      return bloqueia("codigo_postal_invalido");
+    }
+  }
   if (territorio?.efeito === "por_validar") {
     return bloqueia("territorio_por_validar");
   }
@@ -489,6 +604,7 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
     e.finalidade !== "consumo" &&
     perfil.estado_vies === "valido" &&
     perfil.validado_em !== null &&
+    e.momento.getTime() >= perfil.validado_em.getTime() &&
     e.momento.getTime() - perfil.validado_em.getTime() <=
       VIES_IDADE_MAXIMA_MS &&
     perfil.pais !== null &&
@@ -506,11 +622,10 @@ export function decidirIva(tabelas: Tabelas, e: EntradaDecisao): Decisao {
     );
   }
 
-  // 3. Paga IVA. Uma empresa sem VIES válido: à taxa do país do comerciante
-  // (C). Um consumidor: pelo regime declarado.
-  if (e.finalidade !== "consumo") {
-    return tributa(e.comerciante.pais, null, "b2b_sem_vies_origem");
-  }
+  // 3. Uma empresa sem VIES válido noutro país da UE não compra como
+  // empresa: bloqueia (P1-3). Pode comprar como consumidor, e paga IVA.
+  if (e.finalidade !== "consumo") return bloqueia("b2b_sem_vies");
+  // Um consumidor: pelo regime declarado.
   if (e.comerciante.regime === "por_declarar") {
     return bloqueia("regime_por_declarar");
   }

@@ -68,7 +68,13 @@ async function noIva<T>(
 export async function carregarTabelas(db: Kysely<BaseDados>): Promise<Tabelas> {
   const [categorias, taxas, territorios, motivos] = await Promise.all([
     db.selectFrom("categoria_fiscal").select(["codigo", "estado"]).execute(),
-    db.selectFrom("taxa_iva").selectAll().execute(),
+    // O início como texto: uma `date` lida como Date muda de dia com o fuso
+    // do processo (revisão do #256, P2-2).
+    db
+      .selectFrom("taxa_iva")
+      .selectAll()
+      .select(sql<string>`to_char(inicio, 'YYYY-MM-DD')`.as("inicio_texto"))
+      .execute(),
     db.selectFrom("territorio_fiscal").selectAll().execute(),
     db.selectFrom("motivo_iva").select(["pais", "codigo", "tipo"]).execute(),
   ]);
@@ -82,7 +88,7 @@ export async function carregarTabelas(db: Kysely<BaseDados>): Promise<Tabelas> {
       tipo: t.tipo,
       percentagem: t.percentagem,
       codigo_motivo: t.codigo_motivo,
-      inicio: dia(t.inicio),
+      inicio: t.inicio_texto,
       fonte: t.fonte,
       verificado: t.verificado,
     })),
@@ -90,10 +96,6 @@ export async function carregarTabelas(db: Kysely<BaseDados>): Promise<Tabelas> {
     motivos,
   };
 }
-
-/** Uma data da base (`date`) como AAAA-MM-DD. */
-const dia = (d: Date | string) =>
-  typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10);
 
 export async function listarCategorias(db: Kysely<BaseDados>) {
   return db
@@ -150,6 +152,7 @@ export async function listarRegistos(
     const declaracoes = await trx
       .selectFrom("declaracao_regime")
       .selectAll()
+      .orderBy("declarado_em", "desc")
       .orderBy("id", "desc")
       .execute();
     return entidades.map((e) => ({
@@ -204,10 +207,20 @@ export async function comercianteParaDecisao(
       .selectFrom("declaracao_regime")
       .select("regime")
       .where("entidade_legal_id", "=", entidadeId)
+      .orderBy("declarado_em", "desc")
       .orderBy("id", "desc")
       .limit(1)
       .executeTakeFirst();
-    return { pais: e.pais, regime: d?.regime ?? "por_declarar" };
+    const c = await trx
+      .selectFrom("comerciante")
+      .select("fuso")
+      .where("id", "=", comercianteId)
+      .executeTakeFirstOrThrow();
+    return {
+      pais: e.pais,
+      regime: d?.regime ?? "por_declarar",
+      fuso: c.fuso,
+    };
   });
 }
 
@@ -220,18 +233,24 @@ export async function perfilParaDecisao(
   return noIva(db, comercianteId, async (trx) => {
     const p = await trx
       .selectFrom("perfil_faturacao")
-      .select(["pais_contribuinte", "nif_numero", "estado_vies"])
+      .select(["pais_contribuinte", "nif_numero", "estado"])
       .where("id", "=", perfilId)
       .executeTakeFirst();
     if (p === undefined) {
       throw new ErroIva("tax.not_found", "o perfil não existe");
+    }
+    if (p.estado === "arquivado") {
+      throw new ErroIva(
+        "tax.profile_archived",
+        "tax.profile_archived: o perfil está arquivado",
+      );
     }
     const prova =
       p.nif_numero === null || p.pais_contribuinte === null
         ? undefined
         : await trx
             .selectFrom("validacao_vies")
-            .select(["id", "data_vies", "consultado_em"])
+            .select(["id", "resultado", "data_vies", "consultado_em"])
             .where("perfil_id", "=", perfilId)
             .where("pais_consultado", "=", p.pais_contribuinte)
             .where("numero_consultado", "=", p.nif_numero)
@@ -248,7 +267,9 @@ export async function perfilParaDecisao(
     return {
       pais: p.pais_contribuinte,
       numero: p.nif_numero,
-      estado_vies: p.estado_vies,
+      // O estado e a data vêm da mesma prova (revisão do #256, P2-7); sem
+      // prova definitiva, não há estado que isente.
+      estado_vies: prova?.resultado ?? "sem_prova",
       validado_em:
         prova === undefined ? null : (prova.data_vies ?? prova.consultado_em),
       prova_vies: prova?.id ?? null,
