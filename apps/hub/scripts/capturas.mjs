@@ -1729,11 +1729,11 @@ try {
   // no segundo (issue #262). A resposta do primeiro fica retida até os
   // preços do segundo estarem no ecrã (sem depender de tempos, como no #260).
   const fichaAzul1 = rp.url();
-  // O endereço da ficha do Verniz Azul 2, lido da lista filtrada.
+  // O endereço da ficha do Verniz Azul 7, lido da lista filtrada.
   await rp.getByRole("link", { name: "Voltar aos artigos" }).click();
-  const fichaAzul2 =
+  const fichaAzul7 =
     (await rp
-      .getByRole("link", { name: "Verniz Azul 2", exact: true })
+      .getByRole("link", { name: "Verniz Azul 7", exact: true })
       .getAttribute("href")) ?? "";
   let precosRetidos = 0;
   let soltarPrecos = () => undefined;
@@ -1760,7 +1760,7 @@ try {
             lista: {
               id: "prl_00000000-0000-7000-8000-0000000000cc",
               mercado: "mkt_00000000-0000-7000-8000-0000000000dd",
-              nome: "Lista do Verniz Azul 2",
+              nome: "Lista do Verniz Azul 7",
               tipo: "base",
               etiqueta: null,
               prioridade: null,
@@ -1791,10 +1791,10 @@ try {
   await rp.evaluate((destino) => {
     window.history.pushState(null, "", destino);
     window.dispatchEvent(new window.PopStateEvent("popstate"));
-  }, fichaAzul2);
-  await rp.getByRole("heading", { name: "Verniz Azul 2", level: 1 }).waitFor();
+  }, fichaAzul7);
+  await rp.getByRole("heading", { name: "Verniz Azul 7", level: 1 }).waitFor();
   await rp
-    .getByRole("heading", { name: "Lista do Verniz Azul 2", level: 3 })
+    .getByRole("heading", { name: "Lista do Verniz Azul 7", level: 3 })
     .waitFor();
   // Os preços do segundo estão no ecrã; agora chegam os do primeiro.
   const precosAntigos = rp.waitForResponse(
@@ -1808,7 +1808,7 @@ try {
   confere(
     precosRetidos === 1 &&
       (await rp
-        .getByRole("heading", { name: "Lista do Verniz Azul 2", level: 3 })
+        .getByRole("heading", { name: "Lista do Verniz Azul 7", level: 3 })
         .count()) === 1 &&
       (await rp.getByRole("heading", { name: "Base PT", level: 3 }).count()) ===
         0,
