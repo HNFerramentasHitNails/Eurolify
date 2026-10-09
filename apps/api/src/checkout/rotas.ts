@@ -1,12 +1,19 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import { Type } from "typebox";
-import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
+import { createHash } from "node:crypto";
+import { sql } from "kysely";
+import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
+import { comIdempotencia } from "../base/idempotencia.js";
 import { TIPOS_TEXTO_LEGAL, type BaseDados } from "../base/esquema.js";
 import { escrever, idCom, semPrefixo, umDe } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
-import { CabecalhoIdempotencia } from "../identidade/rotas.js";
+import {
+  CabecalhoIdempotencia,
+  caminhoDe,
+  chaveDeIdempotencia,
+} from "../identidade/rotas.js";
 import { ErroCheckout, ESTADO_DO_CODIGO } from "./erros.js";
 import {
   concluir,
@@ -17,11 +24,13 @@ import {
   encomendaDaSessao,
   iniciarCheckout,
   lerEncomenda,
+  lerVersaoTextoLegal,
   listarCheckouts,
   listarEncomendas,
   listarMetodosEntrega,
   listarTextosLegais,
-  mostrarResumo,
+  calcularResumo,
+  impressao,
   mudarMetodoEntrega,
   naSessao,
   porContacto,
@@ -34,6 +43,7 @@ import {
   tirarLinha,
   traduzir,
   verCarrinho,
+  versaoDoResumo,
   type Resumo,
   type SessaoLida,
 } from "./repositorio.js";
@@ -72,6 +82,59 @@ async function emCheckout<T>(resposta: FastifyReply, fn: () => Promise<T>) {
   } catch (erro) {
     throw paraApi(erro, resposta);
   }
+}
+
+/** O resumo do segredo do carrinho, para entrar no corpo idempotente (P1-1). */
+const resumoDoSegredo = (segredo: string | undefined) =>
+  segredo === undefined
+    ? null
+    : createHash("sha256").update(segredo).digest("hex");
+
+/**
+ * Uma escrita da API da Loja que devolve um segredo (o do carrinho, o token
+ * da sessão): o segredo vai ao cliente e nunca fica na resposta guardada da
+ * idempotência; repetir o pedido não o devolve outra vez (como a criação de
+ * chaves, docs/19 T5; revisão do #276, P1-1).
+ */
+async function escreverComSegredo(
+  base: Kysely<BaseDados>,
+  pedido: Parameters<typeof chaveDo>[0],
+  resposta: FastifyReply,
+  corpoIdempotente: unknown,
+  fn: (
+    trx: Transaction<BaseDados>,
+    chave: ReturnType<typeof chaveDo>,
+  ) => Promise<{ corpo: unknown; guardar: unknown }>,
+) {
+  const chave = chaveDo(pedido);
+  const resultado = await emCheckout(resposta, () =>
+    comIdempotencia(
+      base,
+      chave.comercianteId,
+      {
+        chave: chaveDeIdempotencia(pedido),
+        metodo: "POST",
+        caminho: caminhoDe(pedido.url),
+        corpo: corpoIdempotente,
+      },
+      async (trx) => {
+        await sql`select set_config('eurolify.quem', ${`chave:key_${chave.chaveId}`}, true)`.execute(
+          trx,
+        );
+        const r = await fn(trx, chave);
+        return { status: 201, corpo: r.corpo, guardar: r.guardar };
+      },
+      {
+        repetir: () => {
+          throw erroBase(
+            "idempotency.secret_not_repeated",
+            "o segredo só se mostra uma vez: repita com outra Idempotency-Key",
+          );
+        },
+      },
+    ),
+  );
+  return resposta.code(resultado.status).send(resultado.corpo);
 }
 
 const Pais = Type.String({ pattern: "^[A-Z]{2}$" });
@@ -117,6 +180,8 @@ const lojaDa = (pedido: Parameters<typeof chaveDo>[0]) => {
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 
 const paraResumo = (r: Resumo) => ({
+  // O ecrã devolve-a no botão final: é o que o cliente viu (R3).
+  impressao: impressao(r),
   moeda: r.moeda,
   preco_inclui_iva: r.preco_inclui_iva,
   linhas: r.linhas.map((l) => ({
@@ -162,11 +227,28 @@ const paraResumo = (r: Resumo) => ({
     tipo: t.tipo,
     versao: `lgv_${t.versao_id}`,
     numero: t.numero,
+    resumo_texto: t.resumo_texto,
     validado_por_jurista: t.validado_por_jurista,
   })),
   em_falta: r.em_falta,
   bloqueios: r.bloqueios,
   botao: r.botao,
+});
+
+const paraVersao = (v: Awaited<ReturnType<typeof lerVersaoTextoLegal>>) => ({
+  id: `lgv_${v.id}`,
+  texto_legal: `lgt_${v.texto_legal_id}`,
+  tipo: v.tipo,
+  pais: v.pais,
+  lingua: v.lingua,
+  tipo_cliente: v.tipo_cliente,
+  numero: v.numero,
+  estado: v.estado,
+  texto: v.texto,
+  resumo_texto: v.resumo_texto,
+  validado_por_jurista: v.validado_por_jurista,
+  jurista: v.jurista,
+  publicada_em: iso(v.publicada_em),
 });
 
 const paraSessao = (s: SessaoLida) => ({
@@ -219,8 +301,8 @@ export function rotasDoCheckout(
   base: Kysely<BaseDados>,
 ) {
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
-  const loja = { ambito: "storefront" as const };
-  const publico = { ambito: "publico" as const };
+  const loja = { ambito: "storefront" as const, loja: true };
+  const publico = { ambito: "publico" as const, loja: true };
 
   // ------------------------------------------------- API da Loja: carrinho
 
@@ -243,7 +325,7 @@ export function rotasDoCheckout(
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 201, (trx, chave) =>
+      escreverComSegredo(base, pedido, resposta, pedido.body, (trx, chave) =>
         emCheckout(resposta, async () => {
           const r = await criarCarrinho(
             trx,
@@ -255,7 +337,10 @@ export function rotasDoCheckout(
               lingua: pedido.body.lingua,
             },
           );
-          return { id: `crt_${r.id}`, segredo: r.segredo };
+          return {
+            corpo: { id: `crt_${r.id}`, segredo: r.segredo },
+            guardar: { id: `crt_${r.id}` },
+          };
         }),
       ),
   );
@@ -332,20 +417,32 @@ export function rotasDoCheckout(
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 200, (trx, chave) =>
-        emCheckout(resposta, async () => ({
-          linha: `crl_${await porLinha(
-            trx,
-            chave.comercianteId,
-            lojaDa(pedido),
-            semPrefixo(pedido.params.id),
-            pedido.headers["x-cart-secret"],
-            {
-              variante: semPrefixo(pedido.body.variante),
-              quantidade: pedido.body.quantidade,
-            },
-          )}`,
-        })),
+      escrever(
+        base,
+        pedido,
+        resposta,
+        200,
+        (trx, chave) =>
+          emCheckout(resposta, async () => ({
+            linha: `crl_${await porLinha(
+              trx,
+              chave.comercianteId,
+              lojaDa(pedido),
+              semPrefixo(pedido.params.id),
+              pedido.headers["x-cart-secret"],
+              {
+                variante: semPrefixo(pedido.body.variante),
+                quantidade: pedido.body.quantidade,
+              },
+            )}`,
+          })),
+        undefined,
+        // O segredo entra no corpo idempotente: repetir com outro segredo é
+        // outro pedido (revisão do #276, P1-1).
+        {
+          ...pedido.body,
+          segredo: resumoDoSegredo(pedido.headers["x-cart-secret"]),
+        },
       ),
   );
 
@@ -361,18 +458,25 @@ export function rotasDoCheckout(
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 204, (trx, chave) =>
-        emCheckout(resposta, async () => {
-          await tirarLinha(
-            trx,
-            chave.comercianteId,
-            lojaDa(pedido),
-            semPrefixo(pedido.params.id),
-            pedido.headers["x-cart-secret"],
-            semPrefixo(pedido.params.linha),
-          );
-          return null;
-        }),
+      escrever(
+        base,
+        pedido,
+        resposta,
+        204,
+        (trx, chave) =>
+          emCheckout(resposta, async () => {
+            await tirarLinha(
+              trx,
+              chave.comercianteId,
+              lojaDa(pedido),
+              semPrefixo(pedido.params.id),
+              pedido.headers["x-cart-secret"],
+              semPrefixo(pedido.params.linha),
+            );
+            return null;
+          }),
+        undefined,
+        { segredo: resumoDoSegredo(pedido.headers["x-cart-secret"]) },
       ),
   );
 
@@ -397,22 +501,30 @@ export function rotasDoCheckout(
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 201, (trx, chave) =>
-        emCheckout(resposta, async () => {
-          const r = await iniciarCheckout(
-            trx,
-            chave.comercianteId,
-            lojaDa(pedido),
-            semPrefixo(pedido.params.id),
-            pedido.headers["x-cart-secret"],
-          );
-          return {
-            sessao: `chk_${r.sessao}`,
-            token: r.token,
-            caminho: `/checkout/${r.token}`,
-            expira_em: r.expira_em.toISOString(),
-          };
-        }),
+      escreverComSegredo(
+        base,
+        pedido,
+        resposta,
+        { segredo: resumoDoSegredo(pedido.headers["x-cart-secret"]) },
+        (trx, chave) =>
+          emCheckout(resposta, async () => {
+            const r = await iniciarCheckout(
+              trx,
+              chave.comercianteId,
+              lojaDa(pedido),
+              semPrefixo(pedido.params.id),
+              pedido.headers["x-cart-secret"],
+            );
+            return {
+              corpo: {
+                sessao: `chk_${r.sessao}`,
+                token: r.token,
+                caminho: `/checkout/${r.token}`,
+                expira_em: r.expira_em.toISOString(),
+              },
+              guardar: { sessao: `chk_${r.sessao}` },
+            };
+          }),
       ),
   );
 
@@ -603,7 +715,7 @@ export function rotasDoCheckout(
       config: publico,
       schema: {
         description:
-          "O resumo imediatamente antes do botão final: cada linha com o preço e o IVA, os portes, o total, os textos legais a aceitar (com a versão), o que falta e o que impede o botão. Fica guardado o que o cliente viu: se mudar até ao botão final, a encomenda não se cria.",
+          "O resumo imediatamente antes do botão final: cada linha com o preço e o IVA, os portes, o total, os textos legais a aceitar (com a versão), o que falta e o que impede o botão. Devolve a `impressao` do que o cliente vê: o botão final leva-a e, se o recálculo der outra, a encomenda não se cria. Não grava nada.",
         params: ParamToken,
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -611,7 +723,7 @@ export function rotasDoCheckout(
     async (pedido, resposta) =>
       emCheckout(resposta, () =>
         naSessao(base, pedido.params.token, async (trx, s) =>
-          paraResumo(await mostrarResumo(trx, s)),
+          paraResumo(await calcularResumo(trx, s)),
         ),
       ),
   );
@@ -628,6 +740,8 @@ export function rotasDoCheckout(
           {
             aceita_condicoes: Type.Boolean(),
             versoes: Type.Array(IdVersao, { maxItems: 10 }),
+            // A impressão do resumo que o cliente viu (GET …/summary).
+            impressao: Type.String({ pattern: "^[0-9a-f]{64}$" }),
           },
           { additionalProperties: false },
         ),
@@ -657,6 +771,7 @@ export function rotasDoCheckout(
             return concluir(trx, s, {
               aceita_condicoes: pedido.body.aceita_condicoes,
               versoes: pedido.body.versoes.map(semPrefixo),
+              impressao: pedido.body.impressao,
             });
           },
           { soAberta: false },
@@ -664,6 +779,27 @@ export function rotasDoCheckout(
         void resposta.status(201);
         return { encomenda: `ord_${id}` };
       }),
+  );
+
+  rotas.get(
+    "/checkout/:token/legal/:versao",
+    {
+      config: publico,
+      schema: {
+        description:
+          "O texto inteiro de uma versão a aceitar (só as do resumo desta sessão), com o resumo SHA-256 que fica na encomenda como prova do que foi aceite.",
+        params: Type.Object({ token: Token, versao: IdVersao }),
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emCheckout(resposta, () =>
+        naSessao(base, pedido.params.token, async (trx, s) =>
+          paraVersao(
+            await versaoDoResumo(trx, s, semPrefixo(pedido.params.versao)),
+          ),
+        ),
+      ),
   );
 
   rotas.get(
@@ -822,6 +958,30 @@ export function rotasDoCheckout(
           );
           return { id: `lgv_${v.id}`, numero: v.numero };
         }),
+      ),
+  );
+
+  rotas.get(
+    "/legal-texts/:id/versions/:versao",
+    {
+      config: { ambito: "legal:read" },
+      schema: {
+        description:
+          "Uma versão do texto legal com o texto inteiro e o resumo SHA-256 dele (o mesmo que fica na encomenda de quem a aceitou).",
+        params: Type.Object({ id: IdTexto, versao: IdVersao }),
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emCheckout(resposta, async () =>
+        paraVersao(
+          await lerVersaoTextoLegal(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+            semPrefixo(pedido.params.versao),
+          ),
+        ),
       ),
   );
 

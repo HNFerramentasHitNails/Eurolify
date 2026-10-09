@@ -324,11 +324,11 @@ registos técnicos, só identificadores (`eu-gdpr-privacy`, regra 7).
 |---|---|
 | tabelas `texto_legal` e `versao_texto_legal` (só se acrescenta; publicada não muda), `metodo_entrega` (Q2), `carrinho`, `linha_carrinho`, `sessao_checkout`, `encomenda` e `linha_encomenda` (Q1: as cópias não mudam, só o estado para a frente), todas com o RLS forçado | migração 0041 |
 | eventos `checkout.started`, `order.created`, `legal_text.published`, pelos gatilhos | migração 0041 |
-| âmbitos `legal:read`, `legal:write`, `shipping:read`, `shipping:write`, `orders:read`, nos papéis | migração 0041; `src/identidade/` |
+| âmbitos `legal:read`, `legal:write`, `shipping:read`, `shipping:write`, `orders:read`, nos papéis (o armazém sem `orders:read`: a encomenda traz o perfil de faturação; a vista do que expedir vem com a expedição) | migração 0041; `src/identidade/` |
 | o preço para vender (lista de base activa, redução em vigor, preço por unidade) | `src/precos/repositorio.ts`, `precosParaVenda` |
 | o carrinho pela API da Loja (chave pública da loja e o segredo do carrinho em `X-Cart-Secret`), o checkout alojado pelo token (JSON) e a Administração dos textos legais, métodos de entrega, checkouts e encomendas — a lista da §8 | `src/checkout/` |
 | o resumo e o botão final (§5): o preço, o IVA de cada linha e dos portes pelo Motor de IVA, os textos a aceitar, o que falta e o que bloqueia; recálculo no botão final e recusa se mudou (R3); as versões aceites têm de ser as do resumo (R5); a ficha, o perfil e a encomenda com a cópia | `src/checkout/repositorio.ts` |
-| 11 testes pela API (o percurso inteiro com o IVA e os portes, o total que muda, as condições, os textos em falta, a Madeira bloqueada pelo Motor, portes grátis, quantidade mínima, país não servido, profissional sem NIF, o carrinho e as chaves entre lojas e comerciantes, a sessão expirada e abandonada, o que não se vende); 22 mutações, 20 apanhadas e 2 equivalentes (a base recusa igual: o mercado de outra loja pela chave composta, a sessão fechada pelo gatilho) | `test/checkout-api.test.ts` |
+| 21 testes pela API (o percurso inteiro com o IVA e os portes, o total que muda, as condições, os textos em falta, a Madeira bloqueada pelo Motor, portes grátis, quantidade mínima, país não servido, profissional sem NIF, o carrinho e as chaves entre lojas e comerciantes, a sessão expirada e abandonada, o que não se vende; e, da revisão: o segredo que não se repete, dois cliques em paralelo, categorias misturadas, o telefone pedido, a leitura dos textos, a confirmação aos 30 dias, a base a garantir os totais, o token fora dos registos, o limite por IP da loja, a mudança de mercado pelo país); 22 mutações na parte 1, 20 apanhadas e 2 equivalentes (a base recusa igual), mais 7 nas correcções da revisão, todas apanhadas | `test/checkout-api.test.ts` |
 
 **Desvios do desenho:**
 - **Só artigos físicos** se vendem nesta fatia: a natureza para o IVA ainda
@@ -359,3 +359,52 @@ registos técnicos, só identificadores (`eu-gdpr-privacy`, regra 7).
 - **Por fazer na parte 2:** as páginas do checkout, a limpeza dos carrinhos
   expirados e dos dados das sessões abandonadas (7 dias, §7), e o envio da
   confirmação (Q4, com o fornecedor de e-mail).
+
+**Correcções da revisão do #276** (agente, Sonnet 5.5; 09/10/2026):
+- **O segredo do carrinho e o token** não ficam na tabela da idempotência;
+  repetir o pedido com a mesma chave dá `idempotency.secret_not_repeated`
+  (como as chaves de API).
+- **O R3 compara com o que o cliente viu:** o resumo devolve a `impressao`
+  (SHA-256 do total, das linhas, dos portes e das versões) e o botão final
+  tem de a trazer; outro resumo pedido entretanto não conta. O resumo já
+  não escreve na base.
+- **O token sai dos registos** (`/checkout/[token]`); **a confirmação pelo
+  token só nos 30 dias** depois da encomenda (proposta, **C**).
+- **Limite por IP nas rotas da loja e do checkout:** 300 pedidos por minuto
+  (proposta). Falta um limite por chave e um tecto de carrinhos abertos.
+- **Os portes:** o IVA dos portes segue a categoria das linhas quando é uma
+  só. Com categorias diferentes, o checkout bloqueia
+  (`portes_categorias_misturadas`) até a V12 do contabilista dizer a regra.
+- **Os textos aceites lêem-se:** pelo cliente em
+  `GET /checkout/{token}/legal/{versao}` (só as versões do resumo dele) e
+  pelo comerciante em `GET /legal-texts/{id}/versions/{versao}`. O resumo
+  SHA-256 de cada texto fica na encomenda (`aceitacoes`), e a hora da
+  aceitação vem do relógio da base.
+- **A base garante a encomenda:** as linhas só entram na transacção que a
+  cria; no fim dela, a soma das linhas mais os portes tem de dar os totais.
+  As chaves estrangeiras prendem a loja da sessão ao carrinho, o perfil ao
+  cliente e o método de entrega ao mercado da sessão.
+- **A ordem dos bloqueios** é sempre carrinho e depois sessão, e a expiração
+  conta pelo relógio da base. O telefone pedido pelo método de entrega entra
+  no que falta.
+
+**Portas abertas da revisão** (nenhum dado real entra antes delas; ADR-0019):
+- **P2-6, o portão de produção.** Hoje o checkout aceita as decisões de IVA
+  por verificar e os textos sem validação do jurista (**C**); só há o
+  ensaio. Antes do primeiro cliente real, um portão por ambiente tem de
+  recusar `evidencia.verificado=false` e `validado_por_jurista=false`.
+- **P2-3, a retenção.** Os gatilhos não deixam apagar nem anonimizar a sessão
+  e a encomenda. Antes de dados reais é preciso uma função auditada que
+  anonimize o que passou o prazo, e também as fichas de cliente órfãs
+  (P3-10).
+- **P3-7, o arredondamento.** O IVA arredonda-se por linha. O documento
+  fiscal (fatia futura) tem de dizer como agrupa por taxa sem mudar o total
+  pago.
+- **P3-8:** os motivos de bloqueio do IVA saem com o código interno, e as
+  respostas 200 ainda não descrevem o contrato. Fica para a parte 2, com as
+  páginas.
+- **P3-9:** o NIF só se valida no botão final; validá-lo já em `/billing`
+  fica para a parte 2.
+- **P3-4 já estava garantido:** um país só pode estar num mercado activo da
+  loja (migração 0017), por isso a escolha do mercado pelo país não é
+  ambígua.

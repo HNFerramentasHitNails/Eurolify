@@ -54,6 +54,13 @@ export function traduzir(erro: unknown): unknown {
     return new ErroCheckout(codigo, erro.message, undefined, { cause: erro });
   }
   const pg = erro as Error & { code?: string; constraint?: string };
+  // Duas versões ao mesmo tempo: o número repetido é tentar outra vez
+  // (revisão do #276, P3-1).
+  if (pg.code === "23505" && /versao_texto_legal/.test(pg.constraint ?? "")) {
+    return new ErroCheckout("checkout.retry", "tentar outra vez", undefined, {
+      cause: erro,
+    });
+  }
   if (pg.code === "23505" && /texto_legal/.test(pg.constraint ?? "")) {
     return new ErroCheckout("legal.duplicate", "já existe", undefined, {
       cause: erro,
@@ -182,6 +189,7 @@ async function carrinhoDe(
   let q = trx
     .selectFrom("carrinho")
     .selectAll()
+    .select(sql<boolean>`expira_em < now()`.as("passou_prazo"))
     .where("id", "=", id)
     .where("loja_id", "=", lojaId);
   if (bloquear) q = q.forUpdate();
@@ -195,7 +203,7 @@ async function carrinhoDe(
   }
   // Expirado conta-se pelo relógio; não se grava aqui (o erro desfaria a
   // escrita): a limpeza dos carrinhos é uma tarefa à parte (parte 2).
-  if (c.estado !== "convertido" && c.expira_em < new Date()) {
+  if (c.estado !== "convertido" && c.passou_prazo) {
     throw new ErroCheckout(
       "cart.not_open",
       "cart.not_open: o carrinho expirou",
@@ -503,6 +511,7 @@ async function variantesVendaveis(
   for (const l of linhas) {
     if (
       l.estado !== "activa" ||
+      l.estado_artigo !== "activo" ||
       l.tipo !== "fisico" ||
       l.categoria_fiscal === null ||
       l.variantes_fora.includes(l.id)
@@ -574,6 +583,9 @@ export async function resolverSessao(
  * (`checkout:chk_…`). Uma sessão aberta expirada passa a expirada e o
  * carrinho reabre.
  */
+/** Quanto tempo a confirmação se lê pelo token (proposta, **C**; revisão do #276, P2-2). */
+export const DIAS_DA_CONFIRMACAO = 30;
+
 export async function naSessao<T>(
   db: Kysely<BaseDados>,
   token: string,
@@ -585,14 +597,36 @@ export async function naSessao<T>(
     await sql`select set_config('eurolify.quem', ${`checkout:chk_${r.id}`}, true)`.execute(
       trx,
     );
+    // Primeiro o carrinho, depois a sessão: a mesma ordem das rotas do
+    // carrinho, para dois pedidos ao mesmo tempo não se bloquearem um ao
+    // outro (revisão do #276, P2-8).
+    const ref = await trx
+      .selectFrom("sessao_checkout")
+      .select("carrinho_id")
+      .where("id", "=", r.id)
+      .executeTakeFirst();
+    if (ref === undefined) throw naoExiste("a sessão");
+    await trx
+      .selectFrom("carrinho")
+      .select("id")
+      .where("id", "=", ref.carrinho_id)
+      .forUpdate()
+      .execute();
+    // Os prazos contam-se no relógio da base (revisão do #276, P3-6).
     const s = await trx
       .selectFrom("sessao_checkout")
       .selectAll()
+      .select([
+        sql<boolean>`expira_em < now()`.as("passou_prazo"),
+        sql<boolean>`concluida_em < now() - make_interval(days => ${DIAS_DA_CONFIRMACAO})`.as(
+          "confirmacao_velha",
+        ),
+      ])
       .where("id", "=", r.id)
       .forUpdate()
       .executeTakeFirst();
     if (s === undefined) throw naoExiste("a sessão");
-    if (s.estado === "aberta" && s.expira_em < new Date()) {
+    if (s.estado === "aberta" && s.passou_prazo) {
       await trx
         .updateTable("sessao_checkout")
         .set({ estado: "expirada" })
@@ -606,13 +640,24 @@ export async function naSessao<T>(
         .execute();
       return { expirou: true as const };
     }
+    // Uma sessão concluída lê-se pelo token só durante o prazo da
+    // confirmação: depois, os dados pessoais deixam de sair por ele (P2-2).
+    if (s.estado === "concluida" && s.confirmacao_velha) {
+      throw new ErroCheckout(
+        "checkout.expired",
+        "a confirmação já não se lê por esta ligação",
+      );
+    }
     if (opcoes.soAberta && s.estado !== "aberta") {
       throw new ErroCheckout(
         "checkout.closed",
         `checkout.closed: a sessão está ${s.estado}`,
       );
     }
-    return { expirou: false as const, valor: await fn(trx, s as SessaoLida) };
+    return {
+      expirou: false as const,
+      valor: await fn(trx, s as unknown as SessaoLida),
+    };
   });
   // A expiração grava-se (a transacção acima fecha) e só depois se recusa.
   if (resultado.expirou) {
@@ -654,7 +699,6 @@ export interface SessaoLida {
   faturacao: Faturacao | null;
   metodo_entrega_id: string | null;
   metodo_pagamento: string | null;
-  resumo_mostrado: unknown;
   concluida_em: Date | null;
 }
 
@@ -669,7 +713,6 @@ export async function porContacto(
       email: dados.email,
       nome: dados.nome,
       telefone: dados.telefone,
-      resumo_mostrado: null,
     })
     .where("id", "=", s.id)
     .execute();
@@ -697,6 +740,8 @@ export async function porEntrega(
       .select("canal_id")
       .where("id", "=", s.carrinho_id)
       .executeTakeFirstOrThrow();
+    // Um país está num só mercado activo da loja: a base garante-o
+    // (prices.country_in_other_market, migração 0017).
     const outro = await trx
       .selectFrom("mercado")
       .innerJoin("canal_mercado", "canal_mercado.mercado_id", "mercado.id")
@@ -720,7 +765,6 @@ export async function porEntrega(
       entrega: JSON.stringify(entrega),
       mercado_id: mercado,
       ...(mercado === s.mercado_id ? {} : { metodo_entrega_id: null }),
-      resumo_mostrado: null,
     })
     .where("id", "=", s.id)
     .execute();
@@ -748,7 +792,6 @@ export async function porFaturacao(
     .set({
       finalidade,
       faturacao: JSON.stringify(faturacao),
-      resumo_mostrado: null,
     })
     .where("id", "=", s.id)
     .execute();
@@ -769,7 +812,7 @@ export async function porMetodoEntrega(
   if (m === undefined) throw naoExiste("o método de entrega neste mercado");
   await trx
     .updateTable("sessao_checkout")
-    .set({ metodo_entrega_id: m.id, resumo_mostrado: null })
+    .set({ metodo_entrega_id: m.id })
     .where("id", "=", s.id)
     .execute();
 }
@@ -781,7 +824,7 @@ export async function porMetodoPagamento(
 ) {
   await trx
     .updateTable("sessao_checkout")
-    .set({ metodo_pagamento: metodo, resumo_mostrado: null })
+    .set({ metodo_pagamento: metodo })
     .where("id", "=", s.id)
     .execute();
 }
@@ -844,6 +887,7 @@ export interface Resumo {
     versao_id: string;
     numero: number;
     validado_por_jurista: boolean;
+    resumo_texto: string;
   }[];
   /** O que falta para o botão final (contacto, entrega, …). */
   em_falta: string[];
@@ -913,6 +957,15 @@ export async function calcularResumo(
   if (s.faturacao === null) em_falta.push("faturacao");
   if (s.metodo_entrega_id === null) em_falta.push("metodo_entrega");
   if (s.metodo_pagamento === null) em_falta.push("metodo_pagamento");
+  // Um método de entrega que pede telefone (revisão do #276, P3-5).
+  if (s.metodo_entrega_id !== null && s.telefone === null) {
+    const m = await trx
+      .selectFrom("metodo_entrega")
+      .select("pede_telefone")
+      .where("id", "=", s.metodo_entrega_id)
+      .executeTakeFirst();
+    if (m?.pede_telefone === true) em_falta.push("telefone");
+  }
   const bloqueios: Resumo["bloqueios"] = [];
 
   // O cliente do checkout sem conta não tem perfil guardado: o Motor decide
@@ -995,9 +1048,23 @@ export async function calcularResumo(
     const gratis =
       m.gratis_a_partir_de !== null && subtotal >= Number(m.gratis_a_partir_de);
     const tarifa = gratis ? 0 : Number(m.tarifa);
-    // O IVA dos portes: como uma linha da categoria normal. C — a taxa dos
-    // portes numa encomenda com taxas diferentes é a V12 do contabilista.
-    const decisao = decidir("normal", tarifa);
+    // O IVA dos portes: a categoria das linhas, quando é uma só. Com
+    // categorias diferentes, a taxa dos portes é a V12 do contabilista: na
+    // dúvida, não vende (revisão do #276, P2-5).
+    const categorias = [
+      ...new Set(
+        pedidas.map((p) => vendaveis.get(p.variante_id)?.categoria_fiscal),
+      ),
+    ];
+    const categoriaDosPortes =
+      categorias.length === 1 ? categorias[0] : undefined;
+    if (categoriaDosPortes === undefined) {
+      bloqueios.push({
+        onde: "portes",
+        motivo: "portes_categorias_misturadas",
+      });
+    }
+    const decisao = decidir(categoriaDosPortes ?? "normal", tarifa);
     if (decisao.resultado === "bloqueada" && s.entrega !== null) {
       bloqueios.push({ onde: "portes", motivo: decisao.motivo });
     }
@@ -1028,6 +1095,10 @@ export async function calcularResumo(
         "versao_texto_legal.id",
         "versao_texto_legal.numero",
         "versao_texto_legal.validado_por_jurista",
+        // O resumo do texto, que fica na aceitação como prova (P2-7).
+        sql<string>`encode(sha256(convert_to(versao_texto_legal.texto, 'UTF8')), 'hex')`.as(
+          "resumo_texto",
+        ),
       ])
       .where("texto_legal.loja_id", "=", s.loja_id)
       .where("texto_legal.pais", "=", s.entrega.pais)
@@ -1050,6 +1121,7 @@ export async function calcularResumo(
         versao_id: v.id,
         numero: v.numero,
         validado_por_jurista: v.validado_por_jurista,
+        resumo_texto: v.resumo_texto,
       });
     }
   }
@@ -1105,19 +1177,16 @@ export const impressaoDo = (r: Resumo) => ({
   textos: r.textos.map((t) => t.versao_id),
 });
 
-/** Calcula o resumo e guarda a impressão do que o cliente viu (docs/25 §5, passo 5). */
-export async function mostrarResumo(
-  trx: Transaction<BaseDados>,
-  s: SessaoLida,
-): Promise<Resumo> {
-  const r = await calcularResumo(trx, s);
-  await trx
-    .updateTable("sessao_checkout")
-    .set({ resumo_mostrado: JSON.stringify(impressaoDo(r)) })
-    .where("id", "=", s.id)
-    .execute();
-  return r;
-}
+/**
+ * A impressão do que o cliente vê no resumo: o resumo SHA-256 dos montantes e
+ * das versões. O ecrã devolve-a no botão final, e é com ela que se compara
+ * (o R3 é o que o cliente viu, não o último resumo pedido; revisão do #276,
+ * P1-2).
+ */
+export const impressao = (r: Resumo) =>
+  createHash("sha256")
+    .update(canonico(impressaoDo(r)))
+    .digest("hex");
 
 // ---------------------------------------------------------- Botão final
 
@@ -1129,15 +1198,13 @@ export async function mostrarResumo(
 export async function concluir(
   trx: Transaction<BaseDados>,
   s: SessaoLida,
-  aceitacao: { aceita_condicoes: boolean; versoes: string[] },
+  aceitacao: {
+    aceita_condicoes: boolean;
+    versoes: string[];
+    impressao: string;
+  },
 ): Promise<string> {
   const c = s.comerciante_id;
-  if (s.resumo_mostrado === null) {
-    throw new ErroCheckout(
-      "checkout.incomplete",
-      "falta ver o resumo antes do botão final",
-    );
-  }
   const r = await calcularResumo(trx, s);
   if (r.em_falta.length > 0) {
     throw new ErroCheckout("checkout.incomplete", "faltam dados", {
@@ -1169,7 +1236,7 @@ export async function concluir(
       "não há o texto do botão final para esta língua",
     );
   }
-  if (canonico(impressaoDo(r)) !== canonico(s.resumo_mostrado)) {
+  if (impressao(r) !== aceitacao.impressao) {
     throw new ErroCheckout(
       "checkout.total_changed",
       "o total ou as condições mudaram desde o resumo: veja-o outra vez",
@@ -1228,7 +1295,14 @@ export async function concluir(
     .where("id", "=", s.carrinho_id)
     .executeTakeFirstOrThrow();
   const metodo = r.portes as NonNullable<Resumo["portes"]>;
-  const agora = new Date().toISOString();
+  // A hora da aceitação vem do relógio da base, como as outras datas da
+  // encomenda (revisão do #276, P3-6).
+  const { rows: relogio } = await sql<{
+    agora: string;
+  }>`select to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as agora`.execute(
+    trx,
+  );
+  const agora = (relogio[0] as { agora: string }).agora;
   const { id: encomendaId } = await trx
     .insertInto("encomenda")
     .values({
@@ -1451,6 +1525,78 @@ export async function listarTextosLegais(
       versoes: versoes.filter((v) => v.texto_legal_id === t.id),
     }));
   });
+}
+
+/**
+ * Uma versão com o texto inteiro e o resumo SHA-256 dele (revisão do #276,
+ * P2-7): o cliente lê o que aceita e o comerciante relê o que publicou.
+ */
+async function versaoComTexto(
+  trx: Transaction<BaseDados>,
+  versaoId: string,
+  textoId?: string,
+) {
+  let q = trx
+    .selectFrom("versao_texto_legal")
+    .innerJoin(
+      "texto_legal",
+      "texto_legal.id",
+      "versao_texto_legal.texto_legal_id",
+    )
+    .select([
+      "versao_texto_legal.id",
+      "versao_texto_legal.texto_legal_id",
+      "texto_legal.tipo",
+      "texto_legal.pais",
+      "texto_legal.lingua",
+      "texto_legal.tipo_cliente",
+      "versao_texto_legal.numero",
+      "versao_texto_legal.estado",
+      "versao_texto_legal.texto",
+      "versao_texto_legal.validado_por_jurista",
+      "versao_texto_legal.jurista",
+      "versao_texto_legal.publicada_em",
+      sql<string>`encode(sha256(convert_to(versao_texto_legal.texto, 'UTF8')), 'hex')`.as(
+        "resumo_texto",
+      ),
+    ])
+    .where("versao_texto_legal.id", "=", versaoId);
+  if (textoId !== undefined) {
+    q = q.where("versao_texto_legal.texto_legal_id", "=", textoId);
+  }
+  const v = await q.executeTakeFirst();
+  if (v === undefined) {
+    throw new ErroCheckout("checkout.not_found", "esta versão não existe");
+  }
+  return v;
+}
+
+/** A versão para a Administração (legal:read), rascunho ou publicada. */
+export async function lerVersaoTextoLegal(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  textoId: string,
+  versaoId: string,
+) {
+  return noCheckout(db, comercianteId, (trx) =>
+    versaoComTexto(trx, versaoId, textoId),
+  );
+}
+
+/**
+ * A versão para o cliente do checkout: só as que estão no resumo da sessão
+ * (as que ele tem de aceitar); outra, mesmo publicada, não existe para ele.
+ */
+export async function versaoDoResumo(
+  trx: Transaction<BaseDados>,
+  s: SessaoLida,
+  versaoId: string,
+) {
+  const r = await calcularResumo(trx, s);
+  if (!r.textos.some((t) => t.versao_id === versaoId)) {
+    throw new ErroCheckout("checkout.not_found", "esta versão não existe");
+  }
+  return versaoComTexto(trx, versaoId);
 }
 
 export async function criarVersaoTextoLegal(

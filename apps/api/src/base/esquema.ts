@@ -944,7 +944,6 @@ export interface TabelaSessaoCheckout {
   faturacao: ColumnType<unknown, never, string | null>;
   metodo_entrega_id: ColumnType<string | null, never, string | null>;
   metodo_pagamento: ColumnType<string | null, never, string | null>;
-  resumo_mostrado: ColumnType<unknown, never, string | null>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
   concluida_em: ColumnType<Date | null, never, Date | null>;

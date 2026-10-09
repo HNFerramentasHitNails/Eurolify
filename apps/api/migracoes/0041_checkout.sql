@@ -7,6 +7,9 @@ SET LOCAL lock_timeout = '10s';
 
 -- As chaves estrangeiras compostas (comerciante, loja) precisam desta.
 ALTER TABLE loja ADD CONSTRAINT loja_comerciante_id_unico UNIQUE (comerciante_id, id);
+-- O perfil da encomenda é do cliente da encomenda (revisão do #276, P3-2).
+ALTER TABLE perfil_faturacao ADD CONSTRAINT perfil_faturacao_do_cliente_unico
+  UNIQUE (comerciante_id, cliente_id, id);
 
 -- --------------------------------------------------------- Textos legais
 
@@ -128,6 +131,7 @@ CREATE TABLE metodo_entrega (
   actualizado_em timestamptz NOT NULL DEFAULT now(),
   versao integer NOT NULL DEFAULT 1,
   UNIQUE (comerciante_id, id),
+  UNIQUE (comerciante_id, mercado_id, id),
   FOREIGN KEY (comerciante_id, loja_id, mercado_id) REFERENCES mercado (comerciante_id, loja_id, id)
 );
 
@@ -149,6 +153,7 @@ CREATE TABLE carrinho (
   actualizado_em timestamptz NOT NULL DEFAULT now(),
   versao integer NOT NULL DEFAULT 1,
   UNIQUE (comerciante_id, id),
+  UNIQUE (comerciante_id, loja_id, id),
   FOREIGN KEY (comerciante_id, loja_id, canal_id) REFERENCES canal (comerciante_id, loja_id, id),
   FOREIGN KEY (comerciante_id, loja_id, mercado_id) REFERENCES mercado (comerciante_id, loja_id, id)
 );
@@ -215,17 +220,18 @@ CREATE TABLE sessao_checkout (
   faturacao jsonb CHECK (faturacao IS NULL OR jsonb_typeof(faturacao) = 'object'),
   metodo_entrega_id uuid,
   metodo_pagamento text CHECK (metodo_pagamento IS NULL OR metodo_pagamento ~ '^[a-z_]{2,40}$'),
-  -- O resumo que o cliente viu por último (os montantes), para o botão final
-  -- recusar se mudou (docs/25, R3).
-  resumo_mostrado jsonb,
   criado_em timestamptz NOT NULL DEFAULT now(),
   actualizado_em timestamptz NOT NULL DEFAULT now(),
   concluida_em timestamptz,
   versao integer NOT NULL DEFAULT 1,
   UNIQUE (comerciante_id, id),
-  FOREIGN KEY (comerciante_id, carrinho_id) REFERENCES carrinho (comerciante_id, id),
+  UNIQUE (comerciante_id, loja_id, id),
+  -- A loja da sessão é a do carrinho, e o método de entrega é do mercado da
+  -- sessão (revisão do #276, P3-2).
+  FOREIGN KEY (comerciante_id, loja_id, carrinho_id) REFERENCES carrinho (comerciante_id, loja_id, id),
   FOREIGN KEY (comerciante_id, loja_id, mercado_id) REFERENCES mercado (comerciante_id, loja_id, id),
-  FOREIGN KEY (comerciante_id, metodo_entrega_id) REFERENCES metodo_entrega (comerciante_id, id),
+  FOREIGN KEY (comerciante_id, mercado_id, metodo_entrega_id)
+    REFERENCES metodo_entrega (comerciante_id, mercado_id, id),
   CHECK ((estado = 'concluida') = (concluida_em IS NOT NULL))
 );
 -- Uma sessão aberta por carrinho.
@@ -338,9 +344,11 @@ CREATE TABLE encomenda (
   criada_por text NOT NULL,
   criada_em timestamptz NOT NULL DEFAULT now(),
   UNIQUE (comerciante_id, id),
-  FOREIGN KEY (comerciante_id, sessao_id) REFERENCES sessao_checkout (comerciante_id, id),
+  -- A loja é a da sessão, e o perfil é do cliente (revisão do #276, P3-2).
+  FOREIGN KEY (comerciante_id, loja_id, sessao_id) REFERENCES sessao_checkout (comerciante_id, loja_id, id),
   FOREIGN KEY (comerciante_id, cliente_id) REFERENCES cliente (comerciante_id, id),
-  FOREIGN KEY (comerciante_id, perfil_id) REFERENCES perfil_faturacao (comerciante_id, id),
+  FOREIGN KEY (comerciante_id, cliente_id, perfil_id)
+    REFERENCES perfil_faturacao (comerciante_id, cliente_id, id),
   FOREIGN KEY (comerciante_id, loja_id, canal_id) REFERENCES canal (comerciante_id, loja_id, id),
   FOREIGN KEY (comerciante_id, loja_id, mercado_id) REFERENCES mercado (comerciante_id, loja_id, id),
   FOREIGN KEY (comerciante_id, entidade_legal_id) REFERENCES entidade_legal (comerciante_id, id)
@@ -415,6 +423,51 @@ CREATE TRIGGER linha_encomenda_sem_truncate
   FOR EACH STATEMENT EXECUTE FUNCTION rasto_so_se_acrescenta();
 ALTER TABLE linha_encomenda ENABLE ALWAYS TRIGGER linha_encomenda_sem_truncate;
 
+-- Os totais batem com as linhas (revisão do #276, P2-4): no fim da
+-- transacção que cria a encomenda, a soma das linhas mais os portes tem de dar
+-- os totais copiados, e há pelo menos uma linha. As linhas só se acrescentam
+-- na transacção que criou a encomenda (criada_em é o now() dela); depois, a
+-- encomenda e as linhas ficam fechadas.
+CREATE FUNCTION linha_encomenda_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.encomenda e
+                 WHERE e.id = NEW.encomenda_id AND e.criada_em = now()) THEN
+    RAISE EXCEPTION 'orders.immutable: as linhas só se acrescentam ao criar a encomenda';
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER linha_encomenda_antes_de_gravar
+  BEFORE INSERT ON linha_encomenda
+  FOR EACH ROW EXECUTE FUNCTION linha_encomenda_antes_de_gravar();
+ALTER TABLE linha_encomenda ENABLE ALWAYS TRIGGER linha_encomenda_antes_de_gravar;
+
+CREATE FUNCTION encomenda_confere_totais() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  n bigint;
+  soma_base bigint;
+  soma_iva bigint;
+BEGIN
+  SELECT count(*), coalesce(sum(l.base), 0), coalesce(sum(l.iva), 0)
+    INTO n, soma_base, soma_iva
+    FROM public.linha_encomenda l WHERE l.encomenda_id = NEW.id;
+  IF n = 0 THEN
+    RAISE EXCEPTION 'orders.totals_mismatch: encomenda sem linhas';
+  END IF;
+  IF soma_base + (NEW.portes->>'base')::bigint <> NEW.total_base
+     OR soma_iva + (NEW.portes->>'iva')::bigint <> NEW.total_iva THEN
+    RAISE EXCEPTION 'orders.totals_mismatch: os totais não batem com as linhas e os portes';
+  END IF;
+  RETURN NULL;
+END
+$$;
+CREATE CONSTRAINT TRIGGER encomenda_confere_totais
+  AFTER INSERT ON encomenda DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION encomenda_confere_totais();
+ALTER TABLE encomenda ENABLE ALWAYS TRIGGER encomenda_confere_totais;
+
 -- Só identificadores e o total (headless-commerce: mínimo de dados no corpo).
 CREATE FUNCTION encomenda_evento() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
@@ -470,7 +523,7 @@ GRANT DELETE ON linha_carrinho TO eurolify_api;
 GRANT INSERT (comerciante_id, loja_id, carrinho_id, mercado_id, lingua, token_resumo)
   ON sessao_checkout TO eurolify_api;
 GRANT UPDATE (mercado_id, estado, email, nome, telefone, entrega, finalidade, faturacao,
-  metodo_entrega_id, metodo_pagamento, resumo_mostrado, concluida_em, expira_em)
+  metodo_entrega_id, metodo_pagamento, concluida_em, expira_em)
   ON sessao_checkout TO eurolify_api;
 GRANT INSERT (comerciante_id, loja_id, canal_id, mercado_id, entidade_legal_id, sessao_id,
   cliente_id, perfil_id, perfil_copia, contacto, entrega, finalidade, moeda, preco_inclui_iva,
@@ -509,8 +562,10 @@ CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
                              'customers:write', 'legal:read', 'merchant:read',
                              'orders:read', 'prices:read', 'prices:write',
                              'shipping:read', 'shipping:write', 'tax:read']
-    WHEN 'armazem' THEN ARRAY['catalog:read', 'orders:read', 'prices:read',
-                              'shipping:read']
+    -- O armazém não lê as encomendas inteiras (perfil de faturação, NIF,
+    -- e-mail): a vista do que expedir vem com a fatia da expedição
+    -- (minimização de dados; revisão do #276, P2-10).
+    WHEN 'armazem' THEN ARRAY['catalog:read', 'prices:read', 'shipping:read']
     WHEN 'apoio' THEN ARRAY['catalog:read', 'customers:read', 'customers:write',
                             'legal:read', 'merchant:read', 'orders:read',
                             'prices:read', 'shipping:read', 'tax:read']

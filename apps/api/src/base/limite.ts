@@ -23,6 +23,12 @@ export interface LimitesHub {
   todas: RegraLimite;
 }
 
+/**
+ * O limite por IP das rotas da loja (a chave pública está no browser e o
+ * checkout alojado não tem chave; revisão do #276, P2-9). Proposta.
+ */
+export const LIMITE_LOJA: RegraLimite = { pedidos: 300, janelaMs: 60_000 };
+
 export const LIMITES_HUB: LimitesHub = {
   publicas: { pedidos: 20, janelaMs: 60_000 },
   todas: { pedidos: 300, janelaMs: 60_000 },

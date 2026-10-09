@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
@@ -24,6 +24,7 @@ import {
   mudarEstadoMercado,
 } from "../src/precos/repositorio.js";
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
+import { urlSemSegredos } from "../src/base/registo.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -44,7 +45,16 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
 
   beforeAll(async () => {
     base = await criarBaseDeTeste(URL_BASE ?? "");
-    app = criarApp({ logger: false }, undefined, base.api);
+    // Um limite alto: os testes fazem muitos pedidos do mesmo IP.
+    app = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      undefined,
+      undefined,
+      { pedidos: 100_000, janelaMs: 60_000 },
+    );
   }, 60_000);
 
   afterAll(async () => {
@@ -68,15 +78,26 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       },
       ...(corpo === undefined ? {} : { payload: JSON.stringify(corpo) }),
     });
-  const ok = async (
-    r: ReturnType<typeof pedir>,
-    estado = 200,
-  ): Promise<Json> => {
+  type Resposta = Awaited<ReturnType<typeof pedir>>;
+  /**
+   * O botão final. Sem `impressao`, leva a do resumo pedido agora (o que o
+   * cliente vê); com ela, a que se der (uma impressão velha, para o R3).
+   */
+  const botao = async (token: string, corpo: Json): Promise<Resposta> => {
+    if (!("impressao" in corpo)) {
+      const r = await pedir("GET", `/checkout/${token}/summary`);
+      const impressao =
+        r.statusCode === 200 ? r.json<Json>()["impressao"] : "0".repeat(64);
+      return pedir("POST", `/checkout/${token}/place`, { ...corpo, impressao });
+    }
+    return pedir("POST", `/checkout/${token}/place`, corpo);
+  };
+  const ok = async (r: PromiseLike<Resposta>, estado = 200): Promise<Json> => {
     const x = await r;
     expect(x.statusCode, x.body).toBe(estado);
     return x.statusCode === 204 ? {} : x.json();
   };
-  const codigo = async (r: ReturnType<typeof pedir>) => {
+  const codigo = async (r: PromiseLike<Resposta>) => {
     const x = await r;
     return [
       x.statusCode,
@@ -350,7 +371,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     const textos = (resumo["textos"] as Json[]).map((t) => t["versao"]);
     expect([...textos].sort()).toEqual([...s.versoes].sort());
     const feita = await ok(
-      pedir("POST", `/checkout/${k.token}/place`, {
+      botao(k.token, {
         aceita_condicoes: true,
         versoes: textos,
       }),
@@ -361,7 +382,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     // O botão repetido: a mesma encomenda, sem outra.
     expect(
       await ok(
-        pedir("POST", `/checkout/${k.token}/place`, {
+        botao(k.token, {
           aceita_condicoes: true,
           versoes: textos,
         }),
@@ -437,10 +458,11 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     ).rejects.toThrow(/só se acrescenta|so_se_acrescenta|append/i);
   });
 
-  it("se o total mudou entre o resumo e o botão final, não há encomenda (R3); sem ver o resumo também não", async () => {
+  it("se o total mudou entre o resumo que o cliente viu e o botão final, não há encomenda (R3); sem impressão também não", async () => {
     const s = await cenario();
     const k = await checkoutCom(s, [[s.v1, 1]]);
     await preencher(s, k.token);
+    // Sem a impressão do resumo, o pedido não é aceite.
     expect(
       await codigo(
         pedir("POST", `/checkout/${k.token}/place`, {
@@ -448,24 +470,29 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
           versoes: s.versoes,
         }),
       ),
-    ).toEqual([422, "checkout.incomplete"]);
-    await ok(pedir("GET", `/checkout/${k.token}/summary`));
+    ).toEqual([400, "request.invalid"]);
+    const visto = await ok(pedir("GET", `/checkout/${k.token}/summary`));
     await definirPreco(base.api, s.c, QUEM, s.lista, s.v1, { montante: 1300 });
+    // Outro resumo pedido entretanto (outro separador) não faz do velho o
+    // que o cliente viu: o botão com a impressão velha recusa.
+    const novo = await ok(pedir("GET", `/checkout/${k.token}/summary`));
+    expect(novo["impressao"]).not.toBe(visto["impressao"]);
+    expect(novo["totais"]).toMatchObject({ total: 1300 + 499 });
     expect(
       await codigo(
-        pedir("POST", `/checkout/${k.token}/place`, {
+        botao(k.token, {
           aceita_condicoes: true,
           versoes: s.versoes,
+          impressao: visto["impressao"],
         }),
       ),
     ).toEqual([409, "checkout.total_changed"]);
-    // Vê o resumo outra vez e já pode.
-    const r = await ok(pedir("GET", `/checkout/${k.token}/summary`));
-    expect(r["totais"]).toMatchObject({ total: 1300 + 499 });
+    // Com a impressão do resumo novo, já pode.
     await ok(
-      pedir("POST", `/checkout/${k.token}/place`, {
+      botao(k.token, {
         aceita_condicoes: true,
         versoes: s.versoes,
+        impressao: novo["impressao"],
       }),
       201,
     );
@@ -478,7 +505,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     await ok(pedir("GET", `/checkout/${k.token}/summary`));
     expect(
       await codigo(
-        pedir("POST", `/checkout/${k.token}/place`, {
+        botao(k.token, {
           aceita_condicoes: false,
           versoes: s.versoes,
         }),
@@ -486,7 +513,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     ).toEqual([422, "checkout.legal_not_accepted"]);
     expect(
       await codigo(
-        pedir("POST", `/checkout/${k.token}/place`, {
+        botao(k.token, {
           aceita_condicoes: true,
           versoes: s.versoes.slice(1),
         }),
@@ -516,7 +543,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     ]);
     expect(
       await codigo(
-        pedir("POST", `/checkout/${k.token}/place`, {
+        botao(k.token, {
           aceita_condicoes: true,
           versoes: [],
         }),
@@ -535,7 +562,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     });
     expect(
       await codigo(
-        pedir("POST", `/checkout/${k.token}/place`, {
+        botao(k.token, {
           aceita_condicoes: true,
           versoes: s.versoes,
         }),
@@ -675,7 +702,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     await preencher(s, k.token);
     await ok(pedir("GET", `/checkout/${k.token}/summary`));
     const e = await ok(
-      pedir("POST", `/checkout/${k.token}/place`, {
+      botao(k.token, {
         aceita_condicoes: true,
         versoes: s.versoes,
       }),
@@ -953,7 +980,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     await preencher(s, k.token);
     await ok(pedir("GET", `/checkout/${k.token}/summary`));
     await ok(
-      pedir("POST", `/checkout/${k.token}/place`, {
+      botao(k.token, {
         aceita_condicoes: true,
         versoes: s.versoes,
       }),
@@ -967,5 +994,449 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
         }),
       ),
     ).toEqual([409, "checkout.closed"]);
+  });
+  /** Um artigo físico publicado com outra categoria fiscal (uma variante). */
+  async function outroArtigo(s: Cenario, categoria: string) {
+    const artigo = await criarArtigo(
+      base.api,
+      s.c,
+      { tipo: "fisico", nome: "Livro", categoria_fiscal: categoria },
+      [{ sku: `LIV-${categoria}`, unidade_de_venda: "unidade", peso_g: 300 }],
+    );
+    const v = await comComerciante(base.api, s.c, (trx) =>
+      trx
+        .selectFrom("variante")
+        .select("id")
+        .where("artigo_id", "=", artigo)
+        .executeTakeFirstOrThrow(),
+    );
+    await classificarArtigo(
+      base.api,
+      s.c,
+      artigo,
+      1,
+      { familias: ["retalho_geral"], natureza_consumidor: "bem" },
+      QUEM,
+    );
+    await mudarEstadoArtigo(base.api, s.c, artigo, 2, "activo");
+    await definirPreco(base.api, s.c, QUEM, s.lista, v.id, { montante: 1000 });
+    const r = await publicar(base.api, s.c, QUEM, {
+      artigo_id: artigo,
+      canal_id: s.canal,
+      mercado_id: s.mercado,
+    });
+    expect(r.publicada).toBe(true);
+    return v.id;
+  }
+
+  it("o segredo não se repete: o mesmo pedido com a mesma Idempotency-Key recusa e a base não guarda o segredo nem o token", async () => {
+    const s = await cenario();
+    const loja = { authorization: `Bearer ${s.publica}` };
+    const chave = randomUUID();
+    const corpo = {
+      canal: `chn_${s.canal}`,
+      mercado: `mkt_${s.mercado}`,
+      lingua: "pt",
+    };
+    const carrinho = await ok(
+      pedir("POST", "/store/carts", corpo, {
+        ...loja,
+        "idempotency-key": chave,
+      }),
+      201,
+    );
+    expect(
+      await codigo(
+        pedir("POST", "/store/carts", corpo, {
+          ...loja,
+          "idempotency-key": chave,
+        }),
+      ),
+    ).toEqual([409, "idempotency.secret_not_repeated"]);
+    const segredo = {
+      ...loja,
+      "x-cart-secret": String(carrinho["segredo"]),
+    };
+    await ok(
+      pedir(
+        "POST",
+        `/store/carts/${String(carrinho["id"])}/lines`,
+        { variante: `var_${s.v1}`, quantidade: 1 },
+        segredo,
+      ),
+    );
+    const chaveSessao = randomUUID();
+    const sessao = await ok(
+      pedir(
+        "POST",
+        `/store/carts/${String(carrinho["id"])}/checkout`,
+        undefined,
+        {
+          ...segredo,
+          "idempotency-key": chaveSessao,
+        },
+      ),
+      201,
+    );
+    expect(
+      await codigo(
+        pedir(
+          "POST",
+          `/store/carts/${String(carrinho["id"])}/checkout`,
+          undefined,
+          { ...segredo, "idempotency-key": chaveSessao },
+        ),
+      ),
+    ).toEqual([409, "idempotency.secret_not_repeated"]);
+    const guardado = (
+      await sql<{
+        corpo: string;
+      }>`select coalesce(resposta_corpo::text, '') as corpo
+        from idempotencia where comerciante_id = ${s.c}::uuid`.execute(
+        base.dono,
+      )
+    ).rows
+      .map((r) => r.corpo)
+      .join(" ");
+    expect(guardado).not.toContain(String(carrinho["segredo"]));
+    expect(guardado).not.toContain(String(sessao["token"]));
+  });
+
+  it("dois cliques no botão final ao mesmo tempo: uma encomenda só", async () => {
+    const s = await cenario();
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    const r = await ok(pedir("GET", `/checkout/${k.token}/summary`));
+    const corpo = {
+      aceita_condicoes: true,
+      versoes: s.versoes,
+      impressao: r["impressao"],
+    };
+    const [a, b] = await Promise.all([
+      botao(k.token, corpo),
+      botao(k.token, corpo),
+    ]);
+    const estados = [a.statusCode, b.statusCode].sort();
+    expect([
+      [201, 201],
+      [201, 503],
+    ]).toContainEqual(estados);
+    const n = await comComerciante(
+      base.api,
+      s.c,
+      async (trx) =>
+        (
+          await trx
+            .selectFrom("encomenda")
+            .select((e) => e.fn.countAll<string>().as("n"))
+            .executeTakeFirstOrThrow()
+        ).n,
+    );
+    expect(Number(n)).toBe(1);
+  });
+
+  it("categorias fiscais misturadas: os portes não têm taxa validada e o botão final recusa (V12)", async () => {
+    const s = await cenario();
+    // Só há a categoria «normal» na lista (0040); uma segunda, por validar,
+    // só para este ensaio (cada ficheiro de testes tem a sua base).
+    await sql`insert into categoria_fiscal values
+      ('livros', 'Livros', 'Books', 'por_validar') on conflict do nothing`.execute(
+      base.dono,
+    );
+    const livro = await outroArtigo(s, "livros");
+    const k = await checkoutCom(s, [
+      [s.v1, 1],
+      [livro, 1],
+    ]);
+    await preencher(s, k.token);
+    const r = await ok(pedir("GET", `/checkout/${k.token}/summary`));
+    expect(r["bloqueios"]).toContainEqual({
+      onde: "portes",
+      motivo: "portes_categorias_misturadas",
+    });
+    expect(
+      await codigo(
+        botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      ),
+    ).toEqual([422, "checkout.vat_blocked"]);
+  });
+
+  it("um método de entrega que pede telefone: sem ele falta; com ele, a encomenda", async () => {
+    const s = await cenario();
+    const m = await ok(
+      s.adm("POST", "/shipping-methods", {
+        mercado: `mkt_${s.mercado}`,
+        nome: { pt: "Estafeta" },
+        tarifa: 699,
+        pede_telefone: true,
+      }),
+      201,
+    );
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    await ok(
+      pedir("PUT", `/checkout/${k.token}/delivery-method`, {
+        metodo: String(m["id"]),
+      }),
+    );
+    const r = await ok(pedir("GET", `/checkout/${k.token}/summary`));
+    expect(r["em_falta"]).toEqual(["telefone"]);
+    expect(
+      await codigo(
+        botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      ),
+    ).toEqual([422, "checkout.incomplete"]);
+    await ok(
+      pedir("PUT", `/checkout/${k.token}/contact`, {
+        email: "rui@exemplo.pt",
+        nome: "Rui",
+        telefone: "+351912345678",
+      }),
+    );
+    await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+  });
+
+  it("os textos a aceitar lêem-se pelo token (só os do resumo) e pela Administração; a encomenda guarda o resumo SHA-256 do texto", async () => {
+    const s = await cenario();
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    const r = await ok(pedir("GET", `/checkout/${k.token}/summary`));
+    const textos = r["textos"] as Json[];
+    const primeiro = textos[0] as Json;
+    const lido = await ok(
+      pedir("GET", `/checkout/${k.token}/legal/${String(primeiro["versao"])}`),
+    );
+    const esperado = createHash("sha256")
+      .update(String(lido["texto"]), "utf8")
+      .digest("hex");
+    expect(lido).toMatchObject({
+      id: primeiro["versao"],
+      estado: "publicada",
+      resumo_texto: esperado,
+    });
+    expect(String(lido["texto"])).toMatch(/^Texto de /);
+    expect(primeiro["resumo_texto"]).toBe(esperado);
+    // Uma versão que não está no resumo (um rascunho do mesmo texto) não
+    // existe para o cliente; para a Administração, sim.
+    const rascunho = await ok(
+      s.adm("POST", `/legal-texts/${String(lido["texto_legal"])}/versions`, {
+        texto: "Rascunho.",
+      }),
+      201,
+    );
+    expect(
+      await codigo(
+        pedir("GET", `/checkout/${k.token}/legal/${String(rascunho["id"])}`),
+      ),
+    ).toEqual([404, "checkout.not_found"]);
+    expect(
+      await ok(
+        s.adm(
+          "GET",
+          `/legal-texts/${String(lido["texto_legal"])}/versions/${String(rascunho["id"])}`,
+        ),
+      ),
+    ).toMatchObject({ texto: "Rascunho.", estado: "rascunho" });
+    // A versão de outro texto pelo endereço deste não existe.
+    const segundo = textos[1] as Json;
+    expect(
+      await codigo(
+        s.adm(
+          "GET",
+          `/legal-texts/${String(lido["texto_legal"])}/versions/${String(segundo["versao"])}`,
+        ),
+      ),
+    ).toEqual([404, "checkout.not_found"]);
+    const e = await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    const enc = await ok(s.adm("GET", `/orders/${String(e["encomenda"])}`));
+    const aceites = (enc["aceitacoes"] as Json)["versoes"] as Json[];
+    expect(aceites.map((a) => a["resumo_texto"])).toContain(esperado);
+    // A hora da aceitação vem da base (ISO em UTC).
+    expect(String((enc["aceitacoes"] as Json)["em"])).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    );
+  });
+
+  it("a confirmação pelo token só nos 30 dias depois da encomenda", async () => {
+    const s = await cenario();
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    await ok(pedir("GET", `/checkout/${k.token}/confirmation`));
+    // Envelhece a sessão concluída (o gatilho não deixa mudá-la: só o
+    // superutilizador do teste, com o gatilho desligado nesta transacção).
+    await base.dono.transaction().execute(async (trx) => {
+      await sql`alter table sessao_checkout disable trigger sessao_checkout_antes_de_gravar`.execute(
+        trx,
+      );
+      await sql`update sessao_checkout set concluida_em = now() - interval '31 days'
+        where id = ${k.sessao.slice(4)}::uuid`.execute(trx);
+      await sql`alter table sessao_checkout enable always trigger sessao_checkout_antes_de_gravar`.execute(
+        trx,
+      );
+    });
+    expect(
+      await codigo(pedir("GET", `/checkout/${k.token}/confirmation`)),
+    ).toEqual([410, "checkout.expired"]);
+  });
+
+  it("a base garante a encomenda: linhas só ao criá-la, e os totais batem com as linhas e os portes", async () => {
+    const s = await cenario();
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    const e = await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    const id = String(e["encomenda"]).slice(4);
+    // Uma linha acrescentada depois: recusada.
+    await expect(
+      comComerciante(base.dono, s.c, (trx) =>
+        sql`insert into linha_encomenda (comerciante_id, encomenda_id, posicao,
+              variante_id, sku, nome, quantidade, preco_unitario, preco,
+              decisao_iva, base, iva, total)
+            select comerciante_id, encomenda_id, 2, variante_id, sku, nome,
+              quantidade, preco_unitario, preco, decisao_iva, base, iva, total
+            from linha_encomenda where encomenda_id = ${id}::uuid`.execute(trx),
+      ),
+    ).rejects.toThrow(/orders.immutable/);
+    // Uma encomenda com totais que não batem (sem linhas): recusada no fim
+    // da transacção.
+    const outra = await checkoutCom(s, [[s.v1, 1]]);
+    await expect(
+      comComerciante(base.dono, s.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        await sql`insert into encomenda (comerciante_id, loja_id, canal_id,
+              mercado_id, entidade_legal_id, sessao_id, cliente_id, perfil_id,
+              perfil_copia, contacto, entrega, finalidade, moeda,
+              preco_inclui_iva, lingua, total_base, total_iva, total, portes,
+              metodo_entrega, metodo_pagamento, aceitacoes, criada_por)
+            select comerciante_id, loja_id, canal_id, mercado_id,
+              entidade_legal_id, ${outra.sessao.slice(4)}::uuid, cliente_id,
+              perfil_id, perfil_copia, contacto, entrega, finalidade, moeda,
+              preco_inclui_iva, lingua, total_base, total_iva, total, portes,
+              metodo_entrega, metodo_pagamento, aceitacoes, criada_por
+            from encomenda where id = ${id}::uuid`.execute(trx);
+      }),
+    ).rejects.toThrow(/orders.totals_mismatch/);
+    // Mesmo com os totais iguais só aos portes, sem linhas não há encomenda.
+    await expect(
+      comComerciante(base.dono, s.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        await sql`insert into encomenda (comerciante_id, loja_id, canal_id,
+              mercado_id, entidade_legal_id, sessao_id, cliente_id, perfil_id,
+              perfil_copia, contacto, entrega, finalidade, moeda,
+              preco_inclui_iva, lingua, total_base, total_iva, total, portes,
+              metodo_entrega, metodo_pagamento, aceitacoes, criada_por)
+            select comerciante_id, loja_id, canal_id, mercado_id,
+              entidade_legal_id, ${outra.sessao.slice(4)}::uuid, cliente_id,
+              perfil_id, perfil_copia, contacto, entrega, finalidade, moeda,
+              preco_inclui_iva, lingua, (portes->>'base')::bigint,
+              (portes->>'iva')::bigint,
+              (portes->>'base')::bigint + (portes->>'iva')::bigint, portes,
+              metodo_entrega, metodo_pagamento, aceitacoes, criada_por
+            from encomenda where id = ${id}::uuid`.execute(trx);
+      }),
+    ).rejects.toThrow(/orders.totals_mismatch/);
+  });
+
+  it("o endereço do checkout sai dos registos sem o token", () => {
+    const token = "a".repeat(43);
+    expect(urlSemSegredos(`/checkout/${token}/summary?x=1`)).toBe(
+      "/checkout/[token]/summary?x=1",
+    );
+    expect(urlSemSegredos("/store/carts/crt_1")).toBe("/store/carts/crt_1");
+  });
+
+  it("as rotas da loja têm limite por IP", async () => {
+    const s = await cenario();
+    const pequena = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      undefined,
+      undefined,
+      { pedidos: 2, janelaMs: 60_000 },
+    );
+    try {
+      const estados: number[] = [];
+      for (let i = 0; i < 3; i += 1) {
+        const r = await pequena.inject({
+          method: "GET",
+          url: `/store/carts/crt_${randomUUID()}`,
+          headers: {
+            authorization: `Bearer ${s.publica}`,
+            "x-cart-secret": "x".repeat(43),
+          },
+        });
+        estados.push(r.statusCode);
+      }
+      expect(estados.slice(0, 2)).not.toContain(429);
+      expect(estados[2]).toBe(429);
+      // As rotas de Administração não contam para o limite da loja.
+      const adm = await pequena.inject({
+        method: "GET",
+        url: "/legal-texts",
+        headers: { authorization: `Bearer ${s.servidor}` },
+      });
+      expect(adm.statusCode).toBe(200);
+    } finally {
+      await pequena.close();
+    }
+  });
+  it("a morada noutro país muda a sessão para o mercado do canal que o serve (e larga o método de entrega); a base não deixa dois mercados com o país", async () => {
+    const s = await cenario();
+    const espanha = async (nome: string) => {
+      const m = await criarMercado(base.api, s.c, {
+        loja_id: s.loja,
+        nome,
+        paises: ["ES"],
+        moeda: "EUR",
+        linguas: ["pt", "es"],
+        lingua_principal: "es",
+      });
+      await criarLista(base.api, s.c, {
+        mercado_id: m,
+        nome: `Base ${nome}`,
+        tipo: "base",
+      });
+      await mudarEstadoMercado(base.api, s.c, m, 1, "activo");
+      return m;
+    };
+    const es = await espanha("Espanha");
+    await definirMercadosDoCanal(base.api, s.c, s.canal, [s.mercado, es]);
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    await ok(
+      pedir("PUT", `/checkout/${k.token}/delivery`, {
+        pais: "ES",
+        codigo_postal: "28001",
+        linha1: "Calle 1",
+        localidade: "Madrid",
+      }),
+    );
+    expect(await ok(pedir("GET", `/checkout/${k.token}`))).toMatchObject({
+      mercado: `mkt_${es}`,
+      metodo_entrega: null,
+    });
+    // Um segundo mercado activo com Espanha na mesma loja: a base recusa-o
+    // (a escolha do mercado pelo país nunca é ambígua).
+    await expect(espanha("Espanha 2")).rejects.toThrow(
+      /country_in_other_market/,
+    );
   });
 });

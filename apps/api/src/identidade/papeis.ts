@@ -48,7 +48,9 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "shipping:write",
     "tax:read",
   ],
-  armazem: ["catalog:read", "orders:read", "prices:read", "shipping:read"],
+  // Sem orders:read: a encomenda traz o perfil de faturação e o contacto; a
+  // vista do que expedir vem com a fatia da expedição (revisão do #276, P2-10).
+  armazem: ["catalog:read", "prices:read", "shipping:read"],
   apoio: [
     "catalog:read",
     "customers:read",
