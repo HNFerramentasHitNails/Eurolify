@@ -487,7 +487,7 @@ const CategoriaFiscal = Type.Union([
   Type.Null(),
 ]);
 
-const NovaVariante = Type.Object(
+export const NovaVariante = Type.Object(
   {
     sku: Texto(64),
     unidade_de_venda: UnidadeDeVenda,
@@ -527,14 +527,25 @@ const NovaVariante = Type.Object(
   { additionalProperties: false },
 );
 
+/** Quantas variantes um artigo novo traz de uma vez (a criação e a importação). */
+export const MAX_VARIANTES_POR_ARTIGO_NOVO = 100;
+
+/** Os campos do artigo, como se criam (também os valida a importação). */
+export const CamposDoArtigo = Type.Object({
+  tipo: TipoArtigo,
+  nome: Texto(200),
+  descricao: Type.Optional(TextoOuNulo(10000)),
+  marca: Type.Optional(TextoOuNulo(200)),
+  categoria_fiscal: Type.Optional(CategoriaFiscal),
+});
+
 const PedidoCriarArtigo = Type.Object(
   {
-    tipo: TipoArtigo,
-    nome: Texto(200),
-    descricao: Type.Optional(TextoOuNulo(10000)),
-    marca: Type.Optional(TextoOuNulo(200)),
-    categoria_fiscal: Type.Optional(CategoriaFiscal),
-    variantes: Type.Array(NovaVariante, { minItems: 1, maxItems: 100 }),
+    ...CamposDoArtigo.properties,
+    variantes: Type.Array(NovaVariante, {
+      minItems: 1,
+      maxItems: MAX_VARIANTES_POR_ARTIGO_NOVO,
+    }),
   },
   { additionalProperties: false },
 );
