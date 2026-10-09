@@ -36,9 +36,11 @@
   --raio: 6px;
   --letra: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --letra-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --letra-base: 16px;
-  --letra-pequena: 14px;
-  --letra-titulo: 24px;
+  /* As letras em rem (issue #237): seguem o tamanho de letra escolhido no
+     navegador. Com o tamanho por omissão (16 px), dão 16, 14 e 24 px. */
+  --letra-base: 1rem;
+  --letra-pequena: 0.875rem;
+  --letra-titulo: 1.5rem;
   --alvo-minimo: 44px;
 
   /* De componente (revisão do #158, P3-5): medidas com nome */

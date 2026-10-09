@@ -96,3 +96,4 @@
 - [Hub modular em Glassmorphism: três skills preparadas para navegação, responsivo e validação; interface ainda não implementada — 09/10/2026](hub-modular-skills-09out2026.md)
 - [Hub: entrada por módulos (#218, #219): grelha pelos âmbitos do /hub/me, comerciante no endereço, pesquisa só de módulos, vidro com modo opaco; aspecto aprovado, no ensaio e visto pelo Diogo; 91 testes, 324 verificações — 09/10/2026](hub-entrada-modular-09out2026.md)
 - [Hub: escolher o tema (#226, #227): Automático, Claro e Escuro no cabeçalho; guardado no navegador como a língua (automático apaga); aspecto aprovado, no ensaio e verificado pelo Diogo; 98 testes, 360 verificações — 09/10/2026](hub-escolher-tema-09out2026.md)
+- [Hub: letras em tamanhos relativos (#237, #241): letras em rem, tabelas e grelha da entrada com pontos que seguem a letra, códigos de recuperação sem deslocar; 103 testes, 415 verificações — 09/10/2026](hub-letras-relativas-09out2026.md)
