@@ -57,8 +57,14 @@ body {
 
 .cabecalho-accoes {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--espaco-3);
+}
+
+/* As duas listas do cabeçalho (língua e tema) com a largura do texto. */
+.cabecalho-accoes select {
+  width: auto;
 }
 
 main {

@@ -101,8 +101,11 @@
   --borda-controlo: var(--cinzento-500);
 }
 
+/* Escuro: com o aparelho em escuro, salvo «Tema claro» escolhido no Hub, ou
+   com «Tema escuro» escolhido (docs/22 §4). Os dois blocos têm de ser iguais
+   (o teste de contraste confere). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema="claro"]) {
     --superficie: var(--cinzento-950);
     --superficie-elevada: var(--cinzento-900);
     --texto: var(--cinzento-50);
@@ -120,4 +123,23 @@
     --vidro-opacidade-forte: 97%;
     --vidro-sombra: var(--sombra-curta-escura);
   }
+}
+
+:root[data-tema="escuro"] {
+  --superficie: var(--cinzento-950);
+  --superficie-elevada: var(--cinzento-900);
+  --texto: var(--cinzento-50);
+  --texto-secundario: var(--cinzento-300);
+  --borda: var(--cinzento-700);
+  --accao-principal: var(--azul-300);
+  --texto-sobre-accao: var(--cinzento-950);
+  --foco: var(--azul-300);
+  --estado-erro: var(--vermelho-300);
+  --estado-aviso: var(--ambar-300);
+  --estado-sucesso: var(--verde-300);
+  --fundo-entrada-fim: var(--azul-950);
+  --vidro-cor: var(--cinzento-900);
+  --vidro-opacidade: 90%;
+  --vidro-opacidade-forte: 97%;
+  --vidro-sombra: var(--sombra-curta-escura);
 }

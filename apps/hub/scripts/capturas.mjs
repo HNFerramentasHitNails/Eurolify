@@ -2400,6 +2400,88 @@ try {
     await cv.close();
   }
 
+  // Escolher o tema (docs/22 §4, issue #226): «Tema escuro» com o aparelho
+  // em claro, «Tema claro» com o aparelho em escuro, guardado ao recarregar,
+  // «Tema automático» volta ao aparelho e apaga a escolha.
+  {
+    const html = (p) =>
+      p.evaluate(
+        () => window.getComputedStyle(document.documentElement).backgroundColor,
+      );
+    const guardado = (p) =>
+      p.evaluate(() => window.localStorage.getItem("eurolify-hub-tema"));
+    for (const [sistema, escolha, rotulo, esperado, largura] of [
+      ["light", "escuro", "Tema escuro", "rgb(17, 20, 24)", 375],
+      ["dark", "claro", "Tema claro", "rgb(255, 255, 255)", 1280],
+    ]) {
+      const c = await navegador.newContext({
+        ignoreHTTPSErrors: true,
+        colorScheme: sistema,
+        viewport: { width: largura, height: 900 },
+        storageState: sessao,
+      });
+      const p = await c.newPage();
+      await p.goto(`${ORIGEM}/equipa?comerciante=mer_${comerciante}`);
+      await p.getByRole("heading", { name: /Equipa/ }).waitFor();
+      const antes = await html(p);
+      await p.getByLabel("Tema").selectOption({ label: rotulo });
+      confere(
+        (await html(p)) === esperado && antes !== esperado,
+        `tema: «${rotulo}» com o aparelho em ${sistema === "light" ? "claro" : "escuro"} muda a página (${antes} → ${await html(p)})`,
+      );
+      confere(
+        (await guardado(p)) === escolha &&
+          (await p.evaluate(
+            () => document.documentElement.style.colorScheme,
+          )) === (escolha === "escuro" ? "dark" : "light"),
+        `tema: «${rotulo}» fica guardado e os controlos do navegador seguem-no`,
+      );
+      await p.reload();
+      await p.getByRole("heading", { name: /Equipa/ }).waitFor();
+      confere(
+        (await html(p)) === esperado &&
+          (await p.getByLabel("Tema").inputValue()) === escolha,
+        `tema: «${rotulo}» continua depois de recarregar`,
+      );
+      const largo = await p.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      );
+      confere(!largo, `tema: ${String(largura)} px sem deslocação horizontal`);
+      await p.screenshot({
+        path: join(
+          SAIDA,
+          `tema-${escolha}-aparelho-${sistema === "light" ? "claro" : "escuro"}-${String(largura)}.png`,
+        ),
+        fullPage: true,
+      });
+      await p.getByLabel("Tema").selectOption({ label: "Tema automático" });
+      confere(
+        (await html(p)) === antes && (await guardado(p)) === null,
+        "tema: «Tema automático» volta ao tema do aparelho e apaga a escolha guardada",
+      );
+      await c.close();
+    }
+    // O cabeçalho a 320 px, com as duas listas, sem deslocação.
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 320, height: 800 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/`);
+    await p.getByLabel("Tema").waitFor();
+    confere(
+      !(await p.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      "tema: a 320 px, o cabeçalho com a língua e o tema cabe sem deslocação",
+    );
+    await p.screenshot({
+      path: join(SAIDA, "tema-cabecalho-320-claro.png"),
+    });
+    await c.close();
+  }
+
   // As capturas: 9 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
