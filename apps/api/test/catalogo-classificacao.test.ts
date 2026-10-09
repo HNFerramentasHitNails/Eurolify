@@ -460,11 +460,15 @@ describe.skipIf(URL_BASE === undefined)(
       const { c, id } = await artigo("fisico");
       expect(
         await codigoDoErro(
-          comComerciante(base.api, c, (trx) =>
-            sql`update artigo set familias = '{retalho_geral}' where id = ${id}`.execute(
+          comComerciante(base.api, c, async (trx) => {
+            // Sem quem: tira o da base de teste (base-de-teste.ts).
+            await sql`select set_config('eurolify.quem', '', true)`.execute(
               trx,
-            ),
-          ).catch((erro: unknown) => {
+            );
+            await sql`update artigo set familias = '{retalho_geral}' where id = ${id}`.execute(
+              trx,
+            );
+          }).catch((erro: unknown) => {
             throw traduzir(erro);
           }),
         ),
@@ -518,10 +522,10 @@ describe.skipIf(URL_BASE === undefined)(
       texto: ReturnType<typeof sql>,
     ) {
       return comComerciante(base.api, c, async (trx) => {
-        if (quem !== null)
-          await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(
-            trx,
-          );
+        // Sem quem: tira o da base de teste (base-de-teste.ts).
+        await sql`select set_config('eurolify.quem', ${quem ?? ""}, true)`.execute(
+          trx,
+        );
         await texto.execute(trx);
       }).catch((erro: unknown) => {
         throw traduzir(erro);

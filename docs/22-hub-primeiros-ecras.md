@@ -493,7 +493,7 @@ rotas pela chave (como na §11.1): nenhuma regra nova do catálogo nasce no Hub
   hoje o `dono` e o `gestor` (`apps/api/src/identidade/papeis.ts`). O
   `armazém` e o `apoio` recebem 403, como na lista (§11.1).
 - **O ecrã não decide quem pode**: o `/hub/me` dá, por comerciante, os
-  âmbitos do papel, lidos da base (`papel_ambitos`; migração 0033, pedido
+  âmbitos do papel, lidos da base (`papel_ambitos`; migração 0034, pedido
   #212); um âmbito que a API ainda não conhece fica de fora, para uma
   migração nova não partir a versão anterior. O Hub mostra «Editar» só com
   `catalog:write` (e as ligações «Ver artigos» e «Chaves» com `catalog:read`

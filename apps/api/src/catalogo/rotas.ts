@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import type { Kysely, Transaction } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
 import { Type, type Static, type TSchema } from "typebox";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
@@ -103,7 +103,7 @@ export const semPrefixo = (id: string) => id.slice(id.indexOf("_") + 1);
  * Uma lista fechada de valores, com o tipo deles (o `Type.Union` de uma
  * lista feita com `map` perde o tipo dos literais no TypeScript).
  */
-const umDe = <T extends string>(valores: readonly T[]) =>
+export const umDe = <T extends string>(valores: readonly T[]) =>
   Type.Unsafe<T>({ type: "string", enum: [...valores] });
 const EstadoArtigo = umDe(ESTADOS_ARTIGO);
 const TipoArtigo = umDe(TIPOS_ARTIGO);
@@ -1364,6 +1364,12 @@ export async function escrever(
       chave.comercianteId,
       idempotente,
       async (trx) => {
+        // Quem escreve fica na linha do tempo (docs/14 §3.12; migração
+        // 0033): posto aqui, uma vez, para todas as escritas; sem ele, o
+        // gatilho recusa a mudança.
+        await sql`select set_config('eurolify.quem', ${quemDa(chave)}, true)`.execute(
+          trx,
+        );
         const corpo = await fn(trx, chave);
         return { status, corpo, guardar: corpo };
       },

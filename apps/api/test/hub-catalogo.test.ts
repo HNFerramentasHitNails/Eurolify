@@ -679,7 +679,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
 
   it("um âmbito que esta versão da API não conhece fica de fora do /hub/me (revisão do #212, P1-1)", () => {
     expect(
-      ambitosConhecidos(["catalog:read", "catalog:history", "catalog:write"]),
+      ambitosConhecidos(["catalog:read", "catalog:futuro", "catalog:write"]),
     ).toEqual(["catalog:read", "catalog:write"]);
     expect(ambitosConhecidos(null)).toEqual([]);
     expect(ambitosConhecidos(undefined)).toEqual([]);

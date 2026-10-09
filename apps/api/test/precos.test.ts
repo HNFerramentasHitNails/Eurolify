@@ -504,7 +504,9 @@ describe.skipIf(URL_BASE === undefined)("preços e mercados na base", () => {
       ]),
     ).toEqual([
       [false, QUEM, "EUR", true],
-      [true, "catalogo:variante apagada", "EUR", true],
+      // Desde a linha do tempo (0033), toda a mudança no catálogo traz quem
+      // (aqui, o da base de teste); o «catalogo:variante apagada» deixou de se ver.
+      [true, "teste:base", "EUR", true],
     ]);
   });
 

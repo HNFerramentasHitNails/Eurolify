@@ -373,6 +373,11 @@ export function rotasDasImportacoes(
               new ErroImportacao("import.expired", "o ensaio expirou"),
             );
           }
+          // Na linha do tempo, o que a importação muda leva a origem
+          // (docs/14 §3.12).
+          await sql`select set_config('eurolify.origem', ${`importacao:imp_${id}`}, true)`.execute(
+            trx,
+          );
           let resultado;
           try {
             resultado = await aplicarPlano(

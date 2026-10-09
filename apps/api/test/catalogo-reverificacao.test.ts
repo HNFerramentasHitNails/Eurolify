@@ -245,7 +245,9 @@ describe.skipIf(URL_BASE === undefined)("reverificar as publicações", () => {
     expect(p).toMatchObject({
       estado: "arquivado",
       motivo_arquivo: "verificacao_falhou",
-      arquivado_por: "catalogo:verificacao_falhou",
+      // Desde a linha do tempo (0033), toda a mudança no catálogo traz quem
+      // (aqui, o da base de teste); o «catalogo:verificacao_falhou» deixou de se ver.
+      arquivado_por: "teste:base",
     });
     expect(codigos(p.ultima_verificacao)).toEqual(["traducao_desactualizada"]);
   });

@@ -257,7 +257,9 @@ describe.skipIf(URL_BASE === undefined)("eventos de domínio na base", () => {
       ["market.activated", undefined, undefined],
       ["price.changed", undefined, QUEM],
       ["product.published", undefined, QUEM],
-      ["product.unpublished", "artigo_arquivado", "catalogo:artigo_arquivado"],
+      // Desde a linha do tempo (0033), toda a mudança no catálogo traz quem
+      // (aqui, o da base de teste); o «catalogo:artigo_arquivado» deixou de se ver.
+      ["product.unpublished", "artigo_arquivado", "teste:base"],
       ["product.archived", undefined, undefined],
     ]);
   });
@@ -374,7 +376,9 @@ describe.skipIf(URL_BASE === undefined)("eventos de domínio na base", () => {
       ]),
     ).toEqual([
       ["price.changed", null, false, QUEM],
-      ["price.changed", 500, true, "catalogo:variante apagada"],
+      // Desde a linha do tempo (0033), toda a mudança no catálogo traz quem
+      // (aqui, o da base de teste); o «catalogo:variante apagada» deixou de se ver.
+      ["price.changed", 500, true, "teste:base"],
     ]);
   });
 
