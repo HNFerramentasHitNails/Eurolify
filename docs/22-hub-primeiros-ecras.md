@@ -798,6 +798,127 @@ API reverifica-as).
   escuro; tudo só com o teclado.
 - **A outra sessão** vê no #77 os caminhos novos.
 
+## 16. Catálogo: o histórico do artigo (issue #239)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho do histórico do
+artigo»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica
+de fora (*«sim, aprovo o desenho, junta o #240»*). A API já guarda o histórico de cada artigo (`docs/14` §3.12,
+migração 0033, #208) e dá-o em `GET /products/{id}/timeline`; o Hub ainda
+não o mostra (`docs/14` §3.12, «Faltas conhecidas»). Este passo **só lê**:
+não grava nada e não muda a VPS (o nginx já deixa passar os `GET` em `/hub/`,
+§11.1). Skills: `eurolify-design`, `eu-gdpr-privacy`,
+`observability-security`, `eu-localization`.
+
+Ex.: na ficha do «Gel UV 15 ml», o dono abre «Histórico» e vê, em cima, «Hoje,
+14:32 — Ana Teste alterou o artigo: Nome: «Gel UV 15 ml» → «Gel UV 15 ml
+transparente»». (Nome fictício, como os dados do ensaio, `docs/21` linha 37.)
+
+### 16.1 O que entra e o que fica de fora
+
+| Entra | Rota da API |
+|---|---|
+| As alterações do artigo, das variantes, das imagens, das traduções, das opções, das categorias e colecções a que pertence e das publicações, da mais recente para a mais antiga, 25 de cada vez com «Mostrar mais» | `GET /products/{id}/timeline` (`catalogo/rotas-linha-do-tempo.ts`, linhas 114–219): `limite`, `cursor`; devolve `quem`, `em`, `origem`, `transacao`, `entidade`, `entidade_id`, `operacao`, `campos` (antes e depois) |
+| **Quem fez, pelo nome** (§16.2) | o mesmo, mais o nome que a API do Hub junta |
+
+| Fica de fora, e porquê |
+|---|
+| **Filtrar** por parte (só imagens, só variantes) ou por data: a API já aceita `entidade` e `desde`; entram quando o histórico for longo o bastante para fazer falta. |
+| **Desfazer uma alteração** a partir do histórico: escrever o valor de antes é uma escrita nova, com as regras dela (publicação, tradução); nunca automática e nunca em lote. Desenho à parte, se for pedido. |
+| **O histórico de uma categoria ou colecção** sozinha: a API ainda não tem a rota (`docs/14` §3.12). |
+| **Notas da equipa e anexos**: ainda não existem (`docs/14` §3.12). |
+| **Exportar o histórico**: fica para quando houver um pedido de prova concreto. |
+| **O que mudou antes da migração 0033**: não há entradas, e não se inventa um passado (`docs/14` §3.12). |
+
+### 16.2 Como o Hub lê, e o nome de quem fez
+
+Como na §12.1: um caminho `/hub/` que chama **a mesma função** da rota pela
+chave (extraída sem mudar a resposta), com a sessão e o cabeçalho
+`Eurolify-Comerciante`:
+
+| Caminho do Hub | A mesma de | Quem |
+|---|---|---|
+| `GET /hub/products/{id}/timeline` | `GET /products/{id}/timeline` | `catalog:history`: o **dono** e o **gestor** (`docs/21` linha 221, migração 0036); o **armazém** e o **apoio** recebem 403, e a ficha não lhes mostra a ligação |
+
+**O nome.** A rota pela chave dá só o identificador (`pessoa:per_…`,
+`chave:key_…`), de propósito (`docs/14` §3.12, «Dados pessoais»). Um
+identificador não diz nada a quem gere a loja, e traduzi-lo no ecrã
+obrigava o Hub a ler a equipa e as chaves e a decidir sozinho quem é quem.
+Por isso **a API do Hub junta a cada entrada um `autor`**, decidido no
+servidor (uma regra, um sítio):
+
+| `quem` guardado | `autor` | O ecrã mostra |
+|---|---|---|
+| `pessoa:per_…` de quem **é ou foi** membro deste comerciante | `{ tipo: "pessoa", nome }`, o nome da conta (pseudonimizada: «Pessoa pseudonimizada», que é o que fica guardado, `docs/21` §13 ponto 7) | o nome |
+| `pessoa:per_…` que nunca foi membro deste comerciante | `{ tipo: "pessoa", nome: null }` | «Pessoa de fora desta equipa» (não devia acontecer; não se mostra o nome de quem não é da equipa) |
+| `chave:key_…` deste comerciante | `{ tipo: "chave", nome }`, o nome da chave | «Chave «{nome}»» |
+| `chave:key_…` que não é deste comerciante, ou apagada | `{ tipo: "chave", nome: null }` | «Chave de API» |
+| `sistema:<tarefa>` ou `catalogo:<motivo>` | `{ tipo: "sistema", nome: null }` | «Automático»; com `catalogo:verificacao_falhou`, «Automático» e, na publicação, o motivo com o texto que a ficha já usa («Deixou de cumprir as regras de publicação», `textos/pt.ts` linha 404) |
+| outro valor | `{ tipo: "outro", nome: null }` | o valor guardado, tal como está |
+
+**Dados pessoais** (`eu-gdpr-privacy`): o nome serve a finalidade já
+registada em `docs/21` linha 239 («saber quem fez o quê»), e só o vêem o dono
+e o gestor do mesmo comerciante, que já vêem os nomes da equipa
+(`GET /hub/members`). Nada novo se guarda: o nome é lido na hora, e quando a
+pessoa é pseudonimizada (90 dias depois de sair, CD) o histórico passa a
+mostrar «Pessoa pseudonimizada». A resposta leva
+`cache-control: private, no-store`, como as outras leituras do Hub.
+
+### 16.3 O ecrã
+
+| Ecrã | O que mostra | Rotas da API | Estados além do normal |
+|---|---|---|---|
+| **Histórico do artigo** (`/artigos/{prd_…}/historico?comerciante=mer_…`; abre-se pela ligação «Histórico» na ficha, só para quem tem `catalog:history` nos âmbitos que o `GET /hub/me` dá, como o «Editar» com `catalog:write`, `ecras/Artigo.tsx` linha 159) | O nome do artigo e «Voltar à ficha». Uma lista, da mais recente para a mais antiga, em que **cada alteração** junta as entradas com a mesma `transacao` (ex.: mudar o nome e a publicação sair de venda ficam juntos): o dia e a hora (na hora deste dispositivo, como os outros ecrãs do Hub), quem (§16.2), «pela importação» quando `origem` o diz e, por baixo, uma linha por parte: o quê (§16.4), a operação (criou, alterou, apagou) e, numa alteração, cada campo com o antes → o depois. «Mostrar mais» pede as 25 seguintes (o cursor da API) e o foco vai para a primeira nova. Por cima da lista: «O histórico começa no dia em que esta função entrou; as alterações de antes não aparecem.» | `GET /hub/products/{id}/timeline`; `GET /hub/products/{id}` (o nome do artigo e o SKU das variantes) | a carregar; sem alterações («Ainda não há alterações registadas»); artigo que não existe ou de outro comerciante (404, como a ficha); sem permissão (403, como a lista); erro ao pedir mais (a lista fica; o erro e «Tentar outra vez» por baixo); sessão terminada (para «Entrar») |
+
+### 16.4 Os campos em linguagem comum
+
+O ecrã traduz as partes e os campos que conhece; os outros aparecem com o
+nome técnico, sem se inventar o que significam.
+
+| Parte (`entidade`) | O ecrã diz |
+|---|---|
+| `artigo` | «o artigo» |
+| `variante` | «a variante {SKU}» (o SKU vem da ficha, que traz também as arquivadas; sem ele, «uma variante») |
+| `media` | «uma imagem» |
+| `traducao` | «uma tradução» (com a língua e o campo, se vierem nos `campos`) |
+| `publicacao` | «uma publicação» (canal e mercado pelo identificador, como a ficha, §12.2) |
+| `opcao`, `valor_opcao`, `variante_valor` | «uma opção», «um valor de opção», «o valor de uma variante» |
+| `componente` | «um componente do kit» |
+| `artigo_categoria`, `colecao_artigo` | «uma categoria», «uma colecção» |
+
+| Campo | Nome no ecrã |
+|---|---|
+| `nome`, `descricao`, `marca`, `estado`, `tipo` | Nome, Descrição, Marca, Estado (com os nomes da §11.2), Tipo |
+| `sku`, `gtin`, `gtin_origem`, `unidade_de_venda` | SKU, GTIN, Origem do GTIN, Unidade de venda (com os nomes do ecrã de criar, §14) |
+| `conteudo_quantidade`, `conteudo_unidade`, `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | Conteúdo, Unidade do conteúdo, Peso (g), Comprimento, Largura, Altura (mm) |
+| `texto_alternativo`, `principal`, `posicao` | Texto alternativo, Principal, Posição |
+| `motivo_arquivo` | Motivo (com os textos da ficha, §12.2) |
+
+**Os valores:** vazio diz «vazio»; `true`/`false` dizem «sim»/«não»; um
+texto com mais de 160 caracteres mostra o começo e «Ver tudo» (um
+`<details>`, que abre com o teclado); um valor que não é texto nem número
+(JSON) mostra-se como está guardado. Os textos dos comerciantes mostram-se
+como texto, nunca como HTML.
+
+### 16.5 Antes de dizer que está feito (o pedido do código)
+
+- **API**: o caminho do Hub dá as mesmas entradas, pela mesma ordem e com o
+  mesmo cursor, que a rota pela chave, mais o `autor`; o `autor` de uma
+  pessoa que saiu da equipa traz o nome, o de uma pessoa que nunca foi membro
+  vem sem nome, o de uma pessoa pseudonimizada diz «Pessoa pseudonimizada», e
+  uma chave de outro comerciante vem sem nome; armazém e apoio recebem 403;
+  outro comerciante, membro que saiu e sessão terminada são recusados;
+  `no-store`; o contrato.
+- **Prova pela falha**: tirar a condição «é ou foi membro deste comerciante»
+  faz falhar o teste do nome de fora; tirar o filtro do comerciante na chave
+  faz falhar o da chave de outro.
+- **Hub**: a passagem no navegador edita um artigo, acrescenta e tira uma
+  imagem e abre o histórico pela ficha: confere o nome de quem fez, o antes
+  e o depois, a junção por alteração, «Mostrar mais», «Ver tudo» e o 403 do
+  armazém; tudo com o teclado; capturas a 375, 768 e 1280 px, claro e escuro,
+  para o OK do Diogo ou do Bruno.
+- **A outra sessão** vê no #77 que a função da linha do tempo passa a ter
+  um segundo chamador.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
