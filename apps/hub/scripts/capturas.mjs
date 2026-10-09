@@ -3033,6 +3033,65 @@ try {
     await c.close();
   }
 
+  // A letra escolhida nas definições do navegador (docs/22 §4, issue #237):
+  // com 32 px em vez de 16, o Hub segue-a e as páginas não deslocam. Um
+  // separador novo por página: o protocolo do Chromium pode esquecer a
+  // definição entre navegações na mesma página.
+  {
+    for (const largura of [375, 1280]) {
+      const c = await navegador.newContext({
+        ignoreHTTPSErrors: true,
+        viewport: { width: largura, height: 900 },
+        storageState: sessao,
+      });
+      for (const [nome, caminho] of [
+        ["entrada", `/?comerciante=mer_${comerciante}`],
+        ["equipa", `/equipa?comerciante=mer_${comerciante}`],
+        ["artigos", `/artigos?comerciante=mer_${comerciante}`],
+        ["chaves", `/chaves?comerciante=mer_${comerciante}`],
+        ["conta", "/conta"],
+      ]) {
+        const p = await c.newPage();
+        const cdp = await c.newCDPSession(p);
+        await cdp.send("Page.enable");
+        await cdp.send("Page.setFontSizes", {
+          fontSizes: { standard: 32, fixed: 26 },
+        });
+        await p.goto(`${ORIGEM}${caminho}`);
+        await p.locator("h1").first().waitFor();
+        await p.waitForLoadState("networkidle");
+        const m = await p.evaluate(() => {
+          const teste = document.createElement("p");
+          teste.style.fontSize = "medium";
+          document.body.append(teste);
+          const medio = window.getComputedStyle(teste).fontSize;
+          teste.remove();
+          return {
+            medio,
+            letra: window.getComputedStyle(document.documentElement).fontSize,
+            titulo: window.getComputedStyle(document.querySelector("h1"))
+              .fontSize,
+            largo: document.documentElement.scrollWidth > window.innerWidth,
+            largura: document.documentElement.scrollWidth,
+          };
+        });
+        confere(
+          m.medio === "32px" &&
+            m.letra === "32px" &&
+            m.titulo === "48px" &&
+            !m.largo,
+          `letra do navegador a 32 px (${m.medio}), ${nome} a ${String(largura)} px: a página segue-a (${m.letra}, título ${m.titulo}) e não desloca (${String(m.largura)} px)`,
+        );
+        await p.screenshot({
+          path: join(SAIDA, `letra-32-${nome}-${String(largura)}.png`),
+          fullPage: true,
+        });
+        await p.close();
+      }
+      await c.close();
+    }
+  }
+
   // As capturas: 9 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],

@@ -262,9 +262,11 @@ th {
   font-weight: 600;
 }
 
-/* Um @media não lê variáveis CSS: o 640px fica aqui (o ponto em que as
-   tabelas passam a cartões). */
-@media (max-width: 640px) {
+/* Um @media não lê variáveis CSS: o ponto em que as tabelas passam a cartões
+   fica aqui. Em em, não em px (issue #237): num @media o em é a letra do
+   navegador, por isso 40em dá 640 px com a letra por omissão e cresce com
+   ela — com letra grande, as tabelas passam a cartões mais cedo. */
+@media (max-width: 40em) {
   thead {
     position: absolute;
     width: 1px;
@@ -352,7 +354,9 @@ code {
 
 /* Uma tabela com muitas colunas (as chaves de API: oito) passa a cartões
    mais cedo, até 960px: a 768px não cabia (revisão do #183). */
-@media (max-width: 960px) {
+/* As tabelas largas passam a cartões mais cedo: 60em dá 960 px com a letra
+   por omissão e cresce com ela (issue #237). */
+@media (max-width: 60em) {
   .tabela-larga thead {
     position: absolute;
     width: 1px;
