@@ -11,6 +11,7 @@ import {
   Instante,
   iso,
   Lista,
+  ParametroArtigo,
   semPrefixo,
 } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
@@ -37,10 +38,12 @@ import {
   obterMercado,
   precoPorUnidade,
   precosDaListaComReducoes,
+  precosDoArtigo,
   reducoesDoPreco,
   tirarPreco,
   tirarReducao,
   traduzir,
+  type PrecoDaLista,
   type Reducao,
 } from "./repositorio.js";
 
@@ -320,6 +323,65 @@ const PrecoEsquema = Type.Object({
   reducao: Type.Union([ReducaoEsquema, Type.Null()]),
   preco_por_unidade: PorUnidade,
 });
+/** Uma lista activa com os preços das variantes de um artigo (docs/22 §17.2). */
+const PrecosDoArtigoNaLista = Type.Object({
+  lista: ListaPrecos,
+  mercado: Type.Object({
+    id: Type.String({ description: "mkt_…" }),
+    nome: Type.String(),
+    estado: Type.String(),
+    moeda: Type.String({ description: "ISO 4217" }),
+    preco_inclui_iva: Type.Boolean({
+      description:
+        "Os montantes desta lista incluem IVA (o do mercado); o IVA de cada país sai do Motor de IVA",
+    }),
+  }),
+  precos: Type.Array(PrecoEsquema, {
+    description:
+      "Só as variantes deste artigo com preço nesta lista; uma variante sem preço não vem",
+  }),
+});
+export const RespostaPrecosDoArtigo = Lista(PrecosDoArtigoNaLista);
+
+/**
+ * Os preços de um artigo nas listas activas (docs/22 §17.2): a mesma para
+ * `GET /products/{id}/prices` e `GET /hub/products/{id}/prices`. **Outro
+ * chamador:** `identidade/hub-catalogo.ts`.
+ */
+export async function precosDoArtigoApi(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  consulta: Static<typeof ConsultaPagina>,
+  resposta: FastifyReply,
+): Promise<Static<typeof RespostaPrecosDoArtigo>> {
+  return emPrecos(resposta, async () => {
+    const agora = new Date();
+    return comPagina(
+      await precosDoArtigo(
+        base,
+        comercianteId,
+        semPrefixo(id),
+        limiteDe(consulta),
+        idDoCursor(consulta.cursor),
+      ),
+      (l) => ({
+        lista: paraLista(l.lista),
+        mercado: {
+          id: `mkt_${l.mercado.id}`,
+          nome: l.mercado.nome,
+          estado: l.mercado.estado,
+          moeda: l.mercado.moeda,
+          preco_inclui_iva: l.mercado.preco_inclui_iva,
+        },
+        precos: l.precos.map((p) =>
+          paraPreco(p, l.mercado.preco_inclui_iva, agora),
+        ),
+      }),
+    );
+  });
+}
+
 const PedidoPreco = Type.Object(
   {
     montante: Montante,
@@ -852,6 +914,28 @@ export function rotasDosPrecos(
     },
   );
 
+  rotas.get(
+    "/products/:id/prices",
+    {
+      config: ler,
+      schema: {
+        description:
+          "Os preços de um artigo (docs/22 §17.2): as listas activas, por ordem de criação e por páginas, cada uma com o mercado (moeda e se os montantes incluem IVA) e os preços das variantes do artigo, com a redução em vigor e o preço por unidade, como em GET /price-lists/{id}/prices.",
+        params: ParametroArtigo,
+        querystring: ConsultaPagina,
+        response: { 200: RespostaPrecosDoArtigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      precosDoArtigoApi(
+        base,
+        chaveDo(pedido).comercianteId,
+        pedido.params.id,
+        pedido.query,
+        resposta,
+      ),
+  );
+
   rotas.put(
     "/price-lists/:id/prices/:variante",
     {
@@ -1038,7 +1122,7 @@ export function rotasDosPrecos(
 }
 
 function paraPreco(
-  p: Awaited<ReturnType<typeof precosDaListaComReducoes>>["dados"][number],
+  p: PrecoDaLista,
   incluiIva: boolean,
   agora: Date,
 ): Static<typeof PrecoEsquema> {

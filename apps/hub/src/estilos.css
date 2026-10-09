@@ -877,3 +877,12 @@ textarea {
 .valor-historico summary span {
   text-decoration: underline;
 }
+
+/* Os preços do artigo (docs/22 §17.3): uma caixa por lista. */
+.lista-precos {
+  margin: 0 0 var(--espaco-6);
+}
+.lista-precos h3 {
+  font-size: var(--letra-base);
+  margin: 0 0 var(--espaco-1);
+}
