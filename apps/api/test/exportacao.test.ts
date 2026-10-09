@@ -41,6 +41,7 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+import { PNG } from "./imagens-de-teste.js";
 
 // As exportações (docs/14 §3.11, «Exportação do catálogo»; docs/06, CS),
 // contra o PostgreSQL 18 verdadeiro e uma pasta temporária no lugar do disco
@@ -48,10 +49,6 @@ import {
 // se houver python3, também com o zipfile dele.
 
 const NOVO = { nome: "Loja de Teste", lingua: "pt", fuso: "Europe/Lisbon" };
-const PNG = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.from("resto do png"),
-]);
 const QUEM = "pessoa:teste";
 
 /** Lê um ZIP pelo directório central; confere o CRC de cada entrada. */

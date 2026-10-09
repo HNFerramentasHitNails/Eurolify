@@ -92,4 +92,4 @@
 - [Hub: ficha do artigo só para consulta (#205, #206): quatro caminhos /hub/ com as funções da API; imagens por blob:, CSP do nginx do Hub com img-src blob: (VPS); publicado no ensaio — 09/10/2026](hub-ficha-do-artigo-09out2026.md)
 - [Hub: editar o artigo (#210, #211, #212, #217): /hub/me com âmbitos (0034), seis escritas /hub/ com «quem» e P5, categoria fiscal fora do Hub, guarda de saída; publicado no ensaio — 09/10/2026](hub-edicao-do-artigo-09out2026.md)
 - [Hub modular em Glassmorphism: três skills preparadas para navegação, responsivo e validação; interface ainda não implementada — 09/10/2026](hub-modular-skills-09out2026.md)
-- [Hub: entrada por módulos (#218, #219): grelha pelos âmbitos do /hub/me, comerciante no endereço, pesquisa só de módulos, vidro com modo opaco; capturas.mjs corrigido depois da 0033; 91 testes, 307 verificações — 09/10/2026](hub-entrada-modular-09out2026.md)
+- [Hub: entrada por módulos (#218, #219): grelha pelos âmbitos do /hub/me, comerciante no endereço, pesquisa só de módulos, vidro com modo opaco; aspecto aprovado, no ensaio e visto pelo Diogo; 91 testes, 324 verificações — 09/10/2026](hub-entrada-modular-09out2026.md)

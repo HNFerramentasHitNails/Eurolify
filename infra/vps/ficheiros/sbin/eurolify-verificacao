@@ -67,6 +67,22 @@ if [[ "$(docker inspect -f '{{.State.Running}}' eurolify-postgres 2>/dev/null)" 
       problemas+=("$atrasadas linha(s) das contas de pessoas com o prazo passado há mais de um dia: a limpeza diária (eurolify-limpeza) não está a aplicar os prazos")
     fi
   fi
+  # Os ficheiros de imagem sem uso (migração 0035; docs/14 §3.5): a API
+  # apaga-os ao fim de 7 dias, uma vez por dia; com mais de 9, a limpeza
+  # parou. Sem a função (0035 por publicar), não avisa.
+  if ! ficheiros="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" -qAtc \
+    "select to_regprocedure('public.ficheiros_sem_uso_em_atraso()') is not null" 2>&1)"; then
+    problemas+=("não consegui ver se a função dos ficheiros sem uso existe: $(head -n 1 <<<"$ficheiros")")
+  elif [[ "$ficheiros" == t ]]; then
+    if ! atrasados="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" -qAtc \
+      "select ficheiros_sem_uso_em_atraso()" 2>&1)"; then
+      problemas+=("não consegui contar os ficheiros de imagem sem uso: $(head -n 1 <<<"$atrasados")")
+    elif [[ ! "$atrasados" =~ ^[0-9]+$ ]]; then
+      problemas+=("a contagem dos ficheiros de imagem sem uso não é um número")
+    elif ((atrasados > 0)); then
+      problemas+=("$atrasados ficheiro(s) de imagem sem uso há mais de 9 dias: a limpeza da API (catalogo/limpeza-ficheiros.ts) não está a correr (docker logs eurolify-api)")
+    fi
+  fi
 fi
 
 seguranca="$(/usr/lib/update-notifier/apt-check 2>&1 | cut -d ';' -f 2)"

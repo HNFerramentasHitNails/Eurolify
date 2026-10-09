@@ -56,6 +56,11 @@ const FUNCOES_DA_API = [
   "desafio_criar_registo",
   "entrar_com_palavra_passe",
   "entrar_com_passkey",
+  // Os ficheiros de imagem sem uso (0035).
+  "ficheiro_apagar_sem_uso",
+  "ficheiro_sem_uso_renovar",
+  "ficheiros_comerciantes_sem_uso",
+  "ficheiros_sem_uso",
   "gtin_valido",
   "membro_mudar_papel",
   "membro_terminar",
