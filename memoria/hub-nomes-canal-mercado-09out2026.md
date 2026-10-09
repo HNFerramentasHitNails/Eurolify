@@ -9,7 +9,7 @@ código dos nomes»* e *«sim, junta como está»*. Issue #258; desenho em
 
 - **API (#261)**: `GET /hub/products/{id}/publications` junta a cada
   publicação `canal_nome` e `mercado_nome`, lidos por
-  `nomesDeCanaisEMercados` (`precos/repositorio.ts`) numa só consulta, no
+  `nomesDeCanaisEMercados` (`precos/repositorio.ts`) em duas consultas na mesma transacção, no
   contexto do comerciante (RLS) e com o filtro `comerciante_id` escrito;
   sem publicações, não consulta. A rota pela chave
   (`GET /products/{id}/publications`, Catálogo, #77) não muda. Sem migração.

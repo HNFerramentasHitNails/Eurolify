@@ -1049,7 +1049,7 @@ Rascunho» para «Loja online · Portugal · Rascunho».
 - **O caminho é o mesmo**: `GET /hub/products/{id}/publications` continua a
   chamar a mesma função da rota pela chave (`publicacoesDeArtigo`, §12.1). A
   API do Hub **junta** a cada publicação `canal_nome` e `mercado_nome`, lidos
-  do domínio de Preços numa só consulta (os canais e os mercados das
+  do domínio de Preços em duas consultas na mesma transacção (os canais e os mercados das
   publicações daquele artigo, no contexto do comerciante), como o `autor`
   do histórico (§16.2).
 - **A rota pela chave não muda** (`GET /products/{id}/publications`): é do
