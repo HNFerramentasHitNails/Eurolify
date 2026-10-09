@@ -1729,6 +1729,10 @@ try {
   // no segundo (issue #262). A resposta do primeiro fica retida até os
   // preços do segundo estarem no ecrã (sem depender de tempos, como no #260).
   const fichaAzul1 = rp.url();
+  // Com o seu próprio endereço: a passagem já anda perto do limite de 300
+  // pedidos por minuto do Hub, e estes pedidos a mais levavam ao 429 nas
+  // chaves, mais à frente (medido a 09/10/2026).
+  await rp.setExtraHTTPHeaders({ "x-ip-de-teste": "10.9.1.1" });
   // O endereço da ficha do Verniz Azul 7, lido da lista filtrada.
   await rp.getByRole("link", { name: "Voltar aos artigos" }).click();
   const fichaAzul7 =
@@ -1814,6 +1818,7 @@ try {
         0,
     "preços: os de um artigo que chegam depois de abrir outro não aparecem no segundo",
   );
+  await rp.setExtraHTTPHeaders({});
   await rp.goto(fichaAzul1);
   await rp
     .getByRole("heading", { name: "Profissionais PT", level: 3 })
