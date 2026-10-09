@@ -9,6 +9,7 @@
   Diogo, 09/10/2026: «sim, abre o pedido para copiar para o GitHub».
 - **A lista:** `infra/ci/imagens-base.txt` tem as quatro imagens de que dependemos (`postgres`, `ubuntu`, `node` e `moby/buildkit`). Cada uma está presa pelo resumo `sha256`.
 - **A cópia:** o fluxo `espelhar-imagens.yml` copia-as para `ghcr.io/<dono>/eurolify-base/<nome>:<etiqueta>`, com `skopeo copy --all --preserve-digests`, e confirma que o resumo é o mesmo. Corre quando a lista ou o fluxo mudam (no pedido e no `main`) e à mão.
+- **A origem da cópia:** primeiro o Docker Hub. Se falhar, o espelho da Google, `mirror.gcr.io` (decisão do Diogo, 09/10/2026: «sim, usa o espelho da Google se falhar»). O resumo é o mesmo nos dois, e a cópia confirma-o. O espelho só recebe pedidos de descarga de imagens públicas, sem dados pessoais. É da Google, de fora da UE.
 - **O uso:** `infra/ci/imagem-base.sh` descarrega a cópia do GHCR pelo resumo. Se ela faltar, vai ao Docker Hub com repetições e deixa um aviso. Usam-no:
   - as tarefas `codigo`, `script-vps` e `imagem` do `verificar`;
   - a `imagem` do `publicar`.

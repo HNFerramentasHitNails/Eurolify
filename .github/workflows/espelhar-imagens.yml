@@ -71,18 +71,25 @@ jobs:
               # só pelo resumo, que é o que a fixa.
               fonte="${origem%%:*}@$resumo_lista"
               echo "== $fonte -> $destino"
-              # Até 6 tentativas, com esperas até 2 min: o Docker Hub deu 429,
-              # 500 e 504 a 09/10/2026. --preserve-digests: falha em vez de
-              # mudar o resumo. </dev/null: não come as linhas da lista
-              # (revisão do #269, P3-1).
+              # Primeiro o Docker Hub; se falhar, o espelho da Google, que
+              # guarda as mesmas imagens (decisão do Diogo, 09/10/2026: «sim,
+              # usa o espelho da Google se falhar»). O resumo é o mesmo nos
+              # dois, e --preserve-digests e a verificação abaixo garantem
+              # que a cópia é a da lista. 3 tentativas em cada um: o Docker
+              # Hub deu 429, 500 e 504 a 09/10/2026. </dev/null: não come as
+              # linhas da lista (revisão do #269, P3-1).
               copiado=false
-              for tentativa in 1 2 3 4 5 6; do
-                if skopeo copy --all --preserve-digests --retry-times 3 \
-                  "docker://$fonte" "docker://$destino" </dev/null; then
-                  copiado=true
-                  break
-                fi
-                sleep $((tentativa * 20))
+              for origem_copia in "$fonte" "mirror.gcr.io/${fonte#docker.io/}"; do
+                for tentativa in 1 2 3; do
+                  if skopeo copy --all --preserve-digests --retry-times 3 \
+                    "docker://$origem_copia" "docker://$destino" </dev/null; then
+                    copiado=true
+                    echo "copiado de $origem_copia"
+                    break 2
+                  fi
+                  sleep $((tentativa * 20))
+                done
+                echo "::warning::$nome: falhou a cópia de $origem_copia"
               done
               if [ "$copiado" != true ]; then
                 echo "não consegui copiar $fonte" >&2
