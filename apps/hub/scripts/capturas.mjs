@@ -843,9 +843,11 @@ try {
       .getByRole("link", { name: "Editar", exact: true })
       .count()) === 0 &&
       (await apoio.pagina
-        .getByRole("button", { name: /Activar|Arquivar|Editar texto/ })
+        .getByRole("button", {
+          name: /Activar|Arquivar|Editar texto|Acrescentar imagem|Tirar a imagem/,
+        })
         .count()) === 0,
-    "edição: o apoio vê a ficha sem «Editar» nem acções",
+    "edição: o apoio vê a ficha sem «Editar» nem acções (nem acrescentar ou tirar imagens)",
   );
   // O apoio não cria (docs/22 §14.4): sem o botão na lista, e o endereço
   // directo diz que não pode.
@@ -2032,6 +2034,7 @@ try {
       !new URL(rp.url()).search.includes("criado"),
     "criar: o artigo abre em rascunho, com as duas variantes e «Artigo criado em rascunho.» no foco",
   );
+  const fichaVerde31 = rp.url();
   await rp.goBack();
   await rp.getByRole("heading", { name: /^Artigos/ }).waitFor();
   confere(
@@ -2174,6 +2177,248 @@ try {
     "criar: a lista vazia diz «Ainda não há artigos.» com «Criar artigo»",
   );
   await rp.unroute("**/hub/products?*");
+
+  // Enviar imagens (docs/22 §15; issue #229), no «Verniz Verde 31», que não
+  // tem nenhuma: só com o teclado; as recusas antes de enviar (o tamanho e o
+  // tipo), a da API, o 429, a resposta perdida ao ligar e tirar.
+  const comGps = resolve(HUB, "..", "api", "test", "imagens", "com-gps.jpg");
+  let enviosFeitos = 0;
+  const contarEnvios = (q) => {
+    if (q.method() === "POST" && q.url().endsWith("/hub/media/uploads")) {
+      enviosFeitos += 1;
+    }
+  };
+  rp.on("request", contarEnvios);
+  await rp.goto(fichaVerde31);
+  await rp
+    .getByRole("heading", { name: "Verniz Verde 31", level: 1 })
+    .waitFor();
+  await rp.getByText("Sem imagens", { exact: false }).waitFor();
+  const escolherFicheiro = async (ficheiro) => {
+    const escolha = rp.waitForEvent("filechooser");
+    await rp.getByRole("button", { name: "Acrescentar imagem" }).focus();
+    await rp.keyboard.press("Enter");
+    await (await escolha).setFiles(ficheiro);
+  };
+  await escolherFicheiro({
+    name: "grande.png",
+    mimeType: "image/png",
+    buffer: Buffer.alloc(11 * 1024 * 1024),
+  });
+  await rp.getByText("A imagem passa de 10 MB.").waitFor();
+  await escolherFicheiro({
+    name: "nota.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("não é uma imagem"),
+  });
+  await rp.getByText("Só se aceitam imagens JPEG, PNG ou WebP.").waitFor();
+  confere(
+    enviosFeitos === 0 &&
+      (await rp.evaluate(() => document.activeElement?.id)) ===
+        "nova-imagem-recusa",
+    "imagens: o tamanho e o tipo recusam-se antes de enviar, com o foco no motivo",
+  );
+  // Um ficheiro com o tipo certo mas que não é uma imagem: recusa da API.
+  await escolherFicheiro({
+    name: "falso.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("isto não é um png"),
+  });
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) ===
+      "nova-imagem-texto",
+    "imagens: escolhido o ficheiro, o foco vai para o texto alternativo",
+  );
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByText("Escreva o texto alternativo, ou marque que guarda sem ele.")
+    .waitFor();
+  await rp.keyboard.type("Ficheiro estragado");
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByText("que se consiga ler até ao fim", { exact: false })
+    .waitFor();
+  confere(
+    enviosFeitos === 1,
+    "imagens: sem texto alternativo pede-o; um ficheiro que não é imagem é recusado pela API",
+  );
+  await rp.getByRole("button", { name: "Cancelar" }).focus();
+  await rp.keyboard.press("Enter");
+  // Um PNG gravado com o nome .jpg: o Hub manda o tipo verdadeiro e a API
+  // aceita (revisão do #235, P3-2). Num artigo à venda (publicações
+  // fingidas), guardar sem texto pergunta antes (P2-1); recusado, nada vai.
+  await rp.route("**/hub/products/*/publications", (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        dados: [
+          {
+            id: "pub_00000000-0000-7000-8000-000000000001",
+            canal: "chn_00000000-0000-7000-8000-000000000001",
+            mercado: "mkt_00000000-0000-7000-8000-000000000001",
+            estado: "publicado",
+            verificado_em: null,
+            publicado_em: "2026-10-09T10:00:00Z",
+            arquivado_em: null,
+            motivo_arquivo: null,
+          },
+        ],
+      }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByRole("button", { name: "Acrescentar imagem" }).waitFor();
+  const pngComoJpg = {
+    name: "foto-descarregada.jpg",
+    mimeType: "image/jpeg",
+    buffer: readFileSync(
+      resolve(HUB, "..", "api", "test", "imagens", "com-texto.png"),
+    ),
+  };
+  await escolherFicheiro(pngComoJpg);
+  await rp
+    .getByLabel("Guardar sem texto alternativo", { exact: false })
+    .focus();
+  await rp.keyboard.press("Space");
+  let perguntouSemTexto = false;
+  rp.once("dialog", (d) => {
+    perguntouSemTexto = d.message().includes("tira o artigo de venda");
+    void d.dismiss();
+  });
+  const enviosAntes = enviosFeitos;
+  await rp.getByRole("button", { name: "Guardar" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForTimeout(300);
+  confere(
+    perguntouSemTexto && enviosFeitos === enviosAntes,
+    "imagens: num artigo à venda, guardar sem texto pergunta antes; recusado, nada se envia",
+  );
+  await rp
+    .getByLabel("Guardar sem texto alternativo", { exact: false })
+    .focus();
+  await rp.keyboard.press("Space");
+  await rp.getByLabel("Texto alternativo", { exact: true }).focus();
+  await rp.keyboard.type("Etiqueta do verniz");
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem acrescentada.",
+  );
+  await rp.unroute("**/hub/products/*/publications");
+  await rp.locator(".imagens-artigo > li").first().waitFor();
+  confere(
+    await rp
+      .getByRole("img", { name: "Etiqueta do verniz" })
+      .waitFor({ timeout: 10_000 })
+      .then(
+        () => true,
+        () => false,
+      ),
+    "imagens: um PNG com o nome .jpg vai como PNG e entra",
+  );
+  // Tira-se, para o resto da passagem começar sem imagens.
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Tirar a imagem" }).click();
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem tirada do artigo.",
+  );
+  await rp.getByText("Sem imagens", { exact: false }).waitFor();
+  // Outros envios a decorrer (resposta fingida da API).
+  await rp.route("**/hub/media/uploads", (r) =>
+    r.fulfill({
+      status: 429,
+      contentType: "application/problem+json",
+      headers: { "retry-after": "1" },
+      body: JSON.stringify({ codigo: "rate_limit.exceeded", status: 429 }),
+    }),
+  );
+  await escolherFicheiro(comGps);
+  await rp.keyboard.type("Frasco de verniz verde, de frente");
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByText("Há demasiados envios ao mesmo tempo", { exact: false })
+    .waitFor();
+  confere(true, "imagens: o 429 diz que há demasiados envios ao mesmo tempo");
+  await rp.unroute("**/hub/media/uploads");
+  // A ligação grava mas a resposta perde-se: o ecrã relê e dá-a por feita.
+  await rp.route("**/hub/products/*/media", async (r) => {
+    if (r.request().method() !== "POST") return r.fallback();
+    await r.fetch();
+    await r.abort("failed");
+  });
+  await rp.getByRole("button", { name: "Guardar" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem acrescentada.",
+  );
+  await rp.unroute("**/hub/products/*/media");
+  await rp.locator(".imagens-artigo > li").first().waitFor();
+  confere(
+    (await rp.locator(".imagens-artigo > li").count()) === 1 &&
+      (await rp.getByText("Principal", { exact: true }).count()) === 1 &&
+      (await rp
+        .getByRole("img", { name: "Frasco de verniz verde, de frente" })
+        .count()) === 1,
+    "imagens: só com o teclado, a imagem fica principal com o texto; a resposta perdida ao ligar não a duplica",
+  );
+  // Uma segunda imagem, e a captura do formulário aberto.
+  await escolherFicheiro(comGps);
+  await rp.keyboard.type("Frasco de verniz verde, de lado");
+  await rp.screenshot({
+    path: join(SAIDA, "artigo-imagem-nova-375-claro.png"),
+    fullPage: true,
+  });
+  // O mesmo formulário no computador e no tema escuro (revisão do #235,
+  // P3-8), sem deslocação horizontal.
+  const tamanhoAntes = rp.viewportSize();
+  for (const [largura, tema] of [
+    [768, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `imagens: o formulário a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.screenshot({
+      path: join(
+        SAIDA,
+        `artigo-imagem-nova-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  if (tamanhoAntes !== null) await rp.setViewportSize(tamanhoAntes);
+  await rp.emulateMedia({ colorScheme: "light" });
+  await rp.getByLabel("Texto alternativo", { exact: true }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem acrescentada.",
+  );
+  await rp.locator(".imagens-artigo > li").nth(1).waitFor();
+  // Tirar a segunda, com confirmação.
+  let perguntouTirar = false;
+  rp.once("dialog", (d) => {
+    perguntouTirar = true;
+    void d.accept();
+  });
+  await rp
+    .locator(".imagens-artigo > li")
+    .nth(1)
+    .getByRole("button", { name: "Tirar a imagem" })
+    .focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem tirada do artigo.",
+  );
+  confere(
+    perguntouTirar && (await rp.locator(".imagens-artigo > li").count()) === 1,
+    "imagens: tirar pergunta antes, tira a imagem e o foco vai para o aviso",
+  );
+  rp.off("request", contarEnvios);
 
   // Sem permissão (403) e sessão que acabou (401), com respostas fingidas.
   const fichaReal = `${ORIGEM}/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`;
@@ -2678,6 +2923,114 @@ try {
       "entrada: um comerciante no endereço que não é da pessoa não abre módulos",
     );
     await cv.close();
+  }
+
+  // Escolher o tema (docs/22 §4, issue #226): «Tema escuro» com o aparelho
+  // em claro, «Tema claro» com o aparelho em escuro, guardado ao recarregar,
+  // «Tema automático» volta ao aparelho e apaga a escolha.
+  {
+    // O fundo e a cor do texto da página (revisão do #227, P2-2): os dois
+    // vêm dos tokens, por isso mudam juntos. Espera um pouco pelo efeito do
+    // React depois de escolher.
+    const html = (p) =>
+      p.evaluate(() => {
+        const cs = window.getComputedStyle(document.documentElement);
+        return `${cs.backgroundColor} / ${cs.color}`;
+      });
+    const esperarHtml = async (p, valor) => {
+      for (let i = 0; i < 20 && (await html(p)) !== valor; i++) {
+        await p.waitForTimeout(50);
+      }
+      return html(p);
+    };
+    const CLARO = "rgb(255, 255, 255) / rgb(27, 31, 36)";
+    const ESCURO = "rgb(17, 20, 24) / rgb(245, 246, 248)";
+    const guardado = (p) =>
+      p.evaluate(() => window.localStorage.getItem("eurolify-hub-tema"));
+    for (const [sistema, escolha, rotulo, esperado, largura] of [
+      ["light", "escuro", "Tema escuro", ESCURO, 375],
+      ["dark", "claro", "Tema claro", CLARO, 1280],
+    ]) {
+      const c = await navegador.newContext({
+        ignoreHTTPSErrors: true,
+        colorScheme: sistema,
+        viewport: { width: largura, height: 900 },
+        storageState: sessao,
+      });
+      const p = await c.newPage();
+      await p.goto(`${ORIGEM}/equipa?comerciante=mer_${comerciante}`);
+      await p.getByRole("heading", { name: /Equipa/ }).waitFor();
+      const antes = await html(p);
+      await p
+        .getByLabel("Tema", { exact: true })
+        .selectOption({ label: rotulo });
+      await esperarHtml(p, esperado);
+      confere(
+        (await html(p)) === esperado && antes !== esperado,
+        `tema: «${rotulo}» com o aparelho em ${sistema === "light" ? "claro" : "escuro"} muda a página (${antes} → ${await html(p)})`,
+      );
+      confere(
+        (await guardado(p)) === escolha &&
+          (await p.evaluate(
+            () => document.documentElement.style.colorScheme,
+          )) === (escolha === "escuro" ? "dark" : "light"),
+        `tema: «${rotulo}» fica guardado e os controlos do navegador seguem-no`,
+      );
+      await p.reload();
+      await p.getByRole("heading", { name: /Equipa/ }).waitFor();
+      confere(
+        (await html(p)) === esperado &&
+          (await p.getByLabel("Tema", { exact: true }).inputValue()) ===
+            escolha,
+        `tema: «${rotulo}» continua depois de recarregar`,
+      );
+      const largo = await p.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      );
+      confere(!largo, `tema: ${String(largura)} px sem deslocação horizontal`);
+      await p.screenshot({
+        path: join(
+          SAIDA,
+          `tema-${escolha}-aparelho-${sistema === "light" ? "claro" : "escuro"}-${String(largura)}.png`,
+        ),
+        fullPage: true,
+      });
+      await p
+        .getByLabel("Tema", { exact: true })
+        .selectOption({ label: "Tema automático" });
+      confere(
+        (await esperarHtml(p, antes)) === antes && (await guardado(p)) === null,
+        "tema: «Tema automático» volta ao tema do aparelho e apaga a escolha guardada",
+      );
+      // Em automático, o Hub segue o aparelho quando ele muda.
+      const outro = sistema === "light" ? "dark" : "light";
+      const doOutro = outro === "dark" ? ESCURO : CLARO;
+      await p.emulateMedia({ colorScheme: outro });
+      confere(
+        (await esperarHtml(p, doOutro)) === doOutro,
+        `tema: em «Tema automático», o aparelho a passar para ${outro === "dark" ? "escuro" : "claro"} muda a página`,
+      );
+      await c.close();
+    }
+    // O cabeçalho a 320 px, com as duas listas, sem deslocação.
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 320, height: 800 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/`);
+    await p.getByLabel("Tema", { exact: true }).waitFor();
+    confere(
+      !(await p.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      "tema: a 320 px, o cabeçalho com a língua e o tema cabe sem deslocação",
+    );
+    await p.screenshot({
+      path: join(SAIDA, "tema-cabecalho-320-claro.png"),
+    });
+    await c.close();
   }
 
   // As capturas: 9 ecrãs × 3 larguras × 2 temas.

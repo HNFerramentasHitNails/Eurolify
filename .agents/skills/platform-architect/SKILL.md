@@ -56,7 +56,7 @@ description: Arquitectura do Eurolify — monólito modular multi-inquilino, fro
 | Carrinho / checkout | `cart.updated`, `checkout.completed` |
 | Encomendas | `order.created`, `order.cancelled`, `order.completed` |
 | Stock | `inventory.reserved`, `inventory.released`, `inventory.adjusted` |
-| Clientes e identidade fiscal | `customer.created`, `billing_profile.validated`, `customer.merged`, `consent.changed` |
+| Clientes e identidade fiscal | `customer.created`, `customer.updated`, `billing_profile.created`, `billing_profile.updated`, `billing_profile.validated`, `billing_profile.invalidated`, `customer.merged`, `customer.pseudonymized`, `consent.changed` |
 | Documentos fiscais | `invoice.requested`, `invoice.retained`, `invoice.issued`, `credit_note.issued` |
 | Pagamentos | `payment.authorized`, `payment.captured`, `payment.failed`, `refund.completed` |
 | Envios | `shipment.created`, `shipment.dispatched`, `shipment.delivered` |

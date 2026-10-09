@@ -41,6 +41,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroPrecos[] = [
   "prices.reduction_without_history",
   "prices.reduction_not_lower",
   "prices.reduction_active",
+  // Da 0037 (Clientes): a etiqueta de uma lista B2B activa está arquivada.
+  "prices.label_archived",
   "prices.not_found",
   "prices.invalid_field",
 ];

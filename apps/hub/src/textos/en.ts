@@ -6,6 +6,10 @@ export const en: Textos = {
   marca: "Eurolify Hub",
   saltarParaConteudo: "Skip to content",
   lingua: "Language",
+  tema: "Theme",
+  tema_automatico: "Automatic theme",
+  tema_claro: "Light theme",
+  tema_escuro: "Dark theme",
   sair: "Sign out",
   aCarregar: "Loading…",
   tentarOutraVez: "Try again",
@@ -484,4 +488,28 @@ export const en: Textos = {
   artigoGtinInvalido:
     "One of the GTINs is not valid: the last digit does not match.",
   artigoConteudoIncompleto: "Enter the content quantity and unit, or neither.",
+  artigoAcrescentarImagem: "Add image",
+  artigoImagemRegras: "JPEG, PNG or WebP, up to 10 MB.",
+  artigoImagemEscolhida: "{nome} · {tamanho}",
+  artigoImagemTextoAjuda:
+    "Describe the image for those who cannot see it. E.g. “Bottle of green nail polish, front view”.",
+  artigoImagemSemTextoAgora:
+    "Save without alternative text (the product cannot be published without it)",
+  artigoImagemSemTexto:
+    "Write the alternative text, or tick that you save without it.",
+  artigoImagemAEnviar: "Uploading… {p}%",
+  artigoImagemGrande: "The image is larger than 10 MB.",
+  artigoImagemTipo: "Only JPEG, PNG or WebP images are accepted.",
+  artigoImagemIlegivel:
+    "The file is not a JPEG, PNG or WebP image that can be read to the end.",
+  artigoImagemOutroEnvio: "Too many uploads at once; try again shortly.",
+  artigoImagemSemEspaco: "This merchant's image storage is full.",
+  artigoImagemAcrescentada: "Image added.",
+  artigoImagemTirada: "Image removed from the product.",
+  artigoTirarImagem: "Remove image",
+  artigoConfirmarTirarImagem:
+    "Remove the image from the product? The file stays stored.",
+  artigoImagemSemTextoConfirmar:
+    "Saving without alternative text takes the product off sale in the shops where it is published. Once the text is written, it must be published again. Save without text?",
+  artigoImagemProgresso: "Image upload",
 };

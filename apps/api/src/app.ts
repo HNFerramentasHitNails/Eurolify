@@ -20,6 +20,7 @@ import {
 import { rotasDoCatalogo } from "./catalogo/rotas.js";
 import { rotasDaLinhaDoTempo } from "./catalogo/rotas-linha-do-tempo.js";
 import { rotasDaMedia } from "./catalogo/rotas-media.js";
+import { rotasDosClientes } from "./clientes/rotas.js";
 import { rotasDosPrecos } from "./precos/rotas.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
 import { rotasDasImportacoes } from "./importacao/rotas.js";
@@ -142,7 +143,7 @@ export function criarApp(
     app.addHook("onRequest", async (pedido, resposta) => {
       const config = pedido.routeOptions.config;
       if (config.hub !== true) return;
-      conferirOrigem(pedido, hub);
+      conferirOrigem(pedido, hub, config.hubImagem === true);
       // Um endereço que não é IP (um proxy de confiança mal configurado, ou
       // a ligação já fechada) não se conta nem chega à base (P3-4, P3-5).
       const ip: unknown = pedido.ip;
@@ -283,6 +284,7 @@ export function criarApp(
       rotasDoCatalogo(rotas, base);
       rotasDaLinhaDoTempo(rotas, base);
       rotasDosPrecos(rotas, base);
+      rotasDosClientes(rotas, base);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.
