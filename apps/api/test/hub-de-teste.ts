@@ -60,20 +60,25 @@ export function hubDeTeste(
     opcoes.armazenamento,
   );
 
-  const pedir = (metodo: "GET" | "POST", url: string, p: Pedido = {}) => {
+  const pedir = (
+    metodo: "GET" | "POST" | "PATCH",
+    url: string,
+    p: Pedido = {},
+  ) => {
     const cabecalhos: Record<string, string> = {};
     if (p.origem !== null) cabecalhos["origin"] = p.origem ?? ORIGEM;
     if (p.sessao !== undefined) cabecalhos["cookie"] = `${COOKIE}=${p.sessao}`;
     if (p.comerciante !== undefined) {
       cabecalhos["eurolify-comerciante"] = `mer_${p.comerciante}`;
     }
-    if (metodo === "POST") cabecalhos["content-type"] = "application/json";
+    const comCorpo = metodo !== "GET";
+    if (comCorpo) cabecalhos["content-type"] = "application/json";
     return app.inject({
       method: metodo,
       url,
       remoteAddress: p.ip ?? ipNovo(),
       headers: cabecalhos,
-      ...(metodo === "POST" ? { payload: JSON.stringify(p.corpo ?? {}) } : {}),
+      ...(comCorpo ? { payload: JSON.stringify(p.corpo ?? {}) } : {}),
     });
   };
 

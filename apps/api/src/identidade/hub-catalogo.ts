@@ -1,27 +1,42 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import type { Kysely } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
+import { Type } from "typebox";
 import { RESPOSTA_DE_ERRO } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import type { Armazenamento } from "../catalogo/armazenamento.js";
+import { ErroCatalogo } from "../catalogo/erros.js";
 import {
+  alteracaoDaMedia,
   enviarBytesDaMedia,
   imagensDeArtigo,
   MediaEsquema,
   ParametroMedia,
+  PedidoAlterarMedia,
 } from "../catalogo/rotas-media.js";
 import {
+  alteracaoDoArtigo,
+  arquivoDaVariante,
   Artigo,
   ConsultaArtigos,
   ConsultaPagina,
   fichaDeArtigo,
   Lista,
   listaDeArtigos,
+  mudancaDeEstado,
+  MUDANCAS_DE_ESTADO,
+  noCatalogoApi,
   ParametroArtigo,
+  ParametroVariante,
+  PedidoAlterarArtigo,
+  PedidoVersao,
   publicacoesDeArtigo,
   RespostaArtigos,
   RespostaPublicacoes,
+  semPrefixo,
+  VarianteCompleta,
 } from "../catalogo/rotas.js";
+import { comComerciante } from "../comerciante/repositorio.js";
 import { TIPOS_DE_IMAGEM } from "../base/esquema.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { sessaoDo } from "./autenticacao.js";
@@ -34,8 +49,8 @@ import { erroConta } from "./sessoes.js";
 // sessão de uma pessoa
 // cujo papel tem `catalog:read` (docs/21 §5: os quatro). O comerciante é o
 // do cabeçalho, validado pela base com o membro activo (sessao_resolver).
-// Só leitura: as escritas do catálogo com sessão ficam para quando houver
-// ecrãs que as usem, cada uma com o seu desenho.
+// As escritas (docs/22 §13; issue #210) usam também as mesmas funções, com
+// a pessoa da sessão como «quem fez» na linha do tempo.
 
 export function rotasDoCatalogoNoHub(
   instancia: FastifyInstance,
@@ -102,6 +117,80 @@ export function rotasDoCatalogoNoHub(
         pedido.params.id,
         resposta,
       ),
+  );
+
+  // Editar o artigo (docs/22 §13; issue #210): as mesmas funções das rotas
+  // pela chave, com a sessão de quem tem catalog:write. Num artigo que vem
+  // do sistema de gestão (P5, §13.3), estas escritas são recusadas aqui; pela
+  // chave continuam, porque é por ela que o sistema de gestão escreve.
+  rotas.patch(
+    "/hub/products/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Altera o nome, a descrição ou a marca de um artigo pelo Hub: a mesma escrita do PATCH /products/{id}, na `versao` lida, com a sessão de quem tem catalog:write (docs/22 §13.2). Num artigo externo dá catalog.external_field (§13.3).",
+        params: ParametroArtigo,
+        body: PedidoAlterarArtigo,
+        response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarArtigoExterno(trx, semPrefixo(pedido.params.id));
+        return alteracaoDoArtigo(
+          trx,
+          comercianteId,
+          pedido.params.id,
+          pedido.body,
+        );
+      }),
+  );
+
+  for (const [caminho, de, estado, descricao] of MUDANCAS_DE_ESTADO) {
+    rotas.post(
+      `/hub/products/:id/${caminho}`,
+      {
+        config: { ambito: "sessao_comerciante", hub: true },
+        schema: {
+          description: `${descricao} Pelo Hub, como o POST /products/{id}/${caminho}, na \`versao\` lida (docs/22 §13.2). Num artigo externo dá catalog.external_field (§13.3).`,
+          params: ParametroArtigo,
+          body: PedidoVersao,
+          response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
+        },
+      },
+      async (pedido, resposta) =>
+        escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+          await recusarArtigoExterno(trx, semPrefixo(pedido.params.id));
+          return mudancaDeEstado(
+            trx,
+            comercianteId,
+            pedido.params.id,
+            pedido.body.versao,
+            estado,
+            de,
+          );
+        }),
+    );
+  }
+
+  rotas.post(
+    "/hub/variants/:id/archive",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Arquiva uma variante pelo Hub (final), como o POST /variants/{id}/archive; o corpo é `{}`, porque as escritas do Hub são JSON (docs/22 §13.2). Num artigo externo dá catalog.external_field (§13.3).",
+        params: ParametroVariante,
+        body: Type.Object({}, { additionalProperties: false }),
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarVarianteExterna(trx, semPrefixo(pedido.params.id));
+        return arquivoDaVariante(trx, comercianteId, pedido.params.id);
+      }),
   );
 }
 
@@ -171,6 +260,26 @@ export function rotasDasImagensNoHub(
         "private, no-store",
       ),
   );
+
+  // O texto alternativo, a principal e a ordem (docs/22 §13.1); também num
+  // artigo externo (P5: a media edita-se no Eurolify, §13.3).
+  rotas.patch(
+    "/hub/media/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Altera o texto alternativo, a posição ou a principal de uma imagem pelo Hub, como o PATCH /media/{id}, na `versao` lida (docs/22 §13.2).",
+        params: ParametroMedia,
+        body: PedidoAlterarMedia,
+        response: { 200: MediaEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, (trx, comercianteId) =>
+        alteracaoDaMedia(trx, comercianteId, pedido.params.id, pedido.body),
+      ),
+  );
 }
 
 /**
@@ -194,4 +303,76 @@ function comercianteLeitor(
   }
   void resposta.header("cache-control", "private, no-store");
   return sessao.comercianteId;
+}
+
+/**
+ * Uma escrita do catálogo pelo Hub: a sessão com `catalog:write`, uma
+ * transacção no contexto do comerciante do cabeçalho e a pessoa como «quem
+ * fez» (`pessoa:per_…`, a linha do tempo, docs/14 §3.12). Sem
+ * Idempotency-Key, como as outras rotas do Hub (docs/21 §11): a `versao` no
+ * corpo recusa a repetição de uma alteração (docs/22 §13.2).
+ */
+async function escreverNoHub<T>(
+  base: Kysely<BaseDados>,
+  pedido: FastifyRequest,
+  resposta: FastifyReply,
+  fn: (trx: Transaction<BaseDados>, comercianteId: string) => Promise<T>,
+): Promise<T> {
+  const sessao = sessaoDo(pedido);
+  if (!sessao.ambitos.includes("catalog:write")) {
+    throw erroConta(
+      "member.role_escalation",
+      "o papel não escreve no catálogo",
+    );
+  }
+  const comercianteId = sessao.comercianteId;
+  if (comercianteId === null) {
+    throw new Error("rota com comerciante sem o comerciante da sessão");
+  }
+  void resposta.header("cache-control", "private, no-store");
+  const quem = `pessoa:per_${sessao.pessoaId}`;
+  return noCatalogoApi(resposta, () =>
+    comComerciante(base, comercianteId, async (trx) => {
+      await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
+      return fn(trx, comercianteId);
+    }),
+  );
+}
+
+const ARTIGO_EXTERNO =
+  "o artigo vem do sistema de gestão (P5): este campo altera-se lá";
+
+/**
+ * Num artigo que vem do sistema de gestão do comerciante, o Hub não muda
+ * os campos de lá (P5, docs/22 §13.3; decisão do Diogo, 09/10/2026). Um
+ * artigo que não existe passa: a função a seguir dá o 404.
+ */
+async function recusarArtigoExterno(
+  trx: Transaction<BaseDados>,
+  artigoId: string,
+): Promise<void> {
+  const linha = await trx
+    .selectFrom("artigo")
+    .select("origem")
+    .where("id", "=", artigoId)
+    .executeTakeFirst();
+  if (linha?.origem === "externo") {
+    throw new ErroCatalogo("catalog.external_field", ARTIGO_EXTERNO);
+  }
+}
+
+/** O mesmo, para uma variante: conta a origem do artigo dela. */
+async function recusarVarianteExterna(
+  trx: Transaction<BaseDados>,
+  varianteId: string,
+): Promise<void> {
+  const linha = await trx
+    .selectFrom("variante")
+    .innerJoin("artigo", "artigo.id", "variante.artigo_id")
+    .select("artigo.origem")
+    .where("variante.id", "=", varianteId)
+    .executeTakeFirst();
+  if (linha?.origem === "externo") {
+    throw new ErroCatalogo("catalog.external_field", ARTIGO_EXTERNO);
+  }
 }
