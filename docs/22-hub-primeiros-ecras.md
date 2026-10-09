@@ -801,7 +801,8 @@ API reverifica-as).
 ## 16. Catálogo: o histórico do artigo (issue #239)
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho do histórico do
-artigo»*. A API já guarda o histórico de cada artigo (`docs/14` §3.12,
+artigo»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica
+de fora (*«sim, aprovo o desenho, junta o #240»*). A API já guarda o histórico de cada artigo (`docs/14` §3.12,
 migração 0033, #208) e dá-o em `GET /products/{id}/timeline`; o Hub ainda
 não o mostra (`docs/14` §3.12, «Faltas conhecidas»). Este passo **só lê**:
 não grava nada e não muda a VPS (o nginx já deixa passar os `GET` em `/hub/`,
