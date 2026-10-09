@@ -89,7 +89,8 @@ dependem da P1 (§7).
 | `catalog:history` | a linha do tempo do artigo, com quem fez (migração 0033) | `docs/14` §3.12; `docs/06`, CU |
 | `prices:read`, `prices:write` | Preços e mercados: mercados, canais, listas, preços e reduções (migração 0036) | `docs/20` §10.1; `docs/06`, CW |
 | `customers:read`, `customers:write` | Clientes: fichas, etiquetas e a linha do tempo; ler os perfis de faturação (migração 0037) | `docs/23` §7; `docs/06`, CX |
-| `customers:billing` | Clientes: criar e mudar perfis de faturação (NIF, morada fiscal) — só o dono (migração 0037) | `docs/23` §7; `docs/06`, CX |
+| `customers:billing` | Clientes: criar e mudar perfis de faturação (NIF, morada fiscal), consultar o VIES — só o dono (migração 0037) | `docs/23` §7; `docs/06`, CX |
+| `customers:exemptions` | Clientes: pôr e retirar a isenção manual de IVA — só o dono (migração 0038) | `docs/23` §13; `docs/06`, CY |
 | `keys:write` | criar e revogar chaves | este documento |
 | `storefront` | a lista fixa da chave pública | `docs/02` §4.1 |
 
