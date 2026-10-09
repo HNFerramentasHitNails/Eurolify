@@ -43,3 +43,8 @@ O inventário de `references/arquitectura.md` é de `aeb0729`: o pedido #212
 não expõe capacidades») tem de ser relido quando ele entrar. O validador
 `agentskills` não estava instalado nesta sessão; conferiu-se à mão o nome,
 o tamanho da descrição e os recursos citados.
+
+Actualização, 09/10/2026: o #212 entrou (`e79d031`). Em
+`references/arquitectura.md`, as entradas Artigos e Chaves e o ponto 8
+passaram a ler os âmbitos do `/hub/me` (`catalog:read`, `keys:write`),
+conferido em `apps/hub/src/ecras/Inicio.tsx`, linhas 69 e 82.
