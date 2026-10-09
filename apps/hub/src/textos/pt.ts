@@ -444,6 +444,50 @@ export const pt = {
   conviteParaEmail: "O convite é para {email} e expira a {data}.",
   conviteEmailDiferente:
     "Este convite é para {email} e entrou como {sessao}. Saia e entre com a conta desse e-mail.",
+  artigoCriar: "Criar artigo",
+  artigosVazioCriar: "Ainda não há artigos.",
+  artigoNovoTitulo: "Criar artigo",
+  artigoNovoTipo: "Tipo",
+  artigoNovoVariante: "Variante {n}",
+  artigoNovoGtinOrigem: "Origem do GTIN",
+  gtinOrigem_gs1_comerciante: "GS1 do comerciante",
+  gtinOrigem_fornecedor: "Do fornecedor",
+  gtinOrigem_interno: "Interno",
+  artigoNovoEscolher: "Escolha",
+  artigoNovoQuantidade: "Quantidade do conteúdo",
+  artigoNovoUnidadeConteudo: "Unidade do conteúdo",
+  artigoNovoSemUnidade: "Sem conteúdo",
+  artigoNovoPeso: "Peso (g)",
+  artigoNovoComprimento: "Comprimento (mm)",
+  artigoNovoLargura: "Largura (mm)",
+  artigoNovoAltura: "Altura (mm)",
+  artigoNovoSemPeso: "Sem peso, não se pode publicar.",
+  artigoNovoAcrescentar: "Acrescentar outra variante",
+  artigoNovoRetirar: "Retirar a variante {n}",
+  artigoNovoMaximo: "No máximo 20 variantes aqui; mais pela importação.",
+  artigoNovoSkuObrigatorio: "O SKU é obrigatório.",
+  artigoNovoSkuRepetido: "Este SKU está repetido neste formulário.",
+  artigoNovoSkuExiste:
+    "Este SKU já existe neste comerciante (também nos artigos arquivados).",
+  artigoNovoGtinFormato: "O GTIN tem 8, 12, 13 ou 14 algarismos.",
+  artigoNovoGtinOrigemFalta: "Escolha a origem do GTIN.",
+  artigoNovoGtinInvalido:
+    "O GTIN não é válido: o último algarismo não confere.",
+  artigoNovoGtinRepetido: "Este GTIN já existe neste comerciante.",
+  artigoNovoConteudoIncompleto:
+    "Escreva a quantidade e a unidade do conteúdo, ou nenhuma.",
+  artigoNovoInteiro: "Um número inteiro, sem casas decimais.",
+  artigoNovoCorrigir: "Há campos por corrigir.",
+  artigoNovoNaoCriado:
+    "A ligação falhou e não encontrámos o artigo. Pode tentar outra vez: se tiver ficado criado, o ecrã abre-o.",
+  artigoCriado: "Artigo criado em rascunho.",
+  artigoJaCriado: "O artigo já tinha sido criado.",
+  artigoSkuDuplicado: "Um dos SKU já existe neste comerciante.",
+  artigoGtinDuplicado: "Um dos GTIN já existe neste comerciante.",
+  artigoGtinInvalido:
+    "Um dos GTIN não é válido: o último algarismo não confere.",
+  artigoConteudoIncompleto:
+    "Escreva a quantidade e a unidade do conteúdo, ou nenhuma.",
 };
 
 export type Textos = typeof pt;
