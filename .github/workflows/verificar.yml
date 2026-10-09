@@ -99,6 +99,15 @@ jobs:
         env:
           DONO: ${{ github.repository_owner }}
         run: infra/ci/imagem-base.sh "${DONO,,}" ubuntu >> "$GITHUB_OUTPUT"
+      - name: o node da lista é o do Dockerfile
+        # O resumo está nos dois sítios (revisão do #269, P3-1).
+        run: |
+          lista="$(awk '$1 == "node" { print $2 }' infra/ci/imagens-base.txt)"
+          docker="$(sed -n 's/^ARG NODE_IMAGEM=//p' Dockerfile)"
+          if [ -z "$lista" ] || [ "${lista##*@}" != "${docker##*@}" ]; then
+            echo "o resumo do node difere: lista ${lista##*@}, Dockerfile ${docker##*@}" >&2
+            exit 1
+          fi
       - name: shellcheck
         run: |
           shellcheck --version | head -n 2
