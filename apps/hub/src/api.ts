@@ -19,6 +19,11 @@ export interface Eu {
     nome: string;
     papel: Papel;
     membro: string;
+    /**
+     * Os âmbitos do papel neste comerciante, lidos da base: o que o ecrã
+     * oferece (docs/22 §13.2); o servidor confere na mesma.
+     */
+    ambitos: Ambito[];
   }[];
 }
 

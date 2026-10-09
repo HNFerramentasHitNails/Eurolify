@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "kysely";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -636,6 +637,34 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     });
     expect(fim.statusCode).toBe(200);
     await recusados(q.sessao, 401);
+  });
+
+  it("o /hub/me dá, por comerciante, os âmbitos do papel lidos da base (docs/22 §13.2)", async () => {
+    const c = await comerciante("Loja Ambitos", []);
+    for (const papel of PAPEIS) {
+      const p = await h.pessoaCom(c.id, papel);
+      const eu = await h.pedir("GET", "/hub/me", { sessao: p.sessao });
+      expect(eu.statusCode, eu.body).toBe(200);
+      const meu = eu
+        .json<{ comerciantes: { comerciante: string; ambitos: string[] }[] }>()
+        .comerciantes.find((x) => x.comerciante === `mer_${c.id}`);
+      const { rows } = await sql<{
+        ambitos: string[];
+      }>`select papel_ambitos(${papel}) as ambitos`.execute(base.dono);
+      expect(meu?.ambitos, papel).toEqual(rows[0]?.ambitos);
+    }
+    // O que o ecrã vai usar para mostrar «Editar» (§13.2): só o dono e o
+    // gestor escrevem no catálogo.
+    const escrevem: string[] = [];
+    for (const papel of PAPEIS) {
+      const { rows } = await sql<{
+        ambitos: string[];
+      }>`select papel_ambitos(${papel}) as ambitos`.execute(base.dono);
+      if (rows[0]?.ambitos.includes("catalog:write") === true) {
+        escrevem.push(papel);
+      }
+    }
+    expect(escrevem.sort()).toEqual(["dono", "gestor"]);
   });
 
   it("o contrato tem o caminho do Hub com a segurança da sessão e a resposta da lista", async () => {

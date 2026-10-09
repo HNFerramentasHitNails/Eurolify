@@ -122,6 +122,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0030_exportacoes",
         "0031_identidade_convite_ver",
         "0032_importacoes",
+        "0033_identidade_eu_ambitos",
       ]);
     });
 
