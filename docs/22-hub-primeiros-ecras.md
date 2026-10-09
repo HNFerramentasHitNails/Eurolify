@@ -113,6 +113,14 @@ Os contrastes (texto sobre a superfície, ≥ 4,5:1) **medem-se** antes de dizer
 que está feito (ponto 6). Espaços em múltiplos de 4 px; alvos de toque com
 pelo menos 44 px; letra base 16 px.
 
+**As letras em tamanhos relativos** (issue #237; pedido do Diogo,
+09/10/2026): `--letra-base`, `--letra-pequena` e `--letra-titulo` em `rem`
+(1, 0,875 e 1,5), para seguirem o tamanho de letra escolhido nas definições
+do navegador. Com o tamanho por omissão (16 px) o Hub fica igual (16, 14 e
+24 px). Espaços, alvos e larguras continuam em px. Medição antes da
+mudança: com a letra do navegador a 32 px, o Hub ficava em 16 px (memória
+`hub-entrada-modular-09out2026.md`).
+
 ## 5. Línguas e textos
 
 PT (por omissão), ES e EN desde o primeiro ecrã (`eurolify-design`, regra 6):
