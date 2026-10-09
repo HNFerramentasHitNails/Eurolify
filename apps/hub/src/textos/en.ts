@@ -410,6 +410,13 @@ export const en: Textos = {
   artigoTornarPrincipal: "Make main",
   artigoMoverAntes: "Move earlier",
   artigoMoverDepois: "Move later",
+  artigoSemVariantesActivas:
+    "To activate it, the product needs at least one active variant.",
+  artigoTransicaoInvalida:
+    "The product was no longer in the status shown. The page has been reloaded.",
+  artigoVarianteJaArquivada: "The variant was already archived.",
+  artigoOrdemAMeio:
+    "The image order was only partly saved: check it and move again if needed.",
   conviteInstrucao: "Enter your name and create the account with a passkey.",
   conviteResumo:
     "You were invited to the {comerciante} team, with the role {papel}.",

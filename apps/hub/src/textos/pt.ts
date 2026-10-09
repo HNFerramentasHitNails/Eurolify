@@ -408,6 +408,13 @@ export const pt = {
   artigoTornarPrincipal: "Tornar principal",
   artigoMoverAntes: "Mover para antes",
   artigoMoverDepois: "Mover para depois",
+  artigoSemVariantesActivas:
+    "Para activar, o artigo precisa de pelo menos uma variante activa.",
+  artigoTransicaoInvalida:
+    "O artigo já não estava no estado que o ecrã mostrava. A ficha foi recarregada.",
+  artigoVarianteJaArquivada: "A variante já estava arquivada.",
+  artigoOrdemAMeio:
+    "A ordem das imagens ficou a meio: confira-a e volte a mover, se for preciso.",
   conviteInstrucao: "Escreva o seu nome e crie a conta com uma passkey.",
   conviteResumo:
     "Foi convidado para a equipa de {comerciante}, com o papel {papel}.",

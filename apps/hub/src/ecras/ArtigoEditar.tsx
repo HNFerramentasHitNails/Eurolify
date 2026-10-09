@@ -40,7 +40,7 @@ export function ArtigoEditar({
   /** A consulta da página: o comerciante e os filtros da lista. */
   consulta: string;
 }) {
-  const { t, lingua, navegar } = useHub();
+  const { t, lingua, navegar, definirGuarda } = useHub();
   const valido =
     comerciante !== null &&
     FORMATO_COMERCIANTE.test(comerciante) &&
@@ -55,6 +55,9 @@ export function ArtigoEditar({
   const [falha, setFalha] = useState<unknown>(null);
   const [conflito, setConflito] = useState(false);
   const [aGuardar, setAGuardar] = useState(false);
+  // O nome só com espaços: dito ao lado do campo, sem pedir à API (revisão
+  // do #217, P3-4).
+  const [nomeEmFalta, setNomeEmFalta] = useState(false);
   const montado = useRef(true);
   useEffect(() => {
     montado.current = true;
@@ -104,41 +107,58 @@ export function ArtigoEditar({
       campos.descricao !== (ficha.descricao ?? "") ||
       campos.marca !== (ficha.marca ?? ""));
 
-  // Fechar o separador ou recarregar com alterações por guardar pergunta antes.
+  // Sair com alterações por guardar pergunta antes: fechar o separador ou
+  // recarregar (beforeunload), e a navegação do Hub, o «voltar» do navegador
+  // e «Sair» (a guarda do contexto; revisão do #217, P2-1).
   useEffect(() => {
     if (!alterado) return;
     const aoSair = (e: BeforeUnloadEvent) => {
       e.preventDefault();
     };
     window.addEventListener("beforeunload", aoSair);
+    definirGuarda(() => window.confirm(t.artigoSairSemGuardar));
     return () => {
       window.removeEventListener("beforeunload", aoSair);
+      definirGuarda(null);
     };
-  }, [alterado]);
+  }, [alterado, definirGuarda, t]);
 
   function voltar() {
-    if (alterado && !window.confirm(t.artigoSairSemGuardar)) return;
-    navegar(destinoFicha);
+    // A guarda pergunta; sem entrada nova no histórico (P3-5).
+    navegar(destinoFicha, { substituir: true });
   }
 
   async function guardar(evento: React.SyntheticEvent) {
     evento.preventDefault();
     if (ficha === null || !valido || aGuardar) return;
+    const nome = campos.nome.trim();
+    if (nome === "") {
+      setNomeEmFalta(true);
+      document.getElementById("artigo-nome")?.focus();
+      return;
+    }
+    setNomeEmFalta(false);
     setAGuardar(true);
     setFalha(null);
-    try {
-      const descricao = campos.descricao.trim();
-      const marca = campos.marca.trim();
-      await api.alterarArtigo(comerciante, artigo, {
-        versao: ficha.versao,
-        nome: campos.nome.trim(),
-        descricao: descricao === "" ? null : campos.descricao,
-        marca: marca === "" ? null : marca,
-      });
-      if (!montado.current) return;
+    const descricao = campos.descricao.trim() === "" ? null : campos.descricao;
+    const marca = campos.marca.trim() === "" ? null : campos.marca.trim();
+    const guardado = () => {
+      // Já gravado: a guarda sai antes de navegar, e a ficha substitui o
+      // formulário no histórico (o «voltar» não reabre a versão antiga, P3-5).
+      definirGuarda(null);
       const q = new URLSearchParams(consulta);
       q.set("guardado", "1");
-      navegar(`/artigos/${artigo}?${q.toString()}`);
+      navegar(`/artigos/${artigo}?${q.toString()}`, { substituir: true });
+    };
+    try {
+      await api.alterarArtigo(comerciante, artigo, {
+        versao: ficha.versao,
+        nome,
+        descricao,
+        marca,
+      });
+      if (!montado.current) return;
+      guardado();
     } catch (e) {
       if (!montado.current) return;
       if (semSessao(e)) {
@@ -149,10 +169,19 @@ export function ArtigoEditar({
         // O que está guardado agora, por baixo; os campos ficam como estão.
         try {
           const actual = await api.artigo(comerciante, artigo);
-          if (aindaAqui()) {
-            setFicha(actual);
-            setConflito(true);
+          if (!aindaAqui()) return;
+          // Uma resposta perdida e o pedido repetido: o que está guardado já
+          // é o que se escreveu (revisão do #217, P3-3).
+          if (
+            actual.nome === nome &&
+            actual.descricao === descricao &&
+            actual.marca === marca
+          ) {
+            guardado();
+            return;
           }
+          setFicha(actual);
+          setConflito(true);
         } catch (e2) {
           if (aindaAqui()) setFalha(e2);
         }
@@ -196,7 +225,7 @@ export function ArtigoEditar({
       ) : ficha.origem === "externo" ? (
         <p className="secundario">{t.artigoExternoAviso}</p>
       ) : (
-        <form onSubmit={(e) => void guardar(e)} noValidate={false}>
+        <form onSubmit={(e) => void guardar(e)} noValidate>
           {conflito ? (
             <div className="erro" role="alert">
               <p>
@@ -224,11 +253,18 @@ export function ArtigoEditar({
               id="artigo-nome"
               required
               maxLength={MAXIMO_NOME}
+              aria-invalid={nomeEmFalta}
+              aria-describedby={nomeEmFalta ? "artigo-nome-erro" : undefined}
               value={campos.nome}
               onChange={(e) => {
                 setCampos({ ...campos, nome: e.target.value });
               }}
             />
+            {nomeEmFalta ? (
+              <p id="artigo-nome-erro" className="erro-campo" role="alert">
+                {t.artigoNomeObrigatorio}
+              </p>
+            ) : null}
           </div>
           <div className="campo">
             <label htmlFor="artigo-descricao">{t.artigoDescricao}</label>

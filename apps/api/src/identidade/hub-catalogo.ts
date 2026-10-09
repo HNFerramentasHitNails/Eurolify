@@ -52,6 +52,17 @@ import { erroConta } from "./sessoes.js";
 // As escritas (docs/22 §13; issue #210) usam também as mesmas funções, com
 // a pessoa da sessão como «quem fez» na linha do tempo.
 
+/**
+ * O que o Hub altera no artigo: o nome, a descrição e a marca. A categoria
+ * fiscal fica de fora (docs/22 §13.1): decide o IVA e só entra no Hub como
+ * escolha de uma lista dada pelo servidor (revisão do #217, P1-1).
+ */
+const PedidoAlterarArtigoNoHub = Type.Omit(
+  PedidoAlterarArtigo,
+  ["categoria_fiscal"],
+  { additionalProperties: false },
+);
+
 export function rotasDoCatalogoNoHub(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -131,7 +142,7 @@ export function rotasDoCatalogoNoHub(
         description:
           "Altera o nome, a descrição ou a marca de um artigo pelo Hub: a mesma escrita do PATCH /products/{id}, na `versao` lida, com a sessão de quem tem catalog:write (docs/22 §13.2). Num artigo externo dá catalog.external_field (§13.3).",
         params: ParametroArtigo,
-        body: PedidoAlterarArtigo,
+        body: PedidoAlterarArtigoNoHub,
         response: { 200: Artigo, ...RESPOSTA_DE_ERRO },
       },
     },
@@ -351,10 +362,13 @@ async function recusarArtigoExterno(
   trx: Transaction<BaseDados>,
   artigoId: string,
 ): Promise<void> {
+  // Partilhada até ao fim da transacção: a origem não muda entre esta
+  // leitura e a escrita (revisão do #217, P3-2).
   const linha = await trx
     .selectFrom("artigo")
     .select("origem")
     .where("id", "=", artigoId)
+    .forShare()
     .executeTakeFirst();
   if (linha?.origem === "externo") {
     throw new ErroCatalogo("catalog.external_field", ARTIGO_EXTERNO);
@@ -371,6 +385,7 @@ async function recusarVarianteExterna(
     .innerJoin("artigo", "artigo.id", "variante.artigo_id")
     .select("artigo.origem")
     .where("variante.id", "=", varianteId)
+    .forShare("artigo")
     .executeTakeFirst();
   if (linha?.origem === "externo") {
     throw new ErroCatalogo("catalog.external_field", ARTIGO_EXTERNO);

@@ -290,14 +290,6 @@ function pngDeUmaCor([r, g, b]) {
   ]);
 }
 
-// A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
-// escrita sem «quem». A preparação escreve pelas funções do repositório,
-// sem pedido: tem um «quem» próprio só enquanto prepara; a API põe o seu em
-// cada escrita (e o Hub, a pessoa da sessão).
-psql(
-  `alter database ${nomeBase} set eurolify.quem = 'passagem:preparar'`,
-  "postgres",
-);
 // 30 artigos fictícios (mais do que uma página de 25; docs/22 §11), pela
 // mesma função do POST /products, sem chave (uma chave aparecia na lista das
 // chaves). O 30 vem do sistema de gestão do comerciante. O 1 tem a ficha
@@ -311,7 +303,16 @@ let artigoExterno = "";
 let canalDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
-  const baseArtigos = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
+  // A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
+  // escrita sem «quem». A preparação escreve pelas funções do repositório,
+  // sem pedido: o «quem» vai só nas ligações dela (revisão do #217, P3-1); a
+  // API e o Hub põem o seu em cada escrita.
+  const urlDaPreparacao = new URL(urlDe(nomeBase, "eurolify_api", SENHA));
+  urlDaPreparacao.searchParams.set(
+    "options",
+    "-c eurolify.quem=passagem:preparar",
+  );
+  const baseArtigos = abrirBase(urlDaPreparacao.toString());
   for (let i = 0; i < 30; i++) {
     const id = await criarArtigo(
       baseArtigos,
@@ -444,7 +445,6 @@ let canalDaFicha;
   }
   canalDaFicha = canal;
   await baseArtigos.destroy();
-  psql(`alter database ${nomeBase} reset eurolify.quem`, "postgres");
 }
 
 // 4. O navegador, com uma passkey em software.
@@ -1701,13 +1701,33 @@ try {
   const fichaEditavel = `${ORIGEM}/artigos/prd_${artigoEditavel}?comerciante=mer_${comerciante}`;
   await rp.goto(fichaEditavel);
   await rp.getByRole("heading", { name: "Verniz Rosa 2", level: 1 }).waitFor();
-  await rp.getByRole("link", { name: "Editar", exact: true }).click();
+  // Só com o teclado (docs/22 §13.5; revisão do #217, P2-6): «Editar» com
+  // Enter, escrever, e Enter no nome grava.
+  await rp.getByRole("link", { name: "Editar", exact: true }).focus();
+  await rp.keyboard.press("Enter");
   await rp.getByRole("heading", { name: "Editar o artigo" }).waitFor();
-  await rp.getByLabel("Nome", { exact: true }).fill("Verniz Rosa 2 Brilho");
+  // O «voltar» do navegador com alterações por guardar pergunta; recusar
+  // fica no formulário (P2-1).
   await rp
     .getByLabel("Descrição", { exact: true })
     .fill("Acabamento brilhante.");
-  await rp.getByRole("button", { name: "Guardar" }).click();
+  let perguntouAoVoltar = false;
+  rp.once("dialog", (d) => {
+    perguntouAoVoltar = true;
+    void d.dismiss();
+  });
+  await rp.goBack();
+  await rp.waitForTimeout(300);
+  confere(
+    perguntouAoVoltar &&
+      (await rp.getByLabel("Descrição", { exact: true }).inputValue()) ===
+        "Acabamento brilhante.",
+    "edição: o «voltar» do navegador com alterações por guardar pergunta e, recusado, fica",
+  );
+  await rp.getByLabel("Nome", { exact: true }).focus();
+  await rp.keyboard.press("Control+A");
+  await rp.keyboard.type("Verniz Rosa 2 Brilho");
+  await rp.keyboard.press("Enter");
   await rp
     .getByRole("heading", { name: "Verniz Rosa 2 Brilho", level: 1 })
     .waitFor();
@@ -1824,17 +1844,25 @@ try {
         .querySelectorAll(".imagens-artigo > li")[1]
         ?.textContent?.includes("Principal") === true,
   );
+  // Mover com o teclado: o foco fica no aviso, não se perde (P2-2).
   await imagensEditaveis
     .nth(0)
     .getByRole("button", { name: "Mover para depois" })
-    .click();
+    .focus();
+  await rp.keyboard.press("Enter");
   await rp.waitForFunction(
     () =>
       document
         .querySelectorAll(".imagens-artigo > li")[0]
         ?.textContent?.includes("Frasco de verniz laranja") === true,
   );
-  confere(true, "edição: tornar principal e mudar a ordem das imagens");
+  await rp.waitForFunction(
+    () => document.activeElement?.getAttribute("role") === "status",
+  );
+  confere(
+    (await rp.locator(".imagens-artigo img").count()) === 2,
+    "edição: tornar principal e mudar a ordem; o foco vai para «Alterações guardadas»",
+  );
   // Arquivar a única variante: a confirmação diz que é a última.
   let ultima = false;
   rp.once("dialog", (d) => {
@@ -1844,6 +1872,14 @@ try {
   await rp.getByRole("button", { name: "Arquivar variante ENS-002" }).click();
   await rp.getByRole("row", { name: /ENS-002.*Arquivada/ }).waitFor();
   confere(ultima, "edição: arquivar a última variante avisa e fica Arquivada");
+  // Sem variante activa, repor diz o motivo da API (P2-5).
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).click();
+  await rp.getByRole("button", { name: "Repor" }).click();
+  await rp
+    .getByText("precisa de pelo menos uma variante activa", { exact: false })
+    .waitFor();
+  confere(true, "edição: repor sem variante activa diz porquê");
   // Um artigo do sistema de gestão (P5): sem «Editar» nem estado; o aviso.
   await rp.goto(
     `${ORIGEM}/artigos/prd_${artigoExterno}?comerciante=mer_${comerciante}`,

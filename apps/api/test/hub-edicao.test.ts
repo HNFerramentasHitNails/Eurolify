@@ -411,6 +411,59 @@ describe.skipIf(URL_BASE === undefined)("editar o artigo no Hub (#210)", () => {
     expect(pelaChave.statusCode, pelaChave.body).toBe(200);
   });
 
+  it("a categoria fiscal não se muda pelo Hub (400); pela chave sim (revisão do #217, P1-1)", async () => {
+    const c = await comerciante("Loja Edicao Fiscal");
+    const p = await h.pessoaCom(c.id, "dono");
+    const r = await h.pedir("PATCH", `/hub/products/${c.artigo.id}`, {
+      sessao: p.sessao,
+      comerciante: c.id,
+      corpo: { versao: c.artigo.versao, categoria_fiscal: "isento" },
+    });
+    expect(r.statusCode).toBe(400);
+    const ficha = await comChave(c.segredo, "GET", `/products/${c.artigo.id}`);
+    expect(ficha.json<{ categoria_fiscal: string }>().categoria_fiscal).toBe(
+      "normal",
+    );
+    const pelaChave = await comChave(
+      c.segredo,
+      "PATCH",
+      `/products/${c.artigo.id}`,
+      { versao: c.artigo.versao, categoria_fiscal: "isento" },
+    );
+    expect(pelaChave.statusCode, pelaChave.body).toBe(200);
+  });
+
+  it("um membro que saiu e uma sessão terminada não escrevem (revisão do #217, P3-9)", async () => {
+    const c = await comerciante("Loja Edicao Saida");
+    const alterar = (sessao: string) =>
+      h.pedir("PATCH", `/hub/products/${c.artigo.id}`, {
+        sessao,
+        comerciante: c.id,
+        corpo: { versao: c.artigo.versao, nome: "Não entra" },
+      });
+    const gestor = await h.pessoaCom(c.id, "gestor");
+    const eu = await h.pedir("GET", "/hub/me", { sessao: gestor.sessao });
+    const membro =
+      eu.json<{ comerciantes: { membro: string }[] }>().comerciantes[0]
+        ?.membro ?? "";
+    const sair = await h.pedir("POST", `/hub/members/${membro}/end`, {
+      sessao: gestor.sessao,
+      comerciante: c.id,
+      corpo: {},
+    });
+    expect(sair.statusCode, sair.body).toBe(200);
+    expect((await alterar(gestor.sessao)).statusCode).toBe(403);
+    const dono = await h.pessoaCom(c.id, "dono");
+    const fim = await h.pedir("POST", "/hub/session/end", {
+      sessao: dono.sessao,
+      corpo: {},
+    });
+    expect(fim.statusCode).toBe(200);
+    expect((await alterar(dono.sessao)).statusCode).toBe(401);
+    const ficha = await comChave(c.segredo, "GET", `/products/${c.artigo.id}`);
+    expect(ficha.json<Ficha>().nome).toBe("Verniz Rosa");
+  });
+
   it("o contrato tem os caminhos de escrita do Hub com a sessão e as mesmas respostas da chave", async () => {
     const contrato = (await h.app.inject({ url: "/openapi.json" })).json<{
       paths: Record<

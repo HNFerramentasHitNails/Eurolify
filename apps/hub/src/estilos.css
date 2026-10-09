@@ -500,3 +500,11 @@ textarea {
 .valores-actuais dd {
   margin: 0;
 }
+
+/* O erro de um campo, ao lado dele (docs/22 §13.4): a cor do erro e as
+   palavras, nunca só a cor. */
+.erro-campo {
+  color: var(--estado-erro);
+  font-weight: 600;
+  margin: var(--espaco-1) 0 0;
+}

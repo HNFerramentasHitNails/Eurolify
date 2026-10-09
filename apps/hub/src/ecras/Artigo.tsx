@@ -62,6 +62,8 @@ export function Artigo({
   const [podeEscrever, setPodeEscrever] = useState(false);
   // Uma acção de cada vez; o erro dela fica à vista até à seguinte.
   const [ocupado, setOcupado] = useState(false);
+  // Mover uma imagem que gravou uma parte e falhou na outra.
+  const [ordemAMeio, setOrdemAMeio] = useState(false);
   const [falhaAccao, setFalhaAccao] = useState<unknown>(null);
   const [aviso, setAviso] = useState<string | null>(() =>
     new URLSearchParams(consulta).get("guardado") === "1" ? "guardado" : null,
@@ -87,62 +89,75 @@ export function Artigo({
     [navegar],
   );
 
-  const carregarImagens = useCallback(async () => {
-    if (!valido) return;
-    setImagens({ tipo: "a_carregar" });
-    try {
-      const dados = await api.imagensDoArtigo(comerciante, artigo);
-      if (montado.current) setImagens({ tipo: "pronto", dados });
-    } catch (e) {
-      aoFalhar(e, (erro) => {
-        setImagens({ tipo: "erro", erro });
-      });
-    }
-  }, [valido, comerciante, artigo, aoFalhar]);
+  // `manter`: depois de uma acção, recarrega sem tirar a parte do ecrã, para
+  // o foco e as miniaturas ficarem (revisão do #217, P2-2 e P3-8).
+  const carregarImagens = useCallback(
+    async (manter = false) => {
+      if (!valido) return;
+      if (!manter) setImagens({ tipo: "a_carregar" });
+      try {
+        const dados = await api.imagensDoArtigo(comerciante, artigo);
+        if (montado.current) setImagens({ tipo: "pronto", dados });
+      } catch (e) {
+        aoFalhar(e, (erro) => {
+          setImagens({ tipo: "erro", erro });
+        });
+      }
+    },
+    [valido, comerciante, artigo, aoFalhar],
+  );
 
-  const carregarPublicacoes = useCallback(async () => {
-    if (!valido) return;
-    setPublicacoes({ tipo: "a_carregar" });
-    try {
-      const r = await api.publicacoesDoArtigo(comerciante, artigo);
-      if (montado.current) setPublicacoes({ tipo: "pronto", dados: r.dados });
-    } catch (e) {
-      aoFalhar(e, (erro) => {
-        setPublicacoes({ tipo: "erro", erro });
-      });
-    }
-  }, [valido, comerciante, artigo, aoFalhar]);
+  // `manter`: depois de uma acção, recarrega sem tirar a parte do ecrã, para
+  // o foco e as miniaturas ficarem (revisão do #217, P2-2 e P3-8).
+  const carregarPublicacoes = useCallback(
+    async (manter = false) => {
+      if (!valido) return;
+      if (!manter) setPublicacoes({ tipo: "a_carregar" });
+      try {
+        const r = await api.publicacoesDoArtigo(comerciante, artigo);
+        if (montado.current) setPublicacoes({ tipo: "pronto", dados: r.dados });
+      } catch (e) {
+        aoFalhar(e, (erro) => {
+          setPublicacoes({ tipo: "erro", erro });
+        });
+      }
+    },
+    [valido, comerciante, artigo, aoFalhar],
+  );
 
-  const carregarFicha = useCallback(async () => {
-    if (!valido) return;
-    setFicha({ tipo: "a_carregar" });
-    try {
-      const [dados, eu] = await Promise.all([
-        api.artigo(comerciante, artigo),
-        api.eu(),
-      ]);
-      if (!montado.current) return;
-      setPodeEscrever(
-        eu.comerciantes
-          .find((c) => c.comerciante === comerciante)
-          ?.ambitos.includes("catalog:write") === true,
-      );
-      setFicha({ tipo: "pronto", dados });
-      void carregarImagens();
-      void carregarPublicacoes();
-    } catch (e) {
-      aoFalhar(e, (erro) => {
-        setFicha({ tipo: "erro", erro });
-      });
-    }
-  }, [
-    valido,
-    comerciante,
-    artigo,
-    aoFalhar,
-    carregarImagens,
-    carregarPublicacoes,
-  ]);
+  const carregarFicha = useCallback(
+    async (manter = false) => {
+      if (!valido) return;
+      if (!manter) setFicha({ tipo: "a_carregar" });
+      try {
+        const [dados, eu] = await Promise.all([
+          api.artigo(comerciante, artigo),
+          api.eu(),
+        ]);
+        if (!montado.current) return;
+        setPodeEscrever(
+          eu.comerciantes
+            .find((c) => c.comerciante === comerciante)
+            ?.ambitos.includes("catalog:write") === true,
+        );
+        setFicha({ tipo: "pronto", dados });
+        void carregarImagens(manter);
+        void carregarPublicacoes(manter);
+      } catch (e) {
+        aoFalhar(e, (erro) => {
+          setFicha({ tipo: "erro", erro });
+        });
+      }
+    },
+    [
+      valido,
+      comerciante,
+      artigo,
+      aoFalhar,
+      carregarImagens,
+      carregarPublicacoes,
+    ],
+  );
 
   useEffect(() => {
     void carregarFicha();
@@ -161,27 +176,47 @@ export function Artigo({
     );
   }, []);
 
+  // O aviso de que gravou recebe o foco: o botão usado pode ter saído do
+  // ecrã (revisão do #217, P2-2 e P3-6).
+  const avisoRef = useRef<HTMLParagraphElement>(null);
+  const focarAviso = () => {
+    requestAnimationFrame(() => {
+      avisoRef.current?.focus();
+    });
+  };
+  useEffect(() => {
+    if (aviso !== null) focarAviso();
+    // Só ao abrir (vindo da edição, com «guardado»).
+  }, []);
+
   /**
-   * Corre uma acção da §13. Um conflito de versão (outra pessoa mudou) ou um
-   * 404 recarregam a ficha, para o ecrã mostrar o que está guardado agora.
+   * Corre uma acção da §13 e diz se gravou. Um conflito de versão (outra
+   * pessoa mudou) ou um 404 recarregam a ficha, para o ecrã mostrar o que
+   * está guardado agora.
    */
-  async function agir(fn: () => Promise<void>) {
-    if (ocupado) return;
+  async function agir(fn: () => Promise<void>): Promise<boolean> {
+    if (ocupado) return false;
     setOcupado(true);
     setFalhaAccao(null);
+    setOrdemAMeio(false);
     setAviso(null);
     try {
       await fn();
+      if (!montado.current) return false;
+      setAviso("guardado");
+      focarAviso();
+      return true;
     } catch (e) {
-      if (!montado.current) return;
+      if (!montado.current) return false;
       if (semSessao(e)) {
         navegar("/entrar", { substituir: true });
-        return;
+        return false;
       }
       setFalhaAccao(e);
       if (e instanceof ErroHub && (e.estado === 409 || e.estado === 404)) {
-        void carregarFicha();
+        void carregarFicha(true);
       }
+      return false;
     } finally {
       if (montado.current) setOcupado(false);
     }
@@ -202,9 +237,8 @@ export function Artigo({
       );
       if (!montado.current) return;
       setFicha({ tipo: "pronto", dados });
-      setAviso("guardado");
       // Arquivar arquiva as publicações (§4.1).
-      void carregarPublicacoes();
+      void carregarPublicacoes(true);
     });
   }
 
@@ -219,52 +253,72 @@ export function Artigo({
     void agir(async () => {
       await api.arquivarVariante(comerciante, v.id);
       if (!montado.current) return;
-      setAviso("guardado");
-      await carregarFicha();
+      await carregarFicha(true);
     });
   }
 
-  /** Grava uma imagem e recarrega as imagens e as publicações (C2). */
+  /**
+   * Grava uma imagem e recarrega as imagens e as publicações (C2). Diz se
+   * gravou: o formulário do texto só fecha se sim (revisão do #217, P2-3).
+   */
   function guardarImagem(
     m: ImagemArtigo,
     corpo: { texto_alternativo?: string | null; principal?: boolean },
-  ) {
-    if (!valido) return;
-    void agir(async () => {
+  ): Promise<boolean> {
+    if (!valido) return Promise.resolve(false);
+    return agir(async () => {
       await api.alterarImagem(comerciante, m.id, {
         versao: m.versao,
         ...corpo,
       });
       if (!montado.current) return;
-      setAviso("guardado");
-      void carregarImagens();
-      void carregarPublicacoes();
+      void carregarImagens(true);
+      void carregarPublicacoes(true);
     });
   }
 
   /**
-   * Muda uma imagem de lugar: a ordem nova em posições 0, 1, 2…, gravando
-   * só as que mudam (a API ordena pela posição e depois pelo id).
+   * Troca uma imagem com a vizinha (a API ordena pela posição e depois pelo
+   * id): duas gravações, as das duas imagens (revisão do #217, P2-4). Se as
+   * duas tiverem a mesma posição, a ordem nova grava-se em posições 0, 1,
+   * 2…. Não é atómico: se falhar a meio, o ecrã di-lo e mostra o que ficou;
+   * uma rota de ordem atómica fica pedida ao dono do catálogo (#77).
    */
   function moverImagem(indice: number, para: number) {
     if (imagens.tipo !== "pronto" || !valido) return;
-    const ordem = [...imagens.dados];
-    const [movida] = ordem.splice(indice, 1);
-    if (movida === undefined) return;
-    ordem.splice(para, 0, movida);
+    const a = imagens.dados[indice];
+    const b = imagens.dados[para];
+    if (a === undefined || b === undefined) return;
+    let escritas: { m: ImagemArtigo; posicao: number }[];
+    if (a.posicao !== b.posicao) {
+      escritas = [
+        { m: a, posicao: b.posicao },
+        { m: b, posicao: a.posicao },
+      ];
+    } else {
+      const ordem = [...imagens.dados];
+      ordem.splice(indice, 1);
+      ordem.splice(para, 0, a);
+      escritas = ordem
+        .map((m, posicao) => ({ m, posicao }))
+        .filter(({ m, posicao }) => m.posicao !== posicao);
+    }
+    let feitas = 0;
     void agir(async () => {
       try {
-        for (const [posicao, m] of ordem.entries()) {
-          if (m.posicao === posicao) continue;
+        for (const { m, posicao } of escritas) {
           await api.alterarImagem(comerciante, m.id, {
             versao: m.versao,
             posicao,
           });
+          feitas++;
         }
-        if (montado.current) setAviso("guardado");
+      } catch (e) {
+        if (feitas > 0 && montado.current) setOrdemAMeio(true);
+        throw e;
       } finally {
         // Também se uma das gravações falhar: o ecrã mostra o que ficou.
-        if (montado.current) void carregarImagens();
+        if (montado.current) void carregarImagens(true);
       }
     });
   }
@@ -336,10 +390,20 @@ export function Artigo({
             aoMudarEstado={mudarEstado}
           />
           {aviso === null ? null : (
-            <p className="secundario" role="status">
+            <p
+              className="secundario"
+              role="status"
+              tabIndex={-1}
+              ref={avisoRef}
+            >
               {t.artigoGuardado}
             </p>
           )}
+          {ordemAMeio ? (
+            <p className="erro-campo" role="alert">
+              {t.artigoOrdemAMeio}
+            </p>
+          ) : null}
           {falhaAccao === null ? null : (
             <CaixaDeErro erro={mensagemDeErro(falhaAccao, t, lingua)} />
           )}
@@ -381,9 +445,7 @@ export function Artigo({
                           ocupado,
                           primeira: i === 0,
                           ultima: i === todas.length - 1,
-                          aoGuardar: (corpo) => {
-                            guardarImagem(m, corpo);
-                          },
+                          aoGuardar: (corpo) => guardarImagem(m, corpo),
                           aoMover: (passo) => {
                             moverImagem(i, i + passo);
                           },
@@ -602,10 +664,11 @@ interface EdicaoDaImagem {
   ocupado: boolean;
   primeira: boolean;
   ultima: boolean;
+  /** Diz se gravou: o formulário do texto só fecha se sim. */
   aoGuardar: (corpo: {
     texto_alternativo?: string | null;
     principal?: boolean;
-  }) => void;
+  }) => Promise<boolean>;
   aoMover: (passo: -1 | 1) => void;
 }
 
@@ -710,10 +773,13 @@ function Miniatura({
           onSubmit={(e) => {
             e.preventDefault();
             const limpo = rascunho.trim();
-            edicao.aoGuardar({
-              texto_alternativo: limpo === "" ? null : limpo,
-            });
-            setAEditar(false);
+            // Só fecha se gravou: num erro, o que se escreveu fica à vista
+            // (revisão do #217, P2-3).
+            void edicao
+              .aoGuardar({ texto_alternativo: limpo === "" ? null : limpo })
+              .then((gravou) => {
+                if (gravou) setAEditar(false);
+              });
           }}
         >
           <div className="campo">
@@ -761,7 +827,7 @@ function Miniatura({
               type="button"
               disabled={edicao.ocupado}
               onClick={() => {
-                edicao.aoGuardar({ principal: true });
+                void edicao.aoGuardar({ principal: true });
               }}
             >
               {t.artigoTornarPrincipal}

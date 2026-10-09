@@ -15,6 +15,13 @@ export interface Contexto {
    * (revisão do #158, P3-3).
    */
   navegar: (caminho: string, opcoes?: { substituir?: boolean }) => void;
+  /**
+   * Uma guarda de saída: enquanto um ecrã tiver alterações por guardar,
+   * regista aqui a pergunta (devolve true para sair). Vale para a navegação
+   * do Hub, para o «voltar» do navegador e para «Sair» (docs/22 §13.4;
+   * revisão do #217, P2-1). `null` tira-a.
+   */
+  definirGuarda: (pergunta: (() => boolean) | null) => void;
 }
 
 export const ContextoHub = createContext<Contexto | null>(null);

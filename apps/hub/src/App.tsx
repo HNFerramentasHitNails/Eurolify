@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { lerSegredoDaLigacao } from "./convite";
 import { fecharAvisoDeRecuperada } from "./recuperacao";
@@ -42,8 +42,22 @@ export function App() {
     consulta: window.location.search,
   }));
 
+  // A guarda de saída do ecrã aberto (contexto.tsx, definirGuarda).
+  const guarda = useRef<(() => boolean) | null>(null);
+  const podeSair = useCallback(() => guarda.current?.() ?? true, []);
+  // O endereço que está à vista: o «voltar» recusado volta a pô-lo.
+  const enderecoActual = useRef(
+    `${window.location.pathname}${window.location.search}`,
+  );
+
   useEffect(() => {
     const aoVoltar = () => {
+      if (!podeSair()) {
+        window.history.pushState(null, "", enderecoActual.current);
+        return;
+      }
+      guarda.current = null;
+      enderecoActual.current = `${window.location.pathname}${window.location.search}`;
       setLocal({
         caminho: window.location.pathname,
         consulta: window.location.search,
@@ -53,7 +67,7 @@ export function App() {
     return () => {
       window.removeEventListener("popstate", aoVoltar);
     };
-  }, []);
+  }, [podeSair]);
 
   useEffect(() => {
     document.documentElement.lang = TAG_LINGUA[lingua];
@@ -61,22 +75,29 @@ export function App() {
 
   const navegar = useCallback(
     (destino: string, opcoes: { substituir?: boolean } = {}) => {
+      if (!podeSair()) return;
+      guarda.current = null;
       if (opcoes.substituir === true) {
         window.history.replaceState(null, "", destino);
       } else {
         window.history.pushState(null, "", destino);
       }
       const url = new URL(destino, window.location.origin);
+      enderecoActual.current = `${url.pathname}${url.search}`;
       setLocal({ caminho: url.pathname, consulta: url.search });
       document.getElementById("conteudo")?.focus();
     },
-    [],
+    [podeSair],
   );
+
+  const definirGuarda = useCallback((pergunta: (() => boolean) | null) => {
+    guarda.current = pergunta;
+  }, []);
 
   const t = TEXTOS[lingua];
   const contexto = useMemo<Contexto>(
-    () => ({ t, lingua, navegar }),
-    [t, lingua, navegar],
+    () => ({ t, lingua, navegar, definirGuarda }),
+    [t, lingua, navegar, definirGuarda],
   );
 
   const artigo = CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null;
@@ -214,6 +235,10 @@ export function App() {
             <button
               type="button"
               onClick={() => {
+                // Com alterações por guardar, pergunta antes de sair (uma
+                // vez: a guarda sai depois de aceite).
+                if (!podeSair()) return;
+                guarda.current = null;
                 // O aviso de conta recuperada é desta pessoa, não do
                 // navegador (revisão do #174, P3-1).
                 fecharAvisoDeRecuperada();

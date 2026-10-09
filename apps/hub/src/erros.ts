@@ -47,6 +47,10 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "catalog.version_conflict": "artigoConflito",
   "catalog.external_field": "artigoExternoCampo",
   "catalog.name_required": "artigoNomeObrigatorio",
+  // O motivo da API ao activar ou arquivar (revisão do #217, P2-5).
+  "catalog.no_variants": "artigoSemVariantesActivas",
+  "catalog.invalid_transition": "artigoTransicaoInvalida",
+  "catalog.variant_archived_is_final": "artigoVarianteJaArquivada",
   "key.merchant_inactive": "erroChaveComercianteInactivo",
   "key.not_found": "erroChaveNaoExiste",
   "key.already_revoked": "erroChaveJaRevogada",

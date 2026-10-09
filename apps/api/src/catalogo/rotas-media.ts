@@ -136,11 +136,6 @@ const paraMedia = (m: LinhaMedia) => ({
 });
 
 /**
- * As imagens de um artigo (docs/14 §3.8): as mesmas para
- * `GET /products/{id}/media` e `GET /hub/products/{id}/media` (docs/22
- * §12.1). **Outro chamador, fora do catálogo:** `identidade/hub-catalogo.ts`.
- */
-/**
  * Altera a imagem na transacção dada e devolve-a. Chamam-na o
  * PATCH /media/{id} (pela chave) e o PATCH /hub/media/{id} (pela sessão;
  * docs/22 §13.2).
@@ -157,6 +152,11 @@ export async function alteracaoDaMedia(
   return paraMedia(await fichaDaMedia(trx, comercianteId, id));
 }
 
+/**
+ * As imagens de um artigo (docs/14 §3.8): as mesmas para
+ * `GET /products/{id}/media` e `GET /hub/products/{id}/media` (docs/22
+ * §12.1). **Outro chamador, fora do catálogo:** `identidade/hub-catalogo.ts`.
+ */
 export async function imagensDeArtigo(
   base: Kysely<BaseDados>,
   comercianteId: string,

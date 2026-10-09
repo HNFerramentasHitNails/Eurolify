@@ -416,6 +416,13 @@ export const es: Textos = {
   artigoTornarPrincipal: "Hacer principal",
   artigoMoverAntes: "Mover antes",
   artigoMoverDepois: "Mover después",
+  artigoSemVariantesActivas:
+    "Para activarlo, el artículo necesita al menos una variante activa.",
+  artigoTransicaoInvalida:
+    "El artículo ya no estaba en el estado que mostraba la pantalla. Se ha recargado la ficha.",
+  artigoVarianteJaArquivada: "La variante ya estaba archivada.",
+  artigoOrdemAMeio:
+    "El orden de las imágenes quedó a medias: revíselo y vuelva a moverlas si hace falta.",
   conviteInstrucao: "Escriba su nombre y cree la cuenta con una passkey.",
   conviteResumo:
     "Le han invitado al equipo de {comerciante}, con la función {papel}.",
