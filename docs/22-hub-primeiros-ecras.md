@@ -564,7 +564,9 @@ externo, como na §13.3.
 ## 14. Catálogo: criar artigos (issue #221)
 
 Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da criação de
-artigos»*. A §13.1 deixou de fora «criar artigos e variantes»; este passo
+artigos»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que
+fica de fora e o limite de 20 variantes (*«sim, aprovo o desenho, junta o
+#222»*). A §13.1 deixou de fora «criar artigos e variantes»; este passo
 trata da primeira parte. Ex.: a gestora da «Loja de Ensaio» carrega em
 «Criar artigo» na lista, escreve «Verniz Verde 31», a marca «Marca de
 Ensaio», uma variante com o SKU `ENS-031`, «Unidade», 15 ml e 60 g, e guarda;
@@ -592,7 +594,7 @@ pela chave (medido a 09/10/2026 em `apps/api/src/catalogo/rotas.ts`).
 | **Imagens novas**: como na §13.1 (nginx a 64 KB e escritas só em JSON). |
 | **Preço**: é do domínio Preços e mercados (#127), ainda sem código. |
 
-**Proposta**: no máximo **20 variantes** por artigo criado no Hub (a API
+**Decidido** (Diogo, 09/10/2026): no máximo **20 variantes** por artigo criado no Hub (a API
 aceita 100, `MAX_VARIANTES_POR_ARTIGO_NOVO`). Um formulário com mais é
 difícil de usar no telemóvel; mais do que isso entra pela importação (#197).
 É um limite do ecrã, não uma regra do catálogo.
