@@ -1815,6 +1815,7 @@ try {
             // Sem os nomes (não devia acontecer): fica o identificador.
             canal_nome: null,
             mercado_nome: null,
+            loja_nome: null,
             estado: "arquivado",
             variantes_fora: [],
             ultima_verificacao: null,
@@ -1848,6 +1849,69 @@ try {
     () => document.querySelectorAll(".imagens-artigo img").length === 2,
   );
   confere(true, "ficha: «Tentar outra vez» traz as imagens");
+  // Com o seu endereço: estes recarregamentos somavam-se aos pedidos da
+  // ficha no mesmo minuto (limite do Hub, issue #253; revisão do #275, P3-1).
+  await enderecoNovo(rp);
+  // Dois canais com o mesmo nome em lojas diferentes (docs/22 §19.2): a
+  // loja por baixo do canal; os mercados, com nomes diferentes, só com o
+  // nome (respostas fingidas da API).
+  const publicacaoFingida = (n, mercado, loja) => ({
+    id: `pub_00000000-0000-4000-8000-00000000001${n}`,
+    artigo: `prd_${artigoDaFicha}`,
+    canal: `chn_00000000-0000-4000-8000-00000000002${n}`,
+    mercado: `mkt_00000000-0000-4000-8000-00000000003${n}`,
+    canal_nome: "Loja online",
+    mercado_nome: mercado,
+    loja_nome: loja,
+    estado: "publicado",
+    variantes_fora: [],
+    ultima_verificacao: null,
+    verificado_em: "2026-10-01T09:00:00Z",
+    publicado_em: "2026-10-02T09:00:00Z",
+    arquivado_em: null,
+    motivo_arquivo: null,
+    versao: 2,
+  });
+  await rp.route("**/hub/products/*/publications", (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        dados: [
+          publicacaoFingida(1, "Portugal", "Loja Norte"),
+          publicacaoFingida(2, "Espanha", "Loja Sul"),
+        ],
+      }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByRole("row", { name: /Loja Sul/ }).waitFor();
+  const tabelaPublicacoes = rp.locator("table", {
+    has: rp.getByRole("columnheader", { name: "Mercado" }),
+  });
+  confere(
+    (await rp
+      .getByRole("row", {
+        name: /Loja online.*Loja Norte.*Portugal.*Publicado/,
+      })
+      .count()) === 1 &&
+      (await rp
+        .getByRole("row", { name: /Loja online.*Loja Sul.*Espanha.*Publicado/ })
+        .count()) === 1 &&
+      (await tabelaPublicacoes.getByText(/^(chn|mkt)_/).count()) === 0 &&
+      (await tabelaPublicacoes
+        .locator(".so-leitores", { hasText: "Loja:" })
+        .count()) === 2,
+    "ficha: dois canais com o mesmo nome mostram a loja por baixo (com «Loja:» para os leitores de ecrã); os mercados, diferentes, só o nome",
+  );
+  await tabelaPublicacoes.screenshot({
+    path: join(SAIDA, "artigo-publicacoes-lojas-375-claro.png"),
+  });
+  await rp.unroute("**/hub/products/*/publications");
+  await rp.reload();
+  await rp
+    .getByRole("row", { name: /Loja online.*Portugal.*Rascunho/ })
+    .waitFor();
   // Os preços falham sozinhos (docs/22 §17.3): o erro na secção, o resto fica.
   await rp.route("**/hub/products/*/prices*", (r) =>
     r.fulfill({
@@ -2622,6 +2686,7 @@ try {
             mercado: "mkt_00000000-0000-7000-8000-000000000001",
             canal_nome: "Loja online",
             mercado_nome: "Portugal",
+            loja_nome: "Loja online",
             estado: "publicado",
             verificado_em: null,
             publicado_em: "2026-10-09T10:00:00Z",

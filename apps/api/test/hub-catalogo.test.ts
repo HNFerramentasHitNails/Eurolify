@@ -158,7 +158,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
    */
   async function publicado(
     c: { id: string; segredo: string },
-    nomes = { canal: "Loja online", mercado: "Portugal" },
+    nomes = { canal: "Loja online", mercado: "Portugal", loja: "Loja online" },
   ) {
     const incompleto = (await artigoCompleto(c)).artigo;
     const { artigo } = await artigoCompleto(c, true);
@@ -193,7 +193,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     });
     const loja = await criarLoja(base.api, c.id, {
       entidade_legal_id: entidade,
-      nome: "Loja online",
+      nome: nomes.loja,
     });
     const mercado = await criarMercado(base.api, c.id, {
       loja_id: loja,
@@ -237,7 +237,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       mercado_id: mercado,
     });
     expect(recusada.publicada).toBe(false);
-    return { artigo, incompleto, canal, mercado, versao };
+    return { artigo, incompleto, canal, mercado, versao, entidade };
   }
 
   const pelaChave = (segredo: string, q: string) =>
@@ -558,24 +558,28 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
           motivo_arquivo: string | null;
           canal_nome?: string | null;
           mercado_nome?: string | null;
+          loja_nome?: string | null;
         }[];
       }>().dados;
-      // O Hub junta os dois nomes (docs/22 §18.1); o resto é igual à
-      // rota pela chave, que não os tem.
+      // O Hub junta os três nomes (docs/22 §18.1, §19.1); o resto é
+      // igual à rota pela chave, que não os tem.
       for (const d of dados) {
         expect(d.canal_nome).toBe("Loja online");
         expect(d.mercado_nome).toBe("Portugal");
+        expect(d.loja_nome).toBe("Loja online");
       }
       const semNomes = dados.map((d) => {
         const copia = { ...d };
         delete copia.canal_nome;
         delete copia.mercado_nome;
+        delete copia.loja_nome;
         return copia;
       });
       expect({ ...hub.json<object>(), dados: semNomes }).toEqual(api.json());
       for (const d of api.json<{ dados: object[] }>().dados) {
         expect(Object.keys(d)).not.toContain("canal_nome");
         expect(Object.keys(d)).not.toContain("mercado_nome");
+        expect(Object.keys(d)).not.toContain("loja_nome");
       }
       return dados;
     };
@@ -593,14 +597,19 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     ]);
   });
 
-  it("as publicações no Hub trazem os nomes do canal e do mercado do comerciante, também arquivados (docs/22 §18, #258)", async () => {
+  it("as publicações no Hub trazem os nomes do canal, do mercado e da loja do comerciante, também arquivados (docs/22 §18, §19; #258, #271)", async () => {
     const a = await comerciante("Loja A Nomes", []);
     const b = await comerciante("Loja B Nomes", []);
-    const deA = await publicado(a);
-    // B tem um canal com o mesmo nome e um mercado com outro.
+    const deA = await publicado(a, {
+      canal: "Loja online",
+      mercado: "Portugal",
+      loja: "Loja Norte",
+    });
+    // B tem um canal com o mesmo nome, um mercado e uma loja com outro.
     const deB = await publicado(b, {
       canal: "Loja online",
       mercado: "Espanha",
+      loja: "Loja Sul",
     });
     const nomes = async (c: { id: string }, artigo: string) => {
       const p = await h.pessoaCom(c.id, "apoio");
@@ -616,17 +625,45 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
             mercado: string;
             canal_nome: string | null;
             mercado_nome: string | null;
+            loja_nome: string | null;
           }[];
         }>()
-        .dados.map((d) => [d.canal, d.mercado, d.canal_nome, d.mercado_nome]);
+        .dados.map((d) => [
+          d.canal,
+          d.mercado,
+          d.canal_nome,
+          d.mercado_nome,
+          d.loja_nome,
+        ]);
     };
     expect(await nomes(a, deA.artigo)).toEqual([
-      [`chn_${deA.canal}`, `mkt_${deA.mercado}`, "Loja online", "Portugal"],
+      [
+        `chn_${deA.canal}`,
+        `mkt_${deA.mercado}`,
+        "Loja online",
+        "Portugal",
+        "Loja Norte",
+      ],
     ]);
     expect(await nomes(b, deB.artigo)).toEqual([
-      [`chn_${deB.canal}`, `mkt_${deB.mercado}`, "Loja online", "Espanha"],
+      [
+        `chn_${deB.canal}`,
+        `mkt_${deB.mercado}`,
+        "Loja online",
+        "Espanha",
+        "Loja Sul",
+      ],
     ]);
-    // Um canal e um mercado arquivados continuam com o nome (§18.1).
+    // Um canal, um mercado e uma loja arquivados continuam com o nome
+    // (§18.1, §19.1).
+    const arquivada = await comComerciante(base.api, a.id, (trx) =>
+      trx
+        .updateTable("loja")
+        .set({ estado: "arquivada" })
+        .where("nome", "=", "Loja Norte")
+        .executeTakeFirstOrThrow(),
+    );
+    expect(arquivada.numUpdatedRows).toBe(1n);
     const canal = await obterCanal(base.api, a.id, deA.canal);
     await mudarEstadoCanal(
       base.api,
@@ -653,11 +690,20 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       "arquivado",
     );
     expect(await nomes(a, deA.artigo)).toEqual([
-      [`chn_${deA.canal}`, `mkt_${deA.mercado}`, "Loja online", "Portugal"],
+      [
+        `chn_${deA.canal}`,
+        `mkt_${deA.mercado}`,
+        "Loja online",
+        "Portugal",
+        "Loja Norte",
+      ],
     ]);
-    // Os ids de B, pedidos no contexto de A, não dão nomes: nem pela RLS
-    // (eurolify_api) nem pelo filtro escrito (com o dono, que passa a RLS;
-    // a prova pela falha tira o filtro e este teste falha).
+    // Os ids de B, pedidos no contexto de A, não dão nomes nem a loja: nem
+    // pela RLS (eurolify_api) nem pelo filtro escrito (com o dono, que
+    // passa a RLS; sem o filtro do canal, este teste falha). A loja vem
+    // pelo JOIN com o canal já filtrado: o filtro escrito na loja é uma
+    // segunda guarda, que este teste não prova sozinha (revisão do #275,
+    // P2-2).
     for (const db of [base.api, base.dono as Kysely<BaseDados>]) {
       const r = await nomesDeCanaisEMercados(
         db,
@@ -667,7 +713,85 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       );
       expect([...r.canais]).toEqual([[deA.canal, "Loja online"]]);
       expect([...r.mercados]).toEqual([[deA.mercado, "Portugal"]]);
+      expect([...r.lojasDosCanais]).toEqual([[deA.canal, "Loja Norte"]]);
     }
+  });
+
+  it("o mesmo artigo em duas lojas do comerciante, cada uma com um canal «Loja online»: cada publicação traz a sua loja (docs/22 §19.1, #271)", async () => {
+    const c = await comerciante("Loja Duas Lojas", []);
+    const norte = await publicado(c, {
+      canal: "Loja online",
+      mercado: "Portugal",
+      loja: "Loja Norte",
+    });
+    const id = norte.artigo.replace(/^prd_/, "");
+    const quem = "pessoa:teste";
+    // A segunda loja, com um canal e um mercado com os mesmos nomes.
+    const lojaSul = await criarLoja(base.api, c.id, {
+      entidade_legal_id: norte.entidade,
+      nome: "Loja Sul",
+    });
+    const mercadoSul = await criarMercado(base.api, c.id, {
+      loja_id: lojaSul,
+      nome: "Portugal",
+      paises: ["PT"],
+      moeda: "EUR",
+      linguas: ["pt"],
+      lingua_principal: "pt",
+    });
+    const listaSul = await criarLista(base.api, c.id, {
+      mercado_id: mercadoSul,
+      nome: "Base Sul",
+      tipo: "base",
+    });
+    await mudarEstadoMercado(base.api, c.id, mercadoSul, 1, "activo");
+    const canalSul = await criarCanal(base.api, c.id, {
+      loja_id: lojaSul,
+      nome: "Loja online",
+    });
+    await definirMercadosDoCanal(base.api, c.id, canalSul, [mercadoSul]);
+    const variantes = await comComerciante(base.api, c.id, (trx) =>
+      trx
+        .selectFrom("variante")
+        .select("id")
+        .where("artigo_id", "=", id)
+        .execute(),
+    );
+    for (const v of variantes) {
+      await definirPreco(base.api, c.id, quem, listaSul, v.id, {
+        montante: 990,
+      });
+    }
+    const r = await publicar(base.api, c.id, quem, {
+      artigo_id: id,
+      canal_id: canalSul,
+      mercado_id: mercadoSul,
+    });
+    expect(r.publicada, JSON.stringify(r)).toBe(true);
+    const p = await h.pessoaCom(c.id, "apoio");
+    const resposta = await h.pedir(
+      "GET",
+      `/hub/products/${norte.artigo}/publications`,
+      { sessao: p.sessao, comerciante: c.id },
+    );
+    expect(resposta.statusCode, resposta.body).toBe(200);
+    const linhas = resposta
+      .json<{
+        dados: {
+          canal: string;
+          canal_nome: string | null;
+          mercado_nome: string | null;
+          loja_nome: string | null;
+        }[];
+      }>()
+      .dados.map((d) => [d.canal, d.canal_nome, d.mercado_nome, d.loja_nome])
+      .sort();
+    expect(linhas).toEqual(
+      [
+        [`chn_${norte.canal}`, "Loja online", "Portugal", "Loja Norte"],
+        [`chn_${canalSul}`, "Loja online", "Portugal", "Loja Sul"],
+      ].sort(),
+    );
   });
 
   it("a ficha e as imagens de outro comerciante não saem pelo Hub (#204)", async () => {
@@ -818,7 +942,8 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
         JSON.stringify(daApi?.responses),
       );
     }
-    // As publicações do Hub têm os dois nomes; as da chave não (§18.1).
+    // As publicações do Hub têm os três nomes; as da chave não (§18.1,
+    // §19.1).
     // Os campos de cada publicação (as chaves do esquema, não o texto).
     const campos = (caminho: string) => {
       const respostas = contrato.paths[caminho]?.["get"]?.responses as
@@ -847,8 +972,9 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     expect(daChave).toContain("canal");
     expect(daChave).not.toContain("canal_nome");
     expect(daChave).not.toContain("mercado_nome");
+    expect(daChave).not.toContain("loja_nome");
     expect(campos("/hub/products/{id}/publications")).toEqual(
-      [...daChave, "canal_nome", "mercado_nome"].sort(),
+      [...daChave, "canal_nome", "loja_nome", "mercado_nome"].sort(),
     );
     expect(
       contrato.paths["/hub/products/{id}/publications"]?.["get"]?.security,

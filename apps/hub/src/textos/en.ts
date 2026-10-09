@@ -392,6 +392,8 @@ export const en: Textos = {
   artigoSemPublicacoes: "Not yet published in any store.",
   colunaCanal: "Channel",
   colunaMercado: "Market",
+  /** Só para leitores de ecrã, antes do nome da loja (docs/22 §19.2). */
+  publicacaoLoja: "Store:",
   colunaData: "Date",
   colunaMotivo: "Reason",
   estadoPublicacao_rascunho: "Draft",
