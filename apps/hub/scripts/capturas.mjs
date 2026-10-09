@@ -2108,6 +2108,79 @@ try {
     (await rp.locator(".imagens-artigo img").count()) === 2,
     "edição: tornar principal e mudar a ordem; o foco vai para «Alterações guardadas»",
   );
+  // Uma lista pedida antes de outra gravação chega depois dela: não pode
+  // repor o que já mudou (issue #251). A primeira releitura da lista vem
+  // atrasada 1,5 s; entretanto grava-se o texto da outra imagem.
+  let listasAtrasadas = 0;
+  await rp.route("**/hub/products/*/media?*", async (r) => {
+    if (r.request().method() !== "GET" || listasAtrasadas > 0) {
+      await r.fallback();
+      return;
+    }
+    listasAtrasadas++;
+    // A API responde já; a resposta é que chega atrasada, como numa rede
+    // lenta.
+    const resposta = await r.fetch();
+    await new Promise((ok) => setTimeout(ok, 1500));
+    await r.fulfill({ response: resposta });
+  });
+  const guardarTexto = async (indice, texto) => {
+    const li = imagensEditaveis.nth(indice);
+    await li.getByRole("button", { name: "Editar texto alternativo" }).click();
+    await li.getByLabel("Texto alternativo").fill(texto);
+    await li.getByRole("button", { name: "Guardar" }).click();
+    await li
+      .getByRole("button", { name: "Editar texto alternativo" })
+      .waitFor();
+  };
+  await guardarTexto(1, "Frasco de verniz, de lado");
+  await guardarTexto(0, "Frasco de verniz laranja, de frente");
+  await rp.getByText("Frasco de verniz laranja, de frente").waitFor();
+  await rp.waitForTimeout(2500);
+  await rp.unroute("**/hub/products/*/media?*");
+  confere(
+    listasAtrasadas === 1 &&
+      (await rp.getByText("Frasco de verniz laranja, de frente").count()) ===
+        1 &&
+      (await rp.getByText("Frasco de verniz, de lado").count()) === 1,
+    "edição: uma lista antiga que chega depois não repõe o texto já gravado",
+  );
+  // Uma acção que falha com o teclado: o foco vai para o erro, não se perde
+  // no início da página (issue #251).
+  await rp.route(
+    "**/hub/media/*",
+    (r) =>
+      r.request().method() === "PATCH"
+        ? r.fulfill({
+            status: 500,
+            contentType: "application/problem+json",
+            body: JSON.stringify({ codigo: "internal.error", status: 500 }),
+          })
+        : r.fallback(),
+    { times: 1 },
+  );
+  await imagensEditaveis
+    .nth(0)
+    .getByRole("button", { name: "Mover para depois" })
+    .focus();
+  await rp.keyboard.press("Enter");
+  await rp.locator(".erro[role=alert]").first().waitFor();
+  const focoNoErro = await rp
+    .waitForFunction(
+      () =>
+        document.activeElement?.querySelector(".erro[role=alert]") !== null ||
+        document.activeElement?.closest(".erro[role=alert]") !== null,
+      undefined,
+      { timeout: 5_000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  confere(
+    focoNoErro,
+    `edição: mover falha e o foco vai para o erro (foco em: ${await rp.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? "nada")})`,
+  );
   // Arquivar a única variante: a confirmação diz que é a última.
   let ultima = false;
   rp.once("dialog", (d) => {
