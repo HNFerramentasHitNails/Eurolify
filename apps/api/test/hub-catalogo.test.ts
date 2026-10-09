@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { ArmazenamentoEmDisco } from "../src/catalogo/armazenamento.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Classificacao } from "../src/catalogo/classificacao.js";
+import { opcoesDoArtigoPaginadas } from "../src/catalogo/consultas.js";
 import { publicar } from "../src/catalogo/publicacao.js";
 import {
   classificarArtigo,
@@ -158,7 +159,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
    */
   async function publicado(
     c: { id: string; segredo: string },
-    nomes = { canal: "Loja online", mercado: "Portugal" },
+    nomes = { canal: "Loja online", mercado: "Portugal", loja: "Loja online" },
   ) {
     const incompleto = (await artigoCompleto(c)).artigo;
     const { artigo } = await artigoCompleto(c, true);
@@ -193,7 +194,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     });
     const loja = await criarLoja(base.api, c.id, {
       entidade_legal_id: entidade,
-      nome: "Loja online",
+      nome: nomes.loja,
     });
     const mercado = await criarMercado(base.api, c.id, {
       loja_id: loja,
@@ -237,7 +238,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       mercado_id: mercado,
     });
     expect(recusada.publicada).toBe(false);
-    return { artigo, incompleto, canal, mercado, versao };
+    return { artigo, incompleto, canal, mercado, versao, entidade };
   }
 
   const pelaChave = (segredo: string, q: string) =>
@@ -558,24 +559,28 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
           motivo_arquivo: string | null;
           canal_nome?: string | null;
           mercado_nome?: string | null;
+          loja_nome?: string | null;
         }[];
       }>().dados;
-      // O Hub junta os dois nomes (docs/22 §18.1); o resto é igual à
-      // rota pela chave, que não os tem.
+      // O Hub junta os três nomes (docs/22 §18.1, §19.1); o resto é
+      // igual à rota pela chave, que não os tem.
       for (const d of dados) {
         expect(d.canal_nome).toBe("Loja online");
         expect(d.mercado_nome).toBe("Portugal");
+        expect(d.loja_nome).toBe("Loja online");
       }
       const semNomes = dados.map((d) => {
         const copia = { ...d };
         delete copia.canal_nome;
         delete copia.mercado_nome;
+        delete copia.loja_nome;
         return copia;
       });
       expect({ ...hub.json<object>(), dados: semNomes }).toEqual(api.json());
       for (const d of api.json<{ dados: object[] }>().dados) {
         expect(Object.keys(d)).not.toContain("canal_nome");
         expect(Object.keys(d)).not.toContain("mercado_nome");
+        expect(Object.keys(d)).not.toContain("loja_nome");
       }
       return dados;
     };
@@ -593,14 +598,19 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     ]);
   });
 
-  it("as publicações no Hub trazem os nomes do canal e do mercado do comerciante, também arquivados (docs/22 §18, #258)", async () => {
+  it("as publicações no Hub trazem os nomes do canal, do mercado e da loja do comerciante, também arquivados (docs/22 §18, §19; #258, #271)", async () => {
     const a = await comerciante("Loja A Nomes", []);
     const b = await comerciante("Loja B Nomes", []);
-    const deA = await publicado(a);
-    // B tem um canal com o mesmo nome e um mercado com outro.
+    const deA = await publicado(a, {
+      canal: "Loja online",
+      mercado: "Portugal",
+      loja: "Loja Norte",
+    });
+    // B tem um canal com o mesmo nome, um mercado e uma loja com outro.
     const deB = await publicado(b, {
       canal: "Loja online",
       mercado: "Espanha",
+      loja: "Loja Sul",
     });
     const nomes = async (c: { id: string }, artigo: string) => {
       const p = await h.pessoaCom(c.id, "apoio");
@@ -616,17 +626,45 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
             mercado: string;
             canal_nome: string | null;
             mercado_nome: string | null;
+            loja_nome: string | null;
           }[];
         }>()
-        .dados.map((d) => [d.canal, d.mercado, d.canal_nome, d.mercado_nome]);
+        .dados.map((d) => [
+          d.canal,
+          d.mercado,
+          d.canal_nome,
+          d.mercado_nome,
+          d.loja_nome,
+        ]);
     };
     expect(await nomes(a, deA.artigo)).toEqual([
-      [`chn_${deA.canal}`, `mkt_${deA.mercado}`, "Loja online", "Portugal"],
+      [
+        `chn_${deA.canal}`,
+        `mkt_${deA.mercado}`,
+        "Loja online",
+        "Portugal",
+        "Loja Norte",
+      ],
     ]);
     expect(await nomes(b, deB.artigo)).toEqual([
-      [`chn_${deB.canal}`, `mkt_${deB.mercado}`, "Loja online", "Espanha"],
+      [
+        `chn_${deB.canal}`,
+        `mkt_${deB.mercado}`,
+        "Loja online",
+        "Espanha",
+        "Loja Sul",
+      ],
     ]);
-    // Um canal e um mercado arquivados continuam com o nome (§18.1).
+    // Um canal, um mercado e uma loja arquivados continuam com o nome
+    // (§18.1, §19.1).
+    const arquivada = await comComerciante(base.api, a.id, (trx) =>
+      trx
+        .updateTable("loja")
+        .set({ estado: "arquivada" })
+        .where("nome", "=", "Loja Norte")
+        .executeTakeFirstOrThrow(),
+    );
+    expect(arquivada.numUpdatedRows).toBe(1n);
     const canal = await obterCanal(base.api, a.id, deA.canal);
     await mudarEstadoCanal(
       base.api,
@@ -653,11 +691,20 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       "arquivado",
     );
     expect(await nomes(a, deA.artigo)).toEqual([
-      [`chn_${deA.canal}`, `mkt_${deA.mercado}`, "Loja online", "Portugal"],
+      [
+        `chn_${deA.canal}`,
+        `mkt_${deA.mercado}`,
+        "Loja online",
+        "Portugal",
+        "Loja Norte",
+      ],
     ]);
-    // Os ids de B, pedidos no contexto de A, não dão nomes: nem pela RLS
-    // (eurolify_api) nem pelo filtro escrito (com o dono, que passa a RLS;
-    // a prova pela falha tira o filtro e este teste falha).
+    // Os ids de B, pedidos no contexto de A, não dão nomes nem a loja: nem
+    // pela RLS (eurolify_api) nem pelo filtro escrito (com o dono, que
+    // passa a RLS; sem o filtro do canal, este teste falha). A loja vem
+    // pelo JOIN com o canal já filtrado: o filtro escrito na loja é uma
+    // segunda guarda, que este teste não prova sozinha (revisão do #275,
+    // P2-2).
     for (const db of [base.api, base.dono as Kysely<BaseDados>]) {
       const r = await nomesDeCanaisEMercados(
         db,
@@ -667,6 +714,247 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       );
       expect([...r.canais]).toEqual([[deA.canal, "Loja online"]]);
       expect([...r.mercados]).toEqual([[deA.mercado, "Portugal"]]);
+      expect([...r.lojasDosCanais]).toEqual([[deA.canal, "Loja Norte"]]);
+    }
+  });
+
+  it("o mesmo artigo em duas lojas do comerciante, cada uma com um canal «Loja online»: cada publicação traz a sua loja (docs/22 §19.1, #271)", async () => {
+    const c = await comerciante("Loja Duas Lojas", []);
+    const norte = await publicado(c, {
+      canal: "Loja online",
+      mercado: "Portugal",
+      loja: "Loja Norte",
+    });
+    const id = norte.artigo.replace(/^prd_/, "");
+    const quem = "pessoa:teste";
+    // A segunda loja, com um canal e um mercado com os mesmos nomes.
+    const lojaSul = await criarLoja(base.api, c.id, {
+      entidade_legal_id: norte.entidade,
+      nome: "Loja Sul",
+    });
+    const mercadoSul = await criarMercado(base.api, c.id, {
+      loja_id: lojaSul,
+      nome: "Portugal",
+      paises: ["PT"],
+      moeda: "EUR",
+      linguas: ["pt"],
+      lingua_principal: "pt",
+    });
+    const listaSul = await criarLista(base.api, c.id, {
+      mercado_id: mercadoSul,
+      nome: "Base Sul",
+      tipo: "base",
+    });
+    await mudarEstadoMercado(base.api, c.id, mercadoSul, 1, "activo");
+    const canalSul = await criarCanal(base.api, c.id, {
+      loja_id: lojaSul,
+      nome: "Loja online",
+    });
+    await definirMercadosDoCanal(base.api, c.id, canalSul, [mercadoSul]);
+    const variantes = await comComerciante(base.api, c.id, (trx) =>
+      trx
+        .selectFrom("variante")
+        .select("id")
+        .where("artigo_id", "=", id)
+        .execute(),
+    );
+    for (const v of variantes) {
+      await definirPreco(base.api, c.id, quem, listaSul, v.id, {
+        montante: 990,
+      });
+    }
+    const r = await publicar(base.api, c.id, quem, {
+      artigo_id: id,
+      canal_id: canalSul,
+      mercado_id: mercadoSul,
+    });
+    expect(r.publicada, JSON.stringify(r)).toBe(true);
+    const p = await h.pessoaCom(c.id, "apoio");
+    const resposta = await h.pedir(
+      "GET",
+      `/hub/products/${norte.artigo}/publications`,
+      { sessao: p.sessao, comerciante: c.id },
+    );
+    expect(resposta.statusCode, resposta.body).toBe(200);
+    const linhas = resposta
+      .json<{
+        dados: {
+          canal: string;
+          canal_nome: string | null;
+          mercado_nome: string | null;
+          loja_nome: string | null;
+        }[];
+      }>()
+      .dados.map((d) => [d.canal, d.canal_nome, d.mercado_nome, d.loja_nome])
+      .sort();
+    expect(linhas).toEqual(
+      [
+        [`chn_${norte.canal}`, "Loja online", "Portugal", "Loja Norte"],
+        [`chn_${canalSul}`, "Loja online", "Portugal", "Loja Sul"],
+      ].sort(),
+    );
+  });
+
+  /**
+   * Um rascunho com as opções «Tamanho» (15 ml, 30 ml, 50 ml) e «Cor» (Azul),
+   * as duas variantes de `artigoCompleto` sem valores, uma de 15 ml azul e
+   * uma de 30 ml arquivada; os 50 ml não estão em nenhuma (docs/22 §20.3).
+   */
+  async function comOpcoes(c: { id: string; segredo: string }) {
+    const { artigo } = await artigoCompleto(c);
+    type Opcao = { id: string; valores: { id: string; valor: string }[] };
+    const tamanho = await comChave(
+      c.segredo,
+      "POST",
+      `/products/${artigo}/options`,
+      { nome: "Tamanho", valores: ["15 ml", "30 ml", "50 ml"] },
+    );
+    expect(tamanho.statusCode, tamanho.body).toBe(201);
+    const cor = await comChave(
+      c.segredo,
+      "POST",
+      `/products/${artigo}/options`,
+      {
+        nome: "Cor",
+        valores: ["Azul"],
+      },
+    );
+    expect(cor.statusCode, cor.body).toBe(201);
+    const [ml15, ml30, ml50] = tamanho.json<Opcao>().valores.map((v) => v.id);
+    const azul = cor.json<Opcao>().valores[0]?.id ?? "";
+    const variante = async (valores: string[]) => {
+      const r = await comChave(
+        c.segredo,
+        "POST",
+        `/products/${artigo}/variants`,
+        { sku: `O-${randomUUID()}`, unidade_de_venda: "unidade", valores },
+      );
+      expect(r.statusCode, r.body).toBe(201);
+      return r.json<{ id: string }>().id;
+    };
+    const v15 = await variante([ml15 ?? "", azul]);
+    const v30 = await variante([ml30 ?? ""]);
+    const arquivo = await comChave(
+      c.segredo,
+      "POST",
+      `/variants/${v30}/archive`,
+      {},
+    );
+    expect(arquivo.statusCode, arquivo.body).toBe(200);
+    return { artigo, ml15, ml30, ml50, azul, v15, v30 };
+  }
+
+  type OpcaoNoHub = {
+    id: string;
+    nome: string;
+    valores: { id: string; valor: string; variantes?: string[] }[];
+  };
+
+  it("as opções no Hub são as da chave, cada valor com as variantes que o têm, também as arquivadas (docs/22 §20.1)", async () => {
+    const c = await comerciante("Loja Opcoes", []);
+    const o = await comOpcoes(c);
+    for (const papel of PAPEIS) {
+      const p = await h.pessoaCom(c.id, papel);
+      for (const consulta of ["", "?limite=1"]) {
+        const caminho = `/products/${o.artigo}/options${consulta}`;
+        const hub = await h.pedir("GET", `/hub${caminho}`, {
+          sessao: p.sessao,
+          comerciante: c.id,
+        });
+        expect(hub.statusCode, `${papel} ${caminho}: ${hub.body}`).toBe(200);
+        expect(hub.headers["cache-control"]).toBe("private, no-store");
+        const api = await comChave(c.segredo, "GET", caminho);
+        expect(api.statusCode, api.body).toBe(200);
+        const corpo = hub.json<{ dados: OpcaoNoHub[] }>();
+        // Sem as `variantes`, é exactamente a resposta da chave.
+        expect({
+          ...corpo,
+          dados: corpo.dados.map((d) => ({
+            ...d,
+            valores: d.valores.map((v) => ({ id: v.id, valor: v.valor })),
+          })),
+        }).toEqual(api.json());
+        // Que a chave não as dá prova-o o contrato (o Fastify tira do corpo o
+        // que o esquema não tem; revisão do #281, P3-5).
+      }
+    }
+    const p = await h.pessoaCom(c.id, "apoio");
+    const r = await h.pedir("GET", `/hub/products/${o.artigo}/options`, {
+      sessao: p.sessao,
+      comerciante: c.id,
+    });
+    expect(
+      r
+        .json<{ dados: OpcaoNoHub[] }>()
+        .dados.map((d) => [
+          d.nome,
+          d.valores.map((v) => [v.valor, v.variantes]),
+        ]),
+    ).toEqual([
+      [
+        "Tamanho",
+        [
+          ["15 ml", [o.v15]],
+          // A arquivada aparece no seu valor.
+          ["30 ml", [o.v30]],
+          // Um valor que nenhuma variante usa: a lista vazia.
+          ["50 ml", []],
+        ],
+      ],
+      ["Cor", [["Azul", [o.v15]]]],
+    ]);
+  });
+
+  it("as variantes de outro comerciante não entram nos valores, nem pela RLS nem pelo filtro escrito (docs/22 §20.3)", async () => {
+    const a = await comerciante("Loja Opcoes A", []);
+    const b = await comerciante("Loja Opcoes B", []);
+    const deA = await comOpcoes(a);
+    const deB = await comOpcoes(b);
+    const sem = (x: string) => x.replace(/^[a-z]+_/, "");
+    // Uma linha de B que aponta para o valor «50 ml» de A. As chaves
+    // compostas não a deixam existir; só sem elas (modo réplica, só neste
+    // teste) se pode provar o filtro escrito: com o dono, que passa a RLS,
+    // sem o `comerciante_id` na leitura este teste falha.
+    const ml50 = sem(deA.ml50 ?? "");
+    const linhaDeB = {
+      comerciante_id: b.id,
+      artigo_id: sem(deB.artigo),
+      variante_id: sem(deB.v15),
+      opcao_id: randomUUID(),
+      valor_id: ml50,
+    };
+    await (base.dono as Kysely<BaseDados>)
+      .transaction()
+      .execute(async (trx) => {
+        await sql`set local session_replication_role = replica`.execute(trx);
+        await trx.insertInto("variante_valor").values(linhaDeB).execute();
+      });
+    try {
+      for (const db of [base.api, base.dono as Kysely<BaseDados>]) {
+        const r = await opcoesDoArtigoPaginadas(
+          db,
+          a.id,
+          sem(deA.artigo),
+          100,
+          null,
+          true,
+        );
+        const valores = r.dados.flatMap((d) => d.valores);
+        expect(valores.find((v) => v.id === ml50)?.variantes).toEqual([]);
+        expect(JSON.stringify(r)).not.toContain(sem(deB.v15));
+      }
+    } finally {
+      // Também sem os gatilhos, como entrou.
+      await (base.dono as Kysely<BaseDados>)
+        .transaction()
+        .execute(async (trx) => {
+          await sql`set local session_replication_role = replica`.execute(trx);
+          await trx
+            .deleteFrom("variante_valor")
+            .where("comerciante_id", "=", b.id)
+            .where("valor_id", "=", ml50)
+            .execute();
+        });
     }
   });
 
@@ -680,6 +968,7 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
       `/hub/products/${deB.artigo}`,
       `/hub/products/${deB.artigo}/media`,
       `/hub/products/${deB.artigo}/publications`,
+      `/hub/products/${deB.artigo}/options`,
       `/hub/media/${deB.imagens[0] ?? ""}/file`,
     ]) {
       const r = await h.pedir("GET", caminho, {
@@ -818,7 +1107,8 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
         JSON.stringify(daApi?.responses),
       );
     }
-    // As publicações do Hub têm os dois nomes; as da chave não (§18.1).
+    // As publicações do Hub têm os três nomes; as da chave não (§18.1,
+    // §19.1).
     // Os campos de cada publicação (as chaves do esquema, não o texto).
     const campos = (caminho: string) => {
       const respostas = contrato.paths[caminho]?.["get"]?.responses as
@@ -847,11 +1137,50 @@ describe.skipIf(URL_BASE === undefined)("catálogo no Hub (#199)", () => {
     expect(daChave).toContain("canal");
     expect(daChave).not.toContain("canal_nome");
     expect(daChave).not.toContain("mercado_nome");
+    expect(daChave).not.toContain("loja_nome");
     expect(campos("/hub/products/{id}/publications")).toEqual(
-      [...daChave, "canal_nome", "mercado_nome"].sort(),
+      [...daChave, "canal_nome", "loja_nome", "mercado_nome"].sort(),
     );
     expect(
       contrato.paths["/hub/products/{id}/publications"]?.["get"]?.security,
+    ).toEqual([{ sessao: [] }]);
+    // As opções do Hub têm as `variantes` em cada valor; as da chave não
+    // (docs/22 §20.1).
+    const camposDosValores = (caminho: string) => {
+      const esquema = (
+        contrato.paths[caminho]?.["get"]?.responses as
+          | Record<string, { content?: Record<string, { schema?: unknown }> }>
+          | undefined
+      )?.["200"]?.content?.["application/json"]?.schema as
+        | {
+            properties?: {
+              dados?: {
+                items?: {
+                  properties?: {
+                    valores?: { items?: { properties?: object } };
+                  };
+                };
+              };
+            };
+          }
+        | undefined;
+      return Object.keys(
+        esquema?.properties?.dados?.items?.properties?.valores?.items
+          ?.properties ?? {},
+      ).sort();
+    };
+    const valoresDaChave = camposDosValores("/products/{id}/options");
+    expect(valoresDaChave).toEqual(["id", "valor"]);
+    expect(camposDosValores("/hub/products/{id}/options")).toEqual([
+      "id",
+      "valor",
+      "variantes",
+    ]);
+    expect(campos("/hub/products/{id}/options")).toEqual(
+      campos("/products/{id}/options"),
+    );
+    expect(
+      contrato.paths["/hub/products/{id}/options"]?.["get"]?.security,
     ).toEqual([{ sessao: [] }]);
     expect(
       JSON.stringify(

@@ -28,8 +28,14 @@ o Hub não mudou.
 - Os dois P2 de produto em `Artigo.tsx` passaram ao #251:
   - respostas fora de ordem ao recarregar as imagens;
   - foco depois de uma falha.
+  Os dois foram reproduzidos e corrigidos no #260
+  (`hub-ficha-ordem-e-foco-09out2026.md`).
 - Uma falha rara ficou sem causa, no #253: a miniatura não apareceu em 10 s,
-  1 vez em 28 voltas.
+  1 vez em 28 voltas. Resolvida depois, a 09/10/2026, em dois pedidos:
+  - a causa estava no limite de 300 pedidos por minuto, corrigido no teste
+    pelo #270 (`hub-capturas-limite-09out2026.md`);
+  - a fila das miniaturas ganhou prazo e cancelamento no #280
+    (`hub-fila-miniaturas-09out2026.md`).
 
 ## Números (com data e como se contaram)
 
@@ -54,12 +60,13 @@ volta. Uma volta completa demora cerca de 110 s e tem 427 verificações «ok».
 
 ## O que ficou por verificar
 
-- A causa da miniatura que não apareceu em 10 s (#253). A pista é a fila dos
-  bytes das imagens, com 4 pedidos de cada vez e sem prazo
-  (`apps/hub/src/api.ts:438-452`).
-- Ficou afastado o limite de 300 pedidos por minuto
-  (`apps/api/src/base/limite.ts:26-29`): nas voltas com diagnóstico, todas as
-  recusas 429 eram fingidas pelo próprio teste.
-- Os dois P2 do #251 foram achados só a ler o código; não se reproduziram.
+- A causa da miniatura que não apareceu em 10 s (#253): resolvida depois,
+  ver acima. **Correcção a 09/10/2026:** esta memória dizia que o limite de
+  300 pedidos por minuto (`apps/api/src/base/limite.ts:26-29`) estava
+  afastado, porque nas voltas com diagnóstico todas as recusas 429 eram
+  fingidas pelo teste. Estava errado. O #270 contou cerca de 310 pedidos da
+  mesma página em 19 s: um pedido a mais dava 429 real. Uma volta sem 429
+  não prova que o limite não chega.
+- Os dois P2 do #251: reproduzidos e corrigidos depois, no #260.
 - Só se correu no Chromium, e só neste contentor. No CI do GitHub, o
   `capturas.mjs` não corre.

@@ -26,7 +26,8 @@ export type CodigoErroClientes =
   | "customers.vies_disabled"
   | "customers.exemption_active"
   | "customers.exemption_by_person"
-  | "customers.exemption_immutable";
+  | "customers.exemption_immutable"
+  | "customers.exemption_reason_code";
 
 export class ErroClientes extends Error {
   constructor(

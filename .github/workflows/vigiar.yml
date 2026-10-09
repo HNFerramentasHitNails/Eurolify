@@ -72,9 +72,44 @@ jobs:
           node-version: 24.21.0
       - run: pnpm audit --audit-level=high
 
+  espelho:
+    # As imagens dos fluxos vêm do mirror.gcr.io, fixadas pelo resumo
+    # (memoria/ci-imagens-espelho-09out2026.md). O espelho só guarda as
+    # imagens mais pedidas e pode tirar uma: confere-se todas as manhãs que
+    # cada resumo ainda lá está, antes de uma publicação partir por isso
+    # (revisão do #270, P2-1). Lê os resumos dos próprios ficheiros.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: conferir os resumos no espelho
+        run: |
+          refs="$(grep -rhoE 'mirror\.gcr\.io/[a-z0-9._/-]+(:[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}' \
+            .github/workflows Dockerfile | sort -u)"
+          [[ -n "$refs" ]] || { echo "Nenhuma imagem do espelho encontrada." >&2; exit 1; }
+          falhou=0
+          while read -r ref; do
+            caminho="${ref#mirror.gcr.io/}"
+            repo="${caminho%@*}"
+            repo="${repo%%:*}"
+            resumo="${ref##*@}"
+            codigo="$(curl -s -o /dev/null -w '%{http_code}' \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://mirror.gcr.io/v2/${repo}/manifests/${resumo}")"
+            echo "${codigo} ${ref}"
+            [[ "$codigo" == 200 ]] || falhou=1
+          done <<<"$refs"
+          if ((falhou)); then
+            echo "Uma imagem saiu do espelho: actualizar o resumo (e conferi-lo no espelho) num pedido." >&2
+            exit 1
+          fi
+
   avisar:
     # A corrida da manhã não pára em silêncio: um issue aberto, sem repetir.
-    needs: [segredos, dependencias]
+    needs: [segredos, dependencias, espelho]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 5

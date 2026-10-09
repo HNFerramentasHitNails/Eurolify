@@ -765,6 +765,7 @@ export interface TabelaIsencaoManual {
   perfil_id: ColumnType<string, string, never>;
   pais_contribuinte: ColumnType<string | null, never, never>;
   nif_numero: ColumnType<string | null, never, never>;
+  codigo_motivo: ColumnType<string | null, string | null | undefined, never>;
   motivo: ColumnType<string, string, never>;
   nota: ColumnType<string | null, string | null | undefined, never>;
   posta_por: ColumnType<string, never, never>;
@@ -772,6 +773,230 @@ export interface TabelaIsencaoManual {
   motivo_retirada: ColumnType<string | null, never, string>;
   retirada_por: ColumnType<string | null, never, never>;
   retirada_em: ColumnType<Date | null, never, never>;
+}
+
+// O Motor de IVA (migração 0040; docs/24 §3). As tabelas globais só se
+// lêem; a declaração do regime só se acrescenta.
+export interface TabelaCategoriaFiscal {
+  codigo: ColumnType<string, never, never>;
+  descricao_pt: ColumnType<string, never, never>;
+  descricao_en: ColumnType<string, never, never>;
+  estado: ColumnType<"activa" | "por_validar" | "arquivada", never, never>;
+}
+
+export interface TabelaTaxaIva {
+  id: ColumnType<string, never, never>;
+  pais: ColumnType<string, never, never>;
+  regiao: ColumnType<string | null, never, never>;
+  categoria: ColumnType<string, never, never>;
+  tipo: ColumnType<"taxa" | "isenta", never, never>;
+  percentagem: ColumnType<number | null, never, never>;
+  codigo_motivo: ColumnType<string | null, never, never>;
+  inicio: ColumnType<Date | string, never, never>;
+  fonte: ColumnType<string, never, never>;
+  verificado: ColumnType<boolean, never, never>;
+  verificado_por: ColumnType<string | null, never, never>;
+}
+
+export interface TabelaTerritorioFiscal {
+  id: ColumnType<string, never, never>;
+  pais: ColumnType<string, never, never>;
+  prefixo_cp: ColumnType<string, never, never>;
+  efeito: ColumnType<"fora_do_iva_ue" | "regiao" | "por_validar", never, never>;
+  regiao: ColumnType<string | null, never, never>;
+  nome: ColumnType<string, never, never>;
+  fonte: ColumnType<string, never, never>;
+}
+
+export interface TabelaMotivoIva {
+  pais: ColumnType<string, never, never>;
+  codigo: ColumnType<string, never, never>;
+  tipo: ColumnType<
+    "exportacao" | "intracomunitaria" | "isento_natureza" | "outro",
+    never,
+    never
+  >;
+  descricao: ColumnType<string, never, never>;
+  fonte: ColumnType<string, never, never>;
+}
+
+export interface TabelaDeclaracaoRegime {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  entidade_legal_id: ColumnType<string, string, never>;
+  regime: ColumnType<"origem" | "destino", "origem" | "destino", never>;
+  oss_desde: ColumnType<Date | string | null, string | null | undefined, never>;
+  registos: ColumnType<unknown, string | undefined, never>;
+  declarado_por: ColumnType<string, never, never>;
+  declarado_em: ColumnType<Date, never, never>;
+}
+
+// O checkout (migração 0041; docs/25): textos legais, métodos de entrega,
+// carrinho, sessão e o núcleo da encomenda.
+export const TIPOS_TEXTO_LEGAL = [
+  "condicoes_gerais",
+  "informacao_pre_contratual",
+  "privacidade",
+  "livre_resolucao",
+  "garantia_legal",
+] as const;
+export type TipoTextoLegal = (typeof TIPOS_TEXTO_LEGAL)[number];
+export type TipoCliente = "consumidor" | "profissional";
+export type FinalidadeCompra = "consumo" | "profissional" | "revenda";
+
+export interface TabelaTextoLegal {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  tipo: ColumnType<TipoTextoLegal, TipoTextoLegal, never>;
+  pais: ColumnType<string, string, never>;
+  lingua: ColumnType<string, string, never>;
+  tipo_cliente: ColumnType<TipoCliente, TipoCliente, never>;
+  criado_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaVersaoTextoLegal {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  texto_legal_id: ColumnType<string, string, never>;
+  numero: ColumnType<number, never, never>;
+  texto: string;
+  estado: ColumnType<"rascunho" | "publicada", never, "publicada">;
+  validado_por_jurista: ColumnType<boolean, boolean | undefined, boolean>;
+  jurista: ColumnType<string | null, string | null | undefined, string | null>;
+  validado_em: ColumnType<
+    Date | string | null,
+    string | null | undefined,
+    string | null
+  >;
+  criada_por: ColumnType<string, string, never>;
+  criada_em: ColumnType<Date, never, never>;
+  publicada_por: ColumnType<string | null, never, never>;
+  publicada_em: ColumnType<Date | null, never, never>;
+}
+
+export interface TabelaMetodoEntrega {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  mercado_id: ColumnType<string, string, never>;
+  nome: ColumnType<Record<string, string>, string, string>;
+  prazo: ColumnType<Record<string, string>, string | undefined, string>;
+  tarifa: ColumnType<string, number, number>;
+  gratis_a_partir_de: ColumnType<
+    string | null,
+    number | null | undefined,
+    number | null
+  >;
+  pede_telefone: ColumnType<boolean, boolean | undefined, boolean>;
+  estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, Date>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaCarrinho {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  canal_id: ColumnType<string, string, never>;
+  mercado_id: ColumnType<string, string, string>;
+  lingua: ColumnType<string, string, never>;
+  estado: ColumnType<
+    "aberto" | "em_checkout" | "convertido" | "expirado",
+    never,
+    "aberto" | "em_checkout" | "convertido" | "expirado"
+  >;
+  segredo_resumo: ColumnType<string, string, never>;
+  expira_em: ColumnType<Date, never, Date>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, Date>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaLinhaCarrinho {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  carrinho_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string, string, never>;
+  quantidade: number;
+  criada_em: ColumnType<Date, never, never>;
+}
+
+export type EstadoSessaoCheckout =
+  "aberta" | "concluida" | "expirada" | "abandonada";
+
+export interface TabelaSessaoCheckout {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  carrinho_id: ColumnType<string, string, never>;
+  mercado_id: ColumnType<string, string, string>;
+  lingua: ColumnType<string, string, never>;
+  token_resumo: ColumnType<string, string, never>;
+  estado: ColumnType<EstadoSessaoCheckout, never, EstadoSessaoCheckout>;
+  expira_em: ColumnType<Date, never, Date>;
+  email: ColumnType<string | null, never, string | null>;
+  nome: ColumnType<string | null, never, string | null>;
+  telefone: ColumnType<string | null, never, string | null>;
+  entrega: ColumnType<unknown, never, string | null>;
+  finalidade: ColumnType<FinalidadeCompra, never, FinalidadeCompra>;
+  faturacao: ColumnType<unknown, never, string | null>;
+  metodo_entrega_id: ColumnType<string | null, never, string | null>;
+  metodo_pagamento: ColumnType<string | null, never, string | null>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+  concluida_em: ColumnType<Date | null, never, Date | null>;
+  versao: ColumnType<number, never, never>;
+}
+
+export type EstadoEncomenda =
+  "a_aguardar_pagamento" | "paga" | "cancelada_sem_pagamento";
+
+export interface TabelaEncomenda {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  canal_id: ColumnType<string, string, never>;
+  mercado_id: ColumnType<string, string, never>;
+  entidade_legal_id: ColumnType<string, string, never>;
+  sessao_id: ColumnType<string, string, never>;
+  cliente_id: ColumnType<string, string, never>;
+  perfil_id: ColumnType<string, string, never>;
+  perfil_copia: ColumnType<unknown, string, never>;
+  contacto: ColumnType<unknown, string, never>;
+  entrega: ColumnType<unknown, string, never>;
+  finalidade: ColumnType<FinalidadeCompra, FinalidadeCompra, never>;
+  moeda: ColumnType<string, string, never>;
+  preco_inclui_iva: ColumnType<boolean, boolean, never>;
+  lingua: ColumnType<string, string, never>;
+  total_base: ColumnType<string, number, never>;
+  total_iva: ColumnType<string, number, never>;
+  total: ColumnType<string, number, never>;
+  portes: ColumnType<unknown, string, never>;
+  metodo_entrega: ColumnType<unknown, string, never>;
+  metodo_pagamento: ColumnType<string, string, never>;
+  aceitacoes: ColumnType<unknown, string, never>;
+  estado: ColumnType<EstadoEncomenda, never, EstadoEncomenda>;
+  criada_por: ColumnType<string, string, never>;
+  criada_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaLinhaEncomenda {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  posicao: ColumnType<number, number, never>;
+  variante_id: ColumnType<string, string, never>;
+  sku: ColumnType<string, string, never>;
+  nome: ColumnType<string, string, never>;
+  quantidade: ColumnType<number, number, never>;
+  preco_unitario: ColumnType<string, number, never>;
+  preco: ColumnType<unknown, string, never>;
+  decisao_iva: ColumnType<unknown, string, never>;
+  base: ColumnType<string, number, never>;
+  iva: ColumnType<string, number, never>;
+  total: ColumnType<string, number, never>;
 }
 
 export interface BaseDados {
@@ -813,4 +1038,17 @@ export interface BaseDados {
   alteracao_cliente: TabelaAlteracaoCliente;
   validacao_vies: TabelaValidacaoVies;
   isencao_manual: TabelaIsencaoManual;
+  categoria_fiscal: TabelaCategoriaFiscal;
+  taxa_iva: TabelaTaxaIva;
+  territorio_fiscal: TabelaTerritorioFiscal;
+  motivo_iva: TabelaMotivoIva;
+  declaracao_regime: TabelaDeclaracaoRegime;
+  texto_legal: TabelaTextoLegal;
+  versao_texto_legal: TabelaVersaoTextoLegal;
+  metodo_entrega: TabelaMetodoEntrega;
+  carrinho: TabelaCarrinho;
+  linha_carrinho: TabelaLinhaCarrinho;
+  sessao_checkout: TabelaSessaoCheckout;
+  encomenda: TabelaEncomenda;
+  linha_encomenda: TabelaLinhaEncomenda;
 }

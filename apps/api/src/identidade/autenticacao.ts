@@ -39,6 +39,11 @@ declare module "fastify" {
      * POST /hub/media/uploads; docs/22 §15.2). A origem continua obrigatória.
      */
     hubImagem?: boolean;
+    /**
+     * Rota da loja (API da Loja e checkout alojado): conta no limite por IP
+     * da loja (revisão do #276, P2-9).
+     */
+    loja?: boolean;
   }
   interface FastifyRequest {
     /** A chave autenticada; `null` nas rotas públicas. */

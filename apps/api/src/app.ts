@@ -12,7 +12,12 @@ import {
   RESPOSTA_DE_ERRO,
 } from "./base/erros.js";
 import type { BaseDados } from "./base/esquema.js";
-import { LIMITES_HUB, LimitePorIp } from "./base/limite.js";
+import {
+  LIMITE_LOJA,
+  LIMITES_HUB,
+  LimitePorIp,
+  type RegraLimite,
+} from "./base/limite.js";
 import {
   guardaExportacoes,
   type Armazenamento,
@@ -21,6 +26,8 @@ import { rotasDoCatalogo } from "./catalogo/rotas.js";
 import { rotasDaLinhaDoTempo } from "./catalogo/rotas-linha-do-tempo.js";
 import { rotasDaMedia } from "./catalogo/rotas-media.js";
 import { rotasDosClientes } from "./clientes/rotas.js";
+import { rotasDoIva } from "./iva/rotas.js";
+import { rotasDoCheckout } from "./checkout/rotas.js";
 import type { ConsultaVies } from "./clientes/vies.js";
 import { rotasDosPrecos } from "./precos/rotas.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
@@ -87,6 +94,8 @@ export function criarApp(
   armazenamento?: Armazenamento,
   /** Quem consulta o VIES (docs/23 §13.2); sem ele, a consulta pedida dá 503. */
   vies?: ConsultaVies,
+  /** O limite por IP das rotas da loja (por omissão, LIMITE_LOJA). */
+  limiteLoja: RegraLimite = LIMITE_LOJA,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -121,6 +130,34 @@ export function criarApp(
   // O cookie da sessão do Hub (docs/21 §3); as opções de cada cookie são
   // dadas ao escrevê-lo (sessoes.ts), nunca as de omissão da biblioteca.
   void app.register(cookie);
+  // O limite por IP nas rotas da loja (a API da Loja e o checkout alojado):
+  // sem ele, criavam-se carrinhos e sessões sem fim (revisão do #276, P2-9).
+  {
+    const naLoja = new LimitePorIp(limiteLoja);
+    const arrumar = setInterval(() => {
+      naLoja.limpar();
+    }, limiteLoja.janelaMs);
+    arrumar.unref();
+    app.addHook("onClose", (_instancia, feito) => {
+      clearInterval(arrumar);
+      feito();
+    });
+    app.addHook("onRequest", async (pedido, resposta) => {
+      if (pedido.routeOptions.config.loja !== true) return;
+      const ip: unknown = pedido.ip;
+      if (typeof ip !== "string" || isIP(ip) === 0 || ip.includes("%")) {
+        throw erroBase(
+          "request.invalid",
+          "o endereço de quem pede não é um IP válido",
+        );
+      }
+      const espera = naLoja.contar(ip);
+      if (espera > 0) {
+        void resposta.header("Retry-After", String(espera));
+        throw erroBase("rate_limit.exceeded");
+      }
+    });
+  }
   // O limite geral por IP nas rotas do Hub (docs/21 §14): depois da guarda
   // da origem (um pedido de outro site não gasta o limite de quem o visita;
   // revisão do #154, P2-1) e antes da sessão, para um pedido a mais não
@@ -288,6 +325,8 @@ export function criarApp(
       rotasDaLinhaDoTempo(rotas, base);
       rotasDosPrecos(rotas, base);
       rotasDosClientes(rotas, base, vies);
+      rotasDoIva(rotas, base);
+      rotasDoCheckout(rotas, base);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.

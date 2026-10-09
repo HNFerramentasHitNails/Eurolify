@@ -1049,7 +1049,7 @@ Rascunho» para «Loja online · Portugal · Rascunho».
 - **O caminho é o mesmo**: `GET /hub/products/{id}/publications` continua a
   chamar a mesma função da rota pela chave (`publicacoesDeArtigo`, §12.1). A
   API do Hub **junta** a cada publicação `canal_nome` e `mercado_nome`, lidos
-  do domínio de Preços numa só consulta (os canais e os mercados das
+  do domínio de Preços em duas consultas na mesma transacção (os canais e os mercados das
   publicações daquele artigo, no contexto do comerciante), como o `autor`
   do histórico (§16.2).
 - **A rota pela chave não muda** (`GET /products/{id}/publications`): é do
@@ -1079,6 +1079,218 @@ Rascunho» para «Loja online · Portugal · Rascunho».
   faz falhar o teste de outro comerciante.
 - **Hub**: a passagem confere «Loja online» e «Portugal» na tabela das
   publicações; as capturas da ficha mudam e vão à página de aprovação.
+
+### 18.4 O que ficou em aberto (código no #261)
+
+- **Dois canais ou dois mercados com o mesmo nome** (revisão do #261,
+  P2-1): a base não obriga o nome a ser único (migração 0017 só tem
+  `UNIQUE (comerciante_id, id)` e `UNIQUE (comerciante_id, loja_id, id)`),
+  e a ficha mostra duas linhas iguais (ex.: uma «Loja online» em cada uma
+  de duas lojas). O Diogo decidiu juntar como está (09/10/2026, *«sim,
+  junta como está»*); trata-se num passo próprio (ex.: juntar o nome da
+  loja). Não verifiquei se acontece com dados reais.
+- **Um erro na leitura dos nomes** sai com o código `prices.*` numa rota do
+  Catálogo (revisão do #261, P3-6): é raro numa leitura; fica registado.
+
+## 19. Catálogo: canais e mercados com o mesmo nome nas publicações (issue #271)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho dos canais com o
+mesmo nome»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
+desenho, junta o #272»*). Vem do P2-1 da revisão do #261 (§18.4). Este passo **só
+lê** e não muda a VPS.
+
+**O problema**: a base não obriga o nome a ser único, nem o do canal e do
+mercado (migração 0017: só `UNIQUE (comerciante_id, id)` e
+`UNIQUE (comerciante_id, loja_id, id)`), nem o da loja (migração 0001,
+tabela `loja`). Ex.: um comerciante com duas lojas, «Norte» e «Sul», cada
+uma com um canal «Loja online» e um mercado «Portugal»; o mesmo artigo
+publicado nas duas dá duas linhas «Loja online · Portugal · Publicado» que
+não se distinguem.
+
+### 19.1 Como o Hub lê
+
+- **A loja de cada publicação**: a publicação tem a loja, e o canal e o
+  mercado são dela (as duas chaves estrangeiras levam o `loja_id`,
+  migração 0019, linhas 85–87). A API do Hub junta a cada publicação
+  `loja_nome`, lido na mesma leitura dos nomes da §18.1 (no contexto do
+  comerciante e com o filtro dele escrito), como o `canal_nome` e o
+  `mercado_nome`. Uma loja arquivada continua com o nome.
+- **A rota pela chave não muda** (`GET /products/{id}/publications`, do
+  Catálogo, #77), como na §18.1.
+- **Quem vê**: os mesmos da ficha (`catalog:read`). O nome da loja não é
+  dado pessoal.
+
+### 19.2 O ecrã
+
+A regra é **só acrescentar quando há repetição**: a maioria dos
+comerciantes tem uma loja, e a tabela fica como hoje.
+
+| Caso, dentro da tabela «Publicações» de um artigo | O que a coluna «Canal» (ou «Mercado») mostra |
+|---|---|
+| O nome não se repete noutra linha com outro canal (mercado) | Só o nome, como hoje: «Loja online» |
+| O mesmo nome noutra linha, com outro canal (mercado), de **outra loja com outro nome** | O nome e, por baixo, a loja em texto secundário: «Loja online» / «Loja Norte» |
+| O mesmo nome e **a mesma loja** (dois canais com o mesmo nome na mesma loja), ou duas lojas também com o mesmo nome | O nome e, por baixo, o identificador em texto secundário (`chn_…`, `mkt_…`), como antes da §18: é o único que os distingue |
+| O nome não veio | O identificador, como hoje (§18.2) |
+
+- A decisão é **por coluna**: o canal e o mercado avaliam-se à parte (ex.:
+  dois canais «Loja online» de lojas diferentes, com mercados «Portugal» e
+  «Espanha»: a loja aparece por baixo do canal, o mercado fica só com o
+  nome).
+- **Leitores de ecrã**: a loja ou o identificador ficam dentro da mesma
+  célula, por isso são lidos com o nome. O identificador leva
+  `translate="no"`. Antes da loja, um «Loja:» só para leitores de ecrã
+  (invisível no ecrã), para se ouvir «Loja online, Loja: Norte» (decisão
+  do Diogo, 09/10/2026, *«sim, acrescenta o «Loja:» para leitores de
+  ecrã»*; revisão do #275, P3-6).
+- **Telemóvel** (cartões, `data-rotulo`): a mesma célula, sem mudar o
+  rótulo.
+
+### 19.3 Antes de dizer que está feito (o pedido do código)
+
+- **API**: o `loja_nome` de cada publicação é o da loja dela; uma loja
+  arquivada mantém o nome; o nome de uma loja de outro comerciante não
+  vem; o contrato do Hub tem o campo e o da chave não.
+- **Prova pela falha**: tirar o filtro do comerciante na leitura da loja
+  faz falhar o teste de outro comerciante (como na §18.3). *Nota do
+  código (revisão do #275, P2-2):* a loja lê-se pelo JOIN com o canal, que
+  já tem o filtro do comerciante; o filtro escrito na loja é uma segunda
+  guarda e tirá-lo sozinho não muda o resultado. A prova é a do canal
+  (§18.3), e a de que cada publicação traz a sua loja é um teste com duas
+  lojas do mesmo comerciante.
+- **Hub**: testes da regra (os quatro casos da tabela da §19.2, por
+  coluna); a passagem confere uma linha só com o nome e duas linhas com a
+  loja por baixo; as capturas da ficha vão à página de aprovação.
+
+## 20. Catálogo: as opções do artigo na ficha, só para consulta (issue #278)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho das opções»*. Desenho
+aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o desenho, junta o
+#279»*). As
+opções são as escolhas que distinguem as variantes de um artigo (ex.: «Cor»
+com «Azul» e «Rosa», «Tamanho» com «15 ml» e «30 ml»; `docs/14` §3.3). A
+ficha hoje mostra as variantes só pelo SKU, sem dizer qual é a azul. Este
+passo **só lê** e não muda a VPS; criar, renomear ou ordenar opções fica
+para um passo próprio (as regras do rascunho, `docs/14` §3.3, pedem um
+desenho dessa escrita).
+
+Ex.: o «Verniz Azul 1» com a opção «Tamanho» passa de «ENS-001 · Activa ·
+Unidade…» para «ENS-001 · 15 ml · Activa · Unidade…».
+
+### 20.1 Como o Hub lê
+
+- **As opções**: `GET /hub/products/{id}/options` chama a mesma função da
+  rota pela chave (`GET /products/{id}/options`, `catalog:read`): as opções
+  pela ordem, cada uma com os valores pela ordem, no formato das listas. O
+  Hub pede páginas de 100 até ao fim (um artigo com mais de 100 opções não
+  é um caso real, mas não se corta em silêncio).
+- **Que valor tem cada variante**: a ficha lê as variantes sem os valores
+  (`GET /hub/products/{id}`), e a rota pela chave só os dá variante a
+  variante (`GET /variants/{id}`). A API do Hub **junta** a cada valor
+  `variantes` (os `var_…` que o têm, também as arquivadas), lidos da tabela
+  `variante_valor` (migração 0005) na mesma transacção, no contexto do
+  comerciante e com o filtro dele escrito — como o `autor` do histórico
+  (§16.2) e os nomes das publicações (§18.1). A rota pela chave não muda.
+- **Os textos**: o nome da opção e o valor como estão guardados (a língua
+  de origem); as traduções (`docs/14` §3.3, parte 3) ficam para o passo das
+  traduções.
+- **Quem vê**: os mesmos da ficha (`catalog:read`, os quatro papéis).
+
+### 20.2 O ecrã
+
+| Ecrã | O que muda |
+|---|---|
+| **Ficha do artigo**, tabela «Variantes» (§12.2) | Uma coluna por opção, pela ordem das opções, entre o SKU e o estado, com o valor da variante (ex.: «Tamanho: 15 ml»). Uma variante sem valor nessa opção (um rascunho incompleto, `docs/14` §3.3) mostra «—». Nos cartões do telemóvel, o rótulo é o nome da opção (`data-rotulo`). |
+| **Ficha do artigo**, por cima da tabela | Uma linha «Opções: Tamanho (15 ml, 30 ml) · Cor (Azul, Rosa)», com todos os valores pela ordem, também os que nenhuma variante usa. |
+| Artigo **sem opções** | Nada muda: nem colunas nem a linha. |
+| As opções **falham ao ler** | A tabela fica como hoje e, por cima, «Não foi possível ler as opções» com «Tentar outra vez» (cada parte falha sozinha, §12.2). |
+
+### 20.3 Antes de dizer que está feito (o pedido do código)
+
+- **API**: o caminho do Hub dá as mesmas opções que a rota pela chave,
+  mais `variantes` em cada valor; uma variante arquivada aparece no seu
+  valor; um valor sem variantes vem com a lista vazia; as variantes de
+  outro comerciante não aparecem (prova pela falha: tirar o filtro faz
+  falhar o teste); o contrato do Hub tem o campo e o da chave não.
+- **Hub**: testes de como se monta a coluna (variante com valor, sem
+  valor, artigo sem opções); a passagem confere a coluna e a linha num
+  artigo com opções e nada num sem opções; as capturas da ficha vão à
+  página de aprovação.
+
+## 21. Catálogo: escrever as opções do artigo (issue #285)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da escrita das
+opções»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
+desenho, junta o #286»*). A §20 pôs as opções na ficha só para
+consulta; este passo deixa escrevê-las pelo Hub. Ex.: a gestora da «Loja de
+Ensaio» cria o rascunho «Verniz Verde 31» com duas variantes (§14), abre
+«Editar opções», cria «Tamanho» com «15 ml» e «30 ml», dá «15 ml» à
+`ENS-031` e «30 ml» à `ENS-031-B`, e activa o artigo; depois de activo,
+acrescenta «50 ml» e passa-o para o primeiro lugar, mas já não pode mudar
+«15 ml» para «15ml».
+
+### 21.1 O que entra e o que fica de fora
+
+| Entra | Rota da API (o `docs/14` §7.1, «A escrita das opções») |
+|---|---|
+| Criar uma opção com os valores (rascunho) | `POST /products/{id}/options` (já existe) |
+| Acrescentar um valor no fim (sempre) | `POST /options/{id}/values` (já existe) |
+| Mudar o nome de uma opção ou o texto de um valor (rascunho) | `PATCH /options/{id}`, `PATCH /options/{id}/values/{valor}` (novas) |
+| Apagar uma opção ou um valor (rascunho) | `DELETE /options/{id}`, `DELETE /options/{id}/values/{valor}` (novas) |
+| Mudar a ordem das opções e dos valores (sempre) | `PUT /products/{id}/options/order`, `PUT /options/{id}/values/order` (novas) |
+| Dar valores às variantes (rascunho) | `PUT /variants/{id}/values` (nova) |
+
+| Fica de fora, e porquê |
+|---|
+| **Criar uma variante num artigo que já existe**: o Hub só cria variantes com o artigo (§14). Num artigo activo com opções, uma variante nova entra já com os valores (`docs/14` §3.3); é um passo próprio. |
+| **Traduzir os nomes e os valores**: o passo das traduções (`docs/14` §3.3, parte 3). |
+| **Arrastar para ordenar**: «Mover para antes» e «Mover para depois», como nas imagens (§13.4), por serem do teclado e dos leitores de ecrã. |
+
+### 21.2 Como o Hub escreve
+
+- **Os caminhos** são `/hub/…` com a mesma função de cada rota pela chave
+  (como na §13.2), com a sessão de quem tem `catalog:write` (o dono e o
+  gestor; o armazém e o apoio recebem 403), sem `Idempotency-Key` e com o
+  `eurolify.quem` da pessoa.
+- **A `versao` da opção** (`docs/14` §7.1): o formulário guarda a que leu. Se
+  outra pessoa mudou a opção entretanto, a API dá
+  `catalog.version_conflict` (409) e nada se grava; o ecrã diz «Outra pessoa
+  alterou esta opção entretanto. Não guardámos a sua alteração.», recarrega
+  as opções e deixa o texto escrito à vista.
+- **O ecrã não decide o que é permitido**: num artigo que não é rascunho, os
+  campos do nome e do texto e os botões de apagar não aparecem, com a frase
+  «O nome e os valores só mudam enquanto o artigo é rascunho»; se aparecerem
+  por o estado ter mudado entretanto, a API recusa com `catalog.not_draft` e
+  o ecrã diz o motivo dela.
+- **Artigos do sistema de gestão** (§13.3): num artigo `externo`, nada disto
+  aparece, e a API do Hub recusa com `catalog.external_field`.
+
+### 21.3 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Ficha** (§20.2), por cima da tabela das variantes | Com `catalog:write` e um artigo que não é externo: «Editar opções» (num artigo sem opções: «Criar opções»). | — |
+| **Editar opções** (`/artigos/{prd_…}/opcoes`) | Uma caixa por opção, pela ordem: o nome (campo, só em rascunho), os valores pela ordem, cada um com o texto (campo, só em rascunho), «Mover para antes», «Mover para depois» e «Apagar» (só em rascunho); no fim da caixa, «Acrescentar valor» (sempre). Por baixo das caixas, «Criar opção» (só em rascunho: o nome e um valor por linha). «Voltar à ficha» leva de volta. | a guardar; erro da API ao lado do campo (ex.: «Já há uma opção com este nome»); conflito de versão (§21.2) |
+| **Apagar** | Pede confirmação. Uma opção: «Apagar a opção Tamanho tira-a das 2 variantes. Não se desfaz.» Um valor: «As variantes com 30 ml ficam sem valor em Tamanho.» | duas variantes iguais depois de apagar: a frase da API («duas variantes activas com a mesma combinação») |
+| **Valores das variantes** (na mesma página, só em rascunho) | Uma tabela com uma linha por variante activa (SKU) e uma lista de escolha por opção («—» sem valor); «Guardar» por linha. Por cima, quantas variantes estão incompletas: «1 variante sem valor em todas as opções: o artigo não se activa assim.» | a guardar; erro da API na linha |
+| **Activar** (cabeçalho da ficha, §13.4) | Sem mudanças: se faltar um valor, a API recusa com `catalog.options_incomplete` e o ecrã diz «Cada variante activa leva um valor de cada opção», com a ligação «Editar opções». | — |
+
+Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
+
+### 21.4 Antes de dizer que está feito (o pedido do código)
+
+- **API**: cada rota nova pela chave e pelo Hub; as recusas da §7.1 do
+  `docs/14` (fora do rascunho, nome repetido, ordem que não bate, valor de
+  outro artigo, combinação repetida ao apagar); a `versao` antiga dá 409 sem
+  gravar; o armazém e o apoio recebem 403; outro comerciante não chega à
+  opção dele (com a prova pela falha); o `artigo externo` recusa pelo Hub e
+  aceita pela chave; a linha do tempo tem cada mudança com quem fez; uma
+  tradução fica «desactualizada» depois de mudar o nome; a migração da
+  `versao` corre num artigo com opções antigas.
+- **Hub**: a passagem faz o exemplo do início (criar, dar valores, activar,
+  acrescentar e mudar a ordem depois de activo), confere que o nome já não
+  se edita depois de activo, apaga um valor com confirmação e o conflito de
+  versão com duas sessões; capturas a 375, 768 e 1280 px, claro e escuro, e
+  só com teclado; as capturas vão à página de aprovação.
 
 ## O que não foi verificado
 

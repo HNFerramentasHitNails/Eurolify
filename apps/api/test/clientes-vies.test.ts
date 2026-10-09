@@ -532,6 +532,7 @@ describe.skipIf(URL_BASE === undefined)(
       await correr();
       await ok(
         pedir("PUT", `/billing-profiles/${id}/exemption`, {
+          codigo_motivo: "M05",
           motivo: "transportadora própria, declaração aduaneira entregue",
         }),
         201,
@@ -754,13 +755,14 @@ describe.skipIf(URL_BASE === undefined)(
           await pedir(
             "PUT",
             `/billing-profiles/${id}/exemption`,
-            { motivo: "x" },
+            { codigo_motivo: "M05", motivo: "x" },
             semIsencoes,
           )
         ).statusCode,
       ).toBe(403);
       const i = await ok(
         pedir("PUT", `/billing-profiles/${id}/exemption`, {
+          codigo_motivo: "M05",
           motivo: "transportadora própria",
           nota: "declaração DAU 26PT000123",
         }),
@@ -782,7 +784,10 @@ describe.skipIf(URL_BASE === undefined)(
       );
       expect(linha).toEqual({ pais_contribuinte: "FR", nif_numero: p.numero });
       await recusa(
-        pedir("PUT", `/billing-profiles/${id}/exemption`, { motivo: "outra" }),
+        pedir("PUT", `/billing-profiles/${id}/exemption`, {
+          codigo_motivo: "M05",
+          motivo: "outra",
+        }),
         409,
         "customers.exemption_active",
       );
@@ -801,7 +806,10 @@ describe.skipIf(URL_BASE === undefined)(
         "customers.not_found",
       );
       await ok(
-        pedir("PUT", `/billing-profiles/${id}/exemption`, { motivo: "nova" }),
+        pedir("PUT", `/billing-profiles/${id}/exemption`, {
+          codigo_motivo: "M05",
+          motivo: "nova",
+        }),
         201,
       );
       const lista = await ok(
@@ -825,6 +833,7 @@ describe.skipIf(URL_BASE === undefined)(
       const p = await perfilFrances();
       const i = await ok(
         pedir("PUT", `/billing-profiles/${String(p["id"])}/exemption`, {
+          codigo_motivo: "M05",
           motivo: "m",
         }),
         201,
@@ -928,7 +937,11 @@ describe.skipIf(URL_BASE === undefined)(
         ["GET", `/billing-profiles/${id}/vies-checks`, undefined],
         ["POST", `/billing-profiles/${id}/vies-checks`, undefined],
         ["GET", `/billing-profiles/${id}/exemptions`, undefined],
-        ["PUT", `/billing-profiles/${id}/exemption`, { motivo: "B" }],
+        [
+          "PUT",
+          `/billing-profiles/${id}/exemption`,
+          { motivo: "B", codigo_motivo: "M05" },
+        ],
         [
           "DELETE",
           `/billing-profiles/${id}/exemption`,
