@@ -2680,6 +2680,114 @@ try {
     await cv.close();
   }
 
+  // Escolher o tema (docs/22 §4, issue #226): «Tema escuro» com o aparelho
+  // em claro, «Tema claro» com o aparelho em escuro, guardado ao recarregar,
+  // «Tema automático» volta ao aparelho e apaga a escolha.
+  {
+    // O fundo e a cor do texto da página (revisão do #227, P2-2): os dois
+    // vêm dos tokens, por isso mudam juntos. Espera um pouco pelo efeito do
+    // React depois de escolher.
+    const html = (p) =>
+      p.evaluate(() => {
+        const cs = window.getComputedStyle(document.documentElement);
+        return `${cs.backgroundColor} / ${cs.color}`;
+      });
+    const esperarHtml = async (p, valor) => {
+      for (let i = 0; i < 20 && (await html(p)) !== valor; i++) {
+        await p.waitForTimeout(50);
+      }
+      return html(p);
+    };
+    const CLARO = "rgb(255, 255, 255) / rgb(27, 31, 36)";
+    const ESCURO = "rgb(17, 20, 24) / rgb(245, 246, 248)";
+    const guardado = (p) =>
+      p.evaluate(() => window.localStorage.getItem("eurolify-hub-tema"));
+    for (const [sistema, escolha, rotulo, esperado, largura] of [
+      ["light", "escuro", "Tema escuro", ESCURO, 375],
+      ["dark", "claro", "Tema claro", CLARO, 1280],
+    ]) {
+      const c = await navegador.newContext({
+        ignoreHTTPSErrors: true,
+        colorScheme: sistema,
+        viewport: { width: largura, height: 900 },
+        storageState: sessao,
+      });
+      const p = await c.newPage();
+      await p.goto(`${ORIGEM}/equipa?comerciante=mer_${comerciante}`);
+      await p.getByRole("heading", { name: /Equipa/ }).waitFor();
+      const antes = await html(p);
+      await p
+        .getByLabel("Tema", { exact: true })
+        .selectOption({ label: rotulo });
+      await esperarHtml(p, esperado);
+      confere(
+        (await html(p)) === esperado && antes !== esperado,
+        `tema: «${rotulo}» com o aparelho em ${sistema === "light" ? "claro" : "escuro"} muda a página (${antes} → ${await html(p)})`,
+      );
+      confere(
+        (await guardado(p)) === escolha &&
+          (await p.evaluate(
+            () => document.documentElement.style.colorScheme,
+          )) === (escolha === "escuro" ? "dark" : "light"),
+        `tema: «${rotulo}» fica guardado e os controlos do navegador seguem-no`,
+      );
+      await p.reload();
+      await p.getByRole("heading", { name: /Equipa/ }).waitFor();
+      confere(
+        (await html(p)) === esperado &&
+          (await p.getByLabel("Tema", { exact: true }).inputValue()) ===
+            escolha,
+        `tema: «${rotulo}» continua depois de recarregar`,
+      );
+      const largo = await p.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      );
+      confere(!largo, `tema: ${String(largura)} px sem deslocação horizontal`);
+      await p.screenshot({
+        path: join(
+          SAIDA,
+          `tema-${escolha}-aparelho-${sistema === "light" ? "claro" : "escuro"}-${String(largura)}.png`,
+        ),
+        fullPage: true,
+      });
+      await p
+        .getByLabel("Tema", { exact: true })
+        .selectOption({ label: "Tema automático" });
+      confere(
+        (await esperarHtml(p, antes)) === antes && (await guardado(p)) === null,
+        "tema: «Tema automático» volta ao tema do aparelho e apaga a escolha guardada",
+      );
+      // Em automático, o Hub segue o aparelho quando ele muda.
+      const outro = sistema === "light" ? "dark" : "light";
+      const doOutro = outro === "dark" ? ESCURO : CLARO;
+      await p.emulateMedia({ colorScheme: outro });
+      confere(
+        (await esperarHtml(p, doOutro)) === doOutro,
+        `tema: em «Tema automático», o aparelho a passar para ${outro === "dark" ? "escuro" : "claro"} muda a página`,
+      );
+      await c.close();
+    }
+    // O cabeçalho a 320 px, com as duas listas, sem deslocação.
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 320, height: 800 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/`);
+    await p.getByLabel("Tema", { exact: true }).waitFor();
+    confere(
+      !(await p.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      "tema: a 320 px, o cabeçalho com a língua e o tema cabe sem deslocação",
+    );
+    await p.screenshot({
+      path: join(SAIDA, "tema-cabecalho-320-claro.png"),
+    });
+    await c.close();
+  }
+
   // As capturas: 9 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],

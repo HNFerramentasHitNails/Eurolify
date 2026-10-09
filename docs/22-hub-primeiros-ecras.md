@@ -82,6 +82,19 @@ Três níveis (`eurolify-design`, regra 2): globais → semânticos → componen
 Nenhuma cor nem medida escrita num componente. Claro e escuro desde já
 (`prefers-color-scheme`).
 
+**Escolher o tema** (issue #226; pedido do Diogo, 09/10/2026): no cabeçalho,
+ao lado da língua, uma lista «Tema» com **Automático** (como o aparelho, por
+omissão), **Claro** e **Escuro**. Automático segue o `prefers-color-scheme`
+como até aqui; Claro e Escuro ganham-lhe. As cores são as da tabela abaixo,
+sem valores novos: o bloco escuro dos tokens aplica-se com o aparelho em
+escuro (salvo «Claro») ou com «Escuro», e um teste confere que as duas
+cópias do bloco são iguais. Os controlos do navegador seguem o tema
+escolhido (`color-scheme`). A escolha aplica-se quando o código do Hub
+arranca, antes de desenhar o primeiro ecrã; até lá o navegador pode pintar
+o fundo vazio com o tema do aparelho, um instante. Não se evita com um
+guião na página, porque a CSP do Hub só deixa correr os ficheiros dele
+(revisão do #227, P3-1; não medido).
+
 | Semântico | Claro | Escuro | Uso |
 |---|---|---|---|
 | `superficie` | cinzento 0 (#ffffff) | cinzento 950 (#111418) | fundo |
@@ -106,8 +119,9 @@ PT (por omissão), ES e EN desde o primeiro ecrã (`eurolify-design`, regra 6):
 um ficheiro por língua, chaves iguais, um teste que falha se faltar uma.
 Masculino universal em PT («Foi convidado», «os membros»). Sem maiúsculas
 forçadas. Datas pela língua escolhida (`Intl.DateTimeFormat`), no fuso do
-navegador. A língua escolhida guarda-se no navegador (é preferência, não dado
-pessoal).
+navegador. A língua e o tema escolhidos (§4) guardam-se no navegador (são
+preferências, não dados pessoais); nada mais se guarda lá. «Automático»
+apaga a escolha do tema guardada.
 
 ## 6. Antes de dizer que está feito
 

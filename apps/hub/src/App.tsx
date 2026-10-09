@@ -15,6 +15,14 @@ import { Equipa } from "./ecras/Equipa";
 import { Inicio } from "./ecras/Inicio";
 import { Recuperar } from "./ecras/Recuperar";
 import {
+  aplicarTema,
+  guardarTema,
+  lerTema,
+  temaGuardado,
+  TEMAS,
+  type Tema,
+} from "./tema";
+import {
   guardarLingua,
   linguaGuardada,
   LINGUAS,
@@ -39,6 +47,7 @@ const segredoInicial =
 
 export function App() {
   const [lingua, setLingua] = useState<Lingua>(linguaGuardada);
+  const [tema, setTema] = useState<Tema>(temaGuardado);
   const [local, setLocal] = useState(() => ({
     caminho: window.location.pathname,
     consulta: window.location.search,
@@ -74,6 +83,10 @@ export function App() {
   useEffect(() => {
     document.documentElement.lang = TAG_LINGUA[lingua];
   }, [lingua]);
+
+  useEffect(() => {
+    aplicarTema(tema, document.documentElement);
+  }, [tema]);
 
   const navegar = useCallback(
     (destino: string, opcoes: { substituir?: boolean } = {}) => {
@@ -248,6 +261,24 @@ export function App() {
             {LINGUAS.map((l) => (
               <option key={l} value={l} lang={TAG_LINGUA[l]}>
                 {NOMES_LINGUAS[l]}
+              </option>
+            ))}
+          </select>
+          <label className="so-leitores" htmlFor="tema">
+            {t.tema}
+          </label>
+          <select
+            id="tema"
+            value={tema}
+            onChange={(e) => {
+              const novo = lerTema(e.target.value);
+              setTema(novo);
+              guardarTema(novo);
+            }}
+          >
+            {TEMAS.map((x) => (
+              <option key={x} value={x}>
+                {t[`tema_${x}`]}
               </option>
             ))}
           </select>
