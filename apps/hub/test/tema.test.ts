@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { aplicarTema, lerTema, TEMAS } from "../src/tema";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  aplicarTema,
+  guardarTema,
+  lerTema,
+  temaGuardado,
+  TEMAS,
+} from "../src/tema";
 
 // Escolher o tema (docs/22 §4, issue #226).
 
@@ -29,6 +35,70 @@ describe("o tema escolhido", () => {
   });
 });
 
+// O que se guarda no navegador (revisão do #227, P2-1): só «claro» ou
+// «escuro»; «automático» apaga; sem armazenamento, nada rebenta.
+describe("o tema guardado no navegador", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function armazenamento() {
+    const m = new Map<string, string>();
+    const local = {
+      getItem: vi.fn((k: string) => m.get(k) ?? null),
+      setItem: vi.fn((k: string, v: string) => {
+        m.set(k, v);
+      }),
+      removeItem: vi.fn((k: string) => {
+        m.delete(k);
+      }),
+    };
+    vi.stubGlobal("localStorage", local);
+    return { m, local };
+  }
+
+  it("claro e escuro guardam-se e lêem-se; automático apaga a chave", () => {
+    const { m, local } = armazenamento();
+    guardarTema("escuro");
+    expect([...m.entries()]).toEqual([["eurolify-hub-tema", "escuro"]]);
+    expect(temaGuardado()).toBe("escuro");
+    guardarTema("claro");
+    expect(temaGuardado()).toBe("claro");
+    guardarTema("automatico");
+    expect(m.size).toBe(0);
+    expect(local.removeItem).toHaveBeenCalledWith("eurolify-hub-tema");
+    expect(local.setItem).not.toHaveBeenCalledWith(
+      "eurolify-hub-tema",
+      "automatico",
+    );
+    expect(temaGuardado()).toBe("automatico");
+  });
+
+  it("um valor estranho guardado lê-se como automático", () => {
+    const { m } = armazenamento();
+    m.set("eurolify-hub-tema", "roxo");
+    expect(temaGuardado()).toBe("automatico");
+  });
+
+  it("sem armazenamento (navegação privada), automático e sem erro", () => {
+    const falha = () => {
+      throw new Error("sem armazenamento");
+    };
+    vi.stubGlobal("localStorage", {
+      getItem: falha,
+      setItem: falha,
+      removeItem: falha,
+    });
+    expect(temaGuardado()).toBe("automatico");
+    expect(() => {
+      guardarTema("escuro");
+    }).not.toThrow();
+    expect(() => {
+      guardarTema("automatico");
+    }).not.toThrow();
+  });
+});
+
 describe("os tokens do tema escuro", () => {
   const css = readFileSync(
     new URL("../src/tokens.css", import.meta.url),
@@ -52,9 +122,19 @@ describe("os tokens do tema escuro", () => {
     expect(escolhido).toEqual(doAparelho);
   });
 
-  it("o escuro do aparelho não se aplica com «Tema claro» escolhido", () => {
-    expect(css).toContain(
-      '@media (prefers-color-scheme: dark) {\n  :root:not([data-tema="claro"]) {',
-    );
+  // Só a forma das regras (o comportamento mede-se no capturas.mjs): há
+  // exactamente dois blocos escuros, um dentro do @media e excluído por
+  // «Tema claro», o outro só com «Tema escuro» (revisão do #227, P2-2).
+  it("só há dois blocos escuros e o do aparelho cede a «Tema claro»", () => {
+    const semComentarios = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(
+      /@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-tema="claro"\]\)\s*\{/.test(
+        semComentarios,
+      ),
+    ).toBe(true);
+    expect(semComentarios.match(/prefers-color-scheme/g)?.length).toBe(1);
+    expect(
+      semComentarios.match(/--superficie:\s*var\(--cinzento-950\)/g)?.length,
+    ).toBe(2);
   });
 });

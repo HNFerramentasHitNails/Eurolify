@@ -90,8 +90,10 @@ sem valores novos: o bloco escuro dos tokens aplica-se com o aparelho em
 escuro (salvo «Claro») ou com «Escuro», e um teste confere que as duas
 cópias do bloco são iguais. Os controlos do navegador seguem o tema
 escolhido (`color-scheme`). A escolha aplica-se quando o código do Hub
-arranca, antes de desenhar o primeiro ecrã (sem guião na página: a CSP do
-Hub só deixa correr os ficheiros dele).
+arranca, antes de desenhar o primeiro ecrã; até lá o navegador pode pintar
+o fundo vazio com o tema do aparelho, um instante. Não se evita com um
+guião na página, porque a CSP do Hub só deixa correr os ficheiros dele
+(revisão do #227, P3-1; não medido).
 
 | Semântico | Claro | Escuro | Uso |
 |---|---|---|---|
