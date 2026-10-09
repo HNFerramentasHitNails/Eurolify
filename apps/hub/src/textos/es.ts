@@ -376,6 +376,9 @@ export const es: Textos = {
   artigoDescricao: "Descripción",
   artigoSemDescricao: "Sin descripción.",
   artigoVariantes: "Variantes",
+  /** Antes da linha com as opções e os valores (docs/22 §20.2). */
+  artigoOpcoes: "Opciones:",
+  artigoOpcoesFalharam: "No se han podido leer las opciones.",
   colunaUnidade: "Unidad de venta",
   colunaGtin: "GTIN",
   colunaConteudo: "Contenido",

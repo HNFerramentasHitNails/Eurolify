@@ -371,6 +371,9 @@ export const pt = {
   artigoDescricao: "Descrição",
   artigoSemDescricao: "Sem descrição.",
   artigoVariantes: "Variantes",
+  /** Antes da linha com as opções e os valores (docs/22 §20.2). */
+  artigoOpcoes: "Opções:",
+  artigoOpcoesFalharam: "Não foi possível ler as opções.",
   colunaUnidade: "Unidade de venda",
   colunaGtin: "GTIN",
   colunaConteudo: "Conteúdo",
