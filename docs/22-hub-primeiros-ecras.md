@@ -454,8 +454,8 @@ política, lida do ficheiro.
   ficha mostra «Canal» e «Mercado» com o identificador (sem o inventar em
   nome) até a API os dar — **a pedir ao dono do domínio Preços e mercados**
   (`docs/20`); os nomes nunca se escrevem à mão no ecrã.
-- **O preço**: é do domínio Preços (`docs/20`), sem rota de leitura por
-  artigo para o Hub.
+- **O preço**: é do domínio Preços (`docs/20`); desde 09/10/2026 a ficha
+  mostra-o pela leitura `GET /hub/products/{id}/prices` (§17).
 - **Opções, kits, categorias, traduções e atributos regulamentares**: têm
   rotas próprias e ficam para depois, um de cada vez.
 - **Editar**: a ficha é só de consulta; editar, com os campos que vêm do
@@ -952,7 +952,8 @@ lê**: não grava nada e não muda a VPS (o nginx já deixa passar os `GET` em
 
 Ex.: na ficha do «Gel UV 15 ml», a secção «Preços» mostra a lista «Base PT»
 (mercado Portugal, EUR, preços com IVA): a variante GEL-15 a 7,90 €, com
-«redução: antes 9,90 € (o mais baixo dos 30 dias), até 31/10/2026» e o preço
+«antes 9,90 € — o mais baixo dos 30 dias antes da redução · termina a
+31/10/2026, 00:00» e o preço
 por unidade 526,6667 €/l.
 
 ### 17.1 O que entra e o que fica de fora
@@ -968,7 +969,7 @@ por unidade 526,6667 €/l.
 | **O histórico de cada preço** (`GET …/history`): existe na API; entra quando houver onde o mostrar sem encher a ficha. |
 | **As listas arquivadas**: não vendem; o histórico delas fica na API. |
 | **O preço com o IVA de cada país**: só sai com o Motor de IVA (fatia 6). O Hub mostra o montante como está guardado e diz se inclui IVA (`preco_inclui_iva` do mercado); **nunca calcula IVA** (`eu-vat-oss-ioss`; uma regra, um sítio). |
-| **Arredondar o preço por unidade** para mostrar: a regra é **C** (`docs/20` §3.7 e §10.3). O Hub mostra o valor que o servidor dá, com as quatro casas, e diz que é o cálculo sem arredondar. |
+| **Arredondar o preço por unidade** para mostrar: a regra é **C** (`docs/20` §3.7 e §10.3). O Hub mostra o valor que o servidor dá, com as quatro casas (arredondado na quarta pelo servidor, `docs/20` §10.3), e diz «com quatro casas». |
 | **Os nomes do canal e do mercado nas publicações** (§12.2): a API já dá os nomes dos mercados (`GET /markets`), mas é outra parte da ficha; entra num passo próprio. |
 
 ### 17.2 Como o Hub lê
@@ -999,7 +1000,15 @@ sítio):
 
 | Ecrã | O que mostra | Rotas da API | Estados além do normal |
 |---|---|---|---|
-| **Ficha do artigo**, secção nova **«Preços»** (entre «Variantes» e «Imagens»; para os quatro papéis) | Uma caixa por lista: o nome da lista, «base» ou «B2B», o mercado (nome e, se não estiver activo, o estado: «mercado em rascunho»), a moeda e «preços com IVA» ou «preços sem IVA». Por baixo, uma linha por variante do artigo (pela ordem da ficha, também as arquivadas, marcadas): SKU; o preço na moeda da lista (`Intl.NumberFormat` com a moeda, a partir dos cêntimos) ou «Gratuito»; numa redução em vigor, o preço reduzido em destaque e «antes {preço de referência} — o mais baixo dos 30 dias» e, se tiver fim, «até {data}»; o preço por unidade («526,6667 €/l, sem arredondar»); a quantidade mínima e o múltiplo só quando não são 1. Uma variante sem preço nessa lista: «Sem preço nesta lista». «Mostrar mais listas» quando há mais de 25 | `GET /hub/products/{id}/prices` | a carregar (a secção à sua, como as imagens e as publicações, §12.2); sem listas activas («Ainda não há listas de preços activas»); erro só nesta parte (o erro e «Tentar outra vez»; o resto da ficha fica); sem permissão (403: a secção diz que não pode ver os preços) |
+| **Ficha do artigo**, secção nova **«Preços»** (entre «Variantes» e «Imagens»; para os quatro papéis) | Uma caixa por lista: o nome da lista, «base» ou «B2B», o mercado (nome e, se não estiver activo, o estado: «mercado em rascunho»), a moeda e «preços com IVA» ou «preços sem IVA». Por baixo, uma linha por variante do artigo (pela ordem da ficha, também as arquivadas, marcadas): SKU; o preço na moeda da lista (`Intl.NumberFormat` com a moeda, a partir dos cêntimos) ou «Gratuito»; numa redução em vigor, o preço reduzido em destaque e «antes {preço de referência} — o mais baixo dos 30 dias antes da redução» e, se tiver fim, «termina a {data e hora}»; o preço por unidade («526,6667 €/l, com quatro casas»); a quantidade mínima e o múltiplo só quando não são 1. Uma variante sem preço nessa lista: «Sem preço nesta lista». «Mostrar mais listas» quando há mais de 25 | `GET /hub/products/{id}/prices` | a carregar (a secção à sua, como as imagens e as publicações, §12.2); sem listas activas («Ainda não há listas de preços activas»); erro só nesta parte (o erro e «Tentar outra vez»; o resto da ficha fica); sem permissão (403: a secção diz que não pode ver os preços) |
+
+**Os textos mudados na revisão do #252** (09/10/2026), para dizerem
+exactamente o que o servidor faz: o preço de referência é o mais baixo dos
+30 dias **antes da redução** (não dos últimos 30 dias, P2-1); o preço por
+unidade vem **com quatro casas**, já arredondado na quarta pelo servidor
+(«sem arredondar» era falso, P2-2); o fim leva a hora, porque é o instante
+em que a redução deixa de valer (P3-5). O aspecto e os textos vão ao OK do
+Diogo ou do Bruno na página de aprovação.
 
 **Os textos dos preços** dizem o que o servidor decidiu e nada mais:
 «com IVA» ou «sem IVA» vem do mercado; o preço de referência vem calculado
@@ -1024,6 +1033,55 @@ com a unidade dela (kg, l, m, m², m³).
   parte; tudo com o teclado; capturas a 375, 768 e 1280 px (claro e escuro)
   para o OK do Diogo ou do Bruno.
 - **Quem trabalha em Preços** vê o aviso da rota nova.
+
+## 18. Catálogo: os nomes do canal e do mercado nas publicações (issue #258)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com os nomes do canal e do
+mercado»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
+desenho, junta o #259»*). A secção «Publicações» da ficha mostra só os identificadores
+(`chn_…`, `mkt_…`), porque, quando a ficha foi feita, nenhuma rota dava os
+nomes (§12.2). O domínio de Preços já os tem: o canal e o mercado têm `nome`
+(`docs/20` §3.1 e §3.2; migração 0017). Este passo **só lê** e não muda a
+VPS.
+
+Ex.: a publicação do «Gel UV 15 ml» passa de «`chn_0192…` · `mkt_0192…` ·
+Rascunho» para «Loja online · Portugal · Rascunho».
+
+### 18.1 Como o Hub lê
+
+- **O caminho é o mesmo**: `GET /hub/products/{id}/publications` continua a
+  chamar a mesma função da rota pela chave (`publicacoesDeArtigo`, §12.1). A
+  API do Hub **junta** a cada publicação `canal_nome` e `mercado_nome`, lidos
+  do domínio de Preços numa só consulta (os canais e os mercados das
+  publicações daquele artigo, no contexto do comerciante), como o `autor`
+  do histórico (§16.2).
+- **A rota pela chave não muda** (`GET /products/{id}/publications`): é do
+  Catálogo (#77), e quem integra já tem `GET /channels` e `GET /markets`
+  para os nomes. Acrescentar campos a ela fica para o dono do Catálogo
+  decidir.
+- **Um canal ou mercado arquivado** continua com o nome (arquiva-se, não
+  se apaga: a API só tem `DELETE` em `canal_mercado` e `preco`, migração
+  0017, linhas 492–499). Se um nome não vier (não devia acontecer), o ecrã mostra o
+  identificador, como hoje.
+- **Quem vê**: os mesmos da ficha (`catalog:read`, os quatro papéis). Os
+  nomes de canais e mercados não são dados pessoais nem preços.
+
+### 18.2 O ecrã
+
+| Ecrã | O que muda |
+|---|---|
+| **Ficha do artigo**, secção «Publicações» (§12.2) | As colunas «Canal» e «Mercado» mostram o nome. O identificador deixa de aparecer na tabela (fica no endereço da API para quem integra). Um nome em falta mostra o identificador, como hoje. Nada mais muda: o estado, a data e o motivo ficam como estão. |
+
+### 18.3 Antes de dizer que está feito (o pedido do código)
+
+- **API**: o caminho do Hub dá as mesmas publicações que a rota pela chave,
+  mais os dois nomes; um canal arquivado mantém o nome; os nomes são os do
+  comerciante da sessão (outro comerciante com um canal do mesmo nome não
+  interfere); o contrato do Hub com os dois campos e o da chave sem eles.
+- **Prova pela falha**: tirar o filtro do comerciante na consulta dos nomes
+  faz falhar o teste de outro comerciante.
+- **Hub**: a passagem confere «Loja online» e «Portugal» na tabela das
+  publicações; as capturas da ficha mudam e vão à página de aprovação.
 
 ## O que não foi verificado
 

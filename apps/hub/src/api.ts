@@ -230,6 +230,50 @@ export interface PublicacaoArtigo {
   motivo_arquivo: (typeof MOTIVOS_ARQUIVO)[number] | null;
 }
 
+/** Um preço de uma variante numa lista (o `PrecoEsquema` da API). */
+export interface PrecoVariante {
+  variante: string;
+  /** Em cêntimos, na moeda do mercado. */
+  montante: number;
+  gratuito: boolean;
+  quantidade_minima: number;
+  multiplo: number;
+  definido_em: string;
+  /** A redução em vigor; o preço de referência vem calculado (docs/20 §3.6). */
+  reducao: {
+    montante: number;
+    preco_referencia: number;
+    inicio: string;
+    fim: string | null;
+  } | null;
+  /** Calculado pelo servidor, com quatro casas e sem arredondar (§10.3). */
+  preco_por_unidade: {
+    valor: string;
+    unidade: string;
+    inclui_iva: boolean;
+  } | null;
+}
+
+/** Uma lista activa com os preços das variantes de um artigo (§17.2). */
+export interface PrecosNaLista {
+  lista: { id: string; nome: string; tipo: string };
+  mercado: {
+    id: string;
+    nome: string;
+    estado: string;
+    moeda: string;
+    preco_inclui_iva: boolean;
+  };
+  precos: PrecoVariante[];
+}
+
+export interface PaginaPrecos {
+  dados: PrecosNaLista[];
+  total: number;
+  ha_mais: boolean;
+  cursor_seguinte: string | null;
+}
+
 /** Quem fez uma alteração, decidido pelo servidor (docs/22 §16.2). */
 export interface AutorAlteracao {
   tipo: "pessoa" | "chave" | "sistema" | "outro";
@@ -539,6 +583,21 @@ export const api = {
       `/hub/products/${artigo}/publications`,
       { comerciante },
     ),
+  /** Os preços do artigo nas listas activas (docs/22 §17), 25 listas de cada vez. */
+  precosDoArtigo: (
+    comerciante: string,
+    artigo: string,
+    cursor: string | null,
+  ) => {
+    const q = new URLSearchParams();
+    if (cursor !== null) q.set("cursor", cursor);
+    const sufixo = q.size === 0 ? "" : `?${q.toString()}`;
+    return pedir<PaginaPrecos>(
+      "GET",
+      `/hub/products/${artigo}/prices${sufixo}`,
+      { comerciante },
+    );
+  },
   /** O histórico do artigo (docs/22 §16), 25 de cada vez. */
   historicoDoArtigo: (
     comerciante: string,

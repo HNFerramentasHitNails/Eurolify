@@ -739,8 +739,10 @@ describe.skipIf(URL_BASE === undefined)(
       await correr();
       const francesas = consultas.filter((c) => c.pais === "FR");
       expect(francesas).toHaveLength(1);
-      // A resposta do segundo ficou por usar: não pode pôr a França em pausa
-      // na volta de outro teste.
+      // A resposta do perfil que ficou por consultar não passa ao teste
+      // seguinte: a fila corre tudo, e «pedidos a mais» noutro perfil
+      // francês punha a França em pausa nesse teste (falhava conforme a
+      // ordem dos comerciantes na fila; medido a 09/10/2026).
       respostas.delete(p1.numero);
       respostas.delete(p2.numero);
     });
