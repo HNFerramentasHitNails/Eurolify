@@ -944,11 +944,80 @@ catálogo.
   plataforma) pode trazer campos com outro significado: só as colunas da
   lista acima entram.
 
-### 3.12 Linha do tempo
+### 3.12 Linha do tempo (`chg_`)
 
 Cada artigo tem a linha do tempo da `platform-architect`: mudanças de estado e
 dos campos (quem, quando, antes → depois), notas da equipa, anexos. Alimenta-se
 dos eventos (§6) e do registo de auditoria; **não é outra fonte de verdade**.
+
+**Desenho de 09/10/2026** (Diogo: *«sim, avança com o desenho do histórico do
+artigo»*; issue #77; cumpre a C7). Ex.: às 10:02 a chave `key_…` muda o **nome**
+do «Gel UV 15 ml» para «Gel UV 15 ml transparente». A linha do tempo do artigo mostra uma alteração com quem
+(`chave:key_…`), quando (UTC), o campo `nome`, o antes e o depois. Se o artigo
+estava à venda e o nome deixou de ter tradução num mercado, a mesma alteração
+mostra também a publicação a sair de venda (`verificacao_falhou`).
+
+**O registo é a base, não a API.** Gatilhos com os direitos do dono das
+tabelas escrevem uma entrada por cada linha que muda, na mesma transacção,
+como os eventos da 0021. Assim, a API, a importação, os gatilhos em cadeia (a
+reverificação) e o SQL escrito à mão no contexto do comerciante não mudam o
+catálogo sem deixar rasto. A linha do tempo é só a leitura desse registo, que é
+o registo de auditoria do Catálogo (`observability-security`, «Registo de
+auditoria»).
+
+| Campo | Notas |
+|---|---|
+| `id` (`chg_`) | uuidv7: a ordem dentro do mesmo comerciante |
+| `comerciante_id` | RLS forçado, como as outras tabelas |
+| `artigo_id` | o artigo a que a mudança pertence; vazio numa categoria ou colecção mudadas sem tocar num artigo |
+| `entidade`, `entidade_id` | a tabela e a linha: `artigo`, `variante`, `opcao`, `valor_opcao`, `variante_valor`, `componente`, `traducao`, `artigo_categoria`, `colecao_artigo`, `media`, `publicacao`, `categoria`, `colecao` |
+| `operacao` | `criado`, `alterado`, `apagado` |
+| `campos` | os campos que mudaram e, para cada um, `antes` e `depois` (JSON); só os que mudaram |
+| `quem` | o `eurolify.quem` da transacção: `chave:key_…`, `pessoa:per_…` (o Hub), `sistema:<tarefa>`. **Sem ele, a escrita falha** (como na 0001) |
+| `origem` | o `eurolify.origem` da transacção, quando existir: `importacao:imp_…`, `reverificacao`; vazio numa escrita normal da API |
+| `transacao` | o identificador da transacção: junta as entradas de um pedido numa só «alteração» na linha do tempo |
+| `em` | o instante da transacção, em UTC |
+
+Regras (todas **proposta**):
+
+- **Só se acrescenta** (gatilhos da 0008: sem `UPDATE`, `DELETE` nem
+  `TRUNCATE`, nem pelo dono). Corrige-se com uma entrada nova.
+- **Ficam de fora** os campos técnicos e os que já dizem quem
+  (`versao`, `criado_em`, `atualizado_em`, `publicado_por`, `arquivado_por`,
+  `classificado_por`, `traduzido_por`, `revisto_por`): o «quem» de cada
+  entrada é o da entrada. Os bytes das imagens também ficam de fora: entra a
+  linha da `media` (o texto alternativo, a ordem, o resumo do ficheiro).
+- **O valor fica inteiro** (uma descrição longa entra toda no antes e no
+  depois), porque a C7 pede o antes e o depois. **Não medi** quanto ocupa:
+  mede-se no ensaio com uma importação de 5000 variantes antes de abrir a
+  comerciantes.
+- **Uma escrita que não muda nada não deixa entrada** (pedir o estado em que
+  o artigo já está, §4.1).
+- **Não há entradas de antes da migração**: a linha do tempo começa no dia em
+  que ela entra no ensaio e diz `desde`. Não se inventa um passado.
+- **Apagar um rascunho** (§4.1) deixa as entradas: o artigo some, o rasto não.
+- As **notas da equipa e os anexos** ficam para depois: são dados que alguém
+  escreve, com outro risco de dados pessoais (`platform-architect`).
+
+**Quem vê o quê** (`docs/06`, CL: quem fez **não sai** com `catalog:read`):
+`GET /products/{id}/timeline` pede um âmbito novo, `catalog:history`, que dá
+tudo, `quem` incluído. No Hub, o `dono` e o `gestor` têm-no; o `armazém` e o
+`apoio`, não (`docs/21` §5). Um âmbito novo entra na lista da base (o
+`CHECK` da 0010, `AMBITOS` em `identidade/chaves.ts`) e nos papéis (a função
+da 0018), na mesma migração; uma chave de servidor só o tem se quem a cria o
+escolher. **Esta é a decisão
+pedida ao Diogo ou ao Bruno.**
+
+**Dados pessoais** (`docs/17`): `quem` é um identificador (`per_…`,
+`key_…`), nunca o nome nem o e-mail; quando a pessoa é pseudonimizada (90 dias,
+CD), o rasto fica com o `per_…`, como o `evento_conta`. Os valores do catálogo
+não são dados pessoais, mas um texto livre (descrição, texto alternativo) pode
+trazer um nome escrito à mão. O prazo de guarda do rasto é **por decidir — C**,
+como o dos eventos (`docs/17` §3, linha do `quem`): fica enquanto o
+comerciante tiver conta, até haver decisão.
+
+**Leitura:** a mais recente primeiro, por páginas (cursor sobre o `id`; 50 por
+omissão, até 200, como as outras listas); filtros `desde` e `entidade`.
 
 ## 4. Estados
 
@@ -1320,7 +1389,7 @@ as rotas seguintes.
 | Repor | `POST /products/{id}/restore` | write | volta a activo, sem republicar |
 | Classificar | `PUT /products/{id}/classification` | write | com a `versao`; substitui a classificação toda (§3.10); a que deixa de servir tira as publicações de venda (§8) |
 | Apagar rascunho | `DELETE /products/{id}` | write | só rascunho que nunca foi activo |
-| Linha do tempo | `GET /products/{id}/timeline` | read | |
+| Linha do tempo | `GET /products/{id}/timeline` | history | §3.12: as entradas do artigo, das variantes, opções, traduções, media, categorias, colecções e publicações dele, com quem, quando, antes e depois; âmbito `catalog:history` (**proposta**; CL) |
 | Variantes | `GET /products/{id}/variants`, `POST /products/{id}/variants`, `PATCH /variants/{id}` | read / write | SKU único (C3) |
 | Arquivar variante | `POST /variants/{id}/archive` | write | não toca no artigo (C6) |
 | Procurar por SKU ou GTIN | `GET /variants?sku=…` · `GET /variants?gtin=…` | read | |
@@ -1427,6 +1496,15 @@ paginadas (`headless-commerce`, «Servidor MCP»).
   reservas nem documentos: quando esses domínios existirem, têm de o garantir.
 - **A lista de campos regulamentares por categoria** não está validada por um
   técnico (**C** até lá).
+
+- **Linha do tempo (§3.12):** uma tabela do Catálogo nova, ou uma coluna
+  nova numa tabela que já existe, fica sem rasto se ninguém lhe puser o
+  gatilho. O teste da linha do tempo compara a lista das tabelas do Catálogo
+  com as que têm o gatilho e falha se faltar alguma. Uma escrita sem
+  `eurolify.quem` falha (como na 0001): o código que hoje escreve sem ele
+  (criar, alterar, activar, arquivar, repor, apagar, variantes, opções,
+  traduções, categorias, colecções, media, importação) passa a pô-lo, num
+  sítio só, de uma vez; uma tarefa de sistema põe `sistema:<tarefa>`.
 
 ## 9. Perguntas para o Diogo ou o Bruno
 
