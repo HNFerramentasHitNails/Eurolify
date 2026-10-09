@@ -1898,8 +1898,11 @@ try {
       (await rp
         .getByRole("row", { name: /Loja online.*Loja Sul.*Espanha.*Publicado/ })
         .count()) === 1 &&
-      (await tabelaPublicacoes.getByText(/^(chn|mkt)_/).count()) === 0,
-    "ficha: dois canais com o mesmo nome mostram a loja por baixo; os mercados, diferentes, só o nome",
+      (await tabelaPublicacoes.getByText(/^(chn|mkt)_/).count()) === 0 &&
+      (await tabelaPublicacoes
+        .locator(".so-leitores", { hasText: "Loja:" })
+        .count()) === 2,
+    "ficha: dois canais com o mesmo nome mostram a loja por baixo (com «Loja:» para os leitores de ecrã); os mercados, diferentes, só o nome",
   );
   await tabelaPublicacoes.screenshot({
     path: join(SAIDA, "artigo-publicacoes-lojas-375-claro.png"),

@@ -1455,6 +1455,7 @@ function Publicacoes({
 
 /** O canal ou o mercado de uma publicação (docs/22 §19.2). */
 function CelulaPublicacao({ celula }: { celula: Celula }) {
+  const { t } = useHub();
   switch (celula.tipo) {
     case "identificador":
       return <code translate="no">{celula.identificador}</code>;
@@ -1465,7 +1466,12 @@ function CelulaPublicacao({ celula }: { celula: Celula }) {
         <>
           {celula.nome}
           <br />
-          <span className="secundario">{celula.loja}</span>
+          <span className="secundario">
+            {/* Só para leitores de ecrã: diz que é a loja (decisão do
+                Diogo, 09/10/2026; revisão do #275, P3-6). */}
+            <span className="so-leitores">{t.publicacaoLoja} </span>
+            {celula.loja}
+          </span>
         </>
       );
     case "nome_e_identificador":

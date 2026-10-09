@@ -1138,7 +1138,10 @@ comerciantes tem uma loja, e a tabela fica como hoje.
   nome).
 - **Leitores de ecrã**: a loja ou o identificador ficam dentro da mesma
   célula, por isso são lidos com o nome. O identificador leva
-  `translate="no"`.
+  `translate="no"`. Antes da loja, um «Loja:» só para leitores de ecrã
+  (invisível no ecrã), para se ouvir «Loja online, Loja: Norte» (decisão
+  do Diogo, 09/10/2026, *«sim, acrescenta o «Loja:» para leitores de
+  ecrã»*; revisão do #275, P3-6).
 - **Telemóvel** (cartões, `data-rotulo`): a mesma célula, sem mudar o
   rótulo.
 
