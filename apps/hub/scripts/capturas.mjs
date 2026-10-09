@@ -300,6 +300,8 @@ let artigoDaFicha = "";
 // vem do sistema de gestão (P5).
 let artigoEditavel = "";
 let artigoExterno = "";
+// O 3 tem o histórico com mais de uma página (docs/22 §16).
+let artigoDoHistorico = "";
 let canalDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
@@ -345,6 +347,7 @@ let canalDaFicha;
     );
     if (i === 0) artigoDaFicha = id;
     if (i === 1) artigoEditavel = id;
+    if (i === 2) artigoDoHistorico = id;
     if (i === 29) artigoExterno = id;
   }
   const armazenamento = new ArmazenamentoEmDisco(PASTA_MEDIA);
@@ -849,6 +852,19 @@ try {
         .count()) === 0,
     "edição: o apoio vê a ficha sem «Editar» nem acções (nem acrescentar ou tirar imagens)",
   );
+  // O apoio não vê o histórico (docs/22 §16.2): sem a ligação, e o
+  // endereço directo diz porquê (a API recusa com 403).
+  confere(
+    (await apoio.pagina.getByRole("link", { name: "Histórico" }).count()) === 0,
+    "histórico: o apoio não vê a ligação «Histórico» na ficha",
+  );
+  await apoio.pagina.goto(
+    `${ORIGEM}/artigos/prd_${artigoEditavel}/historico?comerciante=mer_${comerciante}`,
+  );
+  await apoio.pagina
+    .getByText("O seu papel não vê o histórico deste artigo.")
+    .waitFor();
+  confere(true, "histórico: pelo endereço, o apoio recebe a recusa da API");
   // O apoio não cria (docs/22 §14.4): sem o botão na lista, e o endereço
   // directo diz que não pode.
   await apoio.pagina.goto(`${ORIGEM}/artigos?comerciante=mer_${comerciante}`);
@@ -2419,6 +2435,120 @@ try {
     "imagens: tirar pergunta antes, tira a imagem e o foco vai para o aviso",
   );
   rp.off("request", contarEnvios);
+
+  // O histórico do artigo (docs/22 §16), com a Ana (dona): 30 alterações
+  // ao peso de uma variante (mais do que uma página de 25), uma descrição
+  // longa e uma alteração automática, cada uma na sua transacção.
+  {
+    const ana = psql("select id from pessoa where email = 'ana@exemplo.test'");
+    const como = (quem, alteracao) =>
+      `begin; select set_config('eurolify.quem', '${quem}', true); ${alteracao}; commit;`;
+    const alteracoes = [];
+    for (let i = 1; i <= 30; i++) {
+      alteracoes.push(
+        como(
+          `pessoa:per_${ana}`,
+          `update variante set peso_g = ${String(10 * i)} where artigo_id = '${artigoDoHistorico}'`,
+        ),
+      );
+    }
+    alteracoes.push(
+      como(
+        `pessoa:per_${ana}`,
+        `update artigo set descricao = repeat('Secagem rápida e brilho duradouro. ', 8) where id = '${artigoDoHistorico}'`,
+      ),
+      como(
+        "sistema:passagem",
+        `update variante set peso_g = 999 where artigo_id = '${artigoDoHistorico}'`,
+      ),
+    );
+    psql(alteracoes.join("\n"));
+  }
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoDoHistorico}?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByRole("link", { name: "Histórico" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByRole("heading", { name: "Histórico do artigo", level: 1 })
+    .waitFor();
+  const grupos = rp.locator(".historico > li");
+  await grupos.first().waitFor();
+  const maisRecente = (await grupos.nth(0).textContent()) ?? "";
+  const seguinte = (await grupos.nth(1).textContent()) ?? "";
+  confere(
+    (await grupos.count()) === 25 &&
+      maisRecente.includes("Automático") &&
+      maisRecente.includes("alterou a variante ENS-003") &&
+      maisRecente.includes("Peso (g)") &&
+      maisRecente.includes("300 → 999") &&
+      seguinte.includes("Ana Teste") &&
+      seguinte.includes("alterou o artigo"),
+    "histórico: pela ficha, só com o teclado; 25 alterações, a mais recente primeiro, com quem fez, a parte e o antes → depois",
+  );
+  // O texto longo mostra o começo e «Ver tudo», que abre com o teclado.
+  const longo = grupos.nth(1).locator("details");
+  await longo.locator("summary").focus();
+  await rp.keyboard.press("Enter");
+  confere(
+    (await longo.getAttribute("open")) !== null &&
+      ((await longo.textContent()) ?? "").includes(
+        "brilho duradouro. Secagem rápida e brilho duradouro. ",
+      ),
+    "histórico: um texto longo mostra o começo e «Ver tudo» abre-o",
+  );
+  await longo.locator("summary").press("Enter");
+  // As capturas sem o anel do foco no «Ver tudo».
+  await rp.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
+  for (const [largura, tema] of [
+    [375, "light"],
+    [768, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `histórico: a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.screenshot({
+      path: join(
+        SAIDA,
+        `historico-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
+  await rp.getByRole("button", { name: "Mostrar mais" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.querySelectorAll(".historico > li").length > 25,
+  );
+  const focado = await rp.evaluate(() => document.activeElement?.id ?? "");
+  const vigesimoSexto = await grupos.nth(25).locator("h2").getAttribute("id");
+  const ultimo = (await grupos.last().textContent()) ?? "";
+  confere(
+    (await grupos.count()) === 33 &&
+      focado === vigesimoSexto &&
+      ultimo.includes("passagem:preparar") &&
+      ultimo.includes("criou o artigo") &&
+      ultimo.includes("criou a variante ENS-003") &&
+      (await rp.getByRole("button", { name: "Mostrar mais" }).count()) === 0,
+    "histórico: «Mostrar mais» traz as seguintes, com o foco na primeira nova, até à criação",
+  );
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_00000000-0000-7000-8000-000000000000/historico?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByText("Este artigo não existe neste comerciante.").waitFor();
+  confere(true, "histórico: um artigo que não existe diz-o");
 
   // Sem permissão (403) e sessão que acabou (401), com respostas fingidas.
   const fichaReal = `${ORIGEM}/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`;

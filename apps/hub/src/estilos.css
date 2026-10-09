@@ -819,3 +819,51 @@ textarea {
   border-radius: var(--raio);
   background: var(--superficie-elevada);
 }
+
+/* O histórico do artigo (docs/22 §16.3): uma alteração por item, com as
+   partes e os campos por baixo; os valores longos partem. */
+.historico {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.historico > li {
+  border-top: var(--borda-fina) solid var(--borda);
+  padding: var(--espaco-3) 0;
+}
+.historico h2 {
+  font-size: var(--letra-base);
+  margin: 0 0 var(--espaco-2);
+}
+.historico ul {
+  margin: 0;
+  padding-left: var(--espaco-4);
+}
+.campos-historico {
+  margin: var(--espaco-1) 0 var(--espaco-2);
+}
+.campos-historico div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--espaco-2);
+}
+.campos-historico dt {
+  font-weight: 600;
+}
+.campos-historico dt::after {
+  content: ":";
+}
+.campos-historico dd {
+  margin: 0;
+  min-width: 0;
+}
+.valor-historico {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.valor-historico summary {
+  cursor: pointer;
+}
+.valor-historico summary span {
+  text-decoration: underline;
+}
