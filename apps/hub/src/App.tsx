@@ -4,6 +4,7 @@ import { lerSegredoDaLigacao } from "./convite";
 import { fecharAvisoDeRecuperada } from "./recuperacao";
 import { ContextoHub, type Contexto } from "./contexto";
 import { Artigo } from "./ecras/Artigo";
+import { ArtigoEditar } from "./ecras/ArtigoEditar";
 import { Artigos } from "./ecras/Artigos";
 import { Chaves } from "./ecras/Chaves";
 import { Conta } from "./ecras/Conta";
@@ -23,11 +24,13 @@ import {
 } from "./textos";
 
 // As páginas do Hub (docs/22 §2, §9 e §11): /entrar, /recuperar, /convite,
-// /equipa, /artigos, /artigos/{prd_…}, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
+// /equipa, /artigos, /artigos/{prd_…}, /artigos/{prd_…}/editar, /chaves,
+// /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
 const CAMINHO_ARTIGO = /^\/artigos\/([^/]+)$/;
+const CAMINHO_EDITAR = /^\/artigos\/([^/]+)\/editar$/;
 
 const segredoInicial =
   window.location.pathname === "/convite" ? lerSegredoDaLigacao() : null;
@@ -77,8 +80,10 @@ export function App() {
   );
 
   const artigo = CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null;
+  const editar = CAMINHO_EDITAR.exec(local.caminho)?.[1] ?? null;
   const comSessao =
     artigo !== null ||
+    editar !== null ||
     local.caminho === "/" ||
     local.caminho === "/equipa" ||
     local.caminho === "/artigos" ||
@@ -99,11 +104,13 @@ export function App() {
               ? t.artigosTitulo
               : artigo !== null
                 ? t.artigoTitulo
-                : local.caminho === "/chaves"
-                  ? t.chavesTitulo
-                  : local.caminho === "/conta"
-                    ? t.contaTitulo
-                    : t.inicioTitulo;
+                : editar !== null
+                  ? t.artigoEditarTitulo
+                  : local.caminho === "/chaves"
+                    ? t.chavesTitulo
+                    : local.caminho === "/conta"
+                      ? t.contaTitulo
+                      : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -125,6 +132,15 @@ export function App() {
         // Outro comerciante, outro ecrã: nada do anterior fica.
         key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        consulta={local.consulta}
+      />
+    );
+  else if (editar !== null)
+    ecra = (
+      <ArtigoEditar
+        key={`${editar} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        artigo={editar}
         consulta={local.consulta}
       />
     );

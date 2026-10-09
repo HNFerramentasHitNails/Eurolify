@@ -379,6 +379,35 @@ export const pt = {
   motivoArquivo_mercado_arquivado: "O mercado foi arquivado",
   motivoArquivo_canal_arquivado: "O canal foi arquivado",
   motivoArquivo_verificacao_falhou: "Deixou de cumprir as regras de publicação",
+  artigoEditar: "Editar",
+  artigoEditarTitulo: "Editar o artigo",
+  artigoActivar: "Activar",
+  artigoArquivar: "Arquivar",
+  artigoRepor: "Repor",
+  artigoConfirmarArquivar:
+    "Arquivar o artigo tira-o de venda em todas as lojas. As publicações não voltam sozinhas ao repor. Arquivar?",
+  artigoExternoAviso:
+    "Este artigo vem do sistema de gestão: o nome, a descrição, a marca, o estado e as variantes alteram-se lá. As imagens alteram-se aqui.",
+  artigoGuardado: "Alterações guardadas.",
+  artigoGuardar: "Guardar",
+  artigoConflito:
+    "Outra pessoa alterou este artigo entretanto. Não guardámos as suas alterações.",
+  artigoConflitoActual:
+    "O que está guardado agora está por baixo; o que escreveu ficou nos campos. Guardar outra vez substitui o que está guardado.",
+  artigoSairSemGuardar: "Tem alterações por guardar. Sair sem guardar?",
+  artigoCaracteres: "{n} de {max} caracteres",
+  artigoNomeObrigatorio: "O nome é obrigatório.",
+  artigoExternoCampo: "Este campo vem do sistema de gestão: altera-se lá.",
+  artigoArquivarVariante: "Arquivar variante",
+  artigoConfirmarArquivarVariante:
+    "Arquivar a variante {sku} não se desfaz. Arquivar?",
+  artigoUltimaVariante:
+    "É a última variante activa: o artigo deixa de se poder publicar até ter outra. Arquivar a variante {sku}, sem volta?",
+  artigoEditarTexto: "Editar texto alternativo",
+  artigoTextoAlternativo: "Texto alternativo",
+  artigoTornarPrincipal: "Tornar principal",
+  artigoMoverAntes: "Mover para antes",
+  artigoMoverDepois: "Mover para depois",
   conviteInstrucao: "Escreva o seu nome e crie a conta com uma passkey.",
   conviteResumo:
     "Foi convidado para a equipa de {comerciante}, com o papel {papel}.",

@@ -11,11 +11,13 @@ import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { mensagemDeErro, semSessao } from "../erros";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 
-// A ficha do artigo, só para consulta (docs/22 §12.2): o artigo com as
-// variantes, as imagens e as publicações, pelas mesmas funções da API
-// (GET /hub/products/{id}, …/media, /hub/media/{id}/file e
-// …/publications). Cada parte carrega e falha sozinha; o cabeçalho
-// primeiro, as imagens e as publicações depois de o artigo existir.
+// A ficha do artigo (docs/22 §12.2): o artigo com as variantes, as imagens
+// e as publicações, pelas mesmas funções da API (GET /hub/products/{id},
+// …/media, /hub/media/{id}/file e …/publications). Cada parte carrega e
+// falha sozinha; o cabeçalho primeiro, as imagens e as publicações depois de
+// o artigo existir. Com catalog:write, as acções da §13: editar, o estado,
+// as imagens e arquivar uma variante; num artigo do sistema de gestão, só as
+// imagens (P5, §13.3). O servidor confere tudo na mesma.
 
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
 // O mesmo formato que a API aceita: um endereço mal escrito diz «não existe»
@@ -55,6 +57,15 @@ export function Artigo({
   const [publicacoes, setPublicacoes] = useState<Parte<PublicacaoArtigo[]>>({
     tipo: "a_carregar",
   });
+  // Os âmbitos da pessoa neste comerciante (/hub/me, §13.2): só decidem o
+  // que o ecrã oferece.
+  const [podeEscrever, setPodeEscrever] = useState(false);
+  // Uma acção de cada vez; o erro dela fica à vista até à seguinte.
+  const [ocupado, setOcupado] = useState(false);
+  const [falhaAccao, setFalhaAccao] = useState<unknown>(null);
+  const [aviso, setAviso] = useState<string | null>(() =>
+    new URLSearchParams(consulta).get("guardado") === "1" ? "guardado" : null,
+  );
   // Ao sair da ficha, as respostas que ainda cheguem deixam de contar.
   const montado = useRef(true);
   useEffect(() => {
@@ -106,8 +117,16 @@ export function Artigo({
     if (!valido) return;
     setFicha({ tipo: "a_carregar" });
     try {
-      const dados = await api.artigo(comerciante, artigo);
+      const [dados, eu] = await Promise.all([
+        api.artigo(comerciante, artigo),
+        api.eu(),
+      ]);
       if (!montado.current) return;
+      setPodeEscrever(
+        eu.comerciantes
+          .find((c) => c.comerciante === comerciante)
+          ?.ambitos.includes("catalog:write") === true,
+      );
       setFicha({ tipo: "pronto", dados });
       void carregarImagens();
       void carregarPublicacoes();
@@ -128,6 +147,127 @@ export function Artigo({
   useEffect(() => {
     void carregarFicha();
   }, [carregarFicha]);
+
+  // A marca «guardado» (vinda da edição) sai do endereço: recarregar a
+  // página não volta a dizer que guardou.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("guardado") !== "1") return;
+    q.delete("guardado");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}?${q.toString()}`,
+    );
+  }, []);
+
+  /**
+   * Corre uma acção da §13. Um conflito de versão (outra pessoa mudou) ou um
+   * 404 recarregam a ficha, para o ecrã mostrar o que está guardado agora.
+   */
+  async function agir(fn: () => Promise<void>) {
+    if (ocupado) return;
+    setOcupado(true);
+    setFalhaAccao(null);
+    setAviso(null);
+    try {
+      await fn();
+    } catch (e) {
+      if (!montado.current) return;
+      if (semSessao(e)) {
+        navegar("/entrar", { substituir: true });
+        return;
+      }
+      setFalhaAccao(e);
+      if (e instanceof ErroHub && (e.estado === 409 || e.estado === 404)) {
+        void carregarFicha();
+      }
+    } finally {
+      if (montado.current) setOcupado(false);
+    }
+  }
+
+  function mudarEstado(accao: "activate" | "archive" | "restore") {
+    if (ficha.tipo !== "pronto" || !valido) return;
+    if (accao === "archive" && !window.confirm(t.artigoConfirmarArquivar)) {
+      return;
+    }
+    const versao = ficha.dados.versao;
+    void agir(async () => {
+      const dados = await api.mudarEstadoDoArtigo(
+        comerciante,
+        artigo,
+        accao,
+        versao,
+      );
+      if (!montado.current) return;
+      setFicha({ tipo: "pronto", dados });
+      setAviso("guardado");
+      // Arquivar arquiva as publicações (§4.1).
+      void carregarPublicacoes();
+    });
+  }
+
+  function arquivarVariante(v: VarianteArtigo) {
+    if (ficha.tipo !== "pronto" || !valido) return;
+    const activas = ficha.dados.variantes.filter((x) => x.estado === "activa");
+    const pergunta =
+      activas.length === 1
+        ? t.artigoUltimaVariante
+        : t.artigoConfirmarArquivarVariante;
+    if (!window.confirm(preencher(pergunta, { sku: v.sku }))) return;
+    void agir(async () => {
+      await api.arquivarVariante(comerciante, v.id);
+      if (!montado.current) return;
+      setAviso("guardado");
+      await carregarFicha();
+    });
+  }
+
+  /** Grava uma imagem e recarrega as imagens e as publicações (C2). */
+  function guardarImagem(
+    m: ImagemArtigo,
+    corpo: { texto_alternativo?: string | null; principal?: boolean },
+  ) {
+    if (!valido) return;
+    void agir(async () => {
+      await api.alterarImagem(comerciante, m.id, {
+        versao: m.versao,
+        ...corpo,
+      });
+      if (!montado.current) return;
+      setAviso("guardado");
+      void carregarImagens();
+      void carregarPublicacoes();
+    });
+  }
+
+  /**
+   * Muda uma imagem de lugar: a ordem nova em posições 0, 1, 2…, gravando
+   * só as que mudam (a API ordena pela posição e depois pelo id).
+   */
+  function moverImagem(indice: number, para: number) {
+    if (imagens.tipo !== "pronto" || !valido) return;
+    const ordem = [...imagens.dados];
+    const [movida] = ordem.splice(indice, 1);
+    if (movida === undefined) return;
+    ordem.splice(para, 0, movida);
+    void agir(async () => {
+      try {
+        for (const [posicao, m] of ordem.entries()) {
+          if (m.posicao === posicao) continue;
+          await api.alterarImagem(comerciante, m.id, {
+            versao: m.versao,
+            posicao,
+          });
+        }
+        if (montado.current) setAviso("guardado");
+      } finally {
+        // Também se uma das gravações falhar: o ecrã mostra o que ficou.
+        if (montado.current) void carregarImagens();
+      }
+    });
+  }
 
   // «Voltar aos artigos» leva o comerciante e os filtros da lista.
   const daLista = new URLSearchParams(consulta);
@@ -187,7 +327,22 @@ export function Artigo({
         <ACarregar />
       ) : (
         <>
-          <Cabecalho ficha={ficha.dados} data={data} />
+          <Cabecalho
+            ficha={ficha.dados}
+            data={data}
+            podeEscrever={podeEscrever}
+            ocupado={ocupado}
+            destinoEditar={`/artigos/${artigo}/editar?${voltar.toString()}`}
+            aoMudarEstado={mudarEstado}
+          />
+          {aviso === null ? null : (
+            <p className="secundario" role="status">
+              {t.artigoGuardado}
+            </p>
+          )}
+          {falhaAccao === null ? null : (
+            <CaixaDeErro erro={mensagemDeErro(falhaAccao, t, lingua)} />
+          )}
           <h2>{t.artigoDescricao}</h2>
           {ficha.dados.descricao === null ||
           ficha.dados.descricao.trim() === "" ? (
@@ -196,7 +351,12 @@ export function Artigo({
             <p className="descricao-artigo">{ficha.dados.descricao}</p>
           )}
           <h2>{t.artigoVariantes}</h2>
-          <Variantes variantes={ficha.dados.variantes} />
+          <Variantes
+            variantes={ficha.dados.variantes}
+            podeArquivar={podeEscrever && ficha.dados.origem !== "externo"}
+            ocupado={ocupado}
+            aoArquivar={arquivarVariante}
+          />
           <h2>{t.artigoImagens}</h2>
           {imagens.tipo === "a_carregar" ? (
             <ACarregar />
@@ -209,12 +369,27 @@ export function Artigo({
             <p className="secundario">{t.artigoSemImagens}</p>
           ) : (
             <ul className="imagens-artigo">
-              {imagens.dados.map((m) => (
+              {imagens.dados.map((m, i, todas) => (
                 <Miniatura
                   key={m.id}
                   comerciante={comerciante}
                   imagem={m}
                   variantes={ficha.dados.variantes}
+                  edicao={
+                    podeEscrever
+                      ? {
+                          ocupado,
+                          primeira: i === 0,
+                          ultima: i === todas.length - 1,
+                          aoGuardar: (corpo) => {
+                            guardarImagem(m, corpo);
+                          },
+                          aoMover: (passo) => {
+                            moverImagem(i, i + passo);
+                          },
+                        }
+                      : null
+                  }
                 />
               ))}
             </ul>
@@ -267,14 +442,31 @@ function textoDe(t: Textos, chave: string, valor: string): string {
   return chave in t ? t[chave as keyof Textos] : valor;
 }
 
+/** O botão do estado que a §4.1 do docs/14 deixa a partir de cada estado. */
+const ACCAO_DO_ESTADO = {
+  rascunho: ["activate", "artigoActivar"],
+  activo: ["archive", "artigoArquivar"],
+  arquivado: ["restore", "artigoRepor"],
+} as const;
+
 function Cabecalho({
   ficha,
   data,
+  podeEscrever,
+  ocupado,
+  destinoEditar,
+  aoMudarEstado,
 }: {
   ficha: FichaArtigo;
   data: (iso: string) => string;
+  podeEscrever: boolean;
+  ocupado: boolean;
+  destinoEditar: string;
+  aoMudarEstado: (accao: "activate" | "archive" | "restore") => void;
 }) {
-  const { t } = useHub();
+  const { t, navegar } = useHub();
+  const externo = ficha.origem === "externo";
+  const accao = ACCAO_DO_ESTADO[ficha.estado];
   return (
     <div className="cabecalho-artigo">
       <p>
@@ -298,11 +490,46 @@ function Cabecalho({
           alterado: data(ficha.actualizado_em),
         })}
       </p>
+      {!podeEscrever ? null : externo ? (
+        <p className="secundario">{t.artigoExternoAviso}</p>
+      ) : (
+        <div className="accoes-artigo">
+          <a
+            className="botao"
+            href={destinoEditar}
+            onClick={(e) => {
+              e.preventDefault();
+              navegar(destinoEditar);
+            }}
+          >
+            {t.artigoEditar}
+          </a>
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => {
+              aoMudarEstado(accao[0]);
+            }}
+          >
+            {t[accao[1]]}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function Variantes({ variantes }: { variantes: VarianteArtigo[] }) {
+function Variantes({
+  variantes,
+  podeArquivar,
+  ocupado,
+  aoArquivar,
+}: {
+  variantes: VarianteArtigo[];
+  podeArquivar: boolean;
+  ocupado: boolean;
+  aoArquivar: (v: VarianteArtigo) => void;
+}) {
   const { t, lingua } = useHub();
   const numero = (n: number) =>
     new Intl.NumberFormat(TAG_LINGUA[lingua]).format(n);
@@ -316,6 +543,7 @@ function Variantes({ variantes }: { variantes: VarianteArtigo[] }) {
           <th scope="col">{t.colunaGtin}</th>
           <th scope="col">{t.colunaConteudo}</th>
           <th scope="col">{t.colunaPeso}</th>
+          {podeArquivar ? <th scope="col">{t.colunaAccoes}</th> : null}
         </tr>
       </thead>
       <tbody>
@@ -341,6 +569,24 @@ function Variantes({ variantes }: { variantes: VarianteArtigo[] }) {
             <td data-rotulo={t.colunaPeso}>
               {v.peso_g === null ? "—" : `${numero(v.peso_g)} g`}
             </td>
+            {podeArquivar ? (
+              <td data-rotulo={t.colunaAccoes}>
+                {v.estado === "activa" ? (
+                  <button
+                    type="button"
+                    disabled={ocupado}
+                    aria-label={`${t.artigoArquivarVariante} ${v.sku}`}
+                    onClick={() => {
+                      aoArquivar(v);
+                    }}
+                  >
+                    {t.artigoArquivarVariante}
+                  </button>
+                ) : (
+                  "—"
+                )}
+              </td>
+            ) : null}
           </tr>
         ))}
       </tbody>
@@ -352,16 +598,32 @@ function Variantes({ variantes }: { variantes: VarianteArtigo[] }) {
  * Uma imagem: os bytes pedidos com o cabeçalho do comerciante e mostrados
  * por um endereço `blob:`, apagado ao sair (docs/22 §12.1).
  */
+interface EdicaoDaImagem {
+  ocupado: boolean;
+  primeira: boolean;
+  ultima: boolean;
+  aoGuardar: (corpo: {
+    texto_alternativo?: string | null;
+    principal?: boolean;
+  }) => void;
+  aoMover: (passo: -1 | 1) => void;
+}
+
 function Miniatura({
   comerciante,
   imagem,
   variantes,
+  edicao,
 }: {
   comerciante: string;
   imagem: ImagemArtigo;
   variantes: VarianteArtigo[];
+  /** As acções da §13.1, para quem tem catalog:write; null para os outros. */
+  edicao: EdicaoDaImagem | null;
 }) {
   const { t, lingua, navegar } = useHub();
+  const [aEditar, setAEditar] = useState(false);
+  const [rascunho, setRascunho] = useState(imagem.texto_alternativo ?? "");
   const [endereco, setEndereco] = useState<string | null>(null);
   const [falha, setFalha] = useState<unknown>(null);
   // Cada «Tentar outra vez» volta a pedir os bytes desta imagem.
@@ -442,6 +704,93 @@ function Miniatura({
           )}
         </figcaption>
       </figure>
+      {edicao === null ? null : aEditar ? (
+        <form
+          className="editar-imagem"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const limpo = rascunho.trim();
+            edicao.aoGuardar({
+              texto_alternativo: limpo === "" ? null : limpo,
+            });
+            setAEditar(false);
+          }}
+        >
+          <div className="campo">
+            <label htmlFor={`alt-${imagem.id}`}>
+              {t.artigoTextoAlternativo}
+            </label>
+            <input
+              id={`alt-${imagem.id}`}
+              maxLength={500}
+              value={rascunho}
+              onChange={(e) => {
+                setRascunho(e.target.value);
+              }}
+            />
+          </div>
+          <div className="accoes-imagem">
+            <button type="submit" disabled={edicao.ocupado}>
+              {t.artigoGuardar}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRascunho(imagem.texto_alternativo ?? "");
+                setAEditar(false);
+              }}
+            >
+              {t.cancelar}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="accoes-imagem">
+          <button
+            type="button"
+            disabled={edicao.ocupado}
+            onClick={() => {
+              setRascunho(imagem.texto_alternativo ?? "");
+              setAEditar(true);
+            }}
+          >
+            {t.artigoEditarTexto}
+          </button>
+          {imagem.principal ? null : (
+            <button
+              type="button"
+              disabled={edicao.ocupado}
+              onClick={() => {
+                edicao.aoGuardar({ principal: true });
+              }}
+            >
+              {t.artigoTornarPrincipal}
+            </button>
+          )}
+          {edicao.primeira ? null : (
+            <button
+              type="button"
+              disabled={edicao.ocupado}
+              onClick={() => {
+                edicao.aoMover(-1);
+              }}
+            >
+              {t.artigoMoverAntes}
+            </button>
+          )}
+          {edicao.ultima ? null : (
+            <button
+              type="button"
+              disabled={edicao.ocupado}
+              onClick={() => {
+                edicao.aoMover(1);
+              }}
+            >
+              {t.artigoMoverDepois}
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }

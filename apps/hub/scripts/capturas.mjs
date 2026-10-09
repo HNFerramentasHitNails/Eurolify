@@ -290,12 +290,24 @@ function pngDeUmaCor([r, g, b]) {
   ]);
 }
 
+// A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
+// escrita sem «quem». A preparação escreve pelas funções do repositório,
+// sem pedido: tem um «quem» próprio só enquanto prepara; a API põe o seu em
+// cada escrita (e o Hub, a pessoa da sessão).
+psql(
+  `alter database ${nomeBase} set eurolify.quem = 'passagem:preparar'`,
+  "postgres",
+);
 // 30 artigos fictícios (mais do que uma página de 25; docs/22 §11), pela
 // mesma função do POST /products, sem chave (uma chave aparecia na lista das
 // chaves). O 30 vem do sistema de gestão do comerciante. O 1 tem a ficha
 // completa (docs/22 §12.3): duas variantes, uma descrição e duas imagens,
 // uma com texto alternativo e outra sem.
 let artigoDaFicha = "";
+// O 2 edita-se na passagem (docs/22 §13), com duas imagens sem texto; o 30
+// vem do sistema de gestão (P5).
+let artigoEditavel = "";
+let artigoExterno = "";
 let canalDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
@@ -331,11 +343,15 @@ let canalDaFicha;
       ],
     );
     if (i === 0) artigoDaFicha = id;
+    if (i === 1) artigoEditavel = id;
+    if (i === 29) artigoExterno = id;
   }
   const armazenamento = new ArmazenamentoEmDisco(PASTA_MEDIA);
-  for (const [cor, texto, principal] of [
-    [[37, 99, 235], "Frasco de verniz azul, de frente", true],
-    [[219, 39, 119], null, false],
+  for (const [cor, texto, principal, artigoId] of [
+    [[37, 99, 235], "Frasco de verniz azul, de frente", true, artigoDaFicha],
+    [[219, 39, 119], null, false, artigoDaFicha],
+    [[22, 163, 74], null, true, artigoEditavel],
+    [[234, 88, 12], null, false, artigoEditavel],
   ]) {
     const bytes = pngDeUmaCor(cor);
     const resumo = createHash("sha256").update(bytes).digest("hex");
@@ -347,7 +363,7 @@ let canalDaFicha;
       armazenamento.quotaPorComerciante,
     );
     await criarMedia(baseArtigos, comerciante, {
-      artigoId: artigoDaFicha,
+      artigoId,
       varianteId: null,
       resumo,
       textoAlternativo: texto,
@@ -428,6 +444,7 @@ let canalDaFicha;
   }
   canalDaFicha = canal;
   await baseArtigos.destroy();
+  psql(`alter database ${nomeBase} reset eurolify.quem`, "postgres");
 }
 
 // 4. O navegador, com uma passkey em software.
@@ -809,6 +826,26 @@ try {
         .getByRole("heading", { name: "Convites em aberto" })
         .count()) === 0,
     "o apoio não vê o formulário nem os convites",
+  );
+  // O apoio lê a ficha mas não a edita (docs/22 §13.2: os âmbitos vêm do
+  // /hub/me; o servidor recusa na mesma).
+  await apoio.pagina.goto(
+    `${ORIGEM}/artigos/prd_${artigoEditavel}?comerciante=mer_${comerciante}`,
+  );
+  await apoio.pagina
+    .getByRole("heading", { name: /Verniz Rosa 2/, level: 1 })
+    .waitFor();
+  await apoio.pagina
+    .getByText("Ainda não está publicado", { exact: false })
+    .waitFor();
+  confere(
+    (await apoio.pagina
+      .getByRole("link", { name: "Editar", exact: true })
+      .count()) === 0 &&
+      (await apoio.pagina
+        .getByRole("button", { name: /Activar|Arquivar|Editar texto/ })
+        .count()) === 0,
+    "edição: o apoio vê a ficha sem «Editar» nem acções",
   );
   await apoio.contexto.close();
 
@@ -1660,6 +1697,168 @@ try {
     (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) === 0,
     "ficha: um artigo que não existe diz-o, sem «Tentar outra vez»",
   );
+  // Editar o artigo (docs/22 §13), com a Ana (dona), no «Verniz Rosa 2».
+  const fichaEditavel = `${ORIGEM}/artigos/prd_${artigoEditavel}?comerciante=mer_${comerciante}`;
+  await rp.goto(fichaEditavel);
+  await rp.getByRole("heading", { name: "Verniz Rosa 2", level: 1 }).waitFor();
+  await rp.getByRole("link", { name: "Editar", exact: true }).click();
+  await rp.getByRole("heading", { name: "Editar o artigo" }).waitFor();
+  await rp.getByLabel("Nome", { exact: true }).fill("Verniz Rosa 2 Brilho");
+  await rp
+    .getByLabel("Descrição", { exact: true })
+    .fill("Acabamento brilhante.");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp
+    .getByRole("heading", { name: "Verniz Rosa 2 Brilho", level: 1 })
+    .waitFor();
+  confere(
+    (await rp.getByText("Alterações guardadas.").count()) === 1 &&
+      (await rp.getByText("Acabamento brilhante.").count()) === 1 &&
+      !new URL(rp.url()).searchParams.has("guardado"),
+    "edição: guardar o nome e a descrição volta à ficha com «Alterações guardadas»",
+  );
+  // Um conflito: outra escrita (aqui, um fetch do mesmo navegador) muda o
+  // artigo entre abrir o formulário e guardar.
+  await rp.getByRole("link", { name: "Editar", exact: true }).click();
+  await rp.getByLabel("Nome", { exact: true }).waitFor();
+  const outraEscrita = await rp.evaluate(
+    async ({ c, a }) => {
+      const ficha = await (
+        await fetch(`/hub/products/${a}`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      const r = await fetch(`/hub/products/${a}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "eurolify-comerciante": c,
+        },
+        body: JSON.stringify({ versao: ficha.versao, marca: "Outra Marca" }),
+      });
+      return r.status;
+    },
+    { c: `mer_${comerciante}`, a: `prd_${artigoEditavel}` },
+  );
+  await rp.getByLabel("Nome", { exact: true }).fill("Verniz Rosa 2 Mate");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp
+    .getByText("Outra pessoa alterou este artigo entretanto.", { exact: false })
+    .waitFor();
+  confere(
+    outraEscrita === 200 &&
+      (await rp.getByLabel("Nome", { exact: true }).inputValue()) ===
+        "Verniz Rosa 2 Mate" &&
+      (await rp.getByText("Outra Marca", { exact: true }).count()) === 1,
+    "edição: um conflito não grava, mostra o que está guardado e deixa o que se escreveu",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "artigo-editar-conflito-375-claro.png"),
+    fullPage: true,
+  });
+  // Cancelar com alterações por guardar pergunta antes.
+  let perguntou = false;
+  rp.once("dialog", (d) => {
+    perguntou = true;
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Cancelar" }).click();
+  await rp
+    .getByRole("heading", { name: "Verniz Rosa 2 Brilho", level: 1 })
+    .waitFor();
+  confere(
+    perguntou,
+    "edição: cancelar com alterações por guardar pergunta antes",
+  );
+  // O estado: activar, arquivar (com confirmação) e repor.
+  await rp.getByRole("button", { name: "Activar" }).click();
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).waitFor();
+  let confirmouArquivo = false;
+  rp.once("dialog", (d) => {
+    confirmouArquivo = d.message().includes("tira-o de venda");
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).click();
+  await rp.getByRole("button", { name: "Repor" }).waitFor();
+  await rp.getByRole("button", { name: "Repor" }).click();
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).waitFor();
+  confere(
+    confirmouArquivo &&
+      (await rp.locator(".estado-artigo", { hasText: "Activo" }).count()) === 1,
+    "edição: activar, arquivar com confirmação e repor",
+  );
+  // As imagens: o texto alternativo que faltava, a principal e a ordem.
+  await rp.waitForFunction(
+    () =>
+      [...document.querySelectorAll(".imagens-artigo img")].filter(
+        (i) => i.complete && i.naturalWidth === 64,
+      ).length === 2,
+  );
+  const imagensEditaveis = rp.locator(".imagens-artigo > li");
+  await imagensEditaveis
+    .nth(1)
+    .getByRole("button", { name: "Editar texto alternativo" })
+    .click();
+  await imagensEditaveis
+    .nth(1)
+    .getByLabel("Texto alternativo")
+    .fill("Frasco de verniz laranja");
+  await imagensEditaveis
+    .nth(1)
+    .getByRole("button", { name: "Guardar" })
+    .click();
+  await rp.getByText("Frasco de verniz laranja").waitFor();
+  confere(
+    (await rp
+      .getByText("Sem texto alternativo — impede a publicação.")
+      .count()) === 1,
+    "edição: o texto alternativo que faltava grava-se e o aviso sai dessa imagem",
+  );
+  await imagensEditaveis
+    .nth(1)
+    .getByRole("button", { name: "Tornar principal" })
+    .click();
+  await rp.waitForFunction(
+    () =>
+      document
+        .querySelectorAll(".imagens-artigo > li")[1]
+        ?.textContent?.includes("Principal") === true,
+  );
+  await imagensEditaveis
+    .nth(0)
+    .getByRole("button", { name: "Mover para depois" })
+    .click();
+  await rp.waitForFunction(
+    () =>
+      document
+        .querySelectorAll(".imagens-artigo > li")[0]
+        ?.textContent?.includes("Frasco de verniz laranja") === true,
+  );
+  confere(true, "edição: tornar principal e mudar a ordem das imagens");
+  // Arquivar a única variante: a confirmação diz que é a última.
+  let ultima = false;
+  rp.once("dialog", (d) => {
+    ultima = d.message().includes("última variante activa");
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Arquivar variante ENS-002" }).click();
+  await rp.getByRole("row", { name: /ENS-002.*Arquivada/ }).waitFor();
+  confere(ultima, "edição: arquivar a última variante avisa e fica Arquivada");
+  // Um artigo do sistema de gestão (P5): sem «Editar» nem estado; o aviso.
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoExterno}?comerciante=mer_${comerciante}`,
+  );
+  await rp
+    .getByText("Este artigo vem do sistema de gestão:", { exact: false })
+    .waitFor();
+  confere(
+    (await rp.getByRole("link", { name: "Editar", exact: true }).count()) ===
+      0 &&
+      (await rp.getByRole("button", { name: /Activar|Arquivar/ }).count()) ===
+        0,
+    "edição: num artigo do sistema de gestão, sem «Editar» nem estado, com o aviso",
+  );
+
   // Sem permissão (403) e sessão que acabou (401), com respostas fingidas.
   const fichaReal = `${ORIGEM}/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`;
   await rp.route("**/hub/products/prd_*", (r) =>
@@ -1829,6 +2028,11 @@ try {
       "artigo",
       `/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`,
       "Verniz Azul 1",
+    ],
+    [
+      "artigo-editar",
+      `/artigos/prd_${artigoEditavel}/editar?comerciante=mer_${comerciante}`,
+      "Editar o artigo",
     ],
     ["conta", "/conta", "A minha conta"],
     ["chaves", `/chaves?comerciante=mer_${comerciante}`, "Chaves de API"],

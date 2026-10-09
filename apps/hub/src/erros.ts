@@ -43,6 +43,10 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "password.last_credential": "erroPalavraPasseUltima",
   "password.not_found": "erroPalavraPasseNaoExiste",
   "key.scope_escalation": "erroChaveAmbitosAMais",
+  // Editar o artigo (docs/22 §13.2 e §13.3).
+  "catalog.version_conflict": "artigoConflito",
+  "catalog.external_field": "artigoExternoCampo",
+  "catalog.name_required": "artigoNomeObrigatorio",
   "key.merchant_inactive": "erroChaveComercianteInactivo",
   "key.not_found": "erroChaveNaoExiste",
   "key.already_revoked": "erroChaveJaRevogada",
