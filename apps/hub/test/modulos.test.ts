@@ -10,35 +10,16 @@ import {
   type Comerciante,
 } from "../src/modulos";
 import { TEXTOS } from "../src/textos";
+import { AMBITOS_DO_PAPEL } from "../../api/src/identidade/papeis";
 
 // A entrada por módulos (docs/hub-modular-glassmorphism.md, «Primeira
 // implementação»): só destinos que existem, pelos âmbitos do /hub/me, e o
 // comerciante nunca escolhido sozinho entre vários.
 
-// Os âmbitos de cada papel, como a base os dá hoje
-// (apps/api/src/identidade/papeis.ts).
-const AMBITOS = {
-  dono: [
-    "catalog:history",
-    "catalog:import",
-    "catalog:publish",
-    "catalog:read",
-    "catalog:write",
-    "keys:write",
-    "merchant:read",
-    "merchant:write",
-  ],
-  gestor: [
-    "catalog:history",
-    "catalog:import",
-    "catalog:publish",
-    "catalog:read",
-    "catalog:write",
-    "merchant:read",
-  ],
-  armazem: ["catalog:read"],
-  apoio: ["catalog:read", "merchant:read"],
-} as const;
+// Os âmbitos de cada papel, da mesma lista da API (a base tem uma igual e
+// o teste da API confere-as): se os papéis mudarem lá, este teste vê-o
+// (revisão do #219, P2-6).
+const AMBITOS = AMBITOS_DO_PAPEL;
 
 function comerciante(
   id: string,
@@ -151,10 +132,18 @@ describe("o comerciante activo", () => {
     expect(escolherComerciante([], "mer_a")).toEqual({ tipo: "vazio" });
   });
 
-  it("com um só, escolhe-o", () => {
+  it("com um só, escolhe-o — também com ?comerciante= vazio", () => {
     expect(escolherComerciante([a], null)).toEqual({
       tipo: "activo",
       comerciante: a,
+    });
+    expect(escolherComerciante([a], "")).toEqual({
+      tipo: "activo",
+      comerciante: a,
+    });
+    expect(escolherComerciante([a, b], "")).toEqual({
+      tipo: "escolher",
+      desconhecido: false,
     });
   });
 

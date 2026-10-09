@@ -16,7 +16,7 @@ import {
   type Membros,
 } from "../api";
 import { autorDe, estadoDaChave, fimDoDia, type Autor } from "../chaves";
-import { ACarregar, CaixaDeErro, useHub } from "../contexto";
+import { ACarregar, CaixaDeErro, useHub, LigacaoInterna } from "../contexto";
 import {
   ErroDoEcra,
   falhaDeAccao,
@@ -180,15 +180,9 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
   return (
     <section aria-labelledby="titulo">
       <p>
-        <a
-          href={entradaDe(comerciante)}
-          onClick={(e) => {
-            e.preventDefault();
-            navegar(entradaDe(comerciante));
-          }}
-        >
+        <LigacaoInterna href={entradaDe(comerciante)}>
           {t.equipaVoltar}
-        </a>
+        </LigacaoInterna>
       </p>
       <h1 id="titulo">
         {t.chavesTitulo}

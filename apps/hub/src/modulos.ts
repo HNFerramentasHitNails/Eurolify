@@ -82,7 +82,8 @@ export function escolherComerciante(
   pedido: string | null,
 ): Escolha {
   if (comerciantes.length === 0) return { tipo: "vazio" };
-  if (pedido !== null) {
+  // `?comerciante=` sem valor conta como nenhum (revisão do #219, P3).
+  if (pedido !== null && pedido !== "") {
     const c = comerciantes.find((x) => x.comerciante === pedido);
     return c === undefined
       ? { tipo: "escolher", desconhecido: true }

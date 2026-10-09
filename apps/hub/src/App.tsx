@@ -123,6 +123,9 @@ export function App() {
   else if (local.caminho === "/equipa")
     ecra = (
       <Equipa
+        // Outro comerciante, outro ecrã: os membros de um nunca ficam por
+        // baixo do título de outro (revisão do #219, P2-2).
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
       />
     );

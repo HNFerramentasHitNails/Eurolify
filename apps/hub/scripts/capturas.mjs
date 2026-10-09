@@ -80,10 +80,15 @@ execFileSync("node", [join(API, "dist/migrar.js")], {
   stdio: "inherit",
 });
 psql(`alter role eurolify_api login password '${SENHA}'`);
-// A linha do tempo (0033) recusa mudar o catálogo sem `eurolify.quem`; os
-// artigos de ensaio criam-se pelas funções do repositório, sem pedido, como
-// nos testes da API (test/base-de-teste.ts). Só nesta base descartável.
-psql(`alter database ${nomeBase} set eurolify.quem = 'capturas:base'`);
+// A linha do tempo (0033) recusa mudar o catálogo sem `eurolify.quem`. Os
+// artigos de ensaio criam-se pelas funções do repositório, sem pedido: só
+// a ligação de preparação leva um «quem» (revisão do #219, P2-3). A API que
+// a passagem arranca não o tem, para uma escrita sem «quem» continuar a falhar.
+const urlDePreparacao = () => {
+  const u = new URL(urlDe(nomeBase, "eurolify_api", SENHA));
+  u.searchParams.set("options", "-c eurolify.quem=capturas:base");
+  return u.toString();
+};
 const { abrirBase } = await import(join(API, "dist/base/ligacao.js"));
 const { publicar } = await import(join(API, "dist/catalogo/publicacao.js"));
 const { classificarArtigo, mudarEstadoArtigo, obterArtigo } = await import(
@@ -303,7 +308,7 @@ let artigoDaFicha = "";
 let canalDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
-  const baseArtigos = abrirBase(urlDe(nomeBase, "eurolify_api", SENHA));
+  const baseArtigos = abrirBase(urlDePreparacao());
   for (let i = 0; i < 30; i++) {
     const id = await criarArtigo(
       baseArtigos,
@@ -1853,11 +1858,24 @@ try {
               e.scrollHeight > e.clientHeight + 1,
           ).length,
           destinos: cartoes.map((a) => a.getAttribute("href")),
-          filtro: window.getComputedStyle(
-            document.querySelector(".superficie-icone"),
-          ).backdropFilter,
         };
       });
+    // O vidro lê-se nos dois elementos que o têm, pelo desfoque e pela cor
+    // de fundo (translúcida ou opaca) (revisão do #219, P2-4).
+    const lerVidro = (p) =>
+      p.evaluate(() =>
+        [".superficie-icone", ".pesquisa-linha input"].map((sel) => {
+          const cs = window.getComputedStyle(document.querySelector(sel));
+          return { sel, filtro: cs.backdropFilter, fundo: cs.backgroundColor };
+        }),
+      );
+    const opacoDe = (fundo) => /^rgb\(\d+, \d+, \d+\)$/.test(fundo);
+    const comVidro = (l) =>
+      l.every((x) => x.filtro.includes("blur") && !opacoDe(x.fundo));
+    const semVidro = (l) =>
+      l.every((x) => x.filtro === "none" && opacoDe(x.fundo));
+    const mostrar = (l) =>
+      l.map((x) => `${x.sel}: ${x.filtro}, ${x.fundo}`).join("; ");
     const ficheiro = (nome, largura, tema) =>
       join(
         SAIDA,
@@ -1876,6 +1894,7 @@ try {
         await p.goto(`${ORIGEM}/`);
         await p.locator(".grelha-modulos").waitFor();
         const m = await medirEntrada(p);
+        const vidro = await lerVidro(p);
         const nome = `entrada ${String(largura)} ${tema}`;
         confere(!m.largo, `${nome}: sem deslocação horizontal`);
         confere(
@@ -1891,7 +1910,10 @@ try {
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
           `${nome}: os três módulos do dono, com o comerciante no endereço`,
         );
-        confere(m.filtro.includes("blur"), `${nome}: o vidro está ligado`);
+        confere(
+          comVidro(vidro),
+          `${nome}: o vidro está ligado no ícone e no campo (${mostrar(vidro)})`,
+        );
         await p.screenshot({
           path: ficheiro("entrada", largura, tema),
           fullPage: true,
@@ -2018,14 +2040,11 @@ try {
     const antesDeOpaco = JSON.stringify(await c.storageState());
     const opaco = p.getByRole("button", { name: "Superfícies opacas" });
     await opaco.click();
-    const filtroOpaco = await p
-      .locator(".superficie-icone")
-      .first()
-      .evaluate((e) => window.getComputedStyle(e).backdropFilter);
+    const vidroOpaco = await lerVidro(p);
     confere(
       (await opaco.getAttribute("aria-pressed")) === "true" &&
-        filtroOpaco === "none",
-      `entrada: «Superfícies opacas» tira o vidro (${filtroOpaco})`,
+        semVidro(vidroOpaco),
+      `entrada: «Superfícies opacas» tira o vidro do ícone e do campo (${mostrar(vidroOpaco)})`,
     );
     await p.screenshot({
       path: join(SAIDA, "entrada-opaca-375-claro.png"),
@@ -2060,17 +2079,14 @@ try {
     await cdp.send("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-transparency", value: "reduce" }],
     });
-    const transparencia = await p.evaluate(() => ({
-      suportada: window.matchMedia("(prefers-reduced-transparency: reduce)")
-        .matches,
-      filtro: window.getComputedStyle(
-        document.querySelector(".superficie-icone"),
-      ).backdropFilter,
-    }));
-    if (transparencia.suportada) {
+    const suportada = await p.evaluate(
+      () => window.matchMedia("(prefers-reduced-transparency: reduce)").matches,
+    );
+    if (suportada) {
+      const vidroReduzido = await lerVidro(p);
       confere(
-        transparencia.filtro === "none",
-        "entrada: com prefers-reduced-transparency, sem vidro",
+        semVidro(vidroReduzido),
+        `entrada: com prefers-reduced-transparency, sem vidro no ícone nem no campo (${mostrar(vidroReduzido)})`,
       );
     } else {
       passos.push(
@@ -2078,26 +2094,25 @@ try {
       );
     }
     await cdp.send("Emulation.setEmulatedMedia", { features: [] });
-    await p.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
-    const forcado = await p.evaluate(() => {
-      const e = document.querySelector(".superficie-icone");
-      return {
-        filtro: window.getComputedStyle(e).backdropFilter,
-        transicao: window.getComputedStyle(e).transitionDuration,
-      };
-    });
+    await p.emulateMedia({ forcedColors: "active" });
+    const vidroForcado = await lerVidro(p);
     confere(
-      forcado.filtro === "none",
-      "entrada: com cores forçadas, sem vidro",
-    );
-    confere(
-      forcado.transicao === "0s",
-      `entrada: com menos movimento, sem transições (${forcado.transicao})`,
+      semVidro(vidroForcado),
+      `entrada: com cores forçadas, sem vidro no ícone nem no campo (${mostrar(vidroForcado)})`,
     );
     await p.screenshot({
       path: join(SAIDA, "entrada-cores-forcadas-375.png"),
       fullPage: true,
     });
+    await p.emulateMedia({ forcedColors: "none", reducedMotion: "reduce" });
+    const transicao = await p
+      .locator(".superficie-icone")
+      .first()
+      .evaluate((e) => window.getComputedStyle(e).transitionDuration);
+    confere(
+      transicao === "0s",
+      `entrada: com menos movimento, as superfícies dos ícones sem transição (${transicao})`,
+    );
     await c.close();
 
     // Vários comerciantes: a Ana passa a ser apoio de uma segunda loja (só

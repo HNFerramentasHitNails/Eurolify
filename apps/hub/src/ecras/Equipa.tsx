@@ -14,7 +14,7 @@ import {
   type Papel,
 } from "../api";
 import { ligacaoDoConvite } from "../convite";
-import { ACarregar, CaixaDeErro, useHub } from "../contexto";
+import { ACarregar, CaixaDeErro, useHub, LigacaoInterna } from "../contexto";
 import {
   falhaDeAccao,
   mensagemDeErro,
@@ -221,15 +221,9 @@ export function Equipa({ comerciante }: { comerciante: string | null }) {
   return (
     <section aria-labelledby="titulo">
       <p>
-        <a
-          href={entradaDe(comerciante)}
-          onClick={(e) => {
-            e.preventDefault();
-            navegar(entradaDe(comerciante));
-          }}
-        >
+        <LigacaoInterna href={entradaDe(comerciante)}>
           {t.equipaVoltar}
-        </a>
+        </LigacaoInterna>
       </p>
       <h1 id="titulo">
         {t.equipaTitulo}

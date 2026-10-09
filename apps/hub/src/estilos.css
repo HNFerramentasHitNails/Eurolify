@@ -528,7 +528,7 @@ body:has(.entrada) {
 .pesquisa-linha input {
   flex: 1 1 var(--largura-campo);
   min-height: var(--hub-pesquisa-altura-minima);
-  border-color: var(--vidro-borda);
+  border-color: var(--borda-controlo);
   border-radius: var(--hub-icone-raio);
   box-shadow: var(--vidro-sombra);
 }
@@ -550,9 +550,17 @@ body:has(.entrada) {
   margin-top: 0;
 }
 
+/* Uma pesquisa longa sem espaços não alarga a página. */
+.modulos p {
+  overflow-wrap: anywhere;
+}
+
 /* As colunas pela largura da própria grelha (container queries), não pelo
-   aparelho: 2 abaixo de 480 px, depois 3, 4, 5 e 6. Uma @container não lê
-   variáveis, por isso os pontos ficam aqui e só aqui. Sem suporte, ficam 2. */
+   aparelho: 2 abaixo de 480 px, depois 3, 4, 5 e 6. Com a página de 960 px
+   (--largura-pagina), a grelha mede no máximo 928 px e fica nas 5; a regra
+   das 6 só conta se a página alargar (revisão do #219, P2-1). Uma
+   @container não lê variáveis, por isso os pontos ficam aqui e só aqui.
+   Sem suporte, ficam 2. */
 .grelha-modulos {
   list-style: none;
   margin: 0 0 var(--espaco-6);

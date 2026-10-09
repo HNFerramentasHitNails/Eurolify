@@ -14,7 +14,7 @@ import {
   type FiltrosArtigos,
   type ResumoArtigo,
 } from "../api";
-import { ACarregar, CaixaDeErro, useHub } from "../contexto";
+import { ACarregar, CaixaDeErro, useHub, LigacaoInterna } from "../contexto";
 import { mensagemDeErro, semSessao, type MensagemDeErro } from "../erros";
 import { preencher, TAG_LINGUA } from "../textos";
 import { entradaDe } from "../modulos";
@@ -230,15 +230,9 @@ export function Artigos({
   return (
     <section aria-labelledby="titulo">
       <p>
-        <a
-          href={entradaDe(comerciante)}
-          onClick={(e) => {
-            e.preventDefault();
-            navegar(entradaDe(comerciante));
-          }}
-        >
+        <LigacaoInterna href={entradaDe(comerciante)}>
           {t.equipaVoltar}
-        </a>
+        </LigacaoInterna>
       </p>
       <h1 id="titulo">
         {t.artigosTitulo}

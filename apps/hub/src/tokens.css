@@ -10,6 +10,7 @@
   --cinzento-50: #f5f6f8;
   --cinzento-200: #dde1e6;
   --cinzento-300: #b4bcc6;
+  --cinzento-500: #7d8590;
   --cinzento-600: #525b66;
   --cinzento-700: #3a414a;
   --cinzento-900: #1b1f24;
@@ -64,6 +65,9 @@
   --hub-transicao: 150ms;
   --vidro-desfoque: 12px;
   --vidro-desfoque-pequeno: 8px;
+  --sombra-curta-clara:
+    0 1px 2px rgb(17 20 24 / 8%), 0 4px 12px rgb(17 20 24 / 6%);
+  --sombra-curta-escura: 0 1px 2px rgb(0 0 0 / 30%);
 
   /* Semânticos, tema claro */
   --superficie: var(--cinzento-0);
@@ -91,7 +95,10 @@
   --vidro-opacidade: 84%;
   --vidro-opacidade-forte: 96%;
   --vidro-borda: var(--borda);
-  --vidro-sombra: 0 1px 2px rgb(17 20 24 / 8%), 0 4px 12px rgb(17 20 24 / 6%);
+  --vidro-sombra: var(--sombra-curta-clara);
+  /* A borda do campo de pesquisa, o controlo principal da entrada: ≥ 3:1
+     contra o fundo nos dois temas (WCAG 1.4.11; revisão do #219, P2-5). */
+  --borda-controlo: var(--cinzento-500);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -111,6 +118,6 @@
     --vidro-cor: var(--cinzento-900);
     --vidro-opacidade: 90%;
     --vidro-opacidade-forte: 97%;
-    --vidro-sombra: 0 1px 2px rgb(0 0 0 / 30%);
+    --vidro-sombra: var(--sombra-curta-escura);
   }
 }

@@ -157,12 +157,53 @@ describe("os contrastes da entrada, com o vidro composto", () => {
       }
     }
 
-    it(`${tema}: sobre o vidro opaco, texto ≥ 4,5:1 e ícone ≥ 3:1`, () => {
-      const vidro = cor(tema, "vidro-cor");
-      expect(contraste(cor(tema, "texto"), vidro)).toBeGreaterThanOrEqual(4.5);
+    // Opaco (botão, preferência ou cores do sistema), o CSS pinta os ícones
+    // em superficie-elevada e o campo em superficie (revisão do #219, P2-5).
+    it(`${tema}: opaco, ícone sobre superficie-elevada ≥ 3:1 e texto do campo sobre superficie ≥ 4,5:1`, () => {
       expect(
-        contraste(cor(tema, "accao-principal"), vidro),
+        contraste(
+          cor(tema, "accao-principal"),
+          cor(tema, "superficie-elevada"),
+        ),
       ).toBeGreaterThanOrEqual(3);
+      expect(
+        contraste(cor(tema, "texto"), cor(tema, "superficie")),
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it(`${tema}: a borda do campo de pesquisa ≥ 3:1 contra o fundo e contra o próprio campo`, () => {
+      for (const fundo of [
+        "fundo-entrada-inicio",
+        "fundo-entrada-fim",
+        "superficie",
+      ]) {
+        expect(
+          contraste(cor(tema, "borda-controlo"), cor(tema, fundo)),
+          fundo,
+        ).toBeGreaterThanOrEqual(3);
+      }
+      for (const alfa of ["vidro-opacidade", "vidro-opacidade-forte"]) {
+        for (const fundo of ["fundo-entrada-inicio", "fundo-entrada-fim"]) {
+          const campo = composta(
+            cor(tema, "vidro-cor"),
+            opacidade(tema, alfa),
+            cor(tema, fundo),
+          );
+          expect(
+            contraste(cor(tema, "borda-controlo"), campo),
+            `${alfa} em ${fundo}`,
+          ).toBeGreaterThanOrEqual(3);
+        }
+      }
+    });
+
+    it(`${tema}: os erros sobre o fundo da entrada ≥ 4,5:1`, () => {
+      for (const fundo of ["fundo-entrada-inicio", "fundo-entrada-fim"]) {
+        expect(
+          contraste(cor(tema, "estado-erro"), cor(tema, fundo)),
+          fundo,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     });
   }
 

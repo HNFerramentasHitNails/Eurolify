@@ -134,8 +134,14 @@ Equipa → membros, convites, papéis). A contagem anuncia-se com
 - Grelha: lista de ligações (`nav` com nome, `ul/li`), cada uma com uma
   superfície pequena com o ícone (SVG local, decorativo) e o rótulo por baixo,
   tudo um só alvo. Colunas pela largura da própria grelha: 2 abaixo de 480 px,
-  3 até 639, 4 até 879, 5 até 1039, 6 daí para cima; com 3 módulos, ficam 3
+  3 até 639, 4 até 879, 5 até 1039, 6 daí para cima. A página do Hub tem
+  960 px no máximo (`--largura-pagina`), por isso a grelha fica em 928 px e
+  **nunca passa das 5 colunas**; alargar a página só na entrada é uma
+  decisão de aspecto, que fica para as capturas. Com 3 módulos, ficam 3
   células do mesmo tamanho, sem esticar.
+- O campo de pesquisa tem uma borda própria (`--borda-controlo`), com pelo
+  menos 3:1 contra o fundo nos dois temas; as outras caixas do Hub ficam
+  com a borda de hoje.
 - Vidro só no campo de pesquisa e nas superfícies dos ícones, sobre um fundo
   estático com um gradiente muito leve. Sem suporte de `backdrop-filter`, com
   `prefers-reduced-transparency`, em `forced-colors` ou com «Superfícies
