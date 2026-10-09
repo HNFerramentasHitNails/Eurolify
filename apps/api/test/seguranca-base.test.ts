@@ -46,6 +46,8 @@ const FUNCOES_DA_API = [
   "chave_resolver",
   "chave_revogar_pela_api",
   "chave_revogar_pela_sessao",
+  // O checkout alojado (0041): do token para a sessão, sem RLS.
+  "checkout_resolver",
   "codigos_gerar",
   "comerciante_actual",
   "conta_nova_com_passkey",

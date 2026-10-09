@@ -1,7 +1,9 @@
 # Checkout alojado — modelo e lista da API
 
-> **Estado: desenho, para aprovação** (issue #273). Diogo, 09/10/2026:
-> *«sim, avança com o desenho da fatia 7»*. É a fatia 7 do
+> **Estado: desenho aprovado; parte 1 no código** (issue #273; migração
+> 0041; `docs/06`, DA). Diogo, 09/10/2026: *«sim, avança com o desenho da
+> fatia 7»* e *«sim, aprovo; avança com o código da fatia 7»* (Q1 a Q6 como
+> propostas). O que está programado e os desvios dizem-se na §13. É a fatia 7 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Checkout alojado: total, condições, perfil de faturação, consentimentos
 > por linha»). Depende das fatias 3 a 6, que estão no `main`: o Catálogo
@@ -315,3 +317,45 @@ registos técnicos, só identificadores (`eu-gdpr-privacy`, regra 7).
 | 1 | migração: carrinho, sessão de checkout, textos legais e versões, núcleo da encomenda (Q1), métodos de entrega (Q2); âmbitos; API da Loja do carrinho e API de Administração dos textos legais |
 | 2 | o checkout alojado: páginas do servidor, o percurso da §5, o resumo e o botão final, a confirmação guardada |
 | 3 | os testes de ponta a ponta no ensaio: um consumidor em Lisboa, uma empresa francesa com VIES, um checkout bloqueado pelo Motor, um total que muda entre o resumo e o botão final, um duplo clique |
+
+## 13. Em código — parte 1 (09/10/2026; migração 0041; `docs/06`, DA)
+
+| O quê | Onde |
+|---|---|
+| tabelas `texto_legal` e `versao_texto_legal` (só se acrescenta; publicada não muda), `metodo_entrega` (Q2), `carrinho`, `linha_carrinho`, `sessao_checkout`, `encomenda` e `linha_encomenda` (Q1: as cópias não mudam, só o estado para a frente), todas com o RLS forçado | migração 0041 |
+| eventos `checkout.started`, `order.created`, `legal_text.published`, pelos gatilhos | migração 0041 |
+| âmbitos `legal:read`, `legal:write`, `shipping:read`, `shipping:write`, `orders:read`, nos papéis | migração 0041; `src/identidade/` |
+| o preço para vender (lista de base activa, redução em vigor, preço por unidade) | `src/precos/repositorio.ts`, `precosParaVenda` |
+| o carrinho pela API da Loja (chave pública da loja e o segredo do carrinho em `X-Cart-Secret`), o checkout alojado pelo token (JSON) e a Administração dos textos legais, métodos de entrega, checkouts e encomendas — a lista da §8 | `src/checkout/` |
+| o resumo e o botão final (§5): o preço, o IVA de cada linha e dos portes pelo Motor de IVA, os textos a aceitar, o que falta e o que bloqueia; recálculo no botão final e recusa se mudou (R3); as versões aceites têm de ser as do resumo (R5); a ficha, o perfil e a encomenda com a cópia | `src/checkout/repositorio.ts` |
+| 11 testes pela API (o percurso inteiro com o IVA e os portes, o total que muda, as condições, os textos em falta, a Madeira bloqueada pelo Motor, portes grátis, quantidade mínima, país não servido, profissional sem NIF, o carrinho e as chaves entre lojas e comerciantes, a sessão expirada e abandonada, o que não se vende); 22 mutações, 20 apanhadas e 2 equivalentes (a base recusa igual: o mercado de outra loja pela chave composta, a sessão fechada pelo gatilho) | `test/checkout-api.test.ts` |
+
+**Desvios do desenho:**
+- **Só artigos físicos** se vendem nesta fatia: a natureza para o IVA ainda
+  não está no artigo (`docs/24` §13), e um físico é um bem (`docs/24`
+  §3.2). Serviços, bilhetes e o resto ficam `checkout.variant_unavailable`
+  até ela existir (na dúvida, não vende).
+- **O token da sessão** vive numa tabela interna (`token_checkout`, RLS sem
+  forçar, como a `chave_api` da 0010): as tabelas com o RLS forçado não se
+  lêem sem comerciante, nem pela função do dono.
+- **O botão final é idempotente pela sessão**, não pela `Idempotency-Key`
+  (o checkout alojado não tem chave): repetir numa sessão concluída devolve
+  a mesma encomenda.
+- **O método de pagamento** é um código livre (`^[a-z_]{2,40}$`) até a
+  fatia 8 dizer os métodos de cada mercado.
+- **Textos a aceitar** (proposta): o consumidor aceita os cinco tipos; o
+  profissional, as condições gerais e a privacidade.
+- **O texto do botão final** só existe em português e inglês (**C**, J2);
+  noutra língua não há botão.
+- **O checkout alojado é JSON nesta parte**; as páginas do servidor com o
+  tema da loja são a parte 2. O caminho devolvido é `/checkout/{token}`; o
+  domínio (`checkout.eurolify.eu`, Q5) é configuração da publicação.
+- **O total do carrinho** na API da Loja é provisório e sem o IVA decidido
+  (só a soma dos preços); o IVA e os portes decidem-se no checkout, com a
+  morada.
+- **Um profissional de outro país da UE** fica bloqueado (`b2b_sem_vies`):
+  o checkout sem conta não tem perfil com VIES. Pode comprar como
+  consumidor.
+- **Por fazer na parte 2:** as páginas do checkout, a limpeza dos carrinhos
+  expirados e dos dados das sessões abandonadas (7 dias, §7), e o envio da
+  confirmação (Q4, com o fornecedor de e-mail).
