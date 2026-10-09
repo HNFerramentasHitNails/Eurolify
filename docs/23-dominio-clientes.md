@@ -1,14 +1,14 @@
 # Domínio Clientes e identidade fiscal — modelo e lista da API
 
-> **Estado: desenho para aprovar** (issue #233). Diogo, 09/10/2026: *«sim,
-> avança com o desenho da fatia 5»*. É a fatia 5 do
+> **Estado: desenho aprovado; parte 1 no código** (issue #233; `docs/06`,
+> CX). Diogo, 09/10/2026: *«sim, avança com o desenho da fatia 5»* e *«sim,
+> aprovo; avança com o código da fatia 5»* (as cinco respostas da §9 como
+> propostas). É a fatia 5 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Clientes e perfis de faturação; finalidade por encomenda») e é preciso
 > antes do Motor de IVA (fatia 6) e do checkout (fatia 7): o Motor de IVA
 > decide com o perfil de faturação e a prova do VIES, e o checkout guarda a
-> finalidade declarada. **Nada deste documento está programado.** O código só
-> começa com o desenho aprovado e as perguntas da §9 respondidas (`AGENTS.md`,
-> ponto 3; ADR-0023).
+> finalidade declarada. O que está programado diz-se na §12.
 >
 > Skills seguidas: `eu-vat-oss-ioss` (perfil de faturação, NIF, VIES com
 > prova, isenção manual, ordem da decisão), `eu-gdpr-privacy` (papéis,
@@ -49,7 +49,7 @@
 
 | Fica fora desta fatia | Porquê |
 |---|---|
-| **contas de login dos clientes** nas lojas (palavra-passe, sessão, recuperação) | são da Loja (`docs/21`, «Fora da parte B»); a ficha existe sem conta — **pergunta Q5** |
+| **contas de login dos clientes** nas lojas (palavra-passe, sessão, recuperação) | são da Loja (`docs/21`, «Fora da parte B»); a ficha existe sem conta (✅ Q5) |
 | moradas de entrega guardadas na ficha (livro de moradas) | a morada de entrega é da encomenda; entra com o checkout (fatia 7) se fizer falta — **proposta** (minimização) |
 | o que o checkout pergunta e mostra (o perfil, «a fatura é para outra pessoa», a finalidade) | fatia 7; este domínio dá as peças |
 | a decisão de IVA da linha | Motor de IVA (fatia 6); este domínio só guarda o perfil, a prova do VIES e a isenção manual |
@@ -89,7 +89,6 @@ Todas as tabelas com o comerciante e o **RLS forçado**, como as do Catálogo
 | `estado` | §4.1 | proposta |
 | `fundido_em` | o `cus_` que absorveu esta ficha, depois de uma fusão (§3.7) | proposta |
 | `limitado` | bandeira de limitação/oposição: trava marketing e alterações sem apagar | regra (`eu-gdpr-privacy`, «Pedidos dos titulares») |
-| `origem` | `hub`, `api`, `loja`, `importacao` — como no Catálogo | proposta |
 | `criado_em`, `versao` | a versão para a escrita optimista, como nos canais (`docs/20` §10) | proposta |
 
 Sem data de nascimento, género nem documento de identificação: nenhuma
@@ -106,14 +105,14 @@ fichas** (`eu-vat-oss-ioss`, «Perfis de faturação»).
 | `tipo` | `particular` ou `empresa` | regra (`eu-vat-oss-ioss`, «As peças») |
 | `nome_documento` | o nome que sai no documento fiscal (pessoa ou firma) | regra |
 | `nif_escrito` | exactamente o que a pessoa escreveu — **mantém-se sempre** | regra (`eu-vat-oss-ioss`, «NIF») |
-| `nif` | o guardado pela régua (§3.3): com o prefixo fiscal, excepto o país do comerciante | regra |
+| `nif` | o NIF pela régua (§3.3): com o prefixo fiscal, excepto o país do comerciante. **Calcula-se ao ler** (`nif_com_prefixo`), do país e do número: o país do comerciante é o das entidades legais activas (com entidades em dois países, sai sempre com prefixo), e um NIF guardado já com ou sem prefixo ficava errado se o comerciante mudasse de país | regra; a forma, proposta (código, parte 1) |
 | `nif_numero` | só o número, sem prefixo nem pontuação — **é o que se compara** | regra |
 | `pais_contribuinte` | o país do NIF; pode ser diferente do da morada (NIF português e morada no Luxemburgo) | regra |
 | `morada_fiscal` | linhas, código postal, localidade, país; o código postal é o que decide os territórios especiais no Motor de IVA | regra (`eu-vat-oss-ioss`, regra 6) |
 | `principal` | **um** por ficha, guardado na base (índice único parcial); o ecrã e o servidor leem este campo | regra (`eu-vat-oss-ioss`: as duas réguas do Hub divergiam em 182 de 314 fichas, 28/09/2026 — **M**) |
 | `estado_vies` | §4.2; preenchido pela última validação (§3.4) | proposta |
 | `estado` | `activo` ou `arquivado` | proposta |
-| `usado_em_documento` | sim depois da primeira encomenda com documento emitido; a partir daí o NIF, o tipo e o país não mudam (§5, R4) | **pergunta Q3** |
+| `usado_em_documento` | sim depois da primeira encomenda com documento emitido; a partir daí o NIF, o tipo e o país não mudam (§5, R4); põe-no o domínio dos documentos (fatia 10), nunca a API | ✅ Q3 decidida |
 | `versao` | escrita optimista | proposta |
 
 Um perfil **sem NIF** é válido (o consumidor final). Um perfil `empresa` sem
@@ -205,7 +204,7 @@ si.
 | Sinal | O que quer dizer | Marca |
 |---|---|---|
 | mesmo `nif_numero` em dois perfis **particulares** de fichas diferentes | a mesma pessoa — candidato **forte** | regra (`eu-gdpr-privacy`, «Fusões e identidade») |
-| mesmo `nif_numero` em dois perfis **empresa** | a mesma empresa, **não** a mesma pessoa (dois funcionários a comprar) | **pergunta Q2** |
+| mesmo `nif_numero` em dois perfis **empresa** | a mesma empresa, **não** a mesma pessoa (dois funcionários a comprar): não é sinal de duplicado | ✅ Q2 decidida |
 | mesmo e-mail ou telefone | **talvez** — decide uma pessoa | regra |
 | mesmo nome | **nada**; nunca é sinal | regra (`AGENTS.md`, fiscal, regra 6) |
 
@@ -244,8 +243,8 @@ com o mesmo RLS, ficam os valores — **proposta**.
 | `posta_por`, `posta_em` | quem e quando | regra |
 | `retirada_por`, `retirada_em` | só uma pessoa a retira; **nenhum processo automático** | regra (`eu-vat-oss-ioss`, regra 4) |
 
-Pôr ou tirar uma isenção manual pede um âmbito próprio (`customers:exemptions`)
-— **pergunta Q4**. A entrega no país do comerciante **não** anula a isenção
+Pôr ou tirar uma isenção manual pede um âmbito próprio (`customers:exemptions`),
+só do dono (✅ Q4). A entrega no país do comerciante **não** anula a isenção
 manual (anula o VIES e a exportação): é a «excepção à excepção», e quem a
 aplica é o Motor de IVA — regra (`eu-vat-oss-ioss`, «A ordem da decisão», 4).
 
@@ -280,9 +279,9 @@ para que a revalidação nunca lhe toque.
 | # | Regra | Fonte |
 |---|---|---|
 | R1 | **Ter NIF não faz de alguém profissional.** A finalidade (`consumo`, `profissional`, `revenda`) é **declarada por encomenda**; por omissão `consumo` | `consumer-rights-eu`; `docs/03` §2 (nota) |
-| R2 | A finalidade **nunca vem pré-preenchida** com `profissional` ou `revenda` a partir da ficha, do perfil ou de uma encomenda anterior | **pergunta Q1** |
+| R2 | A finalidade **nunca vem pré-preenchida** com `profissional` ou `revenda` a partir da ficha, do perfil ou de uma encomenda anterior | ✅ Q1 decidida |
 | R3 | `profissional` ou `revenda` pedem um perfil `empresa` com NIF nessa encomenda | proposta · que um profissional possa comprar sem NIF **não verifiquei** — **C** (contabilista e jurista) |
-| R4 | Um perfil usado num documento emitido não muda de NIF, tipo nem país; muda-se criando outro perfil. A encomenda guarda a cópia dos campos | `eu-vat-oss-ioss` («cada encomenda liga a um perfil, fixo depois de emitida a fatura»; «um NIF num documento emitido não se corrige» em `eu-gdpr-privacy`); a forma: **pergunta Q3** |
+| R4 | Um perfil usado num documento emitido não muda de NIF, tipo nem país; muda-se criando outro perfil. A encomenda guarda a cópia dos campos | `eu-vat-oss-ioss` («cada encomenda liga a um perfil, fixo depois de emitida a fatura»; «um NIF num documento emitido não se corrige» em `eu-gdpr-privacy`); a forma: ✅ Q3 |
 | R5 | Um só perfil principal por ficha, na base | `eu-vat-oss-ioss` (**M**, 182 de 314) |
 | R6 | A régua do NIF (§3.3) e a régua do marketing (§3.6) vivem cada uma numa função na base, usadas por todos os caminhos de escrita e leitura | `AGENTS.md`, «Uma regra, um sítio» |
 | R7 | Sem uma resposta `valido` do VIES não há isenção intracomunitária; `indisponivel` não é válido | `eu-vat-oss-ioss`, regra 1 (o VIES como condição substantiva é **C**) |
@@ -324,7 +323,7 @@ Preços na 0036):
 |---|---|---|
 | `customers:read` | ler fichas, perfis, etiquetas, consentimentos, candidatos a duplicado | dono, gestor, apoio |
 | `customers:write` | criar e alterar fichas, perfis e etiquetas; registar consentimentos; pedir uma validação | dono, gestor, apoio |
-| `customers:exemptions` | pôr e tirar isenções manuais | dono — **pergunta Q4** |
+| `customers:exemptions` | pôr e tirar isenções manuais | dono (✅ Q4) |
 | `customers:merge` | fundir fichas | dono, gestor |
 | `customers:privacy` | exportar e pseudonimizar a pedido do titular; ligar a limitação | dono |
 
@@ -385,11 +384,11 @@ consentimentos e guarda a finalidade, pelas mesmas funções da base.
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q1 | No checkout, a finalidade (consumo / profissional / revenda) **vem preenchida** com a da última encomenda do cliente, ou começa **sempre em consumo** e o cliente escolhe? | **Sempre em consumo**, e o cliente escolhe em cada encomenda; preencher com a anterior pode pôr um consumidor a comprar como profissional sem dar por isso (R1, R2) |
-| Q2 | Dois perfis **empresa** com o mesmo NIF em fichas diferentes são candidatos a fusão? | **Não**: é a mesma empresa e podem ser duas pessoas (dois funcionários); só o NIF igual em perfis **particulares** é sinal forte (§3.7) |
-| Q3 | Um perfil já usado numa fatura pode mudar de NIF? | **Não**: cria-se um perfil novo e o antigo fica, para a fatura antiga continuar a bater certo (R4) |
-| Q4 | Quem pode pôr ou tirar uma **isenção manual** de IVA? | **Só o dono** (âmbito `customers:exemptions`); o gestor já hoje «não muda dados fiscais» (`docs/21`, papéis) |
-| Q5 | As **contas de login** dos clientes nas lojas entram nesta fatia? | **Não**: entram com a Loja e o checkout; esta fatia faz a ficha, os perfis e as regras, que o login depois usa |
+| Q1 | No checkout, a finalidade (consumo / profissional / revenda) **vem preenchida** com a da última encomenda do cliente, ou começa **sempre em consumo** e o cliente escolhe? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CX): **Sempre em consumo**, e o cliente escolhe em cada encomenda; preencher com a anterior pode pôr um consumidor a comprar como profissional sem dar por isso (R1, R2) |
+| Q2 | Dois perfis **empresa** com o mesmo NIF em fichas diferentes são candidatos a fusão? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CX): **Não**: é a mesma empresa e podem ser duas pessoas (dois funcionários); só o NIF igual em perfis **particulares** é sinal forte (§3.7) |
+| Q3 | Um perfil já usado numa fatura pode mudar de NIF? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CX): **Não**: cria-se um perfil novo e o antigo fica, para a fatura antiga continuar a bater certo (R4) |
+| Q4 | Quem pode pôr ou tirar uma **isenção manual** de IVA? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CX): **Só o dono** (âmbito `customers:exemptions`); o gestor já hoje «não muda dados fiscais» (`docs/21`, papéis) |
+| Q5 | As **contas de login** dos clientes nas lojas entram nesta fatia? | ✅ **Decidido** (Diogo, 09/10/2026, com a aprovação do desenho; `docs/06`, CX): **Não**: entram com a Loja e o checkout; esta fatia faz a ficha, os perfis e as regras, que o login depois usa |
 
 ## 10. Para o contabilista e o jurista (não bloqueiam o código; bloqueiam a produção)
 
@@ -412,3 +411,32 @@ contabilista».
 | 3 | VIES: o adaptador, a prova, a revalidação diária (como a limpeza dos ficheiros, `agendarLimpezaDosFicheiros`); a isenção manual com anexos |
 
 Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
+
+## 12. Em código (09/10/2026; migração 0037; `docs/06`, CX)
+
+**Parte 1** (issue #233):
+
+| O quê | Onde |
+|---|---|
+| ficha (`cliente`), perfis (`perfil_faturacao`), etiquetas (`etiqueta_cliente`, `cliente_etiqueta`), RLS forçado | migração 0037 |
+| a régua do NIF numa função só (`nif_regua`; `nif_limpo`, `nif_para_procura`, `nif_portugues_valido`), usada pelo gatilho do perfil e pela procura; o NIF a mostrar por `nif_com_prefixo` e `pais_do_comerciante` | migração 0037 |
+| um principal por ficha (índice único parcial; o primeiro perfil activo; `perfil_tornar_principal`); o principal não se arquiva com outro activo (`customers.primary_profile`); repor um perfil numa ficha sem principal fá-lo principal | migração 0037 |
+| R4: um perfil `usado_em_documento` não muda de NIF, tipo nem país (`customers.profile_used`); o mesmo número escrito de outra maneira passa | migração 0037 |
+| `estado_vies` só `nao_aplicavel` ou `por_validar` (a consulta é a parte 3) | migração 0037 |
+| a chave estrangeira de `lista_precos.etiqueta_id`; as etiquetas que as listas já referiam nascem com o nome «Etiqueta da lista «…» (0037)»; uma etiqueta numa lista B2B activa não se arquiva (`customers.tag_in_use`); uma lista não se activa com uma etiqueta arquivada (`prices.label_archived`); a API de Preços passa a aceitar e devolver a etiqueta como `ctg_…` | migração 0037; `src/precos/rotas.ts` |
+| a linha do tempo (`alteracao_cliente`), que só se acrescenta e recusa a escrita sem quem | migração 0037; `GET /customers/{id}/timeline` |
+| os eventos `customer.created`, `customer.updated`, `billing_profile.created`, `billing_profile.updated`, só com identificadores e os nomes dos campos | migração 0037 |
+| a API de Administração: fichas (com a procura por e-mail, telefone ou NIF), perfis, principal, arquivar/repor, etiquetas, pôr e tirar etiquetas | `src/clientes/rotas.ts` |
+| os âmbitos `customers:read` e `customers:write` (dono, gestor, apoio) | migração 0037; `src/identidade/` |
+| 12 testes pela API e 1 da migração sobre dados, com as 12 mutações da API apanhadas (a lista de impossíveis, o principal, R4, o prefixo, a etiqueta em uso, a etiqueta arquivada, a procura pelo número, o país antigo num NIF novo, o quem, o VIES no país do comerciante, os valores nos eventos, a dedução do PT) | `test/clientes-api.test.ts` |
+
+**Fica para as partes 2 e 3** (§11): consentimentos e a régua do marketing;
+duplicados, fusões, pedidos dos titulares; VIES, isenção manual com anexos.
+Os âmbitos `customers:exemptions`, `customers:merge` e `customers:privacy`
+entram com elas.
+
+**Testado sobre dados:** a migração sobre uma base com listas B2B que já
+apontavam para etiquetas (`test/migracao-0037.test.ts`, com um migrador sem
+poderes, como o da VPS; as duas mutações — sem desligar o RLS forçado, sem o
+voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
+**não verifiquei** (o MCP da VPS pede autorização nesta sessão).
