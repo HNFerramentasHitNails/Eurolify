@@ -691,7 +691,6 @@ export interface TabelaPerfilFaturacao {
   morada_pais: string | null;
   principal: ColumnType<boolean, never, boolean>;
   estado_vies: ColumnType<EstadoVies, never, never>;
-  validado_em: ColumnType<Date | null, never, never>;
   estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
   usado_em_documento: ColumnType<boolean, never, never>;
   criado_em: ColumnType<Date, never, never>;
@@ -764,6 +763,8 @@ export interface TabelaIsencaoManual {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;
   perfil_id: ColumnType<string, string, never>;
+  pais_contribuinte: ColumnType<string | null, never, never>;
+  nif_numero: ColumnType<string | null, never, never>;
   motivo: ColumnType<string, string, never>;
   nota: ColumnType<string | null, string | null | undefined, never>;
   posta_por: ColumnType<string, never, never>;

@@ -22,15 +22,20 @@
 -- - `isencao_manual` (§13.5), que não se apaga nem se altera, só se retira, e
 --   nunca com um `quem` de sistema (`eu-vat-oss-ioss`, regra 4); os eventos
 --   `billing_profile.exemption_set` e `billing_profile.exemption_removed`;
--- - `validado_em` no perfil; o âmbito `customers:exemptions`, só do dono (Q4).
+-- - o âmbito `customers:exemptions`, só do dono (Q4).
+--
+-- Depois da revisão do #244: o perfil só muda quando o estado do VIES muda
+-- (a data da última resposta lê-se das provas: sem uma alteração por noite,
+-- P2-6); uma resposta mais antiga não se sobrepõe a uma mais recente (P2-2);
+-- a consulta pedida põe o perfil à frente na fila, sem HTTP no pedido
+-- (P1-1); uma falha adia a linha (P2-1); a isenção só com `pessoa:per_` ou
+-- `chave:key_` (P2-3), com o NIF a que diz respeito (P3-8).
 --
 -- O que não faz: os anexos da isenção (um pedido à parte, com armazenamento
 -- próprio: a pasta das imagens tem limpeza de ficheiros sem linha); a
 -- consulta HTTP (é da API, fora da base).
 
 SET LOCAL lock_timeout = '10s';
-
-ALTER TABLE perfil_faturacao ADD COLUMN validado_em timestamptz;
 
 CREATE OR REPLACE FUNCTION perfil_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
@@ -97,11 +102,9 @@ BEGIN
         AND NEW.pais_contribuinte IS DISTINCT FROM pais_comerciante THEN 'por_validar'
       ELSE 'nao_aplicavel'
     END;
-    NEW.validado_em := NULL;
   ELSIF current_setting('eurolify.vies_registar', true) IS DISTINCT FROM 'sim' THEN
     -- Só a `vies_registar` (com a resposta do VIES) muda o estado do VIES.
     NEW.estado_vies := OLD.estado_vies;
-    NEW.validado_em := OLD.validado_em;
   END IF;
 
   IF TG_OP = 'INSERT' THEN
@@ -153,7 +156,7 @@ BEGIN
   campos := public.clientes_campos_mudados(TG_OP,
     CASE WHEN TG_OP = 'UPDATE' THEN to_jsonb(OLD) END, to_jsonb(NEW))
     -- O estado do VIES tem os eventos próprios (validated, invalidated).
-    - ARRAY['estado_vies', 'validado_em'];
+    - ARRAY['estado_vies'];
   IF campos = '{}' THEN
     RETURN NULL;
   END IF;
@@ -305,8 +308,9 @@ CREATE FUNCTION vies_por_consultar(p_limite integer)
   FROM public.vies_fila f
   JOIN public.perfil_faturacao p
     ON p.comerciante_id = f.comerciante_id AND p.id = f.perfil_id
+  JOIN public.cliente c ON c.comerciante_id = p.comerciante_id AND c.id = p.cliente_id
   WHERE f.comerciante_id = public.comerciante_actual() AND f.proxima_em <= now()
-    AND p.estado = 'activo' AND p.nif_numero IS NOT NULL
+    AND p.estado = 'activo' AND p.nif_numero IS NOT NULL AND c.estado = 'activo'
   ORDER BY f.proxima_em, f.perfil_id
   LIMIT greatest(p_limite, 0)
 $$;
@@ -369,6 +373,16 @@ BEGIN
   IF NOT mesmo THEN
     RETURN prova;
   END IF;
+  -- Uma resposta mais antiga do que outra já gravada para o mesmo NIF não
+  -- muda o estado nem a fila (revisão do #244, P2-2): a prova fica.
+  IF EXISTS (
+    SELECT FROM public.validacao_vies v
+    WHERE v.perfil_id = p_perfil AND v.id <> prova
+      AND v.pais_consultado = p_pais AND v.numero_consultado = p_numero
+      AND v.resultado IN ('valido', 'invalido')
+      AND v.consultado_em > p_consultado_em) THEN
+    RETURN prova;
+  END IF;
 
   -- Q6: sem resposta, a última resposta fica; só um perfil sem nenhuma passa
   -- a `indisponivel`.
@@ -377,13 +391,12 @@ BEGIN
     WHEN perfil.estado_vies = 'por_validar' THEN 'indisponivel'
     ELSE perfil.estado_vies
   END;
-  PERFORM set_config('eurolify.vies_registar', 'sim', true);
-  UPDATE public.perfil_faturacao
-  SET estado_vies = novo_estado,
-      validado_em = CASE WHEN p_resultado IN ('valido', 'invalido')
-        THEN coalesce(p_data_vies, p_consultado_em) ELSE validado_em END
-  WHERE id = p_perfil;
-  PERFORM set_config('eurolify.vies_registar', '', true);
+  -- O perfil só muda quando o estado muda (P2-6).
+  IF novo_estado <> perfil.estado_vies THEN
+    PERFORM set_config('eurolify.vies_registar', 'sim', true);
+    UPDATE public.perfil_faturacao SET estado_vies = novo_estado WHERE id = p_perfil;
+    PERFORM set_config('eurolify.vies_registar', '', true);
+  END IF;
 
   IF novo_estado = 'valido' AND perfil.estado_vies <> 'valido' THEN
     INSERT INTO public.evento_saida (comerciante_id, tipo, agregado_tipo, agregado_id, dados)
@@ -423,12 +436,57 @@ BEGIN
 END
 $$;
 
+-- Uma consulta que falhou antes de gravar (o VIES lançou, a gravação foi
+-- recusada): a linha vai para trás, com a mesma espera crescente, para não
+-- ficar à frente da fila do comerciante (revisão do #244, P2-1).
+CREATE FUNCTION vies_adiar(p_perfil uuid) RETURNS void
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  UPDATE public.vies_fila f
+  SET tentativas = f.tentativas + 1,
+      proxima_em = CASE f.tentativas + 1
+        WHEN 1 THEN now() + interval '1 minute'
+        WHEN 2 THEN now() + interval '5 minutes'
+        WHEN 3 THEN now() + interval '30 minutes'
+        ELSE public.vies_proxima_noite()
+      END
+  WHERE f.perfil_id = p_perfil AND f.comerciante_id = public.comerciante_actual();
+END
+$$;
+
+-- A consulta pedida por uma pessoa (POST …/vies-checks): o perfil passa
+-- para a frente da fila; a tarefa consulta-o no minuto seguinte. Nenhum
+-- pedido HTTP prende uma ligação à base (revisão do #244, P1-1).
+CREATE FUNCTION vies_pedir(p_perfil uuid) RETURNS timestamptz
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  perfil record;
+BEGIN
+  SELECT p.comerciante_id, p.estado, p.estado_vies, p.nif_numero INTO perfil
+  FROM public.perfil_faturacao p WHERE p.id = p_perfil;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'customers.not_found: o perfil não existe';
+  END IF;
+  IF perfil.estado <> 'activo' OR perfil.estado_vies = 'nao_aplicavel' OR perfil.nif_numero IS NULL THEN
+    RAISE EXCEPTION 'customers.vies_not_applicable: o VIES só se consulta num perfil activo com NIF de outro país da UE';
+  END IF;
+  INSERT INTO public.vies_fila (perfil_id, comerciante_id, proxima_em, tentativas, motivo)
+  VALUES (p_perfil, perfil.comerciante_id, now(), 0, 'pedido')
+  ON CONFLICT (perfil_id) DO UPDATE SET proxima_em = now(), tentativas = 0, motivo = 'pedido';
+  RETURN now();
+END
+$$;
+
 -- ------------------------------------------------------ A isenção manual
 
 CREATE TABLE isencao_manual (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
   comerciante_id uuid NOT NULL REFERENCES comerciante (id),
   perfil_id uuid NOT NULL,
+  -- O NIF do perfil quando a isenção foi posta (P3-8): se o perfil mudar de
+  -- NIF, o Motor de IVA vê que a isenção era de outro número.
+  pais_contribuinte text,
+  nif_numero text,
   motivo text NOT NULL CHECK (length(btrim(motivo)) BETWEEN 1 AND 500),
   nota text CHECK (nota IS NULL OR length(nota) <= 2000),
   posta_por text NOT NULL,
@@ -452,21 +510,28 @@ CREATE FUNCTION isencao_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
-  estado_do_perfil text;
+  do_perfil record;
 BEGIN
-  IF quem IS NULL OR quem LIKE 'sistema:%' THEN
+  -- Lista branca, não lista negra (revisão do #244, P2-3): só uma pessoa
+  -- (pelo Hub) ou a chave que ela usa.
+  IF quem IS NULL OR quem !~ '^(pessoa:per_|chave:key_)' THEN
     RAISE EXCEPTION 'customers.exemption_by_person: a isenção manual só a põe ou retira uma pessoa (quem: %)',
       coalesce(quem, 'nenhum');
   END IF;
   IF TG_OP = 'INSERT' THEN
-    SELECT p.estado INTO estado_do_perfil FROM public.perfil_faturacao p
-    WHERE p.comerciante_id = NEW.comerciante_id AND p.id = NEW.perfil_id;
-    IF estado_do_perfil IS NULL THEN
+    -- FOR SHARE: espera por um arquivo do perfil em curso (P3-9).
+    SELECT p.estado, p.pais_contribuinte, p.nif_numero INTO do_perfil
+    FROM public.perfil_faturacao p
+    WHERE p.comerciante_id = NEW.comerciante_id AND p.id = NEW.perfil_id
+    FOR SHARE;
+    IF NOT FOUND THEN
       RAISE EXCEPTION 'customers.not_found: o perfil não existe';
     END IF;
-    IF estado_do_perfil <> 'activo' THEN
+    IF do_perfil.estado <> 'activo' THEN
       RAISE EXCEPTION 'customers.invalid_transition: o perfil está arquivado';
     END IF;
+    NEW.pais_contribuinte := do_perfil.pais_contribuinte;
+    NEW.nif_numero := do_perfil.nif_numero;
     NEW.posta_por := quem;
     NEW.posta_em := now();
     NEW.motivo_retirada := NULL;
@@ -477,6 +542,8 @@ BEGIN
   IF OLD.retirada_em IS NOT NULL OR NEW.motivo_retirada IS NULL
      OR NEW.id <> OLD.id OR NEW.comerciante_id <> OLD.comerciante_id
      OR NEW.perfil_id <> OLD.perfil_id OR NEW.motivo <> OLD.motivo
+     OR NEW.pais_contribuinte IS DISTINCT FROM OLD.pais_contribuinte
+     OR NEW.nif_numero IS DISTINCT FROM OLD.nif_numero
      OR NEW.nota IS DISTINCT FROM OLD.nota OR NEW.posta_por <> OLD.posta_por
      OR NEW.posta_em <> OLD.posta_em THEN
     RAISE EXCEPTION 'customers.exemption_immutable: uma isenção não se altera; retira-se, uma vez, e põe-se outra';
@@ -541,9 +608,10 @@ GRANT UPDATE (motivo_retirada) ON isencao_manual TO eurolify_api;
 REVOKE EXECUTE ON FUNCTION vies_proxima_noite(), perfil_vies_fila(),
   vies_comerciantes_com_fila(), vies_por_consultar(integer), vies_requerente(),
   vies_registar(uuid, text, text, text, text, timestamptz, timestamptz, text, text, text, text, text, text),
+  vies_adiar(uuid), vies_pedir(uuid),
   isencao_antes_de_gravar(), isencao_evento() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION vies_comerciantes_com_fila(), vies_por_consultar(integer),
-  vies_requerente(),
+  vies_requerente(), vies_adiar(uuid), vies_pedir(uuid),
   vies_registar(uuid, text, text, text, text, timestamptz, timestamptz, text, text, text, text, text, text)
   TO eurolify_api;
 

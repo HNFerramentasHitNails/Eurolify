@@ -59,15 +59,15 @@ const armazenamento =
     ? undefined
     : new ArmazenamentoEmDisco(pastaMedia);
 
-// O VIES (docs/23 §13): por omissão a API REST da Comissão; VIES_URL muda o
-// endereço, e «desligado» desliga a fila e a consulta pedida.
+// O VIES (docs/23 §13): desligado por omissão (revisão do #244, P2-5: a
+// saída da VPS para a Comissão mede-se no ensaio antes de ligar). Liga-se com
+// VIES_URL, o endereço da API REST do VIES
+// (https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number).
 const textoVies = process.env["VIES_URL"]?.trim();
 const vies =
-  textoVies === "desligado"
+  textoVies === undefined || textoVies === ""
     ? undefined
-    : consultaVies(
-        textoVies === undefined || textoVies === "" ? undefined : textoVies,
-      );
+    : consultaVies(textoVies);
 
 const app = criarApp(
   {

@@ -33,9 +33,8 @@ import {
   listarValidacoes,
   obterIsencao,
   obterValidacao,
-  pedidoViesDoPerfil,
+  pedirVies,
   porIsencao,
-  registarVies,
   retirarIsencao,
   listarClientes,
   listarEtiquetas,
@@ -1053,39 +1052,30 @@ export function rotasDosClientes(
       config: faturacao,
       schema: {
         description:
-          "Consulta o VIES agora e guarda a prova (docs/23 §13.4, passo 8). A resposta pode ser «indisponivel» (o VIES ou o serviço do país não responderam): nunca conta como válido. Só num perfil activo com NIF de outro país da UE.",
+          "Pede uma consulta ao VIES: o perfil passa à frente da fila, que corre de minuto a minuto (docs/23 §13.4). A prova aparece em GET …/vies-checks; pode ser «indisponivel», que nunca conta como válido. Só num perfil activo com NIF de outro país da UE. O pedido não espera pelo VIES (revisão do #244, P1-1).",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdPerfil),
-        response: { 201: Validacao, ...RESPOSTA_DE_ERRO },
+        response: {
+          202: Type.Object({
+            perfil: Type.String({ description: "bpf_…" }),
+            na_fila_desde: Instante,
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 201, (trx, c) =>
+      escrever(base, pedido, resposta, 202, (trx, c) =>
         emClientes(resposta, async () => {
-          const id = semPrefixo(pedido.params.id);
-          const pedidoVies = await pedidoViesDoPerfil(trx, c.comercianteId, id);
           if (vies === undefined) {
             throw new ErroClientes(
               "customers.vies_disabled",
               "a consulta ao VIES está desligada neste servidor",
             );
           }
-          // Corre na transacção da idempotência, que não toma o perfil (só a
-          // gravação, a seguir, o toma); 10 s no máximo (§13.4).
-          const consultadoEm = new Date();
-          const r = await vies(pedidoVies);
-          const prova = await registarVies(
-            trx,
-            c.comercianteId,
-            id,
-            pedidoVies,
-            r,
-            consultadoEm,
-            "pedido",
-          );
-          return paraValidacao(
-            await obterValidacao(trx, c.comercianteId, prova),
-          );
+          const id = semPrefixo(pedido.params.id);
+          const quando = await pedirVies(trx, c.comercianteId, id);
+          return { perfil: `bpf_${id}`, na_fila_desde: quando.toISOString() };
         }),
       ),
   );

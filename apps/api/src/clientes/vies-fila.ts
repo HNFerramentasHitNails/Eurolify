@@ -2,11 +2,12 @@ import { sql, type Kysely } from "kysely";
 import { comComerciante } from "../comerciante/repositorio.js";
 import type { BaseDados } from "../base/esquema.js";
 import {
+  adiarVies,
   comerciantesComFilaVies,
   filaViesDoComerciante,
   registarVies,
 } from "./repositorio.js";
-import type { ConsultaVies } from "./vies.js";
+import { CODIGOS_DE_EXCESSO, type ConsultaVies } from "./vies.js";
 
 // A fila do VIES (docs/23 §13.4): de minuto a minuto, as consultas que a
 // base diz estarem por fazer (perfis novos, NIF mudado, a revalidação da
@@ -15,8 +16,14 @@ import type { ConsultaVies } from "./vies.js";
 // MS_MAX_CONCURRENT_REQ, medido a 09/10/2026). A consulta HTTP corre fora de
 // qualquer transacção; só a gravação da prova abre uma.
 
-/** Quantas consultas de um comerciante por volta (**proposta**). */
-export const CONSULTAS_POR_VOLTA = 20;
+/**
+ * Quantas consultas de um comerciante por volta (**proposta**): poucas, para
+ * um comerciante com muitas não atrasar os outros (revisão do #244, P2-8).
+ */
+export const CONSULTAS_POR_VOLTA = 5;
+
+/** Quantas consultas no total por volta (**proposta**): uma volta não dura horas. */
+export const CONSULTAS_POR_VOLTA_NO_TOTAL = 30;
 
 /** A pausa entre dois pedidos ao VIES (**proposta**): 1 s. */
 export const PAUSA_ENTRE_PEDIDOS_MS = 1000;
@@ -36,19 +43,26 @@ export async function correrFilaVies(
   base: Kysely<BaseDados>,
   consultar: ConsultaVies,
   aoFalhar: (comercianteId: string, perfilId: string, erro: unknown) => void,
-  opcoes: { porVolta?: number; pausaMs?: number } = {},
+  opcoes: { porVolta?: number; pausaMs?: number; total?: number } = {},
 ): Promise<ResultadoDaFila> {
   const porVolta = opcoes.porVolta ?? CONSULTAS_POR_VOLTA;
   const pausaMs = opcoes.pausaMs ?? PAUSA_ENTRE_PEDIDOS_MS;
+  const total = opcoes.total ?? CONSULTAS_POR_VOLTA_NO_TOTAL;
   const resultado: ResultadoDaFila = { consultas: 0, falhas: 0 };
+  // Os países que disseram «pedidos a mais» nesta volta ficam de fora até à
+  // seguinte (revisão do #244, P2-8).
+  const paisesEmPausa = new Set<string>();
   let primeira = true;
   for (const comercianteId of await comerciantesComFilaVies(base)) {
+    if (resultado.consultas + resultado.falhas >= total) break;
     const { consultas, requerente } = await filaViesDoComerciante(
       base,
       comercianteId,
       porVolta,
     );
     for (const c of consultas) {
+      if (resultado.consultas + resultado.falhas >= total) break;
+      if (paisesEmPausa.has(c.pais)) continue;
       if (!primeira && pausaMs > 0) {
         await new Promise((r) => setTimeout(r, pausaMs));
       }
@@ -57,6 +71,12 @@ export async function correrFilaVies(
         const pedido = { pais: c.pais, numero: c.numero, requerente };
         const consultadoEm = new Date();
         const resposta = await consultar(pedido);
+        if (
+          resposta.codigoErro !== null &&
+          CODIGOS_DE_EXCESSO.has(resposta.codigoErro)
+        ) {
+          paisesEmPausa.add(c.pais);
+        }
         await comComerciante(base, comercianteId, async (trx) => {
           await sql`select set_config('eurolify.quem', ${QUEM_DA_FILA}, true)`.execute(
             trx,
@@ -75,6 +95,13 @@ export async function correrFilaVies(
       } catch (erro) {
         resultado.falhas += 1;
         aoFalhar(comercianteId, c.perfil_id, erro);
+        // A linha vai para trás, para não ficar à frente da fila do
+        // comerciante para sempre (revisão do #244, P2-1).
+        try {
+          await adiarVies(base, comercianteId, c.perfil_id);
+        } catch (erroAoAdiar) {
+          aoFalhar(comercianteId, c.perfil_id, erroAoAdiar);
+        }
       }
     }
   }

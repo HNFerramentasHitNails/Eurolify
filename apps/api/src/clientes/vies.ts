@@ -37,12 +37,22 @@ export type ConsultaVies = (pedido: PedidoVies) => Promise<RespostaVies>;
 /** O prefixo fiscal que o VIES espera (a Grécia é EL). */
 const paraVies = (pais: string) => (pais === "GR" ? "EL" : pais);
 
-/** Um texto do VIES: `"---"` ou vazio é «não devolveu». */
-function texto(v: unknown): string | null {
+/**
+ * Um texto do VIES: `"---"` ou vazio é «não devolveu». Cortado ao tamanho da
+ * coluna da prova: um nome mais comprido fazia a gravação falhar e a linha
+ * ficar sempre à frente da fila (revisão do #244, P2-1).
+ */
+function texto(v: unknown, maximo: number): string | null {
   if (typeof v !== "string") return null;
   const t = v.trim();
-  return t === "" || t === "---" ? null : t.slice(0, 1000);
+  return t === "" || t === "---" ? null : t.slice(0, maximo);
 }
+
+/** Os códigos que dizem «pedidos a mais»: o país fica de fora nesta volta. */
+export const CODIGOS_DE_EXCESSO = new Set([
+  "MS_MAX_CONCURRENT_REQ",
+  "GLOBAL_MAX_CONCURRENT_REQ",
+]);
 
 function semResposta(
   codigo: string,
@@ -93,19 +103,42 @@ async function umaConsulta(
   let json: unknown;
   try {
     json = await resposta.json();
-  } catch {
-    return semResposta(`HTTP_${String(resposta.status)}`, pedido.requerente);
+  } catch (erro) {
+    // O tempo pode acabar a meio do corpo (revisão do #244, P3-3).
+    const nome = (erro as { name?: unknown }).name;
+    return semResposta(
+      nome === "TimeoutError" || nome === "AbortError"
+        ? "TEMPO_ESGOTADO"
+        : `HTTP_${String(resposta.status)}`,
+      pedido.requerente,
+    );
   }
   const j = (json ?? {}) as Record<string, unknown>;
-  if (resposta.ok && typeof j["valid"] === "boolean") {
+  // Um corpo com `actionSucceed: false`, ou um `userError` que não seja
+  // VALID/INVALID, é sem resposta, mesmo com `valid` (revisão do #244, P2-7:
+  // um erro de rede do país não pode tornar um cliente inválido).
+  const erroDoUtilizador = j["userError"];
+  const comErro =
+    j["actionSucceed"] === false ||
+    (typeof erroDoUtilizador === "string" &&
+      erroDoUtilizador !== "VALID" &&
+      erroDoUtilizador !== "INVALID");
+  if (
+    comErro &&
+    typeof erroDoUtilizador === "string" &&
+    /^[A-Z_0-9]{1,80}$/.test(erroDoUtilizador)
+  ) {
+    return semResposta(erroDoUtilizador, pedido.requerente);
+  }
+  if (!comErro && resposta.ok && typeof j["valid"] === "boolean") {
     const data =
       typeof j["requestDate"] === "string" ? new Date(j["requestDate"]) : null;
     return {
       resultado: j["valid"] ? "valido" : "invalido",
       dataVies: data !== null && !Number.isNaN(data.getTime()) ? data : null,
-      identificador: texto(j["requestIdentifier"]),
-      nome: texto(j["name"]),
-      morada: texto(j["address"]),
+      identificador: texto(j["requestIdentifier"], 100),
+      nome: texto(j["name"], 500),
+      morada: texto(j["address"], 1000),
       codigoErro: null,
       requerente: pedido.requerente,
     };
@@ -130,6 +163,8 @@ async function umaConsulta(
 export function consultaVies(
   url: string = VIES_URL,
   tempoMaximoMs: number = TEMPO_MAXIMO_MS,
+  /** A pausa antes de repetir sem requerente (P2-4): o país recusa pedidos seguidos. */
+  pausaMs = 1000,
 ): ConsultaVies {
   return async (pedido) => {
     const r = await umaConsulta(url, pedido, tempoMaximoMs);
@@ -137,6 +172,7 @@ export function consultaVies(
       r.codigoErro === "INVALID_REQUESTER_INFO" &&
       pedido.requerente !== null
     ) {
+      if (pausaMs > 0) await new Promise((ok) => setTimeout(ok, pausaMs));
       return umaConsulta(url, { ...pedido, requerente: null }, tempoMaximoMs);
     }
     return r;

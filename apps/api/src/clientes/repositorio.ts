@@ -26,6 +26,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.change_without_who",
   "customers.exemption_by_person",
   "customers.exemption_immutable",
+  "customers.vies_not_applicable",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -384,22 +385,36 @@ const camposDaMorada = (m: Morada | null) => ({
 });
 
 function perfisComNif(trx: Transaction<BaseDados>, comercianteId: string) {
-  return trx
-    .selectFrom("perfil_faturacao")
-    .selectAll()
-    .select(
-      sql<
-        string | null
-      >`nif_com_prefixo(pais_contribuinte, nif_numero, pais_do_comerciante(${comercianteId}::uuid))`.as(
-        "nif",
-      ),
-    )
-    .select(
-      sql<boolean>`exists (select from isencao_manual i
+  return (
+    trx
+      .selectFrom("perfil_faturacao")
+      .selectAll()
+      .select(
+        sql<
+          string | null
+        >`nif_com_prefixo(pais_contribuinte, nif_numero, pais_do_comerciante(${comercianteId}::uuid))`.as(
+          "nif",
+        ),
+      )
+      // A data da última resposta do VIES ao NIF actual (válido ou inválido),
+      // lida das provas: o perfil não muda a cada revalidação (revisão do #244,
+      // P2-6).
+      .select(
+        sql<Date | null>`(select coalesce(v.data_vies, v.consultado_em)
+        from validacao_vies v
+        where v.perfil_id = perfil_faturacao.id
+          and v.pais_consultado = perfil_faturacao.pais_contribuinte
+          and v.numero_consultado = perfil_faturacao.nif_numero
+          and v.resultado in ('valido', 'invalido')
+        order by v.consultado_em desc limit 1)`.as("validado_em"),
+      )
+      .select(
+        sql<boolean>`exists (select from isencao_manual i
         where i.perfil_id = perfil_faturacao.id and i.retirada_em is null)`.as(
-        "isencao_em_vigor",
-      ),
-    );
+          "isencao_em_vigor",
+        ),
+      )
+  );
 }
 
 export async function criarPerfil(
@@ -768,40 +783,6 @@ export async function linhaDoTempo(
 
 export type MotivoVies = "perfil_novo" | "nif_mudou" | "revalidacao" | "pedido";
 
-/** O que se envia ao VIES por um perfil, e o requerente do comerciante (Q7). */
-export async function pedidoViesDoPerfil(
-  db: Kysely<BaseDados>,
-  comercianteId: string,
-  perfilId: string,
-): Promise<PedidoVies> {
-  return noClientes(db, comercianteId, async (trx) => {
-    const perfil = await trx
-      .selectFrom("perfil_faturacao")
-      .select(["pais_contribuinte", "nif_numero", "estado_vies", "estado"])
-      .where("id", "=", perfilId)
-      .executeTakeFirst();
-    if (perfil === undefined) {
-      throw new ErroClientes("customers.not_found", "perfil inexistente");
-    }
-    if (
-      perfil.estado_vies === "nao_aplicavel" ||
-      perfil.estado !== "activo" ||
-      perfil.pais_contribuinte === null ||
-      perfil.nif_numero === null
-    ) {
-      throw new ErroClientes(
-        "customers.vies_not_applicable",
-        "o VIES só se consulta num perfil activo com NIF de outro país da UE",
-      );
-    }
-    return {
-      pais: perfil.pais_contribuinte,
-      numero: perfil.nif_numero,
-      requerente: await requerente(trx),
-    };
-  });
-}
-
 async function requerente(
   trx: Transaction<BaseDados>,
 ): Promise<PedidoVies["requerente"]> {
@@ -1010,5 +991,31 @@ export async function listarIsencoes(
       .where("perfil_id", "=", perfilId)
       .orderBy("id", "desc")
       .execute();
+  });
+}
+
+/** A consulta pedida: o perfil passa à frente da fila (revisão do #244, P1-1). */
+export async function pedirVies(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+): Promise<Date> {
+  return noClientes(db, comercianteId, async (trx) => {
+    const { rows } = await sql<{ quando: Date }>`
+      select vies_pedir(${perfilId}::uuid) as quando`.execute(trx);
+    const quando = rows[0]?.quando;
+    if (quando === undefined) throw new Error("vies_pedir sem resposta");
+    return quando;
+  });
+}
+
+/** Uma consulta que falhou antes de gravar: a linha vai para trás (P2-1). */
+export async function adiarVies(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+): Promise<void> {
+  await noClientes(db, comercianteId, async (trx) => {
+    await sql`select vies_adiar(${perfilId}::uuid)`.execute(trx);
   });
 }

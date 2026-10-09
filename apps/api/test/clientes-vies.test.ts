@@ -140,6 +140,35 @@ describe("o adaptador do VIES (contra um servidor falso)", () => {
     ).toMatchObject({ resultado: "indisponivel", codigoErro: "SEM_LIGACAO" });
   });
 
+  it("um «valid» com erro do país é «indisponivel», nunca «inválido»; um nome longo corta-se", async () => {
+    responder = () => ({
+      estado: 200,
+      corpo: JSON.stringify({ valid: false, userError: "MS_UNAVAILABLE" }),
+    });
+    expect(await consultaVies(url)(pedido)).toMatchObject({
+      resultado: "indisponivel",
+      codigoErro: "MS_UNAVAILABLE",
+    });
+    responder = () => ({
+      estado: 200,
+      corpo: JSON.stringify({ valid: false, actionSucceed: false }),
+    });
+    expect(await consultaVies(url)(pedido)).toMatchObject({
+      resultado: "indisponivel",
+    });
+    responder = () => ({
+      estado: 200,
+      corpo: JSON.stringify({
+        valid: true,
+        userError: "VALID",
+        name: "N".repeat(800),
+      }),
+    });
+    const r = await consultaVies(url)(pedido);
+    expect(r.resultado).toBe("valido");
+    expect(r.nome).toHaveLength(500);
+  });
+
   it("um requerente recusado repete sem ele, e a prova diz que foi sem", async () => {
     pedidos.length = 0;
     responder = (corpo) =>
@@ -174,7 +203,10 @@ describe.skipIf(URL_BASE === undefined)(
     let semIsencoes: string;
     let deB: string;
     const consultas: PedidoVies[] = [];
-    let proximas: RespostaVies[] = [];
+    // As respostas por número: cada perfil de teste tem o seu NIF, para a fila
+    // (que corre tudo o que está por fazer) não misturar os testes. Um número
+    // sem resposta preparada recebe «indisponivel».
+    const respostas = new Map<string, (RespostaVies | Error)[]>();
     let durante: (() => Promise<void>) | undefined;
 
     const resposta = (
@@ -188,7 +220,7 @@ describe.skipIf(URL_BASE === undefined)(
       nome: resultado === "valido" ? "ANA SARL" : null,
       morada: null,
       codigoErro: resultado === "indisponivel" ? "MS_UNAVAILABLE" : null,
-      requerente: { pais: "PT", numero: "509999990" },
+      requerente: null,
       ...extra,
     });
     const falso = async (p: PedidoVies): Promise<RespostaVies> => {
@@ -198,11 +230,18 @@ describe.skipIf(URL_BASE === undefined)(
         durante = undefined;
         await f();
       }
-      const r = proximas.shift();
-      if (r === undefined)
-        throw new Error("consulta falsa sem resposta preparada");
+      const r = respostas.get(p.numero)?.shift() ?? resposta("indisponivel");
+      if (r instanceof Error) throw r;
       return { ...r, requerente: p.requerente };
     };
+    const preparar = (numero: string, ...r: (RespostaVies | Error)[]) =>
+      respostas.set(numero, r);
+    const correr = () =>
+      correrFilaVies(base.api, falso, () => undefined, {
+        pausaMs: 0,
+        porVolta: 1000,
+        total: 1000,
+      });
 
     const pedir = (
       metodo: "POST" | "PATCH" | "PUT" | "DELETE" | "GET",
@@ -241,21 +280,27 @@ describe.skipIf(URL_BASE === undefined)(
       expect(x.json<Json>()["codigo"]).toBe(codigo);
     };
 
+    let sequencia = 0;
+    /** Um número francês só deste perfil. */
+    const novoNumero = () =>
+      `4030326${String(5000 + sequencia++).padStart(4, "0")}`;
+
     /** Uma ficha com um perfil francês (VIES aplicável num comerciante português). */
-    async function perfilFrances(segredo = dono, nif = "FR40303265045") {
+    async function perfilFrances(segredo = dono, numero = novoNumero()) {
       const f = await ok(
         pedir("POST", "/customers", { nome: "Ana" }, segredo),
         201,
       );
-      return ok(
+      const p = await ok(
         pedir(
           "POST",
           `/customers/${String(f["id"])}/billing-profiles`,
-          { tipo: "empresa", nome_documento: "Ana SARL", nif },
+          { tipo: "empresa", nome_documento: "Ana SARL", nif: `FR${numero}` },
           segredo,
         ),
         201,
       );
+      return { ...p, numero } as Json & { numero: string };
     }
 
     async function noComerciante<T>(
@@ -285,6 +330,17 @@ describe.skipIf(URL_BASE === undefined)(
       sql<{ proxima_em: Date; tentativas: number; motivo: string }>`
       select proxima_em, tentativas, motivo from vies_fila
       where perfil_id = ${perfil.slice(4)}::uuid`.execute(base.dono);
+    const provas = async (perfil: string, segredo = dono) =>
+      (
+        await ok(
+          pedir(
+            "GET",
+            `/billing-profiles/${perfil}/vies-checks`,
+            undefined,
+            segredo,
+          ),
+        )
+      )["dados"] as Json[];
 
     beforeAll(async () => {
       base = await criarBaseDeTeste(URL_BASE ?? "", { quemPorOmissao: false });
@@ -346,49 +402,44 @@ describe.skipIf(URL_BASE === undefined)(
       await base.fechar();
     });
 
-    it("consultar agora: a prova com o requerente, o perfil válido com a data, um evento", async () => {
+    it("um perfil novo vai à fila: a prova com o requerente, o perfil válido com a data, um evento; a revalidação à noite", async () => {
       const p = await perfilFrances();
+      const id = String(p["id"]);
       expect(p["estado_vies"]).toBe("por_validar");
+      preparar(p.numero, resposta("valido"));
       consultas.length = 0;
-      proximas = [resposta("valido")];
-      const prova = await ok(
-        pedir("POST", `/billing-profiles/${String(p["id"])}/vies-checks`),
-        201,
-      );
-      expect(consultas).toEqual([
+      await correr();
+      expect(consultas.filter((c) => c.numero === p.numero)).toEqual([
         {
           pais: "FR",
-          numero: "40303265045",
+          numero: p.numero,
           requerente: { pais: "PT", numero: "509999990" },
         },
       ]);
+      const [prova] = await provas(id);
       expect(prova).toMatchObject({
-        perfil: p["id"],
+        perfil: id,
         pais_consultado: "FR",
-        numero_consultado: "40303265045",
+        numero_consultado: p.numero,
         requerente: "PT509999990",
         resultado: "valido",
         identificador_consulta: "WAPI0001",
         nome_devolvido: "ANA SARL",
         data_vies: "2026-10-09T10:00:00.000Z",
-        motivo: "pedido",
+        motivo: "perfil_novo",
+        quem: "sistema:vies",
         codigo_erro: null,
       });
-      expect(String(prova["quem"])).toMatch(/^chave:key_/);
-      const agora = await ok(
-        pedir("GET", `/billing-profiles/${String(p["id"])}`),
-      );
+      const agora = await ok(pedir("GET", `/billing-profiles/${id}`));
       expect(agora).toMatchObject({
         estado_vies: "valido",
         validado_em: "2026-10-09T10:00:00.000Z",
       });
-      const tipos = (await eventos(a, String(p["id"]))).map((e) => e.tipo);
-      expect(tipos).toEqual([
+      expect((await eventos(a, id)).map((e) => e.tipo)).toEqual([
         "billing_profile.created",
         "billing_profile.validated",
       ]);
-      // A revalidação fica para a noite, a pelo menos 24 h.
-      const { rows } = await fila(String(p["id"]));
+      const { rows } = await fila(id);
       expect(rows[0]?.motivo).toBe("revalidacao");
       expect(rows[0]?.proxima_em.getTime()).toBeGreaterThan(
         Date.now() + 23.9 * 3600_000,
@@ -396,18 +447,50 @@ describe.skipIf(URL_BASE === undefined)(
       const hora = rows[0]?.proxima_em.getUTCHours() ?? -1;
       expect(hora).toBeGreaterThanOrEqual(1);
       expect(hora).toBeLessThan(5);
+      // A revalidação com a mesma resposta não muda o perfil (nem a versão, nem
+      // a linha do tempo; revisão do #244, P2-6), mas a data sim.
+      preparar(
+        p.numero,
+        resposta("valido", { dataVies: new Date("2026-10-10T03:00:00Z") }),
+      );
+      await ok(pedir("POST", `/billing-profiles/${id}/vies-checks`), 202);
+      await correr();
+      const depois = await ok(pedir("GET", `/billing-profiles/${id}`));
+      expect(depois).toMatchObject({
+        versao: agora["versao"],
+        validado_em: "2026-10-10T03:00:00.000Z",
+      });
     });
 
-    it("Q6: sem resposta, o válido fica válido com a data antiga; um perfil sem nenhuma resposta fica «indisponivel»", async () => {
+    it("pedir uma consulta: 202, o perfil à frente da fila; nada se consulta no pedido", async () => {
       const p = await perfilFrances();
       const id = String(p["id"]);
-      proximas = [resposta("valido"), resposta("indisponivel")];
-      await ok(pedir("POST", `/billing-profiles/${id}/vies-checks`), 201);
-      const sem = await ok(
+      preparar(p.numero, resposta("valido"));
+      await correr();
+      consultas.length = 0;
+      const r = await ok(
         pedir("POST", `/billing-profiles/${id}/vies-checks`),
-        201,
+        202,
       );
-      expect(sem).toMatchObject({
+      expect(r).toMatchObject({ perfil: id });
+      expect(consultas).toEqual([]);
+      const { rows } = await fila(id);
+      expect(rows[0]?.motivo).toBe("pedido");
+      expect(rows[0]?.proxima_em.getTime()).toBeLessThanOrEqual(Date.now());
+      preparar(p.numero, resposta("valido"));
+      await correr();
+      expect((await provas(id))[0]).toMatchObject({ motivo: "pedido" });
+    });
+
+    it("Q6: sem resposta, o válido fica válido com a data antiga; sem nenhuma, «indisponivel»; a espera cresce 1, 5, 30 min e depois a noite", async () => {
+      const p = await perfilFrances();
+      const id = String(p["id"]);
+      preparar(p.numero, resposta("valido"));
+      await correr();
+      preparar(p.numero, resposta("indisponivel"));
+      await ok(pedir("POST", `/billing-profiles/${id}/vies-checks`), 202);
+      await correr();
+      expect((await provas(id))[0]).toMatchObject({
         resultado: "indisponivel",
         codigo_erro: "MS_UNAVAILABLE",
       });
@@ -416,46 +499,46 @@ describe.skipIf(URL_BASE === undefined)(
         validado_em: "2026-10-09T10:00:00.000Z",
       });
       const novo = await perfilFrances();
-      proximas = [resposta("indisponivel")];
-      await ok(
-        pedir("POST", `/billing-profiles/${String(novo["id"])}/vies-checks`),
-        201,
-      );
+      const idNovo = String(novo["id"]);
+      const esperas: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        // Sem resposta preparada: «indisponivel». Põe-se a linha a vencer.
+        await sql`update vies_fila set proxima_em = now() where perfil_id = ${idNovo.slice(4)}::uuid`.execute(
+          base.dono,
+        );
+        await correr();
+        const { rows } = await fila(idNovo);
+        esperas.push((rows[0]?.proxima_em.getTime() ?? 0) - Date.now());
+      }
       expect(
-        await ok(pedir("GET", `/billing-profiles/${String(novo["id"])}`)),
+        await ok(pedir("GET", `/billing-profiles/${idNovo}`)),
       ).toMatchObject({
         estado_vies: "indisponivel",
         validado_em: null,
       });
-      // A fila tenta outra vez dentro de 1 minuto.
-      const { rows } = await fila(String(novo["id"]));
-      expect(rows[0]?.tentativas).toBe(1);
-      expect(rows[0]?.proxima_em.getTime()).toBeLessThan(
-        Date.now() + 2 * 60_000,
-      );
-      // As provas, da mais recente para a mais antiga.
-      const provas = await ok(
-        pedir("GET", `/billing-profiles/${id}/vies-checks`),
-      );
-      expect((provas["dados"] as Json[]).map((v) => v["resultado"])).toEqual([
-        "indisponivel",
-        "valido",
-      ]);
+      const min = 60_000;
+      expect(esperas[0]).toBeLessThan(1.1 * min);
+      expect(esperas[1]).toBeGreaterThan(4 * min);
+      expect(esperas[1]).toBeLessThan(5.1 * min);
+      expect(esperas[2]).toBeGreaterThan(29 * min);
+      expect(esperas[2]).toBeLessThan(30.1 * min);
+      expect(esperas[3]).toBeGreaterThan(23.9 * 60 * min);
     });
 
     it("de válido a inválido: o evento invalidated; a isenção manual não se toca", async () => {
       const p = await perfilFrances();
       const id = String(p["id"]);
-      proximas = [resposta("valido")];
-      await ok(pedir("POST", `/billing-profiles/${id}/vies-checks`), 201);
+      preparar(p.numero, resposta("valido"));
+      await correr();
       await ok(
         pedir("PUT", `/billing-profiles/${id}/exemption`, {
           motivo: "transportadora própria, declaração aduaneira entregue",
         }),
         201,
       );
-      proximas = [resposta("invalido")];
-      await ok(pedir("POST", `/billing-profiles/${id}/vies-checks`), 201);
+      preparar(p.numero, resposta("invalido"));
+      await ok(pedir("POST", `/billing-profiles/${id}/vies-checks`), 202);
+      await correr();
       expect(await ok(pedir("GET", `/billing-profiles/${id}`))).toMatchObject({
         estado_vies: "invalido",
         isencao_em_vigor: true,
@@ -465,10 +548,34 @@ describe.skipIf(URL_BASE === undefined)(
       expect(tipos.filter((t) => t === "billing_profile.updated")).toEqual([]);
     });
 
-    it("um NIF mudado durante a consulta: a prova fica, o estado do NIF novo não muda", async () => {
+    it("uma resposta mais antiga, gravada depois, não se sobrepõe à mais recente (P2-2)", async () => {
+      const p = await perfilFrances();
+      const id = String(p["id"]).slice(4);
+      preparar(p.numero, resposta("valido"));
+      await correr();
+      const registar = (resultado: string, consultadoEm: string) =>
+        base.dono.transaction().execute(async (trx) => {
+          await sql`select set_config('eurolify.comerciante', ${a}, true), set_config('eurolify.quem', 'sistema:vies', true)`.execute(
+            trx,
+          );
+          await sql`select vies_registar(${id}::uuid, 'FR', ${p.numero}, null, null,
+          ${consultadoEm}::timestamptz, null, ${resultado}, null, null, null, null, 'revalidacao')`.execute(
+            trx,
+          );
+        });
+      const t0 = new Date(Date.now() + 1000).toISOString();
+      const t1 = new Date(Date.now() + 2000).toISOString();
+      await registar("invalido", t1);
+      await registar("valido", t0);
+      expect(
+        await ok(pedir("GET", `/billing-profiles/${String(p["id"])}`)),
+      ).toMatchObject({ estado_vies: "invalido" });
+    });
+
+    it("um NIF mudado durante a consulta: a prova fica, o estado e a fila do NIF novo não mudam", async () => {
       const p = await perfilFrances();
       const id = String(p["id"]);
-      proximas = [resposta("valido")];
+      preparar(p.numero, resposta("valido"));
       durante = async () => {
         await ok(
           pedir("PATCH", `/billing-profiles/${id}`, {
@@ -477,19 +584,69 @@ describe.skipIf(URL_BASE === undefined)(
           }),
         );
       };
-      const prova = await ok(
-        pedir("POST", `/billing-profiles/${id}/vies-checks`),
-        201,
+      // Só este perfil está a vencer agora? Outros podem estar; o `durante`
+      // corre na primeira consulta, por isso põe-se este à frente.
+      await sql`update vies_fila set proxima_em = now() - interval '1 day' where perfil_id = ${id.slice(4)}::uuid`.execute(
+        base.dono,
       );
-      expect(prova).toMatchObject({
-        numero_consultado: "40303265045",
+      await correr();
+      expect(
+        (await provas(id)).find((v) => v["numero_consultado"] === p.numero),
+      ).toMatchObject({
         resultado: "valido",
       });
-      expect(await ok(pedir("GET", `/billing-profiles/${id}`))).toMatchObject({
+      const agora = await ok(pedir("GET", `/billing-profiles/${id}`));
+      expect(agora).toMatchObject({
         pais_contribuinte: "BE",
-        estado_vies: "por_validar",
+        estado_vies: expect.stringMatching(
+          /^(por_validar|indisponivel)$/,
+        ) as unknown,
         validado_em: null,
       });
+    });
+
+    it("uma falha a gravar ou a consultar adia a linha; os outros perfis seguem (P2-1)", async () => {
+      const mau = await perfilFrances();
+      const bom = await perfilFrances();
+      preparar(mau.numero, new Error("o VIES rebentou"));
+      preparar(bom.numero, resposta("valido"));
+      await sql`update vies_fila set proxima_em = now() - interval '1 day' where perfil_id = ${String(mau["id"]).slice(4)}::uuid`.execute(
+        base.dono,
+      );
+      const falhas: unknown[] = [];
+      await correrFilaVies(base.api, falso, (_c, _p, e) => falhas.push(e), {
+        pausaMs: 0,
+        porVolta: 1000,
+        total: 1000,
+      });
+      expect(falhas).toHaveLength(1);
+      const { rows } = await fila(String(mau["id"]));
+      expect(rows[0]?.tentativas).toBe(1);
+      expect(rows[0]?.proxima_em.getTime()).toBeGreaterThan(Date.now());
+      expect(
+        await ok(pedir("GET", `/billing-profiles/${String(bom["id"])}`)),
+      ).toMatchObject({ estado_vies: "valido" });
+      // Um nome devolvido longo demais não faz a gravação falhar.
+      const longo = await perfilFrances();
+      preparar(longo.numero, resposta("valido", { nome: "N".repeat(500) }));
+      await correr();
+      expect(
+        await ok(pedir("GET", `/billing-profiles/${String(longo["id"])}`)),
+      ).toMatchObject({ estado_vies: "valido" });
+    });
+
+    it("o estado do VIES só muda pela vies_registar: um UPDATE à mão sem ela não pega", async () => {
+      const p = await perfilFrances();
+      await noComerciante(a, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:per_x', true)`.execute(
+          trx,
+        );
+        await sql`update perfil_faturacao set estado_vies = 'valido', nome_documento = 'X'
+                where id = ${String(p["id"]).slice(4)}::uuid`.execute(trx);
+      });
+      expect(
+        await ok(pedir("GET", `/billing-profiles/${String(p["id"])}`)),
+      ).toMatchObject({ estado_vies: "por_validar", nome_documento: "X" });
     });
 
     it("só num perfil com VIES aplicável; sem consulta ligada, 503", async () => {
@@ -521,9 +678,9 @@ describe.skipIf(URL_BASE === undefined)(
       );
     });
 
-    it("a fila: consulta os por validar de cada comerciante, com quem «sistema:vies»; o arquivado sai da fila", async () => {
+    it("a fila: cada comerciante no seu contexto; B sem entidade vai sem requerente; o arquivado sai", async () => {
       const pa = await perfilFrances();
-      const pb = await perfilFrances(deB, "FR40303265045");
+      const pb = await perfilFrances(deB);
       const arquivado = await perfilFrances();
       await ok(
         pedir("POST", `/billing-profiles/${String(arquivado["id"])}/archive`, {
@@ -531,52 +688,59 @@ describe.skipIf(URL_BASE === undefined)(
         }),
       );
       expect((await fila(String(arquivado["id"]))).rows).toEqual([]);
-      consultas.length = 0;
-      // Tudo o que estiver na fila de testes anteriores também passa: respostas
-      // de sobra.
-      proximas = Array.from({ length: 30 }, () => resposta("valido"));
-      const falhas: unknown[] = [];
-      const r = await correrFilaVies(
-        base.api,
-        falso,
-        (_c, _p, e) => falhas.push(e),
-        {
-          pausaMs: 0,
-        },
-      );
-      expect(falhas).toEqual([]);
-      expect(r.consultas).toBeGreaterThanOrEqual(2);
+      preparar(pa.numero, resposta("valido"));
+      preparar(pb.numero, resposta("valido"));
+      await correr();
       expect(
         await ok(pedir("GET", `/billing-profiles/${String(pa["id"])}`)),
-      ).toMatchObject({
-        estado_vies: "valido",
-      });
-      expect(
-        await ok(
-          pedir("GET", `/billing-profiles/${String(pb["id"])}`, undefined, deB),
-        ),
       ).toMatchObject({ estado_vies: "valido" });
-      // B não tem entidade legal: vai sem requerente.
-      const provaB = await ok(
-        pedir(
-          "GET",
-          `/billing-profiles/${String(pb["id"])}/vies-checks`,
-          undefined,
-          deB,
-        ),
-      );
-      expect((provaB["dados"] as Json[])[0]).toMatchObject({
+      expect((await provas(String(pb["id"]), deB))[0]).toMatchObject({
         requerente: null,
         quem: "sistema:vies",
         motivo: "perfil_novo",
       });
-      // Uma segunda volta não volta a consultar (a próxima é à noite).
+      // O que se consulta no contexto de B não traz nada de A.
+      const deBVe = await noComerciante(b, async (trx) =>
+        (
+          await sql<{
+            perfil_id: string;
+          }>`select perfil_id from vies_por_consultar(1000)`.execute(trx)
+        ).rows.map((r) => r.perfil_id),
+      );
+      expect(deBVe).not.toContain(String(pa["id"]).slice(4));
+      // Uma segunda volta não volta a consultar os respondidos (a próxima é à noite).
       consultas.length = 0;
-      await correrFilaVies(base.api, falso, () => undefined, { pausaMs: 0 });
-      expect(consultas).toEqual([]);
+      await correr();
+      expect(
+        consultas.filter(
+          (c) => c.numero === pa.numero || c.numero === pb.numero,
+        ),
+      ).toEqual([]);
     });
 
-    it("a isenção manual: uma em vigor, retira-se com motivo, fica o histórico; só com customers:exemptions", async () => {
+    it("um país que diz «pedidos a mais» fica de fora até à volta seguinte (P2-8)", async () => {
+      const p1 = await perfilFrances();
+      const p2 = await perfilFrances();
+      for (const p of [p1, p2]) {
+        await sql`update vies_fila set proxima_em = now() - interval '2 days' where perfil_id = ${String(p["id"]).slice(4)}::uuid`.execute(
+          base.dono,
+        );
+      }
+      preparar(
+        p1.numero,
+        resposta("indisponivel", { codigoErro: "MS_MAX_CONCURRENT_REQ" }),
+      );
+      preparar(
+        p2.numero,
+        resposta("indisponivel", { codigoErro: "MS_MAX_CONCURRENT_REQ" }),
+      );
+      consultas.length = 0;
+      await correr();
+      const francesas = consultas.filter((c) => c.pais === "FR");
+      expect(francesas).toHaveLength(1);
+    });
+
+    it("a isenção manual: uma em vigor, retira-se com motivo, fica o histórico e o NIF; só com customers:exemptions", async () => {
       const p = await perfilFrances();
       const id = String(p["id"]);
       expect(
@@ -601,17 +765,28 @@ describe.skipIf(URL_BASE === undefined)(
         motivo: "transportadora própria",
       });
       expect(String(i["posta_por"])).toMatch(/^chave:key_/);
+      const linha = await noComerciante(
+        a,
+        async (trx) =>
+          (
+            await sql<{ pais_contribuinte: string; nif_numero: string }>`
+          select pais_contribuinte, nif_numero from isencao_manual
+          where id = ${String(i["id"]).slice(4)}::uuid`.execute(trx)
+          ).rows[0],
+      );
+      expect(linha).toEqual({ pais_contribuinte: "FR", nif_numero: p.numero });
       await recusa(
         pedir("PUT", `/billing-profiles/${id}/exemption`, { motivo: "outra" }),
         409,
         "customers.exemption_active",
       );
-      const retirada = await ok(
-        pedir("DELETE", `/billing-profiles/${id}/exemption`, {
-          motivo_retirada: "o cliente deixou de usar transportadora própria",
-        }),
-      );
-      expect(retirada).toMatchObject({ em_vigor: false });
+      expect(
+        await ok(
+          pedir("DELETE", `/billing-profiles/${id}/exemption`, {
+            motivo_retirada: "o cliente deixou de usar transportadora própria",
+          }),
+        ),
+      ).toMatchObject({ em_vigor: false });
       await recusa(
         pedir("DELETE", `/billing-profiles/${id}/exemption`, {
           motivo_retirada: "x",
@@ -640,7 +815,7 @@ describe.skipIf(URL_BASE === undefined)(
       ]);
     });
 
-    it("nenhum processo de sistema retira uma isenção; não se altera nem se apaga", async () => {
+    it("só uma pessoa ou a chave dela põe ou retira uma isenção; não se altera nem se apaga", async () => {
       const p = await perfilFrances();
       const i = await ok(
         pedir("PUT", `/billing-profiles/${String(p["id"])}/exemption`, {
@@ -656,19 +831,32 @@ describe.skipIf(URL_BASE === undefined)(
           );
           await sql.raw(consulta.replace("$ID", isencao)).execute(trx);
         });
-      await expect(
-        tentar(
-          "sistema:vies",
-          "update isencao_manual set motivo_retirada = 'auto' where id = '$ID'",
-        ),
-      ).rejects.toThrow(/customers.exemption_by_person/);
+      for (const quem of [
+        "sistema:vies",
+        "operador:x",
+        "importacao:imp_1",
+        "motor-iva:x",
+      ]) {
+        await expect(
+          tentar(
+            quem,
+            "update isencao_manual set motivo_retirada = 'auto' where id = '$ID'",
+          ),
+        ).rejects.toThrow(/customers.exemption_by_person/);
+        await expect(
+          tentar(
+            quem,
+            `insert into isencao_manual (comerciante_id, perfil_id, motivo)
+           select comerciante_id, id, 'auto' from perfil_faturacao where id = '${String(p["id"]).slice(4)}'`,
+          ),
+        ).rejects.toThrow(/customers.exemption_by_person/);
+      }
       await expect(
         tentar(
           "pessoa:per_x",
           "update isencao_manual set motivo = 'outro' where id = '$ID'",
         ),
       ).rejects.toThrow(/customers.exemption_immutable/);
-      // Mudar o motivo ao retirar também não: só se retira.
       await expect(
         tentar(
           "pessoa:per_x",
@@ -719,18 +907,12 @@ describe.skipIf(URL_BASE === undefined)(
         })
       ).segredo;
       const p = await perfilFrances(deC);
+      preparar(p.numero, resposta("valido"));
       consultas.length = 0;
-      proximas = [resposta("valido")];
-      await ok(
-        pedir(
-          "POST",
-          `/billing-profiles/${String(p["id"])}/vies-checks`,
-          undefined,
-          deC,
-        ),
-        201,
-      );
-      expect(consultas[0]?.requerente).toBeNull();
+      await correr();
+      expect(
+        consultas.find((x) => x.numero === p.numero)?.requerente,
+      ).toBeNull();
     });
 
     it("o isolamento: as provas e as isenções de A não existem para B", async () => {
