@@ -160,6 +160,18 @@ execFileSync(
   ],
   { stdio: "ignore" },
 );
+// A mesma política de segurança que o nginx do ensaio dá aos ecrãs, lida do
+// próprio ficheiro: uma imagem, um estilo ou um pedido que ela bloqueie no
+// ensaio também falha aqui (revisão do #206).
+const POLITICA = /add_header Content-Security-Policy "([^"]+)"/.exec(
+  readFileSync(
+    resolve(HUB, "..", "..", "infra", "vps", "ficheiros", "nginx-hub.conf"),
+    "utf8",
+  ),
+)?.[1];
+if (POLITICA === undefined) {
+  throw new Error("nginx-hub.conf sem a Content-Security-Policy");
+}
 const TIPOS = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript",
@@ -213,10 +225,14 @@ const servidor = createServer(
       const corpo = readFileSync(ficheiro);
       resposta.writeHead(200, {
         "content-type": TIPOS[extname(ficheiro)] ?? "application/octet-stream",
+        "content-security-policy": POLITICA,
       });
       resposta.end(corpo);
     } catch {
-      resposta.writeHead(200, { "content-type": TIPOS[".html"] });
+      resposta.writeHead(200, {
+        "content-type": TIPOS[".html"],
+        "content-security-policy": POLITICA,
+      });
       resposta.end(readFileSync(join(HUB, "dist", "index.html")));
     }
   },
