@@ -29,6 +29,9 @@ export type CodigoErroPrecos =
   | "prices.channel_market_in_use"
   | "prices.published_variant"
   | "prices.invalid_field"
+  | "prices.reduction_without_history"
+  | "prices.reduction_not_lower"
+  | "prices.reduction_active"
   | "prices.retry";
 
 export class ErroPrecos extends Error {
