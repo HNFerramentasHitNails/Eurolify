@@ -37,6 +37,8 @@ import {
   MUDANCAS_DE_ESTADO,
   noCatalogoApi,
   NovaVariante,
+  OpcaoEsquema,
+  opcoesDeArtigoComVariantes,
   ParametroArtigo,
   ParametroVariante,
   PedidoAlterarArtigo,
@@ -124,7 +126,7 @@ const Autor = Type.Object({
       "O nome de quem é ou foi da equipa deste comerciante, ou o nome da chave dele; vazio nos outros casos",
   }),
 });
-/** As publicações com os nomes do canal e do mercado (docs/22 §18.1). */
+/** As publicações com os nomes do canal, do mercado e da loja (docs/22 §18.1, §19.1). */
 const RespostaPublicacoesNoHub = Type.Object({
   dados: Type.Array(
     Type.Object({
@@ -135,9 +137,29 @@ const RespostaPublicacoesNoHub = Type.Object({
       mercado_nome: Type.Union([Type.String(), Type.Null()], {
         description: "O nome do mercado; vazio se não se encontrar",
       }),
+      loja_nome: Type.Union([Type.String(), Type.Null()], {
+        description:
+          "O nome da loja da publicação (a do canal e do mercado); vazio se não se encontrar",
+      }),
     }),
   ),
 });
+const RespostaOpcoesNoHub = Lista(
+  Type.Object({
+    ...OpcaoEsquema.properties,
+    valores: Type.Array(
+      Type.Object({
+        id: Type.String({ description: "ovl_…" }),
+        valor: Type.String(),
+        variantes: Type.Array(Type.String({ description: "var_…" }), {
+          description:
+            "As variantes que têm este valor, também as arquivadas; vazia se nenhuma o usa (docs/22 §20.1)",
+        }),
+      }),
+      { description: "Pela ordem (posição)" },
+    ),
+  }),
+);
 const RespostaLinhaDoTempoNoHub = Type.Object({
   ...RespostaLinhaDoTempo.properties,
   dados: Type.Array(Type.Object({ ...Alteracao.properties, autor: Autor })),
@@ -253,7 +275,7 @@ export function rotasDoCatalogoNoHub(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "As publicações de um artigo para o Hub: as mesmas do GET /products/{id}/publications (docs/22 §12.1), com o nome do canal e do mercado de cada uma (§18.1).",
+          "As publicações de um artigo para o Hub: as mesmas do GET /products/{id}/publications (docs/22 §12.1), com o nome do canal, do mercado e da loja de cada uma (§18.1, §19.1).",
         params: ParametroArtigo,
         response: { 200: RespostaPublicacoesNoHub, ...RESPOSTA_DE_ERRO },
       },
@@ -278,9 +300,34 @@ export function rotasDoCatalogoNoHub(
           ...p,
           canal_nome: nomes.canais.get(semPrefixo(p.canal)) ?? null,
           mercado_nome: nomes.mercados.get(semPrefixo(p.mercado)) ?? null,
+          loja_nome: nomes.lojasDosCanais.get(semPrefixo(p.canal)) ?? null,
         })),
       };
     },
+  );
+
+  // As opções do artigo (docs/22 §20; issue #278): a mesma função do
+  // GET /products/{id}/options, com as variantes de cada valor (§20.1).
+  rotas.get(
+    "/hub/products/:id/options",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "As opções de um artigo para o Hub: as mesmas do GET /products/{id}/options (pela ordem, com os valores pela ordem, no formato das listas), e cada valor com as `variantes` que o têm, também as arquivadas, com a sessão de quem tem catalog:read (docs/22 §20.1).",
+        params: ParametroArtigo,
+        querystring: ConsultaPagina,
+        response: { 200: RespostaOpcoesNoHub, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      opcoesDeArtigoComVariantes(
+        base,
+        comercianteLeitor(pedido, resposta),
+        pedido.params.id,
+        pedido.query,
+        resposta,
+      ),
   );
 
   // Os preços do artigo (docs/22 §17; issue #249): a mesma função do

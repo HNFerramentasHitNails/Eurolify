@@ -100,7 +100,9 @@ const { comComerciante, criarEntidadeLegal, criarLoja } = await import(
 const { registarComerciante } = await import(
   join(API, "dist/comerciante/repositorio.js")
 );
-const { criarArtigo } = await import(join(API, "dist/catalogo/repositorio.js"));
+const { criarArtigo, criarOpcao, definirValoresDaVariante } = await import(
+  join(API, "dist/catalogo/repositorio.js")
+);
 const { registarFicheiro, criarMedia } = await import(
   join(API, "dist/catalogo/media.js")
 );
@@ -375,6 +377,44 @@ let mercadoDaFicha;
       textoAlternativo: texto,
       principal,
     });
+  }
+  // As opções do artigo 1 (docs/22 §20), ainda em rascunho: «Tamanho» com
+  // um valor por variante e um que nenhuma usa («30 ml»), e «Acabamento»
+  // com um só valor, nas duas.
+  {
+    const doArtigo1 = await comComerciante(baseArtigos, comerciante, (trx) =>
+      trx
+        .selectFrom("variante")
+        .select(["id", "sku"])
+        .where("artigo_id", "=", artigoDaFicha)
+        .execute(),
+    );
+    const idDe = (sku) => doArtigo1.find((v) => v.sku === sku)?.id ?? "";
+    const tamanho = await criarOpcao(
+      baseArtigos,
+      comerciante,
+      artigoDaFicha,
+      "Tamanho",
+      ["15 ml", "30 ml", "Caixa de 12"],
+    );
+    const acabamento = await criarOpcao(
+      baseArtigos,
+      comerciante,
+      artigoDaFicha,
+      "Acabamento",
+      ["Brilhante"],
+    );
+    const valor = (o, texto) => o.valores.find((v) => v.valor === texto)?.id;
+    await definirValoresDaVariante(baseArtigos, comerciante, idDe("ENS-001"), [
+      valor(tamanho, "15 ml"),
+      valor(acabamento, "Brilhante"),
+    ]);
+    await definirValoresDaVariante(
+      baseArtigos,
+      comerciante,
+      idDe("ENS-001-B"),
+      [valor(tamanho, "Caixa de 12"), valor(acabamento, "Brilhante")],
+    );
   }
   // Uma publicação real do artigo 1 (revisão do #206, P2-3): fica em
   // rascunho, porque a segunda imagem não tem texto alternativo.
@@ -1639,6 +1679,29 @@ try {
         .count()) === 1,
     "ficha: as duas variantes, com a unidade, o conteúdo e o peso",
   );
+  // As opções (docs/22 §20.2): uma coluna por opção, entre o SKU e o estado,
+  // e a linha por cima com os valores todos, também o que nenhuma usa.
+  await rp.getByText("Opções: Tamanho", { exact: false }).waitFor();
+  const cabecalhoVariantes = await rp
+    .locator(".variantes-artigo thead th")
+    .allTextContents();
+  confere(
+    cabecalhoVariantes.slice(0, 4).join("|") ===
+      "SKU|Tamanho|Acabamento|Estado" &&
+      (await rp
+        .getByText(
+          "Opções: Tamanho (15 ml, 30 ml, Caixa de 12) · Acabamento (Brilhante)",
+          { exact: true },
+        )
+        .count()) === 1 &&
+      (await rp
+        .getByRole("row", { name: /ENS-001\b.*15 ml.*Brilhante.*Activa/ })
+        .count()) === 1 &&
+      (await rp
+        .getByRole("row", { name: /ENS-001-B.*Caixa de 12.*Brilhante.*Activa/ })
+        .count()) === 1,
+    "ficha: uma coluna por opção, com o valor de cada variante, e a linha com as opções e os valores todos",
+  );
   // Os preços (docs/22 §17.3): uma caixa por lista, com o que o servidor deu.
   await rp.getByRole("heading", { name: "Base ES", level: 3 }).waitFor();
   const caixaPt = rp.locator(".lista-precos").nth(0);
@@ -1815,6 +1878,7 @@ try {
             // Sem os nomes (não devia acontecer): fica o identificador.
             canal_nome: null,
             mercado_nome: null,
+            loja_nome: null,
             estado: "arquivado",
             variantes_fora: [],
             ultima_verificacao: null,
@@ -1848,6 +1912,138 @@ try {
     () => document.querySelectorAll(".imagens-artigo img").length === 2,
   );
   confere(true, "ficha: «Tentar outra vez» traz as imagens");
+  // As opções falham sozinhas (docs/22 §20.2): a tabela fica como sem
+  // elas, com o aviso e «Tentar outra vez» por cima. Com o seu endereço.
+  await enderecoNovo(rp);
+  await rp.route("**/hub/products/*/options?*", (r) =>
+    r.fulfill({
+      status: 500,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "internal", status: 500 }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByText("Não foi possível ler as opções.").waitFor();
+  confere(
+    (await rp.locator(".variantes-artigo thead th").allTextContents())
+      .slice(0, 2)
+      .join("|") === "SKU|Estado" &&
+      (await rp.getByText("Opções:", { exact: false }).count()) === 0 &&
+      (await rp.getByRole("row", { name: /ENS-001-B.*Caixa/ }).count()) === 1 &&
+      (await rp.getByRole("button", { name: "Tentar outra vez" }).count()) ===
+        1,
+    "ficha: as opções falham sozinhas: a tabela fica sem as colunas, com o aviso e «Tentar outra vez»",
+  );
+  await rp.unroute("**/hub/products/*/options?*");
+  await rp.getByRole("button", { name: "Tentar outra vez" }).click();
+  await rp.getByText("Opções: Tamanho", { exact: false }).waitFor();
+  confere(
+    (await rp.getByText("Não foi possível ler as opções.").count()) === 0 &&
+      (await rp
+        .getByRole("row", { name: /ENS-001-B.*Caixa de 12/ })
+        .count()) === 1,
+    "ficha: «Tentar outra vez» traz as opções",
+  );
+  // As capturas da tabela com as opções, para a página de aprovação.
+  for (const [largura, tema] of [
+    [375, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `opções: a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    const linha = await rp
+      .getByText("Opções: Tamanho", { exact: false })
+      .boundingBox();
+    const tabela = await rp.locator(".variantes-artigo").boundingBox();
+    if (linha !== null && tabela !== null) {
+      const x = Math.min(linha.x, tabela.x);
+      const y = linha.y;
+      await rp.screenshot({
+        path: join(
+          SAIDA,
+          `artigo-opcoes-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+        ),
+        fullPage: true,
+        clip: {
+          x,
+          y,
+          width: Math.max(linha.x + linha.width, tabela.x + tabela.width) - x,
+          height: tabela.y + tabela.height - y,
+        },
+      });
+    }
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
+  // Com o seu endereço: estes recarregamentos somavam-se aos pedidos da
+  // ficha no mesmo minuto (limite do Hub, issue #253; revisão do #275, P3-1).
+  await enderecoNovo(rp);
+  // Dois canais com o mesmo nome em lojas diferentes (docs/22 §19.2): a
+  // loja por baixo do canal; os mercados, com nomes diferentes, só com o
+  // nome (respostas fingidas da API).
+  const publicacaoFingida = (n, mercado, loja) => ({
+    id: `pub_00000000-0000-4000-8000-00000000001${n}`,
+    artigo: `prd_${artigoDaFicha}`,
+    canal: `chn_00000000-0000-4000-8000-00000000002${n}`,
+    mercado: `mkt_00000000-0000-4000-8000-00000000003${n}`,
+    canal_nome: "Loja online",
+    mercado_nome: mercado,
+    loja_nome: loja,
+    estado: "publicado",
+    variantes_fora: [],
+    ultima_verificacao: null,
+    verificado_em: "2026-10-01T09:00:00Z",
+    publicado_em: "2026-10-02T09:00:00Z",
+    arquivado_em: null,
+    motivo_arquivo: null,
+    versao: 2,
+  });
+  await rp.route("**/hub/products/*/publications", (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        dados: [
+          publicacaoFingida(1, "Portugal", "Loja Norte"),
+          publicacaoFingida(2, "Espanha", "Loja Sul"),
+        ],
+      }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByRole("row", { name: /Loja Sul/ }).waitFor();
+  const tabelaPublicacoes = rp.locator("table", {
+    has: rp.getByRole("columnheader", { name: "Mercado" }),
+  });
+  confere(
+    (await rp
+      .getByRole("row", {
+        name: /Loja online.*Loja Norte.*Portugal.*Publicado/,
+      })
+      .count()) === 1 &&
+      (await rp
+        .getByRole("row", { name: /Loja online.*Loja Sul.*Espanha.*Publicado/ })
+        .count()) === 1 &&
+      (await tabelaPublicacoes.getByText(/^(chn|mkt)_/).count()) === 0 &&
+      (await tabelaPublicacoes
+        .locator(".so-leitores", { hasText: "Loja:" })
+        .count()) === 2,
+    "ficha: dois canais com o mesmo nome mostram a loja por baixo (com «Loja:» para os leitores de ecrã); os mercados, diferentes, só o nome",
+  );
+  await tabelaPublicacoes.screenshot({
+    path: join(SAIDA, "artigo-publicacoes-lojas-375-claro.png"),
+  });
+  await rp.unroute("**/hub/products/*/publications");
+  await rp.reload();
+  await rp
+    .getByRole("row", { name: /Loja online.*Portugal.*Rascunho/ })
+    .waitFor();
   // Os preços falham sozinhos (docs/22 §17.3): o erro na secção, o resto fica.
   await rp.route("**/hub/products/*/prices*", (r) =>
     r.fulfill({
@@ -1967,8 +2163,23 @@ try {
   await enderecoNovo(rp);
   // Editar o artigo (docs/22 §13), com a Ana (dona), no «Verniz Rosa 2».
   const fichaEditavel = `${ORIGEM}/artigos/prd_${artigoEditavel}?comerciante=mer_${comerciante}`;
+  const opcoesSemNada = rp.waitForResponse((r) =>
+    r.url().includes(`/hub/products/prd_${artigoEditavel}/options`),
+  );
   await rp.goto(fichaEditavel);
   await rp.getByRole("heading", { name: "Verniz Rosa 2", level: 1 }).waitFor();
+  // Um artigo sem opções (docs/22 §20.2): nem colunas nem a linha.
+  await opcoesSemNada;
+  // Depois de o ecrã as tratar, não só de a resposta chegar (revisão do
+  // #281, P3-3).
+  await rp.locator('.variantes-artigo[data-opcoes="pronto"]').waitFor();
+  confere(
+    (await rp.getByText("Opções:", { exact: false }).count()) === 0 &&
+      (await rp.locator(".variantes-artigo thead th").allTextContents())
+        .slice(0, 2)
+        .join("|") === "SKU|Estado",
+    "ficha: um artigo sem opções fica como antes, sem colunas nem a linha",
+  );
   // Só com o teclado (docs/22 §13.5; revisão do #217, P2-6): «Editar» com
   // Enter, escrever, e Enter no nome grava.
   await rp.getByRole("link", { name: "Editar", exact: true }).focus();
@@ -2236,6 +2447,45 @@ try {
       },
     });
   }
+  // Miniaturas que ficam sem resposta ao sair da ficha não podem prender a
+  // fila das imagens (4 de cada vez): na visita seguinte, as miniaturas
+  // ficavam em «A carregar…» até se recarregar a página (issue #253).
+  // Os presos continuam presos até ao fim do passo: deixar de interceptar
+  // soltava-os (o Playwright continua os pedidos que ainda segura).
+  const pendurados = [];
+  let prender = true;
+  const rotaPresa = (r) => {
+    if (prender) pendurados.push(r);
+    else void r.fallback();
+  };
+  await rp.route("**/hub/media/*/file", rotaPresa);
+  await rp.getByRole("link", { name: "Histórico", exact: true }).click();
+  await rp.getByRole("heading", { name: /Histórico/ }).waitFor();
+  for (let visita = 0; visita < 2; visita++) {
+    await rp.goBack();
+    await rp.locator(".imagens-artigo > li").nth(1).waitFor();
+    await rp.goForward();
+    await rp.getByRole("heading", { name: /Histórico/ }).waitFor();
+  }
+  const penduradosAntes = pendurados.length;
+  prender = false;
+  await rp.goBack();
+  const imagensVoltaram = await rp
+    .waitForFunction(
+      () => document.querySelectorAll(".imagens-artigo img").length === 2,
+      undefined,
+      { timeout: 10_000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  for (const r of pendurados) await r.abort().catch(() => undefined);
+  await rp.unroute("**/hub/media/*/file", rotaPresa);
+  confere(
+    penduradosAntes === 4 && imagensVoltaram,
+    `ficha: miniaturas sem resposta noutra visita não prendem a fila (${String(penduradosAntes)} sem resposta)`,
+  );
   // Arquivar a única variante: a confirmação diz que é a última.
   let ultima = false;
   rp.once("dialog", (d) => {
@@ -2622,6 +2872,7 @@ try {
             mercado: "mkt_00000000-0000-7000-8000-000000000001",
             canal_nome: "Loja online",
             mercado_nome: "Portugal",
+            loja_nome: "Loja online",
             estado: "publicado",
             verificado_em: null,
             publicado_em: "2026-10-09T10:00:00Z",

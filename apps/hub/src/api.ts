@@ -2,6 +2,8 @@
 // próprio anfitrião (`/hub/*`), com o cookie da sessão (que o Hub não lê) e
 // sempre em JSON; os erros chegam no formato RFC 9457 com um `codigo`.
 
+import type { OpcaoArtigo } from "./opcoes";
+
 export type Papel = "dono" | "gestor" | "armazem" | "apoio";
 export const PAPEIS: readonly Papel[] = ["dono", "gestor", "armazem", "apoio"];
 
@@ -227,6 +229,8 @@ export interface PublicacaoArtigo {
   canal_nome: string | null;
   /** O nome do mercado; vazio se não se encontrar. */
   mercado_nome: string | null;
+  /** O nome da loja da publicação; vazio se não se encontrar (§19.1). */
+  loja_nome: string | null;
   estado: "rascunho" | "publicado" | "arquivado";
   verificado_em: string | null;
   publicado_em: string | null;
@@ -453,48 +457,128 @@ export function enviarImagem(
 }
 
 /**
+ * O tempo máximo sem receber nada de uma miniatura (issue #253): até à
+ * resposta e entre dois pedaços dos bytes. Conta-se do último pedaço, não do
+ * início, para uma imagem grande (até 10 MiB, `TAMANHO_MAXIMO` da API) numa
+ * rede lenta não falhar enquanto ainda chegam bytes (revisão do #280, P2).
+ */
+export const PRAZO_DA_IMAGEM_MS = 30_000;
+
+/**
  * Os bytes de uma imagem (docs/22 §12.1): um `<img src>` não leva o
  * cabeçalho do comerciante, por isso pedem-se aqui e mostram-se por `blob:`.
  */
 export async function pedirBytes(
   caminho: string,
   comerciante: string,
+  sinal?: AbortSignal,
+  prazoMs: number = PRAZO_DA_IMAGEM_MS,
 ): Promise<Blob> {
-  let resposta: Response;
+  // Sem prazo, um pedido sem resposta ocupava um lugar da fila para sempre
+  // (issue #253).
+  const controlo = new AbortController();
+  let leitor: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  const parar = () => {
+    controlo.abort();
+    // A leitura dos bytes também pára (nem todos os corpos seguem o sinal).
+    void leitor?.cancel().catch(() => undefined);
+  };
+  if (sinal?.aborted === true) parar();
+  sinal?.addEventListener("abort", parar, { once: true });
+  let relogio = setTimeout(parar, prazoMs);
+  const recomecar = () => {
+    clearTimeout(relogio);
+    relogio = setTimeout(parar, prazoMs);
+  };
+  const semRede = () => new ErroHub(0, undefined, {}, undefined, undefined);
   try {
-    resposta = await fetch(caminho, {
-      method: "GET",
-      credentials: "same-origin",
-      headers: { "eurolify-comerciante": comerciante },
-    });
-  } catch {
-    throw new ErroHub(0, undefined, {}, undefined, undefined);
+    let resposta: Response;
+    try {
+      resposta = await fetch(caminho, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "eurolify-comerciante": comerciante },
+        signal: controlo.signal,
+      });
+    } catch {
+      throw semRede();
+    }
+    if (!resposta.ok) throw await erroDe(resposta);
+    const tipo = resposta.headers.get("content-type") ?? "";
+    if (resposta.body === null) return new Blob([], { type: tipo });
+    const corpo = resposta.body.getReader();
+    leitor = corpo;
+    const pedacos: Uint8Array<ArrayBuffer>[] = [];
+    try {
+      for (;;) {
+        recomecar();
+        const { done, value } = await corpo.read();
+        if (done) break;
+        pedacos.push(value);
+      }
+    } catch {
+      throw semRede();
+    }
+    // Cancelada a meio, a leitura acaba como se tivesse chegado ao fim.
+    if (controlo.signal.aborted) throw semRede();
+    return new Blob(pedacos, { type: tipo });
+  } finally {
+    clearTimeout(relogio);
+    sinal?.removeEventListener("abort", parar);
   }
-  if (resposta.ok) return resposta.blob();
-  throw await erroDe(resposta);
 }
 
 /**
  * Uma fila para os bytes das imagens: no máximo 4 pedidos ao mesmo tempo,
  * para um artigo com muitas imagens não gastar de uma vez o limite de
  * pedidos do Hub nem ler todos os ficheiros na API em paralelo.
+ *
+ * Quem acaba passa o lugar directamente ao primeiro em espera: com o lugar
+ * libertado e só depois ocupado, um pedido novo no intervalo passava à
+ * frente e ficavam 5 ao mesmo tempo (revisão do #280, P3). Quem é cancelado
+ * enquanto espera sai logo da fila.
  */
 const MAXIMO_IMAGENS_EM_CURSO = 4;
 let imagensEmCurso = 0;
 const imagensEmEspera: (() => void)[] = [];
 
-async function naFilaDasImagens<T>(pedido: () => Promise<T>): Promise<T> {
-  if (imagensEmCurso >= MAXIMO_IMAGENS_EM_CURSO) {
-    await new Promise<void>((avancar) => {
-      imagensEmEspera.push(avancar);
+/** Para os testes: quantos pedidos de imagens estão a correr agora. */
+export function imagensACorrer(): number {
+  return imagensEmCurso;
+}
+
+export async function naFilaDasImagens<T>(
+  pedido: () => Promise<T>,
+  sinal?: AbortSignal,
+): Promise<T> {
+  // Quem saiu (a miniatura já não está no ecrã) não chega a pedir.
+  if (sinal?.aborted === true) {
+    throw new ErroHub(0, undefined, {}, undefined, undefined);
+  }
+  if (imagensEmCurso < MAXIMO_IMAGENS_EM_CURSO) {
+    imagensEmCurso++;
+  } else {
+    // O lugar vem de quem acabar (ver o `finally`), já contado.
+    await new Promise<void>((avancar, desistir) => {
+      const minhaVez = () => {
+        sinal?.removeEventListener("abort", saiu);
+        avancar();
+      };
+      const saiu = () => {
+        const n = imagensEmEspera.indexOf(minhaVez);
+        if (n >= 0) imagensEmEspera.splice(n, 1);
+        desistir(new ErroHub(0, undefined, {}, undefined, undefined));
+      };
+      sinal?.addEventListener("abort", saiu, { once: true });
+      imagensEmEspera.push(minhaVez);
     });
   }
-  imagensEmCurso++;
   try {
     return await pedido();
   } finally {
-    imagensEmCurso--;
-    imagensEmEspera.shift()?.();
+    const seguinte = imagensEmEspera.shift();
+    if (seguinte === undefined) imagensEmCurso--;
+    else seguinte();
   }
 }
 
@@ -576,11 +660,32 @@ export const api = {
     } while (cursor !== null);
     return imagens;
   },
-  /** Os bytes de uma imagem, no máximo 4 ao mesmo tempo (revisão do #206, P2-1). */
-  bytesDaImagem: (comerciante: string, imagem: string) =>
-    naFilaDasImagens(() =>
-      pedirBytes(`/hub/media/${imagem}/file`, comerciante),
+  /**
+   * Os bytes de uma imagem, no máximo 4 ao mesmo tempo (revisão do #206,
+   * P2-1). O `sinal` cancela o pedido quando a miniatura sai do ecrã, para
+   * não prender a fila (issue #253).
+   */
+  bytesDaImagem: (comerciante: string, imagem: string, sinal?: AbortSignal) =>
+    naFilaDasImagens(
+      () => pedirBytes(`/hub/media/${imagem}/file`, comerciante, sinal),
+      sinal,
     ),
+  /** As opções do artigo (docs/22 §20.1), 100 de cada vez, até ao fim. */
+  opcoesDoArtigo: async (comerciante: string, artigo: string) => {
+    const opcoes: OpcaoArtigo[] = [];
+    let cursor: string | null = null;
+    do {
+      const q = new URLSearchParams({ limite: "100" });
+      if (cursor !== null) q.set("cursor", cursor);
+      const pagina: { dados: OpcaoArtigo[]; cursor_seguinte: string | null } =
+        await pedir("GET", `/hub/products/${artigo}/options?${q.toString()}`, {
+          comerciante,
+        });
+      opcoes.push(...pagina.dados);
+      cursor = pagina.cursor_seguinte;
+    } while (cursor !== null);
+    return opcoes;
+  },
   publicacoesDoArtigo: (comerciante: string, artigo: string) =>
     pedir<{ dados: PublicacaoArtigo[] }>(
       "GET",

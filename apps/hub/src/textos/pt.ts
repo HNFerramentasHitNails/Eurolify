@@ -371,6 +371,9 @@ export const pt = {
   artigoDescricao: "Descrição",
   artigoSemDescricao: "Sem descrição.",
   artigoVariantes: "Variantes",
+  /** Antes da linha com as opções e os valores (docs/22 §20.2). */
+  artigoOpcoes: "Opções:",
+  artigoOpcoesFalharam: "Não foi possível ler as opções.",
   colunaUnidade: "Unidade de venda",
   colunaGtin: "GTIN",
   colunaConteudo: "Conteúdo",
@@ -392,6 +395,8 @@ export const pt = {
   artigoSemPublicacoes: "Ainda não está publicado em nenhuma loja.",
   colunaCanal: "Canal",
   colunaMercado: "Mercado",
+  /** Só para leitores de ecrã, antes do nome da loja (docs/22 §19.2). */
+  publicacaoLoja: "Loja:",
   colunaData: "Data",
   colunaMotivo: "Motivo",
   estadoPublicacao_rascunho: "Rascunho",

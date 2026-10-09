@@ -376,6 +376,9 @@ export const es: Textos = {
   artigoDescricao: "Descripción",
   artigoSemDescricao: "Sin descripción.",
   artigoVariantes: "Variantes",
+  /** Antes da linha com as opções e os valores (docs/22 §20.2). */
+  artigoOpcoes: "Opciones:",
+  artigoOpcoesFalharam: "No se han podido leer las opciones.",
   colunaUnidade: "Unidad de venta",
   colunaGtin: "GTIN",
   colunaConteudo: "Contenido",
@@ -397,6 +400,8 @@ export const es: Textos = {
   artigoSemPublicacoes: "Todavía no está publicado en ninguna tienda.",
   colunaCanal: "Canal",
   colunaMercado: "Mercado",
+  /** Só para leitores de ecrã, antes do nome da loja (docs/22 §19.2). */
+  publicacaoLoja: "Tienda:",
   colunaData: "Fecha",
   colunaMotivo: "Motivo",
   estadoPublicacao_rascunho: "Borrador",
