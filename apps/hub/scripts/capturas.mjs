@@ -2241,8 +2241,16 @@ try {
     buffer: Buffer.from("isto não é um png"),
   });
   confere(
-    (await rp.evaluate(() => document.activeElement?.id)) ===
-      "nova-imagem-texto",
+    await rp
+      .waitForFunction(
+        () => document.activeElement?.id === "nova-imagem-texto",
+        undefined,
+        { timeout: 5_000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      ),
     "imagens: escolhido o ficheiro, o foco vai para o texto alternativo",
   );
   await rp.keyboard.press("Enter");
@@ -2371,18 +2379,21 @@ try {
   await rp.locator(".imagens-artigo > li").first().waitFor();
   // A miniatura pede os bytes depois de a linha aparecer («A carregar…»):
   // contar logo falhava às vezes (issue #246). Espera-se pela imagem; se não
-  // vier em 10 s, a contagem abaixo falha.
-  await rp
+  // vier em 10 s, a contagem abaixo falha e diz porquê (revisão do #247).
+  const semImagem = await rp
     .getByRole("img", { name: "Frasco de verniz verde, de frente" })
     .waitFor({ timeout: 10_000 })
-    .catch(() => undefined);
+    .then(
+      () => "",
+      (e) => ` (a imagem não apareceu: ${String(e).split("\n")[0]})`,
+    );
   confere(
     (await rp.locator(".imagens-artigo > li").count()) === 1 &&
       (await rp.getByText("Principal", { exact: true }).count()) === 1 &&
       (await rp
         .getByRole("img", { name: "Frasco de verniz verde, de frente" })
         .count()) === 1,
-    "imagens: só com o teclado, a imagem fica principal com o texto; a resposta perdida ao ligar não a duplica",
+    `imagens: só com o teclado, a imagem fica principal com o texto; a resposta perdida ao ligar não a duplica${semImagem}`,
   );
   // Uma segunda imagem, e a captura do formulário aberto.
   await escolherFicheiro(comGps);
