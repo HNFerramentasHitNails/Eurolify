@@ -583,7 +583,10 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: imagens", () => {
         });
       // Dois PNG diferentes, do mesmo tamanho: cada um cabe sozinho.
       const p1 = env(PNG);
-      const p2 = env(Buffer.concat([PNG.subarray(0, -1), Buffer.from("!")]));
+      // O IEND sai sempre igual (#179): a diferença vai nos pixéis.
+      const outro = pngCom("eurolifz");
+      expect(outro.length).toBe(PNG.length);
+      const p2 = env(outro);
       // O primeiro grava (preso no portão) com a fila do comerciante; o
       // segundo espera pela fila na base, sem tocar no disco.
       for (let i = 0; i < 100 && dentro < 1; i++) {

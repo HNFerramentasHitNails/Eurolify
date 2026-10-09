@@ -79,12 +79,21 @@ CREATE TRIGGER ficheiro_sem_uso_ao_gravar
 -- estrangeira), por isso também espera.
 CREATE FUNCTION ficheiro_sem_uso_pela_media() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  antes text;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     DELETE FROM public.ficheiro_sem_uso s
     WHERE s.comerciante_id = NEW.comerciante_id AND s.resumo = NEW.ficheiro_resumo;
     RETURN NULL;
   END IF;
+  -- O `ficheiro` e a `media` têm o RLS forçado, também para o dono com que
+  -- esta função corre: um apagamento sem comerciante posto (o operador à mão,
+  -- um apagamento em cascata de vários) não as via. O comerciante da media,
+  -- só durante esta verificação, e volta o que estava (revisão do #215,
+  -- P3-8).
+  antes := current_setting('eurolify.comerciante', true);
+  PERFORM set_config('eurolify.comerciante', OLD.comerciante_id::text, true);
   PERFORM FROM public.ficheiro f
   WHERE f.comerciante_id = OLD.comerciante_id AND f.resumo = OLD.ficheiro_resumo
   FOR UPDATE;
@@ -96,6 +105,7 @@ BEGIN
     VALUES (OLD.comerciante_id, OLD.ficheiro_resumo)
     ON CONFLICT DO NOTHING;
   END IF;
+  PERFORM set_config('eurolify.comerciante', coalesce(antes, ''), true);
   RETURN NULL;
 END
 $$;
@@ -162,6 +172,13 @@ CREATE FUNCTION ficheiros_sem_uso_em_atraso() RETURNS bigint
   WHERE s.desde < now() - interval '9 days'
 $$;
 
+-- Fechadas a todos (como as outras; a 0008 já o faz por omissão para o mesmo
+-- migrador, mas aqui fica explícito: revisão do #215, P3-7); depois, só a quem
+-- as chama.
+REVOKE EXECUTE ON FUNCTION ficheiro_sem_uso_ao_gravar(), ficheiro_sem_uso_pela_media(),
+  ficheiros_comerciantes_sem_uso(), ficheiros_sem_uso(integer),
+  ficheiro_apagar_sem_uso(text), ficheiro_sem_uso_renovar(text),
+  ficheiros_sem_uso_em_atraso() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION ficheiros_comerciantes_sem_uso(), ficheiros_sem_uso(integer),
   ficheiro_apagar_sem_uso(text), ficheiro_sem_uso_renovar(text) TO eurolify_api;
 DO $$

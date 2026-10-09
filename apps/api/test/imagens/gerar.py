@@ -67,3 +67,29 @@ im.save(b, "JPEG", quality=90)
 b = io.BytesIO()
 im.save(b, "WEBP", lossless=True)
 (AQUI / "limpa.webp").write_bytes(b.getvalue())
+# Revisão do #215: os blocos que têm de ficar, e uma animação.
+from PIL import ImageCms
+
+icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+grande = Image.new("RGB", (64, 64))
+for x in range(64):
+    for y in range(64):
+        grande.putpixel((x, y), (x * 4, y * 4, (x + y) * 2))
+# JPEG com perfil de cor, reinícios (DRI e RSTn) e EXIF com orientação 3.
+b = io.BytesIO()
+grande.save(b, "JPEG", icc_profile=icc, restart_marker_blocks=1, exif=exif(3), quality=90)
+(AQUI / "icc-reinicios.jpg").write_bytes(b.getvalue())
+# JPEG CMYK (o Adobe APP14 diz como converter a cor).
+b = io.BytesIO()
+grande.convert("CMYK").save(b, "JPEG", quality=90)
+(AQUI / "cmyk.jpg").write_bytes(b.getvalue())
+# PNG com perfil de cor, transparência, gama e densidade, e um texto.
+info = PngImagePlugin.PngInfo()
+info.add_text("Author", "Autor de Teste")
+b = io.BytesIO()
+im.convert("P").save(b, "PNG", icc_profile=icc, transparency=0, dpi=(300, 300), pnginfo=info)
+(AQUI / "cor.png").write_bytes(b.getvalue())
+# WebP animado (duas molduras) com EXIF e XMP.
+b = io.BytesIO()
+im.save(b, "WEBP", save_all=True, append_images=[im.rotate(90)], duration=100, exif=exif(), xmp=XMP, lossless=True)
+(AQUI / "animado.webp").write_bytes(b.getvalue())

@@ -1,7 +1,9 @@
+import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { sql, type Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
@@ -109,7 +111,250 @@ describe("tirar os metadados", () => {
     expect(limpo.includes("XMP ")).toBe(false);
     expect(limpo.readUInt32LE(4) + 8).toBe(limpo.length);
     const vp8x = limpo.indexOf("VP8X");
-    if (vp8x >= 0) expect((limpo[vp8x + 8] ?? 0) & 0x0c).toBe(0);
+    expect(vp8x).toBe(12);
+    expect((limpo[vp8x + 8] ?? 0) & 0x0c).toBe(0);
+  });
+
+  /** Um segmento JPEG: marcador e dados, com o tamanho. */
+  const segmento = (m: number, dados: Buffer) => {
+    const c = Buffer.alloc(4);
+    c.writeUInt16BE(0xff00 + m, 0);
+    c.writeUInt16BE(dados.length + 2, 2);
+    return Buffer.concat([c, dados]);
+  };
+  /** Um JPEG limpo com estes segmentos logo a seguir ao início. */
+  const comSegmentos = (...s: Buffer[]) => {
+    const base = imagem("limpa.jpg");
+    return Buffer.concat([base.subarray(0, 2), ...s, base.subarray(2)]);
+  };
+  /** Um EXIF só com a orientação, na ordem de bytes pedida. */
+  function exifOrientacao(valor: number, ordem: "II" | "MM") {
+    const t = Buffer.alloc(26);
+    const le = ordem === "II";
+    t.write(ordem, 0, "latin1");
+    const u16 = (v: number, o: number) =>
+      le ? t.writeUInt16LE(v, o) : t.writeUInt16BE(v, o);
+    const u32 = (v: number, o: number) =>
+      le ? t.writeUInt32LE(v, o) : t.writeUInt32BE(v, o);
+    u16(42, 2);
+    u32(8, 4);
+    u16(1, 8);
+    u16(0x0112, 10);
+    u16(3, 12);
+    u32(1, 14);
+    u16(valor, 18);
+    return segmento(
+      0xe1,
+      Buffer.concat([Buffer.from("Exif\0\0", "latin1"), t]),
+    );
+  }
+  const orientacaoDe = (b: Buffer) => {
+    const i = b.indexOf("Exif\0\0MM");
+    return i < 0 ? undefined : b.readUInt16BE(i + 6 + 18);
+  };
+
+  it("JPEG: o APP0 fica só com o JFIF e sem miniatura; o JFXX e o IPTC saem (revisão do #215, P2-1)", () => {
+    const miniatura = Buffer.from("FOTOGRAFIA-ORIGINAL", "latin1");
+    const jfif = Buffer.concat([
+      Buffer.from("JFIF\0", "latin1"),
+      Buffer.from([1, 2, 1, 0, 72, 0, 72]),
+      Buffer.from([3, 2]),
+      Buffer.alloc(18, 0x41),
+    ]);
+    const jfxx = Buffer.concat([
+      Buffer.from("JFXX\0\x10", "latin1"),
+      miniatura,
+    ]);
+    const iptc = Buffer.concat([
+      Buffer.from("Photoshop 3.0\0", "latin1"),
+      Buffer.from("Autor de Teste"),
+    ]);
+    const original = comSegmentos(
+      segmento(0xe0, jfif),
+      segmento(0xe0, jfxx),
+      segmento(0xed, iptc),
+    );
+    const limpo = semMetadados(original, "image/jpeg");
+    expect(limpo.includes(miniatura)).toBe(false);
+    expect(limpo.includes("Autor de Teste")).toBe(false);
+    expect(limpo.includes("Photoshop")).toBe(false);
+    // O primeiro JFIF fica, com 16 bytes e a miniatura 0 x 0.
+    const i = limpo.indexOf("JFIF\0");
+    expect(limpo.readUInt16BE(i - 2)).toBe(16);
+    expect([limpo[i + 12], limpo[i + 13]]).toEqual([0, 0]);
+    expect(limpo.subarray(i + 5, i + 12)).toEqual(
+      Buffer.from([1, 2, 1, 0, 72, 0, 72]),
+    );
+  });
+
+  it("JPEG: a orientação lê-se em II e em MM; a 1 e uma inválida não deixam EXIF", () => {
+    expect(
+      orientacaoDe(
+        semMetadados(comSegmentos(exifOrientacao(8, "II")), "image/jpeg"),
+      ),
+    ).toBe(8);
+    expect(
+      orientacaoDe(
+        semMetadados(comSegmentos(exifOrientacao(5, "MM")), "image/jpeg"),
+      ),
+    ).toBe(5);
+    for (const v of [1, 9, 0]) {
+      expect(
+        semMetadados(
+          comSegmentos(exifOrientacao(v, "II")),
+          "image/jpeg",
+        ).includes("Exif"),
+        String(v),
+      ).toBe(false);
+    }
+  });
+
+  it("JPEG: ficam o perfil de cor, os reinícios (DRI e RSTn) e a conversão CMYK (Adobe)", () => {
+    const original = imagem("icc-reinicios.jpg");
+    const limpo = semMetadados(original, "image/jpeg");
+    expect(limpo.includes("ICC_PROFILE\0")).toBe(true);
+    expect(limpo.includes(Buffer.from([0xff, 0xdd]))).toBe(true);
+    const reinicios = (b: Buffer) =>
+      [0, 1, 2, 3, 4, 5, 6, 7].reduce(
+        (n, k) =>
+          n +
+          b.toString("latin1").split(String.fromCharCode(0xff, 0xd0 + k))
+            .length -
+          1,
+        0,
+      );
+    expect(reinicios(limpo)).toBeGreaterThan(0);
+    expect(reinicios(limpo)).toBe(reinicios(original));
+    expect(orientacaoDe(limpo)).toBe(3);
+    for (const s of SEGREDOS) expect(limpo.includes(s), s).toBe(false);
+    expect(varrimento(limpo)).toEqual(varrimento(original));
+    const cmyk = imagem("cmyk.jpg");
+    expect(semMetadados(cmyk, "image/jpeg").includes("Adobe")).toBe(true);
+  });
+
+  it("PNG: ficam a paleta, a transparência, o perfil de cor e a densidade; o IEND fica vazio", () => {
+    const limpo = semMetadados(imagem("cor.png"), "image/png");
+    const tipos = blocosPng(limpo).map((x) => x.tipo);
+    for (const t of ["PLTE", "tRNS", "iCCP", "pHYs"])
+      expect(tipos).toContain(t);
+    expect(tipos).not.toContain("tEXt");
+    expect(blocosPng(limpo).at(-1)).toEqual({
+      tipo: "IEND",
+      dados: Buffer.alloc(0),
+    });
+    const comCorpo = Buffer.concat([
+      png("x").subarray(0, -12),
+      Buffer.from([0, 0, 0, 4]),
+      Buffer.from("IEND"),
+      Buffer.from("lixo"),
+      Buffer.alloc(4),
+    ]);
+    expect(
+      blocosPng(semMetadados(comCorpo, "image/png")).at(-1)?.dados.length,
+    ).toBe(0);
+  });
+
+  it("WebP animado: ficam as duas molduras, saem o EXIF e o XMP", () => {
+    const original = imagem("animado.webp");
+    const limpo = semMetadados(original, "image/webp");
+    expect(limpo.toString("latin1").split("ANMF").length - 1).toBe(2);
+    expect(limpo.includes("ANIM")).toBe(true);
+    expect(limpo.includes("EXIF")).toBe(false);
+    expect(limpo.includes("XMP ")).toBe(false);
+    const vp8x = limpo.indexOf("VP8X");
+    expect(vp8x).toBe(12);
+    expect((limpo[vp8x + 8] ?? 0) & 0x0c).toBe(0);
+    expect(limpo.readUInt32LE(4) + 8).toBe(limpo.length);
+  });
+
+  it("WebP: um último bloco ímpar sem o byte de enchimento aceita-se e completa-se", () => {
+    const base = imagem("limpa.webp");
+    const tamanho = base.readUInt32LE(16);
+    if (tamanho % 2 === 1) {
+      const sem = Buffer.from(base.subarray(0, base.length - 1));
+      sem.writeUInt32LE(sem.length - 8, 4);
+      expect(semMetadados(sem, "image/webp")).toEqual(base);
+    } else {
+      // Um bloco ímpar acrescentado no fim, de um tipo que sai.
+      const sem = Buffer.concat([
+        base,
+        Buffer.from("EXIF"),
+        Buffer.from([3, 0, 0, 0]),
+        Buffer.from("abc"),
+      ]);
+      sem.writeUInt32LE(sem.length - 8, 4);
+      expect(semMetadados(sem, "image/webp")).toEqual(base);
+    }
+  });
+
+  it("um ficheiro com milhões de blocos vazios recusa-se sem prender o processo (revisão do #215, P2-2)", () => {
+    const tem = Buffer.alloc(2 * 5_000_000);
+    for (let i = 0; i < tem.length; i += 2) {
+      tem[i] = 0xff;
+      tem[i + 1] = 0x01;
+    }
+    const jpg = Buffer.concat([
+      Buffer.from([0xff, 0xd8]),
+      tem,
+      Buffer.from([0xff, 0xd9]),
+    ]);
+    const inicio = Date.now();
+    expect(() => semMetadados(jpg, "image/jpeg")).toThrow(/demasiados blocos/);
+    const idat = Buffer.from([
+      0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54, 0x35, 0xaf, 0x06, 0x1e,
+    ]);
+    const pngVazio = Buffer.concat([
+      png("x").subarray(0, 33),
+      Buffer.concat(Array.from({ length: 70_000 }, () => idat)),
+      png("x").subarray(-12),
+    ]);
+    expect(() => semMetadados(pngVazio, "image/png")).toThrow(
+      /demasiados blocos/,
+    );
+    expect(Date.now() - inicio).toBeLessThan(5_000);
+  });
+
+  it("os pixels ficam iguais, descodificados pelo Pillow quando a máquina o tem", async () => {
+    const pasta = await mkdtemp(join(tmpdir(), "eurolify-pixeis-"));
+    try {
+      const pares: string[] = [];
+      for (const [nome, tipo] of [
+        ["com-gps.jpg", "image/jpeg"],
+        ["progressivo-com-gps.jpg", "image/jpeg"],
+        ["icc-reinicios.jpg", "image/jpeg"],
+        ["cmyk.jpg", "image/jpeg"],
+        ["com-texto.png", "image/png"],
+        ["cor.png", "image/png"],
+        ["com-exif.webp", "image/webp"],
+        ["animado.webp", "image/webp"],
+      ] as const) {
+        const limpo = join(pasta, nome);
+        await writeFile(limpo, semMetadados(imagem(nome), tipo));
+        pares.push(
+          fileURLToPath(new URL(`./imagens/${nome}`, import.meta.url)),
+          limpo,
+        );
+      }
+      const r = spawnSync(
+        "python3",
+        [
+          "-I",
+          fileURLToPath(new URL("./imagens/comparar.py", import.meta.url)),
+          ...pares,
+        ],
+        { encoding: "utf8" },
+      );
+      if (r.error !== undefined || r.status === 3) {
+        console.warn(
+          "sem python3 com o Pillow: os pixels não se compararam aqui",
+        );
+        return;
+      }
+      expect(r.stdout + r.stderr).toBe("");
+      expect(r.status).toBe(0);
+    } finally {
+      await rm(pasta, { recursive: true, force: true });
+    }
   });
 
   it("um ficheiro que não se percorre até ao fim recusa-se", () => {
@@ -435,6 +680,79 @@ describe.skipIf(URL_BASE === undefined)(
       } finally {
         await appLento.close();
       }
+    });
+
+    it("dois comerciantes com o mesmo ficheiro: só sai o do que está sem uso há mais de 7 dias, e cada um só vê os seus", async () => {
+      const b = await registarComerciante(base.api, NOVO);
+      const escritaB = (
+        await criarChave(base.dono, b, {
+          tipo: "servidor",
+          criadaPor: "operador:teste",
+          nome: "Escrita de B",
+          ambitos: ["catalog:write"],
+        })
+      ).segredo;
+      const bytes = png(randomUUID());
+      const r = (await enviado(bytes)).id.slice(4);
+      const deB = await app.inject({
+        method: "POST",
+        url: "/media/uploads",
+        headers: {
+          authorization: `Bearer ${escritaB}`,
+          "idempotency-key": randomUUID(),
+          "content-type": "image/png",
+        },
+        payload: bytes,
+      });
+      expect(deB.statusCode, deB.body).toBe(201);
+      await envelhecer(r, 8);
+      const vistosPorB = await comComerciante(base.api, b, async (trx) =>
+        (
+          await sql<{
+            r: string;
+          }>`select r from ficheiros_sem_uso(500) as r`.execute(trx)
+        ).rows.map((x) => x.r),
+      );
+      expect(vistosPorB).toEqual([]);
+      const apagouEmB = await comComerciante(
+        base.api,
+        b,
+        async (trx) =>
+          (
+            await sql<{
+              a: boolean;
+            }>`select ficheiro_apagar_sem_uso(${r}) as a`.execute(trx)
+          ).rows[0]?.a,
+      );
+      expect(apagouEmB).toBe(false);
+      await limpar();
+      expect((await linhas(r))?.f).toBe(0);
+      expect(await noDisco(r)).toBe(false);
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from ficheiro where comerciante_id = ${b} and resumo = ${r}`.execute(
+        base.dono,
+      );
+      expect(rows[0]?.n).toBe(1);
+      expect(
+        await readFile(join(pasta, b, r)).then(
+          () => true,
+          () => false,
+        ),
+      ).toBe(true);
+    });
+
+    it("apagar uma media sem comerciante posto (o operador à mão) também a marca sem uso (revisão do #215, P3-8)", async () => {
+      const f = await enviado(png(randomUUID()));
+      const r = f.id.slice(4);
+      const prd = await artigo();
+      await pedir("POST", `/products/${prd}/media`, { ficheiro: f.id });
+      expect(await linhas(r)).toEqual({ f: 1, s: 0 });
+      // Como superutilizador, sem eurolify.comerciante; o gatilho corre com
+      // o dono das tabelas, que não é superutilizador e tem o RLS forçado.
+      await sql`delete from media where comerciante_id = ${a} and ficheiro_resumo = ${r}`.execute(
+        base.dono,
+      );
+      expect(await linhas(r)).toEqual({ f: 1, s: 1 });
     });
 
     it("a API não toca na lista «sem uso»; a contagem para a verificação diária só conta os atrasados", async () => {

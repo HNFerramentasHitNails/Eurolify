@@ -41,7 +41,8 @@ import {
 
 const IdFicheiro = Type.String({
   pattern: "^fil_[0-9a-f]{64}$",
-  description: "fil_ e o resumo SHA-256 do conteúdo",
+  description:
+    "fil_ e o resumo SHA-256 do conteúdo guardado, já sem os metadados (não o do ficheiro enviado, se ele os tinha)",
 });
 const TipoImagem = Type.Unsafe<(typeof TIPOS_DE_IMAGEM)[number]>({
   type: "string",

@@ -338,9 +338,22 @@ tirou, a data e o modelo do aparelho. Guarda-se sem nada disso.
   teste, sem dados pessoais (ADR-0019; `docs/06`, CQ). Se alguma vez lá
   entrar uma imagem real, apaga-se.
 - **Teste:** uma fotografia com GPS enviada pela API sai de
-  `GET /media/{id}/file` sem o GPS e com a orientação; os pixels são os
-  mesmos (a imagem descodificada igual antes e depois); um PNG com texto e
-  um WebP com EXIF saem sem eles; um ficheiro cortado dá 422.
+  `GET /media/{id}/file` sem o GPS e com a orientação; um PNG com texto e
+  um WebP com EXIF saem sem eles; um ficheiro cortado dá 400. Os blocos da
+  imagem ficam iguais byte a byte (o varrimento do JPEG, os IDAT do PNG), e
+  ficam o perfil de cor, a conversão CMYK (Adobe), os reinícios, a
+  transparência e as molduras de uma animação. Os pixels comparam-se
+  descodificando a imagem antes e depois **quando a máquina tem o Python
+  com o Pillow** (no ambiente de quem escreveu, sim; no CI, o teste diz se
+  correu); sem ele, só fica a prova pelos blocos.
+- **O que ainda passa** (revisão do #215, P3-4): o perfil de cor (ICC, até
+  64 KB por segmento), as paletas sugeridas do PNG (`sPLT`) e os dados de
+  cada moldura de uma animação. Não são metadados de quem tirou a
+  fotografia, mas não se escreve «sem metadados nenhuns».
+- **A orientação** do PNG (`eXIf`) e do WebP sai com o resto (P3-5): uma
+  fotografia de telemóvel convertida para PNG ou WebP com a orientação só
+  no EXIF pode aparecer rodada. **Não verifiquei** quantos navegadores a
+  aplicam nesses formatos.
 
 **2. Pessoas nas imagens.** Tirar os metadados não resolve uma imagem que
 mostra uma pessoa (um rosto, uma mão com uma tatuagem, um modelo a usar o

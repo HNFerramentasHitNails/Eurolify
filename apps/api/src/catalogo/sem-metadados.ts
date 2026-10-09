@@ -18,6 +18,63 @@ export class ErroImagem extends Error {
   }
 }
 
+/**
+ * Quantos segmentos ou blocos um ficheiro pode ter, no máximo: um ficheiro de
+ * 10 MB feito de milhões de blocos vazios recusa-se, em vez de prender a API
+ * (revisão do #215, P2-2). Um ficheiro verdadeiro tem dezenas; um PNG
+ * grande, alguns milhares de IDAT.
+ */
+const MAX_BLOCOS = 65_536;
+
+/**
+ * O ficheiro de saída: troços do original e bytes novos. Os troços
+ * seguidos do original juntam-se num só, para não guardar um objecto por
+ * bloco (revisão do #215, P2-2).
+ */
+class Saida {
+  private readonly partes: Buffer[] = [];
+  private inicio = -1;
+  private fim = -1;
+  private blocos = 0;
+  constructor(private readonly original: Buffer) {}
+
+  /** Conta um bloco lido; acima do máximo, recusa. */
+  contar() {
+    this.blocos += 1;
+    if (this.blocos > MAX_BLOCOS) {
+      throw new ErroImagem("demasiados blocos no ficheiro");
+    }
+  }
+
+  troco(inicio: number, fim: number) {
+    if (inicio === this.fim) {
+      this.fim = fim;
+      return;
+    }
+    this.fechar();
+    this.inicio = inicio;
+    this.fim = fim;
+  }
+
+  novo(bytes: Buffer) {
+    this.fechar();
+    this.partes.push(bytes);
+  }
+
+  private fechar() {
+    if (this.inicio >= 0) {
+      this.partes.push(this.original.subarray(this.inicio, this.fim));
+    }
+    this.inicio = -1;
+    this.fim = -1;
+  }
+
+  juntar(): Buffer {
+    this.fechar();
+    return Buffer.concat(this.partes);
+  }
+}
+
 export function semMetadados(bytes: Buffer, tipo: TipoDeImagem): Buffer {
   switch (tipo) {
     case "image/jpeg":
@@ -32,6 +89,7 @@ export function semMetadados(bytes: Buffer, tipo: TipoDeImagem): Buffer {
 // ------------------------------------------------------------------ JPEG
 
 const ICC = Buffer.from("ICC_PROFILE\0", "latin1");
+const JFIF = Buffer.from("JFIF\0", "latin1");
 const ADOBE = Buffer.from("Adobe", "latin1");
 const EXIF = Buffer.from("Exif\0\0", "latin1");
 
@@ -41,7 +99,7 @@ const semTamanho = (m: number) =>
 
 /** Os segmentos que ficam (os outros saem): o que é preciso para mostrar. */
 function segmentoFica(marcador: number, dados: Buffer): boolean {
-  if (marcador === 0xe0) return true; // APP0: JFIF
+  if (marcador === 0xe0) return false; // APP0: só o JFIF, reescrito (abaixo)
   if (marcador === 0xe2) return comeca(dados, ICC); // APP2: só o perfil de cor
   if (marcador === 0xee) return comeca(dados, ADOBE); // APP14: conversão de cor
   if (marcador >= 0xe0 && marcador <= 0xef) return false; // outros APPn
@@ -106,8 +164,10 @@ function jpeg(b: Buffer): Buffer {
   if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) {
     throw new ErroImagem("JPEG sem o início (SOI)");
   }
-  const partes: Buffer[] = [b.subarray(0, 2)];
+  const saida = new Saida(b);
+  saida.troco(0, 2);
   let i = 2;
+  let jfifPosto = false;
   let orientacaoPosta = false;
   let depoisDoVarrimento = false;
   for (;;) {
@@ -131,7 +191,7 @@ function jpeg(b: Buffer): Buffer {
         }
         i += 1;
       }
-      partes.push(b.subarray(inicio, i));
+      saida.troco(inicio, i);
       depoisDoVarrimento = false;
     }
     // Um marcador: 0xFF (com enchimento) e o código.
@@ -140,14 +200,15 @@ function jpeg(b: Buffer): Buffer {
     if (i >= b.length) throw new ErroImagem("JPEG cortado");
     const m = b[i] ?? 0;
     i += 1;
+    saida.contar();
     if (m === 0xd9) {
       // O fim: o que vier depois (outra imagem, com o seu EXIF) não passa.
-      partes.push(Buffer.from([0xff, 0xd9]));
-      return Buffer.concat(partes);
+      saida.novo(Buffer.from([0xff, 0xd9]));
+      return saida.juntar();
     }
     if (m === 0xd8) throw new ErroImagem("JPEG: segundo início (SOI)");
     if (semTamanho(m)) {
-      partes.push(Buffer.from([0xff, m]));
+      saida.novo(Buffer.from([0xff, m]));
       continue;
     }
     if (i + 2 > b.length) throw new ErroImagem("JPEG cortado");
@@ -157,11 +218,28 @@ function jpeg(b: Buffer): Buffer {
     }
     const dados = b.subarray(i + 2, i + tamanho);
     if (segmentoFica(m, dados)) {
-      partes.push(b.subarray(i - 2, i + tamanho));
+      saida.troco(i - 2, i + tamanho);
+    } else if (
+      m === 0xe0 &&
+      !jfifPosto &&
+      comeca(dados, JFIF) &&
+      dados.length >= 14
+    ) {
+      // O JFIF: a versão, as unidades e a densidade; a miniatura, que pode
+      // ser a fotografia sem recorte, sai (revisão do #215, P2-1). Um JFXX
+      // ou outro APP0 sai inteiro.
+      saida.novo(
+        Buffer.concat([
+          Buffer.from([0xff, 0xe0, 0x00, 0x10]),
+          dados.subarray(0, 12),
+          Buffer.from([0, 0]),
+        ]),
+      );
+      jfifPosto = true;
     } else if (m === 0xe1 && !orientacaoPosta) {
       const o = orientacao(dados);
       if (o !== undefined && o !== 1) {
-        partes.push(app1SoComOrientacao(o));
+        saida.novo(app1SoComOrientacao(o));
         orientacaoPosta = true;
       }
     }
@@ -204,10 +282,12 @@ function png(b: Buffer): Buffer {
   if (b.length < 8 || !b.subarray(0, 8).equals(ASSINATURA_PNG)) {
     throw new ErroImagem("PNG sem a assinatura");
   }
-  const partes: Buffer[] = [ASSINATURA_PNG];
+  const saida = new Saida(b);
+  saida.troco(0, 8);
   let i = 8;
   let primeiro = true;
   for (;;) {
+    saida.contar();
     if (i + 12 > b.length) throw new ErroImagem("PNG cortado");
     const tamanho = b.readUInt32BE(i);
     const tipo = b.toString("latin1", i + 4, i + 8);
@@ -221,14 +301,21 @@ function png(b: Buffer): Buffer {
     primeiro = false;
     // Um bloco crítico (maiúscula) desconhecido: não se sabe mostrar.
     const critico = tipo.charCodeAt(0) < 0x61;
-    if (PNG_FICA.has(tipo)) {
-      partes.push(b.subarray(i, fim));
+    if (tipo === "IEND") {
+      // Sempre vazio, como manda o formato (revisão do #215, P3-4).
+      saida.novo(
+        Buffer.from([
+          0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+        ]),
+      );
+    } else if (PNG_FICA.has(tipo)) {
+      saida.troco(i, fim);
     } else if (critico) {
       throw new ErroImagem(`PNG: bloco crítico desconhecido ${tipo}`);
     }
     i = fim;
     // O que vier depois do IEND não passa.
-    if (tipo === "IEND") return Buffer.concat(partes);
+    if (tipo === "IEND") return saida.juntar();
   }
 }
 
@@ -245,6 +332,50 @@ const WEBP_FICA = new Set([
   "ICCP",
 ]);
 
+/** Os sub-blocos de uma moldura de animação (ANMF) que ficam. */
+const WEBP_MOLDURA_FICA = new Set(["VP8 ", "VP8L", "ALPH"]);
+
+/**
+ * Percorre os blocos RIFF de `b` entre `inicio` e `total` e devolve os que a
+ * lista deixa ficar, já com o byte de enchimento a zero. Um último bloco de
+ * tamanho ímpar sem o byte de enchimento (há programas que o omitem) aceita-se
+ * e completa-se (revisão do #215, P3-6).
+ */
+function blocosRiff(
+  b: Buffer,
+  inicio: number,
+  total: number,
+  fica: ReadonlySet<string>,
+  contar: () => void,
+): { tipo: string; dados: Buffer }[] {
+  const r: { tipo: string; dados: Buffer }[] = [];
+  let i = inicio;
+  while (i < total) {
+    contar();
+    if (i + 8 > total) throw new ErroImagem("WebP cortado");
+    const tipo = b.toString("latin1", i, i + 4);
+    const tamanho = b.readUInt32LE(i + 4);
+    const fimDados = i + 8 + tamanho;
+    if (fimDados > total) {
+      throw new ErroImagem("WebP: um bloco com o tamanho errado");
+    }
+    if (fica.has(tipo)) r.push({ tipo, dados: b.subarray(i + 8, fimDados) });
+    i = Math.min(fimDados + (tamanho % 2), total);
+  }
+  return r;
+}
+
+function riff(tipo: string, dados: Buffer): Buffer {
+  const cabeca = Buffer.alloc(8);
+  cabeca.write(tipo, 0, "latin1");
+  cabeca.writeUInt32LE(dados.length, 4);
+  return Buffer.concat(
+    dados.length % 2 === 1
+      ? [cabeca, dados, Buffer.from([0])]
+      : [cabeca, dados],
+  );
+}
+
 function webp(b: Buffer): Buffer {
   if (
     b.length < 12 ||
@@ -257,26 +388,38 @@ function webp(b: Buffer): Buffer {
   if (total > b.length || total < 12) {
     throw new ErroImagem("WebP: o tamanho do RIFF não bate com o ficheiro");
   }
+  const saida = new Saida(b);
+  const contar = () => {
+    saida.contar();
+  };
   const blocos: Buffer[] = [];
-  let i = 12;
-  while (i < total) {
-    if (i + 8 > total) throw new ErroImagem("WebP cortado");
-    const tipo = b.toString("latin1", i, i + 4);
-    const tamanho = b.readUInt32LE(i + 4);
-    const fim = i + 8 + tamanho + (tamanho % 2);
-    if (fim > total)
-      throw new ErroImagem("WebP: um bloco com o tamanho errado");
-    if (WEBP_FICA.has(tipo)) {
-      const bloco = Buffer.from(b.subarray(i, fim));
-      if (tipo === "VP8X" && tamanho >= 1) {
-        // Tira as marcas de EXIF (0x08) e XMP (0x04).
-        bloco[8] = (bloco[8] ?? 0) & ~0x0c;
-      }
-      blocos.push(bloco);
+  for (const { tipo, dados } of blocosRiff(b, 12, total, WEBP_FICA, contar)) {
+    if (tipo === "VP8X" && dados.length >= 1) {
+      // Tira as marcas de EXIF (0x08) e XMP (0x04).
+      const d = Buffer.from(dados);
+      d[0] = (d[0] ?? 0) & ~0x0c;
+      blocos.push(riff(tipo, d));
+    } else if (tipo === "ANMF") {
+      // Uma moldura: os 16 bytes de cabeçalho e só os sub-blocos da imagem
+      // (revisão do #215, P3-4).
+      if (dados.length < 16) throw new ErroImagem("WebP: moldura cortada");
+      const dentro = blocosRiff(
+        dados,
+        16,
+        dados.length,
+        WEBP_MOLDURA_FICA,
+        contar,
+      ).map((x) => riff(x.tipo, x.dados));
+      blocos.push(
+        riff(tipo, Buffer.concat([dados.subarray(0, 16), ...dentro])),
+      );
+    } else {
+      blocos.push(riff(tipo, dados));
     }
-    i = fim;
   }
-  if (!blocos.some((x) => /^VP8[ LX]$/.test(x.toString("latin1", 0, 4)))) {
+  if (
+    !blocos.some((x) => /^(VP8[ LX]|ANMF)$/.test(x.toString("latin1", 0, 4)))
+  ) {
     throw new ErroImagem("WebP sem imagem");
   }
   const corpo = Buffer.concat(blocos);
