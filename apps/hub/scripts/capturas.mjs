@@ -2242,7 +2242,87 @@ try {
     enviosFeitos === 1,
     "imagens: sem texto alternativo pede-o; um ficheiro que não é imagem é recusado pela API",
   );
-  await rp.getByRole("button", { name: "Cancelar" }).click();
+  await rp.getByRole("button", { name: "Cancelar" }).focus();
+  await rp.keyboard.press("Enter");
+  // Um PNG gravado com o nome .jpg: o Hub manda o tipo verdadeiro e a API
+  // aceita (revisão do #235, P3-2). Num artigo à venda (publicações
+  // fingidas), guardar sem texto pergunta antes (P2-1); recusado, nada vai.
+  await rp.route("**/hub/products/*/publications", (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        dados: [
+          {
+            id: "pub_00000000-0000-7000-8000-000000000001",
+            canal: "chn_00000000-0000-7000-8000-000000000001",
+            mercado: "mkt_00000000-0000-7000-8000-000000000001",
+            estado: "publicado",
+            verificado_em: null,
+            publicado_em: "2026-10-09T10:00:00Z",
+            arquivado_em: null,
+            motivo_arquivo: null,
+          },
+        ],
+      }),
+    }),
+  );
+  await rp.reload();
+  await rp.getByRole("button", { name: "Acrescentar imagem" }).waitFor();
+  const pngComoJpg = {
+    name: "foto-descarregada.jpg",
+    mimeType: "image/jpeg",
+    buffer: readFileSync(
+      resolve(HUB, "..", "api", "test", "imagens", "com-texto.png"),
+    ),
+  };
+  await escolherFicheiro(pngComoJpg);
+  await rp
+    .getByLabel("Guardar sem texto alternativo", { exact: false })
+    .focus();
+  await rp.keyboard.press("Space");
+  let perguntouSemTexto = false;
+  rp.once("dialog", (d) => {
+    perguntouSemTexto = d.message().includes("tira o artigo de venda");
+    void d.dismiss();
+  });
+  const enviosAntes = enviosFeitos;
+  await rp.getByRole("button", { name: "Guardar" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.waitForTimeout(300);
+  confere(
+    perguntouSemTexto && enviosFeitos === enviosAntes,
+    "imagens: num artigo à venda, guardar sem texto pergunta antes; recusado, nada se envia",
+  );
+  await rp
+    .getByLabel("Guardar sem texto alternativo", { exact: false })
+    .focus();
+  await rp.keyboard.press("Space");
+  await rp.getByLabel("Texto alternativo", { exact: true }).focus();
+  await rp.keyboard.type("Etiqueta do verniz");
+  await rp.keyboard.press("Enter");
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem acrescentada.",
+  );
+  await rp.unroute("**/hub/products/*/publications");
+  await rp.locator(".imagens-artigo > li").first().waitFor();
+  confere(
+    await rp
+      .getByRole("img", { name: "Etiqueta do verniz" })
+      .waitFor({ timeout: 10_000 })
+      .then(
+        () => true,
+        () => false,
+      ),
+    "imagens: um PNG com o nome .jpg vai como PNG e entra",
+  );
+  // Tira-se, para o resto da passagem começar sem imagens.
+  rp.once("dialog", (d) => void d.accept());
+  await rp.getByRole("button", { name: "Tirar a imagem" }).click();
+  await rp.waitForFunction(
+    () => document.activeElement?.textContent === "Imagem tirada do artigo.",
+  );
+  await rp.getByText("Sem imagens", { exact: false }).waitFor();
   // Outros envios a decorrer (resposta fingida da API).
   await rp.route("**/hub/media/uploads", (r) =>
     r.fulfill({
@@ -2256,9 +2336,9 @@ try {
   await rp.keyboard.type("Frasco de verniz verde, de frente");
   await rp.keyboard.press("Enter");
   await rp
-    .getByText("Há outros envios de imagens a decorrer", { exact: false })
+    .getByText("Há demasiados envios ao mesmo tempo", { exact: false })
     .waitFor();
-  confere(true, "imagens: o 429 diz que há outros envios a decorrer");
+  confere(true, "imagens: o 429 diz que há demasiados envios ao mesmo tempo");
   await rp.unroute("**/hub/media/uploads");
   // A ligação grava mas a resposta perde-se: o ecrã relê e dá-a por feita.
   await rp.route("**/hub/products/*/media", async (r) => {
@@ -2288,6 +2368,32 @@ try {
     path: join(SAIDA, "artigo-imagem-nova-375-claro.png"),
     fullPage: true,
   });
+  // O mesmo formulário no computador e no tema escuro (revisão do #235,
+  // P3-8), sem deslocação horizontal.
+  const tamanhoAntes = rp.viewportSize();
+  for (const [largura, tema] of [
+    [768, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `imagens: o formulário a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.screenshot({
+      path: join(
+        SAIDA,
+        `artigo-imagem-nova-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  if (tamanhoAntes !== null) await rp.setViewportSize(tamanhoAntes);
+  await rp.emulateMedia({ colorScheme: "light" });
+  await rp.getByLabel("Texto alternativo", { exact: true }).focus();
   await rp.keyboard.press("Enter");
   await rp.waitForFunction(
     () => document.activeElement?.textContent === "Imagem acrescentada.",

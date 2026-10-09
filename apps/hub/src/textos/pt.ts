@@ -494,7 +494,7 @@ export const pt = {
   artigoImagemTextoAjuda:
     "Descreva a imagem a quem não a vê. Ex.: «Frasco de verniz verde, de frente».",
   artigoImagemSemTextoAgora:
-    "Guardar sem texto alternativo (impede a publicação até o escrever)",
+    "Guardar sem texto alternativo (o artigo não se pode publicar sem ele)",
   artigoImagemSemTexto:
     "Escreva o texto alternativo, ou marque que guarda sem ele.",
   artigoImagemAEnviar: "A enviar… {p}%",
@@ -503,13 +503,16 @@ export const pt = {
   artigoImagemIlegivel:
     "O ficheiro não é uma imagem JPEG, PNG ou WebP que se consiga ler até ao fim.",
   artigoImagemOutroEnvio:
-    "Há outros envios de imagens a decorrer neste comerciante; tente daqui a pouco.",
+    "Há demasiados envios ao mesmo tempo; tente daqui a pouco.",
   artigoImagemSemEspaco: "O espaço das imagens deste comerciante está cheio.",
   artigoImagemAcrescentada: "Imagem acrescentada.",
   artigoImagemTirada: "Imagem tirada do artigo.",
   artigoTirarImagem: "Tirar a imagem",
   artigoConfirmarTirarImagem:
     "Tirar a imagem do artigo? O ficheiro fica guardado.",
+  artigoImagemSemTextoConfirmar:
+    "Guardar sem texto alternativo tira o artigo de venda nas lojas onde está publicado. Ao escrever o texto, é preciso publicá-lo outra vez. Guardar sem texto?",
+  artigoImagemProgresso: "Envio da imagem",
 };
 
 export type Textos = typeof pt;

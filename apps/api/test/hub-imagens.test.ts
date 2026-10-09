@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { connect } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -223,6 +224,31 @@ describe.skipIf(URL_BASE === undefined)(
         `/hub/products/${c.artigo}/media`,
       );
       expect(noutro.statusCode).toBe(415);
+      // Sem sessão: a origem e o tipo conferem-se antes dela. Com a excepção só
+      // no envio, bytes noutro caminho dão 415 (não 401): prova que a marca
+      // não vale noutras rotas (revisão do #235, P2-2).
+      const semSessao = await h.app.inject({
+        method: "POST",
+        url: `/hub/products/${c.artigo}/media`,
+        headers: {
+          origin: ORIGEM,
+          "eurolify-comerciante": `mer_${c.id}`,
+          "content-type": "image/png",
+        },
+        payload: PNG,
+      });
+      expect(semSessao.statusCode).toBe(415);
+      const noEnvioSemSessao = await h.app.inject({
+        method: "POST",
+        url: "/hub/media/uploads",
+        headers: {
+          origin: ORIGEM,
+          "eurolify-comerciante": `mer_${c.id}`,
+          "content-type": "image/png",
+        },
+        payload: PNG,
+      });
+      expect(noEnvioSemSessao.statusCode).toBe(401);
       // Texto ou formulário no envio: 415.
       for (const tipo of ["text/plain", "application/x-www-form-urlencoded"]) {
         expect((await enviar(p.sessao, c.id, PNG, tipo)).statusCode).toBe(415);
@@ -392,6 +418,116 @@ describe.skipIf(URL_BASE === undefined)(
         await hl.app.close();
         await rm(pastaLenta, { recursive: true, force: true });
       }
+    });
+
+    it("antes de ler o corpo: o armazém leva 403 e o terceiro envio 429, com um servidor a escutar (revisão do #235, P2-2)", async () => {
+      const c = await comerciante("Loja Imagens Corpo");
+      const hs = hubDeTeste(base, {
+        armazenamento: new ArmazenamentoEmDisco(pasta),
+      });
+      const sockets: ReturnType<typeof connect>[] = [];
+      try {
+        const endereco = new URL(
+          await hs.app.listen({ port: 0, host: "127.0.0.1" }),
+        );
+        const armazem = await hs.pessoaCom(c.id, "armazem");
+        const dono = await hs.pessoaCom(c.id, "dono");
+        /**
+         * Só os cabeçalhos (e um pedaço do corpo), com 10 MB anunciados: o
+         * estado da resposta, se chegar sem o resto do corpo, ou 0.
+         */
+        const soCabecalhos = (sessao: string) =>
+          new Promise<number>((resolve) => {
+            const s = connect(Number(endereco.port), "127.0.0.1", () => {
+              s.write(
+                [
+                  "POST /hub/media/uploads HTTP/1.1",
+                  `Host: ${endereco.host}`,
+                  `Origin: ${ORIGEM}`,
+                  `Cookie: ${COOKIE}=${sessao}`,
+                  `Eurolify-Comerciante: mer_${c.id}`,
+                  "Content-Type: image/png",
+                  `Content-Length: ${String(10 * 1024 * 1024)}`,
+                  "",
+                  "",
+                ].join("\r\n"),
+              );
+              s.write(PNG);
+            });
+            sockets.push(s);
+            let texto = "";
+            s.on("data", (d: Buffer) => {
+              texto += d.toString();
+              const m = /^HTTP\/1\.1 (\d{3})/.exec(texto);
+              if (m !== null) resolve(Number(m[1]));
+            });
+            s.on("error", () => undefined);
+            setTimeout(() => {
+              resolve(0);
+            }, 3000);
+          });
+        expect(await soCabecalhos(armazem.sessao)).toBe(403);
+        // Dois envios do dono pendurados ocupam os dois lugares.
+        const um = soCabecalhos(dono.sessao);
+        const dois = soCabecalhos(dono.sessao);
+        await new Promise((r) => setTimeout(r, 300));
+        expect(await soCabecalhos(dono.sessao)).toBe(429);
+        for (const s of sockets) s.destroy();
+        expect(await um).toBe(0);
+        expect(await dois).toBe(0);
+      } finally {
+        for (const s of sockets) s.destroy();
+        await hs.app.close();
+      }
+    });
+
+    it("num artigo do sistema de gestão (P5) liga e tira; tirar de outro comerciante não existe; tirar fica com o «quem» (revisão do #235, P3-9)", async () => {
+      const c = await comerciante("Loja Imagens Externo");
+      const outro = await comerciante("Loja Imagens Externo Outra");
+      const { rows } = await sql<{ id: string }>`
+      select id::text from artigo where comerciante_id = ${c.id}::uuid`.execute(
+        base.dono,
+      );
+      // O artigo passa a vir do sistema de gestão (como na importação).
+      await sql`alter table artigo disable trigger user`.execute(base.dono);
+      await sql`update artigo set origem = 'externo', origem_ref = 'ERP-1'
+      where id = ${rows[0]?.id ?? ""}::uuid`.execute(base.dono);
+      await sql`alter table artigo enable trigger user`.execute(base.dono);
+      const p = await h.pessoaCom(c.id, "dono");
+      const env = await enviar(p.sessao, c.id, PNG);
+      expect(env.statusCode, env.body).toBe(201);
+      const ligar = await h.pedir("POST", `/hub/products/${c.artigo}/media`, {
+        sessao: p.sessao,
+        comerciante: c.id,
+        corpo: {
+          ficheiro: env.json<Ficheiro>().id,
+          texto_alternativo: "Frasco",
+        },
+      });
+      expect(ligar.statusCode, ligar.body).toBe(201);
+      const media = ligar.json<Media>().id;
+      const pOutro = await h.pessoaCom(outro.id, "dono");
+      const deOutro = await h.pedir("DELETE", `/hub/media/${media}`, {
+        sessao: pOutro.sessao,
+        comerciante: outro.id,
+        corpo: {},
+      });
+      expect(deOutro.statusCode).toBe(404);
+      const tirar = await h.pedir("DELETE", `/hub/media/${media}`, {
+        sessao: p.sessao,
+        comerciante: c.id,
+        corpo: {},
+      });
+      expect(tirar.statusCode, tirar.body).toBe(204);
+      const linha = await sql<{ quem: string; operacao: string }>`
+      select quem, operacao from alteracao_catalogo
+      where comerciante_id = ${c.id}::uuid
+        and entidade_id = ${media.replace(/^med_/, "")}::uuid
+      order by id`.execute(base.dono);
+      expect(linha.rows.map((l) => l.quem)).toEqual([
+        `pessoa:per_${p.pessoa}`,
+        `pessoa:per_${p.pessoa}`,
+      ]);
     });
 
     it("o contrato tem os três caminhos com a sessão e as mesmas respostas da chave", async () => {

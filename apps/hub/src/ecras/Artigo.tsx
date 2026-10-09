@@ -75,6 +75,10 @@ export function Artigo({
   // Mover uma imagem que gravou uma parte e falhou na outra.
   const [ordemAMeio, setOrdemAMeio] = useState(false);
   const [falhaAccao, setFalhaAccao] = useState<unknown>(null);
+  // Um envio de imagem em curso: as outras acções da ficha esperam, para a
+  // ligação no fim não encontrar outra acção a meio (revisão do #235, P3-3).
+  const [aEnviarImagem, setAEnviarImagem] = useState(false);
+  const ocupadoNaFicha = ocupado || aEnviarImagem;
   const [aviso, setAviso] = useState<Aviso | null>(() => {
     const q = new URLSearchParams(consulta);
     if (q.get("criado") === "1") return "criado";
@@ -304,7 +308,7 @@ export function Artigo({
     void agir(async () => {
       await api.tirarImagem(comerciante, m.id);
       if (!montado.current) return;
-      void carregarImagens(true);
+      await carregarImagens(true);
       void carregarPublicacoes(true);
     }, "imagemTirada");
   }
@@ -320,6 +324,10 @@ export function Artigo({
   ): Promise<boolean> {
     if (!valido || imagens.tipo !== "pronto") return Promise.resolve(false);
     const principal = imagens.dados.length === 0;
+    // As imagens de antes: depois de uma resposta perdida, só conta uma
+    // imagem NOVA com este ficheiro (o mesmo ficheiro dá o mesmo fil_, e o
+    // artigo pode já o ter; revisão do #235, P2-3).
+    const antes = new Set(imagens.dados.map((m) => m.id));
     return agir(async () => {
       try {
         await api.ligarImagem(comerciante, artigo, {
@@ -334,10 +342,13 @@ export function Artigo({
           (e.estado >= 500 && e.codigo === undefined);
         if (!semResposta) throw e;
         const agora = await api.imagensDoArtigo(comerciante, artigo);
-        if (!agora.some((m) => m.ficheiro.id === ficheiro)) throw e;
+        const nova = agora.some(
+          (m) => m.ficheiro.id === ficheiro && !antes.has(m.id),
+        );
+        if (!nova) throw e;
       }
       if (!montado.current) return;
-      void carregarImagens(true);
+      await carregarImagens(true);
       void carregarPublicacoes(true);
     }, "imagemAcrescentada");
   }
@@ -450,7 +461,7 @@ export function Artigo({
             ficha={ficha.dados}
             data={data}
             podeEscrever={podeEscrever}
-            ocupado={ocupado}
+            ocupado={ocupadoNaFicha}
             destinoEditar={`/artigos/${artigo}/editar?${voltar.toString()}`}
             aoMudarEstado={mudarEstado}
           />
@@ -483,7 +494,7 @@ export function Artigo({
           <Variantes
             variantes={ficha.dados.variantes}
             podeArquivar={podeEscrever && ficha.dados.origem !== "externo"}
-            ocupado={ocupado}
+            ocupado={ocupadoNaFicha}
             aoArquivar={arquivarVariante}
           />
           <h2>{t.artigoImagens}</h2>
@@ -491,6 +502,11 @@ export function Artigo({
             <NovaImagem
               comerciante={comerciante}
               ocupado={ocupado}
+              publicado={
+                publicacoes.tipo === "pronto" &&
+                publicacoes.dados.some((x) => x.estado === "publicado")
+              }
+              aoEnviar={setAEnviarImagem}
               aoLigar={ligarImagem}
             />
           ) : null}
@@ -514,7 +530,7 @@ export function Artigo({
                   edicao={
                     podeEscrever
                       ? {
-                          ocupado,
+                          ocupado: ocupadoNaFicha,
                           primeira: i === 0,
                           ultima: i === todas.length - 1,
                           aoGuardar: (corpo) => guardarImagem(m, corpo),
@@ -765,11 +781,31 @@ function erroDoEnvio(erro: unknown): keyof Textos | null {
   if (erro.estado === 413) return "artigoImagemGrande";
   if (erro.codigo === "media_type.unsupported") return "artigoImagemTipo";
   if (erro.codigo === "request.invalid") return "artigoImagemIlegivel";
+  // O limite dos envios do comerciante e o limite geral por IP dão o mesmo
+  // código: o texto serve aos dois (revisão do #235, P3-1).
   if (erro.codigo === "rate_limit.exceeded") return "artigoImagemOutroEnvio";
   if (erro.codigo === "catalog.media_quota_exceeded") {
     return "artigoImagemSemEspaco";
   }
   return null;
+}
+
+/**
+ * O tipo verdadeiro de uma imagem, pelos primeiros bytes: um PNG gravado
+ * como `.jpg` vai como PNG (revisão do #235, P3-2). A API confere na mesma;
+ * se não for nenhum dos três, fica o tipo que o navegador deu.
+ */
+async function tipoDaImagem(f: File): Promise<string> {
+  const b = new Uint8Array(await f.slice(0, 12).arrayBuffer());
+  const comeca = (...xs: number[]) => xs.every((x, i) => b[i] === x);
+  if (comeca(0xff, 0xd8, 0xff)) return "image/jpeg";
+  if (comeca(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) {
+    return "image/png";
+  }
+  const riff = String.fromCharCode(...b.slice(0, 4));
+  const webp = String.fromCharCode(...b.slice(8, 12));
+  if (riff === "RIFF" && webp === "WEBP") return "image/webp";
+  return f.type;
 }
 
 /**
@@ -781,10 +817,16 @@ function erroDoEnvio(erro: unknown): keyof Textos | null {
 function NovaImagem({
   comerciante,
   ocupado,
+  publicado,
+  aoEnviar,
   aoLigar,
 }: {
   comerciante: string;
   ocupado: boolean;
+  /** O artigo está à venda nalguma loja: guardar sem texto tira-o (C2). */
+  publicado: boolean;
+  /** Avisa a ficha de que há um envio em curso. */
+  aoEnviar: (emCurso: boolean) => void;
   aoLigar: (ficheiro: string, texto: string | null) => Promise<boolean>;
 }) {
   const { t, lingua, navegar } = useHub();
@@ -794,8 +836,12 @@ function NovaImagem({
   const [texto, setTexto] = useState("");
   const [semTexto, setSemTexto] = useState(false);
   const [recusa, setRecusa] = useState<keyof Textos | null>(null);
+  // Muda em cada recusa, também na mesma duas vezes: o foco volta a ir para
+  // onde deve (revisão do #235, P3-5).
+  const [vezes, setVezes] = useState(0);
   const [falha, setFalha] = useState<unknown>(null);
   const [progresso, setProgresso] = useState<number | null>(null);
+  const [aLigar, setALigar] = useState(false);
   // O ficheiro já enviado: se ligar falhar, não se volta a enviar.
   const [enviado, setEnviado] = useState<string | null>(null);
   const cancelar = useRef<AbortController | null>(null);
@@ -821,8 +867,14 @@ function NovaImagem({
     if (focarDepois.current === null) return;
     document.getElementById(focarDepois.current)?.focus();
     focarDepois.current = null;
-  }, [escolhido, recusa, falha, progresso]);
+  }, [escolhido, vezes, falha, progresso, aLigar]);
   const aindaAqui = () => vivo.current;
+
+  function recusar(chave: keyof Textos, foco: string) {
+    setRecusa(chave);
+    setVezes((n) => n + 1);
+    focarDepois.current = foco;
+  }
 
   function limpar() {
     setEscolhido(null);
@@ -835,6 +887,7 @@ function NovaImagem({
     setEnviado(null);
     if (entrada.current !== null) entrada.current.value = "";
     focarDepois.current = "nova-imagem-botao";
+    setVezes((n) => n + 1);
   }
 
   function aoEscolher(f: File | undefined) {
@@ -842,14 +895,12 @@ function NovaImagem({
     if (f === undefined) return;
     if (!TIPOS_DE_IMAGEM.includes(f.type)) {
       setEscolhido(null);
-      setRecusa("artigoImagemTipo");
-      focarDepois.current = "nova-imagem-recusa";
+      recusar("artigoImagemTipo", "nova-imagem-recusa");
       return;
     }
     if (f.size > TAMANHO_MAXIMO_IMAGEM) {
       setEscolhido(null);
-      setRecusa("artigoImagemGrande");
-      focarDepois.current = "nova-imagem-recusa";
+      recusar("artigoImagemGrande", "nova-imagem-recusa");
       return;
     }
     setRecusa(null);
@@ -860,11 +911,20 @@ function NovaImagem({
 
   async function guardar(e: React.SyntheticEvent) {
     e.preventDefault();
-    if (escolhido === null || progresso !== null || ocupado) return;
+    if (escolhido === null || progresso !== null || aLigar || ocupado) return;
     const limpo = texto.trim();
     if (limpo === "" && !semTexto) {
-      setRecusa("artigoImagemSemTexto");
-      focarDepois.current = "nova-imagem-texto";
+      recusar("artigoImagemSemTexto", "nova-imagem-texto");
+      return;
+    }
+    // Sem texto, num artigo à venda: a API reverifica as publicações e as
+    // que não passam saem de venda; escrever o texto depois não as repõe
+    // (revisão do #235, P2-1).
+    if (
+      limpo === "" &&
+      publicado &&
+      !window.confirm(t.artigoImagemSemTextoConfirmar)
+    ) {
       return;
     }
     setRecusa(null);
@@ -874,10 +934,14 @@ function NovaImagem({
       const controlo = new AbortController();
       cancelar.current = controlo;
       setProgresso(0);
+      aoEnviar(true);
       try {
+        const tipo = await tipoDaImagem(escolhido);
         const r = await enviarImagem(
           comerciante,
-          escolhido,
+          tipo === escolhido.type
+            ? escolhido
+            : escolhido.slice(0, escolhido.size, tipo),
           (p) => {
             if (aindaAqui()) setProgresso(p);
           },
@@ -894,18 +958,26 @@ function NovaImagem({
           return;
         }
         const chave = erroDoEnvio(erro);
-        if (chave !== null) setRecusa(chave);
-        else setFalha(erro);
-        focarDepois.current = "nova-imagem-recusa";
+        if (chave !== null) recusar(chave, "nova-imagem-recusa");
+        else {
+          setFalha(erro);
+          focarDepois.current = "nova-imagem-recusa";
+        }
         return;
       } finally {
         cancelar.current = null;
+        if (aindaAqui()) aoEnviar(false);
       }
     }
     if (!aindaAqui()) return;
     setProgresso(null);
-    const ligou = await aoLigar(ficheiro, limpo === "" ? null : limpo);
-    if (ligou && aindaAqui()) limpar();
+    setALigar(true);
+    try {
+      const ligou = await aoLigar(ficheiro, limpo === "" ? null : limpo);
+      if (ligou && aindaAqui()) limpar();
+    } finally {
+      if (aindaAqui()) setALigar(false);
+    }
   }
 
   const erro =
@@ -914,6 +986,10 @@ function NovaImagem({
       : falha !== null
         ? mensagemDeErro(falha, t, lingua).texto
         : null;
+  const textoEmFalta = recusa === "artigoImagemSemTexto";
+  // Anunciado de 25 em 25 %, para um leitor de ecrã não ler cada 1 %
+  // (revisão do #235, P3-6); a barra mostra o valor certo.
+  const degrau = progresso === null ? null : Math.floor(progresso / 25) * 25;
 
   return (
     <div className="nova-imagem">
@@ -963,9 +1039,15 @@ function NovaImagem({
               id="nova-imagem-texto"
               maxLength={500}
               value={texto}
-              aria-describedby="nova-imagem-ajuda"
+              aria-invalid={textoEmFalta}
+              aria-describedby={
+                textoEmFalta
+                  ? "nova-imagem-recusa nova-imagem-ajuda"
+                  : "nova-imagem-ajuda"
+              }
               onChange={(e) => {
                 setTexto(e.target.value);
+                if (textoEmFalta) setRecusa(null);
               }}
             />
             <p id="nova-imagem-ajuda" className="secundario">
@@ -978,25 +1060,39 @@ function NovaImagem({
               checked={semTexto}
               onChange={(e) => {
                 setSemTexto(e.target.checked);
+                if (textoEmFalta) setRecusa(null);
               }}
             />
             {t.artigoImagemSemTextoAgora}
           </label>
           {progresso === null ? null : (
-            <p role="status">
-              {preencher(t.artigoImagemAEnviar, { p: progresso })}
-            </p>
+            <div className="campo">
+              <label htmlFor="nova-imagem-progresso">
+                {t.artigoImagemProgresso}
+              </label>
+              <progress
+                id="nova-imagem-progresso"
+                max={100}
+                value={progresso}
+              />
+              <p role="status" className="secundario">
+                {preencher(t.artigoImagemAEnviar, { p: degrau ?? 0 })}
+              </p>
+            </div>
           )}
           <div className="accoes-imagem">
             <button
               type="submit"
               className="principal"
-              disabled={ocupado || progresso !== null}
+              disabled={ocupado || progresso !== null || aLigar}
             >
-              {t.artigoGuardar}
+              {aLigar ? t.aCarregar : t.artigoGuardar}
             </button>
+            {/* Enquanto liga, já não se cancela: a imagem ficava ligada sem
+                aviso (revisão do #235, P3-4). */}
             <button
               type="button"
+              disabled={aLigar}
               onClick={() => {
                 if (progresso !== null) {
                   cancelar.current?.abort();

@@ -494,7 +494,7 @@ export const en: Textos = {
   artigoImagemTextoAjuda:
     "Describe the image for those who cannot see it. E.g. “Bottle of green nail polish, front view”.",
   artigoImagemSemTextoAgora:
-    "Save without alternative text (blocks publication until it is written)",
+    "Save without alternative text (the product cannot be published without it)",
   artigoImagemSemTexto:
     "Write the alternative text, or tick that you save without it.",
   artigoImagemAEnviar: "Uploading… {p}%",
@@ -502,12 +502,14 @@ export const en: Textos = {
   artigoImagemTipo: "Only JPEG, PNG or WebP images are accepted.",
   artigoImagemIlegivel:
     "The file is not a JPEG, PNG or WebP image that can be read to the end.",
-  artigoImagemOutroEnvio:
-    "Other image uploads are running for this merchant; try again shortly.",
+  artigoImagemOutroEnvio: "Too many uploads at once; try again shortly.",
   artigoImagemSemEspaco: "This merchant's image storage is full.",
   artigoImagemAcrescentada: "Image added.",
   artigoImagemTirada: "Image removed from the product.",
   artigoTirarImagem: "Remove image",
   artigoConfirmarTirarImagem:
     "Remove the image from the product? The file stays stored.",
+  artigoImagemSemTextoConfirmar:
+    "Saving without alternative text takes the product off sale in the shops where it is published. Once the text is written, it must be published again. Save without text?",
+  artigoImagemProgresso: "Image upload",
 };

@@ -269,10 +269,6 @@ export function rotasDoCatalogoNoHub(
 }
 
 /**
- * As imagens no Hub (docs/22 §12.1): só existem com o armazenamento das
- * imagens, como as rotas da API delas.
- */
-/**
  * Ligar uma imagem pelo Hub (docs/22 §15.1): o ficheiro, o texto
  * alternativo e se é a principal. A imagem de uma variante e a posição ficam
  * de fora (a nova vai para o fim).
@@ -283,6 +279,10 @@ const PedidoLigarMediaNoHub = Type.Pick(
   { additionalProperties: false },
 );
 
+/**
+ * As imagens no Hub (docs/22 §12.1 e §15): só existem com o armazenamento
+ * das imagens, como as rotas da API delas.
+ */
 export function rotasDasImagensNoHub(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,

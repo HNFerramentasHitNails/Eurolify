@@ -433,7 +433,8 @@ export const ENVIOS_EM_SIMULTANEO = 2;
 
 /**
  * Os envios em curso por comerciante, um contador por base: a chave e o Hub
- * contam no mesmo (docs/22 §15.2), e cada app de teste tem o seu.
+ * contam no mesmo (docs/22 §15.2). Duas apps na mesma base (nos testes)
+ * partilham-no também.
  */
 const enviosPorBase = new WeakMap<object, Map<string, number>>();
 function enviosEmCurso(base: object): Map<string, number> {
