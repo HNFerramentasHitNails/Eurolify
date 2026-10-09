@@ -685,6 +685,119 @@ inteiro, sem casas decimais».
   claro e escuro; tudo só com o teclado.
 - **A outra sessão** vê no #77 o caminho novo e o pedido do SKU no erro.
 
+## 15. Catálogo: enviar imagens novas (issue #229)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho do envio de
+imagens»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica de fora (*«sim, aprovo o desenho, junta o #230»*). As §13.1 e §14.1 deixaram de fora as imagens novas: o nginx do Hub
+aceita corpos até 64 KB e as escritas do Hub são só JSON. O #215 (#179) tirou
+o terceiro motivo: os metadados (localização, data, aparelho) saem ao receber.
+Ex.: a gestora abre o «Verniz Verde 31», que ainda não tem imagens, carrega em
+«Acrescentar imagem», escolhe `frasco.jpg` (2,4 MB) no telemóvel, escreve
+«Frasco de verniz verde, de frente» e guarda; a imagem aparece como
+principal, com o texto alternativo.
+
+### 15.1 O que entra e o que fica de fora
+
+Entra só o que a API já sabe fazer (medido a 09/10/2026 em
+`apps/api/src/catalogo/rotas-media.ts`):
+
+| Entra | Rota da API |
+|---|---|
+| Enviar os bytes de uma imagem JPEG, PNG ou WebP, até 10 MB | `POST /media/uploads` (linhas 469–550): o corpo são os bytes com o `Content-Type` do ficheiro; os primeiros bytes têm de ser desse tipo; os metadados saem antes de guardar; devolve `fil_<sha256>`; o mesmo ficheiro outra vez é o mesmo `fil_` |
+| Ligar o ficheiro ao artigo, com o texto alternativo e, se for a primeira, como principal | `POST /products/{id}/media` (linhas 236–272), corpo `ficheiro`, `texto_alternativo`, `principal` |
+| Tirar uma imagem do artigo | `DELETE /media/{id}` (linhas 374–395): o ficheiro fica guardado; as publicações não mudam |
+
+| Fica de fora, e porquê |
+|---|
+| **A imagem de uma variante** (`variante` no corpo): a ficha não mostra ainda a que variante é cada imagem de forma editável; entra com a edição das variantes (#77). |
+| **Vídeos e outros tipos**: a API só aceita JPEG, PNG e WebP (`TIPOS_DE_IMAGEM`, `base/esquema.ts` linha 364). |
+| **Cortar, rodar ou reduzir a imagem no Hub**: a API guarda os bytes como chegam (sem os metadados); nada se volta a codificar. |
+| **Arrastar ficheiros e enviar vários de uma vez**: um de cada vez neste passo, com o botão (teclado e leitores de ecrã); vários entram depois. |
+
+### 15.2 Como o Hub envia
+
+São **dois pedidos**, como pela chave: os bytes e depois a ligação. O
+artigo nunca fica com uma imagem sem texto alternativo por o Hub o pedir: o
+ecrã só liga depois de a pessoa escrever o texto (pode ficar sem ele, com o
+aviso da §12.2, se a pessoa escolher «Guardar sem texto»).
+
+- **Os caminhos**: `POST /hub/media/uploads` (os bytes) e
+  `POST /hub/products/{id}/media` (ligar), com as mesmas funções das rotas pela
+  chave (saída A, como nas §13 e §14), e `DELETE /hub/media/{id}` (tirar),
+  com o corpo `{}` e em JSON, como as outras escritas do Hub sem corpo
+  (`docs/21`, linha 380).
+- **Quem pode**: `catalog:write`, como nas §13 e §14. Num artigo do sistema de
+  gestão (P5), as imagens editam-se no Hub (§13.3): enviar e tirar também.
+- **Quem fez**: `pessoa:per_…` na linha do tempo (como na §13.2).
+- **A excepção à regra do JSON** (`docs/21` §3, `conferirOrigem` em
+  `apps/api/src/identidade/autenticacao.ts` linhas 77–100): **só** a rota
+  `POST /hub/media/uploads` aceita, em vez de JSON, um dos três tipos de
+  imagem. A origem do Hub continua obrigatória (`Origin` igual a
+  `HUB_ORIGEM`), e o cookie é `SameSite=Strict`. Um formulário de outro site
+  não consegue mandar `image/png` sem um pedido prévio do navegador (CORS),
+  que a API não autoriza (procurei `@fastify/cors` e `access-control-allow`
+  em `apps/api/src` a 09/10/2026: nenhum): a porta não fica aberta a ataques
+  de outros sites.
+  As outras escritas do Hub continuam só JSON (também o `DELETE`).
+- **Envios ao mesmo tempo**: no máximo 2 por comerciante, como pela chave
+  (`ENVIOS_EM_SIMULTANEO`, linha 398); o terceiro dá 429 antes de se ler o
+  corpo. O limite é por comerciante, partilhado entre a chave e o Hub.
+- **Repetir é seguro no envio**: o mesmo ficheiro dá o mesmo `fil_`. **Ligar
+  duas vezes não é**: a base não impede o mesmo ficheiro duas vezes no
+  artigo (migração 0028, sem restrição única). Sem `Idempotency-Key` no Hub,
+  uma resposta perdida ao ligar faz o ecrã reler as imagens do artigo e, se
+  o ficheiro já lá está, dá-o por ligado (como a §14.2 faz com o SKU).
+- **O espaço**: 1 GB por comerciante (`QUOTA_POR_COMERCIANTE`,
+  `armazenamento.ts` linha 78); acima dele, `catalog.media_quota_exceeded`
+  (409), que o ecrã diz em linguagem comum.
+
+### 15.3 A mudança ao nginx do Hub (VPS, ADR-0028)
+
+`infra/vps/ficheiros/nginx-hub.conf` (linha 17) aceita 64 KB em todo o site.
+Fica assim, e só assim:
+
+```
+location = /hub/media/uploads {
+    client_max_body_size 10m;
+    # o mesmo proxy, cabeçalhos e travas da location /hub/
+}
+```
+
+O resto do site continua a 64 KB. A alteração entra pelo pedido do código e
+é aplicada pelo fluxo `aplicar-script` (como a do `img-src blob:`, memória
+`hub-ficha-do-artigo-09out2026.md`), e fica escrita numa memória (regra 6 de
+«Operar a VPS»). **Não verifiquei** se o nginx guarda o corpo em disco
+temporário acima de um certo tamanho, nem onde (`client_body_temp_path`): a
+imagem ainda tem os metadados nesse momento; mede-se depois de aplicar.
+
+### 15.4 O ecrã
+
+| Onde | O que mostra | Estados além do normal |
+|---|---|---|
+| **Imagens** (na ficha, §12.2) | Com `catalog:write`: «Acrescentar imagem» (um botão que abre a escolha do ficheiro; aceita JPEG, PNG e WebP). Escolhido o ficheiro: a pré-visualização, o nome e o tamanho, um campo «Texto alternativo» (até 500, obrigatório por omissão), «Guardar» e «Cancelar». A primeira imagem do artigo fica principal. Em cada imagem: «Tirar a imagem», com confirmação («Tirar a imagem do artigo? O ficheiro fica guardado.») | a enviar (com o progresso em percentagem, por `XMLHttpRequest`, e «Cancelar» que pára o envio); ficheiro grande demais (o ecrã diz «Até 10 MB» antes de enviar); tipo errado (antes de enviar, pelo tipo do ficheiro; a API confere os bytes na mesma); a API recusa o ficheiro («não é uma imagem JPEG, PNG ou WebP», «não se conseguiu ler até ao fim»); espaço esgotado; 429 («Há outro envio a decorrer; tente daqui a pouco»); resposta perdida (§15.2); sem permissão |
+
+Sem `catalog:write`, nenhum botão. Depois de guardar, o aviso «Imagem
+acrescentada.» recebe o foco (como a §13.4), e as publicações recarregam (a
+API reverifica-as).
+
+### 15.5 Antes de dizer que está feito (o pedido do código)
+
+- **API**: os três caminhos chamam as mesmas funções das rotas pela chave e o
+  resultado é o mesmo (o `fil_` e os metadados retirados incluídos); só o
+  `POST /hub/media/uploads` aceita bytes, e só com a origem do Hub (sem ela,
+  403; outro caminho do Hub com `image/png`, 415); `armazém` e `apoio` recebem 403; outro comerciante,
+  membro que saiu e sessão terminada são recusados; o «quem» é
+  `pessoa:per_…`; o terceiro envio ao mesmo tempo dá 429; acima de 10 MB,
+  413.
+- **VPS**: o `nginx -t` passa com a location nova; um corpo de 1 MB passa em
+  `/hub/media/uploads` e dá 413 noutro caminho `/hub/` (medido no ensaio
+  depois de aplicar, de fora, sem sessão: a API responde 401 e não 413).
+- **Hub**: a passagem acrescenta uma imagem com o texto, tira outra, confere
+  o ficheiro grande demais e o tipo errado antes de enviar, a recusa da API,
+  o 429 e a resposta perdida ao ligar; capturas a 375, 768 e 1280 px, claro e
+  escuro; tudo só com o teclado.
+- **A outra sessão** vê no #77 os caminhos novos.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
