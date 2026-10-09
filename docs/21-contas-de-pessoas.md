@@ -218,7 +218,7 @@ rotas já conferem.
 | Papel | Âmbitos | Notas |
 |---|---|---|
 | dono | todos, incluindo `keys:write` e mudar papéis | pelo menos um activo |
-| gestor | `merchant:read`, `catalog:*` | não muda papéis, não cria chaves, não muda dados fiscais |
+| gestor | `merchant:read`, `catalog:*` (com `catalog:history`, 0033) | não muda papéis, não cria chaves, não muda dados fiscais |
 | armazém | `catalog:read` (e os de stock e expedição, quando existirem) | sem preços de custo nem margens |
 | apoio | `merchant:read`, `catalog:read` (e os de encomendas e clientes, quando existirem) | sem preços de custo |
 
