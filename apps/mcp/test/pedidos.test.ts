@@ -1,4 +1,11 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -59,10 +66,13 @@ describe("FilaDePedidos", () => {
         ).split("\n");
         recebidos.push(String(conta));
         await rm(join(pasta, "pedido"));
-        await writeFile(
-          join(pasta, `resultado.${String(id)}`),
-          `0\nfeito: ${String(comando)}\n`,
-        );
+        // Como o serviço verdadeiro (eurolify-trabalho: mv -fT): a resposta
+        // escreve-se ao lado e só depois toma o nome. Escrita directa, num
+        // executor lento, a fila lia o ficheiro ainda vazio (publicar do
+        // e554e19, 09/10/2026).
+        const temporario = join(pasta, `.resultado.${String(id)}`);
+        await writeFile(temporario, `0\nfeito: ${String(comando)}\n`);
+        await rename(temporario, join(pasta, `resultado.${String(id)}`));
       })().finally(() => {
         ocupada = false;
       });
