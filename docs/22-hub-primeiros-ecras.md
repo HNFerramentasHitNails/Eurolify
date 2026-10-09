@@ -450,6 +450,113 @@ política, lida do ficheiro.
 - **A outra sessão** vê no #77 a lista das funções do catálogo que passam a
   ter um segundo chamador.
 
+## 13. Catálogo: editar o artigo (issue #210, proposta)
+
+Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da edição do
+artigo»*. Só desenho: o código vem depois de aprovado. A edição parte da
+ficha (§12). Ex.: a gestora da «Loja de Ensaio» abre o «Verniz Azul 1», vê
+«Sem texto alternativo — impede a publicação» na segunda imagem, escreve
+«Frasco de verniz rosa, de lado» e guarda; a publicação volta a ser
+verificada e o aviso desaparece.
+
+### 13.1 O que entra neste passo e o que fica de fora
+
+Entra só o que a API do catálogo já sabe fazer, com as mesmas funções das
+rotas pela chave (como na §11.1): nenhuma regra nova do catálogo nasce no Hub
+(`catalog-pim`, «Primeira regra»; `eurolify-design`, regra 8).
+
+| Entra | Rota da API (medido a 09/10/2026, `apps/api/src/catalogo/rotas.ts` e `rotas-media.ts`) |
+|---|---|
+| Nome, descrição e marca do artigo | `PATCH /products/{id}` (`alterarArtigo`), com a `versao` |
+| Activar, arquivar e repor o artigo (§4.1 do `docs/14`) | `POST /products/{id}/activate`, `/archive`, `/restore` (`mudarEstadoArtigo`), com a `versao` |
+| Texto alternativo, imagem principal e ordem das imagens | `PATCH /media/{id}` (`alterarMedia`), com a `versao` |
+| Arquivar uma variante (final, C6) | `POST /variants/{id}/archive` (`arquivarVariante`) |
+
+| Fica de fora, e porquê |
+|---|
+| **Alterar uma variante** (peso, GTIN, conteúdo, dimensões): **não há rota nem função** (`docs/14` §7.1: «Falta `PATCH /variants/{id}` … desenha-se antes do código»). É o que resolve o impedimento `peso_em_falta`. **A pedir ao dono do Catálogo (#77)**; o Hub junta-se quando existir. |
+| **Categoria fiscal**: a API aceita texto livre com um formato (`^[a-z][a-z0-9_]*$`), sem lista de valores; um valor escrito à mão decide o IVA. No Hub só entra como escolha de uma lista dada pelo servidor (`eu-vat-oss-ioss`; «Não se erra em documentos fiscais»). Até lá, só se lê. |
+| **Classificação** (famílias, natureza, prestação): formulário próprio, com regras **C**; desenho à parte. |
+| **Enviar imagens novas**: o nginx do Hub aceita corpos até 64 KB (`client_max_body_size 64k`) e as escritas do Hub só aceitam JSON (`docs/21` §3); uma imagem vai até 10 MB em bytes. Pede uma mudança à VPS e uma excepção à regra do JSON: desenho à parte. |
+| Criar artigos e variantes, apagar um rascunho, traduções, publicar, opções, kits, categorias: um de cada vez, depois. |
+
+### 13.2 Como o Hub escreve
+
+- **Os caminhos** são `/hub/…` com a mesma função de cada rota (saída A):
+  `PATCH /hub/products/{id}`, `POST /hub/products/{id}/activate`,
+  `/archive`, `/restore`, `PATCH /hub/media/{id}` e
+  `POST /hub/variants/{id}/archive`. O corpo é o mesmo da rota pela chave
+  (o arquivar da variante leva `{}`: as escritas do Hub são JSON).
+- **Quem pode**: a sessão com `catalog:write` no comerciante do cabeçalho;
+  hoje o `dono` e o `gestor` (`apps/api/src/identidade/papeis.ts`). O
+  `armazém` e o `apoio` recebem 403, como na lista (§11.1).
+- **O ecrã não decide quem pode**: hoje o `/hub/me` dá o papel, não os
+  âmbitos (`apps/hub/src/api.ts`, `Eu`). Passa a dar, por comerciante, os
+  âmbitos do papel (lidos da base, `papel_ambitos`); o Hub mostra «Editar»
+  só com `catalog:write`, e o servidor recusa na mesma.
+- **Quem fez**: cada escrita leva `pessoa:per_…` como `eurolify.quem`, o
+  formato que o #208 prevê para o Hub (`docs/14` §3.12, proposta). **O código
+  da edição entra depois do código da linha do tempo** (#208): uma escrita do
+  Hub sem rasto falhava a C7. Se o #208 atrasar, decide-se com o Diogo ou o
+  Bruno.
+- **Escritas ao mesmo tempo**: cada formulário guarda a `versao` que leu. Se
+  outra pessoa (ou o sistema de gestão) alterou entretanto, a API dá
+  `catalog.version_conflict` (409) e nada se grava; o ecrã diz «Outra pessoa
+  alterou este artigo entretanto. Não guardámos as suas alterações.», mostra
+  o que está agora e deixa o texto escrito à vista para o copiar.
+- **Sem `Idempotency-Key`**, como as outras rotas do Hub (`docs/21` §11): um
+  pedido repetido com a mesma `versao` dá 409, e o ecrã recarrega e mostra
+  que a alteração já lá está; activar ou arquivar o que já está nesse estado
+  não muda nada (§4.1 do `docs/14`).
+- **Sem cache**, como as leituras (`private, no-store`).
+
+### 13.3 Artigos que vêm do sistema de gestão (P5)
+
+A P5 está decidida (`docs/14` §9: os campos que vêm de lá ficam só de leitura
+no Hub; as traduções, a media e a publicação editam-se no Eurolify), mas
+**nenhum documento diz quais são esses campos**, e a API **não o impõe**
+(procurei `origem` e `externo` em `apps/api/src`: só a importação recusa,
+`import.external_product`). A regra vive no servidor, nas rotas `/hub/…`,
+não no ecrã: o sistema de gestão continua a escrever pela chave.
+
+**Proposta (a decidir pelo Diogo ou pelo Bruno):** num artigo com
+`origem: externo`, ficam só de leitura no Hub o **nome, a descrição, a marca,
+a categoria fiscal, o estado do artigo e todos os dados das variantes**
+(SKU, GTIN, unidade, conteúdo, peso, dimensões, arquivar). Editam-se no Hub
+as **imagens** (texto alternativo, principal, ordem) e, quando existirem, as
+traduções e a publicação. A API recusa o resto com um código novo
+(`catalog.external_field`, 409, «este campo vem do sistema de gestão:
+altera-se lá»), e o ecrã mostra esses campos sem botão de editar, com essa
+frase.
+
+### 13.4 O ecrã
+
+| Onde | O que muda na ficha (§12.2) | Estados além do normal |
+|---|---|---|
+| **Cabeçalho** | Com `catalog:write`: «Editar» (nome, descrição, marca) e o botão do estado que a §4.1 deixa: «Activar» (rascunho), «Arquivar» (activo), «Repor» (arquivado). Arquivar pede confirmação: «Arquivar o artigo tira-o de venda em todas as lojas. As publicações não voltam sozinhas ao repor.» | a guardar; erro da API ao lado do campo (ex.: `catalog.name_required`); activar sem variante activa diz o motivo da API |
+| **Editar** (`/artigos/{prd_…}/editar`) | Um formulário com o nome (obrigatório, até 200), a descrição (texto simples, até 10 000, com a contagem) e a marca (até 200). «Guardar» e «Cancelar»; sair com alterações por guardar pergunta antes. Depois de guardar, volta à ficha com «Alterações guardadas». | conflito de versão (§13.2); sem permissão (403); artigo que já não existe (404) |
+| **Imagens** | Em cada imagem: «Editar texto alternativo» (um campo, até 500, com «Guardar»), «Tornar principal» e «Mover para antes» / «Mover para depois» (botões, não arrastar: teclado e leitores de ecrã). Depois de guardar, as publicações recarregam (a API reverifica-as). | o aviso «impede a publicação» desaparece só quando a API o diz |
+| **Variantes** | Em cada variante activa: «Arquivar variante», com confirmação: «Arquivar a variante {SKU} não se desfaz.» | a última variante activa: a confirmação diz que o artigo deixa de se poder publicar até ter outra (C6) |
+
+Sem `catalog:write`, a ficha fica como na §12 (sem nenhum botão). Num artigo
+externo, como na §13.3.
+
+### 13.5 Antes de dizer que está feito (o pedido do código)
+
+- **API**: cada caminho `/hub/…` chama a mesma função da rota pela chave e o
+  resultado é o mesmo; `armazém` e `apoio` recebem 403; outro comerciante,
+  membro que saiu e sessão terminada são recusados; escrita sem a origem do
+  Hub ou sem JSON é recusada; a `versao` antiga dá 409 sem gravar; o
+  `eurolify.quem` é `pessoa:per_…` (visto na linha do tempo do #208); num
+  artigo externo, os campos da §13.3 dão `catalog.external_field` pelo Hub e
+  continuam a aceitar-se pela chave.
+- **Hub**: a passagem edita o nome, escreve o texto alternativo que faltava
+  (o impedimento sai da publicação real do artigo 1), muda a principal e a
+  ordem, arquiva e repõe o artigo, arquiva uma variante, e confere o
+  conflito de versão com duas sessões; capturas a 375, 768 e 1280 px, claro e
+  escuro, e a passagem só com teclado.
+- **A outra sessão** vê no #77 e no #208 os caminhos novos e quando entram.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
