@@ -2,6 +2,8 @@
 // próprio anfitrião (`/hub/*`), com o cookie da sessão (que o Hub não lê) e
 // sempre em JSON; os erros chegam no formato RFC 9457 com um `codigo`.
 
+import type { OpcaoArtigo } from "./opcoes";
+
 export type Papel = "dono" | "gestor" | "armazem" | "apoio";
 export const PAPEIS: readonly Papel[] = ["dono", "gestor", "armazem", "apoio"];
 
@@ -668,6 +670,22 @@ export const api = {
       () => pedirBytes(`/hub/media/${imagem}/file`, comerciante, sinal),
       sinal,
     ),
+  /** As opções do artigo (docs/22 §20.1), 100 de cada vez, até ao fim. */
+  opcoesDoArtigo: async (comerciante: string, artigo: string) => {
+    const opcoes: OpcaoArtigo[] = [];
+    let cursor: string | null = null;
+    do {
+      const q = new URLSearchParams({ limite: "100" });
+      if (cursor !== null) q.set("cursor", cursor);
+      const pagina: { dados: OpcaoArtigo[]; cursor_seguinte: string | null } =
+        await pedir("GET", `/hub/products/${artigo}/options?${q.toString()}`, {
+          comerciante,
+        });
+      opcoes.push(...pagina.dados);
+      cursor = pagina.cursor_seguinte;
+    } while (cursor !== null);
+    return opcoes;
+  },
   publicacoesDoArtigo: (comerciante: string, artigo: string) =>
     pedir<{ dados: PublicacaoArtigo[] }>(
       "GET",

@@ -389,9 +389,33 @@ async function valoresDasOpcoes(
 }
 
 /**
+ * As variantes (também as arquivadas) que têm cada um dos valores dados, por
+ * `variante_valor` (migração 0005), com o filtro do comerciante escrito
+ * (docs/22 §20.1). Um valor sem variantes fica com a lista vazia.
+ */
+async function variantesDosValores(
+  trx: Kysely<BaseDados>,
+  comercianteId: string,
+  valorIds: readonly string[],
+): Promise<Map<string, string[]>> {
+  const mapa = new Map<string, string[]>(valorIds.map((id) => [id, []]));
+  if (valorIds.length === 0) return mapa;
+  const linhas = await trx
+    .selectFrom("variante_valor")
+    .select(["valor_id", "variante_id"])
+    .where("comerciante_id", "=", comercianteId)
+    .where("valor_id", "in", valorIds)
+    .orderBy("variante_id")
+    .execute();
+  for (const l of linhas) mapa.get(l.valor_id)?.push(l.variante_id);
+  return mapa;
+}
+
+/**
  * Uma página das opções do artigo, por posição e id, cada uma com os valores
  * todos (docs/18 §2a). Artigo inexistente (ou de outro comerciante) é
- * `catalog.not_found`.
+ * `catalog.not_found`. Com `comVariantes` (só o Hub, docs/22 §20.1), cada
+ * valor traz as variantes que o têm, lidas na mesma transacção.
  */
 export async function opcoesDoArtigoPaginadas(
   db: Kysely<BaseDados>,
@@ -399,6 +423,7 @@ export async function opcoesDoArtigoPaginadas(
   artigoId: string,
   limite: number,
   depois: PosicaoEId | null,
+  comVariantes = false,
 ) {
   return noCatalogo(
     db,
@@ -439,8 +464,21 @@ export async function opcoesDoArtigoPaginadas(
         comercianteId,
         opcoes.map((o) => o.id),
       );
+      const variantes = comVariantes
+        ? await variantesDosValores(
+            trx,
+            comercianteId,
+            [...valores.values()].flat().map((v) => v.id),
+          )
+        : null;
       return {
-        dados: opcoes.map((o) => ({ ...o, valores: valores.get(o.id) ?? [] })),
+        dados: opcoes.map((o) => ({
+          ...o,
+          valores: (valores.get(o.id) ?? []).map((v) => ({
+            ...v,
+            variantes: variantes?.get(v.id) ?? [],
+          })),
+        })),
         total: Number(total),
         ultima:
           ultima === undefined

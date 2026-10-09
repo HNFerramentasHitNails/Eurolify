@@ -20,6 +20,7 @@ import {
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { PrecosDoArtigo } from "./PrecosDoArtigo";
 import { celulaDoCanal, celulaDoMercado, type Celula } from "../publicacoes";
+import { linhaDasOpcoes, valorDaVariante, type OpcaoArtigo } from "../opcoes";
 import { mensagemDeErro, semSessao } from "../erros";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 
@@ -67,6 +68,11 @@ export function Artigo({
     tipo: "a_carregar",
   });
   const [publicacoes, setPublicacoes] = useState<Parte<PublicacaoArtigo[]>>({
+    tipo: "a_carregar",
+  });
+  // As opções (docs/22 §20): enquanto chegam, ou se falharem, a tabela das
+  // variantes fica como sem elas.
+  const [opcoes, setOpcoes] = useState<Parte<OpcaoArtigo[]>>({
     tipo: "a_carregar",
   });
   // Os âmbitos da pessoa neste comerciante (/hub/me, §13.2): só decidem o
@@ -117,6 +123,7 @@ export function Artigo({
   const ultimaFicha = useRef(0);
   const ultimasImagens = useRef(0);
   const ultimasPublicacoes = useRef(0);
+  const ultimasOpcoes = useRef(0);
 
   // `manter`: depois de uma acção, recarrega sem tirar a parte do ecrã, para
   // o foco e as miniaturas ficarem (revisão do #217, P2-2 e P3-8).
@@ -160,6 +167,26 @@ export function Artigo({
     [valido, comerciante, artigo, aoFalhar],
   );
 
+  // Recarregam com a ficha: uma variante nova ou arquivada muda os valores.
+  const carregarOpcoes = useCallback(
+    async (manter = false) => {
+      if (!valido) return;
+      const este = ++ultimasOpcoes.current;
+      if (!manter) setOpcoes({ tipo: "a_carregar" });
+      try {
+        const dados = await api.opcoesDoArtigo(comerciante, artigo);
+        if (este !== ultimasOpcoes.current) return;
+        if (montado.current) setOpcoes({ tipo: "pronto", dados });
+      } catch (e) {
+        if (este !== ultimasOpcoes.current) return;
+        aoFalhar(e, (erro) => {
+          setOpcoes({ tipo: "erro", erro });
+        });
+      }
+    },
+    [valido, comerciante, artigo, aoFalhar],
+  );
+
   const carregarFicha = useCallback(
     async (manter = false) => {
       if (!valido) return;
@@ -179,6 +206,7 @@ export function Artigo({
         setFicha({ tipo: "pronto", dados });
         void carregarImagens(manter);
         void carregarPublicacoes(manter);
+        void carregarOpcoes(manter);
       } catch (e) {
         if (este !== ultimaFicha.current) return;
         aoFalhar(e, (erro) => {
@@ -193,6 +221,7 @@ export function Artigo({
       aoFalhar,
       carregarImagens,
       carregarPublicacoes,
+      carregarOpcoes,
     ],
   );
 
@@ -533,8 +562,21 @@ export function Artigo({
             <p className="descricao-artigo">{ficha.dados.descricao}</p>
           )}
           <h2>{t.artigoVariantes}</h2>
+          {opcoes.tipo === "erro" ? (
+            <ErroDaParte
+              erro={opcoes.erro}
+              texto={t.artigoOpcoesFalharam}
+              aoTentar={() => void carregarOpcoes()}
+            />
+          ) : opcoes.tipo === "pronto" && opcoes.dados.length > 0 ? (
+            <p>
+              {t.artigoOpcoes} {linhaDasOpcoes(opcoes.dados)}
+            </p>
+          ) : null}
           <Variantes
             variantes={ficha.dados.variantes}
+            opcoes={opcoes.tipo === "pronto" ? opcoes.dados : []}
+            estadoOpcoes={opcoes.tipo}
             podeArquivar={podeEscrever && ficha.dados.origem !== "externo"}
             ocupado={ocupadoNaFicha}
             aoArquivar={arquivarVariante}
@@ -623,9 +665,12 @@ export function Artigo({
  */
 function ErroDaParte({
   erro,
+  texto,
   aoTentar,
 }: {
   erro: unknown;
+  /** O que dizer em vez da mensagem do erro (ex.: as opções, §20.2). */
+  texto?: string;
   aoTentar: () => void;
 }) {
   const { t, lingua } = useHub();
@@ -635,8 +680,18 @@ function ErroDaParte({
   if (erro instanceof ErroHub && erro.estado === 404) {
     return <CaixaDeErro erro={{ texto: t.artigoNaoExiste }} />;
   }
+  const mensagem = mensagemDeErro(erro, t, lingua);
   return (
-    <CaixaDeErro erro={mensagemDeErro(erro, t, lingua)} aoTentar={aoTentar} />
+    <CaixaDeErro
+      // O texto da parte vem antes da razão (ex.: esperar uns segundos), que
+      // as outras partes também dizem (revisão do #281, P3-2).
+      erro={
+        texto === undefined
+          ? mensagem
+          : { ...mensagem, texto: `${texto} ${mensagem.texto}` }
+      }
+      aoTentar={aoTentar}
+    />
   );
 }
 
@@ -741,11 +796,16 @@ function Cabecalho({
 
 function Variantes({
   variantes,
+  opcoes,
+  estadoOpcoes,
   podeArquivar,
   ocupado,
   aoArquivar,
 }: {
   variantes: VarianteArtigo[];
+  /** Uma coluna por opção, entre o SKU e o estado (docs/22 §20.2). */
+  opcoes: OpcaoArtigo[];
+  estadoOpcoes: "a_carregar" | "erro" | "pronto";
   podeArquivar: boolean;
   ocupado: boolean;
   aoArquivar: (v: VarianteArtigo) => void;
@@ -754,10 +814,19 @@ function Variantes({
   const numero = (n: number) =>
     new Intl.NumberFormat(TAG_LINGUA[lingua]).format(n);
   return (
-    <table className="tabela-larga variantes-artigo">
+    <table
+      className="tabela-larga variantes-artigo"
+      // Para a passagem saber que as opções chegaram (revisão do #281, P3-3).
+      data-opcoes={estadoOpcoes}
+    >
       <thead>
         <tr>
           <th scope="col">{t.artigosSku}</th>
+          {opcoes.map((o) => (
+            <th scope="col" key={o.id}>
+              {o.nome}
+            </th>
+          ))}
           <th scope="col">{t.colunaEstado}</th>
           <th scope="col">{t.colunaUnidade}</th>
           <th scope="col">{t.colunaGtin}</th>
@@ -772,6 +841,11 @@ function Variantes({
             <td data-rotulo={t.artigosSku}>
               <code translate="no">{v.sku}</code>
             </td>
+            {opcoes.map((o) => (
+              <td data-rotulo={o.nome} key={o.id}>
+                {valorDaVariante(o, v.id) ?? "—"}
+              </td>
+            ))}
             <td data-rotulo={t.colunaEstado}>
               {textoDe(t, `estadoVariante_${v.estado}`, v.estado)}
             </td>
@@ -784,10 +858,11 @@ function Variantes({
             <td data-rotulo={t.colunaConteudo}>
               {v.conteudo_quantidade === null
                 ? "—"
-                : `${numero(v.conteudo_quantidade)} ${v.conteudo_unidade ?? ""}`.trim()}
+                : // Espaço que não parte: «720 g» fica junto (#281, P3-1).
+                  `${numero(v.conteudo_quantidade)}\u00a0${v.conteudo_unidade ?? ""}`.trim()}
             </td>
             <td data-rotulo={t.colunaPeso}>
-              {v.peso_g === null ? "—" : `${numero(v.peso_g)} g`}
+              {v.peso_g === null ? "—" : `${numero(v.peso_g)}\u00a0g`}
             </td>
             {podeArquivar ? (
               <td data-rotulo={t.colunaAccoes}>

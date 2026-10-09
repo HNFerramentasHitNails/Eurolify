@@ -324,7 +324,7 @@ export const Lista = <T extends TSchema>(item: T) =>
     }),
   });
 
-const OpcaoEsquema = Type.Object({
+export const OpcaoEsquema = Type.Object({
   id: Type.String({ description: "opt_…" }),
   artigo: Type.String({ description: "prd_…" }),
   nome: Type.String(),
@@ -2081,26 +2081,14 @@ export function rotasDoCatalogo(
         response: { 200: Lista(OpcaoEsquema), ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido, resposta) => {
-      const chave = chaveDo(pedido);
-      const { limite, depois } = paginaDe(pedido.query);
-      const pagina = await noCatalogoApi(resposta, () =>
-        opcoesDoArtigoPaginadas(
-          base,
-          chave.comercianteId,
-          semPrefixo(pedido.params.id),
-          limite,
-          depois,
-        ),
-      );
-      return {
-        dados: pagina.dados.map(paraOpcao),
-        total: pagina.total,
-        ha_mais: pagina.ultima !== null,
-        cursor_seguinte:
-          pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
-      };
-    },
+    async (pedido, resposta) =>
+      opcoesDeArtigo(
+        base,
+        chaveDo(pedido).comercianteId,
+        pedido.params.id,
+        pedido.query,
+        resposta,
+      ),
   );
 
   rotas.get(
@@ -2923,4 +2911,70 @@ export function rotasDoCatalogo(
         return colecaoNa(trx, chave.comercianteId, id);
       }),
   );
+}
+
+/** As opções de um artigo, por páginas (docs/14 §3.3; a rota pela chave). */
+async function opcoesDeArtigo(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  q: { limite?: string; cursor?: string },
+  resposta: FastifyReply,
+) {
+  const { limite, depois } = paginaDe(q);
+  const pagina = await noCatalogoApi(resposta, () =>
+    opcoesDoArtigoPaginadas(
+      base,
+      comercianteId,
+      semPrefixo(id),
+      limite,
+      depois,
+    ),
+  );
+  return {
+    dados: pagina.dados.map(paraOpcao),
+    total: pagina.total,
+    ha_mais: pagina.ultima !== null,
+    cursor_seguinte:
+      pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
+  };
+}
+
+/**
+ * As mesmas opções de `opcoesDeArtigo`, com as variantes (`var_…`, também as
+ * arquivadas) de cada valor, lidas na mesma transacção (docs/22 §20.1). Só o
+ * Hub: a rota pela chave não muda. **Chamador:** `identidade/hub-catalogo.ts`.
+ */
+export async function opcoesDeArtigoComVariantes(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  q: { limite?: string; cursor?: string },
+  resposta: FastifyReply,
+) {
+  const { limite, depois } = paginaDe(q);
+  const pagina = await noCatalogoApi(resposta, () =>
+    opcoesDoArtigoPaginadas(
+      base,
+      comercianteId,
+      semPrefixo(id),
+      limite,
+      depois,
+      true,
+    ),
+  );
+  return {
+    dados: pagina.dados.map((o) => ({
+      ...paraOpcao(o),
+      valores: o.valores.map((v) => ({
+        id: `ovl_${v.id}`,
+        valor: v.valor,
+        variantes: v.variantes.map((x) => `var_${x}`),
+      })),
+    })),
+    total: pagina.total,
+    ha_mais: pagina.ultima !== null,
+    cursor_seguinte:
+      pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
+  };
 }
