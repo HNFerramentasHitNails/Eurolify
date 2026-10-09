@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { BaseDados } from "../src/base/esquema.js";
@@ -274,6 +275,18 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
       201,
     );
     expect(gr).toMatchObject({ nif: "EL094014201", pais_contribuinte: "GR" });
+    // O país dito e o prefixo iguais: é o mesmo número.
+    expect(
+      await ok(
+        perfil(f["id"], {
+          tipo: "empresa",
+          nome_documento: "Salão Ana, Lda",
+          nif: "PT263631656",
+          pais_contribuinte: "PT",
+        }),
+        201,
+      ),
+    ).toMatchObject({ nif: "263631656", pais_contribuinte: "PT" });
     // Um consumidor final sem NIF.
     expect(
       await ok(
@@ -293,6 +306,11 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
         "customers.nif_invalid",
       ],
       [{ nif: "12-34" }, "customers.nif_country_required"],
+      // GR com o código do país no número: o prefixo fiscal grego é EL.
+      [
+        { nif: "GR094014201", pais_contribuinte: "GR" },
+        "customers.nif_invalid",
+      ],
       [{ pais_contribuinte: "PT" }, "customers.nif_invalid"],
     ] as const) {
       const r = await recusa(
@@ -314,13 +332,24 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
     );
   });
 
-  it("o NIF no comerciante sem país: sempre com prefixo, e o VIES aplica-se", async () => {
+  it("o NIF no comerciante sem país: sem prefixo não se deduz PT; com ele, sempre com prefixo e o VIES aplica-se", async () => {
     const f = await ok(pedir("POST", "/customers", { nome: "Rui" }, deB), 201);
+    // 9 dígitos sem prefixo só são PT num comerciante português (um SIREN
+    // francês também tem 9; revisão do #234, P2-1).
+    await recusa(
+      perfil(
+        f["id"],
+        { tipo: "empresa", nome_documento: "Rui, Lda", nif: "263631656" },
+        deB,
+      ),
+      422,
+      "customers.nif_country_required",
+    );
     expect(
       await ok(
         perfil(
           f["id"],
-          { tipo: "empresa", nome_documento: "Rui, Lda", nif: "263631656" },
+          { tipo: "empresa", nome_documento: "Rui, Lda", nif: "PT263631656" },
           deB,
         ),
         201,
@@ -479,12 +508,7 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
     );
     const ids = async (procura: string, segredo = clientes) => {
       const r = await ok(
-        pedir(
-          "GET",
-          `/customers?procura=${encodeURIComponent(procura)}`,
-          undefined,
-          segredo,
-        ),
+        pedir("POST", "/customers/search", { procura }, segredo),
       );
       return {
         ids: (r["dados"] as Json[]).map((c) => c["id"]),
@@ -496,11 +520,45 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
       total: 1,
     });
     expect((await ids("+351934567890")).ids).toEqual([f["id"]]);
+    expect((await ids("+351 934-567-890")).ids).toEqual([f["id"]]);
     expect((await ids("PT513207384")).ids).toEqual([f["id"]]);
     expect((await ids("513.207.384")).ids).toEqual([f["id"]]);
     expect((await ids("Beatriz Procura")).ids).toEqual([]);
-    // O vizinho não encontra a ficha de A, nem pelo NIF.
+    // O vizinho não encontra a ficha de A, nem pelo NIF, e-mail ou telefone.
     expect(await ids("513207384", deB)).toEqual({ ids: [], total: 0 });
+    expect(await ids("beatriz.procura@exemplo.pt", deB)).toEqual({
+      ids: [],
+      total: 0,
+    });
+    expect(await ids("+351934567890", deB)).toEqual({ ids: [], total: 0 });
+    // A procura não vai no endereço (R12): o GET recusa o parâmetro.
+    expect(
+      (await pedir("GET", "/customers?procura=beatriz.procura%40exemplo.pt"))
+        .statusCode,
+    ).toBe(400);
+    // Página a página, com a procura (duas fichas com o mesmo e-mail).
+    const g = await ficha("Beatriz Outra", {
+      emails: ["beatriz.procura@exemplo.pt"],
+    });
+    const p1 = await ok(
+      pedir("POST", "/customers/search", {
+        procura: "beatriz.procura@exemplo.pt",
+        limite: 1,
+      }),
+    );
+    expect(p1).toMatchObject({ total: 2, ha_mais: true });
+    const p2 = await ok(
+      pedir("POST", "/customers/search", {
+        procura: "beatriz.procura@exemplo.pt",
+        limite: 1,
+        cursor: p1["cursor_seguinte"],
+      }),
+    );
+    expect([
+      ...(p1["dados"] as Json[]).map((c) => c["id"]),
+      ...(p2["dados"] as Json[]).map((c) => c["id"]),
+    ]).toEqual([f["id"], g["id"]]);
+    expect(p2["ha_mais"]).toBe(false);
   });
 
   it("o isolamento: a ficha, os perfis e as etiquetas de A não existem para B", async () => {
@@ -525,7 +583,16 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
         { versao: 1, nome_documento: "B" },
       ],
       ["POST", `/billing-profiles/${String(p["id"])}/make-primary`, undefined],
+      ["POST", `/billing-profiles/${String(p["id"])}/archive`, { versao: 1 }],
+      ["POST", `/billing-profiles/${String(p["id"])}/restore`, { versao: 1 }],
       ["GET", `/customer-tags/${String(t["id"])}`, undefined],
+      ["PATCH", `/customer-tags/${String(t["id"])}`, { versao: 1, nome: "B" }],
+      ["POST", `/customer-tags/${String(t["id"])}/archive`, { versao: 1 }],
+      [
+        "DELETE",
+        `/customers/${String(f["id"])}/tags/${String(t["id"])}`,
+        undefined,
+      ],
       [
         "POST",
         `/customers/${String(f["id"])}/billing-profiles`,
@@ -548,6 +615,58 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
       ),
       404,
       "customers.not_found",
+    );
+    // As listas de B não trazem nada de A; o nome da etiqueta só é único
+    // dentro de cada comerciante.
+    const fichasDeB = await ok(
+      pedir("GET", "/customers?limite=100", undefined, deB),
+    );
+    expect((fichasDeB["dados"] as Json[]).map((c) => c["id"])).not.toContain(
+      f["id"],
+    );
+    const tDeB = await ok(
+      pedir("POST", "/customer-tags", { nome: "Isolamento" }, deB),
+      201,
+    );
+    const etiquetasDeB = await ok(
+      pedir("GET", "/customer-tags?limite=100", undefined, deB),
+    );
+    expect((etiquetasDeB["dados"] as Json[]).map((e) => e["id"])).toEqual([
+      tDeB["id"],
+    ]);
+    // Uma lista B2B de A não aponta para a etiqueta (real) de B: a chave
+    // estrangeira é composta com o comerciante.
+    const m = await ok(
+      pedir(
+        "POST",
+        "/markets",
+        {
+          loja,
+          nome: "Áustria",
+          paises: ["AT"],
+          moeda: "EUR",
+          linguas: ["de"],
+          lingua_principal: "de",
+        },
+        precos,
+      ),
+      201,
+    );
+    await recusa(
+      pedir(
+        "POST",
+        "/price-lists",
+        {
+          mercado: m["id"],
+          nome: "Pro",
+          tipo: "b2b",
+          etiqueta: tDeB["id"],
+          prioridade: 1,
+        },
+        precos,
+      ),
+      404,
+      "prices.not_found",
     );
   });
 
@@ -734,6 +853,153 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
         );
       }),
     ).rejects.toThrow(/customers.change_without_who/);
+  });
+
+  it("R4 também no país; repor um perfil com outro principal não o faz principal", async () => {
+    const f = await ficha("Inês");
+    const p = await ok(
+      perfil(f["id"], {
+        tipo: "empresa",
+        nome_documento: "Inês, Lda",
+        nif: "263631656",
+      }),
+      201,
+    );
+    await usadoEmDocumento(String(p["id"]));
+    const id = String(p["id"]);
+    const agora = await ok(pedir("GET", `/billing-profiles/${id}`));
+    await recusa(
+      pedir("PATCH", `/billing-profiles/${id}`, {
+        versao: agora["versao"],
+        // O mesmo número, outro país.
+        pais_contribuinte: "FR",
+      }),
+      409,
+      "customers.profile_used",
+    );
+    // Dois perfis; arquiva-se o segundo, troca-se o principal para ele não
+    // ser possível (arquivado), repõe-se: fica não principal.
+    const q = await ok(
+      perfil(f["id"], { tipo: "particular", nome_documento: "Inês" }),
+      201,
+    );
+    const arq = await ok(
+      pedir("POST", `/billing-profiles/${String(q["id"])}/archive`, {
+        versao: q["versao"],
+      }),
+    );
+    const reposto = await ok(
+      pedir("POST", `/billing-profiles/${String(q["id"])}/restore`, {
+        versao: arq["versao"],
+      }),
+    );
+    expect(reposto).toMatchObject({ estado: "activo", principal: false });
+  });
+
+  it("em concorrência: dois primeiros perfis da mesma ficha dão um só principal", async () => {
+    const f = await ficha("Concorrência");
+    const [r1, r2] = await Promise.all([
+      perfil(f["id"], { tipo: "particular", nome_documento: "Um" }),
+      perfil(f["id"], { tipo: "particular", nome_documento: "Dois" }),
+    ]);
+    expect([r1.statusCode, r2.statusCode]).toEqual([201, 201]);
+    const principais = [r1.json<Json>(), r2.json<Json>()].filter(
+      (p) => p["principal"] === true,
+    );
+    expect(principais).toHaveLength(1);
+  });
+
+  it("em concorrência: arquivar a etiqueta e repor a lista B2B dela — a lista espera e é recusada", async () => {
+    const t = await ok(
+      pedir("POST", "/customer-tags", { nome: "Corrida" }),
+      201,
+    );
+    const m = await ok(
+      pedir(
+        "POST",
+        "/markets",
+        {
+          loja,
+          nome: "Bélgica",
+          paises: ["BE"],
+          moeda: "EUR",
+          linguas: ["fr"],
+          lingua_principal: "fr",
+        },
+        precos,
+      ),
+      201,
+    );
+    const lista = await ok(
+      pedir(
+        "POST",
+        "/price-lists",
+        {
+          mercado: m["id"],
+          nome: "Corrida",
+          tipo: "b2b",
+          etiqueta: t["id"],
+          prioridade: 1,
+        },
+        precos,
+      ),
+      201,
+    );
+    const arquivada = await ok(
+      pedir(
+        "POST",
+        `/price-lists/${String(lista["id"])}/archive`,
+        { versao: lista["versao"] },
+        precos,
+      ),
+    );
+    expect(arquivada["estado"]).toBe("arquivada");
+    const ligar = async () => {
+      const l = new pg.Client({ connectionString: base.urlApi });
+      await l.connect();
+      await l.query("begin");
+      await l.query(
+        "select set_config('eurolify.comerciante', $1, true), set_config('eurolify.quem', 'teste:corrida', true)",
+        [a],
+      );
+      return l;
+    };
+    const l1 = await ligar();
+    const l2 = await ligar();
+    try {
+      await l1.query(
+        "update etiqueta_cliente set estado = 'arquivada' where id = $1",
+        [String(t["id"]).slice(4)],
+      );
+      const pid2 = (
+        await l2.query<{ pid: number }>("select pg_backend_pid() as pid")
+      ).rows[0]?.pid;
+      const repor = l2
+        .query("update lista_precos set estado = 'activa' where id = $1", [
+          String(lista["id"]).slice(4),
+        ])
+        .then(
+          () => undefined,
+          (e: unknown) => e,
+        );
+      // A segunda espera pela primeira (o FOR SHARE na etiqueta).
+      let esperou = false;
+      for (let i = 0; i < 100 && !esperou; i++) {
+        const { rows } = await sql<{ n: number }>`
+          select count(*)::int as n from pg_stat_activity
+          where pid = ${pid2} and wait_event_type = 'Lock'`.execute(base.dono);
+        esperou = (rows[0]?.n ?? 0) > 0;
+        if (!esperou) await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(esperou).toBe(true);
+      await l1.query("commit");
+      const erro = await repor;
+      expect(String(erro)).toMatch(/prices.label_archived/);
+      await l2.query("rollback");
+    } finally {
+      await l1.end();
+      await l2.end();
+    }
   });
 
   it("os eventos: só identificadores e os nomes dos campos, nunca o e-mail nem o NIF", async () => {

@@ -353,18 +353,19 @@ const Alteracao = Type.Object({
   ),
 });
 
-const ConsultaClientes = Type.Object(
+// A procura vai no corpo de um POST, nunca no endereço: o endereço fica nos
+// registos da aplicação e do proxy, e um e-mail, um telefone ou um NIF não
+// podem lá ficar (R12; revisão do #234, P1-1).
+const PedidoProcura = Type.Object(
   {
-    limite: ConsultaPagina.properties.limite,
+    procura: Type.String({
+      minLength: 2,
+      maxLength: 254,
+      description:
+        "Um e-mail (com @), um telefone (começa por +; espaços e hífenes não contam) ou um NIF (compara-se só o número); nunca o nome",
+    }),
+    limite: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
     cursor: ConsultaPagina.properties.cursor,
-    procura: Type.Optional(
-      Type.String({
-        minLength: 2,
-        maxLength: 254,
-        description:
-          "Um e-mail (com @), um telefone (começa por +) ou um NIF (compara-se só o número); nunca o nome",
-      }),
-    ),
   },
   { additionalProperties: false },
 );
@@ -415,8 +416,8 @@ export function rotasDosClientes(
       config: ler,
       schema: {
         description:
-          "As fichas de clientes do comerciante (docs/23 §3.1), por ordem de criação, no formato das listas. A procura é por e-mail, telefone ou NIF, nunca pelo nome.",
-        querystring: ConsultaClientes,
+          "As fichas de clientes do comerciante (docs/23 §3.1), por ordem de criação, no formato das listas. Para procurar, POST /customers/search (o valor não vai no endereço).",
+        querystring: ConsultaPagina,
         response: { 200: Lista(Cliente), ...RESPOSTA_DE_ERRO },
       },
     },
@@ -428,7 +429,32 @@ export function rotasDosClientes(
             chaveDo(pedido).comercianteId,
             limiteDe(pedido.query),
             idDoCursor(pedido.query.cursor),
-            pedido.query.procura,
+          ),
+        ),
+        paraCliente,
+      ),
+  );
+
+  rotas.post(
+    "/customers/search",
+    {
+      config: ler,
+      schema: {
+        description:
+          "Procura fichas por e-mail, telefone ou NIF (só o número, como a régua compara), nunca pelo nome, no formato das listas. Não escreve nem pede Idempotency-Key; o valor vai no corpo para não ficar nos registos.",
+        body: PedidoProcura,
+        response: { 200: Lista(Cliente), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      comPagina(
+        await emClientes(resposta, () =>
+          listarClientes(
+            base,
+            chaveDo(pedido).comercianteId,
+            pedido.body.limite ?? 25,
+            idDoCursor(pedido.body.cursor),
+            pedido.body.procura,
           ),
         ),
         paraCliente,

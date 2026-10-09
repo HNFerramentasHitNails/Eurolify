@@ -108,8 +108,11 @@ $$;
 -- A régua (§3.3): do que a pessoa escreveu e do país que indicou (ou nenhum)
 -- tira o país do contribuinte e o número sem prefixo nem pontuação. Recusa
 -- com `customers.nif_invalid` ou `customers.nif_country_required`; nunca
--- devolve «sem NIF» a quem deu um número.
-CREATE FUNCTION nif_regua(p_escrito text, p_pais text, OUT pais text, OUT numero text)
+-- devolve «sem NIF» a quem deu um número. `p_deduzir_pt`: só num comerciante
+-- português se deduz PT de 9 dígitos sem prefixo (revisão do #234, P2-1: o
+-- SIREN francês também tem 9 dígitos e 1 em 11 passa o controlo português).
+CREATE FUNCTION nif_regua(p_escrito text, p_pais text, p_deduzir_pt boolean,
+  OUT pais text, OUT numero text)
   LANGUAGE plpgsql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   limpo text;
@@ -133,9 +136,16 @@ BEGIN
     pais := do_prefixo;
     numero := substr(limpo, 3);
   ELSIF p_pais IS NOT NULL THEN
+    -- `GR123…` com o país GR: o prefixo fiscal grego é EL, e o número não
+    -- pode levar o código do país (seriam dois números para o mesmo
+    -- contribuinte; revisão do #234, P2-2).
+    IF left(limpo, 2) = p_pais AND length(limpo) > 2 THEN
+      RAISE EXCEPTION 'customers.nif_invalid: o número começa pelo código do país (%); o prefixo fiscal é %',
+        p_pais, coalesce(public.prefixo_fiscal(p_pais), 'outro');
+    END IF;
     pais := p_pais;
     numero := limpo;
-  ELSIF public.nif_portugues_valido(limpo) THEN
+  ELSIF p_deduzir_pt AND public.nif_portugues_valido(limpo) THEN
     -- 9 dígitos sem prefixo que passam o dígito de controlo português: PT
     -- (o padrão das emigrantes, 8 casos nos sistemas actuais, 16/09/2026).
     pais := 'PT';
@@ -341,8 +351,10 @@ BEGIN
     IF NEW.nif_escrito IS NULL AND NEW.pais_contribuinte IS NOT NULL THEN
       RAISE EXCEPTION 'customers.nif_invalid: um país do contribuinte sem NIF';
     END IF;
+    pais_comerciante := public.pais_do_comerciante(NEW.comerciante_id);
     SELECT r.pais, r.numero INTO regua
-    FROM public.nif_regua(NEW.nif_escrito, NEW.pais_contribuinte) r;
+    FROM public.nif_regua(NEW.nif_escrito, NEW.pais_contribuinte,
+      pais_comerciante IS NOT DISTINCT FROM 'PT') r;
     NEW.pais_contribuinte := regua.pais;
     NEW.nif_numero := regua.numero;
   ELSE
@@ -414,17 +426,23 @@ CREATE TRIGGER perfil_antes_de_gravar
   FOR EACH ROW EXECUTE FUNCTION perfil_antes_de_gravar();
 
 -- Trocar o principal (§7.1, make-primary): numa só chamada, para não ficar
--- uma ficha sem principal entre duas escritas.
+-- uma ficha sem principal entre duas escritas. Com os direitos do dono: a API
+-- não escreve a coluna `principal` (revisão do #234, P3-2); o RLS forçado
+-- aplica-se ao dono, com o comerciante da transacção. Toma a ficha antes dos
+-- perfis, pela ordem do gatilho (P3-1).
 CREATE FUNCTION perfil_tornar_principal(p_perfil uuid) RETURNS void
-  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   perfil record;
+  ficha uuid;
 BEGIN
-  SELECT p.cliente_id, p.estado, p.principal INTO perfil
-  FROM public.perfil_faturacao p WHERE p.id = p_perfil;
+  SELECT p.cliente_id INTO ficha FROM public.perfil_faturacao p WHERE p.id = p_perfil;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'customers.not_found: o perfil não existe';
   END IF;
+  PERFORM FROM public.cliente c WHERE c.id = ficha FOR UPDATE;
+  SELECT p.cliente_id, p.estado, p.principal INTO perfil
+  FROM public.perfil_faturacao p WHERE p.id = p_perfil;
   IF perfil.estado <> 'activo' THEN
     RAISE EXCEPTION 'customers.invalid_transition: só um perfil activo é o principal';
   END IF;
@@ -458,13 +476,36 @@ CREATE UNIQUE INDEX etiqueta_cliente_nome_unico
 -- nenhuma lista deixar de se aplicar. Antes do RLS e do rasto: é a migração.
 -- A lista tem o RLS forçado e a migração corre sem comerciante: o NO FORCE só
 -- dura esta transacção (como o preenchimento da 0035).
+--
+-- Uma etiqueta por (comerciante, id): o nome começa pelo id, para nunca
+-- repetir (o nome das listas não é único; revisão do #234, P1-2). O mesmo id
+-- em dois comerciantes (a 0017 não lhe dava dono) fica com o primeiro; os
+-- outros recebem um id novo e as listas deles passam a apontar para ele.
 ALTER TABLE lista_precos NO FORCE ROW LEVEL SECURITY;
+CREATE TEMPORARY TABLE etiqueta_0037 ON COMMIT DROP AS
+SELECT x.comerciante_id, x.antigo,
+  CASE WHEN row_number() OVER (PARTITION BY x.antigo ORDER BY x.primeira) = 1
+    THEN x.antigo ELSE uuidv7() END AS novo,
+  x.nome_lista
+FROM (
+  SELECT DISTINCT ON (l.comerciante_id, l.etiqueta_id)
+    l.comerciante_id, l.etiqueta_id AS antigo, l.id AS primeira, l.nome AS nome_lista
+  FROM lista_precos l
+  WHERE l.etiqueta_id IS NOT NULL
+  ORDER BY l.comerciante_id, l.etiqueta_id, l.id
+) x;
 INSERT INTO etiqueta_cliente (id, comerciante_id, nome)
-SELECT DISTINCT ON (l.etiqueta_id) l.etiqueta_id, l.comerciante_id,
-  left('Etiqueta da lista «' || l.nome || '» (0037)', 100)
-FROM lista_precos l
-WHERE l.etiqueta_id IS NOT NULL
-ORDER BY l.etiqueta_id, l.id;
+SELECT novo, comerciante_id,
+  left('Etiqueta ' || novo || ' (da lista «' || nome_lista || '», 0037)', 100)
+FROM etiqueta_0037;
+-- O gatilho da lista lê o mercado, com o RLS forçado e sem comerciante:
+-- desligado só nesta troca de identificador (a versão da lista não sobe).
+ALTER TABLE lista_precos DISABLE TRIGGER lista_precos_antes_de_gravar;
+UPDATE lista_precos l SET etiqueta_id = m.novo
+FROM etiqueta_0037 m
+WHERE l.comerciante_id = m.comerciante_id AND l.etiqueta_id = m.antigo
+  AND m.novo <> m.antigo;
+ALTER TABLE lista_precos ENABLE TRIGGER lista_precos_antes_de_gravar;
 
 ALTER TABLE lista_precos ADD CONSTRAINT lista_precos_da_etiqueta
   FOREIGN KEY (comerciante_id, etiqueta_id) REFERENCES etiqueta_cliente (comerciante_id, id);
@@ -548,11 +589,20 @@ CREATE TRIGGER cliente_etiqueta_antes_de_gravar
 -- já garante que existe e é do comerciante).
 CREATE FUNCTION lista_precos_etiqueta_activa() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  estado_da_etiqueta text;
 BEGIN
-  IF NEW.etiqueta_id IS NOT NULL AND NEW.estado = 'activa' AND EXISTS (
-    SELECT FROM public.etiqueta_cliente e
-    WHERE e.comerciante_id = NEW.comerciante_id AND e.id = NEW.etiqueta_id
-      AND e.estado = 'arquivada') THEN
+  IF NEW.etiqueta_id IS NULL OR NEW.estado <> 'activa' THEN
+    RETURN NEW;
+  END IF;
+  -- FOR SHARE, só pelo id: espera por um arquivo da etiqueta em curso e lê
+  -- o estado depois dele (sem isto, arquivar a etiqueta e repor a lista ao
+  -- mesmo tempo deixavam uma lista activa com a etiqueta arquivada; revisão
+  -- do #234, P2-3). A chave estrangeira diz se existe.
+  SELECT e.estado INTO estado_da_etiqueta FROM public.etiqueta_cliente e
+  WHERE e.comerciante_id = NEW.comerciante_id AND e.id = NEW.etiqueta_id
+  FOR SHARE;
+  IF estado_da_etiqueta = 'arquivada' THEN
     RAISE EXCEPTION 'prices.label_archived: a etiqueta de cliente está arquivada';
   END IF;
   RETURN NEW;
@@ -749,7 +799,7 @@ GRANT INSERT (comerciante_id, cliente_id, tipo, nome_documento, nif_escrito, pai
   morada_linha1, morada_linha2, morada_codigo_postal, morada_localidade, morada_pais)
   ON perfil_faturacao TO eurolify_api;
 GRANT UPDATE (tipo, nome_documento, nif_escrito, pais_contribuinte, morada_linha1,
-  morada_linha2, morada_codigo_postal, morada_localidade, morada_pais, estado, principal)
+  morada_linha2, morada_codigo_postal, morada_localidade, morada_pais, estado)
   ON perfil_faturacao TO eurolify_api;
 GRANT INSERT (comerciante_id, nome) ON etiqueta_cliente TO eurolify_api;
 GRANT UPDATE (nome, estado) ON etiqueta_cliente TO eurolify_api;
@@ -757,7 +807,7 @@ GRANT INSERT (comerciante_id, cliente_id, etiqueta_id), DELETE ON cliente_etique
 
 REVOKE EXECUTE ON FUNCTION prefixo_fiscal(text), pais_do_prefixo_fiscal(text),
   nif_limpo(text), nif_para_procura(text),
-  nif_portugues_valido(text), nif_regua(text, text), pais_do_comerciante(uuid),
+  nif_portugues_valido(text), nif_regua(text, text, boolean), pais_do_comerciante(uuid),
   nif_com_prefixo(text, text, text), emails_validos(text[]), telefones_validos(text[]),
   cliente_antes_de_gravar(), perfil_antes_de_gravar(), perfil_tornar_principal(uuid),
   etiqueta_cliente_antes_de_gravar(), cliente_etiqueta_antes_de_gravar(),
@@ -767,7 +817,7 @@ REVOKE EXECUTE ON FUNCTION prefixo_fiscal(text), pais_do_prefixo_fiscal(text),
 -- Os gatilhos correm com os direitos de quem escreve: precisam destas.
 GRANT EXECUTE ON FUNCTION prefixo_fiscal(text), pais_do_prefixo_fiscal(text),
   nif_limpo(text), nif_para_procura(text),
-  nif_portugues_valido(text), nif_regua(text, text), pais_do_comerciante(uuid),
+  nif_portugues_valido(text), nif_regua(text, text, boolean), pais_do_comerciante(uuid),
   nif_com_prefixo(text, text, text), emails_validos(text[]), telefones_validos(text[]),
   perfil_tornar_principal(uuid) TO eurolify_api;
 

@@ -244,7 +244,8 @@ export async function obterCliente(
 }
 
 /**
- * As fichas, por ordem de criação. A procura é por e-mail (tem `@`), por
+ * As fichas, por ordem de criação. A procura (POST /customers/search, nunca
+ * no endereço) é por e-mail (tem `@`), por
  * telefone (começa por `+`) ou pelo NIF (só o número, como a régua
  * compara); nunca pelo nome (docs/23 §7.1; R10).
  */
@@ -264,7 +265,11 @@ export async function listarClientes(
             sql<boolean>`exists (select from unnest(cliente.emails) e where lower(e) = lower(${procura}))`,
           );
         } else if (procura.startsWith("+")) {
-          q = q.where(sql<boolean>`${procura} = any(cliente.telefones)`);
+          // Espaços, hífenes, pontos e parênteses não contam (revisão do
+          // #234, P3-7): os guardados já estão em E.164.
+          q = q.where(
+            sql<boolean>`regexp_replace(${procura}, '[[:space:].()\-]', '', 'g') = any(cliente.telefones)`,
+          );
         } else {
           q = q.where(
             "id",
@@ -514,6 +519,12 @@ export async function mudarEstadoPerfil(
   estado: "activo" | "arquivado",
 ): Promise<void> {
   await noClientes(db, comercianteId, async (trx) => {
+    // A ficha antes do perfil, pela ordem do gatilho e da troca do principal
+    // (revisão do #234, P3-1): sem isto, um arquivo e um make-primary ao
+    // mesmo tempo podiam bloquear-se um ao outro.
+    await sql`select from cliente where id = (
+      select cliente_id from perfil_faturacao where id = ${perfilId}::uuid)
+      for update`.execute(trx);
     const actual = await trx
       .selectFrom("perfil_faturacao")
       .select(["estado", "versao"])

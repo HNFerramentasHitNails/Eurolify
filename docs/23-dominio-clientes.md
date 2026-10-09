@@ -298,7 +298,7 @@ Com outbox (`evento_saida`), como os do Catálogo e de Preços.
 
 | Evento | Quando | Leva |
 |---|---|---|
-| `customer.created` | ficha nova | `cus_`, origem |
+| `customer.created` | ficha nova | `cus_` (a origem fica na linha do tempo, não no evento) |
 | `customer.updated` | ficha alterada | `cus_`, os **nomes** dos campos mudados (sem valores) |
 | `customer.merged` | uma pessoa fundiu duas fichas | o `cus_` que ficou, o que foi absorvido, quem |
 | `customer.pseudonymized` | apagamento do titular feito | `cus_` — **proposta** (novo; a lista do `docs/02` não o tem) |
@@ -334,7 +334,8 @@ O armazém não lê clientes: a morada de que precisa vem na encomenda
 
 | Operação | Método e caminho | Âmbito | Notas |
 |---|---|---|---|
-| Clientes | `GET /customers`, `GET /customers/{id}`, `POST /customers`, `PATCH /customers/{id}` | read / write | procura por e-mail, telefone ou NIF (pelo número, §3.3); nunca devolve fichas de outro comerciante |
+| Clientes | `GET /customers`, `GET /customers/{id}`, `POST /customers`, `PATCH /customers/{id}` | read / write | nunca devolve fichas de outro comerciante |
+| Procurar | `POST /customers/search` (`{ procura, limite, cursor }`) | read | por e-mail, telefone ou NIF (pelo número, §3.3), nunca pelo nome; no corpo, para o valor não ficar nos registos (R12; revisão do #234, P1-1) |
 | Perfis | `GET /customers/{id}/billing-profiles`, `POST …`, `PATCH /billing-profiles/{id}` | read / write | recusa a régua do NIF (`customers.nif_invalid`) e R4 (`customers.profile_used`) |
 | Perfil principal | `POST /billing-profiles/{id}/make-primary` | write | troca o principal na mesma transacção |
 | Arquivar perfil | `POST /billing-profiles/{id}/archive`, `…/restore` | write | |
@@ -428,7 +429,42 @@ Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
 | os eventos `customer.created`, `customer.updated`, `billing_profile.created`, `billing_profile.updated`, só com identificadores e os nomes dos campos | migração 0037 |
 | a API de Administração: fichas (com a procura por e-mail, telefone ou NIF), perfis, principal, arquivar/repor, etiquetas, pôr e tirar etiquetas | `src/clientes/rotas.ts` |
 | os âmbitos `customers:read` e `customers:write` (dono, gestor, apoio) | migração 0037; `src/identidade/` |
-| 12 testes pela API e 1 da migração sobre dados, com as 12 mutações da API apanhadas (a lista de impossíveis, o principal, R4, o prefixo, a etiqueta em uso, a etiqueta arquivada, a procura pelo número, o país antigo num NIF novo, o quem, o VIES no país do comerciante, os valores nos eventos, a dedução do PT) | `test/clientes-api.test.ts` |
+| 15 testes pela API e 1 da migração sobre dados; 19 mutações, todas apanhadas (a lista de impossíveis, o principal, R4, o prefixo, a etiqueta em uso, a etiqueta arquivada, a procura pelo número, o país antigo num NIF novo, o quem, o VIES no país do comerciante, os valores nos eventos, a dedução do PT) | `test/clientes-api.test.ts` |
+
+
+**Depois da revisão do agente** (#234, 09/10/2026):
+- a procura passou de `GET /customers?procura=` para `POST /customers/search`
+  (P1-1);
+- o preenchimento das etiquetas: o nome começa pelo id, e o mesmo id em dois
+  comerciantes dá uma etiqueta nova ao segundo, com a lista dele actualizada
+  (P1-2);
+- PT só se deduz de 9 dígitos sem prefixo num comerciante português (P2-1);
+  um número com o código do país indicado (`GR…` com GR) é recusado (P2-2);
+- a lista B2B toma a etiqueta com `FOR SHARE` (P2-3); a ficha toma-se antes
+  dos perfis no arquivo e na troca do principal, e a API deixou de escrever
+  a coluna `principal` (P3-1, P3-2);
+- testes: isolamento em todas as rotas, a etiqueta real de outro comerciante
+  numa lista, R4 no país, repor com outro principal, a procura página a
+  página, duas corridas (dois primeiros perfis; etiqueta contra lista).
+
+**Fica escrito para as partes seguintes:**
+- **Apagamento e linha do tempo (P2-4):** a `alteracao_cliente` guarda o
+  antes e o depois do nome, e-mails, telefones e NIF, e só se acrescenta. A
+  pseudonimização do titular (parte 2) tem de a alcançar: uma função do dono,
+  registada, que substitui esses valores nas entradas da ficha — o único
+  caminho que muda o rasto.
+- **Recusa e retenção (P3-6):** a API recusa um NIF que a régua não aceita;
+  no checkout (fatia 7) o NIF que o comprador deu não se pode perder — a
+  encomenda fica retida, nunca sai como consumidor final.
+- **Primeiros dígitos do NIF português (P3-5):** a lista de impossíveis tem
+  só os repetidos e `123456789`; as regras oficiais dos primeiros dígitos
+  **não verifiquei** — **C**.
+- **Comerciante sem país único (P3-3):** sem entidade activa, ou com
+  entidades em dois países, todos os NIF da UE ficam `por_validar` (lado
+  seguro) e saem com prefixo.
+- **Fusões (P3-10):** a chave estrangeira de `fundido_em` entra com a parte 2.
+- **Perfis por ficha (P3-4):** sem limite nem paginação; um limite entra
+  antes da API da Loja.
 
 **Fica para as partes 2 e 3** (§11): consentimentos e a régua do marketing;
 duplicados, fusões, pedidos dos titulares; VIES, isenção manual com anexos.

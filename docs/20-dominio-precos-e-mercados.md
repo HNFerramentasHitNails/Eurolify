@@ -422,8 +422,9 @@ Regras:
 - Reduções marcadas para o futuro, reduções progressivas e o que o art.
   6.º-A diz de produtos perecíveis ou novos: **C**, à espera do jurista.
 - Códigos de desconto e regras de carrinho (Q3, decidido: depois).
-- Listas B2B por etiqueta: a etiqueta é de Clientes, que ainda não existe;
-  as rotas aceitam-nas como na parte 1 (o identificador guardado).
+- Listas B2B por etiqueta: a etiqueta é de Clientes (`docs/23` §3.5; migração
+  0037), com chave estrangeira; as rotas aceitam e devolvem `ctg_…`. As
+  etiquetas que as listas já referiam nasceram na 0037.
 
 ### 10.5 Por onde é que isto ainda pode sair errado
 

@@ -92,50 +92,94 @@ describe.skipIf(URL_BASE === undefined)("migração 0037 sobre dados", () => {
     return db;
   }
 
-  it("as etiquetas que as listas B2B referiam nascem; a chave entra validada; o RLS volta forçado", async () => {
-    const db = await baseAte0036();
-    const a = await registarComerciante(db, {
-      nome: "A",
+  /** Um comerciante com uma loja; devolve o id e a loja. */
+  async function comerciante(db: Kysely<BaseDados>, nome: string) {
+    const c = await registarComerciante(db, {
+      nome,
       lingua: "pt",
       fuso: "Europe/Lisbon",
     });
-    const entidade = await criarEntidadeLegal(db, a, {
-      denominacao: "A, Lda.",
+    const entidade = await criarEntidadeLegal(db, c, {
+      denominacao: `${nome}, Lda.`,
       forma_juridica: "sociedade por quotas",
       pais: "PT",
-      numero_fiscal: "509999990",
+      numero_fiscal: nome === "A" ? "509999990" : "513207384",
       morada_linha: "Rua 1",
       morada_codigo_postal: "1000-001",
       morada_localidade: "Lisboa",
     });
-    const loja = await criarLoja(db, a, {
+    const loja = await criarLoja(db, c, {
       entidade_legal_id: entidade,
       nome: "Loja",
     });
-    // Dois mercados com listas B2B: a mesma etiqueta nos dois, e outra.
-    for (const [pais, etiquetas] of [
-      ["PT", [ETIQUETA_1, ETIQUETA_2]],
-      ["ES", [ETIQUETA_1]],
-    ] as const) {
-      const mercado = await criarMercado(db, a, {
-        loja_id: loja,
-        nome: pais,
-        paises: [pais],
-        moeda: "EUR",
-        linguas: ["pt"],
-        lingua_principal: "pt",
-      });
-      let prioridade = 1;
-      for (const etiqueta of etiquetas) {
-        await criarLista(db, a, {
-          mercado_id: mercado,
-          nome: `Pro ${pais} ${prioridade}`,
-          tipo: "b2b",
-          etiqueta_id: etiqueta,
-          prioridade: prioridade++,
-        });
-      }
-    }
+    return { c, loja };
+  }
+
+  async function listaB2B(
+    db: Kysely<BaseDados>,
+    c: string,
+    loja: string,
+    pais: string,
+    nome: string,
+    etiqueta: string,
+  ) {
+    const mercado = await criarMercado(db, c, {
+      loja_id: loja,
+      nome: pais,
+      paises: [pais],
+      moeda: "EUR",
+      linguas: ["pt"],
+      lingua_principal: "pt",
+    });
+    return criarLista(db, c, {
+      mercado_id: mercado,
+      nome,
+      tipo: "b2b",
+      etiqueta_id: etiqueta,
+      prioridade: 1,
+    });
+  }
+
+  async function noComerciante<T>(
+    db: Kysely<BaseDados>,
+    c: string,
+    fn: (trx: Kysely<BaseDados>) => Promise<T>,
+  ) {
+    return db.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${c}, true)`.execute(
+        trx,
+      );
+      return fn(trx);
+    });
+  }
+
+  it("as etiquetas que as listas B2B referiam nascem, sem nomes repetidos nem ids partilhados; a chave entra validada; o RLS volta forçado", async () => {
+    const db = await baseAte0036();
+    const A = await comerciante(db, "A");
+    const B = await comerciante(db, "B");
+    // A: duas listas com o mesmo nome, com etiquetas diferentes (o nome da
+    // lista não é único), e uma com um nome longo; a mesma etiqueta em duas
+    // listas. B: uma lista com o mesmo id de etiqueta que A (a 0017 não lhe
+    // dava dono). Revisão do #234, P1-2.
+    const longo = "R".repeat(100);
+    const l1 = await listaB2B(
+      db,
+      A.c,
+      A.loja,
+      "PT",
+      "Revendedores",
+      ETIQUETA_1,
+    );
+    await listaB2B(db, A.c, A.loja, "ES", "Revendedores", ETIQUETA_2);
+    await listaB2B(db, A.c, A.loja, "FR", longo, ETIQUETA_1);
+    const lb = await listaB2B(
+      db,
+      B.c,
+      B.loja,
+      "PT",
+      "Revendedores",
+      ETIQUETA_1,
+    );
 
     const { results } = await migrar(
       db as Kysely<unknown>,
@@ -145,28 +189,51 @@ describe.skipIf(URL_BASE === undefined)("migração 0037 sobre dados", () => {
       ["0037_clientes", "Success"],
     ]);
 
-    const etiquetas = await db.transaction().execute(async (trx) => {
-      await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
-        trx,
-      );
-      return trx
+    const deA = await noComerciante(db, A.c, (trx) =>
+      trx
         .selectFrom("etiqueta_cliente")
         .select(["id", "nome", "estado"])
         .orderBy("id")
-        .execute();
-    });
-    expect(etiquetas).toEqual([
+        .execute(),
+    );
+    expect(deA).toEqual([
       {
         id: ETIQUETA_1,
-        nome: "Etiqueta da lista «Pro PT 1» (0037)",
+        nome: `Etiqueta ${ETIQUETA_1} (da lista «Revendedores», 0037)`,
         estado: "activa",
       },
       {
         id: ETIQUETA_2,
-        nome: "Etiqueta da lista «Pro PT 2» (0037)",
+        nome: `Etiqueta ${ETIQUETA_2} (da lista «Revendedores», 0037)`,
         estado: "activa",
       },
     ]);
+    const deB = await noComerciante(db, B.c, async (trx) => ({
+      etiquetas: await trx
+        .selectFrom("etiqueta_cliente")
+        .select(["id", "nome"])
+        .execute(),
+      lista: await trx
+        .selectFrom("lista_precos")
+        .select(["etiqueta_id", "versao"])
+        .where("id", "=", lb)
+        .executeTakeFirstOrThrow(),
+    }));
+    // B fica com uma etiqueta nova, e a lista dele aponta para ela.
+    expect(deB.etiquetas).toHaveLength(1);
+    const nova = deB.etiquetas[0]?.id;
+    expect(nova).not.toBe(ETIQUETA_1);
+    expect(deB.lista).toEqual({ etiqueta_id: nova, versao: 1 });
+    // A lista de A continua com a etiqueta que tinha.
+    const listaA = await noComerciante(db, A.c, (trx) =>
+      trx
+        .selectFrom("lista_precos")
+        .select("etiqueta_id")
+        .where("id", "=", l1)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(listaA.etiqueta_id).toBe(ETIQUETA_1);
+
     const { rows: chave } = await sql<{ validada: boolean }>`
       select convalidated as validada from pg_constraint
       where conname = 'lista_precos_da_etiqueta'`.execute(db);
@@ -177,5 +244,10 @@ describe.skipIf(URL_BASE === undefined)("migração 0037 sobre dados", () => {
       order by relname`.execute(db);
     expect(tabelas.every((t) => t.forcado)).toBe(true);
     expect(tabelas).toHaveLength(4);
+    // O gatilho da lista volta ligado.
+    const { rows: gatilho } = await sql<{ tgenabled: string }>`
+      select tgenabled from pg_trigger
+      where tgname = 'lista_precos_antes_de_gravar'`.execute(db);
+    expect(gatilho).toEqual([{ tgenabled: "O" }]);
   });
 });

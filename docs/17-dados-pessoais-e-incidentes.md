@@ -21,7 +21,7 @@ conta de cada comerciante.
 | # | Tratamento | Papel | Titulares | Dados | Finalidade | Base legal | Onde fica | Prazo |
 |---|---|---|---|---|---|---|---|---|
 | T1 | Registo e verificação do comerciante (Comerciante, `0001_comerciante.sql`) | responsável | o comerciante em nome individual; quem aceita contratos e muda estados | denominação, número fiscal e morada da entidade legal; `aceite_por`; `quem` nas transições; documento da prova de verificação | contratar e verificar quem vende | execução do contrato e obrigação legal — **C** | base PostgreSQL (VPS) e cópias | §3 — **C** |
-| T2 | Dados dos clientes de cada comerciante (encomendas, contas, consentimentos) | subcontratante | clientes dos comerciantes | **ainda não existe** | — | a do comerciante; acordo de tratamento (`aceitacao_contrato`, tipo `acordo_tratamento_dados`) | — | entra com cada domínio |
+| T2 | Dados dos clientes de cada comerciante (fichas e perfis de faturação desde a 0037; encomendas, contas e consentimentos quando entrarem) | subcontratante | clientes dos comerciantes | nome, e-mails, telefones, língua, país; nos perfis, nome no documento, NIF (como escrito e o número), país do contribuinte, morada fiscal; etiquetas; a linha do tempo (`alteracao_cliente`) com o antes e o depois destes campos; as respostas guardadas da idempotência (24 h, `0012`) | a do comerciante (vender e faturar) | a do comerciante; acordo de tratamento (`aceitacao_contrato`, tipo `acordo_tratamento_dados`) | base PostgreSQL (VPS) e cópias; **nunca** nos registos da aplicação nem nos eventos (a procura vai no corpo, `POST /customers/search`; os eventos levam só identificadores — `docs/23`, R12) | o apagamento do titular pseudonimiza (`docs/23`, R9; parte 2), incluindo a linha do tempo — por fazer; os prazos fora de Portugal **C** |
 | T3 | Acesso dos operadores ao MCP da VPS (ADR-0033) | responsável | o Diogo e o Bruno | número e login da conta do GitHub | autenticar e registar quem pediu cada acção | interesse legítimo (segurança) — **C** | registo do contentor do MCP; registo de acções da máquina e diário do sistema (`logger`, `comum.sh`), só o número (#102); fora do `/var/log/syslog` (`rsyslog-eurolify.conf`). O `medir` e o `estado_do_ensaio` mostram as últimas acções com o número substituído por `<n>` (`eurolify-medir`), por isso a conta não chega ao GitHub Actions nem à Anthropic | §3 |
 | T4 | Registos técnicos da máquina | responsável | os operadores; quem abre o ensaio ou o MCP | endereços IP (SSH, fail2ban, firewall, nginx) | segurança da máquina | interesse legítimo (segurança) — **C** | VPS | 14 dias (ADR-0018, ADR-0027; `journald-eurolify.conf`) |
 | T5 | Cópias da base | o mesmo de T1 e T2 | os mesmos | toda a base, cifrada (`age`) | recuperar depois de uma falha | a dos tratamentos copiados | OVH Object Storage, Paris (ADR-0032) | 14 dias (`eurolify-copia`) |
@@ -125,8 +125,8 @@ o aviso do subcontratante tenha de levar tudo isto é leitura nossa — **C**.
 A notificação pode ir por fases (n.º 4).
 
 **O que falta para o plano funcionar:** o registo de auditoria por comerciante
-(a auditoria, §5) e a resposta a «quantas pessoas?», que só existe quando
-houver dados de clientes (T2).
+(a auditoria, §5) e a resposta a «quantas pessoas?», que a ficha de clientes (T2, desde a
+0037) passa a permitir contar por comerciante.
 
 ## O que não foi verificado
 
