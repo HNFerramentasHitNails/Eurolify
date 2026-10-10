@@ -997,7 +997,7 @@ que foi ignorado):
   se altera por importação: as linhas dele são recusadas com o motivo. A
   ficha dele nasce lá.
 - **A unidade de venda e o conteúdo** de uma variante de um artigo que já
-  não é rascunho não mudam (§7.1, «Alterar uma variante»; migração 0047):
+  não é rascunho não mudam (§7.1, «Alterar uma variante»; migração 0048):
   a linha recusa-se com `catalog.not_draft`, sem mudar nenhum campo dela.
 
 **O que uma célula vazia quer dizer:** ao alterar, **não muda** o campo;
@@ -1317,10 +1317,8 @@ traz as variantes sem os valores. Os `valores` não se repetem (400) e um
 valor que não existe, ou de outro artigo, dá `catalog.not_found`, como
 qualquer referência que não existe (o `detail` diz que é o valor). O GTIN e
 a origem dele vêm juntos, recusados no contrato (400) se vier um sem o
-outro. **Falta**
-`PATCH /variants/{id}`: não há ainda função que altere uma variante, e a
-variante não tem `versao` para a escrita concorrente; desenha-se antes do
-código.
+outro. Alterar uma variante é o `PATCH /variants/{id}`, com a `versao` da
+variante (bloco «Alterar uma variante», abaixo; desde 10/10/2026, #306).
 
 **Alterar uma variante** (desenho de 10/10/2026, issue #301; pedido do
 Diogo: *«sim, avança com o desenho de alterar uma variante»*; **aprovado
@@ -1346,7 +1344,7 @@ pelo Diogo a 10/10/2026**: *«sim, aprovo o desenho, junta o #302»*). Com `cata
 - **Fora do rascunho**, mudar a unidade ou o conteúdo dá `catalog.not_draft`
   (o mesmo código das opções), e a base confirma-o num gatilho (como as
   opções na 0005), para o SQL escrito à mão também não o fazer. Feito na
-  migração 0047 (10/10/2026): o gatilho da variante decide a `versao` (sobe
+  migração 0048 (10/10/2026): o gatilho da variante decide a `versao` (sobe
   uma vez por mudança, só com uma mudança, e nunca toma o valor que quem
   escreve lá puser) e recusa a unidade e o conteúdo fora do rascunho. Vale
   também para a **importação**: uma linha que muda a unidade ou o conteúdo

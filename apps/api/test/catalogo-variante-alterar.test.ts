@@ -1,9 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { sql, type Kysely } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BaseDados } from "../src/base/esquema.js";
-import { alterarVariante, criarArtigo } from "../src/catalogo/repositorio.js";
+import {
+  alterarVariante,
+  criarArtigo,
+  noCatalogo,
+} from "../src/catalogo/repositorio.js";
 import {
   comComerciante,
   criarEntidadeLegal,
@@ -335,11 +340,17 @@ describe.skipIf(URL_BASE === undefined)("alterar uma variante (#301)", () => {
     const arq = await chave(c.segredo, "POST", `${url}/archive`);
     expect(arq.statusCode, arq.body).toBe(200);
     expect(arq.json<Variante>().versao).toBe(2);
-    const depois = await chave(c.segredo, "PATCH", url, {
-      versao: 2,
-      peso_g: 10,
-    });
-    expect(h.codigo(depois)).toBe("catalog.variant_archived_is_final");
+    // Com a versão actual ou com uma antiga: é final, não um conflito
+    // (revisão do #306, P3-1).
+    for (const versao of [2, 1]) {
+      const depois = await chave(c.segredo, "PATCH", url, {
+        versao,
+        peso_g: 10,
+      });
+      expect(h.codigo(depois), String(versao)).toBe(
+        "catalog.variant_archived_is_final",
+      );
+    }
   });
 
   it("o peso de uma variante à venda não se apaga (catalog.published_in_use); muda-se, e uma que não está à venda perde-o", async () => {
@@ -535,17 +546,139 @@ describe.skipIf(URL_BASE === undefined)("alterar uma variante (#301)", () => {
     });
     expect(leitura.statusCode).toBe(403);
     const dono = base.dono as Kysely<BaseDados>;
-    const pelaFuncao = await dono
-      .transaction()
-      .execute((trx) =>
-        alterarVariante(trx, b.id, v.slice("var_".length), 1, { peso_g: 10 }),
-      )
-      .then(
-        () => "sem erro",
-        (e: unknown) => (e as { codigo?: string }).codigo,
-      );
+    const pelaFuncao = await noCatalogo(dono, b.id, (trx) =>
+      alterarVariante(trx, b.id, v.slice("var_".length), 1, { peso_g: 10 }),
+    ).then(
+      () => "sem erro",
+      (e: unknown) => (e as { codigo?: string }).codigo,
+    );
     expect(pelaFuncao).toBe("catalog.not_found");
     expect((await variante(a.segredo, v)).peso_g).toBeNull();
+  });
+
+  /** Um cliente da API com uma transacção aberta, do comerciante dado. */
+  async function transaccaoAberta(comercianteId: string) {
+    const cliente = new pg.Client({ connectionString: base.urlApi });
+    cliente.on("error", () => undefined);
+    await cliente.connect();
+    await cliente.query("begin");
+    await cliente.query("select set_config('eurolify.comerciante', $1, true)", [
+      comercianteId,
+    ]);
+    await cliente.query(
+      "select set_config('eurolify.quem', 'teste:preso', true)",
+    );
+    return cliente;
+  }
+
+  /** Espera até haver um pedido à espera de um bloqueio na base. */
+  async function aEsperaDeBloqueio() {
+    for (let i = 0; i < 100; i++) {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'
+          and query ilike '%"variante"%'`.execute(base.dono);
+      if ((rows[0]?.n ?? 0) > 0) return true;
+      await new Promise((r) => {
+        setTimeout(r, 50);
+      });
+    }
+    return false;
+  }
+
+  it("com a variante presa por outro: a espera acaba em 503 catalog.retry ao fim de 5 s, e nada muda (revisão do #306, P2-1)", async () => {
+    const c = await comerciante("Loja Variante Presa");
+    const f = await artigo(c.segredo);
+    const v = f.variantes[0]?.id ?? "";
+    const cliente = await transaccaoAberta(c.id);
+    try {
+      await cliente.query("select id from variante where id = $1 for update", [
+        v.slice("var_".length),
+      ]);
+      const inicio = Date.now();
+      const r = await chave(c.segredo, "PATCH", `/variants/${v}`, {
+        versao: 1,
+        peso_g: 10,
+      });
+      expect(r.statusCode, r.body).toBe(503);
+      expect(h.codigo(r)).toBe("catalog.retry");
+      expect(r.headers["retry-after"]).toBe("1");
+      expect(Date.now() - inicio).toBeLessThan(8000);
+    } finally {
+      await cliente.query("rollback").catch(() => undefined);
+      await cliente.end();
+    }
+    expect((await variante(c.segredo, v)).peso_g).toBeNull();
+  }, 20_000);
+
+  it("activar e mudar a unidade ao mesmo tempo: quem muda espera pela activação e recebe catalog.not_draft (revisão do #306, P3-3a)", async () => {
+    const c = await comerciante("Loja Variante Corrida Activar");
+    const f = await artigo(c.segredo);
+    const cl = await chave(
+      c.segredo,
+      "PUT",
+      `/products/${f.id}/classification`,
+      {
+        versao: f.versao,
+        familias: ["retalho_geral"],
+        natureza_consumidor: "bem",
+      },
+    );
+    expect(cl.statusCode, cl.body).toBe(200);
+    const v = f.variantes[0]?.id ?? "";
+    const cliente = await transaccaoAberta(c.id);
+    try {
+      // A activação a meio: o artigo já activo e as variantes em FOR SHARE.
+      await cliente.query("update artigo set estado = 'activo' where id = $1", [
+        f.id.slice("prd_".length),
+      ]);
+      const mudar = chave(c.segredo, "PATCH", `/variants/${v}`, {
+        versao: 1,
+        unidade_de_venda: "par",
+      });
+      expect(await aEsperaDeBloqueio()).toBe(true);
+      await cliente.query("commit");
+      const r = await mudar;
+      expect(r.statusCode, r.body).toBe(409);
+      expect(h.codigo(r)).toBe("catalog.not_draft");
+    } finally {
+      await cliente.query("rollback").catch(() => undefined);
+      await cliente.end();
+    }
+    expect((await variante(c.segredo, v)).unidade_de_venda).toBe("unidade");
+    expect(
+      (await chave(c.segredo, "GET", `/products/${f.id}`)).json<Ficha>().estado,
+    ).toBe("activo");
+  }, 20_000);
+
+  it("fora do rascunho, a mesma unidade e o mesmo conteúdo passam sem mudar a versão; num artigo arquivado, outra unidade dá catalog.not_draft (P3-3c, e)", async () => {
+    const c = await comerciante("Loja Variante Mesmos Valores");
+    const f = await artigo(c.segredo, true);
+    const v = f.variantes[0];
+    const url = `/variants/${v?.id ?? ""}`;
+    const igual = await chave(c.segredo, "PATCH", url, {
+      versao: 1,
+      unidade_de_venda: "unidade",
+      conteudo_quantidade: null,
+      conteudo_unidade: null,
+      peso_g: null,
+    });
+    expect(igual.statusCode, igual.body).toBe(200);
+    expect(igual.json<Variante>().versao).toBe(1);
+    const arq = await chave(c.segredo, "POST", `/products/${f.id}/archive`, {
+      versao: f.versao,
+    });
+    expect(arq.statusCode, arq.body).toBe(200);
+    const r = await chave(c.segredo, "PATCH", url, {
+      versao: 1,
+      unidade_de_venda: "par",
+    });
+    expect(h.codigo(r)).toBe("catalog.not_draft");
+    const peso = await chave(c.segredo, "PATCH", url, {
+      versao: 1,
+      peso_g: 12,
+    });
+    expect(peso.statusCode, peso.body).toBe(200);
   });
 
   it("a linha do tempo tem a mudança com quem fez", async () => {
@@ -665,19 +798,19 @@ describe.skipIf(URL_BASE === undefined)("alterar uma variante (#301)", () => {
     expect(pelaChave.statusCode, pelaChave.body).toBe(200);
   });
 
-  it("a migração 0047 sobre variantes que já existiam: ficam na versão 1, e uma mudança sobe-a", async () => {
+  it("a migração 0048 sobre variantes que já existiam: ficam na versão 1, e uma mudança sobe-a", async () => {
     const c = await comerciante("Loja Variante Migracao");
     const f = await artigo(c.segredo);
     const id = (f.variantes[0]?.id ?? "").slice("var_".length);
     const ficheiro = readFileSync(
       new URL(
-        "../migracoes/0047_catalogo_versao_da_variante.sql",
+        "../migracoes/0048_catalogo_versao_da_variante.sql",
         import.meta.url,
       ),
       "utf8",
     );
     const dono = base.dono as Kysely<BaseDados>;
-    // Como antes da 0047 (sem a coluna), com a variante já lá; corre o
+    // Como antes da 0048 (sem a coluna), com a variante já lá; corre o
     // ficheiro; desfaz-se tudo no fim.
     const desfazer = new Error("desfazer");
     const visto = await dono
