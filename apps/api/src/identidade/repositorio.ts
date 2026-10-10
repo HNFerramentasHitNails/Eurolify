@@ -24,6 +24,8 @@ export interface ContextoChave {
   tipo: TipoChave;
   ambitos: Ambito[];
   prefixo: string;
+  /** Chave de um agente de IA (0057; docs/28 §3.3): o rasto marca a IA «declarado». */
+  agenteIa: boolean;
   /**
    * O segredo apresentado: a base calcula o resumo e encontra por ele quem
    * pede ao criar ou revogar (0012; revisão do #118, P2-2). Nunca vai para a
@@ -49,6 +51,7 @@ export async function resolverChave(
     tipo: TipoChave;
     ambitos: Ambito[];
     prefixo: string;
+    agente_ia: boolean;
   }>`select * from chave_resolver(${resumo})`.execute(db);
   const linha = rows[0];
   if (linha === undefined) return null;
@@ -59,6 +62,7 @@ export async function resolverChave(
     tipo: linha.tipo,
     ambitos: linha.ambitos,
     prefixo: linha.prefixo,
+    agenteIa: linha.agente_ia,
     segredo,
   };
 }
@@ -76,6 +80,7 @@ export interface ChaveListada {
   revogada_em: Date | null;
   revogada_por: string | null;
   ultimo_uso_em: Date | null;
+  agente_ia: boolean;
 }
 
 export function listarChaves(
@@ -200,6 +205,11 @@ const ERROS_DAS_CHAVES = {
     pt: "Uma chave com prazo não cria outra sem prazo nem que dure mais do que ela",
     en: "A key with an expiry cannot create one without expiry or expiring later",
   },
+  "key.agent_not_server": {
+    status: 422,
+    pt: "Só uma chave de servidor pode ser de um agente de IA",
+    en: "Only a server key can belong to an AI agent",
+  },
   "key.store_archived": {
     status: 422,
     pt: "A loja está arquivada; não se criam chaves para ela",
@@ -262,6 +272,11 @@ export interface PedidoDeChave {
   /** Na pública, a base põe a lista fixa (`storefront`). */
   ambitos: Ambito[];
   expiraEm: Date | null;
+  /**
+   * Chave de um agente de IA (0057). Pela API, a chave de um agente só cria
+   * chaves de um agente: a base põe a marca mesmo com falso.
+   */
+  agenteIa: boolean;
 }
 
 /**
@@ -280,7 +295,7 @@ export function criarChavePelaApi(
       select chave_criar_pela_api(${segredoQuem}, ${dados.tipo},
         ${dados.lojaId}::uuid, ${dados.nome}, ${dados.ambitos}::text[],
         ${nova.prefixo}, ${nova.resumo},
-        ${dados.expiraEm}::timestamptz) as id`.execute(trx);
+        ${dados.expiraEm}::timestamptz, ${dados.agenteIa}) as id`.execute(trx);
     const id = rows[0]?.id;
     if (id === undefined) throw new Error("a base não devolveu a chave criada");
     return { chave: await chaveDoContexto(trx, id), segredo: nova.segredo };
@@ -339,7 +354,7 @@ export function criarChavePelaSessao(
       select chave_criar_pela_sessao(${segredoSessao}, ${dados.tipo},
         ${dados.lojaId}::uuid, ${dados.nome}, ${dados.ambitos}::text[],
         ${nova.prefixo}, ${nova.resumo},
-        ${dados.expiraEm}::timestamptz) as id`.execute(trx);
+        ${dados.expiraEm}::timestamptz, ${dados.agenteIa}) as id`.execute(trx);
     const id = rows[0]?.id;
     if (id === undefined) throw new Error("a base não devolveu a chave criada");
     return { chave: await chaveDoContexto(trx, id), segredo: nova.segredo };

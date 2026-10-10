@@ -145,6 +145,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0053_rasto_colunas",
         "0054_rasto_sensiveis",
         "0055_clientes_anexos_da_isencao",
+        "0057_chave_de_agente_de_ia",
       ]);
     });
 

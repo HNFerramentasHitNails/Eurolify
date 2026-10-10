@@ -90,6 +90,12 @@ export function rotasDasChavesDoHub(
           "`loja` é obrigatória na chave pública e proibida na de servidor",
         );
       }
+      if (publica && corpo.agente_ia === true) {
+        throw erroBase(
+          "request.invalid",
+          "só uma chave de servidor pode ser de um agente de IA",
+        );
+      }
       const expiraEm =
         corpo.expira_em === undefined ? null : new Date(corpo.expira_em);
       if (expiraEm !== null && Number.isNaN(expiraEm.getTime())) {
@@ -108,6 +114,7 @@ export function rotasDasChavesDoHub(
             nome: corpo.nome,
             ambitos,
             expiraEm,
+            agenteIa: corpo.agente_ia === true,
           }),
       );
       void resposta.header("cache-control", "no-store").code(201);
