@@ -1,3 +1,7 @@
+import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
+import { chavePagamentos } from "./pagamentos/cifra.js";
+import { adaptadorEuPago } from "./pagamentos/eupago.js";
+import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
 import { randomUUID } from "node:crypto";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
@@ -69,6 +73,21 @@ const vies =
     ? undefined
     : consultaVies(textoVies);
 
+// Os pagamentos (docs/26 Q3): a chave que cifra as credenciais das contas.
+// Sem ela, pagar e ligar contas dá 503. A EuPago só em modo teste (0042).
+const textoChavePagamentos = process.env["PAGAMENTOS_CHAVE"]?.trim();
+const pagamentos: ConfigPagamentos = {
+  adaptadores: { eupago: adaptadorEuPago() },
+  ...(textoChavePagamentos === undefined || textoChavePagamentos === ""
+    ? {}
+    : {
+        chave: chavePagamentos(
+          textoChavePagamentos,
+          process.env["PAGAMENTOS_CHAVE_VERSAO"]?.trim() || "1",
+        ),
+      }),
+};
+
 const app = criarApp(
   {
     // Um identificador por pedido que não recomeça a cada arranque: é o
@@ -85,6 +104,8 @@ const app = criarApp(
   hub,
   armazenamento,
   vies,
+  undefined,
+  pagamentos,
 );
 
 // Os ficheiros de imagem sem uso há mais de 7 dias saem uma vez por dia
@@ -100,10 +121,18 @@ const pararVies =
     ? agendarFilaVies(base, vies, app.log)
     : () => undefined;
 
+// As tarefas dos pagamentos (docs/26 §5, passo 7, e Q6), de minuto a minuto:
+// os pendentes que passaram do prazo e as encomendas por pagar há 24 h.
+const pararPagamentos =
+  base !== undefined && pagamentos.chave !== undefined
+    ? agendarTarefasPagamentos(base, pagamentos, app.log)
+    : () => undefined;
+
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
     pararLimpeza();
     pararVies();
+    pararPagamentos();
     app.log.info({ sinal }, "a fechar");
     app
       .close()
