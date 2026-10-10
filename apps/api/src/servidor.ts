@@ -92,7 +92,7 @@ const pagamentos: ConfigPagamentos = {
       }),
 };
 
-// Os documentos fiscais (docs/28 Q5): nesta parte só o adaptador de ensaio
+// Os documentos fiscais (docs/29 Q5): nesta parte só o adaptador de ensaio
 // existe e não está ligado no servidor — nenhum documento sai. A chave cifra
 // as credenciais das ligações (FATURACAO_CHAVE), como a dos pagamentos.
 const textoChaveFaturacao = process.env["FATURACAO_CHAVE"]?.trim();
@@ -158,7 +158,7 @@ const pararPagamentos =
       )
     : () => undefined;
 
-// Os pedidos de documento, de minuto a minuto (docs/28, R11).
+// Os pedidos de documento, de minuto a minuto (docs/29, R11).
 const pararDocumentos =
   base !== undefined && faturacao.chave !== undefined
     ? agendarDocumentos(base, faturacao, app.log)

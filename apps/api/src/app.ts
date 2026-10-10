@@ -115,7 +115,7 @@ export function criarApp(
    */
   pagamentos?: ConfigPagamentos,
   /**
-   * Os adaptadores de faturação e a chave das credenciais (docs/28); sem
+   * Os adaptadores de faturação e a chave das credenciais (docs/29); sem
    * eles, ligar o emissor dá 503 `invoices.not_configured`.
    */
   faturacao?: ConfigFaturacao,

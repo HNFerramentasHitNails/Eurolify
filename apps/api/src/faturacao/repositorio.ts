@@ -21,7 +21,7 @@ import {
 } from "./adaptador.js";
 import { ErroDocumentos, traduzir } from "./erros.js";
 
-// Os documentos fiscais (docs/28; migração 0050; issue #310; Diogo,
+// Os documentos fiscais (docs/29; migração 0050; issue #310; Diogo,
 // 10/10/2026: «sim, aprovo; avança com o código da fatia 10»).
 //
 // 🔴 Na dúvida, retém. O documento nasce da cópia da encomenda (nunca de um
@@ -34,7 +34,7 @@ import { ErroDocumentos, traduzir } from "./erros.js";
 
 export const QUEM_DA_TAREFA = "sistema:documentos";
 
-/** Os motivos de retenção (docs/28 §5, R3): lista fechada. */
+/** Os motivos de retenção (docs/29 §5, R3): lista fechada. */
 export const MOTIVOS_RETENCAO = [
   "emissor_por_configurar",
   "ligacao_sem_teste",
@@ -167,7 +167,7 @@ export async function criarLigacao(
 ) {
   return noDocumentos(trx, c, async () => {
     if (dados.adaptador === "moloni") {
-      // O Moloni é a parte 2 (docs/28 Q5): sem a documentação lida, não há
+      // O Moloni é a parte 2 (docs/29 Q5): sem a documentação lida, não há
       // adaptador.
       throw new ErroDocumentos(
         "invoices.not_configured",

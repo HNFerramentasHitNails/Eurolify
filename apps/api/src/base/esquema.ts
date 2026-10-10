@@ -1433,7 +1433,7 @@ export interface BaseDados {
   documento_rasto: TabelaDocumentoRasto;
 }
 
-// Documentos fiscais (migração 0050; docs/28).
+// Documentos fiscais (migração 0050; docs/29).
 
 export const EMISSORES_FISCAIS = [
   "por_configurar",

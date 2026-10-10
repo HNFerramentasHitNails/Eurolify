@@ -10,7 +10,7 @@ import {
 } from "../src/faturacao/repositorio.js";
 
 // As verificações do conteúdo e a comparação com o emissor, ramo a ramo
-// (docs/28 §5, R3, R6 e R7), sem base: os casos que um checkout normal não
+// (docs/29 §5, R3, R6 e R7), sem base: os casos que um checkout normal não
 // produz (isenção sem prova, moeda, totais que não batem).
 
 const linha = (o: Partial<LinhaDoConteudo> = {}): LinhaDoConteudo => ({
