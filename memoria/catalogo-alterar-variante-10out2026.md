@@ -1,0 +1,43 @@
+# Alterar uma variante, pela API (#301, #302, #306) — 10/10/2026
+
+## O que se fez
+
+- Desenho no `docs/14` §7.1 («Alterar uma variante») e no `docs/22` §23
+  (#302, squash `bcc86ce`), aprovado pelo Diogo a 10/10/2026: *«sim, aprovo o
+  desenho, junta o #302»*, com a unidade de venda e o conteúdo só no
+  rascunho.
+- API (#306, squash `49dca9d`), no ensaio a 10/10/2026 às 13:50 UTC (a rota
+  nova passou de 404 a 403 sem sessão no hub.eurolify.eu):
+  - `PATCH /variants/{id}` (chave, `catalog:write`, `Idempotency-Key`) e
+    `PATCH /hub/variants/{id}` (dono e gestor); `catalog.external_field`
+    pelo Hub num artigo do sistema de gestão.
+  - Migração `0048_catalogo_versao_da_variante` (era 0047; o #296 usou o
+    número com o stock): `variante.versao`, decidida pelo gatilho (sobe uma
+    vez por mudança, só com mudança); fora do rascunho, a unidade e o
+    conteúdo dão `catalog.not_draft`, também na importação e no SQL à mão.
+  - O GTIN e a origem mudam juntos (400 se vier um sem o outro).
+  - A função da importação passou a `gravarCamposDaVariante`.
+  - Revisão do agente (Opus 5.5) publicada no #306: 0 P0, 1 P1 (número da
+    migração), 1 P2 (sem `noCatalogo`, sem prazo de espera), 4 P3; todos
+    corrigidos, com prova pela falha.
+- **Mudança de comportamento:** uma linha de importação que muda a unidade ou
+  o conteúdo de uma variante de um artigo activo ou arquivado passa a ser
+  recusada com `catalog.not_draft` (antes entrava).
+
+## Números (com data e como se contaram)
+
+- 10/10/2026, API: `catalogo-variante-alterar.test.ts` 16/16 e 2 novos em
+  `importacao.test.ts`; bateria inteira 1169/1169 em 68 ficheiros (vitest,
+  PostgreSQL 18 local), depois da junção com o #296, o #298 e o #308.
+- Provas pela falha (cada protecção tirada à vez): regra do rascunho na
+  migração (3 testes falham), conferência da versão (3), recusa do externo no
+  Hub (1), filtro do comerciante (1), versão decidida pelo gatilho (1),
+  `noCatalogo` (1, fica à espera até ao limite), arquivada antes da versão (1).
+
+## O que ficou por verificar
+
+- O ecrã do Hub para editar a variante (`docs/22` §23.2) ainda não existe.
+- No ensaio só se confirmou que a rota existe (403 sem sessão); não se
+  alterou uma variante real lá.
+- Se alguém usa a importação para mudar unidades de artigos activos: não
+  verifiquei (não há clientes reais no ensaio).
