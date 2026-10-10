@@ -22,7 +22,7 @@ export type PedidoOperador =
       lingua: string;
       fuso: string;
       nome: string;
-      /** `github-run:<número>`, a chave da repetição na base (0043). */
+      /** `github-run:<número>`, a chave da repetição na base (0044). */
       pedido: string;
       quem: string;
     }

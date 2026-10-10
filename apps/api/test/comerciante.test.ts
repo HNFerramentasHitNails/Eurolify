@@ -132,7 +132,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0040_motor_de_iva",
         "0041_checkout",
         "0042_clientes_consentimentos",
-        "0043_operador_papel_minimo",
+        "0043_catalogo_versao_da_opcao",
+        "0044_operador_papel_minimo",
       ]);
     });
 
@@ -194,7 +195,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // Os tokens do checkout alojado (0041): escreve-os o gatilho, lê-os
           // a checkout_resolver.
           "token_checkout",
-          // Os pedidos do operador (0043): só a função do dono lhes toca.
+          // Os pedidos do operador (0044): só a função do dono lhes toca.
           "pedido_do_operador",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os

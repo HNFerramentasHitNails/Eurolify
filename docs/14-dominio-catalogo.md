@@ -1358,9 +1358,9 @@ cada transacção); as rotas novas só as usam, sem as repetir. Todas com
 |---|---|---|---|
 | `PATCH /options/{id}` | `nome`, `versao` | só num rascunho | `catalog.not_draft`; nome repetido no artigo `catalog.option_duplicate` (409); `catalog.version_conflict` |
 | `PATCH /options/{id}/values/{valor}` | `valor`, `versao` (a da opção) | só num rascunho | `catalog.not_draft`; `catalog.option_value_duplicate`; `catalog.version_conflict` |
-| `DELETE /options/{id}?versao=` | — | só num rascunho; tira o valor dessa opção a todas as variantes | `catalog.not_draft`; duas variantes activas ficavam com a mesma combinação: `catalog.option_combination_duplicate` (o código que a verificação da 0005 já dá) |
+| `DELETE /options/{id}?versao=` | — | só num rascunho; tira o valor dessa opção a todas as variantes | `catalog.not_draft`; `catalog.version_conflict`; duas variantes activas ficavam com a mesma combinação: `catalog.option_combination_duplicate` (o código que a verificação da 0005 já dá) |
 | `DELETE /options/{id}/values/{valor}?versao=` | — | só num rascunho; as variantes que o tinham ficam sem valor nessa opção (o rascunho pode ficar incompleto, §3.3) | `catalog.not_draft`; `catalog.version_conflict` |
-| `PUT /products/{id}/options/order` | `opcoes`: todos os `opt_…` do artigo, pela ordem nova | sempre (a ordem muda sempre, §3.3) | a lista não é exactamente a das opções do artigo (falta uma, sobra uma, repetida): `catalog.order_mismatch` (409), nada se grava |
+| `PUT /products/{id}/options/order` | `opcoes`: todos os `opt_…` do artigo, pela ordem nova | sempre (a ordem muda sempre, §3.3) | a lista não é exactamente a das opções do artigo (falta uma, sobra uma): `catalog.order_mismatch` (409), nada se grava; um id repetido no pedido dá 400, como os valores repetidos ao criar |
 | `PUT /options/{id}/values/order` | `valores`: todos os `ovl_…` da opção, pela ordem nova; `versao` | sempre | `catalog.order_mismatch`; `catalog.version_conflict` |
 | `PUT /variants/{id}/values` | `valores`: um `ovl_…` por opção, ou menos (num rascunho pode ficar incompleta) | só num rascunho (depois de vendida, a variante não muda de identidade, §3.3) | `catalog.not_draft`; dois valores da mesma opção, ou um valor de outro artigo: 400 e `catalog.not_found`, como no `POST /products/{id}/variants` |
 
@@ -1371,10 +1371,13 @@ cada transacção); as rotas novas só as usam, sem as repetir. Todas com
   ninguém saber. A opção passa a sair com a `versao` em
   `GET /products/{id}/options`, `GET /options/{id}` e nas respostas das
   escritas, e o `POST /options/{id}/values` passa a aceitá-la (opcional, para
-  não partir quem já a usa). A ordem das opções não precisa dela: a lista
+  não partir quem já a usa). A opção nasce na versão 1 com os valores com que
+  é criada (os da mesma transacção não a sobem; migração 0043). A ordem das opções não precisa dela: a lista
   tem de ser exactamente a de agora, e isso já apanha uma opção criada ou
   apagada entretanto; entre duas ordens ao mesmo tempo, fica a última, como
-  na composição dos kits.
+  na composição dos kits. A versão sobe uma vez por linha mudada (reordenar
+  três valores em que dois mudam de lugar sobe-a duas vezes): quem escreve
+  usa a `versao` da resposta.
 - **Cada escrita devolve** a opção inteira (com os valores), a lista das
   opções do artigo (a ordem) ou a variante com os valores (`VarianteCompleta`).
 - **Rasto**: as mudanças já ficam na linha do tempo do artigo pelos gatilhos

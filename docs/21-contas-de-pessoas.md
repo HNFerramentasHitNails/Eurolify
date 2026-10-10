@@ -477,9 +477,10 @@ quiser (proposta).
   nada. A cadeia da §4.4 revoga só as chaves de servidor.
 - **Recuperar ou «terminar todas» não fecha as chaves** que a pessoa criou
   (P2-1): uma sessão roubada nos 10 minutos depois de entrar pode criar uma
-  chave que fica. Por fazer: o aviso do Hub depois de uma recuperação (§7)
-  lista as chaves que a pessoa criou e propõe revogá-las. Revogá-las sozinho
-  seria decisão do Diogo ou do Bruno.
+  chave que fica. O aviso do Hub depois de uma recuperação (§7) lista as
+  chaves que a pessoa criou e **propõe** revogá-las; **não as revoga
+  sozinho** (Diogo, 10/10/2026: *«só propor, não revogar sozinho»*;
+  `docs/06`, DC). O aviso está por programar (#107).
 
 **Condição para ligar o Hub** (revisões do #142, P2-2, e do #144, P2-3): a
 `HUB_ORIGEM` só se define num ambiente depois de (1) a B3b, (2) a B4 — sem

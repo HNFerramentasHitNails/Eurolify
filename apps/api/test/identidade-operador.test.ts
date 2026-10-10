@@ -243,7 +243,7 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
       END IF;
     EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
     END $$`);
-    // O papel do operador (0043), como o preparar.sh o cria na VPS: antes
+    // O papel do operador (0044), como o preparar.sh o cria na VPS: antes
     // das migrações, que lhe dão o EXECUTE nas três portas.
     await admin.query(`DO $$ BEGIN
       IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_operador') THEN
@@ -314,7 +314,7 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
     expect(r.rows).toEqual([{ super: false, bypass: false }]);
   });
 
-  /** Corre o comando como na VPS: `node dist/operador.js`, com a ligação do papel do operador (0043). */
+  /** Corre o comando como na VPS: `node dist/operador.js`, com a ligação do papel do operador (0044). */
   async function operador(pedido: string) {
     try {
       const { stdout, stderr } = await correr(

@@ -625,7 +625,7 @@ else
     [[ "$(pg_valor "SELECT count(*) FROM pg_authid WHERE rolname = 'eurolify_limpeza' AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolpassword IS NOT NULL)")" == 0 ]] ||
       aviso "o eurolify_limpeza tem superutilizador, CREATEROLE, CREATEDB ou palavra-passe: devia entrar só pelo contentor e só tocar na idempotência e nas funções dos prazos"
   fi
-  # O papel do comando do operador (migração 0043; revisão do #110, P3-8;
+  # O papel do comando do operador (migração 0044; revisão do #110, P3-8;
   # #107): entra com palavra-passe pela rede, como a API, mas só chama as três
   # portas do operador (criar um comerciante, uma chave de servidor e o
   # convite do primeiro dono). Antes, o comando corria com o dono das tabelas

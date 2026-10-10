@@ -38,6 +38,16 @@ import {
   noCatalogoApi,
   NovaVariante,
   OpcaoEsquema,
+  ESCRITAS_DAS_OPCOES,
+  ParametroOpcao,
+  ParametroValorDaOpcao,
+  PedidoAcrescentarValor,
+  PedidoCriarOpcao,
+  PedidoMudarNomeDaOpcao,
+  PedidoMudarTextoDoValor,
+  PedidoOrdemDasOpcoes,
+  PedidoOrdemDosValores,
+  PedidoValoresDaVariante,
   opcoesDeArtigoComVariantes,
   ParametroArtigo,
   ParametroVariante,
@@ -510,6 +520,258 @@ export function rotasDoCatalogoNoHub(
         return arquivoDaVariante(trx, comercianteId, pedido.params.id);
       }),
   );
+
+  // A escrita das opções pelo Hub (docs/22 §21.2; issue #285): as mesmas
+  // operações das rotas pela chave, com a sessão de quem tem catalog:write;
+  // num artigo externo, catalog.external_field (§13.3). Apagar leva a
+  // `versao` no corpo: as escritas do Hub são JSON.
+  const CorpoVersao = Type.Object(
+    { versao: Type.Integer({ minimum: 1 }) },
+    { additionalProperties: false },
+  );
+
+  rotas.post(
+    "/hub/products/:id/options",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Cria uma opção com os valores pelo Hub, como o POST /products/{id}/options (docs/22 §21.2).",
+        params: ParametroArtigo,
+        body: PedidoCriarOpcao,
+        response: { 201: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const opcao = await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId) => {
+          await recusarArtigoExterno(trx, semPrefixo(pedido.params.id));
+          return ESCRITAS_DAS_OPCOES.criar(
+            trx,
+            comercianteId,
+            pedido.params.id,
+            pedido.body,
+          );
+        },
+      );
+      void resposta.code(201);
+      return opcao;
+    },
+  );
+
+  rotas.post(
+    "/hub/options/:id/values",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Acrescenta um valor no fim pelo Hub, como o POST /options/{id}/values (docs/22 §21.2).",
+        params: ParametroOpcao,
+        body: PedidoAcrescentarValor,
+        response: { 201: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const opcao = await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId) => {
+          await recusarOpcaoExterna(trx, semPrefixo(pedido.params.id));
+          return ESCRITAS_DAS_OPCOES.acrescentarValor(
+            trx,
+            comercianteId,
+            pedido.params.id,
+            pedido.body,
+          );
+        },
+      );
+      void resposta.code(201);
+      return opcao;
+    },
+  );
+
+  rotas.patch(
+    "/hub/options/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Muda o nome da opção pelo Hub, como o PATCH /options/{id} (docs/22 §21.2).",
+        params: ParametroOpcao,
+        body: PedidoMudarNomeDaOpcao,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarOpcaoExterna(trx, semPrefixo(pedido.params.id));
+        return ESCRITAS_DAS_OPCOES.mudarNome(
+          trx,
+          comercianteId,
+          pedido.params.id,
+          pedido.body,
+        );
+      }),
+  );
+
+  rotas.patch(
+    "/hub/options/:id/values/:valor",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Muda o texto de um valor pelo Hub, como o PATCH /options/{id}/values/{valor} (docs/22 §21.2).",
+        params: ParametroValorDaOpcao,
+        body: PedidoMudarTextoDoValor,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarOpcaoExterna(trx, semPrefixo(pedido.params.id));
+        return ESCRITAS_DAS_OPCOES.mudarValor(
+          trx,
+          comercianteId,
+          pedido.params,
+          pedido.body,
+        );
+      }),
+  );
+
+  rotas.delete(
+    "/hub/options/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Apaga a opção pelo Hub, como o DELETE /options/{id}, com a `versao` no corpo (docs/22 §21.2).",
+        params: ParametroOpcao,
+        body: CorpoVersao,
+        response: {
+          204: Type.Null({ description: "Apagada; sem corpo" }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId) => {
+          await recusarOpcaoExterna(trx, semPrefixo(pedido.params.id));
+          return ESCRITAS_DAS_OPCOES.apagarOpcao(
+            trx,
+            comercianteId,
+            pedido.params.id,
+            pedido.body.versao,
+          );
+        },
+      );
+      void resposta.code(204);
+      return null;
+    },
+  );
+
+  rotas.delete(
+    "/hub/options/:id/values/:valor",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Apaga um valor pelo Hub, como o DELETE /options/{id}/values/{valor}, com a `versao` no corpo (docs/22 §21.2).",
+        params: ParametroValorDaOpcao,
+        body: CorpoVersao,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarOpcaoExterna(trx, semPrefixo(pedido.params.id));
+        return ESCRITAS_DAS_OPCOES.apagarValor(
+          trx,
+          comercianteId,
+          pedido.params,
+          pedido.body.versao,
+        );
+      }),
+  );
+
+  rotas.put(
+    "/hub/products/:id/options/order",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Põe as opções do artigo pela ordem dada pelo Hub, como o PUT /products/{id}/options/order (docs/22 §21.2).",
+        params: ParametroArtigo,
+        body: PedidoOrdemDasOpcoes,
+        response: { 200: Lista(OpcaoEsquema), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarArtigoExterno(trx, semPrefixo(pedido.params.id));
+        return ESCRITAS_DAS_OPCOES.ordenarOpcoes(
+          trx,
+          comercianteId,
+          pedido.params.id,
+          pedido.body,
+        );
+      }),
+  );
+
+  rotas.put(
+    "/hub/options/:id/values/order",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Põe os valores da opção pela ordem dada pelo Hub, como o PUT /options/{id}/values/order (docs/22 §21.2).",
+        params: ParametroOpcao,
+        body: PedidoOrdemDosValores,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarOpcaoExterna(trx, semPrefixo(pedido.params.id));
+        return ESCRITAS_DAS_OPCOES.ordenarValores(
+          trx,
+          comercianteId,
+          pedido.params.id,
+          pedido.body,
+        );
+      }),
+  );
+
+  rotas.put(
+    "/hub/variants/:id/values",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Dá à variante os valores das opções pelo Hub, como o PUT /variants/{id}/values (docs/22 §21.2).",
+        params: ParametroVariante,
+        body: PedidoValoresDaVariante,
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarVarianteExterna(trx, semPrefixo(pedido.params.id));
+        return ESCRITAS_DAS_OPCOES.valoresDaVariante(
+          trx,
+          comercianteId,
+          pedido.params.id,
+          pedido.body,
+        );
+      }),
+  );
 }
 
 /**
@@ -790,6 +1052,27 @@ async function recusarArtigoExterno(
     .select("origem")
     .where("id", "=", artigoId)
     .forShare()
+    .executeTakeFirst();
+  if (linha?.origem === "externo") {
+    throw new ErroCatalogo("catalog.external_field", ARTIGO_EXTERNO);
+  }
+}
+
+/** O mesmo, para uma opção: conta a origem do artigo dela (§21.2). */
+async function recusarOpcaoExterna(
+  trx: Transaction<BaseDados>,
+  opcaoId: string,
+): Promise<void> {
+  const linha = await trx
+    .selectFrom("opcao")
+    .innerJoin("artigo", (j) =>
+      j
+        .onRef("artigo.comerciante_id", "=", "opcao.comerciante_id")
+        .onRef("artigo.id", "=", "opcao.artigo_id"),
+    )
+    .select("artigo.origem")
+    .where("opcao.id", "=", opcaoId)
+    .forShare("artigo")
     .executeTakeFirst();
   if (linha?.origem === "externo") {
     throw new ErroCatalogo("catalog.external_field", ARTIGO_EXTERNO);
