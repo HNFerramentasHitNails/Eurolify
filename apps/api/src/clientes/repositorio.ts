@@ -48,6 +48,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.consent_confirmation_required",
   "customers.confirmation_channel",
   "customers.confirmation_invalid",
+  "customers.confirmation_rate_limited",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -1041,6 +1042,8 @@ export type ResultadoConsentimento =
       id: string;
       /** Só nesta resposta; a base guarda o resumo (0051). */
       segredo: string;
+      /** O contacto como a base o compara (o e-mail em minúsculas). */
+      contacto: string;
       expira_em: Date;
     };
 
@@ -1087,8 +1090,12 @@ export async function registarConsentimento(
       }
       await sql`rollback to savepoint antes_da_declaracao`.execute(trx);
       const segredo = segredoDaConfirmacao(dados.canal);
-      const { rows } = await sql<{ id: string; expira_em: Date }>`
-        select id, expira_em from consentimento_pedir_confirmacao(
+      const { rows } = await sql<{
+        id: string;
+        expira_em: Date;
+        contacto: string;
+      }>`
+        select id, expira_em, contacto from consentimento_pedir_confirmacao(
           ${clienteId}::uuid, ${dados.canal}, ${dados.contacto}, ${dados.texto},
           ${dados.versao_texto}, ${dados.onde}, ${segredo})`.execute(trx);
       const r = rows[0];
@@ -1101,6 +1108,7 @@ export async function registarConsentimento(
         tipo: "confirmacao" as const,
         id: r.id,
         segredo,
+        contacto: r.contacto,
         expira_em: r.expira_em,
       };
     }
@@ -1154,6 +1162,11 @@ export async function confirmarConsentimento(
       throw new ErroClientes(
         "customers.confirmation_expired",
         "o pedido expirou; peça outra confirmação",
+      );
+    case "ja_confirmada":
+      throw new ErroClientes(
+        "customers.confirmation_closed",
+        "o pedido já foi confirmado; o «sim» está registado",
       );
     default:
       throw new ErroClientes(

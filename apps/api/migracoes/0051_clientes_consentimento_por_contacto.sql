@@ -5,15 +5,21 @@
 -- confirmar pela ligação que o sistema da loja lhe envia (Q-C1: A).
 --
 -- As regras (C1–C7 do §14.1; as fontes, indicadas pelo Diogo, ficam C):
--- - o estado é por contacto e por canal: a última declaração desse contacto
---   no grupo de fichas; empate ⇒ não; sem nenhuma ⇒ não;
+-- - o estado é por contacto e por canal, no comerciante (não por ficha nem
+--   por grupo: o mesmo e-mail noutra ficha é o mesmo contacto; revisão do
+--   #330, P1-4): a última declaração desse contacto; empate ⇒ não; sem
+--   nenhuma ⇒ não;
 -- - cada declaração nova diz o contacto, e o contacto tem de ser da ficha;
 -- - sobre uma recusa activa desse contacto, um «aceitou» directo é recusado:
 --   cria-se um pedido de confirmação, e só a confirmação regista o «sim»
 --   (via dupla_confirmacao), com o pedido como prova;
 -- - um «sim» noutro contacto não mexe nos outros;
--- - as declarações antigas (sem contacto) valem para os contactos da ficha
---   onde foram dadas (no ensaio não há dados pessoais reais, ADR-0019);
+-- - as declarações antigas (sem contacto) valem para os contactos que a
+--   ficha tinha **nesta migração**, guardados à parte como inferidos; um
+--   contacto acrescentado depois não herda nada (revisão do #330, P2-1; no
+--   ensaio não há dados pessoais reais, ADR-0019);
+-- - um pedido de confirmação cai se o contacto declarar depois dele (P1-2);
+--   no máximo 3 pedidos por contacto e canal numa hora (P1-3);
 -- - a prova fica na ficha de origem, lida pelo grupo; a pseudonimização
 --   apaga as declarações (0049) e agora também os pedidos de confirmação.
 -- O segredo da confirmação nunca se guarda: só o resumo, com o id do pedido.
@@ -51,19 +57,56 @@ CREATE FUNCTION contactos_das_fichas(p_comerciante uuid, p_clientes uuid[], p_ca
   WHERE f.comerciante_id = p_comerciante AND f.id = ANY (p_clientes)
 $$;
 
--- A última declaração de um contacto num grupo de fichas: as que dizem esse
--- contacto, e as antigas (sem contacto) da ficha que o tinha. Empate ⇒
+-- As declarações antigas (sem contacto) e os contactos que a ficha delas
+-- tinha agora: a prova de a que contactos se estendem (inferidas). Só se
+-- acrescenta; a pseudonimização apaga-as com as declarações (chave em
+-- cascata).
+CREATE TABLE consentimento_contacto_inferido (
+  comerciante_id uuid NOT NULL REFERENCES comerciante (id),
+  consentimento_id uuid NOT NULL REFERENCES consentimento (id) ON DELETE CASCADE,
+  contacto text NOT NULL,
+  PRIMARY KEY (consentimento_id, contacto)
+);
+CREATE INDEX consentimento_contacto_inferido_por_contacto
+  ON consentimento_contacto_inferido (comerciante_id, contacto);
+ALTER TABLE consentimento NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE cliente NO FORCE ROW LEVEL SECURITY;
+INSERT INTO consentimento_contacto_inferido (comerciante_id, consentimento_id, contacto)
+SELECT DISTINCT d.comerciante_id, d.id, x
+FROM consentimento d
+JOIN cliente f ON f.comerciante_id = d.comerciante_id AND f.id = d.cliente_id,
+  LATERAL unnest(CASE WHEN d.canal = 'email' THEN emails_para_comparar(f.emails)
+                      ELSE f.telefones END) x
+WHERE d.contacto IS NULL;
+ALTER TABLE cliente FORCE ROW LEVEL SECURITY;
+ALTER TABLE consentimento FORCE ROW LEVEL SECURITY;
+ALTER TABLE consentimento_contacto_inferido ENABLE ROW LEVEL SECURITY;
+ALTER TABLE consentimento_contacto_inferido FORCE ROW LEVEL SECURITY;
+CREATE POLICY so_o_proprio ON consentimento_contacto_inferido
+  USING (comerciante_id = comerciante_actual())
+  WITH CHECK (comerciante_id = comerciante_actual());
+CREATE TRIGGER consentimento_contacto_inferido_so_se_acrescenta
+  BEFORE UPDATE ON consentimento_contacto_inferido
+  FOR EACH ROW EXECUTE FUNCTION rasto_so_se_acrescenta();
+ALTER TABLE consentimento_contacto_inferido
+  ENABLE ALWAYS TRIGGER consentimento_contacto_inferido_so_se_acrescenta;
+GRANT SELECT ON consentimento_contacto_inferido TO eurolify_api;
+
+-- A última declaração de um contacto no comerciante, em qualquer ficha: as
+-- que dizem esse contacto e as antigas inferidas para ele. Empate ⇒
 -- «retirou». Nulo se não há nenhuma.
-CREATE FUNCTION marketing_do_contacto(p_comerciante uuid, p_grupo uuid[], p_canal text,
-  p_contacto text) RETURNS text
+CREATE FUNCTION marketing_do_contacto(p_comerciante uuid, p_canal text, p_contacto text)
+  RETURNS text
   LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT d.declaracao
   FROM public.consentimento d
-  WHERE d.comerciante_id = p_comerciante AND d.cliente_id = ANY (p_grupo)
+  WHERE d.comerciante_id = p_comerciante
     AND d.canal = p_canal AND d.finalidade = 'marketing'
     AND (d.contacto = public.contacto_para_comparar(p_canal, p_contacto)
-      OR (d.contacto IS NULL AND public.contacto_para_comparar(p_canal, p_contacto)
-        = ANY (public.contactos_das_fichas(p_comerciante, ARRAY[d.cliente_id], p_canal))))
+      OR (d.contacto IS NULL AND EXISTS (
+        SELECT FROM public.consentimento_contacto_inferido i
+        WHERE i.comerciante_id = p_comerciante AND i.consentimento_id = d.id
+          AND i.contacto = public.contacto_para_comparar(p_canal, p_contacto))))
   ORDER BY d.declarado_em DESC, (d.declaracao = 'aceitou')
   LIMIT 1
 $$;
@@ -114,8 +157,7 @@ BEGIN
   -- Sobre uma recusa activa deste contacto, um «sim» directo não entra: é
   -- preciso confirmar no próprio contacto (C3; docs/23 §14).
   IF NEW.declaracao = 'aceitou' AND NEW.via = 'directa' AND public.marketing_do_contacto(
-       NEW.comerciante_id, ARRAY(SELECT public.clientes_do_grupo(NEW.cliente_id)),
-       NEW.canal, NEW.contacto) = 'retirou' THEN
+       NEW.comerciante_id, NEW.canal, NEW.contacto) = 'retirou' THEN
     RAISE EXCEPTION 'customers.consent_confirmation_required: o contacto recusou; o «sim» só conta depois de confirmado nele';
   END IF;
   -- A hora do relógio, depois de tomada a ficha, e sempre depois da última
@@ -132,21 +174,16 @@ $$;
 
 -- ------------------------------------------------------------- As réguas
 
--- Um conjunto de fichas (o do ensaio da fusão: as duas, com os grupos) pode
--- receber marketing por um canal se algum contacto delas tem «sim». As
--- declarações contam-se no grupo inteiro. Conta os contactos de todas as
--- fichas do conjunto, também da que a fusão já marcou fundida (o plano lê-se
--- a meio da fusão).
+-- Um conjunto de fichas (o do ensaio da fusão: as duas) pode receber
+-- marketing por um canal se algum contacto delas tem «sim». Conta os
+-- contactos de todas as fichas do conjunto, também da que a fusão já marcou
+-- fundida (o plano lê-se a meio da fusão).
 CREATE OR REPLACE FUNCTION regua_marketing(p_comerciante uuid, p_clientes uuid[], p_canal text)
   RETURNS boolean
   LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  WITH grupo AS (
-    SELECT ARRAY(SELECT DISTINCT g FROM unnest(p_clientes) c,
-      LATERAL public.clientes_do_grupo(c) g) AS ids)
-  SELECT coalesce(bool_or(public.marketing_do_contacto(p_comerciante, grupo.ids, p_canal, x)
+  SELECT coalesce(bool_or(public.marketing_do_contacto(p_comerciante, p_canal, x)
            = 'aceitou'), false)
-  FROM grupo,
-    LATERAL unnest(public.contactos_das_fichas(p_comerciante, p_clientes, p_canal)) x
+  FROM unnest(public.contactos_das_fichas(p_comerciante, p_clientes, p_canal)) x
 $$;
 
 -- A pergunta exacta: este contacto desta ficha pode receber por este canal?
@@ -156,8 +193,7 @@ CREATE FUNCTION pode_receber_marketing(p_cliente uuid, p_canal text, p_contacto 
   SELECT coalesce((
     SELECT public.contacto_para_comparar(p_canal, p_contacto)
         = ANY (public.contactos_das_fichas(f.comerciante_id, ARRAY[f.id], p_canal))
-      AND public.marketing_do_contacto(f.comerciante_id,
-        ARRAY(SELECT public.clientes_do_grupo(f.id)), p_canal, p_contacto) = 'aceitou'
+      AND public.marketing_do_contacto(f.comerciante_id, p_canal, p_contacto) = 'aceitou'
     FROM public.cliente f
     WHERE f.id = p_cliente AND f.estado = 'activo' AND NOT f.limitado), false)
 $$;
@@ -169,8 +205,7 @@ CREATE FUNCTION contactos_com_marketing(p_cliente uuid, p_canal text) RETURNS te
   FROM public.cliente f,
     LATERAL unnest(public.contactos_das_fichas(f.comerciante_id, ARRAY[f.id], p_canal)) x
   WHERE f.id = p_cliente AND f.estado = 'activo' AND NOT f.limitado
-    AND public.marketing_do_contacto(f.comerciante_id,
-      ARRAY(SELECT public.clientes_do_grupo(f.id)), p_canal, x) = 'aceitou'
+    AND public.marketing_do_contacto(f.comerciante_id, p_canal, x) = 'aceitou'
 $$;
 
 -- Uma ficha pode receber por um canal se algum contacto **dela** tem «sim»
@@ -202,7 +237,10 @@ CREATE TABLE confirmacao_consentimento (
   pedida_por text NOT NULL,
   pedida_em timestamptz NOT NULL DEFAULT now(),
   fechada_em timestamptz,
-  consentimento_id uuid REFERENCES consentimento (id),
+  -- As duas chaves entre o pedido e a declaração só se verificam no fim da
+  -- transacção: a pseudonimização apaga a declaração antes do pedido
+  -- (revisão do #330, P1-1).
+  consentimento_id uuid REFERENCES consentimento (id) DEFERRABLE INITIALLY DEFERRED,
   CHECK ((estado = 'pendente') = (fechada_em IS NULL)),
   CHECK ((estado = 'confirmada') = (consentimento_id IS NOT NULL)),
   FOREIGN KEY (comerciante_id, cliente_id) REFERENCES cliente (comerciante_id, id)
@@ -214,7 +252,8 @@ CREATE INDEX confirmacao_por_cliente ON confirmacao_consentimento (comerciante_i
 -- posto: largado só para isso (como na 0046).
 ALTER TABLE consentimento NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE consentimento ADD CONSTRAINT consentimento_da_confirmacao
-  FOREIGN KEY (confirmacao_id) REFERENCES confirmacao_consentimento (id);
+  FOREIGN KEY (confirmacao_id) REFERENCES confirmacao_consentimento (id)
+  DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE consentimento FORCE ROW LEVEL SECURITY;
 
 -- Os prazos e o limite de tentativas (§14.3, proposta).
@@ -229,7 +268,7 @@ $$;
 -- mesmo contacto e canal.
 CREATE FUNCTION consentimento_pedir_confirmacao(p_cliente uuid, p_canal text,
   p_contacto text, p_texto text, p_versao_texto text, p_onde text, p_segredo text,
-  OUT id uuid, OUT expira_em timestamptz)
+  OUT id uuid, OUT expira_em timestamptz, OUT contacto text)
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   comerciante uuid := public.comerciante_actual();
@@ -271,12 +310,21 @@ BEGIN
     RAISE EXCEPTION 'customers.consent_contact_unknown: o contacto não é % desta ficha',
       CASE WHEN p_canal = 'email' THEN 'um e-mail' ELSE 'um telefone' END;
   END IF;
+  -- No máximo 3 pedidos por contacto e canal numa hora: nem o contacto é
+  -- inundado, nem um código de 6 dígitos se adivinha pedindo outro (revisão
+  -- do #330, P1-3; observability-security, limites).
+  IF (SELECT count(*) FROM public.confirmacao_consentimento c
+      WHERE c.comerciante_id = comerciante AND c.contacto = v_contacto
+        AND c.canal = p_canal AND c.pedida_em > now() - interval '1 hour') >= 3 THEN
+    RAISE EXCEPTION 'customers.confirmation_rate_limited: já houve 3 pedidos para este contacto na última hora';
+  END IF;
   UPDATE public.confirmacao_consentimento c
   SET estado = 'cancelada', fechada_em = now()
   WHERE c.comerciante_id = comerciante AND c.contacto = v_contacto AND c.canal = p_canal
     AND c.estado = 'pendente';
   id := uuidv7();
   expira_em := now() + public.confirmacao_prazo(p_canal);
+  contacto := v_contacto;
   INSERT INTO public.confirmacao_consentimento (id, comerciante_id, cliente_id, canal,
     contacto, texto, versao_texto, onde, resumo, expira_em, pedida_por)
   VALUES (id, comerciante, alvo, p_canal, v_contacto, p_texto, p_versao_texto, p_onde,
@@ -300,7 +348,26 @@ CREATE FUNCTION consentimento_confirmar(p_confirmacao uuid, p_segredo text,
 DECLARE
   comerciante uuid := public.comerciante_actual();
   p record;
+  ficha record;
+  alvo uuid;
+  passos integer := 0;
 BEGIN
+  -- A ficha primeiro e só depois o pedido, pela ordem do pedir e das
+  -- declarações (revisão do #330, P2-3).
+  SELECT c.cliente_id INTO alvo FROM public.confirmacao_consentimento c
+  WHERE c.comerciante_id = comerciante AND c.id = p_confirmacao;
+  IF NOT FOUND THEN
+    resultado := 'nao_existe';
+    RETURN;
+  END IF;
+  LOOP
+    SELECT c.estado, c.fundido_em INTO ficha FROM public.cliente c
+    WHERE c.comerciante_id = comerciante AND c.id = alvo
+    FOR NO KEY UPDATE;
+    EXIT WHEN NOT FOUND OR ficha.estado <> 'fundido' OR passos > 100;
+    passos := passos + 1;
+    alvo := ficha.fundido_em;
+  END LOOP;
   SELECT * INTO p FROM public.confirmacao_consentimento c
   WHERE c.comerciante_id = comerciante AND c.id = p_confirmacao
   FOR UPDATE;
@@ -326,6 +393,17 @@ BEGIN
         fechada_em = CASE WHEN p.tentativas + 1 >= 5 THEN now() END
     WHERE id = p.id;
     resultado := CASE WHEN p.tentativas + 1 >= 5 THEN 'esgotada' ELSE 'errado' END;
+    RETURN;
+  END IF;
+  -- O contacto declarou depois do pedido (um «não» que chegou entretanto):
+  -- a ligação antiga já não vale (revisão do #330, P1-2).
+  IF EXISTS (SELECT FROM public.consentimento d
+             WHERE d.comerciante_id = comerciante AND d.canal = p.canal
+               AND d.finalidade = 'marketing' AND d.contacto = p.contacto
+               AND d.declarado_em > p.pedida_em) THEN
+    UPDATE public.confirmacao_consentimento SET estado = 'cancelada', fechada_em = now()
+    WHERE id = p.id;
+    resultado := 'cancelada';
     RETURN;
   END IF;
   INSERT INTO public.consentimento (comerciante_id, cliente_id, canal, finalidade,
@@ -388,6 +466,26 @@ CREATE TRIGGER cliente_pseudonimizado_sem_confirmacoes
   FOR EACH ROW EXECUTE FUNCTION cliente_pseudonimizado_sem_confirmacoes();
 ALTER TABLE cliente ENABLE ALWAYS TRIGGER cliente_pseudonimizado_sem_confirmacoes;
 
+-- O evento diz também se o contacto **desta** declaração pode receber (sem
+-- o contacto, R12): um «retirou» de um e-mail com outro em «sim» dava só «a
+-- ficha pode» (revisão do #330, P2-2). Quem envia lê os contactos em
+-- contactos_com_marketing.
+CREATE OR REPLACE FUNCTION consentimento_evento() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  INSERT INTO public.evento_saida (comerciante_id, tipo, agregado_tipo, agregado_id, dados)
+  VALUES (NEW.comerciante_id, 'consent.changed', 'cliente', NEW.cliente_id,
+    jsonb_build_object('cliente_id', NEW.cliente_id, 'consentimento_id', NEW.id,
+      'canal', NEW.canal, 'finalidade', NEW.finalidade, 'via', NEW.via,
+      'pode_receber_marketing', public.pode_receber_marketing(NEW.cliente_id, NEW.canal),
+      'contacto_pode_receber', public.pode_receber_marketing(NEW.cliente_id, NEW.canal,
+        NEW.contacto),
+      'quem', NEW.quem,
+      'em', to_char(NEW.declarado_em AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')));
+  RETURN NULL;
+END
+$$;
+
 -- A linha do tempo perde também o contacto das declarações (0049).
 CREATE OR REPLACE FUNCTION clientes_rasto_sem_dados(p_campos jsonb) RETURNS jsonb
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
@@ -420,7 +518,7 @@ GRANT SELECT (id, comerciante_id, cliente_id, canal, contacto, texto, versao_tex
 GRANT INSERT (contacto) ON consentimento TO eurolify_api;
 
 REVOKE EXECUTE ON FUNCTION contacto_para_comparar(text, text),
-  contactos_das_fichas(uuid, uuid[], text), marketing_do_contacto(uuid, uuid[], text, text),
+  contactos_das_fichas(uuid, uuid[], text), marketing_do_contacto(uuid, text, text),
   pode_receber_marketing(uuid, text, text), contactos_com_marketing(uuid, text),
   confirmacao_prazo(text),
   consentimento_pedir_confirmacao(uuid, text, text, text, text, text, text),
@@ -428,7 +526,7 @@ REVOKE EXECUTE ON FUNCTION contacto_para_comparar(text, text),
   cliente_pseudonimizado_sem_confirmacoes() FROM PUBLIC;
 -- Os gatilhos e as réguas correm com quem escreve ou pergunta.
 GRANT EXECUTE ON FUNCTION contacto_para_comparar(text, text),
-  contactos_das_fichas(uuid, uuid[], text), marketing_do_contacto(uuid, uuid[], text, text),
+  contactos_das_fichas(uuid, uuid[], text), marketing_do_contacto(uuid, text, text),
   pode_receber_marketing(uuid, text, text), contactos_com_marketing(uuid, text),
   consentimento_pedir_confirmacao(uuid, text, text, text, text, text, text),
   consentimento_confirmar(uuid, text), cliente_pseudonimizado_sem_confirmacoes()

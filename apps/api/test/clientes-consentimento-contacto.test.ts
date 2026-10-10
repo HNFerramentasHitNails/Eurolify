@@ -249,6 +249,37 @@ describe.skipIf(URL_BASE === undefined)(
           ).rows,
       );
       expect(pedidos).toEqual([{ estado: "confirmada", tentativas: 1 }]);
+      // As segundas barreiras: nem o superutilizador regista um «sim» por
+      // dupla confirmação, nem o dono das tabelas volta um pedido atrás.
+      const idPedido = String(pedido["confirmacao"]).slice(4);
+      const viaDupla = await comoDono((trx) =>
+        sql`insert into consentimento (comerciante_id, cliente_id, canal, declaracao,
+            texto, versao_texto, onde, contacto, via, confirmacao_id)
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'aceitou', 't', 'v1', 'x',
+            ${ana}, 'dupla_confirmacao', ${idPedido}::uuid)`
+          .execute(trx)
+          .then(
+            () => "passou",
+            (e: unknown) => (e as Error).message,
+          ),
+      );
+      expect(viaDupla).toMatch(/^customers\.consent_confirmation_required:/);
+      const atras = await comoDono(async (trx) => {
+        const { rows } = await sql<{ dono: string }>`
+          select pg_get_userbyid(relowner) as dono from pg_class
+          where oid = 'public.confirmacao_consentimento'::regclass`.execute(
+          trx,
+        );
+        await sql`set local role ${sql.id(rows[0]?.dono ?? "")}`.execute(trx);
+        return sql`update confirmacao_consentimento set estado = 'pendente', fechada_em = null,
+            consentimento_id = null where id = ${idPedido}::uuid`
+          .execute(trx)
+          .then(
+            () => "passou",
+            (e: unknown) => (e as Error).message,
+          );
+      });
+      expect(atras).toMatch(/^customers\.confirmation_invalid:/);
     });
 
     it("o SMS: código de 6 dígitos, 5 tentativas e esgota; um pedido novo cancela o anterior; o WhatsApp não confirma", async () => {
@@ -429,29 +460,98 @@ describe.skipIf(URL_BASE === undefined)(
       );
     });
 
-    it("as declarações antigas (sem contacto) valem para os contactos da ficha onde foram dadas", async () => {
+    it("P1-4: o estado é do contacto no comerciante: a recusa noutra ficha com o mesmo e-mail também pede confirmação", async () => {
       const u = unico();
-      const e1 = `a.${u}@exemplo.pt`;
-      const e2 = `b.${u}@exemplo.pt`;
-      const id = await ficha({ nome: "Ana", emails: [e1, e2] });
-      await comoDono(async (trx) => {
-        await sql`alter table consentimento disable trigger consentimento_antes_de_gravar`.execute(
-          trx,
-        );
-        await sql`insert into consentimento (comerciante_id, cliente_id, canal,
-            declaracao, texto, versao_texto, onde, declarado_em, quem)
-          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'aceitou', 't', 'v1',
-            'x', now() - interval '1 day', 'teste:sql')`.execute(trx);
-        await sql`alter table consentimento enable always trigger consentimento_antes_de_gravar`.execute(
-          trx,
-        );
+      const ana = `ana.${u}@exemplo.pt`;
+      const a1 = await ficha({ nome: "Ana", emails: [ana] });
+      const a2 = await ficha({
+        nome: "Ana Silva",
+        emails: [ana.toUpperCase()],
       });
-      expect((await comMarketing(id))["email"]).toEqual([e1, e2].sort());
-      // Uma retirada nova de um deles só tira esse.
-      await declarar(id, "email", "retirou", e1);
-      expect((await comMarketing(id))["email"]).toEqual([e2]);
-      // E o «sim» de volta nele pede confirmação.
-      await declarar(id, "email", "aceitou", e1, 202);
+      await declarar(a1, "email", "retirou", ana);
+      expect((await comMarketing(a2))["email"]).toEqual([]);
+      await declarar(a2, "email", "aceitou", ana, 202);
+      expect((await comMarketing(a2))["email"]).toEqual([]);
+    });
+
+    it("P1-1: confirmar e depois pseudonimizar: nada fica", async () => {
+      const u = unico();
+      const ana = `ana.${u}@exemplo.pt`;
+      const id = await ficha({ nome: "Ana", emails: [ana] });
+      await declarar(id, "email", "retirou", ana);
+      const pedido = await declarar(id, "email", "aceitou", ana, 202);
+      await ok(confirmar(pedido["confirmacao"], pedido["segredo"]), 201);
+      await ok(
+        pedir("POST", `/customers/${id}/pseudonymize`, {
+          verificacao: "resposta do e-mail a 10/10/2026",
+          confirmacao: `pseudonimizar ${id}`,
+        }),
+      );
+      const resto = await comoDono(
+        async (trx) =>
+          (
+            await sql<{ d: number; p: number }>`select
+              (select count(*)::int from consentimento where cliente_id = ${id.slice(4)}::uuid) as d,
+              (select count(*)::int from confirmacao_consentimento
+                 where cliente_id = ${id.slice(4)}::uuid) as p`.execute(trx)
+          ).rows[0],
+      );
+      expect(resto).toEqual({ d: 0, p: 0 });
+    });
+
+    it("P1-2: um «não» depois do pedido faz cair a ligação antiga", async () => {
+      const u = unico();
+      const ana = `ana.${u}@exemplo.pt`;
+      const id = await ficha({ nome: "Ana", emails: [ana] });
+      await declarar(id, "email", "retirou", ana);
+      const pedido = await declarar(id, "email", "aceitou", ana, 202);
+      await declarar(id, "email", "retirou", ana);
+      await recusa(
+        confirmar(pedido["confirmacao"], pedido["segredo"]),
+        409,
+        "customers.confirmation_closed",
+      );
+      expect((await comMarketing(id))["email"]).toEqual([]);
+    });
+
+    it("P1-3: no máximo 3 pedidos por contacto e canal numa hora", async () => {
+      const tel = `+3519${String(Date.now()).slice(-8)}`;
+      const id = await ficha({ nome: "Rui", telefones: [tel] });
+      await declarar(id, "sms", "retirou", tel);
+      for (let i = 0; i < 3; i++)
+        await declarar(id, "sms", "aceitou", tel, 202);
+      await recusa(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("sms", "aceitou", tel),
+        ),
+        429,
+        "customers.confirmation_rate_limited",
+      );
+    });
+
+    it("um contacto tirado da ficha com um pedido pendente: a confirmação já não serve", async () => {
+      const u = unico();
+      const ana = `ana.${u}@exemplo.pt`;
+      const id = await ficha({
+        nome: "Ana",
+        emails: [ana, `outro.${u}@exemplo.pt`],
+      });
+      await declarar(id, "email", "retirou", ana);
+      const pedido = await declarar(id, "email", "aceitou", ana, 202);
+      const f = await ok(pedir("GET", `/customers/${id}`));
+      await ok(
+        pedir("PATCH", `/customers/${id}`, {
+          versao: f["versao"],
+          emails: [`outro.${u}@exemplo.pt`],
+        }),
+      );
+      await recusa(
+        confirmar(pedido["confirmacao"], pedido["segredo"]),
+        422,
+        "customers.consent_contact_unknown",
+      );
     });
   },
 );

@@ -112,6 +112,7 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.confirmation_expired": 410,
   "customers.confirmation_exhausted": 409,
   "customers.confirmation_closed": 409,
+  "customers.confirmation_rate_limited": 429,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -1514,7 +1515,7 @@ export function rotasDosClientes(
               return {
                 confirmacao: `ccf_${r.id}`,
                 canal: b.canal,
-                contacto: b.contacto,
+                contacto: r.contacto,
                 segredo: r.segredo,
                 expira_em: r.expira_em.toISOString(),
               };
@@ -1570,7 +1571,7 @@ export function rotasDosClientes(
           c.comercianteId,
           `chave:key_${c.chaveId}`,
           semPrefixo(pedido.params.id),
-          pedido.body.segredo,
+          pedido.body.segredo.trim(),
         ),
       );
       const consentimento = await emClientes(resposta, () =>

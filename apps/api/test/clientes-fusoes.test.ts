@@ -465,7 +465,9 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     });
     expect(await doPar(sai, terceira)).toBeDefined();
     expect(await doPar(fica, sai)).toBeDefined();
-    expect((await regua(fica))["email"]).toBe(false);
+    // As duas fichas têm o mesmo e-mail: o «sim» é do contacto no comerciante
+    // (0051), por isso já vale para a que fica, antes da fusão.
+    expect((await regua(fica))["email"]).toBe(true);
 
     const plano = await ok(fundir(fica, sai));
     expect(plano).toMatchObject({

@@ -41,7 +41,8 @@ export type CodigoErroClientes =
   | "customers.confirmation_invalid"
   | "customers.confirmation_expired"
   | "customers.confirmation_exhausted"
-  | "customers.confirmation_closed";
+  | "customers.confirmation_closed"
+  | "customers.confirmation_rate_limited";
 
 export class ErroClientes extends Error {
   constructor(

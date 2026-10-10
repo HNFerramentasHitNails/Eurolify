@@ -65,36 +65,50 @@ describe.skipIf(URL_BASE === undefined)(
       if (codigo !== undefined) expect(x.json<Json>()["codigo"]).toBe(codigo);
     };
 
-    const EMAIL = "ana@exemplo.pt";
-    const TELEFONE = "+351912345678";
+    // Cada ficha com o seu contacto: o estado é do contacto no comerciante
+    // (0051), e um e-mail repetido juntava as declarações de testes diferentes.
+    const contactos = new Map<string, { email: string; telefone: string }>();
+    let proximo = 0;
+    const contactoDe = (ficha: string, canal: string) => {
+      const c = contactos.get(ficha);
+      if (c === undefined) throw new Error(`ficha sem contactos: ${ficha}`);
+      return canal === "email" ? c.email : c.telefone;
+    };
     const declaracao = (
       canal: string,
       d: "aceitou" | "retirou",
       extra: Json = {},
+      ficha = "",
     ) => ({
       canal,
       declaracao: d,
       // O contacto da ficha (0051): o e-mail ou o telefone de `ficha()`.
-      contacto: canal === "email" ? EMAIL : TELEFONE,
+      contacto: ficha === "" ? "sem@exemplo.pt" : contactoDe(ficha, canal),
       texto: "Quero receber novidades e promoções por e-mail.",
       versao_texto: "v3",
       onde: "loja principal, formulário de registo",
       ...extra,
     });
-    const ficha = async (segredo = dono) =>
-      String(
+    const ficha = async (segredo = dono) => {
+      const n = proximo++;
+      const email = `ana.${String(n)}.${Date.now().toString(36)}@exemplo.pt`;
+      const telefone = `+3519${String(Date.now() % 10_000_000).padStart(7, "0")}${String(n % 10)}`;
+      const id = String(
         (
           await ok(
             pedir(
               "POST",
               "/customers",
-              { nome: "Ana", emails: [EMAIL], telefones: [TELEFONE] },
+              { nome: "Ana", emails: [email], telefones: [telefone] },
               segredo,
             ),
             201,
           )
         )["id"],
       );
+      contactos.set(id, { email, telefone });
+      return id;
+    };
     const consentimentos = (id: string, segredo = dono) =>
       ok(pedir("GET", `/customers/${id}/consents`, undefined, segredo));
 
@@ -177,7 +191,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "aceitou"),
+          declaracao("email", "aceitou", {}, id),
         ),
         201,
       );
@@ -201,7 +215,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "retirou"),
+          declaracao("email", "retirou", {}, id),
         ),
         201,
       );
@@ -217,7 +231,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "aceitou"),
+          declaracao("email", "aceitou", {}, id),
         ),
         202,
       );
@@ -254,7 +268,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("sms", "aceitou"),
+          declaracao("sms", "aceitou", {}, id),
         ),
         201,
       );
@@ -267,7 +281,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("whatsapp", "aceitou"),
+          declaracao("whatsapp", "aceitou", {}, id),
         ),
         201,
       );
@@ -287,9 +301,10 @@ describe.skipIf(URL_BASE === undefined)(
         );
         const inserir = (d: string, canal: string) =>
           sql`insert into consentimento (comerciante_id, cliente_id, canal,
-                declaracao, texto, versao_texto, onde, declarado_em, quem)
+                declaracao, texto, versao_texto, onde, declarado_em, quem, contacto)
               values (${a}::uuid, ${id.slice(4)}::uuid, ${canal}, ${d}, 't',
-                'v1', 'x', '2026-10-09T10:00:00Z', 'teste:sql')`.execute(trx);
+                'v1', 'x', '2026-10-09T10:00:00Z', 'teste:sql',
+                ${contactoDe(id, canal)})`.execute(trx);
         await inserir("aceitou", "email");
         await inserir("retirou", "email");
         await inserir("aceitou", "sms");
@@ -306,7 +321,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "aceitou"),
+          declaracao("email", "aceitou", {}, id),
         ),
         201,
       );
@@ -323,11 +338,15 @@ describe.skipIf(URL_BASE === undefined)(
       const fundida = await desfeito(a, async (trx) => {
         await sql`update cliente set estado = 'fundido', fundido_em = ${outra.slice(4)}::uuid
                   where id = ${id.slice(4)}::uuid`.execute(trx);
+        // A fusão passa os contactos para a que fica (0046); o estado é do
+        // contacto (0051).
+        await sql`update cliente set emails = emails || array[${contactoDe(id, "email")}]
+                  where id = ${outra.slice(4)}::uuid`.execute(trx);
         const antes = await regua(trx, outra, "email");
         const linha = await sql<{ cliente_id: string }>`
           insert into consentimento (comerciante_id, cliente_id,
             canal, declaracao, texto, versao_texto, onde, contacto)
-          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', 'ana@exemplo.pt')
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', ${contactoDe(id, "email")})
           returning cliente_id`.execute(trx);
         return {
           pode: await regua(trx, id, "email"),
@@ -348,7 +367,7 @@ describe.skipIf(URL_BASE === undefined)(
         );
         return sql`insert into consentimento (comerciante_id, cliente_id,
               canal, declaracao, texto, versao_texto, onde, contacto)
-            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', 'ana@exemplo.pt')`
+            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', ${contactoDe(id, "email")})`
           .execute(trx)
           .then(
             () => "entrou",
@@ -368,7 +387,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "aceitou"),
+          declaracao("email", "aceitou", {}, id),
         ),
         201,
       );
@@ -398,13 +417,13 @@ describe.skipIf(URL_BASE === undefined)(
           insert into consentimento (comerciante_id, cliente_id, canal, declaracao,
             texto, versao_texto, onde, declarado_em, quem, contacto)
           values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'aceitou', 't', 'v1',
-            'x', '2020-01-01T00:00:00Z', 'pessoa:per_falso', 'ana@exemplo.pt')
+            'x', '2020-01-01T00:00:00Z', 'pessoa:per_falso', ${contactoDe(id, "email")})
           returning declarado_em, quem`.execute(trx);
         await sql`select set_config('eurolify.quem', '', true)`.execute(trx);
         const sem =
           await sql`insert into consentimento (comerciante_id, cliente_id,
               canal, declaracao, texto, versao_texto, onde, contacto)
-            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', 'ana@exemplo.pt')`
+            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', ${contactoDe(id, "email")})`
             .execute(trx)
             .then(
               () => "entrou",
@@ -425,7 +444,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "aceitou"),
+          declaracao("email", "aceitou", {}, id),
         ),
         201,
       );
@@ -433,7 +452,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "retirou"),
+          declaracao("email", "retirou", {}, id),
         ),
         201,
       );
@@ -455,10 +474,12 @@ describe.skipIf(URL_BASE === undefined)(
         "canal",
         "cliente_id",
         "consentimento_id",
+        "contacto_pode_receber",
         "em",
         "finalidade",
         "pode_receber_marketing",
         "quem",
+        "via",
       ]);
       expect(eventos[0]?.dados).toMatchObject({
         cliente_id: id.slice(4),
@@ -485,7 +506,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "aceitou"),
+          declaracao("email", "aceitou", {}, id),
         ),
         201,
       );
@@ -498,7 +519,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "retirou"),
+          declaracao("email", "retirou", {}, id),
           deB,
         ),
         404,
@@ -522,7 +543,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedir(
           "POST",
           `/customers/${id}/consents`,
-          declaracao("email", "aceitou"),
+          declaracao("email", "aceitou", {}, id),
           soLer,
         ),
         403,
@@ -557,13 +578,13 @@ describe.skipIf(URL_BASE === undefined)(
           pedir(
             "POST",
             `/customers/${id}/consents`,
-            declaracao("email", "aceitou"),
+            declaracao("email", "aceitou", {}, id),
           ),
           ok(
             pedir(
               "POST",
               `/customers/${id}/consents`,
-              declaracao("email", "retirou"),
+              declaracao("email", "retirou", {}, id),
             ),
             201,
           ),
@@ -611,7 +632,7 @@ describe.skipIf(URL_BASE === undefined)(
     const inserirPelaApi = (trx: Kysely<unknown>, id: string, d: string) =>
       sql`insert into consentimento (comerciante_id, cliente_id, canal,
             declaracao, texto, versao_texto, onde, contacto)
-          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', ${d}, 't', 'v1', 'x', 'ana@exemplo.pt')`.execute(
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', ${d}, 't', 'v1', 'x', ${contactoDe(id, "email")})`.execute(
         trx,
       );
 
@@ -628,7 +649,7 @@ describe.skipIf(URL_BASE === undefined)(
             pedir(
               "POST",
               `/customers/${id}/consents`,
-              declaracao("email", "aceitou"),
+              declaracao("email", "aceitou", {}, id),
             ),
             201,
           );
@@ -651,7 +672,7 @@ describe.skipIf(URL_BASE === undefined)(
             pedir(
               "POST",
               `/customers/${id}/consents`,
-              declaracao("email", "retirou"),
+              declaracao("email", "retirou", {}, id),
             ),
             201,
           ).then((x) => {
@@ -707,13 +728,15 @@ describe.skipIf(URL_BASE === undefined)(
               declaracao, texto, versao_texto, onde, declarado_em, quem)
             values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'aceitou', 't',
               'v1', 'x', '2030-01-01T00:00:00Z', 'teste:sql')`.execute(trx);
+        // As chaves diferidas da 0051 verificam-se já, para o ALTER poder correr.
+        await sql`set constraints all immediate`.execute(trx);
         await sql`alter table consentimento enable always trigger consentimento_antes_de_gravar`.execute(
           trx,
         );
         const nova = await sql<{ declarado_em: Date }>`
           insert into consentimento (comerciante_id, cliente_id, canal,
             declaracao, texto, versao_texto, onde, contacto)
-          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', 'ana@exemplo.pt')
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', ${contactoDe(id, "email")})
           returning declarado_em`.execute(trx);
         return {
           hora: nova.rows[0]?.declarado_em.toISOString(),
@@ -727,7 +750,11 @@ describe.skipIf(URL_BASE === undefined)(
       const id = await ficha();
       for (const d of ["aceitou", "aceitou", "aceitou"] as const) {
         await ok(
-          pedir("POST", `/customers/${id}/consents`, declaracao("sms", d)),
+          pedir(
+            "POST",
+            `/customers/${id}/consents`,
+            declaracao("sms", d, {}, id),
+          ),
           201,
         );
       }
@@ -781,7 +808,7 @@ describe.skipIf(URL_BASE === undefined)(
           );
           await sql`insert into consentimento (comerciante_id, cliente_id, canal,
                 declaracao, texto, versao_texto, onde, contacto)
-              values (${b}::uuid, ${deA.slice(4)}::uuid, 'email', 'aceitou', 't', 'v1', 'x', 'ana@exemplo.pt')`.execute(
+              values (${b}::uuid, ${deA.slice(4)}::uuid, 'email', 'aceitou', 't', 'v1', 'x', ${contactoDe(deA, "email")})`.execute(
             trx,
           );
         })
@@ -800,7 +827,7 @@ describe.skipIf(URL_BASE === undefined)(
         );
         await sql`insert into consentimento (comerciante_id, cliente_id, canal,
               declaracao, texto, versao_texto, onde, contacto)
-            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', 'ana@exemplo.pt')`.execute(
+            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x', ${contactoDe(id, "email")})`.execute(
           trx,
         );
         return regua(trx, id, "email");
@@ -820,7 +847,7 @@ describe.skipIf(URL_BASE === undefined)(
             "idempotency-key": chave,
             "content-type": "application/json",
           },
-          payload: JSON.stringify(declaracao("email", "aceitou")),
+          payload: JSON.stringify(declaracao("email", "aceitou", {}, id)),
         });
       const r1 = await enviar();
       const r2 = await enviar();
