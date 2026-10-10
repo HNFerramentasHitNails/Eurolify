@@ -23,6 +23,7 @@ export const AMBITOS = [
   "customers:billing",
   "customers:exemptions",
   "customers:merge",
+  "customers:privacy",
   "tax:read",
   "tax:write",
   "legal:read",
@@ -39,6 +40,9 @@ export const AMBITOS = [
   "inventory:policy",
   "fulfilment:read",
   "fulfilment:write",
+  "invoices:read",
+  "invoices:write",
+  "invoices:accounts",
   "keys:write",
   "storefront",
 ] as const;

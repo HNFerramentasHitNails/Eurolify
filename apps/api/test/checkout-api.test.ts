@@ -1355,6 +1355,63 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     ).toEqual([410, "checkout.expired"]);
   });
 
+  it("o apagamento a pedido do titular não toca no perfil que uma encomenda aponta, nem nas provas dele (revisão do #314, P1-1)", async () => {
+    const s = await cenario();
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    const e = await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    const encomenda = String(e["encomenda"]).slice(4);
+    const resultado = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      const { rows } = await sql<{ cliente_id: string; perfil_id: string }>`
+        select cliente_id, perfil_id from encomenda where id = ${encomenda}::uuid`.execute(
+        trx,
+      );
+      const enc = rows[0];
+      if (enc === undefined) throw new Error("sem encomenda");
+      // Uma prova do VIES do perfil da encomenda, como a fila a escreve.
+      await sql`insert into validacao_vies (comerciante_id, perfil_id, pais_consultado,
+            numero_consultado, consultado_em, resultado, motivo, quem)
+          values (${s.c}::uuid, ${enc.perfil_id}::uuid, 'FR', '40303265045',
+            now(), 'valido', 'pedido', 'sistema:vies')`.execute(trx);
+      const antes = (
+        await sql<Json>`select nome_documento, nif_numero, morada_linha1, estado
+          from perfil_faturacao where id = ${enc.perfil_id}::uuid`.execute(trx)
+      ).rows[0];
+      const r = (
+        await sql<{
+          r: Json;
+        }>`select cliente_pseudonimizar(${enc.cliente_id}::uuid,
+            ${`pseudonimizar cus_${enc.cliente_id}`}, 'teste') as r`.execute(
+          trx,
+        )
+      ).rows[0]?.r;
+      const depois = (
+        await sql<Json>`select nome_documento, nif_numero, morada_linha1, estado
+          from perfil_faturacao where id = ${enc.perfil_id}::uuid`.execute(trx)
+      ).rows[0];
+      const provas = (
+        await sql<{ n: number }>`select count(*)::int as n from validacao_vies
+          where perfil_id = ${enc.perfil_id}::uuid`.execute(trx)
+      ).rows[0]?.n;
+      return { antes, depois, r, provas };
+    });
+    expect(resultado.antes?.["nome_documento"]).not.toBe("Pseudonimizado");
+    expect(resultado.depois).toEqual(resultado.antes);
+    expect(resultado.provas).toBe(1);
+    expect(resultado.r).toMatchObject({
+      perfis_pseudonimizados: 0,
+      perfis_mantidos_por_obrigacao_fiscal: 1,
+      provas_vies_apagadas: 0,
+      encomendas_com_dados_por_tratar: 1,
+    });
+  });
+
   it("a base garante a encomenda: linhas só ao criá-la, e os totais batem com as linhas e os portes", async () => {
     const s = await cenario();
     const k = await checkoutCom(s, [[s.v1, 1]]);

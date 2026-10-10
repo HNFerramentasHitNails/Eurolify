@@ -829,7 +829,13 @@ export function rotasDoCheckout(
                 "a encomenda ainda não foi feita",
               );
             }
-            return paraEncomenda(await lerEncomenda(trx, s.comerciante_id, id));
+            // O estado fiscal interno não sai na confirmação pública
+            // (revisão do #312, P2-10).
+            const publica: Partial<ReturnType<typeof paraEncomenda>> =
+              paraEncomenda(await lerEncomenda(trx, s.comerciante_id, id));
+            delete publica.emissor_fiscal;
+            delete publica.documento;
+            return publica;
           },
           { soAberta: false },
         ),
@@ -1284,6 +1290,11 @@ const paraEncomenda = (r: Awaited<ReturnType<typeof lerEncomenda>>) => ({
   metodo_entrega: r.encomenda.metodo_entrega,
   metodo_pagamento: r.encomenda.metodo_pagamento,
   aceitacoes: r.encomenda.aceitacoes,
+  emissor_fiscal: r.encomenda.emissor_fiscal,
+  documento:
+    r.documento === null
+      ? null
+      : { id: `inv_${r.documento.id}`, estado: r.documento.estado },
   criada_em: r.encomenda.criada_em.toISOString(),
   linhas: r.linhas.map((l) => ({
     id: `oli_${l.id}`,

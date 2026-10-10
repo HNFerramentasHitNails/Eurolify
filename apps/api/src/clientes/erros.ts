@@ -31,7 +31,9 @@ export type CodigoErroClientes =
   | "customers.merge_same"
   | "customers.merge_by_person"
   | "customers.merge_too_many_contacts"
-  | "customers.duplicate_decided";
+  | "customers.duplicate_decided"
+  | "customers.confirmation_required"
+  | "customers.restricted";
 
 export class ErroClientes extends Error {
   constructor(

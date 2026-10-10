@@ -19,6 +19,7 @@ import {
 } from "../base/esquema.js";
 import {
   comIdempotencia,
+  type OpcoesIdempotencia,
   type PedidoIdempotente,
 } from "../base/idempotencia.js";
 import { chaveDo } from "../identidade/autenticacao.js";
@@ -85,6 +86,7 @@ import {
 } from "./categorias.js";
 import {
   alterarArtigo,
+  alterarVariante,
   apagarRascunho,
   acrescentarValor,
   arquivarVariante,
@@ -263,6 +265,10 @@ const Variante = Type.Object({
   onu: Type.Union([Type.String(), Type.Null()]),
   classe_adr: Type.Union([Type.String(), Type.Null()]),
   posicao: Type.Integer(),
+  versao: Type.Integer({
+    description:
+      "Sobe a cada mudança; o PATCH /variants/{id} leva a que se leu (docs/14 §7.1)",
+  }),
   criado_em: Instante,
 });
 
@@ -857,6 +863,22 @@ export const PedidoAlterarArtigo = Type.Object(
   { additionalProperties: false },
 );
 
+/**
+ * Alterar uma variante (docs/14 §7.1): os campos da criação menos o SKU, que
+ * não muda, e com a `versao` lida. Só os que vêm mudam.
+ */
+export const PedidoAlterarVariante = Type.Object(
+  {
+    versao: Type.Integer({
+      minimum: 1,
+      description: "A versão da variante",
+    }),
+    ...Type.Omit(NovaVariante, ["sku", "unidade_de_venda"]).properties,
+    unidade_de_venda: Type.Optional(UnidadeDeVenda),
+  },
+  { additionalProperties: false },
+);
+
 const PedidoClassificar = Type.Object(
   {
     ...ComVersao,
@@ -954,6 +976,7 @@ function paraVariante(v: LinhaVariante) {
     onu: v.onu,
     classe_adr: v.classe_adr,
     posicao: v.posicao,
+    versao: v.versao,
     criado_em: v.criado_em.toISOString(),
   };
 }
@@ -1429,6 +1452,13 @@ export async function escrever(
    * bytes).
    */
   corpoIdempotente?: unknown,
+  /**
+   * O que se guarda para repetir, quando não é a resposta inteira, e como se
+   * repete (a exportação do titular não fica guardada: revisão do #314, P2-5).
+   */
+  guarda?: Pick<OpcoesIdempotencia, "repetir"> & {
+    guardar: (corpo: unknown) => unknown;
+  },
 ) {
   const chave = chaveDo(pedido);
   const idempotente: PedidoIdempotente = {
@@ -1456,9 +1486,14 @@ export async function escrever(
           trx,
         );
         const corpo = await fn(trx, chave);
-        return { status, corpo, guardar: corpo };
+        return {
+          status,
+          corpo,
+          guardar: guarda === undefined ? corpo : guarda.guardar(corpo),
+        };
       },
       {
+        ...(guarda?.repetir === undefined ? {} : { repetir: guarda.repetir }),
         aoFalharLimpeza: (erro) => {
           pedido.log.error(
             { err: erro },
@@ -1560,6 +1595,30 @@ export async function arquivoDaVariante(
 ): Promise<Static<typeof VarianteCompleta>> {
   const id = semPrefixo(idComPrefixo);
   await arquivarVariante(trx, comercianteId, id);
+  return paraVarianteCompleta(await fichaDaVariante(trx, comercianteId, id));
+}
+
+/**
+ * Altera a variante na transacção dada e devolve-a; chamam-na o
+ * PATCH /variants/{id} (pela chave) e o PATCH /hub/variants/{id} (docs/22
+ * §23.1). O GTIN e a origem vêm juntos (C4): mudar um sem o outro recusa-se
+ * aqui; tirá-lo leva os dois a nulo.
+ */
+export async function alteracaoDaVariante(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  idComPrefixo: string,
+  corpo: Static<typeof PedidoAlterarVariante>,
+): Promise<Static<typeof VarianteCompleta>> {
+  const id = semPrefixo(idComPrefixo);
+  const { versao, ...alteracao } = corpo;
+  if (alteracao.gtin !== undefined || alteracao.gtin_origem !== undefined) {
+    if (alteracao.gtin === undefined || alteracao.gtin_origem === undefined) {
+      throw erroBase("request.invalid", "`gtin` e `gtin_origem` mudam juntos");
+    }
+    gtinComOrigem([alteracao]);
+  }
+  await alterarVariante(trx, comercianteId, id, versao, alteracao);
   return paraVarianteCompleta(await fichaDaVariante(trx, comercianteId, id));
 }
 
@@ -2057,6 +2116,30 @@ export function rotasDoCatalogo(
           );
         },
         (corpo) => `/variants/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  rotas.patch(
+    "/variants/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Altera a variante na `versao` lida (outra dá catalog.version_conflict): o peso, as dimensões, o GTIN com a origem, o ONU, a classe ADR e a posição sempre; a unidade de venda e o conteúdo só num rascunho (catalog.not_draft). O SKU não muda; uma variante arquivada também não (catalog.variant_archived_is_final). O peso de uma variante à venda não se apaga (catalog.published_in_use). docs/14 §7.1.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroVariante,
+        body: PedidoAlterarVariante,
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        alteracaoDaVariante(
+          trx,
+          chave.comercianteId,
+          pedido.params.id,
+          pedido.body,
+        ),
       ),
   );
 

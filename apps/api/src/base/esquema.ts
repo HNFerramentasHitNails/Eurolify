@@ -54,6 +54,8 @@ export interface TabelaEntidadeLegal {
   morada_codigo_postal: string;
   morada_localidade: string;
   estado: ColumnType<"activa" | "arquivada", "activa" | undefined>;
+  /** Quem emite o documento fiscal (migração 0050; ADR-0041). */
+  emissor_fiscal: ColumnType<EmissorFiscal, never, EmissorFiscal>;
   criado_em: Instante;
 }
 
@@ -279,6 +281,9 @@ export interface TabelaVariante {
   estado: ColumnType<EstadoVariante, "activa" | undefined, "arquivada">;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
+  // Migração 0048: sobe a cada mudança da linha; quem a sobe é o gatilho, a
+  // API só a lê e a confere.
+  versao: ColumnType<number, never, never>;
 }
 
 // Catálogo, parte 2a (migração 0004; docs/14 §3.4).
@@ -814,6 +819,26 @@ export interface TabelaDuplicadoCliente {
   actualizado_em: ColumnType<Date, never, never>;
 }
 
+export const TIPOS_PEDIDO_TITULAR = [
+  "exportacao",
+  "limitacao",
+  "fim_da_limitacao",
+  "apagamento",
+] as const;
+export type TipoPedidoTitular = (typeof TIPOS_PEDIDO_TITULAR)[number];
+
+/** Um pedido do titular (migração 0049): só se acrescenta; escrevem-no as funções do dono. */
+export interface TabelaPedidoTitular {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_id: ColumnType<string, never, never>;
+  tipo: ColumnType<TipoPedidoTitular, never, never>;
+  verificacao: ColumnType<string, never, never>;
+  quem: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
+  resultado: ColumnType<Record<string, unknown>, never, never>;
+}
+
 export interface TabelaIsencaoManual {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1041,6 +1066,8 @@ export interface TabelaEncomenda {
   metodo_entrega: ColumnType<unknown, string, never>;
   metodo_pagamento: ColumnType<string, string, never>;
   aceitacoes: ColumnType<unknown, string, never>;
+  /** Copiado da entidade no botão final (0050); nunca muda. */
+  emissor_fiscal: ColumnType<EmissorFiscal, never, never>;
   estado: ColumnType<EstadoEncomenda, never, EstadoEncomenda>;
   criada_por: ColumnType<string, string, never>;
   criada_em: ColumnType<Date, never, never>;
@@ -1369,6 +1396,7 @@ export interface BaseDados {
   isencao_manual: TabelaIsencaoManual;
   consentimento: TabelaConsentimento;
   duplicado_cliente: TabelaDuplicadoCliente;
+  pedido_titular: TabelaPedidoTitular;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;
@@ -1398,4 +1426,139 @@ export interface BaseDados {
   linha_expedicao: TabelaLinhaExpedicao;
   transicao_encomenda: TabelaTransicaoEncomenda;
   linha_encomenda_folha: TabelaLinhaEncomendaFolha;
+  ligacao_faturacao: TabelaLigacaoFaturacao;
+  documento_fiscal: TabelaDocumentoFiscal;
+  documento_conteudo: TabelaDocumentoConteudo;
+  documento_prova: TabelaDocumentoProva;
+  documento_rasto: TabelaDocumentoRasto;
+}
+
+// Documentos fiscais (migração 0050; docs/28).
+
+export const EMISSORES_FISCAIS = [
+  "por_configurar",
+  "eurolify",
+  "sistema_proprio",
+] as const;
+export type EmissorFiscal = (typeof EMISSORES_FISCAIS)[number];
+
+export const ADAPTADORES_FATURACAO = ["ensaio", "moloni"] as const;
+export type AdaptadorFaturacao = (typeof ADAPTADORES_FATURACAO)[number];
+
+export const ESTADOS_LIGACAO_FATURACAO = [
+  "por_testar",
+  "pronta",
+  "com_erro",
+] as const;
+export type EstadoLigacaoFaturacao = (typeof ESTADOS_LIGACAO_FATURACAO)[number];
+
+export const ESTADOS_DOCUMENTO = [
+  "a_verificar",
+  "retido",
+  "pronto",
+  "rascunho",
+  "emitido",
+  "incerto",
+  "divergente",
+  "resolvido",
+] as const;
+export type EstadoDocumento = (typeof ESTADOS_DOCUMENTO)[number];
+
+export interface TaxaDoEmissor {
+  pais: string;
+  /** Centésimas de ponto (2300 = 23 %). */
+  taxa: number;
+  emissor: string;
+}
+
+export interface IsencaoDoEmissor {
+  codigo: string;
+  emissor: string;
+}
+
+export interface TabelaLigacaoFaturacao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  entidade_legal_id: ColumnType<string, string, never>;
+  adaptador: ColumnType<AdaptadorFaturacao, AdaptadorFaturacao, never>;
+  modo: ColumnType<"teste", never, never>;
+  estado: ColumnType<EstadoLigacaoFaturacao, never, EstadoLigacaoFaturacao>;
+  activa: ColumnType<boolean, never, boolean>;
+  credenciais: ColumnType<Buffer | null, never, Buffer | null>;
+  credenciais_versao_chave: ColumnType<string | null, never, string | null>;
+  credenciais_em: ColumnType<Date | null, never, Date | null>;
+  credenciais_por: ColumnType<string | null, never, string | null>;
+  serie: ColumnType<string | null, string | null, string | null>;
+  taxas: ColumnType<TaxaDoEmissor[], string, string>;
+  isencoes: ColumnType<IsencaoDoEmissor[], string, string>;
+  testada_em: ColumnType<Date | null, never, Date | null>;
+  erro: ColumnType<string | null, never, string | null>;
+  versao: ColumnType<number, never, number>;
+  criada_por: ColumnType<string, string, never>;
+  criada_em: ColumnType<Date, never, never>;
+  actualizada_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaDocumentoFiscal {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, never, never>;
+  encomenda_id: ColumnType<string, never, never>;
+  entidade_legal_id: ColumnType<string, never, never>;
+  tipo: ColumnType<"fatura", never, never>;
+  modo: ColumnType<"teste", never, never>;
+  estado: ColumnType<EstadoDocumento, never, EstadoDocumento>;
+  motivos: ColumnType<string[], never, string[]>;
+  validados: ColumnType<string[], never, string[]>;
+  ligacao_id: ColumnType<string | null, never, string | null>;
+  emissor_id: ColumnType<string | null, never, string | null>;
+  tentativas: ColumnType<number, never, number>;
+  falhas: ColumnType<number, never, number>;
+  proxima_em: ColumnType<Date, never, Date>;
+  reservado_ate: ColumnType<Date | null, never, Date | null>;
+  versao: ColumnType<number, never, number>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaDocumentoConteudo {
+  documento_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  versao: ColumnType<number, number, never>;
+  conteudo: ColumnType<unknown, string, never>;
+  impressao: ColumnType<string, string, never>;
+  motivo: ColumnType<string, string, never>;
+  quem: ColumnType<string, string, never>;
+  em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaDocumentoProva {
+  id: Generated<string>;
+  documento_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  numero: ColumnType<string, string, never>;
+  serie: ColumnType<string | null, string | null, never>;
+  data: ColumnType<string | null, string | null, never>;
+  atcud: ColumnType<string | null, string | null, never>;
+  nif: ColumnType<string | null, string | null, never>;
+  nome: ColumnType<string | null, string | null, never>;
+  pais: ColumnType<string | null, string | null, never>;
+  linhas: ColumnType<unknown, string, never>;
+  totais: ColumnType<unknown, string, never>;
+  pdf: ColumnType<Buffer | null, Buffer | null, never>;
+  em_bruto: ColumnType<unknown, string, never>;
+  divergencias: ColumnType<unknown, string, never>;
+  lida_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaDocumentoRasto {
+  id: Generated<string>;
+  documento_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  passo: ColumnType<string, string, never>;
+  de: ColumnType<string | null, string | null, never>;
+  para: ColumnType<string | null, string | null, never>;
+  motivo: ColumnType<string | null, string | null, never>;
+  quem: ColumnType<string, string, never>;
+  dados: ColumnType<unknown, string | undefined, never>;
+  em: ColumnType<Date, never, never>;
 }

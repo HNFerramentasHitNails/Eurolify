@@ -255,17 +255,19 @@ Conferido no repositório a 10/10/2026 (`ls apps/api/migracoes`,
   Nada a fazer.
 
 **Continua aberto, à espera de uma decisão do Diogo ou do Bruno:**
-- **RTO** (tempo para voltar) para a produção (`docs/17`, «Cópias»): o
-  ensaio de domingo mede quanto demora uma reposição; o objectivo é uma
-  decisão antes do primeiro comerciante.
-- **As acções e as imagens fixadas por resumo sem vigilância nem
-  actualização por rotina** (o fluxo `vigiar` só olha para o `pnpm audit`).
-- **«De onde» e «que IA e modelo» no rasto do Comerciante:** por desenhar.
 
 **Fechado depois:** o `segredos` (gitleaks) passou a obrigatório para juntar
 ao `main` a 10/10/2026, 12:53 UTC, gravado pelo Diogo na regra «main
 protegido»; a API do GitHub lê agora `codigo`, `script-vps`, `imagem` e
-`segredos` (`docs/06`, DG).
+`segredos` (`docs/06`, DG). As acções do GitHub passam a ter o Dependabot
+(um pedido por semana) e as imagens base uma verificação de manhã no fluxo
+`vigiar`, que abre um issue quando há uma imagem nova (`docs/06`, DH). Na
+primeira medição (10/10/2026, no espelho `mirror.gcr.io`), o `postgres:18.6`
+e o `node:24.21.0-trixie-slim` já tinham imagens novas; o `ubuntu:26.04` e o
+`buildkit` estavam iguais.
+
+Decididos depois: o **RTO** de 4 horas (`docs/06`, DJ) e as seis perguntas do
+**rasto de auditoria** (`docs/06`, DK), com o desenho no `docs/28`, aprovado.
 
 **À espera de terceiros:**
 - `marketplace-dsa`: a marca do art. 16.º, até à resposta da G7 (jurista).
