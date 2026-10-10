@@ -10,6 +10,7 @@ import { Artigos } from "./ecras/Artigos";
 import { Historico } from "./ecras/Historico";
 import { OpcoesEditar } from "./ecras/OpcoesEditar";
 import { VarianteEditar } from "./ecras/VarianteEditar";
+import { VarianteNova } from "./ecras/VarianteNova";
 import { Chaves } from "./ecras/Chaves";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
@@ -38,7 +39,8 @@ import {
 // As páginas do Hub (docs/22 §2, §9 e §11): /entrar, /recuperar, /convite,
 // /equipa, /artigos, /artigos/novo, /artigos/{prd_…},
 // /artigos/{prd_…}/editar, /artigos/{prd_…}/historico,
-// /artigos/{prd_…}/opcoes, /artigos/{prd_…}/variantes/{var_…}, /chaves,
+// /artigos/{prd_…}/opcoes, /artigos/{prd_…}/variantes/{var_…},
+// /artigos/{prd_…}/variantes/nova, /chaves,
 // /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
@@ -174,7 +176,9 @@ export function App() {
                       : opcoesDoArtigo !== null
                         ? t.opcoesTitulo
                         : daVariante !== null
-                          ? t.varianteEditarTitulo
+                          ? daVariante[2] === "nova"
+                            ? t.varianteNovaTitulo
+                            : t.varianteEditarTitulo
                           : local.caminho === "/chaves"
                             ? t.chavesTitulo
                             : local.caminho === "/conta"
@@ -238,6 +242,15 @@ export function App() {
         key={`${opcoesDoArtigo} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
         artigo={opcoesDoArtigo}
+        consulta={local.consulta}
+      />
+    );
+  else if (daVariante?.[2] === "nova")
+    ecra = (
+      <VarianteNova
+        key={`${daVariante[1] ?? ""} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        artigo={daVariante[1] ?? ""}
         consulta={local.consulta}
       />
     );

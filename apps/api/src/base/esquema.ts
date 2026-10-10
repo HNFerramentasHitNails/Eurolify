@@ -1449,7 +1449,7 @@ export interface BaseDados {
   linha_reembolso: TabelaLinhaReembolso;
 }
 
-// Documentos fiscais (migração 0050; docs/28).
+// Documentos fiscais (migração 0050; docs/29).
 
 export const EMISSORES_FISCAIS = [
   "por_configurar",
@@ -1581,7 +1581,7 @@ export interface TabelaDocumentoRasto {
   em: ColumnType<Date, never, never>;
 }
 
-// Pós-venda (migração 0051; docs/29).
+// Pós-venda (migração 0052; docs/30).
 
 export const ESTADOS_ARTIGO_DEVOLVIDO = [
   "revendavel",

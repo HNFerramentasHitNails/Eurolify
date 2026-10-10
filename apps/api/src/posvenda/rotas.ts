@@ -36,7 +36,7 @@ import {
   registarReembolsoManual,
 } from "./repositorio.js";
 
-// A API da pós-venda (docs/29 §7; issue #328; Diogo, 10/10/2026:
+// A API da pós-venda (docs/30 §7; issue #328; Diogo, 10/10/2026:
 // «aprovado» e «avança»). O reembolso pelo prestador (`/execute`,
 // `/reconcile`) fica para a parte 2: nesta, o reembolso é manual (Q2).
 

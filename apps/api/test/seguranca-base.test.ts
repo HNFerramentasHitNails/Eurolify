@@ -61,6 +61,8 @@ const FUNCOES_DA_API = [
   "codigos_gerar",
   "comerciante_actual",
   "conta_nova_com_passkey",
+  // O contexto do rasto (0051): os gatilhos do rasto chamam-no com quem escreve.
+  "contexto_do_rasto",
   "convite_aceitar",
   "convite_cancelar",
   "convite_criar",
@@ -98,7 +100,7 @@ const FUNCOES_DA_API = [
   "nif_para_procura",
   "nif_portugues_valido",
   "nif_regua",
-  // A pós-venda (0051): a NC pede-se ao decidir o reembolso, se há fatura.
+  // A pós-venda (0052): a NC pede-se ao decidir o reembolso, se há fatura.
   "nota_credito_pedir",
   "pagamento_transicao_valida",
   "pagamentos_adiar_tarefa",

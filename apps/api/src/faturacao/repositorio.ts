@@ -21,7 +21,7 @@ import {
 } from "./adaptador.js";
 import { ErroDocumentos, traduzir } from "./erros.js";
 
-// Os documentos fiscais (docs/28; migração 0050; issue #310; Diogo,
+// Os documentos fiscais (docs/29; migração 0050; issue #310; Diogo,
 // 10/10/2026: «sim, aprovo; avança com o código da fatia 10»).
 //
 // 🔴 Na dúvida, retém. O documento nasce da cópia da encomenda (nunca de um
@@ -34,7 +34,7 @@ import { ErroDocumentos, traduzir } from "./erros.js";
 
 export const QUEM_DA_TAREFA = "sistema:documentos";
 
-/** Os motivos de retenção (docs/28 §5, R3): lista fechada. */
+/** Os motivos de retenção (docs/29 §5, R3): lista fechada. */
 export const MOTIVOS_RETENCAO = [
   "emissor_por_configurar",
   "ligacao_sem_teste",
@@ -52,7 +52,7 @@ export const MOTIVOS_RETENCAO = [
   "moeda_nao_suportada",
   "totais_nao_batem",
   "entidade_do_emissor_diferente",
-  // A pós-venda (docs/29): a NC espera pela fatura e não passa o saldo dela;
+  // A pós-venda (docs/30): a NC espera pela fatura e não passa o saldo dela;
   // uma fatura de uma encomenda já reembolsada por inteiro espera pelo
   // contabilista (C2).
   "original_por_emitir",
@@ -174,7 +174,7 @@ export async function criarLigacao(
 ) {
   return noDocumentos(trx, c, async () => {
     if (dados.adaptador === "moloni") {
-      // O Moloni é a parte 2 (docs/28 Q5): sem a documentação lida, não há
+      // O Moloni é a parte 2 (docs/29 Q5): sem a documentação lida, não há
       // adaptador.
       throw new ErroDocumentos(
         "invoices.not_configured",
@@ -417,7 +417,7 @@ export interface Conteudo {
   meio_pagamento: string;
   destino: string | null;
   carimbo: string;
-  /** Só na nota de crédito (docs/29 §3.5): o tipo e a fatura (`inv_…`). */
+  /** Só na nota de crédito (docs/30 §3.5): o tipo e a fatura (`inv_…`). */
   tipo?: "nota_credito";
   original?: string;
 }
@@ -621,7 +621,7 @@ async function montarConteudo(
 }
 
 /**
- * O conteúdo da nota de crédito (docs/29 §3.5): as linhas do reembolso com o
+ * O conteúdo da nota de crédito (docs/30 §3.5): as linhas do reembolso com o
  * tratamento fiscal **copiado** da fatura (taxa, motivo, regra, evidência),
  * nunca recalculado; o montante é o reembolsado, com a base e o IVA na
  * proporção da linha da fatura.
@@ -889,7 +889,7 @@ async function verificar(
     motivos.add(m);
   }
   if (doc.tipo === "nota_credito") {
-    // A NC espera pela fatura emitida e não passa o saldo dela (docs/29
+    // A NC espera pela fatura emitida e não passa o saldo dela (docs/30
     // §3.5; lição 2.13).
     if (
       original === null ||
@@ -909,7 +909,7 @@ async function verificar(
     }
   } else {
     // Reembolsada por inteiro antes de a fatura sair: espera pelo
-    // contabilista (docs/29, C2).
+    // contabilista (docs/30, C2).
     const { rows } = await sql<{ reembolsado: string | null; total: string }>`
       select (select sum(r.montante) from reembolso r
               where r.encomenda_id = e.id
@@ -1105,7 +1105,7 @@ async function lerContexto(
   let ultimo = await ultimoConteudo(trx, id);
   if (ultimo === undefined) {
     // A primeira versão do conteúdo nasce da encomenda (R2), ou, numa nota
-    // de crédito, do reembolso e da fatura (docs/29 §3.5).
+    // de crédito, do reembolso e da fatura (docs/30 §3.5).
     const c =
       doc.tipo === "nota_credito" &&
       doc.original_id !== null &&
@@ -2278,7 +2278,7 @@ export async function lerDocumento(
       .orderBy("em")
       .orderBy("id")
       .execute();
-    // A fatura mostra as NC e o saldo (docs/29 §3.5): faturado − creditado,
+    // A fatura mostra as NC e o saldo (docs/30 §3.5): faturado − creditado,
     // pelos totais lidos de volta dos documentos.
     const notas =
       d.tipo === "fatura"

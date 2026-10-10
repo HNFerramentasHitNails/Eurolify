@@ -26,7 +26,7 @@ import {
   testarLigacao,
 } from "./repositorio.js";
 
-// A API dos documentos fiscais (docs/28 §7; issue #310; Diogo, 10/10/2026:
+// A API dos documentos fiscais (docs/29 §7; issue #310; Diogo, 10/10/2026:
 // «sim, aprovo; avança com o código da fatia 10»). As decisões de uma pessoa
 // são uma de cada vez: nenhuma rota aceita listas (R10).
 

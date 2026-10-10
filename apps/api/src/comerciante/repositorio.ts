@@ -1,4 +1,5 @@
 import { sql, type Kysely, type Transaction } from "kysely";
+import { aplicarRasto } from "../base/rasto.js";
 import type {
   BaseDados,
   EstadoComerciante,
@@ -100,6 +101,8 @@ export async function comComerciante<T>(
       await sql`select set_config('eurolify.comerciante', ${comercianteId}, true)`.execute(
         trx,
       );
+      // O contexto do rasto (docs/28 §3.1): só onde se pode escrever.
+      if (opcoes.soLeitura !== true) await aplicarRasto(trx);
       return fn(trx);
     });
   } catch (erro) {

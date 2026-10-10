@@ -1,4 +1,4 @@
--- Pós-venda, parte 1 (docs/29; issue #328; decisões do Diogo, 10/10/2026:
+-- Pós-venda, parte 1 (docs/30; issue #328; decisões do Diogo, 10/10/2026:
 -- «aprovado» (DM) e «avança»).
 --
 -- Devolução = volta mercadoria; problema = não volta; nenhum reembolso sem
@@ -50,14 +50,14 @@ BEGIN
     RAISE EXCEPTION 'orders.immutable: as cópias da encomenda não mudam';
   END IF;
   -- Só para a frente (docs/27 §4.1); cancelar uma paga não expedida
-  -- (docs/29, Q7).
+  -- (docs/30, Q7).
   IF NOT (OLD.estado, NEW.estado) IN (
        ('paga', 'cancelada'), ('em_preparacao', 'cancelada'),
        ('a_aguardar_pagamento', 'paga'), ('a_aguardar_pagamento', 'cancelada_sem_pagamento'),
        ('paga', 'em_preparacao'), ('em_preparacao', 'expedida_parcial'),
        ('em_preparacao', 'expedida'), ('expedida_parcial', 'expedida'),
        ('expedida', 'entregue'), ('entregue', 'concluida'),
-       -- Devolvida pela soma do reembolsado nas devoluções (docs/29 §4.4),
+       -- Devolvida pela soma do reembolsado nas devoluções (docs/30 §4.4),
        -- só depois de tudo entregue (uma expedição ainda a caminho não fica
        -- presa a um estado de devolução).
        ('entregue', 'devolvida_parcial'), ('entregue', 'devolvida'),
@@ -209,7 +209,7 @@ BEGIN
     WHEN 'libertacao' THEN r := r - NEW.quantidade;
     WHEN 'saida' THEN f := f - NEW.quantidade; r := r - NEW.quantidade;
     WHEN 'ajuste' THEN f := f + NEW.quantidade;
-    -- A devolução aceite na inspecção volta ao físico (docs/29, R4).
+    -- A devolução aceite na inspecção volta ao físico (docs/30, R4).
     WHEN 'devolucao' THEN f := f + NEW.quantidade;
   END CASE;
   IF f < 0 THEN
@@ -625,7 +625,7 @@ CREATE TRIGGER reembolso_antes_de_gravar BEFORE INSERT OR UPDATE OR DELETE ON re
 ALTER TABLE reembolso ENABLE ALWAYS TRIGGER reembolso_antes_de_gravar;
 
 -- Executado o reembolso de uma devolução, a encomenda entregue passa a
--- devolvida (tudo reembolsado) ou devolvida_parcial (docs/29 §4.4). Corre
+-- devolvida (tudo reembolsado) ou devolvida_parcial (docs/30 §4.4). Corre
 -- com quem escreve (o eurolify.quem já está).
 CREATE FUNCTION reembolso_marca_devolvida() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
@@ -700,7 +700,7 @@ BEGIN
       RAISE EXCEPTION 'invoices.order_not_paid: o documento só nasce depois do pagamento confirmado';
     END IF;
     -- A nota de crédito referencia a fatura da mesma encomenda e um
-    -- reembolso (docs/29 §3.5).
+    -- reembolso (docs/30 §3.5).
     IF NEW.tipo = 'nota_credito' AND (NEW.reembolso_id IS NULL OR NOT EXISTS (
          SELECT 1 FROM public.documento_fiscal o
          WHERE o.id = NEW.original_id AND o.tipo = 'fatura' AND o.encomenda_id = NEW.encomenda_id)) THEN
@@ -887,7 +887,7 @@ ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
 CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
   -- Por ordem alfabética, como em src/identidade/papeis.ts. Como a 0050, mais
-  -- os returns:* e refunds:* (docs/29, Q6): dono e gestor todos; armazém
+  -- os returns:* e refunds:* (docs/30, Q6): dono e gestor todos; armazém
   -- recebe e inspecciona; apoio regista e vê os reembolsos.
   SELECT CASE p_papel
     WHEN 'dono' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',

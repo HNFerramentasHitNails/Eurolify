@@ -211,3 +211,135 @@ export function camposSobreOGuardado(
   }
   return novos;
 }
+
+// Acrescentar uma variante (docs/22 §24): o formulário começa vazio, com a
+// unidade «unidade», e o corpo do POST /hub/products/{id}/variants só leva o
+// que se escreveu.
+
+export const MAXIMO_SKU = 64;
+
+export const CAMPOS_DE_VARIANTE_NOVA: CamposVariante = {
+  unidade: "unidade",
+  gtin: "",
+  gtinOrigem: "",
+  quantidade: "",
+  unidadeConteudo: "",
+  peso: "",
+  comprimento: "",
+  largura: "",
+  altura: "",
+  onu: "",
+  classeAdr: "",
+};
+
+/** O corpo do POST /hub/products/{id}/variants. */
+export interface VarianteACriar {
+  sku: string;
+  unidade_de_venda: Unidade;
+  gtin?: string;
+  gtin_origem?: OrigemGtin;
+  conteudo_quantidade?: number;
+  conteudo_unidade?: UnidadeConteudo;
+  peso_g?: number;
+  comprimento_mm?: number;
+  largura_mm?: number;
+  altura_mm?: number;
+  onu?: string;
+  classe_adr?: string;
+  valores?: string[];
+}
+
+/**
+ * O corpo, só com o que se escreveu; os valores das opções escolhidos, pela
+ * ordem das opções (a API recusa dois da mesma opção).
+ */
+export function corpoDaVarianteNova(
+  sku: string,
+  c: CamposVariante,
+  valores: readonly string[],
+): VarianteACriar {
+  const corpo: VarianteACriar = {
+    sku: sku.trim(),
+    unidade_de_venda: c.unidade,
+  };
+  const gtin = textoOuNulo(c.gtin);
+  if (gtin !== null && c.gtinOrigem !== "") {
+    corpo.gtin = gtin;
+    corpo.gtin_origem = c.gtinOrigem;
+  }
+  const q = numeroOuNulo(c.quantidade);
+  if (q !== null && c.unidadeConteudo !== "") {
+    corpo.conteudo_quantidade = q;
+    corpo.conteudo_unidade = c.unidadeConteudo;
+  }
+  const medidas = [
+    ["peso", "peso_g"],
+    ["comprimento", "comprimento_mm"],
+    ["largura", "largura_mm"],
+    ["altura", "altura_mm"],
+  ] as const;
+  for (const [campo, chave] of medidas) {
+    const n = numeroOuNulo(c[campo]);
+    if (n !== null) corpo[chave] = n;
+  }
+  const onu = textoOuNulo(c.onu.toUpperCase());
+  if (onu !== null) corpo.onu = onu;
+  const classe = textoOuNulo(c.classeAdr);
+  if (classe !== null) corpo.classe_adr = classe;
+  const escolhidos = valores.filter((v) => v !== "");
+  if (escolhidos.length > 0) corpo.valores = escolhidos;
+  return corpo;
+}
+
+/**
+ * Alguma coisa escrita (para a guarda de saída). A origem do GTIN só conta
+ * com o GTIN escrito: sem ele, a lista nem se vê (revisão do #331, P3-5).
+ */
+export function varianteNovaEscrita(
+  sku: string,
+  c: CamposVariante,
+  valores: readonly string[],
+): boolean {
+  const semGtin = c.gtin.trim() === "";
+  return (
+    sku.trim() !== "" ||
+    ORDEM_DOS_CAMPOS.some(
+      (k) =>
+        !(k === "gtinOrigem" && semGtin) && c[k] !== CAMPOS_DE_VARIANTE_NOVA[k],
+    ) ||
+    valores.some((v) => v !== "")
+  );
+}
+
+/**
+ * Depois de uma resposta perdida, a variante lida é a que se escreveu
+ * (§24.1): activa, com o mesmo SKU, todos os campos do corpo iguais e os
+ * mesmos valores das opções. Quem chama confere também que não estava entre
+ * as variantes lidas ao abrir. Sem isto, uma variante que já existia com o
+ * mesmo SKU, ou a primeira tentativa com outro peso, davam-se como criadas
+ * (revisão do #331, P1-1).
+ */
+export function varianteIgualAoCorpo(
+  v: VarianteArtigo,
+  corpo: VarianteACriar,
+  valoresDaVariante: readonly string[],
+): boolean {
+  if (v.estado !== "activa" || v.sku !== corpo.sku) return false;
+  const pares: [unknown, unknown][] = [
+    [v.unidade_de_venda, corpo.unidade_de_venda],
+    [v.gtin, corpo.gtin ?? null],
+    [v.gtin_origem, corpo.gtin_origem ?? null],
+    [v.conteudo_quantidade, corpo.conteudo_quantidade ?? null],
+    [v.conteudo_unidade, corpo.conteudo_unidade ?? null],
+    [v.peso_g, corpo.peso_g ?? null],
+    [v.comprimento_mm, corpo.comprimento_mm ?? null],
+    [v.largura_mm, corpo.largura_mm ?? null],
+    [v.altura_mm, corpo.altura_mm ?? null],
+    [v.onu, corpo.onu ?? null],
+    [textoOuNulo(v.classe_adr ?? ""), corpo.classe_adr ?? null],
+  ];
+  if (pares.some(([a, b]) => a !== b)) return false;
+  const pedidos = [...(corpo.valores ?? [])].sort();
+  const tem = [...valoresDaVariante].sort();
+  return pedidos.length === tem.length && pedidos.every((x, i) => x === tem[i]);
+}

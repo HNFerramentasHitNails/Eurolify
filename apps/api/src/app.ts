@@ -1,3 +1,4 @@
+import { AsyncResource } from "node:async_hooks";
 import { isIP } from "node:net";
 import Fastify, { type FastifyServerOptions } from "fastify";
 import cookie from "@fastify/cookie";
@@ -18,6 +19,13 @@ import {
   LimitePorIp,
   type RegraLimite,
 } from "./base/limite.js";
+import {
+  comRasto,
+  iaDoCabecalho,
+  type ContextoRasto,
+  type IaDoRasto,
+  PEDIDO_DO_RASTO,
+} from "./base/rasto.js";
 import {
   guardaExportacoes,
   type Armazenamento,
@@ -108,7 +116,7 @@ export function criarApp(
    */
   pagamentos?: ConfigPagamentos,
   /**
-   * Os adaptadores de faturação e a chave das credenciais (docs/28); sem
+   * Os adaptadores de faturação e a chave das credenciais (docs/29); sem
    * eles, ligar o emissor dá 503 `invoices.not_configured`.
    */
   faturacao?: ConfigFaturacao,
@@ -142,6 +150,42 @@ export function criarApp(
         `versões suportadas: ${VERSOES_API.join(", ")}`,
       );
     }
+  });
+  // O contexto do rasto de auditoria (docs/28 §3.1, #322): o canal, o
+  // identificador do pedido (o mesmo do `instance` dos erros) e a IA que
+  // quem chama declara. Lido aqui, num só sítio; `comComerciante` passa-o à
+  // base em cada transacção. Como no @fastify/request-context: o resto do
+  // pedido corre dentro do `comRasto`, e o `preValidation` volta a entrar
+  // nele, porque o fim do corpo chega no contexto da ligação, não no do
+  // pedido (revisão do #327, P1-1).
+  const recursosDoRasto = new WeakMap<object, AsyncResource>();
+  app.addHook("onRequest", (pedido, _resposta, feito) => {
+    let ia: IaDoRasto | undefined;
+    try {
+      ia = iaDoCabecalho(pedido.headers["eurolify-ia"]);
+    } catch (erro) {
+      feito(erro as Error);
+      return;
+    }
+    const contexto: ContextoRasto = {
+      // A marca que a guarda das rotas do Hub já impõe (revisão, P3-1).
+      canal: pedido.routeOptions.config.hub === true ? "hub" : "api",
+      // Um identificador que a base não aceitaria fica de fora (P3-3).
+      ...(PEDIDO_DO_RASTO.test(pedido.id) ? { pedido: pedido.id } : {}),
+      ...(ia === undefined ? {} : { ia }),
+    };
+    comRasto(contexto, () => {
+      recursosDoRasto.set(pedido, new AsyncResource("eurolify-rasto"));
+      feito();
+    });
+  });
+  app.addHook("preValidation", (pedido, _resposta, feito) => {
+    const recurso = recursosDoRasto.get(pedido);
+    if (recurso === undefined) {
+      feito();
+      return;
+    }
+    recurso.runInAsyncScope(feito, pedido.raw);
   });
   // O cookie da sessão do Hub (docs/21 §3); as opções de cada cookie são
   // dadas ao escrevê-lo (sessoes.ts), nunca as de omissão da biblioteca.
@@ -281,7 +325,7 @@ export function criarApp(
         title: "Eurolify API",
         version: "0.1.0",
         description:
-          "Contrato da API do Eurolify (ADR-0025, docs/18). Os erros seguem o RFC 9457 (application/problem+json) com um `codigo` estável. As rotas com chave pedem `Authorization: Bearer eul_sk_…` (docs/19).",
+          "Contrato da API do Eurolify (ADR-0025, docs/18). Os erros seguem o RFC 9457 (application/problem+json) com um `codigo` estável. As rotas com chave pedem `Authorization: Bearer eul_sk_…` (docs/19). Quem chama em nome de uma IA pode dizê-lo no cabeçalho `Eurolify-IA: fornecedor=…; modelo=…; execucao=…`, gravado no rasto como declarado; mal formado, dá 400 `request.invalid` (docs/28 §3.3).",
       },
       components: {
         securitySchemes: {

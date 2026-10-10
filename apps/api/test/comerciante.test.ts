@@ -140,7 +140,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0048_catalogo_versao_da_variante",
         "0049_clientes_pedidos_do_titular",
         "0050_documentos_fiscais",
-        "0051_pos_venda",
+        "0051_rasto_contexto",
+        "0052_pos_venda",
       ]);
     });
 
@@ -250,7 +251,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // declaração do regime do IVA (0040), as 8 do checkout (0041), os
       // consentimentos (0042), as 6 dos pagamentos (0044), os candidatos a
       // duplicado (0046), as 10 do stock (0047), os pedidos do titular
-      // (0049), as 5 dos documentos fiscais (0050) e as 7 da pós-venda (0051).
+      // (0049), as 5 dos documentos fiscais (0050) e as 7 da pós-venda (0052).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(78);

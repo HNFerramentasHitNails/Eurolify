@@ -94,6 +94,7 @@ cortada em silêncio).
 | Nada fora do contrato | uma rota sem a resposta de sucesso **e** a de erro (`application/problem+json`) **não se regista** (gancho `onRoute` em `app.ts`); só o `/openapi.json` fica de fora; o teste confere o contrato publicado |
 | Erro no contrato | um esquema `Problema` partilhado, referido em todas as respostas de erro |
 | Versão por data | **em código** desde a primeira rota de domínio (07/10/2026, `app.ts`; `headless-commerce`, regra 7): a versão é um mês (`2026-10`). Quem chama pode pedir uma com o cabeçalho `Eurolify-Versao`; sem ele, recebe a mais recente. Uma que não existe dá 400 `version.unsupported`. Todas as respostas trazem `Eurolify-Versao` com a versão servida. Os 12 meses de suporte de cada versão e o anúncio das alterações desenham-se com a segunda versão (**proposta**) |
+| IA declarada | **em código** desde 10/10/2026 (`app.ts`, `base/rasto.ts`; `docs/28` §3.3; #322): quem chama em nome de uma IA pode dizê-lo com o cabeçalho `Eurolify-IA: fornecedor=…; modelo=…; execucao=…` (cada valor com letras, números e `._:/-`, até 100). Fica no rasto de auditoria como **declarado**, nunca como comprovado. Mal formado ou repetido dá 400 `request.invalid`; sem ele, a IA fica desconhecida |
 
 ## 4. Idempotência (tabela `idempotencia`, migração 0012)
 

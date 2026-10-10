@@ -9,7 +9,7 @@ import { comComerciante } from "../comerciante/repositorio.js";
 import { armazemDaLoja, folhas, politicas } from "../stock/repositorio.js";
 import { ErroPosVenda, traduzir } from "./erros.js";
 
-// A pós-venda (docs/29; migração 0051; issue #328; Diogo, 10/10/2026:
+// A pós-venda (docs/30; migração 0052; issue #328; Diogo, 10/10/2026:
 // «aprovado» e «avança»).
 //
 // 🔴 Devolução = volta mercadoria; problema = não volta; nenhum reembolso
@@ -18,11 +18,11 @@ import { ErroPosVenda, traduzir } from "./erros.js";
 
 /**
  * O prazo de livre resolução em dias a contar da entrega, por país de
- * entrega (R3). **C**: 14 por omissão até o jurista validar (`docs/29`, J1).
+ * entrega (R3). **C**: 14 por omissão até o jurista validar (`docs/30`, J1).
  */
 const DIAS_POR_OMISSAO = 14;
 const DIAS_POR_PAIS: Record<string, number> = {};
-/** R10: o prazo do reembolso a contar do pedido. **C** (docs/29, J4). */
+/** R10: o prazo do reembolso a contar do pedido. **C** (docs/30, J4). */
 const DIAS_PARA_REEMBOLSAR = 14;
 export const diasDeLivreResolucao = (pais: string | null) =>
   (pais === null ? undefined : DIAS_POR_PAIS[pais]) ?? DIAS_POR_OMISSAO;
@@ -729,7 +729,7 @@ interface PedidoReembolso {
  * ela na proporção da quantidade, e a última unidade leva o resto (nunca se
  * reembolsa mais nem menos do que se pagou); os portes são linha própria. A
  * base confere tudo ao sair do rascunho. Pede a nota de crédito quando a
- * fatura é do Eurolify (docs/29 §3.5).
+ * fatura é do Eurolify (docs/30 §3.5).
  */
 async function criarReembolso(
   trx: Transaction<BaseDados>,
@@ -1140,7 +1140,7 @@ export async function lerDevolucao(
       .where("devolucao_id", "=", id)
       .execute();
     // R10: o prazo do reembolso conta-se do pedido de livre resolução
-    // (**C**, 14 dias até o jurista validar, docs/29 J4).
+    // (**C**, 14 dias até o jurista validar, docs/30 J4).
     const { rows } = await sql<{
       ate: string | null;
       dias: number | null;

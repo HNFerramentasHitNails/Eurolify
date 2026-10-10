@@ -1,7 +1,7 @@
 import type { AdaptadorFaturacao as NomeAdaptador } from "../base/esquema.js";
 import type { ChavePagamentos } from "../pagamentos/cifra.js";
 
-// O contrato do adaptador de faturação (docs/28 §7.4; docs/08 §4): o mesmo
+// O contrato do adaptador de faturação (docs/29 §7.4; docs/08 §4): o mesmo
 // para o adaptador de ensaio, para o Moloni (parte 2) e para o de um
 // terceiro. O adaptador **não decide** nada fiscal: recebe a decisão já
 // tomada (o conteúdo do pedido, já mapeado para as taxas e isenções do
@@ -93,7 +93,7 @@ export type Procura =
 /**
  * Um erro de rede, de tempo esgotado ou uma resposta que não se lê **depois
  * de pedir alguma coisa que pode ter ficado feita**: o pedido fica `incerto`
- * e reconcilia-se; nunca se repete às cegas (docs/28 §4.2).
+ * e reconcilia-se; nunca se repete às cegas (docs/29 §4.2).
  */
 export class ErroDeRede extends Error {
   constructor(mensagem: string, options?: ErrorOptions) {
@@ -176,7 +176,7 @@ interface ContaDoEnsaio {
 }
 
 /**
- * Um emissor de ensaio, em memória (docs/28 Q5): comporta-se como um software
+ * Um emissor de ensaio, em memória (docs/29 Q5): comporta-se como um software
  * certificado (rascunho, fechar, numerar, procurar pela referência), só existe
  * em modo teste e **nunca** fala com ninguém. As credenciais são
  * `{ "conta": "…" }`; uma conta que começa por `recusa` não é aceite.

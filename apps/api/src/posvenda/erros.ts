@@ -1,4 +1,4 @@
-// Os erros da pós-venda (docs/29; migração 0051).
+// Os erros da pós-venda (docs/30; migração 0052).
 
 export type CodigoErroPosVenda =
   | "returns.not_found"

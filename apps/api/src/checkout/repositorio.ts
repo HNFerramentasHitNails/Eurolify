@@ -652,7 +652,7 @@ export async function naSessao<T>(
     }
     // Uma sessão concluída lê-se pelo token só durante o prazo da
     // confirmação: depois, os dados pessoais deixam de sair por ele (P2-2).
-    // A livre resolução (docs/29 §7.1) passa o prazo: o direito conta da
+    // A livre resolução (docs/30 §7.1) passa o prazo: o direito conta da
     // entrega e não pode morrer com a ligação; essa rota não devolve dados
     // pessoais.
     if (
@@ -1546,7 +1546,7 @@ export async function lerEncomenda(
       .where("encomenda_id", "=", id)
       .orderBy("posicao")
       .execute();
-    // O estado do documento fiscal (docs/28 §7.1); só o estado e o id.
+    // O estado do documento fiscal (docs/29 §7.1); só o estado e o id.
     const documento = await documentoDaEncomenda(trx, id);
     return { encomenda: e, linhas, documento };
   });
