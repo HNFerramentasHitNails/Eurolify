@@ -10,14 +10,13 @@ Desenho: `docs/28-rasto-de-auditoria.md`, aprovado pelo Diogo a 10/10/2026
 | 1 | #327 | 0051 | `contexto_do_rasto()` e as variáveis da transacção, lidas pela API num só sítio (`base/rasto.ts`, `app.ts`); o cabeçalho `Eurolify-IA` lido e gravado como «declarado» |
 | 2 | #334 | 0053 | as colunas `canal`, `pedido`, `ia`, `autorizado_por`, `motivo` em oito tabelas do rasto, por um só gatilho (`rasto_completar()`); as linhas antigas ficam vazias («desconhecido») |
 | 3 | #340 | 0054 | os dados pessoais dos Clientes passam a marcador `{"protegido": true, "resumo": "<8 hex>"}` (HMAC com uma chave da base); a lista em `campo_sensivel`; os valores já em claro reescritos (Q2) |
-| 4, parte 1 | ramo `rasto-chave-agente-ia` | 0057 | a marca «chave de um agente de IA»: `chave_api.agente_ia`, no `POST /keys`, `POST /hub/keys`, listas e `/me`; a autenticação põe a IA `{"prova": "declarado"}` quando a chave é de um agente e não há cabeçalho; uma chave de um agente só cria chaves de um agente |
+| 4, parte 1 | #342 (juntado a 10/10/2026, 8c8e93d) | 0057 | a marca «chave de um agente de IA»: `chave_api.agente_ia`, no `POST /keys`, `POST /hub/keys`, listas e `/me`; a autenticação põe a IA `{"prova": "declarado"}` quando a chave é de um agente e não há cabeçalho; uma chave de um agente só cria chaves de um agente |
+| 4, parte 2 | ramo `rasto-historico-seis-respostas` | — | as linhas do tempo da API (artigo, Hub, cliente, encomenda) trazem `canal`, `pedido`, `ia` (sempre, com `desconhecido` explícito), `autorizado_por` e `motivo`, por um só esquema e função (`base/rasto-resposta.ts`) |
 
 Fonte dos passos 1 a 3: as descrições dos pedidos e o `docs/28` §2 a §4 no
 `main` de 10/10/2026 (commit 0dffbe3).
 
 Plano do resto do passo 4 (dito ao Diogo a 10/10/2026):
-- parte 2: a API devolve as seis respostas no histórico (artigo e Clientes),
-  com «desconhecido» explícito;
 - parte 3: o Hub mostra-as no histórico do artigo e a opção da marca no ecrã
   das chaves — desenho e maqueta primeiro, só se junta com o aspecto aprovado;
 - antes da parte 3: os pendentes do #322 (o `quem` e o `autorizado_por` da

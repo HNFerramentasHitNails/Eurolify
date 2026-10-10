@@ -1282,7 +1282,17 @@ export async function transicoesDaEncomenda(
   return noStock(db, c, (trx) =>
     trx
       .selectFrom("transicao_encomenda")
-      .select(["de", "para", "quem", "motivo", "em"])
+      .select([
+        "de",
+        "para",
+        "quem",
+        "motivo",
+        "em",
+        "canal",
+        "pedido",
+        "ia",
+        "autorizado_por",
+      ])
       .where("encomenda_id", "=", id)
       .orderBy("em")
       .orderBy("id")

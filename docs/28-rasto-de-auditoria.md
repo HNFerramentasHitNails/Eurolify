@@ -174,6 +174,11 @@ também ficam com o marcador na linha do tempo (Diogo, 10/10/2026: *«sim»*,
 4. O cabeçalho `Eurolify-IA`, a marca «chave de um agente de IA» e o Hub a
    mostrar o rasto com as seis respostas.
 
+**Passo 4 em código, por partes:**
+- **parte 1** (#342, migração 0057): a marca «chave de um agente de IA» (§3.3);
+- **parte 2** (#322): as linhas do tempo da API — artigo (`GET /products/{id}/timeline` e a do Hub), ficha de cliente (`GET /customers/{id}/timeline`) e encomenda (`GET /orders/{id}/timeline`) — trazem, além de `quem`, `em` e `campos`, os campos `canal`, `pedido`, `ia`, `autorizado_por` e `motivo`, iguais em todas (`base/rasto-resposta.ts`). A `ia` vem sempre, com `prova` `comprovado`, `declarado` ou **`desconhecido`** (nunca «sem IA»). Com `canal` vazio a linha é de antes da 0053 e tudo o resto é desconhecido; com `canal` preenchido e `autorizado_por` vazio, nenhuma pessoa autorizou. A exportação do titular já levava estas colunas (lê a tabela inteira);
+- **parte 3**: o Hub a mostrar as seis respostas (desenho e aspecto a aprovar pelo Diogo).
+
 ## 5. Perguntas para o Diogo ou o Bruno
 
 | # | Pergunta | Proposta |
