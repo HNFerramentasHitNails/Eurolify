@@ -1123,6 +1123,48 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
     ).toEqual(["aviso_sem_pagamento"]);
   });
 
+  it("um aviso para outra conta do mesmo comerciante não toca num pagamento da primeira (cada conta tem o seu segredo)", async () => {
+    const s = await cenario();
+    const k = await encomenda(s);
+    const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+    const pagamento = await ok(s.adm("GET", `/payments/${String(p["id"])}`));
+    const outra = await ok(
+      s.adm("POST", "/payment-accounts", {
+        prestador: "eupago",
+        nome: "Formação",
+      }),
+      201,
+    );
+    const segredoOutra = "segredo-da-outra-conta-456";
+    await ok(
+      s.adm("PUT", `/payment-accounts/${String(outra["id"])}/credentials`, {
+        chave: "outra-chave-1234",
+        segredo_aviso: segredoOutra,
+      }),
+      204,
+    );
+    const corpo = avisoEuPago({
+      identifier: String(pagamento["referencia"]),
+      status: "Paid",
+      valor: 29.59,
+    });
+    const r = await app.inject({
+      method: "POST",
+      url: `/webhooks/payments/${String(outra["id"])}`,
+      headers: {
+        "content-type": "application/json",
+        "x-signature": assinar(corpo, segredoOutra),
+      },
+      payload: corpo,
+    });
+    expect(r.statusCode).toBe(200);
+    expect(
+      (await ok(s.adm("GET", `/payments/${String(p["id"])}`)))["estado"],
+    ).toBe("a_aguardar_cliente");
+    const fila = (await ok(s.adm("GET", "/payment-issues")))["dados"] as Json[];
+    expect(fila.map((d) => d["motivo"])).toEqual(["aviso_sem_pagamento"]);
+  });
+
   it("sem a chave dos pagamentos no servidor, pagar dá 503 e nada se cria", async () => {
     const s = await cenario();
     const k = await encomenda(s);
