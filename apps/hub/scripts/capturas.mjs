@@ -3616,6 +3616,8 @@ try {
   await rp
     .getByRole("heading", { name: "Editar a variante", level: 1 })
     .waitFor();
+  // O título aparece antes de a variante chegar: espera-se por ela.
+  await rp.getByText("Sem peso, não se pode publicar.").waitFor();
   confere(
     (await rp
       .getByText(
@@ -4155,6 +4157,366 @@ try {
         .count()) === 1,
     "variante nova: no artigo publicado, nasce fora da publicação e a ficha di-lo",
   );
+  // Definir e tirar o preço de uma variante (docs/22 §25; issue #335), com a
+  // Ana (dona). A ENS-041-B acabou de nascer sem preço na «Base PT».
+  await enderecoNovo(rp);
+  // A secção «Preços» carrega à parte do aviso: espera-se pela linha.
+  const haLinha = (onde, nome) =>
+    onde
+      .getByRole("row", { name: nome })
+      .first()
+      .waitFor({ timeout: 10_000 })
+      .then(
+        () => true,
+        () => false,
+      );
+  const caixaBasePt = rp.locator(".lista-precos", {
+    has: rp.getByRole("heading", { name: "Base PT", level: 3 }),
+  });
+  const caixaB2bPt = rp.locator(".lista-precos", {
+    has: rp.getByRole("heading", { name: "Profissionais PT", level: 3 }),
+  });
+  await caixaBasePt
+    .getByRole("row", { name: /ENS-041-B.*Sem preço nesta lista/ })
+    .waitFor();
+  // Só com o teclado: a ligação, o montante e «Guardar».
+  await rp
+    .getByRole("link", { name: "Definir preço de ENS-041-B em Base PT" })
+    .focus();
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByRole("heading", { name: "Preço da variante", level: 1 })
+    .waitFor();
+  const campoPreco = rp.getByLabel("Preço com IVA (€)");
+  await campoPreco.waitFor();
+  confere(
+    (await rp
+      .getByText("lista base · Portugal · EUR · preços com IVA")
+      .count()) === 1 &&
+      (await rp
+        .getByRole("button", { name: "Tirar o preço desta lista" })
+        .count()) === 0,
+    "preço: a página diz a variante, a lista, o mercado, a moeda e «com IVA»; sem preço, não há «Tirar»",
+  );
+  // «1.234,50» é recusado antes de pedir, com o foco no campo (§25.4).
+  await campoPreco.focus();
+  await rp.keyboard.type("1.234,50");
+  await rp.keyboard.press("Enter");
+  await rp
+    .getByText("Escreva o preço só com algarismos e a vírgula", {
+      exact: false,
+    })
+    .waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) ===
+      "preco-montante" &&
+      (await campoPreco.getAttribute("aria-invalid")) === "true",
+    "preço: «1.234,50» é recusado ao lado do campo, com o foco nele",
+  );
+  // 0 sem «Gratuito» também (R4).
+  await rp.keyboard.press("Control+A");
+  await rp.keyboard.type("0,00");
+  await rp.keyboard.press("Enter");
+  await rp.getByText("Um preço de 0 só com «Gratuito» marcado.").waitFor();
+  confere(true, "preço: 0 sem «Gratuito» é recusado antes de pedir (R4)");
+  await rp.keyboard.press("Control+A");
+  await rp.keyboard.type("39,9");
+  for (const [largura, tema] of [
+    [375, "light"],
+    [375, "dark"],
+    [768, "light"],
+    [768, "dark"],
+    [1280, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    await rp.locator("#preco-multiplo").waitFor({ state: "visible" });
+    await rp.evaluate(
+      () =>
+        new Promise((pronto) =>
+          window.requestAnimationFrame(() =>
+            window.requestAnimationFrame(pronto),
+          ),
+        ),
+    );
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `preço: a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.screenshot({
+      path: join(
+        SAIDA,
+        `preco-variante-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
+  await campoPreco.focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  await rp.getByText("Preço de ENS-041-B em Base PT guardado.").waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.textContent)) ===
+      "Preço de ENS-041-B em Base PT guardado." &&
+      (await haLinha(caixaBasePt, /ENS-041-B.*39,90/)),
+    "preço: «39,9» grava 39,90 €, a ficha diz-o com o foco no aviso e mostra-o na lista",
+  );
+  // Mudar: o campo abre com o guardado, como se escreve («39,90»).
+  await rp
+    .getByRole("link", { name: "Alterar preço de ENS-041-B em Base PT" })
+    .click();
+  await campoPreco.waitFor();
+  const abertoCom = await campoPreco.inputValue();
+  await campoPreco.fill("41,50");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp.getByText("Preço de ENS-041-B em Base PT guardado.").waitFor();
+  confere(
+    abertoCom === "39,90" && (await haLinha(caixaBasePt, /ENS-041-B.*41,50/)),
+    "preço: «Alterar preço» abre com 39,90 e grava 41,50 €",
+  );
+  // O conflito: outra pessoa grava 44,00 € entre ler e guardar.
+  const idsDoPreco = await rp.evaluate(
+    async ({ c, a }) => {
+      const ficha = await (
+        await fetch(`/hub/products/${a}`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      const precos = await (
+        await fetch(`/hub/products/${a}/prices`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      return {
+        ens041: ficha.variantes.find((v) => v.sku === "ENS-041")?.id,
+        ens041b: ficha.variantes.find((v) => v.sku === "ENS-041-B")?.id,
+        b2b: precos.dados.find((l) => l.lista.nome === "Profissionais PT")
+          ?.lista.id,
+      };
+    },
+    { c: `mer_${comerciante}`, a: `prd_${artigoSemPeso}` },
+  );
+  await rp
+    .getByRole("link", { name: "Alterar preço de ENS-041-B em Base PT" })
+    .click();
+  await campoPreco.waitFor();
+  {
+    const base = abrirBase(urlDaPreparacaoTexto);
+    try {
+      await definirPreco(
+        base,
+        comerciante,
+        "pessoa:passagem",
+        listaDaFicha,
+        (idsDoPreco.ens041b ?? "").replace(/^var_/, ""),
+        { montante: 4400 },
+      );
+    } finally {
+      await base.destroy();
+    }
+  }
+  await campoPreco.fill("42,00");
+  await rp.getByLabel("Quantidade mínima").fill("2");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp.getByText("Outra pessoa mudou este preço entretanto.").waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) === "preco-recusa" &&
+      (await rp.locator("#preco-recusa").textContent()).includes("44,00") &&
+      (await campoPreco.inputValue()) === "42,00" &&
+      (await rp.getByLabel("Quantidade mínima").inputValue()) === "2",
+    "preço: outra pessoa mudou entretanto — o aviso mostra 44,00 € e o que se escreveu fica",
+  );
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp.getByText("Preço de ENS-041-B em Base PT guardado.").waitFor();
+  confere(
+    await haLinha(caixaBasePt, /ENS-041-B.*42,00.*mínimo 2/),
+    "preço: guardar outra vez, sobre o preço relido, grava 42,00 € com o mínimo 2",
+  );
+  // A resposta perdida sem nada gravado: o ecrã di-lo e deixa tentar.
+  const rotaDoPreco = "**/hub/price-lists/*/prices/*";
+  await rp
+    .getByRole("link", { name: "Alterar preço de ENS-041-B em Base PT" })
+    .click();
+  await campoPreco.waitFor();
+  await rp.route(rotaDoPreco, (r) =>
+    r.request().method() === "PUT"
+      ? r.fulfill({ status: 502, body: "" })
+      : r.continue(),
+  );
+  await campoPreco.fill("43,00");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp
+    .getByText("A ligação falhou e não encontrámos a mudança", { exact: false })
+    .waitFor();
+  await rp.unroute(rotaDoPreco);
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) === "preco-recusa" &&
+      (await campoPreco.inputValue()) === "43,00",
+    "preço: uma resposta perdida sem nada gravado diz que não encontrou a mudança",
+  );
+  // Outra vez, e a resposta perde-se depois de gravar: dá-se por gravado.
+  await rp.route(rotaDoPreco, async (r) => {
+    if (r.request().method() !== "PUT") return r.continue();
+    await r.fetch();
+    return r.fulfill({ status: 502, body: "" });
+  });
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp.getByText("Preço de ENS-041-B em Base PT guardado.").waitFor();
+  await rp.unroute(rotaDoPreco);
+  confere(
+    await haLinha(caixaBasePt, /ENS-041-B.*43,00/),
+    "preço: uma resposta perdida com o preço já gravado dá-se por gravada",
+  );
+  // Uma lista B2B: define-se, «Gratuito» com caixas de 6, e tira-se.
+  await rp
+    .getByRole("link", {
+      name: "Definir preço de ENS-041-B em Profissionais PT",
+    })
+    .click();
+  await rp.getByLabel("Gratuito").waitFor();
+  await rp.getByLabel("Gratuito").check();
+  const zeroComGratuito = await campoPreco.inputValue();
+  await rp.getByLabel("Quantidade mínima").fill("6");
+  await rp.getByLabel("Múltiplo").fill("6");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp
+    .getByText("Preço de ENS-041-B em Profissionais PT guardado.")
+    .waitFor();
+  confere(
+    zeroComGratuito === "0,00" &&
+      (await haLinha(
+        caixaB2bPt,
+        /ENS-041-B.*Gratuito.*mínimo 6.*múltiplos de 6/,
+      )),
+    "preço: na lista B2B, «Gratuito» grava 0 com o mínimo e o múltiplo",
+  );
+  await rp
+    .getByRole("link", {
+      name: "Alterar preço de ENS-041-B em Profissionais PT",
+    })
+    .click();
+  let perguntaB2b = "";
+  rp.once("dialog", (d) => {
+    perguntaB2b = d.message();
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Tirar o preço desta lista" }).click();
+  await rp
+    .getByText("Preço de ENS-041-B tirado de Profissionais PT.")
+    .waitFor();
+  confere(
+    perguntaB2b === "Tirar o preço de ENS-041-B da lista Profissionais PT?" &&
+      (await haLinha(caixaB2bPt, /ENS-041-B.*Sem preço nesta lista/)),
+    "preço: tirar de uma lista B2B pergunta antes e a lista volta a «Sem preço»",
+  );
+  // A ENS-041 está à venda em Portugal: o preço não sai da lista base.
+  await rp
+    .getByRole("link", { name: "Alterar preço de ENS-041 em Base PT" })
+    .click();
+  await campoPreco.waitFor();
+  let perguntaBase = "";
+  rp.once("dialog", (d) => {
+    perguntaBase = d.message();
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Tirar o preço desta lista" }).click();
+  await rp
+    .getByText(
+      "A variante está à venda em Portugal: o preço não sai da lista base.",
+    )
+    .waitFor();
+  confere(
+    perguntaBase.includes(
+      "Sem preço na lista base, o artigo deixa de se poder publicar em Portugal.",
+    ) &&
+      (await rp.evaluate(() => document.activeElement?.id)) === "preco-recusa",
+    "preço: tirar o de uma variante publicada da lista base avisa antes e é recusado",
+  );
+  // Com uma redução em vigor (a ENS-001 do «Verniz Azul 1»): o preço e
+  // «Gratuito» só se lêem; as quantidades mudam.
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoDaFicha}?comerciante=mer_${comerciante}`,
+  );
+  await rp
+    .getByRole("link", { name: "Alterar preço de ENS-001 em Base PT" })
+    .click();
+  await rp.locator("#preco-reducao").waitFor();
+  confere(
+    (await rp.locator("#preco-reducao").textContent()).startsWith(
+      "Este preço tem uma redução em vigor até ",
+    ) &&
+      (await campoPreco.getAttribute("readonly")) !== null &&
+      (await campoPreco.inputValue()) === "9,90" &&
+      (await rp.getByLabel("Gratuito").isDisabled()) &&
+      (await rp
+        .getByRole("button", { name: "Tirar o preço desta lista" })
+        .count()) === 0,
+    "preço: com uma redução em vigor, o preço e «Gratuito» só se lêem e não há «Tirar»",
+  );
+  await rp.getByLabel("Quantidade mínima").fill("2");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp.getByText("Preço de ENS-001 em Base PT guardado.").waitFor();
+  const comMinimo2 = await haLinha(
+    rp.locator(".lista-precos").first(),
+    /ENS-001(?!-).*7,90\s€.*antes 9,90\s€.*mínimo 2/,
+  );
+  await rp
+    .getByRole("link", { name: "Alterar preço de ENS-001 em Base PT" })
+    .click();
+  await rp.getByLabel("Quantidade mínima").fill("1");
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp.getByText("Preço de ENS-001 em Base PT guardado.").waitFor();
+  confere(
+    comMinimo2 &&
+      (await haLinha(
+        rp.locator(".lista-precos").first(),
+        /ENS-001(?!-).*7,90\s€.*antes 9,90\s€/,
+      )),
+    "preço: com a redução, a quantidade mínima muda e volta, e a redução fica",
+  );
+  // Uma lista que não existe: só o aviso.
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoSemPeso}/precos/prl_00000000-0000-7000-8000-000000000000/${idsDoPreco.ens041b ?? ""}?comerciante=mer_${comerciante}`,
+  );
+  await rp
+    .getByText("Esta lista de preços não existe ou não está activa.")
+    .waitFor();
+  confere(
+    (await rp.getByRole("button", { name: "Guardar" }).count()) === 0,
+    "preço: uma lista que não existe mostra só o aviso",
+  );
+  // Sem prices:write: nem as ligações na ficha nem o formulário.
+  await rp.route("**/hub/me", async (r) => {
+    const resposta = await r.fetch();
+    const corpo = await resposta.json();
+    for (const c of corpo.comerciantes ?? []) {
+      c.ambitos = (c.ambitos ?? []).filter((a) => a !== "prices:write");
+    }
+    return r.fulfill({ response: resposta, json: corpo });
+  });
+  await rp.goto(fichaCoral41);
+  await caixaBasePt.getByRole("row", { name: /ENS-041-B/ }).waitFor();
+  const semLigacoesDePreco =
+    (await rp
+      .getByRole("link", { name: /^(Definir|Alterar) preço/ })
+      .count()) === 0;
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoSemPeso}/precos/${listaDaFicha === undefined ? "" : `prl_${listaDaFicha}`}/${idsDoPreco.ens041b ?? ""}?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByText("Não tem permissão para isto.").waitFor();
+  await rp.unroute("**/hub/me");
+  confere(
+    semLigacoesDePreco &&
+      (await rp.getByRole("button", { name: "Guardar" }).count()) === 0,
+    "preço: sem prices:write, a ficha não oferece mudar preços e a página não tem formulário",
+  );
+  await rp.goto(fichaCoral41);
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
   // Num artigo activo com opções («Verniz Verde 31»): sem valor, o ecrã
   // recusa; com a combinação de outra variante, a API recusa; com uma nova,
   // cria.
