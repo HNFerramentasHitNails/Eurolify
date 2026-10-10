@@ -1,0 +1,29 @@
+# Vigilância das acções do GitHub (auditoria docs/16; decisão do Diogo,
+# 10/10/2026: «sim, avança com o Dependabot»). As acções estão fixadas pelo
+# resumo do commit (ADR-0026); o Dependabot abre um pedido quando sai uma
+# versão nova e mantém a fixação pelo resumo, com a versão em comentário.
+# Esses pedidos passam pelas verificações obrigatórias e pela revisão como
+# qualquer outro: nada entra no main sozinho (ADR-0024). Contam como código
+# (AGENTS.md, «Git»): antes de juntar, um agente revê o diff (o resumo novo
+# de cada acção corresponde à versão em comentário e à etiqueta publicada
+# pelo autor da acção) e um dono aprova (CODEOWNERS); só então se junta.
+#
+# As imagens (Dockerfile e infra/ci/imagens-base.txt) não estão aqui: estão
+# fixadas por uma variável e por uma lista própria, que o Dependabot não lê.
+# Vigia-as o trabalho «imagens» do fluxo vigiar.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Lisbon
+    open-pull-requests-limit: 5
+    # Todas as acções num só pedido por semana.
+    groups:
+      accoes:
+        patterns: ["*"]
+    commit-message:
+      prefix: "Acções"
