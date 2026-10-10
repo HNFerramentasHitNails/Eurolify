@@ -19,6 +19,13 @@ import {
   type RegraLimite,
 } from "./base/limite.js";
 import {
+  canalDoCaminho,
+  comRasto,
+  iaDoCabecalho,
+  type ContextoRasto,
+  type IaDoRasto,
+} from "./base/rasto.js";
+import {
   guardaExportacoes,
   type Armazenamento,
 } from "./catalogo/armazenamento.js";
@@ -134,6 +141,29 @@ export function criarApp(
         `versões suportadas: ${VERSOES_API.join(", ")}`,
       );
     }
+  });
+  // O contexto do rasto de auditoria (docs/28 §3.1, #322): o canal, o
+  // identificador do pedido (o mesmo do `instance` dos erros) e a IA que
+  // quem chama declara. Lido aqui, num só sítio; `comComerciante` passa-o à
+  // base em cada transacção.
+  // O resto do pedido corre dentro do `comRasto` (o `done` chamado lá
+  // dentro), como no @fastify/request-context: nada passa a outro pedido.
+  app.addHook("onRequest", (pedido, _resposta, feito) => {
+    let ia: IaDoRasto | undefined;
+    try {
+      ia = iaDoCabecalho(pedido.headers["eurolify-ia"]);
+    } catch (erro) {
+      feito(erro as Error);
+      return;
+    }
+    const contexto: ContextoRasto = {
+      canal: canalDoCaminho(pedido.url),
+      pedido: pedido.id,
+      ...(ia === undefined ? {} : { ia }),
+    };
+    comRasto(contexto, () => {
+      feito();
+    });
   });
   // O cookie da sessão do Hub (docs/21 §3); as opções de cada cookie são
   // dadas ao escrevê-lo (sessoes.ts), nunca as de omissão da biblioteca.

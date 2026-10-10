@@ -1,5 +1,6 @@
 import { sql } from "kysely";
 import { abrirBase } from "./base/ligacao.js";
+import { entrarNoRasto } from "./base/rasto.js";
 import { comComerciante } from "./comerciante/repositorio.js";
 import { lerPedido } from "./identidade/operador.js";
 import { registarChave } from "./identidade/repositorio.js";
@@ -24,6 +25,12 @@ try {
   process.exit(65);
 }
 
+// O rasto de auditoria (docs/28 §3.1, #322): o canal é o operador, e o
+// pedido, quando o há, é a execução do GitHub.
+entrarNoRasto({
+  canal: "operador",
+  ...(pedido.accao === "comerciante" ? { pedido: pedido.pedido } : {}),
+});
 const base = abrirBase(url);
 try {
   if (pedido.accao === "comerciante") {
