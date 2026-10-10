@@ -258,13 +258,14 @@ Conferido no repositório a 10/10/2026 (`ls apps/api/migracoes`,
 - **RTO** (tempo para voltar) para a produção (`docs/17`, «Cópias»): o
   ensaio de domingo mede quanto demora uma reposição; o objectivo é uma
   decisão antes do primeiro comerciante.
-- **O `segredos` nas verificações obrigatórias:** a regra do `main` exige
-  `codigo`, `script-vps` e `imagem`; o `segredos` (gitleaks) corre mas não
-  é obrigatório. Mudar a regra é uma definição do GitHub, que só o Diogo ou
-  o Bruno podem fazer.
 - **As acções e as imagens fixadas por resumo sem vigilância nem
   actualização por rotina** (o fluxo `vigiar` só olha para o `pnpm audit`).
 - **«De onde» e «que IA e modelo» no rasto do Comerciante:** por desenhar.
+
+**Fechado depois:** o `segredos` (gitleaks) passou a obrigatório para juntar
+ao `main` a 10/10/2026, 12:53 UTC, gravado pelo Diogo na regra «main
+protegido»; a API do GitHub lê agora `codigo`, `script-vps`, `imagem` e
+`segredos` (`docs/06`, DG).
 
 **À espera de terceiros:**
 - `marketplace-dsa`: a marca do art. 16.º, até à resposta da G7 (jurista).
