@@ -36,7 +36,8 @@
     partida (sem comprimento, largura e altura; defeito da captura, não do
     ecrã, revisão P2-3); as seis capturas do ecrã foram trocadas pelas da
     passagem final na versão 14.
-  - No ensaio: por confirmar (o hub.eurolify.eu ainda servia `index-gC3PNOV4.js` às 19:23 UTC; o build do `bf311f6` é `index-DKtmK6o8.js`).
+  - No ensaio desde as 19:30 UTC de 10/10/2026: o hub.eurolify.eu serve
+    `index-DKtmK6o8.js`, igual ao build local do `bf311f6`.
 
 ## Números (com data e como se contaram)
 
