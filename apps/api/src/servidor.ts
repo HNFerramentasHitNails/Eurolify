@@ -161,7 +161,9 @@ const pararPagamentos =
 // Os pedidos de documento, de minuto a minuto (docs/29, R11).
 const pararDocumentos =
   base !== undefined && faturacao.chave !== undefined
-    ? agendarDocumentos(base, faturacao, app.log)
+    ? comRasto({ canal: "sistema", pedido: "tarefa:documentos" }, () =>
+        agendarDocumentos(base, faturacao, app.log),
+      )
     : () => undefined;
 
 // As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).

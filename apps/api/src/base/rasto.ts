@@ -8,7 +8,8 @@ import { erroBase } from "./erros.js";
 // comando do operador) — e passa à base em cada transacção do comerciante
 // (`comComerciante`), onde a função `contexto_do_rasto()` o confere.
 // O `quem` e a `origem` continuam a ser postos por cada domínio, como antes;
-// passam a sair da autenticação no passo 2 (revisão do #327, P2-4).
+// o `quem` vindo da autenticação fica para depois do passo 2 (#322). O
+// `autorizadoPor` de uma sessão do Hub põe-no a autenticação.
 
 export type Canal =
   "hub" | "api" | "importacao" | "integracao" | "mcp" | "sistema" | "operador";
