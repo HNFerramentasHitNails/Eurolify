@@ -673,4 +673,43 @@ export const en: Textos = {
   precosMinimo: "minimum {n}",
   precosMultiplo: "multiples of {n}",
   precosPorUnidade: "{valor}/{unidade}, to four decimal places",
+  // Set and remove the price of a variant (docs/22 §25).
+  precoTitulo: "Variant price",
+  precoDefinir: "Set price",
+  precoAlterar: "Change price",
+  precoDefinirAria: "Set price of {sku} in {lista}",
+  precoAlterarAria: "Change price of {sku} in {lista}",
+  precoVariante: "Variant",
+  precoLista: "List",
+  precoCampoComIva: "Price incl. VAT ({simbolo})",
+  precoCampoSemIva: "Price excl. VAT ({simbolo})",
+  precoAjudaMontante: "Like 39.90, without thousands separators.",
+  precoAjudaGratuito: "When ticked, the price is 0.",
+  precoMinimo: "Minimum quantity",
+  precoMultiplo: "Multiple",
+  precoTirar: "Remove the price from this list",
+  precoConfirmarTirar: "Remove the price of {sku} from the list {lista}?",
+  precoConfirmarTirarBase:
+    "Remove the price of {sku} from the list {lista}? Without a price in the base list, the product can no longer be published in {mercado}.",
+  precoGuardado: "Price of {sku} in {lista} saved.",
+  precoTirado: "Price of {sku} removed from {lista}.",
+  precoComReducao:
+    "This price has a reduction in force{ate}: it can change when the reduction ends.",
+  precoReducaoAte: " until {data}",
+  precoConflito: "Someone else changed this price in the meantime.",
+  precoPublicada:
+    "The variant is on sale in {mercado}: the price cannot leave the base list.",
+  precoSemResposta:
+    "The connection failed and we did not find the change. Check the fields and try again.",
+  precoListaNaoExiste: "This price list does not exist or is not active.",
+  precoListaArquivada:
+    "This list was archived in the meantime: its prices no longer change.",
+  precoVarianteArquivada:
+    "This variant is archived: its price is not set here.",
+  precoMontanteObrigatorio: "Enter the price, or tick «Free».",
+  precoMontanteFormato:
+    "Enter the price with digits and a decimal point only, like 39.90.",
+  precoMontanteLimite: "The price is above the maximum (1,000,000,000.00).",
+  precoZeroSoGratuito: "A price of 0 only with «Free» ticked.",
+  precoQuantidadeInvalida: "Enter a whole number from 1 to 1,000,000.",
 };

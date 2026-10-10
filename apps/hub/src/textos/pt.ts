@@ -674,6 +674,45 @@ export const pt = {
   precosMinimo: "mínimo {n}",
   precosMultiplo: "múltiplos de {n}",
   precosPorUnidade: "{valor}/{unidade}, com quatro casas",
+  // Definir e tirar o preço de uma variante (docs/22 §25).
+  precoTitulo: "Preço da variante",
+  precoDefinir: "Definir preço",
+  precoAlterar: "Alterar preço",
+  precoDefinirAria: "Definir preço de {sku} em {lista}",
+  precoAlterarAria: "Alterar preço de {sku} em {lista}",
+  precoVariante: "Variante",
+  precoLista: "Lista",
+  precoCampoComIva: "Preço com IVA ({simbolo})",
+  precoCampoSemIva: "Preço sem IVA ({simbolo})",
+  precoAjudaMontante: "Como 39,90, sem separador de milhares.",
+  precoAjudaGratuito: "Marcado, o preço fica 0.",
+  precoMinimo: "Quantidade mínima",
+  precoMultiplo: "Múltiplo",
+  precoTirar: "Tirar o preço desta lista",
+  precoConfirmarTirar: "Tirar o preço de {sku} da lista {lista}?",
+  precoConfirmarTirarBase:
+    "Tirar o preço de {sku} da lista {lista}? Sem preço na lista base, o artigo deixa de se poder publicar em {mercado}.",
+  precoGuardado: "Preço de {sku} em {lista} guardado.",
+  precoTirado: "Preço de {sku} tirado de {lista}.",
+  precoComReducao:
+    "Este preço tem uma redução em vigor{ate}: muda-se quando a redução acabar.",
+  precoReducaoAte: " até {data}",
+  precoConflito: "Outra pessoa mudou este preço entretanto.",
+  precoPublicada:
+    "A variante está à venda em {mercado}: o preço não sai da lista base.",
+  precoSemResposta:
+    "A ligação falhou e não encontrámos a mudança. Confira os campos e tente outra vez.",
+  precoListaNaoExiste: "Esta lista de preços não existe ou não está activa.",
+  precoListaArquivada:
+    "Esta lista foi arquivada entretanto: os preços dela já não mudam.",
+  precoVarianteArquivada:
+    "Esta variante está arquivada: o preço não se define aqui.",
+  precoMontanteObrigatorio: "Escreva o preço, ou marque «Gratuito».",
+  precoMontanteFormato:
+    "Escreva o preço só com algarismos e a vírgula, como 39,90.",
+  precoMontanteLimite: "O preço passa do máximo (1 000 000 000,00).",
+  precoZeroSoGratuito: "Um preço de 0 só com «Gratuito» marcado.",
+  precoQuantidadeInvalida: "Escreva um número inteiro de 1 a 1 000 000.",
 };
 
 export type Textos = typeof pt;
