@@ -1,6 +1,9 @@
 # Documentos fiscais — modelo e lista da API
 
-> **Estado: desenho, por aprovar** (issue #310; fatia 10 do
+> **Estado: desenho aprovado; parte 1 no código** (issue #310; migração
+> 0050; `docs/06`, DI). Diogo, 10/10/2026: *«sim, aprovo; avança com o
+> código da fatia 10»* (Q1 a Q7 como propostas). O que está programado e os
+> desvios dizem-se na §12. Fatia 10 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md):
 > «Documento fiscal por adaptador (Moloni) e prova do documento»). Diogo,
 > 10/10/2026: *«sim, avança com o desenho da fatia 10»*. Depende do Motor de
@@ -330,3 +333,38 @@ traduz.
 - **Parte 2:** o adaptador Moloni (Q5), com o teste de conformidade do contrato a passar.
 - **Parte 3:** o relatório OSS (quatro baldes, pelo país de entrega, das provas) e o fecho mensal.
 - Cada parte num pedido, com os testes verdes e a revisão do agente antes de juntar (ADR-0031, ADR-0035).
+
+## 12. Em código — parte 1 (10/10/2026; migração 0050; `docs/06`, DI)
+
+| O quê | Onde |
+|---|---|
+| `emissor_fiscal` na entidade legal e na encomenda (copiado no botão final, imutável); a base recusa um pedido numa encomenda com `sistema_proprio` | migração 0050 |
+| `ligacao_faturacao` (só modo teste; credenciais cifradas com `FATURACAO_CHAVE`; mapas de taxas e isenções; mudar obriga a testar outra vez; com documentos a meio, recusa) | migração 0050; `src/faturacao/repositorio.ts` |
+| `documento_fiscal` nasce quando a encomenda fica paga (gatilho), com os estados da §4.1 garantidos pela base; `documento_conteudo` (versões), `documento_prova` e `documento_rasto` só se acrescentam; eventos `invoice.*` | migração 0050 |
+| as verificações e os 12 motivos de retenção (R3), os NIF de consumidor final (R4), a entidade conferida no emissor (R5), o rascunho conferido antes de fechar (R6), a prova lida e comparada (R7), libertar só o que uma pessoa sabe (R9) | `src/faturacao/repositorio.ts` |
+| o incerto: nunca se repete; reconcilia-se pela referência um minuto depois; ao fim de 3 tentativas sem saber, fica para uma pessoa | `src/faturacao/repositorio.ts` |
+| o contrato do adaptador e o **emissor de ensaio** (em memória, só nos testes) | `src/faturacao/adaptador.ts` |
+| a API da §7.1 e `POST /invoices/{id}/recheck`; o `GET /orders/{id}` passa a dizer o emissor e o estado do documento | `src/faturacao/rotas.ts`; `src/checkout/rotas.ts` |
+| âmbitos `invoices:read`, `invoices:write`, `invoices:accounts` (Q7) | migração 0050; `src/identidade/` |
+| a tarefa de minuto a minuto, com alarme se parar 15 minutos | `src/faturacao/repositorio.ts`, `src/servidor.ts` |
+| 12 testes pela API e 9 das verificações sem base | `test/documentos-api.test.ts`, `test/documentos-verificar.test.ts` |
+
+**Desvios do desenho:**
+- **`POST /invoices/{id}/recheck`** (verificar outra vez um retido) não estava
+  na lista da §7.1: é a saída dos motivos que se resolvem na configuração
+  (ligação, mapas, quem emite), que não se libertam.
+- **Libertáveis** (R9): só `nif_recusado`, `isencao_sem_prova` e
+  `perfil_de_outra_ficha`; os outros resolvem-se na configuração ou corrigindo.
+- **Um rascunho que não bate** retém com `entidade_do_emissor_diferente`
+  (se for o NIF) ou `totais_nao_batem` (o resto), e o rascunho apaga-se.
+- **O perfil fica usado** só quando o NIF que saiu é o dele (uma correcção
+  do NIF no pedido não marca o perfil da encomenda).
+- **O PDF** guarda-se na base, com a prova; se o emissor não o der, a prova
+  fica sem ele (`tem_pdf` falso na leitura do pedido).
+- **No servidor** não há adaptador ligado: o de ensaio só existe nos testes;
+  sem `FATURACAO_CHAVE`, a tarefa não corre. Nenhum documento sai.
+- **O modo real** não existe (só `teste`, como os pagamentos): abri-lo é uma
+  migração com decisão escrita; a retenção `taxa_por_verificar` (Q3) está
+  programada e testada sem base, mas só se aplica em modo real.
+- **Por fazer:** o Moloni (parte 2), o relatório OSS (parte 3), a nota de
+  crédito (fatia 11) e o contabilista (V1 a V10).
