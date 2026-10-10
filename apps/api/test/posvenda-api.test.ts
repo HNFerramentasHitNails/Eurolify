@@ -626,6 +626,19 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         ).estado,
     );
 
+  /** Regista a transferência manual do reembolso inteiro. */
+  const manual = async (s: Cenario, rfd: string) => {
+    const x = await ok(s.adm("GET", `/refunds/${rfd}`));
+    await ok(
+      s.adm("POST", `/refunds/${rfd}/manual`, {
+        versao: x["versao"],
+        montante: x["montante"],
+        data: "2026-10-10",
+        referencia: `TRF-${rfd.slice(-6)}`,
+      }),
+    );
+  };
+
   /** Pede pelo botão, recebe e inspecciona tudo como revendável. */
   async function devolvidaEInspeccionada(
     s: Cenario,
@@ -1179,6 +1192,14 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       201,
     );
     expect(String(r["nota_credito"])).toMatch(/^inv_/);
+    // A NC espera que o dinheiro saia (revisão do #329, P1-4).
+    await ateParar();
+    const antes = await documentosDe(s, e.encomenda);
+    expect(antes.notas[0]).toMatchObject({
+      estado: "retido",
+      motivos: ["reembolso_por_executar"],
+    });
+    await manual(s, String(r["reembolso"]));
     await ateParar();
     const { fatura, notas } = await documentosDe(s, e.encomenda);
     expect(fatura?.["estado"]).toBe("emitido");
@@ -1205,18 +1226,6 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     });
     expect(await eventos(s)).toContain("invoice.issued");
     // Reembolsadas as duas unidades, a encomenda fica devolvida.
-    const manual = async (rfd: string) => {
-      const x = await ok(s.adm("GET", `/refunds/${rfd}`));
-      await ok(
-        s.adm("POST", `/refunds/${rfd}/manual`, {
-          versao: x["versao"],
-          montante: x["montante"],
-          data: "2026-10-10",
-          referencia: `TRF-${rfd.slice(-6)}`,
-        }),
-      );
-    };
-    await manual(String(r["reembolso"]));
     expect((await ok(s.adm("GET", `/orders/${e.encomenda}`)))["estado"]).toBe(
       "devolvida_parcial",
     );
@@ -1233,7 +1242,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       201,
     );
     expect(r2["montante"]).toBe(1230 + 499);
-    await manual(String(r2["reembolso"]));
+    await manual(s, String(r2["reembolso"]));
     expect((await ok(s.adm("GET", `/orders/${e.encomenda}`)))["estado"]).toBe(
       "devolvida",
     );
@@ -1258,7 +1267,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     const rma = await devolvidaEInspeccionada(s, e.token, [
       { linha: linha?.["id"], quantidade: 1 },
     ]);
-    await ok(
+    const r = await ok(
       s.adm("POST", `/returns/${rma}/decide`, {
         versao: 3,
         linhas: [{ linha: linha?.["id"], quantidade: 1 }],
@@ -1290,6 +1299,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       }),
     );
     await ateParar();
+    await manual(s, String(r["reembolso"]));
     await adiantar(s);
     await ateParar();
     docs = await documentosDe(s, e.encomenda);
@@ -1688,5 +1698,448 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       ] as Json[]
     ).filter((m) => m["tipo"] === "devolucao");
     expect(movs.map((m) => m["quantidade"]).sort()).toEqual([1, 1]);
+  });
+
+  it("a NC sai pela ligação da fatura, não espera por uma fatura divergente sem a resolver e não passa o saldo (P1-2, P1-3)", async () => {
+    const s = await cenario();
+    const contaA = `a-${randomUUID()}`;
+    const ligA = await ligar(s, contaA);
+    const e = await paga(s, [[s.v1, 2]], "501964843");
+    await ateParar();
+    const [linha] = await expedir(s, e.encomenda);
+    // A entidade passa a emitir por outra ligação.
+    const la = (
+      (await ok(s.adm("GET", "/invoicing-connections")))["dados"] as Json[]
+    ).find((x) => x["id"] === ligA) as Json;
+    await ok(
+      s.adm("PATCH", `/invoicing-connections/${ligA}`, {
+        versao: la["versao"],
+        activa: false,
+      }),
+    );
+    const contaB = `b-${randomUUID()}`;
+    await ligar(s, contaB);
+    const rma = await devolvidaEInspeccionada(s, e.token, [
+      { linha: linha?.["id"], quantidade: 1 },
+    ]);
+    const r = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        motivo: "livre resolução",
+      }),
+      201,
+    );
+    await manual(s, String(r["reembolso"]));
+    await ateParar();
+    const docs = await documentosDe(s, e.encomenda);
+    // A ligação da fatura está desligada: a NC fica retida, nunca vai à B.
+    expect(docs.notas[0]).toMatchObject({
+      estado: "retido",
+      motivos: ["ligacao_sem_teste"],
+    });
+    expect(ensaio.conta(contaB).chamadas).not.toContain("criarRascunho");
+
+    // Uma fatura divergente: a NC espera; resolvida, sai.
+    const s2 = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s2, conta);
+    ensaio.conta(conta).aoFechar = (doc) => ({
+      ...doc,
+      totais: {
+        ...doc.totais,
+        iva: doc.totais.iva + 1,
+        total: doc.totais.total + 1,
+      },
+    });
+    const e2 = await paga(s2, [[s2.v1, 2]], "501964843");
+    await ateParar();
+    delete ensaio.conta(conta).aoFechar;
+    const [l2] = await expedir(s2, e2.encomenda);
+    const rma2 = await devolvidaEInspeccionada(s2, e2.token, [
+      { linha: l2?.["id"], quantidade: 2 },
+    ]);
+    const r2 = await ok(
+      s2.adm("POST", `/returns/${rma2}/decide`, {
+        versao: 3,
+        linhas: [{ linha: l2?.["id"], quantidade: 1 }],
+        motivo: "uma só",
+      }),
+      201,
+    );
+    await manual(s2, String(r2["reembolso"]));
+    await ateParar();
+    let d2 = await documentosDe(s2, e2.encomenda);
+    expect(d2.fatura?.["estado"]).toBe("divergente");
+    expect(d2.notas[0]).toMatchObject({
+      estado: "retido",
+      motivos: ["original_por_emitir"],
+    });
+    await ok(
+      s2.adm("POST", `/invoices/${String(d2.fatura?.["id"])}/resolve`, {
+        versao: d2.fatura?.["versao"],
+        motivo: "visto com o contabilista",
+      }),
+    );
+    // A primeira NC sai com 10,00 € a mais no emissor (fica divergente e
+    // conta no creditado); a segunda passava o saldo da fatura.
+    ensaio.conta(conta).aoFechar = (doc) => ({
+      ...doc,
+      totais: {
+        ...doc.totais,
+        base: doc.totais.base + 1000,
+        total: doc.totais.total + 1000,
+      },
+    });
+    await ateParar();
+    delete ensaio.conta(conta).aoFechar;
+    d2 = await documentosDe(s2, e2.encomenda);
+    expect(d2.notas[0]?.["estado"]).toBe("divergente");
+    // O segundo reembolso: a outra unidade e os portes.
+    const outro = await ok(
+      s2.adm("POST", "/problems", {
+        encomenda: e2.encomenda,
+        tipo: "outro",
+        descricao: "a outra unidade",
+      }),
+      201,
+    );
+    const r3 = await ok(
+      s2.adm("POST", `/problems/${String(outro["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: l2?.["id"], quantidade: 1 }],
+        incluir_portes: true,
+        motivo: "o resto",
+      }),
+      201,
+    );
+    await manual(s2, String(r3["reembolso"]));
+    await ateParar();
+    d2 = await documentosDe(s2, e2.encomenda);
+    const nc2 = d2.notas.find((n) => n["reembolso"] === r3["reembolso"]);
+    expect(nc2).toMatchObject({
+      estado: "retido",
+      motivos: ["credito_acima_do_saldo"],
+    });
+  });
+
+  it("anular um reembolso antes da transferência: a devolução decide-se outra vez e a NC fica retida (P1-4); linhas repetidas recusadas (P1-1)", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    const e = await paga(s, [[s.v1, 3]], "501964843");
+    await ateParar();
+    const [linha] = await expedir(s, e.encomenda);
+    const rma = await devolvidaEInspeccionada(s, e.token, [
+      { linha: linha?.["id"], quantidade: 1 },
+    ]);
+    // 1 unidade voltou; três vezes a mesma linha de 1 unidade: recusado.
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma}/decide`, {
+          versao: 3,
+          linhas: [
+            { linha: linha?.["id"], quantidade: 1 },
+            { linha: linha?.["id"], quantidade: 1 },
+            { linha: linha?.["id"], quantidade: 1 },
+          ],
+          motivo: "repetida",
+        }),
+      ),
+    ).toEqual([400, "refunds.invalid_field"]);
+    const r = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        incluir_portes: true,
+        motivo: "engano: os portes não eram para reembolsar",
+      }),
+      201,
+    );
+    const rfd = String(r["reembolso"]);
+    let x = await ok(s.adm("GET", `/refunds/${rfd}`));
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${rfd}/cancel`, { versao: x["versao"] }),
+      ),
+    ).toEqual([400, "request.invalid"]);
+    await ok(
+      s.adm("POST", `/refunds/${rfd}/cancel`, {
+        versao: x["versao"],
+        motivo: "os portes não se reembolsavam",
+      }),
+    );
+    x = await ok(s.adm("GET", `/refunds/${rfd}`));
+    expect(x["estado"]).toBe("cancelado");
+    expect((await ok(s.adm("GET", `/returns/${rma}`)))["estado"]).toBe(
+      "inspeccionada",
+    );
+    // Anulado não se executa.
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${rfd}/manual`, {
+          versao: x["versao"],
+          montante: x["montante"],
+          data: "2026-10-10",
+          referencia: "TRF-X",
+        }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+    await ateParar();
+    const docs = await documentosDe(s, e.encomenda);
+    expect(docs.notas[0]).toMatchObject({
+      estado: "retido",
+      motivos: ["reembolso_cancelado"],
+    });
+    // Decide-se outra vez, sem os portes: 12,30 €.
+    const d = await ok(s.adm("GET", `/returns/${rma}`));
+    const r2 = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: d["versao"],
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        motivo: "livre resolução",
+      }),
+      201,
+    );
+    expect(r2["montante"]).toBe(1230);
+    expect(await eventos(s)).toContain("refund.cancelled");
+    // O reembolso de um cancelamento não se anula.
+    const c = await paga(s, [[s.v1, 1]]);
+    const rc = await ok(
+      s.adm("POST", `/orders/${c.encomenda}/cancel`, { motivo: "desistiu" }),
+      201,
+    );
+    const xc = await ok(s.adm("GET", `/refunds/${String(rc["reembolso"])}`));
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${String(rc["reembolso"])}/cancel`, {
+          versao: xc["versao"],
+          motivo: "não",
+        }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+  });
+
+  it("fechar sem reembolso; o executado não muda; sem NC diz porquê e o evento leva as linhas (P2-5, P2-6, P2-8)", async () => {
+    const s = await cenario();
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "sistema_proprio",
+      }),
+      204,
+    );
+    const e = await paga(s, [[s.v1, 2]]);
+    const [linha] = await expedir(s, e.encomenda);
+    const rma = await ok(
+      s.adm("POST", "/returns", {
+        encomenda: e.encomenda,
+        origem: "comercial",
+        motivo: "troca",
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    const id = String(rma["id"]);
+    await ok(
+      s.adm("POST", `/returns/${id}/receive`, { versao: 1, linhas: [] }),
+    );
+    await ok(
+      s.adm("POST", `/returns/${id}/inspect`, {
+        versao: 2,
+        linhas: [
+          { linha: linha?.["id"], estado_artigo: "em_falta", aceite: 0 },
+        ],
+      }),
+    );
+    // Nada voltou: fecha-se sem reembolso, com motivo.
+    await ok(
+      s.adm("POST", `/returns/${id}/close`, {
+        versao: 3,
+        motivo: "a caixa chegou vazia",
+      }),
+    );
+    expect((await ok(s.adm("GET", `/returns/${id}`)))["estado"]).toBe(
+      "fechada",
+    );
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e.encomenda,
+        tipo: "atraso",
+        descricao: "chegou um dia depois",
+      }),
+      201,
+    );
+    await ok(
+      s.adm("POST", `/problems/${String(prb["id"])}/close`, {
+        versao: 1,
+        motivo: "dentro do prazo anunciado; nada a reembolsar",
+      }),
+    );
+    // Um reembolso com sistema próprio: sem NC no Eurolify, e diz porquê.
+    const p2 = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e.encomenda,
+        tipo: "chegou_danificado",
+        descricao: "frasco partido",
+      }),
+      201,
+    );
+    const r = await ok(
+      s.adm("POST", `/problems/${String(p2["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        motivo: "partido",
+      }),
+      201,
+    );
+    expect(r["nota_credito"]).toBeNull();
+    const rfd = String(r["reembolso"]);
+    expect(await ok(s.adm("GET", `/refunds/${rfd}`))).toMatchObject({
+      nota_credito: null,
+      sem_nota_credito: "sistema_proprio",
+    });
+    const { rows } = await sql<{ dados: Json }>`select dados from evento_saida
+      where comerciante_id = ${s.c}::uuid and tipo = 'refund.created'`.execute(
+      base.dono,
+    );
+    expect(rows[0]?.dados).toMatchObject({
+      montante: 1230,
+      linhas: [
+        {
+          linha_encomenda_id: String(linha?.["id"]).slice(4),
+          quantidade: 1,
+          montante: 1230,
+        },
+      ],
+    });
+    await manual(s, rfd);
+    // Executado, a prova não se apaga nem a via muda.
+    await expect(
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        await trx
+          .updateTable("reembolso")
+          .set({ via: "prestador", prova: JSON.stringify({}) })
+          .where("id", "=", rfd.slice(4))
+          .execute();
+      }),
+    ).rejects.toThrow(/refunds\.immutable/);
+  });
+
+  it("o prazo conta da última entrega; o pedido fica sempre registado; o botão vai na confirmação (P2-1, P2-3, P2-9, P2-10)", async () => {
+    const s = await cenario();
+    const e = await paga(s, [
+      [s.v1, 1],
+      [s.v2, 2],
+    ]);
+    const conf = await ok(pedir("GET", `/checkout/${e.token}/confirmation`));
+    expect(conf["livre_resolucao"]).toBe(`/store/orders/${e.token}/withdrawal`);
+    // Duas expedições: a primeira entregue há 20 dias, a segunda a caminho.
+    const enc = await ok(s.adm("GET", `/orders/${e.encomenda}`));
+    const [l1, l2] = enc["linhas"] as Json[];
+    const expedicao = async (l: Json | undefined) => {
+      const x = await ok(
+        s.adm("POST", `/orders/${e.encomenda}/shipments`, {
+          linhas: [{ linha: l?.["id"], quantidade: l?.["quantidade"] }],
+        }),
+        201,
+      );
+      await ok(
+        s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+          versao: 1,
+          estado: "expedida",
+        }),
+      );
+      return String(x["id"]);
+    };
+    const x1 = await expedicao(l1);
+    await ok(
+      s.adm("PATCH", `/shipments/${x1}`, { versao: 2, estado: "entregue" }),
+    );
+    await entregueHa(e.encomenda, 20);
+    const x2 = await expedicao(l2);
+    let v = await ok(pedir("GET", `/store/orders/${e.token}/withdrawal`));
+    // Falta entregar: o prazo ainda não começou.
+    expect(
+      (v["linhas"] as Json[]).map((l) => [
+        l["dentro_do_prazo"],
+        l["prazo_ate"],
+      ]),
+    ).toEqual([
+      [true, null],
+      [true, null],
+    ]);
+    await ok(
+      s.adm("PATCH", `/shipments/${x2}`, { versao: 2, estado: "entregue" }),
+    );
+    v = await ok(pedir("GET", `/store/orders/${e.token}/withdrawal`));
+    expect((v["linhas"] as Json[]).every((l) => l["dentro_do_prazo"])).toBe(
+      true,
+    );
+    // A loja fica sem armazém activo: o pedido regista-se pendente.
+    await base.dono.transaction().execute(async (t) => {
+      await sql`alter table armazem disable trigger user`.execute(t);
+      await sql`update armazem set estado = 'arquivado'
+        where comerciante_id = ${s.c}::uuid`.execute(t);
+      await sql`alter table armazem enable trigger user`.execute(t);
+    });
+    const w = await ok(
+      pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+        linhas: [{ linha: l1?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    expect(w).toMatchObject({ estado: "pendente" });
+    const p = await ok(s.adm("GET", `/withdrawals/${String(w["pedido"])}`));
+    expect(p).toMatchObject({ estado: "pendente", devolucao: null });
+    // O mesmo pedido outra vez não se grava (já espera por uma pessoa).
+    expect(
+      await codigo(
+        pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+          linhas: [{ linha: l1?.["id"], quantidade: 1 }],
+        }),
+      ),
+    ).toEqual([422, "returns.quantity_exceeded"]);
+    const lista = (await ok(s.adm("GET", `/withdrawals?estado=pendente`)))[
+      "dados"
+    ] as Json[];
+    expect(lista).toHaveLength(1);
+  });
+
+  it("dois pedidos ao mesmo tempo sobre a mesma linha: só um reembolso passa", async () => {
+    const s = await cenario();
+    const e = await paga(s, [[s.v1, 1]]);
+    const [linha] = await expedir(s, e.encomenda);
+    const problemas = await Promise.all(
+      [1, 2].map(() =>
+        ok(
+          s.adm("POST", "/problems", {
+            encomenda: e.encomenda,
+            tipo: "chegou_danificado",
+            descricao: "partido",
+          }),
+          201,
+        ),
+      ),
+    );
+    const respostas = await Promise.all(
+      problemas.map((p) =>
+        s.adm("POST", `/problems/${String(p["id"])}/decide`, {
+          versao: 1,
+          linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+          motivo: "partido",
+        }),
+      ),
+    );
+    expect(respostas.map((r) => r.statusCode).sort()).toEqual([201, 422]);
+    expect(
+      (
+        (await ok(s.adm("GET", `/refunds?encomenda=${e.encomenda}`)))[
+          "dados"
+        ] as Json[]
+      ).length,
+    ).toBe(1);
   });
 });

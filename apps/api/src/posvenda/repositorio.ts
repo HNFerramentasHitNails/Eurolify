@@ -7,6 +7,7 @@ import type {
 } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { armazemDaLoja, folhas, politicas } from "../stock/repositorio.js";
+import { acordarNotas } from "../faturacao/repositorio.js";
 import { ErroPosVenda, traduzir } from "./erros.js";
 
 // A pós-venda (docs/30; migração 0052; issue #328; Diogo, 10/10/2026:
@@ -91,8 +92,8 @@ export interface LinhaDevolvivel {
 
 /**
  * As linhas que ainda se podem devolver: expedidas (ou entregues), menos as
- * já pedidas em devoluções vivas; o prazo conta-se da entrega (R3, **C**).
- * Uma linha ainda por entregar está dentro do prazo.
+ * já pedidas em devoluções vivas ou em pedidos à espera de uma pessoa; o
+ * prazo conta-se da última entrega da encomenda (R3, **C**).
  */
 export async function linhasDevolviveis(
   trx: Transaction<BaseDados>,
@@ -126,16 +127,30 @@ export async function linhasDevolviveis(
       coalesce((select sum(ld.pedida) from linha_devolucao ld
                 join devolucao d on d.id = ld.devolucao_id
                 where ld.linha_encomenda_id = l.id and d.estado <> 'cancelada'), 0)::int
+      -- Os pedidos à espera de uma pessoa também contam: o mesmo pedido fora
+      -- do prazo não se grava duas vezes (revisão do #329, P2-10).
+      + coalesce((select sum(ll.quantidade) from linha_livre_resolucao ll
+                join pedido_livre_resolucao p on p.id = ll.pedido_id
+                where ll.linha_encomenda_id = l.id
+                  and p.estado in ('fora_de_prazo', 'pendente')), 0)::int
         as ja_pedida,
       to_char(ent.em at time zone 'UTC', 'YYYY-MM-DD') as entregue_em,
       to_char((ent.em at time zone 'UTC')::date + ${dias}::int, 'YYYY-MM-DD') as prazo_ate,
       (ent.em is null or (now() at time zone 'UTC')::date
         <= (ent.em at time zone 'UTC')::date + ${dias}::int) as dentro
     from linha_encomenda l
+    -- O prazo é da encomenda e conta da última entrega: enquanto falta
+    -- entregar alguma coisa, ainda não começou (**C**, docs/30 J1; o mais
+    -- favorável ao consumidor; revisão do #329, P2-3).
     left join lateral (
-      select max(x.entregue_em) as em from linha_expedicao le
-      join expedicao x on x.id = le.expedicao_id
-      where le.linha_encomenda_id = l.id and x.estado = 'entregue') ent on true
+      select case when bool_and(coalesce(ent_l.q, 0) >= l2.quantidade)
+        then max(ent_l.em) end as em
+      from linha_encomenda l2
+      left join lateral (
+        select sum(le.quantidade) as q, max(x.entregue_em) as em
+        from linha_expedicao le join expedicao x on x.id = le.expedicao_id
+        where le.linha_encomenda_id = l2.id and x.estado = 'entregue') ent_l on true
+      where l2.encomenda_id = l.encomenda_id) ent on true
     where l.encomenda_id = ${encomendaId}::uuid
     order by l.posicao`.execute(trx);
   return rows.map((r) => ({
@@ -239,7 +254,7 @@ export async function pedirLivreResolucao(
     );
     const agora = (rows[0] as { agora: string }).agora;
     const contacto = (e.contacto as { email?: string } | null)?.email ?? "";
-    const confirmacao = {
+    const confirmacaoPara = (aceite: boolean) => ({
       encomenda: `ord_${e.id}`,
       recebido_em: agora,
       linhas: escolhidas.map((d) => ({
@@ -249,59 +264,91 @@ export async function pedirLivreResolucao(
         quantidade: dados.linhas.find((l) => l.linha === d.linha)?.quantidade,
       })),
       dentro_do_prazo: dentro,
-      texto: dentro
+      texto: aceite
         ? "Recebemos o seu pedido de livre resolução."
-        : "Recebemos o seu pedido de livre resolução; a loja vai confirmar o prazo e responder-lhe.",
-    };
-    const { id } = await trx
-      .insertInto("pedido_livre_resolucao")
-      .values({
-        comerciante_id: c,
-        encomenda_id: encomendaId,
-        origem: dados.origem,
-        contacto: contacto === "" ? "sem e-mail" : contacto,
-        prazo_ate: prazos[0] ?? null,
-        dentro_do_prazo: dentro,
-        estado: dentro ? "aceite" : "fora_de_prazo",
-        confirmacao: JSON.stringify(confirmacao),
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
-    for (const l of dados.linhas) {
-      await trx
-        .insertInto("linha_livre_resolucao")
+        : dentro
+          ? "Recebemos o seu pedido de livre resolução; a loja vai indicar-lhe como devolver."
+          : "Recebemos o seu pedido de livre resolução; a loja vai confirmar o prazo e responder-lhe.",
+    });
+    const gravar = async (estado: "aceite" | "fora_de_prazo" | "pendente") => {
+      const confirmacao = confirmacaoPara(estado === "aceite");
+      const { id } = await trx
+        .insertInto("pedido_livre_resolucao")
         .values({
-          pedido_id: id,
           comerciante_id: c,
-          linha_encomenda_id: l.linha,
-          quantidade: l.quantidade,
+          encomenda_id: encomendaId,
+          origem: dados.origem,
+          contacto: contacto === "" ? "sem e-mail" : contacto,
+          prazo_ate: prazos[0] ?? null,
+          dentro_do_prazo: dentro,
+          estado,
+          confirmacao: JSON.stringify(confirmacao),
         })
-        .execute();
-    }
-    const devolucao = dentro
-      ? await criarDevolucao(
-          trx,
-          c,
-          {
-            encomenda: encomendaId,
-            origem: "livre_resolucao",
-            pedido: id,
-            motivo: "livre resolução",
-            linhas: dados.linhas,
-          },
-          quem,
-        )
-      : null;
-    return {
-      id,
-      estado: dentro ? "aceite" : "fora_de_prazo",
-      confirmacao,
-      devolucao,
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      for (const l of dados.linhas) {
+        await trx
+          .insertInto("linha_livre_resolucao")
+          .values({
+            pedido_id: id,
+            comerciante_id: c,
+            linha_encomenda_id: l.linha,
+            quantidade: l.quantidade,
+          })
+          .execute();
+      }
+      return { id, confirmacao };
     };
+    if (!dentro) {
+      const p = await gravar("fora_de_prazo");
+      return { ...p, estado: "fora_de_prazo" as const, devolucao: null };
+    }
+    // R2: o pedido fica sempre registado. Se a devolução não abrir (a loja
+    // sem armazém, ou outra devolução ganhou as linhas entretanto), o pedido
+    // fica pendente para uma pessoa (revisão do #329, P2-1).
+    await sql`savepoint pedido_livre_resolucao`.execute(trx);
+    try {
+      const p = await gravar("aceite");
+      const devolucao = await criarDevolucao(
+        trx,
+        c,
+        {
+          encomenda: encomendaId,
+          origem: "livre_resolucao",
+          pedido: p.id,
+          motivo: "livre resolução",
+          linhas: dados.linhas,
+        },
+        quem,
+      );
+      await sql`release savepoint pedido_livre_resolucao`.execute(trx);
+      return { ...p, estado: "aceite" as const, devolucao };
+    } catch (erro) {
+      const t = traduzir(erro);
+      if (
+        !(t instanceof ErroPosVenda) ||
+        !["returns.no_warehouse", "returns.quantity_exceeded"].includes(
+          t.codigo,
+        )
+      ) {
+        throw erro;
+      }
+      await sql`rollback to savepoint pedido_livre_resolucao`.execute(trx);
+      await marcar(
+        trx,
+        quem,
+        `pedido de livre resolução pendente: ${t.message}`,
+      );
+      const p = await gravar("pendente");
+      return { ...p, estado: "pendente" as const, devolucao: null };
+    }
   });
 }
 
-/** Fora do prazo, uma pessoa decide: aceitar (abre a devolução) ou recusar. */
+/**
+ * Fora do prazo, ou pendente, uma pessoa decide: aceitar (abre a devolução)
+ * ou recusar.
+ */
 export async function decidirLivreResolucao(
   db: Kysely<BaseDados>,
   c: string,
@@ -321,7 +368,7 @@ export async function decidirLivreResolucao(
     if (p.versao !== dados.versao) {
       throw new ErroPosVenda("returns.version_conflict", "o pedido mudou");
     }
-    if (p.estado !== "fora_de_prazo") {
+    if (p.estado !== "fora_de_prazo" && p.estado !== "pendente") {
       throw new ErroPosVenda(
         "returns.invalid_transition",
         `o pedido está ${p.estado}`,
@@ -563,10 +610,13 @@ export async function inspeccionarDevolucao(
         .where("devolucao_id", "=", id)
         .where("linha_encomenda_id", "=", l.linha)
         .execute();
-      if (l.aceite > 0) {
-        await devolverAoStock(trx, c, d, l.linha, l.aceite);
-      }
     }
+    await devolverAoStock(
+      trx,
+      c,
+      d,
+      dados.linhas.filter((l) => l.aceite > 0),
+    );
     await trx
       .updateTable("devolucao")
       .set({ estado: "inspeccionada", versao: d.versao + 1 })
@@ -576,34 +626,44 @@ export async function inspeccionarDevolucao(
   });
 }
 
+/**
+ * O aceite volta a stock: as folhas de todas as linhas juntas e por ordem da
+ * variante, a mesma ordem das reservas e das saídas (sem impasses entre
+ * duas inspecções; revisão do #329, P2-7).
+ */
 async function devolverAoStock(
   trx: Transaction<BaseDados>,
   c: string,
   d: { id: string; encomenda_id: string; armazem_id: string },
-  linhaId: string,
-  aceite: number,
+  aceites: { linha: string; aceite: number }[],
 ) {
-  const linha = await trx
-    .selectFrom("linha_encomenda")
-    .select(["variante_id"])
-    .where("id", "=", linhaId)
-    .executeTakeFirstOrThrow();
-  const congeladas = await trx
-    .selectFrom("linha_encomenda_folha")
-    .select(["variante_id", "por_unidade"])
-    .where("linha_encomenda_id", "=", linhaId)
-    .execute();
-  const porFolha =
-    congeladas.length > 0
-      ? new Map(congeladas.map((k) => [k.variante_id, k.por_unidade]))
-      : await folhas(trx, linha.variante_id);
-  const pol = await politicas(trx, [...porFolha.keys()]);
-  for (const [v, porUnidade] of [...porFolha.entries()].sort(([a], [b]) =>
+  const total = new Map<string, number>();
+  for (const { linha: linhaId, aceite } of aceites) {
+    const linha = await trx
+      .selectFrom("linha_encomenda")
+      .select(["variante_id"])
+      .where("id", "=", linhaId)
+      .executeTakeFirstOrThrow();
+    const congeladas = await trx
+      .selectFrom("linha_encomenda_folha")
+      .select(["variante_id", "por_unidade"])
+      .where("linha_encomenda_id", "=", linhaId)
+      .execute();
+    const porFolha =
+      congeladas.length > 0
+        ? new Map(congeladas.map((k) => [k.variante_id, k.por_unidade]))
+        : await folhas(trx, linha.variante_id);
+    for (const [v, porUnidade] of porFolha) {
+      total.set(v, (total.get(v) ?? 0) + porUnidade * aceite);
+    }
+  }
+  const pol = await politicas(trx, [...total.keys()]);
+  for (const [v, quantidade] of [...total.entries()].sort(([a], [b]) =>
     a.localeCompare(b),
   )) {
     const p = pol.get(v);
     if (p === undefined || p.politica === "nao_controla") continue;
-    let falta = porUnidade * aceite;
+    let falta = quantidade;
     if (!p.exige_lote) {
       await movimentoDevolucao(trx, c, d, v, null, falta);
       continue;
@@ -756,6 +816,11 @@ async function criarReembolso(
     quantidade: number;
     montante: number;
   }[] = [];
+  // Uma linha uma vez só: repetida, furava o resto da última unidade e o
+  // limite do que voltou (revisão do #329, P1-1; a base confere também).
+  if (new Set(dados.linhas.map((l) => l.linha)).size !== dados.linhas.length) {
+    throw new ErroPosVenda("refunds.invalid_field", "uma linha repetida");
+  }
   for (const p of dados.linhas) {
     const le = await trx
       .selectFrom("linha_encomenda")
@@ -1065,6 +1130,8 @@ export async function registarReembolsoManual(
         .where("estado", "=", "decidido")
         .execute();
     }
+    // O dinheiro saiu: a NC que esperava por isso verifica-se outra vez.
+    await acordarNotas(trx, { reembolso: id }, "reembolso_por_executar");
     return versao + 1;
   });
 }
@@ -1111,6 +1178,102 @@ export async function cancelarEncomendaPaga(
       },
       quem,
     );
+  });
+}
+
+/**
+ * Anular um reembolso antes de o dinheiro sair (a decisão estava errada):
+ * com motivo; a devolução volta a inspeccionada e o problema a aberto, para
+ * se decidir outra vez; a NC dele fica retida para sempre (revisão do #329,
+ * P1-4). O de um cancelamento não se anula (a base recusa).
+ */
+export async function anularReembolso(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  dados: { versao: number; motivo: string },
+  quem: string,
+) {
+  return noPosVenda(db, c, async (trx) => {
+    await marcar(trx, quem, dados.motivo);
+    const r = await trx
+      .selectFrom("reembolso")
+      .select(["estado", "versao", "devolucao_id", "problema_id"])
+      .where("id", "=", id)
+      .forUpdate()
+      .executeTakeFirst();
+    if (r === undefined) {
+      throw new ErroPosVenda("refunds.not_found", "o reembolso não existe");
+    }
+    if (r.versao !== dados.versao) {
+      throw new ErroPosVenda("refunds.version_conflict", "o reembolso mudou", {
+        versao: r.versao,
+      });
+    }
+    await trx
+      .updateTable("reembolso")
+      .set({ estado: "cancelado", versao: r.versao + 1 })
+      .where("id", "=", id)
+      .execute();
+    if (r.devolucao_id !== null) {
+      await trx
+        .updateTable("devolucao")
+        .set({ estado: "inspeccionada", versao: sql`versao + 1` })
+        .where("id", "=", r.devolucao_id)
+        .where("estado", "=", "decidida")
+        .execute();
+    }
+    if (r.problema_id !== null) {
+      await trx
+        .updateTable("problema")
+        .set({ estado: "aberto", versao: sql`versao + 1` })
+        .where("id", "=", r.problema_id)
+        .where("estado", "=", "decidido")
+        .execute();
+    }
+    await acordarNotas(trx, { reembolso: id }, "reembolso_por_executar");
+    return r.versao + 1;
+  });
+}
+
+/**
+ * Fechar sem reembolso, com motivo: uma devolução inspeccionada sem nada a
+ * reembolsar, ou um problema decidido «nada» (revisão do #329, P2-5).
+ */
+export async function fecharSemReembolso(
+  db: Kysely<BaseDados>,
+  c: string,
+  qual: "devolucao" | "problema",
+  id: string,
+  dados: { versao: number; motivo: string },
+  quem: string,
+) {
+  return noPosVenda(db, c, async (trx) => {
+    await marcar(trx, quem, dados.motivo);
+    const de = qual === "devolucao" ? "inspeccionada" : "aberto";
+    const r =
+      qual === "devolucao"
+        ? await trx
+            .updateTable("devolucao")
+            .set({ estado: "fechada", versao: dados.versao + 1 })
+            .where("id", "=", id)
+            .where("versao", "=", dados.versao)
+            .where("estado", "=", "inspeccionada")
+            .executeTakeFirst()
+        : await trx
+            .updateTable("problema")
+            .set({ estado: "fechado", versao: dados.versao + 1 })
+            .where("id", "=", id)
+            .where("versao", "=", dados.versao)
+            .where("estado", "=", "aberto")
+            .executeTakeFirst();
+    if (Number(r.numUpdatedRows) === 0) {
+      throw new ErroPosVenda(
+        "returns.invalid_transition",
+        `não está ${de} nesta versão`,
+      );
+    }
+    return dados.versao + 1;
   });
 }
 
@@ -1210,7 +1373,7 @@ export async function listarPedidosLivreResolucao(
   db: Kysely<BaseDados>,
   c: string,
   filtro: {
-    estado?: "aceite" | "fora_de_prazo" | "recusado";
+    estado?: "aceite" | "fora_de_prazo" | "pendente" | "recusado";
     encomenda?: string;
   },
 ) {
@@ -1278,7 +1441,26 @@ export async function lerReembolso(
       .select(["id", "estado"])
       .where("reembolso_id", "=", id)
       .executeTakeFirst();
-    return { ...r, linhas, nota_credito: nc ?? null };
+    // Sem NC, diz porquê (revisão do #329, P2-8): o sistema próprio emite-a
+    // com as linhas do evento; sem fatura do Eurolify não há NC a pedir.
+    let semNotaCredito: "sistema_proprio" | "sem_fatura" | null = null;
+    if (nc === undefined) {
+      const e = await trx
+        .selectFrom("encomenda")
+        .select("emissor_fiscal")
+        .where("id", "=", r.encomenda_id)
+        .executeTakeFirstOrThrow();
+      semNotaCredito =
+        e.emissor_fiscal === "sistema_proprio"
+          ? "sistema_proprio"
+          : "sem_fatura";
+    }
+    return {
+      ...r,
+      linhas,
+      nota_credito: nc ?? null,
+      sem_nota_credito: semNotaCredito,
+    };
   });
 }
 

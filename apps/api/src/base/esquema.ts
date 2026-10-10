@@ -1612,6 +1612,7 @@ export const ESTADOS_REEMBOLSO = [
   "executado",
   "falhado",
   "incerto",
+  "cancelado",
 ] as const;
 export type EstadoReembolso = (typeof ESTADOS_REEMBOLSO)[number];
 
@@ -1625,8 +1626,8 @@ export interface TabelaPedidoLivreResolucao {
   prazo_ate: ColumnType<string | null, string | null, never>;
   dentro_do_prazo: ColumnType<boolean, boolean, never>;
   estado: ColumnType<
-    "aceite" | "fora_de_prazo" | "recusado",
-    "aceite" | "fora_de_prazo",
+    "aceite" | "fora_de_prazo" | "pendente" | "recusado",
+    "aceite" | "fora_de_prazo" | "pendente",
     "aceite" | "recusado"
   >;
   confirmacao: ColumnType<unknown, string, never>;

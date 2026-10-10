@@ -255,13 +255,16 @@ CREATE TABLE pedido_livre_resolucao (
   -- A data-limite calculada no momento (entregue + dias do país; C).
   prazo_ate date,
   dentro_do_prazo boolean NOT NULL,
-  estado text NOT NULL CHECK (estado IN ('aceite', 'fora_de_prazo', 'recusado')),
+  -- pendente: dentro do prazo, mas a devolução não abriu (sem armazém, ou
+  -- outra devolução ganhou as linhas): o pedido fica e decide uma pessoa (R2).
+  estado text NOT NULL CHECK (estado IN ('aceite', 'fora_de_prazo', 'pendente', 'recusado')),
   confirmacao jsonb NOT NULL CHECK (jsonb_typeof(confirmacao) = 'object'),
   decidido_por text,
   motivo_decisao text CHECK (motivo_decisao IS NULL OR length(motivo_decisao) BETWEEN 3 AND 500),
   versao integer NOT NULL DEFAULT 1,
   UNIQUE (comerciante_id, id),
   CHECK ((estado = 'aceite') OR (estado = 'fora_de_prazo' AND NOT dentro_do_prazo)
+    OR (estado = 'pendente' AND dentro_do_prazo)
     OR (estado = 'recusado' AND motivo_decisao IS NOT NULL)),
   FOREIGN KEY (comerciante_id, encomenda_id) REFERENCES encomenda (comerciante_id, id)
 );
@@ -276,7 +279,8 @@ CREATE TABLE linha_livre_resolucao (
   FOREIGN KEY (comerciante_id, linha_encomenda_id) REFERENCES linha_encomenda (comerciante_id, id)
 );
 
--- O pedido só muda de fora_de_prazo para aceite ou recusado, por uma pessoa.
+-- O pedido só muda de fora_de_prazo ou pendente para aceite ou recusado, por
+-- uma pessoa.
 CREATE FUNCTION pedido_livre_resolucao_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
@@ -292,7 +296,7 @@ BEGIN
      IS DISTINCT FROM (to_jsonb(OLD) - 'estado' - 'decidido_por' - 'motivo_decisao' - 'versao') THEN
     RAISE EXCEPTION 'returns.immutable: o pedido e a confirmação não mudam';
   END IF;
-  IF NEW.estado IS DISTINCT FROM OLD.estado AND NOT (OLD.estado = 'fora_de_prazo'
+  IF NEW.estado IS DISTINCT FROM OLD.estado AND NOT (OLD.estado IN ('fora_de_prazo', 'pendente')
        AND NEW.estado IN ('aceite', 'recusado')) THEN
     RAISE EXCEPTION 'returns.invalid_transition: % → %', OLD.estado, NEW.estado;
   END IF;
@@ -375,7 +379,11 @@ BEGIN
   END IF;
   IF NEW.estado IS DISTINCT FROM OLD.estado AND NOT (OLD.estado, NEW.estado) IN (
        ('a_aguardar', 'recebida'), ('recebida', 'inspeccionada'), ('inspeccionada', 'decidida'),
-       ('decidida', 'fechada'), ('a_aguardar', 'cancelada'), ('recebida', 'cancelada')) THEN
+       ('decidida', 'fechada'), ('a_aguardar', 'cancelada'), ('recebida', 'cancelada'),
+       -- Fechada sem reembolso, com motivo (nada a reembolsar; revisão do
+       -- #329, P2-5); de volta a inspeccionada quando o reembolso se anula
+       -- antes de executado (P1-4).
+       ('inspeccionada', 'fechada'), ('decidida', 'inspeccionada')) THEN
     RAISE EXCEPTION 'returns.invalid_transition: % → %', OLD.estado, NEW.estado;
   END IF;
   RETURN NEW;
@@ -479,7 +487,8 @@ BEGIN
     RAISE EXCEPTION 'returns.immutable: o problema não muda (abre-se outro)';
   END IF;
   IF NEW.estado IS DISTINCT FROM OLD.estado AND NOT (OLD.estado, NEW.estado) IN (
-       ('aberto', 'decidido'), ('decidido', 'fechado'), ('aberto', 'fechado')) THEN
+       ('aberto', 'decidido'), ('decidido', 'fechado'), ('aberto', 'fechado'),
+       ('decidido', 'aberto')) THEN
     RAISE EXCEPTION 'returns.invalid_transition: % → %', OLD.estado, NEW.estado;
   END IF;
   RETURN NEW;
@@ -504,7 +513,7 @@ CREATE TABLE reembolso (
   moeda text NOT NULL CHECK (moeda ~ '^[A-Z]{3}$'),
   via text NOT NULL DEFAULT 'manual' CHECK (via IN ('manual', 'prestador')),
   estado text NOT NULL DEFAULT 'rascunho' CHECK (estado IN ('rascunho', 'a_executar', 'executado',
-    'falhado', 'incerto')),
+    'falhado', 'incerto', 'cancelado')),
   -- A prova da transferência manual (data, referência do banco, quem).
   prova jsonb CHECK (prova IS NULL OR jsonb_typeof(prova) = 'object'),
   executado_em timestamptz,
@@ -545,6 +554,11 @@ BEGIN
        WHERE r.id = NEW.reembolso_id AND r.estado = 'rascunho') THEN
     RAISE EXCEPTION 'refunds.invalid_transition: as linhas entram no rascunho do reembolso';
   END IF;
+  IF NEW.linha_encomenda_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.reembolso r
+       JOIN public.linha_encomenda le ON le.encomenda_id = r.encomenda_id
+       WHERE r.id = NEW.reembolso_id AND le.id = NEW.linha_encomenda_id) THEN
+    RAISE EXCEPTION 'refunds.invalid_field: a linha não é da encomenda do reembolso';
+  END IF;
   RETURN NEW;
 END
 $$;
@@ -573,6 +587,22 @@ BEGIN
          AND p.estado IN ('capturado', 'reembolsado_parcial')) THEN
       RAISE EXCEPTION 'refunds.not_refundable: a encomenda não tem um pagamento capturado';
     END IF;
+    -- A origem é desta encomenda e está no ponto certo (R1, Q3; revisão do
+    -- #329, P3-3).
+    IF NEW.origem = 'devolucao' AND NOT EXISTS (SELECT 1 FROM public.devolucao d
+         WHERE d.id = NEW.devolucao_id AND d.encomenda_id = NEW.encomenda_id
+           AND d.estado = 'inspeccionada') THEN
+      RAISE EXCEPTION 'refunds.invalid_transition: a devolução não é desta encomenda ou não está inspeccionada';
+    END IF;
+    IF NEW.origem = 'problema' AND NOT EXISTS (SELECT 1 FROM public.problema x
+         WHERE x.id = NEW.problema_id AND x.encomenda_id = NEW.encomenda_id
+           AND x.estado = 'aberto') THEN
+      RAISE EXCEPTION 'refunds.invalid_transition: o problema não é desta encomenda ou não está aberto';
+    END IF;
+    IF NEW.origem = 'cancelamento' AND NOT EXISTS (SELECT 1 FROM public.encomenda e
+         WHERE e.id = NEW.encomenda_id AND e.estado = 'cancelada') THEN
+      RAISE EXCEPTION 'refunds.invalid_transition: a encomenda não está cancelada';
+    END IF;
     NEW.estado := 'rascunho';
     NEW.executado_em := NULL;
     NEW.decidido_por := quem;
@@ -584,12 +614,27 @@ BEGIN
      IS DISTINCT FROM (to_jsonb(OLD) - 'estado' - 'prova' - 'executado_em' - 'versao' - 'via') THEN
     RAISE EXCEPTION 'refunds.immutable: o reembolso não muda (decide-se outro)';
   END IF;
+  -- Executado ou anulado, nada mais muda: nem a prova, nem a via (revisão do
+  -- #329, P2-6).
+  IF OLD.estado IN ('executado', 'cancelado') AND to_jsonb(NEW) - 'versao' IS DISTINCT FROM to_jsonb(OLD) - 'versao' THEN
+    RAISE EXCEPTION 'refunds.immutable: um reembolso % não muda', OLD.estado;
+  END IF;
   IF NEW.estado IS DISTINCT FROM OLD.estado THEN
     IF NOT (OLD.estado, NEW.estado) IN (
          ('rascunho', 'a_executar'), ('a_executar', 'executado'), ('a_executar', 'falhado'),
          ('a_executar', 'incerto'), ('incerto', 'executado'), ('incerto', 'a_executar'),
-         ('falhado', 'a_executar')) THEN
+         ('falhado', 'a_executar'), ('a_executar', 'cancelado'), ('falhado', 'cancelado')) THEN
       RAISE EXCEPTION 'refunds.invalid_transition: % → %', OLD.estado, NEW.estado;
+    END IF;
+    -- Anular (antes de o dinheiro sair) pede o motivo; o do cancelamento da
+    -- encomenda não se anula: é sempre tudo (revisão do #329, P1-4).
+    IF NEW.estado = 'cancelado' THEN
+      IF nullif(btrim(current_setting('eurolify.motivo', true)), '') IS NULL THEN
+        RAISE EXCEPTION 'refunds.invalid_field: anular um reembolso pede o motivo';
+      END IF;
+      IF NEW.origem = 'cancelamento' THEN
+        RAISE EXCEPTION 'refunds.invalid_transition: o reembolso de um cancelamento não se anula';
+      END IF;
     END IF;
     IF OLD.estado = 'rascunho' THEN
       IF NEW.montante <> (SELECT coalesce(sum(l.montante), 0) FROM public.linha_reembolso l
@@ -607,6 +652,28 @@ BEGIN
                     AND (r2.id = NEW.id OR r2.estado IN ('a_executar', 'executado', 'incerto')))
                  > le.total) THEN
         RAISE EXCEPTION 'refunds.exceeds_paid: uma linha ficava reembolsada acima do que se pagou';
+      END IF;
+      -- Nem acima da quantidade comprada (linhas repetidas incluídas;
+      -- revisão do #329, P1-1), nem, numa devolução, acima do que voltou.
+      IF EXISTS (
+           SELECT 1 FROM public.linha_reembolso l
+           JOIN public.linha_encomenda le ON le.id = l.linha_encomenda_id
+           WHERE l.reembolso_id = NEW.id
+             AND (SELECT coalesce(sum(l2.quantidade), 0) FROM public.linha_reembolso l2
+                  JOIN public.reembolso r2 ON r2.id = l2.reembolso_id
+                  WHERE l2.linha_encomenda_id = l.linha_encomenda_id
+                    AND (r2.id = NEW.id OR r2.estado IN ('a_executar', 'executado', 'incerto')))
+                 > le.quantidade) THEN
+        RAISE EXCEPTION 'refunds.exceeds_paid: uma linha ficava reembolsada acima da quantidade comprada';
+      END IF;
+      IF NEW.origem = 'devolucao' AND EXISTS (
+           SELECT 1 FROM public.linha_reembolso l
+           LEFT JOIN public.linha_devolucao ld ON ld.devolucao_id = NEW.devolucao_id
+             AND ld.linha_encomenda_id = l.linha_encomenda_id
+           WHERE l.reembolso_id = NEW.id AND l.linha_encomenda_id IS NOT NULL
+           GROUP BY l.linha_encomenda_id, ld.recebida
+           HAVING sum(l.quantidade) > coalesce(ld.recebida, 0)) THEN
+        RAISE EXCEPTION 'refunds.exceeds_paid: não se reembolsa mais do que voltou';
       END IF;
       SELECT p.montante INTO pago FROM public.pagamento p WHERE p.id = NEW.pagamento_id FOR UPDATE;
       SELECT coalesce(sum(r.montante), 0) INTO ja FROM public.reembolso r
@@ -817,11 +884,12 @@ BEGIN
       WHEN 'recebida' THEN 'return.received' WHEN 'inspeccionada' THEN 'return.inspected'
       WHEN 'decidida' THEN 'return.decided' WHEN 'cancelada' THEN 'return.cancelled'
       ELSE 'return.closed' END
-    WHEN 'problema' THEN CASE NEW.estado WHEN 'aberto' THEN 'problem.created'
-      ELSE 'problem.' || NEW.estado END
+    WHEN 'problema' THEN CASE NEW.estado
+      WHEN 'aberto' THEN CASE WHEN TG_OP = 'INSERT' THEN 'problem.created' ELSE 'problem.reopened' END
+      WHEN 'decidido' THEN 'problem.decided' ELSE 'problem.closed' END
     WHEN 'reembolso' THEN CASE NEW.estado WHEN 'a_executar' THEN 'refund.created'
       WHEN 'executado' THEN 'refund.completed' WHEN 'falhado' THEN 'refund.failed'
-      WHEN 'incerto' THEN 'refund.uncertain' END
+      WHEN 'incerto' THEN 'refund.uncertain' WHEN 'cancelado' THEN 'refund.cancelled' END
   END;
   IF t IS NULL THEN
     RETURN NULL;
@@ -829,7 +897,17 @@ BEGIN
   INSERT INTO public.evento_saida (comerciante_id, tipo, agregado_tipo, agregado_id, dados)
   VALUES (NEW.comerciante_id, t, TG_TABLE_NAME, NEW.id,
     jsonb_build_object('id', NEW.id, 'encomenda_id', NEW.encomenda_id, 'estado', NEW.estado,
-      'em', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')));
+      'em', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))
+    -- O reembolso leva o montante e as linhas (identificadores e montantes,
+    -- nunca o IBAN): é o que o sistema próprio do comerciante precisa para
+    -- emitir a NC (docs/30 §3.5; revisão do #329, P2-8).
+    || CASE WHEN TG_TABLE_NAME = 'reembolso' THEN jsonb_build_object(
+         'montante', (to_jsonb(NEW)->>'montante')::bigint, 'moeda', to_jsonb(NEW)->>'moeda',
+         'linhas', (SELECT coalesce(jsonb_agg(jsonb_build_object(
+             'linha_encomenda_id', l.linha_encomenda_id, 'quantidade', l.quantidade,
+             'montante', l.montante) ORDER BY l.posicao), '[]'::jsonb)
+           FROM public.linha_reembolso l WHERE l.reembolso_id = NEW.id))
+       ELSE '{}'::jsonb END);
   RETURN NULL;
 END
 $$;
@@ -869,7 +947,7 @@ ALTER TABLE linha_livre_resolucao ENABLE ALWAYS TRIGGER linha_livre_resolucao_so
 
 ALTER TABLE chave_api DROP CONSTRAINT chave_api_ambitos_validos;
 ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
-  cardinality(ambitos) BETWEEN 1 AND 40
+  cardinality(ambitos) BETWEEN 1 AND 60
   AND ambitos <@ ARRAY[
     'merchant:read', 'merchant:write',
     'catalog:read', 'catalog:write', 'catalog:publish', 'catalog:import',

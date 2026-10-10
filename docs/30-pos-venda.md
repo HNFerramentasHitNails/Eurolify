@@ -315,7 +315,9 @@ reembolsa por API; se não, o reembolso é manual.
 
 **Desvios do desenho:**
 - **Estados do pedido** (§4.1): `aceite`, `fora_de_prazo` (uma pessoa aceita
-  ou recusa, com motivo) e `recusado`. O «cancelado pelo cliente» faz-se
+  ou recusa, com motivo), `pendente` (dentro do prazo, mas a devolução não
+  abriu: a loja sem armazém, ou outra devolução ganhou as linhas; decide uma
+  pessoa) e `recusado`. O «cancelado pelo cliente» faz-se
   cancelando a devolução que o pedido abriu (antes de inspeccionada).
 - **Estados do reembolso** (§4.3): o `a_decidir` chama-se `rascunho` e só
   existe dentro da transacção que cria as linhas; a API entrega-o já
@@ -331,6 +333,22 @@ reembolsa por API; se não, o reembolso é manual.
   a tudo (só o `revendavel` aceite volta a stock).
 - **R6 e R7**: nesta parte o reembolso é só manual (Q2); o mesmo meio e a
   referência no prestador ficam para a parte 2, com `/execute` e `/reconcile`.
+- **O botão só serve linhas já expedidas.** Antes de expedir, o cliente
+  desiste pelo apoio e a loja cancela a encomenda (Q7). Se o direito vale
+  desde a celebração do contrato é **C** (jurista, J1).
+- **O prazo é da encomenda** e conta da última entrega: enquanto falta
+  entregar alguma coisa, ainda não começou (o mais favorável ao consumidor;
+  **C**, J1).
+- **O reembolso de uma devolução** vai até ao que voltou (`recebida`), não só
+  ao aceite em stock: um artigo aberto que voltou pode ter de se reembolsar
+  (**C**, J2).
+- **Q3 «ou com a prova de envio do cliente»**: não programado; reembolsa-se
+  depois de recebida e inspeccionada.
+- **A fatura não ganha os estados `creditada`/`creditada_parcial`**: mostra as
+  NC e o `saldo`. «A base recusa uma NC acima do saldo» é uma retenção
+  (`credito_acima_do_saldo`), que só conta as NC já emitidas.
+- **O IBAN não se guarda** (a §3.4 dizia «cifrado»): a prova é a data e a
+  referência da transferência.
 - **R10**: a devolução mostra `reembolsar_ate` e `dias_para_reembolsar`
   (14 dias do pedido, **C**); **por fazer** a tarefa que avisa antes do fim.
 - **Encomenda devolvida** só a partir de `entregue` ou `concluida`: uma
@@ -340,3 +358,50 @@ reembolsa por API; se não, o reembolso é manual.
 - **Por fazer:** o reembolso pelo adaptador (parte 2), o aviso do prazo do
   reembolso (R10), a marca «selado por higiene», o jurista (J1 a J5) e o
   contabilista (C1 a C4).
+
+**Correcções da revisão do #329** (Sonnet 5.5; 0 P0, 4 P1, 11 P2, 11 P3):
+- **Linhas repetidas** (P1-1): a decisão recusa a mesma linha duas vezes; a
+  base garante, por linha, a quantidade comprada e, numa devolução, o que
+  voltou.
+- **A NC sai pela ligação da fatura** (P1-2), nunca pela que estiver activa;
+  se essa ligação estiver desligada, a NC fica retida.
+- **Contra uma fatura divergente não sai NC** (P1-3): espera que uma pessoa a
+  resolva, e resolver acorda as NC.
+- **A NC só sai depois do dinheiro** (P1-4): motivo `reembolso_por_executar`
+  até o reembolso ficar executado (a ordem final é a C1 do contabilista). Um
+  reembolso `a_executar` ou `falhado` **anula-se** com motivo
+  (`POST /refunds/{id}/cancel`): a devolução volta a `inspeccionada` e o
+  problema a `aberto`, para decidir outra vez; a NC dele fica retida para
+  sempre (`reembolso_cancelado`). O de um cancelamento não se anula.
+- **O pedido fica sempre registado** (P2-1): `pendente` quando a devolução não
+  abre. **Prazo pela última entrega** (P2-3). **Fechar sem reembolso**, com
+  motivo (`POST /returns/{id}/close`, `POST /problems/{id}/close`; P2-5).
+- **NC acordada sem corridas** (P2-4): a fatura lê-se com `FOR SHARE` ao
+  verificar a NC. **Executado ou anulado, o reembolso não muda** (P2-6).
+  **Stock por ordem da variante** em toda a inspecção (P2-7).
+- **Sem NC, diz porquê** (`sem_nota_credito`: `sistema_proprio` ou
+  `sem_fatura`), e os eventos do reembolso levam o montante e as linhas
+  (P2-8). **O botão vai na confirmação** (`livre_resolucao`, só consumidores;
+  P2-9). **O mesmo pedido à espera de uma pessoa não se grava outra vez**
+  (P2-10).
+- **Testes** (P2-11): ligação trocada, fatura divergente, NC acima do saldo,
+  anular, linhas repetidas, fechar sem reembolso, prova imutável, sistema
+  próprio, prazo com duas entregas, pedido pendente e dois pedidos ao mesmo
+  tempo. R8 (a taxa da fatura): a NC não lê taxas, copia as linhas da fatura;
+  a mutação que troca a proporção pela do pedido é apanhada.
+- **P3 tratados:** a base confere a origem do reembolso (desta encomenda, no
+  ponto certo) e que cada linha é da encomenda (P3-3); erros da faturação e
+  dos pagamentos traduzidos (P3-11); o tecto de âmbitos por chave passou a
+  60 (P3-14); eventos `problem.decided`, `problem.closed`,
+  `problem.reopened` (P3-16).
+- **P3 que ficam**, com a razão: a NC em voo não conta no saldo (P3-1;
+  reembolsos já limitados ao pago); arredondamento de 1 cêntimo falha em
+  segurança para `divergente` (P3-2); portes sem tecto próprio na base, só o
+  do pagamento (P3-5); cancelar com um reembolso parcial já feito não passa
+  (P3-6; devolve-se); o lote atribui-se pela ordem da saída (P3-7); o pedido
+  não recebido não se liberta (P3-8); o armazém vê o e-mail do pedido de
+  livre resolução (P3-10; o papel decide-o, a rever com o Hub); o movimento
+  `devolucao` sai como `inventory.adjusted` (P3-12; muda-se com o stock);
+  `prova` livre (P3-13); `falhado/incerto → a_executar` sem rever os tectos
+  (P3-15; parte 2); listas sem paginação (P3-17); `meio_pagamento` (P3-18).
+

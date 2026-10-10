@@ -838,7 +838,15 @@ export function rotasDoCheckout(
               paraEncomenda(await lerEncomenda(trx, s.comerciante_id, id));
             delete publica.emissor_fiscal;
             delete publica.documento;
-            return publica;
+            // O botão de livre resolução vai na confirmação (docs/30 R2 e
+            // §8; revisão do #329, P2-9): só os consumidores o usam.
+            return {
+              ...publica,
+              livre_resolucao:
+                publica.finalidade === "consumo"
+                  ? `/store/orders/${pedido.params.token}/withdrawal`
+                  : null,
+            };
           },
           { soAberta: false },
         ),

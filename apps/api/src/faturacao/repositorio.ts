@@ -58,6 +58,11 @@ export const MOTIVOS_RETENCAO = [
   "original_por_emitir",
   "credito_acima_do_saldo",
   "encomenda_reembolsada",
+  // A NC só sai depois de o dinheiro sair (o reembolso executado); um
+  // reembolso anulado deixa a NC retida para sempre (revisão do #329, P1-4;
+  // a ordem final é a pergunta C1 do contabilista).
+  "reembolso_por_executar",
+  "reembolso_cancelado",
 ] as const;
 export type MotivoRetencao = (typeof MOTIVOS_RETENCAO)[number];
 
@@ -891,9 +896,12 @@ async function verificar(
   if (doc.tipo === "nota_credito") {
     // A NC espera pela fatura emitida e não passa o saldo dela (docs/30
     // §3.5; lição 2.13).
+    // Contra uma fatura divergente não: a NC copia o nosso pedido, e a prova
+    // é o documento que lá está; espera que uma pessoa a resolva (revisão
+    // do #329, P1-3).
     if (
       original === null ||
-      !["emitido", "divergente", "resolvido"].includes(original.estado)
+      !["emitido", "resolvido"].includes(original.estado)
     ) {
       motivos.add("original_por_emitir");
     } else if (original.total !== null && doc.original_id !== null) {
@@ -906,6 +914,14 @@ async function verificar(
       if (creditado + conteudo.totais.total > original.total) {
         motivos.add("credito_acima_do_saldo");
       }
+    }
+    const { rows: rr } = await sql<{ estado: string }>`
+      select r.estado from documento_fiscal d join reembolso r on r.id = d.reembolso_id
+      where d.id = ${doc.id}::uuid`.execute(trx);
+    const estadoReembolso = rr[0]?.estado;
+    if (estadoReembolso === "cancelado") motivos.add("reembolso_cancelado");
+    else if (estadoReembolso !== "executado") {
+      motivos.add("reembolso_por_executar");
     }
   } else {
     // Reembolsada por inteiro antes de a fatura sair: espera pelo
@@ -1129,26 +1145,6 @@ async function lerContexto(
       .execute();
     ultimo = { versao: 1, conteudo: c, impressao: impressaoDe(c) };
   }
-  const lig =
-    doc.ligacao_id !== null
-      ? trx.selectFrom("ligacao_faturacao").where("id", "=", doc.ligacao_id)
-      : trx
-          .selectFrom("ligacao_faturacao")
-          .where("entidade_legal_id", "=", doc.entidade_legal_id)
-          .where("activa", "=", true);
-  const ligacao = await lig
-    .select([
-      "id",
-      "adaptador",
-      "estado",
-      "activa",
-      "serie",
-      "taxas",
-      "isencoes",
-      "credenciais",
-      "credenciais_versao_chave",
-    ])
-    .executeTakeFirst();
   const original =
     doc.original_id === null
       ? null
@@ -1164,9 +1160,40 @@ async function lerContexto(
             "documento_fiscal.emissor_id",
             "documento_prova.numero",
             "documento_prova.totais",
+            "documento_fiscal.ligacao_id",
           ])
           .where("documento_fiscal.id", "=", doc.original_id)
+          // A fatura não muda enquanto a NC se verifica: sem isto, a fatura
+          // que sai ao mesmo tempo não acordava a NC (revisão do #329, P2-4).
+          .forShare("documento_fiscal")
           .executeTakeFirst();
+  // A NC sai pela ligação da fatura, nunca pela que estiver activa agora
+  // (outro emissor não tem aquela fatura; revisão do #329, P1-2).
+  const ligacaoId =
+    doc.ligacao_id ??
+    (doc.tipo === "nota_credito" ? (original?.ligacao_id ?? null) : null);
+  const lig =
+    ligacaoId !== null
+      ? trx.selectFrom("ligacao_faturacao").where("id", "=", ligacaoId)
+      : doc.tipo === "nota_credito"
+        ? trx.selectFrom("ligacao_faturacao").where(sql<boolean>`false`)
+        : trx
+            .selectFrom("ligacao_faturacao")
+            .where("entidade_legal_id", "=", doc.entidade_legal_id)
+            .where("activa", "=", true);
+  const ligacao = await lig
+    .select([
+      "id",
+      "adaptador",
+      "estado",
+      "activa",
+      "serie",
+      "taxas",
+      "isencoes",
+      "credenciais",
+      "credenciais_versao_chave",
+    ])
+    .executeTakeFirst();
   return {
     doc,
     conteudo: ultimo.conteudo as Conteudo,
@@ -1184,6 +1211,25 @@ async function lerContexto(
                 : (original.totais as { total: number }).total,
           },
   };
+}
+
+/**
+ * As NC retidas por um motivo que deixou de valer (a fatura saiu ou foi
+ * resolvida; o reembolso foi executado ou anulado) voltam a verificar-se.
+ */
+export async function acordarNotas(
+  trx: Transaction<BaseDados>,
+  de: { original: string } | { reembolso: string },
+  motivo: MotivoRetencao,
+) {
+  const filtro =
+    "original" in de
+      ? sql`original_id = ${de.original}::uuid`
+      : sql`reembolso_id = ${de.reembolso}::uuid`;
+  await sql`update documento_fiscal
+    set estado = 'a_verificar', versao = versao + 1, proxima_em = now()
+    where ${filtro} and tipo = 'nota_credito' and estado = 'retido'
+      and ${motivo} = any(motivos)`.execute(trx);
 }
 
 const OCUPADO = () =>
@@ -1392,10 +1438,7 @@ async function gravarProva(
     }
     // A fatura saiu: as NC que esperavam por ela voltam a verificar-se.
     if (ctx.doc.tipo === "fatura") {
-      await sql`update documento_fiscal
-        set estado = 'a_verificar', versao = versao + 1, proxima_em = now()
-        where original_id = ${ctx.doc.id}::uuid and estado = 'retido'
-          and 'original_por_emitir' = any(motivos)`.execute(trx);
+      await acordarNotas(trx, { original: ctx.doc.id }, "original_por_emitir");
     }
     ctx.doc = agora.doc;
   });
@@ -2194,6 +2237,11 @@ export async function resolver(
     await marcar(trx, quem, dados.motivo);
     const ctx = await paraDecidir(trx, id, dados.versao, ["divergente"]);
     await mudarEstado(trx, ctx, "resolvido");
+    // Resolvida a fatura, as NC que esperavam por ela verificam-se outra vez
+    // (revisão do #329, P1-3).
+    if (ctx.doc.tipo === "fatura") {
+      await acordarNotas(trx, { original: ctx.doc.id }, "original_por_emitir");
+    }
     return ctx.doc.versao;
   });
 }

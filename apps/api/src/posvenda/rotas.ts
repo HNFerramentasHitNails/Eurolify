@@ -15,6 +15,7 @@ import { emCheckout, Token } from "../checkout/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
 import { ErroPosVenda, ESTADO_DO_CODIGO, traduzir } from "./erros.js";
 import {
+  anularReembolso,
   cancelarDevolucao,
   cancelarEncomendaPaga,
   criarDevolucao,
@@ -22,6 +23,7 @@ import {
   decidirDevolucao,
   decidirLivreResolucao,
   decidirProblema,
+  fecharSemReembolso,
   inspeccionarDevolucao,
   lerDevolucao,
   lerLivreResolucao,
@@ -252,7 +254,12 @@ export function rotasDaPosVenda(
         querystring: Type.Object(
           {
             estado: Type.Optional(
-              umDe(["aceite", "fora_de_prazo", "recusado"] as const),
+              umDe([
+                "aceite",
+                "fora_de_prazo",
+                "pendente",
+                "recusado",
+              ] as const),
             ),
             encomenda: Type.Optional(IdEncomenda),
           },
@@ -900,6 +907,7 @@ export function rotasDaPosVenda(
             quantidade: l.quantidade,
             montante: Number(l.montante),
           })),
+          sem_nota_credito: r.sem_nota_credito,
           nota_credito:
             r.nota_credito === null
               ? null
@@ -947,6 +955,78 @@ export function rotasDaPosVenda(
         })),
       ),
   );
+
+  rotas.post(
+    "/refunds/:id/cancel",
+    {
+      config: { ambito: "refunds:write" },
+      schema: {
+        description:
+          "Anula um reembolso antes de o dinheiro sair (a decisão estava errada), com motivo: a devolução ou o problema voltam a decidir-se; a nota de crédito dele fica retida. O de um cancelamento de encomenda não se anula.",
+        params: Type.Object({ id: IdReembolso }),
+        body: Type.Object(
+          { versao: Versao, motivo: Motivo },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        emPosVenda(resposta, async () => ({
+          versao: await anularReembolso(
+            trx,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body,
+            quemDe(chave),
+          ),
+        })),
+      ),
+  );
+
+  for (const [rota, qual, Id] of [
+    ["/returns/:id/close", "devolucao", IdDevolucao],
+    ["/problems/:id/close", "problema", IdProblema],
+  ] as const) {
+    rotas.post(
+      rota,
+      {
+        config: { ambito: "refunds:write" },
+        schema: {
+          description:
+            qual === "devolucao"
+              ? "Fecha uma devolução inspeccionada sem reembolso (nada a reembolsar), com motivo."
+              : "Fecha um problema aberto sem reembolso (decidido «nada»), com motivo.",
+          params: Type.Object({ id: Id }),
+          body: Type.Object(
+            { versao: Versao, motivo: Motivo },
+            { additionalProperties: false },
+          ),
+          response: {
+            200: Type.Object({ versao: Type.Integer() }),
+            ...RESPOSTA_DE_ERRO,
+          },
+        },
+      },
+      (pedido, resposta) =>
+        escrever(base, pedido, resposta, 200, (trx, chave) =>
+          emPosVenda(resposta, async () => ({
+            versao: await fecharSemReembolso(
+              trx,
+              chave.comercianteId,
+              qual,
+              semPrefixo(pedido.params.id),
+              pedido.body,
+              quemDe(chave),
+            ),
+          })),
+        ),
+    );
+  }
 
   rotas.post(
     "/orders/:id/cancel",
