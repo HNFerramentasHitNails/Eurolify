@@ -27,7 +27,11 @@ export type CodigoErroClientes =
   | "customers.exemption_active"
   | "customers.exemption_by_person"
   | "customers.exemption_immutable"
-  | "customers.exemption_reason_code";
+  | "customers.exemption_reason_code"
+  | "customers.merge_same"
+  | "customers.merge_by_person"
+  | "customers.merge_too_many_contacts"
+  | "customers.duplicate_decided";
 
 export class ErroClientes extends Error {
   constructor(
