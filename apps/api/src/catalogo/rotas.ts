@@ -19,6 +19,7 @@ import {
 } from "../base/esquema.js";
 import {
   comIdempotencia,
+  type OpcoesIdempotencia,
   type PedidoIdempotente,
 } from "../base/idempotencia.js";
 import { chaveDo } from "../identidade/autenticacao.js";
@@ -1451,6 +1452,13 @@ export async function escrever(
    * bytes).
    */
   corpoIdempotente?: unknown,
+  /**
+   * O que se guarda para repetir, quando não é a resposta inteira, e como se
+   * repete (a exportação do titular não fica guardada: revisão do #314, P2-5).
+   */
+  guarda?: Pick<OpcoesIdempotencia, "repetir"> & {
+    guardar: (corpo: unknown) => unknown;
+  },
 ) {
   const chave = chaveDo(pedido);
   const idempotente: PedidoIdempotente = {
@@ -1478,9 +1486,14 @@ export async function escrever(
           trx,
         );
         const corpo = await fn(trx, chave);
-        return { status, corpo, guardar: corpo };
+        return {
+          status,
+          corpo,
+          guardar: guarda === undefined ? corpo : guarda.guardar(corpo),
+        };
       },
       {
+        ...(guarda?.repetir === undefined ? {} : { repetir: guarda.repetir }),
         aoFalharLimpeza: (erro) => {
           pedido.log.error(
             { err: erro },

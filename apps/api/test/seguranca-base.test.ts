@@ -51,7 +51,13 @@ const FUNCOES_DA_API = [
   // Duplicados e fusões (0046): fundir, descartar, a procura de candidatos (do
   // gatilho), o grupo de fichas fundidas e a comparação dos e-mails.
   "cliente_fundir",
+  // Os pedidos do titular (0049): limitar, pseudonimizar e as duas que dizem
+  // se a pseudonimização está a correr (os gatilhos chamam-nas).
+  "cliente_limitar",
+  "cliente_pseudonimizar",
   "clientes_do_grupo",
+  "clientes_dono_a_escrever",
+  "clientes_pseudonimizacao_em_curso",
   "codigos_gerar",
   "comerciante_actual",
   "conta_nova_com_passkey",
@@ -106,6 +112,9 @@ const FUNCOES_DA_API = [
   "passkey_para_entrar",
   "passkey_retirar",
   "passkeys_listar",
+  // O registo da exportação, com o tipo fixo (revisão do #314, P2-2); o
+  // registo à escolha (pedido_titular_registar) fica só para o dono.
+  "pedido_titular_exportar",
   "perfil_tornar_principal",
   "pessoa_eu",
   // A régua única do marketing (0042): quem envia pergunta-lhe.
@@ -128,6 +137,8 @@ const FUNCOES_DA_API = [
   "stock_bloquear",
   "stock_politica",
   "telefones_validos",
+  // A prova do VIES só numa ficha activa (0049): o gatilho corre com quem escreve.
+  "validacao_vies_so_em_ficha_activa",
   // O VIES (0039): a fila e a prova, pelas funções do dono.
   "vies_adiar",
   "vies_comerciantes_com_fila",
