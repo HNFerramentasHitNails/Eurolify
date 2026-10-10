@@ -34,7 +34,7 @@ import {
 
 /** As funções que a API pode chamar; qualquer outra tem de ser recusada. */
 const FUNCOES_DA_API = [
-  // Os anexos da isenção (0053): os gatilhos correm com quem escreve.
+  // Os anexos da isenção (0054): os gatilhos correm com quem escreve.
   "anexo_isencao_antes_de_gravar",
   // O nome de quem fez, no histórico do Hub (0038).
   "autores_da_linha_do_tempo",

@@ -1918,7 +1918,7 @@ export function rotasDosClientes(
     }),
   );
 
-  // ---- Os anexos da isenção (§13.5; 0053), num plugin à parte: o leitor
+  // ---- Os anexos da isenção (§13.5; 0054), num plugin à parte: o leitor
   // dos bytes (PDF, JPEG, PNG) não se mistura com o JSON das outras rotas
   // nem com o do envio de imagens.
   void instancia.register((filho, _o, pronto) => {

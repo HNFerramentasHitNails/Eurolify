@@ -307,6 +307,12 @@ describe.skipIf(URL_BASE === undefined)(
         pedido: "p".repeat(100),
         motivo: "m".repeat(500),
       });
+      // Acima de 500, corta-se (0053; revisão do #334, P1-1).
+      const cortado = await comRasto(
+        { canal: "api", motivo: "m".repeat(600) },
+        lido,
+      );
+      expect(cortado).toMatchObject({ motivo: "m".repeat(500) });
     });
 
     it("o quem e a origem que o domínio põe entram no mesmo contexto", async () => {
@@ -342,7 +348,6 @@ describe.skipIf(URL_BASE === undefined)(
       ["IA com valor vazio", { ia: { prova: "declarado", modelo: "" } }],
       ["IA em lista", { ia: [{ prova: "declarado" }] }],
       ["quem autoriza é uma chave", { autorizadoPor: "chave:key_1" }],
-      ["motivo comprido", { motivo: "x".repeat(501) }],
       ["IA sem prova", { ia: { modelo: "m" } }],
       ["IA «desconhecido» gravado", { ia: { prova: "desconhecido" } }],
       ["IA com campo a mais", { ia: { prova: "declarado", pessoa: "x" } }],

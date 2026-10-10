@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { comRastoNaBase } from "../base/rasto.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { sql, type Kysely } from "kysely";
 import { Type } from "typebox";
@@ -160,11 +161,13 @@ export function rotasDasCredenciais(
         hub,
       );
       const id = await traduzindoConta(async () => {
-        const { rows } = await sql<{ id: string }>`
+        const { rows } = await comRastoNaBase(base, (trx) =>
+          sql<{ id: string }>`
           select passkey_acrescentar(${resumo(desafio)}, ${sessao.segredo},
             ${credencial.id}, ${Buffer.from(credencial.publicKey)},
             ${credencial.counter}, ${credencial.transports ?? []}::text[],
-            ${pedido.body.nome}) as id`.execute(base);
+            ${pedido.body.nome}) as id`.execute(trx),
+        );
         const r = rows[0]?.id;
         if (r === undefined) throw new Error("a base não devolveu a passkey");
         return r;
@@ -190,8 +193,10 @@ export function rotasDasCredenciais(
       const id = pedido.params.id.slice("pky_".length);
       const segredo = segredoNovo("eus");
       await traduzindoConta(() =>
-        sql`select passkey_retirar(${sessao.segredo}, ${id}::uuid,
-          ${resumo(segredo)})`.execute(base),
+        comRastoNaBase(base, (trx) =>
+          sql`select passkey_retirar(${sessao.segredo}, ${id}::uuid,
+          ${resumo(segredo)})`.execute(trx),
+        ),
       );
       porCookie(resposta, segredo);
       return { ok: true as const };
@@ -258,8 +263,10 @@ export function rotasDasCredenciais(
       const sessao = sessaoDo(pedido);
       const segredo = segredoNovo("eus");
       await traduzindoConta(() =>
-        sql`select sessoes_terminar_todas(${sessao.segredo},
-          ${resumo(segredo)})`.execute(base),
+        comRastoNaBase(base, (trx) =>
+          sql`select sessoes_terminar_todas(${sessao.segredo},
+          ${resumo(segredo)})`.execute(trx),
+        ),
       );
       porCookie(resposta, segredo);
       return { ok: true as const };
@@ -284,8 +291,10 @@ export function rotasDasCredenciais(
       const sessao = sessaoDo(pedido);
       const { codigos, resumos } = codigosNovos();
       await traduzindoConta(() =>
-        sql`select codigos_gerar(${sessao.segredo}, ${resumos}::text[])`.execute(
-          base,
+        comRastoNaBase(base, (trx) =>
+          sql`select codigos_gerar(${sessao.segredo}, ${resumos}::text[])`.execute(
+            trx,
+          ),
         ),
       );
       void resposta.header("cache-control", "no-store");
@@ -359,12 +368,14 @@ export function rotasDasCredenciais(
       }
       const segredo = segredoNovo("eus");
       const pessoa = await traduzindoConta(async () => {
-        const { rows } = await sql<{ id: string }>`
+        const { rows } = await comRastoNaBase(base, (trx) =>
+          sql<{ id: string }>`
           select recuperacao_concluir(${resumo(desafio)}, ${corpo.email},
             ${resumoDoCodigo(corpo.codigo)}, ${credencial.id},
             ${Buffer.from(credencial.publicKey)}, ${credencial.counter},
             ${credencial.transports ?? []}::text[], ${corpo.nome_passkey ?? null},
-            ${resumo(segredo)}, ${pedido.ip}::inet) as id`.execute(base);
+            ${resumo(segredo)}, ${pedido.ip}::inet) as id`.execute(trx),
+        );
         const r = rows[0]?.id;
         if (r === undefined) throw erroConta("auth.unauthenticated");
         return r;

@@ -142,7 +142,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0050_documentos_fiscais",
         "0051_rasto_contexto",
         "0052_clientes_consentimento_por_contacto",
-        "0053_clientes_anexos_da_isencao",
+        "0053_rasto_colunas",
+        "0054_clientes_anexos_da_isencao",
       ]);
     });
 
@@ -254,7 +255,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // duplicado (0046), as 10 do stock (0047), os pedidos do titular (0049),
       // as 5 dos documentos fiscais (0050), os pedidos de dupla confirmação e
       // os contactos inferidos das declarações antigas (0052) e os anexos da
-      // isenção (0053).
+      // isenção (0054).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(74);

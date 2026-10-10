@@ -712,7 +712,7 @@ consulta — proposta (Q7).
 - **Anexos** (`anexo_isencao`, `exa_`): PDF, JPEG ou PNG, até 10 MB cada, até
   5 por isenção; **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM),
   nunca públicos; os bytes lêem-se pela API com `customers:exemptions` — no
-  código (migração 0053, §13.11). O prazo de guarda é o fiscal (**C**, V2).
+  código (migração 0054, §13.11). O prazo de guarda é o fiscal (**C**, V2).
 - Eventos `billing_profile.exemption_set` e `billing_profile.exemption_removed`
   (`bpf_`, `exm_`, quem) — proposta (novos).
 
@@ -805,14 +805,14 @@ próprio (P3-10); a pseudonimização do nome e morada devolvidos, na parte 2
 (sem saída, as provas ficam `indisponivel` com `SEM_LIGACAO`, e nada fica
 isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
 
-### 13.11 Os anexos da isenção em código (10/10/2026; migração 0053)
+### 13.11 Os anexos da isenção em código (10/10/2026; migração 0054)
 
 | O quê | Onde |
 |---|---|
-| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0053 |
-| PDF, JPEG ou PNG **pelo conteúdo** (os primeiros bytes têm de ser do tipo dito), até 10 MB, até 5 por isenção, só numa isenção em vigor; o tamanho e o resumo (sha256) põe-nos a base; os bytes ficam como chegaram (é a prova: não se limpam metadados) | migração 0053 |
-| só uma pessoa ou a chave dela (`customers.exemption_by_person`), como a isenção | migração 0053 |
-| não se altera nem se apaga, nem pelo superutilizador (`audit.append_only`); a pseudonimização apaga os anexos das isenções dos perfis que ninguém usou e guarda os dos usados | migração 0053 |
+| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0054 |
+| PDF, JPEG ou PNG **pelo conteúdo** (os primeiros bytes têm de ser do tipo dito), até 10 MB, até 5 por isenção, só numa isenção em vigor; o tamanho e o resumo (sha256) põe-nos a base; os bytes ficam como chegaram (é a prova: não se limpam metadados) | migração 0054 |
+| só uma pessoa ou a chave dela (`customers.exemption_by_person`), como a isenção | migração 0054 |
+| não se altera nem se apaga, nem pelo superutilizador (`audit.append_only`); a pseudonimização apaga os anexos das isenções dos perfis que ninguém usou e guarda os dos usados | migração 0054 |
 | `POST /exemptions/{id}/attachments` (o corpo são os bytes, com o Content-Type; `?nome=` opcional) e `GET /exemptions/{id}/attachments/{anexo}` com `customers:exemptions`; `GET /exemptions/{id}/attachments` (sem os bytes) com `customers:read`; a exportação do titular lista-os | `src/clientes/rotas.ts`, `repositorio.ts` |
 | testes: `test/clientes-anexos-isencao.test.ts` (5) | `test/` |
 
