@@ -50,7 +50,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.confirmation_channel",
   "customers.confirmation_invalid",
   "customers.confirmation_rate_limited",
-  // Da 0054: os anexos da isenção.
+  // Da 0055: os anexos da isenção.
   "customers.exemption_attachments_full",
   "customers.exemption_attachments_quota",
 ];
@@ -1016,7 +1016,7 @@ const COLUNAS_DO_ANEXO = [
 ] as const;
 
 /**
- * Anexa um ficheiro a uma isenção em vigor (0054): a base confirma o tipo
+ * Anexa um ficheiro a uma isenção em vigor (0055): a base confirma o tipo
  * pelos primeiros bytes, conta os 5 e põe quem e quando.
  */
 export async function anexarIsencao(
@@ -1610,7 +1610,7 @@ export async function exportarCliente(
         perfis_de_faturacao: perfis,
         provas_vies: await doPerfil("validacao_vies"),
         isencoes_manuais: await doPerfil("isencao_manual"),
-        // Os anexos das isenções (0054): o que são, sem os bytes (lêem-se
+        // Os anexos das isenções (0055): o que são, sem os bytes (lêem-se
         // pela rota deles).
         anexos_das_isencoes:
           ids_perfis.length === 0

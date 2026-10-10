@@ -43,7 +43,7 @@ export type CodigoErroClientes =
   | "customers.confirmation_exhausted"
   | "customers.confirmation_closed"
   | "customers.confirmation_rate_limited"
-  // Da 0054: os anexos da isenção.
+  // Da 0055: os anexos da isenção.
   | "customers.exemption_attachments_full"
   | "customers.exemption_attachments_quota";
 

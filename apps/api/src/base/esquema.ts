@@ -809,7 +809,7 @@ export interface TabelaConsentimento {
   confirmacao_id: ColumnType<string | null, never, never>;
 }
 
-/** Os tipos de ficheiro de um anexo da isenção (0054). */
+/** Os tipos de ficheiro de um anexo da isenção (0055). */
 export const TIPOS_DE_ANEXO = [
   "application/pdf",
   "image/jpeg",
@@ -817,7 +817,7 @@ export const TIPOS_DE_ANEXO = [
 ] as const;
 export type TipoDeAnexo = (typeof TIPOS_DE_ANEXO)[number];
 
-/** Um anexo da isenção manual (0054): a prova, que não se altera. */
+/** Um anexo da isenção manual (0055): a prova, que não se altera. */
 export interface TabelaAnexoIsencao {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;

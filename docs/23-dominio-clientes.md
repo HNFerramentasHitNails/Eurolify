@@ -469,8 +469,10 @@ Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
   página, duas corridas (dois primeiros perfis; etiqueta contra lista).
 
 **Fica escrito para as partes seguintes:**
-- **Apagamento e linha do tempo (P2-4):** a `alteracao_cliente` guarda o
-  antes e o depois do nome, e-mails, telefones e NIF, e só se acrescenta. A
+- **Apagamento e linha do tempo (P2-4):** a `alteracao_cliente` guardava o
+  antes e o depois do nome, e-mails, telefones e NIF, e só se acrescenta.
+  Desde a migração 0054 guarda um marcador em vez desses valores
+  (`docs/28` §3.4). A
   pseudonimização do titular (parte 2) tem de a alcançar: uma função do dono,
   registada, que substitui esses valores nas entradas da ficha — o único
   caminho que muda o rasto.
@@ -572,7 +574,7 @@ a fatia 7.
 | a limitação (`PUT`/`DELETE /customers/{id}/restriction`): a régua do marketing dá não e a API não muda o nome nem os contactos da ficha limitada (`customers.restricted`), sem apagar nada — **proposta**. **Não trava** (revisão do #314, P3-2): os perfis (NIF, morada), as etiquetas, a fila do VIES, a procura de candidatos a duplicado, o checkout e as funções do dono (a fusão). O art. 18.º do RGPD pede mais do que o marketing: o que mais trava fica para decidir | migração 0049 |
 | a exportação (`POST /customers/{id}/export`): a ficha e as fundidas nela, com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas com as linhas e os pagamentos (só para ler), os candidatos a duplicado, a linha do tempo e os pedidos. Lida com a ficha tomada (P3-4); uma ficha fundida não se exporta sozinha, pede-se pela que ficou (P3-3). **A resposta não fica guardada**: a idempotência guarda só o id do pedido, e repetir a chave dá `idempotency.response_not_kept` (P2-5) | `src/clientes/repositorio.ts`; `src/clientes/rotas.ts` |
 | a pseudonimização (`POST /customers/{id}/pseudonymize`), irreversível, com a confirmação escrita «pseudonimizar cus_…» (o erro já não repete a frase, P3-5), só por uma pessoa ou a chave dela, sobre o grupo inteiro (revisão do #298, P3-3), lido **depois** de tomar a ficha pedida, para uma fusão ao mesmo tempo não deixar uma ficha de fora (revisão do #314, P1-2): nome «Pseudonimizado», sem e-mails, telefones, língua nem país; consentimentos e etiquetas apagados; os perfis que nenhum documento nem encomenda usou sem nome, NIF nem morada, arquivados, as provas do VIES deles apagadas e as isenções sem NIF, nota nem os motivos escritos (P3-11 do #244; P2-3 do #314); a linha do tempo sem os valores pessoais nem o texto livre (motivos e notas), também a do par de duplicados guardada na outra ficha (P2-4 do #234; P2-3 do #314); os candidatos fechados; o evento `customer.pseudonymized` | migração 0049 |
-| ficam como estão, com as provas do VIES, as isenções e a linha do tempo deles, o prazo fiscal (R9): os perfis usados em documentos **e os que uma encomenda aponta**, também a não paga (revisão do #314, P1-1). A decisão do IVA da encomenda cita a prova e a isenção; a fatura e a nota de crédito ainda podem precisar delas. Um critério mais estreito (só as encomendas pagas) é do contabilista — **C** | migração 0049 |
+| ficam como estão, com as provas do VIES, as isenções e a linha do tempo deles, o prazo fiscal (R9) — na linha do tempo, o nome, o NIF e a morada ficam como marcador, não em claro, como nos outros perfis: a prova fiscal é a cópia no documento (`docs/29` §4; `docs/28` §3.4; Diogo, 10/10/2026: *«sim»*): os perfis usados em documentos **e os que uma encomenda aponta**, também a não paga (revisão do #314, P1-1). A decisão do IVA da encomenda cita a prova e a isenção; a fatura e a nota de crédito ainda podem precisar delas. Um critério mais estreito (só as encomendas pagas) é do contabilista — **C** | migração 0049 |
 | o resultado do apagamento diz `encomendas_com_dados_por_tratar`: com mais de zero, o apagamento **não está completo** (P2-4) | migração 0049 |
 | uma prova nova do VIES só se grava numa ficha activa: uma resposta que chegue depois do apagamento é recusada e a fila trata-a como falhada (P1-3) | migração 0049 |
 | as recusas de alterar ou apagar abrem-se **só** dentro da função do dono: a marca é uma linha da transacção numa tabela só do dono (`pseudonimizacao_em_curso`), e não um parâmetro que a API possa pôr (P2-1); a API e o superutilizador, com o parâmetro antigo ou com a marca, continuam recusados (testado) | migração 0049 |
@@ -712,7 +714,7 @@ consulta — proposta (Q7).
 - **Anexos** (`anexo_isencao`, `exa_`): PDF, JPEG ou PNG, até 10 MB cada, até
   5 por isenção; **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM),
   nunca públicos; os bytes lêem-se pela API com `customers:exemptions` — no
-  código (migração 0054, §13.11). O prazo de guarda é o fiscal (**C**, V2).
+  código (migração 0055, §13.11). O prazo de guarda é o fiscal (**C**, V2).
 - Eventos `billing_profile.exemption_set` e `billing_profile.exemption_removed`
   (`bpf_`, `exm_`, quem) — proposta (novos).
 
@@ -805,14 +807,14 @@ próprio (P3-10); a pseudonimização do nome e morada devolvidos, na parte 2
 (sem saída, as provas ficam `indisponivel` com `SEM_LIGACAO`, e nada fica
 isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
 
-### 13.11 Os anexos da isenção em código (10/10/2026; migração 0054)
+### 13.11 Os anexos da isenção em código (10/10/2026; migração 0055)
 
 | O quê | Onde |
 |---|---|
-| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0054 |
-| PDF, JPEG ou PNG **pela assinatura** (os primeiros bytes têm de ser do tipo dito; não há verificação da estrutura nem antivírus), até 10 MB, até 5 por isenção e até 1 GB por comerciante (como as imagens, proposta; revisão do #338, P2-2), só numa isenção em vigor de um perfil activo numa ficha activa (P2-1); o tamanho e o resumo (sha256) põe-nos a base; os bytes ficam como chegaram (é a prova: não se limpam metadados) | migração 0054 |
-| só uma pessoa ou a chave dela (`customers.exemption_by_person`), como a isenção | migração 0054 |
-| não se altera nem se apaga, nem pelo superutilizador (`audit.append_only`); a pseudonimização apaga os anexos das isenções dos perfis que ninguém usou e guarda os dos usados | migração 0054 |
+| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0055 |
+| PDF, JPEG ou PNG **pela assinatura** (os primeiros bytes têm de ser do tipo dito; não há verificação da estrutura nem antivírus), até 10 MB, até 5 por isenção e até 1 GB por comerciante (como as imagens, proposta; revisão do #338, P2-2), só numa isenção em vigor de um perfil activo numa ficha activa (P2-1); o tamanho e o resumo (sha256) põe-nos a base; os bytes ficam como chegaram (é a prova: não se limpam metadados) | migração 0055 |
+| só uma pessoa ou a chave dela (`customers.exemption_by_person`), como a isenção | migração 0055 |
+| não se altera nem se apaga, nem pelo superutilizador (`audit.append_only`); a pseudonimização apaga os anexos das isenções dos perfis que ninguém usou e guarda os dos usados | migração 0055 |
 | `POST /exemptions/{id}/attachments` (o corpo são os bytes, com o Content-Type; `?nome=` opcional; no máximo 2 envios em simultâneo por comerciante) e `GET /exemptions/{id}/attachments/{anexo}` com `customers:exemptions`; `GET /exemptions/{id}/attachments` (sem os bytes) com `customers:read`. O descarregamento leva a extensão do tipo (nunca a que veio no nome), o nome em ASCII e em UTF-8 (RFC 6266), `nosniff` e `sandbox` (P1-1, P2-4) | `src/clientes/rotas.ts`, `repositorio.ts` |
 | a exportação do titular **lista** os anexos (sem os bytes); os bytes lêem-se pela rota deles, com `customers:exemptions` — se o acesso do titular exige os bytes na exportação é **C**, para o jurista (revisão do #338, P2-5) | `src/clientes/repositorio.ts` |
 | testes: `test/clientes-anexos-isencao.test.ts` (10: os tipos, os limites, a corrida no quinto lugar, a quota, a isenção retirada e o perfil pseudonimizado, o âmbito, o RLS dos bytes, a prova, a pseudonimização, o nome e os cabeçalhos, a idempotência, a exportação); 14 mutações, 13 apanhadas (a verificação do tipo na rota é uma segunda rede: sem ela, o leitor e a base recusam) | `test/` |

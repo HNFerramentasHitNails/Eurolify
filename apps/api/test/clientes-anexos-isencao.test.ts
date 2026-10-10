@@ -13,7 +13,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Os anexos da isenção manual (docs/23 §13.5; migração 0054; Diogo,
+// Os anexos da isenção manual (docs/23 §13.5; migração 0055; Diogo,
 // 10/10/2026: na base de dados). São a prova: PDF, JPEG ou PNG pelo
 // conteúdo, até 10 MB e 5 por isenção, só numa em vigor, só por uma pessoa
 // ou a chave dela, não se alteram nem se apagam, e saem com a
