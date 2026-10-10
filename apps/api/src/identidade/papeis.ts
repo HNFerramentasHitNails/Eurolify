@@ -17,6 +17,7 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "customers:billing",
     "customers:exemptions",
     "customers:merge",
+    "customers:privacy",
     "customers:read",
     "customers:write",
     "fulfilment:read",

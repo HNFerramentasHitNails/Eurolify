@@ -58,6 +58,7 @@ e um erro dentro do próprio gestor de erros.
 | `idempotency.key_reused` | 422 | a mesma chave com outro corpo (**proposta**: o estado HTTP não tem fonte lida) |
 | `idempotency.in_progress` | 409 | a mesma chave ainda a ser tratada (**proposta**, idem) |
 | `idempotency.secret_not_repeated` | 409 | repetir um pedido cuja resposta tinha um segredo (o `POST /keys`): o segredo não se guarda nem se repete (`docs/19` §6.1) |
+| `idempotency.response_not_kept` | 409 | repetir um pedido cuja resposta não se guarda (a exportação do titular, `POST /customers/{id}/export`): a idempotência guarda só o id do pedido (`dsr_…`), que vem na mensagem (`docs/23` §12, parte 2c) |
 | `rate_limit.exceeded` | 429 | acima do limite (com a fatia «identidade») |
 | `version.unsupported` | 400 | o cabeçalho `Eurolify-Versao` pede uma versão que não existe (§3) |
 | `internal.error` | 500 | tudo o resto; o pormenor vai só para o registo, com o `instance` |
