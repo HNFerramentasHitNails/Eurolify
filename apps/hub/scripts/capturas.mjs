@@ -4311,6 +4311,89 @@ try {
       await c.close();
     }
   }
+
+  // Depois de recuperar, as chaves que a Ana criou (docs/22 §22; docs/06,
+  // DC): uma segunda recuperação, agora que ela criou chaves (B3c). Fica no
+  // fim: termina as sessões dela, também a das capturas acima.
+  psql(`begin;
+    select set_config('eurolify.comerciante', '${comerciante}', true);
+    select chave_criar('servidor', null, 'Do operador', array['catalog:read'],
+      'eul_sk_opera', '${"e".repeat(64)}', 'operador:github:1', null);
+    commit;`);
+  const deAna = () =>
+    Number(
+      psql(`select count(*) from chave_api c join pessoa p
+        on c.criada_por = 'pessoa:per_' || p.id
+        where p.email = 'ana@exemplo.test' and c.revogada_em is null
+          and (c.expira_em is null or c.expira_em > now())
+          and c.comerciante_id = '${comerciante}'`),
+    );
+  const activasAntes = deAna();
+  const segunda = await comPasskey();
+  const r2 = segunda.pagina;
+  await r2.goto(`${ORIGEM}/recuperar`);
+  await r2.getByLabel("E-mail da conta").fill("ana@exemplo.test");
+  await r2
+    .getByLabel("Código de recuperação", { exact: true })
+    .fill(codigosNovos[1] ?? "");
+  await r2.getByLabel("Nome da passkey nova", { exact: false }).fill("Tablet");
+  await r2
+    .getByRole("button", { name: "Recuperar com uma passkey nova" })
+    .click();
+  await r2.getByText("A conta foi recuperada").waitFor();
+  const bloco = r2.locator(
+    `.propostas-chaves[data-comerciante="mer_${comerciante}"]`,
+  );
+  await bloco.getByRole("table").waitFor();
+  const nomes = await bloco
+    .locator("tbody tr td:first-child")
+    .allTextContents();
+  confere(
+    nomes.length === activasAntes &&
+      nomes.includes("Com prazo") &&
+      nomes.includes("Sem resposta") &&
+      !nomes.includes("Integração de teste") &&
+      !nomes.includes("Do operador"),
+    `recuperar com chaves: propõe as ${String(activasAntes)} activas da Ana, sem a revogada nem a do operador (${nomes.join(", ")})`,
+  );
+  confere(
+    deAna() === activasAntes,
+    "recuperar com chaves: nenhuma foi revogada sem a Ana",
+  );
+  for (const [largura, tema] of [
+    [375, "light"],
+    [1280, "dark"],
+  ]) {
+    await r2.setViewportSize({ width: largura, height: 900 });
+    await r2.emulateMedia({ colorScheme: tema });
+    const largo = await r2.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    confere(
+      !largo,
+      `recuperar com chaves ${String(largura)} ${tema}: sem deslocação horizontal`,
+    );
+    await r2.screenshot({
+      path: join(
+        SAIDA,
+        `recuperada-chaves-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  r2.once("dialog", (d) => void d.accept());
+  await bloco.getByRole("button", { name: "Revogar: Com prazo" }).click();
+  await bloco.getByText("A chave foi revogada.").waitFor();
+  const depois = await bloco
+    .locator("tbody tr td:first-child")
+    .allTextContents();
+  confere(
+    deAna() === activasAntes - 1 &&
+      !depois.includes("Com prazo") &&
+      depois.length === activasAntes - 1,
+    "recuperar com chaves: revogar uma deixa as outras",
+  );
+  await segunda.contexto.close();
 } finally {
   await navegador.close();
   servidor.close();

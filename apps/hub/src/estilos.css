@@ -173,6 +173,12 @@ textarea {
   margin-bottom: var(--espaco-4);
 }
 
+/* As chaves a propor revogar, dentro do aviso de conta recuperada
+   (docs/22 §22). */
+.propostas-chaves {
+  margin-block: var(--espaco-3);
+}
+
 .erro {
   border-left: var(--borda-realce) solid var(--estado-erro);
   padding: var(--espaco-2) var(--espaco-3);

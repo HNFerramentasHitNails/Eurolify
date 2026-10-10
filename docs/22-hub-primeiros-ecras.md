@@ -1294,6 +1294,40 @@ Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
   versão com duas sessões; capturas a 375, 768 e 1280 px, claro e escuro, e
   só com teclado; as capturas vão à página de aprovação.
 
+## 22. As chaves a propor revogar depois de recuperar a conta (issue #107)
+
+Decisão do Diogo, 10/10/2026: *«só propor, não revogar sozinho»*
+(`docs/06`, DC; `docs/21` §12, revisão do #149, P2-1). Depois de recuperar
+a conta, todas as sessões terminam, mas as chaves de API que a pessoa criou
+continuam a funcionar. Uma sessão roubada pode ter criado uma chave, e essa
+chave fica.
+
+**O que muda:** no aviso «A conta foi recuperada» (`/conta`, §9.1), por baixo
+das três linhas que já lá estavam, aparece um bloco por cada comerciante de
+que a pessoa é dona: «Chaves de API que criou em «Loja de Ensaio»».
+
+| O quê | Como |
+|---|---|
+| Que chaves | as **activas** (nem revogadas nem expiradas) com `criada_por = pessoa:<esta pessoa>`, da mais nova para a mais antiga. As de outros membros, do operador ou criadas por outra chave não aparecem: não são desta pessoa |
+| Colunas | nome, começo da chave, criada em, último uso, «Revogar» |
+| Revogar | uma a uma, com a mesma confirmação e a mesma autenticação recente do ecrã das chaves (§9.3), e a mesma rota (`POST /hub/keys/{id}/revoke`). **Não há «revogar todas» nem nada automático** (DC) |
+| Sem chaves | «Não criou nenhuma chave activa neste comerciante.» |
+| Falha ao ler | a caixa de erro com «Tentar outra vez», só nesse bloco (os outros e o resto do aviso continuam) |
+| Rotas | `GET /hub/keys?comerciante=` (já existe); a API não muda |
+| Fechar o aviso | fecha também os blocos; as chaves continuam no ecrã «Chaves de API» |
+
+**Antes de dizer que está feito:** um teste da escolha das chaves (activas,
+desta pessoa, pela ordem) e a passagem pelo Chromium. A passagem faz uma
+segunda recuperação da Ana, depois de ela criar chaves (§9.3), e confere:
+- aparecem as chaves activas dela nesse comerciante, contadas na base
+  (hoje, «Com prazo» e «Sem resposta»);
+- não aparecem a revogada nem a do operador (as de outro membro e as
+  criadas por outra chave ficam provadas no teste da escolha);
+- nenhuma foi revogada sem ela;
+- revogar uma deixa só a outra.
+
+Capturas a 375 e 1280 px, claro e escuro, para a página de aprovação.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo

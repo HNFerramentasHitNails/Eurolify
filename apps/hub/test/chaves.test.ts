@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AMBITOS_SERVIDOR, ErroHub, type ChaveApi } from "../src/api";
-import { autorDe, estadoDaChave, fimDoDia } from "../src/chaves";
+import { autorDe, chavesAPropor, estadoDaChave, fimDoDia } from "../src/chaves";
 import { rotuloDoAmbito } from "../src/ecras/Chaves";
 import { mensagemDeErro } from "../src/erros";
 import { TEXTOS } from "../src/textos";
@@ -119,5 +119,31 @@ describe("as chaves de API no Hub", () => {
         expect(mensagemDeErro(e, TEXTOS[l], l).texto).toBe(TEXTOS[l][texto]);
       }
     }
+  });
+});
+
+describe("as chaves a propor depois de recuperar a conta (docs/22 §22; DC)", () => {
+  const agora = new Date("2026-10-10T12:00:00Z");
+  it("só as activas criadas por esta pessoa, da mais nova para a mais antiga", () => {
+    const lista = [
+      chave({ id: "key_velha", criada_em: "2026-10-01T10:00:00Z" }),
+      chave({ id: "key_nova", criada_em: "2026-10-09T10:00:00Z" }),
+      chave({ id: "key_outra", criada_por: "pessoa:per_b" }),
+      chave({ id: "key_operador", criada_por: "operador:github:1" }),
+      chave({ id: "key_chave", criada_por: "chave:key_x" }),
+      chave({ id: "key_revogada", revogada_em: "2026-10-05T10:00:00Z" }),
+      chave({ id: "key_expirada", expira_em: "2026-10-10T11:00:00Z" }),
+      chave({ id: "key_prazo", expira_em: "2026-10-11T00:00:00Z" }),
+    ];
+    expect(chavesAPropor(lista, "per_a", agora).map((c) => c.id)).toEqual([
+      "key_nova",
+      "key_velha",
+      "key_prazo",
+    ]);
+  });
+  it("um prefixo parecido não conta como a mesma pessoa", () => {
+    expect(
+      chavesAPropor([chave({ criada_por: "pessoa:per_ab" })], "per_a", agora),
+    ).toEqual([]);
   });
 });
