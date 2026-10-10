@@ -267,7 +267,7 @@ e o `node:24.21.0-trixie-slim` já tinham imagens novas; o `ubuntu:26.04` e o
 `buildkit` estavam iguais.
 
 Decididos depois: o **RTO** de 4 horas (`docs/06`, DJ) e as seis perguntas do
-**rasto de auditoria** (`docs/06`, DK), com o desenho no `docs/28` por aprovar.
+**rasto de auditoria** (`docs/06`, DK), com o desenho no `docs/28`, aprovado.
 
 **À espera de terceiros:**
 - `marketplace-dsa`: a marca do art. 16.º, até à resposta da G7 (jurista).

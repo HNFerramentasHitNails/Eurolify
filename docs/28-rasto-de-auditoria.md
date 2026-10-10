@@ -1,8 +1,9 @@
 # Rasto de auditoria comum: o que mudou, quem, de onde, com que IA, quem autorizou
 
 > **Versão de 10/10/2026.** O que o rasto tem de responder foi decidido pelo
-> Diogo a 10/10/2026 (`docs/06`, DK). Este documento é o **desenho**: o código
-> só entra depois de aprovado (ADR-0023), por domínio, em pedidos pequenos.
+> Diogo a 10/10/2026 (`docs/06`, DK). **Desenho aprovado** pelo Diogo a
+> 10/10/2026 (*«aprovado»*), com as quatro propostas da §5. O código entra
+> por domínio, em pedidos pequenos, pela ordem da §4.
 >
 > Skills seguidas: `observability-security` (registo de auditoria imutável),
 > `eu-gdpr-privacy` (minimização, dados pessoais fora dos registos),
@@ -135,10 +136,10 @@ continuam em claro, como hoje.
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q1 | A lista dos campos sensíveis da §3.4 serve para começar? | sim, a da §3.4 |
-| Q2 | Os valores pessoais que **já** estão em claro no rasto dos Clientes (ensaio, só dados de teste) ficam ou passam a marcador? | passam a marcador numa migração, porque o rasto só se acrescenta, excepto nessa migração revista (o ensaio não tem dados reais, ADR-0019) |
-| Q3 | Uma acção de uma IA sem nenhuma pessoa a autorizar (ex.: um agente com chave a mudar preços) é aceite, ou exige sempre «autorizado por»? | aceite na Fase 1, como hoje, mas o Hub mostra-a como «sem autorização de uma pessoa». Exigir passa a ser uma regra por âmbito, decidida depois |
-| Q4 | Quanto tempo se guarda o rasto? | por decidir com o jurista e o contabilista (**C**; os 10 anos fiscais, `eu-gdpr-privacy`); até lá, não se apaga |
+| Q1 | A lista dos campos sensíveis da §3.4 serve para começar? | ✅ **Decidido** (Diogo, 10/10/2026): sim, a da §3.4 |
+| Q2 | Os valores pessoais que **já** estão em claro no rasto dos Clientes (ensaio, só dados de teste) ficam ou passam a marcador? | ✅ **Decidido** (Diogo, 10/10/2026): passam a marcador numa migração, porque o rasto só se acrescenta, excepto nessa migração revista (o ensaio não tem dados reais, ADR-0019) |
+| Q3 | Uma acção de uma IA sem nenhuma pessoa a autorizar (ex.: um agente com chave a mudar preços) é aceite, ou exige sempre «autorizado por»? | ✅ **Decidido** (Diogo, 10/10/2026): aceite na Fase 1, como hoje, mas o Hub mostra-a como «sem autorização de uma pessoa». Exigir passa a ser uma regra por âmbito, decidida depois |
+| Q4 | Quanto tempo se guarda o rasto? | ✅ **Decidido** (Diogo, 10/10/2026): por decidir com o jurista e o contabilista (**C**; os 10 anos fiscais, `eu-gdpr-privacy`); até lá, não se apaga |
 
 ## 6. O que não foi verificado
 
