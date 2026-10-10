@@ -4018,6 +4018,179 @@ try {
       0,
     "variante: sem catalog:write, a página mostra o aviso de permissão e nenhum formulário",
   );
+  // Acrescentar uma variante (docs/22 §24; issue #321), com a Ana (dona).
+  // No «Gel Coral 41», publicado: a variante nova nasce fora da publicação.
+  await rp.goto(fichaCoral41);
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  await rp.getByRole("link", { name: "Acrescentar variante" }).click();
+  await rp
+    .getByRole("heading", { name: "Acrescentar variante", level: 1 })
+    .waitFor();
+  await rp.getByRole("button", { name: "Criar variante" }).click();
+  await rp.waitForFunction(() => document.activeElement?.id === "variante-sku");
+  confere(
+    (await rp.getByText("O SKU é obrigatório.").count()) === 1,
+    "variante nova: sem SKU, o ecrã diz-o ao lado do campo, com o foco nele",
+  );
+  // Um SKU que já existe (409 da API): o erro ao lado do SKU.
+  await rp.getByLabel("SKU", { exact: true }).fill("ens-041");
+  await rp.getByRole("button", { name: "Criar variante" }).click();
+  await rp
+    .getByText("Este SKU já existe neste comerciante", { exact: false })
+    .waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) === "variante-sku",
+    "variante nova: um SKU que já existe (sem distinguir maiúsculas) marca o campo dele",
+  );
+  // A ENS-041-B, em caixa, com o GTIN do fornecedor e 400 g, só com o
+  // teclado.
+  await rp.getByLabel("SKU", { exact: true }).focus();
+  await rp.keyboard.press("Control+A");
+  await rp.keyboard.type("ENS-041-B");
+  await rp.locator("#variante-unidade").focus();
+  await rp.keyboard.type("Cai");
+  await rp.getByLabel("GTIN", { exact: true }).focus();
+  await rp.keyboard.type("5901234123457");
+  await rp.getByLabel("Origem do GTIN").focus();
+  await rp.keyboard.type("Do f");
+  await rp.getByLabel("Peso (g)").focus();
+  await rp.keyboard.type("400");
+  for (const [largura, tema] of [
+    [375, "light"],
+    [375, "dark"],
+    [768, "light"],
+    [768, "dark"],
+    [1280, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `variante nova: a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.screenshot({
+      path: join(
+        SAIDA,
+        `variante-nova-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
+  await rp.getByRole("button", { name: "Criar variante" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  await rp
+    .getByText("Variante criada. Fica fora das lojas", { exact: false })
+    .waitFor();
+  const foraDaLoja = await rp.evaluate(
+    async ({ c, a }) => {
+      const r = await fetch(`/hub/products/${a}/publications`, {
+        headers: { "eurolify-comerciante": c },
+      });
+      const ficha = await (
+        await fetch(`/hub/products/${a}`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      const nova = ficha.variantes.find((v) => v.sku === "ENS-041-B");
+      const pubs = (await r.json()).dados;
+      return pubs.some((p) => p.variantes_fora.includes(nova?.id));
+    },
+    { c: `mer_${comerciante}`, a: `prd_${artigoSemPeso}` },
+  );
+  confere(
+    foraDaLoja &&
+      (await rp
+        .locator("table.variantes-artigo")
+        .getByRole("row", { name: /ENS-041-B.*Caixa.*5901234123457.*400 g/ })
+        .count()) === 1,
+    "variante nova: no artigo publicado, nasce fora da publicação e a ficha di-lo",
+  );
+  // Num artigo activo com opções («Verniz Verde 31»): sem valor, o ecrã
+  // recusa; com a combinação de outra variante, a API recusa; com uma nova,
+  // cria.
+  await rp.goto(fichaVerde31);
+  await rp.getByRole("link", { name: "Acrescentar variante" }).click();
+  await rp.getByLabel("Tamanho", { exact: true }).waitFor();
+  await rp.getByLabel("SKU", { exact: true }).fill("ENS-031-C");
+  await rp.getByRole("button", { name: "Criar variante" }).click();
+  await rp.getByText("Escolha um valor desta opção.").waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.tagName)) === "SELECT",
+    "variante nova: num artigo activo com opções, sem valor o ecrã diz-o, com o foco na lista",
+  );
+  await rp
+    .getByLabel("Tamanho", { exact: true })
+    .selectOption({ label: "15 ml" });
+  await rp.getByRole("button", { name: "Criar variante" }).click();
+  await rp.getByText("Outra variante activa já tem estes valores.").waitFor();
+  confere(
+    true,
+    "variante nova: a combinação de outra variante é recusada ao lado da opção",
+  );
+  await rp
+    .getByLabel("Tamanho", { exact: true })
+    .selectOption({ label: "50 ml" });
+  await rp.getByRole("button", { name: "Criar variante" }).click();
+  await rp.getByText("Variante criada.", { exact: true }).waitFor();
+  confere(
+    (await rp
+      .locator("table.variantes-artigo")
+      .getByRole("row", { name: /ENS-031-C.*50 ml/ })
+      .count()) === 1,
+    "variante nova: com uma combinação nova, cria e a ficha mostra o valor",
+  );
+  // A resposta perdida (502 sem o corpo da API, depois de gravar): o ecrã
+  // encontra o SKU no artigo e dá a variante por criada.
+  await rp.route("**/hub/products/*/variants", async (r) => {
+    if (r.request().method() !== "POST") return r.continue();
+    await r.fetch();
+    return r.fulfill({ status: 502, body: "" });
+  });
+  await rp.goto(
+    `${ORIGEM}/artigos/${rascunho42.artigo}/variantes/nova?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByLabel("SKU", { exact: true }).fill("ENS-042-C");
+  await rp.getByRole("button", { name: "Criar variante" }).click();
+  await rp.getByRole("heading", { name: "Gel Coral 42", level: 1 }).waitFor();
+  await rp.unroute("**/hub/products/*/variants");
+  await rp.getByText("Variante criada.", { exact: true }).waitFor();
+  confere(
+    (await rp.getByText("Variante criada.", { exact: true }).count()) === 1 &&
+      (await rp
+        .locator("table.variantes-artigo")
+        .getByRole("row", { name: /ENS-042-C/ })
+        .count()) === 1,
+    "variante nova: uma resposta perdida com a variante já gravada dá-se por criada",
+  );
+  // Num artigo do sistema de gestão: sem «Acrescentar variante» na ficha, e
+  // a página só com o aviso.
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoExterno}?comerciante=mer_${comerciante}`,
+  );
+  await rp
+    .getByText("Este artigo vem do sistema de gestão", { exact: false })
+    .first()
+    .waitFor();
+  const semLigacao =
+    (await rp.getByRole("link", { name: "Acrescentar variante" }).count()) ===
+    0;
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoExterno}/variantes/nova?comerciante=mer_${comerciante}`,
+  );
+  await rp
+    .getByText("Este artigo vem do sistema de gestão", { exact: false })
+    .waitFor();
+  confere(
+    semLigacao &&
+      (await rp.getByRole("button", { name: "Criar variante" }).count()) === 0,
+    "variante nova: num artigo do sistema de gestão, nem a ligação nem o formulário",
+  );
   // Com a sessão terminada, o histórico vai para «Entrar».
   await rp.route("**/hub/products/*/timeline*", (pedido) =>
     pedido.fulfill({

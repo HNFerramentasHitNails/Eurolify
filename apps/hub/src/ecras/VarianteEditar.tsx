@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  api,
-  ErroHub,
-  ORIGENS_GTIN,
-  UNIDADES_DE_CONTEUDO,
-  UNIDADES_DE_VENDA,
-  type FichaArtigo,
-  type VarianteArtigo,
-} from "../api";
+import { api, ErroHub, type FichaArtigo, type VarianteArtigo } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
+import { CamposDaVariante, conteudoDe, idDoCampo } from "./CamposDaVariante";
 import { mensagemDeErro, semSessao } from "../erros";
 import { TAG_LINGUA, type Textos } from "../textos";
 import {
@@ -16,7 +9,6 @@ import {
   camposDaVariante,
   camposSobreOGuardado,
   conferirVariante,
-  MAXIMO_CLASSE_ADR,
   ORDEM_DOS_CAMPOS,
   varianteAlterada,
   type CampoVariante,
@@ -38,10 +30,7 @@ const FORMATO_VARIANTE = new RegExp(`^var_${UUID}$`);
 
 type Erros = Partial<Record<CampoVariante, keyof Textos>>;
 
-const idDe = (campo: CampoVariante) => `variante-${campo}`;
-
-/** m² e m³ como se escrevem; os outros, como a API os diz. */
-const simbolo = (u: string) => (u === "m2" ? "m²" : u === "m3" ? "m³" : u);
+const idDe = idDoCampo;
 
 /** O erro da API que o ecrã sabe pôr ao lado de um campo. */
 function erroDoCampo(erro: unknown): Erros | null {
@@ -294,72 +283,8 @@ export function VarianteEditar({
     }
   }
 
-  /** O erro de um campo: o texto ao lado e o que o liga ao campo. */
-  function erroDe(campo: CampoVariante) {
-    const texto = erros[campo];
-    const id = idDe(campo);
-    return {
-      props: {
-        "aria-invalid": texto !== undefined,
-        "aria-describedby": texto !== undefined ? `${id}-erro` : undefined,
-      },
-      mensagem:
-        texto === undefined ? null : (
-          <p id={`${id}-erro`} className="erro-campo">
-            {t[texto]}
-          </p>
-        ),
-    };
-  }
-
-  function campoDeTexto(
-    campo: CampoVariante,
-    rotulo: string,
-    extra: {
-      inputMode?: "numeric" | "text";
-      maxLength?: number;
-      ajuda?: string;
-    } = {},
-  ) {
-    if (campos === null) return null;
-    const id = idDe(campo);
-    const e = erroDe(campo);
-    const ajuda = extra.ajuda === undefined ? undefined : `${id}-ajuda`;
-    return (
-      <div className="campo">
-        <label htmlFor={id}>{rotulo}</label>
-        <input
-          id={id}
-          inputMode={extra.inputMode ?? "numeric"}
-          maxLength={extra.maxLength}
-          autoComplete="off"
-          value={campos[campo]}
-          {...e.props}
-          aria-describedby={
-            [e.props["aria-describedby"], ajuda]
-              .filter((x) => x !== undefined)
-              .join(" ") || undefined
-          }
-          onChange={(ev) => {
-            mudar(campo, ev.target.value);
-          }}
-        />
-        {extra.ajuda === undefined ? null : (
-          <p id={ajuda} className="secundario">
-            {extra.ajuda}
-          </p>
-        )}
-        {e.mensagem}
-      </div>
-    );
-  }
-
   const numero = (n: number) =>
     new Intl.NumberFormat(TAG_LINGUA[lingua]).format(n);
-  const conteudoDe = (x: VarianteArtigo) =>
-    x.conteudo_quantidade === null
-      ? "—"
-      : `${numero(x.conteudo_quantidade)}\u00a0${simbolo(x.conteudo_unidade ?? "")}`.trim();
   const medidaDe = (n: number | null, u: string) =>
     n === null ? "—" : `${numero(n)}\u00a0${u}`;
 
@@ -426,7 +351,7 @@ export function VarianteEditar({
                     <dt>{t.colunaUnidade}</dt>
                     <dd>{t[`unidade_${v.unidade_de_venda}`]}</dd>
                     <dt>{t.colunaConteudo}</dt>
-                    <dd>{conteudoDe(v)}</dd>
+                    <dd>{conteudoDe(v, numero)}</dd>
                     <dt>{t.colunaGtin}</dt>
                     <dd>
                       {v.gtin === null ? (
@@ -463,123 +388,13 @@ export function VarianteEditar({
               {falha === null ? null : (
                 <CaixaDeErro erro={mensagemDeErro(falha, t, lingua)} />
               )}
-              <fieldset className="variante-nova">
-                <legend>{t.varianteGrupoUnidade}</legend>
-                {rascunho ? (
-                  <>
-                    <div className="linha">
-                      <div className="campo">
-                        <label htmlFor={idDe("unidade")}>
-                          {t.colunaUnidade}
-                        </label>
-                        <select
-                          id={idDe("unidade")}
-                          value={campos.unidade}
-                          onChange={(e) => {
-                            mudar("unidade", e.target.value);
-                          }}
-                        >
-                          {UNIDADES_DE_VENDA.map((u) => (
-                            <option key={u} value={u}>
-                              {t[`unidade_${u}`]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="linha">
-                      {campoDeTexto("quantidade", t.artigoNovoQuantidade)}
-                      <div className="campo">
-                        <label htmlFor={idDe("unidadeConteudo")}>
-                          {t.artigoNovoUnidadeConteudo}
-                        </label>
-                        <select
-                          id={idDe("unidadeConteudo")}
-                          value={campos.unidadeConteudo}
-                          {...erroDe("unidadeConteudo").props}
-                          onChange={(e) => {
-                            mudar("unidadeConteudo", e.target.value);
-                          }}
-                        >
-                          <option value="">{t.artigoNovoSemUnidade}</option>
-                          {UNIDADES_DE_CONTEUDO.map((u) => (
-                            <option key={u} value={u}>
-                              {simbolo(u)}
-                            </option>
-                          ))}
-                        </select>
-                        {erroDe("unidadeConteudo").mensagem}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <dl className="valores-actuais">
-                      <dt>{t.colunaUnidade}</dt>
-                      <dd>{t[`unidade_${v.unidade_de_venda}`]}</dd>
-                      <dt>{t.colunaConteudo}</dt>
-                      <dd>{conteudoDe(v)}</dd>
-                    </dl>
-                    <p className="secundario">{t.varianteUnidadeSoRascunho}</p>
-                  </>
-                )}
-              </fieldset>
-              <fieldset className="variante-nova">
-                <legend>{t.varianteGrupoGtin}</legend>
-                <div className="linha">
-                  {campoDeTexto("gtin", t.colunaGtin)}
-                  {campos.gtin.trim() === "" ? null : (
-                    <div className="campo">
-                      <label htmlFor={idDe("gtinOrigem")}>
-                        {t.artigoNovoGtinOrigem}
-                      </label>
-                      <select
-                        id={idDe("gtinOrigem")}
-                        value={campos.gtinOrigem}
-                        {...erroDe("gtinOrigem").props}
-                        onChange={(e) => {
-                          mudar("gtinOrigem", e.target.value);
-                        }}
-                      >
-                        <option value="">{t.artigoNovoEscolher}</option>
-                        {ORIGENS_GTIN.map((o) => (
-                          <option key={o} value={o}>
-                            {t[`gtinOrigem_${o}`]}
-                          </option>
-                        ))}
-                      </select>
-                      {erroDe("gtinOrigem").mensagem}
-                    </div>
-                  )}
-                </div>
-              </fieldset>
-              <fieldset className="variante-nova">
-                <legend>{t.varianteGrupoMedidas}</legend>
-                <div className="linha">
-                  {campoDeTexto("peso", t.artigoNovoPeso)}
-                  {campoDeTexto("comprimento", t.artigoNovoComprimento)}
-                  {campoDeTexto("largura", t.artigoNovoLargura)}
-                  {campoDeTexto("altura", t.artigoNovoAltura)}
-                </div>
-                {campos.peso.trim() === "" ? (
-                  <p className="secundario">{t.artigoNovoSemPeso}</p>
-                ) : null}
-              </fieldset>
-              <fieldset className="variante-nova">
-                <legend>{t.varianteGrupoPerigosas}</legend>
-                <div className="linha">
-                  {campoDeTexto("onu", t.varianteOnu, {
-                    inputMode: "text",
-                    // Com folga para espaços colados à volta (P3-2).
-                    maxLength: 10,
-                    ajuda: t.varianteOnuAjuda,
-                  })}
-                  {campoDeTexto("classeAdr", t.varianteClasseAdr, {
-                    inputMode: "text",
-                    maxLength: MAXIMO_CLASSE_ADR,
-                  })}
-                </div>
-              </fieldset>
+              <CamposDaVariante
+                campos={campos}
+                erros={erros}
+                editaUnidade={rascunho}
+                guardada={v}
+                mudar={mudar}
+              />
               <div className="accoes-artigo">
                 <button type="submit" className="principal" disabled={aGuardar}>
                   {aGuardar ? t.aCarregar : t.artigoGuardar}

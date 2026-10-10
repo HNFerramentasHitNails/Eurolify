@@ -94,6 +94,9 @@ export function Artigo({
     if (q.get("criado") === "1") return "criado";
     // A resposta de criar perdeu-se e o artigo já lá estava (§14.2).
     if (q.get("criado") === "ja") return "jaCriado";
+    // Uma variante acrescentada (docs/22 §24.2).
+    if (q.get("variante") === "criada") return "varianteCriada";
+    if (q.get("variante") === "fora") return "varianteCriadaFora";
     return q.get("guardado") === "1" ? "guardado" : null;
   });
   // Ao sair da ficha, as respostas que ainda cheguem deixam de contar.
@@ -233,9 +236,15 @@ export function Artigo({
   // docs/22 §14.4) sai do endereço: recarregar a página não volta a dizê-lo.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("guardado") === null && q.get("criado") === null) return;
+    if (
+      q.get("guardado") === null &&
+      q.get("criado") === null &&
+      q.get("variante") === null
+    )
+      return;
     q.delete("guardado");
     q.delete("criado");
+    q.delete("variante");
     window.history.replaceState(
       window.history.state,
       "",
@@ -469,6 +478,7 @@ export function Artigo({
   }
   const destinoVoltar = `/artigos?${voltar.toString()}`;
   const destinoOpcoes = `/artigos/${artigo}/opcoes?${voltar.toString()}`;
+  const destinoVarianteNova = `/artigos/${artigo}/variantes/nova?${voltar.toString()}`;
 
   const data = (iso: string) =>
     new Intl.DateTimeFormat(TAG_LINGUA[lingua], { dateStyle: "medium" }).format(
@@ -619,6 +629,21 @@ export function Artigo({
               `/artigos/${artigo}/variantes/${v.id}?${voltar.toString()}`
             }
           />
+          {podeEscrever && ficha.dados.origem !== "externo" ? (
+            // Acrescentar uma variante (docs/22 §24.2).
+            <p>
+              <a
+                className="botao"
+                href={destinoVarianteNova}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navegar(destinoVarianteNova);
+                }}
+              >
+                {t.artigoAcrescentarVariante}
+              </a>
+            </p>
+          ) : null}
           <h2>{t.artigoPrecos}</h2>
           <div className="precos-artigo">
             <PrecosDoArtigo
@@ -964,13 +989,21 @@ interface EdicaoDaImagem {
 
 /** Os avisos de que uma acção gravou, e o texto de cada um. */
 type Aviso =
-  "guardado" | "criado" | "jaCriado" | "imagemAcrescentada" | "imagemTirada";
+  | "guardado"
+  | "criado"
+  | "jaCriado"
+  | "imagemAcrescentada"
+  | "imagemTirada"
+  | "varianteCriada"
+  | "varianteCriadaFora";
 const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
   guardado: "artigoGuardado",
   criado: "artigoCriado",
   jaCriado: "artigoJaCriado",
   imagemAcrescentada: "artigoImagemAcrescentada",
   imagemTirada: "artigoImagemTirada",
+  varianteCriada: "varianteCriada",
+  varianteCriadaFora: "varianteCriadaFora",
 };
 
 /** O erro de um envio, em linguagem comum (docs/22 §15.4). */

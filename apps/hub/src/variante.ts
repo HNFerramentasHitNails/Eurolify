@@ -211,3 +211,95 @@ export function camposSobreOGuardado(
   }
   return novos;
 }
+
+// Acrescentar uma variante (docs/22 §24): o formulário começa vazio, com a
+// unidade «unidade», e o corpo do POST /hub/products/{id}/variants só leva o
+// que se escreveu.
+
+export const MAXIMO_SKU = 64;
+
+export const CAMPOS_DE_VARIANTE_NOVA: CamposVariante = {
+  unidade: "unidade",
+  gtin: "",
+  gtinOrigem: "",
+  quantidade: "",
+  unidadeConteudo: "",
+  peso: "",
+  comprimento: "",
+  largura: "",
+  altura: "",
+  onu: "",
+  classeAdr: "",
+};
+
+/** O corpo do POST /hub/products/{id}/variants. */
+export interface VarianteACriar {
+  sku: string;
+  unidade_de_venda: Unidade;
+  gtin?: string;
+  gtin_origem?: OrigemGtin;
+  conteudo_quantidade?: number;
+  conteudo_unidade?: UnidadeConteudo;
+  peso_g?: number;
+  comprimento_mm?: number;
+  largura_mm?: number;
+  altura_mm?: number;
+  onu?: string;
+  classe_adr?: string;
+  valores?: string[];
+}
+
+/**
+ * O corpo, só com o que se escreveu; os valores das opções escolhidos, pela
+ * ordem das opções (a API recusa dois da mesma opção).
+ */
+export function corpoDaVarianteNova(
+  sku: string,
+  c: CamposVariante,
+  valores: readonly string[],
+): VarianteACriar {
+  const corpo: VarianteACriar = {
+    sku: sku.trim(),
+    unidade_de_venda: c.unidade,
+  };
+  const gtin = textoOuNulo(c.gtin);
+  if (gtin !== null && c.gtinOrigem !== "") {
+    corpo.gtin = gtin;
+    corpo.gtin_origem = c.gtinOrigem;
+  }
+  const q = numeroOuNulo(c.quantidade);
+  if (q !== null && c.unidadeConteudo !== "") {
+    corpo.conteudo_quantidade = q;
+    corpo.conteudo_unidade = c.unidadeConteudo;
+  }
+  const medidas = [
+    ["peso", "peso_g"],
+    ["comprimento", "comprimento_mm"],
+    ["largura", "largura_mm"],
+    ["altura", "altura_mm"],
+  ] as const;
+  for (const [campo, chave] of medidas) {
+    const n = numeroOuNulo(c[campo]);
+    if (n !== null) corpo[chave] = n;
+  }
+  const onu = textoOuNulo(c.onu.toUpperCase());
+  if (onu !== null) corpo.onu = onu;
+  const classe = textoOuNulo(c.classeAdr);
+  if (classe !== null) corpo.classe_adr = classe;
+  const escolhidos = valores.filter((v) => v !== "");
+  if (escolhidos.length > 0) corpo.valores = escolhidos;
+  return corpo;
+}
+
+/** Alguma coisa escrita (para a guarda de saída). */
+export function varianteNovaEscrita(
+  sku: string,
+  c: CamposVariante,
+  valores: readonly string[],
+): boolean {
+  return (
+    sku.trim() !== "" ||
+    ORDEM_DOS_CAMPOS.some((k) => c[k] !== CAMPOS_DE_VARIANTE_NOVA[k]) ||
+    valores.some((v) => v !== "")
+  );
+}

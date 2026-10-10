@@ -524,6 +524,17 @@ export const pt = {
   varianteActivadaEntretanto:
     "O artigo foi activado entretanto: a unidade e o conteúdo já não mudam e voltaram ao que está guardado. O resto ficou como escreveu.",
   varianteGtinRepetido: "Este GTIN já existe noutra variante.",
+  varianteNovaTitulo: "Acrescentar variante",
+  artigoAcrescentarVariante: "Acrescentar variante",
+  varianteNovaCriar: "Criar variante",
+  varianteNovaOpcoes: "Valores das opções",
+  varianteNovaValorObrigatorio: "Escolha um valor desta opção.",
+  varianteNovaCombinacaoRepetida: "Outra variante activa já tem estes valores.",
+  varianteNovaNaoCriada:
+    "A ligação falhou e não encontrámos a variante. Pode tentar outra vez: se tiver ficado criada, o ecrã abre a ficha.",
+  varianteCriada: "Variante criada.",
+  varianteCriadaFora:
+    "Variante criada. Fica fora das lojas onde o artigo está à venda até a publicação ser refeita.",
   conviteInstrucao: "Escreva o seu nome e crie a conta com uma passkey.",
   conviteResumo:
     "Foi convidado para a equipa de {comerciante}, com o papel {papel}.",

@@ -531,6 +531,18 @@ export const es: Textos = {
   varianteActivadaEntretanto:
     "El artículo se ha activado entretanto: la unidad y el contenido ya no cambian y han vuelto a lo guardado. El resto se ha quedado como lo escribió.",
   varianteGtinRepetido: "Este GTIN ya existe en otra variante.",
+  varianteNovaTitulo: "Añadir variante",
+  artigoAcrescentarVariante: "Añadir variante",
+  varianteNovaCriar: "Crear variante",
+  varianteNovaOpcoes: "Valores de las opciones",
+  varianteNovaValorObrigatorio: "Elija un valor de esta opción.",
+  varianteNovaCombinacaoRepetida:
+    "Otra variante activa ya tiene estos valores.",
+  varianteNovaNaoCriada:
+    "La conexión ha fallado y no hemos encontrado la variante. Puede intentarlo de nuevo: si se ha creado, la pantalla abre la ficha.",
+  varianteCriada: "Variante creada.",
+  varianteCriadaFora:
+    "Variante creada. Queda fuera de las tiendas donde el artículo está a la venta hasta que se rehaga la publicación.",
   conviteInstrucao: "Escriba su nombre y cree la cuenta con una passkey.",
   conviteResumo:
     "Le han invitado al equipo de {comerciante}, con la función {papel}.",

@@ -525,6 +525,18 @@ export const en: Textos = {
   varianteActivadaEntretanto:
     "The product was activated in the meantime: the unit and content can no longer change and are back to what is saved. The rest stayed as you wrote it.",
   varianteGtinRepetido: "This GTIN already exists in another variant.",
+  varianteNovaTitulo: "Add variant",
+  artigoAcrescentarVariante: "Add variant",
+  varianteNovaCriar: "Create variant",
+  varianteNovaOpcoes: "Option values",
+  varianteNovaValorObrigatorio: "Choose a value for this option.",
+  varianteNovaCombinacaoRepetida:
+    "Another active variant already has these values.",
+  varianteNovaNaoCriada:
+    "The connection failed and we did not find the variant. You can try again: if it was created, the screen opens the product.",
+  varianteCriada: "Variant created.",
+  varianteCriadaFora:
+    "Variant created. It stays out of the shops where the product is on sale until the publication is redone.",
   conviteInstrucao: "Enter your name and create the account with a passkey.",
   conviteResumo:
     "You were invited to the {comerciante} team, with the role {papel}.",

@@ -3,7 +3,7 @@
 // sempre em JSON; os erros chegam no formato RFC 9457 com um `codigo`.
 
 import type { OpcaoArtigo } from "./opcoes";
-import type { AlteracaoVariante } from "./variante";
+import type { AlteracaoVariante, VarianteACriar } from "./variante";
 
 export type Papel = "dono" | "gestor" | "armazem" | "apoio";
 export const PAPEIS: readonly Papel[] = ["dono", "gestor", "armazem", "apoio"];
@@ -780,6 +780,12 @@ export const api = {
     pedir<FichaArtigo>("POST", `/hub/products/${artigo}/${accao}`, {
       comerciante,
       corpo: { versao },
+    }),
+  /** Acrescentar uma variante ao artigo (docs/22 §24.1). */
+  criarVariante: (comerciante: string, artigo: string, corpo: VarianteACriar) =>
+    pedir<VarianteArtigo>("POST", `/hub/products/${artigo}/variants`, {
+      comerciante,
+      corpo,
     }),
   /** Alterar a variante (docs/22 §23.1): só os campos que mudam. */
   alterarVariante: (
