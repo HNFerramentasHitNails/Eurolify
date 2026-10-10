@@ -228,11 +228,17 @@ si.
   ficha que fica não se faz.
 - Os consentimentos **não se movem** (não se alteram, 0042): a régua da ficha
   que fica conta as declarações das fichas fundidas nela, e uma declaração
-  pedida com o id antigo regista-se na ficha que ficou. Vale a declaração
-  mais recente das duas; o consentimento da ficha que fica passa a cobrir os
+  pedida com o id antigo regista-se na ficha que ficou. **A régua, canal a
+  canal** (Diogo, 10/10/2026; `docs/06`, DH; migração 0050): se alguma das
+  fichas tem a última declaração «retirou», não há marketing nesse canal,
+  mesmo com um «sim» mais recente noutra; um «sim» com prova e uma ficha
+  nunca perguntada dá sim; uma declaração feita na ficha fundida **depois**
+  da fusão vale para todas as fichas do grupo (a hora da fusão fica em
+  `fundido_quando`). O consentimento da ficha que fica passa a cobrir os
   e-mails e telefones acrescentados — **C** (é a mesma pessoa, mas se o
   consentimento por endereço o permite **não verifiquei**; jurista, com a V4).
-  O ensaio mostra a régua antes e depois (revisão do #298, P2-1).
+  O ensaio mostra a régua antes e depois (revisão do #298, P2-1); a lista dos
+  consentimentos mostra as declarações do grupo inteiro, o porquê do valor.
 - As encomendas e os documentos **não mudam**: ficam na ficha absorvida, com o
   perfil que tinham.
 - **Sem desfazer** na Fase 1: antes de fundir, a API mostra o que vai mudar

@@ -102,10 +102,14 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     (await ok(pedir("GET", `/customers/${cliente}/consents`)))[
       "pode_receber_marketing"
     ] as Json;
-  const declarar = (cliente: string, d: "aceitou" | "retirou") =>
+  const declarar = (
+    cliente: string,
+    d: "aceitou" | "retirou",
+    canal: "email" | "sms" | "whatsapp" = "email",
+  ) =>
     ok(
       pedir("POST", `/customers/${cliente}/consents`, {
-        canal: "email",
+        canal,
         declaracao: d,
         texto: "Quero receber novidades.",
         versao_texto: "v1",
@@ -572,6 +576,9 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     // Uma declaração com o id mais antigo segue a cadeia até à activa.
     expect((await declarar(x, "retirou"))["cliente"]).toBe(z);
     expect((await regua(z))["email"]).toBe(false);
+    // A pessoa volta a aceitar na ficha fundida: vale para todas.
+    await declarar(z, "aceitou");
+    expect((await regua(z))["email"]).toBe(true);
   });
 
   it("as recusas: a mesma ficha, contactos a mais, sem customers:merge, um processo de sistema", async () => {
@@ -682,25 +689,50 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     expect(vies).toMatch(/^customers\.invalid_transition:/);
   });
 
-  it("o plano diz a régua do marketing antes e depois; vale a declaração mais recente das duas fichas", async () => {
-    // A que fica retirou; a absorvida aceitou depois: passa a sim.
+  it("o plano diz a régua do marketing antes e depois; o «não» de uma ficha vence o «sim» da outra, canal a canal, até a pessoa declarar na fundida (Diogo, 10/10/2026)", async () => {
+    // A que fica retirou o e-mail; a absorvida aceitou depois: continua não
+    // (regra 1). No SMS, a que fica aceitou e a outra nunca foi perguntada:
+    // sim (regra 2).
     const fica = await ficha({ nome: "F" });
     const sai = await ficha({ nome: "S" });
     await declarar(fica, "aceitou");
     await declarar(fica, "retirou");
+    await declarar(fica, "aceitou", "sms");
     await declarar(sai, "aceitou");
     const ensaio = await ok(fundir(fica, sai, true));
     expect(ensaio).toMatchObject({
-      marketing_antes: { email: false, sms: false, whatsapp: false },
-      marketing_depois: { email: true, sms: false, whatsapp: false },
+      marketing_antes: { email: false, sms: true, whatsapp: false },
+      marketing_depois: { email: false, sms: true, whatsapp: false },
     });
-    expect((await regua(fica))["email"]).toBe(false);
     const real = await ok(fundir(fica, sai));
     expect(real).toMatchObject({
-      marketing_antes: { email: false },
-      marketing_depois: { email: true },
+      marketing_antes: { email: false, sms: true },
+      marketing_depois: { email: false, sms: true },
     });
+    expect(await regua(fica)).toMatchObject({ email: false, sms: true });
+    // Ao contrário: o «não» na absorvida também vence (no WhatsApp).
+    const f2 = await ficha({ nome: "F2" });
+    const s2 = await ficha({ nome: "S2" });
+    await declarar(s2, "retirou", "whatsapp");
+    await declarar(f2, "aceitou", "whatsapp");
+    expect(await ok(fundir(f2, s2))).toMatchObject({
+      marketing_antes: { whatsapp: true },
+      marketing_depois: { whatsapp: false },
+    });
+    // A pessoa aceita na fundida, depois da fusão: cobre também o «não»
+    // antigo da absorvida.
+    await declarar(f2, "aceitou", "whatsapp");
+    expect((await regua(f2))["whatsapp"]).toBe(true);
+    // Uma declaração na ficha fundida, depois da fusão, é a pessoa a decidir
+    // sobre ela: vale para as duas (regra 3). As antigas ficam, e a lista
+    // mostra-as todas (o porquê).
+    await declarar(fica, "aceitou");
     expect((await regua(fica))["email"]).toBe(true);
+    const lista = await ok(pedir("GET", `/customers/${fica}/consents`));
+    expect(lista["total"]).toBe(5);
+    // E o «não» depois dela volta a não.
+    await declarar(sai, "retirou");
+    expect((await regua(fica))["email"]).toBe(false);
 
     // A que fica aceitou; a absorvida nunca declarou: continua sim, e o
     // contacto acrescentado fica coberto (docs/23 §3.7, C).
