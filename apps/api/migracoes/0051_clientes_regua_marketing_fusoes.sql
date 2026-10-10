@@ -80,7 +80,7 @@ BEGIN
        OR NEW.lingua IS DISTINCT FROM OLD.lingua OR NEW.pais IS DISTINCT FROM OLD.pais) THEN
     RAISE EXCEPTION 'customers.restricted: a ficha está limitada a pedido do titular; levante a limitação para a alterar';
   END IF;
-  -- A hora da fusão (0050): só a passagem a fundido a põe; depois não muda.
+  -- A hora da fusão (0051): só a passagem a fundido a põe; depois não muda.
   IF NEW.estado = 'fundido' AND OLD.estado <> 'fundido' THEN
     NEW.fundido_quando := clock_timestamp();
   ELSE

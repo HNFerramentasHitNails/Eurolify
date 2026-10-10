@@ -75,7 +75,7 @@ Contado a 10/10/2026, neste contentor (PostgreSQL 18.6 por Docker).
   acrescentados.** Não verificado, **C**: vai para o jurista com a V4. A
   alternativa mais prudente («só sim se todas as fichas aceitaram») ficou
   proposta ao Diogo. Ele decidiu outra regra, canal a canal, a 10/10/2026
-  (`docs/06`, DH; migração 0050): o «não» de qualquer ficha vence, e uma
+  (`docs/06`, DH; migração 0051): o «não» de qualquer ficha vence, e uma
   declaração feita depois da fusão vale para todas.
 - **Fica para depois:**
   - **2c:** os pedidos do titular têm de alcançar o grupo inteiro;

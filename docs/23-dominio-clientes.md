@@ -229,7 +229,7 @@ si.
 - Os consentimentos **não se movem** (não se alteram, 0042): a régua da ficha
   que fica conta as declarações das fichas fundidas nela, e uma declaração
   pedida com o id antigo regista-se na ficha que ficou. **A régua, canal a
-  canal** (Diogo, 10/10/2026; `docs/06`, DH; migração 0050): se alguma das
+  canal** (Diogo, 10/10/2026; `docs/06`, DH; migração 0051): se alguma das
   fichas tem a última declaração «retirou», não há marketing nesse canal,
   mesmo com um «sim» mais recente noutra; um «sim» com prova e uma ficha
   nunca perguntada dá sim; uma declaração feita na ficha fundida **depois**

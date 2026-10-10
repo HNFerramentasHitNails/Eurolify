@@ -11,7 +11,7 @@ import { migrar, PASTA_MIGRACOES } from "../src/base/migracoes.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { apagarBase, URL_BASE } from "./base-de-teste.js";
 
-// A migração 0050 (a régua do marketing com fusões) sobre uma base com uma
+// A migração 0051 (a régua do marketing com fusões) sobre uma base com uma
 // fusão já feita, como pode estar a do ensaio: a ficha fundida ganha a hora
 // da fusão sem evento, sem linha do tempo e sem versão nova; os gatilhos
 // voltam como estavam e o RLS volta forçado. Corre com um migrador como o da
@@ -19,7 +19,7 @@ import { apagarBase, URL_BASE } from "./base-de-teste.js";
 
 const SENHA = "so-para-testes";
 
-describe.skipIf(URL_BASE === undefined)("migração 0050 sobre dados", () => {
+describe.skipIf(URL_BASE === undefined)("migração 0051 sobre dados", () => {
   const aFechar: (() => Promise<void>)[] = [];
 
   afterEach(async () => {
@@ -148,10 +148,10 @@ describe.skipIf(URL_BASE === undefined)("migração 0050 sobre dados", () => {
 
     const { results } = await migrar(
       db as Kysely<unknown>,
-      await pastaAte("0050_clientes_regua_marketing_fusoes.sql"),
+      await pastaAte("0051_clientes_regua_marketing_fusoes.sql"),
     );
     expect(results?.map((r) => [r.migrationName, r.status])).toEqual([
-      ["0050_clientes_regua_marketing_fusoes", "Success"],
+      ["0051_clientes_regua_marketing_fusoes", "Success"],
     ]);
 
     expect(await contar()).toEqual(antes);
