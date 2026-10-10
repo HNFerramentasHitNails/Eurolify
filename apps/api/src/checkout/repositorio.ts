@@ -598,7 +598,9 @@ export async function naSessao<T>(
   db: Kysely<BaseDados>,
   token: string,
   fn: (trx: Transaction<BaseDados>, sessao: SessaoLida) => Promise<T>,
-  opcoes: { soAberta: boolean } = { soAberta: true },
+  opcoes: { soAberta: boolean; alemDaConfirmacao?: boolean } = {
+    soAberta: true,
+  },
 ): Promise<T> {
   const r = await resolverSessao(db, token);
   const resultado = await noCheckout(db, r.comerciante_id, async (trx) => {
@@ -650,7 +652,14 @@ export async function naSessao<T>(
     }
     // Uma sessão concluída lê-se pelo token só durante o prazo da
     // confirmação: depois, os dados pessoais deixam de sair por ele (P2-2).
-    if (s.estado === "concluida" && s.confirmacao_velha) {
+    // A livre resolução (docs/30 §7.1) passa o prazo: o direito conta da
+    // entrega e não pode morrer com a ligação; essa rota não devolve dados
+    // pessoais.
+    if (
+      s.estado === "concluida" &&
+      s.confirmacao_velha &&
+      opcoes.alemDaConfirmacao !== true
+    ) {
       throw new ErroCheckout(
         "checkout.expired",
         "a confirmação já não se lê por esta ligação",
