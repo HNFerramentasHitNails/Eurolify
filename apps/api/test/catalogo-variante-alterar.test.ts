@@ -761,6 +761,153 @@ describe.skipIf(URL_BASE === undefined)("alterar uma variante (#301)", () => {
     expect((await variante(c.segredo, v)).peso_g).toBe(60);
   });
 
+  it("acrescentar uma variante pelo Hub (#321): o dono e o gestor criam (201, com quem na linha do tempo); o armazém e o apoio, 403; outro comerciante, 404; o SKU repetido, 409", async () => {
+    const c = await comerciante("Loja Variante Nova Hub");
+    const outro = await comerciante("Loja Variante Nova Hub B");
+    const f = await artigo(c.segredo, true);
+    const url = `/hub/products/${f.id}/variants`;
+    const nova = (sku: string) => ({
+      sku,
+      unidade_de_venda: "caixa",
+      gtin: GTIN,
+      gtin_origem: "fornecedor",
+      peso_g: 400,
+    });
+    for (const papel of ["armazem", "apoio"]) {
+      const p = await h.pessoaCom(c.id, papel);
+      const r = await h.pedir("POST", url, {
+        sessao: p.sessao,
+        comerciante: c.id,
+        corpo: nova(`ENS-${randomUUID()}`),
+      });
+      expect(r.statusCode, `${papel}: ${r.body}`).toBe(403);
+    }
+    const gestor = await h.pessoaCom(c.id, "gestor");
+    const sku = `ENS-C-${randomUUID()}`;
+    const r = await h.pedir("POST", url, {
+      sessao: gestor.sessao,
+      comerciante: c.id,
+      corpo: nova(sku),
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    expect(r.headers["cache-control"]).toBe("private, no-store");
+    expect(r.json<Variante>()).toMatchObject({
+      sku,
+      artigo: f.id,
+      estado: "activa",
+      unidade_de_venda: "caixa",
+      gtin: GTIN,
+      peso_g: 400,
+      versao: 1,
+    });
+    const ficha = (
+      await chave(c.segredo, "GET", `/products/${f.id}`)
+    ).json<Ficha>();
+    expect(ficha.variantes.map((v) => v.sku)).toContain(sku);
+    const linha = (
+      await chave(c.segredo, "GET", `/products/${f.id}/timeline`)
+    ).json<{
+      dados: {
+        entidade: string;
+        quem: string;
+        campos: Record<string, unknown>;
+      }[];
+    }>();
+    expect(
+      linha.dados.find(
+        (d) =>
+          d.entidade === "variante" &&
+          (d.campos["sku"] as { depois?: string } | undefined)?.depois === sku,
+      )?.quem,
+    ).toMatch(/^pessoa:/);
+    // O mesmo SKU (sem distinguir maiúsculas): 409, e não há outra.
+    const dono = await h.pessoaCom(c.id, "dono");
+    const repetido = await h.pedir("POST", url, {
+      sessao: dono.sessao,
+      comerciante: c.id,
+      corpo: { ...nova(sku.toLowerCase()), gtin: null, gtin_origem: null },
+    });
+    expect(repetido.statusCode).toBe(409);
+    expect(h.codigo(repetido)).toBe("catalog.sku_duplicate");
+    // O dono de outro comerciante, com o cabeçalho dele, não chega a A.
+    const deB = await h.pessoaCom(outro.id, "dono");
+    const deOutro = await h.pedir("POST", url, {
+      sessao: deB.sessao,
+      comerciante: outro.id,
+      corpo: nova(`ENS-${randomUUID()}`),
+    });
+    expect(deOutro.statusCode, deOutro.body).toBe(404);
+    const depois = (
+      await chave(c.segredo, "GET", `/products/${f.id}`)
+    ).json<Ficha>();
+    expect(depois.variantes).toHaveLength(3);
+  });
+
+  it("acrescentar pelo Hub num artigo activo com opções: sem um valor de cada opção, recusa; com a combinação de outra variante, também; com uma nova, cria", async () => {
+    const c = await comerciante("Loja Variante Nova Opcoes");
+    const f = await artigo(c.segredo);
+    const o = (
+      await chave(c.segredo, "POST", `/products/${f.id}/options`, {
+        nome: "Tamanho",
+        valores: ["15 ml", "30 ml", "50 ml"],
+      })
+    ).json<{ valores: { id: string }[] }>();
+    const [v1, v2] = f.variantes;
+    for (const [v, i] of [
+      [v1, 0],
+      [v2, 1],
+    ] as const) {
+      const d = await chave(
+        c.segredo,
+        "PUT",
+        `/variants/${v?.id ?? ""}/values`,
+        {
+          valores: [o.valores[i]?.id],
+        },
+      );
+      expect(d.statusCode, d.body).toBe(200);
+    }
+    const ficha = (
+      await chave(c.segredo, "GET", `/products/${f.id}`)
+    ).json<Ficha>();
+    const cl = await chave(
+      c.segredo,
+      "PUT",
+      `/products/${f.id}/classification`,
+      {
+        versao: ficha.versao,
+        familias: ["retalho_geral"],
+        natureza_consumidor: "bem",
+      },
+    );
+    const act = await chave(c.segredo, "POST", `/products/${f.id}/activate`, {
+      versao: cl.json<Ficha>().versao,
+    });
+    expect(act.statusCode, act.body).toBe(200);
+    const dono = await h.pessoaCom(c.id, "dono");
+    const criar = (valores: string[]) =>
+      h.pedir("POST", `/hub/products/${f.id}/variants`, {
+        sessao: dono.sessao,
+        comerciante: c.id,
+        corpo: {
+          sku: `ENS-${randomUUID()}`,
+          unidade_de_venda: "unidade",
+          valores,
+        },
+      });
+    const sem = await criar([]);
+    expect(h.codigo(sem), sem.body).toBe("catalog.options_incomplete");
+    const repetida = await criar([o.valores[0]?.id ?? ""]);
+    expect(h.codigo(repetida), repetida.body).toBe(
+      "catalog.option_combination_duplicate",
+    );
+    const boa = await criar([o.valores[2]?.id ?? ""]);
+    expect(boa.statusCode, boa.body).toBe(201);
+    expect(boa.json<{ valores: string[] }>().valores).toEqual([
+      o.valores[2]?.id,
+    ]);
+  });
+
   it("pelo Hub, num artigo do sistema de gestão: catalog.external_field; pela chave, aceita", async () => {
     const c = await comerciante("Loja Variante Externo");
     const id = await comComerciante(base.api, c.id, async (trx) => {
@@ -791,6 +938,14 @@ describe.skipIf(URL_BASE === undefined)("alterar uma variante (#301)", () => {
     });
     expect(r.statusCode, r.body).toBe(409);
     expect(h.codigo(r)).toBe("catalog.external_field");
+    // Acrescentar uma variante pelo Hub também recusa (#321).
+    const nova = await h.pedir("POST", `/hub/products/prd_${id}/variants`, {
+      sessao: dono.sessao,
+      comerciante: c.id,
+      corpo: { sku: `G-${randomUUID()}`, unidade_de_venda: "unidade" },
+    });
+    expect(nova.statusCode, nova.body).toBe(409);
+    expect(h.codigo(nova)).toBe("catalog.external_field");
     const pelaChave = await chave(c.segredo, "PATCH", `/variants/${v}`, {
       versao: 1,
       peso_g: 10,

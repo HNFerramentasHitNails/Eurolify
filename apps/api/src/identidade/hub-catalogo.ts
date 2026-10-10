@@ -25,6 +25,7 @@ import {
 import {
   alteracaoDaVariante,
   alteracaoDoArtigo,
+  criacaoDaVariante,
   arquivoDaVariante,
   Artigo,
   CamposDoArtigo,
@@ -54,6 +55,7 @@ import {
   ParametroVariante,
   PedidoAlterarArtigo,
   PedidoAlterarVariante,
+  PedidoCriarVariante,
   PedidoVersao,
   publicacoesDeArtigo,
   RespostaArtigos,
@@ -521,6 +523,41 @@ export function rotasDoCatalogoNoHub(
         await recusarVarianteExterna(trx, semPrefixo(pedido.params.id));
         return arquivoDaVariante(trx, comercianteId, pedido.params.id);
       }),
+  );
+
+  // Acrescentar uma variante pelo Hub (docs/22 §24.1; issue #321): a mesma
+  // escrita do POST /products/{id}/variants; num artigo externo,
+  // catalog.external_field (§13.3).
+  rotas.post(
+    "/hub/products/:id/variants",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Acrescenta uma variante ao artigo pelo Hub: a mesma escrita do POST /products/{id}/variants (SKU único, os valores das opções, num artigo publicado nasce fora das publicações), com a sessão de quem tem catalog:write (docs/22 §24.1). Num artigo externo dá catalog.external_field (§13.3).",
+        params: ParametroArtigo,
+        body: PedidoCriarVariante,
+        response: { 201: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const variante = await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId) => {
+          await recusarArtigoExterno(trx, semPrefixo(pedido.params.id));
+          return criacaoDaVariante(
+            trx,
+            comercianteId,
+            pedido.params.id,
+            pedido.body,
+          );
+        },
+      );
+      void resposta.code(201);
+      return variante;
+    },
   );
 
   // Alterar uma variante pelo Hub (docs/22 §23.1; issue #301): a mesma
