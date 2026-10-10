@@ -80,6 +80,8 @@ export function Artigo({
   const [podeEscrever, setPodeEscrever] = useState(false);
   // O histórico (docs/22 §16): só com catalog:history (o dono e o gestor).
   const [podeVerHistorico, setPodeVerHistorico] = useState(false);
+  // Definir e tirar preços (docs/22 §25): só com prices:write.
+  const [podeEscreverPrecos, setPodeEscreverPrecos] = useState(false);
   // Uma acção de cada vez; o erro dela fica à vista até à seguinte.
   const [ocupado, setOcupado] = useState(false);
   // Mover uma imagem que gravou uma parte e falhou na outra.
@@ -98,12 +100,20 @@ export function Artigo({
     if (q.get("variante") === "criada") return "varianteCriada";
     if (q.get("variante") === "fora") return "varianteCriadaFora";
     if (q.get("variante") === "talvez") return "varianteCriadaTalvezFora";
+    // Um preço definido ou tirado (docs/22 §25.3).
+    if (q.get("preco") === "guardado") return "precoGuardado";
+    if (q.get("preco") === "tirado") return "precoTirado";
     return q.get("guardado") === "1" ? "guardado" : null;
   });
   // O SKU da variante acrescentada, para o aviso (revisão do #331, P2-1).
   // Vai em `skuCriado`: o `sku` da consulta é o filtro da lista.
-  const [skuDoAviso] = useState(
-    () => new URLSearchParams(consulta).get("skuCriado") ?? "",
+  const [skuDoAviso] = useState(() => {
+    const q = new URLSearchParams(consulta);
+    return q.get("skuCriado") ?? q.get("skuPreco") ?? "";
+  });
+  // A lista do preço definido ou tirado, para o aviso (§25.3).
+  const [listaDoAviso] = useState(
+    () => new URLSearchParams(consulta).get("listaPreco") ?? "",
   );
   // Ao sair da ficha, as respostas que ainda cheguem deixam de contar.
   const montado = useRef(true);
@@ -212,6 +222,7 @@ export function Artigo({
           [];
         setPodeEscrever(ambitos.includes("catalog:write"));
         setPodeVerHistorico(ambitos.includes("catalog:history"));
+        setPodeEscreverPrecos(ambitos.includes("prices:write"));
         setFicha({ tipo: "pronto", dados });
         void carregarImagens(manter);
         void carregarPublicacoes(manter);
@@ -245,13 +256,17 @@ export function Artigo({
     if (
       q.get("guardado") === null &&
       q.get("criado") === null &&
-      q.get("variante") === null
+      q.get("variante") === null &&
+      q.get("preco") === null
     )
       return;
     q.delete("guardado");
     q.delete("criado");
     q.delete("variante");
     q.delete("skuCriado");
+    q.delete("preco");
+    q.delete("skuPreco");
+    q.delete("listaPreco");
     window.history.replaceState(
       window.history.state,
       "",
@@ -555,7 +570,10 @@ export function Artigo({
               tabIndex={-1}
               ref={avisoRef}
             >
-              {preencher(t[TEXTO_DO_AVISO[aviso]], { sku: skuDoAviso })}
+              {preencher(t[TEXTO_DO_AVISO[aviso]], {
+                sku: skuDoAviso,
+                lista: listaDoAviso,
+              })}
             </p>
           )}
           {falhaAccao === null && !ordemAMeio ? null : (
@@ -657,6 +675,12 @@ export function Artigo({
               comerciante={comerciante}
               artigo={artigo}
               variantes={ficha.dados.variantes}
+              destinoPreco={
+                podeEscreverPrecos
+                  ? (lista, variante) =>
+                      `/artigos/${artigo}/precos/${lista}/${variante}?${voltar.toString()}`
+                  : null
+              }
             />
           </div>
           <h2>{t.artigoImagens}</h2>
@@ -1003,7 +1027,9 @@ type Aviso =
   | "imagemTirada"
   | "varianteCriada"
   | "varianteCriadaFora"
-  | "varianteCriadaTalvezFora";
+  | "varianteCriadaTalvezFora"
+  | "precoGuardado"
+  | "precoTirado";
 const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
   guardado: "artigoGuardado",
   criado: "artigoCriado",
@@ -1013,6 +1039,8 @@ const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
   varianteCriada: "varianteCriada",
   varianteCriadaFora: "varianteCriadaFora",
   varianteCriadaTalvezFora: "varianteCriadaTalvezFora",
+  precoGuardado: "precoGuardado",
+  precoTirado: "precoTirado",
 };
 
 /** O erro de um envio, em linguagem comum (docs/22 §15.4). */

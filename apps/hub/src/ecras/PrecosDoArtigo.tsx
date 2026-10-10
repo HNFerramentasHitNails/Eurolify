@@ -17,10 +17,11 @@ import { mensagemDeErro, semSessao } from "../erros";
 import { preencher, TAG_LINGUA, type Lingua, type Textos } from "../textos";
 import { textoDe } from "./Artigo";
 
-// Os preços do artigo na ficha (docs/22 §17.3), só para consulta: uma caixa
-// por lista activa, com o mercado, a moeda e se os preços incluem IVA, e uma
-// linha por variante. O Hub não calcula nada: o montante, a redução, o preço
-// de referência e o preço por unidade vêm do servidor.
+// Os preços do artigo na ficha (docs/22 §17.3): uma caixa por lista activa,
+// com o mercado, a moeda e se os preços incluem IVA, e uma linha por
+// variante. O Hub não calcula nada: o montante, a redução, o preço de
+// referência e o preço por unidade vêm do servidor. Com prices:write, cada
+// variante activa leva «Definir preço» ou «Alterar preço» (§25.3).
 
 /** O nome de cada unidade do preço por unidade (docs/20 §10.3). */
 const UNIDADE: Record<string, string> = {
@@ -40,11 +41,14 @@ export function PrecosDoArtigo({
   comerciante,
   artigo,
   variantes,
+  destinoPreco,
 }: {
   comerciante: string;
   artigo: string;
   /** As variantes da ficha, pela ordem dela (também as arquivadas). */
   variantes: VarianteArtigo[];
+  /** O endereço do preço de uma variante numa lista; null sem prices:write. */
+  destinoPreco: ((lista: string, variante: string) => string) | null;
 }) {
   const { t, lingua, navegar } = useHub();
   const [estado, setEstado] = useState<Estado>({ tipo: "a_carregar" });
@@ -165,6 +169,7 @@ export function PrecosDoArtigo({
           lista={l}
           variantes={variantes}
           lingua={lingua}
+          destinoPreco={destinoPreco}
         />
       ))}
       {falhaMais === null ? null : (
@@ -204,12 +209,14 @@ function ListaDePrecos({
   lista,
   variantes,
   lingua,
+  destinoPreco,
 }: {
   lista: PrecosNaLista;
   variantes: VarianteArtigo[];
   lingua: Lingua;
+  destinoPreco: ((lista: string, variante: string) => string) | null;
 }) {
-  const { t } = useHub();
+  const { t, navegar } = useHub();
   const id = `precos-${lista.lista.id}`;
   const porVariante = new Map(lista.precos.map((p) => [p.variante, p]));
   const mercado = lista.mercado;
@@ -258,6 +265,19 @@ function ListaDePrecos({
                   ) : (
                     <Preco preco={p} moeda={mercado.moeda} lingua={lingua} />
                   )}
+                  {destinoPreco === null || v.estado !== "activa" ? null : (
+                    <LigacaoDoPreco
+                      destino={destinoPreco(lista.lista.id, v.id)}
+                      texto={p === undefined ? t.precoDefinir : t.precoAlterar}
+                      aria={preencher(
+                        p === undefined
+                          ? t.precoDefinirAria
+                          : t.precoAlterarAria,
+                        { sku: v.sku, lista: lista.lista.nome },
+                      )}
+                      navegar={navegar}
+                    />
+                  )}
                 </td>
                 <td data-rotulo={t.colunaPrecoUnidade}>
                   {p === undefined || p.gratuito || p.preco_por_unidade === null
@@ -270,6 +290,35 @@ function ListaDePrecos({
         </tbody>
       </table>
     </section>
+  );
+}
+
+/** «Definir preço» ou «Alterar preço» (§25.3), com o SKU e a lista no nome. */
+function LigacaoDoPreco({
+  destino,
+  texto,
+  aria,
+  navegar,
+}: {
+  destino: string;
+  texto: string;
+  aria: string;
+  navegar: (destino: string) => void;
+}) {
+  return (
+    <span className="accao-preco">
+      <a
+        className="botao"
+        href={destino}
+        aria-label={aria}
+        onClick={(e) => {
+          e.preventDefault();
+          navegar(destino);
+        }}
+      >
+        {texto}
+      </a>
+    </span>
   );
 }
 

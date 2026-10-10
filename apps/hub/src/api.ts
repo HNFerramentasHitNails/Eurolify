@@ -3,6 +3,7 @@
 // sempre em JSON; os erros chegam no formato RFC 9457 com um `codigo`.
 
 import type { OpcaoArtigo } from "./opcoes";
+import type { CorpoPreco, PrecoLido } from "./preco";
 import type { AlteracaoVariante, VarianteACriar } from "./variante";
 
 export type Papel = "dono" | "gestor" | "armazem" | "apoio";
@@ -257,6 +258,8 @@ export interface PrecoVariante {
   quantidade_minima: number;
   multiplo: number;
   definido_em: string;
+  /** Sobe em cada escrita; as escritas do Hub mandam-na (docs/22 §25.2). */
+  versao: number;
   /** A redução em vigor; o preço de referência vem calculado (docs/20 §3.6). */
   reducao: {
     montante: number;
@@ -717,6 +720,47 @@ export const api = {
       { comerciante },
     );
   },
+  /**
+   * Uma lista activa com os preços do artigo (docs/22 §25.3), procurada
+   * página a página; `null` quando não está entre as activas.
+   */
+  listaDoArtigo: async (comerciante: string, artigo: string, lista: string) => {
+    let cursor: string | null = null;
+    do {
+      const pagina: PaginaPrecos = await api.precosDoArtigo(
+        comerciante,
+        artigo,
+        cursor,
+      );
+      const achada = pagina.dados.find((l) => l.lista.id === lista);
+      if (achada !== undefined) return achada;
+      cursor = pagina.ha_mais ? pagina.cursor_seguinte : null;
+    } while (cursor !== null);
+    return null;
+  },
+  // Definir e tirar o preço de uma variante numa lista (docs/22 §25.2): as
+  // mesmas escritas da chave, pelos caminhos /hub/, com o preço `lido`.
+  definirPreco: (
+    comerciante: string,
+    lista: string,
+    variante: string,
+    corpo: CorpoPreco,
+  ) =>
+    pedir<PrecoVariante>(
+      "PUT",
+      `/hub/price-lists/${lista}/prices/${variante}`,
+      { comerciante, corpo },
+    ),
+  tirarPreco: (
+    comerciante: string,
+    lista: string,
+    variante: string,
+    lido: NonNullable<PrecoLido>,
+  ) =>
+    pedir<undefined>("DELETE", `/hub/price-lists/${lista}/prices/${variante}`, {
+      comerciante,
+      corpo: { lido },
+    }),
   /** O histórico do artigo (docs/22 §16), 25 de cada vez. */
   historicoDoArtigo: (
     comerciante: string,
