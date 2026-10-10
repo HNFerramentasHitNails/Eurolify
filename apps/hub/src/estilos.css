@@ -763,6 +763,12 @@ body:has(.entrada) {
   gap: var(--espaco-2);
   margin: var(--espaco-3) 0;
 }
+/* Alterar e arquivar uma variante, na tabela da ficha (docs/22 §23.2). */
+.accoes-variante {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+}
 a.botao {
   display: inline-flex;
   align-items: center;
