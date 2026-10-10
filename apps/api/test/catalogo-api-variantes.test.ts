@@ -236,7 +236,9 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: variantes", () => {
     // O pormenor sem o texto nem o nome da restrição da base (docs/18 §2).
     // Não diz qual é o SKU: com o RLS, a base não o dá (#77).
     const detalhe = dup.json<{ detail: string }>().detail;
-    expect(detalhe).toBe("já existe uma variante com este SKU");
+    expect(detalhe).toBe(
+      "já existe uma variante com este SKU (sem distinguir maiúsculas)",
+    );
     const lista = (await pedir("GET", url)).json<{ dados: Variante[] }>();
     expect(lista.dados).toHaveLength(2);
   });
@@ -621,7 +623,7 @@ describe.skipIf(URL_BASE === undefined)("API do Catálogo: variantes", () => {
     expect(zeros.json()).toMatchObject({ codigo: "catalog.gtin_duplicate" });
     // O pormenor sem o texto da base (docs/18 §2; #77).
     expect(zeros.json<{ detail: string }>().detail).toBe(
-      "já existe uma variante com este GTIN",
+      "já existe uma variante com este GTIN (com ou sem zeros à esquerda)",
     );
     const digito = await pedir(
       "POST",

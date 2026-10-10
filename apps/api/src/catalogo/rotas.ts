@@ -53,7 +53,7 @@ import {
   type PosicaoEId,
   type PosicaoNaLista,
 } from "./consultas.js";
-import { ErroCatalogo, traduzir } from "./erros.js";
+import { ErroCatalogo, TEXTO_VALOR_RECUSADO, traduzir } from "./erros.js";
 import { apagarTraducao, definirTraducao } from "./traducoes.js";
 import {
   NAO_VERIFICADO,
@@ -208,7 +208,7 @@ function paraApi(erro: unknown): unknown {
     typeof (erro.cause as { code?: unknown } | undefined)?.code === "string";
   const detalhe =
     erro.codigo === "catalog.invalid_field" && daBase
-      ? "um valor do pedido não é aceite"
+      ? TEXTO_VALOR_RECUSADO
       : erro.message;
   return new ErroApi(erro.codigo, status, mensagens, detalhe);
 }

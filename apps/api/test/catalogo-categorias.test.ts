@@ -952,6 +952,51 @@ describe("o texto de uma restrição da base (docs/18 §2)", () => {
     );
     expect(e).toBeInstanceOf(ErroCatalogo);
     expect((e as ErroCatalogo).codigo).toBe("catalog.sku_duplicate");
-    expect((e as Error).message).toBe("já existe uma variante com este SKU");
+    expect((e as Error).message).toBe(
+      "já existe uma variante com este SKU (sem distinguir maiúsculas)",
+    );
+  });
+
+  it("um CHECK com código próprio dá o texto do código (revisão do #291, P2-2 e P3-1)", () => {
+    const e = traduzir(
+      Object.assign(
+        new Error(
+          'new row for relation "variante" violates check constraint "variante_gtin_com_origem"',
+        ),
+        {
+          code: "23514",
+          constraint: "variante_gtin_com_origem",
+          table: "variante",
+        },
+      ),
+    );
+    expect((e as ErroCatalogo).codigo).toBe("catalog.gtin_origin_required");
+    expect((e as Error).message).toBe(
+      "o GTIN precisa da origem, e a origem do GTIN",
+    );
+  });
+
+  it("um CHECK sem código próprio nem a coluna obrigatória: o texto genérico, sem o da base", () => {
+    const naoNulo = traduzir(
+      Object.assign(new Error('null value in column "sku" violates not-null'), {
+        code: "23502",
+        column: "sku",
+        table: "variante",
+      }),
+    );
+    expect((naoNulo as Error).message).toBe("falta o SKU");
+    const outro = traduzir(
+      Object.assign(
+        new Error('violates check constraint "variante_peso_g_check"'),
+        {
+          code: "23514",
+          constraint: "variante_peso_g_check",
+          table: "variante",
+        },
+      ),
+    );
+    expect((outro as ErroCatalogo).codigo).toBe("catalog.invalid_field");
+    expect((outro as Error).message).toBe("um valor do pedido não é aceite");
+    expect((outro as Error).message).not.toMatch(/violates|constraint/);
   });
 });
