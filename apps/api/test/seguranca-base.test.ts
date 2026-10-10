@@ -61,6 +61,8 @@ const FUNCOES_DA_API = [
   "codigos_gerar",
   "comerciante_actual",
   "conta_nova_com_passkey",
+  // O contexto do rasto (0051): os gatilhos do rasto chamam-no com quem escreve.
+  "contexto_do_rasto",
   "convite_aceitar",
   "convite_cancelar",
   "convite_criar",
