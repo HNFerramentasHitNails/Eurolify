@@ -132,7 +132,9 @@ base e só o dono a lê (`chave_do_rasto`). Para não mudar o contrato da linha
 do tempo, a forma `{antes, depois}` mantém-se e cada valor sensível passa a
 `{"protegido": true, "resumo": "<8 hex>"}`; um valor que não existia fica
 vazio. As Contas de pessoas não guardam valores no rasto (só o acto), e
-nenhuma tabela do rasto guarda notas: nada a marcar aí, por agora.
+nenhuma tabela do rasto guarda notas: nada a marcar aí, por agora. Os perfis usados em documentos
+também ficam com o marcador na linha do tempo (Diogo, 10/10/2026: *«sim»*,
+à pergunta sobre a R9 do `docs/23`): a prova fiscal é a cópia no documento.
 
 ### 3.5 Quando e porquê (R6)
 
