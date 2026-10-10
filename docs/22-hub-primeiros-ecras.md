@@ -1251,6 +1251,8 @@ acrescenta «50 ml» e passa-o para o primeiro lugar, mas já não pode mudar
   (como na §13.2), com a sessão de quem tem `catalog:write` (o dono e o
   gestor; o armazém e o apoio recebem 403), sem `Idempotency-Key` e com o
   `eurolify.quem` da pessoa.
+- **Apagar pelo Hub** leva a `versao` no corpo (`{"versao": 3}`), não na
+  consulta: as escritas do Hub são JSON (`docs/21` §3).
 - **A `versao` da opção** (`docs/14` §7.1): o formulário guarda a que leu. Se
   outra pessoa mudou a opção entretanto, a API dá
   `catalog.version_conflict` (409) e nada se grava; o ecrã diz «Outra pessoa
