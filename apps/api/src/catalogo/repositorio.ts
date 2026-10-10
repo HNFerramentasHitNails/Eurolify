@@ -355,6 +355,82 @@ export async function arquivarVariante(
 }
 
 /**
+ * Os campos de uma variante que se podem alterar (docs/14 §7.1, «Alterar uma
+ * variante»). O SKU não (a identidade); a unidade e o conteúdo só num
+ * rascunho, e quem o garante é a base (0047). Uma chave com `undefined` quer
+ * dizer «não mexer», como em `AlteracaoArtigo`.
+ */
+export type AlteracaoVariante = {
+  [
+    K in
+      | "gtin"
+      | "gtin_origem"
+      | "unidade_de_venda"
+      | "conteudo_quantidade"
+      | "conteudo_unidade"
+      | "peso_g"
+      | "comprimento_mm"
+      | "largura_mm"
+      | "altura_mm"
+      | "onu"
+      | "classe_adr"
+      | "posicao"
+  ]?: DadosVariante[K] | undefined;
+};
+
+/**
+ * Altera a variante na `versao` lida (outra: catalog.version_conflict) e
+ * devolve a versão nova. Uma arquivada não muda (C6). As regras dos campos
+ * estão na base (0002, 0019, 0047). Não volta a verificar as publicações: a
+ * verificação só lê o peso destes campos, e o peso de uma variante à venda
+ * não se apaga (0019).
+ */
+export async function alterarVariante(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  varianteId: string,
+  versao: number,
+  alteracao: AlteracaoVariante,
+): Promise<number> {
+  // A linha da variante com o bloqueio do UPDATE (como ao arquivar): com
+  // ela tomada, a versão lida já não muda até ao fim da transacção.
+  const actual = await trx
+    .selectFrom("variante")
+    .select(["estado", "versao"])
+    .where("comerciante_id", "=", comercianteId)
+    .where("id", "=", varianteId)
+    .forNoKeyUpdate()
+    .executeTakeFirst();
+  if (actual === undefined) {
+    throw new ErroCatalogo("catalog.not_found", `variante ${varianteId}`);
+  }
+  if (actual.versao !== versao) {
+    throw new ErroCatalogo(
+      "catalog.version_conflict",
+      `variante ${varianteId}: versão ${String(versao)} pedida, ${String(actual.versao)} actual`,
+    );
+  }
+  if (actual.estado === "arquivada") {
+    throw new ErroCatalogo(
+      "catalog.variant_archived_is_final",
+      "uma variante arquivada não muda",
+    );
+  }
+  const campos = Object.fromEntries(
+    Object.entries(alteracao).filter(([, valor]) => valor !== undefined),
+  );
+  if (Object.keys(campos).length === 0) return versao;
+  const { versao: nova } = await trx
+    .updateTable("variante")
+    .set(campos)
+    .where("comerciante_id", "=", comercianteId)
+    .where("id", "=", varianteId)
+    .returning("versao")
+    .executeTakeFirstOrThrow();
+  return nova;
+}
+
+/**
  * Procura uma variante pelo SKU, também arquivada (o SKU não volta, P7), sem
  * distinguir maiúsculas (P9, migração 0003).
  */

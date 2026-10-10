@@ -468,6 +468,50 @@ describe.skipIf(URL_BASE === undefined)("API das importações", () => {
     expect(await varianteDe(a, "COR-AZUL")).toBeUndefined();
   });
 
+  it("a unidade de venda de um artigo activo não muda: a linha recusa-se com catalog.not_draft e o resto passa; num rascunho muda (#301)", async () => {
+    const activo = await criarArtigo(
+      base.api,
+      a,
+      { tipo: "fisico", nome: "Activo" },
+      [{ sku: "UNI-ACT", unidade_de_venda: "unidade", peso_g: 10 }],
+    );
+    await mudarEstadoArtigo(
+      base.api,
+      a,
+      activo,
+      (await obterArtigo(base.api, a, activo)).versao,
+      "activo",
+    );
+    const rascunho = await criarArtigo(
+      base.api,
+      a,
+      { tipo: "fisico", nome: "Rascunho" },
+      [{ sku: "UNI-RAS", unidade_de_venda: "unidade" }],
+    );
+    const imp = await ensaiar(
+      csv(
+        CAB,
+        `prd_${activo},,,,UNI-ACT,par,12,,`,
+        `prd_${rascunho},,,,UNI-RAS,par,,,`,
+      ),
+    );
+    expect(imp.relatorio.recusadas).toEqual([
+      expect.objectContaining({ sku: "UNI-ACT", codigo: "catalog.not_draft" }),
+    ]);
+    expect(imp.relatorio.alterar.variantes).toBe(1);
+    expect((await aplicar(imp.id)).statusCode).toBe(200);
+    // A linha recusada não muda nada, nem o peso que vinha nela.
+    expect((await varianteDe(a, "UNI-ACT"))?.peso_g).toBe(10);
+    const ras = await comComerciante(base.api, a, (trx) =>
+      trx
+        .selectFrom("variante")
+        .select("unidade_de_venda")
+        .where("sku", "=", "UNI-RAS")
+        .executeTakeFirst(),
+    );
+    expect(ras?.unidade_de_venda).toBe("par");
+  });
+
   it("dois grupos do ficheiro que dão o mesmo artigo: o segundo recusa-se e o primeiro aplica-se (revisão do #197, P1-2)", async () => {
     const id = await criarArtigo(base.api, a, { tipo: "fisico", nome: "Par" }, [
       { sku: "PAR-1", unidade_de_venda: "unidade" },

@@ -135,6 +135,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0043_catalogo_versao_da_opcao",
         "0044_pagamentos",
         "0045_operador_papel_minimo",
+        "0047_catalogo_versao_da_variante",
       ]);
     });
 
