@@ -521,6 +521,9 @@ export const pt = {
   variantePesoAVenda:
     "A variante está à venda: o peso muda-se, mas não se apaga.",
   erroPublicadoEmUso: "Está à venda numa loja: este campo não se apaga.",
+  varianteActivadaEntretanto:
+    "O artigo foi activado entretanto: a unidade e o conteúdo já não mudam e voltaram ao que está guardado. O resto ficou como escreveu.",
+  varianteGtinRepetido: "Este GTIN já existe noutra variante.",
   conviteInstrucao: "Escreva o seu nome e crie a conta com uma passkey.",
   conviteResumo:
     "Foi convidado para a equipa de {comerciante}, com o papel {papel}.",

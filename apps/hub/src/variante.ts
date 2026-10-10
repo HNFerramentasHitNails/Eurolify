@@ -175,8 +175,10 @@ export function alteracaoDaVariante(
   }
   const onu = textoOuNulo(c.onu.toUpperCase());
   if (onu !== v.onu) corpo.onu = onu;
+  // A classe guardada com espaços à volta não conta como mudança (revisão
+  // do #317, P3-1).
   const classe = textoOuNulo(c.classeAdr);
-  if (classe !== v.classe_adr) corpo.classe_adr = classe;
+  if (classe !== textoOuNulo(v.classe_adr ?? "")) corpo.classe_adr = classe;
   return corpo;
 }
 
@@ -187,4 +189,25 @@ export function varianteAlterada(
   rascunho: boolean,
 ): boolean {
   return Object.keys(alteracaoDaVariante(v, c, rascunho)).length > 1;
+}
+
+/**
+ * Depois de um conflito (ou de o artigo mudar entretanto), o formulário passa
+ * a partir do que está guardado agora: um campo que a pessoa não mexeu desde
+ * que leu toma o valor de agora; um que mexeu fica como o escreveu. Sem
+ * isto, guardar outra vez desfazia o que a outra pessoa mudou nos campos
+ * em que esta não tocou (revisão do #317, P1-1).
+ */
+export function camposSobreOGuardado(
+  lidaAntes: VarianteArtigo,
+  agora: VarianteArtigo,
+  campos: CamposVariante,
+): CamposVariante {
+  const antes = camposDaVariante(lidaAntes);
+  const actuais = camposDaVariante(agora);
+  const novos = { ...campos };
+  for (const c of ORDEM_DOS_CAMPOS) {
+    if (campos[c] === antes[c]) Object.assign(novos, { [c]: actuais[c] });
+  }
+  return novos;
 }

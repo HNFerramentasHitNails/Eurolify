@@ -528,6 +528,9 @@ export const es: Textos = {
   variantePesoAVenda:
     "La variante está a la venta: el peso se cambia, pero no se borra.",
   erroPublicadoEmUso: "Está a la venta en una tienda: este campo no se borra.",
+  varianteActivadaEntretanto:
+    "El artículo se ha activado entretanto: la unidad y el contenido ya no cambian y han vuelto a lo guardado. El resto se ha quedado como lo escribió.",
+  varianteGtinRepetido: "Este GTIN ya existe en otra variante.",
   conviteInstrucao: "Escriba su nombre y cree la cuenta con una passkey.",
   conviteResumo:
     "Le han invitado al equipo de {comerciante}, con la función {papel}.",

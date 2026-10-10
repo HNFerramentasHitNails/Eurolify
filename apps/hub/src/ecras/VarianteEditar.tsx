@@ -14,6 +14,7 @@ import { TAG_LINGUA, type Textos } from "../textos";
 import {
   alteracaoDaVariante,
   camposDaVariante,
+  camposSobreOGuardado,
   conferirVariante,
   MAXIMO_CLASSE_ADR,
   ORDEM_DOS_CAMPOS,
@@ -49,7 +50,7 @@ function erroDoCampo(erro: unknown): Erros | null {
     case "catalog.gtin_invalid":
       return { gtin: "artigoNovoGtinInvalido" };
     case "catalog.gtin_duplicate":
-      return { gtin: "artigoNovoGtinRepetido" };
+      return { gtin: "varianteGtinRepetido" };
     case "catalog.published_in_use":
       return { peso: "variantePesoAVenda" };
     case "catalog.content_incomplete":
@@ -83,6 +84,8 @@ export function VarianteEditar({
   const [erros, setErros] = useState<Erros>({});
   const [falha, setFalha] = useState<unknown>(null);
   const [conflito, setConflito] = useState(false);
+  // O artigo foi activado enquanto se editava (revisão do #317, P2-1).
+  const [activadoEntretanto, setActivadoEntretanto] = useState(false);
   const [aGuardar, setAGuardar] = useState(false);
   const focarDepois = useRef<string | null>(null);
   const montado = useRef(true);
@@ -138,8 +141,14 @@ export function VarianteEditar({
     void carregar();
   }, [carregar]);
 
+  // Só há o que guardar com o formulário à vista (revisão do #317, P2-2).
   const alterado =
-    v !== null && campos !== null && varianteAlterada(v, campos, rascunho);
+    v !== null &&
+    campos !== null &&
+    podeEscrever &&
+    ficha?.origem !== "externo" &&
+    v.estado === "activa" &&
+    varianteAlterada(v, campos, rascunho);
 
   // Sair com alterações por guardar pergunta antes (como na §13.4).
   useEffect(() => {
@@ -241,23 +250,34 @@ export function VarianteEditar({
             return;
           }
           setFicha(actual);
+          // O formulário passa a partir do que está guardado agora: o que a
+          // pessoa não mexeu toma o valor de agora (revisão do #317, P1-1).
+          // `v` é a variante sobre a qual os campos foram escritos.
+          let novos =
+            lida === undefined ? campos : camposSobreOGuardado(v, lida, campos);
           if (erro.codigo === "catalog.version_conflict") {
             setConflito(true);
             focarDepois.current = "variante-conflito";
           } else if (erro.codigo === "catalog.not_draft") {
             // O artigo foi activado entretanto: a unidade e o conteúdo
-            // voltam ao guardado, que é o que se pode mostrar.
+            // voltam ao guardado, que é o que se pode mostrar, e o ecrã
+            // di-lo (revisão do #317, P2-1 e P3-3).
             if (lida !== undefined) {
               const guardados = camposDaVariante(lida);
-              setCampos({
-                ...campos,
+              novos = {
+                ...novos,
                 unidade: guardados.unidade,
                 quantidade: guardados.quantidade,
                 unidadeConteudo: guardados.unidadeConteudo,
-              });
+              };
             }
-            setFalha(erro);
+            setActivadoEntretanto(true);
+            focarDepois.current = "variante-activada";
+          } else {
+            // Arquivada entretanto: o aviso recebe o foco (P2-2).
+            focarDepois.current = "variante-arquivada";
           }
+          setCampos(novos);
         } catch (e2) {
           if (aindaAqui()) setFalha(e2);
         }
@@ -381,7 +401,12 @@ export function VarianteEditar({
           ) : ficha.origem === "externo" ? (
             <p className="secundario">{t.artigoExternoAviso}</p>
           ) : v.estado === "arquivada" ? (
-            <p className="secundario" role="status">
+            <p
+              className="secundario"
+              role="status"
+              id="variante-arquivada"
+              tabIndex={-1}
+            >
               {t.varianteArquivada}
             </p>
           ) : (
@@ -423,6 +448,16 @@ export function VarianteEditar({
                     <dt>{t.varianteClasseAdr}</dt>
                     <dd>{v.classe_adr ?? "—"}</dd>
                   </dl>
+                </div>
+              ) : null}
+              {activadoEntretanto ? (
+                <div
+                  className="erro"
+                  role="alert"
+                  id="variante-activada"
+                  tabIndex={-1}
+                >
+                  <p>{t.varianteActivadaEntretanto}</p>
                 </div>
               ) : null}
               {falha === null ? null : (
@@ -535,7 +570,8 @@ export function VarianteEditar({
                 <div className="linha">
                   {campoDeTexto("onu", t.varianteOnu, {
                     inputMode: "text",
-                    maxLength: 6,
+                    // Com folga para espaços colados à volta (P3-2).
+                    maxLength: 10,
                     ajuda: t.varianteOnuAjuda,
                   })}
                   {campoDeTexto("classeAdr", t.varianteClasseAdr, {

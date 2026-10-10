@@ -3,6 +3,7 @@ import type { VarianteArtigo } from "../src/api";
 import {
   alteracaoDaVariante,
   camposDaVariante,
+  camposSobreOGuardado,
   conferirVariante,
   varianteAlterada,
 } from "../src/variante";
@@ -135,5 +136,32 @@ describe("alterar uma variante", () => {
     expect(conferirVariante({ ...base, classeAdr: "x".repeat(17) })).toEqual({
       classeAdr: "varianteClasseAdrLonga",
     });
+  });
+
+  it("depois de um conflito, o que a pessoa não mexeu toma o valor de agora e o que mexeu fica (revisão do #317, P1-1)", () => {
+    // A Ana leu a ENS-041 sem comprimento e mudou o peso para 65; outra
+    // pessoa gravou comprimento 100 e peso 60.
+    const lidaAntes: VarianteArtigo = { ...GUARDADA, peso_g: null };
+    const agora: VarianteArtigo = {
+      ...GUARDADA,
+      peso_g: 60,
+      comprimento_mm: 100,
+      versao: 4,
+    };
+    const escritos = { ...camposDaVariante(lidaAntes), peso: "65" };
+    const novos = camposSobreOGuardado(lidaAntes, agora, escritos);
+    expect(novos.comprimento).toBe("100");
+    expect(novos.peso).toBe("65");
+    // Guardar outra vez só leva o peso: o comprimento de 100 mm fica.
+    expect(alteracaoDaVariante(agora, novos, false)).toEqual({
+      versao: 4,
+      peso_g: 65,
+    });
+  });
+
+  it("uma classe ADR guardada com espaços à volta não conta como mudança (P3-1)", () => {
+    const comEspacos: VarianteArtigo = { ...GUARDADA, classe_adr: " 3 " };
+    const c = camposDaVariante(comEspacos);
+    expect(varianteAlterada(comEspacos, c, false)).toBe(false);
   });
 });

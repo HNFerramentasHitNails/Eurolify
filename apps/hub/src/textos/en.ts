@@ -522,6 +522,9 @@ export const en: Textos = {
   variantePesoAVenda:
     "The variant is on sale: the weight can change, but not be removed.",
   erroPublicadoEmUso: "It is on sale in a shop: this field cannot be removed.",
+  varianteActivadaEntretanto:
+    "The product was activated in the meantime: the unit and content can no longer change and are back to what is saved. The rest stayed as you wrote it.",
+  varianteGtinRepetido: "This GTIN already exists in another variant.",
   conviteInstrucao: "Enter your name and create the account with a passkey.",
   conviteResumo:
     "You were invited to the {comerciante} team, with the role {papel}.",

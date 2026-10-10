@@ -3653,7 +3653,7 @@ try {
   await rp.getByLabel("Peso (g)").fill("60");
   await rp.getByRole("button", { name: "Guardar", exact: true }).focus();
   await rp.keyboard.press("Enter");
-  await rp.getByText("Este GTIN já existe neste comerciante.").waitFor();
+  await rp.getByText("Este GTIN já existe noutra variante.").waitFor();
   confere(
     (await rp.evaluate(() => document.activeElement?.id)) === "variante-gtin" &&
       (await rp.getByLabel("Peso (g)").inputValue()) === "60",
@@ -3785,6 +3785,47 @@ try {
     (await rp.getByRole("row", { name: /ENS-041.*65 g/ }).count()) === 1,
     "variante: depois do conflito, guardar outra vez grava o que se escreveu",
   );
+  // O que a outra pessoa gravou num campo em que a Ana não mexeu fica
+  // (revisão do #317, P1-1).
+  const lerEns041 = () =>
+    rp.evaluate(
+      async ({ c, a, v }) => {
+        const ficha = await (
+          await fetch(`/hub/products/${a}`, {
+            headers: { "eurolify-comerciante": c },
+          })
+        ).json();
+        return ficha.variantes.find((x) => x.id === v);
+      },
+      { c: `mer_${comerciante}`, a: `prd_${artigoSemPeso}`, v: idEns041 },
+    );
+  const depoisDoConflito = await lerEns041();
+  confere(
+    depoisDoConflito?.comprimento_mm === 100 && depoisDoConflito?.peso_g === 65,
+    "variante: depois do conflito, o comprimento que a outra pessoa gravou fica (só o peso mudou)",
+  );
+  // A resposta perdida e o pedido repetido: a API já gravou e responde com
+  // conflito; o ecrã vê que o guardado é o que se escreveu e dá-o por
+  // gravado (revisão do #317, P2-3).
+  await rp.route("**/hub/variants/*", async (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    await r.fetch();
+    return r.fulfill({
+      status: 409,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ codigo: "catalog.version_conflict", status: 409 }),
+    });
+  });
+  await rp.goto(`${ORIGEM}${caminhoEns041}`);
+  await rp.getByLabel("Peso (g)").fill("70");
+  await rp.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  await rp.unroute("**/hub/variants/*");
+  confere(
+    (await rp.getByText("Alterações guardadas.").count()) === 1 &&
+      (await rp.getByRole("row", { name: /ENS-041.*70 g/ }).count()) === 1,
+    "variante: uma resposta perdida com o pedido já gravado dá-se por gravada",
+  );
   // Num rascunho: a unidade e o conteúdo editam-se, só com o teclado. Um
   // rascunho novo pelo Hub, com uma segunda variante já arquivada.
   const rascunho42 = await rp.evaluate(
@@ -3852,6 +3893,73 @@ try {
     path: join(SAIDA, "variante-ficha-375-claro.png"),
     fullPage: true,
   });
+  // O artigo activado enquanto se edita (a resposta da API, fingida): o
+  // ecrã di-lo, com o foco no aviso; a unidade volta ao guardado e o resto
+  // fica (revisão do #317, P2-1 e P3-3).
+  const caminhoEns042 =
+    (await rp
+      .getByRole("link", { name: "Editar a variante ENS-042" })
+      .getAttribute("href")) ?? "";
+  await rp.route("**/hub/variants/*", (r) =>
+    r.request().method() === "PATCH"
+      ? r.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({ codigo: "catalog.not_draft", status: 409 }),
+        })
+      : r.continue(),
+  );
+  await rp.goto(`${ORIGEM}${caminhoEns042}`);
+  await rp.locator("#variante-unidade").selectOption({ label: "Caixa" });
+  await rp.getByLabel("Peso (g)").fill("7");
+  await rp.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rp
+    .getByText("O artigo foi activado entretanto", { exact: false })
+    .waitFor();
+  await rp.unroute("**/hub/variants/*");
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) ===
+      "variante-activada" &&
+      (await rp.locator("#variante-unidade").inputValue()) === "par" &&
+      (await rp.getByLabel("Peso (g)").inputValue()) === "7",
+    "variante: o artigo activado entretanto diz-se, com o foco no aviso; a unidade volta ao guardado e o peso fica",
+  );
+  // Arquivada enquanto se edita: o aviso recebe o foco e sair já não
+  // pergunta (revisão do #317, P2-2).
+  await rp.evaluate(
+    async ({ c, v }) => {
+      await fetch(`/hub/variants/${v}/archive`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "eurolify-comerciante": c,
+        },
+        body: "{}",
+      });
+    },
+    {
+      c: `mer_${comerciante}`,
+      v: caminhoEns042.split("/")[4]?.split("?")[0] ?? "",
+    },
+  );
+  await rp.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rp.getByText("Esta variante está arquivada e não muda.").waitFor();
+  let perguntouAoSair = false;
+  const aoPerguntar = (d) => {
+    perguntouAoSair = true;
+    void d.accept();
+  };
+  rp.on("dialog", aoPerguntar);
+  const focoNoAviso =
+    (await rp.evaluate(() => document.activeElement?.id)) ===
+    "variante-arquivada";
+  await rp.getByRole("link", { name: "Gel Coral 42" }).click();
+  await rp.getByRole("heading", { name: "Gel Coral 42", level: 1 }).waitFor();
+  rp.off("dialog", aoPerguntar);
+  confere(
+    focoNoAviso && !perguntouAoSair,
+    "variante: arquivada enquanto se edita, o aviso recebe o foco e sair não pergunta",
+  );
   // A arquivada, pelo endereço: diz que não muda, sem formulário.
   await rp.goto(
     `${ORIGEM}/artigos/${rascunho42.artigo}/variantes/${rascunho42.arquivada}?comerciante=mer_${comerciante}`,
@@ -3890,6 +3998,25 @@ try {
     (await rp.getByRole("button", { name: "Guardar", exact: true }).count()) ===
       0,
     "variante: num artigo do sistema de gestão, a página só mostra o aviso",
+  );
+  // Sem catalog:write (o armazém e o apoio): a resposta de /hub/me sem esse
+  // âmbito; a página mostra o aviso e nenhum formulário (P2-3). A API
+  // recusa na mesma (403, nos testes da API).
+  await rp.route("**/hub/me", async (r) => {
+    const resposta = await r.fetch();
+    const corpo = await resposta.json();
+    for (const c of corpo.comerciantes ?? []) {
+      c.ambitos = (c.ambitos ?? []).filter((a) => a !== "catalog:write");
+    }
+    return r.fulfill({ response: resposta, json: corpo });
+  });
+  await rp.goto(`${ORIGEM}${caminhoEns041}`);
+  await rp.getByText("Não tem permissão para isto.").waitFor();
+  await rp.unroute("**/hub/me");
+  confere(
+    (await rp.getByRole("button", { name: "Guardar", exact: true }).count()) ===
+      0,
+    "variante: sem catalog:write, a página mostra o aviso de permissão e nenhum formulário",
   );
   // Com a sessão terminada, o histórico vai para «Entrar».
   await rp.route("**/hub/products/*/timeline*", (pedido) =>
