@@ -939,3 +939,19 @@ describe.skipIf(URL_BASE === undefined)(
     });
   },
 );
+
+describe("o texto de uma restrição da base (docs/18 §2)", () => {
+  it("o SKU repetido sai sem o texto nem o nome da restrição", () => {
+    const e = traduzir(
+      Object.assign(
+        new Error(
+          'duplicate key value violates unique constraint "variante_sku_unico"',
+        ),
+        { code: "23505", constraint: "variante_sku_unico", table: "variante" },
+      ),
+    );
+    expect(e).toBeInstanceOf(ErroCatalogo);
+    expect((e as ErroCatalogo).codigo).toBe("catalog.sku_duplicate");
+    expect((e as Error).message).toBe("já existe uma variante com este SKU");
+  });
+});

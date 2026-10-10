@@ -186,6 +186,27 @@ export interface OpcoesDeTraducao {
   soLeitura?: boolean;
 }
 
+/** O texto de um valor que a base recusou, sem o texto do PostgreSQL. */
+const TEXTO_VALOR_RECUSADO = "um valor do pedido não é aceite";
+
+/**
+ * O texto de uma restrição da base com código próprio, para o `detail` da
+ * API: nunca o do PostgreSQL (docs/18 §2), que traz o nome da restrição.
+ * Não diz qual é o SKU ou o GTIN repetido (pedido do Hub no #77): pela API,
+ * o erro da base chega sem o pormenor da chave (medido a 10/10/2026, no
+ * PostgreSQL 18.6, com o RLS na tabela); quem precisar procura-o (o Hub,
+ * docs/22 §14.2).
+ */
+function textoDaRestricao(pg: { code?: string; constraint?: string }): string {
+  if (pg.constraint === "variante_sku_unico") {
+    return "já existe uma variante com este SKU";
+  }
+  if (pg.constraint === "variante_gtin_unico") {
+    return "já existe uma variante com este GTIN";
+  }
+  return pg.code === "23505" ? "o valor já existe" : TEXTO_VALOR_RECUSADO;
+}
+
 /** Exportada para os testes; o resto do código usa-a por `noCatalogo`. */
 export function traduzir(
   erro: unknown,
@@ -211,12 +232,20 @@ export function traduzir(
     daRestricao !== undefined &&
     (pg.code === "23505" || pg.code === "23514")
   ) {
-    return new ErroCatalogo(daRestricao, erro.message, { cause: erro });
+    return new ErroCatalogo(daRestricao, textoDaRestricao(pg), {
+      cause: erro,
+    });
   }
   const daColuna =
     pg.column === undefined ? undefined : OBRIGATORIAS[pg.column];
-  if (pg.code === "23502" && daColuna !== undefined) {
-    return new ErroCatalogo(daColuna, erro.message, { cause: erro });
+  if (
+    pg.code === "23502" &&
+    pg.column !== undefined &&
+    daColuna !== undefined
+  ) {
+    return new ErroCatalogo(daColuna, `falta o campo ${pg.column}`, {
+      cause: erro,
+    });
   }
   // Outro valor recusado nestas tabelas (uma lista, um número): código
   // genérico (revisão do #78, 2.ª, P2-2).
@@ -225,7 +254,7 @@ export function traduzir(
     pg.table !== undefined &&
     TABELAS.has(pg.table)
   ) {
-    return new ErroCatalogo("catalog.invalid_field", erro.message, {
+    return new ErroCatalogo("catalog.invalid_field", TEXTO_VALOR_RECUSADO, {
       cause: erro,
     });
   }
@@ -239,7 +268,13 @@ export function traduzir(
       pg.code === "22P02" && /type uuid/.test(erro.message)
         ? "catalog.not_found"
         : "catalog.invalid_field";
-    return new ErroCatalogo(codigoDeValor, erro.message, { cause: erro });
+    return new ErroCatalogo(
+      codigoDeValor,
+      codigoDeValor === "catalog.not_found"
+        ? "referência inexistente"
+        : TEXTO_VALOR_RECUSADO,
+      { cause: erro },
+    );
   }
   // Apagar uma variante que é componente de um kit (0004), antes da regra
   // geral das chaves estrangeiras, que diria «não existe». A mesma restrição
