@@ -298,7 +298,7 @@ export interface TabelaOpcao {
   nome: string;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
-  // Migração 0042: sobe com qualquer mudança à opção ou aos valores dela;
+  // Migração 0043: sobe com qualquer mudança à opção ou aos valores dela;
   // quem a sobe são os gatilhos da base, a API só a lê e a confere.
   versao: ColumnType<number, never, number>;
 }
@@ -658,6 +658,7 @@ export const ENTIDADES_DO_RASTO_CLIENTE = [
   "perfil_faturacao",
   "etiqueta_cliente",
   "cliente_etiqueta",
+  "consentimento",
 ] as const;
 export type EntidadeDoRastoCliente =
   (typeof ENTIDADES_DO_RASTO_CLIENTE)[number];
@@ -760,6 +761,24 @@ export interface TabelaValidacaoVies {
   >;
   quem: ColumnType<string, never, never>;
   registado_em: ColumnType<Date, never, never>;
+}
+
+export const CANAIS_CONSENTIMENTO = ["email", "sms", "whatsapp"] as const;
+export type CanalConsentimento = (typeof CANAIS_CONSENTIMENTO)[number];
+
+/** Uma declaração de consentimento (docs/23 §3.6; migração 0042): não se altera nem se apaga. */
+export interface TabelaConsentimento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  cliente_id: ColumnType<string, string, never>;
+  canal: ColumnType<CanalConsentimento, CanalConsentimento, never>;
+  finalidade: ColumnType<"marketing", "marketing" | undefined, never>;
+  declaracao: ColumnType<"aceitou" | "retirou", "aceitou" | "retirou", never>;
+  texto: ColumnType<string, string, never>;
+  versao_texto: ColumnType<string, string, never>;
+  onde: ColumnType<string, string, never>;
+  declarado_em: ColumnType<Date, never, never>;
+  quem: ColumnType<string, never, never>;
 }
 
 export interface TabelaIsencaoManual {
@@ -1041,6 +1060,7 @@ export interface BaseDados {
   alteracao_cliente: TabelaAlteracaoCliente;
   validacao_vies: TabelaValidacaoVies;
   isencao_manual: TabelaIsencaoManual;
+  consentimento: TabelaConsentimento;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;

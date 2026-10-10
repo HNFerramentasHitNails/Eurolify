@@ -1372,7 +1372,7 @@ cada transacção); as rotas novas só as usam, sem as repetir. Todas com
   `GET /products/{id}/options`, `GET /options/{id}` e nas respostas das
   escritas, e o `POST /options/{id}/values` passa a aceitá-la (opcional, para
   não partir quem já a usa). A opção nasce na versão 1 com os valores com que
-  é criada (os da mesma transacção não a sobem; migração 0042). A ordem das opções não precisa dela: a lista
+  é criada (os da mesma transacção não a sobem; migração 0043). A ordem das opções não precisa dela: a lista
   tem de ser exactamente a de agora, e isso já apanha uma opção criada ou
   apagada entretanto; entre duas ordens ao mesmo tempo, fica a última, como
   na composição dos kits. A versão sobe uma vez por linha mudada (reordenar

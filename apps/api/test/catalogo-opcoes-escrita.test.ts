@@ -670,19 +670,19 @@ describe.skipIf(URL_BASE === undefined)("a escrita das opções (#285)", () => {
     expect(pelaChave.statusCode, pelaChave.body).toBe(200);
   });
 
-  it("a migração 0042 sobre opções que já existiam: ficam na versão 1, e um valor novo sobe-a", async () => {
+  it("a migração 0043 sobre opções que já existiam: ficam na versão 1, e um valor novo sobe-a", async () => {
     const c = await comerciante("Loja Opcoes Migracao");
     const { tamanho } = await rascunho(c);
     const id = tamanho.id.replace(/^opt_/, "");
     const ficheiro = readFileSync(
       new URL(
-        "../migracoes/0042_catalogo_versao_da_opcao.sql",
+        "../migracoes/0043_catalogo_versao_da_opcao.sql",
         import.meta.url,
       ),
       "utf8",
     );
     const dono = base.dono as Kysely<BaseDados>;
-    // Como antes da 0042 (sem a coluna nem o gatilho dos valores), com a
+    // Como antes da 0043 (sem a coluna nem o gatilho dos valores), com a
     // opção já lá; corre o ficheiro; desfaz-se tudo no fim.
     const desfazer = new Error("desfazer");
     const visto = await dono
