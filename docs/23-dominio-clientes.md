@@ -709,10 +709,10 @@ consulta — proposta (Q7).
 
 - Não se altera: muda-se retirando e pondo outra (o histórico fica inteiro) —
   proposta.
-- **Anexos** (`anexo_isencao`): PDF, JPEG ou PNG, até 10 MB cada, até 5 por
-  isenção; no mesmo armazenamento das imagens, numa pasta privada, nunca
-  públicos; lêem-se pela API com `customers:exemptions` — proposta. O prazo de
-  guarda é o fiscal (**C**, V2).
+- **Anexos** (`anexo_isencao`, `exa_`): PDF, JPEG ou PNG, até 10 MB cada, até
+  5 por isenção; **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM),
+  nunca públicos; os bytes lêem-se pela API com `customers:exemptions` — no
+  código (migração 0053, §13.11). O prazo de guarda é o fiscal (**C**, V2).
 - Eventos `billing_profile.exemption_set` e `billing_profile.exemption_removed`
   (`bpf_`, `exm_`, quem) — proposta (novos).
 
@@ -779,10 +779,9 @@ minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
 | 20 testes (o adaptador contra um servidor HTTP falso; a API e a fila contra uma consulta falsa — nenhum chama a Comissão); 19 mutações desta versão, todas apanhadas | `test/clientes-vies.test.ts` |
 
 **Desvios do desenho:**
-- **Os anexos da isenção ficam para um pedido à parte**: a pasta das imagens
-  tem uma limpeza de ficheiros sem linha (`docs/14` §3.5), e os anexos
-  precisam de armazenamento próprio e privado, e das cópias da VPS. O motivo e
-  a nota já entram.
+- **Os anexos da isenção ficaram para um pedido à parte**: a pasta das imagens
+  tem uma limpeza de ficheiros sem linha (`docs/14` §3.5). Entraram depois, na
+  base de dados (§13.11).
 - **A consulta pedida** (`POST …/vies-checks`) não espera pelo VIES: põe o
   perfil à frente da fila e responde 202 (revisão do #244, P1-1).
 - **A fila vem desligada** até se medir a saída da VPS para a Comissão
@@ -805,6 +804,20 @@ próprio (P3-10); a pseudonimização do nome e morada devolvidos, na parte 2
 **Não verificado:** se o contentor da API na VPS sai para `ec.europa.eu`
 (sem saída, as provas ficam `indisponivel` com `SEM_LIGACAO`, e nada fica
 isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
+
+### 13.11 Os anexos da isenção em código (10/10/2026; migração 0053)
+
+| O quê | Onde |
+|---|---|
+| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0053 |
+| PDF, JPEG ou PNG **pelo conteúdo** (os primeiros bytes têm de ser do tipo dito), até 10 MB, até 5 por isenção, só numa isenção em vigor; o tamanho e o resumo (sha256) põe-nos a base; os bytes ficam como chegaram (é a prova: não se limpam metadados) | migração 0053 |
+| só uma pessoa ou a chave dela (`customers.exemption_by_person`), como a isenção | migração 0053 |
+| não se altera nem se apaga, nem pelo superutilizador (`audit.append_only`); a pseudonimização apaga os anexos das isenções dos perfis que ninguém usou e guarda os dos usados | migração 0053 |
+| `POST /exemptions/{id}/attachments` (o corpo são os bytes, com o Content-Type; `?nome=` opcional) e `GET /exemptions/{id}/attachments/{anexo}` com `customers:exemptions`; `GET /exemptions/{id}/attachments` (sem os bytes) com `customers:read`; a exportação do titular lista-os | `src/clientes/rotas.ts`, `repositorio.ts` |
+| testes: `test/clientes-anexos-isencao.test.ts` (5) | `test/` |
+
+**Fica por fazer:** o prazo de guarda (**C**, V2); medir o crescimento da base
+com anexos (não medido).
 
 ## 14. Consentimento por contacto e dupla confirmação (desenho de 10/10/2026)
 

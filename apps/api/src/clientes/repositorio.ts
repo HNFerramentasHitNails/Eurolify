@@ -2,6 +2,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { sql, type Kysely, type Transaction } from "kysely";
 import {
   CANAIS_CONSENTIMENTO,
+  type TipoDeAnexo,
   type BaseDados,
   type CanalConsentimento,
   type EstadoDuplicado,
@@ -49,6 +50,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.confirmation_channel",
   "customers.confirmation_invalid",
   "customers.confirmation_rate_limited",
+  // Da 0053: os anexos da isenção.
+  "customers.exemption_attachments_full",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -80,6 +83,7 @@ const TABELAS = new Set([
   "duplicado_cliente",
   "pedido_titular",
   "confirmacao_consentimento",
+  "anexo_isencao",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -998,6 +1002,88 @@ export async function obterIsencao(
   return i;
 }
 
+/** O que se mostra de um anexo (sem os bytes). */
+const COLUNAS_DO_ANEXO = [
+  "id",
+  "isencao_id",
+  "nome",
+  "tipo",
+  "tamanho",
+  "resumo",
+  "posto_por",
+  "posto_em",
+] as const;
+
+/**
+ * Anexa um ficheiro a uma isenção em vigor (0053): a base confirma o tipo
+ * pelos primeiros bytes, conta os 5 e põe quem e quando.
+ */
+export async function anexarIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  isencaoId: string,
+  anexo: { tipo: TipoDeAnexo; nome: string | null; bytes: Buffer },
+) {
+  return noClientes(db, comercianteId, (trx) =>
+    trx
+      .insertInto("anexo_isencao")
+      .values({
+        comerciante_id: comercianteId,
+        isencao_id: isencaoId,
+        nome: anexo.nome,
+        tipo: anexo.tipo,
+        bytes: anexo.bytes,
+      })
+      .returning(COLUNAS_DO_ANEXO)
+      .executeTakeFirstOrThrow(),
+  );
+}
+
+/** Os anexos de uma isenção (sem os bytes), pela ordem em que entraram. */
+export async function listarAnexosDaIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  isencaoId: string,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const existe = await trx
+      .selectFrom("isencao_manual")
+      .select("id")
+      .where("id", "=", isencaoId)
+      .executeTakeFirst();
+    if (existe === undefined) {
+      throw new ErroClientes("customers.not_found", "isenção inexistente");
+    }
+    return trx
+      .selectFrom("anexo_isencao")
+      .select(COLUNAS_DO_ANEXO)
+      .where("isencao_id", "=", isencaoId)
+      .orderBy("id")
+      .execute();
+  });
+}
+
+/** Um anexo com os bytes, para descarregar. */
+export async function lerAnexoDaIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  isencaoId: string,
+  anexoId: string,
+) {
+  const a = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("anexo_isencao")
+      .select(["tipo", "nome", "bytes", "resumo"])
+      .where("isencao_id", "=", isencaoId)
+      .where("id", "=", anexoId)
+      .executeTakeFirst(),
+  );
+  if (a === undefined) {
+    throw new ErroClientes("customers.not_found", "anexo inexistente");
+  }
+  return a;
+}
+
 /** As isenções de um perfil (a em vigor e as retiradas), mais recentes primeiro. */
 export async function listarIsencoes(
   db: Kysely<BaseDados>,
@@ -1523,6 +1609,21 @@ export async function exportarCliente(
         perfis_de_faturacao: perfis,
         provas_vies: await doPerfil("validacao_vies"),
         isencoes_manuais: await doPerfil("isencao_manual"),
+        // Os anexos das isenções (0053): o que são, sem os bytes (lêem-se
+        // pela rota deles).
+        anexos_das_isencoes:
+          ids_perfis.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select a.id, a.isencao_id, a.nome, a.tipo, a.tamanho, a.resumo,
+                       a.posto_por, a.posto_em
+                from anexo_isencao a
+                join isencao_manual i on i.id = a.isencao_id
+                where i.perfil_id = any(${ids_perfis}::uuid[]) order by a.id`.execute(
+                  trx,
+                )
+              ).rows,
         etiquetas: (
           await sql<{ id: string; nome: string }>`
             select e.id, e.nome from cliente_etiqueta ce
