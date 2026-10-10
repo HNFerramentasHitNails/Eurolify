@@ -34,15 +34,21 @@ autorizar (IA declarada ou desconhecida), ou só quando a IA é declarada? A
 proposta é «todas», menos as tarefas do sistema: senão um agente que não se
 declara parece mais seguro do que um que se declara.
 
+**Por decidir (revisão do #342, P3-7):** o trabalho que um agente pede e que
+corre depois numa tarefa (ex.: `tarefa:documentos`) fica com o canal
+«sistema» e sem IA, como o §3.2 diz. Decidir se o Hub liga a linha da tarefa
+ao pedido do agente.
+
 ## Números (com data e como se contaram)
 
 - Migrações no `main` a 10/10/2026, 21:40 UTC: a última é a 0054
   (`ls apps/api/migracoes | tail`); a 0055 e a 0056 estão reservadas pelos
   #338 e #329; a parte 1 do passo 4 usa a 0057.
 - Testes da parte 1 (10/10/2026, PostgreSQL 18.6 local por Docker):
-  `test/rasto-chave-agente.test.ts`, 8 testes; 5 mutações (tirar a marcação
-  na autenticação, a herança, a marca na lista do que não muda, a recusa da
-  pública na rota, a marca no Hub) — cada uma faz falhar pelo menos um teste.
+  `test/rasto-chave-agente.test.ts`, 9 testes depois da revisão; 9 mutações
+  (a marcação na autenticação, a herança, a marca na lista do que não muda,
+  as recusas da pública na rota e na base, a marca no Hub, a regra da tabela,
+  a repetição da revogação) — cada uma faz falhar pelo menos um teste.
 - IA «comprovado»: nenhum caso hoje — `grep -rn -i "anthropic\|openai\|mistral\|deepl" apps/api/src`
   só encontra o tipo em `base/rasto.ts` (10/10/2026).
 
