@@ -1294,6 +1294,47 @@ Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
   versão com duas sessões; capturas a 375, 768 e 1280 px, claro e escuro, e
   só com teclado; as capturas vão à página de aprovação.
 
+## 22. Catálogo: alterar uma variante (issue #301)
+
+Pedido do Diogo, 10/10/2026: *«sim, avança com o desenho de alterar uma
+variante»*. **Proposta, por aprovar.** A §13.1 deixou de fora «alterar uma
+variante» por não haver rota; o `docs/14` §7.1 («Alterar uma variante»)
+desenha-a. Ex.: a gestora da «Loja de Ensaio» vê na ficha do «Verniz Rosa
+2» que a publicação diz «peso em falta», carrega em «Editar» na linha da
+`ENS-002`, escreve 60 g e guarda; a publicação pode então ser publicada.
+
+### 22.1 Como o Hub escreve
+
+- `PATCH /hub/variants/{id}`, a mesma função do `PATCH /variants/{id}`, com
+  a sessão de quem tem `catalog:write` (o dono e o gestor), sem
+  `Idempotency-Key` e com o `eurolify.quem` da pessoa (como a §13.2).
+- A `versao` da variante: o formulário guarda a que leu; uma versão antiga
+  dá «Outra pessoa alterou esta variante entretanto. Não guardámos as suas
+  alterações.», mostra o que está guardado agora e deixa o que se escreveu.
+- Num artigo `externo`, nada disto aparece, e a API do Hub recusa com
+  `catalog.external_field` (§13.3).
+
+### 22.2 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Ficha**, tabela «Variantes» (§12.2) | Com `catalog:write`, em cada variante activa: «Editar» ao lado de «Arquivar variante». | — |
+| **Editar a variante** (`/artigos/{prd_…}/variantes/{var_…}`) | O SKU à vista, sem campo (não muda). Campos: peso (g), comprimento, largura e altura (mm), GTIN e a origem dele (uma lista: «GS1 do comerciante», «Do fornecedor», «Interno»), ONU e classe ADR, como no ecrã de criar (§14). Num rascunho, também a unidade de venda e o conteúdo; depois de activo, aparecem só para ler, com «A unidade e o conteúdo só mudam enquanto o artigo é rascunho». «Guardar» e «Cancelar»; sair com alterações por guardar pergunta antes. | a guardar; o erro da API ao lado do campo (ex.: «Este GTIN já existe noutra variante»); conflito de versão (§22.1); variante arquivada (não abre o formulário: «Esta variante está arquivada e não muda.») |
+
+### 22.3 Antes de dizer que está feito (o pedido do código)
+
+- **API**: a rota pela chave e pelo Hub; as recusas (SKU, unidade e conteúdo
+  fora do rascunho, GTIN sem origem, repetido ou com o dígito errado, peso
+  apagado numa variante à venda, variante arquivada); a `versao` antiga dá
+  409 sem gravar; o armazém e o apoio recebem 403; outro comerciante não
+  chega (com a prova pela falha); o artigo externo recusa pelo Hub e aceita
+  pela chave; a linha do tempo tem a mudança com quem fez; a migração da
+  `versao` corre sobre variantes que já existiam.
+- **Hub**: a passagem resolve o «peso em falta» de uma publicação real, muda
+  o GTIN, confere que a unidade não se edita depois de activo e o conflito
+  de versão; capturas a 375, 768 e 1280 px, claro e escuro, e só com
+  teclado; as capturas vão à página de aprovação.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
