@@ -40,13 +40,14 @@ describe("pedido do operador", () => {
   it("lê um pedido de comerciante", () => {
     expect(
       lerPedido(
-        `comerciante pt Europe/Lisbon ${nome("Loja da Ana, Lda.")} github:1001`,
+        `comerciante pt Europe/Lisbon ${nome("Loja da Ana, Lda.")} run:1234567 github:1001`,
       ),
     ).toEqual({
       accao: "comerciante",
       lingua: "pt",
       fuso: "Europe/Lisbon",
       nome: "Loja da Ana, Lda.",
+      pedido: "github-run:1234567",
       quem: "github:1001",
     });
   });
@@ -135,13 +136,23 @@ describe("pedido do operador", () => {
       /acção/,
     ],
     ["apagar tudo", /acção/],
-    [`comerciante PT Europe/Lisbon ${nome("x")} github:1`, /língua/],
-    [`comerciante pt Europe/Lisbon;rm ${nome("x")} github:1`, /fuso/],
-    [`comerciante pt Europe/Lisbon ${nome("")} github:1`, /nome/],
-    [`comerciante pt Europe/Lisbon ${nome("x".repeat(101))} github:1`, /nome/],
-    [`comerciante pt Europe/Lisbon ${nome("a\nb")} github:1`, /nome/],
-    [`comerciante pt Europe/Lisbon ${nome("Loja\u202Eadc")} github:1`, /nome/],
-    [`comerciante pt Europe/Lisbon ${nome("x")} ana`, /quem/],
+    [`comerciante PT Europe/Lisbon ${nome("x")} run:1 github:1`, /língua/],
+    [`comerciante pt Europe/Lisbon;rm ${nome("x")} run:1 github:1`, /fuso/],
+    [`comerciante pt Europe/Lisbon ${nome("")} run:1 github:1`, /nome/],
+    [
+      `comerciante pt Europe/Lisbon ${nome("x".repeat(101))} run:1 github:1`,
+      /nome/,
+    ],
+    [`comerciante pt Europe/Lisbon ${nome("a\nb")} run:1 github:1`, /nome/],
+    [
+      `comerciante pt Europe/Lisbon ${nome("Loja\u202Eadc")} run:1 github:1`,
+      /nome/,
+    ],
+    [`comerciante pt Europe/Lisbon ${nome("x")} run:1 ana`, /quem/],
+    // Sem o número da execução, repetir criava outro comerciante (#107).
+    [`comerciante pt Europe/Lisbon ${nome("x")} github:1`, /acção/],
+    [`comerciante pt Europe/Lisbon ${nome("x")} run:abc github:1`, /execução/],
+    [`comerciante pt Europe/Lisbon ${nome("x")} github:1 run:1`, /execução/],
     [
       `chave nao-uuid catalog:read eul_sk_abcde ${RESUMO} ${nome("x")} github:1`,
       /comerciante/,
@@ -232,6 +243,14 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
       END IF;
     EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
     END $$`);
+    // O papel do operador (0045), como o preparar.sh o cria na VPS: antes
+    // das migrações, que lhe dão o EXECUTE nas três portas.
+    await admin.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'eurolify_operador') THEN
+        CREATE ROLE eurolify_operador NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+      END IF;
+    EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+    END $$`);
     await admin.query(
       `CREATE ROLE ${papel} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '${SENHA}'`,
     );
@@ -248,6 +267,7 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
       await migrador.destroy();
     }
     await admin.query(`ALTER ROLE eurolify_api LOGIN PASSWORD '${SENHA}'`);
+    await admin.query(`ALTER ROLE eurolify_operador LOGIN PASSWORD '${SENHA}'`);
     base.dono = new Kysely<unknown>({
       dialect: new PostgresDialect({
         pool: new pg.Pool({ connectionString: urlCom(), max: 2 }),
@@ -273,6 +293,11 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
         await apagarBase(admin, nomeBase);
       } finally {
         try {
+          // O papel do operador volta a não entrar, como o eurolify_api no
+          // base-de-teste.ts (revisão do #293, P3-1).
+          await admin.query(
+            "ALTER ROLE eurolify_operador NOLOGIN PASSWORD NULL",
+          );
           await admin.query(`DROP ROLE IF EXISTS ${papel}`);
         } finally {
           await admin.end();
@@ -289,13 +314,18 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
     expect(r.rows).toEqual([{ super: false, bypass: false }]);
   });
 
-  /** Corre o comando como na VPS: `node dist/operador.js`, com a ligação do dono. */
+  /** Corre o comando como na VPS: `node dist/operador.js`, com a ligação do papel do operador (0045). */
   async function operador(pedido: string) {
     try {
       const { stdout, stderr } = await correr(
         "node",
         [fileURLToPath(new URL("dist/operador.js", PASTA)), pedido],
-        { env: { ...process.env, BASE_DADOS_URL_MIGRACAO: urlDono } },
+        {
+          env: {
+            ...process.env,
+            BASE_DADOS_URL_OPERADOR: urlCom("eurolify_operador"),
+          },
+        },
       );
       return { codigo: 0, stdout, stderr };
     } catch (erro) {
@@ -310,7 +340,7 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
 
   it("cria o comerciante e depois a primeira chave, que a API aceita", async () => {
     const c = await operador(
-      `comerciante pt Europe/Lisbon ${nome("Loja de Ensaio")} github:1001`,
+      `comerciante pt Europe/Lisbon ${nome("Loja de Ensaio")} run:1001001 github:1001`,
     );
     expect(c.codigo, c.stderr).toBe(0);
     const comerciante = (
@@ -346,7 +376,7 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
 
   it("cria o convite do primeiro dono, que a base guarda com o resumo e quem", async () => {
     const c = await operador(
-      `comerciante pt Europe/Lisbon ${nome("Loja do Convite")} github:1001`,
+      `comerciante pt Europe/Lisbon ${nome("Loja do Convite")} run:1001002 github:1001`,
     );
     expect(c.codigo, c.stderr).toBe(0);
     const comerciante = (
@@ -422,7 +452,7 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
     // O «quem» é válido: a recusa é pelo nome, que tem de ser lido primeiro
     // (revisão do #110, P2-6).
     const r = await operador(
-      "comerciante pt Europe/Lisbon segredo-qualquer github:1001",
+      "comerciante pt Europe/Lisbon segredo-qualquer run:1 github:1001",
     );
     expect(r.codigo).toBe(65);
     expect(r.stderr).not.toContain("segredo-qualquer");
@@ -438,5 +468,111 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
       base.dono,
     );
     expect(rows[0]?.n).toBe(0);
+  }, 60_000);
+
+  it("o mesmo pedido outra vez (um «Re-run») devolve o mesmo comerciante, sem criar outro (#107)", async () => {
+    const pedido = `comerciante pt Europe/Lisbon ${nome("Loja Repetida")} run:2002002 github:1001`;
+    const primeira = await operador(pedido);
+    expect(primeira.codigo, primeira.stderr).toBe(0);
+    const segunda = await operador(pedido);
+    expect(segunda.codigo, segunda.stderr).toBe(0);
+    const a = JSON.parse(primeira.stdout) as {
+      comerciante: string;
+      ja_existia: boolean;
+    };
+    const b = JSON.parse(segunda.stdout) as typeof a;
+    expect(a.ja_existia).toBe(false);
+    expect(b).toEqual({ comerciante: a.comerciante, ja_existia: true });
+    // Outra execução, o mesmo nome: é outro pedido, outro comerciante.
+    const outra = await operador(pedido.replace("run:2002002", "run:2002003"));
+    expect(outra.codigo, outra.stderr).toBe(0);
+    expect((JSON.parse(outra.stdout) as typeof a).comerciante).not.toBe(
+      a.comerciante,
+    );
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from pedido_do_operador
+      where pedido in ('github-run:2002002', 'github-run:2002003')`.execute(
+      base.dono,
+    );
+    expect(rows[0]?.n).toBe(2);
+  }, 60_000);
+
+  it("um pedido que a base recusa não fica guardado: corrigido, o mesmo pedido cria o comerciante (revisão do #293, P3-2)", async () => {
+    const pedido = (fuso: string) =>
+      `comerciante pt ${fuso} ${nome("Loja do Fuso")} run:4004004 github:1001`;
+    // O formato passa, mas o PostgreSQL não conhece o fuso (CHECK da 0001).
+    const falhada = await operador(pedido("Europe/Inexistente"));
+    expect(falhada.codigo).toBe(1);
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from pedido_do_operador
+      where pedido = 'github-run:4004004'`.execute(base.dono);
+    expect(rows[0]?.n).toBe(0);
+    const certa = await operador(pedido("Europe/Lisbon"));
+    expect(certa.codigo, certa.stderr).toBe(0);
+    expect(
+      (JSON.parse(certa.stdout) as { ja_existia: boolean }).ja_existia,
+    ).toBe(false);
+  }, 60_000);
+
+  it("dois pedidos iguais ao mesmo tempo criam um só comerciante", async () => {
+    const pedido = `comerciante pt Europe/Lisbon ${nome("Loja em Corrida")} run:3003003 github:1001`;
+    const [x, y] = await Promise.all([operador(pedido), operador(pedido)]);
+    expect(x.codigo, x.stderr).toBe(0);
+    expect(y.codigo, y.stderr).toBe(0);
+    const ids = [x, y].map(
+      (r) => (JSON.parse(r.stdout) as { comerciante: string }).comerciante,
+    );
+    expect(ids[0]).toBe(ids[1]);
+    const existia = [x, y].map(
+      (r) => (JSON.parse(r.stdout) as { ja_existia: boolean }).ja_existia,
+    );
+    expect(existia.sort()).toEqual([false, true]);
+  }, 60_000);
+
+  it("o papel do operador não é superutilizador, não passa o RLS e só chama as três portas (revisão do #110, P3-8)", async () => {
+    const r = await admin.query<{ super: boolean; bypass: boolean }>(
+      "select rolsuper as super, rolbypassrls as bypass from pg_roles where rolname = 'eurolify_operador'",
+    );
+    expect(r.rows).toEqual([{ super: false, bypass: false }]);
+    const { rows } = await sql<{ funcao: string }>`
+      select p.proname as funcao from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and has_function_privilege('eurolify_operador', p.oid, 'EXECUTE')
+      order by 1`.execute(base.dono);
+    expect(rows.map((l) => l.funcao)).toEqual([
+      "chave_criar",
+      "comerciante_criar_pelo_operador",
+      "convite_criar_pelo_operador",
+    ]);
+    const tabelas = await sql<{ tabela: string }>`
+      select c.relname as tabela from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r'
+        and (has_table_privilege('eurolify_operador', c.oid, 'SELECT')
+          or has_table_privilege('eurolify_operador', c.oid, 'INSERT')
+          or has_table_privilege('eurolify_operador', c.oid, 'UPDATE')
+          or has_table_privilege('eurolify_operador', c.oid, 'DELETE'))`.execute(
+      base.dono,
+    );
+    expect(tabelas.rows).toEqual([]);
+    // Entrar com ele e tentar o que o dono podia: ler os comerciantes ou
+    // revogar uma chave é recusado.
+    const operadorDireto = new pg.Client({
+      connectionString: urlCom("eurolify_operador"),
+    });
+    await operadorDireto.connect();
+    try {
+      await expect(
+        operadorDireto.query("select count(*) from comerciante"),
+      ).rejects.toThrow(/permission denied/);
+      await expect(
+        operadorDireto.query(
+          "select chave_revogar('0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b', 'x')",
+        ),
+      ).rejects.toThrow(/permission denied/);
+    } finally {
+      await operadorDireto.end();
+    }
   }, 60_000);
 });

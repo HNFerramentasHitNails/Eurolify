@@ -134,6 +134,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0042_clientes_consentimentos",
         "0043_catalogo_versao_da_opcao",
         "0044_pagamentos",
+        "0045_operador_papel_minimo",
       ]);
     });
 
@@ -199,6 +200,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // os gatilhos, lêem-nas as funções do dono.
           "conta_pagamento_aviso",
           "tarefa_pagamento",
+          // Os pedidos do operador (0045): só a função do dono lhes toca.
+          "pedido_do_operador",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.

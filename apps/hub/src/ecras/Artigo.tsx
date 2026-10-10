@@ -468,6 +468,7 @@ export function Artigo({
     if (v !== null) voltar.set(f, v);
   }
   const destinoVoltar = `/artigos?${voltar.toString()}`;
+  const destinoOpcoes = `/artigos/${artigo}/opcoes?${voltar.toString()}`;
 
   const data = (iso: string) =>
     new Intl.DateTimeFormat(TAG_LINGUA[lingua], { dateStyle: "medium" }).format(
@@ -552,6 +553,21 @@ export function Artigo({
               {falhaAccao === null ? null : (
                 <CaixaDeErro erro={mensagemDeErro(falhaAccao, t, lingua)} />
               )}
+              {falhaAccao instanceof ErroHub &&
+              falhaAccao.codigo === "catalog.options_incomplete" ? (
+                // Activar sem um valor em cada opção (docs/22 §21.3).
+                <p>
+                  <a
+                    href={destinoOpcoes}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navegar(destinoOpcoes);
+                    }}
+                  >
+                    {t.artigoEditarOpcoes}
+                  </a>
+                </p>
+              ) : null}
             </div>
           )}
           <h2>{t.artigoDescricao}</h2>
@@ -562,6 +578,25 @@ export function Artigo({
             <p className="descricao-artigo">{ficha.dados.descricao}</p>
           )}
           <h2>{t.artigoVariantes}</h2>
+          {podeEscrever &&
+          ficha.dados.origem !== "externo" &&
+          opcoes.tipo === "pronto" ? (
+            // Escrever as opções (docs/22 §21.3).
+            <p>
+              <a
+                className="botao"
+                href={destinoOpcoes}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navegar(destinoOpcoes);
+                }}
+              >
+                {opcoes.dados.length === 0
+                  ? t.artigoCriarOpcoes
+                  : t.artigoEditarOpcoes}
+              </a>
+            </p>
+          ) : null}
           {opcoes.tipo === "erro" ? (
             <ErroDaParte
               erro={opcoes.erro}

@@ -384,6 +384,59 @@ export const es: Textos = {
   /** Antes da linha com as opções e os valores (docs/22 §20.2). */
   artigoOpcoes: "Opciones:",
   artigoOpcoesFalharam: "No se han podido leer las opciones.",
+  // Escrever as opções (docs/22 §21.3).
+  opcoesTitulo: "Editar opciones",
+  opcoesValorLongo: "Cada valor tiene como máximo 100 caracteres.",
+  opcoesConfirmarApagarOpcaoNenhuma:
+    "¿Eliminar la opción {nome}? Ninguna variante la tiene. No se puede deshacer.",
+  opcoesConfirmarApagarOpcaoUma:
+    "Eliminar la opción {nome} la quita de la variante que la tiene. No se puede deshacer.",
+  opcoesMoverOpcaoDepois: "Mover la opción después",
+  opcoesMoverOpcaoAntes: "Mover la opción antes",
+  artigoEditarOpcoes: "Editar opciones",
+  artigoCriarOpcoes: "Crear opciones",
+  opcoesSoRascunho:
+    "El nombre y los valores solo cambian mientras el artículo es borrador.",
+  opcoesSemOpcoes: "Este artículo todavía no tiene opciones.",
+  opcoesNome: "Nombre de la opción",
+  opcoesGuardarNome: "Guardar nombre",
+  opcoesValoresDe: "Valores de {nome}",
+  opcoesValor: "Valor",
+  opcoesGuardar: "Guardar",
+  opcoesMoverAntes: "Mover antes",
+  opcoesMoverDepois: "Mover después",
+  opcoesApagarOpcao: "Eliminar la opción",
+  opcoesApagarValor: "Eliminar",
+  opcoesConfirmarApagarOpcao:
+    "Eliminar la opción {nome} la quita de las {n} variantes que la tienen. No se puede deshacer.",
+  opcoesConfirmarApagarValor:
+    "Las variantes con {valor} se quedan sin valor en {nome}. No se puede deshacer.",
+  opcoesNovoValor: "Valor nuevo en {nome}",
+  opcoesAcrescentarValor: "Añadir valor",
+  opcoesCriar: "Crear opción",
+  opcoesNovaNome: "Nombre de la opción nueva",
+  opcoesNovaValores: "Valores, uno por línea",
+  opcoesVariantes: "Valores de las variantes",
+  opcoesIncompleta:
+    "1 variante todavía sin valor en una de las opciones: así el artículo no se activa.",
+  opcoesIncompletas:
+    "{n} variantes todavía sin valor en una de las opciones: así el artículo no se activa.",
+  opcoesGuardarVariante: "Guardar {sku}",
+  opcoesConflito:
+    "Otra persona ha cambiado esta opción mientras tanto. No hemos guardado su cambio.",
+  opcoesGuardado: "Cambios guardados.",
+  opcoesNomeVazio: "Escriba el nombre.",
+  opcoesValoresVazios: "Escriba al menos un valor.",
+  erroOpcaoDuplicada: "Ya hay una opción con este nombre en este artículo.",
+  erroValorDuplicado: "Este valor ya existe en esta opción.",
+  erroNaoRascunho:
+    "El artículo ya no es borrador: el nombre y los valores ya no cambian.",
+  erroCombinacaoRepetida:
+    "Dos variantes activas quedarían con los mismos valores. No se ha cambiado nada.",
+  erroOpcoesIncompletas: "Cada variante activa lleva un valor de cada opción.",
+  erroOrdemDesactualizada:
+    "Las opciones han cambiado mientras tanto. La lista se ha actualizado.",
+  erroOpcaoRepetida: "Una variante solo lleva un valor de cada opción.",
   colunaUnidade: "Unidad de venta",
   colunaGtin: "GTIN",
   colunaConteudo: "Contenido",
