@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { respostasDoRasto } from "../src/base/rasto-resposta.js";
+import Fastify from "fastify";
+import { sql } from "kysely";
+import { Type } from "typebox";
+import { CamposDoRasto, respostasDoRasto } from "../src/base/rasto-resposta.js";
+import { CANAIS } from "../src/base/rasto.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { criarChave } from "../src/identidade/repositorio.js";
 import {
@@ -49,10 +53,28 @@ describe("as respostas a partir de uma linha do rasto", () => {
     });
   });
 
-  it("uma prova que não é comprovado nem declarado nunca passa a verdade", () => {
+  it("uma prova que não é comprovado nem declarado nunca passa a verdade, nem leva o resto", () => {
     expect(
-      respostasDoRasto({ ...vazia, ia: { prova: "talvez" } }).ia.prova,
-    ).toBe("desconhecido");
+      respostasDoRasto({
+        ...vazia,
+        ia: { prova: "talvez", fornecedor: "x", modelo: "y" },
+      }).ia,
+    ).toEqual(DESCONHECIDA);
+  });
+
+  it("um canal que a base aceite e esta lista não conheça sai como está, sem 500", async () => {
+    const app = Fastify();
+    app.get(
+      "/t",
+      { schema: { response: { 200: Type.Object(CamposDoRasto) } } },
+      () => ({
+        ...respostasDoRasto({ ...vazia, canal: "pos", motivo: "m" }),
+      }),
+    );
+    const r = await app.inject({ method: "GET", url: "/t" });
+    await app.close();
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json<{ canal: string }>().canal).toBe("pos");
   });
 });
 
@@ -127,6 +149,20 @@ describe.skipIf(URL_BASE === undefined)(
     afterAll(async () => {
       await h.app.close();
       await base.fechar();
+    });
+
+    it("a lista dos canais é a mesma da base (contexto_do_rasto)", async () => {
+      const { rows } = await sql<{ fonte: string }>`
+        select prosrc as fonte from pg_proc where proname = 'contexto_do_rasto'`.execute(
+        base.dono,
+      );
+      expect(rows).toHaveLength(1);
+      const lista = /canal NOT IN\s*\(([^)]*)\)/.exec(rows[0]?.fonte ?? "");
+      expect(lista, "a lista dos canais na função").not.toBeNull();
+      const naBase = [...(lista?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map(
+        (m) => m[1],
+      );
+      expect([...naBase].sort()).toEqual([...CANAIS].sort());
     });
 
     it("o artigo pela API com IA declarada: de onde, o pedido, a IA; ninguém autorizou", async () => {

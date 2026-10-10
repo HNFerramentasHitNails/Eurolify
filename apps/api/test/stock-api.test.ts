@@ -984,6 +984,11 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
       autorizado_por: null,
     });
     expect(typeof linha[0]?.["pedido"]).toBe("string");
+    // A conclusão correu aqui fora do contexto do rasto (no servidor corre
+    // com o canal «sistema»): canal vazio, desconhecido, mesmo sendo de hoje
+    // (revisão do #345, P2-2); o motivo dela sai.
+    expect(linha.at(-1)).toMatchObject({ para: "concluida", canal: null });
+    expect(linha.at(-1)?.["motivo"]).toEqual(expect.any(String));
     for (const t of linha) {
       expect(Object.keys(t)).toEqual(
         expect.arrayContaining([

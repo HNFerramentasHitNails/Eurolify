@@ -1,21 +1,11 @@
 import { Type, type Static } from "typebox";
-import type { Canal } from "./rasto.js";
+import { CANAIS, type Canal } from "./rasto.js";
 
 // As seis respostas do rasto nas linhas do tempo da API (docs/28 §1 e §4,
 // passo 4; decisão DK; #322). As linhas do tempo já diziam o que mudou
 // (`campos`), quem executou (`quem`) e quando (`em`); acrescentam-se, iguais
 // em todas, de onde veio (`canal`, `pedido`), a IA, quem autorizou e o
 // motivo. Uma regra, um sítio: as rotas usam este esquema e esta função.
-
-const CanalNaResposta = Type.Union([
-  Type.Literal("hub"),
-  Type.Literal("api"),
-  Type.Literal("importacao"),
-  Type.Literal("integracao"),
-  Type.Literal("mcp"),
-  Type.Literal("sistema"),
-  Type.Literal("operador"),
-]);
 
 const TextoOuVazio = (description: string) =>
   Type.Union([Type.String(), Type.Null()], { description });
@@ -44,16 +34,21 @@ export const IaDoRastoNaResposta = Type.Object(
 
 /** Os campos que cada entrada de uma linha do tempo ganha (docs/28 §1). */
 export const CamposDoRasto = {
-  canal: Type.Union([CanalNaResposta, Type.Null()], {
+  // Um texto com a lista em `enum` (não uma união de literais): um canal
+  // novo na base que faltasse aqui sairia como está, em vez de partir a
+  // linha do tempo inteira com um 500 (revisão do #345, P2-3).
+  canal: Type.Unsafe<Canal | null>({
+    type: ["string", "null"],
+    enum: [...CANAIS, null],
     description:
-      "De onde veio a alteração. Vazio: desconhecido — a linha é de antes de 10/10/2026 (migração 0053), e então a IA, quem autorizou e o pedido também são desconhecidos",
+      "De onde veio a alteração. Vazio: desconhecido — uma linha de antes de 10/10/2026 (migração 0053), ou escrita sem o contexto do rasto; então a IA, quem autorizou e o pedido também são desconhecidos",
   }),
   pedido: TextoOuVazio(
     "O identificador do pedido HTTP (o mesmo do `instance` dos erros) ou da tarefa",
   ),
   ia: IaDoRastoNaResposta,
   autorizado_por: TextoOuVazio(
-    "pessoa:per_… que confirmou a acção, separada de quem a executou. Vazio com `canal` preenchido: nenhuma pessoa autorizou (uma chave nunca autoriza, docs/28 §3.2); vazio com `canal` vazio: desconhecido",
+    "pessoa:per_… que confirmou a acção, separada de quem a executou; quando a pessoa age ela própria no Hub, é ela. Vazio: nenhuma pessoa do comerciante confirmou — uma chave nunca autoriza, o operador (operador:github:…) e as tarefas do sistema também não, e uma sessão do Hub com IA declarada não prova que a pessoa confirmou (docs/28 §3.2); com `canal` vazio, desconhecido",
   ),
   motivo: TextoOuVazio("O motivo, quando a operação o tem"),
 };
@@ -79,14 +74,17 @@ export function respostasDoRasto(l: LinhaComRasto): RespostasDoRasto {
     ia?.prova === "comprovado" || ia?.prova === "declarado"
       ? ia.prova
       : "desconhecido";
+  // Com a prova desconhecida, nada mais da IA sai: não se contradiz
+  // (revisão do #345, P3-4).
+  const conhecida = prova !== "desconhecido";
   return {
     canal: l.canal as Canal | null,
     pedido: l.pedido,
     ia: {
       prova,
-      fornecedor: ou(ia?.fornecedor),
-      modelo: ou(ia?.modelo),
-      execucao: ou(ia?.execucao),
+      fornecedor: conhecida ? ou(ia?.fornecedor) : null,
+      modelo: conhecida ? ou(ia?.modelo) : null,
+      execucao: conhecida ? ou(ia?.execucao) : null,
     },
     autorizado_por: l.autorizado_por,
     motivo: l.motivo,
