@@ -7,7 +7,7 @@ import type {
 } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 
-// O stock e as encomendas depois de pagas (docs/27; migração 0046). O saldo
+// O stock e as encomendas depois de pagas (docs/27; migração 0047). O saldo
 // só muda por movimento: este módulo escreve movimentos, e os gatilhos da
 // base escrevem o saldo no mesmo passo (R1). O disponível de um kit vem dos
 // componentes (R4).
@@ -207,7 +207,7 @@ export async function politicas(
   return r;
 }
 
-/** Os saldos da variante, bloqueados até ao fim da transacção (0046). */
+/** Os saldos da variante, bloqueados até ao fim da transacção (0047). */
 async function bloquearSaldos(
   trx: Transaction<BaseDados>,
   variante: string,
@@ -1127,7 +1127,7 @@ async function darSaida(
   const total = new Map<string, number>();
   for (const l of linhas) {
     // A composição congelada no botão final (revisão do #296, P1-3); uma
-    // linha de antes da 0046 usa a de hoje.
+    // linha de antes da 0047 usa a de hoje.
     const congeladas = await trx
       .selectFrom("linha_encomenda_folha")
       .select(["variante_id", "por_unidade"])
@@ -1168,7 +1168,7 @@ async function darSaida(
     // Sem controlo, só sai o que ficou reservado de antes (P1-4).
     const aSair = p.politica === "nao_controla" ? Math.min(q, reservado) : q;
     if (aSair === 0) continue;
-    // Falta reserva (uma encomenda de antes da 0046): reserva agora o que
+    // Falta reserva (uma encomenda de antes da 0047): reserva agora o que
     // falta, ou recusa se não houver disponível (P2-7).
     if (reservado < aSair) {
       await trx

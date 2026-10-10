@@ -1,7 +1,7 @@
 # Stock e encomendas — modelo e lista da API
 
 > **Estado: desenho aprovado; parte 1 no código** (issue #295; migração
-> 0046; `docs/06`, DD). Diogo, 10/10/2026: *«sim, avança com o desenho da
+> 0047; `docs/06`, DE). Diogo, 10/10/2026: *«sim, avança com o desenho da
 > fatia 9»* e *«sim, aprovo; avança com o código da fatia 9»* (Q1 a Q7 como
 > propostas). O que está programado e os desvios dizem-se na §12. É a fatia 9 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
@@ -293,18 +293,18 @@ a morada.
 - **Parte 2:** os adaptadores de transportadora.
 - Cada parte num pedido, com os testes verdes e a revisão do agente antes de juntar (ADR-0031, ADR-0035).
 
-## 12. Em código — parte 1 (10/10/2026; migração 0046; `docs/06`, DD)
+## 12. Em código — parte 1 (10/10/2026; migração 0047; `docs/06`, DE)
 
 | O quê | Onde |
 |---|---|
-| tabelas `armazem` (um activo por loja), `politica_stock`, `lote` e `saldo_lote`, `saldo_stock`, `movimento_stock` (só se acrescenta), `expedicao` e `linha_expedicao`, `transicao_encomenda`, com o RLS forçado; uma interna (`tarefa_encomenda`) | migração 0046 |
-| **o livro é a única porta**: o gatilho do movimento escreve o saldo (e o do lote) no mesmo passo, com o antes e o depois; recusa o físico negativo, a reserva ou o ajuste acima do disponível (salvo «vende sem stock») e a entrada ou saída sem lote numa variante que o exige; a API não tem `INSERT` nem `UPDATE` no saldo | migração 0046 |
-| os estados da encomenda depois de paga, só para a frente, com a transição gravada (quem, quando, motivo); os eventos `order.*`, `inventory.*` | migração 0046 |
-| cancelar sem pagamento liberta as reservas pelo gatilho, venha o cancelamento de onde vier | migração 0046 |
+| tabelas `armazem` (um activo por loja), `politica_stock`, `lote` e `saldo_lote`, `saldo_stock`, `movimento_stock` (só se acrescenta), `expedicao` e `linha_expedicao`, `transicao_encomenda`, com o RLS forçado; uma interna (`tarefa_encomenda`) | migração 0047 |
+| **o livro é a única porta**: o gatilho do movimento escreve o saldo (e o do lote) no mesmo passo, com o antes e o depois; recusa o físico negativo, a reserva ou o ajuste acima do disponível (salvo «vende sem stock») e a entrada ou saída sem lote numa variante que o exige; a API não tem `INSERT` nem `UPDATE` no saldo | migração 0047 |
+| os estados da encomenda depois de paga, só para a frente, com a transição gravada (quem, quando, motivo); os eventos `order.*`, `inventory.*` | migração 0047 |
+| cancelar sem pagamento liberta as reservas pelo gatilho, venha o cancelamento de onde vier | migração 0047 |
 | o disponível dos kits pelos componentes (kits dentro de kits até 10 níveis); a reserva e a saída dos componentes | `src/stock/repositorio.ts` |
 | o resumo do checkout bloqueia a linha sem stock (`stock:var_…`); o botão final reserva e recusa `checkout.out_of_stock` | `src/checkout/repositorio.ts` |
 | a vista do armazém (`/fulfilment/orders`), as expedições, os armazéns, as entradas, os ajustes, o livro, os lotes, a política e a linha do tempo da encomenda — a lista da §7 | `src/stock/rotas.ts` |
-| âmbitos `inventory:*` e `fulfilment:*` nos papéis (o armazém deixa de precisar de `orders:read`) | migração 0046; `src/identidade/` |
+| âmbitos `inventory:*` e `fulfilment:*` nos papéis (o armazém deixa de precisar de `orders:read`) | migração 0047; `src/identidade/` |
 | a tarefa da conclusão (14 dias depois de entregue), de hora a hora dentro da API | `src/stock/repositorio.ts`, `src/servidor.ts` |
 | 13 testes pela API | `test/stock-api.test.ts` |
 

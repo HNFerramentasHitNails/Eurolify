@@ -6,7 +6,9 @@ import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
   CANAIS_CONSENTIMENTO,
   ENTIDADES_DO_RASTO_CLIENTE,
+  ESTADOS_DUPLICADO,
   ESTADOS_VIES,
+  SINAIS_DUPLICADO,
   type BaseDados,
 } from "../base/esquema.js";
 import {
@@ -29,8 +31,12 @@ import {
   criarCliente,
   criarEtiqueta,
   criarPerfil,
+  descartarDuplicado,
+  fundirClientes,
   linhaDoTempo,
   listarConsentimentos,
+  listarDuplicados,
+  obterDuplicado,
   listarIsencoes,
   listarValidacoes,
   obterIsencao,
@@ -87,6 +93,10 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.exemption_immutable": 409,
   "customers.exemption_by_person": 422,
   "customers.exemption_reason_code": 422,
+  "customers.merge_same": 422,
+  "customers.merge_by_person": 422,
+  "customers.merge_too_many_contacts": 409,
+  "customers.duplicate_decided": 409,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -148,6 +158,10 @@ const Cliente = Type.Object({
     description: "Residência declarada; não é o país do contribuinte",
   }),
   estado: Type.String(),
+  fundido_em: Type.Union([Type.String(), Type.Null()], {
+    description:
+      "Numa ficha fundida, a ficha em que foi fundida (cus_…); a fundida fica só de leitura",
+  }),
   limitado: Type.Boolean(),
   etiquetas: Type.Array(Type.String({ description: "ctg_…" })),
   versao: Type.Integer(),
@@ -163,6 +177,7 @@ const paraCliente = (c: LinhaCliente): Static<typeof Cliente> => ({
   lingua: c.lingua,
   pais: c.pais,
   estado: c.estado,
+  fundido_em: c.fundido_em === null ? null : `cus_${c.fundido_em}`,
   limitado: c.limitado,
   etiquetas: c.etiquetas.map((e) => `ctg_${e}`),
   versao: c.versao,
@@ -262,6 +277,10 @@ const Perfil = Type.Object({
     description:
       "Depois de usado num documento, o NIF, o tipo e o país não mudam (R4): cria-se outro perfil",
   }),
+  copiado_de: Type.Union([Type.String(), Type.Null()], {
+    description:
+      "Numa cópia feita por uma fusão, o perfil da ficha absorvida de onde veio (bpf_…)",
+  }),
   versao: Type.Integer(),
   criado_em: Instante,
   actualizado_em: Instante,
@@ -291,6 +310,7 @@ const paraPerfil = (p: LinhaPerfil): Static<typeof Perfil> => ({
   isencao_em_vigor: p.isencao_em_vigor,
   estado: p.estado,
   usado_em_documento: p.usado_em_documento,
+  copiado_de: p.copiado_de === null ? null : `bpf_${p.copiado_de}`,
   versao: p.versao,
   criado_em: p.criado_em.toISOString(),
   actualizado_em: p.actualizado_em.toISOString(),
@@ -357,6 +377,7 @@ const PREFIXO: Record<string, string | undefined> = {
   perfil_faturacao: "bpf",
   etiqueta_cliente: "ctg",
   consentimento: "cns",
+  duplicado_cliente: "dup",
 };
 const Alteracao = Type.Object({
   id: Type.String({ description: "chg_…" }),
@@ -550,6 +571,100 @@ const ReguaMarketing = Type.Object(
       "A régua única por canal (pode_receber_marketing, migração 0042): só as declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não",
   },
 );
+
+// Duplicados e fusões (§3.7; migração 0046).
+const IdDuplicado = idCom("dup", "dup_…");
+const Duplicado = Type.Object({
+  id: Type.String({ description: "dup_…" }),
+  clientes: Type.Array(Type.String({ description: "cus_…" }), {
+    minItems: 2,
+    maxItems: 2,
+  }),
+  sinais: Type.Array(umDe(SINAIS_DUPLICADO), {
+    description:
+      "O tipo do sinal, nunca o valor: o mesmo NIF em perfis particulares (forte), o mesmo e-mail ou telefone (talvez). O nome nunca é sinal",
+  }),
+  forte: Type.Boolean(),
+  estado: umDe(ESTADOS_DUPLICADO),
+  motivo: Type.Union([Type.String(), Type.Null()]),
+  decidido_por: Type.Union([Type.String(), Type.Null()]),
+  decidido_em: Type.Union([Instante, Type.Null()]),
+  criado_em: Instante,
+});
+type LinhaDuplicado = Awaited<ReturnType<typeof obterDuplicado>>;
+const paraDuplicado = (d: LinhaDuplicado): Static<typeof Duplicado> => ({
+  id: `dup_${d.id}`,
+  clientes: [`cus_${d.cliente_a}`, `cus_${d.cliente_b}`],
+  sinais: d.sinais,
+  forte: d.forte,
+  estado: d.estado,
+  motivo: d.motivo,
+  decidido_por: d.decidido_por,
+  decidido_em: d.decidido_em === null ? null : d.decidido_em.toISOString(),
+  criado_em: d.criado_em.toISOString(),
+});
+const ConsultaDuplicados = Type.Object(
+  {
+    ...ConsultaPagina.properties,
+    estado: Type.Optional(umDe(ESTADOS_DUPLICADO)),
+  },
+  { additionalProperties: false },
+);
+const PedidoDescartar = Type.Object(
+  {
+    motivo: Type.Optional(
+      Type.Union([Type.String({ minLength: 1, maxLength: 500 }), Type.Null()]),
+    ),
+  },
+  { additionalProperties: false },
+);
+const PedidoFundir = Type.Object(
+  {
+    absorver: idCom("cus", "A ficha que deixa de estar activa (cus_…)"),
+    ensaio: Type.Boolean({
+      description:
+        "Verdadeiro: devolve o que mudaria, sem escrever. Não há desfazer: veja primeiro",
+    }),
+  },
+  { additionalProperties: false },
+);
+const PlanoFusaoEsquema = Type.Object({
+  ensaio: Type.Boolean(),
+  fica: Type.String({ description: "cus_…" }),
+  absorvida: Type.String({ description: "cus_…" }),
+  emails_acrescentados: Type.Array(Type.String()),
+  telefones_acrescentados: Type.Array(Type.String()),
+  perfis_copiados: Type.Array(
+    Type.Object({
+      de: Type.String({ description: "bpf_… da ficha absorvida" }),
+      para: Type.Union([Type.String(), Type.Null()], {
+        description: "A cópia na ficha que fica (bpf_…); nula no ensaio",
+      }),
+    }),
+  ),
+  perfis_iguais_nao_copiados: Type.Array(Type.String()),
+  isencoes_por_repor: Type.Array(Type.String(), {
+    description:
+      "Perfis da absorvida com isenção manual em vigor: a isenção não se copia, uma pessoa volta a pô-la na cópia",
+  }),
+  etiquetas_copiadas: Type.Array(Type.String()),
+  etiquetas_arquivadas_nao_copiadas: Type.Array(Type.String()),
+  consentimentos_da_absorvida: Type.Integer({
+    description: "Não se movem: a régua da ficha que fica passa a contá-los",
+  }),
+  encomendas_ficam_na_absorvida: Type.Integer(),
+  limitado: Type.Boolean({
+    description: "A ficha que fica fica limitada se alguma das duas estava",
+  }),
+  marketing_antes: ReguaMarketing,
+  marketing_depois: Type.Object(
+    { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
+    {
+      description:
+        "A régua da ficha que fica depois da fusão: conta as declarações das duas, e o consentimento passa a cobrir os contactos acrescentados (docs/23 §3.7)",
+    },
+  ),
+});
 
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });
 const ParametroEtiquetaDoCliente = Type.Object({
@@ -1245,6 +1360,107 @@ export function rotasDosClientes(
           return paraConsentimento(
             await obterConsentimento(trx, c.comercianteId, id),
           );
+        }),
+      ),
+  );
+
+  // ---- Duplicados e fusões (§3.7)
+
+  // Fundir e decidir candidatos: dono e gestor (docs/23 §7).
+  const fusoes = { ambito: "customers:merge" as const };
+
+  rotas.get(
+    "/customer-duplicates",
+    {
+      config: ler,
+      schema: {
+        description:
+          "Os candidatos a duplicado que o servidor sinalizou (por omissão, os por decidir), os mais recentes primeiro. O servidor nunca funde sozinho.",
+        querystring: ConsultaDuplicados,
+        response: { 200: Lista(Duplicado), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      comPagina(
+        await emClientes(resposta, () =>
+          listarDuplicados(
+            base,
+            chaveDo(pedido).comercianteId,
+            pedido.query.estado ?? "por_decidir",
+            limiteDe(pedido.query),
+            idDoCursor(pedido.query.cursor),
+          ),
+        ),
+        paraDuplicado,
+      ),
+  );
+
+  rotas.post(
+    "/customer-duplicates/:id/dismiss",
+    {
+      config: fusoes,
+      schema: {
+        description:
+          "Descarta um candidato (não são a mesma pessoa), com o motivo; fica na linha do tempo. Um sinal novo no mesmo par volta a pô-lo por decidir.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdDuplicado),
+        body: PedidoDescartar,
+        response: { 200: Duplicado, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, c) =>
+        emClientes(resposta, async () => {
+          const id = semPrefixo(pedido.params.id);
+          await descartarDuplicado(
+            trx,
+            c.comercianteId,
+            id,
+            pedido.body.motivo ?? null,
+          );
+          return paraDuplicado(await obterDuplicado(trx, c.comercianteId, id));
+        }),
+      ),
+  );
+
+  rotas.post(
+    "/customers/:id/merge",
+    {
+      config: fusoes,
+      schema: {
+        description:
+          "Funde a ficha `absorver` nesta (docs/23 §3.7), por uma pessoa: a absorvida fica fundida e só de leitura, com as encomendas dela; esta recebe os e-mails, os telefones, as etiquetas activas e uma cópia de cada perfil activo (a isenção manual não se copia). Com `ensaio`, devolve o que mudaria sem escrever. Não há desfazer.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdCliente),
+        body: PedidoFundir,
+        response: { 200: PlanoFusaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, c) =>
+        emClientes(resposta, async () => {
+          const p = await fundirClientes(
+            trx,
+            c.comercianteId,
+            semPrefixo(pedido.params.id),
+            semPrefixo(pedido.body.absorver),
+            pedido.body.ensaio,
+          );
+          const bpf = (id: string) => `bpf_${id}`;
+          return {
+            ...p,
+            fica: `cus_${p.fica}`,
+            absorvida: `cus_${p.absorvida}`,
+            perfis_copiados: p.perfis_copiados.map((x) => ({
+              de: bpf(x.de),
+              para: x.para === null ? null : bpf(x.para),
+            })),
+            perfis_iguais_nao_copiados: p.perfis_iguais_nao_copiados.map(bpf),
+            isencoes_por_repor: p.isencoes_por_repor.map(bpf),
+            etiquetas_copiadas: p.etiquetas_copiadas.map((e) => `ctg_${e}`),
+            etiquetas_arquivadas_nao_copiadas:
+              p.etiquetas_arquivadas_nao_copiadas.map((e) => `ctg_${e}`),
+          };
         }),
       ),
   );

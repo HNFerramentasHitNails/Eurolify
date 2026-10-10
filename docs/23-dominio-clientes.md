@@ -5,7 +5,8 @@
 > aprovo; avança com o código da fatia 5»* (as cinco respostas da §9 como
 > propostas). **Parte 3 (VIES e isenção manual): aprovada e no código, §13**
 > (`docs/06`, CY). **Parte 2a (consentimentos e régua do marketing): no
-> código, §12** (Diogo, 10/10/2026: *«sim, avança com a parte 2»*). É a fatia 5 do
+> código, §12** (Diogo, 10/10/2026: *«sim, avança com a parte 2»*). **Parte
+> 2b (duplicados e fusões, perfis copiados): no código, §12**. É a fatia 5 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Clientes e perfis de faturação; finalidade por encomenda») e é preciso
 > antes do Motor de IVA (fatia 6) e do checkout (fatia 7): o Motor de IVA
@@ -216,11 +217,23 @@ si.
 - A fusão é um pedido de uma pessoa, com âmbito próprio (`customers:merge`),
   que escolhe a ficha que fica; a outra fica `fundida` com `fundido_em`, não
   se apaga — **proposta**.
-- Passam para a ficha que fica: os perfis, as etiquetas, os consentimentos
-  (todas as linhas; a régua decide pelo mais recente), e o 2.º e-mail e o 2.º
+- Passam para a ficha que fica: as etiquetas activas e o 2.º e-mail e o 2.º
   telefone **guardados, não perdidos** — regra (`eu-gdpr-privacy`).
-- As encomendas e os documentos **não mudam de perfil**: continuam ligados ao
-  `bpf_` que tinham, agora dentro da ficha que ficou — **proposta**.
+- **Os perfis copiam-se** (Diogo, 10/10/2026, *«sim, copiar (A)»*; `docs/06`,
+  DD): um perfil nunca muda de ficha (0037) e cada encomenda está presa ao par
+  ficha e perfil (0041). A ficha que fica recebe uma cópia de cada perfil
+  activo, com `copiado_de`; a cópia volta ao VIES; a isenção manual **não**
+  se copia (uma pessoa volta a pô-la). Uma cópia igual a um perfil activo da
+  ficha que fica não se faz.
+- Os consentimentos **não se movem** (não se alteram, 0042): a régua da ficha
+  que fica conta as declarações das fichas fundidas nela, e uma declaração
+  pedida com o id antigo regista-se na ficha que ficou. Vale a declaração
+  mais recente das duas; o consentimento da ficha que fica passa a cobrir os
+  e-mails e telefones acrescentados — **C** (é a mesma pessoa, mas se o
+  consentimento por endereço o permite **não verifiquei**; jurista, com a V4).
+  O ensaio mostra a régua antes e depois (revisão do #298, P2-1).
+- As encomendas e os documentos **não mudam**: ficam na ficha absorvida, com o
+  perfil que tinham.
 - **Sem desfazer** na Fase 1: antes de fundir, a API mostra o que vai mudar
   (pré-visualização, como o ensaio da importação), e o rasto guarda tudo —
   **proposta**.
@@ -493,12 +506,48 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 | `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações por páginas e a régua por canal em todas | `src/clientes/rotas.ts` |
 | 18 testes; as mutações da régua e dos gatilhos todas apanhadas, salvo trocar o relógio pela hora do início da transacção, que depois da P2-1 dá a mesma ordem | `test/clientes-consentimentos.test.ts` |
 
-**Fica para a parte 2b** (revisão do #289, P2-4 e P3): as linhas de
-consentimento não se alteram e a ficha fundida recusa declarações novas; por
-isso a fusão não as «passa» de ficha (§3.7): a régua da ficha que fica tem de
-contar as das fichas absorvidas, e uma retirada pedida com o id antigo (a
-ligação de um e-mail antigo) tem de seguir `fundido_em` e valer na ficha que
-ficou — retirar tem de ser tão fácil como dar.
+**Parte 2b — duplicados e fusões** (migração 0046; issue #233; Diogo,
+10/10/2026: *«sim, avança com a parte 2b»* e *«sim, copiar (A)»*):
+
+| O quê | Onde |
+|---|---|
+| a fila de candidatos (`duplicado_cliente`, `dup_`): o servidor sinaliza ao criar ou mudar uma ficha ou um perfil, nunca funde. Sinais: o mesmo NIF em perfis particulares (forte), o mesmo e-mail sem diferença de maiúsculas ou o mesmo telefone (talvez); o NIF de empresa (Q2) e o nome não são sinal; só o tipo do sinal, nunca o valor | migração 0046 |
+| descartar (`duplicado_descartar`) e fundir (`cliente_fundir`) só por uma pessoa ou a chave dela (R10); um sinal novo num par descartado volta a pô-lo por decidir (proposta) | migração 0046 |
+| a fusão com ensaio: a absorvida fica `fundido` com `fundido_em` (com a chave estrangeira, P3-10), os contactos acrescentam-se (recusa se passarem de 10), as etiquetas activas e os perfis activos copiam-se, a limitação passa; o par fica `fundido` e os outros pares da absorvida `fechado`; o evento `customer.merged` | migração 0046 |
+| os consentimentos das fundidas contam na régua da ficha que fica (`clientes_do_grupo`), e uma declaração com o id antigo vai para a que ficou (revisão do #289, P2-4) | migração 0046 |
+| `GET /customer-duplicates`, `POST /customer-duplicates/{id}/dismiss`, `POST /customers/{id}/merge` (`{ absorver, ensaio }`); a ficha mostra `fundido_em`, o perfil `copiado_de` | `src/clientes/rotas.ts` |
+| o âmbito `customers:merge` (dono e gestor) | migração 0046; `src/identidade/` |
+| 13 testes de fusões, o de consentimentos revisto e o da migração sobre dados | `test/clientes-fusoes.test.ts`, `test/migracao-0046.test.ts` |
+
+**Depois da revisão do agente** (#298, Sonnet 5.5; sem P0 nem P1):
+- a ficha fundida é só de leitura também para uma isenção nova, tirar uma
+  etiqueta e pedir o VIES; os perfis dela saem da fila do VIES (P2-2, P3-2);
+- a régua calcula o grupo uma vez (`regua_marketing`, a única que conta
+  declarações; P2-3) — o efeito com milhares de declarações **não medi**;
+- o plano traz `marketing_antes` e `marketing_depois` (P2-1);
+- a cópia do principal da absorvida é a principal se a ficha que fica não
+  tinha perfis (P3-6);
+- um teste da migração sobre fichas que já existiam (`migracao-0046.test.ts`).
+
+**Fica de fora da 2b, com o que a revisão apontou:**
+- desfazer uma fusão (Fase 1 sem desfazer);
+- a ferramenta `eurolify_duplicados` do MCP, que entra com as de Clientes; o
+  MCP **nunca** expõe `customers:merge` (P3-4);
+- um sinal que deixou de existir (o e-mail mudou) não tira o par da fila;
+  um par descartado com a absorvida pode voltar com a ficha que fica — decide
+  uma pessoa (P3-6);
+- **para a 2c:** os pedidos do titular têm de alcançar o grupo inteiro (a
+  ficha que fica não lista as fundidas nela: `clientes_do_grupo`; P3-3);
+- **para a fatia 10 (documentos):** marcar `usado_em_documento` num perfil de
+  uma ficha fundida (encomenda anterior à fusão) é hoje recusado pelo gatilho
+  do perfil; abrir a excepção só para essa marca;
+- **Motor de IVA:** decide com o perfil da encomenda, mesmo de uma ficha
+  fundida (pós-venda) — é o certo, fica dito aqui;
+- **concorrência:** editar o e-mail de uma ficha ao mesmo tempo que ela entra
+  numa fusão pode dar `customers.retry` (503) a uma das duas (P3-1); não
+  corrompe dados;
+- **âmbitos:** o gestor funde (desenho) mas não tem `customers:billing`; as
+  cópias dos perfis nascem pela fusão, não por ele (P3-5).
 
 **Fica para a parte 2c:** a pseudonimização apaga os consentimentos de
 marketing (§4.1); a recusa de apagar desta migração terá de abrir só para

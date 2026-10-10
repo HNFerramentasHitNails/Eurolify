@@ -629,14 +629,15 @@ GRANT INSERT (comerciante_id, expedicao_id, linha_encomenda_id, quantidade)
 -- ------------------------------------------------------------- Os âmbitos
 
 ALTER TABLE chave_api DROP CONSTRAINT chave_api_ambitos_validos;
+-- Até 40: o dono passa a ter 31 âmbitos (os da 0046 mais os do stock).
 ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
-  cardinality(ambitos) BETWEEN 1 AND 30
+  cardinality(ambitos) BETWEEN 1 AND 40
   AND ambitos <@ ARRAY[
     'merchant:read', 'merchant:write',
     'catalog:read', 'catalog:write', 'catalog:publish', 'catalog:import',
     'catalog:history', 'prices:read', 'prices:write',
     'customers:read', 'customers:write', 'customers:billing',
-    'customers:exemptions', 'tax:read', 'tax:write',
+    'customers:exemptions', 'customers:merge', 'tax:read', 'tax:write',
     'legal:read', 'legal:write', 'shipping:read', 'shipping:write', 'orders:read',
     'payments:read', 'payments:write', 'payments:accounts', 'payments:resolve',
     'inventory:read', 'inventory:write', 'inventory:policy', 'fulfilment:read',
@@ -646,21 +647,22 @@ ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
 
 CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  -- Por ordem alfabética, como em src/identidade/papeis.ts. O armazém vê o
+  -- Por ordem alfabética, como em src/identidade/papeis.ts; com o
+  -- customers:merge da 0046. O armazém vê o
   -- que expedir pela vista própria (docs/27 §6).
   SELECT CASE p_papel
     WHEN 'dono' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
                   'catalog:read', 'catalog:write', 'customers:billing',
-                  'customers:exemptions', 'customers:read', 'customers:write',
-                  'fulfilment:read', 'fulfilment:write', 'inventory:policy', 'inventory:read',
-                  'inventory:write', 'keys:write', 'legal:read', 'legal:write',
+                  'customers:exemptions', 'customers:merge', 'customers:read',
+                  'customers:write', 'fulfilment:read', 'fulfilment:write',
+                  'inventory:policy', 'inventory:read', 'inventory:write', 'keys:write', 'legal:read', 'legal:write',
                   'merchant:read', 'merchant:write', 'orders:read',
                   'payments:accounts', 'payments:read', 'payments:resolve',
                   'payments:write', 'prices:read', 'prices:write', 'shipping:read',
                   'shipping:write', 'tax:read', 'tax:write']
     WHEN 'gestor' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
-                  'catalog:read', 'catalog:write', 'customers:read', 'customers:write',
-                  'fulfilment:read', 'fulfilment:write', 'inventory:policy', 'inventory:read',
+                  'catalog:read', 'catalog:write', 'customers:merge', 'customers:read',
+                  'customers:write', 'fulfilment:read', 'fulfilment:write', 'inventory:policy', 'inventory:read',
                   'inventory:write', 'legal:read', 'merchant:read', 'orders:read',
                   'payments:read', 'payments:write', 'prices:read', 'prices:write',
                   'shipping:read', 'shipping:write', 'tax:read']
