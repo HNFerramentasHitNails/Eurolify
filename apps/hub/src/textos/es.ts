@@ -508,6 +508,26 @@ export const es: Textos = {
   artigoVarianteJaArquivada: "La variante ya estaba archivada.",
   artigoOrdemAMeio:
     "El orden de las imágenes quedó a medias: revíselo y vuelva a moverlas si hace falta.",
+  varianteEditarTitulo: "Editar la variante",
+  varianteEditarAria: "Editar la variante {sku}",
+  varianteGrupoUnidade: "Unidad y contenido",
+  varianteGrupoGtin: "Código de barras",
+  varianteGrupoMedidas: "Peso y medidas",
+  varianteGrupoPerigosas: "Mercancías peligrosas",
+  varianteOnu: "Número ONU",
+  varianteOnuAjuda: "Solo si la mercancía es peligrosa. Ej.: UN1263.",
+  varianteOnuFormato: "El número ONU es «UN» y cuatro dígitos (ej.: UN1263).",
+  varianteClasseAdr: "Clase ADR",
+  varianteClasseAdrLonga: "Como máximo 16 caracteres.",
+  varianteUnidadeSoRascunho:
+    "La unidad y el contenido solo cambian mientras el artículo es borrador.",
+  varianteArquivada: "Esta variante está archivada y no cambia.",
+  varianteNaoExiste: "Esta variante no existe en este artículo.",
+  varianteConflito:
+    "Otra persona ha modificado esta variante. No hemos guardado sus cambios.",
+  variantePesoAVenda:
+    "La variante está a la venta: el peso se cambia, pero no se borra.",
+  erroPublicadoEmUso: "Está a la venta en una tienda: este campo no se borra.",
   conviteInstrucao: "Escriba su nombre y cree la cuenta con una passkey.",
   conviteResumo:
     "Le han invitado al equipo de {comerciante}, con la función {papel}.",

@@ -3,6 +3,7 @@
 // sempre em JSON; os erros chegam no formato RFC 9457 com um `codigo`.
 
 import type { OpcaoArtigo } from "./opcoes";
+import type { AlteracaoVariante } from "./variante";
 
 export type Papel = "dono" | "gestor" | "armazem" | "apoio";
 export const PAPEIS: readonly Papel[] = ["dono", "gestor", "armazem", "apoio"];
@@ -130,9 +131,18 @@ export interface VarianteArtigo {
   estado: "activa" | "arquivada";
   unidade_de_venda: "unidade" | "par" | "caixa" | "embalagem" | "conjunto";
   gtin: string | null;
+  gtin_origem: string | null;
   conteudo_quantidade: number | null;
   conteudo_unidade: string | null;
   peso_g: number | null;
+  comprimento_mm: number | null;
+  largura_mm: number | null;
+  altura_mm: number | null;
+  onu: string | null;
+  classe_adr: string | null;
+  posicao: number;
+  /** A versão lida: alterar a variante leva-a (docs/22 §23.1). */
+  versao: number;
 }
 
 export const UNIDADES_DE_VENDA = [
@@ -770,6 +780,16 @@ export const api = {
     pedir<FichaArtigo>("POST", `/hub/products/${artigo}/${accao}`, {
       comerciante,
       corpo: { versao },
+    }),
+  /** Alterar a variante (docs/22 §23.1): só os campos que mudam. */
+  alterarVariante: (
+    comerciante: string,
+    variante: string,
+    corpo: AlteracaoVariante,
+  ) =>
+    pedir<VarianteArtigo>("PATCH", `/hub/variants/${variante}`, {
+      comerciante,
+      corpo,
     }),
   arquivarVariante: (comerciante: string, variante: string) =>
     pedir<VarianteArtigo>("POST", `/hub/variants/${variante}/archive`, {

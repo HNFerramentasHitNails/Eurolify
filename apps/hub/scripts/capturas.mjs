@@ -307,6 +307,12 @@ let artigoExterno = "";
 let artigoDoHistorico = "";
 let canalDaFicha;
 let mercadoDaFicha;
+// Alterar uma variante (docs/22 §23): o «Gel Coral 41», activo e publicado
+// em rascunho porque a ENS-041 não tem peso; a passagem dá-lho pelo Hub e
+// publica outra vez. A ligação da preparação fica para essa publicação.
+let artigoSemPeso = "";
+let urlDaPreparacaoTexto;
+let listaDaFicha;
 {
   const CORES = ["Azul", "Rosa", "Verde", "Lilás", "Coral", "Areia"];
   // A linha do tempo do catálogo (docs/14 §3.12, migração 0033) recusa uma
@@ -318,7 +324,8 @@ let mercadoDaFicha;
     "options",
     "-c eurolify.quem=passagem:preparar",
   );
-  const baseArtigos = abrirBase(urlDaPreparacao.toString());
+  urlDaPreparacaoTexto = urlDaPreparacao.toString();
+  const baseArtigos = abrirBase(urlDaPreparacaoTexto);
   for (let i = 0; i < 30; i++) {
     const id = await criarArtigo(
       baseArtigos,
@@ -543,6 +550,7 @@ let mercadoDaFicha;
   }
   canalDaFicha = canal;
   mercadoDaFicha = mercado;
+  listaDaFicha = lista;
   await baseArtigos.destroy();
 }
 
@@ -3525,6 +3533,363 @@ try {
     (await rp.getByRole("button", { name: "Criar opção" }).count()) === 0 &&
       (await rp.getByLabel("Nome da opção nova").count()) === 0,
     "opções: num artigo do sistema de gestão, a página só mostra o aviso",
+  );
+  // Alterar uma variante (docs/22 §23; issue #301), com a Ana (dona). O
+  // «Gel Coral 41» está activo e publicado em rascunho por falta de peso:
+  // o peso dado aqui resolve-o (o exemplo da §23). Com o seu endereço
+  // (limite do Hub, issue #253).
+  {
+    const baseArtigos = abrirBase(urlDaPreparacaoTexto);
+    const lista = listaDaFicha;
+    const canal = canalDaFicha;
+    const mercado = mercadoDaFicha;
+    const quem = "pessoa:passagem";
+    try {
+      // O «Gel Coral 41» (docs/22 §23): activo, com preço e sem peso; a
+      // publicação fica em rascunho com «peso em falta».
+      artigoSemPeso = await criarArtigo(
+        baseArtigos,
+        comerciante,
+        { tipo: "fisico", nome: "Gel Coral 41", categoria_fiscal: "normal" },
+        [{ sku: "ENS-041", unidade_de_venda: "unidade" }],
+      );
+      await classificarArtigo(
+        baseArtigos,
+        comerciante,
+        artigoSemPeso,
+        (await obterArtigo(baseArtigos, comerciante, artigoSemPeso)).versao,
+        { familias: ["retalho_geral"], natureza_consumidor: "bem" },
+        quem,
+      );
+      await mudarEstadoArtigo(
+        baseArtigos,
+        comerciante,
+        artigoSemPeso,
+        (await obterArtigo(baseArtigos, comerciante, artigoSemPeso)).versao,
+        "activo",
+      );
+      const ens041 = await comComerciante(baseArtigos, comerciante, (trx) =>
+        trx
+          .selectFrom("variante")
+          .select("id")
+          .where("artigo_id", "=", artigoSemPeso)
+          .executeTakeFirstOrThrow(),
+      );
+      await definirPreco(baseArtigos, comerciante, quem, lista, ens041.id, {
+        montante: 1290,
+      });
+      const semPeso = await publicar(baseArtigos, comerciante, quem, {
+        artigo_id: artigoSemPeso,
+        canal_id: canal,
+        mercado_id: mercado,
+      });
+      if (
+        semPeso.publicada ||
+        !semPeso.verificacao.impedimentos.some(
+          (i) => i.codigo === "peso_em_falta",
+        )
+      ) {
+        throw new Error(
+          "o Gel Coral 41 devia ficar em rascunho por falta de peso",
+        );
+      }
+    } finally {
+      await baseArtigos.destroy();
+    }
+  }
+  await enderecoNovo(rp);
+  const fichaCoral41 = `${ORIGEM}/artigos/prd_${artigoSemPeso}?comerciante=mer_${comerciante}`;
+  await rp.goto(fichaCoral41);
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  const ligacaoEns041 = rp.getByRole("link", {
+    name: "Editar a variante ENS-041",
+  });
+  const caminhoEns041 = (await ligacaoEns041.getAttribute("href")) ?? "";
+  const idEns041 = caminhoEns041.split("/")[4]?.split("?")[0] ?? "";
+  await ligacaoEns041.click();
+  await rp
+    .getByRole("heading", { name: "Editar a variante", level: 1 })
+    .waitFor();
+  confere(
+    (await rp
+      .getByText(
+        "A unidade e o conteúdo só mudam enquanto o artigo é rascunho.",
+      )
+      .count()) === 1 &&
+      (await rp.locator("#variante-unidade").count()) === 0 &&
+      (await rp.getByText("Sem peso, não se pode publicar.").count()) === 1 &&
+      (await rp.getByText("ENS-041", { exact: true }).count()) === 1,
+    "variante: num artigo activo, o SKU, a unidade e o conteúdo só se lêem; sem peso, o ecrã avisa",
+  );
+  // Os erros do ecrã, antes de pedir: ao lado de cada campo, o foco no
+  // primeiro.
+  await rp.getByLabel("GTIN", { exact: true }).fill("123");
+  await rp.getByLabel("Número ONU").fill("1263");
+  await rp.getByLabel("Peso (g)").fill("1,5");
+  await rp.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rp.waitForFunction(
+    () => document.activeElement?.id === "variante-gtin",
+  );
+  confere(
+    (await rp.getByText("O GTIN tem 8, 12, 13 ou 14 algarismos.").count()) ===
+      1 &&
+      (await rp
+        .getByText("O número ONU é «UN» e quatro algarismos", { exact: false })
+        .count()) === 1 &&
+      (await rp.getByText("Um número inteiro, sem casas decimais.").count()) ===
+        1 &&
+      (await rp.getByLabel("Peso (g)").getAttribute("aria-invalid")) === "true",
+    "variante: o GTIN, o ONU e o peso mal escritos dizem-se ao lado do campo, com o foco no primeiro",
+  );
+  // O GTIN de outra variante (409 da API): o erro ao lado do GTIN, só com
+  // o teclado.
+  await rp.getByLabel("GTIN", { exact: true }).focus();
+  await rp.keyboard.press("Control+A");
+  await rp.keyboard.type("5601234567892");
+  await rp
+    .getByLabel("Origem do GTIN")
+    .selectOption({ label: "Do fornecedor" });
+  await rp.getByLabel("Número ONU").fill("un1263");
+  await rp.getByLabel("Peso (g)").fill("60");
+  await rp.getByRole("button", { name: "Guardar", exact: true }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByText("Este GTIN já existe neste comerciante.").waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) === "variante-gtin" &&
+      (await rp.getByLabel("Peso (g)").inputValue()) === "60",
+    "variante: um GTIN que já existe (409) marca o campo dele e deixa o resto escrito",
+  );
+  // Sair com alterações por guardar pergunta antes; «não» fica.
+  let perguntaSair = "";
+  rp.once("dialog", (d) => {
+    perguntaSair = d.message();
+    void d.dismiss();
+  });
+  await rp.getByRole("button", { name: "Cancelar" }).click();
+  confere(
+    perguntaSair === "Tem alterações por guardar. Sair sem guardar?" &&
+      new URL(rp.url()).pathname.includes("/variantes/"),
+    "variante: cancelar com alterações pergunta antes de sair",
+  );
+  await rp.getByLabel("GTIN", { exact: true }).fill("4006381333931");
+  await rp.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  await rp.getByText("Alterações guardadas.").waitFor();
+  confere(
+    (await rp
+      .getByRole("row", { name: /ENS-041.*4006381333931.*60 g/ })
+      .count()) === 1,
+    "variante: guardar volta à ficha, com «Alterações guardadas.» e o peso e o GTIN na linha",
+  );
+  // O peso resolve a publicação: publicar outra vez agora passa.
+  {
+    const base = abrirBase(urlDaPreparacaoTexto);
+    try {
+      const outra = await publicar(base, comerciante, "pessoa:passagem", {
+        artigo_id: artigoSemPeso,
+        canal_id: canalDaFicha,
+        mercado_id: mercadoDaFicha,
+      });
+      confere(
+        outra.publicada,
+        "variante: com o peso dado no Hub, o «peso em falta» desaparece e o artigo publica-se",
+      );
+    } finally {
+      await base.destroy();
+    }
+  }
+  await rp.goto(fichaCoral41);
+  await rp
+    .getByRole("row", { name: /Loja online.*Portugal.*Publicado/ })
+    .waitFor();
+  confere(true, "variante: a ficha mostra a publicação «Publicado»");
+  // À venda, o peso muda-se mas não se apaga (catalog.published_in_use).
+  await rp.goto(`${ORIGEM}${caminhoEns041}`);
+  await rp.getByLabel("Peso (g)").fill("");
+  await rp.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rp
+    .getByText("A variante está à venda: o peso muda-se, mas não se apaga.")
+    .waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) === "variante-peso",
+    "variante: apagar o peso de uma variante à venda diz-se ao lado do peso",
+  );
+  // Um conflito: outra escrita (um fetch do mesmo navegador) muda a
+  // variante entre ler e guardar.
+  const outraNaVariante = await rp.evaluate(
+    async ({ c, a, v }) => {
+      const ficha = await (
+        await fetch(`/hub/products/${a}`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      const lida = ficha.variantes.find((x) => x.id === v);
+      const r = await fetch(`/hub/variants/${v}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "eurolify-comerciante": c,
+        },
+        body: JSON.stringify({ comprimento_mm: 100, versao: lida.versao }),
+      });
+      return r.status;
+    },
+    { c: `mer_${comerciante}`, a: `prd_${artigoSemPeso}`, v: idEns041 },
+  );
+  await rp.getByLabel("Peso (g)").fill("65");
+  await rp.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rp
+    .getByText("Outra pessoa alterou esta variante entretanto.", {
+      exact: false,
+    })
+    .waitFor();
+  confere(
+    outraNaVariante === 200 &&
+      (await rp.locator(".valores-actuais", { hasText: "100 mm" }).count()) ===
+        1 &&
+      (await rp.getByLabel("Peso (g)").inputValue()) === "65" &&
+      (await rp.evaluate(() => document.activeElement?.id)) ===
+        "variante-conflito",
+    "variante: um conflito não grava, mostra o que está guardado e deixa o que se escreveu",
+  );
+  for (const [largura, tema] of [
+    [375, "light"],
+    [375, "dark"],
+    [768, "light"],
+    [768, "dark"],
+    [1280, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `variante (editar): a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.screenshot({
+      path: join(
+        SAIDA,
+        `variante-editar-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
+  // Guardar outra vez, já na versão de agora: grava.
+  await rp.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  confere(
+    (await rp.getByRole("row", { name: /ENS-041.*65 g/ }).count()) === 1,
+    "variante: depois do conflito, guardar outra vez grava o que se escreveu",
+  );
+  // Num rascunho: a unidade e o conteúdo editam-se, só com o teclado. Um
+  // rascunho novo pelo Hub, com uma segunda variante já arquivada.
+  const rascunho42 = await rp.evaluate(
+    async ({ c }) => {
+      const r = await fetch("/hub/products", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "eurolify-comerciante": c,
+        },
+        body: JSON.stringify({
+          tipo: "fisico",
+          nome: "Gel Coral 42",
+          descricao: null,
+          marca: null,
+          variantes: [
+            { sku: "ENS-042", unidade_de_venda: "unidade" },
+            { sku: "ENS-042-B", unidade_de_venda: "unidade" },
+          ],
+        }),
+      });
+      const ficha = await r.json();
+      const b = ficha.variantes.find((x) => x.sku === "ENS-042-B");
+      await fetch(`/hub/variants/${b.id}/archive`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "eurolify-comerciante": c,
+        },
+        body: "{}",
+      });
+      return { artigo: ficha.id, arquivada: b.id };
+    },
+    { c: `mer_${comerciante}` },
+  );
+  await rp.goto(
+    `${ORIGEM}/artigos/${rascunho42.artigo}?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByRole("heading", { name: "Gel Coral 42", level: 1 }).waitFor();
+  confere(
+    (await rp
+      .getByRole("link", { name: "Editar a variante ENS-042-B" })
+      .count()) === 0,
+    "variante: uma variante arquivada não tem «Editar» na ficha",
+  );
+  await rp.getByRole("link", { name: "Editar a variante ENS-042" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.locator("#variante-unidade").waitFor();
+  await rp.locator("#variante-unidade").focus();
+  await rp.keyboard.type("Par");
+  await rp.getByLabel("Quantidade do conteúdo").focus();
+  await rp.keyboard.type("15");
+  await rp.getByLabel("Unidade do conteúdo").focus();
+  await rp.keyboard.type("ml");
+  await rp.getByRole("button", { name: "Guardar", exact: true }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("heading", { name: "Gel Coral 42", level: 1 }).waitFor();
+  await rp.getByText("Alterações guardadas.").waitFor();
+  confere(
+    (await rp.getByRole("row", { name: /ENS-042\b.*Par.*15 ml/ }).count()) ===
+      1,
+    "variante: num rascunho, a unidade e o conteúdo mudam-se só com o teclado",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "variante-ficha-375-claro.png"),
+    fullPage: true,
+  });
+  // A arquivada, pelo endereço: diz que não muda, sem formulário.
+  await rp.goto(
+    `${ORIGEM}/artigos/${rascunho42.artigo}/variantes/${rascunho42.arquivada}?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByText("Esta variante está arquivada e não muda.").waitFor();
+  confere(
+    (await rp.getByRole("button", { name: "Guardar", exact: true }).count()) ===
+      0,
+    "variante: uma variante arquivada abre só com o aviso, sem formulário",
+  );
+  // Uma variante que não é deste artigo: «não existe».
+  await rp.goto(
+    `${ORIGEM}/artigos/${rascunho42.artigo}${caminhoEns041.slice(caminhoEns041.indexOf("/variantes/"))}`,
+  );
+  await rp.getByText("Esta variante não existe neste artigo.").waitFor();
+  confere(true, "variante: a variante de outro artigo diz «não existe»");
+  // Num artigo do sistema de gestão: só o aviso, e a ficha sem «Editar».
+  const varianteExterna = await rp.evaluate(
+    async ({ c, a }) => {
+      const ficha = await (
+        await fetch(`/hub/products/${a}`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      return ficha.variantes[0].id;
+    },
+    { c: `mer_${comerciante}`, a: `prd_${artigoExterno}` },
+  );
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoExterno}/variantes/${varianteExterna}?comerciante=mer_${comerciante}`,
+  );
+  await rp
+    .getByText("Este artigo vem do sistema de gestão", { exact: false })
+    .waitFor();
+  confere(
+    (await rp.getByRole("button", { name: "Guardar", exact: true }).count()) ===
+      0,
+    "variante: num artigo do sistema de gestão, a página só mostra o aviso",
   );
   // Com a sessão terminada, o histórico vai para «Entrar».
   await rp.route("**/hub/products/*/timeline*", (pedido) =>

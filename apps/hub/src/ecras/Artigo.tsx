@@ -615,6 +615,9 @@ export function Artigo({
             podeArquivar={podeEscrever && ficha.dados.origem !== "externo"}
             ocupado={ocupadoNaFicha}
             aoArquivar={arquivarVariante}
+            destinoEditar={(v) =>
+              `/artigos/${artigo}/variantes/${v.id}?${voltar.toString()}`
+            }
           />
           <h2>{t.artigoPrecos}</h2>
           <div className="precos-artigo">
@@ -836,6 +839,7 @@ function Variantes({
   podeArquivar,
   ocupado,
   aoArquivar,
+  destinoEditar,
 }: {
   variantes: VarianteArtigo[];
   /** Uma coluna por opção, entre o SKU e o estado (docs/22 §20.2). */
@@ -844,8 +848,10 @@ function Variantes({
   podeArquivar: boolean;
   ocupado: boolean;
   aoArquivar: (v: VarianteArtigo) => void;
+  /** Alterar a variante (docs/22 §23.2): a página dela. */
+  destinoEditar: (v: VarianteArtigo) => string;
 }) {
-  const { t, lingua } = useHub();
+  const { t, lingua, navegar } = useHub();
   const numero = (n: number) =>
     new Intl.NumberFormat(TAG_LINGUA[lingua]).format(n);
   return (
@@ -902,16 +908,31 @@ function Variantes({
             {podeArquivar ? (
               <td data-rotulo={t.colunaAccoes}>
                 {v.estado === "activa" ? (
-                  <button
-                    type="button"
-                    disabled={ocupado}
-                    aria-label={`${t.artigoArquivarVariante} ${v.sku}`}
-                    onClick={() => {
-                      aoArquivar(v);
-                    }}
-                  >
-                    {t.artigoArquivarVariante}
-                  </button>
+                  <span className="accoes-variante">
+                    <a
+                      className="botao"
+                      href={destinoEditar(v)}
+                      aria-label={preencher(t.varianteEditarAria, {
+                        sku: v.sku,
+                      })}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navegar(destinoEditar(v));
+                      }}
+                    >
+                      {t.artigoEditar}
+                    </a>
+                    <button
+                      type="button"
+                      disabled={ocupado}
+                      aria-label={`${t.artigoArquivarVariante} ${v.sku}`}
+                      onClick={() => {
+                        aoArquivar(v);
+                      }}
+                    >
+                      {t.artigoArquivarVariante}
+                    </button>
+                  </span>
                 ) : (
                   "—"
                 )}
