@@ -52,6 +52,12 @@ export const MOTIVOS_RETENCAO = [
   "moeda_nao_suportada",
   "totais_nao_batem",
   "entidade_do_emissor_diferente",
+  // A pós-venda (docs/29): a NC espera pela fatura e não passa o saldo dela;
+  // uma fatura de uma encomenda já reembolsada por inteiro espera pelo
+  // contabilista (C2).
+  "original_por_emitir",
+  "credito_acima_do_saldo",
+  "encomenda_reembolsada",
 ] as const;
 export type MotivoRetencao = (typeof MOTIVOS_RETENCAO)[number];
 
@@ -64,6 +70,7 @@ export const LIBERTAVEIS: readonly MotivoRetencao[] = [
   "nif_recusado",
   "isencao_sem_prova",
   "perfil_de_outra_ficha",
+  "encomenda_reembolsada",
 ];
 
 /**
@@ -410,6 +417,9 @@ export interface Conteudo {
   meio_pagamento: string;
   destino: string | null;
   carimbo: string;
+  /** Só na nota de crédito (docs/29 §3.5): o tipo e a fatura (`inv_…`). */
+  tipo?: "nota_credito";
+  original?: string;
 }
 
 /** JSON com as chaves por ordem: a mesma entrada dá a mesma impressão. */
@@ -610,6 +620,86 @@ async function montarConteudo(
   };
 }
 
+/**
+ * O conteúdo da nota de crédito (docs/29 §3.5): as linhas do reembolso com o
+ * tratamento fiscal **copiado** da fatura (taxa, motivo, regra, evidência),
+ * nunca recalculado; o montante é o reembolsado, com a base e o IVA na
+ * proporção da linha da fatura.
+ */
+async function montarNotaCredito(
+  trx: Transaction<BaseDados>,
+  originalId: string,
+  reembolsoId: string,
+): Promise<Conteudo> {
+  const orig = await ultimoConteudo(trx, originalId);
+  if (orig === undefined) {
+    throw new ErroDocumentos(
+      "invoices.invalid_field",
+      "a fatura ainda não tem conteúdo",
+    );
+  }
+  const fatura = orig.conteudo as Conteudo;
+  const linhas = await trx
+    .selectFrom("linha_reembolso")
+    .leftJoin(
+      "linha_encomenda",
+      "linha_encomenda.id",
+      "linha_reembolso.linha_encomenda_id",
+    )
+    .select([
+      "linha_reembolso.posicao",
+      "linha_reembolso.quantidade",
+      "linha_reembolso.montante",
+      "linha_encomenda.posicao as posicao_encomenda",
+    ])
+    .where("linha_reembolso.reembolso_id", "=", reembolsoId)
+    .orderBy("linha_reembolso.posicao")
+    .execute();
+  const doConteudo: LinhaDoConteudo[] = linhas.map((l, i) => {
+    const o =
+      l.posicao_encomenda === null
+        ? fatura.linhas.find((x) => x.sku === null)
+        : fatura.linhas.find(
+            (x) => x.sku !== null && x.posicao === l.posicao_encomenda,
+          );
+    if (o === undefined) {
+      throw new ErroDocumentos(
+        "invoices.invalid_field",
+        "uma linha do reembolso não está na fatura",
+      );
+    }
+    const total = Number(l.montante);
+    const base =
+      o.resultado === "tributada" && o.total > 0
+        ? Math.round((total * o.base) / o.total)
+        : total;
+    return {
+      ...o,
+      posicao: i + 1,
+      quantidade: l.quantidade,
+      base,
+      iva: total - base,
+      total,
+    };
+  });
+  const totais = doConteudo.reduce(
+    (s, l) => ({
+      base: s.base + l.base,
+      iva: s.iva + l.iva,
+      total: s.total + l.total,
+    }),
+    { base: 0, iva: 0, total: 0 },
+  );
+  return {
+    ...fatura,
+    linhas: doConteudo,
+    totais,
+    carimbo: carimbo(fatura.destino, doConteudo),
+    tipo: "nota_credito",
+    original: `inv_${originalId}`,
+  };
+}
+
 async function ultimoConteudo(
   trx: Transaction<BaseDados>,
   documentoId: string,
@@ -738,6 +828,8 @@ async function verificar(
     entidade_legal_id: string;
     modo: string;
     validados: string[];
+    tipo: "fatura" | "nota_credito";
+    original_id: string | null;
   },
   conteudo: Conteudo,
   ligacao: {
@@ -746,6 +838,7 @@ async function verificar(
     taxas: TaxaDoEmissor[];
     isencoes: IsencaoDoEmissor[];
   } | null,
+  original: Contexto["original"] = null,
 ): Promise<MotivoRetencao[]> {
   const motivos = new Set<MotivoRetencao>();
   const e = await trx
@@ -794,6 +887,39 @@ async function verificar(
   if (perfil?.cliente_id !== e.cliente_id) motivos.add("perfil_de_outra_ficha");
   for (const m of motivosDoConteudo(conteudo, ligacao, doc.modo)) {
     motivos.add(m);
+  }
+  if (doc.tipo === "nota_credito") {
+    // A NC espera pela fatura emitida e não passa o saldo dela (docs/29
+    // §3.5; lição 2.13).
+    if (
+      original === null ||
+      !["emitido", "divergente", "resolvido"].includes(original.estado)
+    ) {
+      motivos.add("original_por_emitir");
+    } else if (original.total !== null && doc.original_id !== null) {
+      const { rows } = await sql<{ creditado: string | null }>`
+        select sum((p.totais->>'total')::bigint) as creditado
+        from documento_fiscal d join documento_prova p on p.documento_id = d.id
+        where d.original_id = ${doc.original_id}::uuid and d.id <> ${doc.id}::uuid
+          and d.estado in ('emitido', 'divergente', 'resolvido')`.execute(trx);
+      const creditado = Number(rows[0]?.creditado ?? 0);
+      if (creditado + conteudo.totais.total > original.total) {
+        motivos.add("credito_acima_do_saldo");
+      }
+    }
+  } else {
+    // Reembolsada por inteiro antes de a fatura sair: espera pelo
+    // contabilista (docs/29, C2).
+    const { rows } = await sql<{ reembolsado: string | null; total: string }>`
+      select (select sum(r.montante) from reembolso r
+              where r.encomenda_id = e.id
+                and r.estado in ('a_executar', 'executado', 'incerto')) as reembolsado,
+             e.total
+      from encomenda e where e.id = ${doc.encomenda_id}::uuid`.execute(trx);
+    const r = rows[0];
+    if (r !== undefined && Number(r.reembolsado ?? 0) >= Number(r.total)) {
+      motivos.add("encomenda_reembolsada");
+    }
   }
   return [...motivos].filter((m) => !doc.validados.includes(m));
 }
@@ -853,8 +979,14 @@ function pedidoDoConteudo(
     isencoes: IsencaoDoEmissor[];
   },
   entidadeId: string | null,
+  original: Contexto["original"] = null,
 ): PedidoRascunho {
   return {
+    tipo: c.tipo ?? "fatura",
+    original:
+      original === null || original.numero === null
+        ? null
+        : { numero: original.numero, emissor_id: original.emissor_id },
     referencia,
     serie: ligacao.serie,
     entidade_id: entidadeId,
@@ -914,8 +1046,18 @@ interface Contexto {
     falhas: number;
     reservado_ate: Date | null;
     versao: number;
+    tipo: "fatura" | "nota_credito";
+    original_id: string | null;
+    reembolso_id: string | null;
   };
   conteudo: Conteudo;
+  /** A fatura de uma nota de crédito, como saiu (número e id no emissor). */
+  original: {
+    estado: EstadoDocumento;
+    numero: string | null;
+    emissor_id: string | null;
+    total: number | null;
+  } | null;
   ligacao: {
     id: string;
     adaptador: string;
@@ -950,6 +1092,9 @@ async function lerContexto(
       "reservado_ate",
       "versao",
       "ligacao_id",
+      "tipo",
+      "original_id",
+      "reembolso_id",
     ])
     .where("id", "=", id);
   if (bloquear) q = q.forUpdate();
@@ -959,8 +1104,14 @@ async function lerContexto(
   }
   let ultimo = await ultimoConteudo(trx, id);
   if (ultimo === undefined) {
-    // A primeira versão do conteúdo nasce da encomenda (R2).
-    const c = await montarConteudo(trx, doc.encomenda_id);
+    // A primeira versão do conteúdo nasce da encomenda (R2), ou, numa nota
+    // de crédito, do reembolso e da fatura (docs/29 §3.5).
+    const c =
+      doc.tipo === "nota_credito" &&
+      doc.original_id !== null &&
+      doc.reembolso_id !== null
+        ? await montarNotaCredito(trx, doc.original_id, doc.reembolso_id)
+        : await montarConteudo(trx, doc.encomenda_id);
     await trx
       .insertInto("documento_conteudo")
       .values({
@@ -969,7 +1120,10 @@ async function lerContexto(
         versao: 1,
         conteudo: JSON.stringify(c),
         impressao: impressaoDe(c),
-        motivo: "a cópia da encomenda no botão final",
+        motivo:
+          doc.tipo === "nota_credito"
+            ? "as linhas do reembolso com o tratamento da fatura"
+            : "a cópia da encomenda no botão final",
         quem: QUEM_DA_TAREFA,
       })
       .execute();
@@ -995,10 +1149,40 @@ async function lerContexto(
       "credenciais_versao_chave",
     ])
     .executeTakeFirst();
+  const original =
+    doc.original_id === null
+      ? null
+      : await trx
+          .selectFrom("documento_fiscal")
+          .leftJoin(
+            "documento_prova",
+            "documento_prova.documento_id",
+            "documento_fiscal.id",
+          )
+          .select([
+            "documento_fiscal.estado",
+            "documento_fiscal.emissor_id",
+            "documento_prova.numero",
+            "documento_prova.totais",
+          ])
+          .where("documento_fiscal.id", "=", doc.original_id)
+          .executeTakeFirst();
   return {
     doc,
     conteudo: ultimo.conteudo as Conteudo,
     ligacao: ligacao ?? null,
+    original:
+      original === undefined || original === null
+        ? null
+        : {
+            estado: original.estado,
+            numero: original.numero,
+            emissor_id: original.emissor_id,
+            total:
+              original.totais === null
+                ? null
+                : (original.totais as { total: number }).total,
+          },
   };
 }
 
@@ -1206,6 +1390,13 @@ async function gravarProva(
     if (e !== undefined && e.nif_numero === ctx.conteudo.cliente.nif_numero) {
       await sql`select perfil_marcar_usado(${e.id}::uuid)`.execute(trx);
     }
+    // A fatura saiu: as NC que esperavam por ela voltam a verificar-se.
+    if (ctx.doc.tipo === "fatura") {
+      await sql`update documento_fiscal
+        set estado = 'a_verificar', versao = versao + 1, proxima_em = now()
+        where original_id = ${ctx.doc.id}::uuid and estado = 'retido'
+          and 'original_por_emitir' = any(motivos)`.execute(trx);
+    }
     ctx.doc = agora.doc;
   });
   return divergencias.length > 0 ? "divergente" : "emitido";
@@ -1327,6 +1518,7 @@ export async function processarDocumento(
           agora.doc,
           agora.conteudo,
           agora.ligacao,
+          agora.original,
         );
         if (motivos.length > 0) {
           await mudarEstado(trx, agora, "retido", { motivos });
@@ -1407,6 +1599,7 @@ export async function processarDocumento(
             referencia,
             ctx.ligacao as NonNullable<Contexto["ligacao"]>,
             entidadeId,
+            ctx.original,
           ),
         );
       } catch (e) {
@@ -2085,7 +2278,44 @@ export async function lerDocumento(
       .orderBy("em")
       .orderBy("id")
       .execute();
-    return { ...d, conteudos, prova: prova ?? null, rasto: passos };
+    // A fatura mostra as NC e o saldo (docs/29 §3.5): faturado − creditado,
+    // pelos totais lidos de volta dos documentos.
+    const notas =
+      d.tipo === "fatura"
+        ? await trx
+            .selectFrom("documento_fiscal")
+            .leftJoin(
+              "documento_prova",
+              "documento_prova.documento_id",
+              "documento_fiscal.id",
+            )
+            .select([
+              "documento_fiscal.id",
+              "documento_fiscal.estado",
+              "documento_fiscal.reembolso_id",
+              "documento_prova.numero",
+              "documento_prova.totais",
+            ])
+            .where("documento_fiscal.original_id", "=", id)
+            .orderBy("documento_fiscal.id")
+            .execute()
+        : [];
+    const faturado =
+      prova === undefined ? null : (prova.totais as { total: number }).total;
+    const creditado = notas
+      .filter((n) => ["emitido", "divergente", "resolvido"].includes(n.estado))
+      .reduce(
+        (t, n) => t + ((n.totais as { total: number } | null)?.total ?? 0),
+        0,
+      );
+    return {
+      ...d,
+      conteudos,
+      prova: prova ?? null,
+      rasto: passos,
+      notas_credito: notas,
+      saldo: faturado === null ? null : faturado - creditado,
+    };
   });
 }
 

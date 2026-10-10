@@ -1039,6 +1039,7 @@ export const ESTADOS_ENCOMENDA = [
   "expedida",
   "entregue",
   "concluida",
+  "cancelada",
 ] as const;
 export type EstadoEncomenda = (typeof ESTADOS_ENCOMENDA)[number];
 
@@ -1226,9 +1227,14 @@ export const POLITICAS_STOCK = [
 ] as const;
 export type PoliticaStock = (typeof POLITICAS_STOCK)[number];
 export type TipoMovimento =
-  "entrada" | "reserva" | "libertacao" | "saida" | "ajuste";
+  "entrada" | "reserva" | "libertacao" | "saida" | "ajuste" | "devolucao";
 export type OrigemMovimento =
-  "encomenda" | "expedicao" | "inventario" | "importacao" | "sistema_externo";
+  | "encomenda"
+  | "expedicao"
+  | "inventario"
+  | "importacao"
+  | "sistema_externo"
+  | "devolucao";
 export const ESTADOS_EXPEDICAO = [
   "criada",
   "expedida",
@@ -1302,6 +1308,7 @@ export interface TabelaMovimentoStock {
   origem: ColumnType<OrigemMovimento, OrigemMovimento, never>;
   encomenda_id: ColumnType<string | null, string | null | undefined, never>;
   expedicao_id: ColumnType<string | null, string | null | undefined, never>;
+  devolucao_id: ColumnType<string | null, string | null | undefined, never>;
   motivo: ColumnType<string | null, string | null | undefined, never>;
   fisico_antes: ColumnType<number, never, never>;
   fisico_depois: ColumnType<number, never, never>;
@@ -1431,6 +1438,13 @@ export interface BaseDados {
   documento_conteudo: TabelaDocumentoConteudo;
   documento_prova: TabelaDocumentoProva;
   documento_rasto: TabelaDocumentoRasto;
+  pedido_livre_resolucao: TabelaPedidoLivreResolucao;
+  linha_livre_resolucao: TabelaLinhaLivreResolucao;
+  devolucao: TabelaDevolucao;
+  linha_devolucao: TabelaLinhaDevolucao;
+  problema: TabelaProblema;
+  reembolso: TabelaReembolso;
+  linha_reembolso: TabelaLinhaReembolso;
 }
 
 // Documentos fiscais (migração 0050; docs/28).
@@ -1504,7 +1518,9 @@ export interface TabelaDocumentoFiscal {
   comerciante_id: ColumnType<string, never, never>;
   encomenda_id: ColumnType<string, never, never>;
   entidade_legal_id: ColumnType<string, never, never>;
-  tipo: ColumnType<"fatura", never, never>;
+  tipo: ColumnType<"fatura" | "nota_credito", never, never>;
+  original_id: ColumnType<string | null, never, never>;
+  reembolso_id: ColumnType<string | null, never, never>;
   modo: ColumnType<"teste", never, never>;
   estado: ColumnType<EstadoDocumento, never, EstadoDocumento>;
   motivos: ColumnType<string[], never, string[]>;
@@ -1561,4 +1577,147 @@ export interface TabelaDocumentoRasto {
   quem: ColumnType<string, string, never>;
   dados: ColumnType<unknown, string | undefined, never>;
   em: ColumnType<Date, never, never>;
+}
+
+// Pós-venda (migração 0051; docs/29).
+
+export const ESTADOS_ARTIGO_DEVOLVIDO = [
+  "revendavel",
+  "aberto",
+  "danificado",
+  "em_falta",
+] as const;
+export type EstadoArtigoDevolvido = (typeof ESTADOS_ARTIGO_DEVOLVIDO)[number];
+export const ESTADOS_DEVOLUCAO = [
+  "a_aguardar",
+  "recebida",
+  "inspeccionada",
+  "decidida",
+  "fechada",
+  "cancelada",
+] as const;
+export type EstadoDevolucao = (typeof ESTADOS_DEVOLUCAO)[number];
+export const TIPOS_PROBLEMA = [
+  "chegou_danificado",
+  "em_falta",
+  "atraso",
+  "outro",
+] as const;
+export type TipoProblema = (typeof TIPOS_PROBLEMA)[number];
+export const ESTADOS_REEMBOLSO = [
+  "rascunho",
+  "a_executar",
+  "executado",
+  "falhado",
+  "incerto",
+] as const;
+export type EstadoReembolso = (typeof ESTADOS_REEMBOLSO)[number];
+
+export interface TabelaPedidoLivreResolucao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  origem: ColumnType<"botao" | "apoio", "botao" | "apoio", never>;
+  contacto: ColumnType<string, string, never>;
+  recebido_em: ColumnType<Date, never, never>;
+  prazo_ate: ColumnType<string | null, string | null, never>;
+  dentro_do_prazo: ColumnType<boolean, boolean, never>;
+  estado: ColumnType<
+    "aceite" | "fora_de_prazo" | "recusado",
+    "aceite" | "fora_de_prazo",
+    "aceite" | "recusado"
+  >;
+  confirmacao: ColumnType<unknown, string, never>;
+  decidido_por: ColumnType<string | null, never, string>;
+  motivo_decisao: ColumnType<string | null, never, string | null>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaLinhaLivreResolucao {
+  pedido_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  linha_encomenda_id: ColumnType<string, string, never>;
+  quantidade: ColumnType<number, number, never>;
+}
+
+export interface TabelaDevolucao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  armazem_id: ColumnType<string, string, never>;
+  origem: ColumnType<
+    "livre_resolucao" | "apoio" | "comercial",
+    "livre_resolucao" | "apoio" | "comercial",
+    never
+  >;
+  pedido_livre_resolucao_id: ColumnType<string | null, string | null, never>;
+  motivo: ColumnType<string | null, string | null, never>;
+  transportadora: ColumnType<string | null, string | null, string | null>;
+  seguimento: ColumnType<string | null, string | null, string | null>;
+  estado: ColumnType<EstadoDevolucao, never, EstadoDevolucao>;
+  criada_por: ColumnType<string, string, never>;
+  criada_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaLinhaDevolucao {
+  devolucao_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  linha_encomenda_id: ColumnType<string, string, never>;
+  pedida: ColumnType<number, number, never>;
+  recebida: ColumnType<number | null, never, number>;
+  aceite: ColumnType<number | null, never, number>;
+  estado_artigo: ColumnType<
+    EstadoArtigoDevolvido | null,
+    never,
+    EstadoArtigoDevolvido
+  >;
+}
+
+export interface TabelaProblema {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  tipo: ColumnType<TipoProblema, TipoProblema, never>;
+  descricao: ColumnType<string, string, never>;
+  estado: ColumnType<
+    "aberto" | "decidido" | "fechado",
+    never,
+    "aberto" | "decidido" | "fechado"
+  >;
+  criado_por: ColumnType<string, string, never>;
+  criado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaReembolso {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  pagamento_id: ColumnType<string, string, never>;
+  origem: ColumnType<
+    "devolucao" | "problema" | "cancelamento",
+    "devolucao" | "problema" | "cancelamento",
+    never
+  >;
+  devolucao_id: ColumnType<string | null, string | null, never>;
+  problema_id: ColumnType<string | null, string | null, never>;
+  montante: ColumnType<string, number, never>;
+  moeda: ColumnType<string, string, never>;
+  via: ColumnType<"manual" | "prestador", "manual" | "prestador", "manual" | "prestador">;
+  estado: ColumnType<EstadoReembolso, never, EstadoReembolso>;
+  prova: ColumnType<unknown, never, string>;
+  executado_em: ColumnType<Date | null, never, Date>;
+  decidido_por: ColumnType<string, string, never>;
+  criado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaLinhaReembolso {
+  reembolso_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  posicao: ColumnType<number, number, never>;
+  linha_encomenda_id: ColumnType<string | null, string | null, never>;
+  quantidade: ColumnType<number, number, never>;
+  montante: ColumnType<string, number, never>;
 }

@@ -178,6 +178,7 @@ describe("comparar com o emissor (R6, R7)", () => {
   const doc = (c: Conteudo, o: Partial<DocumentoNoEmissor> = {}) =>
     ({
       id: "d1",
+      tipo: "fatura",
       estado: "fechado",
       referencia: "inv_1",
       numero: "FT 1",
