@@ -68,6 +68,9 @@ const FUNCOES_DA_API = [
   "desafio_criar_acrescentar",
   "desafio_criar_entrada",
   "desafio_criar_registo",
+  // Os documentos fiscais (0050): a fila da tarefa e a marca do perfil usado.
+  "documentos_a_tratar",
+  "documentos_comerciantes_com_trabalho",
   "duplicado_descartar",
   "duplicados_sinalizar",
   "emails_para_comparar",
@@ -115,6 +118,7 @@ const FUNCOES_DA_API = [
   // O registo da exportação, com o tipo fixo (revisão do #314, P2-2); o
   // registo à escolha (pedido_titular_registar) fica só para o dono.
   "pedido_titular_exportar",
+  "perfil_marcar_usado",
   "perfil_tornar_principal",
   "pessoa_eu",
   // A régua única do marketing (0042): quem envia pergunta-lhe.
