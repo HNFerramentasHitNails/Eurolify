@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { sql, type Transaction } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados } from "./esquema.js";
 import { erroBase } from "./erros.js";
 
@@ -7,7 +7,8 @@ import { erroBase } from "./erros.js";
 // Lê-se num só sítio — o pedido HTTP (app.ts) ou quem corre fora dele (o
 // comando do operador) — e passa à base em cada transacção do comerciante
 // (`comComerciante`), onde a função `contexto_do_rasto()` o confere.
-// O `quem` e a `origem` continuam a ser postos por cada domínio, como antes.
+// O `quem` e a `origem` continuam a ser postos por cada domínio, como antes;
+// passam a sair da autenticação no passo 2 (revisão do #327, P2-4).
 
 export type Canal =
   "hub" | "api" | "importacao" | "integracao" | "mcp" | "sistema" | "operador";
@@ -50,12 +51,8 @@ export function rastoActual(): ContextoRasto | undefined {
   return armazem.getStore();
 }
 
-/** O canal de um pedido HTTP, pela rota: o Hub tem as suas, o resto é a API. */
-export function canalDoCaminho(url: string): Canal {
-  return url === "/hub" || url.startsWith("/hub/") || url.startsWith("/hub?")
-    ? "hub"
-    : "api";
-}
+/** A forma do identificador que `contexto_do_rasto()` aceita (0052). */
+export const PEDIDO_DO_RASTO = /^[A-Za-z0-9._:-]{1,100}$/;
 
 const VALOR_IA = /^[A-Za-z0-9._:/-]{1,100}$/;
 
@@ -90,25 +87,36 @@ export function iaDoCabecalho(valor: unknown): IaDoRasto | undefined {
 }
 
 /**
- * Passa o contexto à transacção (`set_config(…, true)`: só nesta). Sem
- * contexto (uma tarefa da própria API, fora de um pedido), o canal é
- * «sistema».
+ * Passa o contexto à transacção (`set_config(…, true)`: só nesta), numa só
+ * ida à base. Sem contexto, nada se inventa: o canal fica vazio, isto é,
+ * desconhecido (revisão do #327, P1-1). As tarefas da própria API correm
+ * com o canal «sistema» posto por quem as agenda (servidor.ts).
  */
 export async function aplicarRasto(
   trx: Transaction<BaseDados>,
   contexto: ContextoRasto | undefined = rastoActual(),
 ): Promise<void> {
-  const c = contexto ?? { canal: "sistema" as const };
+  const ia = contexto?.ia === undefined ? "" : JSON.stringify(contexto.ia);
   await sql`select
-      set_config('eurolify.canal', ${c.canal}, true),
-      set_config('eurolify.pedido', ${c.pedido ?? ""}, true),
-      set_config('eurolify.ia', ${c.ia === undefined ? "" : JSON.stringify(c.ia)}, true),
-      set_config('eurolify.autorizado_por', ${c.autorizadoPor ?? ""}, true)`.execute(
+      set_config('eurolify.canal', ${contexto?.canal ?? ""}, true),
+      set_config('eurolify.pedido', ${contexto?.pedido ?? ""}, true),
+      set_config('eurolify.ia', ${ia}, true),
+      set_config('eurolify.autorizado_por', ${contexto?.autorizadoPor ?? ""}, true),
+      set_config('eurolify.motivo', ${contexto?.motivo ?? ""}, true)`.execute(
     trx,
   );
-  if (c.motivo !== undefined) {
-    await sql`select set_config('eurolify.motivo', ${c.motivo}, true)`.execute(
-      trx,
-    );
-  }
+}
+
+/**
+ * Abre uma transacção com o contexto do rasto, para as escritas que não
+ * são de um comerciante (revisão do #327, P2-1): o comando do operador.
+ */
+export async function comRastoNaBase<T>(
+  db: Kysely<BaseDados>,
+  fn: (trx: Transaction<BaseDados>) => Promise<T>,
+): Promise<T> {
+  return db.transaction().execute(async (trx) => {
+    await aplicarRasto(trx);
+    return fn(trx);
+  });
 }

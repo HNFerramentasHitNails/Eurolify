@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 import { abrirBase } from "./base/ligacao.js";
-import { entrarNoRasto } from "./base/rasto.js";
+import { comRastoNaBase, entrarNoRasto } from "./base/rasto.js";
 import { comComerciante } from "./comerciante/repositorio.js";
 import { lerPedido } from "./identidade/operador.js";
 import { registarChave } from "./identidade/repositorio.js";
@@ -36,10 +36,12 @@ try {
   if (pedido.accao === "comerciante") {
     // O mesmo pedido (a mesma execução do GitHub, também num «Re-run»)
     // devolve o mesmo comerciante, com `ja_existia: true` (0045).
-    const { rows } = await sql<{ id: string; ja_existia: boolean }>`
-      select id, ja_existia from comerciante_criar_pelo_operador(
-        ${pedido.pedido}, ${pedido.nome}, ${pedido.lingua}, ${pedido.fuso},
-        ${`operador:${pedido.quem}`})`.execute(base);
+    const { rows } = await comRastoNaBase(base, (trx) =>
+      sql<{ id: string; ja_existia: boolean }>`
+        select id, ja_existia from comerciante_criar_pelo_operador(
+          ${pedido.pedido}, ${pedido.nome}, ${pedido.lingua}, ${pedido.fuso},
+          ${`operador:${pedido.quem}`})`.execute(trx),
+    );
     const criado = rows[0];
     if (criado === undefined)
       throw new Error("a base não devolveu o comerciante");

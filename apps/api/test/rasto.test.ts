@@ -1,9 +1,12 @@
+import { request } from "node:http";
+import { Type } from "typebox";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
+import { RESPOSTA_DE_ERRO } from "../src/base/erros.js";
 import {
-  canalDoCaminho,
   comRasto,
+  comRastoNaBase,
   iaDoCabecalho,
   rastoActual,
   type ContextoRasto,
@@ -54,25 +57,19 @@ describe("o cabeçalho Eurolify-IA (docs/28 §3.3)", () => {
     expect(() => iaDoCabecalho(valor)).toThrow(/Eurolify-IA/);
   });
 
-  it("recusa o cabeçalho repetido (chega como lista)", () => {
+  it("recusa o cabeçalho repetido, como o Node o junta (revisão, P3-4)", () => {
+    expect(() => iaDoCabecalho("modelo=a, modelo=b")).toThrow(/Eurolify-IA/);
     expect(() => iaDoCabecalho(["modelo=a", "modelo=b"])).toThrow(
       /Eurolify-IA/,
     );
   });
 });
 
-describe("o canal de um pedido HTTP", () => {
-  it("o Hub pelas suas rotas, o resto é a API", () => {
-    expect(canalDoCaminho("/hub/session")).toBe("hub");
-    expect(canalDoCaminho("/hub")).toBe("hub");
-    expect(canalDoCaminho("/hubx")).toBe("api");
-    expect(canalDoCaminho("/v1/products")).toBe("api");
-  });
-});
-
 describe("o contexto em cada pedido (app.ts)", () => {
   it("chega ao resto do pedido, um por pedido, mesmo em simultâneo", async () => {
-    const app = criarApp({ genReqId: (p) => `req-${String(p.url)}` });
+    const app = criarApp({
+      genReqId: (p) => `req-${String(p.headers["eurolify-ia"]).slice(7)}`,
+    });
     const vistos = new Map<string, ContextoRasto | undefined>();
     app.addHook("preHandler", async (pedido) => {
       await new Promise((r) => setTimeout(r, 5));
@@ -94,10 +91,103 @@ describe("o contexto em cada pedido (app.ts)", () => {
     for (const m of ["a", "b", "c"]) {
       expect(vistos.get(`modelo=${m}`)).toEqual({
         canal: "api",
-        pedido: "req-/health",
+        pedido: `req-${m}`,
         ia: { modelo: m, prova: "declarado" },
       });
     }
+    await app.close();
+  });
+
+  it("chega ao handler quando o corpo vem aos bocados, num servidor a ouvir (revisão, P1-1)", async () => {
+    const app = criarApp({ genReqId: () => "req-corpo" });
+    let visto: ContextoRasto | undefined;
+    app.post(
+      "/teste-rasto",
+      {
+        config: { ambito: "publico" },
+        schema: {
+          body: Type.Object({ nome: Type.String() }),
+          response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO },
+        },
+      },
+      async () => {
+        await new Promise((r) => setTimeout(r, 1));
+        visto = rastoActual();
+        return {};
+      },
+    );
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const endereco = app.server.address();
+    if (endereco === null || typeof endereco === "string") throw new Error();
+    const estado = await new Promise<number | undefined>((resolver, falhar) => {
+      const pedido = request(
+        {
+          host: "127.0.0.1",
+          port: endereco.port,
+          method: "POST",
+          path: "/teste-rasto",
+          headers: {
+            "content-type": "application/json",
+            "content-length": "14",
+            "eurolify-ia": "modelo=m",
+          },
+        },
+        (resposta) => {
+          resposta.resume();
+          resposta.on("end", () => {
+            resolver(resposta.statusCode);
+          });
+        },
+      );
+      pedido.on("error", falhar);
+      pedido.flushHeaders();
+      // O corpo chega depois, em dois bocados: o fim dele vem no contexto
+      // da ligação, não no do pedido.
+      setTimeout(() => {
+        pedido.write('{"nome":');
+        setTimeout(() => {
+          pedido.end('"abc"}');
+        }, 20);
+      }, 20);
+    });
+    await app.close();
+    expect(estado).toBe(200);
+    expect(visto).toEqual({
+      canal: "api",
+      pedido: "req-corpo",
+      ia: { modelo: "m", prova: "declarado" },
+    });
+  });
+
+  it("nas rotas do Hub, o canal é «hub», pela marca da rota", async () => {
+    const app = criarApp();
+    let visto: ContextoRasto | undefined;
+    app.get(
+      "/teste-hub",
+      {
+        config: { ambito: "publico", hub: true },
+        schema: { response: { 200: Type.Object({}), ...RESPOSTA_DE_ERRO } },
+      },
+      () => {
+        visto = rastoActual();
+        return {};
+      },
+    );
+    const r = await app.inject({ method: "GET", url: "/teste-hub" });
+    expect(r.statusCode).toBe(200);
+    expect(visto?.canal).toBe("hub");
+    await app.close();
+  });
+
+  it("um identificador do pedido que a base não aceitaria fica de fora (P3-3)", async () => {
+    const app = criarApp({ genReqId: () => "req /com espaço" });
+    let visto: ContextoRasto | undefined;
+    app.addHook("preHandler", (_pedido, _resposta, feito) => {
+      visto = rastoActual();
+      feito();
+    });
+    await app.inject({ method: "GET", url: "/health" });
+    expect(visto).toEqual({ canal: "api" });
     await app.close();
   });
 
@@ -168,11 +258,54 @@ describe.skipIf(URL_BASE === undefined)(
       });
     });
 
-    it("fora de um pedido, o canal é «sistema» e nada mais se inventa", async () => {
+    it("fora de um pedido, nada se inventa: o canal fica desconhecido", async () => {
       expect(rastoActual()).toBeUndefined();
-      expect(await lido()).toEqual({
+      expect(await lido()).toEqual({ quem: "teste:base" });
+    });
+
+    it("uma tarefa agendada com o canal «sistema» leva-o à base", async () => {
+      const contexto = await comRasto(
+        { canal: "sistema", pedido: "tarefa:fila_vies" },
+        () =>
+          new Promise((resolver, falhar) => {
+            setTimeout(() => {
+              lido().then(resolver, falhar);
+            }, 1);
+          }),
+      );
+      expect(contexto).toEqual({
         quem: "teste:base",
         canal: "sistema",
+        pedido: "tarefa:fila_vies",
+      });
+    });
+
+    it("comRastoNaBase leva o contexto sem comerciante (o operador)", async () => {
+      const contexto = await comRasto(
+        { canal: "operador", pedido: "github-run:42" },
+        () =>
+          comRastoNaBase(base.api, async (trx) => {
+            const { rows } = await sql<{
+              c: unknown;
+            }>`select contexto_do_rasto() as c`.execute(trx);
+            return rows[0]?.c;
+          }),
+      );
+      expect(contexto).toEqual({
+        quem: "teste:base",
+        canal: "operador",
+        pedido: "github-run:42",
+      });
+    });
+
+    it("aceita os limites: motivo de 500 e pedido de 100 caracteres", async () => {
+      const contexto = await comRasto(
+        { canal: "api", pedido: "p".repeat(100), motivo: "m".repeat(500) },
+        lido,
+      );
+      expect(contexto).toMatchObject({
+        pedido: "p".repeat(100),
+        motivo: "m".repeat(500),
       });
     });
 
@@ -198,15 +331,16 @@ describe.skipIf(URL_BASE === undefined)(
 
     it("o contexto fica só na sua transacção", async () => {
       await comRasto({ canal: "mcp", pedido: "req-1" }, lido);
-      expect(await lido()).toEqual({
-        quem: "teste:base",
-        canal: "sistema",
-      });
+      expect(await lido()).toEqual({ quem: "teste:base" });
     });
 
     it.each<[string, Record<string, unknown>]>([
       ["canal desconhecido", { canal: "email" }],
       ["pedido mal formado", { pedido: "req 1; drop" }],
+      ["pedido com 101 caracteres", { pedido: "p".repeat(101) }],
+      ["IA com valor numérico", { ia: { prova: "declarado", modelo: 4 } }],
+      ["IA com valor vazio", { ia: { prova: "declarado", modelo: "" } }],
+      ["IA em lista", { ia: [{ prova: "declarado" }] }],
       ["quem autoriza é uma chave", { autorizadoPor: "chave:key_1" }],
       ["motivo comprido", { motivo: "x".repeat(501) }],
       ["IA sem prova", { ia: { modelo: "m" } }],

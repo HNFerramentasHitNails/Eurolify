@@ -48,11 +48,12 @@ BEGIN
     RAISE EXCEPTION 'audit.context_invalid: motivo com mais de 500 caracteres';
   END IF;
   IF ia_texto IS NOT NULL THEN
-    BEGIN
-      ia := ia_texto::jsonb;
-    EXCEPTION WHEN others THEN
+    -- Sem bloco EXCEPTION: abriria uma subtransacção em cada linha que os
+    -- gatilhos do passo 2 gravarem (revisão do #327, P2-2).
+    IF NOT pg_input_is_valid(ia_texto, 'jsonb') THEN
       RAISE EXCEPTION 'audit.context_invalid: a IA não é JSON';
-    END;
+    END IF;
+    ia := ia_texto::jsonb;
     -- §3.3: só «comprovado» ou «declarado»; «desconhecido» é não haver IA.
     IF jsonb_typeof(ia) <> 'object'
        OR (ia ->> 'prova') IS NULL
