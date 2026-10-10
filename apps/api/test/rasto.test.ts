@@ -208,7 +208,7 @@ describe("o contexto em cada pedido (app.ts)", () => {
 });
 
 describe.skipIf(URL_BASE === undefined)(
-  "contexto_do_rasto() na base (0052)",
+  "contexto_do_rasto() na base (0051)",
   () => {
     let base: BaseDeTeste;
     let a: string;

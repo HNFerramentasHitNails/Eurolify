@@ -39,6 +39,8 @@ import { rotasDoCheckout } from "./checkout/rotas.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { rotasDosPagamentos } from "./pagamentos/rotas.js";
 import { rotasDoStock } from "./stock/rotas.js";
+import type { ConfigFaturacao } from "./faturacao/adaptador.js";
+import { rotasDosDocumentos } from "./faturacao/rotas.js";
 import type { ConsultaVies } from "./clientes/vies.js";
 import { rotasDosPrecos } from "./precos/rotas.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
@@ -112,6 +114,11 @@ export function criarApp(
    * sem eles, pagar e ligar contas dá 503 `payments.not_configured`.
    */
   pagamentos?: ConfigPagamentos,
+  /**
+   * Os adaptadores de faturação e a chave das credenciais (docs/28); sem
+   * eles, ligar o emissor dá 503 `invoices.not_configured`.
+   */
+  faturacao?: ConfigFaturacao,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -381,6 +388,7 @@ export function criarApp(
       rotasDoCheckout(rotas, base);
       rotasDosPagamentos(rotas, base, pagamentos);
       rotasDoStock(rotas, base);
+      rotasDosDocumentos(rotas, base, faturacao);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.

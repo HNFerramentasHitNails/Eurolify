@@ -12,6 +12,7 @@ import { decidirIva, type Decisao } from "../iva/decisao.js";
 import { carregarTabelas, comercianteParaDecisao } from "../iva/repositorio.js";
 import { precosParaVenda, type PrecoParaVenda } from "../precos/repositorio.js";
 import { metodosDoMercado } from "../pagamentos/repositorio.js";
+import { documentoDaEncomenda } from "../faturacao/repositorio.js";
 import {
   armazemDaLoja,
   disponiveis,
@@ -1536,7 +1537,9 @@ export async function lerEncomenda(
       .where("encomenda_id", "=", id)
       .orderBy("posicao")
       .execute();
-    return { encomenda: e, linhas };
+    // O estado do documento fiscal (docs/28 §7.1); só o estado e o id.
+    const documento = await documentoDaEncomenda(trx, id);
+    return { encomenda: e, linhas, documento };
   });
 }
 

@@ -40,6 +40,9 @@ export const AMBITOS = [
   "inventory:policy",
   "fulfilment:read",
   "fulfilment:write",
+  "invoices:read",
+  "invoices:write",
+  "invoices:accounts",
   "keys:write",
   "storefront",
 ] as const;

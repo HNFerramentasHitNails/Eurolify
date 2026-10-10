@@ -197,7 +197,9 @@ Uma linha por declaração; **não se altera nem se apaga** (é a prova).
 
 **A régua única** `pode_receber_marketing(cliente, canal)`, numa função na
 base: contam só as declarações explícitas; vale a mais recente; empate ⇒ não;
-sem nenhuma ⇒ não; WhatsApp sem fonte ⇒ não; ficha `limitado` ⇒ não. É a
+sem nenhuma ⇒ não; WhatsApp sem fonte ⇒ não; ficha `limitado` ⇒ não. Vai
+passar a ser por contacto e por canal, com dupla confirmação sobre uma recusa
+(§14; `docs/06`, DL) — decidido, por fazer. É a
 régua que os sistemas actuais construíram a 29/09/2026 (`eu-gdpr-privacy`,
 regra 4 — **M**, medida no repositório `claude`, não neste). Notificações,
 exportações e IAs perguntam a esta função; nenhuma conta consentimentos por
@@ -228,11 +230,13 @@ si.
   ficha que fica não se faz.
 - Os consentimentos **não se movem** (não se alteram, 0042): a régua da ficha
   que fica conta as declarações das fichas fundidas nela, e uma declaração
-  pedida com o id antigo regista-se na ficha que ficou. Vale a declaração
-  mais recente das duas; o consentimento da ficha que fica passa a cobrir os
-  e-mails e telefones acrescentados — **C** (é a mesma pessoa, mas se o
-  consentimento por endereço o permite **não verifiquei**; jurista, com a V4).
-  O ensaio mostra a régua antes e depois (revisão do #298, P2-1).
+  pedida com o id antigo regista-se na ficha que ficou. Hoje vale a declaração
+  mais recente das duas fichas; o consentimento da ficha que fica passa a
+  cobrir os e-mails e telefones acrescentados — **C** (jurista, com a V4). O
+  ensaio mostra a régua antes e depois (revisão do #298, P2-1). **Decidido a
+  10/10/2026, por fazer:** o consentimento passa a ser por contacto, com dupla
+  confirmação sobre uma recusa (§14; `docs/06`, DL); deixa de haver uma regra
+  própria para as fusões.
 - As encomendas e os documentos **não mudam**: ficam na ficha absorvida, com o
   perfil que tinham.
 - **Sem desfazer** na Fase 1: antes de fundir, a API mostra o que vai mudar
@@ -801,3 +805,110 @@ próprio (P3-10); a pseudonimização do nome e morada devolvidos, na parte 2
 **Não verificado:** se o contentor da API na VPS sai para `ec.europa.eu`
 (sem saída, as provas ficam `indisponivel` com `SEM_LIGACAO`, e nada fica
 isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
+
+## 14. Consentimento por contacto e dupla confirmação (desenho de 10/10/2026)
+
+> **Estado: desenho; não está no código.** Decisão do Diogo, 10/10/2026, em
+> resposta à revisão do #325, que substitui a régua por ficha (`docs/06`, DL).
+> As fontes legais abaixo foram indicadas pelo Diogo; **não verifiquei** o
+> texto delas, por isso ficam **C** até um jurista as confirmar (com a V4).
+
+### 14.1 As regras
+
+| # | Regra | Fonte (indicada pelo Diogo) |
+|---|---|---|
+| C1 | O estado do marketing guarda-se **por contacto e por canal** (cada e-mail, cada telefone), não por ficha | RGPD, art. 7.º, n.º 1 — **C** |
+| C2 | A prova de cada declaração identifica **o canal e o contacto concreto** a que o «sim» ou o «não» se refere | RGPD, art. 7.º, n.º 1 — **C** |
+| C3 | Se um contacto tem uma recusa activa (oposição, retirada, subscrição cancelada), um «sim» novo para esse contacto **não muda o estado logo**: dispara uma **dupla confirmação** enviada a esse contacto (ligação por e-mail, código por SMS). Só a confirmação passa o estado a «sim», e o registo dela fica como prova | RGPD, art. 21.º, n.º 3, e art. 7.º, n.º 3 — **C** |
+| C4 | Sem confirmação, a recusa mantém-se | RGPD, art. 21.º, n.º 3 — **C** |
+| C5 | Um «sim» dado através de outro contacto só autoriza esse contacto; não mexe na recusa dos outros | RGPD, art. 5.º, n.º 1, al. d) — **C** |
+| C6 | E-mail e SMS exigem consentimento prévio expresso | Lei 41/2004, art. 13.º-A, n.º 1 (PT) — **C** |
+| C7 | A prova pode ficar na ficha de origem, lida a partir da ficha fundida, desde que a ligação não se perca; se a ficha de origem for apagada ou pseudonimizada, o consentimento que vinha dela cai | RGPD, art. 7.º, n.º 1 — **C** |
+
+**Consequência para as fusões:** deixa de haver uma regra própria. Cada
+contacto leva o seu estado; numa fusão, a ficha que fica junta os contactos e
+cada um continua com o estado que tinha, dado em qualquer ficha do grupo.
+Exemplo: a Ana retirou `ana@exemplo.pt` na ficha antiga e aceitou
+`ana.silva@exemplo.pt` na nova; fundidas, recebe no segundo e não no primeiro.
+Um «sim» novo para `ana@exemplo.pt` só conta depois de ela clicar na ligação
+enviada a esse endereço.
+
+### 14.2 Modelo (proposta)
+
+| Muda | Como |
+|---|---|
+| `consentimento.contacto` (novo) | o e-mail como se compara (sem espaços, minúsculas) ou o telefone como está na ficha; obrigatório nas declarações novas; tem de ser um contacto da ficha (ou do grupo) no momento da declaração |
+| `consentimento.via` (novo) | `directa` (a declaração como hoje) ou `dupla_confirmacao` (nasceu de uma confirmação; aponta para ela) |
+| `confirmacao_consentimento` (`ccf_`, nova) | o pedido de confirmação: ficha, canal, contacto, o resumo do segredo (nunca o segredo), criado, expira, tentativas, estado (`pendente`, `confirmada`, `expirada`, `cancelada`); só se acrescenta e muda de estado para a frente |
+| a régua | por contacto: a última declaração desse contacto e canal no grupo; sem nenhuma ⇒ não; um «aceitou» `directa` sobre uma recusa activa **não entra**: vira um pedido de confirmação |
+| `pode_receber_marketing(cliente, canal)` | passa a devolver os contactos com «sim»; nova `pode_receber_marketing(cliente, canal, contacto)` para a pergunta exacta |
+| as declarações antigas (sem contacto) | **proposta:** valem para os contactos que a ficha tinha à data da migração, marcadas como inferidas. No ensaio não há dados pessoais reais (ADR-0019), por isso não há consentimentos reais a herdar |
+
+O que já está feito e serve: as declarações só se acrescentam e ficam na
+ficha onde foram dadas (0042); a lista dos consentimentos lê o grupo (0046);
+a pseudonimização apaga as declarações do grupo inteiro (0049), e por isso o
+consentimento cai com a ficha (C7).
+
+### 14.3 A dupla confirmação
+
+- **E-mail:** uma ligação com um segredo de uso único, válida **24 horas** —
+  **proposta**.
+- **SMS:** um código de **6 dígitos**, válido **10 minutos**, no máximo **5
+  tentativas**; depois, o pedido cai — **proposta**.
+- **WhatsApp:** sem fonte de consentimento, continua não (§3.6); não há
+  confirmação por WhatsApp.
+- Guarda-se só o resumo do segredo (como as chaves e o token do checkout).
+- Um pedido novo para o mesmo contacto e canal cancela o anterior.
+- A confirmação regista uma declaração `aceitou` com `via =
+  dupla_confirmacao`, a hora, o contacto e a referência do pedido: é a prova
+  (C3).
+- **Quem envia a mensagem: o sistema do comerciante** (Q-C1, decidida: A).
+  O Eurolify cria o pedido e devolve o segredo (a ligação ou o código) **uma
+  só vez**, na resposta ao pedido que o criou; repetir com a mesma chave de
+  idempotência não o devolve outra vez (`idempotency.secret_not_repeated`,
+  como as chaves). O sistema do comerciante envia a mensagem ao contacto e,
+  quando a pessoa clica ou escreve o código, pede ao Eurolify para confirmar;
+  o Eurolify valida. O segredo nunca vai num evento nem num registo (R12).
+  Mais tarde, o domínio de Notificações do Eurolify pode enviar ele mesmo,
+  com um fornecedor na UE (decisão escrita à parte).
+
+### 14.4 API (proposta)
+
+| Operação | O quê |
+|---|---|
+| `POST /customers/{id}/consents` | passa a pedir `contacto`; sobre uma recusa activa responde **202** com o pedido de confirmação (`ccf_…`), o segredo (uma só vez) e a hora em que expira, e não muda a régua |
+| `POST /consent-confirmations/{id}/confirm` (`customers:write`) | o sistema do comerciante entrega o que a pessoa trouxe (o segredo da ligação ou o código); recusa se está errado, expirou, foi cancelado, já foi usado ou esgotou as tentativas |
+| `GET /customers/{id}/consents` | a régua por canal **e por contacto** |
+| eventos | `consent.changed` e `consent.confirmation_requested` levam só identificadores (`cus_`, `cns_`, `ccf_`, canal), **nunca** o contacto nem o segredo (R12) |
+
+### 14.5 Por onde é que isto ainda pode sair errado
+
+- **O segredo vaza** (num registo, num evento): só o resumo se guarda; o
+  segredo só existe na mensagem enviada.
+- **Força bruta ao código do SMS:** limite de tentativas por pedido e por
+  contacto.
+- **Um contacto que muda de dono** (um e-mail ou telefone reatribuído): a
+  confirmação vai ao contacto, não à pessoa; fica escrito como risco.
+- **Comparar contactos:** o mesmo e-mail com maiúsculas é o mesmo contacto; um
+  telefone em formatos diferentes não se junta sozinho (a ficha só aceita o
+  formato da 0037).
+- **Um contacto tirado da ficha:** deixa de receber, porque não está na ficha;
+  se voltar, o estado é o que tinha.
+
+### 14.6 Perguntas
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q-C1 | Quem envia a ligação e o código da dupla confirmação? | **Decidida (Diogo, 10/10/2026: «A»):** o sistema do comerciante; o Eurolify cria o pedido, devolve o segredo uma vez e valida |
+| Q-C2 | Os prazos (24 h, 10 min, 5 tentativas) | os acima, **proposta** |
+| Q-C3 | As declarações antigas sem contacto | as da proposta do §14.2 |
+
+### 14.7 Como entra no código (quando aprovado)
+
+1. Migração: `contacto` e `via` no consentimento, a tabela dos pedidos, a régua
+   por contacto e as funções da confirmação; as declarações antigas.
+2. API: as rotas do §14.4 e os eventos.
+3. Testes: as regras C1–C7, um a um, com uma fusão; a força bruta; a
+   expiração; o segredo fora dos registos e dos eventos; as mutações.
+4. A migração 0051 do #325 (a régua por ficha) **não entra**: é substituída por
+   esta.

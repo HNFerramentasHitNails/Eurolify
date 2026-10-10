@@ -51,7 +51,7 @@ export function rastoActual(): ContextoRasto | undefined {
   return armazem.getStore();
 }
 
-/** A forma do identificador que `contexto_do_rasto()` aceita (0052). */
+/** A forma do identificador que `contexto_do_rasto()` aceita (0051). */
 export const PEDIDO_DO_RASTO = /^[A-Za-z0-9._:-]{1,100}$/;
 
 const VALOR_IA = /^[A-Za-z0-9._:/-]{1,100}$/;
