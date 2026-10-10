@@ -1,7 +1,9 @@
 # Pagamentos — modelo e lista da API
 
-> **Estado: desenho, por aprovar** (issue #287). Diogo,
-> 09/10/2026: *«sim, avança com o desenho da fatia 8»*. É a fatia 8 do
+> **Estado: desenho aprovado; parte 1 no código** (issue #287; migração
+> 0042; `docs/06`, DB). Diogo, 09/10/2026: *«sim, avança com o desenho da
+> fatia 8»* e *«sim, aprovo; avança com o código da fatia 8»* (Q1 a Q6 como
+> propostas). O que está programado e os desvios dizem-se na §15. É a fatia 8 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Pagamentos por adaptador (EuPago, Stripe), confirmação no servidor,
 > conciliação»). Depende da fatia 7, cuja parte 1 está no `main` (`docs/25`,
@@ -311,14 +313,18 @@ do adaptador (R8).
 
 ## 12. Por verificar antes do código (bloqueiam o adaptador, não o modelo)
 
-| # | O quê | Onde |
-|---|---|---|
-| V1 | Na EuPago, o MB WAY e o Multibanco têm só «pago» ou também autorização à parte; que estados e avisos manda | documentação da API da EuPago (não li) |
-| V2 | Os prazos do MB WAY e das referências Multibanco, e se o fim do prazo avisa | idem (a skill diz «não confirmado») |
-| V3 | Que dados pessoais a EuPago pede por método | idem |
-| V4 | Como a EuPago assina os avisos (HMAC? cabeçalho? chave por conta?) | idem |
-| V5 | Se a EuPago tem ambiente de testes com credenciais próprias | idem |
-| V6 | O registo da EuPago como instituição de pagamento (registo nacional; a EBA como ponto de pesquisa) | Banco de Portugal / EBA (`eurolify-payment-readiness-eu`, 3) |
+Lido na documentação pública da EuPago a 09/10/2026 (**W**,
+[docs.eupago.pt](https://docs.eupago.pt/reference)); **nada foi corrido contra
+a sandbox**, porque não há credenciais de teste.
+
+| # | O quê | O que se leu | O que falta |
+|---|---|---|---|
+| V1 | Estados e avisos | Avisos 2.0 com `status` `Paid`, `Refund`, `Error`, `Cancel`, `Expired` ([avisos 2.0](https://docs.eupago.pt/reference/realtime-webhooks-20)); o MB WAY tem uma variante com autorização e captura à parte, que não se usa | a consulta (`multibanco/info`) só documenta o estado `pendente`: os outros valores estão por confirmar |
+| V2 | Prazos | MB WAY: 5 minutos para aprovar, até 99 999 € ([MB WAY](https://docs.eupago.pt/reference/mbway)); Multibanco: prazo por data (`data_fim`, AAAA-MM-DD), de 1 € a 99 999 € ([Multibanco](https://docs.eupago.pt/reference/multibanco)) | se o fim do prazo avisa (a skill diz «não confirmado»); a referência paga-se até ao fim do dia do prazo |
+| V3 | Dados pessoais | MB WAY: telemóvel e indicativo (obrigatórios); nome e e-mail opcionais, que não se enviam. Multibanco: nenhum | — |
+| V4 | Assinatura | `X-Signature`, HMAC-SHA256 em base64, com a chave do canal; a página não diz sobre o que se calcula | o corpo em bruto é a hipótese do código (**C**), a confirmar na sandbox; a cifra dos avisos (AES-256-CBC) não se suporta e tem de ficar desligada no canal |
+| V5 | Sandbox | `https://sandbox.eupago.pt`; para produção troca-se «sandbox» por «clientes» ([API](https://docs.eupago.pt/reference/api-eupago)) | como se obtêm credenciais de teste |
+| V6 | Registo da EuPago | — | **não verifiquei** (Banco de Portugal / EBA) |
 
 ## 13. Para o jurista e o contabilista (bloqueiam a produção, não o código)
 
@@ -342,3 +348,44 @@ do adaptador (R8).
   - testes contra um prestador simulado (aviso repetido, assinatura inválida, tempo esgotado ⇒ `incerto`, montante diferente, pago depois de cancelada, dois pagamentos vivos), mutações e a revisão do agente.
 - **Parte 2:** a Stripe (depois da Q2), o cartão com 3DS2 nas páginas dela e a captura diferida com a fatia 9.
 - Cada parte num pedido, com o desenho, os testes verdes e a revisão do agente antes de juntar (ADR-0031, ADR-0035).
+
+## 15. Em código — parte 1 (10/10/2026; migração 0042; `docs/06`, DB)
+
+| O quê | Onde |
+|---|---|
+| tabelas `conta_pagamento`, `metodo_pagamento` (a régua), `pagamento`, `aviso_pagamento`, `transicao_pagamento` (só se acrescenta) e `diferenca_pagamento`, com o RLS forçado; duas internas (`conta_pagamento_aviso`, a porta dos avisos, e `tarefa_pagamento`) | migração 0042 |
+| a máquina de estados na base (`pagamento_transicao_valida`), só para a frente; do `incerto` só por consulta ou por uma pessoa; um pagamento vivo por encomenda; as cópias não mudam | migração 0042 |
+| a encomenda `paga` só com um pagamento capturado do mesmo montante e moeda; `cancelada_sem_pagamento` só sem pagamento vivo nem capturado | migração 0042 (gatilho na encomenda) |
+| eventos `payment.*`, `order.paid`, `order.cancelled`, pelos gatilhos; a transição grava a origem, quem, o aviso e o motivo | migração 0042 |
+| âmbitos `payments:read`, `payments:write`, `payments:accounts` nos papéis (dono os três; gestor ler e escrever; apoio ler; armazém nenhum) | migração 0042; `src/identidade/` |
+| as credenciais cifradas com AES-256-GCM (`PAGAMENTOS_CHAVE`), com a conta e o campo como dado associado | `src/pagamentos/cifra.ts` |
+| o adaptador EuPago (MB WAY e Multibanco, sandbox) e o contrato | `src/pagamentos/eupago.ts`, `adaptador.ts` |
+| o pagamento pelo token, os avisos, a consulta, as tarefas, a fila e a Administração — a lista da §8 | `src/pagamentos/` |
+| o checkout só aceita métodos da régua; o MB WAY pede telemóvel português; um método que deixou de estar disponível bloqueia o botão final | `src/checkout/repositorio.ts` |
+| 12 testes pela API com a EuPago falsa (o adaptador verdadeiro, a rede trocada) | `test/pagamentos-api.test.ts`, `test/eupago-falso.ts` |
+
+**Desvios do desenho:**
+- **Só o modo teste existe** (a base recusa `real`): abrir o modo real é uma
+  migração com decisão escrita (ADR-0019).
+- **As tarefas correm dentro da API**, de minuto a minuto, como a fila do
+  VIES (`src/clientes/vies-fila.ts`), e não num temporizador `systemd`
+  (proposta da Q6). Assim não há mais nada para instalar na VPS, e só correm
+  com a `PAGAMENTOS_CHAVE` definida.
+- **O identificador do evento** de um aviso é `trid` mais `status`: a EuPago
+  não documenta um identificador próprio do evento.
+- **A consulta à EuPago** só reconhece `pendente`. O que ela não diz
+  claramente não muda nada; numa tarefa depois do prazo, um MB WAY passa a
+  `expirado` (5 minutos para aprovar, **W**) e um Multibanco passa a
+  `incerto`, para uma pessoa decidir.
+- **Um aviso que chega antes de gravarmos a resposta da cobrança** responde
+  503, e a EuPago reenvia daqui a 2 minutos (**W**).
+- **Resolver uma diferença** faz-se nesta parte pela chave do comerciante
+  (`payments:write`), com o texto da resolução; um processo automático nunca
+  o faz (a base recusa). O ecrã no Hub, pela sessão de uma pessoa, fica para
+  depois.
+- **Um pagamento depois de falhado ou expirado** pode usar outro método da
+  régua (`POST /checkout/{token}/payment` com `metodo`), dentro das 24 h.
+- **Por fazer:** a Stripe (parte 2, depois da Q2); a confirmação contra a
+  sandbox da EuPago (V1, V4, V5); a retenção dos avisos em bruto (§7, entra
+  na porta P2-3 do `docs/25`); o ecrã da fila no Hub.
+

@@ -25,6 +25,7 @@ import {
 } from "../src/precos/repositorio.js";
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { urlSemSegredos } from "../src/base/registo.js";
+import { eupagoFalso } from "./eupago-falso.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -42,6 +43,8 @@ const QUEM = "pessoa:teste";
 describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
   let base: BaseDeTeste;
   let app: ReturnType<typeof criarApp>;
+  // Os métodos de pagamento vêm da régua (docs/26): uma conta EuPago de teste.
+  const eupago = eupagoFalso();
 
   beforeAll(async () => {
     base = await criarBaseDeTeste(URL_BASE ?? "");
@@ -54,6 +57,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       undefined,
       undefined,
       { pedidos: 100_000, janelaMs: 60_000 },
+      eupago.config,
     );
   }, 60_000);
 
@@ -210,11 +214,17 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
           "shipping:read",
           "shipping:write",
           "orders:read",
+          "payments:read",
+          "payments:write",
+          "payments:accounts",
         ],
       })
     ).segredo;
-    const adm = (m: "POST" | "GET" | "PATCH", url: string, corpo?: unknown) =>
-      pedir(m, url, corpo, { authorization: `Bearer ${servidor}` });
+    const adm = (
+      m: "POST" | "GET" | "PATCH" | "PUT",
+      url: string,
+      corpo?: unknown,
+    ) => pedir(m, url, corpo, { authorization: `Bearer ${servidor}` });
     const versoes: string[] = [];
     for (const tipo of TIPOS_TEXTO_LEGAL) {
       const t = await ok(
@@ -250,6 +260,33 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       }),
       201,
     );
+    // A régua dos pagamentos (docs/26 §3.2): MB WAY e Multibanco numa conta
+    // EuPago pronta.
+    const conta = await ok(
+      adm("POST", "/payment-accounts", {
+        prestador: "eupago",
+        nome: "Produtos",
+      }),
+      201,
+    );
+    await ok(
+      adm("PUT", `/payment-accounts/${String(conta["id"])}/credentials`, {
+        chave: "xxxx-xxxx-xxxx-xxxx",
+        segredo_aviso: "segredo-dos-avisos-123",
+      }),
+      204,
+    );
+    await ok(adm("POST", `/payment-accounts/${String(conta["id"])}/test`));
+    for (const metodo of ["mb_way", "multibanco"]) {
+      await ok(
+        adm("POST", "/payment-methods", {
+          mercado: `mkt_${mercado}`,
+          metodo,
+          conta: conta["id"],
+        }),
+        201,
+      );
+    }
     return {
       c,
       loja,
@@ -339,7 +376,9 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       pedir("PUT", `/checkout/${token}/delivery-method`, { metodo: s.metodo }),
     );
     await ok(
-      pedir("PUT", `/checkout/${token}/payment-method`, { metodo: "mb_way" }),
+      pedir("PUT", `/checkout/${token}/payment-method`, {
+        metodo: "multibanco",
+      }),
     );
   }
 
@@ -394,7 +433,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       estado: "a_aguardar_pagamento",
       finalidade: "consumo",
       totais: { base: 2406, iva: 553, total: 2959 },
-      metodo_pagamento: "mb_way",
+      metodo_pagamento: "multibanco",
       contacto: { email: "rui@exemplo.pt", nome: "Rui" },
       perfil_copia: { tipo: "particular", nome_documento: "Rui" },
       linhas: [
