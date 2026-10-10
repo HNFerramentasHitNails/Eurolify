@@ -107,9 +107,81 @@ jobs:
             exit 1
           fi
 
+  imagens:
+    # As imagens base fixadas pelo resumo (infra/ci/imagens-base.txt; o
+    # Dockerfile repete a do node) não têm Dependabot: a etiqueta pode ganhar
+    # uma imagem nova (reconstruída com correcções) e o nosso resumo fica
+    # para trás. Todas as manhãs compara-se, no espelho, o resumo actual de
+    # cada etiqueta com o fixado (decisão do Diogo, 10/10/2026; docs/16). Se
+    # mudou, abre-se um issue (sem repetir) para se actualizar num pedido; a
+    # corrida não falha por isso. Não muda o repositório.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TITULO: "imagens: há uma versão nova de uma imagem base"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: comparar os resumos com os do espelho
+        run: |
+          novas=""
+          sem_leitura=""
+          while read -r nome origem; do
+            [[ -z "$nome" || "$nome" == \#* ]] && continue
+            ref="${origem#docker.io/}"
+            repo="${ref%%:*}"
+            resto="${ref#*:}"
+            etiqueta="${resto%@*}"
+            fixo="${resto##*@}"
+            actual="$(curl -sI --max-time 20 --retry 2 \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://mirror.gcr.io/v2/${repo}/manifests/${etiqueta}" |
+              tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }')" || actual=""
+            # Só um resumo bem formado conta (revisão do #308, P3-2).
+            if [[ ! "$actual" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "não consegui ler ${repo}:${etiqueta} no espelho"
+              sem_leitura+="- ${nome} (${repo}:${etiqueta})"$'\n'
+            elif [[ "$actual" != "$fixo" ]]; then
+              echo "${nome}: ${repo}:${etiqueta} mudou (${fixo:7:12} → ${actual:7:12})"
+              novas+="- ${nome} (${repo}:${etiqueta}): fixado \`${fixo}\`, no espelho \`${actual}\`"$'\n'
+            else
+              echo "${nome}: igual"
+            fi
+          done < infra/ci/imagens-base.txt
+          # Um espelho que não responde não é uma imagem nova: fica no registo
+          # da corrida, sem issue (revisão do #308, P3-1).
+          [[ -n "$novas" ]] || exit 0
+          texto="$(printf '%s\n%s\n%s\n%s' \
+            "Em $(date -u +%F), no espelho mirror.gcr.io (é o espelho que se compara, não o Docker Hub):" \
+            "$novas" \
+            "Actualizar num pedido de alteração: infra/ci/imagens-base.txt; no caso do node, também o Dockerfile; no caso do postgres, também infra/vps/ficheiros/ensaio.conf (IMAGEM_POSTGRES). Conferir as notas da versão e correr as verificações." \
+            "${sem_leitura:+Sem leitura no espelho: }${sem_leitura}")"
+          n="$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | "\(.number)\t\(.title)"' |
+            awk -F'\t' -v t="$TITULO" '$2 == t { print $1; exit }')"
+          if [[ -z "$n" ]]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues" -f title="$TITULO" -f body="$texto" >/dev/null
+            exit 0
+          fi
+          # Com o issue aberto, só se escreve quando a lista mudou (uma imagem
+          # nova a mais, ou outro resumo): um comentário com a lista de hoje
+          # (revisão do #308, P2-1). Fechar o issue sem actualizar as imagens
+          # faz abrir outro na manhã seguinte, de propósito.
+          ja="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${n}" --jq .body)"
+          ja+="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${n}/comments?per_page=100" --jq '.[].body')"
+          if [[ "$ja" != *"$novas"* ]]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${n}/comments" -f body="$texto" >/dev/null
+          fi
+
   avisar:
     # A corrida da manhã não pára em silêncio: um issue aberto, sem repetir.
-    needs: [segredos, dependencias, espelho]
+    needs: [segredos, dependencias, espelho, imagens]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
