@@ -808,8 +808,9 @@ isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
 
 ## 14. Consentimento por contacto e dupla confirmação (desenho de 10/10/2026)
 
-> **Estado: desenho; não está no código.** Decisão do Diogo, 10/10/2026, em
-> resposta à revisão do #325, que substitui a régua por ficha (`docs/06`, DL).
+> **Estado: no código (migração 0051), à espera de revisão e de juntar.**
+> Decisão do Diogo, 10/10/2026, em resposta à revisão do #325, que substitui
+> a régua por ficha (`docs/06`, DL); Q-C1 decidida (A). Ver §14.8.
 > As fontes legais abaixo foram indicadas pelo Diogo; **não verifiquei** o
 > texto delas, por isso ficam **C** até um jurista as confirmar (com a V4).
 
@@ -912,3 +913,20 @@ consentimento cai com a ficha (C7).
    expiração; o segredo fora dos registos e dos eventos; as mutações.
 4. A migração 0051 do #325 (a régua por ficha) **não entra**: é substituída por
    esta.
+
+### 14.8 Em código (10/10/2026; migração 0051)
+
+| O quê | Onde |
+|---|---|
+| `consentimento.contacto` (obrigatório nas novas, como se compara: o e-mail em minúsculas, o telefone como a ficha o guarda; tem de ser da ficha), `via` e `confirmacao_id` (só a confirmação os põe) | migração 0051 |
+| o estado por contacto (`marketing_do_contacto`): a última declaração desse contacto no grupo; as antigas sem contacto valem para os contactos da ficha onde foram dadas | migração 0051 |
+| as réguas: `pode_receber_marketing(cliente, canal, contacto)`, `contactos_com_marketing(cliente, canal)`; `pode_receber_marketing(cliente, canal)` dá sim se algum contacto **da ficha** pode; o plano da fusão conta os contactos das duas | migração 0051 |
+| sobre uma recusa activa do contacto, a base recusa um «sim» directo (`customers.consent_confirmation_required`), e a API cria o pedido (`confirmacao_consentimento`, `ccf_`) e responde **202** com o segredo, uma só vez | migração 0051; `src/clientes/` |
+| a confirmação (`POST /consent-confirmations/{id}/confirm`, `customers:write`): 24 h e uma ligação de 32 bytes no e-mail, 10 min e 6 dígitos no SMS, 5 tentativas; a tentativa errada fica contada; um pedido novo cancela o anterior; WhatsApp sem confirmação (`customers.confirmation_channel`) | migração 0051; `src/clientes/` |
+| o segredo: só o resumo (sha256 do id e do segredo), a API não lê o resumo; nem nos eventos (`consent.confirmation_requested` leva só identificadores), nem na idempotência (repetir dá `idempotency.secret_not_repeated`) | migração 0051; `src/clientes/rotas.ts` |
+| a pseudonimização apaga os pedidos do grupo (têm o contacto) e a linha do tempo perde o contacto das declarações; a exportação junta os pedidos, sem o resumo | migração 0051; `src/clientes/repositorio.ts` |
+| testes: `test/clientes-consentimento-contacto.test.ts` (C1–C7, o SMS, a expiração, o segredo, a fusão, a pseudonimização, as declarações antigas); os de consentimentos, fusões e titular adaptados ao contacto | `test/` |
+
+**Fica por fazer:** a página (ou o ecrã) da loja que recebe a ligação e o
+código (é do sistema do comerciante, Q-C1); o domínio de Notificações, se
+um dia o Eurolify enviar ele mesmo; as fontes **C** com o jurista.

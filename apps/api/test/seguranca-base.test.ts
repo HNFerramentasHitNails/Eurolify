@@ -54,13 +54,21 @@ const FUNCOES_DA_API = [
   // Os pedidos do titular (0049): limitar, pseudonimizar e as duas que dizem
   // se a pseudonimização está a correr (os gatilhos chamam-nas).
   "cliente_limitar",
+  // O consentimento por contacto e a dupla confirmação (0051): o gatilho da
+  // pseudonimização, a régua por contacto e o pedido e a confirmação.
+  "cliente_pseudonimizado_sem_confirmacoes",
   "cliente_pseudonimizar",
   "clientes_do_grupo",
   "clientes_dono_a_escrever",
   "clientes_pseudonimizacao_em_curso",
   "codigos_gerar",
   "comerciante_actual",
+  "consentimento_confirmar",
+  "consentimento_pedir_confirmacao",
   "conta_nova_com_passkey",
+  "contacto_para_comparar",
+  "contactos_com_marketing",
+  "contactos_das_fichas",
   "convite_aceitar",
   "convite_cancelar",
   "convite_criar",
@@ -90,6 +98,7 @@ const FUNCOES_DA_API = [
   "ficheiros_comerciantes_sem_uso",
   "ficheiros_sem_uso",
   "gtin_valido",
+  "marketing_do_contacto",
   "membro_mudar_papel",
   "membro_terminar",
   "membros_listar",
@@ -122,6 +131,7 @@ const FUNCOES_DA_API = [
   "perfil_tornar_principal",
   "pessoa_eu",
   // A régua única do marketing (0042): quem envia pergunta-lhe.
+  "pode_receber_marketing",
   "pode_receber_marketing",
   // A redução anunciada (0036): o gatilho corre com quem escreve.
   "preco_referencia",

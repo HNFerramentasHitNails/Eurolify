@@ -787,6 +787,33 @@ export interface TabelaConsentimento {
   onde: ColumnType<string, string, never>;
   declarado_em: ColumnType<Date, never, never>;
   quem: ColumnType<string, never, never>;
+  /** O contacto a que a declaração se refere (0051); nulo nas antigas. */
+  contacto: ColumnType<string | null, string, never>;
+  via: ColumnType<"directa" | "dupla_confirmacao", never, never>;
+  confirmacao_id: ColumnType<string | null, never, never>;
+}
+
+/** Um pedido de dupla confirmação (0051); a API só lê, sem o resumo. */
+export interface TabelaConfirmacaoConsentimento {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_id: ColumnType<string, never, never>;
+  canal: ColumnType<"email" | "sms", never, never>;
+  contacto: ColumnType<string, never, never>;
+  texto: ColumnType<string, never, never>;
+  versao_texto: ColumnType<string, never, never>;
+  onde: ColumnType<string, never, never>;
+  estado: ColumnType<
+    "pendente" | "confirmada" | "expirada" | "cancelada" | "esgotada",
+    never,
+    never
+  >;
+  tentativas: ColumnType<number, never, never>;
+  expira_em: ColumnType<Date, never, never>;
+  pedida_por: ColumnType<string, never, never>;
+  pedida_em: ColumnType<Date, never, never>;
+  fechada_em: ColumnType<Date | null, never, never>;
+  consentimento_id: ColumnType<string | null, never, never>;
 }
 
 export const SINAIS_DUPLICADO = [
@@ -1397,6 +1424,7 @@ export interface BaseDados {
   consentimento: TabelaConsentimento;
   duplicado_cliente: TabelaDuplicadoCliente;
   pedido_titular: TabelaPedidoTitular;
+  confirmacao_consentimento: TabelaConfirmacaoConsentimento;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;

@@ -1458,6 +1458,8 @@ export async function escrever(
    */
   guarda?: Pick<OpcoesIdempotencia, "repetir"> & {
     guardar: (corpo: unknown) => unknown;
+    /** O estado da resposta, quando depende do que a escrita deu (201 ou 202). */
+    estado?: (corpo: unknown) => number;
   },
 ) {
   const chave = chaveDo(pedido);
@@ -1487,7 +1489,7 @@ export async function escrever(
         );
         const corpo = await fn(trx, chave);
         return {
-          status,
+          status: guarda?.estado?.(corpo) ?? status,
           corpo,
           guardar: guarda === undefined ? corpo : guarda.guardar(corpo),
         };

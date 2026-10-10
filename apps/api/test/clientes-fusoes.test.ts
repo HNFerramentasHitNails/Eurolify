@@ -102,16 +102,35 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     (await ok(pedir("GET", `/customers/${cliente}/consents`)))[
       "pode_receber_marketing"
     ] as Json;
-  const declarar = (cliente: string, d: "aceitou" | "retirou") =>
+  /** O primeiro e-mail da ficha (0051: cada declaração diz o contacto); sem nenhum, acrescenta um. */
+  const contactoDe = async (cliente: string): Promise<string> => {
+    const f = await ok(pedir("GET", `/customers/${cliente}`));
+    const emails = f["emails"] as string[];
+    if (emails[0] !== undefined) return emails[0];
+    const novo = `${cliente.slice(4, 16)}@exemplo.pt`;
+    await ok(
+      pedir("PATCH", `/customers/${cliente}`, {
+        versao: f["versao"],
+        emails: [novo],
+      }),
+    );
+    return novo;
+  };
+  const declarar = async (
+    cliente: string,
+    d: "aceitou" | "retirou",
+    estado = 201,
+  ) =>
     ok(
       pedir("POST", `/customers/${cliente}/consents`, {
         canal: "email",
         declaracao: d,
+        contacto: await contactoDe(cliente),
         texto: "Quero receber novidades.",
         versao_texto: "v1",
         onde: "loja, registo",
       }),
-      201,
+      estado,
     );
 
   /** O dono da base, no comerciante A, numa transacção que fica. */
@@ -682,8 +701,9 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     expect(vies).toMatch(/^customers\.invalid_transition:/);
   });
 
-  it("o plano diz a régua do marketing antes e depois; vale a declaração mais recente das duas fichas", async () => {
-    // A que fica retirou; a absorvida aceitou depois: passa a sim.
+  it("o plano diz a régua do marketing antes e depois, por contacto (0051)", async () => {
+    // A que fica retirou o e-mail dela; a absorvida aceitou o seu: a fundida
+    // recebe no da absorvida (que passa para ela), não no que retirou.
     const fica = await ficha({ nome: "F" });
     const sai = await ficha({ nome: "S" });
     await declarar(fica, "aceitou");
@@ -702,8 +722,8 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     });
     expect((await regua(fica))["email"]).toBe(true);
 
-    // A que fica aceitou; a absorvida nunca declarou: continua sim, e o
-    // contacto acrescentado fica coberto (docs/23 §3.7, C).
+    // A que fica aceitou; a absorvida nunca declarou: continua sim, só no
+    // contacto que aceitou (docs/23 §14, C5).
     const u = unico();
     const x = await ficha({ nome: "X", emails: [`x.${u}@ex.pt`] });
     const z = await ficha({ nome: "Z", emails: [`z.${u}@ex.pt`] });
