@@ -532,9 +532,18 @@ export const pt = {
   varianteNovaCombinacaoRepetida: "Outra variante activa já tem estes valores.",
   varianteNovaNaoCriada:
     "A ligação falhou e não encontrámos a variante. Pode tentar outra vez: se tiver ficado criada, o ecrã abre a ficha.",
-  varianteCriada: "Variante criada.",
+  varianteCriada: "Variante {sku} criada.",
   varianteCriadaFora:
-    "Variante criada. Fica fora das lojas onde o artigo está à venda até a publicação ser refeita.",
+    "Variante {sku} criada. Fica fora das lojas onde o artigo está à venda até a publicação ser refeita.",
+  varianteCriadaTalvezFora:
+    "Variante {sku} criada. Não conseguimos confirmar se o artigo está à venda: se estiver, a variante fica fora das lojas até a publicação ser refeita.",
+  varianteNovaOpcoesObrigatorias: "Escolha um valor de cada opção.",
+  varianteNovaOpcoesRascunho:
+    "Num rascunho, os valores podem ficar por escolher.",
+  varianteSkuFormato:
+    "O SKU começa por uma letra ou um algarismo e só leva letras, algarismos e . _ / -.",
+  varianteNovaOutraGravada:
+    "Este artigo já tem uma variante com este SKU, mas não com o que está escrito: pode ser a da tentativa anterior. Veja-a na ficha antes de tentar outra vez.",
   conviteInstrucao: "Escreva o seu nome e crie a conta com uma passkey.",
   conviteResumo:
     "Foi convidado para a equipa de {comerciante}, com o papel {papel}.",

@@ -97,8 +97,14 @@ export function Artigo({
     // Uma variante acrescentada (docs/22 §24.2).
     if (q.get("variante") === "criada") return "varianteCriada";
     if (q.get("variante") === "fora") return "varianteCriadaFora";
+    if (q.get("variante") === "talvez") return "varianteCriadaTalvezFora";
     return q.get("guardado") === "1" ? "guardado" : null;
   });
+  // O SKU da variante acrescentada, para o aviso (revisão do #331, P2-1).
+  // Vai em `skuCriado`: o `sku` da consulta é o filtro da lista.
+  const [skuDoAviso] = useState(
+    () => new URLSearchParams(consulta).get("skuCriado") ?? "",
+  );
   // Ao sair da ficha, as respostas que ainda cheguem deixam de contar.
   const montado = useRef(true);
   useEffect(() => {
@@ -245,6 +251,7 @@ export function Artigo({
     q.delete("guardado");
     q.delete("criado");
     q.delete("variante");
+    q.delete("skuCriado");
     window.history.replaceState(
       window.history.state,
       "",
@@ -548,7 +555,7 @@ export function Artigo({
               tabIndex={-1}
               ref={avisoRef}
             >
-              {t[TEXTO_DO_AVISO[aviso]]}
+              {preencher(t[TEXTO_DO_AVISO[aviso]], { sku: skuDoAviso })}
             </p>
           )}
           {falhaAccao === null && !ordemAMeio ? null : (
@@ -995,7 +1002,8 @@ type Aviso =
   | "imagemAcrescentada"
   | "imagemTirada"
   | "varianteCriada"
-  | "varianteCriadaFora";
+  | "varianteCriadaFora"
+  | "varianteCriadaTalvezFora";
 const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
   guardado: "artigoGuardado",
   criado: "artigoCriado",
@@ -1004,6 +1012,7 @@ const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
   imagemTirada: "artigoImagemTirada",
   varianteCriada: "varianteCriada",
   varianteCriadaFora: "varianteCriadaFora",
+  varianteCriadaTalvezFora: "varianteCriadaTalvezFora",
 };
 
 /** O erro de um envio, em linguagem comum (docs/22 §15.4). */

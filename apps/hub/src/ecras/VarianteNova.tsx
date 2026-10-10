@@ -10,18 +10,21 @@ import {
   conferirVariante,
   corpoDaVarianteNova,
   MAXIMO_SKU,
+  varianteIgualAoCorpo,
   ORDEM_DOS_CAMPOS,
   varianteNovaEscrita,
   type CampoVariante,
   type CamposVariante,
+  type VarianteACriar,
 } from "../variante";
 
 // Acrescentar uma variante a um artigo existente (docs/22 §24), pelo
 // POST /hub/products/{id}/variants. As regras são da API (SKU único, um
 // valor de cada opção num artigo que já não é rascunho, combinação nova);
 // o ecrã só confere o que é do formulário e põe a resposta da API ao lado
-// do campo. Sem Idempotency-Key: se a resposta se perde, o ecrã procura o
-// SKU no artigo e, se lá estiver, dá a variante por criada (§24.1).
+// do campo. Sem Idempotency-Key: se a resposta se perde, o ecrã procura no
+// artigo uma variante nova com o que se escreveu e, se lá estiver, dá-a por
+// criada (§24.1; revisão do #331, P1-1).
 
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
 const FORMATO_ARTIGO =
@@ -63,6 +66,9 @@ export function VarianteNova({
   // Houve uma tentativa sem resposta: um 409 do SKU a seguir pode ser a
   // própria variante, já gravada (como a §14.2).
   const semRespostaAntes = useRef(false);
+  // As variantes que o artigo tinha ao abrir: a que se procura depois de uma
+  // resposta perdida não pode ser uma delas (revisão do #331, P1-1).
+  const lidasAoAbrir = useRef<ReadonlySet<string>>(new Set());
   const focarDepois = useRef<string | null>(null);
   const montado = useRef(true);
   useEffect(() => {
@@ -100,6 +106,7 @@ export function VarianteNova({
           .find((c) => c.comerciante === comerciante)
           ?.ambitos.includes("catalog:write") === true,
       );
+      lidasAoAbrir.current = new Set(dados.variantes.map((v) => v.id));
       setFicha(dados);
       setOpcoes(dasOpcoes);
     } catch (e) {
@@ -115,6 +122,17 @@ export function VarianteNova({
   useEffect(() => {
     void carregar();
   }, [carregar]);
+
+  /** As opções outra vez, depois de a API recusar por uma que o ecrã não tem. */
+  async function recarregarOpcoes() {
+    if (comerciante === null) return;
+    try {
+      const dasOpcoes = await api.opcoesDoArtigo(comerciante, artigo);
+      if (aindaAqui()) setOpcoes(dasOpcoes);
+    } catch {
+      // Fica a caixa do erro; tentar outra vez volta a pedir.
+    }
+  }
 
   const comFormulario =
     ficha !== null && podeEscrever && ficha.origem !== "externo";
@@ -196,32 +214,52 @@ export function VarianteNova({
   }
 
   /** A ficha do artigo, com o aviso de que a variante ficou criada. */
-  async function abrirFicha() {
+  async function abrirFicha(skuCriado: string) {
     definirGuarda(null);
     const q = new URLSearchParams(consulta);
-    // Num artigo à venda, a variante nova fica fora das lojas (§24.1).
-    let fora = false;
-    try {
-      const pubs = await api.publicacoesDoArtigo(comerciante ?? "", artigo);
-      fora = pubs.dados.some((p) => p.estado === "publicado");
-    } catch {
-      // Sem as publicações, diz-se só que foi criada.
+    // Num artigo à venda, a variante nova fica fora das lojas (§24.1). Sem
+    // as publicações, um rascunho não está à venda; outro artigo pode
+    // estar, e o aviso diz que não se soube (revisão do #331, P3-1).
+    let estado: "fora" | "criada" | "talvez" = "criada";
+    if (!rascunho) {
+      try {
+        const pubs = await api.publicacoesDoArtigo(comerciante ?? "", artigo);
+        if (pubs.dados.some((p) => p.estado === "publicado")) estado = "fora";
+      } catch {
+        estado = "talvez";
+      }
     }
     if (!aindaAqui()) return;
-    q.set("variante", fora ? "fora" : "criada");
+    q.set("variante", estado);
+    q.set("skuCriado", skuCriado);
     navegar(`/artigos/${artigo}?${q.toString()}`, { substituir: true });
   }
 
-  /** O SKU já está neste artigo (a resposta perdeu-se), com o que se escreveu. */
-  async function jaCriada(): Promise<boolean> {
-    if (comerciante === null) return false;
-    const actual = await api.artigo(comerciante, artigo);
-    const procurado = sku.trim().toLowerCase();
-    return actual.variantes.some(
-      (v) =>
-        v.sku.toLowerCase() === procurado &&
-        v.unidade_de_venda === campos.unidade,
+  /**
+   * Depois de uma resposta perdida: «criada» se o artigo tem uma variante
+   * nova (não estava lá ao abrir) com tudo o que se enviou, os valores das
+   * opções incluídos; «outra» se tem uma nova com o mesmo SKU mas outros
+   * campos (a tentativa anterior gravou e a pessoa mudou entretanto); senão
+   * «nao» (revisão do #331, P1-1).
+   */
+  async function procurarACriada(
+    corpo: VarianteACriar,
+  ): Promise<"criada" | "outra" | "nao"> {
+    if (comerciante === null) return "nao";
+    const [actual, dasOpcoes] = await Promise.all([
+      api.artigo(comerciante, artigo),
+      api.opcoesDoArtigo(comerciante, artigo),
+    ]);
+    const novas = actual.variantes.filter(
+      (v) => !lidasAoAbrir.current.has(v.id) && v.sku === corpo.sku,
     );
+    const valoresDe = (id: string) =>
+      dasOpcoes.flatMap((o) =>
+        o.valores.filter((x) => x.variantes.includes(id)).map((x) => x.id),
+      );
+    if (novas.some((v) => varianteIgualAoCorpo(v, corpo, valoresDe(v.id))))
+      return "criada";
+    return novas.length > 0 ? "outra" : "nao";
   }
 
   async function criar(evento: React.SyntheticEvent) {
@@ -237,27 +275,24 @@ export function VarianteNova({
     setErros({});
     setErrosOpcoes({});
     setACriar(true);
+    const corpo = corpoDaVarianteNova(sku, campos, valores);
     try {
-      await api.criarVariante(
-        comerciante,
-        artigo,
-        corpoDaVarianteNova(sku, campos, valores),
-      );
+      await api.criarVariante(comerciante, artigo, corpo);
       if (!aindaAqui()) return;
-      await abrirFicha();
+      await abrirFicha(corpo.sku);
     } catch (erro) {
       if (!aindaAqui()) return;
       if (semSessao(erro)) {
         navegar("/entrar", { substituir: true });
         return;
       }
-      await depoisDaFalha(erro);
+      await depoisDaFalha(erro, corpo);
     } finally {
       if (aindaAqui()) setACriar(false);
     }
   }
 
-  async function depoisDaFalha(erro: unknown) {
+  async function depoisDaFalha(erro: unknown, corpo: VarianteACriar) {
     // Sem resposta da API: a rede, ou um 5xx sem o corpo da API.
     const perdida =
       !(erro instanceof ErroHub) ||
@@ -269,11 +304,16 @@ export function VarianteNova({
         perdida ||
         (semRespostaAntes.current && codigo === "catalog.sku_duplicate")
       ) {
-        if (await jaCriada()) {
-          if (aindaAqui()) await abrirFicha();
+        const achada = await procurarACriada(corpo);
+        if (!aindaAqui()) return;
+        if (achada === "criada") {
+          await abrirFicha(corpo.sku);
           return;
         }
-        if (!aindaAqui()) return;
+        if (achada === "outra") {
+          mostrarErros({ sku: "varianteNovaOutraGravada" }, {});
+          return;
+        }
         if (perdida) {
           semRespostaAntes.current = true;
           setSemResposta(true);
@@ -300,6 +340,12 @@ export function VarianteNova({
       case "catalog.sku_duplicate":
         mostrarErros({ sku: "artigoNovoSkuExiste" }, {});
         return;
+      case "catalog.sku_invalid":
+        mostrarErros({ sku: "varianteSkuFormato" }, {});
+        return;
+      case "catalog.gtin_origin_required":
+        mostrarErros({ gtinOrigem: "artigoNovoGtinOrigemFalta" }, {});
+        return;
       case "catalog.gtin_invalid":
         mostrarErros({ gtin: "artigoNovoGtinInvalido" }, {});
         return;
@@ -320,19 +366,23 @@ export function VarianteNova({
           return;
         }
         break;
-      case "catalog.options_incomplete":
-        if (primeira !== undefined) {
+      case "catalog.options_incomplete": {
+        const porEscolher = opcoes.filter((o) => (escolhas[o.id] ?? "") === "");
+        if (porEscolher.length > 0) {
           mostrarErros(
             {},
             Object.fromEntries(
-              opcoes
-                .filter((o) => (escolhas[o.id] ?? "") === "")
-                .map((o) => [o.id, "varianteNovaValorObrigatorio"]),
+              porEscolher.map((o) => [o.id, "varianteNovaValorObrigatorio"]),
             ),
           );
           return;
         }
+        // Falta uma opção que o ecrã não conhece (acrescentada depois de
+        // abrir): fica a caixa do erro e as opções voltam a ler-se
+        // (revisão do #331, P2-2).
+        void recarregarOpcoes();
         break;
+      }
       default:
         break;
     }
@@ -350,8 +400,12 @@ export function VarianteNova({
       <p>
         <a
           href={destinoFicha}
+          aria-disabled={aCriar || undefined}
           onClick={(e) => {
             e.preventDefault();
+            // Enquanto cria, não se sai: a variante podia ficar criada sem
+            // aviso, como no «Cancelar» (revisão do #331, P3-2).
+            if (aCriar) return;
             voltar();
           }}
         >
@@ -417,6 +471,13 @@ export function VarianteNova({
           {opcoes.length === 0 ? null : (
             <fieldset className="variante-nova">
               <legend>{t.varianteNovaOpcoes}</legend>
+              {/* Fora do rascunho, cada opção leva um valor; num rascunho,
+                  podem ficar por escolher (revisão do #331, P3-3). */}
+              <p className="secundario" id="variante-nova-opcoes-ajuda">
+                {rascunho
+                  ? t.varianteNovaOpcoesRascunho
+                  : t.varianteNovaOpcoesObrigatorias}
+              </p>
               <div className="linha">
                 {opcoes.map((o) => {
                   const id = idDaOpcao(o.id);
@@ -427,9 +488,12 @@ export function VarianteNova({
                       <select
                         id={id}
                         value={escolhas[o.id] ?? ""}
+                        required={!rascunho}
                         aria-invalid={erro !== undefined}
                         aria-describedby={
-                          erro !== undefined ? `${id}-erro` : undefined
+                          erro !== undefined
+                            ? `${id}-erro variante-nova-opcoes-ajuda`
+                            : "variante-nova-opcoes-ajuda"
                         }
                         onChange={(e) => {
                           escolher(o.id, e.target.value);

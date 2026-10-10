@@ -534,9 +534,17 @@ export const en: Textos = {
     "Another active variant already has these values.",
   varianteNovaNaoCriada:
     "The connection failed and we did not find the variant. You can try again: if it was created, the screen opens the product.",
-  varianteCriada: "Variant created.",
+  varianteCriada: "Variant {sku} created.",
   varianteCriadaFora:
-    "Variant created. It stays out of the shops where the product is on sale until the publication is redone.",
+    "Variant {sku} created. It stays out of the shops where the product is on sale until the publication is redone.",
+  varianteCriadaTalvezFora:
+    "Variant {sku} created. We could not confirm whether the product is on sale: if it is, the variant stays out of the shops until the publication is redone.",
+  varianteNovaOpcoesObrigatorias: "Choose a value for each option.",
+  varianteNovaOpcoesRascunho: "In a draft, the values can be left unchosen.",
+  varianteSkuFormato:
+    "The SKU starts with a letter or a digit and only has letters, digits and . _ / -.",
+  varianteNovaOutraGravada:
+    "This product already has a variant with this SKU, but not with what is written: it may be the one from the previous attempt. Check it on the product page before trying again.",
   conviteInstrucao: "Enter your name and create the account with a passkey.",
   conviteResumo:
     "You were invited to the {comerciante} team, with the role {papel}.",

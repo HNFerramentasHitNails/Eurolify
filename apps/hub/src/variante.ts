@@ -291,15 +291,55 @@ export function corpoDaVarianteNova(
   return corpo;
 }
 
-/** Alguma coisa escrita (para a guarda de saída). */
+/**
+ * Alguma coisa escrita (para a guarda de saída). A origem do GTIN só conta
+ * com o GTIN escrito: sem ele, a lista nem se vê (revisão do #331, P3-5).
+ */
 export function varianteNovaEscrita(
   sku: string,
   c: CamposVariante,
   valores: readonly string[],
 ): boolean {
+  const semGtin = c.gtin.trim() === "";
   return (
     sku.trim() !== "" ||
-    ORDEM_DOS_CAMPOS.some((k) => c[k] !== CAMPOS_DE_VARIANTE_NOVA[k]) ||
+    ORDEM_DOS_CAMPOS.some(
+      (k) =>
+        !(k === "gtinOrigem" && semGtin) && c[k] !== CAMPOS_DE_VARIANTE_NOVA[k],
+    ) ||
     valores.some((v) => v !== "")
   );
+}
+
+/**
+ * Depois de uma resposta perdida, a variante lida é a que se escreveu
+ * (§24.1): activa, com o mesmo SKU, todos os campos do corpo iguais e os
+ * mesmos valores das opções. Quem chama confere também que não estava entre
+ * as variantes lidas ao abrir. Sem isto, uma variante que já existia com o
+ * mesmo SKU, ou a primeira tentativa com outro peso, davam-se como criadas
+ * (revisão do #331, P1-1).
+ */
+export function varianteIgualAoCorpo(
+  v: VarianteArtigo,
+  corpo: VarianteACriar,
+  valoresDaVariante: readonly string[],
+): boolean {
+  if (v.estado !== "activa" || v.sku !== corpo.sku) return false;
+  const pares: [unknown, unknown][] = [
+    [v.unidade_de_venda, corpo.unidade_de_venda],
+    [v.gtin, corpo.gtin ?? null],
+    [v.gtin_origem, corpo.gtin_origem ?? null],
+    [v.conteudo_quantidade, corpo.conteudo_quantidade ?? null],
+    [v.conteudo_unidade, corpo.conteudo_unidade ?? null],
+    [v.peso_g, corpo.peso_g ?? null],
+    [v.comprimento_mm, corpo.comprimento_mm ?? null],
+    [v.largura_mm, corpo.largura_mm ?? null],
+    [v.altura_mm, corpo.altura_mm ?? null],
+    [v.onu, corpo.onu ?? null],
+    [textoOuNulo(v.classe_adr ?? ""), corpo.classe_adr ?? null],
+  ];
+  if (pares.some(([a, b]) => a !== b)) return false;
+  const pedidos = [...(corpo.valores ?? [])].sort();
+  const tem = [...valoresDaVariante].sort();
+  return pedidos.length === tem.length && pedidos.every((x, i) => x === tem[i]);
 }

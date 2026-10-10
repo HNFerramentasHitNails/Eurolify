@@ -7,6 +7,7 @@ import {
   camposSobreOGuardado,
   conferirVariante,
   corpoDaVarianteNova,
+  varianteIgualAoCorpo,
   varianteNovaEscrita,
   varianteAlterada,
 } from "../src/variante";
@@ -214,5 +215,42 @@ describe("alterar uma variante", () => {
     expect(varianteNovaEscrita("E", vazio, [])).toBe(true);
     expect(varianteNovaEscrita("", vazio, ["ovl_a"])).toBe(true);
     expect(varianteNovaEscrita("", { ...vazio, peso: "1" }, [])).toBe(true);
+    // A origem sem o GTIN não conta: a lista nem se vê (#331, P3-5).
+    expect(
+      varianteNovaEscrita("", { ...vazio, gtinOrigem: "fornecedor" }, []),
+    ).toBe(false);
+  });
+
+  it("depois de uma resposta perdida, só se dá como criada a variante com o que se escreveu (#331, P1-1)", () => {
+    const corpo = corpoDaVarianteNova(
+      "ENS-041-B",
+      { ...CAMPOS_DE_VARIANTE_NOVA, peso: "450" },
+      ["ovl_a"],
+    );
+    const gravada: VarianteArtigo = {
+      ...GUARDADA,
+      sku: "ENS-041-B",
+      peso_g: 450,
+    };
+    expect(varianteIgualAoCorpo(gravada, corpo, ["ovl_a"])).toBe(true);
+    // Arquivada, com o SKU noutras maiúsculas, com outro peso (a primeira
+    // tentativa tinha 400 g) ou com outro valor de opção: não é esta.
+    expect(
+      varianteIgualAoCorpo({ ...gravada, estado: "arquivada" }, corpo, [
+        "ovl_a",
+      ]),
+    ).toBe(false);
+    expect(
+      varianteIgualAoCorpo({ ...gravada, sku: "ens-041-b" }, corpo, ["ovl_a"]),
+    ).toBe(false);
+    expect(
+      varianteIgualAoCorpo({ ...gravada, peso_g: 400 }, corpo, ["ovl_a"]),
+    ).toBe(false);
+    expect(varianteIgualAoCorpo(gravada, corpo, ["ovl_b"])).toBe(false);
+    expect(varianteIgualAoCorpo(gravada, corpo, [])).toBe(false);
+    // Um campo que não se escreveu e a variante tem: não é esta.
+    expect(
+      varianteIgualAoCorpo({ ...gravada, onu: "UN1263" }, corpo, ["ovl_a"]),
+    ).toBe(false);
   });
 });
