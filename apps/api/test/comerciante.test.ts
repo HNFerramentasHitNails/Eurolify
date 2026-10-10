@@ -134,7 +134,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0042_clientes_consentimentos",
         "0043_catalogo_versao_da_opcao",
         "0044_pagamentos",
-        "0045_stock",
+        "0045_operador_papel_minimo",
+        "0046_stock",
       ]);
     });
 
@@ -200,7 +201,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // os gatilhos, lêem-nas as funções do dono.
           "conta_pagamento_aviso",
           "tarefa_pagamento",
-          // A tarefa da conclusão das encomendas (0045).
+          // Os pedidos do operador (0045): só a função do dono lhes toca.
+          "pedido_do_operador",
+          // A tarefa da conclusão das encomendas (0046).
           "tarefa_encomenda",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
@@ -236,7 +239,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
       // declaração do regime do IVA (0040), as 8 do checkout (0041), os
       // consentimentos (0042), as 6 dos pagamentos (0044) e as 10 do stock
-      // (0045).
+      // (0046).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(64);

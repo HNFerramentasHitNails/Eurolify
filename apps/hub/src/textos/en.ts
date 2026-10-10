@@ -191,7 +191,12 @@ export const en: Textos = {
   recuperadoRetirar:
     "remove the passkeys you no longer have (the one on the lost device keeps working until you remove it);",
   recuperadoCodigos: "generate new recovery codes;",
-  recuperadoChaves: "as owner, review the API keys you created.",
+  recuperadoChaves:
+    "as owner, review the API keys you created (below): if you do not recognise one, revoke it.",
+  recuperadoChavesTitulo: "API keys you created in «{comerciante}»",
+  recuperadoChavesExplica:
+    "These keys still work. If someone used your account, they may have created one; none is revoked without your confirmation.",
+  recuperadoChavesNenhuma: "You created no active keys in this merchant.",
   recuperadoFechar: "Close this notice",
 
   // Password and authenticator (docs/22 §9.2).
@@ -374,6 +379,59 @@ export const en: Textos = {
   /** Antes da linha com as opções e os valores (docs/22 §20.2). */
   artigoOpcoes: "Options:",
   artigoOpcoesFalharam: "The options could not be read.",
+  // Escrever as opções (docs/22 §21.3).
+  opcoesTitulo: "Edit options",
+  opcoesValorLongo: "Each value has at most 100 characters.",
+  opcoesConfirmarApagarOpcaoNenhuma:
+    "Delete the option {nome}? No variant has it. This cannot be undone.",
+  opcoesConfirmarApagarOpcaoUma:
+    "Deleting the option {nome} removes it from the variant that has it. This cannot be undone.",
+  opcoesMoverOpcaoDepois: "Move the option down",
+  opcoesMoverOpcaoAntes: "Move the option up",
+  artigoEditarOpcoes: "Edit options",
+  artigoCriarOpcoes: "Create options",
+  opcoesSoRascunho:
+    "The name and the values can only change while the product is a draft.",
+  opcoesSemOpcoes: "This product has no options yet.",
+  opcoesNome: "Option name",
+  opcoesGuardarNome: "Save name",
+  opcoesValoresDe: "Values of {nome}",
+  opcoesValor: "Value",
+  opcoesGuardar: "Save",
+  opcoesMoverAntes: "Move up",
+  opcoesMoverDepois: "Move down",
+  opcoesApagarOpcao: "Delete the option",
+  opcoesApagarValor: "Delete",
+  opcoesConfirmarApagarOpcao:
+    "Deleting the option {nome} removes it from the {n} variants that have it. This cannot be undone.",
+  opcoesConfirmarApagarValor:
+    "The variants with {valor} are left without a value in {nome}. This cannot be undone.",
+  opcoesNovoValor: "New value in {nome}",
+  opcoesAcrescentarValor: "Add value",
+  opcoesCriar: "Create option",
+  opcoesNovaNome: "New option name",
+  opcoesNovaValores: "Values, one per line",
+  opcoesVariantes: "Variant values",
+  opcoesIncompleta:
+    "1 variant still without a value in one of the options: the product cannot be activated like this.",
+  opcoesIncompletas:
+    "{n} variants still without a value in one of the options: the product cannot be activated like this.",
+  opcoesGuardarVariante: "Save {sku}",
+  opcoesConflito:
+    "Someone else changed this option in the meantime. Your change was not saved.",
+  opcoesGuardado: "Changes saved.",
+  opcoesNomeVazio: "Enter the name.",
+  opcoesValoresVazios: "Enter at least one value.",
+  erroOpcaoDuplicada: "This product already has an option with this name.",
+  erroValorDuplicado: "This value already exists in this option.",
+  erroNaoRascunho:
+    "The product is no longer a draft: the name and the values can no longer change.",
+  erroCombinacaoRepetida:
+    "Two active variants would have the same values. Nothing was changed.",
+  erroOpcoesIncompletas: "Each active variant needs one value of each option.",
+  erroOrdemDesactualizada:
+    "The options changed in the meantime. The list was updated.",
+  erroOpcaoRepetida: "A variant takes only one value of each option.",
   colunaUnidade: "Sales unit",
   colunaGtin: "GTIN",
   colunaConteudo: "Content",

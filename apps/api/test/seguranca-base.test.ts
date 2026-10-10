@@ -63,7 +63,7 @@ const FUNCOES_DA_API = [
   "emails_validos",
   // Os pagamentos (0044): o prazo, a máquina de estados, a porta dos avisos e as tarefas.
   "encomenda_prazo_de_pagamento",
-  // O stock e as encomendas (0045): a política e a tarefa da conclusão.
+  // O stock e as encomendas (0046): a política e a tarefa da conclusão.
   "encomendas_comerciantes_com_tarefas",
   "encomendas_tarefas",
   "entrar_com_palavra_passe",

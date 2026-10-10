@@ -348,7 +348,7 @@ interface Problema {
 const texto = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 export async function pedir<T>(
-  metodo: "GET" | "POST" | "PATCH" | "DELETE",
+  metodo: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
   caminho: string,
   opcoes: { corpo?: unknown; comerciante?: string } = {},
 ): Promise<T> {
@@ -775,6 +775,85 @@ export const api = {
     pedir<VarianteArtigo>("POST", `/hub/variants/${variante}/archive`, {
       comerciante,
       corpo: {},
+    }),
+  // Escrever as opções (docs/22 §21.2): as mesmas escritas da API, pelos
+  // caminhos /hub/, com a `versao` da opção lida; apagar leva-a no corpo.
+  criarOpcao: (
+    comerciante: string,
+    artigo: string,
+    corpo: { nome: string; valores: string[] },
+  ) =>
+    pedir<OpcaoArtigo>("POST", `/hub/products/${artigo}/options`, {
+      comerciante,
+      corpo,
+    }),
+  acrescentarValor: (
+    comerciante: string,
+    opcao: string,
+    corpo: { valor: string; versao: number },
+  ) =>
+    pedir<OpcaoArtigo>("POST", `/hub/options/${opcao}/values`, {
+      comerciante,
+      corpo,
+    }),
+  mudarNomeDaOpcao: (
+    comerciante: string,
+    opcao: string,
+    corpo: { nome: string; versao: number },
+  ) =>
+    pedir<OpcaoArtigo>("PATCH", `/hub/options/${opcao}`, {
+      comerciante,
+      corpo,
+    }),
+  mudarTextoDoValor: (
+    comerciante: string,
+    opcao: string,
+    valor: string,
+    corpo: { valor: string; versao: number },
+  ) =>
+    pedir<OpcaoArtigo>("PATCH", `/hub/options/${opcao}/values/${valor}`, {
+      comerciante,
+      corpo,
+    }),
+  apagarOpcao: (comerciante: string, opcao: string, versao: number) =>
+    pedir<undefined>("DELETE", `/hub/options/${opcao}`, {
+      comerciante,
+      corpo: { versao },
+    }),
+  apagarValor: (
+    comerciante: string,
+    opcao: string,
+    valor: string,
+    versao: number,
+  ) =>
+    pedir<OpcaoArtigo>("DELETE", `/hub/options/${opcao}/values/${valor}`, {
+      comerciante,
+      corpo: { versao },
+    }),
+  ordenarOpcoes: (comerciante: string, artigo: string, opcoes: string[]) =>
+    pedir<{ dados: OpcaoArtigo[] }>(
+      "PUT",
+      `/hub/products/${artigo}/options/order`,
+      { comerciante, corpo: { opcoes } },
+    ),
+  ordenarValores: (
+    comerciante: string,
+    opcao: string,
+    valores: string[],
+    versao: number,
+  ) =>
+    pedir<OpcaoArtigo>("PUT", `/hub/options/${opcao}/values/order`, {
+      comerciante,
+      corpo: { valores, versao },
+    }),
+  valoresDaVariante: (
+    comerciante: string,
+    variante: string,
+    valores: string[],
+  ) =>
+    pedir<VarianteArtigo>("PUT", `/hub/variants/${variante}/values`, {
+      comerciante,
+      corpo: { valores },
     }),
   alterarImagem: (
     comerciante: string,

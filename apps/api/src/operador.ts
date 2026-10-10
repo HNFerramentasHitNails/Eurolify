@@ -1,20 +1,18 @@
 import { sql } from "kysely";
 import { abrirBase } from "./base/ligacao.js";
-import {
-  comComerciante,
-  registarComerciante,
-} from "./comerciante/repositorio.js";
+import { comComerciante } from "./comerciante/repositorio.js";
 import { lerPedido } from "./identidade/operador.js";
 import { registarChave } from "./identidade/repositorio.js";
 
 // Comando do operador (docs/19 §6). Corre na VPS num contentor de uma vez,
-// lançado pelo serviço da máquina (eurolify-operador), com a ligação do dono
-// das tabelas (migrar.env), como as migrações. Escreve uma linha JSON com o
+// lançado pelo serviço da máquina (eurolify-operador), com a ligação do papel
+// eurolify_operador (operador.env), que só chama as três portas do operador
+// (migração 0045; revisão do #110, P3-8). Escreve uma linha JSON com o
 // resultado; nunca escreve o pedido nem a ligação.
 
-const url = process.env["BASE_DADOS_URL_MIGRACAO"]?.trim();
+const url = process.env["BASE_DADOS_URL_OPERADOR"]?.trim();
 if (url === undefined || url === "") {
-  console.error("operador: falta BASE_DADOS_URL_MIGRACAO");
+  console.error("operador: falta BASE_DADOS_URL_OPERADOR");
   process.exit(1);
 }
 
@@ -29,12 +27,21 @@ try {
 const base = abrirBase(url);
 try {
   if (pedido.accao === "comerciante") {
-    const id = await registarComerciante(base, {
-      nome: pedido.nome,
-      lingua: pedido.lingua,
-      fuso: pedido.fuso,
-    });
-    console.log(JSON.stringify({ comerciante: `mer_${id}` }));
+    // O mesmo pedido (a mesma execução do GitHub, também num «Re-run»)
+    // devolve o mesmo comerciante, com `ja_existia: true` (0045).
+    const { rows } = await sql<{ id: string; ja_existia: boolean }>`
+      select id, ja_existia from comerciante_criar_pelo_operador(
+        ${pedido.pedido}, ${pedido.nome}, ${pedido.lingua}, ${pedido.fuso},
+        ${`operador:${pedido.quem}`})`.execute(base);
+    const criado = rows[0];
+    if (criado === undefined)
+      throw new Error("a base não devolveu o comerciante");
+    console.log(
+      JSON.stringify({
+        comerciante: `mer_${criado.id}`,
+        ja_existia: criado.ja_existia,
+      }),
+    );
   } else if (pedido.accao === "convite") {
     // A base valida o e-mail, o papel e o resumo, e que o comerciante está
     // activo; o convite vale 7 dias e uma vez (docs/19 §6.0). A correcção do

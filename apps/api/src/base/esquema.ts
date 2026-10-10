@@ -1158,7 +1158,7 @@ export interface TabelaDiferencaPagamento {
   criada_em: ColumnType<Date, never, never>;
 }
 
-// Stock e encomendas (migração 0045; docs/27).
+// Stock e encomendas (migração 0046; docs/27).
 export const POLITICAS_STOCK = [
   "controla",
   "nao_controla",

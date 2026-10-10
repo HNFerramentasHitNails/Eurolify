@@ -173,6 +173,12 @@ textarea {
   margin-bottom: var(--espaco-4);
 }
 
+/* As chaves a propor revogar, dentro do aviso de conta recuperada
+   (docs/22 §22). */
+.propostas-chaves {
+  margin-block: var(--espaco-3);
+}
+
 .erro {
   border-left: var(--borda-realce) solid var(--estado-erro);
   padding: var(--espaco-2) var(--espaco-3);
@@ -802,6 +808,41 @@ textarea {
 }
 .variante-nova legend {
   padding: 0 var(--espaco-1);
+}
+
+/* Editar as opções (docs/22 §21.3): cada opção numa caixa, como as
+   variantes ao criar; os valores numa lista sem marcas, com os botões ao
+   lado do texto e por baixo no telemóvel. */
+.opcao-editar {
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  padding: var(--espaco-3) var(--espaco-4);
+  margin-bottom: var(--espaco-4);
+}
+.opcao-editar legend {
+  padding: 0 var(--espaco-1);
+}
+.opcao-editar .linha {
+  align-items: flex-end;
+}
+.valores-opcao {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--espaco-3);
+}
+.valores-opcao li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espaco-2);
+  padding: var(--espaco-2) 0;
+  border-top: var(--borda-fina) solid var(--borda);
+}
+.valores-opcao li .accoes-imagem {
+  margin: 0;
+}
+.valor-opcao {
+  min-width: 8rem;
 }
 
 /* Acrescentar uma imagem (docs/22 §15.4): a pré-visualização ao lado do

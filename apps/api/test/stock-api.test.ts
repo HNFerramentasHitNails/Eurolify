@@ -34,7 +34,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// O stock e as expedições pela API (docs/27; migração 0045): o saldo só por
+// O stock e as expedições pela API (docs/27; migração 0046): o saldo só por
 // movimento, a reserva no botão final, os kits pelos componentes, os lotes na
 // saída, a vista do armazém e os estados da encomenda depois de paga.
 
