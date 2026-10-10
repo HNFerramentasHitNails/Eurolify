@@ -544,31 +544,29 @@ ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
 
 CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+  -- Por ordem alfabética, como em src/identidade/papeis.ts. O armazém vê o
+  -- que expedir pela vista própria (docs/27 §6).
   SELECT CASE p_papel
     WHEN 'dono' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
-                           'catalog:read', 'catalog:write', 'customers:billing',
-                           'customers:exemptions', 'customers:read',
-                           'customers:write', 'keys:write', 'legal:read',
-                           'legal:write', 'merchant:read', 'merchant:write',
-                           'fulfilment:read', 'fulfilment:write', 'inventory:read',
-                           'inventory:write', 'orders:read', 'payments:accounts', 'payments:read',
-                           'payments:resolve', 'payments:write', 'prices:read',
-                           'prices:write',
-                           'shipping:read', 'shipping:write', 'tax:read', 'tax:write']
+                  'catalog:read', 'catalog:write', 'customers:billing',
+                  'customers:exemptions', 'customers:read', 'customers:write',
+                  'fulfilment:read', 'fulfilment:write', 'inventory:read',
+                  'inventory:write', 'keys:write', 'legal:read', 'legal:write',
+                  'merchant:read', 'merchant:write', 'orders:read',
+                  'payments:accounts', 'payments:read', 'payments:resolve',
+                  'payments:write', 'prices:read', 'prices:write', 'shipping:read',
+                  'shipping:write', 'tax:read', 'tax:write']
     WHEN 'gestor' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
-                             'catalog:read', 'catalog:write', 'customers:read',
-                             'customers:write', 'fulfilment:read', 'fulfilment:write',
-                             'inventory:read', 'inventory:write', 'legal:read', 'merchant:read',
-                             'orders:read', 'payments:read', 'payments:write',
-                             'prices:read', 'prices:write',
-                             'shipping:read', 'shipping:write', 'tax:read']
-    -- O armazém vê o que expedir pela vista própria (docs/27 §6).
+                  'catalog:read', 'catalog:write', 'customers:read', 'customers:write',
+                  'fulfilment:read', 'fulfilment:write', 'inventory:read',
+                  'inventory:write', 'legal:read', 'merchant:read', 'orders:read',
+                  'payments:read', 'payments:write', 'prices:read', 'prices:write',
+                  'shipping:read', 'shipping:write', 'tax:read']
     WHEN 'armazem' THEN ARRAY['catalog:read', 'fulfilment:read', 'fulfilment:write',
-                              'inventory:read', 'inventory:write', 'prices:read',
-                              'shipping:read']
+                  'inventory:read', 'inventory:write', 'prices:read', 'shipping:read']
     WHEN 'apoio' THEN ARRAY['catalog:read', 'customers:read', 'customers:write',
-                            'fulfilment:read', 'inventory:read',
-                            'legal:read', 'merchant:read', 'orders:read',
-                            'payments:read', 'prices:read', 'shipping:read', 'tax:read']
+                  'fulfilment:read', 'inventory:read', 'legal:read', 'merchant:read',
+                  'orders:read', 'payments:read', 'prices:read', 'shipping:read',
+                  'tax:read']
   END::text[]
 $$;
