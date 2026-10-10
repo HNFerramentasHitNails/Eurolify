@@ -141,6 +141,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0049_clientes_pedidos_do_titular",
         "0050_documentos_fiscais",
         "0051_rasto_contexto",
+        "0052_rasto_colunas",
       ]);
     });
 

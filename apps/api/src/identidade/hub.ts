@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { comRastoNaBase } from "../base/rasto.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import {
   generateAuthenticationOptions,
@@ -675,15 +676,17 @@ export function rotasDoHub(
       const segredo = segredoNovo("eus");
       const { codigos, resumos } = codigosNovos();
       const conta = await noConvite(async () => {
-        const { rows } = await sql<{
-          pessoa_id: string;
-          comerciante_id: string;
-        }>`select * from conta_nova_com_passkey(${resumo(desafio)},
+        const { rows } = await comRastoNaBase(base, (trx) =>
+          sql<{
+            pessoa_id: string;
+            comerciante_id: string;
+          }>`select * from conta_nova_com_passkey(${resumo(desafio)},
           ${corpo.convite}, ${corpo.nome}, ${credencial.id},
           ${Buffer.from(credencial.publicKey)}, ${credencial.counter},
           ${credencial.transports ?? []}::text[],
           ${corpo.nome_passkey ?? null}, ${resumo(segredo)},
-          ${resumos}::text[], ${pedido.ip}::inet)`.execute(base);
+          ${resumos}::text[], ${pedido.ip}::inet)`.execute(trx),
+        );
         const linha = rows[0];
         if (linha === undefined) throw erroConta("invite.invalid");
         return linha;
@@ -722,11 +725,13 @@ export function rotasDoHub(
     async (pedido) => {
       const sessao = sessaoDo(pedido);
       const linha = await traduzindoConta(async () => {
-        const { rows } = await sql<{
-          comerciante_id: string;
-          membro_id: string;
-        }>`select * from convite_aceitar(${pedido.body.convite}, ${sessao.segredo})`.execute(
-          base,
+        const { rows } = await comRastoNaBase(base, (trx) =>
+          sql<{
+            comerciante_id: string;
+            membro_id: string;
+          }>`select * from convite_aceitar(${pedido.body.convite}, ${sessao.segredo})`.execute(
+            trx,
+          ),
         );
         const r = rows[0];
         if (r === undefined) throw erroConta("invite.invalid");

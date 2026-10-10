@@ -29,6 +29,22 @@ export type ResultadoVerificacao = "aceite" | "recusada" | "por_rever";
 
 type Instante = ColumnType<Date, Date | string | undefined, never>;
 
+/**
+ * O contexto do rasto de auditoria (migração 0052; docs/28 §3.1): escreve-o
+ * só o gatilho `rasto_completar()`, nunca o código. Vazio é «desconhecido».
+ */
+export interface ColunasDoRasto {
+  canal: ColumnType<string | null, never, never>;
+  pedido: ColumnType<string | null, never, never>;
+  ia: ColumnType<Record<string, string> | null, never, never>;
+  autorizado_por: ColumnType<string | null, never, never>;
+}
+
+/** O motivo, nas tabelas do rasto que não o tinham (0052). */
+export interface MotivoDoRasto {
+  motivo: ColumnType<string | null, never, never>;
+}
+
 export interface TabelaComerciante {
   id: string;
   estado: ColumnType<EstadoComerciante, EstadoComerciante | undefined>;
@@ -91,7 +107,7 @@ export interface TabelaProvaVerificacao {
   registado_em: ColumnType<Date, never, never>;
 }
 
-export interface TabelaTransicaoEstado {
+export interface TabelaTransicaoEstado extends ColunasDoRasto {
   id: Generated<string>;
   comerciante_id: string;
   de: EstadoComerciante;
@@ -436,7 +452,7 @@ export const ENTIDADES_DA_LINHA_DO_TEMPO = [
 export type EntidadeDaLinhaDoTempo =
   (typeof ENTIDADES_DA_LINHA_DO_TEMPO)[number];
 
-export interface TabelaAlteracaoCatalogo {
+export interface TabelaAlteracaoCatalogo extends ColunasDoRasto, MotivoDoRasto {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;
   artigo_id: ColumnType<string | null, never, never>;
@@ -577,7 +593,7 @@ export interface TabelaPreco {
   versao: ColumnType<number, never, never>;
 }
 
-export interface TabelaHistoricoPreco {
+export interface TabelaHistoricoPreco extends ColunasDoRasto, MotivoDoRasto {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;
   lista_id: ColumnType<string, never, never>;
@@ -727,7 +743,7 @@ export interface TabelaClienteEtiqueta {
   posta_em: ColumnType<Date, never, never>;
 }
 
-export interface TabelaAlteracaoCliente {
+export interface TabelaAlteracaoCliente extends ColunasDoRasto, MotivoDoRasto {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;
   cliente_id: ColumnType<string | null, never, never>;
@@ -1191,7 +1207,7 @@ export interface TabelaAvisoPagamento {
   processado_em: ColumnType<Date | null, never, Date | null>;
 }
 
-export interface TabelaTransicaoPagamento {
+export interface TabelaTransicaoPagamento extends ColunasDoRasto {
   id: Generated<string>;
   comerciante_id: ColumnType<string, never, never>;
   pagamento_id: ColumnType<string, never, never>;
@@ -1344,7 +1360,7 @@ export interface TabelaLinhaExpedicao {
   quantidade: ColumnType<number, number, never>;
 }
 
-export interface TabelaTransicaoEncomenda {
+export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   id: Generated<string>;
   comerciante_id: ColumnType<string, never, never>;
   encomenda_id: ColumnType<string, never, never>;

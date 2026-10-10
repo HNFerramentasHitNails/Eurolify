@@ -1,4 +1,5 @@
 import type { Kysely } from "kysely";
+import { rastoActual } from "../base/rasto.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { erroBase, ErroApi } from "../base/erros.js";
 import { TIPOS_DE_IMAGEM, type BaseDados } from "../base/esquema.js";
@@ -162,6 +163,12 @@ export function ligarAutenticacao(
           ambito === "sessao"
             ? await verificarSessao(base, segredo)
             : await resolverSessao(base, segredo, comercianteDe(pedido));
+        // No Hub, quem age é a própria pessoa: fica também como quem
+        // autorizou (docs/28 §3.2). Uma chave nunca autoriza.
+        const rasto = rastoActual();
+        if (rasto !== undefined) {
+          rasto.autorizadoPor = `pessoa:per_${pedido.sessao.pessoaId}`;
+        }
         return;
       }
       const segredo = segredoDe(pedido);
