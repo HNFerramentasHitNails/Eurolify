@@ -4,6 +4,7 @@ import type { Kysely } from "kysely";
 import { Type, type Static } from "typebox";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
+  CANAIS_CONSENTIMENTO,
   ENTIDADES_DO_RASTO_CLIENTE,
   ESTADOS_VIES,
   type BaseDados,
@@ -29,6 +30,7 @@ import {
   criarEtiqueta,
   criarPerfil,
   linhaDoTempo,
+  listarConsentimentos,
   listarIsencoes,
   listarValidacoes,
   obterIsencao,
@@ -41,9 +43,11 @@ import {
   listarPerfis,
   mudarEstadoPerfil,
   obterCliente,
+  obterConsentimento,
   obterEtiqueta,
   obterPerfil,
   porEtiqueta,
+  registarConsentimento,
   tirarEtiqueta,
   tornarPrincipal,
   traduzir,
@@ -352,6 +356,7 @@ const PREFIXO: Record<string, string | undefined> = {
   cliente: "cus",
   perfil_faturacao: "bpf",
   etiqueta_cliente: "ctg",
+  consentimento: "cns",
 };
 const Alteracao = Type.Object({
   id: Type.String({ description: "chg_…" }),
@@ -491,6 +496,59 @@ const PedidoIsencao = Type.Object(
 const PedidoRetirarIsencao = Type.Object(
   { motivo_retirada: Type.String({ minLength: 1, maxLength: 500 }) },
   { additionalProperties: false },
+);
+
+// Os consentimentos (§3.6): cada declaração é a prova, e não se altera.
+const Canal = umDe(CANAIS_CONSENTIMENTO);
+const Consentimento = Type.Object({
+  id: Type.String({ description: "cns_…" }),
+  cliente: Type.String({ description: "cus_…" }),
+  canal: Canal,
+  finalidade: Type.Literal("marketing"),
+  declaracao: Type.Union([Type.Literal("aceitou"), Type.Literal("retirou")]),
+  texto: Type.String({ description: "O texto mostrado ao cliente" }),
+  versao_texto: Type.String(),
+  onde: Type.String({ description: "A loja e o formulário, ou o Hub" }),
+  declarado_em: Instante,
+  quem: Type.String({
+    description: "Quem registou: chave:key_…, pessoa:per_… ou sistema:<tarefa>",
+  }),
+});
+type LinhaConsentimento = Awaited<ReturnType<typeof obterConsentimento>>;
+const paraConsentimento = (
+  c: LinhaConsentimento,
+): Static<typeof Consentimento> => ({
+  id: `cns_${c.id}`,
+  cliente: `cus_${c.cliente_id}`,
+  canal: c.canal,
+  finalidade: c.finalidade,
+  declaracao: c.declaracao,
+  texto: c.texto,
+  versao_texto: c.versao_texto,
+  onde: c.onde,
+  declarado_em: c.declarado_em.toISOString(),
+  quem: c.quem,
+});
+const PedidoConsentimento = Type.Object(
+  {
+    canal: Canal,
+    finalidade: Type.Optional(Type.Literal("marketing")),
+    declaracao: Type.Union([Type.Literal("aceitou"), Type.Literal("retirou")], {
+      description:
+        "«Nunca aceitou» não se regista: é não haver declaração (eu-gdpr-privacy, regra 5)",
+    }),
+    texto: Type.String({ minLength: 1, maxLength: 5000 }),
+    versao_texto: Type.String({ minLength: 1, maxLength: 50 }),
+    onde: Type.String({ minLength: 1, maxLength: 200 }),
+  },
+  { additionalProperties: false },
+);
+const ReguaMarketing = Type.Object(
+  { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
+  {
+    description:
+      "A régua única por canal (pode_receber_marketing, migração 0042): só as declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não",
+  },
 );
 
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });
@@ -1115,6 +1173,76 @@ export function rotasDosClientes(
           ),
         ),
         paraValidacao,
+      ),
+  );
+
+  // ---- Consentimentos (§3.6)
+
+  rotas.get(
+    "/customers/:id/consents",
+    {
+      config: ler,
+      schema: {
+        description:
+          "As declarações de consentimento da ficha (as mais recentes primeiro) e a resposta da régua única por canal. Quem envia marketing pergunta à régua; não conta declarações.",
+        params: ParametroId(IdCliente),
+        response: {
+          200: Type.Object({
+            dados: Type.Array(Consentimento),
+            pode_receber_marketing: ReguaMarketing,
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      const { declaracoes, regua } = await emClientes(resposta, () =>
+        listarConsentimentos(
+          base,
+          chaveDo(pedido).comercianteId,
+          semPrefixo(pedido.params.id),
+        ),
+      );
+      return {
+        dados: declaracoes.map(paraConsentimento),
+        pode_receber_marketing: regua,
+      };
+    },
+  );
+
+  rotas.post(
+    "/customers/:id/consents",
+    {
+      config: escrita,
+      schema: {
+        description:
+          "Regista uma declaração (aceitou ou retirou) com o texto mostrado, a versão e onde; a hora e quem regista põe-nos o servidor. Não se altera nem se apaga: uma mudança é uma declaração nova. Só numa ficha activa.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdCliente),
+        body: PedidoConsentimento,
+        response: { 201: Consentimento, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 201, (trx, c) =>
+        emClientes(resposta, async () => {
+          const b = pedido.body;
+          const id = await registarConsentimento(
+            trx,
+            c.comercianteId,
+            semPrefixo(pedido.params.id),
+            {
+              canal: b.canal,
+              declaracao: b.declaracao,
+              texto: b.texto,
+              versao_texto: b.versao_texto,
+              onde: b.onde,
+            },
+          );
+          return paraConsentimento(
+            await obterConsentimento(trx, c.comercianteId, id),
+          );
+        }),
       ),
   );
 

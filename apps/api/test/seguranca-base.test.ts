@@ -91,6 +91,8 @@ const FUNCOES_DA_API = [
   "passkeys_listar",
   "perfil_tornar_principal",
   "pessoa_eu",
+  // A régua única do marketing (0042): quem envia pergunta-lhe.
+  "pode_receber_marketing",
   // A redução anunciada (0036): o gatilho corre com quem escreve.
   "preco_referencia",
   "prefixo_fiscal",

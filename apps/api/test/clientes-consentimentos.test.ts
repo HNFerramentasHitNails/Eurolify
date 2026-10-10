@@ -1,0 +1,643 @@
+import { randomUUID } from "node:crypto";
+import { sql, type Kysely } from "kysely";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { criarApp } from "../src/app.js";
+import { registarComerciante } from "../src/comerciante/repositorio.js";
+import { criarChave } from "../src/identidade/repositorio.js";
+import {
+  criarBaseDeTeste,
+  URL_BASE,
+  type BaseDeTeste,
+} from "./base-de-teste.js";
+
+// Clientes, parte 2a: os consentimentos e a régua única do marketing (docs/23
+// §3.6; migração 0042). A régua vive na base (pode_receber_marketing); estes
+// testes perguntam-lhe pela API e directamente, e conferem que a prova não
+// se altera.
+
+type Json = Record<string, unknown>;
+
+describe.skipIf(URL_BASE === undefined)(
+  "consentimentos e a régua do marketing",
+  () => {
+    let base: BaseDeTeste;
+    let app: ReturnType<typeof criarApp>;
+    let a: string;
+    let b: string;
+    let dono: string;
+    let donoId: string;
+    let soLer: string;
+    let deB: string;
+
+    const pedir = (
+      metodo: "POST" | "GET",
+      url: string,
+      corpo?: unknown,
+      segredo = dono,
+    ) =>
+      app.inject({
+        method: metodo,
+        url,
+        headers: {
+          authorization: `Bearer ${segredo}`,
+          ...(metodo === "GET" ? {} : { "idempotency-key": randomUUID() }),
+          ...(corpo === undefined
+            ? {}
+            : { "content-type": "application/json" }),
+        },
+        ...(corpo === undefined ? {} : { payload: JSON.stringify(corpo) }),
+      });
+    const ok = async (
+      r: ReturnType<typeof pedir>,
+      estado = 200,
+    ): Promise<Json> => {
+      const x = await r;
+      expect(x.statusCode, x.body).toBe(estado);
+      return x.json();
+    };
+    const recusa = async (
+      r: ReturnType<typeof pedir>,
+      estado: number,
+      codigo?: string,
+    ) => {
+      const x = await r;
+      expect(x.statusCode, x.body).toBe(estado);
+      if (codigo !== undefined) expect(x.json<Json>()["codigo"]).toBe(codigo);
+    };
+
+    const declaracao = (
+      canal: string,
+      d: "aceitou" | "retirou",
+      extra: Json = {},
+    ) => ({
+      canal,
+      declaracao: d,
+      texto: "Quero receber novidades e promoções por e-mail.",
+      versao_texto: "v3",
+      onde: "loja principal, formulário de registo",
+      ...extra,
+    });
+    const ficha = async (segredo = dono) =>
+      String(
+        (await ok(pedir("POST", "/customers", { nome: "Ana" }, segredo), 201))[
+          "id"
+        ],
+      );
+    const consentimentos = (id: string, segredo = dono) =>
+      ok(pedir("GET", `/customers/${id}/consents`, undefined, segredo));
+
+    /** Uma transacção do dono da base no contexto do comerciante, desfeita no fim. */
+    async function desfeito<T>(
+      c: string,
+      fn: (trx: Kysely<unknown>) => Promise<T>,
+    ): Promise<T> {
+      let resultado: T | undefined;
+      const fim = new Error("desfazer");
+      await base.dono
+        .transaction()
+        .execute(async (trx) => {
+          await sql`select set_config('eurolify.comerciante', ${c}, true)`.execute(
+            trx,
+          );
+          await sql`select set_config('eurolify.quem', 'teste:sql', true)`.execute(
+            trx,
+          );
+          resultado = await fn(trx);
+          throw fim;
+        })
+        .catch((e: unknown) => {
+          if (e !== fim) throw e;
+        });
+      return resultado as T;
+    }
+    const regua = async (trx: Kysely<unknown>, id: string, canal: string) =>
+      (
+        await sql<{ pode: boolean }>`
+        select pode_receber_marketing(${id.slice(4)}::uuid, ${canal}) as pode`.execute(
+          trx,
+        )
+      ).rows[0]?.pode;
+
+    beforeAll(async () => {
+      base = await criarBaseDeTeste(URL_BASE ?? "", { quemPorOmissao: false });
+      app = criarApp({ logger: false }, undefined, base.api);
+      a = await registarComerciante(base.api, {
+        nome: "A",
+        lingua: "pt",
+        fuso: "Europe/Lisbon",
+      });
+      b = await registarComerciante(base.api, {
+        nome: "B",
+        lingua: "pt",
+        fuso: "Europe/Lisbon",
+      });
+      const chave = (c: string, nome: string, ambitos: string[]) =>
+        criarChave(base.dono, c, {
+          tipo: "servidor",
+          criadaPor: "operador:teste",
+          nome,
+          ambitos: ambitos as never,
+        });
+      const d = await chave(a, "Dono", ["customers:read", "customers:write"]);
+      dono = d.segredo;
+      donoId = d.id;
+      soLer = (await chave(a, "Só ler", ["customers:read"])).segredo;
+      deB = (await chave(b, "B", ["customers:read", "customers:write"]))
+        .segredo;
+    }, 60_000);
+
+    afterAll(async () => {
+      await app.close();
+      await base.fechar();
+    });
+
+    it("sem declaração, não; aceitou, sim só nesse canal; retirou, não; a mais recente vale", async () => {
+      const id = await ficha();
+      expect(await consentimentos(id)).toEqual({
+        dados: [],
+        pode_receber_marketing: { email: false, sms: false, whatsapp: false },
+      });
+      const c1 = await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "aceitou"),
+        ),
+        201,
+      );
+      expect(c1).toMatchObject({
+        cliente: id,
+        canal: "email",
+        finalidade: "marketing",
+        declaracao: "aceitou",
+        versao_texto: "v3",
+        onde: "loja principal, formulário de registo",
+        quem: `chave:key_${donoId}`,
+      });
+      expect(String(c1["id"])).toMatch(/^cns_/);
+      expect((await consentimentos(id))["pode_receber_marketing"]).toEqual({
+        email: true,
+        sms: false,
+        whatsapp: false,
+      });
+
+      await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "retirou"),
+        ),
+        201,
+      );
+      expect((await consentimentos(id))["pode_receber_marketing"]).toEqual({
+        email: false,
+        sms: false,
+        whatsapp: false,
+      });
+
+      await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "aceitou"),
+        ),
+        201,
+      );
+      const r = await consentimentos(id);
+      expect(r["pode_receber_marketing"]).toEqual({
+        email: true,
+        sms: false,
+        whatsapp: false,
+      });
+      // As mais recentes primeiro; nada se perdeu.
+      const dados = r["dados"] as Json[];
+      expect(dados.map((d) => d["declaracao"])).toEqual([
+        "aceitou",
+        "retirou",
+        "aceitou",
+      ]);
+      expect(dados.at(-1)?.["id"]).toBe(c1["id"]);
+    });
+
+    it("o WhatsApp só com declaração explícita; um SMS aceite não o abre", async () => {
+      const id = await ficha();
+      await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("sms", "aceitou"),
+        ),
+        201,
+      );
+      expect((await consentimentos(id))["pode_receber_marketing"]).toEqual({
+        email: false,
+        sms: true,
+        whatsapp: false,
+      });
+      await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("whatsapp", "aceitou"),
+        ),
+        201,
+      );
+      expect(
+        ((await consentimentos(id))["pode_receber_marketing"] as Json)[
+          "whatsapp"
+        ],
+      ).toBe(true);
+    });
+
+    it("empate na mesma hora ⇒ não; duas iguais na mesma hora ⇒ a declaração", async () => {
+      const id = await ficha();
+      const resultado = await desfeito(a, async (trx) => {
+        // Só aqui se escolhe a hora: o gatilho põe sempre a do relógio.
+        await sql`alter table consentimento disable trigger consentimento_antes_de_gravar`.execute(
+          trx,
+        );
+        const inserir = (d: string, canal: string) =>
+          sql`insert into consentimento (comerciante_id, cliente_id, canal,
+                declaracao, texto, versao_texto, onde, declarado_em, quem)
+              values (${a}::uuid, ${id.slice(4)}::uuid, ${canal}, ${d}, 't',
+                'v1', 'x', '2026-10-09T10:00:00Z', 'teste:sql')`.execute(trx);
+        await inserir("aceitou", "email");
+        await inserir("retirou", "email");
+        await inserir("aceitou", "sms");
+        await inserir("aceitou", "sms");
+        return [await regua(trx, id, "email"), await regua(trx, id, "sms")];
+      });
+      expect(resultado).toEqual([false, true]);
+    });
+
+    it("ficha limitada ⇒ não, mesmo com aceitou; a ficha fundida não recebe declarações", async () => {
+      const id = await ficha();
+      const outra = await ficha();
+      await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "aceitou"),
+        ),
+        201,
+      );
+      const limitada = await desfeito(a, async (trx) => {
+        await sql`update cliente set limitado = true where id = ${id.slice(4)}::uuid`.execute(
+          trx,
+        );
+        return regua(trx, id, "email");
+      });
+      expect(limitada).toBe(false);
+      const fundida = await desfeito(a, async (trx) => {
+        await sql`update cliente set estado = 'fundido', fundido_em = ${outra.slice(4)}::uuid
+                  where id = ${id.slice(4)}::uuid`.execute(trx);
+        const pode = await regua(trx, id, "email");
+        const erro =
+          await sql`insert into consentimento (comerciante_id, cliente_id,
+              canal, declaracao, texto, versao_texto, onde)
+            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x')`
+            .execute(trx)
+            .then(
+              () => "entrou",
+              (e: unknown) => (e as Error).message,
+            );
+        return { pode, erro };
+      });
+      expect(fundida.pode).toBe(false);
+      expect(fundida.erro).toMatch(/^customers\.invalid_transition:/);
+      // Fora das transacções desfeitas, a ficha continua activa e a dizer sim.
+      expect(
+        ((await consentimentos(id))["pode_receber_marketing"] as Json)["email"],
+      ).toBe(true);
+    });
+
+    it("a prova não se altera nem se apaga, nem pelo dono da base", async () => {
+      const id = await ficha();
+      const c = await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "aceitou"),
+        ),
+        201,
+      );
+      const cns = String(c["id"]).slice(4);
+      for (const comando of [
+        sql`update consentimento set declaracao = 'retirou' where id = ${cns}::uuid`,
+        sql`delete from consentimento where id = ${cns}::uuid`,
+        sql`truncate consentimento`,
+      ]) {
+        await expect(
+          desfeito(a, (trx) => comando.execute(trx)),
+        ).rejects.toThrow(/audit\.append_only/);
+      }
+      // E a API não tem o privilégio de alterar.
+      const { rows } = await sql<{ altera: boolean; apaga: boolean }>`
+        select has_table_privilege('eurolify_api', 'consentimento', 'UPDATE') as altera,
+               has_table_privilege('eurolify_api', 'consentimento', 'DELETE') as apaga`.execute(
+        base.dono,
+      );
+      expect(rows[0]).toEqual({ altera: false, apaga: false });
+    });
+
+    it("a hora e quem põe-nos a base; sem quem, recusa", async () => {
+      const id = await ficha();
+      const r = await desfeito(a, async (trx) => {
+        const linha = await sql<{ declarado_em: Date; quem: string }>`
+          insert into consentimento (comerciante_id, cliente_id, canal, declaracao,
+            texto, versao_texto, onde, declarado_em, quem)
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'aceitou', 't', 'v1',
+            'x', '2020-01-01T00:00:00Z', 'pessoa:per_falso')
+          returning declarado_em, quem`.execute(trx);
+        await sql`select set_config('eurolify.quem', '', true)`.execute(trx);
+        const sem =
+          await sql`insert into consentimento (comerciante_id, cliente_id,
+              canal, declaracao, texto, versao_texto, onde)
+            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x')`
+            .execute(trx)
+            .then(
+              () => "entrou",
+              (e: unknown) => (e as Error).message,
+            );
+        return { linha: linha.rows[0], sem };
+      });
+      expect(r.linha?.quem).toBe("teste:sql");
+      expect(r.linha?.declarado_em.getUTCFullYear()).toBeGreaterThanOrEqual(
+        2026,
+      );
+      expect(r.sem).toMatch(/^customers\.change_without_who:/);
+    });
+
+    it("o evento consent.changed leva a régua e nunca o texto; a linha do tempo leva a declaração", async () => {
+      const id = await ficha();
+      const c = await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "aceitou"),
+        ),
+        201,
+      );
+      await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "retirou"),
+        ),
+        201,
+      );
+      const eventos = await desfeito(
+        a,
+        async (trx) =>
+          (
+            await sql<{ dados: Json }>`
+            select dados from evento_saida
+            where tipo = 'consent.changed' and agregado_id = ${id.slice(4)}::uuid
+            order by id`.execute(trx)
+          ).rows,
+      );
+      expect(eventos.map((e) => e.dados["pode_receber_marketing"])).toEqual([
+        true,
+        false,
+      ]);
+      expect(Object.keys(eventos[0]?.dados ?? {}).sort()).toEqual([
+        "canal",
+        "cliente_id",
+        "consentimento_id",
+        "em",
+        "finalidade",
+        "pode_receber_marketing",
+        "quem",
+      ]);
+      expect(eventos[0]?.dados).toMatchObject({
+        cliente_id: id.slice(4),
+        consentimento_id: String(c["id"]).slice(4),
+        canal: "email",
+        finalidade: "marketing",
+      });
+      const t = await ok(pedir("GET", `/customers/${id}/timeline`));
+      const linhas = (t["dados"] as Json[]).filter(
+        (d) => d["entidade"] === "consentimento",
+      );
+      expect(linhas).toHaveLength(2);
+      expect(linhas[1]).toMatchObject({
+        entidade_id: c["id"],
+        operacao: "criado",
+        quem: `chave:key_${donoId}`,
+        campos: { declaracao: { antes: null, depois: "aceitou" } },
+      });
+    });
+
+    it("isolamento: o comerciante B não lê nem regista na ficha de A, e a régua dá não", async () => {
+      const id = await ficha();
+      await ok(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "aceitou"),
+        ),
+        201,
+      );
+      await recusa(
+        pedir("GET", `/customers/${id}/consents`, undefined, deB),
+        404,
+        "customers.not_found",
+      );
+      await recusa(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "retirou"),
+          deB,
+        ),
+        404,
+        "customers.not_found",
+      );
+      const deFora = await base.api.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${b}, true)`.execute(
+          trx,
+        );
+        return regua(trx as unknown as Kysely<unknown>, id, "email");
+      });
+      expect(deFora).toBe(false);
+      expect(
+        ((await consentimentos(id))["pode_receber_marketing"] as Json)["email"],
+      ).toBe(true);
+    });
+
+    it("só com customers:write; o corpo é conferido", async () => {
+      const id = await ficha();
+      await recusa(
+        pedir(
+          "POST",
+          `/customers/${id}/consents`,
+          declaracao("email", "aceitou"),
+          soLer,
+        ),
+        403,
+      );
+      expect(
+        ((await consentimentos(id, soLer))["dados"] as Json[]).length,
+      ).toBe(0);
+      for (const corpo of [
+        declaracao("email", "aceitou", { declaracao: "nunca_aceitou" }),
+        declaracao("email", "aceitou", { canal: "carta" }),
+        declaracao("email", "aceitou", { texto: "" }),
+        declaracao("email", "aceitou", { finalidade: "avaliacoes" }),
+        declaracao("email", "aceitou", { declarado_em: "2020-01-01" }),
+      ]) {
+        await recusa(pedir("POST", `/customers/${id}/consents`, corpo), 400);
+      }
+      await recusa(
+        pedir(
+          "POST",
+          `/customers/cus_${randomUUID()}/consents`,
+          declaracao("email", "aceitou"),
+        ),
+        404,
+        "customers.not_found",
+      );
+    });
+
+    it("dois pedidos ao mesmo tempo: a régua segue a declaração que ficou por último", async () => {
+      for (let volta = 0; volta < 5; volta++) {
+        const id = await ficha();
+        await Promise.all([
+          ok(
+            pedir(
+              "POST",
+              `/customers/${id}/consents`,
+              declaracao("email", "aceitou"),
+            ),
+            201,
+          ),
+          ok(
+            pedir(
+              "POST",
+              `/customers/${id}/consents`,
+              declaracao("email", "retirou"),
+            ),
+            201,
+          ),
+        ]);
+        const r = await consentimentos(id);
+        const [ultima, primeira] = r["dados"] as Json[];
+        // A ordem é a da base (ao microssegundo); o JSON mostra milissegundos.
+        expect(
+          String(ultima?.["declarado_em"]) >=
+            String(primeira?.["declarado_em"]),
+        ).toBe(true);
+        expect((r["pode_receber_marketing"] as Json)["email"]).toBe(
+          ultima?.["declaracao"] === "aceitou",
+        );
+      }
+    });
+
+    /** Uma transacção da API no comerciante A que fica aberta enquanto `durante` corre. */
+    async function aberta(
+      antes: (trx: Kysely<unknown>) => Promise<void>,
+      durante: () => Promise<void>,
+      depois: (trx: Kysely<unknown>) => Promise<void>,
+    ) {
+      await base.api.transaction().execute(async (t) => {
+        const trx = t as unknown as Kysely<unknown>;
+        await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+          trx,
+        );
+        await sql`select set_config('eurolify.quem', 'teste:sql', true)`.execute(
+          trx,
+        );
+        await antes(trx);
+        await durante();
+        await depois(trx);
+      });
+    }
+    const inserirPelaApi = (trx: Kysely<unknown>, id: string, d: string) =>
+      sql`insert into consentimento (comerciante_id, cliente_id, canal,
+            declaracao, texto, versao_texto, onde)
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', ${d}, 't', 'v1', 'x')`.execute(
+        trx,
+      );
+
+    it("a hora é a de quando a declaração entra, não a do início da transacção", async () => {
+      // Uma transacção começa, outra regista «aceitou» e acaba, e a primeira
+      // regista «retirou» depois: o cliente retirou por último.
+      const id = await ficha();
+      await aberta(
+        async (trx) => {
+          await sql`select now()`.execute(trx);
+        },
+        async () => {
+          await ok(
+            pedir(
+              "POST",
+              `/customers/${id}/consents`,
+              declaracao("email", "aceitou"),
+            ),
+            201,
+          );
+        },
+        (trx) => inserirPelaApi(trx, id, "retirou").then(() => undefined),
+      );
+      const r = await consentimentos(id);
+      expect((r["dados"] as Json[])[0]?.["declaracao"]).toBe("retirou");
+      expect((r["pode_receber_marketing"] as Json)["email"]).toBe(false);
+    });
+
+    it("as declarações da mesma ficha entram uma de cada vez: a segunda espera e o evento dela já vê a primeira", async () => {
+      const id = await ficha();
+      let segunda: Promise<Json> | undefined;
+      let acabou = false;
+      await aberta(
+        (trx) => inserirPelaApi(trx, id, "aceitou").then(() => undefined),
+        async () => {
+          segunda = ok(
+            pedir(
+              "POST",
+              `/customers/${id}/consents`,
+              declaracao("email", "retirou"),
+            ),
+            201,
+          ).then((x) => {
+            acabou = true;
+            return x;
+          });
+          await new Promise((ok) => setTimeout(ok, 300));
+          expect(acabou).toBe(false);
+        },
+        () => Promise.resolve(),
+      );
+      await segunda;
+      const eventos = await desfeito(
+        a,
+        async (trx) =>
+          (
+            await sql<{ dados: Json }>`
+            select dados from evento_saida
+            where tipo = 'consent.changed' and agregado_id = ${id.slice(4)}::uuid
+            order by dados ->> 'em'`.execute(trx)
+          ).rows,
+      );
+      expect(eventos.map((e) => e.dados["pode_receber_marketing"])).toEqual([
+        true,
+        false,
+      ]);
+    });
+
+    it("a régua dá falso, nunca nulo, sem declarações e para um canal que não existe", async () => {
+      const id = await ficha();
+      const r = await desfeito(
+        a,
+        async (trx) =>
+          (
+            await sql<{ sem: boolean | null; carta: boolean | null }>`
+          select pode_receber_marketing(${id.slice(4)}::uuid, 'email') as sem,
+                 pode_receber_marketing(${id.slice(4)}::uuid, 'carta') as carta`.execute(
+              trx,
+            )
+          ).rows[0],
+      );
+      expect(r).toEqual({ sem: false, carta: false });
+    });
+  },
+);

@@ -4,7 +4,8 @@
 > CX). Diogo, 09/10/2026: *«sim, avança com o desenho da fatia 5»* e *«sim,
 > aprovo; avança com o código da fatia 5»* (as cinco respostas da §9 como
 > propostas). **Parte 3 (VIES e isenção manual): aprovada e no código, §13**
-> (`docs/06`, CY). É a fatia 5 do
+> (`docs/06`, CY). **Parte 2a (consentimentos e régua do marketing): no
+> código, §12** (Diogo, 10/10/2026: *«sim, avança com a parte 2»*). É a fatia 5 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Clientes e perfis de faturação; finalidade por encomenda») e é preciso
 > antes do Motor de IVA (fatia 6) e do checkout (fatia 7): o Motor de IVA
@@ -478,6 +479,23 @@ apontavam para etiquetas (`test/migracao-0037.test.ts`, com um migrador sem
 poderes, como o da VPS; as duas mutações — sem desligar o RLS forçado, sem o
 voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 **não verifiquei** (o MCP da VPS pede autorização nesta sessão).
+
+**Parte 2a — consentimentos e a régua do marketing** (migração 0042; issue
+#233; Diogo, 10/10/2026: *«sim, avança com a parte 2»*):
+
+| O quê | Onde |
+|---|---|
+| o consentimento (`consentimento`, `cns_`): uma linha por declaração, `aceitou` ou `retirou`, com o canal, a finalidade (só `marketing`), o texto, a versão e onde; não se altera nem se apaga, nem pelo dono da base | migração 0042 |
+| a hora e quem registou, postos pela base (`declarado_em`, `quem`); sem `eurolify.quem` recusa; só numa ficha activa | migração 0042 |
+| as declarações da mesma ficha entram uma de cada vez (a ficha fica tomada) e a hora é a do relógio quando entram: a mais recente é a última que entrou | migração 0042 |
+| a régua única `pode_receber_marketing(cliente, canal)`: só declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não; dá sempre verdadeiro ou falso, nunca nulo | migração 0042 |
+| o evento `consent.changed` com o cliente, o canal, a finalidade e o resultado da régua, sem o texto nem o «onde» (R12); as declarações na linha do tempo | migração 0042 |
+| `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações e a régua por canal | `src/clientes/rotas.ts` |
+| 13 testes; 16 mutações da régua e dos gatilhos, todas apanhadas | `test/clientes-consentimentos.test.ts` |
+
+**Fica para a parte 2c:** a pseudonimização apaga os consentimentos de
+marketing (§4.1); a recusa de apagar desta migração terá de abrir só para
+essa função.
 
 ## 13. Parte 3 — VIES com prova e isenção manual (desenho de 09/10/2026)
 

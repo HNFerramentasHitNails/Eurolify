@@ -1,5 +1,9 @@
 import { sql, type Kysely, type Transaction } from "kysely";
-import type { BaseDados } from "../base/esquema.js";
+import {
+  CANAIS_CONSENTIMENTO,
+  type BaseDados,
+  type CanalConsentimento,
+} from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { ErroClientes, type CodigoErroClientes } from "./erros.js";
 import type { PedidoVies, RespostaVies } from "./vies.js";
@@ -56,6 +60,7 @@ const TABELAS = new Set([
   "etiqueta_cliente",
   "cliente_etiqueta",
   "isencao_manual",
+  "consentimento",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -995,6 +1000,93 @@ export async function listarIsencoes(
       .where("perfil_id", "=", perfilId)
       .orderBy("id", "desc")
       .execute();
+  });
+}
+
+// ------------------------------------------------ Consentimentos (§3.6)
+
+export interface DadosConsentimento {
+  canal: CanalConsentimento;
+  declaracao: "aceitou" | "retirou";
+  texto: string;
+  versao_texto: string;
+  onde: string;
+}
+
+/** Regista uma declaração (migração 0042); a hora e quem põe-nos a base. */
+export async function registarConsentimento(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+  dados: DadosConsentimento,
+): Promise<string> {
+  const { id } = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .insertInto("consentimento")
+      .values({
+        comerciante_id: comercianteId,
+        cliente_id: clienteId,
+        finalidade: "marketing",
+        ...dados,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow(),
+  );
+  return id;
+}
+
+export async function obterConsentimento(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+) {
+  const c = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("consentimento")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst(),
+  );
+  if (c === undefined) {
+    throw new ErroClientes("customers.not_found", "consentimento inexistente");
+  }
+  return c;
+}
+
+/**
+ * As declarações da ficha, as mais recentes primeiro, e a resposta da régua
+ * única por canal — nunca contada aqui (R6): pergunta-se à base.
+ */
+export async function listarConsentimentos(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const ficha = await trx
+      .selectFrom("cliente")
+      .select("id")
+      .where("id", "=", clienteId)
+      .executeTakeFirst();
+    if (ficha === undefined) {
+      throw new ErroClientes("customers.not_found", "ficha inexistente");
+    }
+    const declaracoes = await trx
+      .selectFrom("consentimento")
+      .selectAll()
+      .where("cliente_id", "=", clienteId)
+      .orderBy("declarado_em", "desc")
+      .orderBy("id", "desc")
+      .execute();
+    const regua = {} as Record<CanalConsentimento, boolean>;
+    for (const canal of CANAIS_CONSENTIMENTO) {
+      const { rows } = await sql<{ pode: boolean }>`
+        select pode_receber_marketing(${clienteId}::uuid, ${canal}) as pode`.execute(
+        trx,
+      );
+      regua[canal] = rows[0]?.pode === true;
+    }
+    return { declaracoes, regua };
   });
 }
 
