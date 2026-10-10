@@ -19,7 +19,7 @@ import {
 import { cifrar, decifrar, type ChavePagamentos } from "./cifra.js";
 import { ErroPagamentos, type CodigoErroPagamentos } from "./erros.js";
 
-// Os pagamentos (docs/26; migração 0042). Um pagamento só se dá por pago com
+// Os pagamentos (docs/26; migração 0043). Um pagamento só se dá por pago com
 // prova do prestador (um aviso com assinatura válida ou uma consulta); na
 // dúvida fica `incerto` e decide uma pessoa (nunca se cobra outra vez nem se
 // dá por falhado às cegas). As chamadas ao prestador correm fora das
@@ -139,7 +139,7 @@ export async function noPagamentos<T>(
   }
 }
 
-/** Quem, a origem, o aviso e o motivo da próxima transição (gatilhos da 0042). */
+/** Quem, a origem, o aviso e o motivo da próxima transição (gatilhos da 0043). */
 export async function marcar(
   trx: Transaction<BaseDados>,
   m: {
@@ -261,7 +261,7 @@ export async function mudarConta(
 
 /**
  * As credenciais e o segredo dos avisos, cifrados; a conta volta a rascunho
- * até à chamada de teste (gatilho da 0042). Nunca se devolvem.
+ * até à chamada de teste (gatilho da 0043). Nunca se devolvem.
  */
 export async function definirCredenciais(
   trx: Transaction<BaseDados>,

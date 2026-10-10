@@ -186,6 +186,52 @@ export interface OpcoesDeTraducao {
   soLeitura?: boolean;
 }
 
+/** O texto de um valor que a base recusou, sem o texto do PostgreSQL. */
+export const TEXTO_VALOR_RECUSADO = "um valor do pedido não é aceite";
+
+/**
+ * O texto de cada código que vem de uma restrição ou de uma coluna
+ * obrigatória da base, para o `detail` da API: nunca o do PostgreSQL
+ * (docs/18 §2), que traz o nome da restrição (revisão do #291, P2-2).
+ * Não diz qual é o SKU ou o GTIN repetido (pedido do Hub no #77): pela API,
+ * o erro da base chega sem o pormenor da chave (medido a 10/10/2026, no
+ * PostgreSQL 18.6, com o RLS na tabela); quem precisar procura-o (o Hub,
+ * docs/22 §14.2). A base não distingue maiúsculas no SKU.
+ */
+const TEXTO_DA_BASE: Partial<Record<CodigoErroCatalogo, string>> = {
+  "catalog.sku_duplicate":
+    "já existe uma variante com este SKU (sem distinguir maiúsculas)",
+  "catalog.sku_invalid": "o SKU não tem um formato aceite",
+  "catalog.sku_required": "falta o SKU",
+  "catalog.gtin_duplicate":
+    "já existe uma variante com este GTIN (com ou sem zeros à esquerda)",
+  "catalog.gtin_invalid": "o GTIN não é válido",
+  "catalog.gtin_origin_required":
+    "o GTIN precisa da origem, e a origem do GTIN",
+  "catalog.content_incomplete":
+    "a quantidade e a unidade do conteúdo vão juntas",
+  "catalog.origin_ref_required":
+    "só um artigo de sistema externo tem a referência, e precisa dela",
+  "catalog.name_required": "falta o nome",
+  "catalog.unit_required": "falta a unidade de venda",
+  "catalog.component_cycle": "um kit não pode ser componente de si próprio",
+  "catalog.component_duplicate": "este componente já está no kit",
+  "catalog.option_duplicate": "o artigo já tem uma opção com este nome",
+  "catalog.option_value_duplicate": "a opção já tem um valor com este texto",
+  "catalog.option_repeated": "a variante já tem um valor desta opção",
+  "catalog.nature_incompatible": "a natureza não serve para o tipo do artigo",
+  "catalog.classification_invalid": "a classificação do artigo não é válida",
+  "catalog.slug_invalid": "o endereço amigável não tem um formato aceite",
+  "catalog.slug_duplicate": "o endereço amigável já existe",
+  "catalog.category_cycle": "uma categoria não pode ficar dentro de si própria",
+  "catalog.category_duplicate": "o artigo já está nesta categoria",
+  "catalog.collection_product_duplicate": "o artigo já está nesta colecção",
+};
+
+function textoDaBase(codigo: CodigoErroCatalogo): string {
+  return TEXTO_DA_BASE[codigo] ?? TEXTO_VALOR_RECUSADO;
+}
+
 /** Exportada para os testes; o resto do código usa-a por `noCatalogo`. */
 export function traduzir(
   erro: unknown,
@@ -211,12 +257,16 @@ export function traduzir(
     daRestricao !== undefined &&
     (pg.code === "23505" || pg.code === "23514")
   ) {
-    return new ErroCatalogo(daRestricao, erro.message, { cause: erro });
+    return new ErroCatalogo(daRestricao, textoDaBase(daRestricao), {
+      cause: erro,
+    });
   }
   const daColuna =
     pg.column === undefined ? undefined : OBRIGATORIAS[pg.column];
   if (pg.code === "23502" && daColuna !== undefined) {
-    return new ErroCatalogo(daColuna, erro.message, { cause: erro });
+    return new ErroCatalogo(daColuna, textoDaBase(daColuna), {
+      cause: erro,
+    });
   }
   // Outro valor recusado nestas tabelas (uma lista, um número): código
   // genérico (revisão do #78, 2.ª, P2-2).
@@ -225,7 +275,7 @@ export function traduzir(
     pg.table !== undefined &&
     TABELAS.has(pg.table)
   ) {
-    return new ErroCatalogo("catalog.invalid_field", erro.message, {
+    return new ErroCatalogo("catalog.invalid_field", TEXTO_VALOR_RECUSADO, {
       cause: erro,
     });
   }
@@ -239,7 +289,13 @@ export function traduzir(
       pg.code === "22P02" && /type uuid/.test(erro.message)
         ? "catalog.not_found"
         : "catalog.invalid_field";
-    return new ErroCatalogo(codigoDeValor, erro.message, { cause: erro });
+    return new ErroCatalogo(
+      codigoDeValor,
+      codigoDeValor === "catalog.not_found"
+        ? "referência inexistente"
+        : TEXTO_VALOR_RECUSADO,
+      { cause: erro },
+    );
   }
   // Apagar uma variante que é componente de um kit (0004), antes da regra
   // geral das chaves estrangeiras, que diria «não existe». A mesma restrição

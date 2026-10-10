@@ -1,7 +1,7 @@
 # Pagamentos — modelo e lista da API
 
 > **Estado: desenho aprovado; parte 1 no código** (issue #287; migração
-> 0042; `docs/06`, DB). Diogo, 09/10/2026: *«sim, avança com o desenho da
+> 0043; `docs/06`, DB). Diogo, 09/10/2026: *«sim, avança com o desenho da
 > fatia 8»* e *«sim, aprovo; avança com o código da fatia 8»* (Q1 a Q6 como
 > propostas). O que está programado e os desvios dizem-se na §15. É a fatia 8 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
@@ -349,15 +349,15 @@ a sandbox**, porque não há credenciais de teste.
 - **Parte 2:** a Stripe (depois da Q2), o cartão com 3DS2 nas páginas dela e a captura diferida com a fatia 9.
 - Cada parte num pedido, com o desenho, os testes verdes e a revisão do agente antes de juntar (ADR-0031, ADR-0035).
 
-## 15. Em código — parte 1 (10/10/2026; migração 0042; `docs/06`, DB)
+## 15. Em código — parte 1 (10/10/2026; migração 0043; `docs/06`, DB)
 
 | O quê | Onde |
 |---|---|
-| tabelas `conta_pagamento`, `metodo_pagamento` (a régua), `pagamento`, `aviso_pagamento`, `transicao_pagamento` (só se acrescenta) e `diferenca_pagamento`, com o RLS forçado; duas internas (`conta_pagamento_aviso`, a porta dos avisos, e `tarefa_pagamento`) | migração 0042 |
-| a máquina de estados na base (`pagamento_transicao_valida`), só para a frente; do `incerto` só por consulta ou por uma pessoa; um pagamento vivo por encomenda; as cópias não mudam | migração 0042 |
-| a encomenda `paga` só com um pagamento capturado do mesmo montante e moeda; `cancelada_sem_pagamento` só sem pagamento vivo nem capturado | migração 0042 (gatilho na encomenda) |
-| eventos `payment.*`, `order.paid`, `order.cancelled`, pelos gatilhos; a transição grava a origem, quem, o aviso e o motivo | migração 0042 |
-| âmbitos `payments:read`, `payments:write`, `payments:accounts`, `payments:resolve` nos papéis (dono os quatro; gestor ler e escrever; apoio ler; armazém nenhum) | migração 0042; `src/identidade/` |
+| tabelas `conta_pagamento`, `metodo_pagamento` (a régua), `pagamento`, `aviso_pagamento`, `transicao_pagamento` (só se acrescenta) e `diferenca_pagamento`, com o RLS forçado; duas internas (`conta_pagamento_aviso`, a porta dos avisos, e `tarefa_pagamento`) | migração 0043 |
+| a máquina de estados na base (`pagamento_transicao_valida`), só para a frente; do `incerto` só por consulta ou por uma pessoa; um pagamento vivo por encomenda; as cópias não mudam | migração 0043 |
+| a encomenda `paga` só com um pagamento capturado do mesmo montante e moeda; `cancelada_sem_pagamento` só sem pagamento vivo nem capturado | migração 0043 (gatilho na encomenda) |
+| eventos `payment.*`, `order.paid`, `order.cancelled`, pelos gatilhos; a transição grava a origem, quem, o aviso e o motivo | migração 0043 |
+| âmbitos `payments:read`, `payments:write`, `payments:accounts`, `payments:resolve` nos papéis (dono os quatro; gestor ler e escrever; apoio ler; armazém nenhum) | migração 0043; `src/identidade/` |
 | as credenciais cifradas com AES-256-GCM (`PAGAMENTOS_CHAVE`), com a conta e o campo como dado associado | `src/pagamentos/cifra.ts` |
 | o adaptador EuPago (MB WAY e Multibanco, sandbox) e o contrato | `src/pagamentos/eupago.ts`, `adaptador.ts` |
 | o pagamento pelo token, os avisos, a consulta, as tarefas, a fila e a Administração — a lista da §8 | `src/pagamentos/` |

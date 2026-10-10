@@ -56,7 +56,7 @@
 | documento fiscal | fatia 10: nasce da cópia guardada aqui (`eu-vat-oss-ioss`, regra 2) |
 | o botão de livre resolução e o pedido de devolução | fatia 11 (pós-venda); aqui só a informação antes da compra e a ligação na confirmação |
 | contas de cliente com palavra-passe (área de cliente) | proposta: na Fase 1 o checkout é **sem conta**, com o e-mail (§3.3) |
-| consentimentos de marketing no checkout | dependem da parte 2 dos Clientes (`docs/23` §3.6, régua única), que não está feita; **proposta**: nenhuma caixa de marketing até lá |
+| consentimentos de marketing no checkout | a régua única e o registo com prova existem desde a parte 2a dos Clientes (`docs/23` §3.6 e §12, migração 0042), mas a loja ainda não tem caminho para registar (a rota pede `customers:write`); **proposta**: nenhuma caixa de marketing até a caixa e esse caminho estarem desenhados |
 | conteúdo e serviço digital, cartões-oferta | desligados (ADR-0034); o Motor de IVA já os bloqueia (`natureza_bloqueada`) |
 | API de checkout para frontends próprios | Fase 3 (ADR-0039, decisão 3) |
 | o checkout no domínio próprio de cada loja (certificados) | ADR-0039, «Consequências»: por desenhar — **pergunta Q5** |
