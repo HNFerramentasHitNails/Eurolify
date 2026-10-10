@@ -1,4 +1,5 @@
 import { agendarConclusoes } from "./stock/repositorio.js";
+import { comRasto } from "./base/rasto.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
@@ -128,24 +129,33 @@ const app = criarApp(
   faturacao,
 );
 
+// As tarefas agendadas correm com o canal «sistema» no rasto de auditoria
+// (docs/28 §3.1): os temporizadores guardam o contexto de quem os criou.
+
 // Os ficheiros de imagem sem uso há mais de 7 dias saem uma vez por dia
 // (docs/14 §3.5; issue #179). Só com a base e a pasta das imagens.
 const pararLimpeza =
   base !== undefined && armazenamento !== undefined
-    ? agendarLimpezaDosFicheiros(base, armazenamento, app.log)
+    ? comRasto({ canal: "sistema", pedido: "tarefa:limpeza_ficheiros" }, () =>
+        agendarLimpezaDosFicheiros(base, armazenamento, app.log),
+      )
     : () => undefined;
 
 // A fila do VIES, de minuto a minuto (docs/23 §13.4).
 const pararVies =
   base !== undefined && vies !== undefined
-    ? agendarFilaVies(base, vies, app.log)
+    ? comRasto({ canal: "sistema", pedido: "tarefa:fila_vies" }, () =>
+        agendarFilaVies(base, vies, app.log),
+      )
     : () => undefined;
 
 // As tarefas dos pagamentos (docs/26 §5, passo 7, e Q6), de minuto a minuto:
 // os pendentes que passaram do prazo e as encomendas por pagar há 24 h.
 const pararPagamentos =
   base !== undefined && pagamentos.chave !== undefined
-    ? agendarTarefasPagamentos(base, pagamentos, app.log)
+    ? comRasto({ canal: "sistema", pedido: "tarefa:pagamentos" }, () =>
+        agendarTarefasPagamentos(base, pagamentos, app.log),
+      )
     : () => undefined;
 
 // Os pedidos de documento, de minuto a minuto (docs/29, R11).
@@ -156,7 +166,11 @@ const pararDocumentos =
 
 // As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).
 const pararConclusoes =
-  base !== undefined ? agendarConclusoes(base, app.log) : () => undefined;
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:conclusoes" }, () =>
+        agendarConclusoes(base, app.log),
+      )
+    : () => undefined;
 
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {

@@ -438,6 +438,22 @@ describe.skipIf(URL_BASE === undefined)("alterar uma variante (#301)", () => {
       peso_g: null,
     });
     expect(semPeso.statusCode, semPeso.body).toBe(200);
+    // Pelo Hub (#321), a variante nova também nasce fora da publicação
+    // (revisão do #326, P3-1).
+    const dono = await h.pessoaCom(c.id, "dono");
+    const pelaSessao = await h.pedir("POST", `/hub/products/${f.id}/variants`, {
+      sessao: dono.sessao,
+      comerciante: c.id,
+      corpo: { sku: `ENS-${randomUUID()}`, unidade_de_venda: "caixa" },
+    });
+    expect(pelaSessao.statusCode, pelaSessao.body).toBe(201);
+    const pubs = (
+      await chave(c.segredo, "GET", `/products/${f.id}/publications`)
+    ).json<{ dados: { estado: string; variantes_fora: string[] }[] }>();
+    expect(pubs.dados[0]?.estado).toBe("publicado");
+    expect(pubs.dados[0]?.variantes_fora).toContain(
+      pelaSessao.json<Variante>().id,
+    );
   });
 
   it("duas alterações ao mesmo tempo com a mesma versão: uma entra, a outra dá 409", async () => {
@@ -761,6 +777,210 @@ describe.skipIf(URL_BASE === undefined)("alterar uma variante (#301)", () => {
     expect((await variante(c.segredo, v)).peso_g).toBe(60);
   });
 
+  it("acrescentar uma variante pelo Hub (#321): o gestor e o dono criam (201, com a pessoa na linha do tempo); um artigo que não existe, 404; um arquivado recebe-a; o armazém e o apoio, 403; outro comerciante, 404; o SKU repetido, 409", async () => {
+    const c = await comerciante("Loja Variante Nova Hub");
+    const outro = await comerciante("Loja Variante Nova Hub B");
+    const f = await artigo(c.segredo, true);
+    const url = `/hub/products/${f.id}/variants`;
+    const nova = (sku: string) => ({
+      sku,
+      unidade_de_venda: "caixa",
+      gtin: GTIN,
+      gtin_origem: "fornecedor",
+      peso_g: 400,
+    });
+    for (const papel of ["armazem", "apoio"]) {
+      const p = await h.pessoaCom(c.id, papel);
+      const r = await h.pedir("POST", url, {
+        sessao: p.sessao,
+        comerciante: c.id,
+        corpo: nova(`ENS-${randomUUID()}`),
+      });
+      expect(r.statusCode, `${papel}: ${r.body}`).toBe(403);
+    }
+    const gestor = await h.pessoaCom(c.id, "gestor");
+    const sku = `ENS-C-${randomUUID()}`;
+    const r = await h.pedir("POST", url, {
+      sessao: gestor.sessao,
+      comerciante: c.id,
+      corpo: nova(sku),
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    expect(r.headers["cache-control"]).toBe("private, no-store");
+    expect(r.json<Variante>()).toMatchObject({
+      sku,
+      artigo: f.id,
+      estado: "activa",
+      unidade_de_venda: "caixa",
+      gtin: GTIN,
+      peso_g: 400,
+      versao: 1,
+    });
+    const ficha = (
+      await chave(c.segredo, "GET", `/products/${f.id}`)
+    ).json<Ficha>();
+    expect(ficha.variantes.map((v) => v.sku)).toContain(sku);
+    const linha = (
+      await chave(c.segredo, "GET", `/products/${f.id}/timeline`)
+    ).json<{
+      dados: {
+        entidade: string;
+        quem: string;
+        campos: Record<string, unknown>;
+      }[];
+    }>();
+    expect(
+      linha.dados.find(
+        (d) =>
+          d.entidade === "variante" &&
+          (d.campos["sku"] as { depois?: string } | undefined)?.depois === sku,
+      )?.quem,
+    ).toBe(`pessoa:per_${gestor.pessoa}`);
+    // O dono também cria (revisão do #326, P3-3).
+    const dono = await h.pessoaCom(c.id, "dono");
+    const doDono = await h.pedir("POST", url, {
+      sessao: dono.sessao,
+      comerciante: c.id,
+      corpo: { sku: `ENS-D-${randomUUID()}`, unidade_de_venda: "unidade" },
+    });
+    expect(doDono.statusCode, doDono.body).toBe(201);
+    // O mesmo SKU (sem distinguir maiúsculas): 409, e não há outra.
+    const repetido = await h.pedir("POST", url, {
+      sessao: dono.sessao,
+      comerciante: c.id,
+      corpo: { ...nova(sku.toLowerCase()), gtin: null, gtin_origem: null },
+    });
+    expect(repetido.statusCode).toBe(409);
+    expect(h.codigo(repetido)).toBe("catalog.sku_duplicate");
+    // O dono de outro comerciante, com o cabeçalho dele, não chega a A.
+    const deB = await h.pessoaCom(outro.id, "dono");
+    const deOutro = await h.pedir("POST", url, {
+      sessao: deB.sessao,
+      comerciante: outro.id,
+      corpo: nova(`ENS-${randomUUID()}`),
+    });
+    expect(deOutro.statusCode, deOutro.body).toBe(404);
+    const depois = (
+      await chave(c.segredo, "GET", `/products/${f.id}`)
+    ).json<Ficha>();
+    expect(depois.variantes).toHaveLength(4);
+    // Um artigo que não existe: 404 (revisão do #326, P3-1).
+    const inexistente = await h.pedir(
+      "POST",
+      `/hub/products/prd_${randomUUID()}/variants`,
+      {
+        sessao: dono.sessao,
+        comerciante: c.id,
+        corpo: nova(`ENS-${randomUUID()}`),
+      },
+    );
+    expect(inexistente.statusCode, inexistente.body).toBe(404);
+    // Um artigo arquivado recebe a variante nova (§4.1, P3-1).
+    const arq = await chave(c.segredo, "POST", `/products/${f.id}/archive`, {
+      versao: depois.versao,
+    });
+    expect(arq.statusCode, arq.body).toBe(200);
+    const noArquivado = await h.pedir("POST", url, {
+      sessao: dono.sessao,
+      comerciante: c.id,
+      corpo: { sku: `ENS-A-${randomUUID()}`, unidade_de_venda: "unidade" },
+    });
+    expect(noArquivado.statusCode, noArquivado.body).toBe(201);
+  });
+
+  it("acrescentar pelo Hub com o artigo preso por outro: a espera acaba em 503 catalog.retry ao fim de 5 s (revisão do #326, P2-1)", async () => {
+    const c = await comerciante("Loja Variante Nova Presa");
+    const f = await artigo(c.segredo);
+    const dono = await h.pessoaCom(c.id, "dono");
+    const cliente = await transaccaoAberta(c.id);
+    try {
+      await cliente.query("select id from artigo where id = $1 for update", [
+        f.id.slice("prd_".length),
+      ]);
+      const inicio = Date.now();
+      const r = await h.pedir("POST", `/hub/products/${f.id}/variants`, {
+        sessao: dono.sessao,
+        comerciante: c.id,
+        corpo: { sku: `ENS-${randomUUID()}`, unidade_de_venda: "unidade" },
+      });
+      expect(r.statusCode, r.body).toBe(503);
+      expect(h.codigo(r)).toBe("catalog.retry");
+      expect(Date.now() - inicio).toBeLessThan(8000);
+    } finally {
+      await cliente.query("rollback").catch(() => undefined);
+      await cliente.end();
+    }
+    const ficha = (
+      await chave(c.segredo, "GET", `/products/${f.id}`)
+    ).json<Ficha>();
+    expect(ficha.variantes).toHaveLength(2);
+  }, 20_000);
+
+  it("acrescentar pelo Hub num artigo activo com opções: sem um valor de cada opção, recusa; com a combinação de outra variante, também; com uma nova, cria", async () => {
+    const c = await comerciante("Loja Variante Nova Opcoes");
+    const f = await artigo(c.segredo);
+    const o = (
+      await chave(c.segredo, "POST", `/products/${f.id}/options`, {
+        nome: "Tamanho",
+        valores: ["15 ml", "30 ml", "50 ml"],
+      })
+    ).json<{ valores: { id: string }[] }>();
+    const [v1, v2] = f.variantes;
+    for (const [v, i] of [
+      [v1, 0],
+      [v2, 1],
+    ] as const) {
+      const d = await chave(
+        c.segredo,
+        "PUT",
+        `/variants/${v?.id ?? ""}/values`,
+        {
+          valores: [o.valores[i]?.id],
+        },
+      );
+      expect(d.statusCode, d.body).toBe(200);
+    }
+    const ficha = (
+      await chave(c.segredo, "GET", `/products/${f.id}`)
+    ).json<Ficha>();
+    const cl = await chave(
+      c.segredo,
+      "PUT",
+      `/products/${f.id}/classification`,
+      {
+        versao: ficha.versao,
+        familias: ["retalho_geral"],
+        natureza_consumidor: "bem",
+      },
+    );
+    const act = await chave(c.segredo, "POST", `/products/${f.id}/activate`, {
+      versao: cl.json<Ficha>().versao,
+    });
+    expect(act.statusCode, act.body).toBe(200);
+    const dono = await h.pessoaCom(c.id, "dono");
+    const criar = (valores: string[]) =>
+      h.pedir("POST", `/hub/products/${f.id}/variants`, {
+        sessao: dono.sessao,
+        comerciante: c.id,
+        corpo: {
+          sku: `ENS-${randomUUID()}`,
+          unidade_de_venda: "unidade",
+          valores,
+        },
+      });
+    const sem = await criar([]);
+    expect(h.codigo(sem), sem.body).toBe("catalog.options_incomplete");
+    const repetida = await criar([o.valores[0]?.id ?? ""]);
+    expect(h.codigo(repetida), repetida.body).toBe(
+      "catalog.option_combination_duplicate",
+    );
+    const boa = await criar([o.valores[2]?.id ?? ""]);
+    expect(boa.statusCode, boa.body).toBe(201);
+    expect(boa.json<{ valores: string[] }>().valores).toEqual([
+      o.valores[2]?.id,
+    ]);
+  });
+
   it("pelo Hub, num artigo do sistema de gestão: catalog.external_field; pela chave, aceita", async () => {
     const c = await comerciante("Loja Variante Externo");
     const id = await comComerciante(base.api, c.id, async (trx) => {
@@ -791,6 +1011,14 @@ describe.skipIf(URL_BASE === undefined)("alterar uma variante (#301)", () => {
     });
     expect(r.statusCode, r.body).toBe(409);
     expect(h.codigo(r)).toBe("catalog.external_field");
+    // Acrescentar uma variante pelo Hub também recusa (#321).
+    const nova = await h.pedir("POST", `/hub/products/prd_${id}/variants`, {
+      sessao: dono.sessao,
+      comerciante: c.id,
+      corpo: { sku: `G-${randomUUID()}`, unidade_de_venda: "unidade" },
+    });
+    expect(nova.statusCode, nova.body).toBe(409);
+    expect(h.codigo(nova)).toBe("catalog.external_field");
     const pelaChave = await chave(c.segredo, "PATCH", `/variants/${v}`, {
       versao: 1,
       peso_g: 10,
