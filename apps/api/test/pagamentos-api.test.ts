@@ -1389,6 +1389,25 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
     ).toBe("a_aguardar_cliente");
   });
 
+  it("uma tarefa que falha por um erro nosso (outra versão da chave) fica registada e não passa por falha de rede", async () => {
+    const s = await cenario();
+    const k = await encomenda(s);
+    const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+    await sql`update tarefa_pagamento set quando = now() - interval '1 minute'
+      where comerciante_id = ${s.c}::uuid and alvo_tipo = 'pagamento'`.execute(
+      base.dono,
+    );
+    const r = await correrTarefas(base.api, {
+      chave: chavePagamentos(randomBytes(32).toString("base64"), "2"),
+      adaptadores: eupago.config.adaptadores,
+    });
+    expect(r.adiadas).toBe(0);
+    expect(r.erros).toEqual([{ pagamento: p["id"], erro: "ErroPagamentos" }]);
+    expect(
+      (await ok(s.adm("GET", `/payments/${String(p["id"])}`)))["estado"],
+    ).toBe("a_aguardar_cliente");
+  });
+
   it("sem a chave dos pagamentos no servidor, pagar dá 503 e nada se cria", async () => {
     const s = await cenario();
     const k = await encomenda(s);
