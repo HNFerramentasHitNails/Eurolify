@@ -159,8 +159,19 @@ export function errosDoRegisto(registo: Registo): string[] {
 
   const vistas = new Set<string>();
   // Uma `id` fora do formato diz-se uma vez, não uma por versão (revisão do
-  // #50, P2-1).
+  // #50, P2-1); com mais de um registo, a mensagem diz quantos e onde, para
+  // quem corrige não ter de os procurar (#59, #283).
   const idsForaDoFormato = new Set<string>();
+  const ondeEsta = new Map<string, string[]>();
+  for (const regra of regras) {
+    if (typeof regra.id === "string" && !FORMATO_ID.test(regra.id)) {
+      const lista = ondeEsta.get(regra.id) ?? [];
+      lista.push(
+        `@${valor(regra.versao)} ${valor(regra.pais)}/${valor(regra.dominio)}`,
+      );
+      ondeEsta.set(regra.id, lista);
+    }
+  }
   for (const regra of regras) {
     // Como a `id` aparece em todas as mensagens dela (revisões do #50):
     // dentro do formato, tal como é; em texto fora do formato, vazia incluída,
@@ -196,7 +207,13 @@ export function errosDoRegisto(registo: Registo): string[] {
     if (vazio(regra.id)) erros.push(`${nome}: sem id`);
     else if (foraDoFormato && !idsForaDoFormato.has(regra.id)) {
       idsForaDoFormato.add(regra.id);
-      erros.push(`${nome}: id fora do formato (a-z, 0-9, «.», «_», «-»)`);
+      const onde = ondeEsta.get(regra.id) ?? [];
+      erros.push(
+        `${nome}: id fora do formato (a-z, 0-9, «.», «_», «-»)` +
+          (onde.length > 1
+            ? `; em ${String(onde.length)} registos: ${onde.join(", ")}`
+            : ""),
+      );
     }
     if (!Number.isInteger(regra.versao) || regra.versao < 1) {
       erros.push(`${nome}: versão inválida`);

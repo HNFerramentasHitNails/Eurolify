@@ -910,7 +910,8 @@ describe("validar o registo", () => {
       `"a  b"@1: ${formato}`,
       `"\\u0131"@1: ${formato}`,
       `"-x"@1: ${formato}`,
-      `"r\\u200b"@1: ${formato}`,
+      // Em mais de um registo, diz quantos e onde (#59, #283).
+      `"r\\u200b"@1: ${formato}; em 3 registos: @1 PT/iva, @1 PT/iva, @2 PT/iva`,
       '"r\\u200b"@1: repetida',
       `"a\\"b"@1: ${formato}`,
       `"a\\\\u0041"@1: ${formato}`,
@@ -1193,6 +1194,30 @@ describe("validar o registo", () => {
         "g@1: território PT-20 não mapeado em PT",
       ]),
     );
+  });
+
+  it("o território não faz parte da identidade: a mesma id em territórios diferentes, ao mesmo tempo, é recusada (#59, #283)", () => {
+    const registo = registoComPortugal(
+      [
+        regraTeste({ id: "pt-ilhas", territorios: ["PT-20"] }),
+        regraTeste({ id: "pt-ilhas", versao: 2, territorios: ["PT-30"] }),
+      ],
+      2,
+      ["PT-20", "PT-30"],
+    );
+    expect(errosDoRegisto(registo)).toEqual([
+      "pt-ilhas: as versões 1 e 2 valem ao mesmo tempo",
+    ]);
+    // Com uma id para cada território, entra.
+    const separadas = registoComPortugal(
+      [
+        regraTeste({ id: "pt-20-ilhas", territorios: ["PT-20"] }),
+        regraTeste({ id: "pt-30-ilhas", territorios: ["PT-30"] }),
+      ],
+      2,
+      ["PT-20", "PT-30"],
+    );
+    expect(errosDoRegisto(separadas)).toEqual([]);
   });
 
   it("versões da mesma regra em sequência são coerentes", () => {

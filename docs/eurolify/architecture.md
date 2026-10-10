@@ -137,7 +137,7 @@ este motor antes de agir.
 | **Perfil do país** | `codigo`, `nome` | |
 | | `dominios` | por domínio (os 7 obrigatórios e os 4 condicionais), o estado da revisão: `por_verificar`, `verificado`, `nao_aplicavel` (este exige justificação e prova) |
 | | `territorios` | `null` = não mapeados: um território pedido **não herda** a regra do continente |
-| **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo: identifica uma regra de um país e de um domínio, nas suas versões; as decisões citam `id@versao`. Formato: minúsculas, algarismos, `.`, `_` e `-`, a começar por letra ou algarismo (ex.: `pt-consumidor-1`) — nada de maiúsculas nem espaços que façam duas `id` parecer a mesma |
+| **Regra** | `id`, `versao`, `dominio`, `pais` | a `id` é única em todo o registo: identifica uma regra de um país e de um domínio, nas suas versões; as decisões citam `id@versao`. **O território não faz parte da identidade** (#59, #283): uma regra dos Açores e outra da Madeira têm `id` diferentes; duas versões da mesma `id` com territórios diferentes a valer ao mesmo tempo são recusadas ao arrancar, como quaisquer duas versões sobrepostas. Formato: minúsculas, algarismos, `.`, `_` e `-`, a começar por letra ou algarismo (ex.: `pt-consumidor-1`) — nada de maiúsculas nem espaços que façam duas `id` parecer a mesma |
 | | `estadoLegal` | `em_vigor`, `adoptada_futura`, `proposta`, `revogada` — uma **proposta nunca decide**, e por isso pode entrar num domínio ainda `por_verificar`; os outros estados só num domínio `verificado` (decisão do Diogo, 04/10/2026) |
 | | `aplicaDesde`, `aplicaAte` | instantes ISO 8601 **com fuso** (`Z` ou `±hh:mm`, até ±23:59, não `-00:00` — na RFC 3339 é «fuso desconhecido»; fracção de segundo até 3 dígitos); vale de `aplicaDesde` (incluído) até `aplicaAte` (excluído) |
 | | `base` | URL oficial, título, artigo |
@@ -179,7 +179,7 @@ permitida).
 | Território pedido e não mapeado | `revisao_necessaria`, motivo `territorio_nao_mapeado` |
 | Domínio `por_verificar`, ou com um estado que não existe | `revisao_necessaria`, motivo `dominio_por_verificar` — só `verificado` segue para as regras |
 | Domínio `verificado` sem regra em vigor nesse momento | `revisao_necessaria`, motivo `sem_regra_em_vigor` |
-| Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde`, ou com um estado legal que não existe | não conta — só `em_vigor`, `adoptada_futura` e `revogada` podem contar |
+| Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde`, ou com um estado legal que não existe | não conta — só `em_vigor`, `adoptada_futura` e `revogada` podem contar. Uma `adoptada_futura` cuja data já chegou **conta**, sem passar a `em_vigor` à mão: um acto adoptado aplica-se a partir da data de aplicação (a distinção proposta / adoptado / aplicação da `eurolify-regulatory-watch-eu`); a prova continua a ser exigida (#59, #283) |
 | Regra `revogada` depois de `aplicaAte` | não conta |
 | Território mapeado, só com a regra do continente | `revisao_necessaria`, motivo `sem_regra_em_vigor` (o território não herda) |
 | Domínio `nao_aplicavel` com justificação | não bloqueia |
@@ -219,6 +219,36 @@ sítio»).
 `apps/api/src/regras/` — dados do Eurolify, iguais para todos os comerciantes
 (classe 2 da `platform-architect`): nesta fatia ficam no código, com versão;
 passam para a base quando houver revisão de regras pelo Hub.
+
+**Quando o registo passar para a base** (#59, #283): cada versão chega como
+JSON lido da base e passa pelo `errosDoRegisto` antes de ser servida; só
+então decide. Hoje nenhum caminho entrega ao motor outra coisa (o registo
+está no código), mas um objecto que não seja dados simples (um `Proxy`, por
+exemplo) pode rebentar o `validar` e o `decidir` (`mostrar.ts`, medido nas
+revisões do #50, sem teste).
+
+### 4.5 A prontidão por país (`eurolify-country-readiness-eu`) e o motor
+
+A skill fala de **estados de revisão** de um país; o motor, de estados de um
+domínio e de uma regra. Correspondem assim (#59, #283):
+
+| Na skill (`eurolify-legal-briefing-eu`, `references/countries.md`) | No motor | Notas |
+|---|---|---|
+| `pendente` | domínio `por_verificar` | o ponto de partida dos 27 (`countries.json`: `national_law_status: pending`) |
+| `confirmado` | domínio `verificado`, com regras com prova (`W` com texto lido ou validação profissional) | um domínio `verificado` sem regra em vigor continua a sair `revisao_necessaria` |
+| `não aplicável com fundamento` | domínio `nao_aplicavel`, com justificação e prova | |
+| `bloqueado` | não é um estado guardado: é o resultado `revisao_necessaria` ou `recusado` da decisão, para uma combinação | |
+| `revogado/substituído` | regra `revogada` (com `aplicaAte`) e a versão seguinte da mesma `id` | |
+
+**Os domínios não são os mesmos.** Os 10 `pending_domains` do
+`countries.json` (consumidor, IVA e faturação, fiscal de caixa, produto e
+setor, privacidade, resíduos e embalagens, instalações e emprego,
+transporte, permissões de pagamento, concorrência e contratos) não
+coincidem com os 7 obrigatórios e os 4 condicionais do motor. Por exemplo,
+caixa, resíduos, instalações e transporte não têm domínio no motor. Ficam
+**por verificar**, sem domínio no motor, até haver uma decisão do Diogo ou
+do Bruno sobre os acrescentar. Até lá, o motor não os pode dar como
+cobertos.
 
 ## 5. Digital e cartões-oferta
 
