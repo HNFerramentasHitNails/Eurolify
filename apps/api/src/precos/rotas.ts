@@ -120,7 +120,7 @@ function paraApi(erro: unknown, resposta: FastifyReply): unknown {
 }
 
 /** Corre e devolve os erros de Preços no formato da API. */
-async function emPrecos<T>(
+export async function emPrecos<T>(
   resposta: FastifyReply,
   fn: () => Promise<T>,
 ): Promise<T> {
@@ -313,13 +313,15 @@ const PorUnidade = Type.Union([
   Type.Null(),
 ]);
 
-const PrecoEsquema = Type.Object({
+export const PrecoEsquema = Type.Object({
   variante: Type.String({ description: "var_…" }),
   montante: Type.Integer(),
   gratuito: Type.Boolean(),
   quantidade_minima: Type.Integer(),
   multiplo: Type.Integer(),
   definido_em: Instante,
+  /** Sobe em cada escrita; as escritas pelo Hub mandam-na (docs/22 §25.2). */
+  versao: Type.Integer({ minimum: 1 }),
   reducao: Type.Union([ReducaoEsquema, Type.Null()]),
   preco_por_unidade: PorUnidade,
 });
@@ -382,7 +384,7 @@ export async function precosDoArtigoApi(
   });
 }
 
-const PedidoPreco = Type.Object(
+export const PedidoPreco = Type.Object(
   {
     montante: Montante,
     gratuito: Type.Optional(Type.Boolean()),
@@ -415,7 +417,10 @@ const Historico = Type.Object({
 });
 
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });
-const ParametroPreco = Type.Object({ id: IdLista, variante: IdVariante });
+export const ParametroPreco = Type.Object({
+  id: IdLista,
+  variante: IdVariante,
+});
 const ConsultaListas = Type.Object(
   {
     limite: ConsultaPagina.properties.limite,
@@ -450,6 +455,36 @@ const comPagina = <T, U>(
 const quemDa = (c: { chaveId: string }) => `chave:key_${c.chaveId}`;
 
 // ------------------------------------------------------------ As rotas
+
+/**
+ * O preço como a API o mostra, com a redução em vigor e o preço por unidade.
+ * **Outro chamador:** `identidade/hub-catalogo.ts` (docs/22 §25).
+ */
+export async function precoNa(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  listaId: string,
+  varianteId: string,
+) {
+  const lista = await obterLista(db, comercianteId, listaId);
+  const mercado = await obterMercado(db, comercianteId, lista.mercado_id);
+  const pagina = await precosDaListaComReducoes(
+    db,
+    comercianteId,
+    listaId,
+    1,
+    null,
+    varianteId,
+  );
+  const p = pagina.dados[0];
+  if (p === undefined) {
+    throw new ErroPrecos(
+      "prices.not_found",
+      "a variante não tem preço nesta lista",
+    );
+  }
+  return paraPreco(p, mercado.preco_inclui_iva, new Date());
+}
 
 export function rotasDosPrecos(
   instancia: FastifyInstance,
@@ -850,33 +885,6 @@ export function rotasDosPrecos(
 
   // ---- Preços
 
-  /** O preço como a API o mostra, com a redução em vigor e o preço por unidade. */
-  async function precoNa(
-    db: Kysely<BaseDados>,
-    comercianteId: string,
-    listaId: string,
-    varianteId: string,
-  ) {
-    const lista = await obterLista(db, comercianteId, listaId);
-    const mercado = await obterMercado(db, comercianteId, lista.mercado_id);
-    const pagina = await precosDaListaComReducoes(
-      db,
-      comercianteId,
-      listaId,
-      1,
-      null,
-      varianteId,
-    );
-    const p = pagina.dados[0];
-    if (p === undefined) {
-      throw new ErroPrecos(
-        "prices.not_found",
-        "a variante não tem preço nesta lista",
-      );
-    }
-    return paraPreco(p, mercado.preco_inclui_iva, new Date());
-  }
-
   rotas.get(
     "/price-lists/:id/prices",
     {
@@ -1142,6 +1150,7 @@ function paraPreco(
     quantidade_minima: p.quantidade_minima,
     multiplo: p.multiplo,
     definido_em: p.definido_em.toISOString(),
+    versao: p.versao,
     reducao:
       emVigorAgora === null
         ? null

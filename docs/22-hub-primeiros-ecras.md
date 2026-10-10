@@ -1475,15 +1475,16 @@ o servidor calculou.
 | Caminho | Quem | O que faz |
 |---|---|---|
 | `PUT /hub/price-lists/{id}/prices/{variante}` | a sessão com `prices:write` (o dono e o gestor; `docs/20` §10.1) | a mesma função do `PUT` pela chave (`definirPreco`), com o `eurolify.quem` da pessoa; o corpo é o mesmo (`montante`, `gratuito`, `quantidade_minima`, `multiplo`) e leva também a `versao` lida |
-| `DELETE /hub/price-lists/{id}/prices/{variante}?versao=` | a mesma | a mesma função do `DELETE` pela chave (`tirarPreco`) |
+| `DELETE /hub/price-lists/{id}/prices/{variante}` | a mesma | a mesma função do `DELETE` pela chave (`tirarPreco`); a `versao` lida vai no corpo, como nas outras escritas do Hub (§21.2) |
 
 - **A versão.** O preço já tem uma `versao` na base (0017: sobe em cada
   escrita), mas a API não a mostra (`docs/20` §10.1: «o preço não tem
   versão»). Proposta: a leitura dos preços do artigo (§17.2) passa a dar a
   `versao` de cada preço (um campo a mais, nas duas rotas). As rotas do Hub
   exigem-na: `null` quando a variante não tinha preço nessa lista, o número
-  quando tinha. Se o preço guardado não for o lido, **409
-  `prices.version_conflict`**, sem gravar. Sem isto, duas pessoas a mudar o
+  quando tinha. Se o preço guardado não for o lido (também ao tirar um
+  preço que já não existe), **409 `prices.version_conflict`**, sem gravar;
+  a linha fica tomada entre conferir e gravar. Sem isto, duas pessoas a mudar o
   mesmo preço apagavam-se uma à outra sem aviso (o histórico guardava as
   duas, mas o ecrã não dizia nada). As rotas pela chave ficam como estão.
 - **As regras são as da API e da base, sem cópia no Hub:**

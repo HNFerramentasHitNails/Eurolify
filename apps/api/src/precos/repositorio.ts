@@ -579,6 +579,11 @@ export async function definirPreco(
   listaId: string,
   varianteId: string,
   dados: DadosPreco,
+  /**
+   * A versão do preço lida (`null`: a variante não tinha preço nesta lista).
+   * Só o Hub a manda (docs/22 §25.2); sem ela, a escrita não confere.
+   */
+  versaoLida?: number | null,
 ): Promise<Preco> {
   // Um montante que não é um número inteiro é campo inválido; um inteiro fora
   // do limite é montante inválido, também acima do que o bigint guarda
@@ -612,6 +617,7 @@ export async function definirPreco(
     if (lista === undefined) {
       throw new ErroPrecos("prices.not_found", "lista inexistente");
     }
+    await conferirVersaoDoPreco(trx, listaId, varianteId, versaoLida);
     return trx
       .insertInto("preco")
       .values({
@@ -629,6 +635,34 @@ export async function definirPreco(
   return paraPreco(linha);
 }
 
+/**
+ * Confere a versão lida pelo Hub (docs/22 §25.2): o preço guardado tem de
+ * ser o lido, ou nenhum se se leu «sem preço». Toma a linha até ao fim da
+ * transacção, para ninguém a mudar entre conferir e gravar. Sem versão
+ * lida (a chave), não confere.
+ */
+async function conferirVersaoDoPreco(
+  trx: Transaction<BaseDados>,
+  listaId: string,
+  varianteId: string,
+  versaoLida: number | null | undefined,
+): Promise<void> {
+  if (versaoLida === undefined) return;
+  const actual = await trx
+    .selectFrom("preco")
+    .select("versao")
+    .where("lista_id", "=", listaId)
+    .where("variante_id", "=", varianteId)
+    .forUpdate()
+    .executeTakeFirst();
+  if ((actual?.versao ?? null) !== versaoLida) {
+    throw new ErroPrecos(
+      "prices.version_conflict",
+      "o preço mudou desde que foi lido",
+    );
+  }
+}
+
 /** Tira o preço de uma variante de uma lista (fica no histórico). */
 export async function tirarPreco(
   db: Kysely<BaseDados>,
@@ -636,9 +670,12 @@ export async function tirarPreco(
   quem: string,
   listaId: string,
   varianteId: string,
+  /** A versão lida pelo Hub (docs/22 §25.2); a chave não a manda. */
+  versaoLida?: number,
 ): Promise<boolean> {
   const linhas = await noDominio(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
+    await conferirVersaoDoPreco(trx, listaId, varianteId, versaoLida);
     return trx
       .deleteFrom("preco")
       .where("lista_id", "=", listaId)
