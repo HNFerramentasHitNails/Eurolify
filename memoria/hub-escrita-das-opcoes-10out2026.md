@@ -21,6 +21,9 @@
 - Hub (#297, squash `bc7637a`): a página `/artigos/{prd_…}/opcoes` e a
   ligação na ficha. Revisão do agente publicada no #297: 0 P0, 0 P1, 5 P2
   (corrigidos), 7 P3.
+- No ensaio: o hub.eurolify.eu serve `index--bROh6FN.js` (igual ao build
+  local do `bc7637a`) desde as 12:18 UTC de 10/10/2026. Capturas na página
+  de aprovação (versão 11), no ecrã «Editar as opções do artigo».
 
 ## Números (com data e como se contaram)
 
