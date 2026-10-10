@@ -92,7 +92,8 @@ describe.skipIf(URL_BASE === undefined)(
     const ficha = async (segredo = dono) => {
       const n = proximo++;
       const email = `ana.${String(n)}.${Date.now().toString(36)}@exemplo.pt`;
-      const telefone = `+3519${String(Date.now() % 10_000_000).padStart(7, "0")}${String(n % 10)}`;
+      // Único no ficheiro: o número da ficha decide (o relógio pode repetir-se).
+      const telefone = `+35191${String(n).padStart(5, "0")}${String(Date.now() % 1000).padStart(3, "0")}`;
       const id = String(
         (
           await ok(

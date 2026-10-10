@@ -107,7 +107,7 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     const f = await ok(pedir("GET", `/customers/${cliente}`));
     const emails = f["emails"] as string[];
     if (emails[0] !== undefined) return emails[0];
-    const novo = `${cliente.slice(4, 16)}@exemplo.pt`;
+    const novo = `${cliente.slice(4)}@exemplo.pt`;
     await ok(
       pedir("PATCH", `/customers/${cliente}`, {
         versao: f["versao"],
