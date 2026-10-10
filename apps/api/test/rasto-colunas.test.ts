@@ -137,7 +137,7 @@ describe.skipIf(URL_BASE === undefined)(
       expect(r.statusCode, r.body).toBe(201);
       const { rows } = await sql<LinhaDoRasto & { acto: string }>`
       select acto, canal, autorizado_por from evento_conta
-      where pessoa_id = ${p.pessoa}::uuid and acto not in ('conta_criada', 'convite_aceite')
+      where pessoa_id = ${p.pessoa}::uuid and acto = 'codigos_gerados'
       order by quando desc limit 1`.execute(dono);
       expect(rows[0]).toMatchObject({
         canal: "hub",
@@ -217,15 +217,82 @@ describe.skipIf(URL_BASE === undefined)(
       ]);
     });
 
-    it("um motivo com mais de 500 caracteres é recusado antes da base (revisão do #327, P3-8)", async () => {
-      await expect(
-        mudarEstado(base.api, a, {
-          de: "prova_pendente",
-          para: "rascunho",
-          motivo: "x".repeat(501),
-          quem: "operador:github:1",
-        }),
-      ).rejects.toThrow(/500 caracteres/);
+    it("um motivo com mais de 500 caracteres corta-se, não desfaz a operação (revisão do #334, P1-1)", async () => {
+      const motivo = await dono.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.motivo', ${"m".repeat(600)}, true)`.execute(
+          trx,
+        );
+        await sql`insert into alteracao_catalogo (comerciante_id, entidade,
+          operacao, campos, quem, transacao)
+        values (${a}::uuid, 'artigo', 'alterado', '{"nome": {}}', 'teste:longo',
+          gen_random_uuid())`.execute(trx);
+        const { rows } = await sql<{ n: number }>`
+        select length(motivo) as n from alteracao_catalogo
+        where quem = 'teste:longo'`.execute(trx);
+        return rows[0]?.n;
+      });
+      expect(motivo).toBe(500);
+      // A transição do comerciante guarda o seu motivo inteiro.
+      await mudarEstado(base.api, a, {
+        de: "prova_pendente",
+        para: "em_revisao",
+        motivo: "x".repeat(600),
+        quem: "operador:github:1",
+      });
+      const { rows } = await sql<{ n: number }>`
+      select length(motivo) as n from transicao_estado
+      where comerciante_id = ${a}::uuid and para = 'em_revisao'`.execute(dono);
+      expect(rows).toEqual([{ n: 600 }]);
+    });
+
+    it("no Hub com uma IA declarada, o cookie não chega para dizer que a pessoa autorizou (P3-1)", async () => {
+      const h = hubDeTeste(base);
+      const p = await h.pessoaCom(a, "dono");
+      const r = await h.app.inject({
+        method: "POST",
+        url: "/hub/recovery-codes",
+        headers: {
+          origin: "https://hub.exemplo.test",
+          cookie: `__Host-eurolify_sessao=${p.sessao}`,
+          "content-type": "application/json",
+          "eurolify-ia": "modelo=m",
+        },
+        payload: "{}",
+      });
+      expect(r.statusCode, r.body).toBe(201);
+      const { rows } = await sql<LinhaDoRasto>`
+      select canal, ia, autorizado_por from evento_conta
+      where pessoa_id = ${p.pessoa}::uuid and acto = 'codigos_gerados'
+      order by quando desc limit 1`.execute(dono);
+      expect(rows[0]).toMatchObject({
+        canal: "hub",
+        ia: { modelo: "m", prova: "declarado" },
+        autorizado_por: null,
+      });
+      await h.app.close();
+    });
+
+    it("o rasto dos documentos fiscais também leva o contexto", async () => {
+      const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from information_schema.columns
+      where table_name = 'documento_rasto'
+        and column_name in ('canal', 'pedido', 'ia', 'autorizado_por')`.execute(
+        dono,
+      );
+      expect(rows).toEqual([{ n: 4 }]);
+      const gatilhos = await sql<{ tabela: string }>`
+      select c.relname as tabela from pg_trigger t join pg_class c on c.oid = t.tgrelid
+      where t.tgname = 'rasto_completar' order by 1`.execute(dono);
+      expect(gatilhos.rows.map((g) => g.tabela)).toEqual([
+        "alteracao_catalogo",
+        "alteracao_cliente",
+        "documento_rasto",
+        "evento_conta",
+        "historico_preco",
+        "transicao_encomenda",
+        "transicao_estado",
+        "transicao_pagamento",
+      ]);
     });
   },
 );

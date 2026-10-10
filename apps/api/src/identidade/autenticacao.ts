@@ -164,9 +164,11 @@ export function ligarAutenticacao(
             ? await verificarSessao(base, segredo)
             : await resolverSessao(base, segredo, comercianteDe(pedido));
         // No Hub, quem age é a própria pessoa: fica também como quem
-        // autorizou (docs/28 §3.2). Uma chave nunca autoriza.
+        // autorizou (docs/28 §3.2). Uma chave nunca autoriza. Com uma IA
+        // declarada no pedido, o cookie não prova que a pessoa confirmou:
+        // fica sem quem autorize (revisão do #334, P3-1).
         const rasto = rastoActual();
-        if (rasto !== undefined) {
+        if (rasto !== undefined && rasto.ia === undefined) {
           rasto.autorizadoPor = `pessoa:per_${pedido.sessao.pessoaId}`;
         }
         return;

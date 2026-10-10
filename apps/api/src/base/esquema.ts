@@ -1566,7 +1566,7 @@ export interface TabelaDocumentoProva {
   lida_em: ColumnType<Date, never, never>;
 }
 
-export interface TabelaDocumentoRasto {
+export interface TabelaDocumentoRasto extends ColunasDoRasto {
   id: Generated<string>;
   documento_id: ColumnType<string, string, never>;
   comerciante_id: ColumnType<string, string, never>;

@@ -37,6 +37,20 @@ transacção que os gatilhos lêem.
 | Pagamentos | `transicao_pagamento` (0044) | o estado | `quem` | `origem` **obrigatória** | — | — | sim |
 | Stock e encomendas | `transicao_encomenda` (0047) | o estado | `quem` | por verificar | — | — | sim |
 | Eventos para fora | `evento_saida` (0021) | o evento | só interno (CH: não sai nos webhooks) | — | — | — | sim |
+| Documentos fiscais | `documento_rasto` (0050) | o passo e o estado | `quem` | — | — | — | `em`, `motivo` |
+
+**Desde o passo 2 (migração 0052, #334):** as oito tabelas do rasto acima,
+menos o `evento_saida`, têm as colunas `canal`, `pedido`, `ia`,
+`autorizado_por` e `motivo`, preenchidas por um só gatilho
+(`rasto_completar()`) a partir de `contexto_do_rasto()`. As linhas de antes
+ficam vazias («desconhecido»). Um motivo com mais de 500 caracteres corta-se,
+não se recusa.
+
+**Fora do rasto, de propósito:** `evento_saida` (são os eventos que saem, não
+alterações), `movimento_stock`, `pedido_titular`, `consentimento`,
+`validacao_vies` e `diferenca_pagamento` — são o próprio registo do domínio,
+já com quem e quando, e só se acrescentam. Entram no rasto se um domínio o
+pedir.
 
 **Já certo em todos:** só se acrescenta (os gatilhos recusam UPDATE, DELETE e
 TRUNCATE, também ao dono) e o `quem` é obrigatório onde há gatilho.

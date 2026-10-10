@@ -180,14 +180,6 @@ export async function mudarEstado(
       `merchant.invalid_transition: ${transicao.de} → ${transicao.para}`,
     );
   }
-  // O rasto aceita um motivo até 500 caracteres (0051; revisão do #327,
-  // P3-8).
-  if (transicao.motivo.length > 500) {
-    throw new ErroComerciante(
-      "merchant.invalid_transition",
-      "merchant.invalid_transition: motivo com mais de 500 caracteres",
-    );
-  }
   // A base valida a transição e as condições de activação e escreve ela
   // própria a linha de rasto, com o motivo e quem postos aqui (SET LOCAL).
   await comComerciante(db, comercianteId, async (trx) => {
