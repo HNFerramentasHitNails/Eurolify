@@ -34,6 +34,8 @@ import {
 
 /** As funções que a API pode chamar; qualquer outra tem de ser recusada. */
 const FUNCOES_DA_API = [
+  // Os anexos da isenção (0055): a quota, que o gatilho lê com quem escreve.
+  "anexos_quota_por_comerciante",
   // O nome de quem fez, no histórico do Hub (0038).
   "autores_da_linha_do_tempo",
   "catalogo_estado_do_artigo",

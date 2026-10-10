@@ -809,6 +809,28 @@ export interface TabelaConsentimento {
   confirmacao_id: ColumnType<string | null, never, never>;
 }
 
+/** Os tipos de ficheiro de um anexo da isenção (0055). */
+export const TIPOS_DE_ANEXO = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+] as const;
+export type TipoDeAnexo = (typeof TIPOS_DE_ANEXO)[number];
+
+/** Um anexo da isenção manual (0055): a prova, que não se altera. */
+export interface TabelaAnexoIsencao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  isencao_id: ColumnType<string, string, never>;
+  nome: ColumnType<string | null, string | null, never>;
+  tipo: ColumnType<TipoDeAnexo, TipoDeAnexo, never>;
+  bytes: ColumnType<Buffer, Buffer, never>;
+  tamanho: ColumnType<number, never, never>;
+  resumo: ColumnType<string, never, never>;
+  posto_por: ColumnType<string, never, never>;
+  posto_em: ColumnType<Date, never, never>;
+}
+
 /** Um pedido de dupla confirmação (0052); a API só lê, sem o resumo. */
 export interface TabelaConfirmacaoConsentimento {
   id: ColumnType<string, never, never>;
@@ -1450,6 +1472,7 @@ export interface BaseDados {
   duplicado_cliente: TabelaDuplicadoCliente;
   pedido_titular: TabelaPedidoTitular;
   confirmacao_consentimento: TabelaConfirmacaoConsentimento;
+  anexo_isencao: TabelaAnexoIsencao;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;
