@@ -111,6 +111,17 @@ Uma chave pode ser marcada, ao criar, como «chave de um agente de IA». Os
 pedidos dessa chave ficam com a IA `declarado` mesmo sem o cabeçalho, com
 fornecedor e modelo desconhecidos se não vierem.
 
+**Em código desde o passo 4, parte 1 (migração 0057, #322):** a coluna
+`chave_api.agente_ia` (falsa nas chaves de antes; só na de servidor; não
+muda), o campo `agente_ia` no `POST /keys`, no `POST /hub/keys`, nas listas e
+no `GET /me`, e a autenticação a pôr `{"prova": "declarado"}` quando a chave
+é de um agente e o pedido não traz o cabeçalho. Uma chave de um agente só
+cria chaves de um agente (senão bastava criar uma chave sem marca para deixar
+de aparecer como IA). O cabeçalho em si já estava desde o passo 1
+(`base/rasto.ts`). **A IA `comprovado` fica por fazer:** o Eurolify não chama
+nenhum modelo hoje (procurados os nomes de fornecedores no código da API a
+10/10/2026, sem resultados).
+
 ### 3.4 Dados sensíveis no «antes e depois» (R1)
 
 Os campos com dados pessoais, ou secretos, não guardam o valor em claro no

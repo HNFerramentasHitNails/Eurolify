@@ -132,6 +132,7 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
         tipo: "servidor",
         prefixo: chaveA.prefixo,
         ambitos: ["catalog:read"],
+        agente_ia: false,
       },
     });
     expect(r.body).not.toContain(chaveA.segredo);

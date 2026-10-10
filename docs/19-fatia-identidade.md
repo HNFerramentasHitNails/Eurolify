@@ -50,14 +50,16 @@ dependem da P1 (§7).
 | `expira_em` | instante, opcional | |
 | `revogada_em`, `revogada_por` | instante, texto | revogar é imediato e não tem volta |
 | `ultimo_uso_em` | instante | actualizado no máximo uma vez por minuto, para não escrever a cada pedido |
+| `agente_ia` | booleano, falso por omissão | **chave de um agente de IA** (migração 0057; `docs/28` §3.3): o que ela faz fica no rasto com a IA «declarado», mesmo sem o cabeçalho `Eurolify-IA`. Só na de servidor; não muda depois de criada; uma chave de um agente só cria chaves de um agente |
 
 - **Formato do segredo:** `eul_sk_` ou `eul_pk_` mais 32 bytes aleatórios
   (`crypto.randomBytes`) em base32 sem preenchimento. Com 256 bits de acaso, um
   sha256 sem sal chega para o resumo, porque não há dicionário a tentar
   (**proposta**; não há fonte lida no repositório para esta escolha).
 - **A API não lê a tabela.** A procura da chave faz-se numa função
-  `SECURITY DEFINER` (`chave_resolver(resumo)`), que devolve só o comerciante, a
-  loja, os âmbitos e o id, e só a uma chave válida (não revogada, não expirada).
+  `SECURITY DEFINER` (`chave_resolver(resumo)`), que devolve só o id, o
+  comerciante, a loja, o tipo, os âmbitos, o prefixo e (desde a 0057) a marca
+  de agente de IA, e só a uma chave válida (não revogada, não expirada).
   A tabela fica fechada ao `eurolify_api`, para uma falha da aplicação não
   listar as chaves de todos.
 - Rasto: a própria linha é o rasto. Uma chave **não se altera nem se apaga**
@@ -289,7 +291,7 @@ migração 0012.
 
 | Operação | Corpo | Resposta |
 |---|---|---|
-| `POST /keys` | `tipo` (`servidor`, `publica`); `nome` (1–100); `ambitos` (só na de servidor; a pública tem a lista fixa `storefront`); `loja` (`sto_…`, só na pública); `expira_em` (opcional, no futuro) | **201** com a chave e o `segredo`, que só aparece aqui |
+| `POST /keys` | `tipo` (`servidor`, `publica`); `nome` (1–100); `ambitos` (só na de servidor; a pública tem a lista fixa `storefront`); `loja` (`sto_…`, só na pública); `expira_em` (opcional, no futuro); `agente_ia` (opcional, falso por omissão; só na de servidor, 0057) | **201** com a chave e o `segredo`, que só aparece aqui |
 | `POST /keys/{id}/revoke` | nenhum | **200** com a chave revogada (sem segredo) |
 
 As duas exigem o âmbito `keys:write` e o cabeçalho `Idempotency-Key`.
@@ -328,6 +330,15 @@ que a API ganha para escrever chaves:
   `key.store_not_found`. Ex.: uma chave temporária que peça uma chave sem
   prazo e com âmbitos a mais recebe o 422 do prazo; corrigido o prazo,
   recebe o 403 dos âmbitos.
+- **Chave de um agente de IA** (migração 0057; `docs/28` §3.3 e §4, passo
+  4): `agente_ia: true` marca a chave. Pedida numa pública → 400
+  `request.invalid` na rota; uma chave de um agente que peça uma pública →
+  `key.agent_not_server` (422, com o detalhe «uma chave de um agente de IA não
+  cria chaves públicas»; a rota recusa antes da base, e a base recusa na
+  mesma, depois de `key.expiry_beyond_creator`).
+  Uma chave de um agente cria sempre chaves de um agente, mesmo com
+  `agente_ia: false` (a marca passa como os âmbitos, T9). O `POST /hub/keys`
+  aceita o mesmo campo: aí escolhe a pessoa.
 - **A ordem das recusas ao revogar:** `auth.forbidden` → `key.not_found` →
   `key.already_revoked` → `key.revoke_beyond_creator` (0015) →
   `key.last_key_writer`.
@@ -342,7 +353,9 @@ que a API ganha para escrever chaves:
   - uma chave **pública** tem só `storefront` (leitura da Loja, lista fixa),
     e qualquer chave com `keys:write` a pode criar (**proposta**: `storefront`
     nunca está numa chave de servidor, por isso a regra literal impediria
-    sempre criar uma pública).
+    sempre criar uma pública). Excepção desde a 0057: uma chave de um agente
+    de IA não cria públicas (`key.agent_not_server`, 422), porque a marca
+    passaria e a pública não a pode ter.
 - `criada_por` e `revogada_por` passam a `chave:key_<id>` (§5).
 - **Revogar a última:**
   - nenhuma revogação pela API deixa o comerciante sem uma chave válida com
