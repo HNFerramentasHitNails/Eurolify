@@ -28,6 +28,9 @@
   0 P0, 1 P1, 5 P2, 9 P3; tratados, salvo P2-5 (fica **C**), P3-5, P3-6 e
   P3-7 (escritos em `docs/23` §13.11).
 - **O Codex não reviu:** a conta atingiu o limite de utilização.
+- **Publicado no ensaio** pelo fluxo `publicar` (corrida 38089880187, com
+  sucesso às 22:10 UTC). O registo diz «migrar: aplicadas
+  0055_clientes_anexos_da_isencao» e «O /health da API responde».
 
 ## Números (com data e como se contaram)
 
@@ -43,7 +46,8 @@ Contado a 10/10/2026, neste contentor (PostgreSQL 18.6 por Docker).
 
 ## O que ficou por verificar
 
-- **A publicação no ensaio:** ver a secção seguinte.
+- **Um anexo enviado no ensaio:** não li a base do ensaio (o MCP da VPS
+  pede autorização nesta sessão).
 - **A exportação sem os bytes** (P2-5): se o direito de acesso exige os
   ficheiros é **C**, para o jurista.
 - **O prazo de guarda:** é o fiscal; **C**, V2, para o contabilista.
