@@ -32,7 +32,7 @@
     campos), 3 P2, 5 P3; corrigidos, menos o P3-5, que não se confirmou (RLS
     forçado na `variante`, 0002).
   - Capturas na página de aprovação (versão 12), no ecrã «Editar uma
-    variante»; falta o OK do aspecto.
+    variante»; aspecto aprovado pelo Diogo a 10/10/2026 («sim», à pergunta sobre os três ecrãs da página de aprovação, versão 12).
 - **Mudança de comportamento:** uma linha de importação que muda a unidade ou
   o conteúdo de uma variante de um artigo activo ou arquivado passa a ser
   recusada com `catalog.not_draft` (antes entrava).

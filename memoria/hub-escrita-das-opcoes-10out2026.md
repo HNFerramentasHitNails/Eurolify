@@ -25,6 +25,9 @@
   local do `bc7637a`) desde as 12:18 UTC de 10/10/2026. Capturas na página
   de aprovação (versão 11), no ecrã «Editar as opções do artigo».
 
+- Aspecto do ecrã aprovado pelo Diogo a 10/10/2026 («sim», à pergunta
+  sobre os três ecrãs da página de aprovação, versão 12).
+
 ## Números (com data e como se contaram)
 
 - 10/10/2026, API: `catalogo-opcoes-escrita.test.ts` 17/17; bateria inteira
@@ -44,4 +47,3 @@
 - Testes da linha do tempo para o texto, o apagar e a ordem (só o nome está
   provado; a 0033 já guarda as tabelas).
 - Leitor de ecrã real, Safari e Firefox; páginas com muitas opções.
-- O OK do aspecto do ecrã (página de aprovação).
