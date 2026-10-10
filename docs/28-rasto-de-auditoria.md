@@ -39,7 +39,7 @@ transacção que os gatilhos lêem.
 | Eventos para fora | `evento_saida` (0021) | o evento | só interno (CH: não sai nos webhooks) | — | — | — | sim |
 | Documentos fiscais | `documento_rasto` (0050) | o passo e o estado | `quem` | — | — | — | `em`, `motivo` |
 
-**Desde o passo 2 (migração 0052, #334):** as oito tabelas do rasto acima,
+**Desde o passo 2 (migração 0053, #334):** as oito tabelas do rasto acima,
 menos o `evento_saida`, têm as colunas `canal`, `pedido`, `ia`,
 `autorizado_por` e `motivo`, preenchidas por um só gatilho
 (`rasto_completar()`) a partir de `contexto_do_rasto()`. As linhas de antes

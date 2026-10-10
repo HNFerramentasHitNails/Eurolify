@@ -307,7 +307,7 @@ describe.skipIf(URL_BASE === undefined)(
         pedido: "p".repeat(100),
         motivo: "m".repeat(500),
       });
-      // Acima de 500, corta-se (0052; revisão do #334, P1-1).
+      // Acima de 500, corta-se (0053; revisão do #334, P1-1).
       const cortado = await comRasto(
         { canal: "api", motivo: "m".repeat(600) },
         lido,

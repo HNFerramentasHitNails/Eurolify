@@ -30,7 +30,7 @@ export type ResultadoVerificacao = "aceite" | "recusada" | "por_rever";
 type Instante = ColumnType<Date, Date | string | undefined, never>;
 
 /**
- * O contexto do rasto de auditoria (migração 0052; docs/28 §3.1): escreve-o
+ * O contexto do rasto de auditoria (migração 0053; docs/28 §3.1): escreve-o
  * só o gatilho `rasto_completar()`, nunca o código. Vazio é «desconhecido».
  */
 export interface ColunasDoRasto {
@@ -40,7 +40,7 @@ export interface ColunasDoRasto {
   autorizado_por: ColumnType<string | null, never, never>;
 }
 
-/** O motivo, nas tabelas do rasto que não o tinham (0052). */
+/** O motivo, nas tabelas do rasto que não o tinham (0053). */
 export interface MotivoDoRasto {
   motivo: ColumnType<string | null, never, never>;
 }
@@ -803,6 +803,33 @@ export interface TabelaConsentimento {
   onde: ColumnType<string, string, never>;
   declarado_em: ColumnType<Date, never, never>;
   quem: ColumnType<string, never, never>;
+  /** O contacto a que a declaração se refere (0052); nulo nas antigas. */
+  contacto: ColumnType<string | null, string, never>;
+  via: ColumnType<"directa" | "dupla_confirmacao", never, never>;
+  confirmacao_id: ColumnType<string | null, never, never>;
+}
+
+/** Um pedido de dupla confirmação (0052); a API só lê, sem o resumo. */
+export interface TabelaConfirmacaoConsentimento {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_id: ColumnType<string, never, never>;
+  canal: ColumnType<"email" | "sms", never, never>;
+  contacto: ColumnType<string, never, never>;
+  texto: ColumnType<string, never, never>;
+  versao_texto: ColumnType<string, never, never>;
+  onde: ColumnType<string, never, never>;
+  estado: ColumnType<
+    "pendente" | "confirmada" | "expirada" | "cancelada" | "esgotada",
+    never,
+    never
+  >;
+  tentativas: ColumnType<number, never, never>;
+  expira_em: ColumnType<Date, never, never>;
+  pedida_por: ColumnType<string, never, never>;
+  pedida_em: ColumnType<Date, never, never>;
+  fechada_em: ColumnType<Date | null, never, never>;
+  consentimento_id: ColumnType<string | null, never, never>;
 }
 
 export const SINAIS_DUPLICADO = [
@@ -1413,6 +1440,7 @@ export interface BaseDados {
   consentimento: TabelaConsentimento;
   duplicado_cliente: TabelaDuplicadoCliente;
   pedido_titular: TabelaPedidoTitular;
+  confirmacao_consentimento: TabelaConfirmacaoConsentimento;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;

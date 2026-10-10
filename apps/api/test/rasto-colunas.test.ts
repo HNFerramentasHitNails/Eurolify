@@ -15,7 +15,7 @@ import {
 } from "./base-de-teste.js";
 import { hubDeTeste } from "./hub-de-teste.js";
 
-// O rasto de auditoria comum, passo 2 (docs/28 §4; migração 0052; #322): as
+// O rasto de auditoria comum, passo 2 (docs/28 §4; migração 0053; #322): as
 // tabelas do rasto gravam o canal, o pedido, a IA e quem autorizou, pelo
 // gatilho único `rasto_completar()`.
 
@@ -30,7 +30,7 @@ interface LinhaDoRasto {
 }
 
 describe.skipIf(URL_BASE === undefined)(
-  "rasto: as colunas do contexto (0052)",
+  "rasto: as colunas do contexto (0053)",
   () => {
     let base: BaseDeTeste;
     let dono: Kysely<unknown>;

@@ -408,7 +408,7 @@ describe.skipIf(URL_BASE === undefined)("prazos das contas (0026)", () => {
     ).toContain("account.retention");
 
     // Como o programa da VPS: o papel da limpeza, com o canal e o pedido
-    // da tarefa (eurolify-limpeza; docs/28 §3.1, 0052). O papel não tem o
+    // da tarefa (eurolify-limpeza; docs/28 §3.1, 0053). O papel não tem o
     // EXECUTE da contexto_do_rasto(): o gatilho do rasto corre como o dono.
     const feito = await dono.transaction().execute(async (trx) => {
       await sql`set local role eurolify_limpeza`.execute(trx);
