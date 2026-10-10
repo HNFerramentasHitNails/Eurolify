@@ -376,6 +376,13 @@ export const en: Textos = {
   artigoOpcoesFalharam: "The options could not be read.",
   // Escrever as opções (docs/22 §21.3).
   opcoesTitulo: "Edit options",
+  opcoesValorLongo: "Each value has at most 100 characters.",
+  opcoesConfirmarApagarOpcaoNenhuma:
+    "Delete the option {nome}? No variant has it. This cannot be undone.",
+  opcoesConfirmarApagarOpcaoUma:
+    "Deleting the option {nome} removes it from the variant that has it. This cannot be undone.",
+  opcoesMoverOpcaoDepois: "Move the option down",
+  opcoesMoverOpcaoAntes: "Move the option up",
   artigoEditarOpcoes: "Edit options",
   artigoCriarOpcoes: "Create options",
   opcoesSoRascunho:
@@ -391,7 +398,7 @@ export const en: Textos = {
   opcoesApagarOpcao: "Delete the option",
   opcoesApagarValor: "Delete",
   opcoesConfirmarApagarOpcao:
-    "Deleting the option {nome} removes it from the {n} variants. This cannot be undone.",
+    "Deleting the option {nome} removes it from the {n} variants that have it. This cannot be undone.",
   opcoesConfirmarApagarValor:
     "The variants with {valor} are left without a value in {nome}. This cannot be undone.",
   opcoesNovoValor: "New value in {nome}",
@@ -401,9 +408,9 @@ export const en: Textos = {
   opcoesNovaValores: "Values, one per line",
   opcoesVariantes: "Variant values",
   opcoesIncompleta:
-    "1 variant without a value in every option: the product cannot be activated like this.",
+    "1 variant still without a value in one of the options: the product cannot be activated like this.",
   opcoesIncompletas:
-    "{n} variants without a value in every option: the product cannot be activated like this.",
+    "{n} variants still without a value in one of the options: the product cannot be activated like this.",
   opcoesGuardarVariante: "Save {sku}",
   opcoesConflito:
     "Someone else changed this option in the meantime. Your change was not saved.",

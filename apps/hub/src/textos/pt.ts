@@ -376,6 +376,13 @@ export const pt = {
   artigoOpcoesFalharam: "Não foi possível ler as opções.",
   // Escrever as opções (docs/22 §21.3).
   opcoesTitulo: "Editar opções",
+  opcoesValorLongo: "Cada valor tem no máximo 100 caracteres.",
+  opcoesConfirmarApagarOpcaoNenhuma:
+    "Apagar a opção {nome}? Nenhuma variante a tem. Não se desfaz.",
+  opcoesConfirmarApagarOpcaoUma:
+    "Apagar a opção {nome} tira-a da variante que a tem. Não se desfaz.",
+  opcoesMoverOpcaoDepois: "Mover a opção para depois",
+  opcoesMoverOpcaoAntes: "Mover a opção para antes",
   artigoEditarOpcoes: "Editar opções",
   artigoCriarOpcoes: "Criar opções",
   opcoesSoRascunho:
@@ -391,7 +398,7 @@ export const pt = {
   opcoesApagarOpcao: "Apagar a opção",
   opcoesApagarValor: "Apagar",
   opcoesConfirmarApagarOpcao:
-    "Apagar a opção {nome} tira-a das {n} variantes. Não se desfaz.",
+    "Apagar a opção {nome} tira-a das {n} variantes que a têm. Não se desfaz.",
   opcoesConfirmarApagarValor:
     "As variantes com {valor} ficam sem valor em {nome}. Não se desfaz.",
   opcoesNovoValor: "Valor novo em {nome}",
@@ -401,9 +408,9 @@ export const pt = {
   opcoesNovaValores: "Valores, um por linha",
   opcoesVariantes: "Valores das variantes",
   opcoesIncompleta:
-    "1 variante sem valor em todas as opções: o artigo não se activa assim.",
+    "1 variante ainda sem valor numa das opções: o artigo não se activa assim.",
   opcoesIncompletas:
-    "{n} variantes sem valor em todas as opções: o artigo não se activa assim.",
+    "{n} variantes ainda sem valor numa das opções: o artigo não se activa assim.",
   opcoesGuardarVariante: "Guardar {sku}",
   opcoesConflito:
     "Outra pessoa alterou esta opção entretanto. Não guardámos a sua alteração.",

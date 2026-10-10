@@ -4,6 +4,7 @@ import {
   moverNaLista,
   valorDaVariante,
   valoresDoTexto,
+  variantesComValor,
   variantesIncompletas,
   type OpcaoArtigo,
 } from "../src/opcoes";
@@ -69,6 +70,8 @@ describe("a escrita das opções (docs/22 §21.3)", () => {
   it("os valores de «Criar opção»: um por linha, sem espaços nas pontas nem linhas vazias", () => {
     expect(valoresDoTexto(" 15 ml \n\n30 ml\n  ")).toEqual(["15 ml", "30 ml"]);
     expect(valoresDoTexto("")).toEqual([]);
+    // Os exactamente iguais saem (revisão do #297, P3-2).
+    expect(valoresDoTexto("Azul\nAzul\n azul")).toEqual(["Azul", "azul"]);
   });
 
   it("as variantes activas sem valor numa opção; as arquivadas não contam", () => {
@@ -80,5 +83,7 @@ describe("a escrita das opções (docs/22 §21.3)", () => {
     // var_a tem 15 ml e Azul; var_b tem 30 ml e nenhuma cor.
     expect(variantesIncompletas([tamanho, cor], variantes)).toEqual(["var_b"]);
     expect(variantesIncompletas([], variantes)).toEqual([]);
+    expect(variantesComValor(cor, variantes)).toEqual(["var_a"]);
+    expect(variantesComValor(tamanho, variantes)).toEqual(["var_a", "var_b"]);
   });
 });

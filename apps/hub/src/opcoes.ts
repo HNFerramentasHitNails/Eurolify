@@ -57,15 +57,35 @@ export function moverNaLista(
   return nova;
 }
 
+/** O tamanho máximo do nome de uma opção e de um valor (docs/14 §3.3). */
+export const MAXIMO_TEXTO_OPCAO = 100;
+
 /**
- * Os valores de «Criar opção», um por linha: sem os espaços nas pontas e sem
- * as linhas vazias. Os repetidos ficam: a API recusa-os e diz porquê.
+ * Os valores de «Criar opção», um por linha: sem os espaços nas pontas, sem
+ * as linhas vazias e sem os exactamente iguais (o pedido recusava-os com um
+ * erro genérico; revisão do #297, P3-2). Os iguais sem distinguir
+ * maiúsculas recusa-os a API, com o texto dela.
  */
 export function valoresDoTexto(texto: string): string[] {
-  return texto
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l !== "");
+  return [
+    ...new Set(
+      texto
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l !== ""),
+    ),
+  ];
+}
+
+/** As variantes activas que têm um valor nesta opção. */
+export function variantesComValor(
+  opcao: OpcaoArtigo,
+  variantes: { id: string; estado: string }[],
+): string[] {
+  return variantes
+    .filter((v) => v.estado === "activa")
+    .filter((v) => valorDaVariante(opcao, v.id) !== null)
+    .map((v) => v.id);
 }
 
 /**

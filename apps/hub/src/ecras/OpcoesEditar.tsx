@@ -7,10 +7,12 @@ import {
 } from "react";
 import { api, ErroHub, type FichaArtigo } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
-import { mensagemDeErro, semSessao } from "../erros";
+import { ErroDoEcra, mensagemDeErro, semSessao } from "../erros";
 import {
+  MAXIMO_TEXTO_OPCAO,
   moverNaLista,
   valoresDoTexto,
+  variantesComValor,
   variantesIncompletas,
   type OpcaoArtigo,
 } from "../opcoes";
@@ -20,16 +22,31 @@ import { preencher } from "../textos";
 // Num rascunho: criar, mudar o nome e os valores, apagar e dar valores às
 // variantes. Em qualquer estado: acrescentar valores e mudar a ordem. O ecrã
 // só esconde o que a API recusaria; quem decide é a API (as recusas dela
-// aparecem como vêm). Uma acção de cada vez; depois de cada uma, as opções
-// relêem-se. Com a `versao` antiga (outra pessoa mudou a opção), o ecrã
-// di-lo, relê e deixa o texto escrito à vista.
+// aparecem ao lado do campo ou da linha onde nasceram). Uma acção de cada
+// vez; depois de cada uma, as opções relêem-se. Só o que a pessoa escreveu
+// e ainda não gravou fica por cima do que está guardado (revisão do #297,
+// P2-1 e P2-2): um campo que ninguém mexeu mostra sempre o da base. Com a
+// `versao` antiga (outra pessoa mudou a opção), o ecrã di-lo, relê e deixa
+// o texto escrito à vista.
 
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
 const FORMATO_ARTIGO =
   /^prd_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const MAXIMO_TEXTO = 100;
 
 type Aviso = "guardado" | "conflito" | null;
+
+/** Uma falha e onde nasceu (o id do campo ou do botão), ou no topo. */
+interface Falha {
+  onde: string | null;
+  erro: unknown;
+}
+
+/** Tira uma chave de um registo (o campo voltou ao que está guardado). */
+function sem<T>(registo: Record<string, T>, chave: string): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(registo).filter(([k]) => k !== chave),
+  );
+}
 
 export function OpcoesEditar({
   comerciante,
@@ -52,10 +69,10 @@ export function OpcoesEditar({
   const [opcoes, setOpcoes] = useState<OpcaoArtigo[] | null>(null);
   const [podeEscrever, setPodeEscrever] = useState(false);
   const [falhaCarga, setFalhaCarga] = useState<unknown>(null);
-  const [falha, setFalha] = useState<unknown>(null);
+  const [falha, setFalha] = useState<Falha | null>(null);
   const [aviso, setAviso] = useState<Aviso>(null);
   const [ocupado, setOcupado] = useState(false);
-  // O que se está a escrever, por id: fica depois de uma recusa.
+  // Só o que a pessoa escreveu e não gravou, por id.
   const [nomes, setNomes] = useState<Record<string, string>>({});
   const [textos, setTextos] = useState<Record<string, string>>({});
   const [novos, setNovos] = useState<Record<string, string>>({});
@@ -90,28 +107,6 @@ export function OpcoesEditar({
       );
       setFicha(f);
       setOpcoes(o);
-      // Os campos de cada opção começam no que está guardado; o que a
-      // pessoa escreveu e não gravou fica (só se acrescenta o que falta).
-      setNomes((antes) =>
-        Object.fromEntries(o.map((x) => [x.id, antes[x.id] ?? x.nome])),
-      );
-      setTextos((antes) =>
-        Object.fromEntries(
-          o
-            .flatMap((x) => x.valores)
-            .map((v) => [v.id, antes[v.id] ?? v.valor]),
-        ),
-      );
-      setEscolhas(
-        Object.fromEntries(
-          f.variantes.map((v) => [
-            v.id,
-            Object.fromEntries(
-              o.map((x) => [x.id, valorIdDaVariante(x, v.id)]),
-            ),
-          ]),
-        ),
-      );
     } catch (e) {
       if (!montado.current) return;
       if (semSessao(e)) {
@@ -120,26 +115,35 @@ export function OpcoesEditar({
       }
       setFalhaCarga(e);
     }
-  }, [valido, c, artigo, navegar]);
+  }, [valido, c, comerciante, artigo, navegar]);
 
   useEffect(() => {
     void carregar();
   }, [carregar]);
 
-  // O aviso ou o erro de uma acção recebem o foco: o botão usado pode ter
-  // saído do ecrã (como na ficha, §13.4).
+  // O aviso ou o erro de uma acção recebem o foco: o do topo, ou o campo
+  // onde nasceu o erro (o erro dele está ligado por aria-describedby).
   const mensagemRef = useRef<HTMLDivElement>(null);
   const porFocar = useRef(false);
   useLayoutEffect(() => {
-    if (!porFocar.current || mensagemRef.current === null) return;
+    if (!porFocar.current) return;
     porFocar.current = false;
-    mensagemRef.current.focus();
+    const campo =
+      falha?.onde === null || falha === null
+        ? null
+        : document.getElementById(falha.onde);
+    (campo ?? mensagemRef.current)?.focus();
   }, [aviso, falha]);
 
-  /** Corre uma escrita e relê as opções; o conflito de versão relê e diz. */
+  /**
+   * Corre uma escrita e relê as opções; o conflito de versão relê e diz.
+   * `onde`: o id do campo ou do botão que a pediu (o erro aparece ali).
+   * `gravado`: o que fazer depois de gravar (tirar o que estava escrito).
+   */
   async function agir(
     escrita: () => Promise<unknown>,
-    depois?: () => void,
+    onde: string | null,
+    gravado?: () => void,
   ): Promise<void> {
     if (!valido || ocupado) return;
     setOcupado(true);
@@ -148,7 +152,7 @@ export function OpcoesEditar({
     try {
       await escrita();
       if (!montado.current) return;
-      depois?.();
+      gravado?.();
       porFocar.current = true;
       setAviso("guardado");
       await carregar();
@@ -162,13 +166,37 @@ export function OpcoesEditar({
       if (e instanceof ErroHub && e.codigo === "catalog.version_conflict") {
         setAviso("conflito");
       } else {
-        setFalha(e);
+        setFalha({ onde, erro: e });
       }
       await carregar();
     } finally {
       if (montado.current) setOcupado(false);
     }
   }
+
+  /** Um campo por preencher: diz-se ao lado dele, sem pedir à API. */
+  function recusar(
+    onde: string,
+    chave: "opcoesNomeVazio" | "opcoesValoresVazios" | "opcoesValorLongo",
+  ) {
+    porFocar.current = true;
+    setAviso(null);
+    setFalha({ onde, erro: new ErroDoEcra(chave) });
+  }
+
+  /** O erro de um campo, ao lado dele (com o id para aria-describedby). */
+  function erroDe(onde: string) {
+    if (falha === null || falha.onde !== onde) return null;
+    return (
+      <p id={`${onde}-erro`} className="erro-campo" role="alert">
+        {mensagemDeErro(falha.erro, t, lingua).texto}
+      </p>
+    );
+  }
+  const comErro = (onde: string) =>
+    falha?.onde === onde
+      ? { "aria-invalid": true, "aria-describedby": `${onde}-erro` }
+      : {};
 
   const naoExiste =
     !valido ||
@@ -179,6 +207,10 @@ export function OpcoesEditar({
   const activas = ficha?.variantes.filter((v) => v.estado === "activa") ?? [];
   const incompletas =
     opcoes === null ? [] : variantesIncompletas(opcoes, activas);
+  const idDoValor = (o: OpcaoArtigo, variante: string) =>
+    escolhas[variante]?.[o.id] ??
+    o.valores.find((x) => x.variantes.includes(variante))?.id ??
+    "";
 
   function moverOpcao(i: number, passo: -1 | 1) {
     if (opcoes === null) return;
@@ -188,7 +220,7 @@ export function OpcoesEditar({
       passo,
     );
     if (ordem === null) return;
-    void agir(() => api.ordenarOpcoes(c, artigo, ordem));
+    void agir(() => api.ordenarOpcoes(c, artigo, ordem), null);
   }
 
   function moverValor(o: OpcaoArtigo, i: number, passo: -1 | 1) {
@@ -198,16 +230,19 @@ export function OpcoesEditar({
       passo,
     );
     if (ordem === null) return;
-    void agir(() => api.ordenarValores(c, o.id, ordem, o.versao));
+    void agir(() => api.ordenarValores(c, o.id, ordem, o.versao), null);
   }
 
   function apagarOpcao(o: OpcaoArtigo) {
-    const pergunta = preencher(t.opcoesConfirmarApagarOpcao, {
-      nome: o.nome,
-      n: activas.length,
-    });
+    const n = variantesComValor(o, activas).length;
+    const pergunta =
+      n === 0
+        ? preencher(t.opcoesConfirmarApagarOpcaoNenhuma, { nome: o.nome })
+        : n === 1
+          ? preencher(t.opcoesConfirmarApagarOpcaoUma, { nome: o.nome })
+          : preencher(t.opcoesConfirmarApagarOpcao, { nome: o.nome, n });
     if (!window.confirm(pergunta)) return;
-    void agir(() => api.apagarOpcao(c, o.id, o.versao));
+    void agir(() => api.apagarOpcao(c, o.id, o.versao), null);
   }
 
   function apagarValor(o: OpcaoArtigo, v: { id: string; valor: string }) {
@@ -216,7 +251,29 @@ export function OpcoesEditar({
       nome: o.nome,
     });
     if (!window.confirm(pergunta)) return;
-    void agir(() => api.apagarValor(c, o.id, v.id, o.versao));
+    void agir(
+      () => api.apagarValor(c, o.id, v.id, o.versao),
+      null,
+      () => {
+        setTextos((x) => sem(x, v.id));
+      },
+    );
+  }
+
+  function guardarVariante(variante: string) {
+    if (opcoes === null) return;
+    const valores = opcoes
+      .map((o) => idDoValor(o, variante))
+      .filter((x) => x !== "");
+    void agir(
+      () => api.valoresDaVariante(c, variante, valores),
+      `guardar-${variante}`,
+      () => {
+        // Só esta linha volta ao que está guardado; as outras ficam como a
+        // pessoa as deixou (revisão do #297, P2-2).
+        setEscolhas((x) => sem(x, variante));
+      },
+    );
   }
 
   return (
@@ -259,8 +316,16 @@ export function OpcoesEditar({
                 {t.opcoesConflito}
               </p>
             ) : null}
-            {falha === null ? null : (
-              <CaixaDeErro erro={mensagemDeErro(falha, t, lingua)} />
+            {falha === null || falha.onde !== null ? null : (
+              <CaixaDeErro erro={mensagemDeErro(falha.erro, t, lingua)} />
+            )}
+            {falhaCarga === null ? null : (
+              // A leitura depois de uma acção falhou: o que se vê pode estar
+              // atrasado (revisão do #297, P3-3).
+              <CaixaDeErro
+                erro={mensagemDeErro(falhaCarga, t, lingua)}
+                aoTentar={() => void carregar()}
+              />
             )}
           </div>
           {opcoes.length === 0 ? (
@@ -274,13 +339,22 @@ export function OpcoesEditar({
                   className="linha"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    const nome = (nomes[o.id] ?? "").trim();
-                    if (nome === "") return;
-                    void agir(() =>
-                      api.mudarNomeDaOpcao(c, o.id, {
-                        nome,
-                        versao: o.versao,
-                      }),
+                    const onde = `nome-${o.id}`;
+                    const nome = (nomes[o.id] ?? o.nome).trim();
+                    if (nome === "") {
+                      recusar(onde, "opcoesNomeVazio");
+                      return;
+                    }
+                    void agir(
+                      () =>
+                        api.mudarNomeDaOpcao(c, o.id, {
+                          nome,
+                          versao: o.versao,
+                        }),
+                      onde,
+                      () => {
+                        setNomes((x) => sem(x, o.id));
+                      },
                     );
                   }}
                 >
@@ -288,12 +362,14 @@ export function OpcoesEditar({
                     <label htmlFor={`nome-${o.id}`}>{t.opcoesNome}</label>
                     <input
                       id={`nome-${o.id}`}
-                      maxLength={MAXIMO_TEXTO}
+                      maxLength={MAXIMO_TEXTO_OPCAO}
                       value={nomes[o.id] ?? o.nome}
+                      {...comErro(`nome-${o.id}`)}
                       onChange={(e) => {
                         setNomes({ ...nomes, [o.id]: e.target.value });
                       }}
                     />
+                    {erroDe(`nome-${o.id}`)}
                   </div>
                   <button type="submit" disabled={ocupado}>
                     {t.opcoesGuardarNome}
@@ -304,22 +380,22 @@ export function OpcoesEditar({
                 <button
                   type="button"
                   disabled={ocupado || i === 0}
-                  aria-label={`${t.opcoesMoverAntes}: ${o.nome}`}
+                  aria-label={`${t.opcoesMoverOpcaoAntes}: ${o.nome}`}
                   onClick={() => {
                     moverOpcao(i, -1);
                   }}
                 >
-                  {t.opcoesMoverAntes}
+                  {t.opcoesMoverOpcaoAntes}
                 </button>
                 <button
                   type="button"
                   disabled={ocupado || i === opcoes.length - 1}
-                  aria-label={`${t.opcoesMoverDepois}: ${o.nome}`}
+                  aria-label={`${t.opcoesMoverOpcaoDepois}: ${o.nome}`}
                   onClick={() => {
                     moverOpcao(i, 1);
                   }}
                 >
-                  {t.opcoesMoverDepois}
+                  {t.opcoesMoverOpcaoDepois}
                 </button>
                 {rascunho ? (
                   <button
@@ -338,93 +414,120 @@ export function OpcoesEditar({
                 className="valores-opcao"
                 aria-label={preencher(t.opcoesValoresDe, { nome: o.nome })}
               >
-                {o.valores.map((v, j) => (
-                  <li key={v.id}>
-                    {rascunho ? (
-                      <form
-                        className="linha"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          const valor = (textos[v.id] ?? "").trim();
-                          if (valor === "") return;
-                          void agir(() =>
-                            api.mudarTextoDoValor(c, o.id, v.id, {
-                              valor,
-                              versao: o.versao,
-                            }),
-                          );
-                        }}
-                      >
-                        <input
-                          aria-label={`${t.opcoesValor} ${v.valor}`}
-                          maxLength={MAXIMO_TEXTO}
-                          value={textos[v.id] ?? v.valor}
-                          onChange={(e) => {
-                            setTextos({ ...textos, [v.id]: e.target.value });
-                          }}
-                        />
-                        <button
-                          type="submit"
-                          disabled={ocupado}
-                          aria-label={`${t.opcoesGuardar} ${v.valor}`}
-                        >
-                          {t.opcoesGuardar}
-                        </button>
-                      </form>
-                    ) : (
-                      <span className="valor-opcao">{v.valor}</span>
-                    )}
-                    <div className="accoes-imagem">
-                      <button
-                        type="button"
-                        disabled={ocupado || j === 0}
-                        aria-label={`${t.opcoesMoverAntes}: ${v.valor}`}
-                        onClick={() => {
-                          moverValor(o, j, -1);
-                        }}
-                      >
-                        {t.opcoesMoverAntes}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={ocupado || j === o.valores.length - 1}
-                        aria-label={`${t.opcoesMoverDepois}: ${v.valor}`}
-                        onClick={() => {
-                          moverValor(o, j, 1);
-                        }}
-                      >
-                        {t.opcoesMoverDepois}
-                      </button>
+                {o.valores.map((v, j) => {
+                  // O nome da opção no nome dos botões: duas opções podem ter
+                  // um valor com o mesmo texto (revisão do #297, P3-6).
+                  const deQuem = `${o.nome} ${v.valor}`;
+                  const onde = `valor-${v.id}`;
+                  return (
+                    <li key={v.id}>
                       {rascunho ? (
+                        <form
+                          className="linha"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const valor = (textos[v.id] ?? v.valor).trim();
+                            if (valor === "") {
+                              recusar(onde, "opcoesValoresVazios");
+                              return;
+                            }
+                            void agir(
+                              () =>
+                                api.mudarTextoDoValor(c, o.id, v.id, {
+                                  valor,
+                                  versao: o.versao,
+                                }),
+                              onde,
+                              () => {
+                                setTextos((x) => sem(x, v.id));
+                              },
+                            );
+                          }}
+                        >
+                          <div className="campo">
+                            <input
+                              id={onde}
+                              aria-label={`${t.opcoesValor}: ${deQuem}`}
+                              maxLength={MAXIMO_TEXTO_OPCAO}
+                              value={textos[v.id] ?? v.valor}
+                              {...comErro(onde)}
+                              onChange={(e) => {
+                                setTextos({
+                                  ...textos,
+                                  [v.id]: e.target.value,
+                                });
+                              }}
+                            />
+                            {erroDe(onde)}
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={ocupado}
+                            aria-label={`${t.opcoesGuardar}: ${deQuem}`}
+                          >
+                            {t.opcoesGuardar}
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="valor-opcao">{v.valor}</span>
+                      )}
+                      <div className="accoes-imagem">
                         <button
                           type="button"
-                          disabled={ocupado}
-                          aria-label={`${t.opcoesApagarValor} ${v.valor}`}
+                          disabled={ocupado || j === 0}
+                          aria-label={`${t.opcoesMoverAntes}: ${deQuem}`}
                           onClick={() => {
-                            apagarValor(o, v);
+                            moverValor(o, j, -1);
                           }}
                         >
-                          {t.opcoesApagarValor}
+                          {t.opcoesMoverAntes}
                         </button>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
+                        <button
+                          type="button"
+                          disabled={ocupado || j === o.valores.length - 1}
+                          aria-label={`${t.opcoesMoverDepois}: ${deQuem}`}
+                          onClick={() => {
+                            moverValor(o, j, 1);
+                          }}
+                        >
+                          {t.opcoesMoverDepois}
+                        </button>
+                        {rascunho ? (
+                          <button
+                            type="button"
+                            disabled={ocupado}
+                            aria-label={`${t.opcoesApagarValor}: ${deQuem}`}
+                            onClick={() => {
+                              apagarValor(o, v);
+                            }}
+                          >
+                            {t.opcoesApagarValor}
+                          </button>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
               <form
                 className="linha"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  const onde = `novo-${o.id}`;
                   const valor = (novos[o.id] ?? "").trim();
-                  if (valor === "") return;
+                  if (valor === "") {
+                    recusar(onde, "opcoesValoresVazios");
+                    return;
+                  }
                   void agir(
                     () =>
                       api.acrescentarValor(c, o.id, {
                         valor,
                         versao: o.versao,
                       }),
+                    onde,
                     () => {
-                      setNovos({ ...novos, [o.id]: "" });
+                      setNovos((x) => sem(x, o.id));
                     },
                   );
                 }}
@@ -435,12 +538,14 @@ export function OpcoesEditar({
                   </label>
                   <input
                     id={`novo-${o.id}`}
-                    maxLength={MAXIMO_TEXTO}
+                    maxLength={MAXIMO_TEXTO_OPCAO}
                     value={novos[o.id] ?? ""}
+                    {...comErro(`novo-${o.id}`)}
                     onChange={(e) => {
                       setNovos({ ...novos, [o.id]: e.target.value });
                     }}
                   />
+                  {erroDe(`novo-${o.id}`)}
                 </div>
                 <button type="submit" disabled={ocupado}>
                   {t.opcoesAcrescentarValor}
@@ -451,30 +556,45 @@ export function OpcoesEditar({
           {rascunho ? (
             <form
               className="opcao-editar"
+              aria-labelledby="opcao-nova-titulo"
               onSubmit={(e) => {
                 e.preventDefault();
                 const nome = nova.nome.trim();
                 const valores = valoresDoTexto(nova.valores);
-                if (nome === "" || valores.length === 0) return;
+                if (nome === "") {
+                  recusar("opcao-nova-nome", "opcoesNomeVazio");
+                  return;
+                }
+                if (valores.length === 0) {
+                  recusar("opcao-nova-valores", "opcoesValoresVazios");
+                  return;
+                }
+                if (valores.some((v) => v.length > MAXIMO_TEXTO_OPCAO)) {
+                  recusar("opcao-nova-valores", "opcoesValorLongo");
+                  return;
+                }
                 void agir(
                   () => api.criarOpcao(c, artigo, { nome, valores }),
+                  "opcao-nova-nome",
                   () => {
                     setNova({ nome: "", valores: "" });
                   },
                 );
               }}
             >
-              <h2>{t.opcoesCriar}</h2>
+              <h2 id="opcao-nova-titulo">{t.opcoesCriar}</h2>
               <div className="campo">
                 <label htmlFor="opcao-nova-nome">{t.opcoesNovaNome}</label>
                 <input
                   id="opcao-nova-nome"
-                  maxLength={MAXIMO_TEXTO}
+                  maxLength={MAXIMO_TEXTO_OPCAO}
                   value={nova.nome}
+                  {...comErro("opcao-nova-nome")}
                   onChange={(e) => {
                     setNova({ ...nova, nome: e.target.value });
                   }}
                 />
+                {erroDe("opcao-nova-nome")}
               </div>
               <div className="campo">
                 <label htmlFor="opcao-nova-valores">
@@ -484,10 +604,12 @@ export function OpcoesEditar({
                   id="opcao-nova-valores"
                   rows={4}
                   value={nova.valores}
+                  {...comErro("opcao-nova-valores")}
                   onChange={(e) => {
                     setNova({ ...nova, valores: e.target.value });
                   }}
                 />
+                {erroDe("opcao-nova-valores")}
               </div>
               <button type="submit" disabled={ocupado}>
                 {t.opcoesCriar}
@@ -528,10 +650,7 @@ export function OpcoesEditar({
                         <td data-rotulo={o.nome} key={o.id}>
                           <select
                             aria-label={`${o.nome}: ${v.sku}`}
-                            value={
-                              escolhas[v.id]?.[o.id] ??
-                              valorIdDaVariante(o, v.id)
-                            }
+                            value={idDoValor(o, v.id)}
                             onChange={(e) => {
                               setEscolhas({
                                 ...escolhas,
@@ -554,22 +673,16 @@ export function OpcoesEditar({
                       <td data-rotulo={t.colunaAccoes}>
                         <button
                           type="button"
+                          id={`guardar-${v.id}`}
                           disabled={ocupado}
+                          {...comErro(`guardar-${v.id}`)}
                           onClick={() => {
-                            const valores = opcoes
-                              .map(
-                                (o) =>
-                                  escolhas[v.id]?.[o.id] ??
-                                  valorIdDaVariante(o, v.id),
-                              )
-                              .filter((x) => x !== "");
-                            void agir(() =>
-                              api.valoresDaVariante(c, v.id, valores),
-                            );
+                            guardarVariante(v.id);
                           }}
                         >
                           {preencher(t.opcoesGuardarVariante, { sku: v.sku })}
                         </button>
+                        {erroDe(`guardar-${v.id}`)}
                       </td>
                     </tr>
                   ))}
@@ -581,9 +694,4 @@ export function OpcoesEditar({
       )}
     </section>
   );
-}
-
-/** O id do valor da variante nesta opção, ou "" (sem valor). */
-function valorIdDaVariante(o: OpcaoArtigo, variante: string): string {
-  return o.valores.find((v) => v.variantes.includes(variante))?.id ?? "";
 }

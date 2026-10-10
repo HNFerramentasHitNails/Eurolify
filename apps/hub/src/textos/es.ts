@@ -381,6 +381,13 @@ export const es: Textos = {
   artigoOpcoesFalharam: "No se han podido leer las opciones.",
   // Escrever as opções (docs/22 §21.3).
   opcoesTitulo: "Editar opciones",
+  opcoesValorLongo: "Cada valor tiene como máximo 100 caracteres.",
+  opcoesConfirmarApagarOpcaoNenhuma:
+    "¿Eliminar la opción {nome}? Ninguna variante la tiene. No se puede deshacer.",
+  opcoesConfirmarApagarOpcaoUma:
+    "Eliminar la opción {nome} la quita de la variante que la tiene. No se puede deshacer.",
+  opcoesMoverOpcaoDepois: "Mover la opción después",
+  opcoesMoverOpcaoAntes: "Mover la opción antes",
   artigoEditarOpcoes: "Editar opciones",
   artigoCriarOpcoes: "Crear opciones",
   opcoesSoRascunho:
@@ -396,7 +403,7 @@ export const es: Textos = {
   opcoesApagarOpcao: "Eliminar la opción",
   opcoesApagarValor: "Eliminar",
   opcoesConfirmarApagarOpcao:
-    "Eliminar la opción {nome} la quita de las {n} variantes. No se puede deshacer.",
+    "Eliminar la opción {nome} la quita de las {n} variantes que la tienen. No se puede deshacer.",
   opcoesConfirmarApagarValor:
     "Las variantes con {valor} se quedan sin valor en {nome}. No se puede deshacer.",
   opcoesNovoValor: "Valor nuevo en {nome}",
@@ -406,9 +413,9 @@ export const es: Textos = {
   opcoesNovaValores: "Valores, uno por línea",
   opcoesVariantes: "Valores de las variantes",
   opcoesIncompleta:
-    "1 variante sin valor en todas las opciones: así el artículo no se activa.",
+    "1 variante todavía sin valor en una de las opciones: así el artículo no se activa.",
   opcoesIncompletas:
-    "{n} variantes sin valor en todas las opciones: así el artículo no se activa.",
+    "{n} variantes todavía sin valor en una de las opciones: así el artículo no se activa.",
   opcoesGuardarVariante: "Guardar {sku}",
   opcoesConflito:
     "Otra persona ha cambiado esta opción mientras tanto. No hemos guardado su cambio.",
