@@ -93,11 +93,12 @@ Medido no script da VPS a 05/10/2026:
   ensaio; para a produção decide-se de novo (ADR-0032).
 - **Ensaio de reposição ao domingo às 04:00 UTC** (`eurolify-reposicao.timer`):
   repõe numa base temporária, confere e apaga.
-- **Tempo para voltar (RTO): por escrever.** Não está medido aqui quanto
-  demora uma reposição completa; o ensaio de domingo dá esse número
-  (`estado_do_ensaio`, secção «tarefas»). O objectivo para a produção é uma
-  decisão do Diogo ou do Bruno, antes do primeiro comerciante; para o ensaio,
-  sem dados reais, não se fixa.
+- **Tempo para voltar (RTO): 4 horas no máximo** (Diogo, 10/10/2026: *«RTO
+  máximo de 4 horas»*; `docs/06`, DJ). Depois de uma avaria, a produção volta
+  a funcionar em 4 horas, com a reposição da base a partir da cópia incluída.
+  O ensaio de domingo mede quanto demora hoje uma reposição completa
+  (`estado_do_ensaio`, secção «tarefas»). Se passar das 4 horas, isso é um
+  problema a resolver antes do primeiro comerciante. Não verifiquei esse tempo.
 
 ## 5. Plano de resposta a incidentes
 
