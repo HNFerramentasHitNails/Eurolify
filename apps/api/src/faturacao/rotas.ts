@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { respostasDoRasto } from "../base/rasto-resposta.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
@@ -395,7 +396,7 @@ export function rotasDosDocumentos(
       config: { ambito: "invoices:read" },
       schema: {
         description:
-          "Um pedido de documento: as versões do conteúdo (o que vai sair), a prova (o documento lido de volta do emissor) com as divergências, e o rasto de cada passo.",
+          "Um pedido de documento: as versões do conteúdo (o que vai sair), a prova (o documento lido de volta do emissor) com as divergências, e o rasto de cada passo, com de onde veio (canal, pedido), a IA e quem autorizou (docs/28 §1).",
         params: Type.Object({ id: IdDocumento }),
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -460,10 +461,11 @@ export function rotasDosDocumentos(
             passo: p.passo,
             de: p.de,
             para: p.para,
-            motivo: p.motivo,
             quem: p.quem,
             dados: p.dados,
             em: p.em.toISOString(),
+            // As seis respostas do rasto (docs/28 §1; #322, passo 4).
+            ...respostasDoRasto(p),
           })),
         };
       }),

@@ -1586,7 +1586,19 @@ export async function lerPagamento(
     pagamento: await lerPagamentoNaTrx(trx, id),
     transicoes: await trx
       .selectFrom("transicao_pagamento")
-      .select(["de", "para", "origem", "aviso_id", "quem", "motivo", "em"])
+      .select([
+        "de",
+        "para",
+        "origem",
+        "aviso_id",
+        "quem",
+        "motivo",
+        "em",
+        "canal",
+        "pedido",
+        "ia",
+        "autorizado_por",
+      ])
       .where("pagamento_id", "=", id)
       .orderBy("em")
       .orderBy("id")

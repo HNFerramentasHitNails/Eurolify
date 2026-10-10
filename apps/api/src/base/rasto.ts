@@ -11,8 +11,22 @@ import { erroBase } from "./erros.js";
 // o `quem` vindo da autenticação fica para depois do passo 2 (#322). O
 // `autorizadoPor` de uma sessão do Hub põe-no a autenticação.
 
-export type Canal =
-  "hub" | "api" | "importacao" | "integracao" | "mcp" | "sistema" | "operador";
+/**
+ * Os canais que `contexto_do_rasto()` aceita (0053). Uma lista, um sítio:
+ * o tipo e o esquema das respostas saem daqui, e um teste confere-a com a
+ * da base (revisão do #345, P2-3).
+ */
+export const CANAIS = [
+  "hub",
+  "api",
+  "importacao",
+  "integracao",
+  "mcp",
+  "sistema",
+  "operador",
+] as const;
+
+export type Canal = (typeof CANAIS)[number];
 
 export interface IaDoRasto {
   fornecedor?: string;

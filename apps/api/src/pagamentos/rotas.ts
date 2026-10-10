@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { respostasDoRasto } from "../base/rasto-resposta.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
@@ -706,7 +707,7 @@ export function rotasDosPagamentos(
       config: { ambito: "payments:read" },
       schema: {
         description:
-          "Um pagamento com as transições (de, para, origem, aviso, quem, motivo, quando).",
+          "Um pagamento com as transições (de, para, origem, aviso, quem, motivo, quando), com de onde vieram (canal, pedido), a IA e quem autorizou (docs/28 §1).",
         params: Type.Object({ id: IdPagamento }),
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -726,8 +727,9 @@ export function rotasDosPagamentos(
             origem: t.origem,
             aviso: t.aviso_id === null ? null : `pwh_${t.aviso_id}`,
             quem: t.quem,
-            motivo: t.motivo,
             em: t.em.toISOString(),
+            // As seis respostas do rasto (docs/28 §1; #322, passo 4).
+            ...respostasDoRasto(t),
           })),
         };
       }),

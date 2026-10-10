@@ -35,7 +35,7 @@ transacção que os gatilhos lêem.
 | Preços | `historico_preco` (0017) | o preço praticado | sim | — | — | — | sim |
 | Contas de pessoas | `evento_conta` (0018) | o acto | sim | — | — | — | sim |
 | Pagamentos | `transicao_pagamento` (0044) | o estado | `quem` | `origem` **obrigatória** | — | — | sim |
-| Stock e encomendas | `transicao_encomenda` (0047) | o estado | `quem` | por verificar | — | — | sim |
+| Stock e encomendas | `transicao_encomenda` (0047) | o estado | `quem` | sem `origem` (conferido a 10/10/2026, `base/esquema.ts`); desde a 0053, `canal` e `pedido` | — | — | sim |
 | Eventos para fora | `evento_saida` (0021) | o evento | só interno (CH: não sai nos webhooks) | — | — | — | sim |
 | Documentos fiscais | `documento_rasto` (0050) | o passo e o estado | `quem` | — | — | — | `em`, `motivo` |
 
@@ -174,6 +174,11 @@ também ficam com o marcador na linha do tempo (Diogo, 10/10/2026: *«sim»*,
 4. O cabeçalho `Eurolify-IA`, a marca «chave de um agente de IA» e o Hub a
    mostrar o rasto com as seis respostas.
 
+**Passo 4 em código, por partes:**
+- **parte 1** (#342, migração 0057): a marca «chave de um agente de IA» (§3.3);
+- **parte 2** (#345): as linhas do tempo da API trazem, além de `quem`, `em` e `campos`, os campos `canal`, `pedido`, `ia`, `autorizado_por` e `motivo`, pelo mesmo esquema e função (`base/rasto-resposta.ts`), em: o artigo (`GET /products/{id}/timeline` e `GET /hub/products/{id}/timeline`), a ficha de cliente (`GET /customers/{id}/timeline`), a encomenda (`GET /orders/{id}/timeline`), as transições de um pagamento (`GET /payments/{id}`) e o rasto de um documento (`GET /invoices/{id}`). A `ia` vem sempre, com `prova` `comprovado`, `declarado` ou **`desconhecido`** (nunca «sem IA»; com `desconhecido`, o resto da IA vem vazio). `canal` vazio é desconhecido: uma linha de antes da 0053, **ou uma escrita sem o contexto do rasto** (ex.: uma tarefa chamada fora do servidor); então tudo o resto é desconhecido. `autorizado_por` vazio com `canal` preenchido: nenhuma pessoa do comerciante confirmou (uma chave, o operador e as tarefas nunca autorizam; uma sessão do Hub com IA declarada também não). A lista dos canais é uma só (`CANAIS`, `base/rasto.ts`), conferida por teste com a da base. A exportação do titular já levava estas colunas (lê a tabela inteira). **Fica de fora:** o histórico de um preço (`GET /price-lists/{id}/prices/{variante}/history`) não mostra hoje quem mudou, e a rota pede só `prices:read`; acrescentar quem autorizou mudaria quem vê quem — decidir o âmbito antes (como o `catalog:history` do Catálogo). O estado do comerciante (`transicao_estado`) e as contas de pessoas (`evento_conta`) não têm rota de leitura;
+- **parte 3**: o Hub a mostrar as seis respostas (desenho e aspecto a aprovar pelo Diogo).
+
 ## 5. Perguntas para o Diogo ou o Bruno
 
 | # | Pergunta | Proposta |
@@ -194,8 +199,16 @@ também ficam com o marcador na linha do tempo (Diogo, 10/10/2026: *«sim»*,
 
 - O `transicao_encomenda` (0047) e o `historico_preco` (0017) foram lidos só
   pelo nome das colunas; se têm `origem`, falta conferir.
-- A forma exacta do identificador do pedido no Fastify (o `instance` dos erros
-  sai de `request.id`; não li se é o mesmo em todas as rotas).
+- ~~A forma exacta do identificador do pedido~~ conferida a 10/10/2026: o
+  servidor gera-o com `randomUUID()` (`servidor.ts`) e os erros põem-no no
+  `instance` (`base/erros.ts`); é o mesmo `pedido` do rasto.
+- **O `motivo` nas linhas do Catálogo e dos Clientes vem da transacção**
+  (`eurolify.motivo`, 0053): uma escrita de outro domínio na mesma
+  transacção (pagamentos, documentos, stock põem um motivo) passava-o
+  também a essas linhas, sem passar pela lista dos campos sensíveis (§3.4).
+  Procurado a 10/10/2026 (revisão do #345, P3-1): nenhuma transacção põe um
+  motivo e escreve também em `alteracao_cliente` ou `alteracao_catalogo`;
+  não se seguiu cada caminho.
 - Se o HMAC truncado a 8 hexadecimais chega para não deixar adivinhar valores
   curtos (ex.: um código postal). Para um valor de poucas hipóteses, mesmo com
   a chave secreta, um resumo igual diz que o valor não mudou. Fica para a

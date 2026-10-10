@@ -2321,7 +2321,19 @@ export async function lerDocumento(
       .executeTakeFirst();
     const passos = await trx
       .selectFrom("documento_rasto")
-      .select(["passo", "de", "para", "motivo", "quem", "dados", "em"])
+      .select([
+        "passo",
+        "de",
+        "para",
+        "motivo",
+        "quem",
+        "dados",
+        "em",
+        "canal",
+        "pedido",
+        "ia",
+        "autorizado_por",
+      ])
       .where("documento_id", "=", id)
       .orderBy("em")
       .orderBy("id")

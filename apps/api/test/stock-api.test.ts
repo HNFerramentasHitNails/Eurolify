@@ -970,6 +970,36 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
       "entregue",
       "concluida",
     ]);
+    // As seis respostas do rasto (docs/28 §1; #322, passo 4): a primeira
+    // transição veio da API, por uma chave, sem IA declarada nem pessoa a
+    // autorizar.
+    expect(linha[0]).toMatchObject({
+      canal: "api",
+      ia: {
+        prova: "desconhecido",
+        fornecedor: null,
+        modelo: null,
+        execucao: null,
+      },
+      autorizado_por: null,
+    });
+    expect(typeof linha[0]?.["pedido"]).toBe("string");
+    // A conclusão correu aqui fora do contexto do rasto (no servidor corre
+    // com o canal «sistema»): canal vazio, desconhecido, mesmo sendo de hoje
+    // (revisão do #345, P2-2); o motivo dela sai.
+    expect(linha.at(-1)).toMatchObject({ para: "concluida", canal: null });
+    expect(linha.at(-1)?.["motivo"]).toEqual(expect.any(String));
+    for (const t of linha) {
+      expect(Object.keys(t)).toEqual(
+        expect.arrayContaining([
+          "canal",
+          "pedido",
+          "ia",
+          "autorizado_por",
+          "motivo",
+        ]),
+      );
+    }
     expect(await eventos(s)).toEqual(
       expect.arrayContaining([
         "order.preparing",
