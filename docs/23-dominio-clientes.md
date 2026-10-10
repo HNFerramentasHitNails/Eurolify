@@ -6,7 +6,8 @@
 > propostas). **Parte 3 (VIES e isenção manual): aprovada e no código, §13**
 > (`docs/06`, CY). **Parte 2a (consentimentos e régua do marketing): no
 > código, §12** (Diogo, 10/10/2026: *«sim, avança com a parte 2»*). **Parte
-> 2b (duplicados e fusões, perfis copiados): no código, §12**. É a fatia 5 do
+> 2b (duplicados e fusões, perfis copiados) e parte 2c (pedidos do titular):
+> no código, §12**. É a fatia 5 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Clientes e perfis de faturação; finalidade por encomenda») e é preciso
 > antes do Motor de IVA (fatia 6) e do checkout (fatia 7): o Motor de IVA
@@ -363,7 +364,7 @@ O armazém não lê clientes: a morada de que precisa vem na encomenda
 | Candidatos a duplicado | `GET /customer-duplicates`, `POST /customer-duplicates/{id}/dismiss` | read / merge | descartar fica no rasto |
 | Fundir | `POST /customers/{id}/merge` (`{ absorver: cus_…, ensaio: true }`) | merge | com `ensaio` devolve o que mudaria sem escrever |
 | Linha do tempo | `GET /customers/{id}/timeline` | read | o rasto (§3.8) |
-| Exportação do titular | `GET /customers/{id}/export` | privacy | JSON com tudo deste domínio; os outros domínios juntam o seu quando existirem |
+| Exportação do titular | `POST /customers/{id}/export` | privacy | JSON com tudo deste domínio; os outros domínios juntam o seu quando existirem. Um `POST` e não um `GET` (parte 2c): o pedido leva a verificação da identidade e fica registado |
 | Limitação | `PUT /customers/{id}/restriction`, `DELETE …` | privacy | |
 | Pseudonimizar | `POST /customers/{id}/pseudonymize` | privacy | irreversível; pede a confirmação no corpo, como as acções do MCP da VPS |
 
@@ -557,6 +558,35 @@ tempo guarda (revisão do #289, P3).
 **O checkout** (`docs/25`) ainda não regista consentimentos: a rota pede
 `customers:write`, não o âmbito da loja; a caixa de marketing desenha-se com
 a fatia 7.
+
+**Parte 2c — pedidos do titular** (migração 0048; issue #233; Diogo,
+10/10/2026: *«sim, avança com a parte 2c»*):
+
+| O quê | Onde |
+|---|---|
+| o registo de cada pedido (`pedido_titular`, `dsr_`): o tipo, como se verificou a identidade (obrigatório), quem fez, quando e o resultado em contagens; só se acrescenta (`eu-gdpr-privacy`, «Pedidos dos titulares») | migração 0048 |
+| a limitação (`PUT`/`DELETE /customers/{id}/restriction`): a régua do marketing dá não e a API não muda o nome nem os contactos da ficha limitada (`customers.restricted`), sem apagar nada — **proposta**: os perfis e as etiquetas continuam a poder mudar | migração 0048 |
+| a exportação (`POST /customers/{id}/export`): a ficha e as fundidas nela, com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, a linha do tempo, os pedidos e as encomendas (só para ler) | `src/clientes/repositorio.ts` |
+| a pseudonimização (`POST /customers/{id}/pseudonymize`), irreversível, com a confirmação escrita «pseudonimizar cus_…», só por uma pessoa ou a chave dela, sobre o grupo inteiro (revisão do #298, P3-3): nome «Pseudonimizado», sem e-mails, telefones, língua nem país; consentimentos e etiquetas apagados; os perfis **não** usados em documentos sem nome, NIF nem morada, arquivados, as provas do VIES deles apagadas e as isenções sem NIF nem nota (P3-11 do #244); a linha do tempo sem os valores pessoais (P2-4 do #234); os candidatos fechados; o evento `customer.pseudonymized` | migração 0048 |
+| os perfis usados em documentos ficam como estão, com as provas do VIES e a linha do tempo deles, o prazo fiscal (R9) | migração 0048 |
+| as recusas de alterar ou apagar abrem-se **só** dentro da função do dono, com a bandeira `eurolify.pseudonimizar`; a API e o superutilizador com a bandeira continuam recusados (testado) | migração 0048 |
+| o âmbito `customers:privacy`, só no dono | migração 0048; `src/identidade/` |
+| 5 testes; 13 mutações, todas apanhadas | `test/clientes-titular.test.ts` |
+
+**Fica por fazer, e onde:**
+- **os dados pessoais que o checkout e as encomendas guardam** (o contacto,
+  a entrega, a cópia do perfil): são desses domínios; a pseudonimização de
+  um cliente não lhes toca (a exportação lê as encomendas). Têm de se juntar
+  ao apagamento com a regra deles (o que a lei obriga a guardar de uma
+  encomenda) — fatia 9 e fatia 10;
+- **o prazo de resposta** (um mês, prorrogável) e **os prazos de guarda**
+  fora de Portugal: **não verifiquei** — **C** (R9);
+- **a verificação da identidade** é um texto que a pessoa escreve; o
+  Eurolify não a prova;
+- **a rectificação** faz-se pelas rotas que já existem (`PATCH`), com a
+  linha do tempo; um NIF num documento emitido não se corrige (R4);
+- **as cópias de segurança**: o apagamento chega a elas quando expiram;
+  dizê-lo na política de privacidade de cada loja.
 
 ## 13. Parte 3 — VIES com prova e isenção manual (desenho de 09/10/2026)
 

@@ -39,6 +39,9 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.merge_by_person",
   "customers.merge_too_many_contacts",
   "customers.duplicate_decided",
+  // Da 0048: os pedidos do titular.
+  "customers.confirmation_required",
+  "customers.restricted",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -68,6 +71,7 @@ const TABELAS = new Set([
   "isencao_manual",
   "consentimento",
   "duplicado_cliente",
+  "pedido_titular",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -1223,6 +1227,173 @@ export async function fundirClientes(
   const plano = rows[0]?.plano;
   if (plano === undefined) throw new Error("cliente_fundir sem resposta");
   return plano;
+}
+
+// ------------------------------------- Pedidos do titular (§7.1, 0048)
+
+/** Liga ou desliga a limitação (cliente_limitar); devolve o id do pedido. */
+export async function limitarCliente(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+  limitar: boolean,
+  verificacao: string,
+): Promise<string> {
+  const { rows } = await noClientes(db, comercianteId, (trx) =>
+    sql<{ id: string }>`
+      select cliente_limitar(${clienteId}::uuid, ${limitar}, ${verificacao}) as id`.execute(
+      trx,
+    ),
+  );
+  const id = rows[0]?.id;
+  if (id === undefined) throw new Error("cliente_limitar sem resposta");
+  return id;
+}
+
+/** O que a pseudonimização fez (contagens, sem dados pessoais). */
+export interface ResultadoPseudonimizacao {
+  fichas: number;
+  perfis_pseudonimizados: number;
+  perfis_mantidos_por_obrigacao_fiscal: number;
+  consentimentos_apagados: number;
+  etiquetas_retiradas: number;
+  provas_vies_apagadas: number;
+  isencoes_limpas: number;
+  entradas_da_linha_do_tempo: number;
+}
+
+/** Pseudonimiza a ficha e as fundidas nela (cliente_pseudonimizar). Irreversível. */
+export async function pseudonimizarCliente(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+  confirmacao: string,
+  verificacao: string,
+): Promise<ResultadoPseudonimizacao> {
+  const { rows } = await noClientes(db, comercianteId, (trx) =>
+    sql<{ r: ResultadoPseudonimizacao }>`
+      select cliente_pseudonimizar(${clienteId}::uuid, ${confirmacao}, ${verificacao}) as r`.execute(
+      trx,
+    ),
+  );
+  const r = rows[0]?.r;
+  if (r === undefined) throw new Error("cliente_pseudonimizar sem resposta");
+  return r;
+}
+
+export async function listarPedidosTitular(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const ficha = await trx
+      .selectFrom("cliente")
+      .select("id")
+      .where("id", "=", clienteId)
+      .executeTakeFirst();
+    if (ficha === undefined) {
+      throw new ErroClientes("customers.not_found", "ficha inexistente");
+    }
+    return trx
+      .selectFrom("pedido_titular")
+      .selectAll()
+      .where(
+        sql<boolean>`cliente_id in (select clientes_do_grupo(${clienteId}::uuid))`,
+      )
+      .orderBy("id", "desc")
+      .execute();
+  });
+}
+
+/**
+ * Tudo o que este domínio guarda sobre a pessoa, na ficha e nas fundidas
+ * nela, e as encomendas (só para ler; o domínio delas junta o resto). Regista
+ * o pedido na mesma transacção: sem registo, não há exportação.
+ */
+export async function exportarCliente(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+  verificacao: string,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const ficha = await trx
+      .selectFrom("cliente")
+      .select("estado")
+      .where("id", "=", clienteId)
+      .executeTakeFirst();
+    if (ficha === undefined) {
+      throw new ErroClientes("customers.not_found", "ficha inexistente");
+    }
+    const { rows: grupo } = await sql<{ id: string }>`
+      select clientes_do_grupo(${clienteId}::uuid) as id`.execute(trx);
+    const ids = grupo.map((g) => g.id);
+    const fichas = [];
+    for (const id of ids) {
+      const linhas = (tabela: string, coluna = "cliente_id") =>
+        sql<Record<string, unknown>>`
+          select * from ${sql.table(tabela)}
+          where ${sql.ref(coluna)} = ${id}::uuid order by id`
+          .execute(trx)
+          .then((r) => r.rows);
+      const perfis = await linhas("perfil_faturacao");
+      const ids_perfis = perfis.map((p) => String(p["id"]));
+      const doPerfil = async (tabela: string) =>
+        ids_perfis.length === 0
+          ? []
+          : (
+              await sql<Record<string, unknown>>`
+              select * from ${sql.table(tabela)}
+              where perfil_id = any(${ids_perfis}::uuid[]) order by id`.execute(
+                trx,
+              )
+            ).rows;
+      fichas.push({
+        ficha: (await linhas("cliente", "id"))[0],
+        perfis_de_faturacao: perfis,
+        provas_vies: await doPerfil("validacao_vies"),
+        isencoes_manuais: await doPerfil("isencao_manual"),
+        etiquetas: (
+          await sql<{ id: string; nome: string }>`
+            select e.id, e.nome from cliente_etiqueta ce
+            join etiqueta_cliente e on e.id = ce.etiqueta_id
+            where ce.cliente_id = ${id}::uuid order by e.id`.execute(trx)
+        ).rows,
+        consentimentos: await linhas("consentimento"),
+        encomendas: (
+          await sql<Record<string, unknown>>`
+            select id, criada_em, estado, moeda, total, finalidade, contacto,
+                   entrega, perfil_copia
+            from encomenda where cliente_id = ${id}::uuid order by id`.execute(
+            trx,
+          )
+        ).rows,
+        linha_do_tempo: await linhas("alteracao_cliente"),
+      });
+    }
+    const pedidoId = (
+      await sql<{ id: string }>`
+        select pedido_titular_registar(${clienteId}::uuid, 'exportacao',
+          ${verificacao}, ${JSON.stringify({ fichas: ids.length })}::jsonb) as id`.execute(
+        trx,
+      )
+    ).rows[0]?.id;
+    const pedidos = await trx
+      .selectFrom("pedido_titular")
+      .selectAll()
+      .where("cliente_id", "in", ids)
+      .orderBy("id")
+      .execute();
+    return {
+      pedido: pedidoId ?? null,
+      cliente: clienteId,
+      estado: ficha.estado,
+      gerada_em: new Date().toISOString(),
+      fichas,
+      pedidos_do_titular: pedidos,
+    };
+  });
 }
 
 /** A consulta pedida: o perfil passa à frente da fila (revisão do #244, P1-1). */

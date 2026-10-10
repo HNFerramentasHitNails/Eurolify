@@ -9,6 +9,7 @@ import {
   ESTADOS_DUPLICADO,
   ESTADOS_VIES,
   SINAIS_DUPLICADO,
+  TIPOS_PEDIDO_TITULAR,
   type BaseDados,
 } from "../base/esquema.js";
 import {
@@ -32,7 +33,11 @@ import {
   criarEtiqueta,
   criarPerfil,
   descartarDuplicado,
+  exportarCliente,
   fundirClientes,
+  limitarCliente,
+  listarPedidosTitular,
+  pseudonimizarCliente,
   linhaDoTempo,
   listarConsentimentos,
   listarDuplicados,
@@ -97,6 +102,8 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.merge_by_person": 422,
   "customers.merge_too_many_contacts": 409,
   "customers.duplicate_decided": 409,
+  "customers.confirmation_required": 422,
+  "customers.restricted": 409,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -664,6 +671,77 @@ const PlanoFusaoEsquema = Type.Object({
         "A régua da ficha que fica depois da fusão: conta as declarações das duas, e o consentimento passa a cobrir os contactos acrescentados (docs/23 §3.7)",
     },
   ),
+});
+
+// Os pedidos do titular (§7.1; migração 0048).
+const Verificacao = Type.String({
+  minLength: 1,
+  maxLength: 500,
+  description:
+    "Como se confirmou que quem pede é o titular (ex.: «resposta do e-mail da ficha a 10/10/2026»); fica no registo do pedido",
+});
+const PedidoComVerificacao = Type.Object(
+  { verificacao: Verificacao },
+  { additionalProperties: false },
+);
+const PedidoPseudonimizar = Type.Object(
+  {
+    verificacao: Verificacao,
+    confirmacao: Type.String({
+      maxLength: 100,
+      description:
+        "Irreversível: escreva exactamente «pseudonimizar cus_…» com o id da ficha",
+    }),
+  },
+  { additionalProperties: false },
+);
+const PedidoTitular = Type.Object({
+  id: Type.String({ description: "dsr_…" }),
+  cliente: Type.String({ description: "cus_…" }),
+  tipo: umDe(TIPOS_PEDIDO_TITULAR),
+  verificacao: Type.String(),
+  quem: Type.String(),
+  em: Instante,
+  resultado: Type.Record(Type.String(), Type.Unknown()),
+});
+type LinhaPedidoTitular = Awaited<
+  ReturnType<typeof listarPedidosTitular>
+>[number];
+const paraPedidoTitular = (
+  p: LinhaPedidoTitular,
+): Static<typeof PedidoTitular> => ({
+  id: `dsr_${p.id}`,
+  cliente: `cus_${p.cliente_id}`,
+  tipo: p.tipo,
+  verificacao: p.verificacao,
+  quem: p.quem,
+  em: p.em.toISOString(),
+  resultado: p.resultado,
+});
+const ResultadoPseudonimizacaoEsquema = Type.Object({
+  fichas: Type.Integer({ description: "A ficha e as fundidas nela" }),
+  perfis_pseudonimizados: Type.Integer(),
+  perfis_mantidos_por_obrigacao_fiscal: Type.Integer({
+    description: "Usados em documentos: ficam como estão o prazo fiscal (R9)",
+  }),
+  consentimentos_apagados: Type.Integer(),
+  etiquetas_retiradas: Type.Integer(),
+  provas_vies_apagadas: Type.Integer(),
+  isencoes_limpas: Type.Integer(),
+  entradas_da_linha_do_tempo: Type.Integer(),
+});
+const Exportacao = Type.Object({
+  pedido: Type.Union([Type.String(), Type.Null()], {
+    description: "O registo deste pedido (dsr_…)",
+  }),
+  cliente: Type.String(),
+  estado: Type.String(),
+  gerada_em: Instante,
+  fichas: Type.Array(Type.Unknown(), {
+    description:
+      "A ficha e as fundidas nela, cada uma com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas e a linha do tempo",
+  }),
+  pedidos_do_titular: Type.Array(Type.Unknown()),
 });
 
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });
@@ -1463,6 +1541,130 @@ export function rotasDosClientes(
           };
         }),
       ),
+  );
+
+  // ---- Pedidos do titular (§7.1)
+
+  // Só o dono (docs/23 §7).
+  const privacidade = { ambito: "customers:privacy" as const };
+
+  rotas.post(
+    "/customers/:id/export",
+    {
+      config: privacidade,
+      schema: {
+        description:
+          "Exporta tudo o que este domínio guarda sobre o titular, na ficha e nas fundidas nela, com as encomendas (só para ler). Regista o pedido com a verificação da identidade. É um POST: o pedido leva a verificação e a resposta não se guarda em cache.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdCliente),
+        body: PedidoComVerificacao,
+        response: { 200: Exportacao, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, c) =>
+        emClientes(resposta, async () => {
+          const e = await exportarCliente(
+            trx,
+            c.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body.verificacao,
+          );
+          return {
+            ...e,
+            pedido: e.pedido === null ? null : `dsr_${e.pedido}`,
+            cliente: `cus_${e.cliente}`,
+          };
+        }),
+      ),
+  );
+
+  for (const [metodo, limitar] of [
+    ["PUT", true],
+    ["DELETE", false],
+  ] as const) {
+    rotas.route({
+      method: metodo,
+      url: "/customers/:id/restriction",
+      config: privacidade,
+      schema: {
+        description: limitar
+          ? "Limita a ficha a pedido do titular: a régua do marketing dá não e a API não lhe muda o nome nem os contactos, sem apagar nada."
+          : "Levanta a limitação.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdCliente),
+        body: PedidoComVerificacao,
+        response: { 200: Cliente, ...RESPOSTA_DE_ERRO },
+      },
+      handler: (pedido, resposta) =>
+        escrever(base, pedido, resposta, 200, (trx, c) =>
+          emClientes(resposta, async () => {
+            const id = semPrefixo(pedido.params.id);
+            await limitarCliente(
+              trx,
+              c.comercianteId,
+              id,
+              limitar,
+              pedido.body.verificacao,
+            );
+            return paraCliente(await obterCliente(trx, c.comercianteId, id));
+          }),
+        ),
+    });
+  }
+
+  rotas.post(
+    "/customers/:id/pseudonymize",
+    {
+      config: privacidade,
+      schema: {
+        description:
+          "Apagamento a pedido do titular, por pseudonimização (R9), da ficha e das fundidas nela. Irreversível: pede a confirmação escrita. Os perfis usados em documentos ficam o prazo fiscal; o resto dos dados pessoais sai, também da linha do tempo.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdCliente),
+        body: PedidoPseudonimizar,
+        response: { 200: ResultadoPseudonimizacaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, c) =>
+        emClientes(resposta, () =>
+          pseudonimizarCliente(
+            trx,
+            c.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body.confirmacao,
+            pedido.body.verificacao,
+          ),
+        ),
+      ),
+  );
+
+  rotas.get(
+    "/customers/:id/privacy-requests",
+    {
+      config: privacidade,
+      schema: {
+        description:
+          "Os pedidos do titular desta ficha e das fundidas nela, os mais recentes primeiro.",
+        params: ParametroId(IdCliente),
+        response: {
+          200: Type.Object({ dados: Type.Array(PedidoTitular) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => ({
+      dados: (
+        await emClientes(resposta, () =>
+          listarPedidosTitular(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+          ),
+        )
+      ).map(paraPedidoTitular),
+    }),
   );
 
   // ---- Isenção manual (§13.5)

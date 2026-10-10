@@ -51,7 +51,13 @@ const FUNCOES_DA_API = [
   // Duplicados e fusões (0046): fundir, descartar, a procura de candidatos (do
   // gatilho), o grupo de fichas fundidas e a comparação dos e-mails.
   "cliente_fundir",
+  // Os pedidos do titular (0048): limitar, pseudonimizar, registar o pedido e
+  // as duas que dizem se a pseudonimização está a correr (os gatilhos chamam-nas).
+  "cliente_limitar",
+  "cliente_pseudonimizar",
   "clientes_do_grupo",
+  "clientes_dono_a_escrever",
+  "clientes_pseudonimizacao_em_curso",
   "codigos_gerar",
   "comerciante_actual",
   "conta_nova_com_passkey",
@@ -106,6 +112,7 @@ const FUNCOES_DA_API = [
   "passkey_para_entrar",
   "passkey_retirar",
   "passkeys_listar",
+  "pedido_titular_registar",
   "perfil_tornar_principal",
   "pessoa_eu",
   // A régua única do marketing (0042): quem envia pergunta-lhe.
