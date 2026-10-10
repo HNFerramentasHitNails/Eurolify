@@ -23,6 +23,7 @@ import {
   remocaoDaMedia,
 } from "../catalogo/rotas-media.js";
 import {
+  alteracaoDaVariante,
   alteracaoDoArtigo,
   arquivoDaVariante,
   Artigo,
@@ -52,6 +53,7 @@ import {
   ParametroArtigo,
   ParametroVariante,
   PedidoAlterarArtigo,
+  PedidoAlterarVariante,
   PedidoVersao,
   publicacoesDeArtigo,
   RespostaArtigos,
@@ -518,6 +520,32 @@ export function rotasDoCatalogoNoHub(
       escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
         await recusarVarianteExterna(trx, semPrefixo(pedido.params.id));
         return arquivoDaVariante(trx, comercianteId, pedido.params.id);
+      }),
+  );
+
+  // Alterar uma variante pelo Hub (docs/22 §23.1; issue #301): a mesma
+  // escrita do PATCH /variants/{id}, na `versao` da variante.
+  rotas.patch(
+    "/hub/variants/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Altera uma variante pelo Hub: a mesma escrita do PATCH /variants/{id}, na `versao` lida, com a sessão de quem tem catalog:write (docs/22 §23.1). Num artigo externo dá catalog.external_field (§13.3).",
+        params: ParametroVariante,
+        body: PedidoAlterarVariante,
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(base, pedido, resposta, async (trx, comercianteId) => {
+        await recusarVarianteExterna(trx, semPrefixo(pedido.params.id));
+        return alteracaoDaVariante(
+          trx,
+          comercianteId,
+          pedido.params.id,
+          pedido.body,
+        );
       }),
   );
 

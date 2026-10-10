@@ -435,6 +435,24 @@ DECLARE
   regua record;
   pais_comerciante text;
 BEGIN
+  -- A pseudonimização (0049) limpa os perfis não usados em documentos, também
+  -- nas fichas fundidas no grupo; nunca toca num perfil usado (R9).
+  IF TG_OP = 'UPDATE' AND public.clientes_pseudonimizacao_em_curso() THEN
+    IF NEW.id <> OLD.id OR NEW.comerciante_id <> OLD.comerciante_id
+       OR NEW.cliente_id <> OLD.cliente_id THEN
+      RAISE EXCEPTION 'customers.immutable_identity: o id, o comerciante e a ficha de um perfil não mudam';
+    END IF;
+    IF OLD.usado_em_documento THEN
+      RAISE EXCEPTION 'customers.profile_used: um perfil usado num documento fica o prazo fiscal (R9)';
+    END IF;
+    NEW.nif_numero := NULL;
+    NEW.estado_vies := 'nao_aplicavel';
+    NEW.criado_em := OLD.criado_em;
+    NEW.actualizado_em := now();
+    NEW.versao := OLD.versao + 1;
+    RETURN NEW;
+  END IF;
+
   -- A ficha tem de se ver (RLS) e estar activa; tomá-la serializa os perfis
   -- dela (o principal do primeiro perfil, os arquivos).
   SELECT c.estado INTO estado_da_ficha FROM public.cliente c
@@ -559,7 +577,7 @@ ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
     'catalog:read', 'catalog:write', 'catalog:publish', 'catalog:import',
     'catalog:history', 'prices:read', 'prices:write',
     'customers:read', 'customers:write', 'customers:billing',
-    'customers:exemptions', 'customers:merge', 'tax:read', 'tax:write',
+    'customers:exemptions', 'customers:merge', 'customers:privacy', 'tax:read', 'tax:write',
     'legal:read', 'legal:write', 'shipping:read', 'shipping:write', 'orders:read',
     'payments:read', 'payments:write', 'payments:accounts', 'payments:resolve',
     'inventory:read', 'inventory:write', 'inventory:policy', 'fulfilment:read',
@@ -569,13 +587,14 @@ ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
 
 CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  -- Por ordem alfabética, como em src/identidade/papeis.ts; os invoices:* da
-  -- 0050 (docs/28, Q7): dono todos, gestor ler e decidir a fila, apoio ler.
+  -- Por ordem alfabética, como em src/identidade/papeis.ts. Como a 0049 (com o
+  -- customers:privacy no dono), mais os invoices:* (docs/28, Q7): dono
+  -- todos, gestor ler e decidir a fila, apoio ler.
   SELECT CASE p_papel
     WHEN 'dono' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
                   'catalog:read', 'catalog:write', 'customers:billing',
-                  'customers:exemptions', 'customers:merge', 'customers:read',
-                  'customers:write', 'fulfilment:read', 'fulfilment:write',
+                  'customers:exemptions', 'customers:merge', 'customers:privacy',
+                  'customers:read', 'customers:write', 'fulfilment:read', 'fulfilment:write',
                   'inventory:policy', 'inventory:read', 'inventory:write',
                   'invoices:accounts', 'invoices:read', 'invoices:write',
                   'keys:write', 'legal:read', 'legal:write',

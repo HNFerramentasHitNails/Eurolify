@@ -281,6 +281,9 @@ export interface TabelaVariante {
   estado: ColumnType<EstadoVariante, "activa" | undefined, "arquivada">;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
+  // Migração 0048: sobe a cada mudança da linha; quem a sobe é o gatilho, a
+  // API só a lê e a confere.
+  versao: ColumnType<number, never, never>;
 }
 
 // Catálogo, parte 2a (migração 0004; docs/14 §3.4).
@@ -814,6 +817,26 @@ export interface TabelaDuplicadoCliente {
   decidido_em: ColumnType<Date | null, never, never>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
+}
+
+export const TIPOS_PEDIDO_TITULAR = [
+  "exportacao",
+  "limitacao",
+  "fim_da_limitacao",
+  "apagamento",
+] as const;
+export type TipoPedidoTitular = (typeof TIPOS_PEDIDO_TITULAR)[number];
+
+/** Um pedido do titular (migração 0049): só se acrescenta; escrevem-no as funções do dono. */
+export interface TabelaPedidoTitular {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_id: ColumnType<string, never, never>;
+  tipo: ColumnType<TipoPedidoTitular, never, never>;
+  verificacao: ColumnType<string, never, never>;
+  quem: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
+  resultado: ColumnType<Record<string, unknown>, never, never>;
 }
 
 export interface TabelaIsencaoManual {
@@ -1373,6 +1396,7 @@ export interface BaseDados {
   isencao_manual: TabelaIsencaoManual;
   consentimento: TabelaConsentimento;
   duplicado_cliente: TabelaDuplicadoCliente;
+  pedido_titular: TabelaPedidoTitular;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;

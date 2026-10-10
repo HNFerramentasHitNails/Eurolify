@@ -80,6 +80,11 @@ export const CODIGOS_BASE = {
     pt: "A chave já foi criada por este pedido; o segredo só se mostra uma vez",
     en: "The key was already created by this request; the secret is shown only once",
   },
+  "idempotency.response_not_kept": {
+    status: 409,
+    pt: "Este pedido já foi feito e a resposta não se guarda; para outra, use outra chave de idempotência",
+    en: "This request was already made and its response is not kept; use another idempotency key for a new one",
+  },
   // A versão da API por data (docs/18 §3; headless-commerce, regra 7).
   "version.unsupported": {
     status: 400,
