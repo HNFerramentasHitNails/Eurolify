@@ -572,7 +572,7 @@ const ReguaMarketing = Type.Object(
   },
 );
 
-// Duplicados e fusões (§3.7; migração 0045).
+// Duplicados e fusões (§3.7; migração 0046).
 const IdDuplicado = idCom("dup", "dup_…");
 const Duplicado = Type.Object({
   id: Type.String({ description: "dup_…" }),

@@ -34,7 +34,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.vies_not_applicable",
   // Da 0040: o código do motivo da isenção (docs/24, Q4).
   "customers.exemption_reason_code",
-  // Da 0045: duplicados e fusões.
+  // Da 0046: duplicados e fusões.
   "customers.merge_same",
   "customers.merge_by_person",
   "customers.merge_too_many_contacts",
@@ -1081,7 +1081,7 @@ export async function listarConsentimentos(
     if (ficha === undefined) {
       throw new ErroClientes("customers.not_found", "ficha inexistente");
     }
-    // As da ficha e as das fichas fundidas nela (migração 0045): a régua
+    // As da ficha e as das fichas fundidas nela (migração 0046): a régua
     // conta-as todas, e a lista mostra o que a régua conta.
     const doGrupo = sql<boolean>`cliente_id in (select clientes_do_grupo(${clienteId}::uuid))`;
     const { n } = await trx
@@ -1122,7 +1122,7 @@ export async function listarConsentimentos(
   });
 }
 
-// ------------------------------------- Duplicados e fusões (§3.7, 0045)
+// ------------------------------------- Duplicados e fusões (§3.7, 0046)
 
 /** Os candidatos a duplicado, os mais recentes primeiro. */
 export async function listarDuplicados(
@@ -1206,7 +1206,7 @@ export interface PlanoFusao {
   marketing_depois: Record<CanalConsentimento, boolean>;
 }
 
-/** Funde `absorve` em `fica` (cliente_fundir, migração 0045). */
+/** Funde `absorve` em `fica` (cliente_fundir, migração 0046). */
 export async function fundirClientes(
   db: Kysely<BaseDados>,
   comercianteId: string,

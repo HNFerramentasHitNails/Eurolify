@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   linhaDasOpcoes,
+  moverNaLista,
   valorDaVariante,
+  valoresDoTexto,
+  variantesComValor,
+  variantesIncompletas,
   type OpcaoArtigo,
 } from "../src/opcoes";
 
@@ -12,6 +16,7 @@ const tamanho: OpcaoArtigo = {
   id: "opt_1",
   nome: "Tamanho",
   posicao: 0,
+  versao: 1,
   valores: [
     { id: "ovl_1", valor: "15 ml", variantes: ["var_a"] },
     // Uma variante arquivada tem o seu valor como as outras.
@@ -24,6 +29,7 @@ const cor: OpcaoArtigo = {
   id: "opt_2",
   nome: "Cor",
   posicao: 1,
+  versao: 1,
   valores: [
     { id: "ovl_4", valor: "Azul", variantes: ["var_a"] },
     { id: "ovl_5", valor: "Rosa", variantes: [] },
@@ -50,5 +56,34 @@ describe("as opções na ficha", () => {
 
   it("um artigo sem opções não tem linha", () => {
     expect(linhaDasOpcoes([])).toBe("");
+  });
+});
+
+describe("a escrita das opções (docs/22 §21.3)", () => {
+  it("mover troca com o vizinho; nas pontas não se move", () => {
+    expect(moverNaLista(["a", "b", "c"], 1, -1)).toEqual(["b", "a", "c"]);
+    expect(moverNaLista(["a", "b", "c"], 1, 1)).toEqual(["a", "c", "b"]);
+    expect(moverNaLista(["a", "b", "c"], 0, -1)).toBeNull();
+    expect(moverNaLista(["a", "b", "c"], 2, 1)).toBeNull();
+  });
+
+  it("os valores de «Criar opção»: um por linha, sem espaços nas pontas nem linhas vazias", () => {
+    expect(valoresDoTexto(" 15 ml \n\n30 ml\n  ")).toEqual(["15 ml", "30 ml"]);
+    expect(valoresDoTexto("")).toEqual([]);
+    // Os exactamente iguais saem (revisão do #297, P3-2).
+    expect(valoresDoTexto("Azul\nAzul\n azul")).toEqual(["Azul", "azul"]);
+  });
+
+  it("as variantes activas sem valor numa opção; as arquivadas não contam", () => {
+    const variantes = [
+      { id: "var_a", estado: "activa" },
+      { id: "var_b", estado: "activa" },
+      { id: "var_c", estado: "arquivada" },
+    ];
+    // var_a tem 15 ml e Azul; var_b tem 30 ml e nenhuma cor.
+    expect(variantesIncompletas([tamanho, cor], variantes)).toEqual(["var_b"]);
+    expect(variantesIncompletas([], variantes)).toEqual([]);
+    expect(variantesComValor(cor, variantes)).toEqual(["var_a"]);
+    expect(variantesComValor(tamanho, variantes)).toEqual(["var_a", "var_b"]);
   });
 });

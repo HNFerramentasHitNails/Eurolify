@@ -134,7 +134,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0042_clientes_consentimentos",
         "0043_catalogo_versao_da_opcao",
         "0044_pagamentos",
-        "0045_clientes_duplicados_fusoes",
+        "0045_operador_papel_minimo",
+        "0046_clientes_duplicados_fusoes",
       ]);
     });
 
@@ -200,6 +201,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // os gatilhos, lêem-nas as funções do dono.
           "conta_pagamento_aviso",
           "tarefa_pagamento",
+          // Os pedidos do operador (0045): só a função do dono lhes toca.
+          "pedido_do_operador",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.
@@ -234,7 +237,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
       // declaração do regime do IVA (0040), as 8 do checkout (0041), os
       // consentimentos (0042), as 6 dos pagamentos (0044) e os candidatos a
-      // duplicado (0045).
+      // duplicado (0046).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(55);

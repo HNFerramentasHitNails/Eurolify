@@ -263,7 +263,7 @@ DO $$
 DECLARE
   f uuid;
 BEGIN
-  PERFORM set_config('eurolify.quem', 'sistema:migracao_0045', true);
+  PERFORM set_config('eurolify.quem', 'sistema:migracao_0046', true);
   ALTER TABLE cliente NO FORCE ROW LEVEL SECURITY;
   ALTER TABLE perfil_faturacao NO FORCE ROW LEVEL SECURITY;
   FOR f IN SELECT id FROM public.cliente WHERE estado = 'activo' ORDER BY id LOOP

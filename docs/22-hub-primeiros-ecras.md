@@ -1272,8 +1272,8 @@ acrescenta «50 ml» e passa-o para o primeiro lugar, mas já não pode mudar
 |---|---|---|
 | **Ficha** (§20.2), por cima da tabela das variantes | Com `catalog:write` e um artigo que não é externo: «Editar opções» (num artigo sem opções: «Criar opções»). | — |
 | **Editar opções** (`/artigos/{prd_…}/opcoes`) | Uma caixa por opção, pela ordem: o nome (campo, só em rascunho), os valores pela ordem, cada um com o texto (campo, só em rascunho), «Mover para antes», «Mover para depois» e «Apagar» (só em rascunho); no fim da caixa, «Acrescentar valor» (sempre). Por baixo das caixas, «Criar opção» (só em rascunho: o nome e um valor por linha). «Voltar à ficha» leva de volta. | a guardar; erro da API ao lado do campo (ex.: «Já há uma opção com este nome»); conflito de versão (§21.2) |
-| **Apagar** | Pede confirmação. Uma opção: «Apagar a opção Tamanho tira-a das 2 variantes. Não se desfaz.» Um valor: «As variantes com 30 ml ficam sem valor em Tamanho.» | duas variantes iguais depois de apagar: a frase da API («duas variantes activas com a mesma combinação») |
-| **Valores das variantes** (na mesma página, só em rascunho) | Uma tabela com uma linha por variante activa (SKU) e uma lista de escolha por opção («—» sem valor); «Guardar» por linha. Por cima, quantas variantes estão incompletas: «1 variante sem valor em todas as opções: o artigo não se activa assim.» | a guardar; erro da API na linha |
+| **Apagar** | Pede confirmação. Uma opção: «Apagar a opção Tamanho tira-a das 2 variantes que a têm. Não se desfaz.» (com uma ou nenhuma variante, o texto diz isso) Um valor: «As variantes com 30 ml ficam sem valor em Tamanho. Não se desfaz.» | duas variantes iguais depois de apagar: a frase da API («duas variantes activas com a mesma combinação») |
+| **Valores das variantes** (na mesma página, só em rascunho) | Uma tabela com uma linha por variante activa (SKU) e uma lista de escolha por opção («—» sem valor); «Guardar» por linha. Por cima, quantas variantes estão incompletas: «1 variante ainda sem valor numa das opções: o artigo não se activa assim.» (revisão do #297, P3-4) | a guardar; erro da API na linha |
 | **Activar** (cabeçalho da ficha, §13.4) | Sem mudanças: se faltar um valor, a API recusa com `catalog.options_incomplete` e o ecrã diz «Cada variante activa leva um valor de cada opção», com a ligação «Editar opções». | — |
 
 Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
@@ -1293,6 +1293,40 @@ Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
   se edita depois de activo, apaga um valor com confirmação e o conflito de
   versão com duas sessões; capturas a 375, 768 e 1280 px, claro e escuro, e
   só com teclado; as capturas vão à página de aprovação.
+
+## 22. As chaves a propor revogar depois de recuperar a conta (issue #107)
+
+Decisão do Diogo, 10/10/2026: *«só propor, não revogar sozinho»*
+(`docs/06`, DC; `docs/21` §12, revisão do #149, P2-1). Depois de recuperar
+a conta, todas as sessões terminam, mas as chaves de API que a pessoa criou
+continuam a funcionar. Uma sessão roubada pode ter criado uma chave, e essa
+chave fica.
+
+**O que muda:** no aviso «A conta foi recuperada» (`/conta`, §9.1), por baixo
+das três linhas que já lá estavam, aparece um bloco por cada comerciante de
+que a pessoa é dona: «Chaves de API que criou em «Loja de Ensaio»».
+
+| O quê | Como |
+|---|---|
+| Que chaves | as **activas** (nem revogadas nem expiradas) com `criada_por = pessoa:<esta pessoa>`, da mais nova para a mais antiga. As de outros membros, do operador ou criadas por outra chave não aparecem: não são desta pessoa |
+| Colunas | nome, começo da chave, criada em, último uso, «Revogar» |
+| Revogar | uma a uma, com a mesma confirmação e a mesma autenticação recente do ecrã das chaves (§9.3), e a mesma rota (`POST /hub/keys/{id}/revoke`). **Não há «revogar todas» nem nada automático** (DC) |
+| Sem chaves | «Não criou nenhuma chave activa neste comerciante.» |
+| Falha ao ler | a caixa de erro com «Tentar outra vez», só nesse bloco (os outros e o resto do aviso continuam) |
+| Rotas | `GET /hub/keys?comerciante=` (já existe); a API não muda |
+| Fechar o aviso | fecha também os blocos; as chaves continuam no ecrã «Chaves de API» |
+
+**Antes de dizer que está feito:** um teste da escolha das chaves (activas,
+desta pessoa, pela ordem) e a passagem pelo Chromium. A passagem faz uma
+segunda recuperação da Ana, depois de ela criar chaves (§9.3), e confere:
+- aparecem as chaves activas dela nesse comerciante, contadas na base
+  (hoje, «Com prazo» e «Sem resposta»);
+- não aparecem a revogada nem a do operador (as de outro membro e as
+  criadas por outra chave ficam provadas no teste da escolha);
+- nenhuma foi revogada sem ela;
+- revogar uma deixa só a outra.
+
+Capturas a 375 e 1280 px, claro e escuro, para a página de aprovação.
 
 ## O que não foi verificado
 

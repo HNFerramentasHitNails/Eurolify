@@ -26,7 +26,7 @@ fi
 falsos="$(mktemp -d)"
 install -d /usr/local/lib/eurolify /etc/eurolify /var/log/eurolify
 install -m 644 "$f/lib/comum.sh" /usr/local/lib/eurolify/comum.sh
-[[ -f /etc/eurolify/migrar.env ]] || : >/etc/eurolify/migrar.env
+[[ -f /etc/eurolify/operador.env ]] || : >/etc/eurolify/operador.env
 cat >"$falsos/docker" <<'FIM'
 #!/usr/bin/env bash
 echo "docker $*" >>"$FALSOS/docker-chamado"
@@ -34,6 +34,7 @@ case "$1" in
   inspect) echo "ghcr.io/eurolify/api@sha256:abc" ;;
   run)
     if [[ " $* " == *" --entrypoint test "* ]]; then exit "${SEM_COMANDO:-0}"; fi
+    if [[ " $* " == *" --entrypoint grep "*BASE_DADOS_URL_OPERADOR* ]]; then exit "${SEM_OPERADOR:-0}"; fi
     if [[ " $* " == *" --entrypoint grep "* ]]; then exit "${SEM_CONVITE:-0}"; fi
     echo '{"comerciante":"mer_x"}' ;;
 esac
@@ -54,7 +55,7 @@ FIM
 chmod 755 "$falsos/docker" "$falsos/systemctl"
 export PATH="$falsos:$PATH" FALSOS="$falsos"
 nome="$(printf '%s' 'Loja de Ensaio' | basenc --base64url -w0 | tr -d '=')"
-pedido="comerciante pt Europe/Lisbon $nome github:1001"
+pedido="comerciante pt Europe/Lisbon $nome run:1234567 github:1001"
 
 escreveu() { grep -q "node dist/operador.js" "$falsos/docker-chamado" 2>/dev/null; }
 caso() { # caso <descrição> <escreve: sim|nao> [VAR=valor…]
@@ -75,6 +76,35 @@ if [[ ! -f "$falsos/copia-chamada" ]]; then
   echo "ok: sem o comando, nem chega a fazer a cópia"
 else
   falhou "sem o comando, fez a cópia na mesma"
+fi
+# O comando corre com o papel do operador, nunca com o dono das tabelas
+# (migração 0045; revisão do #110, P3-8).
+caso "com cópia, outra vez" sim
+if grep -q -- "--env-file /etc/eurolify/operador.env" "$falsos/docker-chamado"; then
+  echo "ok: corre com o operador.env"
+else
+  falhou "não corre com o operador.env"
+fi
+if grep -q "migrar.env" "$falsos/docker-chamado"; then falhou "ainda usa o migrar.env"; else echo "ok: não usa o migrar.env"; fi
+rm -f "$falsos/copia-chamada"
+caso "uma imagem sem o papel do operador: não escreve" nao SEM_OPERADOR=1
+if [[ ! -f "$falsos/copia-chamada" ]]; then
+  echo "ok: sem o papel do operador na imagem, nem chega a fazer a cópia"
+else
+  falhou "sem o papel do operador na imagem, fez a cópia na mesma"
+fi
+mv /etc/eurolify/operador.env /etc/eurolify/operador.env.guardado
+caso "sem o operador.env: não escreve" nao
+mv /etc/eurolify/operador.env.guardado /etc/eurolify/operador.env
+if [[ ! -f "$falsos/copia-chamada" ]]; then
+  echo "ok: sem o operador.env, nem chega a fazer a cópia"
+else
+  falhou "sem o operador.env, fez a cópia na mesma"
+fi
+if bash "$f/sbin/eurolify-operador" "${pedido/ run:1234567/}" >/dev/null 2>&1; then
+  falhou "aceitou um comerciante sem o número da execução"
+else
+  echo "ok: recusa um comerciante sem o número da execução"
 fi
 if bash "$f/sbin/eurolify-operador" "$pedido;reboot" >/dev/null 2>&1; then
   falhou "aceitou um pedido fora do formato"

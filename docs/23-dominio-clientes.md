@@ -506,18 +506,18 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 | `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações por páginas e a régua por canal em todas | `src/clientes/rotas.ts` |
 | 18 testes; as mutações da régua e dos gatilhos todas apanhadas, salvo trocar o relógio pela hora do início da transacção, que depois da P2-1 dá a mesma ordem | `test/clientes-consentimentos.test.ts` |
 
-**Parte 2b — duplicados e fusões** (migração 0045; issue #233; Diogo,
+**Parte 2b — duplicados e fusões** (migração 0046; issue #233; Diogo,
 10/10/2026: *«sim, avança com a parte 2b»* e *«sim, copiar (A)»*):
 
 | O quê | Onde |
 |---|---|
-| a fila de candidatos (`duplicado_cliente`, `dup_`): o servidor sinaliza ao criar ou mudar uma ficha ou um perfil, nunca funde. Sinais: o mesmo NIF em perfis particulares (forte), o mesmo e-mail sem diferença de maiúsculas ou o mesmo telefone (talvez); o NIF de empresa (Q2) e o nome não são sinal; só o tipo do sinal, nunca o valor | migração 0045 |
-| descartar (`duplicado_descartar`) e fundir (`cliente_fundir`) só por uma pessoa ou a chave dela (R10); um sinal novo num par descartado volta a pô-lo por decidir (proposta) | migração 0045 |
-| a fusão com ensaio: a absorvida fica `fundido` com `fundido_em` (com a chave estrangeira, P3-10), os contactos acrescentam-se (recusa se passarem de 10), as etiquetas activas e os perfis activos copiam-se, a limitação passa; o par fica `fundido` e os outros pares da absorvida `fechado`; o evento `customer.merged` | migração 0045 |
-| os consentimentos das fundidas contam na régua da ficha que fica (`clientes_do_grupo`), e uma declaração com o id antigo vai para a que ficou (revisão do #289, P2-4) | migração 0045 |
+| a fila de candidatos (`duplicado_cliente`, `dup_`): o servidor sinaliza ao criar ou mudar uma ficha ou um perfil, nunca funde. Sinais: o mesmo NIF em perfis particulares (forte), o mesmo e-mail sem diferença de maiúsculas ou o mesmo telefone (talvez); o NIF de empresa (Q2) e o nome não são sinal; só o tipo do sinal, nunca o valor | migração 0046 |
+| descartar (`duplicado_descartar`) e fundir (`cliente_fundir`) só por uma pessoa ou a chave dela (R10); um sinal novo num par descartado volta a pô-lo por decidir (proposta) | migração 0046 |
+| a fusão com ensaio: a absorvida fica `fundido` com `fundido_em` (com a chave estrangeira, P3-10), os contactos acrescentam-se (recusa se passarem de 10), as etiquetas activas e os perfis activos copiam-se, a limitação passa; o par fica `fundido` e os outros pares da absorvida `fechado`; o evento `customer.merged` | migração 0046 |
+| os consentimentos das fundidas contam na régua da ficha que fica (`clientes_do_grupo`), e uma declaração com o id antigo vai para a que ficou (revisão do #289, P2-4) | migração 0046 |
 | `GET /customer-duplicates`, `POST /customer-duplicates/{id}/dismiss`, `POST /customers/{id}/merge` (`{ absorver, ensaio }`); a ficha mostra `fundido_em`, o perfil `copiado_de` | `src/clientes/rotas.ts` |
-| o âmbito `customers:merge` (dono e gestor) | migração 0045; `src/identidade/` |
-| 13 testes de fusões, o de consentimentos revisto e o da migração sobre dados | `test/clientes-fusoes.test.ts`, `test/migracao-0045.test.ts` |
+| o âmbito `customers:merge` (dono e gestor) | migração 0046; `src/identidade/` |
+| 13 testes de fusões, o de consentimentos revisto e o da migração sobre dados | `test/clientes-fusoes.test.ts`, `test/migracao-0046.test.ts` |
 
 **Depois da revisão do agente** (#298, Sonnet 5.5; sem P0 nem P1):
 - a ficha fundida é só de leitura também para uma isenção nova, tirar uma
@@ -527,7 +527,7 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 - o plano traz `marketing_antes` e `marketing_depois` (P2-1);
 - a cópia do principal da absorvida é a principal se a ficha que fica não
   tinha perfis (P3-6);
-- um teste da migração sobre fichas que já existiam (`migracao-0045.test.ts`).
+- um teste da migração sobre fichas que já existiam (`migracao-0046.test.ts`).
 
 **Fica de fora da 2b, com o que a revisão apontou:**
 - desfazer uma fusão (Fase 1 sem desfazer);

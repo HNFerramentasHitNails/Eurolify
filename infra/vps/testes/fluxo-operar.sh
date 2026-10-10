@@ -32,7 +32,7 @@ uuid=0199b1c2-3d4e-7f00-8a9b-0c1d2e3f4a5b
 resumo="$(printf 'a%.0s' {1..64})"
 montar() { # montar <ACCAO> <EMAIL> [RESUMO] — escreve o pedido em $pasta/pedido
   : >"$pasta/saida"
-  env -i PATH="$pasta:$PATH" GITHUB_OUTPUT="$pasta/saida" GITHUB_ACTOR_ID=1001 \
+  env -i PATH="$pasta:$PATH" GITHUB_OUTPUT="$pasta/saida" GITHUB_ACTOR_ID=1001 GITHUB_RUN_ID=1234567 \
     ACCAO="$1" NOME="" LINGUA=pt FUSO=Europe/Lisbon COMERCIANTE="mer_$uuid" \
     AMBITOS="" PREFIXO="" RESUMO="${3:-$resumo}" EMAIL="$2" \
     bash "$pasta/montar.sh" >/dev/null 2>&1
@@ -68,7 +68,7 @@ if montar chave "" "eul_sk_abcdefghij"; then falhou "aceitou um segredo de chave
 # primeiro ensaio, 08/10/2026).
 correr() { # correr <ACCAO> <NOME> <COMERCIANTE> <RESUMO> <EMAIL> [PREFIXO] [AMBITOS] [FUSO] — saída em $pasta/erro
   : >"$pasta/saida"
-  env -i PATH="$pasta:$PATH" GITHUB_OUTPUT="$pasta/saida" GITHUB_ACTOR_ID=1001 \
+  env -i PATH="$pasta:$PATH" GITHUB_OUTPUT="$pasta/saida" GITHUB_ACTOR_ID=1001 GITHUB_RUN_ID=1234567 \
     ACCAO="$1" NOME="$2" LINGUA=pt FUSO="${8:-Europe/Lisbon}" COMERCIANTE="$3" \
     AMBITOS="${7:-catalog:read}" PREFIXO="${6:-eul_sk_abcde}" RESUMO="$4" EMAIL="$5" \
     bash "$pasta/montar.sh" >/dev/null 2>"$pasta/erro"
@@ -102,7 +102,7 @@ recusa_com "nome com mais de 100 caracteres" "no máximo 100" comerciante "$(pri
 recusa_com "âmbito desconhecido" "âmbito desconhecido" chave "Gestão" "mer_$uuid" "$resumo" "" eul_sk_abcde "catalog:raed"
 recusa_com "âmbito storefront numa chave de servidor" "âmbito desconhecido" chave "Gestão" "mer_$uuid" "$resumo" "" eul_sk_abcde "storefront"
 recusa_com "fuso com «;»" "fuso horário" comerciante "Loja" "" "" "" "" "" "Europe/Lisbon;rm"
-if correr comerciante "Loja de Ensaio" "" "" "" && grep -q "^comerciante pt Europe/Lisbon " "$pasta/saida"; then
+if correr comerciante "Loja de Ensaio" "" "" "" && grep -qE "^comerciante pt Europe/Lisbon [A-Za-z0-9_-]+ run:1234567 github:1001$" "$pasta/saida"; then
   echo "ok: aceita um comerciante com nome"
 else
   falhou "não aceitou um comerciante com nome"

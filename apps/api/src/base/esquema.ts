@@ -698,7 +698,7 @@ export interface TabelaPerfilFaturacao {
   estado_vies: ColumnType<EstadoVies, never, never>;
   estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
   usado_em_documento: ColumnType<boolean, never, never>;
-  /** O perfil de onde veio a cópia numa fusão (migração 0045); só a fusão o põe. */
+  /** O perfil de onde veio a cópia numa fusão (migração 0046); só a fusão o põe. */
   copiado_de: ColumnType<string | null, never, never>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
@@ -798,7 +798,7 @@ export const ESTADOS_DUPLICADO = [
 ] as const;
 export type EstadoDuplicado = (typeof ESTADOS_DUPLICADO)[number];
 
-/** Um par de fichas que talvez sejam a mesma pessoa (migração 0045); a API só lê. */
+/** Um par de fichas que talvez sejam a mesma pessoa (migração 0046); a API só lê. */
 export interface TabelaDuplicadoCliente {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;

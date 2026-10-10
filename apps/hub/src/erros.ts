@@ -56,6 +56,15 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "catalog.gtin_duplicate": "artigoGtinDuplicado",
   "catalog.gtin_invalid": "artigoGtinInvalido",
   "catalog.content_incomplete": "artigoConteudoIncompleto",
+  // Escrever as opções (docs/22 §21.3); o conflito de versão de uma opção
+  // diz-o o próprio ecrã.
+  "catalog.option_duplicate": "erroOpcaoDuplicada",
+  "catalog.option_value_duplicate": "erroValorDuplicado",
+  "catalog.not_draft": "erroNaoRascunho",
+  "catalog.option_combination_duplicate": "erroCombinacaoRepetida",
+  "catalog.options_incomplete": "erroOpcoesIncompletas",
+  "catalog.order_mismatch": "erroOrdemDesactualizada",
+  "catalog.option_repeated": "erroOpcaoRepetida",
   "key.merchant_inactive": "erroChaveComercianteInactivo",
   "key.not_found": "erroChaveNaoExiste",
   "key.already_revoked": "erroChaveJaRevogada",

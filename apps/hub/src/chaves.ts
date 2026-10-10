@@ -69,3 +69,22 @@ export function fimDoDia(data: string): string | null {
   }
   return d.toISOString();
 }
+
+/**
+ * As chaves a propor revogar depois de recuperar a conta (docs/22 §22;
+ * `docs/06`, DC): as activas que esta pessoa criou, da mais nova para a mais
+ * antiga. Só se propõem; quem revoga é a pessoa, uma a uma.
+ */
+export function chavesAPropor(
+  chaves: readonly ChaveApi[],
+  pessoa: string,
+  agora: Date,
+): ChaveApi[] {
+  return chaves
+    .filter(
+      (c) =>
+        c.criada_por === `pessoa:${pessoa}` &&
+        estadoDaChave(c, agora).estado === "activa",
+    )
+    .sort((a, b) => b.criada_em.localeCompare(a.criada_em));
+}

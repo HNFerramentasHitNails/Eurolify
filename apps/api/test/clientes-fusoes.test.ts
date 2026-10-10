@@ -13,7 +13,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Clientes, parte 2b: duplicados e fusões (docs/23 §3.7; migração 0045;
+// Clientes, parte 2b: duplicados e fusões (docs/23 §3.7; migração 0046;
 // Diogo, 10/10/2026: os perfis copiam-se, opção A). O servidor sinaliza e
 // nunca funde; uma pessoa funde, com ensaio; nada do que já foi vendido muda.
 

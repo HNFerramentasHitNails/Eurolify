@@ -11,7 +11,7 @@ import { migrar, PASTA_MIGRACOES } from "../src/base/migracoes.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { apagarBase, URL_BASE } from "./base-de-teste.js";
 
-// A migração 0045 (duplicados e fusões) sobre uma base com fichas que já
+// A migração 0046 (duplicados e fusões) sobre uma base com fichas que já
 // existiam, como pode estar a do ensaio: as que partilham um e-mail entram na
 // fila uma vez, só dentro do mesmo comerciante, e o RLS das tabelas que a
 // migração desliga volta forçado. Corre com um migrador como o da VPS (dono
@@ -19,7 +19,7 @@ import { apagarBase, URL_BASE } from "./base-de-teste.js";
 
 const SENHA = "so-para-testes";
 
-describe.skipIf(URL_BASE === undefined)("migração 0045 sobre dados", () => {
+describe.skipIf(URL_BASE === undefined)("migração 0046 sobre dados", () => {
   const aFechar: (() => Promise<void>)[] = [];
 
   afterEach(async () => {
@@ -37,7 +37,7 @@ describe.skipIf(URL_BASE === undefined)("migração 0045 sobre dados", () => {
     return pathToFileURL(`${pasta}/`);
   }
 
-  async function baseAte0044(): Promise<Kysely<BaseDados>> {
+  async function baseAte0045(): Promise<Kysely<BaseDados>> {
     const urlAdmin = URL_BASE ?? "";
     const sufixo = randomBytes(6).toString("hex");
     const nome = `eurolify_teste_${sufixo}`;
@@ -78,7 +78,10 @@ describe.skipIf(URL_BASE === undefined)("migração 0045 sobre dados", () => {
       }),
     });
     aFechar.push(() => db.destroy());
-    await migrar(db as Kysely<unknown>, await pastaAte("0044_pagamentos.sql"));
+    await migrar(
+      db as Kysely<unknown>,
+      await pastaAte("0045_operador_papel_minimo.sql"),
+    );
     return db;
   }
 
@@ -106,7 +109,7 @@ describe.skipIf(URL_BASE === undefined)("migração 0045 sobre dados", () => {
   }
 
   it("as fichas que já partilhavam um e-mail entram na fila, só no mesmo comerciante; o RLS volta forçado", async () => {
-    const db = await baseAte0044();
+    const db = await baseAte0045();
     const A = await registarComerciante(db, {
       nome: "A",
       lingua: "pt",
@@ -124,10 +127,10 @@ describe.skipIf(URL_BASE === undefined)("migração 0045 sobre dados", () => {
 
     const { results } = await migrar(
       db as Kysely<unknown>,
-      await pastaAte("0045_clientes_duplicados_fusoes.sql"),
+      await pastaAte("0046_clientes_duplicados_fusoes.sql"),
     );
     expect(results?.map((r) => [r.migrationName, r.status])).toEqual([
-      ["0045_clientes_duplicados_fusoes", "Success"],
+      ["0046_clientes_duplicados_fusoes", "Success"],
     ]);
 
     const fila = (c: string) =>
