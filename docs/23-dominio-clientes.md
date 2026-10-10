@@ -259,7 +259,7 @@ com o mesmo RLS, ficam os valores — **proposta**.
 |---|---|---|
 | `perfil_id` | | regra (`eu-vat-oss-ioss`, «As peças») |
 | `motivo` | texto obrigatório; ex.: «transportadora própria, declaração aduaneira entregue» | regra |
-| `nota`, `anexos` | os anexos são ficheiros (PDF ou imagem), guardados no mesmo armazenamento das imagens do Catálogo | regra; o armazenamento **proposta** |
+| `nota`, `anexos` | os anexos são ficheiros (PDF ou imagem), guardados **na base de dados** (`docs/06`, DN; §13.11) | regra; o armazenamento decidido |
 | `posta_por`, `posta_em` | quem e quando | regra |
 | `retirada_por`, `retirada_em` | só uma pessoa a retira; **nenhum processo automático** | regra (`eu-vat-oss-ioss`, regra 4) |
 
@@ -711,10 +711,10 @@ consulta — proposta (Q7).
 
 - Não se altera: muda-se retirando e pondo outra (o histórico fica inteiro) —
   proposta.
-- **Anexos** (`anexo_isencao`): PDF, JPEG ou PNG, até 10 MB cada, até 5 por
-  isenção; no mesmo armazenamento das imagens, numa pasta privada, nunca
-  públicos; lêem-se pela API com `customers:exemptions` — proposta. O prazo de
-  guarda é o fiscal (**C**, V2).
+- **Anexos** (`anexo_isencao`, `exa_`): PDF, JPEG ou PNG, até 10 MB cada, até
+  5 por isenção; **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DN),
+  nunca públicos; os bytes lêem-se pela API com `customers:exemptions` — no
+  código (migração 0055, §13.11). O prazo de guarda é o fiscal (**C**, V2).
 - Eventos `billing_profile.exemption_set` e `billing_profile.exemption_removed`
   (`bpf_`, `exm_`, quem) — proposta (novos).
 
@@ -727,7 +727,7 @@ consulta — proposta (Q7).
 | Pôr uma isenção | `PUT /billing-profiles/{id}/exemption` (`{ motivo, nota }`) | `customers:exemptions` |
 | Retirar | `DELETE /billing-profiles/{id}/exemption` (`{ motivo_retirada }`) | `customers:exemptions` |
 | A isenção e o histórico | `GET /billing-profiles/{id}/exemptions` | `customers:read` |
-| Anexos | `POST /exemptions/{id}/attachments`, `GET /exemptions/{id}/attachments`, `GET /exemptions/{id}/attachments/{anexo}` | `customers:exemptions` |
+| Anexos | `POST /exemptions/{id}/attachments` e `GET /exemptions/{id}/attachments/{anexo}` (`customers:exemptions`); `GET /exemptions/{id}/attachments`, sem os bytes (`customers:read`) | ver §13.11 |
 
 O perfil passa a mostrar `validado_em` e se tem isenção em vigor.
 
@@ -781,10 +781,9 @@ minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
 | 20 testes (o adaptador contra um servidor HTTP falso; a API e a fila contra uma consulta falsa — nenhum chama a Comissão); 19 mutações desta versão, todas apanhadas | `test/clientes-vies.test.ts` |
 
 **Desvios do desenho:**
-- **Os anexos da isenção ficam para um pedido à parte**: a pasta das imagens
-  tem uma limpeza de ficheiros sem linha (`docs/14` §3.5), e os anexos
-  precisam de armazenamento próprio e privado, e das cópias da VPS. O motivo e
-  a nota já entram.
+- **Os anexos da isenção ficaram para um pedido à parte**: a pasta das imagens
+  tem uma limpeza de ficheiros sem linha (`docs/14` §3.5). Entraram depois, na
+  base de dados (§13.11).
 - **A consulta pedida** (`POST …/vies-checks`) não espera pelo VIES: põe o
   perfil à frente da fila e responde 202 (revisão do #244, P1-1).
 - **A fila vem desligada** até se medir a saída da VPS para a Comissão
@@ -807,6 +806,23 @@ próprio (P3-10); a pseudonimização do nome e morada devolvidos, na parte 2
 **Não verificado:** se o contentor da API na VPS sai para `ec.europa.eu`
 (sem saída, as provas ficam `indisponivel` com `SEM_LIGACAO`, e nada fica
 isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
+
+### 13.11 Os anexos da isenção em código (10/10/2026; migração 0055)
+
+| O quê | Onde |
+|---|---|
+| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DN): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0055 |
+| PDF, JPEG ou PNG **pela assinatura** (os primeiros bytes têm de ser do tipo dito; não há verificação da estrutura nem antivírus), até 10 MB, até 5 por isenção e até 1 GB por comerciante (como as imagens, proposta; revisão do #338, P2-2), só numa isenção em vigor de um perfil activo numa ficha activa (P2-1); o tamanho e o resumo (sha256) põe-nos a base; os bytes ficam como chegaram (é a prova: não se limpam metadados) | migração 0055 |
+| só uma pessoa ou a chave dela (`customers.exemption_by_person`), como a isenção | migração 0055 |
+| não se altera nem se apaga, nem pelo superutilizador (`audit.append_only`); a pseudonimização apaga os anexos das isenções dos perfis que ninguém usou e guarda os dos usados | migração 0055 |
+| `POST /exemptions/{id}/attachments` (o corpo são os bytes, com o Content-Type; `?nome=` opcional; no máximo 2 envios em simultâneo por comerciante) e `GET /exemptions/{id}/attachments/{anexo}` com `customers:exemptions`; `GET /exemptions/{id}/attachments` (sem os bytes) com `customers:read`. O descarregamento leva a extensão do tipo (nunca a que veio no nome), o nome em ASCII e em UTF-8 (RFC 6266), `nosniff` e `sandbox` (P1-1, P2-4) | `src/clientes/rotas.ts`, `repositorio.ts` |
+| a exportação do titular **lista** os anexos (sem os bytes); os bytes lêem-se pela rota deles, com `customers:exemptions` — se o acesso do titular exige os bytes na exportação é **C**, para o jurista (revisão do #338, P2-5) | `src/clientes/repositorio.ts` |
+| testes: `test/clientes-anexos-isencao.test.ts` (10: os tipos, os limites, a corrida no quinto lugar, a quota, a isenção retirada e o perfil pseudonimizado, o âmbito, o RLS dos bytes, a prova, a pseudonimização, o nome e os cabeçalhos, a idempotência, a exportação); 14 mutações, 13 apanhadas (a verificação do tipo na rota é uma segunda rede: sem ela, o leitor e a base recusam) | `test/` |
+
+**Fica por fazer:** o prazo de guarda (**C**, V2); medir o crescimento da base
+com anexos (não medido); o limite de envios em simultâneo não tem teste (é
+o mesmo das imagens); o resultado da pseudonimização não conta os anexos
+apagados (P3-6); o anexo não deixa evento nem rasto de leitura (P3-7).
 
 ## 14. Consentimento por contacto e dupla confirmação (desenho de 10/10/2026)
 

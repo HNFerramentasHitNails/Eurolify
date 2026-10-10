@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
@@ -9,8 +10,10 @@ import {
   ESTADOS_DUPLICADO,
   ESTADOS_VIES,
   SINAIS_DUPLICADO,
+  TIPOS_DE_ANEXO,
   TIPOS_PEDIDO_TITULAR,
   type BaseDados,
+  type TipoDeAnexo,
 } from "../base/esquema.js";
 import {
   ConsultaPagina,
@@ -60,6 +63,9 @@ import {
   porEtiqueta,
   registarConsentimento,
   confirmarConsentimento,
+  anexarIsencao,
+  listarAnexosDaIsencao,
+  lerAnexoDaIsencao,
   tirarEtiqueta,
   tornarPrincipal,
   traduzir,
@@ -113,6 +119,8 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.confirmation_exhausted": 409,
   "customers.confirmation_closed": 409,
   "customers.confirmation_rate_limited": 429,
+  "customers.exemption_attachments_full": 409,
+  "customers.exemption_attachments_quota": 409,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -1913,5 +1921,259 @@ export function rotasDosClientes(
         )
       ).map(paraIsencao),
     }),
+  );
+
+  // ---- Os anexos da isenção (§13.5; 0055), num plugin à parte: o leitor
+  // dos bytes (PDF, JPEG, PNG) não se mistura com o JSON das outras rotas
+  // nem com o do envio de imagens.
+  void instancia.register((filho, _o, pronto) => {
+    rotasDosAnexos(filho, base, isencoes, ler);
+    pronto();
+  });
+}
+
+const IdIsencao = idCom("exm", "exm_…");
+const IdAnexo = idCom("exa", "exa_…");
+/** 10 MB por anexo (proposta do §13.5). */
+const TAMANHO_DO_ANEXO = 10 * 1024 * 1024;
+const Anexo = Type.Object({
+  id: Type.String({ description: "exa_…" }),
+  isencao: Type.String({ description: "exm_…" }),
+  nome: Type.Union([Type.String(), Type.Null()]),
+  tipo: umDe(TIPOS_DE_ANEXO),
+  tamanho: Type.Integer(),
+  resumo: Type.String({ description: "sha256 dos bytes, em hexadecimal" }),
+  posto_por: Type.String(),
+  posto_em: Instante,
+});
+type LinhaAnexo = Awaited<ReturnType<typeof listarAnexosDaIsencao>>[number];
+const paraAnexo = (a: LinhaAnexo): Static<typeof Anexo> => ({
+  id: `exa_${a.id}`,
+  isencao: `exm_${a.isencao_id}`,
+  nome: a.nome,
+  tipo: a.tipo,
+  tamanho: a.tamanho,
+  resumo: a.resumo,
+  posto_por: a.posto_por,
+  posto_em: a.posto_em.toISOString(),
+});
+
+const EXTENSAO_DO_TIPO: Record<TipoDeAnexo, string> = {
+  "application/pdf": ".pdf",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+};
+
+/**
+ * O nome do ficheiro a descarregar: a extensão é sempre a do tipo (um
+ * «x.html» que é um PDF sai «x.pdf»), o nome em ASCII para os clientes
+ * antigos e o original em UTF-8 (RFC 6266 e 5987), para um «declaração –
+ * €.pdf» não partir o cabeçalho (revisão do #338, P1-1 e P2-4).
+ */
+export function disposicaoDoAnexo(
+  nome: string | null,
+  tipo: TipoDeAnexo,
+  resumo: string,
+): string {
+  const extensao = EXTENSAO_DO_TIPO[tipo];
+  const base = (nome ?? `anexo-${resumo.slice(0, 12)}`).replace(/\.[^.]*$/, "");
+  const ascii =
+    base
+      .normalize("NFKD")
+      .replace(/[^A-Za-z0-9._ -]/g, "")
+      .trim()
+      .slice(0, 150) || `anexo-${resumo.slice(0, 12)}`;
+  return `attachment; filename="${ascii}${extensao}"; filename*=UTF-8''${encodeURIComponent(base + extensao).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+}
+
+/** Envios de anexos em curso por comerciante (cada um ocupa até 10 MB de memória). */
+const ANEXOS_EM_SIMULTANEO = 2;
+
+function rotasDosAnexos(
+  instancia: FastifyInstance,
+  base: Kysely<BaseDados>,
+  isencoes: { ambito: "customers:exemptions" },
+  ler: { ambito: "customers:read" },
+) {
+  instancia.addContentTypeParser(
+    [...TIPOS_DE_ANEXO],
+    { parseAs: "buffer", bodyLimit: TAMANHO_DO_ANEXO },
+    (_pedido, corpo, feito) => {
+      feito(null, corpo);
+    },
+  );
+  // No máximo 2 envios em simultâneo por comerciante, contados antes de ler
+  // o corpo (como as imagens; revisão do #338, P2-2).
+  const emCurso = new Map<string, number>();
+  const contados = new WeakMap<object, string>();
+  const largar = (raw: object) => {
+    const c = contados.get(raw);
+    if (c === undefined) return;
+    contados.delete(raw);
+    const n = (emCurso.get(c) ?? 1) - 1;
+    if (n <= 0) emCurso.delete(c);
+    else emCurso.set(c, n);
+  };
+  instancia.addHook("onRequest", async (pedido, resposta) => {
+    if (pedido.method !== "POST") return;
+    const comercianteId = chaveDo(pedido).comercianteId;
+    const n = emCurso.get(comercianteId) ?? 0;
+    if (n >= ANEXOS_EM_SIMULTANEO) {
+      void resposta.header("Retry-After", "1");
+      throw erroBase(
+        "rate_limit.exceeded",
+        `no máximo ${String(ANEXOS_EM_SIMULTANEO)} envios de anexos ao mesmo tempo`,
+      );
+    }
+    emCurso.set(comercianteId, n + 1);
+    contados.set(pedido.raw, comercianteId);
+    resposta.raw.once("close", () => {
+      largar(pedido.raw);
+    });
+  });
+  instancia.addHook("onResponse", (pedido, _resposta, feito) => {
+    largar(pedido.raw);
+    feito();
+  });
+  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+
+  rotas.post(
+    "/exemptions/:id/attachments",
+    {
+      config: isencoes,
+      schema: {
+        description:
+          "Anexa um ficheiro (PDF, JPEG ou PNG, até 10 MB; o corpo são os bytes, com o Content-Type do ficheiro) a uma isenção manual em vigor; até 5 por isenção. É a prova: não se altera nem se apaga, e os bytes ficam como chegaram. Só uma pessoa ou a chave dela (docs/23 §13.5).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdIsencao),
+        querystring: Type.Object(
+          {
+            nome: Type.Optional(
+              Type.String({
+                minLength: 1,
+                maxLength: 200,
+                pattern: "^[^/\\\\]+$",
+                description: "O nome do ficheiro, sem caminho",
+              }),
+            ),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 201: Anexo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) => {
+      const tipo = (pedido.headers["content-type"] ?? "")
+        .split(";")[0]
+        ?.trim()
+        .toLowerCase() as TipoDeAnexo;
+      // Só os três tipos, e só em bytes (o JSON e o texto têm leitor próprio).
+      if (!TIPOS_DE_ANEXO.includes(tipo) || !Buffer.isBuffer(pedido.body)) {
+        throw erroBase(
+          "media_type.unsupported",
+          `um anexo é ${TIPOS_DE_ANEXO.join(", ")}`,
+        );
+      }
+      const bytes = pedido.body;
+      return escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        (trx, c) =>
+          emClientes(resposta, async () =>
+            paraAnexo(
+              await anexarIsencao(
+                trx,
+                c.comercianteId,
+                semPrefixo(pedido.params.id),
+                { tipo, nome: pedido.query.nome ?? null, bytes },
+              ),
+            ),
+          ),
+        undefined,
+        // A idempotência conta com o resumo dos bytes, não com eles.
+        {
+          resumo: createHash("sha256").update(bytes).digest("hex"),
+          tipo,
+          nome: pedido.query.nome ?? null,
+        },
+      );
+    },
+  );
+
+  rotas.get(
+    "/exemptions/:id/attachments",
+    {
+      config: ler,
+      schema: {
+        description: "Os anexos de uma isenção, sem os bytes.",
+        params: ParametroId(IdIsencao),
+        response: {
+          200: Type.Object({ dados: Type.Array(Anexo) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => ({
+      dados: (
+        await emClientes(resposta, () =>
+          listarAnexosDaIsencao(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+          ),
+        )
+      ).map(paraAnexo),
+    }),
+  );
+
+  rotas.get(
+    "/exemptions/:id/attachments/:anexo",
+    {
+      config: isencoes,
+      schema: {
+        description:
+          "Os bytes de um anexo, com o tipo dele (só com customers:exemptions).",
+        params: Type.Object({ id: IdIsencao, anexo: IdAnexo }),
+        response: {
+          200: {
+            description: "O ficheiro",
+            content: Object.fromEntries(
+              TIPOS_DE_ANEXO.map((t) => [
+                t,
+                { schema: { type: "string", format: "binary" } },
+              ]),
+            ),
+          },
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      const a = await emClientes(resposta, () =>
+        lerAnexoDaIsencao(
+          base,
+          chaveDo(pedido).comercianteId,
+          semPrefixo(pedido.params.id),
+          semPrefixo(pedido.params.anexo),
+        ),
+      );
+      return (
+        resposta
+          .header("content-type", a.tipo)
+          .header("etag", `"${a.resumo}"`)
+          .header("cache-control", "private, no-store")
+          // O navegador não adivinha outro tipo nem corre nada (como as
+          // imagens; revisão do #338, P2-4).
+          .header("x-content-type-options", "nosniff")
+          .header("content-security-policy", "default-src 'none'; sandbox")
+          .header(
+            "content-disposition",
+            disposicaoDoAnexo(a.nome, a.tipo, a.resumo),
+          )
+          .send(a.bytes)
+      );
+    },
   );
 }
