@@ -50,7 +50,9 @@ não se recusa.
 alterações), `movimento_stock`, `pedido_titular`, `consentimento`,
 `validacao_vies` e `diferenca_pagamento` — são o próprio registo do domínio,
 já com quem e quando, e só se acrescentam. Entram no rasto se um domínio o
-pedir.
+pedir. As declarações de consentimento e os pares de duplicados têm, além
+disso, uma linha na linha do tempo dos Clientes (`alteracao_cliente`, 0042 e
+0046), que segue as regras do rasto.
 
 **Já certo em todos:** só se acrescenta (os gatilhos recusam UPDATE, DELETE e
 TRUNCATE, também ao dono) e o `quem` é obrigatório onde há gatilho.
@@ -126,6 +128,21 @@ uma lista no código de cada gatilho. Proposta inicial (**Q1**):
 Os valores que não são pessoais (preços, estados, SKU, nomes de artigos)
 continuam em claro, como hoje.
 
+**Em código desde o passo 3 (migração 0054, #322):** a lista é a tabela
+`campo_sensivel` (por rasto, entidade e campo): a Q1, mais o país da morada e
+do contribuinte do perfil, o contacto de uma declaração de consentimento e o
+motivo escrito à mão de um par de duplicados (revisão do #340). A chave é
+gerada dentro da base, só o dono a lê e não muda (`chave_do_rasto`); o
+resumo leva o comerciante e o campo, para o mesmo valor não se ligar entre
+comerciantes. Para não mudar o contrato da linha do tempo, a forma
+`{antes, depois}` mantém-se e cada valor sensível passa a
+`{"protegido": true, "resumo": "<8 hex>"}`; um valor que não existia (nulo,
+lista vazia, texto vazio) fica como está. As Contas de pessoas não guardam
+valores no rasto (só o acto): nada a marcar aí, por agora. A língua e o país
+da ficha não são da Q1 e ficam em claro. Os perfis usados em documentos
+também ficam com o marcador na linha do tempo (Diogo, 10/10/2026: *«sim»*,
+à pergunta sobre a R9 do `docs/23`): a prova fiscal é a cópia no documento.
+
 ### 3.5 Quando e porquê (R6)
 
 - **Quando:** `em timestamptz` (guardado em UTC; o Hub mostra-o na hora de
@@ -141,8 +158,8 @@ continuam em claro, como hoje.
 2. As colunas novas nas tabelas do rasto que já existem (Catálogo, Clientes,
    Pagamentos, Encomendas, Comerciante), sem passado inventado: as linhas
    antigas ficam com «desconhecido».
-3. Os dados sensíveis marcados (§3.4), começando pelos Clientes. Os valores
-   em claro que já estão no rasto ficam como estão até decidir a **Q2**.
+3. Os dados sensíveis marcados (§3.4), começando pelos Clientes, e os
+   valores em claro que já estão no rasto passados a marcador (**Q2**).
 4. O cabeçalho `Eurolify-IA`, a marca «chave de um agente de IA» e o Hub a
    mostrar o rasto com as seis respostas.
 
@@ -156,6 +173,13 @@ continuam em claro, como hoje.
 | Q4 | Quanto tempo se guarda o rasto? | ✅ **Decidido** (Diogo, 10/10/2026): por decidir com o jurista e o contabilista (**C**; os 10 anos fiscais, `eu-gdpr-privacy`); até lá, não se apaga |
 
 ## 6. O que não foi verificado
+
+- **Confirmar um palpite pela API (passo 3):** quem puder escrever fichas de
+  um comerciante pode pôr um valor candidato numa ficha e comparar o resumo
+  com o de outra ficha do mesmo comerciante («o e-mail antigo era este?»).
+  Cada tentativa fica no rasto, e não dá o valor, só confirma palpites. Pôr a
+  ficha no resumo fechava isto, mas perdia-se a comparação entre fichas
+  (útil nos duplicados). Fica como está até alguém decidir o contrário.
 
 - O `transicao_encomenda` (0047) e o `historico_preco` (0017) foram lidos só
   pelo nome das colunas; se têm `origem`, falta conferir.

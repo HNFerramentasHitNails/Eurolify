@@ -416,6 +416,10 @@ const Alteracao = Type.Object({
   campos: Type.Record(
     Type.String(),
     Type.Object({ antes: Type.Unknown(), depois: Type.Unknown() }),
+    {
+      description:
+        "O antes e o depois de cada campo que mudou. Os campos sensíveis (o nome, os e-mails e os telefones da ficha; o nome, o NIF e a morada do perfil) trazem um marcador {protegido: true, resumo} em vez do valor: diz que mudou e se dois valores eram iguais, nunca qual era (docs/28 §3.4); vazio é que não havia valor.",
+    },
   ),
 });
 

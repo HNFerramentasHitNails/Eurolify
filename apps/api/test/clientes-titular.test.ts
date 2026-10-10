@@ -525,7 +525,11 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
         ).rows,
       ),
     );
-    expect(rasto).toContain(nif);
+    // O perfil guarda o NIF (acima); a linha do tempo guarda o marcador
+    // (docs/28 §3.4; 0054), não o NIF em claro. A prova fiscal é a cópia no
+    // documento (docs/29 §4, `documento_conteudo`).
+    expect(rasto).not.toContain(nif);
+    expect(rasto).toContain('"protegido":true');
   });
 
   it("as recusas só se abrem dentro da pseudonimização: nem a API nem o superutilizador, nem com a bandeira nem com a marca", async () => {
