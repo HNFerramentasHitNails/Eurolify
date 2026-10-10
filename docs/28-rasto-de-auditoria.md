@@ -126,6 +126,14 @@ uma lista no código de cada gatilho. Proposta inicial (**Q1**):
 Os valores que não são pessoais (preços, estados, SKU, nomes de artigos)
 continuam em claro, como hoje.
 
+**Em código desde o passo 3 (migração 0054, #322):** a lista é a tabela
+`campo_sensivel` (por rasto, entidade e campo); a chave é gerada dentro da
+base e só o dono a lê (`chave_do_rasto`). Para não mudar o contrato da linha
+do tempo, a forma `{antes, depois}` mantém-se e cada valor sensível passa a
+`{"protegido": true, "resumo": "<8 hex>"}`; um valor que não existia fica
+vazio. As Contas de pessoas não guardam valores no rasto (só o acto), e
+nenhuma tabela do rasto guarda notas: nada a marcar aí, por agora.
+
 ### 3.5 Quando e porquê (R6)
 
 - **Quando:** `em timestamptz` (guardado em UTC; o Hub mostra-o na hora de
