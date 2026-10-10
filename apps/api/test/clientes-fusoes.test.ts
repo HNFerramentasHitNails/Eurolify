@@ -42,7 +42,7 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
   let deB: string;
 
   const pedir = (
-    metodo: "POST" | "GET" | "PATCH" | "PUT",
+    metodo: "POST" | "GET" | "PATCH" | "PUT" | "DELETE",
     url: string,
     corpo?: unknown,
     segredo = dono,
@@ -544,12 +544,18 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
   it("a limitação de uma passa à que fica", async () => {
     const fica = await ficha({ nome: "L1" });
     const sai = await ficha({ nome: "L2" });
+    await declarar(sai, "aceitou");
     await comoDono((trx) =>
       sql`update cliente set limitado = true where id = ${sai.slice(4)}::uuid`.execute(
         trx,
       ),
     );
-    expect(await ok(fundir(fica, sai))).toMatchObject({ limitado: true });
+    // Limitada, a régua dá não, mesmo com o «aceitou» da absorvida.
+    expect(await ok(fundir(fica, sai))).toMatchObject({
+      limitado: true,
+      marketing_depois: { email: false },
+    });
+    expect((await regua(fica))["email"]).toBe(false);
     expect(await ok(pedir("GET", `/customers/${fica}`))).toMatchObject({
       limitado: true,
     });
@@ -614,5 +620,151 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
         "customers.invalid_transition",
       );
     }
+  });
+
+  it("a ficha fundida é só de leitura: nem isenção nova, nem tirar etiquetas, nem pedir o VIES; a fila do VIES dela fecha", async () => {
+    const fica = await ficha({ nome: "F" });
+    const sai = await ficha({ nome: "S" });
+    const pFr = await perfil(sai, {
+      tipo: "empresa",
+      nome_documento: "S SARL",
+      nif: "FR40303265045",
+    });
+    const t = await ok(
+      pedir("POST", "/customer-tags", { nome: `T ${unico()}` }),
+      201,
+    );
+    await ok(pedir("PUT", `/customers/${sai}/tags/${String(t["id"])}`));
+    const naFila = (perfilId: string) =>
+      comoDono(
+        async (trx) =>
+          (
+            await sql<{ n: string }>`
+            select count(*) as n from vies_fila
+            where perfil_id = ${perfilId.slice(4)}::uuid`.execute(trx)
+          ).rows[0]?.n,
+      );
+    expect(await naFila(String(pFr["id"]))).toBe("1");
+    const plano = await ok(fundir(fica, sai));
+    expect(await naFila(String(pFr["id"]))).toBe("0");
+    const copia = (plano["perfis_copiados"] as Json[])[0]?.["para"];
+    expect(await naFila(String(copia))).toBe("1");
+
+    await recusa(
+      pedir("PUT", `/billing-profiles/${String(pFr["id"])}/exemption`, {
+        codigo_motivo: "M05",
+        motivo: "transportadora própria",
+      }),
+      409,
+      "customers.invalid_transition",
+    );
+    await ok(
+      pedir("PUT", `/billing-profiles/${String(copia)}/exemption`, {
+        codigo_motivo: "M05",
+        motivo: "transportadora própria",
+      }),
+      201,
+    );
+    await recusa(
+      pedir("DELETE", `/customers/${sai}/tags/${String(t["id"])}`),
+      409,
+      "customers.invalid_transition",
+    );
+    // Esta app de teste não tem o VIES ligado: pede-se à função directamente.
+    const vies = await comoDono((trx) =>
+      sql`select vies_pedir(${String(pFr["id"]).slice(4)}::uuid)`
+        .execute(trx)
+        .then(
+          () => "pediu",
+          (e: unknown) => (e as Error).message,
+        ),
+    );
+    expect(vies).toMatch(/^customers\.invalid_transition:/);
+  });
+
+  it("o plano diz a régua do marketing antes e depois; vale a declaração mais recente das duas fichas", async () => {
+    // A que fica retirou; a absorvida aceitou depois: passa a sim.
+    const fica = await ficha({ nome: "F" });
+    const sai = await ficha({ nome: "S" });
+    await declarar(fica, "aceitou");
+    await declarar(fica, "retirou");
+    await declarar(sai, "aceitou");
+    const ensaio = await ok(fundir(fica, sai, true));
+    expect(ensaio).toMatchObject({
+      marketing_antes: { email: false, sms: false, whatsapp: false },
+      marketing_depois: { email: true, sms: false, whatsapp: false },
+    });
+    expect((await regua(fica))["email"]).toBe(false);
+    const real = await ok(fundir(fica, sai));
+    expect(real).toMatchObject({
+      marketing_antes: { email: false },
+      marketing_depois: { email: true },
+    });
+    expect((await regua(fica))["email"]).toBe(true);
+
+    // A que fica aceitou; a absorvida nunca declarou: continua sim, e o
+    // contacto acrescentado fica coberto (docs/23 §3.7, C).
+    const u = unico();
+    const x = await ficha({ nome: "X", emails: [`x.${u}@ex.pt`] });
+    const z = await ficha({ nome: "Z", emails: [`z.${u}@ex.pt`] });
+    await declarar(x, "aceitou");
+    expect(await ok(fundir(x, z, true))).toMatchObject({
+      emails_acrescentados: [`z.${u}@ex.pt`],
+      marketing_antes: { email: true },
+      marketing_depois: { email: true },
+    });
+  });
+
+  it("se a ficha que fica não tem perfis, o principal da absorvida é o principal das cópias", async () => {
+    const fica = await ficha({ nome: "F" });
+    const sai = await ficha({ nome: "S" });
+    await perfil(sai, { tipo: "particular", nome_documento: "Primeiro" });
+    const segundo = await perfil(sai, {
+      tipo: "particular",
+      nome_documento: "Segundo",
+    });
+    await ok(
+      pedir(
+        "POST",
+        `/billing-profiles/${String(segundo["id"])}/make-primary`,
+        {},
+      ),
+    );
+    await ok(fundir(fica, sai));
+    const perfis = (
+      await ok(pedir("GET", `/customers/${fica}/billing-profiles`))
+    )["dados"] as Json[];
+    expect(perfis.find((p) => p["principal"])).toMatchObject({
+      nome_documento: "Segundo",
+      copiado_de: segundo["id"],
+    });
+  });
+
+  it("os telefones também têm limite; um processo de sistema não descarta", async () => {
+    const tels = (base: number) =>
+      Array.from(
+        { length: 6 },
+        (_, i) => `+3519${String(base + i).padStart(8, "0")}`,
+      );
+    const t1 = await ficha({ nome: "T1", telefones: tels(40_000_000) });
+    const t2 = await ficha({ nome: "T2", telefones: tels(40_000_100) });
+    await recusa(fundir(t1, t2), 409, "customers.merge_too_many_contacts");
+
+    const u = unico();
+    const x = await ficha({ nome: "X", emails: [`s.${u}@ex.pt`] });
+    const y = await ficha({ nome: "Y", emails: [`s.${u}@ex.pt`] });
+    const par = await doPar(x, y);
+    const erro = await comoDono(async (trx) => {
+      await sql`select set_config('eurolify.quem', 'sistema:limpeza', true)`.execute(
+        trx,
+      );
+      return sql`select duplicado_descartar(${String(par?.["id"]).slice(4)}::uuid, 'automático')`
+        .execute(trx)
+        .then(
+          () => "descartou",
+          (e: unknown) => (e as Error).message,
+        );
+    });
+    expect(erro).toMatch(/^customers\.merge_by_person:/);
   });
 });

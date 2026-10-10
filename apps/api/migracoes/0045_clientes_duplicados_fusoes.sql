@@ -118,21 +118,34 @@ BEGIN
 END
 $$;
 
--- A régua conta as declarações do grupo: as da ficha e as das fundidas nela.
-CREATE OR REPLACE FUNCTION pode_receber_marketing(p_cliente uuid, p_canal text) RETURNS boolean
+-- A régua sobre um conjunto de fichas (as de um grupo): só declarações
+-- explícitas, vale a hora mais recente, empate ⇒ não, sem nenhuma ⇒ não. É a
+-- única que conta declarações: a `pode_receber_marketing` e o ensaio da fusão
+-- (o «depois») chamam-na (R6).
+CREATE FUNCTION regua_marketing(p_comerciante uuid, p_clientes uuid[], p_canal text)
+  RETURNS boolean
   LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT coalesce((
     SELECT bool_and(c.declaracao = 'aceitou')
-    FROM public.cliente f
-    JOIN public.consentimento c ON c.comerciante_id = f.comerciante_id
-    WHERE f.id = p_cliente AND f.estado = 'activo' AND NOT f.limitado
-      AND c.cliente_id IN (SELECT public.clientes_do_grupo(f.id))
+    FROM public.consentimento c
+    WHERE c.comerciante_id = p_comerciante AND c.cliente_id = ANY (p_clientes)
       AND c.canal = p_canal AND c.finalidade = 'marketing'
       AND c.declarado_em = (
         SELECT max(d.declarado_em) FROM public.consentimento d
-        WHERE d.comerciante_id = f.comerciante_id
-          AND d.cliente_id IN (SELECT public.clientes_do_grupo(f.id))
+        WHERE d.comerciante_id = p_comerciante AND d.cliente_id = ANY (p_clientes)
           AND d.canal = p_canal AND d.finalidade = 'marketing')), false)
+$$;
+
+-- A régua de uma ficha conta as declarações do grupo (as dela e as das
+-- fundidas nela). O grupo calcula-se uma vez, não por linha (revisão do #298,
+-- P2-3).
+CREATE OR REPLACE FUNCTION pode_receber_marketing(p_cliente uuid, p_canal text) RETURNS boolean
+  LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT coalesce((
+    SELECT public.regua_marketing(f.comerciante_id,
+      ARRAY(SELECT public.clientes_do_grupo(f.id)), p_canal)
+    FROM public.cliente f
+    WHERE f.id = p_cliente AND f.estado = 'activo' AND NOT f.limitado), false)
 $$;
 
 -- ------------------------------------------------- A fila de candidatos
@@ -140,7 +153,7 @@ $$;
 -- Os e-mails como se comparam: sem espaços nas pontas e em minúsculas.
 CREATE FUNCTION emails_para_comparar(p text[]) RETURNS text[]
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT coalesce(array_agg(lower(btrim(e)) ORDER BY 1), '{}') FROM unnest(p) e
+  SELECT coalesce(array_agg(lower(btrim(e)) ORDER BY lower(btrim(e))), '{}') FROM unnest(p) e
 $$;
 CREATE INDEX cliente_por_email ON cliente USING gin (emails_para_comparar(emails));
 CREATE INDEX cliente_por_telefone ON cliente USING gin (telefones);
@@ -316,6 +329,7 @@ DECLARE
   etiquetas_copiar uuid[];
   etiquetas_arquivadas uuid[];
   novo uuid;
+  marketing_antes jsonb;
   plano jsonb;
 BEGIN
   IF p_fica = p_absorve THEN
@@ -349,6 +363,10 @@ BEGIN
     RAISE EXCEPTION 'customers.merge_too_many_contacts: juntas, as fichas passavam de 10 e-mails ou 10 telefones; tire os que já não servem antes de fundir';
   END IF;
 
+  -- A régua da ficha que fica antes da fusão (a de depois calcula-se no plano).
+  SELECT jsonb_object_agg(k, public.pode_receber_marketing(p_fica, k)) INTO marketing_antes
+  FROM unnest(ARRAY['email', 'sms', 'whatsapp']) k;
+
   -- A absorvida fica fundida antes de tudo o resto: a procura de candidatos
   -- que as cópias e os contactos novos disparam já não a encontra.
   IF NOT p_ensaio THEN
@@ -357,9 +375,11 @@ BEGIN
 
   -- Os perfis activos da absorvida: copia-se cada um, salvo se a que fica já
   -- tem um activo igual.
+  -- O principal da absorvida primeiro: se a que fica não tem perfis, a cópia
+  -- dele é que fica principal (revisão do #298, P3-6).
   FOR p IN SELECT * FROM public.perfil_faturacao x
     WHERE x.comerciante_id = comerciante AND x.cliente_id = p_absorve AND x.estado = 'activo'
-    ORDER BY x.id LOOP
+    ORDER BY x.principal DESC, x.id LOOP
     IF EXISTS (
       SELECT FROM public.perfil_faturacao y
       WHERE y.comerciante_id = comerciante AND y.cliente_id = p_fica AND y.estado = 'activo'
@@ -425,7 +445,17 @@ BEGIN
     'encomendas_ficam_na_absorvida', (
       SELECT count(*) FROM public.encomenda o
       WHERE o.comerciante_id = comerciante AND o.cliente_id = p_absorve),
-    'limitado', fica.limitado OR absorve.limitado);
+    'limitado', fica.limitado OR absorve.limitado,
+    -- O que a régua do marketing dá na ficha que fica, antes e depois: o
+    -- consentimento passa a cobrir os contactos acrescentados (revisão do
+    -- #298, P2-1; docs/23 §3.7, C).
+    'marketing_antes', marketing_antes,
+    'marketing_depois', (
+      SELECT jsonb_object_agg(k, NOT (fica.limitado OR absorve.limitado)
+        AND public.regua_marketing(comerciante,
+          ARRAY(SELECT public.clientes_do_grupo(p_fica)
+                UNION SELECT public.clientes_do_grupo(p_absorve)), k))
+      FROM unnest(ARRAY['email', 'sms', 'whatsapp']) k));
   IF p_ensaio THEN
     RETURN plano;
   END IF;
@@ -436,6 +466,11 @@ BEGIN
   SET emails = fica.emails || emails_novos, telefones = fica.telefones || telefones_novos,
       limitado = fica.limitado OR absorve.limitado
   WHERE id = p_fica;
+  -- Os perfis da absorvida saem da fila do VIES (a consulta já os ignorava;
+  -- revisão do #298, P3-2); as cópias entram pela delas.
+  DELETE FROM public.vies_fila v
+  USING public.perfil_faturacao x
+  WHERE x.comerciante_id = comerciante AND x.cliente_id = p_absorve AND v.perfil_id = x.id;
   UPDATE public.duplicado_cliente
   SET estado = CASE WHEN cliente_a = least(p_fica, p_absorve)
                      AND cliente_b = greatest(p_fica, p_absorve) THEN 'fundido' ELSE 'fechado' END,
@@ -450,6 +485,75 @@ BEGIN
     jsonb_build_object('cliente_id', p_fica, 'absorvido_id', p_absorve, 'quem', quem,
       'em', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')));
   RETURN plano;
+END
+$$;
+
+-- ------------------------------------------- A ficha fundida, só de leitura
+
+-- Uma isenção nova, tirar uma etiqueta ou pedir o VIES numa ficha que não
+-- está activa: recusado (revisão do #298, P2-2). Quem segue a lista
+-- `isencoes_por_repor` de uma fusão põe a isenção na cópia, não no perfil
+-- antigo.
+CREATE FUNCTION isencao_so_em_ficha_activa() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  estado_da_ficha text;
+BEGIN
+  SELECT c.estado INTO estado_da_ficha
+  FROM public.perfil_faturacao p
+  JOIN public.cliente c ON c.comerciante_id = p.comerciante_id AND c.id = p.cliente_id
+  WHERE p.comerciante_id = NEW.comerciante_id AND p.id = NEW.perfil_id;
+  IF estado_da_ficha IS DISTINCT FROM 'activo' AND estado_da_ficha IS NOT NULL THEN
+    RAISE EXCEPTION 'customers.invalid_transition: a ficha do perfil está %; ponha a isenção na cópia do perfil', estado_da_ficha;
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER isencao_so_em_ficha_activa
+  BEFORE INSERT ON isencao_manual
+  FOR EACH ROW EXECUTE FUNCTION isencao_so_em_ficha_activa();
+ALTER TABLE isencao_manual ENABLE ALWAYS TRIGGER isencao_so_em_ficha_activa;
+
+CREATE FUNCTION cliente_etiqueta_antes_de_tirar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  estado_da_ficha text;
+BEGIN
+  SELECT c.estado INTO estado_da_ficha FROM public.cliente c
+  WHERE c.comerciante_id = OLD.comerciante_id AND c.id = OLD.cliente_id;
+  IF estado_da_ficha <> 'activo' THEN
+    RAISE EXCEPTION 'customers.invalid_transition: a ficha está %', estado_da_ficha;
+  END IF;
+  RETURN OLD;
+END
+$$;
+CREATE TRIGGER cliente_etiqueta_antes_de_tirar
+  BEFORE DELETE ON cliente_etiqueta
+  FOR EACH ROW EXECUTE FUNCTION cliente_etiqueta_antes_de_tirar();
+
+CREATE OR REPLACE FUNCTION vies_pedir(p_perfil uuid) RETURNS timestamptz
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  perfil record;
+BEGIN
+  SELECT p.comerciante_id, p.estado, p.estado_vies, p.nif_numero, c.estado AS estado_da_ficha
+    INTO perfil
+  FROM public.perfil_faturacao p
+  JOIN public.cliente c ON c.comerciante_id = p.comerciante_id AND c.id = p.cliente_id
+  WHERE p.id = p_perfil;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'customers.not_found: o perfil não existe';
+  END IF;
+  IF perfil.estado_da_ficha <> 'activo' THEN
+    RAISE EXCEPTION 'customers.invalid_transition: a ficha do perfil está %', perfil.estado_da_ficha;
+  END IF;
+  IF perfil.estado <> 'activo' OR perfil.estado_vies = 'nao_aplicavel' OR perfil.nif_numero IS NULL THEN
+    RAISE EXCEPTION 'customers.vies_not_applicable: o VIES só se consulta num perfil activo com NIF de outro país da UE';
+  END IF;
+  INSERT INTO public.vies_fila (perfil_id, comerciante_id, proxima_em, tentativas, motivo)
+  VALUES (p_perfil, perfil.comerciante_id, now(), 0, 'pedido')
+  ON CONFLICT (perfil_id) DO UPDATE SET proxima_em = now(), tentativas = 0, motivo = 'pedido';
+  RETURN now();
 END
 $$;
 
@@ -515,6 +619,9 @@ CREATE POLICY so_o_proprio ON duplicado_cliente
 -- A API só lê a fila; escrevem-na as funções do dono.
 GRANT SELECT ON duplicado_cliente TO eurolify_api;
 
+REVOKE EXECUTE ON FUNCTION regua_marketing(uuid, uuid[], text),
+  isencao_so_em_ficha_activa(), cliente_etiqueta_antes_de_tirar() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION regua_marketing(uuid, uuid[], text) TO eurolify_api;
 REVOKE EXECUTE ON FUNCTION clientes_do_grupo(uuid), emails_para_comparar(text[]),
   duplicados_sinalizar(uuid), cliente_sinalizar_duplicados(), clientes_quem_decide(),
   duplicado_descartar(uuid, text), cliente_fundir(uuid, uuid, boolean) FROM PUBLIC;

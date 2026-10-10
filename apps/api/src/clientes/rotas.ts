@@ -656,6 +656,14 @@ const PlanoFusaoEsquema = Type.Object({
   limitado: Type.Boolean({
     description: "A ficha que fica fica limitada se alguma das duas estava",
   }),
+  marketing_antes: ReguaMarketing,
+  marketing_depois: Type.Object(
+    { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
+    {
+      description:
+        "A régua da ficha que fica depois da fusão: conta as declarações das duas, e o consentimento passa a cobrir os contactos acrescentados (docs/23 §3.7)",
+    },
+  ),
 });
 
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });

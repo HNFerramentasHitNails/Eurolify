@@ -114,6 +114,9 @@ const FUNCOES_DA_API = [
   "recuperacao_concluir",
   "recuperacao_iniciar",
   "reducao_em_vigor",
+  // A régua do marketing sobre um grupo de fichas (0045): a pode_receber_marketing
+  // e o ensaio da fusão chamam-na.
+  "regua_marketing",
   "sessao_resolver",
   "sessao_terminar",
   "sessao_verificar",

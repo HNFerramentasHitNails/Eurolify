@@ -1202,6 +1202,8 @@ export interface PlanoFusao {
   consentimentos_da_absorvida: number;
   encomendas_ficam_na_absorvida: number;
   limitado: boolean;
+  marketing_antes: Record<CanalConsentimento, boolean>;
+  marketing_depois: Record<CanalConsentimento, boolean>;
 }
 
 /** Funde `absorve` em `fica` (cliente_fundir, migração 0045). */
