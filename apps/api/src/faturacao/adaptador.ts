@@ -159,6 +159,8 @@ interface ContaDoEnsaio {
   aliases: Map<string, EntidadeNoEmissor>;
   documentos: Map<string, DocumentoNoEmissor>;
   falhas: FalhasDoEnsaio;
+  /** Corre antes de responder a uma procura pela referência (corridas). */
+  antesDaProcura?: (() => Promise<void>) | undefined;
   /** Muda o rascunho ao criar (para provar que se confere antes de fechar). */
   aoCriar?: (d: DocumentoNoEmissor) => DocumentoNoEmissor;
   /** Muda o documento ao fechar (para provar a divergência). */
@@ -349,6 +351,13 @@ export class EmissorDeEnsaio implements AdaptadorFaturacao {
   ): Promise<Procura> {
     const c = this.daConta(credenciais);
     c.chamadas.push("procurarPorReferencia");
+    if (c.antesDaProcura !== undefined) {
+      const antes = c.antesDaProcura;
+      c.antesDaProcura = undefined;
+      return antes().then(() =>
+        this.procurarPorReferencia(credenciais, referencia),
+      );
+    }
     if (c.falhas.procurarPorReferencia === "rede") {
       return Promise.reject(
         new ErroDeRede("o emissor de ensaio não respondeu"),

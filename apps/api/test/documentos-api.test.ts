@@ -25,7 +25,10 @@ import {
 } from "../src/precos/repositorio.js";
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
-import { correrDocumentos } from "../src/faturacao/repositorio.js";
+import {
+  correrDocumentos,
+  processarDocumento,
+} from "../src/faturacao/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import { assinar, avisoEuPago, eupagoFalso } from "./eupago-falso.js";
 import {
@@ -530,7 +533,8 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
   /** Traz para agora a próxima tentativa dos incertos (o emissor teve tempo). */
   const adiantar = (s: Cenario) =>
     sql`update documento_fiscal set proxima_em = now() - interval '1 minute'
-      where comerciante_id = ${s.c}::uuid and estado = 'incerto'
+      where comerciante_id = ${s.c}::uuid
+        and estado in ('a_verificar', 'pronto', 'rascunho', 'incerto')
         and proxima_em < '9000-01-01'`.execute(base.dono);
 
   /** Corre a tarefa até o documento parar (no máximo 4 voltas). */
@@ -579,6 +583,17 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     const tipos = await eventos(s);
     expect(tipos).toContain("invoice.requested");
     expect(tipos).toContain("invoice.held");
+    // Sem NIF na compra, a correcção só aceita um NIF do país da entidade
+    // (a decisão de IVA foi nacional; P2-5).
+    expect(
+      await codigo(
+        s.adm("POST", `/invoices/${String(d?.["id"])}/correct`, {
+          versao: d?.["versao"],
+          motivo: "o cliente mandou o NIF da empresa",
+          nif: "ESB12345678",
+        }),
+      ),
+    ).toEqual([400, "invoices.invalid_field"]);
     // Uma encomenda por pagar não tem documento.
     const k = await checkoutCom(s, [[s.v1, 1]]);
     await preencher(s, k.token);
@@ -607,6 +622,7 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     });
     expect(ensaio.conta(conta).chamadas).toEqual([
       "testar",
+      "procurarPorReferencia",
       "procurarEntidade",
       "criarRascunho",
       "lerDocumento",
@@ -800,12 +816,11 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     const s = await cenario();
     const conta = `c-${randomUUID()}`;
     await ligar(s, conta);
-    ensaio.conta(conta).falhas = {
-      fechar: "rede",
-      procurarPorReferencia: "nao_sei",
-    };
+    ensaio.conta(conta).falhas = { fechar: "rede" };
     const e = await paga(s, [[s.v1, 1]]);
     await ateParar();
+    expect((await documentoDe(s, e.encomenda))?.["estado"]).toBe("incerto");
+    ensaio.conta(conta).falhas = { procurarPorReferencia: "nao_sei" };
     for (let i = 0; i < 3; i++) {
       await adiantar(s);
       await correr();
@@ -931,7 +946,32 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     const e = await paga(s, [[s.v1, 1]], "999999990");
     await ateParar();
     let d = (await documentoDe(s, e.encomenda)) as Json;
-    expect(d).toMatchObject({ estado: "retido", motivos: ["nif_recusado"] });
+    expect(d).toMatchObject({
+      estado: "retido",
+      motivos: ["nif_consumidor_final"],
+    });
+    // Não se liberta: corrige-se (R4, Q4).
+    expect(
+      await codigo(
+        s.adm("POST", `/invoices/${String(d["id"])}/release`, {
+          versao: d["versao"],
+          motivo_retencao: "nif_consumidor_final",
+          motivo: "o cliente diz que é este",
+        }),
+      ),
+    ).toEqual([400, "invoices.invalid_field"]);
+    // Corrigir para o NIF de consumidor final, ou para outro país, não entra.
+    for (const nif of ["999999990", "ESB12345678"]) {
+      expect(
+        await codigo(
+          s.adm("POST", `/invoices/${String(d["id"])}/correct`, {
+            versao: d["versao"],
+            motivo: "o cliente ligou",
+            nif,
+          }),
+        ),
+      ).toEqual([400, "invoices.invalid_field"]);
+    }
     // Não se corrigem montantes nem taxas.
     expect(
       await codigo(
@@ -976,13 +1016,82 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     expect(perfil.usado_em_documento).toBe(false);
   });
 
-  it("libertar o NIF recusado vale como validação (R9); só com invoices:write", async () => {
+  it("libertar o NIF recusado vale como validação (R9) e acaba numa correcção; só com invoices:write", async () => {
     const s = await cenario();
     const conta = `c-${randomUUID()}`;
-    await ligar(s, conta);
-    const e = await paga(s, [[s.v1, 1]], "999999990");
+    // Paga antes de se escolher quem emite: fica retida.
+    const e = await paga(s, [[s.v1, 1]], "501964843");
     await ateParar();
-    const d = (await documentoDe(s, e.encomenda)) as Json;
+    let d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["motivos"]).toContain("emissor_por_configurar");
+    // Um conteúdo com um NIF que a régua de hoje recusa (o caso de uma régua
+    // que mudou depois da compra).
+    const v1 = ((d["conteudos"] as Json[])[0] as Json)["conteudo"] as Json;
+    const v2 = {
+      ...v1,
+      cliente: { ...(v1["cliente"] as Json), nif_escrito: "XX1" },
+    };
+    await naBase(s, (trx) =>
+      trx
+        .insertInto("documento_conteudo")
+        .values({
+          documento_id: String(d["id"]).slice(4),
+          comerciante_id: s.c,
+          versao: 2,
+          conteudo: JSON.stringify(v2),
+          impressao: "0".repeat(64),
+          motivo: "teste: a régua mudou",
+          quem: "pessoa:teste",
+        })
+        .execute(),
+    );
+    // Ainda sem emissor: o NIF também fica retido; libertá-lo vale só para
+    // este conteúdo — corrigir outra coisa volta a pedir tudo (P1-5).
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/recheck`, {
+        versao: d["versao"],
+      }),
+    );
+    await ateParar();
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["motivos"]).toContain("nif_recusado");
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/release`, {
+        versao: d["versao"],
+        motivo_retencao: "nif_recusado",
+        motivo: "confirmado com o cliente",
+      }),
+    );
+    await ateParar();
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d).toMatchObject({ estado: "retido", validados: ["nif_recusado"] });
+    expect(d["motivos"]).not.toContain("nif_recusado");
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/correct`, {
+        versao: d["versao"],
+        motivo: "o nome da empresa estava abreviado",
+        nome_documento: "Rui Silva",
+      }),
+    );
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["validados"]).toEqual([]);
+    await ateParar();
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["motivos"]).toContain("nif_recusado");
+    // A entidade passa a emitir pelo Eurolify: a encomenda paga antes segue
+    // (P2-1), e o NIF fica retido.
+    await ligar(s, conta);
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/recheck`, {
+        versao: d["versao"],
+      }),
+    );
+    await ateParar();
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d).toMatchObject({ estado: "retido", motivos: ["nif_recusado"] });
+    expect((d["rasto"] as Json[]).map((p) => p["passo"])).toContain(
+      "emissor_decidido",
+    );
     const leitor = (
       await criarChave(base.dono, s.c, {
         tipo: "servidor",
@@ -1013,6 +1122,22 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         ),
       ),
     ).toEqual([403, "auth.forbidden"]);
+    expect(
+      (
+        await pedir("GET", `/invoices/${String(d["id"])}/pdf`, undefined, {
+          authorization: `Bearer ${
+            (
+              await criarChave(base.dono, s.c, {
+                tipo: "servidor",
+                criadaPor: "operador:teste",
+                nome: "Sem faturas",
+                ambitos: ["orders:read"],
+              })
+            ).segredo
+          }`,
+        })
+      ).statusCode,
+    ).toBe(403);
     await ok(s.adm("POST", `/invoices/${String(d["id"])}/release`, corpo));
     await ateParar();
     const depois = (await documentoDe(s, e.encomenda)) as Json;
@@ -1027,5 +1152,181 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
           String(p["quem"]).startsWith("chave:key_"),
       ),
     ).toBe(true);
+  });
+
+  it("um documento fechado no emissor sem a prova gravada prova-se, não se fecha outra vez (P1-1); recusas seguidas vão para uma pessoa (P1-2)", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    ensaio.conta(conta).falhas.fechar = "erro";
+    const e = await paga(s, [[s.v1, 1]]);
+    expect((await correr()).erros).toHaveLength(1);
+    let d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("rascunho");
+    // A tentativa anterior chegou a fechar (o emissor fechou e a resposta
+    // perdeu-se a meio da gravação): o documento está fechado lá.
+    const noEmissor = [...ensaio.conta(conta).documentos.values()][0];
+    if (noEmissor === undefined) throw new Error("sem rascunho");
+    ensaio.conta(conta).documentos.set(noEmissor.id, {
+      ...noEmissor,
+      estado: "fechado",
+      numero: "FT LOJA/7",
+    });
+    ensaio.conta(conta).falhas = {};
+    await adiantar(s);
+    await ateParar();
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("emitido");
+    expect((d["prova"] as Json)["numero"]).toBe("FT LOJA/7");
+    expect(
+      ensaio.conta(conta).chamadas.filter((x) => x === "fechar"),
+    ).toHaveLength(1);
+
+    // Outra encomenda: o emissor recusa sempre fechar.
+    ensaio.conta(conta).falhas.fechar = "erro";
+    const e2 = await paga(s, [[s.v1, 1]]);
+    for (let i = 0; i < 5; i++) {
+      await adiantar(s);
+      await correr();
+    }
+    d = (await documentoDe(s, e2.encomenda)) as Json;
+    expect(d).toMatchObject({
+      estado: "incerto",
+      motivos: ["reconciliacao_manual"],
+    });
+    expect(
+      (d["rasto"] as Json[]).filter((p) => p["passo"] === "falhou"),
+    ).toHaveLength(5);
+    // Fora da tarefa: não tapa a fila.
+    expect((await correr()).passos).toBe(0);
+  });
+
+  it("duas voltas ao mesmo tempo sobre o mesmo pronto: uma ganha, a outra pára sem chamar o emissor (P1-3)", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    const e = await paga(s, [[s.v1, 1]]);
+    const d = (await documentoDe(s, e.encomenda)) as Json;
+    const id = String(d["id"]).slice(4);
+    expect(await processarDocumento(base.api, s.c, id, faturacao)).toBe(
+      "pronto",
+    );
+    // Enquanto a primeira volta fala com o emissor (já reservou), começa
+    // outra volta e uma pessoa tenta decidir.
+    let segunda: PromiseSettledResult<string> | undefined;
+    let pessoa: number | undefined;
+    ensaio.conta(conta).antesDaProcura = async () => {
+      [segunda] = await Promise.allSettled([
+        processarDocumento(base.api, s.c, id, faturacao),
+      ]);
+      const agora = (await documentoDe(s, e.encomenda)) as Json;
+      pessoa = (
+        await s.adm("POST", `/invoices/${String(agora["id"])}/recheck`, {
+          versao: agora["versao"],
+        })
+      ).statusCode;
+    };
+    expect(await processarDocumento(base.api, s.c, id, faturacao)).toBe(
+      "rascunho",
+    );
+    expect(segunda?.status).toBe("rejected");
+    expect(String((segunda as PromiseRejectedResult).reason)).toMatch(
+      /outra volta/,
+    );
+    // A pessoa não decide um pronto (só retidos), mas nunca a meio.
+    expect(pessoa).toBe(409);
+    expect(
+      ensaio.conta(conta).chamadas.filter((x) => x === "criarRascunho"),
+    ).toHaveLength(1);
+    await adiantar(s);
+    await ateParar();
+    expect((await documentoDe(s, e.encomenda))?.["estado"]).toBe("emitido");
+    expect(ensaio.conta(conta).documentos.size).toBe(1);
+  });
+
+  it("desligar a ligação pára um documento já pronto (P2-6)", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    const ligacao = await ligar(s, conta);
+    const e = await paga(s, [[s.v1, 1]]);
+    const d = (await documentoDe(s, e.encomenda)) as Json;
+    const id = String(d["id"]).slice(4);
+    expect(await processarDocumento(base.api, s.c, id, faturacao)).toBe(
+      "pronto",
+    );
+    const l = (
+      (await ok(s.adm("GET", "/invoicing-connections")))["dados"] as Json[]
+    ).find((x) => x["id"] === ligacao) as Json;
+    await ok(
+      s.adm("PATCH", `/invoicing-connections/${ligacao}`, {
+        versao: l["versao"],
+        activa: false,
+      }),
+    );
+    expect(await processarDocumento(base.api, s.c, id, faturacao)).toBe(
+      "retido",
+    );
+    expect((await documentoDe(s, e.encomenda))?.["motivos"]).toEqual([
+      "ligacao_sem_teste",
+    ]);
+    expect(ensaio.conta(conta).chamadas).not.toContain("criarRascunho");
+  });
+
+  it("uma taxa do emissor não serve dois pares; credenciais cifradas; outro comerciante não vê o documento", async () => {
+    const s = await cenario();
+    expect(
+      await codigo(
+        s.adm("POST", "/invoicing-connections", {
+          entidade_legal: `lgl_${s.entidade}`,
+          adaptador: "ensaio",
+          taxas: [
+            { pais: "PT", taxa: 2300, emissor: "T23" },
+            { pais: "ES", taxa: 2100, emissor: "T23" },
+          ],
+        }),
+      ),
+    ).toEqual([400, "invoices.invalid_field"]);
+    expect(
+      await codigo(
+        s.adm("POST", "/invoicing-connections", {
+          entidade_legal: `lgl_${s.entidade}`,
+          adaptador: "ensaio",
+          isencoes: [
+            { codigo: "M05", emissor: "I1" },
+            { codigo: "M16", emissor: "I1" },
+          ],
+        }),
+      ),
+    ).toEqual([400, "invoices.invalid_field"]);
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    const cifra = await sql<{
+      credenciais: Buffer;
+    }>`select credenciais from ligacao_faturacao
+      where comerciante_id = ${s.c}::uuid`.execute(base.dono);
+    expect(cifra.rows[0]?.credenciais.toString("latin1")).not.toContain(conta);
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    const d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("emitido");
+    const vizinho = await cenario();
+    expect(
+      await codigo(vizinho.adm("GET", `/invoices/${String(d["id"])}`)),
+    ).toEqual([404, "invoices.not_found"]);
+    // A base só deixa andar pelos caminhos da §4.1: um emitido não volta a
+    // pronto, nem pela API com acesso à coluna.
+    await expect(
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        await sql`update documento_fiscal set estado = 'pronto'
+          where id = ${String(d["id"]).slice(4)}::uuid`.execute(trx);
+      }),
+    ).rejects.toThrow(/invoices.invalid_transition/);
+    // A confirmação pública não mostra o estado fiscal (P2-10).
+    const conf = await ok(pedir("GET", `/checkout/${e.token}/confirmation`));
+    expect(conf).not.toHaveProperty("documento");
+    expect(conf).not.toHaveProperty("emissor_fiscal");
   });
 });

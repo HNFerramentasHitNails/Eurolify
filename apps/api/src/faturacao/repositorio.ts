@@ -39,6 +39,10 @@ export const MOTIVOS_RETENCAO = [
   "emissor_por_configurar",
   "ligacao_sem_teste",
   "nif_recusado",
+  // Um NIF de consumidor final dado como NIF, ou uma empresa sem NIF: sairia
+  // como consumidor final, por isso nunca se liberta, corrige-se (R4, Q4;
+  // revisão do #312, P2-3).
+  "nif_consumidor_final",
   "perfil_de_outra_ficha",
   "isencao_sem_prova",
   "taxa_sem_mapa",
@@ -300,11 +304,21 @@ export async function definirCredenciais(
 }
 
 function credenciaisDe(
-  l: { id: string; credenciais: Buffer | null },
+  l: {
+    id: string;
+    credenciais: Buffer | null;
+    credenciais_versao_chave: string | null;
+  },
   cfg: ConfigFaturacao | undefined,
 ): CredenciaisEmissor | null {
   if (l.credenciais === null) return null;
   const chave = exigirChave(cfg);
+  if (l.credenciais_versao_chave !== chave.versao) {
+    throw new ErroDocumentos(
+      "invoices.not_configured",
+      "as credenciais foram cifradas com outra versão da chave (FATURACAO_CHAVE_VERSAO)",
+    );
+  }
   return JSON.parse(
     decifrar(l.credenciais, l.id, "credenciais", chave),
   ) as CredenciaisEmissor;
@@ -331,11 +345,13 @@ export async function testarLigacao(
     await adaptadorDe(cfg, l.adaptador).testar(credenciais);
   } catch (e) {
     if (!(e instanceof ErroDoEmissor) && !(e instanceof ErroDeRede)) throw e;
-    erro = e.message.slice(0, 500);
+    erro = e.message.slice(0, 200);
   }
   await noDocumentos(db, c, async (trx) => {
     await marcar(trx, quem);
-    const agora = await ligacaoParaMudar(trx, id, null);
+    // O resultado é das credenciais e dos mapas lidos: se mudaram durante o
+    // teste, não vale (revisão do #312, P2-7).
+    const agora = await ligacaoParaMudar(trx, id, l.versao);
     await trx
       .updateTable("ligacao_faturacao")
       .set({
@@ -608,23 +624,22 @@ async function ultimoConteudo(
 
 // ------------------------------------------------------- As verificações (R3)
 
+const ehConsumidorFinal = (pais: string | null, numero: string | null) =>
+  pais !== null &&
+  numero !== null &&
+  (NIF_DE_CONSUMIDOR_FINAL[pais] ?? []).includes(numero);
+
 async function nifRecusado(
   trx: Transaction<BaseDados>,
   cliente: Conteudo["cliente"],
   paisEntidade: string,
-): Promise<boolean> {
+): Promise<"nif_recusado" | "nif_consumidor_final" | null> {
   if (cliente.nif_escrito === null) {
     // Uma empresa sem NIF não sai como consumidor final (R4).
-    return cliente.tipo === "empresa";
+    return cliente.tipo === "empresa" ? "nif_consumidor_final" : null;
   }
-  if (
-    cliente.pais_contribuinte !== null &&
-    cliente.nif_numero !== null &&
-    (NIF_DE_CONSUMIDOR_FINAL[cliente.pais_contribuinte] ?? []).includes(
-      cliente.nif_numero,
-    )
-  ) {
-    return true;
+  if (ehConsumidorFinal(cliente.pais_contribuinte, cliente.nif_numero)) {
+    return "nif_consumidor_final";
   }
   // A régua do docs/23 (nif_regua) hoje: a mesma função que o perfil usou.
   await sql`savepoint nif_regua`.execute(trx);
@@ -638,15 +653,15 @@ async function nifRecusado(
     await sql`release savepoint nif_regua`.execute(trx);
     const r = rows[0] as
       { pais: string | null; numero: string | null } | undefined;
-    return (
-      r === undefined ||
+    return r === undefined ||
       r.numero !== cliente.nif_numero ||
       r.pais !== cliente.pais_contribuinte
-    );
+      ? "nif_recusado"
+      : null;
   } catch (erro) {
     await sql`rollback to savepoint nif_regua`.execute(trx);
     if (erro instanceof Error && erro.message.startsWith("customers.nif_")) {
-      return true;
+      return "nif_recusado";
     }
     throw erro;
   }
@@ -716,10 +731,18 @@ export function motivosDoConteudo(
 /** Os motivos de retenção de um conteúdo (R3), sem os já validados (R9). */
 async function verificar(
   trx: Transaction<BaseDados>,
-  doc: { encomenda_id: string; modo: string; validados: string[] },
+  c: string,
+  doc: {
+    id: string;
+    encomenda_id: string;
+    entidade_legal_id: string;
+    modo: string;
+    validados: string[];
+  },
   conteudo: Conteudo,
   ligacao: {
     estado: string;
+    activa: boolean;
     taxas: TaxaDoEmissor[];
     isencoes: IsencaoDoEmissor[];
   } | null,
@@ -730,13 +753,39 @@ async function verificar(
     .select(["emissor_fiscal", "cliente_id", "perfil_id"])
     .where("id", "=", doc.encomenda_id)
     .executeTakeFirstOrThrow();
-  if (e.emissor_fiscal !== "eurolify") motivos.add("emissor_por_configurar");
-  if (ligacao === null || ligacao.estado !== "pronta") {
+  if (e.emissor_fiscal === "por_configurar") {
+    // Uma encomenda paga antes de se escolher quem emite: se a entidade já
+    // emite pelo Eurolify, este pedido segue, com o rasto a dizê-lo (revisão
+    // do #312, P2-1). Se escolheu o sistema próprio, fica retido.
+    const entidade = await trx
+      .selectFrom("entidade_legal")
+      .select("emissor_fiscal")
+      .where("id", "=", doc.entidade_legal_id)
+      .executeTakeFirstOrThrow();
+    if (entidade.emissor_fiscal === "eurolify") {
+      await rasto(
+        trx,
+        c,
+        doc.id,
+        "emissor_decidido",
+        "a encomenda foi paga antes de se escolher quem emite; a entidade emite pelo Eurolify",
+        QUEM_DA_TAREFA,
+      );
+    } else {
+      motivos.add("emissor_por_configurar");
+    }
+  } else if (e.emissor_fiscal !== "eurolify") {
+    motivos.add("emissor_por_configurar");
+  }
+  if (ligacao === null || ligacao.estado !== "pronta" || !ligacao.activa) {
     motivos.add("ligacao_sem_teste");
   }
-  if (await nifRecusado(trx, conteudo.cliente, conteudo.entidade_legal.pais)) {
-    motivos.add("nif_recusado");
-  }
+  const nif = await nifRecusado(
+    trx,
+    conteudo.cliente,
+    conteudo.entidade_legal.pais,
+  );
+  if (nif !== null) motivos.add(nif);
   const perfil = await trx
     .selectFrom("perfil_faturacao")
     .select("cliente_id")
@@ -762,6 +811,8 @@ export function comparar(
   c: Conteudo,
   d: DocumentoNoEmissor,
   referencia: string,
+  /** A série da ligação (R6), quando se sabe. */
+  serie?: string | null,
 ): Divergencia[] {
   const r: Divergencia[] = [];
   const dif = (campo: string, esperado: unknown, obtido: unknown) => {
@@ -773,6 +824,10 @@ export function comparar(
     c.cliente.nif_numero,
     nifSoNumero(d.nif, c.cliente.pais_contribuinte),
   );
+  // O país e o nome também (revisão do #312, P2-8).
+  dif("pais", c.cliente.pais_contribuinte, d.pais);
+  dif("nome", c.cliente.nome, d.nome);
+  if (serie !== undefined && serie !== null) dif("serie", serie, d.serie);
   dif("linhas", c.linhas.length, d.linhas.length);
   c.linhas.forEach((l, i) => {
     const o = d.linhas[i];
@@ -840,6 +895,11 @@ function pedidoDoConteudo(
 
 export const referenciaDe = (id: string) => `inv_${id}`;
 
+/** Voltas seguidas com o passo a falhar até ir para uma pessoa (P1-2). */
+const FALHAS_ATE_PESSOA = 5;
+/** «Nunca mais sozinho»: só uma pessoa o volta a pôr na fila. */
+const NUNCA = new Date("9999-12-31T00:00:00Z");
+
 interface Contexto {
   doc: {
     id: string;
@@ -851,6 +911,8 @@ interface Contexto {
     validados: string[];
     emissor_id: string | null;
     tentativas: number;
+    falhas: number;
+    reservado_ate: Date | null;
     versao: number;
   };
   conteudo: Conteudo;
@@ -858,10 +920,12 @@ interface Contexto {
     id: string;
     adaptador: string;
     estado: string;
+    activa: boolean;
     serie: string | null;
     taxas: TaxaDoEmissor[];
     isencoes: IsencaoDoEmissor[];
     credenciais: Buffer | null;
+    credenciais_versao_chave: string | null;
   } | null;
 }
 
@@ -882,6 +946,8 @@ async function lerContexto(
       "validados",
       "emissor_id",
       "tentativas",
+      "falhas",
+      "reservado_ate",
       "versao",
       "ligacao_id",
     ])
@@ -921,10 +987,12 @@ async function lerContexto(
       "id",
       "adaptador",
       "estado",
+      "activa",
       "serie",
       "taxas",
       "isencoes",
       "credenciais",
+      "credenciais_versao_chave",
     ])
     .executeTakeFirst();
   return {
@@ -932,6 +1000,30 @@ async function lerContexto(
     conteudo: ultimo.conteudo as Conteudo,
     ligacao: ligacao ?? null,
   };
+}
+
+const OCUPADO = () =>
+  new ErroDocumentos(
+    "invoices.version_conflict",
+    "o documento mudou (outra volta da tarefa ou uma pessoa)",
+  );
+
+/**
+ * Relê o documento e exige a mesma versão e o mesmo estado (compare-and-set;
+ * revisão do #312, P1-3): quem perdeu a corrida pára.
+ */
+async function continuar(
+  trx: Transaction<BaseDados>,
+  ctx: Contexto,
+): Promise<Contexto> {
+  const agora = await lerContexto(trx, ctx.doc.id, true);
+  if (
+    agora.doc.versao !== ctx.doc.versao ||
+    agora.doc.estado !== ctx.doc.estado
+  ) {
+    throw OCUPADO();
+  }
+  return agora;
 }
 
 async function mudarEstado(
@@ -947,18 +1039,106 @@ async function mudarEstado(
     validados?: string[];
   } = {},
 ) {
-  await trx
+  const r = await trx
     .updateTable("documento_fiscal")
     .set({
       estado,
       versao: ctx.doc.versao + 1,
+      falhas: 0,
+      reservado_ate: null,
+      // Por omissão, o passo seguinte pode correr já (revisão do #312, P2-2).
+      proxima_em: new Date(),
       ...extra,
     })
     .where("id", "=", ctx.doc.id)
     .where("versao", "=", ctx.doc.versao)
-    .executeTakeFirstOrThrow();
+    .executeTakeFirst();
+  if (Number(r.numUpdatedRows) === 0) throw OCUPADO();
   ctx.doc.versao += 1;
   ctx.doc.estado = estado;
+  if (extra.tentativas !== undefined) ctx.doc.tentativas = extra.tentativas;
+  if (extra.emissor_id !== undefined) ctx.doc.emissor_id = extra.emissor_id;
+}
+
+/**
+ * Reserva o documento antes de chamar o emissor (P1-3): a versão sobe e a
+ * próxima tentativa passa para daqui a 5 minutos, por isso nenhuma outra volta
+ * nem nenhuma pessoa lhe pega a meio.
+ */
+async function reservar(
+  db: Kysely<BaseDados>,
+  c: string,
+  ctx: Contexto,
+  extra: { tentativas?: number } = {},
+) {
+  const ate = new Date(Date.now() + 5 * 60_000);
+  await noDocumentos(db, c, async (trx) => {
+    const r = await trx
+      .updateTable("documento_fiscal")
+      .set({
+        proxima_em: ate,
+        reservado_ate: ate,
+        versao: ctx.doc.versao + 1,
+        ...extra,
+      })
+      .where("id", "=", ctx.doc.id)
+      .where("versao", "=", ctx.doc.versao)
+      .where("estado", "=", ctx.doc.estado)
+      .where((eb) =>
+        eb.or([
+          eb("reservado_ate", "is", null),
+          eb("reservado_ate", "<", new Date()),
+          eb("reservado_ate", "=", ctx.doc.reservado_ate),
+        ]),
+      )
+      .executeTakeFirst();
+    if (Number(r.numUpdatedRows) === 0) throw OCUPADO();
+  });
+  ctx.doc.versao += 1;
+  ctx.doc.reservado_ate = ate;
+  if (extra.tentativas !== undefined) ctx.doc.tentativas = extra.tentativas;
+}
+
+/** Reservado por outra volta, ainda dentro do prazo. */
+const reservadoPorOutro = (ctx: Contexto) =>
+  ctx.doc.reservado_ate !== null &&
+  ctx.doc.reservado_ate.getTime() > Date.now();
+
+async function paraRetido(
+  db: Kysely<BaseDados>,
+  c: string,
+  ctx: Contexto,
+  motivos: string[],
+  porque: string,
+  extra: { emissor_id?: null } = {},
+) {
+  await noDocumentos(db, c, async (trx) => {
+    await marcar(trx, QUEM_DA_TAREFA, porque);
+    const agora = await continuar(trx, ctx);
+    await mudarEstado(trx, agora, "retido", { motivos, ...extra });
+    ctx.doc = agora.doc;
+  });
+  return "retido";
+}
+
+async function paraIncerto(
+  db: Kysely<BaseDados>,
+  c: string,
+  ctx: Contexto,
+  porque: string,
+) {
+  await noDocumentos(db, c, async (trx) => {
+    await marcar(trx, QUEM_DA_TAREFA, porque);
+    const agora = await continuar(trx, ctx);
+    // A reconciliação espera um minuto: o emissor pode ainda estar a
+    // acabar o que lhe pedimos (§4.2).
+    await mudarEstado(trx, agora, "incerto", {
+      tentativas: 0,
+      proxima_em: new Date(Date.now() + 60_000),
+    });
+    ctx.doc = agora.doc;
+  });
+  return "incerto";
 }
 
 /** Grava a prova (lida de volta) e o estado final: emitido ou divergente. */
@@ -970,22 +1150,30 @@ async function gravarProva(
   pdf: Buffer | null,
   quem: string,
 ) {
-  const divergencias = comparar(ctx.conteudo, d, referenciaDe(ctx.doc.id));
+  // Um documento sem número, ou ainda não fechado, não é prova (P1-1).
+  if (d.estado !== "fechado" || d.numero === null || d.numero === "") {
+    return paraIncerto(
+      db,
+      c,
+      ctx,
+      "o emissor devolveu um documento sem número",
+    );
+  }
+  const divergencias = comparar(
+    ctx.conteudo,
+    d,
+    referenciaDe(ctx.doc.id),
+    ctx.ligacao?.serie,
+  );
   await noDocumentos(db, c, async (trx) => {
     await marcar(trx, quem);
-    const agora = await lerContexto(trx, ctx.doc.id, true);
-    if (agora.doc.versao !== ctx.doc.versao) {
-      throw new ErroDocumentos(
-        "invoices.version_conflict",
-        "o documento mudou",
-      );
-    }
+    const agora = await continuar(trx, ctx);
     await trx
       .insertInto("documento_prova")
       .values({
         documento_id: ctx.doc.id,
         comerciante_id: c,
-        numero: d.numero ?? "",
+        numero: d.numero as string,
         serie: d.serie,
         data: d.data,
         atcud: d.atcud,
@@ -1036,7 +1224,7 @@ async function pdfOuNulo(
   }
 }
 
-/** Fecha um rascunho conferido e grava a prova. */
+/** Confere o rascunho, fecha-o e grava a prova (R6, R7). */
 async function fecharEProvar(
   db: Kysely<BaseDados>,
   c: string,
@@ -1045,83 +1233,68 @@ async function fecharEProvar(
   cred: CredenciaisEmissor,
 ) {
   const emissorId = ctx.doc.emissor_id as string;
-  // R6: o rascunho confere antes de fechar.
   const rascunho = await a.lerDocumento(cred, emissorId);
-  const diferencas = comparar(ctx.conteudo, rascunho, referenciaDe(ctx.doc.id));
+  // Fechado por uma tentativa anterior que não chegou a gravar a prova
+  // (P1-1): não se fecha outra vez, prova-se.
+  if (rascunho.estado === "fechado") {
+    return gravarProva(
+      db,
+      c,
+      ctx,
+      rascunho,
+      await pdfOuNulo(a, cred, emissorId),
+      QUEM_DA_TAREFA,
+    );
+  }
+  const diferencas = comparar(
+    ctx.conteudo,
+    rascunho,
+    referenciaDe(ctx.doc.id),
+    ctx.ligacao?.serie,
+  );
   if (diferencas.length > 0) {
     await a.apagarRascunho(cred, emissorId);
     const motivo: MotivoRetencao = diferencas.some((x) => x.campo === "nif")
       ? "entidade_do_emissor_diferente"
       : "totais_nao_batem";
-    await noDocumentos(db, c, async (trx) => {
-      await marcar(trx, QUEM_DA_TAREFA, "o rascunho não bate com o pedido");
-      const agora = await lerContexto(trx, ctx.doc.id, true);
-      await mudarEstado(trx, agora, "retido", {
-        motivos: [motivo],
-        emissor_id: null,
-      });
-      await trx
-        .insertInto("documento_rasto")
-        .values({
-          documento_id: ctx.doc.id,
-          comerciante_id: c,
-          passo: "rascunho_apagado",
-          quem: QUEM_DA_TAREFA,
-          dados: JSON.stringify({ emissor_id: emissorId, diferencas }),
-        })
-        .execute();
+    await paraRetido(db, c, ctx, [motivo], "o rascunho não bate com o pedido", {
+      emissor_id: null,
     });
+    await noDocumentos(db, c, (trx) =>
+      rasto(trx, c, ctx.doc.id, "rascunho_apagado", "R6", QUEM_DA_TAREFA, {
+        emissor_id: emissorId,
+        diferencas,
+      }),
+    );
     return "retido";
   }
-  // Antes de fechar, fica escrito que se vai tentar (um crash a meio não
-  // repete às cegas: a volta seguinte procura pela referência).
-  await noDocumentos(db, c, async (trx) => {
-    const agora = await lerContexto(trx, ctx.doc.id, true);
-    await trx
-      .updateTable("documento_fiscal")
-      .set({
-        tentativas: agora.doc.tentativas + 1,
-        versao: agora.doc.versao + 1,
-      })
-      .where("id", "=", ctx.doc.id)
-      .execute();
-    ctx.doc.versao = agora.doc.versao + 1;
-  });
+  await reservar(db, c, ctx, { tentativas: ctx.doc.tentativas + 1 });
   let fechado: DocumentoNoEmissor;
   try {
     fechado = await a.fechar(cred, emissorId);
   } catch (e) {
+    // Sem resposta: pode ter fechado. Reconcilia-se, nunca se repete.
     if (e instanceof ErroDeRede) {
-      await paraIncerto(db, c, ctx, "o emissor não respondeu ao fechar");
-      return "incerto";
+      return paraIncerto(db, c, ctx, "o emissor não respondeu ao fechar");
     }
+    // Recusado: fica em rascunho; as falhas seguidas levam-no a uma pessoa
+    // (P1-2).
     throw e;
   }
-  const pdf = await pdfOuNulo(a, cred, emissorId);
-  return gravarProva(db, c, ctx, fechado, pdf, QUEM_DA_TAREFA);
-}
-
-async function paraIncerto(
-  db: Kysely<BaseDados>,
-  c: string,
-  ctx: Contexto,
-  motivo: string,
-) {
-  await noDocumentos(db, c, async (trx) => {
-    await marcar(trx, QUEM_DA_TAREFA, motivo);
-    const agora = await lerContexto(trx, ctx.doc.id, true);
-    // A reconciliação espera um minuto: o emissor pode ainda estar a
-    // acabar o que lhe pedimos (§4.2).
-    await mudarEstado(trx, agora, "incerto", {
-      tentativas: 0,
-      proxima_em: new Date(Date.now() + 60_000),
-    });
-  });
+  return gravarProva(
+    db,
+    c,
+    ctx,
+    fechado,
+    await pdfOuNulo(a, cred, emissorId),
+    QUEM_DA_TAREFA,
+  );
 }
 
 function credenciaisDaLigacao(ctx: Contexto, cfg: ConfigFaturacao | undefined) {
   const l = ctx.ligacao;
-  if (l === null || l.estado !== "pronta") return null;
+  // Uma ligação desligada não emite, nem para um pronto (revisão do #312, P2-6).
+  if (l === null || l.estado !== "pronta" || !l.activa) return null;
   const cred = credenciaisDe(l, cfg);
   if (cred === null) return null;
   return { a: adaptadorDe(cfg, l.adaptador), cred };
@@ -1141,13 +1314,16 @@ export async function processarDocumento(
     await marcar(trx, QUEM_DA_TAREFA);
     return lerContexto(trx, id, true);
   });
+  // Outra volta reservou-o e está a falar com o emissor (P1-3).
+  if (reservadoPorOutro(ctx)) throw OCUPADO();
   switch (ctx.doc.estado) {
     case "a_verificar": {
       return noDocumentos(db, c, async (trx) => {
         await marcar(trx, QUEM_DA_TAREFA, "as verificações antes de emitir");
-        const agora = await lerContexto(trx, id, true);
+        const agora = await continuar(trx, ctx);
         const motivos = await verificar(
           trx,
+          c,
           agora.doc,
           agora.conteudo,
           agora.ligacao,
@@ -1166,27 +1342,40 @@ export async function processarDocumento(
     case "pronto": {
       const ligado = credenciaisDaLigacao(ctx, cfg);
       if (ligado === null) {
-        return noDocumentos(db, c, async (trx) => {
-          await marcar(trx, QUEM_DA_TAREFA, "a ligação deixou de estar pronta");
-          const agora = await lerContexto(trx, id, true);
-          await mudarEstado(trx, agora, "retido", {
-            motivos: ["ligacao_sem_teste"],
-          });
-          return "retido";
-        });
+        return paraRetido(
+          db,
+          c,
+          ctx,
+          ["ligacao_sem_teste"],
+          "a ligação deixou de estar pronta ou foi desligada",
+        );
+      }
+      // Os mapas podem ter mudado depois de verificado (P2-6).
+      const doConteudo = motivosDoConteudo(
+        ctx.conteudo,
+        ctx.ligacao,
+        ctx.doc.modo,
+      ).filter((m) => !ctx.doc.validados.includes(m));
+      if (doConteudo.length > 0) {
+        return paraRetido(
+          db,
+          c,
+          ctx,
+          doConteudo,
+          "os mapas da ligação mudaram",
+        );
       }
       const { a, cred } = ligado;
       const referencia = referenciaDe(id);
-      // Uma tentativa anterior pode ter criado o rascunho (crash a meio).
-      if (ctx.doc.tentativas > 0) {
-        const p = await a.procurarPorReferencia(cred, referencia);
-        if (p.estado === "nao_sei") {
-          await paraIncerto(db, c, ctx, "uma tentativa anterior ficou a meio");
-          return "incerto";
-        }
-        if (p.estado === "encontrado") {
-          return adoptar(db, c, ctx, p.documento, a, cred);
-        }
+      await reservar(db, c, ctx, { tentativas: ctx.doc.tentativas + 1 });
+      // Sempre pela referência antes de criar (P2-9): uma tentativa anterior
+      // pode ter deixado o rascunho no emissor.
+      const p = await a.procurarPorReferencia(cred, referencia);
+      if (p.estado === "nao_sei") {
+        return paraIncerto(db, c, ctx, "o emissor não diz se já o tem");
+      }
+      if (p.estado === "encontrado") {
+        return adoptar(db, c, ctx, p.documento, a, cred);
       }
       // R5: a entidade procura-se pelo número e confere-se o NIF dela.
       let entidadeId: string | null = null;
@@ -1198,33 +1387,17 @@ export async function processarDocumento(
             nifSoNumero(ent.nif, ctx.conteudo.cliente.pais_contribuinte) !==
             numero
           ) {
-            return noDocumentos(db, c, async (trx) => {
-              await marcar(
-                trx,
-                QUEM_DA_TAREFA,
-                "a entidade do emissor tem outro NIF (R5)",
-              );
-              const agora = await lerContexto(trx, id, true);
-              await mudarEstado(trx, agora, "retido", {
-                motivos: ["entidade_do_emissor_diferente"],
-              });
-              return "retido";
-            });
+            return paraRetido(
+              db,
+              c,
+              ctx,
+              ["entidade_do_emissor_diferente"],
+              "a entidade do emissor tem outro NIF (R5)",
+            );
           }
           entidadeId = ent.id;
         }
       }
-      await noDocumentos(db, c, async (trx) => {
-        const agora = await lerContexto(trx, id, true);
-        await trx
-          .updateTable("documento_fiscal")
-          .set({
-            tentativas: agora.doc.tentativas + 1,
-            versao: agora.doc.versao + 1,
-          })
-          .where("id", "=", id)
-          .execute();
-      });
       let criado: { id: string };
       try {
         criado = await a.criarRascunho(
@@ -1238,38 +1411,15 @@ export async function processarDocumento(
         );
       } catch (e) {
         if (e instanceof ErroDeRede) {
-          const doc = await noDocumentos(db, c, (trx) =>
-            lerContexto(trx, id, false),
-          );
-          await paraIncerto(db, c, doc, "o emissor não respondeu ao rascunho");
-          return "incerto";
+          return paraIncerto(db, c, ctx, "o emissor não respondeu ao rascunho");
         }
-        if (e instanceof ErroDoEmissor) {
-          // Nada ficou feito: tenta de novo daqui a 5 minutos e fica no rasto.
-          await noDocumentos(db, c, async (trx) => {
-            await trx
-              .insertInto("documento_rasto")
-              .values({
-                documento_id: id,
-                comerciante_id: c,
-                passo: "emissor_recusou",
-                motivo: e.message.slice(0, 500),
-                quem: QUEM_DA_TAREFA,
-              })
-              .execute();
-            await trx
-              .updateTable("documento_fiscal")
-              .set({ proxima_em: new Date(Date.now() + 5 * 60_000) })
-              .where("id", "=", id)
-              .execute();
-          });
-          return "pronto";
-        }
+        // Recusado: nada ficou feito; as falhas seguidas levam-no a uma
+        // pessoa (P1-2).
         throw e;
       }
       await noDocumentos(db, c, async (trx) => {
         await marcar(trx, QUEM_DA_TAREFA, "rascunho criado no emissor");
-        const agora = await lerContexto(trx, id, true);
+        const agora = await continuar(trx, ctx);
         await mudarEstado(trx, agora, "rascunho", {
           emissor_id: criado.id,
           tentativas: 0,
@@ -1279,10 +1429,17 @@ export async function processarDocumento(
     }
     case "rascunho": {
       const ligado = credenciaisDaLigacao(ctx, cfg);
-      if (ligado === null) return "rascunho";
+      if (ligado === null) {
+        throw new ErroDocumentos(
+          "invoices.issuer_not_ready",
+          "a ligação não está pronta para fechar o rascunho",
+        );
+      }
+      await reservar(db, c, ctx);
       return fecharEProvar(db, c, ctx, ligado.a, ligado.cred);
     }
     case "incerto":
+      await reservar(db, c, ctx);
       return reconciliarAutomaticamente(db, c, ctx, cfg);
     default:
       return ctx.doc.estado;
@@ -1300,25 +1457,29 @@ async function adoptar(
   quem = QUEM_DA_TAREFA,
 ) {
   if (d.estado === "fechado") {
-    const pdf = await pdfOuNulo(a, cred, d.id);
     if (ctx.doc.estado === "pronto") {
       // Um pronto não chega a emitido sem passar por rascunho ou incerto.
       await noDocumentos(db, c, async (trx) => {
-        await marcar(trx, quem, "encontrado no emissor pela referência");
-        const agora = await lerContexto(trx, ctx.doc.id, true);
-        await mudarEstado(trx, agora, "incerto");
+        await marcar(
+          trx,
+          quem,
+          "encontrado fechado no emissor pela referência",
+        );
+        const agora = await continuar(trx, ctx);
+        await mudarEstado(trx, agora, "incerto", { emissor_id: d.id });
         ctx.doc = agora.doc;
       });
     }
-    return gravarProva(db, c, ctx, d, pdf, quem);
+    return gravarProva(db, c, ctx, d, await pdfOuNulo(a, cred, d.id), quem);
   }
   await noDocumentos(db, c, async (trx) => {
     await marcar(trx, quem, "rascunho encontrado no emissor pela referência");
-    const agora = await lerContexto(trx, ctx.doc.id, true);
+    const agora = await continuar(trx, ctx);
     await mudarEstado(trx, agora, "rascunho", {
       emissor_id: d.id,
       tentativas: 0,
     });
+    ctx.doc = agora.doc;
   });
   return "rascunho";
 }
@@ -1351,7 +1512,7 @@ async function reconciliarAutomaticamente(
   if (resultado === "nao_existe") {
     return noDocumentos(db, c, async (trx) => {
       await marcar(trx, QUEM_DA_TAREFA, "confirmado no emissor que não existe");
-      const agora = await lerContexto(trx, ctx.doc.id, true);
+      const agora = await continuar(trx, ctx);
       await mudarEstado(trx, agora, "pronto", {
         tentativas: 0,
         emissor_id: null,
@@ -1362,22 +1523,63 @@ async function reconciliarAutomaticamente(
   // Não se sabe: tenta outra vez mais tarde; ao fim de 3, fica para uma
   // pessoa (§4.2, 4).
   return noDocumentos(db, c, async (trx) => {
-    const agora = await lerContexto(trx, ctx.doc.id, true);
+    await marcar(trx, QUEM_DA_TAREFA, "o emissor não diz se o tem");
+    const agora = await continuar(trx, ctx);
     const tentativas = agora.doc.tentativas + 1;
     const fila = tentativas >= RECONCILIACOES_AUTOMATICAS;
+    await mudarEstado(trx, agora, "incerto", {
+      tentativas,
+      motivos: fila ? ["reconciliacao_manual"] : agora.doc.motivos,
+      proxima_em: fila ? NUNCA : new Date(Date.now() + 5 * 60_000),
+    });
+    return "incerto";
+  });
+}
+
+/**
+ * Um passo que falhou (P1-2): fica no rasto, recua (2, 4, 8… até 60 minutos)
+ * para não tapar a fila do comerciante e, ao fim de 5 falhas seguidas, vai
+ * para uma pessoa (`incerto` com `reconciliacao_manual`).
+ */
+async function registarFalha(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  erro: unknown,
+) {
+  await noDocumentos(db, c, async (trx) => {
+    await marcar(trx, QUEM_DA_TAREFA, "o passo falhou");
+    const agora = await lerContexto(trx, id, true);
+    const falhas = agora.doc.falhas + 1;
+    await rasto(
+      trx,
+      c,
+      id,
+      "falhou",
+      (erro instanceof Error ? erro.message : "erro").slice(0, 500),
+      QUEM_DA_TAREFA,
+      { falhas, estado: agora.doc.estado },
+    );
+    if (
+      falhas >= FALHAS_ATE_PESSOA &&
+      ["pronto", "rascunho", "incerto"].includes(agora.doc.estado)
+    ) {
+      await mudarEstado(trx, agora, "incerto", {
+        motivos: ["reconciliacao_manual"],
+        proxima_em: NUNCA,
+      });
+      return;
+    }
     await trx
       .updateTable("documento_fiscal")
       .set({
-        tentativas,
-        motivos: fila ? ["reconciliacao_manual"] : agora.doc.motivos,
-        proxima_em: fila
-          ? new Date("9999-12-31T00:00:00Z")
-          : new Date(Date.now() + 5 * 60_000),
+        falhas,
+        reservado_ate: null,
+        proxima_em: new Date(Date.now() + Math.min(2 ** falhas, 60) * 60_000),
         versao: agora.doc.versao + 1,
       })
-      .where("id", "=", ctx.doc.id)
+      .where("id", "=", id)
       .execute();
-    return "incerto";
   });
 }
 
@@ -1390,7 +1592,8 @@ export interface ResultadoDocumentos {
 
 /**
  * Uma volta (R11): cada documento por tratar anda até parar (retido,
- * emitido, incerto…), um a um; a falha de um não pára os outros.
+ * emitido, incerto…), um a um; a falha de um não pára os outros nem tapa a
+ * fila (P1-2).
  */
 export async function correrDocumentos(
   db: Kysely<BaseDados>,
@@ -1433,10 +1636,22 @@ export async function correrDocumentos(
           if (depois === antes.estado) break;
         }
       } catch (erro) {
+        // Perdeu a corrida para outra volta ou para uma pessoa: não é falha.
+        if (
+          erro instanceof ErroDocumentos &&
+          erro.codigo === "invoices.version_conflict"
+        ) {
+          continue;
+        }
         r.erros.push({
           documento: id,
           erro: erro instanceof Error ? erro.message.slice(0, 200) : "erro",
         });
+        try {
+          await registarFalha(db, c, id, erro);
+        } catch {
+          // Fica para a volta seguinte.
+        }
       }
     }
   }
@@ -1507,6 +1722,13 @@ async function paraDecidir(
     throw new ErroDocumentos(
       "invoices.invalid_transition",
       `o documento está ${ctx.doc.estado}`,
+    );
+  }
+  // A tarefa está a falar com o emissor sobre este documento (P1-3).
+  if (reservadoPorOutro(ctx)) {
+    throw new ErroDocumentos(
+      "invoices.retry",
+      "a tarefa está a tratar este documento no emissor; tente daqui a uns minutos",
     );
   }
   return ctx;
@@ -1613,7 +1835,7 @@ export async function corrigir(
           await sql<{
             pais: string | null;
             numero: string | null;
-          }>`select * from nif_regua(${dados.nif}, ${null}, ${ctx.conteudo.entidade_legal.pais === "PT"})`.execute(
+          }>`select * from nif_regua(${dados.nif}, ${ctx.conteudo.cliente.pais_contribuinte}, ${ctx.conteudo.entidade_legal.pais === "PT"})`.execute(
             trx,
           )
         ).rows[0];
@@ -1630,6 +1852,27 @@ export async function corrigir(
       }
       const pais = regua?.pais ?? null;
       const numero = regua?.numero ?? null;
+      // Nunca «consumidor final» a quem deu NIF (R4, Q4; P1-5).
+      if (ehConsumidorFinal(pais, numero)) {
+        throw new ErroDocumentos(
+          "invoices.invalid_field",
+          "esse NIF é o de consumidor final: o documento não sai assim",
+        );
+      }
+      // O país do contribuinte não muda por correcção: a decisão de IVA foi
+      // tomada com ele (R2; revisão do #312, P2-5). Sem NIF antes, só o do
+      // país da entidade (uma venda nacional).
+      const antes = ctx.conteudo.cliente.pais_contribuinte;
+      if (
+        antes === null
+          ? pais !== ctx.conteudo.entidade_legal.pais
+          : pais !== antes
+      ) {
+        throw new ErroDocumentos(
+          "invoices.invalid_field",
+          "a correcção não muda o país do contribuinte: a decisão de IVA foi tomada com ele",
+        );
+      }
       novo.cliente.nif_escrito = dados.nif;
       novo.cliente.nif_numero = numero;
       novo.cliente.pais_contribuinte = pais;
@@ -1662,7 +1905,8 @@ export async function corrigir(
         (k) => !["versao", "motivo"].includes(k),
       ),
     });
-    await mudarEstado(trx, ctx, "a_verificar", { proxima_em: new Date() });
+    // As validações eram do conteúdo antigo: voltam a contar todas (P1-5).
+    await mudarEstado(trx, ctx, "a_verificar", { validados: [] });
     return ctx.doc.versao;
   });
 }
@@ -1698,7 +1942,6 @@ export async function reconciliar(
       await mudarEstado(trx, agora, "pronto", {
         tentativas: 0,
         emissor_id: null,
-        proxima_em: new Date(),
       });
       return agora.doc.versao;
     });
@@ -1716,12 +1959,17 @@ export async function reconciliar(
       "a ligação não está pronta para ler o documento",
     );
   }
+  // A tarefa não lhe pega enquanto a pessoa decide (P1-3).
+  await reservar(db, c, ctx);
   let d: DocumentoNoEmissor;
   try {
     d = await ligado.a.lerDocumento(ligado.cred, dados.emissor_id);
   } catch (e) {
     if (e instanceof ErroDeRede || e instanceof ErroDoEmissor) {
-      throw new ErroDocumentos("invoices.issuer_error", e.message);
+      throw new ErroDocumentos(
+        "invoices.issuer_error",
+        `o emissor não deu o documento: ${e.message.slice(0, 200)}`,
+      );
     }
     throw e;
   }

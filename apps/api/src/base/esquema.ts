@@ -1512,7 +1512,9 @@ export interface TabelaDocumentoFiscal {
   ligacao_id: ColumnType<string | null, never, string | null>;
   emissor_id: ColumnType<string | null, never, string | null>;
   tentativas: ColumnType<number, never, number>;
+  falhas: ColumnType<number, never, number>;
   proxima_em: ColumnType<Date, never, Date>;
+  reservado_ate: ColumnType<Date | null, never, Date | null>;
   versao: ColumnType<number, never, number>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;

@@ -829,7 +829,13 @@ export function rotasDoCheckout(
                 "a encomenda ainda não foi feita",
               );
             }
-            return paraEncomenda(await lerEncomenda(trx, s.comerciante_id, id));
+            // O estado fiscal interno não sai na confirmação pública
+            // (revisão do #312, P2-10).
+            const publica: Partial<ReturnType<typeof paraEncomenda>> =
+              paraEncomenda(await lerEncomenda(trx, s.comerciante_id, id));
+            delete publica.emissor_fiscal;
+            delete publica.documento;
+            return publica;
           },
           { soAberta: false },
         ),

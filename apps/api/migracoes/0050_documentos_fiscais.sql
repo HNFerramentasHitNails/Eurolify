@@ -78,6 +78,8 @@ CREATE TABLE ligacao_faturacao (
   criada_em timestamptz NOT NULL DEFAULT now(),
   actualizada_em timestamptz NOT NULL DEFAULT now(),
   UNIQUE (comerciante_id, id),
+  CHECK ((credenciais IS NULL) = (credenciais_versao_chave IS NULL)),
+  CHECK (estado <> 'pronta' OR credenciais IS NOT NULL),
   FOREIGN KEY (comerciante_id, entidade_legal_id) REFERENCES entidade_legal (comerciante_id, id)
 );
 CREATE UNIQUE INDEX ligacao_faturacao_uma_activa ON ligacao_faturacao (entidade_legal_id) WHERE activa;
@@ -94,15 +96,21 @@ BEGIN
          OR jsonb_typeof(t->'taxa') <> 'number' OR (t->>'taxa')::numeric < 0
          OR coalesce(t->>'emissor', '') !~ '^[A-Za-z0-9._:-]{1,60}$')
      OR (SELECT count(*) FROM jsonb_array_elements(NEW.taxas))
-       <> (SELECT count(DISTINCT (t->>'pais', t->>'taxa')) FROM jsonb_array_elements(NEW.taxas) t) THEN
-    RAISE EXCEPTION 'invoices.invalid_field: as taxas são pares (país, taxa) únicos com a taxa do emissor';
+       <> (SELECT count(DISTINCT (t->>'pais', t->>'taxa')) FROM jsonb_array_elements(NEW.taxas) t)
+     -- Uma taxa do emissor nunca serve dois pares (lição 2.7; revisão do
+     -- #312, P1-4).
+     OR (SELECT count(*) FROM jsonb_array_elements(NEW.taxas))
+       <> (SELECT count(DISTINCT t->>'emissor') FROM jsonb_array_elements(NEW.taxas) t) THEN
+    RAISE EXCEPTION 'invoices.invalid_field: as taxas são pares (país, taxa) únicos, cada um com a sua taxa do emissor';
   END IF;
   IF EXISTS (SELECT 1 FROM jsonb_array_elements(NEW.isencoes) t
        WHERE jsonb_typeof(t) <> 'object' OR t->>'codigo' !~ '^[A-Z0-9]{1,10}$'
          OR coalesce(t->>'emissor', '') !~ '^[A-Za-z0-9._:-]{1,60}$')
      OR (SELECT count(*) FROM jsonb_array_elements(NEW.isencoes))
-       <> (SELECT count(DISTINCT t->>'codigo') FROM jsonb_array_elements(NEW.isencoes) t) THEN
-    RAISE EXCEPTION 'invoices.invalid_field: as isenções são códigos únicos com a isenção do emissor';
+       <> (SELECT count(DISTINCT t->>'codigo') FROM jsonb_array_elements(NEW.isencoes) t)
+     OR (SELECT count(*) FROM jsonb_array_elements(NEW.isencoes))
+       <> (SELECT count(DISTINCT t->>'emissor') FROM jsonb_array_elements(NEW.isencoes) t) THEN
+    RAISE EXCEPTION 'invoices.invalid_field: as isenções são códigos únicos, cada um com a sua isenção do emissor';
   END IF;
   IF TG_OP = 'UPDATE' THEN
     IF NEW.entidade_legal_id <> OLD.entidade_legal_id OR NEW.adaptador <> OLD.adaptador
@@ -110,7 +118,10 @@ BEGIN
       RAISE EXCEPTION 'invoices.immutable: a entidade, o adaptador e o modo de uma ligação não mudam';
     END IF;
     -- Com documentos a meio no emissor, a ligação não muda (R15).
-    IF (NEW.credenciais IS DISTINCT FROM OLD.credenciais OR NEW.serie IS DISTINCT FROM OLD.serie
+    -- As credenciais podem trocar-se (uma chave revogada não pode deixar
+    -- documentos presos; revisão do #312, P2-11); a série, os mapas e
+    -- desligar não.
+    IF (NEW.serie IS DISTINCT FROM OLD.serie
         OR NEW.taxas <> OLD.taxas OR NEW.isencoes <> OLD.isencoes OR NEW.activa <> OLD.activa)
        AND EXISTS (SELECT 1 FROM public.documento_fiscal d
          WHERE d.ligacao_id = NEW.id AND d.estado IN ('rascunho', 'incerto')) THEN
@@ -151,7 +162,13 @@ CREATE TABLE documento_fiscal (
   ligacao_id uuid,
   emissor_id text CHECK (emissor_id IS NULL OR length(emissor_id) BETWEEN 1 AND 100),
   tentativas integer NOT NULL DEFAULT 0 CHECK (tentativas >= 0),
+  -- Voltas seguidas em que o passo falhou (revisão do #312, P1-2): recua e,
+  -- ao fim de 5, vai para uma pessoa.
+  falhas integer NOT NULL DEFAULT 0 CHECK (falhas >= 0),
   proxima_em timestamptz NOT NULL DEFAULT now(),
+  -- Quem vai chamar o emissor reserva o documento até esta hora (revisão do
+  -- #312, P1-3): nenhuma outra volta nem nenhuma pessoa lhe pega a meio.
+  reservado_ate timestamptz,
   versao integer NOT NULL DEFAULT 1,
   criado_em timestamptz NOT NULL DEFAULT now(),
   actualizado_em timestamptz NOT NULL DEFAULT now(),
@@ -193,7 +210,7 @@ CREATE TABLE documento_prova (
   pais text,
   linhas jsonb NOT NULL CHECK (jsonb_typeof(linhas) = 'array'),
   totais jsonb NOT NULL CHECK (jsonb_typeof(totais) = 'object'),
-  pdf bytea,
+  pdf bytea CHECK (pdf IS NULL OR octet_length(pdf) <= 10485760),
   em_bruto jsonb NOT NULL,
   divergencias jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(divergencias) = 'array'),
   lida_em timestamptz NOT NULL DEFAULT now(),
@@ -269,6 +286,8 @@ BEGIN
     NEW.ligacao_id := NULL;
     NEW.emissor_id := NULL;
     NEW.tentativas := 0;
+    NEW.falhas := 0;
+    NEW.reservado_ate := NULL;
     NEW.versao := 1;
     NEW.criado_em := now();
     NEW.actualizado_em := now();
@@ -565,8 +584,13 @@ $$;
 -- A marca põe-na o domínio dos documentos, nunca a API (docs/23, R4).
 CREATE FUNCTION perfil_marcar_usado(p_perfil uuid) RETURNS void
   LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
-  UPDATE public.perfil_faturacao SET usado_em_documento = true
-  WHERE id = p_perfil AND comerciante_id = public.comerciante_actual() AND NOT usado_em_documento
+  -- Só um perfil de uma encomenda com o documento emitido (revisão do #312, P3).
+  UPDATE public.perfil_faturacao p SET usado_em_documento = true
+  WHERE p.id = p_perfil AND p.comerciante_id = public.comerciante_actual()
+    AND NOT p.usado_em_documento
+    AND EXISTS (SELECT 1 FROM public.encomenda e
+      JOIN public.documento_fiscal d ON d.encomenda_id = e.id
+      WHERE e.perfil_id = p.id AND d.estado IN ('emitido', 'divergente', 'resolvido'))
 $$;
 
 -- ------------------------------------------------------------- Os âmbitos
@@ -653,8 +677,8 @@ GRANT INSERT (comerciante_id, entidade_legal_id, adaptador, serie, taxas, isenco
 GRANT UPDATE (estado, activa, credenciais, credenciais_versao_chave, credenciais_em,
   credenciais_por, serie, taxas, isencoes, testada_em, erro, versao)
   ON ligacao_faturacao TO eurolify_api;
-GRANT UPDATE (estado, motivos, validados, ligacao_id, emissor_id, tentativas, proxima_em, versao)
-  ON documento_fiscal TO eurolify_api;
+GRANT UPDATE (estado, motivos, validados, ligacao_id, emissor_id, tentativas, falhas, proxima_em,
+  reservado_ate, versao) ON documento_fiscal TO eurolify_api;
 GRANT INSERT (documento_id, comerciante_id, versao, conteudo, impressao, motivo, quem)
   ON documento_conteudo TO eurolify_api;
 GRANT INSERT (documento_id, comerciante_id, numero, serie, data, atcud, nif, nome, pais, linhas,

@@ -214,6 +214,16 @@ describe("comparar com o emissor (R6, R7)", () => {
     expect(comparar(c, doc(c), "inv_2")).toEqual([
       { campo: "referencia", esperado: "inv_2", obtido: "inv_1" },
     ]);
+    // O país e o nome do documento também se conferem.
+    expect(comparar(c, doc(c, { pais: "ES", nome: "Outro" }), "inv_1")).toEqual(
+      [
+        { campo: "pais", esperado: "PT", obtido: "ES" },
+        { campo: "nome", esperado: "Rui", obtido: "Outro" },
+      ],
+    );
+    expect(comparar(c, doc(c, { serie: "B" }), "inv_1", "A")).toEqual([
+      { campo: "serie", esperado: "A", obtido: "B" },
+    ]);
     const outra = doc(c);
     outra.linhas = outra.linhas.map((l) => ({ ...l, taxa: 600 }));
     expect(comparar(c, outra, "inv_1")).toEqual([
