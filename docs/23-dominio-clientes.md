@@ -259,7 +259,7 @@ com o mesmo RLS, ficam os valores — **proposta**.
 |---|---|---|
 | `perfil_id` | | regra (`eu-vat-oss-ioss`, «As peças») |
 | `motivo` | texto obrigatório; ex.: «transportadora própria, declaração aduaneira entregue» | regra |
-| `nota`, `anexos` | os anexos são ficheiros (PDF ou imagem), guardados **na base de dados** (`docs/06`, DM; §13.11) | regra; o armazenamento decidido |
+| `nota`, `anexos` | os anexos são ficheiros (PDF ou imagem), guardados **na base de dados** (`docs/06`, DN; §13.11) | regra; o armazenamento decidido |
 | `posta_por`, `posta_em` | quem e quando | regra |
 | `retirada_por`, `retirada_em` | só uma pessoa a retira; **nenhum processo automático** | regra (`eu-vat-oss-ioss`, regra 4) |
 
@@ -712,7 +712,7 @@ consulta — proposta (Q7).
 - Não se altera: muda-se retirando e pondo outra (o histórico fica inteiro) —
   proposta.
 - **Anexos** (`anexo_isencao`, `exa_`): PDF, JPEG ou PNG, até 10 MB cada, até
-  5 por isenção; **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM),
+  5 por isenção; **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DN),
   nunca públicos; os bytes lêem-se pela API com `customers:exemptions` — no
   código (migração 0055, §13.11). O prazo de guarda é o fiscal (**C**, V2).
 - Eventos `billing_profile.exemption_set` e `billing_profile.exemption_removed`
@@ -811,7 +811,7 @@ isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
 
 | O quê | Onde |
 |---|---|
-| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DM): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0055 |
+| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DN): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0055 |
 | PDF, JPEG ou PNG **pela assinatura** (os primeiros bytes têm de ser do tipo dito; não há verificação da estrutura nem antivírus), até 10 MB, até 5 por isenção e até 1 GB por comerciante (como as imagens, proposta; revisão do #338, P2-2), só numa isenção em vigor de um perfil activo numa ficha activa (P2-1); o tamanho e o resumo (sha256) põe-nos a base; os bytes ficam como chegaram (é a prova: não se limpam metadados) | migração 0055 |
 | só uma pessoa ou a chave dela (`customers.exemption_by_person`), como a isenção | migração 0055 |
 | não se altera nem se apaga, nem pelo superutilizador (`audit.append_only`); a pseudonimização apaga os anexos das isenções dos perfis que ninguém usou e guarda os dos usados | migração 0055 |

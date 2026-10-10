@@ -2,7 +2,7 @@
 -- Ex.: a loja põe uma isenção «transportadora própria, declaração aduaneira
 -- entregue» e anexa o PDF da declaração; o contabilista lê-o pela API.
 --
--- Onde: **na base de dados** (Diogo, 10/10/2026: «A»; docs/06, DM), e não
+-- Onde: **na base de dados** (Diogo, 10/10/2026: «A»; docs/06, DN), e não
 -- na pasta das imagens: lá há uma limpeza dos ficheiros sem registo, e os
 -- anexos são prova. Na base ficam com o RLS de cada comerciante, entram nas
 -- cópias que já existem e saem com a pseudonimização.
