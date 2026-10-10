@@ -1370,6 +1370,71 @@ desenha-a. Ex.: a gestora da «Loja de Ensaio» vê na ficha do «Verniz Rosa
   de versão; capturas a 375, 768 e 1280 px, claro e escuro, e só com
   teclado; as capturas vão à página de aprovação.
 
+## 24. Catálogo: acrescentar uma variante a um artigo existente (issue #321)
+
+Pedido do Diogo, 10/10/2026 («continuar», à pergunta *«Avanço com o
+desenho de "acrescentar uma variante" no Hub?»*). **Aprovado pelo
+Diogo a 10/10/2026**: *«aprovado»*. A §14 cria o artigo com as variantes; a §23 edita e a §12.2
+arquiva cada uma. Falta acrescentar uma variante a um artigo que já existe.
+A API pela chave já o faz (`POST /products/{id}/variants`, `docs/14` §7.1);
+o Hub ainda não tem a rota. Ex.: o «Gel Coral 41» vende-se à unidade
+(`ENS-041`) e a gestora acrescenta a `ENS-041-B`, em caixa de 6, com o
+GTIN do fornecedor e 400 g.
+
+### 24.1 Como o Hub escreve
+
+- `POST /hub/products/{id}/variants`, a mesma função do `POST
+  /products/{id}/variants`, com a sessão de quem tem `catalog:write` (o dono
+  e o gestor) e o `eurolify.quem` da pessoa (como a §13.2). O corpo é o
+  mesmo: o SKU, a unidade, o GTIN com a origem, o conteúdo, o peso, as
+  dimensões, o ONU, a classe ADR e os `valores` (um `ovl_…` por opção).
+- **As regras são as da API e da base, sem cópia no Hub:**
+  - o SKU é único no comerciante, também entre as variantes arquivadas e
+    sem distinguir maiúsculas (C3, P7, P9);
+  - num artigo com opções que já não é rascunho, a variante leva um valor
+    de cada opção e uma combinação que nenhuma outra variante activa tenha
+    (§3.3; a base confere no fim da transacção);
+  - também se acrescenta a um artigo **arquivado** (é assim que se repõe um
+    artigo sem variantes activas, §4.1);
+  - num artigo **publicado**, a variante nova **nasce fora** das
+    publicações (0019; `docs/14` §8): não se vende antes de uma verificação.
+- **Sem `Idempotency-Key`** (como as outras escritas do Hub): se a resposta
+  se perde e o pedido se repete, o SKU já existe. O ecrã procura então o SKU
+  neste artigo e, se a variante lá estiver com o que se escreveu, dá-a por
+  criada (como a §14.2).
+- Num artigo `externo`, a API do Hub recusa com `catalog.external_field`
+  (§13.3, P5); pela chave, aceita.
+
+### 24.2 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Ficha**, secção «Variantes» (§12.2) | Com `catalog:write`, num artigo que não é do sistema de gestão: o botão «Acrescentar variante», por baixo da tabela. | — |
+| **Acrescentar variante** (`/artigos/{prd_…}/variantes/nova`) | Os campos da §23.2, com o SKU e a unidade de venda obrigatórios e todos editáveis (a unidade e o conteúdo de uma variante nova escolhem-se sempre, também num artigo activo). Se o artigo tem opções, uma lista por opção, com os valores dela; num rascunho podem ficar por escolher, depois de activo são obrigatórias. «Criar variante» e «Cancelar»; sair com o formulário escrito pergunta antes. Depois de criar, volta à ficha com «Variante {sku} criada.» e, num artigo publicado, «Fica fora das lojas onde o artigo está à venda até a publicação ser refeita.» | a criar; o erro da API ao lado do campo (SKU que já existe, GTIN repetido ou inválido, combinação repetida, valor em falta); a resposta perdida (§24.1); artigo externo, sem permissão ou que não existe (só o aviso, sem formulário) |
+
+### 24.3 O que fica de fora, e porquê
+
+- **Pôr a variante nova à venda pelo Hub**: o Hub ainda não publica; a
+  publicação refaz-se pela integração (chave com `catalog:publish`). Desenho
+  à parte, com a publicação no Hub.
+- **Preço da variante nova**: os preços editam-se noutro ecrã, ainda por
+  desenhar (§17 só lê).
+- **Criar valores de opção a partir daqui**: faz-se em «Editar opções»
+  (§21); o formulário só escolhe entre os que já existem.
+
+### 24.4 Antes de dizer que está feito (o pedido do código)
+
+- **API**: a rota pelo Hub com as mesmas recusas da chave; o armazém e o
+  apoio recebem 403; outro comerciante não chega (404, com prova pela
+  falha); o artigo externo recusa pelo Hub e aceita pela chave; a linha do
+  tempo regista quem criou.
+- **Hub**: a passagem acrescenta a `ENS-041-B` ao «Gel Coral 41» publicado
+  e confere que nasce fora da publicação; num artigo activo com opções,
+  sem valor dá o erro e com a combinação de outra variante também; a
+  resposta perdida dá a variante por criada; capturas a 375, 768 e
+  1280 px, claro e escuro, e só com teclado; as capturas vão à página de
+  aprovação.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
