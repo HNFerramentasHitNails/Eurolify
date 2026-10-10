@@ -362,7 +362,7 @@ a sandbox**, porque não há credenciais de teste.
 | o adaptador EuPago (MB WAY e Multibanco, sandbox) e o contrato | `src/pagamentos/eupago.ts`, `adaptador.ts` |
 | o pagamento pelo token, os avisos, a consulta, as tarefas, a fila e a Administração — a lista da §8 | `src/pagamentos/` |
 | o checkout só aceita métodos da régua; o MB WAY pede telemóvel português; um método que deixou de estar disponível bloqueia o botão final | `src/checkout/repositorio.ts` |
-| 17 testes pela API com a EuPago falsa (o adaptador verdadeiro, a rede trocada) | `test/pagamentos-api.test.ts`, `test/eupago-falso.ts` |
+| 18 testes pela API com a EuPago falsa (o adaptador verdadeiro, a rede trocada); 15 mutações na primeira versão e 12 nas correcções da revisão do #288: todas apanhadas menos uma equivalente (sem a conferência da versão da chave, a cifra AES-GCM com outra chave falha igual) | `test/pagamentos-api.test.ts`, `test/eupago-falso.ts` |
 
 **Desvios do desenho:**
 - **Só o modo teste existe** (a base recusa `real`): abrir o modo real é uma
