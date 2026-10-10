@@ -192,7 +192,12 @@ export const pt = {
   recuperadoRetirar:
     "retirar as passkeys que já não tem (a do dispositivo perdido continua a valer até a retirar);",
   recuperadoCodigos: "gerar códigos de recuperação novos;",
-  recuperadoChaves: "como dono, rever as chaves de API que criou.",
+  recuperadoChaves:
+    "como dono, rever as chaves de API que criou (abaixo): se não reconhecer uma, revogue-a.",
+  recuperadoChavesTitulo: "Chaves de API que criou em «{comerciante}»",
+  recuperadoChavesExplica:
+    "Estas chaves continuam a funcionar. Se alguém usou a sua conta, pode ter criado uma; nenhuma é revogada sem a sua confirmação.",
+  recuperadoChavesNenhuma: "Não criou nenhuma chave activa neste comerciante.",
   recuperadoFechar: "Fechar o aviso",
 
   // Palavra-passe e autenticador (docs/22 §9.2).
