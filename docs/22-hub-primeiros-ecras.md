@@ -1465,7 +1465,7 @@ o servidor calculou.
 |---|
 | **Anunciar ou tirar uma redução** (o preço riscado): o preço de referência dos 30 dias tem regras ainda **C** (Dir. 98/6/CE, art. 6.º-A; `docs/20` §3.6, à espera do jurista). Passo à parte, se for pedido. |
 | **Criar, arquivar ou mudar listas e mercados**: outro ecrã, ainda por desenhar. |
-| **Preços de variantes arquivadas**: não se vendem; o botão aparece só nas activas. |
+| **Preços de variantes arquivadas**: não se vendem; o botão aparece só nas activas. A API não as recusa, nem pela chave nem pelo Hub (uma variante arquivada pode ter preço, e repô-la volta a vendê-la com ele); é uma escolha do ecrã, não uma regra (revisão do #339, P3-2). |
 | **O histórico de cada preço**: como na §17, entra quando houver onde o mostrar. |
 | **Mostrar o IVA ou o preço por unidade no formulário**: o servidor calcula; o Hub mostra-os na ficha, depois de gravar (R1, R7; uma regra, um sítio). |
 | **Pôr a variante à venda**: com preço, a variante nova continua fora das publicações até a publicação ser refeita (§24.3). |
@@ -1475,17 +1475,26 @@ o servidor calculou.
 | Caminho | Quem | O que faz |
 |---|---|---|
 | `PUT /hub/price-lists/{id}/prices/{variante}` | a sessão com `prices:write` (o dono e o gestor; `docs/20` §10.1) | a mesma função do `PUT` pela chave (`definirPreco`), com o `eurolify.quem` da pessoa; o corpo é o mesmo (`montante`, `gratuito`, `quantidade_minima`, `multiplo`) e leva também a `versao` lida |
-| `DELETE /hub/price-lists/{id}/prices/{variante}?versao=` | a mesma | a mesma função do `DELETE` pela chave (`tirarPreco`) |
+| `DELETE /hub/price-lists/{id}/prices/{variante}` | a mesma | a mesma função do `DELETE` pela chave (`tirarPreco`); a `versao` lida vai no corpo, como nas outras escritas do Hub (§21.2) |
 
-- **A versão.** O preço já tem uma `versao` na base (0017: sobe em cada
-  escrita), mas a API não a mostra (`docs/20` §10.1: «o preço não tem
-  versão»). Proposta: a leitura dos preços do artigo (§17.2) passa a dar a
-  `versao` de cada preço (um campo a mais, nas duas rotas). As rotas do Hub
-  exigem-na: `null` quando a variante não tinha preço nessa lista, o número
-  quando tinha. Se o preço guardado não for o lido, **409
-  `prices.version_conflict`**, sem gravar. Sem isto, duas pessoas a mudar o
-  mesmo preço apagavam-se uma à outra sem aviso (o histórico guardava as
-  duas, mas o ecrã não dizia nada). As rotas pela chave ficam como estão.
+- **O preço lido.** O preço já tem uma `versao` na base (0017: sobe em cada
+  escrita), mas a API não a mostrava (`docs/20` §10.1). Todas as respostas
+  de preço passam a dá-la, ao lado do `definido_em` que já davam. As
+  escritas do Hub mandam o preço **`lido`**: `{versao, definido_em}`, ou
+  `null` quando a variante não tinha preço nessa lista. Se o preço guardado
+  não for o lido (também ao tirar um preço que já não existe), **409
+  `prices.version_conflict`**, sem gravar; a linha fica tomada entre
+  conferir e gravar. Sem isto, duas pessoas a mudar o mesmo preço
+  apagavam-se uma à outra sem aviso (o histórico guardava as duas, mas o
+  ecrã não dizia nada). As rotas pela chave ficam como estão.
+  - **Porquê os dois** (revisão do #339, P2-1): quando um preço sai e volta
+    a entrar, a `versao` recomeça em 1 (0017); o `definido_em` dessa entrada
+    é outro, e os dois juntos não se repetem. Uma migração que mantivesse a
+    versão a subir também resolvia, mas o número 0054 já estava em dois
+    pedidos abertos.
+  - **Com `lido: null`** só se cria: se outra pessoa criou o preço entretanto
+    (mesmo ainda por confirmar), 409 em vez de o substituir (revisão do
+    #339, P1-1).
 - **As regras são as da API e da base, sem cópia no Hub:**
   - o montante em cêntimos, de 0 a 100 000 000 000; 0 só com «gratuito», e
     «gratuito» só com 0 (R4; `prices.free_only_at_zero`);

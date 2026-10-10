@@ -362,10 +362,12 @@ decimal é **C**, abaixo).
   artigos; o preço não tem versão (um `PUT` substitui, e o histórico guarda
   tudo).
   **Actualização (10/10/2026, `docs/22` §25, #335):** a base já tinha a
-  `versao` do preço (0017, sobe em cada escrita). A leitura dos preços do
-  artigo (`GET /products/{id}/prices` e a do Hub) passa a mostrá-la, e as
-  escritas pelo Hub exigem-na (409 `prices.version_conflict`). As rotas
-  pela chave continuam sem a pedir.
+  `versao` do preço (0017, sobe em cada escrita; recomeça em 1 quando o
+  preço sai e volta). **Todas as respostas de preço** (as leituras da lista
+  e do artigo, o `PUT` do preço e as reduções, pela chave e pelo Hub) passam
+  a mostrá-la (revisão do #339, P3-1). As escritas pelo Hub mandam a versão
+  e o `definido_em` lidos (409 `prices.version_conflict`); as rotas pela
+  chave continuam sem os pedir.
 
 ### 10.2 A redução anunciada (§3.6)
 
