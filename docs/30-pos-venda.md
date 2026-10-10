@@ -311,7 +311,7 @@ reembolsa por API; se não, o reembolso é manual.
 | a NC no domínio dos documentos: `nota_credito_pedir` ao decidir o reembolso (só se a encomenda tem fatura do Eurolify), as linhas e a proporção base/IVA da fatura (R8), os motivos `original_por_emitir`, `credito_acima_do_saldo` e `encomenda_reembolsada` (C2), a fatura com as NC e o saldo | migração 0052; `src/faturacao/` |
 | o botão (`GET`/`POST /store/orders/{token}/withdrawal`) com a confirmação de recepção, e a API de Administração da §7.2 | `src/posvenda/rotas.ts` |
 | âmbitos `returns:read`, `returns:write`, `refunds:read`, `refunds:write` e os papéis da Q6 | migração 0052; `src/identidade/` |
-| 10 testes pela API | `test/posvenda-api.test.ts` |
+| 16 testes pela API | `test/posvenda-api.test.ts` |
 
 **Desvios do desenho:**
 - **Estados do pedido** (§4.1): `aceite`, `fora_de_prazo` (uma pessoa aceita

@@ -2142,4 +2142,88 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       ).length,
     ).toBe(1);
   });
+
+  it("a base: uma devolução reembolsa-se só inspeccionada e até ao que voltou", async () => {
+    const s = await cenario();
+    const e = await paga(s, [[s.v1, 2]]);
+    const [linha] = await expedir(s, e.encomenda);
+    const lid = String(linha?.["id"]).slice(4);
+    const rma = String(
+      (
+        await ok(
+          s.adm("POST", "/returns", {
+            encomenda: e.encomenda,
+            origem: "apoio",
+            motivo: "duas",
+            linhas: [{ linha: linha?.["id"], quantidade: 2 }],
+          }),
+          201,
+        )
+      )["id"],
+    );
+    const pag = await naBase(s, (trx) =>
+      trx
+        .selectFrom("pagamento")
+        .select("id")
+        .where("encomenda_id", "=", e.encomenda.slice(4))
+        .executeTakeFirstOrThrow(),
+    );
+    /** Um reembolso escrito à mão sobre a devolução, com `quantidade`. */
+    const amao = (quantidade: number) =>
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        const { id } = await trx
+          .insertInto("reembolso")
+          .values({
+            comerciante_id: s.c,
+            encomenda_id: e.encomenda.slice(4),
+            pagamento_id: pag.id,
+            origem: "devolucao",
+            devolucao_id: rma.slice(4),
+            montante: 1230 * quantidade,
+            moeda: "EUR",
+            via: "manual",
+            decidido_por: "pessoa:teste",
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        await trx
+          .insertInto("linha_reembolso")
+          .values({
+            reembolso_id: id,
+            comerciante_id: s.c,
+            posicao: 1,
+            linha_encomenda_id: lid,
+            quantidade,
+            montante: 1230 * quantidade,
+          })
+          .execute();
+        await trx
+          .updateTable("reembolso")
+          .set({ estado: "a_executar", versao: 2 })
+          .where("id", "=", id)
+          .execute();
+      });
+    // Ainda a aguardar: a base recusa (Q3).
+    await expect(amao(1)).rejects.toThrow(/não está inspeccionada/);
+    await ok(
+      s.adm("POST", `/returns/${rma}/receive`, {
+        versao: 1,
+        linhas: [{ linha: linha?.["id"], recebida: 1 }],
+      }),
+    );
+    await ok(
+      s.adm("POST", `/returns/${rma}/inspect`, {
+        versao: 2,
+        linhas: [
+          { linha: linha?.["id"], estado_artigo: "revendavel", aceite: 1 },
+        ],
+      }),
+    );
+    // Voltou 1: reembolsar 2 é recusado pela base.
+    await expect(amao(2)).rejects.toThrow(/mais do que voltou/);
+    await amao(1);
+  });
 });
