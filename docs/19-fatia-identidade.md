@@ -189,8 +189,12 @@ operador»*). Pelo GitHub e não pelo MCP, porque o MCP não muda a base
    (`eurolify-pedido operar`); o serviço da máquina valida o pedido outra vez,
    **faz uma cópia da base antes de escrever** (`AGENTS.md`, regra 2) e corre
    `node dist/operador.js` num contentor de uma vez, com a imagem da API que
-   está no ar e a ligação do dono das tabelas, como as migrações. Quem lançou
-   fica na chave como `operador:github:<número da conta>`.
+   está no ar e a ligação do papel `eurolify_operador` (`operador.env`). Esse
+   papel não é superutilizador, não passa o RLS e só chama as três portas do
+   operador, todas funções do dono: `comerciante_criar_pelo_operador`,
+   `chave_criar` e `convite_criar_pelo_operador` (migração 0045; revisão do
+   #110, P3-8; antes corria com o dono das tabelas). Quem lançou fica na
+   chave como `operador:github:<número da conta>`.
 
 Limites, tal como está (revisão do #110):
 
@@ -203,9 +207,15 @@ Limites, tal como está (revisão do #110):
   travão é quem pode lançar o fluxo (escrita no repositório e o ambiente
   `ensaio`). A regra «uma chave não cria outra com mais âmbitos» (T9) é para o
   `POST /keys`, não para o operador.
-- **Repetir a acção `comerciante` cria outro comerciante** (não há chave de
-  idempotência neste comando): antes de repetir um pedido que pareceu falhar,
-  ver no registo da máquina se já foi feito.
+- **Repetir a acção `comerciante` não cria outro comerciante** (migração
+  0045, desde 10/10/2026; revisão do #110, P2-2): o pedido leva o número da
+  execução do GitHub (`run:<número>`), que não muda num «Re-run», e a base
+  guarda-o (`pedido_do_operador`). O mesmo pedido devolve o mesmo `mer_…`
+  com `ja_existia: true`. **Lançar o fluxo outra vez** (uma execução nova)
+  é outro pedido e cria outro comerciante: antes disso, ver no registo da
+  máquina se já foi feito. Repetir a `chave` ou o `convite` com o mesmo resumo é
+  recusado pela base (`chave_api_resumo_unico`, 0010; `convite_resumo_unico`,
+  0018) e não cria uma segunda (revisão do #293, P3-7).
 - **Um agente (Claude ou Codex) só lança este fluxo com a confirmação
   explícita** do Diogo ou do Bruno para esse pedido (`AGENTS.md`, «Operar a
   VPS», regra 1): escreve na base.
