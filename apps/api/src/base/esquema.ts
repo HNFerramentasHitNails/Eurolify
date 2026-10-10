@@ -298,6 +298,9 @@ export interface TabelaOpcao {
   nome: string;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
+  // Migração 0042: sobe com qualquer mudança à opção ou aos valores dela; a
+  // API só a pede (`versao + 1`), a base decide o valor.
+  versao: ColumnType<number, never, number>;
 }
 
 export interface TabelaValorOpcao {

@@ -38,6 +38,8 @@ export type CodigoErroCatalogo =
   | "catalog.option_value_duplicate"
   | "catalog.option_repeated"
   | "catalog.option_values_required"
+  // A ordem pedida não é exactamente a lista de agora (docs/14 §7.1).
+  | "catalog.order_mismatch"
   | "catalog.retry"
   | "catalog.classified_by_required"
   | "catalog.classification_invalid"

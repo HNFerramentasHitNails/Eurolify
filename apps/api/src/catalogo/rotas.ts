@@ -54,6 +54,15 @@ import {
   type PosicaoNaLista,
 } from "./consultas.js";
 import { ErroCatalogo, traduzir } from "./erros.js";
+import {
+  apagarOpcao,
+  apagarValor,
+  definirValoresNoRascunho,
+  mudarNomeDaOpcao,
+  mudarTextoDoValor,
+  ordenarOpcoes,
+  ordenarValores,
+} from "./opcoes-escrita.js";
 import { apagarTraducao, definirTraducao } from "./traducoes.js";
 import {
   NAO_VERIFICADO,
@@ -141,6 +150,7 @@ const ESTADO_DO_CODIGO: Record<ErroCatalogo["codigo"], number> = {
   "catalog.option_combination_duplicate": 409,
   "catalog.option_duplicate": 409,
   "catalog.option_value_duplicate": 409,
+  "catalog.order_mismatch": 409,
   "catalog.component_in_use": 409,
   "catalog.category_has_children": 409,
   "catalog.slug_duplicate": 409,
@@ -329,6 +339,11 @@ export const OpcaoEsquema = Type.Object({
   artigo: Type.String({ description: "prd_…" }),
   nome: Type.String(),
   posicao: Type.Integer(),
+  versao: Type.Integer({
+    minimum: 1,
+    description:
+      "Sobe com qualquer mudança à opção ou aos valores dela; as escritas da opção pedem-na (catalog.version_conflict)",
+  }),
   valores: Type.Array(
     Type.Object({
       id: Type.String({ description: "ovl_…" }),
@@ -638,11 +653,77 @@ const PedidoCriarOpcao = Type.Object(
 );
 
 const PedidoAcrescentarValor = Type.Object(
-  { valor: Texto(100) },
+  {
+    valor: Texto(100),
+    versao: Type.Optional(
+      Type.Integer({
+        minimum: 1,
+        description:
+          "A `versao` da opção que se leu (opcional, docs/14 §7.1); outra dá catalog.version_conflict",
+      }),
+    ),
+  },
   { additionalProperties: false },
 );
 
-const ParametroOpcao = Type.Object({ id: idCom("opt", "opt_…") });
+export const ParametroOpcao = Type.Object({ id: idCom("opt", "opt_…") });
+
+// A escrita das opções (docs/14 §7.1; issue #285).
+export const ParametroValorDaOpcao = Type.Object({
+  id: idCom("opt", "opt_…"),
+  valor: idCom("ovl", "ovl_…"),
+});
+export const ConsultaVersao = Type.Object(
+  {
+    versao: Type.String({
+      pattern: "^[1-9][0-9]{0,8}$",
+      description: "A `versao` da opção que se leu",
+    }),
+  },
+  { additionalProperties: false },
+);
+export const PedidoMudarNomeDaOpcao = Type.Object(
+  { nome: Texto(100), versao: Type.Integer({ minimum: 1 }) },
+  { additionalProperties: false },
+);
+export const PedidoMudarTextoDoValor = Type.Object(
+  { valor: Texto(100), versao: Type.Integer({ minimum: 1 }) },
+  { additionalProperties: false },
+);
+export const PedidoOrdemDasOpcoes = Type.Object(
+  {
+    opcoes: Type.Array(idCom("opt", "opt_…"), {
+      minItems: 1,
+      maxItems: 100,
+      uniqueItems: true,
+      description: "Todas as opções do artigo, pela ordem nova",
+    }),
+  },
+  { additionalProperties: false },
+);
+export const PedidoOrdemDosValores = Type.Object(
+  {
+    valores: Type.Array(idCom("ovl", "ovl_…"), {
+      minItems: 1,
+      maxItems: 1000,
+      uniqueItems: true,
+      description: "Todos os valores da opção, pela ordem nova",
+    }),
+    versao: Type.Integer({ minimum: 1 }),
+  },
+  { additionalProperties: false },
+);
+export const PedidoValoresDaVariante = Type.Object(
+  {
+    valores: Type.Array(idCom("ovl", "ovl_…"), {
+      maxItems: 100,
+      uniqueItems: true,
+      description:
+        "Um valor por opção, ou menos (num rascunho a combinação pode ficar incompleta, §3.3); substitui os que a variante tinha",
+    }),
+  },
+  { additionalProperties: false },
+);
 
 const PedidoComposicao = Type.Object(
   {
@@ -990,6 +1071,7 @@ function paraOpcao(o: {
   artigo_id: string;
   nome: string;
   posicao: number;
+  versao: number;
   valores: { id: string; valor: string }[];
 }) {
   return {
@@ -997,6 +1079,7 @@ function paraOpcao(o: {
     artigo: `prd_${o.artigo_id}`,
     nome: o.nome,
     posicao: o.posicao,
+    versao: o.versao,
     valores: o.valores.map((v) => ({ id: `ovl_${v.id}`, valor: v.valor })),
   };
 }
@@ -2172,10 +2255,199 @@ export function rotasDoCatalogo(
             chave.comercianteId,
             id,
             pedido.body.valor,
+            pedido.body.versao,
           );
           return paraOpcao(await fichaDaOpcao(trx, chave.comercianteId, id));
         },
         (corpo) => `/options/${(corpo as { id: string }).id}`,
+      ),
+  );
+
+  // A escrita das opções (docs/14 §7.1; issue #285). Cada rota chama uma
+  // operação de `ESCRITAS_DAS_OPCOES`, que as rotas /hub/ também usam.
+  rotas.patch(
+    "/options/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Muda o nome da opção, na `versao` lida (outra dá catalog.version_conflict). Só num rascunho; outro dá catalog.not_draft. O nome não se repete no artigo (catalog.option_duplicate). As traduções do nome passam a «desactualizada».",
+        headers: CabecalhoIdempotencia,
+        params: ParametroOpcao,
+        body: PedidoMudarNomeDaOpcao,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        ESCRITAS_DAS_OPCOES.mudarNome(
+          trx,
+          chave.comercianteId,
+          pedido.params.id,
+          pedido.body,
+        ),
+      ),
+  );
+
+  rotas.patch(
+    "/options/:id/values/:valor",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Muda o texto de um valor, na `versao` da opção lida. Só num rascunho; outro dá catalog.not_draft. O valor não se repete na opção (catalog.option_value_duplicate). Devolve a opção com os valores todos.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroValorDaOpcao,
+        body: PedidoMudarTextoDoValor,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        ESCRITAS_DAS_OPCOES.mudarValor(
+          trx,
+          chave.comercianteId,
+          pedido.params,
+          pedido.body,
+        ),
+      ),
+  );
+
+  rotas.delete(
+    "/options/:id",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Apaga a opção, com os valores e o valor dela em cada variante, na `versao` lida (`?versao=`). Só num rascunho; outro dá catalog.not_draft. Se duas variantes activas ficarem com a mesma combinação, catalog.option_combination_duplicate e nada se apaga.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroOpcao,
+        querystring: ConsultaVersao,
+        response: {
+          204: Type.Null({ description: "Apagada; sem corpo" }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        204,
+        (trx, chave) =>
+          ESCRITAS_DAS_OPCOES.apagarOpcao(
+            trx,
+            chave.comercianteId,
+            pedido.params.id,
+            Number(pedido.query.versao),
+          ),
+        undefined,
+        // A versão vai na consulta, que a idempotência não lê sozinha.
+        { versao: pedido.query.versao },
+      ),
+  );
+
+  rotas.delete(
+    "/options/:id/values/:valor",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Apaga um valor da opção, na `versao` da opção lida (`?versao=`). Só num rascunho; outro dá catalog.not_draft. As variantes que o tinham ficam sem valor nessa opção (o rascunho pode ficar incompleto). Devolve a opção com os valores que ficam.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroValorDaOpcao,
+        querystring: ConsultaVersao,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(
+        base,
+        pedido,
+        resposta,
+        200,
+        (trx, chave) =>
+          ESCRITAS_DAS_OPCOES.apagarValor(
+            trx,
+            chave.comercianteId,
+            pedido.params,
+            Number(pedido.query.versao),
+          ),
+        undefined,
+        { versao: pedido.query.versao },
+      ),
+  );
+
+  rotas.put(
+    "/products/:id/options/order",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Põe as opções do artigo pela ordem dada, em qualquer estado do artigo. A lista tem de ter todas as opções de agora, uma vez cada; outra dá catalog.order_mismatch e nada muda. Devolve as opções pela ordem nova (até 100).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroArtigo,
+        body: PedidoOrdemDasOpcoes,
+        response: { 200: Lista(OpcaoEsquema), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        ESCRITAS_DAS_OPCOES.ordenarOpcoes(
+          trx,
+          chave.comercianteId,
+          pedido.params.id,
+          pedido.body,
+        ),
+      ),
+  );
+
+  rotas.put(
+    "/options/:id/values/order",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Põe os valores da opção pela ordem dada, em qualquer estado do artigo, na `versao` lida. A lista tem de ter todos os valores de agora, uma vez cada; outra dá catalog.order_mismatch e nada muda.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroOpcao,
+        body: PedidoOrdemDosValores,
+        response: { 200: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        ESCRITAS_DAS_OPCOES.ordenarValores(
+          trx,
+          chave.comercianteId,
+          pedido.params.id,
+          pedido.body,
+        ),
+      ),
+  );
+
+  rotas.put(
+    "/variants/:id/values",
+    {
+      config: { ambito: "catalog:write" },
+      schema: {
+        description:
+          "Dá à variante os valores das opções (um por opção, ou menos), substituindo os que tinha. Só num rascunho; outro dá catalog.not_draft (depois de vendida, a variante não muda de identidade). Um valor de outro artigo dá catalog.not_found; dois da mesma opção, catalog.option_repeated.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroVariante,
+        body: PedidoValoresDaVariante,
+        response: { 200: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        ESCRITAS_DAS_OPCOES.valoresDaVariante(
+          trx,
+          chave.comercianteId,
+          pedido.params.id,
+          pedido.body,
+        ),
       ),
   );
 
@@ -2978,3 +3250,125 @@ export async function opcoesDeArtigoComVariantes(
       pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
   };
 }
+
+/**
+ * As escritas das opções (docs/14 §7.1; issue #285), com o que cada uma
+ * devolve: as mesmas para as rotas pela chave e as /hub/ (docs/22 §21.2).
+ * Recebem a transacção da escrita (a da idempotência, ou a do Hub).
+ * **Outro chamador:** `identidade/hub-catalogo.ts`.
+ */
+export const ESCRITAS_DAS_OPCOES = {
+  async mudarNome(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    id: string,
+    corpo: Static<typeof PedidoMudarNomeDaOpcao>,
+  ) {
+    const opcao = semPrefixo(id);
+    await mudarNomeDaOpcao(trx, comercianteId, opcao, corpo.nome, corpo.versao);
+    return paraOpcao(await fichaDaOpcao(trx, comercianteId, opcao));
+  },
+  async mudarValor(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    params: Static<typeof ParametroValorDaOpcao>,
+    corpo: Static<typeof PedidoMudarTextoDoValor>,
+  ) {
+    const opcao = semPrefixo(params.id);
+    await mudarTextoDoValor(
+      trx,
+      comercianteId,
+      opcao,
+      semPrefixo(params.valor),
+      corpo.valor,
+      corpo.versao,
+    );
+    return paraOpcao(await fichaDaOpcao(trx, comercianteId, opcao));
+  },
+  async apagarOpcao(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    id: string,
+    versao: number,
+  ) {
+    await apagarOpcao(trx, comercianteId, semPrefixo(id), versao);
+    return null;
+  },
+  async apagarValor(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    params: Static<typeof ParametroValorDaOpcao>,
+    versao: number,
+  ) {
+    const opcao = semPrefixo(params.id);
+    await apagarValor(
+      trx,
+      comercianteId,
+      opcao,
+      semPrefixo(params.valor),
+      versao,
+    );
+    return paraOpcao(await fichaDaOpcao(trx, comercianteId, opcao));
+  },
+  async ordenarOpcoes(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    id: string,
+    corpo: Static<typeof PedidoOrdemDasOpcoes>,
+  ) {
+    const artigo = semPrefixo(id);
+    await ordenarOpcoes(
+      trx,
+      comercianteId,
+      artigo,
+      corpo.opcoes.map(semPrefixo),
+    );
+    const pagina = await opcoesDoArtigoPaginadas(
+      trx,
+      comercianteId,
+      artigo,
+      100,
+      null,
+    );
+    return {
+      dados: pagina.dados.map(paraOpcao),
+      total: pagina.total,
+      ha_mais: pagina.ultima !== null,
+      cursor_seguinte:
+        pagina.ultima === null ? null : cursorPosicaoEId(pagina.ultima),
+    };
+  },
+  async ordenarValores(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    id: string,
+    corpo: Static<typeof PedidoOrdemDosValores>,
+  ) {
+    const opcao = semPrefixo(id);
+    await ordenarValores(
+      trx,
+      comercianteId,
+      opcao,
+      corpo.valores.map(semPrefixo),
+      corpo.versao,
+    );
+    return paraOpcao(await fichaDaOpcao(trx, comercianteId, opcao));
+  },
+  async valoresDaVariante(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    id: string,
+    corpo: Static<typeof PedidoValoresDaVariante>,
+  ) {
+    const variante = semPrefixo(id);
+    await definirValoresNoRascunho(
+      trx,
+      comercianteId,
+      variante,
+      corpo.valores.map(semPrefixo),
+    );
+    return paraVarianteCompleta(
+      await fichaDaVariante(trx, comercianteId, variante),
+    );
+  },
+};

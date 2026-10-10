@@ -131,6 +131,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0039_clientes_vies_isencao",
         "0040_motor_de_iva",
         "0041_checkout",
+        "0042_catalogo_versao_da_opcao",
       ]);
     });
 
