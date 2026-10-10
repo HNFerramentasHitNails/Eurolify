@@ -1,5 +1,9 @@
 import { sql, type Kysely, type Transaction } from "kysely";
-import type { BaseDados } from "../base/esquema.js";
+import {
+  CANAIS_CONSENTIMENTO,
+  type BaseDados,
+  type CanalConsentimento,
+} from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { ErroClientes, type CodigoErroClientes } from "./erros.js";
 import type { PedidoVies, RespostaVies } from "./vies.js";
@@ -56,6 +60,7 @@ const TABELAS = new Set([
   "etiqueta_cliente",
   "cliente_etiqueta",
   "isencao_manual",
+  "consentimento",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -995,6 +1000,118 @@ export async function listarIsencoes(
       .where("perfil_id", "=", perfilId)
       .orderBy("id", "desc")
       .execute();
+  });
+}
+
+// ------------------------------------------------ Consentimentos (§3.6)
+
+export interface DadosConsentimento {
+  canal: CanalConsentimento;
+  declaracao: "aceitou" | "retirou";
+  texto: string;
+  versao_texto: string;
+  onde: string;
+}
+
+/** Regista uma declaração (migração 0042); a hora e quem põe-nos a base. */
+export async function registarConsentimento(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+  dados: DadosConsentimento,
+): Promise<string> {
+  const { id } = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .insertInto("consentimento")
+      .values({
+        comerciante_id: comercianteId,
+        cliente_id: clienteId,
+        finalidade: "marketing",
+        ...dados,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow(),
+  );
+  return id;
+}
+
+export async function obterConsentimento(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+) {
+  const c = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("consentimento")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst(),
+  );
+  if (c === undefined) {
+    throw new ErroClientes("customers.not_found", "consentimento inexistente");
+  }
+  return c;
+}
+
+/**
+ * As declarações da ficha, as mais recentes primeiro, por páginas (revisão do
+ * #289, P2-3), e a resposta da régua única por canal — nunca contada aqui
+ * (R6): pergunta-se à base.
+ */
+export async function listarConsentimentos(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+  limite: number,
+  antes: string | null,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const ficha = await trx
+      .selectFrom("cliente")
+      .select("id")
+      .where("id", "=", clienteId)
+      .executeTakeFirst();
+    if (ficha === undefined) {
+      throw new ErroClientes("customers.not_found", "ficha inexistente");
+    }
+    const { n } = await trx
+      .selectFrom("consentimento")
+      .where("cliente_id", "=", clienteId)
+      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .executeTakeFirstOrThrow();
+    let q = trx
+      .selectFrom("consentimento")
+      .selectAll()
+      .where("cliente_id", "=", clienteId);
+    if (antes !== null) {
+      q = q.where(
+        sql<boolean>`(declarado_em, id) < (select c.declarado_em, c.id
+          from consentimento c where c.id = ${antes}::uuid)`,
+      );
+    }
+    const linhas = await q
+      .orderBy("declarado_em", "desc")
+      .orderBy("id", "desc")
+      .limit(limite + 1)
+      .execute();
+    const haMais = linhas.length > limite;
+    const dados = haMais ? linhas.slice(0, limite) : linhas;
+    const { rows } = await sql<Record<CanalConsentimento, boolean>>`
+      select pode_receber_marketing(${clienteId}::uuid, 'email') as email,
+             pode_receber_marketing(${clienteId}::uuid, 'sms') as sms,
+             pode_receber_marketing(${clienteId}::uuid, 'whatsapp') as whatsapp`.execute(
+      trx,
+    );
+    const r = rows[0];
+    const regua = Object.fromEntries(
+      CANAIS_CONSENTIMENTO.map((canal) => [canal, r?.[canal] === true]),
+    ) as Record<CanalConsentimento, boolean>;
+    return {
+      dados,
+      total: Number(n),
+      ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
+      regua,
+    };
   });
 }
 

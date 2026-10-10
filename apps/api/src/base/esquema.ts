@@ -298,6 +298,9 @@ export interface TabelaOpcao {
   nome: string;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
+  // Migração 0043: sobe com qualquer mudança à opção ou aos valores dela;
+  // quem a sobe são os gatilhos da base, a API só a lê e a confere.
+  versao: ColumnType<number, never, number>;
 }
 
 export interface TabelaValorOpcao {
@@ -655,6 +658,7 @@ export const ENTIDADES_DO_RASTO_CLIENTE = [
   "perfil_faturacao",
   "etiqueta_cliente",
   "cliente_etiqueta",
+  "consentimento",
 ] as const;
 export type EntidadeDoRastoCliente =
   (typeof ENTIDADES_DO_RASTO_CLIENTE)[number];
@@ -757,6 +761,24 @@ export interface TabelaValidacaoVies {
   >;
   quem: ColumnType<string, never, never>;
   registado_em: ColumnType<Date, never, never>;
+}
+
+export const CANAIS_CONSENTIMENTO = ["email", "sms", "whatsapp"] as const;
+export type CanalConsentimento = (typeof CANAIS_CONSENTIMENTO)[number];
+
+/** Uma declaração de consentimento (docs/23 §3.6; migração 0042): não se altera nem se apaga. */
+export interface TabelaConsentimento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  cliente_id: ColumnType<string, string, never>;
+  canal: ColumnType<CanalConsentimento, CanalConsentimento, never>;
+  finalidade: ColumnType<"marketing", "marketing" | undefined, never>;
+  declaracao: ColumnType<"aceitou" | "retirou", "aceitou" | "retirou", never>;
+  texto: ColumnType<string, string, never>;
+  versao_texto: ColumnType<string, string, never>;
+  onde: ColumnType<string, string, never>;
+  declarado_em: ColumnType<Date, never, never>;
+  quem: ColumnType<string, never, never>;
 }
 
 export interface TabelaIsencaoManual {
@@ -999,6 +1021,134 @@ export interface TabelaLinhaEncomenda {
   total: ColumnType<string, number, never>;
 }
 
+// Pagamentos (migração 0044; docs/26).
+export const METODOS_PAGAMENTO = ["mb_way", "multibanco"] as const;
+export type MetodoPagamento = (typeof METODOS_PAGAMENTO)[number];
+export const ESTADOS_PAGAMENTO = [
+  "criado",
+  "a_aguardar_cliente",
+  "autorizado",
+  "capturado",
+  "falhado",
+  "expirado",
+  "anulado",
+  "incerto",
+  "reembolsado_parcial",
+  "reembolsado",
+  "em_disputa",
+  "ganha",
+  "perdida",
+] as const;
+export type EstadoPagamento = (typeof ESTADOS_PAGAMENTO)[number];
+export type OrigemTransicao = "aviso" | "consulta" | "pessoa" | "sistema";
+export const MOTIVOS_DIFERENCA = [
+  "incerto",
+  "aviso_sem_pagamento",
+  "montante_diferente",
+  "moeda_diferente",
+  "transicao_impossivel",
+  "pago_depois_de_cancelada",
+  "pagamento_duplicado",
+] as const;
+export type MotivoDiferenca = (typeof MOTIVOS_DIFERENCA)[number];
+
+export interface TabelaContaPagamento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  prestador: ColumnType<"eupago", "eupago", never>;
+  nome: ColumnType<string, string, string>;
+  modo: ColumnType<"teste", never, never>;
+  credenciais_cifra: ColumnType<Buffer | null, never, Buffer | null>;
+  segredo_aviso_cifra: ColumnType<Buffer | null, never, Buffer | null>;
+  chave_versao: ColumnType<string | null, never, string | null>;
+  credenciais_em: ColumnType<Date | null, never, Date | null>;
+  credenciais_por: ColumnType<string | null, never, string | null>;
+  testada_em: ColumnType<Date | null, never, Date | null>;
+  estado: ColumnType<
+    "rascunho" | "pronta" | "arquivada",
+    never,
+    "rascunho" | "pronta" | "arquivada"
+  >;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, Date>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaMetodoPagamento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  mercado_id: ColumnType<string, string, never>;
+  metodo: ColumnType<MetodoPagamento, MetodoPagamento, never>;
+  conta_id: ColumnType<string, string, string>;
+  ordem: ColumnType<number, number | undefined, number>;
+  prazo_minutos: ColumnType<number, number, number>;
+  estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, Date>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaPagamento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  conta_id: ColumnType<string, string, never>;
+  prestador: ColumnType<"eupago", "eupago", never>;
+  metodo: ColumnType<MetodoPagamento, MetodoPagamento, never>;
+  modo: ColumnType<"teste", "teste", never>;
+  montante: ColumnType<string, number, never>;
+  moeda: ColumnType<string, string, never>;
+  referencia: ColumnType<string, string, never>;
+  referencia_prestador: ColumnType<string | null, never, string | null>;
+  instrucoes: ColumnType<unknown, never, string | null>;
+  estado: ColumnType<EstadoPagamento, never, EstadoPagamento>;
+  expira_em: ColumnType<Date, Date, never>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, Date>;
+}
+
+export interface TabelaAvisoPagamento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  conta_id: ColumnType<string, string, never>;
+  id_evento: ColumnType<string, string, never>;
+  corpo: ColumnType<string, string, never>;
+  assinatura_valida: ColumnType<boolean, boolean, never>;
+  pagamento_id: ColumnType<string | null, never, string | null>;
+  resultado: ColumnType<string | null, never, string | null>;
+  erro: ColumnType<string | null, never, string | null>;
+  recebido_em: ColumnType<Date, never, never>;
+  processado_em: ColumnType<Date | null, never, Date | null>;
+}
+
+export interface TabelaTransicaoPagamento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, never, never>;
+  pagamento_id: ColumnType<string, never, never>;
+  de: ColumnType<EstadoPagamento | null, never, never>;
+  para: ColumnType<EstadoPagamento, never, never>;
+  origem: ColumnType<OrigemTransicao, never, never>;
+  aviso_id: ColumnType<string | null, never, never>;
+  quem: ColumnType<string, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaDiferencaPagamento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  pagamento_id: ColumnType<string | null, string | null, never>;
+  aviso_id: ColumnType<string | null, string | null, never>;
+  motivo: ColumnType<MotivoDiferenca, MotivoDiferenca, never>;
+  prova: ColumnType<unknown, string, never>;
+  estado: ColumnType<"aberta" | "resolvida", never, "resolvida">;
+  resolucao: ColumnType<string | null, never, string>;
+  resolvida_por: ColumnType<string | null, never, string>;
+  resolvida_em: ColumnType<Date | null, never, Date>;
+  criada_em: ColumnType<Date, never, never>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -1038,6 +1188,7 @@ export interface BaseDados {
   alteracao_cliente: TabelaAlteracaoCliente;
   validacao_vies: TabelaValidacaoVies;
   isencao_manual: TabelaIsencaoManual;
+  consentimento: TabelaConsentimento;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;
@@ -1051,4 +1202,10 @@ export interface BaseDados {
   sessao_checkout: TabelaSessaoCheckout;
   encomenda: TabelaEncomenda;
   linha_encomenda: TabelaLinhaEncomenda;
+  conta_pagamento: TabelaContaPagamento;
+  metodo_pagamento: TabelaMetodoPagamento;
+  pagamento: TabelaPagamento;
+  aviso_pagamento: TabelaAvisoPagamento;
+  transicao_pagamento: TabelaTransicaoPagamento;
+  diferenca_pagamento: TabelaDiferencaPagamento;
 }

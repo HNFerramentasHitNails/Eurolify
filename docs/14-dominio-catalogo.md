@@ -1345,6 +1345,55 @@ quem pagina reescreve as posições (a excepção ao `docs/18` §2a; no máximo
 o texto de um valor, apagar uma opção e mudar a ordem; desenham-se antes do
 código.
 
+**A escrita das opções** (desenho de 09/10/2026, issue #285; pedido do
+Diogo: *«sim, avança com o desenho da escrita das opções»*; aprovado pelo Diogo a
+09/10/2026: *«sim, aprovo o desenho, junta o #286»*, com a `versao` da
+opção). As regras são as da §3.3 e já estão na base (migração 0005:
+`opcao_antes_de_gravar`, `valor_opcao_antes_de_gravar`,
+`variante_valor_antes_de_gravar` e a verificação das combinações no fim de
+cada transacção); as rotas novas só as usam, sem as repetir. Todas com
+`catalog:write` e a `Idempotency-Key`:
+
+| Rota | Corpo | Quando | Recusas |
+|---|---|---|---|
+| `PATCH /options/{id}` | `nome`, `versao` | só num rascunho | `catalog.not_draft`; nome repetido no artigo `catalog.option_duplicate` (409); `catalog.version_conflict` |
+| `PATCH /options/{id}/values/{valor}` | `valor`, `versao` (a da opção) | só num rascunho | `catalog.not_draft`; `catalog.option_value_duplicate`; `catalog.version_conflict` |
+| `DELETE /options/{id}?versao=` | — | só num rascunho; tira o valor dessa opção a todas as variantes | `catalog.not_draft`; `catalog.version_conflict`; duas variantes activas ficavam com a mesma combinação: `catalog.option_combination_duplicate` (o código que a verificação da 0005 já dá) |
+| `DELETE /options/{id}/values/{valor}?versao=` | — | só num rascunho; as variantes que o tinham ficam sem valor nessa opção (o rascunho pode ficar incompleto, §3.3) | `catalog.not_draft`; `catalog.version_conflict` |
+| `PUT /products/{id}/options/order` | `opcoes`: todos os `opt_…` do artigo, pela ordem nova | sempre (a ordem muda sempre, §3.3) | a lista não é exactamente a das opções do artigo (falta uma, sobra uma): `catalog.order_mismatch` (409), nada se grava; um id repetido no pedido dá 400, como os valores repetidos ao criar |
+| `PUT /options/{id}/values/order` | `valores`: todos os `ovl_…` da opção, pela ordem nova; `versao` | sempre | `catalog.order_mismatch`; `catalog.version_conflict` |
+| `PUT /variants/{id}/values` | `valores`: um `ovl_…` por opção, ou menos (num rascunho pode ficar incompleta) | só num rascunho (depois de vendida, a variante não muda de identidade, §3.3) | `catalog.not_draft`; dois valores da mesma opção, ou um valor de outro artigo: 400 e `catalog.not_found`, como no `POST /products/{id}/variants` |
+
+- **A `versao` da opção**: a tabela `opcao` ganha `versao`, que
+  sobe com qualquer mudança à opção ou aos valores dela (nome, texto de um
+  valor, ordem dos valores, valor novo, valor apagado). Sem ela, duas pessoas
+  a mudar o nome ao mesmo tempo gravavam as duas e ficava a última, sem
+  ninguém saber. A opção passa a sair com a `versao` em
+  `GET /products/{id}/options`, `GET /options/{id}` e nas respostas das
+  escritas, e o `POST /options/{id}/values` passa a aceitá-la (opcional, para
+  não partir quem já a usa). A opção nasce na versão 1 com os valores com que
+  é criada (os da mesma transacção não a sobem; migração 0043). A ordem das opções não precisa dela: a lista
+  tem de ser exactamente a de agora, e isso já apanha uma opção criada ou
+  apagada entretanto; entre duas ordens ao mesmo tempo, fica a última, como
+  na composição dos kits. A versão sobe uma vez por linha mudada (reordenar
+  três valores em que dois mudam de lugar sobe-a duas vezes): quem escreve
+  usa a `versao` da resposta.
+- **Cada escrita devolve** a opção inteira (com os valores), a lista das
+  opções do artigo (a ordem) ou a variante com os valores (`VarianteCompleta`).
+- **Rasto**: as mudanças já ficam na linha do tempo do artigo pelos gatilhos
+  da 0033 (`opcao`, `valor_opcao`, `variante_valor`), com quem fez.
+- **Traduções**: mudar o nome ou o texto de um valor põe as traduções dele
+  em «desactualizada» sem nada novo (o estado compara-se com o original de
+  agora, §4.3); apagar uma opção ou um valor apaga as traduções dele.
+- **Artigos do sistema de gestão** (P5, `docs/22` §13.3): pela chave, como
+  hoje, tudo se aceita; pelo Hub, as opções e os valores das variantes de um
+  artigo `externo` ficam só de leitura (`catalog.external_field`), como os
+  outros dados das variantes.
+- **Concorrência** (§3.3): apagar uma opção ou um valor toma a fila do
+  artigo antes de prender a linha, como a §3.3 já pede à «futura função de
+  apagar opções»; um bloqueio cruzado dá `catalog.retry` e nada fica
+  gravado.
+
 **As traduções em código** (08/10/2026; pedido do Diogo: «sim, avança com
 as traduções»):
 

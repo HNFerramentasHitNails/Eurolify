@@ -548,9 +548,11 @@ export async function criarOpcao(
     await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${artigoId}::uuid)`.execute(
       trx,
     );
+    // A seguir à maior (não à contagem): uma opção apagada num rascunho não
+    // faz repetir a posição de outra (revisão do #290, P2-2).
     const { n } = await trx
       .selectFrom("opcao")
-      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .select(sql<string>`coalesce(max(posicao) + 1, 0)`.as("n"))
       .where("comerciante_id", "=", comercianteId)
       .where("artigo_id", "=", artigoId)
       .executeTakeFirstOrThrow();
@@ -599,12 +601,14 @@ export async function acrescentarValor(
   comercianteId: string,
   opcaoId: string,
   valor: string,
+  /** A `versao` da opção que se leu (opcional, docs/14 §7.1). */
+  versao?: number,
 ): Promise<string> {
   return noCatalogo(db, comercianteId, async (trx) => {
     const lerOpcao = () =>
       trx
         .selectFrom("opcao")
-        .select("artigo_id")
+        .select(["artigo_id", "versao"])
         .where("comerciante_id", "=", comercianteId)
         .where("id", "=", opcaoId)
         .executeTakeFirst();
@@ -628,6 +632,12 @@ export async function acrescentarValor(
     const opcao = await lerOpcao();
     if (opcao === undefined) {
       throw new ErroCatalogo("catalog.not_found", `opção ${opcaoId}`);
+    }
+    if (versao !== undefined && opcao.versao !== versao) {
+      throw new ErroCatalogo(
+        "catalog.version_conflict",
+        `opção ${opcaoId}: versão ${String(versao)} pedida, ${String(opcao.versao)} actual`,
+      );
     }
     // A seguir à maior (não à contagem): um valor apagado num rascunho não
     // faz repetir a posição de outro.
@@ -701,7 +711,8 @@ export async function definirValoresDaVariante(
   );
 }
 
-async function gravarValores(
+/** Exportada para a escrita das opções (opcoes-escrita.ts). */
+export async function gravarValores(
   trx: Transaction<BaseDados>,
   comercianteId: string,
   varianteId: string,

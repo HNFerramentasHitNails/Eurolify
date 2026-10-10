@@ -61,6 +61,8 @@ const FUNCOES_DA_API = [
   // Clientes (0037): a régua do NIF e os CHECK da ficha correm com quem
   // escreve; o principal troca-se por uma função.
   "emails_validos",
+  // Os pagamentos (0044): o prazo, a máquina de estados, a porta dos avisos e as tarefas.
+  "encomenda_prazo_de_pagamento",
   "entrar_com_palavra_passe",
   "entrar_com_passkey",
   // Os ficheiros de imagem sem uso (0035).
@@ -77,6 +79,11 @@ const FUNCOES_DA_API = [
   "nif_para_procura",
   "nif_portugues_valido",
   "nif_regua",
+  "pagamento_transicao_valida",
+  "pagamentos_adiar_tarefa",
+  "pagamentos_comerciantes_com_tarefas",
+  "pagamentos_conta_do_aviso",
+  "pagamentos_tarefas",
   "pais_do_comerciante",
   "pais_do_prefixo_fiscal",
   "palavra_passe_codigo_errado",
@@ -91,6 +98,8 @@ const FUNCOES_DA_API = [
   "passkeys_listar",
   "perfil_tornar_principal",
   "pessoa_eu",
+  // A régua única do marketing (0042): quem envia pergunta-lhe.
+  "pode_receber_marketing",
   // A redução anunciada (0036): o gatilho corre com quem escreve.
   "preco_referencia",
   "prefixo_fiscal",

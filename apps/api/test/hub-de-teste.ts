@@ -61,7 +61,7 @@ export function hubDeTeste(
   );
 
   const pedir = (
-    metodo: "GET" | "POST" | "PATCH" | "DELETE",
+    metodo: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
     url: string,
     p: Pedido = {},
   ) => {
