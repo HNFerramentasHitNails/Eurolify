@@ -1284,6 +1284,11 @@ const paraEncomenda = (r: Awaited<ReturnType<typeof lerEncomenda>>) => ({
   metodo_entrega: r.encomenda.metodo_entrega,
   metodo_pagamento: r.encomenda.metodo_pagamento,
   aceitacoes: r.encomenda.aceitacoes,
+  emissor_fiscal: r.encomenda.emissor_fiscal,
+  documento:
+    r.documento === null
+      ? null
+      : { id: `inv_${r.documento.id}`, estado: r.documento.estado },
   criada_em: r.encomenda.criada_em.toISOString(),
   linhas: r.linhas.map((l) => ({
     id: `oli_${l.id}`,

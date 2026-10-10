@@ -3,6 +3,8 @@ import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
+import type { ConfigFaturacao } from "./faturacao/adaptador.js";
+import { agendarDocumentos } from "./faturacao/repositorio.js";
 import { randomUUID } from "node:crypto";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
@@ -89,6 +91,22 @@ const pagamentos: ConfigPagamentos = {
       }),
 };
 
+// Os documentos fiscais (docs/28 Q5): nesta parte só o adaptador de ensaio
+// existe e não está ligado no servidor — nenhum documento sai. A chave cifra
+// as credenciais das ligações (FATURACAO_CHAVE), como a dos pagamentos.
+const textoChaveFaturacao = process.env["FATURACAO_CHAVE"]?.trim();
+const faturacao: ConfigFaturacao = {
+  adaptadores: {},
+  ...(textoChaveFaturacao === undefined || textoChaveFaturacao === ""
+    ? {}
+    : {
+        chave: chavePagamentos(
+          textoChaveFaturacao,
+          process.env["FATURACAO_CHAVE_VERSAO"]?.trim() || "1",
+        ),
+      }),
+};
+
 const app = criarApp(
   {
     // Um identificador por pedido que não recomeça a cada arranque: é o
@@ -107,6 +125,7 @@ const app = criarApp(
   vies,
   undefined,
   pagamentos,
+  faturacao,
 );
 
 // Os ficheiros de imagem sem uso há mais de 7 dias saem uma vez por dia
@@ -129,6 +148,12 @@ const pararPagamentos =
     ? agendarTarefasPagamentos(base, pagamentos, app.log)
     : () => undefined;
 
+// Os pedidos de documento, de minuto a minuto (docs/28, R11).
+const pararDocumentos =
+  base !== undefined && faturacao.chave !== undefined
+    ? agendarDocumentos(base, faturacao, app.log)
+    : () => undefined;
+
 // As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).
 const pararConclusoes =
   base !== undefined ? agendarConclusoes(base, app.log) : () => undefined;
@@ -136,6 +161,7 @@ const pararConclusoes =
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
     pararConclusoes();
+    pararDocumentos();
     pararLimpeza();
     pararVies();
     pararPagamentos();
