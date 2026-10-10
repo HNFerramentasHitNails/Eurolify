@@ -1435,6 +1435,125 @@ GTIN do fornecedor e 400 g.
   1280 px, claro e escuro, e só com teclado; as capturas vão à página de
   aprovação.
 
+## 25. Catálogo: definir e tirar o preço de uma variante numa lista (issue #335)
+
+Pedido do Diogo, 10/10/2026 («avançar», à pergunta *«Avanço com o desenho
+de "editar os preços de uma variante" no Hub?»*). **Aprovado pelo Diogo a
+10/10/2026**, com a Q1 em «sim» (*«sim»*, à pergunta *«Aprova o desenho, e
+com a Q1 em "sim"?»*). A §17 só mostra os
+preços. Uma variante acrescentada no Hub (§24) nasce sem preço, e sem preço
+na lista base de um mercado o artigo não se publica nesse mercado
+(`docs/14` §5, C2). A API pela chave já define e tira preços
+(`PUT` e `DELETE /price-lists/{id}/prices/{variante}`, `docs/20` §10). O Hub
+ainda não tem as rotas. Skills: `consumer-rights-eu`, `eu-vat-oss-ioss`,
+`eu-localization`, `catalog-pim`, `headless-commerce`, `eurolify-design`.
+
+Ex.: na ficha do «Gel Coral 41», a `ENS-041-B` diz «Sem preço nesta lista»
+na lista «Base PT» (Portugal, EUR, preços com IVA). A gestora carrega em
+«Definir preço», escreve 39,90 e guarda. A ficha volta com «Preço de
+ENS-041-B em Base PT guardado.» e mostra 39,90 € e o preço por unidade que
+o servidor calculou.
+
+### 25.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **Definir** o preço de uma variante activa numa lista activa (criá-lo ou mudá-lo): o montante na moeda da lista, «gratuito», a quantidade mínima e o múltiplo |
+| **Tirar** o preço de uma variante de uma lista (fica no histórico, com a saída, `docs/20` §3.5) |
+
+| Fica de fora, e porquê |
+|---|
+| **Anunciar ou tirar uma redução** (o preço riscado): o preço de referência dos 30 dias tem regras ainda **C** (Dir. 98/6/CE, art. 6.º-A; `docs/20` §3.6, à espera do jurista). Passo à parte, se for pedido. |
+| **Criar, arquivar ou mudar listas e mercados**: outro ecrã, ainda por desenhar. |
+| **Preços de variantes arquivadas**: não se vendem; o botão aparece só nas activas. |
+| **O histórico de cada preço**: como na §17, entra quando houver onde o mostrar. |
+| **Mostrar o IVA ou o preço por unidade no formulário**: o servidor calcula; o Hub mostra-os na ficha, depois de gravar (R1, R7; uma regra, um sítio). |
+| **Pôr a variante à venda**: com preço, a variante nova continua fora das publicações até a publicação ser refeita (§24.3). |
+
+### 25.2 Como o Hub escreve
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `PUT /hub/price-lists/{id}/prices/{variante}` | a sessão com `prices:write` (o dono e o gestor; `docs/20` §10.1) | a mesma função do `PUT` pela chave (`definirPreco`), com o `eurolify.quem` da pessoa; o corpo é o mesmo (`montante`, `gratuito`, `quantidade_minima`, `multiplo`) e leva também a `versao` lida |
+| `DELETE /hub/price-lists/{id}/prices/{variante}?versao=` | a mesma | a mesma função do `DELETE` pela chave (`tirarPreco`) |
+
+- **A versão.** O preço já tem uma `versao` na base (0017: sobe em cada
+  escrita), mas a API não a mostra (`docs/20` §10.1: «o preço não tem
+  versão»). Proposta: a leitura dos preços do artigo (§17.2) passa a dar a
+  `versao` de cada preço (um campo a mais, nas duas rotas). As rotas do Hub
+  exigem-na: `null` quando a variante não tinha preço nessa lista, o número
+  quando tinha. Se o preço guardado não for o lido, **409
+  `prices.version_conflict`**, sem gravar. Sem isto, duas pessoas a mudar o
+  mesmo preço apagavam-se uma à outra sem aviso (o histórico guardava as
+  duas, mas o ecrã não dizia nada). As rotas pela chave ficam como estão.
+- **As regras são as da API e da base, sem cópia no Hub:**
+  - o montante em cêntimos, de 0 a 100 000 000 000; 0 só com «gratuito», e
+    «gratuito» só com 0 (R4; `prices.free_only_at_zero`);
+  - a quantidade mínima e o múltiplo de 1 a 1 000 000;
+  - numa lista arquivada não se escreve (`prices.list_archived`);
+  - com uma **redução em vigor**, o montante e o «gratuito» não mudam e o
+    preço não sai (`prices.reduction_active`); as quantidades mudam;
+  - o preço de uma variante **publicada** não sai da lista base do mercado
+    (`prices.published_variant`).
+- **Só variantes deste comerciante**: uma lista ou variante de outro
+  comerciante, ou que não existe, dá 404.
+- **O mesmo prazo de espera** das outras escritas do Hub (5 s, depois 503
+  `prices.retry`; §24, revisão do #326).
+- **Sem `Idempotency-Key`**, como as outras escritas do Hub. Se a resposta se
+  perde, o ecrã relê os preços do artigo. Se o preço guardado tem tudo o que
+  se enviou (ou, ao tirar, já não há preço), dá-o por gravado. Senão, diz que
+  não encontrou a mudança e deixa tentar outra vez.
+
+### 25.3 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Ficha**, secção «Preços» (§17.3) | Com `prices:write`: em cada variante activa, «Alterar preço» quando tem preço e «Definir preço» quando a lista diz «Sem preço nesta lista». | — |
+| **Preço da variante** (`/artigos/{prd_…}/precos/{prl_…}/{var_…}`) | No topo, a variante (SKU) e a lista (nome, mercado, moeda e «preços com IVA» ou «preços sem IVA», como na §17.3). Os campos: **Preço** («Preço com IVA (€)» ou «Preço sem IVA (€)», conforme o mercado), **Gratuito** (uma caixa; marcada, o preço fica 0 e não se escreve), **Quantidade mínima** e **Múltiplo** (1 por omissão). «Guardar», «Cancelar» e, quando há preço, «Tirar o preço desta lista», que pergunta antes. Numa lista base, a pergunta diz: «Sem preço na lista base, o artigo deixa de se poder publicar em {mercado}.» Depois de gravar, volta à ficha com «Preço de {sku} em {lista} guardado.» ou «Preço de {sku} tirado de {lista}.». Sair com o formulário mudado pergunta antes. | a gravar; o erro da API ao lado do campo (montante inválido, gratuito só a 0, quantidades); **com uma redução em vigor**: o preço e «gratuito» só de leitura, com «Este preço tem uma redução em vigor{até}: muda-se quando a redução acabar.» (as quantidades mudam); conflito (409: «Outra pessoa mudou este preço entretanto.», o formulário passa a partir do guardado e fica o que a pessoa escreveu, como a §23); variante publicada (409 ao tirar: «A variante está à venda em {mercado}: o preço não sai da lista base.»); a resposta perdida (§25.2); sem permissão, lista ou variante que não existe (só o aviso, sem formulário) |
+
+- **Escrever o montante.** O campo aceita o preço como se escreve na
+  língua do Hub: «39,90» ou «39.90», com as casas da moeda da lista (as do
+  `Intl.NumberFormat` para essa moeda; no euro, duas; nas outras moedas da
+  UE não verifiquei uma a uma). Não aceita separador de milhares nem sinal. O ecrã
+  passa o texto a cêntimos **sem vírgula flutuante** (R2: «39,90» → 3990)
+  e mostra-o de volta com `Intl.NumberFormat`. Fora disso, o erro aparece
+  ao lado do campo antes de pedir.
+- **O IVA.** O Hub não calcula nem tira IVA. O rótulo diz se o montante
+  inclui IVA, porque é isso que o mercado guarda (`preco_inclui_iva`). O
+  preço que o cliente vê com o IVA do país sai do Motor de IVA (`docs/24`).
+
+### 25.4 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| Um preço a 0,00 € por engano | a base recusa 0 sem «gratuito» (R4); o ecrã só manda 0 com a caixa marcada |
+| «39,90» lido como 3990,00 € ou 39,9 lido como 39,09 € | a conversão é por texto, com no máximo as casas da moeda, e tem testes de unidade com os casos («39,9» → 3990; «39,905» recusado; «1.234,50» recusado) |
+| Duas pessoas mudam o mesmo preço | a versão (§25.2): a segunda recebe 409 |
+| Tirar o preço da lista base de um artigo à venda | a base recusa (`prices.published_variant`); a pergunta antes avisa o que acontece nos outros casos |
+| Uma chave ou um papel sem `prices:write` muda preços | a rota confere o âmbito da sessão; o armazém e o apoio recebem 403 (teste) |
+
+### 25.5 Decidido
+
+**Q1. Num artigo que vem do sistema de gestão (P5), os preços editam-se no
+Hub?** ✅ **Decidido: sim** (Diogo, 10/10/2026, *«sim»*). A decisão da §13.3 lista só os dados do artigo e das variantes; os
+preços não estão nela. Editam-se, como as imagens. Os preços são do
+domínio de Preços e não dos dados que vêm de lá. Se o sistema de gestão
+também mandar preços pela chave, vale o último a gravar, e o histórico diz
+quem foi (`definido_por`).
+
+### 25.6 Antes de dizer que está feito (o pedido do código)
+
+- **API**: as rotas pelo Hub fazem o mesmo que as da chave; a versão na
+  leitura, e 409 com outra versão (também `null` quando já há preço);
+  o armazém e o apoio recebem 403; outro comerciante não chega (404, com
+  prova pela falha); a redução em vigor, a lista arquivada e a variante
+  publicada são recusadas; `definido_por` é a pessoa; o prazo de espera.
+- **Hub**: a passagem define o preço da `ENS-041-B` na «Base PT» só com o
+  teclado, muda-o, recebe o conflito, tira-o de uma lista B2B, é recusada a
+  tirar o de uma variante publicada da lista base, e vê o formulário com
+  uma redução em vigor; a resposta perdida; capturas a 375, 768 e 1280 px,
+  claro e escuro, para a página de aprovação.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
