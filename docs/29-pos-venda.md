@@ -1,6 +1,7 @@
 # Pós-venda — modelo e lista da API
 
-> **Estado: desenho, por aprovar** (issue #328; fatia 11 do
+> **Estado: desenho aprovado** (issue #328; `docs/06`, DM; Diogo, 10/10/2026:
+> *«aprovado»*, Q1 a Q7 como propostas; fatia 11 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md):
 > «Pós-venda: livre resolução → devolução → reembolso → nota de crédito»).
 > Diogo, 10/10/2026: *«aprovado»* (avançar com o desenho da fatia 11). Veio da
