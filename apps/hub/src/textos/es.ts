@@ -683,4 +683,43 @@ export const es: Textos = {
   precosMinimo: "mínimo {n}",
   precosMultiplo: "múltiplos de {n}",
   precosPorUnidade: "{valor}/{unidade}, con cuatro decimales",
+  // Definir y quitar el precio de una variante (docs/22 §25).
+  precoTitulo: "Precio de la variante",
+  precoDefinir: "Definir precio",
+  precoAlterar: "Cambiar precio",
+  precoDefinirAria: "Definir precio de {sku} en {lista}",
+  precoAlterarAria: "Cambiar precio de {sku} en {lista}",
+  precoVariante: "Variante",
+  precoLista: "Lista",
+  precoCampoComIva: "Precio con IVA ({simbolo})",
+  precoCampoSemIva: "Precio sin IVA ({simbolo})",
+  precoAjudaMontante: "Como 39,90, sin separador de miles.",
+  precoAjudaGratuito: "Marcado, el precio queda en 0.",
+  precoMinimo: "Cantidad mínima",
+  precoMultiplo: "Múltiplo",
+  precoTirar: "Quitar el precio de esta lista",
+  precoConfirmarTirar: "¿Quitar el precio de {sku} de la lista {lista}?",
+  precoConfirmarTirarBase:
+    "¿Quitar el precio de {sku} de la lista {lista}? Sin precio en la lista base, el artículo deja de poder publicarse en {mercado}.",
+  precoGuardado: "Precio de {sku} en {lista} guardado.",
+  precoTirado: "Precio de {sku} quitado de {lista}.",
+  precoComReducao:
+    "Este precio tiene una reducción en vigor{ate}: se cambia cuando la reducción termine.",
+  precoReducaoAte: " hasta el {data}",
+  precoConflito: "Otra persona cambió este precio mientras tanto.",
+  precoPublicada:
+    "La variante está a la venta en {mercado}: el precio no sale de la lista base.",
+  precoSemResposta:
+    "La conexión falló y no encontramos el cambio. Revise los campos e inténtelo de nuevo.",
+  precoListaNaoExiste: "Esta lista de precios no existe o no está activa.",
+  precoListaArquivada:
+    "Esta lista se archivó mientras tanto: sus precios ya no cambian.",
+  precoVarianteArquivada:
+    "Esta variante está archivada: su precio no se define aquí.",
+  precoMontanteObrigatorio: "Escriba el precio, o marque «Gratuito».",
+  precoMontanteFormato:
+    "Escriba el precio solo con cifras y la coma, como 39,90.",
+  precoMontanteLimite: "El precio supera el máximo (1 000 000 000,00).",
+  precoZeroSoGratuito: "Un precio de 0 solo con «Gratuito» marcado.",
+  precoQuantidadeInvalida: "Escriba un número entero de 1 a 1 000 000.",
 };
