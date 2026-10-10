@@ -3203,6 +3203,329 @@ try {
       doCriado.includes("criou o artigo"),
     "histórico: a edição, a imagem acrescentada e a tirada pelo Hub aparecem com a Ana",
   );
+
+  // Escrever as opções (docs/22 §21; issue #285), com a Ana (dona), no
+  // rascunho «Verniz Verde 31» (duas variantes, sem opções), do princípio
+  // até activar e mexer depois de activo (o exemplo da §21). Com o seu
+  // endereço (limite do Hub, issue #253).
+  await enderecoNovo(rp);
+  const idVerde31 = new URL(fichaVerde31).pathname.split("/")[2];
+  const opcoesVerde31 = fichaVerde31.replace("?", "/opcoes?");
+  await rp.goto(fichaVerde31);
+  await rp
+    .getByRole("heading", { name: "Verniz Verde 31", level: 1 })
+    .waitFor();
+  await rp.getByRole("link", { name: "Criar opções" }).click();
+  await rp.getByRole("heading", { name: "Editar opções", level: 1 }).waitFor();
+  await rp.getByText("Este artigo ainda não tem opções.").waitFor();
+  confere(
+    new URL(rp.url()).pathname.endsWith("/opcoes"),
+    "opções: a ficha de um rascunho sem opções leva a «Criar opções»",
+  );
+  // «Criar opção» sem nome diz-o ao lado do campo, com o foco nele.
+  await rp.getByRole("button", { name: "Criar opção" }).click();
+  await rp.waitForFunction(
+    () => document.activeElement?.id === "opcao-nova-nome",
+  );
+  confere(
+    (await rp.getByText("Escreva o nome.").count()) === 1 &&
+      (await rp
+        .getByLabel("Nome da opção nova")
+        .getAttribute("aria-invalid")) === "true",
+    "opções: criar sem nome diz «Escreva o nome.» ao lado do campo, com o foco nele",
+  );
+  // Criar «Tamanho» com dois valores (e um repetido, que sai), só com o
+  // teclado.
+  await rp.getByLabel("Nome da opção nova").focus();
+  await rp.keyboard.type("Tamanho");
+  await rp.getByLabel("Valores, um por linha").focus();
+  await rp.keyboard.type("15 ml");
+  await rp.keyboard.press("Enter");
+  await rp.keyboard.type("30 ml");
+  await rp.keyboard.press("Enter");
+  await rp.keyboard.type("15 ml");
+  await rp.getByRole("button", { name: "Criar opção" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("group", { name: "Tamanho" }).waitFor();
+  await rp
+    .getByText("2 variantes ainda sem valor numa das opções", { exact: false })
+    .waitFor();
+  confere(
+    (await rp
+      .getByRole("list", { name: "Valores de Tamanho" })
+      .getByRole("listitem")
+      .count()) === 2,
+    "opções: criar «Tamanho» com dois valores, só com o teclado; as duas variantes ficam por preencher",
+  );
+  // As duas escolhas de uma vez e só uma gravada: a outra fica escolhida
+  // (revisão do #297, P2-2).
+  await rp
+    .getByLabel("Tamanho: ENS-031", { exact: true })
+    .selectOption({ label: "15 ml" });
+  await rp
+    .getByLabel("Tamanho: ENS-031-B", { exact: true })
+    .selectOption({ label: "30 ml" });
+  await rp
+    .getByRole("button", { name: "Guardar ENS-031", exact: true })
+    .click();
+  await rp
+    .getByText("1 variante ainda sem valor numa das opções", { exact: false })
+    .waitFor();
+  const escolhaB = await rp
+    .getByLabel("Tamanho: ENS-031-B", { exact: true })
+    .evaluate((s) => s.selectedOptions[0]?.textContent ?? "");
+  confere(
+    escolhaB === "30 ml",
+    "opções: gravar uma variante não apaga a escolha por gravar da outra",
+  );
+  await rp
+    .getByRole("button", { name: "Guardar ENS-031-B", exact: true })
+    .click();
+  await rp
+    .getByText("ainda sem valor numa das opções", { exact: false })
+    .waitFor({ state: "detached" });
+  confere(
+    true,
+    "opções: dar um valor a cada variante tira o aviso das variantes por preencher",
+  );
+  // Mudar o nome (rascunho), acrescentar «50 ml», passá-lo para antes do
+  // «30 ml» e apagá-lo com confirmação.
+  await rp.getByLabel("Nome da opção", { exact: true }).fill("Capacidade");
+  await rp.getByRole("button", { name: "Guardar nome" }).click();
+  await rp.getByRole("group", { name: "Capacidade" }).waitFor();
+  confere(
+    (await rp.getByLabel("Nome da opção", { exact: true }).inputValue()) ===
+      "Capacidade",
+    "opções: depois de guardar, o campo do nome mostra o que está guardado",
+  );
+  await rp.getByLabel("Valor novo em Capacidade").fill("50 ml");
+  await rp.getByRole("button", { name: "Acrescentar valor" }).click();
+  const valoresDe = (nome) =>
+    rp
+      .getByRole("list", { name: `Valores de ${nome}` })
+      .getByRole("listitem")
+      .evaluateAll((li) =>
+        li.map(
+          (l) =>
+            l.querySelector("input")?.value ??
+            l.querySelector(".valor-opcao")?.textContent ??
+            "",
+        ),
+      );
+  await rp.getByLabel("Valor: Capacidade 50 ml", { exact: true }).waitFor();
+  await rp
+    .getByRole("button", { name: "Mover para antes: Capacidade 50 ml" })
+    .click();
+  await rp.waitForFunction(
+    () =>
+      [...document.querySelectorAll(".valores-opcao li input")]
+        .map((i) => i.value)
+        .join("|") === "15 ml|50 ml|30 ml",
+  );
+  confere(
+    (await valoresDe("Capacidade")).join("|") === "15 ml|50 ml|30 ml",
+    "opções: mudar o nome, acrescentar um valor e passá-lo para antes, num rascunho",
+  );
+  // Um valor repetido: o erro da API ao lado do campo, com o foco nele.
+  await rp.getByLabel("Valor: Capacidade 50 ml", { exact: true }).fill("15 ML");
+  await rp
+    .getByRole("button", { name: "Guardar: Capacidade 50 ml", exact: true })
+    .click();
+  await rp.getByText("Este valor já existe nesta opção.").waitFor();
+  confere(
+    (await rp.evaluate(() => document.activeElement?.tagName)) === "INPUT" &&
+      (await rp
+        .getByLabel("Valor: Capacidade 50 ml", { exact: true })
+        .getAttribute("aria-invalid")) === "true",
+    "opções: um valor repetido dá o erro da API ao lado do campo, com o foco nele",
+  );
+  let perguntaApagar = "";
+  rp.once("dialog", (d) => {
+    perguntaApagar = d.message();
+    void d.accept();
+  });
+  await rp
+    .getByRole("button", { name: "Apagar: Capacidade 50 ml", exact: true })
+    .click();
+  await rp
+    .getByLabel("Valor: Capacidade 50 ml", { exact: true })
+    .waitFor({ state: "detached" });
+  confere(
+    perguntaApagar ===
+      "As variantes com 50 ml ficam sem valor em Capacidade. Não se desfaz." &&
+      (await valoresDe("Capacidade")).join("|") === "15 ml|30 ml",
+    "opções: apagar um valor pergunta antes e tira-o",
+  );
+  // Um conflito: outra escrita (um fetch do mesmo navegador, como na
+  // edição do artigo) muda a opção entre ler e guardar.
+  const outraNaOpcao = await rp.evaluate(
+    async ({ c, a }) => {
+      const lista = await (
+        await fetch(`/hub/products/${a}/options?limite=100`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      const o = lista.dados[0];
+      const r = await fetch(`/hub/options/${o.id}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "eurolify-comerciante": c,
+        },
+        body: JSON.stringify({ nome: "Tamanho", versao: o.versao }),
+      });
+      return r.status;
+    },
+    { c: `mer_${comerciante}`, a: idVerde31 },
+  );
+  await rp.getByLabel("Nome da opção", { exact: true }).fill("Volume");
+  await rp.getByRole("button", { name: "Guardar nome" }).click();
+  await rp
+    .getByText("Outra pessoa alterou esta opção entretanto.", { exact: false })
+    .waitFor();
+  confere(
+    outraNaOpcao === 200 &&
+      (await rp.getByRole("group", { name: "Tamanho" }).count()) === 1 &&
+      (await rp.getByLabel("Nome da opção", { exact: true }).inputValue()) ===
+        "Volume",
+    "opções: um conflito não grava, mostra o nome guardado e deixa o que se escreveu",
+  );
+  for (const [largura, tema] of [
+    [375, "light"],
+    [375, "dark"],
+    [768, "light"],
+    [768, "dark"],
+    [1280, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `opções (editar): a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.screenshot({
+      path: join(
+        SAIDA,
+        `artigo-opcoes-editar-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
+  // O nome volta ao guardado («Tamanho»); a ENS-031-B fica sem valor e
+  // activar recusa, com a ligação «Editar opções» ao lado do erro.
+  await rp.getByLabel("Nome da opção", { exact: true }).fill("Tamanho");
+  await rp
+    .getByLabel("Tamanho: ENS-031-B", { exact: true })
+    .selectOption({ label: "—" });
+  await rp
+    .getByRole("button", { name: "Guardar ENS-031-B", exact: true })
+    .click();
+  await rp
+    .getByText("1 variante ainda sem valor numa das opções", { exact: false })
+    .waitFor();
+  await rp.goto(fichaVerde31);
+  await rp.getByRole("button", { name: "Activar" }).click();
+  await rp
+    .getByText("Cada variante activa leva um valor de cada opção.")
+    .waitFor();
+  confere(
+    (await rp
+      .locator(".falha-accao")
+      .getByRole("link", { name: "Editar opções" })
+      .count()) === 1,
+    "opções: activar sem um valor em cada opção recusa, com «Editar opções» ao lado do erro",
+  );
+  await rp
+    .locator(".falha-accao")
+    .getByRole("link", { name: "Editar opções" })
+    .click();
+  await rp.getByRole("group", { name: "Tamanho" }).waitFor();
+  await rp
+    .getByLabel("Tamanho: ENS-031-B", { exact: true })
+    .selectOption({ label: "30 ml" });
+  await rp
+    .getByRole("button", { name: "Guardar ENS-031-B", exact: true })
+    .click();
+  await rp
+    .getByText("ainda sem valor numa das opções", { exact: false })
+    .waitFor({ state: "detached" });
+  // Apagar uma opção que nenhuma variante tem: a confirmação di-lo.
+  await rp.getByLabel("Nome da opção nova").fill("Brilho");
+  await rp.getByLabel("Valores, um por linha").fill("Mate");
+  await rp.getByRole("button", { name: "Criar opção" }).click();
+  await rp.getByRole("group", { name: "Brilho" }).waitFor();
+  let perguntaOpcao = "";
+  rp.once("dialog", (d) => {
+    perguntaOpcao = d.message();
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Apagar a opção Brilho" }).click();
+  await rp
+    .getByRole("group", { name: "Brilho" })
+    .waitFor({ state: "detached" });
+  confere(
+    perguntaOpcao ===
+      "Apagar a opção Brilho? Nenhuma variante a tem. Não se desfaz.",
+    "opções: apagar uma opção pergunta antes, com quantas variantes a têm",
+  );
+  // Activar: agora aceita.
+  await rp.goto(fichaVerde31);
+  await rp.getByRole("button", { name: "Activar" }).click();
+  await rp.getByRole("button", { name: "Arquivar", exact: true }).waitFor();
+  confere(
+    (await rp.locator(".estado-artigo", { hasText: "Activo" }).count()) === 1,
+    "opções: com um valor em cada variante, o artigo activa-se",
+  );
+  // Depois de activo: sem os campos do nome nem «Apagar»; acrescentar e
+  // mudar a ordem, sim.
+  await rp.goto(opcoesVerde31);
+  await rp.getByRole("group", { name: "Tamanho" }).waitFor();
+  confere(
+    (await rp
+      .getByText("O nome e os valores só mudam enquanto o artigo é rascunho.")
+      .count()) === 1 &&
+      (await rp.getByLabel("Nome da opção", { exact: true }).count()) === 0 &&
+      (await rp.getByRole("button", { name: /^Apagar/ }).count()) === 0 &&
+      (await rp.getByText("Valores das variantes").count()) === 0,
+    "opções: num artigo activo, o nome e os valores não se editam nem apagam",
+  );
+  await rp.getByLabel("Valor novo em Tamanho").fill("50 ml");
+  await rp.getByRole("button", { name: "Acrescentar valor" }).click();
+  await rp
+    .getByRole("button", { name: "Mover para antes: Tamanho 50 ml" })
+    .click();
+  await rp.waitForFunction(
+    () =>
+      [...document.querySelectorAll(".valores-opcao .valor-opcao")]
+        .map((s) => s.textContent)
+        .join("|") === "15 ml|50 ml|30 ml",
+  );
+  confere(
+    (await valoresDe("Tamanho")).join("|") === "15 ml|50 ml|30 ml",
+    "opções: depois de activo, acrescentar «50 ml» e passá-lo para antes do «30 ml»",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "artigo-opcoes-activo-375-claro.png"),
+    fullPage: true,
+  });
+  // Num artigo do sistema de gestão: só o aviso, e a ficha sem a ligação.
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoExterno}/opcoes?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByRole("heading", { name: "Editar opções", level: 1 }).waitFor();
+  await rp
+    .getByText("Este artigo vem do sistema de gestão", { exact: false })
+    .waitFor();
+  confere(
+    (await rp.getByRole("button", { name: "Criar opção" }).count()) === 0 &&
+      (await rp.getByLabel("Nome da opção nova").count()) === 0,
+    "opções: num artigo do sistema de gestão, a página só mostra o aviso",
+  );
   // Com a sessão terminada, o histórico vai para «Entrar».
   await rp.route("**/hub/products/*/timeline*", (pedido) =>
     pedido.fulfill({
