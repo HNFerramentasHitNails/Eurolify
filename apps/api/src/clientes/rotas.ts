@@ -673,7 +673,7 @@ const PlanoFusaoEsquema = Type.Object({
   ),
 });
 
-// Os pedidos do titular (§7.1; migração 0048).
+// Os pedidos do titular (§7.1; migração 0049).
 const Verificacao = Type.String({
   minLength: 1,
   maxLength: 500,

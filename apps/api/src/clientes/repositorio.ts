@@ -39,7 +39,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.merge_by_person",
   "customers.merge_too_many_contacts",
   "customers.duplicate_decided",
-  // Da 0048: os pedidos do titular.
+  // Da 0049: os pedidos do titular.
   "customers.confirmation_required",
   "customers.restricted",
 ];
@@ -1229,7 +1229,7 @@ export async function fundirClientes(
   return plano;
 }
 
-// ------------------------------------- Pedidos do titular (§7.1, 0048)
+// ------------------------------------- Pedidos do titular (§7.1, 0049)
 
 /** Liga ou desliga a limitação (cliente_limitar); devolve o id do pedido. */
 export async function limitarCliente(

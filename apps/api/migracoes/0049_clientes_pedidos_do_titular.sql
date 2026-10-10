@@ -104,7 +104,7 @@ DECLARE
   regua record;
   pais_comerciante text;
 BEGIN
-  -- A pseudonimização (0048) limpa os perfis não usados em documentos, também
+  -- A pseudonimização (0049) limpa os perfis não usados em documentos, também
   -- nas fichas fundidas no grupo; nunca toca num perfil usado (R9).
   IF TG_OP = 'UPDATE' AND public.clientes_pseudonimizacao_em_curso() THEN
     IF NEW.id <> OLD.id OR NEW.comerciante_id <> OLD.comerciante_id
@@ -264,7 +264,7 @@ BEGIN
     NEW.retirada_em := NULL;
     RETURN NEW;
   END IF;
-  -- A pseudonimização (0048) limpa o NIF e a nota das isenções dos perfis
+  -- A pseudonimização (0049) limpa o NIF e a nota das isenções dos perfis
   -- não usados em documentos; mais nada muda.
   IF public.clientes_pseudonimizacao_em_curso()
      AND NEW.nif_numero IS NULL AND NEW.pais_contribuinte IS NULL AND NEW.nota IS NULL

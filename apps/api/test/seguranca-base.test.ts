@@ -51,7 +51,7 @@ const FUNCOES_DA_API = [
   // Duplicados e fusões (0046): fundir, descartar, a procura de candidatos (do
   // gatilho), o grupo de fichas fundidas e a comparação dos e-mails.
   "cliente_fundir",
-  // Os pedidos do titular (0048): limitar, pseudonimizar, registar o pedido e
+  // Os pedidos do titular (0049): limitar, pseudonimizar, registar o pedido e
   // as duas que dizem se a pseudonimização está a correr (os gatilhos chamam-nas).
   "cliente_limitar",
   "cliente_pseudonimizar",

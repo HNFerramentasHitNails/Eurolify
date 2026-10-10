@@ -559,18 +559,18 @@ tempo guarda (revisão do #289, P3).
 `customers:write`, não o âmbito da loja; a caixa de marketing desenha-se com
 a fatia 7.
 
-**Parte 2c — pedidos do titular** (migração 0048; issue #233; Diogo,
+**Parte 2c — pedidos do titular** (migração 0049; issue #233; Diogo,
 10/10/2026: *«sim, avança com a parte 2c»*):
 
 | O quê | Onde |
 |---|---|
-| o registo de cada pedido (`pedido_titular`, `dsr_`): o tipo, como se verificou a identidade (obrigatório), quem fez, quando e o resultado em contagens; só se acrescenta (`eu-gdpr-privacy`, «Pedidos dos titulares») | migração 0048 |
-| a limitação (`PUT`/`DELETE /customers/{id}/restriction`): a régua do marketing dá não e a API não muda o nome nem os contactos da ficha limitada (`customers.restricted`), sem apagar nada — **proposta**: os perfis e as etiquetas continuam a poder mudar | migração 0048 |
+| o registo de cada pedido (`pedido_titular`, `dsr_`): o tipo, como se verificou a identidade (obrigatório), quem fez, quando e o resultado em contagens; só se acrescenta (`eu-gdpr-privacy`, «Pedidos dos titulares») | migração 0049 |
+| a limitação (`PUT`/`DELETE /customers/{id}/restriction`): a régua do marketing dá não e a API não muda o nome nem os contactos da ficha limitada (`customers.restricted`), sem apagar nada — **proposta**: os perfis e as etiquetas continuam a poder mudar | migração 0049 |
 | a exportação (`POST /customers/{id}/export`): a ficha e as fundidas nela, com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, a linha do tempo, os pedidos e as encomendas (só para ler) | `src/clientes/repositorio.ts` |
-| a pseudonimização (`POST /customers/{id}/pseudonymize`), irreversível, com a confirmação escrita «pseudonimizar cus_…», só por uma pessoa ou a chave dela, sobre o grupo inteiro (revisão do #298, P3-3): nome «Pseudonimizado», sem e-mails, telefones, língua nem país; consentimentos e etiquetas apagados; os perfis **não** usados em documentos sem nome, NIF nem morada, arquivados, as provas do VIES deles apagadas e as isenções sem NIF nem nota (P3-11 do #244); a linha do tempo sem os valores pessoais (P2-4 do #234); os candidatos fechados; o evento `customer.pseudonymized` | migração 0048 |
-| os perfis usados em documentos ficam como estão, com as provas do VIES e a linha do tempo deles, o prazo fiscal (R9) | migração 0048 |
-| as recusas de alterar ou apagar abrem-se **só** dentro da função do dono, com a bandeira `eurolify.pseudonimizar`; a API e o superutilizador com a bandeira continuam recusados (testado) | migração 0048 |
-| o âmbito `customers:privacy`, só no dono | migração 0048; `src/identidade/` |
+| a pseudonimização (`POST /customers/{id}/pseudonymize`), irreversível, com a confirmação escrita «pseudonimizar cus_…», só por uma pessoa ou a chave dela, sobre o grupo inteiro (revisão do #298, P3-3): nome «Pseudonimizado», sem e-mails, telefones, língua nem país; consentimentos e etiquetas apagados; os perfis **não** usados em documentos sem nome, NIF nem morada, arquivados, as provas do VIES deles apagadas e as isenções sem NIF nem nota (P3-11 do #244); a linha do tempo sem os valores pessoais (P2-4 do #234); os candidatos fechados; o evento `customer.pseudonymized` | migração 0049 |
+| os perfis usados em documentos ficam como estão, com as provas do VIES e a linha do tempo deles, o prazo fiscal (R9) | migração 0049 |
+| as recusas de alterar ou apagar abrem-se **só** dentro da função do dono, com a bandeira `eurolify.pseudonimizar`; a API e o superutilizador com a bandeira continuam recusados (testado) | migração 0049 |
+| o âmbito `customers:privacy`, só no dono | migração 0049; `src/identidade/` |
 | 5 testes; 13 mutações, todas apanhadas | `test/clientes-titular.test.ts` |
 
 **Fica por fazer, e onde:**

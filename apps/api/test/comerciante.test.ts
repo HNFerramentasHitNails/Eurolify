@@ -137,7 +137,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0045_operador_papel_minimo",
         "0046_clientes_duplicados_fusoes",
         "0047_stock",
-        "0048_clientes_pedidos_do_titular",
+        "0048_catalogo_versao_da_variante",
+        "0049_clientes_pedidos_do_titular",
       ]);
     });
 
@@ -241,7 +242,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
       // declaração do regime do IVA (0040), as 8 do checkout (0041), os
       // consentimentos (0042), as 6 dos pagamentos (0044), os candidatos a
-      // duplicado (0046), as 10 do stock (0047) e os pedidos do titular (0048).
+      // duplicado (0046), as 10 do stock (0047) e os pedidos do titular (0049).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(66);

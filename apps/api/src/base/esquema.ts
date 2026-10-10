@@ -279,6 +279,9 @@ export interface TabelaVariante {
   estado: ColumnType<EstadoVariante, "activa" | undefined, "arquivada">;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
+  // Migração 0048: sobe a cada mudança da linha; quem a sobe é o gatilho, a
+  // API só a lê e a confere.
+  versao: ColumnType<number, never, never>;
 }
 
 // Catálogo, parte 2a (migração 0004; docs/14 §3.4).
@@ -822,7 +825,7 @@ export const TIPOS_PEDIDO_TITULAR = [
 ] as const;
 export type TipoPedidoTitular = (typeof TIPOS_PEDIDO_TITULAR)[number];
 
-/** Um pedido do titular (migração 0048): só se acrescenta; escrevem-no as funções do dono. */
+/** Um pedido do titular (migração 0049): só se acrescenta; escrevem-no as funções do dono. */
 export interface TabelaPedidoTitular {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;

@@ -14,7 +14,7 @@ import {
 } from "./base-de-teste.js";
 
 // Clientes, parte 2c: os pedidos do titular (docs/23 §4.1, R9, §7.1;
-// migração 0048). A pseudonimização é irreversível: estes testes provam o que
+// migração 0049). A pseudonimização é irreversível: estes testes provam o que
 // sai, o que fica (o que a lei fiscal obriga a guardar) e que as recusas só
 // se abrem dentro dela.
 
