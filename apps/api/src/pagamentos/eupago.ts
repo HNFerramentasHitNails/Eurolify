@@ -187,13 +187,12 @@ export function adaptadorEuPago(buscar: Buscar = fetch): AdaptadorPagamento {
             instrucoes: { metodo: "mb_way", aprovar_na_aplicacao: true },
           };
         }
-        if (r.estado >= 400 || texto(r.json["transactionStatus"]) !== null) {
+        // Só a recusa explícita é falhado; outro estado (ex.: pendente) não se
+        // sabe, e fica incerto (revisão do #288, P2-7).
+        if (texto(r.json["transactionStatus"]) === "Rejected") {
           return {
             estado: "falhado",
-            motivo:
-              texto(r.json["code"]) ??
-              texto(r.json["transactionStatus"]) ??
-              "recusado",
+            motivo: texto(r.json["code"]) ?? "Rejected",
           };
         }
         throw new ErroDeRede("a resposta da EuPago não diz o estado");

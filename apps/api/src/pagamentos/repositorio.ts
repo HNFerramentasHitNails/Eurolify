@@ -664,6 +664,15 @@ export async function prepararPagamento(
   if (vivo !== undefined && ESTADOS_VIVOS.includes(vivo.estado)) {
     return { novo: false, pagamento: vivo };
   }
+  // Um capturado com a encomenda ainda por pagar não deixa cobrar outra vez
+  // (revisão do #288, P3-6).
+  const capturado = await trx
+    .selectFrom("pagamento")
+    .selectAll()
+    .where("encomenda_id", "=", encomenda.id)
+    .where("estado", "=", "capturado")
+    .executeTakeFirst();
+  if (capturado !== undefined) return { novo: false, pagamento: capturado };
   if (encomenda.estado !== "a_aguardar_pagamento") {
     if (vivo !== undefined) return { novo: false, pagamento: vivo };
     throw new ErroPagamentos(
@@ -699,9 +708,18 @@ export async function prepararPagamento(
       "o MB WAY precisa de um telemóvel português (+351) no contacto",
     );
   }
+  // A referência Multibanco paga-se até ao fim do dia do prazo (a EuPago só
+  // aceita a data, W): o pagamento só expira no fim desse dia em Lisboa, e a
+  // encomenda espera por ele (revisão do #288, P1-2).
   const { rows } = await sql<{ expira: Date }>`
-    select least(now() + make_interval(mins => ${regua.prazo_minutos}),
-                 ${encomenda.prazo}::timestamptz) as expira`.execute(trx);
+    with limite as (
+      select least(now() + make_interval(mins => ${regua.prazo_minutos}),
+                   ${encomenda.prazo}::timestamptz) as l)
+    select case when ${metodo} = 'multibanco'
+      then ((date_trunc('day', l at time zone 'Europe/Lisbon') + interval '1 day')
+            at time zone 'Europe/Lisbon') - interval '1 millisecond'
+      else l end as expira
+    from limite`.execute(trx);
   const expira = (rows[0] as { expira: Date }).expira;
   const { id } = await trx
     .insertInto("pagamento")
@@ -755,28 +773,39 @@ export async function cobrar(
   let resultado:
     | Awaited<ReturnType<AdaptadorPagamento["cobrar"]>>
     | { estado: "incerto"; motivo: string };
+  // Antes de chamar: o que falhar aqui sabe-se que não saiu (falhado).
+  // Depois de chamar, só uma recusa explícita é falhado; tudo o resto é
+  // incerto (revisão do #288, P2-7).
+  let preparo:
+    | { adaptador: AdaptadorPagamento; credenciais: CredenciaisConta }
+    | { erro: string };
   try {
     const { adaptador, chave } = adaptadorDe(cfg);
-    const credenciais = credenciaisDe(preparado.conta, chave);
-    resultado = await adaptador.cobrar(credenciais, {
-      referencia: p.referencia,
-      montante: Number(p.montante),
-      moeda: p.moeda,
-      metodo: p.metodo,
-      telefone: preparado.telefone,
-      expiraEm: p.expira_em,
-    });
+    preparo = { adaptador, credenciais: credenciaisDe(preparado.conta, chave) };
   } catch (erro) {
-    resultado =
-      erro instanceof ErroDeRede
-        ? { estado: "incerto", motivo: erro.message }
-        : {
-            estado: "falhado",
-            motivo:
-              erro instanceof ErroPagamentos
-                ? erro.codigo
-                : "erro_antes_de_chamar",
-          };
+    preparo = {
+      erro:
+        erro instanceof ErroPagamentos ? erro.codigo : "erro_antes_de_chamar",
+    };
+  }
+  if ("erro" in preparo) {
+    resultado = { estado: "falhado", motivo: preparo.erro };
+  } else {
+    try {
+      resultado = await preparo.adaptador.cobrar(preparo.credenciais, {
+        referencia: p.referencia,
+        montante: Number(p.montante),
+        moeda: p.moeda,
+        metodo: p.metodo,
+        telefone: preparado.telefone,
+        expiraEm: p.expira_em,
+      });
+    } catch (erro) {
+      resultado = {
+        estado: "incerto",
+        motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro",
+      };
+    }
   }
   return noPagamentos(db, c, async (trx) => {
     const actual = await trx
@@ -848,7 +877,8 @@ async function aplicarEstado(
   }
   if (p.estado === novo) return "repetido";
   if (novo === "capturado" && valor !== null) {
-    if (valor.moeda !== null && valor.moeda !== p.moeda) {
+    // Sem moeda no aviso também não se dá por pago (revisão do #288, P3-3).
+    if (valor.moeda !== p.moeda) {
       await abrirDiferenca(trx, c, {
         pagamento: p.id,
         aviso: origem.aviso,
@@ -914,13 +944,17 @@ async function encomendaPaga(
       .set({ estado: "paga" })
       .where("id", "=", e.id)
       .execute();
-  } else if (e.estado === "cancelada_sem_pagamento") {
-    // O dinheiro está na conta do comerciante; o reembolso é da fatia 11.
+  } else {
+    // Paga por outro pagamento, ou cancelada: o dinheiro está na conta do
+    // comerciante e decide uma pessoa (o reembolso é da fatia 11).
     await abrirDiferenca(trx, p.comerciante_id, {
       pagamento: p.id,
       aviso,
-      motivo: "pago_depois_de_cancelada",
-      prova: { encomenda: e.id },
+      motivo:
+        e.estado === "paga"
+          ? "pagamento_duplicado"
+          : "pago_depois_de_cancelada",
+      prova: { encomenda: e.id, estado: e.estado },
     });
   }
 }
@@ -975,19 +1009,9 @@ export async function receberAviso(
   if (conta === undefined) {
     throw new ErroPagamentos("payments.not_found", "esta conta não existe");
   }
-  const segredo =
-    conta.segredo_aviso_cifra === null || conta.chave_versao !== chave.versao
-      ? null
-      : decifrar(conta.segredo_aviso_cifra, conta.id, "segredo_aviso", chave);
-  let leitura: ReturnType<AdaptadorPagamento["lerAviso"]>;
-  try {
-    leitura =
-      segredo === null
-        ? { valido: false, idEvento: null }
-        : adaptador.lerAviso(cabecalhos, corpo, segredo);
-  } catch (erro) {
-    // Assinado, mas não se lê: grava-se e responde-se erro (R7).
-    await noPagamentos(db, c, async (trx) => {
+  // Grava o aviso em bruto como erro (o prestador reenvia; R7).
+  const gravarErro = async (assinaturaValida: boolean, mensagem: string) =>
+    noPagamentos(db, c, async (trx) => {
       await trx
         .insertInto("aviso_pagamento")
         .values({
@@ -995,7 +1019,7 @@ export async function receberAviso(
           conta_id: contaId,
           id_evento: `corpo:${resumo(corpo)}`,
           corpo,
-          assinatura_valida: true,
+          assinatura_valida: assinaturaValida,
         })
         .onConflict((oc) => oc.columns(["conta_id", "id_evento"]).doNothing())
         .execute();
@@ -1003,7 +1027,7 @@ export async function receberAviso(
         .updateTable("aviso_pagamento")
         .set({
           resultado: "erro",
-          erro: erro instanceof Error ? erro.message.slice(0, 500) : "erro",
+          erro: mensagem.slice(0, 500),
           processado_em: new Date(),
         })
         .where("conta_id", "=", contaId)
@@ -1013,6 +1037,38 @@ export async function receberAviso(
         )
         .execute();
     });
+  // Sem o segredo legível a falha é nossa, não do prestador: grava-se e
+  // responde-se 503, nunca «assinatura inválida» (revisão do #288, P2-3).
+  let segredo: string;
+  try {
+    if (conta.segredo_aviso_cifra === null) {
+      throw new Error("a conta não tem o segredo dos avisos");
+    }
+    if (conta.chave_versao !== chave.versao) {
+      throw new Error("o segredo foi cifrado com outra versão da chave");
+    }
+    segredo = decifrar(
+      conta.segredo_aviso_cifra,
+      conta.id,
+      "segredo_aviso",
+      chave,
+    );
+  } catch (erro) {
+    await gravarErro(
+      false,
+      `segredo indisponível: ${erro instanceof Error ? erro.message : "erro"}`,
+    );
+    throw new ErroPagamentos(
+      "payments.not_configured",
+      "o segredo dos avisos desta conta não está disponível",
+    );
+  }
+  let leitura: ReturnType<AdaptadorPagamento["lerAviso"]>;
+  try {
+    leitura = adaptador.lerAviso(cabecalhos, corpo, segredo);
+  } catch (erro) {
+    // Assinado, mas não se lê: grava-se e responde-se erro (R7).
+    await gravarErro(true, erro instanceof Error ? erro.message : "erro");
     throw erro;
   }
   if (!leitura.valido) {
@@ -1025,7 +1081,9 @@ export async function receberAviso(
             comerciante_id: c,
             conta_id: contaId,
             id_evento: `invalido:${resumo(corpo)}`,
-            corpo,
+            // Sem assinatura válida não se guarda o corpo, só o resumo no
+            // identificador (revisão do #288, P2-1).
+            corpo: "",
             assinatura_valida: false,
           })
           .onConflict((oc) => oc.columns(["conta_id", "id_evento"]).doNothing())
@@ -1211,6 +1269,8 @@ export interface ResultadoTarefas {
   pagos: number;
   canceladas: number;
   adiadas: number;
+  /** Os erros nossos (não de rede), para o registo. */
+  erros: { pagamento: string; erro: string }[];
 }
 
 /** Quantas tarefas por comerciante em cada volta (proposta). */
@@ -1232,6 +1292,7 @@ export async function correrTarefas(
     pagos: 0,
     canceladas: 0,
     adiadas: 0,
+    erros: [],
   };
   const { rows: comerciantes } = await sql<{
     c: string;
@@ -1332,11 +1393,20 @@ async function tarefaDoPagamento(
       metodo: p.metodo,
       instrucoes: p.instrucoes,
     });
-  } catch {
+  } catch (erro) {
     // Sem resposta agora: volta daqui a 10 minutos (o prestador ainda pode
-    // avisar entretanto).
-    await adiar(db, c, "pagamento", id, 10);
-    r.adiadas += 1;
+    // avisar entretanto). Um erro nosso (chave, cifra) volta daqui a uma
+    // hora e fica registado (revisão do #288, P2-4).
+    if (erro instanceof ErroDeRede) {
+      await adiar(db, c, "pagamento", id, 10);
+      r.adiadas += 1;
+    } else {
+      await adiar(db, c, "pagamento", id, 60);
+      r.erros.push({
+        pagamento: `pay_${id}`,
+        erro: erro instanceof Error ? erro.name : "erro",
+      });
+    }
     return;
   }
   await noPagamentos(db, c, async (trx) => {
@@ -1453,7 +1523,13 @@ export function agendarTarefasPagamentos(
     aCorrer = true;
     try {
       const r = await correrTarefas(base, cfg);
-      if (Object.values(r).some((n) => n > 0)) {
+      if (r.erros.length > 0) {
+        registo.error(
+          { erros: r.erros },
+          "pagamentos: tarefas com erros nossos (chave ou cifra)",
+        );
+      }
+      if (r.expirados + r.incertos + r.pagos + r.canceladas + r.adiadas > 0) {
         registo.info(r, "pagamentos: volta das tarefas");
       }
     } catch (erro) {
@@ -1563,6 +1639,21 @@ export async function resolverDiferenca(
         "payments.immutable",
         "esta diferença já está resolvida",
       );
+    }
+    // Um pagamento incerto não fica órfão: fechar a diferença obriga a
+    // decidir se foi pago (revisão do #288, P2-2).
+    if (dados.pagamento === undefined && d.pagamento_id !== null) {
+      const p = await trx
+        .selectFrom("pagamento")
+        .select("estado")
+        .where("id", "=", d.pagamento_id)
+        .executeTakeFirstOrThrow();
+      if (p.estado === "incerto") {
+        throw new ErroPagamentos(
+          "payments.invalid_transition",
+          "o pagamento está incerto: diga se foi pago (capturado) ou não (falhado)",
+        );
+      }
     }
     if (dados.pagamento !== undefined) {
       if (d.pagamento_id === null) {

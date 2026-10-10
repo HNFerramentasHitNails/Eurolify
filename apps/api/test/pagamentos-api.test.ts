@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
@@ -24,6 +24,7 @@ import {
   mudarEstadoMercado,
 } from "../src/precos/repositorio.js";
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
+import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import { correrTarefas } from "../src/pagamentos/repositorio.js";
 import { assinar, avisoEuPago, eupagoFalso, json } from "./eupago-falso.js";
 import {
@@ -218,6 +219,7 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
           "payments:read",
           "payments:write",
           "payments:accounts",
+          "payments:resolve",
         ],
       })
     ).segredo;
@@ -713,7 +715,7 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
     );
   });
 
-  it("avisos: sem assinatura válida, 401 e nada se aplica (fica gravado); conta desconhecida, 404; sem pagamento, diferença", async () => {
+  it("avisos: sem assinatura válida, 401 e nada se aplica (fica gravado); conta desconhecida, também 401; sem pagamento, diferença", async () => {
     const s = await cenario();
     const k = await encomenda(s);
     const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
@@ -733,17 +735,20 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
     const guardados = await naBase(s, (trx) =>
       trx
         .selectFrom("aviso_pagamento")
-        .select(["assinatura_valida", "resultado"])
+        .select(["assinatura_valida", "resultado", "corpo"])
         .orderBy("recebido_em")
         .execute(),
     );
-    // Os dois inválidos têm o mesmo corpo: grava-se uma vez.
+    // Os dois inválidos têm o mesmo corpo: grava-se uma vez, e sem o corpo
+    // (revisão do #288, P2-1).
     expect(guardados.filter((a) => !a.assinatura_valida)).toEqual([
-      { assinatura_valida: false, resultado: "assinatura_invalida" },
+      { assinatura_valida: false, resultado: "assinatura_invalida", corpo: "" },
     ]);
-    expect(guardados.filter((a) => a.assinatura_valida)).toEqual([
-      { assinatura_valida: true, resultado: "aplicado" },
-    ]);
+    expect(
+      guardados
+        .filter((a) => a.assinatura_valida)
+        .map((a) => [a.resultado, a.corpo.length > 0]),
+    ).toEqual([["aplicado", true]]);
     expect(
       (
         await app.inject({
@@ -753,7 +758,7 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
           payload: corpo,
         })
       ).statusCode,
-    ).toBe(404);
+    ).toBe(401);
     // Um aviso de um pagamento que não conhecemos: diferença, 200.
     const estranho = avisoEuPago({
       identifier: "f".repeat(32),
@@ -806,6 +811,33 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
       "transicao_impossivel",
     ]);
     const incerto = fila.find((d) => d["motivo"] === "incerto") as Json;
+    // Fechar sem decidir não deixa o pagamento órfão (revisão do #288, P2-2).
+    expect(
+      await codigo(
+        s.adm("POST", `/payment-issues/${String(incerto["id"])}/resolve`, {
+          resolucao: "Visto.",
+        }),
+      ),
+    ).toEqual([409, "payments.invalid_transition"]);
+    // Uma chave sem payments:resolve (um gestor, um automatismo) não decide.
+    const gestor = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Automatismo",
+        ambitos: ["payments:read", "payments:write"],
+      })
+    ).segredo;
+    expect(
+      await codigo(
+        pedir(
+          "POST",
+          `/payment-issues/${String(incerto["id"])}/resolve`,
+          { resolucao: "auto", pagamento: "capturado" },
+          { authorization: `Bearer ${gestor}` },
+        ),
+      ),
+    ).toEqual([403, "auth.forbidden"]);
     // Uma pessoa viu a conta na EuPago e decide: pago.
     await ok(
       s.adm("POST", `/payment-issues/${String(incerto["id"])}/resolve`, {
@@ -907,12 +939,15 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
       estado: "cancelada_sem_pagamento",
     });
     expect(await eventos(s)).toContain("order.cancelled");
-    // Cancelada, já não se paga.
-    expect(
-      await codigo(
-        pedir("POST", `/checkout/${k.token}/payment`, { metodo: "mb_way" }),
-      ),
-    ).toEqual([200, null]);
+    // Cancelada, já não se paga: devolve o pagamento expirado e não chama
+    // o prestador.
+    const chamadasAntes = eupago.chamadas.length;
+    const depois = await ok(
+      pedir("POST", `/checkout/${k.token}/payment`, { metodo: "mb_way" }),
+      200,
+    );
+    expect(depois).toMatchObject({ id: p["id"], estado: "expirado" });
+    expect(eupago.chamadas.length).toBe(chamadasAntes);
     // Um aviso pago que chega depois: não reabre nada, vai para a fila.
     expect(
       (
@@ -926,15 +961,19 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
         )
       ).statusCode,
     ).toBe(200);
+    // A prova tardia conta: o pagamento fica capturado (o dinheiro está na
+    // conta do comerciante), a encomenda continua cancelada e decide uma
+    // pessoa (revisão do #288, P1-1).
     expect(
-      (await ok(pedir("GET", `/checkout/${k.token}/payment`)))["encomenda"],
+      await ok(pedir("GET", `/checkout/${k.token}/payment`)),
     ).toMatchObject({
-      estado: "cancelada_sem_pagamento",
+      encomenda: { estado: "cancelada_sem_pagamento" },
+      pagamento: { estado: "capturado" },
     });
     const fila = (await ok(s.adm("GET", "/payment-issues?estado=aberta")))[
       "dados"
     ] as Json[];
-    expect(fila.map((d) => d["motivo"])).toContain("transicao_impossivel");
+    expect(fila.map((d) => d["motivo"])).toEqual(["pago_depois_de_cancelada"]);
   });
 
   it("um pagamento que ficou a meio (criado, sem resposta) passa a incerto pela tarefa; sem resposta da EuPago à consulta, adia", async () => {
@@ -953,6 +992,13 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
           moeda, ${"b".repeat(32)}, now() + interval '1 hour'
         from encomenda where id = ${id}::uuid`.execute(trx);
     });
+    // O criado olha-se ao fim de 5 minutos, não no fim do prazo (1 h).
+    const { rows: quando } = await sql<{ ok: boolean }>`
+      select quando <= now() + interval '5 minutes' as ok from tarefa_pagamento
+      where comerciante_id = ${s.c}::uuid and alvo_tipo = 'pagamento'`.execute(
+      base.dono,
+    );
+    expect(quando).toEqual([{ ok: true }]);
     await sql`update tarefa_pagamento set quando = now() - interval '1 minute'
       where comerciante_id = ${s.c}::uuid and alvo_tipo = 'pagamento'`.execute(
       base.dono,
@@ -1163,6 +1209,184 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
     ).toBe("a_aguardar_cliente");
     const fila = (await ok(s.adm("GET", "/payment-issues")))["dados"] as Json[];
     expect(fila.map((d) => d["motivo"])).toEqual(["aviso_sem_pagamento"]);
+  });
+
+  it("MB WAY sem resposta clara expira; o pago que chega depois conta; um segundo pagamento da mesma encomenda vai para a fila como duplicado", async () => {
+    const s = await cenario();
+    const k = await encomenda(s, "mb_way", "+351912345678");
+    const mbway = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+    const refMbway = String(
+      (await ok(s.adm("GET", `/payments/${String(mbway["id"])}`)))[
+        "referencia"
+      ],
+    );
+    // A consulta não diz um estado que se conheça: o MB WAY (5 minutos para
+    // aprovar) passa a expirado.
+    eupago.respostas.info = () =>
+      json(200, { sucesso: true, estado: "outro", referencia: "1" });
+    await sql`update tarefa_pagamento set quando = now() - interval '1 minute'
+      where comerciante_id = ${s.c}::uuid and alvo_tipo = 'pagamento'`.execute(
+      base.dono,
+    );
+    expect((await correrTarefas(base.api, eupago.config)).expirados).toBe(1);
+    delete eupago.respostas.info;
+    // O cliente paga então por Multibanco, e o aviso chega.
+    const mb = await ok(
+      pedir("POST", `/checkout/${k.token}/payment`, { metodo: "multibanco" }),
+      201,
+    );
+    const refMb = String(
+      (await ok(s.adm("GET", `/payments/${String(mb["id"])}`)))["referencia"],
+    );
+    expect(
+      (
+        await aviso(
+          s,
+          avisoEuPago({ identifier: refMb, status: "Paid", valor: 29.59 }),
+        )
+      ).statusCode,
+    ).toBe(200);
+    // O MB WAY afinal tinha sido aprovado: o aviso tardio conta, e é um
+    // segundo pagamento da mesma encomenda.
+    expect(
+      (
+        await aviso(
+          s,
+          avisoEuPago({
+            identifier: refMbway,
+            status: "Paid",
+            valor: 29.59,
+            trid: 777,
+            method: "Mbway",
+          }),
+        )
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (await ok(s.adm("GET", `/payments/${String(mbway["id"])}`)))["estado"],
+    ).toBe("capturado");
+    expect(
+      (await ok(pedir("GET", `/checkout/${k.token}/payment`)))["encomenda"],
+    ).toEqual({ id: k.encomenda, estado: "paga" });
+    const fila = (await ok(s.adm("GET", "/payment-issues?estado=aberta")))[
+      "dados"
+    ] as Json[];
+    expect(fila.map((d) => d["motivo"])).toEqual(["pagamento_duplicado"]);
+  });
+
+  it("a referência Multibanco vale até ao fim do dia do prazo em Lisboa, e o pagamento só expira então", async () => {
+    const s = await cenario();
+    const k = await encomenda(s);
+    const antes = eupago.chamadas.length;
+    const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+    const dataFim = String(eupago.chamadas[antes]?.corpo["data_fim"]);
+    const { rows } = await sql<{ local: string; dia: string }>`
+      select to_char(expira_em at time zone 'Europe/Lisbon', 'HH24:MI:SS.MS') as local,
+             to_char(expira_em at time zone 'Europe/Lisbon', 'YYYY-MM-DD') as dia
+      from pagamento where id = ${String(p["id"]).slice(4)}::uuid`.execute(
+      base.dono,
+    );
+    expect(rows[0]).toEqual({ local: "23:59:59.999", dia: dataFim });
+  });
+
+  it("estados do prestador: um pendente ao cobrar fica incerto; um aviso Error falha; um pago sem moeda vai para a fila", async () => {
+    const s = await cenario();
+    const k = await encomenda(s, "mb_way", "+351912345678");
+    eupago.respostas.mbway = () => json(201, { transactionStatus: "Pending" });
+    const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+    delete eupago.respostas.mbway;
+    expect(p["estado"]).toBe("incerto");
+    const k2 = await encomenda(s);
+    const p2 = await ok(pedir("POST", `/checkout/${k2.token}/payment`), 201);
+    const ref2 = String(
+      (await ok(s.adm("GET", `/payments/${String(p2["id"])}`)))["referencia"],
+    );
+    const semMoeda = JSON.stringify({
+      transactions: {
+        identifier: ref2,
+        trid: 900,
+        status: "Paid",
+        amount: { value: 29.59 },
+      },
+    });
+    expect((await aviso(s, semMoeda)).statusCode).toBe(200);
+    expect(
+      (await ok(s.adm("GET", `/payments/${String(p2["id"])}`)))["estado"],
+    ).toBe("a_aguardar_cliente");
+    expect(
+      (
+        await aviso(
+          s,
+          avisoEuPago({
+            identifier: ref2,
+            status: "Error",
+            valor: 29.59,
+            trid: 901,
+          }),
+        )
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (await ok(s.adm("GET", `/payments/${String(p2["id"])}`)))["estado"],
+    ).toBe("falhado");
+    const motivos = (
+      (await ok(s.adm("GET", "/payment-issues")))["dados"] as Json[]
+    ).map((d) => d["motivo"]);
+    expect(motivos.sort()).toEqual(["incerto", "moeda_diferente"]);
+  });
+
+  it("o segredo dos avisos ilegível (outra versão da chave): 503, o aviso fica gravado como erro, nunca como assinatura inválida", async () => {
+    const s = await cenario();
+    const k = await encomenda(s);
+    const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+    const ref = String(
+      (await ok(s.adm("GET", `/payments/${String(p["id"])}`)))["referencia"],
+    );
+    const outraChave = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      undefined,
+      undefined,
+      { pedidos: 100_000, janelaMs: 60_000 },
+      {
+        chave: chavePagamentos(randomBytes(32).toString("base64"), "2"),
+        adaptadores: eupago.config.adaptadores,
+      },
+    );
+    try {
+      const corpo = avisoEuPago({
+        identifier: ref,
+        status: "Paid",
+        valor: 29.59,
+      });
+      const r = await outraChave.inject({
+        method: "POST",
+        url: `/webhooks/payments/${s.conta}`,
+        headers: {
+          "content-type": "application/json",
+          "x-signature": assinar(corpo, SEGREDO),
+        },
+        payload: corpo,
+      });
+      expect([r.statusCode, r.json<Json>()["codigo"]]).toEqual([
+        503,
+        "payments.not_configured",
+      ]);
+    } finally {
+      await outraChave.close();
+    }
+    const avisos = await naBase(s, (trx) =>
+      trx.selectFrom("aviso_pagamento").select(["resultado", "erro"]).execute(),
+    );
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]?.resultado).toBe("erro");
+    expect(avisos[0]?.erro).toMatch(/segredo indisponível/);
+    // O pagamento não mudou.
+    expect(
+      (await ok(s.adm("GET", `/payments/${String(p["id"])}`)))["estado"],
+    ).toBe("a_aguardar_cliente");
   });
 
   it("sem a chave dos pagamentos no servidor, pagar dá 503 e nada se cria", async () => {

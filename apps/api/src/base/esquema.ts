@@ -1026,6 +1026,7 @@ export const MOTIVOS_DIFERENCA = [
   "moeda_diferente",
   "transicao_impossivel",
   "pago_depois_de_cancelada",
+  "pagamento_duplicado",
 ] as const;
 export type MotivoDiferenca = (typeof MOTIVOS_DIFERENCA)[number];
 

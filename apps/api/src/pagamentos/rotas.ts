@@ -296,7 +296,9 @@ export function rotasDosPagamentos(
     avisos.withTypeProvider<TypeBoxTypeProvider>().post(
       "/webhooks/payments/:conta",
       {
-        config: { ambito: "publico" as const },
+        // Com o limite por IP das rotas públicas da loja (revisão do #288,
+        // P2-1).
+        config: { ambito: "publico" as const, loja: true },
         schema: {
           description:
             "Os avisos de um prestador para uma conta de pagamento. A assinatura confere-se antes de ler; o aviso grava-se em bruto antes de responder; o mesmo evento duas vezes não conta duas vezes; um processamento que falha responde 5xx para o prestador reenviar.",
@@ -311,10 +313,12 @@ export function rotasDosPagamentos(
         emPagamentos(resposta, async () => {
           const contaId = semPrefixo(pedido.params.conta);
           const c = await comercianteDaConta(base, contaId);
+          // Conta desconhecida responde como assinatura errada: não se
+          // confirma se um endereço existe (revisão do #288, P2-1).
           if (c === null) {
             throw new ErroPagamentos(
-              "payments.not_found",
-              "esta conta não existe",
+              "payments.signature_invalid",
+              "a assinatura do aviso não confere",
             );
           }
           const corpo = typeof pedido.body === "string" ? pedido.body : "";
@@ -802,10 +806,10 @@ export function rotasDosPagamentos(
   rotas.post(
     "/payment-issues/:id/resolve",
     {
-      config: { ambito: "payments:write" },
+      config: { ambito: "payments:resolve" },
       schema: {
         description:
-          "Uma pessoa resolve uma diferença, com o texto da resolução. Num pagamento incerto, pode decidir se foi pago (`capturado`) ou não (`falhado`), depois de ver a conta no prestador. O sistema nunca a resolve sozinho.",
+          "Uma pessoa resolve uma diferença, com o texto da resolução (âmbito payments:resolve, só do dono). Num pagamento incerto, pode decidir se foi pago (`capturado`) ou não (`falhado`), depois de ver a conta no prestador. O sistema nunca a resolve sozinho.",
         params: Type.Object({ id: IdDiferenca }),
         body: Type.Object(
           {

@@ -5,7 +5,6 @@ export type CodigoErroPagamentos =
   | "payments.invalid_field"
   | "payments.retry"
   | "payments.version_conflict"
-  | "payments.no_method"
   | "payments.method_unavailable"
   | "payments.live_exists"
   | "payments.provider_unavailable"
@@ -22,7 +21,6 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroPagamentos, number> = {
   "payments.invalid_field": 400,
   "payments.retry": 503,
   "payments.version_conflict": 409,
-  "payments.no_method": 422,
   "payments.method_unavailable": 422,
   "payments.live_exists": 409,
   "payments.provider_unavailable": 503,

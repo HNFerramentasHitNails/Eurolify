@@ -135,7 +135,8 @@ BEGIN
   END IF;
   -- O prestador da conta tem de saber o método (nesta parte, a EuPago sabe
   -- os dois) e a conta não pode estar arquivada.
-  IF NOT EXISTS (SELECT 1 FROM public.conta_pagamento c
+  -- Arquivar um método nunca se recusa (revisão do #288, P3-4).
+  IF NEW.estado = 'activo' AND NOT EXISTS (SELECT 1 FROM public.conta_pagamento c
                  WHERE c.id = NEW.conta_id AND c.estado <> 'arquivada') THEN
     RAISE EXCEPTION 'payments.account_not_ready: a conta está arquivada';
   END IF;
@@ -193,6 +194,10 @@ CREATE FUNCTION pagamento_transicao_valida(p_de text, p_para text) RETURNS boole
     ('a_aguardar_cliente', 'incerto'),
     ('autorizado', 'capturado'), ('autorizado', 'anulado'),
     ('incerto', 'autorizado'), ('incerto', 'capturado'), ('incerto', 'falhado'),
+    -- A prova tardia (revisão do #288, P1-1 e P1-2): um aviso ou uma consulta
+    -- de que foi pago depois de o darmos por expirado ou falhado conta; nunca
+    -- se perde um pagamento por o termos dado por acabado cedo.
+    ('expirado', 'capturado'), ('falhado', 'capturado'),
     ('capturado', 'reembolsado_parcial'), ('capturado', 'reembolsado'),
     ('capturado', 'em_disputa'), ('reembolsado_parcial', 'reembolsado'),
     ('em_disputa', 'ganha'), ('em_disputa', 'perdida'))
@@ -241,6 +246,9 @@ BEGIN
     END IF;
     IF OLD.estado = 'incerto' AND origem NOT IN ('consulta', 'pessoa') THEN
       RAISE EXCEPTION 'payments.invalid_transition: do incerto só por consulta ou por uma pessoa';
+    END IF;
+    IF OLD.estado IN ('expirado', 'falhado') AND origem NOT IN ('aviso', 'consulta', 'pessoa') THEN
+      RAISE EXCEPTION 'payments.invalid_transition: depois de acabado, só com prova do prestador ou de uma pessoa';
     END IF;
   END IF;
   NEW.actualizado_em := now();
@@ -376,7 +384,7 @@ CREATE TABLE diferenca_pagamento (
   aviso_id uuid,
   motivo text NOT NULL CHECK (motivo IN ('incerto', 'aviso_sem_pagamento',
     'montante_diferente', 'moeda_diferente', 'transicao_impossivel',
-    'pago_depois_de_cancelada')),
+    'pago_depois_de_cancelada', 'pagamento_duplicado')),
   prova jsonb NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(prova) = 'object'),
   estado text NOT NULL DEFAULT 'aberta' CHECK (estado IN ('aberta', 'resolvida')),
   resolucao text CHECK (resolucao IS NULL OR length(btrim(resolucao)) BETWEEN 1 AND 2000),
@@ -497,8 +505,13 @@ CREATE FUNCTION pagamento_tarefa() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   IF NEW.estado IN ('criado', 'a_aguardar_cliente', 'autorizado') THEN
+    -- Um pagamento ainda `criado` (sem resposta do prestador) olha-se ao fim
+    -- de 5 minutos, não no fim do prazo (revisão do #288, P2-5).
     INSERT INTO public.tarefa_pagamento (alvo_tipo, alvo_id, comerciante_id, quando)
-    VALUES ('pagamento', NEW.id, NEW.comerciante_id, NEW.expira_em)
+    VALUES ('pagamento', NEW.id, NEW.comerciante_id,
+      CASE WHEN NEW.estado = 'criado'
+        THEN least(NEW.expira_em, now() + interval '5 minutes')
+        ELSE NEW.expira_em END)
     ON CONFLICT (alvo_tipo, alvo_id) DO UPDATE SET quando = EXCLUDED.quando;
   ELSE
     DELETE FROM public.tarefa_pagamento WHERE alvo_tipo = 'pagamento' AND alvo_id = NEW.id;
@@ -619,7 +632,7 @@ ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
     'customers:read', 'customers:write', 'customers:billing',
     'customers:exemptions', 'tax:read', 'tax:write',
     'legal:read', 'legal:write', 'shipping:read', 'shipping:write', 'orders:read',
-    'payments:read', 'payments:write', 'payments:accounts',
+    'payments:read', 'payments:write', 'payments:accounts', 'payments:resolve',
     'keys:write', 'storefront'
   ]::text[]);
 
@@ -632,7 +645,8 @@ CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
                            'customers:write', 'keys:write', 'legal:read',
                            'legal:write', 'merchant:read', 'merchant:write',
                            'orders:read', 'payments:accounts', 'payments:read',
-                           'payments:write', 'prices:read', 'prices:write',
+                           'payments:resolve', 'payments:write', 'prices:read',
+                           'prices:write',
                            'shipping:read', 'shipping:write', 'tax:read', 'tax:write']
     WHEN 'gestor' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
                              'catalog:read', 'catalog:write', 'customers:read',

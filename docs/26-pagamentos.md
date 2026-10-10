@@ -191,7 +191,7 @@ do comerciante; o reembolso é da fatia 11).
 |---|---|---|
 | R1 | O montante e a moeda vêm da encomenda, nunca do pedido nem do ecrã | regra da API (`AGENTS.md`, «Uma regra, um sítio») |
 | R2 | Só um pagamento vivo por encomenda; criar outro com um vivo dá 409 | evita cobrar duas vezes |
-| R3 | A chamada ao prestador leva a nossa `referencia` e uma chave de idempotência; repetir não cria outra cobrança | `docs/08` §4 («chave de idempotência») |
+| R3 | A chamada ao prestador leva a nossa `referencia`; nunca se repete uma cobrança (um pagamento vivo devolve-se, um incerto espera por uma pessoa). A EuPago não documenta uma chave de idempotência, por isso não se envia | `docs/08` §4 («chave de idempotência») |
 | R4 | Tempo esgotado ou resposta ilegível depois de pedir a cobrança ⇒ `incerto`, nunca repetir às cegas | skill; `eurolify-payment-readiness-eu` |
 | R5 | Aviso sem assinatura válida: grava-se (para investigar), responde-se 401 e não se aplica | skill, «Avisos», 1 |
 | R6 | Aviso repetido (mesmo `id_evento` na conta): 200 sem aplicar outra vez | skill, «Avisos», 3 |
@@ -238,20 +238,20 @@ do comerciante; o reembolso é da fatia 11).
 
 | Rota | Âmbito |
 |---|---|
-| `GET /payment-accounts`, `POST /payment-accounts`, `PATCH /payment-accounts/{id}`, `POST /payment-accounts/{id}/archive` | `payments:read` / `payments:write` |
+| `GET /payment-accounts`, `POST /payment-accounts`, `PATCH /payment-accounts/{id}` (o nome, ou `arquivar: true`) | `payments:read` / `payments:write` |
 | `PUT /payment-accounts/{id}/credentials` (escreve; nunca devolve) e `POST /payment-accounts/{id}/test` (a chamada de teste que a põe `pronta`) | `payments:accounts` (só o dono, Q3) |
-| `GET /payment-methods`, `POST /payment-methods`, `PATCH /payment-methods/{id}`, `POST /payment-methods/{id}/archive` | `payments:read` / `payments:write` |
+| `GET /payment-methods`, `POST /payment-methods`, `PATCH /payment-methods/{id}` (conta, ordem, prazo, ou `arquivar: true`) | `payments:read` / `payments:write` |
 | `GET /payments`, `GET /payments/{id}` (com as transições) | `payments:read` |
 | `POST /payments/{id}/check` (consulta ao prestador) | `payments:write` |
-| `GET /payment-issues`, `POST /payment-issues/{id}/resolve` (só uma pessoa, com o texto da resolução) | `payments:read` / `payments:write` |
+| `GET /payment-issues` e `POST /payment-issues/{id}/resolve` (com o texto da resolução; um pagamento incerto obriga a decidir) | `payments:read` / `payments:resolve` (só o dono) |
 
-Âmbitos novos: `payments:read`, `payments:write`, `payments:accounts`.
-Papéis (proposta): dono os três; gestor `read` e `write`; apoio `read`;
-armazém nenhum.
+Âmbitos novos: `payments:read`, `payments:write`, `payments:accounts`,
+`payments:resolve`. Papéis (proposta): dono os quatro; gestor `read` e
+`write`; apoio `read`; armazém nenhum.
 
 ### 8.4 Erros (novos)
 
-`payments.no_method`, `payments.method_unavailable`, `payments.live_exists`,
+`payments.method_unavailable`, `payments.live_exists`,
 `payments.provider_unavailable` (503; o pagamento fica `incerto` se a cobrança
 pode ter saído), `payments.account_not_ready`, `payments.signature_invalid`,
 `payments.invalid_transition`, `payments.order_not_payable`.
@@ -357,12 +357,12 @@ a sandbox**, porque não há credenciais de teste.
 | a máquina de estados na base (`pagamento_transicao_valida`), só para a frente; do `incerto` só por consulta ou por uma pessoa; um pagamento vivo por encomenda; as cópias não mudam | migração 0042 |
 | a encomenda `paga` só com um pagamento capturado do mesmo montante e moeda; `cancelada_sem_pagamento` só sem pagamento vivo nem capturado | migração 0042 (gatilho na encomenda) |
 | eventos `payment.*`, `order.paid`, `order.cancelled`, pelos gatilhos; a transição grava a origem, quem, o aviso e o motivo | migração 0042 |
-| âmbitos `payments:read`, `payments:write`, `payments:accounts` nos papéis (dono os três; gestor ler e escrever; apoio ler; armazém nenhum) | migração 0042; `src/identidade/` |
+| âmbitos `payments:read`, `payments:write`, `payments:accounts`, `payments:resolve` nos papéis (dono os quatro; gestor ler e escrever; apoio ler; armazém nenhum) | migração 0042; `src/identidade/` |
 | as credenciais cifradas com AES-256-GCM (`PAGAMENTOS_CHAVE`), com a conta e o campo como dado associado | `src/pagamentos/cifra.ts` |
 | o adaptador EuPago (MB WAY e Multibanco, sandbox) e o contrato | `src/pagamentos/eupago.ts`, `adaptador.ts` |
 | o pagamento pelo token, os avisos, a consulta, as tarefas, a fila e a Administração — a lista da §8 | `src/pagamentos/` |
 | o checkout só aceita métodos da régua; o MB WAY pede telemóvel português; um método que deixou de estar disponível bloqueia o botão final | `src/checkout/repositorio.ts` |
-| 13 testes pela API com a EuPago falsa (o adaptador verdadeiro, a rede trocada); 15 mutações nas protecções, todas apanhadas (uma sobreviveu à primeira — o aviso de outra conta do mesmo comerciante — e ganhou um teste) | `test/pagamentos-api.test.ts`, `test/eupago-falso.ts` |
+| 17 testes pela API com a EuPago falsa (o adaptador verdadeiro, a rede trocada) | `test/pagamentos-api.test.ts`, `test/eupago-falso.ts` |
 
 **Desvios do desenho:**
 - **Só o modo teste existe** (a base recusa `real`): abrir o modo real é uma
@@ -377,15 +377,42 @@ a sandbox**, porque não há credenciais de teste.
   claramente não muda nada; numa tarefa depois do prazo, um MB WAY passa a
   `expirado` (5 minutos para aprovar, **W**) e um Multibanco passa a
   `incerto`, para uma pessoa decidir.
+- **A prova tardia conta** (revisão do #288, P1-1): um aviso ou uma consulta
+  de que foi pago depois de o darmos por `expirado` ou `falhado` passa o
+  pagamento a `capturado`. Se a encomenda ainda está por pagar, fica paga; se
+  já está paga por outro pagamento, abre `pagamento_duplicado`; se foi
+  cancelada, abre `pago_depois_de_cancelada`. Decide uma pessoa (o reembolso
+  é da fatia 11).
+- **O Multibanco expira no fim do dia do prazo em Lisboa** (a EuPago só aceita
+  a data; revisão do #288, P1-2), e a encomenda espera por ele.
+- **Depois de chamar o prestador, só uma recusa explícita é `falhado`**
+  (`Rejected` no MB WAY, `sucesso: false` no Multibanco); outra resposta fica
+  `incerto` (P2-7).
+- **Um aviso sem assinatura válida não guarda o corpo**, só o resumo; uma
+  conta desconhecida responde como assinatura errada; a rota tem o limite por
+  IP das rotas da loja (P2-1). Sem o segredo legível (outra versão da chave),
+  o aviso grava-se como erro e responde 503 (P2-3).
 - **Um aviso que chega antes de gravarmos a resposta da cobrança** responde
   503, e a EuPago reenvia daqui a 2 minutos (**W**).
-- **Resolver uma diferença** faz-se nesta parte pela chave do comerciante
-  (`payments:write`), com o texto da resolução; um processo automático nunca
-  o faz (a base recusa). O ecrã no Hub, pela sessão de uma pessoa, fica para
-  depois.
+- **Resolver uma diferença** faz-se nesta parte pela chave do dono
+  (`payments:resolve`), uma de cada vez e com o texto da resolução; um
+  pagamento incerto obriga a decidir se foi pago (P2-2, P2-6). Um processo
+  automático nunca a resolve (a base recusa).
+- **`entidade_prestador`** (§3.1) não está no código: o registo do prestador
+  confirma-se fora (V6) antes do modo real.
 - **Um pagamento depois de falhado ou expirado** pode usar outro método da
   régua (`POST /checkout/{token}/payment` com `metodo`), dentro das 24 h.
 - **Por fazer:** a Stripe (parte 2, depois da Q2); a confirmação contra a
-  sandbox da EuPago (V1, V4, V5); a retenção dos avisos em bruto (§7, entra
-  na porta P2-3 do `docs/25`); o ecrã da fila no Hub.
+  sandbox da EuPago (V1, V4, V5); o ecrã da fila no Hub.
+
+**Portas antes do modo real** (a base recusa-o hoje; nenhum dinheiro real
+passa por aqui antes delas):
+- **A retenção dos avisos em bruto** (§7; revisão do #288, P2-8): a tabela não
+  deixa apagar nem ao dono; os avisos válidos podem trazer o telefone do MB
+  WAY. Uma função de purga auditada entra com a porta P2-3 do `docs/25`.
+- **A fila de diferenças num ecrã do Hub**, pela sessão de uma pessoa (P2-6).
+- **A sandbox da EuPago** (V1, V4, V5) e o registo do prestador (V6).
+- **A chave das credenciais na VPS** (`PAGAMENTOS_CHAVE`), gerada como a do
+  segundo factor, e um caminho para a rodar (hoje: definir as credenciais
+  outra vez).
 
