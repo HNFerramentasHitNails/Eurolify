@@ -141,7 +141,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0049_clientes_pedidos_do_titular",
         "0050_documentos_fiscais",
         "0051_rasto_contexto",
-        "0052_pos_venda",
+        "0052_clientes_consentimento_por_contacto",
+        "0053_rasto_colunas",
+        "0054_pos_venda",
       ]);
     });
 
@@ -250,11 +252,13 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
       // declaração do regime do IVA (0040), as 8 do checkout (0041), os
       // consentimentos (0042), as 6 dos pagamentos (0044), os candidatos a
-      // duplicado (0046), as 10 do stock (0047), os pedidos do titular
-      // (0049), as 5 dos documentos fiscais (0050) e as 7 da pós-venda (0052).
+      // duplicado (0046), as 10 do stock (0047), os pedidos do titular (0049),
+      // as 5 dos documentos fiscais (0050), os pedidos de dupla confirmação e
+      // os contactos inferidos das declarações antigas (0052) e as 7 da
+      // pós-venda (0054).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(78);
+      ).toHaveLength(80);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

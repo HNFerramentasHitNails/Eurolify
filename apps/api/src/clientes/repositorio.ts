@@ -1,3 +1,4 @@
+import { randomBytes, randomInt } from "node:crypto";
 import { sql, type Kysely, type Transaction } from "kysely";
 import {
   CANAIS_CONSENTIMENTO,
@@ -42,6 +43,12 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   // Da 0049: os pedidos do titular.
   "customers.confirmation_required",
   "customers.restricted",
+  // Da 0052: o consentimento por contacto e a dupla confirmação.
+  "customers.consent_contact_unknown",
+  "customers.consent_confirmation_required",
+  "customers.confirmation_channel",
+  "customers.confirmation_invalid",
+  "customers.confirmation_rate_limited",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -72,6 +79,7 @@ const TABELAS = new Set([
   "consentimento",
   "duplicado_cliente",
   "pedido_titular",
+  "confirmacao_consentimento",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -1019,31 +1027,153 @@ export async function listarIsencoes(
 export interface DadosConsentimento {
   canal: CanalConsentimento;
   declaracao: "aceitou" | "retirou";
+  /** O e-mail ou o telefone da ficha a que a declaração se refere (0052). */
+  contacto: string;
   texto: string;
   versao_texto: string;
   onde: string;
 }
 
-/** Regista uma declaração (migração 0042); a hora e quem põe-nos a base. */
+/** O que uma declaração deu: a declaração, ou um pedido de dupla confirmação. */
+export type ResultadoConsentimento =
+  | { tipo: "declaracao"; id: string }
+  | {
+      tipo: "confirmacao";
+      id: string;
+      /** Só nesta resposta; a base guarda o resumo (0052). */
+      segredo: string;
+      /** O contacto como a base o compara (o e-mail em minúsculas). */
+      contacto: string;
+      expira_em: Date;
+    };
+
+/** O segredo da dupla confirmação: uma ligação para o e-mail, um código de 6 dígitos para o SMS. */
+function segredoDaConfirmacao(canal: CanalConsentimento): string {
+  return canal === "email"
+    ? randomBytes(32).toString("base64url")
+    : String(randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+/**
+ * Regista uma declaração (migrações 0042 e 0052); a hora e quem põe-nos a
+ * base. Um «aceitou» sobre uma recusa activa do contacto não entra: a base
+ * recusa-o, e cria-se um pedido de dupla confirmação (docs/23 §14, C3).
+ */
 export async function registarConsentimento(
   db: Kysely<BaseDados>,
   comercianteId: string,
   clienteId: string,
   dados: DadosConsentimento,
+): Promise<ResultadoConsentimento> {
+  return noClientes(db, comercianteId, async (trx) => {
+    await sql`savepoint antes_da_declaracao`.execute(trx);
+    try {
+      const { id } = await trx
+        .insertInto("consentimento")
+        .values({
+          comerciante_id: comercianteId,
+          cliente_id: clienteId,
+          finalidade: "marketing",
+          ...dados,
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      return { tipo: "declaracao" as const, id };
+    } catch (erro) {
+      const e = traduzir(erro);
+      if (
+        !(e instanceof ErroClientes) ||
+        e.codigo !== "customers.consent_confirmation_required" ||
+        dados.declaracao !== "aceitou"
+      ) {
+        throw erro;
+      }
+      await sql`rollback to savepoint antes_da_declaracao`.execute(trx);
+      const segredo = segredoDaConfirmacao(dados.canal);
+      const { rows } = await sql<{
+        id: string;
+        expira_em: Date;
+        contacto: string;
+      }>`
+        select id, expira_em, contacto from consentimento_pedir_confirmacao(
+          ${clienteId}::uuid, ${dados.canal}, ${dados.contacto}, ${dados.texto},
+          ${dados.versao_texto}, ${dados.onde}, ${segredo})`.execute(trx);
+      const r = rows[0];
+      if (r === undefined) {
+        throw new Error("consentimento_pedir_confirmacao sem linha", {
+          cause: erro,
+        });
+      }
+      return {
+        tipo: "confirmacao" as const,
+        id: r.id,
+        segredo,
+        contacto: r.contacto,
+        expira_em: r.expira_em,
+      };
+    }
+  });
+}
+
+/**
+ * Confirma um pedido com o que a pessoa trouxe (0052). Corre na sua própria
+ * transacção: uma tentativa errada fica contada mesmo quando a resposta é um
+ * erro.
+ */
+export async function confirmarConsentimento(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  quem: string,
+  confirmacaoId: string,
+  segredo: string,
 ): Promise<string> {
-  const { id } = await noClientes(db, comercianteId, (trx) =>
-    trx
-      .insertInto("consentimento")
-      .values({
-        comerciante_id: comercianteId,
-        cliente_id: clienteId,
-        finalidade: "marketing",
-        ...dados,
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow(),
-  );
-  return id;
+  const r = await noClientes(db, comercianteId, async (trx) => {
+    await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
+    const { rows } = await sql<{
+      resultado: string;
+      consentimento_id: string | null;
+    }>`select resultado, consentimento_id
+        from consentimento_confirmar(${confirmacaoId}::uuid, ${segredo})`.execute(
+      trx,
+    );
+    return rows[0];
+  });
+  switch (r?.resultado) {
+    case "confirmada":
+      if (r.consentimento_id === null)
+        throw new Error("confirmada sem declaração");
+      return r.consentimento_id;
+    case "nao_existe":
+      throw new ErroClientes(
+        "customers.not_found",
+        "o pedido de confirmação não existe",
+      );
+    case "errado":
+      throw new ErroClientes(
+        "customers.confirmation_invalid",
+        "o segredo não confere",
+      );
+    case "esgotada":
+      throw new ErroClientes(
+        "customers.confirmation_exhausted",
+        "tentativas esgotadas; peça outra confirmação",
+      );
+    case "expirada":
+      throw new ErroClientes(
+        "customers.confirmation_expired",
+        "o pedido expirou; peça outra confirmação",
+      );
+    case "ja_confirmada":
+      throw new ErroClientes(
+        "customers.confirmation_closed",
+        "o pedido já foi confirmado; o «sim» está registado",
+      );
+    default:
+      throw new ErroClientes(
+        "customers.confirmation_closed",
+        `o pedido já não está pendente (${String(r?.resultado)})`,
+      );
+  }
 }
 
 export async function obterConsentimento(
@@ -1117,11 +1247,22 @@ export async function listarConsentimentos(
     const regua = Object.fromEntries(
       CANAIS_CONSENTIMENTO.map((canal) => [canal, r?.[canal] === true]),
     ) as Record<CanalConsentimento, boolean>;
+    // Por contacto (0052): os contactos da ficha com «sim» em cada canal.
+    const { rows: porLinha } = await sql<Record<CanalConsentimento, string[]>>`
+      select contactos_com_marketing(${clienteId}::uuid, 'email') as email,
+             contactos_com_marketing(${clienteId}::uuid, 'sms') as sms,
+             contactos_com_marketing(${clienteId}::uuid, 'whatsapp') as whatsapp`.execute(
+      trx,
+    );
+    const porContacto = Object.fromEntries(
+      CANAIS_CONSENTIMENTO.map((canal) => [canal, porLinha[0]?.[canal] ?? []]),
+    ) as Record<CanalConsentimento, string[]>;
     return {
       dados,
       total: Number(n),
       ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
       regua,
+      porContacto,
     };
   });
 }
@@ -1389,6 +1530,15 @@ export async function exportarCliente(
             where ce.cliente_id = ${id}::uuid order by e.id`.execute(trx)
         ).rows,
         consentimentos: await linhas("consentimento"),
+        // Os pedidos de dupla confirmação (0052), sem o resumo do segredo.
+        confirmacoes_de_consentimento: (
+          await sql<Record<string, unknown>>`
+            select id, canal, contacto, texto, versao_texto, onde, estado,
+                   tentativas, expira_em, pedida_por, pedida_em, fechada_em,
+                   consentimento_id
+            from confirmacao_consentimento where cliente_id = ${id}::uuid
+            order by id`.execute(trx)
+        ).rows,
         encomendas,
         linhas_das_encomendas: await daEncomenda("linha_encomenda"),
         pagamentos: await daEncomenda("pagamento"),

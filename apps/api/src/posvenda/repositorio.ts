@@ -10,7 +10,7 @@ import { armazemDaLoja, folhas, politicas } from "../stock/repositorio.js";
 import { acordarNotas } from "../faturacao/repositorio.js";
 import { ErroPosVenda, traduzir } from "./erros.js";
 
-// A pós-venda (docs/30; migração 0052; issue #328; Diogo, 10/10/2026:
+// A pós-venda (docs/30; migração 0054; issue #328; Diogo, 10/10/2026:
 // «aprovado» e «avança»).
 //
 // 🔴 Devolução = volta mercadoria; problema = não volta; nenhum reembolso

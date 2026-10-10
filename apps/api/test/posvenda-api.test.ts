@@ -34,7 +34,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// A pós-venda pela API (docs/30; migração 0052): o botão de livre
+// A pós-venda pela API (docs/30; migração 0054): o botão de livre
 // resolução, a devolução até à inspecção e ao stock, a decisão e o
 // reembolso manual, a nota de crédito pelo circuito dos documentos e o
 // cancelamento de uma encomenda paga. O emissor é o de ensaio.

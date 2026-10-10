@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { comRastoNaBase } from "../base/rasto.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { sql, type Kysely } from "kysely";
 import { Type } from "typebox";
@@ -158,8 +159,10 @@ export function rotasDaPalavraPasse(
       if (passo === null) throw erroConta("password.invalid_code");
       const novo = segredoNovo("eus");
       await traduzindoConta(() =>
-        sql`select palavra_passe_confirmar(${sessao.segredo},
-          ${pendente.id}::uuid, ${passo}, ${resumo(novo)})`.execute(base),
+        comRastoNaBase(base, (trx) =>
+          sql`select palavra_passe_confirmar(${sessao.segredo},
+          ${pendente.id}::uuid, ${passo}, ${resumo(novo)})`.execute(trx),
+        ),
       );
       porCookie(resposta, novo);
       return { ok: true as const };
@@ -181,8 +184,10 @@ export function rotasDaPalavraPasse(
       const sessao = sessaoDo(pedido);
       const novo = segredoNovo("eus");
       await traduzindoConta(() =>
-        sql`select palavra_passe_retirar(${sessao.segredo},
-          ${resumo(novo)})`.execute(base),
+        comRastoNaBase(base, (trx) =>
+          sql`select palavra_passe_retirar(${sessao.segredo},
+          ${resumo(novo)})`.execute(trx),
+        ),
       );
       porCookie(resposta, novo);
       return { ok: true as const };
