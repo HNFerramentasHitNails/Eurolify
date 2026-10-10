@@ -189,15 +189,15 @@ export function precoTemOCorpo(
 /**
  * Há o que guardar: os campos dizem outra coisa que o guardado (sem preço,
  * qualquer coisa escrita conta). Um montante que não se lê conta como
- * mudado, para o erro aparecer.
+ * mudado, para o erro aparecer. Com uma redução em vigor, o montante e o
+ * «gratuito» não contam: não se escrevem (revisão do #341, P3-3).
  */
 export function precoAlterado(
   guardado: PrecoVariante | null,
   campos: CamposPreco,
   moeda: string,
-  lingua: Lingua,
+  comReducao = false,
 ): boolean {
-  const deAgora = camposDoPreco(guardado, moeda, lingua);
   if (guardado === null) {
     return (
       campos.montante.trim() !== "" ||
@@ -206,11 +206,7 @@ export function precoAlterado(
       campos.multiplo.trim() !== "1"
     );
   }
-  if (campos.gratuito !== deAgora.gratuito) return true;
-  if (!campos.gratuito) {
-    const c = centimosDoTexto(campos.montante, casasDaMoeda(moeda));
-    if (c !== guardado.montante) return true;
-  }
+  if (!comReducao && montanteMudou(guardado, campos, moeda)) return true;
   return (
     quantidade(campos.minimo) !== guardado.quantidade_minima ||
     quantidade(campos.multiplo) !== guardado.multiplo
@@ -218,8 +214,32 @@ export function precoAlterado(
 }
 
 /**
+ * O montante ou o «gratuito» escritos não são os de `preco`. Compara-se em
+ * cêntimos, não em texto: «39,90» e «39.90» são o mesmo, em qualquer língua
+ * (revisão do #341, P2-1).
+ */
+function montanteMudou(
+  preco: PrecoVariante | null,
+  campos: CamposPreco,
+  moeda: string,
+): boolean {
+  if (preco === null) return campos.gratuito || campos.montante.trim() !== "";
+  if (campos.gratuito !== preco.gratuito) return true;
+  if (campos.gratuito) return false;
+  return (
+    centimosDoTexto(campos.montante, casasDaMoeda(moeda)) !== preco.montante
+  );
+}
+
+/** A quantidade escrita não é a de antes (sem preço, antes é 1). */
+function quantidadeMudou(texto: string, antes: number): boolean {
+  return quantidade(texto) !== antes;
+}
+
+/**
  * Depois de um conflito (§25.3, como a §23): o que a pessoa não mexeu toma
- * o valor guardado agora; o que escreveu fica.
+ * o valor guardado agora; o que escreveu fica. «Mexido» decide-se pelos
+ * valores, não pelo texto (revisão do #341, P2-1).
  */
 export function camposSobreOGuardado(
   antes: PrecoVariante | null,
@@ -228,19 +248,16 @@ export function camposSobreOGuardado(
   moeda: string,
   lingua: Lingua,
 ): CamposPreco {
-  const deAntes = camposDoPreco(antes, moeda, lingua);
   const deAgora = camposDoPreco(agora, moeda, lingua);
-  const montanteMexido =
-    campos.gratuito !== deAntes.gratuito ||
-    campos.montante.trim() !== deAntes.montante;
+  const montanteMexido = montanteMudou(antes, campos, moeda);
   return {
     montante: montanteMexido ? campos.montante : deAgora.montante,
     gratuito: montanteMexido ? campos.gratuito : deAgora.gratuito,
-    minimo:
-      campos.minimo.trim() === deAntes.minimo ? deAgora.minimo : campos.minimo,
-    multiplo:
-      campos.multiplo.trim() === deAntes.multiplo
-        ? deAgora.multiplo
-        : campos.multiplo,
+    minimo: quantidadeMudou(campos.minimo, antes?.quantidade_minima ?? 1)
+      ? campos.minimo
+      : deAgora.minimo,
+    multiplo: quantidadeMudou(campos.multiplo, antes?.multiplo ?? 1)
+      ? campos.multiplo
+      : deAgora.multiplo,
   };
 }

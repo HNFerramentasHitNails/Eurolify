@@ -204,24 +204,24 @@ describe("precoAlterado, precoTemOCorpo e camposSobreOGuardado", () => {
       minimo: "1",
       multiplo: "1",
     });
-    expect(precoAlterado(GUARDADO, campos, "EUR", "pt")).toBe(false);
+    expect(precoAlterado(GUARDADO, campos, "EUR")).toBe(false);
     expect(
-      precoAlterado(GUARDADO, { ...campos, montante: "39.9" }, "EUR", "pt"),
+      precoAlterado(GUARDADO, { ...campos, montante: "39.9" }, "EUR"),
     ).toBe(false);
     expect(
-      precoAlterado(GUARDADO, { ...campos, montante: "39,91" }, "EUR", "pt"),
+      precoAlterado(GUARDADO, { ...campos, montante: "39,91" }, "EUR"),
     ).toBe(true);
-    expect(
-      precoAlterado(GUARDADO, { ...campos, minimo: "2" }, "EUR", "pt"),
-    ).toBe(true);
+    expect(precoAlterado(GUARDADO, { ...campos, minimo: "2" }, "EUR")).toBe(
+      true,
+    );
   });
 
   it("sem preço, qualquer coisa escrita é uma mudança", () => {
     const campos = camposDoPreco(null, "EUR", "pt");
-    expect(precoAlterado(null, campos, "EUR", "pt")).toBe(false);
-    expect(
-      precoAlterado(null, { ...campos, montante: "39,90" }, "EUR", "pt"),
-    ).toBe(true);
+    expect(precoAlterado(null, campos, "EUR")).toBe(false);
+    expect(precoAlterado(null, { ...campos, montante: "39,90" }, "EUR")).toBe(
+      true,
+    );
   });
 
   it("a resposta perdida: só conta como gravado com tudo o que se enviou", () => {
@@ -254,5 +254,27 @@ describe("precoAlterado, precoTemOCorpo e camposSobreOGuardado", () => {
     expect(
       camposSobreOGuardado(GUARDADO, agora, comMontante, "EUR", "pt").montante,
     ).toBe("41");
+  });
+
+  it("o conflito decide pelos valores: os campos em português, a língua já em inglês (revisão do #341, P2-1)", () => {
+    const agora = { ...GUARDADO, montante: 4400, versao: 4 };
+    // Abertos em português («39,90»); a releitura formata em inglês.
+    const escritos = { ...camposDoPreco(GUARDADO, "EUR", "pt"), minimo: "2" };
+    expect(
+      camposSobreOGuardado(GUARDADO, agora, escritos, "EUR", "en"),
+    ).toEqual({
+      montante: "44.00",
+      gratuito: false,
+      minimo: "2",
+      multiplo: "1",
+    });
+  });
+
+  it("com uma redução em vigor, o montante escrito não conta como mudança (P3-3)", () => {
+    const campos = { ...camposDoPreco(GUARDADO, "EUR", "pt"), montante: "12" };
+    expect(precoAlterado(GUARDADO, campos, "EUR", true)).toBe(false);
+    expect(
+      precoAlterado(GUARDADO, { ...campos, minimo: "2" }, "EUR", true),
+    ).toBe(true);
   });
 });

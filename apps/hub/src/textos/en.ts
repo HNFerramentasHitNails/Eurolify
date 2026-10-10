@@ -694,7 +694,7 @@ export const en: Textos = {
   precoGuardado: "Price of {sku} in {lista} saved.",
   precoTirado: "Price of {sku} removed from {lista}.",
   precoComReducao:
-    "This price has a reduction in force{ate}: it can change when the reduction ends.",
+    "This price has a reduction in force{ate}: it changes once the reduction ends.",
   precoReducaoAte: " until {data}",
   precoConflito: "Someone else changed this price in the meantime.",
   precoPublicada:
@@ -706,10 +706,10 @@ export const en: Textos = {
     "This list was archived in the meantime: its prices no longer change.",
   precoVarianteArquivada:
     "This variant is archived: its price is not set here.",
-  precoMontanteObrigatorio: "Enter the price, or tick «Free».",
+  precoMontanteObrigatorio: 'Enter the price, or tick "Free".',
   precoMontanteFormato:
     "Enter the price with digits and a decimal point only, like 39.90.",
   precoMontanteLimite: "The price is above the maximum (1,000,000,000.00).",
-  precoZeroSoGratuito: "A price of 0 only with «Free» ticked.",
+  precoZeroSoGratuito: 'A price of 0 only with "Free" ticked.',
   precoQuantidadeInvalida: "Enter a whole number from 1 to 1,000,000.",
 };

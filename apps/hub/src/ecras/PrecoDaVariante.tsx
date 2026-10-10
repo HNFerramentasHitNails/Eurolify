@@ -113,6 +113,9 @@ export function PrecoDaVariante({
     "conflito" | "publicada" | "listaArquivada" | "semResposta" | null
   >(null);
   const [aGravar, setAGravar] = useState(false);
+  // O trinco do envio: dois Enter antes de o ecrã se actualizar mandavam
+  // dois pedidos (revisão do #341, P3-6).
+  const aGravarAgora = useRef(false);
   const focarDepois = useRef<string | null>(null);
   // A língua só formata os campos ao abrir: mudá-la não os reescreve.
   const linguaAoAbrir = useRef(lingua);
@@ -189,7 +192,7 @@ export function PrecoDaVariante({
     podeEscrever &&
     campos !== null;
   const alterado =
-    comFormulario && precoAlterado(guardado, campos, moeda, lingua);
+    comFormulario && precoAlterado(guardado, campos, moeda, comReducao);
 
   // Sair com alterações por guardar pergunta antes (como na §13.4).
   useEffect(() => {
@@ -243,7 +246,7 @@ export function PrecoDaVariante({
    */
   async function reler(
     confere: (agora: PrecoVariante | null) => boolean,
-    depois: () => void,
+    depois: (agora: Lido) => void,
   ): Promise<"feito" | "relido"> {
     const agora = await ler();
     if (agora === null) return "relido";
@@ -261,7 +264,7 @@ export function PrecoDaVariante({
       );
     }
     setLido(agora);
-    depois();
+    depois(agora);
     return "relido";
   }
 
@@ -286,15 +289,17 @@ export function PrecoDaVariante({
       focarDepois.current = foco;
     };
     try {
-      if (perdida || codigo === "prices.version_conflict") {
-        const r = await reler(
-          feito,
-          perdida
-            ? aviso("semResposta", "preco-recusa")
-            : aviso("conflito", "preco-recusa"),
-        );
+      // Só a resposta perdida se dá por feita ao reler: um 409 garante que
+      // nada se gravou, e mostra sempre o conflito, mesmo que outra pessoa
+      // tenha gravado o mesmo (revisão do #341, P3-1).
+      if (perdida) {
+        const r = await reler(feito, aviso("semResposta", "preco-recusa"));
         if (!aindaAqui()) return;
         if (r === "feito") abrirFicha(como);
+        return;
+      }
+      if (codigo === "prices.version_conflict") {
+        await reler(() => false, aviso("conflito", "preco-recusa"));
         return;
       }
       if (
@@ -303,14 +308,30 @@ export function PrecoDaVariante({
         codigo === "prices.not_found"
       ) {
         // O ecrã passa a mostrar o que está guardado agora: a redução, ou
-        // a lista e a variante que deixaram de existir.
+        // a lista e a variante que deixaram de existir, com o aviso e o
+        // foco num elemento que existe (revisão do #341, P2-2).
         await reler(
           () => false,
-          codigo === "prices.list_archived"
-            ? aviso("listaArquivada", "preco-recusa")
-            : () => {
-                focarDepois.current = "preco-reducao";
-              },
+          (agora) => {
+            const daVariante = agora.ficha.variantes.find(
+              (x) => x.id === variante,
+            );
+            if (codigo === "prices.list_archived" || agora.lista === null) {
+              setRecusa("listaArquivada");
+              focarDepois.current = "preco-aviso";
+            } else if (daVariante === undefined) {
+              focarDepois.current = "preco-aviso";
+            } else if (
+              agora.preco?.reducao != null &&
+              codigo === "prices.reduction_active"
+            ) {
+              focarDepois.current = "preco-reducao";
+            } else {
+              // Nada mudou à vista: fica o erro da API.
+              setFalha(erro);
+              focarDepois.current = "preco-falha";
+            }
+          },
         );
         return;
       }
@@ -342,7 +363,7 @@ export function PrecoDaVariante({
 
   async function gravar(evento: React.SyntheticEvent) {
     evento.preventDefault();
-    if (!comFormulario || aGravar || comerciante === null) return;
+    if (!comFormulario || aGravarAgora.current || comerciante === null) return;
     setFalha(null);
     setRecusa(null);
     const e = conferirPreco(campos, moeda, comReducao);
@@ -352,11 +373,12 @@ export function PrecoDaVariante({
     }
     setErros({});
     // Nada mudou: volta à ficha sem pedir.
-    if (!precoAlterado(guardado, campos, moeda, lingua)) {
+    if (!precoAlterado(guardado, campos, moeda, comReducao)) {
       voltar();
       return;
     }
     const corpo = corpoDoPreco(campos, moeda, guardado, comReducao);
+    aGravarAgora.current = true;
     setAGravar(true);
     try {
       await api.definirPreco(comerciante, lista, variante, corpo);
@@ -370,6 +392,7 @@ export function PrecoDaVariante({
         "guardado",
       );
     } finally {
+      aGravarAgora.current = false;
       if (aindaAqui()) setAGravar(false);
     }
   }
@@ -377,7 +400,7 @@ export function PrecoDaVariante({
   async function tirar() {
     if (
       !comFormulario ||
-      aGravar ||
+      aGravarAgora.current ||
       comerciante === null ||
       guardado === null ||
       lido.lista === null
@@ -396,6 +419,7 @@ export function PrecoDaVariante({
     if (!window.confirm(preencher(pergunta, dados))) return;
     setFalha(null);
     setRecusa(null);
+    aGravarAgora.current = true;
     setAGravar(true);
     try {
       await api.tirarPreco(comerciante, lista, variante, {
@@ -409,6 +433,7 @@ export function PrecoDaVariante({
       // Tirado é já não haver preço nesta lista.
       await depoisDaFalha(erro, (agora) => agora === null, "tirado");
     } finally {
+      aGravarAgora.current = false;
       if (aindaAqui()) setAGravar(false);
     }
   }
@@ -477,7 +502,9 @@ export function PrecoDaVariante({
       </p>
       <h1 id="titulo">{t.precoTitulo}</h1>
       {naoExiste ? (
-        <CaixaDeErro erro={{ texto: t.varianteNaoExiste }} />
+        <div id="preco-aviso" tabIndex={-1}>
+          <CaixaDeErro erro={{ texto: t.varianteNaoExiste }} />
+        </div>
       ) : lido === null && falha !== null ? (
         <CaixaDeErro
           erro={mensagemDeErro(falha, t, lingua)}
@@ -486,7 +513,18 @@ export function PrecoDaVariante({
       ) : lido === null || v === null || campos === null ? (
         <ACarregar />
       ) : listaLida === null ? (
-        <CaixaDeErro erro={{ texto: t.precoListaNaoExiste }} />
+        // Arquivada enquanto se editava, o aviso diz isso (revisão do #341,
+        // P2-2); aberta assim, que não existe ou não está activa.
+        <div id="preco-aviso" tabIndex={-1}>
+          <CaixaDeErro
+            erro={{
+              texto:
+                recusa === "listaArquivada"
+                  ? t.precoListaArquivada
+                  : t.precoListaNaoExiste,
+            }}
+          />
+        </div>
       ) : (
         <>
           <dl className="valores-actuais">

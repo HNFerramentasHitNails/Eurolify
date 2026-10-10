@@ -4198,6 +4198,18 @@ try {
         .count()) === 0,
     "preço: a página diz a variante, a lista, o mercado, a moeda e «com IVA»; sem preço, não há «Tirar»",
   );
+  // Os PUT de preço que saem do navegador: o que o ecrã recusa não pede
+  // (revisão do #341, P2-3).
+  let putsDePreco = 0;
+  const contarPuts = (pedido) => {
+    if (
+      pedido.method() === "PUT" &&
+      pedido.url().includes("/hub/price-lists/")
+    ) {
+      putsDePreco += 1;
+    }
+  };
+  rp.on("request", contarPuts);
   // «1.234,50» é recusado antes de pedir, com o foco no campo (§25.4).
   await campoPreco.focus();
   await rp.keyboard.type("1.234,50");
@@ -4218,7 +4230,11 @@ try {
   await rp.keyboard.type("0,00");
   await rp.keyboard.press("Enter");
   await rp.getByText("Um preço de 0 só com «Gratuito» marcado.").waitFor();
-  confere(true, "preço: 0 sem «Gratuito» é recusado antes de pedir (R4)");
+  confere(
+    putsDePreco === 0,
+    "preço: «1.234,50» e 0 sem «Gratuito» são recusados sem nenhum pedido à API (R4)",
+  );
+  rp.off("request", contarPuts);
   await rp.keyboard.press("Control+A");
   await rp.keyboard.type("39,9");
   for (const [largura, tema] of [
@@ -4437,6 +4453,47 @@ try {
       (await rp.evaluate(() => document.activeElement?.id)) === "preco-recusa",
     "preço: tirar o de uma variante publicada da lista base avisa antes e é recusado",
   );
+  // A lista arquivada enquanto se edita (respostas fingidas: o PUT recusa
+  // com prices.list_archived e a releitura já não traz a lista): o aviso
+  // diz isso e recebe o foco (revisão do #341, P2-2).
+  await rp.goto(fichaCoral41);
+  await rp
+    .getByRole("link", {
+      name: "Definir preço de ENS-041-B em Profissionais PT",
+    })
+    .click();
+  await campoPreco.waitFor();
+  await campoPreco.fill("30,00");
+  await rp.route(rotaDoPreco, (r) =>
+    r.request().method() === "PUT"
+      ? r.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({ codigo: "prices.list_archived", status: 409 }),
+        })
+      : r.continue(),
+  );
+  await rp.route("**/hub/products/*/prices*", async (r) => {
+    const resposta = await r.fetch();
+    const corpo = await resposta.json();
+    corpo.dados = corpo.dados.filter(
+      (l) => l.lista.nome !== "Profissionais PT",
+    );
+    return r.fulfill({ response: resposta, json: corpo });
+  });
+  await rp.getByRole("button", { name: "Guardar" }).click();
+  await rp
+    .getByText("Esta lista foi arquivada entretanto", { exact: false })
+    .waitFor();
+  await rp.unroute(rotaDoPreco);
+  await rp.unroute("**/hub/products/*/prices*");
+  confere(
+    (await rp.evaluate(() => document.activeElement?.id)) === "preco-aviso" &&
+      (await rp.getByRole("button", { name: "Guardar" }).count()) === 0,
+    "preço: a lista arquivada enquanto se edita diz-se, com o foco no aviso e sem formulário",
+  );
+  await rp.goto(fichaCoral41);
+  await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
   // Com uma redução em vigor (a ENS-001 do «Verniz Azul 1»): o preço e
   // «Gratuito» só se lêem; as quantidades mudam.
   await rp.goto(
