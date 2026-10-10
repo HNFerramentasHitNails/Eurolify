@@ -1217,7 +1217,26 @@ describe("validar o registo", () => {
       2,
       ["PT-20", "PT-30"],
     );
-    expect(errosDoRegisto(separadas)).toEqual([]);
+    expect(errosDoRegisto(separadas)).toEqual([]); // Em sequência (uma acaba quando a outra começa), entram, mesmo com
+    // territórios diferentes (revisão do #303, P3-5).
+    const sequencia = registoComPortugal(
+      [
+        regraTeste({
+          id: "pt-ilhas",
+          territorios: ["PT-20"],
+          aplicaAte: "2026-01-01T00:00:00Z",
+        }),
+        regraTeste({
+          id: "pt-ilhas",
+          versao: 2,
+          territorios: ["PT-30"],
+          aplicaDesde: "2026-01-01T00:00:00Z",
+        }),
+      ],
+      2,
+      ["PT-20", "PT-30"],
+    );
+    expect(errosDoRegisto(sequencia)).toEqual([]);
   });
 
   it("versões da mesma regra em sequência são coerentes", () => {

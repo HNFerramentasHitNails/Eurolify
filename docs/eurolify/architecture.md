@@ -179,7 +179,7 @@ permitida).
 | Território pedido e não mapeado | `revisao_necessaria`, motivo `territorio_nao_mapeado` |
 | Domínio `por_verificar`, ou com um estado que não existe | `revisao_necessaria`, motivo `dominio_por_verificar` — só `verificado` segue para as regras |
 | Domínio `verificado` sem regra em vigor nesse momento | `revisao_necessaria`, motivo `sem_regra_em_vigor` |
-| Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde`, ou com um estado legal que não existe | não conta — só `em_vigor`, `adoptada_futura` e `revogada` podem contar. Uma `adoptada_futura` cuja data já chegou **conta**, sem passar a `em_vigor` à mão: um acto adoptado aplica-se a partir da data de aplicação (a distinção proposta / adoptado / aplicação da `eurolify-regulatory-watch-eu`); a prova continua a ser exigida (#59, #283) |
+| Regra `proposta`, ou `adoptada_futura` antes de `aplicaDesde`, ou com um estado legal que não existe | não conta — só `em_vigor`, `adoptada_futura` e `revogada` podem contar. Uma `adoptada_futura` cuja `aplicaDesde` já chegou **conta**, sem passar a `em_vigor` à mão (`decidir.ts`), e continua a precisar de prova. O motor confia na data que a regra declara: **quem regista a regra é responsável por pôr a data de aplicação certa no país** (numa directiva, a da lei nacional de transposição, não a da directiva; a `eurolify-regulatory-watch-eu` manda distinguir adopção, aplicação e transposição). Que data vale em cada caso é uma questão jurídica, **C**, não verificada aqui (#59, #283) |
 | Regra `revogada` depois de `aplicaAte` | não conta |
 | Território mapeado, só com a regra do continente | `revisao_necessaria`, motivo `sem_regra_em_vigor` (o território não herda) |
 | Domínio `nao_aplicavel` com justificação | não bloqueia |
@@ -223,19 +223,24 @@ passam para a base quando houver revisão de regras pelo Hub.
 **Quando o registo passar para a base** (#59, #283): cada versão chega como
 JSON lido da base e passa pelo `errosDoRegisto` antes de ser servida; só
 então decide. Hoje nenhum caminho entrega ao motor outra coisa (o registo
-está no código), mas um objecto que não seja dados simples (um `Proxy`, por
-exemplo) pode rebentar o `validar` e o `decidir` (`mostrar.ts`, medido nas
-revisões do #50, sem teste).
+está no código), mas um objecto que não seja dados simples pode rebentar o
+`validar` e o `decidir`. Há testes de um `Proxy` revogado em partes do
+registo (`regras.test.ts`; `mostrar.ts`); não há teste de um registo
+inteiro revogado nem de um `Proxy` vivo cujas armadilhas lançam (medido
+nas revisões do #50).
 
 ### 4.5 A prontidão por país (`eurolify-country-readiness-eu`) e o motor
 
-A skill fala de **estados de revisão** de um país; o motor, de estados de um
-domínio e de uma regra. Correspondem assim (#59, #283):
+A skill fala de **estados da pesquisa** (`references/countries.md`), por
+país, operação, setor e canal; o motor, de estados de um domínio e de uma
+regra. Não são o mesmo nível. A tabela abaixo é uma **correspondência
+proposta, por confirmar pelo Diogo ou pelo Bruno** (#59, #283); as skills
+não a fazem:
 
 | Na skill (`eurolify-legal-briefing-eu`, `references/countries.md`) | No motor | Notas |
 |---|---|---|
 | `pendente` | domínio `por_verificar` | o ponto de partida dos 27 (`countries.json`: `national_law_status: pending`) |
-| `confirmado` | domínio `verificado`, com regras com prova (`W` com texto lido ou validação profissional) | um domínio `verificado` sem regra em vigor continua a sair `revisao_necessaria` |
+| `confirmado` | domínio `verificado`, com regras com prova (`W` com texto lido ou validação profissional) | **a skill é mais exigente**: o `countries.json` pede ainda `professional_approval` e `activation_authorized`, que não têm equivalente no motor (o motor aceita um `W` com texto lido sem profissional). Um domínio `verificado` sem regra em vigor continua a sair `revisao_necessaria` |
 | `não aplicável com fundamento` | domínio `nao_aplicavel`, com justificação e prova | |
 | `bloqueado` | não é um estado guardado: é o resultado `revisao_necessaria` ou `recusado` da decisão, para uma combinação | |
 | `revogado/substituído` | regra `revogada` (com `aplicaAte`) e a versão seguinte da mesma `id` | |
@@ -244,11 +249,14 @@ domínio e de uma regra. Correspondem assim (#59, #283):
 `countries.json` (consumidor, IVA e faturação, fiscal de caixa, produto e
 setor, privacidade, resíduos e embalagens, instalações e emprego,
 transporte, permissões de pagamento, concorrência e contratos) não
-coincidem com os 7 obrigatórios e os 4 condicionais do motor. Por exemplo,
-caixa, resíduos, instalações e transporte não têm domínio no motor. Ficam
-**por verificar**, sem domínio no motor, até haver uma decisão do Diogo ou
-do Bruno sobre os acrescentar. Até lá, o motor não os pode dar como
-cobertos.
+coincidem com os 7 obrigatórios e os 4 condicionais do motor. Os resíduos e
+as embalagens cabem, pelo menos em parte, no `produto_ambiente` (definição
+do `compliance-gaps.md` §1: «embalagens e responsabilidade alargada do
+produtor»). Para a caixa (`pos_fiscal`), as instalações e o emprego e o
+transporte, não encontrei domínio nas definições do `compliance-gaps.md`
+§1 (não procurei no `docs/03` inteiro). Ficam **por verificar**, sem domínio
+no motor, até haver uma decisão do Diogo ou do Bruno sobre os acrescentar.
+Até lá, o motor não os pode dar como cobertos.
 
 ## 5. Digital e cartões-oferta
 
