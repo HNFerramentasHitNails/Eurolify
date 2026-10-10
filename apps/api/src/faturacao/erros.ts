@@ -1,4 +1,4 @@
-// Os erros dos documentos fiscais (docs/28 §7.2; migração 0050).
+// Os erros dos documentos fiscais (docs/29 §7.2; migração 0050).
 
 export type CodigoErroDocumentos =
   | "invoices.not_found"

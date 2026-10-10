@@ -79,7 +79,7 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     String((await ok(pedir("POST", "/customers", dados, segredo), 201))["id"]);
   const perfil = async (cliente: string, dados: Json) =>
     ok(pedir("POST", `/customers/${cliente}/billing-profiles`, dados), 201);
-  /** O primeiro e-mail da ficha (0051: cada declaração diz o contacto); sem nenhum, acrescenta um. */
+  /** O primeiro e-mail da ficha (0052: cada declaração diz o contacto); sem nenhum, acrescenta um. */
   const contactoDe = async (cliente: string): Promise<string> => {
     const f = await ok(pedir("GET", `/customers/${cliente}`));
     const emails = f["emails"] as string[];

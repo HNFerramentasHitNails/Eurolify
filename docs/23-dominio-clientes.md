@@ -199,7 +199,7 @@ Uma linha por declaração; **não se altera nem se apaga** (é a prova).
 base: contam só as declarações explícitas; vale a mais recente; empate ⇒ não;
 sem nenhuma ⇒ não; WhatsApp sem fonte ⇒ não; ficha `limitado` ⇒ não. Passa a
 ser por contacto e por canal, no comerciante, com dupla confirmação sobre
-uma recusa (§14; `docs/06`, DL; migração 0051). É a
+uma recusa (§14; `docs/06`, DL; migração 0052). É a
 régua que os sistemas actuais construíram a 29/09/2026 (`eu-gdpr-privacy`,
 regra 4 — **M**, medida no repositório `claude`, não neste). Notificações,
 exportações e IAs perguntam a esta função; nenhuma conta consentimentos por
@@ -234,7 +234,7 @@ si.
   mais recente das duas fichas; o consentimento da ficha que fica passa a
   cobrir os e-mails e telefones acrescentados — **C** (jurista, com a V4). O
   ensaio mostra a régua antes e depois (revisão do #298, P2-1). **Desde a
-  0051:** o consentimento é por contacto, com dupla confirmação sobre uma
+  0052:** o consentimento é por contacto, com dupla confirmação sobre uma
   recusa (§14; `docs/06`, DL); deixa de haver uma regra própria para as
   fusões.
 - As encomendas e os documentos **não mudam**: ficam na ficha absorvida, com o
@@ -506,7 +506,7 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 | o consentimento (`consentimento`, `cns_`): uma linha por declaração, `aceitou` ou `retirou`, com o canal, a finalidade (só `marketing`), o texto, a versão e onde; não se altera nem se apaga, nem pelo dono da base | migração 0042 |
 | a hora e quem registou, postos pela base (`declarado_em`, `quem`); sem `eurolify.quem` recusa; só numa ficha activa (uma ficha limitada aceita, para retirar não ficar mais difícil) | migração 0042 |
 | as declarações da mesma ficha entram uma de cada vez (a ficha fica tomada) e a hora é a do relógio quando entram, sempre depois da última da ficha, mesmo que o relógio recue (revisão do #289, P2-1): a mais recente é a última que entrou | migração 0042 |
-| a régua única `pode_receber_marketing(cliente, canal)`: só declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não; dá sempre verdadeiro ou falso, nunca nulo. **Desde a 0051, por contacto** (§14.8) | migração 0042 |
+| a régua única `pode_receber_marketing(cliente, canal)`: só declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não; dá sempre verdadeiro ou falso, nunca nulo. **Desde a 0052, por contacto** (§14.8) | migração 0042 |
 | o evento `consent.changed` com o cliente, o canal, a finalidade e o resultado da régua, sem o texto nem o «onde» (R12); as declarações na linha do tempo | migração 0042 |
 | `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações por páginas e a régua por canal em todas | `src/clientes/rotas.ts` |
 | 18 testes; as mutações da régua e dos gatilhos todas apanhadas, salvo trocar o relógio pela hora do início da transacção, que depois da P2-1 dá a mesma ordem | `test/clientes-consentimentos.test.ts` |
@@ -808,7 +808,7 @@ isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
 
 ## 14. Consentimento por contacto e dupla confirmação (desenho de 10/10/2026)
 
-> **Estado: no código (migração 0051), revisto (revisão do agente no #330); à espera de juntar.**
+> **Estado: no código (migração 0052), revisto (revisão do agente no #330); à espera de juntar.**
 > Decisão do Diogo, 10/10/2026, em resposta à revisão do #325, que substitui
 > a régua por ficha (`docs/06`, DL); Q-C1 decidida (A). Ver §14.8.
 > As fontes legais abaixo foram indicadas pelo Diogo; **não verifiquei** o
@@ -928,19 +928,19 @@ consentimento cai com a ficha (C7).
 4. A migração 0051 do #325 (a régua por ficha) **não entra**: é substituída por
    esta.
 
-### 14.8 Em código (10/10/2026; migração 0051)
+### 14.8 Em código (10/10/2026; migração 0052)
 
 | O quê | Onde |
 |---|---|
-| `consentimento.contacto` (obrigatório nas novas, como se compara: o e-mail em minúsculas, o telefone como a ficha o guarda; tem de ser da ficha), `via` e `confirmacao_id` (só a confirmação os põe) | migração 0051 |
-| o estado por contacto (`marketing_do_contacto`): a última declaração desse contacto no comerciante, em qualquer ficha; as antigas sem contacto valem para os contactos que a ficha tinha na migração (`consentimento_contacto_inferido`) | migração 0051 |
-| as réguas: `pode_receber_marketing(cliente, canal, contacto)`, `contactos_com_marketing(cliente, canal)`; `pode_receber_marketing(cliente, canal)` dá sim se algum contacto **da ficha** pode; o plano da fusão conta os contactos das duas | migração 0051 |
-| sobre uma recusa activa do contacto, a base recusa um «sim» directo (`customers.consent_confirmation_required`), e a API cria o pedido (`confirmacao_consentimento`, `ccf_`) e responde **202** com o segredo, uma só vez | migração 0051; `src/clientes/` |
-| a confirmação (`POST /consent-confirmations/{id}/confirm`, `customers:write`): 24 h e uma ligação de 32 bytes no e-mail, 10 min e 6 dígitos no SMS, 5 tentativas; a tentativa errada fica contada; um pedido novo cancela o anterior; WhatsApp sem confirmação (`customers.confirmation_channel`) | migração 0051; `src/clientes/` |
-| o segredo: só o resumo (sha256 do id e do segredo), a API não lê o resumo; nem nos eventos (`consent.confirmation_requested` leva só identificadores), nem na idempotência (repetir dá `idempotency.secret_not_repeated`) | migração 0051; `src/clientes/rotas.ts` |
-| depois da revisão do #330: o estado no comerciante (P1-4); a pseudonimização com pedidos confirmados (chaves diferidas, P1-1); a ligação cai com uma declaração posterior (P1-2); 3 pedidos por hora (P1-3); as antigas inferidas à data da migração (P2-1); o evento `consent.changed` diz também `contacto_pode_receber` e `via` (P2-2); a ficha tomada antes do pedido ao confirmar (P2-3) | migração 0051 |
+| `consentimento.contacto` (obrigatório nas novas, como se compara: o e-mail em minúsculas, o telefone como a ficha o guarda; tem de ser da ficha), `via` e `confirmacao_id` (só a confirmação os põe) | migração 0052 |
+| o estado por contacto (`marketing_do_contacto`): a última declaração desse contacto no comerciante, em qualquer ficha; as antigas sem contacto valem para os contactos que a ficha tinha na migração (`consentimento_contacto_inferido`) | migração 0052 |
+| as réguas: `pode_receber_marketing(cliente, canal, contacto)`, `contactos_com_marketing(cliente, canal)`; `pode_receber_marketing(cliente, canal)` dá sim se algum contacto **da ficha** pode; o plano da fusão conta os contactos das duas | migração 0052 |
+| sobre uma recusa activa do contacto, a base recusa um «sim» directo (`customers.consent_confirmation_required`), e a API cria o pedido (`confirmacao_consentimento`, `ccf_`) e responde **202** com o segredo, uma só vez | migração 0052; `src/clientes/` |
+| a confirmação (`POST /consent-confirmations/{id}/confirm`, `customers:write`): 24 h e uma ligação de 32 bytes no e-mail, 10 min e 6 dígitos no SMS, 5 tentativas; a tentativa errada fica contada; um pedido novo cancela o anterior; WhatsApp sem confirmação (`customers.confirmation_channel`) | migração 0052; `src/clientes/` |
+| o segredo: só o resumo (sha256 do id e do segredo), a API não lê o resumo; nem nos eventos (`consent.confirmation_requested` leva só identificadores), nem na idempotência (repetir dá `idempotency.secret_not_repeated`) | migração 0052; `src/clientes/rotas.ts` |
+| depois da revisão do #330: o estado no comerciante (P1-4); a pseudonimização com pedidos confirmados (chaves diferidas, P1-1); a ligação cai com uma declaração posterior (P1-2); 3 pedidos por hora (P1-3); as antigas inferidas à data da migração (P2-1); o evento `consent.changed` diz também `contacto_pode_receber` e `via` (P2-2); a ficha tomada antes do pedido ao confirmar (P2-3) | migração 0052 |
 | **quebra de contrato** (ensaio, sem clientes da API em produção; registada a 10/10/2026, decisão DL): `contacto` obrigatório no `POST /customers/{id}/consents`, que pode responder 202 | `src/clientes/rotas.ts` |
-| a pseudonimização apaga os pedidos do grupo (têm o contacto) e a linha do tempo perde o contacto das declarações; a exportação junta os pedidos, sem o resumo | migração 0051; `src/clientes/repositorio.ts` |
+| a pseudonimização apaga os pedidos do grupo (têm o contacto) e a linha do tempo perde o contacto das declarações; a exportação junta os pedidos, sem o resumo | migração 0052; `src/clientes/repositorio.ts` |
 | testes: `test/clientes-consentimento-contacto.test.ts` (10: C1–C7, o SMS, a expiração, o segredo, a fusão, a pseudonimização, o comerciante, o limite, o «não» posterior, o contacto tirado), `test/migracao-0051.test.ts` (as antigas sobre dados); os de consentimentos, fusões e titular adaptados; 16 mutações, todas apanhadas | `test/` |
 
 **Fica por fazer:** a página (ou o ecrã) da loja que recebe a ligação e o

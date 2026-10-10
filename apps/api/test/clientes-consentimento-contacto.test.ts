@@ -11,7 +11,7 @@ import {
 } from "./base-de-teste.js";
 
 // O consentimento por contacto e a dupla confirmação (docs/23 §14; docs/06,
-// DL; migração 0051). As regras C1–C7, uma a uma: o estado por contacto e
+// DL; migração 0052). As regras C1–C7, uma a uma: o estado por contacto e
 // canal; a prova diz o contacto; sobre uma recusa, um «sim» só conta
 // confirmado no próprio contacto; sem confirmação, a recusa fica; um «sim»
 // noutro contacto não mexe nos outros; a prova fica na ficha de origem e cai

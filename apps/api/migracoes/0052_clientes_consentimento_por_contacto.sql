@@ -140,7 +140,7 @@ BEGIN
   IF ficha.estado <> 'activo' THEN
     RAISE EXCEPTION 'customers.invalid_transition: a ficha está %', ficha.estado;
   END IF;
-  -- O contacto (0051): obrigatório, da ficha, como se compara.
+  -- O contacto (0052): obrigatório, da ficha, como se compara.
   IF NEW.contacto IS NULL THEN
     RAISE EXCEPTION 'customers.consent_contact_unknown: a declaração diz o contacto (o e-mail ou o telefone)';
   END IF;

@@ -66,7 +66,7 @@ describe.skipIf(URL_BASE === undefined)(
     };
 
     // Cada ficha com o seu contacto: o estado é do contacto no comerciante
-    // (0051), e um e-mail repetido juntava as declarações de testes diferentes.
+    // (0052), e um e-mail repetido juntava as declarações de testes diferentes.
     const contactos = new Map<string, { email: string; telefone: string }>();
     let proximo = 0;
     const contactoDe = (ficha: string, canal: string) => {
@@ -82,7 +82,7 @@ describe.skipIf(URL_BASE === undefined)(
     ) => ({
       canal,
       declaracao: d,
-      // O contacto da ficha (0051): o e-mail ou o telefone de `ficha()`.
+      // O contacto da ficha (0052): o e-mail ou o telefone de `ficha()`.
       contacto: ficha === "" ? "sem@exemplo.pt" : contactoDe(ficha, canal),
       texto: "Quero receber novidades e promoções por e-mail.",
       versao_texto: "v3",
@@ -225,7 +225,7 @@ describe.skipIf(URL_BASE === undefined)(
         whatsapp: false,
       });
 
-      // Sobre a recusa, o «sim» pede a dupla confirmação (0051): a régua não
+      // Sobre a recusa, o «sim» pede a dupla confirmação (0052): a régua não
       // muda até o contacto confirmar.
       const pedidoSim = await ok(
         pedir(
@@ -339,7 +339,7 @@ describe.skipIf(URL_BASE === undefined)(
         await sql`update cliente set estado = 'fundido', fundido_em = ${outra.slice(4)}::uuid
                   where id = ${id.slice(4)}::uuid`.execute(trx);
         // A fusão passa os contactos para a que fica (0046); o estado é do
-        // contacto (0051).
+        // contacto (0052).
         await sql`update cliente set emails = emails || array[${contactoDe(id, "email")}]
                   where id = ${outra.slice(4)}::uuid`.execute(trx);
         const antes = await regua(trx, outra, "email");
@@ -590,7 +590,7 @@ describe.skipIf(URL_BASE === undefined)(
           ),
         ]);
         const r = await consentimentos(id);
-        // Se a retirada entrou primeiro, o «sim» pede confirmação (0051): fica
+        // Se a retirada entrou primeiro, o «sim» pede confirmação (0052): fica
         // só a retirada, e a régua dá não.
         if (sim.statusCode === 202) {
           expect(r["dados"] as Json[]).toHaveLength(1);
@@ -728,7 +728,7 @@ describe.skipIf(URL_BASE === undefined)(
               declaracao, texto, versao_texto, onde, declarado_em, quem)
             values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'aceitou', 't',
               'v1', 'x', '2030-01-01T00:00:00Z', 'teste:sql')`.execute(trx);
-        // As chaves diferidas da 0051 verificam-se já, para o ALTER poder correr.
+        // As chaves diferidas da 0052 verificam-se já, para o ALTER poder correr.
         await sql`set constraints all immediate`.execute(trx);
         await sql`alter table consentimento enable always trigger consentimento_antes_de_gravar`.execute(
           trx,
@@ -786,7 +786,7 @@ describe.skipIf(URL_BASE === undefined)(
         from unnest(array['id', 'declarado_em', 'quem', 'canal', 'contacto', 'via',
           'confirmacao_id']) c`.execute(base.dono);
       // A API diz o contacto, mas não regista um «sim» por dupla confirmação
-      // (0051).
+      // (0052).
       expect(rows).toEqual([
         { coluna: "id", pode: false },
         { coluna: "declarado_em", pode: false },

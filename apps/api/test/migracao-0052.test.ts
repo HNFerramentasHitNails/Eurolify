@@ -11,7 +11,7 @@ import { migrar, PASTA_MIGRACOES } from "../src/base/migracoes.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { apagarBase, URL_BASE } from "./base-de-teste.js";
 
-// A migração 0051 (o consentimento por contacto) sobre uma base com
+// A migração 0052 (o consentimento por contacto) sobre uma base com
 // declarações antigas, sem contacto, como pode estar a do ensaio: cada uma
 // fica inferida para os contactos que a ficha tinha nesse momento, e um
 // contacto acrescentado depois não herda nada (revisão do #330, P2-1). Corre
@@ -20,7 +20,7 @@ import { apagarBase, URL_BASE } from "./base-de-teste.js";
 
 const SENHA = "so-para-testes";
 
-describe.skipIf(URL_BASE === undefined)("migração 0051 sobre dados", () => {
+describe.skipIf(URL_BASE === undefined)("migração 0052 sobre dados", () => {
   const aFechar: (() => Promise<void>)[] = [];
 
   afterEach(async () => {
@@ -38,7 +38,7 @@ describe.skipIf(URL_BASE === undefined)("migração 0051 sobre dados", () => {
     return pathToFileURL(`${pasta}/`);
   }
 
-  async function baseAte0050(): Promise<Kysely<BaseDados>> {
+  async function baseAte0051(): Promise<Kysely<BaseDados>> {
     const urlAdmin = URL_BASE ?? "";
     const sufixo = randomBytes(6).toString("hex");
     const nome = `eurolify_teste_${sufixo}`;
@@ -81,7 +81,7 @@ describe.skipIf(URL_BASE === undefined)("migração 0051 sobre dados", () => {
     aFechar.push(() => db.destroy());
     await migrar(
       db as Kysely<unknown>,
-      await pastaAte("0050_documentos_fiscais.sql"),
+      await pastaAte("0051_rasto_contexto.sql"),
     );
     return db;
   }
@@ -110,7 +110,7 @@ describe.skipIf(URL_BASE === undefined)("migração 0051 sobre dados", () => {
   }
 
   it("as declarações antigas valem para os contactos que a ficha tinha; um acrescentado depois não herda; o RLS volta forçado", async () => {
-    const db = await baseAte0050();
+    const db = await baseAte0051();
     const A = await registarComerciante(db, {
       nome: "A",
       lingua: "pt",
@@ -137,10 +137,10 @@ describe.skipIf(URL_BASE === undefined)("migração 0051 sobre dados", () => {
 
     const { results } = await migrar(
       db as Kysely<unknown>,
-      await pastaAte("0051_clientes_consentimento_por_contacto.sql"),
+      await pastaAte("0052_clientes_consentimento_por_contacto.sql"),
     );
     expect(results?.map((r) => [r.migrationName, r.status])).toEqual([
-      ["0051_clientes_consentimento_por_contacto", "Success"],
+      ["0052_clientes_consentimento_por_contacto", "Success"],
     ]);
 
     const inferidos = await noA(

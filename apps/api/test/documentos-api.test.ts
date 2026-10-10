@@ -37,7 +37,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Os documentos fiscais pela API (docs/28; migração 0050): quem emite, a
+// Os documentos fiscais pela API (docs/29; migração 0050): quem emite, a
 // ligação ao emissor, a retenção com motivo, a emissão em dois passos, a
 // prova lida de volta, o incerto reconciliado e as decisões de uma pessoa.
 // O emissor é o de ensaio (Q5): nada sai para fora.

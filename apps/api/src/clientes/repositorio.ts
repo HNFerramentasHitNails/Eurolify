@@ -43,7 +43,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   // Da 0049: os pedidos do titular.
   "customers.confirmation_required",
   "customers.restricted",
-  // Da 0051: o consentimento por contacto e a dupla confirmação.
+  // Da 0052: o consentimento por contacto e a dupla confirmação.
   "customers.consent_contact_unknown",
   "customers.consent_confirmation_required",
   "customers.confirmation_channel",
@@ -1027,7 +1027,7 @@ export async function listarIsencoes(
 export interface DadosConsentimento {
   canal: CanalConsentimento;
   declaracao: "aceitou" | "retirou";
-  /** O e-mail ou o telefone da ficha a que a declaração se refere (0051). */
+  /** O e-mail ou o telefone da ficha a que a declaração se refere (0052). */
   contacto: string;
   texto: string;
   versao_texto: string;
@@ -1040,7 +1040,7 @@ export type ResultadoConsentimento =
   | {
       tipo: "confirmacao";
       id: string;
-      /** Só nesta resposta; a base guarda o resumo (0051). */
+      /** Só nesta resposta; a base guarda o resumo (0052). */
       segredo: string;
       /** O contacto como a base o compara (o e-mail em minúsculas). */
       contacto: string;
@@ -1055,7 +1055,7 @@ function segredoDaConfirmacao(canal: CanalConsentimento): string {
 }
 
 /**
- * Regista uma declaração (migrações 0042 e 0051); a hora e quem põe-nos a
+ * Regista uma declaração (migrações 0042 e 0052); a hora e quem põe-nos a
  * base. Um «aceitou» sobre uma recusa activa do contacto não entra: a base
  * recusa-o, e cria-se um pedido de dupla confirmação (docs/23 §14, C3).
  */
@@ -1116,7 +1116,7 @@ export async function registarConsentimento(
 }
 
 /**
- * Confirma um pedido com o que a pessoa trouxe (0051). Corre na sua própria
+ * Confirma um pedido com o que a pessoa trouxe (0052). Corre na sua própria
  * transacção: uma tentativa errada fica contada mesmo quando a resposta é um
  * erro.
  */
@@ -1247,7 +1247,7 @@ export async function listarConsentimentos(
     const regua = Object.fromEntries(
       CANAIS_CONSENTIMENTO.map((canal) => [canal, r?.[canal] === true]),
     ) as Record<CanalConsentimento, boolean>;
-    // Por contacto (0051): os contactos da ficha com «sim» em cada canal.
+    // Por contacto (0052): os contactos da ficha com «sim» em cada canal.
     const { rows: porLinha } = await sql<Record<CanalConsentimento, string[]>>`
       select contactos_com_marketing(${clienteId}::uuid, 'email') as email,
              contactos_com_marketing(${clienteId}::uuid, 'sms') as sms,
@@ -1530,7 +1530,7 @@ export async function exportarCliente(
             where ce.cliente_id = ${id}::uuid order by e.id`.execute(trx)
         ).rows,
         consentimentos: await linhas("consentimento"),
-        // Os pedidos de dupla confirmação (0051), sem o resumo do segredo.
+        // Os pedidos de dupla confirmação (0052), sem o resumo do segredo.
         confirmacoes_de_consentimento: (
           await sql<Record<string, unknown>>`
             select id, canal, contacto, texto, versao_texto, onde, estado,

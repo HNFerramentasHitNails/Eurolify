@@ -787,13 +787,13 @@ export interface TabelaConsentimento {
   onde: ColumnType<string, string, never>;
   declarado_em: ColumnType<Date, never, never>;
   quem: ColumnType<string, never, never>;
-  /** O contacto a que a declaração se refere (0051); nulo nas antigas. */
+  /** O contacto a que a declaração se refere (0052); nulo nas antigas. */
   contacto: ColumnType<string | null, string, never>;
   via: ColumnType<"directa" | "dupla_confirmacao", never, never>;
   confirmacao_id: ColumnType<string | null, never, never>;
 }
 
-/** Um pedido de dupla confirmação (0051); a API só lê, sem o resumo. */
+/** Um pedido de dupla confirmação (0052); a API só lê, sem o resumo. */
 export interface TabelaConfirmacaoConsentimento {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;
@@ -1461,7 +1461,7 @@ export interface BaseDados {
   documento_rasto: TabelaDocumentoRasto;
 }
 
-// Documentos fiscais (migração 0050; docs/28).
+// Documentos fiscais (migração 0050; docs/29).
 
 export const EMISSORES_FISCAIS = [
   "por_configurar",

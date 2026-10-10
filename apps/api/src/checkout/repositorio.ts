@@ -1537,7 +1537,7 @@ export async function lerEncomenda(
       .where("encomenda_id", "=", id)
       .orderBy("posicao")
       .execute();
-    // O estado do documento fiscal (docs/28 §7.1); só o estado e o id.
+    // O estado do documento fiscal (docs/29 §7.1); só o estado e o id.
     const documento = await documentoDaEncomenda(trx, id);
     return { encomenda: e, linhas, documento };
   });

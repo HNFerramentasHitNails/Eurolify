@@ -34,7 +34,7 @@ export type CodigoErroClientes =
   | "customers.duplicate_decided"
   | "customers.confirmation_required"
   | "customers.restricted"
-  // Da 0051: o consentimento por contacto e a dupla confirmação.
+  // Da 0052: o consentimento por contacto e a dupla confirmação.
   | "customers.consent_contact_unknown"
   | "customers.consent_confirmation_required"
   | "customers.confirmation_channel"

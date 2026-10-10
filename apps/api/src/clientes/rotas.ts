@@ -548,7 +548,7 @@ const Consentimento = Type.Object({
   onde: Type.String({ description: "A loja e o formulário, ou o Hub" }),
   contacto: Type.Union([Type.String(), Type.Null()], {
     description:
-      "O e-mail ou o telefone a que a declaração se refere; nulo nas declarações anteriores à 0051, que valem para os contactos da ficha onde foram dadas",
+      "O e-mail ou o telefone a que a declaração se refere; nulo nas declarações anteriores à 0052, que valem para os contactos da ficha onde foram dadas",
   }),
   via: Type.Union(
     [Type.Literal("directa"), Type.Literal("dupla_confirmacao")],
@@ -603,7 +603,7 @@ const PedidoConsentimento = Type.Object(
   },
   { additionalProperties: false },
 );
-// Um «sim» sobre uma recusa (0051): o pedido de dupla confirmação. O segredo
+// Um «sim» sobre uma recusa (0052): o pedido de dupla confirmação. O segredo
 // vai só nesta resposta; o sistema do comerciante envia-o ao contacto.
 const PedidoDeConfirmacao = Type.Object({
   confirmacao: Type.String({ description: "ccf_…" }),
@@ -627,14 +627,14 @@ const ReguaPorContacto = Type.Object(
   },
   {
     description:
-      "Os contactos da ficha que podem receber marketing, por canal (0051): a pergunta exacta para quem envia",
+      "Os contactos da ficha que podem receber marketing, por canal (0052): a pergunta exacta para quem envia",
   },
 );
 const ReguaMarketing = Type.Object(
   { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
   {
     description:
-      "Por canal, se algum contacto da ficha pode receber (pode_receber_marketing, migrações 0042 e 0051). O estado é por contacto: só as declarações explícitas desse contacto, no grupo de fichas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não; ficha limitada ou não activa ⇒ não. Sobre uma recusa, um «sim» só conta depois de confirmado no contacto (docs/23 §14). Quem envia usa contactos_com_marketing",
+      "Por canal, se algum contacto da ficha pode receber (pode_receber_marketing, migrações 0042 e 0052). O estado é por contacto: só as declarações explícitas desse contacto, no grupo de fichas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não; ficha limitada ou não activa ⇒ não. Sobre uma recusa, um «sim» só conta depois de confirmado no contacto (docs/23 §14). Quem envia usa contactos_com_marketing",
   },
 );
 

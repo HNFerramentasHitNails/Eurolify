@@ -102,7 +102,7 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     (await ok(pedir("GET", `/customers/${cliente}/consents`)))[
       "pode_receber_marketing"
     ] as Json;
-  /** O primeiro e-mail da ficha (0051: cada declaração diz o contacto); sem nenhum, acrescenta um. */
+  /** O primeiro e-mail da ficha (0052: cada declaração diz o contacto); sem nenhum, acrescenta um. */
   const contactoDe = async (cliente: string): Promise<string> => {
     const f = await ok(pedir("GET", `/customers/${cliente}`));
     const emails = f["emails"] as string[];
@@ -466,7 +466,7 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     expect(await doPar(sai, terceira)).toBeDefined();
     expect(await doPar(fica, sai)).toBeDefined();
     // As duas fichas têm o mesmo e-mail: o «sim» é do contacto no comerciante
-    // (0051), por isso já vale para a que fica, antes da fusão.
+    // (0052), por isso já vale para a que fica, antes da fusão.
     expect((await regua(fica))["email"]).toBe(true);
 
     const plano = await ok(fundir(fica, sai));
@@ -703,7 +703,7 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     expect(vies).toMatch(/^customers\.invalid_transition:/);
   });
 
-  it("o plano diz a régua do marketing antes e depois, por contacto (0051)", async () => {
+  it("o plano diz a régua do marketing antes e depois, por contacto (0052)", async () => {
     // A que fica retirou o e-mail dela; a absorvida aceitou o seu: a fundida
     // recebe no da absorvida (que passa para ela), não no que retirou.
     const fica = await ficha({ nome: "F" });

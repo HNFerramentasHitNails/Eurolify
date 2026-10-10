@@ -573,7 +573,7 @@ export const PedidoCriarArtigo = Type.Object(
   { additionalProperties: false },
 );
 
-const PedidoCriarVariante = Type.Object(
+export const PedidoCriarVariante = Type.Object(
   {
     ...NovaVariante.properties,
     valores: Type.Optional(
@@ -1601,6 +1601,30 @@ export async function arquivoDaVariante(
 }
 
 /**
+ * Acrescenta a variante ao artigo na transacção dada e devolve-a; chamam-na
+ * o POST /products/{id}/variants (pela chave) e o POST
+ * /hub/products/{id}/variants (docs/22 §24.1): a mesma escrita, as mesmas
+ * regras.
+ */
+export async function criacaoDaVariante(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  artigoComPrefixo: string,
+  corpo: Static<typeof PedidoCriarVariante>,
+): Promise<Static<typeof VarianteCompleta>> {
+  const { valores, ...dados } = corpo;
+  gtinComOrigem([dados]);
+  const id = await criarVarianteComValores(
+    trx,
+    comercianteId,
+    semPrefixo(artigoComPrefixo),
+    dados,
+    (valores ?? []).map(semPrefixo),
+  );
+  return paraVarianteCompleta(await fichaDaVariante(trx, comercianteId, id));
+}
+
+/**
  * Altera a variante na transacção dada e devolve-a; chamam-na o
  * PATCH /variants/{id} (pela chave) e o PATCH /hub/variants/{id} (docs/22
  * §23.1). O GTIN e a origem vêm juntos (C4): mudar um sem o outro recusa-se
@@ -2103,20 +2127,13 @@ export function rotasDoCatalogo(
         pedido,
         resposta,
         201,
-        async (trx, chave) => {
-          const { valores, ...dados } = pedido.body;
-          gtinComOrigem([dados]);
-          const id = await criarVarianteComValores(
+        (trx, chave) =>
+          criacaoDaVariante(
             trx,
             chave.comercianteId,
-            semPrefixo(pedido.params.id),
-            dados,
-            (valores ?? []).map(semPrefixo),
-          );
-          return paraVarianteCompleta(
-            await fichaDaVariante(trx, chave.comercianteId, id),
-          );
-        },
+            pedido.params.id,
+            pedido.body,
+          ),
         (corpo) => `/variants/${(corpo as { id: string }).id}`,
       ),
   );

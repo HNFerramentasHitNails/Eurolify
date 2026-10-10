@@ -54,7 +54,7 @@ const FUNCOES_DA_API = [
   // Os pedidos do titular (0049): limitar, pseudonimizar e as duas que dizem
   // se a pseudonimização está a correr (os gatilhos chamam-nas).
   "cliente_limitar",
-  // O consentimento por contacto e a dupla confirmação (0051): o gatilho da
+  // O consentimento por contacto e a dupla confirmação (0052): o gatilho da
   // pseudonimização, a régua por contacto e o pedido e a confirmação.
   "cliente_pseudonimizado_sem_confirmacoes",
   "cliente_pseudonimizar",
@@ -69,6 +69,8 @@ const FUNCOES_DA_API = [
   "contacto_para_comparar",
   "contactos_com_marketing",
   "contactos_das_fichas",
+  // O contexto do rasto (0051): os gatilhos do rasto chamam-no com quem escreve.
+  "contexto_do_rasto",
   "convite_aceitar",
   "convite_cancelar",
   "convite_criar",
