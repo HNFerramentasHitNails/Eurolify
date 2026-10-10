@@ -1527,6 +1527,16 @@ o servidor calculou.
   passa o texto a cêntimos **sem vírgula flutuante** (R2: «39,90» → 3990)
   e mostra-o de volta com `Intl.NumberFormat`. Fora disso, o erro aparece
   ao lado do campo antes de pedir.
+- **Os limites copiados no ecrã** (revisão do #341, P3-2): o máximo do
+  montante (1 000 000 000,00) e o das quantidades (1 a 1 000 000) também
+  se conferem no Hub, e os textos dos erros trazem os números. A API
+  recusa-os no esquema do pedido, com um 400 `prices.invalid_field` que não
+  diz o campo; sem a cópia, o erro não ficava ao lado dele. Se os limites
+  mudarem na API (`PedidoPreco` e `Montante` em `precos/rotas.ts`), mudam
+  aqui também (`apps/hub/src/preco.ts`).
+- **Um 409 mostra sempre o conflito** (revisão do #341, P3-1): mesmo que o
+  preço guardado agora seja igual ao que se escreveu, foi outra pessoa a
+  gravá-lo. Só a resposta perdida se dá por gravada ao reler (§25.2).
 - **O IVA.** O Hub não calcula nem tira IVA. O rótulo diz se o montante
   inclui IVA, porque é isso que o mercado guarda (`preco_inclui_iva`). O
   preço que o cliente vê com o IVA do país sai do Motor de IVA (`docs/24`).

@@ -939,3 +939,12 @@ textarea {
   font-size: var(--letra-base);
   margin: 0 0 var(--espaco-1);
 }
+/* «Definir preço» ou «Alterar preço» por baixo do preço (§25.3). */
+.accao-preco {
+  display: block;
+  margin-top: var(--espaco-2);
+}
+/* A caixa «Gratuito» do preço da variante, com a ajuda logo a seguir. */
+.opcao + #preco-gratuito-ajuda {
+  margin-top: 0;
+}
