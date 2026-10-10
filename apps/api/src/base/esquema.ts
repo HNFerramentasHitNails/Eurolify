@@ -298,6 +298,9 @@ export interface TabelaOpcao {
   nome: string;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
+  // Migração 0043: sobe com qualquer mudança à opção ou aos valores dela;
+  // quem a sobe são os gatilhos da base, a API só a lê e a confere.
+  versao: ColumnType<number, never, number>;
 }
 
 export interface TabelaValorOpcao {
@@ -1018,7 +1021,7 @@ export interface TabelaLinhaEncomenda {
   total: ColumnType<string, number, never>;
 }
 
-// Pagamentos (migração 0043; docs/26).
+// Pagamentos (migração 0044; docs/26).
 export const METODOS_PAGAMENTO = ["mb_way", "multibanco"] as const;
 export type MetodoPagamento = (typeof METODOS_PAGAMENTO)[number];
 export const ESTADOS_PAGAMENTO = [

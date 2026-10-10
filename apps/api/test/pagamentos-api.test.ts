@@ -33,7 +33,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Os pagamentos pela API (docs/26; migração 0043): a conta EuPago de teste,
+// Os pagamentos pela API (docs/26; migração 0044): a conta EuPago de teste,
 // a régua, o pagamento pelo token do checkout, os avisos assinados, o
 // incerto e a fila de diferenças, as tarefas e a encomenda paga ou
 // cancelada. A EuPago é falsa (test/eupago-falso.ts): o adaptador é o

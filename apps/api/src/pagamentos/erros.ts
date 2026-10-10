@@ -1,4 +1,4 @@
-// Os erros dos pagamentos (docs/26 §8.4; migração 0043).
+// Os erros dos pagamentos (docs/26 §8.4; migração 0044).
 
 export type CodigoErroPagamentos =
   | "payments.not_found"
