@@ -1,0 +1,296 @@
+# Pós-venda — modelo e lista da API
+
+> **Estado: desenho, por aprovar** (issue #328; fatia 11 do
+> [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md):
+> «Pós-venda: livre resolução → devolução → reembolso → nota de crédito»).
+> Diogo, 10/10/2026: *«aprovado»* (avançar com o desenho da fatia 11). Veio da
+> Fase 2 para a Fase 1 pela decisão AD (ADR-0022, ponto 2). Depende das
+> encomendas e do stock (`docs/27`), dos pagamentos (`docs/26`) e dos
+> documentos fiscais (`docs/28`, que já deixou a nota de crédito prevista, §3.6).
+>
+> Skills seguidas: `consumer-rights-eu` (botão de livre resolução, prazo,
+> excepções, reembolso, nota de crédito; consumidor ou profissional por
+> encomenda), `order-fulfilment` (RMA: «volta mercadoria? ⇒ devolução; não
+> volta? ⇒ problema»; estado do artigo; só o aceite volta a stock),
+> `payments-psd2-sca` (reembolso ligado à nota de crédito e à devolução, pelo
+> mesmo meio por omissão; nunca se repete), `eu-vat-oss-ioss` (a nota de
+> crédito referencia o original e repete o tratamento fiscal dele; NC parcial
+> não risca a fatura; reembolso ≠ nota de crédito; nunca em lote),
+> `eurolify-transport-logistics-eu` (a rota de volta não se aprova pela de ida),
+> `eu-gdpr-privacy` (o IBAN de um reembolso manual) e `headless-commerce`.
+>
+> 🔴 **Regra deste domínio** (lições 2.12, 2.13 e 3.5 do `docs/04`):
+> 1. **Devolução = volta mercadoria; problema = não volta.** Cada um tem o seu
+>    registo; nenhum reembolso nasce sem um dos dois.
+> 2. **Só o que foi aceite na inspecção volta a stock**, por movimento; uma
+>    cosmética aberta não volta.
+> 3. **Reembolso e nota de crédito são dois registos, ligados.** Uma NC
+>    parcial não risca a fatura toda: o estado da fatura calcula-se pelo saldo.
+> 4. **O botão de livre resolução é servido pelo Eurolify**, durante todo o
+>    prazo, com confirmação de recepção — nenhum frontend o pode esquecer.
+>
+> ⚠️ **As regras de prazo, excepções, portes e reembolso são C** (`docs/03`
+> §2, linha 71: «**C**, jurista»): o desenho dá as peças e os prazos ficam
+> configuráveis por país até o jurista validar. **Não verifiquei** se a EuPago
+> reembolsa por API (o aviso 2.0 tem o estado `Refund`, `docs/26` V1; a forma
+> de pedir um reembolso não está lida).
+
+## 1. O que entra nesta fatia
+
+| O quê | Fonte |
+|---|---|
+| **pedido de livre resolução** (`wdr_`) pelo botão: o consumidor identifica a encomenda e as linhas; o Eurolify confirma a recepção com data e hora | `consumer-rights-eu`, «Botão de livre resolução» (art. 11.º-A da Dir. 2011/83/UE, **W**) |
+| **devolução** (`rma_`): origem (livre resolução, apoio, comercial), linhas, motivo, recepção, inspecção com o estado do artigo, decisão | `order-fulfilment`, «Devoluções (RMA)» |
+| **problema** (`prb_`): sem mercadoria de volta (chegou partido, faltou uma peça, atraso); decisão de reembolso total ou parcial | regra 1; lição 3.5 |
+| **movimento de stock `devolucao`** (com o lote da saída original) só para o aceite | regra 2; `docs/27` R1 e R5 |
+| **reembolso** (`rfd_`): ligado à devolução ou ao problema e à nota de crédito; pelo mesmo meio (adaptador) ou manual (transferência registada por uma pessoa, com prova) | `payments-psd2-sca`, «Captura, reembolso, disputa»; Q2 |
+| **nota de crédito**: um pedido de documento `nota_credito` no domínio da fatia 10, que referencia a fatura e repete o tratamento fiscal dela, linha a linha | `eu-vat-oss-ioss`, «Notas de crédito»; `docs/28` §3.6 |
+| **saldo da fatura** (faturado − creditado) e o estado da encomenda depois de devolvida | regra 3; lição 2.13 |
+| **cancelar uma encomenda paga ainda não expedida** (deixado pela fatia 9) | `docs/27` §1, «Fora desta fatia»; Q7 |
+
+**Fora desta fatia:**
+
+| O quê | Onde |
+|---|---|
+| troca e carteira (crédito em vez de reembolso) | Fase 2 (`docs/05`; ADR-0022); a carteira com o contabilista (`eu-vat-oss-ioss`, Dir. (UE) 2016/1065, **C**) |
+| garantia legal (reparação, substituição, redução do preço; +12 meses com reparação) | fatia própria (`consumer-rights-eu`, «Garantia legal e reparação») |
+| etiqueta de devolução pela transportadora | parte 2 da fatia 9 (adaptadores); aqui a transportadora e o seguimento da volta escrevem-se à mão |
+| o envio da confirmação por e-mail | fatia de Notificações (como a confirmação da encomenda, `docs/25` Q4): aqui guarda-se o documento e devolve-se ao cliente |
+| disputas e estornos do prestador | `payments-psd2-sca`, «Disputas»; fatia própria |
+| conteúdos digitais e serviços | `digital-products-eu` (fatia 12, desligada) |
+
+## 2. Fronteira
+
+| Decide | Quem |
+|---|---|
+| se há direito de livre resolução (consumidor, prazo, excepção) | este domínio, por regras configuráveis por país (**C**) |
+| o que voltou e em que estado | a pessoa do armazém, na inspecção (`returns:write`) |
+| reembolsar, quanto e como | uma pessoa com `refunds:write` (Q6) |
+| o tratamento fiscal da nota de crédito | **o da fatura original** (copiado, nunca recalculado) |
+| emitir a nota de crédito | o software certificado, pelo pipeline da fatia 10 (retenção, dois passos, prova) |
+| devolver o dinheiro | o prestador (pelo adaptador) ou o comerciante (transferência manual, registada) |
+
+## 3. Modelo
+
+### 3.1 Pedido de livre resolução (`wdr_`)
+
+| Campo | Regra | Fonte |
+|---|---|---|
+| `encomenda`, `linhas` (linha, quantidade) | só linhas entregues ou por entregar da encomenda; quantidade ≤ expedida − já pedida | — |
+| `origem` | `botao` (o cliente) ou `apoio` (uma pessoa regista um pedido que chegou por outra via, com a prova) | `order-fulfilment`, «Pedido» |
+| `recebido_em` | do relógio da base; é a data da comunicação | `consumer-rights-eu` (confirmação com data e hora) |
+| `prazo_ate` | a data-limite calculada (entregue + dias do país; **14 dias por omissão, C**) e gravada | `docs/03` §2, linha 71 |
+| `dentro_do_prazo` | sim/não no momento; **fora do prazo o pedido regista-se na mesma** e vai para uma pessoa (o Eurolify não recusa um direito por um cálculo que é **C**) | regra «na dúvida» do projecto |
+| `confirmacao` | o documento de confirmação de recepção (encomenda, linhas, data e hora), guardado e devolvido ao cliente | art. 11.º-A (**W**) |
+| `contacto` | o e-mail com que o cliente se identificou (o da encomenda) | `eu-gdpr-privacy` (minimização) |
+
+Só para encomendas com `finalidade = consumo` (Q1). Uma encomenda de
+profissional não mostra o botão; uma devolução comercial regista-se pelo
+apoio.
+
+### 3.2 Devolução (`rma_`)
+
+| Campo | Regra | Fonte |
+|---|---|---|
+| `encomenda`, `origem` | `livre_resolucao` (com o `wdr_`), `apoio`, `comercial` | `order-fulfilment` |
+| `linhas` | linha da encomenda, quantidade pedida, recebida, aceite (volta a stock), não aceite; **estado do artigo** (`revendavel`, `aberto`, `danificado`, `em_falta`) | regra 2 |
+| `transportadora`, `seguimento` | à mão nesta fase | Fora desta fatia |
+| `armazem` | o da loja (um por loja, `docs/27` Q1) | — |
+| `estado` | §4.2 | — |
+
+### 3.3 Problema (`prb_`)
+
+| Campo | Regra |
+|---|---|
+| `encomenda`, `linhas` (opcional), `tipo` | `chegou_danificado`, `em_falta`, `atraso`, `outro` |
+| `descricao`, `prova` | texto e anexos (fotografia do cliente) |
+| `estado` | aberto → decidido (reembolso, nada) → fechado |
+
+### 3.4 Reembolso (`rfd_`)
+
+| Campo | Regra | Fonte |
+|---|---|---|
+| `origem` | a devolução ou o problema (obrigatório: regra 1), ou o cancelamento (Q7) | regra 1 |
+| `pagamento` | o pagamento capturado da encomenda | `docs/26` |
+| `linhas` | linha, quantidade, montante (o que foi pago por ela, com IVA); os portes como linha própria (Q4) | lição 3.6 |
+| `montante` | a soma; **nunca acima do que foi pago menos o já reembolsado** (a base garante) | `payments-psd2-sca` |
+| `via` | `prestador` (o adaptador `reembolsar`, quando o método o permite) ou `manual` (uma pessoa regista a transferência e a prova) | Q2 |
+| `iban` | só no manual, cifrado como as credenciais, mostrado mascarado; apaga-se ao fim do prazo de conciliação (**C**) | `eu-gdpr-privacy` |
+| `estado` | §4.3 | `payments-psd2-sca` |
+| `nota_credito` | o `inv_…` da nota de crédito que lhe corresponde, quando a fatura foi emitida pelo Eurolify | regra 3 |
+
+### 3.5 Nota de crédito (no domínio dos documentos fiscais)
+
+- É um `documento_fiscal` com `tipo = nota_credito` e `original` = a fatura
+  (`inv_…`), que tem de estar `emitido` (ou `resolvido`).
+- O **conteúdo copia as linhas da fatura** (taxa, motivo de isenção, regra,
+  evidência) na proporção das quantidades creditadas; nunca recalcula
+  (`eu-vat-oss-ioss`, «repete o tratamento fiscal dele, mesmo que as taxas
+  tenham mudado»). Os portes creditam-se como linha própria.
+- Passa pelo mesmo pipeline: verificações (mais: `original_por_emitir`,
+  `credito_acima_do_saldo`), rascunho, conferir, fechar, prova lida de volta.
+- **Saldo da fatura** = total da fatura − soma das notas de crédito emitidas;
+  a base recusa uma NC acima do saldo; a fatura fica `creditada_parcial` ou
+  `creditada` pelo saldo, nunca por «tem NC» (lição 2.13).
+- Com **sistema próprio** (ADR-0041), não há NC no Eurolify: o evento
+  `refund.completed` leva as linhas para o sistema do comerciante emitir.
+
+## 4. Estados
+
+### 4.1 Pedido de livre resolução
+
+`recebido` → `aceite` (abre a devolução) | `fora_de_prazo` (uma pessoa decide:
+aceitar ou responder ao cliente) | `cancelado_pelo_cliente`.
+
+### 4.2 Devolução
+
+```
+pedida ─▶ a_aguardar ─▶ recebida ─▶ inspeccionada ─▶ decidida ─▶ fechada
+   └──────────────┴──────────────▶ cancelada
+```
+
+- **recebida:** o armazém regista o que chegou (quantidade por linha).
+- **inspeccionada:** o estado de cada linha; o aceite gera o movimento
+  `devolucao` no livro do stock (com o lote da saída original); o não aceite
+  não mexe no stock.
+- **decidida:** uma pessoa decide o reembolso (linhas e montante) — abre o
+  `rfd_` e, se a fatura foi emitida pelo Eurolify, o pedido de NC.
+
+### 4.3 Reembolso
+
+```
+a_decidir ─▶ a_executar ─┬─▶ executado
+                         ├─▶ incerto ──(reconciliação)──▶ executado | a_executar
+                         └─▶ falhado ──(pessoa)──▶ a_executar | manual
+```
+
+- Pelo prestador, como os pagamentos: a nossa referência vai na chamada;
+  timeout → `incerto`, nunca se repete às cegas (`docs/26`, R3 e R4).
+- Manual: uma pessoa regista a transferência (data, montante, prova); fica
+  `executado` com a prova.
+
+### 4.4 A encomenda e a fatura depois
+
+- A encomenda ganha `devolvida_parcial` e `devolvida` (pela soma das linhas
+  aceites e reembolsadas), só para a frente; `concluida` não volta atrás, mas
+  um pedido de livre resolução dentro do prazo é aceite mesmo assim (a
+  conclusão aos 14 dias é um estado de operação, `docs/27` §12).
+- A fatura ganha o saldo (§3.5).
+
+## 5. Regras
+
+| # | Regra | Fonte |
+|---|---|---|
+| R1 | Nenhum reembolso sem devolução, problema ou cancelamento (a base garante) | regra 1 |
+| R2 | O botão de livre resolução é uma rota da API da Loja, servida pelo Eurolify, disponível enquanto houver linhas dentro do prazo; o pedido fica registado mesmo fora do prazo, para uma pessoa | `consumer-rights-eu` |
+| R3 | O prazo, as excepções (selados por higiene) e quem paga a volta são **por país**, configuráveis, com fonte; por omissão 14 dias a contar da entrega (**C**) | `docs/03` §2 |
+| R4 | Só o aceite na inspecção volta a stock, por movimento `devolucao`, com o lote da saída; uma linha `aberto` de um artigo marcado «selado por higiene» não volta | regra 2; `product-compliance-eu` |
+| R5 | Reembolso ≤ pago − já reembolsado, por linha e no total | `payments-psd2-sca` |
+| R6 | Reembolso pelo mesmo meio por omissão; outro meio só com o pedido do cliente registado (**C**) | `consumer-rights-eu`, «Reembolso» |
+| R7 | O reembolso nunca se repete: referência nossa, incerto reconciliado | `docs/26` R3, R4 |
+| R8 | A NC copia o tratamento fiscal da fatura e não passa o saldo dela | regra 3 |
+| R9 | Nenhuma acção em lote: decidir, reembolsar, emitir NC — um de cada vez | lição 2.10 |
+| R10 | Um prazo de reembolso (14 dias, **C**) conta-se do pedido; a decisão mostra quantos dias faltam e a tarefa avisa antes de acabar | `consumer-rights-eu` |
+| R11 | Cancelar uma encomenda paga não expedida liberta as reservas, reembolsa tudo e, com fatura emitida, pede a NC total | Q7 |
+
+## 6. Dados pessoais
+
+- O pedido de livre resolução guarda o e-mail com que o cliente se
+  identificou e a confirmação; a devolução não guarda dados novos do cliente.
+- O **IBAN** de um reembolso manual é dado pessoal: cifrado, mascarado nas
+  leituras, só com `refunds:write`, apagado depois do prazo de conciliação
+  (**C**, contabilista).
+- As fotografias de um problema podem ter dados pessoais: guardam-se como
+  anexos da encomenda, com a retenção dela.
+
+## 7. Lista da API
+
+### 7.1 API da Loja (o botão)
+
+| Rota | O quê |
+|---|---|
+| `GET /store/orders/{token}/withdrawal` | as linhas que ainda se podem devolver e o prazo de cada uma (o token é o da confirmação da encomenda) |
+| `POST /store/orders/{token}/withdrawal` | o pedido (linhas, quantidades); devolve a confirmação de recepção com data e hora |
+
+### 7.2 API de Administração
+
+| Rota | Âmbito |
+|---|---|
+| `GET /withdrawals`, `GET /withdrawals/{id}`, `POST /withdrawals` (registo pelo apoio), `POST /withdrawals/{id}/decide` (fora do prazo) | `returns:read` / `returns:write` |
+| `GET /returns`, `POST /returns`, `GET /returns/{id}`, `POST /returns/{id}/receive`, `POST /returns/{id}/inspect`, `POST /returns/{id}/cancel` | `returns:read` / `returns:write` |
+| `POST /problems`, `GET /problems/{id}` | `returns:write` / `returns:read` |
+| `POST /returns/{id}/decide`, `POST /problems/{id}/decide` (abre o reembolso e a NC) | `refunds:write` |
+| `GET /refunds`, `GET /refunds/{id}`, `POST /refunds/{id}/execute`, `POST /refunds/{id}/manual` (regista a transferência), `POST /refunds/{id}/reconcile` | `refunds:read` / `refunds:write` |
+| `POST /orders/{id}/cancel` (paga, não expedida) | `refunds:write` |
+| `GET /invoices/{id}` passa a mostrar as NC e o saldo | `invoices:read` |
+
+Âmbitos novos: `returns:read`, `returns:write`, `refunds:read`,
+`refunds:write`. Papéis (proposta, Q6): dono todos; gestor todos; armazém
+`returns:read` e `returns:write`; apoio `returns:read`, `returns:write` e
+`refunds:read`.
+
+### 7.3 Eventos
+
+`withdrawal.requested`, `return.created`, `return.received`,
+`return.inspected`, `return.decided`, `problem.created`, `refund.created`,
+`refund.completed`, `refund.failed`, `order.returned`,
+`order.partially_returned`; os `invoice.*` da NC. Só identificadores e
+montantes; nunca o IBAN.
+
+### 7.4 O contrato do adaptador de pagamento
+
+`reembolsar(credenciais, pagamento, montante, referencia)` (já previsto,
+`docs/26` §9) e `consultarReembolso(referencia)`. O adaptador diz se o método
+reembolsa por API; se não, o reembolso é manual.
+
+## 8. Por onde é que isto ainda pode sair errado
+
+| Risco | O que o trava |
+|---|---|
+| NC sem devolução registada (91 em 90 dias, lição 3.5) | R1 |
+| cosmética aberta de volta ao stock | R4 |
+| NC parcial a riscar a fatura (lição 2.13) | saldo pela soma (§3.5) |
+| reembolso a dobrar | R5 e R7 |
+| reembolso mais do que pago | R5 (a base garante) |
+| NC com a taxa de hoje em vez da da fatura | R8 |
+| botão esquecido num frontend | R2: servido pela API da Loja; o link vai na confirmação |
+| prazo de reembolso ultrapassado sem ninguém ver | R10 |
+| correcções em massa | R9 |
+
+## 9. Perguntas para o Diogo ou o Bruno
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q1 | **Livre resolução para profissionais?** | **não** pelo botão (o direito é do consumidor); uma devolução comercial regista-se pelo apoio |
+| Q2 | **Como se reembolsa o Multibanco e o MB WAY?** | **manual nesta parte** (o comerciante transfere e regista a prova; o IBAN pede-se ao cliente), até lermos a documentação da EuPago sobre reembolsos; o adaptador entra quando estiver verificado |
+| Q3 | **Quando se reembolsa uma devolução?** | **depois de recebida e inspeccionada** (ou com a prova de envio do cliente, se chegar primeiro), dentro do prazo do país (**C**); um problema sem mercadoria, logo depois da decisão |
+| Q4 | **Os portes?** | na livre resolução, **reembolsa-se a entrega inicial** e a volta paga-a o cliente, salvo se o comerciante oferecer (**C**, jurista); num problema, decide a pessoa |
+| Q5 | **O que volta a stock?** | **só o `revendavel`**; `aberto` de um artigo selado por higiene e `danificado` não voltam (fica registado na devolução, sem movimento) |
+| Q6 | **Quem faz o quê?** | o **armazém** recebe e inspecciona; **dono e gestor** decidem reembolsos e cancelamentos; o **apoio** regista pedidos e vê reembolsos |
+| Q7 | **Cancelar uma encomenda paga ainda não expedida?** | **sim**, por uma pessoa com `refunds:write`: liberta as reservas, reembolsa tudo e pede a NC total se a fatura saiu; o cliente usa o botão de livre resolução |
+
+## 10. Para o jurista e o contabilista (bloqueiam a produção, não o código)
+
+| # | Pergunta |
+|---|---|
+| J1 | Prazo de livre resolução por país e os casos especiais (encomenda em várias entregas, bens feitos por medida) |
+| J2 | Excepções aplicáveis à cosmética e aos químicos (selados por higiene) e como se informa o cliente |
+| J3 | Quem paga a volta e o reembolso dos portes iniciais |
+| J4 | Prazo do reembolso e o direito de reter até receber o bem ou a prova de envio |
+| J5 | O botão de livre resolução: requisitos da transposição em Portugal (e nos outros países) |
+| C1 | A NC antes ou depois do reembolso; o prazo para a emitir |
+| C2 | Uma encomenda reembolsada por inteiro antes de a fatura sair: emite-se fatura e NC, ou nenhuma? (Até à resposta: **retém** a fatura, com o motivo `encomenda_reembolsada`) |
+| C3 | O reembolso manual: que prova de transferência se guarda, e por quanto tempo o IBAN |
+| C4 | O relatório OSS: as NC entram com sinal negativo no período da NC ou da fatura (`eu-vat-oss-ioss`, «OSS e IOSS») |
+
+## 11. Como entra no código (quando aprovado)
+
+- **Parte 1:**
+  - migração: pedido de livre resolução, devolução, problema, reembolso, o movimento `devolucao`, os estados novos da encomenda, a NC no domínio dos documentos (com o saldo) e os âmbitos;
+  - o botão na API da Loja, com a confirmação de recepção;
+  - a devolução até à inspecção e ao stock;
+  - a decisão, o reembolso manual e a NC pelo pipeline da fatia 10;
+  - o cancelamento de uma encomenda paga não expedida;
+  - testes: prazo e fora do prazo, devolução parcial, cosmética aberta não volta, reembolso acima do pago recusado, reembolso nunca a dobrar, NC com a taxa da fatura e acima do saldo recusada, NC parcial e saldo; mutações e a revisão do agente.
+- **Parte 2:** o reembolso pelo adaptador (EuPago, depois de lida a documentação).
+- Cada parte num pedido, com os testes verdes e a revisão do agente antes de juntar (ADR-0031, ADR-0035).
