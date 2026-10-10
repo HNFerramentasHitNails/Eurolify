@@ -22,6 +22,7 @@ export const AMBITOS = [
   "customers:write",
   "customers:billing",
   "customers:exemptions",
+  "customers:merge",
   "tax:read",
   "tax:write",
   "legal:read",

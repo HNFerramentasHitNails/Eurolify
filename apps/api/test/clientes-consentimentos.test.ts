@@ -273,7 +273,7 @@ describe.skipIf(URL_BASE === undefined)(
       expect(resultado).toEqual([false, true]);
     });
 
-    it("ficha limitada ⇒ não, mesmo com aceitou; a ficha fundida não recebe declarações", async () => {
+    it("ficha limitada ⇒ não, mesmo com aceitou; numa fundida, a declaração vai para a que ficou; numa pseudonimizada, recusa", async () => {
       const id = await ficha();
       const outra = await ficha();
       await ok(
@@ -291,23 +291,45 @@ describe.skipIf(URL_BASE === undefined)(
         return regua(trx, id, "email");
       });
       expect(limitada).toBe(false);
+      // Fundida (migração 0046, revisão do #289, P2-4): a declaração pedida com
+      // o id antigo regista-se na ficha que ficou, e a régua dela conta as
+      // duas.
       const fundida = await desfeito(a, async (trx) => {
         await sql`update cliente set estado = 'fundido', fundido_em = ${outra.slice(4)}::uuid
                   where id = ${id.slice(4)}::uuid`.execute(trx);
-        const pode = await regua(trx, id, "email");
-        const erro =
-          await sql`insert into consentimento (comerciante_id, cliente_id,
+        const antes = await regua(trx, outra, "email");
+        const linha = await sql<{ cliente_id: string }>`
+          insert into consentimento (comerciante_id, cliente_id,
+            canal, declaracao, texto, versao_texto, onde)
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x')
+          returning cliente_id`.execute(trx);
+        return {
+          pode: await regua(trx, id, "email"),
+          antes,
+          ficou: linha.rows[0]?.cliente_id,
+          depois: await regua(trx, outra, "email"),
+        };
+      });
+      expect(fundida).toEqual({
+        pode: false,
+        antes: true,
+        ficou: outra.slice(4),
+        depois: false,
+      });
+      const pseudonimizada = await desfeito(a, async (trx) => {
+        await sql`update cliente set estado = 'pseudonimizado' where id = ${id.slice(4)}::uuid`.execute(
+          trx,
+        );
+        return sql`insert into consentimento (comerciante_id, cliente_id,
               canal, declaracao, texto, versao_texto, onde)
             values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x')`
-            .execute(trx)
-            .then(
-              () => "entrou",
-              (e: unknown) => (e as Error).message,
-            );
-        return { pode, erro };
+          .execute(trx)
+          .then(
+            () => "entrou",
+            (e: unknown) => (e as Error).message,
+          );
       });
-      expect(fundida.pode).toBe(false);
-      expect(fundida.erro).toMatch(/^customers\.invalid_transition:/);
+      expect(pseudonimizada).toMatch(/^customers\.invalid_transition:/);
       // Fora das transacções desfeitas, a ficha continua activa e a dizer sim.
       expect(
         ((await consentimentos(id))["pode_receber_marketing"] as Json)["email"],
