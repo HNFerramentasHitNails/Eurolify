@@ -108,6 +108,15 @@ jobs:
             echo "o resumo do node difere: lista ${lista##*@}, Dockerfile ${docker##*@}" >&2
             exit 1
           fi
+      - name: o postgres da lista é o da VPS
+        # O resumo está também no ensaio.conf (revisão do #308, P3-5).
+        run: |
+          lista="$(awk '$1 == "postgres" { print $2 }' infra/ci/imagens-base.txt)"
+          vps="$(sed -n 's/^IMAGEM_POSTGRES=//p' infra/vps/ficheiros/ensaio.conf)"
+          if [ -z "$lista" ] || [ -z "$vps" ] || [ "${lista##*@}" != "${vps##*@}" ]; then
+            echo "o resumo do postgres difere: lista ${lista##*@}, ensaio.conf ${vps##*@}" >&2
+            exit 1
+          fi
       - name: shellcheck
         run: |
           shellcheck --version | head -n 2

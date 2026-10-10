@@ -3,7 +3,10 @@
 # resumo do commit (ADR-0026); o Dependabot abre um pedido quando sai uma
 # versão nova e mantém a fixação pelo resumo, com a versão em comentário.
 # Esses pedidos passam pelas verificações obrigatórias e pela revisão como
-# qualquer outro: nada entra no main sozinho (ADR-0024).
+# qualquer outro: nada entra no main sozinho (ADR-0024). Contam como código
+# (AGENTS.md, «Git»): antes de juntar, um agente revê o diff (o resumo novo
+# de cada acção corresponde à versão em comentário e à etiqueta publicada
+# pelo autor da acção) e um dono aprova (CODEOWNERS); só então se junta.
 #
 # As imagens (Dockerfile e infra/ci/imagens-base.txt) não estão aqui: estão
 # fixadas por uma variável e por uma lista própria, que o Dependabot não lê.
