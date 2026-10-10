@@ -41,6 +41,8 @@ import {
   ESCRITAS_DAS_OPCOES,
   ParametroOpcao,
   ParametroValorDaOpcao,
+  PedidoAcrescentarValor,
+  PedidoCriarOpcao,
   PedidoMudarNomeDaOpcao,
   PedidoMudarTextoDoValor,
   PedidoOrdemDasOpcoes,
@@ -526,6 +528,70 @@ export function rotasDoCatalogoNoHub(
   const CorpoVersao = Type.Object(
     { versao: Type.Integer({ minimum: 1 }) },
     { additionalProperties: false },
+  );
+
+  rotas.post(
+    "/hub/products/:id/options",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Cria uma opção com os valores pelo Hub, como o POST /products/{id}/options (docs/22 §21.2).",
+        params: ParametroArtigo,
+        body: PedidoCriarOpcao,
+        response: { 201: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const opcao = await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId) => {
+          await recusarArtigoExterno(trx, semPrefixo(pedido.params.id));
+          return ESCRITAS_DAS_OPCOES.criar(
+            trx,
+            comercianteId,
+            pedido.params.id,
+            pedido.body,
+          );
+        },
+      );
+      void resposta.code(201);
+      return opcao;
+    },
+  );
+
+  rotas.post(
+    "/hub/options/:id/values",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Acrescenta um valor no fim pelo Hub, como o POST /options/{id}/values (docs/22 §21.2).",
+        params: ParametroOpcao,
+        body: PedidoAcrescentarValor,
+        response: { 201: OpcaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const opcao = await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId) => {
+          await recusarOpcaoExterna(trx, semPrefixo(pedido.params.id));
+          return ESCRITAS_DAS_OPCOES.acrescentarValor(
+            trx,
+            comercianteId,
+            pedido.params.id,
+            pedido.body,
+          );
+        },
+      );
+      void resposta.code(201);
+      return opcao;
+    },
   );
 
   rotas.patch(

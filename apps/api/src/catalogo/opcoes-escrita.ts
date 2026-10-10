@@ -66,7 +66,17 @@ async function artigoNaFila(
   await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${artigoId}::uuid)`.execute(
     trx,
   );
-  return artigo.estado;
+  // O estado de agora, já com a fila (revisão do #290, P3-3).
+  const depois = await trx
+    .selectFrom("artigo")
+    .select("estado")
+    .where("comerciante_id", "=", comercianteId)
+    .where("id", "=", artigoId)
+    .executeTakeFirst();
+  if (depois === undefined) {
+    throw new ErroCatalogo("catalog.not_found", oQue);
+  }
+  return depois.estado;
 }
 
 /** O valor da opção, ou «não existe» (também se for de outra opção). */

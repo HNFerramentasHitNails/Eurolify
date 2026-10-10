@@ -639,7 +639,7 @@ export const ConsultaPagina = Type.Object(
   { additionalProperties: false },
 );
 
-const PedidoCriarOpcao = Type.Object(
+export const PedidoCriarOpcao = Type.Object(
   {
     nome: Texto(100),
     valores: Type.Array(Texto(100), {
@@ -652,7 +652,7 @@ const PedidoCriarOpcao = Type.Object(
   { additionalProperties: false },
 );
 
-const PedidoAcrescentarValor = Type.Object(
+export const PedidoAcrescentarValor = Type.Object(
   {
     valor: Texto(100),
     versao: Type.Optional(
@@ -2213,18 +2213,13 @@ export function rotasDoCatalogo(
         pedido,
         resposta,
         201,
-        async (trx, chave) => {
-          const opcao = await criarOpcao(
+        (trx, chave) =>
+          ESCRITAS_DAS_OPCOES.criar(
             trx,
             chave.comercianteId,
-            semPrefixo(pedido.params.id),
-            pedido.body.nome,
-            pedido.body.valores,
-          );
-          return paraOpcao(
-            await fichaDaOpcao(trx, chave.comercianteId, opcao.id),
-          );
-        },
+            pedido.params.id,
+            pedido.body,
+          ),
         (corpo) => `/options/${(corpo as { id: string }).id}`,
       ),
   );
@@ -2248,17 +2243,13 @@ export function rotasDoCatalogo(
         pedido,
         resposta,
         201,
-        async (trx, chave) => {
-          const id = semPrefixo(pedido.params.id);
-          await acrescentarValor(
+        (trx, chave) =>
+          ESCRITAS_DAS_OPCOES.acrescentarValor(
             trx,
             chave.comercianteId,
-            id,
-            pedido.body.valor,
-            pedido.body.versao,
-          );
-          return paraOpcao(await fichaDaOpcao(trx, chave.comercianteId, id));
-        },
+            pedido.params.id,
+            pedido.body,
+          ),
         (corpo) => `/options/${(corpo as { id: string }).id}`,
       ),
   );
@@ -3258,6 +3249,37 @@ export async function opcoesDeArtigoComVariantes(
  * **Outro chamador:** `identidade/hub-catalogo.ts`.
  */
 export const ESCRITAS_DAS_OPCOES = {
+  async criar(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    artigoId: string,
+    corpo: Static<typeof PedidoCriarOpcao>,
+  ) {
+    const opcao = await criarOpcao(
+      trx,
+      comercianteId,
+      semPrefixo(artigoId),
+      corpo.nome,
+      corpo.valores,
+    );
+    return paraOpcao(await fichaDaOpcao(trx, comercianteId, opcao.id));
+  },
+  async acrescentarValor(
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    id: string,
+    corpo: Static<typeof PedidoAcrescentarValor>,
+  ) {
+    const opcao = semPrefixo(id);
+    await acrescentarValor(
+      trx,
+      comercianteId,
+      opcao,
+      corpo.valor,
+      corpo.versao,
+    );
+    return paraOpcao(await fichaDaOpcao(trx, comercianteId, opcao));
+  },
   async mudarNome(
     trx: Transaction<BaseDados>,
     comercianteId: string,

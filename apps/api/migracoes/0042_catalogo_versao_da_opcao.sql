@@ -10,8 +10,8 @@ SET LOCAL lock_timeout = '10s';
 ALTER TABLE opcao ADD COLUMN versao integer NOT NULL DEFAULT 1;
 
 -- O mesmo gatilho da 0005, com a versão: nasce a 1; sobe quando o nome muda
--- ou quando quem escreve a pede (a API escreve `versao = versao + 1` depois
--- de mudar um valor); nunca toma outro valor que não o seguinte.
+-- ou quando o gatilho dos valores (abaixo) a pede com `versao = versao + 1`;
+-- nunca toma outro valor que não o seguinte, mesmo que se escreva outro.
 CREATE OR REPLACE FUNCTION opcao_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -49,8 +49,9 @@ END
 $$;
 
 -- Um valor criado, mudado (texto ou posição) ou apagado sobe a versão da
--- opção dele. Os valores com que a opção nasce (na mesma transacção, a do
--- `criado_em`) não a sobem: a opção nasce na versão 1. Quando a opção está a
+-- opção dele. Os valores com que a opção nasce (na mesma transacção: o
+-- `criado_em` é o início dela e a linha é dela, `xmin`) não a sobem: a opção
+-- nasce na versão 1 (revisão do #290, P3-2). Quando a opção está a
 -- ser apagada (ou o rascunho inteiro), a linha dela já não existe e o UPDATE
 -- não encontra nada.
 CREATE FUNCTION valor_opcao_sobe_versao() RETURNS trigger
@@ -65,7 +66,8 @@ BEGIN
   END IF;
   UPDATE public.opcao SET versao = versao + 1
   WHERE comerciante_id = linha.comerciante_id AND id = linha.opcao_id
-    AND NOT (TG_OP = 'INSERT' AND criado_em = now());
+    AND NOT (TG_OP = 'INSERT' AND criado_em = now()
+             AND xmin = xid(pg_current_xact_id()));
   RETURN NULL;
 END
 $$;
@@ -73,4 +75,7 @@ CREATE TRIGGER valor_opcao_sobe_versao
   AFTER INSERT OR UPDATE OR DELETE ON valor_opcao
   FOR EACH ROW EXECUTE FUNCTION valor_opcao_sobe_versao();
 
+-- O gatilho dos valores corre com os direitos de quem escreve (a API): é
+-- por ele que a API precisa de mudar a coluna. O valor decide-o sempre o
+-- gatilho da opção (revisão do #290, P3-1).
 GRANT UPDATE (versao) ON opcao TO eurolify_api;

@@ -633,6 +633,12 @@ describe.skipIf(URL_BASE === undefined)("a escrita das opções (#285)", () => {
     const comSessao = { sessao: dono.sessao, comerciante: c.id };
     const ml15 = o.valores[0]?.id ?? "";
     for (const [metodo, url, corpo] of [
+      [
+        "POST",
+        `/hub/products/prd_${id}/options`,
+        { nome: "Cor", valores: ["Azul"] },
+      ],
+      ["POST", `/hub/options/${o.id}/values`, { valor: "50 ml" }],
       ["PATCH", `/hub/options/${o.id}`, { nome: "X", versao: 1 }],
       [
         "PATCH",
@@ -713,6 +719,211 @@ describe.skipIf(URL_BASE === undefined)("a escrita das opções (#285)", () => {
     expect((await opcaoDe(c.segredo, tamanho.id)).valores).toHaveLength(2);
   });
 
+  it("duas escritas ao mesmo tempo na mesma versão: uma grava, a outra dá 409 (revisão do #290, P2-1)", async () => {
+    const c = await comerciante("Loja Opcoes Corrida");
+    for (let volta = 0; volta < 3; volta++) {
+      const { tamanho } = await rascunho(c);
+      const [ml15, ml30] = tamanho.valores.map((v) => v.id);
+      const respostas = await Promise.all([
+        chave(c.segredo, "PATCH", `/options/${tamanho.id}`, {
+          nome: "Capacidade",
+          versao: 1,
+        }),
+        chave(c.segredo, "PATCH", `/options/${tamanho.id}`, {
+          nome: "Volume",
+          versao: 1,
+        }),
+        chave(c.segredo, "PUT", `/options/${tamanho.id}/values/order`, {
+          valores: [ml30, ml15],
+          versao: 1,
+        }),
+      ]);
+      const estados = respostas.map((r) => r.statusCode).sort();
+      expect(estados, `volta ${String(volta)}`).toEqual([200, 409, 409]);
+      for (const r of respostas.filter((x) => x.statusCode === 409)) {
+        expect(h.codigo(r)).toBe("catalog.version_conflict");
+      }
+      // Subiu só pela que gravou (a ordem de 2 valores sobe 2).
+      expect((await opcaoDe(c.segredo, tamanho.id)).versao).toBeGreaterThan(1);
+    }
+  });
+
+  it("cada escrita da opção sobe a versão: a versão de antes dá 409 em todas (revisão do #290, P2-1 e P3-6)", async () => {
+    const c = await comerciante("Loja Opcoes Versoes");
+    const { tamanho } = await rascunho(c);
+    const ml15 = tamanho.valores[0]?.id ?? "";
+    const ml30 = tamanho.valores[1]?.id ?? "";
+    const novo = await chave(
+      c.segredo,
+      "POST",
+      `/options/${tamanho.id}/values`,
+      {
+        valor: "50 ml",
+      },
+    );
+    const ml50 = novo.json<Opcao>().valores[2]?.id ?? "";
+    // Cada passo grava na versão actual e depois tenta todas as escritas
+    // na versão anterior, que têm de dar 409.
+    const passos: [string, "PATCH" | "PUT" | "DELETE", string, unknown][] = [
+      [
+        "texto",
+        "PATCH",
+        `/options/${tamanho.id}/values/${ml15}`,
+        { valor: "15ml" },
+      ],
+      [
+        "ordem",
+        "PUT",
+        `/options/${tamanho.id}/values/order`,
+        { valores: [ml50, ml30, ml15] },
+      ],
+      [
+        "apagar valor",
+        "DELETE",
+        `/options/${tamanho.id}/values/${ml50}`,
+        undefined,
+      ],
+    ];
+    let versao = novo.json<Opcao>().versao;
+    expect(versao).toBe(2);
+    for (const [oQue, metodo, url, corpo] of passos) {
+      const r =
+        metodo === "DELETE"
+          ? await chave(c.segredo, metodo, `${url}?versao=${String(versao)}`)
+          : await chave(c.segredo, metodo, url, {
+              ...(corpo as object),
+              versao,
+            });
+      expect(r.statusCode, `${oQue}: ${r.body}`).toBe(200);
+      const antiga = versao;
+      versao = (await opcaoDe(c.segredo, tamanho.id)).versao;
+      // Sobe uma vez por linha mudada (a ordem de 3 valores muda 2).
+      expect(versao, oQue).toBeGreaterThan(antiga);
+      for (const [metodoV, urlV, corpoV] of [
+        ["PATCH", `/options/${tamanho.id}`, { nome: "X", versao: antiga }],
+        [
+          "PATCH",
+          `/options/${tamanho.id}/values/${ml30}`,
+          { valor: "X", versao: antiga },
+        ],
+        [
+          "PUT",
+          `/options/${tamanho.id}/values/order`,
+          { valores: [], versao: antiga },
+        ],
+        [
+          "DELETE",
+          `/options/${tamanho.id}/values/${ml30}?versao=${String(antiga)}`,
+          undefined,
+        ],
+        [
+          "DELETE",
+          `/options/${tamanho.id}?versao=${String(antiga)}`,
+          undefined,
+        ],
+        [
+          "POST",
+          `/options/${tamanho.id}/values`,
+          { valor: "X", versao: antiga },
+        ],
+      ] as const) {
+        const v = await chave(c.segredo, metodoV, urlV, corpoV);
+        if (metodoV === "PUT" && v.statusCode === 400) continue;
+        expect(h.codigo(v), `${oQue} → ${metodoV} ${urlV}`).toBe(
+          "catalog.version_conflict",
+        );
+      }
+    }
+    expect(
+      (await opcaoDe(c.segredo, tamanho.id)).valores.map((v) => v.valor),
+    ).toEqual(["30 ml", "15ml"]);
+  });
+
+  it("uma opção nova depois de apagar outra fica a seguir à última (revisão do #290, P2-2)", async () => {
+    const c = await comerciante("Loja Opcoes Posicao");
+    const { artigo, tamanho } = await rascunho(c);
+    // Sem «Tamanho», a «Cor» fica sozinha na posição 1; a nova vai para a 2.
+    // Antes, iam as duas para a 1. (As variantes ficam iguais só em «Cor»:
+    // a primeira é azul, a segunda rosa.)
+    const r = await chave(
+      c.segredo,
+      "DELETE",
+      `/options/${tamanho.id}?versao=1`,
+    );
+    expect(r.statusCode, r.body).toBe(204);
+    const nova = await chave(c.segredo, "POST", `/products/${artigo}/options`, {
+      nome: "Brilho",
+      valores: ["Mate"],
+    });
+    expect(nova.statusCode, nova.body).toBe(201);
+    const opcoes = (
+      await chave(c.segredo, "GET", `/products/${artigo}/options`)
+    ).json<{ dados: Opcao[] }>();
+    expect(opcoes.dados.map((o) => [o.nome, o.posicao])).toEqual([
+      ["Cor", 1],
+      ["Brilho", 2],
+    ]);
+  });
+
+  it("pelo Hub: criar uma opção e acrescentar um valor; o armazém recebe 403; outro comerciante, 404", async () => {
+    const c = await comerciante("Loja Opcoes Hub Criar");
+    const outro = await comerciante("Loja Opcoes Hub Outro");
+    const { artigo, tamanho } = await rascunho(c);
+    const gestor = await h.pessoaCom(c.id, "gestor");
+    const comSessao = { sessao: gestor.sessao, comerciante: c.id };
+    const criada = await h.pedir("POST", `/hub/products/${artigo}/options`, {
+      ...comSessao,
+      corpo: { nome: "Brilho", valores: ["Mate", "Brilhante"] },
+    });
+    expect(criada.statusCode, criada.body).toBe(201);
+    expect(criada.json<Opcao>()).toMatchObject({
+      nome: "Brilho",
+      posicao: 2,
+      versao: 1,
+    });
+    const valor = await h.pedir("POST", `/hub/options/${tamanho.id}/values`, {
+      ...comSessao,
+      corpo: { valor: "50 ml", versao: 1 },
+    });
+    expect(valor.statusCode, valor.body).toBe(201);
+    expect(valor.json<Opcao>().valores.map((v) => v.valor)).toEqual([
+      "15 ml",
+      "30 ml",
+      "50 ml",
+    ]);
+    const armazem = await h.pessoaCom(c.id, "armazem");
+    const recusada = await h.pedir(
+      "POST",
+      `/hub/options/${tamanho.id}/values`,
+      {
+        sessao: armazem.sessao,
+        comerciante: c.id,
+        corpo: { valor: "60 ml" },
+      },
+    );
+    expect(recusada.statusCode).toBe(403);
+    // O dono de outro comerciante, com o cabeçalho dele, não chega a A.
+    const deB = await h.pessoaCom(outro.id, "dono");
+    for (const [metodo, url, corpo] of [
+      [
+        "POST",
+        `/hub/products/${artigo}/options`,
+        { nome: "X", valores: ["Y"] },
+      ],
+      ["POST", `/hub/options/${tamanho.id}/values`, { valor: "X" }],
+      ["PATCH", `/hub/options/${tamanho.id}`, { nome: "X", versao: 2 }],
+      ["DELETE", `/hub/options/${tamanho.id}`, { versao: 2 }],
+    ] as const) {
+      const r = await h.pedir(metodo, url, {
+        sessao: deB.sessao,
+        comerciante: outro.id,
+        corpo,
+      });
+      expect(r.statusCode, `${metodo} ${url}: ${r.body}`).toBe(404);
+    }
+    expect((await opcaoDe(c.segredo, tamanho.id)).valores).toHaveLength(3);
+  });
+
   it("o contrato tem as rotas novas, pela chave e pelo Hub, e a versão na opção", async () => {
     const r = await h.app.inject({ method: "GET", url: "/openapi.json" });
     const contrato = r.json<{
@@ -726,6 +937,8 @@ describe.skipIf(URL_BASE === undefined)("a escrita das opções (#285)", () => {
       ["/products/{id}/options/order", "put"],
       ["/options/{id}/values/order", "put"],
       ["/variants/{id}/values", "put"],
+      ["/products/{id}/options", "post"],
+      ["/options/{id}/values", "post"],
     ] as const) {
       expect(contrato.paths[caminho]?.[metodo]?.security, caminho).toEqual([
         { chave: [] },

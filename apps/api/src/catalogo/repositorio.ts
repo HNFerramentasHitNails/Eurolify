@@ -548,9 +548,11 @@ export async function criarOpcao(
     await sql`select catalogo_fila_do_artigo(${comercianteId}::uuid, ${artigoId}::uuid)`.execute(
       trx,
     );
+    // A seguir à maior (não à contagem): uma opção apagada num rascunho não
+    // faz repetir a posição de outra (revisão do #290, P2-2).
     const { n } = await trx
       .selectFrom("opcao")
-      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .select(sql<string>`coalesce(max(posicao) + 1, 0)`.as("n"))
       .where("comerciante_id", "=", comercianteId)
       .where("artigo_id", "=", artigoId)
       .executeTakeFirstOrThrow();
