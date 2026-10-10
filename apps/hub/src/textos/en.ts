@@ -502,6 +502,29 @@ export const en: Textos = {
   artigoVarianteJaArquivada: "The variant was already archived.",
   artigoOrdemAMeio:
     "The image order was only partly saved: check it and move again if needed.",
+  varianteEditarTitulo: "Edit the variant",
+  varianteEditarAria: "Edit the variant {sku}",
+  varianteGrupoUnidade: "Unit and content",
+  varianteGrupoGtin: "Barcode",
+  varianteGrupoMedidas: "Weight and dimensions",
+  varianteGrupoPerigosas: "Dangerous goods",
+  varianteOnu: "UN number",
+  varianteOnuAjuda: "Only if the goods are dangerous. E.g.: UN1263.",
+  varianteOnuFormato: "The UN number is «UN» and four digits (e.g.: UN1263).",
+  varianteClasseAdr: "ADR class",
+  varianteClasseAdrLonga: "At most 16 characters.",
+  varianteUnidadeSoRascunho:
+    "The unit and content only change while the product is a draft.",
+  varianteArquivada: "This variant is archived and does not change.",
+  varianteNaoExiste: "This variant does not exist in this product.",
+  varianteConflito:
+    "Someone else changed this variant in the meantime. Your changes were not saved.",
+  variantePesoAVenda:
+    "The variant is on sale: the weight can change, but not be removed.",
+  erroPublicadoEmUso: "It is on sale in a shop: this field cannot be removed.",
+  varianteActivadaEntretanto:
+    "The product was activated in the meantime: the unit and content can no longer change and are back to what is saved. The rest stayed as you wrote it.",
+  varianteGtinRepetido: "This GTIN already exists in another variant.",
   conviteInstrucao: "Enter your name and create the account with a passkey.",
   conviteResumo:
     "You were invited to the {comerciante} team, with the role {papel}.",

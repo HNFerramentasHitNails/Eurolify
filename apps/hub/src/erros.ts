@@ -56,6 +56,8 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "catalog.gtin_duplicate": "artigoGtinDuplicado",
   "catalog.gtin_invalid": "artigoGtinInvalido",
   "catalog.content_incomplete": "artigoConteudoIncompleto",
+  // Alterar a variante (docs/22 §23): o peso de uma variante à venda.
+  "catalog.published_in_use": "erroPublicadoEmUso",
   // Escrever as opções (docs/22 §21.3); o conflito de versão de uma opção
   // diz-o o próprio ecrã.
   "catalog.option_duplicate": "erroOpcaoDuplicada",

@@ -1,4 +1,4 @@
-# Alterar uma variante, pela API (#301, #302, #306) — 10/10/2026
+# Alterar uma variante, pela API e pelo Hub (#301, #302, #306, #317) — 10/10/2026
 
 ## O que se fez
 
@@ -20,6 +20,19 @@
   - Revisão do agente (Opus 5.5) publicada no #306: 0 P0, 1 P1 (número da
     migração), 1 P2 (sem `noCatalogo`, sem prazo de espera), 4 P3; todos
     corrigidos, com prova pela falha.
+- Hub (#317, squash `8f615ca`): a página `/artigos/{prd_…}/variantes/{var_…}`
+  («Editar a variante») e «Editar» em cada variante activa da ficha. No
+  ensaio desde as 17:39 UTC de 10/10/2026: o hub.eurolify.eu serve
+  `index-gC3PNOV4.js`, igual ao build local do `8f615ca`.
+  - A lógica do formulário em `apps/hub/src/variante.ts`: só os campos que
+    mudam; depois de um conflito, o formulário parte do guardado e só fica o
+    que a pessoa mexeu (`camposSobreOGuardado`).
+  - Revisão do agente (Opus 5.5) publicada no #317: 0 P0, 1 P1 (guardar
+    depois de um conflito apagava o que a outra pessoa mudara noutros
+    campos), 3 P2, 5 P3; corrigidos, menos o P3-5, que não se confirmou (RLS
+    forçado na `variante`, 0002).
+  - Capturas na página de aprovação (versão 12), no ecrã «Editar uma
+    variante»; aspecto aprovado pelo Diogo a 10/10/2026 («sim», à pergunta sobre os três ecrãs da página de aprovação, versão 12).
 - **Mudança de comportamento:** uma linha de importação que muda a unidade ou
   o conteúdo de uma variante de um artigo activo ou arquivado passa a ser
   recusada com `catalog.not_draft` (antes entrava).
@@ -34,10 +47,15 @@
   Hub (1), filtro do comerciante (1), versão decidida pelo gatilho (1),
   `noCatalogo` (1, fica à espera até ao limite), arquivada antes da versão (1).
 
+- 10/10/2026, Hub: 137 testes (vitest); passagem (`capturas.mjs`) 500 «ok»,
+  0 falhas (`grep -c '^ok'` no registo; eram 469). Na passagem, o «Gel
+  Coral 41» com «peso em falta» publica-se depois de o peso ser gravado
+  pelo ecrã. Prova pela falha do P1-1 no teste unitário.
+
 ## O que ficou por verificar
 
-- O ecrã do Hub para editar a variante (`docs/22` §23.2) ainda não existe.
-- No ensaio só se confirmou que a rota existe (403 sem sessão); não se
-  alterou uma variante real lá.
+- No ensaio só se confirmou que a rota existe (403 sem sessão) e que o Hub
+  serve o build novo; não se alterou uma variante real lá.
+- Leitores de ecrã reais e o `beforeunload` real do navegador.
 - Se alguém usa a importação para mudar unidades de artigos activos: não
   verifiquei (não há clientes reais no ensaio).
