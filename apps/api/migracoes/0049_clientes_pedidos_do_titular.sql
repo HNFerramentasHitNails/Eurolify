@@ -17,12 +17,14 @@
 --   - o nome passa a «Pseudonimizado»; e-mails, telefones, língua e país
 --     apagam-se; a ficha fica pseudonimizado (as fundidas ficam fundido);
 --   - os consentimentos de marketing e as etiquetas apagam-se;
---   - os perfis **não** usados em documentos ficam sem nome, NIF nem
---     morada, arquivados; as provas do VIES deles apagam-se e as isenções
---     deles perdem o NIF e a nota (revisão do #244, P3-11);
---   - os perfis usados em documentos ficam como estão, com as provas do
---     VIES, o prazo fiscal (R9; 10 anos em Portugal, art. 52.º do CIVA, W;
---     os outros países não verifiquei, C);
+--   - os perfis que nenhum documento nem encomenda usou ficam sem nome, NIF
+--     nem morada, arquivados; as provas do VIES deles apagam-se e as
+--     isenções deles perdem o NIF, a nota e os motivos escritos (revisão do
+--     #244, P3-11; revisão do #314, P1-1 e P2-3);
+--   - os perfis usados num documento ou apontados por uma encomenda ficam
+--     como estão, com as provas do VIES e as isenções, o prazo fiscal (R9;
+--     10 anos em Portugal, art. 52.º do CIVA, W; os outros países não
+--     verifiquei, C);
 --   - a linha do tempo do grupo perde os valores pessoais (nome, contactos,
 --     NIF, morada, texto dos consentimentos), salvo os dos perfis usados
 --     (P2-4 da revisão do #234);
@@ -31,30 +33,45 @@
 -- - o âmbito customers:privacy, só no dono (docs/23 §7).
 --
 -- As recusas de alterar ou apagar (a prova, a linha do tempo, a ficha que
--- não está activa) abrem-se **só** dentro da cliente_pseudonimizar: a
--- bandeira eurolify.pseudonimizar só vale quando quem escreve é o dono das
--- tabelas, e só as funções do dono escrevem como ele.
+-- não está activa) abrem-se **só** dentro da cliente_pseudonimizar: a marca
+-- é uma linha da transacção numa tabela só do dono, e só vale quando quem
+-- escreve é o dono das tabelas. Uma prova nova do VIES já não se grava numa
+-- ficha que não esteja activa.
 --
 -- O que não faz: os dados que o checkout e as encomendas guardam (o
 -- contacto, a entrega, a cópia do perfil) são desses domínios e ficam para
--- eles (docs/23 §7.1, «os outros domínios juntam o seu»); a exportação junta
--- as encomendas, só para ler.
+-- eles (docs/23 §7.1, «os outros domínios juntam o seu»); o resultado do
+-- apagamento conta essas encomendas, para quem pede saber que ainda há o
+-- que tratar. A exportação junta as encomendas e as linhas delas, só para
+-- ler.
 
 SET LOCAL lock_timeout = '10s';
 
 -- ------------------------------------------------- Quem pode abrir as recusas
 
--- Verdadeiro só dentro de uma função do dono que pôs a bandeira: a API (o
--- papel eurolify_api) pode pôr a bandeira mas não escreve como o dono.
+-- Verdadeiro só dentro da cliente_pseudonimizar. A marca é uma linha com a
+-- transacção, numa tabela onde só o dono escreve, e não um parâmetro da
+-- sessão: um parâmetro a API podia pô-lo e depois chamar outra função do
+-- dono, que herdava a abertura (revisão do #314, P2-1). A linha sai no fim
+-- da função; um erro desfaz tudo.
+CREATE TABLE pseudonimizacao_em_curso (transaccao xid8 PRIMARY KEY);
+REVOKE ALL ON pseudonimizacao_em_curso FROM PUBLIC;
+
 CREATE FUNCTION clientes_dono_a_escrever() RETURNS boolean
   LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT current_user = (SELECT pg_catalog.pg_get_userbyid(c.relowner)
                          FROM pg_catalog.pg_class c WHERE c.oid = 'public.cliente'::regclass)
 $$;
 CREATE FUNCTION clientes_pseudonimizacao_em_curso() RETURNS boolean
-  LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT coalesce(current_setting('eurolify.pseudonimizar', true) = 'sim', false)
-    AND public.clientes_dono_a_escrever()
+  LANGUAGE plpgsql VOLATILE SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  -- Primeiro o dono: a API nem lê a tabela.
+  IF NOT public.clientes_dono_a_escrever() THEN
+    RETURN false;
+  END IF;
+  RETURN EXISTS (SELECT FROM public.pseudonimizacao_em_curso m
+                 WHERE m.transaccao = pg_catalog.pg_current_xact_id());
+END
 $$;
 
 -- --------------------------------------------------------------- A ficha
@@ -264,14 +281,17 @@ BEGIN
     NEW.retirada_em := NULL;
     RETURN NEW;
   END IF;
-  -- A pseudonimização (0049) limpa o NIF e a nota das isenções dos perfis
-  -- não usados em documentos; mais nada muda.
+  -- A pseudonimização (0049) limpa o NIF, a nota e os motivos escritos à mão
+  -- das isenções dos perfis não usados (revisão do #314, P2-3); o código do
+  -- motivo e quem e quando ficam.
   IF public.clientes_pseudonimizacao_em_curso()
      AND NEW.nif_numero IS NULL AND NEW.pais_contribuinte IS NULL AND NEW.nota IS NULL
-     AND NEW.id = OLD.id AND NEW.perfil_id = OLD.perfil_id AND NEW.motivo = OLD.motivo
+     AND NEW.id = OLD.id AND NEW.perfil_id = OLD.perfil_id
+     AND NEW.motivo = '(pseudonimizado)'
      AND NEW.codigo_motivo IS NOT DISTINCT FROM OLD.codigo_motivo
      AND NEW.posta_por = OLD.posta_por AND NEW.posta_em = OLD.posta_em
-     AND NEW.motivo_retirada IS NOT DISTINCT FROM OLD.motivo_retirada
+     AND (NEW.motivo_retirada IS NULL) = (OLD.motivo_retirada IS NULL)
+     AND coalesce(NEW.motivo_retirada, '(pseudonimizado)') = '(pseudonimizado)'
      AND NEW.retirada_por IS NOT DISTINCT FROM OLD.retirada_por
      AND NEW.retirada_em IS NOT DISTINCT FROM OLD.retirada_em THEN
     RETURN NEW;
@@ -343,6 +363,33 @@ BEGIN
 END
 $$;
 
+-- Uma prova nova do VIES só numa ficha activa. A consulta HTTP faz-se fora
+-- da transacção: uma resposta que chegue depois da pseudonimização gravava o
+-- NIF e o nome devolvido num perfil já em branco, para sempre (revisão do
+-- #314, P1-3). A vies_registar toma a ficha antes de gravar, por isso aqui
+-- já se lê o estado final; a fila trata o erro como uma consulta falhada e a
+-- linha dela já saiu.
+CREATE FUNCTION validacao_vies_so_em_ficha_activa() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  estado_da_ficha text;
+BEGIN
+  SELECT c.estado INTO estado_da_ficha
+  FROM public.perfil_faturacao p
+  JOIN public.cliente c ON c.comerciante_id = p.comerciante_id AND c.id = p.cliente_id
+  WHERE p.comerciante_id = NEW.comerciante_id AND p.id = NEW.perfil_id;
+  IF estado_da_ficha IS DISTINCT FROM 'activo' THEN
+    RAISE EXCEPTION 'customers.invalid_transition: a ficha está %; a prova do VIES não se grava',
+      coalesce(estado_da_ficha, 'por encontrar');
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER validacao_vies_so_em_ficha_activa
+  BEFORE INSERT ON validacao_vies
+  FOR EACH ROW EXECUTE FUNCTION validacao_vies_so_em_ficha_activa();
+ALTER TABLE validacao_vies ENABLE ALWAYS TRIGGER validacao_vies_so_em_ficha_activa;
+
 CREATE OR REPLACE FUNCTION cliente_etiqueta_antes_de_tirar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -401,6 +448,18 @@ BEGIN
 END
 $$;
 
+-- A API só regista a exportação, com o tipo e o resultado fixos: o registo
+-- é a prova perante o titular e não se escreve à escolha (revisão do #314,
+-- P2-2). A limitação e o apagamento registam-se dentro das funções deles.
+CREATE FUNCTION pedido_titular_exportar(p_cliente uuid, p_verificacao text)
+  RETURNS uuid
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  RETURN public.pedido_titular_registar(p_cliente, 'exportacao', p_verificacao,
+    jsonb_build_object('fichas', cardinality(ARRAY(SELECT public.clientes_do_grupo(p_cliente)))));
+END
+$$;
+
 -- ------------------------------------------------------------ A limitação
 
 CREATE FUNCTION cliente_limitar(p_cliente uuid, p_limitar boolean, p_verificacao text)
@@ -427,14 +486,16 @@ $$;
 
 -- ------------------------------------------------------ A pseudonimização
 
--- Os campos da linha do tempo que são da pessoa: os valores saem, fica que
--- mudaram.
+-- Os campos da linha do tempo que são da pessoa, ou texto livre que pode
+-- falar dela (os motivos e as notas; revisão do #314, P2-3): os valores
+-- saem, fica que mudaram.
 CREATE FUNCTION clientes_rasto_sem_dados(p_campos jsonb) RETURNS jsonb
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT coalesce(jsonb_object_agg(k, CASE WHEN k = ANY (ARRAY['nome', 'emails',
       'telefones', 'lingua', 'pais', 'nome_documento', 'nif_escrito', 'nif_numero',
       'pais_contribuinte', 'morada_linha1', 'morada_linha2', 'morada_codigo_postal',
-      'morada_localidade', 'morada_pais', 'texto', 'onde'])
+      'morada_localidade', 'morada_pais', 'texto', 'onde', 'motivo', 'motivo_retirada',
+      'nota'])
     THEN jsonb_build_object(
       'antes', CASE WHEN jsonb_typeof(v -> 'antes') IN ('null') OR (v -> 'antes') IS NULL
                  THEN 'null'::jsonb ELSE to_jsonb('(pseudonimizado)'::text) END,
@@ -460,14 +521,20 @@ DECLARE
   n_validacoes integer;
   n_isencoes integer;
   n_rasto integer;
+  n_encomendas integer;
 BEGIN
   -- Irreversível: a confirmação escreve o que vai acontecer (como as acções
   -- do MCP da VPS).
   IF p_confirmacao IS DISTINCT FROM 'pseudonimizar cus_' || p_cliente::text THEN
-    RAISE EXCEPTION 'customers.confirmation_required: escreva «pseudonimizar cus_%» para confirmar', p_cliente;
+    -- A mensagem não repete a frase: quem confirma escreve-a (P3-5).
+    RAISE EXCEPTION 'customers.confirmation_required: escreva «pseudonimizar» seguido de um espaço e do id da ficha para confirmar';
   END IF;
+  -- A ficha pedida tomada primeiro, e só depois o grupo: uma fusão para ela
+  -- precisa deste bloqueio, e as fundidas já não mudam, por isso o grupo
+  -- lido a seguir está completo (revisão do #314, P1-2).
   SELECT c.estado INTO ficha FROM public.cliente c
-  WHERE c.comerciante_id = comerciante AND c.id = p_cliente;
+  WHERE c.comerciante_id = comerciante AND c.id = p_cliente
+  FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'customers.not_found: a ficha não existe';
   END IF;
@@ -475,28 +542,39 @@ BEGIN
     RAISE EXCEPTION 'customers.invalid_transition: a ficha está %; peça pela ficha que ficou', ficha.estado;
   END IF;
   grupo := ARRAY(SELECT public.clientes_do_grupo(p_cliente));
-  -- O grupo inteiro tomado, pela ordem dos ids (como a fusão).
+  -- As outras fichas do grupo, pela ordem dos ids (como a fusão).
   PERFORM 1 FROM public.cliente c
   WHERE c.comerciante_id = comerciante AND c.id = ANY (grupo)
   ORDER BY c.id FOR UPDATE;
-  SELECT c.estado INTO ficha FROM public.cliente c WHERE c.id = p_cliente;
-  IF ficha.estado <> 'activo' THEN
-    RAISE EXCEPTION 'customers.invalid_transition: a ficha está %', ficha.estado;
-  END IF;
 
+  -- Ficam como estão os perfis usados num documento e os que uma encomenda
+  -- aponta, com as provas do VIES e as isenções deles: a decisão do IVA da
+  -- encomenda cita-as, e a fatura e a nota de crédito ainda podem precisar
+  -- delas (R9; revisão do #314, P1-1). Até a fatia 10 marcar os documentos,
+  -- qualquer encomenda conta, também a não paga; um critério mais estreito
+  -- é do contabilista (C).
   usados := ARRAY(SELECT p.id FROM public.perfil_faturacao p
-    WHERE p.comerciante_id = comerciante AND p.cliente_id = ANY (grupo) AND p.usado_em_documento);
+    WHERE p.comerciante_id = comerciante AND p.cliente_id = ANY (grupo)
+      AND (p.usado_em_documento OR EXISTS (
+        SELECT FROM public.encomenda e
+        WHERE e.comerciante_id = comerciante AND e.perfil_id = p.id)));
   nao_usados := ARRAY(SELECT p.id FROM public.perfil_faturacao p
-    WHERE p.comerciante_id = comerciante AND p.cliente_id = ANY (grupo) AND NOT p.usado_em_documento);
+    WHERE p.comerciante_id = comerciante AND p.cliente_id = ANY (grupo)
+      AND p.id <> ALL (usados));
+  -- O que fica nas encomendas (o contacto, a entrega, a cópia do perfil) é
+  -- delas e ainda não se trata aqui: o resultado di-lo (P2-4).
+  SELECT count(*) INTO n_encomendas FROM public.encomenda e
+  WHERE e.comerciante_id = comerciante AND e.cliente_id = ANY (grupo);
 
-  PERFORM set_config('eurolify.pseudonimizar', 'sim', true);
+  INSERT INTO public.pseudonimizacao_em_curso VALUES (pg_current_xact_id());
 
   DELETE FROM public.vies_fila v WHERE v.perfil_id = ANY (nao_usados || usados);
   DELETE FROM public.validacao_vies v
   WHERE v.comerciante_id = comerciante AND v.perfil_id = ANY (nao_usados);
   GET DIAGNOSTICS n_validacoes = ROW_COUNT;
   UPDATE public.isencao_manual i
-  SET nif_numero = NULL, pais_contribuinte = NULL, nota = NULL
+  SET nif_numero = NULL, pais_contribuinte = NULL, nota = NULL, motivo = '(pseudonimizado)',
+      motivo_retirada = CASE WHEN i.motivo_retirada IS NULL THEN NULL ELSE '(pseudonimizado)' END
   WHERE i.comerciante_id = comerciante AND i.perfil_id = ANY (nao_usados);
   GET DIAGNOSTICS n_isencoes = ROW_COUNT;
   UPDATE public.perfil_faturacao p
@@ -525,12 +603,19 @@ BEGIN
   -- levavam os valores de antes.
   UPDATE public.alteracao_cliente a
   SET campos = public.clientes_rasto_sem_dados(a.campos)
-  WHERE a.comerciante_id = comerciante AND a.cliente_id = ANY (grupo)
+  WHERE a.comerciante_id = comerciante
+    AND (a.cliente_id = ANY (grupo)
+      -- Um par de duplicados fica na linha do tempo da primeira ficha do
+      -- par, que pode ser a outra pessoa; o motivo escrito fala das duas.
+      OR (a.entidade = 'duplicado_cliente' AND a.entidade_id IN (
+        SELECT d.id FROM public.duplicado_cliente d
+        WHERE d.comerciante_id = comerciante
+          AND (d.cliente_a = ANY (grupo) OR d.cliente_b = ANY (grupo)))))
     AND NOT (a.entidade = 'perfil_faturacao' AND a.entidade_id = ANY (usados))
     AND a.campos IS DISTINCT FROM public.clientes_rasto_sem_dados(a.campos);
   GET DIAGNOSTICS n_rasto = ROW_COUNT;
 
-  PERFORM set_config('eurolify.pseudonimizar', '', true);
+  DELETE FROM public.pseudonimizacao_em_curso m WHERE m.transaccao = pg_current_xact_id();
 
   resultado := jsonb_build_object(
     'fichas', cardinality(grupo),
@@ -540,7 +625,8 @@ BEGIN
     'etiquetas_retiradas', n_etiquetas,
     'provas_vies_apagadas', n_validacoes,
     'isencoes_limpas', n_isencoes,
-    'entradas_da_linha_do_tempo', n_rasto);
+    'entradas_da_linha_do_tempo', n_rasto,
+    'encomendas_com_dados_por_tratar', n_encomendas);
   INSERT INTO public.evento_saida (comerciante_id, tipo, agregado_tipo, agregado_id, dados)
   VALUES (comerciante, 'customer.pseudonymized', 'cliente', p_cliente,
     jsonb_build_object('cliente_id', p_cliente, 'fichas', cardinality(grupo), 'quem', quem,
@@ -567,12 +653,14 @@ CREATE POLICY reescreve_a_pseudonimizacao ON alteracao_cliente FOR UPDATE
 
 REVOKE EXECUTE ON FUNCTION clientes_dono_a_escrever(), clientes_pseudonimizacao_em_curso(),
   clientes_so_se_acrescenta(), pedido_titular_registar(uuid, text, text, jsonb),
-  cliente_limitar(uuid, boolean, text), clientes_rasto_sem_dados(jsonb),
-  cliente_pseudonimizar(uuid, text, text) FROM PUBLIC;
--- Os gatilhos correm com quem escreve: precisam das duas primeiras.
+  pedido_titular_exportar(uuid, text), cliente_limitar(uuid, boolean, text),
+  clientes_rasto_sem_dados(jsonb), cliente_pseudonimizar(uuid, text, text),
+  validacao_vies_so_em_ficha_activa() FROM PUBLIC;
+-- Os gatilhos correm com quem escreve: precisam das duas primeiras. A
+-- pedido_titular_registar fica só para as funções do dono (P2-2).
 GRANT EXECUTE ON FUNCTION clientes_dono_a_escrever(), clientes_pseudonimizacao_em_curso(),
-  pedido_titular_registar(uuid, text, text, jsonb), cliente_limitar(uuid, boolean, text),
-  cliente_pseudonimizar(uuid, text, text) TO eurolify_api;
+  pedido_titular_exportar(uuid, text), cliente_limitar(uuid, boolean, text),
+  cliente_pseudonimizar(uuid, text, text), validacao_vies_so_em_ficha_activa() TO eurolify_api;
 
 -- ------------------------------------------------------------- O âmbito
 

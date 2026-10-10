@@ -1318,13 +1318,23 @@ export async function exportarCliente(
   verificacao: string,
 ) {
   return noClientes(db, comercianteId, async (trx) => {
+    // A ficha tomada para ler: uma escrita ou um apagamento a meio não
+    // mistura estados no dossier (revisão do #314, P3-4).
     const ficha = await trx
       .selectFrom("cliente")
       .select("estado")
       .where("id", "=", clienteId)
+      .forShare()
       .executeTakeFirst();
     if (ficha === undefined) {
       throw new ErroClientes("customers.not_found", "ficha inexistente");
+    }
+    // Uma ficha fundida dava um dossier sem a ficha que ficou (P3-3).
+    if (ficha.estado === "fundido") {
+      throw new ErroClientes(
+        "customers.invalid_transition",
+        "a ficha está fundido; peça pela ficha que ficou",
+      );
     }
     const { rows: grupo } = await sql<{ id: string }>`
       select clientes_do_grupo(${clienteId}::uuid) as id`.execute(trx);
@@ -1338,6 +1348,24 @@ export async function exportarCliente(
           .execute(trx)
           .then((r) => r.rows);
       const perfis = await linhas("perfil_faturacao");
+      const encomendas = (
+        await sql<Record<string, unknown>>`
+          select id, criada_em, estado, moeda, total, finalidade, contacto,
+                 entrega, perfil_copia
+          from encomenda where cliente_id = ${id}::uuid order by id`.execute(
+          trx,
+        )
+      ).rows;
+      const idsEncomendas = encomendas.map((e) => String(e["id"]));
+      const daEncomenda = async (tabela: string) =>
+        idsEncomendas.length === 0
+          ? []
+          : (
+              await sql<Record<string, unknown>>`
+              select * from ${sql.table(tabela)}
+              where encomenda_id = any(${idsEncomendas}::uuid[])
+              order by id`.execute(trx)
+            ).rows;
       const ids_perfis = perfis.map((p) => String(p["id"]));
       const doPerfil = async (tabela: string) =>
         ids_perfis.length === 0
@@ -1361,21 +1389,23 @@ export async function exportarCliente(
             where ce.cliente_id = ${id}::uuid order by e.id`.execute(trx)
         ).rows,
         consentimentos: await linhas("consentimento"),
-        encomendas: (
+        encomendas,
+        linhas_das_encomendas: await daEncomenda("linha_encomenda"),
+        pagamentos: await daEncomenda("pagamento"),
+        // Os pares em que esta ficha entra: só os ids, o sinal e o estado.
+        candidatos_a_duplicado: (
           await sql<Record<string, unknown>>`
-            select id, criada_em, estado, moeda, total, finalidade, contacto,
-                   entrega, perfil_copia
-            from encomenda where cliente_id = ${id}::uuid order by id`.execute(
-            trx,
-          )
+            select id, cliente_a, cliente_b, sinais, estado, criado_em
+            from duplicado_cliente
+            where cliente_a = ${id}::uuid or cliente_b = ${id}::uuid
+            order by id`.execute(trx)
         ).rows,
         linha_do_tempo: await linhas("alteracao_cliente"),
       });
     }
     const pedidoId = (
       await sql<{ id: string }>`
-        select pedido_titular_registar(${clienteId}::uuid, 'exportacao',
-          ${verificacao}, ${JSON.stringify({ fichas: ids.length })}::jsonb) as id`.execute(
+        select pedido_titular_exportar(${clienteId}::uuid, ${verificacao}) as id`.execute(
         trx,
       )
     ).rows[0]?.id;

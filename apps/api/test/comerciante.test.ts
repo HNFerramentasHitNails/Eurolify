@@ -208,6 +208,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           "pedido_do_operador",
           // A tarefa da conclusão das encomendas (0047).
           "tarefa_encomenda",
+          // A marca da pseudonimização em curso (0049): só a função do dono
+          // lhe toca.
+          "pseudonimizacao_em_curso",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.

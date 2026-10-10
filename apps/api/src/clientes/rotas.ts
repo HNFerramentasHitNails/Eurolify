@@ -722,13 +722,18 @@ const ResultadoPseudonimizacaoEsquema = Type.Object({
   fichas: Type.Integer({ description: "A ficha e as fundidas nela" }),
   perfis_pseudonimizados: Type.Integer(),
   perfis_mantidos_por_obrigacao_fiscal: Type.Integer({
-    description: "Usados em documentos: ficam como estão o prazo fiscal (R9)",
+    description:
+      "Usados num documento ou apontados por uma encomenda: ficam como estão, com as provas do VIES e as isenções, o prazo fiscal (R9)",
   }),
   consentimentos_apagados: Type.Integer(),
   etiquetas_retiradas: Type.Integer(),
   provas_vies_apagadas: Type.Integer(),
   isencoes_limpas: Type.Integer(),
   entradas_da_linha_do_tempo: Type.Integer(),
+  encomendas_com_dados_por_tratar: Type.Integer({
+    description:
+      "Encomendas do grupo: o contacto, a entrega e a cópia do perfil delas são do domínio das encomendas e ainda não se tratam aqui. Com mais de zero, o apagamento não está completo.",
+  }),
 });
 const Exportacao = Type.Object({
   pedido: Type.Union([Type.String(), Type.Null()], {
@@ -739,7 +744,7 @@ const Exportacao = Type.Object({
   gerada_em: Instante,
   fichas: Type.Array(Type.Unknown(), {
     description:
-      "A ficha e as fundidas nela, cada uma com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas e a linha do tempo",
+      "A ficha e as fundidas nela, cada uma com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas com as linhas e os pagamentos, os candidatos a duplicado e a linha do tempo",
   }),
   pedidos_do_titular: Type.Array(Type.Unknown()),
 });
@@ -1554,7 +1559,7 @@ export function rotasDosClientes(
       config: privacidade,
       schema: {
         description:
-          "Exporta tudo o que este domínio guarda sobre o titular, na ficha e nas fundidas nela, com as encomendas (só para ler). Regista o pedido com a verificação da identidade. É um POST: o pedido leva a verificação e a resposta não se guarda em cache.",
+          "Exporta tudo o que este domínio guarda sobre o titular, na ficha e nas fundidas nela, com as encomendas, as linhas e os pagamentos delas (só para ler). Regista o pedido com a verificação da identidade. Uma ficha fundida não se exporta: peça pela que ficou. A resposta não se guarda: repetir com a mesma Idempotency-Key dá idempotency.response_not_kept, com o id do pedido (dsr_…); para outra exportação, outra chave.",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdCliente),
         body: PedidoComVerificacao,
@@ -1562,20 +1567,40 @@ export function rotasDosClientes(
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 200, (trx, c) =>
-        emClientes(resposta, async () => {
-          const e = await exportarCliente(
-            trx,
-            c.comercianteId,
-            semPrefixo(pedido.params.id),
-            pedido.body.verificacao,
-          );
-          return {
-            ...e,
-            pedido: e.pedido === null ? null : `dsr_${e.pedido}`,
-            cliente: `cus_${e.cliente}`,
-          };
-        }),
+      escrever(
+        base,
+        pedido,
+        resposta,
+        200,
+        (trx, c) =>
+          emClientes(resposta, async () => {
+            const e = await exportarCliente(
+              trx,
+              c.comercianteId,
+              semPrefixo(pedido.params.id),
+              pedido.body.verificacao,
+            );
+            return {
+              ...e,
+              pedido: e.pedido === null ? null : `dsr_${e.pedido}`,
+              cliente: `cus_${e.cliente}`,
+            };
+          }),
+        undefined,
+        undefined,
+        {
+          // Só o id do pedido fica na idempotência, nunca o dossier.
+          guardar: (corpo) => ({
+            pedido: (corpo as { pedido: unknown }).pedido,
+          }),
+          repetir: (guardada) => {
+            const id = (guardada.corpo as { pedido?: unknown } | null)?.pedido;
+            throw erroBase(
+              "idempotency.response_not_kept",
+              `a exportação ${typeof id === "string" ? id : ""} já foi feita; para outra, use outra Idempotency-Key`,
+            );
+          },
+        },
       ),
   );
 

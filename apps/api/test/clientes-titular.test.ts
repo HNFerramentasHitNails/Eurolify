@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { sql, type Kysely } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
+import type { BaseDados } from "../src/base/esquema.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import {
@@ -175,6 +176,9 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
   it("a pseudonimização apaga os dados pessoais do grupo inteiro, também da linha do tempo, e regista o pedido", async () => {
     const u = unico();
     const nif = nifNovo();
+    // Outra pessoa, criada antes, com o mesmo e-mail: o par fica na linha do
+    // tempo dela (a primeira do par), e o motivo escrito fala da Ana.
+    const outra = await ficha({ nome: "Outra", emails: [`ana.${u}@ex.pt`] });
     const id = await ficha({
       nome: `Ana ${u}`,
       emails: [`ana.${u}@ex.pt`],
@@ -260,6 +264,21 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       ),
     ).toMatch(/^customers\.merge_by_person:/);
     await recusa(pseudonimizar(antiga), 409, "customers.invalid_transition");
+    const pares = (
+      await ok(
+        pedir("GET", "/customer-duplicates?estado=por_decidir&limite=100"),
+      )
+    )["dados"] as Json[];
+    const par = pares.find((x) => (x["clientes"] as string[]).includes(outra));
+    expect(par).toBeDefined();
+    await ok(
+      pedir("POST", `/customer-duplicates/${String(par?.["id"])}/dismiss`, {
+        motivo: `não é a mesma Ana ${u}, a outra mora no Porto`,
+      }),
+    );
+    // A mensagem não repete a frase da confirmação (P3-5).
+    const semFrase = await pseudonimizar(id, dono, "pseudonimizar");
+    expect(semFrase.body).not.toContain(`pseudonimizar ${id}`);
 
     const r = await ok(pseudonimizar(id));
     expect(r).toMatchObject({
@@ -270,6 +289,7 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       etiquetas_retiradas: 1,
       provas_vies_apagadas: 1,
       isencoes_limpas: 1,
+      encomendas_com_dados_por_tratar: 0,
     });
     expect(r["entradas_da_linha_do_tempo"]).toBeGreaterThan(5);
 
@@ -312,7 +332,13 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       JSON.stringify({
         rasto: (
           await sql`select campos from alteracao_cliente
-            where cliente_id = any(${[id.slice(4), antiga.slice(4)]}::uuid[])`.execute(
+            where cliente_id = any(${[id.slice(4), antiga.slice(4)]}::uuid[])
+               or entidade = 'duplicado_cliente'`.execute(trx)
+        ).rows,
+        pares: (
+          await sql`select * from duplicado_cliente
+            where cliente_a = any(${[id.slice(4), antiga.slice(4)]}::uuid[])
+               or cliente_b = any(${[id.slice(4), antiga.slice(4)]}::uuid[])`.execute(
             trx,
           )
         ).rows,
@@ -336,7 +362,23 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     expect(tudo).not.toContain(nif);
     expect(tudo).not.toContain("40303265045");
     expect(tudo).not.toContain("+351912345678");
+    // O texto livre: dos consentimentos, da isenção e do par descartado.
+    expect(tudo).not.toContain("Quero receber novidades.");
+    expect(tudo).not.toContain("loja, registo");
+    expect(tudo).not.toContain("transportadora própria");
+    expect(tudo).not.toContain("Porto");
     expect(tudo).toContain("(pseudonimizado)");
+    // Os candidatos fecham.
+    const estados = await comoDono(
+      async (trx) =>
+        (
+          await sql<{ estado: string }>`select estado from duplicado_cliente
+            where cliente_a = ${outra.slice(4)}::uuid or cliente_b = ${outra.slice(4)}::uuid`.execute(
+            trx,
+          )
+        ).rows,
+    );
+    expect(estados.map((x) => x.estado)).toEqual(["fechado"]);
     // O perfil particular, o original da cópia: também limpo.
     expect(
       await ok(pedir("GET", `/billing-profiles/${String(pPart["id"])}`)),
@@ -389,15 +431,65 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       tipo: "particular",
       nome_documento: `Rui Outro ${u}`,
     });
-    // Marca-o como o domínio dos documentos o marcará (fatia 10).
-    await comoDono((trx) =>
-      sql`update perfil_faturacao set usado_em_documento = true
-          where id = ${String(usado["id"]).slice(4)}::uuid`.execute(trx),
+    await ok(
+      pedir("PUT", `/billing-profiles/${String(usado["id"])}/exemption`, {
+        codigo_motivo: "M05",
+        motivo: `isenção do Rui ${u}`,
+      }),
+      201,
     );
+    // Marca-o como o domínio dos documentos o marcará (fatia 10), e uma
+    // prova do VIES dele.
+    await comoDono(async (trx) => {
+      await sql`update perfil_faturacao set usado_em_documento = true
+          where id = ${String(usado["id"]).slice(4)}::uuid`.execute(trx);
+      await sql`insert into validacao_vies (comerciante_id, perfil_id, pais_consultado,
+            numero_consultado, consultado_em, resultado, nome_devolvido, motivo, quem)
+          values (${a}::uuid, ${String(usado["id"]).slice(4)}::uuid, 'PT', ${nif},
+            now(), 'valido', ${`RUI ${u}`}, 'pedido', 'sistema:vies')`.execute(
+        trx,
+      );
+    });
     expect(await ok(pseudonimizar(id))).toMatchObject({
       perfis_pseudonimizados: 1,
       perfis_mantidos_por_obrigacao_fiscal: 1,
+      provas_vies_apagadas: 0,
+      isencoes_limpas: 0,
     });
+    // A prova e a isenção do perfil usado ficam, inteiras.
+    const guardado = await comoDono(async (trx) => ({
+      provas: (
+        await sql<{
+          nome_devolvido: string;
+        }>`select nome_devolvido from validacao_vies
+          where perfil_id = ${String(usado["id"]).slice(4)}::uuid`.execute(trx)
+      ).rows,
+      isencoes: (
+        await sql<{
+          nif_numero: string;
+          motivo: string;
+        }>`select nif_numero, motivo
+          from isencao_manual
+          where perfil_id = ${String(usado["id"]).slice(4)}::uuid`.execute(trx)
+      ).rows,
+    }));
+    expect(guardado.provas).toEqual([{ nome_devolvido: `RUI ${u}` }]);
+    expect(guardado.isencoes).toEqual([
+      { nif_numero: nif, motivo: `isenção do Rui ${u}` },
+    ]);
+    // Uma resposta do VIES que chegue depois não grava nada (P1-3).
+    expect(
+      await comoDono(
+        (trx) =>
+          erroDe(
+            sql`select vies_registar(${String(usado["id"]).slice(4)}::uuid, 'PT', ${nif},
+                null, null, now(), now(), 'valido', null, null, 'RUI', 'Rua', 'revalidacao')`.execute(
+              trx,
+            ),
+          ),
+        "sistema:vies",
+      ),
+    ).toMatch(/^customers\.invalid_transition:/);
     expect(
       await ok(pedir("GET", `/billing-profiles/${String(usado["id"])}`)),
     ).toMatchObject({
@@ -421,9 +513,14 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     expect(rasto).toContain(nif);
   });
 
-  it("as recusas só se abrem dentro da pseudonimização: nem a API nem o superutilizador com a bandeira", async () => {
+  it("as recusas só se abrem dentro da pseudonimização: nem a API nem o superutilizador, nem com a bandeira nem com a marca", async () => {
     const id = await ficha({ nome: "Bia" });
     await declarar(id);
+    await perfil(id, { tipo: "particular", nome_documento: "Bia" });
+    const segundo = await perfil(id, {
+      tipo: "particular",
+      nome_documento: "Bia 2",
+    });
     const x = await ficha({ nome: "X" });
     await ok(
       pedir("POST", `/customers/${x}/merge`, { absorver: id, ensaio: false }),
@@ -446,9 +543,44 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       );
     });
     expect(pelaApi).toMatch(/^customers\.invalid_transition:/);
-    // O superutilizador, com a bandeira, não apaga a prova.
+    // A API com o parâmetro antigo e uma função do dono que escreve num
+    // perfil: o parâmetro já não abre nada (revisão do #314, P2-1).
+    const comFuncaoDoDono = await base.api
+      .transaction()
+      .execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+          trx,
+        );
+        await sql`select set_config('eurolify.quem', 'chave:key_x', true)`.execute(
+          trx,
+        );
+        await sql`select set_config('eurolify.pseudonimizar', 'sim', true)`.execute(
+          trx,
+        );
+        return erroDe(
+          sql`select perfil_tornar_principal(${String(segundo["id"]).slice(4)}::uuid)`.execute(
+            trx,
+          ),
+        );
+      });
+    expect(comFuncaoDoDono).toMatch(/^customers\.invalid_transition:/);
+    // A API não escreve a marca, nem regista um pedido à escolha (P2-2).
+    for (const consulta of [
+      sql`insert into pseudonimizacao_em_curso values (pg_current_xact_id())`,
+      sql`select pedido_titular_registar(${id.slice(4)}::uuid, 'apagamento', 'x', '{}')`,
+    ]) {
+      const recusada = await base.api.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+          trx,
+        );
+        return erroDe(consulta.execute(trx));
+      });
+      expect(recusada).toMatch(/permission denied/);
+    }
+    // O superutilizador, com a marca da transacção, não apaga a prova: não
+    // é o dono das tabelas.
     const superu = await comoDono(async (trx) => {
-      await sql`select set_config('eurolify.pseudonimizar', 'sim', true)`.execute(
+      await sql`insert into pseudonimizacao_em_curso values (pg_current_xact_id())`.execute(
         trx,
       );
       return erroDe(
@@ -542,5 +674,119 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     expect((fichas[0]?.["consentimentos"] as Json[]).length).toBe(1);
     expect((fichas[0]?.["perfis_de_faturacao"] as Json[]).length).toBe(1);
     expect(e["pedidos_do_titular"] as Json[]).toHaveLength(1);
+    expect(fichas[0]).toHaveProperty("linhas_das_encomendas");
+    expect(fichas[0]).toHaveProperty("pagamentos");
+    expect(fichas[0]).toHaveProperty("candidatos_a_duplicado");
+    // A ficha fundida não se exporta sozinha: pede-se pela que ficou (P3-3).
+    await recusa(
+      pedir("POST", `/customers/${antiga}/export`, { verificacao }),
+      409,
+      "customers.invalid_transition",
+    );
+  });
+
+  it("a exportação não fica guardada na idempotência: repetir a chave dá o id do pedido, sem os dados (revisão do #314, P2-5)", async () => {
+    const u = unico();
+    const id = await ficha({ nome: `Eva ${u}`, emails: [`e.${u}@ex.pt`] });
+    const chave = randomUUID();
+    const exportar = () =>
+      app.inject({
+        method: "POST",
+        url: `/customers/${id}/export`,
+        headers: {
+          authorization: `Bearer ${dono}`,
+          "idempotency-key": chave,
+          "content-type": "application/json",
+        },
+        payload: JSON.stringify({ verificacao }),
+      });
+    const primeira = await ok(exportar());
+    expect(JSON.stringify(primeira)).toContain(`e.${u}@ex.pt`);
+    const repetida = await exportar();
+    expect(repetida.statusCode, repetida.body).toBe(409);
+    expect(repetida.json<Json>()["codigo"]).toBe(
+      "idempotency.response_not_kept",
+    );
+    expect(repetida.body).toContain(String(primeira["pedido"]));
+    const guardada = await base.dono.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{
+          resposta_corpo: unknown;
+        }>`select resposta_corpo from idempotencia
+          where comerciante_id = ${a}::uuid and chave = ${chave}`.execute(trx)
+      ).rows;
+    });
+    expect(guardada).toHaveLength(1);
+    expect(JSON.stringify(guardada)).not.toContain(u);
+    // Uma só exportação registada.
+    const pedidos = (
+      await ok(pedir("GET", `/customers/${id}/privacy-requests`))
+    )["dados"] as Json[];
+    expect(pedidos).toHaveLength(1);
+  });
+
+  it("uma fusão ao mesmo tempo que o apagamento: a ficha absorvida também fica sem dados (revisão do #314, P1-2)", async () => {
+    const u = unico();
+    const fica = await ficha({ nome: `Gil ${u}`, emails: [`g.${u}@ex.pt`] });
+    const absorve = await ficha({ nome: `G. ${u}`, emails: [`g2.${u}@ex.pt`] });
+    const emA = async (trx: Transaction<BaseDados>) => {
+      await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+        trx,
+      );
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+    };
+    let soltar = () => {};
+    const fusaoAberta = new Promise<void>((r) => {
+      soltar = r;
+    });
+    let fusaoTomou = () => {};
+    const tomou = new Promise<void>((r) => {
+      fusaoTomou = r;
+    });
+    // A fusão toma as duas fichas e fica à espera, sem confirmar. As duas
+    // pela API (duas ligações); a do dono fica para ver quem espera.
+    const fusao = base.api.transaction().execute(async (trx) => {
+      await emA(trx);
+      await sql`select cliente_fundir(${fica.slice(4)}::uuid, ${absorve.slice(4)}::uuid, false)`.execute(
+        trx,
+      );
+      fusaoTomou();
+      await fusaoAberta;
+    });
+    await tomou;
+    // O apagamento começa e espera pela ficha.
+    const apagamento = base.api.transaction().execute(async (trx) => {
+      await emA(trx);
+      return (
+        await sql<{
+          r: Json;
+        }>`select cliente_pseudonimizar(${fica.slice(4)}::uuid,
+            ${`pseudonimizar ${fica}`}, 'teste') as r`.execute(trx)
+      ).rows[0]?.r;
+    });
+    // Espera até o apagamento estar mesmo à espera do bloqueio.
+    for (let i = 0; i < 100; i++) {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from pg_stat_activity
+        where wait_event_type = 'Lock' and query like '%cliente_pseudonimizar%'`.execute(
+        base.dono,
+      );
+      if ((rows[0]?.n ?? 0) > 0) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    soltar();
+    await fusao;
+    const r = await apagamento;
+    expect(r).toMatchObject({ fichas: 2 });
+    expect(await ok(pedir("GET", `/customers/${absorve}`))).toMatchObject({
+      nome: "Pseudonimizado",
+      emails: [],
+      estado: "fundido",
+    });
   });
 });
