@@ -1,12 +1,14 @@
 # A imagem da base de dados do ensaio trocada (10/10/2026)
 
 Decisão do Diogo, 10/10/2026: *«sim, troca hoje às 23:00»*, corrigida logo a
-seguir para *«não, troca agora»*. A vigilância das imagens (#308, `docs/06`
-DH) encontrou uma reconstrução da `postgres:18.6`.
+seguir para *«não, troca agora»*, na sessão do Claude Code
+https://claude.ai/code/session_01P2HbURVqRS19Rd9LY9zFNL. A descrição do
+[#316](https://github.com/HNFerramentasHitNails/Eurolify/pull/316) cita-a. A vigilância das imagens (#308, `docs/06` DH)
+encontrou uma reconstrução da `postgres:18.6`.
 
 ## O que se fez
 
-- **#316** (squash `2affa06`): o `preparar.sh` passou a saber trocar a imagem
+- **[#316](https://github.com/HNFerramentasHitNails/Eurolify/pull/316)** (squash `2affa06`): o `preparar.sh` passou a saber trocar a imagem
   da base, só com a autorização `TROCAR_POSTGRES_PARA` no `ensaio.conf`, igual
   a `IMAGEM_POSTGRES`. Fá-lo pela ordem:
   1. fora do horário de trabalho;
@@ -19,19 +21,27 @@ DH) encontrou uma reconstrução da `postgres:18.6`.
      antigo;
   8. reiniciar a API.
 
-  Duas revisões de agente (Sonnet 5.5) publicadas e tratadas no pedido.
-- **Na VPS**, fluxo `aplicar-script`, corrida 38070435075 (com êxito). O
-  registo diz:
+  Revisão de agente (Sonnet 5.5) publicada e tratada no pedido:
+  [a revisão](https://github.com/HNFerramentasHitNails/Eurolify/pull/316#issuecomment-6099957631) e
+  [o que se fez com ela](https://github.com/HNFerramentasHitNails/Eurolify/pull/316#issuecomment-6099977768).
+- **Na VPS**, fluxo `aplicar-script`,
+  [corrida 38070435075](https://github.com/HNFerramentasHitNails/Eurolify/actions/runs/38070435075), com êxito. O registo
+  diz:
   - `a fazer: trocar a imagem do eurolify-postgres para mirror.gcr.io/library/postgres:18.6@sha256:74935e72… (cópia antes; era postgres:18.6@sha256:5a5a84b1…)`
   - `cópia da base feita`
   - `a base responde com mirror.gcr.io/library/postgres:18.6@sha256:74935e72…`
   - `a fazer: reiniciar o eurolify-api depois da troca da base`
   - um aviso: `o Hub não respondeu como devia: /entrar 200, /hub/me 502 (esperava 401)`. Foi a verificação feita durante o reinício da API (ver os números).
 - **Este pedido** tira o `TROCAR_POSTGRES_PARA` do `ensaio.conf`: deixado,
-  a próxima mudança das duas linhas trocava a base sem decisão nova (revisão
-  do #316, P3-2).
+  a próxima mudança das duas linhas trocava a base sem decisão nova
+  ([revisão do #316](https://github.com/HNFerramentasHitNails/Eurolify/pull/316#issuecomment-6099957631), P3-2). O
+  mecanismo fica no `preparar.sh` de propósito, para uma troca futura com uma
+  decisão nova.
 
 ## Números (com data e como se contaram)
+
+Medidos pelo Claude nesta sessão (ligação acima), neste contentor, com
+`docker` e `curl`. O registo da corrida está na ligação da corrida.
 
 - **O que mudou na imagem.** Comparação pacote a pacote (`dpkg-query`) das
   duas imagens, 10/10/2026:
