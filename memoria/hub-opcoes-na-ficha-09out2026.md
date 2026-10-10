@@ -21,7 +21,7 @@
 - No ensaio: a corrida 38005027628 acabou bem às 23:40 UTC; o
   hub.eurolify.eu serve `index-BwR79n2G.js` (igual ao build local) e
   `GET /hub/products/…/options` sem sessão dá 401.
-- Capturas na página de aprovação (versão 10). Falta o OK do aspecto.
+- Capturas na página de aprovação (versão 10); aspecto aprovado pelo Diogo a 10/10/2026 («sim», à pergunta sobre os três ecrãs da página de aprovação, versão 12).
 
 ## Números (com data e como se contaram)
 
