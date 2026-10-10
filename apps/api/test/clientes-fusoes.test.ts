@@ -581,6 +581,40 @@ describe.skipIf(URL_BASE === undefined)("duplicados e fusões", () => {
     expect((await regua(z))["email"]).toBe(true);
   });
 
+  it("fusões encadeadas: uma declaração numa ficha do meio só cobre as que já lá estavam; a API não mexe na hora da fusão", async () => {
+    // x retirou; y aceitou antes de receber x: não (o «não» de x vence).
+    const x = await ficha({ nome: "X" });
+    const y = await ficha({ nome: "Y" });
+    const z = await ficha({ nome: "Z" });
+    await declarar(x, "retirou");
+    await declarar(y, "aceitou");
+    await ok(fundir(y, x));
+    expect((await regua(y))["email"]).toBe(false);
+    // y aceita depois de receber x: cobre x. Depois y entra em z.
+    await declarar(y, "aceitou");
+    expect((await regua(y))["email"]).toBe(true);
+    await ok(fundir(z, y));
+    expect((await regua(z))["email"]).toBe(true);
+    // Um «não» de z, antes de qualquer fusão nela, não existe; um «não»
+    // dado agora em z cobre as três.
+    await declarar(z, "retirou");
+    expect((await regua(z))["email"]).toBe(false);
+    // A hora da fusão: a API não a escreve.
+    const pelaApi = await base.api.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+        trx,
+      );
+      return sql`update cliente set fundido_quando = now()
+          where id = ${x.slice(4)}::uuid`
+        .execute(trx)
+        .then(
+          () => "passou",
+          (e: unknown) => (e as Error).message,
+        );
+    });
+    expect(pelaApi).toMatch(/permission denied/);
+  });
+
   it("as recusas: a mesma ficha, contactos a mais, sem customers:merge, um processo de sistema", async () => {
     const x = await ficha({ nome: "X" });
     await recusa(fundir(x, x), 422, "customers.merge_same");

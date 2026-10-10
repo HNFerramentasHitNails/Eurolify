@@ -575,7 +575,7 @@ const ReguaMarketing = Type.Object(
   { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
   {
     description:
-      "A régua única por canal (pode_receber_marketing, migração 0042): só as declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não",
+      "A régua única por canal (pode_receber_marketing, migrações 0042 e 0051): só as declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não. Numa ficha com fusões, o «não» de qualquer das fichas vence um «sim» de outra; uma declaração feita na ficha fundida depois da fusão vale para todas (docs/23 §3.7)",
   },
 );
 

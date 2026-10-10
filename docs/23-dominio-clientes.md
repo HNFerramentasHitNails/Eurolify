@@ -197,7 +197,8 @@ Uma linha por declaração; **não se altera nem se apaga** (é a prova).
 
 **A régua única** `pode_receber_marketing(cliente, canal)`, numa função na
 base: contam só as declarações explícitas; vale a mais recente; empate ⇒ não;
-sem nenhuma ⇒ não; WhatsApp sem fonte ⇒ não; ficha `limitado` ⇒ não. É a
+sem nenhuma ⇒ não; WhatsApp sem fonte ⇒ não; ficha `limitado` ⇒ não. Numa
+ficha com fusões, o «não» de qualquer das fichas vence (§3.7; `docs/06`, DH). É a
 régua que os sistemas actuais construíram a 29/09/2026 (`eu-gdpr-privacy`,
 regra 4 — **M**, medida no repositório `claude`, não neste). Notificações,
 exportações e IAs perguntam a esta função; nenhuma conta consentimentos por
@@ -239,6 +240,10 @@ si.
   consentimento por endereço o permite **não verifiquei**; jurista, com a V4).
   O ensaio mostra a régua antes e depois (revisão do #298, P2-1); a lista dos
   consentimentos mostra as declarações do grupo inteiro, o porquê do valor.
+  **Por fazer** (revisão do #325): a fusão que muda a régua não emite
+  `consent.changed` (só `customer.merged`; vem da 0046), e nada diz qual
+  declaração decidiu cada canal; a skill `eu-gdpr-privacy` (regra 4) ainda
+  não fala de fusões e muda-se só com o OK do Diogo ou do Bruno.
 - As encomendas e os documentos **não mudam**: ficam na ficha absorvida, com o
   perfil que tinham.
 - **Sem desfazer** na Fase 1: antes de fundir, a API mostra o que vai mudar
@@ -508,7 +513,7 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 | o consentimento (`consentimento`, `cns_`): uma linha por declaração, `aceitou` ou `retirou`, com o canal, a finalidade (só `marketing`), o texto, a versão e onde; não se altera nem se apaga, nem pelo dono da base | migração 0042 |
 | a hora e quem registou, postos pela base (`declarado_em`, `quem`); sem `eurolify.quem` recusa; só numa ficha activa (uma ficha limitada aceita, para retirar não ficar mais difícil) | migração 0042 |
 | as declarações da mesma ficha entram uma de cada vez (a ficha fica tomada) e a hora é a do relógio quando entram, sempre depois da última da ficha, mesmo que o relógio recue (revisão do #289, P2-1): a mais recente é a última que entrou | migração 0042 |
-| a régua única `pode_receber_marketing(cliente, canal)`: só declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não; dá sempre verdadeiro ou falso, nunca nulo | migração 0042 |
+| a régua única `pode_receber_marketing(cliente, canal)`: só declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não; dá sempre verdadeiro ou falso, nunca nulo. Numa ficha com fusões, a regra do §3.7 (DH; migração 0051) | migração 0042 |
 | o evento `consent.changed` com o cliente, o canal, a finalidade e o resultado da régua, sem o texto nem o «onde» (R12); as declarações na linha do tempo | migração 0042 |
 | `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações por páginas e a régua por canal em todas | `src/clientes/rotas.ts` |
 | 18 testes; as mutações da régua e dos gatilhos todas apanhadas, salvo trocar o relógio pela hora do início da transacção, que depois da P2-1 dá a mesma ordem | `test/clientes-consentimentos.test.ts` |
