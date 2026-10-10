@@ -33,6 +33,10 @@
 - Uma verificação antiga da passagem («Editar a variante», num artigo
   activo) contava os textos antes de a variante chegar; passou a esperar
   por ela (só no teste).
+- Juntado a 10/10/2026 (`365c348`, squash do #341). No ensaio desde as
+  22:48 UTC: o `publicar` 38092178418 verde; o hub.eurolify.eu serve
+  `index-DRSnBC3t.js`, igual à construção local do `main`; um `PUT` a
+  `/hub/price-lists/{id}/prices/{variante}` sem sessão dá 403.
 - Sem alteração à VPS: o nginx já deixa passar o `PUT` e o `DELETE` em
   `/hub/` (`infra/vps/ficheiros/nginx-hub.conf`, `location /hub/`, sem
   limite de métodos).
@@ -50,7 +54,8 @@
 
 ## O que ficou por verificar
 
-- No ensaio: nada, ainda não está publicado.
+- No ensaio não se definiu um preço real; só a rota (403 sem sessão) e o
+  ficheiro servido.
 - Leitores de ecrã reais; moedas da UE com outras casas que não duas.
 - Risco que fica: outra pessoa grava exactamente o mesmo preço no instante
   em que a resposta se perde — o ecrã dá-o como seu.
