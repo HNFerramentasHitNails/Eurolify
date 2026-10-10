@@ -361,6 +361,11 @@ decimal é **C**, abaixo).
 - **A versão:** mercados, canais e listas levam a `versao` lida, como os
   artigos; o preço não tem versão (um `PUT` substitui, e o histórico guarda
   tudo).
+  **Actualização (10/10/2026, `docs/22` §25, #335):** a base já tinha a
+  `versao` do preço (0017, sobe em cada escrita). A leitura dos preços do
+  artigo (`GET /products/{id}/prices` e a do Hub) passa a mostrá-la, e as
+  escritas pelo Hub exigem-na (409 `prices.version_conflict`). As rotas
+  pela chave continuam sem a pedir.
 
 ### 10.2 A redução anunciada (§3.6)
 
