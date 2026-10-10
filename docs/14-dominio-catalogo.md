@@ -1319,8 +1319,8 @@ variante não tem `versao` para a escrita concorrente; desenha-se antes do
 código.
 
 **Alterar uma variante** (desenho de 10/10/2026, issue #301; pedido do
-Diogo: *«sim, avança com o desenho de alterar uma variante»*; **proposta,
-por aprovar**). Com `catalog:write` e a `Idempotency-Key`:
+Diogo: *«sim, avança com o desenho de alterar uma variante»*; **aprovado
+pelo Diogo a 10/10/2026**: *«sim, aprovo o desenho, junta o #302»*). Com `catalog:write` e a `Idempotency-Key`:
 `PATCH /variants/{id}`, com a `versao` lida e só os campos que mudam.
 
 | Campo | Num rascunho | Depois (activo ou arquivado o artigo) | Porquê |
@@ -1329,13 +1329,13 @@ por aprovar**). Com `catalog:write` e a `Idempotency-Key`:
 | `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | muda | muda | logística; é o que resolve `peso_em_falta`. O peso de uma variante à venda não se apaga (0019: `catalog.published_in_use`) |
 | `gtin` com `gtin_origem` | muda | muda | corrigir um código de barras é comum; vem sempre com a origem (C4) e continua único por comerciante e com o dígito de controlo (0002). Tirá-lo leva os dois a nulo |
 | `onu`, `classe_adr` | muda | muda | mercadorias perigosas: corrige-se quando se descobre (`product-compliance-eu`, **C**) |
-| `unidade_de_venda` | muda | **não muda** (proposta) | a unidade é o que se vendeu e o que a fatura diz (C3); depois de activo, uma unidade diferente é outra variante |
-| `conteudo_quantidade` com `conteudo_unidade` | muda | **não muda** (proposta) | decide o preço por unidade que o cliente viu (Dir. 98/6/CE, **W**); mudá-lo depois de vendido mudava o preço por unidade de encomendas passadas; outro conteúdo é outra variante |
+| `unidade_de_venda` | muda | **não muda** | a unidade é o que se vendeu e o que a fatura diz (C3); depois de activo, uma unidade diferente é outra variante |
+| `conteudo_quantidade` com `conteudo_unidade` | muda | **não muda** | decide o preço por unidade que o cliente viu (Dir. 98/6/CE, **W**); mudá-lo depois de vendido mudava o preço por unidade de encomendas passadas; outro conteúdo é outra variante |
 | `posicao` | muda | muda | só a ordem na ficha |
 | `estado` | — | — | arquivar é `POST /variants/{id}/archive` (final, C6); uma variante arquivada não muda (0002: `catalog.variant_archived_is_final`) |
 | valores das opções | `PUT /variants/{id}/values` | não mudam | §3.3 e «A escrita das opções» |
 
-- **A `versao` da variante** (proposta): a tabela `variante` ganha `versao`,
+- **A `versao` da variante**: a tabela `variante` ganha `versao`,
   que nasce a 1 e sobe com cada mudança (como o artigo e a media); uma
   versão antiga dá `catalog.version_conflict` e nada se grava. Sai em
   `GET /variants/{id}`, na lista das variantes e na ficha do artigo.

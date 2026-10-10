@@ -1297,7 +1297,8 @@ Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
 ## 22. Catálogo: alterar uma variante (issue #301)
 
 Pedido do Diogo, 10/10/2026: *«sim, avança com o desenho de alterar uma
-variante»*. **Proposta, por aprovar.** A §13.1 deixou de fora «alterar uma
+variante»*. **Aprovado pelo Diogo a 10/10/2026**: *«sim, aprovo o desenho,
+junta o #302»*. A §13.1 deixou de fora «alterar uma
 variante» por não haver rota; o `docs/14` §7.1 («Alterar uma variante»)
 desenha-a. Ex.: a gestora da «Loja de Ensaio» vê na ficha do «Verniz Rosa
 2» que a publicação diz «peso em falta», carrega em «Editar» na linha da
