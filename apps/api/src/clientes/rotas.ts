@@ -59,6 +59,7 @@ import {
   obterPerfil,
   porEtiqueta,
   registarConsentimento,
+  confirmarConsentimento,
   tirarEtiqueta,
   tornarPrincipal,
   traduzir,
@@ -104,6 +105,14 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.duplicate_decided": 409,
   "customers.confirmation_required": 422,
   "customers.restricted": 409,
+  "customers.consent_contact_unknown": 422,
+  "customers.consent_confirmation_required": 409,
+  "customers.confirmation_channel": 422,
+  "customers.confirmation_invalid": 422,
+  "customers.confirmation_expired": 410,
+  "customers.confirmation_exhausted": 409,
+  "customers.confirmation_closed": 409,
+  "customers.confirmation_rate_limited": 429,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -537,6 +546,20 @@ const Consentimento = Type.Object({
   texto: Type.String({ description: "O texto mostrado ao cliente" }),
   versao_texto: Type.String(),
   onde: Type.String({ description: "A loja e o formulário, ou o Hub" }),
+  contacto: Type.Union([Type.String(), Type.Null()], {
+    description:
+      "O e-mail ou o telefone a que a declaração se refere; nulo nas declarações anteriores à 0052, que valem para os contactos da ficha onde foram dadas",
+  }),
+  via: Type.Union(
+    [Type.Literal("directa"), Type.Literal("dupla_confirmacao")],
+    {
+      description:
+        "dupla_confirmacao: um «sim» sobre uma recusa, confirmado no próprio contacto (docs/23 §14)",
+    },
+  ),
+  confirmacao: Type.Union([Type.String(), Type.Null()], {
+    description: "O pedido de confirmação que deu esta declaração (ccf_…)",
+  }),
   declarado_em: Instante,
   quem: Type.String({
     description: "Quem registou: chave:key_…, pessoa:per_… ou sistema:<tarefa>",
@@ -554,6 +577,9 @@ const paraConsentimento = (
   texto: c.texto,
   versao_texto: c.versao_texto,
   onde: c.onde,
+  contacto: c.contacto,
+  via: c.via,
+  confirmacao: c.confirmacao_id === null ? null : `ccf_${c.confirmacao_id}`,
   declarado_em: c.declarado_em.toISOString(),
   quem: c.quem,
 });
@@ -565,17 +591,50 @@ const PedidoConsentimento = Type.Object(
       description:
         "«Nunca aceitou» não se regista: é não haver declaração (eu-gdpr-privacy, regra 5)",
     }),
+    contacto: Type.String({
+      minLength: 3,
+      maxLength: 254,
+      description:
+        "O e-mail (canal email) ou o telefone (sms, whatsapp) da ficha a que a declaração se refere; o estado é por contacto (docs/23 §14)",
+    }),
     texto: Type.String({ minLength: 1, maxLength: 5000 }),
     versao_texto: Type.String({ minLength: 1, maxLength: 50 }),
     onde: Type.String({ minLength: 1, maxLength: 200 }),
   },
   { additionalProperties: false },
 );
+// Um «sim» sobre uma recusa (0052): o pedido de dupla confirmação. O segredo
+// vai só nesta resposta; o sistema do comerciante envia-o ao contacto.
+const PedidoDeConfirmacao = Type.Object({
+  confirmacao: Type.String({ description: "ccf_…" }),
+  canal: Type.Union([Type.Literal("email"), Type.Literal("sms")]),
+  contacto: Type.String(),
+  segredo: Type.String({
+    description:
+      "Para a ligação do e-mail ou o código do SMS. Só aparece nesta resposta: repetir com a mesma Idempotency-Key dá idempotency.secret_not_repeated",
+  }),
+  expira_em: Instante,
+});
+const PedidoConfirmar = Type.Object(
+  { segredo: Type.String({ minLength: 1, maxLength: 200 }) },
+  { additionalProperties: false },
+);
+const ReguaPorContacto = Type.Object(
+  {
+    email: Type.Array(Type.String()),
+    sms: Type.Array(Type.String()),
+    whatsapp: Type.Array(Type.String()),
+  },
+  {
+    description:
+      "Os contactos da ficha que podem receber marketing, por canal (0052): a pergunta exacta para quem envia",
+  },
+);
 const ReguaMarketing = Type.Object(
   { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
   {
     description:
-      "A régua única por canal (pode_receber_marketing, migração 0042): só as declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não",
+      "Por canal, se algum contacto da ficha pode receber (pode_receber_marketing, migrações 0042 e 0052). O estado é por contacto: só as declarações explícitas desse contacto, no grupo de fichas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não; ficha limitada ou não activa ⇒ não. Sobre uma recusa, um «sim» só conta depois de confirmado no contacto (docs/23 §14). Quem envia usa contactos_com_marketing",
   },
 );
 
@@ -668,7 +727,7 @@ const PlanoFusaoEsquema = Type.Object({
     { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
     {
       description:
-        "A régua da ficha que fica depois da fusão: conta as declarações das duas, e o consentimento passa a cobrir os contactos acrescentados (docs/23 §3.7)",
+        "A régua da ficha que fica depois da fusão, por contacto: cada contacto das duas fichas leva o seu estado (docs/23 §14)",
     },
   ),
 });
@@ -1389,6 +1448,7 @@ export function rotasDosClientes(
           200: Type.Object({
             ...Lista(Consentimento).properties,
             pode_receber_marketing: ReguaMarketing,
+            contactos_com_marketing: ReguaPorContacto,
           }),
           ...RESPOSTA_DE_ERRO,
         },
@@ -1407,6 +1467,7 @@ export function rotasDosClientes(
       return {
         ...comPagina(pagina, paraConsentimento),
         pode_receber_marketing: pagina.regua,
+        contactos_com_marketing: pagina.porContacto,
       };
     },
   );
@@ -1417,34 +1478,107 @@ export function rotasDosClientes(
       config: escrita,
       schema: {
         description:
-          "Regista uma declaração (aceitou ou retirou) com o texto mostrado, a versão e onde; a hora e quem regista põe-nos o servidor. Não se altera nem se apaga: uma mudança é uma declaração nova. Só numa ficha activa.",
+          "Regista uma declaração (aceitou ou retirou) de um contacto da ficha, com o texto mostrado, a versão e onde; a hora e quem regista põe-nos o servidor. Não se altera nem se apaga: uma mudança é uma declaração nova. Só numa ficha activa. Um «aceitou» sobre uma recusa activa desse contacto não entra: responde 202 com um pedido de dupla confirmação e o segredo, que o sistema do comerciante envia ao contacto (ligação por e-mail, código por SMS) e entrega em POST /consent-confirmations/{id}/confirm (docs/23 §14).",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdCliente),
         body: PedidoConsentimento,
-        response: { 201: Consentimento, ...RESPOSTA_DE_ERRO },
+        response: {
+          201: Consentimento,
+          202: PedidoDeConfirmacao,
+          ...RESPOSTA_DE_ERRO,
+        },
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 201, (trx, c) =>
-        emClientes(resposta, async () => {
-          const b = pedido.body;
-          const id = await registarConsentimento(
-            trx,
-            c.comercianteId,
-            semPrefixo(pedido.params.id),
-            {
-              canal: b.canal,
-              declaracao: b.declaracao,
-              texto: b.texto,
-              versao_texto: b.versao_texto,
-              onde: b.onde,
-            },
-          );
-          return paraConsentimento(
-            await obterConsentimento(trx, c.comercianteId, id),
-          );
-        }),
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        (trx, c) =>
+          emClientes(resposta, async () => {
+            const b = pedido.body;
+            const r = await registarConsentimento(
+              trx,
+              c.comercianteId,
+              semPrefixo(pedido.params.id),
+              {
+                canal: b.canal,
+                declaracao: b.declaracao,
+                contacto: b.contacto,
+                texto: b.texto,
+                versao_texto: b.versao_texto,
+                onde: b.onde,
+              },
+            );
+            if (r.tipo === "confirmacao") {
+              return {
+                confirmacao: `ccf_${r.id}`,
+                canal: b.canal,
+                contacto: r.contacto,
+                segredo: r.segredo,
+                expira_em: r.expira_em.toISOString(),
+              };
+            }
+            return paraConsentimento(
+              await obterConsentimento(trx, c.comercianteId, r.id),
+            );
+          }),
+        undefined,
+        undefined,
+        {
+          // O segredo não fica guardado na idempotência (como as chaves).
+          estado: (corpo) =>
+            typeof (corpo as { segredo?: unknown }).segredo === "string"
+              ? 202
+              : 201,
+          guardar: (corpo) =>
+            Object.fromEntries(
+              Object.entries(corpo as Record<string, unknown>).filter(
+                ([k]) => k !== "segredo",
+              ),
+            ),
+          repetir: (guardada) => {
+            if (guardada.status === 202) {
+              throw erroBase(
+                "idempotency.secret_not_repeated",
+                "o segredo da confirmação só se mostra uma vez: repita com outra Idempotency-Key, que cria outro pedido",
+              );
+            }
+            return guardada;
+          },
+        },
       ),
+  );
+
+  rotas.post(
+    "/consent-confirmations/:id/confirm",
+    {
+      config: escrita,
+      schema: {
+        description:
+          "Confirma um pedido de dupla confirmação com o que a pessoa trouxe (o segredo da ligação ou o código do SMS); regista o «sim» com o pedido como prova. Cinco tentativas erradas esgotam o pedido. Uma tentativa errada fica contada.",
+        params: ParametroId(idCom("ccf", "ccf_…")),
+        body: PedidoConfirmar,
+        response: { 201: Consentimento, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const c = chaveDo(pedido);
+      const id = await emClientes(resposta, () =>
+        confirmarConsentimento(
+          base,
+          c.comercianteId,
+          `chave:key_${c.chaveId}`,
+          semPrefixo(pedido.params.id),
+          pedido.body.segredo.trim(),
+        ),
+      );
+      const consentimento = await emClientes(resposta, () =>
+        obterConsentimento(base, c.comercianteId, id),
+      );
+      return resposta.code(201).send(paraConsentimento(consentimento));
+    },
   );
 
   // ---- Duplicados e fusões (§3.7)
