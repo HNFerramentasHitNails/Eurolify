@@ -96,6 +96,11 @@ fi
 mv /etc/eurolify/operador.env /etc/eurolify/operador.env.guardado
 caso "sem o operador.env: não escreve" nao
 mv /etc/eurolify/operador.env.guardado /etc/eurolify/operador.env
+if [[ ! -f "$falsos/copia-chamada" ]]; then
+  echo "ok: sem o operador.env, nem chega a fazer a cópia"
+else
+  falhou "sem o operador.env, fez a cópia na mesma"
+fi
 if bash "$f/sbin/eurolify-operador" "${pedido/ run:1234567/}" >/dev/null 2>&1; then
   falhou "aceitou um comerciante sem o número da execução"
 else

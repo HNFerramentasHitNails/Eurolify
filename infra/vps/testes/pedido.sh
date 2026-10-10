@@ -116,6 +116,8 @@ recusados=(
   "medir| "
   "operar|comerciante pt Europe/Lisbon Loja run:1 github:1;reboot"
   "operar|comerciante pt Europe/Lisbon Loja"
+  # Tudo certo menos o número da execução (#107; revisão do #293, P3-2).
+  "operar|comerciante pt Europe/Lisbon Loja github:1"
   "operar|chave 0 catalog:read eul_sk_abcde $h64 Nome github:1"
   "operar|comerciante pt $fuso_longo Loja run:1 github:1"
 )
