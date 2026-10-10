@@ -469,8 +469,10 @@ Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
   página, duas corridas (dois primeiros perfis; etiqueta contra lista).
 
 **Fica escrito para as partes seguintes:**
-- **Apagamento e linha do tempo (P2-4):** a `alteracao_cliente` guarda o
-  antes e o depois do nome, e-mails, telefones e NIF, e só se acrescenta. A
+- **Apagamento e linha do tempo (P2-4):** a `alteracao_cliente` guardava o
+  antes e o depois do nome, e-mails, telefones e NIF, e só se acrescenta.
+  Desde a migração 0054 guarda um marcador em vez desses valores
+  (`docs/28` §3.4). A
   pseudonimização do titular (parte 2) tem de a alcançar: uma função do dono,
   registada, que substitui esses valores nas entradas da ficha — o único
   caminho que muda o rasto.

@@ -121,7 +121,7 @@ describe.skipIf(URL_BASE === undefined)(
 
     it("o resumo é o HMAC-SHA-256 do valor com a chave da base, cortado a 8", async () => {
       const { rows } = await sql<{ interna: Buffer; resumo: string }>`
-      select interna, rasto_resumo('["x@exemplo.pt"]'::jsonb) as resumo
+      select interna, rasto_resumo(${a}::uuid, 'emails', '["x@exemplo.pt"]'::jsonb) as resumo
       from chave_do_rasto`.execute(base.dono);
       const linha = rows[0];
       if (linha === undefined) throw new Error("sem chave");
@@ -130,10 +130,115 @@ describe.skipIf(URL_BASE === undefined)(
         linha.interna.subarray(0, 32).map((b) => b ^ 0x36),
       );
       const esperado = createHmac("sha256", chave)
-        .update('["x@exemplo.pt"]')
+        .update(`${a}:emails:["x@exemplo.pt"]`)
         .digest("hex")
         .slice(0, 8);
       expect(linha.resumo).toBe(esperado);
+    });
+
+    it("uma ficha criada sem telefones fica com a lista vazia, não com um marcador (revisão do #340, P2-1)", async () => {
+      const id = await comCliente(base.api, a, async (trx) => {
+        const { id } = await trx
+          .insertInto("cliente")
+          .values({ comerciante_id: a, nome: "Sem Telefone", emails: [] })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        return id;
+      });
+      const [criado] = await linhas(id);
+      expect(criado?.campos["telefones"]).toEqual({ antes: null, depois: [] });
+      expect(criado?.campos["emails"]).toEqual({ antes: null, depois: [] });
+    });
+
+    it("o NIF, o nome e a morada do perfil, e o contacto de uma declaração, ficam marcados", async () => {
+      const id = await comCliente(base.api, a, async (trx) => {
+        const { id } = await trx
+          .insertInto("cliente")
+          .values({
+            comerciante_id: a,
+            nome: "Rui",
+            emails: ["rui@exemplo.pt"],
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        return id;
+      });
+      await comCliente(base.dono as Kysely<BaseDados>, a, async (trx) => {
+        await sql`insert into perfil_faturacao (comerciante_id, cliente_id, tipo,
+          nome_documento, nif_escrito, pais_contribuinte, nif_numero, morada_linha1,
+          morada_codigo_postal, morada_localidade, morada_pais)
+        values (${a}::uuid, ${id}::uuid, 'particular', 'Rui Faturado', 'PT263631656',
+          'PT', '263631656', 'Rua das Flores 1', '1000-001', 'Lisboa', 'PT')`.execute(
+          trx,
+        );
+        await sql`insert into consentimento (comerciante_id, cliente_id, canal,
+          declaracao, texto, versao_texto, onde, contacto)
+        values (${a}::uuid, ${id}::uuid, 'email', 'aceitou', 't', 'v1', 'x',
+          'rui@exemplo.pt')`.execute(trx);
+      });
+      const todas = await linhas(id);
+      const texto = JSON.stringify(todas);
+      for (const valor of [
+        "rui@exemplo.pt",
+        "Rui Faturado",
+        "263631656",
+        "Rua das Flores",
+        "1000-001",
+        "Lisboa",
+      ]) {
+        expect(texto, valor).not.toContain(valor);
+      }
+      const perfil = todas.find((l) => l.entidade === "perfil_faturacao");
+      expect(perfil?.campos["nif_numero"]?.depois).toEqual({
+        protegido: true,
+        resumo: expect.stringMatching(RESUMO) as string,
+      });
+      // O tipo do perfil não é pessoal: fica em claro.
+      expect(perfil?.campos["tipo"]).toEqual({
+        antes: null,
+        depois: "particular",
+      });
+      const declaracao = todas.find((l) => l.entidade === "consentimento");
+      expect(declaracao?.campos["contacto"]?.depois).toEqual({
+        protegido: true,
+        resumo: expect.stringMatching(RESUMO) as string,
+      });
+    });
+
+    it("o mesmo e-mail em dois comerciantes dá resumos diferentes (revisão do #340, P3-1)", async () => {
+      const b = await registarComerciante(base.api, {
+        nome: "Loja B",
+        lingua: "pt",
+        fuso: "Europe/Lisbon",
+      });
+      const resumos: unknown[] = [];
+      for (const c of [a, b]) {
+        const id = await comCliente(base.api, c, async (trx) => {
+          const { id } = await trx
+            .insertInto("cliente")
+            .values({
+              comerciante_id: c,
+              nome: "Mesma",
+              emails: ["mesma@exemplo.pt"],
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          return id;
+        });
+        const [criado] = await linhas(id);
+        resumos.push((criado?.campos["emails"]?.depois as Marcador).resumo);
+      }
+      expect(resumos[0]).toMatch(RESUMO);
+      expect(resumos[0]).not.toBe(resumos[1]);
+    });
+
+    it("a chave não muda nem se apaga (revisão do #340, P3-3)", async () => {
+      await expect(
+        sql`update chave_do_rasto set criada_em = now()`.execute(base.dono),
+      ).rejects.toThrow(/audit\.append_only/);
+      await expect(
+        sql`delete from chave_do_rasto`.execute(base.dono),
+      ).rejects.toThrow(/audit\.append_only/);
     });
 
     it("o nome de uma etiqueta não é sensível: a lista é por entidade", async () => {
@@ -157,8 +262,8 @@ describe.skipIf(URL_BASE === undefined)(
       for (const consulta of [
         sql`select * from chave_do_rasto`,
         sql`select * from campo_sensivel`,
-        sql`select rasto_resumo('1'::jsonb)`,
-        sql`select rasto_proteger('alteracao_cliente', 'cliente', '{}'::jsonb)`,
+        sql`select rasto_resumo(${a}::uuid, 'x', '1'::jsonb)`,
+        sql`select rasto_proteger('alteracao_cliente', ${a}::uuid, 'cliente', '{}'::jsonb)`,
       ]) {
         await expect(consulta.execute(base.api)).rejects.toThrow(
           /permission denied/,
@@ -256,6 +361,15 @@ describe.skipIf(URL_BASE === undefined)(
             .execute(),
         );
       }
+      // Uma declaração antiga, com o contacto em claro (0052).
+      await comCliente(db, A, async (trx) => {
+        const { rows } = await sql<{ id: string }>`
+        select id from cliente`.execute(trx);
+        await sql`insert into consentimento (comerciante_id, cliente_id, canal,
+          declaracao, texto, versao_texto, onde, contacto)
+        values (${A}::uuid, ${rows[0]?.id ?? ""}::uuid, 'email', 'aceitou', 't',
+          'v1', 'x', 'R@exemplo.pt')`.execute(trx);
+      });
       // Antes da 0054, o nome está em claro no rasto.
       const antes = await comCliente(db, A, async (trx) => {
         const { rows } = await sql<{ t: string }>`
@@ -272,10 +386,10 @@ describe.skipIf(URL_BASE === undefined)(
       ] as const) {
         const campos = await comCliente(db, c, async (trx) => {
           const { rows } = await sql<{ campos: Campos }>`
-          select campos from alteracao_cliente`.execute(trx);
+          select campos from alteracao_cliente order by id`.execute(trx);
           return rows;
         });
-        expect(campos).toHaveLength(1);
+        expect(campos.length).toBeGreaterThan(0);
         const texto = JSON.stringify(campos);
         expect(texto).not.toContain(nome);
         expect(texto).not.toContain("exemplo.pt");
@@ -294,6 +408,10 @@ describe.skipIf(URL_BASE === undefined)(
       select relforcerowsecurity as forcado from pg_class
       where relname = 'alteracao_cliente'`.execute(db);
       expect(rows).toEqual([{ forcado: true }]);
+      const gatilho = await sql<{ estado: string }>`
+      select tgenabled as estado from pg_trigger
+      where tgname = 'alteracao_cliente_so_se_acrescenta'`.execute(db);
+      expect(gatilho.rows).toEqual([{ estado: "A" }]);
     });
   },
 );
