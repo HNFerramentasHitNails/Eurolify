@@ -114,10 +114,10 @@ recusados=(
   "aplicar|$h40 aplicar extra"
   "medir|x"
   "medir| "
-  "operar|comerciante pt Europe/Lisbon Loja github:1;reboot"
+  "operar|comerciante pt Europe/Lisbon Loja run:1 github:1;reboot"
   "operar|comerciante pt Europe/Lisbon Loja"
   "operar|chave 0 catalog:read eul_sk_abcde $h64 Nome github:1"
-  "operar|comerciante pt $fuso_longo Loja github:1"
+  "operar|comerciante pt $fuso_longo Loja run:1 github:1"
 )
 for caso in "${recusados[@]}"; do
   fluxo="${caso%%|*}"; texto="${caso#*|}"; mostrar="${texto//$nl/\\n}"

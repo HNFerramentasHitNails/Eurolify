@@ -382,7 +382,7 @@ if tem docker && docker inspect eurolify-postgres >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-passo "10b. Utilizadores da base: o migrador (dono), a API e a limpeza (docs/15 §5, #70, #107)"
+passo "10b. Utilizadores da base: o migrador (dono), a API, a limpeza e o operador (docs/15 §5, #70, #107)"
 # O eurolify_migrador é dono da base e das tabelas e só o contentor das
 # migrações recebe a ligação dele (migrar.env). O eurolify_api nasce aqui como a
 # migração 0001 o criaria (o migrador não tem CREATEROLE) e entra com a ligação
@@ -625,9 +625,39 @@ else
     [[ "$(pg_valor "SELECT count(*) FROM pg_authid WHERE rolname = 'eurolify_limpeza' AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolpassword IS NOT NULL)")" == 0 ]] ||
       aviso "o eurolify_limpeza tem superutilizador, CREATEROLE, CREATEDB ou palavra-passe: devia entrar só pelo contentor e só tocar na idempotência e nas funções dos prazos"
   fi
-  # Nenhum dos dois pode ignorar o RLS (docs/15 §5): se alguém lhes deu mais,
+  # O papel do comando do operador (migração 0043; revisão do #110, P3-8;
+  # #107): entra com palavra-passe pela rede, como a API, mas só chama as três
+  # portas do operador (criar um comerciante, uma chave de servidor e o
+  # convite do primeiro dono). Antes, o comando corria com o dono das tabelas
+  # (migrar.env). A ligação vai para o operador.env, que só o contentor do
+  # eurolify-operador recebe. A migração dá o EXECUTE se o papel já existir;
+  # aqui dá-se se ela correu antes dele.
+  tratar_ligacao /etc/eurolify/operador.env BASE_DADOS_URL_OPERADOR eurolify_operador
+  operador_existe="$(pg_valor "SELECT count(*) FROM pg_roles WHERE rolname = 'eurolify_operador'")"
+  if ((!MOSTRAR)) && [[ "$operador_existe" == 0 ]]; then
+    aviso "sem o papel eurolify_operador: o EXECUTE nas portas do operador fica para a próxima corrida"
+  fi
+  for f in 'comerciante_criar_pelo_operador(text,text,text,text,text)' \
+    'chave_criar(text,uuid,text,text[],text,text,text,timestamp with time zone)' \
+    'convite_criar_pelo_operador(uuid,text,text,text,text)'; do
+    if [[ "$(pg_valor "SELECT to_regprocedure('public.$f') IS NOT NULL")" != t ]]; then
+      continue
+    fi
+    if [[ "$operador_existe" == 0 ]]; then
+      if ((MOSTRAR)); then
+        echo "   FARIA: dar EXECUTE em $f ao eurolify_operador"
+        mudancas=$((mudancas + 1))
+      fi
+    elif [[ "$(pg_valor "SELECT has_function_privilege('eurolify_operador', 'public.$f', 'EXECUTE')")" == t ]]; then
+      ok "eurolify_operador chama $f"
+    else
+      fazer "dar EXECUTE em $f ao eurolify_operador" \
+        pg_valor "GRANT EXECUTE ON FUNCTION public.$f TO eurolify_operador"
+    fi
+  done
+  # Nenhum dos três pode ignorar o RLS (docs/15 §5): se alguém lhes deu mais,
   # avisa (revisão do #71, P2-3).
-  perigosos="$(pg_valor "SELECT string_agg(rolname, ', ') FROM pg_roles WHERE rolname IN ('eurolify_api', 'eurolify_migrador') AND (rolsuper OR rolbypassrls OR rolcreaterole)")"
+  perigosos="$(pg_valor "SELECT string_agg(rolname, ', ') FROM pg_roles WHERE rolname IN ('eurolify_api', 'eurolify_migrador', 'eurolify_operador') AND (rolsuper OR rolbypassrls OR rolcreaterole)")"
   [[ -z "$perigosos" ]] || aviso "superutilizador, BYPASSRLS ou CREATEROLE em: $perigosos"
 fi
 

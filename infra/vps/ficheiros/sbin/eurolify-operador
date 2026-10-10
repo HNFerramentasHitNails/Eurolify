@@ -3,14 +3,15 @@
 # eurolify-trabalho (fluxo «operar»), que já validou o pedido — aqui valida-se
 # outra vez. Cria um comerciante, uma chave de servidor dele ou o convite do
 # primeiro dono (§6.0), num contentor de uma vez com a imagem da API que está
-# no ar e a ligação do dono das tabelas (migrar.env), como as migrações. Os
-# segredos (da chave e do convite) nunca chegam aqui: só os resumos.
+# no ar e a ligação do papel eurolify_operador (operador.env), que só chama as
+# três portas do operador (migração 0043; revisão do #110, P3-8). Os segredos
+# (da chave e do convite) nunca chegam aqui: só os resumos.
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
 source /usr/local/lib/eurolify/comum.sh
 
 pedido="${1:-}"
-padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|convite [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [A-Za-z0-9_-]{1,340} dono [0-9a-f]{64} github:[0-9]{1,20})$'
+padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} run:[0-9]{1,20} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|convite [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [A-Za-z0-9_-]{1,340} dono [0-9a-f]{64} github:[0-9]{1,20})$'
 [[ ${#pedido} -le 600 && "$pedido" =~ $padrao ]] || falhar "pedido fora do formato"
 
 imagem="$(docker inspect --format '{{.Config.Image}}' eurolify-api 2>/dev/null)" ||
@@ -23,7 +24,11 @@ if [[ "$pedido" == convite\ * ]]; then
   docker run --rm --pull=never --entrypoint grep "$imagem" -q '"convite"' dist/identidade/operador.js >/dev/null 2>&1 ||
     falhar "a imagem no ar ainda não tem o convite do operador (publicar primeiro)"
 fi
-[[ -f /etc/eurolify/migrar.env ]] || falhar "falta /etc/eurolify/migrar.env (preparar.sh, passo 10b)"
+# Uma imagem de antes da 0043 liga-se com o dono das tabelas e não conhece o
+# número da execução: recusa-se antes da cópia (#107).
+docker run --rm --pull=never --entrypoint grep "$imagem" -q BASE_DADOS_URL_OPERADOR dist/operador.js >/dev/null 2>&1 ||
+  falhar "a imagem no ar ainda não tem o operador com o papel próprio (publicar primeiro)"
+[[ -f /etc/eurolify/operador.env ]] || falhar "falta /etc/eurolify/operador.env (preparar.sh, passo 10b)"
 
 # AGENTS.md, «Operar a VPS», regra 2: antes de escrever na base, uma cópia
 # DESTA execução. A unidade é oneshot: o start espera pelo fim e falha se a
@@ -41,7 +46,7 @@ echo "Cópia da base feita."
 
 # As protecções do contentor das migrações (eurolify-publicar) e mais algumas
 # (revisão do #110, P3-8).
-docker run --rm --pull=never --network eurolify --env-file /etc/eurolify/migrar.env \
+docker run --rm --pull=never --network eurolify --env-file /etc/eurolify/operador.env \
   --memory 256m --pids-limit 64 --cap-drop ALL --security-opt no-new-privileges \
   --read-only --tmpfs /tmp --no-healthcheck \
   "$imagem" node dist/operador.js "$pedido"

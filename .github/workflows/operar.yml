@@ -141,7 +141,9 @@ jobs:
               [[ "$LINGUA" =~ ^[a-z]{2}$ ]] || recusar "a língua tem duas letras minúsculas (ex.: pt)."
               [[ "$FUSO" =~ ^[A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2}$ ]] ||
                 recusar "o fuso horário é um nome IANA (ex.: Europe/Lisbon)."
-              pedido="comerciante ${LINGUA} ${FUSO} ${nome64} ${quem}"
+              # O número da execução não muda num «Re-run»: repetir
+              # devolve o mesmo comerciante (migração 0043; #107).
+              pedido="comerciante ${LINGUA} ${FUSO} ${nome64} run:${GITHUB_RUN_ID} ${quem}"
               ;;
             chave)
               nome_valido "falta o nome da chave."
