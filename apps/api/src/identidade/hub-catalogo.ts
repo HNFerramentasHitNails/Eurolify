@@ -70,8 +70,20 @@ import {
   RespostaLinhaDoTempo,
 } from "../catalogo/rotas-linha-do-tempo.js";
 import { comComerciante } from "../comerciante/repositorio.js";
-import { nomesDeCanaisEMercados } from "../precos/repositorio.js";
-import { precosDoArtigoApi, RespostaPrecosDoArtigo } from "../precos/rotas.js";
+import {
+  definirPreco,
+  nomesDeCanaisEMercados,
+  tirarPreco,
+} from "../precos/repositorio.js";
+import {
+  emPrecos,
+  ParametroPreco,
+  PedidoPreco,
+  PrecoEsquema,
+  precoNa,
+  precosDoArtigoApi,
+  RespostaPrecosDoArtigo,
+} from "../precos/rotas.js";
 import { TIPOS_DE_IMAGEM } from "../base/esquema.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { sessaoDo } from "./autenticacao.js";
@@ -373,6 +385,103 @@ export function rotasDoCatalogoNoHub(
         pedido.query,
         resposta,
       );
+    },
+  );
+
+  // Definir e tirar o preço de uma variante numa lista (docs/22 §25; issue
+  // #335): as mesmas funções do PUT e do DELETE pela chave, com a sessão de
+  // quem tem prices:write (o dono e o gestor) e o preço `lido` (a versão e
+  // o definido_em; null: a variante não tinha preço nesta lista). Também
+  // num artigo externo (Q1).
+  const PrecoLidoEsquema = Type.Object(
+    {
+      versao: Type.Integer({ minimum: 1 }),
+      definido_em: Type.String({
+        format: "date-time",
+        description: "O `definido_em` do preço, como a leitura o deu",
+      }),
+    },
+    { additionalProperties: false },
+  );
+  const CorpoPrecoNoHub = Type.Object(
+    {
+      ...PedidoPreco.properties,
+      lido: Type.Union([PrecoLidoEsquema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  );
+  const CorpoTirarPreco = Type.Object(
+    { lido: PrecoLidoEsquema },
+    { additionalProperties: false },
+  );
+
+  rotas.put(
+    "/hub/price-lists/:id/prices/:variante",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Define o preço de uma variante numa lista pelo Hub: a mesma escrita do PUT /price-lists/{id}/prices/{variante}, sobre o preço `lido` (a versão e o definido_em; null quando não havia preço), com a sessão de quem tem prices:write (docs/22 §25.2). Outro preço guardado dá 409 prices.version_conflict.",
+        params: ParametroPreco,
+        body: CorpoPrecoNoHub,
+        response: { 200: PrecoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverPrecoNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId, quem) => {
+          const listaId = semPrefixo(pedido.params.id);
+          const varianteId = semPrefixo(pedido.params.variante);
+          const { lido, ...dados } = pedido.body;
+          await definirPreco(
+            trx,
+            comercianteId,
+            quem,
+            listaId,
+            varianteId,
+            dados,
+            lido,
+          );
+          return precoNa(trx, comercianteId, listaId, varianteId);
+        },
+      ),
+  );
+
+  rotas.delete(
+    "/hub/price-lists/:id/prices/:variante",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Tira o preço de uma variante de uma lista pelo Hub: a mesma escrita do DELETE /price-lists/{id}/prices/{variante}, sobre o preço `lido` (no corpo, como as outras escritas do Hub), com a sessão de quem tem prices:write (docs/22 §25.2). Sem preço, ou com outro guardado, 409 prices.version_conflict.",
+        params: ParametroPreco,
+        body: CorpoTirarPreco,
+        response: {
+          204: Type.Null({ description: "Tirado; sem corpo" }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      await escreverPrecoNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId, quem) => {
+          await tirarPreco(
+            trx,
+            comercianteId,
+            quem,
+            semPrefixo(pedido.params.id),
+            semPrefixo(pedido.params.variante),
+            pedido.body.lido,
+          );
+        },
+      );
+      return resposta.code(204).send(null);
     },
   );
 
@@ -1101,6 +1210,37 @@ async function escreverNoHub<T>(
       );
       return fn(trx, comercianteId);
     }),
+  );
+}
+
+/**
+ * Uma escrita de Preços pelo Hub (docs/22 §25.2): só com prices:write (o
+ * dono e o gestor), na transacção do comerciante da sessão, com o «quem» da
+ * pessoa. O prazo de espera pelos bloqueios põe-no o `noDominio` de Preços
+ * (5 s, depois prices.retry).
+ */
+async function escreverPrecoNoHub<T>(
+  base: Kysely<BaseDados>,
+  pedido: FastifyRequest,
+  resposta: FastifyReply,
+  fn: (
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    quem: string,
+  ) => Promise<T>,
+): Promise<T> {
+  const sessao = sessaoDo(pedido);
+  if (!sessao.ambitos.includes("prices:write")) {
+    throw erroConta("member.role_escalation", "o papel não escreve preços");
+  }
+  const comercianteId = sessao.comercianteId;
+  if (comercianteId === null) {
+    throw new Error("rota com comerciante sem o comerciante da sessão");
+  }
+  void resposta.header("cache-control", "private, no-store");
+  const quem = `pessoa:per_${sessao.pessoaId}`;
+  return emPrecos(resposta, () =>
+    comComerciante(base, comercianteId, (trx) => fn(trx, comercianteId, quem)),
   );
 }
 

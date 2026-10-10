@@ -1625,7 +1625,7 @@ export interface TabelaDocumentoRasto extends ColunasDoRasto {
   em: ColumnType<Date, never, never>;
 }
 
-// Pós-venda (migração 0054; docs/30).
+// Pós-venda (migração 0056; docs/30).
 
 export const ESTADOS_ARTIGO_DEVOLVIDO = [
   "revendavel",

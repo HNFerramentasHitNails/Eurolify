@@ -11,7 +11,8 @@
 >
 > Número: era o `docs/29` até 10/10/2026; passou a 30 quando os documentos
 > fiscais ficaram com o 29 (#332). A migração passou de 0051 a 0054 (a 0051
-> e a 0053 são do rasto, #327 e #334; a 0052 dos consentimentos, #330).
+> e a 0053 são do rasto, #327 e #334; a 0052 dos consentimentos, #330) e
+> depois a 0056 (a 0054 é do rasto, #340; a 0055 dos anexos da isenção, #338).
 >
 > Skills seguidas: `consumer-rights-eu` (botão de livre resolução, prazo,
 > excepções, reembolso, nota de crédito; consumidor ou profissional por
@@ -300,17 +301,17 @@ reembolsa por API; se não, o reembolso é manual.
 - **Parte 2:** o reembolso pelo adaptador (EuPago, depois de lida a documentação).
 - Cada parte num pedido, com os testes verdes e a revisão do agente antes de juntar (ADR-0031, ADR-0035).
 
-## 12. Em código — parte 1 (10/10/2026; migração 0054; `docs/06`, DM)
+## 12. Em código — parte 1 (10/10/2026; migração 0056; `docs/06`, DM)
 
 | O quê | Onde |
 |---|---|
-| `pedido_livre_resolucao` e as linhas, `devolucao` e as linhas, `problema`, `reembolso` e as linhas, com os estados da §4 garantidos pela base, RLS forçado e eventos `withdrawal.*`, `return.*`, `problem.*`, `refund.*` | migração 0054 |
-| o movimento `devolucao` no livro do stock (aumenta o físico, com o lote da saída, pela composição congelada da linha) | migração 0054; `src/posvenda/repositorio.ts` |
-| a encomenda `cancelada` (paga, sem expedição; liberta as reservas) e `devolvida_parcial` / `devolvida` (pelo reembolsado nas devoluções, só depois de entregue) | migração 0054 |
-| R1 e R5 na base: um reembolso só nasce de uma devolução, de um problema ou do cancelamento, e ao sair do rascunho a soma das linhas é o montante, nenhuma linha passa o que se pagou por ela e o total não passa o pagamento | migração 0054 |
-| a NC no domínio dos documentos: `nota_credito_pedir` ao decidir o reembolso (só se a encomenda tem fatura do Eurolify), as linhas e a proporção base/IVA da fatura (R8), os motivos `original_por_emitir`, `credito_acima_do_saldo` e `encomenda_reembolsada` (C2), a fatura com as NC e o saldo | migração 0054; `src/faturacao/` |
+| `pedido_livre_resolucao` e as linhas, `devolucao` e as linhas, `problema`, `reembolso` e as linhas, com os estados da §4 garantidos pela base, RLS forçado e eventos `withdrawal.*`, `return.*`, `problem.*`, `refund.*` | migração 0056 |
+| o movimento `devolucao` no livro do stock (aumenta o físico, com o lote da saída, pela composição congelada da linha) | migração 0056; `src/posvenda/repositorio.ts` |
+| a encomenda `cancelada` (paga, sem expedição; liberta as reservas) e `devolvida_parcial` / `devolvida` (pelo reembolsado nas devoluções, só depois de entregue) | migração 0056 |
+| R1 e R5 na base: um reembolso só nasce de uma devolução, de um problema ou do cancelamento, e ao sair do rascunho a soma das linhas é o montante, nenhuma linha passa o que se pagou por ela e o total não passa o pagamento | migração 0056 |
+| a NC no domínio dos documentos: `nota_credito_pedir` ao decidir o reembolso (só se a encomenda tem fatura do Eurolify), as linhas e a proporção base/IVA da fatura (R8), os motivos `original_por_emitir`, `credito_acima_do_saldo` e `encomenda_reembolsada` (C2), a fatura com as NC e o saldo | migração 0056; `src/faturacao/` |
 | o botão (`GET`/`POST /store/orders/{token}/withdrawal`) com a confirmação de recepção, e a API de Administração da §7.2 | `src/posvenda/rotas.ts` |
-| âmbitos `returns:read`, `returns:write`, `refunds:read`, `refunds:write` e os papéis da Q6 | migração 0054; `src/identidade/` |
+| âmbitos `returns:read`, `returns:write`, `refunds:read`, `refunds:write` e os papéis da Q6 | migração 0056; `src/identidade/` |
 | 16 testes pela API | `test/posvenda-api.test.ts` |
 
 **Desvios do desenho:**

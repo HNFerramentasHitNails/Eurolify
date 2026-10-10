@@ -143,7 +143,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0051_rasto_contexto",
         "0052_clientes_consentimento_por_contacto",
         "0053_rasto_colunas",
-        "0054_pos_venda",
+        "0054_rasto_sensiveis",
+        "0056_pos_venda",
       ]);
     });
 
@@ -218,6 +219,10 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           "pseudonimizacao_em_curso",
           // A fila da tarefa dos documentos fiscais (0050).
           "tarefa_documento",
+          // Os campos sensíveis do rasto e a chave do resumo (0054): só as
+          // funções do dono lhes tocam; a chave nunca sai da base.
+          "campo_sensivel",
+          "chave_do_rasto",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.
@@ -255,7 +260,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // duplicado (0046), as 10 do stock (0047), os pedidos do titular (0049),
       // as 5 dos documentos fiscais (0050), os pedidos de dupla confirmação e
       // os contactos inferidos das declarações antigas (0052) e as 7 da
-      // pós-venda (0054).
+      // pós-venda (0056).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(80);
