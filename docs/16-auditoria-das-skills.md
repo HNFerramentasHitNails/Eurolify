@@ -234,3 +234,40 @@ pedido de alteração.
 - **Código (Catálogo):** `ORIGENS_ARTIGO` passa a constante, com teste que a
   compara com a regra da base (`artigo_origem_check`). O GTIN sem emissor
   fica para quando houver Stock e leitor, como a auditoria diz.
+
+## Estado a 10/10/2026 (#283)
+
+Conferido no repositório a 10/10/2026 (`ls apps/api/migracoes`,
+`apps/api/src/base/`, `wc -c memoria/*.md`, a regra do `main` no GitHub).
+
+**Feito depois da auditoria:**
+- **Ao abrir a primeira rota:** a tabela da idempotência (migração 0012),
+  a outbox dos eventos (0021) e o limite de pedidos
+  (`apps/api/src/base/limite.ts`) estão no código.
+- **Rasto do Catálogo:** a linha do tempo do artigo (0033; `docs/06`, CU).
+- **Exportação dos dados do comerciante:** `POST /exports` (`docs/06`, CS).
+  A exportação e o apagamento do titular (clientes da loja) estão na parte 2
+  do #233, noutra sessão.
+- **Memórias acima de 35 KB:** as três (`ok-para-codigo-04out2026.md`,
+  41 909 B; `apresentacao-bruno-cila-03out2026.md`, 39 773 B;
+  `vps-operada-por-nos-03out2026.md`, 35 202 B, os mesmos tamanhos de
+  05/10/2026) já têm o resumo à cabeça (o bloco «📌 Estado a 04/10/2026»).
+  Nada a fazer.
+
+**Continua aberto, à espera de uma decisão do Diogo ou do Bruno:**
+- **RTO** (tempo para voltar) para a produção (`docs/17`, «Cópias»): o
+  ensaio de domingo mede quanto demora uma reposição; o objectivo é uma
+  decisão antes do primeiro comerciante.
+- **As acções e as imagens fixadas por resumo sem vigilância nem
+  actualização por rotina** (o fluxo `vigiar` só olha para o `pnpm audit`).
+- **«De onde» e «que IA e modelo» no rasto do Comerciante:** por desenhar.
+
+**Fechado depois:** o `segredos` (gitleaks) passou a obrigatório para juntar
+ao `main` a 10/10/2026, 12:53 UTC, gravado pelo Diogo na regra «main
+protegido»; a API do GitHub lê agora `codigo`, `script-vps`, `imagem` e
+`segredos` (`docs/06`, DG).
+
+**À espera de terceiros:**
+- `marketplace-dsa`: a marca do art. 16.º, até à resposta da G7 (jurista).
+
+**Adiado de propósito:** o GTIN sem emissor, até haver Stock e leitor.

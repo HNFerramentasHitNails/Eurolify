@@ -7,11 +7,14 @@ import { AMBITOS, type Ambito } from "./chaves.js";
 // (scripts/gerar-chave.mjs) e só manda o prefixo e o resumo. O do convite
 // também: scripts/gerar-convite.mjs, e só o resumo vem.
 //
-//   comerciante <lingua> <fuso> <nome em base64url> <quem>
+//   comerciante <lingua> <fuso> <nome em base64url> <execução> <quem>
 //   chave <comerciante uuid> <âmbitos,separados> <prefixo> <resumo> <nome em base64url> <quem>
 //   convite <comerciante uuid> <e-mail em base64url> dono <resumo> <quem>
 //
 // <quem> é `github:<número da conta>`, o operador que lançou o fluxo.
+// <execução> é `run:<número da execução do GitHub>`, que não muda quando se
+// repete a execução («Re-run»): o mesmo pedido cria o comerciante uma só vez
+// (revisão do #110, P2-2; issue #107).
 
 export type PedidoOperador =
   | {
@@ -19,6 +22,8 @@ export type PedidoOperador =
       lingua: string;
       fuso: string;
       nome: string;
+      /** `github-run:<número>`, a chave da repetição na base (0045). */
+      pedido: string;
       quem: string;
     }
   | {
@@ -93,14 +98,25 @@ export function lerPedido(linha: string): PedidoOperador {
   if (linha.length > 600) throw new Error("pedido comprido demais");
   const partes = linha.split(" ");
   const [accao] = partes;
-  if (accao === "comerciante" && partes.length === 5) {
-    const [, lingua = "", fuso = "", nome = "", quem = ""] = partes;
+  if (accao === "comerciante" && partes.length === 6) {
+    const [, lingua = "", fuso = "", nome = "", execucao = "", quem = ""] =
+      partes;
     if (!/^[a-z]{2}$/.test(lingua)) throw new Error("língua: duas letras");
     if (!/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/.test(fuso)) {
       throw new Error("fuso: nome IANA (ex.: Europe/Lisbon)");
     }
+    if (!/^run:[0-9]{1,20}$/.test(execucao)) {
+      throw new Error("execução: run:<número>");
+    }
     if (!QUEM.test(quem)) throw new Error("quem: github:<número>");
-    return { accao, lingua, fuso, nome: nomeDe(nome), quem };
+    return {
+      accao,
+      lingua,
+      fuso,
+      nome: nomeDe(nome),
+      pedido: `github-${execucao}`,
+      quem,
+    };
   }
   if (accao === "chave" && partes.length === 7) {
     const [

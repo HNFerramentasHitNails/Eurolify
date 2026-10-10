@@ -659,6 +659,7 @@ export const ENTIDADES_DO_RASTO_CLIENTE = [
   "etiqueta_cliente",
   "cliente_etiqueta",
   "consentimento",
+  "duplicado_cliente",
 ] as const;
 export type EntidadeDoRastoCliente =
   (typeof ENTIDADES_DO_RASTO_CLIENTE)[number];
@@ -697,6 +698,8 @@ export interface TabelaPerfilFaturacao {
   estado_vies: ColumnType<EstadoVies, never, never>;
   estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
   usado_em_documento: ColumnType<boolean, never, never>;
+  /** O perfil de onde veio a cópia numa fusão (migração 0046); só a fusão o põe. */
+  copiado_de: ColumnType<string | null, never, never>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
   versao: ColumnType<number, never, never>;
@@ -779,6 +782,36 @@ export interface TabelaConsentimento {
   onde: ColumnType<string, string, never>;
   declarado_em: ColumnType<Date, never, never>;
   quem: ColumnType<string, never, never>;
+}
+
+export const SINAIS_DUPLICADO = [
+  "nif_particular",
+  "email",
+  "telefone",
+] as const;
+export type SinalDuplicado = (typeof SINAIS_DUPLICADO)[number];
+export const ESTADOS_DUPLICADO = [
+  "por_decidir",
+  "descartado",
+  "fundido",
+  "fechado",
+] as const;
+export type EstadoDuplicado = (typeof ESTADOS_DUPLICADO)[number];
+
+/** Um par de fichas que talvez sejam a mesma pessoa (migração 0046); a API só lê. */
+export interface TabelaDuplicadoCliente {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_a: ColumnType<string, never, never>;
+  cliente_b: ColumnType<string, never, never>;
+  sinais: ColumnType<SinalDuplicado[], never, never>;
+  forte: ColumnType<boolean, never, never>;
+  estado: ColumnType<EstadoDuplicado, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  decidido_por: ColumnType<string | null, never, never>;
+  decidido_em: ColumnType<Date | null, never, never>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
 }
 
 export interface TabelaIsencaoManual {
@@ -972,8 +1005,17 @@ export interface TabelaSessaoCheckout {
   versao: ColumnType<number, never, never>;
 }
 
-export type EstadoEncomenda =
-  "a_aguardar_pagamento" | "paga" | "cancelada_sem_pagamento";
+export const ESTADOS_ENCOMENDA = [
+  "a_aguardar_pagamento",
+  "paga",
+  "cancelada_sem_pagamento",
+  "em_preparacao",
+  "expedida_parcial",
+  "expedida",
+  "entregue",
+  "concluida",
+] as const;
+export type EstadoEncomenda = (typeof ESTADOS_ENCOMENDA)[number];
 
 export interface TabelaEncomenda {
   id: Generated<string>;
@@ -1149,6 +1191,143 @@ export interface TabelaDiferencaPagamento {
   criada_em: ColumnType<Date, never, never>;
 }
 
+// Stock e encomendas (migração 0047; docs/27).
+export const POLITICAS_STOCK = [
+  "controla",
+  "nao_controla",
+  "vende_sem_stock",
+] as const;
+export type PoliticaStock = (typeof POLITICAS_STOCK)[number];
+export type TipoMovimento =
+  "entrada" | "reserva" | "libertacao" | "saida" | "ajuste";
+export type OrigemMovimento =
+  "encomenda" | "expedicao" | "inventario" | "importacao" | "sistema_externo";
+export const ESTADOS_EXPEDICAO = [
+  "criada",
+  "expedida",
+  "entregue",
+  "devolvida_ao_remetente",
+  "perdida",
+  "cancelada",
+] as const;
+export type EstadoExpedicao = (typeof ESTADOS_EXPEDICAO)[number];
+
+export interface TabelaArmazem {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  loja_id: ColumnType<string, string, never>;
+  nome: ColumnType<string, string, string>;
+  morada: ColumnType<unknown, string | undefined, string>;
+  estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, Date>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaPoliticaStock {
+  comerciante_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string, string, never>;
+  politica: ColumnType<PoliticaStock, PoliticaStock, PoliticaStock>;
+  exige_lote: ColumnType<boolean, boolean | undefined, boolean>;
+  actualizado_por: ColumnType<string, string, string>;
+  actualizado_em: ColumnType<Date, never, Date>;
+}
+
+export interface TabelaLinhaEncomendaFolha {
+  comerciante_id: ColumnType<string, string, never>;
+  linha_encomenda_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string, string, never>;
+  por_unidade: ColumnType<number, number, never>;
+}
+
+export interface TabelaLote {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string, string, never>;
+  numero: ColumnType<string, string, never>;
+  validade: ColumnType<string | null, string | null | undefined, never>;
+  criado_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaSaldoStock {
+  comerciante_id: ColumnType<string, never, never>;
+  armazem_id: ColumnType<string, never, never>;
+  variante_id: ColumnType<string, never, never>;
+  fisico: ColumnType<number, never, never>;
+  reservado: ColumnType<number, never, never>;
+}
+
+export interface TabelaSaldoLote {
+  comerciante_id: ColumnType<string, never, never>;
+  armazem_id: ColumnType<string, never, never>;
+  lote_id: ColumnType<string, never, never>;
+  fisico: ColumnType<number, never, never>;
+}
+
+export interface TabelaMovimentoStock {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  armazem_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string, string, never>;
+  lote_id: ColumnType<string | null, string | null | undefined, never>;
+  tipo: ColumnType<TipoMovimento, TipoMovimento, never>;
+  quantidade: ColumnType<number, number, never>;
+  origem: ColumnType<OrigemMovimento, OrigemMovimento, never>;
+  encomenda_id: ColumnType<string | null, string | null | undefined, never>;
+  expedicao_id: ColumnType<string | null, string | null | undefined, never>;
+  motivo: ColumnType<string | null, string | null | undefined, never>;
+  fisico_antes: ColumnType<number, never, never>;
+  fisico_depois: ColumnType<number, never, never>;
+  reservado_antes: ColumnType<number, never, never>;
+  reservado_depois: ColumnType<number, never, never>;
+  quem: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaExpedicao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  armazem_id: ColumnType<string, string, never>;
+  metodo_entrega: ColumnType<unknown, string, never>;
+  transportadora: ColumnType<
+    string | null,
+    string | null | undefined,
+    string | null
+  >;
+  servico: ColumnType<string | null, string | null | undefined, string | null>;
+  seguimento: ColumnType<
+    string | null,
+    string | null | undefined,
+    string | null
+  >;
+  estado: ColumnType<EstadoExpedicao, never, EstadoExpedicao>;
+  expedida_em: ColumnType<Date | null, never, never>;
+  entregue_em: ColumnType<Date | null, never, never>;
+  prova_entrega: ColumnType<string | null, never, string | null>;
+  criada_por: ColumnType<string, string, never>;
+  criada_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaLinhaExpedicao {
+  comerciante_id: ColumnType<string, string, never>;
+  expedicao_id: ColumnType<string, string, never>;
+  linha_encomenda_id: ColumnType<string, string, never>;
+  quantidade: ColumnType<number, number, never>;
+}
+
+export interface TabelaTransicaoEncomenda {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, never, never>;
+  encomenda_id: ColumnType<string, never, never>;
+  de: ColumnType<string | null, never, never>;
+  para: ColumnType<string, never, never>;
+  quem: ColumnType<string, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  em: ColumnType<Date, never, never>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -1189,6 +1368,7 @@ export interface BaseDados {
   validacao_vies: TabelaValidacaoVies;
   isencao_manual: TabelaIsencaoManual;
   consentimento: TabelaConsentimento;
+  duplicado_cliente: TabelaDuplicadoCliente;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;
@@ -1208,4 +1388,14 @@ export interface BaseDados {
   aviso_pagamento: TabelaAvisoPagamento;
   transicao_pagamento: TabelaTransicaoPagamento;
   diferenca_pagamento: TabelaDiferencaPagamento;
+  armazem: TabelaArmazem;
+  politica_stock: TabelaPoliticaStock;
+  lote: TabelaLote;
+  saldo_stock: TabelaSaldoStock;
+  saldo_lote: TabelaSaldoLote;
+  movimento_stock: TabelaMovimentoStock;
+  expedicao: TabelaExpedicao;
+  linha_expedicao: TabelaLinhaExpedicao;
+  transicao_encomenda: TabelaTransicaoEncomenda;
+  linha_encomenda_folha: TabelaLinhaEncomendaFolha;
 }

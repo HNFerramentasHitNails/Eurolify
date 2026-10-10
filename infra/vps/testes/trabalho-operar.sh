@@ -39,9 +39,11 @@ caso() { # caso <pedido> <código esperado>
   fi
 }
 
-caso "comerciante pt Europe/Lisbon $nome github:1001" 0
+caso "comerciante pt Europe/Lisbon $nome run:1234567 github:1001" 0
+# Sem o número da execução, repetir criava outro comerciante (#107).
+caso "comerciante pt Europe/Lisbon $nome github:1001" 65
 caso "chave $uuid keys:write,catalog:read eul_sk_abcde $resumo $nome github:1001" 0
-caso "comerciante pt Europe/Lisbon $nome github:1001;reboot" 65
+caso "comerciante pt Europe/Lisbon $nome run:1234567 github:1001;reboot" 65
 caso "comerciante pt Europe/Lisbon Loja de Ensaio github:1001" 65
 caso "chave $uuid keys:write eul_sk_abcde eul_sk_segredo $nome github:1001" 65
 caso "chave $uuid keys:write eul_pk_abcde $resumo $nome github:1001" 65

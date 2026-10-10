@@ -134,6 +134,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0042_clientes_consentimentos",
         "0043_catalogo_versao_da_opcao",
         "0044_pagamentos",
+        "0045_operador_papel_minimo",
+        "0046_clientes_duplicados_fusoes",
+        "0047_stock",
       ]);
     });
 
@@ -199,6 +202,10 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // os gatilhos, lêem-nas as funções do dono.
           "conta_pagamento_aviso",
           "tarefa_pagamento",
+          // Os pedidos do operador (0045): só a função do dono lhes toca.
+          "pedido_do_operador",
+          // A tarefa da conclusão das encomendas (0047).
+          "tarefa_encomenda",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.
@@ -232,10 +239,11 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // importações (0032), a linha do tempo (0033), as reduções (0036) e as
       // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
       // declaração do regime do IVA (0040), as 8 do checkout (0041), os
-      // consentimentos (0042) e as 6 dos pagamentos (0044).
+      // consentimentos (0042), as 6 dos pagamentos (0044), os candidatos a
+      // duplicado (0046) e as 10 do stock (0047).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(54);
+      ).toHaveLength(65);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

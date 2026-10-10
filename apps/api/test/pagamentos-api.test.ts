@@ -220,6 +220,10 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
           "payments:write",
           "payments:accounts",
           "payments:resolve",
+          "inventory:read",
+          "inventory:write",
+          "fulfilment:read",
+          "fulfilment:write",
         ],
       })
     ).segredo;
@@ -263,6 +267,21 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
       }),
       201,
     );
+    // O armazém da loja e 100 unidades de cada variante (docs/27).
+    const armazem = await ok(
+      adm("POST", "/warehouses", { loja: `sto_${loja}`, nome: "Armazém" }),
+      201,
+    );
+    await ok(
+      adm("POST", "/inventory/receipts", {
+        armazem: armazem["id"],
+        linhas: [
+          { variante: `var_${v1}`, quantidade: 100 },
+          { variante: `var_${v2}`, quantidade: 100 },
+        ],
+      }),
+      201,
+    );
     // A régua dos pagamentos (docs/26 §3.2): MB WAY e Multibanco numa conta
     // EuPago pronta.
     const conta = await ok(
@@ -291,6 +310,7 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
       );
     }
     return {
+      armazem: String(armazem["id"]),
       conta: String(conta["id"]),
       c,
       loja,

@@ -3,6 +3,7 @@ import {
   CANAIS_CONSENTIMENTO,
   type BaseDados,
   type CanalConsentimento,
+  type EstadoDuplicado,
 } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { ErroClientes, type CodigoErroClientes } from "./erros.js";
@@ -33,6 +34,11 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.vies_not_applicable",
   // Da 0040: o código do motivo da isenção (docs/24, Q4).
   "customers.exemption_reason_code",
+  // Da 0046: duplicados e fusões.
+  "customers.merge_same",
+  "customers.merge_by_person",
+  "customers.merge_too_many_contacts",
+  "customers.duplicate_decided",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -61,6 +67,7 @@ const TABELAS = new Set([
   "cliente_etiqueta",
   "isencao_manual",
   "consentimento",
+  "duplicado_cliente",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -1074,15 +1081,15 @@ export async function listarConsentimentos(
     if (ficha === undefined) {
       throw new ErroClientes("customers.not_found", "ficha inexistente");
     }
+    // As da ficha e as das fichas fundidas nela (migração 0046): a régua
+    // conta-as todas, e a lista mostra o que a régua conta.
+    const doGrupo = sql<boolean>`cliente_id in (select clientes_do_grupo(${clienteId}::uuid))`;
     const { n } = await trx
       .selectFrom("consentimento")
-      .where("cliente_id", "=", clienteId)
+      .where(doGrupo)
       .select((eb) => eb.fn.countAll<string>().as("n"))
       .executeTakeFirstOrThrow();
-    let q = trx
-      .selectFrom("consentimento")
-      .selectAll()
-      .where("cliente_id", "=", clienteId);
+    let q = trx.selectFrom("consentimento").selectAll().where(doGrupo);
     if (antes !== null) {
       q = q.where(
         sql<boolean>`(declarado_em, id) < (select c.declarado_em, c.id
@@ -1113,6 +1120,109 @@ export async function listarConsentimentos(
       regua,
     };
   });
+}
+
+// ------------------------------------- Duplicados e fusões (§3.7, 0046)
+
+/** Os candidatos a duplicado, os mais recentes primeiro. */
+export async function listarDuplicados(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  estado: EstadoDuplicado,
+  limite: number,
+  antes: string | null,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const { n } = await trx
+      .selectFrom("duplicado_cliente")
+      .where("estado", "=", estado)
+      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .executeTakeFirstOrThrow();
+    let q = trx
+      .selectFrom("duplicado_cliente")
+      .selectAll()
+      .where("estado", "=", estado);
+    if (antes !== null) q = q.where("id", "<", antes);
+    const linhas = await q
+      .orderBy("id", "desc")
+      .limit(limite + 1)
+      .execute();
+    const haMais = linhas.length > limite;
+    const dados = haMais ? linhas.slice(0, limite) : linhas;
+    return {
+      dados,
+      total: Number(n),
+      ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
+    };
+  });
+}
+
+export async function obterDuplicado(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+) {
+  const d = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("duplicado_cliente")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst(),
+  );
+  if (d === undefined) {
+    throw new ErroClientes("customers.not_found", "candidato inexistente");
+  }
+  return d;
+}
+
+/** Descarta um candidato; só uma pessoa ou a chave dela (a base confere). */
+export async function descartarDuplicado(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  motivo: string | null,
+): Promise<void> {
+  await noClientes(db, comercianteId, (trx) =>
+    sql`select duplicado_descartar(${id}::uuid, ${motivo})`.execute(trx),
+  );
+}
+
+/** O que a fusão muda (com `ensaio`, sem escrever), como a base o devolve. */
+export interface PlanoFusao {
+  ensaio: boolean;
+  fica: string;
+  absorvida: string;
+  emails_acrescentados: string[];
+  telefones_acrescentados: string[];
+  perfis_copiados: { de: string; para: string | null }[];
+  perfis_iguais_nao_copiados: string[];
+  isencoes_por_repor: string[];
+  etiquetas_copiadas: string[];
+  etiquetas_arquivadas_nao_copiadas: string[];
+  consentimentos_da_absorvida: number;
+  encomendas_ficam_na_absorvida: number;
+  limitado: boolean;
+  marketing_antes: Record<CanalConsentimento, boolean>;
+  marketing_depois: Record<CanalConsentimento, boolean>;
+}
+
+/** Funde `absorve` em `fica` (cliente_fundir, migração 0046). */
+export async function fundirClientes(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  fica: string,
+  absorve: string,
+  ensaio: boolean,
+): Promise<PlanoFusao> {
+  const { rows } = await noClientes(db, comercianteId, (trx) =>
+    sql<{ plano: PlanoFusao }>`
+      select cliente_fundir(${fica}::uuid, ${absorve}::uuid, ${ensaio}) as plano`.execute(
+      trx,
+    ),
+  );
+  const plano = rows[0]?.plano;
+  if (plano === undefined) throw new Error("cliente_fundir sem resposta");
+  return plano;
 }
 
 /** A consulta pedida: o perfil passa à frente da fila (revisão do #244, P1-1). */

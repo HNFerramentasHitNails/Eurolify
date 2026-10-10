@@ -192,7 +192,12 @@ export const pt = {
   recuperadoRetirar:
     "retirar as passkeys que já não tem (a do dispositivo perdido continua a valer até a retirar);",
   recuperadoCodigos: "gerar códigos de recuperação novos;",
-  recuperadoChaves: "como dono, rever as chaves de API que criou.",
+  recuperadoChaves:
+    "como dono, rever as chaves de API que criou (abaixo): se não reconhecer uma, revogue-a.",
+  recuperadoChavesTitulo: "Chaves de API que criou em «{comerciante}»",
+  recuperadoChavesExplica:
+    "Estas chaves continuam a funcionar. Se alguém usou a sua conta, pode ter criado uma; nenhuma é revogada sem a sua confirmação.",
+  recuperadoChavesNenhuma: "Não criou nenhuma chave activa neste comerciante.",
   recuperadoFechar: "Fechar o aviso",
 
   // Palavra-passe e autenticador (docs/22 §9.2).
@@ -374,6 +379,59 @@ export const pt = {
   /** Antes da linha com as opções e os valores (docs/22 §20.2). */
   artigoOpcoes: "Opções:",
   artigoOpcoesFalharam: "Não foi possível ler as opções.",
+  // Escrever as opções (docs/22 §21.3).
+  opcoesTitulo: "Editar opções",
+  opcoesValorLongo: "Cada valor tem no máximo 100 caracteres.",
+  opcoesConfirmarApagarOpcaoNenhuma:
+    "Apagar a opção {nome}? Nenhuma variante a tem. Não se desfaz.",
+  opcoesConfirmarApagarOpcaoUma:
+    "Apagar a opção {nome} tira-a da variante que a tem. Não se desfaz.",
+  opcoesMoverOpcaoDepois: "Mover a opção para depois",
+  opcoesMoverOpcaoAntes: "Mover a opção para antes",
+  artigoEditarOpcoes: "Editar opções",
+  artigoCriarOpcoes: "Criar opções",
+  opcoesSoRascunho:
+    "O nome e os valores só mudam enquanto o artigo é rascunho.",
+  opcoesSemOpcoes: "Este artigo ainda não tem opções.",
+  opcoesNome: "Nome da opção",
+  opcoesGuardarNome: "Guardar nome",
+  opcoesValoresDe: "Valores de {nome}",
+  opcoesValor: "Valor",
+  opcoesGuardar: "Guardar",
+  opcoesMoverAntes: "Mover para antes",
+  opcoesMoverDepois: "Mover para depois",
+  opcoesApagarOpcao: "Apagar a opção",
+  opcoesApagarValor: "Apagar",
+  opcoesConfirmarApagarOpcao:
+    "Apagar a opção {nome} tira-a das {n} variantes que a têm. Não se desfaz.",
+  opcoesConfirmarApagarValor:
+    "As variantes com {valor} ficam sem valor em {nome}. Não se desfaz.",
+  opcoesNovoValor: "Valor novo em {nome}",
+  opcoesAcrescentarValor: "Acrescentar valor",
+  opcoesCriar: "Criar opção",
+  opcoesNovaNome: "Nome da opção nova",
+  opcoesNovaValores: "Valores, um por linha",
+  opcoesVariantes: "Valores das variantes",
+  opcoesIncompleta:
+    "1 variante ainda sem valor numa das opções: o artigo não se activa assim.",
+  opcoesIncompletas:
+    "{n} variantes ainda sem valor numa das opções: o artigo não se activa assim.",
+  opcoesGuardarVariante: "Guardar {sku}",
+  opcoesConflito:
+    "Outra pessoa alterou esta opção entretanto. Não guardámos a sua alteração.",
+  opcoesGuardado: "Alterações guardadas.",
+  opcoesNomeVazio: "Escreva o nome.",
+  opcoesValoresVazios: "Escreva pelo menos um valor.",
+  erroOpcaoDuplicada: "Já há uma opção com este nome neste artigo.",
+  erroValorDuplicado: "Este valor já existe nesta opção.",
+  erroNaoRascunho:
+    "O artigo já não é rascunho: o nome e os valores já não mudam.",
+  erroCombinacaoRepetida:
+    "Duas variantes activas ficavam com os mesmos valores. Nada foi alterado.",
+  erroOpcoesIncompletas: "Cada variante activa leva um valor de cada opção.",
+  erroOrdemDesactualizada:
+    "As opções mudaram entretanto. A lista foi actualizada.",
+  erroOpcaoRepetida: "Uma variante só leva um valor de cada opção.",
   colunaUnidade: "Unidade de venda",
   colunaGtin: "GTIN",
   colunaConteudo: "Conteúdo",
