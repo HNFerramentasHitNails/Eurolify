@@ -132,6 +132,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0040_motor_de_iva",
         "0041_checkout",
         "0042_clientes_consentimentos",
+        "0043_clientes_duplicados_fusoes",
       ]);
     });
 
@@ -225,11 +226,11 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // publicação (0019), as duas da media (0028), as exportações (0030), as
       // importações (0032), a linha do tempo (0033), as reduções (0036) e as
       // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
-      // declaração do regime do IVA (0040), as 8 do checkout (0041) e os
-      // consentimentos (0042).
+      // declaração do regime do IVA (0040), as 8 do checkout (0041), os
+      // consentimentos (0042) e os candidatos a duplicado (0043).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(48);
+      ).toHaveLength(49);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

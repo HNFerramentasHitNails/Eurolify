@@ -656,6 +656,7 @@ export const ENTIDADES_DO_RASTO_CLIENTE = [
   "etiqueta_cliente",
   "cliente_etiqueta",
   "consentimento",
+  "duplicado_cliente",
 ] as const;
 export type EntidadeDoRastoCliente =
   (typeof ENTIDADES_DO_RASTO_CLIENTE)[number];
@@ -694,6 +695,8 @@ export interface TabelaPerfilFaturacao {
   estado_vies: ColumnType<EstadoVies, never, never>;
   estado: ColumnType<"activo" | "arquivado", never, "activo" | "arquivado">;
   usado_em_documento: ColumnType<boolean, never, never>;
+  /** O perfil de onde veio a cópia numa fusão (migração 0043); só a fusão o põe. */
+  copiado_de: ColumnType<string | null, never, never>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
   versao: ColumnType<number, never, never>;
@@ -776,6 +779,36 @@ export interface TabelaConsentimento {
   onde: ColumnType<string, string, never>;
   declarado_em: ColumnType<Date, never, never>;
   quem: ColumnType<string, never, never>;
+}
+
+export const SINAIS_DUPLICADO = [
+  "nif_particular",
+  "email",
+  "telefone",
+] as const;
+export type SinalDuplicado = (typeof SINAIS_DUPLICADO)[number];
+export const ESTADOS_DUPLICADO = [
+  "por_decidir",
+  "descartado",
+  "fundido",
+  "fechado",
+] as const;
+export type EstadoDuplicado = (typeof ESTADOS_DUPLICADO)[number];
+
+/** Um par de fichas que talvez sejam a mesma pessoa (migração 0043); a API só lê. */
+export interface TabelaDuplicadoCliente {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_a: ColumnType<string, never, never>;
+  cliente_b: ColumnType<string, never, never>;
+  sinais: ColumnType<SinalDuplicado[], never, never>;
+  forte: ColumnType<boolean, never, never>;
+  estado: ColumnType<EstadoDuplicado, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  decidido_por: ColumnType<string | null, never, never>;
+  decidido_em: ColumnType<Date | null, never, never>;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, never>;
 }
 
 export interface TabelaIsencaoManual {
@@ -1058,6 +1091,7 @@ export interface BaseDados {
   validacao_vies: TabelaValidacaoVies;
   isencao_manual: TabelaIsencaoManual;
   consentimento: TabelaConsentimento;
+  duplicado_cliente: TabelaDuplicadoCliente;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;
