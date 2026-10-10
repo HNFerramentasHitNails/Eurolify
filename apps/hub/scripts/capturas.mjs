@@ -3203,6 +3203,214 @@ try {
       doCriado.includes("criou o artigo"),
     "histórico: a edição, a imagem acrescentada e a tirada pelo Hub aparecem com a Ana",
   );
+
+  // Escrever as opções (docs/22 §21; issue #285), com a Ana (dona), no
+  // rascunho «Verniz Verde 31» (duas variantes, sem opções) e no artigo 1,
+  // activo. Com o seu endereço (limite do Hub, issue #253).
+  await enderecoNovo(rp);
+  await rp.goto(fichaVerde31);
+  await rp
+    .getByRole("heading", { name: "Verniz Verde 31", level: 1 })
+    .waitFor();
+  await rp.getByRole("link", { name: "Criar opções" }).click();
+  await rp.getByRole("heading", { name: "Editar opções", level: 1 }).waitFor();
+  await rp.getByText("Este artigo ainda não tem opções.").waitFor();
+  confere(
+    new URL(rp.url()).pathname.endsWith("/opcoes"),
+    "opções: a ficha de um rascunho sem opções leva a «Criar opções»",
+  );
+  // Criar «Tamanho» com dois valores, só com o teclado.
+  await rp.getByLabel("Nome da opção nova").focus();
+  await rp.keyboard.type("Tamanho");
+  await rp.getByLabel("Valores, um por linha").focus();
+  await rp.keyboard.type("15 ml");
+  await rp.keyboard.press("Enter");
+  await rp.keyboard.type("30 ml");
+  await rp.getByRole("button", { name: "Criar opção" }).focus();
+  await rp.keyboard.press("Enter");
+  await rp.getByRole("group", { name: "Tamanho" }).waitFor();
+  await rp
+    .getByText("2 variantes sem valor em todas as opções", { exact: false })
+    .waitFor();
+  confere(
+    (await rp
+      .getByRole("list", { name: "Valores de Tamanho" })
+      .getByRole("listitem")
+      .count()) === 2,
+    "opções: criar «Tamanho» com dois valores, só com o teclado; as duas variantes ficam por preencher",
+  );
+  // Dar «15 ml» à ENS-031 e «30 ml» à ENS-031-B.
+  for (const [sku, valor] of [
+    ["ENS-031", "15 ml"],
+    ["ENS-031-B", "30 ml"],
+  ]) {
+    await rp
+      .getByLabel(`Tamanho: ${sku}`, { exact: true })
+      .selectOption({ label: valor });
+    await rp
+      .getByRole("button", { name: `Guardar ${sku}`, exact: true })
+      .click();
+    await rp.waitForFunction(
+      () => document.activeElement?.textContent === "Alterações guardadas.",
+    );
+  }
+  await rp
+    .getByText("variante sem valor em todas as opções", { exact: false })
+    .waitFor({ state: "detached" });
+  confere(
+    (await rp.getByLabel("Tamanho: ENS-031", { exact: true }).inputValue()) !==
+      "" &&
+      (await rp
+        .getByLabel("Tamanho: ENS-031-B", { exact: true })
+        .inputValue()) !== "",
+    "opções: dar um valor a cada variante tira o aviso das variantes por preencher",
+  );
+  // Mudar o nome (rascunho), acrescentar «50 ml», passá-lo para antes do
+  // «30 ml» e apagá-lo com confirmação.
+  await rp.getByLabel("Nome da opção", { exact: true }).fill("Capacidade");
+  await rp.getByRole("button", { name: "Guardar nome" }).click();
+  await rp.getByRole("group", { name: "Capacidade" }).waitFor();
+  await rp.getByLabel("Valor novo em Capacidade").fill("50 ml");
+  await rp.getByRole("button", { name: "Acrescentar valor" }).click();
+  const valoresDe = (nome) =>
+    rp
+      .getByRole("list", { name: `Valores de ${nome}` })
+      .getByRole("listitem")
+      .evaluateAll((li) =>
+        li.map(
+          (l) =>
+            l.querySelector("input")?.value ??
+            l.querySelector(".valor-opcao")?.textContent ??
+            "",
+        ),
+      );
+  await rp.getByLabel("Valor 50 ml", { exact: true }).waitFor();
+  await rp.getByRole("button", { name: "Mover para antes: 50 ml" }).click();
+  await rp.waitForFunction(
+    () =>
+      [...document.querySelectorAll(".valores-opcao li input")]
+        .map((i) => i.value)
+        .join("|") === "15 ml|50 ml|30 ml",
+  );
+  confere(
+    (await valoresDe("Capacidade")).join("|") === "15 ml|50 ml|30 ml",
+    "opções: mudar o nome, acrescentar um valor e passá-lo para antes, num rascunho",
+  );
+  let perguntaApagar = "";
+  rp.once("dialog", (d) => {
+    perguntaApagar = d.message();
+    void d.accept();
+  });
+  await rp.getByRole("button", { name: "Apagar 50 ml", exact: true }).click();
+  await rp.getByLabel("Valor 50 ml", { exact: true }).waitFor({
+    state: "detached",
+  });
+  confere(
+    perguntaApagar ===
+      "As variantes com 50 ml ficam sem valor em Capacidade. Não se desfaz." &&
+      (await valoresDe("Capacidade")).join("|") === "15 ml|30 ml",
+    "opções: apagar um valor pergunta antes e tira-o",
+  );
+  // Um conflito: outra escrita (um fetch do mesmo navegador, como na
+  // edição do artigo) muda a opção entre ler e guardar.
+  const outraNaOpcao = await rp.evaluate(
+    async ({ c, a }) => {
+      const lista = await (
+        await fetch(`/hub/products/${a}/options?limite=100`, {
+          headers: { "eurolify-comerciante": c },
+        })
+      ).json();
+      const o = lista.dados[0];
+      const r = await fetch(`/hub/options/${o.id}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "eurolify-comerciante": c,
+        },
+        body: JSON.stringify({ nome: "Tamanho", versao: o.versao }),
+      });
+      return r.status;
+    },
+    {
+      c: `mer_${comerciante}`,
+      a: new URL(fichaVerde31).pathname.split("/")[2],
+    },
+  );
+  await rp.getByLabel("Nome da opção", { exact: true }).fill("Volume");
+  await rp.getByRole("button", { name: "Guardar nome" }).click();
+  await rp
+    .getByText("Outra pessoa alterou esta opção entretanto.", { exact: false })
+    .waitFor();
+  confere(
+    outraNaOpcao === 200 &&
+      (await rp.getByRole("group", { name: "Tamanho" }).count()) === 1 &&
+      (await rp.getByLabel("Nome da opção", { exact: true }).inputValue()) ===
+        "Volume",
+    "opções: um conflito não grava, mostra o nome guardado e deixa o que se escreveu",
+  );
+  for (const [largura, tema] of [
+    [375, "light"],
+    [768, "light"],
+    [1280, "dark"],
+  ]) {
+    await rp.setViewportSize({ width: largura, height: 900 });
+    await rp.emulateMedia({ colorScheme: tema });
+    confere(
+      !(await rp.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )),
+      `opções (editar): a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+    );
+    await rp.screenshot({
+      path: join(
+        SAIDA,
+        `artigo-opcoes-editar-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
+  // No artigo 1, activo: sem os campos do nome nem «Apagar»; acrescentar e
+  // mudar a ordem, sim.
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoDaFicha}/opcoes?comerciante=mer_${comerciante}`,
+  );
+  await rp.getByRole("group", { name: "Tamanho" }).waitFor();
+  confere(
+    (await rp
+      .getByText("O nome e os valores só mudam enquanto o artigo é rascunho.")
+      .count()) === 1 &&
+      (await rp.getByLabel("Nome da opção", { exact: true }).count()) === 0 &&
+      (await rp.getByRole("button", { name: /^Apagar/ }).count()) === 0 &&
+      (await rp.getByText("Valores das variantes").count()) === 0,
+    "opções: num artigo activo, o nome e os valores não se editam nem apagam",
+  );
+  await rp.getByLabel("Valor novo em Tamanho").fill("50 ml");
+  await rp
+    .getByRole("group", { name: "Tamanho" })
+    .getByRole("button", { name: "Acrescentar valor" })
+    .click();
+  await rp.getByRole("button", { name: "Mover para antes: 50 ml" }).waitFor();
+  await rp.getByRole("button", { name: "Mover para antes: 50 ml" }).click();
+  await rp.waitForFunction(
+    () =>
+      [
+        ...document.querySelectorAll(
+          ".opcao-editar:first-of-type .valores-opcao .valor-opcao",
+        ),
+      ]
+        .map((s) => s.textContent)
+        .join("|") === "15 ml|30 ml|50 ml|Caixa de 12",
+  );
+  confere(
+    (await valoresDe("Tamanho")).join("|") === "15 ml|30 ml|50 ml|Caixa de 12",
+    "opções: num artigo activo, acrescentar «50 ml» e passá-lo para antes da «Caixa de 12»",
+  );
+  await rp.screenshot({
+    path: join(SAIDA, "artigo-opcoes-activo-375-claro.png"),
+    fullPage: true,
+  });
   // Com a sessão terminada, o histórico vai para «Entrar».
   await rp.route("**/hub/products/*/timeline*", (pedido) =>
     pedido.fulfill({
