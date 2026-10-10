@@ -76,7 +76,10 @@ function paraApi(erro: unknown, resposta: FastifyReply): unknown {
   );
 }
 
-async function emCheckout<T>(resposta: FastifyReply, fn: () => Promise<T>) {
+export async function emCheckout<T>(
+  resposta: FastifyReply,
+  fn: () => Promise<T>,
+) {
   try {
     return await fn();
   } catch (erro) {
@@ -150,7 +153,7 @@ const IdTexto = idCom("lgt", "lgt_…");
 const IdVersao = idCom("lgv", "lgv_…");
 const IdMetodo = idCom("shm", "shm_…");
 const IdEncomenda = idCom("ord", "ord_…");
-const Token = Type.String({ pattern: "^[A-Za-z0-9_-]{43}$" });
+export const Token = Type.String({ pattern: "^[A-Za-z0-9_-]{43}$" });
 const CabecalhoCarrinho = Type.Object({
   "x-cart-secret": Type.Optional(Type.String({ maxLength: 100 })),
 });
@@ -835,7 +838,15 @@ export function rotasDoCheckout(
               paraEncomenda(await lerEncomenda(trx, s.comerciante_id, id));
             delete publica.emissor_fiscal;
             delete publica.documento;
-            return publica;
+            // O botão de livre resolução vai na confirmação (docs/30 R2 e
+            // §8; revisão do #329, P2-9): só os consumidores o usam.
+            return {
+              ...publica,
+              livre_resolucao:
+                publica.finalidade === "consumo"
+                  ? `/store/orders/${pedido.params.token}/withdrawal`
+                  : null,
+            };
           },
           { soAberta: false },
         ),

@@ -10,7 +10,8 @@
   dizer *«continuar»* à pergunta «junto o #338 quando o CI ficar verde?».
 - **A migração é a 0055** (`0055_clientes_anexos_da_isencao.sql`). Começou
   como 0053 e passou a 0054 e depois a 0055: o #334 e o #340 entraram com
-  essas. O #329 também tinha a 0054; foi avisado lá de que passa à 0056.
+  essas. O #329 também tinha a 0054; foi avisado lá de que passa à 0056, e entrou com a
+  0058 (a 0057 juntou-se primeiro, #342).
 - **O que ficou:**
   - `anexo_isencao` (`exa_`): PDF, JPEG ou PNG pela assinatura (sem
     verificação da estrutura nem antivírus), até 10 MB, 5 por isenção e
