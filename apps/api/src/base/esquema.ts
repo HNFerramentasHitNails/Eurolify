@@ -279,6 +279,9 @@ export interface TabelaVariante {
   estado: ColumnType<EstadoVariante, "activa" | undefined, "arquivada">;
   posicao: ColumnType<number, number | undefined>;
   criado_em: ColumnType<Date, never, never>;
+  // Migração 0048: sobe a cada mudança da linha; quem a sobe é o gatilho, a
+  // API só a lê e a confere.
+  versao: ColumnType<number, never, never>;
 }
 
 // Catálogo, parte 2a (migração 0004; docs/14 §3.4).

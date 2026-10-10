@@ -500,7 +500,7 @@ rotas pela chave (como na §11.1): nenhuma regra nova do catálogo nasce no Hub
 
 | Fica de fora, e porquê |
 |---|
-| **Alterar uma variante** (peso, GTIN, conteúdo, dimensões): **não há rota nem função** (`docs/14` §7.1: «Falta `PATCH /variants/{id}` … desenha-se antes do código»). É o que resolve o impedimento `peso_em_falta`. **A pedir ao dono do Catálogo (#77)**; o Hub junta-se quando existir. |
+| **Alterar uma variante** (peso, GTIN, conteúdo, dimensões): ficou de fora deste passo por não haver rota. Desde 10/10/2026 há (`PATCH /variants/{id}` e `PATCH /hub/variants/{id}`, `docs/14` §7.1, «Alterar uma variante»; #306); o ecrã é a §23. |
 | **Categoria fiscal**: a API aceita texto livre com um formato (`^[a-z][a-z0-9_]*$`), sem lista de valores; um valor escrito à mão decide o IVA. No Hub só entra como escolha de uma lista dada pelo servidor (`eu-vat-oss-ioss`; «Não se erra em documentos fiscais»). Até lá, só se lê. |
 | **Classificação** (famílias, natureza, prestação): formulário próprio, com regras **C**; desenho à parte. |
 | **Enviar imagens novas**: o nginx do Hub aceita corpos até 64 KB (`client_max_body_size 64k`) e as escritas do Hub só aceitam JSON (`docs/21` §3); uma imagem vai até 10 MB em bytes. Pede uma mudança à VPS e uma excepção à regra do JSON: desenho à parte. |

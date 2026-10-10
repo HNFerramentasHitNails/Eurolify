@@ -137,6 +137,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0045_operador_papel_minimo",
         "0046_clientes_duplicados_fusoes",
         "0047_stock",
+        "0048_catalogo_versao_da_variante",
       ]);
     });
 

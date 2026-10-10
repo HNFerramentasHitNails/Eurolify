@@ -843,7 +843,7 @@ export async function ensaiar(
                 "uma variante arquivada não muda",
               );
             }
-            await alterarVariante(trx, v.id, mudar);
+            await gravarCamposDaVariante(trx, v.id, mudar);
             await conferirJa(trx);
             const mudancas: Alteracao[] = (
               Object.keys(mudar) as CampoVariante[]
@@ -928,7 +928,7 @@ export async function ensaiar(
 }
 
 /** Muda os campos dados de uma variante (as regras são da base). */
-async function alterarVariante(
+async function gravarCamposDaVariante(
   trx: Transaction<BaseDados>,
   id: string,
   campos: Partial<Record<CampoVariante, Valor>>,
@@ -1063,7 +1063,7 @@ export async function aplicarPlano(
           throw e;
         }
       } else {
-        await alterarVariante(trx, v.id, v.campos);
+        await gravarCamposDaVariante(trx, v.id, v.campos);
       }
       variantes++;
     }
