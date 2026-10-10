@@ -1438,7 +1438,9 @@ GTIN do fornecedor e 400 g.
 ## 25. Catálogo: definir e tirar o preço de uma variante numa lista (issue #335)
 
 Pedido do Diogo, 10/10/2026 («avançar», à pergunta *«Avanço com o desenho
-de "editar os preços de uma variante" no Hub?»*). A §17 só mostra os
+de "editar os preços de uma variante" no Hub?»*). **Aprovado pelo Diogo a
+10/10/2026**, com a Q1 em «sim» (*«sim»*, à pergunta *«Aprova o desenho, e
+com a Q1 em "sim"?»*). A §17 só mostra os
 preços. Uma variante acrescentada no Hub (§24) nasce sem preço, e sem preço
 na lista base de um mercado o artigo não se publica nesse mercado
 (`docs/14` §5, C2). A API pela chave já define e tira preços
@@ -1530,11 +1532,11 @@ o servidor calculou.
 | Tirar o preço da lista base de um artigo à venda | a base recusa (`prices.published_variant`); a pergunta antes avisa o que acontece nos outros casos |
 | Uma chave ou um papel sem `prices:write` muda preços | a rota confere o âmbito da sessão; o armazém e o apoio recebem 403 (teste) |
 
-### 25.5 Por decidir
+### 25.5 Decidido
 
 **Q1. Num artigo que vem do sistema de gestão (P5), os preços editam-se no
-Hub?** A decisão da §13.3 lista só os dados do artigo e das variantes; os
-preços não estão nela. **Proposta: sim**, como as imagens. Os preços são do
+Hub?** ✅ **Decidido: sim** (Diogo, 10/10/2026, *«sim»*). A decisão da §13.3 lista só os dados do artigo e das variantes; os
+preços não estão nela. Editam-se, como as imagens. Os preços são do
 domínio de Preços e não dos dados que vêm de lá. Se o sistema de gestão
 também mandar preços pela chave, vale o último a gravar, e o histórico diz
 quem foi (`definido_por`).
