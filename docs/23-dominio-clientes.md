@@ -862,17 +862,22 @@ consentimento cai com a ficha (C7).
 - A confirmação regista uma declaração `aceitou` com `via =
   dupla_confirmacao`, a hora, o contacto e a referência do pedido: é a prova
   (C3).
-- **Quem envia a mensagem:** o domínio de Notificações está desenhado
-  (`docs/02`, linha 87), mas não existe no código, e o Eurolify ainda não tem
-  nenhum fornecedor de e-mail ou SMS. Ver Q-C1.
+- **Quem envia a mensagem: o sistema do comerciante** (Q-C1, decidida: A).
+  O Eurolify cria o pedido e devolve o segredo (a ligação ou o código) **uma
+  só vez**, na resposta ao pedido que o criou; repetir com a mesma chave de
+  idempotência não o devolve outra vez (`idempotency.secret_not_repeated`,
+  como as chaves). O sistema do comerciante envia a mensagem ao contacto e,
+  quando a pessoa clica ou escreve o código, pede ao Eurolify para confirmar;
+  o Eurolify valida. O segredo nunca vai num evento nem num registo (R12).
+  Mais tarde, o domínio de Notificações do Eurolify pode enviar ele mesmo,
+  com um fornecedor na UE (decisão escrita à parte).
 
 ### 14.4 API (proposta)
 
 | Operação | O quê |
 |---|---|
-| `POST /customers/{id}/consents` | passa a pedir `contacto`; sobre uma recusa activa responde **202** com o pedido de confirmação (`ccf_…`) e não muda a régua |
-| `POST /consent-confirmations/{token}` (API da Loja, pública) | confirma pela ligação; recusa se expirou, foi cancelada ou já usada |
-| `POST /consent-confirmations/{id}/code` (API da Loja) | confirma pelo código do SMS, com o limite de tentativas |
+| `POST /customers/{id}/consents` | passa a pedir `contacto`; sobre uma recusa activa responde **202** com o pedido de confirmação (`ccf_…`), o segredo (uma só vez) e a hora em que expira, e não muda a régua |
+| `POST /consent-confirmations/{id}/confirm` (`customers:write`) | o sistema do comerciante entrega o que a pessoa trouxe (o segredo da ligação ou o código); recusa se está errado, expirou, foi cancelado, já foi usado ou esgotou as tentativas |
 | `GET /customers/{id}/consents` | a régua por canal **e por contacto** |
 | eventos | `consent.changed` e `consent.confirmation_requested` levam só identificadores (`cus_`, `cns_`, `ccf_`, canal), **nunca** o contacto nem o segredo (R12) |
 
@@ -894,7 +899,7 @@ consentimento cai com a ficha (C7).
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q-C1 | Quem envia a ligação e o código da dupla confirmação? | **(A)** o Eurolify cria o pedido e entrega a ligação e o código ao sistema do comerciante, por um evento assinado só para ele, e é o sistema dele que envia; o Eurolify valida. Mais tarde, (B) o domínio de Notificações do Eurolify envia, com um fornecedor na UE (subcontratante novo, decisão escrita) |
+| Q-C1 | Quem envia a ligação e o código da dupla confirmação? | **Decidida (Diogo, 10/10/2026: «A»):** o sistema do comerciante; o Eurolify cria o pedido, devolve o segredo uma vez e valida |
 | Q-C2 | Os prazos (24 h, 10 min, 5 tentativas) | os acima, **proposta** |
 | Q-C3 | As declarações antigas sem contacto | as da proposta do §14.2 |
 
