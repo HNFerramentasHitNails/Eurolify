@@ -70,6 +70,9 @@ const FUNCOES_DA_API = [
   "emails_validos",
   // Os pagamentos (0044): o prazo, a máquina de estados, a porta dos avisos e as tarefas.
   "encomenda_prazo_de_pagamento",
+  // O stock e as encomendas (0047): a política e a tarefa da conclusão.
+  "encomendas_comerciantes_com_tarefas",
+  "encomendas_tarefas",
   "entrar_com_palavra_passe",
   "entrar_com_passkey",
   // Os ficheiros de imagem sem uso (0035).
@@ -122,6 +125,8 @@ const FUNCOES_DA_API = [
   "sessao_verificar",
   "sessoes_listar",
   "sessoes_terminar_todas",
+  "stock_bloquear",
+  "stock_politica",
   "telefones_validos",
   // O VIES (0039): a fila e a prova, pelas funções do dono.
   "vies_adiar",

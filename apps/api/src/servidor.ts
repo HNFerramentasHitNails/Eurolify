@@ -1,3 +1,4 @@
+import { agendarConclusoes } from "./stock/repositorio.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
@@ -128,8 +129,13 @@ const pararPagamentos =
     ? agendarTarefasPagamentos(base, pagamentos, app.log)
     : () => undefined;
 
+// As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).
+const pararConclusoes =
+  base !== undefined ? agendarConclusoes(base, app.log) : () => undefined;
+
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
+    pararConclusoes();
     pararLimpeza();
     pararVies();
     pararPagamentos();
