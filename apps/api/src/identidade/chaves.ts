@@ -30,6 +30,10 @@ export const AMBITOS = [
   "shipping:read",
   "shipping:write",
   "orders:read",
+  "payments:read",
+  "payments:write",
+  "payments:accounts",
+  "payments:resolve",
   "keys:write",
   "storefront",
 ] as const;

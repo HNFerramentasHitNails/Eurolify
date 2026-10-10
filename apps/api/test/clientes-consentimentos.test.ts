@@ -291,7 +291,7 @@ describe.skipIf(URL_BASE === undefined)(
         return regua(trx, id, "email");
       });
       expect(limitada).toBe(false);
-      // Fundida (migração 0043, revisão do #289, P2-4): a declaração pedida com
+      // Fundida (migração 0045, revisão do #289, P2-4): a declaração pedida com
       // o id antigo regista-se na ficha que ficou, e a régua dela conta as
       // duas.
       const fundida = await desfeito(a, async (trx) => {

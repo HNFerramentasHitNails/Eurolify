@@ -48,7 +48,7 @@ const FUNCOES_DA_API = [
   "chave_revogar_pela_sessao",
   // O checkout alojado (0041): do token para a sessão, sem RLS.
   "checkout_resolver",
-  // Duplicados e fusões (0043): fundir, descartar, a procura de candidatos (do
+  // Duplicados e fusões (0045): fundir, descartar, a procura de candidatos (do
   // gatilho), o grupo de fichas fundidas e a comparação dos e-mails.
   "cliente_fundir",
   "clientes_do_grupo",
@@ -68,6 +68,8 @@ const FUNCOES_DA_API = [
   // Clientes (0037): a régua do NIF e os CHECK da ficha correm com quem
   // escreve; o principal troca-se por uma função.
   "emails_validos",
+  // Os pagamentos (0044): o prazo, a máquina de estados, a porta dos avisos e as tarefas.
+  "encomenda_prazo_de_pagamento",
   "entrar_com_palavra_passe",
   "entrar_com_passkey",
   // Os ficheiros de imagem sem uso (0035).
@@ -84,6 +86,11 @@ const FUNCOES_DA_API = [
   "nif_para_procura",
   "nif_portugues_valido",
   "nif_regua",
+  "pagamento_transicao_valida",
+  "pagamentos_adiar_tarefa",
+  "pagamentos_comerciantes_com_tarefas",
+  "pagamentos_conta_do_aviso",
+  "pagamentos_tarefas",
   "pais_do_comerciante",
   "pais_do_prefixo_fiscal",
   "palavra_passe_codigo_errado",

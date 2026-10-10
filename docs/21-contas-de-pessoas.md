@@ -217,8 +217,8 @@ rotas já conferem.
 
 | Papel | Âmbitos | Notas |
 |---|---|---|
-| dono | todos, incluindo `keys:write`, `customers:read`, `customers:write`, `customers:billing` (0037), `customers:exemptions` (0039), `customers:merge` (0043), `tax:read` e `tax:write` (0040) e mudar papéis | pelo menos um activo |
-| gestor | `merchant:read`, `catalog:*` (com `catalog:history`, 0033), `prices:read`, `prices:write` (0036), `customers:read`, `customers:write` (0037; não `customers:billing`), `customers:merge` (0043), `tax:read` (0040) | não muda papéis, não cria chaves, não muda dados fiscais |
+| dono | todos, incluindo `keys:write`, `customers:read`, `customers:write`, `customers:billing` (0037), `customers:exemptions` (0039), `customers:merge` (0045), `tax:read` e `tax:write` (0040) e mudar papéis | pelo menos um activo |
+| gestor | `merchant:read`, `catalog:*` (com `catalog:history`, 0033), `prices:read`, `prices:write` (0036), `customers:read`, `customers:write` (0037; não `customers:billing`), `customers:merge` (0045), `tax:read` (0040) | não muda papéis, não cria chaves, não muda dados fiscais |
 | armazém | `catalog:read`, `prices:read` (0036; o preço de venda) (e os de stock e expedição, quando existirem) | sem preços de custo nem margens |
 | apoio | `merchant:read`, `catalog:read`, `prices:read` (0036), `customers:read`, `customers:write` (0037), `tax:read` (0040) (e os de encomendas, quando existirem) | sem preços de custo |
 
@@ -477,9 +477,10 @@ quiser (proposta).
   nada. A cadeia da §4.4 revoga só as chaves de servidor.
 - **Recuperar ou «terminar todas» não fecha as chaves** que a pessoa criou
   (P2-1): uma sessão roubada nos 10 minutos depois de entrar pode criar uma
-  chave que fica. Por fazer: o aviso do Hub depois de uma recuperação (§7)
-  lista as chaves que a pessoa criou e propõe revogá-las. Revogá-las sozinho
-  seria decisão do Diogo ou do Bruno.
+  chave que fica. O aviso do Hub depois de uma recuperação (§7) lista as
+  chaves que a pessoa criou e **propõe** revogá-las; **não as revoga
+  sozinho** (Diogo, 10/10/2026: *«só propor, não revogar sozinho»*;
+  `docs/06`, DC). O aviso está por programar (#107).
 
 **Condição para ligar o Hub** (revisões do #142, P2-2, e do #144, P2-3): a
 `HUB_ORIGEM` só se define num ambiente depois de (1) a B3b, (2) a B4 — sem

@@ -220,7 +220,7 @@ si.
 - Passam para a ficha que fica: as etiquetas activas e o 2.º e-mail e o 2.º
   telefone **guardados, não perdidos** — regra (`eu-gdpr-privacy`).
 - **Os perfis copiam-se** (Diogo, 10/10/2026, *«sim, copiar (A)»*; `docs/06`,
-  DB): um perfil nunca muda de ficha (0037) e cada encomenda está presa ao par
+  DD): um perfil nunca muda de ficha (0037) e cada encomenda está presa ao par
   ficha e perfil (0041). A ficha que fica recebe uma cópia de cada perfil
   activo, com `copiado_de`; a cópia volta ao VIES; a isenção manual **não**
   se copia (uma pessoa volta a pô-la). Uma cópia igual a um perfil activo da
@@ -502,17 +502,17 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 | `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações por páginas e a régua por canal em todas | `src/clientes/rotas.ts` |
 | 18 testes; as mutações da régua e dos gatilhos todas apanhadas, salvo trocar o relógio pela hora do início da transacção, que depois da P2-1 dá a mesma ordem | `test/clientes-consentimentos.test.ts` |
 
-**Parte 2b — duplicados e fusões** (migração 0043; issue #233; Diogo,
+**Parte 2b — duplicados e fusões** (migração 0045; issue #233; Diogo,
 10/10/2026: *«sim, avança com a parte 2b»* e *«sim, copiar (A)»*):
 
 | O quê | Onde |
 |---|---|
-| a fila de candidatos (`duplicado_cliente`, `dup_`): o servidor sinaliza ao criar ou mudar uma ficha ou um perfil, nunca funde. Sinais: o mesmo NIF em perfis particulares (forte), o mesmo e-mail sem diferença de maiúsculas ou o mesmo telefone (talvez); o NIF de empresa (Q2) e o nome não são sinal; só o tipo do sinal, nunca o valor | migração 0043 |
-| descartar (`duplicado_descartar`) e fundir (`cliente_fundir`) só por uma pessoa ou a chave dela (R10); um sinal novo num par descartado volta a pô-lo por decidir (proposta) | migração 0043 |
-| a fusão com ensaio: a absorvida fica `fundido` com `fundido_em` (com a chave estrangeira, P3-10), os contactos acrescentam-se (recusa se passarem de 10), as etiquetas activas e os perfis activos copiam-se, a limitação passa; o par fica `fundido` e os outros pares da absorvida `fechado`; o evento `customer.merged` | migração 0043 |
-| os consentimentos das fundidas contam na régua da ficha que fica (`clientes_do_grupo`), e uma declaração com o id antigo vai para a que ficou (revisão do #289, P2-4) | migração 0043 |
+| a fila de candidatos (`duplicado_cliente`, `dup_`): o servidor sinaliza ao criar ou mudar uma ficha ou um perfil, nunca funde. Sinais: o mesmo NIF em perfis particulares (forte), o mesmo e-mail sem diferença de maiúsculas ou o mesmo telefone (talvez); o NIF de empresa (Q2) e o nome não são sinal; só o tipo do sinal, nunca o valor | migração 0045 |
+| descartar (`duplicado_descartar`) e fundir (`cliente_fundir`) só por uma pessoa ou a chave dela (R10); um sinal novo num par descartado volta a pô-lo por decidir (proposta) | migração 0045 |
+| a fusão com ensaio: a absorvida fica `fundido` com `fundido_em` (com a chave estrangeira, P3-10), os contactos acrescentam-se (recusa se passarem de 10), as etiquetas activas e os perfis activos copiam-se, a limitação passa; o par fica `fundido` e os outros pares da absorvida `fechado`; o evento `customer.merged` | migração 0045 |
+| os consentimentos das fundidas contam na régua da ficha que fica (`clientes_do_grupo`), e uma declaração com o id antigo vai para a que ficou (revisão do #289, P2-4) | migração 0045 |
 | `GET /customer-duplicates`, `POST /customer-duplicates/{id}/dismiss`, `POST /customers/{id}/merge` (`{ absorver, ensaio }`); a ficha mostra `fundido_em`, o perfil `copiado_de` | `src/clientes/rotas.ts` |
-| o âmbito `customers:merge` (dono e gestor) | migração 0043; `src/identidade/` |
+| o âmbito `customers:merge` (dono e gestor) | migração 0045; `src/identidade/` |
 | 9 testes de fusões e o de consentimentos revisto | `test/clientes-fusoes.test.ts` |
 
 **Fica de fora da 2b:** desfazer uma fusão (Fase 1 sem desfazer); a

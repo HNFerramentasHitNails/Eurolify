@@ -250,7 +250,7 @@ DO $$
 DECLARE
   f uuid;
 BEGIN
-  PERFORM set_config('eurolify.quem', 'sistema:migracao_0043', true);
+  PERFORM set_config('eurolify.quem', 'sistema:migracao_0045', true);
   ALTER TABLE cliente NO FORCE ROW LEVEL SECURITY;
   ALTER TABLE perfil_faturacao NO FORCE ROW LEVEL SECURITY;
   FOR f IN SELECT id FROM public.cliente WHERE estado = 'activo' ORDER BY id LOOP
@@ -536,9 +536,11 @@ ALTER TABLE chave_api ADD CONSTRAINT chave_api_ambitos_validos CHECK (
     'customers:read', 'customers:write', 'customers:billing',
     'customers:exemptions', 'customers:merge', 'tax:read', 'tax:write',
     'legal:read', 'legal:write', 'shipping:read', 'shipping:write', 'orders:read',
+    'payments:read', 'payments:write', 'payments:accounts', 'payments:resolve',
     'keys:write', 'storefront'
   ]::text[]);
 
+-- Como a 0044, mais o customers:merge no dono e no gestor.
 CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT CASE p_papel
@@ -547,19 +549,19 @@ CREATE OR REPLACE FUNCTION papel_ambitos(p_papel text) RETURNS text[]
                            'customers:exemptions', 'customers:merge', 'customers:read',
                            'customers:write', 'keys:write', 'legal:read',
                            'legal:write', 'merchant:read', 'merchant:write',
-                           'orders:read', 'prices:read', 'prices:write',
+                           'orders:read', 'payments:accounts', 'payments:read',
+                           'payments:resolve', 'payments:write', 'prices:read',
+                           'prices:write',
                            'shipping:read', 'shipping:write', 'tax:read', 'tax:write']
     WHEN 'gestor' THEN ARRAY['catalog:history', 'catalog:import', 'catalog:publish',
                              'catalog:read', 'catalog:write', 'customers:merge',
                              'customers:read', 'customers:write', 'legal:read',
-                             'merchant:read', 'orders:read', 'prices:read',
-                             'prices:write', 'shipping:read', 'shipping:write', 'tax:read']
-    -- O armazém não lê as encomendas inteiras (perfil de faturação, NIF,
-    -- e-mail): a vista do que expedir vem com a fatia da expedição
-    -- (minimização de dados; revisão do #276, P2-10).
+                             'merchant:read', 'orders:read', 'payments:read',
+                             'payments:write', 'prices:read', 'prices:write',
+                             'shipping:read', 'shipping:write', 'tax:read']
     WHEN 'armazem' THEN ARRAY['catalog:read', 'prices:read', 'shipping:read']
     WHEN 'apoio' THEN ARRAY['catalog:read', 'customers:read', 'customers:write',
                             'legal:read', 'merchant:read', 'orders:read',
-                            'prices:read', 'shipping:read', 'tax:read']
+                            'payments:read', 'prices:read', 'shipping:read', 'tax:read']
   END::text[]
 $$;

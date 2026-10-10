@@ -445,7 +445,13 @@ export async function opcoesDoArtigoPaginadas(
       const { total } = await doArtigo
         .select((eb) => eb.fn.countAll<string>().as("total"))
         .executeTakeFirstOrThrow();
-      let pagina = doArtigo.select(["id", "nome", "posicao", "artigo_id"]);
+      let pagina = doArtigo.select([
+        "id",
+        "nome",
+        "posicao",
+        "artigo_id",
+        "versao",
+      ]);
       if (depois !== null) {
         pagina = pagina.where(
           sql<boolean>`(posicao, id) > (${depois.posicao}::int, ${depois.id}::uuid)`,
@@ -502,7 +508,7 @@ export async function fichaDaOpcao(
     async (trx) => {
       const opcao = await trx
         .selectFrom("opcao")
-        .select(["id", "nome", "posicao", "artigo_id"])
+        .select(["id", "nome", "posicao", "artigo_id", "versao"])
         .where("comerciante_id", "=", comercianteId)
         .where("id", "=", opcaoId)
         .executeTakeFirst();
