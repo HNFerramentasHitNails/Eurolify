@@ -6,7 +6,15 @@ import {
   type SyntheticEvent,
 } from "react";
 import { flushSync } from "react-dom";
-import { api, ErroHub, type Passkey, type Sessao } from "../api";
+import {
+  api,
+  ErroHub,
+  type ChaveApi,
+  type Eu,
+  type Passkey,
+  type Sessao,
+} from "../api";
+import { chavesAPropor } from "../chaves";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import {
   falhaDeAccao,
@@ -201,6 +209,20 @@ export function Conta({ recuperada }: { recuperada: boolean }) {
             <li>{t.recuperadoCodigos}</li>
             {dono ? <li>{t.recuperadoChaves}</li> : null}
           </ul>
+          {/* As chaves que a pessoa criou, para ela decidir: só se propõe
+              revogar, nunca se revoga sozinho (docs/22 §22; docs/06, DC). */}
+          {eu.dados === null
+            ? null
+            : eu.dados.comerciantes
+                .filter((c) => c.papel === "dono")
+                .map((c) => (
+                  <ChavesAPropor
+                    key={c.comerciante}
+                    comerciante={c}
+                    pessoa={eu.dados?.pessoa ?? ""}
+                    vez={vez}
+                  />
+                ))}
           <button
             type="button"
             onClick={() => {
@@ -388,6 +410,142 @@ function Passkeys({ vez, aoRetirar }: { vez: Vez; aoRetirar: () => void }) {
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Depois de recuperar, num comerciante de que é dono: as chaves activas que
+ * a pessoa criou (uma sessão roubada pode ter criado uma que fica; revisão
+ * do #149, P2-1), cada uma com «Revogar». Nada se revoga sem a pessoa
+ * carregar e confirmar (docs/06, DC).
+ */
+function ChavesAPropor({
+  comerciante,
+  pessoa,
+  vez,
+}: {
+  comerciante: Eu["comerciantes"][number];
+  pessoa: string;
+  vez: Vez;
+}) {
+  const { t, lingua } = useHub();
+  const dataHora = useDataHora();
+  const id = comerciante.comerciante;
+  const ler = useCallback(() => api.chaves(id), [id]);
+  const lista = useLista(ler);
+  const accao = useAccao();
+  const erroLista: MensagemDeErro | null =
+    lista.falha === null ? null : mensagemDeErro(lista.falha, t, lingua);
+  const caixaDeSucesso = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (accao.sucesso !== null) caixaDeSucesso.current?.focus();
+  }, [accao.sucesso]);
+
+  function revogar(c: ChaveApi) {
+    if (!window.confirm(preencher(t.chaveRevogarConfirmar, { nome: c.nome }))) {
+      return;
+    }
+    accao.limpar();
+    void vez.correr(async () => {
+      try {
+        await comRecente(() => api.revogarChave(id, c.id));
+        if (await lista.carregar()) accao.setSucesso("chaveRevogada");
+      } catch (e) {
+        await accao.falhou(e);
+        // Já revogada noutro separador: a lista volta a ler-se.
+        if (
+          e instanceof ErroHub &&
+          (e.codigo === "key.already_revoked" || e.codigo === "key.not_found")
+        ) {
+          await lista.carregar();
+        }
+      }
+    });
+  }
+
+  const propostas =
+    lista.dados === null
+      ? null
+      : chavesAPropor(lista.dados.dados, pessoa, new Date());
+  const titulo = `titulo-propor-${id}`;
+  return (
+    <div className="propostas-chaves" aria-labelledby={titulo}>
+      <p>
+        <strong id={titulo}>
+          {preencher(t.recuperadoChavesTitulo, {
+            comerciante: comerciante.nome,
+          })}
+        </strong>
+      </p>
+      {erroLista !== null ? (
+        <CaixaDeErro erro={erroLista} aoTentar={() => void lista.carregar()} />
+      ) : null}
+      {accao.erro === null ? null : <CaixaDeErro erro={accao.erro} />}
+      {accao.sucesso === null ? null : (
+        <div
+          className="sucesso"
+          role="status"
+          tabIndex={-1}
+          ref={caixaDeSucesso}
+        >
+          {accao.sucesso}
+        </div>
+      )}
+      {propostas === null ? (
+        erroLista === null ? (
+          <ACarregar />
+        ) : null
+      ) : propostas.length === 0 ? (
+        <p className="secundario">{t.recuperadoChavesNenhuma}</p>
+      ) : (
+        <>
+          <p>{t.recuperadoChavesExplica}</p>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">{t.colunaNome}</th>
+                <th scope="col">{t.colunaPrefixo}</th>
+                <th scope="col">{t.colunaCriadaEm}</th>
+                <th scope="col">{t.colunaUltimoUso}</th>
+                <th scope="col">
+                  <span className="so-leitores">{t.colunaAccoes}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {propostas.map((c) => (
+                <tr key={c.id}>
+                  <td data-rotulo={t.colunaNome}>{c.nome}</td>
+                  <td data-rotulo={t.colunaPrefixo}>
+                    <code>{c.prefixo}…</code>
+                  </td>
+                  <td data-rotulo={t.colunaCriadaEm}>
+                    {dataHora(c.criada_em)}
+                  </td>
+                  <td data-rotulo={t.colunaUltimoUso}>
+                    {c.ultimo_uso_em === null
+                      ? t.nunca
+                      : dataHora(c.ultimo_uso_em)}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        revogar(c);
+                      }}
+                      disabled={vez.ocupado}
+                      aria-label={`${t.chaveRevogar}: ${c.nome}`}
+                    >
+                      {t.chaveRevogar}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
   );
 }
 

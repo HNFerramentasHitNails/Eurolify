@@ -191,7 +191,12 @@ export const en: Textos = {
   recuperadoRetirar:
     "remove the passkeys you no longer have (the one on the lost device keeps working until you remove it);",
   recuperadoCodigos: "generate new recovery codes;",
-  recuperadoChaves: "as owner, review the API keys you created.",
+  recuperadoChaves:
+    "as owner, review the API keys you created (below): if you do not recognise one, revoke it.",
+  recuperadoChavesTitulo: "API keys you created in «{comerciante}»",
+  recuperadoChavesExplica:
+    "These keys still work. If someone used your account, they may have created one; none is revoked without your confirmation.",
+  recuperadoChavesNenhuma: "You created no active keys in this merchant.",
   recuperadoFechar: "Close this notice",
 
   // Password and authenticator (docs/22 §9.2).
