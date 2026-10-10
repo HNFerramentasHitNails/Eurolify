@@ -254,9 +254,10 @@ as embalagens cabem, pelo menos em parte, no `produto_ambiente` (definição
 do `compliance-gaps.md` §1: «embalagens e responsabilidade alargada do
 produtor»). Para a caixa (`pos_fiscal`), as instalações e o emprego e o
 transporte, não encontrei domínio nas definições do `compliance-gaps.md`
-§1 (não procurei no `docs/03` inteiro). Ficam **por verificar**, sem domínio
-no motor, até haver uma decisão do Diogo ou do Bruno sobre os acrescentar.
-Até lá, o motor não os pode dar como cobertos.
+§1 (não procurei no `docs/03` inteiro). **Ficam fora do motor até haver
+uma loja que precise deles** (Diogo, 10/10/2026: *«ficam fora até haver uma
+loja que precise»*; `docs/06`, DF). Até lá, o motor não os pode dar como
+cobertos.
 
 ## 5. Digital e cartões-oferta
 
