@@ -641,6 +641,7 @@ describe.skipIf(URL_BASE === undefined)(
             nome: "Órfã",
             ambitos: ["catalog:read"],
             expiraEm: null,
+            agenteIa: false,
           }).then(() => ({ status: 201, corpo: {}, guardar: {} }));
         let soltar = () => {};
         const solto = new Promise<void>((r) => (soltar = r));

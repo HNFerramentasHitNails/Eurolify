@@ -34,6 +34,10 @@ const RespostaMe = Type.Object({
     tipo: TipoChave,
     prefixo: Type.String(),
     ambitos: Ambitos,
+    agente_ia: Type.Boolean({
+      description:
+        "Chave de um agente de IA: o rasto grava a IA como declarado em tudo o que ela faz (docs/28 §3.3)",
+    }),
   }),
 });
 
@@ -53,6 +57,10 @@ const CamposChave = {
   revogada_em: InstanteOuNulo,
   revogada_por: Type.Union([Type.String(), Type.Null()]),
   ultimo_uso_em: InstanteOuNulo,
+  agente_ia: Type.Boolean({
+    description:
+      "Chave de um agente de IA (docs/28 §3.3): tudo o que ela faz fica no rasto com a IA declarado, mesmo sem o cabeçalho Eurolify-IA. Não muda depois de criada.",
+  }),
 };
 export const Chave = Type.Object(CamposChave);
 
@@ -94,6 +102,12 @@ export const PedidoCriarChave = Type.Object(
       }),
     ),
     expira_em: Type.Optional(Type.String({ format: "date-time" })),
+    agente_ia: Type.Optional(
+      Type.Boolean({
+        description:
+          "Chave de um agente de IA (falso por omissão; só na de servidor). Não muda depois de criada. Uma chave de um agente só cria chaves de um agente (docs/28 §3.3).",
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -122,6 +136,7 @@ export function paraResposta(c: ChaveListada) {
     revogada_em: iso(c.revogada_em),
     revogada_por: c.revogada_por,
     ultimo_uso_em: iso(c.ultimo_uso_em),
+    agente_ia: c.agente_ia,
   };
 }
 
@@ -163,6 +178,7 @@ export function rotasDaIdentidade(
           tipo: chave.tipo,
           prefixo: chave.prefixo,
           ambitos: chave.ambitos,
+          agente_ia: chave.agenteIa,
         },
       };
     },
@@ -219,6 +235,12 @@ export function rotasDaIdentidade(
           "`loja` é obrigatória na chave pública e proibida na de servidor",
         );
       }
+      if (publica && corpo.agente_ia === true) {
+        throw erroBase(
+          "request.invalid",
+          "só uma chave de servidor pode ser de um agente de IA",
+        );
+      }
       const expiraEm =
         corpo.expira_em === undefined ? null : new Date(corpo.expira_em);
       // O formato aceita um segundo intercalar (23:59:60), que o Date não lê
@@ -248,6 +270,7 @@ export function rotasDaIdentidade(
               nome: corpo.nome,
               ambitos,
               expiraEm,
+              agenteIa: corpo.agente_ia === true,
             },
           );
           const guardada = paraResposta(nova);

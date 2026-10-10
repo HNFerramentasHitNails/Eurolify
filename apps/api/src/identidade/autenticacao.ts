@@ -194,6 +194,15 @@ export function ligarAutenticacao(
         throw erro("auth.forbidden", `âmbito pedido: ${ambito}`);
       }
       pedido.chave = chave;
+      // Uma chave de um agente de IA (0057): a IA fica «declarado» mesmo sem
+      // o cabeçalho Eurolify-IA, com fornecedor e modelo desconhecidos se
+      // não vierem (docs/28 §3.3). Com o cabeçalho, fica o que ele diz.
+      if (chave.agenteIa) {
+        const rasto = rastoActual();
+        if (rasto !== undefined && rasto.ia === undefined) {
+          rasto.ia = { prova: "declarado" };
+        }
+      }
     },
   );
 }

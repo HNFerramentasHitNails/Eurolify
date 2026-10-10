@@ -50,6 +50,7 @@ dependem da P1 (§7).
 | `expira_em` | instante, opcional | |
 | `revogada_em`, `revogada_por` | instante, texto | revogar é imediato e não tem volta |
 | `ultimo_uso_em` | instante | actualizado no máximo uma vez por minuto, para não escrever a cada pedido |
+| `agente_ia` | booleano, falso por omissão | **chave de um agente de IA** (migração 0057; `docs/28` §3.3): o que ela faz fica no rasto com a IA «declarado», mesmo sem o cabeçalho `Eurolify-IA`. Só na de servidor; não muda depois de criada; uma chave de um agente só cria chaves de um agente |
 
 - **Formato do segredo:** `eul_sk_` ou `eul_pk_` mais 32 bytes aleatórios
   (`crypto.randomBytes`) em base32 sem preenchimento. Com 256 bits de acaso, um
@@ -289,7 +290,7 @@ migração 0012.
 
 | Operação | Corpo | Resposta |
 |---|---|---|
-| `POST /keys` | `tipo` (`servidor`, `publica`); `nome` (1–100); `ambitos` (só na de servidor; a pública tem a lista fixa `storefront`); `loja` (`sto_…`, só na pública); `expira_em` (opcional, no futuro) | **201** com a chave e o `segredo`, que só aparece aqui |
+| `POST /keys` | `tipo` (`servidor`, `publica`); `nome` (1–100); `ambitos` (só na de servidor; a pública tem a lista fixa `storefront`); `loja` (`sto_…`, só na pública); `expira_em` (opcional, no futuro); `agente_ia` (opcional, falso por omissão; só na de servidor, 0057) | **201** com a chave e o `segredo`, que só aparece aqui |
 | `POST /keys/{id}/revoke` | nenhum | **200** com a chave revogada (sem segredo) |
 
 As duas exigem o âmbito `keys:write` e o cabeçalho `Idempotency-Key`.
@@ -328,6 +329,13 @@ que a API ganha para escrever chaves:
   `key.store_not_found`. Ex.: uma chave temporária que peça uma chave sem
   prazo e com âmbitos a mais recebe o 422 do prazo; corrigido o prazo,
   recebe o 403 dos âmbitos.
+- **Chave de um agente de IA** (migração 0057; `docs/28` §3.3 e §4, passo
+  4): `agente_ia: true` marca a chave. Pedida numa pública → 400
+  `request.invalid` na rota; uma chave de um agente que peça uma pública →
+  `key.agent_not_server` (422, pela base, depois de `key.expiry_beyond_creator`).
+  Uma chave de um agente cria sempre chaves de um agente, mesmo com
+  `agente_ia: false` (a marca passa como os âmbitos, T9). O `POST /hub/keys`
+  aceita o mesmo campo: aí escolhe a pessoa.
 - **A ordem das recusas ao revogar:** `auth.forbidden` → `key.not_found` →
   `key.already_revoked` → `key.revoke_beyond_creator` (0015) →
   `key.last_key_writer`.
