@@ -17,6 +17,7 @@ export type CodigoErroCheckout =
   | "checkout.country_not_served"
   | "checkout.empty_cart"
   | "checkout.payment_unavailable"
+  | "checkout.out_of_stock"
   | "cart.not_open"
   | "cart.secret_invalid"
   | "cart.min_quantity"
@@ -42,6 +43,7 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroCheckout, number> = {
   "checkout.country_not_served": 422,
   "checkout.empty_cart": 422,
   "checkout.payment_unavailable": 422,
+  "checkout.out_of_stock": 422,
   "cart.not_open": 409,
   "cart.secret_invalid": 404,
   "cart.min_quantity": 422,

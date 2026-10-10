@@ -1286,6 +1286,7 @@ const paraEncomenda = (r: Awaited<ReturnType<typeof lerEncomenda>>) => ({
   aceitacoes: r.encomenda.aceitacoes,
   criada_em: r.encomenda.criada_em.toISOString(),
   linhas: r.linhas.map((l) => ({
+    id: `oli_${l.id}`,
     posicao: l.posicao,
     variante: `var_${l.variante_id}`,
     sku: l.sku,

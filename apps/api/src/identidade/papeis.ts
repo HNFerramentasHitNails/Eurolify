@@ -34,6 +34,10 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "shipping:write",
     "tax:read",
     "tax:write",
+    "fulfilment:read",
+    "fulfilment:write",
+    "inventory:read",
+    "inventory:write",
   ],
   gestor: [
     "catalog:history",
@@ -53,10 +57,22 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "shipping:read",
     "shipping:write",
     "tax:read",
+    "fulfilment:read",
+    "fulfilment:write",
+    "inventory:read",
+    "inventory:write",
   ],
   // Sem orders:read: a encomenda traz o perfil de faturação e o contacto; a
   // vista do que expedir vem com a fatia da expedição (revisão do #276, P2-10).
-  armazem: ["catalog:read", "prices:read", "shipping:read"],
+  armazem: [
+    "catalog:read",
+    "fulfilment:read",
+    "fulfilment:write",
+    "inventory:read",
+    "inventory:write",
+    "prices:read",
+    "shipping:read",
+  ],
   apoio: [
     "catalog:read",
     "customers:read",
@@ -68,5 +84,7 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "prices:read",
     "shipping:read",
     "tax:read",
+    "fulfilment:read",
+    "inventory:read",
   ],
 };

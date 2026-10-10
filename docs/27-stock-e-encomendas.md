@@ -1,7 +1,9 @@
 # Stock e encomendas — modelo e lista da API
 
-> **Estado: desenho, por aprovar** (issue #295). Diogo,
-> 10/10/2026: *«sim, avança com o desenho da fatia 9»*. É a fatia 9 do
+> **Estado: desenho aprovado; parte 1 no código** (issue #295; migração
+> 0045; `docs/06`, DD). Diogo, 10/10/2026: *«sim, avança com o desenho da
+> fatia 9»* e *«sim, aprovo; avança com o código da fatia 9»* (Q1 a Q7 como
+> propostas). O que está programado e os desvios dizem-se na §12. É a fatia 9 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Stock e encomendas: reservas, lotes na linha expedida, compostos»).
 > Depende do Catálogo (`docs/14`, com os kits) e dos Pagamentos (`docs/26`,
@@ -284,3 +286,35 @@ a morada.
   - testes de concorrência (a última unidade), dos kits, dos lotes e das baixas a dobrar; mutações e a revisão do agente.
 - **Parte 2:** os adaptadores de transportadora.
 - Cada parte num pedido, com os testes verdes e a revisão do agente antes de juntar (ADR-0031, ADR-0035).
+
+## 12. Em código — parte 1 (10/10/2026; migração 0045; `docs/06`, DD)
+
+| O quê | Onde |
+|---|---|
+| tabelas `armazem` (um activo por loja), `politica_stock`, `lote` e `saldo_lote`, `saldo_stock`, `movimento_stock` (só se acrescenta), `expedicao` e `linha_expedicao`, `transicao_encomenda`, com o RLS forçado; uma interna (`tarefa_encomenda`) | migração 0045 |
+| **o livro é a única porta**: o gatilho do movimento escreve o saldo (e o do lote) no mesmo passo, com o antes e o depois; recusa o físico negativo, a reserva ou o ajuste acima do disponível (salvo «vende sem stock») e a entrada ou saída sem lote numa variante que o exige; a API não tem `INSERT` nem `UPDATE` no saldo | migração 0045 |
+| os estados da encomenda depois de paga, só para a frente, com a transição gravada (quem, quando, motivo); os eventos `order.*`, `inventory.*` | migração 0045 |
+| cancelar sem pagamento liberta as reservas pelo gatilho, venha o cancelamento de onde vier | migração 0045 |
+| o disponível dos kits pelos componentes (kits dentro de kits até 10 níveis); a reserva e a saída dos componentes | `src/stock/repositorio.ts` |
+| o resumo do checkout bloqueia a linha sem stock (`stock:var_…`); o botão final reserva e recusa `checkout.out_of_stock` | `src/checkout/repositorio.ts` |
+| a vista do armazém (`/fulfilment/orders`), as expedições, os armazéns, as entradas, os ajustes, o livro, os lotes, a política e a linha do tempo da encomenda — a lista da §7 | `src/stock/rotas.ts` |
+| âmbitos `inventory:*` e `fulfilment:*` nos papéis (o armazém deixa de precisar de `orders:read`) | migração 0045; `src/identidade/` |
+| a tarefa da conclusão (14 dias depois de entregue), de hora a hora dentro da API | `src/stock/repositorio.ts`, `src/servidor.ts` |
+| 8 testes pela API | `test/stock-api.test.ts` |
+
+**Desvios do desenho:**
+- **`paga → em_preparacao`** acontece na primeira expedição criada, não logo
+  ao pagar: a encomenda paga sem expedição é o «por preparar» do armazém.
+- **O estado `a_aguardar_stock`** («vende sem stock») não existe nesta parte:
+  a encomenda fica `paga` até a mercadoria chegar e a expedição ser criada.
+- **A disponibilidade na loja** (Q7) diz-se no resumo do checkout (o bloqueio
+  `sem_stock`); a API da Loja ainda não tem lista de artigos onde a mostrar.
+- **O lote na saída**: sem lotes dados pela pessoa, sai o que expira primeiro
+  (FEFO); se os lotes não chegarem, recusa `inventory.lot_required`.
+- **Mudar o serviço de transporte** (R6) não tem ainda a recusa automática:
+  o serviço da expedição copia-se da encomenda e a pessoa escreve o que usou.
+- **A linha da encomenda** passa a ter identificador (`oli_…`) nas respostas,
+  para as expedições a referirem.
+- **Por fazer:** os adaptadores de transportadora (parte 2), vários armazéns
+  (Fase 2), os perigosos e o frio, as devoluções (fatia 11).
+

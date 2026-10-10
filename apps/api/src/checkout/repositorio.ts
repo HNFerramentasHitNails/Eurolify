@@ -12,6 +12,12 @@ import { decidirIva, type Decisao } from "../iva/decisao.js";
 import { carregarTabelas, comercianteParaDecisao } from "../iva/repositorio.js";
 import { precosParaVenda, type PrecoParaVenda } from "../precos/repositorio.js";
 import { metodosDoMercado } from "../pagamentos/repositorio.js";
+import {
+  armazemDaLoja,
+  disponiveis,
+  ErroStock,
+  reservarEncomenda,
+} from "../stock/repositorio.js";
 import { ErroCheckout, type CodigoErroCheckout } from "./erros.js";
 
 // O checkout (docs/25; migração 0041): o carrinho da API da Loja, a sessão
@@ -985,6 +991,25 @@ export async function calcularResumo(
     em_falta.push("telefone");
   }
   const bloqueios: Resumo["bloqueios"] = [];
+  // Vende-se o disponível, nunca o físico (docs/27 R2): uma linha sem stock
+  // bloqueia o botão final; um kit pelo disponível dos componentes (R4).
+  {
+    const armazem = await armazemDaLoja(trx, s.loja_id);
+    const porVariante = new Map<string, number>();
+    for (const p of pedidas) {
+      porVariante.set(
+        p.variante_id,
+        (porVariante.get(p.variante_id) ?? 0) + p.quantidade,
+      );
+    }
+    const disp = await disponiveis(trx, armazem, [...porVariante.keys()]);
+    for (const [v, q] of porVariante) {
+      const d = disp.get(v);
+      if (d !== null && d !== undefined && d < q) {
+        bloqueios.push({ onde: `stock:var_${v}`, motivo: "sem_stock" });
+      }
+    }
+  }
   // O método escolhido tem de continuar na régua do mercado (a régua pode ter
   // mudado, ou a morada mudou o mercado; docs/26 §3.2).
   if (s.metodo_pagamento !== null) {
@@ -1246,6 +1271,14 @@ export async function concluir(
       em_falta: r.em_falta,
     });
   }
+  const semStock = r.bloqueios.filter((b) => b.onde.startsWith("stock:"));
+  if (semStock.length > 0) {
+    throw new ErroCheckout(
+      "checkout.out_of_stock",
+      "uma linha já não tem stock",
+      { bloqueios: semStock },
+    );
+  }
   const pagamento = r.bloqueios.filter((b) => b.onde === "pagamento");
   if (pagamento.length > 0) {
     throw new ErroCheckout(
@@ -1255,7 +1288,10 @@ export async function concluir(
     );
   }
   const iva = r.bloqueios.filter(
-    (b) => !b.onde.startsWith("texto:") && b.onde !== "pagamento",
+    (b) =>
+      !b.onde.startsWith("texto:") &&
+      !b.onde.startsWith("stock:") &&
+      b.onde !== "pagamento",
   );
   if (iva.length > 0) {
     throw new ErroCheckout(
@@ -1413,6 +1449,25 @@ export async function concluir(
         total: l.total,
       })
       .execute();
+  }
+  // A reserva do stock no botão final (docs/27 Q2): sem disponível (outro
+  // cliente levou a última unidade entretanto), não há encomenda.
+  try {
+    await reservarEncomenda(trx, c, encomendaId, s.loja_id, r.linhas);
+  } catch (erro) {
+    const e = erro as Error;
+    if (
+      erro instanceof ErroStock ||
+      e.message.startsWith("inventory.insufficient:")
+    ) {
+      throw new ErroCheckout(
+        "checkout.out_of_stock",
+        "uma linha já não tem stock",
+        undefined,
+        { cause: erro },
+      );
+    }
+    throw erro;
   }
   await trx
     .updateTable("sessao_checkout")
