@@ -213,7 +213,9 @@ Limites, tal como está (revisão do #110):
   guarda-o (`pedido_do_operador`). O mesmo pedido devolve o mesmo `mer_…`
   com `ja_existia: true`. **Lançar o fluxo outra vez** (uma execução nova)
   é outro pedido e cria outro comerciante: antes disso, ver no registo da
-  máquina se já foi feito.
+  máquina se já foi feito. Repetir a `chave` ou o `convite` com o mesmo resumo é
+  recusado pela base (`chave_api_resumo_unico`, 0010; `convite_resumo_unico`,
+  0018) e não cria uma segunda (revisão do #293, P3-7).
 - **Um agente (Claude ou Codex) só lança este fluxo com a confirmação
   explícita** do Diogo ou do Bruno para esse pedido (`AGENTS.md`, «Operar a
   VPS», regra 1): escreve na base.

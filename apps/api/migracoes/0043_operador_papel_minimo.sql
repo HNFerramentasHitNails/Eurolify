@@ -62,7 +62,11 @@ DECLARE
   existente uuid;
 BEGIN
   -- Primeiro o pedido: se já existe (ou outro o está a criar), espera e
-  -- devolve o comerciante dele, sem criar outro.
+  -- devolve o comerciante dele, sem criar outro. O pedido identifica-se só
+  -- pelo número da execução: o nome, a língua e o fuso de uma repetição não
+  -- se comparam (num «Re-run» são os mesmos; revisão do #293, P3-5). Se o
+  -- comerciante falhar (ex.: um fuso que a base não conhece), o pedido sai
+  -- com ele, e repetir com os dados certos cria-o.
   INSERT INTO public.pedido_do_operador (pedido, comerciante_id, quem)
   VALUES (p_pedido, novo, p_quem)
   ON CONFLICT (pedido) DO NOTHING;

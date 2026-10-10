@@ -293,6 +293,11 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
         await apagarBase(admin, nomeBase);
       } finally {
         try {
+          // O papel do operador volta a não entrar, como o eurolify_api no
+          // base-de-teste.ts (revisão do #293, P3-1).
+          await admin.query(
+            "ALTER ROLE eurolify_operador NOLOGIN PASSWORD NULL",
+          );
           await admin.query(`DROP ROLE IF EXISTS ${papel}`);
         } finally {
           await admin.end();
@@ -490,6 +495,23 @@ describe.skipIf(URL_BASE === undefined)("comando do operador na base", () => {
       base.dono,
     );
     expect(rows[0]?.n).toBe(2);
+  }, 60_000);
+
+  it("um pedido que a base recusa não fica guardado: corrigido, o mesmo pedido cria o comerciante (revisão do #293, P3-2)", async () => {
+    const pedido = (fuso: string) =>
+      `comerciante pt ${fuso} ${nome("Loja do Fuso")} run:4004004 github:1001`;
+    // O formato passa, mas o PostgreSQL não conhece o fuso (CHECK da 0001).
+    const falhada = await operador(pedido("Europe/Inexistente"));
+    expect(falhada.codigo).toBe(1);
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from pedido_do_operador
+      where pedido = 'github-run:4004004'`.execute(base.dono);
+    expect(rows[0]?.n).toBe(0);
+    const certa = await operador(pedido("Europe/Lisbon"));
+    expect(certa.codigo, certa.stderr).toBe(0);
+    expect(
+      (JSON.parse(certa.stdout) as { ja_existia: boolean }).ja_existia,
+    ).toBe(false);
   }, 60_000);
 
   it("dois pedidos iguais ao mesmo tempo criam um só comerciante", async () => {

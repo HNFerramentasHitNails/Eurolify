@@ -655,6 +655,12 @@ else
         pg_valor "GRANT EXECUTE ON FUNCTION public.$f TO eurolify_operador"
     fi
   done
+  # O operador só chama as três portas: se alguém lhe deu uma tabela ou outra
+  # função, avisa (revisão do #293, P3-3).
+  if [[ "$operador_existe" == 1 ]]; then
+    a_mais="$(pg_valor "SELECT string_agg(x, ', ') FROM (SELECT c.relname AS x FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'v', 'm', 'p') AND (has_table_privilege('eurolify_operador', c.oid, 'SELECT') OR has_table_privilege('eurolify_operador', c.oid, 'INSERT') OR has_table_privilege('eurolify_operador', c.oid, 'UPDATE') OR has_table_privilege('eurolify_operador', c.oid, 'DELETE')) UNION ALL SELECT p.proname || '()' FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND has_function_privilege('eurolify_operador', p.oid, 'EXECUTE') AND p.proname NOT IN ('comerciante_criar_pelo_operador', 'chave_criar', 'convite_criar_pelo_operador')) t")"
+    [[ -z "$a_mais" ]] || aviso "o eurolify_operador tem mais do que as três portas do operador: $a_mais"
+  fi
   # Nenhum dos três pode ignorar o RLS (docs/15 §5): se alguém lhes deu mais,
   # avisa (revisão do #71, P2-3).
   perigosos="$(pg_valor "SELECT string_agg(rolname, ', ') FROM pg_roles WHERE rolname IN ('eurolify_api', 'eurolify_migrador', 'eurolify_operador') AND (rolsuper OR rolbypassrls OR rolcreaterole)")"
