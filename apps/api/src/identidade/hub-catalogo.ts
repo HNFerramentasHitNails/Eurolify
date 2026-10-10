@@ -5,7 +5,7 @@ import { Type, type Static } from "typebox";
 import { RESPOSTA_DE_ERRO } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import type { Armazenamento } from "../catalogo/armazenamento.js";
-import { ErroCatalogo } from "../catalogo/erros.js";
+import { ErroCatalogo, ESPERA_MAXIMA } from "../catalogo/erros.js";
 import {
   alteracaoDaMedia,
   DESCRICAO_DO_ENVIO,
@@ -1093,6 +1093,12 @@ async function escreverNoHub<T>(
   return noCatalogoApi(resposta, () =>
     comComerciante(base, comercianteId, async (trx) => {
       await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
+      // O mesmo prazo de espera pelos bloqueios das escritas pela chave
+      // (catalog.retry ao fim de 5 s), já no primeiro bloqueio, que é o de
+      // recusar*Externo* (revisão do #326, P2-1): cobre todas as rotas do Hub.
+      await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+        trx,
+      );
       return fn(trx, comercianteId);
     }),
   );
