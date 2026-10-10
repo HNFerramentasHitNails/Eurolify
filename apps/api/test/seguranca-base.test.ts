@@ -98,6 +98,8 @@ const FUNCOES_DA_API = [
   "nif_para_procura",
   "nif_portugues_valido",
   "nif_regua",
+  // A pós-venda (0051): a NC pede-se ao decidir o reembolso, se há fatura.
+  "nota_credito_pedir",
   "pagamento_transicao_valida",
   "pagamentos_adiar_tarefa",
   "pagamentos_comerciantes_com_tarefas",

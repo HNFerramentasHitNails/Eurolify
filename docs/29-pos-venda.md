@@ -295,3 +295,44 @@ reembolsa por API; se não, o reembolso é manual.
   - testes: prazo e fora do prazo, devolução parcial, cosmética aberta não volta, reembolso acima do pago recusado, reembolso nunca a dobrar, NC com a taxa da fatura e acima do saldo recusada, NC parcial e saldo; mutações e a revisão do agente.
 - **Parte 2:** o reembolso pelo adaptador (EuPago, depois de lida a documentação).
 - Cada parte num pedido, com os testes verdes e a revisão do agente antes de juntar (ADR-0031, ADR-0035).
+
+## 12. Em código — parte 1 (10/10/2026; migração 0051; `docs/06`, DM)
+
+| O quê | Onde |
+|---|---|
+| `pedido_livre_resolucao` e as linhas, `devolucao` e as linhas, `problema`, `reembolso` e as linhas, com os estados da §4 garantidos pela base, RLS forçado e eventos `withdrawal.*`, `return.*`, `problem.*`, `refund.*` | migração 0051 |
+| o movimento `devolucao` no livro do stock (aumenta o físico, com o lote da saída, pela composição congelada da linha) | migração 0051; `src/posvenda/repositorio.ts` |
+| a encomenda `cancelada` (paga, sem expedição; liberta as reservas) e `devolvida_parcial` / `devolvida` (pelo reembolsado nas devoluções, só depois de entregue) | migração 0051 |
+| R1 e R5 na base: um reembolso só nasce de uma devolução, de um problema ou do cancelamento, e ao sair do rascunho a soma das linhas é o montante, nenhuma linha passa o que se pagou por ela e o total não passa o pagamento | migração 0051 |
+| a NC no domínio dos documentos: `nota_credito_pedir` ao decidir o reembolso (só se a encomenda tem fatura do Eurolify), as linhas e a proporção base/IVA da fatura (R8), os motivos `original_por_emitir`, `credito_acima_do_saldo` e `encomenda_reembolsada` (C2), a fatura com as NC e o saldo | migração 0051; `src/faturacao/` |
+| o botão (`GET`/`POST /store/orders/{token}/withdrawal`) com a confirmação de recepção, e a API de Administração da §7.2 | `src/posvenda/rotas.ts` |
+| âmbitos `returns:read`, `returns:write`, `refunds:read`, `refunds:write` e os papéis da Q6 | migração 0051; `src/identidade/` |
+| 10 testes pela API | `test/posvenda-api.test.ts` |
+
+**Desvios do desenho:**
+- **Estados do pedido** (§4.1): `aceite`, `fora_de_prazo` (uma pessoa aceita
+  ou recusa, com motivo) e `recusado`. O «cancelado pelo cliente» faz-se
+  cancelando a devolução que o pedido abriu (antes de inspeccionada).
+- **Estados do reembolso** (§4.3): o `a_decidir` chama-se `rascunho` e só
+  existe dentro da transacção que cria as linhas; a API entrega-o já
+  `a_executar`. O manual regista-se de `a_executar` ou de `falhado`.
+- **O token da confirmação** lê-se 30 dias (fatia 7); a rota do botão passa
+  esse prazo, porque o direito conta da entrega, e não devolve dados
+  pessoais (só linhas, quantidades e prazos).
+- **O botão repetido** (duplo clique) não cria outro pedido: o segundo é
+  recusado com `returns.quantity_exceeded`, porque as linhas já estão pedidas.
+- **Os portes** (Q4): a pessoa que decide escolhe `incluir_portes`; não é
+  automático.
+- **R4 «selado por higiene»**: não há ainda a marca no artigo; aplica-se a Q5
+  a tudo (só o `revendavel` aceite volta a stock).
+- **R6 e R7**: nesta parte o reembolso é só manual (Q2); o mesmo meio e a
+  referência no prestador ficam para a parte 2, com `/execute` e `/reconcile`.
+- **R10**: a devolução mostra `reembolsar_ate` e `dias_para_reembolsar`
+  (14 dias do pedido, **C**); **por fazer** a tarefa que avisa antes do fim.
+- **Encomenda devolvida** só a partir de `entregue` ou `concluida`: uma
+  expedição ainda a caminho não fica presa a um estado de devolução.
+- **Com sistema próprio** não há fatura no Eurolify, logo não há NC: é o
+  sistema do comerciante que a emite (D-10).
+- **Por fazer:** o reembolso pelo adaptador (parte 2), o aviso do prazo do
+  reembolso (R10), a marca «selado por higiene», o jurista (J1 a J5) e o
+  contabilista (C1 a C4).

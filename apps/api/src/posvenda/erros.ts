@@ -59,9 +59,14 @@ export function traduzir(erro: unknown): unknown {
   }
   // As recusas do livro do stock e da encomenda chegam como erros dela.
   if (/^(inventory|orders)\.[a-z_]+:/.test(erro.message)) {
-    return new ErroPosVenda("returns.invalid_transition", erro.message, undefined, {
-      cause: erro,
-    });
+    return new ErroPosVenda(
+      "returns.invalid_transition",
+      erro.message,
+      undefined,
+      {
+        cause: erro,
+      },
+    );
   }
   const pg = erro as Error & { code?: string; constraint?: string };
   if (

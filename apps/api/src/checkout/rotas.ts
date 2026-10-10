@@ -76,7 +76,10 @@ function paraApi(erro: unknown, resposta: FastifyReply): unknown {
   );
 }
 
-export async function emCheckout<T>(resposta: FastifyReply, fn: () => Promise<T>) {
+export async function emCheckout<T>(
+  resposta: FastifyReply,
+  fn: () => Promise<T>,
+) {
   try {
     return await fn();
   } catch (erro) {

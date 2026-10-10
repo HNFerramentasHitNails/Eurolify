@@ -1040,6 +1040,8 @@ export const ESTADOS_ENCOMENDA = [
   "entregue",
   "concluida",
   "cancelada",
+  "devolvida_parcial",
+  "devolvida",
 ] as const;
 export type EstadoEncomenda = (typeof ESTADOS_ENCOMENDA)[number];
 
@@ -1704,7 +1706,11 @@ export interface TabelaReembolso {
   problema_id: ColumnType<string | null, string | null, never>;
   montante: ColumnType<string, number, never>;
   moeda: ColumnType<string, string, never>;
-  via: ColumnType<"manual" | "prestador", "manual" | "prestador", "manual" | "prestador">;
+  via: ColumnType<
+    "manual" | "prestador",
+    "manual" | "prestador",
+    "manual" | "prestador"
+  >;
   estado: ColumnType<EstadoReembolso, never, EstadoReembolso>;
   prova: ColumnType<unknown, never, string>;
   executado_em: ColumnType<Date | null, never, Date>;

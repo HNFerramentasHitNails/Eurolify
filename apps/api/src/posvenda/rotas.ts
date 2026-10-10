@@ -46,7 +46,8 @@ async function emPosVenda<T>(resposta: FastifyReply, fn: () => Promise<T>) {
   } catch (erro) {
     const e = traduzir(erro);
     if (e instanceof ErroPosVenda) {
-      if (e.codigo === "returns.retry") void resposta.header("Retry-After", "1");
+      if (e.codigo === "returns.retry")
+        void resposta.header("Retry-After", "1");
       throw new ErroApi(
         e.codigo,
         ESTADO_DO_CODIGO[e.codigo],
@@ -516,6 +517,8 @@ export function rotasDaPosVenda(
           estado: d.estado,
           criada_por: d.criada_por,
           criada_em: iso(d.criada_em),
+          reembolsar_ate: d.reembolsar_ate,
+          dias_para_reembolsar: d.dias_para_reembolsar,
           versao: d.versao,
           linhas: d.linhas.map((l) => ({
             linha: `oli_${l.linha_encomenda_id}`,
@@ -900,7 +903,10 @@ export function rotasDaPosVenda(
           nota_credito:
             r.nota_credito === null
               ? null
-              : { id: `inv_${r.nota_credito.id}`, estado: r.nota_credito.estado },
+              : {
+                  id: `inv_${r.nota_credito.id}`,
+                  estado: r.nota_credito.estado,
+                },
         };
       }),
   );

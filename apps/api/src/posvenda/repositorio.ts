@@ -22,6 +22,8 @@ import { ErroPosVenda, traduzir } from "./erros.js";
  */
 const DIAS_POR_OMISSAO = 14;
 const DIAS_POR_PAIS: Record<string, number> = {};
+/** R10: o prazo do reembolso a contar do pedido. **C** (docs/29, J4). */
+const DIAS_PARA_REEMBOLSAR = 14;
 export const diasDeLivreResolucao = (pais: string | null) =>
   (pais === null ? undefined : DIAS_POR_PAIS[pais]) ?? DIAS_POR_OMISSAO;
 
@@ -379,7 +381,10 @@ export async function criarDevolucao(
     await marcar(trx, quem, dados.motivo ?? null);
     const e = await encomendaDe(trx, dados.encomenda);
     if (dados.origem !== "livre_resolucao") {
-      validarLinhas(dados.linhas, await linhasDevolviveis(trx, dados.encomenda));
+      validarLinhas(
+        dados.linhas,
+        await linhasDevolviveis(trx, dados.encomenda),
+      );
     }
     const armazem = await armazemDaLoja(trx, e.loja_id);
     if (armazem === null) {
@@ -1027,13 +1032,17 @@ export async function registarReembolsoManual(
       .executeTakeFirstOrThrow();
     const { rows } = await sql<{ m: string }>`
       select coalesce(sum(montante), 0) as m from reembolso
-      where pagamento_id = ${r.pagamento_id}::uuid and estado = 'executado'`.execute(trx);
+      where pagamento_id = ${r.pagamento_id}::uuid and estado = 'executado'`.execute(
+      trx,
+    );
     const novo =
       Number(rows[0]?.m ?? 0) >= Number(p.montante)
         ? "reembolsado"
         : "reembolsado_parcial";
     if (novo !== p.estado) {
-      await sql`select set_config('eurolify.origem', 'pessoa', true)`.execute(trx);
+      await sql`select set_config('eurolify.origem', 'pessoa', true)`.execute(
+        trx,
+      );
       await trx
         .updateTable("pagamento")
         .set({ estado: novo })
@@ -1130,7 +1139,24 @@ export async function lerDevolucao(
       ])
       .where("devolucao_id", "=", id)
       .execute();
-    return { ...d, linhas };
+    // R10: o prazo do reembolso conta-se do pedido de livre resolução
+    // (**C**, 14 dias até o jurista validar, docs/29 J4).
+    const { rows } = await sql<{
+      ate: string | null;
+      dias: number | null;
+    }>`select to_char((p.recebido_em at time zone 'UTC')::date + ${DIAS_PARA_REEMBOLSAR}::int,
+        'YYYY-MM-DD') as ate,
+      ((p.recebido_em at time zone 'UTC')::date + ${DIAS_PARA_REEMBOLSAR}::int
+        - (now() at time zone 'UTC')::date)::int as dias
+      from pedido_livre_resolucao p where p.id = ${d.pedido_livre_resolucao_id}::uuid`.execute(
+      trx,
+    );
+    return {
+      ...d,
+      linhas,
+      reembolsar_ate: rows[0]?.ate ?? null,
+      dias_para_reembolsar: rows[0]?.dias ?? null,
+    };
   });
 }
 

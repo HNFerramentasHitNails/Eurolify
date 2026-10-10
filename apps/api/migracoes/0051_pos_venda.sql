@@ -26,7 +26,8 @@ SET LOCAL lock_timeout = '10s';
 ALTER TABLE encomenda DROP CONSTRAINT encomenda_estado_check;
 ALTER TABLE encomenda ADD CONSTRAINT encomenda_estado_check CHECK (estado IN (
   'a_aguardar_pagamento', 'paga', 'cancelada_sem_pagamento', 'em_preparacao',
-  'expedida_parcial', 'expedida', 'entregue', 'concluida', 'cancelada'));
+  'expedida_parcial', 'expedida', 'entregue', 'concluida', 'cancelada',
+  'devolvida_parcial', 'devolvida'));
 
 CREATE OR REPLACE FUNCTION encomenda_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
@@ -55,7 +56,13 @@ BEGIN
        ('a_aguardar_pagamento', 'paga'), ('a_aguardar_pagamento', 'cancelada_sem_pagamento'),
        ('paga', 'em_preparacao'), ('em_preparacao', 'expedida_parcial'),
        ('em_preparacao', 'expedida'), ('expedida_parcial', 'expedida'),
-       ('expedida', 'entregue'), ('entregue', 'concluida')) THEN
+       ('expedida', 'entregue'), ('entregue', 'concluida'),
+       -- Devolvida pela soma do reembolsado nas devoluções (docs/29 §4.4),
+       -- só depois de tudo entregue (uma expedição ainda a caminho não fica
+       -- presa a um estado de devolução).
+       ('entregue', 'devolvida_parcial'), ('entregue', 'devolvida'),
+       ('concluida', 'devolvida_parcial'), ('concluida', 'devolvida'),
+       ('devolvida_parcial', 'devolvida')) THEN
     RAISE EXCEPTION 'orders.invalid_transition: % → %', OLD.estado, NEW.estado;
   END IF;
   -- Uma encomenda com uma expedição que não foi cancelada já não se cancela
@@ -91,6 +98,8 @@ BEGIN
       WHEN 'expedida_parcial' THEN 'order.partially_shipped'
       WHEN 'expedida' THEN 'order.shipped'
       WHEN 'entregue' THEN 'order.delivered'
+      WHEN 'devolvida_parcial' THEN 'order.partially_returned'
+      WHEN 'devolvida' THEN 'order.returned'
       ELSE 'order.completed'
     END,
     'encomenda', NEW.id,
@@ -614,6 +623,43 @@ $$;
 CREATE TRIGGER reembolso_antes_de_gravar BEFORE INSERT OR UPDATE OR DELETE ON reembolso
   FOR EACH ROW EXECUTE FUNCTION reembolso_antes_de_gravar();
 ALTER TABLE reembolso ENABLE ALWAYS TRIGGER reembolso_antes_de_gravar;
+
+-- Executado o reembolso de uma devolução, a encomenda entregue passa a
+-- devolvida (tudo reembolsado) ou devolvida_parcial (docs/29 §4.4). Corre
+-- com quem escreve (o eurolify.quem já está).
+CREATE FUNCTION reembolso_marca_devolvida() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  atual text;
+  comprado bigint;
+  devolvido bigint;
+  novo text;
+BEGIN
+  IF NEW.estado <> 'executado' OR OLD.estado = 'executado' OR NEW.origem <> 'devolucao' THEN
+    RETURN NULL;
+  END IF;
+  SELECT e.estado INTO atual FROM public.encomenda e WHERE e.id = NEW.encomenda_id FOR UPDATE;
+  IF atual NOT IN ('entregue', 'concluida', 'devolvida_parcial') THEN
+    RETURN NULL;
+  END IF;
+  SELECT coalesce(sum(l.quantidade), 0) INTO comprado
+  FROM public.linha_encomenda l WHERE l.encomenda_id = NEW.encomenda_id;
+  -- Nenhuma linha passa a quantidade comprada (o gatilho do reembolso), por
+  -- isso a soma igual quer dizer todas as linhas.
+  SELECT coalesce(sum(l.quantidade), 0) INTO devolvido
+  FROM public.linha_reembolso l JOIN public.reembolso r ON r.id = l.reembolso_id
+  WHERE r.encomenda_id = NEW.encomenda_id AND r.origem = 'devolucao'
+    AND r.estado = 'executado' AND l.linha_encomenda_id IS NOT NULL;
+  novo := CASE WHEN devolvido >= comprado THEN 'devolvida' ELSE 'devolvida_parcial' END;
+  IF novo <> atual THEN
+    UPDATE public.encomenda SET estado = novo WHERE id = NEW.encomenda_id;
+  END IF;
+  RETURN NULL;
+END
+$$;
+CREATE TRIGGER reembolso_marca_devolvida AFTER UPDATE OF estado ON reembolso
+  FOR EACH ROW EXECUTE FUNCTION reembolso_marca_devolvida();
+ALTER TABLE reembolso ENABLE ALWAYS TRIGGER reembolso_marca_devolvida;
 
 -- --------------------------------------------- A nota de crédito (§3.5)
 
