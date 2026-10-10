@@ -7,6 +7,9 @@ desenho em `docs/23-dominio-clientes.md` §4.1, R9, §7.1 e §12).
 
 - **Pedido #314**, juntado a 10/10/2026 (`98302c1`) depois de o Diogo dizer
   *«continuar»* à pergunta «junto o #314?».
+- **Publicado no ensaio** pelo fluxo `publicar` (corrida 38069445047, com
+  sucesso às 16:59 UTC). O registo diz «migrar: aplicadas
+  0049_clientes_pedidos_do_titular» e «O /health da API responde».
 - **A migração é a 0049.** Começou como 0048 e foi renumerada, porque o #306
   entrou antes com a 0048.
 - **O que ficou no código:**
@@ -56,8 +59,8 @@ Contado a 10/10/2026, neste contentor (PostgreSQL 18.6 por Docker).
 
 ## O que ficou por verificar
 
-- **A publicação no ensaio** (corrida 38069445047): estava a correr quando
-  esta memória foi escrita.
+- **Um pedido do titular feito no ensaio**: não li a base do ensaio, porque o
+  MCP da VPS pede autorização nesta sessão.
 - **Os dados pessoais das encomendas e do checkout** (o contacto, a entrega,
   a cópia do perfil, as sessões e os carrinhos) ficam para as fatias 9 e 10.
   O resultado do apagamento conta-as em `encomendas_com_dados_por_tratar`.
