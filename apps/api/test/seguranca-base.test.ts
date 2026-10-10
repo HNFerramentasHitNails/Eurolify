@@ -34,8 +34,8 @@ import {
 
 /** As funções que a API pode chamar; qualquer outra tem de ser recusada. */
 const FUNCOES_DA_API = [
-  // Os anexos da isenção (0054): os gatilhos correm com quem escreve.
-  "anexo_isencao_antes_de_gravar",
+  // Os anexos da isenção (0054): a quota, que o gatilho lê com quem escreve.
+  "anexos_quota_por_comerciante",
   // O nome de quem fez, no histórico do Hub (0038).
   "autores_da_linha_do_tempo",
   "catalogo_estado_do_artigo",
@@ -102,7 +102,6 @@ const FUNCOES_DA_API = [
   "ficheiros_comerciantes_sem_uso",
   "ficheiros_sem_uso",
   "gtin_valido",
-  "isencao_pseudonimizada_sem_anexos",
   "marketing_do_contacto",
   "membro_mudar_papel",
   "membro_terminar",

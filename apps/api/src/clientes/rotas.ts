@@ -120,6 +120,7 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.confirmation_closed": 409,
   "customers.confirmation_rate_limited": 429,
   "customers.exemption_attachments_full": 409,
+  "customers.exemption_attachments_quota": 409,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -1953,6 +1954,37 @@ const paraAnexo = (a: LinhaAnexo): Static<typeof Anexo> => ({
   posto_em: a.posto_em.toISOString(),
 });
 
+const EXTENSAO_DO_TIPO: Record<TipoDeAnexo, string> = {
+  "application/pdf": ".pdf",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+};
+
+/**
+ * O nome do ficheiro a descarregar: a extensão é sempre a do tipo (um
+ * «x.html» que é um PDF sai «x.pdf»), o nome em ASCII para os clientes
+ * antigos e o original em UTF-8 (RFC 6266 e 5987), para um «declaração –
+ * €.pdf» não partir o cabeçalho (revisão do #338, P1-1 e P2-4).
+ */
+export function disposicaoDoAnexo(
+  nome: string | null,
+  tipo: TipoDeAnexo,
+  resumo: string,
+): string {
+  const extensao = EXTENSAO_DO_TIPO[tipo];
+  const base = (nome ?? `anexo-${resumo.slice(0, 12)}`).replace(/\.[^.]*$/, "");
+  const ascii =
+    base
+      .normalize("NFKD")
+      .replace(/[^A-Za-z0-9._ -]/g, "")
+      .trim()
+      .slice(0, 150) || `anexo-${resumo.slice(0, 12)}`;
+  return `attachment; filename="${ascii}${extensao}"; filename*=UTF-8''${encodeURIComponent(base + extensao).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+}
+
+/** Envios de anexos em curso por comerciante (cada um ocupa até 10 MB de memória). */
+const ANEXOS_EM_SIMULTANEO = 2;
+
 function rotasDosAnexos(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -1966,6 +1998,39 @@ function rotasDosAnexos(
       feito(null, corpo);
     },
   );
+  // No máximo 2 envios em simultâneo por comerciante, contados antes de ler
+  // o corpo (como as imagens; revisão do #338, P2-2).
+  const emCurso = new Map<string, number>();
+  const contados = new WeakMap<object, string>();
+  const largar = (raw: object) => {
+    const c = contados.get(raw);
+    if (c === undefined) return;
+    contados.delete(raw);
+    const n = (emCurso.get(c) ?? 1) - 1;
+    if (n <= 0) emCurso.delete(c);
+    else emCurso.set(c, n);
+  };
+  instancia.addHook("onRequest", async (pedido, resposta) => {
+    if (pedido.method !== "POST") return;
+    const comercianteId = chaveDo(pedido).comercianteId;
+    const n = emCurso.get(comercianteId) ?? 0;
+    if (n >= ANEXOS_EM_SIMULTANEO) {
+      void resposta.header("Retry-After", "1");
+      throw erroBase(
+        "rate_limit.exceeded",
+        `no máximo ${String(ANEXOS_EM_SIMULTANEO)} envios de anexos ao mesmo tempo`,
+      );
+    }
+    emCurso.set(comercianteId, n + 1);
+    contados.set(pedido.raw, comercianteId);
+    resposta.raw.once("close", () => {
+      largar(pedido.raw);
+    });
+  });
+  instancia.addHook("onResponse", (pedido, _resposta, feito) => {
+    largar(pedido.raw);
+    feito();
+  });
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
 
   rotas.post(
@@ -2090,15 +2155,21 @@ function rotasDosAnexos(
           semPrefixo(pedido.params.anexo),
         ),
       );
-      return resposta
-        .header("content-type", a.tipo)
-        .header("etag", `"${a.resumo}"`)
-        .header("cache-control", "private, no-store")
-        .header(
-          "content-disposition",
-          `attachment; filename="${(a.nome ?? `anexo-${a.resumo.slice(0, 12)}`).replace(/["\\\r\n]/g, "_")}"`,
-        )
-        .send(a.bytes);
+      return (
+        resposta
+          .header("content-type", a.tipo)
+          .header("etag", `"${a.resumo}"`)
+          .header("cache-control", "private, no-store")
+          // O navegador não adivinha outro tipo nem corre nada (como as
+          // imagens; revisão do #338, P2-4).
+          .header("x-content-type-options", "nosniff")
+          .header("content-security-policy", "default-src 'none'; sandbox")
+          .header(
+            "content-disposition",
+            disposicaoDoAnexo(a.nome, a.tipo, a.resumo),
+          )
+          .send(a.bytes)
+      );
     },
   );
 }

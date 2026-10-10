@@ -338,5 +338,173 @@ describe.skipIf(URL_BASE === undefined)("anexos da isenção", () => {
       );
     expect(await contar(livre.isencao)).toBe(0);
     expect(await contar(usado.isencao)).toBe(1);
+    // A isenção do perfil limpo fica «em vigor», mas não recebe dados novos
+    // (revisão do #338, P2-1).
+    await recusa(
+      anexar(livre.isencao, PDF),
+      409,
+      "customers.invalid_transition",
+    );
+  });
+
+  it("o nome do ficheiro sai com a extensão do tipo, em ASCII e em UTF-8, e com os cabeçalhos de segurança", async () => {
+    const { isencao } = await isencaoNova();
+    const anexo = await ok(
+      anexar(isencao, PDF, "application/pdf", dono, "declaração – €.html"),
+      201,
+    );
+    expect(anexo["nome"]).toBe("declaração – €.html");
+    const r = await app.inject({
+      method: "GET",
+      url: `/exemptions/${isencao}/attachments/${String(anexo["id"])}`,
+      headers: { authorization: `Bearer ${dono}` },
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.headers["content-disposition"]).toBe(
+      `attachment; filename="declaracao.pdf"; filename*=UTF-8''${encodeURIComponent("declaração – €.pdf")}`,
+    );
+    expect(r.headers["x-content-type-options"]).toBe("nosniff");
+    expect(r.headers["content-security-policy"]).toBe(
+      "default-src 'none'; sandbox",
+    );
+    expect(r.headers["etag"]).toBe(`"${String(anexo["resumo"])}"`);
+    // Outro comerciante não descarrega os bytes de A (só o RLS do anexo).
+    const deOutro = await app.inject({
+      method: "GET",
+      url: `/exemptions/${isencao}/attachments/${String(anexo["id"])}`,
+      headers: { authorization: `Bearer ${deB}` },
+    });
+    expect(deOutro.statusCode).toBe(404);
+  });
+
+  it("JPEG entra; um PNG dito PDF não; a mesma chave com os mesmos bytes repete a resposta e com outros recusa", async () => {
+    const { isencao } = await isencaoNova();
+    const JPEG = Buffer.from(
+      "ffd8ffe000104a46494600010100000100010000ffd9",
+      "hex",
+    );
+    await ok(anexar(isencao, JPEG, "image/jpeg", dono, "foto.jpg"), 201);
+    await recusa(anexar(isencao, PNG), 400, "customers.invalid_field");
+    const chave = randomUUID();
+    const comChave = (bytes: Buffer) =>
+      app.inject({
+        method: "POST",
+        url: `/exemptions/${isencao}/attachments`,
+        headers: {
+          authorization: `Bearer ${dono}`,
+          "idempotency-key": chave,
+          "content-type": "application/pdf",
+        },
+        payload: bytes,
+      });
+    const primeiro = await ok(comChave(PDF), 201);
+    const repetido = await ok(comChave(PDF), 201);
+    expect(repetido["id"]).toBe(primeiro["id"]);
+    const outro = await comChave(Buffer.concat([PDF, Buffer.from("x")]));
+    expect(outro.json<Json>()["codigo"]).toBe("idempotency.key_reused");
+    const lista = await ok(
+      pedirJson("GET", `/exemptions/${isencao}/attachments`),
+    );
+    expect(lista["dados"] as Json[]).toHaveLength(2);
+  });
+
+  it("dois anexos ao mesmo tempo no quinto lugar: um entra, o outro é recusado", async () => {
+    const { isencao } = await isencaoNova();
+    for (let i = 0; i < 4; i++) await ok(anexar(isencao, PDF), 201);
+    const inserir = (trx: Kysely<unknown>) =>
+      sql`insert into anexo_isencao (comerciante_id, isencao_id, tipo, bytes)
+          values (${a}::uuid, ${isencao.slice(4)}::uuid, 'application/pdf', ${PDF})`.execute(
+        trx,
+      );
+    const emA = async (trx: Kysely<unknown>) => {
+      await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+        trx,
+      );
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+    };
+    let soltar = () => {};
+    const aberto = new Promise<void>((r) => {
+      soltar = r;
+    });
+    let entrou = () => {};
+    const primeiroEntrou = new Promise<void>((r) => {
+      entrou = r;
+    });
+    const primeiro = base.api.transaction().execute(async (trx) => {
+      await emA(trx as unknown as Kysely<unknown>);
+      await inserir(trx as unknown as Kysely<unknown>);
+      entrou();
+      await aberto;
+    });
+    await primeiroEntrou;
+    const segundo = base.api
+      .transaction()
+      .execute(async (trx) => {
+        await emA(trx as unknown as Kysely<unknown>);
+        await inserir(trx as unknown as Kysely<unknown>);
+      })
+      .then(
+        () => "passou",
+        (e: unknown) => (e as Error).message,
+      );
+    // Espera até o segundo estar mesmo à espera da isenção.
+    for (let i = 0; i < 100; i++) {
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from pg_stat_activity
+        where wait_event_type = 'Lock' and query like '%insert into anexo_isencao%'`.execute(
+        base.dono,
+      );
+      if ((rows[0]?.n ?? 0) > 0) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    soltar();
+    await primeiro;
+    expect(await segundo).toMatch(/^customers\.exemption_attachments_full:/);
+  });
+
+  it("a quota do comerciante: acima dela, o anexo não entra", async () => {
+    const { isencao } = await isencaoNova();
+    // Só nesta transacção, desfeita: a quota baixa para 10 bytes.
+    const erro = await base.dono
+      .transaction()
+      .execute(async (trx) => {
+        await sql`create or replace function anexos_quota_por_comerciante()
+          returns bigint language sql immutable as 'select 10::bigint'`.execute(
+          trx,
+        );
+        await sql`set local role eurolify_api`.execute(trx);
+        await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+          trx,
+        );
+        await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+          trx,
+        );
+        await sql`insert into anexo_isencao (comerciante_id, isencao_id, tipo, bytes)
+            values (${a}::uuid, ${isencao.slice(4)}::uuid, 'application/pdf', ${PDF})`.execute(
+          trx,
+        );
+        throw new Error("passou");
+      })
+      .then(
+        () => "passou",
+        (e: unknown) => (e as Error).message,
+      );
+    expect(erro).toMatch(/^customers\.exemption_attachments_quota:/);
+  });
+
+  it("a exportação do titular lista os anexos, sem os bytes", async () => {
+    const { ficha, isencao } = await isencaoNova();
+    const anexo = await ok(anexar(isencao, PDF), 201);
+    const e = await ok(
+      pedirJson("POST", `/customers/${ficha}/export`, {
+        verificacao: "resposta do e-mail a 10/10/2026",
+      }),
+    );
+    const fichas = e["fichas"] as Json[];
+    const anexos = fichas[0]?.["anexos_das_isencoes"] as Json[];
+    expect(anexos.map((x) => x["id"])).toEqual([String(anexo["id"]).slice(4)]);
+    expect(JSON.stringify(e)).not.toContain("aduaneira de teste");
   });
 });

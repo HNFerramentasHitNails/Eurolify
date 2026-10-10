@@ -52,6 +52,7 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   "customers.confirmation_rate_limited",
   // Da 0054: os anexos da isenção.
   "customers.exemption_attachments_full",
+  "customers.exemption_attachments_quota",
 ];
 
 /** As restrições da 0037 com código próprio. */

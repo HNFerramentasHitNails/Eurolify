@@ -44,7 +44,8 @@ export type CodigoErroClientes =
   | "customers.confirmation_closed"
   | "customers.confirmation_rate_limited"
   // Da 0054: os anexos da isenção.
-  | "customers.exemption_attachments_full";
+  | "customers.exemption_attachments_full"
+  | "customers.exemption_attachments_quota";
 
 export class ErroClientes extends Error {
   constructor(
