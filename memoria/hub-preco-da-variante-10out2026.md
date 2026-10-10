@@ -24,6 +24,12 @@
   - Revisão do agente (Opus 5.5, ADR-0035) publicada no #341: 0 P0, 0 P1,
     3 P2, 6 P3; corrigidos no `e4bd4c5`, menos o P3-2 (justificado) e o
     P3-4 (moedas sem casas, nenhuma verificada).
+- Aspecto aprovado pelo Diogo a 10/10/2026 («aprovado»), na página de
+  aprovação nova, privada, da conta desta sessão
+  (https://claude.ai/artifact/8husE7Svxv913LJka35igb, versão 1): a página
+  «Preço da variante» a 375/768/1280 px, claro e escuro, e a secção
+  «Preços» da ficha com as ligações novas. A página anterior
+  (`AQk53xNmRUGqeCBurFCtvK`) não abre nesta conta («artifact not found»).
 - Uma verificação antiga da passagem («Editar a variante», num artigo
   activo) contava os textos antes de a variante chegar; passou a esperar
   por ela (só no teste).
@@ -44,9 +50,6 @@
 
 ## O que ficou por verificar
 
-- O aspecto: falta o OK do Diogo ou do Bruno. A página de aprovação usada
-  até aqui (`claude.ai/artifact/AQk53xNmRUGqeCBurFCtvK`) não abre na conta
-  desta sessão («artifact not found», 10/10/2026).
 - No ensaio: nada, ainda não está publicado.
 - Leitores de ecrã reais; moedas da UE com outras casas que não duas.
 - Risco que fica: outra pessoa grava exactamente o mesmo preço no instante
