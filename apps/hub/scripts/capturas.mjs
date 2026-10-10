@@ -4001,7 +4001,9 @@ try {
     Number(
       psql(`select count(*) from chave_api c join pessoa p
         on c.criada_por = 'pessoa:per_' || p.id
-        where p.email = 'ana@exemplo.test' and c.revogada_em is null`),
+        where p.email = 'ana@exemplo.test' and c.revogada_em is null
+          and (c.expira_em is null or c.expira_em > now())
+          and c.comerciante_id = '${comerciante}'`),
     );
   const activasAntes = deAna();
   const segunda = await comPasskey();
@@ -4016,7 +4018,9 @@ try {
     .getByRole("button", { name: "Recuperar com uma passkey nova" })
     .click();
   await r2.getByText("A conta foi recuperada").waitFor();
-  const bloco = r2.locator(".propostas-chaves");
+  const bloco = r2.locator(
+    `.propostas-chaves[data-comerciante="mer_${comerciante}"]`,
+  );
   await bloco.getByRole("table").waitFor();
   const nomes = await bloco
     .locator("tbody tr td:first-child")

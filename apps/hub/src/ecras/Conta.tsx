@@ -213,16 +213,17 @@ export function Conta({ recuperada }: { recuperada: boolean }) {
               revogar, nunca se revoga sozinho (docs/22 §22; docs/06, DC). */}
           {eu.dados === null
             ? null
-            : eu.dados.comerciantes
-                .filter((c) => c.papel === "dono")
-                .map((c) => (
-                  <ChavesAPropor
-                    key={c.comerciante}
-                    comerciante={c}
-                    pessoa={eu.dados?.pessoa ?? ""}
-                    vez={vez}
-                  />
-                ))}
+            : ((dados: Eu) =>
+                dados.comerciantes
+                  .filter((c) => c.papel === "dono")
+                  .map((c) => (
+                    <ChavesAPropor
+                      key={c.comerciante}
+                      comerciante={c}
+                      pessoa={dados.pessoa}
+                      vez={vez}
+                    />
+                  )))(eu.dados)}
           <button
             type="button"
             onClick={() => {
@@ -469,7 +470,12 @@ function ChavesAPropor({
       : chavesAPropor(lista.dados.dados, pessoa, new Date());
   const titulo = `titulo-propor-${id}`;
   return (
-    <div className="propostas-chaves" aria-labelledby={titulo}>
+    <div
+      className="propostas-chaves"
+      role="group"
+      aria-labelledby={titulo}
+      data-comerciante={id}
+    >
       <p>
         <strong id={titulo}>
           {preencher(t.recuperadoChavesTitulo, {

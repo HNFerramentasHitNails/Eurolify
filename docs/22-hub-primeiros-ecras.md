@@ -1319,8 +1319,10 @@ que a pessoa é dona: «Chaves de API que criou em «Loja de Ensaio»».
 **Antes de dizer que está feito:** um teste da escolha das chaves (activas,
 desta pessoa, pela ordem) e a passagem pelo Chromium. A passagem faz uma
 segunda recuperação da Ana, depois de ela criar chaves (§9.3), e confere:
-- aparecem as duas chaves activas dela;
-- não aparecem a revogada nem a do operador;
+- aparecem as chaves activas dela nesse comerciante, contadas na base
+  (hoje, «Com prazo» e «Sem resposta»);
+- não aparecem a revogada nem a do operador (as de outro membro e as
+  criadas por outra chave ficam provadas no teste da escolha);
 - nenhuma foi revogada sem ela;
 - revogar uma deixa só a outra.
 
