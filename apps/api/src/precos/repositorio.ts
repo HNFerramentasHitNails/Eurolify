@@ -580,10 +580,10 @@ export async function definirPreco(
   varianteId: string,
   dados: DadosPreco,
   /**
-   * A versão do preço lida (`null`: a variante não tinha preço nesta lista).
-   * Só o Hub a manda (docs/22 §25.2); sem ela, a escrita não confere.
+   * O preço lido (`null`: a variante não tinha preço nesta lista). Só o Hub
+   * o manda (docs/22 §25.2); sem ele, a escrita não confere.
    */
-  versaoLida?: number | null,
+  lido?: PrecoLido | null,
 ): Promise<Preco> {
   // Um montante que não é um número inteiro é campo inválido; um inteiro fora
   // do limite é montante inválido, também acima do que o bigint guarda
@@ -617,15 +617,35 @@ export async function definirPreco(
     if (lista === undefined) {
       throw new ErroPrecos("prices.not_found", "lista inexistente");
     }
-    await conferirVersaoDoPreco(trx, listaId, varianteId, versaoLida);
+    await conferirPrecoLido(trx, listaId, varianteId, lido);
+    const novo = {
+      comerciante_id: comercianteId,
+      lista_id: listaId,
+      variante_id: varianteId,
+      ...valores,
+    };
+    if (lido === null) {
+      // Lido «sem preço»: só se cria. Outro que o tenha criado entretanto
+      // (ainda por confirmar quando se conferiu) faz o ON CONFLICT esperar e
+      // não gravar: é um conflito, não uma substituição (revisão do #339,
+      // P1-1).
+      const criado = await trx
+        .insertInto("preco")
+        .values(novo)
+        .onConflict((oc) => oc.columns(["lista_id", "variante_id"]).doNothing())
+        .returningAll()
+        .executeTakeFirst();
+      if (criado === undefined) {
+        throw new ErroPrecos(
+          "prices.version_conflict",
+          "a variante passou a ter preço nesta lista desde que foi lida",
+        );
+      }
+      return criado;
+    }
     return trx
       .insertInto("preco")
-      .values({
-        comerciante_id: comercianteId,
-        lista_id: listaId,
-        variante_id: varianteId,
-        ...valores,
-      })
+      .values(novo)
       .onConflict((oc) =>
         oc.columns(["lista_id", "variante_id"]).doUpdateSet(valores),
       )
@@ -636,26 +656,55 @@ export async function definirPreco(
 }
 
 /**
- * Confere a versão lida pelo Hub (docs/22 §25.2): o preço guardado tem de
- * ser o lido, ou nenhum se se leu «sem preço». Toma a linha até ao fim da
- * transacção, para ninguém a mudar entre conferir e gravar. Sem versão
- * lida (a chave), não confere.
+ * O preço como o Hub o leu (docs/22 §25.2): a versão e o `definido_em`. A
+ * versão recomeça em 1 quando o preço sai e volta a entrar (0017); o
+ * `definido_em` dessa entrada é outro, e os dois juntos não se repetem
+ * (revisão do #339, P2-1).
  */
-async function conferirVersaoDoPreco(
+export interface PrecoLido {
+  versao: number;
+  /** ISO 8601, como a leitura o deu. */
+  definido_em: string;
+}
+
+/**
+ * Confere o preço lido pelo Hub (docs/22 §25.2): o guardado tem de ser o
+ * lido (a versão e o `definido_em`), ou nenhum se se leu «sem preço». Toma
+ * a linha até ao fim da transacção, para ninguém a mudar entre conferir e
+ * gravar. A variante tem de existir neste comerciante (404, revisão do
+ * #339, P2-2). Sem nada lido (a chave), não confere.
+ */
+async function conferirPrecoLido(
   trx: Transaction<BaseDados>,
   listaId: string,
   varianteId: string,
-  versaoLida: number | null | undefined,
+  lido: PrecoLido | null | undefined,
 ): Promise<void> {
-  if (versaoLida === undefined) return;
+  if (lido === undefined) return;
+  const variante = await trx
+    .selectFrom("variante")
+    .select("id")
+    .where("id", "=", varianteId)
+    .executeTakeFirst();
+  if (variante === undefined) {
+    throw new ErroPrecos("prices.not_found", "variante inexistente");
+  }
   const actual = await trx
     .selectFrom("preco")
-    .select("versao")
+    .select(["versao", "definido_em"])
     .where("lista_id", "=", listaId)
     .where("variante_id", "=", varianteId)
     .forUpdate()
     .executeTakeFirst();
-  if ((actual?.versao ?? null) !== versaoLida) {
+  // O `definido_em` compara-se como a leitura o deu (o mesmo caminho, de
+  // milissegundos), não como a base o guarda.
+  const igual =
+    actual === undefined
+      ? lido === null
+      : lido !== null &&
+        actual.versao === lido.versao &&
+        actual.definido_em.toISOString() === lido.definido_em;
+  if (!igual) {
     throw new ErroPrecos(
       "prices.version_conflict",
       "o preço mudou desde que foi lido",
@@ -670,12 +719,24 @@ export async function tirarPreco(
   quem: string,
   listaId: string,
   varianteId: string,
-  /** A versão lida pelo Hub (docs/22 §25.2); a chave não a manda. */
-  versaoLida?: number,
+  /** O preço lido pelo Hub (docs/22 §25.2); a chave não o manda. */
+  lido?: PrecoLido,
 ): Promise<boolean> {
   const linhas = await noDominio(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
-    await conferirVersaoDoPreco(trx, listaId, varianteId, versaoLida);
+    if (lido !== undefined) {
+      // A lista deste comerciante, como ao definir: outra, ou que não existe,
+      // é 404 e não um conflito (revisão do #339, P2-2).
+      const lista = await trx
+        .selectFrom("lista_precos")
+        .select("id")
+        .where("id", "=", listaId)
+        .executeTakeFirst();
+      if (lista === undefined) {
+        throw new ErroPrecos("prices.not_found", "lista inexistente");
+      }
+    }
+    await conferirPrecoLido(trx, listaId, varianteId, lido);
     return trx
       .deleteFrom("preco")
       .where("lista_id", "=", listaId)

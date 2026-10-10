@@ -70,8 +70,11 @@ import {
   RespostaLinhaDoTempo,
 } from "../catalogo/rotas-linha-do-tempo.js";
 import { comComerciante } from "../comerciante/repositorio.js";
-import { nomesDeCanaisEMercados } from "../precos/repositorio.js";
-import { definirPreco, tirarPreco } from "../precos/repositorio.js";
+import {
+  definirPreco,
+  nomesDeCanaisEMercados,
+  tirarPreco,
+} from "../precos/repositorio.js";
 import {
   emPrecos,
   ParametroPreco,
@@ -387,17 +390,28 @@ export function rotasDoCatalogoNoHub(
 
   // Definir e tirar o preço de uma variante numa lista (docs/22 §25; issue
   // #335): as mesmas funções do PUT e do DELETE pela chave, com a sessão de
-  // quem tem prices:write (o dono e o gestor) e a `versao` lida (null: a
-  // variante não tinha preço nesta lista). Também num artigo externo (Q1).
+  // quem tem prices:write (o dono e o gestor) e o preço `lido` (a versão e
+  // o definido_em; null: a variante não tinha preço nesta lista). Também
+  // num artigo externo (Q1).
+  const PrecoLidoEsquema = Type.Object(
+    {
+      versao: Type.Integer({ minimum: 1 }),
+      definido_em: Type.String({
+        format: "date-time",
+        description: "O `definido_em` do preço, como a leitura o deu",
+      }),
+    },
+    { additionalProperties: false },
+  );
   const CorpoPrecoNoHub = Type.Object(
     {
       ...PedidoPreco.properties,
-      versao: Type.Union([Type.Integer({ minimum: 1 }), Type.Null()]),
+      lido: Type.Union([PrecoLidoEsquema, Type.Null()]),
     },
     { additionalProperties: false },
   );
   const CorpoTirarPreco = Type.Object(
-    { versao: Type.Integer({ minimum: 1 }) },
+    { lido: PrecoLidoEsquema },
     { additionalProperties: false },
   );
 
@@ -407,7 +421,7 @@ export function rotasDoCatalogoNoHub(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Define o preço de uma variante numa lista pelo Hub: a mesma escrita do PUT /price-lists/{id}/prices/{variante}, na `versao` lida (null quando não havia preço), com a sessão de quem tem prices:write (docs/22 §25.2). Outra versão dá 409 prices.version_conflict.",
+          "Define o preço de uma variante numa lista pelo Hub: a mesma escrita do PUT /price-lists/{id}/prices/{variante}, sobre o preço `lido` (a versão e o definido_em; null quando não havia preço), com a sessão de quem tem prices:write (docs/22 §25.2). Outro preço guardado dá 409 prices.version_conflict.",
         params: ParametroPreco,
         body: CorpoPrecoNoHub,
         response: { 200: PrecoEsquema, ...RESPOSTA_DE_ERRO },
@@ -421,7 +435,7 @@ export function rotasDoCatalogoNoHub(
         async (trx, comercianteId, quem) => {
           const listaId = semPrefixo(pedido.params.id);
           const varianteId = semPrefixo(pedido.params.variante);
-          const { versao, ...dados } = pedido.body;
+          const { lido, ...dados } = pedido.body;
           await definirPreco(
             trx,
             comercianteId,
@@ -429,7 +443,7 @@ export function rotasDoCatalogoNoHub(
             listaId,
             varianteId,
             dados,
-            versao,
+            lido,
           );
           return precoNa(trx, comercianteId, listaId, varianteId);
         },
@@ -442,7 +456,7 @@ export function rotasDoCatalogoNoHub(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Tira o preço de uma variante de uma lista pelo Hub: a mesma escrita do DELETE /price-lists/{id}/prices/{variante}, na `versao` lida (no corpo, como as outras escritas do Hub), com a sessão de quem tem prices:write (docs/22 §25.2). Sem preço, ou com outra versão, 409 prices.version_conflict.",
+          "Tira o preço de uma variante de uma lista pelo Hub: a mesma escrita do DELETE /price-lists/{id}/prices/{variante}, sobre o preço `lido` (no corpo, como as outras escritas do Hub), com a sessão de quem tem prices:write (docs/22 §25.2). Sem preço, ou com outro guardado, 409 prices.version_conflict.",
         params: ParametroPreco,
         body: CorpoTirarPreco,
         response: {
@@ -463,7 +477,7 @@ export function rotasDoCatalogoNoHub(
             quem,
             semPrefixo(pedido.params.id),
             semPrefixo(pedido.params.variante),
-            pedido.body.versao,
+            pedido.body.lido,
           );
         },
       );

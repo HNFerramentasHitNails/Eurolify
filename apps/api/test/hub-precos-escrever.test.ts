@@ -44,8 +44,13 @@ interface Preco {
   quantidade_minima: number;
   multiplo: number;
   versao: number;
+  definido_em: string;
   reducao: { montante: number } | null;
 }
+
+/** O preço como o Hub o manda de volta ao escrever (docs/22 §25.2). */
+const lidoDe = (p: Preco | null) =>
+  p === null ? null : { versao: p.versao, definido_em: p.definido_em };
 
 describe.skipIf(URL_BASE === undefined)(
   "definir e tirar o preço pelo Hub (#335)",
@@ -215,12 +220,27 @@ describe.skipIf(URL_BASE === undefined)(
         comerciante: c.id,
         corpo,
       });
-    const tirar = (c: C, sessao: string, variante: string, versao: number) =>
-      h.pedir("DELETE", `/hub/price-lists/${c.lista}/prices/${variante}`, {
+    const tirar = (
+      c: C,
+      sessao: string,
+      variante: string,
+      lido: unknown,
+      lista = c.lista,
+    ) =>
+      h.pedir("DELETE", `/hub/price-lists/${lista}/prices/${variante}`, {
         sessao,
         comerciante: c.id,
-        corpo: { versao },
+        corpo: { lido },
       });
+    /** Define pelo Hub sem preço lido e devolve o preço gravado. */
+    async function criar(c: C, variante: string, montante: number) {
+      const r = await definir(c, c.dono.sessao, variante, {
+        montante,
+        lido: null,
+      });
+      expect(r.statusCode, r.body).toBe(200);
+      return r.json<Preco>();
+    }
 
     /** O preço da variante na «Base PT», como a ficha do Hub o lê. */
     async function precoNaFicha(c: C, variante: string) {
@@ -239,11 +259,27 @@ describe.skipIf(URL_BASE === undefined)(
       );
     }
 
-    it("o dono define o preço sem preço lido (versao null), muda-o com a versão lida e o «quem» é a pessoa; a ficha dá a versão", async () => {
+    /** Uma transacção de outra «pessoa», aberta, no comerciante. */
+    async function transaccaoAberta(comercianteId: string) {
+      const cliente = new pg.Client({ connectionString: base.urlApi });
+      cliente.on("error", () => undefined);
+      await cliente.connect();
+      await cliente.query("begin");
+      await cliente.query(
+        "select set_config('eurolify.comerciante', $1, true)",
+        [comercianteId],
+      );
+      await cliente.query(
+        "select set_config('eurolify.quem', 'teste:outra', true)",
+      );
+      return cliente;
+    }
+
+    it("o dono define o preço sem preço lido, muda-o sobre o lido e o «quem» é a pessoa; a ficha dá a versão e o definido_em", async () => {
       const c = await comerciante("Loja Preço Hub");
       const r = await definir(c, c.dono.sessao, c.v2, {
         montante: 3990,
-        versao: null,
+        lido: null,
       });
       expect(r.statusCode, r.body).toBe(200);
       expect(r.headers["cache-control"]).toBe("private, no-store");
@@ -256,12 +292,12 @@ describe.skipIf(URL_BASE === undefined)(
         multiplo: 1,
         versao: 1,
       });
-      expect(await precoNaFicha(c, c.v2)).toMatchObject({ versao: 1 });
+      expect(lidoDe(await precoNaFicha(c, c.v2))).toEqual(lidoDe(criado));
       const mudado = await definir(c, c.dono.sessao, c.v2, {
         montante: 3590,
         quantidade_minima: 6,
         multiplo: 6,
-        versao: 1,
+        lido: lidoDe(criado),
       });
       expect(mudado.statusCode, mudado.body).toBe(200);
       expect(mudado.json<Preco>()).toMatchObject({
@@ -287,30 +323,30 @@ describe.skipIf(URL_BASE === undefined)(
       ).toBe(true);
     });
 
-    it("com outra versão, ou com versao null quando já há preço, 409 prices.version_conflict, sem gravar; a chave continua sem a pedir", async () => {
+    it("com outro preço guardado, ou «sem preço» quando já há, 409 prices.version_conflict, sem gravar; a chave continua sem o pedir", async () => {
       const c = await comerciante("Loja Preço Conflito");
-      expect(
-        (
-          await definir(c, c.dono.sessao, c.v1, {
-            montante: 990,
-            versao: null,
-          })
-        ).statusCode,
-      ).toBe(200);
-      for (const versao of [null, 2]) {
+      const criado = await criar(c, c.v1, 990);
+      for (const lido of [
+        null,
+        { versao: 2, definido_em: criado.definido_em },
+        { versao: 1, definido_em: "2020-01-01T00:00:00.000Z" },
+      ]) {
         const r = await definir(c, c.dono.sessao, c.v1, {
           montante: 1290,
-          versao,
+          lido,
         });
         expect(r.statusCode, r.body).toBe(409);
         expect(h.codigo(r)).toBe("prices.version_conflict");
       }
       expect((await precoNaFicha(c, c.v1))?.montante).toBe(990);
-      // Tirar com uma versão antiga também dá 409.
-      const velha = await tirar(c, c.dono.sessao, c.v1, 7);
+      // Tirar sobre um preço antigo também dá 409.
+      const velha = await tirar(c, c.dono.sessao, c.v1, {
+        versao: 7,
+        definido_em: criado.definido_em,
+      });
       expect(velha.statusCode, velha.body).toBe(409);
       expect(h.codigo(velha)).toBe("prices.version_conflict");
-      // Pela chave, sem versão, como antes.
+      // Pela chave, sem nada lido, como antes.
       const pelaChave = await chave(
         c.segredo,
         "PUT",
@@ -321,21 +357,42 @@ describe.skipIf(URL_BASE === undefined)(
       expect(pelaChave.json<Preco>().versao).toBe(2);
     });
 
-    it("outra escrita a meio, com a mesma versão lida: o Hub espera por ela e dá 409, sem a apagar", async () => {
+    it("tirado e posto de novo (a versão volta a 1): quem leu o primeiro recebe 409 (revisão do #339, P2-1)", async () => {
+      const c = await comerciante("Loja Preço ABA");
+      const primeiro = await criar(c, c.v1, 990);
+      // Outra pessoa tira-o e põe-no a 12,90 €, pela chave.
+      expect(
+        (
+          await chave(
+            c.segredo,
+            "DELETE",
+            `/price-lists/${c.lista}/prices/${c.v1}`,
+          )
+        ).statusCode,
+      ).toBe(204);
+      const segundo = await chave(
+        c.segredo,
+        "PUT",
+        `/price-lists/${c.lista}/prices/${c.v1}`,
+        { montante: 1290 },
+      );
+      expect(segundo.json<Preco>().versao).toBe(primeiro.versao);
+      const r = await definir(c, c.dono.sessao, c.v1, {
+        montante: 1500,
+        lido: lidoDe(primeiro),
+      });
+      expect(r.statusCode, r.body).toBe(409);
+      expect(h.codigo(r)).toBe("prices.version_conflict");
+      const t = await tirar(c, c.dono.sessao, c.v1, lidoDe(primeiro));
+      expect(t.statusCode, t.body).toBe(409);
+      expect((await precoNaFicha(c, c.v1))?.montante).toBe(1290);
+    });
+
+    it("outra escrita a meio, sobre o mesmo preço lido: o Hub espera por ela e dá 409, sem a apagar", async () => {
       const c = await comerciante("Loja Preço Corrida");
-      await definir(c, c.dono.sessao, c.v1, { montante: 990, versao: null });
-      const cliente = new pg.Client({ connectionString: base.urlApi });
-      cliente.on("error", () => undefined);
-      await cliente.connect();
+      const criado = await criar(c, c.v1, 990);
+      const cliente = await transaccaoAberta(c.id);
       try {
-        await cliente.query("begin");
-        await cliente.query(
-          "select set_config('eurolify.comerciante', $1, true)",
-          [c.id],
-        );
-        await cliente.query(
-          "select set_config('eurolify.quem', 'teste:outra', true)",
-        );
         // Outra pessoa muda o preço (versão 2) e ainda não confirmou.
         await cliente.query(
           "update preco set montante = 1500 where variante_id = $1",
@@ -343,7 +400,7 @@ describe.skipIf(URL_BASE === undefined)(
         );
         const mudar = definir(c, c.dono.sessao, c.v1, {
           montante: 2000,
-          versao: 1,
+          lido: lidoDe(criado),
         });
         expect(await aEsperaDeBloqueio()).toBe(true);
         await cliente.query("commit");
@@ -360,10 +417,39 @@ describe.skipIf(URL_BASE === undefined)(
       });
     }, 20_000);
 
-    it("tirar com a versão lida tira o preço (fica no histórico); outra vez dá 409", async () => {
+    it("duas pessoas a criar o mesmo preço («sem preço» lido): a segunda espera e dá 409, sem substituir (revisão do #339, P1-1)", async () => {
+      const c = await comerciante("Loja Preço Criar a Dois");
+      const cliente = await transaccaoAberta(c.id);
+      try {
+        // A outra pessoa cria o preço e ainda não confirmou.
+        await cliente.query(
+          `insert into preco (comerciante_id, lista_id, variante_id, montante)
+           values ($1, $2, $3, 3990)`,
+          [c.id, c.lista.slice("prl_".length), c.v2.slice("var_".length)],
+        );
+        const criarTambem = definir(c, c.dono.sessao, c.v2, {
+          montante: 3590,
+          lido: null,
+        });
+        expect(await aEsperaDeBloqueio()).toBe(true);
+        await cliente.query("commit");
+        const r = await criarTambem;
+        expect(r.statusCode, r.body).toBe(409);
+        expect(h.codigo(r)).toBe("prices.version_conflict");
+      } finally {
+        await cliente.query("rollback").catch(() => undefined);
+        await cliente.end();
+      }
+      expect(await precoNaFicha(c, c.v2)).toMatchObject({
+        montante: 3990,
+        versao: 1,
+      });
+    }, 20_000);
+
+    it("tirar sobre o preço lido tira-o (fica no histórico); outra vez dá 409", async () => {
       const c = await comerciante("Loja Preço Tirar");
-      await definir(c, c.dono.sessao, c.v2, { montante: 3990, versao: null });
-      const r = await tirar(c, c.dono.sessao, c.v2, 1);
+      const criado = await criar(c, c.v2, 3990);
+      const r = await tirar(c, c.dono.sessao, c.v2, lidoDe(criado));
       expect(r.statusCode, r.body).toBe(204);
       expect(await precoNaFicha(c, c.v2)).toBeNull();
       const { rows } = await sql<{ saiu: boolean; definido_por: string }>`
@@ -374,7 +460,7 @@ describe.skipIf(URL_BASE === undefined)(
         saiu: true,
         definido_por: `pessoa:per_${c.dono.pessoa}`,
       });
-      const outraVez = await tirar(c, c.dono.sessao, c.v2, 1);
+      const outraVez = await tirar(c, c.dono.sessao, c.v2, lidoDe(criado));
       expect(outraVez.statusCode).toBe(409);
       expect(h.codigo(outraVez)).toBe("prices.version_conflict");
     });
@@ -384,62 +470,123 @@ describe.skipIf(URL_BASE === undefined)(
       const gestor = await h.pessoaCom(c.id, "gestor");
       const r = await definir(c, gestor.sessao, c.v1, {
         montante: 990,
-        versao: null,
+        lido: null,
       });
       expect(r.statusCode, r.body).toBe(200);
+      const lido = lidoDe(r.json<Preco>());
       for (const papel of ["armazem", "apoio"]) {
         const pessoa = await h.pessoaCom(c.id, papel);
         const mudar = await definir(c, pessoa.sessao, c.v1, {
           montante: 1,
-          versao: 1,
+          lido,
         });
         expect(mudar.statusCode, `${papel}: ${mudar.body}`).toBe(403);
-        const t = await tirar(c, pessoa.sessao, c.v1, 1);
+        const t = await tirar(c, pessoa.sessao, c.v1, lido);
         expect(t.statusCode, `${papel}: ${t.body}`).toBe(403);
       }
       expect((await precoNaFicha(c, c.v1))?.montante).toBe(990);
     });
 
-    it("a lista ou a variante de outro comerciante não se alcançam (404), e nada se grava lá", async () => {
+    it("a lista ou a variante de outro comerciante, ou que não existe, dão 404 ao definir e ao tirar, e nada se grava (revisão do #339, P2-2)", async () => {
       const c = await comerciante("Loja Preço Um");
       const outro = await comerciante("Loja Preço Dois");
-      // A lista do outro, com a variante deste.
-      const lista = await definir(
-        c,
-        c.dono.sessao,
-        c.v1,
-        { montante: 990, versao: null },
-        outro.lista,
-      );
-      expect(lista.statusCode, lista.body).toBe(404);
-      // A variante do outro, na lista deste.
-      const variante = await definir(c, c.dono.sessao, outro.v1, {
-        montante: 990,
-        versao: null,
-      });
-      expect(variante.statusCode, variante.body).toBe(404);
-      const { rows } = await sql<{ n: number }>`
-        select count(*)::int as n from preco
-        where comerciante_id in (${c.id}, ${outro.id})`.execute(base.dono);
-      expect(rows[0]?.n).toBe(0);
+      const doOutro = await criar(outro, outro.v1, 500);
+      const lido = lidoDe(doOutro);
+      const inexistente = `var_${randomUUID()}`;
+      const pedidos = [
+        // A lista do outro, com a variante deste, sem preço lido e com um.
+        definir(
+          c,
+          c.dono.sessao,
+          c.v1,
+          { montante: 990, lido: null },
+          outro.lista,
+        ),
+        definir(
+          c,
+          c.dono.sessao,
+          outro.v1,
+          { montante: 990, lido },
+          outro.lista,
+        ),
+        // A variante do outro, na lista deste.
+        definir(c, c.dono.sessao, outro.v1, { montante: 990, lido: null }),
+        definir(c, c.dono.sessao, outro.v1, { montante: 990, lido }),
+        // Uma variante que não existe.
+        definir(c, c.dono.sessao, inexistente, { montante: 990, lido }),
+        // Tirar: a variante deste na lista do outro; o preço do outro, pela
+        // lista dele e pela deste.
+        tirar(c, c.dono.sessao, c.v1, lido, outro.lista),
+        tirar(c, c.dono.sessao, outro.v1, lido, outro.lista),
+        tirar(c, c.dono.sessao, outro.v1, lido),
+        tirar(c, c.dono.sessao, inexistente, lido),
+      ];
+      for (const r of await Promise.all(pedidos)) {
+        expect(r.statusCode, r.body).toBe(404);
+        expect(h.codigo(r)).toBe("prices.not_found");
+      }
+      const { rows } = await sql<{ id: string; n: number }>`
+        select comerciante_id as id, count(*)::int as n from preco
+        where comerciante_id in (${c.id}, ${outro.id})
+        group by comerciante_id`.execute(base.dono);
+      expect(rows).toEqual([{ id: outro.id, n: 1 }]);
+      expect((await precoNaFicha(outro, outro.v1))?.montante).toBe(500);
     });
 
-    it("as regras de Preços valem pelo Hub: 0 sem «gratuito», a redução em vigor e a variante publicada", async () => {
+    it("as regras de Preços valem pelo Hub: 0 sem «gratuito», a lista arquivada, a redução em vigor e a variante publicada", async () => {
       const c = await comerciante("Loja Preço Regras");
       const zero = await definir(c, c.dono.sessao, c.v1, {
         montante: 0,
-        versao: null,
+        lido: null,
       });
       expect(zero.statusCode, zero.body).toBe(422);
       expect(h.codigo(zero)).toBe("prices.free_only_at_zero");
       const gratis = await definir(c, c.dono.sessao, c.v2, {
         montante: 0,
         gratuito: true,
-        versao: null,
+        lido: null,
       });
       expect(gratis.statusCode, gratis.body).toBe(200);
+      // Uma lista B2B arquivada não recebe preços.
+      const etiqueta = await base.dono.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${c.id}, true)`.execute(
+          trx,
+        );
+        await sql`select set_config('eurolify.quem', 'teste:etiqueta', true)`.execute(
+          trx,
+        );
+        const { rows } = await sql<{ id: string }>`
+          insert into etiqueta_cliente (comerciante_id, nome)
+          values (${c.id}, 'Profissionais') returning id`.execute(trx);
+        return `ctg_${rows[0]?.id ?? ""}`;
+      });
+      const b2b = await chave(c.segredo, "POST", "/price-lists", {
+        mercado: c.mercado,
+        nome: "Profissionais PT",
+        tipo: "b2b",
+        etiqueta,
+        prioridade: 10,
+      });
+      expect(b2b.statusCode, b2b.body).toBe(201);
+      const listaB2b = b2b.json<{ id: string; versao: number }>();
+      const arquivar = await chave(
+        c.segredo,
+        "POST",
+        `/price-lists/${listaB2b.id}/archive`,
+        { versao: listaB2b.versao },
+      );
+      expect(arquivar.statusCode, arquivar.body).toBe(200);
+      const naArquivada = await definir(
+        c,
+        c.dono.sessao,
+        c.v1,
+        { montante: 990, lido: null },
+        listaB2b.id,
+      );
+      expect(naArquivada.statusCode, naArquivada.body).toBe(409);
+      expect(h.codigo(naArquivada)).toBe("prices.list_archived");
       // A v1 a 9,90 € com 40 dias de história, depois reduzida para 7,90 €.
-      await definir(c, c.dono.sessao, c.v1, { montante: 990, versao: null });
+      await criar(c, c.v1, 990);
       await base.dono.transaction().execute(async (trx) => {
         await sql`select set_config('eurolify.comerciante', ${c.id}, true)`.execute(
           trx,
@@ -458,10 +605,10 @@ describe.skipIf(URL_BASE === undefined)(
         { montante: 790 },
       );
       expect(reducao.statusCode, reducao.body).toBe(200);
-      const v = reducao.json<Preco>().versao;
+      const lido = lidoDe(reducao.json<Preco>());
       const mudar = await definir(c, c.dono.sessao, c.v1, {
         montante: 890,
-        versao: v,
+        lido,
       });
       expect(mudar.statusCode, mudar.body).toBe(409);
       expect(h.codigo(mudar)).toBe("prices.reduction_active");
@@ -469,7 +616,7 @@ describe.skipIf(URL_BASE === undefined)(
       const quantidades = await definir(c, c.dono.sessao, c.v1, {
         montante: 990,
         quantidade_minima: 2,
-        versao: v,
+        lido,
       });
       expect(quantidades.statusCode, quantidades.body).toBe(200);
       // Publicado, o preço da lista base não sai.
@@ -480,19 +627,26 @@ describe.skipIf(URL_BASE === undefined)(
         { canal: c.canal, mercado: c.mercado },
       );
       expect(pub.json<{ publicada: boolean }>().publicada, pub.body).toBe(true);
-      const naFicha = await precoNaFicha(c, c.v2);
-      const t = await tirar(c, c.dono.sessao, c.v2, naFicha?.versao ?? 0);
+      const t = await tirar(
+        c,
+        c.dono.sessao,
+        c.v2,
+        lidoDe(await precoNaFicha(c, c.v2)),
+      );
       expect(t.statusCode, t.body).toBe(409);
       expect(h.codigo(t)).toBe("prices.published_variant");
       expect((await precoNaFicha(c, c.v2))?.gratuito).toBe(true);
     });
 
-    it("um corpo com campos a mais ou sem a versão é recusado (400)", async () => {
+    it("um corpo com campos a mais, sem o «lido» ou com a forma antiga é recusado (400)", async () => {
       const c = await comerciante("Loja Preço Corpo");
       for (const corpo of [
         { montante: 990 },
-        { montante: 990, versao: null, reducao: 1 },
-        { montante: 9.9, versao: null },
+        { montante: 990, versao: null },
+        { montante: 990, lido: null, reducao: 1 },
+        { montante: 9.9, lido: null },
+        { montante: 990, lido: { versao: 1 } },
+        { montante: 990, lido: { versao: 1, definido_em: "ontem" } },
       ]) {
         const r = await definir(c, c.dono.sessao, c.v1, corpo);
         expect(r.statusCode, `${JSON.stringify(corpo)}: ${r.body}`).toBe(400);
@@ -502,16 +656,9 @@ describe.skipIf(URL_BASE === undefined)(
 
     it("com o preço preso por outro: a espera acaba em 503 prices.retry ao fim de 5 s, e nada muda", async () => {
       const c = await comerciante("Loja Preço Preso");
-      await definir(c, c.dono.sessao, c.v1, { montante: 990, versao: null });
-      const cliente = new pg.Client({ connectionString: base.urlApi });
-      cliente.on("error", () => undefined);
-      await cliente.connect();
+      const criado = await criar(c, c.v1, 990);
+      const cliente = await transaccaoAberta(c.id);
       try {
-        await cliente.query("begin");
-        await cliente.query(
-          "select set_config('eurolify.comerciante', $1, true)",
-          [c.id],
-        );
         await cliente.query(
           "select variante_id from preco where variante_id = $1 for update",
           [c.v1.slice("var_".length)],
@@ -519,7 +666,7 @@ describe.skipIf(URL_BASE === undefined)(
         const inicio = Date.now();
         const r = await definir(c, c.dono.sessao, c.v1, {
           montante: 1290,
-          versao: 1,
+          lido: lidoDe(criado),
         });
         expect(r.statusCode, r.body).toBe(503);
         expect(h.codigo(r)).toBe("prices.retry");
