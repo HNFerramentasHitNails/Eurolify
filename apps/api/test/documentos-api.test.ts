@@ -649,6 +649,24 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     expect(JSON.stringify(ligacoes)).not.toContain(conta);
   });
 
+  it("cada linha vai com a taxa do emissor do seu par (país, taxa), nunca com outra do mesmo país", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta, [
+      { pais: "PT", taxa: 600, emissor: "T6" },
+      { pais: "PT", taxa: 2300, emissor: "T23" },
+    ]);
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    expect((await documentoDe(s, e.encomenda))?.["estado"]).toBe("emitido");
+    const pedido = ensaio.conta(conta).pedidos[0];
+    expect(pedido?.linhas.map((l) => [l.taxa, l.taxa_emissor])).toEqual([
+      [2300, "T23"],
+      [2300, "T23"],
+    ]);
+    expect(pedido?.observacoes).toBe("destino PT · IVA 23 %");
+  });
+
   it("com sistema próprio, a encomenda não tem documento e a base recusa criá-lo", async () => {
     const s = await cenario();
     await ok(
@@ -840,6 +858,8 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       motivos: ["entidade_do_emissor_diferente"],
     });
     expect(ensaio.conta(conta).documentos.size).toBe(0);
+    // Retido antes de pedir o rascunho, não só ao conferi-lo.
+    expect(ensaio.conta(conta).chamadas).not.toContain("criarRascunho");
     expect(
       await codigo(
         s.adm("POST", `/invoices/${String(d["id"])}/release`, {

@@ -165,6 +165,8 @@ interface ContaDoEnsaio {
   aoFechar?: (d: DocumentoNoEmissor) => DocumentoNoEmissor;
   numero: number;
   chamadas: string[];
+  /** Os pedidos de rascunho como chegaram (para conferir a tradução). */
+  pedidos: PedidoRascunho[];
 }
 
 /**
@@ -187,6 +189,7 @@ export class EmissorDeEnsaio implements AdaptadorFaturacao {
         falhas: {},
         numero: 0,
         chamadas: [],
+        pedidos: [],
       };
       this.contas.set(nome, c);
     }
@@ -223,6 +226,7 @@ export class EmissorDeEnsaio implements AdaptadorFaturacao {
   ): Promise<{ id: string }> {
     const c = this.daConta(credenciais);
     c.chamadas.push("criarRascunho");
+    c.pedidos.push(structuredClone(pedido));
     if (c.falhas.criarRascunho === "erro") {
       return Promise.reject(new ErroDoEmissor("o emissor recusou o rascunho"));
     }

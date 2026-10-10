@@ -29,7 +29,9 @@ ALTER TABLE encomenda ADD COLUMN emissor_fiscal text NOT NULL DEFAULT 'por_confi
   CHECK (emissor_fiscal IN ('por_configurar', 'eurolify', 'sistema_proprio'));
 
 -- O emissor copia-se da entidade no botão final e não muda (ADR-0041: uma
--- venda nunca tem os dois emissores; Q6).
+-- venda nunca tem os dois emissores; Q6). A imutabilidade já vem do gatilho
+-- geral da encomenda (0047, «as cópias da encomenda não mudam»), que corre
+-- antes; este repete-a para não depender dele.
 CREATE FUNCTION encomenda_emissor_fiscal() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
