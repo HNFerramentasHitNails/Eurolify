@@ -142,7 +142,7 @@ jobs:
               [[ "$FUSO" =~ ^[A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2}$ ]] ||
                 recusar "o fuso horário é um nome IANA (ex.: Europe/Lisbon)."
               # O número da execução não muda num «Re-run»: repetir
-              # devolve o mesmo comerciante (migração 0044; #107).
+              # devolve o mesmo comerciante (migração 0045; #107).
               pedido="comerciante ${LINGUA} ${FUSO} ${nome64} run:${GITHUB_RUN_ID} ${quem}"
               ;;
             chave)

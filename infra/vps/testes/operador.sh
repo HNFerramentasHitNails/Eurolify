@@ -78,7 +78,7 @@ else
   falhou "sem o comando, fez a cópia na mesma"
 fi
 # O comando corre com o papel do operador, nunca com o dono das tabelas
-# (migração 0044; revisão do #110, P3-8).
+# (migração 0045; revisão do #110, P3-8).
 caso "com cópia, outra vez" sim
 if grep -q -- "--env-file /etc/eurolify/operador.env" "$falsos/docker-chamado"; then
   echo "ok: corre com o operador.env"

@@ -7,7 +7,7 @@ import { registarChave } from "./identidade/repositorio.js";
 // Comando do operador (docs/19 §6). Corre na VPS num contentor de uma vez,
 // lançado pelo serviço da máquina (eurolify-operador), com a ligação do papel
 // eurolify_operador (operador.env), que só chama as três portas do operador
-// (migração 0044; revisão do #110, P3-8). Escreve uma linha JSON com o
+// (migração 0045; revisão do #110, P3-8). Escreve uma linha JSON com o
 // resultado; nunca escreve o pedido nem a ligação.
 
 const url = process.env["BASE_DADOS_URL_OPERADOR"]?.trim();
@@ -28,7 +28,7 @@ const base = abrirBase(url);
 try {
   if (pedido.accao === "comerciante") {
     // O mesmo pedido (a mesma execução do GitHub, também num «Re-run»)
-    // devolve o mesmo comerciante, com `ja_existia: true` (0044).
+    // devolve o mesmo comerciante, com `ja_existia: true` (0045).
     const { rows } = await sql<{ id: string; ja_existia: boolean }>`
       select id, ja_existia from comerciante_criar_pelo_operador(
         ${pedido.pedido}, ${pedido.nome}, ${pedido.lingua}, ${pedido.fuso},

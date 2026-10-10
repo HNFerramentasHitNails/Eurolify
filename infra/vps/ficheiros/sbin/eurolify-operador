@@ -4,7 +4,7 @@
 # outra vez. Cria um comerciante, uma chave de servidor dele ou o convite do
 # primeiro dono (§6.0), num contentor de uma vez com a imagem da API que está
 # no ar e a ligação do papel eurolify_operador (operador.env), que só chama as
-# três portas do operador (migração 0044; revisão do #110, P3-8). Os segredos
+# três portas do operador (migração 0045; revisão do #110, P3-8). Os segredos
 # (da chave e do convite) nunca chegam aqui: só os resumos.
 set -Eeuo pipefail
 # shellcheck source=../lib/comum.sh
@@ -24,7 +24,7 @@ if [[ "$pedido" == convite\ * ]]; then
   docker run --rm --pull=never --entrypoint grep "$imagem" -q '"convite"' dist/identidade/operador.js >/dev/null 2>&1 ||
     falhar "a imagem no ar ainda não tem o convite do operador (publicar primeiro)"
 fi
-# Uma imagem de antes da 0044 liga-se com o dono das tabelas e não conhece o
+# Uma imagem de antes da 0045 liga-se com o dono das tabelas e não conhece o
 # número da execução: recusa-se antes da cópia (#107).
 docker run --rm --pull=never --entrypoint grep "$imagem" -q BASE_DADOS_URL_OPERADOR dist/operador.js >/dev/null 2>&1 ||
   falhar "a imagem no ar ainda não tem o operador com o papel próprio (publicar primeiro)"

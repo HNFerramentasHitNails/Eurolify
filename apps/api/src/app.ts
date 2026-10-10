@@ -28,6 +28,8 @@ import { rotasDaMedia } from "./catalogo/rotas-media.js";
 import { rotasDosClientes } from "./clientes/rotas.js";
 import { rotasDoIva } from "./iva/rotas.js";
 import { rotasDoCheckout } from "./checkout/rotas.js";
+import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
+import { rotasDosPagamentos } from "./pagamentos/rotas.js";
 import type { ConsultaVies } from "./clientes/vies.js";
 import { rotasDosPrecos } from "./precos/rotas.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
@@ -96,6 +98,11 @@ export function criarApp(
   vies?: ConsultaVies,
   /** O limite por IP das rotas da loja (por omissão, LIMITE_LOJA). */
   limiteLoja: RegraLimite = LIMITE_LOJA,
+  /**
+   * Os adaptadores dos prestadores e a chave das credenciais (docs/26 Q3);
+   * sem eles, pagar e ligar contas dá 503 `payments.not_configured`.
+   */
+  pagamentos?: ConfigPagamentos,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -327,6 +334,7 @@ export function criarApp(
       rotasDosClientes(rotas, base, vies);
       rotasDoIva(rotas, base);
       rotasDoCheckout(rotas, base);
+      rotasDosPagamentos(rotas, base, pagamentos);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.

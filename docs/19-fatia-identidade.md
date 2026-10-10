@@ -192,7 +192,7 @@ operador»*). Pelo GitHub e não pelo MCP, porque o MCP não muda a base
    está no ar e a ligação do papel `eurolify_operador` (`operador.env`). Esse
    papel não é superutilizador, não passa o RLS e só chama as três portas do
    operador, todas funções do dono: `comerciante_criar_pelo_operador`,
-   `chave_criar` e `convite_criar_pelo_operador` (migração 0044; revisão do
+   `chave_criar` e `convite_criar_pelo_operador` (migração 0045; revisão do
    #110, P3-8; antes corria com o dono das tabelas). Quem lançou fica na
    chave como `operador:github:<número da conta>`.
 
@@ -208,7 +208,7 @@ Limites, tal como está (revisão do #110):
   `ensaio`). A regra «uma chave não cria outra com mais âmbitos» (T9) é para o
   `POST /keys`, não para o operador.
 - **Repetir a acção `comerciante` não cria outro comerciante** (migração
-  0044, desde 10/10/2026; revisão do #110, P2-2): o pedido leva o número da
+  0045, desde 10/10/2026; revisão do #110, P2-2): o pedido leva o número da
   execução do GitHub (`run:<número>`), que não muda num «Re-run», e a base
   guarda-o (`pedido_do_operador`). O mesmo pedido devolve o mesmo `mer_…`
   com `ja_existia: true`. **Lançar o fluxo outra vez** (uma execução nova)

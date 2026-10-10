@@ -32,7 +32,7 @@ BEGIN
     BEGIN
       CREATE ROLE eurolify_operador NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
     EXCEPTION WHEN insufficient_privilege THEN
-      RAISE NOTICE 'migracao 0044: sem permissão para criar o papel eurolify_operador; cria-o o preparar.sh (passo 10b)';
+      RAISE NOTICE 'migracao 0045: sem permissão para criar o papel eurolify_operador; cria-o o preparar.sh (passo 10b)';
     END;
   END IF;
 END

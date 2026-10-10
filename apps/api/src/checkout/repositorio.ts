@@ -11,6 +11,7 @@ import { comComerciante } from "../comerciante/repositorio.js";
 import { decidirIva, type Decisao } from "../iva/decisao.js";
 import { carregarTabelas, comercianteParaDecisao } from "../iva/repositorio.js";
 import { precosParaVenda, type PrecoParaVenda } from "../precos/repositorio.js";
+import { metodosDoMercado } from "../pagamentos/repositorio.js";
 import { ErroCheckout, type CodigoErroCheckout } from "./erros.js";
 
 // O checkout (docs/25; migração 0041): o carrinho da API da Loja, a sessão
@@ -822,6 +823,15 @@ export async function porMetodoPagamento(
   s: SessaoLida,
   metodo: string,
 ) {
+  // Só um método da régua do mercado, com a conta pronta (docs/26 §3.2).
+  const disponiveis = await metodosDoMercado(trx, s.mercado_id);
+  if (!disponiveis.some((m) => m.metodo === metodo)) {
+    throw new ErroCheckout(
+      "checkout.payment_unavailable",
+      "este método de pagamento não está disponível neste mercado",
+      { metodos: disponiveis.map((m) => m.metodo) },
+    );
+  }
   await trx
     .updateTable("sessao_checkout")
     .set({ metodo_pagamento: metodo })
@@ -966,7 +976,32 @@ export async function calcularResumo(
       .executeTakeFirst();
     if (m?.pede_telefone === true) em_falta.push("telefone");
   }
+  // O MB WAY pede a aprovação no telemóvel (docs/26 §7).
+  if (
+    s.metodo_pagamento === "mb_way" &&
+    s.telefone === null &&
+    !em_falta.includes("telefone")
+  ) {
+    em_falta.push("telefone");
+  }
   const bloqueios: Resumo["bloqueios"] = [];
+  // O método escolhido tem de continuar na régua do mercado (a régua pode ter
+  // mudado, ou a morada mudou o mercado; docs/26 §3.2).
+  if (s.metodo_pagamento !== null) {
+    const disponiveis = await metodosDoMercado(trx, s.mercado_id);
+    if (!disponiveis.some((m) => m.metodo === s.metodo_pagamento)) {
+      bloqueios.push({ onde: "pagamento", motivo: "metodo_indisponivel" });
+    } else if (
+      s.metodo_pagamento === "mb_way" &&
+      s.telefone !== null &&
+      !/^\+351[0-9]{9}$/.test(s.telefone)
+    ) {
+      bloqueios.push({
+        onde: "pagamento",
+        motivo: "mb_way_telefone_portugues",
+      });
+    }
+  }
 
   // O cliente do checkout sem conta não tem perfil guardado: o Motor decide
   // sem perfil (sem VIES nem isenção manual; docs/25 Q6). Um profissional de
@@ -1211,7 +1246,17 @@ export async function concluir(
       em_falta: r.em_falta,
     });
   }
-  const iva = r.bloqueios.filter((b) => !b.onde.startsWith("texto:"));
+  const pagamento = r.bloqueios.filter((b) => b.onde === "pagamento");
+  if (pagamento.length > 0) {
+    throw new ErroCheckout(
+      "checkout.payment_unavailable",
+      "o método de pagamento escolhido não se pode usar",
+      { bloqueios: pagamento },
+    );
+  }
+  const iva = r.bloqueios.filter(
+    (b) => !b.onde.startsWith("texto:") && b.onde !== "pagamento",
+  );
   if (iva.length > 0) {
     throw new ErroCheckout(
       "checkout.vat_blocked",
