@@ -235,11 +235,11 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // importações (0032), a linha do tempo (0033), as reduções (0036) e as
       // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
       // declaração do regime do IVA (0040), as 8 do checkout (0041), os
-      // consentimentos (0042), as 6 dos pagamentos (0044) e as 9 do stock
+      // consentimentos (0042), as 6 dos pagamentos (0044) e as 10 do stock
       // (0045).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(63);
+      ).toHaveLength(64);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

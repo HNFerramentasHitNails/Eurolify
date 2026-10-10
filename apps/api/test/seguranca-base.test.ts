@@ -115,6 +115,7 @@ const FUNCOES_DA_API = [
   "sessao_verificar",
   "sessoes_listar",
   "sessoes_terminar_todas",
+  "stock_bloquear",
   "stock_politica",
   "telefones_validos",
   // O VIES (0039): a fila e a prova, pelas funções do dono.

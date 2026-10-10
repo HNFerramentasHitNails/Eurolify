@@ -35,6 +35,7 @@ export const AMBITOS = [
   "payments:resolve",
   "inventory:read",
   "inventory:write",
+  "inventory:policy",
   "fulfilment:read",
   "fulfilment:write",
   "keys:write",

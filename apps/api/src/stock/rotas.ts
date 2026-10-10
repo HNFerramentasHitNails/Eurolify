@@ -440,7 +440,7 @@ export function rotasDoStock(
   rotas.put(
     "/variants/:id/stock-policy",
     {
-      config: { ambito: "inventory:write" },
+      config: { ambito: "inventory:policy" },
       schema: {
         description:
           "A política de stock da variante (controla, não controla, vende sem stock) e se exige lote.",
@@ -460,6 +460,7 @@ export function rotasDoStock(
             chave.comercianteId,
             semPrefixo(pedido.params.id),
             pedido.body,
+            quemDe(chave),
           );
           return null;
         }),
@@ -618,7 +619,7 @@ export function rotasDoStock(
       config: { ambito: "fulfilment:write" },
       schema: {
         description:
-          "Muda a expedição: `expedida` dá saída do stock (a reserva passa a saída, com o lote de cada componente; sem lotes dados, o que expira primeiro), `entregue`, `devolvida_ao_remetente` ou `perdida`; e a transportadora, o serviço e o seguimento.",
+          "Muda a expedição: `expedida` dá saída do stock (a reserva passa a saída, com o lote de cada componente; sem lotes dados, o que expira primeiro dentro da validade), `entregue`, `devolvida_ao_remetente` ou `perdida`; `cancelada` desfaz uma expedição criada que não chegou a sair (as linhas voltam a estar por expedir); e a transportadora, o serviço e o seguimento.",
         params: Type.Object({ id: IdExpedicao }),
         body: Type.Object(
           {
@@ -629,6 +630,7 @@ export function rotasDoStock(
                 "entregue",
                 "devolvida_ao_remetente",
                 "perdida",
+                "cancelada",
               ] as const),
             ),
             transportadora: Type.Optional(Texto(100)),

@@ -221,6 +221,7 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
           "payments:resolve",
           "inventory:read",
           "inventory:write",
+          "inventory:policy",
           "fulfilment:read",
           "fulfilment:write",
         ],
@@ -706,6 +707,21 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
     expect(
       (await ok(s.adm("GET", `/inventory?variante=var_${kit}`)))["dados"],
     ).toEqual([]);
+    // A composição muda depois da compra: a saída usa a do botão final
+    // (revisão do #296, P1-3).
+    await definirComponentes(base.api, s.c, kit, [
+      { varianteId: s.v1, quantidade: 1 },
+      { varianteId: s.v2, quantidade: 1 },
+    ]);
+    // Um kit não recebe stock próprio.
+    expect(
+      await codigo(
+        s.adm("POST", "/inventory/receipts", {
+          armazem: s.armazem,
+          linhas: [{ variante: `var_${kit}`, quantidade: 1 }],
+        }),
+      ),
+    ).toEqual([422, "inventory.not_controlled"]);
     // A expedição dá saída dos componentes.
     const v = await ok(s.adm("GET", `/fulfilment/orders/${e.encomenda}`));
     const linha = (v["linhas"] as Json[])[0] as Json;
@@ -735,24 +751,20 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
 
   it("lotes: sem lote não entra; a saída leva o lote que expira primeiro; o saldo do lote baixa", async () => {
     const s = await cenario();
-    await ok(
+    const politica = (exige_lote: boolean) =>
       pedir(
         "PUT",
         `/variants/var_${s.v1}/stock-policy`,
-        { politica: "controla", exige_lote: true },
+        { politica: "controla", exige_lote },
         { authorization: `Bearer ${s.servidor}` },
-      ),
-      204,
-    );
-    expect(
-      await codigo(
-        s.adm("POST", "/inventory/receipts", {
-          armazem: s.armazem,
-          linhas: [{ variante: `var_${s.v1}`, quantidade: 5 }],
-        }),
-      ),
-    ).toEqual([422, "inventory.lot_required"]);
-    // Os 100 iniciais saem do físico sem lote; passam a lotes com um ajuste.
+      );
+    // Com físico sem lote, não passa a exigir lote: a soma dos lotes tem de
+    // ser o físico (revisão do #296, P1-1).
+    expect(await codigo(politica(true))).toEqual([
+      409,
+      "inventory.policy_blocked",
+    ]);
+    // Os 100 iniciais saem do físico sem lote; passam a lotes com entradas.
     await ok(
       s.adm("POST", "/inventory/adjustments", {
         armazem: s.armazem,
@@ -762,6 +774,26 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
       }),
       201,
     );
+    await ok(politica(true), 204);
+    expect(
+      await codigo(
+        s.adm("POST", "/inventory/receipts", {
+          armazem: s.armazem,
+          linhas: [{ variante: `var_${s.v1}`, quantidade: 5 }],
+        }),
+      ),
+    ).toEqual([422, "inventory.lot_required"]);
+    // Um ajuste também leva lote quando a variante o exige (P1-1).
+    expect(
+      await codigo(
+        s.adm("POST", "/inventory/adjustments", {
+          armazem: s.armazem,
+          variante: `var_${s.v1}`,
+          delta: 1,
+          motivo: "achado",
+        }),
+      ),
+    ).toEqual([422, "inventory.lot_required"]);
     await ok(
       s.adm("POST", "/inventory/receipts", {
         armazem: s.armazem,
@@ -920,7 +952,7 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
           estado: "perdida",
         }),
       ),
-    ).toEqual([409, "shipments.invalid_transition"]);
+    ).toEqual([409, "shipments.immutable"]);
     // Concluída 14 dias depois de entregue.
     expect(await correrConclusoes(base.api)).toBe(0);
     await sql`update tarefa_encomenda set quando = now() - interval '1 minute'
@@ -1014,5 +1046,255 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
       reservado: 3,
       disponivel: -3,
     });
+  });
+
+  it("uma expedição criada cancela-se: as linhas voltam a estar por expedir e a reserva fica", async () => {
+    const s = await cenario();
+    const e = await paga(s, [[s.v1, 2]]);
+    const v = await ok(s.adm("GET", `/fulfilment/orders/${e.encomenda}`));
+    const linha = (v["linhas"] as Json[])[0] as Json;
+    const x = await ok(
+      s.adm("POST", `/orders/${e.encomenda}/shipments`, {
+        linhas: [{ linha: linha["id"], quantidade: 2 }],
+      }),
+      201,
+    );
+    // Tudo atribuído: outra expedição não cabe.
+    expect(
+      await codigo(
+        s.adm("POST", `/orders/${e.encomenda}/shipments`, {
+          linhas: [{ linha: linha["id"], quantidade: 1 }],
+        }),
+      ),
+    ).toEqual([422, "shipments.quantity_exceeded"]);
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+        versao: 1,
+        estado: "cancelada",
+      }),
+    );
+    // Cancelada não volta atrás nem sai.
+    expect(
+      await codigo(
+        s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+          versao: 2,
+          estado: "expedida",
+        }),
+      ),
+    ).toEqual([409, "shipments.immutable"]);
+    expect(await saldo(s, s.v1)).toEqual({
+      fisico: 100,
+      reservado: 2,
+      disponivel: 98,
+    });
+    // As linhas voltam a estar por expedir: uma expedição nova sai.
+    const x2 = await ok(
+      s.adm("POST", `/orders/${e.encomenda}/shipments`, {
+        linhas: [{ linha: linha["id"], quantidade: 2 }],
+      }),
+      201,
+    );
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x2["id"])}`, {
+        versao: 1,
+        estado: "expedida",
+      }),
+    );
+    expect((await ok(s.adm("GET", `/orders/${e.encomenda}`)))["estado"]).toBe(
+      "expedida",
+    );
+    expect(await saldo(s, s.v1)).toEqual({
+      fisico: 98,
+      reservado: 0,
+      disponivel: 98,
+    });
+    const tipos = await eventos(s);
+    expect(tipos).toContain("shipment.created");
+    expect(tipos).toContain("shipment.cancelled");
+    expect(tipos).toContain("shipment.dispatched");
+  });
+
+  it("a política: não deixa de controlar com reservas; só quem tem inventory:policy a muda", async () => {
+    const s = await cenario();
+    await paga(s, [[s.v1, 2]]);
+    expect(
+      await codigo(
+        s.adm("PUT", `/variants/var_${s.v1}/stock-policy`, {
+          politica: "nao_controla",
+          exige_lote: false,
+        }),
+      ),
+    ).toEqual([409, "inventory.policy_blocked"]);
+    // O papel do armazém mexe no stock, não na política (revisão do #296, P2-9).
+    const armazem = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Armazém",
+        ambitos: [
+          "fulfilment:read",
+          "fulfilment:write",
+          "inventory:read",
+          "inventory:write",
+        ],
+      })
+    ).segredo;
+    expect(
+      await codigo(
+        pedir(
+          "PUT",
+          `/variants/var_${s.v2}/stock-policy`,
+          { politica: "vende_sem_stock", exige_lote: false },
+          { authorization: `Bearer ${armazem}` },
+        ),
+      ),
+    ).toEqual([403, "auth.forbidden"]);
+    // A política ficou como estava.
+    const politica = await naBase(s, (trx) =>
+      trx
+        .selectFrom("politica_stock")
+        .select(["politica", "actualizado_por"])
+        .where("variante_id", "=", s.v1)
+        .executeTakeFirst(),
+    );
+    expect(politica).toBeUndefined();
+  });
+
+  it("a vista do armazém não mostra uma encomenda por pagar", async () => {
+    const s = await cenario();
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    const e = await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    expect(
+      (
+        await codigo(
+          s.adm("GET", `/fulfilment/orders/${String(e["encomenda"])}`),
+        )
+      )[0],
+    ).toBe(404);
+  });
+
+  it("lotes: outra validade para o mesmo lote recusa; um lote fora de validade não sai", async () => {
+    const s = await cenario();
+    await ok(
+      s.adm("POST", "/inventory/adjustments", {
+        armazem: s.armazem,
+        variante: `var_${s.v1}`,
+        delta: -100,
+        motivo: "recontagem por lotes",
+      }),
+      201,
+    );
+    await ok(
+      s.adm("PUT", `/variants/var_${s.v1}/stock-policy`, {
+        politica: "controla",
+        exige_lote: true,
+      }),
+      204,
+    );
+    await ok(
+      s.adm("POST", "/inventory/receipts", {
+        armazem: s.armazem,
+        linhas: [
+          {
+            variante: `var_${s.v1}`,
+            quantidade: 5,
+            lote: { numero: "L-VELHO", validade: "2020-01-31" },
+          },
+          {
+            variante: `var_${s.v1}`,
+            quantidade: 5,
+            lote: { numero: "L-BOM", validade: "2099-12-31" },
+          },
+        ],
+      }),
+      201,
+    );
+    expect(
+      await codigo(
+        s.adm("POST", "/inventory/receipts", {
+          armazem: s.armazem,
+          linhas: [
+            {
+              variante: `var_${s.v1}`,
+              quantidade: 1,
+              lote: { numero: "L-BOM", validade: "2098-01-01" },
+            },
+          ],
+        }),
+      ),
+    ).toEqual([400, "inventory.invalid_field"]);
+    // Com lotes, deixar de exigir lote recusa.
+    expect(
+      await codigo(
+        s.adm("PUT", `/variants/var_${s.v1}/stock-policy`, {
+          politica: "controla",
+          exige_lote: false,
+        }),
+      ),
+    ).toEqual([409, "inventory.policy_blocked"]);
+    const e = await paga(s, [[s.v1, 2]]);
+    const v = await ok(s.adm("GET", `/fulfilment/orders/${e.encomenda}`));
+    const linha = (v["linhas"] as Json[])[0] as Json;
+    const x = await ok(
+      s.adm("POST", `/orders/${e.encomenda}/shipments`, {
+        linhas: [{ linha: linha["id"], quantidade: 2 }],
+      }),
+      201,
+    );
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+        versao: 1,
+        estado: "expedida",
+      }),
+    );
+    const lotes = (await ok(s.adm("GET", `/lots?variante=var_${s.v1}`)))[
+      "dados"
+    ] as Json[];
+    const bom = lotes.find((l) => l["numero"] === "L-BOM") as Json;
+    const movs = (
+      await ok(s.adm("GET", `/inventory/movements?encomenda=${e.encomenda}`))
+    )["dados"] as Json[];
+    expect(movs.find((m) => m["tipo"] === "saida")).toMatchObject({
+      lote: bom["id"],
+      quantidade: 2,
+    });
+  });
+
+  it("um armazém arquivado não recebe stock", async () => {
+    const s = await cenario();
+    const outra = await criarLoja(base.api, s.c, {
+      entidade_legal_id: (
+        await naBase(s, (trx) =>
+          trx
+            .selectFrom("loja")
+            .select("entidade_legal_id")
+            .where("id", "=", s.loja)
+            .executeTakeFirstOrThrow(),
+        )
+      ).entidade_legal_id,
+      nome: "Segunda loja",
+    });
+    const a = await ok(
+      s.adm("POST", "/warehouses", { loja: `sto_${outra}`, nome: "Velho" }),
+      201,
+    );
+    await ok(
+      s.adm("PATCH", `/warehouses/${String(a["id"])}`, {
+        versao: 1,
+        arquivar: true,
+      }),
+    );
+    expect(
+      await codigo(
+        s.adm("POST", "/inventory/receipts", {
+          armazem: a["id"],
+          linhas: [{ variante: `var_${s.v1}`, quantidade: 1 }],
+        }),
+      ),
+    ).toEqual([422, "inventory.no_warehouse"]);
   });
 });

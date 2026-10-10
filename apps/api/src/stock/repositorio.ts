@@ -22,6 +22,7 @@ export type CodigoErroStock =
   | "inventory.negative"
   | "inventory.not_controlled"
   | "inventory.no_warehouse"
+  | "inventory.policy_blocked"
   | "shipments.immutable"
   | "shipments.invalid_transition"
   | "shipments.line_not_in_order"
@@ -38,6 +39,7 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroStock, number> = {
   "inventory.negative": 422,
   "inventory.not_controlled": 422,
   "inventory.no_warehouse": 422,
+  "inventory.policy_blocked": 409,
   "shipments.immutable": 409,
   "shipments.invalid_transition": 409,
   "shipments.line_not_in_order": 422,
@@ -61,6 +63,7 @@ const CODIGOS_DA_BASE: CodigoErroStock[] = [
   "inventory.insufficient",
   "inventory.lot_required",
   "inventory.negative",
+  "inventory.no_warehouse",
   "inventory.not_controlled",
   "inventory.not_found",
   "shipments.immutable",
@@ -75,6 +78,13 @@ export function traduzir(erro: unknown): unknown {
     return new ErroStock(codigo, erro.message, undefined, { cause: erro });
   }
   const pg = erro as Error & { code?: string; constraint?: string };
+  // Dois pedidos a criar o mesmo lote: tentar outra vez encontra-o (revisão
+  // do #296, P2-5).
+  if (pg.code === "23505" && pg.constraint === "lote_variante_id_numero_key") {
+    return new ErroStock("inventory.retry", "tentar outra vez", undefined, {
+      cause: erro,
+    });
+  }
   if (pg.code === "23505" && pg.constraint === "armazem_um_por_loja") {
     return new ErroStock(
       "inventory.invalid_field",
@@ -197,6 +207,22 @@ export async function politicas(
   return r;
 }
 
+/** Os saldos da variante, bloqueados até ao fim da transacção (0045). */
+async function bloquearSaldos(
+  trx: Transaction<BaseDados>,
+  variante: string,
+  armazem: string | null,
+) {
+  const r = await sql<{
+    armazem_id: string;
+    fisico: number;
+    reservado: number;
+  }>`select armazem_id, fisico, reservado from stock_bloquear(${variante}::uuid, ${armazem}::uuid)`.execute(
+    trx,
+  );
+  return r.rows;
+}
+
 /** O armazém activo da loja (Q1: um por loja), ou null. */
 export async function armazemDaLoja(
   trx: Transaction<BaseDados>,
@@ -230,6 +256,20 @@ export async function disponiveis(
     for (const k of f.keys()) todas.add(k);
   }
   const pol = await politicas(trx, [...todas]);
+  // Um componente arquivado dá disponível 0 ao kit (docs/14 §3.4, C6;
+  // revisão do #296, P2-3).
+  const arquivadas = new Set(
+    todas.size === 0
+      ? []
+      : (
+          await trx
+            .selectFrom("variante")
+            .select("id")
+            .where("id", "in", [...todas])
+            .where("estado", "=", "arquivada")
+            .execute()
+        ).map((v) => v.id),
+  );
   const saldos = new Map<string, number>();
   if (armazemId !== null && todas.size > 0) {
     const linhas = await trx
@@ -244,6 +284,10 @@ export async function disponiveis(
     let minimo: number | null = null;
     for (const [folha, porUnidade] of f) {
       const p = pol.get(folha)?.politica ?? "controla";
+      if (arquivadas.has(folha) && folha !== v) {
+        minimo = 0;
+        continue;
+      }
       if (p !== "controla") continue;
       const d = Math.max(0, saldos.get(folha) ?? 0);
       const unidades = Math.floor(d / porUnidade);
@@ -275,12 +319,23 @@ export async function reservarEncomenda(
   c: string,
   encomendaId: string,
   lojaId: string,
-  linhas: { variante_id: string; quantidade: number }[],
+  linhas: { id: string; variante_id: string; quantidade: number }[],
 ) {
   const total = new Map<string, number>();
   for (const l of linhas) {
-    for (const [v, q] of await folhas(trx, l.variante_id, l.quantidade)) {
-      total.set(v, (total.get(v) ?? 0) + q);
+    // A composição congela-se na linha: a saída usa esta, não a de hoje
+    // (revisão do #296, P1-3).
+    for (const [v, porUnidade] of await folhas(trx, l.variante_id)) {
+      await trx
+        .insertInto("linha_encomenda_folha")
+        .values({
+          comerciante_id: c,
+          linha_encomenda_id: l.id,
+          variante_id: v,
+          por_unidade: porUnidade,
+        })
+        .execute();
+      total.set(v, (total.get(v) ?? 0) + porUnidade * l.quantidade);
     }
   }
   const pol = await politicas(trx, [...total.keys()]);
@@ -411,7 +466,22 @@ async function loteDe(
     .where("variante_id", "=", varianteId)
     .where("numero", "=", lote.numero)
     .executeTakeFirst();
-  if (existente !== undefined) return existente.id;
+  if (existente !== undefined) {
+    // A validade de um lote não muda nem se acrescenta depois (o lote só se
+    // acrescenta): outra validade é erro, não se ignora (revisão do #296,
+    // P2-5).
+    if (
+      lote.validade !== undefined &&
+      lote.validade !== null &&
+      existente.validade !== lote.validade
+    ) {
+      throw new ErroStock(
+        "inventory.invalid_field",
+        `o lote ${lote.numero} já existe com outra validade (${existente.validade ?? "sem validade"})`,
+      );
+    }
+    return existente.id;
+  }
   const { id } = await trx
     .insertInto("lote")
     .values({
@@ -503,8 +573,52 @@ export async function definirPolitica(
   c: string,
   variante: string,
   dados: { politica: PoliticaStock; exige_lote: boolean },
+  quem: string,
 ) {
   return noStock(trx, c, async () => {
+    const actual = (await politicas(trx, [variante])).get(variante);
+    if (actual === undefined) {
+      throw new ErroStock("inventory.not_found", "esta variante não existe");
+    }
+    const saldos = await bloquearSaldos(trx, variante, null);
+    // Com stock ou reservas não deixa de controlar: o cancelamento e a
+    // expedição contam com elas (revisão do #296, P1-4).
+    if (
+      dados.politica === "nao_controla" &&
+      saldos.some((x) => x.reservado > 0 || x.fisico > 0)
+    ) {
+      throw new ErroStock(
+        "inventory.policy_blocked",
+        "com stock ou reservas não se deixa de controlar: acerte o stock e expeça ou cancele primeiro",
+      );
+    }
+    // Ligar o lote exige o físico a zero (a soma dos lotes é o físico);
+    // desligar exige que não haja stock em lotes (P1-1).
+    if (
+      dados.exige_lote &&
+      !actual.exige_lote &&
+      saldos.some((x) => x.fisico > 0)
+    ) {
+      throw new ErroStock(
+        "inventory.policy_blocked",
+        "para exigir lote, o físico tem de estar a zero (dê entrada com lotes depois)",
+      );
+    }
+    if (!dados.exige_lote && actual.exige_lote) {
+      const emLotes = await trx
+        .selectFrom("saldo_lote")
+        .innerJoin("lote", "lote.id", "saldo_lote.lote_id")
+        .select("saldo_lote.fisico")
+        .where("lote.variante_id", "=", variante)
+        .where("saldo_lote.fisico", ">", 0)
+        .executeTakeFirst();
+      if (emLotes !== undefined) {
+        throw new ErroStock(
+          "inventory.policy_blocked",
+          "há stock em lotes: para deixar de exigir lote, o físico tem de estar a zero",
+        );
+      }
+    }
     await trx
       .insertInto("politica_stock")
       .values({
@@ -512,11 +626,13 @@ export async function definirPolitica(
         variante_id: variante,
         politica: dados.politica,
         exige_lote: dados.exige_lote,
+        actualizado_por: quem,
       })
       .onConflict((oc) =>
         oc.column("variante_id").doUpdateSet({
           politica: dados.politica,
           exige_lote: dados.exige_lote,
+          actualizado_por: quem,
           actualizado_em: new Date(),
         }),
       )
@@ -609,6 +725,8 @@ const ESTADOS_A_EXPEDIR = [
   "em_preparacao",
   "expedida_parcial",
 ] as const;
+/** A leitura por id também vê as expedidas (para as dar por entregues). */
+const ESTADOS_DA_VISTA = [...ESTADOS_A_EXPEDIR, "expedida"] as const;
 
 /** O que expedir: sem perfil de faturação, NIF, e-mail nem preços. */
 async function vistaDeExpedicao(trx: Transaction<BaseDados>, ids: string[]) {
@@ -682,6 +800,7 @@ async function enviadoPorLinha(
       "linha_expedicao.quantidade",
     ])
     .where("expedicao.encomenda_id", "in", encomendaIds)
+    .where("expedicao.estado", "<>", "cancelada")
     .execute();
   for (const l of linhas) {
     r.set(
@@ -718,7 +837,15 @@ export async function lerParaExpedir(
   id: string,
 ) {
   return noStock(db, c, async (trx) => {
-    const [v] = await vistaDeExpedicao(trx, [id]);
+    // Só as encomendas por expedir ou expedidas: as outras não são do
+    // armazém (minimização; revisão do #296, P2-4).
+    const visivel = await trx
+      .selectFrom("encomenda")
+      .select("id")
+      .where("id", "=", id)
+      .where("estado", "in", [...ESTADOS_DA_VISTA])
+      .executeTakeFirst();
+    const [v] = visivel === undefined ? [] : await vistaDeExpedicao(trx, [id]);
     if (v === undefined) {
       throw new ErroStock("inventory.not_found", "esta encomenda não existe");
     }
@@ -868,7 +995,10 @@ async function lotesParaSaida(
     }
     return r;
   }
-  // FEFO: o que expira primeiro (proposta, docs/27 §3.4).
+  // FEFO: o que expira primeiro (proposta, docs/27 §3.4), com o saldo da
+  // variante bloqueado antes de escolher (revisão do #296, P2-1) e sem os
+  // lotes fora de validade (P2-5).
+  await bloquearSaldos(trx, variante, armazem);
   const disponiveisPorLote = await trx
     .selectFrom("saldo_lote")
     .innerJoin("lote", "lote.id", "saldo_lote.lote_id")
@@ -876,6 +1006,9 @@ async function lotesParaSaida(
     .where("saldo_lote.armazem_id", "=", armazem)
     .where("lote.variante_id", "=", variante)
     .where("saldo_lote.fisico", ">", 0)
+    .where(
+      sql<boolean>`(lote.validade is null or lote.validade >= current_date)`,
+    )
     .orderBy(sql`lote.validade nulls last`)
     .orderBy("lote.numero")
     .execute();
@@ -890,7 +1023,7 @@ async function lotesParaSaida(
   if (falta > 0) {
     throw new ErroStock(
       "inventory.lot_required",
-      `não há lotes com stock para ${variante}`,
+      `não há lotes dentro da validade com stock para ${variante}`,
     );
   }
   return r;
@@ -984,16 +1117,46 @@ async function darSaida(
       "linha_encomenda.id",
       "linha_expedicao.linha_encomenda_id",
     )
-    .select(["linha_encomenda.variante_id", "linha_expedicao.quantidade"])
+    .select([
+      "linha_encomenda.id",
+      "linha_encomenda.variante_id",
+      "linha_expedicao.quantidade",
+    ])
     .where("linha_expedicao.expedicao_id", "=", x.id)
     .execute();
   const total = new Map<string, number>();
   for (const l of linhas) {
-    for (const [v, q] of await folhas(trx, l.variante_id, l.quantidade)) {
-      total.set(v, (total.get(v) ?? 0) + q);
+    // A composição congelada no botão final (revisão do #296, P1-3); uma
+    // linha de antes da 0045 usa a de hoje.
+    const congeladas = await trx
+      .selectFrom("linha_encomenda_folha")
+      .select(["variante_id", "por_unidade"])
+      .where("linha_encomenda_id", "=", l.id)
+      .execute();
+    const f =
+      congeladas.length > 0
+        ? new Map(congeladas.map((k) => [k.variante_id, k.por_unidade]))
+        : await folhas(trx, l.variante_id);
+    for (const [v, porUnidade] of f) {
+      total.set(v, (total.get(v) ?? 0) + porUnidade * l.quantidade);
     }
   }
   const pol = await politicas(trx, [...total.keys()]);
+  // O que ainda está reservado desta encomenda, por variante.
+  const reservas = new Map<string, number>();
+  const movimentos = await trx
+    .selectFrom("movimento_stock")
+    .select([
+      "variante_id",
+      sql<number>`sum(case tipo when 'reserva' then quantidade else -quantidade end)::int`.as(
+        "q",
+      ),
+    ])
+    .where("encomenda_id", "=", x.encomenda_id)
+    .where("tipo", "in", ["reserva", "libertacao", "saida"])
+    .groupBy("variante_id")
+    .execute();
+  for (const m of movimentos) reservas.set(m.variante_id, m.q);
   for (const [v, q] of [...total.entries()].sort(([a], [b]) =>
     a.localeCompare(b),
   )) {
@@ -1001,10 +1164,30 @@ async function darSaida(
       politica: "controla" as const,
       exige_lote: false,
     };
-    if (p.politica === "nao_controla") continue;
+    const reservado = Math.max(0, reservas.get(v) ?? 0);
+    // Sem controlo, só sai o que ficou reservado de antes (P1-4).
+    const aSair = p.politica === "nao_controla" ? Math.min(q, reservado) : q;
+    if (aSair === 0) continue;
+    // Falta reserva (uma encomenda de antes da 0045): reserva agora o que
+    // falta, ou recusa se não houver disponível (P2-7).
+    if (reservado < aSair) {
+      await trx
+        .insertInto("movimento_stock")
+        .values({
+          comerciante_id: c,
+          armazem_id: x.armazem_id,
+          variante_id: v,
+          tipo: "reserva",
+          quantidade: aSair - reservado,
+          origem: "expedicao",
+          encomenda_id: x.encomenda_id,
+          motivo: "reserva que faltava à expedição",
+        })
+        .execute();
+    }
     const partes = p.exige_lote
-      ? await lotesParaSaida(trx, x.armazem_id, v, q, lotesDados)
-      : [{ lote: null as string | null, quantidade: q }];
+      ? await lotesParaSaida(trx, x.armazem_id, v, aSair, lotesDados)
+      : [{ lote: null as string | null, quantidade: aSair }];
     for (const parte of partes) {
       await trx
         .insertInto("movimento_stock")
@@ -1045,7 +1228,7 @@ async function acertarEstadoDaEncomenda(
     .where("encomenda_id", "=", encomendaId)
     .execute();
   const saidas = expedicoes
-    .filter((x) => x.estado !== "criada")
+    .filter((x) => x.estado !== "criada" && x.estado !== "cancelada")
     .map((x) => x.id);
   const enviado = new Map<string, number>();
   if (saidas.length > 0) {
@@ -1079,8 +1262,9 @@ async function acertarEstadoDaEncomenda(
       .where("id", "=", encomendaId)
       .execute();
   }
+  const validas = expedicoes.filter((x) => x.estado !== "cancelada");
   const todasEntregues =
-    expedicoes.length > 0 && expedicoes.every((x) => x.estado === "entregue");
+    validas.length > 0 && validas.every((x) => x.estado === "entregue");
   if (novo === "expedida" && todasEntregues) {
     await trx
       .updateTable("encomenda")
@@ -1117,21 +1301,26 @@ export async function correrConclusoes(db: Kysely<BaseDados>, porVolta = 50) {
     c: string;
   }>`select encomendas_comerciantes_com_tarefas() as c`.execute(db);
   for (const { c } of rows) {
-    await noStock(db, c, async (trx) => {
-      const { rows: ids } = await sql<{
-        id: string;
-      }>`select encomendas_tarefas(${porVolta}) as id`.execute(trx);
-      await marcar(trx, QUEM_DAS_TAREFAS, "14 dias depois de entregue");
-      for (const { id } of ids) {
-        const r = await trx
-          .updateTable("encomenda")
-          .set({ estado: "concluida" })
-          .where("id", "=", id)
-          .where("estado", "=", "entregue")
-          .executeTakeFirst();
-        concluidas += Number(r.numUpdatedRows);
-      }
-    });
+    // Um comerciante que falhe não pára os outros (revisão do #296, P3).
+    try {
+      await noStock(db, c, async (trx) => {
+        const { rows: ids } = await sql<{
+          id: string;
+        }>`select encomendas_tarefas(${porVolta}) as id`.execute(trx);
+        await marcar(trx, QUEM_DAS_TAREFAS, "14 dias depois de entregue");
+        for (const { id } of ids) {
+          const r = await trx
+            .updateTable("encomenda")
+            .set({ estado: "concluida" })
+            .where("id", "=", id)
+            .where("estado", "=", "entregue")
+            .executeTakeFirst();
+          concluidas += Number(r.numUpdatedRows);
+        }
+      });
+    } catch {
+      continue;
+    }
   }
   return concluidas;
 }

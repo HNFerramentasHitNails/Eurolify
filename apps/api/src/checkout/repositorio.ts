@@ -1429,9 +1429,14 @@ export async function concluir(
     .returning("id")
     .executeTakeFirstOrThrow();
   let posicao = 0;
+  const paraReservar: {
+    id: string;
+    variante_id: string;
+    quantidade: number;
+  }[] = [];
   for (const l of r.linhas) {
     posicao += 1;
-    await trx
+    const linha = await trx
       .insertInto("linha_encomenda")
       .values({
         comerciante_id: c,
@@ -1448,14 +1453,30 @@ export async function concluir(
         iva: l.iva,
         total: l.total,
       })
-      .execute();
+      .returning("id")
+      .executeTakeFirstOrThrow();
+    paraReservar.push({
+      id: linha.id,
+      variante_id: l.variante_id,
+      quantidade: l.quantidade,
+    });
   }
   // A reserva do stock no botão final (docs/27 Q2): sem disponível (outro
   // cliente levou a última unidade entretanto), não há encomenda.
   try {
-    await reservarEncomenda(trx, c, encomendaId, s.loja_id, r.linhas);
+    await reservarEncomenda(trx, c, encomendaId, s.loja_id, paraReservar);
   } catch (erro) {
     const e = erro as Error;
+    // Sem armazém, a loja não está pronta para vender: não é falta de stock
+    // (revisão do #296, P3).
+    if (erro instanceof ErroStock && erro.codigo === "inventory.no_warehouse") {
+      throw new ErroCheckout(
+        "checkout.out_of_stock",
+        "a loja ainda não tem armazém: não pode reservar o stock",
+        undefined,
+        { cause: erro },
+      );
+    }
     if (
       erro instanceof ErroStock ||
       e.message.startsWith("inventory.insufficient:")

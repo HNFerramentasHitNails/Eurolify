@@ -144,7 +144,7 @@ uma linha própria (`portes`), nunca um artigo.
 | linhas | variante, quantidade e **lote**; um kit expede-se pelos componentes, com o lote de cada um |
 | `metodo_entrega` | **copiado** do da encomenda: o serviço da etiqueta é o vendido (lição 3.7) |
 | `transportadora`, `servico`, `seguimento` | texto nesta parte (Q5); o adaptador escreve-os na parte 2 |
-| `estado` | `criada` → `expedida` → `entregue` \| `devolvida_ao_remetente` \| `perdida` |
+| `estado` | `criada` → `expedida` → `entregue` \| `devolvida_ao_remetente` \| `perdida`; `criada` → `cancelada` (não chegou a sair; as linhas voltam a estar por expedir) |
 | `expedida_em`, `entregue_em` | do relógio da base; a entrega com a prova que houver (texto nesta parte) |
 
 ## 4. Estados
@@ -218,27 +218,33 @@ a_aguardar_pagamento → paga → em_preparacao → expedida_parcial → expedid
 | `POST /inventory/receipts` (entrada, com lote) | `inventory:write` |
 | `POST /inventory/adjustments` (ajuste com motivo) | `inventory:write` |
 | `GET /inventory/movements` (o livro, filtrável) | `inventory:read` |
-| `GET /lots`, `POST /lots` | `inventory:read` / `inventory:write` |
-| `PATCH /variants/{id}/stock-policy` | `inventory:write` |
+| `GET /lots` (o lote nasce na entrada; não há `POST /lots`) | `inventory:read` |
+| `PUT /variants/{id}/stock-policy` | `inventory:policy` |
 | `GET /fulfilment/orders` (a vista do armazém) | `fulfilment:read` |
-| `POST /orders/{id}/shipments`, `PATCH /shipments/{id}` (expedida, entregue, seguimento) | `fulfilment:write` |
+| `POST /orders/{id}/shipments`, `PATCH /shipments/{id}` (expedida, entregue, devolvida, perdida, cancelada, seguimento) | `fulfilment:write` |
 | `GET /orders/{id}/timeline` (as transições) | `orders:read` |
 
-Âmbitos novos: `inventory:read`, `inventory:write`, `fulfilment:read`,
-`fulfilment:write`. Papéis (proposta): dono e gestor todos; armazém
-`inventory:*` e `fulfilment:*`; apoio `inventory:read` e `fulfilment:read`.
+Âmbitos novos: `inventory:read`, `inventory:write`, `inventory:policy`,
+`fulfilment:read`, `fulfilment:write`. Papéis: dono e gestor todos; armazém
+`inventory:read`, `inventory:write` e `fulfilment:*` (não muda a política:
+revisão do #296, P2-9); apoio `inventory:read` e `fulfilment:read`.
 
 ### 7.3 Erros (novos)
 
 `inventory.insufficient`, `inventory.lot_required`, `inventory.negative`,
-`checkout.out_of_stock`, `orders.invalid_transition`,
-`shipments.line_not_in_order`, `shipments.quantity_exceeded`.
+`inventory.not_controlled`, `inventory.no_warehouse`,
+`inventory.policy_blocked`, `inventory.not_found`, `inventory.invalid_field`,
+`inventory.version_conflict`, `inventory.retry`, `checkout.out_of_stock`,
+`orders.invalid_transition`, `shipments.immutable`,
+`shipments.invalid_transition`, `shipments.line_not_in_order`,
+`shipments.quantity_exceeded`.
 
 ### 7.4 Eventos
 
 `inventory.received`, `inventory.reserved`, `inventory.released`,
 `inventory.adjusted`, `order.preparing`, `shipment.created`,
-`shipment.dispatched`, `shipment.delivered`, `order.shipped`,
+`shipment.dispatched`, `shipment.delivered`, `shipment.returned_to_sender`,
+`shipment.lost`, `shipment.cancelled`, `order.shipped`,
 `order.delivered`, `order.completed`. Só identificadores e quantidades; nunca
 a morada.
 
@@ -300,7 +306,7 @@ a morada.
 | a vista do armazém (`/fulfilment/orders`), as expedições, os armazéns, as entradas, os ajustes, o livro, os lotes, a política e a linha do tempo da encomenda — a lista da §7 | `src/stock/rotas.ts` |
 | âmbitos `inventory:*` e `fulfilment:*` nos papéis (o armazém deixa de precisar de `orders:read`) | migração 0045; `src/identidade/` |
 | a tarefa da conclusão (14 dias depois de entregue), de hora a hora dentro da API | `src/stock/repositorio.ts`, `src/servidor.ts` |
-| 8 testes pela API | `test/stock-api.test.ts` |
+| 13 testes pela API | `test/stock-api.test.ts` |
 
 **Desvios do desenho:**
 - **`paga → em_preparacao`** acontece na primeira expedição criada, não logo
@@ -315,6 +321,33 @@ a morada.
   o serviço da expedição copia-se da encomenda e a pessoa escreve o que usou.
 - **A linha da encomenda** passa a ter identificador (`oli_…`) nas respostas,
   para as expedições a referirem.
+- **O destinatário na vista do armazém** é o comprador (`contacto` da
+  encomenda): o checkout da 0041 ainda não pede um destinatário diferente.
+- **«Concluída»** é um estado de operação (14 dias depois de entregue); não
+  fecha o direito de livre resolução nem decide prazos (Q6, **C**).
+- **Ainda não estão na encomenda** `origem`, `referencia_externa` e o
+  `armazem` (§3.6): só há a origem `checkout` e um armazém por loja (Q1).
 - **Por fazer:** os adaptadores de transportadora (parte 2), vários armazéns
   (Fase 2), os perigosos e o frio, as devoluções (fatia 11).
+
+**Correcções da revisão do #296** (Sonnet 5.5; 0 P0, 4 P1, 9 P2):
+- **Lotes coerentes com o físico** (P1-1): o ajuste também leva lote quando a
+  variante o exige; passar a exigir lote só com o físico a zero, e deixar de
+  exigir só sem stock em lotes (`inventory.policy_blocked`).
+- **Cancelar uma expedição criada** (P1-2): `cancelada`, sem saída; as linhas
+  voltam a estar por expedir; uma expedição acabada não muda.
+- **A composição do kit fica na linha** no botão final (`linha_encomenda_folha`,
+  só se acrescenta) e é essa que sai, mesmo que o kit mude depois (P1-3).
+- **A política não deixa de controlar** com stock ou reservas (P1-4); na
+  saída, sem controlo só sai o que ficou reservado; uma encomenda antiga sem
+  reserva reserva o que falta (ou recusa) antes de sair (P2-7).
+- **O FEFO bloqueia o saldo** antes de escolher os lotes (`stock_bloquear`,
+  porque a API não tem `UPDATE` no saldo) e não escolhe lotes fora de
+  validade; o mesmo lote com outra validade recusa (P2-1, P2-5).
+- **A libertação** segue a ordem das variantes (P2-2); **um componente
+  arquivado** dá disponível 0 ao kit e **um kit** não recebe movimentos
+  próprios (P2-3); **a vista por id** só mostra encomendas por expedir ou
+  expedidas (P2-4); **um armazém arquivado** não recebe entradas, reservas nem
+  ajustes (P2-6); os eventos `shipment.*` e este documento (P2-8); o âmbito
+  `inventory:policy` e quem mudou a política por último (P2-9).
 

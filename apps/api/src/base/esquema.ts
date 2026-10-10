@@ -1175,6 +1175,7 @@ export const ESTADOS_EXPEDICAO = [
   "entregue",
   "devolvida_ao_remetente",
   "perdida",
+  "cancelada",
 ] as const;
 export type EstadoExpedicao = (typeof ESTADOS_EXPEDICAO)[number];
 
@@ -1195,7 +1196,15 @@ export interface TabelaPoliticaStock {
   variante_id: ColumnType<string, string, never>;
   politica: ColumnType<PoliticaStock, PoliticaStock, PoliticaStock>;
   exige_lote: ColumnType<boolean, boolean | undefined, boolean>;
+  actualizado_por: ColumnType<string, string, string>;
   actualizado_em: ColumnType<Date, never, Date>;
+}
+
+export interface TabelaLinhaEncomendaFolha {
+  comerciante_id: ColumnType<string, string, never>;
+  linha_encomenda_id: ColumnType<string, string, never>;
+  variante_id: ColumnType<string, string, never>;
+  por_unidade: ColumnType<number, number, never>;
 }
 
 export interface TabelaLote {
@@ -1354,4 +1363,5 @@ export interface BaseDados {
   expedicao: TabelaExpedicao;
   linha_expedicao: TabelaLinhaExpedicao;
   transicao_encomenda: TabelaTransicaoEncomenda;
+  linha_encomenda_folha: TabelaLinhaEncomendaFolha;
 }
