@@ -356,21 +356,115 @@ else
   fazer "criar /etc/eurolify/migrar.env (vazio; a ligação escreve-a o passo 10b)" \
     install -o root -g root -m 600 /dev/null /etc/eurolify/migrar.env
 fi
-imagem_pg="$(docker inspect -f '{{.Config.Image}}' eurolify-postgres 2>/dev/null || true)"
-if [[ -z "$imagem_pg" ]]; then
-  fazer "arrancar o contentor eurolify-postgres ($IMAGEM_POSTGRES)" \
-    docker run -d --name eurolify-postgres \
+# A base responde (até 60 s)? Também a usa o passo 10b.
+pg_pronta() {
+  local _
+  for _ in $(seq 1 30); do
+    docker exec eurolify-postgres pg_isready -q -U postgres -d "$BASE_NOME" 2>/dev/null && return 0
+    sleep 2
+  done
+  return 1
+}
+# Os mesmos argumentos ao arrancar e ao trocar a imagem.
+arrancar_postgres() {
+  docker run -d --name eurolify-postgres \
     --restart unless-stopped \
     --network eurolify \
     --env-file /etc/eurolify/postgres.env \
     -v /var/lib/eurolify/postgres:/var/lib/postgresql \
     --memory 768m \
     --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
-    "$IMAGEM_POSTGRES" \
+    "$1" \
     -c shared_buffers=256MB -c max_connections=50
+}
+# Trocar a imagem da base, uma vez, quando o ensaio.conf o autoriza
+# (TROCAR_POSTGRES_PARA igual a IMAGEM_POSTGRES; decisão do Diogo, 10/10/2026,
+# «troca agora»). Só dentro da mesma versão maior do PostgreSQL: os ficheiros
+# da base servem sem conversão. Pela ordem: descarregar a imagem nova (com a
+# base ainda no ar); conferir a versão; a cópia DESTA execução (AGENTS.md,
+# «Operar a VPS», regra 2); parar a base; guardar o contentor antigo com outro
+# nome; arrancar o novo com o mesmo volume; se não responder, voltar ao antigo.
+# Fora do horário de trabalho (AGENTS.md, «Operar a VPS», regra 4): o mesmo
+# critério do eurolify-operar (dias úteis das 08:00 às 20:00, Lisboa).
+fora_de_horas() {
+  local dia hora
+  dia="$(TZ=Europe/Lisbon date +%u)"
+  hora="$(TZ=Europe/Lisbon date +%H)"
+  ((dia >= 6 || 10#$hora < 8 || 10#$hora >= 20))
+}
+# Volta ao contentor antigo (a troca não acabou). Também a chama o trap, se o
+# processo for interrompido a meio (revisão do #316, P2-1).
+repor_postgres_antigo() {
+  docker rm -f eurolify-postgres >/dev/null 2>&1 || true
+  if docker rename eurolify-postgres-antigo eurolify-postgres &&
+    docker start eurolify-postgres >/dev/null && pg_pronta; then
+    registar "troca da base desfeita: voltou a $(docker inspect -f '{{.Config.Image}}' eurolify-postgres 2>/dev/null)"
+  else
+    registar "ATENÇÃO: troca da base desfeita, mas a base antiga não voltou; ver eurolify-postgres-antigo à mão"
+    echo "ATENÇÃO: a base antiga não voltou; ver eurolify-postgres-antigo à mão" >&2
+  fi
+}
+# Uma recusa ou falha da troca fica no registo da máquina (regra 6; revisão
+# do #316, P2-3).
+recusar_troca() {
+  echo "$1" >&2
+  registar "troca da base não feita: $1"
+  return 1
+}
+trocar_postgres() {
+  local antiga="$1" nova="$2" v_antiga v_nova inicio fim_copia fim_s
+  fora_de_horas || { recusar_troca "dias úteis das 08:00 às 20:00 (Lisboa) são horário de trabalho"; return 1; }
+  docker pull -q "$nova" >/dev/null || { recusar_troca "não consegui descarregar $nova"; return 1; }
+  v_antiga="$(docker exec eurolify-postgres postgres --version | grep -oE '[0-9]+' | head -n 1)"
+  v_nova="$(docker run --rm --pull never --entrypoint postgres "$nova" --version | grep -oE '[0-9]+' | head -n 1)"
+  if [[ -z "$v_antiga" || "$v_antiga" != "$v_nova" ]]; then
+    recusar_troca "a versão maior muda ($v_antiga → $v_nova): isto pede uma migração dos dados, não uma troca"
+    return 1
+  fi
+  systemctl cat eurolify-copia.service >/dev/null 2>&1 || { recusar_troca "sem o eurolify-copia: não troco sem cópia"; return 1; }
+  inicio="$(date +%s)"
+  systemctl start eurolify-copia.service || { recusar_troca "a cópia falhou"; return 1; }
+  [[ "$(systemctl show eurolify-copia.service -p Result --value)" == success ]] ||
+    { recusar_troca "a cópia falhou"; return 1; }
+  fim_copia="$(systemctl show eurolify-copia.service -p ExecMainExitTimestamp --value)"
+  fim_s="$(date -d "$fim_copia" +%s 2>/dev/null || echo 0)"
+  ((fim_s >= inicio)) || { recusar_troca "não há cópia desta execução"; return 1; }
+  echo "   cópia da base feita"
+  docker rm -f eurolify-postgres-antigo >/dev/null 2>&1 || true
+  # Dentro de «fazer … || aviso» o set -e não vale: cada passo confere-se.
+  docker stop -t 60 eurolify-postgres >/dev/null ||
+    { docker start eurolify-postgres >/dev/null 2>&1; recusar_troca "não consegui parar a base"; return 1; }
+  docker rename eurolify-postgres eurolify-postgres-antigo ||
+    { docker start eurolify-postgres >/dev/null 2>&1; recusar_troca "não consegui guardar o contentor antigo"; return 1; }
+  # Daqui até a nova responder, uma interrupção volta à antiga (P2-1).
+  trap 'repor_postgres_antigo; exit 1' INT TERM HUP
+  if arrancar_postgres "$nova" >/dev/null && pg_pronta; then
+    trap - INT TERM HUP
+    docker rm eurolify-postgres-antigo >/dev/null
+    BASE_TROCADA=1
+    echo "   a base responde com $nova (era $antiga)"
+    return 0
+  fi
+  echo "a base nova não respondeu: volto à antiga" >&2
+  repor_postgres_antigo
+  trap - INT TERM HUP
+  return 1
+}
+BASE_TROCADA=0
+imagem_pg="$(docker inspect -f '{{.Config.Image}}' eurolify-postgres 2>/dev/null || true)"
+if [[ -z "$imagem_pg" ]]; then
+  fazer "arrancar o contentor eurolify-postgres ($IMAGEM_POSTGRES)" \
+    arrancar_postgres "$IMAGEM_POSTGRES"
 elif [[ "$imagem_pg" != "$IMAGEM_POSTGRES" ]]; then
-  # Mudar a imagem da base é uma decisão (e uma cópia antes): o script não o faz.
-  aviso "o eurolify-postgres corre $imagem_pg, o script pede $IMAGEM_POSTGRES — não mudo sozinho"
+  if [[ -n "${TROCAR_POSTGRES_PARA:-}" && "${TROCAR_POSTGRES_PARA}" == "$IMAGEM_POSTGRES" ]]; then
+    fazer "trocar a imagem do eurolify-postgres para $IMAGEM_POSTGRES (cópia antes; era $imagem_pg)" \
+      trocar_postgres "$imagem_pg" "$IMAGEM_POSTGRES" ||
+      aviso "a troca da imagem da base não se fez; a base continua com $(docker inspect -f '{{.Config.Image}}' eurolify-postgres 2>/dev/null || echo '?')"
+  else
+    # Mudar a imagem da base é uma decisão (e uma cópia antes): sem a
+    # autorização no ensaio.conf, o script não o faz.
+    aviso "o eurolify-postgres corre $imagem_pg, o script pede $IMAGEM_POSTGRES — não mudo sozinho (TROCAR_POSTGRES_PARA no ensaio.conf)"
+  fi
 elif [[ "$(docker inspect -f '{{.State.Running}}' eurolify-postgres)" != true ]]; then
   fazer "arrancar o eurolify-postgres parado" docker start eurolify-postgres
 else
@@ -464,14 +558,6 @@ estado_da_ligacao() {
   else
     echo "erro: $(head -n 1 <<<"$saida")"
   fi
-}
-pg_pronta() {
-  local _
-  for _ in $(seq 1 30); do
-    docker exec eurolify-postgres pg_isready -q -U postgres -d "$BASE_NOME" 2>/dev/null && return 0
-    sleep 2
-  done
-  return 1
 }
 criar_eurolify_api() {
   pg_valor "CREATE ROLE eurolify_api NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT"
@@ -717,6 +803,13 @@ elif ((API_ENV_RENOVADO || TOTP_GERADA)) || configuracao_mais_recente_que_a_api;
   fi
 else
   ok "o eurolify-api foi criado depois da última mudança da sua configuração (e, se as montagens se leram, tem a pasta das imagens)"
+fi
+
+# Depois de trocar a imagem da base, a API reinicia para abrir ligações novas
+# (revisão do #316, P3-1); sem isto ficava a depender de o conjunto de
+# ligações se refazer sozinho.
+if ((BASE_TROCADA)) && docker inspect eurolify-api >/dev/null 2>&1; then
+  fazer "reiniciar o eurolify-api depois da troca da base" docker restart eurolify-api
 fi
 
 # ---------------------------------------------------------------------------
