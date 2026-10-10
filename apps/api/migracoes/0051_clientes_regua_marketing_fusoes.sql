@@ -1,5 +1,5 @@
 -- Clientes: a régua do marketing numa ficha com fusões (Diogo, 10/10/2026,
--- em resposta à pergunta deixada na 2b: docs/06, DH; docs/23 §3.7). Ex.: a
+-- em resposta à pergunta deixada na 2b: docs/06, DL; docs/23 §3.7). Ex.: a
 -- Ana tinha retirado o e-mail na ficha antiga e aceitado na nova; fundidas,
 -- a ficha fica sem marketing por e-mail até ela aceitar outra vez, já na
 -- ficha fundida.
