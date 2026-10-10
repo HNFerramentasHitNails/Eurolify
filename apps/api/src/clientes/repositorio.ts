@@ -1054,13 +1054,16 @@ export async function obterConsentimento(
 }
 
 /**
- * As declarações da ficha, as mais recentes primeiro, e a resposta da régua
- * única por canal — nunca contada aqui (R6): pergunta-se à base.
+ * As declarações da ficha, as mais recentes primeiro, por páginas (revisão do
+ * #289, P2-3), e a resposta da régua única por canal — nunca contada aqui
+ * (R6): pergunta-se à base.
  */
 export async function listarConsentimentos(
   db: Kysely<BaseDados>,
   comercianteId: string,
   clienteId: string,
+  limite: number,
+  antes: string | null,
 ) {
   return noClientes(db, comercianteId, async (trx) => {
     const ficha = await trx
@@ -1071,22 +1074,44 @@ export async function listarConsentimentos(
     if (ficha === undefined) {
       throw new ErroClientes("customers.not_found", "ficha inexistente");
     }
-    const declaracoes = await trx
+    const { n } = await trx
+      .selectFrom("consentimento")
+      .where("cliente_id", "=", clienteId)
+      .select((eb) => eb.fn.countAll<string>().as("n"))
+      .executeTakeFirstOrThrow();
+    let q = trx
       .selectFrom("consentimento")
       .selectAll()
-      .where("cliente_id", "=", clienteId)
+      .where("cliente_id", "=", clienteId);
+    if (antes !== null) {
+      q = q.where(
+        sql<boolean>`(declarado_em, id) < (select c.declarado_em, c.id
+          from consentimento c where c.id = ${antes}::uuid)`,
+      );
+    }
+    const linhas = await q
       .orderBy("declarado_em", "desc")
       .orderBy("id", "desc")
+      .limit(limite + 1)
       .execute();
-    const regua = {} as Record<CanalConsentimento, boolean>;
-    for (const canal of CANAIS_CONSENTIMENTO) {
-      const { rows } = await sql<{ pode: boolean }>`
-        select pode_receber_marketing(${clienteId}::uuid, ${canal}) as pode`.execute(
-        trx,
-      );
-      regua[canal] = rows[0]?.pode === true;
-    }
-    return { declaracoes, regua };
+    const haMais = linhas.length > limite;
+    const dados = haMais ? linhas.slice(0, limite) : linhas;
+    const { rows } = await sql<Record<CanalConsentimento, boolean>>`
+      select pode_receber_marketing(${clienteId}::uuid, 'email') as email,
+             pode_receber_marketing(${clienteId}::uuid, 'sms') as sms,
+             pode_receber_marketing(${clienteId}::uuid, 'whatsapp') as whatsapp`.execute(
+      trx,
+    );
+    const r = rows[0];
+    const regua = Object.fromEntries(
+      CANAIS_CONSENTIMENTO.map((canal) => [canal, r?.[canal] === true]),
+    ) as Record<CanalConsentimento, boolean>;
+    return {
+      dados,
+      total: Number(n),
+      ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
+      regua,
+    };
   });
 }
 

@@ -26,9 +26,14 @@
 -- O que não faz (e onde fica): o consentimento implícito de quem já comprou
 -- (art. 13.º, n.º 2, da Dir. 2002/58/CE — não verificado, C; V4 do docs/23):
 -- só conta o explícito. Fusões, duplicados e pedidos do titular são as partes
--- 2b e 2c; a pseudonimização (2c) apaga os consentimentos de marketing
--- (§4.1) e terá de abrir, para essa função só, a recusa de apagar que esta
--- migração põe.
+-- 2b e 2c (revisão do #289, P2-4 e P3):
+-- - a fusão (2b) não pode mudar as linhas de ficha (não se alteram) e a
+--   ficha fundida recusa declarações novas: a régua da ficha que fica tem de
+--   contar as das fichas absorvidas, e uma retirada com o id antigo tem de
+--   seguir `fundido_em` (retirar tão fácil como dar);
+-- - a pseudonimização (2c) apaga os consentimentos de marketing (§4.1): terá
+--   de abrir, só para essa função, a recusa de apagar que esta migração põe,
+--   e de alcançar a cópia do texto e do «onde» na linha do tempo.
 
 SET LOCAL lock_timeout = '10s';
 
@@ -76,7 +81,12 @@ BEGIN
   END IF;
   -- A hora do relógio, depois de tomada a ficha (não a do início da
   -- transacção): uma declaração que esperou fica depois da que a fez esperar.
-  NEW.declarado_em := clock_timestamp();
+  -- E sempre depois da última da ficha, mesmo que o relógio da máquina
+  -- recue (revisão do #289, P2-1): a ordem por hora é a ordem de entrada.
+  NEW.declarado_em := greatest(clock_timestamp(), (
+    SELECT max(c.declarado_em) + interval '1 microsecond'
+    FROM public.consentimento c
+    WHERE c.comerciante_id = NEW.comerciante_id AND c.cliente_id = NEW.cliente_id));
   NEW.quem := quem;
   RETURN NEW;
 END
@@ -104,20 +114,21 @@ ALTER TABLE consentimento ENABLE ALWAYS TRIGGER consentimento_sem_truncate;
 -- do comerciante posto, e uma ficha de outro dá falso.
 CREATE FUNCTION pode_receber_marketing(p_cliente uuid, p_canal text) RETURNS boolean
   LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT EXISTS (
-      SELECT 1 FROM public.cliente f
-      WHERE f.id = p_cliente AND f.estado = 'activo' AND NOT f.limitado)
-    -- As da hora mais recente; se forem mais do que uma e uma retirou, é
-    -- empate ⇒ não. Sem nenhuma, bool_and dá nulo ⇒ não.
-    AND coalesce((
-      SELECT bool_and(c.declaracao = 'aceitou')
-      FROM public.consentimento c
-      WHERE c.cliente_id = p_cliente AND c.canal = p_canal
-        AND c.finalidade = 'marketing'
-        AND c.declarado_em = (
-          SELECT max(d.declarado_em) FROM public.consentimento d
-          WHERE d.cliente_id = p_cliente AND d.canal = p_canal
-            AND d.finalidade = 'marketing')), false)
+  -- As declarações da hora mais recente da ficha activa e não limitada; se
+  -- forem mais do que uma e uma retirou, é empate ⇒ não. Sem ficha nem
+  -- declarações, bool_and dá nulo ⇒ não. Filtra pelo comerciante da ficha,
+  -- para usar o índice também sem RLS (revisão do #289, P2-2).
+  SELECT coalesce((
+    SELECT bool_and(c.declaracao = 'aceitou')
+    FROM public.cliente f
+    JOIN public.consentimento c
+      ON c.comerciante_id = f.comerciante_id AND c.cliente_id = f.id
+    WHERE f.id = p_cliente AND f.estado = 'activo' AND NOT f.limitado
+      AND c.canal = p_canal AND c.finalidade = 'marketing'
+      AND c.declarado_em = (
+        SELECT max(d.declarado_em) FROM public.consentimento d
+        WHERE d.comerciante_id = f.comerciante_id AND d.cliente_id = f.id
+          AND d.canal = p_canal AND d.finalidade = 'marketing')), false)
 $$;
 
 -- ------------------------------------------------------------------ Evento

@@ -307,7 +307,7 @@ Com outbox (`evento_saida`), como os do Catálogo e de Preços.
 | `billing_profile.created`, `billing_profile.updated` | perfil novo ou alterado | `bpf_`, `cus_` — **proposta** (novos) |
 | `billing_profile.validated` | consulta ao VIES com resposta `valido` | `bpf_`, `vvc_` |
 | `billing_profile.invalidated` | o perfil deixou de ser válido no VIES | `bpf_`, `vvc_` — **proposta** (novo) |
-| `consent.changed` | declaração nova | `cus_`, canal, finalidade, o resultado da régua depois da declaração |
+| `consent.changed` | declaração nova | `cus_`, `cns_`, canal, finalidade, o resultado da régua depois da declaração, quem e quando (migração 0042; revisão do #289) |
 
 Os eventos novos entram no `docs/02` e na skill `platform-architect` com a
 aprovação deste desenho (como os `market.*`, `docs/06`, BX).
@@ -486,16 +486,28 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 | O quê | Onde |
 |---|---|
 | o consentimento (`consentimento`, `cns_`): uma linha por declaração, `aceitou` ou `retirou`, com o canal, a finalidade (só `marketing`), o texto, a versão e onde; não se altera nem se apaga, nem pelo dono da base | migração 0042 |
-| a hora e quem registou, postos pela base (`declarado_em`, `quem`); sem `eurolify.quem` recusa; só numa ficha activa | migração 0042 |
-| as declarações da mesma ficha entram uma de cada vez (a ficha fica tomada) e a hora é a do relógio quando entram: a mais recente é a última que entrou | migração 0042 |
+| a hora e quem registou, postos pela base (`declarado_em`, `quem`); sem `eurolify.quem` recusa; só numa ficha activa (uma ficha limitada aceita, para retirar não ficar mais difícil) | migração 0042 |
+| as declarações da mesma ficha entram uma de cada vez (a ficha fica tomada) e a hora é a do relógio quando entram, sempre depois da última da ficha, mesmo que o relógio recue (revisão do #289, P2-1): a mais recente é a última que entrou | migração 0042 |
 | a régua única `pode_receber_marketing(cliente, canal)`: só declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não; dá sempre verdadeiro ou falso, nunca nulo | migração 0042 |
 | o evento `consent.changed` com o cliente, o canal, a finalidade e o resultado da régua, sem o texto nem o «onde» (R12); as declarações na linha do tempo | migração 0042 |
-| `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações e a régua por canal | `src/clientes/rotas.ts` |
-| 13 testes; 16 mutações da régua e dos gatilhos, todas apanhadas | `test/clientes-consentimentos.test.ts` |
+| `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações por páginas e a régua por canal em todas | `src/clientes/rotas.ts` |
+| 18 testes; as mutações da régua e dos gatilhos todas apanhadas, salvo trocar o relógio pela hora do início da transacção, que depois da P2-1 dá a mesma ordem | `test/clientes-consentimentos.test.ts` |
+
+**Fica para a parte 2b** (revisão do #289, P2-4 e P3): as linhas de
+consentimento não se alteram e a ficha fundida recusa declarações novas; por
+isso a fusão não as «passa» de ficha (§3.7): a régua da ficha que fica tem de
+contar as das fichas absorvidas, e uma retirada pedida com o id antigo (a
+ligação de um e-mail antigo) tem de seguir `fundido_em` e valer na ficha que
+ficou — retirar tem de ser tão fácil como dar.
 
 **Fica para a parte 2c:** a pseudonimização apaga os consentimentos de
 marketing (§4.1); a recusa de apagar desta migração terá de abrir só para
-essa função.
+essa função, e tem de alcançar a cópia do texto e do «onde» que a linha do
+tempo guarda (revisão do #289, P3).
+
+**O checkout** (`docs/25`) ainda não regista consentimentos: a rota pede
+`customers:write`, não o âmbito da loja; a caixa de marketing desenha-se com
+a fatia 7.
 
 ## 13. Parte 3 — VIES com prova e isenção manual (desenho de 09/10/2026)
 

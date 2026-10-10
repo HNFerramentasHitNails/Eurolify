@@ -1184,11 +1184,12 @@ export function rotasDosClientes(
       config: ler,
       schema: {
         description:
-          "As declarações de consentimento da ficha (as mais recentes primeiro) e a resposta da régua única por canal. Quem envia marketing pergunta à régua; não conta declarações.",
+          "As declarações de consentimento da ficha (as mais recentes primeiro, por páginas) e a resposta da régua única por canal. Quem envia marketing pergunta à régua; não conta declarações.",
         params: ParametroId(IdCliente),
+        querystring: ConsultaPagina,
         response: {
           200: Type.Object({
-            dados: Type.Array(Consentimento),
+            ...Lista(Consentimento).properties,
             pode_receber_marketing: ReguaMarketing,
           }),
           ...RESPOSTA_DE_ERRO,
@@ -1196,16 +1197,18 @@ export function rotasDosClientes(
       },
     },
     async (pedido, resposta) => {
-      const { declaracoes, regua } = await emClientes(resposta, () =>
+      const pagina = await emClientes(resposta, () =>
         listarConsentimentos(
           base,
           chaveDo(pedido).comercianteId,
           semPrefixo(pedido.params.id),
+          limiteDe(pedido.query),
+          idDoCursor(pedido.query.cursor),
         ),
       );
       return {
-        dados: declaracoes.map(paraConsentimento),
-        pode_receber_marketing: regua,
+        ...comPagina(pagina, paraConsentimento),
+        pode_receber_marketing: pagina.regua,
       };
     },
   );

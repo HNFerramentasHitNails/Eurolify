@@ -155,6 +155,9 @@ describe.skipIf(URL_BASE === undefined)(
       const id = await ficha();
       expect(await consentimentos(id)).toEqual({
         dados: [],
+        total: 0,
+        ha_mais: false,
+        cursor_seguinte: null,
         pode_receber_marketing: { email: false, sms: false, whatsapp: false },
       });
       const c1 = await ok(
@@ -638,6 +641,135 @@ describe.skipIf(URL_BASE === undefined)(
           ).rows[0],
       );
       expect(r).toEqual({ sem: false, carta: false });
+    });
+    it("o relógio a recuar não põe uma retirada antes da declaração anterior", async () => {
+      const id = await ficha();
+      const r = await desfeito(a, async (trx) => {
+        // Uma declaração com hora no futuro, como se o relógio tivesse recuado
+        // depois dela.
+        await sql`alter table consentimento disable trigger consentimento_antes_de_gravar`.execute(
+          trx,
+        );
+        await sql`insert into consentimento (comerciante_id, cliente_id, canal,
+              declaracao, texto, versao_texto, onde, declarado_em, quem)
+            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'aceitou', 't',
+              'v1', 'x', '2030-01-01T00:00:00Z', 'teste:sql')`.execute(trx);
+        await sql`alter table consentimento enable always trigger consentimento_antes_de_gravar`.execute(
+          trx,
+        );
+        const nova = await sql<{ declarado_em: Date }>`
+          insert into consentimento (comerciante_id, cliente_id, canal,
+            declaracao, texto, versao_texto, onde)
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x')
+          returning declarado_em`.execute(trx);
+        return {
+          hora: nova.rows[0]?.declarado_em.toISOString(),
+          pode: await regua(trx, id, "email"),
+        };
+      });
+      expect(r).toEqual({ hora: "2030-01-01T00:00:00.000Z", pode: false });
+    });
+
+    it("a lista vem por páginas, sem repetir, e a régua em todas", async () => {
+      const id = await ficha();
+      for (const d of ["aceitou", "retirou", "aceitou"] as const) {
+        await ok(
+          pedir("POST", `/customers/${id}/consents`, declaracao("sms", d)),
+          201,
+        );
+      }
+      const p1 = await ok(pedir("GET", `/customers/${id}/consents?limite=2`));
+      expect(p1).toMatchObject({ total: 3, ha_mais: true });
+      const p2 = await ok(
+        pedir(
+          "GET",
+          `/customers/${id}/consents?limite=2&cursor=${String(p1["cursor_seguinte"])}`,
+        ),
+      );
+      expect(p2).toMatchObject({
+        total: 3,
+        ha_mais: false,
+        cursor_seguinte: null,
+      });
+      const todas = (await consentimentos(id))["dados"] as Json[];
+      expect([...(p1["dados"] as Json[]), ...(p2["dados"] as Json[])]).toEqual(
+        todas,
+      );
+      for (const p of [p1, p2]) {
+        expect((p["pode_receber_marketing"] as Json)["sms"]).toBe(true);
+      }
+    });
+
+    it("a API não escolhe o id, a hora nem quem; a ficha de outro comerciante não serve", async () => {
+      const { rows } = await sql<{ coluna: string; pode: boolean }>`
+        select c as coluna, has_column_privilege('eurolify_api', 'consentimento', c, 'INSERT') as pode
+        from unnest(array['id', 'declarado_em', 'quem', 'canal']) c`.execute(
+        base.dono,
+      );
+      expect(rows).toEqual([
+        { coluna: "id", pode: false },
+        { coluna: "declarado_em", pode: false },
+        { coluna: "quem", pode: false },
+        { coluna: "canal", pode: true },
+      ]);
+      const deA = await ficha();
+      const erro = await base.api
+        .transaction()
+        .execute(async (trx) => {
+          await sql`select set_config('eurolify.comerciante', ${b}, true)`.execute(
+            trx,
+          );
+          await sql`select set_config('eurolify.quem', 'teste:sql', true)`.execute(
+            trx,
+          );
+          await sql`insert into consentimento (comerciante_id, cliente_id, canal,
+                declaracao, texto, versao_texto, onde)
+              values (${b}::uuid, ${deA.slice(4)}::uuid, 'email', 'aceitou', 't', 'v1', 'x')`.execute(
+            trx,
+          );
+        })
+        .then(
+          () => "entrou",
+          (e: unknown) => (e as Error).message,
+        );
+      expect(erro).toMatch(/^customers\.not_found:/);
+    });
+
+    it("uma ficha limitada continua a aceitar declarações (retirar não pode ficar mais difícil)", async () => {
+      const id = await ficha();
+      const r = await desfeito(a, async (trx) => {
+        await sql`update cliente set limitado = true where id = ${id.slice(4)}::uuid`.execute(
+          trx,
+        );
+        await sql`insert into consentimento (comerciante_id, cliente_id, canal,
+              declaracao, texto, versao_texto, onde)
+            values (${a}::uuid, ${id.slice(4)}::uuid, 'email', 'retirou', 't', 'v1', 'x')`.execute(
+          trx,
+        );
+        return regua(trx, id, "email");
+      });
+      expect(r).toBe(false);
+    });
+
+    it("o mesmo pedido repetido (Idempotency-Key) regista uma vez só", async () => {
+      const id = await ficha();
+      const chave = randomUUID();
+      const enviar = () =>
+        app.inject({
+          method: "POST",
+          url: `/customers/${id}/consents`,
+          headers: {
+            authorization: `Bearer ${dono}`,
+            "idempotency-key": chave,
+            "content-type": "application/json",
+          },
+          payload: JSON.stringify(declaracao("email", "aceitou")),
+        });
+      const r1 = await enviar();
+      const r2 = await enviar();
+      expect(r1.statusCode, r1.body).toBe(201);
+      expect(r2.json<Json>()["id"]).toBe(r1.json<Json>()["id"]);
+      expect((await consentimentos(id))["total"]).toBe(1);
     });
   },
 );
