@@ -239,6 +239,8 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
           "invoices:read",
           "invoices:write",
           "invoices:accounts",
+          "customers:billing",
+          "customers:exemptions",
         ],
       })
     ).segredo;
@@ -1138,6 +1140,32 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         })
       ).statusCode,
     ).toBe(403);
+    // Um gestor decide a fila, mas não corrige nem liberta (P2-4).
+    const gestor = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Gestor",
+        ambitos: ["invoices:read", "invoices:write"],
+      })
+    ).segredo;
+    expect(
+      await codigo(
+        pedir("POST", `/invoices/${String(d["id"])}/release`, corpo, {
+          authorization: `Bearer ${gestor}`,
+        }),
+      ),
+    ).toEqual([403, "auth.forbidden"]);
+    expect(
+      await codigo(
+        pedir(
+          "POST",
+          `/invoices/${String(d["id"])}/correct`,
+          { versao: d["versao"], motivo: "corrigir", nome_documento: "X" },
+          { authorization: `Bearer ${gestor}` },
+        ),
+      ),
+    ).toEqual([403, "auth.forbidden"]);
     await ok(s.adm("POST", `/invoices/${String(d["id"])}/release`, corpo));
     await ateParar();
     const depois = (await documentoDe(s, e.encomenda)) as Json;

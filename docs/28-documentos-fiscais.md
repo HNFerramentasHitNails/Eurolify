@@ -347,7 +347,7 @@ traduz.
 | a API da §7.1 e `POST /invoices/{id}/recheck`; o `GET /orders/{id}` passa a dizer o emissor e o estado do documento | `src/faturacao/rotas.ts`; `src/checkout/rotas.ts` |
 | âmbitos `invoices:read`, `invoices:write`, `invoices:accounts` (Q7) | migração 0050; `src/identidade/` |
 | a tarefa de minuto a minuto, com alarme se parar 15 minutos | `src/faturacao/repositorio.ts`, `src/servidor.ts` |
-| 12 testes pela API e 9 das verificações sem base | `test/documentos-api.test.ts`, `test/documentos-verificar.test.ts` |
+| 17 testes pela API e 9 das verificações sem base | `test/documentos-api.test.ts`, `test/documentos-verificar.test.ts` |
 
 **Desvios do desenho:**
 - **`POST /invoices/{id}/recheck`** (verificar outra vez um retido) não estava
@@ -355,6 +355,9 @@ traduz.
   (ligação, mapas, quem emite), que não se libertam.
 - **Libertáveis** (R9): só `nif_recusado`, `isencao_sem_prova` e
   `perfil_de_outra_ficha`; os outros resolvem-se na configuração ou corrigindo.
+  O NIF de consumidor final dado como NIF, e a empresa sem NIF, ficam num
+  motivo à parte, `nif_consumidor_final`, que **nunca se liberta** (R4, Q4):
+  são 13 motivos.
 - **Um rascunho que não bate** retém com `entidade_do_emissor_diferente`
   (se for o NIF) ou `totais_nao_batem` (o resto), e o rascunho apaga-se.
 - **O perfil fica usado** só quando o NIF que saiu é o dele (uma correcção
@@ -368,3 +371,37 @@ traduz.
   programada e testada sem base, mas só se aplica em modo real.
 - **Por fazer:** o Moloni (parte 2), o relatório OSS (parte 3), a nota de
   crédito (fatia 11) e o contabilista (V1 a V10).
+
+**Correcções da revisão do #312** (Sonnet 5.5; 0 P0, 5 P1, 12 P2):
+- **Reserva antes de chamar o emissor** (P1-3): `reservado_ate` com prazo de
+  5 minutos e compare-and-set da versão e do estado; outra volta ou uma
+  pessoa que chegue a meio pára.
+- **Falhas seguidas** (P1-2): ficam no rasto, recuam (2, 4, 8… até 60
+  minutos) e, ao fim de 5, vão para uma pessoa (`incerto` com
+  `reconciliacao_manual`); não tapam a fila do comerciante.
+- **Fechado sem prova** (P1-1): um rascunho que já está fechado no emissor
+  prova-se em vez de se fechar outra vez; um documento sem número não é
+  prova; a recusa ao fechar não se repete às cegas.
+- **Mapas** (P1-4): uma taxa ou isenção do emissor só serve um par.
+- **Correcções** (P1-5, P2-5): corrigir limpa as validações anteriores,
+  recusa o NIF de consumidor final e não muda o país do contribuinte (sem NIF
+  antes, só um NIF do país da entidade).
+- **Corrigir e libertar são do dono** (P2-4; Diogo, 10/10/2026:
+  *«aprovado»*): corrigir pede também `customers:billing`; libertar pede
+  `customers:exemptions`, como nos clientes. O gestor vê a fila, verifica outra
+  vez, reconcilia e resolve divergências.
+- **Emissor decidido depois** (P2-1): uma encomenda paga antes de se escolher
+  quem emite segue quando a entidade passa a emitir pelo Eurolify, com o
+  rasto a dizê-lo. **Por fazer:** se a entidade escolher o sistema próprio,
+  fica retida — falta a acção «emitida fora do Eurolify».
+- **E ainda:** a reconciliação repõe a volta seguinte (P2-2); procura-se
+  sempre pela referência antes de criar (P2-9); país, nome e série
+  comparam-se (P2-8); uma ligação desligada pára um pronto e os mapas
+  verificam-se outra vez (P2-6); o teste da ligação só vale para a versão
+  testada (P2-7); as credenciais trocam-se com documentos a meio (P2-11); a
+  confirmação pública não mostra o estado fiscal (P2-10).
+- **Ficam como estão (P3):** os eventos `invoice.issued` e
+  `invoice.discrepancy` saem os dois num divergente (o segundo corrige o
+  primeiro); `GET /invoices` mostra os 200 mais recentes (paginação com a
+  fila no Hub); o `quem` do conteúdo e do rasto vem da aplicação; a prova de
+  saída da exportação é do contabilista (V11 do `docs/24`, **C**).

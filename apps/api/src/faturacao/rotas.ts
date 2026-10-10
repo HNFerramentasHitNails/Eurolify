@@ -92,6 +92,25 @@ const Serie = Type.Union([
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 const quemDe = (chave: { chaveId: string }) => `chave:key_${chave.chaveId}`;
 
+/**
+ * Corrigir e libertar são decisões do dono, como nos clientes (Diogo,
+ * 10/10/2026, revisão do #312, P2-4): corrigir o NIF, o nome e a morada pede
+ * `customers:billing`; libertar pede `customers:exemptions`.
+ */
+function exigir(ambitos: readonly string[], ambito: string) {
+  if (!ambitos.includes(ambito)) {
+    throw new ErroApi(
+      "auth.forbidden",
+      403,
+      {
+        pt: "A chave não tem o âmbito desta operação",
+        en: "The key lacks the scope for this operation",
+      },
+      `âmbito pedido: ${ambito}`,
+    );
+  }
+}
+
 export function rotasDosDocumentos(
   rotasBase: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -494,7 +513,7 @@ export function rotasDosDocumentos(
       config: { ambito: "invoices:write" },
       schema: {
         description:
-          "Liberta um motivo de retenção, com o motivo da decisão (R9): vale como validação desse motivo para este pedido. Só se libertam `nif_recusado`, `isencao_sem_prova` e `perfil_de_outra_ficha`; os outros resolvem-se na configuração ou corrigindo. Um de cada vez.",
+          "Liberta um motivo de retenção, com o motivo da decisão (R9). Só o dono: pede também `customers:exemptions`. vale como validação desse motivo para este pedido. Só se libertam `nif_recusado`, `isencao_sem_prova` e `perfil_de_outra_ficha`; os outros resolvem-se na configuração ou corrigindo. Um de cada vez.",
         params: Type.Object({ id: IdDocumento }),
         body: Type.Object(
           {
@@ -507,8 +526,9 @@ export function rotasDosDocumentos(
         response: Resposta,
       },
     },
-    (pedido, resposta) =>
-      escrever(base, pedido, resposta, 200, async (trx, chave) =>
+    (pedido, resposta) => {
+      exigir(chaveDo(pedido).ambitos, "customers:exemptions");
+      return escrever(base, pedido, resposta, 200, async (trx, chave) =>
         emDocumentos(resposta, async () => ({
           versao: await libertar(
             trx,
@@ -518,7 +538,8 @@ export function rotasDosDocumentos(
             quemDe(chave),
           ),
         })),
-      ),
+      );
+    },
   );
 
   rotas.post(
@@ -553,7 +574,7 @@ export function rotasDosDocumentos(
       config: { ambito: "invoices:write" },
       schema: {
         description:
-          "Corrige um retido antes de emitir (Q4): só o NIF (passa pela régua), o nome do documento e a morada fiscal, numa versão nova do conteúdo, com motivo. Nunca taxas, isenções nem montantes (é o que o cliente pagou). A encomenda não muda.",
+          "Corrige um retido antes de emitir (Q4). Só o dono: pede também `customers:billing`. só o NIF (passa pela régua), o nome do documento e a morada fiscal, numa versão nova do conteúdo, com motivo. Nunca taxas, isenções nem montantes (é o que o cliente pagou). A encomenda não muda.",
         params: Type.Object({ id: IdDocumento }),
         body: Type.Object(
           {
@@ -583,8 +604,9 @@ export function rotasDosDocumentos(
         response: Resposta,
       },
     },
-    (pedido, resposta) =>
-      escrever(base, pedido, resposta, 200, async (trx, chave) =>
+    (pedido, resposta) => {
+      exigir(chaveDo(pedido).ambitos, "customers:billing");
+      return escrever(base, pedido, resposta, 200, async (trx, chave) =>
         emDocumentos(resposta, async () => {
           const { morada, ...resto } = pedido.body;
           return {
@@ -602,7 +624,8 @@ export function rotasDosDocumentos(
             ),
           };
         }),
-      ),
+      );
+    },
   );
 
   rotas.post(
