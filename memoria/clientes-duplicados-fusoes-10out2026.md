@@ -74,9 +74,9 @@ Contado a 10/10/2026, neste contentor (PostgreSQL 18.6 por Docker).
 - **O consentimento da ficha que fica passa a cobrir os contactos
   acrescentados.** Não verificado, **C**: vai para o jurista com a V4. A
   alternativa mais prudente («só sim se todas as fichas aceitaram») ficou
-  proposta ao Diogo. Ele decidiu outra regra, canal a canal, a 10/10/2026
-  (`docs/06`, DL; migração 0051): o «não» de qualquer ficha vence, e uma
-  declaração feita depois da fusão vale para todas.
+  proposta ao Diogo. Ele decidiu outra coisa a 10/10/2026 (`docs/06`, DL;
+  `docs/23` §14): o consentimento por contacto e por canal, com dupla
+  confirmação sobre uma recusa. Ainda não está no código.
 - **Fica para depois:**
   - **2c:** os pedidos do titular têm de alcançar o grupo inteiro;
   - **fatia 10:** abrir a marca `usado_em_documento` nos perfis de fichas

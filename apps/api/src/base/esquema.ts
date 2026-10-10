@@ -677,8 +677,6 @@ export interface TabelaCliente {
   pais: string | null;
   estado: ColumnType<"activo" | "fundido" | "pseudonimizado", never, never>;
   fundido_em: ColumnType<string | null, never, never>;
-  /** A hora da fusão (0051); só o gatilho a põe. */
-  fundido_quando: ColumnType<Date | null, never, never>;
   limitado: ColumnType<boolean, never, never>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
