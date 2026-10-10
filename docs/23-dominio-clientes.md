@@ -6,7 +6,8 @@
 > propostas). **Parte 3 (VIES e isenção manual): aprovada e no código, §13**
 > (`docs/06`, CY). **Parte 2a (consentimentos e régua do marketing): no
 > código, §12** (Diogo, 10/10/2026: *«sim, avança com a parte 2»*). **Parte
-> 2b (duplicados e fusões, perfis copiados): no código, §12**. É a fatia 5 do
+> 2b (duplicados e fusões, perfis copiados) e parte 2c (pedidos do titular):
+> no código, §12**. É a fatia 5 do
 > [`eurolify/implementation-plan.md`](eurolify/implementation-plan.md)
 > («Clientes e perfis de faturação; finalidade por encomenda») e é preciso
 > antes do Motor de IVA (fatia 6) e do checkout (fatia 7): o Motor de IVA
@@ -316,7 +317,7 @@ Com outbox (`evento_saida`), como os do Catálogo e de Preços.
 | `customer.created` | ficha nova | `cus_` (a origem fica na linha do tempo, não no evento) |
 | `customer.updated` | ficha alterada | `cus_`, os **nomes** dos campos mudados (sem valores) |
 | `customer.merged` | uma pessoa fundiu duas fichas | o `cus_` que ficou, o que foi absorvido, quem |
-| `customer.pseudonymized` | apagamento do titular feito | `cus_` — **proposta** (novo; a lista do `docs/02` não o tem) |
+| `customer.pseudonymized` | apagamento do titular feito | `cus_` — **proposta** (novo; já está na lista do `docs/02`) |
 | `billing_profile.created`, `billing_profile.updated` | perfil novo ou alterado | `bpf_`, `cus_` — **proposta** (novos) |
 | `billing_profile.validated` | consulta ao VIES com resposta `valido` | `bpf_`, `vvc_` |
 | `billing_profile.invalidated` | o perfil deixou de ser válido no VIES | `bpf_`, `vvc_` — **proposta** (novo) |
@@ -363,7 +364,7 @@ O armazém não lê clientes: a morada de que precisa vem na encomenda
 | Candidatos a duplicado | `GET /customer-duplicates`, `POST /customer-duplicates/{id}/dismiss` | read / merge | descartar fica no rasto |
 | Fundir | `POST /customers/{id}/merge` (`{ absorver: cus_…, ensaio: true }`) | merge | com `ensaio` devolve o que mudaria sem escrever |
 | Linha do tempo | `GET /customers/{id}/timeline` | read | o rasto (§3.8) |
-| Exportação do titular | `GET /customers/{id}/export` | privacy | JSON com tudo deste domínio; os outros domínios juntam o seu quando existirem |
+| Exportação do titular | `POST /customers/{id}/export` | privacy | JSON com tudo deste domínio; os outros domínios juntam o seu quando existirem. Um `POST` e não um `GET` (parte 2c): o pedido leva a verificação da identidade e fica registado |
 | Limitação | `PUT /customers/{id}/restriction`, `DELETE …` | privacy | |
 | Pseudonimizar | `POST /customers/{id}/pseudonymize` | privacy | irreversível; pede a confirmação no corpo, como as acções do MCP da VPS |
 
@@ -557,6 +558,53 @@ tempo guarda (revisão do #289, P3).
 **O checkout** (`docs/25`) ainda não regista consentimentos: a rota pede
 `customers:write`, não o âmbito da loja; a caixa de marketing desenha-se com
 a fatia 7.
+
+**Parte 2c — pedidos do titular** (migração 0049; issue #233; Diogo,
+10/10/2026: *«sim, avança com a parte 2c»*):
+
+| O quê | Onde |
+|---|---|
+| o registo de cada pedido (`pedido_titular`, `dsr_`): o tipo, como se verificou a identidade (obrigatório), quem fez, quando e o resultado em contagens; só se acrescenta (`eu-gdpr-privacy`, «Pedidos dos titulares») | migração 0049 |
+| a limitação (`PUT`/`DELETE /customers/{id}/restriction`): a régua do marketing dá não e a API não muda o nome nem os contactos da ficha limitada (`customers.restricted`), sem apagar nada — **proposta**. **Não trava** (revisão do #314, P3-2): os perfis (NIF, morada), as etiquetas, a fila do VIES, a procura de candidatos a duplicado, o checkout e as funções do dono (a fusão). O art. 18.º do RGPD pede mais do que o marketing: o que mais trava fica para decidir | migração 0049 |
+| a exportação (`POST /customers/{id}/export`): a ficha e as fundidas nela, com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas com as linhas e os pagamentos (só para ler), os candidatos a duplicado, a linha do tempo e os pedidos. Lida com a ficha tomada (P3-4); uma ficha fundida não se exporta sozinha, pede-se pela que ficou (P3-3). **A resposta não fica guardada**: a idempotência guarda só o id do pedido, e repetir a chave dá `idempotency.response_not_kept` (P2-5) | `src/clientes/repositorio.ts`; `src/clientes/rotas.ts` |
+| a pseudonimização (`POST /customers/{id}/pseudonymize`), irreversível, com a confirmação escrita «pseudonimizar cus_…» (o erro já não repete a frase, P3-5), só por uma pessoa ou a chave dela, sobre o grupo inteiro (revisão do #298, P3-3), lido **depois** de tomar a ficha pedida, para uma fusão ao mesmo tempo não deixar uma ficha de fora (revisão do #314, P1-2): nome «Pseudonimizado», sem e-mails, telefones, língua nem país; consentimentos e etiquetas apagados; os perfis que nenhum documento nem encomenda usou sem nome, NIF nem morada, arquivados, as provas do VIES deles apagadas e as isenções sem NIF, nota nem os motivos escritos (P3-11 do #244; P2-3 do #314); a linha do tempo sem os valores pessoais nem o texto livre (motivos e notas), também a do par de duplicados guardada na outra ficha (P2-4 do #234; P2-3 do #314); os candidatos fechados; o evento `customer.pseudonymized` | migração 0049 |
+| ficam como estão, com as provas do VIES, as isenções e a linha do tempo deles, o prazo fiscal (R9): os perfis usados em documentos **e os que uma encomenda aponta**, também a não paga (revisão do #314, P1-1). A decisão do IVA da encomenda cita a prova e a isenção; a fatura e a nota de crédito ainda podem precisar delas. Um critério mais estreito (só as encomendas pagas) é do contabilista — **C** | migração 0049 |
+| o resultado do apagamento diz `encomendas_com_dados_por_tratar`: com mais de zero, o apagamento **não está completo** (P2-4) | migração 0049 |
+| uma prova nova do VIES só se grava numa ficha activa: uma resposta que chegue depois do apagamento é recusada e a fila trata-a como falhada (P1-3) | migração 0049 |
+| as recusas de alterar ou apagar abrem-se **só** dentro da função do dono: a marca é uma linha da transacção numa tabela só do dono (`pseudonimizacao_em_curso`), e não um parâmetro que a API possa pôr (P2-1); a API e o superutilizador, com o parâmetro antigo ou com a marca, continuam recusados (testado) | migração 0049 |
+| o registo à escolha (`pedido_titular_registar`) é só das funções do dono; a API regista só a exportação, com o tipo e a contagem fixos (P2-2) | migração 0049 |
+| o âmbito `customers:privacy`, só no dono; **o MCP nunca o expõe**, como o `customers:merge` (P3-5) | migração 0049; `src/identidade/` |
+| 7 testes no titular e 1 no checkout (uma encomenda real); 13 mutações antes da revisão e 12 nas correcções, todas apanhadas | `test/clientes-titular.test.ts`; `test/checkout-api.test.ts` |
+
+**Fica por fazer, e onde:**
+- **os dados pessoais que o checkout e as encomendas guardam** (o contacto,
+  a entrega, a cópia do perfil): são desses domínios; a pseudonimização de
+  um cliente não lhes toca (a exportação lê as encomendas). Têm de se juntar
+  ao apagamento com a regra deles (o que a lei obriga a guardar de uma
+  encomenda) — fatia 9 e fatia 10;
+- **o prazo de resposta** (um mês, prorrogável) e **os prazos de guarda**
+  fora de Portugal: **não verifiquei** — **C** (R9);
+- **a verificação da identidade** é um texto que a pessoa escreve; o
+  Eurolify não a prova;
+- **a rectificação** faz-se pelas rotas que já existem (`PATCH`), com a
+  linha do tempo; um NIF num documento emitido não se corrige (R4);
+- **as cópias de segurança**: o apagamento chega a elas quando expiram;
+  dizê-lo na política de privacidade de cada loja. O mesmo para as respostas
+  guardadas da idempotência de outras rotas (`POST /customers`,
+  consentimentos): expiram em 24 h e o apagamento não as limpa;
+- **a fatia 10 emite sempre de `encomenda.perfil_copia`**, nunca do perfil
+  vivo, e marca `usado_em_documento` (também nas fichas fundidas);
+- **o texto da verificação** (`pedido_titular.verificacao`) fica para sempre
+  e não passa pela pseudonimização: escrever como se verificou («resposta do
+  e-mail da ficha»), nunca o e-mail ou o número de um documento (P3-1). O
+  Hub tem de o dizer;
+- **os perfis mantidos por obrigação fiscal** continuam legíveis por quem tem
+  `customers:read` (apoio); restringi-los depois do pedido fica para decidir
+  (P3-6);
+- **levantar a limitação** é um `DELETE` com corpo; uma variante `POST` para
+  clientes que descartam o corpo de um `DELETE` fica para depois (P3-7);
+- **a exportação** ainda não junta o que os outros domínios guardarem
+  depois (expedições, devoluções, documentos).
 
 ## 13. Parte 3 — VIES com prova e isenção manual (desenho de 09/10/2026)
 
