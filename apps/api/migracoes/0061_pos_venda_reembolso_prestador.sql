@@ -13,7 +13,8 @@
 --   os tectos de R5 voltam a conferir-se (P8). Um `a_confirmar` (aceite pelo
 --   prestador) só passa a `executado` (revisão do #350, P1-1).
 -- - `refund.requested` (P9) e os motivos novos da fila de diferenças.
--- - A função que diz à tarefa que comerciantes têm reembolsos a olhar.
+-- - A fila interna dos reembolsos no prestador, com a origem de quem pediu
+--   (0060), e a função que diz à tarefa que comerciantes têm trabalho.
 -- Q8 (opção A): o Multibanco continua à mão; isso decide-se na API, não aqui.
 
 -- ------------------------------------------------------------ O pagamento
@@ -361,6 +362,32 @@ CREATE FUNCTION posvenda_comerciantes_com_reembolsos() RETURNS SETOF uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT DISTINCT t.comerciante_id FROM public.tarefa_reembolso t
 $$;
+-- A origem de quem pediu (docs/28 §3.7; 0060): a confirmação que a tarefa
+-- faz mais tarde fica ligada ao pedido de quem executou o reembolso, como
+-- nas outras filas.
+ALTER TABLE tarefa_reembolso ADD COLUMN origem jsonb;
+CREATE TRIGGER tarefa_guardar_origem BEFORE INSERT OR UPDATE ON tarefa_reembolso
+  FOR EACH ROW EXECUTE FUNCTION tarefa_guardar_origem();
+-- Não fica ALWAYS, como as da 0060.
+
+CREATE OR REPLACE FUNCTION tarefa_origem(p_tipo text, p_alvo uuid) RETURNS jsonb
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT CASE p_tipo
+    WHEN 'pagamento' THEN (SELECT t.origem FROM public.tarefa_pagamento t
+      WHERE t.comerciante_id = public.comerciante_actual()
+        AND t.alvo_tipo = 'pagamento' AND t.alvo_id = p_alvo)
+    WHEN 'encomenda' THEN (SELECT t.origem FROM public.tarefa_pagamento t
+      WHERE t.comerciante_id = public.comerciante_actual()
+        AND t.alvo_tipo = 'encomenda' AND t.alvo_id = p_alvo)
+    WHEN 'conclusao' THEN (SELECT t.origem FROM public.tarefa_encomenda t
+      WHERE t.comerciante_id = public.comerciante_actual() AND t.encomenda_id = p_alvo)
+    WHEN 'documento' THEN (SELECT t.origem FROM public.tarefa_documento t
+      WHERE t.comerciante_id = public.comerciante_actual() AND t.documento_id = p_alvo)
+    WHEN 'reembolso' THEN (SELECT t.origem FROM public.tarefa_reembolso t
+      WHERE t.comerciante_id = public.comerciante_actual() AND t.reembolso_id = p_alvo)
+  END
+$$;
+
 REVOKE EXECUTE ON FUNCTION reembolso_tarefa(), posvenda_comerciantes_com_reembolsos()
   FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION posvenda_comerciantes_com_reembolsos() TO eurolify_api;

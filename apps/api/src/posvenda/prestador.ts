@@ -1,6 +1,11 @@
 import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados } from "../base/esquema.js";
 import {
+  comRasto,
+  contextoDaTarefa,
+  type OrigemDaTarefa,
+} from "../base/rasto.js";
+import {
   ErroDeRede,
   ErroSemEnvio,
   type AdaptadorPagamento,
@@ -17,7 +22,7 @@ import {
 import { ErroPosVenda } from "./erros.js";
 import { depoisDeExecutado, marcar, noPosVenda } from "./repositorio.js";
 
-// Pós-venda, parte 2: o reembolso pelo prestador (docs/30 §13; migração 0060;
+// Pós-venda, parte 2: o reembolso pelo prestador (docs/30 §13; migração 0061;
 // Diogo, 11/10/2026: «aprovado, com a A», docs/06, DP).
 //
 // 🔴 Um reembolso nunca se repete sozinho (R7): a EuPago não tem chave de
@@ -361,7 +366,12 @@ export async function correrConfirmacoes(
     const lista = await noPosVenda(db, c, (trx) =>
       trx
         .selectFrom("reembolso")
-        .select(["id"])
+        .select([
+          "id",
+          sql<OrigemDaTarefa | null>`tarefa_origem('reembolso', id)`.as(
+            "origem",
+          ),
+        ])
         .where("estado", "in", ["a_pedir", "a_confirmar"])
         .where((w) =>
           w.or([
@@ -374,9 +384,12 @@ export async function correrConfirmacoes(
         .limit(porVolta)
         .execute(),
     );
-    for (const { id } of lista) {
+    for (const { id, origem } of lista) {
       try {
-        await confirmarUm(db, c, id, cfg, res);
+        // Com a origem de quem pediu o reembolso (docs/28 §3.7).
+        await comRasto(contextoDaTarefa("reembolsos", origem), () =>
+          confirmarUm(db, c, id, cfg, res),
+        );
       } catch (erro) {
         res.erros.push(erro instanceof Error ? erro.name : "erro");
       }

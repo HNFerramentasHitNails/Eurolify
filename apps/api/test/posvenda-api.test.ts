@@ -2410,6 +2410,22 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect((await ok(s.adm("GET", `/problems/${r.problema}`)))["estado"]).toBe(
       "fechado",
     );
+    // A transição do pagamento feita pela tarefa fica ligada a quem pediu o
+    // reembolso (docs/28 §3.7; 0060).
+    const { rows: tr } = await sql<{ quem: string; a_pedido_de: Json | null }>`
+      select t.quem, t.a_pedido_de from transicao_pagamento t
+      join pagamento p on p.id = t.pagamento_id
+      where p.encomenda_id = ${e.encomenda.slice(4)}::uuid and t.para = 'reembolsado'`.execute(
+      base.dono,
+    );
+    expect(tr).toEqual([
+      expect.objectContaining({
+        quem: "sistema:reembolsos",
+        a_pedido_de: expect.objectContaining({
+          quem: expect.stringMatching(/^chave:/) as string,
+        }) as unknown,
+      }),
+    ]);
     const ev = await eventos(s);
     expect(ev).toContain("refund.requested");
     expect(ev.indexOf("refund.requested")).toBeLessThan(

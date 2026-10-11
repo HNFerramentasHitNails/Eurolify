@@ -38,6 +38,12 @@ export interface ColunasDoRasto {
   pedido: ColumnType<string | null, never, never>;
   ia: ColumnType<Record<string, string> | null, never, never>;
   autorizado_por: ColumnType<string | null, never, never>;
+  /** O pedido de origem de uma tarefa (0060; docs/28 §3.7). */
+  a_pedido_de: ColumnType<
+    { pedido?: string; quem?: string } | null,
+    never,
+    never
+  >;
 }
 
 /** O motivo, nas tabelas do rasto que não o tinham (0053). */
@@ -1186,7 +1192,7 @@ export const MOTIVOS_DIFERENCA = [
   "transicao_impossivel",
   "pago_depois_de_cancelada",
   "pagamento_duplicado",
-  // Os reembolsos pelo prestador (migração 0060; docs/30 §13).
+  // Os reembolsos pelo prestador (migração 0061; docs/30 §13).
   "reembolso_incerto",
   "reembolso_por_confirmar",
   "reembolso_desconhecido",
@@ -1243,7 +1249,7 @@ export interface TabelaPagamento {
   referencia: ColumnType<string, string, never>;
   referencia_prestador: ColumnType<string | null, never, string | null>;
   instrucoes: ColumnType<unknown, never, string | null>;
-  /** O `trid` da EuPago, gravado uma vez do aviso (0060; docs/30 §13, P2). */
+  /** O `trid` da EuPago, gravado uma vez do aviso (0061; docs/30 §13, P2). */
   id_transaccao_prestador: ColumnType<string | null, never, string>;
   estado: ColumnType<EstadoPagamento, never, EstadoPagamento>;
   expira_em: ColumnType<Date, Date, never>;
@@ -1682,7 +1688,7 @@ export type TipoProblema = (typeof TIPOS_PROBLEMA)[number];
 export const ESTADOS_REEMBOLSO = [
   "rascunho",
   "a_executar",
-  // Pelo prestador (0060; docs/30 §13): durante a chamada, e aceite à
+  // Pelo prestador (0061; docs/30 §13): durante a chamada, e aceite à
   // espera da confirmação.
   "a_pedir",
   "a_confirmar",
@@ -1795,7 +1801,7 @@ export interface TabelaReembolso {
   decidido_por: ColumnType<string, string, never>;
   criado_em: ColumnType<Date, never, never>;
   versao: ColumnType<number, never, number>;
-  // O pedido ao prestador (0060; docs/30 §13, P4 a P6).
+  // O pedido ao prestador (0061; docs/30 §13, P4 a P6).
   pedido_em: ColumnType<Date | null, never, Date>;
   pedido_por: ColumnType<string | null, never, string>;
   referencia_prestador: ColumnType<string | null, never, string>;

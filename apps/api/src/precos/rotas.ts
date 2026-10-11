@@ -433,6 +433,7 @@ const Historico = Type.Object({
       autorizado_por: Type.Optional(CamposDoRasto.autorizado_por),
       pedido: Type.Optional(CamposDoRasto.pedido),
       motivo: Type.Optional(CamposDoRasto.motivo),
+      a_pedido_de: Type.Optional(CamposDoRasto.a_pedido_de),
     }),
   ),
   reducoes: Type.Array(ReducaoEsquema),
@@ -448,6 +449,7 @@ function historicoDoRasto(l: LinhaHistorico, comQuem: boolean) {
   const r = respostasDoRasto({ ...l, quem: l.definido_por });
   return {
     tipo_de_autor: r.tipo_de_autor,
+    a_pedido_de_tipo: r.a_pedido_de_tipo,
     sem_autorizacao_de_pessoa: r.sem_autorizacao_de_pessoa,
     canal: r.canal,
     ia: r.ia,
@@ -457,6 +459,7 @@ function historicoDoRasto(l: LinhaHistorico, comQuem: boolean) {
           autorizado_por: r.autorizado_por,
           pedido: r.pedido,
           motivo: r.motivo,
+          a_pedido_de: r.a_pedido_de,
         }
       : {}),
   };

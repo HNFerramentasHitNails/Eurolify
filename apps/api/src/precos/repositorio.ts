@@ -788,6 +788,7 @@ export interface LinhaHistorico {
   ia: Record<string, string> | null;
   autorizado_por: string | null;
   motivo: string | null;
+  a_pedido_de: { pedido?: string; quem?: string } | null;
 }
 
 /** O histórico de um preço, do mais antigo ao mais recente (§3.5). */
@@ -813,6 +814,7 @@ export async function historicoDoPreco(
         "ia",
         "autorizado_por",
         "motivo",
+        "a_pedido_de",
       ])
       .where("lista_id", "=", listaId)
       .where("variante_id", "=", varianteId)

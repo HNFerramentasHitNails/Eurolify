@@ -139,7 +139,7 @@ const FUNCOES_DA_API = [
   // A régua única do marketing (0042): quem envia pergunta-lhe.
   "pode_receber_marketing",
   "pode_receber_marketing",
-  // A tarefa dos reembolsos no prestador (0060): os comerciantes com trabalho.
+  // A tarefa dos reembolsos no prestador (0061): os comerciantes com trabalho.
   "posvenda_comerciantes_com_reembolsos",
   // A redução anunciada (0036): o gatilho corre com quem escreve.
   "preco_referencia",
@@ -158,6 +158,7 @@ const FUNCOES_DA_API = [
   "sessoes_terminar_todas",
   "stock_bloquear",
   "stock_politica",
+  "tarefa_origem",
   "telefones_validos",
   // A prova do VIES só numa ficha activa (0049): o gatilho corre com quem escreve.
   "validacao_vies_so_em_ficha_activa",

@@ -468,14 +468,14 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
 | V11 | se o `reason` (`rfd_…`) aparece no extracto do cliente |
 | V12 | **antes do modo real:** com a V8 confirmada, se o «reembolsado» da consulta chega para a NC sair sozinha, ou se fica um passo de uma pessoa (revisão do #350) |
 
-### 13.5 Em código — parte 2 (11/10/2026; migração 0060; `docs/06`, DP)
+### 13.5 Em código — parte 2 (11/10/2026; migração 0061; `docs/06`, DP)
 
 | O quê | Onde |
 |---|---|
-| `pagamento.id_transaccao_prestador` (o `trid`), gravado uma vez do aviso assinado que deu o pagamento como pago | migração 0060; `src/pagamentos/repositorio.ts` (`aplicarAviso`) |
-| o reembolso com `a_pedir` e `a_confirmar`, quem pediu e quando, a referência do prestador, o código da recusa e a última consulta; as transições novas, o motivo obrigatório ao voltar a `a_executar`, e os tectos de R5 também ao voltar (P8) | migração 0060 |
-| `refund.requested` e os motivos `reembolso_incerto`, `reembolso_por_confirmar` e `reembolso_desconhecido` na fila de diferenças | migração 0060 |
-| `tarefa_reembolso`, interna, escrita por um gatilho, e `posvenda_comerciantes_com_reembolsos()`: o reembolso tem o RLS forçado e a tarefa corre sem comerciante (como a `tarefa_pagamento` da 0044) | migração 0060 |
+| `pagamento.id_transaccao_prestador` (o `trid`), gravado uma vez do aviso assinado que deu o pagamento como pago | migração 0061; `src/pagamentos/repositorio.ts` (`aplicarAviso`) |
+| o reembolso com `a_pedir` e `a_confirmar`, quem pediu e quando, a referência do prestador, o código da recusa e a última consulta; as transições novas, o motivo obrigatório ao voltar a `a_executar`, e os tectos de R5 também ao voltar (P8) | migração 0061 |
+| `refund.requested` e os motivos `reembolso_incerto`, `reembolso_por_confirmar` e `reembolso_desconhecido` na fila de diferenças | migração 0061 |
+| `tarefa_reembolso`, interna, escrita por um gatilho, e `posvenda_comerciantes_com_reembolsos()`: o reembolso tem o RLS forçado e a tarefa corre sem comerciante (como a `tarefa_pagamento` da 0044); guarda a origem de quem pediu, e a confirmação feita mais tarde pela tarefa fica ligada a esse pedido (`docs/28` §3.7, a 0060 do rasto; `tarefa_origem('reembolso', …)`) | migração 0061 |
 | as credenciais OAuth (`client_id`, `client_secret`) na conta, cifradas com a chave, os dois juntos ou nenhum | `src/pagamentos/repositorio.ts`, `rotas.ts` |
 | o adaptador: o token OAuth a cada reembolso, `reembolsar` e `consultarReembolso`, o aviso `Refund`; só o MB WAY reembolsa pela API (Q8) | `src/pagamentos/eupago.ts`, `adaptador.ts` |
 | `POST /refunds/{id}/execute` e `POST /refunds/{id}/reconcile`; o `GET /refunds/{id}` mostra o pedido ao prestador | `src/posvenda/prestador.ts`, `rotas.ts` |
@@ -501,6 +501,8 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
   outra moeda) fica `falhado` com o motivo: sabe-se que nada saiu.
 - **Reconciliar** fecha as diferenças abertas desse reembolso, com o motivo
   da pessoa.
+- **A migração é a 0061:** começou como 0060 e o #351 (rasto, a origem das
+  tarefas) entrou primeiro com esse número.
 - **O `execute` aceita também um `falhado`** (a P4 dizia `a_executar`): é
   pedir outra vez depois de uma recusa explícita, sem motivo, com quem pediu
   registado; os tectos de R5 voltam a conferir-se.
