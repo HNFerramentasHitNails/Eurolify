@@ -20,6 +20,12 @@
 > passam por estas portas antes de serem desenhados; o `docs/31` §4 dá a
 > natureza e o estado de cada um. **O primeiro, o balcão (POS), passou a
 > 11/10/2026: §7.**
+>
+> ✅ **11/10/2026, à noite:** as saídas do §7 ao §19 foram **aprovadas pelo
+> Diogo** (*«sim, aprovo as saídas todas»*; decisão DS,
+> [ADR-0043](adr/0043-saidas-das-portas-dos-modulos-de-gestao.md)), com as
+> tarefas das filas (§10) e a consulta das vendas (§11) a passarem para a
+> Fase 1.
 
 **Legenda:** ✅ passa · ◐ em parte · ❌ falha · ❔ não se sabe.
 
@@ -835,8 +841,9 @@ vigilância país a país.
   (`docs/08`), com a regra dos dados na UE (regra 4).
 - **Nada de biometria no Eurolify** sem o jurista e uma avaliação de impacto,
   mesmo por extensão.
-- O ponto «G. Pessoas» do `docs/05` (Fase 2, «só com o jurista») fica como
-  está até o Diogo ou o Bruno decidirem esta saída.
+- ~~O ponto «G. Pessoas» do `docs/05` (Fase 2, «só com o jurista») fica como
+  está até o Diogo ou o Bruno decidirem esta saída.~~ Decidida a 11/10/2026
+  (DS, ADR-0043): o `docs/05` já o risca.
 
 Matar ou não é do Diogo ou do Bruno; a decisão DR põe a camada G no produto,
 e estas portas dizem que, como módulo próprio, não se paga e é o maior risco.

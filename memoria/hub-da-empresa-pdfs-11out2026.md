@@ -103,6 +103,12 @@ de gestão da empresa inteira, não só uma loja.
   checkout da Fase 1 é sem conta). Exclusividades, preço de revenda e venda
   online desligados até análise; franchising, marca própria e comissões com
   o jurista. **Todas as camadas (B a H) passadas a 11/10/2026.**
+- **As saídas aprovadas** (Diogo, 11/10/2026: *«sim, aprovo as saídas
+  todas»*; decisão DS, ADR-0043): as treze do `docs/13` §7 a §19; E, marketing
+  e G mortos como módulos; **duas peças para a Fase 1** — as tarefas das filas
+  e a consulta das vendas — no `docs/05` e no `docs/10` (peças 21 e 22, por
+  estimar); lançamentos agendados e avaliações no `docs/14` («fica para
+  depois»); ADR-0042 marcado como completado.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,

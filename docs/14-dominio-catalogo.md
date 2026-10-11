@@ -54,7 +54,8 @@ espelhado para o Eurolify pela API (`05-fases-e-mvp.md`, Fase 1, âmbito).
 | atributos regulamentares do artigo e da variante | documentos de prova, recolhas, fórmulas: são do domínio Conformidade (§2) |
 | importação com modo de ensaio, exportação completa | |
 | SEO por língua (endereço amigável, título, descrição) | mapa do site e dados estruturados: o frontend gera-os a partir da API da Loja |
-| linha do tempo de cada artigo | |
+| linha do tempo de cada artigo | **lançamentos agendados**: publicar a uma hora certa, com aviso a quem agendou se falhar (veio dos módulos de gestão, decisão DS, ADR-0043; `docs/13` §14) |
+| | **avaliações de quem comprou**, ligadas a uma encomenda entregue, com a regra mostrada na loja (`consumer-rights-eu`, **W**; decisão DS; `docs/13` §17) |
 
 ## 2. Fronteira — o que é do Catálogo e o que não é
 

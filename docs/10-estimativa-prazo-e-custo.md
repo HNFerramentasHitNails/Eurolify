@@ -71,6 +71,8 @@ Claude Code (**C**, todas as linhas):
 | 18 | Relatório OSS com os quatro baldes (decisão AD, 04/10/2026; veio da Fase 2) | 2–4 |
 | 19 | Devolução → estado do artigo → reembolso → nota de crédito (decisão AD; veio da Fase 2) | 4–7 |
 | 20 | Lotes na linha expedida e compostos (decisão AD; veio da Fase 2) | 3–5 |
+| 21 | Tarefas das filas que pedem uma pessoa: dono, prazo, aviso (decisão DS, ADR-0043, 11/10/2026; veio dos módulos de gestão) | **por estimar** (não entra na soma) |
+| 22 | Consulta das vendas do dia e do mês, para o MCP de leitura (decisão DS; parte pode já estar na peça 12) | **por estimar** (não entra na soma) |
 | | **Soma** (com as peças 18 a 20; sem elas era 92–155) | **101–171** |
 | | **Com imprevistos e coordenação** (+15 % no mínimo, +30 % no máximo; sem as peças 18 a 20 era ≈ 106–202) | **≈ 116–222** |
 
