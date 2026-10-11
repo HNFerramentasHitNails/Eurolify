@@ -629,7 +629,8 @@ dizer **a quem e como**.
 
 ## 15. A marca «selado por higiene» (R4; desenho, 11/10/2026)
 
-Pedido do Diogo, 11/10/2026: *«avança com o selado por higiene»*. A R4 e a Q5
+Pedido do Diogo, 11/10/2026: *«avança com o selado por higiene»*.
+**Aprovado pelo Diogo a 11/10/2026** (*«aprovado»*, à Q10; `docs/06`, DT). A R4 e a Q5
 já dizem que uma linha `aberto` de um artigo selado por higiene não volta a
 stock; a parte 1 aplicou a Q5 a tudo, porque a marca não existia (§12).
 
@@ -670,5 +671,31 @@ direito.
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q10 | Aprovas a marca **no artigo, copiada para a linha da encomenda**, a informação na API da Loja (o texto legal com o checkout), e a **decisão explícita, linha a linha**, sobre uma linha marcada que voltou aberta (reembolsar ou aplicar a excepção)? | sim |
+| Q10 ✅ sim (Diogo, 11/10/2026) | Aprovas a marca **no artigo, copiada para a linha da encomenda**, a informação na API da Loja (o texto legal com o checkout), e a **decisão explícita, linha a linha**, sobre uma linha marcada que voltou aberta (reembolsar ou aplicar a excepção)? | sim |
 
+### 15.4 Em código (11/10/2026; migração 0065; `docs/06`, DT)
+
+| O quê | Onde |
+|---|---|
+| H1: `artigo.selado_por_higiene`, por omissão não; muda-se pelo `PATCH /products/{id}` (e pelo do Hub); a base recusa-a num artigo que não seja físico (`catalog.nature_incompatible`) | migração 0065; `src/catalogo/` |
+| H2: `linha_encomenda.selado_por_higiene`, copiada do resumo no botão final; a base confere que é a marca do artigo nesse instante e recusa com `checkout.total_changed` | migração 0065; `src/checkout/repositorio.ts` |
+| H3: a marca por linha no resumo do checkout, na encomenda e na confirmação, e nas linhas do botão de livre resolução; entra na impressão do resumo só quando existe (mudada entre o resumo e o botão, não há encomenda) | `src/checkout/`; `src/posvenda/` |
+| H6: `linha_devolucao.decisao_higiene` (`reembolsar` ou `excepcao_higiene`), dada no `POST /returns/{id}/decide` ou `/close` em `higiene`; a leitura da devolução diz `higiene_a_decidir` por linha. A base: só numa linha marcada, de livre resolução e `aberto`; só com a devolução inspeccionada; não volta a vazia; sem ela não se decide nem se fecha; a excepção não vai num reembolso, «reembolsar» vai, e não se fecha sem reembolso com «reembolsar» | migração 0065; `src/posvenda/` |
+| 3 testes pela API | `test/posvenda-api.test.ts` |
+
+**Desvios do desenho:**
+- **A migração é a 0065:** a 0064 está reservada pelo pedido #364 (rasto),
+  ainda aberto.
+- **H3 «no artigo»:** a API da Loja não tem leitura de artigos (procurado
+  em `src/`, rotas `/store/…`, a 11/10/2026); a marca vai na API de
+  Administração do artigo e, para o cliente, no resumo, na confirmação e no
+  botão de livre resolução. O carrinho não a mostra (não mostra o artigo).
+- **H7, alargada:** a decisão só existe numa devolução de **livre
+  resolução**; numa devolução comercial ou do apoio a marca não pede nem
+  aceita decisão (não é retractação).
+- **Um estado por linha:** a inspecção diz um estado por linha; duas
+  unidades da mesma linha, uma aberta e outra não, não se distinguem (era
+  assim desde a parte 1).
+- **Por fazer:** o texto legal a mostrar ao cliente, por país (**C**, J5,
+  com a parte 2 do checkout); a marca na exportação e na importação do
+  catálogo; o ecrã do Hub (com a pós-venda no Hub).

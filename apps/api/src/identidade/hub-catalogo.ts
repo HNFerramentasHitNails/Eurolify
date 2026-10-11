@@ -100,7 +100,8 @@ import { erroConta, traduzindoConta } from "./sessoes.js";
 // a pessoa da sessão como «quem fez» na linha do tempo.
 
 /**
- * O que o Hub altera no artigo: o nome, a descrição e a marca. A categoria
+ * O que o Hub altera no artigo: o nome, a descrição, a marca e o «selado
+ * por higiene» (docs/30 §15). A categoria
  * fiscal fica de fora (docs/22 §13.1): decide o IVA e só entra no Hub como
  * escolha de uma lista dada pelo servidor (revisão do #217, P1-1).
  */

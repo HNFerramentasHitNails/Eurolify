@@ -143,6 +143,7 @@ const FUNCOES_DA_API = [
   "posvenda_comerciantes_com_reembolsos",
   // O aviso do prazo do reembolso (0063): o prazo e a tarefa.
   "posvenda_dias_de_aviso",
+  "posvenda_higiene_por_decidir",
   "posvenda_prazo_comerciantes",
   "posvenda_prazo_da_devolucao",
   "posvenda_prazo_reagendar",

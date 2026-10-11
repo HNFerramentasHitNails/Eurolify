@@ -152,6 +152,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0061_pos_venda_reembolso_prestador",
         "0062_rasto_quem_autenticado_e_motivo",
         "0063_pos_venda_prazo_do_reembolso",
+        "0065_pos_venda_selado_por_higiene",
       ]);
     });
 

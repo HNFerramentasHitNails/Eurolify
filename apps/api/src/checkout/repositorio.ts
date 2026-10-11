@@ -36,6 +36,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroCheckout[] = [
   "checkout.invalid_field",
   "legal.version_immutable",
   "orders.immutable",
+  // A marca «selado por higiene» mudou entre o resumo e o botão (0065).
+  "checkout.total_changed",
 ];
 
 export function traduzir(erro: unknown): unknown {
@@ -476,6 +478,7 @@ interface VarianteVendavel {
   artigo_id: string;
   nome: string;
   categoria_fiscal: string;
+  selado_por_higiene: boolean;
 }
 
 /**
@@ -512,6 +515,7 @@ async function variantesVendaveis(
       "artigo.tipo",
       "artigo.estado as estado_artigo",
       "artigo.categoria_fiscal",
+      "artigo.selado_por_higiene",
       "publicacao.variantes_fora",
     ])
     .where("variante.id", "in", varianteIds)
@@ -532,6 +536,7 @@ async function variantesVendaveis(
       artigo_id: l.artigo_id,
       nome: l.nome,
       categoria_fiscal: l.categoria_fiscal,
+      selado_por_higiene: l.selado_por_higiene,
     });
   }
   return mapa;
@@ -892,6 +897,11 @@ export interface LinhaDoResumo {
   base: number;
   iva: number;
   total: number;
+  /**
+   * Aberto depois da entrega, perde-se a livre resolução (docs/30 §15, H3):
+   * o que o cliente vê é o que fica na encomenda (H2).
+   */
+  selado_por_higiene: boolean;
 }
 
 export interface Resumo {
@@ -1092,6 +1102,7 @@ export async function calcularResumo(
       },
       decisao,
       ...montanteDe(decisao),
+      selado_por_higiene: v.selado_por_higiene,
     });
   }
 
@@ -1232,12 +1243,15 @@ export function canonico(valor: unknown): string {
 /** O que o cliente viu: os montantes e as versões, para comparar (R3). */
 export const impressaoDo = (r: Resumo) => ({
   moeda: r.moeda,
+  // A marca só entra quando existe: as impressões das linhas sem ela ficam
+  // as de antes (docs/30 §15, H3).
   linhas: r.linhas.map((l) => [
     l.variante_id,
     l.quantidade,
     l.base,
     l.iva,
     l.total,
+    ...(l.selado_por_higiene ? ["selado_por_higiene"] : []),
   ]),
   portes:
     r.portes === null
@@ -1462,6 +1476,7 @@ export async function concluir(
         base: l.base,
         iva: l.iva,
         total: l.total,
+        selado_por_higiene: l.selado_por_higiene,
       })
       .returning("id")
       .executeTakeFirstOrThrow();

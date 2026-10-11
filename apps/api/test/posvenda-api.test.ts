@@ -221,6 +221,8 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         criadaPor: "operador:teste",
         nome: "Dono",
         ambitos: [
+          "catalog:read",
+          "catalog:write",
           "legal:read",
           "legal:write",
           "shipping:read",
@@ -3435,5 +3437,423 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       (await ok(s.adm("GET", `/returns/${fora}`)))["reembolsar_ate"],
     ).toBeNull();
     expect(await tarefaDoPrazo(fora)).toBeNull();
+  });
+
+  // ------------------------------------- «Selado por higiene» (docs/30 §15)
+
+  /** Marca (ou desmarca) o artigo do cenário pelo PATCH. */
+  const selar = async (s: Cenario, selado = true) => {
+    const a = await ok(s.adm("GET", `/products/prd_${s.artigo}`));
+    return ok(
+      s.adm("PATCH", `/products/prd_${s.artigo}`, {
+        versao: a["versao"],
+        selado_por_higiene: selado,
+      }),
+    );
+  };
+
+  /** Pede pelo botão, recebe tudo e inspecciona com os estados dados. */
+  async function inspeccionadaCom(
+    s: Cenario,
+    token: string,
+    linhas: { linha: unknown; quantidade: number; estado: string }[],
+  ) {
+    const w = await ok(
+      pedir("POST", `/store/orders/${token}/withdrawal`, {
+        linhas: linhas.map((l) => ({
+          linha: l.linha,
+          quantidade: l.quantidade,
+        })),
+      }),
+      201,
+    );
+    const p = await ok(s.adm("GET", `/withdrawals/${String(w["pedido"])}`));
+    const rma = String(p["devolucao"]);
+    await ok(
+      s.adm("POST", `/returns/${rma}/receive`, {
+        versao: 1,
+        linhas: linhas.map((l) => ({ linha: l.linha, recebida: l.quantidade })),
+      }),
+    );
+    await ok(
+      s.adm("POST", `/returns/${rma}/inspect`, {
+        versao: 2,
+        linhas: linhas.map((l) => ({
+          linha: l.linha,
+          estado_artigo: l.estado,
+          aceite: l.estado === "revendavel" ? l.quantidade : 0,
+        })),
+      }),
+    );
+    return rma;
+  }
+
+  it("selado por higiene: a marca no artigo, no resumo, na encomenda e na confirmação; mudada depois do resumo, não há encomenda (H1 a H3)", async () => {
+    const s = await cenario();
+    expect(
+      (await ok(s.adm("GET", `/products/prd_${s.artigo}`)))[
+        "selado_por_higiene"
+      ],
+    ).toBe(false);
+    expect((await selar(s))["selado_por_higiene"]).toBe(true);
+    // Só num físico (H1): um serviço não se sela.
+    const servico = await criarArtigo(
+      base.api,
+      s.c,
+      { tipo: "servico", nome: "Formação", categoria_fiscal: "normal" },
+      [{ sku: "FORM-1", unidade_de_venda: "unidade" }],
+    );
+    expect(
+      await codigo(
+        s.adm("PATCH", `/products/prd_${servico}`, {
+          versao: 1,
+          selado_por_higiene: true,
+        }),
+      ),
+    ).toEqual([422, "catalog.nature_incompatible"]);
+    // O resumo mostra-a por linha; a encomenda e a confirmação também.
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    const r = await ok(pedir("GET", `/checkout/${k.token}/summary`));
+    expect(r["linhas"]).toEqual([
+      expect.objectContaining({ sku: "GEL-001", selado_por_higiene: true }),
+    ]);
+    const e = await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    const enc = await ok(s.adm("GET", `/orders/${String(e["encomenda"])}`));
+    expect(enc["linhas"]).toEqual([
+      expect.objectContaining({ sku: "GEL-001", selado_por_higiene: true }),
+    ]);
+    const conf = await ok(pedir("GET", `/checkout/${k.token}/confirmation`));
+    expect(conf["linhas"]).toEqual([
+      expect.objectContaining({ selado_por_higiene: true }),
+    ]);
+    // A marca muda entre o resumo e o botão: o cliente não viu a de agora.
+    const k2 = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k2.token);
+    const r2 = await ok(pedir("GET", `/checkout/${k2.token}/summary`));
+    await selar(s, false);
+    expect(
+      await codigo(
+        botao(k2.token, {
+          aceita_condicoes: true,
+          versoes: s.versoes,
+          impressao: r2["impressao"],
+        }),
+      ),
+    ).toEqual([409, "checkout.total_changed"]);
+    // Sem a marca, a impressão é a de antes da marca existir (só montantes).
+    const r3 = await ok(pedir("GET", `/checkout/${k2.token}/summary`));
+    expect(r3["impressao"]).not.toBe(r2["impressao"]);
+    expect(
+      (r3["linhas"] as Json[]).map((l) => l["selado_por_higiene"]),
+    ).toEqual([false]);
+    // A base confere a cópia: uma linha que diz outra coisa não entra.
+    await expect(
+      base.dono.transaction().execute(async (t) => {
+        await sql`alter table linha_encomenda disable trigger linha_encomenda_antes_de_gravar`.execute(
+          t,
+        );
+        await sql`insert into linha_encomenda (comerciante_id, encomenda_id, posicao,
+            variante_id, sku, nome, quantidade, preco_unitario, preco, decisao_iva,
+            base, iva, total, selado_por_higiene)
+          select comerciante_id, encomenda_id, 99, variante_id, sku, nome, quantidade,
+            preco_unitario, preco, decisao_iva, base, iva, total, true
+          from linha_encomenda where encomenda_id = ${String(e["encomenda"]).slice(4)}::uuid`.execute(
+          t,
+        );
+      }),
+    ).rejects.toThrow(/checkout\.total_changed/);
+  });
+
+  it("selado por higiene: aberto, uma pessoa decide linha a linha; sem decisão não se decide nem fecha; a excepção não se reembolsa (H4 a H6)", async () => {
+    const s = await cenario();
+    await selar(s);
+    const e = await paga(s, [
+      [s.v1, 2],
+      [s.v2, 2],
+    ]);
+    const [l1, l2] = await expedir(s, e.encomenda);
+    // O botão continua (H4) e diz que o artigo é selado.
+    const v = await ok(pedir("GET", `/store/orders/${e.token}/withdrawal`));
+    expect((v["linhas"] as Json[]).map((l) => l["selado_por_higiene"])).toEqual(
+      [true, true],
+    );
+    const rma = await inspeccionadaCom(s, e.token, [
+      { linha: l1?.["id"], quantidade: 2, estado: "aberto" },
+      { linha: l2?.["id"], quantidade: 2, estado: "revendavel" },
+    ]);
+    let d = await ok(s.adm("GET", `/returns/${rma}`));
+    expect(d["linhas"]).toEqual([
+      expect.objectContaining({
+        linha: l1?.["id"],
+        selado_por_higiene: true,
+        higiene_a_decidir: true,
+        decisao_higiene: null,
+      }),
+      // O selo intacto devolve-se como qualquer outro (H5).
+      expect.objectContaining({
+        linha: l2?.["id"],
+        selado_por_higiene: true,
+        higiene_a_decidir: false,
+        decisao_higiene: null,
+      }),
+    ]);
+    const todas = [
+      { linha: l1?.["id"], quantidade: 2 },
+      { linha: l2?.["id"], quantidade: 2 },
+    ];
+    // Sem a decisão: nem o reembolso, nem o fecho (sem omissão).
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma}/decide`, {
+          versao: 3,
+          linhas: todas,
+          motivo: "livre resolução",
+        }),
+      ),
+    ).toEqual([422, "returns.hygiene_decision_required"]);
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma}/decide`, {
+          versao: 3,
+          linhas: [{ linha: l2?.["id"], quantidade: 2 }],
+          motivo: "livre resolução",
+        }),
+      ),
+    ).toEqual([422, "returns.hygiene_decision_required"]);
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma}/close`, {
+          versao: 3,
+          motivo: "aberto",
+        }),
+      ),
+    ).toEqual([422, "returns.hygiene_decision_required"]);
+    // Numa linha que não voltou aberta não há decisão a dar.
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma}/decide`, {
+          versao: 3,
+          linhas: todas,
+          motivo: "livre resolução",
+          higiene: [
+            { linha: l1?.["id"], decisao: "reembolsar" },
+            { linha: l2?.["id"], decisao: "reembolsar" },
+          ],
+        }),
+      ),
+    ).toEqual([400, "returns.invalid_field"]);
+    // A excepção não vai no reembolso; «reembolsar» vai.
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma}/decide`, {
+          versao: 3,
+          linhas: todas,
+          motivo: "livre resolução",
+          higiene: [{ linha: l1?.["id"], decisao: "excepcao_higiene" }],
+        }),
+      ),
+    ).toEqual([400, "refunds.invalid_field"]);
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma}/decide`, {
+          versao: 3,
+          linhas: [{ linha: l2?.["id"], quantidade: 2 }],
+          motivo: "livre resolução",
+          higiene: [{ linha: l1?.["id"], decisao: "reembolsar" }],
+        }),
+      ),
+    ).toEqual([400, "returns.invalid_field"]);
+    // Fechar sem reembolso contradiz «reembolsar».
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma}/close`, {
+          versao: 3,
+          motivo: "aberto",
+          higiene: [{ linha: l1?.["id"], decisao: "reembolsar" }],
+        }),
+      ),
+    ).toEqual([400, "returns.invalid_field"]);
+    // Nada ficou gravado das tentativas.
+    d = await ok(s.adm("GET", `/returns/${rma}`));
+    expect(d).toMatchObject({ estado: "inspeccionada", versao: 3 });
+    expect((d["linhas"] as Json[])[0]?.["decisao_higiene"]).toBeNull();
+    // A excepção na linha aberta: reembolsa-se só a do selo intacto.
+    const r = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: l2?.["id"], quantidade: 2 }],
+        motivo: "livre resolução; o verniz voltou aberto",
+        higiene: [{ linha: l1?.["id"], decisao: "excepcao_higiene" }],
+      }),
+      201,
+    );
+    expect(r["montante"]).toBe(1230);
+    d = await ok(s.adm("GET", `/returns/${rma}`));
+    expect(d["estado"]).toBe("decidida");
+    expect((d["linhas"] as Json[])[0]).toMatchObject({
+      decisao_higiene: "excepcao_higiene",
+    });
+    // Decidida, a decisão já não muda; e não volta a vazia.
+    for (const decisao of ["reembolsar", null]) {
+      await expect(
+        naBase(s, async (trx) => {
+          await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+            trx,
+          );
+          await sql`update linha_devolucao set decisao_higiene = ${decisao}
+            where devolucao_id = ${rma.slice(4)}::uuid
+              and linha_encomenda_id = ${String(l1?.["id"]).slice(4)}::uuid`.execute(
+            trx,
+          );
+        }),
+      ).rejects.toThrow(
+        decisao === null ? /returns\.immutable/ : /returns\.invalid_transition/,
+      );
+    }
+    // Um segundo reembolso não leva a linha com a excepção (a base).
+    await expect(
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        const pag = await sql<{ id: string }>`select id from pagamento
+          where encomenda_id = ${e.encomenda.slice(4)}::uuid`.execute(trx);
+        const novo = await trx
+          .insertInto("reembolso")
+          .values({
+            comerciante_id: s.c,
+            encomenda_id: e.encomenda.slice(4),
+            pagamento_id: String(pag.rows[0]?.id),
+            origem: "devolucao",
+            devolucao_id: rma.slice(4),
+            montante: 1,
+            moeda: "EUR",
+            via: "manual",
+            decidido_por: "pessoa:teste",
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        await trx
+          .insertInto("linha_reembolso")
+          .values({
+            reembolso_id: novo.id,
+            comerciante_id: s.c,
+            posicao: 1,
+            linha_encomenda_id: String(l1?.["id"]).slice(4),
+            quantidade: 1,
+            montante: 1,
+          })
+          .execute();
+      }),
+    ).rejects.toThrow(/refunds\.invalid_field|refunds\.invalid_transition/);
+  });
+
+  it("selado por higiene: reembolsar como gesto da loja, e fechar com a excepção; numa devolução comercial não se aplica (H6, H7)", async () => {
+    const s = await cenario();
+    await selar(s);
+    // Reembolsar a linha aberta, por decisão da loja.
+    const e = await paga(s, [[s.v1, 1]]);
+    const [l1] = await expedir(s, e.encomenda);
+    const rma = await inspeccionadaCom(s, e.token, [
+      { linha: l1?.["id"], quantidade: 1, estado: "aberto" },
+    ]);
+    const r = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: l1?.["id"], quantidade: 1 }],
+        motivo: "gesto da loja",
+        higiene: [{ linha: l1?.["id"], decisao: "reembolsar" }],
+      }),
+      201,
+    );
+    expect(r["montante"]).toBe(1230);
+    // Fechar sem reembolso com a excepção.
+    const e2 = await paga(s, [[s.v1, 1]]);
+    const [m1] = await expedir(s, e2.encomenda);
+    const rma2 = await inspeccionadaCom(s, e2.token, [
+      { linha: m1?.["id"], quantidade: 1, estado: "aberto" },
+    ]);
+    await ok(
+      s.adm("POST", `/returns/${rma2}/close`, {
+        versao: 3,
+        motivo: "selo aberto: sem direito de livre resolução",
+        higiene: [{ linha: m1?.["id"], decisao: "excepcao_higiene" }],
+      }),
+    );
+    expect(await ok(s.adm("GET", `/returns/${rma2}`))).toMatchObject({
+      estado: "fechada",
+      linhas: [
+        expect.objectContaining({ decisao_higiene: "excepcao_higiene" }),
+      ],
+    });
+    // Numa devolução comercial a marca não pede decisão nem a aceita (H7).
+    const e3 = await paga(s, [[s.v1, 1]]);
+    const [n1] = await expedir(s, e3.encomenda);
+    const c = await ok(
+      s.adm("POST", "/returns", {
+        encomenda: e3.encomenda,
+        origem: "comercial",
+        motivo: "troca",
+        linhas: [{ linha: n1?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    const rma3 = String(c["id"]);
+    await ok(
+      s.adm("POST", `/returns/${rma3}/receive`, {
+        versao: 1,
+        linhas: [{ linha: n1?.["id"], recebida: 1 }],
+      }),
+    );
+    await ok(
+      s.adm("POST", `/returns/${rma3}/inspect`, {
+        versao: 2,
+        linhas: [{ linha: n1?.["id"], estado_artigo: "aberto", aceite: 0 }],
+      }),
+    );
+    expect(
+      ((await ok(s.adm("GET", `/returns/${rma3}`)))["linhas"] as Json[])[0],
+    ).toMatchObject({ selado_por_higiene: true, higiene_a_decidir: false });
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma3}/close`, {
+          versao: 3,
+          motivo: "troca",
+          higiene: [{ linha: n1?.["id"], decisao: "excepcao_higiene" }],
+        }),
+      ),
+    ).toEqual([400, "returns.invalid_field"]);
+    await ok(
+      s.adm("POST", `/returns/${rma3}/decide`, {
+        versao: 3,
+        linhas: [{ linha: n1?.["id"], quantidade: 1 }],
+        motivo: "troca comercial",
+      }),
+      201,
+    );
+    // Num problema, `higiene` não existe.
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e3.encomenda,
+        tipo: "atraso",
+        descricao: "atrasou",
+      }),
+      201,
+    );
+    expect(
+      (
+        await codigo(
+          s.adm("POST", `/problems/${String(prb["id"])}/close`, {
+            versao: 1,
+            motivo: "nada",
+            higiene: [],
+          }),
+        )
+      )[0],
+    ).toBe(400);
   });
 });

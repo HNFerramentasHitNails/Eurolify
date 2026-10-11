@@ -10,6 +10,7 @@ export type CodigoErroPosVenda =
   | "returns.version_conflict"
   | "returns.immutable"
   | "returns.retry"
+  | "returns.hygiene_decision_required"
   | "refunds.not_found"
   | "refunds.invalid_field"
   | "refunds.invalid_transition"
@@ -29,6 +30,8 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroPosVenda, number> = {
   "returns.version_conflict": 409,
   "returns.immutable": 409,
   "returns.retry": 503,
+  // Uma linha selada voltou aberta: uma pessoa decide (docs/30 §15, H6).
+  "returns.hygiene_decision_required": 422,
   "refunds.not_found": 404,
   "refunds.invalid_field": 400,
   "refunds.invalid_transition": 409,

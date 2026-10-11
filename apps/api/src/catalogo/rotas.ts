@@ -280,6 +280,10 @@ const CamposArtigo = {
   descricao: Type.Union([Type.String(), Type.Null()]),
   marca: Type.Union([Type.String(), Type.Null()]),
   categoria_fiscal: Type.Union([Type.String(), Type.Null()]),
+  selado_por_higiene: Type.Boolean({
+    description:
+      "Selado por motivos de saúde ou de higiene: aberto depois da entrega, perde-se a livre resolução (Directiva 2011/83/UE, art. 16.º, e); docs/30 §15). Só num artigo físico; a decisão de que cabe na excepção é do comerciante",
+  }),
   origem: Type.String(),
   origem_ref: Type.Union([Type.String(), Type.Null()]),
   classificacao: Type.Object({
@@ -859,6 +863,7 @@ export const PedidoAlterarArtigo = Type.Object(
     descricao: Type.Optional(TextoOuNulo(10000)),
     marca: Type.Optional(TextoOuNulo(200)),
     categoria_fiscal: Type.Optional(CategoriaFiscal),
+    selado_por_higiene: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -940,6 +945,7 @@ function paraArtigo(a: LinhaArtigo) {
     descricao: a.descricao,
     marca: a.marca,
     categoria_fiscal: a.categoria_fiscal,
+    selado_por_higiene: a.selado_por_higiene,
     origem: a.origem,
     origem_ref: a.origem_ref,
     classificacao: {
