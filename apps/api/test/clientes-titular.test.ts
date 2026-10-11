@@ -208,14 +208,43 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     expect(antes.rows.map((r) => r.motivo)).toEqual([
       "o Rui pediu ao telefone",
     ]);
+    // E num perfil que depois foi usado num documento: os valores ficam (R9),
+    // o motivo limpa-se na mesma (revisão do #354, P2-2).
+    const usado = await perfil(id, {
+      tipo: "empresa",
+      nome_documento: "Rui, Lda",
+      nif: "FR40303265045",
+    });
+    const pid = String(usado["id"]).slice(4);
+    await comoDono(async (trx) => {
+      await sql`select set_config('eurolify.motivo', 'o Rui mudou de sede', true)`.execute(
+        trx,
+      );
+      await sql`update perfil_faturacao set nome_documento = 'Rui Costa, Lda'
+        where id = ${pid}::uuid`.execute(trx);
+    });
+    await comoDono((trx) =>
+      sql`update perfil_faturacao set usado_em_documento = true
+        where id = ${pid}::uuid`.execute(trx),
+    );
+    const camposDoPerfil = () =>
+      comoDono((trx) =>
+        sql<{ campos: unknown }>`select campos from alteracao_cliente
+          where entidade = 'perfil_faturacao' and entidade_id = ${pid}::uuid
+          order by id`.execute(trx),
+      );
+    const camposAntes = await camposDoPerfil();
     await ok(pseudonimizar(id));
     const depois = await comoDono((trx) =>
       sql<{ motivo: string | null }>`select motivo from alteracao_cliente
-        where cliente_id = ${id.slice(4)}::uuid and motivo is not null`.execute(
-        trx,
-      ),
+        where cliente_id = ${id.slice(4)}::uuid and motivo is not null
+        order by id`.execute(trx),
     );
-    expect(depois.rows.map((r) => r.motivo)).toEqual(["(pseudonimizado)"]);
+    expect(depois.rows.map((r) => r.motivo)).toEqual([
+      "(pseudonimizado)",
+      "(pseudonimizado)",
+    ]);
+    expect((await camposDoPerfil()).rows).toEqual(camposAntes.rows);
   });
 
   it("a pseudonimização apaga os dados pessoais do grupo inteiro, também da linha do tempo, e regista o pedido", async () => {

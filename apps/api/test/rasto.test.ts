@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
+import { criarChave } from "../src/identidade/repositorio.js";
 import { RESPOSTA_DE_ERRO } from "../src/base/erros.js";
 import {
   comRasto,
@@ -373,6 +374,71 @@ describe.skipIf(URL_BASE === undefined)(
       await expect(comQuem("chave:outra", ka)).rejects.toThrow(
         /autenticado mal formado/,
       );
+    });
+
+    it("a autenticação põe o autenticado: a chave do pedido; numa rota pública, nada (0062; revisão do #354, P2-1)", async () => {
+      const k = await criarChave(base.dono, a, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Leitura",
+        ambitos: ["catalog:read"],
+      });
+      const app = criarApp({ logger: false }, undefined, base.api);
+      const lerAutenticado = () =>
+        comComerciante(base.api, a, async (trx) => {
+          const { rows } = await sql<{
+            v: string | null;
+          }>`select nullif(current_setting('eurolify.autenticado', true), '') as v`.execute(
+            trx,
+          );
+          return { autenticado: rows[0]?.v ?? null };
+        });
+      app.get(
+        "/teste/autenticado-chave",
+        {
+          config: { ambito: "qualquer" },
+          schema: {
+            response: {
+              200: Type.Object({
+                autenticado: Type.Union([Type.String(), Type.Null()]),
+              }),
+              ...RESPOSTA_DE_ERRO,
+            },
+          },
+        },
+        lerAutenticado,
+      );
+      app.get(
+        "/teste/autenticado-publico",
+        {
+          config: { ambito: "publico" },
+          schema: {
+            response: {
+              200: Type.Object({
+                autenticado: Type.Union([Type.String(), Type.Null()]),
+              }),
+              ...RESPOSTA_DE_ERRO,
+            },
+          },
+        },
+        lerAutenticado,
+      );
+      await app.ready();
+      try {
+        const comChave = await app.inject({
+          method: "GET",
+          url: "/teste/autenticado-chave",
+          headers: { authorization: `Bearer ${k.segredo}` },
+        });
+        expect(comChave.json()).toEqual({ autenticado: `chave:key_${k.id}` });
+        const publico = await app.inject({
+          method: "GET",
+          url: "/teste/autenticado-publico",
+        });
+        expect(publico.json()).toEqual({ autenticado: null });
+      } finally {
+        await app.close();
+      }
     });
 
     it("o contexto fica só na sua transacção", async () => {

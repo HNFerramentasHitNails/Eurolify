@@ -8,8 +8,9 @@ import { erroBase } from "./erros.js";
 // comando do operador) — e passa à base em cada transacção do comerciante
 // (`comComerciante`), onde a função `contexto_do_rasto()` o confere.
 // O `quem` e a `origem` continuam a ser postos por cada domínio, como antes;
-// o `quem` vindo da autenticação fica para depois do passo 2 (#322). O
-// `autorizadoPor` de uma sessão do Hub põe-no a autenticação.
+// a autenticação põe `autenticado` (a chave ou a pessoa do pedido), e a base
+// recusa um `quem` de chave ou de pessoa diferente dele (0062). O
+// `autorizadoPor` de uma sessão do Hub põe-no também a autenticação.
 
 /**
  * Os canais que `contexto_do_rasto()` aceita (0053). Uma lista, um sítio:

@@ -86,6 +86,8 @@ usam.
 | `eurolify.motivo` | o motivo, quando a operação o tem (obrigatório onde o domínio o exige, como hoje no Comerciante) | `pedido do titular` |
 | `eurolify.autorizado_por` | a pessoa que confirmou: `pessoa:per_…`, ou vazio | `pessoa:per_…` |
 | `eurolify.ia` | JSON: `{fornecedor, modelo, execucao, prova}`, ou vazio | ver §3.3 |
+| `eurolify.autenticado` (0062) | quem se autenticou no pedido: `chave:key_…` ou `pessoa:per_…`, posto pela autenticação; a base confere o `quem` com ele | `chave:key_01…` |
+| `eurolify.a_pedido_de` (0060) | numa tarefa, o pedido de origem e quem o fez: `{pedido, quem}` | ver §3.7 |
 
 ### 3.2 Quem executou e quem autorizou (R2, R5)
 
@@ -291,9 +293,9 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
 - **parte 3** (#322, migração 0059): cada entrada das linhas do tempo ganha `tipo_de_autor` (pessoa, agente, chave, sistema, operador, desconhecido) e `sem_autorizacao_de_pessoa`, calculados na API (`autorDoRasto()`, §3.6). O histórico de um preço (`GET /price-lists/{id}/prices/{variante}/history`) passa a dar a todos com `prices:read` o tipo de autor, o aviso, o canal e a IA; `quem`, `autorizado_por`, `pedido` e `motivo` só vêm com `prices:history` (dono e gestor), e sem ele **não vêm** (nunca vazios a fingir que ninguém) (§3.8). O «sistema, a pedido de…» das tarefas fica para a parte 4;
 - **parte 4** (#322, migração 0060): as tarefas de pagamentos, encomendas e documentos guardam a `origem` de quem as agendou (`{a_pedido_de: {pedido, quem}, autorizado_por, ia}`), posta por um gatilho a partir do contexto; ao correr, a API põe o contexto da tarefa com a origem **herdada** (`contextoDaTarefa()`, `base/rasto.ts`). As tabelas do rasto ganham `a_pedido_de`, e as linhas do tempo devolvem-no com `a_pedido_de_tipo` (ex.: `sistema` a pedido de `agente`). Regras: só há origem com um pedido (um `quem` sem pedido não é origem); ao reagendar sem origem no contexto, fica a que havia; ao reagendar a partir de outro pedido, fica a desse pedido (a de quem agendou por último). No histórico de preços, `a_pedido_de` só com `prices:history`; `a_pedido_de_tipo` para todos;
 - **pendentes do #322** (#354, migração 0062):
-  - **o «quem» conferido** com quem se autenticou: a API põe `eurolify.autenticado` (a chave ou a pessoa da sessão), e a base recusa um `quem` de chave ou de pessoa diferente dele. As consequências e os actores sem chave nem sessão (`sistema:`, `catalogo:`, `checkout:`, `prestador:`, `operador:`) passam;
+  - **o «quem» conferido** com quem se autenticou: a API põe `eurolify.autenticado` (a chave ou a pessoa da sessão), e a base recusa um `quem` de chave ou de pessoa diferente dele. A regra lê a variável `eurolify.quem` ao gravar uma linha do rasto ou uma tarefa; **não** confere a coluna `quem` que as funções das contas recebem (`evento_conta`, 0018, 0025), nem as escritas sem linha do rasto na mesma transacção (`consentimento`, `movimento_stock`). Decide pelo prefixo: um `quem` que não comece por `chave:` nem por `pessoa:` (as consequências e os actores sem chave nem sessão, como `sistema:`, `catalogo:`, `checkout:`, `prestador:` e `operador:`) passa sem conferência (revisão do #354, P3-1 e P3-2);
   - **o canal `importacao`** no que uma importação aplica;
-  - **o motivo do histórico pseudonimizado** com a ficha;
+  - **o motivo do histórico pseudonimizado** com a ficha, também nos perfis usados em documentos (os valores deles ficam, R9; o motivo é texto livre e a prova fiscal é a cópia no documento). Limpa também o motivo das entradas dos pares de duplicados da outra ficha do par, mesmo que não fale desta pessoa: perde-se esse texto, de propósito (revisão do #354, P2-2 e P3-4);
   - já estavam resolvidos (conferido a 11/10/2026): as escritas do Hub nas contas com o contexto, a permissão da função do rasto, o motivo longo do Comerciante e a exportação do titular;
   - ficam de fora: os canais `integracao` e `mcp`, porque não há nenhuma entrada por esses caminhos; e as rotas públicas em que a pessoa age ela própria, que ficam por decidir;
 - **parte 5**: o Hub a mostrar as seis respostas (desenho e aspecto a aprovar pelo Diogo).

@@ -10,7 +10,8 @@
 --   da sessão do pedido, um `quem` de chave ou de pessoa tem de ser igual a
 --   ela;
 -- - `cliente_pseudonimizar()` (o corpo é o da 0049) troca também o `motivo`
---   das entradas do histórico por «(pseudonimizado)», como os valores.
+--   das entradas do histórico por «(pseudonimizado)», como os valores — e
+--   também nas dos perfis usados em documentos, cujos valores ficam (R9).
 --
 -- Não faz: mudar as linhas já gravadas fora de uma pseudonimização.
 
@@ -203,8 +204,13 @@ BEGIN
   -- Por último: as entradas que as escritas acima acabaram de criar também
   -- levavam os valores de antes.
   UPDATE public.alteracao_cliente a
-  SET campos = public.clientes_rasto_sem_dados(a.campos),
-      -- O motivo é texto livre e pode falar da pessoa (0053; #322).
+  -- Os valores de um perfil usado num documento ficam (R9; já marcadores
+  -- desde a 0054); o motivo, texto livre que pode falar da pessoa, limpa-se
+  -- em todas, também nesses: a prova fiscal é a cópia no documento (Diogo,
+  -- 10/10/2026, R9; revisão do #354, P2-2).
+  SET campos = CASE
+        WHEN a.entidade = 'perfil_faturacao' AND a.entidade_id = ANY (usados) THEN a.campos
+        ELSE public.clientes_rasto_sem_dados(a.campos) END,
       motivo = CASE WHEN a.motivo IS NULL THEN NULL ELSE '(pseudonimizado)' END
   WHERE a.comerciante_id = comerciante
     AND (a.cliente_id = ANY (grupo)
@@ -214,8 +220,8 @@ BEGIN
         SELECT d.id FROM public.duplicado_cliente d
         WHERE d.comerciante_id = comerciante
           AND (d.cliente_a = ANY (grupo) OR d.cliente_b = ANY (grupo)))))
-    AND NOT (a.entidade = 'perfil_faturacao' AND a.entidade_id = ANY (usados))
-    AND (a.campos IS DISTINCT FROM public.clientes_rasto_sem_dados(a.campos)
+    AND ((NOT (a.entidade = 'perfil_faturacao' AND a.entidade_id = ANY (usados))
+          AND a.campos IS DISTINCT FROM public.clientes_rasto_sem_dados(a.campos))
       OR a.motivo IS DISTINCT FROM
         CASE WHEN a.motivo IS NULL THEN NULL ELSE '(pseudonimizado)' END);
   GET DIAGNOSTICS n_rasto = ROW_COUNT;
