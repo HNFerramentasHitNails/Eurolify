@@ -209,11 +209,18 @@ gatilhos da base, na transacção que as agenda; correm-nas o servidor
   «sistema, tarefa <nome>, sem pedido de origem registado» — nunca só
   «sistema» — e o aviso «sem autorização de uma pessoa».
 
-Fonte citada pelo Diogo para a regra: o preço mais baixo dos 30 dias numa
-redução (Dir. 98/6/CE, art. 6.º-A, n.ºs 1 e 2) exige um histórico de preços
-completo e explicável, também nas mudanças por tarefas (já no `docs/03`,
-marcado **C**, jurista); e a responsabilidade do RGPD (art. 5.º, n.º 2),
-quando há dados pessoais (**não verifiquei** o texto nesta sessão).
+Fontes da regra, lidas a 11/10/2026 no texto oficial (Serviço das
+Publicações da UE, a fonte do EUR-Lex, `publications.europa.eu/resource/celex/…`):
+- **Dir. 98/6/CE, art. 6.º-A** (versão consolidada de 28/05/2022): «Qualquer
+  anúncio de redução de preço indica o preço anteriormente praticado» (n.º 1),
+  o mais baixo de um período «não […] inferior a 30 dias» (n.º 2); os
+  Estados-Membros podem mudar o período nos n.ºs 3 a 5. **W** para o texto da
+  UE; a transposição portuguesa e a de cada país **não verifiquei** (**C**,
+  jurista, como no `docs/03`). Que o histórico tenha de dizer *quem* mudou e
+  a pedido de quem é inferência nossa (**M**): o artigo pede o preço, e o
+  rasto completo é o que permite prová-lo.
+- **RGPD, art. 5.º, n.º 2**: o responsável «tem de poder comprová-lo»
+  («responsabilidade»). **W**.
 
 ### 3.8 O histórico de um preço, em dois níveis (Q7)
 
@@ -227,11 +234,19 @@ quando há dados pessoais (**não verifiquei** o texto nesta sessão).
 - O histórico de preços não se edita: é a prova do preço anterior para o
   art. 6.º-A (o `historico_preco` já só se acrescenta, 0017).
 
-Fonte citada pelo Diogo: RGPD, art. 5.º, n.º 1, al. c) (minimização),
-art. 25.º, n.º 2 (por defeito) e art. 32.º (controlo de acesso) — juntar
-quem mudou a um ecrã que hoje não o mostra junta dados pessoais dos
-colaboradores. **Não verifiquei** o texto nesta sessão; a minimização e o
-«por defeito» já são regra da skill `eu-gdpr-privacy`.
+Fontes, lidas a 11/10/2026 no texto oficial do RGPD (Reg. (UE) 2016/679,
+`publications.europa.eu/resource/celex/32016R0679`), **W**:
+- art. 5.º, n.º 1, al. c): dados «limitados ao que é necessário» («minimização
+  dos dados»);
+- art. 25.º, n.º 2: «por defeito, só sejam tratados os dados pessoais que
+  forem necessários para cada finalidade», o que vale também para a sua
+  «acessibilidade»;
+- art. 32.º, n.º 1, al. b) e n.º 2: a confidencialidade e o risco de «acesso
+  não autorizados»; n.º 4: quem age sob a autoridade do responsável só trata
+  dados segundo as instruções dele.
+
+Que *quem mudou um preço* deva ficar atrás de um âmbito próprio é a nossa
+aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
 
 ## 4. Como entra no código (por esta ordem, cada passo com a revisão de um agente)
 
