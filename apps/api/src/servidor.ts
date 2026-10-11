@@ -4,6 +4,7 @@ import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
+import { agendarAvisosDePrazo } from "./posvenda/prazo.js";
 import { agendarConfirmacoes } from "./posvenda/prestador.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { agendarDocumentos } from "./faturacao/repositorio.js";
@@ -176,6 +177,14 @@ const pararDocumentos =
       )
     : () => undefined;
 
+// O aviso do prazo do reembolso, de hora a hora (docs/30 §14, R10).
+const pararPrazos =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:prazos" }, () =>
+        agendarAvisosDePrazo(base, app.log),
+      )
+    : () => undefined;
+
 // As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).
 const pararConclusoes =
   base !== undefined
@@ -192,6 +201,7 @@ for (const sinal of ["SIGINT", "SIGTERM"] as const) {
     pararVies();
     pararPagamentos();
     pararReembolsos();
+    pararPrazos();
     app.log.info({ sinal }, "a fechar");
     app
       .close()
