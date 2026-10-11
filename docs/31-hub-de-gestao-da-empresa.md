@@ -321,7 +321,7 @@ nenhum comerciante de fora foi ouvido (`docs/13`, «O que vale para todos»).
 | | Dashboards | Painéis do dia e do mês por módulo | Leitura sobre todos | núcleo | por desenhar |
 | | Ecossistema | A fase de cada cliente no percurso da marca | Clientes | gestão | por desenhar |
 | Operações | Armazém | Por processar, picking com leitor, lotes, Retidas, monitor da faturação, inventário, localizações, transportadoras | Stock e encomendas (0047) | núcleo | em parte |
-| | Fabricação | Programação, produção, lotes, Gantt, compras, fornecedores, Pareto, alertas, discrepâncias | Compras (novo) + Fabrico (novo) | compras: gestão; fabrico: sectorial | por desenhar |
+| | Fabricação | Programação, produção, lotes, Gantt, compras, fornecedores, Pareto, alertas, discrepâncias | Compras (novo) + Fabrico (novo) | compras: gestão; fabrico: sectorial | por desenhar; compras pelas 8 portas a 11/10/2026: **estreitar** — primeiro a recepção com fornecedor (`docs/13` §8) |
 | | Gráfica | Pedidos, máquina, procedimentos, lançamentos, rótulos, colecções | Trabalho interno (novo) | sectorial | fora (`docs/00` §2.2) |
 | | Administrativo | Documentos da empresa e dos cosméticos, contratos, tabelas de preços, lançamentos | Documentos da empresa (novo) + Conformidade | gestão | por desenhar |
 | Formação | Pedagógico | Formações, turmas, kits, comissões, parceiros, manuais | Digital / serviço humano à distância (fatia 12) | sectorial | desenhado, desligado |
@@ -421,22 +421,27 @@ esforço de nenhum dos dois.
 
 ## 8. Proposta de ordem (âmbito aceite a 11/10/2026, ADR-0042)
 
+> ✅ **As saídas das portas de cada camada foram aprovadas** pelo Diogo a
+> 11/10/2026 (decisão DS, ADR-0043): as tarefas das filas e a consulta das
+> vendas passam para a Fase 1; as camadas E e G e o marketing e gráfica não
+> entram como módulos próprios.
+
 Por camadas, da mais ligada ao núcleo à mais afastada. Cada módulo passa
 pelas 8 portas e tem o seu desenho em tabela antes do código (ADR-0023).
-**Não estimei prazos**: a Fase 1 já está estimada em 17 a 32 meses a tempo
-inteiro (`docs/10` §9, hipótese **C**), e esta lista acrescenta trabalho a
-essa conta.
+**Não estimei prazos**: a Fase 1 já está estimada em ~~17 a 32~~ 17 a 33 meses
+a tempo inteiro (`docs/10` §9, hipótese **C**; 17 a 33 desde 11/10/2026, com
+as duas peças da decisão DS), e esta lista acrescenta trabalho a essa conta.
 
 | Camada | Módulos | Porquê nesta ordem |
 |---|---|---|
 | **A. Núcleo da loja** (Fase 1, em curso) | Catálogo, preços, clientes, IVA, checkout, pagamentos, stock, documentos fiscais, pós-venda | Já decidido e em código |
-| **B. Operação** | Balcão (POS — pelas portas a 11/10/2026: primeiro a ligação a um POS certificado, `docs/13` §7), armazém completo (picking com leitor, localizações, inventário), compras e fornecedores, apoio ao cliente, tarefas sobre um registo, dashboards | Ligam directamente às encomendas e ao stock; porta 1 forte (lições do `docs/04` §3) |
-| **C. Comercial** | Leads e prospecção, Chamadas do Dia, saúde da carteira, encomenda feita pela equipa com ligação de pagamento, comissões sobre o faturado, metas | Usa clientes, encomendas e documentos que já existem |
-| **D. Financeiro** | Despesas com leitura por IA e decisão de uma pessoa, extractos e conciliação, tesouraria, lucro por área | Depende de pagamentos e documentos fiscais; IA dentro do ADR-0040 |
-| **E. Organização** | Projectos, procedimentos e objectivos, comunicação interna | Não toca em regras fiscais; valor para equipas |
-| **F. Sectoriais** | Fabrico com fórmulas, lotes de enchimento e rótulos; formação (fatia 12); marketing e gráfica | Cada um serve um tipo de comerciante (porta 5) |
-| **G. Pessoas** | RH, assiduidade, férias, fecho do mês | O maior risco legal (biometria, direito do trabalho de cada país); só com o jurista |
-| **H. Parceiros** | Portais de revendedor, distribuidor, franqueado, formador | Fatia 14; jurista de concorrência (`eurolify-b2b-channels-eu`) |
+| **B. Operação** | Balcão (POS — pelas portas a 11/10/2026: primeiro a ligação a um POS certificado, `docs/13` §7), armazém completo (picking com leitor, localizações, inventário), compras e fornecedores (pelas portas a 11/10/2026: primeiro a recepção com fornecedor, `docs/13` §8), apoio ao cliente (pelas portas a 11/10/2026: primeiro o pedido sobre uma encomenda, `docs/13` §9), tarefas sobre um registo (pelas portas a 11/10/2026: primeiro as tarefas das filas que pedem uma pessoa, proposta para a Fase 1, `docs/13` §10), painéis (pelas portas a 11/10/2026: primeiro as vendas do dia e do mês, numa consulta que serve também o MCP de leitura, `docs/13` §11) | Ligam directamente às encomendas e ao stock; porta 1 forte (lições do `docs/04` §3) |
+| **C. Comercial** | Leads e prospecção, Chamadas do Dia, saúde da carteira, encomenda feita pela equipa com ligação de pagamento, comissões sobre o faturado, metas (pelas portas a 11/10/2026, como um módulo: primeiro a encomenda feita pela equipa, paga no checkout alojado, `docs/13` §12) | Usa clientes, encomendas e documentos que já existem |
+| **D. Financeiro** | Despesas com leitura por IA e decisão de uma pessoa, extractos e conciliação, tesouraria, lucro por área (pelas portas a 11/10/2026, como um módulo: primeiro a conciliação das liquidações do prestador com o banco, `docs/13` §13) | Depende de pagamentos e documentos fiscais; IA dentro do ADR-0040 |
+| **E. Organização** | Projectos, procedimentos e objectivos, comunicação interna (pelas portas a 11/10/2026: **matar como módulo próprio**, aprovado — decisão DS; os lançamentos agendados vão para o Catálogo e o assistente para o MCP de leitura, `docs/13` §14) | Não toca em regras fiscais; valor para equipas |
+| **F. Sectoriais** | Fabrico com fórmulas, lotes de enchimento e rótulos (pelas portas a 11/10/2026: primeiro a versão da fórmula no artigo e no lote, `docs/13` §15); formação (fatia 12; pelas portas a 11/10/2026: primeiro a inscrição numa formação com data, com o kit, `docs/13` §16); marketing e gráfica (pelas portas a 11/10/2026: **matar como módulo próprio**, aprovado — decisão DS; os feeds e as avaliações vão para o Catálogo, `docs/13` §17) | Cada um serve um tipo de comerciante (porta 5) |
+| **G. Pessoas** | RH, assiduidade, férias, fecho do mês (pelas portas a 11/10/2026: **matar como módulo próprio**, aprovado — decisão DS; ligar por extensão, sem biometria sem o jurista, `docs/13` §18) | O maior risco legal (biometria, direito do trabalho de cada país); só com o jurista |
+| **H. Parceiros** | Portais de revendedor, distribuidor, franqueado, formador (pelas portas a 11/10/2026, como um módulo: primeiro o revendedor que compra para revender, sem políticas sensíveis ligadas, `docs/13` §19) | Fatia 14; jurista de concorrência (`eurolify-b2b-channels-eu`) |
 
 ## 9. Choques com o que está decidido
 

@@ -1,6 +1,6 @@
 # ADR-0042 · A gestão da empresa inteira entra no produto, em módulos ligáveis a partir da Fase 2
 
-- **Estado:** aceite
+- **Estado:** aceite; **completado pelo [ADR-0043](0043-saidas-das-portas-dos-modulos-de-gestao.md)** (11/10/2026): as camadas E e G e o marketing e gráfica não entram como módulos próprios, e duas peças passam para a Fase 1
 - **Data:** 11/10/2026
 - **Quem decidiu:** Diogo (*«a, actualiza o docs/00 e o docs/05»*, resposta à
   pergunta do `docs/31` §10)

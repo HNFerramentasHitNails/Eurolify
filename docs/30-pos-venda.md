@@ -684,11 +684,10 @@ direito.
 | 3 testes pela API (com os da revisão do #363); 25 mutações, 24 apanhadas e uma equivalente (a verificação «reembolsar fora do reembolso» no código, que a base faz com o mesmo erro) | `test/posvenda-api.test.ts` |
 
 **Desvios do desenho:**
-- **A migração é a 0065:** a 0064 está reservada pelo pedido #364 (rasto),
-  ainda aberto. **A ordem conta** (revisão do #363, P1-1): o migrador recusa
-  um número abaixo de um já aplicado, e os testes, que criam a base de raiz,
-  não o apanham. Se o #363 entrar primeiro, o #364 passa para a 0066 antes de
-  entrar (avisado no #364).
+- **A migração é a 0065:** a 0064 é a do #364 (rasto), que entrou primeiro.
+  A ordem contava (revisão do #363, P1-1): o migrador recusa um número
+  abaixo de um já aplicado, e os testes, que criam a base de raiz, não o
+  apanham.
 - **H3 «no artigo»:** a API da Loja não tem leitura de artigos (procurado
   em `src/`, rotas `/store/…`, a 11/10/2026); a marca vai na API de
   Administração do artigo e, para o cliente, no resumo, na confirmação e no

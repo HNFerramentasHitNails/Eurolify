@@ -21,13 +21,16 @@
 
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
-| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 32 meses** os dois a tempo inteiro, **31 a 58** a meio tempo (§9, com hipótese C; recalculado a 04/10/2026 com as três peças da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
+| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 33 meses** os dois a tempo inteiro, **31 a 60** a meio tempo (§9, com hipótese C; recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS — eram 17 a 32 e 31 a 58; a 04/10/2026, com as três da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
 | **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | ≈ 9.950–14.230 € (era ≈ 9.940 antes do GitHub Pro e ≈ 10.150–14.870 com a Scaleway) |
 | **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) | ≈ 14.910–21.310 € (era ≈ 15.110–21.950, com a Scaleway) |
 
 **Desde 04/10/2026, os três cenários (aqui, no §4 e no §9) contam as três
 peças que a decisão AD (ADR-0022) passou da Fase 2 para a Fase 1** (peças 18 a
-20 do §2); os valores antigos ficam entre parênteses. Os serviços externos (§5)
+20 do §2); os valores antigos ficam entre parênteses. **Desde 11/10/2026, o
+cenário A conta também as peças 21 e 22** que a decisão DS (ADR-0043) pôs na
+Fase 1; **os cenários B e C não foram recalculados** com elas (não foram
+escolhidos, ADR-0008) — os seus prazos e custos estão sem as peças 21 e 22. Os serviços externos (§5)
 baixaram no mesmo dia, com o alojamento da construção contado na VPS da OVH,
 e o custo fixo por mês depois de abrir também passou a ser contado na VPS
 (§8; com a Scaleway gerida, o alojamento era ≈ 234–710 €/mês).
@@ -71,8 +74,10 @@ Claude Code (**C**, todas as linhas):
 | 18 | Relatório OSS com os quatro baldes (decisão AD, 04/10/2026; veio da Fase 2) | 2–4 |
 | 19 | Devolução → estado do artigo → reembolso → nota de crédito (decisão AD; veio da Fase 2) | 4–7 |
 | 20 | Lotes na linha expedida e compostos (decisão AD; veio da Fase 2) | 3–5 |
-| | **Soma** (com as peças 18 a 20; sem elas era 92–155) | **101–171** |
-| | **Com imprevistos e coordenação** (+15 % no mínimo, +30 % no máximo; sem as peças 18 a 20 era ≈ 106–202) | **≈ 116–222** |
+| 21 | Tarefas das filas que pedem uma pessoa: dono, prazo, aviso (decisão DS, ADR-0043, 11/10/2026; veio dos módulos de gestão) | 2–4 |
+| 22 | Consulta das vendas do dia e do mês, para o MCP de leitura (decisão DS; a ferramenta do MCP está na peça 12) | 1–2 |
+| | **Soma** (com as peças 18 a 22; sem a 21 e a 22 era 101–171; sem as 18 a 22, 92–155) | **104–177** |
+| | **Com imprevistos e coordenação** (+15 % no mínimo, +30 % no máximo; sem a 21 e a 22 era ≈ 116–222; sem as 18 a 20, ≈ 106–202) | **≈ 120–230** |
 
 **Como se estimaram as peças 18 a 20** (04/10/2026, **C**, por julgamento,
 como as outras): cada uma é parte de uma peça da Fase 2, que se partiu em duas
@@ -81,6 +86,19 @@ ligações); o núcleo das devoluções sai dos 6–10 das devoluções (ficam 2
 a troca e a carteira); os lotes e os compostos saem dos 8–14 do armazém
 completo (ficam 5–9). Cada estimativa conta os ecrãs e os testes da peça; as
 linhas de ecrãs e de testes da Fase 2 não se mexeram.
+
+**Como se estimaram as peças 21 e 22** (11/10/2026, **C**, por julgamento,
+como as outras; ainda não há a medida das 8 semanas do §6). A **21** é uma
+tabela de tarefas (dono, prazo, estado, isolada por comerciante e com o
+rasto), a ligação às quatro filas que a Fase 1 já cria (cada caso que entra
+cria a tarefa, cada decisão fecha-a), uma tarefa automática que avisa ao
+vencer, atribuir e mudar o prazo, a lista «a decidir» no Hub e os testes
+(isolamento, duas pessoas a atribuir ao mesmo tempo, cada fila): **2–4**, ao
+lado do relatório OSS (2–4) e dos lotes e compostos (3–5). A **22** é uma
+consulta (encomendado, pago, faturado e devolvido, com e sem IVA, por canal e
+mercado, no fuso do comerciante, cada número com o que conta), uma rota da
+API e os testes com vendas conhecidas; a ferramenta do MCP fica na peça 12 e o
+ecrã do painel na Fase 2: **1–2**.
 
 **Como se passa a meses** (**C**): 44 semanas produtivas por pessoa e por ano
 (férias, feriados e doença); duas pessoas rendem 90 % de duas, três rendem
@@ -133,7 +151,7 @@ lado se está.
 | Teste de intrusão de uma plataforma multi-inquilino | **5.950–8.500 €** cada (7 a 10 dias a 849 €/dia); conto um ou dois ⇒ 5.950–17.000 € | **W**, [Budget Security](https://budgetsecurity.com/blog/web-application-penetration-testing-cost/), 20/07/2026 |
 | Auditoria de acessibilidade (a Lei Europeia da Acessibilidade obriga as lojas online desde 28/06/2025) | **5.000–10.000 €** para um sítio pequeno, manual | **W**, resumo de pesquisa — fonte fraca, preços sobretudo britânicos e americanos |
 | Marca da UE na EUIPO, 3 classes | **1.050 €** (850 € a 1.ª, 50 € a 2.ª, 150 € a 3.ª) | **W**, resumos ([ds.solutions](https://ds.solutions/en/eu-trademark-cost/)); a página da EUIPO deu 403. As classes (9, 35, 42) são escolha minha, **C** |
-| Alojamento durante a construção, na OVH (recalculado a 04/10/2026; era 2.000–5.000 €, contado para a Scaleway gerida a ≈ 234 €/mês) — conta abaixo | **≈ 120–1.360 €** | preços **W** (página portuguesa da OVH, 03/10/2026, sem IVA, «a partir de»); meses e planos **C** |
+| Alojamento durante a construção, na OVH (recalculado a 04/10/2026; era 2.000–5.000 €, contado para a Scaleway gerida a ≈ 234 €/mês; antes das peças 21 e 22, a 11/10/2026, era ≈ 120–1.360 €) — conta abaixo | **≈ 120–1.400 €** | preços **W** (página portuguesa da OVH, 03/10/2026, sem IVA, «a partir de»); meses e planos **C** |
 | Contabilista: validar o motor de IVA antes do primeiro comerciante de fora | **orçamento a pedir** | — |
 | Jurista: checkout e livre resolução, contrato com limites, acordo de tratamento de dados, Data Act, margem sobre pagamentos | **orçamento a pedir** | — |
 | Seguro de responsabilidade civil profissional e ciber | **orçamento a pedir** — há produtos de entrada desde 404 €/ano, mas com capitais que não servem a uma plataforma que trata faturas de outras empresas | **W** ([Santander](https://www.santander.pt/empresas/seguros/seguro-protecao-empresas-cyber)) |
@@ -154,8 +172,8 @@ VPS-2 7,21 €, VPS-3 10,40 €, VPS-4 19,96 € por mês.
 
 | Cenário | Meses | Alojamento |
 |---|---|---|
-| A, os dois a tempo inteiro | 18–35 | ≈ 140–840 € |
-| A, cada um a meio tempo | 32,5–61 | ≈ 250–1.360 € |
+| A, os dois a tempo inteiro | 18–36 (era 18–35, antes das peças 21 e 22) | ≈ 140–860 € (o mês a mais, no máximo, numa VPS-4 a 19,96 €; conta minha) |
+| A, cada um a meio tempo | 32,5–63 (era 32,5–61) | ≈ 250–1.400 € (dois meses a mais, idem) |
 | B | 19,6–39,7 | ≈ 150–940 € |
 | C | 15,2–31,3 | ≈ 120–770 € |
 
@@ -277,19 +295,20 @@ usando a IA como o Claude Code e Codex, por fases»*.
 | Fase | O que é | Esforço (pessoas-semana) | Os dois a tempo inteiro | Cada um a meio tempo |
 |---|---|---|---|---|
 | **0** (o que falta) | Desenho final (domínio, API, contratos), conversas com 3 a 5 comerciantes, preços (D-14), OK para código (dado a 04/10/2026, ADR-0023). Desde 03/10/2026 os preços só travam a peça 13 (ADR-0012); estes números não foram recalculados. A Fase 0 passou a 04/10/2026 (critério S); o resto desta linha continua por fazer e faz-se no começo da Fase 1, domínio a domínio | 5–10 | **1 a 3** | **1,5 a 3** |
-| **1** | Núcleo à venda (§2, sem a peça 1; com as peças 18 a 20 da decisão AD — sem elas eram 101–192, 15 a 29 e 28 a 52) | 112–212 | **17 a 32** | **31 a 58** |
+| **1** | Núcleo à venda (§2, sem a peça 1; com as peças 18 a 20 da decisão AD e a 21 e a 22 da decisão DS — sem a 21 e a 22 eram 112–212, 17 a 32 e 31 a 58; sem as 18 a 20, 101–192, 15 a 29 e 28 a 52) | 115–220 | **17 a 33** | **31 a 60** |
 | | Critério de passagem: 3 meses de vendas reais sem documento fiscal errado | — | **+3** | **+3** |
 | **2** | Hub completo e mais países (tabela abaixo; sem as peças que a decisão AD passou para a Fase 1 — com elas eram 60–117, 9 a 18 e 16 a 32) | 49–96 | **7 a 15** | **13 a 26** |
 | | Critério de passagem: 3 meses em comerciantes de pelo menos dois países | — | **+3** | **+3** |
 | **3** | Extensões abertas e comércio por agentes (tabela abaixo) | 46–90 | **7 a 14** | **12 a 25** |
 | **4** | Marketplace | — | **não se estima**: só com caso de negócio escrito (`05-fases-e-mvp.md`) | |
-| | **Até ao fim da Fase 3** (igual depois da decisão AD: o trabalho mudou de fase, não cresceu) | | **≈ 38 a 70** (3 a 6 anos) | **≈ 64 a 118** (5 a 10 anos) |
+| | **Até ao fim da Fase 3** (igual depois da decisão AD: o trabalho mudou de fase, não cresceu; com a decisão DS cresceu — eram ≈ 38 a 70 e ≈ 64 a 118) | | **≈ 38 a 71** (3 a 6 anos) | **≈ 64 a 120** (5 a 10 anos) |
 
-**Exemplo** (recalculado a 04/10/2026): a Fase 0 passou a 04/10/2026, e o
-desenho que faltava (linha 0, 1 a 3 meses) faz-se no começo da Fase 1. Com os
-dois a tempo inteiro, a construção da Fase 1 acaba entre **abril de 2028 e
-setembro de 2029** (1 a 3 + 17 a 32 = 18 a 35 meses a contar de 05/10/2026,
-**C**). Com a Fase 0 fechada a 31/12/2026, como o exemplo supunha antes, era
+**Exemplo** (recalculado a 04/10/2026; outra vez a 11/10/2026, com as peças
+21 e 22): a Fase 0 passou a 04/10/2026, e o desenho que faltava (linha 0, 1 a
+3 meses) faz-se no começo da Fase 1. Com os dois a tempo inteiro, a construção
+da Fase 1 acaba entre **abril de 2028 e outubro de 2029** (1 a 3 + 17 a 33 =
+18 a 36 meses a contar de 05/10/2026, **C**; antes das peças 21 e 22, setembro
+de 2029). Com a Fase 0 fechada a 31/12/2026, como o exemplo supunha antes, era
 junho de 2028 a setembro de 2029 (e, antes da decisão AD, abril de 2028 e
 junho de 2029). O primeiro
 comerciante de fora pode entrar quando o motor de IVA estiver validado pelo

@@ -133,6 +133,26 @@ dela é o intervalo das perguntas — **não medido**.
 
 ## 7. Por verificar na sandbox
 
+**Regras dos testes** (Diogo, 11/10/2026):
+- Os testes fazem-se na **conta trial** que o Diogo criou a 11/10/2026, com as
+  variáveis `MOLONI_CLIENT_ID`, `MOLONI_CLIENT_SECRET`, `MOLONI_USERNAME` e
+  `MOLONI_PASSWORD` nas definições do ambiente. Os valores nunca aparecem em
+  ficheiros, registos, chat nem capturas.
+- **Ler é livre.** Escrever na conta (um movimento de stock, um rascunho) só
+  com o OK do Diogo ou do Bruno, antes de cada escrita.
+- **Nenhuma venda na app de POS nem nenhum documento fechado na conta trial**
+  antes de o Moloni confirmar que os documentos dela não seguem para a
+  Autoridade Tributária (*«sim, concordo»*, 11/10/2026). A conta trial é,
+  provavelmente, uma empresa normal, não a sandbox; não verificado.
+- Uma captura do API Explorer da conta antiga (subscrição expirada) mostrou um
+  `access_token` e um `refresh_token` no chat, a 11/10/2026. **Não se usam.**
+  A cópia local da imagem foi apagada; o modo de revogar um `refresh_token` não
+  está na documentação lida.
+- O fluxo `password` serve só para estes testes; no produto, cada comerciante
+  autoriza pelo `authorization_code` e o Eurolify não guarda a palavra-passe
+  dele (§1).
+
+
 1. Uma venda na app de POS aparece em `documents/getModifiedSince`? Com que
    tipo, série e `status`?
 2. O `status` do rascunho, e se há outros valores.
