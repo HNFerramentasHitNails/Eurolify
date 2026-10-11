@@ -52,9 +52,12 @@ export async function correrAvisosDeTarefas(
       try {
         await comComerciante(db, c, async (trx) => {
           await aplicarRasto(trx, contextoDaTarefa("tarefas", null));
+          await sql`select set_config('eurolify.quem', ${QUEM_DA_TAREFA}, true)`.execute(
+            trx,
+          );
           const r = await sql<{
             marcado: boolean;
-          }>`select tarefas_marcar_vencida(${fila}, ${caso}::uuid, ${QUEM_DA_TAREFA}) as marcado`.execute(
+          }>`select tarefas_marcar_vencida(${fila}, ${caso}::uuid) as marcado`.execute(
             trx,
           );
           if (r.rows[0]?.marcado === true) res.avisados += 1;

@@ -49,3 +49,28 @@ peça 21, continua assim.
 - O tempo de resposta da lista com volume; o que está aplicado no ensaio.
 - A estimativa das três filas a mais (≈ +0,5–1 pessoa-semana, **C**), até à
   medida das 8 semanas.
+
+## Código da parte 1 (11/10/2026; pedido #375)
+
+- Pedido do Diogo: *«começa o código da parte 1 da peça 21»*. Migração 0066,
+  `src/tarefas/`, rotas `/tasks`, a volta de hora a hora (`docs/33` §13).
+- **Revisão do agente** (Sonnet 5.5, ADR-0035; publicada no #375): 0 P0, 3 P1,
+  8 P2, 12 P3. Os 3 P1 corrigidos:
+  - quem sai da equipa pelas funções verdadeiras não largava os casos: o
+    `ate` vem do gatilho BEFORE (0026) e um `UPDATE OF ate` não o vê;
+  - o problema volta a `aberto` quando se anula o reembolso: quarta coluna
+    «na fila desde»;
+  - uma permissão dada a um papel que pode não existir no cluster.
+- **Lição:** um gatilho `AFTER UPDATE OF col` não dispara quando é outro
+  gatilho BEFORE a mudar a coluna; usar `WHEN` sobre a linha final.
+- **Lição:** um teste que escreve a linha à mão (`update membro set ate`) não
+  prova o caminho real; testar pelas funções que o produto usa.
+- Ficam, com a razão escrita no `docs/33` §13: P2-5, P2-6 (o motivo livre no
+  apagamento do titular, à espera do código da DU), P3-1, P3-4, P3-6 a P3-9.
+
+## Números do código (11/10/2026)
+
+- `tarefas-api.test.ts`: 19 testes, todos verdes (vitest, PostgreSQL 18.6
+  local, `EXIGIR_BASE=1`).
+- Bateria completa antes da revisão: API 1382, Hub 177, MCP 58, todos verdes.
+

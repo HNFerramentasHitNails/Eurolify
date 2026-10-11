@@ -24,6 +24,7 @@ type Json = Record<string, unknown>;
 interface Tarefa {
   fila: string;
   caso: string;
+  entrou_em: string;
   motivo: string;
   responsavel: string | null;
   prazo: string;
@@ -76,6 +77,8 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
     documento: randomUUID(),
     duplicado: randomUUID(),
     pendente: randomUUID(),
+    // Pendente há 20 dias: o prazo legal do reembolso já passou (docs/33 §2).
+    pendenteVencido: randomUUID(),
     foraDePrazo: randomUUID(),
     aceite: randomUUID(),
     devolucao: randomUUID(),
@@ -191,6 +194,8 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
         values
           (${casos.pendente}, ${a}, ${encomenda}, 'botao', 'x@exemplo.pt',
             now() - interval '1 day', true, 'pendente', '{}'),
+          (${casos.pendenteVencido}, ${a}, ${encomenda}, 'botao', 'x@exemplo.pt',
+            now() - interval '20 days', true, 'pendente', '{}'),
           (${casos.foraDePrazo}, ${a}, ${encomenda}, 'botao', 'x@exemplo.pt',
             now() - interval '3 days', false, 'fora_de_prazo', '{}'),
           (${casos.aceite}, ${a}, ${encomenda}, 'botao', 'x@exemplo.pt',
@@ -283,6 +288,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
         id("documento_fiscal", casos.documento),
         id("duplicado_cliente", casos.duplicado),
         id("livre_resolucao", casos.pendente),
+        id("livre_resolucao", casos.pendenteVencido),
         id("livre_resolucao", casos.foraDePrazo),
         id("prazo_reembolso", casos.devolucao),
         id("problema", casos.problema),
@@ -294,7 +300,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
       documento_fiscal: 1,
       duplicado_cliente: 1,
       prazo_reembolso: 1,
-      livre_resolucao: 2,
+      livre_resolucao: 3,
       problema: 1,
       reembolso: 1,
     });
@@ -308,6 +314,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
     expect(por(casos.duplicado)?.vencida).toBe(true);
     expect(por(casos.foraDePrazo)?.vencida).toBe(true);
     expect(por(casos.devolucao)?.vencida).toBe(true);
+    expect(por(casos.pendenteVencido)?.vencida).toBe(true);
     expect(por(casos.documento)?.vencida).toBe(false);
     expect(por(casos.problema)?.vencida).toBe(false);
     // O pedido pendente corre o prazo legal (docs/33 §2): 14 dias do pedido.
@@ -371,7 +378,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
       voltas += 1;
     } while (cursor !== null && voltas < 10);
     expect(voltas).toBe(3);
-    expect(new Set(vistos).size).toBe(8);
+    expect(new Set(vistos).size).toBe(9);
     expect(codigo(await pedir("GET", "/tasks?cursor=naoeumcursor"))).toEqual([
       400,
       "request.invalid",
@@ -536,9 +543,13 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
         [a],
       );
       await cliente.query(
-        "select tarefas_atribuir($1, $2, $3, 0, 'chave:teste')",
-        ["documento_fiscal", casos.documento, pessoas.gestor],
+        "select set_config('eurolify.quem', 'chave:teste', true)",
       );
+      await cliente.query("select tarefas_atribuir($1, $2, $3, 0)", [
+        "documento_fiscal",
+        casos.documento,
+        pessoas.gestor,
+      ]);
       const segundo = pedir("POST", url, {
         responsavel: `per_${pessoas.dono}`,
         versao: 0,
@@ -582,7 +593,9 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
         })
       ).statusCode,
     ).toBe(200);
-    await sql`update membro set ate = now(), terminado_por = 'pessoa:per_teste'
+    // A frase exacta da membro_terminar (0018): só o terminado_por; o `ate`
+    // vem do gatilho BEFORE (0026). Revisão do #375, P1-1.
+    await sql`update membro set terminado_por = 'pessoa:per_teste'
       where id = ${membros[pessoas.gestor2] ?? ""}`.execute(base.dono);
     const depois = await daLista("duplicado_cliente", casos.duplicado);
     expect(depois?.responsavel).toBeNull();
@@ -603,6 +616,24 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
         }),
       ),
     ).toEqual([422, "tasks.assignee_not_allowed"]);
+    // Desactivada pelo operador (pessoa_desactivar, 0018): o armazém tinha o
+    // pedido pendente (decide-o, returns:write).
+    const pend = id("livre_resolucao", casos.pendente);
+    const v = (await daLista("livre_resolucao", casos.pendente))?.versao ?? -1;
+    expect(
+      (
+        await pedir("POST", `/tasks/livre_resolucao/${pend}/assign`, {
+          responsavel: `per_${pessoas.armazem}`,
+          versao: v,
+        })
+      ).statusCode,
+    ).toBe(200);
+    await sql`select pessoa_desactivar(${pessoas.armazem}::uuid, 'operador:github:1')`.execute(
+      base.dono,
+    );
+    const p2 = await daLista("livre_resolucao", casos.pendente);
+    expect(p2?.responsavel).toBeNull();
+    expect(p2?.versao).toBe(v + 2);
   });
 
   it("o aviso de vencido sai uma vez por prazo, e não no prazo do reembolso", async () => {
@@ -622,6 +653,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
       expect(r.rows.map((x) => x.fila).sort()).toEqual([
         "duplicado_cliente",
         "livre_resolucao",
+        "livre_resolucao",
         "pagamento",
       ]);
     } finally {
@@ -630,8 +662,9 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
     }
     const primeira = await correrAvisosDeTarefas(base.api);
     expect(primeira.erros).toEqual([]);
-    // Em A: a diferença, o duplicado e o fora de prazo; em B: a diferença.
-    expect(primeira.avisados).toBe(4);
+    // Em A: a diferença, o duplicado, o fora de prazo e o pendente com o prazo
+    // legal passado (que antes não tinha aviso); em B: a diferença.
+    expect(primeira.avisados).toBe(5);
     expect((await correrAvisosDeTarefas(base.api)).avisados).toBe(0);
     // A própria função recusa um segundo aviso e o prazo do reembolso, mesmo
     // chamada à mão (a lista das por avisar já os tira; isto é a segunda trava).
@@ -644,8 +677,11 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
           "select set_config('eurolify.comerciante', $1, true)",
           [a],
         );
+        await cliente.query(
+          "select set_config('eurolify.quem', 'sistema:teste', true)",
+        );
         const r = await cliente.query<{ m: boolean }>(
-          "select tarefas_marcar_vencida($1, $2, 'sistema:teste') as m",
+          "select tarefas_marcar_vencida($1, $2) as m",
           [fila, caso],
         );
         await cliente.query("rollback");
@@ -663,6 +699,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
     expect(avisados.sort()).toEqual([
       "duplicado_cliente",
       "livre_resolucao",
+      "livre_resolucao",
       "pagamento",
     ]);
     // O aviso não muda a versão: quem estava a atribuir não recebe conflito.
@@ -674,7 +711,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
       select count(*)::int as n from evento_saida where tipo = 'task.overdue'`.execute(
       base.dono,
     );
-    expect(ev.rows[0]?.n).toBe(4);
+    expect(ev.rows[0]?.n).toBe(5);
     // Um prazo novo permite um aviso novo (e tira a marca).
     const fp = id("livre_resolucao", casos.foraDePrazo);
     await pedir("POST", `/tasks/livre_resolucao/${fp}/deadline`, {
@@ -746,5 +783,231 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
       .execute(base.dono)
       .catch((e: unknown) => e);
     expect(String(r)).toMatch(/audit\.append_only/);
+  });
+
+  /** Escreve como o dono, com os gatilhos normais (os da 0066) e sem os ALWAYS do domínio. */
+  const comGatilhos = (
+    tabela: string,
+    fn: (t: Transaction<unknown>) => Promise<unknown>,
+  ) =>
+    base.dono.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${a}, true),
+        set_config('eurolify.quem', 'pessoa:teste', true)`.execute(trx);
+      const sempre = (
+        await sql<{ nome: string }>`
+          select t.tgname as nome from pg_trigger t join pg_class c on c.oid = t.tgrelid
+          where not t.tgisinternal and t.tgenabled = 'A' and c.relname = ${tabela}`.execute(
+          trx,
+        )
+      ).rows;
+      for (const g of sempre) {
+        await sql`alter table ${sql.id(tabela)} disable trigger ${sql.id(g.nome)}`.execute(
+          trx,
+        );
+      }
+      await fn(trx);
+      for (const g of sempre) {
+        await sql`alter table ${sql.id(tabela)} enable always trigger ${sql.id(g.nome)}`.execute(
+          trx,
+        );
+      }
+    });
+  const entrou = async (fila: keyof typeof FILAS, caso: string) =>
+    (await lista(`?fila=${fila}`)).dados.find((t) => t.caso === id(fila, caso))
+      ?.entrou_em;
+
+  it("o documento, o reembolso e o problema que voltam à fila são uma passagem nova (os gatilhos da 0066)", async () => {
+    // O documento: sai da fila (para verificar) e volta a reter.
+    const antesDoc = await entrou("documento_fiscal", casos.documento);
+    await comGatilhos("documento_fiscal", async (t) => {
+      await sql`update documento_fiscal set estado = 'a_verificar', motivos = '{}'
+        where id = ${casos.documento}`.execute(t);
+    });
+    expect(await daLista("documento_fiscal", casos.documento)).toBeUndefined();
+    await comGatilhos("documento_fiscal", async (t) => {
+      await sql`update documento_fiscal set estado = 'retido', motivos = '{nif_invalido}'
+        where id = ${casos.documento}`.execute(t);
+    });
+    const doc = await daLista("documento_fiscal", casos.documento);
+    expect(doc?.versao).toBe(0);
+    expect(doc?.responsavel).toBeNull();
+    expect(doc?.motivo).toBe("nif_invalido");
+    const meio = await entrou("documento_fiscal", casos.documento);
+    expect(meio).not.toBe(antesDoc);
+    // Continuar na fila (outro motivo) é a mesma passagem.
+    await comGatilhos("documento_fiscal", async (t) => {
+      await sql`update documento_fiscal set motivos = '{nif_invalido,morada}'
+        where id = ${casos.documento}`.execute(t);
+    });
+    expect(await entrou("documento_fiscal", casos.documento)).toBe(meio);
+
+    // O reembolso: incerto → a executar → falhado.
+    const antesRfd = await entrou("reembolso", casos.reembolso);
+    await comGatilhos("reembolso", async (t) => {
+      await sql`update reembolso set estado = 'a_executar' where id = ${casos.reembolso}`.execute(
+        t,
+      );
+    });
+    expect(await daLista("reembolso", casos.reembolso)).toBeUndefined();
+    await comGatilhos("reembolso", async (t) => {
+      await sql`update reembolso set estado = 'falhado' where id = ${casos.reembolso}`.execute(
+        t,
+      );
+    });
+    expect((await daLista("reembolso", casos.reembolso))?.motivo).toBe(
+      "falhado",
+    );
+    expect(await entrou("reembolso", casos.reembolso)).not.toBe(antesRfd);
+
+    // O problema: decidido e outra vez aberto (o reembolso anulado; revisão
+    // do #375, P1-2).
+    const prb = id("problema", casos.problema);
+    expect(
+      (
+        await pedir("POST", `/tasks/problema/${prb}/assign`, {
+          responsavel: `per_${pessoas.dono}`,
+          versao: 0,
+        })
+      ).statusCode,
+    ).toBe(200);
+    await comGatilhos("problema", async (t) => {
+      await sql`update problema set estado = 'decidido' where id = ${casos.problema}`.execute(
+        t,
+      );
+    });
+    await comGatilhos("problema", async (t) => {
+      await sql`update problema set estado = 'aberto' where id = ${casos.problema}`.execute(
+        t,
+      );
+    });
+    const p = await daLista("problema", casos.problema);
+    expect(p?.responsavel).toBeNull();
+    expect(p?.versao).toBe(0);
+  });
+
+  it("uma linha antiga, sem «na fila desde», usa a hora de recurso", async () => {
+    await comoDono(async (t) => {
+      await sql`update problema set na_fila_desde = null where id = ${casos.problema}`.execute(
+        t,
+      );
+    });
+    const r = await sql<{ criado: Date }>`
+      select criado_em as criado from problema where id = ${casos.problema}`.execute(
+      base.dono,
+    );
+    expect(await entrou("problema", casos.problema)).toBe(
+      r.rows[0]?.criado.toISOString(),
+    );
+  });
+
+  it("o comerciante B não escreve num caso do A, e uma chave de agente de IA não atribui", async () => {
+    const url = `/tasks/problema/${id("problema", casos.problema)}/assign`;
+    expect(
+      codigo(
+        await pedir(
+          "POST",
+          url,
+          { responsavel: `per_${pessoas.deB}`, versao: 0 },
+          chaves["deB"],
+        ),
+      ),
+    ).toEqual([404, "tasks.not_found"]);
+    // Uma chave de agente cria-se pela API, marcada (0057): a base não deixa
+    // marcar uma chave que já existe.
+    const criadora = (
+      await criarChave(base.dono, a, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Criadora",
+        ambitos: [...LER, ...DECIDIR, "tasks:assign", "keys:write"],
+      })
+    ).segredo;
+    const r = await pedir(
+      "POST",
+      "/keys",
+      {
+        tipo: "servidor",
+        nome: "Agente das filas",
+        ambitos: [...LER, ...DECIDIR, "tasks:assign"],
+        agente_ia: true,
+      },
+      criadora,
+    );
+    expect(r.statusCode, r.body).toBe(201);
+    const agente = r.json<{ segredo: string; agente_ia: boolean }>();
+    expect(agente.agente_ia).toBe(true);
+    expect(
+      codigo(
+        await pedir(
+          "POST",
+          url,
+          { responsavel: `per_${pessoas.dono}`, versao: 0 },
+          agente.segredo,
+        ),
+      ),
+    ).toEqual([403, "tasks.forbidden"]);
+    // Mas lê a lista (R11: o MCP de leitura pode listar).
+    expect(
+      (await pedir("GET", "/tasks", undefined, agente.segredo)).statusCode,
+    ).toBe(200);
+  });
+
+  it("no prazo do reembolso, o prazo não passa do prazo legal", async () => {
+    // A devolução foi pedida há 20 dias: o prazo legal (14) já passou.
+    const url = `/tasks/prazo_reembolso/${id("prazo_reembolso", casos.devolucao)}/deadline`;
+    expect(
+      codigo(
+        await pedir("POST", url, {
+          prazo: new Date(Date.now() + 3_600_000).toISOString(),
+          motivo: "à espera do armazém",
+          versao: 0,
+        }),
+      ),
+    ).toEqual([422, "tasks.deadline_invalid"]);
+  });
+
+  it("cada fila da régua tem prazo por omissão e cabe na atribuição (nenhuma parada em silêncio)", async () => {
+    const r = await sql<{ fila: string; prazo: Date | null }>`
+      select f.fila,
+        tarefas_prazo_por_omissao(f.fila, now(), current_date + 5, 'Europe/Lisbon') as prazo
+      from tarefas_filas() f`.execute(base.dono);
+    expect(r.rows).toHaveLength(7);
+    expect(r.rows.filter((x) => x.prazo === null)).toEqual([]);
+    const def = await sql<{ d: string }>`
+      select pg_get_constraintdef(c.oid) as d from pg_constraint c
+      where c.conrelid = 'atribuicao'::regclass and c.contype = 'c'
+        and pg_get_constraintdef(c.oid) like '%fila%'`.execute(base.dono);
+    expect(def.rows).toHaveLength(1);
+    for (const f of r.rows) {
+      expect(def.rows[0]?.d, f.fila).toContain(`'${f.fila}'`);
+    }
+  });
+
+  it("um comerciante só com chaves, sem equipa, também recebe o aviso (revisão do #375, P2-4)", async () => {
+    const c = await registarComerciante(base.api, {
+      nome: "Loja C",
+      lingua: "pt",
+      fuso: "Europe/Lisbon",
+    });
+    await criarChave(base.dono, c, {
+      tipo: "servidor",
+      criadaPor: "operador:teste",
+      nome: "Sistema da loja",
+      ambitos: ["payments:read"],
+    });
+    const caso = randomUUID();
+    await comoDono(async (t) => {
+      await sql`insert into diferenca_pagamento (id, comerciante_id, motivo, criada_em)
+        values (${caso}, ${c}, 'incerto', now() - interval '2 days')`.execute(
+        t,
+      );
+    });
+    const r = await correrAvisosDeTarefas(base.api);
+    expect(r.erros).toEqual([]);
+    expect(r.avisados).toBe(1);
+    const ev = await sql<{ n: number }>`
+      select count(*)::int as n from evento_saida
+      where comerciante_id = ${c} and tipo = 'task.overdue'`.execute(base.dono);
+    expect(ev.rows[0]?.n).toBe(1);
   });
 });

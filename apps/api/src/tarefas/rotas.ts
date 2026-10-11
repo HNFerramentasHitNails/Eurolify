@@ -118,8 +118,16 @@ function casoDa(fila: FilaTarefa, caso: string): string {
   return id;
 }
 
-/** Atribuir a outra pessoa e mudar o prazo: ler, decidir e `tasks:assign` (R3). */
+/**
+ * Atribuir e mudar o prazo: ler, decidir e `tasks:assign` (R3); nunca uma
+ * chave de agente de IA (R11; revisão do #375, P2-1).
+ */
 function podeAtribuir(chave: ContextoChave, fila: FilaTarefa) {
+  if (chave.agenteIa) {
+    throw proibido(
+      "uma chave de agente de IA não atribui nem muda prazos (R11)",
+    );
+  }
   const em = FILAS[fila];
   for (const a of [em.ler, em.decidir, "tasks:assign"] as const) {
     if (!chave.ambitos.includes(a)) throw proibido(`falta o âmbito ${a}`);
@@ -142,7 +150,7 @@ function doCursor(cursor: string | undefined) {
     Array.isArray(v) &&
     v.length === 3 &&
     typeof v[0] === "string" &&
-    /^-?[0-9]{1,20}$/.test(v[0]) &&
+    /^-?[0-9]{1,18}$/.test(v[0]) &&
     typeof v[1] === "string" &&
     (FILAS_TAREFAS as readonly string[]).includes(v[1]) &&
     typeof v[2] === "string" &&
@@ -343,7 +351,6 @@ export function rotasDasTarefas(
                 ? null
                 : pedido.body.responsavel.slice(4),
               pedido.body.versao,
-              `chave:key_${chave.chaveId}`,
             ),
           };
         }),
@@ -382,7 +389,6 @@ export function rotasDasTarefas(
               new Date(pedido.body.prazo),
               pedido.body.motivo,
               pedido.body.versao,
-              `chave:key_${chave.chaveId}`,
             ),
           };
         }),

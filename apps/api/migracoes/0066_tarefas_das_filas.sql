@@ -13,8 +13,10 @@
 --   (`<dominio>_casos_a_decidir()`), lida com o RLS de quem chama; o domínio
 --   das tarefas só lê estas funções, nunca escreve nas tabelas das filas
 --   (docs/33 §3, forma B);
--- - «na fila desde» nos três casos que podem voltar à fila (o documento, o
---   par de duplicados e o reembolso), posto pelo gatilho do próprio domínio;
+-- - «na fila desde» nos quatro casos que podem voltar à fila (o documento,
+--   o par de duplicados, o reembolso e o problema, que volta a aberto quando
+--   se anula o reembolso; revisão do #375, P1-2), posto pelo gatilho do
+--   próprio domínio;
 --   uma passagem nova é uma atribuição nova (R9). As linhas que já estavam na
 --   fila antes desta migração tiram a hora do rasto ou da última mudança, e
 --   essa hora fica guardada à primeira mudança (não se reescreve passado);
@@ -76,8 +78,11 @@ $$;
 
 -- O documento está na fila de uma pessoa: retido, divergente, ou incerto
 -- entregue a uma pessoa (`reconciliacao_manual`, docs/29 §12).
+-- Sem `SET search_path`, de propósito: assim o PostgreSQL desdobra-a na
+-- consulta e usa o índice abaixo (revisão do #375, P2-3). Só compara os
+-- argumentos com constantes; não lê nenhuma tabela.
 CREATE FUNCTION documento_na_fila(p_estado text, p_motivos text[]) RETURNS boolean
-  LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+  LANGUAGE sql IMMUTABLE AS $$
   SELECT p_estado IN ('retido', 'divergente')
     OR (p_estado = 'incerto' AND 'reconciliacao_manual' = ANY (p_motivos))
 $$;
@@ -93,6 +98,8 @@ CREATE FUNCTION documento_na_fila_antes(p_documento uuid, p_criado timestamptz)
 $$;
 
 ALTER TABLE documento_fiscal ADD COLUMN na_fila_desde timestamptz;
+CREATE INDEX documento_fiscal_na_fila ON documento_fiscal (comerciante_id)
+  WHERE estado IN ('retido', 'divergente', 'incerto');
 CREATE FUNCTION documento_fila_desde() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
@@ -146,6 +153,36 @@ $$;
 CREATE TRIGGER reembolso_na_fila BEFORE INSERT OR UPDATE ON reembolso
   FOR EACH ROW EXECUTE FUNCTION reembolso_fila_desde();
 
+-- O problema volta a aberto quando se anula o reembolso dele (0058; revisão
+-- do #375, P1-2): é uma passagem nova.
+ALTER TABLE problema ADD COLUMN na_fila_desde timestamptz;
+CREATE FUNCTION problema_fila_desde() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NEW.estado <> 'aberto' THEN
+    NEW.na_fila_desde := NULL;
+  ELSIF TG_OP = 'INSERT' OR OLD.estado <> 'aberto' THEN
+    NEW.na_fila_desde := now();
+  ELSE
+    NEW.na_fila_desde := coalesce(OLD.na_fila_desde, OLD.criado_em);
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER problema_na_fila BEFORE INSERT OR UPDATE ON problema
+  FOR EACH ROW EXECUTE FUNCTION problema_fila_desde();
+
+-- Os gatilhos «na fila desde» escrevem na linha: não ficam ALWAYS, para uma
+-- cópia em modo replica guardar as linhas como estão (regra da 0053).
+
+-- O histórico do cliente não conta a coluna técnica nova (revisão do #375,
+-- P2-8): como a 0037, mais `por_decidir_desde`.
+CREATE OR REPLACE FUNCTION clientes_sem_tecnicos(j jsonb) RETURNS jsonb
+  LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT j - ARRAY['id', 'comerciante_id', 'criado_em', 'actualizado_em',
+                   'versao', 'posta_em', 'por_decidir_desde']
+$$;
+
 -- ------------------------------------- Os casos abertos de cada domínio
 
 -- Cada função lê com o RLS de quem chama (o comerciante do contexto): o caso,
@@ -159,7 +196,7 @@ CREATE FUNCTION pagamentos_casos_a_decidir()
   SELECT d.id, d.criada_em, d.motivo, NULL::date, p.encomenda_id
   FROM public.diferenca_pagamento d
   LEFT JOIN public.pagamento p ON p.id = d.pagamento_id
-  WHERE d.estado = 'aberta'
+  WHERE d.comerciante_id = public.comerciante_actual() AND d.estado = 'aberta'
 $$;
 
 CREATE FUNCTION documentos_casos_a_decidir()
@@ -173,7 +210,8 @@ CREATE FUNCTION documentos_casos_a_decidir()
          ELSE d.estado END,
     NULL::date, d.encomenda_id
   FROM public.documento_fiscal d
-  WHERE public.documento_na_fila(d.estado, d.motivos)
+  WHERE d.comerciante_id = public.comerciante_actual()
+    AND public.documento_na_fila(d.estado, d.motivos)
 $$;
 
 CREATE FUNCTION clientes_casos_a_decidir()
@@ -184,7 +222,7 @@ CREATE FUNCTION clientes_casos_a_decidir()
   SELECT d.id, coalesce(d.por_decidir_desde, d.actualizado_em),
     array_to_string(d.sinais, ','), NULL::date, NULL::uuid
   FROM public.duplicado_cliente d
-  WHERE d.estado = 'por_decidir'
+  WHERE d.comerciante_id = public.comerciante_actual() AND d.estado = 'por_decidir'
 $$;
 
 -- A pós-venda tem quatro filas: o prazo do reembolso (as devoluções de um
@@ -199,7 +237,8 @@ CREATE FUNCTION posvenda_casos_a_decidir()
   SELECT 'prazo_reembolso', d.id, d.criada_em, d.estado, x.ate, d.encomenda_id
   FROM public.devolucao d
   CROSS JOIN LATERAL public.posvenda_prazo_da_devolucao(d.id) x
-  WHERE d.pedido_livre_resolucao_id IS NOT NULL
+  WHERE d.comerciante_id = public.comerciante_actual()
+    AND d.pedido_livre_resolucao_id IS NOT NULL
     AND d.estado NOT IN ('fechada', 'cancelada') AND x.ate IS NOT NULL
   UNION ALL
   SELECT 'livre_resolucao', p.id, p.recebido_em, p.estado,
@@ -208,17 +247,19 @@ CREATE FUNCTION posvenda_casos_a_decidir()
     p.encomenda_id
   FROM public.pedido_livre_resolucao p
   JOIN public.comerciante c ON c.id = p.comerciante_id
-  WHERE p.estado IN ('pendente', 'fora_de_prazo')
+  WHERE p.comerciante_id = public.comerciante_actual()
+    AND p.estado IN ('pendente', 'fora_de_prazo')
   UNION ALL
-  SELECT 'problema', b.id, b.criado_em, b.tipo, NULL::date, b.encomenda_id
+  SELECT 'problema', b.id, coalesce(b.na_fila_desde, b.criado_em), b.tipo, NULL::date,
+    b.encomenda_id
   FROM public.problema b
-  WHERE b.estado = 'aberto'
+  WHERE b.comerciante_id = public.comerciante_actual() AND b.estado = 'aberto'
   UNION ALL
   SELECT 'reembolso', r.id, coalesce(r.na_fila_desde, r.criado_em), r.estado,
     (SELECT x.ate FROM public.posvenda_prazo_da_devolucao(r.devolucao_id) x),
     r.encomenda_id
   FROM public.reembolso r
-  WHERE r.estado IN ('incerto', 'falhado')
+  WHERE r.comerciante_id = public.comerciante_actual() AND r.estado IN ('incerto', 'falhado')
 $$;
 
 -- --------------------------------------------------------- A atribuição
@@ -376,6 +417,21 @@ CREATE FUNCTION tarefas_pode_decidir(p_pessoa uuid, p_fila text) RETURNS boolean
       AND f.ambito_decidir = ANY (public.papel_ambitos(m.papel)))
 $$;
 
+-- Quem escreve vem da transacção (`eurolify.quem`, posto pela rota ou pela
+-- volta), nunca de um argumento (revisão do #375, P2-2): a mesma origem que
+-- os outros rastos, conferida com quem se autenticou (0062).
+CREATE FUNCTION tarefas_quem() RETURNS text
+  LANGUAGE plpgsql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  quem text := nullif(btrim(pg_catalog.current_setting('eurolify.quem', true)), '');
+BEGIN
+  IF quem IS NULL THEN
+    RAISE EXCEPTION 'audit.context_invalid: a atribuição pede eurolify.quem';
+  END IF;
+  RETURN quem;
+END
+$$;
+
 -- Um caso de cada vez, pela mesma ordem em todo o lado: a tranca dos membros
 -- do comerciante (a mesma das mudanças de equipa, 0018) e depois a do caso.
 CREATE FUNCTION tarefas_trancar_caso(p_fila text, p_caso uuid) RETURNS void
@@ -389,7 +445,7 @@ $$;
 -- versão é a que quem pede leu (0 sem atribuição); outra dá conflito. Devolve
 -- a versão nova.
 CREATE FUNCTION tarefas_atribuir(p_fila text, p_caso uuid, p_responsavel uuid,
-                                 p_versao integer, p_quem text)
+                                 p_versao integer)
   RETURNS integer
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -425,7 +481,7 @@ BEGIN
     responsavel_antes, responsavel_depois, quem)
   VALUES (public.comerciante_actual(), id_atr,
     CASE WHEN p_responsavel IS NULL THEN 'retirada' ELSE 'atribuida' END,
-    c.responsavel, p_responsavel, p_quem);
+    c.responsavel, p_responsavel, public.tarefas_quem());
   RETURN nova;
 END
 $$;
@@ -433,7 +489,7 @@ $$;
 -- Mudar o prazo (R5): com motivo, nunca no passado e nunca depois do prazo
 -- legal. Um prazo novo permite um aviso novo (R6).
 CREATE FUNCTION tarefas_mudar_prazo(p_fila text, p_caso uuid, p_prazo timestamptz,
-                                    p_motivo text, p_versao integer, p_quem text)
+                                    p_motivo text, p_versao integer)
   RETURNS integer
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -476,18 +532,24 @@ BEGIN
   INSERT INTO public.atribuicao_rasto (comerciante_id, atribuicao_id, acto,
     prazo_antes, prazo_depois, motivo, quem)
   VALUES (public.comerciante_actual(), id_atr, 'prazo_mudado', c.prazo, p_prazo,
-    btrim(p_motivo), p_quem);
+    btrim(p_motivo), public.tarefas_quem());
   RETURN nova;
 END
 $$;
 
 -- --------------------------------------------- O aviso de hora a hora
 
--- Os comerciantes com equipa (sem equipa não há a quem avisar). A tabela dos
--- membros não tem o RLS forçado (0018): o dono lê-a.
+-- Os comerciantes com equipa ou com uma chave activa: o aviso vai para a
+-- `evento_saida`, que um sistema do comerciante pode ler sem pessoas
+-- (revisão do #375, P2-4). As tabelas dos membros e das chaves não têm o RLS
+-- forçado (0018, 0010): o dono lê-as.
 CREATE FUNCTION tarefas_comerciantes() RETURNS SETOF uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT DISTINCT m.comerciante_id FROM public.membro m WHERE m.ate IS NULL ORDER BY 1
+  SELECT m.comerciante_id FROM public.membro m WHERE m.ate IS NULL
+  UNION
+  SELECT k.comerciante_id FROM public.chave_api k
+  WHERE k.revogada_em IS NULL AND (k.expira_em IS NULL OR k.expira_em > now())
+  ORDER BY 1
 $$;
 
 -- Os vencidos ainda sem aviso, no comerciante do contexto, os mais antigos
@@ -506,7 +568,7 @@ $$;
 
 -- Marca o aviso de um caso vencido, uma vez por prazo; falso se já não é hora
 -- (decidido, prazo mudado, ou outra volta ao mesmo tempo).
-CREATE FUNCTION tarefas_marcar_vencida(p_fila text, p_caso uuid, p_quem text)
+CREATE FUNCTION tarefas_marcar_vencida(p_fila text, p_caso uuid)
   RETURNS boolean
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -532,7 +594,7 @@ BEGIN
     RETURNING a.id INTO id_atr;
   END IF;
   INSERT INTO public.atribuicao_rasto (comerciante_id, atribuicao_id, acto, prazo_depois, quem)
-  VALUES (public.comerciante_actual(), id_atr, 'vencida', c.prazo, p_quem);
+  VALUES (public.comerciante_actual(), id_atr, 'vencida', c.prazo, public.tarefas_quem());
   RETURN true;
 END
 $$;
@@ -586,8 +648,13 @@ BEGIN
   RETURN NULL;
 END
 $$;
-CREATE TRIGGER membro_tarefas_largar AFTER UPDATE OF ate, papel ON membro
-  FOR EACH ROW EXECUTE FUNCTION membro_tarefas_largar();
+-- Sem `UPDATE OF`: quem sai põe só o `terminado_por` e o `ate` vem do gatilho
+-- BEFORE (0026), que um `UPDATE OF ate` não vê (revisão do #375, P1-1). O
+-- `WHEN` olha para a linha final.
+CREATE TRIGGER membro_tarefas_largar AFTER UPDATE ON membro
+  FOR EACH ROW
+  WHEN ((OLD.ate IS NULL AND NEW.ate IS NOT NULL) OR OLD.papel IS DISTINCT FROM NEW.papel)
+  EXECUTE FUNCTION membro_tarefas_largar();
 
 -- ------------------------------------------------- O âmbito tasks:assign
 
@@ -652,20 +719,20 @@ REVOKE EXECUTE ON FUNCTION tarefas_filas(),
   documento_fila_desde(), duplicado_fila_desde(), reembolso_fila_desde(),
   pagamentos_casos_a_decidir(), documentos_casos_a_decidir(), clientes_casos_a_decidir(),
   posvenda_casos_a_decidir(), atribuicao_evento(), tarefas_casos(text[]),
-  tarefas_pode_decidir(uuid, text), tarefas_trancar_caso(text, uuid),
-  tarefas_atribuir(text, uuid, uuid, integer, text),
-  tarefas_mudar_prazo(text, uuid, timestamptz, text, integer, text),
+  tarefas_pode_decidir(uuid, text), tarefas_trancar_caso(text, uuid), tarefas_quem(),
+  tarefas_atribuir(text, uuid, uuid, integer),
+  tarefas_mudar_prazo(text, uuid, timestamptz, text, integer),
   tarefas_comerciantes(), tarefas_por_avisar(integer),
-  tarefas_marcar_vencida(text, uuid, text), membro_tarefas_largar() FROM PUBLIC;
--- Os gatilhos «na fila desde» chamam estas com os privilégios de quem escreve
--- no documento: a API e a limpeza.
+  tarefas_marcar_vencida(text, uuid), membro_tarefas_largar(), problema_fila_desde() FROM PUBLIC;
+-- O gatilho «na fila desde» do documento chama estas com os privilégios de
+-- quem escreve no documento: a API (só ela escreve nos documentos fiscais).
 GRANT EXECUTE ON FUNCTION documento_na_fila(text, text[]),
-  documento_na_fila_antes(uuid, timestamptz) TO eurolify_api, eurolify_limpeza;
+  documento_na_fila_antes(uuid, timestamptz) TO eurolify_api;
 GRANT EXECUTE ON FUNCTION tarefas_filas(),
   tarefas_prazo_por_omissao(text, timestamptz, date, text),
   pagamentos_casos_a_decidir(), documentos_casos_a_decidir(), clientes_casos_a_decidir(),
   posvenda_casos_a_decidir(), tarefas_casos(text[]),
-  tarefas_atribuir(text, uuid, uuid, integer, text),
-  tarefas_mudar_prazo(text, uuid, timestamptz, text, integer, text),
+  tarefas_atribuir(text, uuid, uuid, integer),
+  tarefas_mudar_prazo(text, uuid, timestamptz, text, integer),
   tarefas_comerciantes(), tarefas_por_avisar(integer),
-  tarefas_marcar_vencida(text, uuid, text) TO eurolify_api;
+  tarefas_marcar_vencida(text, uuid) TO eurolify_api;

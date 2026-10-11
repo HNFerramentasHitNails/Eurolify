@@ -173,13 +173,13 @@ export async function atribuir(
   caso: string,
   responsavel: string | null,
   versao: number,
-  quem: string,
 ): Promise<number> {
+  // Quem escreve vem de `eurolify.quem`, posto pela rota (revisão do #375, P2-2).
   return emTarefas(async () => {
     const r = await sql<{
       v: number;
     }>`select tarefas_atribuir(${fila}, ${caso}::uuid, ${responsavel}::uuid,
-         ${versao}, ${quem}) as v`.execute(trx);
+         ${versao}) as v`.execute(trx);
     return r.rows[0]?.v ?? versao;
   });
 }
@@ -192,13 +192,12 @@ export async function mudarPrazo(
   prazo: Date,
   motivo: string,
   versao: number,
-  quem: string,
 ): Promise<number> {
   return emTarefas(async () => {
     const r = await sql<{
       v: number;
     }>`select tarefas_mudar_prazo(${fila}, ${caso}::uuid, ${prazo}::timestamptz,
-         ${motivo}, ${versao}, ${quem}) as v`.execute(trx);
+         ${motivo}, ${versao}) as v`.execute(trx);
     return r.rows[0]?.v ?? versao;
   });
 }

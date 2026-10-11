@@ -58,7 +58,7 @@ pontos de que o desenho depende (os ficheiros abaixo, com as linhas).
 | O quê | O que está no código | Onde |
 |---|---|---|
 | **responsável e prazo nas filas** | **nenhuma das sete tem.** O `docs/26` §3.6 desenhou um `dono` na diferença, mas a tabela não o tem; ficam só `resolvida_por` e `resolvida_em` | `0044_pagamentos.sql:380-399`; `0046`: `duplicado_cliente`, 161-185 |
-| **quando o caso entrou na fila** | diferença `criada_em`; pedido `recebido_em`; devolução `criada_em`; problema `criado_em`. **Falta nos três que podem voltar à fila:** o documento (só se tira do `documento_rasto`), o par de duplicados (reaberto por um sinal novo, 0046:232, e o `actualizado_em` também muda quando se junta um sinal a um par por decidir, 0046:234) e o reembolso | `0044:393`; `0058:254, 325, 461, 521`; `0050:221-233` |
+| **quando o caso entrou na fila** | diferença `criada_em`; pedido `recebido_em`; devolução `criada_em`; problema `criado_em`. **Falta nos que podem voltar à fila:** o documento (só se tira do `documento_rasto`), o par de duplicados (reaberto por um sinal novo, 0046:232, e o `actualizado_em` também muda quando se junta um sinal a um par por decidir, 0046:234), o reembolso e — visto na revisão do #375 (P1-2) — o problema, que volta a `aberto` quando se anula o reembolso dele (`posvenda/repositorio.ts:1307-1313`; 0058:489-491) | `0044:393`; `0058:254, 325, 461, 521`; `0050:221-233` |
 | **as tabelas `tarefa_*`** | são cinco e são **filas de trabalho automático** (`tarefa_pagamento`, `tarefa_encomenda`, `tarefa_documento`, `tarefa_reembolso`, `tarefa_prazo_reembolso`): nenhuma tem pessoa nem prazo; só os temporizadores as lêem. **O nome `tarefa_` fica para elas**; esta peça usa `atribuicao` | `0044:484`, `0047:504`, `0050:408`, `0061:334`, `0063:157`; `servidor.ts:139-194` |
 | **o aviso do prazo do reembolso** | um temporizador de hora a hora no processo da API marca a devolução e o gatilho põe `refund.deadline_approaching` e `refund.deadline_passed` na `evento_saida` | `src/posvenda/prazo.ts:142-188`; `0063:123-150` |
 | **para onde vão os eventos** | **para lado nenhum, por agora:** nenhum ficheiro do programa lê a `evento_saida` (procurei `evento_saida` nos `.ts` de `apps/`: só aparece nos testes). Não há envio de e-mails | `grep -rln evento_saida --include=*.ts apps/` |
@@ -151,7 +151,7 @@ caso quando foi decidido») e deixa de aparecer na lista.
 
 | Rota | Âmbito |
 |---|---|
-| `GET /tasks?fila=&responsavel=eu\|sem\|per_…&vencida=true&cursor=` — os casos abertos das filas que a chave lê: fila, caso, motivo, `entrou_em`, responsável, prazo, `vencida`, a ligação; o total por fila | `qualquer`, e a rota filtra pelas filas que a chave lê (R2); sem nenhuma, `auth.forbidden` |
+| `GET /tasks?fila=&responsavel=sem\|per_…&vencida=true&limite=&cursor=` — os casos abertos das filas que a chave lê: fila, caso, motivo, `entrou_em`, responsável, prazo, `vencida`, a ligação; o total por fila. O `responsavel=eu` fica para o ecrã (parte 2): uma chave não é uma pessoa | `qualquer`, e a rota filtra pelas filas que a chave lê (R2); sem nenhuma, ou com `fila=` de uma que não lê, `tasks.forbidden` (403) |
 | `GET /tasks/{fila}/{caso}` — o caso aberto e o histórico das atribuições dele | o `read` da fila |
 | `POST /tasks/{fila}/{caso}/assign` `{ responsavel: per_… \| null, versao }` | a decisão da fila (R3); a outra pessoa ou `null` pede também `tasks:assign` |
 | `POST /tasks/{fila}/{caso}/deadline` `{ prazo, motivo, versao }` | a decisão da fila + `tasks:assign` |
@@ -161,10 +161,11 @@ não o `atr_`, porque o caso sem atribuição também está na lista. A primeira
 atribuição cria a `atr_`; a `versao` dela começa em 1 (sem atribuição, a rota
 recebe `versao: 0`).
 
-**Erros (novos):** `tasks.not_found` (o caso não está aberto, ou a chave não
-lê a fila), `tasks.version_conflict`, `tasks.assignee_not_allowed`,
-`tasks.deadline_invalid` (no passado, ou depois do prazo legal),
-`tasks.reason_required`.
+**Erros (novos):** `tasks.not_found` (o caso não está aberto, ou é de outro
+comerciante), `tasks.forbidden` (a chave não lê ou não decide a fila, não tem
+`tasks:assign`, ou é de um agente de IA), `tasks.version_conflict`,
+`tasks.assignee_not_allowed`, `tasks.deadline_invalid` (no passado, ou depois
+do prazo legal), `tasks.reason_required`, `tasks.retry`.
 
 **Eventos** (na `evento_saida`; só identificadores, fila e prazo; nunca dados
 pessoais): `task.assigned`, `task.unassigned`, `task.deadline_changed`,
@@ -241,3 +242,56 @@ aprovação: a peça 21 passa a 2,5–5.
 - **Parte 2:** o ecrã «A decidir» no Hub, desenhado primeiro.
 - Cada parte num pedido, com os testes verdes e a revisão do agente antes de
   juntar (ADR-0031, ADR-0035).
+
+## 13. Em código — parte 1 (11/10/2026; migração 0066; pedido #375)
+
+| O quê | Onde |
+|---|---|
+| a régua das sete filas, com o âmbito que lê e o que decide (o espelho em TS conferido por um teste) | `tarefas_filas()`, migração 0066; `src/tarefas/filas.ts` |
+| uma função por domínio com os casos abertos, que filtra também pelo comerciante | `pagamentos_casos_a_decidir()`, `documentos_casos_a_decidir()`, `clientes_casos_a_decidir()`, `posvenda_casos_a_decidir()` |
+| «na fila desde» no documento, no par de duplicados, no reembolso e no problema, posto pelo gatilho do domínio; as linhas antigas usam o rasto ou a data | migração 0066 |
+| a atribuição e o rasto dela (só se acrescenta; o contexto pelo `rasto_completar()`), com o RLS forçado; cada linha do rasto põe o evento | `atribuicao`, `atribuicao_rasto` |
+| atribuir, mudar o prazo e marcar o aviso, com a tranca do caso e a versão; quem escreve vem de `eurolify.quem` | `tarefas_atribuir()`, `tarefas_mudar_prazo()`, `tarefas_marcar_vencida()` |
+| quem sai da equipa (pela própria pessoa, pelo dono ou desactivado pelo operador) ou muda de papel larga os casos que já não decide | `membro_tarefas_largar()` |
+| `GET /tasks`, `GET /tasks/{fila}/{caso}`, `POST …/assign`, `POST …/deadline` | `src/tarefas/rotas.ts` |
+| a volta de hora a hora, nos comerciantes com equipa ou com uma chave activa | `src/tarefas/avisos.ts`; `servidor.ts` |
+| 19 testes com o PostgreSQL 18.6; 20 protecções retiradas de propósito, uma a uma, contra o código final, e todas apanhadas; com a API a ignorar o RLS (`BYPASSRLS`), 5 falham | `test/tarefas-api.test.ts` |
+
+**Desvios do desenho:**
+- **Só por chave nesta parte.** Uma chave não é uma pessoa: `responsavel=eu` e
+  «atribuir-me» ficam para o ecrã (parte 2); por chave, atribuir pede sempre
+  `tasks:assign`, além de ler e decidir a fila.
+- **Quatro filas podem voltar, não três:** o problema também (§2).
+- **Uma chave de agente de IA não atribui nem muda prazos** (R11, imposto na
+  rota; revisão do #375, P2-1). Lê a lista.
+- **A volta também avisa os comerciantes só com chaves** (o aviso vai para a
+  `evento_saida`, que um sistema lê sem pessoas; revisão do #375, P2-4).
+- **O pedido pendente avisa quando o prazo legal já passou** (o prazo por
+  omissão é o legal). Um aviso antes, como os 3 dias do prazo do reembolso,
+  não está no desenho.
+- **No evento, `prazo` vai vazio** quando é o por omissão; o `caso` vai sem o
+  prefixo e o `responsavel` com `per_`.
+
+**Revisão do #375** (Sonnet 5.5; 0 P0, 3 P1, 8 P2, 12 P3; publicada no
+pedido):
+- corrigidos: os 3 P1 (quem sai da equipa pelas funções verdadeiras; o
+  problema que volta à fila; a permissão a um papel que pode não existir), os
+  P2-1 a P2-4 e P2-7 e P2-8, e os P3-3, P3-5, P3-11 e P3-12;
+- ficam, com a razão:
+  - **P2-5** (a falha do gatilho R8 pode parar a saída de uma pessoa): a
+    limpeza lê as mesmas funções que a lista. Largar em silêncio seria pior
+    do que falhar com o erro à vista;
+  - **P2-6** (o motivo livre no apagamento do titular): o código dos pedidos
+    do titular (decisão DU) ainda não existe. Liga-se lá; até lá, o Hub diz
+    para não escrever dados de clientes no motivo;
+  - **P3-1** (gatilhos sem ALWAYS): regra da 0053;
+  - **P3-4** (quem mudou, visto por quem só lê a fila): como no desenho;
+  - **P3-6 e P3-7** (aviso do pedido pendente antes do prazo; aviso duplo raro
+    num reembolso de livre resolução): decisões por tomar;
+  - **P3-8** (alarme de volta parada): igual à volta do prazo do reembolso; a
+    tratar com os alarmes de todas as voltas;
+  - **P3-9** (recurso no reembolso antigo): só há dados de teste no ensaio;
+  - **P2-3**, em parte: o documento passou a usar o índice novo; as escritas
+    ainda recalculam a fila do caso — medir com volume antes de optimizar
+    (§9).
+
