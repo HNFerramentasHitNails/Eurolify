@@ -3681,6 +3681,76 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     d = await ok(s.adm("GET", `/returns/${rma}`));
     expect(d).toMatchObject({ estado: "inspeccionada", versao: 3 });
     expect((d["linhas"] as Json[])[0]?.["decisao_higiene"]).toBeNull();
+    // As redes da base, sem o código à frente (cada uma desfeita):
+    // um reembolso não leva a linha por decidir nem a da excepção, e a
+    // devolução não fica decidida sem a linha «reembolsar» no reembolso.
+    const naBaseComReembolso = (
+      decisao: string | null,
+      linhas: string[],
+      depois?: string,
+    ) =>
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        if (decisao !== null) {
+          await sql`update linha_devolucao set decisao_higiene = ${decisao}
+            where devolucao_id = ${rma.slice(4)}::uuid
+              and linha_encomenda_id = ${String(l1?.["id"]).slice(4)}::uuid`.execute(
+            trx,
+          );
+        }
+        const pag = await sql<{ id: string }>`select id from pagamento
+          where encomenda_id = ${e.encomenda.slice(4)}::uuid`.execute(trx);
+        const novo = await trx
+          .insertInto("reembolso")
+          .values({
+            comerciante_id: s.c,
+            encomenda_id: e.encomenda.slice(4),
+            pagamento_id: String(pag.rows[0]?.id),
+            origem: "devolucao",
+            devolucao_id: rma.slice(4),
+            montante: linhas.length,
+            moeda: "EUR",
+            via: "manual",
+            decidido_por: "pessoa:teste",
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        let posicao = 0;
+        for (const linha of linhas) {
+          posicao += 1;
+          await trx
+            .insertInto("linha_reembolso")
+            .values({
+              reembolso_id: novo.id,
+              comerciante_id: s.c,
+              posicao,
+              linha_encomenda_id: linha.slice(4),
+              quantidade: 1,
+              montante: 1,
+            })
+            .execute();
+        }
+        if (depois !== undefined) {
+          await sql`update devolucao set estado = ${depois}, versao = versao + 1
+            where id = ${rma.slice(4)}::uuid`.execute(trx);
+        }
+        throw new Error("desfazer");
+      });
+    await expect(
+      naBaseComReembolso(null, [String(l1?.["id"])]),
+    ).rejects.toThrow(/returns\.hygiene_decision_required/);
+    await expect(
+      naBaseComReembolso("excepcao_higiene", [String(l1?.["id"])]),
+    ).rejects.toThrow(/refunds\.invalid_field/);
+    await expect(
+      naBaseComReembolso("reembolsar", [String(l2?.["id"])], "decidida"),
+    ).rejects.toThrow(/returns\.invalid_field/);
+    // Com a linha no reembolso, a mesma decisão passa (até ao «desfazer»).
+    await expect(
+      naBaseComReembolso("reembolsar", [String(l1?.["id"])], "decidida"),
+    ).rejects.toThrow(/desfazer/);
     // A excepção na linha aberta: reembolsa-se só a do selo intacto.
     const r = await ok(
       s.adm("POST", `/returns/${rma}/decide`, {
@@ -3714,42 +3784,6 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         decisao === null ? /returns\.immutable/ : /returns\.invalid_transition/,
       );
     }
-    // Um segundo reembolso não leva a linha com a excepção (a base).
-    await expect(
-      naBase(s, async (trx) => {
-        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
-          trx,
-        );
-        const pag = await sql<{ id: string }>`select id from pagamento
-          where encomenda_id = ${e.encomenda.slice(4)}::uuid`.execute(trx);
-        const novo = await trx
-          .insertInto("reembolso")
-          .values({
-            comerciante_id: s.c,
-            encomenda_id: e.encomenda.slice(4),
-            pagamento_id: String(pag.rows[0]?.id),
-            origem: "devolucao",
-            devolucao_id: rma.slice(4),
-            montante: 1,
-            moeda: "EUR",
-            via: "manual",
-            decidido_por: "pessoa:teste",
-          })
-          .returning("id")
-          .executeTakeFirstOrThrow();
-        await trx
-          .insertInto("linha_reembolso")
-          .values({
-            reembolso_id: novo.id,
-            comerciante_id: s.c,
-            posicao: 1,
-            linha_encomenda_id: String(l1?.["id"]).slice(4),
-            quantidade: 1,
-            montante: 1,
-          })
-          .execute();
-      }),
-    ).rejects.toThrow(/refunds\.invalid_field|refunds\.invalid_transition/);
   });
 
   it("selado por higiene: reembolsar como gesto da loja, e fechar com a excepção; numa devolução comercial não se aplica (H6, H7)", async () => {
@@ -3835,6 +3869,32 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       }),
       201,
     );
+    // Sem a marca no artigo, a encomenda nova não é selada: aberta, não
+    // pede nem aceita a decisão (a marca da encomenda é a que conta, H2).
+    await selar(s, false);
+    const e4 = await paga(s, [[s.v1, 1]]);
+    const [q1] = await expedir(s, e4.encomenda);
+    const rma4 = await inspeccionadaCom(s, e4.token, [
+      { linha: q1?.["id"], quantidade: 1, estado: "aberto" },
+    ]);
+    expect(
+      ((await ok(s.adm("GET", `/returns/${rma4}`)))["linhas"] as Json[])[0],
+    ).toMatchObject({ selado_por_higiene: false, higiene_a_decidir: false });
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma4}/decide`, {
+          versao: 3,
+          linhas: [{ linha: q1?.["id"], quantidade: 1 }],
+          motivo: "livre resolução",
+          higiene: [{ linha: q1?.["id"], decisao: "reembolsar" }],
+        }),
+      ),
+    ).toEqual([400, "returns.invalid_field"]);
+    // E a encomenda selada de antes continua selada (rma2 fechou com a
+    // excepção quando o artigo ainda estava marcado).
+    expect(
+      ((await ok(s.adm("GET", `/returns/${rma2}`)))["linhas"] as Json[])[0],
+    ).toMatchObject({ selado_por_higiene: true });
     // Num problema, `higiene` não existe.
     const prb = await ok(
       s.adm("POST", "/problems", {
