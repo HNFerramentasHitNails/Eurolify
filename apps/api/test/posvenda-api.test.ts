@@ -4310,6 +4310,21 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     await pedidoHaDias(b.rma, 12);
     await prazos();
     expect((await notificacoesDe(s)).length).toBe(2);
+    // O servidor recusa à primeira: a volta pára e a segunda nem se tenta
+    // (P1-1); nenhuma gasta uma tentativa.
+    const correio = new CorreioDeEnsaio();
+    correio.falhas.push(new ErroCorreio("smtp_535", "servidor"));
+    const r0 = await enviar(correio);
+    expect([r0.servidor, r0.enviadas, r0.repetir, r0.falhadas]).toEqual([
+      "smtp_535",
+      0,
+      0,
+      0,
+    ]);
+    expect((await notificacoesDe(s)).map((x) => x.tentativas)).toEqual([0, 0]);
+    expect(correio.falhas).toEqual([]);
+    expect(correio.enviados).toEqual([]);
+    await vencer(s);
     // A primeira cancela-se antes do envio: o e-mail diria o contrário.
     await ok(
       s.adm("POST", `/returns/${a.rma}/cancel`, {
@@ -4317,7 +4332,6 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         motivo: "o cliente desistiu do pedido",
       }),
     );
-    const correio = new CorreioDeEnsaio();
     const r = await enviar(correio);
     expect([r.canceladas, r.enviadas]).toEqual([1, 1]);
     expect(
