@@ -891,6 +891,8 @@ export interface TabelaDuplicadoCliente {
   decidido_em: ColumnType<Date | null, never, never>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
+  /** Desde quando está por decidir nesta passagem (0066; docs/33 §4.1). */
+  por_decidir_desde: ColumnType<Date | null, never, never>;
 }
 
 export const TIPOS_PEDIDO_TITULAR = [
@@ -1531,6 +1533,8 @@ export interface BaseDados {
   problema: TabelaProblema;
   reembolso: TabelaReembolso;
   linha_reembolso: TabelaLinhaReembolso;
+  atribuicao: TabelaAtribuicao;
+  atribuicao_rasto: TabelaAtribuicaoRasto;
 }
 
 // Documentos fiscais (migração 0050; docs/29).
@@ -1620,6 +1624,8 @@ export interface TabelaDocumentoFiscal {
   versao: ColumnType<number, never, number>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
+  /** Desde quando está na fila de uma pessoa (0066; docs/33 §4.1); põe-no o gatilho. */
+  na_fila_desde: ColumnType<Date | null, never, never>;
 }
 
 export interface TabelaDocumentoConteudo {
@@ -1820,6 +1826,8 @@ export interface TabelaReembolso {
   referencia_prestador: ColumnType<string | null, never, string>;
   falha: ColumnType<string | null, never, string>;
   consultado_em: ColumnType<Date | null, never, Date>;
+  /** Desde quando está incerto ou falhado nesta passagem (0066; docs/33 §4.1). */
+  na_fila_desde: ColumnType<Date | null, never, never>;
 }
 
 export interface TabelaLinhaReembolso {
@@ -1829,4 +1837,62 @@ export interface TabelaLinhaReembolso {
   linha_encomenda_id: ColumnType<string | null, string | null, never>;
   quantidade: ColumnType<number, number, never>;
   montante: ColumnType<string, number, never>;
+}
+
+// As tarefas das filas que pedem uma pessoa (migração 0066; docs/33; decisão
+// DW). A API só lê: escrevem as funções do dono (`tarefas_atribuir`,
+// `tarefas_mudar_prazo`, `tarefas_marcar_vencida`).
+
+export const FILAS_TAREFAS = [
+  "pagamento",
+  "documento_fiscal",
+  "duplicado_cliente",
+  "prazo_reembolso",
+  "livre_resolucao",
+  "problema",
+  "reembolso",
+] as const;
+export type FilaTarefa = (typeof FILAS_TAREFAS)[number];
+
+export const ACTOS_ATRIBUICAO = [
+  "atribuida",
+  "retirada",
+  "prazo_mudado",
+  "vencida",
+] as const;
+export type ActoAtribuicao = (typeof ACTOS_ATRIBUICAO)[number];
+
+/** Quem decide e até quando, numa passagem de um caso pela fila (docs/33 §4.2). */
+export interface TabelaAtribuicao {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  fila: ColumnType<FilaTarefa, never, never>;
+  caso: ColumnType<string, never, never>;
+  entrou_em: ColumnType<Date, never, never>;
+  responsavel: ColumnType<string | null, never, never>;
+  prazo: ColumnType<Date | null, never, never>;
+  aviso_vencido_em: ColumnType<Date | null, never, never>;
+  versao: ColumnType<number, never, never>;
+  criada_em: ColumnType<Date, never, never>;
+  actualizada_em: ColumnType<Date, never, never>;
+}
+
+/** O rasto da atribuição: só se acrescenta (0066). */
+export interface TabelaAtribuicaoRasto {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  atribuicao_id: ColumnType<string, never, never>;
+  acto: ColumnType<ActoAtribuicao, never, never>;
+  responsavel_antes: ColumnType<string | null, never, never>;
+  responsavel_depois: ColumnType<string | null, never, never>;
+  prazo_antes: ColumnType<Date | null, never, never>;
+  prazo_depois: ColumnType<Date | null, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  quem: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
+  canal: ColumnType<string | null, never, never>;
+  pedido: ColumnType<string | null, never, never>;
+  ia: ColumnType<unknown, never, never>;
+  autorizado_por: ColumnType<string | null, never, never>;
+  a_pedido_de: ColumnType<unknown, never, never>;
 }

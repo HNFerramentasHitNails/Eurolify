@@ -6,6 +6,7 @@ import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
 import { agendarAvisosDePrazo } from "./posvenda/prazo.js";
 import { agendarConfirmacoes } from "./posvenda/prestador.js";
+import { agendarAvisosDeTarefas } from "./tarefas/avisos.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { agendarDocumentos } from "./faturacao/repositorio.js";
 import { randomUUID } from "node:crypto";
@@ -185,6 +186,15 @@ const pararPrazos =
       )
     : () => undefined;
 
+// O aviso dos casos vencidos nas filas que pedem uma pessoa, de hora a hora
+// (docs/33 R6).
+const pararTarefas =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:tarefas" }, () =>
+        agendarAvisosDeTarefas(base, app.log),
+      )
+    : () => undefined;
+
 // As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).
 const pararConclusoes =
   base !== undefined
@@ -202,6 +212,7 @@ for (const sinal of ["SIGINT", "SIGTERM"] as const) {
     pararPagamentos();
     pararReembolsos();
     pararPrazos();
+    pararTarefas();
     app.log.info({ sinal }, "a fechar");
     app
       .close()
