@@ -83,7 +83,11 @@ export async function correrNotificacoes(
   return res;
 }
 
-async function enviarUma(
+/**
+ * Envia uma, se ainda estiver por enviar e vencida (exportada para os testes:
+ * a volta que a listou pode chegar depois de outra a ter enviado).
+ */
+export async function enviarUma(
   trx: Transaction<BaseDados>,
   correio: Correio,
   id: string,

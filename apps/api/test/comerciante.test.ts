@@ -279,10 +279,10 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // duplicado (0046), as 10 do stock (0047), os pedidos do titular (0049),
       // as 5 dos documentos fiscais (0050), os pedidos de dupla confirmação e
       // os contactos inferidos das declarações antigas (0052), os anexos da
-      // isenção (0055) e as 7 da pós-venda (0058).
+      // isenção (0055), as 7 da pós-venda (0058) e as notificações (0066).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(81);
+      ).toHaveLength(82);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

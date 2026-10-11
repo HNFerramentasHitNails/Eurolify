@@ -144,9 +144,10 @@ CREATE FUNCTION notificacao_destino(p_notificacao uuid)
     AND n.estado = 'a_enviar'
 $$;
 
--- As notificações por enviar, numa tabela interna como as filas da 0047 e
--- da 0063: a `notificacao` tem o RLS forçado e a tarefa precisa de saber,
--- sem comerciante, em quais entrar. Escreve-a o gatilho; lê-a a função.
+-- O trabalho da tarefa, numa tabela interna como as filas da 0047 e da
+-- 0063: a `notificacao` tem o RLS forçado e a tarefa precisa de saber, sem
+-- comerciante, em quais entrar. `quando`: a hora do envio (por enviar) ou a
+-- de apagar (terminada, 90 dias depois). Escreve-a o gatilho; lê-a a função.
 CREATE TABLE tarefa_notificacao (
   notificacao_id uuid PRIMARY KEY,
   comerciante_id uuid NOT NULL REFERENCES comerciante (id),
@@ -162,21 +163,22 @@ REVOKE ALL ON tarefa_notificacao FROM PUBLIC;
 CREATE FUNCTION notificacao_tarefa() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-  IF NEW.estado = 'a_enviar' THEN
-    INSERT INTO public.tarefa_notificacao (notificacao_id, comerciante_id, quando)
-    VALUES (NEW.id, NEW.comerciante_id, NEW.proxima_em)
-    ON CONFLICT (notificacao_id) DO UPDATE SET quando = EXCLUDED.quando;
-  ELSE
-    DELETE FROM public.tarefa_notificacao WHERE notificacao_id = NEW.id;
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.tarefa_notificacao WHERE notificacao_id = OLD.id;
+    RETURN NULL;
   END IF;
+  INSERT INTO public.tarefa_notificacao (notificacao_id, comerciante_id, quando)
+  VALUES (NEW.id, NEW.comerciante_id, CASE WHEN NEW.estado = 'a_enviar' THEN NEW.proxima_em
+    ELSE NEW.terminada_em + interval '90 days' END)
+  ON CONFLICT (notificacao_id) DO UPDATE SET quando = EXCLUDED.quando;
   RETURN NULL;
 END
 $$;
-CREATE TRIGGER notificacao_tarefa AFTER INSERT OR UPDATE ON notificacao
+CREATE TRIGGER notificacao_tarefa AFTER INSERT OR UPDATE OR DELETE ON notificacao
   FOR EACH ROW EXECUTE FUNCTION notificacao_tarefa();
 ALTER TABLE notificacao ENABLE ALWAYS TRIGGER notificacao_tarefa;
 
--- Os comerciantes com notificações a enviar (a tarefa entra em cada um).
+-- Os comerciantes com trabalho: envios ou limpezas (a tarefa entra em cada um).
 CREATE FUNCTION notificacao_comerciantes() RETURNS SETOF uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT DISTINCT t.comerciante_id FROM public.tarefa_notificacao t WHERE t.quando <= now()

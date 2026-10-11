@@ -29,7 +29,10 @@ import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
 import { correrDocumentos } from "../src/faturacao/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import { correrAvisosDePrazo } from "../src/posvenda/prazo.js";
-import { correrNotificacoes } from "../src/notificacoes/repositorio.js";
+import {
+  correrNotificacoes,
+  enviarUma,
+} from "../src/notificacoes/repositorio.js";
 import { CorreioDeEnsaio, ErroCorreio } from "../src/notificacoes/correio.js";
 import { correrConfirmacoes } from "../src/posvenda/prestador.js";
 import { assinar, avisoEuPago, eupagoFalso, json } from "./eupago-falso.js";
@@ -4107,8 +4110,28 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     );
     expect(n.length).toBe(2);
     const correio = new CorreioDeEnsaio();
-    expect((await enviar(correio)).enviadas).toBe(2);
+    // Duas voltas ao mesmo tempo: cada e-mail sai uma vez.
+    const [v1, v2] = await Promise.all([
+      correrNotificacoes(base.api, correio),
+      correrNotificacoes(base.api, correio),
+    ]);
+    expect(v1.enviadas + v2.enviadas).toBe(2);
     expect((await enviar(correio)).enviadas).toBe(0);
+    // A volta que chega depois de outra a ter enviado não a envia outra vez.
+    const jaEnviada = (await notificacoesDe(s))[0];
+    const conta = {
+      enviadas: 0,
+      repetir: 0,
+      falhadas: 0,
+      canceladas: 0,
+      apagadas: 0,
+      erros: [],
+    };
+    await comComerciante(base.api, s.c, (trx) =>
+      enviarUma(trx, correio, String(jaEnviada?.id), conta),
+    );
+    expect(conta.enviadas).toBe(0);
+    expect(correio.enviados.length).toBe(2);
     expect(correio.enviados.map((m) => m.para).sort()).toEqual(
       [ana.email, bruno.email].sort(),
     );
@@ -4132,9 +4155,13 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       estado: "enviada",
       tentativas: 0,
     });
-    // Passou: o Bruno saiu entretanto (cancelada); a Ana à 6.ª falha.
+    // Passou: o Bruno saiu entretanto e o Gil passou a apoio (canceladas);
+    // a Ana à 6.ª falha.
+    const gil = await membroCom(s, "gestor", "Gil");
     await pedidoHaDias(rma, 15);
     await prazos();
+    await sql`update membro set papel = 'apoio'
+      where id = ${gil.membro}::uuid`.execute(base.dono);
     await sql`update membro set terminado_por = 'operador:teste'
       where comerciante_id = ${s.c}::uuid and pessoa_id = ${bruno.pessoa}::uuid
         and ate is null`.execute(base.dono);
@@ -4143,7 +4170,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         and tipo = 'refund.deadline_passed'`.execute(base.dono);
     correio.falhas.push(new ErroCorreio("smtp_421", true));
     const r = await enviar(correio);
-    expect([r.canceladas, r.falhadas, r.enviadas]).toEqual([1, 1, 0]);
+    expect([r.canceladas, r.falhadas, r.enviadas]).toEqual([2, 1, 0]);
     n = await notificacoesDe(s);
     expect(
       n
@@ -4152,6 +4179,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     ).toEqual(
       expect.arrayContaining([
         [bruno.pessoa, "cancelada", 0, "destinatario_inactivo"],
+        [gil.pessoa, "cancelada", 0, "destinatario_inactivo"],
         [ana.pessoa, "falhada", 6, "smtp_421"],
       ]),
     );
@@ -4183,6 +4211,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
 
   it("o e-mail do aviso: noutra língua sai em inglês; uma recusa definitiva falha logo; uma temporária repete mais tarde; outro comerciante não vê (docs/33, N4, N6, N11)", async () => {
     const s = await cenario();
+    const s2 = await cenario();
     await sql`update comerciante set lingua = 'de' where id = ${s.c}::uuid`.execute(
       base.dono,
     );
@@ -4206,6 +4235,22 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     correio.falhas.push(new ErroCorreio("econnection", true));
     expect((await enviar(correio)).repetir).toBe(1);
     expect((await enviar(correio)).enviadas).toBe(0);
+    // O destino só se lê no comerciante dela (N9).
+    const espera = (await notificacoesDe(s)).find(
+      (x) => x.estado === "a_enviar",
+    );
+    const destino = (c: string) =>
+      comComerciante(base.api, c, async (trx) =>
+        (
+          await sql<{
+            email: string;
+          }>`select email from notificacao_destino(${String(espera?.id)}::uuid)`.execute(
+            trx,
+          )
+        ).rows.map((x) => x.email),
+      );
+    expect(await destino(s.c)).toEqual([ana.email]);
+    expect(await destino(s2.c)).toEqual([]);
     await vencer(s);
     expect((await enviar(correio)).enviadas).toBe(1);
     expect(correio.enviados[0]).toMatchObject({
@@ -4218,11 +4263,28 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(
       (await notificacoesDe(s)).find((x) => x.estado === "enviada"),
     ).toMatchObject({ tentativas: 1, ultimo_erro: null });
+    // A limpeza dos 90 dias (N9), também sem envios por fazer: a falhada
+    // passa a ter terminado há 91 dias e sai na volta seguinte.
+    await base.dono.transaction().execute(async (t) => {
+      await sql`alter table notificacao disable trigger notificacao_antes_de_gravar`.execute(
+        t,
+      );
+      await sql`update notificacao set terminada_em = now() - interval '91 days'
+        where comerciante_id = ${s.c}::uuid and estado = 'falhada'`.execute(t);
+      await sql`alter table notificacao enable always trigger notificacao_antes_de_gravar`.execute(
+        t,
+      );
+    });
+    expect((await enviar(correio)).apagadas).toBe(1);
+    expect((await notificacoesDe(s)).map((x) => x.estado)).toEqual(["enviada"]);
+    const { rows: restam } = await sql<{ n: number }>`select count(*)::int as n
+      from tarefa_notificacao where comerciante_id = ${s.c}::uuid
+        and quando <= now()`.execute(base.dono);
+    expect(restam[0]?.n).toBe(0);
     // Outro comerciante não vê estas.
-    const s2 = await cenario();
     expect((await ok(s2.adm("GET", "/notifications")))["dados"]).toEqual([]);
     expect(
       ((await ok(s.adm("GET", "/notifications")))["dados"] as Json[]).length,
-    ).toBe(2);
+    ).toBe(1);
   });
 });

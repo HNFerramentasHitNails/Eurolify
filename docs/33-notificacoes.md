@@ -120,13 +120,13 @@ lista da API, os testes e a revisão do agente. Um pedido só.
 | O quê | Onde |
 |---|---|
 | `notificacao`, com o RLS do comerciante: gravada pelo gatilho do aviso do prazo, uma por dono e gestor activos e por aviso; estados só para a frente (`a_enviar` → `enviada`, `falhada` ou `cancelada`); a API não a grava nem a apaga | migração 0066 |
-| `tarefa_notificacao`, interna (como as filas da 0047 e da 0063): diz à tarefa em que comerciantes entrar, sem ler a `notificacao` sem comerciante | migração 0066 |
+| `tarefa_notificacao`, interna (como as filas da 0047 e da 0063): diz à tarefa em que comerciantes entrar (para enviar, ou para apagar 90 dias depois de terminada), sem ler a `notificacao` sem comerciante | migração 0066 |
 | `notificacao_destino()`: o endereço e o nome lidos no envio, só se a pessoa continua activa e dona ou gestora; senão, a notificação fica `cancelada` | migração 0066; `src/notificacoes/repositorio.ts` |
 | o correio por SMTP (`nodemailer` 10.0.10, licença MIT-0, sem dependências, de 14/09/2026 — a mais recente com mais de duas semanas) e o de ensaio; a classificação dos erros (4xx e rede repetem; 5xx falha logo) | `src/notificacoes/correio.ts` |
 | os textos PT, ES e EN | `src/notificacoes/modelos.ts` |
 | a tarefa de minuto a minuto (cada notificação na sua transacção, bloqueada; as esperas 1, 5, 30, 120 e 360 minutos; à 6.ª falha, `falhada`) e a limpeza dos 90 dias na mesma volta | `src/notificacoes/repositorio.ts`; `servidor.ts` |
 | `GET /notifications?estado=` (`merchant:read`) | `src/notificacoes/rotas.ts` |
-| 2 testes pela API e 4 sem base | `test/posvenda-api.test.ts`; `test/notificacoes-correio.test.ts` |
+| 2 testes pela API e 4 sem base; 21 mutações, 20 apanhadas e uma equivalente (o destino confere o comerciante, que o RLS forçado já garante) | `test/posvenda-api.test.ts`; `test/notificacoes-correio.test.ts` |
 
 **Desvios do desenho:**
 - **A língua é a do Hub do comerciante** (`comerciante.lingua`), não a do
