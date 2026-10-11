@@ -436,7 +436,7 @@ essa conta.
 | **E. Organização** | Projectos, procedimentos e objectivos, comunicação interna (pelas portas a 11/10/2026: **matar como módulo próprio**; os lançamentos agendados vão para o Catálogo e o assistente para o MCP de leitura, `docs/13` §14) | Não toca em regras fiscais; valor para equipas |
 | **F. Sectoriais** | Fabrico com fórmulas, lotes de enchimento e rótulos (pelas portas a 11/10/2026: primeiro a versão da fórmula no artigo e no lote, `docs/13` §15); formação (fatia 12; pelas portas a 11/10/2026: primeiro a inscrição numa formação com data, com o kit, `docs/13` §16); marketing e gráfica (pelas portas a 11/10/2026: **matar como módulo próprio**; os feeds e as avaliações vão para o Catálogo, `docs/13` §17) | Cada um serve um tipo de comerciante (porta 5) |
 | **G. Pessoas** | RH, assiduidade, férias, fecho do mês (pelas portas a 11/10/2026: **matar como módulo próprio**; ligar por extensão, sem biometria sem o jurista, `docs/13` §18) | O maior risco legal (biometria, direito do trabalho de cada país); só com o jurista |
-| **H. Parceiros** | Portais de revendedor, distribuidor, franqueado, formador | Fatia 14; jurista de concorrência (`eurolify-b2b-channels-eu`) |
+| **H. Parceiros** | Portais de revendedor, distribuidor, franqueado, formador (pelas portas a 11/10/2026, como um módulo: primeiro o revendedor que compra para revender, sem políticas sensíveis ligadas, `docs/13` §19) | Fatia 14; jurista de concorrência (`eurolify-b2b-channels-eu`) |
 
 ## 9. Choques com o que está decidido
 

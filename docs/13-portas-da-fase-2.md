@@ -54,6 +54,7 @@ grupo contam como **um** comprador.
 | Formação (camada F), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar**, pela porta da fatia 12 (§16) |
 | Marketing e gráfica (camada F), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ◐ | ❌ | ◐ | **matar como módulo próprio**; duas peças vão para o Catálogo (§17) |
 | Pessoas (camada G), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ❌ | ❌ | ◐ | **matar como módulo próprio** (§18) |
+| Parceiros (camada H), 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ✅ | **estreitar** (§19) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -839,6 +840,66 @@ vigilância país a país.
 
 Matar ou não é do Diogo ou do Bruno; a decisão DR põe a camada G no produto,
 e estas portas dizem que, como módulo próprio, não se paga e é o maior risco.
+
+## 19. Parceiros — a camada H, como um módulo (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. A
+camada H do `docs/31` §8 passa como **um** módulo: os portais de revendedor,
+distribuidor e franqueado do Hub actual (o do formador vai com a formação,
+§16). É a **fatia 14** do plano (canais), e já estava na Fase 2 (decidido a
+05/10/2026, Q3 do `docs/16`), sem ter passado pelas portas. Skills abertas:
+`eurolify-b2b-channels-eu`, `eurolify-contracts-operations-eu`,
+`eu-vat-oss-ioss` (finalidade e B2B), `product-compliance-eu` (marca
+própria).
+
+**O que o Hub actual faz** (proposta comercial do Hub, p. 24; apresentação
+p. 5): um portal próprio por tipo de parceiro; contratos gerados em PDF; mapas
+de Portugal e internacional; objectivos por parceiro e localidade; artigos e
+encomendas de marca própria (private label); tabelas de preços por tipo e por
+mercado; mínimos de compra nacionais e internacionais; **exclusividade por
+país e território**; recomendações, ranking e comissões; as compras de cada
+parceiro «numa só régua».
+
+**O que o Eurolify já tem:** o **desenho** dos canais no
+`eurolify/architecture.md` §3 (proposta): parte sem tipo fixo, relação
+comercial, versão do contrato (nunca editada), **política do canal desligada
+por omissão** (preço, território, venda online, não concorrência), e o papel
+de cada um na encomenda; as regras de concorrência e de agência citadas estão
+**W, texto lido** (Reg. (UE) 2022/720 arts. 3.º, n.º 1, 4.º, 8.º, al. d), e
+11.º; Dir. 86/653 arts. 1.º, 2.º e 17.º a 19.º), o resto **C**. Na Fase 1: as
+**listas de preços B2B por etiqueta** e as **quantidades mínimas** (`docs/20`
+§1) e a **finalidade** por encomenda — consumo, profissional, revenda
+(`docs/23`, Q1). Mas o checkout da Fase 1 é **sem conta** (`docs/25` §1): um
+revendedor não entra numa área sua para ver os preços dele.
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ◐ | O Hub actual tem os portais em uso (proposta p. 24; apresentação p. 5). Procurei «revend», «distribu», «franq» e «parceir» no `docs/04`: nenhuma lição medida sobre parceiros |
+| 2 Não resolvido | ◐ | Há plataformas com portais para compradores profissionais (não verifiquei quais). **No Eurolify**, as listas B2B e os mínimos chegam na Fase 1, mas falta o sítio onde o revendedor os usa — sem conta de cliente, só pela encomenda feita pela equipa (§12) |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Quatro tipos de parceiro, contratos, mapas, objectivos, marca própria, preços, mínimos, exclusividade, ranking e comissões |
+| 6 Encaixe | ◐ | **Encaixa** no desenho da fatia 14, nas listas B2B e na finalidade da encomenda. **Não encaixa sem análise:** (a) **a exclusividade por território, o preço de revenda imposto e a proibição de vender online** são restrições que o direito da concorrência só admite em certas condições — ficam **desligadas** até haver análise do caso (`eurolify-b2b-channels-eu`, ponto 4; Reg. (UE) 2022/720, **W** nos artigos lidos, **C** no resto); (b) **o franchising** tem informação pré-contratual e contrato pela lei de cada país (`docs/03`, **C**); (c) **a marca própria**: quem põe o nome num produto pode passar a responder como fabricante (`product-compliance-eu`, **C**); (d) **as comissões** são como no §12 (**C**); (e) um franqueado **nunca** lê dados de outro só por partilharem a marca (skill, ponto 6) |
+| 7 Custo | ◐ | A relação comercial com a versão do contrato é média; a conta do parceiro para entrar na loja é uma peça nova (o checkout da Fase 1 não tem contas). Exclusividades, mapas, objectivos e ranking são fundos e pedem o jurista |
+| 8 Valor depressa | ✅ | Um revendedor com a etiqueta já compra aos seus preços e com os seus mínimos na primeira encomenda (as listas B2B são da Fase 1) |
+
+**Saída: estreitar.**
+
+- **Primeiro alvo:** **o revendedor que compra para revender.** A relação
+  comercial com a versão do contrato (preço de compra pela lista B2B, mínimos,
+  duração), **sem nenhuma política sensível ligada**; e a encomenda dele com a
+  finalidade «revenda». No primeiro passo, a encomenda faz-se pela **equipa**
+  (§12), com a ligação do checkout; a **conta do parceiro** para encomendar
+  sozinho vem depois, se as conversas a pedirem. Um tipo de parceiro (o
+  revendedor), um papel (quem gere a rede), um fluxo (o revendedor encomenda).
+- **Desligado até haver análise do caso:** a exclusividade por território, o
+  preço de revenda, a venda online e a não concorrência (políticas do canal,
+  `architecture.md` §3.3).
+- **Investigar com o jurista:** o franchising (por país), a marca própria
+  (fabricante) e as comissões.
+- **Ficam de fora:** mapas, objectivos, ranking e recomendações.
+
+Decidir se se avança com esta saída é do Diogo ou do Bruno.
 
 ---
 

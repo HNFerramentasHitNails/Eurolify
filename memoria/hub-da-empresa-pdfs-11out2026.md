@@ -96,6 +96,13 @@ de gestão da empresa inteira, não só uma loja.
   **matar como módulo próprio** (portas 2, 6 e 7). Fica a equipa e os papéis
   do Hub (T8); ligar programas de RH por extensão; nenhuma biometria sem o
   jurista. Nenhuma lição nem regra sobre RH nos `docs/03`, `04` e `17`.
+- **Parceiros (camada H) pelas 8 portas** (`docs/13` §19): ◐ ◐ ❔ ❔ ❌ ◐ ◐ ✅ →
+  **estreitar**. Primeiro alvo: o revendedor que compra para revender — a
+  relação comercial com a versão do contrato e a encomenda com a finalidade
+  «revenda», primeiro pela equipa (§12); a conta do parceiro depois (o
+  checkout da Fase 1 é sem conta). Exclusividades, preço de revenda e venda
+  online desligados até análise; franchising, marca própria e comissões com
+  o jurista. **Todas as camadas (B a H) passadas a 11/10/2026.**
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
@@ -124,7 +131,7 @@ de gestão da empresa inteira, não só uma loja.
   o `docs/06` (DR), o `docs/13` e o `docs/31`. A exclusão antiga só estava no
   `docs/00` §2.2 (`grep` por «streaming», «marketing editorial» e «de uma
   empresa, não» em `docs/`, `README.md`, `AGENTS.md` e nas skills).
-- Só o balcão passou pelas 8 portas; nenhum módulo novo está estimado.
+- ~~Só o balcão passou pelas 8 portas~~ Todas as camadas B a H passaram pelas 8 portas a 11/10/2026 (`docs/13` §7 a §19); nenhum módulo novo está estimado.
 - Do balcão: os preços do Vendus vêm do texto da pesquisa (página ao vivo não
   aberta); a API do Moloni foi lida e ~~não testada~~ **testada a 11/10/2026
   noutra sessão** (#360; ficam o `status` 2 e se os terminais são a app de iPhone); a conta de demonstração
