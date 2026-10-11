@@ -407,3 +407,59 @@ reembolsa por API; se não, o reembolso é manual.
   `prova` livre (P3-13); `falhado/incerto → a_executar` sem rever os tectos
   (P3-15; parte 2); listas sem paginação (P3-17); `meio_pagamento` (P3-18).
 
+
+## 13. Parte 2 — o reembolso pela EuPago (desenho, 11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«avança com a parte 2 da pós-venda»*. A §11
+diz «o reembolso pelo adaptador (EuPago, depois de lida a documentação)», e a
+Q2 deixava o Multibanco e o MB WAY manuais **até** a lermos. Lida a
+11/10/2026; o aviso do prazo (R10) e a marca «selado por higiene» (R4) ficam
+para pedidos seus, depois deste.
+
+### 13.1 O que se leu na documentação da EuPago
+
+Lido em [docs.eupago.pt](https://docs.eupago.pt/reference) a 11/10/2026
+(**W**: só a documentação pública; **nada corrido contra a sandbox**, porque
+continua a não haver credenciais de teste, como em `docs/26` §12).
+
+| # | Página | O que diz |
+|---|---|---|
+| E1 | [Refund](https://docs.eupago.pt/reference/refund) | `POST /api/management/v1.02/refund/{trid}`; corpo `amount` (obrigatório, em euros), `reason`, `iban`, `bic`; «aceita reembolsos parciais e totais»; resposta 201 `{"transactionStatus": "Success", "refundId": "9627"}`; recusas 400 `Rejected` com `IBAN_INVALID` ou `BAD_REQUEST` («Service don't have direct refund») e 401 `TOKEN_INVALID` |
+| E2 | idem, nota | «Para o MB WAY e o cartão, não é obrigatório preencher o IBAN e o BIC; só são precisos se o prestador recusar o reembolso» |
+| E3 | [Refund Information](https://docs.eupago.pt/reference/refund-information) | `GET /api/management/v1.02/refund/{refundId}`, com o `refundId` da resposta do E1; devolve `refundList.status`, com o exemplo `reembolsado`; 400 `REFUND_INVALID` |
+| E4 | [Generate Bearer Token](https://docs.eupago.pt/reference/generate-bearer-token) | as duas rotas acima usam **OAuth**, não a chave da API: `POST /api/auth/token` com `client_id`, `client_secret` e `grant_type: client_credentials`; devolve `access_token` e `expires_in` (uma data, sem fuso) |
+| E5 | [Avisos 2.0](https://docs.eupago.pt/reference/realtime-webhooks-20) | um aviso com o estado `Refund` (configurável como `REFUNDED`), com o `trid` (inteiro) e o montante |
+| E6 | [MB WAY](https://docs.eupago.pt/reference/mbway) | a criação devolve um `transactionID` em hexadecimal, que não é o `trid` inteiro que o E1 pede |
+
+Não se encontrou na documentação: uma chave de idempotência para o
+reembolso; os outros valores de `refundList.status`; se o `Success` do E1
+quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
+
+### 13.2 O que isto muda (propostas)
+
+| # | O quê | Proposta | Fonte |
+|---|---|---|---|
+| P1 | **Credenciais** | a conta passa a guardar também o `client_id` e o `client_secret` (OAuth), cifrados no mesmo campo que a chave (AES-256-GCM, `PAGAMENTOS_CHAVE`); só o dono os põe. O token pede-se a cada reembolso e não se guarda (os reembolsos são um de cada vez, R9). Uma conta sem eles reembolsa só à mão | E4; `docs/26` Q3 |
+| P2 | **O `trid`** | guarda-se no pagamento quando um aviso assinado o dá como pago (o `trid` vem no aviso, E5); a migração preenche os que já existem a partir dos avisos guardados. Um pagamento dado como pago só por consulta não tem `trid`: reembolsa-se à mão | E1, E5, E6 |
+| P3 | **Quais métodos** | **MB WAY** pelo prestador (E2: sem IBAN). **Multibanco: ver a Q8** | E2 |
+| P4 | **Executar** (`POST /refunds/{id}/execute`, `refunds:write`) | só um reembolso `a_executar` de um pagamento EuPago com `trid` e uma conta com as credenciais OAuth. Antes da chamada, grava-se o pedido (quem, quando) e o reembolso passa a `via = prestador`; a nossa referência (`rfd_…`) vai no `reason`, porque a EuPago não tem chave de idempotência | E1; R7 |
+| P5 | **Resposta** | 201 `Success` com `refundId` → estado novo **`a_confirmar`**, com o `refundId`: o pedido foi aceite, falta saber se o dinheiro saiu. `Rejected` → `falhado`, com o código (ex.: `BAD_REQUEST` = o serviço não reembolsa directamente → uma pessoa regista-o à mão). Tempo esgotado, 5xx ou resposta que não se lê → `incerto`, **nunca se repete sozinho** | E1; `docs/26` R3, R4 |
+| P6 | **Confirmar** | uma tarefa de minuto a minuto (como a dos pagamentos) consulta o E3 para cada `a_confirmar`: `reembolsado` → `executado` (e a NC acorda); outro valor fica como está; ao fim de 7 dias sem `reembolsado`, abre uma diferença para uma pessoa. Um aviso `Refund` assinado acorda a consulta dos reembolsos `a_confirmar` desse pagamento, mas sozinho não marca nada (com reembolsos parciais, não diz qual foi) | E3, E5 |
+| P7 | **Reconciliar** (`POST /refunds/{id}/reconcile`, `refunds:write`) | para o `incerto` (não há `refundId`, por isso nada se consulta): uma pessoa vê no back-office da EuPago e diz `executado` (com o identificador do reembolso como prova) ou `nao_saiu` (volta a `a_executar`, e pode executar outra vez). Uma de cada vez, com motivo | R7, R9 |
+| P8 | **Tectos ao voltar a `a_executar`** | a base volta a conferir R5 (o pago menos o já reembolsado) quando um `falhado` ou um `incerto` volta a `a_executar` (era a P3-15 da revisão do #329) | R5 |
+| P9 | **Eventos** | `refund.requested` (a_confirmar) e os que já existem (`refund.completed`, `refund.failed`, `refund.uncertain`); só identificadores e montantes | §7.3 |
+
+### 13.3 Pergunta para o Diogo ou o Bruno
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q8 | **O Multibanco pela EuPago?** A nota E2 só dispensa o IBAN no MB WAY e no cartão: lida ao contrário, um Multibanco precisa do IBAN do cliente (**M**: dedução da nota, não está escrito). | **A — o Multibanco continua à mão** (o comerciante transfere e regista a prova, como na parte 1): o Eurolify não recebe IBANs, a C3 do contabilista continua por responder e não há sandbox para confirmar. B seria a pessoa escrever o IBAN ao executar, enviado à EuPago sem se guardar |
+
+### 13.4 Por verificar (bloqueiam o modo real, não o código)
+
+| # | O quê |
+|---|---|
+| V7 | o pedido e a resposta do E1 na sandbox, com credenciais OAuth de teste |
+| V8 | os valores de `refundList.status` além de `reembolsado` (E3) e se o `Success` do E1 quer dizer «dinheiro saído» |
+| V9 | o fuso do `expires_in` do token (E4); não se usa, porque o token não se guarda |
+| V10 | se o `trid` do aviso (E5) é o que o E1 pede, num pagamento real de teste |
