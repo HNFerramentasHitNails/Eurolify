@@ -56,6 +56,6 @@ Plano do resto do passo 4 (dito ao Diogo a 10/10/2026):
 
 - A configuração de registo da base na VPS (o segredo de quem pede passa às
   funções; `docs/19` §6.1 já o dizia).
-- O ecrã das chaves do Hub ainda não mostra nem escolhe a marca (parte 3).
+- O ecrã das chaves do Hub ainda não mostra nem escolhe a marca (parte 5).
 - O MCP da VPS (`apps/mcp`) é de operação, não de comércio: não põe o canal
   `mcp` nem o cabeçalho.

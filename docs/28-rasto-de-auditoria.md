@@ -176,7 +176,7 @@ Exemplo: «Preço de Verniz Gel Vermelho 15 ml: 12,90 € → 9,90 € —
 
 **Onde vive a regra:** na API (uma regra, um sítio). Cada entrada das linhas
 do tempo ganha `sem_autorizacao_de_pessoa: true|false`, calculado no
-servidor por `respostasDoRasto()` (§4, parte 2); o Hub mostra-o, não o
+servidor por `autorDoRasto()` (§4, parte 3); o Hub mostra-o, não o
 recalcula.
 
 ### 3.7 O trabalho feito mais tarde, a pedido de alguém (Q6)
@@ -233,6 +233,14 @@ Publicações da UE, a fonte do EUR-Lex, `publications.europa.eu/resource/celex/
   Catálogo (o dono e o gestor).
 - O histórico de preços não se edita: é a prova do preço anterior para o
   art. 6.º-A (o `historico_preco` já só se acrescenta, 0017).
+- Em código (parte 3, #349): com `prices:read` vêm também o `canal` e a
+  `ia` (fornecedor, modelo, execução). Não identificam pessoas, mas vão além
+  do texto da Q7 (**M**, aplicação nossa; revisão do #349, P3-2). O «sistema,
+  a pedido de alguém» só existe com a parte 4.
+- **Condição para os webhooks:** o evento `price.changed` leva `quem`
+  (0021). Hoje os eventos não saem para fora (§2, `evento_saida`); quando
+  saírem, um subscritor só com `prices:read` não pode receber o `quem`
+  (revisão do #349, P3-1).
 
 Fontes, lidas a 11/10/2026 no texto oficial do RGPD (Reg. (UE) 2016/679,
 `publications.europa.eu/resource/celex/32016R0679`), **W**:

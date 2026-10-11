@@ -42,15 +42,19 @@ describe("as respostas a partir de uma linha do rasto", () => {
       autorizado_por: null,
       motivo: null,
       ia: DESCONHECIDA,
-      // Um «quem» antigo sem forma reconhecida; sem pessoa a autorizar, o
-      // aviso aparece (docs/28 §3.6).
-      tipo_de_autor: "desconhecido",
+      // Uma consequência automática (os gatilhos ainda a escrevem); sem
+      // pessoa a autorizar, o aviso aparece (docs/28 §3.6).
+      tipo_de_autor: "sistema",
       sem_autorizacao_de_pessoa: true,
     });
   });
 
   it.each([
     ["pessoa:per_1", null, "pessoa"],
+    ["pessoa:per_1", { prova: "declarado" }, "pessoa"],
+    ["checkout:chk_1", null, "consumidor"],
+    ["prestador:eupago", null, "prestador"],
+    ["catalogo:variante apagada", null, "sistema"],
     ["chave:key_1", null, "chave"],
     ["chave:key_1", { prova: "declarado" }, "agente"],
     ["sistema:encomendas", null, "sistema"],

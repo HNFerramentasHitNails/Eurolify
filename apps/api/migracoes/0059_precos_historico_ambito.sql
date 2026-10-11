@@ -9,8 +9,11 @@
 -- - dá-o ao dono e ao gestor (`papel_ambitos`), os papéis do
 --   `catalog:history`; o armazém e o apoio continuam só com `prices:read`.
 --
--- Não faz: dar o âmbito às chaves que já existem — quem o quiser numa chave
--- cria outra (as chaves não mudam, 0010).
+-- Não faz: dar o âmbito às chaves que já existem (as chaves não mudam,
+-- 0010). Uma chave com ele cria-se pelo Hub (o dono, pelo `papel_ambitos`)
+-- ou pelo comando do operador; pela API não, porque nenhuma chave antiga o
+-- tem e uma chave não cria outra com âmbitos que não tem (T9). Sozinho, sem
+-- `prices:read`, não abre nenhuma rota (revisão do #349, P3-3 e P3-7).
 
 SET LOCAL lock_timeout = '10s';
 

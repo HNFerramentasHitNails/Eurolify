@@ -36,6 +36,8 @@ export const TIPOS_DE_AUTOR = [
   "pessoa",
   "agente",
   "chave",
+  "consumidor",
+  "prestador",
   "sistema",
   "operador",
   "desconhecido",
@@ -52,7 +54,7 @@ export const CamposDoAutor = {
     type: "string",
     enum: [...TIPOS_DE_AUTOR],
     description:
-      "pessoa: uma pessoa da equipa; agente: uma chave de um agente de IA ou um pedido com IA declarada; chave: uma chave sem IA declarada; sistema: uma tarefa do Eurolify; operador: o comando do operador; desconhecido: sem identificação reconhecida (docs/28 §3.8)",
+      "pessoa: uma pessoa da equipa (também com IA declarada no pedido: quem executou foi ela); agente: uma chave de um agente de IA, ou uma chave com IA declarada no pedido; chave: uma chave sem IA declarada; consumidor: o cliente na compra (checkout:chk_…); prestador: o aviso de um prestador de pagamentos (prestador:…); sistema: uma tarefa do Eurolify ou uma consequência automática de outra alteração (sistema:…, catalogo:…); operador: o comando do operador; desconhecido: uma forma que esta lista não conhece (docs/28 §3.8)",
   }),
   sem_autorizacao_de_pessoa: Type.Boolean({
     description:
@@ -99,22 +101,29 @@ export interface LinhaComRasto {
 
 const ou = (v: string | undefined) => v ?? null;
 
+const PREFIXOS_DE_AUTOR: Partial<Record<string, TipoDeAutor>> = {
+  "pessoa:": "pessoa",
+  "checkout:": "consumidor",
+  "prestador:": "prestador",
+  "sistema:": "sistema",
+  "catalogo:": "sistema",
+  "operador:": "operador",
+};
+
 /** O tipo de autor e o aviso (docs/28 §3.6 e §3.8), sem identificar ninguém. */
 export function autorDoRasto(
   l: Pick<LinhaComRasto, "quem" | "ia" | "autorizado_por">,
 ): { tipo_de_autor: TipoDeAutor; sem_autorizacao_de_pessoa: boolean } {
   const declarada = l.ia?.prova === "declarado" || l.ia?.prova === "comprovado";
-  const tipo: TipoDeAutor = l.quem.startsWith("pessoa:")
-    ? "pessoa"
-    : l.quem.startsWith("chave:")
+  // As formas de `quem` que o código escreve (procuradas a 11/10/2026,
+  // revisão do #349, P2-1); uma nova sem lugar aqui sai «desconhecido».
+  const prefixo = l.quem.slice(0, l.quem.indexOf(":") + 1);
+  const tipo: TipoDeAutor =
+    prefixo === "chave:"
       ? declarada
         ? "agente"
         : "chave"
-      : l.quem.startsWith("sistema:")
-        ? "sistema"
-        : l.quem.startsWith("operador:")
-          ? "operador"
-          : "desconhecido";
+      : (PREFIXOS_DE_AUTOR[prefixo] ?? "desconhecido");
   return {
     tipo_de_autor: tipo,
     sem_autorizacao_de_pessoa: l.autorizado_por === null,
