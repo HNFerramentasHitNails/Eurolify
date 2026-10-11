@@ -129,6 +129,7 @@ const RESTRICOES: Readonly<Record<string, CodigoErroCatalogo>> = {
   variante_valor_pkey: "catalog.option_repeated",
   // Classificação (0006).
   artigo_natureza_do_tipo: "catalog.nature_incompatible",
+  artigo_selado_so_em_bens: "catalog.nature_incompatible",
   artigo_familias_validas: "catalog.classification_invalid",
   artigo_natureza_valida: "catalog.classification_invalid",
   artigo_modo_valido: "catalog.classification_invalid",

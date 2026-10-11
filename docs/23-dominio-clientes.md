@@ -1105,7 +1105,7 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 ### 15.8 Perguntas para o Diogo ou o Bruno
 
 ✅ **Decididas** pelo Diogo a 11/10/2026 (*«aprovado»*, às propostas;
-`docs/06`, DT).
+`docs/06`, DU).
 
 | # | Pergunta | Decisão |
 |---|---|---|
