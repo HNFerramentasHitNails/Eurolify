@@ -72,6 +72,12 @@ de gestão da empresa inteira, não só uma loja.
   calendário já existem e ligam-se). Os lançamentos agendados vão para o
   Catálogo (não há no `docs/14`); o assistente interno é o MCP de leitura da
   Fase 1. Decisão de matar por tomar (a DR põe a camada no produto).
+- **Fabrico (camada F) pelas 8 portas** (`docs/13` §15; a camada F passa
+  sector a sector): ✅ ◐ ❔ ❔ ❌ ✅ ◐ ◐ → **estreitar**. Primeiro alvo: a
+  versão da fórmula no artigo e no lote (já desenhada na
+  `product-compliance-eu`; caso do TPO, 01/09/2025, W), com a consulta do que
+  é afectado e o bloqueio decidido por uma pessoa; serve também quem revende.
+  Depois, o registo de fabrico mínimo. Fora: programação, Gantt, capacidade.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,

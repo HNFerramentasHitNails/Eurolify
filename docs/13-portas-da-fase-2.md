@@ -50,6 +50,7 @@ grupo contam como **um** comprador.
 | Comercial (camada C), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ✅ | **estreitar** (§12) |
 | Financeiro (camada D), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§13) |
 | Organização (camada E), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ◐ | ❌ | ◐ | **matar como módulo próprio**; duas peças vão para outros sítios (§14) |
+| Fabrico (camada F), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ✅ | ◐ | ◐ | **estreitar** (§15) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -603,6 +604,64 @@ usar-se ou ligar-se; e a 7). Duas peças têm valor e mudam de sítio:
 
 Matar ou não é do Diogo ou do Bruno; a decisão DR põe a camada E no produto,
 e estas portas dizem que, como módulo próprio, ela não se paga.
+
+## 15. Fabrico — o primeiro módulo da camada F (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. A
+camada F do `docs/31` §8 junta três sectores diferentes (fabrico, formação,
+marketing e gráfica), por isso passam um a um. Este é o **fabrico**:
+sequências 05 e 06 do `docs/31`. Skills abertas: `product-compliance-eu`,
+`eurolify-sector-compliance-eu`, `eurolify-identifiers-traceability-eu`,
+`order-fulfilment` (lotes e movimentos).
+
+**O que o Hub actual faz** (proposta comercial do Hub, p. 13 e 14): fórmula
+com versões, lista INCI, ficha técnica e notificação CPNP por artigo;
+programação da produção com passos, responsáveis e Gantt; **enchimento com
+lote** — o lote do fabricante continua, com um sufixo por enchimento do mesmo
+pote, mostrado antes de gravar; registo de fabricação (sai a matéria-prima,
+entra o produto acabado com lote); discrepâncias entre previsto e produzido;
+capacidade por mês e ano; rótulo gerado com versão e aprovação do responsável
+técnico; DataMatrix com artigo, validade e lote; montagem de colecções como um
+picking; *«que clientes receberam o lote X?»* com resposta imediata.
+
+**O que o Eurolify já tem** (lido no `main` e nos desenhos a 11/10/2026):
+lotes na entrada e na linha expedida e kits pelos componentes (migrações 0004
+e 0047; decisão AD). **Não há fórmulas nem produção**: procurei «formula»,
+«fabric» e «producao» nas migrações e não há. A skill `product-compliance-eu`
+já desenha as fórmulas («Fórmulas com versões — o caso que o prova»): o artigo
+aponta para uma versão de fórmula com o seu INCI, o lote sabe que versão leva,
+e uma substância proibida numa data dá a consulta imediata de artigos, lotes,
+stock e encomendas por expedir.
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ✅ | **O TPO** foi proibido nos cosméticos a **01/09/2025, sem período de escoamento** (Reg. (UE) 2025/877, `docs/03`, **W**): o que estava em stock deixou de se poder vender de um dia para o outro. No Hub actual, o fornecedor troca fórmulas e os SKU mantêm-se (skill, mesma secção). Lição 3.4 do `docs/04`: os componentes dos kits, **40 % das saídas**, saíam sem lote |
+| 2 Não resolvido | ◐ | Há programas de gestão de produção de fora (não verifiquei quais nem quanto custam). **No Eurolify falta** a versão da fórmula no artigo e no lote — e serve também quem **não fabrica**: um revendedor cujo fornecedor muda a fórmula de um artigo com o mesmo SKU |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Fórmulas, programação, enchimento, registo de fabricação, discrepâncias, capacidade, rótulos, DataMatrix, colecções |
+| 6 Encaixe | ✅ | A versão da fórmula está desenhada na `product-compliance-eu`; o registo de fabrico cabe no livro de movimentos (saída dos lotes de matéria-prima, entrada do lote acabado ligado a eles). **Cuidados:** a notificação CPNP, a pessoa responsável e a avaliação de segurança são do comerciante — o Eurolify guarda a prova, nunca diz que um produto está «conforme» (skill); o conteúdo do rótulo de um cosmético é **C** (`docs/03`, linha «Cosméticos»); GTIN e DataMatrix não são obrigatórios para todos os produtos (`eurolify-identifiers-traceability-eu`) |
+| 7 Custo | ◐ | A versão da fórmula é pequena e ligada ao Catálogo e aos lotes. O registo de fabrico é médio. A programação, o Gantt e a capacidade são um programa de produção inteiro |
+| 8 Valor depressa | ◐ | A consulta «que lotes e que encomendas levam esta versão» dá valor no primeiro aviso de uma substância; pede que o comerciante tenha carregado as fórmulas |
+
+**Saída: estreitar.**
+
+- **Primeiro alvo:** a **versão da fórmula** no artigo e no lote, como a
+  skill já desenha — com o INCI e a data de cada versão; o lote diz que versão
+  leva; e, quando uma substância passa a proibida numa data, a consulta dos
+  artigos, lotes, stock e encomendas por expedir afectados, com o bloqueio da
+  venda **decidido por uma pessoa**. Serve quem fabrica e quem revende. Um
+  sector (cosméticos), um papel (o responsável técnico), um fluxo (a fórmula
+  muda ou uma substância é proibida).
+- **Depois, se houver procura:** o **registo de fabrico mínimo** — consumir
+  lotes de matéria-prima e dar entrada ao lote do produto acabado, ligado aos
+  de origem, pelo livro de movimentos. A regra do nome do lote (o sufixo por
+  enchimento) é configuração do comerciante.
+- **Investigar:** os rótulos com versão e aprovação e o DataMatrix (conteúdo
+  do rótulo **C**; identificadores pela skill).
+- **Ficam de fora:** a programação, o Gantt, as discrepâncias e a capacidade.
+
+Decidir se se avança com esta saída é do Diogo ou do Bruno.
 
 ---
 
