@@ -83,6 +83,12 @@ de gestão da empresa inteira, não só uma loja.
   formação com data, com o kit na mesma encomenda. O cancelamento faturado dá
   nota de crédito, nunca apaga a fatura (o Hub actual «anula»). Fora:
   plataforma de cursos, prestações (C), comissões (C).
+- **Marketing e gráfica (camada F) pelas 8 portas** (`docs/13` §17): ◐ ❌ ❔ ❔
+  ❌ ◐ ❌ ◐ → **matar como módulo próprio** (porta 2: ferramentas de redes e
+  de projectos já existem). Para o Catálogo: os feeds (já «fica para depois»
+  no `docs/14`) e as avaliações de quem comprou (regra W da
+  `consumer-rights-eu`). Riscos anotados: alegações ambientais (27/09/2026) e
+  dados de redes de fora da UE.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,

@@ -52,6 +52,7 @@ grupo contam como **um** comprador.
 | Organização (camada E), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ◐ | ❌ | ◐ | **matar como módulo próprio**; duas peças vão para outros sítios (§14) |
 | Fabrico (camada F), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ✅ | ◐ | ◐ | **estreitar** (§15) |
 | Formação (camada F), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar**, pela porta da fatia 12 (§16) |
+| Marketing e gráfica (camada F), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ◐ | ❌ | ◐ | **matar como módulo próprio**; duas peças vão para o Catálogo (§17) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -723,6 +724,64 @@ de IVA da formação só aparece como o código `M07` (art. 9.º) no `docs/24`,
 
 Decidir se se avança, e quando abre a porta da fatia 12, é do Diogo ou do
 Bruno.
+
+## 17. Marketing e gráfica — o terceiro sector da camada F (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. É a
+sequência 11 do `docs/31` e os módulos «Marketing», «Assistente de
+marketing», «Streaming», «Formulários» e «Gráfica» do Hub actual (proposta
+comercial do Hub, p. 24). A comunicação automática com os clientes (sequência
+12) já passou no §5, como automações e notificações. Skills abertas:
+`consumer-rights-eu`, `catalog-pim`, `eu-gdpr-privacy`, `eurolify-design`.
+
+**O que o Hub actual faz** (proposta p. 19 e 24): balcão de pedidos de peças
+(post, rótulo, folheto) com prazo e destino → fila e calendário por pessoa →
+aprovação a dois vistos → calendário editorial por marca e conta →
+publicação nas redes sociais, com os comentários e as métricas de volta →
+resultados por rede, dizendo também o que não se mede → a gráfica com fila,
+máquina, procedimentos e produção; bios e conteúdos com IA; directos nas
+redes sem partilhar palavras-passe; inquéritos de satisfação e NPS com envio
+automático.
+
+**O que o Eurolify já tem:** a régua do consentimento de marketing por
+contacto e canal (migrações 0042 e 0052, decisão DL). Os **feeds para Google,
+Meta e comparadores** estão no Catálogo como «fica para depois» (`docs/14` §1).
+A regra das **avaliações** está na `consumer-rights-eu` (**W**, texto lido): se
+a loja as mostra, diz como garante que vêm de quem comprou; no Eurolify, uma
+avaliação liga-se a uma encomenda entregue e nenhuma se esconde por ser
+negativa.
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ◐ | O Hub actual tem os módulos em uso (proposta p. 19 e 24). Procurei «marketing», «redes sociais» e «publica» no `docs/04`: nenhuma lição medida sobre marketing |
+| 2 Não resolvido | ❌ | **Já existe e pode usar-se ou ligar-se.** Gerir pedidos de peças, calendários editoriais, publicação nas redes e métricas são ferramentas de uso geral, e a fila interna da equipa criativa é gestão de projectos (camada E, que falhou a mesma porta no §14). O que só o Eurolify pode dar é o que está **ligado à loja**: os feeds do catálogo publicado e as avaliações de quem comprou |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Pedidos, filas, aprovações, calendário, redes, métricas, gráfica, IA, directos, inquéritos |
+| 6 Encaixe | ◐ | Os feeds e as avaliações encaixam no Catálogo e na pós-venda. **Não encaixa sem cuidados:** (a) **textos de marketing gerados por IA** arriscam alegações ambientais genéricas («eco», «verde»), proibidas sem prova desde **27/09/2026** (Dir. (UE) 2024/825, `docs/03`); (b) os **comentários e as métricas** das redes trazem dados pessoais de quem comenta, vindos de plataformas de fora da UE (`AGENTS.md`, «Regras da UE», regra 4); (c) os inquéritos precisam da régua do consentimento e do envio de e-mails, que não existe |
+| 7 Custo | ❌ | Cada rede social é uma integração que muda com frequência, para um trabalho que as ferramentas dedicadas já fazem |
+| 8 Valor depressa | ◐ | Um feed do catálogo para o Google dá valor no primeiro dia; o calendário editorial pede configuração |
+
+**Saída: matar como módulo próprio** (falha a porta 2: já existe e pode
+usar-se ou ligar-se; e a 7). Duas peças têm valor e vão para o Catálogo:
+
+- **Os feeds do catálogo publicado** (Google, Meta, comparadores) — já no
+  `docs/14` como «fica para depois»; geram-se do que está publicado em cada
+  canal e mercado, com o preço total e a redução com o preço de referência dos
+  30 dias (`consumer-rights-eu`). Um feed tem só dados do produto, não dados
+  pessoais.
+- **As avaliações de quem comprou**, ligadas a uma encomenda entregue, com a
+  regra mostrada na loja (`consumer-rights-eu`, **W**). O pedido de avaliação
+  depois da entrega é um dos avisos fixos do §5, quando houver envio de
+  e-mails.
+- **Ficam de fora:** os pedidos e as filas da equipa criativa, o calendário
+  editorial, a publicação nas redes, as métricas, a gráfica, os textos com IA
+  e os directos. Um comerciante que queira ligar uma ferramenta de redes
+  sociais fá-lo por **extensão de terceiros** (`docs/08`), com a regra dos
+  dados na UE.
+
+Matar ou não é do Diogo ou do Bruno; a decisão DR põe este sector no produto,
+e estas portas dizem que, como módulo próprio, não se paga.
 
 ---
 
