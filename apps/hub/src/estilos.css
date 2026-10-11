@@ -953,11 +953,12 @@ textarea {
   color: var(--texto-secundario);
   overflow-wrap: anywhere;
 }
+/* Fica `list-item`, para manter a seta que diz que abre; a altura do alvo
+   de toque vem da linha. */
 .detalhes-rasto summary {
   cursor: pointer;
-  min-height: var(--alvo-minimo);
-  display: flex;
-  align-items: center;
+  line-height: var(--alvo-minimo);
+  text-decoration: underline;
 }
 .detalhes-rasto ul {
   margin: 0;

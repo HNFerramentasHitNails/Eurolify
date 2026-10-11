@@ -437,16 +437,6 @@ function Alteracao({
           <Valor entidade="rasto" campo="motivo" valor={rasto.motivo} />
         </p>
       )}
-      {rasto.detalhes.length === 0 ? null : (
-        <details className="detalhes-rasto">
-          <summary>{t.rastoDetalhes}</summary>
-          <ul>
-            {rasto.detalhes.map((d) => (
-              <li key={d}>{d}</li>
-            ))}
-          </ul>
-        </details>
-      )}
       <ul>
         {grupo.entradas.map((e) => (
           <li key={e.id} id={`entrada-${e.id}`} tabIndex={-1}>
@@ -481,6 +471,16 @@ function Alteracao({
           </li>
         ))}
       </ul>
+      {rasto.detalhes.length === 0 ? null : (
+        <details className="detalhes-rasto">
+          <summary>{t.rastoDetalhes}</summary>
+          <ul>
+            {rasto.detalhes.map((d) => (
+              <li key={d}>{d}</li>
+            ))}
+          </ul>
+        </details>
+      )}
     </li>
   );
 }
