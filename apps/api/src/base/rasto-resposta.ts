@@ -56,6 +56,12 @@ export const CamposDoAutor = {
     description:
       "pessoa: uma pessoa da equipa (também com IA declarada no pedido: quem executou foi ela); agente: uma chave de um agente de IA, ou uma chave com IA declarada no pedido; chave: uma chave sem IA declarada; consumidor: o cliente na compra (checkout:chk_…); prestador: o aviso de um prestador de pagamentos (prestador:…); sistema: uma tarefa do Eurolify ou uma consequência automática de outra alteração (sistema:…, catalogo:…); operador: o comando do operador; desconhecido: uma forma que esta lista não conhece (docs/28 §3.8)",
   }),
+  a_pedido_de_tipo: Type.Unsafe<TipoDeAutor | null>({
+    type: ["string", "null"],
+    enum: [...TIPOS_DE_AUTOR, null],
+    description:
+      "Numa alteração feita por uma tarefa (`sistema`), o tipo de quem a pediu — ex.: `agente` dá «sistema, a pedido de um agente». Vazio fora de uma tarefa, ou numa tarefa sem pedido de origem registado (docs/28 §3.7)",
+  }),
   sem_autorizacao_de_pessoa: Type.Union([Type.Boolean(), Type.Null()], {
     description:
       "Verdadeiro quando nenhuma pessoa ficou registada como quem autorizou, seja qual for a origem — um agente, uma chave, uma regra, uma importação ou uma tarefa (Diogo, 11/10/2026, docs/28 §3.6). Vazio (autorização desconhecida) numa linha sem contexto do rasto (`canal` vazio: de antes de 10/10/2026, ou escrita fora de um pedido): não se sabe se alguém autorizou, e não se afirma (RGPD, art. 5.º, n.º 1, al. d); Diogo, 11/10/2026, Q8). Calculado aqui: quem mostra não o recalcula",
@@ -81,6 +87,19 @@ export const CamposDoRasto = {
     "pessoa:per_… que confirmou a acção, separada de quem a executou; quando a pessoa age ela própria no Hub, é ela. Vazio: nenhuma pessoa do comerciante confirmou — uma chave nunca autoriza, o operador (operador:github:…) e as tarefas do sistema também não, e uma sessão do Hub com IA declarada não prova que a pessoa confirmou (docs/28 §3.2); com `canal` vazio, desconhecido",
   ),
   motivo: TextoOuVazio("O motivo, quando a operação o tem"),
+  a_pedido_de: Type.Union(
+    [
+      Type.Object({
+        pedido: TextoOuVazio("O pedido de origem"),
+        quem: TextoOuVazio("Quem o fez (pessoa:per_…, chave:key_…, …)"),
+      }),
+      Type.Null(),
+    ],
+    {
+      description:
+        "Numa alteração feita por uma tarefa, o pedido que a originou e quem o fez; a IA e quem autorizou já vêm herdados dele (Diogo, 11/10/2026, Q6; docs/28 §3.7). Vazio fora de uma tarefa, ou sem pedido de origem registado",
+    },
+  ),
   ...CamposDoAutor,
 };
 
@@ -97,6 +116,7 @@ export interface LinhaComRasto {
   ia: Record<string, string> | null;
   autorizado_por: string | null;
   motivo: string | null;
+  a_pedido_de: { pedido?: string; quem?: string } | null;
 }
 
 const ou = (v: string | undefined) => v ?? null;
@@ -112,20 +132,37 @@ const PREFIXOS_DE_AUTOR: Partial<Record<string, TipoDeAutor>> = {
 
 /** O tipo de autor e o aviso (docs/28 §3.6 e §3.8), sem identificar ninguém. */
 export function autorDoRasto(
-  l: Pick<LinhaComRasto, "quem" | "ia" | "autorizado_por" | "canal">,
-): { tipo_de_autor: TipoDeAutor; sem_autorizacao_de_pessoa: boolean | null } {
+  l: Pick<
+    LinhaComRasto,
+    "quem" | "ia" | "autorizado_por" | "canal" | "a_pedido_de"
+  >,
+): {
+  tipo_de_autor: TipoDeAutor;
+  a_pedido_de_tipo: TipoDeAutor | null;
+  sem_autorizacao_de_pessoa: boolean | null;
+} {
   const declarada = l.ia?.prova === "declarado" || l.ia?.prova === "comprovado";
   // As formas de `quem` que o código escreve (procuradas a 11/10/2026,
   // revisão do #349, P2-1); uma nova sem lugar aqui sai «desconhecido».
-  const prefixo = l.quem.slice(0, l.quem.indexOf(":") + 1);
-  const tipo: TipoDeAutor =
-    prefixo === "chave:"
+  const tipoDe = (quem: string): TipoDeAutor => {
+    const prefixo = quem.slice(0, quem.indexOf(":") + 1);
+    return prefixo === "chave:"
       ? declarada
         ? "agente"
         : "chave"
       : (PREFIXOS_DE_AUTOR[prefixo] ?? "desconhecido");
+  };
+  // A IA herdada é a do pedido de origem: numa tarefa, diz se quem pediu
+  // era um agente (§3.7).
+  const quemPediu = l.a_pedido_de?.quem;
   return {
-    tipo_de_autor: tipo,
+    tipo_de_autor: tipoDe(l.quem),
+    a_pedido_de_tipo:
+      l.a_pedido_de === null
+        ? null
+        : quemPediu === undefined
+          ? "desconhecido"
+          : tipoDe(quemPediu),
     // Uma pessoa registada: autorizou. Sem pessoa e com contexto: sem
     // autorização. Sem contexto: desconhecido (Q8, docs/28 §3.6).
     sem_autorizacao_de_pessoa:
@@ -153,6 +190,13 @@ export function respostasDoRasto(l: LinhaComRasto): RespostasDoRasto {
     },
     autorizado_por: l.autorizado_por,
     motivo: l.motivo,
+    a_pedido_de:
+      l.a_pedido_de === null
+        ? null
+        : {
+            pedido: l.a_pedido_de.pedido ?? null,
+            quem: l.a_pedido_de.quem ?? null,
+          },
     ...autorDoRasto(l),
   };
 }

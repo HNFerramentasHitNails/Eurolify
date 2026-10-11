@@ -38,6 +38,12 @@ export interface ColunasDoRasto {
   pedido: ColumnType<string | null, never, never>;
   ia: ColumnType<Record<string, string> | null, never, never>;
   autorizado_por: ColumnType<string | null, never, never>;
+  /** O pedido de origem de uma tarefa (0060; docs/28 §3.7). */
+  a_pedido_de: ColumnType<
+    { pedido?: string; quem?: string } | null,
+    never,
+    never
+  >;
 }
 
 /** O motivo, nas tabelas do rasto que não o tinham (0053). */

@@ -667,6 +667,11 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     // Cada passo traz as seis respostas do rasto (docs/28 §1; #322).
     for (const p of d["rasto"] as Json[]) {
       expect([null, "api", "sistema"]).toContain(p["canal"]);
+      // Os passos da tarefa dizem a pedido de quem (docs/28 §3.7; Q6).
+      if (p["canal"] === "sistema") {
+        expect(p["a_pedido_de"]).not.toBeNull();
+        expect(p["a_pedido_de_tipo"]).not.toBe("desconhecido");
+      }
       expect(typeof (p["ia"] as Json)["prova"]).toBe("string");
       expect(Object.keys(p)).toEqual(
         expect.arrayContaining(["pedido", "autorizado_por", "motivo"]),

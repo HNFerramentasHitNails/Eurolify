@@ -1250,6 +1250,26 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
     );
     expect((await correrTarefas(base.api, eupago.config)).expirados).toBe(1);
     delete eupago.respostas.info;
+    // A tarefa fez-se a pedido de quem criou o pagamento (o consumidor, no
+    // checkout): o rasto diz «sistema, a pedido do consumidor», com o pedido
+    // de origem e sem pessoa a autorizar (docs/28 §3.7; Diogo, Q6).
+    const transicoes = (
+      await ok(s.adm("GET", `/payments/${String(mbway["id"])}`))
+    )["transicoes"] as Json[];
+    const expirou = transicoes.find((t) => t["para"] === "expirado");
+    expect(expirou).toMatchObject({
+      canal: "sistema",
+      pedido: "tarefa:pagamentos",
+      tipo_de_autor: "sistema",
+      a_pedido_de_tipo: "consumidor",
+      sem_autorizacao_de_pessoa: true,
+    });
+    const origem = expirou?.["a_pedido_de"] as Json;
+    expect(String(origem["quem"])).toMatch(/^checkout:chk_/);
+    expect(String(origem["pedido"])).not.toMatch(/^tarefa:/);
+    // O pagamento criado pelo checkout tem o mesmo pedido de origem.
+    const criado = transicoes.find((t) => t["de"] === null);
+    expect(criado?.["pedido"]).toBe(origem["pedido"]);
     // O cliente paga então por Multibanco, e o aviso chega.
     const mb = await ok(
       pedir("POST", `/checkout/${k.token}/payment`, { metodo: "multibanco" }),

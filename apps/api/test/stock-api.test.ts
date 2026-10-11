@@ -984,15 +984,23 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
       autorizado_por: null,
     });
     expect(typeof linha[0]?.["pedido"]).toBe("string");
-    // A conclusão correu aqui fora do contexto do rasto (no servidor corre
-    // com o canal «sistema»): canal vazio, desconhecido, mesmo sendo de hoje
-    // (revisão do #345, P2-2); o motivo dela sai.
+    // A conclusão é uma tarefa feita a pedido de quem marcou a entrega (a
+    // chave da administração): «sistema, a pedido de uma chave», sem pessoa a
+    // autorizar (docs/28 §3.7; Diogo, 11/10/2026, Q6); o motivo dela sai.
     expect(linha.at(-1)).toMatchObject({
       para: "concluida",
-      canal: null,
-      // Sem contexto, a autorização é desconhecida (Q8, docs/28 §3.6).
-      sem_autorizacao_de_pessoa: null,
+      canal: "sistema",
+      pedido: "tarefa:conclusoes",
+      tipo_de_autor: "sistema",
+      a_pedido_de_tipo: "chave",
+      sem_autorizacao_de_pessoa: true,
     });
+    const origem = linha.at(-1)?.["a_pedido_de"] as Json;
+
+    expect(String(origem["quem"])).toMatch(/^chave:key_/);
+    expect(linha.find((t) => t["para"] === "entregue")?.["pedido"]).toBe(
+      origem["pedido"],
+    );
     expect(linha.at(-1)?.["motivo"]).toEqual(expect.any(String));
     for (const t of linha) {
       expect(Object.keys(t)).toEqual(
