@@ -48,6 +48,7 @@ grupo contam como **um** comprador.
 | Tarefas sobre um registo, 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ✅ | ◐ | ✅ | **estreitar e avançar com o núcleo** (§10) |
 | Painéis, 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ✅ | ✅ | ✅ | **estreitar** (§11) |
 | Comercial (camada C), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ✅ | **estreitar** (§12) |
+| Financeiro (camada D), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§13) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -487,6 +488,58 @@ um cliente. A relação comercial e os contratos são a fatia 14 (por fazer).
   jurista e o contabilista).
 - **Ficam de fora:** leads, etapas de prospecção e metas, até as conversas do
   `docs/32` dizerem que pesam.
+
+Decidir se se avança com esta saída é do Diogo ou do Bruno.
+
+## 13. Financeiro — a camada D, como um módulo (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. A
+camada D do `docs/31` §8 passa como **um** módulo, como o «Financeiro» do Hub
+actual. Skills abertas: `eurolify-finance-reconciliation-eu`,
+`payments-psd2-sca`, `eurolify-payment-readiness-eu`, `eu-vat-oss-ioss`,
+`eu-localization` (moeda e câmbio), `eu-gdpr-privacy`.
+
+**O que o Hub actual faz** (sequência 14 do `docs/31`; proposta comercial do
+Hub, p. 22; apresentação p. 3): a fatura do fornecedor em PDF ou fotografia →
+**leitura por IA** que propõe fornecedor, data, número, valores, taxas de IVA
+e categoria → uma pessoa confirma, corrige ou rejeita → saldos dos meios de
+pagamento e extractos bancários importados, cada movimento ligado ao que o
+explica → duplicados assinalados de noite; apagar pede aprovação → documentos
+por emitir → tesouraria, lucro por área, IVA e moeda estrangeira em euros.
+*«Um valor provisório nunca entra nas contas como se fosse gasto.»*
+
+**O que o Eurolify já tem** (lido no `main` e nos desenhos a 11/10/2026): a
+conciliação **pagamento a pagamento** contra o prestador, com a fila de
+diferenças (fatia 8, migração 0044, `docs/26` §3.6). O próprio `docs/26` §1
+deixa para «uma fatia financeira futura» **a conciliação com o extracto do
+banco e as liquidações do prestador**. Não há despesas.
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ✅ | Lição 3.8 do `docs/04`: **0 de 85 ordens de compra** tinham data de pagamento (22–23/09/2026); lição 4.11: uma despesa de **14.505 USD guardada como euros** (23/09/2026). O Hub actual tem o módulo em uso (proposta p. 22) |
+| 2 Não resolvido | ◐ | A contabilidade e o software de faturação do comerciante já tratam despesas e bancos (não verifiquei quais nem como); o Moloni tem faturas de fornecedor no menu da API (`eurolify/fontes-api-moloni-11out2026.md`). **No Eurolify falta** saber se o dinheiro das vendas chegou ao banco: o que o prestador liquidou, com que taxas e reembolsos, e em que depósito |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Despesas com IA, bancos, conciliação, duplicados, documentos por emitir, tesouraria, lucro por área, IVA e câmbio |
+| 6 Encaixe | ◐ | **Encaixa** a conciliação das vendas com as liquidações: é a continuação da fatia 8, e a skill já diz o que conciliar (bruto, desconto, imposto, envio, taxa, reembolso, estorno e líquido depositado, ponto 3). **Não encaixa sem decisões:** (a) **a leitura por IA** manda faturas de fornecedores a um modelo de IA — se o fornecedor do modelo estiver fora da UE e houver dados pessoais (um fornecedor empresário em nome individual, por exemplo), precisa de decisão escrita e acordo de transferência (`AGENTS.md`, «Regras da UE», regra 4); e a proposta da IA fica sempre por confirmar por uma pessoa (ADR-0040, no espírito); (b) **ligar às contas bancárias do comerciante por API** pode ser um serviço de pagamento regulado (informação sobre contas) — **não verifiquei, C**; um ficheiro de extracto carregado pelo comerciante não o é; (c) o **lucro por área** pede o custo do stock, que é regra do contabilista (§8, **C**); o Eurolify não faz lançamentos contabilísticos nem certifica contas (skill, último parágrafo) |
+| 7 Custo | ◐ | A conciliação das liquidações é média: cada prestador tem o seu relatório; a EuPago primeiro (não verifiquei se a API dela dá as liquidações). Os bancos, a IA e a tesouraria são fundos |
+| 8 Valor depressa | ◐ | A primeira liquidação conciliada mostra logo uma taxa ou um reembolso que não batia; mas pede o relatório do prestador ou o extracto carregado |
+
+**Saída: estreitar.**
+
+- **Primeiro alvo:** a **conciliação das liquidações** — o que a fatia 8
+  deixou para depois (`docs/26` §1). O comerciante carrega o relatório de
+  liquidações do prestador (ou o Eurolify lê-o pela API do prestador, se
+  houver) e o extracto do banco; cada depósito liga-se aos pagamentos, taxas
+  e reembolsos que o explicam, e o que não bate vai para a fila de diferenças
+  que já existe, com motivo, dono e prova. Montantes sempre com a moeda (e a
+  taxa e a data, se houver câmbio, lição 4.11). Um papel (o dono ou o
+  financeiro), um fluxo (confirmar que o dinheiro das vendas chegou).
+- **Investigar antes de desenhar:** as **despesas com leitura por IA** (onde
+  corre o modelo e com que acordo — regra 4; a confirmação por uma pessoa) e
+  a **ligação directa aos bancos** (se é serviço regulado, **C**).
+- **Ficam de fora:** a tesouraria, o lucro por área, os documentos por emitir
+  (já são da fatia 10) e o IVA de importação.
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.
 

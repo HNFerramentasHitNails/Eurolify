@@ -62,6 +62,11 @@ de gestão da empresa inteira, não só uma loja.
   checkout alojado (hoje o carrinho só nasce pela API da Loja). Investigar
   com o jurista as chamadas do dia e a carteira (perfis, contacto para
   vender, C) e as comissões (C). Pergunta 16c no guião.
+- **Financeiro (camada D) pelas 8 portas** (`docs/13` §13): ✅ ◐ ❔ ❔ ❌ ◐ ◐
+  ◐ → **estreitar**. Primeiro alvo: a conciliação das liquidações do
+  prestador com o extracto do banco, ligada à fila de diferenças (o `docs/26`
+  §1 já a deixava para depois). Investigar: despesas com IA (regra 4, onde
+  corre o modelo) e ligação directa aos bancos (serviço regulado? C).
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
