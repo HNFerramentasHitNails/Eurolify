@@ -283,7 +283,7 @@ também para os mercados e os canais (§10.1; `docs/06`, CW).
 | Listas de preços | `GET /price-lists`, `POST /price-lists`, `PATCH /price-lists/{id}` | prices:read / write | |
 | Preços de uma lista | `GET /price-lists/{id}/prices`, `PUT /price-lists/{id}/prices/{variantId}` | prices:read / write | o `PUT` cria a linha nova no histórico; recusa R4 |
 | Tirar um preço | `DELETE /price-lists/{id}/prices/{variantId}` | prices:write | fica no histórico |
-| Histórico | `GET /price-lists/{id}/prices/{variantId}/history` | prices:read | |
+| Histórico | `GET /price-lists/{id}/prices/{variantId}/history` | prices:read (quem mudou e quem autorizou: prices:history, `docs/28` §3.8) | |
 | Redução | `PUT /price-lists/{id}/prices/{variantId}/reduction`, `DELETE …/reduction` | prices:write | o servidor calcula o preço de referência (R6) |
 | Verificar preço para publicar | `GET /markets/{id}/price-check?variants=…` | prices:read | **não escreve**: devolve, por variante, `com_preco`, `gratuito` e o impedimento (é o que a C2 do Catálogo usa por dentro) |
 

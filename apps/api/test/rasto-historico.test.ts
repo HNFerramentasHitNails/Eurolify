@@ -27,6 +27,7 @@ const DESCONHECIDA = {
 
 describe("as respostas a partir de uma linha do rasto", () => {
   const vazia = {
+    quem: "catalogo:variante apagada",
     canal: null,
     pedido: null,
     ia: null,
@@ -35,7 +36,48 @@ describe("as respostas a partir de uma linha do rasto", () => {
   };
 
   it("uma linha de antes da 0053 fica toda desconhecida, com a IA explícita", () => {
-    expect(respostasDoRasto(vazia)).toEqual({ ...vazia, ia: DESCONHECIDA });
+    expect(respostasDoRasto(vazia)).toEqual({
+      canal: null,
+      pedido: null,
+      autorizado_por: null,
+      motivo: null,
+      ia: DESCONHECIDA,
+      // Um «quem» antigo sem forma reconhecida; sem pessoa a autorizar, o
+      // aviso aparece (docs/28 §3.6).
+      tipo_de_autor: "desconhecido",
+      sem_autorizacao_de_pessoa: true,
+    });
+  });
+
+  it.each([
+    ["pessoa:per_1", null, "pessoa"],
+    ["chave:key_1", null, "chave"],
+    ["chave:key_1", { prova: "declarado" }, "agente"],
+    ["sistema:encomendas", null, "sistema"],
+    ["operador:github:7", null, "operador"],
+    ["lixo", null, "desconhecido"],
+  ] as const)("o tipo de autor de %s com a IA %j é %s", (quem, ia, tipo) => {
+    expect(
+      respostasDoRasto({ ...vazia, quem, ia: ia === null ? null : { ...ia } })
+        .tipo_de_autor,
+    ).toBe(tipo);
+  });
+
+  it("o aviso vale para todas as origens sem pessoa a autorizar, e só para essas", () => {
+    for (const quem of ["chave:key_1", "sistema:x", "operador:github:1"]) {
+      expect(
+        respostasDoRasto({ ...vazia, quem, canal: "api" })
+          .sem_autorizacao_de_pessoa,
+      ).toBe(true);
+    }
+    expect(
+      respostasDoRasto({
+        ...vazia,
+        quem: "pessoa:per_1",
+        canal: "hub",
+        autorizado_por: "pessoa:per_1",
+      }).sem_autorizacao_de_pessoa,
+    ).toBe(false);
   });
 
   it("a IA declarada leva o que foi dito, e vazio o que não foi", () => {

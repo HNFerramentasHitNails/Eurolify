@@ -32,6 +32,34 @@ export const IaDoRastoNaResposta = Type.Object(
   { description: "A participação de IA (docs/28 §3.3)" },
 );
 
+export const TIPOS_DE_AUTOR = [
+  "pessoa",
+  "agente",
+  "chave",
+  "sistema",
+  "operador",
+  "desconhecido",
+] as const;
+export type TipoDeAutor = (typeof TIPOS_DE_AUTOR)[number];
+
+/**
+ * O que se diz de quem fez sem o identificar (docs/28 §3.6 e §3.8): o tipo
+ * de autor e o aviso. Vão também onde quem fez não se pode mostrar (o
+ * histórico de preços com `prices:read`, Q7).
+ */
+export const CamposDoAutor = {
+  tipo_de_autor: Type.Unsafe<TipoDeAutor>({
+    type: "string",
+    enum: [...TIPOS_DE_AUTOR],
+    description:
+      "pessoa: uma pessoa da equipa; agente: uma chave de um agente de IA ou um pedido com IA declarada; chave: uma chave sem IA declarada; sistema: uma tarefa do Eurolify; operador: o comando do operador; desconhecido: sem identificação reconhecida (docs/28 §3.8)",
+  }),
+  sem_autorizacao_de_pessoa: Type.Boolean({
+    description:
+      "Verdadeiro quando nenhuma pessoa ficou registada como quem autorizou, seja qual for a origem — um agente, uma chave, uma regra, uma importação, uma tarefa ou uma linha antiga sem contexto (Diogo, 11/10/2026, docs/28 §3.6). Calculado aqui: quem mostra não o recalcula",
+  }),
+};
+
 /** Os campos que cada entrada de uma linha do tempo ganha (docs/28 §1). */
 export const CamposDoRasto = {
   // Um texto com a lista em `enum` (não uma união de literais): um canal
@@ -51,6 +79,7 @@ export const CamposDoRasto = {
     "pessoa:per_… que confirmou a acção, separada de quem a executou; quando a pessoa age ela própria no Hub, é ela. Vazio: nenhuma pessoa do comerciante confirmou — uma chave nunca autoriza, o operador (operador:github:…) e as tarefas do sistema também não, e uma sessão do Hub com IA declarada não prova que a pessoa confirmou (docs/28 §3.2); com `canal` vazio, desconhecido",
   ),
   motivo: TextoOuVazio("O motivo, quando a operação o tem"),
+  ...CamposDoAutor,
 };
 
 export type RespostasDoRasto = {
@@ -59,6 +88,8 @@ export type RespostasDoRasto = {
 
 /** Uma linha de uma tabela do rasto (0053), como a base a devolve. */
 export interface LinhaComRasto {
+  /** Quem executou (`quem`, ou `definido_por` nos preços). */
+  quem: string;
   canal: string | null;
   pedido: string | null;
   ia: Record<string, string> | null;
@@ -67,6 +98,28 @@ export interface LinhaComRasto {
 }
 
 const ou = (v: string | undefined) => v ?? null;
+
+/** O tipo de autor e o aviso (docs/28 §3.6 e §3.8), sem identificar ninguém. */
+export function autorDoRasto(
+  l: Pick<LinhaComRasto, "quem" | "ia" | "autorizado_por">,
+): { tipo_de_autor: TipoDeAutor; sem_autorizacao_de_pessoa: boolean } {
+  const declarada = l.ia?.prova === "declarado" || l.ia?.prova === "comprovado";
+  const tipo: TipoDeAutor = l.quem.startsWith("pessoa:")
+    ? "pessoa"
+    : l.quem.startsWith("chave:")
+      ? declarada
+        ? "agente"
+        : "chave"
+      : l.quem.startsWith("sistema:")
+        ? "sistema"
+        : l.quem.startsWith("operador:")
+          ? "operador"
+          : "desconhecido";
+  return {
+    tipo_de_autor: tipo,
+    sem_autorizacao_de_pessoa: l.autorizado_por === null,
+  };
+}
 
 export function respostasDoRasto(l: LinhaComRasto): RespostasDoRasto {
   const ia = l.ia;
@@ -88,5 +141,6 @@ export function respostasDoRasto(l: LinhaComRasto): RespostasDoRasto {
     },
     autorizado_por: l.autorizado_por,
     motivo: l.motivo,
+    ...autorDoRasto(l),
   };
 }

@@ -782,6 +782,12 @@ export interface LinhaHistorico {
   preco_inclui_iva: boolean;
   em_vigor_desde: Date;
   definido_por: string;
+  /** O contexto do rasto (0053; docs/28 §1). */
+  canal: string | null;
+  pedido: string | null;
+  ia: Record<string, string> | null;
+  autorizado_por: string | null;
+  motivo: string | null;
 }
 
 /** O histórico de um preço, do mais antigo ao mais recente (§3.5). */
@@ -802,6 +808,11 @@ export async function historicoDoPreco(
         "preco_inclui_iva",
         "em_vigor_desde",
         "definido_por",
+        "canal",
+        "pedido",
+        "ia",
+        "autorizado_por",
+        "motivo",
       ])
       .where("lista_id", "=", listaId)
       .where("variante_id", "=", varianteId)

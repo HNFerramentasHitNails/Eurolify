@@ -90,6 +90,7 @@ dependem da P1 (§7).
 | `catalog:read`, `catalog:write`, `catalog:publish`, `catalog:import` | o Catálogo | `docs/14` §7 (já propostos) |
 | `catalog:history` | a linha do tempo do artigo, com quem fez (migração 0033) | `docs/14` §3.12; `docs/06`, CU |
 | `prices:read`, `prices:write` | Preços e mercados: mercados, canais, listas, preços e reduções (migração 0036) | `docs/20` §10.1; `docs/06`, CW |
+| `prices:history` | no histórico de um preço, quem mudou, quem autorizou, o pedido e o motivo; com `prices:read` só se vê o tipo de autor e o aviso «sem autorização de uma pessoa». Dono e gestor (migração 0059) | `docs/28` §3.8; `docs/06`, DO |
 | `customers:read`, `customers:write` | Clientes: fichas, etiquetas e a linha do tempo; ler os perfis de faturação (migração 0037) | `docs/23` §7; `docs/06`, CX |
 | `customers:billing` | Clientes: criar e mudar perfis de faturação (NIF, morada fiscal), consultar o VIES — só o dono (migração 0037) | `docs/23` §7; `docs/06`, CX |
 | `customers:exemptions` | Clientes: pôr e retirar a isenção manual de IVA — só o dono (migração 0039) | `docs/23` §13; `docs/06`, CY |
