@@ -1,6 +1,6 @@
 # Tarefas das filas que pedem uma pessoa — modelo e lista da API
 
-> **Estado: desenho aprovado** (issue #366; `docs/06`, DV). Diogo, 11/10/2026:
+> **Estado: desenho aprovado** (issue #366; `docs/06`, DW). Diogo, 11/10/2026:
 > *«começa o desenho da peça 21»* e *«sim, aprovo o desenho com as sete
 > filas»* (Q1 como proposta). É a peça 21 da Fase 1 (`docs/10`, 2,5–5
 > pessoas-semana desde a aprovação, **C**; eram 2–4 com quatro filas), que veio dos módulos de gestão pela decisão DS

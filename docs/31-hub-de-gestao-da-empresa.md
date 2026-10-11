@@ -431,7 +431,7 @@ pelas 8 portas e tem o seu desenho em tabela antes do código (ADR-0023).
 **Não estimei prazos**: a Fase 1 já está estimada em ~~17 a 32~~ ~~17 a 33~~
 18 a 33 meses a tempo inteiro (`docs/10` §9, hipótese **C**; 17 a 33 desde
 11/10/2026, com as duas peças da decisão DS, e 18 a 33 no mesmo dia, com as
-sete filas da peça 21, decisão DV), e esta lista acrescenta trabalho a essa conta.
+sete filas da peça 21, decisão DW), e esta lista acrescenta trabalho a essa conta.
 
 | Camada | Módulos | Porquê nesta ordem |
 |---|---|---|

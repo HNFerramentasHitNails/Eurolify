@@ -138,7 +138,7 @@ trazer dados pessoais (telefone do MB WAY, e-mail): **retenção** na §7.
 a resolve**; o sistema nunca a fecha sozinho (`AGENTS.md`, fiscal, regra 5;
 skill `eurolify-finance-reconciliation-eu`, 5).
 
-> *Nota de 11/10/2026 (decisão DV):* o `dono` não entrou na tabela
+> *Nota de 11/10/2026 (decisão DW):* o `dono` não entrou na tabela
 > (`0044_pagamentos.sql:380-399`). O responsável e o prazo de cada diferença
 > vivem na atribuição da peça 21 (`docs/33` §4.2), não aqui.
 

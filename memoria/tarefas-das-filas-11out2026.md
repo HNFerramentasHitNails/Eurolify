@@ -5,7 +5,7 @@
 Pedido do Diogo, 11/10/2026: *«começa o desenho da peça 21»* (issue #366;
 decisão DS, ADR-0043; `docs/13` §10). Escrito o
 `docs/33-tarefas-das-filas.md`, no pedido #368. **Aprovado** pelo Diogo a
-11/10/2026 (*«sim, aprovo o desenho com as sete filas»*; `docs/06`, DV). A
+11/10/2026 (*«sim, aprovo o desenho com as sete filas»*; `docs/06`, DW). A
 peça 21 passa a 2,5–5 pessoas-semana e a Fase 1 a 18 a 33 meses (32 a 60 a
 meio tempo), corrigido no `docs/10`, `docs/05`, `docs/31`, ADR-0008, ADR-0043
 e na memória da estimativa.
