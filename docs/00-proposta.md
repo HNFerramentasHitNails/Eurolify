@@ -29,8 +29,9 @@ separado:
 2. **Um Hub de gestão**, como o Hub interno que a Luckytarget já usa: o sítio onde o comerciante trabalha
    todos os dias — encomendas, clientes, stock, armazém, faturação, devoluções —
    adaptável a cada negócio. A partir da Fase 2, também **a gestão da empresa
-   inteira** — comercial, compras, financeiro, organização, pessoas e módulos
-   por sector —, em módulos que cada comerciante liga (ADR-0042).
+   inteira** — operação, comercial, compras, financeiro, parceiros e módulos
+   por sector —, em módulos que cada comerciante liga (ADR-0042; as saídas das
+   portas no ADR-0043).
 3. **As regras europeias de raiz**: IVA por país, validação de NIF, faturação
    legal em cada país, direitos do consumidor, segurança dos produtos, RGPD.
 4. **Aberto a qualquer IA**: o comerciante liga o seu assistente (Claude,
@@ -132,7 +133,12 @@ módulos por sector (fabrico, formação, marketing e gráfica), pessoas (RH,
 assiduidade) e parceiros (revendedores, distribuidores, franqueados). Cada
 módulo passa pelas 8 portas e tem o seu desenho antes do código; os de pessoas
 só com o jurista (biometria e direito do trabalho de cada país). A Fase 1 não
-muda.
+muda. *Actualizado no mesmo dia* (decisão DS,
+[ADR-0043](adr/0043-saidas-das-portas-dos-modulos-de-gestao.md)): pelas
+portas, **a organização, o marketing e gráfica e as pessoas não entram como
+módulos próprios** (as peças úteis vão para o Catálogo, o MCP de leitura ou
+extensões), e **duas peças passam para a Fase 1** — as tarefas das filas que
+pedem uma pessoa e a consulta das vendas do dia e do mês.
 
 ### 2.3 As regras europeias de raiz
 

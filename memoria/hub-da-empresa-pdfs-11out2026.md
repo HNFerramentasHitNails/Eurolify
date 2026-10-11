@@ -30,8 +30,90 @@ de gestão da empresa inteira, não só uma loja.
   `docs/eurolify/fontes-api-moloni-11out2026.md`. Lêem-se documentos
   alterados desde uma data (50 por pedido) e as linhas um a um; stock por
   artigo e armazém, e movimentos para inserir; sem avisos nem limites
-  escritos; token de 1 hora no endereço, renovação de 14 dias. Que a app de
-  POS aparece nos documentos: provável, não verificado. Remissão no `docs/29`.
+  escritos; token de 1 hora no endereço, renovação de 14 dias. ~~Que a app de
+  POS aparece nos documentos: provável, não verificado~~ — testado noutra
+  sessão (#360, §8 do ficheiro de fontes): as vendas de terminal vêm com
+  `terminal_id`; o stock do Moloni baixa sozinho com cada venda; o token só
+  no endereço; o `status` 2 por perceber. Remissão no `docs/29`.
+
+- **Compras e fornecedores pelas 8 portas** (pedido do Diogo, *«passa o
+  próximo módulo pelas 8 portas»*; `docs/13` §8): ✅ ◐ ❔ ❔ ❌ ◐ ◐ ◐ →
+  **estreitar**. Primeiro alvo: a entrada de stock que já existe passa a
+  dizer o fornecedor (NIF com o país) e o documento dele, com o lote; mais o
+  aviso de stock abaixo do mínimo. Fora: ordem de compra com estados (o
+  Moloni já a tem), Pareto, custo (contabilista, C), despesa (camada D).
+  Pergunta 16a acrescentada ao guião.
+- **Apoio ao cliente pelas 8 portas** (`docs/13` §9): ◐ ◐ ❔ ❔ ❌ ◐ ◐ ◐ →
+  **estreitar**. Primeiro alvo: o pedido de apoio sobre uma encomenda, aberto
+  na página da encomenda, com número, estado, responsável e linha do tempo;
+  depende do envio de e-mails (que não existe). Fora: formulário público,
+  encaminhamento por carteira (camada C). Pergunta 16b no guião.
+- **Tarefas sobre um registo pelas 8 portas** (`docs/13` §10): ✅ ◐ ❔ ❔ ❌ ✅
+  ◐ ✅ → **estreitar e avançar com o núcleo**. Primeiro alvo: dono, prazo e
+  aviso ao vencer nas quatro filas que já pedem uma pessoa (diferenças dos
+  pagamentos, documentos retidos, duplicados de clientes, prazo do
+  reembolso); **proposta de passar para a Fase 1**, por decidir e estimar.
+- **Painéis pelas 8 portas** (`docs/13` §11): ◐ ◐ ❔ ❔ ❌ ✅ ✅ ✅ →
+  **estreitar**. Primeiro alvo: vendas do dia e do mês (encomendado, pago,
+  faturado, devolvido; com e sem IVA; por canal e mercado), cada número com
+  como foi contado; uma consulta para o Hub e para o MCP de leitura da Fase 1
+  (proposta: a consulta na Fase 1, o ecrã na 2). Não há rotas de números no
+  `main`; o `apps/mcp` é o MCP da VPS. Camada B passada por inteiro.
+- **Comercial (camada C) pelas 8 portas** (`docs/13` §12): ✅ ◐ ❔ ❔ ❌ ◐ ◐
+  ✅ → **estreitar**. Primeiro alvo: a encomenda feita pela equipa — o
+  carrinho preparado para um cliente, com os preços dele, e a ligação do
+  checkout alojado (hoje o carrinho só nasce pela API da Loja). Investigar
+  com o jurista as chamadas do dia e a carteira (perfis, contacto para
+  vender, C) e as comissões (C). Pergunta 16c no guião.
+- **Financeiro (camada D) pelas 8 portas** (`docs/13` §13): ✅ ◐ ❔ ❔ ❌ ◐ ◐
+  ◐ → **estreitar**. Primeiro alvo: a conciliação das liquidações do
+  prestador com o extracto do banco, ligada à fila de diferenças (o `docs/26`
+  §1 já a deixava para depois). Investigar: despesas com IA (regra 4, onde
+  corre o modelo) e ligação directa aos bancos (serviço regulado? C).
+- **Organização (camada E) pelas 8 portas** (`docs/13` §14): ◐ ❌ ❔ ❔ ❌ ◐ ❌
+  ◐ → **matar como módulo próprio** (porta 2: projectos, chat, documentos e
+  calendário já existem e ligam-se). Os lançamentos agendados vão para o
+  Catálogo (não há no `docs/14`); o assistente interno é o MCP de leitura da
+  Fase 1. Decisão de matar por tomar (a DR põe a camada no produto).
+- **Fabrico (camada F) pelas 8 portas** (`docs/13` §15; a camada F passa
+  sector a sector): ✅ ◐ ❔ ❔ ❌ ✅ ◐ ◐ → **estreitar**. Primeiro alvo: a
+  versão da fórmula no artigo e no lote (já desenhada na
+  `product-compliance-eu`; caso do TPO, 01/09/2025, W), com a consulta do que
+  é afectado e o bloqueio decidido por uma pessoa; serve também quem revende.
+  Depois, o registo de fabrico mínimo. Fora: programação, Gantt, capacidade.
+- **Formação (camada F) pelas 8 portas** (`docs/13` §16): ✅ ◐ ❔ ❔ ❌ ◐ ◐ ◐ →
+  **estreitar, pela porta da fatia 12**. Primeiro alvo: a inscrição numa
+  formação com data, com o kit na mesma encomenda. O cancelamento faturado dá
+  nota de crédito, nunca apaga a fatura (o Hub actual «anula»). Fora:
+  plataforma de cursos, prestações (C), comissões (C).
+- **Marketing e gráfica (camada F) pelas 8 portas** (`docs/13` §17): ◐ ❌ ❔ ❔
+  ❌ ◐ ❌ ◐ → **matar como módulo próprio** (porta 2: ferramentas de redes e
+  de projectos já existem). Para o Catálogo: os feeds (já «fica para depois»
+  no `docs/14`) e as avaliações de quem comprou (regra W da
+  `consumer-rights-eu`). Riscos anotados: alegações ambientais (27/09/2026) e
+  dados de redes de fora da UE.
+- **Pessoas (camada G) pelas 8 portas** (`docs/13` §18): ◐ ❌ ❔ ❔ ❌ ❌ ❌ ◐ →
+  **matar como módulo próprio** (portas 2, 6 e 7). Fica a equipa e os papéis
+  do Hub (T8); ligar programas de RH por extensão; nenhuma biometria sem o
+  jurista. Nenhuma lição nem regra sobre RH nos `docs/03`, `04` e `17`.
+- **Parceiros (camada H) pelas 8 portas** (`docs/13` §19): ◐ ◐ ❔ ❔ ❌ ◐ ◐ ✅ →
+  **estreitar**. Primeiro alvo: o revendedor que compra para revender — a
+  relação comercial com a versão do contrato e a encomenda com a finalidade
+  «revenda», primeiro pela equipa (§12); a conta do parceiro depois (o
+  checkout da Fase 1 é sem conta). Exclusividades, preço de revenda e venda
+  online desligados até análise; franchising, marca própria e comissões com
+  o jurista. **Todas as camadas (B a H) passadas a 11/10/2026.**
+- **As saídas aprovadas** (Diogo, 11/10/2026: *«sim, aprovo as saídas
+  todas»*; decisão DS, ADR-0043): as treze do `docs/13` §7 a §19; E, marketing
+  e G mortos como módulos; **duas peças para a Fase 1** — as tarefas das filas
+  e a consulta das vendas — no `docs/05` e no `docs/10` (peças 21 e 22, por
+  estimar); lançamentos agendados e avaliações no `docs/14` («fica para
+  depois»); ADR-0042 marcado como completado.
+- **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
+  `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
+  27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
+  conhecidos para a porta 4); ficha sem nomes; proposta de critério da porta
+  3 (3 dos 5). Base legal e prazo das notas por verificar.
 
 ## Números (com data e como se contaram)
 
@@ -55,11 +137,16 @@ de gestão da empresa inteira, não só uma loja.
   o `docs/06` (DR), o `docs/13` e o `docs/31`. A exclusão antiga só estava no
   `docs/00` §2.2 (`grep` por «streaming», «marketing editorial» e «de uma
   empresa, não» em `docs/`, `README.md`, `AGENTS.md` e nas skills).
-- Só o balcão passou pelas 8 portas; nenhum módulo novo está estimado.
+- ~~Só o balcão passou pelas 8 portas~~ Todas as camadas B a H passaram pelas 8 portas a 11/10/2026 (`docs/13` §7 a §19); nenhum módulo novo está estimado.
 - Do balcão: os preços do Vendus vêm do texto da pesquisa (página ao vivo não
-  aberta); a API do Moloni foi lida mas **não testada** — as oito perguntas
-  para a sandbox estão no §7 do ficheiro de fontes; a conta de demonstração
-  ainda não foi pedida.
+  aberta); a API do Moloni foi lida e ~~não testada~~ **testada a 11/10/2026
+  noutra sessão** (#360; ficam o `status` 2 e se os terminais são a app de iPhone); a conta de demonstração
+  ainda não foi pedida. *Mais tarde, a 11/10:* a subscrição da conta antiga
+  expirou; o Diogo criou uma conta trial e pôs as quatro variáveis
+  `MOLONI_*` no ambiente (lêem-se numa sessão nova). Regras dos testes no §7
+  do ficheiro de fontes: ler livre, escrever só com OK, **nenhuma venda nem
+  documento fechado antes de o Moloni confirmar que não seguem para a AT**;
+  as chaves que apareceram numa captura não se usam.
 - Todas as regras fiscais e legais do PDF ficam **C** (isenção da formação,
   bilhete de evento, biometria no trabalho, relatório da autoridade dos
   cosméticos, rótulo, prestações).

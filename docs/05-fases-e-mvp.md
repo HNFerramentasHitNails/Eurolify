@@ -83,6 +83,17 @@ pela lista da API dele escritos em tabela.
   leitura**, pacote para construtores de frontends.
 - **Os adaptadores do próprio Eurolify** (pagamentos, envios, faturação)
   escritos com os contratos de extensão, como se fossem de terceiros (requisito K).
+- **Duas peças que vieram dos módulos de gestão** (decisão DS,
+  [ADR-0043](adr/0043-saidas-das-portas-dos-modulos-de-gestao.md),
+  11/10/2026; **por estimar**):
+  - **as tarefas das filas que pedem uma pessoa** — dono, prazo, estado e
+    aviso ao vencer nas filas da Fase 1 (diferenças dos pagamentos, documentos
+    retidos, incertos e divergentes, candidatos a duplicado, prazo do
+    reembolso), decididas uma a uma no ecrã de cada fila (`docs/13` §10);
+  - **a consulta das vendas do dia e do mês** — encomendado, pago, faturado e
+    devolvido, com e sem IVA, por canal e mercado, cada número com o que
+    conta; serve o MCP de leitura (o ecrã do painel é da Fase 2; `docs/13`
+    §11).
 - Hub do Eurolify mínimo: definições, encomendas, registo de integrações e de
   webhooks, auditoria.
 
@@ -91,7 +102,8 @@ software certificado de cada comerciante), emissão por adaptador fora de
 Portugal (entra país a país), troca e carteira, vários armazéns,
 marketplace, escrita por IA, protocolos de comércio por agentes, extensões
 abertas a qualquer programador, e **os módulos de gestão da empresa** (a
-partir da Fase 2, ADR-0042).
+partir da Fase 2, ADR-0042), salvo as duas peças da decisão DS que entram
+acima (as tarefas das filas e a consulta das vendas).
 
 **Antes do primeiro comerciante de fora:** o motor de IVA validado pelo
 contabilista, os fluxos do consumidor validados por jurista, o contrato com
@@ -154,15 +166,21 @@ crédito (decisão AD).
     comissões sobre o faturado, metas;
   - **D. Financeiro:** despesas com leitura por IA e decisão de uma pessoa,
     extractos e conciliação, tesouraria, lucro por área;
-  - **E. Organização:** projectos, procedimentos e objectivos, comunicação
-    interna;
+  - ~~**E. Organização:** projectos, procedimentos e objectivos, comunicação
+    interna~~ — **não entra como módulo** (DS, ADR-0043): os lançamentos
+    agendados vão para o Catálogo; o assistente interno é o MCP de leitura;
   - **F. Por sector:** fabrico (fórmulas, lotes de enchimento, rótulos),
-    formação (fatia 12), marketing e gráfica;
-  - **G. Pessoas:** RH, assiduidade, férias, fecho do mês — **só com o
-    jurista** (dados biométricos e direito do trabalho de cada país, não
-    verificados);
+    formação (fatia 12); ~~marketing e gráfica~~ — **não entra como módulo**
+    (DS): os feeds do catálogo e as avaliações de quem comprou vão para o
+    Catálogo;
+  - ~~**G. Pessoas:** RH, assiduidade, férias, fecho do mês~~ — **não entra
+    como módulo** (DS): fica a equipa e os papéis do Hub; um programa de RH
+    liga-se por extensão; **nenhuma biometria** sem o jurista;
   - **H. Parceiros:** portais de revendedor, distribuidor, franqueado e
     formador (fatia 14).
+
+  **Os primeiros alvos de cada módulo** são os do `docs/13` §7 a §19,
+  aprovados a 11/10/2026 (decisão DS).
 
   O balcão, o armazém completo, as automações e os parceiros já estavam nesta
   fase (bullets acima); o ADR-0042 junta-lhes o resto. Cada módulo passa pelas
