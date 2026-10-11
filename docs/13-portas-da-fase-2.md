@@ -11,6 +11,14 @@
 >
 > ✅ **04/10/2026:** as três propostas de mudança de fase foram aceites pelo
 > Diogo (decisão AD, [ADR-0022](adr/0022-tres-pecas-da-fase-2-para-a-fase-1.md)).
+>
+> ➕ **11/10/2026:** a gestão da empresa inteira entra a partir da Fase 2, em
+> módulos ligáveis (decisão DQ,
+> [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)). Os módulos
+> novos — camadas B a H do
+> [`31-hub-de-gestao-da-empresa.md`](31-hub-de-gestao-da-empresa.md) §8 —
+> **ainda não passaram por estas portas**; o `docs/31` §4 dá só a natureza e o
+> estado de cada um. Cada um passa aqui antes de ser desenhado.
 
 **Legenda:** ✅ passa · ◐ em parte · ❌ falha · ❔ não se sabe.
 
@@ -166,6 +174,8 @@ do repositório `mart337i/odoo-skills`, memória
 o mecanismo quando houver pelo menos dois módulos pagos que passem as
 portas**. Hoje, pelo resultado acima, os candidatos são a emissão noutros
 países (por país) e os vários armazéns — ambos ainda por investigar.
+Com a decisão DQ (11/10/2026), os módulos de gestão da empresa juntam-se aos
+candidatos, quando passarem as portas.
 
 ## O que isto pede ao Diogo ou ao Bruno
 

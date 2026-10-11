@@ -12,19 +12,21 @@
 > não (`AGENTS.md`, «Marca própria»). O Hub actual serve **só como fonte de
 > regras e de casos** — herda-se o desenho, não o código (`docs/00` §3).
 >
-> **Estado:** desenho de âmbito. **Não decide nada**: o que entra no produto,
-> e em que fase, decide o Diogo ou o Bruno. As regras fiscais e legais aqui
+> **Estado:** desenho de âmbito. ✅ **Âmbito decidido a 11/10/2026** pelo
+> Diogo (opção a) do §10; decisão DQ,
+> [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)). Construir
+> cada módulo continua a ser decisão do Diogo ou do Bruno. As regras fiscais e legais aqui
 > citadas são as do Hub actual; nenhuma foi verificada outra vez nesta
 > versão, e as que não têm linha no `docs/03` ficam **C**.
 
 ## 🔴 O que este pedido muda
 
-O `docs/00-proposta.md` §2.2 diz hoje: *«O que não entra: assiduidade,
+O `docs/00-proposta.md` §2.2 dizia: *«O que não entra: assiduidade,
 marketing editorial, streaming, gráfica — são de uma empresa, não de uma
-loja.»* O pedido de 11/10/2026 vai no sentido contrário: o Eurolify passa a
-ser **também** o sistema de gestão da empresa do comerciante. Até o Diogo ou
-o Bruno decidirem (§10), o `docs/00` continua como está e este documento é
-só o mapa.
+loja.»* O pedido de 11/10/2026 foi no sentido contrário: o Eurolify passa a
+ser **também** o sistema de gestão da empresa do comerciante. **Decidido a
+11/10/2026** (§10, opção a), ADR-0042): em módulos ligáveis a partir da Fase
+2; o `docs/00` §2.2, o `docs/05` e o `docs/13` já o dizem.
 
 ## 1. O Hub numa página
 
@@ -417,7 +419,7 @@ desta proposta, cabem na fonte 9 do `docs/09` («Serviços: migração,
 configuração, formação; instalação dedicada»). Não estimei o preço nem o
 esforço de nenhum dos dois.
 
-## 8. Proposta de ordem, se o âmbito for aceite
+## 8. Proposta de ordem (âmbito aceite a 11/10/2026, ADR-0042)
 
 Por camadas, da mais ligada ao núcleo à mais afastada. Cada módulo passa
 pelas 8 portas e tem o seu desenho em tabela antes do código (ADR-0023).
@@ -438,8 +440,8 @@ essa conta.
 
 ## 9. Choques com o que está decidido
 
-1. **`docs/00` §2.2** exclui assiduidade, marketing editorial, streaming e
-   gráfica. O pedido de 11/10/2026 inclui-os → decisão pedida (§10).
+1. **`docs/00` §2.2** excluía assiduidade, marketing editorial, streaming e
+   gráfica. O pedido de 11/10/2026 inclui-os → decidido no §10 (ADR-0042).
 2. **ADR-0040** (IA só lê na Fase 1): o assistente interno e o assistente de
    marketing do Hub escrevem. No Eurolify ficam a ler até à Fase 3, ou o
    ADR muda.
@@ -457,6 +459,9 @@ essa conta.
 ## 10. A decisão pedida
 
 **O Hub da empresa inteira entra no produto Eurolify?**
+
+✅ **Decidido a 11/10/2026: a)** — Diogo, *«a, actualiza o docs/00 e o
+docs/05»* (decisão DQ, [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)).
 
 | Opção | O que quer dizer |
 |---|---|

@@ -32,9 +32,14 @@ de gestão da empresa inteira, não só uma loja.
 
 ## O que ficou por verificar
 
-- A decisão de âmbito (`docs/31` §10): o `docs/00` §2.2 exclui assiduidade,
-  marketing editorial, streaming e gráfica; o pedido inclui-os. Recomendada a
-  opção a) — módulos ligáveis a partir da Fase 2.
+- ~~A decisão de âmbito (`docs/31` §10)~~ **Decidida a 11/10/2026** pelo Diogo
+  (*«a, actualiza o docs/00 e o docs/05»*): a gestão da empresa entra em
+  módulos ligáveis a partir da Fase 2 (decisão DQ, ADR-0042). Actualizados o
+  `docs/00` (§2.2, §4, §6, §7), o `docs/05` (Fase 1 «fica de fora» e Fase 2),
+  o `docs/06` (DQ), o `docs/13` e o `docs/31`. A exclusão antiga só estava no
+  `docs/00` §2.2 (`grep` por «streaming», «marketing editorial» e «de uma
+  empresa, não» em `docs/`, `README.md`, `AGENTS.md` e nas skills).
+- Nenhum módulo novo passou ainda pelas 8 portas nem está estimado.
 - Todas as regras fiscais e legais do PDF ficam **C** (isenção da formação,
   bilhete de evento, biometria no trabalho, relatório da autoridade dos
   cosméticos, rótulo, prestações).

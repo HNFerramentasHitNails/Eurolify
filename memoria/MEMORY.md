@@ -127,4 +127,4 @@
 
 ## Âmbito do produto
 
-- [Hub da empresa inteira (#355): os dois PDFs do Hub actual lidos; docs/31 com as 15 sequências, os 32 módulos (7 núcleo, 20 gestão, 5 sectoriais), integrações e modelo comercial; choca com o docs/00 §2.2; decisão de âmbito pedida — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
+- [Hub da empresa inteira (#355): os dois PDFs do Hub actual lidos; docs/31 com as 15 sequências, os 32 módulos (7 núcleo, 20 gestão, 5 sectoriais), integrações e modelo comercial; decidido: módulos ligáveis a partir da Fase 2 (DQ, ADR-0042) — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
