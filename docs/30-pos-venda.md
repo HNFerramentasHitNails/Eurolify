@@ -601,7 +601,8 @@ dizer **a quem e como**.
   sai só o de passado.
 - **Um pedido feito fora do prazo e aceite pela loja** (um gesto comercial)
   **não tem aviso nem prazo de reembolso**: o prazo legal pressupõe uma livre
-  resolução no prazo (A1; revisão do #353, P2-4; **C**, J4). Sem isto, o
+  resolução no prazo (A1; revisão do #353, P2-4; **C**, J4). **Confirmado
+  pelo Diogo a 11/10/2026** (*«confirmo»*). Sem isto, o
   primeiro aviso seria «passou» no momento em que a loja aceita.
 - **Fechada ou cancelada, a devolução já não conta os dias**
   (`dias_para_reembolsar` nulo); o último dia continua a ver-se.
@@ -626,3 +627,98 @@ dizer **a quem e como**.
 - **Por fazer:** o e-mail ao comerciante (quando houver notificações) e o
   ecrã do Hub (quando houver a pós-venda no Hub).
 
+## 15. A marca «selado por higiene» (R4; desenho, 11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«avança com o selado por higiene»*.
+**Aprovado pelo Diogo a 11/10/2026** (*«aprovado»*, à Q10; `docs/06`, DT). A R4 e a Q5
+já dizem que uma linha `aberto` de um artigo selado por higiene não volta a
+stock; a parte 1 aplicou a Q5 a tudo, porque a marca não existia (§12).
+
+### 15.1 A regra (lida a 11/10/2026)
+
+Directiva 2011/83/UE, texto original em português, lido no Serviço das
+Publicações da UE (`publications.europa.eu`, CELEX 32011L0083, JO L 304 de
+22/11/2011; o EUR-Lex não abre a partir desta máquina) — **W · texto lido**;
+a versão consolidada (Omnibus, Directiva 2019/2161) **não verifiquei**:
+
+- **Art. 16.º, alínea e):** os Estados-membros não preveem o direito de
+  retractação «ao fornecimento de bens selados não susceptíveis de devolução
+  por motivos de protecção da saúde ou de higiene quando abertos após a
+  entrega».
+- **Art. 6.º, n.º 1, alínea k):** antes do contrato, o profissional informa
+  «as circunstâncias em que o consumidor perde o seu direito de
+  retractação».
+
+Que artigos estão abrangidos (uma cosmética selada, sim; um frasco que se
+abre para ver, talvez) e a redacção da informação em cada país são **C**
+(J2, J5). Exemplo: um verniz de gel de 12,30 € com película de selo; o
+cliente pode desistir enquanto o selo estiver intacto; aberto, perde o
+direito.
+
+### 15.2 Propostas
+
+| # | O quê | Proposta | Fonte |
+|---|---|---|---|
+| H1 | **Onde fica a marca** | no **artigo** (`selado_por_higiene`, por omissão não), posta pelo comerciante, só num artigo `bem`. É dele a decisão de que o artigo cabe na excepção (**C**, J2) | art. 16.º, e); `product-compliance-eu` |
+| H2 | **A marca fica na encomenda** | **copia-se para a linha da encomenda** no botão final, como o preço e o IVA: uma devolução julga-se pelo que o cliente comprou e foi informado, não pela marca de hoje | `consumer-rights-eu` («prova contratual») |
+| H3 | **Informar o cliente** | a API da Loja mostra a marca no artigo, no resumo do checkout e na confirmação da encomenda (por linha), para a página e o checkout dizerem que o direito se perde se o selo for aberto. O texto em si é um texto legal por país (**C**, J5) e entra com a parte 2 do checkout | art. 6.º, n.º 1, k) |
+| H4 | **O botão continua a servir** | um artigo selado pode devolver-se por livre resolução enquanto o selo estiver intacto: o botão não o esconde | art. 16.º, e) («quando abertos») |
+| H5 | **A inspecção** | numa linha marcada, a pessoa diz se o selo voltou intacto (`revendavel`) ou aberto (`aberto`); como hoje, só o `revendavel` volta a stock | R4, Q5 |
+| H6 | **A decisão** | numa linha marcada que voltou **aberta**, a decisão diz **explicitamente** se reembolsa (gesto da loja) ou aplica a excepção (`excepcao_higiene`, sem reembolso dessa linha). **Sem escolha por omissão**: o sistema não decide sozinho que o cliente perdeu o direito | lição «nunca deixar o sistema escolher sozinho» (`AGENTS.md`) |
+| H7 | **O que não muda** | um problema (artigo que chegou danificado) não é livre resolução: a marca não se aplica | §1 |
+
+### 15.3 Pergunta para o Diogo ou o Bruno
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q10 ✅ sim (Diogo, 11/10/2026) | Aprovas a marca **no artigo, copiada para a linha da encomenda**, a informação na API da Loja (o texto legal com o checkout), e a **decisão explícita, linha a linha**, sobre uma linha marcada que voltou aberta (reembolsar ou aplicar a excepção)? | sim |
+
+### 15.4 Em código (11/10/2026; migração 0065; `docs/06`, DT)
+
+| O quê | Onde |
+|---|---|
+| H1: `artigo.selado_por_higiene`, por omissão não; muda-se pelo `PATCH /products/{id}` (e pelo do Hub); a base recusa-a num artigo que não seja físico (`catalog.nature_incompatible`) | migração 0065; `src/catalogo/` |
+| H2: `linha_encomenda.selado_por_higiene`, copiada do resumo no botão final; a base confere que é a marca do artigo nesse instante e recusa com `checkout.total_changed` | migração 0065; `src/checkout/repositorio.ts` |
+| H3: a marca por linha no resumo do checkout, na encomenda e na confirmação, e nas linhas do botão de livre resolução; entra na impressão do resumo só quando existe (mudada entre o resumo e o botão, não há encomenda) | `src/checkout/`; `src/posvenda/` |
+| H6: `linha_devolucao.decisao_higiene` (`reembolsar` ou `excepcao_higiene`), dada no `POST /returns/{id}/decide` ou `/close` em `higiene`; a leitura da devolução diz `higiene_a_decidir` por linha. A base: só numa linha marcada, de livre resolução e `aberto`; só com a devolução inspeccionada; não volta a vazia; sem ela não se decide nem se fecha; a excepção não vai num reembolso, «reembolsar» vai, e não se fecha sem reembolso com «reembolsar» | migração 0065; `src/posvenda/` |
+| 3 testes pela API (com os da revisão do #363); 25 mutações, 24 apanhadas e uma equivalente (a verificação «reembolsar fora do reembolso» no código, que a base faz com o mesmo erro) | `test/posvenda-api.test.ts` |
+
+**Desvios do desenho:**
+- **A migração é a 0065:** a 0064 é a do #364 (rasto), que entrou primeiro.
+  A ordem contava (revisão do #363, P1-1): o migrador recusa um número
+  abaixo de um já aplicado, e os testes, que criam a base de raiz, não o
+  apanham.
+- **H3 «no artigo»:** a API da Loja não tem leitura de artigos (procurado
+  em `src/`, rotas `/store/…`, a 11/10/2026); a marca vai na API de
+  Administração do artigo e, para o cliente, no resumo, na confirmação e no
+  botão de livre resolução. O carrinho não a mostra (não mostra o artigo).
+- **H7, alargada:** a decisão só existe numa devolução de **livre
+  resolução** (também a de um pedido registado pelo apoio, que abre uma
+  devolução `livre_resolucao`); numa devolução `comercial` ou `apoio` a marca
+  não pede nem aceita decisão (não é retractação). Um reembolso de um
+  problema ou de um cancelamento não olha para a excepção.
+- **Só «aberto» pede a decisão** (H5): uma linha marcada inspeccionada
+  `danificado` ou `em_falta` não pede decisão; aberta e danificada, quem
+  inspecciona diz `aberto` (revisão do #363, P2-6).
+- **Prova de que o cliente foi informado** (revisão do #363, P2-3): a marca
+  na linha diz o que o ecrã recebeu, não que o texto legal o explicava. O
+  texto entra com a parte 2 do checkout (Q10); até lá, a excepção aplica-se
+  só com o texto de livre resolução aceite na encomenda a dizê-lo (**C**, J2
+  e J5), o que o sistema ainda não confere.
+- **Quem decide** (revisão do #363, P3-2 e P3-3): a decisão exige
+  `refunds:write`, que uma chave de uma IA pode ter; o H6 diz «uma pessoa».
+  A devolução não tem tabela de rasto (só os eventos; procurado nas
+  migrações a 11/10/2026), por isso o aviso «sem autorização de uma pessoa»
+  (DO) não a cobre, e a decisão por linha guarda só o valor final. Fica para
+  quando a pós-venda tiver rasto.
+- **A marca põe-se pelo `PATCH`**, não na criação nem na importação: um
+  artigo pode ser publicado antes de marcado (P3-8). Num kit vale a marca do
+  artigo do kit, não a dos componentes (P3-9). As linhas de encomendas de
+  antes da 0065 ficam sem a marca (P3-6). Os eventos da devolução não dizem
+  que a recusa foi por higiene (P3-10).
+- **Um estado por linha:** a inspecção diz um estado por linha; duas
+  unidades da mesma linha, uma aberta e outra não, não se distinguem (era
+  assim desde a parte 1).
+- **Por fazer:** o texto legal a mostrar ao cliente, por país (**C**, J5,
+  com a parte 2 do checkout); a marca na exportação e na importação do
+  catálogo; o ecrã do Hub (com a pós-venda no Hub).
