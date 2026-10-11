@@ -44,6 +44,42 @@ export interface ContextoRasto {
   /** `pessoa:per_…`: só com prova de que uma pessoa confirmou (§3.2). */
   autorizadoPor?: string;
   motivo?: string;
+  /**
+   * O pedido de origem de uma tarefa (docs/28 §3.7): o pedido e quem o fez.
+   * Põe-no só quem corre uma tarefa com origem (`comOrigemDaTarefa`).
+   */
+  aPedidoDe?: { pedido?: string; quem?: string };
+}
+
+/** A origem de uma tarefa como a base a guarda (0060, `tarefa_origem()`). */
+export interface OrigemDaTarefa {
+  a_pedido_de?: { pedido?: string; quem?: string };
+  autorizado_por?: string;
+  ia?: IaDoRasto;
+}
+
+/**
+ * O contexto de uma tarefa do servidor (docs/28 §3.7; Diogo, 11/10/2026,
+ * Q6): o canal «sistema» e o pedido `tarefa:<nome>` e, se a tarefa tiver
+ * origem, o pedido de origem, quem autorizou e a IA **herdados** — uma
+ * tarefa pedida por um agente sem pessoa a autorizar continua sem
+ * autorização de uma pessoa.
+ */
+export function contextoDaTarefa(
+  nome: string,
+  origem: OrigemDaTarefa | null,
+): ContextoRasto {
+  return {
+    canal: "sistema",
+    pedido: `tarefa:${nome}`,
+    ...(origem?.a_pedido_de === undefined
+      ? {}
+      : { aPedidoDe: origem.a_pedido_de }),
+    ...(origem?.autorizado_por === undefined
+      ? {}
+      : { autorizadoPor: origem.autorizado_por }),
+    ...(origem?.ia === undefined ? {} : { ia: origem.ia }),
+  };
 }
 
 const armazem = new AsyncLocalStorage<ContextoRasto>();
@@ -112,7 +148,10 @@ export async function aplicarRasto(
   contexto: ContextoRasto | undefined = rastoActual(),
 ): Promise<void> {
   const ia = contexto?.ia === undefined ? "" : JSON.stringify(contexto.ia);
+  const aPedidoDe =
+    contexto?.aPedidoDe === undefined ? "" : JSON.stringify(contexto.aPedidoDe);
   await sql`select
+      set_config('eurolify.a_pedido_de', ${aPedidoDe}, true),
       set_config('eurolify.canal', ${contexto?.canal ?? ""}, true),
       set_config('eurolify.pedido', ${contexto?.pedido ?? ""}, true),
       set_config('eurolify.ia', ${ia}, true),

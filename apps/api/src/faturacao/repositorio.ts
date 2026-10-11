@@ -1,4 +1,9 @@
 import { createHash } from "node:crypto";
+import {
+  comRasto,
+  contextoDaTarefa,
+  type OrigemDaTarefa,
+} from "../base/rasto.js";
 import { sql, type Kysely, type Transaction } from "kysely";
 import type {
   BaseDados,
@@ -1841,54 +1846,62 @@ export async function correrDocumentos(
     c: string;
   }>`select documentos_comerciantes_com_trabalho() as c`.execute(db);
   for (const { c } of rows) {
-    const ids = await noDocumentos(db, c, async (trx) =>
-      (
-        await sql<{
-          id: string;
-        }>`select documentos_a_tratar(${porVolta}) as id`.execute(trx)
-      ).rows.map((x) => x.id),
+    const tarefas = await noDocumentos(
+      db,
+      c,
+      async (trx) =>
+        (
+          await sql<{
+            id: string;
+            origem: OrigemDaTarefa | null;
+          }>`select d as id, tarefa_origem('documento', d) as origem
+           from documentos_a_tratar(${porVolta}) as d`.execute(trx)
+        ).rows,
     );
-    for (const id of ids) {
-      try {
-        // No máximo 4 passos por volta: verificar, rascunho, fechar, provar.
-        for (let i = 0; i < 4; i++) {
-          const antes = await noDocumentos(db, c, (trx) =>
-            trx
-              .selectFrom("documento_fiscal")
-              .select(["estado", "proxima_em"])
-              .where("id", "=", id)
-              .executeTakeFirstOrThrow(),
-          );
-          if (
-            !["a_verificar", "pronto", "rascunho", "incerto"].includes(
-              antes.estado,
-            ) ||
-            antes.proxima_em.getTime() > Date.now()
-          ) {
-            break;
-          }
-          const depois = await processarDocumento(db, c, id, cfg);
-          r.passos += 1;
-          if (depois === antes.estado) break;
-        }
-      } catch (erro) {
-        // Perdeu a corrida para outra volta ou para uma pessoa: não é falha.
-        if (
-          erro instanceof ErroDocumentos &&
-          erro.codigo === "invoices.version_conflict"
-        ) {
-          continue;
-        }
-        r.erros.push({
-          documento: id,
-          erro: erro instanceof Error ? erro.message.slice(0, 200) : "erro",
-        });
+    for (const { id, origem } of tarefas) {
+      // Cada documento com a origem de quem o pediu (docs/28 §3.7; Q6).
+      await comRasto(contextoDaTarefa("documentos", origem), async () => {
         try {
-          await registarFalha(db, c, id, erro);
-        } catch {
-          // Fica para a volta seguinte.
+          // No máximo 4 passos por volta: verificar, rascunho, fechar, provar.
+          for (let i = 0; i < 4; i++) {
+            const antes = await noDocumentos(db, c, (trx) =>
+              trx
+                .selectFrom("documento_fiscal")
+                .select(["estado", "proxima_em"])
+                .where("id", "=", id)
+                .executeTakeFirstOrThrow(),
+            );
+            if (
+              !["a_verificar", "pronto", "rascunho", "incerto"].includes(
+                antes.estado,
+              ) ||
+              antes.proxima_em.getTime() > Date.now()
+            ) {
+              break;
+            }
+            const depois = await processarDocumento(db, c, id, cfg);
+            r.passos += 1;
+            if (depois === antes.estado) break;
+          }
+        } catch (erro) {
+          // Perdeu a corrida para outra volta ou para uma pessoa: não é falha.
+          if (
+            erro instanceof ErroDocumentos &&
+            erro.codigo === "invoices.version_conflict"
+          ) {
+            return;
+          }
+          r.erros.push({
+            documento: id,
+            erro: erro instanceof Error ? erro.message.slice(0, 200) : "erro",
+          });
+          try {
+            await registarFalha(db, c, id, erro);
+          } catch {
+            // Fica para a volta seguinte.
+          }
         }
-      }
+      });
     }
   }
   return r;
@@ -2333,6 +2346,7 @@ export async function lerDocumento(
         "pedido",
         "ia",
         "autorizado_por",
+        "a_pedido_de",
       ])
       .where("documento_id", "=", id)
       .orderBy("em")

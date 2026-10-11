@@ -1,4 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
+import {
+  comRasto,
+  contextoDaTarefa,
+  type OrigemDaTarefa,
+} from "../base/rasto.js";
 import { sql, type Kysely, type Transaction } from "kysely";
 import type {
   BaseDados,
@@ -1306,15 +1311,19 @@ export async function correrTarefas(
           await sql<{
             alvo_tipo: "pagamento" | "encomenda";
             alvo_id: string;
-          }>`select * from pagamentos_tarefas(${porVolta})`.execute(trx)
+            origem: OrigemDaTarefa | null;
+          }>`select t.alvo_tipo, t.alvo_id,
+               tarefa_origem(t.alvo_tipo, t.alvo_id) as origem
+             from pagamentos_tarefas(${porVolta}) t`.execute(trx)
         ).rows,
     );
     for (const t of tarefas) {
-      if (t.alvo_tipo === "pagamento") {
-        await tarefaDoPagamento(db, c, t.alvo_id, cfg, r);
-      } else {
-        await tarefaDaEncomenda(db, c, t.alvo_id, r);
-      }
+      // Cada tarefa com a origem de quem a pediu (docs/28 §3.7; Q6).
+      await comRasto(contextoDaTarefa("pagamentos", t.origem), () =>
+        t.alvo_tipo === "pagamento"
+          ? tarefaDoPagamento(db, c, t.alvo_id, cfg, r)
+          : tarefaDaEncomenda(db, c, t.alvo_id, r),
+      );
     }
   }
   return r;
@@ -1598,6 +1607,7 @@ export async function lerPagamento(
         "pedido",
         "ia",
         "autorizado_por",
+        "a_pedido_de",
       ])
       .where("pagamento_id", "=", id)
       .orderBy("em")

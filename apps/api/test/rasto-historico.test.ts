@@ -33,6 +33,7 @@ describe("as respostas a partir de uma linha do rasto", () => {
     ia: null,
     autorizado_por: null,
     motivo: null,
+    a_pedido_de: null,
   };
 
   it("uma linha de antes da 0053 fica toda desconhecida, com a IA explícita", () => {
@@ -46,8 +47,32 @@ describe("as respostas a partir de uma linha do rasto", () => {
       // contexto, a autorização é desconhecida: nem «autorizada» nem «sem
       // autorização» (Diogo, 11/10/2026, Q8; docs/28 §3.6).
       tipo_de_autor: "sistema",
+      a_pedido_de: null,
+      a_pedido_de_tipo: null,
       sem_autorizacao_de_pessoa: null,
     });
+  });
+
+  it("uma tarefa a pedido de um agente: «sistema, a pedido de um agente», sem autorização de uma pessoa (Q6)", () => {
+    const r = respostasDoRasto({
+      ...vazia,
+      quem: "sistema:encomendas",
+      canal: "sistema",
+      pedido: "tarefa:conclusoes",
+      ia: { prova: "declarado" },
+      a_pedido_de: { pedido: "req-1", quem: "chave:key_1" },
+    });
+    expect(r).toMatchObject({
+      tipo_de_autor: "sistema",
+      a_pedido_de: { pedido: "req-1", quem: "chave:key_1" },
+      a_pedido_de_tipo: "agente",
+      sem_autorizacao_de_pessoa: true,
+    });
+    // Sem pedido de origem registado: o tipo de quem pediu fica vazio.
+    expect(
+      respostasDoRasto({ ...vazia, quem: "sistema:x", canal: "sistema" })
+        .a_pedido_de_tipo,
+    ).toBeNull();
   });
 
   it.each([
@@ -196,6 +221,72 @@ describe.skipIf(URL_BASE === undefined)(
     afterAll(async () => {
       await h.app.close();
       await base.fechar();
+    });
+
+    it("a origem de quem agenda uma tarefa: do pedido, herdada numa cadeia, nenhuma numa tarefa sem origem (0060)", async () => {
+      const origem = async (vars: Record<string, string>) =>
+        base.dono.transaction().execute(async (trx) => {
+          for (const [k, v] of Object.entries(vars)) {
+            await sql`select set_config(${k}, ${v}, true)`.execute(trx);
+          }
+          const { rows } = await sql<{
+            o: unknown;
+          }>`select rasto_origem_actual() as o`.execute(trx);
+          return rows[0]?.o;
+        });
+      // Um pedido da API, por um agente: o pedido, quem, e a IA.
+      expect(
+        await origem({
+          "eurolify.canal": "api",
+          "eurolify.pedido": "req-9",
+          "eurolify.quem": "chave:key_9",
+          "eurolify.ia": JSON.stringify({ prova: "declarado" }),
+        }),
+      ).toEqual({
+        a_pedido_de: { pedido: "req-9", quem: "chave:key_9" },
+        ia: { prova: "declarado" },
+      });
+      // Uma pessoa no Hub: também quem autorizou.
+      expect(
+        await origem({
+          "eurolify.canal": "hub",
+          "eurolify.pedido": "req-10",
+          "eurolify.quem": `pessoa:per_${"0".repeat(8)}-0000-0000-0000-${"0".repeat(12)}`,
+          "eurolify.autorizado_por": `pessoa:per_${"0".repeat(8)}-0000-0000-0000-${"0".repeat(12)}`,
+        }),
+      ).toMatchObject({
+        autorizado_por: `pessoa:per_${"0".repeat(8)}-0000-0000-0000-${"0".repeat(12)}`,
+      });
+      // Dentro de uma tarefa com origem: a mesma origem (a cadeia não a perde).
+      expect(
+        await origem({
+          "eurolify.canal": "sistema",
+          "eurolify.pedido": "tarefa:pagamentos",
+          "eurolify.quem": "sistema:pagamentos",
+          "eurolify.a_pedido_de": JSON.stringify({
+            pedido: "req-9",
+            quem: "chave:key_9",
+          }),
+          "eurolify.ia": JSON.stringify({ prova: "declarado" }),
+        }),
+      ).toEqual({
+        a_pedido_de: { pedido: "req-9", quem: "chave:key_9" },
+        ia: { prova: "declarado" },
+      });
+      // Dentro de uma tarefa sem origem: nenhuma (não se inventa).
+      expect(
+        await origem({
+          "eurolify.canal": "sistema",
+          "eurolify.pedido": "tarefa:pagamentos",
+          "eurolify.quem": "sistema:pagamentos",
+        }),
+      ).toBeNull();
+      // Sem pedido (uma escrita à mão, com um «quem» por omissão): nenhuma.
+      expect(await origem({ "eurolify.quem": "teste:base" })).toBeNull();
+      // Uma origem mal formada recusa-se.
+      await expect(
+        origem({ "eurolify.a_pedido_de": JSON.stringify({ outro: "x" }) }),
+      ).rejects.toThrow(/audit\.context_invalid/);
     });
 
     it("a lista dos canais é a mesma da base (contexto_do_rasto)", async () => {
