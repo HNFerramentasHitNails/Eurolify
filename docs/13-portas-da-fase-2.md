@@ -215,8 +215,9 @@ até ao documento fiscal que as da loja online (sequência 01 do `docs/31`).
      a ler** (§8 desse ficheiro): as vendas de um terminal de POS lêem-se, com
      `terminal_id`, e cada venda baixa sozinha o stock do Moloni; o token só
      é aceite no endereço; nenhum limite até ~1400 pedidos/minuto. Por
-     verificar: o `status` 2, escrever um movimento, e se os terminais são a
-     app de iPhone;
+     verificar: o `status` 2 e se os terminais são a app de iPhone. Escrever
+     um movimento de stock funciona (testado na conta trial, −2 sobre +5
+     deixa 3);
   2. falar com 5 comerciantes com loja física e online: que POS usam, e se o
      stock desencontrado lhes custa vendas (portas 3 e 4).
 - **O POS próprio** (caixa, terminal, sem rede) fica para quando a ligação
