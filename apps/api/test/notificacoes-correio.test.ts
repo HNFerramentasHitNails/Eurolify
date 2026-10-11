@@ -9,7 +9,7 @@ import {
 } from "../src/notificacoes/correio.js";
 import { mensagemDe } from "../src/notificacoes/modelos.js";
 
-// O correio e os textos das notificações (docs/33, N1, N3, N4, N6 e N8;
+// O correio e os textos das notificações (docs/34, N1, N3, N4, N6 e N8;
 // revisão do #373).
 
 /**

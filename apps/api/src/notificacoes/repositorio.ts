@@ -4,7 +4,7 @@ import { comComerciante } from "../comerciante/repositorio.js";
 import { ErroCorreio, type Correio, type Mensagem } from "./correio.js";
 import { mensagemDe, type DadosDoAviso } from "./modelos.js";
 
-// As notificações (docs/33; migração 0066; Diogo, 11/10/2026: «aprovado, com
+// As notificações (docs/34; migração 0067; Diogo, 11/10/2026: «aprovado, com
 // a A», docs/06, DX). A base grava a fila (o gatilho do aviso); aqui só se
 // envia, se repete e se lê.
 //

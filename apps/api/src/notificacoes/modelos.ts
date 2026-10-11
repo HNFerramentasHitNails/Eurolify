@@ -1,7 +1,7 @@
 import type { TipoNotificacao } from "../base/esquema.js";
 import type { Mensagem } from "./correio.js";
 
-// Os textos das notificações (docs/33, N3 e N4): PT, ES e EN, texto simples.
+// Os textos das notificações (docs/34, N3 e N4): PT, ES e EN, texto simples.
 // Só identificadores, datas e números: nenhum dado do cliente. A data em
 // dd/mm/aaaa em PT e ES; em EN, aaaa-mm-dd (sem a dúvida dia/mês).
 

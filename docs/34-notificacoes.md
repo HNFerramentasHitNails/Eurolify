@@ -112,16 +112,19 @@ lista da API, os testes e a revisão do agente. Um pedido só.
   recepção do pedido de livre resolução (`consumer-rights-eu`). Esses não
   podem sair duas vezes nem perder-se, pedem o estado da entrega e volume:
   **decide-se o serviço transaccional antes deles**.
+- **Os avisos das tarefas das filas** (`docs/33`, peça 21, DW): hoje vêem-se
+  só na lista («Sem e-mail até haver notificações», `src/tarefas/avisos.ts`);
+  passar a e-mail é um tipo novo nesta fila, num pedido próprio.
 - Marketing (lê o consentimento, DL), preferências por pessoa, SMS e
   WhatsApp, webhooks aos sistemas dos comerciantes.
 
-## 11. Em código (11/10/2026; migração 0066; `docs/06`, DX)
+## 11. Em código (11/10/2026; migração 0067; `docs/06`, DX)
 
 | O quê | Onde |
 |---|---|
-| `notificacao`, com o RLS do comerciante: gravada pelo gatilho do aviso do prazo, uma por dono e gestor activos e por aviso; estados só para a frente (`a_enviar` → `enviada`, `falhada` ou `cancelada`); a API não a grava nem a apaga | migração 0066 |
-| `tarefa_notificacao`, interna (como as filas da 0047 e da 0063): diz à tarefa em que comerciantes entrar (para enviar, ou para apagar 90 dias depois de terminada), sem ler a `notificacao` sem comerciante | migração 0066 |
-| `notificacao_destino()`: o endereço lido no envio, só se a pessoa continua activa e dona ou gestora; senão, a notificação fica `cancelada`; e só se a devolução continua à espera do reembolso (senão, `cancelada` com `devolucao_ja_nao_espera`) | migração 0066; `src/notificacoes/repositorio.ts` |
+| `notificacao`, com o RLS do comerciante: gravada pelo gatilho do aviso do prazo, uma por dono e gestor activos e por aviso; estados só para a frente (`a_enviar` → `enviada`, `falhada` ou `cancelada`); a API não a grava nem a apaga | migração 0067 |
+| `tarefa_notificacao`, interna (como as filas da 0047 e da 0063): diz à tarefa em que comerciantes entrar (para enviar, ou para apagar 90 dias depois de terminada), sem ler a `notificacao` sem comerciante | migração 0067 |
+| `notificacao_destino()`: o endereço lido no envio, só se a pessoa continua activa e dona ou gestora; senão, a notificação fica `cancelada`; e só se a devolução continua à espera do reembolso (senão, `cancelada` com `devolucao_ja_nao_espera`) | migração 0067; `src/notificacoes/repositorio.ts` |
 | o correio por SMTP (`nodemailer` 10.0.10, licença MIT-0, sem dependências, de 14/09/2026 — a mais recente com mais de duas semanas) e o de ensaio; uma ligação por volta, 60 segundos no máximo por envio; o endereço validado antes (um com `,`, `<` ou `"` não sai); a culpa de cada erro: o destinatário recusado (5xx ao `RCPT TO`) falha logo, o 4xx dele repete, e o resto (autenticação, remetente, ligação, DNS) é do servidor — não conta como tentativa e pára a volta | `src/notificacoes/correio.ts` |
 | os textos PT, ES e EN, com o nome da loja numa linha só e sem o nome da pessoa | `src/notificacoes/modelos.ts` |
 | a tarefa de minuto a minuto, em três passos: toma a vez numa transacção curta (a próxima hora passa para daqui a 10 minutos), envia fora dela e grava o resultado noutra; as esperas 1, 5, 30, 120 e 360 minutos; à 6.ª falha, `falhada`; a limpeza dos 90 dias na mesma volta, também sem SMTP | `src/notificacoes/repositorio.ts`; `servidor.ts` |
@@ -129,6 +132,8 @@ lista da API, os testes e a revisão do agente. Um pedido só.
 | 3 testes pela API e 5 sem base (um contra um servidor SMTP falso que responde 535, 550 e 451); 28 mutações, 26 apanhadas e duas equivalentes (o destino confere o comerciante e o estado, que o RLS forçado e a gravação também conferem) | `test/posvenda-api.test.ts`; `test/notificacoes-correio.test.ts` |
 
 **Desvios do desenho:**
+- **O documento é o `docs/34` e a migração a 0067:** o `docs/33` e a 0066
+  são das tarefas das filas (#368, #375), que entraram primeiro.
 - **A língua é a do Hub do comerciante** (`comerciante.lingua`), não a do
   catálogo: o e-mail é para a equipa.
 - **Sem ligação ao Hub** (N3): o Hub ainda não tem os ecrãs da pós-venda; o

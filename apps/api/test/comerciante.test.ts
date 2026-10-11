@@ -154,7 +154,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0063_pos_venda_prazo_do_reembolso",
         "0064_rasto_autorizado_pela_propria_pessoa",
         "0065_pos_venda_selado_por_higiene",
-        "0066_notificacoes",
+        "0066_tarefas_das_filas",
+        "0067_notificacoes",
       ]);
     });
 
@@ -239,7 +240,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // O aviso do prazo do reembolso (0063): escreve-a o gatilho, lê-a
           // a função do dono.
           "tarefa_prazo_reembolso",
-          // As notificações por enviar (0066): escreve-a o gatilho, lê-a a
+          // As notificações por enviar (0067): escreve-a o gatilho, lê-a a
           // função do dono.
           "tarefa_notificacao",
         ].includes(t);
@@ -279,10 +280,11 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // duplicado (0046), as 10 do stock (0047), os pedidos do titular (0049),
       // as 5 dos documentos fiscais (0050), os pedidos de dupla confirmação e
       // os contactos inferidos das declarações antigas (0052), os anexos da
-      // isenção (0055), as 7 da pós-venda (0058) e as notificações (0066).
+      // isenção (0055), as 7 da pós-venda (0058), as 2 das tarefas das filas
+      // (0066) e as notificações (0067).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(82);
+      ).toHaveLength(84);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

@@ -4021,7 +4021,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     ).toBe(400);
   });
 
-  // ---------------------------------------- O e-mail do aviso (docs/33)
+  // ---------------------------------------- O e-mail do aviso (docs/34)
 
   /** Uma pessoa com um papel no comerciante (as contas, sem o convite). */
   const membroCom = (s: Cenario, papel: string, nome: string) =>
@@ -4084,7 +4084,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       base.dono,
     );
 
-  it("o e-mail do aviso: um por dono e gestor activos, sem dados do cliente, uma vez; a pessoa que sai fica cancelada; à 6.ª falha fica falhada (docs/33, N2 a N9)", async () => {
+  it("o e-mail do aviso: um por dono e gestor activos, sem dados do cliente, uma vez; a pessoa que sai fica cancelada; à 6.ª falha fica falhada (docs/34, N2 a N9)", async () => {
     const s = await cenario();
     const ana = await membroCom(s, "dono", "Ana");
     const bruno = await membroCom(s, "gestor", "Bruno");
@@ -4211,7 +4211,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     ).rejects.toThrow(/notifications\.immutable/);
   });
 
-  it("o e-mail do aviso: noutra língua sai em inglês; uma recusa definitiva falha logo; uma temporária repete mais tarde; outro comerciante não vê (docs/33, N4, N6, N11)", async () => {
+  it("o e-mail do aviso: noutra língua sai em inglês; uma recusa definitiva falha logo; uma temporária repete mais tarde; outro comerciante não vê (docs/34, N4, N6, N11)", async () => {
     const s = await cenario();
     const s2 = await cenario();
     await sql`update comerciante set lingua = 'de' where id = ${s.c}::uuid`.execute(

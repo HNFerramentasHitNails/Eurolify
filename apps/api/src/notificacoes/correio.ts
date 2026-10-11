@@ -1,6 +1,6 @@
 import { createTransport } from "nodemailer";
 
-// O correio das notificações (docs/33, N1 e N8; docs/06, DX): o envio por
+// O correio das notificações (docs/34, N1 e N8; docs/06, DX): o envio por
 // SMTP, que o fornecedor escolhido (OVH E-mail Pro) e os serviços
 // transaccionais aceitam — mudar de fornecedor é mudar a configuração. O de
 // ensaio guarda os e-mails em memória, para os testes.
@@ -60,7 +60,7 @@ const VARIAVEIS = [
 ] as const;
 
 /**
- * Lê a configuração do ambiente (docs/33 §5). Nenhuma variável: sem correio,
+ * Lê a configuração do ambiente (docs/34 §5). Nenhuma variável: sem correio,
  * sem problema. Algumas, ou a porta errada: sem correio, e o `problema` diz
  * que variáveis (nunca os valores), para o registo — a API arranca na mesma
  * (revisão do #373, P2-5).

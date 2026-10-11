@@ -8,7 +8,7 @@ import { iso, umDe } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
 import { listarNotificacoes } from "./repositorio.js";
 
-// A lista das notificações (docs/33, N11): o tipo, a pessoa, o estado, as
+// A lista das notificações (docs/34, N11): o tipo, a pessoa, o estado, as
 // tentativas e o último código; nunca o endereço nem o corpo.
 
 export function rotasDasNotificacoes(
@@ -23,7 +23,7 @@ export function rotasDasNotificacoes(
       config: { ambito: "merchant:read" },
       schema: {
         description:
-          "Os e-mails do Eurolify à equipa do comerciante, dos mais recentes (hoje, o aviso do prazo do reembolso aos donos e gestores; docs/33). Sem o endereço nem o texto. Uma «falhada» não sai sozinha: diz o código do último erro.",
+          "Os e-mails do Eurolify à equipa do comerciante, dos mais recentes (hoje, o aviso do prazo do reembolso aos donos e gestores; docs/34). Sem o endereço nem o texto. Uma «falhada» não sai sozinha: diz o código do último erro.",
         querystring: Type.Object(
           {
             estado: Type.Optional(umDe(ESTADOS_NOTIFICACAO)),
