@@ -335,6 +335,46 @@ describe.skipIf(URL_BASE === undefined)(
       });
     });
 
+    it("o quem de uma chave ou de uma pessoa tem de ser quem se autenticou (0062)", async () => {
+      const ka = `chave:key_${"a".repeat(8)}-aaaa-aaaa-aaaa-${"a".repeat(12)}`;
+      const kb = `chave:key_${"b".repeat(8)}-bbbb-bbbb-bbbb-${"b".repeat(12)}`;
+      const pa = `pessoa:per_${"a".repeat(8)}-aaaa-aaaa-aaaa-${"a".repeat(12)}`;
+      const comQuem = (autenticado: string, quem: string) =>
+        comRasto({ canal: "api", autenticado }, () =>
+          comComerciante(base.api, a, async (trx) => {
+            await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(
+              trx,
+            );
+            const { rows } = await sql<{
+              c: { quem?: string };
+            }>`select contexto_do_rasto() as c`.execute(trx);
+            return rows[0]?.c.quem;
+          }),
+        );
+      // O mesmo: passa.
+      expect(await comQuem(ka, ka)).toBe(ka);
+      // Outra chave, ou uma pessoa, com a chave A autenticada: recusa.
+      await expect(comQuem(ka, kb)).rejects.toThrow(
+        /quem executou não é quem se autenticou/,
+      );
+      await expect(comQuem(ka, pa)).rejects.toThrow(
+        /quem executou não é quem se autenticou/,
+      );
+      // As consequências e os actores sem chave nem sessão passam.
+      for (const quem of [
+        "sistema:encomendas",
+        "catalogo:variante apagada",
+        "checkout:chk_1",
+        "prestador:eupago",
+      ]) {
+        expect(await comQuem(ka, quem)).toBe(quem);
+      }
+      // Um autenticado mal formado recusa-se.
+      await expect(comQuem("chave:outra", ka)).rejects.toThrow(
+        /autenticado mal formado/,
+      );
+    });
+
     it("o contexto fica só na sua transacção", async () => {
       await comRasto({ canal: "mcp", pedido: "req-1" }, lido);
       expect(await lido()).toEqual({ quem: "teste:base" });

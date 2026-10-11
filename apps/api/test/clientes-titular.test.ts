@@ -188,6 +188,36 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     await base.fechar();
   });
 
+  it("a pseudonimização troca também o motivo do histórico (texto livre; #322)", async () => {
+    const id = await ficha({ nome: `Rui ${unico()}` });
+    // Uma alteração com um motivo escrito que fala da pessoa.
+    await comoDono(async (trx) => {
+      await sql`select set_config('eurolify.motivo', 'o Rui pediu ao telefone', true)`.execute(
+        trx,
+      );
+      await sql`update cliente set nome = 'Rui Costa' where id = ${id.slice(4)}::uuid`.execute(
+        trx,
+      );
+    });
+    const antes = await comoDono((trx) =>
+      sql<{ motivo: string | null }>`select motivo from alteracao_cliente
+        where cliente_id = ${id.slice(4)}::uuid and motivo is not null`.execute(
+        trx,
+      ),
+    );
+    expect(antes.rows.map((r) => r.motivo)).toEqual([
+      "o Rui pediu ao telefone",
+    ]);
+    await ok(pseudonimizar(id));
+    const depois = await comoDono((trx) =>
+      sql<{ motivo: string | null }>`select motivo from alteracao_cliente
+        where cliente_id = ${id.slice(4)}::uuid and motivo is not null`.execute(
+        trx,
+      ),
+    );
+    expect(depois.rows.map((r) => r.motivo)).toEqual(["(pseudonimizado)"]);
+  });
+
   it("a pseudonimização apaga os dados pessoais do grupo inteiro, também da linha do tempo, e regista o pedido", async () => {
     const u = unico();
     const nif = nifNovo();
