@@ -17,9 +17,12 @@ Fonte dos passos 1 a 3: as descrições dos pedidos e o `docs/28` §2 a §4 no
 `main` de 10/10/2026 (commit 0dffbe3).
 
 Plano do resto do passo 4 (dito ao Diogo a 10/10/2026):
-- parte 3: o Hub mostra-as no histórico do artigo e a opção da marca no ecrã
-  das chaves — desenho e maqueta primeiro, só se junta com o aspecto aprovado;
-- antes da parte 3: os pendentes do #322 (o `quem` e o `autorizado_por` da
+- parte 3: o aviso calculado na API e o histórico de preços em dois níveis;
+- parte 4: as tarefas diferidas com o pedido de origem;
+- parte 5: o Hub mostra as respostas no histórico do artigo e a opção da
+  marca no ecrã das chaves — desenho e maqueta primeiro, só se junta com o
+  aspecto aprovado;
+- antes da parte 5: os pendentes do #322 (o `quem` e o `autorizado_por` da
   autenticação; as escritas do Hub em `identidade/hub.ts`,
   `hub-credenciais.ts` e `hub-palavra-passe.ts` a usar `comRastoNaBase`;
   `EXECUTE` da `contexto_do_rasto()` (P3-7); motivo acima de 500 caracteres
@@ -27,20 +30,14 @@ Plano do resto do passo 4 (dito ao Diogo a 10/10/2026):
   `integracao`, `mcp`; motivo na pseudonimização). A exportação do titular
   já levava as colunas novas (`select *`).
 
-**Decisão pedida ao Diogo (10/10/2026), sem resposta ainda:** o aviso «sem
-autorização de uma pessoa» (Q3) aparece em todas as alterações sem pessoa a
-autorizar (IA declarada ou desconhecida), ou só quando a IA é declarada? A
-proposta é «todas», menos as tarefas do sistema: senão um agente que não se
-declara parece mais seguro do que um que se declara.
-
-**Por decidir (revisão do #342, P3-7):** o trabalho que um agente pede e que
-corre depois numa tarefa (ex.: `tarefa:documentos`) fica com o canal
-«sistema» e sem IA, como o §3.2 diz. Decidir se o Hub liga a linha da tarefa
-ao pedido do agente.
-
-**Por decidir (revisão do #345, P2-1):** o histórico de um preço não mostra
-quem mudou e pede só `prices:read`; para levar as seis respostas, decidir
-primeiro o âmbito (como o `catalog:history`).
+**Decididas pelo Diogo a 11/10/2026 (DO; `docs/28` Q5 a Q7, §3.6 a §3.8):**
+- o aviso «sem autorização de uma pessoa» em toda a alteração sem pessoa a
+  autorizar, seja qual for a origem — tarefas incluídas (a proposta de
+  10/10 excluía as tarefas; ficou a regra do Diogo);
+- as tarefas diferidas guardam o pedido de origem e herdam a autorização:
+  «sistema, a pedido do agente X (pedido n.º …)»;
+- o histórico de preços em dois níveis: `prices:read` vê o tipo de autor e
+  o aviso; quem mudou e quem autorizou pedem `prices:history`.
 
 ## Números (com data e como se contaram)
 
