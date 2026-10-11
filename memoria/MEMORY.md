@@ -40,7 +40,7 @@
 
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1 (preços só antes da peça 13, ADR-0012); AD (ADR-0022, 04/10): relatório OSS, núcleo das devoluções e lotes passam para a Fase 1, estimados — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, antes da peça 13 e não antes do código (S, ADR-0012) — 03/10/2026](modelo-de-receita-03out2026.md)
-- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 17–32 meses a tempo inteiro, 31–58 a meio (hipótese C; com a AD, 04/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
+- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 17–33 meses a tempo inteiro, 31–60 a meio (hipótese C; com a AD e as peças da DS, 11/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
 
 ## Marca e apresentação
 
