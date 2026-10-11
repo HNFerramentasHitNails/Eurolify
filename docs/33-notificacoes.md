@@ -126,7 +126,7 @@ lista da API, os testes e a revisão do agente. Um pedido só.
 | os textos PT, ES e EN, com o nome da loja numa linha só e sem o nome da pessoa | `src/notificacoes/modelos.ts` |
 | a tarefa de minuto a minuto, em três passos: toma a vez numa transacção curta (a próxima hora passa para daqui a 10 minutos), envia fora dela e grava o resultado noutra; as esperas 1, 5, 30, 120 e 360 minutos; à 6.ª falha, `falhada`; a limpeza dos 90 dias na mesma volta, também sem SMTP | `src/notificacoes/repositorio.ts`; `servidor.ts` |
 | `GET /notifications?estado=&limite=` (`merchant:read`): o tipo, a referência, a pessoa, a língua, o estado, as tentativas, a próxima hora, o último código e as datas; nunca o endereço nem o texto | `src/notificacoes/rotas.ts` |
-| 3 testes pela API e 5 sem base (um contra um servidor SMTP falso que responde 535, 550 e 451); mutações no fim do pedido | `test/posvenda-api.test.ts`; `test/notificacoes-correio.test.ts` |
+| 3 testes pela API e 5 sem base (um contra um servidor SMTP falso que responde 535, 550 e 451); 28 mutações, 26 apanhadas e duas equivalentes (o destino confere o comerciante e o estado, que o RLS forçado e a gravação também conferem) | `test/posvenda-api.test.ts`; `test/notificacoes-correio.test.ts` |
 
 **Desvios do desenho:**
 - **A língua é a do Hub do comerciante** (`comerciante.lingua`), não a do

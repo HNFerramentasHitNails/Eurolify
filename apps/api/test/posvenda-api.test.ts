@@ -4246,6 +4246,14 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     correio.falhas.push(new ErroCorreio("smtp_451", "destinatario_temporario"));
     expect((await enviar(correio)).repetir).toBe(1);
     expect((await enviar(correio)).enviadas).toBe(0);
+    // A 1.ª falha espera 1 minuto (N6), não os 10 da vez tomada.
+    const { rows: hora } = await sql<{ segundos: number }>`
+      select extract(epoch from proxima_em - now())::int as segundos
+      from notificacao where comerciante_id = ${s.c}::uuid and estado = 'a_enviar'`.execute(
+      base.dono,
+    );
+    expect(hora[0]?.segundos).toBeGreaterThan(30);
+    expect(hora[0]?.segundos).toBeLessThanOrEqual(60);
     // O destino só se lê no comerciante dela (N9).
     const espera = (await notificacoesDe(s)).find(
       (x) => x.estado === "a_enviar",
