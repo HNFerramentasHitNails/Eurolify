@@ -1104,7 +1104,10 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 
 ### 15.8 Perguntas para o Diogo ou o Bruno
 
-| # | Pergunta | Proposta |
+✅ **Decididas** pelo Diogo a 11/10/2026 (*«aprovado»*, às propostas;
+`docs/06`, DT).
+
+| # | Pergunta | Decisão |
 |---|---|---|
 | Q1 | Uma encomenda em curso: limpa-se logo ou quando acabar? | Quando acabar (§15.3): limpar o contacto de uma encomenda por expedir impede entregá-la — o contrato ainda está a ser cumprido |
 | Q2 | O perfil de faturação de uma encomenda **não paga** fica? | Não: só fica com documento emitido ou por emitir (encomenda paga). Uma não paga não gera fatura. **C**, contabilista — é o «critério mais estreito» que a §12 deixou em aberto |
