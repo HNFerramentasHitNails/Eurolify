@@ -418,6 +418,11 @@ tempo gasto; a tarefa de uma devolução fecha-se sozinha quando o caso acaba.
 
 Decidir se se avança, e se passa para a Fase 1, é do Diogo ou do Bruno.
 
+> ✅ *11/10/2026:* passou para a Fase 1 (decisão DS) e o desenho foi aprovado
+> com **sete filas**, não quatro (decisão DW, `docs/33`): ao ler o código
+> apareceram o pedido de livre resolução pendente ou fora de prazo, o
+> problema aberto e o reembolso incerto ou falhado.
+
 ## 11. Painéis — o quinto módulo de gestão, o último da camada B (11/10/2026)
 
 Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*.

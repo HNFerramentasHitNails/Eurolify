@@ -40,7 +40,7 @@
 
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1 (preços só antes da peça 13, ADR-0012); AD (ADR-0022, 04/10): relatório OSS, núcleo das devoluções e lotes passam para a Fase 1, estimados — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, antes da peça 13 e não antes do código (S, ADR-0012) — 03/10/2026](modelo-de-receita-03out2026.md)
-- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 17–33 meses a tempo inteiro, 31–60 a meio (hipótese C; com a AD e as peças da DS, 11/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
+- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 18–33 meses a tempo inteiro, 32–60 a meio (hipótese C; com a AD, a DS e a DW, 11/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
 
 ## Marca e apresentação
 
@@ -131,3 +131,4 @@
 - [API do Moloni testada só a ler (#355): vendas do POS lêem-se com terminal_id; cada venda baixa o stock sozinha; movimento negativo é saída; token só no endereço; sem limite até ~1400/min; status 2 por perceber — 11/10/2026](moloni-api-testes-11out2026.md)
 - [Pós-venda: aviso do prazo do reembolso (#353, decisão DQ): 3 dias antes e quando passa, evento e lista da API, sem e-mail; prazo no fuso do comerciante; fora de prazo aceite sem aviso; migração 0063 no ensaio (corrida 38165970858) — 11/10/2026](pos-venda-prazo-reembolso-11out2026.md)
 - [Pós-venda: selado por higiene (#363, decisão DT): marca no artigo, copiada para a encomenda e conferida; aberta numa livre resolução, uma pessoa decide reembolsar ou a excepção; texto legal por país por fazer (J5); migração 0065 — 11/10/2026](pos-venda-selado-higiene-11out2026.md)
+- [Peça 21, tarefas das filas (#366, #368): desenho aprovado (DW); a lista lê as filas e a tarefa só guarda quem e até quando; 7 filas (DS dizia 4); achado: pedido de livre resolução pendente corre o prazo sem aviso — 11/10/2026](tarefas-das-filas-11out2026.md)

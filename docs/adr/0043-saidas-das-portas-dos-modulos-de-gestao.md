@@ -75,6 +75,12 @@ decisão do Diogo ou do Bruno.
   consulta das vendas 1–2 pessoas-semana. A Fase 1 passa a 17 a 33 meses os
   dois a tempo inteiro (31 a 60 a meio tempo); o total até ao fim da Fase 3
   fica em ≈ 38 a 71 meses. Os cenários B e C não foram recalculados.
+  *Actualização de 11/10/2026 (decisão DW; Diogo: *«sim, aprovo o desenho
+  com as sete filas»*):* o desenho da peça 21 (`docs/33`) junta às quatro
+  filas do ponto 4 mais três que a Fase 1 já cria (pedido de livre
+  resolução pendente ou fora de prazo, problema aberto, reembolso incerto ou
+  falhado). A peça passa a 2,5–5 pessoas-semana; a Fase 1 a 18 a 33 meses
+  (32 a 60 a meio tempo); até ao fim da Fase 3, ≈ 39 a 71 meses.
 - O `docs/05` (Fase 1 e Fase 2), o `docs/00` («Em uma página» e §2.2), o
   `docs/13`, o `docs/14` (Catálogo, «fica para depois»), o `docs/31` e a
   memória passam a dizê-lo.
