@@ -127,4 +127,4 @@
 
 ## Âmbito do produto
 
-- [Hub da empresa inteira (#355): PDFs do Hub actual lidos; docs/31 com 15 sequências e 32 módulos; decidido: módulos ligáveis a partir da Fase 2 (DQ, ADR-0042); balcão (POS) pelas 8 portas: estreitar e investigar — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
+- [Hub da empresa inteira (#355): PDFs do Hub actual lidos; docs/31 com 15 sequências e 32 módulos; decidido: módulos ligáveis a partir da Fase 2 (DR, ADR-0042); balcão (POS) pelas 8 portas: estreitar e investigar — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)

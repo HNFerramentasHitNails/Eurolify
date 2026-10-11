@@ -25,6 +25,14 @@ de gestão da empresa inteira, não só uma loja.
   alvo: a ligação a um POS certificado, que emite ele o documento (como a
   D-10). Antes: ler a API do Moloni e falar com 5 comerciantes com loja física.
 
+- **A API do Moloni lida** (pedido do Diogo, *«sim, lê a API do Moloni»*):
+  14 páginas de `moloni.pt/dev` e a da app na App Store, em
+  `docs/eurolify/fontes-api-moloni-11out2026.md`. Lêem-se documentos
+  alterados desde uma data (50 por pedido) e as linhas um a um; stock por
+  artigo e armazém, e movimentos para inserir; sem avisos nem limites
+  escritos; token de 1 hora no endereço, renovação de 14 dias. Que a app de
+  POS aparece nos documentos: provável, não verificado. Remissão no `docs/29`.
+
 ## Números (com data e como se contaram)
 
 - Do PDF, não medidos por mim (proposta p. 4, «contados no próprio código e na
@@ -42,15 +50,16 @@ de gestão da empresa inteira, não só uma loja.
 
 - ~~A decisão de âmbito (`docs/31` §10)~~ **Decidida a 11/10/2026** pelo Diogo
   (*«a, actualiza o docs/00 e o docs/05»*): a gestão da empresa entra em
-  módulos ligáveis a partir da Fase 2 (decisão DQ, ADR-0042). Actualizados o
+  módulos ligáveis a partir da Fase 2 (decisão DR, ADR-0042). Actualizados o
   `docs/00` (§2.2, §4, §6, §7), o `docs/05` (Fase 1 «fica de fora» e Fase 2),
-  o `docs/06` (DQ), o `docs/13` e o `docs/31`. A exclusão antiga só estava no
+  o `docs/06` (DR), o `docs/13` e o `docs/31`. A exclusão antiga só estava no
   `docs/00` §2.2 (`grep` por «streaming», «marketing editorial» e «de uma
   empresa, não» em `docs/`, `README.md`, `AGENTS.md` e nas skills).
 - Só o balcão passou pelas 8 portas; nenhum módulo novo está estimado.
 - Do balcão: os preços do Vendus vêm do texto da pesquisa (página ao vivo não
-  aberta); as condições da app Moloni POS e se a API do Moloni lê os
-  documentos dela ou o stock não foram lidas (só o menu de moloni.pt/dev).
+  aberta); a API do Moloni foi lida mas **não testada** — as oito perguntas
+  para a sandbox estão no §7 do ficheiro de fontes; a conta de demonstração
+  ainda não foi pedida.
 - Todas as regras fiscais e legais do PDF ficam **C** (isenção da formação,
   bilhete de evento, biometria no trabalho, relatório da autoridade dos
   cosméticos, rótulo, prestações).

@@ -13,7 +13,7 @@
 > Diogo (decisão AD, [ADR-0022](adr/0022-tres-pecas-da-fase-2-para-a-fase-1.md)).
 >
 > ➕ **11/10/2026:** a gestão da empresa inteira entra a partir da Fase 2, em
-> módulos ligáveis (decisão DQ,
+> módulos ligáveis (decisão DR,
 > [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)). Os módulos
 > novos — camadas B a H do
 > [`31-hub-de-gestao-da-empresa.md`](31-hub-de-gestao-da-empresa.md) §8 —
@@ -168,7 +168,7 @@ campos (clientes? encomendas?) antes de construir.
 
 Pedido do Diogo, 11/10/2026: *«passa o primeiro módulo pelas 8 portas»*. É o
 primeiro da camada B do [`31-hub-de-gestao-da-empresa.md`](31-hub-de-gestao-da-empresa.md)
-§8 (decisão DQ, ADR-0042), e já estava na Fase 2 (decidido a 05/10/2026, Q3
+§8 (decisão DR, ADR-0042), e já estava na Fase 2 (decidido a 05/10/2026, Q3
 do `docs/16`). Skills abertas: `eurolify-physical-retail-eu`,
 `eurolify-tax-pos-invoicing-eu`, `eurolify-legal-briefing-eu`
 (`references/retail-pos-tax.md`), `eu-vat-oss-ioss`, `consumer-rights-eu`.
@@ -201,11 +201,17 @@ até ao documento fiscal que as da loja online (sequência 01 do `docs/31`).
   balcão, em Portugal), um papel (quem vende ao balcão), um fluxo (venda
   paga ao balcão).
 - **Investigar, antes de desenhar** — o passo mais pequeno:
-  1. ler a documentação da API do Moloni: a página de entrada lista
-     «Simplified Invoices», «Invoice Receipts», «Product Stocks» e
-     «Warehouses» ([moloni.pt/dev](https://www.moloni.pt/dev/), lida a
-     11/10/2026, só o menu), mas **não verifiquei** se os documentos da app
-     de POS se lêem por ela nem se o stock se lê ou escreve;
+  1. ~~ler a documentação da API do Moloni~~ **feito a 11/10/2026**
+     ([`eurolify/fontes-api-moloni-11out2026.md`](eurolify/fontes-api-moloni-11out2026.md),
+     14 páginas lidas, nenhum pedido feito). Pela documentação: lêem-se os
+     documentos alterados desde uma data (`documents/getModifiedSince`, 50
+     por pedido) e as linhas de cada um (`getOne`); o stock lê-se por artigo e
+     por armazém e escrevem-se movimentos (`productStocks/insert`); **não há
+     avisos** (o Eurolify pergunta de tempos a tempos) nem limites escritos;
+     o token dura 1 hora e a renovação 14 dias. **Que a app de POS aparece
+     nesses documentos é provável e não verificado** — o passo seguinte é
+     um teste na sandbox (conta de demonstração, pedida a `apoio@moloni.pt`),
+     com as oito perguntas do §7 desse ficheiro;
   2. falar com 5 comerciantes com loja física e online: que POS usam, e se o
      stock desencontrado lhes custa vendas (portas 3 e 4).
 - **O POS próprio** (caixa, terminal, sem rede) fica para quando a ligação
@@ -226,7 +232,7 @@ do repositório `mart337i/odoo-skills`, memória
 o mecanismo quando houver pelo menos dois módulos pagos que passem as
 portas**. Hoje, pelo resultado acima, os candidatos são a emissão noutros
 países (por país) e os vários armazéns — ambos ainda por investigar.
-Com a decisão DQ (11/10/2026), os módulos de gestão da empresa juntam-se aos
+Com a decisão DR (11/10/2026), os módulos de gestão da empresa juntam-se aos
 candidatos, quando passarem as portas.
 
 ## O que isto pede ao Diogo ou ao Bruno

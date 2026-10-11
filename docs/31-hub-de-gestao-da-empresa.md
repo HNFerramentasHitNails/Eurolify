@@ -13,7 +13,7 @@
 > regras e de casos** — herda-se o desenho, não o código (`docs/00` §3).
 >
 > **Estado:** desenho de âmbito. ✅ **Âmbito decidido a 11/10/2026** pelo
-> Diogo (opção a) do §10; decisão DQ,
+> Diogo (opção a) do §10; decisão DR,
 > [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)). Construir
 > cada módulo continua a ser decisão do Diogo ou do Bruno. As regras fiscais e legais aqui
 > citadas são as do Hub actual; nenhuma foi verificada outra vez nesta
@@ -461,7 +461,7 @@ essa conta.
 **O Hub da empresa inteira entra no produto Eurolify?**
 
 ✅ **Decidido a 11/10/2026: a)** — Diogo, *«a, actualiza o docs/00 e o
-docs/05»* (decisão DQ, [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)).
+docs/05»* (decisão DR, [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)).
 
 | Opção | O que quer dizer |
 |---|---|
