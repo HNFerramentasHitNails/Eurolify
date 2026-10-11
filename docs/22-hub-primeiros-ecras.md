@@ -859,12 +859,19 @@ servidor (uma regra, um sítio):
 
 | `quem` guardado | `autor` | O ecrã mostra |
 |---|---|---|
-| `pessoa:per_…` de quem **é ou foi** membro deste comerciante | `{ tipo: "pessoa", nome }`, o nome da conta (pseudonimizada: «Pessoa pseudonimizada», que é o que fica guardado, `docs/21` §13 ponto 7) | o nome |
-| `pessoa:per_…` que nunca foi membro deste comerciante | `{ tipo: "pessoa", nome: null }` | «Pessoa de fora desta equipa» (não devia acontecer; não se mostra o nome de quem não é da equipa) |
-| `chave:key_…` deste comerciante | `{ tipo: "chave", nome }`, o nome da chave | «Chave «{nome}»» |
-| `chave:key_…` que não é deste comerciante, ou apagada | `{ tipo: "chave", nome: null }` | «Chave de API» |
-| `sistema:<tarefa>` ou `catalogo:<motivo>` | `{ tipo: "sistema", nome: null }` | «Automático»; com `catalogo:verificacao_falhou`, «Automático» e, na publicação, o motivo com o texto que a ficha já usa («Deixou de cumprir as regras de publicação», `textos/pt.ts` linha 404) |
-| outro valor | `{ tipo: "outro", nome: null }` | o valor guardado, tal como está |
+| `pessoa:per_…` de quem **é ou foi** membro deste comerciante | `{ nome }`, o nome da conta (pseudonimizada: «Pessoa pseudonimizada», que é o que fica guardado, `docs/21` §13 ponto 7) | o nome |
+| `pessoa:per_…` que nunca foi membro deste comerciante | `{ nome: null }` | «Pessoa de fora desta equipa» (não devia acontecer; não se mostra o nome de quem não é da equipa) |
+| `chave:key_…` deste comerciante | `{ nome }`, o nome da chave | «Chave «{nome}»» |
+| `chave:key_…` que não é deste comerciante, ou apagada | `{ nome: null }` | «Chave de API» |
+| `sistema:<tarefa>` ou `catalogo:<motivo>` | `{ nome: null }` | «Automático»; com `catalogo:verificacao_falhou`, «Automático» e, na publicação, o motivo com o texto que a ficha já usa («Deixou de cumprir as regras de publicação», `textos/pt.ts` linha 404) |
+| `operador:…`, `checkout:…`, `prestador:…` (`tipo_de_autor` `operador`, `consumidor`, `prestador`) | `{ nome: null }` | «Operador», «Cliente», «Prestador de pagamentos» (revisão do #359, P3-3) |
+| outro valor (`tipo_de_autor` `desconhecido`) | `{ nome: null }` | o valor guardado, tal como está |
+
+O tipo de quem fez vem no `tipo_de_autor` de cada entrada (`docs/28` §3.8);
+o `autor` só traz o nome. Um `pessoa:` mal escrito (sem `per_` e o
+identificador) tem o tipo `pessoa` mas nenhum nome: aparece como «Pessoa de
+fora desta equipa» (revisão do #361, P3-2). O antigo `autor.tipo` saiu a 11/10/2026, quando o
+Hub deixou de o ler (§26.1).
 
 **Dados pessoais** (`eu-gdpr-privacy`): o nome serve a finalidade já
 registada em `docs/21` linha 239 («saber quem fez o quê»), e só o vêem o dono
@@ -1626,7 +1633,7 @@ do próprio dono no Hub: «No Hub · Autorizado por Ana Teste».
 | O histórico dos **clientes, encomendas, pagamentos, documentos e preços** no Hub: a API já os dá com as seis respostas, mas o Hub ainda não tem esses ecrãs. Entram com eles. |
 | **Filtrar** por «sem autorização de uma pessoa»: entra quando o histórico for longo o bastante (como os outros filtros, §16.1). |
 | **Autorizar** a posteriori uma alteração feita sem autorização: seria uma escrita nova, com regras próprias (Q3: exigir passa a ser uma regra por âmbito, decidida depois). |
-| O `autor.tipo` antigo (obsoleto desde o #349): o ecrã passa a usar `tipo_de_autor`; o campo sai da API num pedido seguinte, quando nada o ler. |
+| O `autor.tipo` antigo (obsoleto desde o #349): o ecrã passa a usar `tipo_de_autor`; o campo saiu da API a 11/10/2026, no pedido dos pendentes do #322, quando nada o lia. |
 
 ### 26.2 A linha de contexto: o que diz, em linguagem comum
 

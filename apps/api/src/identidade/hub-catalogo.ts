@@ -139,24 +139,13 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const QUEM_PESSOA = new RegExp(`^pessoa:per_(${UUID})$`);
 const QUEM_CHAVE = new RegExp(`^chave:key_(${UUID})$`);
 
-/** Quem fez uma entrada do histórico, para o Hub (docs/22 §16.2). */
+/**
+ * Quem fez uma entrada do histórico, para o Hub (docs/22 §16.2): só o nome.
+ * O tipo de autor é o `tipo_de_autor` da entrada (docs/28 §3.6); o antigo
+ * `autor.tipo` saiu quando o Hub deixou de o ler (revisão do #349, P2-3;
+ * docs/22 §26.1).
+ */
 const Autor = Type.Object({
-  // O tipo do autor para o rasto é `tipo_de_autor`, calculado na API para
-  // todas as linhas do tempo (docs/28 §3.6); este `tipo` só diz de onde vem o
-  // `nome` e sai quando o Hub passar a mostrar as seis respostas (parte 5;
-  // revisão do #349, P2-3).
-  tipo: Type.Union(
-    [
-      Type.Literal("pessoa"),
-      Type.Literal("chave"),
-      Type.Literal("sistema"),
-      Type.Literal("outro"),
-    ],
-    {
-      description:
-        "Obsoleto: de onde vem o `nome`. O tipo de autor do rasto é `tipo_de_autor` (docs/28 §3.6)",
-    },
-  ),
   nome: Type.Union([Type.String(), Type.Null()], {
     description:
       "O nome de quem é ou foi da equipa deste comerciante, ou o nome da chave dele; vazio nos outros casos",
@@ -293,16 +282,13 @@ function autorDe(
   quem: string,
   nomes: Map<string, string>,
 ): Static<typeof Autor> {
-  if (QUEM_PESSOA.test(quem)) {
-    return { tipo: "pessoa", nome: nomes.get(quem) ?? null };
-  }
-  if (QUEM_CHAVE.test(quem)) {
-    return { tipo: "chave", nome: nomes.get(quem) ?? null };
-  }
-  if (quem.startsWith("sistema:") || quem.startsWith("catalogo:")) {
-    return { tipo: "sistema", nome: null };
-  }
-  return { tipo: "outro", nome: null };
+  // Só as pessoas e as chaves têm nome; o resto fica vazio.
+  return {
+    nome:
+      QUEM_PESSOA.test(quem) || QUEM_CHAVE.test(quem)
+        ? (nomes.get(quem) ?? null)
+        : null,
+  };
 }
 
 export function rotasDoCatalogoNoHub(
