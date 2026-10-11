@@ -3181,7 +3181,8 @@ try {
   const focado = await rp.evaluate(() => document.activeElement?.id ?? "");
   // A alteração partida: a 25.ª fica com as duas entradas, e o foco vai
   // para a primeira entrada nova, que é a segunda dela (P3-6).
-  const partida = grupos.nth(24).locator("ul > li");
+  // Só as entradas da alteração, sem as linhas dos «Detalhes» (§26).
+  const partida = grupos.nth(24).locator(":scope > ul > li");
   const ultimo = (await grupos.last().textContent()) ?? "";
   confere(
     (await grupos.count()) === 34 &&
@@ -4962,11 +4963,16 @@ try {
   );
   const gruposRasto = rp.locator(".historico > li");
   await gruposRasto.first().waitFor();
-  const textoDe = async (i) => (await gruposRasto.nth(i).textContent()) ?? "";
+  // Os espaços juntos num só (o ícone do aviso fica entre dois).
+  const textoDe = async (i) =>
+    ((await gruposRasto.nth(i).textContent()) ?? "").replace(/\s+/g, " ");
   const [doHub, daTarefa, daImportacao, doAgente] = await Promise.all(
     [0, 1, 2, 3].map(textoDe),
   );
-  const antiga = (await rp.locator(".historico").textContent()) ?? "";
+  const antiga = ((await rp.locator(".historico").textContent()) ?? "").replace(
+    /\s+/g,
+    " ",
+  );
   confere(
     doHub.includes("No Hub · Autorizado por Ana Teste") &&
       daTarefa.includes("Automático") &&
@@ -4997,8 +5003,9 @@ try {
       textoDetalhes.includes("Pedido n.º req-agente-1") &&
       textoDetalhes.includes("Execução: exec-42") &&
       !doAgente.includes("IA: desconhecida") &&
-      ((await gruposRasto.nth(0).locator("details").textContent()) ?? "")
-        .includes("IA: desconhecida"),
+      (
+        (await gruposRasto.nth(0).locator("details").textContent()) ?? ""
+      ).includes("IA: desconhecida"),
     "histórico: «Detalhes» abre com o teclado, com o pedido e a execução; a IA desconhecida só aparece lá",
   );
   for (const largura of [375, 768, 1280]) {
