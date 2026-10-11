@@ -27,7 +27,8 @@ import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
 import { correrDocumentos } from "../src/faturacao/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
-import { assinar, avisoEuPago, eupagoFalso } from "./eupago-falso.js";
+import { correrConfirmacoes } from "../src/posvenda/prestador.js";
+import { assinar, avisoEuPago, eupagoFalso, json } from "./eupago-falso.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -2225,5 +2226,844 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     // Voltou 1: reembolsar 2 é recusado pela base.
     await expect(amao(2)).rejects.toThrow(/mais do que voltou/);
     await amao(1);
+  });
+
+  // ------------------------------------- Parte 2: pelo prestador (docs/30 §13)
+
+  /** A conta do cenário com as credenciais OAuth do reembolso (P1). */
+  async function comOAuth(s: Cenario) {
+    await ok(
+      s.adm("PUT", `/payment-accounts/${s.conta}/credentials`, {
+        chave: "xxxx-xxxx-xxxx-xxxx",
+        segredo_aviso: SEGREDO,
+        client_id: "cliente-1",
+        client_secret: "segredo-oauth-1",
+      }),
+      204,
+    );
+    await ok(s.adm("POST", `/payment-accounts/${s.conta}/test`));
+  }
+
+  /** Uma encomenda paga por MB WAY, com o `trid` no aviso (P2). */
+  async function pagaMbWay(
+    s: Cenario,
+    linhas: [string, number][],
+    trid: number,
+    nif: string | null = null,
+  ) {
+    const k = await checkoutCom(s, linhas);
+    await preencher(s, k.token, undefined, nif);
+    await ok(
+      pedir("PUT", `/checkout/${k.token}/contact`, {
+        email: "rui@exemplo.pt",
+        nome: "Rui",
+        telefone: "+351912345678",
+      }),
+    );
+    await ok(
+      pedir("PUT", `/checkout/${k.token}/payment-method`, { metodo: "mb_way" }),
+    );
+    const e = await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+    const pag = await ok(s.adm("GET", `/payments/${String(p["id"])}`));
+    expect(
+      (
+        await aviso(
+          s,
+          avisoEuPago({
+            identifier: String(pag["referencia"]),
+            status: "Paid",
+            valor: Number(pag["montante"]) / 100,
+            trid,
+            method: "Mbway",
+          }),
+        )
+      ).statusCode,
+    ).toBe(200);
+    return { ...k, encomenda: String(e["encomenda"]), pagamento: pag };
+  }
+
+  /** Expede, abre um problema e decide-o: um reembolso de 12,30 € + 4,99 €. */
+  async function reembolsoDeProblema(s: Cenario, encomenda: string) {
+    const [linha] = await expedir(s, encomenda);
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda,
+        tipo: "chegou_danificado",
+        descricao: "frasco partido",
+      }),
+      201,
+    );
+    const d = await ok(
+      s.adm("POST", `/problems/${String(prb["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        incluir_portes: true,
+        motivo: "chegou partido",
+      }),
+      201,
+    );
+    return {
+      id: String(d["reembolso"]),
+      problema: String(prb["id"]),
+      linha: String(linha?.["id"]),
+    };
+  }
+
+  const reembolso = (s: Cenario, id: string) =>
+    ok(s.adm("GET", `/refunds/${id}`));
+  const chamadasDeReembolso = () =>
+    eupago.chamadas.filter((c) => /\/refund\/[0-9]+$/.test(c.url));
+  const diferencas = (s: Cenario) =>
+    naBase(s, (trx) =>
+      trx
+        .selectFrom("diferenca_pagamento")
+        .select(["motivo", "estado", "prova", "resolvida_por"])
+        .where("motivo", "in", [
+          "reembolso_incerto",
+          "reembolso_por_confirmar",
+          "reembolso_desconhecido",
+        ])
+        .orderBy("criada_em")
+        .execute(),
+    );
+  /** Muda à força o momento do pedido (o relógio da tarefa). */
+  const pedidoHa = (id: string, minutos: number) =>
+    base.dono.transaction().execute(async (t) => {
+      await sql`alter table reembolso disable trigger reembolso_antes_de_gravar`.execute(
+        t,
+      );
+      await sql`update reembolso set pedido_em = now() - make_interval(mins => ${minutos}),
+        consultado_em = null where id = ${id.slice(4)}::uuid`.execute(t);
+      await sql`alter table reembolso enable always trigger reembolso_antes_de_gravar`.execute(
+        t,
+      );
+    });
+  /** A EuPago falsa com as respostas por omissão (um teste não passa ao outro). */
+  const limpar = () => {
+    delete eupago.respostas.token;
+    delete eupago.respostas.reembolso;
+    delete eupago.respostas.consultaReembolso;
+  };
+  const confirmar = async () => {
+    const r = await correrConfirmacoes(base.api, eupago.config);
+    expect(r.erros).toEqual([]);
+    return r;
+  };
+
+  it("pelo prestador (MB WAY): o trid do aviso, o pedido com OAuth, a_confirmar e a consulta dá executado; o pagamento, o problema e o evento seguem", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 123456);
+    expect(
+      await naBase(s, async (trx) =>
+        trx
+          .selectFrom("pagamento")
+          .select("id_transaccao_prestador")
+          .where("encomenda_id", "=", e.encomenda.slice(4))
+          .executeTakeFirstOrThrow(),
+      ),
+    ).toEqual({ id_transaccao_prestador: "123456" });
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    const antes = (await reembolso(s, r.id))["versao"];
+    const n = eupago.chamadas.length;
+    expect(
+      await ok(s.adm("POST", `/refunds/${r.id}/execute`, { versao: antes })),
+    ).toEqual({ estado: "a_confirmar", versao: Number(antes) + 2 });
+    const feitas = eupago.chamadas.slice(n);
+    expect(feitas.map((c) => c.url.replace(/^https:\/\/[^/]+/, ""))).toEqual([
+      "/api/auth/token",
+      "/api/management/v1.02/refund/123456",
+    ]);
+    expect(feitas[0]?.corpo).toEqual({
+      client_id: "cliente-1",
+      client_secret: "segredo-oauth-1",
+      grant_type: "client_credentials",
+    });
+    expect(feitas[1]?.corpo).toEqual({ amount: 17.29, reason: r.id });
+    expect(feitas[1]?.cabecalhos["authorization"]).toMatch(/^Bearer tok/);
+    const x = await reembolso(s, r.id);
+    expect(x["via"]).toBe("prestador");
+    expect(x["prestador"]).toEqual({
+      pedido_em: expect.any(String) as string,
+      pedido_por: expect.stringMatching(/^chave:/) as string,
+      referencia: expect.stringMatching(/^[0-9]+$/) as string,
+      recusa: null,
+    });
+    // Outra vez: o reembolso já não está a executar (nunca a dobrar, R7).
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/execute`, { versao: x["versao"] }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+    expect(chamadasDeReembolso().length).toBe(1);
+    // A consulta diz «reembolsado» (E3): fica executado.
+    await confirmar();
+    const y = await reembolso(s, r.id);
+    expect(y["estado"]).toBe("executado");
+    // 17,29 € é o pagamento todo (12,30 € e os portes).
+    expect(await estadoDoPagamento(s, e.encomenda)).toBe("reembolsado");
+    expect((await ok(s.adm("GET", `/problems/${r.problema}`)))["estado"]).toBe(
+      "fechado",
+    );
+    // A transição do pagamento feita pela tarefa fica ligada a quem pediu o
+    // reembolso (docs/28 §3.7; 0060).
+    const { rows: tr } = await sql<{ quem: string; a_pedido_de: Json | null }>`
+      select t.quem, t.a_pedido_de from transicao_pagamento t
+      join pagamento p on p.id = t.pagamento_id
+      where p.encomenda_id = ${e.encomenda.slice(4)}::uuid and t.para = 'reembolsado'`.execute(
+      base.dono,
+    );
+    expect(tr).toEqual([
+      expect.objectContaining({
+        quem: "sistema:reembolsos",
+        a_pedido_de: expect.objectContaining({
+          quem: expect.stringMatching(/^chave:/) as string,
+        }) as unknown,
+      }),
+    ]);
+    const ev = await eventos(s);
+    expect(ev).toContain("refund.requested");
+    expect(ev.indexOf("refund.requested")).toBeLessThan(
+      ev.indexOf("refund.completed"),
+    );
+    // Executado, a tarefa não volta a consultar.
+    const m = eupago.chamadas.length;
+    await confirmar();
+    expect(eupago.chamadas.length).toBe(m);
+  });
+
+  it("recusado fica falhado com o código; sem resposta fica incerto, nunca se repete, e só uma pessoa o reconcilia (P5, P7)", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 223344);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    eupago.respostas.reembolso = () =>
+      json(400, {
+        transactionStatus: "Rejected",
+        code: "BAD_REQUEST",
+        text: "Service don't have direct refund",
+      });
+    let v = Number((await reembolso(s, r.id))["versao"]);
+    const f = await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+    );
+    expect(f["estado"]).toBe("falhado");
+    expect((await reembolso(s, r.id))["prestador"]).toEqual(
+      expect.objectContaining({ recusa: "BAD_REQUEST", referencia: null }),
+    );
+    // Uma pessoa pede outra vez; o prestador não responde (5xx): incerto.
+    eupago.respostas.reembolso = () => json(503, {});
+    v = Number(f["versao"]);
+    const i = await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+    );
+    expect(i["estado"]).toBe("incerto");
+    expect(
+      chamadasDeReembolso().filter((c) => c.url.endsWith("/223344")).length,
+    ).toBe(2);
+    expect(await diferencas(s)).toEqual([
+      expect.objectContaining({
+        motivo: "reembolso_incerto",
+        estado: "aberta",
+        prova: expect.objectContaining({ reembolso: r.id }) as unknown,
+      }),
+    ]);
+    // A tarefa nunca o repete, nem a execução: só a reconciliação.
+    await confirmar();
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/execute`, { versao: i["versao"] }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+    expect(
+      chamadasDeReembolso().filter((c) => c.url.endsWith("/223344")).length,
+    ).toBe(2);
+    // Na base, voltar a executar um incerto sem motivo é recusado (P7).
+    await expect(
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        await trx
+          .updateTable("reembolso")
+          .set({ estado: "a_executar" })
+          .where("id", "=", r.id.slice(4))
+          .execute();
+      }),
+    ).rejects.toThrow(/pede o motivo/);
+    // Sem o identificador do prestador, executado não se aceita.
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: i["versao"],
+          resultado: "executado",
+          motivo: "visto no back-office",
+        }),
+      ),
+    ).toEqual([400, "refunds.invalid_field"]);
+    const k = await ok(
+      s.adm("POST", `/refunds/${r.id}/reconcile`, {
+        versao: i["versao"],
+        resultado: "executado",
+        motivo: "visto no back-office da EuPago",
+        identificador: "9627",
+      }),
+    );
+    expect(k["estado"]).toBe("executado");
+    const x = await reembolso(s, r.id);
+    expect(x["prova"]).toEqual(
+      expect.objectContaining({ identificador: "9627" }),
+    );
+    // 17,29 € é o pagamento todo (12,30 € e os portes).
+    expect(await estadoDoPagamento(s, e.encomenda)).toBe("reembolsado");
+    expect(await diferencas(s)).toEqual([
+      expect.objectContaining({
+        motivo: "reembolso_incerto",
+        estado: "resolvida",
+        resolvida_por: expect.stringMatching(/^chave:/) as string,
+      }),
+    ]);
+    delete eupago.respostas.reembolso;
+  });
+
+  it("só à mão: o Multibanco (Q8) e uma conta sem OAuth (refunds.manual_only)", async () => {
+    limpar();
+    const s = await cenario();
+    // Multibanco, mesmo com o OAuth na conta.
+    await comOAuth(s);
+    const mb = await paga(s, [[s.v1, 1]]);
+    const r1 = await reembolsoDeProblema(s, mb.encomenda);
+    const v1 = (await reembolso(s, r1.id))["versao"];
+    expect(
+      await codigo(s.adm("POST", `/refunds/${r1.id}/execute`, { versao: v1 })),
+    ).toEqual([422, "refunds.manual_only"]);
+    expect((await reembolso(s, r1.id))["estado"]).toBe("a_executar");
+    // MB WAY numa conta sem o OAuth.
+    await ok(
+      s.adm("PUT", `/payment-accounts/${s.conta}/credentials`, {
+        chave: "xxxx-xxxx-xxxx-xxxx",
+        segredo_aviso: SEGREDO,
+      }),
+      204,
+    );
+    await ok(s.adm("POST", `/payment-accounts/${s.conta}/test`));
+    const mw = await pagaMbWay(s, [[s.v1, 1]], 334455);
+    const r2 = await reembolsoDeProblema(s, mw.encomenda);
+    const v2 = (await reembolso(s, r2.id))["versao"];
+    const n = eupago.chamadas.length;
+    expect(
+      await codigo(s.adm("POST", `/refunds/${r2.id}/execute`, { versao: v2 })),
+    ).toEqual([422, "refunds.manual_only"]);
+    expect(eupago.chamadas.length).toBe(n);
+    // O client_id sem o client_secret é recusado.
+    expect(
+      await codigo(
+        s.adm("PUT", `/payment-accounts/${s.conta}/credentials`, {
+          chave: "xxxx-xxxx-xxxx-xxxx",
+          segredo_aviso: SEGREDO,
+          client_id: "so-o-id",
+        }),
+      ),
+    ).toEqual([400, "payments.invalid_field"]);
+    // O manual continua a servir.
+    await ok(
+      s.adm("POST", `/refunds/${r2.id}/manual`, {
+        versao: v2,
+        montante: 1729,
+        data: "2026-10-11",
+        referencia: "TRF-1",
+      }),
+    );
+  });
+
+  it("a consulta: outro estado não muda nada; 7 dias sem «reembolsado» vão à fila uma vez; a chamada a meio passa a incerto; o aviso Refund acorda ou vai à fila (P6)", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 445566);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    let v = (await reembolso(s, r.id))["versao"];
+    await ok(s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }));
+    eupago.respostas.consultaReembolso = () =>
+      json(200, {
+        transactionStatus: "Success",
+        refundList: { trid: "445566", status: "pendente" },
+      });
+    await confirmar();
+    expect((await reembolso(s, r.id))["estado"]).toBe("a_confirmar");
+    // Consultado há menos de um minuto: não se consulta outra vez.
+    const n = eupago.chamadas.length;
+    await confirmar();
+    expect(eupago.chamadas.length).toBe(n);
+    // Um aviso Refund deste pagamento acorda a consulta (sem marcar nada).
+    const corpo = avisoEuPago({
+      identifier: String(e.pagamento["referencia"]),
+      status: "Refund",
+      valor: 17.29,
+      trid: 445566,
+      method: "Mbway",
+    });
+    expect((await aviso(s, corpo)).statusCode).toBe(200);
+    expect((await reembolso(s, r.id))["estado"]).toBe("a_confirmar");
+    await confirmar();
+    expect(eupago.chamadas.length).toBeGreaterThan(n);
+    // 8 dias depois, ainda sem «reembolsado»: para a fila, uma vez.
+    await pedidoHa(r.id, 8 * 24 * 60);
+    await confirmar();
+    await pedidoHa(r.id, 8 * 24 * 60);
+    await confirmar();
+    expect((await diferencas(s)).map((d) => d.motivo)).toEqual([
+      "reembolso_por_confirmar",
+    ]);
+    // Aceite pelo prestador: «não saiu» é recusado (revisão do #350,
+    // P1-1); a pessoa dá-o como executado e a diferença fecha.
+    v = (await reembolso(s, r.id))["versao"];
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: v,
+          resultado: "nao_saiu",
+          motivo: "não aparece no back-office",
+        }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+    expect(
+      (
+        await ok(
+          s.adm("POST", `/refunds/${r.id}/reconcile`, {
+            versao: v,
+            resultado: "executado",
+            motivo: "visto no back-office",
+          }),
+        )
+      )["estado"],
+    ).toBe("executado");
+    expect((await diferencas(s))[0]?.estado).toBe("resolvida");
+    // A chamada que fica a meio: ao fim de 5 minutos, incerto.
+    delete eupago.respostas.consultaReembolso;
+    let soltar: () => void = () => undefined;
+    eupago.respostas.reembolso = () =>
+      new Promise<Response>((ok_) => {
+        soltar = () => {
+          ok_(json(201, { transactionStatus: "Success", refundId: "77" }));
+        };
+      });
+    const e3 = await pagaMbWay(s, [[s.v1, 1]], 445567);
+    const r3 = await reembolsoDeProblema(s, e3.encomenda);
+    v = (await reembolso(s, r3.id))["versao"];
+    const emCurso = s.adm("POST", `/refunds/${r3.id}/execute`, { versao: v });
+    for (
+      let i = 0;
+      i < 50 && (await reembolso(s, r3.id))["estado"] !== "a_pedir";
+      i++
+    ) {
+      await new Promise((t) => setTimeout(t, 20));
+    }
+    expect((await reembolso(s, r3.id))["estado"]).toBe("a_pedir");
+    await pedidoHa(r3.id, 6);
+    await confirmar();
+    expect((await reembolso(s, r3.id))["estado"]).toBe("incerto");
+    soltar();
+    // A resposta tardia não o tira do incerto: decide uma pessoa.
+    expect((await ok(emCurso))["estado"]).toBe("incerto");
+    delete eupago.respostas.reembolso;
+    // Um aviso Refund de um pagamento sem reembolso pedido: para a fila.
+    const outra = await pagaMbWay(s, [[s.v2, 2]], 556677);
+    expect(
+      (
+        await aviso(
+          s,
+          avisoEuPago({
+            identifier: String(outra.pagamento["referencia"]),
+            status: "Refund",
+            valor: 12.3,
+            trid: 556677,
+            method: "Mbway",
+          }),
+        )
+      ).statusCode,
+    ).toBe(200);
+    expect((await diferencas(s)).map((d) => d.motivo)).toContain(
+      "reembolso_desconhecido",
+    );
+  });
+
+  it("voltar a a_executar confere outra vez os tectos (P8): um falhado não passa por cima de outro já pago", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 667788);
+    const r1 = await reembolsoDeProblema(s, e.encomenda);
+    eupago.respostas.reembolso = () =>
+      json(400, { transactionStatus: "Rejected", code: "BAD_REQUEST" });
+    const v1 = (await reembolso(s, r1.id))["versao"];
+    const f = await ok(
+      s.adm("POST", `/refunds/${r1.id}/execute`, { versao: v1 }),
+    );
+    expect(f["estado"]).toBe("falhado");
+    delete eupago.respostas.reembolso;
+    // Falhado não conta: outro problema reembolsa a mesma linha, à mão.
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e.encomenda,
+        tipo: "outro",
+        descricao: "outra vez",
+      }),
+      201,
+    );
+    const d = await ok(
+      s.adm("POST", `/problems/${String(prb["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: r1.linha, quantidade: 1 }],
+        incluir_portes: true,
+        motivo: "reembolsar já",
+      }),
+      201,
+    );
+    const r2 = String(d["reembolso"]);
+    await ok(
+      s.adm("POST", `/refunds/${r2}/manual`, {
+        versao: (await reembolso(s, r2))["versao"],
+        montante: 1729,
+        data: "2026-10-11",
+        referencia: "TRF-2",
+      }),
+    );
+    // Pedir outra vez o primeiro passaria o pago: a base recusa.
+    const n = chamadasDeReembolso().length;
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r1.id}/execute`, { versao: f["versao"] }),
+      ),
+    ).toEqual([422, "refunds.exceeds_paid"]);
+    expect(chamadasDeReembolso().length).toBe(n);
+    expect((await reembolso(s, r1.id))["estado"]).toBe("falhado");
+  });
+
+  // ---------------------------- Revisão do #350 (P1-1, P2-1 a P2-6)
+
+  it("aceite pelo prestador não volta a pedir-se (P1-1); a recusa não passa à tentativa seguinte (P2-1); a base recusa os atalhos", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 778899);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    // Primeiro recusado, depois aceite: a recusa antiga não aparece.
+    eupago.respostas.reembolso = () =>
+      json(400, { transactionStatus: "Rejected", code: "" });
+    const v = (await reembolso(s, r.id))["versao"];
+    const f = await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+    );
+    expect(f["estado"]).toBe("falhado");
+    // Um código vazio fica «Rejected» (revisão do #350, P3).
+    expect(((await reembolso(s, r.id))["prestador"] as Json)["recusa"]).toBe(
+      "Rejected",
+    );
+    delete eupago.respostas.reembolso;
+    eupago.respostas.consultaReembolso = () =>
+      json(200, { transactionStatus: "Success", refundList: [] });
+    await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: f["versao"] }),
+    );
+    const x = await reembolso(s, r.id);
+    expect(x["estado"]).toBe("a_confirmar");
+    expect((x["prestador"] as Json)["recusa"]).toBeNull();
+    // «Não saiu» sobre um pedido aceite: recusado, nunca se pede outra vez.
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: x["versao"],
+          resultado: "nao_saiu",
+          motivo: "não aparece",
+        }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+    // Um motivo só de espaços não é motivo.
+    expect(
+      (
+        await s.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: x["versao"],
+          resultado: "executado",
+          motivo: "   ",
+        })
+      ).statusCode,
+    ).toBe(400);
+    // A base: nem a_confirmar → a_executar (com motivo), nem mudar a
+    // referência do prestador, nem o trid do pagamento.
+    const naBaseComo = (
+      fn: (
+        t: Parameters<Parameters<typeof comComerciante>[2]>[0],
+      ) => Promise<unknown>,
+    ) =>
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true),
+          set_config('eurolify.motivo', 'tentar', true),
+          set_config('eurolify.origem', 'pessoa', true)`.execute(trx);
+        await fn(trx);
+      });
+    await expect(
+      naBaseComo((t) =>
+        t
+          .updateTable("reembolso")
+          .set({ estado: "a_executar" })
+          .where("id", "=", r.id.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(/a_confirmar → a_executar/);
+    await expect(
+      naBaseComo((t) =>
+        t
+          .updateTable("reembolso")
+          .set({ referencia_prestador: "1" })
+          .where("id", "=", r.id.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(/só se grava quando ele aceita/);
+    await expect(
+      naBaseComo((t) =>
+        t
+          .updateTable("pagamento")
+          .set({ id_transaccao_prestador: "1" })
+          .where("encomenda_id", "=", e.encomenda.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(/não muda/);
+    // Uma lista vazia na consulta não conta como reembolsado (P2-5).
+    await confirmar();
+    expect((await reembolso(s, r.id))["estado"]).toBe("a_confirmar");
+    // A pessoa dá-o como executado (a referência do prestador é a prova).
+    expect(
+      (
+        await ok(
+          s.adm("POST", `/refunds/${r.id}/reconcile`, {
+            versao: x["versao"],
+            resultado: "executado",
+            motivo: "visto no back-office",
+          }),
+        )
+      )["estado"],
+    ).toBe("executado");
+    // Na base, um reembolso que não está a executar não salta para a_confirmar.
+    const outro = await pagaMbWay(s, [[s.v1, 1]], 778900);
+    const r2 = await reembolsoDeProblema(s, outro.encomenda);
+    await expect(
+      naBaseComo((t) =>
+        t
+          .updateTable("reembolso")
+          .set({ estado: "a_confirmar", referencia_prestador: "5" })
+          .where("id", "=", r2.id.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(
+      /a_executar → a_confirmar|só se grava|pedido ao prestador/,
+    );
+  });
+
+  it("dois pedidos ao mesmo tempo saem uma vez; durante o pedido não se pede outro; sem token nada sai; aceite sem referência fica incerto (P2-6)", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 889900);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    let soltar: () => void = () => undefined;
+    eupago.respostas.reembolso = () =>
+      new Promise<Response>((fim) => {
+        soltar = () => {
+          fim(json(201, { transactionStatus: "Success", refundId: "5001" }));
+        };
+      });
+    const v = (await reembolso(s, r.id))["versao"];
+    const n = chamadasDeReembolso().length;
+    const [a, b] = [
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+    ];
+    for (
+      let i = 0;
+      i < 50 && (await reembolso(s, r.id))["estado"] !== "a_pedir";
+      i++
+    ) {
+      await new Promise((t) => setTimeout(t, 20));
+    }
+    // Durante o pedido, com a versão de agora: recusado (é o `a_pedir`).
+    const agora = await reembolso(s, r.id);
+    expect(agora["estado"]).toBe("a_pedir");
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/execute`, { versao: agora["versao"] }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+    soltar();
+    const respostas = [await a, await b].map((x) => x.statusCode).sort();
+    expect(respostas).toEqual([200, 409]);
+    expect(chamadasDeReembolso().length - n).toBe(1);
+    delete eupago.respostas.reembolso;
+    // O token recusado: nada saiu, falhado com o motivo.
+    const e2 = await pagaMbWay(s, [[s.v1, 1]], 889901);
+    const r2 = await reembolsoDeProblema(s, e2.encomenda);
+    eupago.respostas.token = () =>
+      json(401, {
+        transactionStatus: "Rejected",
+        code: "TOKEN_INVALID",
+        text: "Token is invalid",
+      });
+    const m = chamadasDeReembolso().length;
+    const f = await ok(
+      s.adm("POST", `/refunds/${r2.id}/execute`, {
+        versao: (await reembolso(s, r2.id))["versao"],
+      }),
+    );
+    expect(f["estado"]).toBe("falhado");
+    expect(chamadasDeReembolso().length).toBe(m);
+    delete eupago.respostas.token;
+    // Aceite sem refundId: não se sabe o que saiu, incerto.
+    eupago.respostas.reembolso = () =>
+      json(201, { transactionStatus: "Success" });
+    const i = await ok(
+      s.adm("POST", `/refunds/${r2.id}/execute`, { versao: f["versao"] }),
+    );
+    expect(i["estado"]).toBe("incerto");
+    delete eupago.respostas.reembolso;
+  });
+
+  it("outro comerciante não executa nem reconcilia; as credenciais OAuth nunca saem nem ficam em claro (P2-6)", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 990011);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    const vizinho = await cenario();
+    const v = (await reembolso(s, r.id))["versao"];
+    expect(
+      await codigo(
+        vizinho.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+      ),
+    ).toEqual([404, "refunds.not_found"]);
+    expect(
+      await codigo(
+        vizinho.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: v,
+          resultado: "nao_saiu",
+          motivo: "vizinho",
+        }),
+      ),
+    ).toEqual([404, "refunds.not_found"]);
+    expect((await reembolso(s, r.id))["estado"]).toBe("a_executar");
+    const contas = await s.adm("GET", "/payment-accounts");
+    expect(contas.body).not.toContain("segredo-oauth-1");
+    expect(contas.body).not.toContain("cliente-1");
+    const { rows } = await sql<{ c: Buffer }>`
+      select credenciais_cifra as c from conta_pagamento
+      where id = ${s.conta.slice(4)}::uuid`.execute(base.dono);
+    expect(rows[0]?.c.toString("latin1")).not.toContain("segredo-oauth-1");
+  });
+
+  it("o aviso Refund: depois de confirmado não é alarme; com um incerto vai à fila ao lado dele; dois reembolsos do mesmo pagamento são dois avisos (P2-3, P2-4)", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 2]], 101112);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, {
+        versao: (await reembolso(s, r.id))["versao"],
+      }),
+    );
+    await confirmar();
+    const refund = (valor: number, date: string) =>
+      JSON.stringify({
+        transactions: {
+          entity: 12345,
+          reference: 123456789,
+          identifier: String(e.pagamento["referencia"]),
+          method: "Mbway",
+          amount: { value: valor, currency: "EUR" },
+          date,
+          trid: 101112,
+          status: "Refund",
+        },
+      });
+    // O aviso do reembolso já confirmado: sem alarme.
+    expect(
+      (await aviso(s, refund(17.29, "2026-10-11T10:00:00Z"))).statusCode,
+    ).toBe(200);
+    expect(await diferencas(s)).toEqual([]);
+    // Um segundo reembolso, que o Eurolify não pediu: outro evento, à fila.
+    expect((await aviso(s, refund(5, "2026-10-11T11:00:00Z"))).statusCode).toBe(
+      200,
+    );
+    expect((await diferencas(s)).map((d) => d.motivo)).toEqual([
+      "reembolso_desconhecido",
+    ]);
+    // Um reembolso incerto e o aviso dele: a prova vai à fila, ao lado.
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e.encomenda,
+        tipo: "outro",
+        descricao: "a segunda unidade",
+      }),
+      201,
+    );
+    const d = await ok(
+      s.adm("POST", `/problems/${String(prb["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: r.linha, quantidade: 1 }],
+        motivo: "a segunda",
+      }),
+      201,
+    );
+    const r2 = String(d["reembolso"]);
+    eupago.respostas.reembolso = () => json(503, {});
+    expect(
+      (
+        await ok(
+          s.adm("POST", `/refunds/${r2}/execute`, {
+            versao: (await reembolso(s, r2))["versao"],
+          }),
+        )
+      )["estado"],
+    ).toBe("incerto");
+    delete eupago.respostas.reembolso;
+    expect(
+      (await aviso(s, refund(12.3, "2026-10-11T12:00:00Z"))).statusCode,
+    ).toBe(200);
+    const fila = (await diferencas(s)).filter(
+      (x) => x.motivo === "reembolso_incerto",
+    );
+    expect(fila).toHaveLength(2);
+    expect(fila[1]?.prova).toEqual(
+      expect.objectContaining({ reembolso: r2 }) as unknown,
+    );
+  });
+
+  it("com fatura do Eurolify: a NC espera pela confirmação do prestador e sai depois (P2-6)", async () => {
+    limpar();
+    const s = await cenario();
+    await ligar(s, `c-${randomUUID()}`);
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 121314, "501964843");
+    await ateParar();
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, {
+        versao: (await reembolso(s, r.id))["versao"],
+      }),
+    );
+    await ateParar();
+    expect((await documentosDe(s, e.encomenda)).notas[0]).toMatchObject({
+      estado: "retido",
+      motivos: ["reembolso_por_executar"],
+    });
+    await confirmar();
+    await ateParar();
+    const { notas } = await documentosDe(s, e.encomenda);
+    expect(notas.map((n) => n["estado"])).toEqual(["emitido"]);
   });
 });

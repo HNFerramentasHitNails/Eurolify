@@ -16,7 +16,8 @@ export type CodigoErroPosVenda =
   | "refunds.exceeds_paid"
   | "refunds.not_refundable"
   | "refunds.version_conflict"
-  | "refunds.immutable";
+  | "refunds.immutable"
+  | "refunds.manual_only";
 
 export const ESTADO_DO_CODIGO: Record<CodigoErroPosVenda, number> = {
   "returns.not_found": 404,
@@ -35,6 +36,9 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroPosVenda, number> = {
   "refunds.not_refundable": 422,
   "refunds.version_conflict": 409,
   "refunds.immutable": 409,
+  // Não se reembolsa pelo prestador (Multibanco, sem o trid, sem OAuth):
+  // regista-se à mão (docs/30 §13).
+  "refunds.manual_only": 422,
 };
 
 export class ErroPosVenda extends Error {

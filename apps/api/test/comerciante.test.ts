@@ -149,6 +149,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0058_pos_venda",
         "0059_precos_historico_ambito",
         "0060_rasto_tarefas_a_pedido_de",
+        "0061_pos_venda_reembolso_prestador",
       ]);
     });
 
@@ -227,6 +228,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // funções do dono lhes tocam; a chave nunca sai da base.
           "campo_sensivel",
           "chave_do_rasto",
+          // Os reembolsos no prestador a olhar (0061): escreve-a o gatilho,
+          // lê-a a função do dono.
+          "tarefa_reembolso",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.

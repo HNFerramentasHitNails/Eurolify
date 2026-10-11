@@ -357,7 +357,7 @@ reembolsa por API; se não, o reembolso é manual.
   expedição ainda a caminho não fica presa a um estado de devolução.
 - **Com sistema próprio** não há fatura no Eurolify, logo não há NC: é o
   sistema do comerciante que a emite (D-10).
-- **Por fazer:** o reembolso pelo adaptador (parte 2), o aviso do prazo do
+- **Por fazer:** o reembolso pelo adaptador (parte 2, §13), o aviso do prazo do
   reembolso (R10), a marca «selado por higiene», o jurista (J1 a J5) e o
   contabilista (C1 a C4).
 
@@ -407,3 +407,135 @@ reembolsa por API; se não, o reembolso é manual.
   `prova` livre (P3-13); `falhado/incerto → a_executar` sem rever os tectos
   (P3-15; parte 2); listas sem paginação (P3-17); `meio_pagamento` (P3-18).
 
+
+## 13. Parte 2 — o reembolso pela EuPago (desenho, 11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«avança com a parte 2 da pós-venda»*.
+**Aprovado pelo Diogo a 11/10/2026, com a Q8 em A** (*«aprovado, com a A»*;
+`docs/06`, DP). A §11
+diz «o reembolso pelo adaptador (EuPago, depois de lida a documentação)», e a
+Q2 deixava o Multibanco e o MB WAY manuais **até** a lermos. Lida a
+11/10/2026; o aviso do prazo (R10) e a marca «selado por higiene» (R4) ficam
+para pedidos seus, depois deste.
+
+### 13.1 O que se leu na documentação da EuPago
+
+Lido em [docs.eupago.pt](https://docs.eupago.pt/reference) a 11/10/2026
+(**W**: só a documentação pública; **nada corrido contra a sandbox**, porque
+continua a não haver credenciais de teste, como em `docs/26` §12).
+
+| # | Página | O que diz |
+|---|---|---|
+| E1 | [Refund](https://docs.eupago.pt/reference/refund) | `POST /api/management/v1.02/refund/{trid}`; corpo `amount` (obrigatório, em euros), `reason`, `iban`, `bic`; «aceita reembolsos parciais e totais»; resposta 201 `{"transactionStatus": "Success", "refundId": "9627"}`; recusas 400 `Rejected` com `IBAN_INVALID` ou `BAD_REQUEST` («Service don't have direct refund») e 401 `TOKEN_INVALID` |
+| E2 | idem, nota | «Para o MB WAY e o cartão, não é obrigatório preencher o IBAN e o BIC; só são precisos se o prestador recusar o reembolso» |
+| E3 | [Refund Information](https://docs.eupago.pt/reference/refund-information) | `GET /api/management/v1.02/refund/{refundId}`, com o `refundId` da resposta do E1; devolve `refundList.status`, com o exemplo `reembolsado`; 400 `REFUND_INVALID` |
+| E4 | [Generate Bearer Token](https://docs.eupago.pt/reference/generate-bearer-token) | as duas rotas acima usam **OAuth**, não a chave da API: `POST /api/auth/token` com `client_id`, `client_secret` e `grant_type: client_credentials`; devolve `access_token` e `expires_in` (uma data, sem fuso) |
+| E5 | [Avisos 2.0](https://docs.eupago.pt/reference/realtime-webhooks-20) | um aviso com o estado `Refund` (configurável como `REFUNDED`), com o `trid` (inteiro) e o montante |
+| E6 | [MB WAY](https://docs.eupago.pt/reference/mbway) | a criação devolve um `transactionID` em hexadecimal, que não é o `trid` inteiro que o E1 pede |
+
+Não se encontrou na documentação: uma chave de idempotência para o
+reembolso; os outros valores de `refundList.status`; se o `Success` do E1
+quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
+
+### 13.2 O que isto muda (propostas)
+
+| # | O quê | Proposta | Fonte |
+|---|---|---|---|
+| P1 | **Credenciais** | a conta passa a guardar também o `client_id` e o `client_secret` (OAuth), cifrados no mesmo campo que a chave (AES-256-GCM, `PAGAMENTOS_CHAVE`); só o dono os põe. O token pede-se a cada reembolso e não se guarda (os reembolsos são um de cada vez, R9). Uma conta sem eles reembolsa só à mão | E4; `docs/26` Q3 |
+| P2 | **O `trid`** | guarda-se no pagamento quando um aviso assinado o dá como pago (o `trid` vem no aviso, E5); a migração preenche os que já existem a partir dos avisos guardados. Um pagamento dado como pago só por consulta não tem `trid`: reembolsa-se à mão | E1, E5, E6 |
+| P3 | **Quais métodos** | **MB WAY** pelo prestador (E2: sem IBAN). **Multibanco: ver a Q8** | E2 |
+| P4 | **Executar** (`POST /refunds/{id}/execute`, `refunds:write`) | só um reembolso `a_executar` de um pagamento EuPago com `trid` e uma conta com as credenciais OAuth. Antes da chamada, grava-se o pedido (quem, quando) e o reembolso passa a `via = prestador`; a nossa referência (`rfd_…`) vai no `reason`, porque a EuPago não tem chave de idempotência | E1; R7 |
+| P5 | **Resposta** | 201 `Success` com `refundId` → estado novo **`a_confirmar`**, com o `refundId`: o pedido foi aceite, falta saber se o dinheiro saiu. `Rejected` → `falhado`, com o código (ex.: `BAD_REQUEST` = o serviço não reembolsa directamente → uma pessoa regista-o à mão). Tempo esgotado, 5xx ou resposta que não se lê → `incerto`, **nunca se repete sozinho** | E1; `docs/26` R3, R4 |
+| P6 | **Confirmar** | uma tarefa de minuto a minuto (como a dos pagamentos) consulta o E3 para cada `a_confirmar`: `reembolsado` → `executado` (e a NC acorda); outro valor fica como está; ao fim de 7 dias sem `reembolsado`, abre uma diferença para uma pessoa. Um aviso `Refund` assinado acorda a consulta dos reembolsos `a_confirmar` desse pagamento, mas sozinho não marca nada (com reembolsos parciais, não diz qual foi) | E3, E5 |
+| P7 | **Reconciliar** (`POST /refunds/{id}/reconcile`, `refunds:write`) | para o `incerto` (não há `refundId`, por isso nada se consulta): uma pessoa vê no back-office da EuPago e diz `executado` (com o identificador do reembolso como prova) ou `nao_saiu` (volta a `a_executar`, e pode executar outra vez). Uma de cada vez, com motivo | R7, R9 |
+| P8 | **Tectos ao voltar a `a_executar`** | a base volta a conferir R5 (o pago menos o já reembolsado) quando um `falhado` ou um `incerto` volta a `a_executar` (era a P3-15 da revisão do #329) | R5 |
+| P9 | **Eventos** | `refund.requested` (a_confirmar) e os que já existem (`refund.completed`, `refund.failed`, `refund.uncertain`); só identificadores e montantes | §7.3 |
+
+### 13.3 Pergunta para o Diogo ou o Bruno
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q8 ✅ **A** (Diogo, 11/10/2026) | **O Multibanco pela EuPago?** A nota E2 só dispensa o IBAN no MB WAY e no cartão: lida ao contrário, um Multibanco precisa do IBAN do cliente (**M**: dedução da nota, não está escrito). | **A — o Multibanco continua à mão** (o comerciante transfere e regista a prova, como na parte 1): o Eurolify não recebe IBANs, a C3 do contabilista continua por responder e não há sandbox para confirmar. B seria a pessoa escrever o IBAN ao executar, enviado à EuPago sem se guardar |
+
+### 13.4 Por verificar (bloqueiam o modo real, não o código)
+
+| # | O quê |
+|---|---|
+| V7 | o pedido e a resposta do E1 na sandbox, com credenciais OAuth de teste |
+| V8 | os valores de `refundList.status` além de `reembolsado` (E3) e se o `Success` do E1 quer dizer «dinheiro saído» |
+| V9 | o fuso do `expires_in` do token (E4); não se usa, porque o token não se guarda |
+| V10 | se o `trid` do aviso (E5) é o que o E1 pede, num pagamento real de teste |
+| V11 | se o `reason` (`rfd_…`) aparece no extracto do cliente |
+| V12 | **antes do modo real:** com a V8 confirmada, se o «reembolsado» da consulta chega para a NC sair sozinha, ou se fica um passo de uma pessoa (revisão do #350) |
+
+### 13.5 Em código — parte 2 (11/10/2026; migração 0061; `docs/06`, DP)
+
+| O quê | Onde |
+|---|---|
+| `pagamento.id_transaccao_prestador` (o `trid`), gravado uma vez do aviso assinado que deu o pagamento como pago | migração 0061; `src/pagamentos/repositorio.ts` (`aplicarAviso`) |
+| o reembolso com `a_pedir` e `a_confirmar`, quem pediu e quando, a referência do prestador, o código da recusa e a última consulta; as transições novas, o motivo obrigatório ao voltar a `a_executar`, e os tectos de R5 também ao voltar (P8) | migração 0061 |
+| `refund.requested` e os motivos `reembolso_incerto`, `reembolso_por_confirmar` e `reembolso_desconhecido` na fila de diferenças | migração 0061 |
+| `tarefa_reembolso`, interna, escrita por um gatilho, e `posvenda_comerciantes_com_reembolsos()`: o reembolso tem o RLS forçado e a tarefa corre sem comerciante (como a `tarefa_pagamento` da 0044); guarda a origem de quem pediu, e a confirmação feita mais tarde pela tarefa fica ligada a esse pedido (`docs/28` §3.7, a 0060 do rasto; `tarefa_origem('reembolso', …)`) | migração 0061 |
+| as credenciais OAuth (`client_id`, `client_secret`) na conta, cifradas com a chave, os dois juntos ou nenhum | `src/pagamentos/repositorio.ts`, `rotas.ts` |
+| o adaptador: o token OAuth a cada reembolso, `reembolsar` e `consultarReembolso`, o aviso `Refund`; só o MB WAY reembolsa pela API (Q8) | `src/pagamentos/eupago.ts`, `adaptador.ts` |
+| `POST /refunds/{id}/execute` e `POST /refunds/{id}/reconcile`; o `GET /refunds/{id}` mostra o pedido ao prestador | `src/posvenda/prestador.ts`, `rotas.ts` |
+| a tarefa de minuto a minuto: os `a_confirmar` consultam-se, os `a_pedir` com mais de 5 minutos passam a `incerto`, e 7 dias sem «reembolsado» vão à fila uma vez | `src/posvenda/prestador.ts`; `servidor.ts` |
+| 10 testes pela API com a EuPago falsa (5 da primeira versão e 5 da revisão do #350) | `test/posvenda-api.test.ts` |
+
+**Desvios do desenho:**
+- **Um estado a mais, `a_pedir`:** dura só a chamada ao prestador. Dois
+  pedidos ao mesmo tempo não saem os dois (o segundo encontra `a_pedir` e é
+  recusado), e uma chamada que ficou a meio porque o processo caiu passa a
+  `incerto` ao fim de 5 minutos. Não sai evento.
+- **O `execute` não leva Idempotency-Key:** chama o prestador fora da
+  transacção, como o teste da conta (`docs/26`); a `versao` do corpo faz o
+  mesmo trabalho (o segundo pedido igual dá conflito de versão).
+- **Os pagamentos antigos não ganham o `trid`** (a P2 dizia que a migração os
+  preenchia): só o aviso o traz, e ler o identificador do evento guardado
+  prendia o núcleo ao formato do adaptador (`docs/26` R8). Esses
+  reembolsam-se à mão; no ensaio só há dados de teste.
+- **Um aviso `Refund`** de um pagamento com um reembolso em curso só acorda a
+  consulta; sem nenhum em curso, vai à fila (`reembolso_desconhecido`): um
+  reembolso feito no back-office da EuPago, fora do Eurolify.
+- **Uma recusa antes do pedido** (sem token, credenciais OAuth recusadas,
+  outra moeda) fica `falhado` com o motivo: sabe-se que nada saiu.
+- **Reconciliar** fecha as diferenças abertas desse reembolso, com o motivo
+  da pessoa.
+- **A migração é a 0061:** começou como 0060 e o #351 (rasto, a origem das
+  tarefas) entrou primeiro com esse número.
+- **O `execute` aceita também um `falhado`** (a P4 dizia `a_executar`): é
+  pedir outra vez depois de uma recusa explícita, sem motivo, com quem pediu
+  registado; os tectos de R5 voltam a conferir-se.
+
+**Correcções da revisão do #350** (Sonnet 5.5; 0 P0, 1 P1, 6 P2):
+- **Um pedido aceite pelo prestador nunca volta a pedir-se** (P1-1): o
+  `a_confirmar` só passa a `executado` (pela consulta ou por uma pessoa); a
+  transição `a_confirmar → a_executar` saiu da base, e o «não saiu» sobre um
+  `a_confirmar` é recusado. A P7 fica só para o `incerto`.
+- **A recusa só aparece enquanto o reembolso está `falhado`** (P2-1); num
+  `incerto`, dar como executado pede sempre o identificador do prestador.
+- **O alerta dos 7 dias é um por reembolso** (P2-2): com a P1-1, um
+  reembolso só passa uma vez por `a_confirmar`.
+- **Cada aviso de reembolso é um evento** (P2-3): o identificador leva o
+  montante e a data, porque um pagamento pode ter vários reembolsos.
+- **O aviso `Refund`** (P2-4): depois de a consulta o ter confirmado (o mesmo
+  montante, pelo prestador), não é alarme; com um reembolso `incerto`, vai à
+  fila ao lado dele, como prova.
+- **O token** aceita-se com qualquer 2xx e o `access_token`, e só se recusa
+  se `transactionStatus` vier diferente de `Success`; `refundList` lê-se
+  como objecto ou como lista de um (P2-5; V7, V8).
+- **Testes** (P2-6): dois pedidos ao mesmo tempo, o `a_pedir`, sem token,
+  aceite sem referência, outro comerciante, as credenciais que não saem nem
+  ficam em claro, os atalhos na base, o aviso depois de confirmado, a NC
+  depois da confirmação.
+- **P3 tratados:** a consulta começa pelos nunca consultados; um código de
+  recusa vazio fica «Rejected»; o gatilho da tarefa corre sempre (`ENABLE
+  ALWAYS`); um motivo ou um identificador só de espaços é recusado; a rota das
+  credenciais diz que sem o OAuth a conta deixa de o ter.
+- **P3 que ficam**, com a razão: a Q8 só na API (a base não sabe que métodos
+  o prestador reembolsa); a ordem dos bloqueios entre o aviso e a tarefa (um
+  impasse, se houver, aborta um dos lados e o aviso volta); `refund.created`
+  sai outra vez a cada regresso a `a_executar` (como na parte 1); um só
+  âmbito (`refunds:write`) para decidir, pagar e reconciliar (Q6).
+- **Por fazer:** o aviso do prazo do reembolso (R10) e a marca «selado por
+  higiene» (R4), em pedidos seus; a sandbox (V7 a V10) antes do modo real.

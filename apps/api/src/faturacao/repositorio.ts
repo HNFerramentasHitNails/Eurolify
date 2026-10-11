@@ -934,7 +934,7 @@ async function verificar(
     const { rows } = await sql<{ reembolsado: string | null; total: string }>`
       select (select sum(r.montante) from reembolso r
               where r.encomenda_id = e.id
-                and r.estado in ('a_executar', 'executado', 'incerto')) as reembolsado,
+                and r.estado in ('a_executar', 'a_pedir', 'a_confirmar', 'executado', 'incerto')) as reembolsado,
              e.total
       from encomenda e where e.id = ${doc.encomenda_id}::uuid`.execute(trx);
     const r = rows[0];

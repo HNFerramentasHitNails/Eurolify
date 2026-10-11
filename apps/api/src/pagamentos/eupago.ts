@@ -2,10 +2,10 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { MetodoPagamento } from "../base/esquema.js";
 import {
   ErroDeRede,
+  ErroSemEnvio,
   type AdaptadorPagamento,
   type AvisoNormalizado,
   type CredenciaisConta,
-  type EstadoNoPrestador,
   type LeituraAviso,
   type PedidoCobranca,
   type ResultadoCobranca,
@@ -21,6 +21,11 @@ import {
 // - Avisos 2.0: POST com `X-Signature`, um HMAC-SHA256 em base64; a página
 //   não diz sobre o que se calcula: aqui, sobre o corpo em bruto (**C**, a
 //   confirmar na sandbox: V4 do docs/26). A cifra dos avisos não se suporta.
+// - Reembolso (lido a 11/10/2026, **W**; docs/30 §13): OAuth em
+//   POST /api/auth/token (client_credentials); POST
+//   /api/management/v1.02/refund/{trid} com `amount` e `reason`; a consulta
+//   em GET /api/management/v1.02/refund/{refundId}, `refundList.status`
+//   («reembolsado» é o único valor documentado). Sem chave de idempotência.
 // Nada disto foi corrido contra a sandbox (não há credenciais de teste).
 
 const BASE_DE_TESTE = "https://sandbox.eupago.pt";
@@ -47,13 +52,17 @@ async function chamar(
   url: string,
   corpo: unknown,
   cabecalhos: Record<string, string> = {},
+  metodo: "POST" | "GET" = "POST",
 ): Promise<{ estado: number; json: Record<string, unknown> }> {
   let r: Response;
   try {
     r = await buscar(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...cabecalhos },
-      body: JSON.stringify(corpo),
+      method: metodo,
+      headers:
+        metodo === "POST"
+          ? { "content-type": "application/json", ...cabecalhos }
+          : cabecalhos,
+      ...(metodo === "POST" ? { body: JSON.stringify(corpo) } : {}),
       signal: AbortSignal.timeout(TEMPO_DA_CHAMADA_MS),
     });
   } catch (erro) {
@@ -87,8 +96,11 @@ export function telefoneMbWay(
     : { countryCode: "+351", customerPhone: m[1] as string };
 }
 
-const ESTADO_DO_AVISO: Record<string, EstadoNoPrestador> = {
+const ESTADO_DO_AVISO: Record<string, AvisoNormalizado["estado"]> = {
   paid: "capturado",
+  // Um reembolso deste pagamento (E5); não muda o pagamento sozinho (P6).
+  refund: "reembolsado",
+  refunded: "reembolsado",
   error: "falhado",
   cancel: "falhado",
   canceled: "falhado",
@@ -116,13 +128,59 @@ function normalizarTransaccao(t: unknown): AvisoNormalizado | null {
     montante = valor === null ? null : Math.round(valor * 100);
     moeda = texto(a["currency"]);
   }
+  // Um pagamento pode ter vários reembolsos: o aviso de cada um distingue-se
+  // pelo montante e pela data (revisão do #350, P2-3).
+  const tipo = estadoTexto.toLowerCase();
+  const sufixo =
+    tipo === "refund" || tipo === "refunded"
+      ? `:${String(montante ?? "")}:${texto(x["date"]) ?? ""}`
+      : "";
   return {
-    idEvento: `${trid}:${estadoTexto.toLowerCase()}`,
+    idEvento: `${trid}:${tipo}${sufixo}`.slice(0, 200),
     referencia: texto(x["identifier"]),
+    idTransaccao: /^[0-9]{1,20}$/.test(trid) ? trid : null,
     estado: ESTADO_DO_AVISO[estadoTexto.toLowerCase()] ?? "desconhecido",
     montante,
     moeda,
   };
+}
+
+/**
+ * O token OAuth para o reembolso (E4): pede-se a cada reembolso e não se
+ * guarda (P1). Uma falha aqui é antes de pedir o reembolso: nada saiu.
+ */
+async function tokenOAuth(
+  buscar: Buscar,
+  base: string,
+  credenciais: CredenciaisConta,
+): Promise<string> {
+  if (credenciais.oauth === undefined) {
+    throw new ErroSemEnvio("a conta não tem as credenciais OAuth da EuPago");
+  }
+  let r: { estado: number; json: Record<string, unknown> };
+  try {
+    r = await chamar(buscar, `${base}/api/auth/token`, {
+      client_id: credenciais.oauth.clientId,
+      client_secret: credenciais.oauth.clientSecret,
+      grant_type: "client_credentials",
+    });
+  } catch (erro) {
+    throw new ErroSemEnvio("a EuPago não deu o token", { cause: erro });
+  }
+  const token = texto(r.json["access_token"]);
+  // A página (E4) mostra `transactionStatus: Success`; aceita-se também sem
+  // ele, desde que venha o token (revisão do #350, P2-5; V7).
+  const estado = texto(r.json["transactionStatus"]);
+  if (
+    r.estado < 200 ||
+    r.estado >= 300 ||
+    (estado !== null && estado !== "Success") ||
+    token === null ||
+    token === ""
+  ) {
+    throw new ErroSemEnvio("a EuPago recusou as credenciais OAuth");
+  }
+  return token;
 }
 
 export function adaptadorEuPago(buscar: Buscar = fetch): AdaptadorPagamento {
@@ -258,6 +316,79 @@ export function adaptadorEuPago(buscar: Buscar = fetch): AdaptadorPagamento {
       // Só «pendente» está documentado; o resto decide uma pessoa.
       return texto(r.json["estado"]) === "pendente"
         ? "a_aguardar_cliente"
+        : "desconhecido";
+    },
+
+    // Q8 (Diogo, 11/10/2026: A): o MB WAY reembolsa sem o IBAN do cliente
+    // (E2); o Multibanco continua à mão.
+    reembolsaPorApi: ["mb_way"] as const satisfies readonly MetodoPagamento[],
+
+    async reembolsar(credenciais, pedido) {
+      if (pedido.moeda !== "EUR") {
+        throw new ErroSemEnvio("a EuPago só reembolsa em euros");
+      }
+      if (!/^[0-9]{1,20}$/.test(pedido.idTransaccao)) {
+        throw new ErroSemEnvio(
+          "o identificador da transacção não é o da EuPago",
+        );
+      }
+      const token = await tokenOAuth(buscar, base, credenciais);
+      // Daqui em diante, só uma resposta que se lê diz o que aconteceu; o
+      // resto é incerto (chamar lança ErroDeRede).
+      const r = await chamar(
+        buscar,
+        `${base}/api/management/v1.02/refund/${pedido.idTransaccao}`,
+        { amount: emEuros(pedido.montante), reason: pedido.referencia },
+        { authorization: `Bearer ${token}` },
+      );
+      const estado = texto(r.json["transactionStatus"]);
+      const id = texto(r.json["refundId"]);
+      if (
+        estado === "Success" &&
+        id !== null &&
+        /^[0-9A-Za-z_-]{1,100}$/.test(id)
+      ) {
+        return { estado: "pedido", idReembolso: id };
+      }
+      if (estado === "Rejected") {
+        return {
+          estado: "recusado",
+          motivo: (texto(r.json["code"]) || "Rejected").slice(0, 200),
+        };
+      }
+      throw new ErroDeRede(
+        "a resposta da EuPago ao reembolso não diz o estado",
+      );
+    },
+
+    async consultarReembolso(credenciais, idReembolso) {
+      let token: string;
+      try {
+        token = await tokenOAuth(buscar, base, credenciais);
+      } catch (erro) {
+        throw new ErroDeRede("sem token para consultar o reembolso", {
+          cause: erro,
+        });
+      }
+      const r = await chamar(
+        buscar,
+        `${base}/api/management/v1.02/refund/${encodeURIComponent(idReembolso)}`,
+        null,
+        { authorization: `Bearer ${token}` },
+        "GET",
+      );
+      // `refundList` vem como objecto no exemplo (E3); aceita-se também uma
+      // lista, mas só com um elemento (revisão do #350, P2-5; V8).
+      const bruto = r.json["refundList"];
+      const lista: unknown[] = Array.isArray(bruto) ? bruto : [bruto];
+      const unico = lista.length === 1 ? lista[0] : null;
+      const estado =
+        typeof unico === "object" && unico !== null
+          ? texto((unico as Record<string, unknown>)["status"])
+          : null;
+      // Só «reembolsado» está documentado (E3, V8); o resto não muda nada.
+      return estado?.toLowerCase() === "reembolsado"
+        ? "reembolsado"
         : "desconhecido";
     },
 

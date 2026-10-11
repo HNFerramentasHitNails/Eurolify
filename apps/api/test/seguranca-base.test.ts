@@ -139,6 +139,8 @@ const FUNCOES_DA_API = [
   // A régua única do marketing (0042): quem envia pergunta-lhe.
   "pode_receber_marketing",
   "pode_receber_marketing",
+  // A tarefa dos reembolsos no prestador (0061): os comerciantes com trabalho.
+  "posvenda_comerciantes_com_reembolsos",
   // A redução anunciada (0036): o gatilho corre com quem escreve.
   "preco_referencia",
   "prefixo_fiscal",
