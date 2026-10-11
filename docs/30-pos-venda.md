@@ -410,7 +410,9 @@ reembolsa por API; se não, o reembolso é manual.
 
 ## 13. Parte 2 — o reembolso pela EuPago (desenho, 11/10/2026)
 
-Pedido do Diogo, 11/10/2026: *«avança com a parte 2 da pós-venda»*. A §11
+Pedido do Diogo, 11/10/2026: *«avança com a parte 2 da pós-venda»*.
+**Aprovado pelo Diogo a 11/10/2026, com a Q8 em A** (*«aprovado, com a A»*;
+`docs/06`, DP). A §11
 diz «o reembolso pelo adaptador (EuPago, depois de lida a documentação)», e a
 Q2 deixava o Multibanco e o MB WAY manuais **até** a lermos. Lida a
 11/10/2026; o aviso do prazo (R10) e a marca «selado por higiene» (R4) ficam
@@ -453,7 +455,7 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q8 | **O Multibanco pela EuPago?** A nota E2 só dispensa o IBAN no MB WAY e no cartão: lida ao contrário, um Multibanco precisa do IBAN do cliente (**M**: dedução da nota, não está escrito). | **A — o Multibanco continua à mão** (o comerciante transfere e regista a prova, como na parte 1): o Eurolify não recebe IBANs, a C3 do contabilista continua por responder e não há sandbox para confirmar. B seria a pessoa escrever o IBAN ao executar, enviado à EuPago sem se guardar |
+| Q8 ✅ **A** (Diogo, 11/10/2026) | **O Multibanco pela EuPago?** A nota E2 só dispensa o IBAN no MB WAY e no cartão: lida ao contrário, um Multibanco precisa do IBAN do cliente (**M**: dedução da nota, não está escrito). | **A — o Multibanco continua à mão** (o comerciante transfere e regista a prova, como na parte 1): o Eurolify não recebe IBANs, a C3 do contabilista continua por responder e não há sandbox para confirmar. B seria a pessoa escrever o IBAN ao executar, enviado à EuPago sem se guardar |
 
 ### 13.4 Por verificar (bloqueiam o modo real, não o código)
 
