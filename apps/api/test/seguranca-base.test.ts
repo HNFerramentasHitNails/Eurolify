@@ -113,6 +113,10 @@ const FUNCOES_DA_API = [
   "nif_regua",
   // A pós-venda (0058): a NC pede-se ao decidir o reembolso, se há fatura.
   "nota_credito_pedir",
+  // As notificações (0066): a fila, o destino lido no envio e a limpeza.
+  "notificacao_apagar_antigas",
+  "notificacao_comerciantes",
+  "notificacao_destino",
   "pagamento_transicao_valida",
   "pagamentos_adiar_tarefa",
   "pagamentos_comerciantes_com_tarefas",

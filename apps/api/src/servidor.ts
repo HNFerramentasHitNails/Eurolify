@@ -6,6 +6,8 @@ import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
 import { agendarAvisosDePrazo } from "./posvenda/prazo.js";
 import { agendarConfirmacoes } from "./posvenda/prestador.js";
+import { agendarNotificacoes } from "./notificacoes/repositorio.js";
+import { configSmtp, correioSmtp } from "./notificacoes/correio.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { agendarDocumentos } from "./faturacao/repositorio.js";
 import { randomUUID } from "node:crypto";
@@ -185,6 +187,21 @@ const pararPrazos =
       )
     : () => undefined;
 
+// Os e-mails da fila das notificações, de minuto a minuto (docs/33; DW).
+// Sem as cinco variáveis SMTP_*, nada sai e as notificações esperam (N8).
+const smtp = configSmtp(process.env);
+const pararNotificacoes =
+  base !== undefined && smtp !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:notificacoes" }, () =>
+        agendarNotificacoes(base, correioSmtp(smtp), app.log),
+      )
+    : () => undefined;
+if (base !== undefined && smtp === undefined) {
+  app.log.info(
+    "notificações: sem SMTP_* configurado; os e-mails ficam à espera (docs/33 §5)",
+  );
+}
+
 // As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).
 const pararConclusoes =
   base !== undefined
@@ -202,6 +219,7 @@ for (const sinal of ["SIGINT", "SIGTERM"] as const) {
     pararPagamentos();
     pararReembolsos();
     pararPrazos();
+    pararNotificacoes();
     app.log.info({ sinal }, "a fechar");
     app
       .close()

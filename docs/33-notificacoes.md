@@ -1,7 +1,8 @@
 # Notificações: o envio de e-mails (desenho, 11/10/2026)
 
 > Pedido do Diogo, 11/10/2026: *«avança com o e-mail do aviso do prazo»*
-> (issue #372). **Estado: desenho, por aprovar** (Q11, §10). Primeira
+> (issue #372). **Aprovado pelo Diogo a 11/10/2026, com o fornecedor A**
+> (*«aprovado, com a A»*, à Q11; `docs/06`, DW). Primeira
 > notificação: o aviso do prazo do reembolso (R10; `docs/30` §14; decisão
 > DQ, A4: *«sem e-mail até haver notificações»*).
 
@@ -51,7 +52,7 @@ aceitou).
 | N1 | **O fornecedor** | **A: OVH E-mail Pro**, uma conta `avisos@eurolify.eu`, enquanto os e-mails forem poucos (os avisos à equipa dos comerciantes); um serviço transaccional decide-se antes da confirmação da encomenda ao cliente (§9). B: Lettermint já, como segundo fornecedor | §2; ADR-0032 |
 | N2 | **A quem** | às pessoas activas com papel **dono** ou **gestor** no comerciante (as que decidem reembolsos, `refunds:write`, Q6); cada uma recebe o seu, no endereço da conta. Sem lista de endereços configurável nesta parte | `docs/30` Q6; `eu-gdpr-privacy` (minimização) |
 | N3 | **O que diz** | o tipo de aviso, a devolução (`rma_…`) e a encomenda (`ord_…`), o último dia e os dias que faltam, e a ligação ao Hub. **Nenhum dado do cliente** (nome, e-mail, morada, artigos) | DQ, A4; `eu-gdpr-privacy` |
-| N4 | **Em que língua** | a do comerciante (`comerciante.lingua_origem`) se for `pt`, `es` ou `en`; senão, `en`. Modelos em texto simples, com versão | `docs/05`; `eu-localization` |
+| N4 | **Em que língua** | a do Hub do comerciante (`comerciante.lingua`) se for `pt`, `es` ou `en`; senão, `en`. Modelos em texto simples, com versão | `docs/05`; `eu-localization` |
 | N5 | **Uma fila, não um envio directo** | a notificação grava-se na mesma transacção que o aviso (o gatilho que já escreve o evento), uma por pessoa; uma tarefa de minuto a minuto envia-as. Nunca duas para a mesma pessoa e o mesmo aviso (chave única) | `platform-architect` (outbox); `observability-security` |
 | N6 | **Quando falha** | falha temporária (sem ligação, 4xx do SMTP): tenta outra vez ao fim de 1, 5, 30 minutos, 2 e 6 horas; à 6.ª, ou numa recusa definitiva (5xx), fica **falhada**, com o código, e vê-se na lista; nunca em silêncio | `observability-security` («tarefas que não param em silêncio») |
 | N7 | **O que se aceita** | se a máquina parar entre o SMTP aceitar e o Eurolify gravar «enviada», o aviso pode sair **duas vezes**. Para um aviso à equipa é aceitável; para documentos ao cliente não (§9) | — |
@@ -73,10 +74,12 @@ registo.
 
 ## 5. A configuração (fora do repositório)
 
-`EUROLIFY_SMTP_ANFITRIAO`, `…_PORTA`, `…_UTILIZADOR`, `…_PALAVRA_PASSE` e
-`…_REMETENTE`, como segredos do ambiente `ensaio` do GitHub (ADR-0028),
-passados à VPS pela publicação. **Precisa do Diogo ou do Bruno:** criar a
-conta de e-mail, pôr os segredos e configurar o DNS (N10).
+`SMTP_ANFITRIAO`, `SMTP_PORTA`, `SMTP_UTILIZADOR`, `SMTP_PALAVRA_PASSE` e
+`SMTP_REMETENTE`, no `/etc/eurolify/api.env` da VPS, como as outras chaves da
+API (`infra/vps/LEIA-ME.md`, passo 10b). Levá-las pelos segredos do ambiente
+`ensaio` do GitHub (ADR-0028) é um passo de infra à parte, por fazer.
+**Precisa do Diogo ou do Bruno:** criar a conta de e-mail, pôr as cinco
+variáveis e configurar o DNS (N10).
 
 ## 6. O ensaio
 
@@ -112,8 +115,34 @@ lista da API, os testes e a revisão do agente. Um pedido só.
 - Marketing (lê o consentimento, DL), preferências por pessoa, SMS e
   WhatsApp, webhooks aos sistemas dos comerciantes.
 
+## 11. Em código (11/10/2026; migração 0066; `docs/06`, DW)
+
+| O quê | Onde |
+|---|---|
+| `notificacao`, com o RLS do comerciante: gravada pelo gatilho do aviso do prazo, uma por dono e gestor activos e por aviso; estados só para a frente (`a_enviar` → `enviada`, `falhada` ou `cancelada`); a API não a grava nem a apaga | migração 0066 |
+| `tarefa_notificacao`, interna (como as filas da 0047 e da 0063): diz à tarefa em que comerciantes entrar, sem ler a `notificacao` sem comerciante | migração 0066 |
+| `notificacao_destino()`: o endereço e o nome lidos no envio, só se a pessoa continua activa e dona ou gestora; senão, a notificação fica `cancelada` | migração 0066; `src/notificacoes/repositorio.ts` |
+| o correio por SMTP (`nodemailer` 10.0.10, licença MIT-0, sem dependências, de 14/09/2026 — a mais recente com mais de duas semanas) e o de ensaio; a classificação dos erros (4xx e rede repetem; 5xx falha logo) | `src/notificacoes/correio.ts` |
+| os textos PT, ES e EN | `src/notificacoes/modelos.ts` |
+| a tarefa de minuto a minuto (cada notificação na sua transacção, bloqueada; as esperas 1, 5, 30, 120 e 360 minutos; à 6.ª falha, `falhada`) e a limpeza dos 90 dias na mesma volta | `src/notificacoes/repositorio.ts`; `servidor.ts` |
+| `GET /notifications?estado=` (`merchant:read`) | `src/notificacoes/rotas.ts` |
+| 2 testes pela API e 4 sem base | `test/posvenda-api.test.ts`; `test/notificacoes-correio.test.ts` |
+
+**Desvios do desenho:**
+- **A língua é a do Hub do comerciante** (`comerciante.lingua`), não a do
+  catálogo: o e-mail é para a equipa.
+- **Sem ligação ao Hub** (N3): o Hub ainda não tem os ecrãs da pós-venda; o
+  e-mail diz a lista da API (`GET /returns?prazo_reembolso=`).
+- **Um quarto estado, `cancelada`**: a pessoa saiu, foi desactivada ou
+  deixou de ser dona ou gestora antes do envio.
+- **A configuração vai no `api.env` da VPS** (§5), não nos segredos do
+  GitHub: é onde vivem as outras chaves da API.
+- **Por fazer:** a conta de e-mail, as cinco variáveis na VPS e o DNS
+  (Diogo ou Bruno); os eventos `notification.sent` e `notification.failed`
+  (sem quem os leia ainda); o ecrã no Hub.
+
 ## 10. Pergunta para o Diogo ou o Bruno
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q11 | Aprovas o desenho (N1 a N11), com o fornecedor **A: OVH E-mail Pro** por agora (mantém o fornecedor único) ou **B: Lettermint** já (segundo fornecedor, com estado da entrega)? | A |
+| Q11 ✅ A (Diogo, 11/10/2026) | Aprovas o desenho (N1 a N11), com o fornecedor **A: OVH E-mail Pro** por agora (mantém o fornecedor único) ou **B: Lettermint** já (segundo fornecedor, com estado da entrega)? | A |

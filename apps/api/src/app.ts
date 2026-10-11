@@ -42,6 +42,7 @@ import { rotasDoStock } from "./stock/rotas.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { rotasDosDocumentos } from "./faturacao/rotas.js";
 import { rotasDaPosVenda } from "./posvenda/rotas.js";
+import { rotasDasNotificacoes } from "./notificacoes/rotas.js";
 import type { ConsultaVies } from "./clientes/vies.js";
 import { rotasDosPrecos } from "./precos/rotas.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
@@ -391,6 +392,7 @@ export function criarApp(
       rotasDoStock(rotas, base);
       rotasDosDocumentos(rotas, base, faturacao);
       rotasDaPosVenda(rotas, base, pagamentos);
+      rotasDasNotificacoes(rotas, base);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.
