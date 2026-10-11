@@ -310,7 +310,6 @@ export interface PaginaPrecos {
 
 /** Quem fez uma alteração, decidido pelo servidor (docs/22 §16.2). */
 export interface AutorAlteracao {
-  tipo: "pessoa" | "chave" | "sistema" | "outro";
   /** O nome de quem é ou foi da equipa, ou o da chave; null nos outros. */
   nome: string | null;
 }
