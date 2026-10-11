@@ -48,7 +48,8 @@
 
 - O que é o `status` 2 (119 documentos, 71 deles faturas). A documentação não
   o diz; o Diogo pediu, a 11/10/2026, que se pergunte ao Moloni — a sessão não
-  tem e-mail, o texto ficou preparado para ele enviar a `apoio@moloni.pt`.
+  tem e-mail; o texto foi preparado e **o Diogo enviou-o a `apoio@moloni.pt`
+  a 11/10/2026**. Sem resposta ainda.
 - Se os terminais da demonstração são a app «Moloni POS» de iPhone.
 - Limites por hora ou por dia; o filtro por dia dos movimentos (`date` não
   limitou).
