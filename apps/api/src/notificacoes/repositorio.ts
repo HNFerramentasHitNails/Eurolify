@@ -1,18 +1,28 @@
 import { sql, type Kysely, type RawBuilder, type Transaction } from "kysely";
 import type { BaseDados, EstadoNotificacao } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
-import { ErroCorreio, type Correio } from "./correio.js";
+import { ErroCorreio, type Correio, type Mensagem } from "./correio.js";
 import { mensagemDe, type DadosDoAviso } from "./modelos.js";
 
 // As notificações (docs/33; migração 0066; Diogo, 11/10/2026: «aprovado, com
 // a A», docs/06, DX). A base grava a fila (o gatilho do aviso); aqui só se
 // envia, se repete e se lê.
+//
+// Cada envio em três passos (revisão do #373, P2-1): toma-se a vez numa
+// transacção curta (a hora seguinte passa para daqui a 10 minutos), envia-se
+// fora da transacção e grava-se o resultado noutra. A base não fica presa ao
+// SMTP; se o processo parar a meio, a notificação volta daqui a 10 minutos
+// (pode sair duas vezes, N7), nunca em ciclo de minuto a minuto.
 
 const POR_VOLTA = 50;
-/** As esperas depois de cada falha temporária, em minutos (N6). */
+/** As esperas depois de cada falha do destinatário, em minutos (N6). */
 const ESPERAS = [1, 5, 30, 120, 360];
 /** À 6.ª falha, fica falhada (N6). */
 export const MAX_TENTATIVAS = ESPERAS.length + 1;
+/** A vez tomada: o tempo até outra volta a poder tentar. */
+const VEZ_MINUTOS = 10;
+/** Depois de um erro do servidor, a próxima tentativa (sem contar). */
+const ESPERA_SERVIDOR_MINUTOS = 5;
 
 export interface ResultadoEnvios {
   enviadas: number;
@@ -20,6 +30,8 @@ export interface ResultadoEnvios {
   falhadas: number;
   canceladas: number;
   apagadas: number;
+  /** O código do erro do servidor que parou a volta (P1-1). */
+  servidor: string | null;
   /** As que deram erro fora do correio (`comerciante/notificação: código`). */
   erros: string[];
 }
@@ -29,10 +41,14 @@ const codigoDe = (erro: unknown) =>
     ? (/^[a-z_]+\.[a-z_]+/.exec(erro.message)?.[0] ?? erro.name)
     : "erro";
 
-/** Uma volta: as notificações vencidas de cada comerciante, uma a uma. */
+/**
+ * Uma volta: em cada comerciante com trabalho, a limpeza dos 90 dias e, com
+ * correio, as notificações vencidas, uma a uma. Sem correio, só a limpeza
+ * (revisão do #373, P3-4). Um erro do servidor pára a volta (P1-1).
+ */
 export async function correrNotificacoes(
   db: Kysely<BaseDados>,
-  correio: Correio,
+  correio: Correio | undefined,
   porVolta = POR_VOLTA,
 ): Promise<ResultadoEnvios> {
   const res: ResultadoEnvios = {
@@ -41,6 +57,7 @@ export async function correrNotificacoes(
     falhadas: 0,
     canceladas: 0,
     apagadas: 0,
+    servidor: null,
     erros: [],
   };
   const { rows } = await sql<{
@@ -50,11 +67,11 @@ export async function correrNotificacoes(
     let ids: string[];
     try {
       ids = await comComerciante(db, c, async (trx) => {
-        // A limpeza dos 90 dias (N9), de caminho.
         const { rows: a } = await sql<{
           n: number;
         }>`select notificacao_apagar_antigas() as n`.execute(trx);
         res.apagadas += a[0]?.n ?? 0;
+        if (correio === undefined) return [];
         return (
           await trx
             .selectFrom("notificacao")
@@ -71,14 +88,15 @@ export async function correrNotificacoes(
       res.erros.push(`${c}: ${codigoDe(erro)}`);
       continue;
     }
-    // Cada uma na sua transacção: uma que falhe não desfaz as outras.
     for (const id of ids) {
+      if (correio === undefined || res.servidor !== null) break;
       try {
-        await comComerciante(db, c, (trx) => enviarUma(trx, correio, id, res));
+        await enviarUma(db, c, correio, id, res);
       } catch (erro) {
         res.erros.push(`${c}/${id}: ${codigoDe(erro)}`);
       }
     }
+    if (res.servidor !== null) break;
   }
   return res;
 }
@@ -88,27 +106,107 @@ export async function correrNotificacoes(
  * a volta que a listou pode chegar depois de outra a ter enviado).
  */
 export async function enviarUma(
-  trx: Transaction<BaseDados>,
+  db: Kysely<BaseDados>,
+  c: string,
   correio: Correio,
   id: string,
   res: ResultadoEnvios,
 ) {
-  // Bloqueada: outra volta ao mesmo tempo salta-a (SKIP LOCKED) e uma que já
-  // saiu não sai outra vez.
+  // 1. A vez, numa transacção curta.
+  const vez = await comComerciante(db, c, (trx) => tomarVez(trx, id, res));
+  if (vez === null) return;
+  // 2. O envio, fora da transacção.
+  let resultado: { id: string } | ErroCorreio;
+  try {
+    resultado = await correio.enviar(vez.mensagem);
+  } catch (erro) {
+    resultado =
+      erro instanceof ErroCorreio
+        ? erro
+        : new ErroCorreio("desconhecido", "servidor");
+  }
+  // 3. O resultado, noutra; um erro aqui sobe (não é um erro do envio).
+  await comComerciante(db, c, async (trx) => {
+    if (!(resultado instanceof ErroCorreio)) {
+      await mudar(trx, id, {
+        estado: "enviada",
+        id_mensagem: resultado.id.slice(0, 300),
+        ultimo_erro: null,
+      });
+      res.enviadas += 1;
+      return;
+    }
+    if (resultado.culpa === "servidor") {
+      // Não conta como tentativa: é da configuração ou do servidor.
+      await mudar(trx, id, {
+        ultimo_erro: resultado.codigo,
+        proxima_em: sql<Date>`now() + make_interval(mins => ${ESPERA_SERVIDOR_MINUTOS})`,
+      });
+      res.servidor = resultado.codigo;
+      return;
+    }
+    const tentativas = vez.tentativas + 1;
+    if (
+      resultado.culpa === "destinatario_recusado" ||
+      tentativas >= MAX_TENTATIVAS
+    ) {
+      await mudar(trx, id, {
+        estado: "falhada",
+        tentativas,
+        ultimo_erro: resultado.codigo,
+      });
+      res.falhadas += 1;
+      return;
+    }
+    const espera = ESPERAS[tentativas - 1] ?? 360;
+    await mudar(trx, id, {
+      tentativas,
+      ultimo_erro: resultado.codigo,
+      proxima_em: sql<Date>`now() + make_interval(mins => ${espera})`,
+    });
+    res.repetir += 1;
+  });
+}
+
+/**
+ * Bloqueia a notificação (outra volta ao mesmo tempo salta-a), confere que
+ * ainda faz sentido e toma a vez. Devolve o e-mail, ou nada (já não está por
+ * enviar, ou ficou cancelada).
+ */
+async function tomarVez(
+  trx: Transaction<BaseDados>,
+  id: string,
+  res: ResultadoEnvios,
+): Promise<{ mensagem: Mensagem; tentativas: number } | null> {
   const n = await trx
     .selectFrom("notificacao")
-    .select(["id", "tipo", "lingua", "dados", "tentativas"])
+    .select(["id", "tipo", "referencia", "lingua", "dados", "tentativas"])
     .where("id", "=", id)
     .where("estado", "=", "a_enviar")
     .where("proxima_em", "<=", sql<Date>`now()`)
     .forUpdate()
     .skipLocked()
     .executeTakeFirst();
-  if (n === undefined) return;
+  if (n === undefined) return null;
+  // O aviso ainda faz sentido: a devolução continua à espera do reembolso
+  // (revisão do #373, P2-2). Reembolsada, fechada ou cancelada entretanto,
+  // o e-mail diria o contrário da realidade.
+  const { rows: prazo } = await sql<{
+    dias: number | null;
+  }>`select x.dias from posvenda_prazo_da_devolucao(${n.referencia}::uuid) x`.execute(
+    trx,
+  );
+  if (prazo[0]?.dias === null || prazo[0]?.dias === undefined) {
+    await mudar(trx, id, {
+      estado: "cancelada",
+      ultimo_erro: "devolucao_ja_nao_espera",
+    });
+    res.canceladas += 1;
+    return null;
+  }
   const { rows } = await sql<{
     email: string;
-    nome: string;
-  }>`select email, nome from notificacao_destino(${id}::uuid)`.execute(trx);
+  }>`select email from notificacao_destino(${id}::uuid)`.execute(trx);
   const destino = rows[0];
   if (destino === undefined) {
     // A pessoa saiu, foi desactivada ou deixou de ser dona ou gestora.
@@ -117,47 +215,20 @@ export async function enviarUma(
       ultimo_erro: "destinatario_inactivo",
     });
     res.canceladas += 1;
-    return;
+    return null;
   }
-  const mensagem = mensagemDe(
-    n.tipo,
-    n.lingua,
-    n.dados as unknown as DadosDoAviso,
-    destino,
-  );
-  try {
-    // N7: se a máquina parar entre o servidor aceitar e o commit, o aviso
-    // pode sair duas vezes (aceite para os avisos à equipa).
-    const r = await correio.enviar(mensagem);
-    await mudar(trx, id, {
-      estado: "enviada",
-      id_mensagem: r.id.slice(0, 300),
-      ultimo_erro: null,
-    });
-    res.enviadas += 1;
-  } catch (erro) {
-    const e =
-      erro instanceof ErroCorreio
-        ? erro
-        : new ErroCorreio("desconhecido", true);
-    const tentativas = n.tentativas + 1;
-    if (!e.temporario || tentativas >= MAX_TENTATIVAS) {
-      await mudar(trx, id, {
-        estado: "falhada",
-        tentativas,
-        ultimo_erro: e.codigo,
-      });
-      res.falhadas += 1;
-      return;
-    }
-    const espera = ESPERAS[tentativas - 1] ?? ESPERAS[ESPERAS.length - 1] ?? 1;
-    await mudar(trx, id, {
-      tentativas,
-      ultimo_erro: e.codigo,
-      proxima_em: sql<Date>`now() + make_interval(mins => ${espera})`,
-    });
-    res.repetir += 1;
-  }
+  await mudar(trx, id, {
+    proxima_em: sql<Date>`now() + make_interval(mins => ${VEZ_MINUTOS})`,
+  });
+  return {
+    mensagem: mensagemDe(
+      n.tipo,
+      n.lingua,
+      n.dados as unknown as DadosDoAviso,
+      destino,
+    ),
+    tentativas: n.tentativas,
+  };
 }
 
 const mudar = (
@@ -170,11 +241,17 @@ const mudar = (
     id_mensagem?: string;
     proxima_em?: RawBuilder<Date>;
   },
-) => trx.updateTable("notificacao").set(campos).where("id", "=", id).execute();
+) =>
+  trx
+    .updateTable("notificacao")
+    .set(campos)
+    .where("id", "=", id)
+    .where("estado", "=", "a_enviar")
+    .execute();
 
 export function agendarNotificacoes(
   base: Kysely<BaseDados>,
-  correio: Correio,
+  correio: Correio | undefined,
   registo: {
     info: (o: object, m: string) => void;
     error: (o: object, m: string) => void;
@@ -189,13 +266,19 @@ export function agendarNotificacoes(
         if (r.erros.length > 0) {
           registo.error({ erros: r.erros }, "notificações: envios com erros");
         }
+        if (r.servidor !== null) {
+          registo.error(
+            { codigo: r.servidor },
+            "notificações: o servidor de e-mail recusou; a volta parou (ver SMTP_* e o DNS)",
+          );
+        }
         if (r.falhadas > 0) {
           registo.error(
             { falhadas: r.falhadas },
             "notificações: e-mails falhados (GET /notifications?estado=falhada)",
           );
         }
-        if (r.enviadas + r.repetir + r.canceladas > 0) {
+        if (r.enviadas + r.repetir + r.canceladas + r.apagadas > 0) {
           registo.info(r, "notificações: envios");
         }
       })

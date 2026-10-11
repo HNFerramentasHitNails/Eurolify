@@ -79,6 +79,10 @@ $$;
 CREATE TRIGGER notificacao_antes_de_gravar BEFORE INSERT OR UPDATE ON notificacao
   FOR EACH ROW EXECUTE FUNCTION notificacao_antes_de_gravar();
 ALTER TABLE notificacao ENABLE ALWAYS TRIGGER notificacao_antes_de_gravar;
+-- Nem esvaziar de uma vez (revisão do #373, P3-8), como as tabelas da 0018.
+CREATE TRIGGER notificacao_sem_truncate BEFORE TRUNCATE ON notificacao
+  FOR EACH STATEMENT EXECUTE FUNCTION rasto_so_se_acrescenta();
+ALTER TABLE notificacao ENABLE ALWAYS TRIGGER notificacao_sem_truncate;
 
 ALTER TABLE notificacao ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notificacao FORCE ROW LEVEL SECURITY;
@@ -100,6 +104,7 @@ DECLARE
   t text;
   prazo record;
   lingua text;
+  loja text;
 BEGIN
   IF NEW.prazo_passado_em IS NOT NULL AND OLD.prazo_passado_em IS NULL THEN
     t := 'refund.deadline_passed';
@@ -109,11 +114,13 @@ BEGIN
     RETURN NULL;
   END IF;
   SELECT * INTO prazo FROM public.posvenda_prazo_da_devolucao(NEW.id);
-  SELECT CASE WHEN c.lingua IN ('pt', 'es', 'en') THEN c.lingua ELSE 'en' END
-    INTO lingua FROM public.comerciante c WHERE c.id = NEW.comerciante_id;
+  -- O nome da loja: uma pessoa pode ser da equipa de várias (revisão do
+  -- #373, P2-4).
+  SELECT CASE WHEN c.lingua IN ('pt', 'es', 'en') THEN c.lingua ELSE 'en' END, c.nome
+    INTO lingua, loja FROM public.comerciante c WHERE c.id = NEW.comerciante_id;
   INSERT INTO public.notificacao (comerciante_id, tipo, referencia, pessoa_id, lingua, dados)
   SELECT NEW.comerciante_id, t, NEW.id, m.pessoa_id, lingua,
-    jsonb_build_object('devolucao', NEW.id, 'encomenda', NEW.encomenda_id,
+    jsonb_build_object('loja', loja, 'devolucao', NEW.id, 'encomenda', NEW.encomenda_id,
       'reembolsar_ate', to_char(prazo.ate, 'YYYY-MM-DD'), 'dias', prazo.dias)
   FROM public.membro m JOIN public.pessoa p ON p.id = m.pessoa_id
   WHERE m.comerciante_id = NEW.comerciante_id AND m.ate IS NULL

@@ -8,6 +8,8 @@ import type { Mensagem } from "./correio.js";
 type Lingua = "pt" | "es" | "en";
 
 export interface DadosDoAviso {
+  /** O nome do comerciante (uma pessoa pode ser da equipa de várias). */
+  loja?: string;
   devolucao: string;
   encomenda: string;
   reembolsar_ate: string | null;
@@ -20,6 +22,19 @@ const data = (iso: string | null, l: Lingua) => {
   return l === "en" ? iso : `${d ?? ""}/${m ?? ""}/${a ?? ""}`;
 };
 
+/**
+ * Uma linha só, sem caracteres de controlo, cortada: o nome vem do
+ * comerciante e o e-mail vai para endereços não confirmados (revisão do #373,
+ * P2-3).
+ */
+const linha = (t: string | undefined) =>
+  (t ?? "")
+    .replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+
+/** « (faltam 2 dias)», ou nada quando não se sabe. */
 const faltam = (dias: number | null, l: Lingua): string => {
   if (dias === null || dias < 0) return "";
   const t = {
@@ -28,7 +43,7 @@ const faltam = (dias: number | null, l: Lingua): string => {
     en: ["it is today", "1 day left", (n: number) => `${String(n)} days left`],
   } as const;
   const [hoje, um, varios] = t[l];
-  return dias === 0 ? hoje : dias === 1 ? um : varios(dias);
+  return ` (${dias === 0 ? hoje : dias === 1 ? um : varios(dias)})`;
 };
 
 const TEXTOS: Record<
@@ -37,20 +52,20 @@ const TEXTOS: Record<
     TipoNotificacao,
     (
       d: DadosDoAviso,
-      nome: string,
+      loja: string,
       ids: { rma: string; ord: string },
     ) => Mensagem
   >
 > = {
   pt: {
-    "refund.deadline_approaching": (d, nome, ids) => ({
+    "refund.deadline_approaching": (d, loja, ids) => ({
       para: "",
       assunto: `Livre resolução: reembolsar até ${data(d.reembolsar_ate, "pt")}`,
       texto: [
-        `Olá, ${nome}.`,
+        "Olá,",
         "",
-        `A devolução ${ids.rma} (encomenda ${ids.ord}) vem de um pedido de livre resolução e ainda não está reembolsada.`,
-        `O último dia para reembolsar é ${data(d.reembolsar_ate, "pt")} (${faltam(d.dias, "pt")}).`,
+        `Na loja «${loja}», a devolução ${ids.rma} (encomenda ${ids.ord}) vem de um pedido de livre resolução e ainda não está reembolsada.`,
+        `O último dia para reembolsar é ${data(d.reembolsar_ate, "pt")}${faltam(d.dias, "pt")}.`,
         "",
         "A lista das devoluções com o prazo a acabar: GET /returns?prazo_reembolso=a_acabar.",
         "",
@@ -58,13 +73,13 @@ const TEXTOS: Record<
         "Eurolify",
       ].join("\n"),
     }),
-    "refund.deadline_passed": (d, nome, ids) => ({
+    "refund.deadline_passed": (d, loja, ids) => ({
       para: "",
       assunto: `Livre resolução: o prazo do reembolso passou (${data(d.reembolsar_ate, "pt")})`,
       texto: [
-        `Olá, ${nome}.`,
+        "Olá,",
         "",
-        `A devolução ${ids.rma} (encomenda ${ids.ord}) vem de um pedido de livre resolução e ainda não está reembolsada.`,
+        `Na loja «${loja}», a devolução ${ids.rma} (encomenda ${ids.ord}) vem de um pedido de livre resolução e ainda não está reembolsada.`,
         `O último dia para reembolsar era ${data(d.reembolsar_ate, "pt")}.`,
         "",
         "A lista das devoluções com o prazo passado: GET /returns?prazo_reembolso=passado.",
@@ -75,14 +90,14 @@ const TEXTOS: Record<
     }),
   },
   es: {
-    "refund.deadline_approaching": (d, nome, ids) => ({
+    "refund.deadline_approaching": (d, loja, ids) => ({
       para: "",
-      assunto: `Desistimiento: reembolsar antes del ${data(d.reembolsar_ate, "es")}`,
+      assunto: `Desistimiento: reembolsar hasta el ${data(d.reembolsar_ate, "es")}`,
       texto: [
-        `Hola, ${nome}:`,
+        "Hola:",
         "",
-        `La devolución ${ids.rma} (pedido ${ids.ord}) viene de una solicitud de desistimiento y aún no se ha reembolsado.`,
-        `El último día para reembolsar es el ${data(d.reembolsar_ate, "es")} (${faltam(d.dias, "es")}).`,
+        `En la tienda «${loja}», la devolución ${ids.rma} (pedido ${ids.ord}) viene de una solicitud de desistimiento y aún no se ha reembolsado.`,
+        `El último día para reembolsar es el ${data(d.reembolsar_ate, "es")}${faltam(d.dias, "es")}.`,
         "",
         "La lista de devoluciones con el plazo por vencer: GET /returns?prazo_reembolso=a_acabar.",
         "",
@@ -90,13 +105,13 @@ const TEXTOS: Record<
         "Eurolify",
       ].join("\n"),
     }),
-    "refund.deadline_passed": (d, nome, ids) => ({
+    "refund.deadline_passed": (d, loja, ids) => ({
       para: "",
       assunto: `Desistimiento: el plazo del reembolso ha vencido (${data(d.reembolsar_ate, "es")})`,
       texto: [
-        `Hola, ${nome}:`,
+        "Hola:",
         "",
-        `La devolución ${ids.rma} (pedido ${ids.ord}) viene de una solicitud de desistimiento y aún no se ha reembolsado.`,
+        `En la tienda «${loja}», la devolución ${ids.rma} (pedido ${ids.ord}) viene de una solicitud de desistimiento y aún no se ha reembolsado.`,
         `El último día para reembolsar era el ${data(d.reembolsar_ate, "es")}.`,
         "",
         "La lista de devoluciones con el plazo vencido: GET /returns?prazo_reembolso=passado.",
@@ -107,14 +122,14 @@ const TEXTOS: Record<
     }),
   },
   en: {
-    "refund.deadline_approaching": (d, nome, ids) => ({
+    "refund.deadline_approaching": (d, loja, ids) => ({
       para: "",
       assunto: `Withdrawal: refund by ${data(d.reembolsar_ate, "en")}`,
       texto: [
-        `Hello ${nome},`,
+        "Hello,",
         "",
-        `Return ${ids.rma} (order ${ids.ord}) comes from a withdrawal request and has not been refunded yet.`,
-        `The last day to refund is ${data(d.reembolsar_ate, "en")} (${faltam(d.dias, "en")}).`,
+        `In the shop “${loja}”, return ${ids.rma} (order ${ids.ord}) comes from a withdrawal request and has not been refunded yet.`,
+        `The last day to refund is ${data(d.reembolsar_ate, "en")}${faltam(d.dias, "en")}.`,
         "",
         "Returns with the deadline coming up: GET /returns?prazo_reembolso=a_acabar.",
         "",
@@ -122,13 +137,13 @@ const TEXTOS: Record<
         "Eurolify",
       ].join("\n"),
     }),
-    "refund.deadline_passed": (d, nome, ids) => ({
+    "refund.deadline_passed": (d, loja, ids) => ({
       para: "",
       assunto: `Withdrawal: the refund deadline has passed (${data(d.reembolsar_ate, "en")})`,
       texto: [
-        `Hello ${nome},`,
+        "Hello,",
         "",
-        `Return ${ids.rma} (order ${ids.ord}) comes from a withdrawal request and has not been refunded yet.`,
+        `In the shop “${loja}”, return ${ids.rma} (order ${ids.ord}) comes from a withdrawal request and has not been refunded yet.`,
         `The last day to refund was ${data(d.reembolsar_ate, "en")}.`,
         "",
         "Returns past the deadline: GET /returns?prazo_reembolso=passado.",
@@ -145,9 +160,9 @@ export function mensagemDe(
   tipo: TipoNotificacao,
   lingua: Lingua,
   dados: DadosDoAviso,
-  para: { email: string; nome: string },
+  para: { email: string },
 ): Mensagem {
-  const m = TEXTOS[lingua][tipo](dados, para.nome, {
+  const m = TEXTOS[lingua][tipo](dados, linha(dados.loja) || "?", {
     rma: `rma_${dados.devolucao}`,
     ord: `ord_${dados.encomenda}`,
   });

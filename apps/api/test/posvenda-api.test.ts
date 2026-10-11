@@ -4125,11 +4125,10 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       falhadas: 0,
       canceladas: 0,
       apagadas: 0,
+      servidor: null,
       erros: [],
     };
-    await comComerciante(base.api, s.c, (trx) =>
-      enviarUma(trx, correio, String(jaEnviada?.id), conta),
-    );
+    await enviarUma(base.api, s.c, correio, String(jaEnviada?.id), conta);
     expect(conta.enviadas).toBe(0);
     expect(correio.enviados.length).toBe(2);
     expect(correio.enviados.map((m) => m.para).sort()).toEqual(
@@ -4138,7 +4137,10 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     const m = correio.enviados[0];
     expect(m?.texto).toContain(rma);
     expect(m?.texto).toContain(e.encomenda);
-    expect(m?.texto).toContain("faltam 2 dias");
+    expect(m?.texto).toContain("(faltam 2 dias)");
+    // A loja diz-se; o nome da pessoa não (P2-3, P2-4).
+    expect(m?.texto).toContain("Na loja «Loja»");
+    expect(m?.texto).not.toMatch(/Ana|Bruno/);
     expect(m?.assunto).toMatch(
       /^Livre resolução: reembolsar até \d{2}\/\d{2}\/\d{4}$/,
     );
@@ -4168,7 +4170,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     await sql`update notificacao set tentativas = 5
       where comerciante_id = ${s.c}::uuid and pessoa_id = ${ana.pessoa}::uuid
         and tipo = 'refund.deadline_passed'`.execute(base.dono);
-    correio.falhas.push(new ErroCorreio("smtp_421", true));
+    correio.falhas.push(new ErroCorreio("smtp_421", "destinatario_temporario"));
     const r = await enviar(correio);
     expect([r.canceladas, r.falhadas, r.enviadas]).toEqual([2, 1, 0]);
     n = await notificacoesDe(s);
@@ -4222,17 +4224,26 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect((await notificacoesDe(s)).map((x) => x.lingua)).toEqual(["en"]);
     // 550: definitiva, falha à primeira.
     const correio = new CorreioDeEnsaio();
-    correio.falhas.push(new ErroCorreio("smtp_550", false));
+    correio.falhas.push(new ErroCorreio("smtp_550", "destinatario_recusado"));
     expect((await enviar(correio)).falhadas).toBe(1);
     expect((await notificacoesDe(s))[0]).toMatchObject({
       estado: "falhada",
       tentativas: 1,
       ultimo_erro: "smtp_550",
     });
-    // Passou: uma falha temporária espera; vencida, sai em inglês.
+    // Passou: o servidor recusa (a palavra-passe, o DNS): não conta como
+    // tentativa e pára a volta (P1-1); depois, uma falha temporária do
+    // destinatário espera; vencida, sai em inglês.
     await pedidoHaDias(rma, 15);
     await prazos();
-    correio.falhas.push(new ErroCorreio("econnection", true));
+    correio.falhas.push(new ErroCorreio("smtp_535", "servidor"));
+    const rs = await enviar(correio);
+    expect([rs.servidor, rs.repetir, rs.falhadas]).toEqual(["smtp_535", 0, 0]);
+    expect(
+      (await notificacoesDe(s)).find((x) => x.estado === "a_enviar"),
+    ).toMatchObject({ tentativas: 0, ultimo_erro: "smtp_535" });
+    await vencer(s);
+    correio.falhas.push(new ErroCorreio("smtp_451", "destinatario_temporario"));
     expect((await enviar(correio)).repetir).toBe(1);
     expect((await enviar(correio)).enviadas).toBe(0);
     // O destino só se lê no comerciante dela (N9).
@@ -4286,5 +4297,37 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(
       ((await ok(s.adm("GET", "/notifications")))["dados"] as Json[]).length,
     ).toBe(1);
+  });
+
+  it("o e-mail do aviso: uma devolução que já não espera não dá e-mail; o nome da loja vai numa linha só (revisão do #373, P2-2, P2-3)", async () => {
+    const s = await cenario();
+    await sql`update comerciante set nome = ${"Loja\n\nA sua conta foi suspensa"}
+      where id = ${s.c}::uuid`.execute(base.dono);
+    const ana = await membroCom(s, "dono", "Ana");
+    const a = await devolucaoDeLivreResolucao(s);
+    const b = await devolucaoDeLivreResolucao(s);
+    await pedidoHaDias(a.rma, 12);
+    await pedidoHaDias(b.rma, 12);
+    await prazos();
+    expect((await notificacoesDe(s)).length).toBe(2);
+    // A primeira cancela-se antes do envio: o e-mail diria o contrário.
+    await ok(
+      s.adm("POST", `/returns/${a.rma}/cancel`, {
+        versao: 1,
+        motivo: "o cliente desistiu do pedido",
+      }),
+    );
+    const correio = new CorreioDeEnsaio();
+    const r = await enviar(correio);
+    expect([r.canceladas, r.enviadas]).toEqual([1, 1]);
+    expect(
+      (await notificacoesDe(s)).find((x) => x.estado === "cancelada"),
+    ).toMatchObject({ ultimo_erro: "devolucao_ja_nao_espera" });
+    expect(correio.enviados).toHaveLength(1);
+    expect(correio.enviados[0]?.para).toBe(ana.email);
+    expect(correio.enviados[0]?.texto).toContain(b.rma);
+    expect(correio.enviados[0]?.texto).toContain(
+      "Na loja «Loja A sua conta foi suspensa», ",
+    );
   });
 });

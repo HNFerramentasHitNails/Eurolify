@@ -17,15 +17,24 @@ export interface Correio {
 }
 
 /**
- * Um envio que não passou. `temporario`: tenta-se outra vez (sem ligação, 4xx
- * do SMTP, autenticação recusada, que se corrige na configuração);
- * definitivo: 5xx do SMTP ou o endereço recusado (N6). O `codigo` vai para a
- * base: só letras, números, `_` e `.`, nunca a mensagem do servidor.
+ * De quem é a culpa de um envio que não passou (revisão do #373, P1-1):
+ * - `destinatario_recusado`: o servidor recusou este endereço de vez (5xx ao
+ *   `RCPT TO`, ou o endereço não é válido): falha já;
+ * - `destinatario_temporario`: 4xx ao `RCPT TO`: repete, e à 6.ª falha;
+ * - `servidor`: tudo o resto (sem ligação, autenticação recusada, o
+ *   remetente recusado, o DNS por fazer, o tempo esgotado): é do servidor ou
+ *   da configuração, não da notificação — não conta como tentativa e a volta
+ *   pára, para não gastar a fila inteira num erro que se corrige uma vez.
+ * O `codigo` vai para a base: só letras, números, `_` e `.`, nunca a mensagem
+ * do servidor.
  */
+export type CulpaDoErro =
+  "destinatario_recusado" | "destinatario_temporario" | "servidor";
+
 export class ErroCorreio extends Error {
   constructor(
     readonly codigo: string,
-    readonly temporario: boolean,
+    readonly culpa: CulpaDoErro,
   ) {
     super(`correio: ${codigo}`);
     this.name = "ErroCorreio";
@@ -38,84 +47,134 @@ export interface ConfigSmtp {
   utilizador: string;
   palavraPasse: string;
   remetente: string;
+  /** Só os testes, contra um servidor falso sem TLS, o desligam. */
+  exigirTls?: boolean;
 }
 
-/** Lê a configuração do ambiente; sem as cinco variáveis, não há correio. */
-export function configSmtp(
-  env: Record<string, string | undefined>,
-): ConfigSmtp | undefined {
-  const v = (k: string) => env[k]?.trim() ?? "";
-  const anfitriao = v("SMTP_ANFITRIAO");
+const VARIAVEIS = [
+  "SMTP_ANFITRIAO",
+  "SMTP_PORTA",
+  "SMTP_UTILIZADOR",
+  "SMTP_PALAVRA_PASSE",
+  "SMTP_REMETENTE",
+] as const;
+
+/**
+ * Lê a configuração do ambiente (docs/33 §5). Nenhuma variável: sem correio,
+ * sem problema. Algumas, ou a porta errada: sem correio, e o `problema` diz
+ * que variáveis (nunca os valores), para o registo — a API arranca na mesma
+ * (revisão do #373, P2-5).
+ */
+export function configSmtp(env: Record<string, string | undefined>): {
+  config?: ConfigSmtp;
+  problema?: string;
+} {
+  const v = (k: (typeof VARIAVEIS)[number]) =>
+    k === "SMTP_PALAVRA_PASSE" ? (env[k] ?? "") : (env[k]?.trim() ?? "");
+  const faltam = VARIAVEIS.filter((k) => v(k) === "");
+  if (faltam.length === VARIAVEIS.length) return {};
+  if (faltam.length > 0) return { problema: `faltam ${faltam.join(", ")}` };
   const porta = Number(v("SMTP_PORTA"));
-  const utilizador = v("SMTP_UTILIZADOR");
-  const palavraPasse = env["SMTP_PALAVRA_PASSE"] ?? "";
-  const remetente = v("SMTP_REMETENTE");
-  if (
-    anfitriao === "" ||
-    utilizador === "" ||
-    palavraPasse === "" ||
-    remetente === ""
-  ) {
-    return undefined;
-  }
   if (!Number.isInteger(porta) || porta < 1 || porta > 65535) {
-    throw new Error("SMTP_PORTA: um número de 1 a 65535 (465 ou 587)");
+    return { problema: "SMTP_PORTA não é um número de 1 a 65535 (465 ou 587)" };
   }
-  return { anfitriao, porta, utilizador, palavraPasse, remetente };
+  return {
+    config: {
+      anfitriao: v("SMTP_ANFITRIAO"),
+      porta,
+      utilizador: v("SMTP_UTILIZADOR"),
+      palavraPasse: v("SMTP_PALAVRA_PASSE"),
+      remetente: v("SMTP_REMETENTE"),
+    },
+  };
 }
 
-const TEMPORARIOS = new Set([
-  "ECONNECTION",
-  "ETIMEDOUT",
-  "ESOCKET",
-  "EDNS",
-  "EAUTH",
-  "ETLS",
-  "EPROTOCOL",
-]);
-
-/** O código e se é temporário, a partir do erro do nodemailer. */
+/** O código e a culpa, a partir do erro do nodemailer. */
 export function classificar(erro: unknown): ErroCorreio {
-  const e = erro as { code?: unknown; responseCode?: unknown };
+  const e = erro as {
+    code?: unknown;
+    responseCode?: unknown;
+    command?: unknown;
+  };
   const resposta = typeof e.responseCode === "number" ? e.responseCode : null;
-  if (resposta !== null) {
-    return new ErroCorreio(`smtp_${String(resposta)}`, resposta < 500);
+  const codigo =
+    resposta !== null
+      ? `smtp_${String(resposta)}`
+      : typeof e.code === "string" && /^[A-Z]{3,20}$/.test(e.code)
+        ? e.code.toLowerCase()
+        : "desconhecido";
+  if (e.command === "RCPT TO" && resposta !== null) {
+    return new ErroCorreio(
+      codigo,
+      resposta >= 500 ? "destinatario_recusado" : "destinatario_temporario",
+    );
   }
-  const codigo = typeof e.code === "string" ? e.code : "";
-  if (/^[A-Z]{3,20}$/.test(codigo)) {
-    return new ErroCorreio(codigo.toLowerCase(), TEMPORARIOS.has(codigo));
+  // O nodemailer recusa um endereço inválido antes de o enviar.
+  if (e.command === "API" && e.code === "EENVELOPE") {
+    return new ErroCorreio("endereco_invalido", "destinatario_recusado");
   }
-  return new ErroCorreio("desconhecido", true);
+  return new ErroCorreio(codigo, "servidor");
 }
+
+/**
+ * Um endereço simples (revisão do #373, P2-3): o e-mail das contas não está
+ * confirmado (CE) e a regra da base deixa passar `,`, `<` e `"`; um destes
+ * viraria uma lista de destinatários.
+ */
+const ENDERECO = /^[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+
+/** Um envio pendurado não pára a fila (revisão do #373, P3-2). */
+const TEMPO_TOTAL_MS = 60_000;
 
 export function correioSmtp(c: ConfigSmtp): Correio {
+  const exigirTls = c.exigirTls ?? true;
   const transporte = createTransport({
     host: c.anfitriao,
     port: c.porta,
     // 465: TLS desde o início; 587: STARTTLS, exigido.
     secure: c.porta === 465,
-    requireTLS: c.porta !== 465,
+    requireTLS: exigirTls && c.porta !== 465,
+    ignoreTLS: !exigirTls,
     auth: { user: c.utilizador, pass: c.palavraPasse },
+    // Uma ligação que serve a volta toda, não um login por e-mail (P3-1).
+    pool: true,
+    maxConnections: 1,
     connectionTimeout: 15_000,
     greetingTimeout: 15_000,
     socketTimeout: 30_000,
   });
   return {
     async enviar(m) {
+      if (!ENDERECO.test(m.para)) {
+        throw new ErroCorreio("endereco_invalido", "destinatario_recusado");
+      }
+      let relogio: NodeJS.Timeout | undefined;
       try {
-        const r = await transporte.sendMail({
-          from: c.remetente,
-          to: m.para,
-          subject: m.assunto,
-          text: m.texto,
-        });
-        // Aceite só se o servidor aceitou este destinatário.
-        if (r.rejected.length > 0) {
-          throw new ErroCorreio("destinatario_recusado", false);
+        const r = await Promise.race([
+          transporte.sendMail({
+            from: c.remetente,
+            to: m.para,
+            subject: m.assunto,
+            text: m.texto,
+          }),
+          new Promise<never>((_, nao) => {
+            relogio = setTimeout(() => {
+              nao(new ErroCorreio("tempo_esgotado", "servidor"));
+            }, TEMPO_TOTAL_MS);
+          }),
+        ]);
+        // Aceite só se o servidor aceitou exactamente este destinatário.
+        if (r.rejected.length > 0 || r.accepted.length !== 1) {
+          throw new ErroCorreio(
+            "destinatario_recusado",
+            "destinatario_recusado",
+          );
         }
         return { id: r.messageId };
       } catch (erro) {
         throw erro instanceof ErroCorreio ? erro : classificar(erro);
+      } finally {
+        clearTimeout(relogio);
       }
     },
   };

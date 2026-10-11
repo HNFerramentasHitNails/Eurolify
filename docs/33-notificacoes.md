@@ -65,7 +65,7 @@ aceitou).
 
 | Tabela | Colunas | Regras na base |
 |---|---|---|
-| `notificacao` | `id`, `comerciante_id`, `tipo` (`refund.deadline_approaching`, `refund.deadline_passed`), `referencia` (a devolução), `pessoa_id`, `lingua`, `estado` (`a_enviar`, `enviada`, `falhada`), `tentativas`, `proxima_em`, `ultimo_erro` (código, sem dados pessoais), `id_mensagem` (o `Message-ID`), `criada_em`, `enviada_em` | RLS do comerciante; única por (`tipo`, `referencia`, `pessoa_id`); só se acrescenta e muda de estado para a frente (`a_enviar` → `enviada` ou `falhada`); grava-a o gatilho do aviso, não a API |
+| `notificacao` | `id`, `comerciante_id`, `tipo` (`refund.deadline_approaching`, `refund.deadline_passed`), `referencia` (a devolução), `pessoa_id`, `lingua`, `dados` (a loja, a devolução, a encomenda, o último dia e os dias), `estado` (`a_enviar`, `enviada`, `falhada`, `cancelada`), `tentativas`, `proxima_em`, `ultimo_erro` (código, sem dados pessoais), `id_mensagem` (o `Message-ID`), `criada_em`, `terminada_em` | RLS do comerciante, forçado; única por (`tipo`, `referencia`, `pessoa_id`); só se acrescenta e muda de estado para a frente; grava-a o gatilho do aviso, não a API; sem `TRUNCATE`; só se apaga 90 dias depois de terminada |
 
 A tarefa segue o molde dos avisos do prazo (0063): uma função lista os
 comerciantes com notificações a enviar; cada notificação na sua transacção,
@@ -101,7 +101,7 @@ para o ADR-0018: é o endereço deles, não de clientes.
 ## 8. Como entra no código (quando aprovado)
 
 Uma migração (a tabela, o gatilho, a função dos comerciantes), o adaptador
-SMTP (biblioteca `nodemailer`, licença MIT — dependência nova, revista no
+SMTP (biblioteca `nodemailer`, licença MIT-0 — dependência nova, revista no
 pedido) e o de ensaio, a tarefa no `servidor.ts`, os modelos PT/ES/EN, a
 lista da API, os testes e a revisão do agente. Um pedido só.
 
@@ -121,12 +121,12 @@ lista da API, os testes e a revisão do agente. Um pedido só.
 |---|---|
 | `notificacao`, com o RLS do comerciante: gravada pelo gatilho do aviso do prazo, uma por dono e gestor activos e por aviso; estados só para a frente (`a_enviar` → `enviada`, `falhada` ou `cancelada`); a API não a grava nem a apaga | migração 0066 |
 | `tarefa_notificacao`, interna (como as filas da 0047 e da 0063): diz à tarefa em que comerciantes entrar (para enviar, ou para apagar 90 dias depois de terminada), sem ler a `notificacao` sem comerciante | migração 0066 |
-| `notificacao_destino()`: o endereço e o nome lidos no envio, só se a pessoa continua activa e dona ou gestora; senão, a notificação fica `cancelada` | migração 0066; `src/notificacoes/repositorio.ts` |
-| o correio por SMTP (`nodemailer` 10.0.10, licença MIT-0, sem dependências, de 14/09/2026 — a mais recente com mais de duas semanas) e o de ensaio; a classificação dos erros (4xx e rede repetem; 5xx falha logo) | `src/notificacoes/correio.ts` |
-| os textos PT, ES e EN | `src/notificacoes/modelos.ts` |
-| a tarefa de minuto a minuto (cada notificação na sua transacção, bloqueada; as esperas 1, 5, 30, 120 e 360 minutos; à 6.ª falha, `falhada`) e a limpeza dos 90 dias na mesma volta | `src/notificacoes/repositorio.ts`; `servidor.ts` |
-| `GET /notifications?estado=` (`merchant:read`) | `src/notificacoes/rotas.ts` |
-| 2 testes pela API e 4 sem base; 21 mutações, 20 apanhadas e uma equivalente (o destino confere o comerciante, que o RLS forçado já garante) | `test/posvenda-api.test.ts`; `test/notificacoes-correio.test.ts` |
+| `notificacao_destino()`: o endereço lido no envio, só se a pessoa continua activa e dona ou gestora; senão, a notificação fica `cancelada`; e só se a devolução continua à espera do reembolso (senão, `cancelada` com `devolucao_ja_nao_espera`) | migração 0066; `src/notificacoes/repositorio.ts` |
+| o correio por SMTP (`nodemailer` 10.0.10, licença MIT-0, sem dependências, de 14/09/2026 — a mais recente com mais de duas semanas) e o de ensaio; uma ligação por volta, 60 segundos no máximo por envio; o endereço validado antes (um com `,`, `<` ou `"` não sai); a culpa de cada erro: o destinatário recusado (5xx ao `RCPT TO`) falha logo, o 4xx dele repete, e o resto (autenticação, remetente, ligação, DNS) é do servidor — não conta como tentativa e pára a volta | `src/notificacoes/correio.ts` |
+| os textos PT, ES e EN, com o nome da loja numa linha só e sem o nome da pessoa | `src/notificacoes/modelos.ts` |
+| a tarefa de minuto a minuto, em três passos: toma a vez numa transacção curta (a próxima hora passa para daqui a 10 minutos), envia fora dela e grava o resultado noutra; as esperas 1, 5, 30, 120 e 360 minutos; à 6.ª falha, `falhada`; a limpeza dos 90 dias na mesma volta, também sem SMTP | `src/notificacoes/repositorio.ts`; `servidor.ts` |
+| `GET /notifications?estado=&limite=` (`merchant:read`): o tipo, a referência, a pessoa, a língua, o estado, as tentativas, a próxima hora, o último código e as datas; nunca o endereço nem o texto | `src/notificacoes/rotas.ts` |
+| 3 testes pela API e 5 sem base (um contra um servidor SMTP falso que responde 535, 550 e 451); mutações no fim do pedido | `test/posvenda-api.test.ts`; `test/notificacoes-correio.test.ts` |
 
 **Desvios do desenho:**
 - **A língua é a do Hub do comerciante** (`comerciante.lingua`), não a do
@@ -136,7 +136,21 @@ lista da API, os testes e a revisão do agente. Um pedido só.
 - **Um quarto estado, `cancelada`**: a pessoa saiu, foi desactivada ou
   deixou de ser dona ou gestora antes do envio.
 - **A configuração vai no `api.env` da VPS** (§5), não nos segredos do
-  GitHub: é onde vivem as outras chaves da API.
+  GitHub: é onde vivem as outras chaves da API. Uma configuração a meio, ou
+  a porta errada, não derruba a API: o registo diz que variáveis faltam.
+- **Correcções da revisão do #373** (Sonnet 5.5; 0 P0, 1 P1, 6 P2, 10 P3): a
+  culpa de cada erro do SMTP (P1-1); o envio fora da transacção (P2-1); a
+  devolução que já não espera (P2-2); sem o nome da pessoa, a loja numa
+  linha só e o endereço validado (P2-3); o nome da loja (P2-4); a
+  configuração a meio (P2-5); o T10 e o E-mail Pro no `docs/17` (P2-6); uma
+  ligação por volta, o tempo máximo, a limpeza sem SMTP, «hasta el», sem
+  parênteses vazios, sem `TRUNCATE` e o servidor falso (P3-1, 2, 4, 5, 6,
+  8, 10). **Ficam:** uma medida para o operador de uma fila parada
+  (P3-3; até lá, o registo de erro de cada volta); a resposta da lista sem
+  esquema no contrato e sem paginação além de 200 (P3-9); a idade máxima de
+  uma notificação, que se decide quando houver a fila parada a sério (P2-2).
+- **O e-mail vai para endereços não confirmados** (CE): por isso não leva o
+  nome da pessoa nem texto livre além do nome da loja numa linha.
 - **Por fazer:** a conta de e-mail, as cinco variáveis na VPS e o DNS
   (Diogo ou Bruno); os eventos `notification.sent` e `notification.failed`
   (sem quem os leia ainda); o ecrã no Hub.
