@@ -207,7 +207,11 @@ até ao documento fiscal que as da loja online (sequência 01 do `docs/31`).
 | 7 Custo | ❌ | Um POS próprio pede caixa e turnos, leitor, impressora de talões, terminal de pagamento por prestador (`eurolify-payment-readiness-eu`), contingência sem rede, permissões finas (vender, desconto manual, abrir caixa, cancelar, reembolsar), acessibilidade dos terminais (`references/retail-pos-tax.md`) e a validação fiscal de cada país — para concorrer com um POS certificado de 9 €/mês |
 | 8 Valor depressa | ◐ | Ligar um POS que o comerciante já tem ao stock do Eurolify pode dar valor no primeiro dia; um POS próprio só depois de configurar caixa, terminal e emissão |
 
-**Saída: estreitar e investigar.**
+**Saída: estreitar e investigar** — ~~aprovada na DS (ADR-0043)~~ **substituída
+a 11/10/2026 pela DV (ADR-0044): o balcão vende pelo POS do Hub do Eurolify e
+o Moloni só emite as faturas de cada venda.** O texto abaixo fica como estava,
+para se ver o que se decidiu antes; o primeiro alvo de agora está no fim da
+secção.
 
 - **Estreitar:** o primeiro alvo **não é um POS do Eurolify**. É a
   **ligação do balcão**: um POS certificado que o comerciante já usa lê do
@@ -243,6 +247,16 @@ até ao documento fiscal que as da loja online (sequência 01 do `docs/31`).
   balcão exige em cada país (**C**).
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.
+
+**Decisão DV (Diogo, 11/10/2026, ADR-0044):** *«O POS será utilizado o do
+hub. O Moloni é só para facturação»*. O primeiro alvo passa a ser **a venda
+ao balcão no POS do Hub**, como encomenda do canal «balcão» que baixa o stock
+pelo livro de movimentos, com a fatura emitida pelo adaptador do Moloni da
+fatia 10. Sai a ligação a um POS de fora (a investigação 1 acima deixa de
+servir o balcão; os resultados continuam a servir a emissão). O custo da
+porta 7 (❌) fica aceite e tem de se estreitar no desenho; a contingência sem
+rede vai ao contabilista antes do desenho (**C**); o comerciante cujo sistema
+emite (ADR-0041) fica por decidir.
 
 ## 8. Compras e fornecedores — o segundo módulo de gestão (11/10/2026)
 
