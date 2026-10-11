@@ -126,6 +126,12 @@ describe("a linha do rasto no histórico", () => {
         .partes[0],
     ).toBe("Pela importação");
     expect(linhaDoRasto({ ...base, canal: "novo" }, t).partes[0]).toBe("novo");
+    // A origem só decide nas importações de antes da 0062 (canal `api`): uma
+    // linha sem contexto continua desconhecida (§26.4; revisão do #359, P3-1).
+    expect(
+      linhaDoRasto({ ...base, canal: null, origem: "importacao:imp_1" }, t)
+        .partes[0],
+    ).toBe("Origem desconhecida");
   });
 
   it("quem autorizou sem nome (de fora da equipa) não fica vazio; o motivo passa como está", () => {
@@ -134,8 +140,37 @@ describe("a linha do rasto no histórico", () => {
       t,
     );
     expect(l.autorizacao.texto).toBe(
-      "Autorizado por Pessoa de fora desta equipa",
+      "Autorizado por uma pessoa de fora desta equipa",
     );
     expect(l.motivo).toBe("<b>pedido</b>");
   });
+
+  it.each([
+    ["prestador", "a pedido de um prestador de pagamentos"],
+    ["consumidor", "a pedido do cliente"],
+    ["operador", "a pedido do operador"],
+    ["sistema", "a pedido de uma tarefa automática"],
+    ["desconhecido", "a pedido de alguém não identificado"],
+    ["pessoa", "a pedido de uma pessoa de fora desta equipa"],
+  ] as const)(
+    "uma tarefa a pedido de %s diz uma frase inteira (revisão do #359, P2-1)",
+    (tipo, frase) => {
+      const l = linhaDoRasto(
+        {
+          ...base,
+          canal: "sistema",
+          tipo_de_autor: "sistema",
+          // Sem `quem` registado, o servidor diz «desconhecido».
+          a_pedido_de: {
+            pedido: "req-1",
+            quem: tipo === "desconhecido" ? null : "x:1",
+          },
+          a_pedido_de_tipo: tipo,
+          autor_do_pedido: tipo === "desconhecido" ? null : { nome: null },
+        },
+        t,
+      );
+      expect(l.partes[1]).toBe(frase);
+    },
+  );
 });

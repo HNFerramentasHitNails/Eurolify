@@ -405,23 +405,37 @@ describe.skipIf(URL_BASE === undefined)(
     it("uma página com mais de 200 pessoas diferentes pede os nomes aos bocados", async () => {
       const c = await comerciante("Loja Muitos");
       const dono = await h.pessoaCom(c.id, "dono", "Ana Muitos");
-      // 101 alterações, cada uma com quem fez, quem autorizou e quem pediu
-      // diferentes: 303 pessoas numa página de 100.
+      // Cada alteração com quem fez, quem autorizou e quem pediu diferentes:
+      // 300 pessoas numa página de 100.
       const uuid = () => `pessoa:per_${randomUUID()}`;
-      for (let i = 0; i < 101; i++) {
+      const dona = `pessoa:per_${dono.pessoa}`;
+      // 102 alterações; a página traz as 100 mais recentes (i = 101 a 2). A
+      // i = 2, a mais antiga da página, é autorizada e pedida pela dona: os
+      // nomes pedem-se da mais recente para a mais antiga, por isso o dela é
+      // o 299.º, no segundo bocado (revisão do #359, P2-2).
+      for (let i = 0; i < 102; i++) {
         await escreverComRasto(
           c.artigo.id,
           {
             quem: uuid(),
-            autorizadoPor: uuid(),
-            aPedidoDe: { pedido: `req-${String(i)}`, quem: uuid() },
+            autorizadoPor: i === 2 ? dona : uuid(),
+            aPedidoDe: {
+              pedido: `req-${String(i)}`,
+              quem: i === 2 ? dona : uuid(),
+            },
           },
           `Nome ${String(i)}`,
         );
       }
       const r = await historico(c, dono.sessao, "?limite=100");
       expect(r.statusCode, r.body).toBe(200);
-      expect(r.json<Pagina>().dados).toHaveLength(100);
+      const dados = r.json<Pagina>().dados;
+      expect(dados).toHaveLength(100);
+      expect(dados[99]).toMatchObject({
+        autorizado_por: dona,
+        autor_autorizou: { nome: "Ana Muitos" },
+        autor_do_pedido: { nome: "Ana Muitos" },
+      });
     });
 
     it("recusa outro comerciante, quem saiu, a sessão terminada e o pedido sem sessão", async () => {

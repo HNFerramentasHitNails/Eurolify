@@ -33,7 +33,12 @@ export interface LinhaDoRasto {
 
 function deOnde(e: RastoDaEntrada, t: Textos): string {
   // Uma importação de antes do canal `importacao` (0062) diz-se pela origem.
-  if (e.canal === "importacao" || e.origem?.startsWith("importacao:") === true)
+  // Antes da 0062 a importação escrevia com o canal `api` (revisão do
+  // #359, P3-1): só nesse caso a origem decide.
+  if (
+    e.canal === "importacao" ||
+    (e.canal === "api" && e.origem?.startsWith("importacao:") === true)
+  )
     return t.rastoCanal_importacao;
   if (e.canal === null) return t.rastoOrigemDesconhecida;
   const chave = `rastoCanal_${e.canal}`;
@@ -41,20 +46,35 @@ function deOnde(e: RastoDaEntrada, t: Textos): string {
   return chave in t ? t[chave as keyof Textos] : e.canal;
 }
 
-function quemPediu(e: RastoDaEntrada, t: Textos): string {
+/** «a pedido de Chave «Preços»», «a pedido do cliente» (revisão do #359, P2-1). */
+function aPedidoDe(e: RastoDaEntrada, t: Textos): string {
   const nome = e.autor_do_pedido?.nome ?? null;
+  // Com nome, a frase com ele; sem nome, uma frase inteira por tipo (a
+  // contracção muda: «do cliente», «de um prestador»).
   switch (e.a_pedido_de_tipo) {
     case "agente":
     case "chave":
       return nome === null
         ? e.a_pedido_de_tipo === "agente"
-          ? t.rastoQuemPediu_agente
-          : t.rastoQuemPediu_chave
-        : preencher(t.historicoChave, { nome });
+          ? t.rastoAPedidoDe_agente
+          : t.rastoAPedidoDe_chave
+        : preencher(t.rastoAPedidoDe, {
+            nome: preencher(t.historicoChave, { nome }),
+          });
     case "pessoa":
-      return nome ?? t.historicoPessoaDeFora;
+      return nome === null
+        ? t.rastoAPedidoDe_pessoa
+        : preencher(t.rastoAPedidoDe, { nome });
+    case "prestador":
+      return t.rastoAPedidoDe_prestador;
+    case "consumidor":
+      return t.rastoAPedidoDe_consumidor;
+    case "operador":
+      return t.rastoAPedidoDe_operador;
+    case "sistema":
+      return t.rastoAPedidoDe_sistema;
     default:
-      return t.rastoQuemPediu_outro;
+      return t.rastoAPedidoDe_desconhecido;
   }
 }
 
@@ -78,9 +98,7 @@ export function linhaDoRasto(e: RastoDaEntrada, t: Textos): LinhaDoRasto {
   // alteração no Hub ou pela API vêm com o canal dessa alteração.
   if (e.canal === "sistema") {
     partes.push(
-      e.a_pedido_de === null
-        ? t.rastoSemPedidoDeOrigem
-        : preencher(t.rastoAPedidoDe, { nome: quemPediu(e, t) }),
+      e.a_pedido_de === null ? t.rastoSemPedidoDeOrigem : aPedidoDe(e, t),
     );
   }
   const ia = daIa(e, t);
@@ -90,7 +108,7 @@ export function linhaDoRasto(e: RastoDaEntrada, t: Textos): LinhaDoRasto {
     e.sem_autorizacao_de_pessoa === false
       ? {
           texto: preencher(t.rastoAutorizadoPor, {
-            nome: e.autor_autorizou?.nome ?? t.historicoPessoaDeFora,
+            nome: e.autor_autorizou?.nome ?? t.rastoPessoaDeForaNaFrase,
           }),
           aviso: false,
         }

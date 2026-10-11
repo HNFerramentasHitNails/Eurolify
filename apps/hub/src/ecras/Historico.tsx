@@ -151,6 +151,14 @@ function nomeDoAutor(e: AlteracaoArtigo, t: Textos): string {
         : preencher(t.historicoChave, { nome: e.autor.nome });
     case "sistema":
       return t.historicoAutomatico;
+    // O identificador guardado só quando o servidor não conhece a forma
+    // (revisão do #359, P3-3): o login de quem opera não se mostra.
+    case "operador":
+      return t.rastoAutor_operador;
+    case "consumidor":
+      return t.rastoAutor_consumidor;
+    case "prestador":
+      return t.rastoAutor_prestador;
     default:
       return e.quem;
   }
@@ -432,10 +440,12 @@ function Alteracao({
         )}
       </p>
       {rasto.motivo === null ? null : (
-        <p className="rasto-historico">
+        // Um `div`: um motivo longo traz um `<details>`, que não cabe num
+        // `<p>` (revisão do #359, P3-5).
+        <div className="rasto-historico">
           {t.rastoMotivo}{" "}
           <Valor entidade="rasto" campo="motivo" valor={rasto.motivo} />
-        </p>
+        </div>
       )}
       <ul>
         {grupo.entradas.map((e) => (
