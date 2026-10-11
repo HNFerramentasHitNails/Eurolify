@@ -42,8 +42,11 @@ interface Dados {
   chaves: ChaveApi[];
 }
 
-export const rotuloDoAmbito = (t: Textos, a: Ambito) =>
-  t[`ambito_${a.replace(":", "_")}` as keyof Textos];
+/** O nome do âmbito; um que o ecrã não conhece sai com o nome técnico. */
+export function rotuloDoAmbito(t: Textos, a: string): string {
+  const chave = `ambito_${a.replace(":", "_")}`;
+  return chave in t ? t[chave as keyof Textos] : a;
+}
 
 export function Chaves({ comerciante }: { comerciante: string | null }) {
   const { t, lingua, navegar } = useHub();
@@ -239,7 +242,17 @@ export function Chaves({ comerciante }: { comerciante: string | null }) {
                   const estado = estadoDaChave(c, agora);
                   return (
                     <tr key={c.id}>
-                      <td data-rotulo={t.colunaNome}>{c.nome}</td>
+                      <td data-rotulo={t.colunaNome}>
+                        {c.nome}
+                        {c.agente_ia ? (
+                          <>
+                            {" "}
+                            <span className="etiqueta">
+                              {t.chaveEtiquetaAgente}
+                            </span>
+                          </>
+                        ) : null}
+                      </td>
                       <td data-rotulo={t.colunaTipo}>{t[`tipo_${c.tipo}`]}</td>
                       <td data-rotulo={t.colunaAmbitos}>
                         {c.ambitos.map((a) => rotuloDoAmbito(t, a)).join(", ")}
@@ -332,6 +345,7 @@ function CriarChave({
   const { t, lingua, navegar } = useHub();
   const [nome, setNome] = useState("");
   const [ambitos, setAmbitos] = useState<Ambito[]>([]);
+  const [agenteIa, setAgenteIa] = useState(false);
   const [expira, setExpira] = useState("");
   const [falha, setFalha] = useState<unknown>(null);
   const erro: MensagemDeErro | null =
@@ -415,6 +429,7 @@ function CriarChave({
           api.criarChave(comerciante, {
             nome: limpo,
             ambitos,
+            agente_ia: agenteIa,
             ...(expiraEm === undefined ? {} : { expira_em: expiraEm }),
           }),
         );
@@ -422,6 +437,7 @@ function CriarChave({
         setFocar("aviso");
         setNome("");
         setAmbitos([]);
+        setAgenteIa(false);
         setExpira("");
         await aoCriar();
       } catch (e) {
@@ -521,6 +537,25 @@ function CriarChave({
               {/* O que «Gerir chaves» dá a quem a tiver (revisão do #183, P2-2). */}
               <p className="secundario">{t.ambitoKeysAviso}</p>
             </fieldset>
+            {/* A marca de agente de IA (docs/22 §26.3; 0057): a API recusa-a
+                numa chave pública, que o Hub não cria. */}
+            <div className="campo">
+              <label className="opcao">
+                <input
+                  type="checkbox"
+                  name="agente-ia"
+                  checked={agenteIa}
+                  aria-describedby="ajuda-agente-ia"
+                  onChange={(e) => {
+                    setAgenteIa(e.target.checked);
+                  }}
+                />{" "}
+                {t.chaveAgenteIa}
+              </label>
+              <p className="secundario" id="ajuda-agente-ia">
+                {t.chaveAgenteIaAjuda}
+              </p>
+            </div>
             <div className="campo">
               <label htmlFor="expira-chave">{t.chaveExpira}</label>
               <input

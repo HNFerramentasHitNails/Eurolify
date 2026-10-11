@@ -15,14 +15,13 @@ Desenho: `docs/28-rasto-de-auditoria.md`, aprovado pelo Diogo a 10/10/2026
 | 4, parte 3 | #349 (juntado a 11/10/2026, 6b79b84) | 0059 | `tipo_de_autor` e `sem_autorizacao_de_pessoa` em todas as linhas do tempo (calculados na API); o histórico de preços em dois níveis (`prices:read` vê o tipo e o aviso; `prices:history`, do dono e do gestor, vê quem) |
 | 4, parte 4 | #351 (juntado a 11/10/2026, c7afba2) | 0060 | as tarefas (pagamentos, encomendas, documentos) guardam a origem de quem as agendou e correm com ela herdada: «sistema, a pedido do agente X», com o pedido, a IA e a autorização dele |
 | pendentes | #354 (juntado a 11/10/2026, 6ca0737) | 0062 | o `quem` conferido com quem se autenticou (`eurolify.autenticado`); o canal `importacao`; o motivo do histórico pseudonimizado; os outros pendentes já estavam resolvidos ou ficam de fora (`docs/28` §4) |
+| 4, parte 5 | desenho #357 (juntado a 11/10/2026, 0792366); código #359 | — | o Hub mostra no histórico do artigo de onde veio, a IA, quem autorizou ou o aviso «Sem autorização de uma pessoa», o pedido de origem e o motivo; a API do Hub junta `autor_autorizou` e `autor_do_pedido`; o ecrã das chaves marca «Chave de um agente de IA» e dá nome aos âmbitos `prices:*` e `catalog:history` |
 
 Fonte dos passos 1 a 3: as descrições dos pedidos e o `docs/28` §2 a §4 no
 `main` de 10/10/2026 (commit 0dffbe3).
 
 Plano do resto do passo 4 (dito ao Diogo a 10/10/2026):
-- parte 5: o Hub mostra as respostas no histórico do artigo e a opção da
-  marca no ecrã das chaves — desenho e maqueta primeiro, só se junta com o
-  aspecto aprovado;
+- parte 5: só se junta com o aspecto aprovado pelo Diogo (capturas no #359);
 - por decidir: as rotas públicas em que a pessoa age ela própria (conta nova
   pelo convite, recuperação) — «autorizado por» vazio ou a pessoa no fim.
 
@@ -58,6 +57,7 @@ Plano do resto do passo 4 (dito ao Diogo a 10/10/2026):
 
 - A configuração de registo da base na VPS (o segredo de quem pede passa às
   funções; `docs/19` §6.1 já o dizia).
-- O ecrã das chaves do Hub ainda não mostra nem escolhe a marca (parte 5).
+- O histórico dos clientes, encomendas, pagamentos, documentos e preços no
+  Hub: a API já dá as respostas, os ecrãs ainda não existem (`docs/22` §26.1).
 - O MCP da VPS (`apps/mcp`) é de operação, não de comércio: não põe o canal
   `mcp` nem o cabeçalho.
