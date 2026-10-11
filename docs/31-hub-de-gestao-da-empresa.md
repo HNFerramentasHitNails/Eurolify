@@ -317,7 +317,7 @@ nenhum comerciante de fora foi ouvido (`docs/13`, «O que vale para todos»).
 | Grupo | Módulo do Hub | O que faz | Domínio Eurolify | Natureza | Estado |
 |---|---|---|---|---|---|
 | Vendas e clientes | Comercial | Clientes e perfis, encomendas, prospecção, Chamadas do Dia, carteira, comissões, devoluções, apoio | Clientes (no `main`) + Comercial (novo) | gestão | em parte |
-| | POS | Venda ao balcão com PIN pessoal e leitor | Canal «balcão» (`eurolify-physical-retail-eu`) | núcleo | por desenhar (DF) |
+| | POS | Venda ao balcão com PIN pessoal e leitor | Canal «balcão» (`eurolify-physical-retail-eu`) | núcleo | por desenhar; pelas 8 portas a 11/10/2026: **estreitar e investigar** — primeiro a ligação a um POS certificado (`docs/13` §7) |
 | | Dashboards | Painéis do dia e do mês por módulo | Leitura sobre todos | núcleo | por desenhar |
 | | Ecossistema | A fase de cada cliente no percurso da marca | Clientes | gestão | por desenhar |
 | Operações | Armazém | Por processar, picking com leitor, lotes, Retidas, monitor da faturação, inventário, localizações, transportadoras | Stock e encomendas (0047) | núcleo | em parte |
@@ -430,7 +430,7 @@ essa conta.
 | Camada | Módulos | Porquê nesta ordem |
 |---|---|---|
 | **A. Núcleo da loja** (Fase 1, em curso) | Catálogo, preços, clientes, IVA, checkout, pagamentos, stock, documentos fiscais, pós-venda | Já decidido e em código |
-| **B. Operação** | Balcão (POS), armazém completo (picking com leitor, localizações, inventário), compras e fornecedores, apoio ao cliente, tarefas sobre um registo, dashboards | Ligam directamente às encomendas e ao stock; porta 1 forte (lições do `docs/04` §3) |
+| **B. Operação** | Balcão (POS — pelas portas a 11/10/2026: primeiro a ligação a um POS certificado, `docs/13` §7), armazém completo (picking com leitor, localizações, inventário), compras e fornecedores, apoio ao cliente, tarefas sobre um registo, dashboards | Ligam directamente às encomendas e ao stock; porta 1 forte (lições do `docs/04` §3) |
 | **C. Comercial** | Leads e prospecção, Chamadas do Dia, saúde da carteira, encomenda feita pela equipa com ligação de pagamento, comissões sobre o faturado, metas | Usa clientes, encomendas e documentos que já existem |
 | **D. Financeiro** | Despesas com leitura por IA e decisão de uma pessoa, extractos e conciliação, tesouraria, lucro por área | Depende de pagamentos e documentos fiscais; IA dentro do ADR-0040 |
 | **E. Organização** | Projectos, procedimentos e objectivos, comunicação interna | Não toca em regras fiscais; valor para equipas |

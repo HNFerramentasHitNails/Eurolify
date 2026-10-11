@@ -17,8 +17,9 @@
 > [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)). Os módulos
 > novos — camadas B a H do
 > [`31-hub-de-gestao-da-empresa.md`](31-hub-de-gestao-da-empresa.md) §8 —
-> **ainda não passaram por estas portas**; o `docs/31` §4 dá só a natureza e o
-> estado de cada um. Cada um passa aqui antes de ser desenhado.
+> passam por estas portas antes de serem desenhados; o `docs/31` §4 dá a
+> natureza e o estado de cada um. **O primeiro, o balcão (POS), passou a
+> 11/10/2026: §7.**
 
 **Legenda:** ✅ passa · ◐ em parte · ❌ falha · ❔ não se sabe.
 
@@ -41,6 +42,7 @@ grupo contam como **um** comprador.
 | Relatório OSS com os quatro baldes (4–8, com ligações) | ✅ | ✅ | ❔ | ❔ | ✅ | ✅ | ✅ | ✅ | **avançar** |
 | Automações e notificações configuráveis (parte de 8–12) | ❔ | ◐ | ❔ | ❔ | ❌ | ◐ | ❔ | ◐ | **estreitar** |
 | Campos personalizados (parte de 8–12) | ❔ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ✅ | **investigar** |
+| Balcão (POS), 11/10/2026 (não estimado) | ◐ | ◐ | ◐ | ❔ | ❌ | ◐ | ❌ | ◐ | **estreitar e investigar** (§7) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -161,6 +163,56 @@ para as funções de terceiros da Fase 3.
 
 **Saída: investigar.** Perguntar aos comerciantes em que registos lhes faltam
 campos (clientes? encomendas?) antes de construir.
+
+## 7. Balcão (POS) — o primeiro módulo de gestão da empresa (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o primeiro módulo pelas 8 portas»*. É o
+primeiro da camada B do [`31-hub-de-gestao-da-empresa.md`](31-hub-de-gestao-da-empresa.md)
+§8 (decisão DQ, ADR-0042), e já estava na Fase 2 (decidido a 05/10/2026, Q3
+do `docs/16`). Skills abertas: `eurolify-physical-retail-eu`,
+`eurolify-tax-pos-invoicing-eu`, `eurolify-legal-briefing-eu`
+(`references/retail-pos-tax.md`), `eu-vat-oss-ioss`, `consumer-rights-eu`.
+
+**O que o Hub actual faz** (proposta comercial do Hub, p. 9 e 24): venda ao
+balcão com PIN pessoal e leitor de código de barras, com as regras de preço e
+de faturação da encomenda feita pela equipa; a venda segue o mesmo caminho
+até ao documento fiscal que as da loja online (sequência 01 do `docs/31`).
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ◐ | O Hub actual tem o módulo POS em uso (proposta p. 9 e 24): a empresa vende ao balcão. **Não há nenhum caso medido** — procurei «balcão», «POS», «caixa» e «ponto de venda» no `docs/04` e em `memoria/` e não encontrei nenhuma lição nem número sobre o balcão |
+| 2 Não resolvido | ◐ | **O POS em si já está resolvido por software certificado**: o próprio Moloni, que o Eurolify vai ligar na fatia 10, tem uma app de POS ([App Store](https://apps.apple.com/pt/app/moloni-pos/id1484656052), descrita como gratuita; condições não lidas), e há POS certificados à venda ([Vendus, planos](https://www.vendus.pt/planos-precos/): 9 €/mês no Base e 22 €/mês no Pro, sem IVA, lidos por pesquisa a 11/10/2026, página ao vivo não aberta). **O que fica por resolver** é a ligação: o mesmo stock, os mesmos preços e a mesma ficha de cliente entre a loja do Eurolify e o balcão, sem vender o que já foi prometido (a lição 3.1 do `docs/04`, medida na loja online, é o mesmo risco) |
+| 3 Gasto | ◐ | Os comerciantes com loja física já pagam um POS (preços acima). Não se sabe se alguém paga por ligar o POS ao stock da loja online — nenhum comerciante ouvido |
+| 4 Compradores | ❔ | As lojas do próprio grupo contam como um |
+| 5 Alvo estreito | ❌ | «POS» para todos junta venda, caixa (abertura, fecho, diferenças), terminal de pagamento, modo sem rede, vários estabelecimentos, recolha de encomendas online e devoluções noutro canal (`eurolify-physical-retail-eu`, pontos 3 a 6) |
+| 6 Encaixe | ◐ | **Encaixa** no que existe: catálogo, preços por canal, livro de movimentos e reserva (`docs/27`; um armazém por loja, DE Q1), clientes e perfis. **Não encaixa sem decisões novas:** (a) em Portugal, as faturas só se emitem por software certificado (`docs/03`, linha «Software de faturação certificado pela AT», **C**+**M**) e o Eurolify não o é — um POS do Eurolify teria de emitir pelo adaptador do Moloni, em linha, a cada venda; (b) o modo sem rede «é uma capacidade a aprovar por regime» (`references/retail-pos-tax.md`); (c) a caixa (`pos_fiscal`) não é domínio do motor de regras até haver uma loja que precise (decisão DF); (d) um PIN pessoal é um factor mais fraco do que a passkey ou a palavra-passe com TOTP das contas (`docs/21`, decisão CA); (e) uma venda ao balcão não tem livre resolução por mudança de opinião (`references/retail-pos-tax.md`, fonte Your Europe), por isso não pode reaproveitar o checkout alojado, que é de venda à distância (ADR-0039) |
+| 7 Custo | ❌ | Um POS próprio pede caixa e turnos, leitor, impressora de talões, terminal de pagamento por prestador (`eurolify-payment-readiness-eu`), contingência sem rede, permissões finas (vender, desconto manual, abrir caixa, cancelar, reembolsar), acessibilidade dos terminais (`references/retail-pos-tax.md`) e a validação fiscal de cada país — para concorrer com um POS certificado de 9 €/mês |
+| 8 Valor depressa | ◐ | Ligar um POS que o comerciante já tem ao stock do Eurolify pode dar valor no primeiro dia; um POS próprio só depois de configurar caixa, terminal e emissão |
+
+**Saída: estreitar e investigar.**
+
+- **Estreitar:** o primeiro alvo **não é um POS do Eurolify**. É a
+  **ligação do balcão**: um POS certificado que o comerciante já usa lê do
+  Eurolify os artigos, os preços do canal «balcão» e o disponível, e devolve
+  cada venda como encomenda desse canal, que baixa o stock pelo livro de
+  movimentos. **Quem emite o documento é o POS** — o mesmo princípio da D-10
+  (ADR-0041: com sistema de gestão, emite o sistema dele); o Eurolify guarda a
+  prova do documento que saiu. Um tipo de comerciante (loja online com um
+  balcão, em Portugal), um papel (quem vende ao balcão), um fluxo (venda
+  paga ao balcão).
+- **Investigar, antes de desenhar** — o passo mais pequeno:
+  1. ler a documentação da API do Moloni: a página de entrada lista
+     «Simplified Invoices», «Invoice Receipts», «Product Stocks» e
+     «Warehouses» ([moloni.pt/dev](https://www.moloni.pt/dev/), lida a
+     11/10/2026, só o menu), mas **não verifiquei** se os documentos da app
+     de POS se lêem por ela nem se o stock se lê ou escreve;
+  2. falar com 5 comerciantes com loja física e online: que POS usam, e se o
+     stock desencontrado lhes custa vendas (portas 3 e 4).
+- **O POS próprio** (caixa, terminal, sem rede) fica para quando a ligação
+  provar procura e o jurista e o contabilista disserem o que a emissão ao
+  balcão exige em cada país (**C**).
+
+Decidir se se avança com esta saída é do Diogo ou do Bruno.
 
 ---
 

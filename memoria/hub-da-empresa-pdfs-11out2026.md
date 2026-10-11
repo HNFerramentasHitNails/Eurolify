@@ -17,6 +17,14 @@ de gestão da empresa inteira, não só uma loja.
 - Sem a marca dos sistemas actuais e sem nomes de clientes; o exemplo de lote
   do PDF não se copiou.
 
+- **O balcão (POS) pelas 8 portas** (pedido do Diogo, 11/10/2026, *«passa o
+  primeiro módulo pelas 8 portas»*; `docs/13` §7): ◐ ◐ ◐ ❔ ❌ ◐ ❌ ◐ →
+  **estreitar e investigar**. O POS já existe em software certificado (o
+  Moloni tem uma app de POS; o Vendus vende planos de 9 e 22 €/mês sem IVA);
+  falta a ligação ao stock, aos preços e aos clientes do Eurolify. Primeiro
+  alvo: a ligação a um POS certificado, que emite ele o documento (como a
+  D-10). Antes: ler a API do Moloni e falar com 5 comerciantes com loja física.
+
 ## Números (com data e como se contaram)
 
 - Do PDF, não medidos por mim (proposta p. 4, «contados no próprio código e na
@@ -39,7 +47,10 @@ de gestão da empresa inteira, não só uma loja.
   o `docs/06` (DQ), o `docs/13` e o `docs/31`. A exclusão antiga só estava no
   `docs/00` §2.2 (`grep` por «streaming», «marketing editorial» e «de uma
   empresa, não» em `docs/`, `README.md`, `AGENTS.md` e nas skills).
-- Nenhum módulo novo passou ainda pelas 8 portas nem está estimado.
+- Só o balcão passou pelas 8 portas; nenhum módulo novo está estimado.
+- Do balcão: os preços do Vendus vêm do texto da pesquisa (página ao vivo não
+  aberta); as condições da app Moloni POS e se a API do Moloni lê os
+  documentos dela ou o stock não foram lidas (só o menu de moloni.pt/dev).
 - Todas as regras fiscais e legais do PDF ficam **C** (isenção da formação,
   bilhete de evento, biometria no trabalho, relatório da autoridade dos
   cosméticos, rótulo, prestações).
