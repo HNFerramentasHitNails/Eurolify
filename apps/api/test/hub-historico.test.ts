@@ -28,6 +28,9 @@ interface Entrada {
   operacao: string;
   campos: Record<string, { antes: unknown; depois: unknown }>;
   autor?: Autor;
+  autorizado_por?: string | null;
+  autor_autorizou?: { nome: string | null } | null;
+  autor_do_pedido?: { nome: string | null } | null;
 }
 interface Pagina {
   dados: Entrada[];
@@ -153,10 +156,12 @@ describe.skipIf(URL_BASE === undefined)(
       expect(r.headers["cache-control"]).toBe("private, no-store");
       const hub = r.json<Pagina>();
       const chave = pelaChave.json<Pagina>();
-      // As mesmas entradas, sem o autor, e o mesmo cursor.
+      // As mesmas entradas, sem os nomes, e o mesmo cursor.
       const semAutor = hub.dados.map((e) => {
         const resto = { ...e };
         delete resto.autor;
+        delete resto.autor_autorizou;
+        delete resto.autor_do_pedido;
         return resto;
       });
       expect(semAutor).toEqual(chave.dados);
@@ -235,6 +240,8 @@ describe.skipIf(URL_BASE === undefined)(
       expect(daApi?.security).toEqual([{ chave: [] }]);
       const resposta = JSON.stringify(doHub?.responses);
       expect(resposta).toContain('"autor"');
+      expect(resposta).toContain('"autor_autorizou"');
+      expect(resposta).toContain('"autor_do_pedido"');
       expect(JSON.stringify(daApi?.responses)).not.toContain('"autor"');
     });
 
@@ -313,6 +320,108 @@ describe.skipIf(URL_BASE === undefined)(
         nome: null,
       });
       expect(porQuem.get("teste:outro")).toEqual({ tipo: "outro", nome: null });
+    });
+
+    /** Uma alteração com o contexto do rasto escolhido (como uma tarefa). */
+    async function escreverComRasto(
+      artigo: string,
+      rasto: {
+        quem: string;
+        autorizadoPor?: string;
+        aPedidoDe?: { pedido: string; quem: string };
+      },
+      nome: string,
+    ) {
+      await base.dono.transaction().execute(async (trx) => {
+        const pares: [string, string][] = [
+          ["eurolify.quem", rasto.quem],
+          ["eurolify.canal", "sistema"],
+          ["eurolify.pedido", "tarefa:teste"],
+        ];
+        if (rasto.autorizadoPor !== undefined)
+          pares.push(["eurolify.autorizado_por", rasto.autorizadoPor]);
+        if (rasto.aPedidoDe !== undefined)
+          pares.push(["eurolify.a_pedido_de", JSON.stringify(rasto.aPedidoDe)]);
+        for (const [k, v] of pares) {
+          await sql`select set_config(${k}, ${v}, true)`.execute(trx);
+        }
+        await sql`update artigo set nome = ${nome}
+          where id = ${artigo.slice("prd_".length)}::uuid`.execute(trx);
+      });
+    }
+
+    it("quem autorizou e quem pediu a tarefa vêm com o nome, pela mesma regra de quem fez (docs/22 §26.2)", async () => {
+      const c = await comerciante("Loja Autorizou");
+      const outro = await comerciante("Outra Autorizou");
+      const dono = await h.pessoaCom(c.id, "dono", "Ana Teste");
+      const deFora = await h.pessoaCom(outro.id, "dono", "Zé de Fora");
+      // No Hub, quem age autoriza: o nome dela nas duas.
+      await mudarNome(c, dono.sessao, "Pela dona");
+      // Uma tarefa a pedido da chave do comerciante, autorizada pela dona.
+      await escreverComRasto(
+        c.artigo.id,
+        {
+          quem: "sistema:teste",
+          autorizadoPor: `pessoa:per_${dono.pessoa}`,
+          aPedidoDe: { pedido: "req-1", quem: `chave:key_${c.chave.id}` },
+        },
+        "Pela tarefa",
+      );
+      // Outra, a pedido da chave e com a autorização de alguém de fora.
+      await escreverComRasto(
+        c.artigo.id,
+        {
+          quem: "sistema:fora",
+          autorizadoPor: `pessoa:per_${deFora.pessoa}`,
+          aPedidoDe: { pedido: "req-2", quem: `chave:key_${outro.chave.id}` },
+        },
+        "De fora",
+      );
+      // Sem ninguém a autorizar e sem pedido de origem.
+      await escreverComRasto(c.artigo.id, { quem: "sistema:so" }, "Sozinha");
+
+      const r = await historico(c, dono.sessao, "?limite=100");
+      expect(r.statusCode, r.body).toBe(200);
+      const porQuem = new Map(r.json<Pagina>().dados.map((e) => [e.quem, e]));
+      expect(porQuem.get(`pessoa:per_${dono.pessoa}`)).toMatchObject({
+        autor_autorizou: { nome: "Ana Teste" },
+        autor_do_pedido: null,
+      });
+      expect(porQuem.get("sistema:teste")).toMatchObject({
+        autor_autorizou: { nome: "Ana Teste" },
+        autor_do_pedido: { nome: "Escrita" },
+      });
+      expect(porQuem.get("sistema:fora")).toMatchObject({
+        autorizado_por: `pessoa:per_${deFora.pessoa}`,
+        autor_autorizou: { nome: null },
+        autor_do_pedido: { nome: null },
+      });
+      expect(porQuem.get("sistema:so")).toMatchObject({
+        autor_autorizou: null,
+        autor_do_pedido: null,
+      });
+    });
+
+    it("uma página com mais de 200 pessoas diferentes pede os nomes aos bocados", async () => {
+      const c = await comerciante("Loja Muitos");
+      const dono = await h.pessoaCom(c.id, "dono", "Ana Muitos");
+      // 101 alterações, cada uma com quem fez, quem autorizou e quem pediu
+      // diferentes: 303 pessoas numa página de 100.
+      const uuid = () => `pessoa:per_${randomUUID()}`;
+      for (let i = 0; i < 101; i++) {
+        await escreverComRasto(
+          c.artigo.id,
+          {
+            quem: uuid(),
+            autorizadoPor: uuid(),
+            aPedidoDe: { pedido: `req-${String(i)}`, quem: uuid() },
+          },
+          `Nome ${String(i)}`,
+        );
+      }
+      const r = await historico(c, dono.sessao, "?limite=100");
+      expect(r.statusCode, r.body).toBe(200);
+      expect(r.json<Pagina>().dados).toHaveLength(100);
     });
 
     it("recusa outro comerciante, quem saiu, a sessão terminada e o pedido sem sessão", async () => {
