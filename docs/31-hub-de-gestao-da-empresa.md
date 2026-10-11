@@ -321,7 +321,7 @@ nenhum comerciante de fora foi ouvido (`docs/13`, «O que vale para todos»).
 | | Dashboards | Painéis do dia e do mês por módulo | Leitura sobre todos | núcleo | por desenhar |
 | | Ecossistema | A fase de cada cliente no percurso da marca | Clientes | gestão | por desenhar |
 | Operações | Armazém | Por processar, picking com leitor, lotes, Retidas, monitor da faturação, inventário, localizações, transportadoras | Stock e encomendas (0047) | núcleo | em parte |
-| | Fabricação | Programação, produção, lotes, Gantt, compras, fornecedores, Pareto, alertas, discrepâncias | Compras (novo) + Fabrico (novo) | compras: gestão; fabrico: sectorial | por desenhar |
+| | Fabricação | Programação, produção, lotes, Gantt, compras, fornecedores, Pareto, alertas, discrepâncias | Compras (novo) + Fabrico (novo) | compras: gestão; fabrico: sectorial | por desenhar; compras pelas 8 portas a 11/10/2026: **estreitar** — primeiro a recepção com fornecedor (`docs/13` §8) |
 | | Gráfica | Pedidos, máquina, procedimentos, lançamentos, rótulos, colecções | Trabalho interno (novo) | sectorial | fora (`docs/00` §2.2) |
 | | Administrativo | Documentos da empresa e dos cosméticos, contratos, tabelas de preços, lançamentos | Documentos da empresa (novo) + Conformidade | gestão | por desenhar |
 | Formação | Pedagógico | Formações, turmas, kits, comissões, parceiros, manuais | Digital / serviço humano à distância (fatia 12) | sectorial | desenhado, desligado |
@@ -430,7 +430,7 @@ essa conta.
 | Camada | Módulos | Porquê nesta ordem |
 |---|---|---|
 | **A. Núcleo da loja** (Fase 1, em curso) | Catálogo, preços, clientes, IVA, checkout, pagamentos, stock, documentos fiscais, pós-venda | Já decidido e em código |
-| **B. Operação** | Balcão (POS — pelas portas a 11/10/2026: primeiro a ligação a um POS certificado, `docs/13` §7), armazém completo (picking com leitor, localizações, inventário), compras e fornecedores, apoio ao cliente, tarefas sobre um registo, dashboards | Ligam directamente às encomendas e ao stock; porta 1 forte (lições do `docs/04` §3) |
+| **B. Operação** | Balcão (POS — pelas portas a 11/10/2026: primeiro a ligação a um POS certificado, `docs/13` §7), armazém completo (picking com leitor, localizações, inventário), compras e fornecedores (pelas portas a 11/10/2026: primeiro a recepção com fornecedor, `docs/13` §8), apoio ao cliente, tarefas sobre um registo, dashboards | Ligam directamente às encomendas e ao stock; porta 1 forte (lições do `docs/04` §3) |
 | **C. Comercial** | Leads e prospecção, Chamadas do Dia, saúde da carteira, encomenda feita pela equipa com ligação de pagamento, comissões sobre o faturado, metas | Usa clientes, encomendas e documentos que já existem |
 | **D. Financeiro** | Despesas com leitura por IA e decisão de uma pessoa, extractos e conciliação, tesouraria, lucro por área | Depende de pagamentos e documentos fiscais; IA dentro do ADR-0040 |
 | **E. Organização** | Projectos, procedimentos e objectivos, comunicação interna | Não toca em regras fiscais; valor para equipas |

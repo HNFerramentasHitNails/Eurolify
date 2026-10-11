@@ -33,9 +33,16 @@ de gestão da empresa inteira, não só uma loja.
   escritos; token de 1 hora no endereço, renovação de 14 dias. Que a app de
   POS aparece nos documentos: provável, não verificado. Remissão no `docs/29`.
 
+- **Compras e fornecedores pelas 8 portas** (pedido do Diogo, *«passa o
+  próximo módulo pelas 8 portas»*; `docs/13` §8): ✅ ◐ ❔ ❔ ❌ ◐ ◐ ◐ →
+  **estreitar**. Primeiro alvo: a entrada de stock que já existe passa a
+  dizer o fornecedor (NIF com o país) e o documento dele, com o lote; mais o
+  aviso de stock abaixo do mínimo. Fora: ordem de compra com estados (o
+  Moloni já a tem), Pareto, custo (contabilista, C), despesa (camada D).
+  Pergunta 16a acrescentada ao guião.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
-  24 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
+  25 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
   conhecidos para a porta 4); ficha sem nomes; proposta de critério da porta
   3 (3 dos 5). Base legal e prazo das notas por verificar.
 

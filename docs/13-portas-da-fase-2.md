@@ -43,6 +43,7 @@ grupo contam como **um** comprador.
 | Automações e notificações configuráveis (parte de 8–12) | ❔ | ◐ | ❔ | ❔ | ❌ | ◐ | ❔ | ◐ | **estreitar** |
 | Campos personalizados (parte de 8–12) | ❔ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ✅ | **investigar** |
 | Balcão (POS), 11/10/2026 (não estimado) | ◐ | ◐ | ◐ | ❔ | ❌ | ◐ | ❌ | ◐ | **estreitar e investigar** (§7) |
+| Compras e fornecedores, 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§8) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -217,6 +218,59 @@ até ao documento fiscal que as da loja online (sequência 01 do `docs/31`).
 - **O POS próprio** (caixa, terminal, sem rede) fica para quando a ligação
   provar procura e o jurista e o contabilista disserem o que a emissão ao
   balcão exige em cada país (**C**).
+
+Decidir se se avança com esta saída é do Diogo ou do Bruno.
+
+## 8. Compras e fornecedores — o segundo módulo de gestão (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. É o
+seguinte da camada B do `docs/31` §8 que ainda não tinha passado (o armazém
+completo passou no §1). Skills abertas: `order-fulfilment`,
+`eurolify-finance-reconciliation-eu`, `eurolify-identifiers-traceability-eu`,
+`product-compliance-eu` (lotes).
+
+**O que o Hub actual faz** (sequência 04 do `docs/31`; proposta comercial do
+Hub, p. 12): alertas de stock abaixo do mínimo e Pareto das vendas → ordem de
+compra com fornecedor, artigos, quantidades, datas e cinco estados (rascunho,
+encomendada, em trânsito, parcialmente recebida, recebida) → recepção na
+própria ordem → aviso de «saída sem entrada» → custo recalculado todas as
+noites → inventário por localização. *«Uma ordem de compra é uma intenção; a
+fatura do fornecedor é um documento»*: a despesa nasce da fatura, nunca da
+ordem.
+
+**O que o Eurolify já tem** (lido no `main` a 11/10/2026): a entrada de
+stock `POST /inventory/receipts`, com o lote nas variantes que o exigem e a
+origem, que muda o saldo pelo livro de movimentos (`src/stock/rotas.ts`;
+`docs/27` §7, R5). **Não há fornecedores**: procurei «fornecedor» e
+«supplier» em `apps/api/src` e `apps/api/migracoes` e só aparecem o
+fornecedor da IA no rasto e a origem do GTIN.
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ✅ | Lição 3.8 do `docs/04`: **0 de 85 ordens de compra tinham data de pagamento**, e havia dólares lidos como euros (22–23/09/2026) — compras e contabilidade misturadas. O Hub actual tem o módulo em uso (proposta p. 12 e 24) |
+| 2 Não resolvido | ◐ | **Em parte resolvido fora:** o Moloni tem Fornecedores, encomendas a fornecedor («Supplier Purchase Order») e faturas de fornecedor no menu da API (`eurolify/fontes-api-moloni-11out2026.md`; não abri essas páginas), e os sistemas de gestão também. **No Eurolify falta** saber de quem veio uma entrada e com que documento do fornecedor: a entrada de hoje tem quantidade, lote e origem, mas não o fornecedor |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido; o guião tem a pergunta (`docs/32`, pergunta 13 e a nova 16a) |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | São sete coisas: alertas, Pareto, ordem de compra com cinco estados, recepção, «saída sem entrada», custo, inventário |
+| 6 Encaixe | ◐ | **Encaixa** a recepção: é uma entrada no livro de movimentos com o lote, onde o lote do fornecedor nasce (R5). **Não encaixa sem decisões:** (a) o **custo** e a valorização do stock são regras contabilísticas (o método de custeio é do contabilista, **C**; `eurolify-finance-reconciliation-eu`: o Eurolify não certifica contabilidade); (b) a **despesa** é do financeiro (camada D) e nasce da fatura, não da ordem (lição 3.8); (c) um fornecedor identifica-se pelo NIF com o país, nunca pelo nome (`AGENTS.md`, «Não se erra…», regra 6) |
+| 7 Custo | ◐ | A recepção com fornecedor é pequena (um registo novo e dois campos na entrada). A ordem de compra com estados, o custo médio e o Pareto são fundos e repetem o que o software de gestão já faz |
+| 8 Valor depressa | ◐ | Um aviso de stock abaixo do mínimo dá valor no primeiro dia (é um dos avisos fixos propostos no §5); a ordem de compra só depois de carregar fornecedores e mínimos |
+
+**Saída: estreitar.**
+
+- **Primeiro alvo:** a **recepção com fornecedor**. A entrada de stock que já
+  existe passa a dizer de que fornecedor veio (com o NIF e o país) e o número
+  do documento dele (guia ou fatura), com o lote do fornecedor. É o que
+  responde, numa recolha, «de que lote do fornecedor veio este?»
+  (`product-compliance-eu`). Junta-se o **aviso de stock abaixo do mínimo**,
+  como um dos avisos fixos do §5. Um tipo de comerciante (quem compra para
+  revender, sem sistema de gestão), um papel (o armazém), um fluxo (receber
+  mercadoria).
+- **Ficam de fora**, até haver prova: a ordem de compra com estados (o Moloni
+  e os sistemas de gestão já a têm — investigar nas conversas), o Pareto, o
+  custo e a valorização (contabilista, **C**) e a despesa (camada D, da
+  fatura do fornecedor).
+- Antes de desenhar: as conversas do `docs/32`.
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.
 
