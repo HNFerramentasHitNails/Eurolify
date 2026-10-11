@@ -7,7 +7,7 @@ import {
 } from "../base/rasto.js";
 import { marcar, noPosVenda } from "./repositorio.js";
 
-// O aviso do prazo do reembolso (R10; docs/30 §14; migração 0062; Diogo,
+// O aviso do prazo do reembolso (R10; docs/30 §14; migração 0063; Diogo,
 // 11/10/2026: «aprovado», docs/06, DQ). Uma vez quando faltam 3 dias ou
 // menos (`refund.deadline_approaching`), uma vez quando passou
 // (`refund.deadline_passed`). O evento põe-no o gatilho da base; aqui só se

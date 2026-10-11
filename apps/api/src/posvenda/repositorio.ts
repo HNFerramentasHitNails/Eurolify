@@ -1325,7 +1325,7 @@ export async function lerDevolucao(
       .execute();
     // R10: o prazo do reembolso conta-se do pedido de livre resolução, no
     // fuso do comerciante (**C**, 14 dias até o jurista validar, docs/30 J4
-    // e §14). A regra está na base (0062), num sítio só.
+    // e §14). A regra está na base (0063), num sítio só.
     const { rows } = await sql<{
       ate: string | null;
       dias: number | null;

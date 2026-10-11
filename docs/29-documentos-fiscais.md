@@ -47,6 +47,10 @@
 > Moloni vem das lições do Hub interno (`docs/04`, 2.6; `eu-vat-oss-ioss`,
 > «No adaptador do Moloni») e marca-se **M**; o resto (pedidos, campos,
 > autenticação) lê-se na documentação oficial antes da parte 2 (Q5).
+> *11/10/2026:* a documentação foi lida (só leitura, nenhum pedido) em
+> [`eurolify/fontes-api-moloni-11out2026.md`](eurolify/fontes-api-moloni-11out2026.md)
+> — autenticação, documentos, stock e o que falta testar na sandbox (§6 e §7
+> desse ficheiro).
 
 ## 1. O que entra nesta fatia
 

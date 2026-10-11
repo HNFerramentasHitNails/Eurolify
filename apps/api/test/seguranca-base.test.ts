@@ -141,7 +141,7 @@ const FUNCOES_DA_API = [
   "pode_receber_marketing",
   // A tarefa dos reembolsos no prestador (0061): os comerciantes com trabalho.
   "posvenda_comerciantes_com_reembolsos",
-  // O aviso do prazo do reembolso (0062): o prazo e a tarefa.
+  // O aviso do prazo do reembolso (0063): o prazo e a tarefa.
   "posvenda_dias_de_aviso",
   "posvenda_prazo_comerciantes",
   "posvenda_prazo_da_devolucao",

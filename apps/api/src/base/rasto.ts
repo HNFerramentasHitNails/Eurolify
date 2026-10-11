@@ -8,8 +8,9 @@ import { erroBase } from "./erros.js";
 // comando do operador) — e passa à base em cada transacção do comerciante
 // (`comComerciante`), onde a função `contexto_do_rasto()` o confere.
 // O `quem` e a `origem` continuam a ser postos por cada domínio, como antes;
-// o `quem` vindo da autenticação fica para depois do passo 2 (#322). O
-// `autorizadoPor` de uma sessão do Hub põe-no a autenticação.
+// a autenticação põe `autenticado` (a chave ou a pessoa do pedido), e a base
+// recusa um `quem` de chave ou de pessoa diferente dele (0062). O
+// `autorizadoPor` de uma sessão do Hub põe-no também a autenticação.
 
 /**
  * Os canais que `contexto_do_rasto()` aceita (0053). Uma lista, um sítio:
@@ -49,6 +50,12 @@ export interface ContextoRasto {
    * Põe-no só quem corre uma tarefa com origem (`comOrigemDaTarefa`).
    */
   aPedidoDe?: { pedido?: string; quem?: string };
+  /**
+   * Quem se autenticou no pedido (`chave:key_…` ou `pessoa:per_…`). Põe-no a
+   * autenticação; a base recusa um `quem` de chave ou de pessoa diferente
+   * dele (0062; #322).
+   */
+  autenticado?: string;
 }
 
 /** A origem de uma tarefa como a base a guarda (0060, `tarefa_origem()`). */
@@ -181,6 +188,7 @@ export async function aplicarRasto(
     contexto?.aPedidoDe === undefined ? "" : JSON.stringify(contexto.aPedidoDe);
   await sql`select
       set_config('eurolify.a_pedido_de', ${aPedidoDe}, true),
+      set_config('eurolify.autenticado', ${contexto?.autenticado ?? ""}, true),
       set_config('eurolify.canal', ${contexto?.canal ?? ""}, true),
       set_config('eurolify.pedido', ${contexto?.pedido ?? ""}, true),
       set_config('eurolify.ia', ${ia}, true),

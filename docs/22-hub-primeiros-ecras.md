@@ -1593,3 +1593,89 @@ quem foi (`definido_por`).
   Android, Firefox): os testes usam o autenticador em software.
 - As versões das bibliotecas novas (`react`, `vite`, `@simplewebauthn/browser`)
   contra o `npm audit` e a idade mínima do pnpm: lê-se ao instalar.
+
+## 26. O rasto de auditoria no Hub: as seis respostas (issue #322, passo 4, parte 5)
+
+Pedido do Diogo, 11/10/2026: *«avança com o desenho do ecrã do Hub»*. O
+rasto já responde às seis perguntas na API (`docs/28` §1; decisões DK e DO,
+Q5 a Q8; #342, #345, #349, #351, #354); o Hub ainda só mostra quem, quando e
+o antes → depois (§16). Este passo **só lê** no histórico; no ecrã das chaves
+acrescenta uma escolha ao criar. Skills: `eurolify-design`,
+`eurolify-hub-modular`, `eurolify-hub-quality-gate`, `eu-gdpr-privacy`,
+`observability-security`.
+
+Ex.: na ficha do «Verniz Gel Vermelho 15 ml», o dono abre «Histórico» e vê,
+por baixo de «Hoje, 03:00 — Chave «Preços» alterou o artigo», a linha
+**«Pela API · Agente de IA (declarado: anthropic, claude-x) · ⚠ Sem
+autorização de uma pessoa»**. Numa conclusão automática: «Automático, a
+pedido de Chave «Preços» · ⚠ Sem autorização de uma pessoa». Numa alteração
+do próprio dono no Hub: «No Hub · Autorizado por Ana Teste».
+
+### 26.1 O que entra e o que fica de fora
+
+| Entra | Onde | Rota da API |
+|---|---|---|
+| Em cada alteração do histórico do artigo, **uma linha de contexto** por baixo de quem e quando: de onde veio, a IA (só quando declarada ou comprovada), quem autorizou ou o aviso, e o motivo quando há | Histórico do artigo (§16.3) | `GET /hub/products/{id}/timeline`, que já traz `canal`, `pedido`, `ia`, `autorizado_por`, `motivo`, `tipo_de_autor`, `a_pedido_de`, `a_pedido_de_tipo` e `sem_autorizacao_de_pessoa` |
+| **O nome** de quem autorizou e de quem pediu uma tarefa | o mesmo | a mesma: a API do Hub junta `autor_autorizou` e `autor_do_pedido`, decididos no servidor como o `autor` de hoje (§16.2) |
+| **«Detalhes»** de cada alteração (um `<details>`, fechado): o n.º do pedido, a execução da IA e a IA «desconhecida» quando nada a indica | o mesmo | a mesma |
+| Ao **criar uma chave**, a caixa «Chave de um agente de IA», com a explicação; na lista, a etiqueta «Agente de IA» | Chaves (§9.3) | `POST /hub/keys` e `GET /hub/keys`, que já aceitam e devolvem `agente_ia` (#342) |
+| Os nomes dos âmbitos `prices:*` no ecrã das chaves (hoje saem vazios; revisão do #349, P3-5) | Chaves | — |
+
+| Fica de fora, e porquê |
+|---|
+| O histórico dos **clientes, encomendas, pagamentos, documentos e preços** no Hub: a API já os dá com as seis respostas, mas o Hub ainda não tem esses ecrãs. Entram com eles. |
+| **Filtrar** por «sem autorização de uma pessoa»: entra quando o histórico for longo o bastante (como os outros filtros, §16.1). |
+| **Autorizar** a posteriori uma alteração feita sem autorização: seria uma escrita nova, com regras próprias (Q3: exigir passa a ser uma regra por âmbito, decidida depois). |
+| O `autor.tipo` antigo (obsoleto desde o #349): o ecrã passa a usar `tipo_de_autor`; o campo sai da API num pedido seguinte, quando nada o ler. |
+
+### 26.2 A linha de contexto: o que diz, em linguagem comum
+
+Uma linha, por esta ordem, com as partes separadas por « · ». O texto vem do
+que o servidor decidiu (uma regra, um sítio): o ecrã não recalcula nada.
+
+| Parte | Valor da API | O ecrã diz |
+|---|---|---|
+| De onde | `canal` | `hub` «No Hub»; `api` «Pela API»; `importacao` «Pela importação»; `sistema` «Automático»; `operador` «Pelo operador»; `integracao` «Por uma integração»; `mcp` «Por um assistente (MCP)»; vazio «Origem desconhecida» |
+| A pedido de (só nas tarefas) | `a_pedido_de`, `autor_do_pedido` | «a pedido de {nome}» (o nome como no §16.2); sem pedido de origem: «sem pedido de origem registado» |
+| IA | `ia.prova` | `declarado`: «Agente de IA (declarado{: fornecedor, modelo})»; `comprovado`: «IA (comprovado: …)»; `desconhecido`: **nada na linha**, e «IA: desconhecida» nos Detalhes |
+| Autorização | `sem_autorizacao_de_pessoa`, `autor_autorizou` | `false`: «Autorizado por {nome}»; `true`: **«⚠ Sem autorização de uma pessoa»** (cor `--estado-aviso` e o ícone, nunca só a cor); `null`: «Autorização desconhecida» |
+| Motivo | `motivo` | «Motivo: {texto}», como texto (nunca HTML), com «Ver tudo» acima de 160 caracteres (como §16.4) |
+
+**Nos Detalhes:** «Pedido n.º {pedido}» (para o apoio cruzar com os registos
+do servidor), «Execução: {execucao}» quando vier, «IA: desconhecida» quando
+nada a indica, e «a pedido de: pedido n.º {a_pedido_de.pedido}» nas tarefas.
+
+**A junção por alteração** (§16.4) junta entradas com a mesma `transacao`:
+têm sempre o mesmo contexto (é o da transacção), e a linha mostra-se uma vez
+por bloco.
+
+### 26.3 As chaves: a marca «agente de IA»
+
+| Ecrã | O que muda |
+|---|---|
+| **Criar chave** (§9.3) | Por baixo dos âmbitos, a caixa «Chave de um agente de IA» (desmarcada), com a ajuda: «Tudo o que esta chave fizer fica no histórico como feito por uma IA, mesmo que o agente não o diga. Não se muda depois de criada.» Só na chave de servidor (a pública não existe no Hub hoje). |
+| **Lista de chaves** | A etiqueta «Agente de IA» ao lado do nome. |
+| **Âmbitos** | Os nomes de `prices:read` («Ver preços»), `prices:write` («Mudar preços») e `prices:history` («Ver quem mudou os preços»). |
+
+### 26.4 Estados e permissões
+
+- Os do §16.3 continuam (a carregar, vazio, 404, 403, erro ao pedir mais,
+  sessão terminada).
+- **Uma linha antiga** (de antes de 10/10/2026): «Origem desconhecida ·
+  Autorização desconhecida» — nunca «sem autorização» (Q8).
+- **Os nomes** de quem autorizou e de quem pediu seguem a regra do §16.2:
+  só os de quem é ou foi da equipa, ou das chaves deste comerciante; «Pessoa
+  pseudonimizada» depois de pseudonimizada; os outros, sem nome.
+- Só o dono e o gestor (`catalog:history`) vêem o histórico, como hoje.
+
+### 26.5 Antes de dizer que está feito (o pedido do código)
+
+- **API**: `autor_autorizou` e `autor_do_pedido` com a regra do §16.2 (de
+  fora da equipa: sem nome; pseudonimizada; chave de outro comerciante: sem
+  nome), `no-store`, o contrato; a prova pela falha.
+- **Hub**: textos em PT, ES e EN, no masculino universal; o aviso com ícone e
+  texto, não só cor, e contraste ≥ 4,5:1 em claro e escuro; a passagem no
+  navegador com um artigo mudado no Hub, por uma chave de um agente e por uma
+  importação, e uma conclusão automática; «Detalhes» com o teclado; capturas
+  a 375, 768 e 1280 px, claro e escuro, para o OK do aspecto pelo Diogo
+  (regra 1 da `eurolify-design`).

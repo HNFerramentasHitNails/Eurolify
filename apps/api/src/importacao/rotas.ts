@@ -375,7 +375,9 @@ export function rotasDasImportacoes(
           }
           // Na linha do tempo, o que a importação muda leva a origem
           // (docs/14 §3.12).
-          await sql`select set_config('eurolify.origem', ${`importacao:imp_${id}`}, true)`.execute(
+          // E o canal é a importação (docs/28 §3.1; #322).
+          await sql`select set_config('eurolify.origem', ${`importacao:imp_${id}`}, true),
+                           set_config('eurolify.canal', 'importacao', true)`.execute(
             trx,
           );
           let resultado;

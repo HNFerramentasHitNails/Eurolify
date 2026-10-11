@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
+import { criarChave } from "../src/identidade/repositorio.js";
 import { RESPOSTA_DE_ERRO } from "../src/base/erros.js";
 import {
   comRasto,
@@ -333,6 +334,111 @@ describe.skipIf(URL_BASE === undefined)(
         quem: "chave:key_1",
         origem: "importacao:imp_42",
       });
+    });
+
+    it("o quem de uma chave ou de uma pessoa tem de ser quem se autenticou (0062)", async () => {
+      const ka = `chave:key_${"a".repeat(8)}-aaaa-aaaa-aaaa-${"a".repeat(12)}`;
+      const kb = `chave:key_${"b".repeat(8)}-bbbb-bbbb-bbbb-${"b".repeat(12)}`;
+      const pa = `pessoa:per_${"a".repeat(8)}-aaaa-aaaa-aaaa-${"a".repeat(12)}`;
+      const comQuem = (autenticado: string, quem: string) =>
+        comRasto({ canal: "api", autenticado }, () =>
+          comComerciante(base.api, a, async (trx) => {
+            await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(
+              trx,
+            );
+            const { rows } = await sql<{
+              c: { quem?: string };
+            }>`select contexto_do_rasto() as c`.execute(trx);
+            return rows[0]?.c.quem;
+          }),
+        );
+      // O mesmo: passa.
+      expect(await comQuem(ka, ka)).toBe(ka);
+      // Outra chave, ou uma pessoa, com a chave A autenticada: recusa.
+      await expect(comQuem(ka, kb)).rejects.toThrow(
+        /quem executou não é quem se autenticou/,
+      );
+      await expect(comQuem(ka, pa)).rejects.toThrow(
+        /quem executou não é quem se autenticou/,
+      );
+      // As consequências e os actores sem chave nem sessão passam.
+      for (const quem of [
+        "sistema:encomendas",
+        "catalogo:variante apagada",
+        "checkout:chk_1",
+        "prestador:eupago",
+      ]) {
+        expect(await comQuem(ka, quem)).toBe(quem);
+      }
+      // Um autenticado mal formado recusa-se.
+      await expect(comQuem("chave:outra", ka)).rejects.toThrow(
+        /autenticado mal formado/,
+      );
+    });
+
+    it("a autenticação põe o autenticado: a chave do pedido; numa rota pública, nada (0062; revisão do #354, P2-1)", async () => {
+      const k = await criarChave(base.dono, a, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Leitura",
+        ambitos: ["catalog:read"],
+      });
+      const app = criarApp({ logger: false }, undefined, base.api);
+      const lerAutenticado = () =>
+        comComerciante(base.api, a, async (trx) => {
+          const { rows } = await sql<{
+            v: string | null;
+          }>`select nullif(current_setting('eurolify.autenticado', true), '') as v`.execute(
+            trx,
+          );
+          return { autenticado: rows[0]?.v ?? null };
+        });
+      app.get(
+        "/teste/autenticado-chave",
+        {
+          config: { ambito: "qualquer" },
+          schema: {
+            response: {
+              200: Type.Object({
+                autenticado: Type.Union([Type.String(), Type.Null()]),
+              }),
+              ...RESPOSTA_DE_ERRO,
+            },
+          },
+        },
+        lerAutenticado,
+      );
+      app.get(
+        "/teste/autenticado-publico",
+        {
+          config: { ambito: "publico" },
+          schema: {
+            response: {
+              200: Type.Object({
+                autenticado: Type.Union([Type.String(), Type.Null()]),
+              }),
+              ...RESPOSTA_DE_ERRO,
+            },
+          },
+        },
+        lerAutenticado,
+      );
+      await app.ready();
+      try {
+        const comChave = await app.inject({
+          method: "GET",
+          url: "/teste/autenticado-chave",
+          headers: { authorization: `Bearer ${k.segredo}` },
+        });
+        expect(comChave.json()).toEqual({ autenticado: `chave:key_${k.id}` });
+        const publico = await app.inject({
+          method: "GET",
+          url: "/teste/autenticado-publico",
+        });
+        expect(publico.json()).toEqual({ autenticado: null });
+      } finally {
+        await app.close();
+      }
     });
 
     it("o contexto fica só na sua transacção", async () => {

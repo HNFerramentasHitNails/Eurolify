@@ -13,7 +13,8 @@ Desenho: `docs/28-rasto-de-auditoria.md`, aprovado pelo Diogo a 10/10/2026
 | 4, parte 1 | #342 (juntado a 10/10/2026, 8c8e93d) | 0057 | a marca «chave de um agente de IA»: `chave_api.agente_ia`, no `POST /keys`, `POST /hub/keys`, listas e `/me`; a autenticação põe a IA `{"prova": "declarado"}` quando a chave é de um agente e não há cabeçalho; uma chave de um agente só cria chaves de um agente |
 | 4, parte 2 | #345 (juntado a 10/10/2026, 3c1d9f9) | — | as linhas do tempo da API (artigo, Hub, cliente, encomenda, transições de pagamento, rasto de documento) trazem `canal`, `pedido`, `ia` (sempre, com `desconhecido` explícito), `autorizado_por` e `motivo`, por um só esquema e função (`base/rasto-resposta.ts`) |
 | 4, parte 3 | #349 (juntado a 11/10/2026, 6b79b84) | 0059 | `tipo_de_autor` e `sem_autorizacao_de_pessoa` em todas as linhas do tempo (calculados na API); o histórico de preços em dois níveis (`prices:read` vê o tipo e o aviso; `prices:history`, do dono e do gestor, vê quem) |
-| 4, parte 4 | ramo `rasto-tarefas-origem` | 0060 | as tarefas (pagamentos, encomendas, documentos) guardam a origem de quem as agendou e correm com ela herdada: «sistema, a pedido do agente X», com o pedido, a IA e a autorização dele |
+| 4, parte 4 | #351 (juntado a 11/10/2026, c7afba2) | 0060 | as tarefas (pagamentos, encomendas, documentos) guardam a origem de quem as agendou e correm com ela herdada: «sistema, a pedido do agente X», com o pedido, a IA e a autorização dele |
+| pendentes | #354 (juntado a 11/10/2026, 6ca0737) | 0062 | o `quem` conferido com quem se autenticou (`eurolify.autenticado`); o canal `importacao`; o motivo do histórico pseudonimizado; os outros pendentes já estavam resolvidos ou ficam de fora (`docs/28` §4) |
 
 Fonte dos passos 1 a 3: as descrições dos pedidos e o `docs/28` §2 a §4 no
 `main` de 10/10/2026 (commit 0dffbe3).
@@ -22,13 +23,8 @@ Plano do resto do passo 4 (dito ao Diogo a 10/10/2026):
 - parte 5: o Hub mostra as respostas no histórico do artigo e a opção da
   marca no ecrã das chaves — desenho e maqueta primeiro, só se junta com o
   aspecto aprovado;
-- antes da parte 5: os pendentes do #322 (o `quem` e o `autorizado_por` da
-  autenticação; as escritas do Hub em `identidade/hub.ts`,
-  `hub-credenciais.ts` e `hub-palavra-passe.ts` a usar `comRastoNaBase`;
-  `EXECUTE` da `contexto_do_rasto()` (P3-7); motivo acima de 500 caracteres
-  no `mudarEstado` (P3-8); rotas públicas; canais `importacao`,
-  `integracao`, `mcp`; motivo na pseudonimização). A exportação do titular
-  já levava as colunas novas (`select *`).
+- por decidir: as rotas públicas em que a pessoa age ela própria (conta nova
+  pelo convite, recuperação) — «autorizado por» vazio ou a pessoa no fim.
 
 **Decididas pelo Diogo a 11/10/2026 (DO; `docs/28` Q5 a Q7, §3.6 a §3.8):**
 - o aviso «sem autorização de uma pessoa» em toda a alteração sem pessoa a
