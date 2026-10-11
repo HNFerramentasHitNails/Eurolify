@@ -1,6 +1,6 @@
 # ADR-0043 · As saídas das 8 portas dos módulos de gestão, e duas peças para a Fase 1
 
-- **Estado:** aceite
+- **Estado:** aceite · a saída do balcão foi substituída pelo ADR-0044 (DV, 11/10/2026)
 - **Data:** 11/10/2026
 - **Quem decidiu:** Diogo (*«sim, aprovo as saídas todas»*)
 - **Decisão em aberto de origem:** as saídas do `docs/13-portas-da-fase-2.md`
@@ -33,7 +33,8 @@ todos (`docs/13`, «O que vale para todos»). O guião das conversas está no
 **As saídas do `docs/13` §7 a §19 ficam aprovadas, tal como estão escritas.**
 Em resumo:
 
-1. **Estreitar** (nove): o balcão, compras e fornecedores, apoio ao cliente,
+1. **Estreitar** (nove): o balcão (*substituída pelo ADR-0044: o balcão
+   vende pelo POS do Hub e o Moloni só emite as faturas*), compras e fornecedores, apoio ao cliente,
    painéis, comercial, financeiro, fabrico, formação (pela porta da fatia 12) e
    parceiros — cada um com o primeiro alvo da sua secção, e o resto fora ou a
    investigar.
@@ -74,6 +75,12 @@ decisão do Diogo ou do Bruno.
   consulta das vendas 1–2 pessoas-semana. A Fase 1 passa a 17 a 33 meses os
   dois a tempo inteiro (31 a 60 a meio tempo); o total até ao fim da Fase 3
   fica em ≈ 38 a 71 meses. Os cenários B e C não foram recalculados.
+  *Actualização de 11/10/2026 (decisão DW; Diogo: *«sim, aprovo o desenho
+  com as sete filas»*):* o desenho da peça 21 (`docs/33`) junta às quatro
+  filas do ponto 4 mais três que a Fase 1 já cria (pedido de livre
+  resolução pendente ou fora de prazo, problema aberto, reembolso incerto ou
+  falhado). A peça passa a 2,5–5 pessoas-semana; a Fase 1 a 18 a 33 meses
+  (32 a 60 a meio tempo); até ao fim da Fase 3, ≈ 39 a 71 meses.
 - O `docs/05` (Fase 1 e Fase 2), o `docs/00` («Em uma página» e §2.2), o
   `docs/13`, o `docs/14` (Catálogo, «fica para depois»), o `docs/31` e a
   memória passam a dizê-lo.

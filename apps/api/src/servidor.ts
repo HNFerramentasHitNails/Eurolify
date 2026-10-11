@@ -187,7 +187,7 @@ const pararPrazos =
       )
     : () => undefined;
 
-// Os e-mails da fila das notificações, de minuto a minuto (docs/33; DW).
+// Os e-mails da fila das notificações, de minuto a minuto (docs/33; DX).
 // Sem as cinco variáveis SMTP_*, nada sai e as notificações esperam (N8).
 const smtp = configSmtp(process.env);
 const pararNotificacoes =

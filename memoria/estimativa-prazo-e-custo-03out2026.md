@@ -45,9 +45,10 @@
 > dia, o alojamento da construção e o custo fixo por mês depois de abrir
 > passaram a ser contados na VPS da OVH.
 
-- Esforço da Fase 1: **104–177 pessoas-semana**, **≈ 120–230** com imprevistos
-  (+15 % / +30 %) — corrigido a 11/10/2026 com as peças 21 (2–4) e 22 (1–2)
-  da decisão DS; antes, 101–171 e ≈ 116–222; corrigido a 04/10/2026 com a
+- Esforço da Fase 1: **104,5–178 pessoas-semana**, **≈ 120–231** com imprevistos
+  (+15 % / +30 %) — corrigido a 11/10/2026 com as peças 21 e 22 da decisão DS
+  e, no mesmo dia, com as sete filas da 21 (decisão DW): 21 em 2,5–5 (era
+  2–4), 22 em 1–2; antes, 104–177 e ≈ 120–230; antes das duas, 101–171 e ≈ 116–222; corrigido a 04/10/2026 com a
   decisão AD; eram 92–155 e ≈ 106–202. Julgamento meu, peça a peça — **C**, sem medição.
 - Conversão (**C**): 44 semanas produtivas por pessoa e ano; 2 pessoas rendem
   90 %, 3 rendem 80 %.
@@ -79,9 +80,10 @@
   635.339 linhas TS/TSX em `src` e `supabase/functions`, das quais 67.268 no
   `types.ts` gerado ⇒ ≈ 568 mil sem ele (`wc -l`).
 - Tempo do A (meses; tempo inteiro / meio tempo): Fase 0 1–3 / 1,5–3;
-  Fase 1 17–33 / 31–60 (+3 do critério); Fase 2 7–15 / 13–26 (+3); Fase 3
-  7–14 / 12–25; até ao fim da Fase 3 ≈ 38–71 / 64–120 (11/10/2026, com as
-  peças 21 e 22; antes 17–32 / 31–58 e 38–70 / 64–118). Esforço: F1 115–220 (era 112–212)
+  Fase 1 18–33 / 32–60 (+3 do critério); Fase 2 7–15 / 13–26 (+3); Fase 3
+  7–14 / 12–25; até ao fim da Fase 3 ≈ 39–71 / 65–120 (11/10/2026, com as
+  peças 21 e 22 e as sete filas da 21, DW; com quatro filas 17–33 / 31–60 e
+  38–71 / 64–120; antes das duas 17–32 / 31–58 e 38–70 / 64–118). Esforço: F1 116–221 (era 115–220; antes, 112–212)
   pessoas-semana com imprevistos e sem o desenho final, F2 43–74 (49–96 com
   imprevistos), F3 40–69 (46–90). *Corrigido a 04/10/2026 com a decisão AD:
   eram F1 15–29 / 28–52 (101–192) e F2 9–18 / 16–32 (52–90, 60–117); o total

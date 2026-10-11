@@ -1,6 +1,6 @@
 -- Notificações: o envio de e-mails, começando pelo aviso do prazo do
 -- reembolso (docs/33; issue #372; Diogo, 11/10/2026: «aprovado, com a A»,
--- docs/06, DW).
+-- docs/06, DX).
 --
 -- O que esta migração faz:
 -- - `notificacao`: a fila dos e-mails, uma por pessoa e por aviso (N5), com o

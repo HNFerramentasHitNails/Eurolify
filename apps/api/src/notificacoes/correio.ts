@@ -1,6 +1,6 @@
 import { createTransport } from "nodemailer";
 
-// O correio das notificações (docs/33, N1 e N8; docs/06, DW): o envio por
+// O correio das notificações (docs/33, N1 e N8; docs/06, DX): o envio por
 // SMTP, que o fornecedor escolhido (OVH E-mail Pro) e os serviços
 // transaccionais aceitam — mudar de fornecedor é mudar a configuração. O de
 // ensaio guarda os e-mails em memória, para os testes.

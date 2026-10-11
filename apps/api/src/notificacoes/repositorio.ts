@@ -5,7 +5,7 @@ import { ErroCorreio, type Correio } from "./correio.js";
 import { mensagemDe, type DadosDoAviso } from "./modelos.js";
 
 // As notificações (docs/33; migração 0066; Diogo, 11/10/2026: «aprovado, com
-// a A», docs/06, DW). A base grava a fila (o gatilho do aviso); aqui só se
+// a A», docs/06, DX). A base grava a fila (o gatilho do aviso); aqui só se
 // envia, se repete e se lê.
 
 const POR_VOLTA = 50;

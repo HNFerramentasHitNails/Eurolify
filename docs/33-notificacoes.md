@@ -2,7 +2,7 @@
 
 > Pedido do Diogo, 11/10/2026: *«avança com o e-mail do aviso do prazo»*
 > (issue #372). **Aprovado pelo Diogo a 11/10/2026, com o fornecedor A**
-> (*«aprovado, com a A»*, à Q11; `docs/06`, DW). Primeira
+> (*«aprovado, com a A»*, à Q11; `docs/06`, DX). Primeira
 > notificação: o aviso do prazo do reembolso (R10; `docs/30` §14; decisão
 > DQ, A4: *«sem e-mail até haver notificações»*).
 
@@ -115,7 +115,7 @@ lista da API, os testes e a revisão do agente. Um pedido só.
 - Marketing (lê o consentimento, DL), preferências por pessoa, SMS e
   WhatsApp, webhooks aos sistemas dos comerciantes.
 
-## 11. Em código (11/10/2026; migração 0066; `docs/06`, DW)
+## 11. Em código (11/10/2026; migração 0066; `docs/06`, DX)
 
 | O quê | Onde |
 |---|---|
