@@ -56,9 +56,15 @@ de gestão da empresa inteira, não só uma loja.
   como foi contado; uma consulta para o Hub e para o MCP de leitura da Fase 1
   (proposta: a consulta na Fase 1, o ecrã na 2). Não há rotas de números no
   `main`; o `apps/mcp` é o MCP da VPS. Camada B passada por inteiro.
+- **Comercial (camada C) pelas 8 portas** (`docs/13` §12): ✅ ◐ ❔ ❔ ❌ ◐ ◐
+  ✅ → **estreitar**. Primeiro alvo: a encomenda feita pela equipa — o
+  carrinho preparado para um cliente, com os preços dele, e a ligação do
+  checkout alojado (hoje o carrinho só nasce pela API da Loja). Investigar
+  com o jurista as chamadas do dia e a carteira (perfis, contacto para
+  vender, C) e as comissões (C). Pergunta 16c no guião.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
-  26 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
+  27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
   conhecidos para a porta 4); ficha sem nomes; proposta de critério da porta
   3 (3 dos 5). Base legal e prazo das notas por verificar.
 

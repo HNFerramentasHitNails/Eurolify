@@ -116,6 +116,10 @@ pergunta 22). Os nomes ficam **fora do repositório**.
     onde chegou o pedido, quem respondeu, quanto tempo levou, e onde ficou o
     registo? Que programa usa para isso, e quanto paga? (Apoio ao cliente,
     `docs/13` §9.)
+16c. **A última vez que** alguém da equipa fez uma encomenda por um cliente
+    (ao telefone, por mensagem): como a fez, como o cliente pagou, e como
+    garantiu que o mesmo stock não saía noutro canal? Como sabe a quem ligar
+    e quando? (Comercial, `docs/13` §12.)
 17. Como trata hoje uma devolução, do pedido do cliente até à nota de
     crédito? Quem faz cada passo?
 18. Que software de faturação usa, e quem o escolheu (a empresa ou o
@@ -155,6 +159,7 @@ contado** (fatura, estimativa do comerciante, conta nossa).
 | Outros programas de gestão · quanto paga cada um | |
 | O que mais pesa por não falar com o resto · o caso contado | |
 | Armazéns · devolução até à nota de crédito · software de faturação | |
+| Encomendas feitas pela equipa: como, como o cliente paga, como protege o stock · como escolhe a quem ligar | |
 | Pedidos de ajuda: por onde chegam · quem responde · quanto tempo · que programa e quanto paga | |
 | Recepção de mercadoria: como dá entrada · onde fica o documento do fornecedor · consegue saber o fornecedor e o lote de uma venda passada? | |
 | Avisos que poupariam tempo · campos em falta | |

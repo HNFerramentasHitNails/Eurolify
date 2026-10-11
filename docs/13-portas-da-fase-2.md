@@ -47,6 +47,7 @@ grupo contam como **um** comprador.
 | Apoio ao cliente, 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§9) |
 | Tarefas sobre um registo, 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ✅ | ◐ | ✅ | **estreitar e avançar com o núcleo** (§10) |
 | Painéis, 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ✅ | ✅ | ✅ | **estreitar** (§11) |
+| Comercial (camada C), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ✅ | **estreitar** (§12) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -429,6 +430,63 @@ os comerciantes, que está no âmbito da Fase 1 (`docs/05`) e responderia a
   painel na Fase 2.
 - **Ficam de fora:** os painéis de cada módulo, as metas e os painéis por
   comercial (camada C).
+
+Decidir se se avança com esta saída é do Diogo ou do Bruno.
+
+## 12. Comercial — a camada C, como um módulo (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. A
+camada C do `docs/31` §8 passa como **um** módulo, como o «Comercial» do Hub
+actual (proposta p. 24): leads e prospecção, chamadas do dia, saúde da
+carteira, encomenda feita pela equipa, comissões e metas. Skills abertas:
+`eu-gdpr-privacy`, `consumer-rights-eu`, `eurolify-b2b-channels-eu`,
+`headless-commerce` (checkout alojado), `eurolify-contracts-operations-eu`
+(emprego).
+
+**O que o Hub actual faz** (sequência 10 do `docs/31`; proposta comercial do
+Hub, p. 18; apresentação p. 4): leads distribuídos pelos comerciais;
+prospecção por etapas (um lead perdido exige motivo; um seguimento tem dia e
+hora); **Chamadas do Dia** — todas as madrugadas, a lista de cada comercial a
+partir do ritmo de compra de cada cliente, só de quem tem telefone ou e-mail;
+saúde da carteira por recência, frequência e valor (activo, em risco,
+perdido); **Nova Encomenda** com os preços e descontos do cliente e uma
+ligação de pagamento, que segue o mesmo caminho das vendas da loja;
+comissões **sobre o faturado**, em cartões mensais; metas e painéis.
+
+**O que o Eurolify já tem** (lido no `main` e nos desenhos a 11/10/2026):
+fichas de cliente com etiquetas (migração 0037); listas de preços B2B por
+etiqueta na Fase 1 (`docs/20` §3.6); o consentimento por contacto e por canal
+(decisão DL); o carrinho e o checkout alojado — mas **o carrinho só nasce pela
+API da Loja**, com a chave pública da loja (`POST /store/carts`, `docs/25`
+§8.1): não há caminho para uma pessoa da equipa preparar uma encomenda para
+um cliente. A relação comercial e os contratos são a fatia 14 (por fazer).
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ✅ | Lição 3.1 do `docs/04`: a loja vendeu **2 coleções já prometidas a uma encomenda comercial**, com **216 de 1.259** artigos à venda nessa situação (16/09/2026) — a encomenda da equipa e a da loja não partilhavam a reserva. Lição 5.5: o preço vivia em **3 sítios**. O Hub actual tem o módulo em uso (proposta p. 18 e 24) |
+| 2 Não resolvido | ◐ | Há programas de gestão de clientes (CRM) de fora — não verifiquei quais nem quanto custam —, mas não reservam stock nem usam os preços e o IVA do Eurolify. **No Eurolify falta** a encomenda feita pela equipa: hoje só o cliente cria um carrinho |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido; o guião tem a pergunta (`docs/32`, 13 e a nova 16c) |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Sete coisas: leads, etapas, chamadas do dia, carteira, encomenda da equipa, comissões, metas |
+| 6 Encaixe | ◐ | **Encaixa** a encomenda da equipa: um carrinho preparado por uma pessoa da equipa, pago pelo cliente no **checkout alojado** (ADR-0039) — os preços, o IVA, a reserva no botão final (DE Q2) e os momentos legais são os mesmos da loja. **Não encaixa sem análise:** (a) as **chamadas do dia** e a **saúde da carteira** são perfis de compra usados para contactar pessoas — base legal, direito de oposição e as regras de contacto para vender, sobretudo a consumidores, são **C** (`eu-gdpr-privacy`; ePrivacy e lei de cada país; jurista); (b) as **comissões** são remuneração de trabalhadores (direito do trabalho e fiscal de cada país, **C**; `eurolify-contracts-operations-eu`) e contam-se sobre o documento emitido, que depende da fatia 10 |
+| 7 Custo | ◐ | A encomenda da equipa é pequena: uma rota de Administração que cria um carrinho para um cliente e devolve a ligação do checkout. As chamadas do dia e a carteira pedem tarefas de noite e a análise legal; as comissões pedem regras por comerciante e validação profissional |
+| 8 Valor depressa | ✅ | A primeira encomenda feita ao telefone sai paga pelo checkout, no primeiro dia |
+
+**Saída: estreitar.**
+
+- **Primeiro alvo:** a **encomenda feita pela equipa**. Uma pessoa da equipa
+  (papel com âmbito próprio) prepara o carrinho para um cliente, com os
+  preços da lista dele, e o Eurolify devolve **a ligação do checkout
+  alojado**, que a pessoa envia ao cliente. O cliente vê o preço total, as
+  condições e paga; a reserva acontece no botão final, como numa compra da
+  loja; o rasto guarda **quem preparou** (o que, mais tarde, serve às
+  comissões). Um papel (o comercial), um fluxo (uma venda por telefone ou
+  mensagem).
+- **Investigar antes de desenhar:** as chamadas do dia e a saúde da carteira
+  (com o jurista: base legal e contacto para vender) e as comissões (com o
+  jurista e o contabilista).
+- **Ficam de fora:** leads, etapas de prospecção e metas, até as conversas do
+  `docs/32` dizerem que pesam.
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.
 
