@@ -44,3 +44,27 @@ export function IconeModulo({ id }: { id: IdModulo }) {
     </svg>
   );
 }
+
+/**
+ * O triângulo do aviso (docs/22 §26.2): vai sempre com o texto ao lado, para
+ * o aviso não se dizer só pela cor. Decorativo para os leitores de ecrã.
+ */
+export function IconeAviso() {
+  return (
+    <svg
+      className="icone-aviso"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 3.5 2.5 20h19L12 3.5Z" />
+      <path d="M12 10v4.5" />
+      <path d="M12 17.5h.01" />
+    </svg>
+  );
+}

@@ -196,10 +196,38 @@ const RespostaOpcoesNoHub = Lista(
     ),
   }),
 );
+/** O nome de quem autorizou ou de quem pediu a tarefa (docs/22 §26.2). */
+const NomeDoRasto = (description: string) =>
+  Type.Union(
+    [
+      Type.Object({
+        nome: Type.Union([Type.String(), Type.Null()], {
+          description:
+            "O nome, com a regra do `autor` (§16.2): só de quem é ou foi da equipa deste comerciante, ou de uma chave dele; vazio nos outros casos",
+        }),
+      }),
+      Type.Null(),
+    ],
+    { description },
+  );
 const RespostaLinhaDoTempoNoHub = Type.Object({
   ...RespostaLinhaDoTempo.properties,
-  dados: Type.Array(Type.Object({ ...Alteracao.properties, autor: Autor })),
+  dados: Type.Array(
+    Type.Object({
+      ...Alteracao.properties,
+      autor: Autor,
+      autor_autorizou: NomeDoRasto(
+        "Quem autorizou (`autorizado_por`), com o nome; vazio quando ninguém ficou registado (docs/22 §26.2)",
+      ),
+      autor_do_pedido: NomeDoRasto(
+        "Numa tarefa, quem fez o pedido de origem (`a_pedido_de.quem`), com o nome; vazio fora de uma tarefa ou sem quem (docs/22 §26.2)",
+      ),
+    }),
+  ),
 });
+
+/** A função da base aceita no máximo 200 de cada tipo de cada vez (0038). */
+const MAXIMO_DE_NOMES = 200;
 
 /**
  * Os nomes das pessoas e das chaves de uma página do histórico, pela função
@@ -222,16 +250,35 @@ async function nomesDosAutores(
   }
   const nomes = new Map<string, string>();
   if (pessoas.size === 0 && chaves.size === 0) return nomes;
-  const linhas = await traduzindoConta(() =>
-    comComerciante(base, comercianteId, async (trx) => {
-      const { rows } = await sql<{ tipo: string; id: string; nome: string }>`
-        select tipo, id, nome from autores_da_linha_do_tempo(
-          ${segredo}, ${[...pessoas]}::uuid[], ${[...chaves]}::uuid[])`.execute(
-        trx,
-      );
-      return rows;
-    }),
-  );
+  // Uma página de 100 entradas pode ter, com quem autorizou e quem pediu,
+  // mais de 200 pessoas diferentes: pede-se aos bocados (docs/22 §26.2).
+  const listaPessoas = [...pessoas];
+  const listaChaves = [...chaves];
+  const linhas: { tipo: string; id: string; nome: string }[] = [];
+  for (
+    let i = 0;
+    i < Math.max(listaPessoas.length, listaChaves.length);
+    i += MAXIMO_DE_NOMES
+  ) {
+    const bocadoPessoas = listaPessoas.slice(i, i + MAXIMO_DE_NOMES);
+    const bocadoChaves = listaChaves.slice(i, i + MAXIMO_DE_NOMES);
+    linhas.push(
+      ...(await traduzindoConta(() =>
+        comComerciante(base, comercianteId, async (trx) => {
+          const { rows } = await sql<{
+            tipo: string;
+            id: string;
+            nome: string;
+          }>`
+            select tipo, id, nome from autores_da_linha_do_tempo(
+              ${segredo}, ${bocadoPessoas}::uuid[], ${bocadoChaves}::uuid[])`.execute(
+            trx,
+          );
+          return rows;
+        }),
+      )),
+    );
+  }
   for (const l of linhas) {
     nomes.set(
       l.tipo === "pessoa" ? `pessoa:per_${l.id}` : `chave:key_${l.id}`,
@@ -527,17 +574,27 @@ export function rotasDoCatalogoNoHub(
         pedido.query,
         resposta,
       );
+      // Quem fez, quem autorizou e quem pediu a tarefa, com a mesma regra
+      // dos nomes (§16.2; docs/22 §26.2).
       const nomes = await nomesDosAutores(
         base,
         sessao.segredo,
         comercianteId,
-        lista.dados.map((a) => a.quem),
+        lista.dados.flatMap((a) => [
+          a.quem,
+          ...(a.autorizado_por === null ? [] : [a.autorizado_por]),
+          ...(a.a_pedido_de?.quem == null ? [] : [a.a_pedido_de.quem]),
+        ]),
       );
+      const nomeDe = (quem: string | null | undefined) =>
+        quem == null ? null : { nome: nomes.get(quem) ?? null };
       return {
         ...lista,
         dados: lista.dados.map((a) => ({
           ...a,
           autor: autorDe(a.quem, nomes),
+          autor_autorizou: nomeDe(a.autorizado_por),
+          autor_do_pedido: nomeDe(a.a_pedido_de?.quem),
         })),
       };
     },
