@@ -122,8 +122,8 @@ de gestão da empresa inteira, não só uma loja.
   empresa, não» em `docs/`, `README.md`, `AGENTS.md` e nas skills).
 - Só o balcão passou pelas 8 portas; nenhum módulo novo está estimado.
 - Do balcão: os preços do Vendus vêm do texto da pesquisa (página ao vivo não
-  aberta); a API do Moloni foi lida mas **não testada** — as oito perguntas
-  para a sandbox estão no §7 do ficheiro de fontes; a conta de demonstração
+  aberta); a API do Moloni foi lida e ~~não testada~~ **testada a 11/10/2026
+  noutra sessão** (#360; ficam o `status` 2 e se os terminais são a app de iPhone); a conta de demonstração
   ainda não foi pedida. *Mais tarde, a 11/10:* a subscrição da conta antiga
   expirou; o Diogo criou uma conta trial e pôs as quatro variáveis
   `MOLONI_*` no ambiente (lêem-se numa sessão nova). Regras dos testes no §7
