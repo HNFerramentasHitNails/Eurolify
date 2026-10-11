@@ -33,6 +33,12 @@ de gestão da empresa inteira, não só uma loja.
   escritos; token de 1 hora no endereço, renovação de 14 dias. Que a app de
   POS aparece nos documentos: provável, não verificado. Remissão no `docs/29`.
 
+- **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
+  `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
+  24 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
+  conhecidos para a porta 4); ficha sem nomes; proposta de critério da porta
+  3 (3 dos 5). Base legal e prazo das notas por verificar.
+
 ## Números (com data e como se contaram)
 
 - Do PDF, não medidos por mim (proposta p. 4, «contados no próprio código e na
