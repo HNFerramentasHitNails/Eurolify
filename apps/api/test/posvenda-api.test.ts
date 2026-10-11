@@ -758,7 +758,9 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
           from documento_fiscal d
           join documento_conteudo c on c.documento_id = d.id
           left join documento_prova p on p.documento_id = d.id
-          where d.encomenda_id = ${id}::uuid order by c.documento_id, c.versao`.execute(base.dono)
+          where d.encomenda_id = ${id}::uuid order by c.documento_id, c.versao`.execute(
+          base.dono,
+        )
       ).rows.map((x) => x.t);
     const documentosAntes = await documentos();
     expect(documentosAntes.length).toBeGreaterThan(0);
