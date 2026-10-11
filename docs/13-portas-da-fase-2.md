@@ -44,6 +44,7 @@ grupo contam como **um** comprador.
 | Campos personalizados (parte de 8–12) | ❔ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ✅ | **investigar** |
 | Balcão (POS), 11/10/2026 (não estimado) | ◐ | ◐ | ◐ | ❔ | ❌ | ◐ | ❌ | ◐ | **estreitar e investigar** (§7) |
 | Compras e fornecedores, 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§8) |
+| Apoio ao cliente, 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§9) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -270,6 +271,55 @@ fornecedor da IA no rasto e a origem do GTIN.
   e os sistemas de gestão já a têm — investigar nas conversas), o Pareto, o
   custo e a valorização (contabilista, **C**) e a despesa (camada D, da
   fatura do fornecedor).
+- Antes de desenhar: as conversas do `docs/32`.
+
+Decidir se se avança com esta saída é do Diogo ou do Bruno.
+
+## 9. Apoio ao cliente — o terceiro módulo de gestão (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. É o
+seguinte da camada B do `docs/31` §8. Skills abertas: `consumer-rights-eu`,
+`eu-gdpr-privacy`, `observability-security`, `platform-architect` (tarefas
+sobre um registo), `order-fulfilment` (devoluções).
+
+**O que o Hub actual faz** (sequência 09 do `docs/31`; proposta comercial do
+Hub, p. 17): formulário do site com assunto e anexos → encaminhamento no
+servidor (quem quer comprar como profissional vira lead; um cliente conhecido
+vai para o comercial da carteira dele; um novo entra no rodízio da equipa) →
+pedido com número, responsável e histórico; dali abre-se um problema da
+encomenda ou uma devolução → «Resolver», com o registo do que se fez. *«A
+regra de para quem vai este pedido vive numa só função, no servidor.»*
+
+**O que o Eurolify já tem** (lido no `main` a 11/10/2026): o papel `apoio`
+nas contas (migração 0018); o apoio regista um pedido de livre resolução que
+chegou por outra via, com a prova (`POST /withdrawals`, `docs/30` §7), e abre
+devoluções com a origem `apoio` (`docs/30` §3). **Não há pedidos de apoio**
+nem tarefas de pessoas: as tabelas `tarefa_*` são filas automáticas
+(`docs/31` §3, sequência 09). **Não há envio de e-mails** (`docs/30` §14.1).
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ◐ | O Hub actual tem o módulo em uso (proposta p. 17 e 24). **Nenhum caso medido**: procurei «apoio», «reclama», «caixa de correio» e «ticket» no `docs/04` e não há lição nem número |
+| 2 Não resolvido | ◐ | O comerciante resolve hoje por e-mail ou por uma ferramenta de apoio de fora (não verifiquei quais nem quanto custam). **O que falta no Eurolify** é o pedido ligado à encomenda e à ficha do cliente, com responsável e estado, de onde se abre a devolução ou se regista a livre resolução sem copiar dados |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido; o guião tem a pergunta (`docs/32`, 16b) |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Formulário público com anexos, encaminhamento para comerciais e leads (que dependem da camada C, que não existe), rodízio, prazos de resposta, respostas por e-mail |
+| 6 Encaixe | ◐ | **Encaixa** nas encomendas, nos clientes e nas «tarefas sobre um registo» desenhadas na `platform-architect` (pessoa, prazo, estado; tarefa vencida avisa). **Cuidados:** (a) mensagens e anexos são dados pessoais — entram na exportação e no apagamento do titular, com prazo de retenção a definir (`eu-gdpr-privacy`); (b) o pedido de apoio **não substitui** a informação RAL nem o Livro de Reclamações electrónico das lojas portuguesas (`docs/03`, linha «RAL e Livro de Reclamações», **C**); (c) uma livre resolução que chegue por uma mensagem de apoio regista-se pelo caminho que já existe, por uma pessoa — o sistema não decide sozinho que uma mensagem é uma livre resolução |
+| 7 Custo | ◐ | Um formulário público pede limites contra abuso e cuidado com anexos (`observability-security`); responder ao cliente pede um fornecedor de e-mail, que ainda não há e que tem de ficar na UE (`AGENTS.md`, «Regras da UE», regra 4) |
+| 8 Valor depressa | ◐ | Um pedido aberto a partir da encomenda dá valor no primeiro dia; o encaminhamento por carteira só depois de haver comerciais e carteiras |
+
+**Saída: estreitar.**
+
+- **Primeiro alvo:** o **pedido de apoio sobre uma encomenda**, aberto pelo
+  cliente na página da encomenda (o mesmo acesso que o botão de livre
+  resolução já usa, `/store/orders/{token}`), não num formulário público. Tem
+  número, assunto, estado, responsável e linha do tempo, e dele a equipa abre
+  uma devolução ou regista uma livre resolução. Um tipo de comerciante (quem
+  vende online), um papel (o apoio), um fluxo (dúvida sobre uma encomenda).
+- **Depende de:** o envio de e-mails (para responder e confirmar), que ainda
+  não existe e é decisão própria (fornecedor na UE).
+- **Ficam de fora:** o formulário público com anexos, o encaminhamento para
+  comerciais, leads e rodízio (camada C) e os prazos de resposta.
 - Antes de desenhar: as conversas do `docs/32`.
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.

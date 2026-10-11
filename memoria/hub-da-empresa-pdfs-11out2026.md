@@ -40,9 +40,14 @@ de gestão da empresa inteira, não só uma loja.
   aviso de stock abaixo do mínimo. Fora: ordem de compra com estados (o
   Moloni já a tem), Pareto, custo (contabilista, C), despesa (camada D).
   Pergunta 16a acrescentada ao guião.
+- **Apoio ao cliente pelas 8 portas** (`docs/13` §9): ◐ ◐ ❔ ❔ ❌ ◐ ◐ ◐ →
+  **estreitar**. Primeiro alvo: o pedido de apoio sobre uma encomenda, aberto
+  na página da encomenda, com número, estado, responsável e linha do tempo;
+  depende do envio de e-mails (que não existe). Fora: formulário público,
+  encaminhamento por carteira (camada C). Pergunta 16b no guião.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
-  25 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
+  26 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
   conhecidos para a porta 4); ficha sem nomes; proposta de critério da porta
   3 (3 dos 5). Base legal e prazo das notas por verificar.
 

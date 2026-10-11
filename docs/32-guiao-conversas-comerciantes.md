@@ -112,6 +112,10 @@ pergunta 22). Os nomes ficam **fora do repositório**.
     entrada no stock, quem o fez, e onde ficou o documento dele? Se tivesse
     de saber hoje de que fornecedor (e de que lote) veio um artigo vendido o
     mês passado, como faria? (Compras e fornecedores, `docs/13` §8.)
+16b. **A última vez que** um cliente pediu ajuda sobre uma encomenda: por
+    onde chegou o pedido, quem respondeu, quanto tempo levou, e onde ficou o
+    registo? Que programa usa para isso, e quanto paga? (Apoio ao cliente,
+    `docs/13` §9.)
 17. Como trata hoje uma devolução, do pedido do cliente até à nota de
     crédito? Quem faz cada passo?
 18. Que software de faturação usa, e quem o escolheu (a empresa ou o
@@ -151,6 +155,7 @@ contado** (fatura, estimativa do comerciante, conta nossa).
 | Outros programas de gestão · quanto paga cada um | |
 | O que mais pesa por não falar com o resto · o caso contado | |
 | Armazéns · devolução até à nota de crédito · software de faturação | |
+| Pedidos de ajuda: por onde chegam · quem responde · quanto tempo · que programa e quanto paga | |
 | Recepção de mercadoria: como dá entrada · onde fica o documento do fornecedor · consegue saber o fornecedor e o lote de uma venda passada? | |
 | Avisos que poupariam tempo · campos em falta | |
 | Total que paga hoje (€/mês) | |
