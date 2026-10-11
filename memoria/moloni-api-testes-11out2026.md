@@ -31,7 +31,7 @@
 - Resultado e consequências: `docs/eurolify/fontes-api-moloni-11out2026.md`
   §8. Corrigidas no sítio duas linhas da leitura da documentação que o teste
   desmentiu (as linhas do documento **trazem** `warehouse_id`; o `stock` vem
-  com decimais).
+  com decimais; o `documents/getAll` **filtra** por `status`).
 
 ## Números (com data e como se contaram)
 
@@ -46,7 +46,9 @@
 
 ## O que ficou por verificar
 
-- O que é o `status` 2 (119 documentos, 71 deles faturas).
+- O que é o `status` 2 (119 documentos, 71 deles faturas). A documentação não
+  o diz; o Diogo pediu, a 11/10/2026, que se pergunte ao Moloni — a sessão não
+  tem e-mail, o texto ficou preparado para ele enviar a `apoio@moloni.pt`.
 - Se os terminais da demonstração são a app «Moloni POS» de iPhone.
 - Limites por hora ou por dia; o filtro por dia dos movimentos (`date` não
   limitou).
