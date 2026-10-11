@@ -187,6 +187,11 @@ verificado** — a pergunta ao Moloni (§7, regras) continua de pé.
   (ex.: a reserva da loja online). Proposta, por decidir com o desenho.
 - **O `status` 2 tem de se perceber antes de contar vendas**: 71 faturas
   com ele não podem entrar como vendas sem saber se estão anuladas.
+- **Apagar um artigo não apaga os movimentos dele**: na conta trial, depois
+  de `products/delete` do artigo de teste, os dois movimentos continuam em
+  `productStocks/getAll` sem artigo. Quem lê movimentos tem de aceitar um
+  movimento sem artigo e não o casar por mais nada (`AGENTS.md`, «Não se
+  erra…», regra 6).
 - **O token vai sempre no endereço**: a regra de o tapar nos registos (§1)
   deixa de ser precaução e passa a obrigatória.
 

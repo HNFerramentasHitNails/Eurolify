@@ -10,7 +10,14 @@
 - **Escrita na conta trial, com o OK do Diogo** (*«sim, avança com o teste na
   conta trial»*, 11/10/2026): artigo `TESTE-API-001` (product_id 242913638),
   `productStocks/insert` +5 e −2 → stock 3. Nenhum documento. **O artigo e os
-  dois movimentos ficaram na conta trial**; apagá-los não foi pedido.
+  dois movimentos ficaram na conta trial**.
+- **Artigo apagado** a pedido do Diogo (*«sim, apaga o artigo de teste»*,
+  11/10/2026), depois de uma cópia do artigo e dos dois movimentos (fora do
+  repositório). `products/delete` aceitou (`valid: 1`) apesar dos movimentos;
+  **os dois movimentos continuam listados em `productStocks/getAll`, sem
+  artigo** (`product` vazio).
+- Conta trial depois: 2 artigos de exemplo, 2 movimentos órfãos, 0
+  documentos.
 - As credenciais abrem **duas empresas**: a conta trial do Diogo
   (`company_id` 401965, vazia) e a «Empresa Demonstração» do Moloni
   (`company_id` 5, partilhada por todos os programadores). Mediu-se na 5.
@@ -26,7 +33,7 @@
 - Conta trial: 0 documentos, 0 terminais, 1 série, 1 armazém (mesma hora).
 - Stock de topo = soma dos armazéns em 12 000 artigos lidos, 0 diferenças.
 - Conta trial antes da escrita: 2 artigos de exemplo, 0 movimentos, 0
-  documentos; depois: 3 artigos, 2 movimentos, 0 documentos.
+  documentos; depois do teste: 3 artigos, 2 movimentos, 0 documentos.
 - 300 pedidos a `documents/count` sem nenhum recusado; pico ~1400/minuto
   durante 8,6 s (10 em paralelo); 0,41 s por pedido em série.
 
