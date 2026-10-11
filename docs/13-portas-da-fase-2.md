@@ -211,7 +211,12 @@ até ao documento fiscal que as da loja online (sequência 01 do `docs/31`).
      o token dura 1 hora e a renovação 14 dias. **Que a app de POS aparece
      nesses documentos é provável e não verificado** — o passo seguinte é
      um teste na sandbox (conta de demonstração, pedida a `apoio@moloni.pt`),
-     com as oito perguntas do §7 desse ficheiro;
+     com as oito perguntas do §7 desse ficheiro. **Testado a 11/10/2026, só
+     a ler** (§8 desse ficheiro): as vendas de um terminal de POS lêem-se, com
+     `terminal_id`, e cada venda baixa sozinha o stock do Moloni; o token só
+     é aceite no endereço; nenhum limite até ~1400 pedidos/minuto. Por
+     verificar: o `status` 2, escrever um movimento, e se os terminais são a
+     app de iPhone;
   2. falar com 5 comerciantes com loja física e online: que POS usam, e se o
      stock desencontrado lhes custa vendas (portas 3 e 4).
 - **O POS próprio** (caixa, terminal, sem rede) fica para quando a ligação

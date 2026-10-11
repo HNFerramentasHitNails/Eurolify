@@ -128,3 +128,4 @@
 ## Âmbito do produto
 
 - [Hub da empresa inteira (#355): PDFs do Hub actual lidos; docs/31 com 15 sequências e 32 módulos; decidido: módulos ligáveis a partir da Fase 2 (DR, ADR-0042); balcão (POS) pelas 8 portas: estreitar e investigar — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
+- [API do Moloni testada só a ler (#355): vendas do POS lêem-se com terminal_id; cada venda baixa o stock sozinha; token só no endereço; sem limite até ~1400/min; status 2 por perceber — 11/10/2026](moloni-api-testes-11out2026.md)
