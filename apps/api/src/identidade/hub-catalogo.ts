@@ -141,12 +141,22 @@ const QUEM_CHAVE = new RegExp(`^chave:key_(${UUID})$`);
 
 /** Quem fez uma entrada do histórico, para o Hub (docs/22 §16.2). */
 const Autor = Type.Object({
-  tipo: Type.Union([
-    Type.Literal("pessoa"),
-    Type.Literal("chave"),
-    Type.Literal("sistema"),
-    Type.Literal("outro"),
-  ]),
+  // O tipo do autor para o rasto é `tipo_de_autor`, calculado na API para
+  // todas as linhas do tempo (docs/28 §3.6); este `tipo` só diz de onde vem o
+  // `nome` e sai quando o Hub passar a mostrar as seis respostas (parte 5;
+  // revisão do #349, P2-3).
+  tipo: Type.Union(
+    [
+      Type.Literal("pessoa"),
+      Type.Literal("chave"),
+      Type.Literal("sistema"),
+      Type.Literal("outro"),
+    ],
+    {
+      description:
+        "Obsoleto: de onde vem o `nome`. O tipo de autor do rasto é `tipo_de_autor` (docs/28 §3.6)",
+    },
+  ),
   nome: Type.Union([Type.String(), Type.Null()], {
     description:
       "O nome de quem é ou foi da equipa deste comerciante, ou o nome da chave dele; vazio nos outros casos",

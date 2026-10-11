@@ -400,6 +400,44 @@ describe.skipIf(URL_BASE === undefined)("API de Preços e mercados", () => {
     expect(
       (h["linhas"] as { montante: number }[]).map((l) => l.montante),
     ).toEqual([990, 1090]);
+    // Dois níveis (Diogo, 11/10/2026, Q7; docs/28 §3.8): com prices:read, o
+    // tipo de autor e o aviso, sem identificar ninguém.
+    for (const l of h["linhas"] as Record<string, unknown>[]) {
+      expect(l).toMatchObject({
+        tipo_de_autor: "chave",
+        sem_autorizacao_de_pessoa: true,
+        canal: "api",
+      });
+      for (const campo of ["quem", "autorizado_por", "pedido", "motivo"]) {
+        expect(l).not.toHaveProperty(campo);
+      }
+    }
+    // Com prices:history, também quem mudou e quem autorizou.
+    const historia = (
+      await criarChave(base.dono, a, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Histórico de preços",
+        ambitos: ["prices:read", "prices:history"],
+      })
+    ).segredo;
+    const comQuem = await ok(
+      pedir(
+        "GET",
+        `/price-lists/${lista}/prices/${variante}/history`,
+        undefined,
+        historia,
+      ),
+    );
+    for (const l of comQuem["linhas"] as Record<string, unknown>[]) {
+      expect(l).toMatchObject({
+        quem: `chave:key_${precosId}`,
+        autorizado_por: null,
+        sem_autorizacao_de_pessoa: true,
+      });
+      expect(l["pedido"]).toEqual(expect.any(String));
+      expect(l).toHaveProperty("motivo");
+    }
     const { rows } = await sql<{ definido_por: string }>`
       select definido_por from historico_preco where variante_id = ${variante.slice(4)}`.execute(
       base.dono,
@@ -871,15 +909,22 @@ describe.skipIf(URL_BASE === undefined)("API de Preços e mercados", () => {
     expect(antiga.json()).toMatchObject({ codigo: "prices.version_conflict" });
   });
 
-  it("os âmbitos dos papéis: dono e gestor escrevem; armazém e apoio só lêem", async () => {
+  it("os âmbitos dos papéis: dono e gestor escrevem e vêem quem mudou; armazém e apoio só lêem", async () => {
     const { rows } = await sql<{ papel: string; ambitos: string[] }>`
       select p as papel, array(select x from unnest(papel_ambitos(p)) x where x like 'prices:%' order by x) as ambitos
       from unnest(array['dono', 'gestor', 'armazem', 'apoio']) as p`.execute(
       base.dono,
     );
     expect(rows).toEqual([
-      { papel: "dono", ambitos: ["prices:read", "prices:write"] },
-      { papel: "gestor", ambitos: ["prices:read", "prices:write"] },
+      // prices:history: os papéis do catalog:history (Diogo, 11/10/2026, Q7).
+      {
+        papel: "dono",
+        ambitos: ["prices:history", "prices:read", "prices:write"],
+      },
+      {
+        papel: "gestor",
+        ambitos: ["prices:history", "prices:read", "prices:write"],
+      },
       { papel: "armazem", ambitos: ["prices:read"] },
       { papel: "apoio", ambitos: ["prices:read"] },
     ]);

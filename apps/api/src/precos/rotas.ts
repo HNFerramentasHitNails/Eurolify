@@ -1,4 +1,9 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import {
+  CamposDoAutor,
+  CamposDoRasto,
+  respostasDoRasto,
+} from "../base/rasto-resposta.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type, type Static } from "typebox";
@@ -45,6 +50,7 @@ import {
   traduzir,
   type PrecoDaLista,
   type Reducao,
+  type LinhaHistorico,
 } from "./repositorio.js";
 
 // A API de Administração de Preços e mercados (docs/20 §7.1 e §10; issue
@@ -411,10 +417,50 @@ const Historico = Type.Object({
       moeda: Type.String(),
       preco_inclui_iva: Type.Boolean(),
       em_vigor_desde: Instante,
+      // Com prices:read: o tipo de autor e o aviso, sem identificar ninguém
+      // (Diogo, 11/10/2026, Q7; docs/28 §3.8).
+      ...CamposDoAutor,
+      canal: CamposDoRasto.canal,
+      ia: CamposDoRasto.ia,
+      // Só com prices:history: quem mudou, quem autorizou, o pedido e o
+      // motivo. Sem ele, estes campos não vêm (nunca vêm vazios a fingir).
+      quem: Type.Optional(
+        Type.String({
+          description:
+            "Só com prices:history: pessoa:per_…, chave:key_…, sistema:<tarefa> ou operador:…",
+        }),
+      ),
+      autorizado_por: Type.Optional(CamposDoRasto.autorizado_por),
+      pedido: Type.Optional(CamposDoRasto.pedido),
+      motivo: Type.Optional(CamposDoRasto.motivo),
     }),
   ),
   reducoes: Type.Array(ReducaoEsquema),
 });
+
+/**
+ * O rasto de uma linha do histórico de preços em dois níveis (Diogo,
+ * 11/10/2026, Q7; docs/28 §3.8): o tipo de autor, o aviso, o canal e a IA
+ * para todos; quem, quem autorizou, o pedido e o motivo só com
+ * prices:history.
+ */
+function historicoDoRasto(l: LinhaHistorico, comQuem: boolean) {
+  const r = respostasDoRasto({ ...l, quem: l.definido_por });
+  return {
+    tipo_de_autor: r.tipo_de_autor,
+    sem_autorizacao_de_pessoa: r.sem_autorizacao_de_pessoa,
+    canal: r.canal,
+    ia: r.ia,
+    ...(comQuem
+      ? {
+          quem: l.definido_por,
+          autorizado_por: r.autorizado_por,
+          pedido: r.pedido,
+          motivo: r.motivo,
+        }
+      : {}),
+  };
+}
 
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });
 export const ParametroPreco = Type.Object({
@@ -1017,13 +1063,14 @@ export function rotasDosPrecos(
       config: ler,
       schema: {
         description:
-          "O histórico do preço da variante na lista, do mais antigo ao mais recente (docs/20 §3.5), e as reduções que teve: a prova do que se mostrou.",
+          "O histórico do preço da variante na lista, do mais antigo ao mais recente (docs/20 §3.5), e as reduções que teve: a prova do que se mostrou. Cada linha diz o tipo de autor, se uma pessoa autorizou, de onde veio e a IA; quem mudou, quem autorizou, o pedido e o motivo só vêm a quem tem prices:history (docs/28 §3.8).",
         params: ParametroPreco,
         response: { 200: Historico, ...RESPOSTA_DE_ERRO },
       },
     },
     async (pedido, resposta) => {
-      const { comercianteId } = chaveDo(pedido);
+      const { comercianteId, ambitos } = chaveDo(pedido);
+      const comQuem = ambitos.includes("prices:history");
       const listaId = semPrefixo(pedido.params.id);
       const varianteId = semPrefixo(pedido.params.variante);
       return emPrecos(resposta, async () => {
@@ -1055,6 +1102,7 @@ export function rotasDosPrecos(
             moeda: l.moeda,
             preco_inclui_iva: l.preco_inclui_iva,
             em_vigor_desde: l.em_vigor_desde.toISOString(),
+            ...historicoDoRasto(l, comQuem),
           })),
           reducoes: reducoes.map((r) => paraReducao(r, agora)),
         };

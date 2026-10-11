@@ -167,16 +167,27 @@ também ficam com o marcador na linha do tempo (Diogo, 10/10/2026: *«sim»*,
 **Regra (Diogo, 11/10/2026, Q5):** o aviso aparece em **toda** a alteração
 sem uma pessoa registada como quem autorizou (`autorizado_por` vazio),
 seja qual for a origem: um agente, uma chave sem marca, uma regra, uma
-importação, uma tarefa agendada ou uma linha antiga sem contexto. Não
+importação ou uma tarefa agendada (as linhas sem contexto: Q8, abaixo). Não
 depende de a IA ser declarada: senão bastava não a declarar para a
 alteração parecer autorizada.
 
 Exemplo: «Preço de Verniz Gel Vermelho 15 ml: 12,90 € → 9,90 € —
 12/10/2026 03:00 — sem autorização de uma pessoa (agente Preços)».
 
+**Linhas sem contexto (Q8, Diogo, 11/10/2026):** uma linha sem `canal` —
+de antes de 10/10/2026 (0053) ou escrita fora de um pedido — não diz «sem
+autorização de uma pessoa» mas **«autorização desconhecida»**
+(`sem_autorizacao_de_pessoa: null`): não se sabe se alguém autorizou e não
+se afirma o que não se sabe (RGPD, art. 5.º, n.º 1, al. d), «exatidão», e
+n.º 2, «tem de poder comprová-lo»; lidos a 11/10/2026 no texto oficial,
+**W**). «Desconhecida» também nunca parece autorizada. Tudo o que entra por
+um pedido à API ou ao Hub tem canal: uma chave ou um agente nunca cai aqui.
+Ex.: «Preço de Verniz Gel Vermelho 15 ml: 12,90 € → 9,90 € — 09/10/2026 —
+autorização desconhecida».
+
 **Onde vive a regra:** na API (uma regra, um sítio). Cada entrada das linhas
 do tempo ganha `sem_autorizacao_de_pessoa: true|false`, calculado no
-servidor por `respostasDoRasto()` (§4, parte 2); o Hub mostra-o, não o
+servidor por `autorDoRasto()` (§4, parte 3); o Hub mostra-o, não o
 recalcula.
 
 ### 3.7 O trabalho feito mais tarde, a pedido de alguém (Q6)
@@ -209,11 +220,18 @@ gatilhos da base, na transacção que as agenda; correm-nas o servidor
   «sistema, tarefa <nome>, sem pedido de origem registado» — nunca só
   «sistema» — e o aviso «sem autorização de uma pessoa».
 
-Fonte citada pelo Diogo para a regra: o preço mais baixo dos 30 dias numa
-redução (Dir. 98/6/CE, art. 6.º-A, n.ºs 1 e 2) exige um histórico de preços
-completo e explicável, também nas mudanças por tarefas (já no `docs/03`,
-marcado **C**, jurista); e a responsabilidade do RGPD (art. 5.º, n.º 2),
-quando há dados pessoais (**não verifiquei** o texto nesta sessão).
+Fontes da regra, lidas a 11/10/2026 no texto oficial (Serviço das
+Publicações da UE, a fonte do EUR-Lex, `publications.europa.eu/resource/celex/…`):
+- **Dir. 98/6/CE, art. 6.º-A** (versão consolidada de 28/05/2022): «Qualquer
+  anúncio de redução de preço indica o preço anteriormente praticado» (n.º 1),
+  o mais baixo de um período «não […] inferior a 30 dias» (n.º 2); os
+  Estados-Membros podem mudar o período nos n.ºs 3 a 5. **W** para o texto da
+  UE; a transposição portuguesa e a de cada país **não verifiquei** (**C**,
+  jurista, como no `docs/03`). Que o histórico tenha de dizer *quem* mudou e
+  a pedido de quem é inferência nossa (**M**): o artigo pede o preço, e o
+  rasto completo é o que permite prová-lo.
+- **RGPD, art. 5.º, n.º 2**: o responsável «tem de poder comprová-lo»
+  («responsabilidade»). **W**.
 
 ### 3.8 O histórico de um preço, em dois níveis (Q7)
 
@@ -226,12 +244,28 @@ quando há dados pessoais (**não verifiquei** o texto nesta sessão).
   Catálogo (o dono e o gestor).
 - O histórico de preços não se edita: é a prova do preço anterior para o
   art. 6.º-A (o `historico_preco` já só se acrescenta, 0017).
+- Em código (parte 3, #349): com `prices:read` vêm também o `canal` e a
+  `ia` (fornecedor, modelo, execução). Não identificam pessoas, mas vão além
+  do texto da Q7 (**M**, aplicação nossa; revisão do #349, P3-2). O «sistema,
+  a pedido de alguém» só existe com a parte 4.
+- **Condição para os webhooks:** o evento `price.changed` leva `quem`
+  (0021). Hoje os eventos não saem para fora (§2, `evento_saida`); quando
+  saírem, um subscritor só com `prices:read` não pode receber o `quem`
+  (revisão do #349, P3-1).
 
-Fonte citada pelo Diogo: RGPD, art. 5.º, n.º 1, al. c) (minimização),
-art. 25.º, n.º 2 (por defeito) e art. 32.º (controlo de acesso) — juntar
-quem mudou a um ecrã que hoje não o mostra junta dados pessoais dos
-colaboradores. **Não verifiquei** o texto nesta sessão; a minimização e o
-«por defeito» já são regra da skill `eu-gdpr-privacy`.
+Fontes, lidas a 11/10/2026 no texto oficial do RGPD (Reg. (UE) 2016/679,
+`publications.europa.eu/resource/celex/32016R0679`), **W**:
+- art. 5.º, n.º 1, al. c): dados «limitados ao que é necessário» («minimização
+  dos dados»);
+- art. 25.º, n.º 2: «por defeito, só sejam tratados os dados pessoais que
+  forem necessários para cada finalidade», o que vale também para a sua
+  «acessibilidade»;
+- art. 32.º, n.º 1, al. b) e n.º 2: a confidencialidade e o risco de «acesso
+  não autorizados»; n.º 4: quem age sob a autoridade do responsável só trata
+  dados segundo as instruções dele.
+
+Que *quem mudou um preço* deva ficar atrás de um âmbito próprio é a nossa
+aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
 
 ## 4. Como entra no código (por esta ordem, cada passo com a revisão de um agente)
 
@@ -248,7 +282,7 @@ colaboradores. **Não verifiquei** o texto nesta sessão; a minimização e o
 **Passo 4 em código, por partes:**
 - **parte 1** (#342, migração 0057): a marca «chave de um agente de IA» (§3.3);
 - **parte 2** (#345): as linhas do tempo da API trazem, além de `quem`, `em` e `campos`, os campos `canal`, `pedido`, `ia`, `autorizado_por` e `motivo`, pelo mesmo esquema e função (`base/rasto-resposta.ts`), em: o artigo (`GET /products/{id}/timeline` e `GET /hub/products/{id}/timeline`), a ficha de cliente (`GET /customers/{id}/timeline`), a encomenda (`GET /orders/{id}/timeline`), as transições de um pagamento (`GET /payments/{id}`) e o rasto de um documento (`GET /invoices/{id}`). A `ia` vem sempre, com `prova` `comprovado`, `declarado` ou **`desconhecido`** (nunca «sem IA»; com `desconhecido`, o resto da IA vem vazio). `canal` vazio é desconhecido: uma linha de antes da 0053, **ou uma escrita sem o contexto do rasto** (ex.: uma tarefa chamada fora do servidor); então tudo o resto é desconhecido. `autorizado_por` vazio com `canal` preenchido: nenhuma pessoa do comerciante confirmou (uma chave, o operador e as tarefas nunca autorizam; uma sessão do Hub com IA declarada também não). A lista dos canais é uma só (`CANAIS`, `base/rasto.ts`), conferida por teste com a da base. A exportação do titular já levava estas colunas (lê a tabela inteira). **Fica de fora:** o histórico de um preço (`GET /price-lists/{id}/prices/{variante}/history`) não mostra hoje quem mudou, e a rota pede só `prices:read`; acrescentar quem autorizou mudaria quem vê quem — decidir o âmbito antes (como o `catalog:history` do Catálogo). O estado do comerciante (`transicao_estado`) e as contas de pessoas (`evento_conta`) não têm rota de leitura;
-- **parte 3**: o aviso «sem autorização de uma pessoa» calculado na API (§3.6) e o histórico de preços em dois níveis (§3.8, migração para o âmbito novo);
+- **parte 3** (#322, migração 0059): cada entrada das linhas do tempo ganha `tipo_de_autor` (pessoa, agente, chave, sistema, operador, desconhecido) e `sem_autorizacao_de_pessoa`, calculados na API (`autorDoRasto()`, §3.6). O histórico de um preço (`GET /price-lists/{id}/prices/{variante}/history`) passa a dar a todos com `prices:read` o tipo de autor, o aviso, o canal e a IA; `quem`, `autorizado_por`, `pedido` e `motivo` só vêm com `prices:history` (dono e gestor), e sem ele **não vêm** (nunca vazios a fingir que ninguém) (§3.8). O «sistema, a pedido de…» das tarefas fica para a parte 4;
 - **parte 4**: as tarefas diferidas com o pedido de origem (§3.7, migração);
 - **parte 5**: o Hub a mostrar as seis respostas (desenho e aspecto a aprovar pelo Diogo).
 
@@ -263,6 +297,7 @@ colaboradores. **Não verifiquei** o texto nesta sessão; a minimização e o
 | Q5 | O aviso «sem autorização de uma pessoa» aparece em todas as alterações sem pessoa a autorizar, ou só com IA declarada? | ✅ **Decidido** (Diogo, 11/10/2026): em **todas**, seja qual for a origem (agente, regra, importação, tarefa agendada); a lei não liga este aviso à IA — o art. 50.º do Regulamento IA trata de quem fala com uma IA ou recebe conteúdo gerado, não de alterações internas (`docs/03`, **W**). §3.6 |
 | Q6 | O trabalho feito mais tarde a pedido de um agente aparece ligado ao pedido dele? | ✅ **Decidido** (Diogo, 11/10/2026): sim; a tarefa guarda o pedido de origem e herda a autorização; aparece «sistema, a pedido do agente X (pedido n.º …)», nunca só «sistema». §3.7 |
 | Q7 | Que âmbito pede o histórico de preços com as seis respostas? | ✅ **Decidido** (Diogo, 11/10/2026): dois níveis — `prices:read` vê o tipo de autor e o aviso; quem mudou e quem autorizou pedem `prices:history` (os papéis do `catalog:history`). §3.8 |
+| Q8 | Uma linha sem contexto (de antes de 10/10/2026, ou escrita fora de um pedido) diz «sem autorização de uma pessoa» ou «autorização desconhecida»? | ✅ **Decidido** (Diogo, 11/10/2026: *«confirmo»*, à proposta com base no RGPD, art. 5.º): «autorização desconhecida» (`sem_autorizacao_de_pessoa: null`). §3.6 |
 
 ## 6. O que não foi verificado
 
