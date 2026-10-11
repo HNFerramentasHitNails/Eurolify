@@ -53,6 +53,7 @@ grupo contam como **um** comprador.
 | Fabrico (camada F), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ✅ | ◐ | ◐ | **estreitar** (§15) |
 | Formação (camada F), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar**, pela porta da fatia 12 (§16) |
 | Marketing e gráfica (camada F), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ◐ | ❌ | ◐ | **matar como módulo próprio**; duas peças vão para o Catálogo (§17) |
+| Pessoas (camada G), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ❌ | ❌ | ◐ | **matar como módulo próprio** (§18) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -788,6 +789,56 @@ usar-se ou ligar-se; e a 7). Duas peças têm valor e vão para o Catálogo:
 
 Matar ou não é do Diogo ou do Bruno; a decisão DR põe este sector no produto,
 e estas portas dizem que, como módulo próprio, não se paga.
+
+## 18. Pessoas — a camada G, como um módulo (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. A
+camada G do `docs/31` §8 passa como **um** módulo: «Gestão de RH», «Portal do
+Colaborador» e «DISC» do Hub actual. Skills abertas: `eu-gdpr-privacy`,
+`eurolify-contracts-operations-eu` (emprego), `observability-security`.
+
+**O que o Hub actual faz** (sequência 13 do `docs/31`; proposta comercial do
+Hub, p. 21 e 24): picagem **biométrica** (impressão digital) num terminal, em
+tempo real → picagens repetidas arrumadas sozinhas, o resto vai à caixa «A
+tratar hoje» → justificações com comprovativo em 5 dias úteis → ausências e
+férias pedidas no portal e aprovadas pela chefia → avisos (ex.: dois dias sem
+picar) → fecho do mês num botão, trancado, com o relatório para a
+contabilidade. No módulo: fichas, horários, avaliações de desempenho,
+**perfis comportamentais DISC**, comunicação interna, equipamentos.
+
+**O que o Eurolify já tem:** as **contas de pessoas da equipa do comerciante**
+(quem entra no Hub, com que papel: dono, gestor, armazém, apoio — migrações
+0018 a 0026, tratamento T8 do `docs/17`). Não há fichas de trabalhadores,
+horários nem picagens. Procurei «assiduid», «picag», «férias», «biom»,
+«colaborador» e «recursos humanos» no `docs/04`, no `docs/03` e no `docs/17`:
+**nenhuma lição e nenhuma regra escrita**; nas skills, só a linha da
+`eurolify-contracts-operations-eu` que manda verificar o emprego e a
+vigilância país a país.
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ◐ | O Hub actual tem o módulo em uso (proposta p. 21). Nenhuma lição medida |
+| 2 Não resolvido | ❌ | **Já existe e pode usar-se ou ligar-se.** Assiduidade, férias e o relatório para o processamento de salários são feitos por programas de RH e pelo contabilista (não verifiquei quais) |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Picagens, justificações, férias, avisos, fecho do mês, fichas, horários, avaliações, perfis, comunicação, equipamentos |
+| 6 Encaixe | ❌ | **Fora do comércio, e com o maior risco legal do Hub:** (a) os dados biométricos usados para identificar uma pessoa são categoria especial do RGPD — **não verifiquei** o artigo nem a lei de nenhum Estado-membro sobre biometria no trabalho, **C**; (b) horários, registo dos tempos, férias, justificações e o prazo de 5 dias são **direito do trabalho de cada um dos 27 países**, e a contratação colectiva (`eurolify-contracts-operations-eu`, ponto 5), **C**; (c) avaliações e perfis comportamentais pedem análise de finalidade e de decisões automatizadas, **C**; (d) seria um tratamento novo de dados de trabalhadores, que o `docs/17` não tem; (e) **nenhum dado real** entra no ensaio do Reino Unido (ADR-0018) |
+| 7 Custo | ❌ | Regras de trabalho por país e a protecção de dados biométricos, para uma dor sem número e já resolvida por programas dedicados |
+| 8 Valor depressa | ◐ | A primeira picagem dá valor no primeiro dia, mas só depois de configurar horários, locais e terminais |
+
+**Saída: matar como módulo próprio** (falham as portas 2, 6 e 7).
+
+- **Fica o que já existe:** a equipa do comerciante e os papéis no Hub (T8).
+- **Ligar em vez de construir:** um programa de RH ou de assiduidade que o
+  comerciante já use liga-se, se houver procura, por **extensão de terceiros**
+  (`docs/08`), com a regra dos dados na UE (regra 4).
+- **Nada de biometria no Eurolify** sem o jurista e uma avaliação de impacto,
+  mesmo por extensão.
+- O ponto «G. Pessoas» do `docs/05` (Fase 2, «só com o jurista») fica como
+  está até o Diogo ou o Bruno decidirem esta saída.
+
+Matar ou não é do Diogo ou do Bruno; a decisão DR põe a camada G no produto,
+e estas portas dizem que, como módulo próprio, não se paga e é o maior risco.
 
 ---
 

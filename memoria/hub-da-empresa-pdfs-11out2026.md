@@ -92,6 +92,10 @@ de gestão da empresa inteira, não só uma loja.
   no `docs/14`) e as avaliações de quem comprou (regra W da
   `consumer-rights-eu`). Riscos anotados: alegações ambientais (27/09/2026) e
   dados de redes de fora da UE.
+- **Pessoas (camada G) pelas 8 portas** (`docs/13` §18): ◐ ❌ ❔ ❔ ❌ ❌ ❌ ◐ →
+  **matar como módulo próprio** (portas 2, 6 e 7). Fica a equipa e os papéis
+  do Hub (T8); ligar programas de RH por extensão; nenhuma biometria sem o
+  jurista. Nenhuma lição nem regra sobre RH nos `docs/03`, `04` e `17`.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
