@@ -134,6 +134,9 @@ export async function artigoNaVersao(
 export type AlteracaoArtigo = {
   [K in "nome" | "descricao" | "marca" | "categoria_fiscal"]?:
     DadosArtigo[K] | undefined;
+} & {
+  /** H1 (docs/30 §15): só num físico; a base recusa o resto. */
+  selado_por_higiene?: boolean | undefined;
 };
 
 /** Altera campos do artigo na versão lida; devolve a versão nova. */

@@ -4,7 +4,9 @@
 - **Data:** 11/10/2026
 - **Quem decidiu:** Diogo (*«O POS será utilizado o do hub. O Moloni é só para
   facturação»*; e, à interpretação «o POS do Hub do Eurolify, o Moloni só a
-  emitir as faturas de cada venda», *«sim, regista a DT»*)
+  emitir as faturas de cada venda», *«sim, regista a DT»*). A letra ficou **DV**:
+  a DT foi usada no mesmo dia pela pós-venda (#363) e a DU está reservada pelo
+  #369
 - **Decisão em aberto de origem:** a saída do balcão (`docs/13` §7), aprovada
   na DS (ADR-0043) no mesmo dia; issue #355
 
@@ -66,7 +68,7 @@ desenho: o POS tem o modelo e a lista da API em tabela antes do código
   (`pos_fiscal`, decisão DF), o PIN pessoal frente à passkey (decisão CA), e
   que a venda ao balcão não reaproveita o checkout alojado nem a livre
   resolução (ADR-0039; `eurolify-physical-retail-eu`).
-- O `docs/13` §7, o `docs/31`, o `docs/06` (DT), o ADR-0043, as fontes do
+- O `docs/13` §7, o `docs/31`, o `docs/06` (DV), o ADR-0043, as fontes do
   Moloni e a memória passam a dizê-lo.
 - Pode partir: quem leia o ADR-0043 ou o `docs/13` §7 sozinho julga que o
   primeiro alvo é a ligação a um POS de fora. Os dois passam a remeter para

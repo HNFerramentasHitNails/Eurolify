@@ -3,7 +3,7 @@ import { executarReembolso, reconciliarReembolso } from "./prestador.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
   ESTADOS_ARTIGO_DEVOLVIDO,
@@ -104,6 +104,7 @@ const paraLinhaDevolvivel = (l: {
   entregue_em: string | null;
   prazo_ate: string | null;
   dentro_do_prazo: boolean;
+  selado_por_higiene: boolean;
 }) => ({
   linha: `oli_${l.linha}`,
   posicao: l.posicao,
@@ -115,6 +116,9 @@ const paraLinhaDevolvivel = (l: {
   entregue_em: l.entregue_em,
   prazo_ate: l.prazo_ate,
   dentro_do_prazo: l.dentro_do_prazo,
+  // H3 e H4 (docs/30 §15): devolve-se com o selo intacto; aberto, perde-se
+  // o direito.
+  selado_por_higiene: l.selado_por_higiene,
 });
 
 const paraReembolsoCriado = (r: {
@@ -146,6 +150,31 @@ const Decisao = Type.Object(
     incluir_portes: Type.Optional(Type.Boolean()),
     motivo: Motivo,
   },
+  { additionalProperties: false },
+);
+
+/**
+ * H6 (docs/30 §15): numa linha selada que voltou aberta de uma livre
+ * resolução, reembolsar (gesto da loja) ou aplicar a excepção.
+ */
+const Higiene = Type.Array(
+  Type.Object(
+    {
+      linha: IdLinha,
+      decisao: Type.Union([
+        Type.Literal("reembolsar"),
+        Type.Literal("excepcao_higiene"),
+      ]),
+    },
+    { additionalProperties: false },
+  ),
+  { maxItems: 200 },
+);
+const higiene = (h: Static<typeof Higiene> | undefined) =>
+  h?.map((x) => ({ linha: semPrefixo(x.linha), decisao: x.decisao }));
+
+const DecisaoDaDevolucao = Type.Object(
+  { ...Decisao.properties, higiene: Type.Optional(Higiene) },
   { additionalProperties: false },
 );
 
@@ -545,6 +574,10 @@ export function rotasDaPosVenda(
             recebida: l.recebida,
             aceite: l.aceite,
             estado_artigo: l.estado_artigo,
+            // H6 (docs/30 §15).
+            selado_por_higiene: l.selado_por_higiene,
+            higiene_a_decidir: l.higiene_a_decidir,
+            decisao_higiene: l.decisao_higiene,
           })),
         };
       }),
@@ -708,9 +741,9 @@ export function rotasDaPosVenda(
       config: { ambito: "refunds:write" },
       schema: {
         description:
-          "Depois da inspecção, uma pessoa decide o reembolso (linhas e quantidades, os portes ou não): abre o reembolso e pede a nota de crédito se a fatura é do Eurolify.",
+          "Depois da inspecção, uma pessoa decide o reembolso (linhas e quantidades, os portes ou não): abre o reembolso e pede a nota de crédito se a fatura é do Eurolify. Uma linha selada por higiene que voltou aberta (`higiene_a_decidir`) leva a decisão em `higiene`: `reembolsar` (vai no reembolso) ou `excepcao_higiene` (não vai).",
         params: Type.Object({ id: IdDevolucao }),
-        body: Decisao,
+        body: DecisaoDaDevolucao,
         response: { 201: RespostaReembolso, ...RESPOSTA_DE_ERRO },
       },
     },
@@ -727,6 +760,7 @@ export function rotasDaPosVenda(
                 linhas: linhas(pedido.body.linhas),
                 incluir_portes: pedido.body.incluir_portes ?? false,
                 motivo: pedido.body.motivo,
+                higiene: higiene(pedido.body.higiene),
               },
               quemDe(chave),
             ),
@@ -1106,13 +1140,23 @@ export function rotasDaPosVenda(
         schema: {
           description:
             qual === "devolucao"
-              ? "Fecha uma devolução inspeccionada sem reembolso (nada a reembolsar), com motivo."
+              ? "Fecha uma devolução inspeccionada sem reembolso (nada a reembolsar), com motivo. Uma linha selada por higiene que voltou aberta leva em `higiene` a decisão `excepcao_higiene`."
               : "Fecha um problema aberto sem reembolso (decidido «nada»), com motivo.",
           params: Type.Object({ id: Id }),
-          body: Type.Object(
-            { versao: Versao, motivo: Motivo },
-            { additionalProperties: false },
-          ),
+          body:
+            qual === "devolucao"
+              ? Type.Object(
+                  {
+                    versao: Versao,
+                    motivo: Motivo,
+                    higiene: Type.Optional(Higiene),
+                  },
+                  { additionalProperties: false },
+                )
+              : Type.Object(
+                  { versao: Versao, motivo: Motivo },
+                  { additionalProperties: false },
+                ),
           response: {
             200: Type.Object({ versao: Type.Integer() }),
             ...RESPOSTA_DE_ERRO,
@@ -1127,7 +1171,13 @@ export function rotasDaPosVenda(
               chave.comercianteId,
               qual,
               semPrefixo(pedido.params.id),
-              pedido.body,
+              {
+                versao: pedido.body.versao,
+                motivo: pedido.body.motivo,
+                higiene: higiene(
+                  (pedido.body as { higiene?: Static<typeof Higiene> }).higiene,
+                ),
+              },
               quemDe(chave),
             ),
           })),

@@ -1,6 +1,6 @@
 # ADR-0043 · As saídas das 8 portas dos módulos de gestão, e duas peças para a Fase 1
 
-- **Estado:** aceite · a saída do balcão foi substituída pelo ADR-0044 (DT, 11/10/2026)
+- **Estado:** aceite · a saída do balcão foi substituída pelo ADR-0044 (DV, 11/10/2026)
 - **Data:** 11/10/2026
 - **Quem decidiu:** Diogo (*«sim, aprovo as saídas todas»*)
 - **Decisão em aberto de origem:** as saídas do `docs/13-portas-da-fase-2.md`

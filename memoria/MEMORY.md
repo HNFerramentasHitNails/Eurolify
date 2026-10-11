@@ -127,6 +127,6 @@
 
 ## Âmbito do produto
 
-- [Hub da empresa (#355): docs/31; módulos a partir da Fase 2 (DR, ADR-0042); 13 módulos pelas 8 portas (DS, ADR-0043): E, marketing e G fora, 2 peças na Fase 1; balcão pelo POS do Hub, Moloni só fatura (DT, ADR-0044) — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
+- [Hub da empresa (#355): docs/31; módulos a partir da Fase 2 (DR, ADR-0042); 13 módulos pelas 8 portas (DS, ADR-0043): E, marketing e G fora, 2 peças na Fase 1; balcão pelo POS do Hub, Moloni só fatura (DV, ADR-0044) — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
 - [API do Moloni testada só a ler (#355): vendas do POS lêem-se com terminal_id; cada venda baixa o stock sozinha; movimento negativo é saída; token só no endereço; sem limite até ~1400/min; status 2 por perceber — 11/10/2026](moloni-api-testes-11out2026.md)
 - [Pós-venda: aviso do prazo do reembolso (#353, decisão DQ): 3 dias antes e quando passa, evento e lista da API, sem e-mail; prazo no fuso do comerciante; fora de prazo aceite sem aviso; migração 0063 no ensaio (corrida 38165970858) — 11/10/2026](pos-venda-prazo-reembolso-11out2026.md)

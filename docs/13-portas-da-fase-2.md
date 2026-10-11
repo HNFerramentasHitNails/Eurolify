@@ -208,7 +208,7 @@ até ao documento fiscal que as da loja online (sequência 01 do `docs/31`).
 | 8 Valor depressa | ◐ | Ligar um POS que o comerciante já tem ao stock do Eurolify pode dar valor no primeiro dia; um POS próprio só depois de configurar caixa, terminal e emissão |
 
 **Saída: estreitar e investigar** — ~~aprovada na DS (ADR-0043)~~ **substituída
-a 11/10/2026 pela DT (ADR-0044): o balcão vende pelo POS do Hub do Eurolify e
+a 11/10/2026 pela DV (ADR-0044): o balcão vende pelo POS do Hub do Eurolify e
 o Moloni só emite as faturas de cada venda.** O texto abaixo fica como estava,
 para se ver o que se decidiu antes; o primeiro alvo de agora está no fim da
 secção.
@@ -248,7 +248,7 @@ secção.
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.
 
-**Decisão DT (Diogo, 11/10/2026, ADR-0044):** *«O POS será utilizado o do
+**Decisão DV (Diogo, 11/10/2026, ADR-0044):** *«O POS será utilizado o do
 hub. O Moloni é só para facturação»*. O primeiro alvo passa a ser **a venda
 ao balcão no POS do Hub**, como encomenda do canal «balcão» que baixa o stock
 pelo livro de movimentos, com a fatura emitida pelo adaptador do Moloni da

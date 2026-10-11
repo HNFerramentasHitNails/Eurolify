@@ -120,7 +120,7 @@ Eurolify que escreva no stock do Moloni**, para a app não vender o que a loja
 online já reservou. O atraso entre uma venda ao balcão e a loja online saber
 dela é o intervalo das perguntas — **não medido**.
 
-> **Actualização, 11/10/2026 (DT, ADR-0044):** a ligação do balcão a um POS de
+> **Actualização, 11/10/2026 (DV, ADR-0044):** a ligação do balcão a um POS de
 > fora saiu do primeiro alvo — o balcão vende pelo POS do Hub do Eurolify e o
 > Moloni **só emite as faturas**. O parágrafo acima fica para se ver o que se
 > pensou; o Eurolify não lê vendas nem stock do Moloni.
@@ -205,7 +205,7 @@ de teste não vão para a AT (§7, regras).
 | 7 | O token aceita-se no cabeçalho `Authorization`? | **Não.** `Authorization: Bearer …` e o token cru dão 401 «Invalid access token»; no corpo JSON, 401; no corpo de formulário, o pedido passa mas **sem identidade** (`companies/getAll` devolve lista vazia). **Só funciona na query string** — tapar o token nos registos é obrigatório (§1) | cinco variantes contra `documents/count` e `companies/getAll` |
 | 8 | Limite de pedidos na prática | **Nenhum encontrado até ~1400 pedidos/minuto durante 9 segundos.** 100 seguidos (40,6 s, 0,41 s cada) e 200 com 10 em paralelo (8,6 s): todos 200. **Sem cabeçalhos de limite** (nem `X-RateLimit`, nem `Retry-After`). Um limite por hora ou por dia **não foi medido**; não forcei mais numa conta partilhada | 300 pedidos a `documents/count` |
 
-**O que isto muda no desenho** (escrito antes da DT; com o ADR-0044, o balcão
+**O que isto muda no desenho** (escrito antes da DV; com o ADR-0044, o balcão
 vende pelo POS do Hub e os dois primeiros pontos deixam de servir o balcão —
 ficam como prova do que a API faz; o segundo continua a valer para a emissão:
 cada fatura emitida baixa o stock do Moloni, que o Eurolify não lê):
