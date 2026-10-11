@@ -108,7 +108,10 @@ de gestão da empresa inteira, não só uma loja.
   e G mortos como módulos; **duas peças para a Fase 1** — as tarefas das filas
   e a consulta das vendas — no `docs/05` e no `docs/10` (peças 21 e 22, por
   estimar); lançamentos agendados e avaliações no `docs/14` («fica para
-  depois»); ADR-0042 marcado como completado.
+  depois»); ADR-0042 marcado como completado. **Estimadas a pedido do Diogo**
+  (`docs/10` §2, **C**): 21 em 2–4 e 22 em 1–2 pessoas-semana; Fase 1 17–33
+  meses a tempo inteiro, 31–60 a meio; até à Fase 3, ≈ 38–71 / 64–120; B e C
+  não recalculados.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,

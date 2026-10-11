@@ -69,6 +69,11 @@ decisão do Diogo ou do Bruno.
 - **A Fase 1 cresce com duas peças por estimar.** Entram no `docs/10` como
   peças 21 e 22, «por estimar»; a soma e o prazo da Fase 1 não mudam até se
   estimarem.
+  *Actualização de 11/10/2026, a pedido do Diogo (*«estima as duas peças novas
+  da Fase 1»*):* estimadas no `docs/10` (**C**) — tarefas das filas 2–4,
+  consulta das vendas 1–2 pessoas-semana. A Fase 1 passa a 17 a 33 meses os
+  dois a tempo inteiro (31 a 60 a meio tempo); o total até ao fim da Fase 3
+  fica em ≈ 38 a 71 meses. Os cenários B e C não foram recalculados.
 - O `docs/05` (Fase 1 e Fase 2), o `docs/00` («Em uma página» e §2.2), o
   `docs/13`, o `docs/14` (Catálogo, «fica para depois»), o `docs/31` e a
   memória passam a dizê-lo.
