@@ -7,6 +7,8 @@ import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
 import { agendarAvisosDePrazo } from "./posvenda/prazo.js";
 import { agendarConfirmacoes } from "./posvenda/prestador.js";
 import { agendarAvisosDeTarefas } from "./tarefas/avisos.js";
+import { agendarNotificacoes } from "./notificacoes/repositorio.js";
+import { configSmtp, correioSmtp } from "./notificacoes/correio.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { agendarDocumentos } from "./faturacao/repositorio.js";
 import { randomUUID } from "node:crypto";
@@ -195,6 +197,32 @@ const pararTarefas =
       )
     : () => undefined;
 
+// Os e-mails da fila das notificações, de minuto a minuto (docs/34; DX).
+// Sem as cinco variáveis SMTP_*, nada sai e as notificações esperam (N8),
+// mas a limpeza dos 90 dias corre na mesma. Uma configuração a meio não
+// derruba a API: diz que variáveis faltam (revisão do #373, P2-5).
+const smtp = configSmtp(process.env);
+if (smtp.problema !== undefined) {
+  app.log.error(
+    { problema: smtp.problema },
+    "notificações: configuração SMTP_* incompleta; nenhum e-mail sai (docs/34 §5)",
+  );
+} else if (smtp.config === undefined && base !== undefined) {
+  app.log.info(
+    "notificações: sem SMTP_* configurado; os e-mails ficam à espera (docs/34 §5)",
+  );
+}
+const pararNotificacoes =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:notificacoes" }, () =>
+        agendarNotificacoes(
+          base,
+          smtp.config === undefined ? undefined : correioSmtp(smtp.config),
+          app.log,
+        ),
+      )
+    : () => undefined;
+
 // As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).
 const pararConclusoes =
   base !== undefined
@@ -213,6 +241,7 @@ for (const sinal of ["SIGINT", "SIGTERM"] as const) {
     pararReembolsos();
     pararPrazos();
     pararTarefas();
+    pararNotificacoes();
     app.log.info({ sinal }, "a fechar");
     app
       .close()

@@ -29,6 +29,11 @@ import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
 import { correrDocumentos } from "../src/faturacao/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import { correrAvisosDePrazo } from "../src/posvenda/prazo.js";
+import {
+  correrNotificacoes,
+  enviarUma,
+} from "../src/notificacoes/repositorio.js";
+import { CorreioDeEnsaio, ErroCorreio } from "../src/notificacoes/correio.js";
 import { correrConfirmacoes } from "../src/posvenda/prestador.js";
 import { assinar, avisoEuPago, eupagoFalso, json } from "./eupago-falso.js";
 import {
@@ -223,6 +228,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         nome: "Dono",
         ambitos: [
           "catalog:read",
+          "merchant:read",
           "catalog:write",
           "legal:read",
           "legal:write",
@@ -4013,5 +4019,337 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         )
       )[0],
     ).toBe(400);
+  });
+
+  // ---------------------------------------- O e-mail do aviso (docs/34)
+
+  /** Uma pessoa com um papel no comerciante (as contas, sem o convite). */
+  const membroCom = (s: Cenario, papel: string, nome: string) =>
+    base.dono.transaction().execute(async (t) => {
+      const email = `${nome.toLowerCase()}-${randomUUID().slice(0, 8)}@exemplo.pt`;
+      const p = await sql<{ id: string }>`insert into pessoa (email, nome)
+        values (${email}, ${nome}) returning id`.execute(t);
+      const id = String(p.rows[0]?.id);
+      const m = await sql<{
+        id: string;
+      }>`insert into membro (comerciante_id, pessoa_id, papel, convidado_por)
+        values (${s.c}::uuid, ${id}::uuid, ${papel}, 'operador:teste') returning id`.execute(
+        t,
+      );
+      return { pessoa: id, membro: String(m.rows[0]?.id), email };
+    });
+  const notificacoesDe = async (s: Cenario) =>
+    (
+      await sql<{
+        id: string;
+        tipo: string;
+        pessoa_id: string;
+        lingua: string;
+        estado: string;
+        tentativas: number;
+        ultimo_erro: string | null;
+      }>`select id, tipo, pessoa_id, lingua, estado, tentativas, ultimo_erro
+        from notificacao where comerciante_id = ${s.c}::uuid order by criada_em, id`.execute(
+        base.dono,
+      )
+    ).rows;
+  /** Pede pelo botão e devolve a devolução (rma_…). */
+  const devolucaoDeLivreResolucao = async (s: Cenario) => {
+    const e = await paga(s, [[s.v1, 2]]);
+    const [linha] = await expedir(s, e.encomenda);
+    const w = await ok(
+      pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    return {
+      e,
+      rma: String(
+        (await ok(s.adm("GET", `/withdrawals/${String(w["pedido"])}`)))[
+          "devolucao"
+        ],
+      ),
+    };
+  };
+  const enviar = async (correio: CorreioDeEnsaio) => {
+    const r = await correrNotificacoes(base.api, correio);
+    expect(r.erros).toEqual([]);
+    return r;
+  };
+  /** O relógio da fila: as que esperam ficam vencidas já. */
+  const vencer = (s: Cenario) =>
+    sql`update notificacao set proxima_em = now()
+      where comerciante_id = ${s.c}::uuid and estado = 'a_enviar'`.execute(
+      base.dono,
+    );
+
+  it("o e-mail do aviso: um por dono e gestor activos, sem dados do cliente, uma vez; a pessoa que sai fica cancelada; à 6.ª falha fica falhada (docs/34, N2 a N9)", async () => {
+    const s = await cenario();
+    const ana = await membroCom(s, "dono", "Ana");
+    const bruno = await membroCom(s, "gestor", "Bruno");
+    await membroCom(s, "armazem", "Carla");
+    await membroCom(s, "apoio", "Duarte");
+    const saiu = await membroCom(s, "gestor", "Eva");
+    await sql`update membro set terminado_por = 'operador:teste'
+      where id = ${saiu.membro}::uuid`.execute(base.dono);
+    const desactivada = await membroCom(s, "dono", "Filipe");
+    await sql`update pessoa set estado = 'desactivada'
+      where id = ${desactivada.pessoa}::uuid`.execute(base.dono);
+    const { e, rma } = await devolucaoDeLivreResolucao(s);
+    await pedidoHaDias(rma, 12);
+    await prazos();
+    await prazos();
+    // Uma por dono e gestor activos (N2), uma vez (N5), na língua do Hub.
+    let n = await notificacoesDe(s);
+    expect(n.map((x) => [x.pessoa_id, x.tipo, x.lingua, x.estado])).toEqual(
+      expect.arrayContaining([
+        [ana.pessoa, "refund.deadline_approaching", "pt", "a_enviar"],
+        [bruno.pessoa, "refund.deadline_approaching", "pt", "a_enviar"],
+      ]),
+    );
+    expect(n.length).toBe(2);
+    const correio = new CorreioDeEnsaio();
+    // Duas voltas ao mesmo tempo: cada e-mail sai uma vez.
+    const [v1, v2] = await Promise.all([
+      correrNotificacoes(base.api, correio),
+      correrNotificacoes(base.api, correio),
+    ]);
+    expect(v1.enviadas + v2.enviadas).toBe(2);
+    expect((await enviar(correio)).enviadas).toBe(0);
+    // A volta que chega depois de outra a ter enviado não a envia outra vez.
+    const jaEnviada = (await notificacoesDe(s))[0];
+    const conta = {
+      enviadas: 0,
+      repetir: 0,
+      falhadas: 0,
+      canceladas: 0,
+      apagadas: 0,
+      servidor: null,
+      erros: [],
+    };
+    await enviarUma(base.api, s.c, correio, String(jaEnviada?.id), conta);
+    expect(conta.enviadas).toBe(0);
+    expect(correio.enviados.length).toBe(2);
+    expect(correio.enviados.map((m) => m.para).sort()).toEqual(
+      [ana.email, bruno.email].sort(),
+    );
+    const m = correio.enviados[0];
+    expect(m?.texto).toContain(rma);
+    expect(m?.texto).toContain(e.encomenda);
+    expect(m?.texto).toContain("(faltam 2 dias)");
+    // A loja diz-se; o nome da pessoa não (P2-3, P2-4).
+    expect(m?.texto).toContain("Na loja «Loja»");
+    expect(m?.texto).not.toMatch(/Ana|Bruno/);
+    expect(m?.assunto).toMatch(
+      /^Livre resolução: reembolsar até \d{2}\/\d{2}\/\d{4}$/,
+    );
+    // Nenhum dado do cliente (N3).
+    for (const x of correio.enviados) {
+      expect(x.texto + x.assunto).not.toMatch(/rui|exemplo\.pt|Rua 2|Lisboa/i);
+    }
+    // A lista (N11): sem o endereço nem o texto.
+    const lista = await ok(s.adm("GET", "/notifications?estado=enviada"));
+    expect(lista["dados"]).toHaveLength(2);
+    expect(JSON.stringify(lista)).not.toContain("@");
+    expect((lista["dados"] as Json[])[0]).toMatchObject({
+      referencia: rma,
+      estado: "enviada",
+      tentativas: 0,
+    });
+    // Passou: o Bruno saiu entretanto e o Gil passou a apoio (canceladas);
+    // a Ana à 6.ª falha.
+    const gil = await membroCom(s, "gestor", "Gil");
+    await pedidoHaDias(rma, 15);
+    await prazos();
+    await sql`update membro set papel = 'apoio'
+      where id = ${gil.membro}::uuid`.execute(base.dono);
+    await sql`update membro set terminado_por = 'operador:teste'
+      where comerciante_id = ${s.c}::uuid and pessoa_id = ${bruno.pessoa}::uuid
+        and ate is null`.execute(base.dono);
+    await sql`update notificacao set tentativas = 5
+      where comerciante_id = ${s.c}::uuid and pessoa_id = ${ana.pessoa}::uuid
+        and tipo = 'refund.deadline_passed'`.execute(base.dono);
+    correio.falhas.push(new ErroCorreio("smtp_421", "destinatario_temporario"));
+    const r = await enviar(correio);
+    expect([r.canceladas, r.falhadas, r.enviadas]).toEqual([2, 1, 0]);
+    n = await notificacoesDe(s);
+    expect(
+      n
+        .filter((x) => x.tipo === "refund.deadline_passed")
+        .map((x) => [x.pessoa_id, x.estado, x.tentativas, x.ultimo_erro]),
+    ).toEqual(
+      expect.arrayContaining([
+        [bruno.pessoa, "cancelada", 0, "destinatario_inactivo"],
+        [gil.pessoa, "cancelada", 0, "destinatario_inactivo"],
+        [ana.pessoa, "falhada", 6, "smtp_421"],
+      ]),
+    );
+    expect(
+      (await ok(s.adm("GET", "/notifications?estado=falhada")))["dados"],
+    ).toEqual([expect.objectContaining({ ultimo_erro: "smtp_421" })]);
+    // A base: a API não grava notificações, uma terminada não muda e não se
+    // apaga antes dos 90 dias.
+    await expect(
+      naBase(s, (trx) =>
+        sql`insert into notificacao (comerciante_id, tipo, referencia, pessoa_id, lingua, dados)
+          values (${s.c}::uuid, 'refund.deadline_passed', ${rma.slice(4)}::uuid,
+            ${ana.pessoa}::uuid, 'pt', '{}')`.execute(trx),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    const falhada = n.find((x) => x.estado === "falhada");
+    await expect(
+      naBase(s, (trx) =>
+        sql`update notificacao set estado = 'a_enviar'
+          where id = ${String(falhada?.id)}::uuid`.execute(trx),
+      ),
+    ).rejects.toThrow(/notifications\.immutable/);
+    await expect(
+      sql`delete from notificacao where id = ${String(falhada?.id)}::uuid`.execute(
+        base.dono,
+      ),
+    ).rejects.toThrow(/notifications\.immutable/);
+  });
+
+  it("o e-mail do aviso: noutra língua sai em inglês; uma recusa definitiva falha logo; uma temporária repete mais tarde; outro comerciante não vê (docs/34, N4, N6, N11)", async () => {
+    const s = await cenario();
+    const s2 = await cenario();
+    await sql`update comerciante set lingua = 'de' where id = ${s.c}::uuid`.execute(
+      base.dono,
+    );
+    const ana = await membroCom(s, "dono", "Ana");
+    const { rma } = await devolucaoDeLivreResolucao(s);
+    await pedidoHaDias(rma, 12);
+    await prazos();
+    expect((await notificacoesDe(s)).map((x) => x.lingua)).toEqual(["en"]);
+    // 550: definitiva, falha à primeira.
+    const correio = new CorreioDeEnsaio();
+    correio.falhas.push(new ErroCorreio("smtp_550", "destinatario_recusado"));
+    expect((await enviar(correio)).falhadas).toBe(1);
+    expect((await notificacoesDe(s))[0]).toMatchObject({
+      estado: "falhada",
+      tentativas: 1,
+      ultimo_erro: "smtp_550",
+    });
+    // Passou: o servidor recusa (a palavra-passe, o DNS): não conta como
+    // tentativa e pára a volta (P1-1); depois, uma falha temporária do
+    // destinatário espera; vencida, sai em inglês.
+    await pedidoHaDias(rma, 15);
+    await prazos();
+    correio.falhas.push(new ErroCorreio("smtp_535", "servidor"));
+    const rs = await enviar(correio);
+    expect([rs.servidor, rs.repetir, rs.falhadas]).toEqual(["smtp_535", 0, 0]);
+    expect(
+      (await notificacoesDe(s)).find((x) => x.estado === "a_enviar"),
+    ).toMatchObject({ tentativas: 0, ultimo_erro: "smtp_535" });
+    await vencer(s);
+    correio.falhas.push(new ErroCorreio("smtp_451", "destinatario_temporario"));
+    expect((await enviar(correio)).repetir).toBe(1);
+    expect((await enviar(correio)).enviadas).toBe(0);
+    // A 1.ª falha espera 1 minuto (N6), não os 10 da vez tomada.
+    const { rows: hora } = await sql<{ segundos: number }>`
+      select extract(epoch from proxima_em - now())::int as segundos
+      from notificacao where comerciante_id = ${s.c}::uuid and estado = 'a_enviar'`.execute(
+      base.dono,
+    );
+    expect(hora[0]?.segundos).toBeGreaterThan(30);
+    expect(hora[0]?.segundos).toBeLessThanOrEqual(60);
+    // O destino só se lê no comerciante dela (N9).
+    const espera = (await notificacoesDe(s)).find(
+      (x) => x.estado === "a_enviar",
+    );
+    const destino = (c: string) =>
+      comComerciante(base.api, c, async (trx) =>
+        (
+          await sql<{
+            email: string;
+          }>`select email from notificacao_destino(${String(espera?.id)}::uuid)`.execute(
+            trx,
+          )
+        ).rows.map((x) => x.email),
+      );
+    expect(await destino(s.c)).toEqual([ana.email]);
+    expect(await destino(s2.c)).toEqual([]);
+    await vencer(s);
+    expect((await enviar(correio)).enviadas).toBe(1);
+    expect(correio.enviados[0]).toMatchObject({
+      para: ana.email,
+      assunto: expect.stringMatching(
+        /^Withdrawal: the refund deadline has passed \(\d{4}-\d{2}-\d{2}\)$/,
+      ) as unknown,
+    });
+    expect(correio.enviados[0]?.texto).toContain("The last day to refund was");
+    expect(
+      (await notificacoesDe(s)).find((x) => x.estado === "enviada"),
+    ).toMatchObject({ tentativas: 1, ultimo_erro: null });
+    // A limpeza dos 90 dias (N9), também sem envios por fazer: a falhada
+    // passa a ter terminado há 91 dias e sai na volta seguinte.
+    await base.dono.transaction().execute(async (t) => {
+      await sql`alter table notificacao disable trigger notificacao_antes_de_gravar`.execute(
+        t,
+      );
+      await sql`update notificacao set terminada_em = now() - interval '91 days'
+        where comerciante_id = ${s.c}::uuid and estado = 'falhada'`.execute(t);
+      await sql`alter table notificacao enable always trigger notificacao_antes_de_gravar`.execute(
+        t,
+      );
+    });
+    expect((await enviar(correio)).apagadas).toBe(1);
+    expect((await notificacoesDe(s)).map((x) => x.estado)).toEqual(["enviada"]);
+    const { rows: restam } = await sql<{ n: number }>`select count(*)::int as n
+      from tarefa_notificacao where comerciante_id = ${s.c}::uuid
+        and quando <= now()`.execute(base.dono);
+    expect(restam[0]?.n).toBe(0);
+    // Outro comerciante não vê estas.
+    expect((await ok(s2.adm("GET", "/notifications")))["dados"]).toEqual([]);
+    expect(
+      ((await ok(s.adm("GET", "/notifications")))["dados"] as Json[]).length,
+    ).toBe(1);
+  });
+
+  it("o e-mail do aviso: uma devolução que já não espera não dá e-mail; o nome da loja vai numa linha só (revisão do #373, P2-2, P2-3)", async () => {
+    const s = await cenario();
+    await sql`update comerciante set nome = ${"Loja\n\nA sua conta foi suspensa"}
+      where id = ${s.c}::uuid`.execute(base.dono);
+    const ana = await membroCom(s, "dono", "Ana");
+    const a = await devolucaoDeLivreResolucao(s);
+    const b = await devolucaoDeLivreResolucao(s);
+    await pedidoHaDias(a.rma, 12);
+    await pedidoHaDias(b.rma, 12);
+    await prazos();
+    expect((await notificacoesDe(s)).length).toBe(2);
+    // O servidor recusa à primeira: a volta pára e a segunda nem se tenta
+    // (P1-1); nenhuma gasta uma tentativa.
+    const correio = new CorreioDeEnsaio();
+    correio.falhas.push(new ErroCorreio("smtp_535", "servidor"));
+    const r0 = await enviar(correio);
+    expect([r0.servidor, r0.enviadas, r0.repetir, r0.falhadas]).toEqual([
+      "smtp_535",
+      0,
+      0,
+      0,
+    ]);
+    expect((await notificacoesDe(s)).map((x) => x.tentativas)).toEqual([0, 0]);
+    expect(correio.falhas).toEqual([]);
+    expect(correio.enviados).toEqual([]);
+    await vencer(s);
+    // A primeira cancela-se antes do envio: o e-mail diria o contrário.
+    await ok(
+      s.adm("POST", `/returns/${a.rma}/cancel`, {
+        versao: 1,
+        motivo: "o cliente desistiu do pedido",
+      }),
+    );
+    const r = await enviar(correio);
+    expect([r.canceladas, r.enviadas]).toEqual([1, 1]);
+    expect(
+      (await notificacoesDe(s)).find((x) => x.estado === "cancelada"),
+    ).toMatchObject({ ultimo_erro: "devolucao_ja_nao_espera" });
+    expect(correio.enviados).toHaveLength(1);
+    expect(correio.enviados[0]?.para).toBe(ana.email);
+    expect(correio.enviados[0]?.texto).toContain(b.rma);
+    expect(correio.enviados[0]?.texto).toContain(
+      "Na loja «Loja A sua conta foi suspensa», ",
+    );
   });
 });

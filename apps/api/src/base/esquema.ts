@@ -1448,6 +1448,38 @@ export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   em: ColumnType<Date, never, never>;
 }
 
+// Notificações (migração 0067; docs/34).
+export const TIPOS_NOTIFICACAO = [
+  "refund.deadline_approaching",
+  "refund.deadline_passed",
+] as const;
+export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
+export const ESTADOS_NOTIFICACAO = [
+  "a_enviar",
+  "enviada",
+  "falhada",
+  "cancelada",
+] as const;
+export type EstadoNotificacao = (typeof ESTADOS_NOTIFICACAO)[number];
+
+/** Grava-a o gatilho do aviso; a API só a lê e muda o estado. */
+export interface TabelaNotificacao {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  tipo: ColumnType<TipoNotificacao, never, never>;
+  referencia: ColumnType<string, never, never>;
+  pessoa_id: ColumnType<string, never, never>;
+  lingua: ColumnType<"pt" | "es" | "en", never, never>;
+  dados: ColumnType<Record<string, unknown>, never, never>;
+  estado: ColumnType<EstadoNotificacao, never, EstadoNotificacao>;
+  tentativas: ColumnType<number, never, number>;
+  proxima_em: ColumnType<Date, never, Date>;
+  ultimo_erro: ColumnType<string | null, never, string | null>;
+  id_mensagem: ColumnType<string | null, never, string | null>;
+  criada_em: ColumnType<Date, never, never>;
+  terminada_em: ColumnType<Date | null, never, never>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -1529,6 +1561,7 @@ export interface BaseDados {
   pedido_livre_resolucao: TabelaPedidoLivreResolucao;
   linha_livre_resolucao: TabelaLinhaLivreResolucao;
   devolucao: TabelaDevolucao;
+  notificacao: TabelaNotificacao;
   linha_devolucao: TabelaLinhaDevolucao;
   problema: TabelaProblema;
   reembolso: TabelaReembolso;

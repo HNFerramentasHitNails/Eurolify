@@ -285,6 +285,7 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       "/markets/{id}/activate",
       "/markets/{id}/archive",
       "/me",
+      "/notifications",
       "/options/{id}",
       "/options/{id}/values",
       "/options/{id}/values/order",
