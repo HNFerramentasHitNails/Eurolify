@@ -279,6 +279,9 @@ export interface TabelaArtigo {
   local_pais: ColumnType<string | null, never, string | null>;
   local_territorio: ColumnType<string | null, never, string | null>;
   lazer_com_data: ColumnType<boolean, never, boolean>;
+  // A marca «selado por higiene» (docs/30 §15, H1; migração 0065): só num
+  // físico; muda-se pelo PATCH, não na criação.
+  selado_por_higiene: ColumnType<boolean, never, boolean>;
   // Quem classificou vem de `eurolify.quem` (gatilho da 0006), não do SET.
   classificado_por: ColumnType<string | null, never, never>;
   classificado_em: ColumnType<Date | null, never, never>;
@@ -1162,6 +1165,8 @@ export interface TabelaLinhaEncomenda {
   base: ColumnType<string, number, never>;
   iva: ColumnType<string, number, never>;
   total: ColumnType<string, number, never>;
+  /** Copiada do artigo no botão final (docs/30 §15, H2; a base confere). */
+  selado_por_higiene: ColumnType<boolean, boolean, never>;
 }
 
 // Pagamentos (migração 0044; docs/26).
@@ -1749,6 +1754,9 @@ export interface TabelaDevolucao {
   prazo_passado_em: ColumnType<Date | null, never, Date>;
 }
 
+export const DECISOES_HIGIENE = ["reembolsar", "excepcao_higiene"] as const;
+export type DecisaoHigiene = (typeof DECISOES_HIGIENE)[number];
+
 export interface TabelaLinhaDevolucao {
   devolucao_id: ColumnType<string, string, never>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1761,6 +1769,8 @@ export interface TabelaLinhaDevolucao {
     never,
     EstadoArtigoDevolvido
   >;
+  /** H6 (docs/30 §15): só numa linha selada que voltou aberta. */
+  decisao_higiene: ColumnType<DecisaoHigiene | null, never, DecisaoHigiene>;
 }
 
 export interface TabelaProblema {

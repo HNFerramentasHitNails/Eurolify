@@ -213,6 +213,9 @@ const paraResumo = (r: Resumo) => ({
     base: l.base,
     valor_iva: l.iva,
     total: l.total,
+    // H3 (docs/30 §15): a página diz que, aberto o selo, se perde a livre
+    // resolução; o texto é legal por país (**C**, J5).
+    selado_por_higiene: l.selado_por_higiene,
   })),
   portes:
     r.portes === null
@@ -1320,5 +1323,6 @@ const paraEncomenda = (r: Awaited<ReturnType<typeof lerEncomenda>>) => ({
     base: Number(l.base),
     iva: Number(l.iva),
     total: Number(l.total),
+    selado_por_higiene: l.selado_por_higiene,
   })),
 });

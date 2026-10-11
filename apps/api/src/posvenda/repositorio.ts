@@ -1,6 +1,7 @@
 import { sql, type Kysely, type Transaction } from "kysely";
 import type {
   BaseDados,
+  DecisaoHigiene,
   EstadoArtigoDevolvido,
   EstadoDevolucao,
   TipoProblema,
@@ -86,6 +87,8 @@ export interface LinhaDevolvivel {
   entregue_em: string | null;
   prazo_ate: string | null;
   dentro_do_prazo: boolean;
+  /** Aberto o selo, perde-se a livre resolução (docs/30 §15, H3 e H4). */
+  selado_por_higiene: boolean;
 }
 
 /**
@@ -116,8 +119,9 @@ export async function linhasDevolviveis(
     entregue_em: string | null;
     prazo_ate: string | null;
     dentro: boolean;
+    selado_por_higiene: boolean;
   }>`
-    select l.id, l.posicao, l.sku, l.nome, l.quantidade,
+    select l.id, l.posicao, l.sku, l.nome, l.quantidade, l.selado_por_higiene,
       coalesce((select sum(le.quantidade) from linha_expedicao le
                 join expedicao x on x.id = le.expedicao_id
                 where le.linha_encomenda_id = l.id
@@ -163,6 +167,7 @@ export async function linhasDevolviveis(
     entregue_em: r.entregue_em,
     prazo_ate: r.prazo_ate,
     dentro_do_prazo: r.dentro,
+    selado_por_higiene: r.selado_por_higiene,
   }));
 }
 
@@ -916,6 +921,42 @@ async function criarReembolso(
   return { id, montante, nota_credito: nc[0]?.id ?? null };
 }
 
+export interface DecisaoDeHigiene {
+  linha: string;
+  decisao: DecisaoHigiene;
+}
+
+/**
+ * H6 (docs/30 §15): numa linha selada que voltou aberta de uma livre
+ * resolução, uma pessoa diz se reembolsa ou aplica a excepção. Sem escolha
+ * por omissão: a base recusa decidir ou fechar a devolução sem ela, e só a
+ * aceita nessas linhas (0065).
+ */
+async function gravarHigiene(
+  trx: Transaction<BaseDados>,
+  devolucaoId: string,
+  higiene: DecisaoDeHigiene[],
+  linhas: { linha_encomenda_id: string }[],
+) {
+  if (new Set(higiene.map((h) => h.linha)).size !== higiene.length) {
+    throw new ErroPosVenda("returns.invalid_field", "uma linha repetida");
+  }
+  for (const h of higiene) {
+    if (!linhas.some((l) => l.linha_encomenda_id === h.linha)) {
+      throw new ErroPosVenda(
+        "returns.invalid_field",
+        "essa linha não é desta devolução",
+      );
+    }
+    await trx
+      .updateTable("linha_devolucao")
+      .set({ decisao_higiene: h.decisao })
+      .where("devolucao_id", "=", devolucaoId)
+      .where("linha_encomenda_id", "=", h.linha)
+      .execute();
+  }
+}
+
 /** Q3: a devolução reembolsa-se depois de inspeccionada; decide uma pessoa. */
 export async function decidirDevolucao(
   db: Kysely<BaseDados>,
@@ -926,6 +967,7 @@ export async function decidirDevolucao(
     linhas: { linha: string; quantidade: number }[];
     incluir_portes: boolean;
     motivo: string;
+    higiene?: DecisaoDeHigiene[] | undefined;
   },
   quem: string,
 ) {
@@ -937,6 +979,24 @@ export async function decidirDevolucao(
       .select(["linha_encomenda_id", "recebida"])
       .where("devolucao_id", "=", id)
       .execute();
+    await gravarHigiene(trx, id, dados.higiene ?? [], linhas);
+    // Uma linha «reembolsar» vai no reembolso; uma com a excepção, não (a
+    // base confere também, 0065).
+    for (const h of dados.higiene ?? []) {
+      const vai = dados.linhas.some((l) => l.linha === h.linha);
+      if (h.decisao === "reembolsar" && !vai) {
+        throw new ErroPosVenda(
+          "returns.invalid_field",
+          "uma linha decidida «reembolsar» tem de ir no reembolso",
+        );
+      }
+      if (h.decisao === "excepcao_higiene" && vai) {
+        throw new ErroPosVenda(
+          "refunds.invalid_field",
+          "uma linha com a excepção de higiene não se reembolsa",
+        );
+      }
+    }
     for (const l of dados.linhas) {
       const recebida =
         linhas.find((x) => x.linha_encomenda_id === l.linha)?.recebida ?? null;
@@ -1266,12 +1326,31 @@ export async function fecharSemReembolso(
   c: string,
   qual: "devolucao" | "problema",
   id: string,
-  dados: { versao: number; motivo: string },
+  dados: {
+    versao: number;
+    motivo: string;
+    higiene?: DecisaoDeHigiene[] | undefined;
+  },
   quem: string,
 ) {
   return noPosVenda(db, c, async (trx) => {
     await marcar(trx, quem, dados.motivo);
     const de = qual === "devolucao" ? "inspeccionada" : "aberto";
+    if (dados.higiene !== undefined && dados.higiene.length > 0) {
+      if (qual !== "devolucao") {
+        throw new ErroPosVenda(
+          "returns.invalid_field",
+          "a excepção de higiene é de uma devolução, não de um problema",
+        );
+      }
+      await devolucaoParaMudar(trx, id, dados.versao, "inspeccionada");
+      const linhas = await trx
+        .selectFrom("linha_devolucao")
+        .select(["linha_encomenda_id"])
+        .where("devolucao_id", "=", id)
+        .execute();
+      await gravarHigiene(trx, id, dados.higiene, linhas);
+    }
     const r =
       qual === "devolucao"
         ? await trx
@@ -1314,14 +1393,28 @@ export async function lerDevolucao(
     if (d === undefined) throw naoExiste("a devolução");
     const linhas = await trx
       .selectFrom("linha_devolucao")
+      .innerJoin(
+        "linha_encomenda",
+        "linha_encomenda.id",
+        "linha_devolucao.linha_encomenda_id",
+      )
       .select([
-        "linha_encomenda_id",
-        "pedida",
-        "recebida",
-        "aceite",
-        "estado_artigo",
+        "linha_devolucao.linha_encomenda_id",
+        "linha_devolucao.pedida",
+        "linha_devolucao.recebida",
+        "linha_devolucao.aceite",
+        "linha_devolucao.estado_artigo",
+        "linha_devolucao.decisao_higiene",
+        "linha_encomenda.selado_por_higiene",
+        // H6: a regra de quando a decisão é obrigatória está na base (0065);
+        // decidida, já não está por decidir (revisão do #363, P2-1).
+        sql<boolean>`(linha_devolucao.decisao_higiene is null
+          and posvenda_higiene_por_decidir(linha_devolucao.devolucao_id, linha_devolucao.linha_encomenda_id))`.as(
+          "higiene_a_decidir",
+        ),
       ])
-      .where("devolucao_id", "=", id)
+      .where("linha_devolucao.devolucao_id", "=", id)
+      .orderBy("linha_encomenda.posicao")
       .execute();
     // R10: o prazo do reembolso conta-se do pedido de livre resolução, no
     // fuso do comerciante (**C**, 14 dias até o jurista validar, docs/30 J4
