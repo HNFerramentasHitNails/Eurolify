@@ -675,6 +675,106 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     return rma;
   }
 
+  it("o apagamento numa encomenda paga e concluída: o contacto e os textos saem, a cópia fiscal fica, o aviso do prestador fica resumo (docs/23 §15)", async () => {
+    const s = await cenario();
+    const e = await paga(s, [[s.v1, 1]]);
+    const id = e.encomenda.slice(4);
+    // Expedida e entregue, com o nome de quem recebeu na prova.
+    const enc = await ok(s.adm("GET", `/orders/${e.encomenda}`));
+    const x = await ok(
+      s.adm("POST", `/orders/${e.encomenda}/shipments`, {
+        linhas: (enc["linhas"] as Json[]).map((l) => ({
+          linha: l["id"],
+          quantidade: l["quantidade"],
+        })),
+      }),
+      201,
+    );
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+        versao: 1,
+        estado: "expedida",
+      }),
+    );
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+        versao: 2,
+        estado: "entregue",
+        prova_entrega: "recebido pela Ana Silva",
+      }),
+    );
+    // Concluída (a tarefa fá-lo 14 dias depois de entregue).
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'sistema:encomendas', true)`.execute(
+        trx,
+      );
+      await sql`update encomenda set estado = 'concluida'
+        where id = ${id}::uuid`.execute(trx);
+    });
+    const ler = async () =>
+      (
+        await sql<{
+          cliente_id: string;
+          contacto: Json;
+          entrega: Json;
+          perfil_copia: Json;
+        }>`select cliente_id, contacto, entrega, perfil_copia from encomenda
+          where id = ${id}::uuid`.execute(base.dono)
+      ).rows[0];
+    const antes = await ler();
+    const avisosAntes = (
+      await sql<{ corpo: string }>`select a.corpo from aviso_pagamento a
+        join pagamento p on p.id = a.pagamento_id
+        where p.encomenda_id = ${id}::uuid`.execute(base.dono)
+    ).rows;
+    expect(avisosAntes.length).toBeGreaterThan(0);
+    const r = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{
+          r: Json;
+        }>`select cliente_pseudonimizar(${antes?.cliente_id}::uuid,
+          ${`pseudonimizar cus_${String(antes?.cliente_id)}`}, 'teste') as r`.execute(
+          trx,
+        )
+      ).rows[0]?.r;
+    });
+    expect(r).toMatchObject({
+      encomendas_limpas: 1,
+      encomendas_com_dados_fiscais_mantidos: 1,
+      encomendas_por_acabar: 0,
+      perfis_mantidos_por_obrigacao_fiscal: 1,
+    });
+    const depois = await ler();
+    expect(depois?.contacto["email"]).toBe("(pseudonimizado)");
+    expect(depois?.entrega["linha1"]).toBe("(pseudonimizado)");
+    // A cópia de onde se emite o documento fiscal fica (grupo A).
+    expect(depois?.perfil_copia).toEqual(antes?.perfil_copia);
+    const prova = (
+      await sql<{ prova_entrega: string }>`select prova_entrega from expedicao
+        where encomenda_id = ${id}::uuid`.execute(base.dono)
+    ).rows[0]?.prova_entrega;
+    expect(prova).toBe("(pseudonimizado)");
+    const avisos = (
+      await sql<{ corpo: string }>`select a.corpo from aviso_pagamento a
+        join pagamento p on p.id = a.pagamento_id
+        where p.encomenda_id = ${id}::uuid`.execute(base.dono)
+    ).rows;
+    for (const [i, a] of avisos.entries()) {
+      const resumo = createHash("sha256")
+        .update(avisosAntes[i]?.corpo ?? "")
+        .digest("hex");
+      expect(JSON.parse(a.corpo)).toEqual({ pseudonimizado: true, resumo });
+    }
+    // O registo do negócio fica: o pagamento, as linhas e o estado.
+    expect(await ok(s.adm("GET", `/orders/${e.encomenda}`))).toMatchObject({
+      estado: "concluida",
+      linhas: enc["linhas"],
+    });
+  });
+
   it("o botão: dentro do prazo regista, confirma com data e hora e abre a devolução; sem dados pessoais", async () => {
     const s = await cenario();
     const e = await paga(s, [[s.v1, 2]]);

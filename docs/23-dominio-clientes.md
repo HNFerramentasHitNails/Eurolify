@@ -1035,7 +1035,8 @@ os campos pessoais passam a marcador e os outros ficam.
 
 Uma encomenda **acabou** quando o estado é final (`concluida`, `cancelada`,
 `cancelada_sem_pagamento`, `devolvida`; migração 0058, linhas 27-30) e não
-tem nada aberto na pós-venda (livre resolução `pendente`, devolução que não
+tem nada aberto na pós-venda (livre resolução `pendente` ou `fora_de_prazo`,
+à espera da decisão de uma pessoa; devolução que não
 esteja `fechada` nem `cancelada`, problema que não esteja `fechado`,
 reembolso que não esteja `executado` nem `cancelado`; 0058, linhas 260, 322,
 459 e 515).
@@ -1125,3 +1126,21 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
   prorrogável até dois meses com aviso ao titular dentro do primeiro mês —
   **W · texto lido**, EUR-Lex, 11/10/2026). A proposta: a resposta no mês
   diz o que se limpou e o que espera pelo fim da encomenda, e porquê.
+
+### 15.10 Em código
+
+**Parte 1 — o apagamento nos outros domínios** (migração 0066; Diogo,
+11/10/2026: *«aprovado, junta o #369 e avança com o código»*):
+
+| O quê | Onde |
+|---|---|
+| os gatilhos de `encomenda`, `expedicao`, `aviso_pagamento`, `pedido_livre_resolucao`, `devolucao` e `problema` deixam mudar **só** as colunas da §15.2, **só** com a marca da 0049; as transições (`transicao_encomenda`, `transicao_pagamento`) **só** o motivo e **só** para o marcador. A API e o dono sem a marca continuam recusados (testado) | `titular_limpeza_permitida()`, `titular_rasto_so_se_acrescenta()` |
+| a limpeza de uma encomenda acabada: contacto, morada de entrega (fica o país), a cópia do perfil só sem nada fiscal (cancelada sem pagamento e sem documento), a prova de entrega, os motivos das transições, o aviso em bruto passa a `{"pseudonimizado": true, "resumo": "<sha256>"}` (Q3: sem os campos não pessoais, porque o formato da EuPago não está verificado; o pagamento guarda o montante, a referência e o estado), o pedido de livre resolução fica «sem e-mail» e os textos livres da pós-venda | `titular_limpar_encomenda()` |
+| as encomendas em curso ficam na fila (`titular_pendente`, interna); a tarefa de hora a hora limpa as que acabaram; a lista dos pedidos diz `encomendas_por_acabar` | `titular_pendentes_aplicar()`; `src/clientes/titular-fila.ts` |
+| o perfil de faturação só fica com documento ou encomenda que não foi cancelada sem pagamento (Q2) | `cliente_pseudonimizar()` |
+| uma livre resolução numa encomenda já limpa guarda «sem e-mail», não o marcador | `src/posvenda/repositorio.ts` |
+
+Falta: a parte 2 (as sessões de checkout, §15.4) e a parte 3 (a
+exportação, coluna «Exportação» da §15.2; e as fichas com o mesmo contacto,
+§15.5).
+

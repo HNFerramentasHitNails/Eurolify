@@ -168,6 +168,12 @@ const FUNCOES_DA_API = [
   "stock_politica",
   "tarefa_origem",
   "telefones_validos",
+  // Os pedidos do titular em todos os domínios (0066): a que os gatilhos
+  // chamam (dá falso fora da função do dono) e a tarefa da fila.
+  "titular_comerciantes_com_pendentes",
+  "titular_limpeza_permitida",
+  "titular_pendentes_aplicar",
+  "titular_por_acabar",
   // A prova do VIES só numa ficha activa (0049): o gatilho corre com quem escreve.
   "validacao_vies_so_em_ficha_activa",
   // O VIES (0039): a fila e a prova, pelas funções do dono.

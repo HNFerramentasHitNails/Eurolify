@@ -154,6 +154,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0063_pos_venda_prazo_do_reembolso",
         "0064_rasto_autorizado_pela_propria_pessoa",
         "0065_pos_venda_selado_por_higiene",
+        "0066_titular_todos_os_dominios",
       ]);
     });
 
@@ -238,6 +239,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // O aviso do prazo do reembolso (0063): escreve-a o gatilho, lê-a
           // a função do dono.
           "tarefa_prazo_reembolso",
+          // As encomendas por acabar de um pedido de apagamento (0066): só
+          // as funções do dono lhe tocam.
+          "titular_pendente",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.

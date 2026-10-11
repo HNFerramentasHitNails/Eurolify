@@ -25,6 +25,7 @@ import {
 } from "../src/precos/repositorio.js";
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { urlSemSegredos } from "../src/base/registo.js";
+import { correrApagamentosPendentes } from "../src/clientes/titular-fila.js";
 import { eupagoFalso } from "./eupago-falso.js";
 import {
   criarBaseDeTeste,
@@ -209,6 +210,8 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
         criadaPor: "operador:teste",
         nome: "Dono",
         ambitos: [
+          // A lista dos pedidos do titular (docs/23 §15).
+          "customers:privacy",
           "legal:read",
           "legal:write",
           "shipping:read",
@@ -1410,6 +1413,179 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       provas_vies_apagadas: 0,
       encomendas_com_dados_por_tratar: 1,
     });
+  });
+
+  /** Uma encomenda por pagar, criada pelo botão; devolve os ids. */
+  async function porPagar(s: Awaited<ReturnType<typeof cenario>>) {
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    const e = await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    const id = String(e["encomenda"]).slice(4);
+    const { rows } = await sql<{ cliente_id: string; perfil_id: string }>`
+      select cliente_id, perfil_id from encomenda where id = ${id}::uuid`.execute(
+      base.dono,
+    );
+    const enc = rows[0];
+    if (enc === undefined) throw new Error("sem encomenda");
+    return { id, ...enc };
+  }
+  /** Cancela sem pagamento, com um motivo escrito por uma pessoa. */
+  const cancelar = (c: string, id: string) =>
+    comComerciante(base.dono, c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true),
+        set_config('eurolify.motivo', 'a Ana Silva pediu por telefone', true)`.execute(
+        trx,
+      );
+      await sql`update encomenda set estado = 'cancelada_sem_pagamento'
+        where id = ${id}::uuid`.execute(trx);
+    });
+  const pseudonimizar = (c: string, cliente: string) =>
+    comComerciante(base.dono, c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{ r: Json }>`select cliente_pseudonimizar(${cliente}::uuid,
+          ${`pseudonimizar cus_${cliente}`}, 'teste') as r`.execute(trx)
+      ).rows[0]?.r;
+    });
+  const encomendaNaBase = async (id: string) =>
+    (
+      await sql<{
+        contacto: Json;
+        entrega: Json;
+        perfil_copia: Json;
+      }>`select contacto, entrega, perfil_copia from encomenda
+        where id = ${id}::uuid`.execute(base.dono)
+    ).rows[0];
+  const P = "(pseudonimizado)";
+
+  it("o apagamento limpa uma encomenda acabada e o perfil dela, se não houve nada fiscal (docs/23 §15, Q2)", async () => {
+    const s = await cenario();
+    const enc = await porPagar(s);
+    const antes = await encomendaNaBase(enc.id);
+    await cancelar(s.c, enc.id);
+    const r = await pseudonimizar(s.c, enc.cliente_id);
+    expect(r).toMatchObject({
+      perfis_pseudonimizados: 1,
+      perfis_mantidos_por_obrigacao_fiscal: 0,
+      encomendas_limpas: 1,
+      encomendas_com_dados_fiscais_mantidos: 0,
+      encomendas_por_acabar: 0,
+      encomendas_com_dados_por_tratar: 0,
+    });
+    const depois = await encomendaNaBase(enc.id);
+    // O contacto todo; a morada sem a casa, com o país (o IVA depende dele).
+    for (const v of Object.values(depois?.contacto ?? {})) {
+      expect([P, null]).toContain(v);
+    }
+    expect(depois?.entrega).toMatchObject({
+      linha1: P,
+      codigo_postal: P,
+      localidade: P,
+      pais: antes?.entrega["pais"],
+    });
+    // Sem nada fiscal (cancelada sem pagamento), a cópia do perfil também.
+    expect(depois?.perfil_copia).toMatchObject({
+      nome_documento: P,
+      tipo: antes?.perfil_copia["tipo"],
+    });
+    // O motivo escrito na transição.
+    const motivos = (
+      await sql<{
+        motivo: string | null;
+      }>`select motivo from transicao_encomenda
+        where encomenda_id = ${enc.id}::uuid and motivo is not null`.execute(
+        base.dono,
+      )
+    ).rows.map((x) => x.motivo);
+    expect(motivos.length).toBeGreaterThan(0);
+    expect(new Set(motivos)).toEqual(new Set([P]));
+  });
+
+  it("uma encomenda em curso fica na fila e limpa-se quando acabar (Q1)", async () => {
+    const s = await cenario();
+    const enc = await porPagar(s);
+    const antes = await encomendaNaBase(enc.id);
+    const r = await pseudonimizar(s.c, enc.cliente_id);
+    expect(r).toMatchObject({
+      encomendas_limpas: 0,
+      encomendas_por_acabar: 1,
+      encomendas_com_dados_por_tratar: 1,
+      // A encomenda por pagar ainda pode ser paga: o perfil fica.
+      perfis_mantidos_por_obrigacao_fiscal: 1,
+    });
+    expect(await encomendaNaBase(enc.id)).toEqual(antes);
+    // A lista dos pedidos diz quantas faltam.
+    const lista = await ok(
+      s.adm("GET", `/customers/cus_${enc.cliente_id}/privacy-requests`),
+    );
+    expect(lista["dados"]).toEqual([
+      expect.objectContaining({ tipo: "apagamento", encomendas_por_acabar: 1 }),
+    ]);
+    // A tarefa não lhe toca enquanto não acabar.
+    await correrApagamentosPendentes(base.api);
+    expect(await encomendaNaBase(enc.id)).toEqual(antes);
+    await cancelar(s.c, enc.id);
+    expect(await correrApagamentosPendentes(base.api)).toBeGreaterThanOrEqual(
+      1,
+    );
+    expect((await encomendaNaBase(enc.id))?.entrega["linha1"]).toBe(P);
+    const depois = await ok(
+      s.adm("GET", `/customers/cus_${enc.cliente_id}/privacy-requests`),
+    );
+    expect(depois["dados"]).toEqual([
+      expect.objectContaining({ encomendas_por_acabar: 0 }),
+    ]);
+    // Aplicada uma vez: não se repete nem se apaga.
+    await expect(
+      sql`delete from titular_pendente where encomenda_id = ${enc.id}::uuid`.execute(
+        base.dono,
+      ),
+    ).rejects.toThrow(/append_only/);
+  });
+
+  it("fora da função do dono, as colunas continuam fechadas, também ao dono e com a marca na API", async () => {
+    const s = await cenario();
+    const enc = await porPagar(s);
+    await cancelar(s.c, enc.id);
+    // O dono, sem a marca.
+    await expect(
+      comComerciante(base.dono, s.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+          trx,
+        );
+        await sql`update encomenda set contacto = '{}'::jsonb
+          where id = ${enc.id}::uuid`.execute(trx);
+      }),
+    ).rejects.toThrow(/orders.immutable/);
+    // A API não põe a marca nem chama a limpeza.
+    await expect(
+      comComerciante(base.api, s.c, (trx) =>
+        sql`insert into pseudonimizacao_em_curso values (pg_current_xact_id())`.execute(
+          trx,
+        ),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      comComerciante(base.api, s.c, (trx) =>
+        sql`select titular_limpar_encomenda(${enc.id}::uuid)`.execute(trx),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    // Uma transição com o motivo trocado por outro texto: recusada mesmo
+    // com a marca (só o marcador passa).
+    await expect(
+      comComerciante(base.dono, s.c, async (trx) => {
+        await sql`insert into pseudonimizacao_em_curso values (pg_current_xact_id())`.execute(
+          trx,
+        );
+        await sql`update transicao_encomenda set motivo = 'outro texto'
+          where encomenda_id = ${enc.id}::uuid`.execute(trx);
+      }),
+    ).rejects.toThrow(/append_only/);
   });
 
   it("a base garante a encomenda: linhas só ao criá-la, e os totais batem com as linhas e os portes", async () => {
