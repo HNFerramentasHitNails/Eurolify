@@ -100,6 +100,12 @@ usam.
   pessoa executa ela própria, fica igual ao `quem`.
 - Uma chave de API **não** autoriza: se um agente usa uma chave, o rasto diz
   quem executou (a chave) e deixa «autorizado por» vazio, salvo prova.
+- **Rotas públicas em que a pessoa age ela própria** (conta nova pelo
+  convite, recuperação da conta; Diogo, 11/10/2026, Q9): não há sessão, mas
+  a pessoa prova quem é no próprio pedido (o convite ou o código, e a passkey
+  registada com a verificação dela no dispositivo). A base põe-na como quem
+  autorizou depois de conferir essa prova, só no resto da transacção: se o
+  pedido falhar, nada fica (0064, `rasto_autorizado_pela_propria()`).
 
 ### 3.3 A IA (R4)
 
@@ -297,7 +303,7 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
   - **o canal `importacao`** no que uma importação aplica;
   - **o motivo do histórico pseudonimizado** com a ficha, também nos perfis usados em documentos (os valores deles ficam, R9; o motivo é texto livre e a prova fiscal é a cópia no documento). Limpa também o motivo das entradas dos pares de duplicados da outra ficha do par, mesmo que não fale desta pessoa: perde-se esse texto, de propósito (revisão do #354, P2-2 e P3-4);
   - já estavam resolvidos (conferido a 11/10/2026): as escritas do Hub nas contas com o contexto, a permissão da função do rasto, o motivo longo do Comerciante e a exportação do titular;
-  - ficam de fora: os canais `integracao` e `mcp`, porque não há nenhuma entrada por esses caminhos; e as rotas públicas em que a pessoa age ela própria, que ficam por decidir;
+  - ficam de fora: os canais `integracao` e `mcp`, porque não há nenhuma entrada por esses caminhos; e as rotas públicas em que a pessoa age ela própria, decididas depois (Q9, migração 0064);
 - **parte 5** (desenho #357, código #359; desenho e aspecto aprovados pelo Diogo a 11/10/2026): o histórico do artigo no Hub mostra de onde veio, a pedido de quem, a IA, quem autorizou ou o aviso «Sem autorização de uma pessoa», o motivo e «Detalhes»; a API do Hub junta `autor_autorizou` e `autor_do_pedido` (`docs/22` §26); o ecrã das chaves marca «Chave de um agente de IA». O `autor.tipo` obsoleto saiu da API no pedido dos pendentes finais.
 
 ## 5. Perguntas para o Diogo ou o Bruno
@@ -312,6 +318,7 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
 | Q6 | O trabalho feito mais tarde a pedido de um agente aparece ligado ao pedido dele? | ✅ **Decidido** (Diogo, 11/10/2026): sim; a tarefa guarda o pedido de origem e herda a autorização; aparece «sistema, a pedido do agente X (pedido n.º …)», nunca só «sistema». §3.7 |
 | Q7 | Que âmbito pede o histórico de preços com as seis respostas? | ✅ **Decidido** (Diogo, 11/10/2026): dois níveis — `prices:read` vê o tipo de autor e o aviso; quem mudou e quem autorizou pedem `prices:history` (os papéis do `catalog:history`). §3.8 |
 | Q8 | Uma linha sem contexto (de antes de 10/10/2026, ou escrita fora de um pedido) diz «sem autorização de uma pessoa» ou «autorização desconhecida»? | ✅ **Decidido** (Diogo, 11/10/2026: *«confirmo»*, à proposta com base no RGPD, art. 5.º): «autorização desconhecida» (`sem_autorizacao_de_pessoa: null`). §3.6 |
+| Q9 | Nas rotas públicas em que a pessoa age ela própria (conta nova pelo convite, recuperação), «autorizado por» fica vazio ou é a pessoa? | ✅ **Decidido** (Diogo, 11/10/2026: *«confirmo»*, à proposta com base no RGPD, art. 5.º, n.º 1, al. d), como na Q8): a própria pessoa, só quando a operação termina bem (0064). §3.2 |
 
 ## 6. O que não foi verificado
 

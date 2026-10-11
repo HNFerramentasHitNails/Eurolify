@@ -116,8 +116,9 @@ describe.skipIf(URL_BASE === undefined)(
     it("no Hub, a pessoa que age fica como quem autorizou; a conta nova tem o canal e o pedido", async () => {
       const h = hubDeTeste(base);
       const p = await h.pessoaCom(a, "dono");
-      // A conta criada pelo convite (rota sem sessão): canal e pedido, ninguém
-      // autenticado a autorizar ainda.
+      // A conta criada pelo convite (rota sem sessão): canal e pedido, e a
+      // própria pessoa como quem autorizou, porque provou quem é no pedido
+      // (0064; Diogo, 11/10/2026).
       const criada = await sql<LinhaDoRasto>`
       select canal, pedido, ia, autorizado_por, motivo from evento_conta
       where pessoa_id = ${p.pessoa}::uuid and acto = 'conta_criada'`.execute(
@@ -127,7 +128,7 @@ describe.skipIf(URL_BASE === undefined)(
       expect(criada.rows[0]).toMatchObject({
         canal: "hub",
         ia: null,
-        autorizado_por: null,
+        autorizado_por: `pessoa:per_${p.pessoa}`,
       });
       expect(criada.rows[0]?.pedido).toMatch(/^[A-Za-z0-9._:-]+$/);
       // Gerar códigos novos (rota com sessão): a pessoa autorizou.

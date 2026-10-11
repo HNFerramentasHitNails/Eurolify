@@ -17,14 +17,16 @@ Desenho: `docs/28-rasto-de-auditoria.md`, aprovado pelo Diogo a 10/10/2026
 | pendentes | #354 (juntado a 11/10/2026, 6ca0737) | 0062 | o `quem` conferido com quem se autenticou (`eurolify.autenticado`); o canal `importacao`; o motivo do histórico pseudonimizado; os outros pendentes já estavam resolvidos ou ficam de fora (`docs/28` §4) |
 | 4, parte 5 | desenho #357 (juntado a 11/10/2026, 0792366); código #359 (juntado a 11/10/2026, c755ed0) | — | o Hub mostra no histórico do artigo de onde veio, a IA, quem autorizou ou o aviso «Sem autorização de uma pessoa», o pedido de origem e o motivo; a API do Hub junta `autor_autorizou` e `autor_do_pedido`; o ecrã das chaves marca «Chave de um agente de IA» e dá nome aos âmbitos `prices:*` e `catalog:history` |
 | pendentes finais | #361 | — | sai o `autor.tipo` do `GET /hub/products/{id}/timeline` (o tipo de quem fez é o `tipo_de_autor`); conferido que `transicao_encomenda` e `historico_preco` não têm `origem` e que a importação não lhes escreve |
+| Q9 | (este pedido) | 0064 | na conta nova pelo convite e na recuperação, a própria pessoa fica como quem autorizou (`rasto_autorizado_pela_propria()`), só quando a operação termina bem |
 
 Fonte dos passos 1 a 3: as descrições dos pedidos e o `docs/28` §2 a §4 no
 `main` de 10/10/2026 (commit 0dffbe3).
 
 Plano do resto do passo 4 (dito ao Diogo a 10/10/2026):
 - parte 5: juntada (#359) com o aspecto aprovado pelo Diogo a 11/10/2026;
-- por decidir (pergunta feita ao Diogo a 11/10/2026, proposta: a própria pessoa): as rotas públicas em que a pessoa age ela própria (conta nova
-  pelo convite, recuperação) — «autorizado por» vazio ou a pessoa no fim.
+- decidido pelo Diogo a 11/10/2026 (Q9, *«confirmo»*): nas rotas públicas em
+  que a pessoa age ela própria (conta nova pelo convite, recuperação), fica a
+  própria pessoa como quem autorizou (0064).
 
 **Decididas pelo Diogo a 11/10/2026 (DO; `docs/28` Q5 a Q7, §3.6 a §3.8):**
 - o aviso «sem autorização de uma pessoa» em toda a alteração sem pessoa a
