@@ -21,7 +21,7 @@
 
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
-| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **17 a 33 meses** os dois a tempo inteiro, **31 a 60** a meio tempo (§9, com hipótese C; recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS — eram 17 a 32 e 31 a 58; a 04/10/2026, com as três da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
+| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **18 a 33 meses** os dois a tempo inteiro, **32 a 60** a meio tempo (§9, com hipótese C; recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS — eram 17 a 32 e 31 a 58 — e outra vez no mesmo dia com as sete filas da peça 21, decisão DU — eram 17 a 33 e 31 a 60; a 04/10/2026, com as três da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
 | **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | ≈ 9.950–14.230 € (era ≈ 9.940 antes do GitHub Pro e ≈ 10.150–14.870 com a Scaleway) |
 | **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) | ≈ 14.910–21.310 € (era ≈ 15.110–21.950, com a Scaleway) |
 
@@ -74,10 +74,10 @@ Claude Code (**C**, todas as linhas):
 | 18 | Relatório OSS com os quatro baldes (decisão AD, 04/10/2026; veio da Fase 2) | 2–4 |
 | 19 | Devolução → estado do artigo → reembolso → nota de crédito (decisão AD; veio da Fase 2) | 4–7 |
 | 20 | Lotes na linha expedida e compostos (decisão AD; veio da Fase 2) | 3–5 |
-| 21 | Tarefas das filas que pedem uma pessoa: dono, prazo, aviso (decisão DS, ADR-0043, 11/10/2026; veio dos módulos de gestão) | 2–4 |
+| 21 | Tarefas das filas que pedem uma pessoa: dono, prazo, aviso (decisão DS, ADR-0043, 11/10/2026; veio dos módulos de gestão; sete filas pela decisão DU, `docs/33`, era 2–4 com quatro) | 2,5–5 |
 | 22 | Consulta das vendas do dia e do mês, para o MCP de leitura (decisão DS; a ferramenta do MCP está na peça 12) | 1–2 |
-| | **Soma** (com as peças 18 a 22; sem a 21 e a 22 era 101–171; sem as 18 a 22, 92–155) | **104–177** |
-| | **Com imprevistos e coordenação** (+15 % no mínimo, +30 % no máximo; sem a 21 e a 22 era ≈ 116–222; sem as 18 a 20, ≈ 106–202) | **≈ 120–230** |
+| | **Soma** (com as peças 18 a 22; com a 21 de quatro filas era 104–177; sem a 21 e a 22, 101–171; sem as 18 a 22, 92–155) | **104,5–178** |
+| | **Com imprevistos e coordenação** (+15 % no mínimo, +30 % no máximo; com a 21 de quatro filas era ≈ 120–230; sem a 21 e a 22, ≈ 116–222; sem as 18 a 20, ≈ 106–202) | **≈ 120–231** |
 
 **Como se estimaram as peças 18 a 20** (04/10/2026, **C**, por julgamento,
 como as outras): cada uma é parte de uma peça da Fase 2, que se partiu em duas
@@ -88,7 +88,11 @@ completo (ficam 5–9). Cada estimativa conta os ecrãs e os testes da peça; as
 linhas de ecrãs e de testes da Fase 2 não se mexeram.
 
 **Como se estimaram as peças 21 e 22** (11/10/2026, **C**, por julgamento,
-como as outras; ainda não há a medida das 8 semanas do §6). A **21** é uma
+como as outras; ainda não há a medida das 8 semanas do §6). *Corrigido no
+mesmo dia com o desenho aprovado da 21 (decisão DU, `docs/33`): a lista lê os
+casos de cada fila e a tarefa só guarda o responsável e o prazo; são **sete
+filas**, não quatro; cada fila a mais é uma função e os testes dela ⇒
+**2,5–5** (era 2–4). O texto abaixo descreve a estimativa inicial.* A **21** é uma
 tabela de tarefas (dono, prazo, estado, isolada por comerciante e com o
 rasto), a ligação às quatro filas que a Fase 1 já cria (cada caso que entra
 cria a tarefa, cada decisão fecha-a), uma tarefa automática que avisa ao
@@ -172,8 +176,8 @@ VPS-2 7,21 €, VPS-3 10,40 €, VPS-4 19,96 € por mês.
 
 | Cenário | Meses | Alojamento |
 |---|---|---|
-| A, os dois a tempo inteiro | 18–36 (era 18–35, antes das peças 21 e 22) | ≈ 140–860 € (o mês a mais, no máximo, numa VPS-4 a 19,96 €; conta minha) |
-| A, cada um a meio tempo | 32,5–63 (era 32,5–61) | ≈ 250–1.400 € (dois meses a mais, idem) |
+| A, os dois a tempo inteiro | 19–36 (era 18–36 antes das sete filas da peça 21, e 18–35 antes das peças 21 e 22) | ≈ 150–860 € (o mês a mais no mínimo numa VPS-2 a 7,21 €, e no máximo numa VPS-4 a 19,96 €; conta minha; era ≈ 140–860) |
+| A, cada um a meio tempo | 33,5–63 (era 32,5–63, e 32,5–61 antes das peças 21 e 22) | ≈ 250–1.400 € (dois meses a mais no máximo; o mês a mais no mínimo, ≈ 7 €, não muda o arredondamento) |
 | B | 19,6–39,7 | ≈ 150–940 € |
 | C | 15,2–31,3 | ≈ 120–770 € |
 
@@ -295,20 +299,20 @@ usando a IA como o Claude Code e Codex, por fases»*.
 | Fase | O que é | Esforço (pessoas-semana) | Os dois a tempo inteiro | Cada um a meio tempo |
 |---|---|---|---|---|
 | **0** (o que falta) | Desenho final (domínio, API, contratos), conversas com 3 a 5 comerciantes, preços (D-14), OK para código (dado a 04/10/2026, ADR-0023). Desde 03/10/2026 os preços só travam a peça 13 (ADR-0012); estes números não foram recalculados. A Fase 0 passou a 04/10/2026 (critério S); o resto desta linha continua por fazer e faz-se no começo da Fase 1, domínio a domínio | 5–10 | **1 a 3** | **1,5 a 3** |
-| **1** | Núcleo à venda (§2, sem a peça 1; com as peças 18 a 20 da decisão AD e a 21 e a 22 da decisão DS — sem a 21 e a 22 eram 112–212, 17 a 32 e 31 a 58; sem as 18 a 20, 101–192, 15 a 29 e 28 a 52) | 115–220 | **17 a 33** | **31 a 60** |
+| **1** | Núcleo à venda (§2, sem a peça 1; com as peças 18 a 20 da decisão AD e a 21 e a 22 da decisão DS, a 21 com as sete filas da decisão DU — com quatro filas eram 115–220, 17 a 33 e 31 a 60; sem a 21 e a 22, 112–212, 17 a 32 e 31 a 58; sem as 18 a 20, 101–192, 15 a 29 e 28 a 52) | 116–221 | **18 a 33** | **32 a 60** |
 | | Critério de passagem: 3 meses de vendas reais sem documento fiscal errado | — | **+3** | **+3** |
 | **2** | Hub completo e mais países (tabela abaixo; sem as peças que a decisão AD passou para a Fase 1 — com elas eram 60–117, 9 a 18 e 16 a 32) | 49–96 | **7 a 15** | **13 a 26** |
 | | Critério de passagem: 3 meses em comerciantes de pelo menos dois países | — | **+3** | **+3** |
 | **3** | Extensões abertas e comércio por agentes (tabela abaixo) | 46–90 | **7 a 14** | **12 a 25** |
 | **4** | Marketplace | — | **não se estima**: só com caso de negócio escrito (`05-fases-e-mvp.md`) | |
-| | **Até ao fim da Fase 3** (igual depois da decisão AD: o trabalho mudou de fase, não cresceu; com a decisão DS cresceu — eram ≈ 38 a 70 e ≈ 64 a 118) | | **≈ 38 a 71** (3 a 6 anos) | **≈ 64 a 120** (5 a 10 anos) |
+| | **Até ao fim da Fase 3** (igual depois da decisão AD: o trabalho mudou de fase, não cresceu; com a decisão DS cresceu — eram ≈ 38 a 70 e ≈ 64 a 118; com a DU, ≈ 38 a 71 e ≈ 64 a 120) | | **≈ 39 a 71** (3 a 6 anos) | **≈ 65 a 120** (5 a 10 anos) |
 
 **Exemplo** (recalculado a 04/10/2026; outra vez a 11/10/2026, com as peças
 21 e 22): a Fase 0 passou a 04/10/2026, e o desenho que faltava (linha 0, 1 a
 3 meses) faz-se no começo da Fase 1. Com os dois a tempo inteiro, a construção
-da Fase 1 acaba entre **abril de 2028 e outubro de 2029** (1 a 3 + 17 a 33 =
-18 a 36 meses a contar de 05/10/2026, **C**; antes das peças 21 e 22, setembro
-de 2029). Com a Fase 0 fechada a 31/12/2026, como o exemplo supunha antes, era
+da Fase 1 acaba entre **maio de 2028 e outubro de 2029** (1 a 3 + 18 a 33 =
+19 a 36 meses a contar de 05/10/2026, **C**; antes das sete filas da peça 21,
+abril de 2028; antes das peças 21 e 22, abril de 2028 a setembro de 2029). Com a Fase 0 fechada a 31/12/2026, como o exemplo supunha antes, era
 junho de 2028 a setembro de 2029 (e, antes da decisão AD, abril de 2028 e
 junho de 2029). O primeiro
 comerciante de fora pode entrar quando o motor de IVA estiver validado pelo

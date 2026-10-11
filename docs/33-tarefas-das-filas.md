@@ -1,8 +1,9 @@
 # Tarefas das filas que pedem uma pessoa — modelo e lista da API
 
-> **Estado: desenho, por aprovar** (issue #366). Pedido do Diogo, 11/10/2026:
-> *«começa o desenho da peça 21»*. É a peça 21 da Fase 1 (`docs/10`, 2–4
-> pessoas-semana, **C**), que veio dos módulos de gestão pela decisão DS
+> **Estado: desenho aprovado** (issue #366; `docs/06`, DU). Diogo, 11/10/2026:
+> *«começa o desenho da peça 21»* e *«sim, aprovo o desenho com as sete
+> filas»* (Q1 como proposta). É a peça 21 da Fase 1 (`docs/10`, 2,5–5
+> pessoas-semana desde a aprovação, **C**; eram 2–4 com quatro filas), que veio dos módulos de gestão pela decisão DS
 > ([ADR-0043](adr/0043-saidas-das-portas-dos-modulos-de-gestao.md), ponto 4;
 > `docs/13` §10). O código só depois de aprovado (ADR-0023).
 >
@@ -198,16 +199,16 @@ e `eurolify-hub-quality-gate` antes do código dele.
 | a lista fica lenta com muitas encomendas | medir antes de pré-calcular (`docs/13` §11, porta 7) |
 | uma fila nova da Fase 1 fica fora | a lista de filas é um valor da base; uma fila nova acrescenta-se lá e com a sua função |
 
-## 10. Pergunta para o Diogo ou o Bruno
+## 10. Pergunta para o Diogo ou o Bruno (respondida)
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q1 | **Aprovas o desenho com as sete filas** (as quatro da decisão DS mais o pedido de livre resolução pendente ou fora de prazo, o problema aberto e o reembolso incerto ou falhado), a lista que lê as filas, os prazos por omissão da §1 e atribuir a outros só pelo dono e pelo gestor? | sim |
+| Q1 ✅ sim (Diogo, 11/10/2026) | **Aprovas o desenho com as sete filas** (as quatro da decisão DS mais o pedido de livre resolução pendente ou fora de prazo, o problema aberto e o reembolso incerto ou falhado), a lista que lê as filas, os prazos por omissão da §1 e atribuir a outros só pelo dono e pelo gestor? | sim |
 
 As três filas a mais aumentam a peça: a estimativa de 2–4 pessoas-semana
 contava quatro filas. Por julgamento (**C**), cada fila a mais é uma função e
-os testes dela: ≈ +0,5–1 pessoa-semana no total. Se aprovado, corrige-se no
-`docs/10`.
+os testes dela: ≈ +0,5–1 pessoa-semana no total. Corrigido no `docs/10` com a
+aprovação: a peça 21 passa a 2,5–5.
 
 ## 11. Por verificar
 

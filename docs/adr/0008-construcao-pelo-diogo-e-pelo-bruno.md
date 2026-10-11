@@ -35,7 +35,9 @@ recomendação B não foi seguida; a discordância ficou escrita uma vez em
   AD, ADR-0022, passou para a Fase 1, a Fase 1 é 17 a 32 e 31 a 58 meses; o
   total até ao fim da Fase 3 não muda. 11/10/2026: com as duas peças da
   decisão DS, ADR-0043, 17 a 33 e 31 a 60 meses; até ao fim da Fase 3,
-  ≈ 38 a 71 ou ≈ 64 a 120.)* Corrige-se às 8 semanas (`docs/10` §6).
+  ≈ 38 a 71 ou ≈ 64 a 120. No mesmo dia, com as sete filas da peça 21,
+  decisão DU: 18 a 33 e 32 a 60 meses; ≈ 39 a 71 ou ≈ 65 a 120.)* Corrige-se
+  às 8 semanas (`docs/10` §6).
 - **Custo:** as subscrições (Claude Max US$ 200/mês por pessoa; o Codex vem com
   os planos do ChatGPT — Plus US$ 20, Pro desde US$ 100, Business US$ 20–25 por
   utilizador, página oficial a 03/10/2026, **W**), os serviços externos com
