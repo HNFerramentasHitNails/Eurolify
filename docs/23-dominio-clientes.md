@@ -964,3 +964,161 @@ consentimento cai com a ficha (C7).
 **Fica por fazer:** a página (ou o ecrã) da loja que recebe a ligação e o
 código (é do sistema do comerciante, Q-C1); o domínio de Notificações, se
 um dia o Eurolify enviar ele mesmo; as fontes **C** com o jurista.
+
+## 15. Os pedidos do titular em todos os domínios (desenho de 11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«sim, avança com o desenho do #233»*. O que
+estava em aberto desde a parte 2c: «os dados de encomendas e checkout no
+apagamento (fatias 9 e 10)» (§12; migração 0049, linhas 41-46). Skills:
+`eu-gdpr-privacy`, `eu-vat-oss-ioss`, `consumer-rights-eu`,
+`order-fulfilment`, `payments-psd2-sca`, `observability-security`.
+
+**O problema, medido a 11/10/2026** (leitura das migrações e do teste
+`checkout-api.test.ts:1404-1412`): a exportação e a pseudonimização só
+tratam a ficha e o que pende dela. As fatias que entraram depois — checkout
+(0041), pagamentos (0044), stock e encomendas (0047), documentos (0050),
+pós-venda (0058, 0061, 0063) — guardam **cópias** dos dados pessoais em
+tabelas que não se deixam mudar, e nenhuma entrou no apagamento. Não são
+cinco esquecimentos: o apagamento ficou preso à ficha e cada domínio novo
+acrescentou a sua cópia.
+
+Ex.: a Ana compra sem conta e pede o apagamento. A ficha dela fica
+«Pseudonimizado», mas a encomenda continua com `contacto` (e-mail, nome,
+telefone), `entrega` (morada) e `perfil_copia` (NIF e morada fiscal), o
+pedido de livre resolução com o e-mail dela, e o perfil de faturação inteiro
+(a encomenda aponta para ele). O resultado já o admite:
+`encomendas_com_dados_por_tratar: 1`.
+
+### 15.1 A regra: três grupos de dados
+
+RGPD, art. 17.º (texto oficial em português, EUR-Lex, CELEX 32016R0679,
+lido a 11/10/2026 — **W · texto lido**): apaga-se quando os dados «deixaram
+de ser necessários para a finalidade» (n.º 1, al. a)); não se apaga o que
+for necessário para «uma obrigação legal» (n.º 3, al. b)) ou para a
+«defesa de um direito num processo judicial» (n.º 3, al. e)).
+
+| Grupo | O quê | No apagamento |
+|---|---|---|
+| **A. Prova fiscal** | o conteúdo e a prova de cada documento fiscal (comprador, NIF, morada, PDF) e a cópia de onde se emitiu | **fica**, 10 anos civis em Portugal (art. 52.º do CIVA, **W**; outros países **C**) — art. 17.º, n.º 3, al. b) |
+| **B. Dados da encomenda em curso** | contacto, morada e textos de uma encomenda que ainda não acabou (por pagar, por expedir, com livre resolução, devolução, problema ou reembolso em aberto) | **fica até acabar**, e então limpa-se sozinho (§15.3) — ainda é preciso para cumprir o contrato |
+| **C. O resto** | contacto e morada de encomendas acabadas, e-mail do pedido de livre resolução, textos livres, sessões de checkout | **limpa-se já** — art. 17.º, n.º 1, al. a) |
+
+O que é registo do negócio sem dados de quem comprou — o que se vendeu, as
+quantidades, os preços, as datas, os estados — **fica** (o comerciante
+precisa dele para a garantia, as devoluções e a contabilidade).
+
+### 15.2 Tabela a tabela
+
+«Marcador» é o texto fixo «(pseudonimizado)», como na 0049; num `jsonb`,
+os campos pessoais passam a marcador e os outros ficam.
+
+| Tabela.coluna | Dado | Apagamento | Exportação |
+|---|---|---|---|
+| `encomenda.contacto` | e-mail, nome, telefone | grupo C: marcador; grupo B: quando acabar | já sai |
+| `encomenda.entrega` | morada de entrega | igual | já sai |
+| `encomenda.perfil_copia` | NIF, nome e morada fiscais | **fica** se a encomenda tem documento emitido ou por emitir (grupo A); senão, marcador | já sai |
+| `encomenda` (linhas, totais, estado, datas) | registo do negócio | fica | passa a sair inteira (hoje faltam `portes`, `metodo_entrega`, `aceitacoes`, `lingua`) |
+| `perfil_faturacao` usado | NIF, nome, morada | **fica** só se um documento o usou ou uma encomenda paga o vai usar (Q2) — hoje fica com qualquer encomenda, também a não paga | já sai |
+| `sessao_checkout` (e-mail, nome, telefone, entrega, faturação) | cópia do que se escreveu no checkout | não tem ligação à ficha: não se acha por cliente. Limpa-se por prazo (§15.4) | não sai (não há como a ligar à pessoa sem decidir pelo e-mail — regra 6 do `AGENTS.md`) |
+| `expedicao.prova_entrega` | texto livre (pode ter o nome de quem recebeu) | marcador | passa a sair (com transportadora, seguimento, datas) |
+| `pagamento` | referência, montante, estado | fica (registo do negócio) | já sai |
+| `aviso_pagamento.corpo` | aviso em bruto do prestador; segundo o `docs/26` (V3), o MB WAY traz o telefone | quando o pagamento acabou: o corpo passa a resumo SHA-256 e aos campos que se sabem não pessoais (Q3) | não sai (técnico) |
+| `transicao_encomenda.motivo`, `transicao_pagamento.motivo` | texto livre escrito por uma pessoa | marcador, como na 0062 | passa a sair o histórico de estados (sem o motivo) |
+| `documento_conteudo`, `documento_prova` (com o PDF e a resposta em bruto) | comprador, NIF, morada | **fica** (grupo A) | passa a sair: tipo, número, data, totais e o comprador como está no documento; **sem os bytes do PDF** (Q4) |
+| `documento_rasto.motivo` | texto livre da correcção de um documento | **fica** (faz parte do rasto do documento fiscal; Q4) | não sai |
+| `pedido_livre_resolucao.contacto` | e-mail | grupo C: «sem e-mail»; grupo B: quando acabar | passa a sair (com a confirmação e o estado) |
+| `pedido_livre_resolucao.motivo_decisao`, `devolucao.motivo`, `problema.descricao` | texto livre | marcador quando acabarem | passam a sair |
+| `reembolso` | montantes, estado, prova (data, referência do banco, quem); o IBAN nunca se guarda | fica (registo financeiro) | passa a sair (sem a prova) |
+| `evento_saida` | só identificadores e montantes | fica | não sai |
+
+### 15.3 Encomendas em curso: aplica-se quando acabarem
+
+Uma encomenda **acabou** quando o estado é final (`concluida`, `cancelada`,
+`cancelada_sem_pagamento`, `devolvida`; migração 0058, linhas 27-30) e não
+tem nada aberto na pós-venda (livre resolução `pendente`, devolução que não
+esteja `fechada` nem `cancelada`, problema que não esteja `fechado`,
+reembolso que não esteja `executado` nem `cancelado`; 0058, linhas 260, 322,
+459 e 515).
+
+- No pedido de apagamento, as encomendas acabadas limpam-se logo; as outras
+  ficam numa fila com o pedido (`pedido_titular`), e o resultado diz quantas
+  (`encomendas_por_acabar`).
+- Uma tarefa limpa cada uma quando acabar, e escreve no pedido o que fez. O
+  pedido só fica **completo** quando a fila esvazia; o `GET
+  /customers/{id}/privacy-requests` mostra-o.
+- Uma livre resolução depois do apagamento continua possível pelo número da
+  encomenda; o pedido fica «sem e-mail».
+
+### 15.4 As sessões de checkout
+
+Não têm `cliente_id` (o cliente nasce no botão final; 0041, linhas 209-216).
+Procurar a da Ana pelo e-mail seria decidir identidade por um sinal que só
+diz «talvez». Em vez disso, por prazo (o que o `docs/25` §7 já propunha):
+
+- **sessão concluída**: os dados pessoais limpam-se logo ao criar a
+  encomenda — a encomenda tem a cópia;
+- **sessão expirada ou abandonada**: limpam-se 7 dias depois (`docs/25`
+  §7, proposta; prazo **C**, jurista).
+
+Assim, nenhuma sessão guarda dados mais de 7 dias, e o pedido do titular não
+precisa de as procurar.
+
+### 15.5 Várias fichas da mesma pessoa
+
+Cada compra sem conta cria uma ficha nova (`docs/25` R8). Um pedido sobre
+uma ficha não chega às outras da mesma pessoa. O resultado da exportação e
+do apagamento passa a listar as **fichas com o mesmo e-mail ou telefone**
+para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
+`AGENTS.md`; `eu-gdpr-privacy`, «Fusões e identidade»).
+
+### 15.6 Como entra no código
+
+- **Uma função só**, a da 0049 (`cliente_pseudonimizar`), passa a tratar
+  também os outros domínios, na mesma transacção e com a mesma marca
+  (`pseudonimizacao_em_curso`). Cada tabela que hoje recusa mudanças abre
+  **só** as colunas da §15.2, **só** para o marcador e **só** com a marca;
+  a API e o superutilizador continuam recusados (como na 0049).
+- O que fica (grupo A) não se toca: os gatilhos dos documentos fiscais não
+  ganham excepção nenhuma.
+- Um pedido é sempre sobre um cliente, decidido por uma pessoa com
+  `customers:privacy`, com a confirmação escrita — nunca em lote.
+- O resultado diz, por tabela, quantas linhas limpou, quantas ficaram e
+  porquê (obrigação fiscal; encomenda por acabar).
+- A tarefa da §15.3 e a limpeza das sessões (§15.4) registam cada passo no
+  `pedido_titular` ou num registo próprio, e avisam se pararem
+  (`observability-security`).
+- A exportação ganha as tabelas da coluna «Exportação» da §15.2.
+- Testes que falham sem a protecção: a encomenda acabada fica sem contacto
+  e morada; a em curso fica até acabar e depois limpa-se; o documento
+  emitido fica igual, byte a byte; a API não consegue abrir as colunas; a
+  sessão concluída fica sem dados; a de 8 dias também.
+
+### 15.7 Fica de fora
+
+- Os **prazos de guarda depois dos 10 anos** e a purga das encomendas
+  antigas por idade: dependem da Q4 do `docs/28` (jurista e contabilista).
+- A **limitação** (art. 18.º) noutros domínios: continua só na ficha (§12).
+- As **cópias de segurança**: o apagamento chega quando expiram (14 dias,
+  `docs/17` §3); fica dito na política de privacidade.
+- Os ecrãs no Hub: os pedidos do titular ainda não têm ecrã.
+
+### 15.8 Perguntas para o Diogo ou o Bruno
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q1 | Uma encomenda em curso: limpa-se logo ou quando acabar? | Quando acabar (§15.3): limpar o contacto de uma encomenda por expedir impede entregá-la — o contrato ainda está a ser cumprido |
+| Q2 | O perfil de faturação de uma encomenda **não paga** fica? | Não: só fica com documento emitido ou por emitir (encomenda paga). Uma não paga não gera fatura. **C**, contabilista — é o «critério mais estreito» que a §12 deixou em aberto |
+| Q3 | O aviso em bruto do prestador, depois de o pagamento acabar | Passa a resumo SHA-256 mais os campos não pessoais (id do evento, montante, referência, estado). Os campos exactos dependem do formato da EuPago — não verifiquei (**C**) |
+| Q4 | Os documentos fiscais na exportação, e o motivo da correcção de um documento | Na exportação: tipo, número, data, totais e o comprador como está no documento, sem os bytes do PDF (como os anexos da isenção, DN; **C**, jurista). O motivo da correcção fica (rasto do documento fiscal; **C**, contabilista) |
+
+### 15.9 Para o contabilista e o jurista (não bloqueiam o código; bloqueiam a produção)
+
+- Se os 10 anos valem também para a cópia de onde se emitiu
+  (`perfil_copia`) e para o PDF guardado (V10 do `docs/29`).
+- Se uma encomenda não paga precisa de guardar o NIF (Q2).
+- O prazo das sessões abandonadas (7 dias).
+- Se uma encomenda por acabar justifica que o apagamento fique completo
+  depois do mês do art. 12.º, n.º 3, do RGPD («no prazo de um mês»,
+  prorrogável até dois meses com aviso ao titular dentro do primeiro mês —
+  **W · texto lido**, EUR-Lex, 11/10/2026). A proposta: a resposta no mês
+  diz o que se limpou e o que espera pelo fim da encomenda, e porquê.
