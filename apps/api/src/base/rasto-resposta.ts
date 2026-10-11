@@ -32,6 +32,36 @@ export const IaDoRastoNaResposta = Type.Object(
   { description: "A participação de IA (docs/28 §3.3)" },
 );
 
+export const TIPOS_DE_AUTOR = [
+  "pessoa",
+  "agente",
+  "chave",
+  "consumidor",
+  "prestador",
+  "sistema",
+  "operador",
+  "desconhecido",
+] as const;
+export type TipoDeAutor = (typeof TIPOS_DE_AUTOR)[number];
+
+/**
+ * O que se diz de quem fez sem o identificar (docs/28 §3.6 e §3.8): o tipo
+ * de autor e o aviso. Vão também onde quem fez não se pode mostrar (o
+ * histórico de preços com `prices:read`, Q7).
+ */
+export const CamposDoAutor = {
+  tipo_de_autor: Type.Unsafe<TipoDeAutor>({
+    type: "string",
+    enum: [...TIPOS_DE_AUTOR],
+    description:
+      "pessoa: uma pessoa da equipa (também com IA declarada no pedido: quem executou foi ela); agente: uma chave de um agente de IA, ou uma chave com IA declarada no pedido; chave: uma chave sem IA declarada; consumidor: o cliente na compra (checkout:chk_…); prestador: o aviso de um prestador de pagamentos (prestador:…); sistema: uma tarefa do Eurolify ou uma consequência automática de outra alteração (sistema:…, catalogo:…); operador: o comando do operador; desconhecido: uma forma que esta lista não conhece (docs/28 §3.8)",
+  }),
+  sem_autorizacao_de_pessoa: Type.Union([Type.Boolean(), Type.Null()], {
+    description:
+      "Verdadeiro quando nenhuma pessoa ficou registada como quem autorizou, seja qual for a origem — um agente, uma chave, uma regra, uma importação ou uma tarefa (Diogo, 11/10/2026, docs/28 §3.6). Vazio (autorização desconhecida) numa linha sem contexto do rasto (`canal` vazio: de antes de 10/10/2026, ou escrita fora de um pedido): não se sabe se alguém autorizou, e não se afirma (RGPD, art. 5.º, n.º 1, al. d); Diogo, 11/10/2026, Q8). Calculado aqui: quem mostra não o recalcula",
+  }),
+};
+
 /** Os campos que cada entrada de uma linha do tempo ganha (docs/28 §1). */
 export const CamposDoRasto = {
   // Um texto com a lista em `enum` (não uma união de literais): um canal
@@ -51,6 +81,7 @@ export const CamposDoRasto = {
     "pessoa:per_… que confirmou a acção, separada de quem a executou; quando a pessoa age ela própria no Hub, é ela. Vazio: nenhuma pessoa do comerciante confirmou — uma chave nunca autoriza, o operador (operador:github:…) e as tarefas do sistema também não, e uma sessão do Hub com IA declarada não prova que a pessoa confirmou (docs/28 §3.2); com `canal` vazio, desconhecido",
   ),
   motivo: TextoOuVazio("O motivo, quando a operação o tem"),
+  ...CamposDoAutor,
 };
 
 export type RespostasDoRasto = {
@@ -59,6 +90,8 @@ export type RespostasDoRasto = {
 
 /** Uma linha de uma tabela do rasto (0053), como a base a devolve. */
 export interface LinhaComRasto {
+  /** Quem executou (`quem`, ou `definido_por` nos preços). */
+  quem: string;
   canal: string | null;
   pedido: string | null;
   ia: Record<string, string> | null;
@@ -67,6 +100,38 @@ export interface LinhaComRasto {
 }
 
 const ou = (v: string | undefined) => v ?? null;
+
+const PREFIXOS_DE_AUTOR: Partial<Record<string, TipoDeAutor>> = {
+  "pessoa:": "pessoa",
+  "checkout:": "consumidor",
+  "prestador:": "prestador",
+  "sistema:": "sistema",
+  "catalogo:": "sistema",
+  "operador:": "operador",
+};
+
+/** O tipo de autor e o aviso (docs/28 §3.6 e §3.8), sem identificar ninguém. */
+export function autorDoRasto(
+  l: Pick<LinhaComRasto, "quem" | "ia" | "autorizado_por" | "canal">,
+): { tipo_de_autor: TipoDeAutor; sem_autorizacao_de_pessoa: boolean | null } {
+  const declarada = l.ia?.prova === "declarado" || l.ia?.prova === "comprovado";
+  // As formas de `quem` que o código escreve (procuradas a 11/10/2026,
+  // revisão do #349, P2-1); uma nova sem lugar aqui sai «desconhecido».
+  const prefixo = l.quem.slice(0, l.quem.indexOf(":") + 1);
+  const tipo: TipoDeAutor =
+    prefixo === "chave:"
+      ? declarada
+        ? "agente"
+        : "chave"
+      : (PREFIXOS_DE_AUTOR[prefixo] ?? "desconhecido");
+  return {
+    tipo_de_autor: tipo,
+    // Uma pessoa registada: autorizou. Sem pessoa e com contexto: sem
+    // autorização. Sem contexto: desconhecido (Q8, docs/28 §3.6).
+    sem_autorizacao_de_pessoa:
+      l.autorizado_por !== null ? false : l.canal === null ? null : true,
+  };
+}
 
 export function respostasDoRasto(l: LinhaComRasto): RespostasDoRasto {
   const ia = l.ia;
@@ -88,5 +153,6 @@ export function respostasDoRasto(l: LinhaComRasto): RespostasDoRasto {
     },
     autorizado_por: l.autorizado_por,
     motivo: l.motivo,
+    ...autorDoRasto(l),
   };
 }

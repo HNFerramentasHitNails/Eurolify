@@ -18,6 +18,7 @@ export const AMBITOS = [
   "catalog:history",
   "prices:read",
   "prices:write",
+  "prices:history",
   "customers:read",
   "customers:write",
   "customers:billing",

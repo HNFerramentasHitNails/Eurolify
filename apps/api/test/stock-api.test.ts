@@ -987,7 +987,12 @@ describe.skipIf(URL_BASE === undefined)("API do stock e das expedições", () =>
     // A conclusão correu aqui fora do contexto do rasto (no servidor corre
     // com o canal «sistema»): canal vazio, desconhecido, mesmo sendo de hoje
     // (revisão do #345, P2-2); o motivo dela sai.
-    expect(linha.at(-1)).toMatchObject({ para: "concluida", canal: null });
+    expect(linha.at(-1)).toMatchObject({
+      para: "concluida",
+      canal: null,
+      // Sem contexto, a autorização é desconhecida (Q8, docs/28 §3.6).
+      sem_autorizacao_de_pessoa: null,
+    });
     expect(linha.at(-1)?.["motivo"]).toEqual(expect.any(String));
     for (const t of linha) {
       expect(Object.keys(t)).toEqual(
