@@ -29,7 +29,7 @@
 - **Revisão do agente** (`eurolify-critical-review`, Claude Sonnet 5.5): 0
   P0, 1 P1 (a autenticação recusada virava «falhada» à primeira), 6 P2, 10
   P3; tratados menos P3-3 e P3-9, escritos no `docs/34` §11.
-- **Juntado** a 11/10/2026 (`1f7031e`). **Publicado no ensaio:** CORRIDA.
+- **Juntado** a 11/10/2026 (`1f7031e`). **Publicado no ensaio:** corrida 38179747707 (`migrar: aplicadas 0067_notificacoes`; API, MCP e Hub a responder).
 
 ## Números (com data e como se contaram)
 
