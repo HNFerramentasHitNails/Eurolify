@@ -3890,6 +3890,17 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         }),
       ),
     ).toEqual([400, "returns.invalid_field"]);
+    // Uma linha de outra devolução não se decide aqui.
+    expect(
+      await codigo(
+        s.adm("POST", `/returns/${rma4}/decide`, {
+          versao: 3,
+          linhas: [{ linha: q1?.["id"], quantidade: 1 }],
+          motivo: "livre resolução",
+          higiene: [{ linha: m1?.["id"], decisao: "excepcao_higiene" }],
+        }),
+      ),
+    ).toEqual([400, "returns.invalid_field"]);
     // E a encomenda selada de antes continua selada (rma2 fechou com a
     // excepção quando o artigo ainda estava marcado).
     expect(
