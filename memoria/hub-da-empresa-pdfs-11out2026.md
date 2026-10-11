@@ -78,6 +78,11 @@ de gestão da empresa inteira, não só uma loja.
   `product-compliance-eu`; caso do TPO, 01/09/2025, W), com a consulta do que
   é afectado e o bloqueio decidido por uma pessoa; serve também quem revende.
   Depois, o registo de fabrico mínimo. Fora: programação, Gantt, capacidade.
+- **Formação (camada F) pelas 8 portas** (`docs/13` §16): ✅ ◐ ❔ ❔ ❌ ◐ ◐ ◐ →
+  **estreitar, pela porta da fatia 12**. Primeiro alvo: a inscrição numa
+  formação com data, com o kit na mesma encomenda. O cancelamento faturado dá
+  nota de crédito, nunca apaga a fatura (o Hub actual «anula»). Fora:
+  plataforma de cursos, prestações (C), comissões (C).
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,

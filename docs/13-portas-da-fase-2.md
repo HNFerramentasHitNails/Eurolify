@@ -51,6 +51,7 @@ grupo contam como **um** comprador.
 | Financeiro (camada D), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§13) |
 | Organização (camada E), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ◐ | ❌ | ◐ | **matar como módulo próprio**; duas peças vão para outros sítios (§14) |
 | Fabrico (camada F), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ✅ | ◐ | ◐ | **estreitar** (§15) |
+| Formação (camada F), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar**, pela porta da fatia 12 (§16) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -662,6 +663,66 @@ stock e encomendas por expedir.
 - **Ficam de fora:** a programação, o Gantt, as discrepâncias e a capacidade.
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.
+
+## 16. Formação — o segundo sector da camada F (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. É a
+**formação**: sequência 07 do `docs/31`, os módulos «Pedagógico», «Academia»,
+«Eventos» e «Portal do Formador» do Hub actual. Skills abertas:
+`digital-products-eu`, `consumer-rights-eu`, `eu-vat-oss-ioss`,
+`payments-psd2-sca` (prestações), `eurolify-contracts-operations-eu`
+(formadores).
+
+**O que o Hub actual faz** (proposta comercial do Hub, p. 15): a inscrição
+paga na academia avisa o Hub, que encontra ou cria a ficha do aluno, liga o
+perfil de faturação e regista a venda, sem duplicar se o aviso chegar duas
+vezes → o IVA vem do artigo (uma formação isenta sai isenta; um bilhete de
+evento leva IVA) → prestações acompanhadas → kits de formação pedidos por
+turma, como encomenda normal → cancelamento que viaja (anula a fatura e apaga
+o rascunho; o que falha fica como falha) → comissões dos formadores quando a
+inscrição está 100 % faturada → fecho da turma com o valor a pagar ao
+formador → leads e avaliações.
+
+**O que o Eurolify já tem:** a **fatia 12 (digital: conteúdo e serviço)**
+desenhada e **desligada até à sua porta** (ADR-0034;
+`eurolify/implementation-plan.md`: «os 16 testes da skill; jurista e
+contabilista; fornecedor perante o IVA decidido»). A skill
+`digital-products-eu` distingue o **serviço humano prestado à distância**
+(formação ao vivo) do conteúdo digital. O `docs/03` já tem cinco regras
+destes serviços, todas **W** por citação de pesquisa, texto não aberto (lugar
+da prestação de eventos e ensino; o ensino ao vivo por vídeo não é serviço
+electrónico; o bilhete como documento em PT; sem livre resolução nas
+actividades de lazer com data; o serviço começado dentro do prazo). A isenção
+de IVA da formação só aparece como o código `M07` (art. 9.º) no `docs/24`,
+**C**. Os kits já existem (migração 0004).
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ✅ | A plataforma de formação do grupo é um dos sistemas actuais: o preço vivia em **3 sítios**, um deles a plataforma de formação (lição 5.5 do `docs/04`); a pesquisa da academia dizia «não existe» a **40 % das fichas** pelo corte das 1.000 (12/08/2026, lição 4.7); a Klarna representou **58 pagamentos e 28.305 €** em 90 dias na plataforma de formação (lição 5.4) |
+| 2 Não resolvido | ◐ | As plataformas de cursos já existem (não verifiquei quais nem quanto custam) e o próprio grupo usa uma. **O que falta** é vender a inscrição com o IVA, a livre resolução e o documento fiscal certos, e o kit na mesma encomenda — o que a fatia 12 desenha |
+| 3 Gasto | ❔ | Fora do grupo, nenhum comerciante ouvido |
+| 4 Compradores | ❔ | As lojas do grupo contam como um |
+| 5 Alvo estreito | ❌ | Inscrições, plataforma de cursos, prestações, kits por turma, cancelamentos, comissões dos formadores, fecho da turma, leads e avaliações |
+| 6 Encaixe | ◐ | **Encaixa** na fatia 12 e nos kits. **Cuidados:** (a) as regras são todas **W** ou **C** — a isenção da formação, o IVA do bilhete, o lugar da prestação e a livre resolução de cada caso precisam do contabilista e do jurista (a porta da fatia 12); (b) **um documento emitido não se apaga**: no Eurolify, cancelar uma inscrição já faturada dá uma nota de crédito pela fila, por uma pessoa (`docs/29`), não «anula a fatura» como no Hub actual; (c) **as prestações** podem ser crédito ao consumidor — não verifiquei, **C**; (d) **as comissões dos formadores** são remuneração (**C**, como no §12) |
+| 7 Custo | ◐ | A inscrição numa formação com data, com o kit, é média e já está desenhada na fatia 12. A plataforma de cursos com progresso, as prestações e as comissões são fundas |
+| 8 Valor depressa | ◐ | A primeira inscrição vendida com o kit dá valor no primeiro dia, depois de a porta da fatia 12 abrir |
+
+**Saída: estreitar, pela porta da fatia 12.**
+
+- **Primeiro alvo:** **a inscrição numa formação com data** (presencial ou ao
+  vivo por vídeo) vendida como serviço, com o kit físico na mesma encomenda
+  quando houver. É uma parte da fatia 12: as mesmas regras, os mesmos testes da
+  skill e a mesma porta (contabilista e jurista). Um sector (quem dá formação),
+  um papel (quem vende as inscrições), um fluxo (inscrever e pagar).
+- **O cancelamento** de uma inscrição faturada segue a pós-venda que já existe
+  (nota de crédito pela fila, `docs/29` e `docs/30`), nunca o apagar da fatura.
+- **Ficam de fora:** a plataforma de cursos (as aulas, o progresso — o
+  comerciante usa a sua, ligada por adaptador como no Hub actual), as
+  prestações (**C**), as comissões e o fecho da turma (**C**), e as leads e
+  avaliações (camada C).
+
+Decidir se se avança, e quando abre a porta da fatia 12, é do Diogo ou do
+Bruno.
 
 ---
 
