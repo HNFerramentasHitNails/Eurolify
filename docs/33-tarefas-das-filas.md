@@ -1,6 +1,6 @@
 # Tarefas das filas que pedem uma pessoa — modelo e lista da API
 
-> **Estado: desenho aprovado** (issue #366; `docs/06`, DU). Diogo, 11/10/2026:
+> **Estado: desenho aprovado** (issue #366; `docs/06`, DV). Diogo, 11/10/2026:
 > *«começa o desenho da peça 21»* e *«sim, aprovo o desenho com as sete
 > filas»* (Q1 como proposta). É a peça 21 da Fase 1 (`docs/10`, 2,5–5
 > pessoas-semana desde a aprovação, **C**; eram 2–4 com quatro filas), que veio dos módulos de gestão pela decisão DS
@@ -138,7 +138,9 @@ caso quando foi decidido») e deixa de aparecer na lista.
   prazo e o motivo da mudança de prazo. **Nenhum dado do cliente** (nem nome,
   nem NIF, nem e-mail): esses vêem-se no ecrã da fila, com as permissões dela.
   O texto do motivo é livre: o Hub diz para não escrever dados de clientes
-  nele.
+  nele. Se mesmo assim os tiver, é um dos «textos livres» do grupo C
+  do `docs/23` §15.1 (decisão DU): **a ligar ao apagamento** quando o caso
+  for de um titular que o peça — por verificar no código da parte 1.
 - **Exportação do titular:** a atribuição não tem dados do cliente; o caso
   exporta-se pelo domínio dele. **Proposta:** não entra na exportação.
 - **Apagamento do titular:** pseudonimizar a ficha não muda a atribuição.

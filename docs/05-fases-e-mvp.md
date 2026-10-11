@@ -32,7 +32,7 @@
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
 | Modelo de receita (D-14) — a base é precisa antes da Fase 1, porque se vende desde o início; os preços, antes da peça 13 (ADR-0012) | **base decidida** (ADR-0007: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, depois das conversas com comerciantes |
 | Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
-| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; tempo por fases em `10-estimativa-prazo-e-custo.md` §9 (Fase 1: 18 a 33 meses a tempo inteiro, 32 a 60 a meio tempo — recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS e as sete filas da peça 21, decisão DU; a 04/10/2026, com as três da decisão AD), corrigido às 8 semanas (§6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
+| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; tempo por fases em `10-estimativa-prazo-e-custo.md` §9 (Fase 1: 18 a 33 meses a tempo inteiro, 32 a 60 a meio tempo — recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS e as sete filas da peça 21, decisão DV; a 04/10/2026, com as três da decisão AD), corrigido às 8 semanas (§6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
 
 **Critério de passagem** (mudado a 03/10/2026, ADR-0012): a D-13 decidida
 (ADR-0008), a base da D-14 decidida (ADR-0007) e o OK escrito do Bruno ou do
@@ -86,11 +86,11 @@ pela lista da API dele escritos em tabela.
 - **Duas peças que vieram dos módulos de gestão** (decisão DS,
   [ADR-0043](adr/0043-saidas-das-portas-dos-modulos-de-gestao.md),
   11/10/2026; estimadas no mesmo dia, **C**: 2,5–5 e 1–2 pessoas-semana,
-  `docs/10` §2; a 21 era 2–4 antes do desenho, decisão DU):
+  `docs/10` §2; a 21 era 2–4 antes do desenho, decisão DV):
   - **as tarefas das filas que pedem uma pessoa** — dono, prazo, estado e
     aviso ao vencer nas filas da Fase 1 (diferenças dos pagamentos, documentos
     retidos, incertos e divergentes, candidatos a duplicado, prazo do
-    reembolso e, pela decisão DU, pedidos de livre resolução pendentes ou
+    reembolso e, pela decisão DV, pedidos de livre resolução pendentes ou
     fora de prazo, problemas abertos e reembolsos incertos ou falhados),
     decididas uma a uma no ecrã de cada fila (`docs/13` §10; desenho no
     `docs/33`);
