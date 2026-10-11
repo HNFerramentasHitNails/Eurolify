@@ -1351,20 +1351,49 @@ export async function listarDevolucoes(
   },
 ) {
   return noPosVenda(db, c, (trx) => {
+    // Primeiro as devoluções (com o limite, sem o filtro do prazo), e só
+    // depois o prazo de cada uma: a função não corre para todas as do
+    // comerciante (revisão do #353, P2-3). Com o filtro, só as de livre
+    // resolução abertas entram.
+    let base = trx
+      .selectFrom("devolucao")
+      .select([
+        "id",
+        "encomenda_id",
+        "origem",
+        "estado",
+        "versao",
+        "criada_em",
+      ]);
+    if (filtro.estado !== undefined) {
+      base = base.where("estado", "=", filtro.estado);
+    }
+    if (filtro.encomenda !== undefined) {
+      base = base.where("encomenda_id", "=", filtro.encomenda);
+    }
+    if (filtro.prazoReembolso === undefined) {
+      base = base.orderBy("criada_em", "desc").orderBy("id", "desc").limit(200);
+    } else {
+      base = base
+        .where("pedido_livre_resolucao_id", "is not", null)
+        .where("estado", "not in", ["fechada", "cancelada"]);
+    }
     let q = trx
-      .selectFrom("devolucao as d")
+      .selectFrom(base.as("d"))
       .leftJoinLateral(
         (eb) =>
           eb
             .selectFrom(
               sql<{
                 ate: string;
-                dias: number;
+                dias: number | null;
+                a_avisar: boolean;
               }>`posvenda_prazo_da_devolucao(d.id)`.as("x"),
             )
             .select([
               sql<string>`to_char(x.ate, 'YYYY-MM-DD')`.as("ate"),
               "x.dias",
+              "x.a_avisar",
             ])
             .as("p"),
         (j) => j.onTrue(),
@@ -1382,18 +1411,11 @@ export async function listarDevolucoes(
       .orderBy("d.criada_em", "desc")
       .orderBy("d.id", "desc")
       .limit(200);
-    if (filtro.estado !== undefined) {
-      q = q.where("d.estado", "=", filtro.estado);
-    }
-    if (filtro.encomenda !== undefined) {
-      q = q.where("d.encomenda_id", "=", filtro.encomenda);
-    }
     if (filtro.prazoReembolso !== undefined) {
-      // Só as que ainda esperam pelo reembolso (A1): abertas.
-      q = q.where("d.estado", "not in", ["fechada", "cancelada"]);
+      // O limiar é o da base (posvenda_dias_de_aviso), não um número aqui.
       q =
         filtro.prazoReembolso === "a_acabar"
-          ? q.where("p.dias", ">=", 0).where("p.dias", "<=", 3)
+          ? q.where("p.a_avisar", "=", true)
           : q.where("p.dias", "<", 0);
     }
     return q.execute();

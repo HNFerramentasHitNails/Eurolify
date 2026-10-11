@@ -13,8 +13,6 @@ import { marcar, noPosVenda } from "./repositorio.js";
 // (`refund.deadline_passed`). O evento põe-no o gatilho da base; aqui só se
 // marca a devolução. Sem e-mail até haver notificações (A4).
 
-/** Os dias antes do fim em que se avisa (A3; proposta, não lei). */
-export const DIAS_DE_AVISO = 3;
 export const QUEM_DA_TAREFA = "sistema:prazos";
 const POR_VOLTA = 50;
 
@@ -22,11 +20,18 @@ export interface ResultadoPrazos {
   avisados: number;
   passados: number;
   reagendados: number;
-  /** Os comerciantes cuja volta falhou: não pára os outros, mas diz-se. */
+  /**
+   * As devoluções cuja vez falhou (`comerciante/devolução: código`): não
+   * param as outras, mas dizem-se (revisão do #353, P3-3).
+   */
   erros: string[];
 }
 
-/** Uma volta: os avisos que chegaram à hora, em cada comerciante. */
+/**
+ * Uma volta: os avisos que chegaram à hora, em cada comerciante. A regra (o
+ * prazo, o limiar dos 3 dias, a devolução ainda à espera) está na base
+ * (`posvenda_prazo_da_devolucao`), que também recusa um aviso fora de hora.
+ */
 export async function correrAvisosDePrazo(
   db: Kysely<BaseDados>,
   porVolta = POR_VOLTA,
@@ -41,61 +46,90 @@ export async function correrAvisosDePrazo(
     c: string;
   }>`select posvenda_prazo_comerciantes() as c`.execute(db);
   for (const { c } of rows) {
-    // Um comerciante que falhe não pára os outros (como as conclusões).
+    let lista: { id: string; origem: OrigemDaTarefa | null }[];
     try {
-      await noPosVenda(db, c, async (trx) => {
-        const { rows: lista } = await sql<{
-          id: string;
-          origem: OrigemDaTarefa | null;
-          dias: number | null;
-          aviso_prazo_em: Date | null;
-        }>`select t as id, tarefa_origem('prazo_reembolso', t) as origem, x.dias,
-             d.aviso_prazo_em
-           from posvenda_prazo_tarefas(${porVolta}) as t
-           join devolucao d on d.id = t
-           left join lateral posvenda_prazo_da_devolucao(t) x on true`.execute(
-          trx,
-        );
-        for (const d of lista) {
-          // Cada aviso com a origem de quem pediu (docs/28 §3.7).
-          await aplicarRasto(trx, contextoDaTarefa("prazos", d.origem));
+      lista = await noPosVenda(
+        db,
+        c,
+        async (trx) =>
+          (
+            await sql<{
+              id: string;
+              origem: OrigemDaTarefa | null;
+            }>`select t as id, tarefa_origem('prazo_reembolso', t) as origem
+             from posvenda_prazo_tarefas(${porVolta}) as t`.execute(trx)
+          ).rows,
+      );
+    } catch (erro) {
+      res.erros.push(`${c}: ${codigoDe(erro)}`);
+      continue;
+    }
+    // Cada devolução na sua transacção: uma que falhe não desfaz as outras.
+    for (const { id, origem } of lista) {
+      try {
+        await noPosVenda(db, c, async (trx) => {
+          // Com a origem de quem pediu (docs/28 §3.7).
+          await aplicarRasto(trx, contextoDaTarefa("prazos", origem));
           await marcar(trx, QUEM_DA_TAREFA);
-          if (d.dias !== null && d.dias < 0) {
-            // Passou (os dois de uma vez, se a tarefa não correu a tempo:
-            // sai só o de passado).
-            await trx
-              .updateTable("devolucao")
-              .set({ prazo_passado_em: new Date() })
-              .where("id", "=", d.id)
-              .where("prazo_passado_em", "is", null)
-              .execute();
-            res.passados += 1;
-          } else if (
-            d.dias !== null &&
-            d.dias <= DIAS_DE_AVISO &&
-            d.aviso_prazo_em === null
+          const prazo = (
+            await sql<{
+              dias: number | null;
+              a_avisar: boolean;
+            }>`select x.dias, x.a_avisar
+               from posvenda_prazo_da_devolucao(${id}::uuid) x`.execute(trx)
+          ).rows[0];
+          // O `where` volta a conferir depois do bloqueio da linha: uma
+          // devolução cancelada ou fechada entretanto, ou outra volta ao
+          // mesmo tempo, não marca nada (revisão do #353, P2-1 e P2-2).
+          if (
+            prazo?.dias !== null &&
+            prazo?.dias !== undefined &&
+            prazo.dias < 0
           ) {
-            await trx
+            // Passou (se a tarefa não correu a tempo do primeiro, sai só o
+            // de passado).
+            const r = await trx
               .updateTable("devolucao")
-              .set({ aviso_prazo_em: new Date() })
-              .where("id", "=", d.id)
-              .execute();
-            res.avisados += 1;
-          } else if (d.dias !== null) {
-            // Cedo de mais: volta à hora do próximo aviso.
-            await sql`select posvenda_prazo_reagendar(${d.id}::uuid)`.execute(
+              .set({ prazo_passado_em: sql<Date>`now()` })
+              .where("id", "=", id)
+              .where("estado", "not in", ["fechada", "cancelada"])
+              .where("prazo_passado_em", "is", null)
+              .executeTakeFirst();
+            res.passados += Number(r.numUpdatedRows);
+          } else if (prazo?.a_avisar === true) {
+            const r = await trx
+              .updateTable("devolucao")
+              .set({ aviso_prazo_em: sql<Date>`now()` })
+              .where("id", "=", id)
+              .where("estado", "not in", ["fechada", "cancelada"])
+              .where("aviso_prazo_em", "is", null)
+              .executeTakeFirst();
+            res.avisados += Number(r.numUpdatedRows);
+            if (Number(r.numUpdatedRows) === 0) {
+              await sql`select posvenda_prazo_reagendar(${id}::uuid)`.execute(
+                trx,
+              );
+            }
+          } else {
+            // Cedo de mais (ou já sem hora): volta à hora do próximo aviso.
+            await sql`select posvenda_prazo_reagendar(${id}::uuid)`.execute(
               trx,
             );
             res.reagendados += 1;
           }
-        }
-      });
-    } catch (erro) {
-      res.erros.push(erro instanceof Error ? erro.name : "erro");
+        });
+      } catch (erro) {
+        res.erros.push(`${c}/${id}: ${codigoDe(erro)}`);
+      }
     }
   }
   return res;
 }
+
+const codigoDe = (erro: unknown) =>
+  erro instanceof Error
+    ? (/^[a-z_]+\.[a-z_]+/.exec(erro.message)?.[0] ?? erro.name)
+    : "erro";
 
 export function agendarAvisosDePrazo(
   base: Kysely<BaseDados>,
@@ -134,7 +168,27 @@ export function agendarAvisosDePrazo(
     60 * 60 * 1000,
   );
   t.unref();
+  // A primeira volta pouco depois do arranque, não uma hora depois (P3-8).
+  const primeira = setTimeout(() => {
+    if (aCorrer) return;
+    aCorrer = true;
+    correrAvisosDePrazo(base)
+      .then((r) => {
+        if (r.erros.length > 0) {
+          registo.error(
+            { erros: r.erros },
+            "pós-venda: avisos do prazo com erros",
+          );
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        aCorrer = false;
+      });
+  }, 60_000);
+  primeira.unref();
   return () => {
     clearInterval(t);
+    clearTimeout(primeira);
   };
 }

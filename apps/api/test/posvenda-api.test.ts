@@ -3076,7 +3076,11 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       await sql`alter table pedido_livre_resolucao disable trigger pedido_livre_resolucao_antes_de_gravar`.execute(
         t,
       );
-      await sql`update pedido_livre_resolucao set recebido_em = now() - make_interval(days => ${dias})
+      // Ao meio-dia de Lisboa, há `dias` dias de calendário: longe da
+      // meia-noite e da mudança de hora (revisão do #353).
+      await sql`update pedido_livre_resolucao
+        set recebido_em = (((now() at time zone 'Europe/Lisbon')::date - ${dias}::int)::timestamp
+          + interval '12 hours') at time zone 'Europe/Lisbon'
         where id = (select pedido_livre_resolucao_id from devolucao where id = ${rma.slice(4)}::uuid)`.execute(
         t,
       );
@@ -3163,6 +3167,21 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(JSON.stringify(ev)).not.toContain("rui@exemplo.pt");
     expect(await naLista(s, "a_acabar")).toContain(rma);
     expect(await naLista(s, "passado")).not.toContain(rma);
+    // Avisado, a tarefa volta no início do dia seguinte ao último (Lisboa).
+    const quando = (await tarefaDoPrazo(rma))?.quando;
+    const ate = String(
+      (await ok(s.adm("GET", `/returns/${rma}`)))["reembolsar_ate"],
+    );
+    const { rows: hora } = await sql<{ esperada: Date }>`
+      select ((${ate}::date + 1)::timestamp at time zone 'Europe/Lisbon') as esperada`.execute(
+      base.dono,
+    );
+    expect(quando?.getTime()).toBe(hora[0]?.esperada.getTime());
+    // Outra volta que a leia já avisada (a corrida): não avisa outra vez.
+    await sql`update tarefa_prazo_reembolso set quando = now()
+      where devolucao_id = ${rma.slice(4)}::uuid`.execute(base.dono);
+    expect((await prazos()).avisados).toBe(0);
+    expect((await eventosDoPrazo(s, rma)).length).toBe(1);
     // Passou: o segundo aviso, uma vez, e a tarefa acaba.
     await pedidoHaDias(rma, 15);
     await prazos();
@@ -3284,5 +3303,137 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     await pedidoHaDias(rma, 20);
     await prazos();
     expect(await eventosDoPrazo(s, rma)).toEqual([]);
+  });
+
+  it("revisão do #353: passado sem o aviso, duas voltas ao mesmo tempo, a base recusa fora de hora e na cancelada, anulado continua à espera, fora de prazo sem aviso", async () => {
+    const s = await cenario();
+    const e = await paga(s, [[s.v1, 2]]);
+    const [linha] = await expedir(s, e.encomenda);
+    const pedirUma = async () => {
+      const w = await ok(
+        pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+          linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        }),
+        201,
+      );
+      return String(
+        (await ok(s.adm("GET", `/withdrawals/${String(w["pedido"])}`)))[
+          "devolucao"
+        ],
+      );
+    };
+    const comoPessoa = (
+      fn: (
+        t: Parameters<Parameters<typeof comComerciante>[2]>[0],
+      ) => Promise<unknown>,
+    ) =>
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+          trx,
+        );
+        await fn(trx);
+      });
+    // A base recusa um aviso fora de hora (faltam 14 dias).
+    const a = await pedirUma();
+    await expect(
+      comoPessoa((t) =>
+        t
+          .updateTable("devolucao")
+          .set({ aviso_prazo_em: new Date() })
+          .where("id", "=", a.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(/ainda não é hora do aviso/);
+    // Passado sem o primeiro aviso (a tarefa não correu): sai só o de
+    // passado, e duas voltas ao mesmo tempo dão um evento.
+    await pedidoHaDias(a, 16);
+    const [r1, r2] = await Promise.all([
+      correrAvisosDePrazo(base.api),
+      correrAvisosDePrazo(base.api),
+    ]);
+    expect([...r1.erros, ...r2.erros]).toEqual([]);
+    expect(r1.passados + r2.passados).toBe(1);
+    expect((await eventosDoPrazo(s, a)).map((x) => x.tipo)).toEqual([
+      "refund.deadline_passed",
+    ]);
+    // A outra volta que leu a tarefa antes de ela sair (a corrida): não
+    // marca outra vez, não dá erro, não sai outro evento.
+    await sql`insert into tarefa_prazo_reembolso (devolucao_id, comerciante_id, quando)
+      values (${a.slice(4)}::uuid, ${s.c}::uuid, now())`.execute(base.dono);
+    const r3 = await correrAvisosDePrazo(base.api);
+    expect(r3.erros).toEqual([]);
+    expect(r3.passados).toBe(0);
+    expect((await eventosDoPrazo(s, a)).map((x) => x.tipo)).toEqual([
+      "refund.deadline_passed",
+    ]);
+    // Numa cancelada, a base recusa marcar (a corrida com o cancelamento).
+    await ok(
+      s.adm("POST", `/returns/${a}/cancel`, { versao: 1, motivo: "desistiu" }),
+    );
+    // Fechada ou cancelada, já não conta os dias.
+    expect(
+      (await ok(s.adm("GET", `/returns/${a}`)))["dias_para_reembolsar"],
+    ).toBeNull();
+    const b = await pedirUma();
+    await pedidoHaDias(b, 12);
+    await ok(
+      s.adm("POST", `/returns/${b}/cancel`, { versao: 1, motivo: "desistiu" }),
+    );
+    await expect(
+      comoPessoa((t) =>
+        t
+          .updateTable("devolucao")
+          .set({ aviso_prazo_em: new Date() })
+          .where("id", "=", b.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(/já não espera/);
+    // Um reembolso anulado: a devolução volta a inspeccionada e a tarefa fica.
+    const e2 = await paga(s, [[s.v1, 1]]);
+    const [l2] = await expedir(s, e2.encomenda);
+    const rma = await devolvidaEInspeccionada(s, e2.token, [
+      { linha: l2?.["id"], quantidade: 1 },
+    ]);
+    const d = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: l2?.["id"], quantidade: 1 }],
+        motivo: "livre resolução",
+      }),
+      201,
+    );
+    expect(await tarefaDoPrazo(rma)).not.toBeNull();
+    await ok(
+      s.adm("POST", `/refunds/${String(d["reembolso"])}/cancel`, {
+        versao: (await reembolso(s, String(d["reembolso"])))["versao"],
+        motivo: "decisão errada",
+      }),
+    );
+    expect((await ok(s.adm("GET", `/returns/${rma}`)))["estado"]).toBe(
+      "inspeccionada",
+    );
+    expect(await tarefaDoPrazo(rma)).not.toBeNull();
+    // Um pedido fora de prazo aceite pela loja: sem prazo legal, sem tarefa.
+    const e3 = await paga(s, [[s.v1, 1]]);
+    const [l3] = await expedir(s, e3.encomenda);
+    await entregueHa(e3.encomenda, 20);
+    const w = await ok(
+      pedir("POST", `/store/orders/${e3.token}/withdrawal`, {
+        linhas: [{ linha: l3?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    const aceite = await ok(
+      s.adm("POST", `/withdrawals/${String(w["pedido"])}/decide`, {
+        versao: 1,
+        decisao: "aceitar",
+        motivo: "gesto comercial",
+      }),
+    );
+    const fora = String(aceite["devolucao"]);
+    expect(
+      (await ok(s.adm("GET", `/returns/${fora}`)))["reembolsar_ate"],
+    ).toBeNull();
+    expect(await tarefaDoPrazo(fora)).toBeNull();
   });
 });

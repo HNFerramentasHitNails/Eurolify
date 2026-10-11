@@ -352,14 +352,15 @@ reembolsa por API; se não, o reembolso é manual.
 - **O IBAN não se guarda** (a §3.4 dizia «cifrado»): a prova é a data e a
   referência da transferência.
 - **R10**: a devolução mostra `reembolsar_ate` e `dias_para_reembolsar`
-  (14 dias do pedido, **C**); **por fazer** a tarefa que avisa antes do fim.
+  (14 dias do pedido, **C**); a tarefa que avisa antes do fim entrou depois
+  (§14).
 - **Encomenda devolvida** só a partir de `entregue` ou `concluida`: uma
   expedição ainda a caminho não fica presa a um estado de devolução.
 - **Com sistema próprio** não há fatura no Eurolify, logo não há NC: é o
   sistema do comerciante que a emite (D-10).
-- **Por fazer:** o reembolso pelo adaptador (parte 2, §13), o aviso do prazo do
-  reembolso (R10), a marca «selado por higiene», o jurista (J1 a J5) e o
-  contabilista (C1 a C4).
+- **Por fazer:** o reembolso pelo adaptador (parte 2, §13, feito), o aviso do
+  prazo do reembolso (R10, §14, feito), a marca «selado por higiene», o
+  jurista (J1 a J5) e o contabilista (C1 a C4).
 
 **Correcções da revisão do #329** (Sonnet 5.5; 0 P0, 4 P1, 11 P2, 11 P3):
 - **Linhas repetidas** (P1-1): a decisão recusa a mesma linha duas vezes; a
@@ -537,8 +538,9 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
   impasse, se houver, aborta um dos lados e o aviso volta); `refund.created`
   sai outra vez a cada regresso a `a_executar` (como na parte 1); um só
   âmbito (`refunds:write`) para decidir, pagar e reconciliar (Q6).
-- **Por fazer:** o aviso do prazo do reembolso (R10) e a marca «selado por
-  higiene» (R4), em pedidos seus; a sandbox (V7 a V10) antes do modo real.
+- **Por fazer:** o aviso do prazo do reembolso (R10; feito na §14) e a marca
+  «selado por higiene» (R4), em pedidos seus; a sandbox (V7 a V12) antes do
+  modo real.
 
 ## 14. O aviso do prazo do reembolso (R10; desenho, 11/10/2026)
 
@@ -586,7 +588,8 @@ dizer **a quem e como**.
 | `tarefa_prazo_reembolso`, interna, com a origem de quem pediu (0060): entra com a devolução de livre resolução, sai quando ela fecha (o reembolso executado fecha-a), se cancela ou passa o prazo; as que já estavam abertas entram na migração | migração 0062 |
 | a tarefa de hora a hora: avisa, marca o passado, ou reagenda se olhou cedo; um comerciante que falhe fica no registo e não pára os outros | `src/posvenda/prazo.ts`; `servidor.ts` |
 | `GET /returns?prazo_reembolso=a_acabar` ou `passado`, e a lista mostra `reembolsar_ate` e `dias_para_reembolsar` | `src/posvenda/rotas.ts` |
-| 2 testes pela API; 12 mutações, todas apanhadas | `test/posvenda-api.test.ts` |
+| `posvenda_dias_de_aviso()`: o limiar dos 3 dias num sítio só, que a hora do aviso, a tarefa e a lista usam; a base recusa um aviso fora de hora ou numa devolução fechada ou cancelada | migração 0062 |
+| 3 testes pela API (2 e 1 da revisão do #353); 17 mutações, 16 apanhadas e uma equivalente (o filtro do estado na lista, que a base já garante) | `test/posvenda-api.test.ts` |
 
 **Desvios do desenho:**
 - **O prazo passou a contar no fuso do comerciante também na leitura da
@@ -594,6 +597,30 @@ dizer **a quem e como**.
   dava prazo a 15/10 e passa a dar 16/10.
 - **Se a tarefa não correu a tempo** e o prazo já passou sem o primeiro aviso,
   sai só o de passado.
+- **Um pedido feito fora do prazo e aceite pela loja** (um gesto comercial)
+  **não tem aviso nem prazo de reembolso**: o prazo legal pressupõe uma livre
+  resolução no prazo (A1; revisão do #353, P2-4; **C**, J4). Sem isto, o
+  primeiro aviso seria «passou» no momento em que a loja aceita.
+- **Fechada ou cancelada, a devolução já não conta os dias**
+  (`dias_para_reembolsar` nulo); o último dia continua a ver-se.
+- **Os eventos chamam-se `refund.…` mas são da devolução**
+  (`agregado_tipo = devolucao`, o `id` é o `rma_`): quem os juntar a um
+  reembolso tem de ir pela devolução.
+- **A origem de quem pediu** fica na tarefa e corre com ela (`docs/28` §3.7),
+  mas a devolução não tem tabela de rasto: a marca não guarda o
+  `a_pedido_de` (só a hora).
+- **A6 («a devolução mostra se já voltou»)** é o `estado` dela, que também vai
+  no evento (`a_aguardar` = ainda não voltou).
+- **Correcções da revisão do #353** (Sonnet 5.5; 0 P0, 0 P1, 4 P2, 8 P3): a
+  marca só numa devolução aberta e só se ainda não estiver posta (P2-1, P2-2;
+  a base também o recusa, P3-2); a lista põe o limite antes de calcular o
+  prazo (P2-3; não medido com volume); o pedido fora de prazo (P2-4, acima);
+  o limiar num sítio (P3-1); cada devolução na sua transacção, com o
+  comerciante, a devolução e o código no registo do erro (P3-3); sem hora
+  possível, a tarefa volta daqui a um dia (P3-4); a hora da base (P3-6); a
+  primeira volta um minuto depois do arranque e `lock_timeout` na migração
+  (P3-8). Ficam: um teste que garanta um ramo da `tarefa_origem` por fila
+  (P3-8), e o desempenho medido com volume.
 - **Por fazer:** o e-mail ao comerciante (quando houver notificações) e o
   ecrã do Hub (quando houver a pós-venda no Hub).
 
