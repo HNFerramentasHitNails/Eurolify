@@ -24,6 +24,10 @@ de gestão da empresa inteira, não só uma loja.
   falta a ligação ao stock, aos preços e aos clientes do Eurolify. Primeiro
   alvo: a ligação a um POS certificado, que emite ele o documento (como a
   D-10). Antes: ler a API do Moloni e falar com 5 comerciantes com loja física.
+  **Substituído pela DT (ADR-0044), 11/10/2026:** *«O POS será utilizado o do
+  hub. O Moloni é só para facturação»* — o balcão vende pelo POS do Hub do
+  Eurolify e o Moloni só emite as faturas. O custo da porta 7 fica aceite; a
+  contingência sem rede vai ao contabilista (C); construir o POS por estimar.
 
 - **A API do Moloni lida** (pedido do Diogo, *«sim, lê a API do Moloni»*):
   14 páginas de `moloni.pt/dev` e a da app na App Store, em

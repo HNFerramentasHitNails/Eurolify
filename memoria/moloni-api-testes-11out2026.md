@@ -53,4 +53,8 @@
 - Se os terminais da demonstração são a app «Moloni POS» de iPhone.
 - Limites por hora ou por dia; o filtro por dia dos movimentos (`date` não
   limitou).
-- Se os documentos da demonstração e da conta trial seguem para a AT.
+- ~~Se os documentos da demonstração e da conta trial seguem para a AT~~ — o
+  Diogo disse, a 11/10/2026, que os das contas de teste não vão (dito por ele;
+  a resposta do Moloni não foi vista na sessão).
+- **DT (ADR-0044), 11/10/2026:** o balcão vende pelo POS do Hub e o Moloni só
+  emite as faturas; ler vendas e stock do Moloni deixou de ser o plano.

@@ -1,6 +1,6 @@
 # ADR-0043 · As saídas das 8 portas dos módulos de gestão, e duas peças para a Fase 1
 
-- **Estado:** aceite
+- **Estado:** aceite · a saída do balcão foi substituída pelo ADR-0044 (DT, 11/10/2026)
 - **Data:** 11/10/2026
 - **Quem decidiu:** Diogo (*«sim, aprovo as saídas todas»*)
 - **Decisão em aberto de origem:** as saídas do `docs/13-portas-da-fase-2.md`
@@ -33,7 +33,8 @@ todos (`docs/13`, «O que vale para todos»). O guião das conversas está no
 **As saídas do `docs/13` §7 a §19 ficam aprovadas, tal como estão escritas.**
 Em resumo:
 
-1. **Estreitar** (nove): o balcão, compras e fornecedores, apoio ao cliente,
+1. **Estreitar** (nove): o balcão (*substituída pelo ADR-0044: o balcão
+   vende pelo POS do Hub e o Moloni só emite as faturas*), compras e fornecedores, apoio ao cliente,
    painéis, comercial, financeiro, fabrico, formação (pela porta da fatia 12) e
    parceiros — cada um com o primeiro alvo da sua secção, e o resto fora ou a
    investigar.

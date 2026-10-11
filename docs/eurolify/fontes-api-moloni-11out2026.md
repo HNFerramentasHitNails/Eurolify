@@ -120,6 +120,11 @@ Eurolify que escreva no stock do Moloni**, para a app não vender o que a loja
 online já reservou. O atraso entre uma venda ao balcão e a loja online saber
 dela é o intervalo das perguntas — **não medido**.
 
+> **Actualização, 11/10/2026 (DT, ADR-0044):** a ligação do balcão a um POS de
+> fora saiu do primeiro alvo — o balcão vende pelo POS do Hub do Eurolify e o
+> Moloni **só emite as faturas**. O parágrafo acima fica para se ver o que se
+> pensou; o Eurolify não lê vendas nem stock do Moloni.
+
 ## 6. O que serve à fatia 10 (`docs/29`, Q5)
 
 - O mesmo fluxo de autenticação (`authorization_code`, 1 hora / 14 dias,
@@ -144,6 +149,10 @@ dela é o intervalo das perguntas — **não medido**.
   antes de o Moloni confirmar que os documentos dela não seguem para a
   Autoridade Tributária (*«sim, concordo»*, 11/10/2026). A conta trial é,
   provavelmente, uma empresa normal, não a sandbox; não verificado.
+  **Actualização, 11/10/2026:** o Diogo disse que *«os documentos das contas
+  de teste não vão para a Autoridade Tributária»*. Fica escrito como dito por
+  ele; a resposta do Moloni não foi vista nesta sessão. A proibição de fechar
+  documentos na conta trial cai; escrever continua a pedir o OK de cada vez.
 - Uma captura do API Explorer da conta antiga (subscrição expirada) mostrou um
   `access_token` e um `refresh_token` no chat, a 11/10/2026. **Não se usam.**
   A cópia local da imagem foi apagada; o modo de revogar um `refresh_token` não
@@ -182,7 +191,8 @@ com as variáveis `MOLONI_*`; o token nunca foi impresso.
 
 O código ATCUD dos documentos da demonstração começa por `AAAAAAAA`
 (ex.: `AAAAAAAA2B-26`), o que **sugere** séries não comunicadas à AT; **não
-verificado** — a pergunta ao Moloni (§7, regras) continua de pé.
+verificado** pela API; o Diogo disse a 11/10/2026 que os documentos das contas
+de teste não vão para a AT (§7, regras).
 
 | # | Pergunta | Resposta | Como se mediu |
 |---|---|---|---|
@@ -195,7 +205,10 @@ verificado** — a pergunta ao Moloni (§7, regras) continua de pé.
 | 7 | O token aceita-se no cabeçalho `Authorization`? | **Não.** `Authorization: Bearer …` e o token cru dão 401 «Invalid access token»; no corpo JSON, 401; no corpo de formulário, o pedido passa mas **sem identidade** (`companies/getAll` devolve lista vazia). **Só funciona na query string** — tapar o token nos registos é obrigatório (§1) | cinco variantes contra `documents/count` e `companies/getAll` |
 | 8 | Limite de pedidos na prática | **Nenhum encontrado até ~1400 pedidos/minuto durante 9 segundos.** 100 seguidos (40,6 s, 0,41 s cada) e 200 com 10 em paralelo (8,6 s): todos 200. **Sem cabeçalhos de limite** (nem `X-RateLimit`, nem `Retry-After`). Um limite por hora ou por dia **não foi medido**; não forcei mais numa conta partilhada | 300 pedidos a `documents/count` |
 
-**O que isto muda no desenho:**
+**O que isto muda no desenho** (escrito antes da DT; com o ADR-0044, o balcão
+vende pelo POS do Hub e os dois primeiros pontos deixam de servir o balcão —
+ficam como prova do que a API faz; o segundo continua a valer para a emissão:
+cada fatura emitida baixa o stock do Moloni, que o Eurolify não lê):
 
 - **O balcão é legível**: as vendas do POS chegam com `terminal_id` e as
   linhas trazem artigo, referência e armazém. Separar «balcão» de «resto»
@@ -223,5 +236,6 @@ verificado** — a pergunta ao Moloni (§7, regras) continua de pé.
 **O que ficou por verificar:** o significado do `status` 2; se os
 terminais vistos são a app «Moloni POS»; limites por hora ou por dia; o nome
 do filtro por dia do `productStocks/getAll` — o `date` que usei **não
-limitou** (11 dias × 1000 movimentos = o tecto que pus); se os documentos da
-demonstração têm validade fiscal.
+limitou** (11 dias × 1000 movimentos = o tecto que pus). ~~Se os documentos da
+demonstração têm validade fiscal~~ — o Diogo disse a 11/10/2026 que os das
+contas de teste não vão para a AT.
