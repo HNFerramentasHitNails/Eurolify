@@ -1039,7 +1039,8 @@ tem nada aberto na pós-venda (livre resolução `pendente` ou `fora_de_prazo`,
 à espera da decisão de uma pessoa; devolução que não
 esteja `fechada` nem `cancelada`, problema que não esteja `fechado`,
 reembolso que não esteja `executado` nem `cancelado`; 0058, linhas 260, 322,
-459 e 515).
+459 e 515), nem pagamento vivo ou incerto, nem diferença de pagamento por
+resolver (ex.: pago depois de cancelada; revisão do #374, P2-3).
 
 - No pedido de apagamento, as encomendas acabadas limpam-se logo; as outras
   ficam numa fila com o pedido (`pedido_titular`), e o resultado diz quantas
@@ -1057,7 +1058,9 @@ Procurar a da Ana pelo e-mail seria decidir identidade por um sinal que só
 diz «talvez». Em vez disso, por prazo (o que o `docs/25` §7 já propunha):
 
 - **sessão concluída**: os dados pessoais limpam-se logo ao criar a
-  encomenda — a encomenda tem a cópia;
+  encomenda — a encomenda tem a cópia (parte 2). Num pedido de apagamento,
+  a sessão de cada encomenda limpa-se com ela: chega-se pela encomenda, sem
+  decidir pelo e-mail (parte 1; revisão do #374, P2-1);
 - **sessão expirada ou abandonada**: limpam-se 7 dias depois (`docs/25`
   §7, proposta; prazo **C**, jurista).
 
@@ -1139,6 +1142,7 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 | as encomendas em curso ficam na fila (`titular_pendente`, interna); a tarefa de hora a hora limpa as que acabaram; a lista dos pedidos diz `encomendas_por_acabar` | `titular_pendentes_aplicar()`; `src/clientes/titular-fila.ts` |
 | o perfil de faturação só fica com documento ou encomenda que não foi cancelada sem pagamento (Q2) | `cliente_pseudonimizar()` |
 | uma livre resolução numa encomenda já limpa guarda «sem e-mail», não o marcador | `src/posvenda/repositorio.ts` |
+| a sessão de checkout de cada encomenda limpa fica vazia; o resumo do aviso leva a chave do rasto (0054, 8 hex); os objectos guardam só o que não é pessoal (país, tipo) e limpam o resto; uma encomenda que volte a ficar em curso vai para a fila em vez de falhar o pedido; a tarefa trata cada encomenda à parte e regista as falhas (código, sem dados); a limpeza adiada limpa também o perfil que deixou de servir (revisão do #374) | 0066 |
 
 Falta: a parte 2 (as sessões de checkout, §15.4) e a parte 3 (a
 exportação, coluna «Exportação» da §15.2; e as fichas com o mesmo contacto,

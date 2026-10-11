@@ -10,32 +10,47 @@ import { comComerciante } from "../comerciante/repositorio.js";
 
 export const QUEM_DA_FILA = "sistema:titular";
 
+export interface VoltaDaFila {
+  limpas: number;
+  /** Comerciantes com encomendas que falharam, com o código do erro. */
+  falhas: { comerciante: string; falhas: number; erro: string | null }[];
+}
+
 /** Uma volta: limpa, comerciante a comerciante, as que já acabaram. */
 export async function correrApagamentosPendentes(
   db: Kysely<BaseDados>,
   porVolta = 50,
-): Promise<number> {
-  let limpas = 0;
+): Promise<VoltaDaFila> {
+  const volta: VoltaDaFila = { limpas: 0, falhas: [] };
   const { rows } = await sql<{
     c: string;
   }>`select titular_comerciantes_com_pendentes() as c`.execute(db);
   for (const { c } of rows) {
-    // Um comerciante que falhe não pára os outros (como as conclusões).
+    // Um comerciante que falhe não pára os outros, e fica dito (revisão do
+    // #374, P2-4). Cada encomenda corre à parte dentro da base.
     try {
-      limpas += await comComerciante(db, c, async (trx) => {
+      const r = await comComerciante(db, c, async (trx) => {
         await sql`select set_config('eurolify.quem', ${QUEM_DA_FILA}, true)`.execute(
           trx,
         );
-        const { rows: r } = await sql<{
-          n: number;
-        }>`select titular_pendentes_aplicar(${porVolta}) as n`.execute(trx);
-        return r[0]?.n ?? 0;
+        const { rows: x } = await sql<{
+          r: { limpas: number; falhas: number; erro: string | null };
+        }>`select titular_pendentes_aplicar(${porVolta}) as r`.execute(trx);
+        return x[0]?.r ?? { limpas: 0, falhas: 0, erro: null };
       });
-    } catch {
-      continue;
+      volta.limpas += r.limpas;
+      if (r.falhas > 0) {
+        volta.falhas.push({ comerciante: c, falhas: r.falhas, erro: r.erro });
+      }
+    } catch (erro) {
+      volta.falhas.push({
+        comerciante: c,
+        falhas: 1,
+        erro: erro instanceof Error ? erro.name : "erro",
+      });
     }
   }
-  return limpas;
+  return volta;
 }
 
 /** De hora a hora (as encomendas concluem-se de hora a hora). */
@@ -52,9 +67,16 @@ export function agendarApagamentosPendentes(
       if (aCorrer) return;
       aCorrer = true;
       correrApagamentosPendentes(base)
-        .then((n) => {
-          if (n > 0) {
-            registo.info({ limpas: n }, "titular: encomendas limpas da fila");
+        .then((v) => {
+          if (v.limpas > 0) {
+            registo.info(
+              { limpas: v.limpas },
+              "titular: encomendas limpas da fila",
+            );
+          }
+          // Sem dados pessoais: o comerciante e o código do erro.
+          for (const f of v.falhas) {
+            registo.error(f, "titular: encomendas da fila que falharam");
           }
         })
         .catch((erro: unknown) => {

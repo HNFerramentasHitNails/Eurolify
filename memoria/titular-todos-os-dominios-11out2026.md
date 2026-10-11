@@ -42,3 +42,11 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
 - As notificações por e-mail (#373, em desenho por outra sessão) devem
   ignorar contactos com o marcador «(pseudonimizado)».
 - Partes 2 (sessões de checkout por prazo) e 3 (exportação) por fazer.
+- Revisão do #374, P1-1, **por decidir**: uma encomenda `devolvida_parcial`
+  (só passa a `devolvida`) ou `expedida` com a expedição perdida ou devolvida
+  ao remetente nunca chega a «acabou» — os dados ficariam para sempre.
+- Fica de fora (revisão do #374, P3): os avisos sem pagamento associado
+  (formato da EuPago **C**); os textos que entrem depois numa encomenda já
+  limpa (uma devolução ou um problema novos); os apagamentos feitos antes da
+  0066 (decisão pedido a pedido, nunca em massa); o custo dos gatilhos, que
+  passam a converter OLD e NEW em JSON em cada alteração.

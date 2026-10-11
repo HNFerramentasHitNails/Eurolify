@@ -677,8 +677,29 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
 
   it("o apagamento numa encomenda paga e concluída: o contacto e os textos saem, a cópia fiscal fica, o aviso do prestador fica resumo (docs/23 §15)", async () => {
     const s = await cenario();
-    const e = await paga(s, [[s.v1, 1]]);
+    // Com a fatura emitida pelo emissor de ensaio (o documento fiscal fica).
+    await ligar(s, `c-${randomUUID()}`);
+    const e = await paga(s, [[s.v1, 1]], "501964843");
+    await ateParar();
     const id = e.encomenda.slice(4);
+    expect((await documentosDe(s, e.encomenda)).fatura?.["estado"]).toBe(
+      "emitido",
+    );
+    // Um problema aberto e fechado, com texto livre.
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e.encomenda,
+        tipo: "chegou_danificado",
+        descricao: "a Ana Silva diz que o frasco veio partido",
+      }),
+      201,
+    );
+    await ok(
+      s.adm("POST", `/problems/${String(prb["id"])}/close`, {
+        versao: 1,
+        motivo: "resolvido com a Ana Silva por telefone",
+      }),
+    );
     // Expedida e entregue, com o nome de quem recebeu na prova.
     const enc = await ok(s.adm("GET", `/orders/${e.encomenda}`));
     const x = await ok(
@@ -725,9 +746,22 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     const avisosAntes = (
       await sql<{ corpo: string }>`select a.corpo from aviso_pagamento a
         join pagamento p on p.id = a.pagamento_id
-        where p.encomenda_id = ${id}::uuid`.execute(base.dono)
+        where p.encomenda_id = ${id}::uuid order by a.id`.execute(base.dono)
     ).rows;
     expect(avisosAntes.length).toBeGreaterThan(0);
+    // O documento fiscal, linha a linha, para comparar depois.
+    const documentos = async () =>
+      (
+        await sql<{
+          t: string;
+        }>`select md5(c::text) || md5(coalesce(p::text, '')) as t
+          from documento_fiscal d
+          join documento_conteudo c on c.documento_id = d.id
+          left join documento_prova p on p.documento_id = d.id
+          where d.encomenda_id = ${id}::uuid order by c.documento_id, c.versao`.execute(base.dono)
+      ).rows.map((x) => x.t);
+    const documentosAntes = await documentos();
+    expect(documentosAntes.length).toBeGreaterThan(0);
     const r = await comComerciante(base.dono, s.c, async (trx) => {
       await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
         trx,
@@ -760,14 +794,64 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     const avisos = (
       await sql<{ corpo: string }>`select a.corpo from aviso_pagamento a
         join pagamento p on p.id = a.pagamento_id
-        where p.encomenda_id = ${id}::uuid`.execute(base.dono)
+        where p.encomenda_id = ${id}::uuid order by a.id`.execute(base.dono)
     ).rows;
-    for (const [i, a] of avisos.entries()) {
-      const resumo = createHash("sha256")
-        .update(avisosAntes[i]?.corpo ?? "")
-        .digest("hex");
-      expect(JSON.parse(a.corpo)).toEqual({ pseudonimizado: true, resumo });
+    expect(avisos).toHaveLength(avisosAntes.length);
+    for (const a of avisos) {
+      // O resumo leva a chave do rasto (0054): 8 hex, não o sha256 do corpo.
+      expect(JSON.parse(a.corpo)).toEqual({
+        pseudonimizado: true,
+        resumo: expect.stringMatching(/^[0-9a-f]{8}$/) as unknown,
+      });
     }
+    // O documento fiscal fica igual (grupo A).
+    expect(await documentos()).toEqual(documentosAntes);
+    // O texto livre do problema e os motivos das transições.
+    expect(
+      (
+        await sql<{ descricao: string }>`select descricao from problema
+          where encomenda_id = ${id}::uuid`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ descricao: "(pseudonimizado)" }]);
+    const motivosPagamento = (
+      await sql<{ motivo: string }>`select t.motivo from transicao_pagamento t
+        join pagamento p on p.id = t.pagamento_id
+        where p.encomenda_id = ${id}::uuid and t.motivo is not null`.execute(
+        base.dono,
+      )
+    ).rows.map((x) => x.motivo);
+    expect(motivosPagamento.every((m) => m === "(pseudonimizado)")).toBe(true);
+    // A sessão de checkout desta encomenda fica vazia.
+    expect(
+      (
+        await sql<Json>`select s.email, s.nome, s.telefone, s.entrega, s.faturacao
+          from sessao_checkout s join encomenda e on e.sessao_id = s.id
+          where e.id = ${id}::uuid`.execute(base.dono)
+      ).rows[0],
+    ).toEqual({
+      email: null,
+      nome: null,
+      telefone: null,
+      entrega: null,
+      faturacao: null,
+    });
+    // Uma livre resolução pedida depois guarda «sem e-mail», não o marcador.
+    await ok(
+      pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+        linhas: [
+          { linha: (enc["linhas"] as Json[])[0]?.["id"], quantidade: 1 },
+        ],
+      }),
+      201,
+    );
+    expect(
+      (
+        await sql<{
+          contacto: string;
+        }>`select contacto from pedido_livre_resolucao
+          where encomenda_id = ${id}::uuid`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ contacto: "sem e-mail" }]);
     // O registo do negócio fica: o pagamento, as linhas e o estado.
     expect(await ok(s.adm("GET", `/orders/${e.encomenda}`))).toMatchObject({
       estado: "concluida",

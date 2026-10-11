@@ -301,6 +301,30 @@ BEGIN
 END
 $$;
 
+CREATE OR REPLACE FUNCTION sessao_checkout_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  -- O apagamento do titular (0066): os dados pessoais de uma sessão já
+  -- fechada, só dentro da função do dono (revisão do #374, P2-1).
+  IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
+       ARRAY['email', 'nome', 'telefone', 'entrega', 'faturacao']) THEN
+    RETURN NEW;
+  END IF;
+  IF OLD.estado <> 'aberta' THEN
+    RAISE EXCEPTION 'checkout.closed: a sessão está %', OLD.estado;
+  END IF;
+  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.comerciante_id IS DISTINCT FROM OLD.comerciante_id
+     OR NEW.carrinho_id IS DISTINCT FROM OLD.carrinho_id
+     OR NEW.token_resumo IS DISTINCT FROM OLD.token_resumo
+     OR NEW.loja_id IS DISTINCT FROM OLD.loja_id THEN
+    RAISE EXCEPTION 'checkout.invalid_field: campos fixos';
+  END IF;
+  NEW.actualizado_em := now();
+  NEW.versao := OLD.versao + 1;
+  RETURN NEW;
+END
+$$;
+
 -- Os motivos das transições (texto livre de uma pessoa) passam a marcador;
 -- o resto da transição não muda.
 CREATE FUNCTION titular_rasto_so_se_acrescenta() RETURNS trigger
@@ -329,14 +353,15 @@ $$;
 
 -- ----------------------------------------------------- Limpar uma encomenda
 
--- Os campos com dados pessoais de um objecto passam a marcador; os outros
--- (o país, o tipo) ficam.
-CREATE FUNCTION titular_jsonb_sem(p jsonb, p_chaves text[]) RETURNS jsonb
+-- Num objecto, tudo passa a marcador menos o que se diz para guardar (o
+-- país, o tipo): uma chave nova que apareça fica limpa, não esquecida
+-- (revisão do #374, P3).
+CREATE FUNCTION titular_jsonb_so(p jsonb, p_guardar text[]) RETURNS jsonb
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT CASE WHEN p IS NULL OR jsonb_typeof(p) <> 'object' THEN p ELSE
     (SELECT coalesce(jsonb_object_agg(e.k, CASE
-       WHEN e.k = ANY (p_chaves) AND e.v <> 'null'::jsonb THEN to_jsonb('(pseudonimizado)'::text)
-       ELSE e.v END), '{}'::jsonb)
+       WHEN e.k = ANY (p_guardar) OR e.v = 'null'::jsonb THEN e.v
+       ELSE to_jsonb('(pseudonimizado)'::text) END), '{}'::jsonb)
      FROM jsonb_each(p) AS e(k, v)) END
 $$;
 
@@ -344,7 +369,7 @@ $$;
 -- dependem dele; a decisão do IVA já está em cada linha).
 CREATE FUNCTION titular_morada_sem(p jsonb) RETURNS jsonb
   LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT public.titular_jsonb_sem(p, ARRAY['linha1', 'linha2', 'codigo_postal', 'localidade'])
+  SELECT public.titular_jsonb_so(p, ARRAY['pais'])
 $$;
 
 -- Uma encomenda acabou: estado final e nada aberto na pós-venda (§15.3).
@@ -361,6 +386,15 @@ CREATE FUNCTION titular_encomenda_acabou(p_encomenda uuid) RETURNS boolean
       WHERE x.encomenda_id = p_encomenda AND x.estado <> 'fechado')
     AND NOT EXISTS (SELECT FROM public.reembolso r
       WHERE r.encomenda_id = p_encomenda AND r.estado NOT IN ('executado', 'cancelado'))
+    -- Nem pagamento vivo ou incerto, nem diferença por resolver (ex.: pago
+    -- depois de cancelada: o comerciante ainda tem de devolver o dinheiro;
+    -- revisão do #374, P2-3).
+    AND NOT EXISTS (SELECT FROM public.pagamento g
+      WHERE g.encomenda_id = p_encomenda
+        AND g.estado IN ('criado', 'a_aguardar_cliente', 'autorizado', 'incerto'))
+    AND NOT EXISTS (SELECT FROM public.diferenca_pagamento d
+      JOIN public.pagamento g ON g.id = d.pagamento_id
+      WHERE g.encomenda_id = p_encomenda AND d.estado = 'aberta')
 $$;
 
 -- Limpa uma encomenda acabada. Só corre com a marca (os gatilhos recusam
@@ -379,28 +413,42 @@ DECLARE
   n_pedidos integer;
   n_devolucoes integer;
   n_problemas integer;
+  n_sessoes integer;
 BEGIN
-  SELECT x.id, x.estado, x.perfil_copia INTO e FROM public.encomenda x
+  SELECT x.id, x.estado, x.perfil_copia, x.sessao_id INTO e FROM public.encomenda x
   WHERE x.comerciante_id = c AND x.id = p_encomenda FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'orders.not_found: a encomenda não existe';
   END IF;
+  -- Voltou a ficar em curso entre a escolha e o bloqueio (ex.: abriu-se uma
+  -- livre resolução): não se limpa, e quem chama põe-na na fila (revisão do
+  -- #374, P3).
   IF NOT public.titular_encomenda_acabou(p_encomenda) THEN
-    RAISE EXCEPTION 'customers.order_in_progress: a encomenda ainda não acabou';
+    RETURN NULL;
   END IF;
   -- Grupo A: a cópia de onde se emite fica se há documento, ou se a
   -- encomenda foi paga (o documento é devido) — Q2, C contabilista.
   fiscal := e.estado <> 'cancelada_sem_pagamento' OR EXISTS (
     SELECT FROM public.documento_fiscal d WHERE d.comerciante_id = c AND d.encomenda_id = e.id);
   UPDATE public.encomenda x
-  SET contacto = public.titular_jsonb_sem(x.contacto, ARRAY['email', 'nome', 'telefone']),
+  SET contacto = public.titular_jsonb_so(x.contacto, '{}'),
       entrega = public.titular_morada_sem(x.entrega),
       perfil_copia = CASE WHEN fiscal THEN x.perfil_copia ELSE
-        public.titular_jsonb_sem(x.perfil_copia, ARRAY['nome_documento', 'nif_escrito', 'nif_numero'])
+        public.titular_jsonb_so(x.perfil_copia,
+          ARRAY['tipo', 'pais_contribuinte', 'outra_pessoa', 'morada'])
         || CASE WHEN jsonb_typeof(x.perfil_copia -> 'morada') = 'object'
              THEN jsonb_build_object('morada', public.titular_morada_sem(x.perfil_copia -> 'morada'))
              ELSE '{}'::jsonb END END
   WHERE x.comerciante_id = c AND x.id = e.id;
+  -- A sessão de checkout desta encomenda tem a mesma cópia: chega-se a ela
+  -- pela encomenda, sem decidir nada pelo e-mail (revisão do #374, P2-1).
+  -- Vazia (o e-mail da sessão tem formato obrigatório).
+  UPDATE public.sessao_checkout x
+  SET email = NULL, nome = NULL, telefone = NULL, entrega = NULL, faturacao = NULL
+  WHERE x.comerciante_id = c AND x.id = e.sessao_id
+    AND (x.email IS NOT NULL OR x.nome IS NOT NULL OR x.telefone IS NOT NULL
+         OR x.entrega IS NOT NULL OR x.faturacao IS NOT NULL);
+  GET DIAGNOSTICS n_sessoes = ROW_COUNT;
   UPDATE public.expedicao x SET prova_entrega = m
   WHERE x.comerciante_id = c AND x.encomenda_id = e.id
     AND x.prova_entrega IS NOT NULL AND x.prova_entrega <> m;
@@ -415,10 +463,11 @@ BEGIN
                            WHERE p.comerciante_id = c AND p.encomenda_id = e.id);
   GET DIAGNOSTICS n_transicoes_pagamento = ROW_COUNT;
   -- O aviso em bruto passa a resumo (Q3): o pagamento guarda o montante, a
-  -- referência e o estado.
+  -- referência e o estado. O resumo leva a chave do rasto (0054): sem ela,
+  -- um telefone adivinha-se por tentativa (revisão do #374, P3).
   UPDATE public.aviso_pagamento a
   SET corpo = jsonb_build_object('pseudonimizado', true,
-        'resumo', encode(sha256(convert_to(a.corpo, 'UTF8')), 'hex'))::text
+        'resumo', public.rasto_resumo(c, 'aviso_pagamento.corpo', to_jsonb(a.corpo)))::text
   WHERE a.comerciante_id = c AND a.corpo NOT LIKE '{"pseudonimizado"%'
     AND a.pagamento_id IN (SELECT p.id FROM public.pagamento p
                            WHERE p.comerciante_id = c AND p.encomenda_id = e.id);
@@ -439,6 +488,7 @@ BEGIN
   GET DIAGNOSTICS n_problemas = ROW_COUNT;
   RETURN jsonb_build_object(
     'dados_fiscais_mantidos', fiscal,
+    'sessoes_de_checkout', n_sessoes,
     'expedicoes', n_expedicoes,
     'transicoes', n_transicoes + n_transicoes_pagamento,
     'avisos_de_pagamento', n_avisos,
@@ -509,31 +559,94 @@ $$;
 
 -- A tarefa: limpa, no comerciante do contexto, as encomendas da fila que já
 -- acabaram. Devolve quantas limpou.
-CREATE FUNCTION titular_pendentes_aplicar(p_limite integer) RETURNS integer
+CREATE FUNCTION titular_pendentes_aplicar(p_limite integer) RETURNS jsonb
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   c uuid := public.comerciante_actual();
   p record;
+  limpeza jsonb;
+  perfis jsonb;
   n integer := 0;
+  falhas integer := 0;
+  erro text;
 BEGIN
   IF c IS NULL THEN
     RAISE EXCEPTION 'merchant.context_required: sem comerciante';
   END IF;
-  FOR p IN SELECT t.pedido_id, t.encomenda_id FROM public.titular_pendente t
+  INSERT INTO public.pseudonimizacao_em_curso VALUES (pg_current_xact_id())
+    ON CONFLICT DO NOTHING;
+  -- Só as que já acabaram, antes do limite: as que esperam não tapam as
+  -- outras (revisão do #374, P1-2).
+  FOR p IN SELECT t.pedido_id, t.encomenda_id, e.perfil_id
+           FROM public.titular_pendente t
+           JOIN public.encomenda e ON e.comerciante_id = t.comerciante_id AND e.id = t.encomenda_id
            WHERE t.comerciante_id = c AND t.aplicado_em IS NULL
+             AND public.titular_encomenda_acabou(t.encomenda_id)
            ORDER BY t.criado_em, t.encomenda_id
            LIMIT greatest(p_limite, 0)
-           FOR UPDATE SKIP LOCKED LOOP
-    CONTINUE WHEN NOT public.titular_encomenda_acabou(p.encomenda_id);
-    INSERT INTO public.pseudonimizacao_em_curso VALUES (pg_current_xact_id())
-      ON CONFLICT DO NOTHING;
-    UPDATE public.titular_pendente t
-    SET resultado = public.titular_limpar_encomenda(p.encomenda_id), aplicado_em = now()
-    WHERE t.pedido_id = p.pedido_id AND t.encomenda_id = p.encomenda_id;
-    n := n + 1;
+           FOR UPDATE OF t SKIP LOCKED LOOP
+    -- Cada encomenda à parte: uma que falhe não desfaz as outras, e conta-se
+    -- (revisão do #374, P2-4).
+    BEGIN
+      limpeza := public.titular_limpar_encomenda(p.encomenda_id);
+      CONTINUE WHEN limpeza IS NULL;
+      perfis := public.titular_perfis_sem_uso(ARRAY[p.perfil_id]);
+      UPDATE public.titular_pendente t
+      SET resultado = limpeza || jsonb_build_object('perfis_limpos', perfis -> 'perfis'),
+          aplicado_em = now()
+      WHERE t.pedido_id = p.pedido_id AND t.encomenda_id = p.encomenda_id;
+      n := n + 1;
+    EXCEPTION WHEN OTHERS THEN
+      falhas := falhas + 1;
+      -- Só o código (o texto antes dos dois pontos), sem dados.
+      erro := SQLSTATE || ' ' || left(split_part(SQLERRM, ':', 1), 80);
+    END;
   END LOOP;
   DELETE FROM public.pseudonimizacao_em_curso m WHERE m.transaccao = pg_current_xact_id();
-  RETURN n;
+  RETURN jsonb_build_object('limpas', n, 'falhas', falhas, 'erro', erro);
+END
+$$;
+
+-- ------------------------------------------- Os perfis que deixaram de servir
+
+-- Os perfis de faturação que nenhum documento usou nem nenhuma encomenda
+-- (que não foi cancelada sem pagamento) aponta: sem nome, NIF nem morada,
+-- arquivados, sem as provas do VIES e com as isenções limpas (Q2; o que a
+-- 0049 fazia aos perfis não usados). Devolve quantos limpou. A limpeza
+-- adiada também a chama: uma encomenda por pagar que acabou cancelada larga
+-- o perfil (revisão do #374, P2-2).
+CREATE FUNCTION titular_perfis_sem_uso(p_perfis uuid[]) RETURNS jsonb
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  c uuid := public.comerciante_actual();
+  livres uuid[];
+  n_validacoes integer;
+  n_isencoes integer;
+BEGIN
+  livres := ARRAY(SELECT p.id FROM public.perfil_faturacao p
+    WHERE p.comerciante_id = c AND p.id = ANY (p_perfis)
+      AND NOT p.usado_em_documento
+      AND NOT EXISTS (SELECT FROM public.encomenda e
+        WHERE e.comerciante_id = c AND e.perfil_id = p.id
+          AND e.estado <> 'cancelada_sem_pagamento')
+      AND p.nome_documento IS DISTINCT FROM 'Pseudonimizado');
+  DELETE FROM public.vies_fila v WHERE v.perfil_id = ANY (livres);
+  DELETE FROM public.validacao_vies v
+  WHERE v.comerciante_id = c AND v.perfil_id = ANY (livres);
+  GET DIAGNOSTICS n_validacoes = ROW_COUNT;
+  UPDATE public.isencao_manual i
+  SET nif_numero = NULL, pais_contribuinte = NULL, nota = NULL, motivo = '(pseudonimizado)',
+      motivo_retirada = CASE WHEN i.motivo_retirada IS NULL THEN NULL ELSE '(pseudonimizado)' END
+  WHERE i.comerciante_id = c AND i.perfil_id = ANY (livres);
+  GET DIAGNOSTICS n_isencoes = ROW_COUNT;
+  UPDATE public.perfil_faturacao p
+  SET tipo = 'particular', nome_documento = 'Pseudonimizado', nif_escrito = NULL,
+      pais_contribuinte = NULL, morada_linha1 = NULL, morada_linha2 = NULL,
+      morada_codigo_postal = NULL, morada_localidade = NULL, morada_pais = NULL,
+      estado = 'arquivado', principal = false
+  WHERE p.comerciante_id = c AND p.id = ANY (livres);
+  RETURN jsonb_build_object('perfis', cardinality(livres), 'provas_vies', n_validacoes,
+    'isencoes', n_isencoes);
 END
 $$;
 
@@ -671,10 +784,16 @@ BEGIN
 
   FOREACH enc IN ARRAY acabadas LOOP
     limpeza := public.titular_limpar_encomenda(enc);
-    IF (limpeza ->> 'dados_fiscais_mantidos')::boolean THEN
+    IF limpeza IS NULL THEN
+      -- Voltou a ficar em curso: vai para a fila em vez de falhar o pedido
+      -- todo (revisão do #374, P3).
+      acabadas := array_remove(acabadas, enc);
+      por_acabar := por_acabar || enc;
+    ELSIF (limpeza ->> 'dados_fiscais_mantidos')::boolean THEN
       n_fiscais := n_fiscais + 1;
     END IF;
   END LOOP;
+  n_encomendas := cardinality(por_acabar);
 
   DELETE FROM public.pseudonimizacao_em_curso m WHERE m.transaccao = pg_current_xact_id();
 
@@ -707,11 +826,11 @@ $$;
 -- ------------------------------------------------------------- Permissões
 
 REVOKE EXECUTE ON FUNCTION titular_limpeza_permitida(jsonb, jsonb, text[]),
-  titular_jsonb_sem(jsonb, text[]), titular_morada_sem(jsonb),
+  titular_morada_sem(jsonb),
   titular_encomenda_acabou(uuid), titular_limpar_encomenda(uuid),
   titular_rasto_so_se_acrescenta(), titular_pendente_antes_de_gravar(),
   titular_comerciantes_com_pendentes(), titular_pendentes_aplicar(integer),
-  titular_por_acabar(uuid[]) FROM PUBLIC;
+  titular_por_acabar(uuid[]), titular_perfis_sem_uso(uuid[]), titular_jsonb_so(jsonb, text[]) FROM PUBLIC;
 -- Os gatilhos correm com quem escreve: a API precisa da que diz se a limpeza
 -- está aberta (dá falso fora da função do dono). A tarefa corre pela API.
 GRANT EXECUTE ON FUNCTION titular_limpeza_permitida(jsonb, jsonb, text[]),

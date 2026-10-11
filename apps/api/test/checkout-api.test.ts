@@ -1504,6 +1504,14 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     ).rows.map((x) => x.motivo);
     expect(motivos.length).toBeGreaterThan(0);
     expect(new Set(motivos)).toEqual(new Set([P]));
+    // A sessão de checkout da encomenda fica vazia (revisão do #374, P2-1).
+    expect(
+      (
+        await sql<Json>`select s.email, s.nome, s.telefone from sessao_checkout s
+          join encomenda e on e.sessao_id = s.id
+          where e.id = ${enc.id}::uuid`.execute(base.dono)
+      ).rows[0],
+    ).toEqual({ email: null, nome: null, telefone: null });
   });
 
   it("uma encomenda em curso fica na fila e limpa-se quando acabar (Q1)", async () => {
@@ -1530,10 +1538,19 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     await correrApagamentosPendentes(base.api);
     expect(await encomendaNaBase(enc.id)).toEqual(antes);
     await cancelar(s.c, enc.id);
-    expect(await correrApagamentosPendentes(base.api)).toBeGreaterThanOrEqual(
-      1,
-    );
+    const volta = await correrApagamentosPendentes(base.api);
+    expect(volta.limpas).toBeGreaterThanOrEqual(1);
+    expect(volta.falhas).toEqual([]);
     expect((await encomendaNaBase(enc.id))?.entrega["linha1"]).toBe(P);
+    // Cancelada sem pagamento, larga o perfil: limpa-se também (Q2; revisão
+    // do #374, P2-2).
+    expect(
+      (
+        await sql<{ nome_documento: string; estado: string }>`
+          select nome_documento, estado from perfil_faturacao
+          where id = ${enc.perfil_id}::uuid`.execute(base.dono)
+      ).rows[0],
+    ).toEqual({ nome_documento: "Pseudonimizado", estado: "arquivado" });
     const depois = await ok(
       s.adm("GET", `/customers/cus_${enc.cliente_id}/privacy-requests`),
     );
@@ -1546,6 +1563,42 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
         base.dono,
       ),
     ).rejects.toThrow(/append_only/);
+  });
+
+  it("com a marca, só as colunas pessoais abrem; sem ela, nada (revisão do #374, P2-5)", async () => {
+    const s = await cenario();
+    const enc = await porPagar(s);
+    await cancelar(s.c, enc.id);
+    const comMarca = (alteracao: string) =>
+      comComerciante(base.dono, s.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+          trx,
+        );
+        // Como a função do dono: com o papel dono das tabelas (o
+        // superutilizador não serve, 0049).
+        const { rows } = await sql<{
+          dono: string;
+        }>`select pg_get_userbyid(relowner) as dono
+          from pg_class where oid = 'public.encomenda'::regclass`.execute(trx);
+        await sql.raw(`set local role ${String(rows[0]?.dono)}`).execute(trx);
+        await sql`insert into pseudonimizacao_em_curso values (pg_current_xact_id())`.execute(
+          trx,
+        );
+        await sql.raw(alteracao).execute(trx);
+      });
+    // O contacto abre (só a 0066 o deixa).
+    await comMarca(
+      `update encomenda set contacto = '{"email": "(pseudonimizado)"}'::jsonb where id = '${enc.id}'`,
+    );
+    // O total e a lista de outras colunas não.
+    await expect(
+      comMarca(`update encomenda set total = total + 1 where id = '${enc.id}'`),
+    ).rejects.toThrow(/orders.immutable/);
+    await expect(
+      comMarca(
+        `update encomenda set contacto = '{}'::jsonb, lingua = 'en' where id = '${enc.id}'`,
+      ),
+    ).rejects.toThrow(/orders.immutable/);
   });
 
   it("fora da função do dono, as colunas continuam fechadas, também ao dono e com a marca na API", async () => {
