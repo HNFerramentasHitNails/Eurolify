@@ -1406,8 +1406,10 @@ export async function lerDevolucao(
         "linha_devolucao.estado_artigo",
         "linha_devolucao.decisao_higiene",
         "linha_encomenda.selado_por_higiene",
-        // H6: a regra de quando a decisão é obrigatória está na base (0065).
-        sql<boolean>`posvenda_higiene_por_decidir(linha_devolucao.devolucao_id, linha_devolucao.linha_encomenda_id)`.as(
+        // H6: a regra de quando a decisão é obrigatória está na base (0065);
+        // decidida, já não está por decidir (revisão do #363, P2-1).
+        sql<boolean>`(linha_devolucao.decisao_higiene is null
+          and posvenda_higiene_por_decidir(linha_devolucao.devolucao_id, linha_devolucao.linha_encomenda_id))`.as(
           "higiene_a_decidir",
         ),
       ])

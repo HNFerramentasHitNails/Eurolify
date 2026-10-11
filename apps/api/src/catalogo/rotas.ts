@@ -282,7 +282,7 @@ const CamposArtigo = {
   categoria_fiscal: Type.Union([Type.String(), Type.Null()]),
   selado_por_higiene: Type.Boolean({
     description:
-      "Selado por motivos de saúde ou de higiene: aberto depois da entrega, perde-se a livre resolução (Directiva 2011/83/UE, art. 16.º, e); docs/30 §15). Só num artigo físico; a decisão de que cabe na excepção é do comerciante",
+      "Selado por motivos de saúde ou de higiene: aberto depois da entrega, perde-se a livre resolução (Directiva 2011/83/UE, art. 16.º, alínea e; docs/30 §15). Só num artigo físico; a decisão de que cabe na excepção é do comerciante",
   }),
   origem: Type.String(),
   origem_ref: Type.Union([Type.String(), Type.Null()]),

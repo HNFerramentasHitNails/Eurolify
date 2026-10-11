@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
@@ -8,6 +8,7 @@ import {
   mudarEstadoArtigo,
 } from "../src/catalogo/repositorio.js";
 import { publicar } from "../src/catalogo/publicacao.js";
+import { canonico } from "../src/checkout/repositorio.js";
 import {
   comComerciante,
   criarEntidadeLegal,
@@ -3544,13 +3545,49 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         }),
       ),
     ).toEqual([409, "checkout.total_changed"]);
-    // Sem a marca, a impressão é a de antes da marca existir (só montantes).
+    // Sem a marca, a impressão é a de antes da marca existir: a fórmula
+    // antiga, só montantes e versões (revisão do #363, P2-4).
     const r3 = await ok(pedir("GET", `/checkout/${k2.token}/summary`));
     expect(r3["impressao"]).not.toBe(r2["impressao"]);
     expect(
       (r3["linhas"] as Json[]).map((l) => l["selado_por_higiene"]),
     ).toEqual([false]);
-    // A base confere a cópia: uma linha que diz outra coisa não entra.
+    const sp = (x: unknown) => String(x).slice(4);
+    const portes = r3["portes"] as Json;
+    const antiga = {
+      moeda: r3["moeda"],
+      linhas: (r3["linhas"] as Json[]).map((l) => [
+        sp(l["variante"]),
+        l["quantidade"],
+        l["base"],
+        l["valor_iva"],
+        l["total"],
+      ]),
+      portes: [
+        sp(portes["metodo"]),
+        portes["base"],
+        portes["valor_iva"],
+        portes["total"],
+      ],
+      total: (r3["totais"] as Json)["total"],
+      textos: (r3["textos"] as Json[]).map((t) => sp(t["versao"])),
+    };
+    expect(r3["impressao"]).toBe(
+      createHash("sha256").update(canonico(antiga)).digest("hex"),
+    );
+    // E ao contrário: marcada entre o resumo e o botão, também não.
+    await selar(s, true);
+    expect(
+      await codigo(
+        botao(k2.token, {
+          aceita_condicoes: true,
+          versoes: s.versoes,
+          impressao: r3["impressao"],
+        }),
+      ),
+    ).toEqual([409, "checkout.total_changed"]);
+    // A base confere a cópia: com o artigo marcado, uma linha sem a marca
+    // não entra.
     await expect(
       base.dono.transaction().execute(async (t) => {
         await sql`alter table linha_encomenda disable trigger linha_encomenda_antes_de_gravar`.execute(
@@ -3560,7 +3597,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
             variante_id, sku, nome, quantidade, preco_unitario, preco, decisao_iva,
             base, iva, total, selado_por_higiene)
           select comerciante_id, encomenda_id, 99, variante_id, sku, nome, quantidade,
-            preco_unitario, preco, decisao_iva, base, iva, total, true
+            preco_unitario, preco, decisao_iva, base, iva, total, false
           from linha_encomenda where encomenda_id = ${String(e["encomenda"]).slice(4)}::uuid`.execute(
           t,
         );
@@ -3688,6 +3725,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       decisao: string | null,
       linhas: string[],
       depois?: string,
+      mudarPara?: string,
     ) =>
       naBase(s, async (trx) => {
         await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
@@ -3732,6 +3770,13 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
             })
             .execute();
         }
+        if (mudarPara !== undefined) {
+          await sql`update linha_devolucao set decisao_higiene = ${mudarPara}
+            where devolucao_id = ${rma.slice(4)}::uuid
+              and linha_encomenda_id = ${String(l1?.["id"]).slice(4)}::uuid`.execute(
+            trx,
+          );
+        }
         if (depois !== undefined) {
           await sql`update devolucao set estado = ${depois}, versao = versao + 1
             where id = ${rma.slice(4)}::uuid`.execute(trx);
@@ -3747,6 +3792,16 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     await expect(
       naBaseComReembolso("reembolsar", [String(l2?.["id"])], "decidida"),
     ).rejects.toThrow(/returns\.invalid_field/);
+    // Com a linha num reembolso vivo, a decisão já não muda (revisão do
+    // #363, P2-2): o rascunho com «reembolsar» não sai com a excepção.
+    await expect(
+      naBaseComReembolso(
+        "reembolsar",
+        [String(l1?.["id"])],
+        undefined,
+        "excepcao_higiene",
+      ),
+    ).rejects.toThrow(/returns\.invalid_transition/);
     // Com a linha no reembolso, a mesma decisão passa (até ao «desfazer»).
     await expect(
       naBaseComReembolso("reembolsar", [String(l1?.["id"])], "decidida"),
@@ -3766,6 +3821,8 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(d["estado"]).toBe("decidida");
     expect((d["linhas"] as Json[])[0]).toMatchObject({
       decisao_higiene: "excepcao_higiene",
+      // Decidida, já não está por decidir (revisão do #363, P2-1).
+      higiene_a_decidir: false,
     });
     // Decidida, a decisão já não muda; e não volta a vazia.
     for (const decisao of ["reembolsar", null]) {
@@ -3805,6 +3862,36 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       201,
     );
     expect(r["montante"]).toBe(1230);
+    // Anulado o reembolso, a devolução volta a decidir-se: a decisão fica
+    // gravada e pode mudar (revisão do #363, P2-5).
+    const rfd = String(r["reembolso"]);
+    const x = await ok(s.adm("GET", `/refunds/${rfd}`));
+    await ok(
+      s.adm("POST", `/refunds/${rfd}/cancel`, {
+        versao: x["versao"],
+        motivo: "afinal não é gesto",
+      }),
+    );
+    let dv = await ok(s.adm("GET", `/returns/${rma}`));
+    expect(dv["estado"]).toBe("inspeccionada");
+    expect((dv["linhas"] as Json[])[0]).toMatchObject({
+      decisao_higiene: "reembolsar",
+      higiene_a_decidir: false,
+    });
+    await ok(
+      s.adm("POST", `/returns/${rma}/close`, {
+        versao: dv["versao"],
+        motivo: "selo aberto: sem direito de livre resolução",
+        higiene: [{ linha: l1?.["id"], decisao: "excepcao_higiene" }],
+      }),
+    );
+    dv = await ok(s.adm("GET", `/returns/${rma}`));
+    expect(dv).toMatchObject({
+      estado: "fechada",
+      linhas: [
+        expect.objectContaining({ decisao_higiene: "excepcao_higiene" }),
+      ],
+    });
     // Fechar sem reembolso com a excepção.
     const e2 = await paga(s, [[s.v1, 1]]);
     const [m1] = await expedir(s, e2.encomenda);

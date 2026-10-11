@@ -76,8 +76,8 @@ $$;
 GRANT EXECUTE ON FUNCTION posvenda_higiene_por_decidir(uuid, uuid) TO eurolify_api;
 
 -- A decisão grava-se só com a devolução inspeccionada (de novo, se o
--- reembolso se anulou: decidida → inspeccionada), só onde é obrigatória, e
--- não volta a vazia.
+-- reembolso se anulou: decidida → inspeccionada), só onde é obrigatória,
+-- não volta a vazia e não muda com a linha num reembolso vivo.
 CREATE FUNCTION linha_devolucao_confere_higiene() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -105,6 +105,14 @@ BEGIN
   IF d.origem <> 'livre_resolucao' OR NOT coalesce(selado, false)
      OR NEW.estado_artigo IS DISTINCT FROM 'aberto' THEN
     RAISE EXCEPTION 'returns.invalid_field: a excepção de higiene só se decide numa linha selada, devolvida por livre resolução e aberta';
+  END IF;
+  -- Com a linha num reembolso vivo desta devolução, a decisão não muda: um
+  -- rascunho com «reembolsar» não sai com a excepção (revisão do #363, P2-2).
+  IF EXISTS (SELECT 1 FROM public.linha_reembolso lr
+       JOIN public.reembolso r ON r.id = lr.reembolso_id
+       WHERE r.devolucao_id = NEW.devolucao_id AND r.estado <> 'cancelado'
+         AND lr.linha_encomenda_id = NEW.linha_encomenda_id) THEN
+    RAISE EXCEPTION 'returns.invalid_transition: a linha está num reembolso; anulá-lo antes de mudar a decisão';
   END IF;
   RETURN NEW;
 END

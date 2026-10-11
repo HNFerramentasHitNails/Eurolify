@@ -681,18 +681,42 @@ direito.
 | H2: `linha_encomenda.selado_por_higiene`, copiada do resumo no botão final; a base confere que é a marca do artigo nesse instante e recusa com `checkout.total_changed` | migração 0065; `src/checkout/repositorio.ts` |
 | H3: a marca por linha no resumo do checkout, na encomenda e na confirmação, e nas linhas do botão de livre resolução; entra na impressão do resumo só quando existe (mudada entre o resumo e o botão, não há encomenda) | `src/checkout/`; `src/posvenda/` |
 | H6: `linha_devolucao.decisao_higiene` (`reembolsar` ou `excepcao_higiene`), dada no `POST /returns/{id}/decide` ou `/close` em `higiene`; a leitura da devolução diz `higiene_a_decidir` por linha. A base: só numa linha marcada, de livre resolução e `aberto`; só com a devolução inspeccionada; não volta a vazia; sem ela não se decide nem se fecha; a excepção não vai num reembolso, «reembolsar» vai, e não se fecha sem reembolso com «reembolsar» | migração 0065; `src/posvenda/` |
-| 3 testes pela API | `test/posvenda-api.test.ts` |
+| 3 testes pela API (com os da revisão do #363); 25 mutações, 24 apanhadas e uma equivalente (a verificação «reembolsar fora do reembolso» no código, que a base faz com o mesmo erro) | `test/posvenda-api.test.ts` |
 
 **Desvios do desenho:**
 - **A migração é a 0065:** a 0064 está reservada pelo pedido #364 (rasto),
-  ainda aberto.
+  ainda aberto. **A ordem conta** (revisão do #363, P1-1): o migrador recusa
+  um número abaixo de um já aplicado, e os testes, que criam a base de raiz,
+  não o apanham. Se o #363 entrar primeiro, o #364 passa para a 0066 antes de
+  entrar (avisado no #364).
 - **H3 «no artigo»:** a API da Loja não tem leitura de artigos (procurado
   em `src/`, rotas `/store/…`, a 11/10/2026); a marca vai na API de
   Administração do artigo e, para o cliente, no resumo, na confirmação e no
   botão de livre resolução. O carrinho não a mostra (não mostra o artigo).
 - **H7, alargada:** a decisão só existe numa devolução de **livre
-  resolução**; numa devolução comercial ou do apoio a marca não pede nem
-  aceita decisão (não é retractação).
+  resolução** (também a de um pedido registado pelo apoio, que abre uma
+  devolução `livre_resolucao`); numa devolução `comercial` ou `apoio` a marca
+  não pede nem aceita decisão (não é retractação). Um reembolso de um
+  problema ou de um cancelamento não olha para a excepção.
+- **Só «aberto» pede a decisão** (H5): uma linha marcada inspeccionada
+  `danificado` ou `em_falta` não pede decisão; aberta e danificada, quem
+  inspecciona diz `aberto` (revisão do #363, P2-6).
+- **Prova de que o cliente foi informado** (revisão do #363, P2-3): a marca
+  na linha diz o que o ecrã recebeu, não que o texto legal o explicava. O
+  texto entra com a parte 2 do checkout (Q10); até lá, a excepção aplica-se
+  só com o texto de livre resolução aceite na encomenda a dizê-lo (**C**, J2
+  e J5), o que o sistema ainda não confere.
+- **Quem decide** (revisão do #363, P3-2 e P3-3): a decisão exige
+  `refunds:write`, que uma chave de uma IA pode ter; o H6 diz «uma pessoa».
+  A devolução não tem tabela de rasto (só os eventos; procurado nas
+  migrações a 11/10/2026), por isso o aviso «sem autorização de uma pessoa»
+  (DO) não a cobre, e a decisão por linha guarda só o valor final. Fica para
+  quando a pós-venda tiver rasto.
+- **A marca põe-se pelo `PATCH`**, não na criação nem na importação: um
+  artigo pode ser publicado antes de marcado (P3-8). Num kit vale a marca do
+  artigo do kit, não a dos componentes (P3-9). As linhas de encomendas de
+  antes da 0065 ficam sem a marca (P3-6). Os eventos da devolução não dizem
+  que a recusa foi por higiene (P3-10).
 - **Um estado por linha:** a inspecção diz um estado por linha; duas
   unidades da mesma linha, uma aberta e outra não, não se distinguem (era
   assim desde a parte 1).
