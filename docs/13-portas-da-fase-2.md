@@ -49,6 +49,7 @@ grupo contam como **um** comprador.
 | Painéis, 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ✅ | ✅ | ✅ | **estreitar** (§11) |
 | Comercial (camada C), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ✅ | **estreitar** (§12) |
 | Financeiro (camada D), 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§13) |
+| Organização (camada E), 11/10/2026 (não estimado) | ◐ | ❌ | ❔ | ❔ | ❌ | ◐ | ❌ | ◐ | **matar como módulo próprio**; duas peças vão para outros sítios (§14) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -542,6 +543,66 @@ banco e as liquidações do prestador**. Não há despesas.
   (já são da fatia 10) e o IVA de importação.
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.
+
+## 14. Organização — a camada E, como um módulo (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. A
+camada E do `docs/31` §8 passa como **um** módulo: projectos, procedimentos e
+objectivos, comunicação interna, e o que o Hub actual junta a isso (mapas
+mentais, pool de ideias, planos de acção, relatórios diários, o assistente
+interno). As tarefas sobre um registo já passaram no §10. Skills abertas:
+`platform-architect`, `headless-commerce` (MCP), `eu-gdpr-privacy`,
+`eurolify-contracts-operations-eu` (trabalhadores).
+
+**O que o Hub actual faz** (sequência 15 do `docs/31`; proposta comercial do
+Hub, p. 23 e 24): projectos com modelos, etapas, automações e quadro kanban —
+por exemplo, o lançamento de uma colecção, com os passos de cada
+departamento; procedimentos por departamento, objectivos e indicadores, mapas
+mentais e pool de ideias; um **assistente interno com IA** que responde a
+partir dos procedimentos e dos dados e **cria** artigos, tarefas ou pedidos de
+ausência a conversar; chat interno, comunicação por destinatários e
+calendário partilhado; a governação do sistema (histórico de alterações,
+permissões por módulo e grupo, desempenho da base, janela de manutenção).
+
+**O que o Eurolify já tem:** a governação, em boa parte — o rasto de auditoria
+com as seis perguntas (decisão DK), as permissões por papel e âmbito
+(`/hub/me`, migração 0034), as linhas do tempo. O MCP de leitura para o
+assistente **do próprio comerciante** está na Fase 1 (`docs/05`; `docs/00`
+§2.4: «o comerciante liga o seu assistente»). Não há projectos, procedimentos
+nem chat; e **não há lançamentos agendados** no Catálogo (procurei
+«lançamento» e «agendad» no `docs/14`).
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ◐ | O Hub actual tem os módulos em uso (proposta p. 23 e 24). As lições medidas são do **assistente interno**: **185 mil tokens por conversa**, 70 % no catálogo enviado inteiro (15/09/2026, lição 6.1), e o assistente **em baixo por falta de créditos** (15/09/2026, lição 6.3). Para projectos, procedimentos e chat não há lição nem número |
+| 2 Não resolvido | ❌ | **Já existe e pode usar-se ou ligar-se.** Projectos, quadros, documentos de procedimentos, chat e calendário são ferramentas de uso geral que qualquer empresa já tem (não verifiquei quais usam os comerciantes); o assistente interno é o que o MCP de leitura da Fase 1 dá ao assistente que o comerciante já usa. O que fica sem resposta lá fora — um projecto ligado aos artigos e às datas de publicação — é uma peça do Catálogo, não um módulo |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Nove coisas num módulo |
+| 6 Encaixe | ◐ | A governação encaixa e já existe. **Não encaixa:** um assistente que **escreve** (cria artigos, tarefas, ausências) — na Fase 1 a IA só lê (ADR-0040); um **chat interno** guarda comunicações dos trabalhadores do comerciante, com obrigações de dados pessoais e de trabalho por país (**C**; `eu-gdpr-privacy`, `eurolify-contracts-operations-eu`) |
+| 7 Custo | ❌ | Chat, quadros e documentos são produtos inteiros, a concorrer com ferramentas dedicadas, para uma dor sem número |
+| 8 Valor depressa | ◐ | Um modelo de projecto pede configuração; o lançamento agendado de uma colecção dá valor no primeiro lançamento |
+
+**Saída: matar como módulo próprio** (falha a porta 2: já existe e pode
+usar-se ou ligar-se; e a 7). Duas peças têm valor e mudam de sítio:
+
+- **Lançamentos agendados → Catálogo.** Publicar uma colecção a uma hora
+  certa, com aviso a quem agendou se algo falhar (sequência 03 do `docs/31`,
+  passo 5; proposta p. 11). É uma lacuna do Catálogo (`docs/31` §3, «Falta»),
+  e passa pelas portas como peça do Catálogo, não como projecto.
+- **Assistente interno → MCP de leitura** (Fase 1). O comerciante faz as
+  perguntas ao assistente dele; a escrita com confirmação humana é da Fase 3
+  (ADR-0040). As lições 6.1 e 6.3 já dizem como: a ferramenta devolve um
+  índice e não o catálogo inteiro, e há um tecto de gasto com aviso.
+- **A governação** já está no rasto e nas permissões; a janela de manutenção
+  anunciada e a página de desempenho são da operação da plataforma, não do
+  comerciante.
+- **Ligar em vez de construir:** um calendário ou uma ferramenta de projectos
+  de fora entram, se houver procura, como **extensão de terceiros**
+  (`docs/08`), com a regra dos dados na UE (regra 4).
+
+Matar ou não é do Diogo ou do Bruno; a decisão DR põe a camada E no produto,
+e estas portas dizem que, como módulo próprio, ela não se paga.
 
 ---
 

@@ -67,6 +67,11 @@ de gestão da empresa inteira, não só uma loja.
   prestador com o extracto do banco, ligada à fila de diferenças (o `docs/26`
   §1 já a deixava para depois). Investigar: despesas com IA (regra 4, onde
   corre o modelo) e ligação directa aos bancos (serviço regulado? C).
+- **Organização (camada E) pelas 8 portas** (`docs/13` §14): ◐ ❌ ❔ ❔ ❌ ◐ ❌
+  ◐ → **matar como módulo próprio** (porta 2: projectos, chat, documentos e
+  calendário já existem e ligam-se). Os lançamentos agendados vão para o
+  Catálogo (não há no `docs/14`); o assistente interno é o MCP de leitura da
+  Fase 1. Decisão de matar por tomar (a DR põe a camada no produto).
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   27 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
