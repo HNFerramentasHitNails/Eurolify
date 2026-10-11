@@ -4606,6 +4606,9 @@ try {
     .selectOption({ label: "50 ml" });
   await rp.getByRole("button", { name: "Criar variante" }).click();
   await rp.getByText("Variante ENS-031-C criada.", { exact: true }).waitFor();
+  // Os valores das opções chegam depois da ficha: sem esperar, a linha às
+  // vezes ainda não tinha o «50 ml» (falhou 2 vezes em 3, 11/10/2026).
+  await rp.locator('.variantes-artigo[data-opcoes="pronto"]').waitFor();
   confere(
     (await rp
       .locator("table.variantes-artigo")
