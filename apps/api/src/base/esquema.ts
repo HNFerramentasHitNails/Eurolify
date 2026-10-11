@@ -1744,6 +1744,9 @@ export interface TabelaDevolucao {
   criada_por: ColumnType<string, string, never>;
   criada_em: ColumnType<Date, never, never>;
   versao: ColumnType<number, never, number>;
+  // Os avisos do prazo do reembolso, cada um uma vez (0062; docs/30 §14).
+  aviso_prazo_em: ColumnType<Date | null, never, Date>;
+  prazo_passado_em: ColumnType<Date | null, never, Date>;
 }
 
 export interface TabelaLinhaDevolucao {

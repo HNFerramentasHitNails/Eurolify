@@ -543,6 +543,7 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
 ## 14. O aviso do prazo do reembolso (R10; desenho, 11/10/2026)
 
 Pedido do Diogo, 11/10/2026: *«avança com o aviso do prazo do reembolso»*.
+**Aprovado pelo Diogo a 11/10/2026** (*«aprovado»*, à Q9; `docs/06`, DQ).
 A R10 já está no desenho aprovado: o prazo conta-se do pedido de livre
 resolução (14 dias, **C**, J4), a devolução mostra `reembolsar_ate` e
 `dias_para_reembolsar` (§12), e «a tarefa avisa antes de acabar». Falta
@@ -574,4 +575,25 @@ dizer **a quem e como**.
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q9 | Aprovas o aviso **3 dias antes e no dia em que passa**, como evento e numa lista da API, **sem e-mail por agora**, e o prazo no fuso do comerciante? | sim |
+| Q9 ✅ sim (Diogo, 11/10/2026) | Aprovas o aviso **3 dias antes e no dia em que passa**, como evento e numa lista da API, **sem e-mail por agora**, e o prazo no fuso do comerciante? | sim |
+
+### 14.4 Em código (11/10/2026; migração 0062; `docs/06`, DQ)
+
+| O quê | Onde |
+|---|---|
+| `posvenda_reembolsar_ate()` e `posvenda_prazo_da_devolucao()`: o último dia (o dia do pedido no fuso do comerciante mais 14) e os dias que faltam, num sítio só, usados pela leitura da devolução, pela lista e pela tarefa | migração 0062; `src/posvenda/repositorio.ts` |
+| `devolucao.aviso_prazo_em` e `prazo_passado_em`, cada um uma vez, só numa devolução de livre resolução; o gatilho põe `refund.deadline_approaching` e `refund.deadline_passed` na `evento_saida`, com o prazo e os dias, sem dados pessoais | migração 0062 |
+| `tarefa_prazo_reembolso`, interna, com a origem de quem pediu (0060): entra com a devolução de livre resolução, sai quando ela fecha (o reembolso executado fecha-a), se cancela ou passa o prazo; as que já estavam abertas entram na migração | migração 0062 |
+| a tarefa de hora a hora: avisa, marca o passado, ou reagenda se olhou cedo; um comerciante que falhe fica no registo e não pára os outros | `src/posvenda/prazo.ts`; `servidor.ts` |
+| `GET /returns?prazo_reembolso=a_acabar` ou `passado`, e a lista mostra `reembolsar_ate` e `dias_para_reembolsar` | `src/posvenda/rotas.ts` |
+| 2 testes pela API; 12 mutações, todas apanhadas | `test/posvenda-api.test.ts` |
+
+**Desvios do desenho:**
+- **O prazo passou a contar no fuso do comerciante também na leitura da
+  devolução** (era UTC desde a parte 1): um pedido às 00:30 de Lisboa a 02/10
+  dava prazo a 15/10 e passa a dar 16/10.
+- **Se a tarefa não correu a tempo** e o prazo já passou sem o primeiro aviso,
+  sai só o de passado.
+- **Por fazer:** o e-mail ao comerciante (quando houver notificações) e o
+  ecrã do Hub (quando houver a pós-venda no Hub).
+

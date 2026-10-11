@@ -23,8 +23,6 @@ import { ErroPosVenda, traduzir } from "./erros.js";
  */
 const DIAS_POR_OMISSAO = 14;
 const DIAS_POR_PAIS: Record<string, number> = {};
-/** R10: o prazo do reembolso a contar do pedido. **C** (docs/30, J4). */
-const DIAS_PARA_REEMBOLSAR = 14;
 export const diasDeLivreResolucao = (pais: string | null) =>
   (pais === null ? undefined : DIAS_POR_PAIS[pais]) ?? DIAS_POR_OMISSAO;
 
@@ -1325,18 +1323,14 @@ export async function lerDevolucao(
       ])
       .where("devolucao_id", "=", id)
       .execute();
-    // R10: o prazo do reembolso conta-se do pedido de livre resolução
-    // (**C**, 14 dias até o jurista validar, docs/30 J4).
+    // R10: o prazo do reembolso conta-se do pedido de livre resolução, no
+    // fuso do comerciante (**C**, 14 dias até o jurista validar, docs/30 J4
+    // e §14). A regra está na base (0062), num sítio só.
     const { rows } = await sql<{
       ate: string | null;
       dias: number | null;
-    }>`select to_char((p.recebido_em at time zone 'UTC')::date + ${DIAS_PARA_REEMBOLSAR}::int,
-        'YYYY-MM-DD') as ate,
-      ((p.recebido_em at time zone 'UTC')::date + ${DIAS_PARA_REEMBOLSAR}::int
-        - (now() at time zone 'UTC')::date)::int as dias
-      from pedido_livre_resolucao p where p.id = ${d.pedido_livre_resolucao_id}::uuid`.execute(
-      trx,
-    );
+    }>`select to_char(x.ate, 'YYYY-MM-DD') as ate, x.dias
+      from posvenda_prazo_da_devolucao(${id}::uuid) x`.execute(trx);
     return {
       ...d,
       linhas,
@@ -1349,18 +1343,58 @@ export async function lerDevolucao(
 export async function listarDevolucoes(
   db: Kysely<BaseDados>,
   c: string,
-  filtro: { estado?: EstadoDevolucao; encomenda?: string },
+  filtro: {
+    estado?: EstadoDevolucao;
+    encomenda?: string;
+    /** A4: as que faltam 3 dias ou menos, ou já passaram (docs/30 §14). */
+    prazoReembolso?: "a_acabar" | "passado";
+  },
 ) {
   return noPosVenda(db, c, (trx) => {
     let q = trx
-      .selectFrom("devolucao")
-      .select(["id", "encomenda_id", "origem", "estado", "versao", "criada_em"])
-      .orderBy("criada_em", "desc")
-      .orderBy("id", "desc")
+      .selectFrom("devolucao as d")
+      .leftJoinLateral(
+        (eb) =>
+          eb
+            .selectFrom(
+              sql<{
+                ate: string;
+                dias: number;
+              }>`posvenda_prazo_da_devolucao(d.id)`.as("x"),
+            )
+            .select([
+              sql<string>`to_char(x.ate, 'YYYY-MM-DD')`.as("ate"),
+              "x.dias",
+            ])
+            .as("p"),
+        (j) => j.onTrue(),
+      )
+      .select([
+        "d.id",
+        "d.encomenda_id",
+        "d.origem",
+        "d.estado",
+        "d.versao",
+        "d.criada_em",
+        "p.ate as reembolsar_ate",
+        "p.dias as dias_para_reembolsar",
+      ])
+      .orderBy("d.criada_em", "desc")
+      .orderBy("d.id", "desc")
       .limit(200);
-    if (filtro.estado !== undefined) q = q.where("estado", "=", filtro.estado);
+    if (filtro.estado !== undefined) {
+      q = q.where("d.estado", "=", filtro.estado);
+    }
     if (filtro.encomenda !== undefined) {
-      q = q.where("encomenda_id", "=", filtro.encomenda);
+      q = q.where("d.encomenda_id", "=", filtro.encomenda);
+    }
+    if (filtro.prazoReembolso !== undefined) {
+      // Só as que ainda esperam pelo reembolso (A1): abertas.
+      q = q.where("d.estado", "not in", ["fechada", "cancelada"]);
+      q =
+        filtro.prazoReembolso === "a_acabar"
+          ? q.where("p.dias", ">=", 0).where("p.dias", "<=", 3)
+          : q.where("p.dias", "<", 0);
     }
     return q.execute();
   });

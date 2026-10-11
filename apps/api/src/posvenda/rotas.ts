@@ -421,11 +421,15 @@ export function rotasDaPosVenda(
     {
       config: { ambito: "returns:read" },
       schema: {
-        description: "As devoluções, das mais recentes.",
+        description:
+          "As devoluções, das mais recentes. Com prazo_reembolso, só as de livre resolução abertas cujo prazo do reembolso acaba daqui a 3 dias ou menos (a_acabar) ou já passou (passado); o prazo conta-se no fuso do comerciante (docs/30 §14).",
         querystring: Type.Object(
           {
             estado: Type.Optional(umDe(ESTADOS_DEVOLUCAO)),
             encomenda: Type.Optional(IdEncomenda),
+            prazo_reembolso: Type.Optional(
+              umDe(["a_acabar", "passado"] as const),
+            ),
           },
           { additionalProperties: false },
         ),
@@ -445,12 +449,17 @@ export function rotasDaPosVenda(
             ...(pedido.query.encomenda === undefined
               ? {}
               : { encomenda: semPrefixo(pedido.query.encomenda) }),
+            ...(pedido.query.prazo_reembolso === undefined
+              ? {}
+              : { prazoReembolso: pedido.query.prazo_reembolso }),
           })
         ).map((d) => ({
           id: `rma_${d.id}`,
           encomenda: `ord_${d.encomenda_id}`,
           origem: d.origem,
           estado: d.estado,
+          reembolsar_ate: d.reembolsar_ate,
+          dias_para_reembolsar: d.dias_para_reembolsar,
           criada_em: d.criada_em.toISOString(),
           versao: d.versao,
         })),
