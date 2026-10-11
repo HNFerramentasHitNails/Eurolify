@@ -14,7 +14,7 @@ Desenho: `docs/28-rasto-de-auditoria.md`, aprovado pelo Diogo a 10/10/2026
 | 4, parte 2 | #345 (juntado a 10/10/2026, 3c1d9f9) | — | as linhas do tempo da API (artigo, Hub, cliente, encomenda, transições de pagamento, rasto de documento) trazem `canal`, `pedido`, `ia` (sempre, com `desconhecido` explícito), `autorizado_por` e `motivo`, por um só esquema e função (`base/rasto-resposta.ts`) |
 | 4, parte 3 | #349 (juntado a 11/10/2026, 6b79b84) | 0059 | `tipo_de_autor` e `sem_autorizacao_de_pessoa` em todas as linhas do tempo (calculados na API); o histórico de preços em dois níveis (`prices:read` vê o tipo e o aviso; `prices:history`, do dono e do gestor, vê quem) |
 | 4, parte 4 | #351 (juntado a 11/10/2026, c7afba2) | 0060 | as tarefas (pagamentos, encomendas, documentos) guardam a origem de quem as agendou e correm com ela herdada: «sistema, a pedido do agente X», com o pedido, a IA e a autorização dele |
-| pendentes | #354 | 0062 | o `quem` conferido com quem se autenticou (`eurolify.autenticado`); o canal `importacao`; o motivo do histórico pseudonimizado; os outros pendentes já estavam resolvidos ou ficam de fora (`docs/28` §4) |
+| pendentes | #354 (juntado a 11/10/2026, 6ca0737) | 0062 | o `quem` conferido com quem se autenticou (`eurolify.autenticado`); o canal `importacao`; o motivo do histórico pseudonimizado; os outros pendentes já estavam resolvidos ou ficam de fora (`docs/28` §4) |
 
 Fonte dos passos 1 a 3: as descrições dos pedidos e o `docs/28` §2 a §4 no
 `main` de 10/10/2026 (commit 0dffbe3).
