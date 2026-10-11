@@ -9,12 +9,13 @@ import {
   api,
   ErroHub,
   type AlteracaoArtigo,
-  type AutorAlteracao,
   type FichaArtigo,
   type PublicacaoArtigo,
 } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { mensagemDeErro, semSessao } from "../erros";
+import { IconeAviso } from "../icones";
+import { linhaDoRasto } from "../rasto";
 import { preencher, TAG_LINGUA, type Lingua, type Textos } from "../textos";
 import { textoDe } from "./Artigo";
 
@@ -22,7 +23,9 @@ import { textoDe } from "./Artigo";
 // alteração mais recente para a mais antiga, 25 de cada vez. Só lê. Quem
 // fez vem do servidor (o `autor`, §16.2); o ecrã só o diz. As partes e os
 // campos que o ecrã conhece vão em linguagem comum (§16.4); os outros, com o
-// nome técnico, sem se inventar o que significam.
+// nome técnico, sem se inventar o que significam. Por baixo de quem e
+// quando, as outras respostas do rasto: de onde veio, a IA, quem autorizou e
+// o motivo (§26), também decididas no servidor.
 
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
 const FORMATO_ARTIGO =
@@ -35,8 +38,8 @@ interface Grupo {
   transacao: string;
   primeira: string;
   em: string;
-  autor: AutorAlteracao;
-  origem: string | null;
+  /** A primeira entrada: o rasto é o da transacção, igual em todas. */
+  rasto: AlteracaoArtigo;
   entradas: AlteracaoArtigo[];
 }
 
@@ -52,8 +55,7 @@ function agrupar(entradas: AlteracaoArtigo[]): Grupo[] {
         transacao: e.transacao,
         primeira: e.id,
         em: e.em,
-        autor: e.autor,
-        origem: e.origem,
+        rasto: e,
         entradas: [e],
       });
     }
@@ -137,19 +139,20 @@ function Valor({
   return <code>{JSON.stringify(valor)}</code>;
 }
 
-/** «Ana Teste», «Chave «Escrita»», «Automático» (§16.2). */
-function nomeDoAutor(autor: AutorAlteracao, quem: string, t: Textos): string {
-  switch (autor.tipo) {
+/** «Ana Teste», «Chave «Escrita»», «Automático» (§16.2), pelo tipo de autor do servidor (§26). */
+function nomeDoAutor(e: AlteracaoArtigo, t: Textos): string {
+  switch (e.tipo_de_autor) {
     case "pessoa":
-      return autor.nome ?? t.historicoPessoaDeFora;
+      return e.autor.nome ?? t.historicoPessoaDeFora;
     case "chave":
-      return autor.nome === null
+    case "agente":
+      return e.autor.nome === null
         ? t.historicoChaveSemNome
-        : preencher(t.historicoChave, { nome: autor.nome });
+        : preencher(t.historicoChave, { nome: e.autor.nome });
     case "sistema":
       return t.historicoAutomatico;
     default:
-      return quem;
+      return e.quem;
   }
 }
 
@@ -408,20 +411,42 @@ function Alteracao({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(grupo.em));
-  const quem = nomeDoAutor(grupo.autor, grupo.entradas[0]?.quem ?? "", t);
+  const quem = nomeDoAutor(grupo.rasto, t);
+  const rasto = linhaDoRasto(grupo.rasto, t);
   return (
     <li>
       <h2 id={`alteracao-${grupo.primeira}`} tabIndex={-1}>
         <time dateTime={grupo.em}>{quando}</time>
         {" — "}
         {quem}
-        {grupo.origem?.startsWith("importacao:") === true ? (
-          <span className="secundario">
-            {" · "}
-            {t.historicoPelaImportacao}
-          </span>
-        ) : null}
       </h2>
+      <p className="rasto-historico">
+        {rasto.partes.join(" · ")}
+        {" · "}
+        {rasto.autorizacao.aviso ? (
+          <strong className="aviso-texto">
+            <IconeAviso /> {rasto.autorizacao.texto}
+          </strong>
+        ) : (
+          <span>{rasto.autorizacao.texto}</span>
+        )}
+      </p>
+      {rasto.motivo === null ? null : (
+        <p className="rasto-historico">
+          {t.rastoMotivo}{" "}
+          <Valor entidade="rasto" campo="motivo" valor={rasto.motivo} />
+        </p>
+      )}
+      {rasto.detalhes.length === 0 ? null : (
+        <details className="detalhes-rasto">
+          <summary>{t.rastoDetalhes}</summary>
+          <ul>
+            {rasto.detalhes.map((d) => (
+              <li key={d}>{d}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       <ul>
         {grupo.entradas.map((e) => (
           <li key={e.id} id={`entrada-${e.id}`} tabIndex={-1}>

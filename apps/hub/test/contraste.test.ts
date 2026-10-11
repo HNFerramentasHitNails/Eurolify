@@ -87,6 +87,9 @@ const TEXTO = [
   ["texto-sobre-accao", "accao-principal"],
   ["estado-erro", "superficie"],
   ["estado-erro", "superficie-elevada"],
+  // O aviso «Sem autorização de uma pessoa» é texto (docs/22 §26.2).
+  ["estado-aviso", "superficie"],
+  ["estado-aviso", "superficie-elevada"],
 ] as const;
 
 describe("os contrastes dos tokens", () => {

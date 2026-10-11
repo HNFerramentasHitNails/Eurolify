@@ -3115,7 +3115,7 @@ try {
     "histórico: pela ficha, só com o teclado; 25 alterações, a mais recente primeiro, com quem fez, a parte e o antes → depois",
   );
   // O texto longo mostra o começo e «Ver tudo», que abre com o teclado.
-  const longo = grupos.nth(1).locator("details");
+  const longo = grupos.nth(1).locator("details.valor-historico");
   await longo.locator("summary").focus();
   await rp.keyboard.press("Enter");
   confere(
@@ -4855,6 +4855,175 @@ try {
       .count()) === 1,
     "chaves: uma chave com data de fim mostra-a na lista",
   );
+  // Uma chave de um agente de IA (docs/22 §26.3): a caixa ao criar, com a
+  // explicação, e a etiqueta na lista.
+  await rp
+    .getByLabel("Nome (ex.: Integração da faturação)")
+    .fill("Preços (agente)");
+  await rp.getByLabel("Alterar o catálogo").check();
+  const caixaAgente = rp.getByLabel("Chave de um agente de IA");
+  confere(
+    !(await caixaAgente.isChecked()) &&
+      (await rp
+        .getByText("fica no histórico como feito por uma IA", { exact: false })
+        .count()) === 1,
+    "chaves: a caixa «Chave de um agente de IA» vem desmarcada, com a explicação",
+  );
+  await caixaAgente.focus();
+  await rp.keyboard.press("Space");
+  await rp.getByRole("button", { name: "Criar a chave" }).click();
+  await rp.getByText("O segredo da chave «Preços (agente)»").waitFor();
+  await rp.getByRole("button", { name: "Já o guardei" }).click();
+  await rp.getByText("4 chaves", { exact: true }).waitFor();
+  confere(
+    (await rp
+      .getByRole("row", { name: /Preços \(agente\)/ })
+      .getByText("Agente de IA", { exact: true })
+      .count()) === 1 &&
+      (await rp
+        .getByRole("row", { name: /Com prazo/ })
+        .getByText("Agente de IA", { exact: true })
+        .count()) === 0,
+    "chaves: a chave de um agente leva a etiqueta «Agente de IA»; as outras não",
+  );
+  const chaveAgente = psql(
+    `select id from chave_api where nome = 'Preços (agente)' and agente_ia
+       and comerciante_id = '${comerciante}'`,
+  );
+  confere(
+    /^[0-9a-f-]{36}$/.test(chaveAgente),
+    "chaves: a marca ficou guardada na chave (agente_ia)",
+  );
+
+  // As respostas do rasto no histórico (docs/22 §26): uma alteração pela
+  // chave do agente, uma importação, uma tarefa a pedido do agente e uma da
+  // Ana no Hub, com o contexto que a API e as tarefas põem (docs/28 §3).
+  {
+    const ana = psql("select id from pessoa where email = 'ana@exemplo.test'");
+    const comRasto = (vars, alteracao) =>
+      `begin; ${Object.entries(vars)
+        .map(([k, v]) => `select set_config('eurolify.${k}', '${v}', true);`)
+        .join(" ")} ${alteracao}; commit;`;
+    const peso = (g) =>
+      `update variante set peso_g = ${String(g)} where artigo_id = '${artigoDoHistorico}'`;
+    psql(
+      [
+        comRasto(
+          {
+            quem: `chave:key_${chaveAgente}`,
+            canal: "api",
+            pedido: "req-agente-1",
+            ia: JSON.stringify({
+              prova: "declarado",
+              fornecedor: "fornecedor-exemplo",
+              modelo: "modelo-exemplo",
+              execucao: "exec-42",
+            }),
+          },
+          peso(120),
+        ),
+        comRasto(
+          {
+            quem: `pessoa:per_${ana}`,
+            canal: "importacao",
+            pedido: "req-importacao-1",
+            autorizado_por: `pessoa:per_${ana}`,
+          },
+          peso(130),
+        ),
+        comRasto(
+          {
+            quem: "sistema:conclusoes",
+            canal: "sistema",
+            pedido: "tarefa:conclusoes",
+            ia: JSON.stringify({ prova: "declarado" }),
+            a_pedido_de: JSON.stringify({
+              pedido: "req-agente-1",
+              quem: `chave:key_${chaveAgente}`,
+            }),
+            motivo: "Conclusão automática pedida pelo agente",
+          },
+          peso(140),
+        ),
+        comRasto(
+          {
+            quem: `pessoa:per_${ana}`,
+            canal: "hub",
+            pedido: "req-hub-1",
+            autorizado_por: `pessoa:per_${ana}`,
+          },
+          peso(150),
+        ),
+      ].join("\n"),
+    );
+  }
+  await rp.goto(
+    `${ORIGEM}/artigos/prd_${artigoDoHistorico}/historico?comerciante=mer_${comerciante}`,
+  );
+  const gruposRasto = rp.locator(".historico > li");
+  await gruposRasto.first().waitFor();
+  const textoDe = async (i) => (await gruposRasto.nth(i).textContent()) ?? "";
+  const [doHub, daTarefa, daImportacao, doAgente] = await Promise.all(
+    [0, 1, 2, 3].map(textoDe),
+  );
+  const antiga = (await rp.locator(".historico").textContent()) ?? "";
+  confere(
+    doHub.includes("No Hub · Autorizado por Ana Teste") &&
+      daTarefa.includes("Automático") &&
+      daTarefa.includes(
+        "Automático · a pedido de Chave «Preços (agente)» · Agente de IA (declarado) · Sem autorização de uma pessoa",
+      ) &&
+      daTarefa.includes("Motivo: Conclusão automática pedida pelo agente") &&
+      daImportacao.includes("Pela importação · Autorizado por Ana Teste") &&
+      doAgente.includes("Chave «Preços (agente)»") &&
+      doAgente.includes(
+        "Pela API · Agente de IA (declarado: fornecedor-exemplo, modelo-exemplo) · Sem autorização de uma pessoa",
+      ) &&
+      antiga.includes("Origem desconhecida · Autorização desconhecida"),
+    "histórico: de onde veio, a IA, quem autorizou, o aviso, o pedido de origem e o motivo; as antigas dizem «desconhecida»",
+  );
+  confere(
+    (await gruposRasto.nth(3).locator(".aviso-texto svg").count()) === 1 &&
+      (await gruposRasto.nth(0).locator(".aviso-texto").count()) === 0,
+    "histórico: o aviso leva o ícone e o texto; quem foi autorizado não tem aviso",
+  );
+  // «Detalhes» com o teclado: o pedido e a execução.
+  const detalhes = gruposRasto.nth(3).locator("details.detalhes-rasto");
+  await detalhes.locator("summary").focus();
+  await rp.keyboard.press("Enter");
+  const textoDetalhes = (await detalhes.textContent()) ?? "";
+  confere(
+    (await detalhes.getAttribute("open")) !== null &&
+      textoDetalhes.includes("Pedido n.º req-agente-1") &&
+      textoDetalhes.includes("Execução: exec-42") &&
+      !doAgente.includes("IA: desconhecida") &&
+      ((await gruposRasto.nth(0).locator("details").textContent()) ?? "")
+        .includes("IA: desconhecida"),
+    "histórico: «Detalhes» abre com o teclado, com o pedido e a execução; a IA desconhecida só aparece lá",
+  );
+  for (const largura of [375, 768, 1280]) {
+    for (const tema of ["light", "dark"]) {
+      await rp.setViewportSize({ width: largura, height: 900 });
+      await rp.emulateMedia({ colorScheme: tema });
+      confere(
+        !(await rp.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        )),
+        `histórico com o rasto: a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+      );
+      await gruposRasto.nth(0).scrollIntoViewIfNeeded();
+      await rp.screenshot({
+        path: join(
+          SAIDA,
+          `historico-rasto-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+        ),
+      });
+    }
+  }
+  await rp.setViewportSize({ width: 375, height: 800 });
+  await rp.emulateMedia({ colorScheme: "light" });
+  await rp.goto(`${ORIGEM}/chaves?comerciante=mer_${comerciante}`);
+  await rp.getByText("4 chaves", { exact: true }).waitFor();
 
   const guardadoChaves = JSON.stringify(
     await recuperado.contexto.storageState(),
