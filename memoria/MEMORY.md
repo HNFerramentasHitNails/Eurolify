@@ -124,3 +124,7 @@
 - [Rasto de auditoria comum (#322, DK): passos 1–3 (#327, #334, #340; 0051, 0053, 0054) e o passo 4 parte 1, chave de um agente de IA (0057); plano do resto do passo 4; decisão do aviso «sem autorização» pedida — 10/10/2026](rasto-de-auditoria-10out2026.md)
 - [Pós-venda, parte 1 (#328, #329, decisão DM): livre resolução só de consumidores, devolução com inspecção, reembolso manual, NC só depois do reembolso, cancelar paga; migração 0058 (era 0054) no ensaio (corrida 38093050863); parte 2 por fazer — 10/10/2026](pos-venda-parte1-10out2026.md)
 - [Pós-venda, parte 2 (#350, decisão DP): reembolso do MB WAY pela EuPago (OAuth, trid do aviso, a_pedir/a_confirmar, aceite nunca se repete); Multibanco à mão; migração 0061 no ensaio (corrida 38155543630); sandbox por ver — 11/10/2026](pos-venda-parte2-11out2026.md)
+
+## Âmbito do produto
+
+- [Hub da empresa inteira (#355): os dois PDFs do Hub actual lidos; docs/31 com as 15 sequências, os 32 módulos (7 núcleo, 20 gestão, 5 sectoriais), integrações e modelo comercial; choca com o docs/00 §2.2; decisão de âmbito pedida — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)

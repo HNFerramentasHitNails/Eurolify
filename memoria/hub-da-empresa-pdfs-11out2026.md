@@ -1,0 +1,44 @@
+# O Hub da empresa inteira: o conhecimento dos dois PDFs do Hub actual, 11/10/2026
+
+## O que se fez
+
+Pedido do Diogo, 11/10/2026 (issue #355): retirar todo o conhecimento da
+apresentação (5 páginas) e da proposta comercial (35 páginas, ref. de
+30/09/2026) do Hub interno actual, para o Eurolify ter também uma plataforma
+de gestão da empresa inteira, não só uma loja.
+
+- Lidos os dois PDFs por inteiro (as 40 páginas como imagem).
+- Escrito o `docs/31-hub-de-gestao-da-empresa.md`: o Hub numa página, os seis
+  princípios (já são regras do Eurolify), as 15 sequências de trabalho lado a
+  lado com o estado do Eurolify, os 32 módulos com domínio e natureza, as
+  integrações, o que muda de uma empresa para vários comerciantes, o modelo
+  comercial como referência, uma ordem por camadas, os choques com decisões e
+  a decisão de âmbito pedida.
+- Sem a marca dos sistemas actuais e sem nomes de clientes; o exemplo de lote
+  do PDF não se copiou.
+
+## Números (com data e como se contaram)
+
+- Do PDF, não medidos por mim (proposta p. 4, «contados no próprio código e na
+  base de dados a 30 de setembro de 2026»): 32 módulos, +400 ecrãs, +220
+  funções no servidor, +500 tabelas, +70 tarefas automáticas.
+- Preço proposto a um cliente (proposta p. 33): 80.000 € + IVA, em 30/40/10/10/10 %;
+  14 semanas até ao arranque; formação de 26 sessões de 2 horas.
+- Eurolify, 11/10/2026, `git ls-tree origin/main`: 60 migrações (0001 a 0061,
+  sem a 0056), 15 pastas em `apps/api/src/`.
+- Os 32 módulos pela tabela do `docs/31` §4, contados à mão: 7 de núcleo, 20 de
+  gestão, 5 sectoriais; 6 em parte no Eurolify, 2 desenhados e desligados, 6
+  fora pelo `docs/00` §2.2, 18 por desenhar.
+
+## O que ficou por verificar
+
+- A decisão de âmbito (`docs/31` §10): o `docs/00` §2.2 exclui assiduidade,
+  marketing editorial, streaming e gráfica; o pedido inclui-os. Recomendada a
+  opção a) — módulos ligáveis a partir da Fase 2.
+- Todas as regras fiscais e legais do PDF ficam **C** (isenção da formação,
+  bilhete de evento, biometria no trabalho, relatório da autoridade dos
+  cosméticos, rótulo, prestações).
+- O plano de fatias diz «em pedido» para as fatias 8, 9 e 10, que já estão no
+  `main` (0044, 0047, 0050): desactualizado, não corrigido neste pedido.
+- Se a fatura do Eurolify nasce das quantidades expedidas (sequência 01) — não
+  confirmado no `docs/27` nem no `docs/29`.
