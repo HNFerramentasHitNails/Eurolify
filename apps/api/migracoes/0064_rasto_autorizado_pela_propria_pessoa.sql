@@ -5,17 +5,24 @@
 -- ela a criá-la. Passa a ficar `pessoa:per_<Ana>`.
 --
 -- Nas rotas públicas não há sessão: a API não sabe quem é a pessoa e não põe
--- `eurolify.autorizado_por`. Quem o sabe é a base, depois de conferir a prova
--- dela no próprio pedido — o convite e a passkey registada com a
--- verificação da pessoa no dispositivo (`requireUserVerification`), ou o
--- código de recuperação e a passkey nova. Nesse ponto a função põe a
--- própria pessoa como quem autorizou, só para o resto da transacção. Se o
--- pedido falhar depois, a transacção desfaz-se e nada fica (só quando a
--- operação termina bem).
+-- `eurolify.autorizado_por`. A API verifica o registo da passkey
+-- (`verificarRegisto`, com a verificação da pessoa pedida ao dispositivo);
+-- a base confere o convite ou o código de recuperação e gasta o desafio.
+-- Nesse ponto a função põe a própria pessoa como quem autorizou, só para o
+-- resto da transacção. Se o pedido falhar depois, a transacção desfaz-se e
+-- nada fica (só quando a operação termina bem).
+--
+-- Como na sessão do Hub (`docs/28` §3.2; revisão do #334, P3-1): com uma IA
+-- declarada no pedido, não fica ninguém como quem autorizou (revisão do
+-- #364, P2-1).
+--
+-- Limite (revisão do #364, P3-1): quem tiver o link do convite, ou o código
+-- e o e-mail, fica registado como a própria pessoa — é a mesma prova que já
+-- abre a conta.
 --
 -- O que muda (as assinaturas e o resto dos corpos ficam iguais):
--- - `rasto_autorizado_pela_propria(pessoa)`: nova, interna; não troca um
---   `autorizado_por` que já esteja posto;
+-- - `rasto_autorizado_pela_propria(pessoa)`: nova, interna; com IA declarada
+--   não põe ninguém; recusa se já estiver posta outra pessoa;
 -- - `convite_aceitar_conta_nova()` (corpo da 0018): «conta_criada» e
 --   «convite_aceite»;
 -- - `recuperacao_concluir()` (corpo da 0022): «recuperou» e as sessões
@@ -29,13 +36,24 @@ SET LOCAL lock_timeout = '10s';
 
 CREATE FUNCTION rasto_autorizado_pela_propria(p_pessoa uuid) RETURNS void
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  ja text := nullif(btrim(current_setting('eurolify.autorizado_por', true)), '');
+  pessoa text;
 BEGIN
   IF p_pessoa IS NULL THEN
     RAISE EXCEPTION 'rasto: falta a pessoa que autoriza';
   END IF;
-  IF nullif(btrim(current_setting('eurolify.autorizado_por', true)), '') IS NULL THEN
-    PERFORM set_config('eurolify.autorizado_por', 'pessoa:per_' || p_pessoa::text, true);
+  pessoa := 'pessoa:per_' || p_pessoa::text;
+  -- Outra pessoa já posta como quem autorizou: não se troca em silêncio
+  -- (revisão do #364, P3-2).
+  IF ja IS NOT NULL AND ja <> pessoa THEN
+    RAISE EXCEPTION 'rasto: o pedido já tem outra pessoa como quem autorizou';
   END IF;
+  -- Com uma IA declarada, não prova que a pessoa confirmou (§3.2).
+  IF nullif(btrim(current_setting('eurolify.ia', true)), '') IS NOT NULL THEN
+    RETURN;
+  END IF;
+  PERFORM set_config('eurolify.autorizado_por', pessoa, true);
 END
 $$;
 

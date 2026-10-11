@@ -102,10 +102,14 @@ usam.
   quem executou (a chave) e deixa «autorizado por» vazio, salvo prova.
 - **Rotas públicas em que a pessoa age ela própria** (conta nova pelo
   convite, recuperação da conta; Diogo, 11/10/2026, Q9): não há sessão, mas
-  a pessoa prova quem é no próprio pedido (o convite ou o código, e a passkey
-  registada com a verificação dela no dispositivo). A base põe-na como quem
-  autorizou depois de conferir essa prova, só no resto da transacção: se o
-  pedido falhar, nada fica (0064, `rasto_autorizado_pela_propria()`).
+  a pessoa prova quem é no próprio pedido. A API verifica o registo da
+  passkey; a base confere o convite ou o código de recuperação, gasta o
+  desafio e só então põe a pessoa como quem autorizou, no resto da
+  transacção: se o pedido falhar, nada fica (0064,
+  `rasto_autorizado_pela_propria()`). Como na sessão, com uma IA declarada
+  no pedido não fica ninguém (revisão do #364, P2-1). Limite: quem tiver o
+  link do convite, ou o código e o e-mail, fica registado como a própria
+  pessoa — é a mesma prova que abre a conta (revisão do #364, P3-1).
 
 ### 3.3 A IA (R4)
 
