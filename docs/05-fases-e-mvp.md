@@ -1,5 +1,10 @@
 # Fases e primeira versão (MVP)
 
+> **Revista a 11/10/2026:** a gestão da empresa inteira entra no produto em
+> módulos ligáveis a partir da Fase 2 (decisão do Diogo,
+> [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)); a Fase 1
+> não muda.
+
 > **Versão de 03/10/2026 — proposta.** D-1, D-2 e D-3 foram decididas a
 > 03/10/2026 (`06-decisoes-em-aberto.md`); a estimativa de prazo e custo da
 > Fase 1 está em `10-estimativa-prazo-e-custo.md`; a D-13 foi decidida
@@ -85,7 +90,8 @@ pela lista da API dele escritos em tabela.
 software certificado de cada comerciante), emissão por adaptador fora de
 Portugal (entra país a país), troca e carteira, vários armazéns,
 marketplace, escrita por IA, protocolos de comércio por agentes, extensões
-abertas a qualquer programador.
+abertas a qualquer programador, e **os módulos de gestão da empresa** (a
+partir da Fase 2, ADR-0042).
 
 **Antes do primeiro comerciante de fora:** o motor de IVA validado pelo
 contabilista, os fluxos do consumidor validados por jurista, o contrato com
@@ -136,6 +142,34 @@ crédito (decisão AD).
   ficam na Fase 1. Estes módulos **ainda não passaram pelas 8 portas** do
   `13-portas-da-fase-2.md`. Skills: `eurolify-physical-retail-eu`,
   `eurolify-b2b-channels-eu`, `eurolify-contracts-operations-eu`.
+- **Módulos de gestão da empresa inteira** — decidido pelo Diogo a 11/10/2026
+  ([ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)), a partir
+  do Hub interno actual ([`31-hub-de-gestao-da-empresa.md`](31-hub-de-gestao-da-empresa.md)).
+  Entram **a partir desta fase**, em módulos que cada comerciante liga, pelas
+  camadas do `docs/31` §8:
+  - **B. Operação:** balcão (POS), armazém completo, compras e fornecedores,
+    apoio ao cliente, tarefas sobre um registo, painéis;
+  - **C. Comercial:** leads e prospecção, chamadas do dia pelo ritmo de compra,
+    saúde da carteira, encomenda feita pela equipa com ligação de pagamento,
+    comissões sobre o faturado, metas;
+  - **D. Financeiro:** despesas com leitura por IA e decisão de uma pessoa,
+    extractos e conciliação, tesouraria, lucro por área;
+  - **E. Organização:** projectos, procedimentos e objectivos, comunicação
+    interna;
+  - **F. Por sector:** fabrico (fórmulas, lotes de enchimento, rótulos),
+    formação (fatia 12), marketing e gráfica;
+  - **G. Pessoas:** RH, assiduidade, férias, fecho do mês — **só com o
+    jurista** (dados biométricos e direito do trabalho de cada país, não
+    verificados);
+  - **H. Parceiros:** portais de revendedor, distribuidor, franqueado e
+    formador (fatia 14).
+
+  O balcão, o armazém completo, as automações e os parceiros já estavam nesta
+  fase (bullets acima); o ADR-0042 junta-lhes o resto. Cada módulo passa pelas
+  8 portas antes do desenho (`13-portas-da-fase-2.md`) e tem o modelo e a lista
+  da API em tabela antes do código (ADR-0023). Os assistentes de IA que
+  escrevem esperam pela Fase 3 (ADR-0040). **Não estão estimados** (`docs/10`)
+  e **não contam para o critério de passagem** desta fase.
 - **Primeiros parceiros convidados a escrever eles próprios o seu adaptador**
   (decidido pelo Diogo a 03/10/2026, decisão L): prestadores e transportadoras da lista de parcerias
   (`07-pagamentos-e-envios-por-pais.md`), com os contratos que o Eurolify já usa.
