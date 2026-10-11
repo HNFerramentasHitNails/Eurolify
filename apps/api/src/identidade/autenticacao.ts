@@ -168,8 +168,12 @@ export function ligarAutenticacao(
         // declarada no pedido, o cookie não prova que a pessoa confirmou:
         // fica sem quem autorize (revisão do #334, P3-1).
         const rasto = rastoActual();
-        if (rasto !== undefined && rasto.ia === undefined) {
-          rasto.autorizadoPor = `pessoa:per_${pedido.sessao.pessoaId}`;
+        if (rasto !== undefined) {
+          // A base confere o `quem` com quem se autenticou (0062).
+          rasto.autenticado = `pessoa:per_${pedido.sessao.pessoaId}`;
+          if (rasto.ia === undefined) {
+            rasto.autorizadoPor = `pessoa:per_${pedido.sessao.pessoaId}`;
+          }
         }
         return;
       }
@@ -194,6 +198,10 @@ export function ligarAutenticacao(
         throw erro("auth.forbidden", `âmbito pedido: ${ambito}`);
       }
       pedido.chave = chave;
+      // A base confere o `quem` com quem se autenticou (0062).
+      const doPedido = rastoActual();
+      if (doPedido !== undefined)
+        doPedido.autenticado = `chave:key_${chave.chaveId}`;
       // Uma chave de um agente de IA (0057): a IA fica «declarado» mesmo sem
       // o cabeçalho Eurolify-IA, com fornecedor e modelo desconhecidos se
       // não vierem (docs/28 §3.3). Com o cabeçalho, fica o que ele diz.

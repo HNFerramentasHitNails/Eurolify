@@ -49,6 +49,12 @@ export interface ContextoRasto {
    * Põe-no só quem corre uma tarefa com origem (`comOrigemDaTarefa`).
    */
   aPedidoDe?: { pedido?: string; quem?: string };
+  /**
+   * Quem se autenticou no pedido (`chave:key_…` ou `pessoa:per_…`). Põe-no a
+   * autenticação; a base recusa um `quem` de chave ou de pessoa diferente
+   * dele (0062; #322).
+   */
+  autenticado?: string;
 }
 
 /** A origem de uma tarefa como a base a guarda (0060, `tarefa_origem()`). */
@@ -181,6 +187,7 @@ export async function aplicarRasto(
     contexto?.aPedidoDe === undefined ? "" : JSON.stringify(contexto.aPedidoDe);
   await sql`select
       set_config('eurolify.a_pedido_de', ${aPedidoDe}, true),
+      set_config('eurolify.autenticado', ${contexto?.autenticado ?? ""}, true),
       set_config('eurolify.canal', ${contexto?.canal ?? ""}, true),
       set_config('eurolify.pedido', ${contexto?.pedido ?? ""}, true),
       set_config('eurolify.ia', ${ia}, true),
