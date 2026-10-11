@@ -539,3 +539,39 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
   âmbito (`refunds:write`) para decidir, pagar e reconciliar (Q6).
 - **Por fazer:** o aviso do prazo do reembolso (R10) e a marca «selado por
   higiene» (R4), em pedidos seus; a sandbox (V7 a V10) antes do modo real.
+
+## 14. O aviso do prazo do reembolso (R10; desenho, 11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«avança com o aviso do prazo do reembolso»*.
+A R10 já está no desenho aprovado: o prazo conta-se do pedido de livre
+resolução (14 dias, **C**, J4), a devolução mostra `reembolsar_ate` e
+`dias_para_reembolsar` (§12), e «a tarefa avisa antes de acabar». Falta
+dizer **a quem e como**.
+
+### 14.1 O que já existe e o que não existe (lido no código a 11/10/2026)
+
+- O prazo calcula-se na leitura de uma devolução
+  (`src/posvenda/repositorio.ts`, `lerDevolucao`), da data UTC do pedido.
+- **Não há envio de e-mails nem entrega de webhooks.** Procurei `webhook`,
+  `evento_saida`, `notifica` e `e-mail` em `apps/api/src` e no plano
+  (`docs/eurolify/implementation-plan.md`). Os eventos ficam na
+  `evento_saida`, que os webhooks vão ler quando existirem. A confirmação por
+  e-mail é da parte 2 do checkout, por fazer.
+- O Hub ainda não tem ecrãs da pós-venda.
+
+### 14.2 Propostas
+
+| # | O quê | Proposta | Fonte |
+|---|---|---|---|
+| A1 | **Que casos** | as devoluções que vêm de um pedido de livre resolução, não canceladas nem fechadas sem reembolso, **enquanto o reembolso não está `executado`** (sem reembolso, ou com ele `a_executar`, `a_pedir`, `a_confirmar`, `falhado` ou `incerto`). Uma devolução do apoio ou comercial não tem este prazo legal | R10; `consumer-rights-eu`, «Reembolso» |
+| A2 | **O prazo** | o dia do pedido **no fuso do comerciante** (hoje: UTC) mais 14 dias (**C**, J4); o prazo acaba no fim desse dia | R10 |
+| A3 | **Quando avisa** | uma vez quando faltam **3 dias ou menos** (`refund.deadline_approaching`) e uma vez quando **passou** (`refund.deadline_passed`). Os 3 dias são proposta, não lei | R10 |
+| A4 | **Como** | o evento na `evento_saida` (sai pelos webhooks quando existirem), com o identificador da devolução e da encomenda, o prazo e os dias, nunca dados pessoais; e a lista `GET /returns?prazo_reembolso=a_acabar` ou `passado`, para o Hub e para o sistema do comerciante. **Sem e-mail** até haver notificações | `platform-architect` (eventos) |
+| A5 | **Onde corre** | uma tarefa da API, de hora a hora, como as outras (`servidor.ts`), com a marca de cada aviso na devolução, para não avisar duas vezes | `observability-security` («tarefas que não param em silêncio») |
+| A6 | **O que fica para o jurista** | reter o reembolso até receber o bem ou a prova de envio (J4) não pára o aviso: a devolução mostra se já voltou | J4 |
+
+### 14.3 Pergunta para o Diogo ou o Bruno
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q9 | Aprovas o aviso **3 dias antes e no dia em que passa**, como evento e numa lista da API, **sem e-mail por agora**, e o prazo no fuso do comerciante? | sim |
