@@ -67,8 +67,11 @@ export interface OrigemDaTarefa {
  */
 export function contextoDaTarefa(
   nome: string,
-  origem: OrigemDaTarefa | null,
+  guardada: OrigemDaTarefa | null,
 ): ContextoRasto {
+  // Uma origem que a base já não aceitasse pararia a tarefa para sempre:
+  // corre então sem origem (revisão do #351, P2-1).
+  const origem = origemValida(guardada) ? guardada : null;
   return {
     canal: "sistema",
     pedido: `tarefa:${nome}`,
@@ -80,6 +83,32 @@ export function contextoDaTarefa(
       : { autorizadoPor: origem.autorizado_por }),
     ...(origem?.ia === undefined ? {} : { ia: origem.ia }),
   };
+}
+
+const TEXTO_DA_ORIGEM = /^.{1,200}$/su;
+const AUTORIZADO =
+  /^pessoa:per_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** A origem passa as regras de `contexto_do_rasto()` (0060)? */
+function origemValida(o: OrigemDaTarefa | null): boolean {
+  if (o === null) return true;
+  const a = o.a_pedido_de;
+  if (a !== undefined) {
+    if (a.pedido === undefined && a.quem === undefined) return false;
+    if (a.pedido !== undefined && !PEDIDO_DO_RASTO.test(a.pedido)) return false;
+    if (a.quem !== undefined && !TEXTO_DA_ORIGEM.test(a.quem)) return false;
+  }
+  if (o.autorizado_por !== undefined && !AUTORIZADO.test(o.autorizado_por)) {
+    return false;
+  }
+  if (o.ia !== undefined) {
+    const prova: string = o.ia.prova;
+    if (prova !== "declarado" && prova !== "comprovado") return false;
+    for (const v of [o.ia.fornecedor, o.ia.modelo, o.ia.execucao]) {
+      if (v !== undefined && !/^.{1,100}$/su.test(v)) return false;
+    }
+  }
+  return true;
 }
 
 const armazem = new AsyncLocalStorage<ContextoRasto>();

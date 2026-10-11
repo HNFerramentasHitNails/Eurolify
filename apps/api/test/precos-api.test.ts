@@ -408,7 +408,13 @@ describe.skipIf(URL_BASE === undefined)("API de Preços e mercados", () => {
         sem_autorizacao_de_pessoa: true,
         canal: "api",
       });
-      for (const campo of ["quem", "autorizado_por", "pedido", "motivo"]) {
+      for (const campo of [
+        "quem",
+        "autorizado_por",
+        "pedido",
+        "motivo",
+        "a_pedido_de",
+      ]) {
         expect(l).not.toHaveProperty(campo);
       }
     }

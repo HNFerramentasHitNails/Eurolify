@@ -4,7 +4,7 @@ import Fastify from "fastify";
 import { sql } from "kysely";
 import { Type } from "typebox";
 import { CamposDoRasto, respostasDoRasto } from "../src/base/rasto-resposta.js";
-import { CANAIS } from "../src/base/rasto.js";
+import { CANAIS, contextoDaTarefa } from "../src/base/rasto.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { criarChave } from "../src/identidade/repositorio.js";
 import {
@@ -74,6 +74,53 @@ describe("as respostas a partir de uma linha do rasto", () => {
         .a_pedido_de_tipo,
     ).toBeNull();
   });
+
+  it("a tarefa herda do pedido de origem quem autorizou e a IA (Q6)", () => {
+    const pessoa = `pessoa:per_${"1".repeat(8)}-1111-1111-1111-${"1".repeat(12)}`;
+    expect(
+      contextoDaTarefa("conclusoes", {
+        a_pedido_de: { pedido: "req-1", quem: pessoa },
+        autorizado_por: pessoa,
+      }),
+    ).toEqual({
+      canal: "sistema",
+      pedido: "tarefa:conclusoes",
+      aPedidoDe: { pedido: "req-1", quem: pessoa },
+      autorizadoPor: pessoa,
+    });
+    expect(
+      contextoDaTarefa("pagamentos", {
+        a_pedido_de: { pedido: "req-2", quem: "chave:key_1" },
+        ia: { prova: "declarado", modelo: "m-1" },
+      }),
+    ).toEqual({
+      canal: "sistema",
+      pedido: "tarefa:pagamentos",
+      aPedidoDe: { pedido: "req-2", quem: "chave:key_1" },
+      ia: { prova: "declarado", modelo: "m-1" },
+    });
+    // Sem origem: só a tarefa.
+    expect(contextoDaTarefa("documentos", null)).toEqual({
+      canal: "sistema",
+      pedido: "tarefa:documentos",
+    });
+  });
+
+  it.each([
+    [{ a_pedido_de: { quem: "x".repeat(201) } }],
+    [{ a_pedido_de: { pedido: "com espaço" } }],
+    [{ a_pedido_de: {} }],
+    [{ autorizado_por: "chave:key_1" }],
+    [{ ia: { prova: "talvez" } }],
+  ] as const)(
+    "uma origem que a base não aceitaria corre sem origem, em vez de parar a fila: %j",
+    (origem) => {
+      expect(contextoDaTarefa("documentos", origem as never)).toEqual({
+        canal: "sistema",
+        pedido: "tarefa:documentos",
+      });
+    },
+  );
 
   it.each([
     ["pessoa:per_1", null, "pessoa"],

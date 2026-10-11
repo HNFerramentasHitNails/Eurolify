@@ -149,8 +149,11 @@ BEGIN
   ELSIF contexto ->> 'canal' = 'sistema' THEN
     RETURN NULL;
   ELSIF contexto ? 'pedido' THEN
+    -- Guarda-se já como a `contexto_do_rasto()` a aceita ao correr (o quem
+    -- até 200 caracteres): uma origem guardada nunca pára a fila (revisão do
+    -- #351, P2-1).
     a_pedido := jsonb_strip_nulls(jsonb_build_object(
-      'pedido', contexto ->> 'pedido', 'quem', contexto ->> 'quem'));
+      'pedido', contexto ->> 'pedido', 'quem', left(contexto ->> 'quem', 200)));
   ELSE
     RETURN NULL;
   END IF;
@@ -161,15 +164,17 @@ BEGIN
 END
 $$;
 
--- Ao reagendar sem origem no contexto (uma escrita fora de um pedido, ou
--- uma tarefa sem origem), fica a que já havia: não se apaga a origem por
--- falta de contexto.
 CREATE FUNCTION tarefa_guardar_origem() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   nova jsonb := public.rasto_origem_actual();
 BEGIN
-  IF TG_OP = 'UPDATE' AND nova IS NULL THEN
+  -- Ao reagendar: sem origem no contexto, ou dentro de uma tarefa (que só
+  -- pode repor a origem que leu no início da volta, talvez já substituída
+  -- por um pedido entretanto), fica a que está (revisão do #351, P3-2).
+  IF TG_OP = 'UPDATE'
+     AND (nova IS NULL
+          OR nullif(btrim(current_setting('eurolify.a_pedido_de', true)), '') IS NOT NULL) THEN
     NEW.origem := OLD.origem;
   ELSE
     NEW.origem := nova;
@@ -184,8 +189,8 @@ CREATE TRIGGER tarefa_guardar_origem BEFORE INSERT OR UPDATE ON tarefa_encomenda
   FOR EACH ROW EXECUTE FUNCTION tarefa_guardar_origem();
 CREATE TRIGGER tarefa_guardar_origem BEFORE INSERT OR UPDATE ON tarefa_documento
   FOR EACH ROW EXECUTE FUNCTION tarefa_guardar_origem();
--- Como o `documento_fiscal_tarefa` (0050): também numa cópia em `replica`.
-ALTER TABLE tarefa_documento ENABLE ALWAYS TRIGGER tarefa_guardar_origem;
+-- Não fica ALWAYS: é um gatilho que escreve, e uma cópia em `replica` tem
+-- de guardar as linhas como estão (regra da 0053; revisão do #351, P3-1).
 
 -- A origem de uma tarefa do comerciante do contexto: `pagamento` e
 -- `encomenda` (tarefa_pagamento), `conclusao` (tarefa_encomenda) e

@@ -215,10 +215,16 @@ gatilhos da base, na transacção que as agenda; correm-nas o servidor
 - As tabelas do rasto ganham a coluna `a_pedido_de` (`{pedido, quem}`),
   preenchida pelo gatilho comum (`rasto_completar()`), e as linhas do tempo
   devolvem-na.
-- Uma tarefa sem pedido de origem (agendada antes desta mudança, ou por algo
-  que não é um pedido, como o aviso de um prestador de pagamentos) mostra
-  «sistema, tarefa <nome>, sem pedido de origem registado» — nunca só
-  «sistema» — e o aviso «sem autorização de uma pessoa».
+- Uma tarefa sem pedido de origem (agendada antes desta mudança, ou por uma
+  escrita fora da API) mostra «sistema, tarefa <nome>, sem pedido de origem
+  registado» — nunca só «sistema» — e o aviso «sem autorização de uma
+  pessoa». O aviso de um prestador de pagamentos **é** um pedido (entra pela
+  API): a tarefa que ele reagenda fica «a pedido do prestador», a origem de
+  quem agendou por último (revisão do #351, P3-3).
+- Dentro de uma tarefa, reagendar a própria linha mantém a origem que está
+  (a tarefa só conhece a que leu no início da volta); uma origem guardada que
+  a base já não aceitasse corre sem origem, em vez de parar a fila (revisão
+  do #351, P2-1 e P3-2).
 
 Fontes da regra, lidas a 11/10/2026 no texto oficial (Serviço das
 Publicações da UE, a fonte do EUR-Lex, `publications.europa.eu/resource/celex/…`):

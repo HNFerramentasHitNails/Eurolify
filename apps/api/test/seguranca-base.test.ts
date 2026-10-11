@@ -156,6 +156,7 @@ const FUNCOES_DA_API = [
   "sessoes_terminar_todas",
   "stock_bloquear",
   "stock_politica",
+  "tarefa_origem",
   "telefones_validos",
   // A prova do VIES só numa ficha activa (0049): o gatilho corre com quem escreve.
   "validacao_vies_so_em_ficha_activa",
