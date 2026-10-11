@@ -59,7 +59,12 @@ de gestão da empresa inteira, não só uma loja.
 - Do balcão: os preços do Vendus vêm do texto da pesquisa (página ao vivo não
   aberta); a API do Moloni foi lida mas **não testada** — as oito perguntas
   para a sandbox estão no §7 do ficheiro de fontes; a conta de demonstração
-  ainda não foi pedida.
+  ainda não foi pedida. *Mais tarde, a 11/10:* a subscrição da conta antiga
+  expirou; o Diogo criou uma conta trial e pôs as quatro variáveis
+  `MOLONI_*` no ambiente (lêem-se numa sessão nova). Regras dos testes no §7
+  do ficheiro de fontes: ler livre, escrever só com OK, **nenhuma venda nem
+  documento fechado antes de o Moloni confirmar que não seguem para a AT**;
+  as chaves que apareceram numa captura não se usam.
 - Todas as regras fiscais e legais do PDF ficam **C** (isenção da formação,
   bilhete de evento, biometria no trabalho, relatório da autoridade dos
   cosméticos, rótulo, prestações).
