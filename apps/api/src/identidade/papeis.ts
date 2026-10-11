@@ -47,6 +47,7 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "returns:write",
     "shipping:read",
     "shipping:write",
+    "tasks:assign",
     "tax:read",
     "tax:write",
   ],
@@ -80,6 +81,7 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "returns:write",
     "shipping:read",
     "shipping:write",
+    "tasks:assign",
     "tax:read",
   ],
   // Sem orders:read: a encomenda traz o perfil de faturação e o contacto; a

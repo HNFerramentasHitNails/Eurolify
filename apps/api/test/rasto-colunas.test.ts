@@ -287,6 +287,8 @@ describe.skipIf(URL_BASE === undefined)(
       expect(gatilhos.rows.map((g) => g.tabela)).toEqual([
         "alteracao_catalogo",
         "alteracao_cliente",
+        // A peça 21 (0066; docs/33 §4.2).
+        "atribuicao_rasto",
         "documento_rasto",
         "evento_conta",
         "historico_preco",
