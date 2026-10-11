@@ -45,6 +45,7 @@ grupo contam como **um** comprador.
 | Balcão (POS), 11/10/2026 (não estimado) | ◐ | ◐ | ◐ | ❔ | ❌ | ◐ | ❌ | ◐ | **estreitar e investigar** (§7) |
 | Compras e fornecedores, 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§8) |
 | Apoio ao cliente, 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§9) |
+| Tarefas sobre um registo, 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ✅ | ◐ | ✅ | **estreitar e avançar com o núcleo** (§10) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -323,6 +324,64 @@ nem tarefas de pessoas: as tabelas `tarefa_*` são filas automáticas
 - Antes de desenhar: as conversas do `docs/32`.
 
 Decidir se se avança com esta saída é do Diogo ou do Bruno.
+
+## 10. Tarefas sobre um registo — o quarto módulo de gestão (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*. É o
+seguinte da camada B do `docs/31` §8. Skills abertas: `platform-architect`
+(«Tarefas sobre um registo»), `observability-security` (tarefas que não
+param em silêncio), `eu-gdpr-privacy`.
+
+**O que o Hub actual faz** (sequências 08 e 15 do `docs/31`; proposta
+comercial do Hub, p. 16 e 23): tarefas com responsável e prazo, recorrentes,
+delegáveis; mudar o prazo ou cancelar pede autorização; um cronómetro mede o
+tempo gasto; a tarefa de uma devolução fecha-se sozinha quando o caso acaba.
+
+**O que o Eurolify já tem:**
+- **o desenho**, na `platform-architect`: uma tarefa liga-se a um registo e tem
+  uma pessoa, um prazo e um estado; as filas que pedem decisão humana criam
+  tarefas, decididas uma a uma, nunca em lote; uma tarefa vencida avisa quem a
+  tem e quem gere a equipa. **Sem código**: as tabelas `tarefa_*` do `main`
+  são filas de trabalho automático (`docs/31` §3, sequência 09);
+- **quatro filas que esperam por uma pessoa**, cada uma à sua maneira (procurei
+  «fila», «dono» e «só uma pessoa» nos `docs/23`, `26`, `29` e `30`):
+  - a fila de **diferenças dos pagamentos** (`docs/26` §3.6), a única com um
+    campo `dono`;
+  - a fila dos **documentos retidos, incertos e divergentes** (`docs/29`), que
+    decide quem tem o papel (dono e gestor, Q7), sem dono por linha;
+  - a fila de **candidatos a duplicado** de clientes (`docs/23`), sem dono;
+  - a lista das **devoluções com o prazo do reembolso a acabar ou passado**
+    (`docs/30` §14, `GET /returns?prazo_reembolso=`), sem dono.
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ✅ | O que fica parado sem dono custou caro nos sistemas actuais: renovações que desistiram em silêncio, **14 de 22 subscrições paradas** (07/08/2026, lição 4.2 do `docs/04`); e as decisões fiscais têm de ser linha a linha, por uma pessoa (lições 1.5 e 2.10). O Hub actual tem tarefas em uso (proposta p. 23) |
+| 2 Não resolvido | ◐ | As quatro filas existem, mas **sem um sítio comum** que diga «o que me espera hoje» e só uma tem dono. Um gestor de tarefas de fora não se liga aos registos do Eurolify nem respeita as permissões deles |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | Tarefas livres em qualquer registo, recorrentes, delegáveis, com cronómetro e projectos |
+| 6 Encaixe | ✅ | Está no desenho da `platform-architect` e alimenta-se dos eventos e do rasto (decisão DK); não mexe em regras fiscais nem legais e reforça o «nunca em lote». Uma tarefa sobre um cliente é dado pessoal: entra na exportação e no apagamento do titular, e só a vê quem pode ver o registo |
+| 7 Custo | ◐ | Uma tabela de tarefas e uma ligação por fila. O aviso por e-mail depende do envio de e-mails, que ainda não há; até lá, o aviso fica no Hub e como evento |
+| 8 Valor depressa | ✅ | O primeiro documento retido ou a primeira diferença de pagamento ganha logo um dono e um prazo, sem configurar nada |
+
+**Saída: estreitar e avançar com o núcleo.**
+
+- **Primeiro alvo:** as **tarefas das filas que já pedem uma pessoa** — as
+  quatro de cima. Cada item ganha **dono, prazo e estado**, numa lista comum
+  («a decidir»), e **avisa ao vencer** (no Hub e como evento; por e-mail
+  quando houver). A decisão continua a fazer-se no ecrã de cada fila, uma a
+  uma; a tarefa só diz quem e até quando. Um papel (quem decide filas: dono e
+  gestor), um fluxo (decidir o que está retido ou em diferença).
+- **Proposta, como a decisão AD (ADR-0022):** passar este alvo para a
+  **Fase 1**. A Fase 1 já cria estas filas, e o critério de passagem dela (três
+  meses sem documento fiscal errado) depende de alguém as decidir a tempo. A
+  estimativa (`docs/10`) não o conta — fica por estimar.
+- **Ficam de fora:** tarefas livres, recorrência, delegação, cronómetro e
+  projectos (camada E).
+- Este alvo **não precisa das conversas** com os comerciantes para se
+  desenhar: a dor e o encaixe vêm das filas que o próprio Eurolify já criou.
+
+Decidir se se avança, e se passa para a Fase 1, é do Diogo ou do Bruno.
 
 ---
 

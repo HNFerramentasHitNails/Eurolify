@@ -45,6 +45,11 @@ de gestão da empresa inteira, não só uma loja.
   na página da encomenda, com número, estado, responsável e linha do tempo;
   depende do envio de e-mails (que não existe). Fora: formulário público,
   encaminhamento por carteira (camada C). Pergunta 16b no guião.
+- **Tarefas sobre um registo pelas 8 portas** (`docs/13` §10): ✅ ◐ ❔ ❔ ❌ ✅
+  ◐ ✅ → **estreitar e avançar com o núcleo**. Primeiro alvo: dono, prazo e
+  aviso ao vencer nas quatro filas que já pedem uma pessoa (diferenças dos
+  pagamentos, documentos retidos, duplicados de clientes, prazo do
+  reembolso); **proposta de passar para a Fase 1**, por decidir e estimar.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   26 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,
