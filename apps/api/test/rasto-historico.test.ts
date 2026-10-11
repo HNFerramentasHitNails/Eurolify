@@ -42,10 +42,11 @@ describe("as respostas a partir de uma linha do rasto", () => {
       autorizado_por: null,
       motivo: null,
       ia: DESCONHECIDA,
-      // Uma consequência automática (os gatilhos ainda a escrevem); sem
-      // pessoa a autorizar, o aviso aparece (docs/28 §3.6).
+      // Uma consequência automática (os gatilhos ainda a escrevem). Sem
+      // contexto, a autorização é desconhecida: nem «autorizada» nem «sem
+      // autorização» (Diogo, 11/10/2026, Q8; docs/28 §3.6).
       tipo_de_autor: "sistema",
-      sem_autorizacao_de_pessoa: true,
+      sem_autorizacao_de_pessoa: null,
     });
   });
 

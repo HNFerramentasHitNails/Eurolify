@@ -167,12 +167,23 @@ também ficam com o marcador na linha do tempo (Diogo, 10/10/2026: *«sim»*,
 **Regra (Diogo, 11/10/2026, Q5):** o aviso aparece em **toda** a alteração
 sem uma pessoa registada como quem autorizou (`autorizado_por` vazio),
 seja qual for a origem: um agente, uma chave sem marca, uma regra, uma
-importação, uma tarefa agendada ou uma linha antiga sem contexto. Não
+importação ou uma tarefa agendada (as linhas sem contexto: Q8, abaixo). Não
 depende de a IA ser declarada: senão bastava não a declarar para a
 alteração parecer autorizada.
 
 Exemplo: «Preço de Verniz Gel Vermelho 15 ml: 12,90 € → 9,90 € —
 12/10/2026 03:00 — sem autorização de uma pessoa (agente Preços)».
+
+**Linhas sem contexto (Q8, Diogo, 11/10/2026):** uma linha sem `canal` —
+de antes de 10/10/2026 (0053) ou escrita fora de um pedido — não diz «sem
+autorização de uma pessoa» mas **«autorização desconhecida»**
+(`sem_autorizacao_de_pessoa: null`): não se sabe se alguém autorizou e não
+se afirma o que não se sabe (RGPD, art. 5.º, n.º 1, al. d), «exatidão», e
+n.º 2, «tem de poder comprová-lo»; lidos a 11/10/2026 no texto oficial,
+**W**). «Desconhecida» também nunca parece autorizada. Tudo o que entra por
+um pedido à API ou ao Hub tem canal: uma chave ou um agente nunca cai aqui.
+Ex.: «Preço de Verniz Gel Vermelho 15 ml: 12,90 € → 9,90 € — 09/10/2026 —
+autorização desconhecida».
 
 **Onde vive a regra:** na API (uma regra, um sítio). Cada entrada das linhas
 do tempo ganha `sem_autorizacao_de_pessoa: true|false`, calculado no
@@ -286,6 +297,7 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
 | Q5 | O aviso «sem autorização de uma pessoa» aparece em todas as alterações sem pessoa a autorizar, ou só com IA declarada? | ✅ **Decidido** (Diogo, 11/10/2026): em **todas**, seja qual for a origem (agente, regra, importação, tarefa agendada); a lei não liga este aviso à IA — o art. 50.º do Regulamento IA trata de quem fala com uma IA ou recebe conteúdo gerado, não de alterações internas (`docs/03`, **W**). §3.6 |
 | Q6 | O trabalho feito mais tarde a pedido de um agente aparece ligado ao pedido dele? | ✅ **Decidido** (Diogo, 11/10/2026): sim; a tarefa guarda o pedido de origem e herda a autorização; aparece «sistema, a pedido do agente X (pedido n.º …)», nunca só «sistema». §3.7 |
 | Q7 | Que âmbito pede o histórico de preços com as seis respostas? | ✅ **Decidido** (Diogo, 11/10/2026): dois níveis — `prices:read` vê o tipo de autor e o aviso; quem mudou e quem autorizou pedem `prices:history` (os papéis do `catalog:history`). §3.8 |
+| Q8 | Uma linha sem contexto (de antes de 10/10/2026, ou escrita fora de um pedido) diz «sem autorização de uma pessoa» ou «autorização desconhecida»? | ✅ **Decidido** (Diogo, 11/10/2026: *«confirmo»*, à proposta com base no RGPD, art. 5.º): «autorização desconhecida» (`sem_autorizacao_de_pessoa: null`). §3.6 |
 
 ## 6. O que não foi verificado
 

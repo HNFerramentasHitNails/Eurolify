@@ -56,9 +56,9 @@ export const CamposDoAutor = {
     description:
       "pessoa: uma pessoa da equipa (também com IA declarada no pedido: quem executou foi ela); agente: uma chave de um agente de IA, ou uma chave com IA declarada no pedido; chave: uma chave sem IA declarada; consumidor: o cliente na compra (checkout:chk_…); prestador: o aviso de um prestador de pagamentos (prestador:…); sistema: uma tarefa do Eurolify ou uma consequência automática de outra alteração (sistema:…, catalogo:…); operador: o comando do operador; desconhecido: uma forma que esta lista não conhece (docs/28 §3.8)",
   }),
-  sem_autorizacao_de_pessoa: Type.Boolean({
+  sem_autorizacao_de_pessoa: Type.Union([Type.Boolean(), Type.Null()], {
     description:
-      "Verdadeiro quando nenhuma pessoa ficou registada como quem autorizou, seja qual for a origem — um agente, uma chave, uma regra, uma importação, uma tarefa ou uma linha antiga sem contexto (Diogo, 11/10/2026, docs/28 §3.6). Calculado aqui: quem mostra não o recalcula",
+      "Verdadeiro quando nenhuma pessoa ficou registada como quem autorizou, seja qual for a origem — um agente, uma chave, uma regra, uma importação ou uma tarefa (Diogo, 11/10/2026, docs/28 §3.6). Vazio (autorização desconhecida) numa linha sem contexto do rasto (`canal` vazio: de antes de 10/10/2026, ou escrita fora de um pedido): não se sabe se alguém autorizou, e não se afirma (RGPD, art. 5.º, n.º 1, al. d); Diogo, 11/10/2026, Q8). Calculado aqui: quem mostra não o recalcula",
   }),
 };
 
@@ -112,8 +112,8 @@ const PREFIXOS_DE_AUTOR: Partial<Record<string, TipoDeAutor>> = {
 
 /** O tipo de autor e o aviso (docs/28 §3.6 e §3.8), sem identificar ninguém. */
 export function autorDoRasto(
-  l: Pick<LinhaComRasto, "quem" | "ia" | "autorizado_por">,
-): { tipo_de_autor: TipoDeAutor; sem_autorizacao_de_pessoa: boolean } {
+  l: Pick<LinhaComRasto, "quem" | "ia" | "autorizado_por" | "canal">,
+): { tipo_de_autor: TipoDeAutor; sem_autorizacao_de_pessoa: boolean | null } {
   const declarada = l.ia?.prova === "declarado" || l.ia?.prova === "comprovado";
   // As formas de `quem` que o código escreve (procuradas a 11/10/2026,
   // revisão do #349, P2-1); uma nova sem lugar aqui sai «desconhecido».
@@ -126,7 +126,10 @@ export function autorDoRasto(
       : (PREFIXOS_DE_AUTOR[prefixo] ?? "desconhecido");
   return {
     tipo_de_autor: tipo,
-    sem_autorizacao_de_pessoa: l.autorizado_por === null,
+    // Uma pessoa registada: autorizou. Sem pessoa e com contexto: sem
+    // autorização. Sem contexto: desconhecido (Q8, docs/28 §3.6).
+    sem_autorizacao_de_pessoa:
+      l.autorizado_por !== null ? false : l.canal === null ? null : true,
   };
 }
 
