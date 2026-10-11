@@ -30,8 +30,11 @@ de gestão da empresa inteira, não só uma loja.
   `docs/eurolify/fontes-api-moloni-11out2026.md`. Lêem-se documentos
   alterados desde uma data (50 por pedido) e as linhas um a um; stock por
   artigo e armazém, e movimentos para inserir; sem avisos nem limites
-  escritos; token de 1 hora no endereço, renovação de 14 dias. Que a app de
-  POS aparece nos documentos: provável, não verificado. Remissão no `docs/29`.
+  escritos; token de 1 hora no endereço, renovação de 14 dias. ~~Que a app de
+  POS aparece nos documentos: provável, não verificado~~ — testado noutra
+  sessão (#360, §8 do ficheiro de fontes): as vendas de terminal vêm com
+  `terminal_id`; o stock do Moloni baixa sozinho com cada venda; o token só
+  no endereço; o `status` 2 por perceber. Remissão no `docs/29`.
 
 - **Compras e fornecedores pelas 8 portas** (pedido do Diogo, *«passa o
   próximo módulo pelas 8 portas»*; `docs/13` §8): ✅ ◐ ❔ ❔ ❌ ◐ ◐ ◐ →
