@@ -41,7 +41,7 @@ export async function noPosVenda<T>(
   }
 }
 
-async function marcar(
+export async function marcar(
   trx: Transaction<BaseDados>,
   quem: string,
   motivo: string | null = null,
@@ -838,7 +838,9 @@ async function criarReembolso(
       select coalesce(sum(l.quantidade), 0)::int as q, coalesce(sum(l.montante), 0) as m
       from linha_reembolso l join reembolso r on r.id = l.reembolso_id
       where l.linha_encomenda_id = ${p.linha}::uuid
-        and r.estado in ('a_executar', 'executado', 'incerto')`.execute(trx);
+        and r.estado in ('a_executar', 'a_pedir', 'a_confirmar', 'executado', 'incerto')`.execute(
+      trx,
+    );
     const ja = rows[0] ?? { q: 0, m: "0" };
     if (ja.q + p.quantidade > le.quantidade) {
       throw new ErroPosVenda(
@@ -861,7 +863,9 @@ async function criarReembolso(
       select coalesce(sum(l.montante), 0) as m
       from linha_reembolso l join reembolso r on r.id = l.reembolso_id
       where r.encomenda_id = ${dados.encomenda}::uuid and l.linha_encomenda_id is null
-        and r.estado in ('a_executar', 'executado', 'incerto')`.execute(trx);
+        and r.estado in ('a_executar', 'a_pedir', 'a_confirmar', 'executado', 'incerto')`.execute(
+      trx,
+    );
     const resto = portes - Number(rows[0]?.m ?? 0);
     if (resto > 0) linhas.push({ linha: null, quantidade: 1, montante: resto });
   }
@@ -1088,52 +1092,71 @@ export async function registarReembolsoManual(
       })
       .where("id", "=", id)
       .execute();
-    // O pagamento: reembolsado parcial ou total (a máquina dos pagamentos).
-    const p = await trx
-      .selectFrom("pagamento")
-      .select(["estado", "montante"])
-      .where("id", "=", r.pagamento_id)
-      .forUpdate()
-      .executeTakeFirstOrThrow();
-    const { rows } = await sql<{ m: string }>`
-      select coalesce(sum(montante), 0) as m from reembolso
-      where pagamento_id = ${r.pagamento_id}::uuid and estado = 'executado'`.execute(
-      trx,
-    );
-    const novo =
-      Number(rows[0]?.m ?? 0) >= Number(p.montante)
-        ? "reembolsado"
-        : "reembolsado_parcial";
-    if (novo !== p.estado) {
-      await sql`select set_config('eurolify.origem', 'pessoa', true)`.execute(
-        trx,
-      );
-      await trx
-        .updateTable("pagamento")
-        .set({ estado: novo })
-        .where("id", "=", r.pagamento_id)
-        .execute();
-    }
-    if (r.devolucao_id !== null) {
-      await trx
-        .updateTable("devolucao")
-        .set({ estado: "fechada", versao: sql`versao + 1` })
-        .where("id", "=", r.devolucao_id)
-        .where("estado", "=", "decidida")
-        .execute();
-    }
-    if (r.problema_id !== null) {
-      await trx
-        .updateTable("problema")
-        .set({ estado: "fechado", versao: sql`versao + 1` })
-        .where("id", "=", r.problema_id)
-        .where("estado", "=", "decidido")
-        .execute();
-    }
-    // O dinheiro saiu: a NC que esperava por isso verifica-se outra vez.
-    await acordarNotas(trx, { reembolso: id }, "reembolso_por_executar");
+    await depoisDeExecutado(trx, r, "pessoa");
     return versao + 1;
   });
+}
+
+/**
+ * O que se segue a um reembolso executado, à mão ou pelo prestador: o
+ * pagamento passa a reembolsado (parcial ou total), a devolução ou o problema
+ * fecham e a NC que esperava pelo dinheiro verifica-se outra vez.
+ */
+export async function depoisDeExecutado(
+  trx: Transaction<BaseDados>,
+  r: {
+    id: string;
+    pagamento_id: string;
+    devolucao_id: string | null;
+    problema_id: string | null;
+  },
+  origem: "pessoa" | "consulta",
+) {
+  const id = r.id;
+  // O pagamento: reembolsado parcial ou total (a máquina dos pagamentos).
+  const p = await trx
+    .selectFrom("pagamento")
+    .select(["estado", "montante"])
+    .where("id", "=", r.pagamento_id)
+    .forUpdate()
+    .executeTakeFirstOrThrow();
+  const { rows } = await sql<{ m: string }>`
+      select coalesce(sum(montante), 0) as m from reembolso
+      where pagamento_id = ${r.pagamento_id}::uuid and estado = 'executado'`.execute(
+    trx,
+  );
+  const novo =
+    Number(rows[0]?.m ?? 0) >= Number(p.montante)
+      ? "reembolsado"
+      : "reembolsado_parcial";
+  if (novo !== p.estado) {
+    await sql`select set_config('eurolify.origem', ${origem}, true)`.execute(
+      trx,
+    );
+    await trx
+      .updateTable("pagamento")
+      .set({ estado: novo })
+      .where("id", "=", r.pagamento_id)
+      .execute();
+  }
+  if (r.devolucao_id !== null) {
+    await trx
+      .updateTable("devolucao")
+      .set({ estado: "fechada", versao: sql`versao + 1` })
+      .where("id", "=", r.devolucao_id)
+      .where("estado", "=", "decidida")
+      .execute();
+  }
+  if (r.problema_id !== null) {
+    await trx
+      .updateTable("problema")
+      .set({ estado: "fechado", versao: sql`versao + 1` })
+      .where("id", "=", r.problema_id)
+      .where("estado", "=", "decidido")
+      .execute();
+  }
+  // O dinheiro saiu: a NC que esperava por isso verifica-se outra vez.
+  await acordarNotas(trx, { reembolso: id }, "reembolso_por_executar");
 }
 
 /**

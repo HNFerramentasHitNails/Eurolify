@@ -390,7 +390,7 @@ export function criarApp(
       rotasDosPagamentos(rotas, base, pagamentos);
       rotasDoStock(rotas, base);
       rotasDosDocumentos(rotas, base, faturacao);
-      rotasDaPosVenda(rotas, base);
+      rotasDaPosVenda(rotas, base, pagamentos);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.

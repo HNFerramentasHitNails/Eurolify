@@ -357,7 +357,7 @@ reembolsa por API; se não, o reembolso é manual.
   expedição ainda a caminho não fica presa a um estado de devolução.
 - **Com sistema próprio** não há fatura no Eurolify, logo não há NC: é o
   sistema do comerciante que a emite (D-10).
-- **Por fazer:** o reembolso pelo adaptador (parte 2), o aviso do prazo do
+- **Por fazer:** o reembolso pelo adaptador (parte 2, §13), o aviso do prazo do
   reembolso (R10), a marca «selado por higiene», o jurista (J1 a J5) e o
   contabilista (C1 a C4).
 
@@ -465,3 +465,38 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
 | V8 | os valores de `refundList.status` além de `reembolsado` (E3) e se o `Success` do E1 quer dizer «dinheiro saído» |
 | V9 | o fuso do `expires_in` do token (E4); não se usa, porque o token não se guarda |
 | V10 | se o `trid` do aviso (E5) é o que o E1 pede, num pagamento real de teste |
+
+### 13.5 Em código — parte 2 (11/10/2026; migração 0060; `docs/06`, DP)
+
+| O quê | Onde |
+|---|---|
+| `pagamento.id_transaccao_prestador` (o `trid`), gravado uma vez do aviso assinado que deu o pagamento como pago | migração 0060; `src/pagamentos/repositorio.ts` (`aplicarAviso`) |
+| o reembolso com `a_pedir` e `a_confirmar`, quem pediu e quando, a referência do prestador, o código da recusa e a última consulta; as transições novas, o motivo obrigatório ao voltar a `a_executar`, e os tectos de R5 também ao voltar (P8) | migração 0060 |
+| `refund.requested` e os motivos `reembolso_incerto`, `reembolso_por_confirmar` e `reembolso_desconhecido` na fila de diferenças | migração 0060 |
+| as credenciais OAuth (`client_id`, `client_secret`) na conta, cifradas com a chave, os dois juntos ou nenhum | `src/pagamentos/repositorio.ts`, `rotas.ts` |
+| o adaptador: o token OAuth a cada reembolso, `reembolsar` e `consultarReembolso`, o aviso `Refund`; só o MB WAY reembolsa pela API (Q8) | `src/pagamentos/eupago.ts`, `adaptador.ts` |
+| `POST /refunds/{id}/execute` e `POST /refunds/{id}/reconcile`; o `GET /refunds/{id}` mostra o pedido ao prestador | `src/posvenda/prestador.ts`, `rotas.ts` |
+| a tarefa de minuto a minuto: os `a_confirmar` consultam-se, os `a_pedir` com mais de 5 minutos passam a `incerto`, e 7 dias sem «reembolsado» vão à fila uma vez | `src/posvenda/prestador.ts`; `servidor.ts` |
+| 5 testes pela API com a EuPago falsa | `test/posvenda-api.test.ts` |
+
+**Desvios do desenho:**
+- **Um estado a mais, `a_pedir`:** dura só a chamada ao prestador. Dois
+  pedidos ao mesmo tempo não saem os dois (o segundo encontra `a_pedir` e é
+  recusado), e uma chamada que ficou a meio porque o processo caiu passa a
+  `incerto` ao fim de 5 minutos. Não sai evento.
+- **O `execute` não leva Idempotency-Key:** chama o prestador fora da
+  transacção, como o teste da conta (`docs/26`); a `versao` do corpo faz o
+  mesmo trabalho (o segundo pedido igual dá conflito de versão).
+- **Os pagamentos antigos não ganham o `trid`** (a P2 dizia que a migração os
+  preenchia): só o aviso o traz, e ler o identificador do evento guardado
+  prendia o núcleo ao formato do adaptador (`docs/26` R8). Esses
+  reembolsam-se à mão; no ensaio só há dados de teste.
+- **Um aviso `Refund`** de um pagamento com um reembolso em curso só acorda a
+  consulta; sem nenhum em curso, vai à fila (`reembolso_desconhecido`): um
+  reembolso feito no back-office da EuPago, fora do Eurolify.
+- **Uma recusa antes do pedido** (sem token, credenciais OAuth recusadas,
+  outra moeda) fica `falhado` com o motivo: sabe-se que nada saiu.
+- **Reconciliar** fecha as diferenças abertas desse reembolso, com o motivo
+  da pessoa.
+- **Por fazer:** o aviso do prazo do reembolso (R10) e a marca «selado por
+  higiene» (R4), em pedidos seus; a sandbox (V7 a V10) antes do modo real.

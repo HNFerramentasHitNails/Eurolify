@@ -8,6 +8,11 @@ import type { MetodoPagamento } from "../base/esquema.js";
 export interface CredenciaisConta {
   /** A chave da API do canal no prestador. */
   chave: string;
+  /**
+   * As credenciais OAuth, que o reembolso da EuPago pede em vez da chave
+   * (docs/30 §13, E4 e P1). Sem elas, reembolsa-se à mão.
+   */
+  oauth?: { clientId: string; clientSecret: string };
 }
 
 export interface PedidoCobranca {
@@ -39,7 +44,16 @@ export interface AvisoNormalizado {
   idEvento: string;
   /** A nossa referência, como veio no aviso. */
   referencia: string | null;
-  estado: EstadoNoPrestador;
+  /**
+   * O identificador da transacção no prestador (o `trid` da EuPago), que o
+   * reembolso pede (docs/30 §13, P2).
+   */
+  idTransaccao: string | null;
+  /**
+   * `reembolsado`: o prestador diz que houve um reembolso deste pagamento.
+   * Não muda o pagamento sozinho (docs/30 §13, P6).
+   */
+  estado: EstadoNoPrestador | "reembolsado";
   /** Em cêntimos, quando o aviso o diz. */
   montante: number | null;
   moeda: string | null;
@@ -59,6 +73,31 @@ export class ErroDeRede extends Error {
     this.name = "ErroDeRede";
   }
 }
+
+/**
+ * Uma falha **antes** de pedir o reembolso (o token, as credenciais, a
+ * moeda): sabe-se que nada saiu, e o reembolso fica `falhado`.
+ */
+export class ErroSemEnvio extends Error {
+  constructor(mensagem: string, options?: ErrorOptions) {
+    super(mensagem, options);
+    this.name = "ErroSemEnvio";
+  }
+}
+
+export interface PedidoReembolso {
+  /** O identificador da transacção no prestador (o `trid`). */
+  idTransaccao: string;
+  /** Em cêntimos. */
+  montante: number;
+  moeda: string;
+  /** A nossa referência (`rfd_…`): não há chave de idempotência (R7). */
+  referencia: string;
+}
+
+export type ResultadoReembolso =
+  | { estado: "pedido"; idReembolso: string }
+  | { estado: "recusado"; motivo: string };
 
 export interface AdaptadorPagamento {
   readonly prestador: "eupago";
@@ -83,6 +122,21 @@ export interface AdaptadorPagamento {
     corpo: string,
     segredo: string,
   ): LeituraAviso;
+  /** Os métodos que o prestador reembolsa sem o IBAN do cliente (Q8). */
+  readonly reembolsaPorApi: readonly MetodoPagamento[];
+  /**
+   * Pede o reembolso. Lança `ErroSemEnvio` se nada saiu e `ErroDeRede` se
+   * não se sabe (docs/30 §13, P5).
+   */
+  reembolsar(
+    credenciais: CredenciaisConta,
+    pedido: PedidoReembolso,
+  ): Promise<ResultadoReembolso>;
+  /** O estado de um reembolso aceite: só `reembolsado` conta (E3, P6). */
+  consultarReembolso(
+    credenciais: CredenciaisConta,
+    idReembolso: string,
+  ): Promise<"reembolsado" | "desconhecido">;
 }
 
 /** Os adaptadores e a chave das credenciais (criarApp). */

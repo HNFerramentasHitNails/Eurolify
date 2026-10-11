@@ -1,3 +1,5 @@
+import type { ConfigPagamentos } from "../pagamentos/adaptador.js";
+import { executarReembolso, reconciliarReembolso } from "./prestador.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
@@ -40,7 +42,7 @@ import {
 
 // A API da pós-venda (docs/30 §7; issue #328; Diogo, 10/10/2026:
 // «aprovado» e «avança»). O reembolso pelo prestador (`/execute`,
-// `/reconcile`) fica para a parte 2: nesta, o reembolso é manual (Q2).
+// `/reconcile`) é da parte 2 (docs/30 §13; DP).
 
 async function emPosVenda<T>(resposta: FastifyReply, fn: () => Promise<T>) {
   try {
@@ -150,6 +152,7 @@ const Decisao = Type.Object(
 export function rotasDaPosVenda(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
+  pagamentos?: ConfigPagamentos,
 ) {
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
   const publico = { ambito: "publico" as const, loja: true };
@@ -896,6 +899,17 @@ export function rotasDaPosVenda(
           via: r.via,
           estado: r.estado,
           prova: r.prova,
+          // O pedido ao prestador (docs/30 §13): quem e quando, a
+          // referência dele e o código de uma recusa.
+          prestador:
+            r.pedido_em === null
+              ? null
+              : {
+                  pedido_em: r.pedido_em.toISOString(),
+                  pedido_por: r.pedido_por,
+                  referencia: r.referencia_prestador,
+                  recusa: r.falha,
+                },
           executado_em: iso(r.executado_em),
           decidido_por: r.decidido_por,
           criado_em: r.criado_em.toISOString(),
@@ -953,6 +967,83 @@ export function rotasDaPosVenda(
             quemDe(chave),
           ),
         })),
+      ),
+  );
+
+  rotas.post(
+    "/refunds/:id/execute",
+    {
+      config: { ambito: "refunds:write" },
+      schema: {
+        description:
+          "Pede o reembolso ao prestador (docs/30 §13): só de um pagamento MB WAY da EuPago, com a conta com as credenciais OAuth; o Multibanco faz-se à mão (Q8). Aceite, fica a_confirmar até a consulta dizer «reembolsado»; recusado, fica falhado com o código; sem resposta, fica incerto e nunca se repete sozinho (reconcile).",
+        params: Type.Object({ id: IdReembolso }),
+        body: Type.Object({ versao: Versao }, { additionalProperties: false }),
+        response: {
+          200: Type.Object({
+            estado: Type.String(),
+            versao: Type.Integer(),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emPosVenda(resposta, async () => {
+        const chave = chaveDo(pedido);
+        return executarReembolso(
+          base,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+          pedido.body,
+          quemDe(chave),
+          pagamentos,
+        );
+      }),
+  );
+
+  rotas.post(
+    "/refunds/:id/reconcile",
+    {
+      config: { ambito: "refunds:write" },
+      schema: {
+        description:
+          "Uma pessoa diz o que viu no prestador sobre um reembolso incerto ou a confirmar: executado (com o identificador do reembolso no prestador, se o Eurolify não o tem) ou nao_saiu (volta a a_executar). Uma de cada vez, com motivo.",
+        params: Type.Object({ id: IdReembolso }),
+        body: Type.Object(
+          {
+            versao: Versao,
+            resultado: Type.Union([
+              Type.Literal("executado"),
+              Type.Literal("nao_saiu"),
+            ]),
+            motivo: Type.String({ minLength: 1, maxLength: 500 }),
+            identificador: Type.Optional(
+              Type.String({ minLength: 1, maxLength: 100 }),
+            ),
+          },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({
+            estado: Type.String(),
+            versao: Type.Integer(),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        emPosVenda(resposta, () =>
+          reconciliarReembolso(
+            trx,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body,
+            quemDe(chave),
+          ),
+        ),
       ),
   );
 

@@ -10,6 +10,7 @@ import { adaptadorEuPago } from "../src/pagamentos/eupago.js";
 
 export interface ChamadaEuPago {
   url: string;
+  metodo: string;
   corpo: Record<string, unknown>;
   cabecalhos: Record<string, string>;
 }
@@ -29,6 +30,10 @@ export function eupagoFalso() {
     multibanco?: Resposta;
     info?: Resposta;
     teste?: Resposta;
+    // O reembolso (docs/30 §13): o token OAuth, o pedido e a consulta.
+    token?: Resposta;
+    reembolso?: Resposta;
+    consultaReembolso?: Resposta;
   } = {};
   let n = 0;
   const buscar = (async (url: string, init?: RequestInit) => {
@@ -38,6 +43,7 @@ export function eupagoFalso() {
     ) as Record<string, unknown>;
     chamadas.push({
       url: endereco,
+      metodo: init?.method ?? "GET",
       corpo,
       cabecalhos: Object.fromEntries(
         Object.entries((init?.headers ?? {}) as Record<string, string>),
@@ -86,6 +92,32 @@ export function eupagoFalso() {
           estado: "pendente",
           referencia: corpo["referencia"],
         })
+      );
+    }
+    if (endereco.endsWith("/api/auth/token")) {
+      return (
+        (await respostas.token?.()) ??
+        json(200, {
+          transactionStatus: "Success",
+          access_token: `tok${String(n)}`,
+          token_type: "Bearer",
+          expires_in: "2026-10-11 12:00:00",
+        })
+      );
+    }
+    if (/\/api\/management\/v1\.02\/refund\/[^/]+$/.test(endereco)) {
+      if (init?.method === "GET") {
+        return (
+          (await respostas.consultaReembolso?.()) ??
+          json(200, {
+            transactionStatus: "Success",
+            refundList: { trid: "1", status: "reembolsado" },
+          })
+        );
+      }
+      return (
+        (await respostas.reembolso?.()) ??
+        json(201, { transactionStatus: "Success", refundId: String(9000 + n) })
       );
     }
     return json(404, { erro: "desconhecido" });

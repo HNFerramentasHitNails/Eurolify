@@ -1186,6 +1186,10 @@ export const MOTIVOS_DIFERENCA = [
   "transicao_impossivel",
   "pago_depois_de_cancelada",
   "pagamento_duplicado",
+  // Os reembolsos pelo prestador (migração 0060; docs/30 §13).
+  "reembolso_incerto",
+  "reembolso_por_confirmar",
+  "reembolso_desconhecido",
 ] as const;
 export type MotivoDiferenca = (typeof MOTIVOS_DIFERENCA)[number];
 
@@ -1239,6 +1243,8 @@ export interface TabelaPagamento {
   referencia: ColumnType<string, string, never>;
   referencia_prestador: ColumnType<string | null, never, string | null>;
   instrucoes: ColumnType<unknown, never, string | null>;
+  /** O `trid` da EuPago, gravado uma vez do aviso (0060; docs/30 §13, P2). */
+  id_transaccao_prestador: ColumnType<string | null, never, string>;
   estado: ColumnType<EstadoPagamento, never, EstadoPagamento>;
   expira_em: ColumnType<Date, Date, never>;
   criado_em: ColumnType<Date, never, never>;
@@ -1676,6 +1682,10 @@ export type TipoProblema = (typeof TIPOS_PROBLEMA)[number];
 export const ESTADOS_REEMBOLSO = [
   "rascunho",
   "a_executar",
+  // Pelo prestador (0060; docs/30 §13): durante a chamada, e aceite à
+  // espera da confirmação.
+  "a_pedir",
+  "a_confirmar",
   "executado",
   "falhado",
   "incerto",
@@ -1785,6 +1795,12 @@ export interface TabelaReembolso {
   decidido_por: ColumnType<string, string, never>;
   criado_em: ColumnType<Date, never, never>;
   versao: ColumnType<number, never, number>;
+  // O pedido ao prestador (0060; docs/30 §13, P4 a P6).
+  pedido_em: ColumnType<Date | null, never, Date>;
+  pedido_por: ColumnType<string | null, never, string>;
+  referencia_prestador: ColumnType<string | null, never, string>;
+  falha: ColumnType<string | null, never, string>;
+  consultado_em: ColumnType<Date | null, never, Date>;
 }
 
 export interface TabelaLinhaReembolso {

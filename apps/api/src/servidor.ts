@@ -4,6 +4,7 @@ import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
+import { agendarConfirmacoes } from "./posvenda/prestador.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { agendarDocumentos } from "./faturacao/repositorio.js";
 import { randomUUID } from "node:crypto";
@@ -158,6 +159,15 @@ const pararPagamentos =
       )
     : () => undefined;
 
+// Os reembolsos pedidos ao prestador, de minuto a minuto (docs/30 §13, P6):
+// os aceites consultam-se até ele dizer «reembolsado».
+const pararReembolsos =
+  base !== undefined && pagamentos.chave !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:reembolsos" }, () =>
+        agendarConfirmacoes(base, pagamentos, app.log),
+      )
+    : () => undefined;
+
 // Os pedidos de documento, de minuto a minuto (docs/29, R11).
 const pararDocumentos =
   base !== undefined && faturacao.chave !== undefined
@@ -181,6 +191,7 @@ for (const sinal of ["SIGINT", "SIGTERM"] as const) {
     pararLimpeza();
     pararVies();
     pararPagamentos();
+    pararReembolsos();
     app.log.info({ sinal }, "a fechar");
     app
       .close()
