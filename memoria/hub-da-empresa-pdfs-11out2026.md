@@ -50,6 +50,12 @@ de gestão da empresa inteira, não só uma loja.
   aviso ao vencer nas quatro filas que já pedem uma pessoa (diferenças dos
   pagamentos, documentos retidos, duplicados de clientes, prazo do
   reembolso); **proposta de passar para a Fase 1**, por decidir e estimar.
+- **Painéis pelas 8 portas** (`docs/13` §11): ◐ ◐ ❔ ❔ ❌ ✅ ✅ ✅ →
+  **estreitar**. Primeiro alvo: vendas do dia e do mês (encomendado, pago,
+  faturado, devolvido; com e sem IVA; por canal e mercado), cada número com
+  como foi contado; uma consulta para o Hub e para o MCP de leitura da Fase 1
+  (proposta: a consulta na Fase 1, o ecrã na 2). Não há rotas de números no
+  `main`; o `apps/mcp` é o MCP da VPS. Camada B passada por inteiro.
 - **O guião das conversas com os comerciantes** (pedido do Diogo, 11/10/2026):
   `docs/32`. 5 comerciantes da UE com loja online e balcão, de fora do grupo;
   26 perguntas em 45 minutos (balcão, gestão da empresa, quanto pagam,

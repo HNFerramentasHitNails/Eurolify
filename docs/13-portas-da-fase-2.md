@@ -46,6 +46,7 @@ grupo contam como **um** comprador.
 | Compras e fornecedores, 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§8) |
 | Apoio ao cliente, 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ◐ | ◐ | ◐ | **estreitar** (§9) |
 | Tarefas sobre um registo, 11/10/2026 (não estimado) | ✅ | ◐ | ❔ | ❔ | ❌ | ✅ | ◐ | ✅ | **estreitar e avançar com o núcleo** (§10) |
+| Painéis, 11/10/2026 (não estimado) | ◐ | ◐ | ❔ | ❔ | ❌ | ✅ | ✅ | ✅ | **estreitar** (§11) |
 
 **Ficam de fora das portas**, por não serem módulos de produto: o mecanismo de
 módulos ligáveis (ver o fim), a migração da loja principal do grupo (um
@@ -382,6 +383,54 @@ tempo gasto; a tarefa de uma devolução fecha-se sozinha quando o caso acaba.
   desenhar: a dor e o encaixe vêm das filas que o próprio Eurolify já criou.
 
 Decidir se se avança, e se passa para a Fase 1, é do Diogo ou do Bruno.
+
+## 11. Painéis — o quinto módulo de gestão, o último da camada B (11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«passa o próximo módulo pelas 8 portas»*.
+Skills abertas: `headless-commerce` (MCP e API de leitura),
+`eurolify-finance-reconciliation-eu`, `eu-vat-oss-ioss` (valores com e sem
+IVA), `observability-security` (isolamento).
+
+**O que o Hub actual faz** (proposta comercial do Hub, p. 4, 18 e 24): painéis
+de cada módulo com os números do dia e do mês; metas por comercial e por
+equipa e painéis de vendas diários; para a direcção, «painéis, metas e o
+registo de tudo o que muda».
+
+**O que o Eurolify já tem** (lido no `main` a 11/10/2026): **nenhuma rota de
+números**. Procurei rotas com `reports`, `relatorios`, `dashboard`, `stats` e
+`resumo` em `apps/api/src` e não há. O `apps/mcp` do repositório é o MCP da
+VPS (ADR-0033: medições e acções de operação), **não** o MCP de leitura para
+os comerciantes, que está no âmbito da Fase 1 (`docs/05`) e responderia a
+«quanto vendi ontem em Espanha?» (`docs/00` §2.4). O relatório OSS é a parte
+3 da fatia 10, por fazer.
+
+| Porta | Resultado | Porquê |
+|---|---|---|
+| 1 Por dentro | ◐ | O Hub actual tem painéis em uso (proposta p. 24). **Não há lição sobre a falta deles**; há sobre números errados: o «corte das 1.000» fez a pesquisa dizer «não existe» a **40 % das fichas** (12/08/2026, lição 4.7 do `docs/04`) — um painel que corta ou mistura em silêncio engana mais do que não ter painel |
+| 2 Não resolvido | ◐ | O comerciante pode tirar números por exportação ou por uma ferramenta de análise de fora — mas a exportação de hoje só tem o catálogo (decisão CS) e não há nenhuma rota de números. **Falta** saber, no Eurolify, quanto se vendeu |
+| 3 Gasto | ❔ | Nenhum comerciante ouvido |
+| 4 Compradores | ❔ | — |
+| 5 Alvo estreito | ❌ | «Painéis de cada módulo» são tantos painéis quantos módulos, mais metas por pessoa e por equipa |
+| 6 Encaixe | ✅ | Só lê. Fica no comerciante pelo RLS. **Cuidado de desenho:** «vendas» são quatro números diferentes — encomendado, pago, faturado e devolvido — e cada um com e sem IVA; o painel diz sempre qual mostra e como foi contado (instruções da organização: «um número só vale acompanhado da pergunta a que responde e de como foi contado»). As comissões e as metas contam-se sobre o faturado, nunca sobre o encomendado (proposta p. 18) |
+| 7 Custo | ✅ | Consultas de leitura sobre o que já existe; sem regras fiscais novas. O cuidado é o tempo de resposta quando houver muitas encomendas — medir antes de pré-calcular |
+| 8 Valor depressa | ✅ | As vendas de ontem aparecem no primeiro dia, sem configurar nada |
+
+**Saída: estreitar.**
+
+- **Primeiro alvo:** **as vendas do dia e do mês**, por canal e por mercado:
+  encomendado, pago, faturado e devolvido, cada um **com e sem IVA**, e cada
+  número com a frase do que conta (ex.: «pago: encomendas com o pagamento
+  capturado entre 00:00 e 23:59 de ontem, no fuso do comerciante»). Um papel
+  (o dono e o gestor), um fluxo (ver como correu ontem e o mês).
+- **Uma consulta só, dois clientes:** a mesma função da API serve o painel do
+  Hub e o MCP de leitura da Fase 1 — o número que o ecrã mostra e o que a IA
+  responde vêm do mesmo sítio (`AGENTS.md`, «Uma regra, um sítio»).
+  **Proposta:** fazer a consulta na Fase 1, com o MCP de leitura; o ecrã do
+  painel na Fase 2.
+- **Ficam de fora:** os painéis de cada módulo, as metas e os painéis por
+  comercial (camada C).
+
+Decidir se se avança com esta saída é do Diogo ou do Bruno.
 
 ---
 
