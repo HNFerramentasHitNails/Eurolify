@@ -192,6 +192,11 @@ verificado** — a pergunta ao Moloni (§7, regras) continua de pé.
   `productStocks/getAll` sem artigo. Quem lê movimentos tem de aceitar um
   movimento sem artigo e não o casar por mais nada (`AGENTS.md`, «Não se
   erra…», regra 6).
+- **E esses movimentos não se apagam pela API**: o `productStocks/delete`
+  pede `product_stock_id`, que nos movimentos vem 0; com o
+  `stock_movement_id` responde `valid: 0` (11/10/2026). Um movimento escrito
+  por engano fica no Moloni: a correcção é um movimento ao contrário, nunca
+  um apagar (o que, de resto, é a regra do livro do Eurolify).
 - **O token vai sempre no endereço**: a regra de o tapar nos registos (§1)
   deixa de ser precaução e passa a obrigatória.
 

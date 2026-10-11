@@ -18,6 +18,13 @@
   artigo** (`product` vazio).
 - Conta trial depois: 2 artigos de exemplo, 2 movimentos órfãos, 0
   documentos.
+- **Apagar os dois movimentos falhou** (pedido do Diogo, *«sim, apaga os dois
+  movimentos»*, 11/10/2026; cópia guardada antes, fora do repositório).
+  `productStocks/delete` pede `product_stock_id` (página `.../product-stocks/delete/`,
+  lida a 11/10/2026); os movimentos vêm com `product_stock_id` 0 e só têm
+  `stock_movement_id`. Com o `stock_movement_id` no lugar do outro, a
+  resposta foi `valid: 0` e nada mudou. **Não tentei com 0** (podia apanhar
+  outra coisa). Os dois movimentos continuam na conta trial.
 - As credenciais abrem **duas empresas**: a conta trial do Diogo
   (`company_id` 401965, vazia) e a «Empresa Demonstração» do Moloni
   (`company_id` 5, partilhada por todos os programadores). Mediu-se na 5.
