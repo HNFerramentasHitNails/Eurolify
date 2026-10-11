@@ -150,6 +150,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0059_precos_historico_ambito",
         "0060_rasto_tarefas_a_pedido_de",
         "0061_pos_venda_reembolso_prestador",
+        "0062_rasto_quem_autenticado_e_motivo",
       ]);
     });
 
