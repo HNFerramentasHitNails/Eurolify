@@ -9,8 +9,9 @@
 --   mesmo tempo não saem os dois) e `a_confirmar` (o prestador aceitou; falta
 --   a consulta dizer «reembolsado»), com quem pediu e quando, a referência
 --   do prestador, o código de uma recusa e a última consulta (P4 a P6).
--- - Voltar de `incerto` ou de `a_confirmar` a `a_executar` é de uma pessoa,
---   com motivo (P7), e os tectos de R5 voltam a conferir-se (P8).
+-- - Voltar de `incerto` a `a_executar` é de uma pessoa, com motivo (P7), e
+--   os tectos de R5 voltam a conferir-se (P8). Um `a_confirmar` (aceite pelo
+--   prestador) só passa a `executado` (revisão do #350, P1-1).
 -- - `refund.requested` (P9) e os motivos novos da fila de diferenças.
 -- - A função que diz à tarefa que comerciantes têm reembolsos a olhar.
 -- Q8 (opção A): o Multibanco continua à mão; isso decide-se na API, não aqui.
@@ -189,9 +190,11 @@ BEGIN
          ('a_executar', 'incerto'), ('incerto', 'executado'), ('incerto', 'a_executar'),
          ('falhado', 'a_executar'), ('a_executar', 'cancelado'), ('falhado', 'cancelado'),
          -- Pelo prestador (docs/30 §13): pedir, aceite ou recusado ou sem
-         -- resposta; confirmado pela consulta; de volta só por uma pessoa.
+         -- resposta; confirmado pela consulta ou por uma pessoa. Um pedido
+         -- que o prestador aceitou nunca volta a `a_executar`: pedir outra
+         -- vez podia reembolsar duas vezes (revisão do #350, P1-1).
          ('a_executar', 'a_pedir'), ('a_pedir', 'a_confirmar'), ('a_pedir', 'falhado'),
-         ('a_pedir', 'incerto'), ('a_confirmar', 'executado'), ('a_confirmar', 'a_executar')) THEN
+         ('a_pedir', 'incerto'), ('a_confirmar', 'executado')) THEN
       RAISE EXCEPTION 'refunds.invalid_transition: % → %', OLD.estado, NEW.estado;
     END IF;
     -- Anular (antes de o dinheiro sair) pede o motivo; o do cancelamento da
@@ -206,7 +209,7 @@ BEGIN
     END IF;
     -- Voltar a executar o que não saiu, ou não se sabe se saiu, é de uma
     -- pessoa e pede o motivo (P7).
-    IF NEW.estado = 'a_executar' AND OLD.estado IN ('incerto', 'a_confirmar')
+    IF NEW.estado = 'a_executar' AND OLD.estado = 'incerto'
        AND nullif(btrim(current_setting('eurolify.motivo', true)), '') IS NULL THEN
       RAISE EXCEPTION 'refunds.invalid_field: voltar a executar pede o motivo';
     END IF;
@@ -351,6 +354,8 @@ END
 $$;
 CREATE TRIGGER reembolso_tarefa AFTER UPDATE OF estado ON reembolso
   FOR EACH ROW EXECUTE FUNCTION reembolso_tarefa();
+-- Como os outros gatilhos do reembolso (revisão do #350, P3).
+ALTER TABLE reembolso ENABLE ALWAYS TRIGGER reembolso_tarefa;
 
 CREATE FUNCTION posvenda_comerciantes_com_reembolsos() RETURNS SETOF uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$

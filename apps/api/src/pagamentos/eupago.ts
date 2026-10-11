@@ -128,8 +128,15 @@ function normalizarTransaccao(t: unknown): AvisoNormalizado | null {
     montante = valor === null ? null : Math.round(valor * 100);
     moeda = texto(a["currency"]);
   }
+  // Um pagamento pode ter vários reembolsos: o aviso de cada um distingue-se
+  // pelo montante e pela data (revisão do #350, P2-3).
+  const tipo = estadoTexto.toLowerCase();
+  const sufixo =
+    tipo === "refund" || tipo === "refunded"
+      ? `:${String(montante ?? "")}:${texto(x["date"]) ?? ""}`
+      : "";
   return {
-    idEvento: `${trid}:${estadoTexto.toLowerCase()}`,
+    idEvento: `${trid}:${tipo}${sufixo}`.slice(0, 200),
     referencia: texto(x["identifier"]),
     idTransaccao: /^[0-9]{1,20}$/.test(trid) ? trid : null,
     estado: ESTADO_DO_AVISO[estadoTexto.toLowerCase()] ?? "desconhecido",
@@ -161,9 +168,13 @@ async function tokenOAuth(
     throw new ErroSemEnvio("a EuPago não deu o token", { cause: erro });
   }
   const token = texto(r.json["access_token"]);
+  // A página (E4) mostra `transactionStatus: Success`; aceita-se também sem
+  // ele, desde que venha o token (revisão do #350, P2-5; V7).
+  const estado = texto(r.json["transactionStatus"]);
   if (
+    r.estado < 200 ||
     r.estado >= 300 ||
-    texto(r.json["transactionStatus"]) !== "Success" ||
+    (estado !== null && estado !== "Success") ||
     token === null ||
     token === ""
   ) {
@@ -342,7 +353,7 @@ export function adaptadorEuPago(buscar: Buscar = fetch): AdaptadorPagamento {
       if (estado === "Rejected") {
         return {
           estado: "recusado",
-          motivo: (texto(r.json["code"]) ?? "Rejected").slice(0, 200),
+          motivo: (texto(r.json["code"]) || "Rejected").slice(0, 200),
         };
       }
       throw new ErroDeRede(
@@ -366,10 +377,14 @@ export function adaptadorEuPago(buscar: Buscar = fetch): AdaptadorPagamento {
         { authorization: `Bearer ${token}` },
         "GET",
       );
-      const lista = r.json["refundList"];
+      // `refundList` vem como objecto no exemplo (E3); aceita-se também uma
+      // lista, mas só com um elemento (revisão do #350, P2-5; V8).
+      const bruto = r.json["refundList"];
+      const lista: unknown[] = Array.isArray(bruto) ? bruto : [bruto];
+      const unico = lista.length === 1 ? lista[0] : null;
       const estado =
-        typeof lista === "object" && lista !== null
-          ? texto((lista as Record<string, unknown>)["status"])
+        typeof unico === "object" && unico !== null
+          ? texto((unico as Record<string, unknown>)["status"])
           : null;
       // Só «reembolsado» está documentado (E3, V8); o resto não muda nada.
       return estado?.toLowerCase() === "reembolsado"

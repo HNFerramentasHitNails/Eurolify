@@ -284,11 +284,18 @@ export async function reconciliarReembolso(
         `só se reconcilia um reembolso incerto ou a confirmar (está ${r.estado})`,
       );
     }
+    // O prestador aceitou este pedido (tem a referência dele): pedir outra vez
+    // podia reembolsar duas vezes. Fica a confirmar, ou uma pessoa dá-o como
+    // executado (revisão do #350, P1-1).
+    if (r.estado === "a_confirmar" && dados.resultado === "nao_saiu") {
+      throw new ErroPosVenda(
+        "refunds.invalid_transition",
+        `o prestador aceitou este pedido (${r.referencia_prestador ?? "?"}): não se pede outra vez; confirme-o no prestador ou dê-o como executado`,
+      );
+    }
     if (dados.resultado === "executado") {
-      if (
-        r.referencia_prestador === null &&
-        dados.identificador === undefined
-      ) {
+      // Num incerto não há referência do prestador: a prova é a da pessoa.
+      if (r.estado === "incerto" && dados.identificador === undefined) {
         throw new ErroPosVenda(
           "refunds.invalid_field",
           "diga o identificador do reembolso no prestador",
@@ -362,7 +369,7 @@ export async function correrConfirmacoes(
             w("consultado_em", "<=", sql<Date>`now() - interval '1 minute'`),
           ]),
         )
-        .orderBy("consultado_em")
+        .orderBy(sql`consultado_em nulls first`)
         .orderBy("id")
         .limit(porVolta)
         .execute(),

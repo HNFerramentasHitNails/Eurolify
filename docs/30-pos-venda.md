@@ -465,6 +465,8 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
 | V8 | os valores de `refundList.status` além de `reembolsado` (E3) e se o `Success` do E1 quer dizer «dinheiro saído» |
 | V9 | o fuso do `expires_in` do token (E4); não se usa, porque o token não se guarda |
 | V10 | se o `trid` do aviso (E5) é o que o E1 pede, num pagamento real de teste |
+| V11 | se o `reason` (`rfd_…`) aparece no extracto do cliente |
+| V12 | **antes do modo real:** com a V8 confirmada, se o «reembolsado» da consulta chega para a NC sair sozinha, ou se fica um passo de uma pessoa (revisão do #350) |
 
 ### 13.5 Em código — parte 2 (11/10/2026; migração 0060; `docs/06`, DP)
 
@@ -473,11 +475,12 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
 | `pagamento.id_transaccao_prestador` (o `trid`), gravado uma vez do aviso assinado que deu o pagamento como pago | migração 0060; `src/pagamentos/repositorio.ts` (`aplicarAviso`) |
 | o reembolso com `a_pedir` e `a_confirmar`, quem pediu e quando, a referência do prestador, o código da recusa e a última consulta; as transições novas, o motivo obrigatório ao voltar a `a_executar`, e os tectos de R5 também ao voltar (P8) | migração 0060 |
 | `refund.requested` e os motivos `reembolso_incerto`, `reembolso_por_confirmar` e `reembolso_desconhecido` na fila de diferenças | migração 0060 |
+| `tarefa_reembolso`, interna, escrita por um gatilho, e `posvenda_comerciantes_com_reembolsos()`: o reembolso tem o RLS forçado e a tarefa corre sem comerciante (como a `tarefa_pagamento` da 0044) | migração 0060 |
 | as credenciais OAuth (`client_id`, `client_secret`) na conta, cifradas com a chave, os dois juntos ou nenhum | `src/pagamentos/repositorio.ts`, `rotas.ts` |
 | o adaptador: o token OAuth a cada reembolso, `reembolsar` e `consultarReembolso`, o aviso `Refund`; só o MB WAY reembolsa pela API (Q8) | `src/pagamentos/eupago.ts`, `adaptador.ts` |
 | `POST /refunds/{id}/execute` e `POST /refunds/{id}/reconcile`; o `GET /refunds/{id}` mostra o pedido ao prestador | `src/posvenda/prestador.ts`, `rotas.ts` |
 | a tarefa de minuto a minuto: os `a_confirmar` consultam-se, os `a_pedir` com mais de 5 minutos passam a `incerto`, e 7 dias sem «reembolsado» vão à fila uma vez | `src/posvenda/prestador.ts`; `servidor.ts` |
-| 5 testes pela API com a EuPago falsa | `test/posvenda-api.test.ts` |
+| 10 testes pela API com a EuPago falsa (5 da primeira versão e 5 da revisão do #350) | `test/posvenda-api.test.ts` |
 
 **Desvios do desenho:**
 - **Um estado a mais, `a_pedir`:** dura só a chamada ao prestador. Dois
@@ -498,5 +501,39 @@ quer dizer que o dinheiro saiu ou só que o pedido foi aceite.
   outra moeda) fica `falhado` com o motivo: sabe-se que nada saiu.
 - **Reconciliar** fecha as diferenças abertas desse reembolso, com o motivo
   da pessoa.
+- **O `execute` aceita também um `falhado`** (a P4 dizia `a_executar`): é
+  pedir outra vez depois de uma recusa explícita, sem motivo, com quem pediu
+  registado; os tectos de R5 voltam a conferir-se.
+
+**Correcções da revisão do #350** (Sonnet 5.5; 0 P0, 1 P1, 6 P2):
+- **Um pedido aceite pelo prestador nunca volta a pedir-se** (P1-1): o
+  `a_confirmar` só passa a `executado` (pela consulta ou por uma pessoa); a
+  transição `a_confirmar → a_executar` saiu da base, e o «não saiu» sobre um
+  `a_confirmar` é recusado. A P7 fica só para o `incerto`.
+- **A recusa só aparece enquanto o reembolso está `falhado`** (P2-1); num
+  `incerto`, dar como executado pede sempre o identificador do prestador.
+- **O alerta dos 7 dias é um por reembolso** (P2-2): com a P1-1, um
+  reembolso só passa uma vez por `a_confirmar`.
+- **Cada aviso de reembolso é um evento** (P2-3): o identificador leva o
+  montante e a data, porque um pagamento pode ter vários reembolsos.
+- **O aviso `Refund`** (P2-4): depois de a consulta o ter confirmado (o mesmo
+  montante, pelo prestador), não é alarme; com um reembolso `incerto`, vai à
+  fila ao lado dele, como prova.
+- **O token** aceita-se com qualquer 2xx e o `access_token`, e só se recusa
+  se `transactionStatus` vier diferente de `Success`; `refundList` lê-se
+  como objecto ou como lista de um (P2-5; V7, V8).
+- **Testes** (P2-6): dois pedidos ao mesmo tempo, o `a_pedir`, sem token,
+  aceite sem referência, outro comerciante, as credenciais que não saem nem
+  ficam em claro, os atalhos na base, o aviso depois de confirmado, a NC
+  depois da confirmação.
+- **P3 tratados:** a consulta começa pelos nunca consultados; um código de
+  recusa vazio fica «Rejected»; o gatilho da tarefa corre sempre (`ENABLE
+  ALWAYS`); um motivo ou um identificador só de espaços é recusado; a rota das
+  credenciais diz que sem o OAuth a conta deixa de o ter.
+- **P3 que ficam**, com a razão: a Q8 só na API (a base não sabe que métodos
+  o prestador reembolsa); a ordem dos bloqueios entre o aviso e a tarefa (um
+  impasse, se houver, aborta um dos lados e o aviso volta); `refund.created`
+  sai outra vez a cada regresso a `a_executar` (como na parte 1); um só
+  âmbito (`refunds:write`) para decidir, pagar e reconciliar (Q6).
 - **Por fazer:** o aviso do prazo do reembolso (R10) e a marca «selado por
   higiene» (R4), em pedidos seus; a sandbox (V7 a V10) antes do modo real.

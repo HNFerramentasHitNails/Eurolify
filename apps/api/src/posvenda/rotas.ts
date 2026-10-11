@@ -908,7 +908,9 @@ export function rotasDaPosVenda(
                   pedido_em: r.pedido_em.toISOString(),
                   pedido_por: r.pedido_por,
                   referencia: r.referencia_prestador,
-                  recusa: r.falha,
+                  // A recusa só enquanto é o estado actual (revisão do
+                  // #350, P2-1): uma tentativa seguinte não a herda.
+                  recusa: r.estado === "falhado" ? r.falha : null,
                 },
           executado_em: iso(r.executado_em),
           decidido_por: r.decidido_por,
@@ -1008,7 +1010,7 @@ export function rotasDaPosVenda(
       config: { ambito: "refunds:write" },
       schema: {
         description:
-          "Uma pessoa diz o que viu no prestador sobre um reembolso incerto ou a confirmar: executado (com o identificador do reembolso no prestador, se o Eurolify não o tem) ou nao_saiu (volta a a_executar). Uma de cada vez, com motivo.",
+          "Uma pessoa diz o que viu no prestador. Um reembolso incerto: executado (com o identificador do reembolso no prestador) ou nao_saiu (volta a a_executar). Um a_confirmar (o prestador aceitou o pedido) só se dá como executado: nunca se pede outra vez. Uma de cada vez, com motivo.",
         params: Type.Object({ id: IdReembolso }),
         body: Type.Object(
           {
@@ -1017,9 +1019,14 @@ export function rotasDaPosVenda(
               Type.Literal("executado"),
               Type.Literal("nao_saiu"),
             ]),
-            motivo: Type.String({ minLength: 1, maxLength: 500 }),
+            // Um espaço não é prova nem motivo (revisão do #350, P3).
+            motivo: Type.String({
+              minLength: 1,
+              maxLength: 500,
+              pattern: "\\S",
+            }),
             identificador: Type.Optional(
-              Type.String({ minLength: 1, maxLength: 100 }),
+              Type.String({ minLength: 1, maxLength: 100, pattern: "\\S" }),
             ),
           },
           { additionalProperties: false },

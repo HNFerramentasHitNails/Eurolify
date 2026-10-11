@@ -2249,9 +2249,10 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     s: Cenario,
     linhas: [string, number][],
     trid: number,
+    nif: string | null = null,
   ) {
     const k = await checkoutCom(s, linhas);
-    await preencher(s, k.token);
+    await preencher(s, k.token, undefined, nif);
     await ok(
       pedir("PUT", `/checkout/${k.token}/contact`, {
         email: "rui@exemplo.pt",
@@ -2401,7 +2402,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     ).toEqual([409, "refunds.invalid_transition"]);
     expect(chamadasDeReembolso().length).toBe(1);
     // A consulta diz «reembolsado» (E3): fica executado.
-    expect((await confirmar()).executados).toBe(1);
+    await confirmar();
     const y = await reembolso(s, r.id);
     expect(y["estado"]).toBe("executado");
     // 17,29 € é o pagamento todo (12,30 € e os portes).
@@ -2578,7 +2579,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         transactionStatus: "Success",
         refundList: { trid: "445566", status: "pendente" },
       });
-    expect((await confirmar()).executados).toBe(0);
+    await confirmar();
     expect((await reembolso(s, r.id))["estado"]).toBe("a_confirmar");
     // Consultado há menos de um minuto: não se consulta outra vez.
     const n = eupago.chamadas.length;
@@ -2598,26 +2599,35 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(eupago.chamadas.length).toBeGreaterThan(n);
     // 8 dias depois, ainda sem «reembolsado»: para a fila, uma vez.
     await pedidoHa(r.id, 8 * 24 * 60);
-    expect((await confirmar()).porConfirmar).toBe(1);
+    await confirmar();
     await pedidoHa(r.id, 8 * 24 * 60);
-    expect((await confirmar()).porConfirmar).toBe(0);
+    await confirmar();
     expect((await diferencas(s)).map((d) => d.motivo)).toEqual([
       "reembolso_por_confirmar",
     ]);
-    // A pessoa vê que não saiu: volta a a_executar, com motivo, e a
-    // diferença fecha.
+    // Aceite pelo prestador: «não saiu» é recusado (revisão do #350,
+    // P1-1); a pessoa dá-o como executado e a diferença fecha.
     v = (await reembolso(s, r.id))["versao"];
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: v,
+          resultado: "nao_saiu",
+          motivo: "não aparece no back-office",
+        }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
     expect(
       (
         await ok(
           s.adm("POST", `/refunds/${r.id}/reconcile`, {
             versao: v,
-            resultado: "nao_saiu",
-            motivo: "não aparece no back-office",
+            resultado: "executado",
+            motivo: "visto no back-office",
           }),
         )
       )["estado"],
-    ).toBe("a_executar");
+    ).toBe("executado");
     expect((await diferencas(s))[0]?.estado).toBe("resolvida");
     // A chamada que fica a meio: ao fim de 5 minutos, incerto.
     delete eupago.respostas.consultaReembolso;
@@ -2628,18 +2638,21 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
           ok_(json(201, { transactionStatus: "Success", refundId: "77" }));
         };
       });
-    v = (await reembolso(s, r.id))["versao"];
-    const emCurso = s.adm("POST", `/refunds/${r.id}/execute`, { versao: v });
+    const e3 = await pagaMbWay(s, [[s.v1, 1]], 445567);
+    const r3 = await reembolsoDeProblema(s, e3.encomenda);
+    v = (await reembolso(s, r3.id))["versao"];
+    const emCurso = s.adm("POST", `/refunds/${r3.id}/execute`, { versao: v });
     for (
       let i = 0;
-      i < 50 && (await reembolso(s, r.id))["estado"] !== "a_pedir";
+      i < 50 && (await reembolso(s, r3.id))["estado"] !== "a_pedir";
       i++
     ) {
       await new Promise((t) => setTimeout(t, 20));
     }
-    expect((await reembolso(s, r.id))["estado"]).toBe("a_pedir");
-    await pedidoHa(r.id, 6);
-    expect((await confirmar()).incertos).toBe(1);
+    expect((await reembolso(s, r3.id))["estado"]).toBe("a_pedir");
+    await pedidoHa(r3.id, 6);
+    await confirmar();
+    expect((await reembolso(s, r3.id))["estado"]).toBe("incerto");
     soltar();
     // A resposta tardia não o tira do incerto: decide uma pessoa.
     expect((await ok(emCurso))["estado"]).toBe("incerto");
@@ -2715,5 +2728,326 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     ).toEqual([422, "refunds.exceeds_paid"]);
     expect(chamadasDeReembolso().length).toBe(n);
     expect((await reembolso(s, r1.id))["estado"]).toBe("falhado");
+  });
+
+  // ---------------------------- Revisão do #350 (P1-1, P2-1 a P2-6)
+
+  it("aceite pelo prestador não volta a pedir-se (P1-1); a recusa não passa à tentativa seguinte (P2-1); a base recusa os atalhos", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 778899);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    // Primeiro recusado, depois aceite: a recusa antiga não aparece.
+    eupago.respostas.reembolso = () =>
+      json(400, { transactionStatus: "Rejected", code: "" });
+    const v = (await reembolso(s, r.id))["versao"];
+    const f = await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+    );
+    expect(f["estado"]).toBe("falhado");
+    // Um código vazio fica «Rejected» (revisão do #350, P3).
+    expect(((await reembolso(s, r.id))["prestador"] as Json)["recusa"]).toBe(
+      "Rejected",
+    );
+    delete eupago.respostas.reembolso;
+    eupago.respostas.consultaReembolso = () =>
+      json(200, { transactionStatus: "Success", refundList: [] });
+    await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: f["versao"] }),
+    );
+    const x = await reembolso(s, r.id);
+    expect(x["estado"]).toBe("a_confirmar");
+    expect((x["prestador"] as Json)["recusa"]).toBeNull();
+    // «Não saiu» sobre um pedido aceite: recusado, nunca se pede outra vez.
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: x["versao"],
+          resultado: "nao_saiu",
+          motivo: "não aparece",
+        }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+    // Um motivo só de espaços não é motivo.
+    expect(
+      (
+        await s.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: x["versao"],
+          resultado: "executado",
+          motivo: "   ",
+        })
+      ).statusCode,
+    ).toBe(400);
+    // A base: nem a_confirmar → a_executar (com motivo), nem mudar a
+    // referência do prestador, nem o trid do pagamento.
+    const naBaseComo = (
+      fn: (
+        t: Parameters<Parameters<typeof comComerciante>[2]>[0],
+      ) => Promise<unknown>,
+    ) =>
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:teste', true),
+          set_config('eurolify.motivo', 'tentar', true),
+          set_config('eurolify.origem', 'pessoa', true)`.execute(trx);
+        await fn(trx);
+      });
+    await expect(
+      naBaseComo((t) =>
+        t
+          .updateTable("reembolso")
+          .set({ estado: "a_executar" })
+          .where("id", "=", r.id.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(/a_confirmar → a_executar/);
+    await expect(
+      naBaseComo((t) =>
+        t
+          .updateTable("reembolso")
+          .set({ referencia_prestador: "1" })
+          .where("id", "=", r.id.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(/só se grava quando ele aceita/);
+    await expect(
+      naBaseComo((t) =>
+        t
+          .updateTable("pagamento")
+          .set({ id_transaccao_prestador: "1" })
+          .where("encomenda_id", "=", e.encomenda.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(/não muda/);
+    // Uma lista vazia na consulta não conta como reembolsado (P2-5).
+    await confirmar();
+    expect((await reembolso(s, r.id))["estado"]).toBe("a_confirmar");
+    // A pessoa dá-o como executado (a referência do prestador é a prova).
+    expect(
+      (
+        await ok(
+          s.adm("POST", `/refunds/${r.id}/reconcile`, {
+            versao: x["versao"],
+            resultado: "executado",
+            motivo: "visto no back-office",
+          }),
+        )
+      )["estado"],
+    ).toBe("executado");
+    // Na base, um reembolso que não está a executar não salta para a_confirmar.
+    const outro = await pagaMbWay(s, [[s.v1, 1]], 778900);
+    const r2 = await reembolsoDeProblema(s, outro.encomenda);
+    await expect(
+      naBaseComo((t) =>
+        t
+          .updateTable("reembolso")
+          .set({ estado: "a_confirmar", referencia_prestador: "5" })
+          .where("id", "=", r2.id.slice(4))
+          .execute(),
+      ),
+    ).rejects.toThrow(
+      /a_executar → a_confirmar|só se grava|pedido ao prestador/,
+    );
+  });
+
+  it("dois pedidos ao mesmo tempo saem uma vez; durante o pedido não se pede outro; sem token nada sai; aceite sem referência fica incerto (P2-6)", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 889900);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    let soltar: () => void = () => undefined;
+    eupago.respostas.reembolso = () =>
+      new Promise<Response>((fim) => {
+        soltar = () => {
+          fim(json(201, { transactionStatus: "Success", refundId: "5001" }));
+        };
+      });
+    const v = (await reembolso(s, r.id))["versao"];
+    const n = chamadasDeReembolso().length;
+    const [a, b] = [
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+      s.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+    ];
+    for (
+      let i = 0;
+      i < 50 && (await reembolso(s, r.id))["estado"] !== "a_pedir";
+      i++
+    ) {
+      await new Promise((t) => setTimeout(t, 20));
+    }
+    // Durante o pedido, com a versão de agora: recusado (é o `a_pedir`).
+    const agora = await reembolso(s, r.id);
+    expect(agora["estado"]).toBe("a_pedir");
+    expect(
+      await codigo(
+        s.adm("POST", `/refunds/${r.id}/execute`, { versao: agora["versao"] }),
+      ),
+    ).toEqual([409, "refunds.invalid_transition"]);
+    soltar();
+    const respostas = [await a, await b].map((x) => x.statusCode).sort();
+    expect(respostas).toEqual([200, 409]);
+    expect(chamadasDeReembolso().length - n).toBe(1);
+    delete eupago.respostas.reembolso;
+    // O token recusado: nada saiu, falhado com o motivo.
+    const e2 = await pagaMbWay(s, [[s.v1, 1]], 889901);
+    const r2 = await reembolsoDeProblema(s, e2.encomenda);
+    eupago.respostas.token = () =>
+      json(401, {
+        transactionStatus: "Rejected",
+        code: "TOKEN_INVALID",
+        text: "Token is invalid",
+      });
+    const m = chamadasDeReembolso().length;
+    const f = await ok(
+      s.adm("POST", `/refunds/${r2.id}/execute`, {
+        versao: (await reembolso(s, r2.id))["versao"],
+      }),
+    );
+    expect(f["estado"]).toBe("falhado");
+    expect(chamadasDeReembolso().length).toBe(m);
+    delete eupago.respostas.token;
+    // Aceite sem refundId: não se sabe o que saiu, incerto.
+    eupago.respostas.reembolso = () =>
+      json(201, { transactionStatus: "Success" });
+    const i = await ok(
+      s.adm("POST", `/refunds/${r2.id}/execute`, { versao: f["versao"] }),
+    );
+    expect(i["estado"]).toBe("incerto");
+    delete eupago.respostas.reembolso;
+  });
+
+  it("outro comerciante não executa nem reconcilia; as credenciais OAuth nunca saem nem ficam em claro (P2-6)", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 990011);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    const vizinho = await cenario();
+    const v = (await reembolso(s, r.id))["versao"];
+    expect(
+      await codigo(
+        vizinho.adm("POST", `/refunds/${r.id}/execute`, { versao: v }),
+      ),
+    ).toEqual([404, "refunds.not_found"]);
+    expect(
+      await codigo(
+        vizinho.adm("POST", `/refunds/${r.id}/reconcile`, {
+          versao: v,
+          resultado: "nao_saiu",
+          motivo: "vizinho",
+        }),
+      ),
+    ).toEqual([404, "refunds.not_found"]);
+    expect((await reembolso(s, r.id))["estado"]).toBe("a_executar");
+    const contas = await s.adm("GET", "/payment-accounts");
+    expect(contas.body).not.toContain("segredo-oauth-1");
+    expect(contas.body).not.toContain("cliente-1");
+    const { rows } = await sql<{ c: Buffer }>`
+      select credenciais_cifra as c from conta_pagamento
+      where id = ${s.conta.slice(4)}::uuid`.execute(base.dono);
+    expect(rows[0]?.c.toString("latin1")).not.toContain("segredo-oauth-1");
+  });
+
+  it("o aviso Refund: depois de confirmado não é alarme; com um incerto vai à fila ao lado dele; dois reembolsos do mesmo pagamento são dois avisos (P2-3, P2-4)", async () => {
+    limpar();
+    const s = await cenario();
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 2]], 101112);
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, {
+        versao: (await reembolso(s, r.id))["versao"],
+      }),
+    );
+    await confirmar();
+    const refund = (valor: number, date: string) =>
+      JSON.stringify({
+        transactions: {
+          entity: 12345,
+          reference: 123456789,
+          identifier: String(e.pagamento["referencia"]),
+          method: "Mbway",
+          amount: { value: valor, currency: "EUR" },
+          date,
+          trid: 101112,
+          status: "Refund",
+        },
+      });
+    // O aviso do reembolso já confirmado: sem alarme.
+    expect(
+      (await aviso(s, refund(17.29, "2026-10-11T10:00:00Z"))).statusCode,
+    ).toBe(200);
+    expect(await diferencas(s)).toEqual([]);
+    // Um segundo reembolso, que o Eurolify não pediu: outro evento, à fila.
+    expect((await aviso(s, refund(5, "2026-10-11T11:00:00Z"))).statusCode).toBe(
+      200,
+    );
+    expect((await diferencas(s)).map((d) => d.motivo)).toEqual([
+      "reembolso_desconhecido",
+    ]);
+    // Um reembolso incerto e o aviso dele: a prova vai à fila, ao lado.
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e.encomenda,
+        tipo: "outro",
+        descricao: "a segunda unidade",
+      }),
+      201,
+    );
+    const d = await ok(
+      s.adm("POST", `/problems/${String(prb["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: r.linha, quantidade: 1 }],
+        motivo: "a segunda",
+      }),
+      201,
+    );
+    const r2 = String(d["reembolso"]);
+    eupago.respostas.reembolso = () => json(503, {});
+    expect(
+      (
+        await ok(
+          s.adm("POST", `/refunds/${r2}/execute`, {
+            versao: (await reembolso(s, r2))["versao"],
+          }),
+        )
+      )["estado"],
+    ).toBe("incerto");
+    delete eupago.respostas.reembolso;
+    expect(
+      (await aviso(s, refund(12.3, "2026-10-11T12:00:00Z"))).statusCode,
+    ).toBe(200);
+    const fila = (await diferencas(s)).filter(
+      (x) => x.motivo === "reembolso_incerto",
+    );
+    expect(fila).toHaveLength(2);
+    expect(fila[1]?.prova).toEqual(
+      expect.objectContaining({ reembolso: r2 }) as unknown,
+    );
+  });
+
+  it("com fatura do Eurolify: a NC espera pela confirmação do prestador e sai depois (P2-6)", async () => {
+    limpar();
+    const s = await cenario();
+    await ligar(s, `c-${randomUUID()}`);
+    await comOAuth(s);
+    const e = await pagaMbWay(s, [[s.v1, 1]], 121314, "501964843");
+    await ateParar();
+    const r = await reembolsoDeProblema(s, e.encomenda);
+    await ok(
+      s.adm("POST", `/refunds/${r.id}/execute`, {
+        versao: (await reembolso(s, r.id))["versao"],
+      }),
+    );
+    await ateParar();
+    expect((await documentosDe(s, e.encomenda)).notas[0]).toMatchObject({
+      estado: "retido",
+      motivos: ["reembolso_por_executar"],
+    });
+    await confirmar();
+    await ateParar();
+    const { notas } = await documentosDe(s, e.encomenda);
+    expect(notas.map((n) => n["estado"])).toEqual(["emitido"]);
   });
 });

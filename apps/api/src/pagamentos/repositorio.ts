@@ -1230,20 +1230,36 @@ async function aplicarAviso(
   // Eurolify o pediu, a consulta dos `a_confirmar` deste pagamento corre já
   // na próxima volta; se não pediu nenhum, fica na fila para uma pessoa.
   if (ev.estado === "reembolsado") {
-    const vivos = await trx
+    const reembolsos = await trx
       .selectFrom("reembolso")
-      .select(["id", "estado"])
+      .select(["id", "estado", "via", "montante"])
       .where("pagamento_id", "=", p.id)
-      .where("estado", "in", ["a_pedir", "a_confirmar", "incerto"])
+      .where("estado", "in", ["a_pedir", "a_confirmar", "incerto", "executado"])
       .execute();
-    if (vivos.length === 0) {
-      await abrirDiferenca(trx, c, {
-        pagamento: p.id,
-        aviso: aviso.id,
-        motivo: "reembolso_desconhecido",
-        prova: { montante: ev.montante, moeda: ev.moeda },
-      });
-      await fechar("diferenca", p.id);
+    const emCurso = reembolsos.filter((x) =>
+      ["a_pedir", "a_confirmar", "incerto"].includes(x.estado),
+    );
+    // Já confirmado pela consulta (o aviso chegou depois): é o nosso, com o
+    // mesmo montante; não é alarme (revisão do #350, P2-4).
+    const jaFeito = reembolsos.some(
+      (x) =>
+        x.estado === "executado" &&
+        x.via === "prestador" &&
+        ev.montante !== null &&
+        Number(x.montante) === ev.montante,
+    );
+    if (emCurso.length === 0) {
+      if (!jaFeito) {
+        await abrirDiferenca(trx, c, {
+          pagamento: p.id,
+          aviso: aviso.id,
+          motivo: "reembolso_desconhecido",
+          prova: { montante: ev.montante, moeda: ev.moeda },
+        });
+        await fechar("diferenca", p.id);
+        return;
+      }
+      await fechar("aplicado", p.id);
       return;
     }
     await marcar(trx, { quem: `prestador:${p.prestador}`, origem: "aviso" });
@@ -1253,6 +1269,19 @@ async function aplicarAviso(
       .where("pagamento_id", "=", p.id)
       .where("estado", "=", "a_confirmar")
       .execute();
+    // Um reembolso incerto: o aviso é a melhor prova de que saiu; vai para a
+    // fila, ao lado dele, para a pessoa que o reconcilia (P2-4).
+    for (const x of emCurso.filter((y) => y.estado === "incerto")) {
+      await abrirDiferenca(trx, c, {
+        pagamento: p.id,
+        aviso: aviso.id,
+        motivo: "reembolso_incerto",
+        prova: {
+          reembolso: `rfd_${x.id}`,
+          aviso_de_reembolso: { montante: ev.montante, moeda: ev.moeda },
+        },
+      });
+    }
     await fechar("aplicado", p.id);
     return;
   }

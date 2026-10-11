@@ -453,7 +453,7 @@ export function rotasDosPagamentos(
       config: { ambito: "payments:accounts" },
       schema: {
         description:
-          "Define a chave da API do canal no prestador e o segredo dos avisos e, para o reembolso pelo prestador, o client_id e o client_secret OAuth (juntos). Ficam cifrados e nunca se devolvem; a conta volta a rascunho até à chamada de teste. Só o dono (payments:accounts).",
+          "Define a chave da API do canal no prestador e o segredo dos avisos e, para o reembolso pelo prestador, o client_id e o client_secret OAuth (juntos; sem eles, a conta deixa de os ter e o reembolso passa a ser à mão). Ficam cifrados e nunca se devolvem; a conta volta a rascunho até à chamada de teste. Só o dono (payments:accounts).",
         params: Type.Object({ id: IdConta }),
         body: Type.Object(
           {
