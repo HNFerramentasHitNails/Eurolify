@@ -22,7 +22,7 @@
 - **A migração é a 0065:** a 0064 é a do #364 (rasto), que entrou primeiro.
 - **Revisão do agente** (`eurolify-critical-review`, Claude Sonnet 5.5): 0
   P0, 1 P1, 6 P2, 11 P3; tratados ou declarados no `docs/30` §15.4.
-- **Juntado** a 11/10/2026 (`327faaa`). **Publicado no ensaio:** CORRIDA.
+- **Juntado** a 11/10/2026 (`327faaa`). **Publicado no ensaio:** corrida 38172144192 (`migrar: aplicadas 0065_pos_venda_selado_por_higiene`; API, MCP e Hub a responder).
 
 ## Números (com data e como se contaram)
 
