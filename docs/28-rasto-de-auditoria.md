@@ -325,8 +325,10 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
 - ~~O `transicao_encomenda` (0047) e o `historico_preco` (0017) têm
   `origem`?~~ Conferido a 11/10/2026: não têm. Nem o `CREATE TABLE` (0047
   linha 414, 0017 linha 178) nem as alterações seguintes (0053, 0060), que só
-  acrescentam as colunas do rasto. A `origem` de uma importação não fica
-  nestas duas tabelas; o canal (`importacao`) e o pedido ficam.
+  acrescentam as colunas do rasto. Hoje a importação não escreve em nenhuma
+  das duas (`grep` de `preco`, `price`, `historico_preco` e
+  `transicao_encomenda` em `apps/api/src/importacao/` sem resultados); se um
+  dia escrever, a `origem` não fica nelas, só o canal e o pedido.
 - ~~A forma exacta do identificador do pedido~~ conferida a 10/10/2026: o
   servidor gera-o com `randomUUID()` (`servidor.ts`) e os erros põem-no no
   `instance` (`base/erros.ts`); é o mesmo `pedido` do rasto.

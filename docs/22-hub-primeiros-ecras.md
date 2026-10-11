@@ -868,7 +868,9 @@ servidor (uma regra, um sítio):
 | outro valor (`tipo_de_autor` `desconhecido`) | `{ nome: null }` | o valor guardado, tal como está |
 
 O tipo de quem fez vem no `tipo_de_autor` de cada entrada (`docs/28` §3.8);
-o `autor` só traz o nome. O antigo `autor.tipo` saiu a 11/10/2026, quando o
+o `autor` só traz o nome. Um `pessoa:` mal escrito (sem `per_` e o
+identificador) tem o tipo `pessoa` mas nenhum nome: aparece como «Pessoa de
+fora desta equipa» (revisão do #361, P3-2). O antigo `autor.tipo` saiu a 11/10/2026, quando o
 Hub deixou de o ler (§26.1).
 
 **Dados pessoais** (`eu-gdpr-privacy`): o nome serve a finalidade já
