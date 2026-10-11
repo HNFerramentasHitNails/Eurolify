@@ -17,7 +17,6 @@ import { hubDeTeste } from "./hub-de-teste.js";
 // PostgreSQL 18.
 
 interface Autor {
-  tipo: "pessoa" | "chave" | "sistema" | "outro";
   nome: string | null;
 }
 interface Entrada {
@@ -168,10 +167,7 @@ describe.skipIf(URL_BASE === undefined)(
       expect({ ...hub, dados: [] }).toEqual({ ...chave, dados: [] });
       expect(hub.ha_mais).toBe(true);
       expect(hub.dados[0]?.quem).toBe(`pessoa:per_${dono.pessoa}`);
-      expect(hub.dados[0]?.autor).toEqual({
-        tipo: "pessoa",
-        nome: "Ana Teste",
-      });
+      expect(hub.dados[0]?.autor).toEqual({ nome: "Ana Teste" });
 
       // A página seguinte chega à criação, feita pela chave «Escrita».
       const resto = await historico(
@@ -184,7 +180,7 @@ describe.skipIf(URL_BASE === undefined)(
         .json<Pagina>()
         .dados.find((e) => e.entidade === "artigo" && e.operacao === "criado");
       expect(criacao?.quem).toBe(`chave:key_${c.chave.id}`);
-      expect(criacao?.autor).toEqual({ tipo: "chave", nome: "Escrita" });
+      expect(criacao?.autor).toEqual({ nome: "Escrita" });
     });
 
     it("o gestor vê; o armazém e o apoio recebem 403", async () => {
@@ -270,19 +266,15 @@ describe.skipIf(URL_BASE === undefined)(
       );
       // Cada um com o seu nome: o de quem saiu continua (P2-2 da revisão).
       expect(porQuem.get(`pessoa:per_${dono.pessoa}`)).toEqual({
-        tipo: "pessoa",
         nome: "Ana Teste",
       });
       expect(porQuem.get(`pessoa:per_${saiu.pessoa}`)).toEqual({
-        tipo: "pessoa",
         nome: "Rui Teste",
       });
       expect(porQuem.get(`pessoa:per_${deFora.pessoa}`)).toEqual({
-        tipo: "pessoa",
         nome: null,
       });
       expect(porQuem.get(`chave:key_${outro.chave.id}`)).toEqual({
-        tipo: "chave",
         nome: null,
       });
     });
@@ -312,14 +304,10 @@ describe.skipIf(URL_BASE === undefined)(
         r.json<Pagina>().dados.map((e) => [e.quem, e.autor]),
       );
       expect(porQuem.get(`pessoa:per_${antiga.pessoa}`)).toEqual({
-        tipo: "pessoa",
         nome: "Pessoa pseudonimizada",
       });
-      expect(porQuem.get("sistema:teste")).toEqual({
-        tipo: "sistema",
-        nome: null,
-      });
-      expect(porQuem.get("teste:outro")).toEqual({ tipo: "outro", nome: null });
+      expect(porQuem.get("sistema:teste")).toEqual({ nome: null });
+      expect(porQuem.get("teste:outro")).toEqual({ nome: null });
     });
 
     /** Uma alteração com o contexto do rasto escolhido (como uma tarefa). */

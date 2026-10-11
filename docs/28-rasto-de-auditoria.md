@@ -298,7 +298,7 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
   - **o motivo do histórico pseudonimizado** com a ficha, também nos perfis usados em documentos (os valores deles ficam, R9; o motivo é texto livre e a prova fiscal é a cópia no documento). Limpa também o motivo das entradas dos pares de duplicados da outra ficha do par, mesmo que não fale desta pessoa: perde-se esse texto, de propósito (revisão do #354, P2-2 e P3-4);
   - já estavam resolvidos (conferido a 11/10/2026): as escritas do Hub nas contas com o contexto, a permissão da função do rasto, o motivo longo do Comerciante e a exportação do titular;
   - ficam de fora: os canais `integracao` e `mcp`, porque não há nenhuma entrada por esses caminhos; e as rotas públicas em que a pessoa age ela própria, que ficam por decidir;
-- **parte 5**: o Hub a mostrar as seis respostas (desenho e aspecto a aprovar pelo Diogo).
+- **parte 5** (desenho #357, código #359; desenho e aspecto aprovados pelo Diogo a 11/10/2026): o histórico do artigo no Hub mostra de onde veio, a pedido de quem, a IA, quem autorizou ou o aviso «Sem autorização de uma pessoa», o motivo e «Detalhes»; a API do Hub junta `autor_autorizou` e `autor_do_pedido` (`docs/22` §26); o ecrã das chaves marca «Chave de um agente de IA». O `autor.tipo` obsoleto saiu da API no pedido dos pendentes finais.
 
 ## 5. Perguntas para o Diogo ou o Bruno
 
@@ -322,8 +322,11 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
   ficha no resumo fechava isto, mas perdia-se a comparação entre fichas
   (útil nos duplicados). Fica como está até alguém decidir o contrário.
 
-- O `transicao_encomenda` (0047) e o `historico_preco` (0017) foram lidos só
-  pelo nome das colunas; se têm `origem`, falta conferir.
+- ~~O `transicao_encomenda` (0047) e o `historico_preco` (0017) têm
+  `origem`?~~ Conferido a 11/10/2026: não têm. Nem o `CREATE TABLE` (0047
+  linha 414, 0017 linha 178) nem as alterações seguintes (0053, 0060), que só
+  acrescentam as colunas do rasto. A `origem` de uma importação não fica
+  nestas duas tabelas; o canal (`importacao`) e o pedido ficam.
 - ~~A forma exacta do identificador do pedido~~ conferida a 10/10/2026: o
   servidor gera-o com `randomUUID()` (`servidor.ts`) e os erros põem-no no
   `instance` (`base/erros.ts`); é o mesmo `pedido` do rasto.
