@@ -24,7 +24,7 @@ case "$fluxo" in
   # O comando do operador (docs/19 §6); o mesmo formato do eurolify-pedido.
   operar) padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} run:[0-9]{1,20} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|convite [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [A-Za-z0-9_-]{1,340} dono [0-9a-f]{64} github:[0-9]{1,20})$' ;;
   # A configuração do e-mail (docs/34 §13); o mesmo formato do eurolify-pedido.
-  configurar) padrao='^smtp [A-Za-z0-9+/]+={0,2} run:[0-9]{1,20} github:[0-9]{1,20}$' ;;
+  configurar) padrao='^(smtp [A-Za-z0-9+/]+={0,2}|teste) run:[0-9]{1,20} github:[0-9]{1,20}$' ;;
   *) falhar "fluxo desconhecido: '$fluxo'" ;;
 esac
 
@@ -115,8 +115,8 @@ else
   if [[ "$fluxo" == mcp ]]; then
     EUROLIFY_ORIGEM="fluxo mcp, ${origem_mcp#mcp, }" registar "pedido $id '$pedido' tratado, código $codigo"
   elif [[ "$fluxo" == configurar ]]; then
-    # Nunca o pedido: leva a palavra-passe.
-    EUROLIFY_ORIGEM="fluxo configurar, conta ${pedido##*github:}" registar "pedido $id 'smtp' (${pedido##* run:}) tratado, código $codigo"
+    # Nunca o pedido: leva a palavra-passe. Só a acção (smtp ou teste).
+    EUROLIFY_ORIGEM="fluxo configurar, conta ${pedido##*github:}" registar "pedido $id '${pedido%% *}' (${pedido##* run:}) tratado, código $codigo"
   elif [[ "$fluxo" == operar ]]; then
     # Só a acção: o resto do pedido leva o nome de um comerciante.
     EUROLIFY_ORIGEM="fluxo operar, conta ${pedido##*github:}" registar "pedido $id '${pedido%% *}' tratado, código $codigo"
