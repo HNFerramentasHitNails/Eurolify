@@ -139,3 +139,4 @@
 - [Peça 21, tarefas das filas (#366, #368, #375): desenho aprovado (DW), código da parte 1; a lista lê as filas e a tarefa só guarda quem e até quando; 7 filas (DS dizia 4); achado: pedido de livre resolução pendente corre o prazo sem aviso — 11/10/2026](tarefas-das-filas-11out2026.md)
 - [Vendas do dia e do mês (#367, DY): quatro números com e sem IVA, por canal e mercado; âmbito sales:read (dono e gestor); migração 0068; medido: dia ~25 ms, mês 0,4–0,75 s com 100 000 encomendas; sem pré-calcular — 12/10/2026](vendas-do-dia-12out2026.md)
 - [Avisos das tarefas vencidas por e-mail (#372, EB): ao responsável ou, sem ele, a quem decide e atribui; sem o prazo do reembolso; cancela-se no envio; migração 0071 — 12/10/2026](avisos-tarefas-email-12out2026.md)
+- [Hub «A decidir» (#366 parte 2, Q1 A): rotas /hub/tasks pelo papel, migração 0072, ecrã com filtros, atribuir e prazo no fuso do comerciante; sem ligação ao caso — 12/10/2026](hub-a-decidir-12out2026.md)
