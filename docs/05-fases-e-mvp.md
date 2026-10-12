@@ -27,12 +27,12 @@
 | Prova de 2 semanas com a Medusa (D-2) | **cancelada** — a D-2 foi decidida a 03/10/2026: núcleo próprio, de raiz (ADR-0002) |
 | Modelo de domínio (entidades, estados, quem é dono de quê) em tabelas | **Catálogo em desenho** ([`14-dominio-catalogo.md`](14-dominio-catalogo.md), #36, 04/10/2026); os outros domínios por fazer |
 | Lista de recursos e operações da API (em tabela; o ficheiro OpenAPI só depois do OK) | **Catálogo em desenho** (`14-dominio-catalogo.md` §7); os outros domínios por fazer |
-| Regras do motor de IVA validadas pelo contabilista | por fazer |
-| Fluxos do consumidor (checkout, confirmação, livre resolução, garantia) validados por jurista | por fazer |
+| Regras do motor de IVA validadas pelo contabilista | por fazer — no fim do desenvolvimento da Fase 1 (ADR-0045) |
+| Fluxos do consumidor (checkout, confirmação, livre resolução, garantia) validados por jurista | por fazer — no fim do desenvolvimento da Fase 1 (ADR-0045) |
 | Conversas com 3 a 5 comerciantes de fora (para D-14 e para a 1.ª versão) | por fazer |
 | Modelo de receita (D-14) — a base é precisa antes da Fase 1, porque se vende desde o início; os preços, antes da peça 13 (ADR-0012) | **base decidida** (ADR-0007: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, depois das conversas com comerciantes |
-| Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer |
-| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; tempo por fases em `10-estimativa-prazo-e-custo.md` §9 (Fase 1: 18 a 33 meses a tempo inteiro, 32 a 60 a meio tempo — recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS e as sete filas da peça 21, decisão DW; a 04/10/2026, com as três da decisão AD), corrigido às 8 semanas (§6). Falta pedir os orçamentos do contabilista, do jurista e do seguro |
+| Contrato de serviço, acordo de tratamento de dados, limites de responsabilidade e seguro, com jurista | por fazer — no fim do desenvolvimento da Fase 1 (ADR-0045) |
+| Estimativa de prazo e custo (D-13) | **decidida** a 03/10/2026 (ADR-0008): desenvolvem o Diogo e o Bruno, com Claude Code e Codex; tempo por fases em `10-estimativa-prazo-e-custo.md` §9 (Fase 1: 18 a 33 meses a tempo inteiro, 32 a 60 a meio tempo — recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS e as sete filas da peça 21, decisão DW; a 04/10/2026, com as três da decisão AD), corrigido às 8 semanas (§6); **medição provisória de 12/10/2026 (§6.1, C): código da Fase 1 completo entre dezembro de 2026 e fevereiro de 2027, Fase 1 passada entre junho e setembro de 2027**. Falta pedir os orçamentos do contabilista, do jurista e do seguro |
 
 **Critério de passagem** (mudado a 03/10/2026, ADR-0012): a D-13 decidida
 (ADR-0008), a base da D-14 decidida (ADR-0007) e o OK escrito do Bruno ou do
@@ -112,13 +112,17 @@ acima (as tarefas das filas e a consulta das vendas).
 **Antes do primeiro comerciante de fora:** o motor de IVA validado pelo
 contabilista, os fluxos do consumidor validados por jurista, o contrato com
 limites de responsabilidade e o seguro, e o modelo de receita (D-14).
+O contabilista, o jurista e o seguro tratam-se **quando o desenvolvimento
+da Fase 1 terminar** (decisão EC, [ADR-0045](adr/0045-desenvolver-primeiro-validar-no-fim-com-o-eur-lex.md),
+12/10/2026); até lá, as regras verificam-se no repositório `eur-lex`.
 
 **As lojas do próprio grupo:** uma loja **pequena e contida** primeiro,
 em paralelo com o Shopify, **nunca a loja principal primeiro**. O piloto de
 pagamentos EuPago e Stripe já desenhado para a plataforma de formação
 (29/09/2026) segue o seu caminho; o Eurolify reaproveita o desenho dele.
 
-**Critério de passagem:** 3 meses de vendas reais, em todos os comerciantes,
+**Critério de passagem:** 3 meses de vendas reais **na loja piloto do grupo**
+(decisão EC, ADR-0045, 12/10/2026; era «em todos os comerciantes»),
 sem um documento fiscal errado com origem no Eurolify; pagamentos 100 % conciliados; os testes de
 isolamento entre inquilinos sempre verdes; o botão de livre resolução usado e
 tratado de ponta a ponta pelo menos uma vez — até ao reembolso e à nota de

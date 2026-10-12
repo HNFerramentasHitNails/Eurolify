@@ -200,6 +200,34 @@ nova. Os `dados` levam a fila, o caso, o motivo, o prazo e a hora do aviso.
 `atribuicao_rasto`, o destino), os modelos PT, ES e EN, os testes e a
 revisão do agente. Um pedido só.
 
+**Em código (12/10/2026; migração 0071; decisão EB):**
+
+| O quê | Onde |
+|---|---|
+| o `tipo` `task.overdue`; o gatilho `atribuicao_vencida_notificacao` na linha `vencida` do rasto, com a `referencia` na linha do rasto; quem recebe em `tarefas_aviso_pode_receber()` (membro e pessoa activos, decide a fila; o responsável ou, sem ele, quem também tem `tasks:assign`), e o responsável que conta em `tarefas_aviso_responsavel()` (o que já não pode decidir não conta: o aviso nunca vai para o vazio) | migração 0071 |
+| numa atribuição já avisada cujo caso ainda espera, as linhas `atribuida` e `retirada` (também a do R8, quando alguém sai da equipa) levam o mesmo aviso a quem passa a recebê-lo; sem isto, um aviso marcado e ainda não enviado podia ficar sem ninguém (revisão do #389, P2-1) | migração 0071 |
+| no envio: `notificacao_destino()` aplica a mesma regra com o responsável de agora; `tarefas_aviso_espera()` confere que o caso continua aberto na mesma passagem, vencido e sem prazo novo; senão `cancelada` com `destinatario_inactivo` ou `tarefa_ja_nao_espera` | migração 0071; `src/notificacoes/repositorio.ts` |
+| os textos PT, ES e EN: a fila pelo nome, o caso com o prefixo, o motivo (só um código), o prazo no fuso do comerciante e a lista `GET /tasks?vencida=true` | `src/notificacoes/modelos.ts` |
+| 9 testes: quem recebe em cada fila (com e sem responsável, o armazém e o apoio, quem saiu, a pessoa desactivada, outra loja e língua), sem o prazo do reembolso, o cancelamento no envio, o aviso novo depois de um prazo novo, nenhum dado do cliente, o responsável que muda ou sai antes do envio, o responsável que já não decide, o isolamento entre comerciantes, o texto em inglês | `test/notificacoes-tarefas.test.ts` |
+
+**Desvios do desenho:**
+- A T4 dizia «há quanto venceu». O e-mail diz o prazo com a hora e o fuso,
+  que não envelhece entre a gravação e o envio. A hora do aviso fica nos
+  `dados` (`avisado_em`).
+- A T5 só cancelava. Agora, quando o responsável muda ou sai antes do envio,
+  quem passa a receber pela T1 recebe o mesmo aviso (revisão do #389, P2-1).
+  A regra de quem recebe não muda.
+
+**Ficam** (revisão do #389):
+- **Um e-mail a mais:** uma atribuição ou uma mudança de prazo entre a
+  conferência e o SMTP deixa sair o e-mail na mesma. É a corrida aceite na N7
+  (P3-4).
+- **O tempo da conferência no envio:** `tarefas_aviso_espera()` lê os casos
+  da fila do comerciante, por isso fica por medir com volume (P3-5).
+- **Reposição em modo `replica`:** se repuser o `atribuicao_rasto` antes da
+  `notificacao`, o gatilho, que é `ALWAYS`, recria notificações (P3-7).
+  A ordem da reposição não foi verificada.
+
 ## 10. Pergunta para o Diogo ou o Bruno
 
 | # | Pergunta | Proposta |

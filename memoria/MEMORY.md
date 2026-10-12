@@ -41,6 +41,7 @@
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1 (preços só antes da peça 13, ADR-0012); AD (ADR-0022, 04/10): relatório OSS, núcleo das devoluções e lotes passam para a Fase 1, estimados — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, antes da peça 13 e não antes do código (S, ADR-0012) — 03/10/2026](modelo-de-receita-03out2026.md)
 - [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 18–33 meses a tempo inteiro, 32–60 a meio (hipótese C; com a AD, a DS e a DW, 11/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
+- [Ritmo medido (provisório): ≈ 31 % da Fase 1 em 8 dias; código completo dez/2026–fev/2027 (C, docs/10 §6.1); decisão EC (ADR-0045): validações no fim, fonte sempre o eur-lex — 12/10/2026](ritmo-medido-12out2026.md)
 
 ## Marca e apresentação
 
@@ -137,3 +138,4 @@
 - [Notificações (#373, decisão DX): o e-mail do aviso do prazo aos donos e gestores, por SMTP (OVH E-mail Pro), fila na base, sem dados do cliente; falta a conta, as SMTP_* na VPS e o DNS; docs/34, migração 0067 — 11/10/2026](notificacoes-email-11out2026.md)
 - [Peça 21, tarefas das filas (#366, #368, #375): desenho aprovado (DW), código da parte 1; a lista lê as filas e a tarefa só guarda quem e até quando; 7 filas (DS dizia 4); achado: pedido de livre resolução pendente corre o prazo sem aviso — 11/10/2026](tarefas-das-filas-11out2026.md)
 - [Vendas do dia e do mês (#367, DY): quatro números com e sem IVA, por canal e mercado; âmbito sales:read (dono e gestor); migração 0068; medido: dia ~25 ms, mês 0,4–0,75 s com 100 000 encomendas; sem pré-calcular — 12/10/2026](vendas-do-dia-12out2026.md)
+- [Avisos das tarefas vencidas por e-mail (#372, EB): ao responsável ou, sem ele, a quem decide e atribui; sem o prazo do reembolso; cancela-se no envio; migração 0071 — 12/10/2026](avisos-tarefas-email-12out2026.md)
