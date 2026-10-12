@@ -1176,6 +1176,61 @@ export function paisesPorBalde(paisEntidade: string) {
   ];
 }
 
+/**
+ * O documento a classificar, como o diálogo do Hub o mostra (docs/22 §29): o
+ * número, a data da prova, o tipo e as linhas da prova pela ordem dela (a
+ * descrição, a quantidade, a taxa e os valores). Sem NIF nem nome.
+ */
+export async function documentoParaClassificar(
+  db: Kysely<BaseDados>,
+  c: string,
+  documento: string,
+) {
+  return noRelatorio(
+    db,
+    c,
+    async (trx) => {
+      const d = await trx
+        .selectFrom("documento_fiscal")
+        .select(["entidade_legal_id"])
+        .where("id", "=", documento)
+        .executeTakeFirst();
+      if (d === undefined) {
+        throw new ErroRelatorio(
+          "tax_reports.not_found",
+          "este documento não existe",
+        );
+      }
+      const [x] = await lerDocumentos(trx, d.entidade_legal_id, {
+        ids: [documento],
+      });
+      if (x === undefined) {
+        throw new ErroRelatorio(
+          "tax_reports.not_found",
+          "este documento não tem prova",
+        );
+      }
+      return {
+        documento: `inv_${x.id}`,
+        tipo: x.tipo,
+        estado: x.estado,
+        numero: x.numero,
+        data_prova: x.data_prova ?? null,
+        moeda: x.conteudo.moeda,
+        classificado: x.classificacao != null,
+        linhas: x.linhas.map((l) => ({
+          descricao: l.descricao,
+          quantidade: l.quantidade,
+          taxa: l.taxa,
+          base: l.base,
+          iva: l.iva,
+        })),
+      };
+    },
+    { soLeitura: true },
+  );
+}
+
 /** A régua de `paisesPorBalde` para uma entidade do comerciante. */
 export async function classificavelOss(
   db: Kysely<BaseDados>,

@@ -9,6 +9,7 @@ import { chaveDo, sessaoDo } from "../identidade/autenticacao.js";
 import { erroConta } from "../identidade/sessoes.js";
 import {
   classificavelOss,
+  documentoParaClassificar,
   classificarOss,
   ErroRelatorio,
   ESTADO_DO_CODIGO_RELATORIO,
@@ -275,6 +276,28 @@ export function rotasDoRelatorioOss(
             entidade,
           ),
         };
+      }),
+  );
+
+  rotas.get(
+    "/hub/tax-reports/oss/documents/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §29): o documento a classificar — o número, a data da prova, o tipo e as linhas da prova pela ordem dela (descrição, quantidade, taxa e valores), sem os dados do cliente. Com `tax:read`.",
+        params: Type.Object({ id: IdDocumento }),
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emRelatorio(resposta, async () => {
+        const s = daSessao(pedido, "tax:read");
+        return documentoParaClassificar(
+          base,
+          s.comercianteId,
+          semPrefixo(pedido.params.id),
+        );
       }),
   );
 

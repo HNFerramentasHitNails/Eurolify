@@ -240,6 +240,17 @@ describe.skipIf(URL_BASE === undefined)("Hub: o ecrã Faturação", () => {
     expect(fechado["fechado"]).toMatchObject({
       por: `pessoa:per_${p["dono"]?.pessoa ?? ""}`,
     });
+    // O documento a classificar: o armazém não lê; um que não existe, 404.
+    expect(
+      await codigo(
+        como("armazem", "GET", `/hub/tax-reports/oss/documents/inv_${ligacao}`),
+      ),
+    ).toEqual([403, "member.role_escalation"]);
+    expect(
+      await codigo(
+        como("apoio", "GET", `/hub/tax-reports/oss/documents/inv_${ligacao}`),
+      ),
+    ).toEqual([404, "tax_reports.not_found"]);
     // Classificar um documento que não existe: 404 do relatório.
     expect(
       await codigo(
