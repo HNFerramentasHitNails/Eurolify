@@ -18,6 +18,7 @@
   - o `eurolify-publicar` e o passo 10c passam o ficheiro à API;
   - o utilizador e a pasta no passo 11.
   - Desenho em `docs/34` §13.
+- **A chave do fluxo `configurar`** (12/10/2026): o Diogo criou-a no computador dele, guardou a parte privada no segredo `VPS_CHAVE_CONFIGURAR` do ambiente `ensaio` e colou a pública, que entrou em `infra/vps/chaves/fluxos/configurar.pub` (ed25519, impressão `SHA256:h38JE67Leg8JbDeKgnrBlGbRObNRKLcqSb6++lh7Uzg`, calculada da linha). O `aplicar-script` instala-a ao juntar. O SPF ficou com um registo só (`v=spf1 include:mx.ovh.com -all`, lido em `dns.google` a 12/10/2026).
 
 ## Números (com data e como se contaram)
 
