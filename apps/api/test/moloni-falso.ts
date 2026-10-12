@@ -81,6 +81,14 @@ export interface Falhas {
   renovacaoMorta?: boolean;
   /** O próximo documento volta com este `status`. */
   statusForcado?: number;
+  /** As linhas do documents/getAll sem `our_reference` (está por medir). */
+  getAllSemReferencia?: boolean;
+  /** O documents/getAll ignora o filtro e devolve tudo. */
+  getAllIgnoraFiltro?: boolean;
+  /** A renovação responde `invalid_client` (o segredo do servidor errado). */
+  segredoErrado?: boolean;
+  /** O PDF vem de outro sítio, ou não é PDF. */
+  pdf?: "outro_anfitriao" | "html";
 }
 
 export function moloniFalso() {
@@ -311,6 +319,7 @@ export function moloniFalso() {
       ].filter((k) => c[k] === undefined || c[k] === "");
       if (obrig.length > 0) return obrig.map((k) => `1 ${k}`);
       d.products = c["products"] as Json[];
+      d.date = txt(c["date"]);
       d.notes = txt(c["notes"]);
       if (Number(c["status"]) === 1) {
         d.status = estado.falhas.statusForcado ?? 1;
@@ -331,12 +340,15 @@ export function moloniFalso() {
       estado.documentos
         .filter(
           (d) =>
+            estado.falhas.getAllIgnoraFiltro === true ||
             c["our_reference"] === undefined ||
             d.our_reference.includes(txt(c["our_reference"])),
         )
         .map((d) => ({
           document_id: d.document_id,
-          our_reference: d.our_reference,
+          ...(estado.falhas.getAllSemReferencia === true
+            ? {}
+            : { our_reference: d.our_reference }),
           status: d.status,
         })),
     "documents/getOne": (c) => {
@@ -351,7 +363,10 @@ export function moloniFalso() {
       );
       if (d === undefined || d.status === 0) return ["2 document_id 1 0"];
       return {
-        url: `https://www.moloni.pt/downloads/${String(d.document_id)}.pdf`,
+        url:
+          estado.falhas.pdf === "outro_anfitriao"
+            ? `https://moloni.pt.exemplo.com/${String(d.document_id)}.pdf`
+            : `https://www.moloni.pt/downloads/${String(d.document_id)}.pdf`,
       };
     },
   };
@@ -370,13 +385,29 @@ export function moloniFalso() {
     }
     if (url.hostname === "www.moloni.pt") {
       return Promise.resolve(
-        new Response(Buffer.from(`%PDF-1.4\n% moloni ${url.pathname}\n`), {
-          status: 200,
-        }),
+        new Response(
+          Buffer.from(
+            estado.falhas.pdf === "html"
+              ? "<html>erro</html>"
+              : `%PDF-1.4\n% moloni ${url.pathname}\n`,
+          ),
+          { status: 200 },
+        ),
       );
     }
     if (metodo === "grant") {
       const r = url.searchParams.get("refresh_token") ?? "";
+      if (estado.falhas.segredoErrado === true) {
+        return Promise.resolve(
+          json(
+            {
+              error: "invalid_client",
+              error_description: "The client credentials are invalid",
+            },
+            400,
+          ),
+        );
+      }
       if (estado.falhas.renovacaoMorta || !estado.refresh.has(r)) {
         return Promise.resolve(
           json(

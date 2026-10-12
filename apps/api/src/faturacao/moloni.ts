@@ -36,6 +36,13 @@ export interface ConfigMoloni {
   /** O Developer ID da conta de Developer do Eurolify (M1). */
   clientId: string;
   clientSecret: string;
+  /**
+   * As empresas do Moloni onde o Eurolify pode emitir (M8): só contas de
+   * teste, numa lista fechada (MOLONI_EMPRESAS_TESTE). Outra empresa é
+   * recusada em todas as operações — fechar uma fatura numa empresa real
+   * comunica-a à AT (revisão do #384, P1-2).
+   */
+  empresasPermitidas: readonly string[];
   base?: string;
   fetch?: typeof fetch;
   tempoLimiteMs?: number;
@@ -50,8 +57,11 @@ type Json = Record<string, unknown>;
 const SEGREDOS =
   /(access_token|refresh_token|client_secret|code|password)=[^&\s]*/gi;
 
+const SEGREDOS_JSON =
+  /"(access_token|refresh_token|client_secret|code|password)"\s*:\s*"[^"]*"/gi;
+
 export function taparSegredos(texto: string): string {
-  return texto.replace(SEGREDOS, "$1=***");
+  return texto.replace(SEGREDOS, "$1=***").replace(SEGREDOS_JSON, '"$1":"***"');
 }
 
 /**
@@ -125,21 +135,22 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
 
   async renovar(
     credenciais: CredenciaisEmissor,
-    forcar: boolean,
+    motivo: "usar" | "manter",
   ): Promise<CredenciaisEmissor | null> {
     const agora = this.agora();
     const expira = Date.parse(credenciais["access_expira"] ?? "");
     const renovadoEm = Date.parse(credenciais["refresh_em"] ?? "");
-    if (
-      !forcar &&
+    const parNovo =
+      Number.isFinite(renovadoEm) &&
+      agora - renovadoEm < IDADE_MAX_RENOVACAO_MS;
+    const acessoServe =
       credenciais["access_token"] !== undefined &&
       Number.isFinite(expira) &&
-      expira - agora > MARGEM_ACESSO_MS &&
-      Number.isFinite(renovadoEm) &&
-      agora - renovadoEm < IDADE_MAX_RENOVACAO_MS
-    ) {
-      return null;
-    }
+      expira - agora > MARGEM_ACESSO_MS;
+    // A tarefa só renova pela idade do par (§13.4): cada renovação gasta o
+    // par anterior, e menos renovações são menos ocasiões de o perder
+    // (revisão do #384, P2-1).
+    if (parNovo && (motivo === "manter" || acessoServe)) return null;
     const refresh = credenciais["refresh_token"];
     if (refresh === undefined || refresh === "") {
       throw new ErroDoEmissor(
@@ -151,7 +162,18 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       `&client_id=${encodeURIComponent(this.cfg.clientId)}` +
       `&client_secret=${encodeURIComponent(this.cfg.clientSecret)}` +
       `&refresh_token=${encodeURIComponent(refresh)}`;
-    const r = await this.chamar(url, { method: "GET" });
+    let r: unknown;
+    try {
+      r = await this.chamar(url, { method: "GET" });
+    } catch (e) {
+      // Só a autorização morta (`invalid_grant`) é da ligação; um segredo
+      // do servidor errado (`invalid_client`) ou outro erro não pode marcar
+      // as ligações de todos os comerciantes (revisão do #384, P2-2).
+      if (e instanceof ErroDoEmissor && !/invalid_grant/.test(e.message)) {
+        throw new ErroDeRede(e.message);
+      }
+      throw e;
+    }
     const t = r as {
       access_token?: unknown;
       refresh_token?: unknown;
@@ -279,6 +301,11 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
         "a ligação ao Moloni não diz a empresa (company_id)",
       );
     }
+    if (!this.cfg.empresasPermitidas.includes(e)) {
+      throw new ErroDoEmissor(
+        `a empresa ${e} do Moloni não está na lista das contas de teste (M8): o modo real está fechado`,
+      );
+    }
     return e;
   }
 
@@ -389,7 +416,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
         qty: l.quantidade,
         // Preço unitário sem IVA (A8); as casas que o Moloni guarda estão
         // por medir (M4): uma diferença de cêntimos é divergência (R8).
-        price: l.base / 100 / l.quantidade,
+        price: precoUnitario(l),
         discount: 0,
         order: i,
         exemption_reason: l.isencao_emissor ?? "",
@@ -439,7 +466,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     ) {
       throw new ErroDoEmissor(`o documento ${id} não existe no Moloni`);
     }
-    return this.paraDocumento(credenciais, d as Json);
+    return this.paraDocumento(d as Json);
   }
 
   async fechar(
@@ -473,11 +500,10 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     // reconcilia-se pela referência (§4.2).
     await this.escrever(credenciais, "invoices/update", {
       document_id: id,
-      date: txt(d["date"]).slice(0, 10),
-      expiration_date: (txt(d["expiration_date"]) || txt(d["date"])).slice(
-        0,
-        10,
-      ),
+      // A data do fecho é a de hoje, não a do rascunho, que pode ter dias
+      // (revisão do #384, P2-6; a regra da data é do contabilista, **C**).
+      date: this.hoje(),
+      expiration_date: this.hoje(),
       document_set_id: d["document_set_id"],
       customer_id: d["customer_id"],
       our_reference: d["our_reference"] ?? "",
@@ -499,17 +525,25 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     credenciais: CredenciaisEmissor,
     referencia: string,
   ): Promise<Procura> {
-    const encontrados = (
-      await this.lista(credenciais, "documents/getAll", {
-        our_reference: referencia,
-      })
-    ).filter((d) => d["our_reference"] === referencia);
-    if (encontrados.length === 0) return { estado: "nao_existe" };
-    if (encontrados.length > 1) return { estado: "nao_sei" };
-    const documento = await this.lerDocumento(
-      credenciais,
-      String((encontrados[0] as Json)["document_id"]),
-    );
+    // «Não existe» só com a lista do Moloni vazia. Se veio alguma coisa,
+    // cada candidato confere-se no documento inteiro: que as linhas do
+    // getAll tragam a referência, ou que o filtro funcione, está por medir
+    // (§13.7, 3), e um «não existe» errado reemitia a fatura (revisão do
+    // #384, P1-1).
+    const candidatos = await this.lista(credenciais, "documents/getAll", {
+      our_reference: referencia,
+    });
+    if (candidatos.length === 0) return { estado: "nao_existe" };
+    if (candidatos.length > 5) return { estado: "nao_sei" };
+    const nossos: DocumentoNoEmissor[] = [];
+    for (const c of candidatos) {
+      const d = await this.lerDocumento(credenciais, txt(c["document_id"]));
+      if (d.referencia === referencia) nossos.push(d);
+    }
+    const [documento] = nossos;
+    if (nossos.length !== 1 || documento === undefined) {
+      return { estado: "nao_sei" };
+    }
     return { estado: "encontrado", documento };
   }
 
@@ -519,7 +553,18 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       signed: 1,
     })) as Json;
     const url = r["url"];
-    if (typeof url !== "string" || !url.startsWith("https://")) {
+    let anfitriao = "";
+    try {
+      const u = new URL(typeof url === "string" ? url : "");
+      if (u.protocol === "https:") anfitriao = u.hostname;
+    } catch {
+      anfitriao = "";
+    }
+    // Só se descarrega do Moloni (revisão do #384, P3).
+    if (
+      typeof url !== "string" ||
+      (anfitriao !== "moloni.pt" && !anfitriao.endsWith(".moloni.pt"))
+    ) {
       throw new ErroDoEmissor("o Moloni não deu a ligação do PDF");
     }
     let resposta: Response;
@@ -535,7 +580,12 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
         `o PDF do Moloni respondeu HTTP ${String(resposta.status)}`,
       );
     }
-    return Buffer.from(await resposta.arrayBuffer());
+    const pdf = Buffer.from(await resposta.arrayBuffer());
+    // Uma página de erro com HTTP 200 não é prova (revisão do #384, P3).
+    if (pdf.subarray(0, 5).toString("latin1") !== "%PDF-") {
+      throw new ErroDoEmissor("o Moloni devolveu um ficheiro que não é PDF");
+    }
+    return pdf;
   }
 
   // ------------------------------------------------------ Por dentro
@@ -560,7 +610,18 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     }
     const nif = pedido.cliente.nif;
     if (nif === null) {
+      // O cliente da ligação tem de ser mesmo o consumidor final: um id que
+      // aponte para outra pessoa punha a fatura em nome dela (M3; revisão do
+      // #384, P2-4).
       const cf = configTexto(pedido.config, "cliente_consumidor_final");
+      const c = (await this.api(cred, "customers/getOne", {
+        customer_id: cf,
+      })) as Json | null;
+      if (txt(c?.["vat"]) !== NIF_CONSUMIDOR_FINAL) {
+        throw new ErroDoEmissor(
+          "o cliente «Consumidor final» da ligação não tem o NIF de consumidor final no Moloni",
+        );
+      }
       return cf;
     }
     // Procurado pelo número sem resultado: procura-se também como sai no
@@ -576,7 +637,8 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     }
     if (iguais.length === 1) return String((iguais[0] as Json)["customer_id"]);
     const morada = pedido.cliente.morada;
-    const pais = pedido.cliente.pais ?? morada["pais"] ?? null;
+    // O país da morada fiscal, não o do NIF (revisão do #384, P2-5).
+    const pais = morada["pais"] ?? null;
     const rua = [morada["linha1"], morada["linha2"]]
       .filter((x) => x !== null && x !== undefined && x !== "")
       .join(", ");
@@ -660,7 +722,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       type: 1,
       name: l.descricao,
       reference: l.sku,
-      price: l.base / 100 / l.quantidade,
+      price: precoUnitario(l),
       unit_id: configTexto(config, "unidade"),
       has_stock: 0,
       stock: 0,
@@ -674,10 +736,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
   }
 
   /** O documento do Moloni no formato do contrato (o mapa de volta, §13.3). */
-  private async paraDocumento(
-    cred: CredenciaisEmissor,
-    d: Json,
-  ): Promise<DocumentoNoEmissor> {
+  private paraDocumento(d: Json): DocumentoNoEmissor {
     const saft = txt((d["document_type"] as Json | undefined)?.["saft_code"]);
     const tipo =
       saft === "FT" || saft === "FR"
@@ -698,8 +757,10 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
         `o documento está num estado do Moloni que não se conhece (${String(status)})`,
       );
     }
-    const vat = typeof d["entity_vat"] === "string" ? d["entity_vat"] : "";
-    const consumidorFinal = vat === "" || vat === NIF_CONSUMIDOR_FINAL;
+    // O NIF como o Moloni o tem. Vazio ou não-texto não é consumidor final:
+    // é desconhecido, e diverge de qualquer pedido (revisão do #384, P2-4).
+    const vat = txt(d["entity_vat"]).replace(/\s/g, "").toUpperCase();
+    const consumidorFinal = vat === NIF_CONSUMIDOR_FINAL;
     const numero = Number(d["number"] ?? 0);
     const serie = d["document_set"] as Json | undefined;
     const linhas: LinhaNoEmissor[] = (
@@ -761,11 +822,9 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
           : null,
       // O ATCUD não está na lista de campos da página (A6): só se vier.
       atcud: typeof d["atcud"] === "string" ? d["atcud"] : null,
-      nif: consumidorFinal ? null : vat,
+      nif: consumidorFinal ? null : vat === "" ? "(sem NIF no Moloni)" : vat,
       nome: typeof d["entity_name"] === "string" ? d["entity_name"] : null,
-      pais: consumidorFinal
-        ? null
-        : await this.paisDoCliente(cred, d["customer_id"]),
+      pais: consumidorFinal ? null : paisDoNif(vat),
       linhas,
       totais: {
         base,
@@ -775,16 +834,27 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       em_bruto: d,
     };
   }
+}
 
-  /** O país do cliente pelo código ISO (o `entity_country` vem em texto). */
-  private async paisDoCliente(cred: CredenciaisEmissor, id: unknown) {
-    if (id === undefined || id === null) return null;
-    const c = (await this.api(cred, "customers/getOne", {
-      customer_id: txt(id),
-    })) as Json | null;
-    const pais = (c?.["country"] as Json | undefined)?.["iso_3166_1"];
-    return typeof pais === "string" ? pais.toUpperCase() : null;
-  }
+/**
+ * O preço unitário sem IVA, em euros, com 6 casas (A8, M4): sem a dízima
+ * infinita do JavaScript. As casas que o Moloni guarda estão por medir
+ * (§13.7, 4); uma diferença de cêntimos é divergência (R8).
+ */
+function precoUnitario(l: LinhaPedida): number {
+  return Number((l.base / 100 / l.quantidade).toFixed(6));
+}
+
+/**
+ * O país do contribuinte pelo NIF como saiu (revisão do #384, P2-5): com o
+ * prefixo fiscal fora de Portugal (o «EL» é a Grécia), sem prefixo o da
+ * entidade, que nesta parte é Portugal (o Moloni é um software português).
+ */
+function paisDoNif(vat: string): string | null {
+  if (vat === "") return null;
+  const prefixo = /^([A-Z]{2})/.exec(vat)?.[1];
+  if (prefixo === undefined) return "PT";
+  return prefixo === "EL" ? "GR" : prefixo;
 }
 
 /** Um id obrigatório da configuração da ligação (§13.2). */

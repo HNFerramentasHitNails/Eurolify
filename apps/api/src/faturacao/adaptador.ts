@@ -127,13 +127,15 @@ export interface AdaptadorFaturacao {
   testar(credenciais: CredenciaisEmissor): Promise<void>;
   /**
    * Um emissor cujos tokens mudam (o Moloni, docs/29 §13.4): devolve as
-   * credenciais novas quando as renovou, ou null se as que tem ainda servem
-   * (`forcar` renova sempre). **As outras operações nunca renovam**: o par
-   * novo tem de se gravar antes de se usar, e só quem chama sabe gravá-lo.
+   * credenciais novas quando as renovou, ou null se as que tem ainda servem.
+   * `usar`: antes de uma chamada (renova se o acesso está a acabar ou o par
+   * tem mais de 7 dias); `manter`: a tarefa, só pela idade do par. **As
+   * outras operações nunca renovam**: o par novo tem de se gravar antes de
+   * se usar, e só quem chama sabe gravá-lo.
    */
   renovar?(
     credenciais: CredenciaisEmissor,
-    forcar: boolean,
+    motivo: "usar" | "manter",
   ): Promise<CredenciaisEmissor | null>;
   /**
    * Pelo número sem prefixo (eu-vat-oss-ioss, «NIF»); null = não existe. Com

@@ -372,6 +372,8 @@ async function credenciaisActuais(
   cfg: ConfigFaturacao | undefined,
   /** Chamada quando o par foi renovado (para a tarefa contar). */
   aoRenovar?: () => void,
+  /** `usar`: antes de uma chamada; `manter`: a tarefa, só pela idade. */
+  motivo: "usar" | "manter" = "usar",
 ): Promise<CredenciaisEmissor | null> {
   return noDocumentos(db, c, async (trx) => {
     await marcar(trx, QUEM_DA_TAREFA, "os tokens do emissor");
@@ -393,7 +395,12 @@ async function credenciaisActuais(
     if (cred === null) return null;
     const a = adaptadorDe(cfg, l.adaptador);
     if (a.renovar === undefined) return cred;
-    const novas = await a.renovar(cred, false);
+    // A chamada de rede corre com a ligação trancada, de propósito: é o que
+    // impede duas voltas de gastarem o mesmo par. Se a gravação falhar
+    // depois de o Moloni renovar, o par novo perde-se e o antigo já não
+    // serve — a ligação fica com erro na próxima volta e o dono liga outra
+    // vez (§13.4; revisão do #384, P2-1).
+    const novas = await a.renovar(cred, motivo);
     if (novas === null) return cred;
     const chave = exigirChave(cfg);
     await trx
@@ -420,6 +427,8 @@ async function ligacaoComErro(
   await noDocumentos(db, c, async (trx) => {
     await marcar(trx, QUEM_DA_TAREFA, "o emissor recusou renovar os tokens");
     const l = await ligacaoParaMudar(trx, ligacaoId, null);
+    // Já com erro: não sobe a versão a cada volta (revisão do #384, P2-2).
+    if (l.estado === "com_erro") return;
     await trx
       .updateTable("ligacao_faturacao")
       .set({
@@ -440,8 +449,10 @@ export async function testarLigacao(
   cfg: ConfigFaturacao | undefined,
   quem: string,
 ) {
-  // Os tokens renovam-se antes de ler a versão: renovar não a muda, mas o
-  // teste vale para as credenciais que estão na ligação.
+  // A versão lê-se primeiro: credenciais trocadas a meio mudam-na, e o
+  // resultado deixa de valer no fim (revisão do #384, P2-3). Renovar os
+  // tokens não muda a versão.
+  const l = await noDocumentos(db, c, (trx) => ligacaoParaMudar(trx, id, null));
   let erro: string | null = null;
   let credenciais: CredenciaisEmissor | null = null;
   try {
@@ -450,7 +461,6 @@ export async function testarLigacao(
     if (!(e instanceof ErroDoEmissor) && !(e instanceof ErroDeRede)) throw e;
     erro = e.message.slice(0, 200);
   }
-  const l = await noDocumentos(db, c, (trx) => ligacaoParaMudar(trx, id, null));
   if (erro === null && credenciais === null) {
     throw new ErroDocumentos(
       "invoices.issuer_not_ready",
@@ -1610,7 +1620,12 @@ async function fecharEProvar(
   );
   if (diferencas.length > 0) {
     await a.apagarRascunho(cred, emissorId);
-    const motivo: MotivoRetencao = diferencas.some((x) => x.campo === "nif")
+    // O NIF, o nome e o país são a identidade da entidade no emissor (um
+    // cliente repetido com outro nome não é um problema de totais; revisão
+    // do #384, P3).
+    const motivo: MotivoRetencao = diferencas.some((x) =>
+      ["nif", "nome", "pais"].includes(x.campo),
+    )
       ? "entidade_do_emissor_diferente"
       : "totais_nao_batem";
     await paraRetido(db, c, ctx, [motivo], "o rascunho não bate com o pedido", {
@@ -2114,9 +2129,16 @@ export async function correrRenovacoes(
     for (const l of ligacoes) {
       if (cfg?.adaptadores[l.adaptador]?.renovar === undefined) continue;
       try {
-        await credenciaisActuais(db, c, l.id, cfg, () => {
-          r.renovadas += 1;
-        });
+        await credenciaisActuais(
+          db,
+          c,
+          l.id,
+          cfg,
+          () => {
+            r.renovadas += 1;
+          },
+          "manter",
+        );
       } catch (e) {
         r.erros += 1;
         if (e instanceof ErroDoEmissor) {
@@ -2162,9 +2184,14 @@ export function agendarRenovacoes(
         }
       });
   };
+  // A primeira volta um minuto depois do arranque: as publicações reiniciam
+  // o servidor e não podem ir adiando a renovação (revisão do #384, P3).
+  const primeira = setTimeout(correr, 60_000);
+  primeira.unref();
   const t = setInterval(correr, 6 * 3_600_000);
   t.unref();
   return () => {
+    clearTimeout(primeira);
     clearInterval(t);
   };
 }

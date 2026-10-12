@@ -52,13 +52,24 @@ BEGIN
   -- A configuração só guarda identificadores do emissor (nunca um nome,
   -- AGENTS.md, «Não se erra…», regra 6): texto curto sem espaços, ou o mapa
   -- dos métodos de pagamento com valores iguais.
+  -- CASE: a ordem da avaliação de um OR não está garantida, e o
+  -- jsonb_each_text num valor que não seja objecto daria outro erro (revisão
+  -- do #384, P3).
+  IF jsonb_typeof(NEW.config) <> 'object' THEN
+    RAISE EXCEPTION 'invoices.invalid_field: a configuração guarda identificadores do emissor';
+  END IF;
   IF EXISTS (SELECT 1 FROM jsonb_each(NEW.config) k
-       WHERE k.key !~ '^[a-z_]{1,40}$'
-         OR (k.key = 'metodos_pagamento' AND (jsonb_typeof(k.value) <> 'object'
-               OR EXISTS (SELECT 1 FROM jsonb_each_text(k.value) m
-                          WHERE m.key !~ '^[a-z0-9_]{1,40}$' OR m.value !~ '^[A-Za-z0-9._:-]{1,60}$')))
-         OR (k.key <> 'metodos_pagamento' AND (jsonb_typeof(k.value) <> 'string'
-               OR k.value #>> '{}' !~ '^[A-Za-z0-9._:-]{1,60}$'))) THEN
+       WHERE CASE
+         WHEN k.key !~ '^[a-z_]{1,40}$' THEN true
+         WHEN k.key = 'metodos_pagamento' THEN
+           CASE WHEN jsonb_typeof(k.value) <> 'object' THEN true
+                ELSE EXISTS (SELECT 1 FROM jsonb_each(k.value) m
+                             WHERE m.key !~ '^[a-z0-9_]{1,40}$'
+                               OR jsonb_typeof(m.value) <> 'string'
+                               OR m.value #>> '{}' !~ '^[A-Za-z0-9._:-]{1,60}$') END
+         ELSE jsonb_typeof(k.value) <> 'string'
+              OR k.value #>> '{}' !~ '^[A-Za-z0-9._:-]{1,60}$'
+       END) THEN
     RAISE EXCEPTION 'invoices.invalid_field: a configuração guarda identificadores do emissor';
   END IF;
   IF TG_OP = 'UPDATE' THEN

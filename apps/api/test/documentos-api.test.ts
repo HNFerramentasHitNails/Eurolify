@@ -65,6 +65,7 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       moloni: new AdaptadorMoloni({
         clientId: "dev-eurolify",
         clientSecret: "segredo-do-developer",
+        empresasPermitidas: [String(moloni.empresa)],
         fetch: moloni.fetch,
         agora: () => Date.now() + relogio,
       }),
@@ -1580,8 +1581,9 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     );
     expect((await ligacaoDe(s, id))["estado"]).toBe("por_testar");
     await ok(s.adm("POST", `/invoicing-connections/${id}/test`));
-    // Uma renovação deixa sessão; credenciais novas apagam-na.
-    relogio += 2 * 3_600_000;
+    // Uma renovação deixa sessão; credenciais novas apagam-na. A tarefa só
+    // renova pela idade do par (revisão do #384, P2-1): 8 dias depois.
+    relogio += 8 * 24 * 3_600_000;
     try {
       await correrRenovacoes(base.api, faturacao);
     } finally {
@@ -1611,5 +1613,92 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         }),
       ),
     ).toEqual([400, expect.any(String)]);
+  });
+  // ----------------------------- As correcções da revisão do #384 (Moloni)
+
+  it("revisão P1-1: o fecho sem resposta fica incerto e a reconciliação adopta o fechado — uma só fatura", async () => {
+    const s = await cenario();
+    await ligarMoloni(s);
+    moloni.estado.falhas.rede = new Set(["invoices/update"]);
+    moloni.estado.falhas.getAllSemReferencia = true;
+    try {
+      const e = await paga(s, [[s.v1, 1]]);
+      await ateParar();
+      const d = await documentoDe(s, e.encomenda);
+      expect(d?.["estado"]).toBe("incerto");
+      moloni.estado.falhas.rede = new Set();
+      await adiantar(s);
+      await ateParar();
+      const depois = await documentoDe(s, e.encomenda);
+      expect(depois?.["estado"]).toBe("emitido");
+      const ref = `inv_${String(d?.["id"]).slice(4)}`;
+      expect(
+        moloni.estado.documentos.filter((x) => x.our_reference === ref),
+      ).toHaveLength(1);
+    } finally {
+      moloni.estado.falhas.rede = new Set();
+      moloni.estado.falhas.getAllSemReferencia = false;
+    }
+  });
+
+  it("revisão P2-8: duas renovações ao mesmo tempo gastam o par uma só vez (a ligação trancada)", async () => {
+    const s = await cenario();
+    const { id } = await ligarMoloni(s);
+    relogio += 8 * 24 * 3_600_000;
+    try {
+      const [r1, r2] = await Promise.all([
+        correrRenovacoes(base.api, faturacao),
+        correrRenovacoes(base.api, faturacao),
+      ]);
+      expect(r1.erros + r2.erros).toBe(0);
+      expect((await ligacaoDe(s, id))["estado"]).toBe("pronta");
+    } finally {
+      relogio = 0;
+    }
+  });
+
+  it("revisão P2-2/P2-8: uma falha de rede ou o segredo do servidor errado na renovação não tocam na ligação", async () => {
+    const s = await cenario();
+    const { id } = await ligarMoloni(s);
+    const antes = await ligacaoDe(s, id);
+    relogio += 8 * 24 * 3_600_000;
+    try {
+      moloni.estado.falhas.recusar = new Set(["grant"]);
+      expect(
+        (await correrRenovacoes(base.api, faturacao)).erros,
+      ).toBeGreaterThan(0);
+      moloni.estado.falhas.recusar = new Set();
+      moloni.estado.falhas.segredoErrado = true;
+      expect(
+        (await correrRenovacoes(base.api, faturacao)).erros,
+      ).toBeGreaterThan(0);
+      expect(await ligacaoDe(s, id)).toMatchObject({
+        estado: "pronta",
+        versao: antes["versao"],
+      });
+    } finally {
+      relogio = 0;
+      moloni.estado.falhas.recusar = new Set();
+      moloni.estado.falhas.segredoErrado = false;
+    }
+  });
+
+  it("revisão P2-8: a fila das renovações não se lê nem se escreve pela API, e o gatilho só aceita ids na configuração", async () => {
+    const s = await cenario();
+    const { id } = await ligarMoloni(s);
+    await expect(
+      naBase(s, (trx) => sql`select * from tarefa_renovacao`.execute(trx)),
+    ).rejects.toThrow(/permission denied/);
+    for (const config of [
+      '{"lingua": "Português de Portugal"}',
+      '{"metodos_pagamento": "9"}',
+      '{"metodos_pagamento": {"multibanco": 9}}',
+      '{"Lingua": "1"}',
+    ]) {
+      await expect(
+        sql`update ligacao_faturacao set config = ${config}::jsonb
+          where id = ${id.slice(4)}::uuid`.execute(base.dono),
+      ).rejects.toThrow(/invoices\.invalid_field/);
+    }
   });
 });

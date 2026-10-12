@@ -30,6 +30,7 @@ function montar(porMinuto = 1000) {
   const a = new AdaptadorMoloni({
     clientId: "dev-eurolify",
     clientSecret: "segredo-do-developer",
+    empresasPermitidas: [String(m.empresa)],
     fetch: m.fetch,
     porMinuto,
   });
@@ -318,17 +319,17 @@ describe("o adaptador Moloni", () => {
   describe("tokens (§13.4)", () => {
     it("não renova enquanto servem; renova perto do fim, com um par novo", async () => {
       const { m, a, cred } = montar();
-      expect(await a.renovar(cred, false)).toBeNull();
+      expect(await a.renovar(cred, "usar")).toBeNull();
       const perto = {
         ...cred,
         access_expira: new Date(Date.now() + 60_000).toISOString(),
       };
-      const novas = await a.renovar(perto, false);
+      const novas = await a.renovar(perto, "usar");
       expect(novas?.access_token).not.toBe(cred.access_token);
       expect(novas?.refresh_token).not.toBe(cred.refresh_token);
       expect(novas?.company_id).toBe(cred.company_id);
       // O par antigo deixou de servir (é o que o Moloni faz).
-      await expect(a.renovar(perto, true)).rejects.toBeInstanceOf(
+      await expect(a.renovar(perto, "usar")).rejects.toBeInstanceOf(
         ErroDoEmissor,
       );
       // O pedido de renovação levou o segredo e nenhum erro o mostra.
@@ -342,13 +343,15 @@ describe("o adaptador Moloni", () => {
         ...cred,
         refresh_em: new Date(Date.now() - 8 * 24 * 3_600_000).toISOString(),
       };
-      expect(await a.renovar(velho, false)).not.toBeNull();
+      expect(await a.renovar(velho, "manter")).not.toBeNull();
     });
 
     it("a autorização morta é um erro do emissor, sem segredos na mensagem", async () => {
       const { m, a, cred } = montar();
       m.estado.falhas.renovacaoMorta = true;
-      const e = await a.renovar(cred, true).catch((x: unknown) => x);
+      const e = await a
+        .renovar({ ...cred, refresh_em: "" }, "manter")
+        .catch((x: unknown) => x);
       expect(e).toBeInstanceOf(ErroDoEmissor);
       expect((e as Error).message).toMatch(/invalid_grant/);
       expect((e as Error).message).not.toContain(cred.refresh_token);
@@ -377,10 +380,11 @@ describe("o adaptador Moloni", () => {
       const r = await a.procurarPorReferencia(cred, p.referencia);
       expect(r.estado).toBe("encontrado");
       expect(r.estado === "encontrado" && r.documento.id).toBe(id);
-      // Uma referência que contém a nossa não é a nossa.
+      // Uma referência que contém a nossa não é a nossa — e, como a lista não
+      // veio vazia, não se sabe (nunca «não existe»; revisão do #384, P1-1).
       expect(
         (await a.procurarPorReferencia(cred, p.referencia.slice(0, -1))).estado,
-      ).toBe("nao_existe");
+      ).toBe("nao_sei");
       m.estado.documentos.push({
         ...(m.estado.documentos[0] as (typeof m.estado.documentos)[number]),
         document_id: 1,
@@ -461,6 +465,165 @@ describe("o adaptador Moloni", () => {
       await new Promise((ok) => setTimeout(ok, 50));
       expect(acabou).toBe(false);
       expect(m.estado.pedidos.length).toBe(2);
+    });
+  });
+  describe("as correcções da revisão do #384", () => {
+    it("P1-1: sem a referência nas linhas do getAll, o documento confirma-se no getOne", async () => {
+      const { m, a, cred, config } = montar();
+      const p = pedido(config);
+      const { id } = await a.criarRascunho(cred, p);
+      m.estado.falhas.getAllSemReferencia = true;
+      const r = await a.procurarPorReferencia(cred, p.referencia);
+      expect(r.estado === "encontrado" && r.documento.id).toBe(id);
+    });
+
+    it("P1-1: o filtro ignorado com um documento alheio dá «não sei»; com o nosso, encontra-o", async () => {
+      const { m, a, cred, config } = montar();
+      const p = pedido(config);
+      await a.criarRascunho(cred, { ...p, referencia: "inv_outro" });
+      m.estado.falhas.getAllIgnoraFiltro = true;
+      m.estado.falhas.getAllSemReferencia = true;
+      expect((await a.procurarPorReferencia(cred, p.referencia)).estado).toBe(
+        "nao_sei",
+      );
+      const { id } = await a.criarRascunho(cred, p);
+      const r = await a.procurarPorReferencia(cred, p.referencia);
+      expect(r.estado === "encontrado" && r.documento.id).toBe(id);
+    });
+
+    it("P1-2: uma empresa fora da lista das contas de teste é recusada sem nenhum pedido", async () => {
+      const m = moloniFalso();
+      const a = new AdaptadorMoloni({
+        clientId: "dev-eurolify",
+        clientSecret: "segredo-do-developer",
+        empresasPermitidas: ["5"],
+        fetch: m.fetch,
+      });
+      const cred = m.credenciais();
+      await expect(a.testar(cred)).rejects.toThrow(/M8/);
+      await expect(
+        a.criarRascunho(cred, pedido({ ...CONFIG })),
+      ).rejects.toThrow(/M8/);
+      expect(m.estado.pedidos).toEqual([]);
+    });
+
+    it("P2-2: um segredo do servidor errado não mata a ligação (ErroDeRede); só o invalid_grant", async () => {
+      const { m, a, cred } = montar();
+      m.estado.falhas.segredoErrado = true;
+      await expect(
+        a.renovar({ ...cred, refresh_em: "" }, "manter"),
+      ).rejects.toBeInstanceOf(ErroDeRede);
+    });
+
+    it("P2-1: a tarefa (manter) não renova um par novo, mesmo com o acesso expirado", async () => {
+      const { m, a, cred } = montar();
+      const expirado = {
+        ...cred,
+        access_expira: new Date(Date.now() - 1000).toISOString(),
+      };
+      expect(await a.renovar(expirado, "manter")).toBeNull();
+      expect(await a.renovar(expirado, "usar")).not.toBeNull();
+      expect(m.estado.pedidos.filter((x) => x.metodo === "grant").length).toBe(
+        1,
+      );
+    });
+
+    it("P2-4: o «Consumidor final» da ligação tem de ter o NIF de consumidor final", async () => {
+      const { m, a, cred, config } = montar();
+      const outro = m.cliente("", "João Silva");
+      const p = pedido({
+        ...config,
+        cliente_consumidor_final: String(outro.customer_id),
+      });
+      await expect(
+        a.criarRascunho(cred, {
+          ...p,
+          cliente: { ...p.cliente, nif: null, pais: null },
+        }),
+      ).rejects.toThrow(/consumidor final/);
+      expect(m.estado.documentos.length).toBe(0);
+    });
+
+    it("P2-4: um documento sem NIF no Moloni não se lê como consumidor final", async () => {
+      const { m, a, cred, config } = montar();
+      const outro = m.cliente("", "João Silva");
+      const { id } = await a.criarRascunho(cred, {
+        ...pedido(config),
+        entidade_id: String(outro.customer_id),
+      });
+      const d = await a.lerDocumento(cred, id);
+      expect(d.nif).not.toBeNull();
+      expect(d.nif).not.toBe("");
+    });
+
+    it("P2-5: o cliente cria-se no país da morada; o país do contribuinte lê-se do NIF", async () => {
+      const { m, a, cred, config } = montar();
+      const p = pedido(config);
+      const { id } = await a.criarRascunho(cred, {
+        ...p,
+        cliente: {
+          ...p.cliente,
+          morada: { ...p.cliente.morada, pais: "ES", codigo_postal: "28001" },
+        },
+      });
+      expect(
+        m.estado.clientes.find((x) => x.vat === "509999990")?.dados,
+      ).toMatchObject({ country_id: "70" });
+      expect((await a.lerDocumento(cred, id)).pais).toBe("PT");
+      const es = m.cliente("ESB12345678", "Empresa SL", 70);
+      const outro = await a.criarRascunho(cred, {
+        ...p,
+        referencia: "inv_es",
+        entidade_id: String(es.customer_id),
+      });
+      expect((await a.lerDocumento(cred, outro.id)).pais).toBe("ES");
+    });
+
+    it("P2-6: o fecho leva a data de hoje, não a do rascunho", async () => {
+      const { m, a, cred, config } = montar();
+      const { id } = await a.criarRascunho(cred, pedido(config));
+      const d = m.estado.documentos[0];
+      if (d !== undefined) d.date = "2026-01-02";
+      const fechado = await a.fechar(cred, id);
+      const hoje = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Lisbon",
+      }).format(new Date());
+      expect(fechado.data).toBe(hoje);
+    });
+
+    it("P2-7: o preço unitário vai com 6 casas, sem a dízima do JavaScript", async () => {
+      const { m, a, cred, config } = montar();
+      const p = pedido(config);
+      const [l] = p.linhas;
+      if (l === undefined) throw new Error("sem linha");
+      await a.criarRascunho(cred, {
+        ...p,
+        linhas: [{ ...l, quantidade: 3 }],
+      });
+      const insert = m.estado.pedidos.find(
+        (x) => x.metodo === "invoices/insert",
+      );
+      expect(
+        ((insert?.corpo["products"] as Record<string, unknown>[])[0] ?? {})[
+          "price"
+        ],
+      ).toBe("3.333333");
+    });
+
+    it("P3: o PDF só se descarrega do Moloni e tem de ser PDF", async () => {
+      const { m, a, cred, config } = montar();
+      const { id } = await a.criarRascunho(cred, pedido(config));
+      await a.fechar(cred, id);
+      m.estado.falhas.pdf = "outro_anfitriao";
+      await expect(a.pdf(cred, id)).rejects.toThrow(/ligação do PDF/);
+      m.estado.falhas.pdf = "html";
+      await expect(a.pdf(cred, id)).rejects.toThrow(/não é PDF/);
+    });
+
+    it("P3: os segredos em JSON também se tapam", () => {
+      expect(
+        taparSegredos('{"access_token":"t1","refresh_token":"r1","x":"y"}'),
+      ).toBe('{"access_token":"***","refresh_token":"***","x":"y"}');
     });
   });
 });

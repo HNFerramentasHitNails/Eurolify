@@ -103,19 +103,27 @@ const pagamentos: ConfigPagamentos = {
 
 // Os documentos fiscais (docs/29): o adaptador de ensaio só existe nos
 // testes; o Moloni liga-se com a conta de Developer do Eurolify
-// (MOLONI_CLIENT_ID e MOLONI_CLIENT_SECRET; §13.6, M1), e só em modo teste
-// (M8). A chave cifra as credenciais e os tokens das ligações
-// (FATURACAO_CHAVE), como a dos pagamentos.
+// (MOLONI_CLIENT_ID e MOLONI_CLIENT_SECRET; §13.6, M1), e só nas empresas
+// de teste da lista MOLONI_EMPRESAS_TESTE (M8). A chave cifra as
+// credenciais e os tokens das ligações (FATURACAO_CHAVE), como a dos
+// pagamentos.
 const textoChaveFaturacao = process.env["FATURACAO_CHAVE"]?.trim();
 const moloniId = process.env["MOLONI_CLIENT_ID"]?.trim();
 const moloniSegredo = process.env["MOLONI_CLIENT_SECRET"]?.trim();
+// As empresas de teste do Moloni onde se pode emitir (M8; revisão do #384,
+// P1-2): sem esta lista, o Moloni não liga.
+const moloniEmpresas = (process.env["MOLONI_EMPRESAS_TESTE"] ?? "")
+  .split(",")
+  .map((x) => x.trim())
+  .filter((x) => /^\d{1,12}$/.test(x));
 const faturacao: ConfigFaturacao = {
   adaptadores:
-    moloniId && moloniSegredo
+    moloniId && moloniSegredo && moloniEmpresas.length > 0
       ? {
           moloni: new AdaptadorMoloni({
             clientId: moloniId,
             clientSecret: moloniSegredo,
+            empresasPermitidas: moloniEmpresas,
           }),
         }
       : {},
