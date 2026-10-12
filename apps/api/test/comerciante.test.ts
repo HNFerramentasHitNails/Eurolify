@@ -163,7 +163,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0072_titular_todos_os_dominios",
         "0073_tarefas_no_hub",
         "0074_envios_parte_a",
-        "0075_relatorio_oss",
+        "0077_checkout_sessoes_sem_dados",
+        "0078_relatorio_oss",
       ]);
     });
 
@@ -296,7 +297,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // os contactos inferidos das declarações antigas (0052), os anexos da
       // isenção (0055), as 7 da pós-venda (0058), as 2 das tarefas das filas
       // (0066), as notificações (0067), as contas de transportadora (0074) e as 3 do
-      // relatório OSS (0075).
+      // relatório OSS (0078).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(88);

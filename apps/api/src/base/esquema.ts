@@ -1997,7 +1997,7 @@ export interface TabelaAtribuicaoRasto {
   a_pedido_de: ColumnType<unknown, never, never>;
 }
 
-/** O fecho de um período do relatório OSS (docs/37 §3; migração 0075). */
+/** O fecho de um período do relatório OSS (docs/37 §3; migração 0078). */
 export interface TabelaRelatorioOssFecho {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;
@@ -2011,8 +2011,8 @@ export interface TabelaRelatorioOssFecho {
   fechado_em: ColumnType<Date, never, never>;
 }
 
-/** Os documentos que entraram num fecho (uma vez só, P4; migração 0075). */
-/** A classificação de um documento pelo dono (P1-A; migração 0075). */
+/** Os documentos que entraram num fecho (uma vez só, P4; migração 0078). */
+/** A classificação de um documento pelo dono (P1-A; migração 0078). */
 export interface TabelaRelatorioOssClassificacao {
   comerciante_id: ColumnType<string, string, never>;
   documento_id: ColumnType<string, string, never>;
