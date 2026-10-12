@@ -5,7 +5,7 @@
 > ainda como `docs/28` (linhas 1, 487 e 617): é este documento.
 
 > **Estado: desenho aprovado; parte 1 no código; parte 2 (Moloni) desenhada
-> na §13, por aprovar** (issue #310; migração
+> na §13 e aprovada (DZ, 12/10/2026)** (issue #310; migração
 > 0050; `docs/06`, DI). Diogo, 10/10/2026: *«sim, aprovo; avança com o
 > código da fatia 10»* (Q1 a Q7 como propostas). O que está programado e os
 > desvios dizem-se na §12. Fatia 10 do
@@ -417,7 +417,8 @@ traduz.
 
 ## 13. Parte 2 — o adaptador Moloni (desenho, 12/10/2026)
 
-> **Estado: proposta, por aprovar.** Diogo, 12/10/2026: *«sim, avança com o
+> **Estado: aprovado** (`docs/06`, DZ). Diogo, 12/10/2026: *«sim, aprovo o
+> desenho com as propostas M1 a M8»*. Pedido inicial, 12/10/2026: *«sim, avança com o
 > adaptador Moloni»* (issue #310, parte 2). Só desenho: nenhum código antes
 > de aprovado (ADR-0023). Fontes: a documentação oficial lida a 12/10/2026
 > (páginas e o que dizem em

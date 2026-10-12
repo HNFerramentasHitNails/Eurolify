@@ -7,7 +7,8 @@
   notas de crédito, clientes, artigos, taxas, isenções, séries, autenticação,
   erros): `docs/eurolify/fontes-api-moloni-11out2026.md` §9.
 - Desenho da parte 2 em `docs/29` §13: o mapa contrato → Moloni, os tokens,
-  as perguntas M1 a M8 e o que medir na conta trial. **Nenhum código.**
+  as perguntas M1 a M8 e o que medir na conta trial. **Aprovado** pelo Diogo a
+  12/10/2026 (*«sim, aprovo o desenho com as propostas M1 a M8»*; `docs/06`, DZ).
 
 ## Números (com data e como se contaram)
 
