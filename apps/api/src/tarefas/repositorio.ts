@@ -204,7 +204,7 @@ export async function mudarPrazo(
 
 /**
  * As pessoas deste comerciante que podem ser responsáveis de um caso da fila
- * (R3), pela régua da base (`tarefas_podem_ser_responsaveis`, migração 0072):
+ * (R3), pela régua da base (`tarefas_podem_ser_responsaveis`, migração 0073):
  * o «Atribuir…» do Hub mostra estas, sem cópia da régua (docs/22 §28.2).
  */
 export function podemSerResponsaveis(

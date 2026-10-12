@@ -9,7 +9,7 @@ import {
 } from "./base-de-teste.js";
 import { hubDeTeste } from "./hub-de-teste.js";
 
-// O ecrã «A decidir» pela API do Hub (docs/22 §28; migração 0072; issue
+// O ecrã «A decidir» pela API do Hub (docs/22 §28; migração 0073; issue
 // #366, parte 2): as rotas /hub/tasks fazem o mesmo que as da chave, com as
 // filas que o papel lê (R2) e as escritas pelo papel (R3). Os casos entram
 // pela base em modo `replica`, como em `tarefas-api.test.ts`.

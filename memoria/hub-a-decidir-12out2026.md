@@ -10,7 +10,7 @@
     papel lê. Para se atribuir a si próprio basta decidir a fila; atribuir a
     outra pessoa, tirar o responsável e mudar o prazo pedem também
     `tasks:assign`;
-  - a migração 0072 (`tarefas_podem_ser_responsaveis`);
+  - a migração 0073 (`tarefas_podem_ser_responsaveis`; era a 0072, renumerada porque o #374 entrou primeiro com a 0072);
   - o ecrã, o módulo na entrada e os textos PT, ES e EN.
 - **O prazo escolhe-se no fuso do comerciante:** a lista do Hub leva o
   `fuso`, e a conversão está em `apps/hub/src/tarefas.ts`, testada com a

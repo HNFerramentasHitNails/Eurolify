@@ -160,7 +160,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0069_faturacao_moloni",
         "0070_documento_emitido_fora",
         "0071_notificacao_tarefas",
-        "0072_tarefas_no_hub",
+        "0072_titular_todos_os_dominios",
+        "0073_tarefas_no_hub",
       ]);
     });
 
@@ -251,6 +252,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // As ligações Moloni a renovar os tokens (0069): escreve-a o
           // gatilho, lê-a a função do dono.
           "tarefa_renovacao",
+          // As encomendas por acabar de um pedido de apagamento (0072): só
+          // as funções do dono lhe tocam.
+          "titular_pendente",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.

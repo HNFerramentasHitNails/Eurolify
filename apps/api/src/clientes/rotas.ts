@@ -776,6 +776,10 @@ const PedidoTitular = Type.Object({
   quem: Type.String(),
   em: Instante,
   resultado: Type.Record(Type.String(), Type.Unknown()),
+  encomendas_por_acabar: Type.Integer({
+    description:
+      "Num apagamento, as encomendas que ainda não acabaram: limpam-se sozinhas quando acabarem (docs/23 §15.3). O apagamento só está completo com zero; nos outros pedidos, zero",
+  }),
 });
 type LinhaPedidoTitular = Awaited<
   ReturnType<typeof listarPedidosTitular>
@@ -790,22 +794,35 @@ const paraPedidoTitular = (
   quem: p.quem,
   em: p.em.toISOString(),
   resultado: p.resultado,
+  encomendas_por_acabar: p.encomendas_por_acabar,
 });
 const ResultadoPseudonimizacaoEsquema = Type.Object({
   fichas: Type.Integer({ description: "A ficha e as fundidas nela" }),
   perfis_pseudonimizados: Type.Integer(),
   perfis_mantidos_por_obrigacao_fiscal: Type.Integer({
     description:
-      "Usados num documento ou apontados por uma encomenda: ficam como estão, com as provas do VIES e as isenções, o prazo fiscal (R9)",
+      "Usados num documento ou apontados por uma encomenda que não foi cancelada sem pagamento: ficam como estão, com as provas do VIES e as isenções, o prazo fiscal (R9; docs/23 §15, Q2)",
   }),
   consentimentos_apagados: Type.Integer(),
   etiquetas_retiradas: Type.Integer(),
   provas_vies_apagadas: Type.Integer(),
   isencoes_limpas: Type.Integer(),
   entradas_da_linha_do_tempo: Type.Integer(),
+  encomendas_limpas: Type.Integer({
+    description:
+      "Encomendas acabadas limpas já: o contacto, a morada de entrega (fica o país), os textos livres da expedição, das transições e da pós-venda, e o aviso em bruto do prestador passa a resumo (docs/23 §15.2)",
+  }),
+  encomendas_com_dados_fiscais_mantidos: Type.Integer({
+    description:
+      "Das limpas, as que guardam a cópia de onde se emite o documento fiscal (NIF, nome e morada fiscais): pagas ou com documento — prazo fiscal (docs/23 §15.1, grupo A)",
+  }),
+  encomendas_por_acabar: Type.Integer({
+    description:
+      "Encomendas em curso: ficam numa fila e limpam-se quando acabarem (docs/23 §15.3). Com mais de zero, o apagamento ainda não está completo",
+  }),
   encomendas_com_dados_por_tratar: Type.Integer({
     description:
-      "Encomendas do grupo: o contacto, a entrega e a cópia do perfil delas são do domínio das encomendas e ainda não se tratam aqui. Com mais de zero, o apagamento não está completo.",
+      "Igual a encomendas_por_acabar (mantido por compatibilidade). Com mais de zero, o apagamento não está completo",
   }),
 });
 const Exportacao = Type.Object({

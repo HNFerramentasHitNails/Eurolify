@@ -1901,12 +1901,12 @@ onde carregar para a resolver.
 - **B:** espera pelos ecrãs das filas, começando pelo da diferença de
   pagamento.
 
-### 28.7 Em código (12/10/2026; migração 0072; pedido #396)
+### 28.7 Em código (12/10/2026; migração 0073; pedido #396)
 
 | O quê | Onde |
 |---|---|
 | as quatro rotas `/hub/tasks`, com as funções da lista e do caso partilhadas com as da chave; a lista leva também o `fuso` do comerciante, para o ecrã mostrar e escolher os prazos nele | `apps/api/src/tarefas/rotas.ts` |
-| `tarefas_podem_ser_responsaveis(fila)`: quem pode ser responsável, pela régua da base, só no comerciante do contexto | migração 0072 |
+| `tarefas_podem_ser_responsaveis(fila)`: quem pode ser responsável, pela régua da base, só no comerciante do contexto | migração 0073 |
 | o ecrã, o módulo «A decidir» (basta um dos âmbitos que lêem as filas), os textos PT, ES e EN e os motivos em linguagem comum | `apps/hub/src/ecras/ADecidir.tsx`, `tarefas.ts`, `modulos.ts`, `textos/` |
 | testes: 6 pela API (`test/tarefas-hub.test.ts`), 13 sem servidor (`apps/hub/test/tarefas.test.ts`, com a régua igual à da API) e a passagem nas capturas | — |
 
