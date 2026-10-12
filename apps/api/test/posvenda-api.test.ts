@@ -879,7 +879,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     });
   });
 
-  it("o apagamento numa devolvida em parte e numa expedida perdida já reembolsada: contam como acabadas, sem mudar o estado (revisão do #374, P1-1; Diogo, «A»)", async () => {
+  it("o apagamento numa devolvida em parte (14 dias depois de entregue) e numa expedida perdida (problema fechado, com ou sem reembolso): contam como acabadas, sem mudar o estado (revisão do #374, P1-1; Diogo, «A»)", async () => {
     const s = await cenario();
     const contactoDe = async (encomenda: string) =>
       (
@@ -926,65 +926,122 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(await contactoDe(d.encomenda)).toMatchObject({
       estado: "devolvida_parcial",
     });
+    // Dentro dos 14 dias da entrega, como uma entregue: o resto ainda se
+    // pode devolver; fica na fila.
+    const antesD = await contactoDe(d.encomenda);
     expect(await pseudonimizar(s, d.encomenda)).toMatchObject({
-      encomendas_limpas: 1,
-      encomendas_por_acabar: 0,
+      encomendas_limpas: 0,
+      encomendas_por_acabar: 1,
     });
+    expect(await contactoDe(d.encomenda)).toEqual(antesD);
+    await entregueHa(d.encomenda, 15);
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
     expect(await contactoDe(d.encomenda)).toEqual({
       estado: "devolvida_parcial",
       email: "(pseudonimizado)",
     });
 
-    // Expedida e perdida: até o pagamento estar todo reembolsado, o
-    // comerciante ainda reenvia (precisa da morada) ou reembolsa; fica na
-    // fila.
-    const s2 = await cenario();
-    const p = await paga(s2, [[s2.v1, 1]]);
-    const [lp] = await expedir(s2, p.encomenda, false);
-    const x = (
-      await sql<{ id: string }>`select id from expedicao
-        where encomenda_id = ${p.encomenda.slice(4)}::uuid`.execute(base.dono)
-    ).rows[0];
-    await ok(
-      s2.adm("PATCH", `/shipments/shp_${String(x?.id)}`, {
-        versao: 2,
-        estado: "perdida",
-      }),
-    );
-    const antes = await contactoDe(p.encomenda);
-    expect(antes?.estado).toBe("expedida");
-    expect(await pseudonimizar(s2, p.encomenda)).toMatchObject({
-      encomendas_limpas: 0,
-      encomendas_por_acabar: 1,
-    });
-    expect(await contactoDe(p.encomenda)).toEqual(antes);
-    // Um problema reembolsa tudo (o artigo e os portes), por transferência.
-    const prb = await ok(
-      s2.adm("POST", "/problems", {
+    // Expedida e perdida: até uma pessoa fechar o problema (ou o pagamento
+    // deixar de estar capturado), o comerciante ainda reenvia (precisa da
+    // morada) ou reembolsa; fica na fila.
+    const perdida = async (cen: Cenario, comProblema = true) => {
+      const p = await paga(cen, [[cen.v1, 1]]);
+      const [l] = await expedir(cen, p.encomenda, false);
+      const x = (
+        await sql<{ id: string }>`select id from expedicao
+          where encomenda_id = ${p.encomenda.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0];
+      await ok(
+        cen.adm("PATCH", `/shipments/shp_${String(x?.id)}`, {
+          versao: 2,
+          estado: "perdida",
+        }),
+      );
+      const antes = await contactoDe(p.encomenda);
+      expect(antes?.estado).toBe("expedida");
+      expect(await pseudonimizar(cen, p.encomenda)).toMatchObject({
+        encomendas_limpas: 0,
+        encomendas_por_acabar: 1,
+      });
+      expect(await contactoDe(p.encomenda)).toEqual(antes);
+      if (!comProblema) return { encomenda: p.encomenda, antes };
+      const prb = await ok(
+        cen.adm("POST", "/problems", {
+          encomenda: p.encomenda,
+          tipo: "em_falta",
+          descricao: "a transportadora perdeu a encomenda",
+        }),
+        201,
+      );
+      // Com o problema aberto, continua na fila.
+      expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+      expect(await contactoDe(p.encomenda)).toEqual(antes);
+      return {
         encomenda: p.encomenda,
-        tipo: "em_falta",
-        descricao: "a transportadora perdeu a encomenda",
-      }),
-      201,
-    );
+        antes,
+        linha: l,
+        problema: String(prb["id"]),
+      };
+    };
+    // Reembolsado só o artigo, sem os portes: o pagamento fica
+    // reembolsado em parte e o problema fecha-se com o reembolso.
+    const s2 = await cenario();
+    const a = await perdida(s2);
     const rp = await ok(
-      s2.adm("POST", `/problems/${String(prb["id"])}/decide`, {
+      s2.adm("POST", `/problems/${a.problema}/decide`, {
         versao: 1,
-        linhas: [{ linha: lp?.["id"], quantidade: 1 }],
-        incluir_portes: true,
+        linhas: [{ linha: a.linha?.["id"], quantidade: 1 }],
         motivo: "perdida",
       }),
       201,
     );
     await manual(s2, String(rp["reembolso"]));
-    expect(await estadoDoPagamento(s2, p.encomenda)).toBe("reembolsado");
-    const volta = await correrApagamentosPendentes(base.api);
-    expect(volta.falhas).toEqual([]);
-    expect(await contactoDe(p.encomenda)).toEqual({
+    expect(await estadoDoPagamento(s2, a.encomenda)).toBe(
+      "reembolsado_parcial",
+    );
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(a.encomenda)).toEqual({
       estado: "expedida",
       email: "(pseudonimizado)",
     });
-  });
+    // Resolvida fora (reenvio noutra encomenda): o problema fecha-se sem
+    // reembolso e o pagamento fica capturado.
+    const s3 = await cenario();
+    const b = await perdida(s3);
+    await ok(
+      s3.adm("POST", `/problems/${b.problema}/close`, {
+        versao: 1,
+        motivo: "reenviado noutra encomenda",
+      }),
+    );
+    expect(await estadoDoPagamento(s3, b.encomenda)).toBe("capturado");
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(b.encomenda)).toEqual({
+      estado: "expedida",
+      email: "(pseudonimizado)",
+    });
+    // Sem problema, numa disputa: em disputa fica (a prova de entrega é do
+    // comerciante); perdida a disputa, o dinheiro voltou ao cliente.
+    const s4 = await cenario();
+    const c = await perdida(s4, false);
+    const disputa = (estado: string) =>
+      comComerciante(base.dono, s4.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'sistema:teste', true),
+          set_config('eurolify.origem', 'aviso', true)`.execute(trx);
+        await sql`update pagamento set estado = ${estado}
+          where encomenda_id = ${c.encomenda.slice(4)}::uuid`.execute(trx);
+      });
+    await disputa("em_disputa");
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(c.encomenda)).toEqual(c.antes);
+    await disputa("perdida");
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(c.encomenda)).toEqual({
+      estado: "expedida",
+      email: "(pseudonimizado)",
+    });
+    // Quatro comerciantes e sete voltas da fila.
+  }, 30_000);
 
   it("o botão: dentro do prazo regista, confirma com data e hora e abre a devolução; sem dados pessoais", async () => {
     const s = await cenario();

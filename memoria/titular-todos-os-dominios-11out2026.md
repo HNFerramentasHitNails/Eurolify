@@ -17,11 +17,13 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
 - Parte 1 (0072): os gatilhos abrem só as colunas pessoais, só com a marca
   da 0049; `titular_limpar_encomenda()`; a fila `titular_pendente` (interna)
   e a tarefa de hora a hora; o perfil só fica sem cancelamento sem pagamento
-  (Q2); o aviso em bruto passa a resumo SHA-256 (Q3).
+  (Q2); o aviso em bruto passa a resumo com a chave do rasto (0054, 8 hex;
+  Q3).
 - Uma encomenda «acabou»: estado `concluida`, `cancelada`,
-  `cancelada_sem_pagamento` ou `devolvida`, e nada aberto na pós-venda. A
-  conclusão automática é 14 dias depois de entregue
-  (`stock/repositorio.ts:1312`), o prazo da livre resolução.
+  `cancelada_sem_pagamento` ou `devolvida`, e nada aberto na pós-venda
+  (com as duas excepções do P1-1 abaixo, 12/10/2026). A conclusão
+  automática é 14 dias depois de entregue (`stock/repositorio.ts:1313`),
+  o prazo da livre resolução.
 
 ## Números (com data e como se contaram)
 
@@ -32,6 +34,12 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
   contraprovas (sempre limpar a cópia fiscal; o perfil a contar canceladas
   sem pagamento; o gatilho da encomenda sem o contacto): cada uma faz falhar
   um teste.
+- Revisão do #374, P1-1 (12/10/2026, PostgreSQL 18.6 em Docker, Node
+  24.21.0): 1 caso novo no `posvenda-api.test.ts` com 4 encomendas
+  (devolvida em parte; perdida com reembolso sem portes; perdida com o
+  problema fechado sem reembolso; perdida com disputa). 4 contraprovas (sem
+  os 14 dias; sem o problema fechado; sem o pagamento; sem `em_disputa` na
+  lista comum): cada uma faz falhar o caso.
 
 ## O que ficou por verificar
 
@@ -42,14 +50,18 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
 - As notificações por e-mail (#373, em desenho por outra sessão) devem
   ignorar contactos com o marcador «(pseudonimizado)».
 - Partes 2 (sessões de checkout por prazo) e 3 (exportação) por fazer.
-- Revisão do #374, P1-1, **decidida** (Diogo, 12/10/2026: *«a»*): uma
-  encomenda `devolvida_parcial`, ou `expedida` com a expedição perdida ou
-  devolvida ao remetente e o pagamento todo reembolsado, conta como acabada
-  sem nada aberto; os estados da encomenda não mudam. A condição do
-  reembolso na `expedida` foi acrescentada nesta sessão (o comerciante
-  ainda reenvia ou reembolsa); teste com contraprova em
-  `posvenda-api.test.ts`. Uma `expedida` perdida que se resolve com uma
-  encomenda nova, sem reembolso, continua na fila.
+- Revisão do #374, P1-1, **decidida** (Diogo, 12/10/2026: *«a»*); os
+  estados da encomenda não mudam. Acabam também, sem nada aberto: uma
+  `devolvida_parcial` 14 dias depois da última entrega (como a
+  `concluida`), e uma `expedida` com a expedição perdida ou devolvida ao
+  remetente depois de uma pessoa fechar o problema ou de o pagamento deixar
+  de estar capturado. Um pagamento `em_disputa` conta como aberto. Estas
+  condições vêm da segunda revisão (agente, 12/10/2026): a primeira versão
+  exigia o pagamento todo `reembolsado` e deixava presos o reembolso sem
+  portes, o reenvio fora e a disputa perdida. Teste com quatro contraprovas
+  em `posvenda-api.test.ts`.
+- Por decidir: uma `expedida_parcial` cuja expedição se perdeu e cujo resto
+  nunca sai fica sem fim (só passa a `expedida`, já não se cancela).
 - Fica de fora (revisão do #374, P3): os avisos sem pagamento associado
   (formato da EuPago **C**); os textos que entrem depois numa encomenda já
   limpa (uma devolução ou um problema novos); os apagamentos feitos antes da

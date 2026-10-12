@@ -376,26 +376,34 @@ $$;
 -- Duas que nunca chegam a um estado final também contam, sem nada aberto
 -- (revisão do #374, P1-1; Diogo, 12/10/2026, «A»; os estados da encomenda
 -- não mudam):
---  - `devolvida_parcial`, que só passa a `devolvida`;
+--  - `devolvida_parcial`, que só passa a `devolvida`, 14 dias depois da
+--    última entrega, como a `concluida` (a livre resolução do resto);
 --  - `expedida` sem expedição viva e com alguma perdida ou devolvida ao
---    remetente, e todo o pagamento capturado já reembolsado: até lá, o
---    comerciante ainda reenvia (precisa da morada) ou reembolsa.
+--    remetente, depois de uma pessoa fechar o problema da encomenda ou de o
+--    pagamento deixar de estar capturado: até lá, o comerciante ainda
+--    reenvia (precisa da morada) ou reembolsa.
 CREATE FUNCTION titular_encomenda_acabou(p_encomenda uuid) RETURNS boolean
   LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT EXISTS (SELECT FROM public.encomenda e
       WHERE e.comerciante_id = public.comerciante_actual() AND e.id = p_encomenda
-        AND (e.estado IN ('concluida', 'cancelada', 'cancelada_sem_pagamento', 'devolvida',
-                          'devolvida_parcial')
+        AND (e.estado IN ('concluida', 'cancelada', 'cancelada_sem_pagamento', 'devolvida')
+          OR (e.estado = 'devolvida_parcial'
+            AND NOT EXISTS (SELECT FROM public.expedicao x
+              WHERE x.comerciante_id = e.comerciante_id AND x.encomenda_id = e.id
+                AND x.entregue_em > now() - interval '14 days'))
           OR (e.estado = 'expedida'
             AND EXISTS (SELECT FROM public.expedicao x
-              WHERE x.encomenda_id = e.id AND x.estado IN ('perdida', 'devolvida_ao_remetente'))
+              WHERE x.comerciante_id = e.comerciante_id AND x.encomenda_id = e.id
+                AND x.estado IN ('perdida', 'devolvida_ao_remetente'))
             AND NOT EXISTS (SELECT FROM public.expedicao x
-              WHERE x.encomenda_id = e.id AND x.estado IN ('criada', 'expedida'))
-            AND NOT EXISTS (SELECT FROM public.pagamento g
-              WHERE g.encomenda_id = e.id
-                AND g.estado IN ('capturado', 'reembolsado_parcial', 'em_disputa'))
-            AND EXISTS (SELECT FROM public.pagamento g
-              WHERE g.encomenda_id = e.id AND g.estado = 'reembolsado'))))
+              WHERE x.comerciante_id = e.comerciante_id AND x.encomenda_id = e.id
+                AND x.estado IN ('criada', 'expedida'))
+            AND (EXISTS (SELECT FROM public.problema x
+                  WHERE x.comerciante_id = e.comerciante_id AND x.encomenda_id = e.id
+                    AND x.estado = 'fechado')
+              OR NOT EXISTS (SELECT FROM public.pagamento g
+                  WHERE g.comerciante_id = e.comerciante_id AND g.encomenda_id = e.id
+                    AND g.estado IN ('capturado', 'reembolsado_parcial'))))))
     AND NOT EXISTS (SELECT FROM public.pedido_livre_resolucao p
       WHERE p.encomenda_id = p_encomenda AND p.estado IN ('pendente', 'fora_de_prazo'))
     AND NOT EXISTS (SELECT FROM public.devolucao d
@@ -404,12 +412,13 @@ CREATE FUNCTION titular_encomenda_acabou(p_encomenda uuid) RETURNS boolean
       WHERE x.encomenda_id = p_encomenda AND x.estado <> 'fechado')
     AND NOT EXISTS (SELECT FROM public.reembolso r
       WHERE r.encomenda_id = p_encomenda AND r.estado NOT IN ('executado', 'cancelado'))
-    -- Nem pagamento vivo ou incerto, nem diferença por resolver (ex.: pago
-    -- depois de cancelada: o comerciante ainda tem de devolver o dinheiro;
-    -- revisão do #374, P2-3).
+    -- Nem pagamento vivo, incerto ou em disputa (a prova de entrega é do
+    -- comerciante), nem diferença por resolver (ex.: pago depois de
+    -- cancelada: o comerciante ainda tem de devolver o dinheiro; revisão do
+    -- #374, P2-3 e P2-2 da segunda).
     AND NOT EXISTS (SELECT FROM public.pagamento g
       WHERE g.encomenda_id = p_encomenda
-        AND g.estado IN ('criado', 'a_aguardar_cliente', 'autorizado', 'incerto'))
+        AND g.estado IN ('criado', 'a_aguardar_cliente', 'autorizado', 'incerto', 'em_disputa'))
     AND NOT EXISTS (SELECT FROM public.diferenca_pagamento d
       JOIN public.pagamento g ON g.id = d.pagamento_id
       WHERE g.encomenda_id = p_encomenda AND d.estado = 'aberta')

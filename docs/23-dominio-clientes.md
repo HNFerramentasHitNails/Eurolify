@@ -1054,11 +1054,20 @@ Duas que nunca chegam a um estado final também acabam, nas mesmas condições
 (revisão do #374, P1-1; Diogo, 12/10/2026: *«a»*). Os estados da encomenda
 não mudam:
 
-- `devolvida_parcial`, que só pode passar a `devolvida`;
+- `devolvida_parcial`, que só pode passar a `devolvida`: 14 dias depois da
+  última entrega, como a `concluida` (o resto ainda se pode devolver);
 - `expedida` sem expedição `criada` nem `expedida`, com alguma `perdida` ou
-  `devolvida_ao_remetente`, e com todo o pagamento capturado já
-  `reembolsado`. Até lá, o comerciante ainda reenvia (e precisa da morada)
-  ou reembolsa.
+  `devolvida_ao_remetente`, depois de uma pessoa fechar o problema da
+  encomenda (com ou sem reembolso: um reenvio fora, numa encomenda nova) ou
+  de o pagamento deixar de estar capturado (reembolsado, disputa perdida).
+  Até lá, o comerciante ainda reenvia (e precisa da morada) ou reembolsa.
+
+Um pagamento `em_disputa` também conta como aberto, em qualquer estado: a
+prova de entrega é do comerciante (segunda revisão do #374, P2-2).
+
+Fica sem fim, fora da decisão: uma `expedida_parcial` cuja expedição se
+perdeu e cujo resto nunca sai (só pode passar a `expedida`, e já não se
+cancela). Por decidir.
 
 - No pedido de apagamento, as encomendas acabadas limpam-se logo; as outras
   ficam numa fila com o pedido (`pedido_titular`), e o resultado diz quantas
@@ -1156,8 +1165,8 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 | O quê | Onde |
 |---|---|
 | os gatilhos de `encomenda`, `expedicao`, `aviso_pagamento`, `pedido_livre_resolucao`, `devolucao` e `problema` deixam mudar **só** as colunas da §15.2, **só** com a marca da 0049; as transições (`transicao_encomenda`, `transicao_pagamento`) **só** o motivo e **só** para o marcador. A API e o dono sem a marca continuam recusados (testado) | `titular_limpeza_permitida()`, `titular_rasto_so_se_acrescenta()` |
-| a limpeza de uma encomenda acabada: contacto, morada de entrega (fica o país), a cópia do perfil só sem nada fiscal (cancelada sem pagamento e sem documento), a prova de entrega, os motivos das transições, o aviso em bruto passa a `{"pseudonimizado": true, "resumo": "<sha256>"}` (Q3: sem os campos não pessoais, porque o formato da EuPago não está verificado; o pagamento guarda o montante, a referência e o estado), o pedido de livre resolução fica «sem e-mail» e os textos livres da pós-venda | `titular_limpar_encomenda()` |
-| `devolvida_parcial`, e `expedida` perdida ou devolvida ao remetente já toda reembolsada, também acabam, sem nada aberto (§15.3; revisão do #374, P1-1, Diogo, 12/10/2026: «a») | `titular_encomenda_acabou()` |
+| a limpeza de uma encomenda acabada: contacto, morada de entrega (fica o país), a cópia do perfil só sem nada fiscal (cancelada sem pagamento e sem documento), a prova de entrega, os motivos das transições, o aviso em bruto passa a `{"pseudonimizado": true, "resumo": "<8 hex, chave do rasto>"}` (Q3: sem os campos não pessoais, porque o formato da EuPago não está verificado; o pagamento guarda o montante, a referência e o estado), o pedido de livre resolução fica «sem e-mail» e os textos livres da pós-venda | `titular_limpar_encomenda()` |
+| `devolvida_parcial` (14 dias depois da entrega) e `expedida` perdida ou devolvida ao remetente (problema fechado, ou pagamento já não capturado) também acabam, sem nada aberto; `em_disputa` conta como aberto (§15.3; revisão do #374, P1-1, Diogo, 12/10/2026: «a») | `titular_encomenda_acabou()` |
 | as encomendas em curso ficam na fila (`titular_pendente`, interna); a tarefa de hora a hora limpa as que acabaram; a lista dos pedidos diz `encomendas_por_acabar` | `titular_pendentes_aplicar()`; `src/clientes/titular-fila.ts` |
 | o perfil de faturação só fica com documento ou encomenda que não foi cancelada sem pagamento (Q2) | `cliente_pseudonimizar()` |
 | uma livre resolução numa encomenda já limpa guarda «sem e-mail», não o marcador | `src/posvenda/repositorio.ts` |
