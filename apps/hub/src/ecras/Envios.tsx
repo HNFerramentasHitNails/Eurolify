@@ -431,7 +431,8 @@ interface DadosConta {
   eu: Eu;
   membros: Membros["membros"];
   conta: ContaTransportadora | null;
-  servicos: ServicoConta[];
+  /** null: não se conseguiram ler (a página abre na mesma). */
+  servicos: ServicoConta[] | null;
 }
 
 export function EnvioConta({
@@ -472,10 +473,18 @@ export function EnvioConta({
         api.contasTransportadora(comerciante),
       ]);
       const conta = contas.dados.find((c) => c.id === idConta) ?? null;
-      const servicos =
-        conta === null
-          ? []
-          : (await api.servicosDaConta(comerciante, idConta)).dados;
+      // Os serviços pedem o adaptador da transportadora: sem ele (os CTT,
+      // ou um servidor sem ENVIOS_CHAVE) a conta abre na mesma, para se
+      // ver e arquivar (revisão do #409, P1-2).
+      let servicos: ServicoConta[] | null = [];
+      if (conta !== null && conta.campos_credenciais.length > 0) {
+        try {
+          servicos = (await api.servicosDaConta(comerciante, idConta)).dados;
+        } catch (e) {
+          if (semSessao(e)) throw e;
+          servicos = null;
+        }
+      }
       if (este !== ultimo.current) return;
       setFalha(null);
       setDados({ eu, membros: membros.membros, conta, servicos });
@@ -951,7 +960,7 @@ function Servicos({
   data,
 }: {
   conta: ContaTransportadora;
-  servicos: ServicoConta[];
+  servicos: ServicoConta[] | null;
   data: (iso: string) => string;
 }) {
   const { t, lingua } = useHub();
@@ -971,7 +980,11 @@ function Servicos({
           })}
         </p>
       )}
-      {servicos.length === 0 ? (
+      {servicos === null ? (
+        <p className="aviso" role="note">
+          {t.enviosServicosFalha}
+        </p>
+      ) : servicos.length === 0 ? (
         <p>{t.enviosServicosVazio}</p>
       ) : (
         <table className="tabela-larga">

@@ -1991,9 +1991,9 @@ assinatura dos avisos, e carrega em «Testar a ligação». A conta passa a
 | **Ligar uma conta** (só o dono, `shipping:accounts`): a transportadora, o nome e a morada do remetente. |
 | **Mudar o nome e a morada do remetente**, com a versão (409 num conflito). |
 | **As credenciais.** Os campos dependem da transportadora: na Sendcloud, «Chave pública» e «Chave secreta». Junta-se o segredo dos avisos, com o endereço dos avisos para copiar (`…/webhooks/carriers/{transportadora}/cac_…`). Os segredos **nunca se mostram nem voltam do servidor**; o ecrã diz só «Guardadas a {data} por {pessoa}». |
-| **«Testar a ligação»** e o resultado, nas palavras do servidor: pronta; credenciais recusadas (a conta volta a «Por testar»); a transportadora não respondeu (nada muda); ou a lista nova de serviços deixa métodos activos sem serviço, com os métodos (`docs/36` §16, P2-2). |
+| **«Testar a ligação»** e o resultado, nas palavras do servidor: pronta; credenciais recusadas (a conta volta a «Por testar»); a transportadora não respondeu (nada muda); ou a lista nova de serviços deixa métodos activos sem serviço (código próprio `shipping.service_in_use`; os métodos vão no `detail`, o ecrã diz que há um método activo a mudar primeiro; `docs/36` §16, P2-2, e revisão do #409). |
 | **Os serviços da conta**: o nome, os países, o peso máximo e se pede telefone ou e-mail. Na Sendcloud, com a data da fotografia. |
-| **Arquivar uma conta**, com confirmação («Arquivar a conta? Os métodos de entrega que a usam deixam de poder pedir etiquetas.»). |
+| **Arquivar uma conta**, com confirmação («Arquivar a conta? Depois de arquivada, só se pode consultar. Se um método de entrega activo a usar, o arquivo é recusado»). O servidor recusa com `shipping.account_in_use` (409) enquanto houver um método activo com ela (revisão do #409, P2-2). |
 | **Um módulo «Envios» na entrada do Hub**, para quem tem `shipping:read`. |
 
 | Fica de fora, e porquê |
@@ -2001,7 +2001,7 @@ assinatura dos avisos, e carrega em «Testar a ligação». A conta passa a
 | **Os métodos de entrega** (a tarifa, a conta, o serviço, as zonas) e **o peso da embalagem por armazém**: são o passo seguinte (§30, a desenhar). Precisam das listas dos mercados e dos armazéns no Hub. |
 | **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Desenha-se com eles (`docs/27`). |
 | **O modo real**: é uma migração com decisão escrita (`docs/36` §16.2). O ecrã diz «Teste» e não oferece outro. |
-| **Os CTT**: a conta cria-se, mas o teste dá «os CTT ainda não estão ligados ao Eurolify», até haver o adaptador (V1). |
+| **Os CTT**: a conta cria-se, vê-se e arquiva-se, mas sem credenciais nem teste: o adaptador não declara campos, e o ecrã diz «Esta transportadora ainda não está ligada ao Eurolify», até haver o adaptador (V1). |
 
 ### 29.2 Como o Hub lê e escreve
 
@@ -2043,8 +2043,8 @@ ter ficado criada e pede para conferir a lista.
 | Ecrã | O que mostra | Estados além do normal |
 |---|---|---|
 | **Envios** (`/envios`, no módulo novo) | Uma linha por conta (cartões no telemóvel): o nome, a transportadora, o estado com a cor do estado, «Teste», e a última vez que foi testada. Para o dono, «Ligar uma transportadora». Por omissão, as arquivadas ficam escondidas, com «Mostrar as arquivadas». | sem contas («Ainda não há contas de transportadora»; para o dono, com o botão); a carregar; erro; sem permissão |
-| **Ligar uma transportadora** (`/envios/nova`) | A transportadora (Sendcloud ou CTT), o nome e a morada do remetente: nome, linha 1, linha 2, código postal, localidade e país. | campos inválidos (as mensagens do servidor, junto ao campo); resposta perdida (repete com a mesma `Idempotency-Key`) |
-| **A conta** (`/envios/{cac_…}`) | O estado e o modo. O nome e o remetente, com «Editar». As credenciais: os campos da transportadora, vazios, com «Guardadas a {data} por {pessoa}» ou «Ainda não há credenciais». O segredo dos avisos e o endereço dos avisos, com «Copiar». «Testar a ligação». Os serviços, numa tabela. «Arquivar». | o teste a decorrer (o botão diz «A testar…», e o resto fica utilizável); os quatro resultados do teste (§29.1); conflito (409: «A conta mudou entretanto», com «Recarregar»); arquivada (só leitura); sem permissão para mudar (os campos não aparecem) |
+| **Ligar uma transportadora** (`/envios/nova`) | A transportadora (Sendcloud ou CTT), o nome e a morada do remetente: nome, linha 1, linha 2, código postal, localidade e país. | campos em falta e o país, conferidos no ecrã junto ao campo; um valor que o servidor recuse sai no topo, com a mensagem dele; resposta perdida (o ecrã não repete: diz que a conta pode ter ficado criada e manda conferir a lista) |
+| **A conta** (`/envios/{cac_…}`) | O estado e o modo. O nome e o remetente, com «Editar». As credenciais: os campos da transportadora, vazios, com «Guardadas a {data} por {pessoa}» ou «Ainda não há credenciais». O segredo dos avisos e o endereço dos avisos, com «Copiar». «Testar a ligação». Os serviços, numa tabela. «Arquivar». | o teste a decorrer (o botão diz «A testar…», e as outras acções ficam paradas até acabar: guardar credenciais a meio daria conflito); os serviços que não se lêem (a página abre na mesma, com um aviso); os quatro resultados do teste (§29.1); conflito (409: «A conta mudou entretanto», com «Recarregar»); arquivada (só leitura); sem permissão para mudar (os campos não aparecem) |
 
 **Os textos** estão em PT, ES e EN, sem maiúsculas forçadas. «Pronta» quer dizer
 «passou o teste», e o ecrã nunca o diz por outras palavras.
@@ -2055,7 +2055,10 @@ VPS de ensaio, só o Hub (`/hub/`) e o MCP estão publicados
 (`infra/vps/ficheiros/nginx-hub.conf`): **os avisos das transportadoras, e os
 dos pagamentos, ainda não chegam à API**. O ecrã di-lo. Até lá, a volta
 consulta o seguimento de hora a hora. Publicar o caminho é uma mudança à
-VPS, com pedido próprio (ADR-0028).
+VPS, com pedido próprio (ADR-0028). **Rede temporária:** o texto
+`enviosAvisosVps` retira-se no mesmo pedido que publicar
+`/webhooks/carriers/` no nginx da VPS; sem esse pedido, revê-se a
+31/03/2027, com a migração para Paris (ADR-0018).
 
 ### 29.4 Antes de dizer que está feito (o pedido do código)
 

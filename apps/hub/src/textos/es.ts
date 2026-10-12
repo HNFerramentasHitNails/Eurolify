@@ -996,14 +996,22 @@ export const es: Textos = {
   enviosSemLimite: "sin límite declarado",
   enviosArquivar: "Archivar la cuenta",
   enviosArquivarConfirmar:
-    "¿Archivar la cuenta «{nome}»? Los métodos de entrega que la usan dejarán de poder pedir etiquetas.",
+    "¿Archivar la cuenta «{nome}»? Una vez archivada, solo se puede consultar. Si un método de entrega activo la usa, el archivo se rechaza: cambie ese método primero.",
   enviosArquivadaAgora: "La cuenta se archivó.",
   enviosConflito:
     "La cuenta cambió mientras tanto. Recargue para ver la versión actual.",
   enviosRecusadas:
-    "El transportista rechazó las credenciales: la cuenta queda por probar.",
+    "Las credenciales no están listas: el transportista las rechazó, o hay que guardarlas otra vez. Guárdelas y pruebe de nuevo.",
   enviosSemResposta:
     "El transportista no respondió, o aún no está conectado a Eurolify. No cambió nada.",
   enviosSemChave: "Los envíos aún no están activados en este servidor.",
   enviosImutavel: "La cuenta está archivada y ya no cambia.",
+  enviosContaEmUso:
+    "Hay métodos de entrega activos con esta cuenta: la cuenta no se archiva. Cambie esos métodos primero.",
+  enviosServicoEmUso:
+    "El transportista ya no tiene el servicio de un método de entrega activo de esta cuenta: la prueba no guardó la lista nueva y la cuenta quedó como estaba. Cambie ese método primero.",
+  enviosTentarDeNovo:
+    "Los envíos están ocupados en este momento. Inténtelo de nuevo en un rato.",
+  enviosServicosFalha:
+    "No se pudieron leer los servicios de la cuenta ahora. El resto de la página funciona; recargue más tarde.",
 };

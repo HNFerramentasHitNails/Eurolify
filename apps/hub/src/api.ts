@@ -119,6 +119,9 @@ export interface RemetenteConta {
   codigo_postal: string;
   localidade: string;
   pais: string;
+  /** Só pela chave, por agora: o Hub guarda-os como vieram. */
+  telefone?: string;
+  email?: string;
 }
 
 /** Uma conta de transportadora, sem as credenciais (docs/22 §29.2). */

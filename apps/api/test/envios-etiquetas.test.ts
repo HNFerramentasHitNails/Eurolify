@@ -1183,8 +1183,8 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
     // é recusada, com o método (P2-2).
     sc.estado.servicos.set("PT", [opcao("ctt:expresso_48")]);
     const recusa = await s.adm("POST", `/carrier-accounts/${conta}/test`);
-    expect(recusa.statusCode, recusa.body).toBe(400);
-    expect(recusa.json<Json>()["codigo"]).toBe("shipping.invalid_field");
+    expect(recusa.statusCode, recusa.body).toBe(409);
+    expect(recusa.json<Json>()["codigo"]).toBe("shipping.service_in_use");
     expect(JSON.stringify(recusa.json())).toContain(`shm_${metodo.slice(4)}`);
     expect(
       (await ok(s.adm("GET", `/carrier-accounts/${conta}/services`)))["dados"],

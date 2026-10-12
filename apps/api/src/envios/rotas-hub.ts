@@ -50,6 +50,8 @@ export function rotasDosEnviosNoHub(
     resposta: FastifyReply,
     ambito: Ambito,
   ) => {
+    // O cabeçalho antes de tudo: também um 403 sai fora das caches.
+    void resposta.header("cache-control", "private, no-store");
     const sessao = sessaoDo(pedido);
     if (!sessao.ambitos.includes(ambito)) {
       throw erroConta(
@@ -62,7 +64,6 @@ export function rotasDosEnviosNoHub(
     if (sessao.comercianteId === null) {
       throw new Error("rota com comerciante sem o comerciante da sessão");
     }
-    void resposta.header("cache-control", "private, no-store");
     return { ...sessao, comercianteId: sessao.comercianteId };
   };
 

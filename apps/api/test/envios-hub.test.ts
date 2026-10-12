@@ -26,6 +26,7 @@ import { opcao, PUBLICA, SECRETA, sendcloudFalsa } from "./sendcloud-falsa.js";
 
 type Json = Record<string, unknown>;
 const SEGREDO_AVISO = "segredo-dos-avisos-sendcloud-1";
+const ERRADA = "chave-secreta-que-nao-e-esta";
 
 describe.skipIf(URL_BASE === undefined)(
   "Hub: as contas de transportadora",
@@ -203,13 +204,121 @@ describe.skipIf(URL_BASE === undefined)(
         comerciante: a,
       });
       expect(r.headers["cache-control"]).toBe("private, no-store");
+      // Também a recusa sai fora das caches.
+      const recusa = await h.pedir("POST", `/hub/carrier-accounts/${id}/test`, {
+        sessao: p["armazem"]?.sessao ?? "",
+        comerciante: a,
+        corpo: {},
+      });
+      expect(recusa.statusCode).toBe(403);
+      expect(recusa.headers["cache-control"]).toBe("private, no-store");
+      // A conta tem exactamente estes campos: nada cifrado a mais.
+      expect(Object.keys(pronta ?? {}).sort()).toEqual(
+        [
+          "id",
+          "transportadora",
+          "nome",
+          "modo",
+          "estado",
+          "remetente",
+          "credenciais_em",
+          "credenciais_por",
+          "testada_em",
+          "servicos_em",
+          "campos_credenciais",
+          "criado_em",
+          "versao",
+        ].sort(),
+      );
+    });
+
+    it("credenciais recusadas deixam a conta por testar; os segredos recusados também não voltam", async () => {
+      const contas = (await ok(como("dono", "GET", "/hub/carrier-accounts")))[
+        "dados"
+      ] as Json[];
+      const id = String(
+        contas.find((c) => c["transportadora"] === "sendcloud")?.["id"],
+      );
+      await ok(
+        como("dono", "PUT", `/hub/carrier-accounts/${id}/credentials`, {
+          credenciais: { chave_publica: PUBLICA, chave_secreta: ERRADA },
+        }),
+        204,
+      );
+      expect(
+        await codigo(
+          como("dono", "POST", `/hub/carrier-accounts/${id}/test`, {}),
+        ),
+      ).toEqual([422, "shipping.account_not_ready"]);
+      const depois = (
+        (await ok(como("dono", "GET", "/hub/carrier-accounts")))[
+          "dados"
+        ] as Json[]
+      ).find((c) => c["id"] === id);
+      expect(depois?.["estado"]).toBe("rascunho");
+      // As boas outra vez, para os testes seguintes.
+      await ok(
+        como("dono", "PUT", `/hub/carrier-accounts/${id}/credentials`, {
+          credenciais: { chave_publica: PUBLICA, chave_secreta: SECRETA },
+        }),
+        204,
+      );
+      await ok(como("dono", "POST", `/hub/carrier-accounts/${id}/test`, {}));
+    });
+
+    it("uma conta dos CTT (sem adaptador) cria-se, lista-se e arquiva-se; os serviços dizem que a transportadora não está ligada", async () => {
+      const { id } = (await ok(
+        como("dono", "POST", "/hub/carrier-accounts", {
+          transportadora: "ctt",
+          nome: "CTT",
+          remetente,
+        }),
+        201,
+      )) as { id: string };
+      const ctt = (
+        (await ok(como("dono", "GET", "/hub/carrier-accounts")))[
+          "dados"
+        ] as Json[]
+      ).find((c) => c["id"] === id);
+      expect(ctt).toMatchObject({ estado: "rascunho", campos_credenciais: [] });
+      expect(
+        await codigo(
+          como("dono", "GET", `/hub/carrier-accounts/${id}/services`),
+        ),
+      ).toEqual([503, "shipping.carrier_unavailable"]);
+      for (const papel of ["gestor", "armazem", "apoio"]) {
+        expect(
+          await codigo(
+            como(papel, "PATCH", `/hub/carrier-accounts/${id}`, {
+              versao: Number(ctt?.["versao"]),
+              arquivar: true,
+            }),
+          ),
+        ).toEqual([403, "member.role_escalation"]);
+      }
+      await ok(
+        como("dono", "PATCH", `/hub/carrier-accounts/${id}`, {
+          versao: Number(ctt?.["versao"]),
+          arquivar: true,
+        }),
+      );
+      expect(
+        await codigo(
+          como("dono", "PATCH", `/hub/carrier-accounts/${id}`, {
+            versao: Number(ctt?.["versao"]) + 1,
+            nome: "Outra",
+          }),
+        ),
+      ).toEqual([409, "shipping.immutable"]);
     });
 
     it("o gestor, o armazém e o apoio vêem mas não ligam nem mexem; outro comerciante não chega à conta", async () => {
       const contas = (await ok(como("dono", "GET", "/hub/carrier-accounts")))[
         "dados"
       ] as Json[];
-      const id = String(contas[0]?.["id"]);
+      const id = String(
+        contas.find((c) => c["transportadora"] === "sendcloud")?.["id"],
+      );
       for (const papel of ["gestor", "armazem", "apoio"]) {
         expect(
           (
@@ -217,7 +326,7 @@ describe.skipIf(URL_BASE === undefined)(
               "dados"
             ] as Json[]
           ).length,
-        ).toBe(1);
+        ).toBe(contas.length);
         expect(
           await codigo(
             como(papel, "POST", "/hub/carrier-accounts", {
@@ -267,14 +376,27 @@ describe.skipIf(URL_BASE === undefined)(
           }),
         ),
       ).toEqual([404, "shipping.not_found"]);
+      expect(
+        await codigo(
+          como("donoB", "POST", `/hub/carrier-accounts/${id}/test`, {}),
+        ),
+      ).toEqual([404, "shipping.not_found"]);
     });
 
     it("os segredos nunca aparecem em nenhuma resposta (docs/22 §29.4)", () => {
       expect(corpos.length).toBeGreaterThan(10);
       for (const corpo of corpos) {
         expect(corpo).not.toContain(SECRETA);
+        expect(corpo).not.toContain(ERRADA);
         expect(corpo).not.toContain(SEGREDO_AVISO);
+        expect(corpo).not.toContain("cifra");
       }
+      // Nem no registo da API (docs/22 §29.2).
+      const registo = h.registo.join("\n");
+      expect(registo.length).toBeGreaterThan(0);
+      expect(registo).not.toContain(SECRETA);
+      expect(registo).not.toContain(ERRADA);
+      expect(registo).not.toContain(SEGREDO_AVISO);
     });
   },
 );

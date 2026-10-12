@@ -963,6 +963,8 @@ export const pt = {
   enviosAvisos: "Avisos da transportadora",
   enviosAvisosExplicacao:
     "Na transportadora, indique este caminho, no endereço da API do Eurolify:",
+  // Rede temporária (AGENTS.md): retira-se quando o nginx da VPS publicar
+  // /webhooks/carriers/ (pedido à VPS pelo GitHub, ADR-0028); docs/22 §29.
   enviosAvisosVps:
     "Na VPS de ensaio, os avisos ainda não chegam: falta publicar este caminho no servidor. Até lá, o Eurolify consulta o seguimento de hora a hora.",
   enviosTestar: "Testar a ligação",
@@ -986,16 +988,24 @@ export const pt = {
   enviosSemLimite: "sem limite declarado",
   enviosArquivar: "Arquivar a conta",
   enviosArquivarConfirmar:
-    "Arquivar a conta «{nome}»? Os métodos de entrega que a usam deixam de poder pedir etiquetas.",
+    "Arquivar a conta «{nome}»? Depois de arquivada, só se pode consultar. Se um método de entrega activo a usar, o arquivo é recusado: mude esse método primeiro.",
   enviosArquivadaAgora: "A conta foi arquivada.",
   enviosConflito:
     "A conta mudou entretanto. Recarregue para ver a versão actual.",
   enviosRecusadas:
-    "A transportadora recusou as credenciais: a conta fica por testar.",
+    "As credenciais não estão prontas: a transportadora recusou-as, ou têm de ser guardadas outra vez. Guarde-as e teste de novo.",
   enviosSemResposta:
     "A transportadora não respondeu, ou ainda não está ligada ao Eurolify. Nada mudou.",
   enviosSemChave: "Os envios ainda não estão ligados neste servidor.",
   enviosImutavel: "A conta está arquivada e já não muda.",
+  enviosContaEmUso:
+    "Há métodos de entrega activos com esta conta: a conta não se arquiva. Mude esses métodos primeiro.",
+  enviosServicoEmUso:
+    "A transportadora já não tem o serviço de um método de entrega activo desta conta: o teste não guardou a lista nova e a conta ficou como estava. Mude esse método primeiro.",
+  enviosTentarDeNovo:
+    "Os envios estão ocupados neste momento. Tente outra vez daqui a pouco.",
+  enviosServicosFalha:
+    "Não foi possível ler os serviços da conta agora. O resto da página funciona; recarregue mais tarde.",
 };
 
 export type Textos = typeof pt;

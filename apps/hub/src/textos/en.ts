@@ -985,14 +985,21 @@ export const en: Textos = {
   enviosSemLimite: "no declared limit",
   enviosArquivar: "Archive the account",
   enviosArquivarConfirmar:
-    "Archive the account «{nome}»? Delivery methods using it will no longer be able to request labels.",
+    "Archive the account «{nome}»? Once archived, it can only be viewed. If an active delivery method uses it, archiving is refused: change that method first.",
   enviosArquivadaAgora: "The account was archived.",
   enviosConflito:
     "The account changed in the meantime. Reload to see the current version.",
   enviosRecusadas:
-    "The carrier rejected the credentials: the account stays not tested.",
+    "The credentials are not ready: the carrier rejected them, or they must be saved again. Save them and test again.",
   enviosSemResposta:
     "The carrier did not respond, or is not connected to Eurolify yet. Nothing changed.",
   enviosSemChave: "Shipping is not enabled on this server yet.",
   enviosImutavel: "The account is archived and can no longer change.",
+  enviosContaEmUso:
+    "There are active delivery methods with this account: it cannot be archived. Change those methods first.",
+  enviosServicoEmUso:
+    "The carrier no longer has the service of an active delivery method of this account: the test did not save the new list and the account stayed as it was. Change that method first.",
+  enviosTentarDeNovo: "Shipping is busy right now. Try again in a moment.",
+  enviosServicosFalha:
+    "The account services could not be read right now. The rest of the page works; reload later.",
 };

@@ -43,6 +43,10 @@ export function conferirRemetente(r: RemetenteConta): {
     codigo_postal: r.codigo_postal.trim(),
     localidade: r.localidade.trim(),
     pais: r.pais.trim().toUpperCase(),
+    // O Hub ainda não os edita, mas a API substitui o remetente inteiro:
+    // sem eles, uma edição apagava-os (revisão do #409, P1-1).
+    ...(r.telefone === undefined ? {} : { telefone: r.telefone }),
+    ...(r.email === undefined ? {} : { email: r.email }),
   };
   const obrigatorios: CampoRemetente[] = [
     "nome",

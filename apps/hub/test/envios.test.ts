@@ -92,6 +92,22 @@ describe("envios no Hub", () => {
     ).toBe("pais");
   });
 
+  it("editar o remetente pelo Hub não apaga o telefone nem o e-mail guardados pela chave (revisão do #409, P1-1)", () => {
+    const { remetente } = conferirRemetente({
+      nome: "Armazém novo",
+      linha1: "Rua 1",
+      codigo_postal: "1000-001",
+      localidade: "Lisboa",
+      pais: "PT",
+      telefone: "+351210000000",
+      email: "armazem@exemplo.pt",
+    });
+    expect(remetente).toMatchObject({
+      telefone: "+351210000000",
+      email: "armazem@exemplo.pt",
+    });
+  });
+
   it("o caminho dos avisos é o da conta; as arquivadas só quando se pedem", () => {
     expect(caminhoDosAvisos(conta("pronta"))).toBe(
       "/webhooks/carriers/sendcloud/cac_0199a1c0-0000-7000-8000-000000000001",
