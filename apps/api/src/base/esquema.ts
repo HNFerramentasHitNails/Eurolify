@@ -1383,7 +1383,7 @@ export interface TabelaArmazem {
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, Date>;
   versao: ColumnType<number, never, number>;
-  /** O peso da embalagem por omissão (docs/36 Q6; 0078). */
+  /** O peso da embalagem por omissão (docs/36 Q6; 0079). */
   embalagem_g: ColumnType<number, never, number>;
 }
 
@@ -1472,7 +1472,7 @@ export interface TabelaExpedicao {
   criada_por: ColumnType<string, string, never>;
   criada_em: ColumnType<Date, never, never>;
   versao: ColumnType<number, never, number>;
-  // A etiqueta (docs/36 §3.3; 0078).
+  // A etiqueta (docs/36 §3.3; 0079).
   conta_transportadora_id: ColumnType<string | null, never, string | null>;
   peso_g: ColumnType<number | null, never, number | null>;
   etiqueta: ColumnType<EstadoEtiqueta, never, EstadoEtiqueta>;
@@ -1482,7 +1482,7 @@ export interface TabelaExpedicao {
   url_seguimento: ColumnType<string | null, never, string | null>;
 }
 
-/** O estado da etiqueta de uma expedição (docs/36 §4.1; 0078). */
+/** O estado da etiqueta de uma expedição (docs/36 §4.1; 0079). */
 export const ESTADOS_ETIQUETA = [
   "por_pedir",
   "a_pedir",
@@ -1663,6 +1663,9 @@ export interface BaseDados {
   documento_fiscal: TabelaDocumentoFiscal;
   documento_conteudo: TabelaDocumentoConteudo;
   documento_prova: TabelaDocumentoProva;
+  relatorio_oss_fecho: TabelaRelatorioOssFecho;
+  relatorio_oss_documento: TabelaRelatorioOssDocumento;
+  relatorio_oss_classificacao: TabelaRelatorioOssClassificacao;
   documento_rasto: TabelaDocumentoRasto;
   pedido_livre_resolucao: TabelaPedidoLivreResolucao;
   linha_livre_resolucao: TabelaLinhaLivreResolucao;
@@ -2054,4 +2057,39 @@ export interface TabelaAtribuicaoRasto {
   ia: ColumnType<unknown, never, never>;
   autorizado_por: ColumnType<string | null, never, never>;
   a_pedido_de: ColumnType<unknown, never, never>;
+}
+
+/** O fecho de um período do relatório OSS (docs/37 §3; migração 0078). */
+export interface TabelaRelatorioOssFecho {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  entidade_legal_id: ColumnType<string, string, never>;
+  granularidade: ColumnType<"trimestre" | "mes", "trimestre" | "mes", never>;
+  periodo: ColumnType<string, string, never>;
+  fotografia: ColumnType<unknown, string, never>;
+  versao_regra: ColumnType<number, number, never>;
+  confirmacoes: ColumnType<unknown, string | undefined, never>;
+  fechado_por: ColumnType<string, string, never>;
+  fechado_em: ColumnType<Date, never, never>;
+}
+
+/** Os documentos que entraram num fecho (uma vez só, P4; migração 0078). */
+/** A classificação de um documento pelo dono (P1-A; migração 0078). */
+export interface TabelaRelatorioOssClassificacao {
+  comerciante_id: ColumnType<string, string, never>;
+  documento_id: ColumnType<string, string, never>;
+  linhas: ColumnType<unknown, string, never>;
+  data: ColumnType<string | null, string | null | undefined, never>;
+  motivo: ColumnType<string, string, never>;
+  decidido_por: ColumnType<string, string, never>;
+  decidido_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaRelatorioOssDocumento {
+  comerciante_id: ColumnType<string, string, never>;
+  fecho_id: ColumnType<string, string, never>;
+  granularidade: ColumnType<"trimestre" | "mes", "trimestre" | "mes", never>;
+  documento_id: ColumnType<string, string, never>;
+  periodo_original: ColumnType<string, string, never>;
+  linhas: ColumnType<unknown, string | undefined, never>;
 }

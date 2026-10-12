@@ -5,7 +5,7 @@ Pedido do Diogo, 12/10/2026: *«depois avança com a parte B dos envios»*
 
 ## O que se fez
 
-- Migração 0078, com:
+- Migração 0079, com:
   - a etiqueta na expedição;
   - o ficheiro dela, na base;
   - os eventos de seguimento, só acrescentados;

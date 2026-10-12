@@ -26,6 +26,7 @@ import {
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
 import { AdaptadorMoloni } from "../src/faturacao/moloni.js";
+import { hojeEmLisboa, periodoDe } from "../src/faturacao/oss.js";
 import {
   correrDocumentos,
   correrRenovacoes,
@@ -257,6 +258,8 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
           "invoices:accounts",
           "customers:billing",
           "customers:exemptions",
+          "tax:read",
+          "tax:write",
         ],
       })
     ).segredo;
@@ -1903,5 +1906,400 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         }),
       ),
     ).toEqual([409, "invoices.invalid_transition"]);
+  });
+  // ----------------------------------- O relatório OSS (docs/37; EF, #310)
+
+  // O trimestre de hoje no fuso de Portugal, como o relatório (P2).
+  const trimestreDeHoje = () => periodoDe(hojeEmLisboa(), "trimestre");
+  const relatorio = (s: Cenario, periodo: string) =>
+    ok(
+      s.adm(
+        "GET",
+        `/tax-reports/oss?entidade=lgl_${s.entidade}&periodo=${periodo}`,
+      ),
+    );
+
+  it("relatório OSS: a venda nacional emitida entra no balde nacional, das provas; o período em curso não fecha", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    const e = await paga(s, [[s.v1, 2]]);
+    await ateParar();
+    const d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("emitido");
+    const periodo = trimestreDeHoje();
+    const r = await relatorio(s, periodo);
+    const prova = d["prova"] as { totais: { base: number; iva: number } };
+    const nacional = (r["baldes"] as Json[]).find(
+      (b) => b["balde"] === "nacional",
+    );
+    expect(nacional).toMatchObject({
+      base: prova.totais.base,
+      iva: prova.totais.iva,
+      linhas: [{ pais: "PT", taxa: 2300, documentos: 1 }],
+    });
+    expect(
+      (r["baldes"] as Json[]).find((b) => b["balde"] === "oss")?.["linhas"],
+    ).toEqual([]);
+    expect(r["limiar"]).toMatchObject({ limiar: 1_000_000, passou: false });
+    expect(r["impedimentos"]).toContainEqual({
+      motivo: "periodo_em_curso",
+      documentos: [],
+    });
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/close", {
+          entidade: `lgl_${s.entidade}`,
+          periodo,
+        }),
+      ),
+    ).toEqual([409, "tax_reports.not_closable"]);
+    // Os registos do art. 63.º-C, em CSV.
+    const csv = await s.adm(
+      "GET",
+      `/tax-reports/oss/records?entidade=lgl_${s.entidade}&periodo=${periodo}`,
+    );
+    expect(csv.statusCode).toBe(200);
+    expect(csv.headers["content-type"]).toMatch(/^text\/csv/);
+    // Com BOM, para a folha de cálculo ler os acentos (revisão do #392).
+    expect(csv.body.startsWith("\uFEFF")).toBe(true);
+    const linhas = csv.body.slice(1).trim().split("\r\n");
+    expect(linhas[0]).toMatch(/^periodo,periodo_original,tipo,numero/);
+    expect(linhas).toHaveLength(
+      1 + (prova as unknown as { linhas: unknown[] }).linhas.length,
+    );
+    expect(linhas[1]).toContain(String((d["prova"] as Json)["numero"]));
+  });
+
+  it("relatório OSS: fechar um período passado congela-o; o que chega depois com data dele é alteração do período seguinte (P3, P4, P6)", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    const corpo = { entidade: `lgl_${s.entidade}`, periodo: "2026-T3" };
+    // Só o dono fecha (Q-O4).
+    const gestor = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Gestor",
+        ambitos: ["tax:read"],
+      })
+    ).segredo;
+    expect(
+      await codigo(
+        pedir("POST", "/tax-reports/oss/close", corpo, {
+          authorization: `Bearer ${gestor}`,
+        }),
+      ),
+    ).toEqual([403, "auth.forbidden"]);
+    const fechado = await ok(s.adm("POST", "/tax-reports/oss/close", corpo));
+    expect(fechado["fechado"]).toMatchObject({ versao_regra: 1 });
+    expect(
+      await codigo(s.adm("POST", "/tax-reports/oss/close", corpo)),
+    ).toEqual([409, "tax_reports.already_closed"]);
+    const antes = await relatorio(s, "2026-T3");
+    // Um período anterior ao último fechado já não se fecha (P1-B).
+    expect((await relatorio(s, "2026-T2"))["impedimentos"]).toContainEqual({
+      motivo: "periodo_posterior_fechado",
+      documentos: [],
+    });
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/close", {
+          ...corpo,
+          periodo: "2026-T2",
+        }),
+      ),
+    ).toEqual([409, "tax_reports.not_closable"]);
+    // Uma fatura que sai agora com a data de 15/09 (o emissor de ensaio
+    // devolve a data que se lhe disser).
+    ensaio.conta(conta).aoFechar = (doc) => ({ ...doc, data: "2026-09-15" });
+    const e = await paga(s, [[s.v1, 2]]);
+    await ateParar();
+    delete ensaio.conta(conta).aoFechar;
+    const d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("emitido");
+    // O período fechado não muda (é a fotografia).
+    expect(await relatorio(s, "2026-T3")).toEqual(antes);
+    const t4 = await relatorio(s, "2026-T4");
+    expect(t4["alteracoes"]).toEqual([
+      expect.objectContaining({
+        periodo_original: "2026-T3",
+        balde: "nacional",
+        pais: "PT",
+        taxa: 2300,
+        documentos: 1,
+      }),
+    ]);
+    // A base não deixa mudar nem apagar um fecho.
+    await expect(
+      sql`update relatorio_oss_fecho set periodo = '2026-T2'
+        where comerciante_id = ${s.c}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/tax_reports\.immutable/);
+    await expect(
+      sql`delete from relatorio_oss_fecho where comerciante_id = ${s.c}::uuid`.execute(
+        base.dono,
+      ),
+    ).rejects.toThrow(/tax_reports\.immutable/);
+    expect(await eventos(s)).toContain("tax_report.closed");
+    // A API não lê fechos nem documentos declarados de outro comerciante.
+    await expect(
+      naBase(s, (trx) =>
+        sql`select count(*) from relatorio_oss_fecho`.execute(trx),
+      ),
+    ).resolves.toMatchObject({ rows: [{ count: "1" }] });
+    // Os registos do T4 trazem a alteração com o período de origem (P4).
+    const registos = await s.adm(
+      "GET",
+      `/tax-reports/oss/records?entidade=lgl_${s.entidade}&periodo=2026-T4`,
+    );
+    expect(registos.statusCode).toBe(200);
+    expect(registos.body).toContain(",2026-T3,fatura,");
+  });
+
+  it("relatório OSS: outro comerciante não lê nem fecha; dois fechos ao mesmo tempo dão um só", async () => {
+    const s = await cenario();
+    const outro = await cenario();
+    const corpo = { entidade: `lgl_${s.entidade}`, periodo: "2026-T2" };
+    expect(
+      await codigo(
+        outro.adm(
+          "GET",
+          `/tax-reports/oss?entidade=lgl_${s.entidade}&periodo=2026-T2`,
+        ),
+      ),
+    ).toEqual([404, "tax_reports.not_found"]);
+    expect(
+      await codigo(outro.adm("POST", "/tax-reports/oss/close", corpo)),
+    ).toEqual([404, "tax_reports.not_found"]);
+    const respostas = await Promise.all([
+      s.adm("POST", "/tax-reports/oss/close", corpo),
+      s.adm("POST", "/tax-reports/oss/close", corpo),
+    ]);
+    expect(respostas.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    expect(
+      respostas.find((r) => r.statusCode === 409)?.json<Json>(),
+    ).toMatchObject({ codigo: "tax_reports.already_closed" });
+  });
+
+  it("relatório OSS: uma fatura resolvida com a taxa diferente impede; o dono classifica-a uma vez e entra com a taxa da prova (P1-A)", async () => {
+    const s = await cenario();
+    const outro = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    // O emissor devolve a primeira linha a 21 % em vez de 23 %.
+    ensaio.conta(conta).aoFechar = (doc) => ({
+      ...doc,
+      linhas: doc.linhas.map((l, i) => (i === 0 ? { ...l, taxa: 2100 } : l)),
+    });
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    delete ensaio.conta(conta).aoFechar;
+    let d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("divergente");
+    const nacionalPT = (d["prova"] as Json)["linhas"] as Json[];
+    const corpoDivergente = {
+      documento: d["id"],
+      linhas: nacionalPT.map(() => ({ balde: "nacional", pais: "PT" })),
+      motivo: "ainda por resolver",
+    };
+    // Divergente ainda por resolver: não se classifica (3.ª revisão, P3-2).
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/classifications", corpoDivergente),
+      ),
+    ).toEqual([409, "tax_reports.not_classifiable"]);
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/resolve`, {
+        versao: d["versao"],
+        motivo: "aceite: a taxa sai na nota de crédito",
+      }),
+    );
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("resolvido");
+    const periodo = trimestreDeHoje();
+    expect((await relatorio(s, periodo))["impedimentos"]).toContainEqual({
+      motivo: "linhas_desalinhadas",
+      documentos: [d["id"]],
+    });
+    const provaLinhas = (d["prova"] as Json)["linhas"] as Json[];
+    const corpo = {
+      documento: d["id"],
+      linhas: provaLinhas.map(() => ({ balde: "nacional", pais: "PT" })),
+      motivo: "visto: declara-se à taxa da fatura emitida",
+    };
+    // Outro comerciante não o vê; uma linha a menos e uma data com a prova
+    // datada são recusadas.
+    expect(
+      await codigo(
+        outro.adm("POST", "/tax-reports/oss/classifications", corpo),
+      ),
+    ).toEqual([404, "tax_reports.not_found"]);
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/classifications", {
+          ...corpo,
+          linhas: corpo.linhas.slice(1),
+        }),
+      ),
+    ).toEqual([400, "tax_reports.invalid"]);
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/classifications", {
+          ...corpo,
+          data: "2026-10-01",
+        }),
+      ),
+    ).toEqual([400, "tax_reports.invalid"]);
+    // O par balde/país tem de ser coerente (P2-A): OSS para o próprio país,
+    // nacional noutro, exportação dentro da UE.
+    for (const par of [
+      { balde: "oss", pais: "PT" },
+      { balde: "nacional", pais: "ES" },
+      { balde: "exportacao", pais: "FR" },
+    ]) {
+      expect(
+        await codigo(
+          s.adm("POST", "/tax-reports/oss/classifications", {
+            ...corpo,
+            linhas: corpo.linhas.map(() => par),
+          }),
+        ),
+      ).toEqual([400, "tax_reports.invalid"]);
+    }
+    // Só o dono classifica (tax:write).
+    const leitor = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Leitor",
+        ambitos: ["tax:read"],
+      })
+    ).segredo;
+    expect(
+      await codigo(
+        pedir("POST", "/tax-reports/oss/classifications", corpo, {
+          authorization: `Bearer ${leitor}`,
+        }),
+      ),
+    ).toEqual([403, "auth.forbidden"]);
+    await ok(s.adm("POST", "/tax-reports/oss/classifications", corpo));
+    expect(
+      await codigo(s.adm("POST", "/tax-reports/oss/classifications", corpo)),
+    ).toEqual([409, "tax_reports.already_classified"]);
+    const r = await relatorio(s, periodo);
+    expect((r["impedimentos"] as Json[]).map((i) => i["motivo"])).not.toContain(
+      "linhas_desalinhadas",
+    );
+    const nacional = (r["baldes"] as Json[]).find(
+      (b) => b["balde"] === "nacional",
+    ) as Json;
+    expect(nacional["linhas"]).toContainEqual(
+      expect.objectContaining({ pais: "PT", taxa: 2100, documentos: 1 }),
+    );
+    // Uma fatura que o relatório já classifica não se classifica à mão.
+    const e2 = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    const d2 = (await documentoDe(s, e2.encomenda)) as Json;
+    expect(d2["estado"]).toBe("emitido");
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/classifications", {
+          ...corpo,
+          documento: d2["id"],
+        }),
+      ),
+    ).toEqual([409, "tax_reports.not_classifiable"]);
+    // A base não deixa mudar a decisão.
+    await expect(
+      sql`update relatorio_oss_classificacao set motivo = 'outro'
+        where comerciante_id = ${s.c}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/tax_reports\.immutable/);
+  });
+
+  it("relatório OSS: uma prova sem data impede; o dono dá-lhe uma data entre o pedido e hoje (P1-A; P2-B)", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    ensaio.conta(conta).aoFechar = (doc) => ({ ...doc, data: null });
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    delete ensaio.conta(conta).aoFechar;
+    const d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("emitido");
+    const periodo = trimestreDeHoje();
+    expect((await relatorio(s, periodo))["impedimentos"]).toContainEqual({
+      motivo: "sem_data",
+      documentos: [d["id"]],
+    });
+    const corpo = {
+      documento: d["id"],
+      linhas: ((d["prova"] as Json)["linhas"] as Json[]).map(() => ({
+        balde: "nacional",
+        pais: "PT",
+      })),
+      motivo: "a data está no PDF da fatura",
+    };
+    for (const data of [undefined, "2015-01-01", "2099-01-01"]) {
+      expect(
+        await codigo(
+          s.adm(
+            "POST",
+            "/tax-reports/oss/classifications",
+            data === undefined ? corpo : { ...corpo, data },
+          ),
+        ),
+      ).toEqual([400, "tax_reports.invalid"]);
+    }
+    await ok(
+      s.adm("POST", "/tax-reports/oss/classifications", {
+        ...corpo,
+        data: hojeEmLisboa(),
+      }),
+    );
+    const r = await relatorio(s, periodo);
+    expect((r["impedimentos"] as Json[]).map((i) => i["motivo"])).not.toContain(
+      "sem_data",
+    );
+    expect(
+      ((r["baldes"] as Json[]).find((b) => b["balde"] === "nacional") as Json)[
+        "linhas"
+      ],
+    ).toContainEqual(expect.objectContaining({ pais: "PT", documentos: 1 }));
+  });
+
+  it("relatório OSS: as vendas emitidas fora do Eurolify ficam à parte, com o número declarado (Q-F3)", async () => {
+    const s = await cenario();
+    const { d } = await pagaAntesDeEscolher(s);
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "sistema_proprio",
+      }),
+      204,
+    );
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/issued-elsewhere`, {
+        versao: d["versao"],
+        motivo: "faturada no sistema da loja",
+        numero: "FT 2026/90",
+      }),
+    );
+    const r = await relatorio(s, trimestreDeHoje());
+    expect((r["a_parte"] as Json)["emitidas_fora"]).toEqual([
+      expect.objectContaining({
+        documento: d["id"],
+        numero_declarado: "FT 2026/90",
+        pais: "PT",
+      }),
+    ]);
+    for (const b of r["baldes"] as Json[]) expect(b["linhas"]).toEqual([]);
+    expect(
+      await codigo(
+        s.adm(
+          "GET",
+          `/tax-reports/oss?entidade=lgl_${s.entidade}&periodo=2026-T9`,
+        ),
+      ),
+    ).toEqual([400, expect.any(String)]);
   });
 });

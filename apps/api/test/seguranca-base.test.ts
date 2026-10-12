@@ -105,7 +105,7 @@ const FUNCOES_DA_API = [
   "encomendas_tarefas",
   "entrar_com_palavra_passe",
   "entrar_com_passkey",
-  // Os envios (0078): a porta dos avisos e o trabalho da API.
+  // Os envios (0079): a porta dos avisos e o trabalho da API.
   "envios_avisos_resumir",
   "envios_comerciantes_com_trabalho",
   "envios_conta_do_aviso",

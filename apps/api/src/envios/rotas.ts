@@ -307,7 +307,7 @@ export function rotasDosEnvios(
       })),
   );
 
-  // ------------------------------------------- A etiqueta (parte B, 0078)
+  // ------------------------------------------- A etiqueta (parte B, 0079)
 
   const paraEtiqueta = (e: Awaited<ReturnType<typeof lerEtiqueta>>) => ({
     expedicao: `shp_${e.id}`,
