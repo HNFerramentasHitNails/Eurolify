@@ -1192,7 +1192,12 @@ export async function documentoParaClassificar(
     async (trx) => {
       const d = await trx
         .selectFrom("documento_fiscal")
-        .select(["entidade_legal_id"])
+        .select([
+          "entidade_legal_id",
+          sql<string>`to_char((criado_em at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD')`.as(
+            "desde",
+          ),
+        ])
         .where("id", "=", documento)
         .executeTakeFirst();
       if (d === undefined) {
@@ -1218,6 +1223,10 @@ export async function documentoParaClassificar(
         data_prova: x.data_prova ?? null,
         moeda: x.conteudo.moeda,
         classificado: x.classificacao != null,
+        // O total da prova (positivo, como as linhas) e a data mais antiga
+        // que a classificação aceita (o dia em que o pedido nasceu).
+        total: x.linhas.reduce((t, l) => t + l.base + l.iva, 0),
+        data_minima: d.desde,
         linhas: x.linhas.map((l) => ({
           descricao: l.descricao,
           quantidade: l.quantidade,

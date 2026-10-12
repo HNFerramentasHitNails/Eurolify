@@ -1046,6 +1046,7 @@ export const pt = {
   tipoDocumento_nota_credito: "Nota de crédito",
   classificarDocumento: "{tipo} {numero}",
   classificarDataDaProva: "Data: {data}",
+  classificarTotal: "Total: {total}",
   classificarSemData: "A prova não tem data.",
   classificarLinhas: "As linhas da prova, pela ordem dela",
   classificarLinha: "Linha {n}: {descricao}",

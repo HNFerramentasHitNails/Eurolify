@@ -1061,6 +1061,7 @@ export const es: Textos = {
   tipoDocumento_nota_credito: "Nota de crédito",
   classificarDocumento: "{tipo} {numero}",
   classificarDataDaProva: "Fecha: {data}",
+  classificarTotal: "Total: {total}",
   classificarSemData: "La prueba no tiene fecha.",
   classificarLinhas: "Las líneas de la prueba, en su orden",
   classificarLinha: "Línea {n}: {descricao}",

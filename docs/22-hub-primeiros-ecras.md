@@ -2130,3 +2130,26 @@ o artigo dos portes e o cliente «Consumidor final».
   fechado.
 - **Capturas**: a 375, 768 e 1280 px, claro e escuro, para a página de
   aprovação (`eurolify-hub-quality-gate`).
+
+### 29.7 Em código (12/10/2026; pedido #408)
+
+| O quê | Onde |
+|---|---|
+| as rotas `/hub/invoicing…` (a faturação, ligar, concluir, testar), pelo papel da sessão e com autenticação recente para ligar | `apps/api/src/faturacao/rotas.ts` |
+| as rotas `/hub/tax-reports/oss…` (o relatório com `classificavel`, o documento a classificar, classificar, fechar com autenticação recente, os registos) | `apps/api/src/faturacao/rotas-oss.ts`; `paisesPorBalde`, `classificavelOss` e `documentoParaClassificar` em `oss.ts` |
+| o módulo, a página «Faturação», o regresso do Moloni e o relatório OSS, com os diálogos | `apps/hub/src/ecras/Faturacao.tsx`, `RelatorioOss.tsx`, `Dialogo.tsx`; a lógica em `apps/hub/src/faturacao.ts` |
+| testes: as rotas pelo papel (`apps/api/test/faturacao-hub.test.ts`), a lógica do Hub (`apps/hub/test/faturacao.test.ts`) e as capturas (`scripts/capturas.mjs`, com `/faturacao`) | — |
+
+**Desvio do desenho:** uma rota a mais, `GET /hub/tax-reports/oss/documents/{id}`.
+O relatório não traz as linhas da prova, e o diálogo «Classificar» precisa
+delas. A rota devolve o número, a data, o total, a data mínima e as linhas;
+nunca o NIF nem o nome do cliente.
+
+**Por fazer:**
+- **A exportação:** os países fora da UE ainda não vêm do servidor. O ecrã
+  pede o código, e a API confere-o.
+- **`periodo_anterior_aberto`:** o impedimento não diz qual é o período.
+- **Os erros do relatório em espanhol:** saem com a mensagem genérica.
+- **O relatório OSS nas capturas:** não entra, porque o script não sabe o id
+  da entidade.
+- **A passagem com uma passkey real e no Safari de um iPhone.**

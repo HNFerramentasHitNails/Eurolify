@@ -143,6 +143,10 @@ export interface DocumentoAClassificar {
   data_prova: string | null;
   moeda: string;
   classificado: boolean;
+  /** O total da prova, em cêntimos (positivo, como as linhas). */
+  total: number;
+  /** A data mais antiga que a classificação aceita (o dia do pedido). */
+  data_minima: string;
   linhas: {
     descricao: string;
     quantidade: number;

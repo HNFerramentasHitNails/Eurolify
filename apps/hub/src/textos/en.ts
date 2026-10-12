@@ -1046,6 +1046,7 @@ export const en: Textos = {
   tipoDocumento_nota_credito: "Credit note",
   classificarDocumento: "{tipo} {numero}",
   classificarDataDaProva: "Date: {data}",
+  classificarTotal: "Total: {total}",
   classificarSemData: "The proof has no date.",
   classificarLinhas: "The proof's lines, in its order",
   classificarLinha: "Line {n}: {descricao}",

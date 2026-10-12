@@ -855,6 +855,10 @@ function DialogoClassificar({
               })}
             </strong>
             {" · "}
+            {preencher(t.classificarTotal, {
+              total: montante(doc.total, TAG_LINGUA[lingua], doc.moeda),
+            })}
+            {" · "}
             {doc.data_prova === null
               ? t.classificarSemData
               : preencher(t.classificarDataDaProva, {
@@ -977,6 +981,7 @@ function DialogoClassificar({
               <input
                 id="data-classificar"
                 type="date"
+                min={doc.data_minima}
                 max={hoje}
                 value={data}
                 aria-describedby="data-classificar-ajuda"
