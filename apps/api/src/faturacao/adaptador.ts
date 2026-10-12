@@ -1,7 +1,7 @@
 import type { AdaptadorFaturacao as NomeAdaptador } from "../base/esquema.js";
 import type { ChavePagamentos } from "../pagamentos/cifra.js";
 
-// O contrato do adaptador de faturação (docs/28 §7.4; docs/08 §4): o mesmo
+// O contrato do adaptador de faturação (docs/29 §7.4; docs/08 §4): o mesmo
 // para o adaptador de ensaio, para o Moloni (parte 2) e para o de um
 // terceiro. O adaptador **não decide** nada fiscal: recebe a decisão já
 // tomada (o conteúdo do pedido, já mapeado para as taxas e isenções do
@@ -34,6 +34,9 @@ export interface LinhaPedida {
 }
 
 export interface PedidoRascunho {
+  tipo: "fatura" | "nota_credito";
+  /** Na nota de crédito: a fatura que corrige, como saiu. */
+  original: { numero: string; emissor_id: string | null } | null;
   /** A nossa referência (`inv_…`), escrita no documento para o reencontrar. */
   referencia: string;
   serie: string | null;
@@ -65,6 +68,7 @@ export interface LinhaNoEmissor {
 /** Um documento como o emissor o tem (rascunho ou fechado). */
 export interface DocumentoNoEmissor {
   id: string;
+  tipo: "fatura" | "nota_credito";
   estado: "rascunho" | "fechado";
   referencia: string | null;
   numero: string | null;
@@ -89,7 +93,7 @@ export type Procura =
 /**
  * Um erro de rede, de tempo esgotado ou uma resposta que não se lê **depois
  * de pedir alguma coisa que pode ter ficado feita**: o pedido fica `incerto`
- * e reconcilia-se; nunca se repete às cegas (docs/28 §4.2).
+ * e reconcilia-se; nunca se repete às cegas (docs/29 §4.2).
  */
 export class ErroDeRede extends Error {
   constructor(mensagem: string, options?: ErrorOptions) {
@@ -172,7 +176,7 @@ interface ContaDoEnsaio {
 }
 
 /**
- * Um emissor de ensaio, em memória (docs/28 Q5): comporta-se como um software
+ * Um emissor de ensaio, em memória (docs/29 Q5): comporta-se como um software
  * certificado (rascunho, fechar, numerar, procurar pela referência), só existe
  * em modo teste e **nunca** fala com ninguém. As credenciais são
  * `{ "conta": "…" }`; uma conta que começa por `recusa` não é aceite.
@@ -259,6 +263,7 @@ export class EmissorDeEnsaio implements AdaptadorFaturacao {
     const iva = linhas.reduce((s, l) => s + l.iva, 0);
     const documento: DocumentoNoEmissor = {
       id,
+      tipo: pedido.tipo,
       estado: "rascunho",
       referencia: pedido.referencia,
       numero: null,
@@ -317,7 +322,7 @@ export class EmissorDeEnsaio implements AdaptadorFaturacao {
     let fechado: DocumentoNoEmissor = {
       ...d,
       estado: "fechado",
-      numero: `FT ${d.serie ?? "ENS"}/${String(c.numero)}`,
+      numero: `${d.tipo === "nota_credito" ? "NC" : "FT"} ${d.serie ?? "ENS"}/${String(c.numero)}`,
       data: new Date().toISOString().slice(0, 10),
       atcud: `ENSAIO-${String(c.numero)}`,
     };

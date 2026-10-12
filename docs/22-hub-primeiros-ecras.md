@@ -859,12 +859,19 @@ servidor (uma regra, um sítio):
 
 | `quem` guardado | `autor` | O ecrã mostra |
 |---|---|---|
-| `pessoa:per_…` de quem **é ou foi** membro deste comerciante | `{ tipo: "pessoa", nome }`, o nome da conta (pseudonimizada: «Pessoa pseudonimizada», que é o que fica guardado, `docs/21` §13 ponto 7) | o nome |
-| `pessoa:per_…` que nunca foi membro deste comerciante | `{ tipo: "pessoa", nome: null }` | «Pessoa de fora desta equipa» (não devia acontecer; não se mostra o nome de quem não é da equipa) |
-| `chave:key_…` deste comerciante | `{ tipo: "chave", nome }`, o nome da chave | «Chave «{nome}»» |
-| `chave:key_…` que não é deste comerciante, ou apagada | `{ tipo: "chave", nome: null }` | «Chave de API» |
-| `sistema:<tarefa>` ou `catalogo:<motivo>` | `{ tipo: "sistema", nome: null }` | «Automático»; com `catalogo:verificacao_falhou`, «Automático» e, na publicação, o motivo com o texto que a ficha já usa («Deixou de cumprir as regras de publicação», `textos/pt.ts` linha 404) |
-| outro valor | `{ tipo: "outro", nome: null }` | o valor guardado, tal como está |
+| `pessoa:per_…` de quem **é ou foi** membro deste comerciante | `{ nome }`, o nome da conta (pseudonimizada: «Pessoa pseudonimizada», que é o que fica guardado, `docs/21` §13 ponto 7) | o nome |
+| `pessoa:per_…` que nunca foi membro deste comerciante | `{ nome: null }` | «Pessoa de fora desta equipa» (não devia acontecer; não se mostra o nome de quem não é da equipa) |
+| `chave:key_…` deste comerciante | `{ nome }`, o nome da chave | «Chave «{nome}»» |
+| `chave:key_…` que não é deste comerciante, ou apagada | `{ nome: null }` | «Chave de API» |
+| `sistema:<tarefa>` ou `catalogo:<motivo>` | `{ nome: null }` | «Automático»; com `catalogo:verificacao_falhou`, «Automático» e, na publicação, o motivo com o texto que a ficha já usa («Deixou de cumprir as regras de publicação», `textos/pt.ts` linha 404) |
+| `operador:…`, `checkout:…`, `prestador:…` (`tipo_de_autor` `operador`, `consumidor`, `prestador`) | `{ nome: null }` | «Operador», «Cliente», «Prestador de pagamentos» (revisão do #359, P3-3) |
+| outro valor (`tipo_de_autor` `desconhecido`) | `{ nome: null }` | o valor guardado, tal como está |
+
+O tipo de quem fez vem no `tipo_de_autor` de cada entrada (`docs/28` §3.8);
+o `autor` só traz o nome. Um `pessoa:` mal escrito (sem `per_` e o
+identificador) tem o tipo `pessoa` mas nenhum nome: aparece como «Pessoa de
+fora desta equipa» (revisão do #361, P3-2). O antigo `autor.tipo` saiu a 11/10/2026, quando o
+Hub deixou de o ler (§26.1).
 
 **Dados pessoais** (`eu-gdpr-privacy`): o nome serve a finalidade já
 registada em `docs/21` linha 239 («saber quem fez o quê»), e só o vêem o dono
@@ -1435,6 +1442,144 @@ GTIN do fornecedor e 400 g.
   1280 px, claro e escuro, e só com teclado; as capturas vão à página de
   aprovação.
 
+## 25. Catálogo: definir e tirar o preço de uma variante numa lista (issue #335)
+
+Pedido do Diogo, 10/10/2026 («avançar», à pergunta *«Avanço com o desenho
+de "editar os preços de uma variante" no Hub?»*). **Aprovado pelo Diogo a
+10/10/2026**, com a Q1 em «sim» (*«sim»*, à pergunta *«Aprova o desenho, e
+com a Q1 em "sim"?»*). A §17 só mostra os
+preços. Uma variante acrescentada no Hub (§24) nasce sem preço, e sem preço
+na lista base de um mercado o artigo não se publica nesse mercado
+(`docs/14` §5, C2). A API pela chave já define e tira preços
+(`PUT` e `DELETE /price-lists/{id}/prices/{variante}`, `docs/20` §10). O Hub
+ainda não tem as rotas. Skills: `consumer-rights-eu`, `eu-vat-oss-ioss`,
+`eu-localization`, `catalog-pim`, `headless-commerce`, `eurolify-design`.
+
+Ex.: na ficha do «Gel Coral 41», a `ENS-041-B` diz «Sem preço nesta lista»
+na lista «Base PT» (Portugal, EUR, preços com IVA). A gestora carrega em
+«Definir preço», escreve 39,90 e guarda. A ficha volta com «Preço de
+ENS-041-B em Base PT guardado.» e mostra 39,90 € e o preço por unidade que
+o servidor calculou.
+
+### 25.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **Definir** o preço de uma variante activa numa lista activa (criá-lo ou mudá-lo): o montante na moeda da lista, «gratuito», a quantidade mínima e o múltiplo |
+| **Tirar** o preço de uma variante de uma lista (fica no histórico, com a saída, `docs/20` §3.5) |
+
+| Fica de fora, e porquê |
+|---|
+| **Anunciar ou tirar uma redução** (o preço riscado): o preço de referência dos 30 dias tem regras ainda **C** (Dir. 98/6/CE, art. 6.º-A; `docs/20` §3.6, à espera do jurista). Passo à parte, se for pedido. |
+| **Criar, arquivar ou mudar listas e mercados**: outro ecrã, ainda por desenhar. |
+| **Preços de variantes arquivadas**: não se vendem; o botão aparece só nas activas. A API não as recusa, nem pela chave nem pelo Hub (uma variante arquivada pode ter preço, e repô-la volta a vendê-la com ele); é uma escolha do ecrã, não uma regra (revisão do #339, P3-2). |
+| **O histórico de cada preço**: como na §17, entra quando houver onde o mostrar. |
+| **Mostrar o IVA ou o preço por unidade no formulário**: o servidor calcula; o Hub mostra-os na ficha, depois de gravar (R1, R7; uma regra, um sítio). |
+| **Pôr a variante à venda**: com preço, a variante nova continua fora das publicações até a publicação ser refeita (§24.3). |
+
+### 25.2 Como o Hub escreve
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `PUT /hub/price-lists/{id}/prices/{variante}` | a sessão com `prices:write` (o dono e o gestor; `docs/20` §10.1) | a mesma função do `PUT` pela chave (`definirPreco`), com o `eurolify.quem` da pessoa; o corpo é o mesmo (`montante`, `gratuito`, `quantidade_minima`, `multiplo`) e leva também a `versao` lida |
+| `DELETE /hub/price-lists/{id}/prices/{variante}` | a mesma | a mesma função do `DELETE` pela chave (`tirarPreco`); a `versao` lida vai no corpo, como nas outras escritas do Hub (§21.2) |
+
+- **O preço lido.** O preço já tem uma `versao` na base (0017: sobe em cada
+  escrita), mas a API não a mostrava (`docs/20` §10.1). Todas as respostas
+  de preço passam a dá-la, ao lado do `definido_em` que já davam. As
+  escritas do Hub mandam o preço **`lido`**: `{versao, definido_em}`, ou
+  `null` quando a variante não tinha preço nessa lista. Se o preço guardado
+  não for o lido (também ao tirar um preço que já não existe), **409
+  `prices.version_conflict`**, sem gravar; a linha fica tomada entre
+  conferir e gravar. Sem isto, duas pessoas a mudar o mesmo preço
+  apagavam-se uma à outra sem aviso (o histórico guardava as duas, mas o
+  ecrã não dizia nada). As rotas pela chave ficam como estão.
+  - **Porquê os dois** (revisão do #339, P2-1): quando um preço sai e volta
+    a entrar, a `versao` recomeça em 1 (0017); o `definido_em` dessa entrada
+    é outro, e os dois juntos não se repetem. Uma migração que mantivesse a
+    versão a subir também resolvia, mas o número 0054 já estava em dois
+    pedidos abertos.
+  - **Com `lido: null`** só se cria: se outra pessoa criou o preço entretanto
+    (mesmo ainda por confirmar), 409 em vez de o substituir (revisão do
+    #339, P1-1).
+- **As regras são as da API e da base, sem cópia no Hub:**
+  - o montante em cêntimos, de 0 a 100 000 000 000; 0 só com «gratuito», e
+    «gratuito» só com 0 (R4; `prices.free_only_at_zero`);
+  - a quantidade mínima e o múltiplo de 1 a 1 000 000;
+  - numa lista arquivada não se escreve (`prices.list_archived`);
+  - com uma **redução em vigor**, o montante e o «gratuito» não mudam e o
+    preço não sai (`prices.reduction_active`); as quantidades mudam;
+  - o preço de uma variante **publicada** não sai da lista base do mercado
+    (`prices.published_variant`).
+- **Só variantes deste comerciante**: uma lista ou variante de outro
+  comerciante, ou que não existe, dá 404.
+- **O mesmo prazo de espera** das outras escritas do Hub (5 s, depois 503
+  `prices.retry`; §24, revisão do #326).
+- **Sem `Idempotency-Key`**, como as outras escritas do Hub. Se a resposta se
+  perde, o ecrã relê os preços do artigo. Se o preço guardado tem tudo o que
+  se enviou (ou, ao tirar, já não há preço), dá-o por gravado. Senão, diz que
+  não encontrou a mudança e deixa tentar outra vez.
+
+### 25.3 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Ficha**, secção «Preços» (§17.3) | Com `prices:write`: em cada variante activa, «Alterar preço» quando tem preço e «Definir preço» quando a lista diz «Sem preço nesta lista». | — |
+| **Preço da variante** (`/artigos/{prd_…}/precos/{prl_…}/{var_…}`) | No topo, a variante (SKU) e a lista (nome, mercado, moeda e «preços com IVA» ou «preços sem IVA», como na §17.3). Os campos: **Preço** («Preço com IVA (€)» ou «Preço sem IVA (€)», conforme o mercado), **Gratuito** (uma caixa; marcada, o preço fica 0 e não se escreve), **Quantidade mínima** e **Múltiplo** (1 por omissão). «Guardar», «Cancelar» e, quando há preço, «Tirar o preço desta lista», que pergunta antes. Numa lista base, a pergunta diz: «Sem preço na lista base, o artigo deixa de se poder publicar em {mercado}.» Depois de gravar, volta à ficha com «Preço de {sku} em {lista} guardado.» ou «Preço de {sku} tirado de {lista}.». Sair com o formulário mudado pergunta antes. | a gravar; o erro da API ao lado do campo (montante inválido, gratuito só a 0, quantidades); **com uma redução em vigor**: o preço e «gratuito» só de leitura, com «Este preço tem uma redução em vigor{até}: muda-se quando a redução acabar.» (as quantidades mudam); conflito (409: «Outra pessoa mudou este preço entretanto.», o formulário passa a partir do guardado e fica o que a pessoa escreveu, como a §23); variante publicada (409 ao tirar: «A variante está à venda em {mercado}: o preço não sai da lista base.»); a resposta perdida (§25.2); sem permissão, lista ou variante que não existe (só o aviso, sem formulário) |
+
+- **Escrever o montante.** O campo aceita o preço como se escreve na
+  língua do Hub: «39,90» ou «39.90», com as casas da moeda da lista (as do
+  `Intl.NumberFormat` para essa moeda; no euro, duas; nas outras moedas da
+  UE não verifiquei uma a uma). Não aceita separador de milhares nem sinal. O ecrã
+  passa o texto a cêntimos **sem vírgula flutuante** (R2: «39,90» → 3990)
+  e mostra-o de volta com `Intl.NumberFormat`. Fora disso, o erro aparece
+  ao lado do campo antes de pedir.
+- **Os limites copiados no ecrã** (revisão do #341, P3-2): o máximo do
+  montante (1 000 000 000,00) e o das quantidades (1 a 1 000 000) também
+  se conferem no Hub, e os textos dos erros trazem os números. A API
+  recusa-os no esquema do pedido, com um 400 `prices.invalid_field` que não
+  diz o campo; sem a cópia, o erro não ficava ao lado dele. Se os limites
+  mudarem na API (`PedidoPreco` e `Montante` em `precos/rotas.ts`), mudam
+  aqui também (`apps/hub/src/preco.ts`).
+- **Um 409 mostra sempre o conflito** (revisão do #341, P3-1): mesmo que o
+  preço guardado agora seja igual ao que se escreveu, foi outra pessoa a
+  gravá-lo. Só a resposta perdida se dá por gravada ao reler (§25.2).
+- **O IVA.** O Hub não calcula nem tira IVA. O rótulo diz se o montante
+  inclui IVA, porque é isso que o mercado guarda (`preco_inclui_iva`). O
+  preço que o cliente vê com o IVA do país sai do Motor de IVA (`docs/24`).
+
+### 25.4 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| Um preço a 0,00 € por engano | a base recusa 0 sem «gratuito» (R4); o ecrã só manda 0 com a caixa marcada |
+| «39,90» lido como 3990,00 € ou 39,9 lido como 39,09 € | a conversão é por texto, com no máximo as casas da moeda, e tem testes de unidade com os casos («39,9» → 3990; «39,905» recusado; «1.234,50» recusado) |
+| Duas pessoas mudam o mesmo preço | a versão (§25.2): a segunda recebe 409 |
+| Tirar o preço da lista base de um artigo à venda | a base recusa (`prices.published_variant`); a pergunta antes avisa o que acontece nos outros casos |
+| Uma chave ou um papel sem `prices:write` muda preços | a rota confere o âmbito da sessão; o armazém e o apoio recebem 403 (teste) |
+
+### 25.5 Decidido
+
+**Q1. Num artigo que vem do sistema de gestão (P5), os preços editam-se no
+Hub?** ✅ **Decidido: sim** (Diogo, 10/10/2026, *«sim»*). A decisão da §13.3 lista só os dados do artigo e das variantes; os
+preços não estão nela. Editam-se, como as imagens. Os preços são do
+domínio de Preços e não dos dados que vêm de lá. Se o sistema de gestão
+também mandar preços pela chave, vale o último a gravar, e o histórico diz
+quem foi (`definido_por`).
+
+### 25.6 Antes de dizer que está feito (o pedido do código)
+
+- **API**: as rotas pelo Hub fazem o mesmo que as da chave; a versão na
+  leitura, e 409 com outra versão (também `null` quando já há preço);
+  o armazém e o apoio recebem 403; outro comerciante não chega (404, com
+  prova pela falha); a redução em vigor, a lista arquivada e a variante
+  publicada são recusadas; `definido_por` é a pessoa; o prazo de espera.
+- **Hub**: a passagem define o preço da `ENS-041-B` na «Base PT» só com o
+  teclado, muda-o, recebe o conflito, tira-o de uma lista B2B, é recusada a
+  tirar o de uma variante publicada da lista base, e vê o formulário com
+  uma redução em vigor; a resposta perdida; capturas a 375, 768 e 1280 px,
+  claro e escuro, para a página de aprovação.
+
 ## O que não foi verificado
 
 - **Na VPS** (revisão do #160, P3-11): que o nginx chega ao contentor pelo
@@ -1455,3 +1600,89 @@ GTIN do fornecedor e 400 g.
   Android, Firefox): os testes usam o autenticador em software.
 - As versões das bibliotecas novas (`react`, `vite`, `@simplewebauthn/browser`)
   contra o `npm audit` e a idade mínima do pnpm: lê-se ao instalar.
+
+## 26. O rasto de auditoria no Hub: as seis respostas (issue #322, passo 4, parte 5)
+
+Pedido do Diogo, 11/10/2026: *«avança com o desenho do ecrã do Hub»*. O
+rasto já responde às seis perguntas na API (`docs/28` §1; decisões DK e DO,
+Q5 a Q8; #342, #345, #349, #351, #354); o Hub ainda só mostra quem, quando e
+o antes → depois (§16). Este passo **só lê** no histórico; no ecrã das chaves
+acrescenta uma escolha ao criar. Skills: `eurolify-design`,
+`eurolify-hub-modular`, `eurolify-hub-quality-gate`, `eu-gdpr-privacy`,
+`observability-security`.
+
+Ex.: na ficha do «Verniz Gel Vermelho 15 ml», o dono abre «Histórico» e vê,
+por baixo de «Hoje, 03:00 — Chave «Preços» alterou o artigo», a linha
+**«Pela API · Agente de IA (declarado: anthropic, claude-x) · ⚠ Sem
+autorização de uma pessoa»**. Numa conclusão automática: «Automático, a
+pedido de Chave «Preços» · ⚠ Sem autorização de uma pessoa». Numa alteração
+do próprio dono no Hub: «No Hub · Autorizado por Ana Teste».
+
+### 26.1 O que entra e o que fica de fora
+
+| Entra | Onde | Rota da API |
+|---|---|---|
+| Em cada alteração do histórico do artigo, **uma linha de contexto** por baixo de quem e quando: de onde veio, a IA (só quando declarada ou comprovada), quem autorizou ou o aviso, e o motivo quando há | Histórico do artigo (§16.3) | `GET /hub/products/{id}/timeline`, que já traz `canal`, `pedido`, `ia`, `autorizado_por`, `motivo`, `tipo_de_autor`, `a_pedido_de`, `a_pedido_de_tipo` e `sem_autorizacao_de_pessoa` |
+| **O nome** de quem autorizou e de quem pediu uma tarefa | o mesmo | a mesma: a API do Hub junta `autor_autorizou` e `autor_do_pedido`, decididos no servidor como o `autor` de hoje (§16.2) |
+| **«Detalhes»** de cada alteração (um `<details>`, fechado): o n.º do pedido, a execução da IA e a IA «desconhecida» quando nada a indica | o mesmo | a mesma |
+| Ao **criar uma chave**, a caixa «Chave de um agente de IA», com a explicação; na lista, a etiqueta «Agente de IA» | Chaves (§9.3) | `POST /hub/keys` e `GET /hub/keys`, que já aceitam e devolvem `agente_ia` (#342) |
+| Os nomes dos âmbitos `prices:*` no ecrã das chaves (hoje saem vazios; revisão do #349, P3-5) | Chaves | — |
+
+| Fica de fora, e porquê |
+|---|
+| O histórico dos **clientes, encomendas, pagamentos, documentos e preços** no Hub: a API já os dá com as seis respostas, mas o Hub ainda não tem esses ecrãs. Entram com eles. |
+| **Filtrar** por «sem autorização de uma pessoa»: entra quando o histórico for longo o bastante (como os outros filtros, §16.1). |
+| **Autorizar** a posteriori uma alteração feita sem autorização: seria uma escrita nova, com regras próprias (Q3: exigir passa a ser uma regra por âmbito, decidida depois). |
+| O `autor.tipo` antigo (obsoleto desde o #349): o ecrã passa a usar `tipo_de_autor`; o campo saiu da API a 11/10/2026, no pedido dos pendentes do #322, quando nada o lia. |
+
+### 26.2 A linha de contexto: o que diz, em linguagem comum
+
+Uma linha, por esta ordem, com as partes separadas por « · ». O texto vem do
+que o servidor decidiu (uma regra, um sítio): o ecrã não recalcula nada.
+
+| Parte | Valor da API | O ecrã diz |
+|---|---|---|
+| De onde | `canal` | `hub` «No Hub»; `api` «Pela API»; `importacao` «Pela importação»; `sistema` «Automático»; `operador` «Pelo operador»; `integracao` «Por uma integração»; `mcp` «Por um assistente (MCP)»; vazio «Origem desconhecida» |
+| A pedido de (só nas tarefas) | `a_pedido_de`, `autor_do_pedido` | «a pedido de {nome}» (o nome como no §16.2); sem pedido de origem: «sem pedido de origem registado» |
+| IA | `ia.prova` | `declarado`: «Agente de IA (declarado{: fornecedor, modelo})»; `comprovado`: «IA (comprovado: …)»; `desconhecido`: **nada na linha**, e «IA: desconhecida» nos Detalhes |
+| Autorização | `sem_autorizacao_de_pessoa`, `autor_autorizou` | `false`: «Autorizado por {nome}»; `true`: **«⚠ Sem autorização de uma pessoa»** (cor `--estado-aviso` e o ícone, nunca só a cor); `null`: «Autorização desconhecida» |
+| Motivo | `motivo` | «Motivo: {texto}», como texto (nunca HTML), com «Ver tudo» acima de 160 caracteres (como §16.4) |
+
+**Nos Detalhes:** «Pedido n.º {pedido}» (para o apoio cruzar com os registos
+do servidor), «Execução: {execucao}» quando vier, «IA: desconhecida» quando
+nada a indica, e «a pedido de: pedido n.º {a_pedido_de.pedido}» nas tarefas.
+
+**A junção por alteração** (§16.4) junta entradas com a mesma `transacao`:
+têm sempre o mesmo contexto (é o da transacção), e a linha mostra-se uma vez
+por bloco.
+
+### 26.3 As chaves: a marca «agente de IA»
+
+| Ecrã | O que muda |
+|---|---|
+| **Criar chave** (§9.3) | Por baixo dos âmbitos, a caixa «Chave de um agente de IA» (desmarcada), com a ajuda: «Tudo o que esta chave fizer fica no histórico como feito por uma IA, mesmo que o agente não o diga. Não se muda depois de criada.» Só na chave de servidor (a pública não existe no Hub hoje). |
+| **Lista de chaves** | A etiqueta «Agente de IA» ao lado do nome. |
+| **Âmbitos** | Os nomes de `prices:read` («Ver preços»), `prices:write` («Mudar preços») e `prices:history` («Ver quem mudou os preços»). |
+
+### 26.4 Estados e permissões
+
+- Os do §16.3 continuam (a carregar, vazio, 404, 403, erro ao pedir mais,
+  sessão terminada).
+- **Uma linha antiga** (de antes de 10/10/2026): «Origem desconhecida ·
+  Autorização desconhecida» — nunca «sem autorização» (Q8).
+- **Os nomes** de quem autorizou e de quem pediu seguem a regra do §16.2:
+  só os de quem é ou foi da equipa, ou das chaves deste comerciante; «Pessoa
+  pseudonimizada» depois de pseudonimizada; os outros, sem nome.
+- Só o dono e o gestor (`catalog:history`) vêem o histórico, como hoje.
+
+### 26.5 Antes de dizer que está feito (o pedido do código)
+
+- **API**: `autor_autorizou` e `autor_do_pedido` com a regra do §16.2 (de
+  fora da equipa: sem nome; pseudonimizada; chave de outro comerciante: sem
+  nome), `no-store`, o contrato; a prova pela falha.
+- **Hub**: textos em PT, ES e EN, no masculino universal; o aviso com ícone e
+  texto, não só cor, e contraste ≥ 4,5:1 em claro e escuro; a passagem no
+  navegador com um artigo mudado no Hub, por uma chave de um agente e por uma
+  importação, e uma conclusão automática; «Detalhes» com o teclado; capturas
+  a 375, 768 e 1280 px, claro e escuro, para o OK do aspecto pelo Diogo
+  (regra 1 da `eurolify-design`).

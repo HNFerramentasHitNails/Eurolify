@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { CamposDoRasto, respostasDoRasto } from "../base/rasto-resposta.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
@@ -708,10 +709,20 @@ export function rotasDoStock(
       config: { ambito: "orders:read" },
       schema: {
         description:
-          "As transições da encomenda (de, para, quem, quando, o motivo).",
+          "As transições da encomenda (de, para, quem, quando, o motivo), com de onde vieram, a IA e quem autorizou (docs/28 §1).",
         params: Type.Object({ id: IdEncomenda }),
         response: {
-          200: Type.Object({ dados: Type.Array(Livre) }),
+          200: Type.Object({
+            dados: Type.Array(
+              Type.Object({
+                de: Type.Union([Type.String(), Type.Null()]),
+                para: Type.String(),
+                quem: Type.String(),
+                em: Type.String({ format: "date-time" }),
+                ...CamposDoRasto,
+              }),
+            ),
+          }),
           ...RESPOSTA_DE_ERRO,
         },
       },
@@ -728,8 +739,8 @@ export function rotasDoStock(
           de: t.de,
           para: t.para,
           quem: t.quem,
-          motivo: t.motivo,
           em: t.em.toISOString(),
+          ...respostasDoRasto(t),
         })),
       })),
   );

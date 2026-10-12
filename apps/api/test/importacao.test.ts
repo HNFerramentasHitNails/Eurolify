@@ -203,6 +203,19 @@ describe.skipIf(URL_BASE === undefined)("API das importações", () => {
     const v2 = await varianteDe(a, "IMP-002");
     expect(v1?.artigo_id).toBe(v2?.artigo_id);
     expect(v1?.peso_g).toBe(30);
+    // O que a importação muda fica com o canal «importacao» e a origem
+    // (docs/28 §3.1; #322).
+    const { rows: rasto } = await sql<{ canal: string; origem: string }>`
+      select distinct canal, origem from alteracao_catalogo
+      where origem = ${`importacao:imp_${imp.id.replace(/^imp_/, "")}`}`.execute(
+      base.dono,
+    );
+    expect(rasto).toEqual([
+      {
+        canal: "importacao",
+        origem: `importacao:imp_${imp.id.replace(/^imp_/, "")}`,
+      },
+    ]);
 
     // Outra vez: nada a criar nem a mudar.
     const outra = await ensaiar(ficheiro);

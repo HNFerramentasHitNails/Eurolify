@@ -33,7 +33,19 @@ export type CodigoErroClientes =
   | "customers.merge_too_many_contacts"
   | "customers.duplicate_decided"
   | "customers.confirmation_required"
-  | "customers.restricted";
+  | "customers.restricted"
+  // Da 0052: o consentimento por contacto e a dupla confirmação.
+  | "customers.consent_contact_unknown"
+  | "customers.consent_confirmation_required"
+  | "customers.confirmation_channel"
+  | "customers.confirmation_invalid"
+  | "customers.confirmation_expired"
+  | "customers.confirmation_exhausted"
+  | "customers.confirmation_closed"
+  | "customers.confirmation_rate_limited"
+  // Da 0055: os anexos da isenção.
+  | "customers.exemption_attachments_full"
+  | "customers.exemption_attachments_quota";
 
 export class ErroClientes extends Error {
   constructor(

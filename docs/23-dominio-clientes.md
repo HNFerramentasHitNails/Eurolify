@@ -197,7 +197,9 @@ Uma linha por declaração; **não se altera nem se apaga** (é a prova).
 
 **A régua única** `pode_receber_marketing(cliente, canal)`, numa função na
 base: contam só as declarações explícitas; vale a mais recente; empate ⇒ não;
-sem nenhuma ⇒ não; WhatsApp sem fonte ⇒ não; ficha `limitado` ⇒ não. É a
+sem nenhuma ⇒ não; WhatsApp sem fonte ⇒ não; ficha `limitado` ⇒ não. Passa a
+ser por contacto e por canal, no comerciante, com dupla confirmação sobre
+uma recusa (§14; `docs/06`, DL; migração 0052). É a
 régua que os sistemas actuais construíram a 29/09/2026 (`eu-gdpr-privacy`,
 regra 4 — **M**, medida no repositório `claude`, não neste). Notificações,
 exportações e IAs perguntam a esta função; nenhuma conta consentimentos por
@@ -228,11 +230,13 @@ si.
   ficha que fica não se faz.
 - Os consentimentos **não se movem** (não se alteram, 0042): a régua da ficha
   que fica conta as declarações das fichas fundidas nela, e uma declaração
-  pedida com o id antigo regista-se na ficha que ficou. Vale a declaração
-  mais recente das duas; o consentimento da ficha que fica passa a cobrir os
-  e-mails e telefones acrescentados — **C** (é a mesma pessoa, mas se o
-  consentimento por endereço o permite **não verifiquei**; jurista, com a V4).
-  O ensaio mostra a régua antes e depois (revisão do #298, P2-1).
+  pedida com o id antigo regista-se na ficha que ficou. Hoje vale a declaração
+  mais recente das duas fichas; o consentimento da ficha que fica passa a
+  cobrir os e-mails e telefones acrescentados — **C** (jurista, com a V4). O
+  ensaio mostra a régua antes e depois (revisão do #298, P2-1). **Desde a
+  0052:** o consentimento é por contacto, com dupla confirmação sobre uma
+  recusa (§14; `docs/06`, DL); deixa de haver uma regra própria para as
+  fusões.
 - As encomendas e os documentos **não mudam**: ficam na ficha absorvida, com o
   perfil que tinham.
 - **Sem desfazer** na Fase 1: antes de fundir, a API mostra o que vai mudar
@@ -255,7 +259,7 @@ com o mesmo RLS, ficam os valores — **proposta**.
 |---|---|---|
 | `perfil_id` | | regra (`eu-vat-oss-ioss`, «As peças») |
 | `motivo` | texto obrigatório; ex.: «transportadora própria, declaração aduaneira entregue» | regra |
-| `nota`, `anexos` | os anexos são ficheiros (PDF ou imagem), guardados no mesmo armazenamento das imagens do Catálogo | regra; o armazenamento **proposta** |
+| `nota`, `anexos` | os anexos são ficheiros (PDF ou imagem), guardados **na base de dados** (`docs/06`, DN; §13.11) | regra; o armazenamento decidido |
 | `posta_por`, `posta_em` | quem e quando | regra |
 | `retirada_por`, `retirada_em` | só uma pessoa a retira; **nenhum processo automático** | regra (`eu-vat-oss-ioss`, regra 4) |
 
@@ -465,8 +469,10 @@ Cada parte com a revisão de um agente antes de juntar (ADR-0031, ADR-0035).
   página, duas corridas (dois primeiros perfis; etiqueta contra lista).
 
 **Fica escrito para as partes seguintes:**
-- **Apagamento e linha do tempo (P2-4):** a `alteracao_cliente` guarda o
-  antes e o depois do nome, e-mails, telefones e NIF, e só se acrescenta. A
+- **Apagamento e linha do tempo (P2-4):** a `alteracao_cliente` guardava o
+  antes e o depois do nome, e-mails, telefones e NIF, e só se acrescenta.
+  Desde a migração 0054 guarda um marcador em vez desses valores
+  (`docs/28` §3.4). A
   pseudonimização do titular (parte 2) tem de a alcançar: uma função do dono,
   registada, que substitui esses valores nas entradas da ficha — o único
   caminho que muda o rasto.
@@ -502,7 +508,7 @@ voltar a ligar — são apanhadas). Quantas listas B2B há na base do ensaio
 | o consentimento (`consentimento`, `cns_`): uma linha por declaração, `aceitou` ou `retirou`, com o canal, a finalidade (só `marketing`), o texto, a versão e onde; não se altera nem se apaga, nem pelo dono da base | migração 0042 |
 | a hora e quem registou, postos pela base (`declarado_em`, `quem`); sem `eurolify.quem` recusa; só numa ficha activa (uma ficha limitada aceita, para retirar não ficar mais difícil) | migração 0042 |
 | as declarações da mesma ficha entram uma de cada vez (a ficha fica tomada) e a hora é a do relógio quando entram, sempre depois da última da ficha, mesmo que o relógio recue (revisão do #289, P2-1): a mais recente é a última que entrou | migração 0042 |
-| a régua única `pode_receber_marketing(cliente, canal)`: só declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não; dá sempre verdadeiro ou falso, nunca nulo | migração 0042 |
+| a régua única `pode_receber_marketing(cliente, canal)`: só declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não; dá sempre verdadeiro ou falso, nunca nulo. **Desde a 0052, por contacto** (§14.8) | migração 0042 |
 | o evento `consent.changed` com o cliente, o canal, a finalidade e o resultado da régua, sem o texto nem o «onde» (R12); as declarações na linha do tempo | migração 0042 |
 | `GET` e `POST /customers/{id}/consents` (`customers:read` e `customers:write`): o `GET` devolve as declarações por páginas e a régua por canal em todas | `src/clientes/rotas.ts` |
 | 18 testes; as mutações da régua e dos gatilhos todas apanhadas, salvo trocar o relógio pela hora do início da transacção, que depois da P2-1 dá a mesma ordem | `test/clientes-consentimentos.test.ts` |
@@ -568,7 +574,7 @@ a fatia 7.
 | a limitação (`PUT`/`DELETE /customers/{id}/restriction`): a régua do marketing dá não e a API não muda o nome nem os contactos da ficha limitada (`customers.restricted`), sem apagar nada — **proposta**. **Não trava** (revisão do #314, P3-2): os perfis (NIF, morada), as etiquetas, a fila do VIES, a procura de candidatos a duplicado, o checkout e as funções do dono (a fusão). O art. 18.º do RGPD pede mais do que o marketing: o que mais trava fica para decidir | migração 0049 |
 | a exportação (`POST /customers/{id}/export`): a ficha e as fundidas nela, com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas com as linhas e os pagamentos (só para ler), os candidatos a duplicado, a linha do tempo e os pedidos. Lida com a ficha tomada (P3-4); uma ficha fundida não se exporta sozinha, pede-se pela que ficou (P3-3). **A resposta não fica guardada**: a idempotência guarda só o id do pedido, e repetir a chave dá `idempotency.response_not_kept` (P2-5) | `src/clientes/repositorio.ts`; `src/clientes/rotas.ts` |
 | a pseudonimização (`POST /customers/{id}/pseudonymize`), irreversível, com a confirmação escrita «pseudonimizar cus_…» (o erro já não repete a frase, P3-5), só por uma pessoa ou a chave dela, sobre o grupo inteiro (revisão do #298, P3-3), lido **depois** de tomar a ficha pedida, para uma fusão ao mesmo tempo não deixar uma ficha de fora (revisão do #314, P1-2): nome «Pseudonimizado», sem e-mails, telefones, língua nem país; consentimentos e etiquetas apagados; os perfis que nenhum documento nem encomenda usou sem nome, NIF nem morada, arquivados, as provas do VIES deles apagadas e as isenções sem NIF, nota nem os motivos escritos (P3-11 do #244; P2-3 do #314); a linha do tempo sem os valores pessoais nem o texto livre (motivos e notas), também a do par de duplicados guardada na outra ficha (P2-4 do #234; P2-3 do #314); os candidatos fechados; o evento `customer.pseudonymized` | migração 0049 |
-| ficam como estão, com as provas do VIES, as isenções e a linha do tempo deles, o prazo fiscal (R9): os perfis usados em documentos **e os que uma encomenda aponta**, também a não paga (revisão do #314, P1-1). A decisão do IVA da encomenda cita a prova e a isenção; a fatura e a nota de crédito ainda podem precisar delas. Um critério mais estreito (só as encomendas pagas) é do contabilista — **C** | migração 0049 |
+| ficam como estão, com as provas do VIES, as isenções e a linha do tempo deles, o prazo fiscal (R9) — na linha do tempo, o nome, o NIF e a morada ficam como marcador, não em claro, como nos outros perfis: a prova fiscal é a cópia no documento (`docs/29` §4; `docs/28` §3.4; Diogo, 10/10/2026: *«sim»*): os perfis usados em documentos **e os que uma encomenda aponta**, também a não paga (revisão do #314, P1-1). A decisão do IVA da encomenda cita a prova e a isenção; a fatura e a nota de crédito ainda podem precisar delas. Um critério mais estreito (só as encomendas pagas) é do contabilista — **C** | migração 0049 |
 | o resultado do apagamento diz `encomendas_com_dados_por_tratar`: com mais de zero, o apagamento **não está completo** (P2-4) | migração 0049 |
 | uma prova nova do VIES só se grava numa ficha activa: uma resposta que chegue depois do apagamento é recusada e a fila trata-a como falhada (P1-3) | migração 0049 |
 | as recusas de alterar ou apagar abrem-se **só** dentro da função do dono: a marca é uma linha da transacção numa tabela só do dono (`pseudonimizacao_em_curso`), e não um parâmetro que a API possa pôr (P2-1); a API e o superutilizador, com o parâmetro antigo ou com a marca, continuam recusados (testado) | migração 0049 |
@@ -705,10 +711,10 @@ consulta — proposta (Q7).
 
 - Não se altera: muda-se retirando e pondo outra (o histórico fica inteiro) —
   proposta.
-- **Anexos** (`anexo_isencao`): PDF, JPEG ou PNG, até 10 MB cada, até 5 por
-  isenção; no mesmo armazenamento das imagens, numa pasta privada, nunca
-  públicos; lêem-se pela API com `customers:exemptions` — proposta. O prazo de
-  guarda é o fiscal (**C**, V2).
+- **Anexos** (`anexo_isencao`, `exa_`): PDF, JPEG ou PNG, até 10 MB cada, até
+  5 por isenção; **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DN),
+  nunca públicos; os bytes lêem-se pela API com `customers:exemptions` — no
+  código (migração 0055, §13.11). O prazo de guarda é o fiscal (**C**, V2).
 - Eventos `billing_profile.exemption_set` e `billing_profile.exemption_removed`
   (`bpf_`, `exm_`, quem) — proposta (novos).
 
@@ -721,7 +727,7 @@ consulta — proposta (Q7).
 | Pôr uma isenção | `PUT /billing-profiles/{id}/exemption` (`{ motivo, nota }`) | `customers:exemptions` |
 | Retirar | `DELETE /billing-profiles/{id}/exemption` (`{ motivo_retirada }`) | `customers:exemptions` |
 | A isenção e o histórico | `GET /billing-profiles/{id}/exemptions` | `customers:read` |
-| Anexos | `POST /exemptions/{id}/attachments`, `GET /exemptions/{id}/attachments`, `GET /exemptions/{id}/attachments/{anexo}` | `customers:exemptions` |
+| Anexos | `POST /exemptions/{id}/attachments` e `GET /exemptions/{id}/attachments/{anexo}` (`customers:exemptions`); `GET /exemptions/{id}/attachments`, sem os bytes (`customers:read`) | ver §13.11 |
 
 O perfil passa a mostrar `validado_em` e se tem isenção em vigor.
 
@@ -775,10 +781,9 @@ minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
 | 20 testes (o adaptador contra um servidor HTTP falso; a API e a fila contra uma consulta falsa — nenhum chama a Comissão); 19 mutações desta versão, todas apanhadas | `test/clientes-vies.test.ts` |
 
 **Desvios do desenho:**
-- **Os anexos da isenção ficam para um pedido à parte**: a pasta das imagens
-  tem uma limpeza de ficheiros sem linha (`docs/14` §3.5), e os anexos
-  precisam de armazenamento próprio e privado, e das cópias da VPS. O motivo e
-  a nota já entram.
+- **Os anexos da isenção ficaram para um pedido à parte**: a pasta das imagens
+  tem uma limpeza de ficheiros sem linha (`docs/14` §3.5). Entraram depois, na
+  base de dados (§13.11).
 - **A consulta pedida** (`POST …/vies-checks`) não espera pelo VIES: põe o
   perfil à frente da fila e responde 202 (revisão do #244, P1-1).
 - **A fila vem desligada** até se medir a saída da VPS para a Comissão
@@ -801,3 +806,322 @@ próprio (P3-10); a pseudonimização do nome e morada devolvidos, na parte 2
 **Não verificado:** se o contentor da API na VPS sai para `ec.europa.eu`
 (sem saída, as provas ficam `indisponivel` com `SEM_LIGACAO`, e nada fica
 isento); os limites de pedidos do VIES; V3 e V5 com o contabilista.
+
+### 13.11 Os anexos da isenção em código (10/10/2026; migração 0055)
+
+| O quê | Onde |
+|---|---|
+| `anexo_isencao` (`exa_`) **na base de dados** (Diogo, 10/10/2026: «A»; `docs/06`, DN): com o RLS de cada comerciante, nas cópias que já existem, sem nada a mudar na VPS | migração 0055 |
+| PDF, JPEG ou PNG **pela assinatura** (os primeiros bytes têm de ser do tipo dito; não há verificação da estrutura nem antivírus), até 10 MB, até 5 por isenção e até 1 GB por comerciante (como as imagens, proposta; revisão do #338, P2-2), só numa isenção em vigor de um perfil activo numa ficha activa (P2-1); o tamanho e o resumo (sha256) põe-nos a base; os bytes ficam como chegaram (é a prova: não se limpam metadados) | migração 0055 |
+| só uma pessoa ou a chave dela (`customers.exemption_by_person`), como a isenção | migração 0055 |
+| não se altera nem se apaga, nem pelo superutilizador (`audit.append_only`); a pseudonimização apaga os anexos das isenções dos perfis que ninguém usou e guarda os dos usados | migração 0055 |
+| `POST /exemptions/{id}/attachments` (o corpo são os bytes, com o Content-Type; `?nome=` opcional; no máximo 2 envios em simultâneo por comerciante) e `GET /exemptions/{id}/attachments/{anexo}` com `customers:exemptions`; `GET /exemptions/{id}/attachments` (sem os bytes) com `customers:read`. O descarregamento leva a extensão do tipo (nunca a que veio no nome), o nome em ASCII e em UTF-8 (RFC 6266), `nosniff` e `sandbox` (P1-1, P2-4) | `src/clientes/rotas.ts`, `repositorio.ts` |
+| a exportação do titular **lista** os anexos (sem os bytes); os bytes lêem-se pela rota deles, com `customers:exemptions` — se o acesso do titular exige os bytes na exportação é **C**, para o jurista (revisão do #338, P2-5) | `src/clientes/repositorio.ts` |
+| testes: `test/clientes-anexos-isencao.test.ts` (10: os tipos, os limites, a corrida no quinto lugar, a quota, a isenção retirada e o perfil pseudonimizado, o âmbito, o RLS dos bytes, a prova, a pseudonimização, o nome e os cabeçalhos, a idempotência, a exportação); 14 mutações, 13 apanhadas (a verificação do tipo na rota é uma segunda rede: sem ela, o leitor e a base recusam) | `test/` |
+
+**Fica por fazer:** o prazo de guarda (**C**, V2); medir o crescimento da base
+com anexos (não medido); o limite de envios em simultâneo não tem teste (é
+o mesmo das imagens); o resultado da pseudonimização não conta os anexos
+apagados (P3-6); o anexo não deixa evento nem rasto de leitura (P3-7).
+
+## 14. Consentimento por contacto e dupla confirmação (desenho de 10/10/2026)
+
+> **Estado: no código (migração 0052), revisto (revisão do agente no #330); à espera de juntar.**
+> Decisão do Diogo, 10/10/2026, em resposta à revisão do #325, que substitui
+> a régua por ficha (`docs/06`, DL); Q-C1 decidida (A). Ver §14.8.
+> As fontes legais abaixo foram indicadas pelo Diogo; **não verifiquei** o
+> texto delas, por isso ficam **C** até um jurista as confirmar (com a V4).
+
+### 14.1 As regras
+
+| # | Regra | Fonte (indicada pelo Diogo) |
+|---|---|---|
+| C1 | O estado do marketing guarda-se **por contacto e por canal** (cada e-mail, cada telefone), não por ficha | RGPD, art. 7.º, n.º 1 — **C** |
+| C2 | A prova de cada declaração identifica **o canal e o contacto concreto** a que o «sim» ou o «não» se refere | RGPD, art. 7.º, n.º 1 — **C** |
+| C3 | Se um contacto tem uma recusa activa (oposição, retirada, subscrição cancelada), um «sim» novo para esse contacto **não muda o estado logo**: dispara uma **dupla confirmação** enviada a esse contacto (ligação por e-mail, código por SMS). Só a confirmação passa o estado a «sim», e o registo dela fica como prova | RGPD, art. 21.º, n.º 3, e art. 7.º, n.º 3 — **C** |
+| C4 | Sem confirmação, a recusa mantém-se | RGPD, art. 21.º, n.º 3 — **C** |
+| C5 | Um «sim» dado através de outro contacto só autoriza esse contacto; não mexe na recusa dos outros | RGPD, art. 5.º, n.º 1, al. d) — **C** |
+| C6 | E-mail e SMS exigem consentimento prévio expresso | Lei 41/2004, art. 13.º-A, n.º 1 (PT) — **C** |
+| C7 | A prova pode ficar na ficha de origem, lida a partir da ficha fundida, desde que a ligação não se perca; se a ficha de origem for apagada ou pseudonimizada, o consentimento que vinha dela cai | RGPD, art. 7.º, n.º 1 — **C** |
+
+**O estado é do contacto no comerciante**, não da ficha nem do grupo: o
+mesmo e-mail noutra ficha do mesmo comerciante é o mesmo contacto, e a recusa
+dada numa vale na outra (leitura da regra do Diogo, «por contacto e por canal,
+não por ficha»; revisão do #330, P1-4).
+
+**Consequência para as fusões:** deixa de haver uma regra própria. Cada
+contacto leva o seu estado; numa fusão, a ficha que fica junta os contactos e
+cada um continua com o estado que tinha, dado em qualquer ficha do grupo.
+Exemplo: a Ana retirou `ana@exemplo.pt` na ficha antiga e aceitou
+`ana.silva@exemplo.pt` na nova; fundidas, recebe no segundo e não no primeiro.
+Um «sim» novo para `ana@exemplo.pt` só conta depois de ela clicar na ligação
+enviada a esse endereço.
+
+### 14.2 Modelo (proposta)
+
+| Muda | Como |
+|---|---|
+| `consentimento.contacto` (novo) | o e-mail como se compara (sem espaços, minúsculas) ou o telefone como está na ficha; obrigatório nas declarações novas; tem de ser um contacto da ficha (ou do grupo) no momento da declaração |
+| `consentimento.via` (novo) | `directa` (a declaração como hoje) ou `dupla_confirmacao` (nasceu de uma confirmação; aponta para ela) |
+| `confirmacao_consentimento` (`ccf_`, nova) | o pedido de confirmação: ficha, canal, contacto, o resumo do segredo (nunca o segredo), criado, expira, tentativas, estado (`pendente`, `confirmada`, `expirada`, `cancelada`, `esgotada`); muda de estado só para a frente |
+| a régua | por contacto: a última declaração desse contacto e canal no grupo; sem nenhuma ⇒ não; um «aceitou» `directa` sobre uma recusa activa **não entra**: vira um pedido de confirmação |
+| `pode_receber_marketing(cliente, canal)` | passa a devolver os contactos com «sim»; nova `pode_receber_marketing(cliente, canal, contacto)` para a pergunta exacta |
+| as declarações antigas (sem contacto) | valem para os contactos que a ficha tinha à data da migração, guardados em `consentimento_contacto_inferido`; um contacto acrescentado depois não herda nada (revisão do #330, P2-1). No ensaio não há dados pessoais reais (ADR-0019), por isso não há consentimentos reais a herdar |
+
+O que já está feito e serve: as declarações só se acrescentam e ficam na
+ficha onde foram dadas (0042); a lista dos consentimentos lê o grupo (0046);
+a pseudonimização apaga as declarações do grupo inteiro (0049), e por isso o
+consentimento cai com a ficha (C7).
+
+### 14.3 A dupla confirmação
+
+- **E-mail:** uma ligação com um segredo de uso único, válida **24 horas** —
+  **proposta**.
+- **SMS:** um código de **6 dígitos**, válido **10 minutos**, no máximo **5
+  tentativas**; depois, o pedido cai — **proposta**.
+- **WhatsApp:** sem fonte de consentimento, continua não (§3.6); não há
+  confirmação por WhatsApp.
+- Guarda-se só o resumo do segredo (como as chaves e o token do checkout).
+- Um pedido novo para o mesmo contacto e canal cancela o anterior; **no
+  máximo 3 pedidos por contacto e canal numa hora** (`customers.confirmation_rate_limited`,
+  429), para não inundar o contacto nem deixar adivinhar o código pedindo
+  outro (revisão do #330, P1-3).
+- **Uma declaração do contacto depois do pedido** (um «não» que chegou
+  entretanto) faz cair a ligação antiga (revisão do #330, P1-2).
+- O Eurolify não prova que quem clica é o dono do contacto: isso é do sistema
+  do comerciante, que recebe o segredo; a prova guarda quem pediu (a chave).
+- A confirmação regista uma declaração `aceitou` com `via =
+  dupla_confirmacao`, a hora, o contacto e a referência do pedido: é a prova
+  (C3).
+- **Quem envia a mensagem: o sistema do comerciante** (Q-C1, decidida: A).
+  O Eurolify cria o pedido e devolve o segredo (a ligação ou o código) **uma
+  só vez**, na resposta ao pedido que o criou; repetir com a mesma chave de
+  idempotência não o devolve outra vez (`idempotency.secret_not_repeated`,
+  como as chaves). O sistema do comerciante envia a mensagem ao contacto e,
+  quando a pessoa clica ou escreve o código, pede ao Eurolify para confirmar;
+  o Eurolify valida. O segredo nunca vai num evento nem num registo (R12).
+  Mais tarde, o domínio de Notificações do Eurolify pode enviar ele mesmo,
+  com um fornecedor na UE (decisão escrita à parte).
+
+### 14.4 API (proposta)
+
+| Operação | O quê |
+|---|---|
+| `POST /customers/{id}/consents` | passa a pedir `contacto`; sobre uma recusa activa responde **202** com o pedido de confirmação (`ccf_…`), o segredo (uma só vez) e a hora em que expira, e não muda a régua |
+| `POST /consent-confirmations/{id}/confirm` (`customers:write`) | o sistema do comerciante entrega o que a pessoa trouxe (o segredo da ligação ou o código); recusa se está errado, expirou, foi cancelado, já foi usado ou esgotou as tentativas |
+| `GET /customers/{id}/consents` | a régua por canal **e por contacto** |
+| eventos | `consent.changed` e `consent.confirmation_requested` levam só identificadores (`cus_`, `cns_`, `ccf_`, canal), **nunca** o contacto nem o segredo (R12) |
+
+### 14.5 Por onde é que isto ainda pode sair errado
+
+- **O segredo vaza** (num registo, num evento): só o resumo se guarda; o
+  segredo só existe na mensagem enviada.
+- **Força bruta ao código do SMS:** 5 tentativas por pedido e 3 pedidos por
+  contacto e canal numa hora (15 tentativas por hora num código de 6 dígitos).
+  Quem tiver uma cópia da base adivinha o resumo de um código em segundos;
+  fecha em 10 minutos.
+- **Um contacto que muda de dono** (um e-mail ou telefone reatribuído): a
+  confirmação vai ao contacto, não à pessoa; fica escrito como risco.
+- **Comparar contactos:** o mesmo e-mail com maiúsculas é o mesmo contacto; um
+  telefone em formatos diferentes não se junta sozinho (a ficha só aceita o
+  formato da 0037).
+- **Um contacto tirado da ficha:** deixa de receber, porque não está na ficha;
+  se voltar, o estado é o que tinha.
+
+### 14.6 Perguntas
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q-C1 | Quem envia a ligação e o código da dupla confirmação? | **Decidida (Diogo, 10/10/2026: «A»):** o sistema do comerciante; o Eurolify cria o pedido, devolve o segredo uma vez e valida |
+| Q-C2 | Os prazos (24 h, 10 min, 5 tentativas) | os acima, **proposta** |
+| Q-C3 | As declarações antigas sem contacto | as da proposta do §14.2 |
+
+### 14.7 Como entra no código (quando aprovado)
+
+1. Migração: `contacto` e `via` no consentimento, a tabela dos pedidos, a régua
+   por contacto e as funções da confirmação; as declarações antigas.
+2. API: as rotas do §14.4 e os eventos.
+3. Testes: as regras C1–C7, um a um, com uma fusão; a força bruta; a
+   expiração; o segredo fora dos registos e dos eventos; as mutações.
+4. A migração 0051 do #325 (a régua por ficha) **não entra**: é substituída por
+   esta.
+
+### 14.8 Em código (10/10/2026; migração 0052)
+
+| O quê | Onde |
+|---|---|
+| `consentimento.contacto` (obrigatório nas novas, como se compara: o e-mail em minúsculas, o telefone como a ficha o guarda; tem de ser da ficha), `via` e `confirmacao_id` (só a confirmação os põe) | migração 0052 |
+| o estado por contacto (`marketing_do_contacto`): a última declaração desse contacto no comerciante, em qualquer ficha; as antigas sem contacto valem para os contactos que a ficha tinha na migração (`consentimento_contacto_inferido`) | migração 0052 |
+| as réguas: `pode_receber_marketing(cliente, canal, contacto)`, `contactos_com_marketing(cliente, canal)`; `pode_receber_marketing(cliente, canal)` dá sim se algum contacto **da ficha** pode; o plano da fusão conta os contactos das duas | migração 0052 |
+| sobre uma recusa activa do contacto, a base recusa um «sim» directo (`customers.consent_confirmation_required`), e a API cria o pedido (`confirmacao_consentimento`, `ccf_`) e responde **202** com o segredo, uma só vez | migração 0052; `src/clientes/` |
+| a confirmação (`POST /consent-confirmations/{id}/confirm`, `customers:write`): 24 h e uma ligação de 32 bytes no e-mail, 10 min e 6 dígitos no SMS, 5 tentativas; a tentativa errada fica contada; um pedido novo cancela o anterior; WhatsApp sem confirmação (`customers.confirmation_channel`) | migração 0052; `src/clientes/` |
+| o segredo: só o resumo (sha256 do id e do segredo), a API não lê o resumo; nem nos eventos (`consent.confirmation_requested` leva só identificadores), nem na idempotência (repetir dá `idempotency.secret_not_repeated`) | migração 0052; `src/clientes/rotas.ts` |
+| depois da revisão do #330: o estado no comerciante (P1-4); a pseudonimização com pedidos confirmados (chaves diferidas, P1-1); a ligação cai com uma declaração posterior (P1-2); 3 pedidos por hora (P1-3); as antigas inferidas à data da migração (P2-1); o evento `consent.changed` diz também `contacto_pode_receber` e `via` (P2-2); a ficha tomada antes do pedido ao confirmar (P2-3) | migração 0052 |
+| **quebra de contrato** (ensaio, sem clientes da API em produção; registada a 10/10/2026, decisão DL): `contacto` obrigatório no `POST /customers/{id}/consents`, que pode responder 202 | `src/clientes/rotas.ts` |
+| a pseudonimização apaga os pedidos do grupo (têm o contacto) e a linha do tempo perde o contacto das declarações; a exportação junta os pedidos, sem o resumo | migração 0052; `src/clientes/repositorio.ts` |
+| testes: `test/clientes-consentimento-contacto.test.ts` (10: C1–C7, o SMS, a expiração, o segredo, a fusão, a pseudonimização, o comerciante, o limite, o «não» posterior, o contacto tirado), `test/migracao-0051.test.ts` (as antigas sobre dados); os de consentimentos, fusões e titular adaptados; 16 mutações, todas apanhadas | `test/` |
+
+**Fica por fazer:** a página (ou o ecrã) da loja que recebe a ligação e o
+código (é do sistema do comerciante, Q-C1); o domínio de Notificações, se
+um dia o Eurolify enviar ele mesmo; as fontes **C** com o jurista.
+
+## 15. Os pedidos do titular em todos os domínios (desenho de 11/10/2026)
+
+Pedido do Diogo, 11/10/2026: *«sim, avança com o desenho do #233»*. O que
+estava em aberto desde a parte 2c: «os dados de encomendas e checkout no
+apagamento (fatias 9 e 10)» (§12; migração 0049, linhas 41-46). Skills:
+`eu-gdpr-privacy`, `eu-vat-oss-ioss`, `consumer-rights-eu`,
+`order-fulfilment`, `payments-psd2-sca`, `observability-security`.
+
+**O problema, medido a 11/10/2026** (leitura das migrações e do teste
+`checkout-api.test.ts:1404-1412`): a exportação e a pseudonimização só
+tratam a ficha e o que pende dela. As fatias que entraram depois — checkout
+(0041), pagamentos (0044), stock e encomendas (0047), documentos (0050),
+pós-venda (0058, 0061, 0063) — guardam **cópias** dos dados pessoais em
+tabelas que não se deixam mudar, e nenhuma entrou no apagamento. Não são
+cinco esquecimentos: o apagamento ficou preso à ficha e cada domínio novo
+acrescentou a sua cópia.
+
+Ex.: a Ana compra sem conta e pede o apagamento. A ficha dela fica
+«Pseudonimizado», mas a encomenda continua com `contacto` (e-mail, nome,
+telefone), `entrega` (morada) e `perfil_copia` (NIF e morada fiscal), o
+pedido de livre resolução com o e-mail dela, e o perfil de faturação inteiro
+(a encomenda aponta para ele). O resultado já o admite:
+`encomendas_com_dados_por_tratar: 1`.
+
+### 15.1 A regra: três grupos de dados
+
+RGPD, art. 17.º (texto oficial em português, EUR-Lex, CELEX 32016R0679,
+lido a 11/10/2026 — **W · texto lido**): apaga-se quando os dados «deixaram
+de ser necessários para a finalidade» (n.º 1, al. a)); não se apaga o que
+for necessário para «uma obrigação legal» (n.º 3, al. b)) ou para a
+«defesa de um direito num processo judicial» (n.º 3, al. e)).
+
+| Grupo | O quê | No apagamento |
+|---|---|---|
+| **A. Prova fiscal** | o conteúdo e a prova de cada documento fiscal (comprador, NIF, morada, PDF) e a cópia de onde se emitiu | **fica**, 10 anos civis em Portugal (art. 52.º do CIVA, **W**; outros países **C**) — art. 17.º, n.º 3, al. b) |
+| **B. Dados da encomenda em curso** | contacto, morada e textos de uma encomenda que ainda não acabou (por pagar, por expedir, com livre resolução, devolução, problema ou reembolso em aberto) | **fica até acabar**, e então limpa-se sozinho (§15.3) — ainda é preciso para cumprir o contrato |
+| **C. O resto** | contacto e morada de encomendas acabadas, e-mail do pedido de livre resolução, textos livres, sessões de checkout | **limpa-se já** — art. 17.º, n.º 1, al. a) |
+
+O que é registo do negócio sem dados de quem comprou — o que se vendeu, as
+quantidades, os preços, as datas, os estados — **fica** (o comerciante
+precisa dele para a garantia, as devoluções e a contabilidade).
+
+### 15.2 Tabela a tabela
+
+«Marcador» é o texto fixo «(pseudonimizado)», como na 0049; num `jsonb`,
+os campos pessoais passam a marcador e os outros ficam.
+
+| Tabela.coluna | Dado | Apagamento | Exportação |
+|---|---|---|---|
+| `encomenda.contacto` | e-mail, nome, telefone | grupo C: marcador; grupo B: quando acabar | já sai |
+| `encomenda.entrega` | morada de entrega | igual | já sai |
+| `encomenda.perfil_copia` | NIF, nome e morada fiscais | **fica** se a encomenda tem documento emitido ou por emitir (grupo A); senão, marcador | já sai |
+| `encomenda` (linhas, totais, estado, datas) | registo do negócio | fica | passa a sair inteira (hoje faltam `portes`, `metodo_entrega`, `aceitacoes`, `lingua`) |
+| `perfil_faturacao` usado | NIF, nome, morada | **fica** só se um documento o usou ou uma encomenda paga o vai usar (Q2) — hoje fica com qualquer encomenda, também a não paga | já sai |
+| `sessao_checkout` (e-mail, nome, telefone, entrega, faturação) | cópia do que se escreveu no checkout | não tem ligação à ficha: não se acha por cliente. Limpa-se por prazo (§15.4) | não sai (não há como a ligar à pessoa sem decidir pelo e-mail — regra 6 do `AGENTS.md`) |
+| `expedicao.prova_entrega` | texto livre (pode ter o nome de quem recebeu) | marcador | passa a sair (com transportadora, seguimento, datas) |
+| `pagamento` | referência, montante, estado | fica (registo do negócio) | já sai |
+| `aviso_pagamento.corpo` | aviso em bruto do prestador; segundo o `docs/26` (V3), o MB WAY traz o telefone | quando o pagamento acabou: o corpo passa a resumo SHA-256 e aos campos que se sabem não pessoais (Q3) | não sai (técnico) |
+| `transicao_encomenda.motivo`, `transicao_pagamento.motivo` | texto livre escrito por uma pessoa | marcador, como na 0062 | passa a sair o histórico de estados (sem o motivo) |
+| `documento_conteudo`, `documento_prova` (com o PDF e a resposta em bruto) | comprador, NIF, morada | **fica** (grupo A) | passa a sair: tipo, número, data, totais e o comprador como está no documento; **sem os bytes do PDF** (Q4) |
+| `documento_rasto.motivo` | texto livre da correcção de um documento | **fica** (faz parte do rasto do documento fiscal; Q4) | não sai |
+| `pedido_livre_resolucao.contacto` | e-mail | grupo C: «sem e-mail»; grupo B: quando acabar | passa a sair (com a confirmação e o estado) |
+| `pedido_livre_resolucao.motivo_decisao`, `devolucao.motivo`, `problema.descricao` | texto livre | marcador quando acabarem | passam a sair |
+| `reembolso` | montantes, estado, prova (data, referência do banco, quem); o IBAN nunca se guarda | fica (registo financeiro) | passa a sair (sem a prova) |
+| `evento_saida` | só identificadores e montantes | fica | não sai |
+
+### 15.3 Encomendas em curso: aplica-se quando acabarem
+
+Uma encomenda **acabou** quando o estado é final (`concluida`, `cancelada`,
+`cancelada_sem_pagamento`, `devolvida`; migração 0058, linhas 27-30) e não
+tem nada aberto na pós-venda (livre resolução `pendente`, devolução que não
+esteja `fechada` nem `cancelada`, problema que não esteja `fechado`,
+reembolso que não esteja `executado` nem `cancelado`; 0058, linhas 260, 322,
+459 e 515).
+
+- No pedido de apagamento, as encomendas acabadas limpam-se logo; as outras
+  ficam numa fila com o pedido (`pedido_titular`), e o resultado diz quantas
+  (`encomendas_por_acabar`).
+- Uma tarefa limpa cada uma quando acabar, e escreve no pedido o que fez. O
+  pedido só fica **completo** quando a fila esvazia; o `GET
+  /customers/{id}/privacy-requests` mostra-o.
+- Uma livre resolução depois do apagamento continua possível pelo número da
+  encomenda; o pedido fica «sem e-mail».
+
+### 15.4 As sessões de checkout
+
+Não têm `cliente_id` (o cliente nasce no botão final; 0041, linhas 209-216).
+Procurar a da Ana pelo e-mail seria decidir identidade por um sinal que só
+diz «talvez». Em vez disso, por prazo (o que o `docs/25` §7 já propunha):
+
+- **sessão concluída**: os dados pessoais limpam-se logo ao criar a
+  encomenda — a encomenda tem a cópia;
+- **sessão expirada ou abandonada**: limpam-se 7 dias depois (`docs/25`
+  §7, proposta; prazo **C**, jurista).
+
+Assim, nenhuma sessão guarda dados mais de 7 dias, e o pedido do titular não
+precisa de as procurar.
+
+### 15.5 Várias fichas da mesma pessoa
+
+Cada compra sem conta cria uma ficha nova (`docs/25` R8). Um pedido sobre
+uma ficha não chega às outras da mesma pessoa. O resultado da exportação e
+do apagamento passa a listar as **fichas com o mesmo e-mail ou telefone**
+para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
+`AGENTS.md`; `eu-gdpr-privacy`, «Fusões e identidade»).
+
+### 15.6 Como entra no código
+
+- **Uma função só**, a da 0049 (`cliente_pseudonimizar`), passa a tratar
+  também os outros domínios, na mesma transacção e com a mesma marca
+  (`pseudonimizacao_em_curso`). Cada tabela que hoje recusa mudanças abre
+  **só** as colunas da §15.2, **só** para o marcador e **só** com a marca;
+  a API e o superutilizador continuam recusados (como na 0049).
+- O que fica (grupo A) não se toca: os gatilhos dos documentos fiscais não
+  ganham excepção nenhuma.
+- Um pedido é sempre sobre um cliente, decidido por uma pessoa com
+  `customers:privacy`, com a confirmação escrita — nunca em lote.
+- O resultado diz, por tabela, quantas linhas limpou, quantas ficaram e
+  porquê (obrigação fiscal; encomenda por acabar).
+- A tarefa da §15.3 e a limpeza das sessões (§15.4) registam cada passo no
+  `pedido_titular` ou num registo próprio, e avisam se pararem
+  (`observability-security`).
+- A exportação ganha as tabelas da coluna «Exportação» da §15.2.
+- Testes que falham sem a protecção: a encomenda acabada fica sem contacto
+  e morada; a em curso fica até acabar e depois limpa-se; o documento
+  emitido fica igual, byte a byte; a API não consegue abrir as colunas; a
+  sessão concluída fica sem dados; a de 8 dias também.
+
+### 15.7 Fica de fora
+
+- Os **prazos de guarda depois dos 10 anos** e a purga das encomendas
+  antigas por idade: dependem da Q4 do `docs/28` (jurista e contabilista).
+- A **limitação** (art. 18.º) noutros domínios: continua só na ficha (§12).
+- As **cópias de segurança**: o apagamento chega quando expiram (14 dias,
+  `docs/17` §3); fica dito na política de privacidade.
+- Os ecrãs no Hub: os pedidos do titular ainda não têm ecrã.
+
+### 15.8 Perguntas para o Diogo ou o Bruno
+
+✅ **Decididas** pelo Diogo a 11/10/2026 (*«aprovado»*, às propostas;
+`docs/06`, DU).
+
+| # | Pergunta | Decisão |
+|---|---|---|
+| Q1 | Uma encomenda em curso: limpa-se logo ou quando acabar? | Quando acabar (§15.3): limpar o contacto de uma encomenda por expedir impede entregá-la — o contrato ainda está a ser cumprido |
+| Q2 | O perfil de faturação de uma encomenda **não paga** fica? | Não: só fica com documento emitido ou por emitir (encomenda paga). Uma não paga não gera fatura. **C**, contabilista — é o «critério mais estreito» que a §12 deixou em aberto |
+| Q3 | O aviso em bruto do prestador, depois de o pagamento acabar | Passa a resumo SHA-256 mais os campos não pessoais (id do evento, montante, referência, estado). Os campos exactos dependem do formato da EuPago — não verifiquei (**C**) |
+| Q4 | Os documentos fiscais na exportação, e o motivo da correcção de um documento | Na exportação: tipo, número, data, totais e o comprador como está no documento, sem os bytes do PDF (como os anexos da isenção, DN; **C**, jurista). O motivo da correcção fica (rasto do documento fiscal; **C**, contabilista) |
+
+### 15.9 Para o contabilista e o jurista (não bloqueiam o código; bloqueiam a produção)
+
+- Se os 10 anos valem também para a cópia de onde se emitiu
+  (`perfil_copia`) e para o PDF guardado (V10 do `docs/29`).
+- Se uma encomenda não paga precisa de guardar o NIF (Q2).
+- O prazo das sessões abandonadas (7 dias).
+- Se uma encomenda por acabar justifica que o apagamento fique completo
+  depois do mês do art. 12.º, n.º 3, do RGPD («no prazo de um mês»,
+  prorrogável até dois meses com aviso ao titular dentro do primeiro mês —
+  **W · texto lido**, EUR-Lex, 11/10/2026). A proposta: a resposta no mês
+  diz o que se limpou e o que espera pelo fim da encomenda, e porquê.

@@ -1,0 +1,443 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import Fastify from "fastify";
+import { sql } from "kysely";
+import { Type } from "typebox";
+import { CamposDoRasto, respostasDoRasto } from "../src/base/rasto-resposta.js";
+import { CANAIS, contextoDaTarefa } from "../src/base/rasto.js";
+import { registarComerciante } from "../src/comerciante/repositorio.js";
+import { criarChave } from "../src/identidade/repositorio.js";
+import {
+  criarBaseDeTeste,
+  URL_BASE,
+  type BaseDeTeste,
+} from "./base-de-teste.js";
+import { hubDeTeste } from "./hub-de-teste.js";
+
+// O rasto de auditoria comum, passo 4, parte 2 (docs/28 §1 e §4; #322): as
+// linhas do tempo da API devolvem as seis respostas — o que mudou, quem, de
+// onde, a IA, quem autorizou, quando e porquê — iguais em todas.
+
+const DESCONHECIDA = {
+  prova: "desconhecido",
+  fornecedor: null,
+  modelo: null,
+  execucao: null,
+};
+
+describe("as respostas a partir de uma linha do rasto", () => {
+  const vazia = {
+    quem: "catalogo:variante apagada",
+    canal: null,
+    pedido: null,
+    ia: null,
+    autorizado_por: null,
+    motivo: null,
+    a_pedido_de: null,
+  };
+
+  it("uma linha de antes da 0053 fica toda desconhecida, com a IA explícita", () => {
+    expect(respostasDoRasto(vazia)).toEqual({
+      canal: null,
+      pedido: null,
+      autorizado_por: null,
+      motivo: null,
+      ia: DESCONHECIDA,
+      // Uma consequência automática (os gatilhos ainda a escrevem). Sem
+      // contexto, a autorização é desconhecida: nem «autorizada» nem «sem
+      // autorização» (Diogo, 11/10/2026, Q8; docs/28 §3.6).
+      tipo_de_autor: "sistema",
+      a_pedido_de: null,
+      a_pedido_de_tipo: null,
+      sem_autorizacao_de_pessoa: null,
+    });
+  });
+
+  it("uma tarefa a pedido de um agente: «sistema, a pedido de um agente», sem autorização de uma pessoa (Q6)", () => {
+    const r = respostasDoRasto({
+      ...vazia,
+      quem: "sistema:encomendas",
+      canal: "sistema",
+      pedido: "tarefa:conclusoes",
+      ia: { prova: "declarado" },
+      a_pedido_de: { pedido: "req-1", quem: "chave:key_1" },
+    });
+    expect(r).toMatchObject({
+      tipo_de_autor: "sistema",
+      a_pedido_de: { pedido: "req-1", quem: "chave:key_1" },
+      a_pedido_de_tipo: "agente",
+      sem_autorizacao_de_pessoa: true,
+    });
+    // Sem pedido de origem registado: o tipo de quem pediu fica vazio.
+    expect(
+      respostasDoRasto({ ...vazia, quem: "sistema:x", canal: "sistema" })
+        .a_pedido_de_tipo,
+    ).toBeNull();
+  });
+
+  it("a tarefa herda do pedido de origem quem autorizou e a IA (Q6)", () => {
+    const pessoa = `pessoa:per_${"1".repeat(8)}-1111-1111-1111-${"1".repeat(12)}`;
+    expect(
+      contextoDaTarefa("conclusoes", {
+        a_pedido_de: { pedido: "req-1", quem: pessoa },
+        autorizado_por: pessoa,
+      }),
+    ).toEqual({
+      canal: "sistema",
+      pedido: "tarefa:conclusoes",
+      aPedidoDe: { pedido: "req-1", quem: pessoa },
+      autorizadoPor: pessoa,
+    });
+    expect(
+      contextoDaTarefa("pagamentos", {
+        a_pedido_de: { pedido: "req-2", quem: "chave:key_1" },
+        ia: { prova: "declarado", modelo: "m-1" },
+      }),
+    ).toEqual({
+      canal: "sistema",
+      pedido: "tarefa:pagamentos",
+      aPedidoDe: { pedido: "req-2", quem: "chave:key_1" },
+      ia: { prova: "declarado", modelo: "m-1" },
+    });
+    // Sem origem: só a tarefa.
+    expect(contextoDaTarefa("documentos", null)).toEqual({
+      canal: "sistema",
+      pedido: "tarefa:documentos",
+    });
+  });
+
+  it.each([
+    [{ a_pedido_de: { quem: "x".repeat(201) } }],
+    [{ a_pedido_de: { pedido: "com espaço" } }],
+    [{ a_pedido_de: {} }],
+    [{ autorizado_por: "chave:key_1" }],
+    [{ ia: { prova: "talvez" } }],
+  ] as const)(
+    "uma origem que a base não aceitaria corre sem origem, em vez de parar a fila: %j",
+    (origem) => {
+      expect(contextoDaTarefa("documentos", origem as never)).toEqual({
+        canal: "sistema",
+        pedido: "tarefa:documentos",
+      });
+    },
+  );
+
+  it.each([
+    ["pessoa:per_1", null, "pessoa"],
+    ["pessoa:per_1", { prova: "declarado" }, "pessoa"],
+    ["checkout:chk_1", null, "consumidor"],
+    ["prestador:eupago", null, "prestador"],
+    ["catalogo:variante apagada", null, "sistema"],
+    ["chave:key_1", null, "chave"],
+    ["chave:key_1", { prova: "declarado" }, "agente"],
+    ["sistema:encomendas", null, "sistema"],
+    ["operador:github:7", null, "operador"],
+    ["lixo", null, "desconhecido"],
+  ] as const)("o tipo de autor de %s com a IA %j é %s", (quem, ia, tipo) => {
+    expect(
+      respostasDoRasto({ ...vazia, quem, ia: ia === null ? null : { ...ia } })
+        .tipo_de_autor,
+    ).toBe(tipo);
+  });
+
+  it("o aviso vale para todas as origens sem pessoa a autorizar, e só para essas", () => {
+    for (const quem of ["chave:key_1", "sistema:x", "operador:github:1"]) {
+      expect(
+        respostasDoRasto({ ...vazia, quem, canal: "api" })
+          .sem_autorizacao_de_pessoa,
+      ).toBe(true);
+    }
+    expect(
+      respostasDoRasto({
+        ...vazia,
+        quem: "pessoa:per_1",
+        canal: "hub",
+        autorizado_por: "pessoa:per_1",
+      }).sem_autorizacao_de_pessoa,
+    ).toBe(false);
+  });
+
+  it("a IA declarada leva o que foi dito, e vazio o que não foi", () => {
+    expect(
+      respostasDoRasto({
+        ...vazia,
+        canal: "api",
+        ia: { prova: "declarado", modelo: "m-1" },
+      }).ia,
+    ).toEqual({
+      prova: "declarado",
+      fornecedor: null,
+      modelo: "m-1",
+      execucao: null,
+    });
+  });
+
+  it("uma prova que não é comprovado nem declarado nunca passa a verdade, nem leva o resto", () => {
+    expect(
+      respostasDoRasto({
+        ...vazia,
+        ia: { prova: "talvez", fornecedor: "x", modelo: "y" },
+      }).ia,
+    ).toEqual(DESCONHECIDA);
+  });
+
+  it("um canal que a base aceite e esta lista não conheça sai como está, sem 500", async () => {
+    const app = Fastify();
+    app.get(
+      "/t",
+      { schema: { response: { 200: Type.Object(CamposDoRasto) } } },
+      () => ({
+        ...respostasDoRasto({ ...vazia, canal: "pos", motivo: "m" }),
+      }),
+    );
+    const r = await app.inject({ method: "GET", url: "/t" });
+    await app.close();
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json<{ canal: string }>().canal).toBe("pos");
+  });
+});
+
+describe.skipIf(URL_BASE === undefined)(
+  "rasto: as seis respostas nas linhas do tempo",
+  () => {
+    let base: BaseDeTeste;
+    let h: ReturnType<typeof hubDeTeste>;
+    let a: string;
+    let segredo: string;
+    let chaveId: string;
+
+    const comChave = (
+      metodo: "GET" | "POST",
+      url: string,
+      corpo?: object,
+      extra: Record<string, string> = {},
+    ) =>
+      h.app.inject({
+        method: metodo,
+        url,
+        headers: {
+          authorization: `Bearer ${segredo}`,
+          ...(corpo === undefined
+            ? {}
+            : {
+                "idempotency-key": randomUUID(),
+                "content-type": "application/json",
+              }),
+          ...extra,
+        },
+        ...(corpo === undefined ? {} : { payload: JSON.stringify(corpo) }),
+      });
+
+    const artigo = () => ({
+      tipo: "fisico",
+      nome: "Verniz",
+      categoria_fiscal: "normal",
+      variantes: [
+        {
+          sku: `H-${randomUUID().slice(0, 8)}`,
+          unidade_de_venda: "unidade",
+          peso_g: 15,
+        },
+      ],
+    });
+
+    beforeAll(async () => {
+      base = await criarBaseDeTeste(URL_BASE ?? "");
+      h = hubDeTeste(base);
+      a = await registarComerciante(base.api, {
+        nome: "Loja Histórico",
+        lingua: "pt",
+        fuso: "Europe/Lisbon",
+      });
+      const k = await criarChave(base.dono, a, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Integração",
+        ambitos: [
+          "catalog:read",
+          "catalog:write",
+          "catalog:history",
+          "customers:read",
+          "customers:write",
+        ],
+      });
+      segredo = k.segredo;
+      chaveId = k.id;
+    }, 60_000);
+
+    afterAll(async () => {
+      await h.app.close();
+      await base.fechar();
+    });
+
+    it("a origem de quem agenda uma tarefa: do pedido, herdada numa cadeia, nenhuma numa tarefa sem origem (0060)", async () => {
+      const origem = async (vars: Record<string, string>) =>
+        base.dono.transaction().execute(async (trx) => {
+          for (const [k, v] of Object.entries(vars)) {
+            await sql`select set_config(${k}, ${v}, true)`.execute(trx);
+          }
+          const { rows } = await sql<{
+            o: unknown;
+          }>`select rasto_origem_actual() as o`.execute(trx);
+          return rows[0]?.o;
+        });
+      // Um pedido da API, por um agente: o pedido, quem, e a IA.
+      expect(
+        await origem({
+          "eurolify.canal": "api",
+          "eurolify.pedido": "req-9",
+          "eurolify.quem": "chave:key_9",
+          "eurolify.ia": JSON.stringify({ prova: "declarado" }),
+        }),
+      ).toEqual({
+        a_pedido_de: { pedido: "req-9", quem: "chave:key_9" },
+        ia: { prova: "declarado" },
+      });
+      // Uma pessoa no Hub: também quem autorizou.
+      expect(
+        await origem({
+          "eurolify.canal": "hub",
+          "eurolify.pedido": "req-10",
+          "eurolify.quem": `pessoa:per_${"0".repeat(8)}-0000-0000-0000-${"0".repeat(12)}`,
+          "eurolify.autorizado_por": `pessoa:per_${"0".repeat(8)}-0000-0000-0000-${"0".repeat(12)}`,
+        }),
+      ).toMatchObject({
+        autorizado_por: `pessoa:per_${"0".repeat(8)}-0000-0000-0000-${"0".repeat(12)}`,
+      });
+      // Dentro de uma tarefa com origem: a mesma origem (a cadeia não a perde).
+      expect(
+        await origem({
+          "eurolify.canal": "sistema",
+          "eurolify.pedido": "tarefa:pagamentos",
+          "eurolify.quem": "sistema:pagamentos",
+          "eurolify.a_pedido_de": JSON.stringify({
+            pedido: "req-9",
+            quem: "chave:key_9",
+          }),
+          "eurolify.ia": JSON.stringify({ prova: "declarado" }),
+        }),
+      ).toEqual({
+        a_pedido_de: { pedido: "req-9", quem: "chave:key_9" },
+        ia: { prova: "declarado" },
+      });
+      // Dentro de uma tarefa sem origem: nenhuma (não se inventa).
+      expect(
+        await origem({
+          "eurolify.canal": "sistema",
+          "eurolify.pedido": "tarefa:pagamentos",
+          "eurolify.quem": "sistema:pagamentos",
+        }),
+      ).toBeNull();
+      // Sem pedido (uma escrita à mão, com um «quem» por omissão): nenhuma.
+      expect(await origem({ "eurolify.quem": "teste:base" })).toBeNull();
+      // Uma origem mal formada recusa-se.
+      await expect(
+        origem({ "eurolify.a_pedido_de": JSON.stringify({ outro: "x" }) }),
+      ).rejects.toThrow(/audit\.context_invalid/);
+    });
+
+    it("a lista dos canais é a mesma da base (contexto_do_rasto)", async () => {
+      const { rows } = await sql<{ fonte: string }>`
+        select prosrc as fonte from pg_proc where proname = 'contexto_do_rasto'`.execute(
+        base.dono,
+      );
+      expect(rows).toHaveLength(1);
+      const lista = /canal NOT IN\s*\(([^)]*)\)/.exec(rows[0]?.fonte ?? "");
+      expect(lista, "a lista dos canais na função").not.toBeNull();
+      const naBase = [...(lista?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map(
+        (m) => m[1],
+      );
+      expect([...naBase].sort()).toEqual([...CANAIS].sort());
+    });
+
+    it("o artigo pela API com IA declarada: de onde, o pedido, a IA; ninguém autorizou", async () => {
+      const r = await comChave("POST", "/products", artigo(), {
+        "eurolify-ia": "fornecedor=anthropic; modelo=claude-x; execucao=run_9",
+      });
+      expect(r.statusCode, r.body).toBe(201);
+      const id = r.json<{ id: string }>().id;
+      const t = await comChave("GET", `/products/${id}/timeline`);
+      expect(t.statusCode, t.body).toBe(200);
+      const dados = t.json<{ dados: Record<string, unknown>[] }>().dados;
+      expect(dados.length).toBeGreaterThan(0);
+      for (const e of dados) {
+        expect(e).toMatchObject({
+          quem: `chave:key_${chaveId}`,
+          canal: "api",
+          ia: {
+            prova: "declarado",
+            fornecedor: "anthropic",
+            modelo: "claude-x",
+            execucao: "run_9",
+          },
+          autorizado_por: null,
+          motivo: null,
+        });
+        expect(e["pedido"]).toEqual(expect.any(String));
+      }
+    });
+
+    it("sem nada que indique IA, a resposta diz desconhecido, nunca «sem IA»", async () => {
+      const r = await comChave("POST", "/products", artigo());
+      const id = r.json<{ id: string }>().id;
+      const t = await comChave("GET", `/products/${id}/timeline`);
+      for (const e of t.json<{ dados: Record<string, unknown>[] }>().dados) {
+        expect(e["ia"]).toEqual(DESCONHECIDA);
+      }
+    });
+
+    it("no Hub, a pessoa que criou fica como quem autorizou, e o histórico do Hub traz o mesmo", async () => {
+      const p = await h.pessoaCom(a, "dono");
+      const r = await h.pedir("POST", "/hub/products", {
+        sessao: p.sessao,
+        comerciante: a,
+        corpo: {
+          tipo: "fisico",
+          nome: "Gel",
+          variantes: [
+            {
+              sku: `G-${randomUUID().slice(0, 8)}`,
+              unidade_de_venda: "unidade",
+            },
+          ],
+        },
+      });
+      expect(r.statusCode, r.body).toBe(201);
+      const id = r.json<{ id: string }>().id;
+      const t = await h.pedir("GET", `/hub/products/${id}/timeline`, {
+        sessao: p.sessao,
+        comerciante: a,
+      });
+      expect(t.statusCode, t.body).toBe(200);
+      const dados = t.json<{ dados: Record<string, unknown>[] }>().dados;
+      expect(dados.length).toBeGreaterThan(0);
+      for (const e of dados) {
+        expect(e).toMatchObject({
+          quem: `pessoa:per_${p.pessoa}`,
+          canal: "hub",
+          ia: DESCONHECIDA,
+          autorizado_por: `pessoa:per_${p.pessoa}`,
+        });
+      }
+    });
+
+    it("a ficha de cliente traz as mesmas respostas", async () => {
+      const r = await comChave("POST", "/customers", { nome: "Ana" });
+      expect(r.statusCode, r.body).toBe(201);
+      const id = r.json<{ id: string }>().id;
+      const t = await comChave("GET", `/customers/${id}/timeline`);
+      expect(t.statusCode, t.body).toBe(200);
+      const dados = t.json<{ dados: Record<string, unknown>[] }>().dados;
+      expect(dados.length).toBeGreaterThan(0);
+      for (const e of dados) {
+        expect(e).toMatchObject({
+          canal: "api",
+          ia: DESCONHECIDA,
+          autorizado_por: null,
+          motivo: null,
+        });
+        expect(e["pedido"]).toEqual(expect.any(String));
+      }
+    });
+  },
+);

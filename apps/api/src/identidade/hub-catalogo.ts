@@ -5,7 +5,7 @@ import { Type, type Static } from "typebox";
 import { RESPOSTA_DE_ERRO } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import type { Armazenamento } from "../catalogo/armazenamento.js";
-import { ErroCatalogo } from "../catalogo/erros.js";
+import { ErroCatalogo, ESPERA_MAXIMA } from "../catalogo/erros.js";
 import {
   alteracaoDaMedia,
   DESCRICAO_DO_ENVIO,
@@ -25,6 +25,7 @@ import {
 import {
   alteracaoDaVariante,
   alteracaoDoArtigo,
+  criacaoDaVariante,
   arquivoDaVariante,
   Artigo,
   CamposDoArtigo,
@@ -54,6 +55,7 @@ import {
   ParametroVariante,
   PedidoAlterarArtigo,
   PedidoAlterarVariante,
+  PedidoCriarVariante,
   PedidoVersao,
   publicacoesDeArtigo,
   RespostaArtigos,
@@ -68,8 +70,20 @@ import {
   RespostaLinhaDoTempo,
 } from "../catalogo/rotas-linha-do-tempo.js";
 import { comComerciante } from "../comerciante/repositorio.js";
-import { nomesDeCanaisEMercados } from "../precos/repositorio.js";
-import { precosDoArtigoApi, RespostaPrecosDoArtigo } from "../precos/rotas.js";
+import {
+  definirPreco,
+  nomesDeCanaisEMercados,
+  tirarPreco,
+} from "../precos/repositorio.js";
+import {
+  emPrecos,
+  ParametroPreco,
+  PedidoPreco,
+  PrecoEsquema,
+  precoNa,
+  precosDoArtigoApi,
+  RespostaPrecosDoArtigo,
+} from "../precos/rotas.js";
 import { TIPOS_DE_IMAGEM } from "../base/esquema.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { sessaoDo } from "./autenticacao.js";
@@ -86,7 +100,8 @@ import { erroConta, traduzindoConta } from "./sessoes.js";
 // a pessoa da sessão como «quem fez» na linha do tempo.
 
 /**
- * O que o Hub altera no artigo: o nome, a descrição e a marca. A categoria
+ * O que o Hub altera no artigo: o nome, a descrição, a marca e o «selado
+ * por higiene» (docs/30 §15). A categoria
  * fiscal fica de fora (docs/22 §13.1): decide o IVA e só entra no Hub como
  * escolha de uma lista dada pelo servidor (revisão do #217, P1-1).
  */
@@ -125,14 +140,13 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const QUEM_PESSOA = new RegExp(`^pessoa:per_(${UUID})$`);
 const QUEM_CHAVE = new RegExp(`^chave:key_(${UUID})$`);
 
-/** Quem fez uma entrada do histórico, para o Hub (docs/22 §16.2). */
+/**
+ * Quem fez uma entrada do histórico, para o Hub (docs/22 §16.2): só o nome.
+ * O tipo de autor é o `tipo_de_autor` da entrada (docs/28 §3.6); o antigo
+ * `autor.tipo` saiu quando o Hub deixou de o ler (revisão do #349, P2-3;
+ * docs/22 §26.1).
+ */
 const Autor = Type.Object({
-  tipo: Type.Union([
-    Type.Literal("pessoa"),
-    Type.Literal("chave"),
-    Type.Literal("sistema"),
-    Type.Literal("outro"),
-  ]),
   nome: Type.Union([Type.String(), Type.Null()], {
     description:
       "O nome de quem é ou foi da equipa deste comerciante, ou o nome da chave dele; vazio nos outros casos",
@@ -172,10 +186,38 @@ const RespostaOpcoesNoHub = Lista(
     ),
   }),
 );
+/** O nome de quem autorizou ou de quem pediu a tarefa (docs/22 §26.2). */
+const NomeDoRasto = (description: string) =>
+  Type.Union(
+    [
+      Type.Object({
+        nome: Type.Union([Type.String(), Type.Null()], {
+          description:
+            "O nome, com a regra do `autor` (§16.2): só de quem é ou foi da equipa deste comerciante, ou de uma chave dele; vazio nos outros casos",
+        }),
+      }),
+      Type.Null(),
+    ],
+    { description },
+  );
 const RespostaLinhaDoTempoNoHub = Type.Object({
   ...RespostaLinhaDoTempo.properties,
-  dados: Type.Array(Type.Object({ ...Alteracao.properties, autor: Autor })),
+  dados: Type.Array(
+    Type.Object({
+      ...Alteracao.properties,
+      autor: Autor,
+      autor_autorizou: NomeDoRasto(
+        "Quem autorizou (`autorizado_por`), com o nome; vazio quando ninguém ficou registado (docs/22 §26.2)",
+      ),
+      autor_do_pedido: NomeDoRasto(
+        "Numa tarefa, quem fez o pedido de origem (`a_pedido_de.quem`), com o nome; vazio fora de uma tarefa ou sem quem (docs/22 §26.2)",
+      ),
+    }),
+  ),
 });
+
+/** A função da base aceita no máximo 200 de cada tipo de cada vez (0038). */
+const MAXIMO_DE_NOMES = 200;
 
 /**
  * Os nomes das pessoas e das chaves de uma página do histórico, pela função
@@ -198,16 +240,35 @@ async function nomesDosAutores(
   }
   const nomes = new Map<string, string>();
   if (pessoas.size === 0 && chaves.size === 0) return nomes;
-  const linhas = await traduzindoConta(() =>
-    comComerciante(base, comercianteId, async (trx) => {
-      const { rows } = await sql<{ tipo: string; id: string; nome: string }>`
-        select tipo, id, nome from autores_da_linha_do_tempo(
-          ${segredo}, ${[...pessoas]}::uuid[], ${[...chaves]}::uuid[])`.execute(
-        trx,
-      );
-      return rows;
-    }),
-  );
+  // Uma página de 100 entradas pode ter, com quem autorizou e quem pediu,
+  // mais de 200 pessoas diferentes: pede-se aos bocados (docs/22 §26.2).
+  const listaPessoas = [...pessoas];
+  const listaChaves = [...chaves];
+  const linhas: { tipo: string; id: string; nome: string }[] = [];
+  for (
+    let i = 0;
+    i < Math.max(listaPessoas.length, listaChaves.length);
+    i += MAXIMO_DE_NOMES
+  ) {
+    const bocadoPessoas = listaPessoas.slice(i, i + MAXIMO_DE_NOMES);
+    const bocadoChaves = listaChaves.slice(i, i + MAXIMO_DE_NOMES);
+    linhas.push(
+      ...(await traduzindoConta(() =>
+        comComerciante(base, comercianteId, async (trx) => {
+          const { rows } = await sql<{
+            tipo: string;
+            id: string;
+            nome: string;
+          }>`
+            select tipo, id, nome from autores_da_linha_do_tempo(
+              ${segredo}, ${bocadoPessoas}::uuid[], ${bocadoChaves}::uuid[])`.execute(
+            trx,
+          );
+          return rows;
+        }),
+      )),
+    );
+  }
   for (const l of linhas) {
     nomes.set(
       l.tipo === "pessoa" ? `pessoa:per_${l.id}` : `chave:key_${l.id}`,
@@ -222,16 +283,13 @@ function autorDe(
   quem: string,
   nomes: Map<string, string>,
 ): Static<typeof Autor> {
-  if (QUEM_PESSOA.test(quem)) {
-    return { tipo: "pessoa", nome: nomes.get(quem) ?? null };
-  }
-  if (QUEM_CHAVE.test(quem)) {
-    return { tipo: "chave", nome: nomes.get(quem) ?? null };
-  }
-  if (quem.startsWith("sistema:") || quem.startsWith("catalogo:")) {
-    return { tipo: "sistema", nome: null };
-  }
-  return { tipo: "outro", nome: null };
+  // Só as pessoas e as chaves têm nome; o resto fica vazio.
+  return {
+    nome:
+      QUEM_PESSOA.test(quem) || QUEM_CHAVE.test(quem)
+        ? (nomes.get(quem) ?? null)
+        : null,
+  };
 }
 
 export function rotasDoCatalogoNoHub(
@@ -374,6 +432,103 @@ export function rotasDoCatalogoNoHub(
     },
   );
 
+  // Definir e tirar o preço de uma variante numa lista (docs/22 §25; issue
+  // #335): as mesmas funções do PUT e do DELETE pela chave, com a sessão de
+  // quem tem prices:write (o dono e o gestor) e o preço `lido` (a versão e
+  // o definido_em; null: a variante não tinha preço nesta lista). Também
+  // num artigo externo (Q1).
+  const PrecoLidoEsquema = Type.Object(
+    {
+      versao: Type.Integer({ minimum: 1 }),
+      definido_em: Type.String({
+        format: "date-time",
+        description: "O `definido_em` do preço, como a leitura o deu",
+      }),
+    },
+    { additionalProperties: false },
+  );
+  const CorpoPrecoNoHub = Type.Object(
+    {
+      ...PedidoPreco.properties,
+      lido: Type.Union([PrecoLidoEsquema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  );
+  const CorpoTirarPreco = Type.Object(
+    { lido: PrecoLidoEsquema },
+    { additionalProperties: false },
+  );
+
+  rotas.put(
+    "/hub/price-lists/:id/prices/:variante",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Define o preço de uma variante numa lista pelo Hub: a mesma escrita do PUT /price-lists/{id}/prices/{variante}, sobre o preço `lido` (a versão e o definido_em; null quando não havia preço), com a sessão de quem tem prices:write (docs/22 §25.2). Outro preço guardado dá 409 prices.version_conflict.",
+        params: ParametroPreco,
+        body: CorpoPrecoNoHub,
+        response: { 200: PrecoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverPrecoNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId, quem) => {
+          const listaId = semPrefixo(pedido.params.id);
+          const varianteId = semPrefixo(pedido.params.variante);
+          const { lido, ...dados } = pedido.body;
+          await definirPreco(
+            trx,
+            comercianteId,
+            quem,
+            listaId,
+            varianteId,
+            dados,
+            lido,
+          );
+          return precoNa(trx, comercianteId, listaId, varianteId);
+        },
+      ),
+  );
+
+  rotas.delete(
+    "/hub/price-lists/:id/prices/:variante",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Tira o preço de uma variante de uma lista pelo Hub: a mesma escrita do DELETE /price-lists/{id}/prices/{variante}, sobre o preço `lido` (no corpo, como as outras escritas do Hub), com a sessão de quem tem prices:write (docs/22 §25.2). Sem preço, ou com outro guardado, 409 prices.version_conflict.",
+        params: ParametroPreco,
+        body: CorpoTirarPreco,
+        response: {
+          204: Type.Null({ description: "Tirado; sem corpo" }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      await escreverPrecoNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId, quem) => {
+          await tirarPreco(
+            trx,
+            comercianteId,
+            quem,
+            semPrefixo(pedido.params.id),
+            semPrefixo(pedido.params.variante),
+            pedido.body.lido,
+          );
+        },
+      );
+      return resposta.code(204).send(null);
+    },
+  );
+
   // O histórico do artigo (docs/22 §16; issue #239): a mesma função do
   // GET /products/{id}/timeline, com o nome de quem fez (§16.2), só para
   // quem tem catalog:history (o dono e o gestor).
@@ -406,17 +561,27 @@ export function rotasDoCatalogoNoHub(
         pedido.query,
         resposta,
       );
+      // Quem fez, quem autorizou e quem pediu a tarefa, com a mesma regra
+      // dos nomes (§16.2; docs/22 §26.2).
       const nomes = await nomesDosAutores(
         base,
         sessao.segredo,
         comercianteId,
-        lista.dados.map((a) => a.quem),
+        lista.dados.flatMap((a) => [
+          a.quem,
+          ...(a.autorizado_por === null ? [] : [a.autorizado_por]),
+          ...(a.a_pedido_de?.quem == null ? [] : [a.a_pedido_de.quem]),
+        ]),
       );
+      const nomeDe = (quem: string | null | undefined) =>
+        quem == null ? null : { nome: nomes.get(quem) ?? null };
       return {
         ...lista,
         dados: lista.dados.map((a) => ({
           ...a,
           autor: autorDe(a.quem, nomes),
+          autor_autorizou: nomeDe(a.autorizado_por),
+          autor_do_pedido: nomeDe(a.a_pedido_de?.quem),
         })),
       };
     },
@@ -521,6 +686,41 @@ export function rotasDoCatalogoNoHub(
         await recusarVarianteExterna(trx, semPrefixo(pedido.params.id));
         return arquivoDaVariante(trx, comercianteId, pedido.params.id);
       }),
+  );
+
+  // Acrescentar uma variante pelo Hub (docs/22 §24.1; issue #321): a mesma
+  // escrita do POST /products/{id}/variants; num artigo externo,
+  // catalog.external_field (§13.3).
+  rotas.post(
+    "/hub/products/:id/variants",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Acrescenta uma variante ao artigo pelo Hub: a mesma escrita do POST /products/{id}/variants (SKU único, os valores das opções, num artigo publicado nasce fora das publicações), com a sessão de quem tem catalog:write (docs/22 §24.1). Num artigo externo dá catalog.external_field (§13.3).",
+        params: ParametroArtigo,
+        body: PedidoCriarVariante,
+        response: { 201: VarianteCompleta, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const variante = await escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId) => {
+          await recusarArtigoExterno(trx, semPrefixo(pedido.params.id));
+          return criacaoDaVariante(
+            trx,
+            comercianteId,
+            pedido.params.id,
+            pedido.body,
+          );
+        },
+      );
+      void resposta.code(201);
+      return variante;
+    },
   );
 
   // Alterar uma variante pelo Hub (docs/22 §23.1; issue #301): a mesma
@@ -1056,8 +1256,45 @@ async function escreverNoHub<T>(
   return noCatalogoApi(resposta, () =>
     comComerciante(base, comercianteId, async (trx) => {
       await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
+      // O mesmo prazo de espera pelos bloqueios das escritas pela chave
+      // (catalog.retry ao fim de 5 s), já no primeiro bloqueio, que é o de
+      // recusar*Externo* (revisão do #326, P2-1): cobre todas as rotas do Hub.
+      await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+        trx,
+      );
       return fn(trx, comercianteId);
     }),
+  );
+}
+
+/**
+ * Uma escrita de Preços pelo Hub (docs/22 §25.2): só com prices:write (o
+ * dono e o gestor), na transacção do comerciante da sessão, com o «quem» da
+ * pessoa. O prazo de espera pelos bloqueios põe-no o `noDominio` de Preços
+ * (5 s, depois prices.retry).
+ */
+async function escreverPrecoNoHub<T>(
+  base: Kysely<BaseDados>,
+  pedido: FastifyRequest,
+  resposta: FastifyReply,
+  fn: (
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    quem: string,
+  ) => Promise<T>,
+): Promise<T> {
+  const sessao = sessaoDo(pedido);
+  if (!sessao.ambitos.includes("prices:write")) {
+    throw erroConta("member.role_escalation", "o papel não escreve preços");
+  }
+  const comercianteId = sessao.comercianteId;
+  if (comercianteId === null) {
+    throw new Error("rota com comerciante sem o comerciante da sessão");
+  }
+  void resposta.header("cache-control", "private, no-store");
+  const quem = `pessoa:per_${sessao.pessoaId}`;
+  return emPrecos(resposta, () =>
+    comComerciante(base, comercianteId, (trx) => fn(trx, comercianteId, quem)),
   );
 }
 

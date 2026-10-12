@@ -20,6 +20,7 @@ const chave = (mais: Partial<ChaveApi> = {}): ChaveApi => ({
   revogada_em: null,
   revogada_por: null,
   ultimo_uso_em: null,
+  agente_ia: false,
   ...mais,
 });
 
@@ -96,12 +97,24 @@ describe("as chaves de API no Hub", () => {
     expect(fimDoDia("")).toBeNull();
   });
 
-  it("cada âmbito tem rótulo nas três línguas", () => {
+  it("cada âmbito tem rótulo nas três línguas, também os dos preços e do histórico (docs/22 §26.3)", () => {
+    const conhecidos = [
+      ...AMBITOS_SERVIDOR,
+      "storefront",
+      "catalog:history",
+      "prices:read",
+      "prices:write",
+      "prices:history",
+    ];
     for (const l of ["pt", "es", "en"] as const) {
-      for (const a of [...AMBITOS_SERVIDOR, "storefront" as const]) {
-        expect(rotuloDoAmbito(TEXTOS[l], a), `${l} ${a}`).toBeTruthy();
+      for (const a of conhecidos) {
+        const rotulo = rotuloDoAmbito(TEXTOS[l], a);
+        expect(rotulo, `${l} ${a}`).toBeTruthy();
+        expect(rotulo, `${l} ${a}`).not.toBe(a);
       }
     }
+    // Um âmbito que o ecrã não conhece sai com o nome técnico, nunca vazio.
+    expect(rotuloDoAmbito(TEXTOS.pt, "orders:read")).toBe("orders:read");
   });
 
   it("os erros das chaves têm texto próprio nas três línguas", () => {

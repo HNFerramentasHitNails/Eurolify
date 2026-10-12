@@ -3,6 +3,7 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type, type Static } from "typebox";
 import { erroBase, RESPOSTA_DE_ERRO } from "../base/erros.js";
+import { CamposDoRasto, respostasDoRasto } from "../base/rasto-resposta.js";
 import {
   ENTIDADES_DA_LINHA_DO_TEMPO,
   type BaseDados,
@@ -94,6 +95,7 @@ export const Alteracao = Type.Object({
         "Os campos que mudaram, com o valor antes e depois, como estão guardados (os identificadores sem prefixo)",
     },
   ),
+  ...CamposDoRasto,
 });
 
 export const RespostaLinhaDoTempo = Lista(Alteracao);
@@ -228,6 +230,7 @@ export async function linhaDoTempoDeArtigo(
               : `${prefixo}_${a.entidade_id}`,
         operacao: a.operacao,
         campos: a.campos,
+        ...respostasDoRasto(a),
       };
     }),
     total,

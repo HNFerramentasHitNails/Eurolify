@@ -50,14 +50,16 @@ dependem da P1 (§7).
 | `expira_em` | instante, opcional | |
 | `revogada_em`, `revogada_por` | instante, texto | revogar é imediato e não tem volta |
 | `ultimo_uso_em` | instante | actualizado no máximo uma vez por minuto, para não escrever a cada pedido |
+| `agente_ia` | booleano, falso por omissão | **chave de um agente de IA** (migração 0057; `docs/28` §3.3): o que ela faz fica no rasto com a IA «declarado», mesmo sem o cabeçalho `Eurolify-IA`. Só na de servidor; não muda depois de criada; uma chave de um agente só cria chaves de um agente |
 
 - **Formato do segredo:** `eul_sk_` ou `eul_pk_` mais 32 bytes aleatórios
   (`crypto.randomBytes`) em base32 sem preenchimento. Com 256 bits de acaso, um
   sha256 sem sal chega para o resumo, porque não há dicionário a tentar
   (**proposta**; não há fonte lida no repositório para esta escolha).
 - **A API não lê a tabela.** A procura da chave faz-se numa função
-  `SECURITY DEFINER` (`chave_resolver(resumo)`), que devolve só o comerciante, a
-  loja, os âmbitos e o id, e só a uma chave válida (não revogada, não expirada).
+  `SECURITY DEFINER` (`chave_resolver(resumo)`), que devolve só o id, o
+  comerciante, a loja, o tipo, os âmbitos, o prefixo e (desde a 0057) a marca
+  de agente de IA, e só a uma chave válida (não revogada, não expirada).
   A tabela fica fechada ao `eurolify_api`, para uma falha da aplicação não
   listar as chaves de todos.
 - Rasto: a própria linha é o rasto. Uma chave **não se altera nem se apaga**
@@ -88,12 +90,14 @@ dependem da P1 (§7).
 | `catalog:read`, `catalog:write`, `catalog:publish`, `catalog:import` | o Catálogo | `docs/14` §7 (já propostos) |
 | `catalog:history` | a linha do tempo do artigo, com quem fez (migração 0033) | `docs/14` §3.12; `docs/06`, CU |
 | `prices:read`, `prices:write` | Preços e mercados: mercados, canais, listas, preços e reduções (migração 0036) | `docs/20` §10.1; `docs/06`, CW |
+| `prices:history` | no histórico de um preço, quem mudou, quem autorizou, o pedido e o motivo; com `prices:read` só se vê o tipo de autor, o aviso «sem autorização de uma pessoa», o canal e a IA. Dono e gestor (migração 0059). Só serve junto com `prices:read`. Numa chave, entra pelo Hub (o dono) ou pelo comando do operador: pela API, nenhuma chave antiga o tem para o passar (T9) | `docs/28` §3.8; `docs/06`, DO |
 | `customers:read`, `customers:write` | Clientes: fichas, etiquetas e a linha do tempo; ler os perfis de faturação (migração 0037) | `docs/23` §7; `docs/06`, CX |
 | `customers:billing` | Clientes: criar e mudar perfis de faturação (NIF, morada fiscal), consultar o VIES — só o dono (migração 0037) | `docs/23` §7; `docs/06`, CX |
 | `customers:exemptions` | Clientes: pôr e retirar a isenção manual de IVA — só o dono (migração 0039) | `docs/23` §13; `docs/06`, CY |
 | `customers:merge` | Clientes: fundir fichas (com ensaio) e descartar candidatos a duplicado — dono e gestor (migração 0046) | `docs/23` §3.7; `docs/06`, DD |
 | `customers:privacy` | Clientes: os pedidos do titular — exportar, limitar e pseudonimizar — só o dono (migração 0049) | `docs/23` §7.1 e §12 |
 | `tax:read`, `tax:write` | Motor de IVA: ler as tabelas, simular a decisão; declarar o regime de cada entidade legal (só o dono) (migração 0040) | `docs/24` §8; `docs/06`, CZ |
+| `tasks:assign` | nas tarefas das filas que pedem uma pessoa, atribuir um caso e mudar o prazo; junto com o âmbito que lê a fila e o que a decide. Dono e gestor (migração 0066). Uma chave de agente de IA nunca atribui, mesmo com ele (R11) | `docs/33` R3; `docs/06`, DW |
 | `keys:write` | criar e revogar chaves | este documento |
 | `storefront` | a lista fixa da chave pública | `docs/02` §4.1 |
 
@@ -289,7 +293,7 @@ migração 0012.
 
 | Operação | Corpo | Resposta |
 |---|---|---|
-| `POST /keys` | `tipo` (`servidor`, `publica`); `nome` (1–100); `ambitos` (só na de servidor; a pública tem a lista fixa `storefront`); `loja` (`sto_…`, só na pública); `expira_em` (opcional, no futuro) | **201** com a chave e o `segredo`, que só aparece aqui |
+| `POST /keys` | `tipo` (`servidor`, `publica`); `nome` (1–100); `ambitos` (só na de servidor; a pública tem a lista fixa `storefront`); `loja` (`sto_…`, só na pública); `expira_em` (opcional, no futuro); `agente_ia` (opcional, falso por omissão; só na de servidor, 0057) | **201** com a chave e o `segredo`, que só aparece aqui |
 | `POST /keys/{id}/revoke` | nenhum | **200** com a chave revogada (sem segredo) |
 
 As duas exigem o âmbito `keys:write` e o cabeçalho `Idempotency-Key`.
@@ -328,6 +332,15 @@ que a API ganha para escrever chaves:
   `key.store_not_found`. Ex.: uma chave temporária que peça uma chave sem
   prazo e com âmbitos a mais recebe o 422 do prazo; corrigido o prazo,
   recebe o 403 dos âmbitos.
+- **Chave de um agente de IA** (migração 0057; `docs/28` §3.3 e §4, passo
+  4): `agente_ia: true` marca a chave. Pedida numa pública → 400
+  `request.invalid` na rota; uma chave de um agente que peça uma pública →
+  `key.agent_not_server` (422, com o detalhe «uma chave de um agente de IA não
+  cria chaves públicas»; a rota recusa antes da base, e a base recusa na
+  mesma, depois de `key.expiry_beyond_creator`).
+  Uma chave de um agente cria sempre chaves de um agente, mesmo com
+  `agente_ia: false` (a marca passa como os âmbitos, T9). O `POST /hub/keys`
+  aceita o mesmo campo: aí escolhe a pessoa.
 - **A ordem das recusas ao revogar:** `auth.forbidden` → `key.not_found` →
   `key.already_revoked` → `key.revoke_beyond_creator` (0015) →
   `key.last_key_writer`.
@@ -342,7 +355,9 @@ que a API ganha para escrever chaves:
   - uma chave **pública** tem só `storefront` (leitura da Loja, lista fixa),
     e qualquer chave com `keys:write` a pode criar (**proposta**: `storefront`
     nunca está numa chave de servidor, por isso a regra literal impediria
-    sempre criar uma pública).
+    sempre criar uma pública). Excepção desde a 0057: uma chave de um agente
+    de IA não cria públicas (`key.agent_not_server`, 422), porque a marca
+    passaria e a pública não a pode ter.
 - `criada_por` e `revogada_por` passam a `chave:key_<id>` (§5).
 - **Revogar a última:**
   - nenhuma revogação pela API deixa o comerciante sem uma chave válida com

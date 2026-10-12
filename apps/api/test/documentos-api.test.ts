@@ -37,7 +37,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Os documentos fiscais pela API (docs/28; migração 0050): quem emite, a
+// Os documentos fiscais pela API (docs/29; migração 0050): quem emite, a
 // ligação ao emissor, a retenção com motivo, a emissão em dois passos, a
 // prova lida de volta, o incerto reconciliado e as decisões de uma pessoa.
 // O emissor é o de ensaio (Q5): nada sai para fora.
@@ -472,6 +472,18 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     );
     const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
     const pag = await ok(s.adm("GET", `/payments/${String(p["id"])}`));
+    // As transições trazem as seis respostas do rasto (docs/28 §1; #322):
+    // a primeira veio do checkout, pela API.
+    const transicoes = pag["transicoes"] as Json[];
+    expect(transicoes.length).toBeGreaterThan(0);
+    expect(transicoes[0]).toMatchObject({
+      canal: "api",
+      ia: { prova: "desconhecido", fornecedor: null },
+      autorizado_por: null,
+    });
+    expect(Object.keys(transicoes[0] ?? {})).toEqual(
+      expect.arrayContaining(["pedido", "motivo"]),
+    );
     expect(
       (
         await aviso(
@@ -652,6 +664,19 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     expect(
       (d["rasto"] as Json[]).map((p) => p["para"]).filter(Boolean),
     ).toEqual(["a_verificar", "pronto", "rascunho", "emitido"]);
+    // Cada passo traz as seis respostas do rasto (docs/28 §1; #322).
+    for (const p of d["rasto"] as Json[]) {
+      expect([null, "api", "sistema"]).toContain(p["canal"]);
+      // Os passos da tarefa dizem a pedido de quem (docs/28 §3.7; Q6).
+      if (p["canal"] === "sistema") {
+        expect(p["a_pedido_de"]).not.toBeNull();
+        expect(p["a_pedido_de_tipo"]).not.toBe("desconhecido");
+      }
+      expect(typeof (p["ia"] as Json)["prova"]).toBe("string");
+      expect(Object.keys(p)).toEqual(
+        expect.arrayContaining(["pedido", "autorizado_por", "motivo"]),
+      );
+    }
     expect(await eventos(s)).toContain("invoice.issued");
     // A prova e o rasto só se acrescentam; o pedido não se apaga.
     await expect(

@@ -1,6 +1,8 @@
+import { randomBytes, randomInt } from "node:crypto";
 import { sql, type Kysely, type Transaction } from "kysely";
 import {
   CANAIS_CONSENTIMENTO,
+  type TipoDeAnexo,
   type BaseDados,
   type CanalConsentimento,
   type EstadoDuplicado,
@@ -42,6 +44,15 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   // Da 0049: os pedidos do titular.
   "customers.confirmation_required",
   "customers.restricted",
+  // Da 0052: o consentimento por contacto e a dupla confirmação.
+  "customers.consent_contact_unknown",
+  "customers.consent_confirmation_required",
+  "customers.confirmation_channel",
+  "customers.confirmation_invalid",
+  "customers.confirmation_rate_limited",
+  // Da 0055: os anexos da isenção.
+  "customers.exemption_attachments_full",
+  "customers.exemption_attachments_quota",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -72,6 +83,8 @@ const TABELAS = new Set([
   "consentimento",
   "duplicado_cliente",
   "pedido_titular",
+  "confirmacao_consentimento",
+  "anexo_isencao",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -990,6 +1003,88 @@ export async function obterIsencao(
   return i;
 }
 
+/** O que se mostra de um anexo (sem os bytes). */
+const COLUNAS_DO_ANEXO = [
+  "id",
+  "isencao_id",
+  "nome",
+  "tipo",
+  "tamanho",
+  "resumo",
+  "posto_por",
+  "posto_em",
+] as const;
+
+/**
+ * Anexa um ficheiro a uma isenção em vigor (0055): a base confirma o tipo
+ * pelos primeiros bytes, conta os 5 e põe quem e quando.
+ */
+export async function anexarIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  isencaoId: string,
+  anexo: { tipo: TipoDeAnexo; nome: string | null; bytes: Buffer },
+) {
+  return noClientes(db, comercianteId, (trx) =>
+    trx
+      .insertInto("anexo_isencao")
+      .values({
+        comerciante_id: comercianteId,
+        isencao_id: isencaoId,
+        nome: anexo.nome,
+        tipo: anexo.tipo,
+        bytes: anexo.bytes,
+      })
+      .returning(COLUNAS_DO_ANEXO)
+      .executeTakeFirstOrThrow(),
+  );
+}
+
+/** Os anexos de uma isenção (sem os bytes), pela ordem em que entraram. */
+export async function listarAnexosDaIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  isencaoId: string,
+) {
+  return noClientes(db, comercianteId, async (trx) => {
+    const existe = await trx
+      .selectFrom("isencao_manual")
+      .select("id")
+      .where("id", "=", isencaoId)
+      .executeTakeFirst();
+    if (existe === undefined) {
+      throw new ErroClientes("customers.not_found", "isenção inexistente");
+    }
+    return trx
+      .selectFrom("anexo_isencao")
+      .select(COLUNAS_DO_ANEXO)
+      .where("isencao_id", "=", isencaoId)
+      .orderBy("id")
+      .execute();
+  });
+}
+
+/** Um anexo com os bytes, para descarregar. */
+export async function lerAnexoDaIsencao(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  isencaoId: string,
+  anexoId: string,
+) {
+  const a = await noClientes(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("anexo_isencao")
+      .select(["tipo", "nome", "bytes", "resumo"])
+      .where("isencao_id", "=", isencaoId)
+      .where("id", "=", anexoId)
+      .executeTakeFirst(),
+  );
+  if (a === undefined) {
+    throw new ErroClientes("customers.not_found", "anexo inexistente");
+  }
+  return a;
+}
+
 /** As isenções de um perfil (a em vigor e as retiradas), mais recentes primeiro. */
 export async function listarIsencoes(
   db: Kysely<BaseDados>,
@@ -1019,31 +1114,153 @@ export async function listarIsencoes(
 export interface DadosConsentimento {
   canal: CanalConsentimento;
   declaracao: "aceitou" | "retirou";
+  /** O e-mail ou o telefone da ficha a que a declaração se refere (0052). */
+  contacto: string;
   texto: string;
   versao_texto: string;
   onde: string;
 }
 
-/** Regista uma declaração (migração 0042); a hora e quem põe-nos a base. */
+/** O que uma declaração deu: a declaração, ou um pedido de dupla confirmação. */
+export type ResultadoConsentimento =
+  | { tipo: "declaracao"; id: string }
+  | {
+      tipo: "confirmacao";
+      id: string;
+      /** Só nesta resposta; a base guarda o resumo (0052). */
+      segredo: string;
+      /** O contacto como a base o compara (o e-mail em minúsculas). */
+      contacto: string;
+      expira_em: Date;
+    };
+
+/** O segredo da dupla confirmação: uma ligação para o e-mail, um código de 6 dígitos para o SMS. */
+function segredoDaConfirmacao(canal: CanalConsentimento): string {
+  return canal === "email"
+    ? randomBytes(32).toString("base64url")
+    : String(randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+/**
+ * Regista uma declaração (migrações 0042 e 0052); a hora e quem põe-nos a
+ * base. Um «aceitou» sobre uma recusa activa do contacto não entra: a base
+ * recusa-o, e cria-se um pedido de dupla confirmação (docs/23 §14, C3).
+ */
 export async function registarConsentimento(
   db: Kysely<BaseDados>,
   comercianteId: string,
   clienteId: string,
   dados: DadosConsentimento,
+): Promise<ResultadoConsentimento> {
+  return noClientes(db, comercianteId, async (trx) => {
+    await sql`savepoint antes_da_declaracao`.execute(trx);
+    try {
+      const { id } = await trx
+        .insertInto("consentimento")
+        .values({
+          comerciante_id: comercianteId,
+          cliente_id: clienteId,
+          finalidade: "marketing",
+          ...dados,
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      return { tipo: "declaracao" as const, id };
+    } catch (erro) {
+      const e = traduzir(erro);
+      if (
+        !(e instanceof ErroClientes) ||
+        e.codigo !== "customers.consent_confirmation_required" ||
+        dados.declaracao !== "aceitou"
+      ) {
+        throw erro;
+      }
+      await sql`rollback to savepoint antes_da_declaracao`.execute(trx);
+      const segredo = segredoDaConfirmacao(dados.canal);
+      const { rows } = await sql<{
+        id: string;
+        expira_em: Date;
+        contacto: string;
+      }>`
+        select id, expira_em, contacto from consentimento_pedir_confirmacao(
+          ${clienteId}::uuid, ${dados.canal}, ${dados.contacto}, ${dados.texto},
+          ${dados.versao_texto}, ${dados.onde}, ${segredo})`.execute(trx);
+      const r = rows[0];
+      if (r === undefined) {
+        throw new Error("consentimento_pedir_confirmacao sem linha", {
+          cause: erro,
+        });
+      }
+      return {
+        tipo: "confirmacao" as const,
+        id: r.id,
+        segredo,
+        contacto: r.contacto,
+        expira_em: r.expira_em,
+      };
+    }
+  });
+}
+
+/**
+ * Confirma um pedido com o que a pessoa trouxe (0052). Corre na sua própria
+ * transacção: uma tentativa errada fica contada mesmo quando a resposta é um
+ * erro.
+ */
+export async function confirmarConsentimento(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  quem: string,
+  confirmacaoId: string,
+  segredo: string,
 ): Promise<string> {
-  const { id } = await noClientes(db, comercianteId, (trx) =>
-    trx
-      .insertInto("consentimento")
-      .values({
-        comerciante_id: comercianteId,
-        cliente_id: clienteId,
-        finalidade: "marketing",
-        ...dados,
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow(),
-  );
-  return id;
+  const r = await noClientes(db, comercianteId, async (trx) => {
+    await sql`select set_config('eurolify.quem', ${quem}, true)`.execute(trx);
+    const { rows } = await sql<{
+      resultado: string;
+      consentimento_id: string | null;
+    }>`select resultado, consentimento_id
+        from consentimento_confirmar(${confirmacaoId}::uuid, ${segredo})`.execute(
+      trx,
+    );
+    return rows[0];
+  });
+  switch (r?.resultado) {
+    case "confirmada":
+      if (r.consentimento_id === null)
+        throw new Error("confirmada sem declaração");
+      return r.consentimento_id;
+    case "nao_existe":
+      throw new ErroClientes(
+        "customers.not_found",
+        "o pedido de confirmação não existe",
+      );
+    case "errado":
+      throw new ErroClientes(
+        "customers.confirmation_invalid",
+        "o segredo não confere",
+      );
+    case "esgotada":
+      throw new ErroClientes(
+        "customers.confirmation_exhausted",
+        "tentativas esgotadas; peça outra confirmação",
+      );
+    case "expirada":
+      throw new ErroClientes(
+        "customers.confirmation_expired",
+        "o pedido expirou; peça outra confirmação",
+      );
+    case "ja_confirmada":
+      throw new ErroClientes(
+        "customers.confirmation_closed",
+        "o pedido já foi confirmado; o «sim» está registado",
+      );
+    default:
+      throw new ErroClientes(
+        "customers.confirmation_closed",
+        `o pedido já não está pendente (${String(r?.resultado)})`,
+      );
+  }
 }
 
 export async function obterConsentimento(
@@ -1117,11 +1334,22 @@ export async function listarConsentimentos(
     const regua = Object.fromEntries(
       CANAIS_CONSENTIMENTO.map((canal) => [canal, r?.[canal] === true]),
     ) as Record<CanalConsentimento, boolean>;
+    // Por contacto (0052): os contactos da ficha com «sim» em cada canal.
+    const { rows: porLinha } = await sql<Record<CanalConsentimento, string[]>>`
+      select contactos_com_marketing(${clienteId}::uuid, 'email') as email,
+             contactos_com_marketing(${clienteId}::uuid, 'sms') as sms,
+             contactos_com_marketing(${clienteId}::uuid, 'whatsapp') as whatsapp`.execute(
+      trx,
+    );
+    const porContacto = Object.fromEntries(
+      CANAIS_CONSENTIMENTO.map((canal) => [canal, porLinha[0]?.[canal] ?? []]),
+    ) as Record<CanalConsentimento, string[]>;
     return {
       dados,
       total: Number(n),
       ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
       regua,
+      porContacto,
     };
   });
 }
@@ -1382,6 +1610,21 @@ export async function exportarCliente(
         perfis_de_faturacao: perfis,
         provas_vies: await doPerfil("validacao_vies"),
         isencoes_manuais: await doPerfil("isencao_manual"),
+        // Os anexos das isenções (0055): o que são, sem os bytes (lêem-se
+        // pela rota deles).
+        anexos_das_isencoes:
+          ids_perfis.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select a.id, a.isencao_id, a.nome, a.tipo, a.tamanho, a.resumo,
+                       a.posto_por, a.posto_em
+                from anexo_isencao a
+                join isencao_manual i on i.id = a.isencao_id
+                where i.perfil_id = any(${ids_perfis}::uuid[]) order by a.id`.execute(
+                  trx,
+                )
+              ).rows,
         etiquetas: (
           await sql<{ id: string; nome: string }>`
             select e.id, e.nome from cliente_etiqueta ce
@@ -1389,6 +1632,15 @@ export async function exportarCliente(
             where ce.cliente_id = ${id}::uuid order by e.id`.execute(trx)
         ).rows,
         consentimentos: await linhas("consentimento"),
+        // Os pedidos de dupla confirmação (0052), sem o resumo do segredo.
+        confirmacoes_de_consentimento: (
+          await sql<Record<string, unknown>>`
+            select id, canal, contacto, texto, versao_texto, onde, estado,
+                   tentativas, expira_em, pedida_por, pedida_em, fechada_em,
+                   consentimento_id
+            from confirmacao_consentimento where cliente_id = ${id}::uuid
+            order by id`.execute(trx)
+        ).rows,
         encomendas,
         linhas_das_encomendas: await daEncomenda("linha_encomenda"),
         pagamentos: await daEncomenda("pagamento"),

@@ -1,4 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
+import {
+  comRasto,
+  contextoDaTarefa,
+  type OrigemDaTarefa,
+} from "../base/rasto.js";
 import { sql, type Kysely, type Transaction } from "kysely";
 import type {
   BaseDados,
@@ -155,7 +160,7 @@ export async function marcar(
     set_config('eurolify.motivo', ${m.motivo ?? ""}, true)`.execute(trx);
 }
 
-function adaptadorDe(cfg: ConfigPagamentos | undefined): {
+export function adaptadorDe(cfg: ConfigPagamentos | undefined): {
   adaptador: AdaptadorPagamento;
   chave: ChavePagamentos;
 } {
@@ -267,10 +272,22 @@ export async function definirCredenciais(
   trx: Transaction<BaseDados>,
   c: string,
   id: string,
-  dados: { chave: string; segredo_aviso: string },
+  dados: {
+    chave: string;
+    segredo_aviso: string;
+    /** OAuth, para o reembolso pelo prestador (docs/30 §13, P1). */
+    client_id?: string;
+    client_secret?: string;
+  },
   quem: string,
   cfg: ConfigPagamentos | undefined,
 ) {
+  if ((dados.client_id === undefined) !== (dados.client_secret === undefined)) {
+    throw new ErroPagamentos(
+      "payments.invalid_field",
+      "o client_id e o client_secret vão juntos",
+    );
+  }
   const { chave } = adaptadorDe(cfg);
   return noPagamentos(trx, c, async () => {
     const conta = await contaParaMudar(trx, id, null);
@@ -278,7 +295,17 @@ export async function definirCredenciais(
       .updateTable("conta_pagamento")
       .set({
         credenciais_cifra: cifrar(
-          JSON.stringify({ chave: dados.chave }),
+          JSON.stringify({
+            chave: dados.chave,
+            ...(dados.client_id === undefined
+              ? {}
+              : {
+                  oauth: {
+                    clientId: dados.client_id,
+                    clientSecret: dados.client_secret,
+                  },
+                }),
+          }),
           id,
           "credenciais",
           chave,
@@ -302,7 +329,7 @@ export async function definirCredenciais(
   });
 }
 
-function credenciaisDe(
+export function credenciaisDe(
   conta: {
     id: string;
     credenciais_cifra: Buffer | null;
@@ -324,14 +351,23 @@ function credenciaisDe(
   }
   const lidas = JSON.parse(
     decifrar(conta.credenciais_cifra, conta.id, "credenciais", chave),
-  ) as { chave?: unknown };
+  ) as {
+    chave?: unknown;
+    oauth?: { clientId?: unknown; clientSecret?: unknown };
+  };
   if (typeof lidas.chave !== "string") {
     throw new ErroPagamentos(
       "payments.account_not_ready",
       "credenciais ilegíveis",
     );
   }
-  return { chave: lidas.chave };
+  const o = lidas.oauth;
+  return typeof o?.clientId === "string" && typeof o.clientSecret === "string"
+    ? {
+        chave: lidas.chave,
+        oauth: { clientId: o.clientId, clientSecret: o.clientSecret },
+      }
+    : { chave: lidas.chave };
 }
 
 /** A chamada de teste ao prestador: só com ela a conta fica pronta. */
@@ -590,7 +626,7 @@ export async function pagamentoDaEncomenda(
     .executeTakeFirst();
 }
 
-async function abrirDiferenca(
+export async function abrirDiferenca(
   trx: Transaction<BaseDados>,
   c: string,
   d: {
@@ -1195,6 +1231,65 @@ async function aplicarAviso(
     await fechar("sem_pagamento", null);
     return;
   }
+  // Um reembolso no prestador (docs/30 §13, P6): não muda o pagamento. Se o
+  // Eurolify o pediu, a consulta dos `a_confirmar` deste pagamento corre já
+  // na próxima volta; se não pediu nenhum, fica na fila para uma pessoa.
+  if (ev.estado === "reembolsado") {
+    const reembolsos = await trx
+      .selectFrom("reembolso")
+      .select(["id", "estado", "via", "montante"])
+      .where("pagamento_id", "=", p.id)
+      .where("estado", "in", ["a_pedir", "a_confirmar", "incerto", "executado"])
+      .execute();
+    const emCurso = reembolsos.filter((x) =>
+      ["a_pedir", "a_confirmar", "incerto"].includes(x.estado),
+    );
+    // Já confirmado pela consulta (o aviso chegou depois): é o nosso, com o
+    // mesmo montante; não é alarme (revisão do #350, P2-4).
+    const jaFeito = reembolsos.some(
+      (x) =>
+        x.estado === "executado" &&
+        x.via === "prestador" &&
+        ev.montante !== null &&
+        Number(x.montante) === ev.montante,
+    );
+    if (emCurso.length === 0) {
+      if (!jaFeito) {
+        await abrirDiferenca(trx, c, {
+          pagamento: p.id,
+          aviso: aviso.id,
+          motivo: "reembolso_desconhecido",
+          prova: { montante: ev.montante, moeda: ev.moeda },
+        });
+        await fechar("diferenca", p.id);
+        return;
+      }
+      await fechar("aplicado", p.id);
+      return;
+    }
+    await marcar(trx, { quem: `prestador:${p.prestador}`, origem: "aviso" });
+    await trx
+      .updateTable("reembolso")
+      .set({ consultado_em: sql<Date>`'-infinity'::timestamptz` })
+      .where("pagamento_id", "=", p.id)
+      .where("estado", "=", "a_confirmar")
+      .execute();
+    // Um reembolso incerto: o aviso é a melhor prova de que saiu; vai para a
+    // fila, ao lado dele, para a pessoa que o reconcilia (P2-4).
+    for (const x of emCurso.filter((y) => y.estado === "incerto")) {
+      await abrirDiferenca(trx, c, {
+        pagamento: p.id,
+        aviso: aviso.id,
+        motivo: "reembolso_incerto",
+        prova: {
+          reembolso: `rfd_${x.id}`,
+          aviso_de_reembolso: { montante: ev.montante, moeda: ev.moeda },
+        },
+      });
+    }
+    await fechar("aplicado", p.id);
+    return;
+  }
   const r = await aplicarEstado(
     trx,
     p,
@@ -1202,6 +1297,21 @@ async function aplicarAviso(
     { tipo: "aviso", quem: `prestador:${p.prestador}`, aviso: aviso.id },
     { montante: ev.montante, moeda: ev.moeda },
   );
+  // O `trid` do aviso que deu o pagamento como pago, para o reembolso (P2).
+  if (
+    ev.estado === "capturado" &&
+    ev.idTransaccao !== null &&
+    (r === "aplicado" || r === "repetido") &&
+    p.id_transaccao_prestador === null
+  ) {
+    await marcar(trx, { quem: `prestador:${p.prestador}`, origem: "aviso" });
+    await trx
+      .updateTable("pagamento")
+      .set({ id_transaccao_prestador: ev.idTransaccao })
+      .where("id", "=", p.id)
+      .where("id_transaccao_prestador", "is", null)
+      .execute();
+  }
   await fechar(r === "sem_mudanca" ? "aplicado" : r, p.id);
 }
 
@@ -1306,15 +1416,19 @@ export async function correrTarefas(
           await sql<{
             alvo_tipo: "pagamento" | "encomenda";
             alvo_id: string;
-          }>`select * from pagamentos_tarefas(${porVolta})`.execute(trx)
+            origem: OrigemDaTarefa | null;
+          }>`select t.alvo_tipo, t.alvo_id,
+               tarefa_origem(t.alvo_tipo, t.alvo_id) as origem
+             from pagamentos_tarefas(${porVolta}) t`.execute(trx)
         ).rows,
     );
     for (const t of tarefas) {
-      if (t.alvo_tipo === "pagamento") {
-        await tarefaDoPagamento(db, c, t.alvo_id, cfg, r);
-      } else {
-        await tarefaDaEncomenda(db, c, t.alvo_id, r);
-      }
+      // Cada tarefa com a origem de quem a pediu (docs/28 §3.7; Q6).
+      await comRasto(contextoDaTarefa("pagamentos", t.origem), () =>
+        t.alvo_tipo === "pagamento"
+          ? tarefaDoPagamento(db, c, t.alvo_id, cfg, r)
+          : tarefaDaEncomenda(db, c, t.alvo_id, r),
+      );
     }
   }
   return r;
@@ -1586,7 +1700,20 @@ export async function lerPagamento(
     pagamento: await lerPagamentoNaTrx(trx, id),
     transicoes: await trx
       .selectFrom("transicao_pagamento")
-      .select(["de", "para", "origem", "aviso_id", "quem", "motivo", "em"])
+      .select([
+        "de",
+        "para",
+        "origem",
+        "aviso_id",
+        "quem",
+        "motivo",
+        "em",
+        "canal",
+        "pedido",
+        "ia",
+        "autorizado_por",
+        "a_pedido_de",
+      ])
       .where("pagamento_id", "=", id)
       .orderBy("em")
       .orderBy("id")

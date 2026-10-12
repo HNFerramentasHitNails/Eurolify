@@ -1,4 +1,9 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import {
+  CamposDoAutor,
+  CamposDoRasto,
+  respostasDoRasto,
+} from "../base/rasto-resposta.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type, type Static } from "typebox";
@@ -45,6 +50,7 @@ import {
   traduzir,
   type PrecoDaLista,
   type Reducao,
+  type LinhaHistorico,
 } from "./repositorio.js";
 
 // A API de Administração de Preços e mercados (docs/20 §7.1 e §10; issue
@@ -120,7 +126,7 @@ function paraApi(erro: unknown, resposta: FastifyReply): unknown {
 }
 
 /** Corre e devolve os erros de Preços no formato da API. */
-async function emPrecos<T>(
+export async function emPrecos<T>(
   resposta: FastifyReply,
   fn: () => Promise<T>,
 ): Promise<T> {
@@ -313,13 +319,15 @@ const PorUnidade = Type.Union([
   Type.Null(),
 ]);
 
-const PrecoEsquema = Type.Object({
+export const PrecoEsquema = Type.Object({
   variante: Type.String({ description: "var_…" }),
   montante: Type.Integer(),
   gratuito: Type.Boolean(),
   quantidade_minima: Type.Integer(),
   multiplo: Type.Integer(),
   definido_em: Instante,
+  /** Sobe em cada escrita; as escritas pelo Hub mandam-na (docs/22 §25.2). */
+  versao: Type.Integer({ minimum: 1 }),
   reducao: Type.Union([ReducaoEsquema, Type.Null()]),
   preco_por_unidade: PorUnidade,
 });
@@ -382,7 +390,7 @@ export async function precosDoArtigoApi(
   });
 }
 
-const PedidoPreco = Type.Object(
+export const PedidoPreco = Type.Object(
   {
     montante: Montante,
     gratuito: Type.Optional(Type.Boolean()),
@@ -409,13 +417,59 @@ const Historico = Type.Object({
       moeda: Type.String(),
       preco_inclui_iva: Type.Boolean(),
       em_vigor_desde: Instante,
+      // Com prices:read: o tipo de autor e o aviso, sem identificar ninguém
+      // (Diogo, 11/10/2026, Q7; docs/28 §3.8).
+      ...CamposDoAutor,
+      canal: CamposDoRasto.canal,
+      ia: CamposDoRasto.ia,
+      // Só com prices:history: quem mudou, quem autorizou, o pedido e o
+      // motivo. Sem ele, estes campos não vêm (nunca vêm vazios a fingir).
+      quem: Type.Optional(
+        Type.String({
+          description:
+            "Só com prices:history: pessoa:per_…, chave:key_…, sistema:<tarefa> ou operador:…",
+        }),
+      ),
+      autorizado_por: Type.Optional(CamposDoRasto.autorizado_por),
+      pedido: Type.Optional(CamposDoRasto.pedido),
+      motivo: Type.Optional(CamposDoRasto.motivo),
+      a_pedido_de: Type.Optional(CamposDoRasto.a_pedido_de),
     }),
   ),
   reducoes: Type.Array(ReducaoEsquema),
 });
 
+/**
+ * O rasto de uma linha do histórico de preços em dois níveis (Diogo,
+ * 11/10/2026, Q7; docs/28 §3.8): o tipo de autor, o aviso, o canal e a IA
+ * para todos; quem, quem autorizou, o pedido e o motivo só com
+ * prices:history.
+ */
+function historicoDoRasto(l: LinhaHistorico, comQuem: boolean) {
+  const r = respostasDoRasto({ ...l, quem: l.definido_por });
+  return {
+    tipo_de_autor: r.tipo_de_autor,
+    a_pedido_de_tipo: r.a_pedido_de_tipo,
+    sem_autorizacao_de_pessoa: r.sem_autorizacao_de_pessoa,
+    canal: r.canal,
+    ia: r.ia,
+    ...(comQuem
+      ? {
+          quem: l.definido_por,
+          autorizado_por: r.autorizado_por,
+          pedido: r.pedido,
+          motivo: r.motivo,
+          a_pedido_de: r.a_pedido_de,
+        }
+      : {}),
+  };
+}
+
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });
-const ParametroPreco = Type.Object({ id: IdLista, variante: IdVariante });
+export const ParametroPreco = Type.Object({
+  id: IdLista,
+  variante: IdVariante,
+});
 const ConsultaListas = Type.Object(
   {
     limite: ConsultaPagina.properties.limite,
@@ -450,6 +504,36 @@ const comPagina = <T, U>(
 const quemDa = (c: { chaveId: string }) => `chave:key_${c.chaveId}`;
 
 // ------------------------------------------------------------ As rotas
+
+/**
+ * O preço como a API o mostra, com a redução em vigor e o preço por unidade.
+ * **Outro chamador:** `identidade/hub-catalogo.ts` (docs/22 §25).
+ */
+export async function precoNa(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  listaId: string,
+  varianteId: string,
+) {
+  const lista = await obterLista(db, comercianteId, listaId);
+  const mercado = await obterMercado(db, comercianteId, lista.mercado_id);
+  const pagina = await precosDaListaComReducoes(
+    db,
+    comercianteId,
+    listaId,
+    1,
+    null,
+    varianteId,
+  );
+  const p = pagina.dados[0];
+  if (p === undefined) {
+    throw new ErroPrecos(
+      "prices.not_found",
+      "a variante não tem preço nesta lista",
+    );
+  }
+  return paraPreco(p, mercado.preco_inclui_iva, new Date());
+}
 
 export function rotasDosPrecos(
   instancia: FastifyInstance,
@@ -850,33 +934,6 @@ export function rotasDosPrecos(
 
   // ---- Preços
 
-  /** O preço como a API o mostra, com a redução em vigor e o preço por unidade. */
-  async function precoNa(
-    db: Kysely<BaseDados>,
-    comercianteId: string,
-    listaId: string,
-    varianteId: string,
-  ) {
-    const lista = await obterLista(db, comercianteId, listaId);
-    const mercado = await obterMercado(db, comercianteId, lista.mercado_id);
-    const pagina = await precosDaListaComReducoes(
-      db,
-      comercianteId,
-      listaId,
-      1,
-      null,
-      varianteId,
-    );
-    const p = pagina.dados[0];
-    if (p === undefined) {
-      throw new ErroPrecos(
-        "prices.not_found",
-        "a variante não tem preço nesta lista",
-      );
-    }
-    return paraPreco(p, mercado.preco_inclui_iva, new Date());
-  }
-
   rotas.get(
     "/price-lists/:id/prices",
     {
@@ -1009,13 +1066,14 @@ export function rotasDosPrecos(
       config: ler,
       schema: {
         description:
-          "O histórico do preço da variante na lista, do mais antigo ao mais recente (docs/20 §3.5), e as reduções que teve: a prova do que se mostrou.",
+          "O histórico do preço da variante na lista, do mais antigo ao mais recente (docs/20 §3.5), e as reduções que teve: a prova do que se mostrou. Cada linha diz o tipo de autor, se uma pessoa autorizou, de onde veio e a IA; quem mudou, quem autorizou, o pedido e o motivo só vêm a quem tem prices:history (docs/28 §3.8).",
         params: ParametroPreco,
         response: { 200: Historico, ...RESPOSTA_DE_ERRO },
       },
     },
     async (pedido, resposta) => {
-      const { comercianteId } = chaveDo(pedido);
+      const { comercianteId, ambitos } = chaveDo(pedido);
+      const comQuem = ambitos.includes("prices:history");
       const listaId = semPrefixo(pedido.params.id);
       const varianteId = semPrefixo(pedido.params.variante);
       return emPrecos(resposta, async () => {
@@ -1047,6 +1105,7 @@ export function rotasDosPrecos(
             moeda: l.moeda,
             preco_inclui_iva: l.preco_inclui_iva,
             em_vigor_desde: l.em_vigor_desde.toISOString(),
+            ...historicoDoRasto(l, comQuem),
           })),
           reducoes: reducoes.map((r) => paraReducao(r, agora)),
         };
@@ -1142,6 +1201,7 @@ function paraPreco(
     quantidade_minima: p.quantidade_minima,
     multiplo: p.multiplo,
     definido_em: p.definido_em.toISOString(),
+    versao: p.versao,
     reducao:
       emVigorAgora === null
         ? null

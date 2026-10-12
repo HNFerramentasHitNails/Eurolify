@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { respostasDoRasto } from "../base/rasto-resposta.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
@@ -26,7 +27,7 @@ import {
   testarLigacao,
 } from "./repositorio.js";
 
-// A API dos documentos fiscais (docs/28 §7; issue #310; Diogo, 10/10/2026:
+// A API dos documentos fiscais (docs/29 §7; issue #310; Diogo, 10/10/2026:
 // «sim, aprovo; avança com o código da fatia 10»). As decisões de uma pessoa
 // são uma de cada vez: nenhuma rota aceita listas (R10).
 
@@ -395,7 +396,7 @@ export function rotasDosDocumentos(
       config: { ambito: "invoices:read" },
       schema: {
         description:
-          "Um pedido de documento: as versões do conteúdo (o que vai sair), a prova (o documento lido de volta do emissor) com as divergências, e o rasto de cada passo.",
+          "Um pedido de documento: as versões do conteúdo (o que vai sair), a prova (o documento lido de volta do emissor) com as divergências, e o rasto de cada passo, com de onde veio (canal, pedido), a IA e quem autorizou (docs/28 §1).",
         params: Type.Object({ id: IdDocumento }),
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -412,10 +413,20 @@ export function rotasDosDocumentos(
           encomenda: `ord_${d.encomenda_id}`,
           entidade_legal: `lgl_${d.entidade_legal_id}`,
           tipo: d.tipo,
+          original: d.original_id === null ? null : `inv_${d.original_id}`,
+          reembolso: d.reembolso_id === null ? null : `rfd_${d.reembolso_id}`,
           modo: d.modo,
           estado: d.estado,
           motivos: d.motivos,
           validados: d.validados,
+          notas_credito: d.notas_credito.map((n) => ({
+            id: `inv_${n.id}`,
+            estado: n.estado,
+            reembolso: n.reembolso_id === null ? null : `rfd_${n.reembolso_id}`,
+            numero: n.numero,
+            total: (n.totais as { total: number } | null)?.total ?? null,
+          })),
+          saldo: d.saldo,
           ligacao: d.ligacao_id === null ? null : `isx_${d.ligacao_id}`,
           emissor_id: d.emissor_id,
           versao: d.versao,
@@ -450,10 +461,11 @@ export function rotasDosDocumentos(
             passo: p.passo,
             de: p.de,
             para: p.para,
-            motivo: p.motivo,
             quem: p.quem,
             dados: p.dados,
             em: p.em.toISOString(),
+            // As seis respostas do rasto (docs/28 §1; #322, passo 4).
+            ...respostasDoRasto(p),
           })),
         };
       }),

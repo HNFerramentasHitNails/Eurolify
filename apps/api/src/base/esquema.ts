@@ -29,6 +29,28 @@ export type ResultadoVerificacao = "aceite" | "recusada" | "por_rever";
 
 type Instante = ColumnType<Date, Date | string | undefined, never>;
 
+/**
+ * O contexto do rasto de auditoria (migração 0053; docs/28 §3.1): escreve-o
+ * só o gatilho `rasto_completar()`, nunca o código. Vazio é «desconhecido».
+ */
+export interface ColunasDoRasto {
+  canal: ColumnType<string | null, never, never>;
+  pedido: ColumnType<string | null, never, never>;
+  ia: ColumnType<Record<string, string> | null, never, never>;
+  autorizado_por: ColumnType<string | null, never, never>;
+  /** O pedido de origem de uma tarefa (0060; docs/28 §3.7). */
+  a_pedido_de: ColumnType<
+    { pedido?: string; quem?: string } | null,
+    never,
+    never
+  >;
+}
+
+/** O motivo, nas tabelas do rasto que não o tinham (0053). */
+export interface MotivoDoRasto {
+  motivo: ColumnType<string | null, never, never>;
+}
+
 export interface TabelaComerciante {
   id: string;
   estado: ColumnType<EstadoComerciante, EstadoComerciante | undefined>;
@@ -91,7 +113,7 @@ export interface TabelaProvaVerificacao {
   registado_em: ColumnType<Date, never, never>;
 }
 
-export interface TabelaTransicaoEstado {
+export interface TabelaTransicaoEstado extends ColunasDoRasto {
   id: Generated<string>;
   comerciante_id: string;
   de: EstadoComerciante;
@@ -257,6 +279,9 @@ export interface TabelaArtigo {
   local_pais: ColumnType<string | null, never, string | null>;
   local_territorio: ColumnType<string | null, never, string | null>;
   lazer_com_data: ColumnType<boolean, never, boolean>;
+  // A marca «selado por higiene» (docs/30 §15, H1; migração 0065): só num
+  // físico; muda-se pelo PATCH, não na criação.
+  selado_por_higiene: ColumnType<boolean, never, boolean>;
   // Quem classificou vem de `eurolify.quem` (gatilho da 0006), não do SET.
   classificado_por: ColumnType<string | null, never, never>;
   classificado_em: ColumnType<Date | null, never, never>;
@@ -436,7 +461,7 @@ export const ENTIDADES_DA_LINHA_DO_TEMPO = [
 export type EntidadeDaLinhaDoTempo =
   (typeof ENTIDADES_DA_LINHA_DO_TEMPO)[number];
 
-export interface TabelaAlteracaoCatalogo {
+export interface TabelaAlteracaoCatalogo extends ColunasDoRasto, MotivoDoRasto {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;
   artigo_id: ColumnType<string | null, never, never>;
@@ -577,7 +602,7 @@ export interface TabelaPreco {
   versao: ColumnType<number, never, never>;
 }
 
-export interface TabelaHistoricoPreco {
+export interface TabelaHistoricoPreco extends ColunasDoRasto, MotivoDoRasto {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;
   lista_id: ColumnType<string, never, never>;
@@ -727,7 +752,7 @@ export interface TabelaClienteEtiqueta {
   posta_em: ColumnType<Date, never, never>;
 }
 
-export interface TabelaAlteracaoCliente {
+export interface TabelaAlteracaoCliente extends ColunasDoRasto, MotivoDoRasto {
   id: ColumnType<string, never, never>;
   comerciante_id: ColumnType<string, never, never>;
   cliente_id: ColumnType<string | null, never, never>;
@@ -787,6 +812,55 @@ export interface TabelaConsentimento {
   onde: ColumnType<string, string, never>;
   declarado_em: ColumnType<Date, never, never>;
   quem: ColumnType<string, never, never>;
+  /** O contacto a que a declaração se refere (0052); nulo nas antigas. */
+  contacto: ColumnType<string | null, string, never>;
+  via: ColumnType<"directa" | "dupla_confirmacao", never, never>;
+  confirmacao_id: ColumnType<string | null, never, never>;
+}
+
+/** Os tipos de ficheiro de um anexo da isenção (0055). */
+export const TIPOS_DE_ANEXO = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+] as const;
+export type TipoDeAnexo = (typeof TIPOS_DE_ANEXO)[number];
+
+/** Um anexo da isenção manual (0055): a prova, que não se altera. */
+export interface TabelaAnexoIsencao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  isencao_id: ColumnType<string, string, never>;
+  nome: ColumnType<string | null, string | null, never>;
+  tipo: ColumnType<TipoDeAnexo, TipoDeAnexo, never>;
+  bytes: ColumnType<Buffer, Buffer, never>;
+  tamanho: ColumnType<number, never, never>;
+  resumo: ColumnType<string, never, never>;
+  posto_por: ColumnType<string, never, never>;
+  posto_em: ColumnType<Date, never, never>;
+}
+
+/** Um pedido de dupla confirmação (0052); a API só lê, sem o resumo. */
+export interface TabelaConfirmacaoConsentimento {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_id: ColumnType<string, never, never>;
+  canal: ColumnType<"email" | "sms", never, never>;
+  contacto: ColumnType<string, never, never>;
+  texto: ColumnType<string, never, never>;
+  versao_texto: ColumnType<string, never, never>;
+  onde: ColumnType<string, never, never>;
+  estado: ColumnType<
+    "pendente" | "confirmada" | "expirada" | "cancelada" | "esgotada",
+    never,
+    never
+  >;
+  tentativas: ColumnType<number, never, never>;
+  expira_em: ColumnType<Date, never, never>;
+  pedida_por: ColumnType<string, never, never>;
+  pedida_em: ColumnType<Date, never, never>;
+  fechada_em: ColumnType<Date | null, never, never>;
+  consentimento_id: ColumnType<string | null, never, never>;
 }
 
 export const SINAIS_DUPLICADO = [
@@ -817,6 +891,8 @@ export interface TabelaDuplicadoCliente {
   decidido_em: ColumnType<Date | null, never, never>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
+  /** Desde quando está por decidir nesta passagem (0066; docs/33 §4.1). */
+  por_decidir_desde: ColumnType<Date | null, never, never>;
 }
 
 export const TIPOS_PEDIDO_TITULAR = [
@@ -1039,6 +1115,9 @@ export const ESTADOS_ENCOMENDA = [
   "expedida",
   "entregue",
   "concluida",
+  "cancelada",
+  "devolvida_parcial",
+  "devolvida",
 ] as const;
 export type EstadoEncomenda = (typeof ESTADOS_ENCOMENDA)[number];
 
@@ -1088,6 +1167,8 @@ export interface TabelaLinhaEncomenda {
   base: ColumnType<string, number, never>;
   iva: ColumnType<string, number, never>;
   total: ColumnType<string, number, never>;
+  /** Copiada do artigo no botão final (docs/30 §15, H2; a base confere). */
+  selado_por_higiene: ColumnType<boolean, boolean, never>;
 }
 
 // Pagamentos (migração 0044; docs/26).
@@ -1118,6 +1199,10 @@ export const MOTIVOS_DIFERENCA = [
   "transicao_impossivel",
   "pago_depois_de_cancelada",
   "pagamento_duplicado",
+  // Os reembolsos pelo prestador (migração 0061; docs/30 §13).
+  "reembolso_incerto",
+  "reembolso_por_confirmar",
+  "reembolso_desconhecido",
 ] as const;
 export type MotivoDiferenca = (typeof MOTIVOS_DIFERENCA)[number];
 
@@ -1171,6 +1256,8 @@ export interface TabelaPagamento {
   referencia: ColumnType<string, string, never>;
   referencia_prestador: ColumnType<string | null, never, string | null>;
   instrucoes: ColumnType<unknown, never, string | null>;
+  /** O `trid` da EuPago, gravado uma vez do aviso (0061; docs/30 §13, P2). */
+  id_transaccao_prestador: ColumnType<string | null, never, string>;
   estado: ColumnType<EstadoPagamento, never, EstadoPagamento>;
   expira_em: ColumnType<Date, Date, never>;
   criado_em: ColumnType<Date, never, never>;
@@ -1191,7 +1278,7 @@ export interface TabelaAvisoPagamento {
   processado_em: ColumnType<Date | null, never, Date | null>;
 }
 
-export interface TabelaTransicaoPagamento {
+export interface TabelaTransicaoPagamento extends ColunasDoRasto {
   id: Generated<string>;
   comerciante_id: ColumnType<string, never, never>;
   pagamento_id: ColumnType<string, never, never>;
@@ -1226,9 +1313,14 @@ export const POLITICAS_STOCK = [
 ] as const;
 export type PoliticaStock = (typeof POLITICAS_STOCK)[number];
 export type TipoMovimento =
-  "entrada" | "reserva" | "libertacao" | "saida" | "ajuste";
+  "entrada" | "reserva" | "libertacao" | "saida" | "ajuste" | "devolucao";
 export type OrigemMovimento =
-  "encomenda" | "expedicao" | "inventario" | "importacao" | "sistema_externo";
+  | "encomenda"
+  | "expedicao"
+  | "inventario"
+  | "importacao"
+  | "sistema_externo"
+  | "devolucao";
 export const ESTADOS_EXPEDICAO = [
   "criada",
   "expedida",
@@ -1302,6 +1394,7 @@ export interface TabelaMovimentoStock {
   origem: ColumnType<OrigemMovimento, OrigemMovimento, never>;
   encomenda_id: ColumnType<string | null, string | null | undefined, never>;
   expedicao_id: ColumnType<string | null, string | null | undefined, never>;
+  devolucao_id: ColumnType<string | null, string | null | undefined, never>;
   motivo: ColumnType<string | null, string | null | undefined, never>;
   fisico_antes: ColumnType<number, never, never>;
   fisico_depois: ColumnType<number, never, never>;
@@ -1344,7 +1437,7 @@ export interface TabelaLinhaExpedicao {
   quantidade: ColumnType<number, number, never>;
 }
 
-export interface TabelaTransicaoEncomenda {
+export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   id: Generated<string>;
   comerciante_id: ColumnType<string, never, never>;
   encomenda_id: ColumnType<string, never, never>;
@@ -1353,6 +1446,38 @@ export interface TabelaTransicaoEncomenda {
   quem: ColumnType<string, never, never>;
   motivo: ColumnType<string | null, never, never>;
   em: ColumnType<Date, never, never>;
+}
+
+// Notificações (migração 0067; docs/34).
+export const TIPOS_NOTIFICACAO = [
+  "refund.deadline_approaching",
+  "refund.deadline_passed",
+] as const;
+export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
+export const ESTADOS_NOTIFICACAO = [
+  "a_enviar",
+  "enviada",
+  "falhada",
+  "cancelada",
+] as const;
+export type EstadoNotificacao = (typeof ESTADOS_NOTIFICACAO)[number];
+
+/** Grava-a o gatilho do aviso; a API só a lê e muda o estado. */
+export interface TabelaNotificacao {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  tipo: ColumnType<TipoNotificacao, never, never>;
+  referencia: ColumnType<string, never, never>;
+  pessoa_id: ColumnType<string, never, never>;
+  lingua: ColumnType<"pt" | "es" | "en", never, never>;
+  dados: ColumnType<Record<string, unknown>, never, never>;
+  estado: ColumnType<EstadoNotificacao, never, EstadoNotificacao>;
+  tentativas: ColumnType<number, never, number>;
+  proxima_em: ColumnType<Date, never, Date>;
+  ultimo_erro: ColumnType<string | null, never, string | null>;
+  id_mensagem: ColumnType<string | null, never, string | null>;
+  criada_em: ColumnType<Date, never, never>;
+  terminada_em: ColumnType<Date | null, never, never>;
 }
 
 export interface BaseDados {
@@ -1397,6 +1522,8 @@ export interface BaseDados {
   consentimento: TabelaConsentimento;
   duplicado_cliente: TabelaDuplicadoCliente;
   pedido_titular: TabelaPedidoTitular;
+  confirmacao_consentimento: TabelaConfirmacaoConsentimento;
+  anexo_isencao: TabelaAnexoIsencao;
   categoria_fiscal: TabelaCategoriaFiscal;
   taxa_iva: TabelaTaxaIva;
   territorio_fiscal: TabelaTerritorioFiscal;
@@ -1431,9 +1558,19 @@ export interface BaseDados {
   documento_conteudo: TabelaDocumentoConteudo;
   documento_prova: TabelaDocumentoProva;
   documento_rasto: TabelaDocumentoRasto;
+  pedido_livre_resolucao: TabelaPedidoLivreResolucao;
+  linha_livre_resolucao: TabelaLinhaLivreResolucao;
+  devolucao: TabelaDevolucao;
+  notificacao: TabelaNotificacao;
+  linha_devolucao: TabelaLinhaDevolucao;
+  problema: TabelaProblema;
+  reembolso: TabelaReembolso;
+  linha_reembolso: TabelaLinhaReembolso;
+  atribuicao: TabelaAtribuicao;
+  atribuicao_rasto: TabelaAtribuicaoRasto;
 }
 
-// Documentos fiscais (migração 0050; docs/28).
+// Documentos fiscais (migração 0050; docs/29).
 
 export const EMISSORES_FISCAIS = [
   "por_configurar",
@@ -1504,7 +1641,9 @@ export interface TabelaDocumentoFiscal {
   comerciante_id: ColumnType<string, never, never>;
   encomenda_id: ColumnType<string, never, never>;
   entidade_legal_id: ColumnType<string, never, never>;
-  tipo: ColumnType<"fatura", never, never>;
+  tipo: ColumnType<"fatura" | "nota_credito", never, never>;
+  original_id: ColumnType<string | null, never, never>;
+  reembolso_id: ColumnType<string | null, never, never>;
   modo: ColumnType<"teste", never, never>;
   estado: ColumnType<EstadoDocumento, never, EstadoDocumento>;
   motivos: ColumnType<string[], never, string[]>;
@@ -1518,6 +1657,8 @@ export interface TabelaDocumentoFiscal {
   versao: ColumnType<number, never, number>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
+  /** Desde quando está na fila de uma pessoa (0066; docs/33 §4.1); põe-no o gatilho. */
+  na_fila_desde: ColumnType<Date | null, never, never>;
 }
 
 export interface TabelaDocumentoConteudo {
@@ -1550,7 +1691,7 @@ export interface TabelaDocumentoProva {
   lida_em: ColumnType<Date, never, never>;
 }
 
-export interface TabelaDocumentoRasto {
+export interface TabelaDocumentoRasto extends ColunasDoRasto {
   id: Generated<string>;
   documento_id: ColumnType<string, string, never>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1561,4 +1702,230 @@ export interface TabelaDocumentoRasto {
   quem: ColumnType<string, string, never>;
   dados: ColumnType<unknown, string | undefined, never>;
   em: ColumnType<Date, never, never>;
+}
+
+// Pós-venda (migração 0058; docs/30).
+
+export const ESTADOS_ARTIGO_DEVOLVIDO = [
+  "revendavel",
+  "aberto",
+  "danificado",
+  "em_falta",
+] as const;
+export type EstadoArtigoDevolvido = (typeof ESTADOS_ARTIGO_DEVOLVIDO)[number];
+export const ESTADOS_DEVOLUCAO = [
+  "a_aguardar",
+  "recebida",
+  "inspeccionada",
+  "decidida",
+  "fechada",
+  "cancelada",
+] as const;
+export type EstadoDevolucao = (typeof ESTADOS_DEVOLUCAO)[number];
+export const TIPOS_PROBLEMA = [
+  "chegou_danificado",
+  "em_falta",
+  "atraso",
+  "outro",
+] as const;
+export type TipoProblema = (typeof TIPOS_PROBLEMA)[number];
+export const ESTADOS_REEMBOLSO = [
+  "rascunho",
+  "a_executar",
+  // Pelo prestador (0061; docs/30 §13): durante a chamada, e aceite à
+  // espera da confirmação.
+  "a_pedir",
+  "a_confirmar",
+  "executado",
+  "falhado",
+  "incerto",
+  "cancelado",
+] as const;
+export type EstadoReembolso = (typeof ESTADOS_REEMBOLSO)[number];
+
+export interface TabelaPedidoLivreResolucao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  origem: ColumnType<"botao" | "apoio", "botao" | "apoio", never>;
+  contacto: ColumnType<string, string, never>;
+  recebido_em: ColumnType<Date, never, never>;
+  prazo_ate: ColumnType<string | null, string | null, never>;
+  dentro_do_prazo: ColumnType<boolean, boolean, never>;
+  estado: ColumnType<
+    "aceite" | "fora_de_prazo" | "pendente" | "recusado",
+    "aceite" | "fora_de_prazo" | "pendente",
+    "aceite" | "recusado"
+  >;
+  confirmacao: ColumnType<unknown, string, never>;
+  decidido_por: ColumnType<string | null, never, string>;
+  motivo_decisao: ColumnType<string | null, never, string | null>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaLinhaLivreResolucao {
+  pedido_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  linha_encomenda_id: ColumnType<string, string, never>;
+  quantidade: ColumnType<number, number, never>;
+}
+
+export interface TabelaDevolucao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  armazem_id: ColumnType<string, string, never>;
+  origem: ColumnType<
+    "livre_resolucao" | "apoio" | "comercial",
+    "livre_resolucao" | "apoio" | "comercial",
+    never
+  >;
+  pedido_livre_resolucao_id: ColumnType<string | null, string | null, never>;
+  motivo: ColumnType<string | null, string | null, never>;
+  transportadora: ColumnType<string | null, string | null, string | null>;
+  seguimento: ColumnType<string | null, string | null, string | null>;
+  estado: ColumnType<EstadoDevolucao, never, EstadoDevolucao>;
+  criada_por: ColumnType<string, string, never>;
+  criada_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, number>;
+  // Os avisos do prazo do reembolso, cada um uma vez (0063; docs/30 §14).
+  aviso_prazo_em: ColumnType<Date | null, never, Date>;
+  prazo_passado_em: ColumnType<Date | null, never, Date>;
+}
+
+export const DECISOES_HIGIENE = ["reembolsar", "excepcao_higiene"] as const;
+export type DecisaoHigiene = (typeof DECISOES_HIGIENE)[number];
+
+export interface TabelaLinhaDevolucao {
+  devolucao_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  linha_encomenda_id: ColumnType<string, string, never>;
+  pedida: ColumnType<number, number, never>;
+  recebida: ColumnType<number | null, never, number>;
+  aceite: ColumnType<number | null, never, number>;
+  estado_artigo: ColumnType<
+    EstadoArtigoDevolvido | null,
+    never,
+    EstadoArtigoDevolvido
+  >;
+  /** H6 (docs/30 §15): só numa linha selada que voltou aberta. */
+  decisao_higiene: ColumnType<DecisaoHigiene | null, never, DecisaoHigiene>;
+}
+
+export interface TabelaProblema {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  tipo: ColumnType<TipoProblema, TipoProblema, never>;
+  descricao: ColumnType<string, string, never>;
+  estado: ColumnType<
+    "aberto" | "decidido" | "fechado",
+    never,
+    "aberto" | "decidido" | "fechado"
+  >;
+  criado_por: ColumnType<string, string, never>;
+  criado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, number>;
+}
+
+export interface TabelaReembolso {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  encomenda_id: ColumnType<string, string, never>;
+  pagamento_id: ColumnType<string, string, never>;
+  origem: ColumnType<
+    "devolucao" | "problema" | "cancelamento",
+    "devolucao" | "problema" | "cancelamento",
+    never
+  >;
+  devolucao_id: ColumnType<string | null, string | null, never>;
+  problema_id: ColumnType<string | null, string | null, never>;
+  montante: ColumnType<string, number, never>;
+  moeda: ColumnType<string, string, never>;
+  via: ColumnType<
+    "manual" | "prestador",
+    "manual" | "prestador",
+    "manual" | "prestador"
+  >;
+  estado: ColumnType<EstadoReembolso, never, EstadoReembolso>;
+  prova: ColumnType<unknown, never, string>;
+  executado_em: ColumnType<Date | null, never, Date>;
+  decidido_por: ColumnType<string, string, never>;
+  criado_em: ColumnType<Date, never, never>;
+  versao: ColumnType<number, never, number>;
+  // O pedido ao prestador (0061; docs/30 §13, P4 a P6).
+  pedido_em: ColumnType<Date | null, never, Date>;
+  pedido_por: ColumnType<string | null, never, string>;
+  referencia_prestador: ColumnType<string | null, never, string>;
+  falha: ColumnType<string | null, never, string>;
+  consultado_em: ColumnType<Date | null, never, Date>;
+  /** Desde quando está incerto ou falhado nesta passagem (0066; docs/33 §4.1). */
+  na_fila_desde: ColumnType<Date | null, never, never>;
+}
+
+export interface TabelaLinhaReembolso {
+  reembolso_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  posicao: ColumnType<number, number, never>;
+  linha_encomenda_id: ColumnType<string | null, string | null, never>;
+  quantidade: ColumnType<number, number, never>;
+  montante: ColumnType<string, number, never>;
+}
+
+// As tarefas das filas que pedem uma pessoa (migração 0066; docs/33; decisão
+// DW). A API só lê: escrevem as funções do dono (`tarefas_atribuir`,
+// `tarefas_mudar_prazo`, `tarefas_marcar_vencida`).
+
+export const FILAS_TAREFAS = [
+  "pagamento",
+  "documento_fiscal",
+  "duplicado_cliente",
+  "prazo_reembolso",
+  "livre_resolucao",
+  "problema",
+  "reembolso",
+] as const;
+export type FilaTarefa = (typeof FILAS_TAREFAS)[number];
+
+export const ACTOS_ATRIBUICAO = [
+  "atribuida",
+  "retirada",
+  "prazo_mudado",
+  "vencida",
+] as const;
+export type ActoAtribuicao = (typeof ACTOS_ATRIBUICAO)[number];
+
+/** Quem decide e até quando, numa passagem de um caso pela fila (docs/33 §4.2). */
+export interface TabelaAtribuicao {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  fila: ColumnType<FilaTarefa, never, never>;
+  caso: ColumnType<string, never, never>;
+  entrou_em: ColumnType<Date, never, never>;
+  responsavel: ColumnType<string | null, never, never>;
+  prazo: ColumnType<Date | null, never, never>;
+  aviso_vencido_em: ColumnType<Date | null, never, never>;
+  versao: ColumnType<number, never, never>;
+  criada_em: ColumnType<Date, never, never>;
+  actualizada_em: ColumnType<Date, never, never>;
+}
+
+/** O rasto da atribuição: só se acrescenta (0066). */
+export interface TabelaAtribuicaoRasto {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  atribuicao_id: ColumnType<string, never, never>;
+  acto: ColumnType<ActoAtribuicao, never, never>;
+  responsavel_antes: ColumnType<string | null, never, never>;
+  responsavel_depois: ColumnType<string | null, never, never>;
+  prazo_antes: ColumnType<Date | null, never, never>;
+  prazo_depois: ColumnType<Date | null, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  quem: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
+  canal: ColumnType<string | null, never, never>;
+  pedido: ColumnType<string | null, never, never>;
+  ia: ColumnType<unknown, never, never>;
+  autorizado_por: ColumnType<string | null, never, never>;
+  a_pedido_de: ColumnType<unknown, never, never>;
 }

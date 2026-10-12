@@ -32,13 +32,16 @@ echo "Limpeza: $apagadas linha(s) expirada(s) da idempotência apagada(s)."
 
 # Os prazos das contas de pessoas (0026): a função é SECURITY DEFINER e o
 # papel da limpeza só tem o EXECUTE dela, nenhuma tabela das contas. Antes da
-# 0026 publicada, não há nada a fazer.
+# 0026 publicada, não há nada a fazer. O canal e o pedido vão para o rasto do
+# que a tarefa escrever (docs/28 §3.1; 0053): `SET` na sessão, porque cada
+# `-c` do psql é uma transacção.
 existe="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
   -v ON_ERROR_STOP=1 -qAt -c "select to_regprocedure('public.contas_aplicar_prazos()') is not null")" ||
   falhar "a limpeza não conseguiu ver se a função dos prazos existe"
 if [[ "$existe" == t ]]; then
   prazos="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
     -v ON_ERROR_STOP=1 -qAt -F '=' -c "SET statement_timeout = '5min'" \
+    -c "SET eurolify.canal = 'sistema'" -c "SET eurolify.pedido = 'tarefa:prazos_contas'" \
     -c 'select o_que, quantas from contas_aplicar_prazos()')" ||
     falhar "os prazos das contas falharam"
   while IFS= read -r linha; do

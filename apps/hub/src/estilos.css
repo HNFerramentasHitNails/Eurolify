@@ -930,6 +930,39 @@ textarea {
 .valor-historico summary span {
   text-decoration: underline;
 }
+/* As respostas do rasto por baixo de quem e quando (docs/22 §26.2): uma
+   linha que parte, o aviso com ícone e texto, e os «Detalhes» fechados. */
+.rasto-historico {
+  margin: 0 0 var(--espaco-1);
+  font-size: var(--letra-pequena);
+  color: var(--texto-secundario);
+  overflow-wrap: anywhere;
+}
+.rasto-historico .aviso-texto {
+  white-space: nowrap;
+}
+/* Do tamanho da letra à volta, para acompanhar o texto do aviso. */
+.icone-aviso {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+}
+.detalhes-rasto {
+  margin: 0 0 var(--espaco-2);
+  font-size: var(--letra-pequena);
+  color: var(--texto-secundario);
+  overflow-wrap: anywhere;
+}
+/* Fica `list-item`, para manter a seta que diz que abre; a altura do alvo
+   de toque vem da linha. */
+.detalhes-rasto summary {
+  cursor: pointer;
+  line-height: var(--alvo-minimo);
+  text-decoration: underline;
+}
+.detalhes-rasto ul {
+  margin: 0;
+}
 
 /* Os preços do artigo (docs/22 §17.3): uma caixa por lista. */
 .lista-precos {
@@ -938,4 +971,25 @@ textarea {
 .lista-precos h3 {
   font-size: var(--letra-base);
   margin: 0 0 var(--espaco-1);
+}
+/* «Definir preço» ou «Alterar preço» por baixo do preço (§25.3). */
+.accao-preco {
+  display: block;
+  margin-top: var(--espaco-2);
+}
+/* A caixa «Gratuito» do preço da variante, com a ajuda logo a seguir. */
+.opcao + #preco-gratuito-ajuda {
+  margin-top: 0;
+}
+
+/* Uma etiqueta junto a um nome (docs/22 §26.3: «Agente de IA» na lista das
+   chaves): texto com borda, não só cor. */
+.etiqueta {
+  display: inline-block;
+  padding: 0 var(--espaco-1);
+  border: var(--borda-fina) solid var(--borda);
+  border-radius: var(--raio);
+  font-size: var(--letra-pequena);
+  color: var(--texto);
+  white-space: nowrap;
 }

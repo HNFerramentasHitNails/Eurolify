@@ -1,4 +1,5 @@
 import type { Kysely } from "kysely";
+import { rastoActual } from "../base/rasto.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { erroBase, ErroApi } from "../base/erros.js";
 import { TIPOS_DE_IMAGEM, type BaseDados } from "../base/esquema.js";
@@ -162,6 +163,18 @@ export function ligarAutenticacao(
           ambito === "sessao"
             ? await verificarSessao(base, segredo)
             : await resolverSessao(base, segredo, comercianteDe(pedido));
+        // No Hub, quem age é a própria pessoa: fica também como quem
+        // autorizou (docs/28 §3.2). Uma chave nunca autoriza. Com uma IA
+        // declarada no pedido, o cookie não prova que a pessoa confirmou:
+        // fica sem quem autorize (revisão do #334, P3-1).
+        const rasto = rastoActual();
+        if (rasto !== undefined) {
+          // A base confere o `quem` com quem se autenticou (0062).
+          rasto.autenticado = `pessoa:per_${pedido.sessao.pessoaId}`;
+          if (rasto.ia === undefined) {
+            rasto.autorizadoPor = `pessoa:per_${pedido.sessao.pessoaId}`;
+          }
+        }
         return;
       }
       const segredo = segredoDe(pedido);
@@ -185,6 +198,19 @@ export function ligarAutenticacao(
         throw erro("auth.forbidden", `âmbito pedido: ${ambito}`);
       }
       pedido.chave = chave;
+      // A base confere o `quem` com quem se autenticou (0062).
+      const doPedido = rastoActual();
+      if (doPedido !== undefined)
+        doPedido.autenticado = `chave:key_${chave.chaveId}`;
+      // Uma chave de um agente de IA (0057): a IA fica «declarado» mesmo sem
+      // o cabeçalho Eurolify-IA, com fornecedor e modelo desconhecidos se
+      // não vierem (docs/28 §3.3). Com o cabeçalho, fica o que ele diz.
+      if (chave.agenteIa) {
+        const rasto = rastoActual();
+        if (rasto !== undefined && rasto.ia === undefined) {
+          rasto.ia = { prova: "declarado" };
+        }
+      }
     },
   );
 }

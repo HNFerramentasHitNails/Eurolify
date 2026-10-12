@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { respostasDoRasto } from "../base/rasto-resposta.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
 import { Type } from "typebox";
@@ -452,12 +453,20 @@ export function rotasDosPagamentos(
       config: { ambito: "payments:accounts" },
       schema: {
         description:
-          "Define a chave da API do canal no prestador e o segredo dos avisos. Ficam cifrados e nunca se devolvem; a conta volta a rascunho até à chamada de teste. Só o dono (payments:accounts).",
+          "Define a chave da API do canal no prestador e o segredo dos avisos e, para o reembolso pelo prestador, o client_id e o client_secret OAuth (juntos; sem eles, a conta deixa de os ter e o reembolso passa a ser à mão). Ficam cifrados e nunca se devolvem; a conta volta a rascunho até à chamada de teste. Só o dono (payments:accounts).",
         params: Type.Object({ id: IdConta }),
         body: Type.Object(
           {
             chave: Type.String({ minLength: 8, maxLength: 200 }),
             segredo_aviso: Type.String({ minLength: 16, maxLength: 200 }),
+            // OAuth, só para o reembolso pelo prestador (docs/30 §13, P1):
+            // os dois juntos, ou nenhum (reembolsa-se à mão).
+            client_id: Type.Optional(
+              Type.String({ minLength: 4, maxLength: 200 }),
+            ),
+            client_secret: Type.Optional(
+              Type.String({ minLength: 8, maxLength: 200 }),
+            ),
           },
           { additionalProperties: false },
         ),
@@ -706,7 +715,7 @@ export function rotasDosPagamentos(
       config: { ambito: "payments:read" },
       schema: {
         description:
-          "Um pagamento com as transições (de, para, origem, aviso, quem, motivo, quando).",
+          "Um pagamento com as transições (de, para, origem, aviso, quem, motivo, quando), com de onde vieram (canal, pedido), a IA e quem autorizou (docs/28 §1).",
         params: Type.Object({ id: IdPagamento }),
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -726,8 +735,9 @@ export function rotasDosPagamentos(
             origem: t.origem,
             aviso: t.aviso_id === null ? null : `pwh_${t.aviso_id}`,
             quem: t.quem,
-            motivo: t.motivo,
             em: t.em.toISOString(),
+            // As seis respostas do rasto (docs/28 §1; #322, passo 4).
+            ...respostasDoRasto(t),
           })),
         };
       }),

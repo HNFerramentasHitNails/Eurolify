@@ -80,6 +80,8 @@ export function Artigo({
   const [podeEscrever, setPodeEscrever] = useState(false);
   // O histórico (docs/22 §16): só com catalog:history (o dono e o gestor).
   const [podeVerHistorico, setPodeVerHistorico] = useState(false);
+  // Definir e tirar preços (docs/22 §25): só com prices:write.
+  const [podeEscreverPrecos, setPodeEscreverPrecos] = useState(false);
   // Uma acção de cada vez; o erro dela fica à vista até à seguinte.
   const [ocupado, setOcupado] = useState(false);
   // Mover uma imagem que gravou uma parte e falhou na outra.
@@ -94,8 +96,25 @@ export function Artigo({
     if (q.get("criado") === "1") return "criado";
     // A resposta de criar perdeu-se e o artigo já lá estava (§14.2).
     if (q.get("criado") === "ja") return "jaCriado";
+    // Uma variante acrescentada (docs/22 §24.2).
+    if (q.get("variante") === "criada") return "varianteCriada";
+    if (q.get("variante") === "fora") return "varianteCriadaFora";
+    if (q.get("variante") === "talvez") return "varianteCriadaTalvezFora";
+    // Um preço definido ou tirado (docs/22 §25.3).
+    if (q.get("preco") === "guardado") return "precoGuardado";
+    if (q.get("preco") === "tirado") return "precoTirado";
     return q.get("guardado") === "1" ? "guardado" : null;
   });
+  // O SKU da variante acrescentada, para o aviso (revisão do #331, P2-1).
+  // Vai em `skuCriado`: o `sku` da consulta é o filtro da lista.
+  const [skuDoAviso] = useState(() => {
+    const q = new URLSearchParams(consulta);
+    return q.get("skuCriado") ?? q.get("skuPreco") ?? "";
+  });
+  // A lista do preço definido ou tirado, para o aviso (§25.3).
+  const [listaDoAviso] = useState(
+    () => new URLSearchParams(consulta).get("listaPreco") ?? "",
+  );
   // Ao sair da ficha, as respostas que ainda cheguem deixam de contar.
   const montado = useRef(true);
   useEffect(() => {
@@ -203,6 +222,7 @@ export function Artigo({
           [];
         setPodeEscrever(ambitos.includes("catalog:write"));
         setPodeVerHistorico(ambitos.includes("catalog:history"));
+        setPodeEscreverPrecos(ambitos.includes("prices:write"));
         setFicha({ tipo: "pronto", dados });
         void carregarImagens(manter);
         void carregarPublicacoes(manter);
@@ -233,9 +253,20 @@ export function Artigo({
   // docs/22 §14.4) sai do endereço: recarregar a página não volta a dizê-lo.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("guardado") === null && q.get("criado") === null) return;
+    if (
+      q.get("guardado") === null &&
+      q.get("criado") === null &&
+      q.get("variante") === null &&
+      q.get("preco") === null
+    )
+      return;
     q.delete("guardado");
     q.delete("criado");
+    q.delete("variante");
+    q.delete("skuCriado");
+    q.delete("preco");
+    q.delete("skuPreco");
+    q.delete("listaPreco");
     window.history.replaceState(
       window.history.state,
       "",
@@ -469,6 +500,7 @@ export function Artigo({
   }
   const destinoVoltar = `/artigos?${voltar.toString()}`;
   const destinoOpcoes = `/artigos/${artigo}/opcoes?${voltar.toString()}`;
+  const destinoVarianteNova = `/artigos/${artigo}/variantes/nova?${voltar.toString()}`;
 
   const data = (iso: string) =>
     new Intl.DateTimeFormat(TAG_LINGUA[lingua], { dateStyle: "medium" }).format(
@@ -538,7 +570,10 @@ export function Artigo({
               tabIndex={-1}
               ref={avisoRef}
             >
-              {t[TEXTO_DO_AVISO[aviso]]}
+              {preencher(t[TEXTO_DO_AVISO[aviso]], {
+                sku: skuDoAviso,
+                lista: listaDoAviso,
+              })}
             </p>
           )}
           {falhaAccao === null && !ordemAMeio ? null : (
@@ -619,12 +654,33 @@ export function Artigo({
               `/artigos/${artigo}/variantes/${v.id}?${voltar.toString()}`
             }
           />
+          {podeEscrever && ficha.dados.origem !== "externo" ? (
+            // Acrescentar uma variante (docs/22 §24.2).
+            <p>
+              <a
+                className="botao"
+                href={destinoVarianteNova}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navegar(destinoVarianteNova);
+                }}
+              >
+                {t.artigoAcrescentarVariante}
+              </a>
+            </p>
+          ) : null}
           <h2>{t.artigoPrecos}</h2>
           <div className="precos-artigo">
             <PrecosDoArtigo
               comerciante={comerciante}
               artigo={artigo}
               variantes={ficha.dados.variantes}
+              destinoPreco={
+                podeEscreverPrecos
+                  ? (lista, variante) =>
+                      `/artigos/${artigo}/precos/${lista}/${variante}?${voltar.toString()}`
+                  : null
+              }
             />
           </div>
           <h2>{t.artigoImagens}</h2>
@@ -964,13 +1020,27 @@ interface EdicaoDaImagem {
 
 /** Os avisos de que uma acção gravou, e o texto de cada um. */
 type Aviso =
-  "guardado" | "criado" | "jaCriado" | "imagemAcrescentada" | "imagemTirada";
+  | "guardado"
+  | "criado"
+  | "jaCriado"
+  | "imagemAcrescentada"
+  | "imagemTirada"
+  | "varianteCriada"
+  | "varianteCriadaFora"
+  | "varianteCriadaTalvezFora"
+  | "precoGuardado"
+  | "precoTirado";
 const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
   guardado: "artigoGuardado",
   criado: "artigoCriado",
   jaCriado: "artigoJaCriado",
   imagemAcrescentada: "artigoImagemAcrescentada",
   imagemTirada: "artigoImagemTirada",
+  varianteCriada: "varianteCriada",
+  varianteCriadaFora: "varianteCriadaFora",
+  varianteCriadaTalvezFora: "varianteCriadaTalvezFora",
+  precoGuardado: "precoGuardado",
+  precoTirado: "precoTirado",
 };
 
 /** O erro de um envio, em linguagem comum (docs/22 §15.4). */

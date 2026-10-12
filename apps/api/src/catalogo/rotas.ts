@@ -280,6 +280,10 @@ const CamposArtigo = {
   descricao: Type.Union([Type.String(), Type.Null()]),
   marca: Type.Union([Type.String(), Type.Null()]),
   categoria_fiscal: Type.Union([Type.String(), Type.Null()]),
+  selado_por_higiene: Type.Boolean({
+    description:
+      "Selado por motivos de saúde ou de higiene: aberto depois da entrega, perde-se a livre resolução (Directiva 2011/83/UE, art. 16.º, alínea e; docs/30 §15). Só num artigo físico; a decisão de que cabe na excepção é do comerciante",
+  }),
   origem: Type.String(),
   origem_ref: Type.Union([Type.String(), Type.Null()]),
   classificacao: Type.Object({
@@ -573,7 +577,7 @@ export const PedidoCriarArtigo = Type.Object(
   { additionalProperties: false },
 );
 
-const PedidoCriarVariante = Type.Object(
+export const PedidoCriarVariante = Type.Object(
   {
     ...NovaVariante.properties,
     valores: Type.Optional(
@@ -859,6 +863,7 @@ export const PedidoAlterarArtigo = Type.Object(
     descricao: Type.Optional(TextoOuNulo(10000)),
     marca: Type.Optional(TextoOuNulo(200)),
     categoria_fiscal: Type.Optional(CategoriaFiscal),
+    selado_por_higiene: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -940,6 +945,7 @@ function paraArtigo(a: LinhaArtigo) {
     descricao: a.descricao,
     marca: a.marca,
     categoria_fiscal: a.categoria_fiscal,
+    selado_por_higiene: a.selado_por_higiene,
     origem: a.origem,
     origem_ref: a.origem_ref,
     classificacao: {
@@ -1458,6 +1464,8 @@ export async function escrever(
    */
   guarda?: Pick<OpcoesIdempotencia, "repetir"> & {
     guardar: (corpo: unknown) => unknown;
+    /** O estado da resposta, quando depende do que a escrita deu (201 ou 202). */
+    estado?: (corpo: unknown) => number;
   },
 ) {
   const chave = chaveDo(pedido);
@@ -1487,7 +1495,7 @@ export async function escrever(
         );
         const corpo = await fn(trx, chave);
         return {
-          status,
+          status: guarda?.estado?.(corpo) ?? status,
           corpo,
           guardar: guarda === undefined ? corpo : guarda.guardar(corpo),
         };
@@ -1595,6 +1603,30 @@ export async function arquivoDaVariante(
 ): Promise<Static<typeof VarianteCompleta>> {
   const id = semPrefixo(idComPrefixo);
   await arquivarVariante(trx, comercianteId, id);
+  return paraVarianteCompleta(await fichaDaVariante(trx, comercianteId, id));
+}
+
+/**
+ * Acrescenta a variante ao artigo na transacção dada e devolve-a; chamam-na
+ * o POST /products/{id}/variants (pela chave) e o POST
+ * /hub/products/{id}/variants (docs/22 §24.1): a mesma escrita, as mesmas
+ * regras.
+ */
+export async function criacaoDaVariante(
+  trx: Transaction<BaseDados>,
+  comercianteId: string,
+  artigoComPrefixo: string,
+  corpo: Static<typeof PedidoCriarVariante>,
+): Promise<Static<typeof VarianteCompleta>> {
+  const { valores, ...dados } = corpo;
+  gtinComOrigem([dados]);
+  const id = await criarVarianteComValores(
+    trx,
+    comercianteId,
+    semPrefixo(artigoComPrefixo),
+    dados,
+    (valores ?? []).map(semPrefixo),
+  );
   return paraVarianteCompleta(await fichaDaVariante(trx, comercianteId, id));
 }
 
@@ -2101,20 +2133,13 @@ export function rotasDoCatalogo(
         pedido,
         resposta,
         201,
-        async (trx, chave) => {
-          const { valores, ...dados } = pedido.body;
-          gtinComOrigem([dados]);
-          const id = await criarVarianteComValores(
+        (trx, chave) =>
+          criacaoDaVariante(
             trx,
             chave.comercianteId,
-            semPrefixo(pedido.params.id),
-            dados,
-            (valores ?? []).map(semPrefixo),
-          );
-          return paraVarianteCompleta(
-            await fichaDaVariante(trx, chave.comercianteId, id),
-          );
-        },
+            pedido.params.id,
+            pedido.body,
+          ),
         (corpo) => `/variants/${(corpo as { id: string }).id}`,
       ),
   );

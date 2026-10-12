@@ -407,7 +407,26 @@ describe.skipIf(URL_BASE === undefined)("prazos das contas (0026)", () => {
       ),
     ).toContain("account.retention");
 
-    expect((await aplicar())["pessoas"]).toBe(1);
+    // Como o programa da VPS: o papel da limpeza, com o canal e o pedido
+    // da tarefa (eurolify-limpeza; docs/28 §3.1, 0053). O papel não tem o
+    // EXECUTE da contexto_do_rasto(): o gatilho do rasto corre como o dono.
+    const feito = await dono.transaction().execute(async (trx) => {
+      await sql`set local role eurolify_limpeza`.execute(trx);
+      await sql`select set_config('eurolify.canal', 'sistema', true),
+        set_config('eurolify.pedido', 'tarefa:prazos_contas', true)`.execute(
+        trx,
+      );
+      return aplicar(trx);
+    });
+    expect(feito["pessoas"]).toBe(1);
+    const { rows: doRasto } = await sql<{ canal: string; pedido: string }>`
+      select canal, pedido from evento_conta
+      where pessoa_id = ${saiu.pessoa}::uuid and acto = 'pessoa_pseudonimizada'`.execute(
+      dono,
+    );
+    expect(doRasto).toEqual([
+      { canal: "sistema", pedido: "tarefa:prazos_contas" },
+    ]);
     expect(await pessoa(saiu.pessoa)).toEqual({
       email: `pseudonimo+${saiu.pessoa}@eurolify.invalid`,
       nome: "Pessoa pseudonimizada",

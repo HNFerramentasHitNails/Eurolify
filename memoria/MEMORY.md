@@ -40,7 +40,7 @@
 
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1 (preços só antes da peça 13, ADR-0012); AD (ADR-0022, 04/10): relatório OSS, núcleo das devoluções e lotes passam para a Fase 1, estimados — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, antes da peça 13 e não antes do código (S, ADR-0012) — 03/10/2026](modelo-de-receita-03out2026.md)
-- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 17–32 meses a tempo inteiro, 31–58 a meio (hipótese C; com a AD, 04/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
+- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 18–33 meses a tempo inteiro, 32–60 a meio (hipótese C; com a AD, a DS e a DW, 11/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
 
 ## Marca e apresentação
 
@@ -116,4 +116,20 @@
 - [Alterar uma variante (#301, #302, #306, #317): API com versão da variante (0048), unidade e conteúdo só no rascunho; ecrã «Editar a variante» no Hub; 1169 testes da API, 500 ok na passagem; no ensaio, aspecto aprovado — 10/10/2026](catalogo-alterar-variante-10out2026.md)
 - [Clientes 2b (#298): fila de duplicados (NIF particular, e-mail, telefone; nunca o nome), fusão por uma pessoa com ensaio, perfis copiados (DD), régua do grupo; migração 0046 no ensaio (corrida 38053776699) — 10/10/2026](clientes-duplicados-fusoes-10out2026.md)
 - [Clientes 2c (#314): pedidos do titular — registo, limitação, exportação sem cópia na idempotência, pseudonimização do grupo; ficam os perfis de documentos e encomendas (R9); migração 0049 — 10/10/2026](clientes-pedidos-do-titular-10out2026.md)
+- [Clientes (#325, #330): consentimento por contacto e canal no comerciante; sobre uma recusa, «sim» só com dupla confirmação (enviada pela loja; 3/hora); migração 0052 — 10/10/2026](clientes-consentimento-por-contacto-10out2026.md)
+- [Clientes (#338): anexos da isenção manual na base (PDF/JPEG/PNG, 10 MB, 5 por isenção, 1 GB por comerciante), imutáveis salvo pseudonimização; decisão DN; migração 0055 — 10/10/2026](clientes-anexos-da-isencao-10out2026.md)
 - [Imagem da base do ensaio trocada (10/10/2026, #316): a mesma postgres 18.6 com o OpenSSL deb13u3, cópia antes, pelo aplicar-script; a API chega à base depois (401 com sessão inventada); a autorização tirada a seguir](postgres-imagem-trocada-10out2026.md)
+- [Acrescentar uma variante (#321, #324, #326, #331): POST /hub/products/{id}/variants (lock_timeout em todas as escritas do Hub); ecrã «Acrescentar variante», resposta perdida só aceita variante nova igual; 517 ok; aspecto aprovado — 10/10/2026](hub-acrescentar-variante-10out2026.md)
+- [Preço da variante no Hub (#335, #336, #339, #341): PUT/DELETE /hub/price-lists/{id}/prices/{variante} sobre o preço lido; ecrã «Preço da variante», cêntimos sem vírgula flutuante, 409 mostra sempre o conflito; 540 ok; aspecto aprovado — 10/10/2026](hub-preco-da-variante-10out2026.md)
+- [Rasto de auditoria comum (#322, DK): passos 1–3 (#327, #334, #340; 0051, 0053, 0054) e o passo 4 parte 1, chave de um agente de IA (0057); plano do resto do passo 4; decisão do aviso «sem autorização» pedida — 10/10/2026](rasto-de-auditoria-10out2026.md)
+- [Pós-venda, parte 1 (#328, #329, decisão DM): livre resolução só de consumidores, devolução com inspecção, reembolso manual, NC só depois do reembolso, cancelar paga; migração 0058 (era 0054) no ensaio (corrida 38093050863); parte 2 por fazer — 10/10/2026](pos-venda-parte1-10out2026.md)
+- [Pós-venda, parte 2 (#350, decisão DP): reembolso do MB WAY pela EuPago (OAuth, trid do aviso, a_pedir/a_confirmar, aceite nunca se repete); Multibanco à mão; migração 0061 no ensaio (corrida 38155543630); sandbox por ver — 11/10/2026](pos-venda-parte2-11out2026.md)
+
+## Âmbito do produto
+
+- [Hub da empresa (#355): docs/31; módulos a partir da Fase 2 (DR, ADR-0042); 13 módulos pelas 8 portas (DS, ADR-0043): E, marketing e G fora, 2 peças na Fase 1; balcão pelo POS do Hub, Moloni só fatura (DV, ADR-0044) — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
+- [API do Moloni testada só a ler (#355): vendas do POS lêem-se com terminal_id; cada venda baixa o stock sozinha; movimento negativo é saída; token só no endereço; sem limite até ~1400/min; status 2 por perceber — 11/10/2026](moloni-api-testes-11out2026.md)
+- [Pós-venda: aviso do prazo do reembolso (#353, decisão DQ): 3 dias antes e quando passa, evento e lista da API, sem e-mail; prazo no fuso do comerciante; fora de prazo aceite sem aviso; migração 0063 no ensaio (corrida 38165970858) — 11/10/2026](pos-venda-prazo-reembolso-11out2026.md)
+- [Pós-venda: selado por higiene (#363, decisão DT): marca no artigo, copiada para a encomenda e conferida; aberta numa livre resolução, uma pessoa decide reembolsar ou a excepção; texto legal por país por fazer (J5); migração 0065 — 11/10/2026](pos-venda-selado-higiene-11out2026.md)
+- [Notificações (#373, decisão DX): o e-mail do aviso do prazo aos donos e gestores, por SMTP (OVH E-mail Pro), fila na base, sem dados do cliente; falta a conta, as SMTP_* na VPS e o DNS; docs/34, migração 0067 — 11/10/2026](notificacoes-email-11out2026.md)
+- [Peça 21, tarefas das filas (#366, #368, #375): desenho aprovado (DW), código da parte 1; a lista lê as filas e a tarefa só guarda quem e até quando; 7 filas (DS dizia 4); achado: pedido de livre resolução pendente corre o prazo sem aviso — 11/10/2026](tarefas-das-filas-11out2026.md)

@@ -17,7 +17,6 @@ import { hubDeTeste } from "./hub-de-teste.js";
 // PostgreSQL 18.
 
 interface Autor {
-  tipo: "pessoa" | "chave" | "sistema" | "outro";
   nome: string | null;
 }
 interface Entrada {
@@ -28,6 +27,9 @@ interface Entrada {
   operacao: string;
   campos: Record<string, { antes: unknown; depois: unknown }>;
   autor?: Autor;
+  autorizado_por?: string | null;
+  autor_autorizou?: { nome: string | null } | null;
+  autor_do_pedido?: { nome: string | null } | null;
 }
 interface Pagina {
   dados: Entrada[];
@@ -153,20 +155,19 @@ describe.skipIf(URL_BASE === undefined)(
       expect(r.headers["cache-control"]).toBe("private, no-store");
       const hub = r.json<Pagina>();
       const chave = pelaChave.json<Pagina>();
-      // As mesmas entradas, sem o autor, e o mesmo cursor.
+      // As mesmas entradas, sem os nomes, e o mesmo cursor.
       const semAutor = hub.dados.map((e) => {
         const resto = { ...e };
         delete resto.autor;
+        delete resto.autor_autorizou;
+        delete resto.autor_do_pedido;
         return resto;
       });
       expect(semAutor).toEqual(chave.dados);
       expect({ ...hub, dados: [] }).toEqual({ ...chave, dados: [] });
       expect(hub.ha_mais).toBe(true);
       expect(hub.dados[0]?.quem).toBe(`pessoa:per_${dono.pessoa}`);
-      expect(hub.dados[0]?.autor).toEqual({
-        tipo: "pessoa",
-        nome: "Ana Teste",
-      });
+      expect(hub.dados[0]?.autor).toEqual({ nome: "Ana Teste" });
 
       // A página seguinte chega à criação, feita pela chave «Escrita».
       const resto = await historico(
@@ -179,7 +180,7 @@ describe.skipIf(URL_BASE === undefined)(
         .json<Pagina>()
         .dados.find((e) => e.entidade === "artigo" && e.operacao === "criado");
       expect(criacao?.quem).toBe(`chave:key_${c.chave.id}`);
-      expect(criacao?.autor).toEqual({ tipo: "chave", nome: "Escrita" });
+      expect(criacao?.autor).toEqual({ nome: "Escrita" });
     });
 
     it("o gestor vê; o armazém e o apoio recebem 403", async () => {
@@ -235,6 +236,8 @@ describe.skipIf(URL_BASE === undefined)(
       expect(daApi?.security).toEqual([{ chave: [] }]);
       const resposta = JSON.stringify(doHub?.responses);
       expect(resposta).toContain('"autor"');
+      expect(resposta).toContain('"autor_autorizou"');
+      expect(resposta).toContain('"autor_do_pedido"');
       expect(JSON.stringify(daApi?.responses)).not.toContain('"autor"');
     });
 
@@ -263,19 +266,15 @@ describe.skipIf(URL_BASE === undefined)(
       );
       // Cada um com o seu nome: o de quem saiu continua (P2-2 da revisão).
       expect(porQuem.get(`pessoa:per_${dono.pessoa}`)).toEqual({
-        tipo: "pessoa",
         nome: "Ana Teste",
       });
       expect(porQuem.get(`pessoa:per_${saiu.pessoa}`)).toEqual({
-        tipo: "pessoa",
         nome: "Rui Teste",
       });
       expect(porQuem.get(`pessoa:per_${deFora.pessoa}`)).toEqual({
-        tipo: "pessoa",
         nome: null,
       });
       expect(porQuem.get(`chave:key_${outro.chave.id}`)).toEqual({
-        tipo: "chave",
         nome: null,
       });
     });
@@ -305,14 +304,126 @@ describe.skipIf(URL_BASE === undefined)(
         r.json<Pagina>().dados.map((e) => [e.quem, e.autor]),
       );
       expect(porQuem.get(`pessoa:per_${antiga.pessoa}`)).toEqual({
-        tipo: "pessoa",
         nome: "Pessoa pseudonimizada",
       });
-      expect(porQuem.get("sistema:teste")).toEqual({
-        tipo: "sistema",
-        nome: null,
+      expect(porQuem.get("sistema:teste")).toEqual({ nome: null });
+      expect(porQuem.get("teste:outro")).toEqual({ nome: null });
+    });
+
+    /** Uma alteração com o contexto do rasto escolhido (como uma tarefa). */
+    async function escreverComRasto(
+      artigo: string,
+      rasto: {
+        quem: string;
+        autorizadoPor?: string;
+        aPedidoDe?: { pedido: string; quem: string };
+      },
+      nome: string,
+    ) {
+      await base.dono.transaction().execute(async (trx) => {
+        const pares: [string, string][] = [
+          ["eurolify.quem", rasto.quem],
+          ["eurolify.canal", "sistema"],
+          ["eurolify.pedido", "tarefa:teste"],
+        ];
+        if (rasto.autorizadoPor !== undefined)
+          pares.push(["eurolify.autorizado_por", rasto.autorizadoPor]);
+        if (rasto.aPedidoDe !== undefined)
+          pares.push(["eurolify.a_pedido_de", JSON.stringify(rasto.aPedidoDe)]);
+        for (const [k, v] of pares) {
+          await sql`select set_config(${k}, ${v}, true)`.execute(trx);
+        }
+        await sql`update artigo set nome = ${nome}
+          where id = ${artigo.slice("prd_".length)}::uuid`.execute(trx);
       });
-      expect(porQuem.get("teste:outro")).toEqual({ tipo: "outro", nome: null });
+    }
+
+    it("quem autorizou e quem pediu a tarefa vêm com o nome, pela mesma regra de quem fez (docs/22 §26.2)", async () => {
+      const c = await comerciante("Loja Autorizou");
+      const outro = await comerciante("Outra Autorizou");
+      const dono = await h.pessoaCom(c.id, "dono", "Ana Teste");
+      const deFora = await h.pessoaCom(outro.id, "dono", "Zé de Fora");
+      // No Hub, quem age autoriza: o nome dela nas duas.
+      await mudarNome(c, dono.sessao, "Pela dona");
+      // Uma tarefa a pedido da chave do comerciante, autorizada pela dona.
+      await escreverComRasto(
+        c.artigo.id,
+        {
+          quem: "sistema:teste",
+          autorizadoPor: `pessoa:per_${dono.pessoa}`,
+          aPedidoDe: { pedido: "req-1", quem: `chave:key_${c.chave.id}` },
+        },
+        "Pela tarefa",
+      );
+      // Outra, a pedido da chave e com a autorização de alguém de fora.
+      await escreverComRasto(
+        c.artigo.id,
+        {
+          quem: "sistema:fora",
+          autorizadoPor: `pessoa:per_${deFora.pessoa}`,
+          aPedidoDe: { pedido: "req-2", quem: `chave:key_${outro.chave.id}` },
+        },
+        "De fora",
+      );
+      // Sem ninguém a autorizar e sem pedido de origem.
+      await escreverComRasto(c.artigo.id, { quem: "sistema:so" }, "Sozinha");
+
+      const r = await historico(c, dono.sessao, "?limite=100");
+      expect(r.statusCode, r.body).toBe(200);
+      const porQuem = new Map(r.json<Pagina>().dados.map((e) => [e.quem, e]));
+      expect(porQuem.get(`pessoa:per_${dono.pessoa}`)).toMatchObject({
+        autor_autorizou: { nome: "Ana Teste" },
+        autor_do_pedido: null,
+      });
+      expect(porQuem.get("sistema:teste")).toMatchObject({
+        autor_autorizou: { nome: "Ana Teste" },
+        autor_do_pedido: { nome: "Escrita" },
+      });
+      expect(porQuem.get("sistema:fora")).toMatchObject({
+        autorizado_por: `pessoa:per_${deFora.pessoa}`,
+        autor_autorizou: { nome: null },
+        autor_do_pedido: { nome: null },
+      });
+      expect(porQuem.get("sistema:so")).toMatchObject({
+        autor_autorizou: null,
+        autor_do_pedido: null,
+      });
+    });
+
+    it("uma página com mais de 200 pessoas diferentes pede os nomes aos bocados", async () => {
+      const c = await comerciante("Loja Muitos");
+      const dono = await h.pessoaCom(c.id, "dono", "Ana Muitos");
+      // Cada alteração com quem fez, quem autorizou e quem pediu diferentes:
+      // 300 pessoas numa página de 100.
+      const uuid = () => `pessoa:per_${randomUUID()}`;
+      const dona = `pessoa:per_${dono.pessoa}`;
+      // 102 alterações; a página traz as 100 mais recentes (i = 101 a 2). A
+      // i = 2, a mais antiga da página, é autorizada e pedida pela dona: os
+      // nomes pedem-se da mais recente para a mais antiga, por isso o dela é
+      // o 299.º, no segundo bocado (revisão do #359, P2-2).
+      for (let i = 0; i < 102; i++) {
+        await escreverComRasto(
+          c.artigo.id,
+          {
+            quem: uuid(),
+            autorizadoPor: i === 2 ? dona : uuid(),
+            aPedidoDe: {
+              pedido: `req-${String(i)}`,
+              quem: i === 2 ? dona : uuid(),
+            },
+          },
+          `Nome ${String(i)}`,
+        );
+      }
+      const r = await historico(c, dono.sessao, "?limite=100");
+      expect(r.statusCode, r.body).toBe(200);
+      const dados = r.json<Pagina>().dados;
+      expect(dados).toHaveLength(100);
+      expect(dados[99]).toMatchObject({
+        autorizado_por: dona,
+        autor_autorizou: { nome: "Ana Muitos" },
+        autor_do_pedido: { nome: "Ana Muitos" },
+      });
     });
 
     it("recusa outro comerciante, quem saiu, a sessão terminada e o pedido sem sessão", async () => {

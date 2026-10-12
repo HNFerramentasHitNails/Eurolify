@@ -283,7 +283,7 @@ também para os mercados e os canais (§10.1; `docs/06`, CW).
 | Listas de preços | `GET /price-lists`, `POST /price-lists`, `PATCH /price-lists/{id}` | prices:read / write | |
 | Preços de uma lista | `GET /price-lists/{id}/prices`, `PUT /price-lists/{id}/prices/{variantId}` | prices:read / write | o `PUT` cria a linha nova no histórico; recusa R4 |
 | Tirar um preço | `DELETE /price-lists/{id}/prices/{variantId}` | prices:write | fica no histórico |
-| Histórico | `GET /price-lists/{id}/prices/{variantId}/history` | prices:read | |
+| Histórico | `GET /price-lists/{id}/prices/{variantId}/history` | prices:read (quem mudou e quem autorizou: prices:history, `docs/28` §3.8) | |
 | Redução | `PUT /price-lists/{id}/prices/{variantId}/reduction`, `DELETE …/reduction` | prices:write | o servidor calcula o preço de referência (R6) |
 | Verificar preço para publicar | `GET /markets/{id}/price-check?variants=…` | prices:read | **não escreve**: devolve, por variante, `com_preco`, `gratuito` e o impedimento (é o que a C2 do Catálogo usa por dentro) |
 
@@ -361,6 +361,13 @@ decimal é **C**, abaixo).
 - **A versão:** mercados, canais e listas levam a `versao` lida, como os
   artigos; o preço não tem versão (um `PUT` substitui, e o histórico guarda
   tudo).
+  **Actualização (10/10/2026, `docs/22` §25, #335):** a base já tinha a
+  `versao` do preço (0017, sobe em cada escrita; recomeça em 1 quando o
+  preço sai e volta). **Todas as respostas de preço** (as leituras da lista
+  e do artigo, o `PUT` do preço e as reduções, pela chave e pelo Hub) passam
+  a mostrá-la (revisão do #339, P3-1). As escritas pelo Hub mandam a versão
+  e o `definido_em` lidos (409 `prices.version_conflict`); as rotas pela
+  chave continuam sem os pedir.
 
 ### 10.2 A redução anunciada (§3.6)
 

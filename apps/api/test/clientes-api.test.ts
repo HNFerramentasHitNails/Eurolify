@@ -883,8 +883,25 @@ describe.skipIf(URL_BASE === undefined)("API de Clientes", () => {
     expect(dados[3]).toMatchObject({
       quem: `chave:key_${clientesId}`,
       entidade_id: id,
-      campos: { nome: { antes: "Diana", depois: "Diana R." } },
+      // O nome é sensível (docs/28 §3.4; 0054): diz que mudou, nunca o valor.
+      campos: {
+        nome: {
+          antes: {
+            protegido: true,
+            resumo: expect.stringMatching(/^[0-9a-f]{8}$/) as string,
+          },
+          depois: {
+            protegido: true,
+            resumo: expect.stringMatching(/^[0-9a-f]{8}$/) as string,
+          },
+        },
+      },
     });
+    const nome = (
+      dados[3]?.["campos"] as Record<string, { antes: Json; depois: Json }>
+    )["nome"];
+    expect(nome?.antes["resumo"]).not.toBe(nome?.depois["resumo"]);
+    expect(JSON.stringify(dados)).not.toContain("Diana R.");
     // Paginação: dois de cada vez, sem repetir.
     const p1 = await ok(pedir("GET", `/customers/${id}/timeline?limite=2`));
     const p2 = await ok(

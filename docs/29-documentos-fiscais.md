@@ -1,5 +1,9 @@
 # Documentos fiscais — modelo e lista da API
 
+> **Número:** até 10/10/2026 este documento foi o `docs/28`; passou a 29
+> porque o 28 já era o rasto de auditoria (#332). A migração 0050 cita-o
+> ainda como `docs/28` (linhas 1, 487 e 617): é este documento.
+
 > **Estado: desenho aprovado; parte 1 no código** (issue #310; migração
 > 0050; `docs/06`, DI). Diogo, 10/10/2026: *«sim, aprovo; avança com o
 > código da fatia 10»* (Q1 a Q7 como propostas). O que está programado e os
@@ -43,6 +47,10 @@
 > Moloni vem das lições do Hub interno (`docs/04`, 2.6; `eu-vat-oss-ioss`,
 > «No adaptador do Moloni») e marca-se **M**; o resto (pedidos, campos,
 > autenticação) lê-se na documentação oficial antes da parte 2 (Q5).
+> *11/10/2026:* a documentação foi lida (só leitura, nenhum pedido) em
+> [`eurolify/fontes-api-moloni-11out2026.md`](eurolify/fontes-api-moloni-11out2026.md)
+> — autenticação, documentos, stock e o que falta testar na sandbox (§6 e §7
+> desse ficheiro).
 
 ## 1. O que entra nesta fatia
 

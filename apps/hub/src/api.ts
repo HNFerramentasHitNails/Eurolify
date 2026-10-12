@@ -3,7 +3,8 @@
 // sempre em JSON; os erros chegam no formato RFC 9457 com um `codigo`.
 
 import type { OpcaoArtigo } from "./opcoes";
-import type { AlteracaoVariante } from "./variante";
+import type { CorpoPreco, PrecoLido } from "./preco";
+import type { AlteracaoVariante, VarianteACriar } from "./variante";
 
 export type Papel = "dono" | "gestor" | "armazem" | "apoio";
 export const PAPEIS: readonly Papel[] = ["dono", "gestor", "armazem", "apoio"];
@@ -78,7 +79,18 @@ export const AMBITOS_SERVIDOR = [
   "merchant:write",
   "keys:write",
 ] as const;
-export type Ambito = (typeof AMBITOS_SERVIDOR)[number] | "storefront";
+/**
+ * Os âmbitos que o ecrã sabe dizer: os que oferece ao criar, a loja e os que
+ * a API dá a chaves criadas por outra via (docs/22 §26.3). Um âmbito fora
+ * desta lista mostra-se com o nome técnico.
+ */
+export type Ambito =
+  | (typeof AMBITOS_SERVIDOR)[number]
+  | "storefront"
+  | "catalog:history"
+  | "prices:read"
+  | "prices:write"
+  | "prices:history";
 
 export interface ChaveApi {
   id: string;
@@ -94,6 +106,8 @@ export interface ChaveApi {
   revogada_em: string | null;
   revogada_por: string | null;
   ultimo_uso_em: string | null;
+  /** Uma chave de um agente de IA (0057): não muda depois de criada. */
+  agente_ia: boolean;
 }
 
 /** Um artigo na lista do catálogo (docs/22 §11; o resumo do GET /products). */
@@ -257,6 +271,8 @@ export interface PrecoVariante {
   quantidade_minima: number;
   multiplo: number;
   definido_em: string;
+  /** Sobe em cada escrita; as escritas do Hub mandam-na (docs/22 §25.2). */
+  versao: number;
   /** A redução em vigor; o preço de referência vem calculado (docs/20 §3.6). */
   reducao: {
     montante: number;
@@ -294,7 +310,6 @@ export interface PaginaPrecos {
 
 /** Quem fez uma alteração, decidido pelo servidor (docs/22 §16.2). */
 export interface AutorAlteracao {
-  tipo: "pessoa" | "chave" | "sistema" | "outro";
   /** O nome de quem é ou foi da equipa, ou o da chave; null nos outros. */
   nome: string | null;
 }
@@ -313,7 +328,37 @@ export interface AlteracaoArtigo {
   operacao: "criado" | "alterado" | "apagado";
   campos: Record<string, { antes: unknown; depois: unknown }>;
   autor: AutorAlteracao;
+  // As respostas do rasto (docs/28 §1; docs/22 §26), decididas no servidor.
+  /** De onde veio; null: desconhecido (linha de antes de 10/10/2026). */
+  canal: string | null;
+  /** O pedido HTTP ou a tarefa, para o apoio cruzar com os registos. */
+  pedido: string | null;
+  ia: {
+    prova: "comprovado" | "declarado" | "desconhecido";
+    fornecedor: string | null;
+    modelo: string | null;
+    execucao: string | null;
+  };
+  autorizado_por: string | null;
+  motivo: string | null;
+  a_pedido_de: { pedido: string | null; quem: string | null } | null;
+  tipo_de_autor: TipoDeAutor;
+  a_pedido_de_tipo: TipoDeAutor | null;
+  /** true: sem autorização de uma pessoa; null: desconhecido (Q8). */
+  sem_autorizacao_de_pessoa: boolean | null;
+  autor_autorizou: { nome: string | null } | null;
+  autor_do_pedido: { nome: string | null } | null;
 }
+
+export type TipoDeAutor =
+  | "pessoa"
+  | "agente"
+  | "chave"
+  | "consumidor"
+  | "prestador"
+  | "sistema"
+  | "operador"
+  | "desconhecido";
 
 export interface PaginaHistorico {
   dados: AlteracaoArtigo[];
@@ -717,6 +762,47 @@ export const api = {
       { comerciante },
     );
   },
+  /**
+   * Uma lista activa com os preços do artigo (docs/22 §25.3), procurada
+   * página a página; `null` quando não está entre as activas.
+   */
+  listaDoArtigo: async (comerciante: string, artigo: string, lista: string) => {
+    let cursor: string | null = null;
+    do {
+      const pagina: PaginaPrecos = await api.precosDoArtigo(
+        comerciante,
+        artigo,
+        cursor,
+      );
+      const achada = pagina.dados.find((l) => l.lista.id === lista);
+      if (achada !== undefined) return achada;
+      cursor = pagina.ha_mais ? pagina.cursor_seguinte : null;
+    } while (cursor !== null);
+    return null;
+  },
+  // Definir e tirar o preço de uma variante numa lista (docs/22 §25.2): as
+  // mesmas escritas da chave, pelos caminhos /hub/, com o preço `lido`.
+  definirPreco: (
+    comerciante: string,
+    lista: string,
+    variante: string,
+    corpo: CorpoPreco,
+  ) =>
+    pedir<PrecoVariante>(
+      "PUT",
+      `/hub/price-lists/${lista}/prices/${variante}`,
+      { comerciante, corpo },
+    ),
+  tirarPreco: (
+    comerciante: string,
+    lista: string,
+    variante: string,
+    lido: NonNullable<PrecoLido>,
+  ) =>
+    pedir<undefined>("DELETE", `/hub/price-lists/${lista}/prices/${variante}`, {
+      comerciante,
+      corpo: { lido },
+    }),
   /** O histórico do artigo (docs/22 §16), 25 de cada vez. */
   historicoDoArtigo: (
     comerciante: string,
@@ -780,6 +866,12 @@ export const api = {
     pedir<FichaArtigo>("POST", `/hub/products/${artigo}/${accao}`, {
       comerciante,
       corpo: { versao },
+    }),
+  /** Acrescentar uma variante ao artigo (docs/22 §24.1). */
+  criarVariante: (comerciante: string, artigo: string, corpo: VarianteACriar) =>
+    pedir<VarianteArtigo>("POST", `/hub/products/${artigo}/variants`, {
+      comerciante,
+      corpo,
     }),
   /** Alterar a variante (docs/22 §23.1): só os campos que mudam. */
   alterarVariante: (
@@ -926,7 +1018,12 @@ export const api = {
     pedir<{ dados: ChaveApi[] }>("GET", "/hub/keys", { comerciante }),
   criarChave: (
     comerciante: string,
-    dados: { nome: string; ambitos: Ambito[]; expira_em?: string },
+    dados: {
+      nome: string;
+      ambitos: Ambito[];
+      expira_em?: string;
+      agente_ia: boolean;
+    },
   ) =>
     pedir<ChaveApi & { segredo: string }>("POST", "/hub/keys", {
       comerciante,

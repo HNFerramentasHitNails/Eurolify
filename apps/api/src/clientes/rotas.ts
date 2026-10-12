@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { CamposDoRasto, respostasDoRasto } from "../base/rasto-resposta.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
@@ -9,8 +11,10 @@ import {
   ESTADOS_DUPLICADO,
   ESTADOS_VIES,
   SINAIS_DUPLICADO,
+  TIPOS_DE_ANEXO,
   TIPOS_PEDIDO_TITULAR,
   type BaseDados,
+  type TipoDeAnexo,
 } from "../base/esquema.js";
 import {
   ConsultaPagina,
@@ -59,6 +63,10 @@ import {
   obterPerfil,
   porEtiqueta,
   registarConsentimento,
+  confirmarConsentimento,
+  anexarIsencao,
+  listarAnexosDaIsencao,
+  lerAnexoDaIsencao,
   tirarEtiqueta,
   tornarPrincipal,
   traduzir,
@@ -104,6 +112,16 @@ const ESTADO_DO_CODIGO: Record<CodigoErroClientes, number> = {
   "customers.duplicate_decided": 409,
   "customers.confirmation_required": 422,
   "customers.restricted": 409,
+  "customers.consent_contact_unknown": 422,
+  "customers.consent_confirmation_required": 409,
+  "customers.confirmation_channel": 422,
+  "customers.confirmation_invalid": 422,
+  "customers.confirmation_expired": 410,
+  "customers.confirmation_exhausted": 409,
+  "customers.confirmation_closed": 409,
+  "customers.confirmation_rate_limited": 429,
+  "customers.exemption_attachments_full": 409,
+  "customers.exemption_attachments_quota": 409,
 };
 
 function paraApi(erro: unknown, resposta: FastifyReply): unknown {
@@ -407,7 +425,12 @@ const Alteracao = Type.Object({
   campos: Type.Record(
     Type.String(),
     Type.Object({ antes: Type.Unknown(), depois: Type.Unknown() }),
+    {
+      description:
+        "O antes e o depois de cada campo que mudou. Os campos sensíveis (o nome, os e-mails e os telefones da ficha; o nome, o NIF e a morada do perfil) trazem um marcador {protegido: true, resumo} em vez do valor: diz que mudou e se dois valores eram iguais, nunca qual era (docs/28 §3.4); vazio é que não havia valor.",
+    },
   ),
+  ...CamposDoRasto,
 });
 
 // A procura vai no corpo de um POST, nunca no endereço: o endereço fica nos
@@ -537,6 +560,20 @@ const Consentimento = Type.Object({
   texto: Type.String({ description: "O texto mostrado ao cliente" }),
   versao_texto: Type.String(),
   onde: Type.String({ description: "A loja e o formulário, ou o Hub" }),
+  contacto: Type.Union([Type.String(), Type.Null()], {
+    description:
+      "O e-mail ou o telefone a que a declaração se refere; nulo nas declarações anteriores à 0052, que valem para os contactos da ficha onde foram dadas",
+  }),
+  via: Type.Union(
+    [Type.Literal("directa"), Type.Literal("dupla_confirmacao")],
+    {
+      description:
+        "dupla_confirmacao: um «sim» sobre uma recusa, confirmado no próprio contacto (docs/23 §14)",
+    },
+  ),
+  confirmacao: Type.Union([Type.String(), Type.Null()], {
+    description: "O pedido de confirmação que deu esta declaração (ccf_…)",
+  }),
   declarado_em: Instante,
   quem: Type.String({
     description: "Quem registou: chave:key_…, pessoa:per_… ou sistema:<tarefa>",
@@ -554,6 +591,9 @@ const paraConsentimento = (
   texto: c.texto,
   versao_texto: c.versao_texto,
   onde: c.onde,
+  contacto: c.contacto,
+  via: c.via,
+  confirmacao: c.confirmacao_id === null ? null : `ccf_${c.confirmacao_id}`,
   declarado_em: c.declarado_em.toISOString(),
   quem: c.quem,
 });
@@ -565,17 +605,50 @@ const PedidoConsentimento = Type.Object(
       description:
         "«Nunca aceitou» não se regista: é não haver declaração (eu-gdpr-privacy, regra 5)",
     }),
+    contacto: Type.String({
+      minLength: 3,
+      maxLength: 254,
+      description:
+        "O e-mail (canal email) ou o telefone (sms, whatsapp) da ficha a que a declaração se refere; o estado é por contacto (docs/23 §14)",
+    }),
     texto: Type.String({ minLength: 1, maxLength: 5000 }),
     versao_texto: Type.String({ minLength: 1, maxLength: 50 }),
     onde: Type.String({ minLength: 1, maxLength: 200 }),
   },
   { additionalProperties: false },
 );
+// Um «sim» sobre uma recusa (0052): o pedido de dupla confirmação. O segredo
+// vai só nesta resposta; o sistema do comerciante envia-o ao contacto.
+const PedidoDeConfirmacao = Type.Object({
+  confirmacao: Type.String({ description: "ccf_…" }),
+  canal: Type.Union([Type.Literal("email"), Type.Literal("sms")]),
+  contacto: Type.String(),
+  segredo: Type.String({
+    description:
+      "Para a ligação do e-mail ou o código do SMS. Só aparece nesta resposta: repetir com a mesma Idempotency-Key dá idempotency.secret_not_repeated",
+  }),
+  expira_em: Instante,
+});
+const PedidoConfirmar = Type.Object(
+  { segredo: Type.String({ minLength: 1, maxLength: 200 }) },
+  { additionalProperties: false },
+);
+const ReguaPorContacto = Type.Object(
+  {
+    email: Type.Array(Type.String()),
+    sms: Type.Array(Type.String()),
+    whatsapp: Type.Array(Type.String()),
+  },
+  {
+    description:
+      "Os contactos da ficha que podem receber marketing, por canal (0052): a pergunta exacta para quem envia",
+  },
+);
 const ReguaMarketing = Type.Object(
   { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
   {
     description:
-      "A régua única por canal (pode_receber_marketing, migração 0042): só as declarações explícitas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não, ficha limitada ou não activa ⇒ não",
+      "Por canal, se algum contacto da ficha pode receber (pode_receber_marketing, migrações 0042 e 0052). O estado é por contacto: só as declarações explícitas desse contacto, no grupo de fichas, vale a mais recente, empate ⇒ não, sem nenhuma ⇒ não; ficha limitada ou não activa ⇒ não. Sobre uma recusa, um «sim» só conta depois de confirmado no contacto (docs/23 §14). Quem envia usa contactos_com_marketing",
   },
 );
 
@@ -668,7 +741,7 @@ const PlanoFusaoEsquema = Type.Object({
     { email: Type.Boolean(), sms: Type.Boolean(), whatsapp: Type.Boolean() },
     {
       description:
-        "A régua da ficha que fica depois da fusão: conta as declarações das duas, e o consentimento passa a cobrir os contactos acrescentados (docs/23 §3.7)",
+        "A régua da ficha que fica depois da fusão, por contacto: cada contacto das duas fichas leva o seu estado (docs/23 §14)",
     },
   ),
 });
@@ -953,6 +1026,7 @@ export function rotasDosClientes(
                   : `${prefixo}_${a.entidade_id}`,
             operacao: a.operacao,
             campos: a.campos,
+            ...respostasDoRasto(a),
           };
         },
       ),
@@ -1389,6 +1463,7 @@ export function rotasDosClientes(
           200: Type.Object({
             ...Lista(Consentimento).properties,
             pode_receber_marketing: ReguaMarketing,
+            contactos_com_marketing: ReguaPorContacto,
           }),
           ...RESPOSTA_DE_ERRO,
         },
@@ -1407,6 +1482,7 @@ export function rotasDosClientes(
       return {
         ...comPagina(pagina, paraConsentimento),
         pode_receber_marketing: pagina.regua,
+        contactos_com_marketing: pagina.porContacto,
       };
     },
   );
@@ -1417,34 +1493,107 @@ export function rotasDosClientes(
       config: escrita,
       schema: {
         description:
-          "Regista uma declaração (aceitou ou retirou) com o texto mostrado, a versão e onde; a hora e quem regista põe-nos o servidor. Não se altera nem se apaga: uma mudança é uma declaração nova. Só numa ficha activa.",
+          "Regista uma declaração (aceitou ou retirou) de um contacto da ficha, com o texto mostrado, a versão e onde; a hora e quem regista põe-nos o servidor. Não se altera nem se apaga: uma mudança é uma declaração nova. Só numa ficha activa. Um «aceitou» sobre uma recusa activa desse contacto não entra: responde 202 com um pedido de dupla confirmação e o segredo, que o sistema do comerciante envia ao contacto (ligação por e-mail, código por SMS) e entrega em POST /consent-confirmations/{id}/confirm (docs/23 §14).",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdCliente),
         body: PedidoConsentimento,
-        response: { 201: Consentimento, ...RESPOSTA_DE_ERRO },
+        response: {
+          201: Consentimento,
+          202: PedidoDeConfirmacao,
+          ...RESPOSTA_DE_ERRO,
+        },
       },
     },
     (pedido, resposta) =>
-      escrever(base, pedido, resposta, 201, (trx, c) =>
-        emClientes(resposta, async () => {
-          const b = pedido.body;
-          const id = await registarConsentimento(
-            trx,
-            c.comercianteId,
-            semPrefixo(pedido.params.id),
-            {
-              canal: b.canal,
-              declaracao: b.declaracao,
-              texto: b.texto,
-              versao_texto: b.versao_texto,
-              onde: b.onde,
-            },
-          );
-          return paraConsentimento(
-            await obterConsentimento(trx, c.comercianteId, id),
-          );
-        }),
+      escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        (trx, c) =>
+          emClientes(resposta, async () => {
+            const b = pedido.body;
+            const r = await registarConsentimento(
+              trx,
+              c.comercianteId,
+              semPrefixo(pedido.params.id),
+              {
+                canal: b.canal,
+                declaracao: b.declaracao,
+                contacto: b.contacto,
+                texto: b.texto,
+                versao_texto: b.versao_texto,
+                onde: b.onde,
+              },
+            );
+            if (r.tipo === "confirmacao") {
+              return {
+                confirmacao: `ccf_${r.id}`,
+                canal: b.canal,
+                contacto: r.contacto,
+                segredo: r.segredo,
+                expira_em: r.expira_em.toISOString(),
+              };
+            }
+            return paraConsentimento(
+              await obterConsentimento(trx, c.comercianteId, r.id),
+            );
+          }),
+        undefined,
+        undefined,
+        {
+          // O segredo não fica guardado na idempotência (como as chaves).
+          estado: (corpo) =>
+            typeof (corpo as { segredo?: unknown }).segredo === "string"
+              ? 202
+              : 201,
+          guardar: (corpo) =>
+            Object.fromEntries(
+              Object.entries(corpo as Record<string, unknown>).filter(
+                ([k]) => k !== "segredo",
+              ),
+            ),
+          repetir: (guardada) => {
+            if (guardada.status === 202) {
+              throw erroBase(
+                "idempotency.secret_not_repeated",
+                "o segredo da confirmação só se mostra uma vez: repita com outra Idempotency-Key, que cria outro pedido",
+              );
+            }
+            return guardada;
+          },
+        },
       ),
+  );
+
+  rotas.post(
+    "/consent-confirmations/:id/confirm",
+    {
+      config: escrita,
+      schema: {
+        description:
+          "Confirma um pedido de dupla confirmação com o que a pessoa trouxe (o segredo da ligação ou o código do SMS); regista o «sim» com o pedido como prova. Cinco tentativas erradas esgotam o pedido. Uma tentativa errada fica contada.",
+        params: ParametroId(idCom("ccf", "ccf_…")),
+        body: PedidoConfirmar,
+        response: { 201: Consentimento, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const c = chaveDo(pedido);
+      const id = await emClientes(resposta, () =>
+        confirmarConsentimento(
+          base,
+          c.comercianteId,
+          `chave:key_${c.chaveId}`,
+          semPrefixo(pedido.params.id),
+          pedido.body.segredo.trim(),
+        ),
+      );
+      const consentimento = await emClientes(resposta, () =>
+        obterConsentimento(base, c.comercianteId, id),
+      );
+      return resposta.code(201).send(paraConsentimento(consentimento));
+    },
   );
 
   // ---- Duplicados e fusões (§3.7)
@@ -1775,5 +1924,259 @@ export function rotasDosClientes(
         )
       ).map(paraIsencao),
     }),
+  );
+
+  // ---- Os anexos da isenção (§13.5; 0055), num plugin à parte: o leitor
+  // dos bytes (PDF, JPEG, PNG) não se mistura com o JSON das outras rotas
+  // nem com o do envio de imagens.
+  void instancia.register((filho, _o, pronto) => {
+    rotasDosAnexos(filho, base, isencoes, ler);
+    pronto();
+  });
+}
+
+const IdIsencao = idCom("exm", "exm_…");
+const IdAnexo = idCom("exa", "exa_…");
+/** 10 MB por anexo (proposta do §13.5). */
+const TAMANHO_DO_ANEXO = 10 * 1024 * 1024;
+const Anexo = Type.Object({
+  id: Type.String({ description: "exa_…" }),
+  isencao: Type.String({ description: "exm_…" }),
+  nome: Type.Union([Type.String(), Type.Null()]),
+  tipo: umDe(TIPOS_DE_ANEXO),
+  tamanho: Type.Integer(),
+  resumo: Type.String({ description: "sha256 dos bytes, em hexadecimal" }),
+  posto_por: Type.String(),
+  posto_em: Instante,
+});
+type LinhaAnexo = Awaited<ReturnType<typeof listarAnexosDaIsencao>>[number];
+const paraAnexo = (a: LinhaAnexo): Static<typeof Anexo> => ({
+  id: `exa_${a.id}`,
+  isencao: `exm_${a.isencao_id}`,
+  nome: a.nome,
+  tipo: a.tipo,
+  tamanho: a.tamanho,
+  resumo: a.resumo,
+  posto_por: a.posto_por,
+  posto_em: a.posto_em.toISOString(),
+});
+
+const EXTENSAO_DO_TIPO: Record<TipoDeAnexo, string> = {
+  "application/pdf": ".pdf",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+};
+
+/**
+ * O nome do ficheiro a descarregar: a extensão é sempre a do tipo (um
+ * «x.html» que é um PDF sai «x.pdf»), o nome em ASCII para os clientes
+ * antigos e o original em UTF-8 (RFC 6266 e 5987), para um «declaração –
+ * €.pdf» não partir o cabeçalho (revisão do #338, P1-1 e P2-4).
+ */
+export function disposicaoDoAnexo(
+  nome: string | null,
+  tipo: TipoDeAnexo,
+  resumo: string,
+): string {
+  const extensao = EXTENSAO_DO_TIPO[tipo];
+  const base = (nome ?? `anexo-${resumo.slice(0, 12)}`).replace(/\.[^.]*$/, "");
+  const ascii =
+    base
+      .normalize("NFKD")
+      .replace(/[^A-Za-z0-9._ -]/g, "")
+      .trim()
+      .slice(0, 150) || `anexo-${resumo.slice(0, 12)}`;
+  return `attachment; filename="${ascii}${extensao}"; filename*=UTF-8''${encodeURIComponent(base + extensao).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+}
+
+/** Envios de anexos em curso por comerciante (cada um ocupa até 10 MB de memória). */
+const ANEXOS_EM_SIMULTANEO = 2;
+
+function rotasDosAnexos(
+  instancia: FastifyInstance,
+  base: Kysely<BaseDados>,
+  isencoes: { ambito: "customers:exemptions" },
+  ler: { ambito: "customers:read" },
+) {
+  instancia.addContentTypeParser(
+    [...TIPOS_DE_ANEXO],
+    { parseAs: "buffer", bodyLimit: TAMANHO_DO_ANEXO },
+    (_pedido, corpo, feito) => {
+      feito(null, corpo);
+    },
+  );
+  // No máximo 2 envios em simultâneo por comerciante, contados antes de ler
+  // o corpo (como as imagens; revisão do #338, P2-2).
+  const emCurso = new Map<string, number>();
+  const contados = new WeakMap<object, string>();
+  const largar = (raw: object) => {
+    const c = contados.get(raw);
+    if (c === undefined) return;
+    contados.delete(raw);
+    const n = (emCurso.get(c) ?? 1) - 1;
+    if (n <= 0) emCurso.delete(c);
+    else emCurso.set(c, n);
+  };
+  instancia.addHook("onRequest", async (pedido, resposta) => {
+    if (pedido.method !== "POST") return;
+    const comercianteId = chaveDo(pedido).comercianteId;
+    const n = emCurso.get(comercianteId) ?? 0;
+    if (n >= ANEXOS_EM_SIMULTANEO) {
+      void resposta.header("Retry-After", "1");
+      throw erroBase(
+        "rate_limit.exceeded",
+        `no máximo ${String(ANEXOS_EM_SIMULTANEO)} envios de anexos ao mesmo tempo`,
+      );
+    }
+    emCurso.set(comercianteId, n + 1);
+    contados.set(pedido.raw, comercianteId);
+    resposta.raw.once("close", () => {
+      largar(pedido.raw);
+    });
+  });
+  instancia.addHook("onResponse", (pedido, _resposta, feito) => {
+    largar(pedido.raw);
+    feito();
+  });
+  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+
+  rotas.post(
+    "/exemptions/:id/attachments",
+    {
+      config: isencoes,
+      schema: {
+        description:
+          "Anexa um ficheiro (PDF, JPEG ou PNG, até 10 MB; o corpo são os bytes, com o Content-Type do ficheiro) a uma isenção manual em vigor; até 5 por isenção. É a prova: não se altera nem se apaga, e os bytes ficam como chegaram. Só uma pessoa ou a chave dela (docs/23 §13.5).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdIsencao),
+        querystring: Type.Object(
+          {
+            nome: Type.Optional(
+              Type.String({
+                minLength: 1,
+                maxLength: 200,
+                pattern: "^[^/\\\\]+$",
+                description: "O nome do ficheiro, sem caminho",
+              }),
+            ),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 201: Anexo, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) => {
+      const tipo = (pedido.headers["content-type"] ?? "")
+        .split(";")[0]
+        ?.trim()
+        .toLowerCase() as TipoDeAnexo;
+      // Só os três tipos, e só em bytes (o JSON e o texto têm leitor próprio).
+      if (!TIPOS_DE_ANEXO.includes(tipo) || !Buffer.isBuffer(pedido.body)) {
+        throw erroBase(
+          "media_type.unsupported",
+          `um anexo é ${TIPOS_DE_ANEXO.join(", ")}`,
+        );
+      }
+      const bytes = pedido.body;
+      return escrever(
+        base,
+        pedido,
+        resposta,
+        201,
+        (trx, c) =>
+          emClientes(resposta, async () =>
+            paraAnexo(
+              await anexarIsencao(
+                trx,
+                c.comercianteId,
+                semPrefixo(pedido.params.id),
+                { tipo, nome: pedido.query.nome ?? null, bytes },
+              ),
+            ),
+          ),
+        undefined,
+        // A idempotência conta com o resumo dos bytes, não com eles.
+        {
+          resumo: createHash("sha256").update(bytes).digest("hex"),
+          tipo,
+          nome: pedido.query.nome ?? null,
+        },
+      );
+    },
+  );
+
+  rotas.get(
+    "/exemptions/:id/attachments",
+    {
+      config: ler,
+      schema: {
+        description: "Os anexos de uma isenção, sem os bytes.",
+        params: ParametroId(IdIsencao),
+        response: {
+          200: Type.Object({ dados: Type.Array(Anexo) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => ({
+      dados: (
+        await emClientes(resposta, () =>
+          listarAnexosDaIsencao(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+          ),
+        )
+      ).map(paraAnexo),
+    }),
+  );
+
+  rotas.get(
+    "/exemptions/:id/attachments/:anexo",
+    {
+      config: isencoes,
+      schema: {
+        description:
+          "Os bytes de um anexo, com o tipo dele (só com customers:exemptions).",
+        params: Type.Object({ id: IdIsencao, anexo: IdAnexo }),
+        response: {
+          200: {
+            description: "O ficheiro",
+            content: Object.fromEntries(
+              TIPOS_DE_ANEXO.map((t) => [
+                t,
+                { schema: { type: "string", format: "binary" } },
+              ]),
+            ),
+          },
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      const a = await emClientes(resposta, () =>
+        lerAnexoDaIsencao(
+          base,
+          chaveDo(pedido).comercianteId,
+          semPrefixo(pedido.params.id),
+          semPrefixo(pedido.params.anexo),
+        ),
+      );
+      return (
+        resposta
+          .header("content-type", a.tipo)
+          .header("etag", `"${a.resumo}"`)
+          .header("cache-control", "private, no-store")
+          // O navegador não adivinha outro tipo nem corre nada (como as
+          // imagens; revisão do #338, P2-4).
+          .header("x-content-type-options", "nosniff")
+          .header("content-security-policy", "default-src 'none'; sandbox")
+          .header(
+            "content-disposition",
+            disposicaoDoAnexo(a.nome, a.tipo, a.resumo),
+          )
+          .send(a.bytes)
+      );
+    },
   );
 }

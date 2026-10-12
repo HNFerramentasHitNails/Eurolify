@@ -140,6 +140,22 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0048_catalogo_versao_da_variante",
         "0049_clientes_pedidos_do_titular",
         "0050_documentos_fiscais",
+        "0051_rasto_contexto",
+        "0052_clientes_consentimento_por_contacto",
+        "0053_rasto_colunas",
+        "0054_rasto_sensiveis",
+        "0055_clientes_anexos_da_isencao",
+        "0057_chave_de_agente_de_ia",
+        "0058_pos_venda",
+        "0059_precos_historico_ambito",
+        "0060_rasto_tarefas_a_pedido_de",
+        "0061_pos_venda_reembolso_prestador",
+        "0062_rasto_quem_autenticado_e_motivo",
+        "0063_pos_venda_prazo_do_reembolso",
+        "0064_rasto_autorizado_pela_propria_pessoa",
+        "0065_pos_venda_selado_por_higiene",
+        "0066_tarefas_das_filas",
+        "0067_notificacoes",
       ]);
     });
 
@@ -214,6 +230,19 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           "pseudonimizacao_em_curso",
           // A fila da tarefa dos documentos fiscais (0050).
           "tarefa_documento",
+          // Os campos sensíveis do rasto e a chave do resumo (0054): só as
+          // funções do dono lhes tocam; a chave nunca sai da base.
+          "campo_sensivel",
+          "chave_do_rasto",
+          // Os reembolsos no prestador a olhar (0061): escreve-a o gatilho,
+          // lê-a a função do dono.
+          "tarefa_reembolso",
+          // O aviso do prazo do reembolso (0063): escreve-a o gatilho, lê-a
+          // a função do dono.
+          "tarefa_prazo_reembolso",
+          // As notificações por enviar (0067): escreve-a o gatilho, lê-a a
+          // função do dono.
+          "tarefa_notificacao",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.
@@ -248,11 +277,14 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // 5 de Clientes (0037), as 2 do VIES e da isenção (0039) e a
       // declaração do regime do IVA (0040), as 8 do checkout (0041), os
       // consentimentos (0042), as 6 dos pagamentos (0044), os candidatos a
-      // duplicado (0046), as 10 do stock (0047), os pedidos do titular (0049)
-      // e as 5 dos documentos fiscais (0050).
+      // duplicado (0046), as 10 do stock (0047), os pedidos do titular (0049),
+      // as 5 dos documentos fiscais (0050), os pedidos de dupla confirmação e
+      // os contactos inferidos das declarações antigas (0052), os anexos da
+      // isenção (0055), as 7 da pós-venda (0058), as 2 das tarefas das filas
+      // (0066) e as notificações (0067).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(71);
+      ).toHaveLength(84);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

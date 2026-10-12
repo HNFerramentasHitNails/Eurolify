@@ -1,8 +1,14 @@
 import { agendarConclusoes } from "./stock/repositorio.js";
+import { comRasto } from "./base/rasto.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
+import { agendarAvisosDePrazo } from "./posvenda/prazo.js";
+import { agendarConfirmacoes } from "./posvenda/prestador.js";
+import { agendarAvisosDeTarefas } from "./tarefas/avisos.js";
+import { agendarNotificacoes } from "./notificacoes/repositorio.js";
+import { configSmtp, correioSmtp } from "./notificacoes/correio.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { agendarDocumentos } from "./faturacao/repositorio.js";
 import { randomUUID } from "node:crypto";
@@ -91,7 +97,7 @@ const pagamentos: ConfigPagamentos = {
       }),
 };
 
-// Os documentos fiscais (docs/28 Q5): nesta parte só o adaptador de ensaio
+// Os documentos fiscais (docs/29 Q5): nesta parte só o adaptador de ensaio
 // existe e não está ligado no servidor — nenhum documento sai. A chave cifra
 // as credenciais das ligações (FATURACAO_CHAVE), como a dos pagamentos.
 const textoChaveFaturacao = process.env["FATURACAO_CHAVE"]?.trim();
@@ -128,35 +134,102 @@ const app = criarApp(
   faturacao,
 );
 
+// As tarefas agendadas correm com o canal «sistema» no rasto de auditoria
+// (docs/28 §3.1): os temporizadores guardam o contexto de quem os criou.
+
 // Os ficheiros de imagem sem uso há mais de 7 dias saem uma vez por dia
 // (docs/14 §3.5; issue #179). Só com a base e a pasta das imagens.
 const pararLimpeza =
   base !== undefined && armazenamento !== undefined
-    ? agendarLimpezaDosFicheiros(base, armazenamento, app.log)
+    ? comRasto({ canal: "sistema", pedido: "tarefa:limpeza_ficheiros" }, () =>
+        agendarLimpezaDosFicheiros(base, armazenamento, app.log),
+      )
     : () => undefined;
 
 // A fila do VIES, de minuto a minuto (docs/23 §13.4).
 const pararVies =
   base !== undefined && vies !== undefined
-    ? agendarFilaVies(base, vies, app.log)
+    ? comRasto({ canal: "sistema", pedido: "tarefa:fila_vies" }, () =>
+        agendarFilaVies(base, vies, app.log),
+      )
     : () => undefined;
 
 // As tarefas dos pagamentos (docs/26 §5, passo 7, e Q6), de minuto a minuto:
 // os pendentes que passaram do prazo e as encomendas por pagar há 24 h.
 const pararPagamentos =
   base !== undefined && pagamentos.chave !== undefined
-    ? agendarTarefasPagamentos(base, pagamentos, app.log)
+    ? comRasto({ canal: "sistema", pedido: "tarefa:pagamentos" }, () =>
+        agendarTarefasPagamentos(base, pagamentos, app.log),
+      )
     : () => undefined;
 
-// Os pedidos de documento, de minuto a minuto (docs/28, R11).
+// Os reembolsos pedidos ao prestador, de minuto a minuto (docs/30 §13, P6):
+// os aceites consultam-se até ele dizer «reembolsado».
+const pararReembolsos =
+  base !== undefined && pagamentos.chave !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:reembolsos" }, () =>
+        agendarConfirmacoes(base, pagamentos, app.log),
+      )
+    : () => undefined;
+
+// Os pedidos de documento, de minuto a minuto (docs/29, R11).
 const pararDocumentos =
   base !== undefined && faturacao.chave !== undefined
-    ? agendarDocumentos(base, faturacao, app.log)
+    ? comRasto({ canal: "sistema", pedido: "tarefa:documentos" }, () =>
+        agendarDocumentos(base, faturacao, app.log),
+      )
+    : () => undefined;
+
+// O aviso do prazo do reembolso, de hora a hora (docs/30 §14, R10).
+const pararPrazos =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:prazos" }, () =>
+        agendarAvisosDePrazo(base, app.log),
+      )
+    : () => undefined;
+
+// O aviso dos casos vencidos nas filas que pedem uma pessoa, de hora a hora
+// (docs/33 R6).
+const pararTarefas =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:tarefas" }, () =>
+        agendarAvisosDeTarefas(base, app.log),
+      )
+    : () => undefined;
+
+// Os e-mails da fila das notificações, de minuto a minuto (docs/34; DX).
+// Sem as cinco variáveis SMTP_*, nada sai e as notificações esperam (N8),
+// mas a limpeza dos 90 dias corre na mesma. Uma configuração a meio não
+// derruba a API: diz que variáveis faltam (revisão do #373, P2-5).
+const smtp = configSmtp(process.env);
+if (smtp.problema !== undefined) {
+  app.log.error(
+    { problema: smtp.problema },
+    "notificações: configuração SMTP_* incompleta; nenhum e-mail sai (docs/34 §5)",
+  );
+} else if (smtp.config === undefined && base !== undefined) {
+  app.log.info(
+    "notificações: sem SMTP_* configurado; os e-mails ficam à espera (docs/34 §5)",
+  );
+}
+const pararNotificacoes =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:notificacoes" }, () =>
+        agendarNotificacoes(
+          base,
+          smtp.config === undefined ? undefined : correioSmtp(smtp.config),
+          app.log,
+        ),
+      )
     : () => undefined;
 
 // As encomendas entregues há 14 dias passam a concluídas (docs/27 Q6).
 const pararConclusoes =
-  base !== undefined ? agendarConclusoes(base, app.log) : () => undefined;
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:conclusoes" }, () =>
+        agendarConclusoes(base, app.log),
+      )
+    : () => undefined;
 
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
@@ -165,6 +238,10 @@ for (const sinal of ["SIGINT", "SIGTERM"] as const) {
     pararLimpeza();
     pararVies();
     pararPagamentos();
+    pararReembolsos();
+    pararPrazos();
+    pararTarefas();
+    pararNotificacoes();
     app.log.info({ sinal }, "a fechar");
     app
       .close()

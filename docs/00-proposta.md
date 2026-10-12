@@ -7,6 +7,10 @@
 > nós, com o Claude a operá-la (D-3, revista: ADR-0015 e ADR-0016) — ver `06-decisoes-em-aberto.md`. Os pormenores estão nos outros documentos de `docs/`; este é o que
 > se lê primeiro.
 >
+> **Revista a 11/10/2026** (só o âmbito do Hub: «Em uma página», §2.2, §4, §6 e §7): a gestão
+> da empresa inteira entra no produto, em módulos ligáveis a partir da Fase 2
+> (decisão do Diogo, [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)).
+>
 > O Eurolify é desenvolvido **dentro da Luckytarget**, com marca própria. Os
 > sistemas que a empresa já usa (o Hub interno, a loja online, a plataforma de
 > formação) serviram **só como fonte de regras e de casos medidos** — nenhuma
@@ -24,7 +28,10 @@ separado:
    Bolt ou no Emergent, uma app, um balcão.
 2. **Um Hub de gestão**, como o Hub interno que a Luckytarget já usa: o sítio onde o comerciante trabalha
    todos os dias — encomendas, clientes, stock, armazém, faturação, devoluções —
-   adaptável a cada negócio.
+   adaptável a cada negócio. A partir da Fase 2, também **a gestão da empresa
+   inteira** — operação, comercial, compras, financeiro, parceiros e módulos
+   por sector —, em módulos que cada comerciante liga (ADR-0042; as saídas das
+   portas no ADR-0043).
 3. **As regras europeias de raiz**: IVA por país, validação de NIF, faturação
    legal em cada país, direitos do consumidor, segurança dos produtos, RGPD.
 4. **Aberto a qualquer IA**: o comerciante liga o seu assistente (Claude,
@@ -113,8 +120,25 @@ perfis de faturação**, stock e armazém, devoluções ligadas às notas de cr�
 faturação, relatórios de IVA (OSS), privacidade. Módulos que cada comerciante
 liga ou desliga, campos próprios e automações.
 
-**O que não entra:** assiduidade, marketing editorial, streaming, gráfica —
-são de uma empresa, não de uma loja.
+~~**O que não entra:** assiduidade, marketing editorial, streaming, gráfica —
+são de uma empresa, não de uma loja.~~ **Mudado a 11/10/2026** (decisão do
+Diogo, [ADR-0042](adr/0042-gestao-da-empresa-em-modulos-da-fase-2.md)): a
+gestão da empresa inteira entra no produto, **em módulos ligáveis a partir da
+Fase 2**. São as camadas B a H do
+[`31-hub-de-gestao-da-empresa.md`](31-hub-de-gestao-da-empresa.md) §8 —
+operação (balcão, armazém completo, compras, apoio ao cliente), comercial
+(prospecção, carteira, comissões sobre o faturado), financeiro (despesas,
+conciliação, tesouraria), organização (tarefas, projectos, procedimentos),
+módulos por sector (fabrico, formação, marketing e gráfica), pessoas (RH,
+assiduidade) e parceiros (revendedores, distribuidores, franqueados). Cada
+módulo passa pelas 8 portas e tem o seu desenho antes do código; os de pessoas
+só com o jurista (biometria e direito do trabalho de cada país). A Fase 1 não
+muda. *Actualizado no mesmo dia* (decisão DS,
+[ADR-0043](adr/0043-saidas-das-portas-dos-modulos-de-gestao.md)): pelas
+portas, **a organização, o marketing e gráfica e as pessoas não entram como
+módulos próprios** (as peças úteis vão para o Catálogo, o MCP de leitura ou
+extensões), e **duas peças passam para a Fase 1** — as tarefas das filas que
+pedem uma pessoa e a consulta das vendas do dia e do mês.
 
 ### 2.3 As regras europeias de raiz
 
@@ -170,7 +194,10 @@ são de uma empresa, não de uma loja.
    aprovada, Itália pelo SDI, Polónia pelo KSeF), validada pelo contabilista
    desse país.
 2. **«Um hub totalmente funcional como o actual».** Sim ao conceito, não à
-   cópia — ver §3.
+   cópia — ver §3. *Actualizado a 11/10/2026:* o conceito estende-se à gestão
+   da empresa inteira (ADR-0042) — continua a ser o desenho que se herda, em
+   módulos para vários comerciantes, não o código de uma empresa
+   (`31-hub-de-gestao-da-empresa.md` §6).
 3. **Uma alternativa ao Shopify para toda a gente.** Já há alternativas
    europeias (o Shopware na Alemanha, o PrestaShop em França). O que o Eurolify
    tem de diferente tem de ser claro: **API para qualquer frontend + Hub de
@@ -199,7 +226,7 @@ são de uma empresa, não de uma loja.
 |---|---|---|
 | **0** | Decidir e desenhar — **critério cumprido a 04/10/2026** (OK para código, ADR-0023); o desenho dos domínios continua | estimativa (D-13) e base da receita (D-14) decididas, OK escrito para código; os preços, antes da peça 13 da Fase 1 (ADR-0012) |
 | **1** | Núcleo nativo para a UE, **à venda desde o início** | 3 meses de vendas reais, em todos os comerciantes, sem documento fiscal errado com origem no Eurolify |
-| **2** | O Hub do Eurolify + faturação noutros países + parceiros | comerciantes de pelo menos dois países a vender há 3 meses (proposta) |
+| **2** | O Hub do Eurolify + faturação noutros países + parceiros; a partir daqui, os módulos de gestão da empresa (ADR-0042) | comerciantes de pelo menos dois países a vender há 3 meses (proposta) |
 | **3** | Extensões abertas e comércio por agentes | — |
 | **4** | Marketplace, só com caso de negócio | — |
 
@@ -210,7 +237,7 @@ Pormenor em [`05-fases-e-mvp.md`](05-fases-e-mvp.md).
 | Risco | Porque é sério | Como se reduz |
 |---|---|---|
 | **Responsabilidade fiscal por faturas de outras empresas** | Um erro do Eurolify vira uma nota de crédito e um telefonema de um cliente de outro comerciante | Faturação por software certificado; retenção em vez de emissão errada; contrato com limites e seguro; motor de IVA validado pelo contabilista **antes do primeiro comerciante de fora** (vende-se desde o início, ADR-0006) |
-| **Âmbito** | Uma plataforma destas tem centenas de peças; o Hub interno actual já tem 420 caminhos de ecrã e 225 funções no servidor (30/09/2026) | Fases com critério de passagem; a faturação de cada país ligada um país de cada vez; fora tudo o que não é de uma loja |
+| **Âmbito** | Uma plataforma destas tem centenas de peças; o Hub interno actual já tem 420 caminhos de ecrã e 225 funções no servidor (30/09/2026) | Fases com critério de passagem; a faturação de cada país ligada um país de cada vez; a gestão da empresa só depois da Fase 1, um módulo de cada vez, pelas 8 portas (ADR-0042) |
 | **Migrar uma loja que já vende** | A loja actual tem 5.262 clientes no Shopify (contados a 29/09/2026, `consentimento-de-marketing-no-hub-29set2026.md`), consentimentos, encomendas a meio | Loja pequena primeiro; corrida em paralelo; consentimentos migrados pela régua única |
 | **Concorrência** | Shopify, Shopware, PrestaShop, WooCommerce, motores abertos | Diferença clara (§4.3) e os primeiros comerciantes reais |
 | **Equipa e créditos de IA** | Os sistemas actuais já esgotaram créditos de IA (15/09/2026) e o limite semanal de Claude (registado a 29/09/2026) | Estimativa honesta na Fase 0 (D-13); orçamento de IA |

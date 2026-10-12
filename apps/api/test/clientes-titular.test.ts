@@ -79,11 +79,26 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     String((await ok(pedir("POST", "/customers", dados, segredo), 201))["id"]);
   const perfil = async (cliente: string, dados: Json) =>
     ok(pedir("POST", `/customers/${cliente}/billing-profiles`, dados), 201);
-  const declarar = (cliente: string) =>
+  /** O primeiro e-mail da ficha (0052: cada declaração diz o contacto); sem nenhum, acrescenta um. */
+  const contactoDe = async (cliente: string): Promise<string> => {
+    const f = await ok(pedir("GET", `/customers/${cliente}`));
+    const emails = f["emails"] as string[];
+    if (emails[0] !== undefined) return emails[0];
+    const novo = `${cliente.slice(4)}@exemplo.pt`;
+    await ok(
+      pedir("PATCH", `/customers/${cliente}`, {
+        versao: f["versao"],
+        emails: [novo],
+      }),
+    );
+    return novo;
+  };
+  const declarar = async (cliente: string) =>
     ok(
       pedir("POST", `/customers/${cliente}/consents`, {
         canal: "email",
         declaracao: "aceitou",
+        contacto: await contactoDe(cliente),
         texto: "Quero receber novidades.",
         versao_texto: "v1",
         onde: "loja, registo",
@@ -171,6 +186,65 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
   afterAll(async () => {
     await app.close();
     await base.fechar();
+  });
+
+  it("a pseudonimização troca também o motivo do histórico (texto livre; #322)", async () => {
+    const id = await ficha({ nome: `Rui ${unico()}` });
+    // Uma alteração com um motivo escrito que fala da pessoa.
+    await comoDono(async (trx) => {
+      await sql`select set_config('eurolify.motivo', 'o Rui pediu ao telefone', true)`.execute(
+        trx,
+      );
+      await sql`update cliente set nome = 'Rui Costa' where id = ${id.slice(4)}::uuid`.execute(
+        trx,
+      );
+    });
+    const antes = await comoDono((trx) =>
+      sql<{ motivo: string | null }>`select motivo from alteracao_cliente
+        where cliente_id = ${id.slice(4)}::uuid and motivo is not null`.execute(
+        trx,
+      ),
+    );
+    expect(antes.rows.map((r) => r.motivo)).toEqual([
+      "o Rui pediu ao telefone",
+    ]);
+    // E num perfil que depois foi usado num documento: os valores ficam (R9),
+    // o motivo limpa-se na mesma (revisão do #354, P2-2).
+    const usado = await perfil(id, {
+      tipo: "empresa",
+      nome_documento: "Rui, Lda",
+      nif: "FR40303265045",
+    });
+    const pid = String(usado["id"]).slice(4);
+    await comoDono(async (trx) => {
+      await sql`select set_config('eurolify.motivo', 'o Rui mudou de sede', true)`.execute(
+        trx,
+      );
+      await sql`update perfil_faturacao set nome_documento = 'Rui Costa, Lda'
+        where id = ${pid}::uuid`.execute(trx);
+    });
+    await comoDono((trx) =>
+      sql`update perfil_faturacao set usado_em_documento = true
+        where id = ${pid}::uuid`.execute(trx),
+    );
+    const camposDoPerfil = () =>
+      comoDono((trx) =>
+        sql<{ campos: unknown }>`select campos from alteracao_cliente
+          where entidade = 'perfil_faturacao' and entidade_id = ${pid}::uuid
+          order by id`.execute(trx),
+      );
+    const camposAntes = await camposDoPerfil();
+    await ok(pseudonimizar(id));
+    const depois = await comoDono((trx) =>
+      sql<{ motivo: string | null }>`select motivo from alteracao_cliente
+        where cliente_id = ${id.slice(4)}::uuid and motivo is not null
+        order by id`.execute(trx),
+    );
+    expect(depois.rows.map((r) => r.motivo)).toEqual([
+      "(pseudonimizado)",
+      "(pseudonimizado)",
+    ]);
+    expect((await camposDoPerfil()).rows).toEqual(camposAntes.rows);
   });
 
   it("a pseudonimização apaga os dados pessoais do grupo inteiro, também da linha do tempo, e regista o pedido", async () => {
@@ -510,7 +584,11 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
         ).rows,
       ),
     );
-    expect(rasto).toContain(nif);
+    // O perfil guarda o NIF (acima); a linha do tempo guarda o marcador
+    // (docs/28 §3.4; 0054), não o NIF em claro. A prova fiscal é a cópia no
+    // documento (docs/29 §4, `documento_conteudo`).
+    expect(rasto).not.toContain(nif);
+    expect(rasto).toContain('"protegido":true');
   });
 
   it("as recusas só se abrem dentro da pseudonimização: nem a API nem o superutilizador, nem com a bandeira nem com a marca", async () => {

@@ -1,4 +1,9 @@
 import { sql, type Kysely, type Transaction } from "kysely";
+import {
+  aplicarRasto,
+  contextoDaTarefa,
+  type OrigemDaTarefa,
+} from "../base/rasto.js";
 import type {
   BaseDados,
   EstadoExpedicao,
@@ -1282,7 +1287,18 @@ export async function transicoesDaEncomenda(
   return noStock(db, c, (trx) =>
     trx
       .selectFrom("transicao_encomenda")
-      .select(["de", "para", "quem", "motivo", "em"])
+      .select([
+        "de",
+        "para",
+        "quem",
+        "motivo",
+        "em",
+        "canal",
+        "pedido",
+        "ia",
+        "autorizado_por",
+        "a_pedido_de",
+      ])
       .where("encomenda_id", "=", id)
       .orderBy("em")
       .orderBy("id")
@@ -1306,9 +1322,15 @@ export async function correrConclusoes(db: Kysely<BaseDados>, porVolta = 50) {
       await noStock(db, c, async (trx) => {
         const { rows: ids } = await sql<{
           id: string;
-        }>`select encomendas_tarefas(${porVolta}) as id`.execute(trx);
-        await marcar(trx, QUEM_DAS_TAREFAS, "14 dias depois de entregue");
-        for (const { id } of ids) {
+          origem: OrigemDaTarefa | null;
+        }>`select e as id, tarefa_origem('conclusao', e) as origem
+           from encomendas_tarefas(${porVolta}) as e`.execute(trx);
+        for (const { id, origem } of ids) {
+          // Cada conclusão com a origem de quem a pediu (docs/28 §3.7; Q6):
+          // na mesma transacção, o contexto muda de encomenda para encomenda.
+          // O motivo põe-se depois: o contexto da tarefa limpa-o.
+          await aplicarRasto(trx, contextoDaTarefa("conclusoes", origem));
+          await marcar(trx, QUEM_DAS_TAREFAS, "14 dias depois de entregue");
           const r = await trx
             .updateTable("encomenda")
             .set({ estado: "concluida" })
