@@ -301,12 +301,12 @@ contra um ambiente de teste.
 
 | # | O quê | O que falta |
 |---|---|---|
-| V1 | API dos CTT para etiquetas e seguimento | onde está a documentação, como se obtêm credenciais de teste, se precisa de contrato prévio |
+| V1 | API dos CTT para etiquetas e seguimento | **Pesquisa de 12/10/2026 (W, resumos):** não há documentação pública da API de envios dos CTT. O acesso é por contrato CTT Expresso e as credenciais e a especificação pedem-se ao gestor comercial ([CTT, plugins](https://www.ctt.pt/empresas/e-commerce-e-logistica/e-commerce/plugins-para-lojas-online)). A API pública que os CTT têm ([services.ctt.pt](https://services.ctt.pt/api_docs/DecisionServerRS/)) é para máquinas de triagem. Falta a especificação e as credenciais de teste |
 | V2 | Os serviços dos CTT | códigos, peso máximo, se pedem telefone ou e-mail, Açores e Madeira, se aceitam algum perigoso |
 | V3 | Seguimento | se os CTT avisam (com que assinatura) ou se só se consulta; de quanto em quanto tempo se pode consultar |
 | V4 | Anular uma etiqueta | se e até quando se pode |
 | V5 | Formato da etiqueta | PDF, ZPL ou outro; tamanho (A6, A4) |
-| V6 | Sendcloud | os mesmos pontos, e onde trata os dados (regra 4 do `AGENTS.md`) |
+| V6 | Sendcloud | os mesmos pontos, e onde trata os dados (regra 4 do `AGENTS.md`). A página da Sendcloud sobre a CTT Express diz que liga com o contrato do próprio comerciante e que pede uma empresa registada em Espanha ([Sendcloud, W, resumo](https://www.sendcloud.com/carriers/ctt-express/)): não confirmado na documentação técnica |
 
 ## 12. Para o jurista (no fim do desenvolvimento, ADR-0045)
 
@@ -421,3 +421,47 @@ P3):
 
 **Por fazer:** a parte B (o adaptador dos CTT depois de V1 a V5, etiquetas,
 seguimento, avisos), a parte C (o segundo adaptador) e os ecrãs do Hub.
+
+## 15. Em código — parte B (12/10/2026; migração 0075; `docs/06`, ED)
+
+Pedido do Diogo, 12/10/2026: *«depois avança com a parte B dos envios»*.
+**Sem o adaptador real dos CTT** (V1: não há especificação pública). Tudo o
+resto corre contra uma transportadora de ensaio com o contrato inteiro da §8.
+
+| O quê | Onde |
+|---|---|
+| o contrato do adaptador completo: `pedirEtiqueta`, `consultarEtiqueta`, `anularEtiqueta`, `consultarSeguimento`, `lerAviso` | `src/envios/adaptador.ts` |
+| a etiqueta na expedição: estado (§4.1, posto pela base), tentativa, conta e serviço copiados do método vendido (R1), peso da caixa (as variantes-folha mais a embalagem do armazém, Q6), motivo, seguimento e endereço público | migração 0075; `src/envios/etiquetas.ts` |
+| uma etiqueta viva por expedição e a referência «expedição-tentativa» como chave de idempotência (R2); uma etiqueta incerta não se repete: consulta-se pela referência (existe ⇒ emitida; não existe ⇒ recusada, e pede-se outra) | idem |
+| anular, se a transportadora deixar, antes de a expedição sair; o ficheiro sai | idem |
+| o ficheiro da etiqueta na base (privado), apagado 30 dias depois de a expedição acabar (Q7) pela volta da API, ou logo num apagamento do titular (gatilho na encomenda) | migração 0075 |
+| os eventos de seguimento, só acrescentados, um por `id_externo`; mudam a expedição pelas portas do armazém (`mudarExpedicao`), só para a frente | idem |
+| os avisos das transportadoras: gravados em bruto antes de se tratarem, só com assinatura válida mudam alguma coisa (R3); a porta do endereço para o comerciante como a dos pagamentos | idem; `POST /webhooks/carriers/{transportadora}/{conta}` |
+| perdida ou devolvida ao remetente, e uma etiqueta incerta sem resposta há mais de um dia ⇒ um problema na pós-venda (Q4, a fila «problema» da peça 21) | `src/envios/etiquetas.ts` |
+| a volta da API de 5 em 5 minutos: o seguimento das emitidas, as incertas e os ficheiros a apagar | `agendarTrabalhoEnvios` |
+| rotas: `POST /shipments/{id}/label`, `GET /shipments/{id}/label`, `GET /shipments/{id}/label/file`, `POST /shipments/{id}/label/void`, `GET /shipments/{id}/events`, `POST /shipments/{id}/refresh`, `PUT /warehouses/{id}/packaging` | `src/envios/rotas.ts` |
+| uma conta pronta que a transportadora deixa de aceitar volta a rascunho (revisão do #397, P3-6) | `src/envios/repositorio.ts` |
+| 6 testes pela API com a transportadora de ensaio | `test/envios-etiquetas.test.ts`, `test/transportadora-falsa.ts` |
+
+**Desvios do desenho:**
+- **O ficheiro fica na base**, não no armazenamento de ficheiros (§3.5): a
+  pasta das imagens apaga o que nenhum artigo usa, e a etiqueta tem dados
+  pessoais.
+- **`entregue_em` é a hora a que o Eurolify soube**, não a do evento da
+  transportadora (§4.2): o gatilho da 0047 põe-na. A data do evento fica no
+  evento de seguimento e na prova de entrega. Para a livre resolução, a
+  hora posterior dá ao cliente mais tempo, nunca menos (L6).
+- **O ficheiro da etiqueta é `GET …/label/file`** (rota à parte), e o peso da
+  embalagem é `PUT /warehouses/{id}/packaging`.
+- **Os perdidos e devolvidos** abrem um problema de tipo `outro` com a
+  descrição (a pós-venda não tem tipos próprios para eles).
+
+**Não testado:** o apagamento do titular a levar o ficheiro e a resumir os
+avisos (o gatilho existe; o teste precisa de uma encomenda acabada e de um
+pedido de apagamento); a etiqueta incerta sem resposta há mais de um dia (o
+problema); concorrência (dois pedidos de etiqueta ao mesmo tempo: a base
+bloqueia a expedição, sem teste).
+
+**Por fazer:** o adaptador dos CTT (quando houver a especificação e as
+credenciais de teste); a parte C (o segundo adaptador); os ecrãs do Hub.
+

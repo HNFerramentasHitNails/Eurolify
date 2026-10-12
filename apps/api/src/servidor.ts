@@ -2,6 +2,7 @@ import { agendarConclusoes } from "./stock/repositorio.js";
 import { comRasto } from "./base/rasto.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import type { ConfigEnvios } from "./envios/adaptador.js";
+import { agendarTrabalhoEnvios } from "./envios/etiquetas.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
@@ -295,8 +296,18 @@ const pararApagamentos =
       )
     : () => undefined;
 
+// Os envios (docs/36 §4): o seguimento das etiquetas, as incertas e os
+// ficheiros a apagar, de 5 em 5 minutos. Só com a chave das credenciais.
+const pararEnvios =
+  base !== undefined && envios.chave !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:envios" }, () =>
+        agendarTrabalhoEnvios(base, envios, app.log),
+      )
+    : () => undefined;
+
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
+    pararEnvios();
     pararApagamentos();
     pararConclusoes();
     pararDocumentos();

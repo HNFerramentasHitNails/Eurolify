@@ -26,12 +26,9 @@ import {
   mudarEstadoMercado,
 } from "../src/precos/repositorio.js";
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
-import type {
-  AdaptadorTransportadora,
-  CredenciaisTransportadora,
-} from "../src/envios/adaptador.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import { eupagoFalso } from "./eupago-falso.js";
+import { transportadoraFalsa } from "./transportadora-falsa.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -47,56 +44,12 @@ import {
 type Json = Record<string, unknown>;
 const QUEM = "pessoa:teste";
 
-/** Um adaptador de ensaio: aceita a chave «boa», recusa as outras. */
-function cttFalso(): AdaptadorTransportadora & { testes: number } {
-  const a = {
-    transportadora: "ctt" as const,
-    testes: 0,
-    servicos: () => [
-      {
-        codigo: "EXPRESSO_48",
-        nome: { pt: "Expresso 48 h" },
-        paises: ["PT"],
-        pesoMaxG: 30_000,
-        pedeTelefone: false,
-        pedeEmail: false,
-        aceitaOnu: ["UN1266"],
-      },
-      {
-        codigo: "COM_TELEFONE",
-        nome: { pt: "Com aviso por SMS" },
-        paises: ["PT"],
-        pesoMaxG: 10_000,
-        pedeTelefone: true,
-        pedeEmail: false,
-        aceitaOnu: [],
-      },
-      {
-        codigo: "SO_ESPANHA",
-        nome: { pt: "Só Espanha" },
-        paises: ["ES"],
-        pesoMaxG: null,
-        pedeTelefone: false,
-        pedeEmail: false,
-        aceitaOnu: [],
-      },
-    ],
-    testar(credenciais: CredenciaisTransportadora) {
-      a.testes += 1;
-      return credenciais["chave"] === "chave-boa-123"
-        ? Promise.resolve()
-        : Promise.reject(new Error("recusada"));
-    },
-  };
-  return a;
-}
-
 describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
   let base: BaseDeTeste;
   let app: ReturnType<typeof criarApp>;
   let semChave: ReturnType<typeof criarApp>;
   const eupago = eupagoFalso();
-  const ctt = cttFalso();
+  const ctt = transportadoraFalsa().adaptador;
 
   beforeAll(async () => {
     base = await criarBaseDeTeste(URL_BASE ?? "");

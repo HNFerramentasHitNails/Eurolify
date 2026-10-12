@@ -1383,6 +1383,8 @@ export interface TabelaArmazem {
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, Date>;
   versao: ColumnType<number, never, number>;
+  /** O peso da embalagem por omissão (docs/36 Q6; 0075). */
+  embalagem_g: ColumnType<number, never, number>;
 }
 
 export interface TabelaPoliticaStock {
@@ -1470,6 +1472,63 @@ export interface TabelaExpedicao {
   criada_por: ColumnType<string, string, never>;
   criada_em: ColumnType<Date, never, never>;
   versao: ColumnType<number, never, number>;
+  // A etiqueta (docs/36 §3.3; 0075).
+  conta_transportadora_id: ColumnType<string | null, never, string | null>;
+  peso_g: ColumnType<number | null, never, number | null>;
+  etiqueta: ColumnType<EstadoEtiqueta, never, EstadoEtiqueta>;
+  etiqueta_tentativa: ColumnType<number, never, number>;
+  etiqueta_motivo: ColumnType<string | null, never, string | null>;
+  etiqueta_em: ColumnType<Date | null, never, never>;
+  url_seguimento: ColumnType<string | null, never, string | null>;
+}
+
+/** O estado da etiqueta de uma expedição (docs/36 §4.1; 0075). */
+export const ESTADOS_ETIQUETA = [
+  "por_pedir",
+  "a_pedir",
+  "emitida",
+  "incerta",
+  "recusada",
+  "anulada",
+] as const;
+export type EstadoEtiqueta = (typeof ESTADOS_ETIQUETA)[number];
+
+export interface TabelaEtiquetaFicheiro {
+  expedicao_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  tentativa: ColumnType<number, number, never>;
+  formato: ColumnType<"pdf" | "zpl", "pdf" | "zpl", never>;
+  conteudo: ColumnType<Buffer, Buffer, never>;
+  criado_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaEventoSeguimento {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  expedicao_id: ColumnType<string, string, never>;
+  origem: ColumnType<"aviso" | "consulta", "aviso" | "consulta", never>;
+  id_externo: ColumnType<string, string, never>;
+  estado_transportadora: ColumnType<string, string, never>;
+  estado_normalizado: ColumnType<string, string, never>;
+  em: ColumnType<Date, Date, never>;
+  recebido_em: ColumnType<Date, never, never>;
+}
+
+export interface TabelaAvisoTransportadora {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  conta_id: ColumnType<string, string, never>;
+  expedicao_id: ColumnType<string | null, never, string | null>;
+  corpo: ColumnType<string, string, never>;
+  assinatura_valida: ColumnType<boolean, boolean, never>;
+  resultado: ColumnType<
+    "tratado" | "ignorado" | "erro" | null,
+    never,
+    "tratado" | "ignorado" | "erro"
+  >;
+  erro: ColumnType<string | null, never, string | null>;
+  recebido_em: ColumnType<Date, never, never>;
+  processado_em: ColumnType<Date | null, never, Date>;
 }
 
 export interface TabelaLinhaExpedicao {
@@ -1594,6 +1653,9 @@ export interface BaseDados {
   saldo_lote: TabelaSaldoLote;
   movimento_stock: TabelaMovimentoStock;
   expedicao: TabelaExpedicao;
+  etiqueta_ficheiro: TabelaEtiquetaFicheiro;
+  evento_seguimento: TabelaEventoSeguimento;
+  aviso_transportadora: TabelaAvisoTransportadora;
   linha_expedicao: TabelaLinhaExpedicao;
   transicao_encomenda: TabelaTransicaoEncomenda;
   linha_encomenda_folha: TabelaLinhaEncomendaFolha;
