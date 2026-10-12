@@ -15,8 +15,17 @@ import {
 // JSON), para se copiar para o desenho e para a memória.
 //
 // Três comerciantes com N encomendas cada (por omissão 100 000), espalhadas
-// por 13 meses: 80 % pagas, 75 % faturadas, 5 % reembolsadas com nota de
-// crédito. Os dados entram em massa como superutilizador, com os gatilhos
+// por 13 meses: ~80 % pagas, ~75 % faturadas, ~4 % reembolsadas (5 % das
+// pagas) com nota de crédito. Cada pagamento tem três transições e cada
+// documento três passos de rasto, como no caminho real (revisão do #385,
+// P2-1).
+//
+// 🔴 Nunca contra o PostgreSQL da VPS: `criarBaseDeTeste` muda a
+// palavra-passe do papel `eurolify_api` da instância e o `fechar` tira-lhe o
+// LOGIN — a API deixava de entrar. Na VPS mede-se só a ler, com `EXPLAIN
+// ANALYZE` pelo fluxo de medir (revisão do #385, P2-3). Com `MEDIR_GUARDAR=1`
+// a base fica; limpar à mão: `DROP DATABASE <base>`, `ALTER ROLE
+// eurolify_api NOLOGIN PASSWORD NULL` e `DROP ROLE <dono_…>`. Os dados entram em massa como superutilizador, com os gatilhos
 // desligados só nessa preparação (como em vendas.test.ts); a consulta corre
 // depois como a API, com o RLS.
 
@@ -100,16 +109,18 @@ describe.skipIf(URL_BASE === undefined || !MEDIR)(
                 'eupago', 'mb_way', 'teste', e.total, e.moeda,
                 md5(e.id::text || 'p'), e.criada_em + interval '1 day', 'capturado'
               from encomenda e
-              where e.comerciante_id = ${c}::uuid and (hashtext(e.id::text) & 1023) < 819`.execute(
-              trx,
-            );
+              where e.comerciante_id = ${c}::uuid and e.estado = 'paga'
+                and (hashtext(e.id::text) & 1023) < 845`.execute(trx);
             await sql`
               insert into transicao_pagamento (comerciante_id, pagamento_id, de, para,
                 origem, quem, em)
-              select p.comerciante_id, p.id, 'autorizado', 'capturado', 'aviso',
-                'prestador:eupago',
-                e.criada_em + ((hashtext(p.id::text) & 29) + 1) * interval '1 minute'
+              select p.comerciante_id, p.id, x.de, x.para, 'aviso', 'prestador:eupago',
+                e.criada_em + x.passo * ((abs(hashtext(p.id::text)) % 10) + 1)
+                  * interval '1 minute'
               from pagamento p join encomenda e on e.id = p.encomenda_id
+              cross join (values (null, 'criado', 0), ('criado', 'a_aguardar_cliente', 1),
+                                 ('a_aguardar_cliente', 'autorizado', 2),
+                                 ('autorizado', 'capturado', 3)) as x(de, para, passo)
               where p.comerciante_id = ${c}::uuid`.execute(trx);
             // 75 % (das pagas, quase todas) faturadas 5 minutos depois.
             await sql`
@@ -142,9 +153,11 @@ describe.skipIf(URL_BASE === undefined || !MEDIR)(
             await sql`
               insert into documento_rasto (documento_id, comerciante_id, passo, de,
                 para, quem, em)
-              select d.id, d.comerciante_id, 'estado', 'pronto', 'emitido',
-                'sistema:documentos', e.criada_em + interval '35 minutes'
+              select d.id, d.comerciante_id, 'estado', x.de, x.para,
+                'sistema:documentos', e.criada_em + x.minutos * interval '1 minute'
               from documento_fiscal d join encomenda e on e.id = d.encomenda_id
+              cross join (values (null, 'a_verificar', 31), ('a_verificar', 'pronto', 33),
+                                 ('pronto', 'emitido', 35)) as x(de, para, minutos)
               where d.comerciante_id = ${c}::uuid`.execute(trx);
             // 5 % reembolsadas por inteiro 3 dias depois, com nota de crédito.
             await sql`
@@ -174,24 +187,48 @@ describe.skipIf(URL_BASE === undefined || !MEDIR)(
                   'iva', r.montante - r.montante * 100 / 123, 'total', r.montante), '{}'
               from documento_fiscal n join reembolso r on r.id = n.reembolso_id
               where n.comerciante_id = ${c}::uuid`.execute(trx);
+            // A nota de crédito com conteúdo e rasto, emitida com o reembolso:
+            // entra no «creditado» (revisão do #385, P2-1).
+            await sql`
+              insert into documento_conteudo (documento_id, comerciante_id, versao,
+                conteudo, impressao, motivo, quem)
+              select n.id, n.comerciante_id, 1,
+                jsonb_build_object('moeda', 'EUR', 'linhas', '[]'::jsonb,
+                  'totais', jsonb_build_object('base', r.montante * 100 / 123,
+                    'iva', r.montante - r.montante * 100 / 123, 'total', r.montante)),
+                repeat('0', 64), 'medicao', 'medicao'
+              from documento_fiscal n join reembolso r on r.id = n.reembolso_id
+              where n.comerciante_id = ${c}::uuid`.execute(trx);
+            await sql`
+              insert into documento_rasto (documento_id, comerciante_id, passo, de,
+                para, quem, em)
+              select n.id, n.comerciante_id, 'estado', x.de, x.para,
+                'sistema:documentos', r.executado_em + x.minutos * interval '1 minute'
+              from documento_fiscal n join reembolso r on r.id = n.reembolso_id
+              cross join (values (null, 'a_verificar', 1), ('a_verificar', 'pronto', 3),
+                                 ('pronto', 'emitido', 5)) as x(de, para, minutos)
+              where n.comerciante_id = ${c}::uuid`.execute(trx);
           },
         ),
       );
     }
 
+    /** A primeira volta (fria) à parte, e a mediana e o máximo das seguintes. */
     async function medir(
       nome: string,
       pedido: { inicio: string; fim: string },
     ) {
       const tempos: number[] = [];
-      for (let v = 0; v < VOLTAS; v++) {
+      for (let v = 0; v <= VOLTAS; v++) {
         const t0 = performance.now();
         const r = await vendas(base.api, comerciantes[0] ?? "", pedido);
         tempos.push(performance.now() - t0);
         expect(r.linhas.length).toBeGreaterThan(0);
       }
+      const primeira = tempos.shift() ?? 0;
       tempos.sort((x, y) => x - y);
       resultado[nome] = {
+        primeira_volta_ms: Math.round(primeira),
         mediana_ms: Math.round(tempos[Math.floor(VOLTAS / 2)] ?? 0),
         maximo_ms: Math.round(tempos.at(-1) ?? 0),
       };
@@ -210,7 +247,10 @@ describe.skipIf(URL_BASE === undefined || !MEDIR)(
       }
       const t0 = performance.now();
       for (const c of comerciantes) await encher(c);
-      await sql`analyze`.execute(base.dono);
+      // Como depois de uma carga real assentar: sem o VACUUM, a primeira
+      // leitura grava os hint bits e não há mapa de visibilidade (revisão do
+      // #385, P2-2).
+      await sql`vacuum analyze`.execute(base.dono);
       resultado["encher_s"] = Math.round((performance.now() - t0) / 1000);
       const linhas: Record<string, number> = {};
       for (const t of [

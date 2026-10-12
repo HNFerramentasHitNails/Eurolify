@@ -20,11 +20,13 @@
 - Testes da peça: 13 em `test/vendas.test.ts` (12/10/2026, depois da revisão
   do #383), com dados postos directamente na base para marcar as horas exactas.
 - **Medição** (12/10/2026, `test/medicao-vendas.test.ts` com `MEDIR=1`; base
-  local PostgreSQL 18.6 com as definições de omissão, não a VPS): 3 × 100 000
-  encomendas em 13 meses. Um dia: 23–24 ms (mediana de 5). Um mês (~7 600
-  encomendas): 399–508 ms (mediana de 5; 5,4 s numa primeira volta logo após
-  encher). Sem os índices da 0068: dia 94 ms, mês 823 ms. O pago e o faturado
-  levam ~110–130 ms cada no mês. Decisão técnica: não se pré-calcula.
+  local PostgreSQL 18.6 com as definições de omissão, não a VPS; 3 × 100 000
+  encomendas em 13 meses, `VACUUM ANALYZE` depois de encher; duas corridas de
+  5 voltas). Um dia: mediana 24 e 27 ms. Um mês (~7 600 encomendas): mediana
+  520 e 438 ms; primeira volta 569 e 517 ms; com o PostgreSQL acabado de
+  reiniciar, 742 ms (medido à mão, só a cache do PostgreSQL vazia). Sem os
+  índices da 0068: dia 194 e 166 ms, mês 879 e 725 ms. Sem o VACUUM, a
+  primeira volta do mês chegou a 5,4 s. Decisão técnica: não se pré-calcula.
 
 ## O que ficou por verificar
 
