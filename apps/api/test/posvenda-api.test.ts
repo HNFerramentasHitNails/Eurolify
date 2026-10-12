@@ -988,7 +988,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     const s2 = await cenario();
     const a = await perdida(s2);
     const rp = await ok(
-      s2.adm("POST", `/problems/${a.problema}/decide`, {
+      s2.adm("POST", `/problems/${String(a.problema)}/decide`, {
         versao: 1,
         linhas: [{ linha: a.linha?.["id"], quantidade: 1 }],
         motivo: "perdida",
@@ -1009,7 +1009,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     const s3 = await cenario();
     const b = await perdida(s3);
     await ok(
-      s3.adm("POST", `/problems/${b.problema}/close`, {
+      s3.adm("POST", `/problems/${String(b.problema)}/close`, {
         versao: 1,
         motivo: "reenviado noutra encomenda",
       }),
