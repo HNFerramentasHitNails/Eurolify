@@ -1690,7 +1690,9 @@ por bloco.
 ## 27. Catálogo: publicar um artigo pelo Hub (issue #378)
 
 Pedido do Diogo, 12/10/2026 («aprovado», à pergunta *«Avanço com o
-desenho de "publicar um artigo pelo Hub"?»*). No Hub já se cria um artigo,
+desenho de "publicar um artigo pelo Hub"?»*). **Aprovado pelo Diogo a
+12/10/2026**, com a Q1 em «não vêm marcadas» (*«aprovado»*, à pergunta
+*«Aprova o desenho, com a Q1 em "não vêm marcadas"?»*). No Hub já se cria um artigo,
 se acrescentam e editam variantes e se definem os preços (§14, §23, §24,
 §25), mas nada se põe à venda: a publicação só se faz pela integração, com
 uma chave com `catalog:publish` (`docs/14` §7.1). Uma variante acrescentada
@@ -1779,17 +1781,17 @@ o resolve:
 
 | Risco | O que o evita |
 |---|---|
-| Pôr à venda o que não se reviu (uma variante nova sem fotografia, por exemplo) | as variantes escolhem-se uma a uma; a regra da §27.5 decide se as novas vêm marcadas |
+| Pôr à venda o que não se reviu (uma variante nova sem fotografia, por exemplo) | as variantes escolhem-se uma a uma; as que estão fora não vêm marcadas (§27.5) |
 | Publicar com uma verificação antiga | o botão só aparece depois de verificar com as mesmas escolhidas, e o servidor verifica outra vez no instante de publicar (`publicada: false` se algo mudou) |
 | Ler «sem impedimentos» como «conforme» | o ecrã diz sempre que a conformidade não foi verificada (C2, CF) |
 | Duas pessoas a publicar ou retirar a mesma publicação | a versão (§27.2): a segunda recebe 409 |
 | O armazém ou o apoio põem à venda | a rota confere `catalog:publish`; o ecrã nem mostra as acções |
 
-### 27.5 Por decidir
+### 27.5 Decidido
 
 **Q1. Ao rever uma publicação publicada, as variantes que estão fora vêm
 marcadas para entrar?** Ex.: a `ENS-041-B`, acabada de acrescentar.
-**Proposta: não.** Ficam como estão, com a marca «nova» (a que nasceu fora
+✅ **Decidido: não** (Diogo, 12/10/2026, *«aprovado»*). Ficam como estão, com a marca «nova» (a que nasceu fora
 por ter sido acrescentada depois de publicar) ou «fora» (a que alguém tirou),
 e a pessoa marca as que quer pôr à venda. Assim nada entra numa loja sem
 alguém o escolher. A alternativa (vir marcadas) poupa um clique, mas põe à
