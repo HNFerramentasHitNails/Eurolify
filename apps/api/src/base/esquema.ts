@@ -1049,6 +1049,48 @@ export interface TabelaMetodoEntrega {
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, Date>;
   versao: ColumnType<number, never, number>;
+  // Envios, parte A (docs/36 §3.2; 0072).
+  conta_transportadora_id: ColumnType<
+    string | null,
+    string | null | undefined,
+    string | null
+  >;
+  servico: ColumnType<string | null, string | null | undefined, string | null>;
+  prazo_max_dias: ColumnType<number, number | undefined, number>;
+  codigos_postais: ColumnType<string[], string[] | undefined, string[]>;
+  aceita_onu: ColumnType<string[], string[] | undefined, string[]>;
+  peso_max_g: ColumnType<
+    number | null,
+    number | null | undefined,
+    number | null
+  >;
+}
+
+/** As transportadoras com adaptador (docs/36 §3.1; 0072). */
+export const TRANSPORTADORAS = ["ctt"] as const;
+export type Transportadora = (typeof TRANSPORTADORAS)[number];
+
+export interface TabelaContaTransportadora {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  transportadora: ColumnType<Transportadora, Transportadora, never>;
+  nome: ColumnType<string, string, string>;
+  modo: ColumnType<"teste", never, never>;
+  credenciais_cifra: ColumnType<Buffer | null, never, Buffer | null>;
+  segredo_aviso_cifra: ColumnType<Buffer | null, never, Buffer | null>;
+  chave_versao: ColumnType<string | null, never, string | null>;
+  credenciais_em: ColumnType<Date | null, never, Date | null>;
+  credenciais_por: ColumnType<string | null, never, string | null>;
+  testada_em: ColumnType<Date | null, never, Date | null>;
+  remetente: ColumnType<Record<string, unknown>, string, string>;
+  estado: ColumnType<
+    "rascunho" | "pronta" | "arquivada",
+    never,
+    "rascunho" | "pronta" | "arquivada"
+  >;
+  criado_em: ColumnType<Date, never, never>;
+  actualizado_em: ColumnType<Date, never, Date>;
+  versao: ColumnType<number, never, number>;
 }
 
 export interface TabelaCarrinho {
@@ -1533,6 +1575,7 @@ export interface BaseDados {
   texto_legal: TabelaTextoLegal;
   versao_texto_legal: TabelaVersaoTextoLegal;
   metodo_entrega: TabelaMetodoEntrega;
+  conta_transportadora: TabelaContaTransportadora;
   carrinho: TabelaCarrinho;
   linha_carrinho: TabelaLinhaCarrinho;
   sessao_checkout: TabelaSessaoCheckout;

@@ -2,7 +2,7 @@
 
 > **Estado: desenho aprovado** (issue #393; `docs/06`, ED). Diogo, 12/10/2026:
 > *«sim, começa o desenho dos envios»* e *«sim, aprovo; avança com a parte
-> A»* (Q1 a Q8 como propostas). É a **peça 9 da
+> A»* (Q1 a Q8 como propostas). A parte A está no código (§14). É a **peça 9 da
 > Fase 1** (`docs/10` §2: «Envios: CTT e um agregador») e a **parte 2 da
 > fatia 9** (`docs/27` §1: «adaptadores de transportadora (cotação, etiqueta,
 > seguimento automático, pontos de recolha) — parte 2 desta fatia (Q5)»).
@@ -329,3 +329,41 @@ Testes que têm de falhar sem a protecção: duas etiquetas para a mesma
 expedição; um aviso sem assinatura; um evento repetido; um evento fora de
 ordem; um perigoso no checkout; uma morada fora da zona; o isolamento entre
 comerciantes em contas, métodos, expedições e eventos.
+
+## 14. Em código — parte A (12/10/2026; migração 0072; `docs/06`, ED)
+
+| O quê | Onde |
+|---|---|
+| tabela `conta_transportadora` (só `ctt`, só modo teste), com o RLS forçado; credenciais e segredo dos avisos cifrados com AES-256-GCM e a chave fora da base (`ENVIOS_CHAVE`, como a dos pagamentos); pronta só com credenciais e a chamada de teste | migração 0072; `src/envios/repositorio.ts` |
+| o âmbito novo `shipping:accounts`, só do dono (na lista das chaves e em `papel_ambitos`) | migração 0072; `src/identidade/` |
+| as rotas da §7.1 para as contas: listar, criar, mudar ou arquivar, definir as credenciais, testar, ver os serviços | `src/envios/rotas.ts` |
+| o contrato do adaptador com `servicos()` e `testar()`; as outras operações da §8 entram com a parte B | `src/envios/adaptador.ts` |
+| o método de entrega com `conta` e `servico` (juntos, ou nenhum: método manual), `prazo_max_dias` (1 a 30), `codigos_postais`, `aceita_onu` e `peso_max_g`; com conta, confere-se que a conta está pronta, que o serviço existe, que entrega nos países do mercado, que aceita os ONU do método, que o peso não passa o dele e que o telefone se pede quando o serviço o pede | migração 0072; `src/checkout/repositorio.ts` |
+| R4 numa regra só (`porQueNaoServe`): zona pelo prefixo do código postal, perigosos, peso das variantes-folha (um kit pelos componentes) e conta pronta; usada pela lista do checkout, pela escolha do método, pelo resumo (bloqueio `metodo_entrega`) e pelo botão final (`checkout.no_delivery_method`) | `src/checkout/entrega.ts` |
+| `GET /checkout/{token}/delivery-methods`: os métodos do mercado com a data-limite, os códigos postais servidos e, nos que não servem, o porquê (L1, L3) | `src/checkout/rotas.ts` |
+| a data-limite (L1, L4) no resumo (`portes.data_limite`), na cópia da encomenda (`metodo_entrega.data_limite`, com a conta e o serviço vendidos, R1) e na confirmação (sem a conta nem o serviço) | `src/checkout/` |
+| 6 testes pela API, com um adaptador de ensaio; os de zona, perigosos, peso e conta falham sem a regra (conferido: com `porQueNaoServe` a devolver sempre `null`, 3 dos 6 falham) | `test/envios-api.test.ts` |
+
+**Desvios do desenho:**
+- **As zonas são prefixos do código postal**, não regiões com nome
+  (`PT-acores`…): os intervalos dos códigos postais das ilhas não estão
+  verificados (o Motor de IVA tem-nos como **C**, migração 0040). O
+  comerciante escreve os prefixos (ex.: `1` a `8` para o continente); o Hub
+  pode oferecer listas feitas depois, com fonte.
+- **Os prefixos valem para todos os países do mercado.** Um mercado com
+  vários países e um método só para parte de um deles precisa de prefixos
+  por país: fica para quando houver um mercado assim.
+- **O peso da embalagem** (Q6) entra com a etiqueta (parte B): no checkout
+  conta só o peso das variantes.
+- **Sem adaptador real no servidor:** a parte A não traz o dos CTT. Uma conta
+  dos CTT cria-se, mas o teste dá `shipping.carrier_unavailable` até à parte
+  B. Os métodos «manuais» (sem conta) funcionam já com as zonas, o peso, os
+  perigosos e a data-limite.
+- **`ENVIOS_CHAVE` não está na VPS:** sem ela, as credenciais dão
+  `shipping.not_configured` (503), como os pagamentos sem `PAGAMENTOS_CHAVE`.
+- **Uma variante publicada não fica sem peso** (a base já o impede, `docs/14`
+  C2): `peso_desconhecido` só aparece se uma folha não se ler; testa-se a
+  regra directamente.
+
+**Por fazer:** a parte B (o adaptador dos CTT depois de V1 a V5, etiquetas,
+seguimento, avisos), a parte C (o segundo adaptador) e os ecrãs do Hub.

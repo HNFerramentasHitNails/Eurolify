@@ -160,6 +160,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0069_faturacao_moloni",
         "0070_documento_emitido_fora",
         "0071_notificacao_tarefas",
+        "0072_envios_parte_a",
       ]);
     });
 
@@ -288,10 +289,10 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // as 5 dos documentos fiscais (0050), os pedidos de dupla confirmação e
       // os contactos inferidos das declarações antigas (0052), os anexos da
       // isenção (0055), as 7 da pós-venda (0058), as 2 das tarefas das filas
-      // (0066) e as notificações (0067).
+      // (0066), as notificações (0067) e as contas de transportadora (0072).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(84);
+      ).toHaveLength(85);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

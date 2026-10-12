@@ -20,6 +20,16 @@ import {
   reservarEncomenda,
 } from "../stock/repositorio.js";
 import { ErroCheckout, type CodigoErroCheckout } from "./erros.js";
+import {
+  conteudoDe,
+  dataLimite,
+  porQueNaoServe,
+  regrasDosMetodos,
+  type MotivoNaoServe,
+} from "./entrega.js";
+import type { ConfigEnvios } from "../envios/adaptador.js";
+import { ErroEnvios } from "../envios/erros.js";
+import { conferirServico } from "../envios/repositorio.js";
 
 // O checkout (docs/25; migração 0041): o carrinho da API da Loja, a sessão
 // do checkout alojado, o total (preço do mercado + IVA do Motor + portes),
@@ -832,11 +842,104 @@ export async function porMetodoEntrega(
     .where("estado", "=", "activo")
     .executeTakeFirst();
   if (m === undefined) throw naoExiste("o método de entrega neste mercado");
+  // Um método que não serve esta morada ou este conteúdo não se escolhe
+  // (docs/36 R4); sem morada, a zona confere-se no resumo.
+  const motivo = await porQueNaoServeASessao(trx, s, m.id);
+  if (motivo !== null) {
+    throw new ErroCheckout(
+      "checkout.no_delivery_method",
+      "este método de entrega não serve esta encomenda",
+      { motivo },
+    );
+  }
   await trx
     .updateTable("sessao_checkout")
     .set({ metodo_entrega_id: m.id })
     .where("id", "=", s.id)
     .execute();
+}
+
+/** As linhas do carrinho da sessão (variante e quantidade). */
+const linhasDaSessao = (trx: Transaction<BaseDados>, s: SessaoLida) =>
+  trx
+    .selectFrom("linha_carrinho")
+    .select(["variante_id", "quantidade"])
+    .where("carrinho_id", "=", s.carrinho_id)
+    .execute();
+
+async function porQueNaoServeASessao(
+  trx: Transaction<BaseDados>,
+  s: SessaoLida,
+  metodoId: string,
+): Promise<MotivoNaoServe | null> {
+  const regras = (await regrasDosMetodos(trx, [metodoId])).get(metodoId);
+  if (regras === undefined) return null;
+  return porQueNaoServe(
+    regras,
+    regras.contaPronta,
+    s.entrega,
+    await conteudoDe(trx, await linhasDaSessao(trx, s)),
+  );
+}
+
+/**
+ * Os métodos de entrega do mercado da sessão, para o cliente escolher
+ * (docs/36 §7.3): os que servem e os que não servem, com o porquê (as
+ * restrições dizem-se antes da encomenda, L3) e a data-limite se encomendar
+ * agora (L1).
+ */
+export async function metodosDaSessao(
+  trx: Transaction<BaseDados>,
+  s: SessaoLida,
+  momento: Date = new Date(),
+) {
+  const metodos = await trx
+    .selectFrom("metodo_entrega")
+    .select([
+      "id",
+      "nome",
+      "prazo",
+      "tarifa",
+      "gratis_a_partir_de",
+      "pede_telefone",
+      "codigos_postais",
+    ])
+    .where("mercado_id", "=", s.mercado_id)
+    .where("estado", "=", "activo")
+    .orderBy("criado_em")
+    .orderBy("id")
+    .execute();
+  const regras = await regrasDosMetodos(
+    trx,
+    metodos.map((m) => m.id),
+  );
+  const conteudo = await conteudoDe(trx, await linhasDaSessao(trx, s));
+  const { fuso } = await trx
+    .selectFrom("comerciante")
+    .select("fuso")
+    .where("id", "=", s.comerciante_id)
+    .executeTakeFirstOrThrow();
+  return metodos.map((m) => {
+    const r = regras.get(m.id);
+    const motivo =
+      r === undefined
+        ? null
+        : porQueNaoServe(r, r.contaPronta, s.entrega, conteudo);
+    return {
+      id: m.id,
+      nome: m.nome,
+      prazo: m.prazo,
+      tarifa: Number(m.tarifa),
+      gratis_a_partir_de:
+        m.gratis_a_partir_de === null ? null : Number(m.gratis_a_partir_de),
+      pede_telefone: m.pede_telefone,
+      codigos_postais: m.codigos_postais,
+      data_limite: dataLimite(momento, fuso, r?.prazo_max_dias ?? 30),
+      escolhido: s.metodo_entrega_id === m.id,
+      serve: motivo === null,
+      motivo,
+    };
+  });
 }
 
 export async function porMetodoPagamento(
@@ -911,6 +1014,8 @@ export interface Resumo {
   portes: {
     metodo_id: string;
     nome: Record<string, string>;
+    /** A data-limite de entrega se encomendar agora (docs/36 L1), AAAA-MM-DD. */
+    data_limite: string;
     tarifa: number;
     decisao: Decisao;
     base: number;
@@ -1149,9 +1254,27 @@ export async function calcularResumo(
     if (decisao.resultado === "bloqueada" && s.entrega !== null) {
       bloqueios.push({ onde: "portes", motivo: decisao.motivo });
     }
+    // O método tem de servir esta morada e este conteúdo (docs/36 R4).
+    const regras = (await regrasDosMetodos(trx, [m.id])).get(m.id);
+    if (regras !== undefined) {
+      const motivo = porQueNaoServe(
+        regras,
+        regras.contaPronta,
+        s.entrega,
+        await conteudoDe(trx, pedidas),
+      );
+      if (motivo !== null) {
+        bloqueios.push({ onde: "metodo_entrega", motivo });
+      }
+    }
     portes = {
       metodo_id: m.id,
       nome: m.nome,
+      data_limite: dataLimite(
+        momento,
+        comerciante.fuso,
+        regras?.prazo_max_dias ?? 30,
+      ),
       tarifa,
       decisao,
       ...montanteDe(decisao),
@@ -1303,6 +1426,14 @@ export async function concluir(
       { bloqueios: semStock },
     );
   }
+  const semMetodo = r.bloqueios.filter((b) => b.onde === "metodo_entrega");
+  if (semMetodo.length > 0) {
+    throw new ErroCheckout(
+      "checkout.no_delivery_method",
+      "o método de entrega escolhido não serve esta encomenda",
+      { bloqueios: semMetodo },
+    );
+  }
   const pagamento = r.bloqueios.filter((b) => b.onde === "pagamento");
   if (pagamento.length > 0) {
     throw new ErroCheckout(
@@ -1315,7 +1446,8 @@ export async function concluir(
     (b) =>
       !b.onde.startsWith("texto:") &&
       !b.onde.startsWith("stock:") &&
-      b.onde !== "pagamento",
+      b.onde !== "pagamento" &&
+      b.onde !== "metodo_entrega",
   );
   if (iva.length > 0) {
     throw new ErroCheckout(
@@ -1400,6 +1532,13 @@ export async function concluir(
     .where("id", "=", s.carrinho_id)
     .executeTakeFirstOrThrow();
   const metodo = r.portes as NonNullable<Resumo["portes"]>;
+  // O serviço da etiqueta é o vendido (docs/36 R1): a conta e o serviço do
+  // método ficam na cópia, com a data-limite que o cliente viu (L1).
+  const servico = await trx
+    .selectFrom("metodo_entrega")
+    .select(["conta_transportadora_id", "servico"])
+    .where("id", "=", metodo.metodo_id)
+    .executeTakeFirstOrThrow();
   // A hora da aceitação vem do relógio da base, como as outras datas da
   // encomenda (revisão do #276, P3-6).
   const { rows: relogio } = await sql<{
@@ -1441,6 +1580,13 @@ export async function concluir(
       metodo_entrega: JSON.stringify({
         id: metodo.metodo_id,
         nome: metodo.nome,
+        data_limite: metodo.data_limite,
+        ...(servico.conta_transportadora_id === null
+          ? {}
+          : {
+              conta: servico.conta_transportadora_id,
+              servico: servico.servico,
+            }),
       }),
       metodo_pagamento: s.metodo_pagamento as string,
       aceitacoes: JSON.stringify({
@@ -1811,11 +1957,109 @@ export interface DadosMetodoEntrega {
   pede_telefone: boolean;
 }
 
+/** O que o método diz para os envios (docs/36 §3.2; 0072). */
+export interface EnviosDoMetodo {
+  conta: string | null;
+  servico: string | null;
+  prazo_max_dias: number;
+  codigos_postais: string[];
+  aceita_onu: string[];
+  peso_max_g: number | null;
+}
+
+const ENVIOS_POR_OMISSAO: EnviosDoMetodo = {
+  conta: null,
+  servico: null,
+  prazo_max_dias: 30,
+  codigos_postais: [],
+  aceita_onu: [],
+  peso_max_g: null,
+};
+
+/**
+ * Um método com conta aponta para um serviço que a transportadora tem, que
+ * entrega nos países do mercado, que aceita os perigosos que o método
+ * aceita e cujo peso máximo não passa o do serviço (docs/36 §3.2). Sem
+ * conta (método «manual»), só os formatos, que a base confere.
+ */
+async function conferirEnviosDoMetodo(
+  trx: Transaction<BaseDados>,
+  mercadoId: string,
+  e: EnviosDoMetodo,
+  pedeTelefone: boolean,
+  cfg: ConfigEnvios | undefined,
+): Promise<EnviosDoMetodo> {
+  // Os prefixos guardam-se como o código postal limpo (sem espaços nem
+  // hífenes, em maiúsculas), como se compara (entrega.ts).
+  const codigos_postais = [
+    ...new Set(
+      e.codigos_postais.map((p) => p.replace(/[\s-]/g, "").toUpperCase()),
+    ),
+  ];
+  const aceita_onu = [...new Set(e.aceita_onu)];
+  if ((e.conta === null) !== (e.servico === null)) {
+    throw new ErroEnvios(
+      "shipping.invalid_field",
+      "a conta e o serviço vão juntos (ou nenhum, num método manual)",
+    );
+  }
+  if (e.conta === null || e.servico === null) {
+    return { ...e, codigos_postais, aceita_onu };
+  }
+  const s = await conferirServico(trx, e.conta, e.servico, cfg);
+  const { paises } = await trx
+    .selectFrom("mercado")
+    .select("paises")
+    .where("id", "=", mercadoId)
+    .executeTakeFirstOrThrow();
+  const fora = paises.filter((p) => !s.paises.includes(p));
+  if (fora.length > 0) {
+    throw new ErroEnvios(
+      "shipping.invalid_field",
+      "o serviço não entrega em todos os países do mercado",
+      { paises: fora },
+    );
+  }
+  const recusados = aceita_onu.filter((u) => !s.aceitaOnu.includes(u));
+  if (recusados.length > 0) {
+    throw new ErroEnvios(
+      "shipping.invalid_field",
+      "o serviço não aceita estes números ONU",
+      { onu: recusados },
+    );
+  }
+  if (
+    s.pesoMaxG !== null &&
+    e.peso_max_g !== null &&
+    e.peso_max_g > s.pesoMaxG
+  ) {
+    throw new ErroEnvios(
+      "shipping.invalid_field",
+      "o peso máximo passa o do serviço",
+      { peso_max_g: s.pesoMaxG },
+    );
+  }
+  if (s.pedeTelefone && !pedeTelefone) {
+    throw new ErroEnvios(
+      "shipping.invalid_field",
+      "o serviço pede o telefone de quem recebe: pede_telefone tem de ser true",
+    );
+  }
+  // Sem peso máximo dado, fica o do serviço.
+  return {
+    ...e,
+    codigos_postais,
+    aceita_onu,
+    peso_max_g: e.peso_max_g ?? s.pesoMaxG,
+  };
+}
+
 export async function criarMetodoEntrega(
   db: Kysely<BaseDados>,
   comercianteId: string,
   mercadoId: string,
-  dados: DadosMetodoEntrega,
+  dados: DadosMetodoEntrega & Partial<EnviosDoMetodo>,
+  cfg?: ConfigEnvios,
 ) {
   return noCheckout(db, comercianteId, async (trx) => {
     const m = await trx
@@ -1824,6 +2068,22 @@ export async function criarMetodoEntrega(
       .where("id", "=", mercadoId)
       .executeTakeFirst();
     if (m === undefined) throw naoExiste("o mercado");
+    const envios = await conferirEnviosDoMetodo(
+      trx,
+      mercadoId,
+      {
+        conta: dados.conta ?? ENVIOS_POR_OMISSAO.conta,
+        servico: dados.servico ?? ENVIOS_POR_OMISSAO.servico,
+        prazo_max_dias:
+          dados.prazo_max_dias ?? ENVIOS_POR_OMISSAO.prazo_max_dias,
+        codigos_postais:
+          dados.codigos_postais ?? ENVIOS_POR_OMISSAO.codigos_postais,
+        aceita_onu: dados.aceita_onu ?? ENVIOS_POR_OMISSAO.aceita_onu,
+        peso_max_g: dados.peso_max_g ?? ENVIOS_POR_OMISSAO.peso_max_g,
+      },
+      dados.pede_telefone,
+      cfg,
+    );
     const { id } = await trx
       .insertInto("metodo_entrega")
       .values({
@@ -1835,6 +2095,12 @@ export async function criarMetodoEntrega(
         tarifa: dados.tarifa,
         gratis_a_partir_de: dados.gratis_a_partir_de,
         pede_telefone: dados.pede_telefone,
+        conta_transportadora_id: envios.conta,
+        servico: envios.servico,
+        prazo_max_dias: envios.prazo_max_dias,
+        codigos_postais: envios.codigos_postais,
+        aceita_onu: envios.aceita_onu,
+        peso_max_g: envios.peso_max_g,
       })
       .returning("id")
       .executeTakeFirstOrThrow();
@@ -1847,12 +2113,65 @@ export async function mudarMetodoEntrega(
   comercianteId: string,
   id: string,
   versao: number,
-  dados: Partial<DadosMetodoEntrega> & { estado?: "activo" | "arquivado" },
+  dados: Partial<DadosMetodoEntrega> &
+    Partial<EnviosDoMetodo> & { estado?: "activo" | "arquivado" },
+  cfg?: ConfigEnvios,
 ) {
   return noCheckout(db, comercianteId, async (trx) => {
+    // O estado final do método confere-se inteiro (uma mudança do telefone
+    // ou dos ONU pode deixar de caber no serviço da conta).
+    const actual = await trx
+      .selectFrom("metodo_entrega")
+      .selectAll()
+      .where("id", "=", id)
+      .forUpdate()
+      .executeTakeFirst();
+    if (actual === undefined) throw naoExiste("o método de entrega");
+    const tocaNosEnvios =
+      dados.conta !== undefined ||
+      dados.servico !== undefined ||
+      dados.prazo_max_dias !== undefined ||
+      dados.codigos_postais !== undefined ||
+      dados.aceita_onu !== undefined ||
+      dados.peso_max_g !== undefined ||
+      dados.pede_telefone !== undefined ||
+      dados.estado === "activo";
+    const envios = tocaNosEnvios
+      ? await conferirEnviosDoMetodo(
+          trx,
+          actual.mercado_id,
+          {
+            conta:
+              dados.conta === undefined
+                ? actual.conta_transportadora_id
+                : dados.conta,
+            servico:
+              dados.servico === undefined ? actual.servico : dados.servico,
+            prazo_max_dias: dados.prazo_max_dias ?? actual.prazo_max_dias,
+            codigos_postais: dados.codigos_postais ?? actual.codigos_postais,
+            aceita_onu: dados.aceita_onu ?? actual.aceita_onu,
+            peso_max_g:
+              dados.peso_max_g === undefined
+                ? actual.peso_max_g
+                : dados.peso_max_g,
+          },
+          dados.pede_telefone ?? actual.pede_telefone,
+          cfg,
+        )
+      : null;
     const r = await trx
       .updateTable("metodo_entrega")
       .set({
+        ...(envios === null
+          ? {}
+          : {
+              conta_transportadora_id: envios.conta,
+              servico: envios.servico,
+              prazo_max_dias: envios.prazo_max_dias,
+              codigos_postais: envios.codigos_postais,
+              aceita_onu: envios.aceita_onu,
+              peso_max_g: envios.peso_max_g,
+            }),
         ...(dados.nome === undefined
           ? {}
           : { nome: JSON.stringify(dados.nome) }),
