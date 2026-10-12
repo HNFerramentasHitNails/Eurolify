@@ -4,6 +4,7 @@
 
 import type { OpcaoArtigo } from "./opcoes";
 import type { CorpoPreco, PrecoLido } from "./preco";
+import type { CasoTarefa, FilaTarefa, PaginaTarefas } from "./tarefas";
 import type { AlteracaoVariante, VarianteACriar } from "./variante";
 
 export type Papel = "dono" | "gestor" | "armazem" | "apoio";
@@ -659,6 +660,38 @@ async function erroDe(resposta: Response): Promise<ErroHub> {
 
 export const api = {
   eu: () => pedir<Eu>("GET", "/hub/me"),
+  // O ecrã «A decidir» (docs/22 §28.2): as mesmas rotas da chave pelo Hub.
+  tarefas: (comerciante: string, consulta: string) =>
+    pedir<PaginaTarefas>("GET", `/hub/tasks?${consulta}`, { comerciante }),
+  tarefa: (comerciante: string, fila: FilaTarefa, caso: string) =>
+    pedir<CasoTarefa>("GET", `/hub/tasks/${fila}/${encodeURIComponent(caso)}`, {
+      comerciante,
+    }),
+  atribuirTarefa: (
+    comerciante: string,
+    fila: FilaTarefa,
+    caso: string,
+    responsavel: string | null,
+    versao: number,
+  ) =>
+    pedir<{ versao: number }>(
+      "POST",
+      `/hub/tasks/${fila}/${encodeURIComponent(caso)}/assign`,
+      { comerciante, corpo: { responsavel, versao } },
+    ),
+  mudarPrazoTarefa: (
+    comerciante: string,
+    fila: FilaTarefa,
+    caso: string,
+    prazo: string,
+    motivo: string,
+    versao: number,
+  ) =>
+    pedir<{ versao: number }>(
+      "POST",
+      `/hub/tasks/${fila}/${encodeURIComponent(caso)}/deadline`,
+      { comerciante, corpo: { prazo, motivo, versao } },
+    ),
   sair: () => pedir<{ ok: true }>("POST", "/hub/session/end"),
   membros: (comerciante: string) =>
     pedir<Membros>("GET", "/hub/members", { comerciante }),

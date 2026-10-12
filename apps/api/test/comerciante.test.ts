@@ -161,6 +161,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0070_documento_emitido_fora",
         "0071_notificacao_tarefas",
         "0072_titular_todos_os_dominios",
+        "0073_tarefas_no_hub",
       ]);
     });
 

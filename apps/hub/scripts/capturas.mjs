@@ -554,6 +554,50 @@ let listaDaFicha;
   await baseArtigos.destroy();
 }
 
+// O ecrã «A decidir» (docs/22 §28): três casos que esperam por uma pessoa,
+// postos pela base em modo `replica`, como nos testes da API (os gatilhos
+// dos domínios não deixam escolher datas). Uma diferença de pagamento
+// vencida, um problema e um pedido de livre resolução fora de prazo.
+const casosADecidir = {
+  diferenca: "0190a0b1-0000-7000-8000-000000000190",
+  problema: "0190a0b1-0000-7000-8000-000000000191",
+  pedido: "0190a0b1-0000-7000-8000-000000000192",
+};
+psql(`begin;
+  set local session_replication_role = replica;
+  do $$ declare g record; begin
+    for g in select c.relname as tabela, t.tgname as nome from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      where not t.tgisinternal and t.tgenabled = 'A'
+        and c.relname in ('diferenca_pagamento', 'problema', 'pedido_livre_resolucao')
+    loop
+      execute format('alter table %I disable trigger %I', g.tabela, g.nome);
+    end loop;
+  end $$;
+  insert into diferenca_pagamento (id, comerciante_id, motivo, criada_em)
+    values ('${casosADecidir.diferenca}', '${comerciante}', 'montante_diferente',
+      now() - interval '2 days');
+  insert into problema (id, comerciante_id, encomenda_id, tipo, descricao, estado,
+      criado_por, criado_em, na_fila_desde)
+    values ('${casosADecidir.problema}', '${comerciante}',
+      '0190a0b1-0000-7000-8000-0000000001a0', 'chegou_danificado', 'frasco partido',
+      'aberto', 'teste', now() - interval '5 hours', now() - interval '5 hours');
+  insert into pedido_livre_resolucao (id, comerciante_id, encomenda_id, origem,
+      contacto, recebido_em, dentro_do_prazo, estado, confirmacao)
+    values ('${casosADecidir.pedido}', '${comerciante}',
+      '0190a0b1-0000-7000-8000-0000000001a0', 'botao', 'cliente@exemplo.test',
+      now() - interval '3 days', false, 'fora_de_prazo', '{}');
+  do $$ declare g record; begin
+    for g in select c.relname as tabela, t.tgname as nome from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      where not t.tgisinternal and t.tgenabled = 'D'
+        and c.relname in ('diferenca_pagamento', 'problema', 'pedido_livre_resolucao')
+    loop
+      execute format('alter table %I enable always trigger %I', g.tabela, g.nome);
+    end loop;
+  end $$;
+  commit;`);
+
 // 4. O navegador, com uma passkey em software.
 const navegador = await chromium.launch({
   executablePath: CHROMIUM,
@@ -5063,7 +5107,7 @@ try {
     const LARGURAS = [320, 375, 390, 768, 820, 1024, 1280, 1440];
     const colunasPara = (w) =>
       w < 480 ? 2 : w < 640 ? 3 : w < 880 ? 4 : w < 1040 ? 5 : 6;
-    const destinosDoDono = ["equipa", "artigos", "chaves"].map(
+    const destinosDoDono = ["equipa", "artigos", "a-decidir", "chaves"].map(
       (c) => `/${c}?comerciante=mer_${comerciante}`,
     );
     const medirEntrada = (p) =>
@@ -5137,7 +5181,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os três módulos do dono, com o comerciante no endereço`,
+          `${nome}: os quatro módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5219,9 +5263,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 3 &&
+        (await p.locator(".atalho-modulo").count()) === 4 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos três módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos quatro módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5379,8 +5423,8 @@ try {
     confere(
       new URL(pv.url()).search === `?comerciante=mer_${segundo}` &&
         JSON.stringify(await pv.locator(".atalho-modulo").allTextContents()) ===
-          JSON.stringify(["Equipa", "Artigos"]),
-      "entrada: na segunda loja, o apoio vê a equipa e os artigos, sem as chaves",
+          JSON.stringify(["Equipa", "Artigos", "A decidir"]),
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos e «A decidir», sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
@@ -5592,7 +5636,105 @@ try {
     }
   }
 
-  // As capturas: 9 ecrãs × 3 larguras × 2 temas.
+  // «A decidir» (docs/22 §28.6): a passagem da Ana (dona) só com o teclado
+  // — Vencidas, ficar com o caso, mudar o prazo e o histórico.
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/a-decidir?comerciante=mer_${comerciante}`);
+    await p
+      .getByRole("heading", { name: /A decidir/ })
+      .first()
+      .waitFor();
+    await p.getByText("3 casos nesta vista.").waitFor();
+    const vencidas = p.getByRole("button", { name: "Vencidas" });
+    await vencidas.focus();
+    await p.keyboard.press("Enter");
+    await p.getByText("2 casos nesta vista.").waitFor();
+    confere(
+      (await vencidas.getAttribute("aria-pressed")) === "true",
+      "a decidir: o filtro escolhido diz-se também pelo aria-pressed",
+    );
+    const linha = p.getByRole("row", { name: /Diferença de pagamento/ });
+    // A resposta perde-se depois de a API gravar: o ecrã relê o caso e dá-o
+    // por feito (docs/22 §28.2; revisão do #396, P2-3).
+    let perdida = 0;
+    await p.route("**/hub/tasks/pagamento/*/assign", async (rota) => {
+      await rota.fetch();
+      perdida += 1;
+      await rota.abort("connectionreset");
+    });
+    await linha.getByRole("button", { name: "Ficar com o caso" }).focus();
+    await p.keyboard.press("Enter");
+    await linha.getByText("Guardado.").waitFor();
+    await p.unroute("**/hub/tasks/pagamento/*/assign");
+    confere(
+      perdida === 1,
+      "a decidir: com a resposta perdida, relê o caso e dá a mudança por feita",
+    );
+    // O foco fica no aviso da linha, não se perde com o botão que saiu
+    // (revisão do #396, P2-2).
+    confere(
+      await p.evaluate(
+        () => document.activeElement?.textContent === "Guardado.",
+      ),
+      "a decidir: depois de gravar, o foco fica no aviso «Guardado.»",
+    );
+    confere(
+      (await linha.getByRole("cell", { name: "eu", exact: true }).count()) ===
+        1,
+      "a decidir: ficar com o caso põe «eu» como responsável",
+    );
+    await linha.getByRole("button", { name: "Mudar o prazo…" }).focus();
+    await p.keyboard.press("Enter");
+    await p.getByRole("heading", { name: /Mudar o prazo de pdi_/ }).waitFor();
+    const amanha = new Date(Date.now() + 2 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    await p.getByLabel("Novo prazo").fill(`${amanha}T10:00`);
+    await p.getByLabel("Motivo").fill("à espera do extracto do prestador");
+    await p.getByRole("button", { name: "Guardar" }).focus();
+    await p.keyboard.press("Enter");
+    await p.getByText("Guardado.").waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "a-decidir-passagem-1280-claro.png"),
+      fullPage: true,
+    });
+    await p.getByRole("button", { name: "Todos" }).click();
+    await p.getByText("3 casos nesta vista.").waitFor();
+    const outra = p.getByRole("row", { name: /Diferença de pagamento/ });
+    await outra.getByRole("button", { name: "Histórico" }).click();
+    const historico = p.locator(".painel-tarefa ol li");
+    await historico.first().waitFor();
+    const passos = await historico.allTextContents();
+    confere(
+      passos.length >= 2 &&
+        passos.some((x) => x.includes("ficou com o caso")) &&
+        passos.some((x) =>
+          x.includes("Motivo: à espera do extracto do prestador"),
+        ),
+      `a decidir: o histórico mostra a atribuição e o prazo com o motivo (${passos.join(" | ")})`,
+    );
+    // Fechar devolve o foco ao botão que abriu o painel.
+    await p.getByRole("button", { name: "Fechar" }).click();
+    confere(
+      await p.evaluate(
+        () => document.activeElement?.textContent === "Histórico",
+      ),
+      "a decidir: fechar o painel devolve o foco a «Histórico»",
+    );
+    await p.screenshot({
+      path: join(SAIDA, "a-decidir-historico-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
+  }
+
+  // As capturas: 10 ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
     ["convite", `/convite#${conviteDasCapturas}`, "Aceitar o convite"],
@@ -5616,6 +5758,7 @@ try {
     ],
     ["conta", "/conta", "A minha conta"],
     ["chaves", `/chaves?comerciante=mer_${comerciante}`, "Chaves de API"],
+    ["a-decidir", `/a-decidir?comerciante=mer_${comerciante}`, "A decidir"],
     ["recuperar", "/recuperar", "Recuperar a conta"],
   ];
   for (const tema of ["light", "dark"]) {

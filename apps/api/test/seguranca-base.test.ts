@@ -189,6 +189,8 @@ const FUNCOES_DA_API = [
   "tarefas_filas",
   "tarefas_marcar_vencida",
   "tarefas_mudar_prazo",
+  // Quem pode ser responsável de um caso, para o «Atribuir…» do Hub (0073).
+  "tarefas_podem_ser_responsaveis",
   "tarefas_por_avisar",
   "tarefas_prazo_por_omissao",
   "telefones_validos",

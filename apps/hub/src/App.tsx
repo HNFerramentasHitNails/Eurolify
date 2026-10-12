@@ -6,6 +6,7 @@ import { ContextoHub, type Contexto } from "./contexto";
 import { Artigo } from "./ecras/Artigo";
 import { ArtigoEditar } from "./ecras/ArtigoEditar";
 import { ArtigoNovo } from "./ecras/ArtigoNovo";
+import { ADecidir } from "./ecras/ADecidir";
 import { Artigos } from "./ecras/Artigos";
 import { Historico } from "./ecras/Historico";
 import { OpcoesEditar } from "./ecras/OpcoesEditar";
@@ -42,7 +43,7 @@ import {
 // /artigos/{prd_…}/editar, /artigos/{prd_…}/historico,
 // /artigos/{prd_…}/opcoes, /artigos/{prd_…}/variantes/{var_…},
 // /artigos/{prd_…}/variantes/nova,
-// /artigos/{prd_…}/precos/{prl_…}/{var_…}, /chaves,
+// /artigos/{prd_…}/precos/{prl_…}/{var_…}, /a-decidir, /chaves,
 // /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
@@ -154,6 +155,7 @@ export function App() {
     local.caminho === "/" ||
     local.caminho === "/equipa" ||
     local.caminho === "/artigos" ||
+    local.caminho === "/a-decidir" ||
     local.caminho === "/chaves" ||
     local.caminho === "/conta";
 
@@ -183,11 +185,13 @@ export function App() {
                           ? daVariante[2] === "nova"
                             ? t.varianteNovaTitulo
                             : t.varianteEditarTitulo
-                          : local.caminho === "/chaves"
-                            ? t.chavesTitulo
-                            : local.caminho === "/conta"
-                              ? t.contaTitulo
-                              : t.inicioTitulo;
+                          : local.caminho === "/a-decidir"
+                            ? t.decidirTitulo
+                            : local.caminho === "/chaves"
+                              ? t.chavesTitulo
+                              : local.caminho === "/conta"
+                                ? t.contaTitulo
+                                : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -286,6 +290,15 @@ export function App() {
         key={`${artigo} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
         artigo={artigo}
+        consulta={local.consulta}
+      />
+    );
+  else if (local.caminho === "/a-decidir")
+    ecra = (
+      <ADecidir
+        // Outro comerciante, outro ecrã: nada do anterior fica.
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
         consulta={local.consulta}
       />
     );

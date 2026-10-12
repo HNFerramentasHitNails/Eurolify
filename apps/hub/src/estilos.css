@@ -419,6 +419,40 @@ code {
   color: var(--estado-artigo-arquivado);
 }
 
+/* O ecrã «A decidir» (docs/22 §28.3): o vencido diz-se em texto e com a cor
+   do estado; o filtro escolhido marca-se também pelo aria-pressed. */
+.tarefa-vencida {
+  color: var(--estado-tarefa-vencida);
+  font-weight: 600;
+}
+.grupo-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+}
+.grupo-filtros button[aria-pressed="true"] {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.painel-tarefa {
+  margin-block: var(--espaco-2);
+  padding: var(--espaco-3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie);
+}
+.painel-tarefa fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--espaco-3);
+}
+.accoes-tarefa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+}
+
 /* Os filtros da lista: lado a lado no computador, um por linha no
    telemóvel. */
 .filtros {
