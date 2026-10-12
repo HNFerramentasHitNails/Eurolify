@@ -157,6 +157,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0066_tarefas_das_filas",
         "0067_notificacoes",
         "0068_vendas_do_dia",
+        "0069_faturacao_moloni",
       ]);
     });
 
@@ -244,6 +245,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // As notificações por enviar (0067): escreve-a o gatilho, lê-a a
           // função do dono.
           "tarefa_notificacao",
+          // As ligações Moloni a renovar os tokens (0069): escreve-a o
+          // gatilho, lê-a a função do dono.
+          "tarefa_renovacao",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.

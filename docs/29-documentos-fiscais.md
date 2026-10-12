@@ -484,10 +484,13 @@ cabeçalho mede-se na conta trial (§13.7) antes de se confiar no mapa.
   recomenda-o; não se guarda a palavra-passe do comerciante); o Eurolify
   troca o código pelos dois tokens e guarda-os cifrados.
 - **Renovar**: antes de cada chamada, se o `access_token` expira em menos de
-  5 minutos; e uma tarefa diária renova as ligações cujo `refresh_token` tem
-  mais de 7 dias. **O par novo grava-se antes de se usar** (se a gravação
-  falhar, o par antigo ainda serve; se a renovação morrer a meio, não se sabe
-  qual vale — a ligação passa a `com_erro` e o dono liga outra vez).
+  5 minutos; e uma tarefa renova as ligações cujo `refresh_token` tem mais de
+  7 dias (só pela idade). **O par novo grava-se antes de se usar**, com a
+  ligação trancada para duas voltas não gastarem o mesmo par. *Corrigido a
+  12/10/2026 (revisão do #384, P2-1):* cada renovação gasta o par anterior,
+  por isso, se a gravação falhar depois de o Moloni renovar, ou a resposta se
+  perder, o par antigo **já não serve** — a ligação passa a `com_erro` e o
+  dono liga outra vez. (Que o Moloni invalida o par antigo está por medir.)
 - **Morreu** (14 dias sem renovar, ou `invalid_grant`): a ligação passa a
   `com_erro`, os pedidos ficam `pronto` sem sair e o dono é avisado (tarefa da
   fila, `docs/33`). Nada se emite com credenciais por confirmar.
@@ -547,3 +550,75 @@ cabeçalho mede-se na conta trial (§13.7) antes de se confiar no mapa.
   documentação e das medições; um teste por cada linha de A1 a A9 e por M2 e
   M3; mutações; a revisão do agente; e a prova na conta trial (§13.7) antes de
   dizer que funciona.
+
+## 14. Em código — parte 2 (12/10/2026; migração 0069; DZ)
+
+| O quê | Onde |
+|---|---|
+| o adaptador: as oito operações da §13.3, o mapa de volta, o cliente (M3), o artigo pela referência = SKU e criado sem stock (M2), a NC e outra moeda recusadas (M6, M7), o estado 2 nunca lido como fechado | `src/faturacao/moloni.ts` |
+| o cliente HTTP: o token só no endereço e tapado nos erros, corpo em formulário (a forma por omissão da API), tempo limite de 15 s, 60 pedidos por minuto por empresa | `src/faturacao/moloni.ts` |
+| `config` e `sessao` na ligação: a configuração só aceita ids e obriga a testar outra vez; a sessão guarda os tokens renovados, cifrados, **sem** pôr a ligação por testar nem mudar a versão; credenciais novas apagam a sessão | migração 0069 |
+| a renovação com a ligação trancada (duas voltas nunca gastam o mesmo par), gravada antes de se usar; uma autorização morta põe a ligação `com_erro` e o pedido fica retido (`ligacao_sem_teste`) | `src/faturacao/repositorio.ts` |
+| a tarefa das renovações, de seis em seis horas, com alarme se parar 26 horas; o Moloni liga-se no servidor só com `MOLONI_CLIENT_ID`, `MOLONI_CLIENT_SECRET` e `MOLONI_EMPRESAS_TESTE` | `src/faturacao/repositorio.ts`, `src/servidor.ts`, migração 0069 |
+| o motivo `nota_credito_sem_adaptador` (M7) | `src/faturacao/repositorio.ts` |
+| 23 testes do adaptador contra um Moloni simulado; 6 pela API com a base; 1 da NC retida na pós-venda | `test/moloni.test.ts`, `test/moloni-falso.ts`, `test/documentos-api.test.ts`, `test/posvenda-api.test.ts` |
+
+**Desvios do desenho:**
+- **O nome sem NIF** (R7): sem NIF, o documento sai no cliente «Consumidor
+  final» do Moloni, com o nome dele. A conferência do nome passa a fazer-se só
+  quando há NIF; sem NIF, confere-se que o documento não leva NIF nenhum.
+  Sem esta mudança, nenhuma venda a um consumidor sem NIF saía pelo Moloni (o
+  rascunho ficava sempre retido).
+- **O número do cliente** criado no Moloni (`number`, máx. 20) é o NIF, não o
+  id da ficha (M3 dizia o id da ficha): o id do Eurolify tem 36 caracteres.
+- **Sem morada fiscal completa** (rua, localidade e país), o cliente não se
+  cria e o passo falha até uma pessoa: nada se inventa.
+- **Mais de um artigo ou cliente** com a mesma referência ou NIF, ao criar o
+  rascunho, é uma falha do passo (chega a uma pessoa ao fim de 5), não uma
+  retenção com motivo próprio; com mais de um cliente na procura da R5, o
+  pedido fica retido (`entidade_do_emissor_diferente`), como o desenho diz.
+- **O aviso ao dono** quando a autorização morre ainda não é uma tarefa da
+  fila (`docs/33`): vê-se na ligação (`com_erro`) e no registo do servidor.
+
+**Correcções da revisão do #384** (Sonnet 5.5; 0 P0, 2 P1, 8 P2, 10 P3):
+- **P1-1, a procura pela referência:** «não existe» só com a lista do Moloni
+  vazia; cada candidato confere-se no documento inteiro (`getOne`), e mais de
+  um, ou nenhum dos que vieram, é «não sei». Um «não existe» errado reemitia
+  a fatura. Testado com as linhas sem `our_reference` e com o filtro
+  ignorado, e o fecho sem resposta reconciliado numa só fatura.
+- **P1-2, o M8 em código:** o Moloni só liga às empresas da lista
+  `MOLONI_EMPRESAS_TESTE` (as contas de teste); outra empresa é recusada em
+  todas as operações, sem pedido nenhum. Sem a lista, o Moloni não liga no
+  servidor.
+- **P2-1:** a tarefa só renova pela idade do par; o §13.4 corrigido acima.
+- **P2-2:** só `invalid_grant` põe a ligação com erro; um segredo do servidor
+  errado ou a rede são falhas que passam; uma ligação já com erro não sobe a
+  versão a cada volta.
+- **P2-3:** o teste da ligação lê a versão antes das credenciais.
+- **P2-4:** o cliente «Consumidor final» da ligação confere-se (NIF de
+  consumidor final no Moloni) antes de cada documento sem NIF; um documento
+  sem NIF no Moloni nunca se lê como consumidor final.
+- **P2-5:** o cliente cria-se no país da morada; o país do contribuinte lê-se
+  do NIF como saiu (prefixo fora de Portugal; sem prefixo, Portugal).
+- **P2-6:** o fecho leva a data de hoje (**C**, a regra é do contabilista).
+- **P2-7:** o preço unitário vai com 6 casas.
+- **P3:** um nome ou país diferentes no rascunho retêm como
+  `entidade_do_emissor_diferente`; o PDF só se descarrega de `*.moloni.pt` e
+  tem de começar por `%PDF-`; os segredos em JSON tapam-se; o gatilho da
+  configuração deixou de depender da ordem de avaliação; a tarefa corre um
+  minuto depois do arranque.
+- **Ficam como estão (P3), e porquê:** a 0069 não junta ligações Moloni
+  anteriores porque a API as recusava (`criarLigacao` lançava
+  «o adaptador Moloni ainda não existe») — não há nenhuma; o rascunho relê-se
+  ao fechar sem nova conferência (janela de segundos, e a prova seguinte
+  marca a divergência); a reserva de 5 minutos e o ATCUD vazio sem aviso
+  ficam para a parte 2b. Testes ainda em falta: um rascunho divergente pelo
+  Moloni (coberto pelo emissor de ensaio na parte 1) e o `issuer_busy` com a
+  configuração (o gatilho é o mesmo da série).
+
+**Por fazer:**
+- **parte 2b:** a ligação pelo `authorization_code` (o endereço de resposta e
+  a troca do código) e o ecrã no Hub — hoje as credenciais entram pela API;
+- **a prova na conta trial** (§13.7), com as credenciais no ambiente e o OK de
+  cada escrita: até lá, **nada disto está verificado contra o Moloni real**;
+- a NC pelo Moloni (M7), depois da medição; o aviso ao dono pela fila.

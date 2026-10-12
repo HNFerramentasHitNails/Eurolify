@@ -1613,6 +1613,16 @@ export interface IsencaoDoEmissor {
   emissor: string;
 }
 
+/**
+ * A configuração de uma ligação (docs/29 §13.2): só identificadores do
+ * emissor, nunca nomes. `metodos_pagamento` vai do método do Eurolify ao id
+ * do método no emissor.
+ */
+export interface ConfigDaLigacao {
+  [chave: string]: string | Record<string, string> | undefined;
+  metodos_pagamento?: Record<string, string>;
+}
+
 export interface TabelaLigacaoFaturacao {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1628,6 +1638,12 @@ export interface TabelaLigacaoFaturacao {
   serie: ColumnType<string | null, string | null, string | null>;
   taxas: ColumnType<TaxaDoEmissor[], string, string>;
   isencoes: ColumnType<IsencaoDoEmissor[], string, string>;
+  /** Os ids do emissor por omissão (docs/29 §13.2; migração 0069). */
+  config: ColumnType<ConfigDaLigacao, string | undefined, string>;
+  /** Os tokens que o emissor renova sozinho, cifrados (§13.4). */
+  sessao: ColumnType<Buffer | null, never, Buffer | null>;
+  sessao_versao_chave: ColumnType<string | null, never, string | null>;
+  sessao_em: ColumnType<Date | null, never, Date | null>;
   testada_em: ColumnType<Date | null, never, Date | null>;
   erro: ColumnType<string | null, never, string | null>;
   versao: ColumnType<number, never, number>;

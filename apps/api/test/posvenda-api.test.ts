@@ -26,6 +26,7 @@ import {
 } from "../src/precos/repositorio.js";
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
+import { AdaptadorMoloni } from "../src/faturacao/moloni.js";
 import { correrDocumentos } from "../src/faturacao/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import { correrAvisosDePrazo } from "../src/posvenda/prazo.js";
@@ -36,6 +37,7 @@ import {
 import { CorreioDeEnsaio, ErroCorreio } from "../src/notificacoes/correio.js";
 import { correrConfirmacoes } from "../src/posvenda/prestador.js";
 import { assinar, avisoEuPago, eupagoFalso, json } from "./eupago-falso.js";
+import { moloniFalso } from "./moloni-falso.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -56,9 +58,18 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
   // Os métodos de pagamento vêm da régua (docs/26): uma conta EuPago de teste.
   const eupago = eupagoFalso();
   const ensaio = new EmissorDeEnsaio();
+  const moloni = moloniFalso();
   const faturacao = {
     chave: chavePagamentos(randomBytes(32).toString("base64")),
-    adaptadores: { ensaio },
+    adaptadores: {
+      ensaio,
+      moloni: new AdaptadorMoloni({
+        clientId: "dev-eurolify",
+        clientSecret: "segredo-do-developer",
+        empresasPermitidas: [String(moloni.empresa)],
+        fetch: moloni.fetch,
+      }),
+    },
   };
   /** Uma volta da tarefa dos documentos. */
   const correr = () => correrDocumentos(base.api, faturacao);
@@ -1182,6 +1193,70 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
           .execute();
       }),
     ).rejects.toThrow(/refunds\.exceeds_paid/);
+  });
+
+  it("a nota de crédito de uma fatura do Moloni fica retida até se medir o related_id (docs/29 §13.6, M7)", async () => {
+    const s = await cenario();
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "eurolify",
+      }),
+      204,
+    );
+    const portes = moloni.artigo(`PORTES-${randomUUID().slice(0, 8)}`);
+    const cf = moloni.cliente("999999990", "Consumidor final");
+    const l = await ok(
+      s.adm("POST", "/invoicing-connections", {
+        entidade_legal: `lgl_${s.entidade}`,
+        adaptador: "moloni",
+        serie: "500",
+        taxas: [{ pais: "PT", taxa: 2300, emissor: "11" }],
+        config: {
+          lingua: "1",
+          vencimento: "5",
+          artigo_portes: String(portes.product_id),
+          categoria: "77",
+          unidade: "3",
+          cliente_consumidor_final: String(cf.customer_id),
+          metodos_pagamento: { multibanco: "9" },
+        },
+      }),
+      201,
+    );
+    await ok(
+      s.adm("PUT", `/invoicing-connections/${String(l["id"])}/credentials`, {
+        credenciais: moloni.credenciais(),
+      }),
+      204,
+    );
+    await ok(s.adm("POST", `/invoicing-connections/${String(l["id"])}/test`));
+    const e = await paga(s, [[s.v1, 2]], "501964843");
+    await ateParar();
+    const [linha] = await expedir(s, e.encomenda);
+    const rma = await devolvidaEInspeccionada(s, e.token, [
+      { linha: linha?.["id"], quantidade: 1 },
+    ]);
+    const r = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        motivo: "livre resolução",
+      }),
+      201,
+    );
+    await manual(s, String(r["reembolso"]));
+    await ateParar();
+    const { fatura, notas } = await documentosDe(s, e.encomenda);
+    expect(fatura?.["estado"]).toBe("emitido");
+    expect(notas[0]).toMatchObject({
+      estado: "retido",
+      motivos: ["nota_credito_sem_adaptador"],
+    });
+    // Nenhuma NC chegou ao Moloni.
+    expect(
+      moloni.estado.pedidos.some((x) => x.metodo.startsWith("creditNotes/")),
+    ).toBe(false);
+    expect(moloni.estado.documentos.filter((d) => d.saft === "NC")).toEqual([]);
   });
 
   it("a nota de crédito: sai pelo circuito dos documentos com a taxa da fatura, parcial, e a fatura mostra o saldo", async () => {
