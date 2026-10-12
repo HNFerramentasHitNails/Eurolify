@@ -1523,7 +1523,7 @@ export async function listarPedidosTitular(
     if (ficha === undefined) {
       throw new ErroClientes("customers.not_found", "ficha inexistente");
     }
-    return trx
+    const pedidos = await trx
       .selectFrom("pedido_titular")
       .selectAll()
       .where(
@@ -1531,6 +1531,17 @@ export async function listarPedidosTitular(
       )
       .orderBy("id", "desc")
       .execute();
+    // Com as encomendas de um apagamento que ainda esperam por acabar
+    // (docs/23 §15.3): o pedido só fica completo quando chegarem a zero.
+    const { rows } = await sql<{ pedido_id: string; n: number }>`
+      select pedido_id, n from titular_por_acabar(${pedidos.map((p) => p.id)}::uuid[])`.execute(
+      trx,
+    );
+    const porAcabar = new Map(rows.map((r) => [r.pedido_id, r.n]));
+    return pedidos.map((p) => ({
+      ...p,
+      encomendas_por_acabar: porAcabar.get(p.id) ?? 0,
+    }));
   });
 }
 
