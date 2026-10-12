@@ -59,7 +59,11 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
   // os tokens expirarem sem esperar uma hora.
   const moloni = moloniFalso();
   let relogio = 0;
-  const faturacao = {
+  const faturacao: {
+    chave: ReturnType<typeof chavePagamentos>;
+    adaptadores: { ensaio: EmissorDeEnsaio; moloni: AdaptadorMoloni };
+    retornoAutorizacao?: string;
+  } = {
     chave: chavePagamentos(randomBytes(32).toString("base64")),
     adaptadores: {
       ensaio,
@@ -67,6 +71,8 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         clientId: "dev-eurolify",
         clientSecret: "segredo-do-developer",
         empresasPermitidas: [String(moloni.empresa)],
+        redirectUri:
+          "https://api.exemplo.test/invoicing-connections/moloni/callback",
         fetch: moloni.fetch,
         agora: () => Date.now() + relogio,
       }),
@@ -1445,6 +1451,163 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     ).toEqual({ estado: "pronta", erro: null });
     return { id, credenciais, cf };
   }
+
+  it("ligar o Moloni pela autorização dele: o código troca-se uma vez, só com o valor dado ao dono, e só para a empresa de teste (docs/29 §17)", async () => {
+    const s = await cenario();
+    const outro = await cenario();
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "eurolify",
+      }),
+      204,
+    );
+    const id = String(
+      (
+        await ok(
+          s.adm("POST", "/invoicing-connections", {
+            entidade_legal: `lgl_${s.entidade}`,
+            adaptador: "moloni",
+            serie: "500",
+          }),
+          201,
+        )
+      )["id"],
+    );
+    const pedido = await ok(
+      s.adm("POST", `/invoicing-connections/${id}/authorize`, {
+        empresa: String(moloni.empresa),
+      }),
+    );
+    const estado = String(pedido["estado"]);
+    const url = new URL(String(pedido["url"]));
+    expect(url.origin + url.pathname).toBe(
+      "https://www.moloni.pt/ac/root/oauth/",
+    );
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      response_type: "code",
+      client_id: "dev-eurolify",
+      redirect_uri:
+        "https://api.exemplo.test/invoicing-connections/moloni/callback",
+      state: estado,
+    });
+    // O endereço de resposta não troca nada: mostra o código, ou reencaminha.
+    const cod = moloni.codigoAutorizacao();
+    const pagina = await pedir(
+      "GET",
+      `/invoicing-connections/moloni/callback?code=${cod}&state=${estado}`,
+    );
+    expect(pagina.statusCode).toBe(200);
+    expect(pagina.headers["content-type"]).toMatch(/^text\/html/);
+    expect(pagina.headers["cache-control"]).toBe("no-store");
+    expect(pagina.body).toContain(cod);
+    const mau = await pedir(
+      "GET",
+      `/invoicing-connections/moloni/callback?code=${encodeURIComponent("<script>x</script>")}`,
+    );
+    expect(mau.statusCode).toBe(400);
+    expect(mau.body).not.toContain("<script>");
+    faturacao.retornoAutorizacao = "https://hub.exemplo.test/faturacao/moloni";
+    const volta = await pedir(
+      "GET",
+      `/invoicing-connections/moloni/callback?code=${cod}&state=${estado}`,
+    );
+    delete faturacao.retornoAutorizacao;
+    expect(volta.statusCode).toBe(303);
+    expect(volta.headers["location"]).toBe(
+      `https://hub.exemplo.test/faturacao/moloni?code=${cod}&state=${estado}`,
+    );
+    // Outro valor, ou outro comerciante: não há pedido.
+    expect(
+      await codigo(
+        s.adm("POST", `/invoicing-connections/${id}/authorize/complete`, {
+          codigo: cod,
+          estado: "x".repeat(43),
+        }),
+      ),
+    ).toEqual([404, "invoices.not_found"]);
+    expect(
+      await codigo(
+        outro.adm("POST", `/invoicing-connections/${id}/authorize/complete`, {
+          codigo: cod,
+          estado,
+        }),
+      ),
+    ).toEqual([404, "invoices.not_found"]);
+    // Só o dono.
+    const gestor = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Gestor",
+        ambitos: ["invoices:read"],
+      })
+    ).segredo;
+    expect(
+      await codigo(
+        pedir(
+          "POST",
+          `/invoicing-connections/${id}/authorize`,
+          { empresa: String(moloni.empresa) },
+          { authorization: `Bearer ${gestor}` },
+        ),
+      ),
+    ).toEqual([403, "auth.forbidden"]);
+    await ok(
+      s.adm("POST", `/invoicing-connections/${id}/authorize/complete`, {
+        codigo: cod,
+        estado,
+      }),
+      204,
+    );
+    expect(await ligacaoDe(s, id)).toMatchObject({ estado: "por_testar" });
+    expect(
+      await ok(s.adm("POST", `/invoicing-connections/${id}/test`)),
+    ).toEqual({ estado: "pronta", erro: null });
+    // Uma autorização gasta-se uma vez.
+    expect(
+      await codigo(
+        s.adm("POST", `/invoicing-connections/${id}/authorize/complete`, {
+          codigo: moloni.codigoAutorizacao(),
+          estado,
+        }),
+      ),
+    ).toEqual([409, "invoices.invalid_transition"]);
+    // Uma empresa fora da lista de teste (M8): a troca é recusada e nada se
+    // grava; a autorização fica gasta.
+    const fora = await ok(
+      s.adm("POST", `/invoicing-connections/${id}/authorize`, {
+        empresa: "999",
+      }),
+    );
+    expect(
+      await codigo(
+        s.adm("POST", `/invoicing-connections/${id}/authorize/complete`, {
+          codigo: moloni.codigoAutorizacao(),
+          estado: fora["estado"],
+        }),
+      ),
+    ).toEqual([502, "invoices.issuer_error"]);
+    expect(await ligacaoDe(s, id)).toMatchObject({ estado: "pronta" });
+    // Um código que o Moloni não conhece: a mesma recusa.
+    const outraVez = await ok(
+      s.adm("POST", `/invoicing-connections/${id}/authorize`, {
+        empresa: String(moloni.empresa),
+      }),
+    );
+    expect(
+      await codigo(
+        s.adm("POST", `/invoicing-connections/${id}/authorize/complete`, {
+          codigo: "codigo-que-nao-existe",
+          estado: outraVez["estado"],
+        }),
+      ),
+    ).toEqual([502, "invoices.issuer_error"]);
+    // A base não deixa voltar atrás uma autorização usada.
+    await expect(
+      sql`update autorizacao_faturacao set usada_em = null
+        where comerciante_id = ${s.c}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/invoices\.immutable/);
+  });
 
   const ligacaoDe = async (s: Cenario, id: string) =>
     (

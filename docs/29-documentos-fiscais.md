@@ -738,7 +738,7 @@ ser igual ao registado.
 
 | Rota | Quem | O que faz |
 |---|---|---|
-| `POST /invoicing-connections/{id}/authorize` | o dono (`invoices:accounts`) | Para uma ligação `moloni`: recebe a `empresa` (o `company_id`, só uma da lista de teste, M8), cria um pedido de autorização com um valor aleatório (guardado só o resumo SHA-256), válido **10 minutos**, e devolve o endereço do Moloni (com `state`), o valor e quando expira. Sem `MOLONI_REDIRECT_URI` configurado, recusa |
+| `POST /invoicing-connections/{id}/authorize` | o dono (`invoices:accounts`) | Para uma ligação `moloni`: recebe a `empresa` (o `company_id`; a lista de teste, M8, confere-se na troca, antes de chamar o Moloni), cria um pedido de autorização com um valor aleatório (guardado só o resumo SHA-256), válido **10 minutos**, e devolve o endereço do Moloni (com `state`), o valor e quando expira. Sem `MOLONI_REDIRECT_URI` configurado, recusa |
 | `GET /invoicing-connections/moloni/callback` | público (o navegador vindo do Moloni) | **Não troca nada.** Com `MOLONI_RETORNO_URL`, reencaminha para lá com o `code` (e o `state`, se vier); sem ele, mostra uma página que diz para voltar ao Eurolify com o código. O código só se aceita com letras, números e `._-`, e a página não se guarda em cache |
 | `POST /invoicing-connections/{id}/authorize/complete` | o dono (`invoices:accounts`) | Recebe o `code` e o `state` que o Eurolify deu. Confere que o pedido é desta ligação, não expirou e não foi usado, e **marca-o usado antes de chamar o Moloni** (um código nunca se troca duas vezes). Troca o código, confere que a autorização dá acesso à empresa (como o teste da ligação) e só então grava os tokens como credenciais cifradas. A ligação fica `por_testar` |
 
@@ -750,3 +750,17 @@ ser igual ao registado.
   renovação passa a correr pelo `refresh_token` novo (§13.4).
 - **Fora desta parte:** o botão no Hub; a escolha da empresa numa lista;
   e o modo real (M8).
+
+**Em código (12/10/2026; migração 0080):**
+
+| O quê | Onde |
+|---|---|
+| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás e apagar); RLS forçado | migração 0080 |
+| `urlAutorizacao` e `trocarCodigo` no contrato do adaptador; no Moloni, com `MOLONI_REDIRECT_URI` | `src/faturacao/adaptador.ts`, `src/faturacao/moloni.ts`, `src/servidor.ts` |
+| `pedirAutorizacao` e `concluirAutorizacao` (marca usada antes de trocar; grava só depois de conferir a empresa) | `src/faturacao/repositorio.ts` |
+| as três rotas; a página do endereço de resposta (sem nada de fora, sem cache, o texto escapado) e o reencaminhamento com `MOLONI_RETORNO_URL` | `src/faturacao/rotas.ts` |
+| testes: o adaptador (`test/moloni.test.ts`) e o caminho todo pela API contra o Moloni simulado (`test/documentos-api.test.ts`) | — |
+
+**Por fazer:** o botão e o ecrã no Hub; registar `MOLONI_REDIRECT_URI` na
+conta de Developer e no ambiente `ensaio`; medir na conta trial se o `state`
+volta e se o `redirect_uri` tem de coincidir.
