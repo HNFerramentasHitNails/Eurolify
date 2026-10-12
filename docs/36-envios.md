@@ -567,10 +567,17 @@ Documentação técnica da Sendcloud, API v3, lida a 12/10/2026 em
 | D3 | **Ficam de fora os serviços** que exigem ponto de recolha (Q5, parte 3), medidas (o modelo não as tem) ou documentos aduaneiros. Nenhum aceita perigosos (`aceitaOnu` vazio): a Sendcloud diz só «sim ou não», sem números ONU. | R4: não se vende o que não se consegue cumprir |
 | D4 | **O aviso é um sinal para consultar.** Verifica-se a assinatura e lê-se só o número de seguimento ou a referência. A consulta à Sendcloud fica marcada para daí a 1 minuto. Os eventos vêm sempre da consulta. | o conteúdo do aviso não está descrito (16.1) |
 | D5 | **O identificador de um evento** é `event_at`, `phase`, `exception` e `sub_status`, juntos | os eventos não o trazem; o mesmo evento repetido continua a não contar duas vezes |
-| D6 | **Estados:** `dropped` e `accepted` ⇒ recolhida; `sorted`, `in_transit`, `customs` e `in_delivery` ⇒ em trânsito; `attempted` ⇒ tentativa falhada; `pup` ⇒ para levantar; `delivered` ⇒ entregue; `returned_sender` ⇒ devolvida. Tudo o resto ⇒ outro, só no histórico, incluindo `delivery_forced` (a Sendcloud dá por entregue sem confirmação da transportadora: não conta para a livre resolução, L6) e `missing` (**C**: «em falta» pode ser temporário; dar a expedição por perdida é final). | só para a frente (§4.2) |
-| D7 | **Anular:** 200 ⇒ anulada; 202 (em fila) ⇒ anulada; 409 ou 404 ⇒ não é possível | com o 202, a Sendcloud anula sozinha se o envio não andar |
-| D8 | **Respostas:** 4xx com erros ⇒ recusada, com o primeiro motivo; 5xx, 429 ou sem resposta ⇒ incerta (R2). Um 201 com o volume em falha de anúncio ⇒ recusada. | R2 |
+| D6 | **Estados:**<br>• `dropped` e `accepted` ⇒ recolhida<br>• `sorted`, `in_transit`, `customs` e `in_delivery` ⇒ em trânsito<br>• `attempted` ⇒ tentativa falhada<br>• `pup` ⇒ para levantar<br>• `delivered` **sem subestado** ⇒ entregue<br>• tudo o resto ⇒ outro, só no histórico<br>Ficam em «outro», todos **C**:<br>• `delivered` com subestado (ex.: vizinho, caixa do correio): pode não ser a posse que conta para a livre resolução (L6), e não verifiquei que subestados existem<br>• `delivery_forced`: sem confirmação da transportadora<br>• `missing`: pode ser temporário<br>• `returned_sender`: «vai ser devolvida» ainda não é devolvida | só para a frente (§4.2), e estados finais só com certeza |
+| D7 | **Anular:** 200 ⇒ anulada; 202, 409 ou 404 ⇒ não é possível | com o 202 a anulação fica em fila e a etiqueta continua viva: pedir outra arriscava duas etiquetas vivas |
+| D8 | **Respostas:**<br>• 4xx com erros ⇒ recusada, com o primeiro motivo<br>• 5xx, 429, 408 ou sem resposta ⇒ incerta (R2)<br>• o volume em falha de anúncio ou anulado ⇒ recusada<br>• o volume ainda a ser anunciado, sem número ⇒ incerta, nunca «recusada» nem «não existe»<br>• um ficheiro que não é PDF ⇒ incerta<br>Em modo teste, um serviço que não seja o de teste nem chega à Sendcloud. | R2 |
 | D9 | **Só vai o que a entrega precisa** (§6): nome, morada, peso e, só se o serviço exigir, telefone e e-mail. Não vão as linhas, os preços nem o número da encomenda. | minimização |
+
+**Serviços por conta, ao testar a conta outra vez:**
+- A fotografia nova é recusada se deixar sem serviço, ou sem um país do
+  mercado, um método activo da conta.
+- Se a lista de serviços falhar, a conta fica como estava.
+- Só se lida com serviços cujo peso venha em kg ou g e cujo código a base
+  aceite. Os que não trazem requisitos ficam de fora (D3).
 
 ### 16.4 Em código (migração 0080)
 
@@ -581,7 +588,7 @@ Documentação técnica da Sendcloud, API v3, lida a 12/10/2026 em
 | a conta guarda `servicos` e `servicos_em`; a transportadora `sendcloud`; o código do serviço passa a aceitar `:` e `/`, até 100 caracteres | migração 0080; `src/checkout/rotas.ts` |
 | um aviso sem eventos marca a consulta para daí a 1 minuto (D4) | `receberAviso` |
 | o servidor liga o adaptador da Sendcloud | `src/servidor.ts` |
-| 7 testes do adaptador contra uma Sendcloud de ensaio, sem base; 1 teste pela API (a conta, a fotografia, o método recusado e aceite, a etiqueta, o aviso, a volta até entregue) | `test/envios-sendcloud.test.ts`, `test/sendcloud-falsa.ts`, `test/envios-etiquetas.test.ts` |
+| 9 testes do adaptador contra uma Sendcloud de ensaio, sem base; 1 teste pela API (a conta, a fotografia, o método recusado e aceite, a etiqueta, o aviso, a volta até entregue, o aviso atrasado, a lista que falha, a fotografia recusada) | `test/envios-sendcloud.test.ts`, `test/sendcloud-falsa.ts`, `test/envios-etiquetas.test.ts` |
 
 **Por fazer na parte C:** os ecrãs do Hub dos envios ficam para um pedido à
 parte. Ficam por verificar numa conta de teste:

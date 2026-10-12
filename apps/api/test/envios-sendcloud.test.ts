@@ -170,8 +170,9 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     // Anular: em fila (202) conta como anulada (D7); recusada, não.
     f.estado.anular = 409;
     expect(await a.anularEtiqueta(CRED, "SC00000001")).toBe("nao_permitido");
+    // Em fila (202) não é anulada: a etiqueta continua viva (P2-4).
     f.estado.anular = 202;
-    expect(await a.anularEtiqueta(CRED, "SC00000001")).toBe("anulada");
+    expect(await a.anularEtiqueta(CRED, "SC00000001")).toBe("nao_permitido");
     f.estado.anular = 200;
     expect(await a.anularEtiqueta(CRED, "SC00000001")).toBe("anulada");
     // Anulada, a consulta pela referência já não a dá como viva.
@@ -207,7 +208,11 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     expect(normalizar("in_transit", "none")).toBe("em_transito");
     expect(normalizar("attempted", "none")).toBe("tentativa_falhada");
     expect(normalizar("pup", "none")).toBe("disponivel_para_levantar");
-    expect(normalizar("none", "returned_sender")).toBe("devolvida");
+    // «Vai ser devolvida» ainda não foi (P2-5); entregue ao vizinho ou na
+    // caixa do correio não é a entrega que conta (P2-6).
+    expect(normalizar("none", "returned_sender")).toBe("outro");
+    expect(normalizar("delivered", "none", "none")).toBe("entregue");
+    expect(normalizar("delivered", "none", "neighbour")).toBe("outro");
     expect(normalizar("delivery_forced", "none")).toBe("outro");
     expect(normalizar("none", "missing")).toBe("outro");
     expect(normalizar(null, null)).toBe("outro");
@@ -241,5 +246,84 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
       ),
     ).toEqual({ valido: false });
     expect(a.lerAviso({}, "{}", "secretkey")).toEqual({ valido: false });
+  });
+  it("um envio que existe mas ainda está a ser anunciado nunca é «recusado» nem «não existe»: fica incerto (P1-1)", async () => {
+    const f = sendcloudFalsa();
+    const a = adaptadorSendcloud(f.buscar);
+    f.estado.anunciar = "anunciando";
+    await expect(a.pedirEtiqueta(CRED, pedido("exp-a"))).rejects.toBeInstanceOf(
+      ErroDeRede,
+    );
+    await expect(a.consultarEtiqueta(CRED, "exp-a")).rejects.toBeInstanceOf(
+      ErroDeRede,
+    );
+    // O mesmo pedido outra vez (409) também não.
+    await expect(a.pedirEtiqueta(CRED, pedido("exp-a"))).rejects.toBeInstanceOf(
+      ErroDeRede,
+    );
+    expect(f.estado.envios).toHaveLength(1);
+  });
+
+  it("os casos de dúvida (P3): 408, um ficheiro que não é PDF, serviços sem unidade conhecida ou com códigos que a base não aceita, e só o serviço de teste", async () => {
+    const r408 = adaptadorSendcloud(() =>
+      Promise.resolve(new Response("", { status: 408 })),
+    );
+    await expect(
+      r408.pedirEtiqueta(CRED, pedido("exp-b")),
+    ).rejects.toBeInstanceOf(ErroDeRede);
+    const lixo = adaptadorSendcloud(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              parcels: [
+                {
+                  id: 1,
+                  status: { code: "READY_TO_SEND" },
+                  tracking_number: "X1",
+                  label_file:
+                    Buffer.from("isto não é um pdf").toString("base64"),
+                },
+              ],
+            },
+          }),
+          { status: 201 },
+        ),
+      ),
+    );
+    await expect(
+      lixo.pedirEtiqueta(CRED, pedido("exp-c")),
+    ).rejects.toBeInstanceOf(ErroDeRede);
+    const f = sendcloudFalsa();
+    f.estado.servicos.set("PT", [
+      {
+        ...opcao(SERVICO_DE_TESTE),
+        weight: { max: { value: "4", unit: "lbs" } },
+      },
+      { ...opcao(SERVICO_DE_TESTE), requirements: undefined },
+      opcao("postnl:standard/insured=3000"),
+    ]);
+    const a = adaptadorSendcloud(f.buscar);
+    expect(
+      await a.servicosDaConta?.(CRED, {
+        origem: "PT",
+        destinos: ["PT"],
+        modo: "teste",
+      }),
+    ).toEqual([]);
+    expect(
+      await a.pedirEtiqueta(CRED, {
+        ...pedido("exp-d"),
+        servico: "ctt:expresso",
+      }),
+    ).toEqual({
+      estado: "recusada",
+      motivo: `em modo teste só se pede o serviço ${SERVICO_DE_TESTE}`,
+    });
+    expect(f.estado.envios).toHaveLength(0);
+    // Um cabeçalho com caracteres de vários bytes não rebenta a comparação.
+    expect(
+      a.lerAviso({ "sendcloud-signature": "é".repeat(64) }, "{}", "segredo"),
+    ).toEqual({ valido: false });
   });
 });

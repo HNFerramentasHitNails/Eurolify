@@ -23,7 +23,10 @@ const json = (estado: number, corpo: unknown) =>
 export function sendcloudFalsa() {
   const estado = {
     /** Como responde ao próximo anúncio. */
-    anunciar: "emitir" as "emitir" | "recusar" | "falha_no_volume" | "erro_500",
+    anunciar: "emitir" as
+      "emitir" | "recusar" | "falha_no_volume" | "erro_500" | "anunciando",
+    /** A lista de serviços responde 500. */
+    opcoesFalham: false,
     /** Os serviços que devolve, por país de destino. */
     servicos: new Map<string, Record<string, unknown>[]>(),
     eventos: new Map<string, Record<string, unknown>[]>(),
@@ -39,7 +42,16 @@ export function sendcloudFalsa() {
   };
   const autorizado = (auth: string | null) =>
     auth === `Basic ${Buffer.from(`${PUBLICA}:${SECRETA}`).toString("base64")}`;
-  const resposta = (e: Envio, comFicheiro: boolean) => ({
+  const resposta = (e: Envio, comFicheiro: boolean) =>
+    e.estado === "ANNOUNCING"
+      ? // Ainda a anunciar: sem número nem ficheiro.
+        {
+          id: e.id,
+          external_reference_id: e.referencia,
+          parcels: [{ id: e.volume, status: { code: e.estado } }],
+        }
+      : respostaPronta(e, comFicheiro);
+  const respostaPronta = (e: Envio, comFicheiro: boolean) => ({
     id: e.id,
     external_reference_id: e.referencia,
     parcels: [
@@ -62,11 +74,8 @@ export function sendcloudFalsa() {
     ],
   });
 
-  const buscar = async (
-    entrada: string | URL | Request,
-    init?: RequestInit,
-  ): Promise<Response> => {
-    const url = new URL(String(entrada));
+  const atender = (entrada: string | URL, init?: RequestInit): Response => {
+    const url = new URL(entrada);
     const metodo = init?.method ?? "GET";
     const cab = (init?.headers ?? {}) as Record<string, string>;
     const auth = cab["authorization"] ?? null;
@@ -90,6 +99,7 @@ export function sendcloudFalsa() {
       return json(200, { data: { user_id: 1 } });
     }
     if (metodo === "POST" && caminho === "/shipping-options") {
+      if (estado.opcoesFalham) return json(500, {});
       const destino = (corpo as { to_country_code: string }).to_country_code;
       return json(200, { data: estado.servicos.get(destino) ?? [] });
     }
@@ -120,7 +130,9 @@ export function sendcloudFalsa() {
         estado:
           estado.anunciar === "falha_no_volume"
             ? "ANNOUNCEMENT_FAILED"
-            : "READY_TO_SEND",
+            : estado.anunciar === "anunciando"
+              ? "ANNOUNCING"
+              : "READY_TO_SEND",
         corpo: b,
       };
       estado.envios.push(e);
@@ -178,7 +190,10 @@ export function sendcloudFalsa() {
       errors: [{ status: "404", code: "not_found", detail: "?" }],
     });
   };
-  return { buscar: buscar as typeof fetch, estado };
+  // O adaptador só chama com o endereço em texto.
+  const buscar: typeof fetch = (entrada, init) =>
+    Promise.resolve(atender(entrada as string | URL, init));
+  return { buscar, estado };
 }
 
 /** Um serviço como a Sendcloud o devolve em `POST /shipping-options`. */

@@ -1150,5 +1150,44 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
     expect(
       await ok(s.adm("GET", `/shipments/${a.expedicao}/label`)),
     ).toMatchObject({ estado_expedicao: "entregue" });
+    // Um aviso atrasado numa expedição acabada não antecipa o apagamento do
+    // ficheiro (30 dias, Q7; revisão do #406, P2-3).
+    const r2 = await app.inject({
+      method: "POST",
+      url: `/webhooks/carriers/sendcloud/${conta}`,
+      headers: {
+        "content-type": "application/json",
+        "sendcloud-signature": assinarAviso(corpo, SECRETA),
+      },
+      payload: corpo,
+    });
+    expect(r2.statusCode, r2.body).toBe(200);
+    const depois = await sql<{
+      dias: number;
+    }>`select round(extract(epoch from quando - now()) / 86400) as dias
+        from trabalho_envio where expedicao_id = ${id}::uuid`.execute(
+      base.dono,
+    );
+    expect(Number(depois.rows[0]?.dias)).toBe(30);
+    // A lista de serviços falha no teste: a conta continua pronta (P2-1).
+    sc.estado.opcoesFalham = true;
+    expect(
+      await codigo(s.adm("POST", `/carrier-accounts/${conta}/test`)),
+    ).toEqual([503, "shipping.carrier_unavailable"]);
+    sc.estado.opcoesFalham = false;
+    const contas = (await ok(s.adm("GET", "/carrier-accounts")))[
+      "dados"
+    ] as Json[];
+    expect(contas.find((x) => x["id"] === conta)?.["estado"]).toBe("pronta");
+    // A conta deixou de ter o serviço do método activo: a fotografia nova
+    // é recusada, com o método (P2-2).
+    sc.estado.servicos.set("PT", [opcao("ctt:expresso_48")]);
+    const recusa = await s.adm("POST", `/carrier-accounts/${conta}/test`);
+    expect(recusa.statusCode, recusa.body).toBe(400);
+    expect(recusa.json<Json>()["codigo"]).toBe("shipping.invalid_field");
+    expect(JSON.stringify(recusa.json())).toContain(`shm_${metodo.slice(4)}`);
+    expect(
+      (await ok(s.adm("GET", `/carrier-accounts/${conta}/services`)))["dados"],
+    ).toHaveLength(1);
   });
 });

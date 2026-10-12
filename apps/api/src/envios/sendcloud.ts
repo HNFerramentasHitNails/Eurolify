@@ -28,8 +28,11 @@ import {
 
 const BASE = "https://panel.sendcloud.sc/api/v3";
 
-/** O tempo de uma chamada à Sendcloud (proposta; o núcleo tem o seu). */
-export const TEMPO_DA_CHAMADA_MS = 20_000;
+/**
+ * O tempo de uma chamada à Sendcloud (proposta). O anúncio e o ficheiro são
+ * duas chamadas: juntas cabem nos 30 s do núcleo (revisão do #406, P3-4).
+ */
+export const TEMPO_DA_CHAMADA_MS = 12_000;
 
 /** O serviço sem custo para as etiquetas de teste (D2). */
 export const SERVICO_DE_TESTE = "sendcloud:letter";
@@ -87,7 +90,7 @@ async function chamar(
   } catch (erro) {
     throw new ErroDeRede("a Sendcloud não respondeu", { cause: erro });
   }
-  if (r.status >= 500 || r.status === 429) {
+  if (r.status >= 500 || r.status === 429 || r.status === 408) {
     throw new ErroDeRede(`a Sendcloud respondeu ${String(r.status)}`);
   }
   let json: unknown = null;
@@ -175,28 +178,35 @@ function volumeDe(envio: Record<string, unknown> | null) {
   };
 }
 
-/** O envio já existe na Sendcloud: a etiqueta, se for válida. */
+/**
+ * O envio já existe na Sendcloud. Três respostas (revisão do #406, P1-1):
+ * a etiqueta; «sem etiqueta», só quando se sabe (o anúncio falhou ou foi
+ * anulado); ou `ErroDeRede` quando o envio existe mas ainda não está pronto
+ * (a anunciar, sem número): fica incerta e consulta-se, nunca se pede outra.
+ */
 async function etiquetaDoEnvio(
   buscar: Buscar,
   c: CredenciaisTransportadora,
   envio: Record<string, unknown> | null,
-): Promise<EtiquetaEmitida | null> {
+): Promise<EtiquetaEmitida | "sem_etiqueta"> {
   const v = volumeDe(envio);
-  if (
-    v === null ||
-    v.seguimento === null ||
-    v.id === null ||
-    v.codigo.includes("CANCEL") ||
-    v.codigo.includes("FAILED")
-  ) {
-    return null;
+  if (v === null) {
+    throw new ErroDeRede("a resposta da Sendcloud não traz o volume");
+  }
+  if (v.codigo.includes("CANCEL") || v.codigo.includes("FAILED")) {
+    return "sem_etiqueta";
+  }
+  if (v.seguimento === null || v.id === null) {
+    throw new ErroDeRede(
+      `o envio existe mas ainda não tem etiqueta (${v.codigo || "sem estado"})`,
+    );
   }
   const conteudo =
     v.ficheiro !== null
       ? Buffer.from(v.ficheiro, "base64")
       : await ficheiroDoVolume(buscar, c, v.id);
-  if (conteudo.length === 0) {
-    throw new ErroDeRede("o ficheiro da etiqueta veio vazio");
+  if (!conteudo.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
+    throw new ErroDeRede("o ficheiro da etiqueta não é um PDF");
   }
   return {
     seguimento: v.seguimento.slice(0, 200),
@@ -209,6 +219,7 @@ async function etiquetaDoEnvio(
 export function normalizar(
   phase: string | null,
   exception: string | null,
+  subStatus: string | null = null,
 ): EventoSeguimento["estadoNormalizado"] {
   switch (phase) {
     case "dropped":
@@ -224,11 +235,15 @@ export function normalizar(
     case "pup":
       return "disponivel_para_levantar";
     case "delivered":
-      return "entregue";
+      // Só a entrega sem pormenor conta (revisão do #406, P2-6): «entregue
+      // ao vizinho» ou «na caixa do correio» pode não ser a posse que conta
+      // para a livre resolução (L6, C). Uma pessoa vê-a no histórico.
+      return subStatus === null || subStatus === "none" ? "entregue" : "outro";
     default:
-      // `delivery_forced` (sem confirmação da transportadora) e `missing`
-      // (pode ser temporário) ficam só no histórico (D6).
-      return exception === "returned_sender" ? "devolvida" : "outro";
+      // `delivery_forced` (sem confirmação da transportadora), `missing`
+      // (pode ser temporário) e `returned_sender` («vai ser devolvida»,
+      // ainda não foi: revisão do #406, P2-5) ficam só no histórico (D6).
+      return "outro";
   }
 }
 
@@ -250,7 +265,7 @@ export function eventosDe(json: unknown): EventoSeguimento[] {
         .update(`${em}|${phase ?? ""}|${exception ?? ""}|${sub ?? ""}`)
         .digest("hex"),
       estadoTransportadora: (estado || "desconhecido").slice(0, 100),
-      estadoNormalizado: normalizar(phase, exception),
+      estadoNormalizado: normalizar(phase, exception, sub),
       em: new Date(em),
     });
   }
@@ -263,12 +278,15 @@ export function servicoDe(
   destino: string,
 ): ServicoTransportadora | null {
   const codigo = texto(o["code"]);
-  if (codigo === null || codigo.length > 100) return null;
+  // O que a base aceita (0080); o resto fica de fora (revisão do #406, P3-3).
+  if (codigo === null || !/^[0-9A-Za-z_.:/-]{1,100}$/.test(codigo)) return null;
   const req = objecto(o["requirements"]);
   const campos = lista(req?.["fields"]).map(texto);
+  // Na dúvida, não se vende (R4; revisão do #406, P3-2).
   if (
-    req?.["is_service_point_required"] === true ||
-    req?.["export_documents"] === true ||
+    req === null ||
+    req["is_service_point_required"] !== false ||
+    req["export_documents"] !== false ||
     campos.some((c) => c === "length" || c === "width" || c === "height")
   ) {
     return null;
@@ -276,10 +294,9 @@ export function servicoDe(
   const max = objecto(objecto(objecto(o["weight"])?.["max"]));
   const valor = Number(texto(max?.["value"]));
   const unidade = texto(max?.["unit"]);
-  const pesoMaxG =
-    Number.isFinite(valor) && valor > 0
-      ? Math.floor(valor * (unidade === "g" ? 1 : 1000))
-      : null;
+  const fator = unidade === "kg" ? 1000 : unidade === "g" ? 1 : null;
+  if (fator === null || !Number.isFinite(valor) || valor <= 0) return null;
+  const pesoMaxG = Math.floor(valor * fator);
   return {
     codigo,
     nome: { pt: (texto(o["name"]) ?? codigo).slice(0, 200) },
@@ -352,6 +369,14 @@ export function adaptadorSendcloud(
     },
 
     async pedirEtiqueta(c, p): Promise<ResultadoEtiqueta> {
+      // Só há modo teste (0074): nenhum outro serviço chega à Sendcloud,
+      // mesmo que a fotografia o tivesse (revisão do #406, P3-5).
+      if (p.servico !== SERVICO_DE_TESTE) {
+        return {
+          estado: "recusada",
+          motivo: `em modo teste só se pede o serviço ${SERVICO_DE_TESTE}`,
+        };
+      }
       // Só o que a entrega precisa (D9): sem linhas, preços nem encomenda.
       const r = await chamar(buscar, c, "POST", "/shipments/announce", {
         label_details: { mime_type: "application/pdf", dpi: 72 },
@@ -371,10 +396,7 @@ export function adaptadorSendcloud(
         // 409: a mesma referência já tinha um envio, e vem ele (R2).
         const envio = objecto(objecto(r.json)?.["data"]) ?? objecto(r.json);
         const e = await etiquetaDoEnvio(buscar, c, envio);
-        if (e !== null) return { estado: "emitida", ...e };
-        if (volumeDe(envio) === null) {
-          throw new ErroDeRede("a resposta da Sendcloud não traz o volume");
-        }
+        if (e !== "sem_etiqueta") return { estado: "emitida", ...e };
         return {
           estado: "recusada",
           motivo: motivoDe(envio, "a transportadora não aceitou o envio"),
@@ -393,13 +415,15 @@ export function adaptadorSendcloud(
         "GET",
         `/shipments?external_reference_id=${encodeURIComponent(referencia)}`,
       );
-      if (r.estado === 404) return null;
+      // Uma lista não dá 404: não se sabe, e «não existe» deixaria pedir
+      // outra (revisão do #406, P3-1).
       if (r.estado !== 200) {
         throw new ErroDeRede(`a consulta respondeu ${String(r.estado)}`);
       }
       const envios = lista(objecto(r.json)?.["data"]);
       if (envios.length === 0) return null;
-      return etiquetaDoEnvio(buscar, c, objecto(envios[0]));
+      const e = await etiquetaDoEnvio(buscar, c, objecto(envios[0]));
+      return e === "sem_etiqueta" ? null : e;
     },
 
     async anularEtiqueta(c, seguimento) {
@@ -420,9 +444,13 @@ export function adaptadorSendcloud(
         "POST",
         `/shipments/${encodeURIComponent(id)}/cancel`,
       );
-      // 202: em fila; a Sendcloud anula se o envio não andar (D7).
-      if (a.estado === 200 || a.estado === 202) return "anulada";
-      if (a.estado === 409 || a.estado === 404) return "nao_permitido";
+      if (a.estado === 200) return "anulada";
+      // 202 (em fila: a Sendcloud só anula se o envio não andar em 14 dias)
+      // não é anulada: a etiqueta continua viva e não se pede outra
+      // (revisão do #406, P2-4; D7).
+      if (a.estado === 202 || a.estado === 409 || a.estado === 404) {
+        return "nao_permitido";
+      }
       throw new ErroDeRede(`a anulação respondeu ${String(a.estado)}`);
     },
 
@@ -445,10 +473,11 @@ export function adaptadorSendcloud(
       const esperada = createHmac("sha256", segredo)
         .update(corpo, "utf8")
         .digest("hex");
+      const recebida = Buffer.from(typeof dada === "string" ? dada : "");
+      const devida = Buffer.from(esperada);
       if (
-        typeof dada !== "string" ||
-        dada.length !== esperada.length ||
-        !timingSafeEqual(Buffer.from(dada), Buffer.from(esperada))
+        recebida.length !== devida.length ||
+        !timingSafeEqual(recebida, devida)
       ) {
         return { valido: false };
       }

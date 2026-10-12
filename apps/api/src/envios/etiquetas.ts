@@ -986,10 +986,21 @@ export async function receberAviso(
     );
     // Um aviso sem eventos é um sinal para consultar (docs/36 §16, D4: a
     // Sendcloud): a volta consulta esta expedição daqui a um minuto.
+    // Só numa expedição que ainda anda: numa acabada, o trabalho é apagar o
+    // ficheiro aos 30 dias (Q7), e não se antecipa (revisão do #406, P2-3).
     if (leitura.eventos.length === 0) {
-      await noEnvios(db, c, (trx) =>
-        sql`select envios_trabalho_adiar(${expedicao}::uuid, 1)`.execute(trx),
-      );
+      await noEnvios(db, c, async (trx) => {
+        const x = await trx
+          .selectFrom("expedicao")
+          .select("estado")
+          .where("id", "=", expedicao)
+          .executeTakeFirstOrThrow();
+        if (x.estado === "criada" || x.estado === "expedida") {
+          await sql`select envios_trabalho_adiar(${expedicao}::uuid, 1)`.execute(
+            trx,
+          );
+        }
+      });
     }
     await fechar("tratado");
   } catch (erro) {

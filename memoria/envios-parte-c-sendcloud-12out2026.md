@@ -19,8 +19,9 @@ esperam pela especificação da API. Issue #393; pedido #406; desenho em
 
 ## Números (com data e como se contaram)
 
-- 12/10/2026, local: 7 testes do adaptador (`test/envios-sendcloud.test.ts`)
-  e 1 pela API (`test/envios-etiquetas.test.ts`), verdes.
+- 12/10/2026, local: 9 testes do adaptador (`test/envios-sendcloud.test.ts`)
+  e 1 pela API (`test/envios-etiquetas.test.ts`), verdes, depois da revisão do
+  agente (#406: 0 P0, 1 P1, 7 P2, todos tratados).
 
 ## O que ficou por verificar
 
