@@ -42,6 +42,7 @@ import {
   limitarCliente,
   listarPedidosTitular,
   pseudonimizarCliente,
+  type FichaComOMesmoContacto,
   linhaDoTempo,
   listarConsentimentos,
   listarDuplicados,
@@ -796,6 +797,19 @@ const paraPedidoTitular = (
   resultado: p.resultado,
   encomendas_por_acabar: p.encomendas_por_acabar,
 });
+const FichasComOMesmoContacto = Type.Array(
+  Type.Object({
+    id: Type.String(),
+    estado: Type.String(),
+    sinais: Type.Array(Type.String(), {
+      description: "email, telefone ou os dois; nunca o contacto em si",
+    }),
+  }),
+  {
+    description:
+      "Outras fichas deste comerciante, fora deste grupo, com um e-mail ou telefone igual (ex.: duas compras sem conta). O pedido não chegou a elas: decide o dono se as funde e repete o pedido — o sistema nunca as junta sozinho (docs/23 §15.5). É para o dono, não para entregar ao titular: um telefone partilhado pode apontar para outra pessoa",
+  },
+);
 const ResultadoPseudonimizacaoEsquema = Type.Object({
   fichas: Type.Integer({ description: "A ficha e as fundidas nela" }),
   perfis_pseudonimizados: Type.Integer(),
@@ -824,6 +838,7 @@ const ResultadoPseudonimizacaoEsquema = Type.Object({
     description:
       "Igual a encomendas_por_acabar (mantido por compatibilidade). Com mais de zero, o apagamento não está completo",
   }),
+  fichas_com_o_mesmo_contacto: FichasComOMesmoContacto,
 });
 const Exportacao = Type.Object({
   pedido: Type.Union([Type.String(), Type.Null()], {
@@ -834,10 +849,14 @@ const Exportacao = Type.Object({
   gerada_em: Instante,
   fichas: Type.Array(Type.Unknown(), {
     description:
-      "A ficha e as fundidas nela, cada uma com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas com as linhas e os pagamentos, os candidatos a duplicado e a linha do tempo",
+      "A ficha e as fundidas nela, cada uma com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas inteiras com as linhas, os pagamentos, as expedições (com a prova de entrega), o histórico de estados (sem os motivos), os documentos fiscais (tipo, número, data, totais e o comprador como está no documento; sem o PDF), a livre resolução, as devoluções, os problemas e os reembolsos (sem a prova), os candidatos a duplicado e a linha do tempo. Não saem as sessões de checkout, os avisos dos prestadores nem os eventos de saída (docs/23 §15.2)",
   }),
   pedidos_do_titular: Type.Array(Type.Unknown()),
+  fichas_com_o_mesmo_contacto: FichasComOMesmoContacto,
 });
+
+const comPrefixoCus = (f: FichaComOMesmoContacto[]) =>
+  f.map((x) => ({ ...x, id: `cus_${x.id}` }));
 
 const ParametroId = (id: ReturnType<typeof idCom>) => Type.Object({ id });
 const ParametroEtiquetaDoCliente = Type.Object({
@@ -1725,7 +1744,7 @@ export function rotasDosClientes(
       config: privacidade,
       schema: {
         description:
-          "Exporta tudo o que este domínio guarda sobre o titular, na ficha e nas fundidas nela, com as encomendas, as linhas e os pagamentos delas (só para ler). Regista o pedido com a verificação da identidade. Uma ficha fundida não se exporta: peça pela que ficou. A resposta não se guarda: repetir com a mesma Idempotency-Key dá idempotency.response_not_kept, com o id do pedido (dsr_…); para outra exportação, outra chave.",
+          "Exporta tudo o que se guarda sobre o titular, na ficha e nas fundidas nela, com as encomendas e o que os outros domínios guardam delas (docs/23 §15.2; só para ler), e as outras fichas com o mesmo contacto. Regista o pedido com a verificação da identidade. Uma ficha fundida não se exporta: peça pela que ficou. A resposta não se guarda: repetir com a mesma Idempotency-Key dá idempotency.response_not_kept, com o id do pedido (dsr_…); para outra exportação, outra chave.",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdCliente),
         body: PedidoComVerificacao,
@@ -1750,6 +1769,9 @@ export function rotasDosClientes(
               ...e,
               pedido: e.pedido === null ? null : `dsr_${e.pedido}`,
               cliente: `cus_${e.cliente}`,
+              fichas_com_o_mesmo_contacto: comPrefixoCus(
+                e.fichas_com_o_mesmo_contacto,
+              ),
             };
           }),
         undefined,
@@ -1819,15 +1841,21 @@ export function rotasDosClientes(
     },
     (pedido, resposta) =>
       escrever(base, pedido, resposta, 200, (trx, c) =>
-        emClientes(resposta, () =>
-          pseudonimizarCliente(
+        emClientes(resposta, async () => {
+          const r = await pseudonimizarCliente(
             trx,
             c.comercianteId,
             semPrefixo(pedido.params.id),
             pedido.body.confirmacao,
             pedido.body.verificacao,
-          ),
-        ),
+          );
+          return {
+            ...r,
+            fichas_com_o_mesmo_contacto: comPrefixoCus(
+              r.fichas_com_o_mesmo_contacto,
+            ),
+          };
+        }),
       ),
   );
 

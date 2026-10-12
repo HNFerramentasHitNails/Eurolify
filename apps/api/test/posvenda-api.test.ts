@@ -611,6 +611,30 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     return enc["linhas"] as Json[];
   }
 
+  /** A exportação do titular da encomenda, com uma chave `customers:privacy`. */
+  async function exportarTitular(s: Cenario, encomenda: string) {
+    const clienteId = (
+      await sql<{ c: string }>`select cliente_id as c from encomenda
+        where id = ${encomenda.slice(4)}::uuid`.execute(base.dono)
+    ).rows[0]?.c;
+    const privado = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Privacidade",
+        ambitos: ["customers:privacy"],
+      })
+    ).segredo;
+    return ok(
+      pedir(
+        "POST",
+        `/customers/cus_${String(clienteId)}/export`,
+        { verificacao: "resposta do e-mail da encomenda a 12/10/2026" },
+        { authorization: `Bearer ${privado}` },
+      ),
+    );
+  }
+
   /** A entrega passa para há `dias` dias (o relógio do prazo). */
   const entregueHa = (encomenda: string, dias: number) =>
     base.dono.transaction().execute(async (t) => {
@@ -1042,6 +1066,188 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     });
     // Quatro comerciantes e sete voltas da fila.
   }, 30_000);
+
+  it("a exportação traz a encomenda inteira e o resto dos domínios: expedição com a prova, estados sem motivo, documento sem PDF, livre resolução, devolução, problema e reembolso sem a prova (docs/23 §15.2)", async () => {
+    const s = await cenario();
+    await ligar(s, `c-${randomUUID()}`);
+    const e = await paga(s, [[s.v1, 2]], "501964843");
+    await ateParar();
+    const id = e.encomenda.slice(4);
+    // Expedida e entregue, com o nome de quem recebeu na prova.
+    const enc = await ok(s.adm("GET", `/orders/${e.encomenda}`));
+    const linhas = enc["linhas"] as Json[];
+    const x = await ok(
+      s.adm("POST", `/orders/${e.encomenda}/shipments`, {
+        linhas: linhas.map((l) => ({
+          linha: l["id"],
+          quantidade: l["quantidade"],
+        })),
+      }),
+      201,
+    );
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+        versao: 1,
+        estado: "expedida",
+      }),
+    );
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+        versao: 2,
+        estado: "entregue",
+        prova_entrega: "recebido pela Ana Silva",
+      }),
+    );
+    // Um problema com reembolso transferido à mão (a prova não sai).
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e.encomenda,
+        tipo: "chegou_danificado",
+        descricao: "a Ana Silva diz que o frasco veio partido",
+      }),
+      201,
+    );
+    const d = await ok(
+      s.adm("POST", `/problems/${String(prb["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: linhas[0]?.["id"], quantidade: 1 }],
+        motivo: "chegou partido",
+      }),
+      201,
+    );
+    const rfd = String(d["reembolso"]);
+    const r = await ok(s.adm("GET", `/refunds/${rfd}`));
+    await ok(
+      s.adm("POST", `/refunds/${rfd}/manual`, {
+        versao: r["versao"],
+        montante: r["montante"],
+        data: "2026-10-10",
+        referencia: "TRF-EXPORTA-77",
+      }),
+    );
+    // A livre resolução da outra unidade, pelo botão (abre a devolução).
+    await ok(
+      pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+        linhas: [{ linha: linhas[0]?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    // Os motivos escritos nas transições desta encomenda: nenhum sai.
+    const motivos = (
+      await sql<{ motivo: string }>`
+        select t.motivo from transicao_encomenda t
+        where t.encomenda_id = ${id}::uuid and t.motivo is not null
+        union all
+        select t.motivo from transicao_pagamento t
+        join pagamento p on p.id = t.pagamento_id
+        where p.encomenda_id = ${id}::uuid and t.motivo is not null`.execute(
+        base.dono,
+      )
+    ).rows.map((m) => m.motivo);
+    const exp = await exportarTitular(s, e.encomenda);
+    const f = (exp["fichas"] as Json[])[0] ?? {};
+    const texto = JSON.stringify(exp);
+    // A encomenda inteira: também os portes, o método, as aceitações e a
+    // língua (antes faltavam).
+    const encomenda = (f["encomendas"] as Json[])[0] ?? {};
+    for (const campo of ["portes", "metodo_entrega", "aceitacoes", "lingua"]) {
+      expect(encomenda, campo).toHaveProperty(campo);
+    }
+    expect(encomenda["aceitacoes"]).not.toBeNull();
+    // A expedição com a transportadora, o seguimento, as datas e a prova.
+    const exps = f["expedicoes"] as Json[];
+    expect(exps).toHaveLength(1);
+    expect(exps[0]).toMatchObject({
+      estado: "entregue",
+      prova_entrega: "recebido pela Ana Silva",
+    });
+    for (const campo of ["transportadora", "seguimento", "expedida_em"]) {
+      expect(exps[0], campo).toHaveProperty(campo);
+    }
+    expect(exps[0]).not.toHaveProperty("etiqueta");
+    // O histórico de estados sem o motivo nem quem mudou.
+    const estados = [
+      ...(f["estados_das_encomendas"] as Json[]),
+      ...(f["estados_dos_pagamentos"] as Json[]),
+    ];
+    expect((f["estados_das_encomendas"] as Json[]).length).toBeGreaterThan(0);
+    expect((f["estados_dos_pagamentos"] as Json[]).length).toBeGreaterThan(0);
+    for (const t of estados) {
+      expect(t).not.toHaveProperty("motivo");
+      expect(t).not.toHaveProperty("quem");
+    }
+    expect(motivos.length).toBeGreaterThan(0);
+    for (const m of motivos) expect(texto).not.toContain(m);
+    // O documento fiscal emitido: tipo, número, data, totais e comprador;
+    // sem o PDF nem a resposta em bruto.
+    const docs = f["documentos_fiscais"] as Json[];
+    const fatura = docs.find((x) => x["estado"] === "emitido");
+    expect(fatura).toMatchObject({
+      numero: expect.any(String) as unknown,
+      data: expect.anything() as unknown,
+      comprador: expect.objectContaining({
+        nif: expect.stringContaining("501964843") as unknown,
+      }) as unknown,
+    });
+    expect(fatura?.["totais_no_documento"]).not.toBeNull();
+    // E o comprador como ficou no documento lido de volta (P2-2).
+    expect(fatura?.["comprador_no_documento"]).toMatchObject({
+      nif: expect.stringContaining("501964843") as unknown,
+    });
+    for (const doc of docs) {
+      expect(doc).not.toHaveProperty("pdf");
+      expect(doc).not.toHaveProperty("em_bruto");
+    }
+    // A livre resolução com o contacto e a confirmação; a devolução que
+    // abriu; o problema com o texto.
+    expect(f["pedidos_de_livre_resolucao"]).toEqual([
+      expect.objectContaining({
+        contacto: "rui@exemplo.pt",
+        estado: "aceite",
+        confirmacao: expect.objectContaining({
+          encomenda: e.encomenda,
+        }) as unknown,
+      }),
+    ]);
+    expect((f["devolucoes"] as Json[]).length).toBe(1);
+    expect((f["linhas_das_devolucoes"] as Json[]).length).toBe(1);
+    expect(f["problemas"]).toEqual([
+      expect.objectContaining({
+        descricao: "a Ana Silva diz que o frasco veio partido",
+      }),
+    ]);
+    // O reembolso com o montante e o estado, sem a prova da transferência.
+    const reembolsos = f["reembolsos"] as Json[];
+    expect(reembolsos).toEqual([
+      expect.objectContaining({
+        estado: "executado",
+        montante: String(r["montante"]),
+      }),
+    ]);
+    for (const chave of ["prova", "falha", "decidido_por", "pedido_por"]) {
+      expect(reembolsos[0]).not.toHaveProperty(chave);
+    }
+    expect(texto).not.toContain("TRF-EXPORTA-77");
+    // O que não sai: a sessão de checkout, os avisos e os eventos de saída
+    // (nem pelos ids; revisão do #411, testes).
+    const naoSaem = (
+      await sql<{ id: string }>`
+        select a.id::text as id from aviso_pagamento a
+        join pagamento p on p.id = a.pagamento_id
+        where p.encomenda_id = ${id}::uuid
+        union all
+        select s.id::text from sessao_checkout s
+        join encomenda x on x.sessao_id = s.id where x.id = ${id}::uuid`.execute(
+        base.dono,
+      )
+    ).rows.map((x) => x.id);
+    expect(naoSaem.length).toBeGreaterThan(1);
+    // A sessão sai só como `sessao_id` da encomenda (um id, sem dados).
+    const sessao = String(encomenda["sessao_id"]);
+    for (const x of naoSaem.filter((x) => x !== sessao)) {
+      expect(texto).not.toContain(x);
+    }
+  });
 
   it("o botão: dentro do prazo regista, confirma com data e hora e abre a devolução; sem dados pessoais", async () => {
     const s = await cenario();
@@ -1591,6 +1797,20 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     );
     ({ fatura, notas } = await documentosDe(s, e.encomenda));
     expect(fatura?.["estado"]).toBe("fora");
+    // A exportação do titular dá o número declarado, e não o motivo do
+    // rasto (docs/23 §15.2; revisão do #411, P2-1).
+    {
+      const exp = await exportarTitular(s, e.encomenda);
+      const docs = (exp["fichas"] as Json[])[0]?.[
+        "documentos_fiscais"
+      ] as Json[];
+      expect(docs.find((d) => d["tipo"] === "fatura")).toMatchObject({
+        estado: "fora",
+        numero: null,
+        numero_declarado: "FT 2026/58",
+      });
+      expect(JSON.stringify(exp)).not.toContain("faturada no sistema da loja");
+    }
     // A NC sai com a fatura, sem número declarado: o da fatura não é o dela
     // (revisão do #386, P2-2).
     expect(notas[0]).toMatchObject({

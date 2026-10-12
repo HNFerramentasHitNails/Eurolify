@@ -24,6 +24,11 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
   (com as duas excepções do P1-1 abaixo, 12/10/2026). A conclusão
   automática é 14 dias depois de entregue (`stock/repositorio.ts:1313`),
   o prazo da livre resolução.
+- Parte 3 (12/10/2026, `docs/23` §15.10): a exportação ganha a coluna
+  «Exportação» da §15.2 (a encomenda inteira, expedições, estados sem
+  motivo, documentos fiscais sem PDF, livre resolução, devoluções,
+  problemas, reembolsos sem prova) e, com o apagamento, as fichas com o
+  mesmo e-mail ou telefone (§15.5), só listadas.
 
 ## Números (com data e como se contaram)
 
@@ -40,6 +45,15 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
   problema fechado sem reembolso; perdida com disputa). 4 contraprovas (sem
   os 14 dias; sem o problema fechado; sem o pagamento; sem `em_disputa` na
   lista comum): cada uma faz falhar o caso.
+- Parte 3 (12/10/2026, PostgreSQL 18.6 em Docker, Node 22.22.0): 1 caso no
+  `posvenda-api.test.ts` e 1 no `clientes-titular.test.ts`. 5 contraprovas
+  (o motivo nas transições; a prova no reembolso; o PDF no documento; sem
+  tirar o grupo; contar depois de apagar): cada uma faz falhar o caso. Os
+  quatro ficheiros afectados: 83 testes certos.
+- Revisão do #411 (agente, 12/10/2026): nenhum P0/P1; tratados P2-1 (número
+  declarado de um documento emitido fora), P2-2 (comprador lido do
+  documento), P2-3 (índices na 0082 e a procura de contactos com listas,
+  para os índices GIN). 2 contraprovas novas, cada uma faz falhar o caso.
 
 ## O que ficou por verificar
 
@@ -54,8 +68,13 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
   ou ser abandonada (a mais cedo entre a última mudança e `expira_em`,
   revisão do #402, P2-1). O prazo de 7 dias é **C** (jurista). Índice só
   das sessões com dados; o custo com muitas sessões não foi medido. A tarefa
-  não avisa se parar (desvio ao §15.6, como a fila do titular). Parte 3
-  (exportação) por fazer.
+  não avisa se parar (desvio ao §15.6, como a fila do titular).
+- Parte 3: não se mediu o tamanho nem o tempo da exportação de uma pessoa
+  com muitas encomendas (uma consulta por tabela e por ficha), nem se o
+  planeador usa os índices da 0082 e os GIN da 0046 (sem EXPLAIN). Os montantes
+  saem como texto (bigint), como os pagamentos já saíam. As fichas com o
+  mesmo contacto não procuram pelo NIF (o sinal `nif_particular` dos
+  duplicados), porque a §15.5 só fala de e-mail e telefone.
 - Revisão do #374, P1-1, **decidida** (Diogo, 12/10/2026: *«a»*); os
   estados da encomenda não mudam. Acabam também, sem nada aberto: uma
   `devolvida_parcial` 14 dias depois da última entrega (como a

@@ -763,6 +763,67 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     );
   });
 
+  it("a exportação e o apagamento listam as outras fichas com o mesmo e-mail ou telefone, sem as juntar; nem as do grupo, nem as de outro comerciante (docs/23 §15.5)", async () => {
+    const u = unico();
+    const tel = `+3519${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+    const id = await ficha({
+      nome: `Ana ${u}`,
+      emails: [`ana.${u}@ex.pt`],
+      telefones: [tel],
+    });
+    // Outra compra sem conta, com o e-mail em maiúsculas: o mesmo e-mail.
+    const porEmail = await ficha({
+      nome: `A. ${u}`,
+      emails: [`ANA.${u}@EX.PT`],
+    });
+    const porTelefone = await ficha({ nome: `Ana S. ${u}`, telefones: [tel] });
+    const pelosDois = await ficha({
+      nome: `Ana Silva ${u}`,
+      emails: [`ana.${u}@ex.pt`],
+      telefones: [tel],
+    });
+    // Uma já apagada com o mesmo e-mail: não entra (já não tem contactos).
+    const apagada = await ficha({
+      nome: `Ana ${u}`,
+      emails: [`ana.${u}@ex.pt`],
+    });
+    await ok(pseudonimizar(apagada));
+    const outra = await ficha({ nome: `Rui ${u}`, emails: [`rui.${u}@ex.pt`] });
+    // Uma do grupo (fundida nesta) e uma de outro comerciante: não entram.
+    const fundida = await ficha({
+      nome: `Ana ${u}`,
+      emails: [`ana.${u}@ex.pt`],
+    });
+    await ok(
+      pedir("POST", `/customers/${id}/merge`, {
+        absorver: fundida,
+        ensaio: false,
+      }),
+    );
+    await ficha({ nome: `Ana ${u}`, emails: [`ana.${u}@ex.pt`] }, deB);
+    const esperadas = [
+      { id: porEmail, estado: "activo", sinais: ["email"] },
+      { id: porTelefone, estado: "activo", sinais: ["telefone"] },
+      { id: pelosDois, estado: "activo", sinais: ["email", "telefone"] },
+    ].sort((x, y) => x.id.localeCompare(y.id));
+    const e = await ok(
+      pedir("POST", `/customers/${id}/export`, { verificacao }),
+    );
+    expect(e["fichas_com_o_mesmo_contacto"]).toEqual(esperadas);
+    const r = await ok(pseudonimizar(id));
+    expect(r["fichas_com_o_mesmo_contacto"]).toEqual(esperadas);
+    // Só se listam: as outras ficam como estavam, com os contactos.
+    for (const [x, campo, valor] of [
+      [porEmail, "emails", [`ANA.${u}@EX.PT`]],
+      [porTelefone, "telefones", [tel]],
+      [outra, "emails", [`rui.${u}@ex.pt`]],
+    ] as const) {
+      const f = await ok(pedir("GET", `/customers/${x}`));
+      expect(f["estado"]).toBe("activo");
+      expect(f[campo]).toEqual(valor);
+    }
+  });
+
   it("a exportação não fica guardada na idempotência: repetir a chave dá o id do pedido, sem os dados (revisão do #314, P2-5)", async () => {
     const u = unico();
     const id = await ficha({ nome: `Eva ${u}`, emails: [`e.${u}@ex.pt`] });
