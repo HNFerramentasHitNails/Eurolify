@@ -19,6 +19,7 @@
   - o utilizador e a pasta no passo 11.
   - Desenho em `docs/34` §13.
 - **A chave do fluxo `configurar`** (12/10/2026): o Diogo criou-a no computador dele, guardou a parte privada no segredo `VPS_CHAVE_CONFIGURAR` do ambiente `ensaio` e colou a pública, que entrou em `infra/vps/chaves/fluxos/configurar.pub` (ed25519, impressão `SHA256:h38JE67Leg8JbDeKgnrBlGbRObNRKLcqSb6++lh7Uzg`, calculada da linha). O `aplicar-script` instala-a ao juntar. O SPF ficou com um registo só (`v=spf1 include:mx.ovh.com -all`, lido em `dns.google` a 12/10/2026).
+- **A acção `configurar` correu** (12/10/2026, corrida 38263297038, lançada pelo Diogo, verde): escreveu o `/etc/eurolify/api-smtp.env` (5 variáveis), recriou a API com a imagem que estava no ar (`sha256:a67a5c48…`), o `/health` responde, a API chega à base e corre com a configuração do e-mail (lido no registo da corrida).
 
 ## Números (com data e como se contaram)
 
@@ -39,8 +40,8 @@
 ## O que ficou por verificar
 
 - O DKIM: o selector vem do painel da OVH e não o li.
-- A chave `configurar`: por criar pelo Diogo (a pública no repositório, a
-  privada no segredo `VPS_CHAVE_CONFIGURAR`).
-- O primeiro e-mail real, que só sai depois disso e de lançar a acção.
+- O primeiro e-mail real: a API tem a configuração (12/10/2026), mas não vi
+  nenhum sair nem chegar, nem se a OVH aceita o início de sessão (só se sabe
+  no primeiro envio, no estado da notificação).
 - Se a conta é Email Pro ou MX Plan: o painel mostra 1 GB, e não sei se
   isso corresponde à Email Pro.
