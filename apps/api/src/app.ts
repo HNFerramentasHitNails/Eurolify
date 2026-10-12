@@ -44,7 +44,7 @@ import { rotasDoStock } from "./stock/rotas.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { rotasDosDocumentos } from "./faturacao/rotas.js";
 import { rotasDaPosVenda } from "./posvenda/rotas.js";
-import { rotasDasTarefas } from "./tarefas/rotas.js";
+import { rotasDasTarefas, rotasDasTarefasNoHub } from "./tarefas/rotas.js";
 import { rotasDasVendas, rotasDasVendasNoHub } from "./vendas/rotas.js";
 import { rotasDasNotificacoes } from "./notificacoes/rotas.js";
 import type { ConsultaVies } from "./clientes/vies.js";
@@ -424,6 +424,7 @@ export function criarApp(
       rotasDasChavesDoHub(rotas, base);
       rotasDoCatalogoNoHub(rotas, base);
       rotasDasVendasNoHub(rotas, base);
+      rotasDasTarefasNoHub(rotas, base);
       if (armazenamento !== undefined) {
         rotasDasImagensNoHub(rotas, base, armazenamento);
       }

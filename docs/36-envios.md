@@ -330,15 +330,15 @@ expedição; um aviso sem assinatura; um evento repetido; um evento fora de
 ordem; um perigoso no checkout; uma morada fora da zona; o isolamento entre
 comerciantes em contas, métodos, expedições e eventos.
 
-## 14. Em código — parte A (12/10/2026; migração 0073; `docs/06`, ED)
+## 14. Em código — parte A (12/10/2026; migração 0074; `docs/06`, ED)
 
 | O quê | Onde |
 |---|---|
-| tabela `conta_transportadora` (só `ctt`, só modo teste), com o RLS forçado; credenciais e segredo dos avisos cifrados com AES-256-GCM e a chave fora da base (`ENVIOS_CHAVE`, como a dos pagamentos); pronta só com credenciais e a chamada de teste | migração 0073; `src/envios/repositorio.ts` |
-| o âmbito novo `shipping:accounts`, só do dono (na lista das chaves e em `papel_ambitos`) | migração 0073; `src/identidade/` |
+| tabela `conta_transportadora` (só `ctt`, só modo teste), com o RLS forçado; credenciais e segredo dos avisos cifrados com AES-256-GCM e a chave fora da base (`ENVIOS_CHAVE`, como a dos pagamentos); pronta só com credenciais e a chamada de teste | migração 0074; `src/envios/repositorio.ts` |
+| o âmbito novo `shipping:accounts`, só do dono (na lista das chaves e em `papel_ambitos`) | migração 0074; `src/identidade/` |
 | as rotas da §7.1 para as contas: listar, criar, mudar ou arquivar, definir as credenciais, testar, ver os serviços | `src/envios/rotas.ts` |
 | o contrato do adaptador com `servicos()` e `testar()`; as outras operações da §8 entram com a parte B | `src/envios/adaptador.ts` |
-| o método de entrega com `conta` e `servico` (juntos, ou nenhum: método manual), `prazo_max_dias` (1 a 30), `codigos_postais`, `aceita_onu` e `peso_max_g`; com conta, confere-se que a conta está pronta, que o serviço existe, que entrega nos países do mercado, que aceita os ONU do método, que o peso não passa o dele e que o telefone se pede quando o serviço o pede | migração 0073; `src/checkout/repositorio.ts` |
+| o método de entrega com `conta` e `servico` (juntos, ou nenhum: método manual), `prazo_max_dias` (1 a 30), `codigos_postais`, `aceita_onu` e `peso_max_g`; com conta, confere-se que a conta está pronta, que o serviço existe, que entrega nos países do mercado, que aceita os ONU do método, que o peso não passa o dele e que o telefone se pede quando o serviço o pede | migração 0074; `src/checkout/repositorio.ts` |
 | R4 numa regra só (`porQueNaoServe`): zona pelo prefixo do código postal, perigosos, peso das variantes-folha (um kit pelos componentes) e conta pronta; usada pela lista do checkout, pela escolha do método, pelo resumo (bloqueio `metodo_entrega`) e pelo botão final (`checkout.no_delivery_method`) | `src/checkout/entrega.ts` |
 | `GET /checkout/{token}/delivery-methods`: os métodos do mercado com a data-limite, os códigos postais servidos e, nos que não servem, o porquê (L1, L3) | `src/checkout/rotas.ts` |
 | a data-limite (L1, L4) no resumo (`portes.data_limite`), na cópia da encomenda (`metodo_entrega.data_limite`, com a conta e o serviço vendidos, R1) e na confirmação (sem a conta nem o serviço) | `src/checkout/` |

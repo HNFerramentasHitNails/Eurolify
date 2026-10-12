@@ -201,3 +201,66 @@ export async function mudarPrazo(
     return r.rows[0]?.v ?? versao;
   });
 }
+
+/**
+ * As pessoas deste comerciante que podem ser responsáveis de um caso da fila
+ * (R3), pela régua da base (`tarefas_podem_ser_responsaveis`, migração 0073):
+ * o «Atribuir…» do Hub mostra estas, sem cópia da régua (docs/22 §28.2).
+ */
+export function podemSerResponsaveis(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  fila: FilaTarefa,
+): Promise<string[]> {
+  return emTarefas(() =>
+    comComerciante(
+      db,
+      comercianteId,
+      async (trx) =>
+        (
+          await sql<{
+            p: string;
+          }>`select x as p from tarefas_podem_ser_responsaveis(${fila}) x`.execute(
+            trx,
+          )
+        ).rows.map((r) => r.p),
+      { soLeitura: true },
+    ),
+  );
+}
+
+/** O fuso do comerciante (o ecrã «A decidir» mostra os prazos nele). */
+export function fusoDo(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+): Promise<string> {
+  return comComerciante(
+    db,
+    comercianteId,
+    async (trx) =>
+      (
+        await trx
+          .selectFrom("comerciante")
+          .select("fuso")
+          .where("id", "=", comercianteId)
+          .executeTakeFirstOrThrow()
+      ).fuso,
+    { soLeitura: true },
+  );
+}
+
+/**
+ * O responsável de agora de um caso aberto (sem o prefixo), na transacção
+ * de quem vai escrever; nenhum se não tem, ou se o caso não está aberto
+ * (a escrita dá então o erro da base).
+ */
+export async function responsavelDe(
+  trx: Transaction<BaseDados>,
+  fila: FilaTarefa,
+  caso: string,
+): Promise<string | null> {
+  const { rows } = await sql<{ responsavel: string | null }>`
+    select x.responsavel from tarefas_casos(${[fila]}::text[]) x
+    where x.caso = ${caso}::uuid`.execute(trx);
+  return rows[0]?.responsavel ?? null;
+}

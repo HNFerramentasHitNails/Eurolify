@@ -1049,7 +1049,7 @@ export interface TabelaMetodoEntrega {
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, Date>;
   versao: ColumnType<number, never, number>;
-  // Envios, parte A (docs/36 §3.2; 0073).
+  // Envios, parte A (docs/36 §3.2; 0074).
   conta_transportadora_id: ColumnType<
     string | null,
     string | null | undefined,
@@ -1066,7 +1066,7 @@ export interface TabelaMetodoEntrega {
   >;
 }
 
-/** As transportadoras com adaptador (docs/36 §3.1; 0073). */
+/** As transportadoras com adaptador (docs/36 §3.1; 0074). */
 export const TRANSPORTADORAS = ["ctt"] as const;
 export type Transportadora = (typeof TRANSPORTADORAS)[number];
 

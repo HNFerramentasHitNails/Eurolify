@@ -29,6 +29,8 @@ export interface Pedido {
   origem?: string | null;
   /** O IP de quem pede; por omissão, um diferente em cada pedido. */
   ip?: string;
+  /** Outros cabeçalhos (ex.: `eurolify-ia`). */
+  cabecalhos?: Record<string, string>;
 }
 
 let contadorDeIp = 0;
@@ -65,7 +67,7 @@ export function hubDeTeste(
     url: string,
     p: Pedido = {},
   ) => {
-    const cabecalhos: Record<string, string> = {};
+    const cabecalhos: Record<string, string> = { ...p.cabecalhos };
     if (p.origem !== null) cabecalhos["origin"] = p.origem ?? ORIGEM;
     if (p.sessao !== undefined) cabecalhos["cookie"] = `${COOKIE}=${p.sessao}`;
     if (p.comerciante !== undefined) {

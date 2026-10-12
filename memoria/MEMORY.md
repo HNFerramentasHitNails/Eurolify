@@ -131,7 +131,7 @@
 
 - [Hub da empresa (#355): docs/31; módulos a partir da Fase 2 (DR, ADR-0042); 13 módulos pelas 8 portas (DS, ADR-0043): E, marketing e G fora, 2 peças na Fase 1; balcão pelo POS do Hub, Moloni só fatura (DV, ADR-0044) — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
 - [API do Moloni testada só a ler (#355): vendas do POS lêem-se com terminal_id; cada venda baixa o stock sozinha; movimento negativo é saída; token só no endereço; sem limite até ~1400/min; status 2 por perceber — 11/10/2026](moloni-api-testes-11out2026.md)
-- [Envios, parte A (#393, ED): conta_transportadora (0073, só CTT em teste, ENVIOS_CHAVE), regras do método no checkout (zona por prefixo, ONU, peso, conta pronta) e data-limite; 9 testes; PostgreSQL pelo mirror.gcr.io — 12/10/2026](envios-parte-a-12out2026.md)
+- [Envios, parte A (#393, ED): conta_transportadora (0074, só CTT em teste, ENVIOS_CHAVE), regras do método no checkout (zona por prefixo, ONU, peso, conta pronta) e data-limite; 9 testes; PostgreSQL pelo mirror.gcr.io — 12/10/2026](envios-parte-a-12out2026.md)
 - [Moloni, a emissão (#310, parte 2): 33 páginas da documentação lidas; desenho aprovado (DZ); código no #384 (0069), revisto e corrigido; nada medido no Moloni real — 12/10/2026](moloni-emissao-desenho-12out2026.md)
 - [Emitida fora do Eurolify (#310, #386): estado final `fora` pelo dono, número declarado sem ser prova, NC vai com a fatura; corrida com reembolso corrigida (EA, 0070) — 12/10/2026](emitida-fora-12out2026.md)
 - [Pós-venda: aviso do prazo do reembolso (#353, decisão DQ): 3 dias antes e quando passa, evento e lista da API, sem e-mail; prazo no fuso do comerciante; fora de prazo aceite sem aviso; migração 0063 no ensaio (corrida 38165970858) — 11/10/2026](pos-venda-prazo-reembolso-11out2026.md)
@@ -141,3 +141,5 @@
 - [Vendas do dia e do mês (#367, DY): quatro números com e sem IVA, por canal e mercado; âmbito sales:read (dono e gestor); migração 0068; medido: dia ~25 ms, mês 0,4–0,75 s com 100 000 encomendas; sem pré-calcular — 12/10/2026](vendas-do-dia-12out2026.md)
 - [Avisos das tarefas vencidas por e-mail (#372, EB): ao responsável ou, sem ele, a quem decide e atribui; sem o prazo do reembolso; cancela-se no envio; migração 0071 — 12/10/2026](avisos-tarefas-email-12out2026.md)
 - [Pedidos do titular em todos os domínios (#233, DU): desenho docs/23 §15; parte 1 (0072) — o apagamento limpa encomendas acabadas, fila para as em curso, perfil só sem cancelamento sem pagamento, aviso em resumo — 11/10/2026](titular-todos-os-dominios-11out2026.md)
+- [SMTP pela VPS (#372, «a»): acção e chave próprias `configurar`, api-smtp.env 600 root, valores nunca no registo; DNS lido: dois SPF (erro), DMARC p=none; falta a chave e o DKIM — 12/10/2026](smtp-pela-vps-12out2026.md)
+- [Hub «A decidir» (#366 parte 2, Q1 A): rotas /hub/tasks pelo papel, migração 0073, ecrã com filtros, atribuir e prazo no fuso do comerciante; sem ligação ao caso — 12/10/2026](hub-a-decidir-12out2026.md)

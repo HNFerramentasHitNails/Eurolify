@@ -1110,7 +1110,7 @@ export function rotasDoCheckout(
     gratis_a_partir_de:
       m.gratis_a_partir_de === null ? null : Number(m.gratis_a_partir_de),
     pede_telefone: m.pede_telefone,
-    // Os envios (docs/36 §3.2; 0073).
+    // Os envios (docs/36 §3.2; 0074).
     conta:
       m.conta_transportadora_id === null
         ? null

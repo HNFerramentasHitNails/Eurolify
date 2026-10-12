@@ -44,7 +44,7 @@ exit "$(cat /var/tmp/teste-pedido/codigo)"
 FIM
   chmod 755 "/usr/local/sbin/eurolify-$programa"
 done
-for fluxo in publicar aplicar medir operar; do
+for fluxo in publicar aplicar medir operar configurar; do
   id "eurolify-$fluxo" >/dev/null 2>&1 || useradd -r "eurolify-$fluxo"
   install -d -m 700 -o "eurolify-$fluxo" "/var/lib/eurolify/pedidos/$fluxo"
 done
@@ -69,7 +69,7 @@ padrao_de() { # padrao_de <ficheiro> <fluxo>
       print substr($0, RSTART + 8, RLENGTH - 9); exit
     }' "$1"
 }
-for fluxo in publicar aplicar medir operar; do
+for fluxo in publicar aplicar medir operar configurar; do
   a="$(padrao_de "$pedido_sh" "$fluxo")"
   b="$(padrao_de "$trabalho_sh" "$fluxo")"
   if [[ -n "$a" && "$a" == "$b" ]]; then
@@ -78,21 +78,36 @@ for fluxo in publicar aplicar medir operar; do
     falhou "$fluxo: as expressões diferem ('$a' / '$b')"
   fi
 done
-maximo="$(grep -oE '^ *maximo=[0-9]+' "$pedido_sh" | grep -oE '[0-9]+')"
-limite="$(grep -oE 'operar \]\] && limite=[0-9]+' "$trabalho_sh" | grep -oE '[0-9]+$')"
-if [[ -n "$maximo" && "$maximo" == "$limite" ]]; then
-  echo "ok: operar: o mesmo limite de tamanho nas duas camadas ($maximo)"
-else
-  falhou "operar: limites diferentes ('$maximo' / '$limite')"
-fi
-espera="$(awk '/^ *operar\)/ { d = 1 } d && /espera=/ { sub(/.*espera=/, ""); print; exit }' "$pedido_sh")"
+# O limite de tamanho de cada fluxo com pedidos longos, nas duas camadas.
+maximo_de() { # maximo_de <fluxo>: o maximo= do bloco do fluxo no eurolify-pedido
+  awk -v f="$1" '
+    $0 ~ "^ *" f "\\)" { dentro = 1 }
+    dentro && match($0, /^ *maximo=[0-9]+/) {
+      sub(/^ *maximo=/, ""); print; exit
+    }
+    dentro && /;;/ { exit }' "$pedido_sh"
+}
+for fluxo in operar configurar; do
+  maximo="$(maximo_de "$fluxo")"
+  limite="$(grep -oE "$fluxo \]\] && limite=[0-9]+" "$trabalho_sh" | grep -oE '[0-9]+$')"
+  if [[ -n "$maximo" && "$maximo" == "$limite" ]]; then
+    echo "ok: $fluxo: o mesmo limite de tamanho nas duas camadas ($maximo)"
+  else
+    falhou "$fluxo: limites diferentes ('$maximo' / '$limite')"
+  fi
+done
 copia="$(grep -oE '^TimeoutStartSec=[0-9]+' "$f/systemd/eurolify-copia.service" | cut -d= -f2)"
 servico="$(grep -oE '^TimeoutStartSec=[0-9]+' "$f/systemd/eurolify-pedido@.service" | cut -d= -f2)"
-if [[ -n "$espera" && -n "$copia" && -n "$servico" ]] && ((espera > copia && espera > servico)); then
-  echo "ok: operar: espera mais ($espera s) do que a cópia ($copia s) e o serviço ($servico s)"
-else
-  falhou "operar: espera $espera s, cópia $copia s, serviço $servico s (revisão do #110, P2-2)"
-fi
+# O operar espera pela cópia; o configurar pela recriação da API, que pode
+# esperar por uma publicação (revisão do #398, P3-1).
+for fluxo in operar configurar; do
+  espera="$(awk -v f="$fluxo" '$0 ~ "^ *" f "\\)" { d = 1 } d && /espera=/ { sub(/.*espera=/, ""); print; exit }' "$pedido_sh")"
+  if [[ -n "$espera" && -n "$copia" && -n "$servico" ]] && ((espera > copia && espera > servico)); then
+    echo "ok: $fluxo: espera mais ($espera s) do que a cópia ($copia s) e o serviço ($servico s)"
+  else
+    falhou "$fluxo: espera $espera s, cópia $copia s, serviço $servico s (revisão do #110, P2-2)"
+  fi
+done
 
 # 2. Fluxo desconhecido. O «mcp» existe no serviço da máquina, mas não tem
 # chave SSH: o eurolify-pedido não o aceita.
@@ -120,6 +135,12 @@ recusados=(
   "operar|comerciante pt Europe/Lisbon Loja github:1"
   "operar|chave 0 catalog:read eul_sk_abcde $h64 Nome github:1"
   "operar|comerciante pt $fuso_longo Loja run:1 github:1"
+  # O configurar (revisão do #398, P3-2): sem a execução, com «;», com uma
+  # mudança de linha, e longo demais.
+  "configurar|smtp YWJj"
+  "configurar|smtp YWJj run:1 github:1;reboot"
+  "configurar|smtp YWJj${nl}run:1 github:1"
+  "configurar|smtp $(printf 'A%.0s' {1..1500}) run:1 github:1"
 )
 for caso in "${recusados[@]}"; do
   fluxo="${caso%%|*}"; texto="${caso#*|}"; mostrar="${texto//$nl/\\n}"

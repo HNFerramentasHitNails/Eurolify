@@ -1,4 +1,4 @@
-// Os erros dos envios (docs/36 §7.4; migração 0073).
+// Os erros dos envios (docs/36 §7.4; migração 0074).
 
 export type CodigoErroEnvios =
   | "shipping.not_found"

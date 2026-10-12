@@ -8,30 +8,46 @@ import type { Textos } from "./textos";
 
 export type Comerciante = Eu["comerciantes"][number];
 
-export type IdModulo = "equipa" | "artigos" | "chaves";
+export type IdModulo = "equipa" | "artigos" | "decidir" | "chaves";
 
 export interface Modulo {
   id: IdModulo;
   /**
-   * O âmbito que o papel tem de ter no `/hub/me` (docs/22 §13.2); null:
-   * basta ser membro (a Equipa, `GET /hub/members`).
+   * O âmbito que o papel tem de ter no `/hub/me` (docs/22 §13.2), ou uma
+   * lista em que basta um (A decidir: ler pelo menos uma fila, docs/22
+   * §28.3); null: basta ser membro (a Equipa, `GET /hub/members`).
    */
-  ambitoNecessario: string | null;
-  caminho: "/equipa" | "/artigos" | "/chaves";
+  ambitoNecessario: string | readonly string[] | null;
+  caminho: "/equipa" | "/artigos" | "/a-decidir" | "/chaves";
 }
 
 export const MODULOS: readonly Modulo[] = [
   { id: "equipa", ambitoNecessario: null, caminho: "/equipa" },
   { id: "artigos", ambitoNecessario: "catalog:read", caminho: "/artigos" },
+  {
+    id: "decidir",
+    // Os âmbitos que lêem as filas (docs/33 R2): a API filtra as filas.
+    ambitoNecessario: [
+      "payments:read",
+      "invoices:read",
+      "customers:read",
+      "returns:read",
+      "refunds:read",
+    ],
+    caminho: "/a-decidir",
+  },
   { id: "chaves", ambitoNecessario: "keys:write", caminho: "/chaves" },
 ];
 
 /** Os módulos que o papel neste comerciante oferece, pela ordem fixa. */
 export function modulosDe(c: Comerciante): Modulo[] {
-  return MODULOS.filter(
-    (m) =>
-      m.ambitoNecessario === null || c.ambitos.includes(m.ambitoNecessario),
-  );
+  return MODULOS.filter((m) => {
+    const a = m.ambitoNecessario;
+    if (a === null) return true;
+    return typeof a === "string"
+      ? c.ambitos.includes(a)
+      : a.some((x) => c.ambitos.includes(x));
+  });
 }
 
 /** O endereço de um módulo, sempre com o comerciante. */

@@ -4221,7 +4221,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         l["valor_iva"],
         l["total"],
       ]),
-      // Desde a 0073, com a data-limite dos portes (docs/36 L1; revisão do
+      // Desde a 0074, com a data-limite dos portes (docs/36 L1; revisão do
       // #397, P1-1).
       portes: [
         sp(portes["metodo"]),
