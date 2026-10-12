@@ -9,7 +9,8 @@
 > verificado. **O esforço de cada peça é C**: não há medição de quanto um
 > programador com Claude Code demora a construir isto com o rigor de um produto
 > vendido. Por isso tudo vem em intervalos, e a §6 diz como se corrige o
-> intervalo às 8 semanas.
+> intervalo às 8 semanas. **A 12/10/2026 há uma primeira medição, provisória
+> (§6.1)**, com 8 dias de código.
 
 > ✅ **Decidido a 03/10/2026 pelo Diogo: cenário A** — *«será eu e o Bruno a
 > desenvolver com o Claude Code e Codex»* ([ADR-0008](adr/0008-construcao-pelo-diogo-e-pelo-bruno.md)).
@@ -21,7 +22,7 @@
 
 | Cenário | Prazo de construção da Fase 1 | Custo da construção | Custo fixo por mês depois de abrir |
 |---|---|---|---|
-| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **18 a 33 meses** os dois a tempo inteiro, **32 a 60** a meio tempo (§9, com hipótese C; recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS — eram 17 a 32 e 31 a 58 — e outra vez no mesmo dia com as sete filas da peça 21, decisão DW — eram 17 a 33 e 31 a 60; a 04/10/2026, com as três da decisão AD — eram 15 a 29 e 28 a 52) | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
+| **A** ✅ — só o Diogo e o Bruno, com Claude Code e Codex (decidido, ADR-0008) | Fase 1: **18 a 33 meses** os dois a tempo inteiro, **32 a 60** a meio tempo (§9, com hipótese C; recalculado a 11/10/2026 com as peças 21 e 22 da decisão DS — eram 17 a 32 e 31 a 58 — e outra vez no mesmo dia com as sete filas da peça 21, decisão DW — eram 17 a 33 e 31 a 60; a 04/10/2026, com as três da decisão AD — eram 15 a 29 e 28 a 52). **Medição provisória de 12/10/2026 (§6.1, C): o código da Fase 1 completo entre dezembro de 2026 e fevereiro de 2027; a Fase 1 passada entre junho e setembro de 2027** | ≈ 12.000–29.000 € em serviços externos (era ≈ 14.000–33.000, com o alojamento da Scaleway) + o que falta orçamentar | o tempo de duas pessoas que também gerem a empresa |
 | **B** — 2 programadores sénior contratados + Diogo e Bruno no produto | **18 a 34 meses** (era 16 a 30) | **≈ 187.000–506.000 €** (era ≈ 173.000–465.000) | ≈ 9.950–14.230 € (era ≈ 9.940 antes do GitHub Pro e ≈ 10.150–14.870 com a Scaleway) |
 | **C** — 3 programadores sénior contratados + Diogo e Bruno no produto | **13 a 25 meses** (era 12 a 23) | **≈ 208.000–565.000 €** (era ≈ 193.000–519.000) | ≈ 14.910–21.310 € (era ≈ 15.110–21.950, com a Scaleway) |
 
@@ -214,6 +215,90 @@ Uma estimativa sem medida é um palpite. Por isso:
 3. Com o factor medido, decide-se se entra a terceira pessoa (B → C) e
    corrige-se esta página **onde os números estão escritos**.
 
+### 6.1 Medição provisória a 12/10/2026 (8 dias de código, cenário A)
+
+Pedido do Diogo, 12/10/2026: *«sim, corrige já o docs/10 com esta medição»*
+(#390). **Não substitui a medição das 8 semanas** (≈ 29/11/2026), que
+continua a fazer-se. Ainda não há o esforço planeado escrito antes de cada
+peça, nem as horas que o Diogo e o Bruno gastaram.
+
+**Como se mediu:** para cada peça do §2, li o estado do desenho (o cabeçalho
+de `docs/14` a `docs/35`) e procurei o código (`apps/api/src/`, `apps/hub/src/`,
+`apps/mcp/src/`). A partir disso dei um avanço em percentagem — **C**: é
+julgamento meu, não está medido. A percentagem aplica-se ao ponto médio do
+esforço sem imprevistos.
+
+**Números, contados a 12/10/2026 no `main`:**
+- **338 commits** entre 04/10 e 12/10/2026 (`git log --date=short`, por dia);
+- **69 migrações** (`0001` a `0069_faturacao_moloni.sql`);
+- **109 ficheiros de teste** (`*.test.ts`, fora de `node_modules`);
+- os commits por dia: 82 a 04/10, 11 a 12/10 até ao meio-dia.
+
+| # | Peça | Ponto médio (p-s) | Avanço (**C**) | Feito (p-s) | Em que me baseio |
+|---|---|---|---|---|---|
+| 2 | Fundações | 11 | 60 % | 6,6 | Contas e identidade (`docs/19`, `docs/21`), isolamento na base, rasto (`docs/28`), publicação pelo GitHub |
+| 3 | Catálogo | 7 | 75 % | 5,3 | `docs/14` e `src/catalogo/`; publicar pelo Hub (#378) em curso; espelho do sistema do comerciante por fazer |
+| 4 | IVA, VIES, preços B2B, 30 dias | 11 | 40 % | 4,4 | Motor de IVA no código (`docs/24`); VIES (`src/clientes/vies.ts`) |
+| 5 | Checkout alojado | 10 | 25 % | 2,5 | Só a parte 1 (`docs/25` §13) |
+| 6 | Pagamentos | 8 | 20 % | 1,6 | Parte 1 e reembolso MB WAY pela EuPago; a Stripe só aparece num comentário |
+| 7 | Encomendas e stock | 6,5 | 30 % | 2,0 | Só a parte 1 (`docs/27` §12) |
+| 8 | Faturação | 6,5 | 50 % | 3,3 | Parte 1 e adaptador Moloni (`docs/29`); #386 em curso |
+| 9 | Envios | 5 | 0 % | 0 | Sem código: «CTT» não aparece em `src/` |
+| 10 | Livre resolução, área de cliente, notificações | 5,5 | 25 % | 1,4 | `docs/30`, partes 1 e 2; e-mail do prazo (`docs/34`) |
+| 11 | RGPD essencial | 4 | 40 % | 1,6 | Consentimentos; pedidos do titular a meio (#374) |
+| 12 | API, SDK, MCP de leitura, webhooks | 10 | 20 % | 2,0 | Rotas REST por domínio. Sem SDK e sem webhooks de saída. O `apps/mcp` é o MCP da VPS, não o MCP de leitura |
+| 13 | Abertura a comerciantes | 8 | 10 % | 0,8 | Só a exportação (`src/exportacao/`) |
+| 14 | Hub mínimo | 8 | 25 % | 2,0 | Catálogo, equipa e chaves; sem ecrãs de encomendas nem de definições |
+| 15 | Ecrãs e acessibilidade | 6 | 20 % | 1,2 | Os ecrãs do Hub feitos até agora |
+| 16 | Testes, carga, intrusão | 8 | 15 % | 1,2 | Testes de isolamento; carga e teste de intrusão por fazer |
+| 17 | Loja piloto | 3 | 0 % | 0 | — |
+| 18 | Relatório OSS | 3 | 0 % | 0 | O motor decide o OSS, mas o relatório não existe |
+| 19 | Devolução → nota de crédito | 5,5 | 35 % | 1,9 | `docs/30`, partes 1 e 2 |
+| 20 | Lotes e compostos | 4 | 20 % | 0,8 | Já há lote no stock (`src/stock/`) |
+| 21 | Tarefas das filas | 3,75 | 50 % | 1,9 | `docs/33` §13, parte 1 |
+| 22 | Vendas do dia e do mês | 1,5 | 90 % | 1,4 | `docs/35`, consulta, índices e teste de ponta a ponta |
+| | **Soma** (sem a peça 1) | **≈ 135** | **≈ 31 %** | **≈ 42** | |
+
+**O ritmo medido:** ≈ 42 pessoas-semana do §2 em ≈ 1,3 semanas de
+calendário. Isto dá ≈ 32 pessoas-semana estimadas por semana de calendário.
+Mesmo com os dois a tempo inteiro, é **mais de 10 vezes** o ritmo da
+hipótese 1 do §9 (**C**). Falta saber a dedicação de cada um para converter
+este ritmo num factor exacto.
+
+**Porque o resto não se extrapola em linha recta (C):**
+- O que está feito são sobretudo as primeiras partes, que dependem só de nós.
+- O que falta depende de terceiros: integrações reais (Stripe, CTT, Moloni em
+  produção), contas de ensaio, o teste de intrusão, a carga e as validações do
+  contabilista e do jurista.
+- O ritmo já está a descer.
+
+Por isso conto o resto **3 a 4 vezes mais devagar** do que o ritmo medido.
+
+**Previsão revista (cenário A, todas as linhas C):**
+
+| Marco | A hipótese do §9 | Com a medição de 12/10/2026 |
+|---|---|---|
+| Esforço que falta na Fase 1 | 116–221 p-s | ≈ 80–152 p-s (69 % de 100,5–170, com +15 % a +30 %) |
+| Código da Fase 1 completo | maio de 2028 a outubro de 2029 | **dezembro de 2026 a fevereiro de 2027** (≈ 8 a 19 semanas a contar de 12/10/2026) |
+| Primeiro comerciante de fora | — | depois das validações do contabilista e do jurista e da VPS em Paris (até 31/03/2027, ADR-0019); provavelmente no **1.º trimestre de 2027** |
+| Fase 1 passada (+3 meses de vendas reais) | +3 meses sobre o fim da construção | **junho a setembro de 2027** |
+| Até ao fim da Fase 3 | ≈ 39 a 71 meses (3 a 6 anos) | **ordem de grandeza: 2028** — as Fases 2 e 3 não foram medidas peça a peça |
+
+**O que manda continua a ser o critério de passagem, não o calendário**
+(`05-fases-e-mvp.md`). Agora o caminho crítico está fora do código:
+- os orçamentos e as validações do contabilista, do jurista e do seguro;
+- as conversas com comerciantes e os preços da D-14 (travam a peça 13);
+- a VPS em Paris antes do primeiro dado real;
+- os 3 meses de vendas reais.
+
+**O que esta medição não sabe:**
+- as horas e a dedicação de cada um;
+- se as «partes 1» já cobrem os casos difíceis de cada domínio;
+- se as conversas com comerciantes já começaram.
+
+Às 8 semanas, refaz-se esta tabela com o esforço planeado e o gasto, e
+corrige-se o §1 e o §9.
+
 ## 7. Recomendação — opinião (não seguida: decidido o A, ADR-0008)
 
 - **Cenário B com o primeiro contratado como líder técnico** (base de dados,
@@ -318,13 +403,21 @@ junho de 2029). O primeiro
 comerciante de fora pode entrar quando o motor de IVA estiver validado pelo
 contabilista e o contrato pelo jurista, que correm em paralelo.
 
+**Corrigido a 12/10/2026 com a medição provisória (§6.1, C):** depois de
+8 dias de código estão feitos ≈ 31 % da Fase 1. O código fica completo entre
+**dezembro de 2026 e fevereiro de 2027**, e a Fase 1 passa entre **junho e
+setembro de 2027**. As datas de maio de 2028 a outubro de 2029 eram da
+hipótese 1 e ficam aqui só como registo.
+
 **O contraste com o Hub interno, dito às claras:** o Hub foi construído em
 ≈ 10,5 meses (primeira migração a 18/11/2025, **M**) e tem mais módulos do que
 a Fase 1. Estes números são maiores porque o Eurolify tem de ser provado antes
 de abrir — isolamento entre comerciantes, testes, segurança, validações — e o
 Hub foi corrigido em produção. **Não tenho medida** de quanto mais rápido
 vocês são do que a hipótese 1: às 8 semanas mede-se (§6) e estes números
-corrigem-se aqui.
+corrigem-se aqui. *A 12/10/2026 já há uma primeira medida (§6.1): mais de 10 vezes o ritmo
+da hipótese 1 nos primeiros 8 dias (C); a tabela acima fica como estava até à
+medição das 8 semanas.*
 
 ### O que entra na Fase 2 (pessoas-semana, C)
 
@@ -357,6 +450,9 @@ corrigem-se aqui.
 
 ## O que ficou por verificar
 
+- **A medição de 12/10/2026 (§6.1) é provisória:** o avanço de cada peça é
+  julgamento meu sobre o desenho e o código, sem as horas gastas; o abrandamento
+  de 3 a 4 vezes no que falta é uma hipótese (C).
 - **O esforço de cada peça (§2 e §9) é julgamento meu**, sem medição; e a
   hipótese de o Diogo e o Bruno renderem como um sénior com IA (§9). É a maior
   incerteza desta página; a §6 é a forma de a reduzir.
