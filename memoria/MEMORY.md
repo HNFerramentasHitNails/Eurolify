@@ -140,3 +140,4 @@
 - [Vendas do dia e do mês (#367, DY): quatro números com e sem IVA, por canal e mercado; âmbito sales:read (dono e gestor); migração 0068; medido: dia ~25 ms, mês 0,4–0,75 s com 100 000 encomendas; sem pré-calcular — 12/10/2026](vendas-do-dia-12out2026.md)
 - [Avisos das tarefas vencidas por e-mail (#372, EB): ao responsável ou, sem ele, a quem decide e atribui; sem o prazo do reembolso; cancela-se no envio; migração 0071 — 12/10/2026](avisos-tarefas-email-12out2026.md)
 - [Pedidos do titular em todos os domínios (#233, DU): desenho docs/23 §15; parte 1 (0072) — o apagamento limpa encomendas acabadas, fila para as em curso, perfil só sem cancelamento sem pagamento, aviso em resumo — 11/10/2026](titular-todos-os-dominios-11out2026.md)
+- [SMTP pela VPS (#372, «a»): acção e chave próprias `configurar`, api-smtp.env 600 root, valores nunca no registo; DNS lido: dois SPF (erro), DMARC p=none; falta a chave e o DKIM — 12/10/2026](smtp-pela-vps-12out2026.md)

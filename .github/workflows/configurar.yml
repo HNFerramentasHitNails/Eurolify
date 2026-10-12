@@ -1,0 +1,72 @@
+# Leva a configuração do envio de e-mails da API para o ensaio (docs/34 §13;
+# issue #372; Diogo, 12/10/2026: «a», uma porta própria). Lança-se à mão
+# (ADR-0028: a VPS opera-se pelo GitHub), depois de criar ou mudar os cinco
+# segredos SMTP_* do ambiente «ensaio», que só aceita o main.
+#
+# A chave «configurar» só entrega «smtp <base64> run:<n> github:<conta>»; na VPS, o serviço valida
+# cada valor, escreve o /etc/eurolify/api-smtp.env (600, root) e recria a API
+# com a imagem que está no ar. Os valores nunca vão para a saída nem para o
+# registo, de um lado nem do outro.
+name: configurar
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configurar-ensaio
+  cancel-in-progress: false
+
+jobs:
+  configurar:
+    runs-on: ubuntu-24.04
+    # Mais do que a espera da VPS (1900 s; revisão do #398, P3-1).
+    timeout-minutes: 35
+    environment: ensaio
+    steps:
+      - name: Preparar o SSH
+        # A chave só existe neste passo; os seguintes usam o ficheiro.
+        env:
+          CHAVE: ${{ secrets.VPS_CHAVE_CONFIGURAR }}
+          ANFITRIOES: ${{ vars.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CHAVE" ]; then
+            echo "falta o segredo VPS_CHAVE_CONFIGURAR no ambiente ensaio" >&2
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/chave
+          chmod 600 ~/.ssh/chave
+          printf '%s\n' "$ANFITRIOES" > ~/.ssh/known_hosts
+      - name: Enviar a configuração do e-mail
+        env:
+          VPS: ${{ secrets.VPS_ENDERECO }}
+          SMTP_ANFITRIAO: ${{ secrets.SMTP_ANFITRIAO }}
+          SMTP_PORTA: ${{ secrets.SMTP_PORTA }}
+          SMTP_UTILIZADOR: ${{ secrets.SMTP_UTILIZADOR }}
+          SMTP_PALAVRA_PASSE: ${{ secrets.SMTP_PALAVRA_PASSE }}
+          SMTP_REMETENTE: ${{ secrets.SMTP_REMETENTE }}
+        run: |
+          set -euo pipefail
+          for v in SMTP_ANFITRIAO SMTP_PORTA SMTP_UTILIZADOR SMTP_PALAVRA_PASSE SMTP_REMETENTE; do
+            if [ -z "${!v}" ]; then
+              echo "falta o segredo $v no ambiente ensaio" >&2
+              exit 1
+            fi
+          done
+          # Os cinco valores, por esta ordem, numa linha de base64: a
+          # palavra-passe pode ter qualquer carácter, e o comando da chave só
+          # aceita letras, algarismos, «+», «/» e «=». O GitHub esconde os
+          # segredos nos registos; o base64 esconde-se também.
+          dados="$(printf '%s\n%s\n%s\n%s\n%s' "$SMTP_ANFITRIAO" "$SMTP_PORTA" \
+            "$SMTP_UTILIZADOR" "$SMTP_PALAVRA_PASSE" "$SMTP_REMETENTE" | base64 -w0)"
+          echo "::add-mask::$dados"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/chave "eurolify-configurar@${VPS}" \
+            "smtp $dados run:${GITHUB_RUN_ID} github:${GITHUB_ACTOR_ID}"
+      - name: Apagar a chave do executor
+        if: always()
+        run: rm -f ~/.ssh/chave
