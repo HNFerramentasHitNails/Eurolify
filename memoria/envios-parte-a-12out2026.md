@@ -19,8 +19,9 @@ desenho no `docs/36`, decisão ED). O que está no código está no `docs/36` §
 ## Números (com data e como se contaram)
 
 - 12/10/2026, local:
-  - `test/envios-api.test.ts`: 6 testes, todos verdes;
-  - com a regra desligada (`porQueNaoServe` a devolver `null`), 3 falham;
+  - `test/envios-api.test.ts`: 9 testes, todos verdes (6 iniciais e 3 da revisão do #397);
+  - com a regra desligada (`porQueNaoServe` a devolver `null`), 3 dos 6 iniciais falham;
+  - sem a data-limite na impressão, o teste do P1-1 falha;
   - o `comerciante.test.ts` passou a contar 85 tabelas com RLS forçado (eram 84).
 
 ## O que ficou por verificar

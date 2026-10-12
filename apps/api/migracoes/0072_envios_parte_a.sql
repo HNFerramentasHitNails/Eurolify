@@ -56,15 +56,19 @@ ALTER TABLE metodo_entrega
   -- vazio = os países todos do mercado. Desvio do docs/36 §3.2: prefixos e
   -- não regiões com nome, porque os intervalos dos códigos postais das ilhas
   -- não estão verificados (o Motor de IVA tem «9» como C, 0040).
+  -- Unidos por «|», que nenhum elemento pode ter; sem elementos nulos
+  -- (array_to_string ignorá-los-ia; revisão do #397, P3-1).
   ADD COLUMN codigos_postais text[] NOT NULL DEFAULT '{}' CHECK (
     cardinality(codigos_postais) <= 200
+    AND array_position(codigos_postais, NULL) IS NULL
     AND (cardinality(codigos_postais) = 0
-      OR array_to_string(codigos_postais, ',') ~ '^[0-9A-Z]{1,10}(,[0-9A-Z]{1,10})*$')),
+      OR array_to_string(codigos_postais, '|') ~ '^[0-9A-Z]{1,10}(\|[0-9A-Z]{1,10})*$')),
   -- Os números ONU aceites (L9): vazio por omissão, nenhum perigoso.
   ADD COLUMN aceita_onu text[] NOT NULL DEFAULT '{}' CHECK (
     cardinality(aceita_onu) <= 200
+    AND array_position(aceita_onu, NULL) IS NULL
     AND (cardinality(aceita_onu) = 0
-      OR array_to_string(aceita_onu, ',') ~ '^UN[0-9]{4}(,UN[0-9]{4})*$')),
+      OR array_to_string(aceita_onu, '|') ~ '^UN[0-9]{4}(\|UN[0-9]{4})*$')),
   ADD COLUMN peso_max_g integer CHECK (peso_max_g IS NULL OR peso_max_g BETWEEN 1 AND 1000000),
   -- Com conta, com serviço; sem conta, «manual» (a pessoa escreve a
   -- transportadora na expedição, como na 0047).
@@ -73,6 +77,41 @@ ALTER TABLE metodo_entrega
   ADD CONSTRAINT metodo_entrega_conta_fk FOREIGN KEY (comerciante_id, conta_transportadora_id)
     REFERENCES conta_transportadora (comerciante_id, id);
 ALTER TABLE metodo_entrega FORCE ROW LEVEL SECURITY;
+-- Arquivar uma conta procura os métodos activos que a usam.
+CREATE INDEX metodo_entrega_por_conta ON metodo_entrega (comerciante_id, conta_transportadora_id)
+  WHERE conta_transportadora_id IS NOT NULL;
+
+-- A conta guarda-se a si própria, como a de pagamento (0044; revisão do
+-- #397, P2-1): não se apaga, a transportadora, o modo e o comerciante não
+-- mudam, uma arquivada não muda, e credenciais novas devolvem-na a rascunho
+-- até à chamada de teste.
+CREATE FUNCTION conta_transportadora_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'shipping.immutable: uma conta de transportadora não se apaga (arquiva-se)';
+  END IF;
+  IF NEW.transportadora IS DISTINCT FROM OLD.transportadora OR NEW.modo IS DISTINCT FROM OLD.modo
+     OR NEW.comerciante_id IS DISTINCT FROM OLD.comerciante_id THEN
+    RAISE EXCEPTION 'shipping.immutable: a transportadora e o modo de uma conta não mudam';
+  END IF;
+  IF OLD.estado = 'arquivada' THEN
+    RAISE EXCEPTION 'shipping.immutable: uma conta arquivada não muda';
+  END IF;
+  IF NEW.credenciais_cifra IS DISTINCT FROM OLD.credenciais_cifra
+     OR NEW.segredo_aviso_cifra IS DISTINCT FROM OLD.segredo_aviso_cifra THEN
+    IF NEW.estado = 'pronta' AND NEW.testada_em IS NOT DISTINCT FROM OLD.testada_em THEN
+      NEW.estado := 'rascunho';
+      NEW.testada_em := NULL;
+    END IF;
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER conta_transportadora_antes_de_gravar
+  BEFORE UPDATE OR DELETE ON conta_transportadora
+  FOR EACH ROW EXECUTE FUNCTION conta_transportadora_antes_de_gravar();
+ALTER TABLE conta_transportadora ENABLE ALWAYS TRIGGER conta_transportadora_antes_de_gravar;
 
 -- --------------------------------------------- O âmbito shipping:accounts
 

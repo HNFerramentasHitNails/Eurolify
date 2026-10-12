@@ -5,6 +5,7 @@ import { criarApp } from "../src/app.js";
 import {
   classificarArtigo,
   criarArtigo,
+  definirComponentes,
   mudarEstadoArtigo,
 } from "../src/catalogo/repositorio.js";
 import { publicar } from "../src/catalogo/publicacao.js";
@@ -345,7 +346,7 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
       }),
       201,
     );
-    return { c, loja, mercado, canal, v1, v2, publica, servidor, adm };
+    return { c, loja, mercado, lista, canal, v1, v2, publica, servidor, adm };
   }
   type Cenario = Awaited<ReturnType<typeof cenario>>;
 
@@ -865,5 +866,194 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
       onde: "metodo_entrega",
       motivo: "conta_indisponivel",
     });
+  });
+
+  it("a data-limite entra no que o cliente viu: mudar o prazo entre o resumo e o botão final não faz a encomenda (revisão do #397, P1-1)", async () => {
+    const s = await cenario();
+    const id = await metodo(s, { prazo_max_dias: 3 });
+    const token = await checkoutCom(s, [[s.v1, 1]]);
+    await ok(
+      pedir("PUT", `/checkout/${token}/delivery-method`, { metodo: id }),
+    );
+    const resumo = await ok(pedir("GET", `/checkout/${token}/summary`));
+    const lido = (
+      (await ok(s.adm("GET", "/shipping-methods")))["dados"] as Json[]
+    ).find((m) => m["id"] === id);
+    await ok(
+      s.adm("PATCH", `/shipping-methods/${id}`, {
+        versao: lido?.["versao"],
+        prazo_max_dias: 30,
+      }),
+      204,
+    );
+    expect(
+      await codigo(
+        pedir("POST", `/checkout/${token}/place`, {
+          aceita_condicoes: true,
+          versoes: (resumo["textos"] as Json[]).map((t) => t["versao"]),
+          impressao: resumo["impressao"],
+        }),
+      ),
+    ).toEqual([409, "checkout.total_changed"]);
+  });
+
+  it("um kit pesa e leva os perigosos pelos componentes (revisão do #397, P2-3)", async () => {
+    const s = await cenario();
+    const artigo = await criarArtigo(
+      base.api,
+      s.c,
+      { tipo: "fisico", nome: "Kit", categoria_fiscal: "normal" },
+      // O peso do próprio kit (200 g) não conta: contam os componentes.
+      [{ sku: "KIT-001", unidade_de_venda: "unidade", peso_g: 200 }],
+    );
+    const kit = (
+      await comComerciante(base.api, s.c, (trx) =>
+        trx
+          .selectFrom("variante")
+          .select("id")
+          .where("artigo_id", "=", artigo)
+          .executeTakeFirstOrThrow(),
+      )
+    ).id;
+    // 2 × v1 (30 g) + 1 × v2 (30 g) = 90 g por kit.
+    await definirComponentes(base.api, s.c, kit, [
+      { varianteId: s.v1, quantidade: 2 },
+      { varianteId: s.v2, quantidade: 1 },
+    ]);
+    await classificarArtigo(
+      base.api,
+      s.c,
+      artigo,
+      1,
+      { familias: ["retalho_geral"], natureza_consumidor: "bem" },
+      QUEM,
+    );
+    await mudarEstadoArtigo(base.api, s.c, artigo, 2, "activo");
+    await definirPreco(base.api, s.c, QUEM, s.lista, kit, { montante: 2000 });
+    await publicar(base.api, s.c, QUEM, {
+      artigo_id: artigo,
+      canal_id: s.canal,
+      mercado_id: s.mercado,
+    });
+    const ate190 = await metodo(s, { nome: { pt: "190 g" }, peso_max_g: 190 });
+    const ate170 = await metodo(s, { nome: { pt: "170 g" }, peso_max_g: 170 });
+    const lista = async (token: string) =>
+      (await ok(pedir("GET", `/checkout/${token}/delivery-methods`)))[
+        "dados"
+      ] as Json[];
+    // Dois kits: 180 g pelos componentes (400 g pelo peso do kit).
+    const dois = await lista(await checkoutCom(s, [[kit, 2]]));
+    expect(dois.find((m) => m["id"] === ate190)).toMatchObject({ serve: true });
+    expect(dois.find((m) => m["id"] === ate170)).toMatchObject({
+      serve: false,
+      motivo: "peso_excedido",
+    });
+    // Um componente perigoso faz o kit perigoso.
+    await sql`update variante set onu = 'UN1266' where id = ${s.v2}::uuid`.execute(
+      base.dono,
+    );
+    const perigoso = await lista(await checkoutCom(s, [[kit, 1]]));
+    expect(perigoso.find((m) => m["id"] === ate190)).toMatchObject({
+      serve: false,
+      motivo: "perigoso_recusado",
+    });
+  });
+
+  it("a conta: isolada por identificador, escrita optimista, arquivada não muda, o segredo dos avisos fica, e os erros não levam as credenciais (revisão do #397, P2-2 e P2-4)", async () => {
+    const s = await cenario();
+    const conta = await contaPronta(s);
+    // O segredo dos avisos: definido, fica quando só se troca a chave.
+    await ok(
+      s.adm("PUT", `/carrier-accounts/${conta}/credentials`, {
+        credenciais: { chave: "chave-boa-123" },
+        segredo_aviso: "segredo-dos-avisos-123",
+      }),
+      204,
+    );
+    await ok(
+      s.adm("PUT", `/carrier-accounts/${conta}/credentials`, {
+        credenciais: { chave: "chave-boa-123" },
+      }),
+      204,
+    );
+    const segredo = async () =>
+      (
+        await sql<{
+          tem: boolean;
+        }>`select segredo_aviso_cifra is not null as tem from conta_transportadora
+            where id = ${conta.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0]?.tem;
+    expect(await segredo()).toBe(true);
+    await ok(
+      s.adm("PUT", `/carrier-accounts/${conta}/credentials`, {
+        credenciais: { chave: "chave-boa-123" },
+        segredo_aviso: null,
+      }),
+      204,
+    );
+    expect(await segredo()).toBe(false);
+    // Credenciais recusadas: o erro não as repete.
+    await ok(
+      s.adm("PUT", `/carrier-accounts/${conta}/credentials`, {
+        credenciais: { chave: "chave-ma-456" },
+      }),
+      204,
+    );
+    const recusa = await s.adm("POST", `/carrier-accounts/${conta}/test`);
+    expect(recusa.statusCode).toBe(422);
+    expect(recusa.body).not.toContain("chave-ma-456");
+    // Outro comerciante não a vê nem lhe mexe.
+    const outro = await cenario();
+    for (const [m, url, corpo] of [
+      ["PATCH", `/carrier-accounts/${conta}`, { versao: 1, nome: "X" }],
+      [
+        "PUT",
+        `/carrier-accounts/${conta}/credentials`,
+        { credenciais: { chave: "x" } },
+      ],
+      ["POST", `/carrier-accounts/${conta}/test`, undefined],
+      ["GET", `/carrier-accounts/${conta}/services`, undefined],
+    ] as const) {
+      expect(await codigo(outro.adm(m, url, corpo)), url).toEqual([
+        404,
+        "shipping.not_found",
+      ]);
+    }
+    // Escrita optimista: uma versão velha dá 409.
+    const lida = (
+      (await ok(s.adm("GET", "/carrier-accounts")))["dados"] as Json[]
+    )[0] as Json;
+    expect(
+      await codigo(
+        s.adm("PATCH", `/carrier-accounts/${conta}`, {
+          versao: Number(lida["versao"]) - 1,
+          nome: "Velha",
+        }),
+      ),
+    ).toEqual([409, "shipping.version_conflict"]);
+    // Arquivar (sem métodos a usá-la); depois não muda, nem pela base.
+    await ok(
+      s.adm("PATCH", `/carrier-accounts/${conta}`, {
+        versao: lida["versao"],
+        arquivar: true,
+      }),
+    );
+    expect(
+      await codigo(
+        s.adm("PUT", `/carrier-accounts/${conta}/credentials`, {
+          credenciais: { chave: "chave-boa-123" },
+        }),
+      ),
+    ).toEqual([409, "shipping.immutable"]);
+    await expect(
+      comComerciante(base.dono, s.c, (trx) =>
+        sql`update conta_transportadora set estado = 'pronta'`.execute(trx),
+      ),
+    ).rejects.toThrow(/shipping.immutable/);
+    await expect(
+      comComerciante(base.dono, s.c, (trx) =>
+        sql`delete from conta_transportadora`.execute(trx),
+      ),
+    ).rejects.toThrow(/shipping.immutable/);
   });
 });

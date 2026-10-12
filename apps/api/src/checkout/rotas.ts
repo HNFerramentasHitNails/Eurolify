@@ -698,6 +698,13 @@ export function rotasDoCheckout(
             dados: (await metodosDaSessao(trx, s)).map((m) => ({
               ...m,
               id: `shm_${m.id}`,
+              // O estado da conta e o peso em falta são da operação: o
+              // cliente vê só «indisponível» (revisão do #397, P3-3).
+              motivo:
+                m.motivo === "conta_indisponivel" ||
+                m.motivo === "peso_desconhecido"
+                  ? "indisponivel"
+                  : m.motivo,
             })),
           }),
           { soAberta: false },

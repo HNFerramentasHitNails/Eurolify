@@ -18,6 +18,12 @@ import { ErroEnvios } from "./erros.js";
 
 export function traduzir(erro: unknown): unknown {
   if (!(erro instanceof Error) || erro instanceof ErroEnvios) return erro;
+  // O gatilho da conta (0072) recusa com o código à frente da mensagem.
+  if (erro.message.startsWith("shipping.immutable:")) {
+    return new ErroEnvios("shipping.immutable", erro.message, undefined, {
+      cause: erro,
+    });
+  }
   const pg = erro as Error & { code?: string };
   if (pg.code === "40P01" || pg.code === "40001" || pg.code === "55P03") {
     return new ErroEnvios("shipping.retry", "tentar outra vez", undefined, {
@@ -213,7 +219,14 @@ export async function definirCredenciais(
   trx: Transaction<BaseDados>,
   c: string,
   id: string,
-  dados: { credenciais: Record<string, string>; segredo_aviso?: string },
+  /**
+   * Sem `segredo_aviso`, o segredo guardado fica; `null` tira-o (revisão do
+   * #397, P2-2: trocar só a chave não apaga o segredo dos avisos).
+   */
+  dados: {
+    credenciais: Record<string, string>;
+    segredo_aviso?: string | null;
+  },
   quem: string,
   cfg: ConfigEnvios | undefined,
 ) {
@@ -238,10 +251,14 @@ export async function definirCredenciais(
           "credenciais",
           chave,
         ),
-        segredo_aviso_cifra:
-          dados.segredo_aviso === undefined
-            ? null
-            : cifrar(dados.segredo_aviso, id, "segredo_aviso", chave),
+        ...(dados.segredo_aviso === undefined
+          ? {}
+          : {
+              segredo_aviso_cifra:
+                dados.segredo_aviso === null
+                  ? null
+                  : cifrar(dados.segredo_aviso, id, "segredo_aviso", chave),
+            }),
         chave_versao: chave.versao,
         credenciais_em: new Date(),
         credenciais_por: quem,

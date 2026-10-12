@@ -342,7 +342,7 @@ comerciantes em contas, métodos, expedições e eventos.
 | R4 numa regra só (`porQueNaoServe`): zona pelo prefixo do código postal, perigosos, peso das variantes-folha (um kit pelos componentes) e conta pronta; usada pela lista do checkout, pela escolha do método, pelo resumo (bloqueio `metodo_entrega`) e pelo botão final (`checkout.no_delivery_method`) | `src/checkout/entrega.ts` |
 | `GET /checkout/{token}/delivery-methods`: os métodos do mercado com a data-limite, os códigos postais servidos e, nos que não servem, o porquê (L1, L3) | `src/checkout/rotas.ts` |
 | a data-limite (L1, L4) no resumo (`portes.data_limite`), na cópia da encomenda (`metodo_entrega.data_limite`, com a conta e o serviço vendidos, R1) e na confirmação (sem a conta nem o serviço) | `src/checkout/` |
-| 6 testes pela API, com um adaptador de ensaio; os de zona, perigosos, peso e conta falham sem a regra (conferido: com `porQueNaoServe` a devolver sempre `null`, 3 dos 6 falham) | `test/envios-api.test.ts` |
+| 9 testes pela API, com um adaptador de ensaio; os de zona, perigosos, peso e conta falham sem a regra (conferido: com `porQueNaoServe` a devolver sempre `null`, 3 dos 6 primeiros falham), e o da data-limite falha sem ela na impressão | `test/envios-api.test.ts` |
 
 **Desvios do desenho:**
 - **As zonas são prefixos do código postal**, não regiões com nome
@@ -364,6 +364,60 @@ comerciantes em contas, métodos, expedições e eventos.
 - **Uma variante publicada não fica sem peso** (a base já o impede, `docs/14`
   C2): `peso_desconhecido` só aparece se uma folha não se ler; testa-se a
   regra directamente.
+
+- **Os códigos de erro e o bloqueio** não são os do §7.3 e §7.4: um método
+  que não serve dá `checkout.no_delivery_method` (422) com o `motivo`
+  (`zona_nao_servida`, `perigoso_recusado`, `peso_excedido`,
+  `peso_desconhecido`, `conta_indisponivel`), e o resumo dá o bloqueio
+  `metodo_entrega` com o mesmo motivo; sem método escolhido, continua o
+  `em_falta: metodo_entrega` da 0041. Os `shipping.zone_not_served`,
+  `shipping.too_heavy` e `shipping.dangerous_goods_refused` não existem.
+- **A lista do checkout traz todos os métodos** com `serve` e `motivo`, não
+  só os que cabem: é assim que as restrições se dizem antes da encomenda
+  (L3). Na lista pública, `conta_indisponivel` e `peso_desconhecido` saem como
+  `indisponivel` (são da operação).
+- **O peso máximo de um método com conta** fica o do serviço quando não se
+  dá (ou se dá `null`); o comerciante pode baixá-lo, não tirá-lo.
+- **`GET /carrier-accounts/{id}/services`** dá 503
+  `shipping.carrier_unavailable` enquanto não houver o adaptador da
+  transportadora no servidor.
+- **O segredo dos avisos** fica quando se definem só as credenciais; `null`
+  tira-o.
+
+**Correcções da revisão do #397** (Claude Sonnet 5.5; 0 P0, 1 P1, 5 P2, 11
+P3):
+- **A data-limite entra na impressão do que o cliente viu** (P1-1): se mudar
+  entre o resumo e o botão final (meia-noite, prazo mudado), dá
+  `checkout.total_changed`. O botão final calcula-a com o relógio da base,
+  como a hora da aceitação (P3-4). A impressão mudou de formato: uma sessão
+  aberta antes desta versão tem de pedir o resumo outra vez.
+- **A conta guarda-se na base** (P2-1), como a de pagamento: não se apaga, a
+  transportadora, o modo e o comerciante não mudam, uma arquivada não muda,
+  e credenciais novas devolvem-na a rascunho.
+- **O segredo dos avisos não se apaga** ao trocar só a chave (P2-2).
+- **Testes novos** (P2-3, P2-4): o peso e os perigosos de um kit pelos
+  componentes; a conta de outro comerciante por identificador (PATCH,
+  credenciais, teste, serviços); a escrita optimista; arquivar e depois não
+  mudar; o erro de credenciais recusadas sem as credenciais.
+- **Os desvios acima** (P2-5) ficaram declarados.
+- **Nos `CHECK`**, os prefixos e os ONU já não aceitam elementos nulos nem
+  vírgulas (P3-1); há um índice dos métodos por conta (P3-11).
+
+**Ficou da revisão** (por fazer, com razão):
+- Os testes de concorrência (arquivar a conta enquanto um método passa a
+  usá-la; credenciais a mudar durante a chamada de teste) não existem. A
+  ordem dos bloqueios foi revista por leitura (P2-4).
+- Ficam para a parte B, quando a etiqueta usar a conta e o serviço:
+  - um teste falhado não tira a conta de `pronta` (P3-6);
+  - a rotação da chave (P3-7);
+  - o tempo-limite e os erros tipados do adaptador (P3-8);
+  - a leitura da conta e do serviço no botão final sem bloqueio (P3-5).
+- `ENVIOS_CHAVE` tem de ser diferente da `PAGAMENTOS_CHAVE` quando for para a
+  VPS (P3-9).
+- Os identificadores na cópia da encomenda continuam sem prefixo, como o
+  `id` do método já estava (P3-10).
+- O `prazo_max_dias` 30 dos métodos antigos pode contradizer o `prazo` em
+  texto: o comerciante confere-o (P3-11).
 
 **Por fazer:** a parte B (o adaptador dos CTT depois de V1 a V5, etiquetas,
 seguimento, avisos), a parte C (o segundo adaptador) e os ecrãs do Hub.

@@ -194,7 +194,7 @@ export function rotasDosEnvios(
       config: { ambito: "shipping:accounts" },
       schema: {
         description:
-          "Define as credenciais da conta na transportadora (os campos dependem dela) e, se a transportadora avisar, o segredo dos avisos. Ficam cifrados e nunca se devolvem; a conta volta a rascunho até à chamada de teste.",
+          "Define as credenciais da conta na transportadora (os campos dependem dela) e, se a transportadora avisar, o segredo dos avisos (sem o campo, o guardado fica; null tira-o). Ficam cifrados e nunca se devolvem; a conta volta a rascunho até à chamada de teste.",
         params: Type.Object({ id: IdConta }),
         body: Type.Object(
           {
@@ -203,8 +203,12 @@ export function rotasDosEnvios(
               Type.String({ minLength: 1, maxLength: 500 }),
               { minProperties: 1, maxProperties: 10 },
             ),
+            // Sem ele, o segredo guardado fica; null tira-o.
             segredo_aviso: Type.Optional(
-              Type.String({ minLength: 16, maxLength: 200 }),
+              Type.Union([
+                Type.String({ minLength: 16, maxLength: 200 }),
+                Type.Null(),
+              ]),
             ),
           },
           { additionalProperties: false },

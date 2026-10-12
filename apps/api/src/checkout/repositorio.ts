@@ -1379,7 +1379,15 @@ export const impressaoDo = (r: Resumo) => ({
   portes:
     r.portes === null
       ? null
-      : [r.portes.metodo_id, r.portes.base, r.portes.iva, r.portes.total],
+      : [
+          r.portes.metodo_id,
+          r.portes.base,
+          r.portes.iva,
+          r.portes.total,
+          // A data-limite que o cliente viu (docs/36 L1; revisão do #397,
+          // P1-1): se mudar até ao botão final, a encomenda não se faz.
+          r.portes.data_limite,
+        ],
   total: r.totais.total,
   textos: r.textos.map((t) => t.versao_id),
 });
@@ -1412,7 +1420,16 @@ export async function concluir(
   },
 ): Promise<string> {
   const c = s.comerciante_id;
-  const r = await calcularResumo(trx, s);
+  // O relógio da base, como a hora da aceitação: a data-limite conta do
+  // mesmo dia (revisão do #397, P3-4).
+  const { rows: agoraBase } = await sql<{
+    agora: Date;
+  }>`select now() as agora`.execute(trx);
+  const r = await calcularResumo(
+    trx,
+    s,
+    (agoraBase[0] as { agora: Date }).agora,
+  );
   if (r.em_falta.length > 0) {
     throw new ErroCheckout("checkout.incomplete", "faltam dados", {
       em_falta: r.em_falta,
