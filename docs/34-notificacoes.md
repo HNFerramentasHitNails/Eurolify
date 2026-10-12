@@ -200,6 +200,19 @@ nova. Os `dados` levam a fila, o caso, o motivo, o prazo e a hora do aviso.
 `atribuicao_rasto`, o destino), os modelos PT, ES e EN, os testes e a
 revisão do agente. Um pedido só.
 
+**Em código (12/10/2026; migração 0071; decisão EB):**
+
+| O quê | Onde |
+|---|---|
+| o `tipo` `task.overdue`; o gatilho `atribuicao_vencida_notificacao` na linha `vencida` do rasto, com a `referencia` na linha do rasto; quem recebe em `tarefas_aviso_pode_receber()` (membro e pessoa activos, decide a fila; o responsável ou, sem ele, quem também tem `tasks:assign`), e o responsável que conta em `tarefas_aviso_responsavel()` (o que já não pode decidir não conta: o aviso nunca vai para o vazio) | migração 0071 |
+| no envio: `notificacao_destino()` aplica a mesma regra com o responsável de agora; `tarefas_aviso_espera()` confere que o caso continua aberto na mesma passagem, vencido e sem prazo novo; senão `cancelada` com `destinatario_inactivo` ou `tarefa_ja_nao_espera` | migração 0071; `src/notificacoes/repositorio.ts` |
+| os textos PT, ES e EN: a fila pelo nome, o caso com o prefixo, o motivo (só um código), o prazo no fuso do comerciante e a lista `GET /tasks?vencida=true` | `src/notificacoes/modelos.ts` |
+| 5 testes: quem recebe em cada fila (com e sem responsável, o armazém e o apoio, quem saiu, a pessoa desactivada, outra loja e língua), sem o prazo do reembolso, o cancelamento no envio, o aviso novo depois de um prazo novo, nenhum dado do cliente | `test/notificacoes-tarefas.test.ts` |
+
+**Desvio do desenho:** nenhum na regra. A T4 dizia «há quanto venceu»; o
+e-mail diz o prazo com a hora e o fuso, que não envelhece entre a gravação e
+o envio.
+
 ## 10. Pergunta para o Diogo ou o Bruno
 
 | # | Pergunta | Proposta |

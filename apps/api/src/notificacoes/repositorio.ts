@@ -2,7 +2,11 @@ import { sql, type Kysely, type RawBuilder, type Transaction } from "kysely";
 import type { BaseDados, EstadoNotificacao } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { ErroCorreio, type Correio, type Mensagem } from "./correio.js";
-import { mensagemDe, type DadosDoAviso } from "./modelos.js";
+import {
+  mensagemDe,
+  type DadosDaTarefa,
+  type DadosDoAviso,
+} from "./modelos.js";
 
 // As notificações (docs/34; migração 0067; Diogo, 11/10/2026: «aprovado, com
 // a A», docs/06, DX). A base grava a fila (o gatilho do aviso); aqui só se
@@ -189,18 +193,14 @@ async function tomarVez(
     .executeTakeFirst();
   if (n === undefined) return null;
   // O aviso ainda faz sentido: a devolução continua à espera do reembolso
-  // (revisão do #373, P2-2). Reembolsada, fechada ou cancelada entretanto,
-  // o e-mail diria o contrário da realidade.
-  const { rows: prazo } = await sql<{
-    dias: number | null;
-  }>`select x.dias from posvenda_prazo_da_devolucao(${n.referencia}::uuid) x`.execute(
-    trx,
-  );
-  if (prazo[0]?.dias === null || prazo[0]?.dias === undefined) {
-    await mudar(trx, id, {
-      estado: "cancelada",
-      ultimo_erro: "devolucao_ja_nao_espera",
-    });
+  // (revisão do #373, P2-2), ou o caso da tarefa continua vencido na mesma
+  // passagem e com o mesmo prazo (docs/34 §12, T5). Senão, o e-mail diria o
+  // contrário da realidade.
+  const espera = await (n.tipo === "task.overdue"
+    ? tarefaEspera(trx, n.referencia)
+    : devolucaoEspera(trx, n.referencia));
+  if (espera !== null) {
+    await mudar(trx, id, { estado: "cancelada", ultimo_erro: espera });
     res.canceladas += 1;
     return null;
   }
@@ -209,7 +209,8 @@ async function tomarVez(
   }>`select email from notificacao_destino(${id}::uuid)`.execute(trx);
   const destino = rows[0];
   if (destino === undefined) {
-    // A pessoa saiu, foi desactivada ou deixou de ser dona ou gestora.
+    // A pessoa saiu, foi desactivada ou já não recebe este aviso (deixou de
+    // ser dona ou gestora; o caso da tarefa tem agora outro responsável).
     await mudar(trx, id, {
       estado: "cancelada",
       ultimo_erro: "destinatario_inactivo",
@@ -224,11 +225,37 @@ async function tomarVez(
     mensagem: mensagemDe(
       n.tipo,
       n.lingua,
-      n.dados as unknown as DadosDoAviso,
+      n.dados as unknown as DadosDoAviso | DadosDaTarefa,
       destino,
     ),
     tentativas: n.tentativas,
   };
+}
+
+/** Nada, se a devolução ainda espera o reembolso; senão, o código. */
+async function devolucaoEspera(
+  trx: Transaction<BaseDados>,
+  devolucao: string,
+): Promise<string | null> {
+  const { rows } = await sql<{
+    dias: number | null;
+  }>`select x.dias from posvenda_prazo_da_devolucao(${devolucao}::uuid) x`.execute(
+    trx,
+  );
+  return rows[0]?.dias === null || rows[0]?.dias === undefined
+    ? "devolucao_ja_nao_espera"
+    : null;
+}
+
+/** Nada, se o caso do aviso ainda espera; senão, o código. */
+async function tarefaEspera(
+  trx: Transaction<BaseDados>,
+  rasto: string,
+): Promise<string | null> {
+  const { rows } = await sql<{
+    espera: boolean;
+  }>`select tarefas_aviso_espera(${rasto}::uuid) as espera`.execute(trx);
+  return rows[0]?.espera === true ? null : "tarefa_ja_nao_espera";
 }
 
 const mudar = (
