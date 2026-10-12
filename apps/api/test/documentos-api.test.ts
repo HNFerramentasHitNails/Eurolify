@@ -25,12 +25,15 @@ import {
 } from "../src/precos/repositorio.js";
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
+import { AdaptadorMoloni } from "../src/faturacao/moloni.js";
 import {
   correrDocumentos,
+  correrRenovacoes,
   processarDocumento,
 } from "../src/faturacao/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import { assinar, avisoEuPago, eupagoFalso } from "./eupago-falso.js";
+import { moloniFalso } from "./moloni-falso.js";
 import {
   criarBaseDeTeste,
   URL_BASE,
@@ -51,9 +54,21 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
   // Os métodos de pagamento vêm da régua (docs/26): uma conta EuPago de teste.
   const eupago = eupagoFalso();
   const ensaio = new EmissorDeEnsaio();
+  // O Moloni simulado (docs/29 §13): o relógio do adaptador anda à mão para
+  // os tokens expirarem sem esperar uma hora.
+  const moloni = moloniFalso();
+  let relogio = 0;
   const faturacao = {
     chave: chavePagamentos(randomBytes(32).toString("base64")),
-    adaptadores: { ensaio },
+    adaptadores: {
+      ensaio,
+      moloni: new AdaptadorMoloni({
+        clientId: "dev-eurolify",
+        clientSecret: "segredo-do-developer",
+        fetch: moloni.fetch,
+        agora: () => Date.now() + relogio,
+      }),
+    },
   };
   /** Uma volta da tarefa dos documentos. */
   const correr = () => correrDocumentos(base.api, faturacao);
@@ -1381,5 +1396,220 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     const conf = await ok(pedir("GET", `/checkout/${e.token}/confirmation`));
     expect(conf).not.toHaveProperty("documento");
     expect(conf).not.toHaveProperty("emissor_fiscal");
+  });
+  // ------------------------------------------------ O Moloni (docs/29 §13)
+
+  /** Liga a entidade ao Moloni simulado, com a configuração da §13.2. */
+  async function ligarMoloni(s: Cenario) {
+    const portes = moloni.artigo(`PORTES-${randomUUID().slice(0, 8)}`);
+    const cf = moloni.cliente("999999990", "Consumidor final");
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "eurolify",
+      }),
+      204,
+    );
+    const l = await ok(
+      s.adm("POST", "/invoicing-connections", {
+        entidade_legal: `lgl_${s.entidade}`,
+        adaptador: "moloni",
+        serie: "500",
+        taxas: [{ pais: "PT", taxa: 2300, emissor: "11" }],
+        isencoes: [{ codigo: "M16", emissor: "M16" }],
+        config: {
+          lingua: "1",
+          vencimento: "5",
+          artigo_portes: String(portes.product_id),
+          categoria: "77",
+          unidade: "3",
+          cliente_consumidor_final: String(cf.customer_id),
+          metodos_pagamento: { multibanco: "9" },
+        },
+      }),
+      201,
+    );
+    const id = String(l["id"]);
+    const credenciais = moloni.credenciais();
+    await ok(
+      s.adm("PUT", `/invoicing-connections/${id}/credentials`, {
+        credenciais,
+      }),
+      204,
+    );
+    expect(
+      await ok(s.adm("POST", `/invoicing-connections/${id}/test`)),
+    ).toEqual({ estado: "pronta", erro: null });
+    return { id, credenciais, cf };
+  }
+
+  const ligacaoDe = async (s: Cenario, id: string) =>
+    (
+      (await ok(s.adm("GET", "/invoicing-connections")))["dados"] as Json[]
+    ).find((x) => x["id"] === id) as Json;
+
+  it("pelo Moloni: o rascunho com a nossa referência, fechado, lido de volta; o artigo criado sem stock e o consumidor final", async () => {
+    const s = await cenario();
+    const { id, cf } = await ligarMoloni(s);
+    expect(await ligacaoDe(s, id)).toMatchObject({
+      adaptador: "moloni",
+      config: { cliente_consumidor_final: String(cf.customer_id) },
+    });
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    const d = await documentoDe(s, e.encomenda);
+    expect(d?.["estado"]).toBe("emitido");
+    const prova = d?.["prova"] as Json;
+    expect(prova).toMatchObject({
+      numero: expect.stringMatching(/^FT LOJA\/\d+$/) as unknown,
+      serie: "500",
+      nif: null,
+      pais: null,
+      divergencias: [],
+    });
+    const doc = moloni.estado.documentos.find(
+      (x) => x.our_reference === `inv_${String(d?.["id"]).slice(4)}`,
+    );
+    expect(doc?.status).toBe(1);
+    expect(doc?.customer_id).toBe(cf.customer_id);
+    // O artigo não existia: criado pela referência = SKU, sem stock (M2).
+    const artigo = moloni.estado.artigos.find(
+      (a) =>
+        a.reference.startsWith("GEL-") &&
+        doc?.products.some((p) => Number(p["product_id"]) === a.product_id),
+    );
+    expect(artigo?.dados).toMatchObject({ has_stock: "0" });
+    expect(artigo?.reference).toMatch(/^GEL-00/);
+  });
+
+  it("pelo Moloni com NIF: o cliente criado com os valores da ligação e o NIF lido do documento", async () => {
+    const s = await cenario();
+    await ligarMoloni(s);
+    const e = await paga(s, [[s.v1, 1]], "501964843");
+    await ateParar();
+    const d = await documentoDe(s, e.encomenda);
+    expect(d?.["estado"]).toBe("emitido");
+    expect(d?.["prova"]).toMatchObject({ nif: "501964843", pais: "PT" });
+    expect(
+      moloni.estado.clientes.filter((x) => x.vat === "501964843").length,
+    ).toBe(1);
+  });
+
+  it("os tokens renovam-se sozinhos, gravam-se cifrados e não põem a ligação por testar (§13.4)", async () => {
+    const s = await cenario();
+    const { id, credenciais } = await ligarMoloni(s);
+    const antes = await ligacaoDe(s, id);
+    // Duas horas depois: o token de acesso expirou.
+    relogio += 2 * 3_600_000;
+    try {
+      const e = await paga(s, [[s.v1, 1]]);
+      await ateParar();
+      expect((await documentoDe(s, e.encomenda))?.["estado"]).toBe("emitido");
+      const depois = await ligacaoDe(s, id);
+      expect(depois).toMatchObject({
+        estado: "pronta",
+        versao: antes["versao"],
+        credenciais_em: antes["credenciais_em"],
+      });
+      // O par antigo já não serve no Moloni; o novo ficou na base, cifrado.
+      expect(moloni.estado.refresh.has(credenciais.refresh_token)).toBe(false);
+      const { rows } = await sql<{ sessao: Buffer | null }>`
+        select sessao from ligacao_faturacao where id = ${id.slice(4)}::uuid`.execute(
+        base.dono,
+      );
+      expect(rows[0]?.sessao).not.toBeNull();
+      expect(rows[0]?.sessao?.toString("latin1")).not.toContain("acc-");
+      // A seguinte usa o par da sessão (o antigo daria invalid_grant).
+      const e2 = await paga(s, [[s.v1, 2]]);
+      await ateParar();
+      expect((await documentoDe(s, e2.encomenda))?.["estado"]).toBe("emitido");
+    } finally {
+      relogio = 0;
+    }
+  });
+
+  it("a autorização morta: a ligação fica com erro e o pedido retido, nada sai (§13.4)", async () => {
+    const s = await cenario();
+    const { id } = await ligarMoloni(s);
+    relogio += 2 * 3_600_000;
+    moloni.estado.falhas.renovacaoMorta = true;
+    try {
+      const e = await paga(s, [[s.v1, 1]]);
+      await ateParar();
+      expect(await documentoDe(s, e.encomenda)).toMatchObject({
+        estado: "retido",
+        motivos: ["ligacao_sem_teste"],
+      });
+      expect(await ligacaoDe(s, id)).toMatchObject({
+        estado: "com_erro",
+        erro: expect.stringMatching(/invalid_grant/) as unknown,
+      });
+    } finally {
+      relogio = 0;
+      moloni.estado.falhas.renovacaoMorta = false;
+    }
+  });
+
+  it("a tarefa das renovações renova as ligações Moloni e marca as mortas", async () => {
+    const s = await cenario();
+    const { id } = await ligarMoloni(s);
+    relogio += 8 * 24 * 3_600_000;
+    try {
+      const r = await correrRenovacoes(base.api, faturacao);
+      expect(r.renovadas).toBeGreaterThanOrEqual(1);
+      expect((await ligacaoDe(s, id))["estado"]).toBe("pronta");
+      moloni.estado.falhas.renovacaoMorta = true;
+      relogio += 8 * 24 * 3_600_000;
+      const r2 = await correrRenovacoes(base.api, faturacao);
+      expect(r2.erros).toBeGreaterThanOrEqual(1);
+      expect((await ligacaoDe(s, id))["estado"]).toBe("com_erro");
+    } finally {
+      relogio = 0;
+      moloni.estado.falhas.renovacaoMorta = false;
+    }
+  });
+
+  it("mudar a configuração obriga a testar outra vez; credenciais novas apagam a sessão", async () => {
+    const s = await cenario();
+    const { id } = await ligarMoloni(s);
+    const l = await ligacaoDe(s, id);
+    await ok(
+      s.adm("PATCH", `/invoicing-connections/${id}`, {
+        versao: l["versao"],
+        config: { ...(l["config"] as Json), vencimento: "6" },
+      }),
+    );
+    expect((await ligacaoDe(s, id))["estado"]).toBe("por_testar");
+    await ok(s.adm("POST", `/invoicing-connections/${id}/test`));
+    // Uma renovação deixa sessão; credenciais novas apagam-na.
+    relogio += 2 * 3_600_000;
+    try {
+      await correrRenovacoes(base.api, faturacao);
+    } finally {
+      relogio = 0;
+    }
+    const sessao = async () =>
+      (
+        await sql<{ sessao: Buffer | null }>`
+          select sessao from ligacao_faturacao where id = ${id.slice(4)}::uuid`.execute(
+          base.dono,
+        )
+      ).rows[0]?.sessao ?? null;
+    expect(await sessao()).not.toBeNull();
+    await ok(
+      s.adm("PUT", `/invoicing-connections/${id}/credentials`, {
+        credenciais: moloni.credenciais(),
+      }),
+      204,
+    );
+    expect(await sessao()).toBeNull();
+    // Um id que não é id é recusado pela API (nunca um nome, regra 6).
+    expect(
+      await codigo(
+        s.adm("PATCH", `/invoicing-connections/${id}`, {
+          versao: (await ligacaoDe(s, id))["versao"],
+          config: { lingua: "Português de Portugal" },
+        }),
+      ),
+    ).toEqual([400, expect.any(String)]);
   });
 });

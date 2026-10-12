@@ -8,6 +8,9 @@
 
 type Json = Record<string, unknown>;
 
+const txt = (v: unknown) =>
+  typeof v === "string" ? v : typeof v === "number" ? String(v) : "";
+
 /** O corpo `a[b][0][c]=v` do Moloni como objecto (listas para chaves 0, 1…). */
 export function lerFormulario(corpo: string): Json {
   const raiz: Json = {};
@@ -276,12 +279,12 @@ export function moloniFalso() {
         document_id: ++estado.seq,
         status: Number(c["status"] ?? 0),
         saft: "FT",
-        our_reference: String(c["our_reference"] ?? ""),
+        our_reference: txt(c["our_reference"]),
         number: 0,
         document_set_id: Number(c["document_set_id"]),
         customer_id: Number(c["customer_id"]),
         date: String(c["date"]),
-        notes: String(c["notes"] ?? ""),
+        notes: txt(c["notes"]),
         products: produtos,
       };
       estado.documentos.push(d);
@@ -308,7 +311,7 @@ export function moloniFalso() {
       ].filter((k) => c[k] === undefined || c[k] === "");
       if (obrig.length > 0) return obrig.map((k) => `1 ${k}`);
       d.products = c["products"] as Json[];
-      d.notes = String(c["notes"] ?? "");
+      d.notes = txt(c["notes"]);
       if (Number(c["status"]) === 1) {
         d.status = estado.falhas.statusForcado ?? 1;
         d.number = ++estado.numero;
@@ -329,7 +332,7 @@ export function moloniFalso() {
         .filter(
           (d) =>
             c["our_reference"] === undefined ||
-            d.our_reference.includes(String(c["our_reference"])),
+            d.our_reference.includes(txt(c["our_reference"])),
         )
         .map((d) => ({
           document_id: d.document_id,
@@ -357,7 +360,7 @@ export function moloniFalso() {
     entrada: string | URL | Request,
     init?: RequestInit,
   ): Promise<Response> => {
-    const url = new URL(String(entrada));
+    const url = new URL(entrada instanceof Request ? entrada.url : entrada);
     const corpo =
       typeof init?.body === "string" ? lerFormulario(init.body) : {};
     const metodo = url.pathname.replace(/^\/v1\//, "").replace(/\/$/, "");
@@ -461,7 +464,7 @@ export function moloniFalso() {
 
   return {
     estado,
-    fetch: fetchFalso as typeof fetch,
+    fetch: fetchFalso,
     credenciais,
     artigo,
     cliente,

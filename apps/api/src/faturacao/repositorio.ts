@@ -370,6 +370,8 @@ async function credenciaisActuais(
   c: string,
   ligacaoId: string,
   cfg: ConfigFaturacao | undefined,
+  /** Chamada quando o par foi renovado (para a tarefa contar). */
+  aoRenovar?: () => void,
 ): Promise<CredenciaisEmissor | null> {
   return noDocumentos(db, c, async (trx) => {
     await marcar(trx, QUEM_DA_TAREFA, "os tokens do emissor");
@@ -403,6 +405,7 @@ async function credenciaisActuais(
       })
       .where("id", "=", l.id)
       .execute();
+    aoRenovar?.();
     return novas;
   });
 }
@@ -2111,8 +2114,9 @@ export async function correrRenovacoes(
     for (const l of ligacoes) {
       if (cfg?.adaptadores[l.adaptador]?.renovar === undefined) continue;
       try {
-        await credenciaisActuais(db, c, l.id, cfg);
-        r.renovadas += 1;
+        await credenciaisActuais(db, c, l.id, cfg, () => {
+          r.renovadas += 1;
+        });
       } catch (e) {
         r.erros += 1;
         if (e instanceof ErroDoEmissor) {

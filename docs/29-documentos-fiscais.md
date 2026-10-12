@@ -547,3 +547,39 @@ cabeçalho mede-se na conta trial (§13.7) antes de se confiar no mapa.
   documentação e das medições; um teste por cada linha de A1 a A9 e por M2 e
   M3; mutações; a revisão do agente; e a prova na conta trial (§13.7) antes de
   dizer que funciona.
+
+## 14. Em código — parte 2 (12/10/2026; migração 0068; DZ)
+
+| O quê | Onde |
+|---|---|
+| o adaptador: as oito operações da §13.3, o mapa de volta, o cliente (M3), o artigo pela referência = SKU e criado sem stock (M2), a NC e outra moeda recusadas (M6, M7), o estado 2 nunca lido como fechado | `src/faturacao/moloni.ts` |
+| o cliente HTTP: o token só no endereço e tapado nos erros, corpo em formulário (a forma por omissão da API), tempo limite de 15 s, 60 pedidos por minuto por empresa | `src/faturacao/moloni.ts` |
+| `config` e `sessao` na ligação: a configuração só aceita ids e obriga a testar outra vez; a sessão guarda os tokens renovados, cifrados, **sem** pôr a ligação por testar nem mudar a versão; credenciais novas apagam a sessão | migração 0068 |
+| a renovação com a ligação trancada (duas voltas nunca gastam o mesmo par), gravada antes de se usar; uma autorização morta põe a ligação `com_erro` e o pedido fica retido (`ligacao_sem_teste`) | `src/faturacao/repositorio.ts` |
+| a tarefa das renovações, de seis em seis horas, com alarme se parar 26 horas; o Moloni liga-se no servidor só com `MOLONI_CLIENT_ID` e `MOLONI_CLIENT_SECRET` | `src/faturacao/repositorio.ts`, `src/servidor.ts`, migração 0068 |
+| o motivo `nota_credito_sem_adaptador` (M7) | `src/faturacao/repositorio.ts` |
+| 23 testes do adaptador contra um Moloni simulado; 6 pela API com a base; 1 da NC retida na pós-venda | `test/moloni.test.ts`, `test/moloni-falso.ts`, `test/documentos-api.test.ts`, `test/posvenda-api.test.ts` |
+
+**Desvios do desenho:**
+- **O nome sem NIF** (R7): sem NIF, o documento sai no cliente «Consumidor
+  final» do Moloni, com o nome dele. A conferência do nome passa a fazer-se só
+  quando há NIF; sem NIF, confere-se que o documento não leva NIF nenhum.
+  Sem esta mudança, nenhuma venda a um consumidor sem NIF saía pelo Moloni (o
+  rascunho ficava sempre retido).
+- **O número do cliente** criado no Moloni (`number`, máx. 20) é o NIF, não o
+  id da ficha (M3 dizia o id da ficha): o id do Eurolify tem 36 caracteres.
+- **Sem morada fiscal completa** (rua, localidade e país), o cliente não se
+  cria e o passo falha até uma pessoa: nada se inventa.
+- **Mais de um artigo ou cliente** com a mesma referência ou NIF, ao criar o
+  rascunho, é uma falha do passo (chega a uma pessoa ao fim de 5), não uma
+  retenção com motivo próprio; com mais de um cliente na procura da R5, o
+  pedido fica retido (`entidade_do_emissor_diferente`), como o desenho diz.
+- **O aviso ao dono** quando a autorização morre ainda não é uma tarefa da
+  fila (`docs/33`): vê-se na ligação (`com_erro`) e no registo do servidor.
+
+**Por fazer:**
+- **parte 2b:** a ligação pelo `authorization_code` (o endereço de resposta e
+  a troca do código) e o ecrã no Hub — hoje as credenciais entram pela API;
+- **a prova na conta trial** (§13.7), com as credenciais no ambiente e o OK de
+  cada escrita: até lá, **nada disto está verificado contra o Moloni real**;
+- a NC pelo Moloni (M7), depois da medição; o aviso ao dono pela fila.

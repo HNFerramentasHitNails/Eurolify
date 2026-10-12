@@ -431,7 +431,12 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
         `o Moloni recusou documents/getOne: ${erros.join("; ").slice(0, 300)}`,
       );
     }
-    if (d === null || typeof d !== "object" || Array.isArray(d)) {
+    if (
+      d === null ||
+      typeof d !== "object" ||
+      Array.isArray(d) ||
+      (d as Json)["document_id"] === undefined
+    ) {
       throw new ErroDoEmissor(`o documento ${id} não existe no Moloni`);
     }
     return this.paraDocumento(credenciais, d as Json);

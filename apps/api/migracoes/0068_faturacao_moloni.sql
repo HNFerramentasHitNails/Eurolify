@@ -105,15 +105,43 @@ BEGIN
 END
 $$;
 
--- Os comerciantes com uma ligação Moloni activa e credenciais: a tarefa
--- diária renova-lhes os tokens antes dos 14 dias (§13.4).
+-- As ligações cujos tokens a tarefa renova antes dos 14 dias (§13.4): uma
+-- fila interna (RLS sem FORÇAR, como a tarefa_documento da 0050), que só o
+-- gatilho escreve. Antes desta migração a API recusava ligações Moloni, por
+-- isso não há nenhuma a juntar.
+CREATE TABLE tarefa_renovacao (
+  ligacao_id uuid PRIMARY KEY,
+  comerciante_id uuid NOT NULL REFERENCES comerciante (id)
+);
+ALTER TABLE tarefa_renovacao ENABLE ROW LEVEL SECURITY;
+CREATE POLICY so_o_proprio ON tarefa_renovacao
+  USING (comerciante_id = comerciante_actual())
+  WITH CHECK (comerciante_id = comerciante_actual());
+REVOKE ALL ON tarefa_renovacao FROM PUBLIC;
+
+CREATE FUNCTION ligacao_faturacao_renovacao() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NEW.adaptador = 'moloni' AND NEW.activa AND NEW.credenciais IS NOT NULL THEN
+    INSERT INTO public.tarefa_renovacao (ligacao_id, comerciante_id)
+    VALUES (NEW.id, NEW.comerciante_id) ON CONFLICT (ligacao_id) DO NOTHING;
+  ELSE
+    DELETE FROM public.tarefa_renovacao WHERE ligacao_id = NEW.id;
+  END IF;
+  RETURN NULL;
+END
+$$;
+CREATE TRIGGER ligacao_faturacao_renovacao AFTER INSERT OR UPDATE ON ligacao_faturacao
+  FOR EACH ROW EXECUTE FUNCTION ligacao_faturacao_renovacao();
+ALTER TABLE ligacao_faturacao ENABLE ALWAYS TRIGGER ligacao_faturacao_renovacao;
+
 CREATE FUNCTION ligacoes_comerciantes_a_renovar() RETURNS SETOF uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT DISTINCT l.comerciante_id FROM public.ligacao_faturacao l
-  WHERE l.adaptador = 'moloni' AND l.activa AND l.credenciais IS NOT NULL
+  SELECT DISTINCT t.comerciante_id FROM public.tarefa_renovacao t
 $$;
 
-REVOKE EXECUTE ON FUNCTION ligacoes_comerciantes_a_renovar() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION ligacao_faturacao_renovacao(), ligacoes_comerciantes_a_renovar()
+  FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION ligacoes_comerciantes_a_renovar() TO eurolify_api;
 
 GRANT INSERT (config) ON ligacao_faturacao TO eurolify_api;
