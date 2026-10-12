@@ -76,6 +76,35 @@ CREATE TRIGGER expedicao_etiqueta_valida
   FOR EACH ROW EXECUTE FUNCTION expedicao_etiqueta_valida();
 ALTER TABLE expedicao ENABLE ALWAYS TRIGGER expedicao_etiqueta_valida;
 
+-- Com uma etiqueta viva (a pedir, incerta ou emitida), a expedição não se
+-- cancela (anula-se primeiro: uma etiqueta paga não fica esquecida na
+-- transportadora) e o número, o serviço, a transportadora e a conta não se
+-- trocam por fora (R1): só mudam com a própria etiqueta.
+CREATE FUNCTION expedicao_etiqueta_viva() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF OLD.etiqueta NOT IN ('a_pedir', 'incerta', 'emitida') THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.estado = 'cancelada' AND OLD.estado <> 'cancelada' THEN
+    RAISE EXCEPTION 'shipments.invalid_transition: a expedição tem uma etiqueta viva: anula-se primeiro';
+  END IF;
+  IF NEW.etiqueta IS NOT DISTINCT FROM OLD.etiqueta AND (
+       NEW.seguimento IS DISTINCT FROM OLD.seguimento
+    OR NEW.servico IS DISTINCT FROM OLD.servico
+    OR NEW.transportadora IS DISTINCT FROM OLD.transportadora
+    OR NEW.conta_transportadora_id IS DISTINCT FROM OLD.conta_transportadora_id) THEN
+    RAISE EXCEPTION 'shipments.invalid_transition: a expedição tem uma etiqueta viva: o número e o serviço são os dela';
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER expedicao_etiqueta_viva
+  BEFORE UPDATE OF estado, seguimento, servico, transportadora, conta_transportadora_id
+  ON expedicao
+  FOR EACH ROW EXECUTE FUNCTION expedicao_etiqueta_viva();
+ALTER TABLE expedicao ENABLE ALWAYS TRIGGER expedicao_etiqueta_viva;
+
 -- Os eventos da etiqueta (§7.5): só identificadores e o estado.
 CREATE FUNCTION expedicao_etiqueta_evento() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
@@ -135,9 +164,21 @@ CREATE TABLE evento_seguimento (
   FOREIGN KEY (comerciante_id, expedicao_id) REFERENCES expedicao (comerciante_id, id)
 );
 CREATE INDEX evento_seguimento_por_expedicao ON evento_seguimento (comerciante_id, expedicao_id, em);
+-- Só se acrescenta; o texto da transportadora (pode trazer quem recebeu)
+-- limpa-se no apagamento do titular (0072).
+CREATE FUNCTION evento_seguimento_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
+       ARRAY['estado_transportadora']) THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'shipping.immutable: um evento de seguimento não muda';
+END
+$$;
 CREATE TRIGGER evento_seguimento_so_se_acrescenta
   BEFORE UPDATE OR DELETE ON evento_seguimento
-  FOR EACH ROW EXECUTE FUNCTION rasto_so_se_acrescenta();
+  FOR EACH ROW EXECUTE FUNCTION evento_seguimento_antes_de_gravar();
 ALTER TABLE evento_seguimento ENABLE ALWAYS TRIGGER evento_seguimento_so_se_acrescenta;
 CREATE TRIGGER evento_seguimento_sem_truncate BEFORE TRUNCATE ON evento_seguimento
   FOR EACH STATEMENT EXECUTE FUNCTION rasto_so_se_acrescenta();
@@ -243,6 +284,9 @@ BEGIN
     IF EXISTS (SELECT FROM public.etiqueta_ficheiro f WHERE f.expedicao_id = NEW.id) THEN
       quando := now() + interval '30 days';
     END IF;
+  ELSIF NEW.etiqueta = 'a_pedir' THEN
+    -- O pedido ficou a meio (a API reiniciou): a volta passa-o a incerta.
+    quando := now() + interval '5 minutes';
   ELSIF NEW.etiqueta IN ('emitida', 'incerta') THEN
     quando := now() + interval '15 minutes';
   END IF;
@@ -289,6 +333,55 @@ $$;
 
 -- ---------------------------------- O apagamento do titular (docs/23 §15)
 
+-- O motivo de uma recusa da transportadora pode citar a morada: entra nas
+-- colunas que o apagamento do titular limpa (revisão do #400, P2-5). O
+-- resto da função é o da 0072.
+CREATE OR REPLACE FUNCTION expedicao_antes_de_gravar() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
+BEGIN
+  -- O apagamento do titular (0072): só as colunas com dados pessoais, só
+  -- dentro da função do dono; desde a 0075 também o motivo da etiqueta.
+  IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
+       ARRAY['prova_entrega', 'etiqueta_motivo']) THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'shipments.immutable: uma expedição não se apaga';
+  END IF;
+  IF quem IS NULL THEN
+    RAISE EXCEPTION 'shipments.change_without_who: % sem eurolify.quem', TG_OP;
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    NEW.estado := 'criada';
+    NEW.expedida_em := NULL;
+    NEW.entregue_em := NULL;
+    NEW.criada_por := quem;
+    NEW.criada_em := now();
+    RETURN NEW;
+  END IF;
+  IF NEW.encomenda_id IS DISTINCT FROM OLD.encomenda_id OR NEW.armazem_id IS DISTINCT FROM OLD.armazem_id
+     OR NEW.metodo_entrega IS DISTINCT FROM OLD.metodo_entrega OR NEW.criada_por IS DISTINCT FROM OLD.criada_por THEN
+    RAISE EXCEPTION 'shipments.immutable: a encomenda, o armazém e o método de entrega não mudam';
+  END IF;
+  IF OLD.estado IN ('entregue', 'devolvida_ao_remetente', 'perdida', 'cancelada') THEN
+    RAISE EXCEPTION 'shipments.immutable: uma expedição acabada não muda';
+  END IF;
+  -- Uma expedição criada por engano cancela-se antes de sair (revisão do
+  -- #296, P1-2).
+  IF NEW.estado IS DISTINCT FROM OLD.estado AND NOT (
+       (OLD.estado = 'criada' AND NEW.estado IN ('expedida', 'cancelada'))
+    OR (OLD.estado = 'expedida' AND NEW.estado IN ('entregue', 'devolvida_ao_remetente', 'perdida'))) THEN
+    RAISE EXCEPTION 'shipments.invalid_transition: % → %', OLD.estado, NEW.estado;
+  END IF;
+  IF NEW.estado = 'expedida' AND OLD.estado = 'criada' THEN NEW.expedida_em := now(); END IF;
+  IF NEW.estado = 'entregue' AND OLD.estado <> 'entregue' THEN NEW.entregue_em := now(); END IF;
+  RETURN NEW;
+END
+$$;
+
+
 -- A encomenda limpa pelo apagamento do titular (0072) leva a etiqueta (tem
 -- o nome, a morada e o telefone) e resume os avisos das transportadoras:
 -- não esperam os 30 dias (eu-gdpr-privacy).
@@ -305,11 +398,48 @@ BEGIN
   UPDATE public.aviso_transportadora a SET corpo = '(pseudonimizado)'
   FROM public.expedicao x
   WHERE a.expedicao_id = x.id AND x.encomenda_id = NEW.id AND a.corpo <> '(pseudonimizado)';
+  UPDATE public.evento_seguimento e SET estado_transportadora = '(pseudonimizado)'
+  FROM public.expedicao x
+  WHERE e.expedicao_id = x.id AND x.encomenda_id = NEW.id
+    AND e.estado_transportadora <> '(pseudonimizado)';
+  -- O motivo de uma recusa pode citar a morada.
+  UPDATE public.expedicao x SET etiqueta_motivo = NULL
+  WHERE x.encomenda_id = NEW.id AND x.etiqueta_motivo IS NOT NULL;
   RETURN NULL;
 END
 $$;
 CREATE TRIGGER encomenda_titular_envios AFTER UPDATE OF entrega ON encomenda
   FOR EACH ROW EXECUTE FUNCTION encomenda_titular_envios();
+
+-- Os avisos que não se ligaram a nenhuma expedição (assinatura errada,
+-- expedição desconhecida) não chegam ao apagamento do titular: o corpo
+-- resume-se 30 dias depois de chegar, para todos os comerciantes (a volta).
+CREATE FUNCTION envios_avisos_resumir() RETURNS integer
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  antes text := current_setting('eurolify.comerciante', true);
+  c uuid;
+  n integer := 0;
+  m integer;
+BEGIN
+  INSERT INTO public.pseudonimizacao_em_curso VALUES (pg_current_xact_id())
+    ON CONFLICT DO NOTHING;
+  -- Comerciante a comerciante (o RLS da tabela é forçado), pela porta dos
+  -- avisos, que conhece todas as contas.
+  FOR c IN SELECT DISTINCT p.comerciante_id FROM public.conta_transportadora_aviso p LOOP
+    PERFORM set_config('eurolify.comerciante', c::text, true);
+    UPDATE public.aviso_transportadora a SET corpo = '(resumido: 30 dias sem expedição)'
+    WHERE a.comerciante_id = c AND a.expedicao_id IS NULL
+      AND a.recebido_em < now() - interval '30 days'
+      AND a.corpo NOT IN ('(pseudonimizado)', '(resumido: 30 dias sem expedição)');
+    GET DIAGNOSTICS m = ROW_COUNT;
+    n := n + m;
+  END LOOP;
+  PERFORM set_config('eurolify.comerciante', coalesce(antes, ''), true);
+  DELETE FROM public.pseudonimizacao_em_curso p WHERE p.transaccao = pg_current_xact_id();
+  RETURN n;
+END
+$$;
 
 -- ----------------------------------------------------- RLS e permissões
 
@@ -344,7 +474,8 @@ REVOKE EXECUTE ON FUNCTION expedicao_etiqueta_valida(), expedicao_etiqueta_event
   aviso_transportadora_antes_de_gravar(), conta_transportadora_porta(),
   envios_conta_do_aviso(uuid), expedicao_trabalho(), envios_comerciantes_com_trabalho(),
   envios_trabalho(integer), envios_trabalho_adiar(uuid, integer),
-  envios_trabalho_feito(uuid), encomenda_titular_envios() FROM PUBLIC;
+  envios_trabalho_feito(uuid), encomenda_titular_envios(), expedicao_etiqueta_viva(),
+  evento_seguimento_antes_de_gravar(), envios_avisos_resumir() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION envios_conta_do_aviso(uuid), envios_comerciantes_com_trabalho(),
-  envios_trabalho(integer), envios_trabalho_adiar(uuid, integer), envios_trabalho_feito(uuid)
-  TO eurolify_api;
+  envios_trabalho(integer), envios_trabalho_adiar(uuid, integer), envios_trabalho_feito(uuid),
+  envios_avisos_resumir() TO eurolify_api;

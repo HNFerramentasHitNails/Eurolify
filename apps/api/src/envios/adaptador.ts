@@ -139,4 +139,6 @@ export interface ConfigEnvios {
   /** A chave que cifra as credenciais (ENVIOS_CHAVE), com o formato da dos pagamentos. */
   chave?: ChavePagamentos;
   adaptadores: Partial<Record<Transportadora, AdaptadorTransportadora>>;
+  /** Quanto se espera por uma chamada à transportadora (por omissão 30 s). */
+  tempoLimiteMs?: number;
 }

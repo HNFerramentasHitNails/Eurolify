@@ -29,6 +29,40 @@ import {
 
 export const QUEM_DAS_TAREFAS = "sistema:envios";
 
+/** Uma etiqueta `a_pedir` há mais do que isto ficou a meio (a API reiniciou). */
+const A_PEDIR_PRESA_MS = 5 * 60 * 1000;
+/**
+ * Antes disto, «não existe» na consulta de uma incerta ainda pode ser a
+ * transportadora a processar: não se conclui (revisão do #400, P2-2). A
+ * confirmar com a especificação dos CTT (docs/36 V4).
+ */
+const INCERTA_IDADE_MINIMA_MS = 15 * 60 * 1000;
+
+/**
+ * Nenhuma chamada à transportadora fica à espera para sempre (revisão do
+ * #400, P2-6): esgotado o tempo, é como a rede ter falhado.
+ */
+function comTempo<T>(cfg: ConfigEnvios | undefined, p: Promise<T>): Promise<T> {
+  const ms = cfg?.tempoLimiteMs ?? 30_000;
+  let t: NodeJS.Timeout | undefined;
+  const limite = new Promise<never>((_, rejeitar) => {
+    t = setTimeout(() => {
+      rejeitar(new ErroDeRede("a transportadora não respondeu a tempo"));
+    }, ms);
+  });
+  return Promise.race([p, limite]).finally(() => {
+    clearTimeout(t);
+  });
+}
+
+/** O código de um erro, sem dados (para o registo e para os problemas). */
+const codigoDe = (erro: unknown) =>
+  typeof (erro as { codigo?: unknown }).codigo === "string"
+    ? (erro as { codigo: string }).codigo
+    : erro instanceof Error
+      ? erro.name
+      : "erro";
+
 async function marcar(
   trx: Transaction<BaseDados>,
   quem: string,
@@ -89,12 +123,8 @@ export async function lerEtiqueta(
 interface Preparado {
   expedicao: string;
   tentativa: number;
-  conta: {
-    id: string;
-    transportadora: "ctt";
-    credenciais_cifra: Buffer | null;
-    chave_versao: string | null;
-  };
+  conta: { id: string; transportadora: "ctt" };
+  credenciais: ReturnType<typeof credenciaisDe>;
   pedidoBase: {
     servico: string;
     remetente: MoradaEtiqueta;
@@ -186,8 +216,13 @@ async function preparar(
         "a conta da transportadora do método vendido não está pronta",
       );
     }
-    const servico = adaptadorDe(cfg, conta.transportadora)
-      .adaptador.servicos()
+    const { adaptador, chave } = adaptadorDe(cfg, conta.transportadora);
+    // As credenciais leem-se antes de a etiqueta passar a `a_pedir`: uma
+    // conta que já não se decifra não deixa a expedição presa (revisão do
+    // #400, P1-1).
+    const credenciais = credenciaisDe(conta, chave);
+    const servico = adaptador
+      .servicos()
       .find((s) => s.codigo === metodo.servico);
     if (servico === undefined) {
       throw new ErroEnvios(
@@ -264,7 +299,8 @@ async function preparar(
     return {
       expedicao: id,
       tentativa,
-      conta,
+      conta: { id: conta.id, transportadora: conta.transportadora },
+      credenciais,
       pedidoBase: {
         servico: servico.codigo,
         remetente: { ...r },
@@ -352,15 +388,17 @@ export async function pedirEtiqueta(
   quem: string,
 ) {
   const p = await preparar(db, c, id, cfg, quem);
-  const { adaptador, chave } = adaptadorDe(cfg, p.conta.transportadora);
-  const credenciais = credenciaisDe(p.conta, chave);
+  const { adaptador } = adaptadorDe(cfg, p.conta.transportadora);
   const referencia = referenciaDe(p.expedicao, p.tentativa);
   try {
-    const r = await adaptador.pedirEtiqueta(credenciais, {
-      referencia,
-      chaveIdempotencia: referencia,
-      ...p.pedidoBase,
-    });
+    const r = await comTempo(
+      cfg,
+      adaptador.pedirEtiqueta(p.credenciais, {
+        referencia,
+        chaveIdempotencia: referencia,
+        ...p.pedidoBase,
+      }),
+    );
     await registar(db, c, id, p.tentativa, quem, r);
   } catch (erro) {
     // Qualquer falha depois de pedir: não se sabe se a etiqueta existe.
@@ -448,7 +486,10 @@ export async function anularEtiqueta(
   }
   let r: "anulada" | "nao_permitido";
   try {
-    r = await adaptador.anularEtiqueta(credenciais, x.seguimento);
+    r = await comTempo(
+      cfg,
+      adaptador.anularEtiqueta(credenciais, x.seguimento),
+    );
   } catch {
     throw new ErroEnvios(
       "shipping.carrier_unavailable",
@@ -477,21 +518,11 @@ export async function anularEtiqueta(
   return lerEtiqueta(db, c, id);
 }
 
-/** Abre um problema na pós-venda (Q4: a fila «problema» da peça 21). */
-async function abrirProblema(
-  db: Kysely<BaseDados>,
-  c: string,
-  encomenda: string,
-  descricao: string,
-  quem: string,
-) {
-  await criarProblema(db, c, { encomenda, tipo: "outro", descricao }, quem);
-}
-
 /**
  * Uma etiqueta incerta (§4.1): pergunta-se à transportadora pela nossa
- * referência. Existe ⇒ emitida; não existe ⇒ recusada (pode pedir-se
- * outra). Sem resposta durante um dia ⇒ um problema para uma pessoa (Q4).
+ * referência. Existe ⇒ emitida; não existe (passado o mínimo) ⇒ recusada
+ * (pode pedir-se outra). Sem resposta durante um dia ⇒ um problema para uma
+ * pessoa (Q4), uma vez só: a marca e o problema na mesma transacção.
  */
 export async function resolverIncerta(
   db: Kysely<BaseDados>,
@@ -502,11 +533,17 @@ export async function resolverIncerta(
 ): Promise<"resolvida" | "sem_resposta"> {
   const { x, adaptador, credenciais } = await contaDaExpedicao(db, c, id, cfg);
   if (x.etiqueta !== "incerta") return "resolvida";
+  const idade =
+    x.etiqueta_em === null ? 0 : Date.now() - x.etiqueta_em.getTime();
   try {
-    const e = await adaptador.consultarEtiqueta(
-      credenciais,
-      referenciaDe(id, x.etiqueta_tentativa),
+    const e = await comTempo(
+      cfg,
+      adaptador.consultarEtiqueta(
+        credenciais,
+        referenciaDe(id, x.etiqueta_tentativa),
+      ),
     );
+    if (e === null && idade < INCERTA_IDADE_MINIMA_MS) return "sem_resposta";
     await registar(
       db,
       c,
@@ -522,38 +559,70 @@ export async function resolverIncerta(
         : { estado: "emitida", ...e },
     );
     return "resolvida";
-  } catch {
-    const umDia = 24 * 60 * 60 * 1000;
-    if (
-      x.etiqueta_em !== null &&
-      Date.now() - x.etiqueta_em.getTime() > umDia &&
-      x.etiqueta_motivo !== "problema aberto"
-    ) {
-      await abrirProblema(
-        db,
-        c,
-        x.encomenda_id,
-        `Não se sabe se a etiqueta da expedição shp_${id} existe na transportadora (sem resposta há mais de um dia). Confirme na transportadora antes de pedir outra.`,
-        quem,
-      );
+  } catch (erro) {
+    // Um erro nosso (a base recusou) não é a transportadora calada.
+    if (erro instanceof ErroEnvios) throw erro;
+    if (idade > 24 * 60 * 60 * 1000) {
       await noEnvios(db, c, async (trx) => {
         await marcar(trx, quem);
-        await trx
+        const r = await trx
           .updateTable("expedicao")
           .set({ etiqueta_motivo: "problema aberto" })
           .where("id", "=", id)
-          .execute();
+          .where("etiqueta", "=", "incerta")
+          .where((w) =>
+            w.or([
+              w("etiqueta_motivo", "is", null),
+              w("etiqueta_motivo", "!=", "problema aberto"),
+            ]),
+          )
+          .executeTakeFirst();
+        if (Number(r.numUpdatedRows) === 0) return;
+        await criarProblema(
+          trx,
+          c,
+          {
+            encomenda: x.encomenda_id,
+            tipo: "outro",
+            descricao: `Não se sabe se a etiqueta da expedição shp_${id} existe na transportadora (sem resposta há mais de um dia). Confirme na transportadora antes de pedir outra.`,
+          },
+          quem,
+        );
       });
     }
     return "sem_resposta";
   }
 }
 
+/** O pedido ficou a meio (a API reiniciou): passa a incerta e consulta-se. */
+async function soltarAPedir(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  tentativa: number,
+  em: Date | null,
+) {
+  if (em !== null && Date.now() - em.getTime() < A_PEDIR_PRESA_MS) return;
+  await registar(db, c, id, tentativa, QUEM_DAS_TAREFAS, {
+    estado: "incerta",
+    motivo: "o pedido à transportadora ficou a meio",
+  });
+}
+
+/** Um evento que se pode gravar (revisão do #400, P3-2). */
+const eventoValido = (e: EventoSeguimento) =>
+  e.idExterno.trim().length >= 1 &&
+  e.idExterno.length <= 200 &&
+  e.estadoTransportadora.length >= 1 &&
+  !Number.isNaN(e.em.getTime());
+
 /**
  * Aplica os eventos de seguimento (§4.2): cada um entra uma vez (o mesmo
  * `id_externo` não conta duas vezes); só os novos mudam a expedição, pela
- * ordem da data deles, e só para a frente. Perdida ou devolvida ⇒ um
- * problema para uma pessoa (Q4).
+ * ordem da data deles, e só para a frente. Perdida, devolvida, uma
+ * contradição ou uma mudança que o armazém recuse ⇒ um problema para uma
+ * pessoa (Q4), na mesma transacção que os eventos: os eventos ficam sempre
+ * gravados e o problema não se perde (revisão do #400, P2-3).
  */
 export async function aplicarEventos(
   db: Kysely<BaseDados>,
@@ -563,17 +632,17 @@ export async function aplicarEventos(
   origem: "aviso" | "consulta",
   quem: string,
 ): Promise<number> {
-  const resultado = await noEnvios(db, c, async (trx) => {
+  return noEnvios(db, c, async (trx) => {
     await marcar(trx, quem, `seguimento (${origem})`);
     const novos: EventoSeguimento[] = [];
-    for (const e of eventos) {
+    for (const e of eventos.filter(eventoValido)) {
       const r = await trx
         .insertInto("evento_seguimento")
         .values({
           comerciante_id: c,
           expedicao_id: id,
           origem,
-          id_externo: e.idExterno.slice(0, 200),
+          id_externo: e.idExterno,
           estado_transportadora: e.estadoTransportadora.slice(0, 100),
           estado_normalizado: e.estadoNormalizado,
           em: e.em,
@@ -586,74 +655,108 @@ export async function aplicarEventos(
       if (r !== undefined) novos.push(e);
     }
     novos.sort((a, b) => a.em.getTime() - b.em.getTime());
-    let problema: string | null = null;
+    const problemas: string[] = [];
+    const passar = async (
+      estado: "expedida" | "entregue" | "devolvida_ao_remetente" | "perdida",
+      prova?: string,
+    ) => {
+      const actual = await trx
+        .selectFrom("expedicao")
+        .select("versao")
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      await mudarExpedicao(
+        trx,
+        c,
+        id,
+        actual.versao,
+        { estado, ...(prova === undefined ? {} : { prova_entrega: prova }) },
+        quem,
+      );
+    };
     for (const e of novos) {
       const x = await trx
         .selectFrom("expedicao")
-        .select(["estado", "versao", "encomenda_id"])
+        .select("estado")
         .where("id", "=", id)
         .executeTakeFirstOrThrow();
-      const passar = async (
-        estado: "expedida" | "entregue" | "devolvida_ao_remetente" | "perdida",
-        prova?: string,
-      ) => {
-        const actual = await trx
-          .selectFrom("expedicao")
-          .select("versao")
-          .where("id", "=", id)
-          .executeTakeFirstOrThrow();
-        await mudarExpedicao(
-          trx,
-          c,
-          id,
-          actual.versao,
-          { estado, ...(prova === undefined ? {} : { prova_entrega: prova }) },
-          quem,
+      const quando = e.em.toISOString();
+      // Cada mudança num ponto de retorno: se o armazém a recusa (ex.: um
+      // lote sem saldo), os eventos ficam e uma pessoa trata (P2-3).
+      await sql`savepoint seguimento`.execute(trx);
+      try {
+        switch (e.estadoNormalizado) {
+          case "recolhida":
+          case "em_transito":
+            if (x.estado === "criada") await passar("expedida");
+            break;
+          case "entregue":
+            if (x.estado === "criada") await passar("expedida");
+            if (x.estado === "criada" || x.estado === "expedida") {
+              await passar(
+                "entregue",
+                `transportadora: evento ${e.idExterno} de ${quando}`.slice(
+                  0,
+                  500,
+                ),
+              );
+            } else if (x.estado !== "entregue") {
+              problemas.push(
+                `A transportadora deu a expedição shp_${id} como entregue (${quando}), mas no Eurolify está «${x.estado}». Confirmar com a transportadora.`,
+              );
+            }
+            break;
+          case "devolvida":
+          case "perdida":
+            if (x.estado === "criada") await passar("expedida");
+            if (x.estado === "criada" || x.estado === "expedida") {
+              await passar(
+                e.estadoNormalizado === "perdida"
+                  ? "perdida"
+                  : "devolvida_ao_remetente",
+              );
+              problemas.push(
+                e.estadoNormalizado === "perdida"
+                  ? `A transportadora deu a expedição shp_${id} como perdida (${quando}). A perda até à entrega é do comerciante (docs/36 L5): reenviar ou reembolsar.`
+                  : `A expedição shp_${id} foi devolvida ao remetente (${quando}). Contactar o cliente: reenviar ou reembolsar.`,
+              );
+            } else if (x.estado === "entregue") {
+              // Só para a frente (§4.2), mas a contradição vê-a uma pessoa.
+              problemas.push(
+                `A transportadora deu a expedição shp_${id}, já entregue, como ${e.estadoNormalizado === "perdida" ? "perdida" : "devolvida"} (${quando}). Confirmar com a transportadora.`,
+              );
+            }
+            break;
+          default:
+            // Tentativa falhada, para levantar, outro: só no histórico.
+            break;
+        }
+        await sql`release savepoint seguimento`.execute(trx);
+      } catch (erro) {
+        await sql`rollback to savepoint seguimento`.execute(trx);
+        problemas.push(
+          `O evento «${e.estadoNormalizado}» da transportadora (${quando}) não mudou a expedição shp_${id}: ${codigoDe(erro)}. Tratar à mão.`,
         );
-      };
-      const prova = `transportadora: evento ${e.idExterno} de ${e.em.toISOString()}`;
-      switch (e.estadoNormalizado) {
-        case "recolhida":
-        case "em_transito":
-          if (x.estado === "criada") await passar("expedida");
-          break;
-        case "entregue":
-          if (x.estado === "criada") await passar("expedida");
-          if (x.estado === "criada" || x.estado === "expedida") {
-            await passar("entregue", prova.slice(0, 500));
-          }
-          break;
-        case "devolvida":
-        case "perdida":
-          if (x.estado === "criada") await passar("expedida");
-          if (x.estado === "criada" || x.estado === "expedida") {
-            await passar(
-              e.estadoNormalizado === "perdida"
-                ? "perdida"
-                : "devolvida_ao_remetente",
-            );
-            problema =
-              e.estadoNormalizado === "perdida"
-                ? `A transportadora deu a expedição shp_${id} como perdida (${e.em.toISOString()}). A perda até à entrega é do comerciante (docs/36 L5): reenviar ou reembolsar.`
-                : `A expedição shp_${id} foi devolvida ao remetente (${e.em.toISOString()}). Contactar o cliente: reenviar ou reembolsar.`;
-          }
-          break;
-        default:
-          // Tentativa falhada, para levantar, outro: só no histórico.
-          break;
+        break;
       }
     }
-    const { encomenda_id } = await trx
-      .selectFrom("expedicao")
-      .select("encomenda_id")
-      .where("id", "=", id)
-      .executeTakeFirstOrThrow();
-    return { novos: novos.length, problema, encomenda: encomenda_id };
+    if (problemas.length > 0) {
+      const { encomenda_id } = await trx
+        .selectFrom("expedicao")
+        .select("encomenda_id")
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      for (const descricao of problemas) {
+        await criarProblema(
+          trx,
+          c,
+          { encomenda: encomenda_id, tipo: "outro", descricao },
+          quem,
+        );
+      }
+    }
+    return novos.length;
   });
-  if (resultado.problema !== null) {
-    await abrirProblema(db, c, resultado.encomenda, resultado.problema, quem);
-  }
-  return resultado.novos;
 }
 
 /** Consulta o seguimento agora (`POST …/refresh`, e a tarefa). */
@@ -677,7 +780,10 @@ export async function consultarSeguimento(
   }
   let eventos: EventoSeguimento[];
   try {
-    eventos = await adaptador.consultarSeguimento(credenciais, x.seguimento);
+    eventos = await comTempo(
+      cfg,
+      adaptador.consultarSeguimento(credenciais, x.seguimento),
+    );
   } catch {
     throw new ErroEnvios(
       "shipping.carrier_unavailable",
@@ -798,13 +904,15 @@ export async function receberAviso(
     dados.segredo_aviso_cifra !== null &&
     dados.chave_versao === chave.versao
   ) {
-    const segredo = decifrar(
-      dados.segredo_aviso_cifra,
-      conta,
-      "segredo_aviso",
-      chave,
-    );
+    // A decifra também dentro do `try`: um segredo estragado é um aviso que
+    // não se lê, e fica gravado como os outros (revisão do #400, P3-5).
     try {
+      const segredo = decifrar(
+        dados.segredo_aviso_cifra,
+        conta,
+        "segredo_aviso",
+        chave,
+      );
       leitura = adaptador.lerAviso(cabecalhos, corpo, segredo);
     } catch {
       leitura = { valido: false };
@@ -824,16 +932,20 @@ export async function receberAviso(
     return id;
   });
   if (!leitura.valido) return false;
-  // A expedição pela nossa referência («<expedição>-<tentativa>»), ou pelo
-  // número de seguimento, sempre da conta que avisou.
+  // A expedição pela nossa referência («<expedição>-<tentativa>», só a
+  // tentativa viva), ou pelo número de seguimento, sempre da conta que
+  // avisou e com a etiqueta emitida ou incerta (revisão do #400, P3-1).
   const expedicao = await noEnvios(db, c, async (trx) => {
     let q = trx
       .selectFrom("expedicao")
       .select("id")
-      .where("conta_transportadora_id", "=", conta);
+      .where("conta_transportadora_id", "=", conta)
+      .where("etiqueta", "in", ["emitida", "incerta"]);
     const ref = leitura.referencia?.match(/^([0-9a-f-]{36})-(\d+)$/);
-    if (ref?.[1] !== undefined) {
-      q = q.where("id", "=", ref[1]);
+    if (ref?.[1] !== undefined && ref[2] !== undefined) {
+      q = q
+        .where("id", "=", ref[1])
+        .where("etiqueta_tentativa", "=", Number(ref[2]));
     } else if (leitura.seguimento !== null) {
       q = q.where("seguimento", "=", leitura.seguimento);
     } else {
@@ -878,17 +990,44 @@ export async function receberAviso(
   return true;
 }
 
+/** O que uma volta fez: as falhas contam-se, com o código (P2-4). */
+export interface ResultadoVolta {
+  feitos: number;
+  falhas: number;
+  erros: Record<string, number>;
+  avisosResumidos: number;
+}
+
 /**
  * A volta da API (docs/36 §4): segue as etiquetas emitidas até a expedição
- * acabar, resolve as incertas e apaga os ficheiros 30 dias depois (Q7). Um
- * comerciante que falhe não pára os outros.
+ * acabar, resolve as incertas e as que ficaram a meio, apaga os ficheiros 30
+ * dias depois (Q7) e resume os avisos que não se ligaram a nada. Um
+ * comerciante ou uma expedição que falhe não pára os outros, e conta-se.
  */
 export async function correrTrabalho(
   db: Kysely<BaseDados>,
   cfg: ConfigEnvios | undefined,
   porVolta = 50,
-): Promise<number> {
-  let feitos = 0;
+): Promise<ResultadoVolta> {
+  const r: ResultadoVolta = {
+    feitos: 0,
+    falhas: 0,
+    erros: {},
+    avisosResumidos: 0,
+  };
+  const falhou = (erro: unknown) => {
+    r.falhas += 1;
+    const k = codigoDe(erro);
+    r.erros[k] = (r.erros[k] ?? 0) + 1;
+  };
+  try {
+    const { rows } = await sql<{
+      n: number;
+    }>`select envios_avisos_resumir() as n`.execute(db);
+    r.avisosResumidos = rows[0]?.n ?? 0;
+  } catch (erro) {
+    falhou(erro);
+  }
   const { rows } = await sql<{
     c: string;
   }>`select envios_comerciantes_com_trabalho() as c`.execute(db);
@@ -896,12 +1035,13 @@ export async function correrTrabalho(
     let ids: string[];
     try {
       ids = await comComerciante(db, c, async (trx) => {
-        const { rows: r } = await sql<{
+        const { rows: l } = await sql<{
           id: string;
         }>`select e as id from envios_trabalho(${porVolta}) as e`.execute(trx);
-        return r.map((x) => x.id);
+        return l.map((x) => x.id);
       });
-    } catch {
+    } catch (erro) {
+      falhou(erro);
       continue;
     }
     for (const id of ids) {
@@ -909,7 +1049,7 @@ export async function correrTrabalho(
         const x = await noEnvios(db, c, (trx) =>
           trx
             .selectFrom("expedicao")
-            .select(["estado", "etiqueta"])
+            .select(["estado", "etiqueta", "etiqueta_tentativa", "etiqueta_em"])
             .where("id", "=", id)
             .executeTakeFirstOrThrow(),
         );
@@ -928,14 +1068,18 @@ export async function correrTrabalho(
               .execute();
             await sql`select envios_trabalho_feito(${id}::uuid)`.execute(trx);
           });
+        } else if (x.etiqueta === "a_pedir") {
+          await soltarAPedir(db, c, id, x.etiqueta_tentativa, x.etiqueta_em);
         } else if (x.etiqueta === "incerta") {
           await resolverIncerta(db, c, id, cfg, QUEM_DAS_TAREFAS);
         } else if (x.etiqueta === "emitida") {
           await consultarSeguimento(db, c, id, cfg, QUEM_DAS_TAREFAS);
         }
-        feitos += 1;
-      } catch {
-        // Falhou (a transportadora não respondeu): tenta-se mais tarde.
+        r.feitos += 1;
+      } catch (erro) {
+        // A transportadora não respondeu, ou a conta já não se decifra:
+        // tenta-se mais tarde, e a falha conta.
+        falhou(erro);
       }
       // A próxima volta, só se a expedição ainda está a andar: a que acabou
       // já tem o trabalho dos 30 dias posto pelo gatilho (Q7).
@@ -943,21 +1087,24 @@ export async function correrTrabalho(
         await comComerciante(db, c, async (trx) => {
           const y = await trx
             .selectFrom("expedicao")
-            .select("estado")
+            .select(["estado", "etiqueta"])
             .where("id", "=", id)
             .executeTakeFirstOrThrow();
-          if (y.estado === "criada" || y.estado === "expedida") {
+          if (
+            (y.estado === "criada" || y.estado === "expedida") &&
+            y.etiqueta !== "a_pedir"
+          ) {
             await sql`select envios_trabalho_adiar(${id}::uuid, 60)`.execute(
               trx,
             );
           }
         });
-      } catch {
-        continue;
+      } catch (erro) {
+        falhou(erro);
       }
     }
   }
-  return feitos;
+  return r;
 }
 
 export function agendarTrabalhoEnvios(
@@ -974,14 +1121,15 @@ export function agendarTrabalhoEnvios(
       if (aCorrer) return;
       aCorrer = true;
       correrTrabalho(base, cfg)
-        .then((n) => {
-          if (n > 0) registo.info({ feitos: n }, "envios: a volta correu");
+        .then((r) => {
+          if (r.falhas > 0) {
+            registo.error(r, "envios: a volta correu com falhas");
+          } else if (r.feitos > 0 || r.avisosResumidos > 0) {
+            registo.info(r, "envios: a volta correu");
+          }
         })
         .catch((erro: unknown) => {
-          registo.error(
-            { erro: erro instanceof Error ? erro.name : "erro" },
-            "envios: a volta falhou",
-          );
+          registo.error({ erro: codigoDe(erro) }, "envios: a volta falhou");
         })
         .finally(() => {
           aCorrer = false;

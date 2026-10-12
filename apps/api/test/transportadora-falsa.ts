@@ -21,7 +21,10 @@ export const assinarAviso = (corpo: string, segredo: string) =>
 export function transportadoraFalsa() {
   const estado = {
     /** Como responde ao próximo pedido de etiqueta. */
-    pedir: "emitir" as "emitir" | "recusar" | "rede" | "rede_mas_criada",
+    pedir: "emitir" as
+      "emitir" | "recusar" | "rede" | "rede_mas_criada" | "pendurar",
+    /** Se existe, o pedido de etiqueta espera por ela antes de responder. */
+    atraso: null as Promise<void> | null,
     /** Como responde a consultas (etiqueta e seguimento). */
     consultar: "responde" as "responde" | "rede",
     anular: "anulada" as "anulada" | "nao_permitido",
@@ -80,24 +83,22 @@ export function transportadoraFalsa() {
         ? Promise.resolve()
         : Promise.reject(new Error("recusada"));
     },
-    pedirEtiqueta(_c, pedido) {
+    async pedirEtiqueta(_c, pedido) {
       estado.pedidos.push(pedido);
+      if (estado.atraso !== null) await estado.atraso;
       switch (estado.pedir) {
         case "recusar":
-          return Promise.resolve({
-            estado: "recusada",
-            motivo: "código postal desconhecido",
-          });
+          return { estado: "recusada", motivo: "código postal desconhecido" };
         case "rede":
-          return Promise.reject(new ErroDeRede("tempo esgotado"));
+          throw new ErroDeRede("tempo esgotado");
         case "rede_mas_criada":
           emitir(pedido.referencia);
-          return Promise.reject(new ErroDeRede("tempo esgotado"));
+          throw new ErroDeRede("tempo esgotado");
+        case "pendurar":
+          // Nunca responde: o núcleo tem de desistir sozinho.
+          return new Promise<never>(() => undefined);
         default:
-          return Promise.resolve({
-            estado: "emitida",
-            ...emitir(pedido.referencia),
-          });
+          return { estado: "emitida", ...emitir(pedido.referencia) };
       }
     },
     consultarEtiqueta(_c, referencia) {
@@ -149,5 +150,5 @@ export function transportadoraFalsa() {
       };
     },
   };
-  return { adaptador, estado };
+  return { adaptador, estado, emitir };
 }

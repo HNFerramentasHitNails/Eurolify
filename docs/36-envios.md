@@ -441,7 +441,7 @@ resto corre contra uma transportadora de ensaio com o contrato inteiro da §8.
 | a volta da API de 5 em 5 minutos: o seguimento das emitidas, as incertas e os ficheiros a apagar | `agendarTrabalhoEnvios` |
 | rotas: `POST /shipments/{id}/label`, `GET /shipments/{id}/label`, `GET /shipments/{id}/label/file`, `POST /shipments/{id}/label/void`, `GET /shipments/{id}/events`, `POST /shipments/{id}/refresh`, `PUT /warehouses/{id}/packaging` | `src/envios/rotas.ts` |
 | uma conta pronta que a transportadora deixa de aceitar volta a rascunho (revisão do #397, P3-6) | `src/envios/repositorio.ts` |
-| 6 testes pela API com a transportadora de ensaio | `test/envios-etiquetas.test.ts`, `test/transportadora-falsa.ts` |
+| 11 testes pela API com a transportadora de ensaio | `test/envios-etiquetas.test.ts`, `test/transportadora-falsa.ts` |
 
 **Desvios do desenho:**
 - **O ficheiro fica na base**, não no armazenamento de ficheiros (§3.5): a
@@ -456,11 +456,54 @@ resto corre contra uma transportadora de ensaio com o contrato inteiro da §8.
 - **Os perdidos e devolvidos** abrem um problema de tipo `outro` com a
   descrição (a pós-venda não tem tipos próprios para eles).
 
-**Não testado:** o apagamento do titular a levar o ficheiro e a resumir os
-avisos (o gatilho existe; o teste precisa de uma encomenda acabada e de um
-pedido de apagamento); a etiqueta incerta sem resposta há mais de um dia (o
-problema); concorrência (dois pedidos de etiqueta ao mesmo tempo: a base
-bloqueia a expedição, sem teste).
+- **A referência é `<uuid>-<tentativa>`**, sem o `shp_` (R2): é o que a
+  transportadora guarda, e o prefixo não lhe diz nada.
+- **Não se emite `shipment.tracking_updated`** (§7.5); só `label_created`,
+  `label_refused` e `label_voided`. Fica para quando houver quem o ouça.
+- **Uma recusa responde 200 com `etiqueta: "recusada"`** e o motivo, em vez do
+  erro `shipping.label_refused` (§7.4): a recusa é um resultado, não uma
+  falha do pedido.
+- **Corrigir o peso e mudar o serviço «com motivo»** (§3.3) não tem rota
+  ainda: entra com os ecrãs do Hub.
+- **Tentativa falhada e para levantar** ficam só no histórico; o aviso ao
+  comerciante (Q4) entra com as notificações.
+
+**Revisão do agente (#400, Sonnet 5.5), tratada neste pedido:**
+- P1-1: as credenciais leem-se antes de a etiqueta passar a `a_pedir`; uma
+  `a_pedir` com mais de 5 minutos (a API reiniciou) passa a incerta pela
+  volta, e resolve-se pela referência.
+- P2-1: com a etiqueta viva, a expedição não se cancela e o número, o
+  serviço, a transportadora e a conta não se trocam por fora (gatilho).
+- P2-2: «não existe» na consulta de uma incerta só se conclui 15 minutos
+  depois (a confirmar com a especificação dos CTT, V4).
+- P2-3: os eventos e o problema na mesma transacção; uma mudança que o
+  armazém recuse fica num ponto de retorno: os eventos ficam e abre-se um
+  problema, sem 5xx sem fim.
+- P2-4: a volta conta as falhas, com o código, e regista-as.
+- P2-5: o apagamento do titular limpa também o motivo da etiqueta e o texto
+  da transportadora nos eventos; os avisos que não se ligaram a nada
+  resumem-se 30 dias depois de chegar.
+- P2-6: cada chamada à transportadora tem tempo-limite (30 s por omissão).
+- P2-7: testes da concorrência, do pedido a meio, do tempo-limite, dos
+  eventos fora de ordem, da contradição, do isolamento das rotas e dos
+  avisos, e da tentativa antiga.
+- P3-1, P3-2, P3-3, P3-4, P3-5 tratados (a tentativa do aviso, eventos
+  inválidos descartados, a contradição abre um problema, o problema da
+  incerta abre-se uma vez, a decifra do aviso dentro do `try`).
+- **Ficam:** P3-6 (limite por conta nos avisos), P3-7 (anular com a
+  expedição bloqueada), P3-8 (validar a resposta do adaptador antes de
+  gravar), P3-9 (`Idempotency-Key` guardada nas rotas da etiqueta), P3-10
+  (índice por seguimento, emitidas que nunca saem), P3-11 (peso do kit pela
+  composição congelada). Do §14 também ficam o P3-5 (leitura da conta sem
+  bloqueio) e o P3-7 (rotação da chave); o P3-8 (tempo-limite) ficou feito.
+
+**Não testado:** o apagamento do titular a levar o ficheiro e a limpar os
+avisos e os eventos (os gatilhos existem; o teste precisa de uma encomenda
+acabada e de um pedido de apagamento); a etiqueta incerta sem resposta há
+mais de um dia (o problema); um evento que o armazém recuse (o ponto de
+retorno); o resumo dos avisos aos 30 dias. A concorrência testa-se pela API,
+mas o segundo pedido chega depois de o primeiro ter gravado `a_pedir`, não
+dentro do bloqueio.
 
 **Por fazer:** o adaptador dos CTT (quando houver a especificação e as
 credenciais de teste); a parte C (o segundo adaptador); os ecrãs do Hub.

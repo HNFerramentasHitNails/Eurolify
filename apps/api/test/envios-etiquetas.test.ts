@@ -58,6 +58,8 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
   const envios = {
     chave: chavePagamentos(randomBytes(32).toString("base64")),
     adaptadores: { ctt: ctt.adaptador },
+    // A transportadora que não responde desiste-se dela depressa (P2-6).
+    tempoLimiteMs: 1000,
   };
 
   beforeAll(async () => {
@@ -458,6 +460,31 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
     return { encomenda, expedicao: String(x["id"]) };
   }
 
+  /** Põe a etiqueta da expedição como mudada há `idade` (só nos testes). */
+  async function envelhecer(c: string, expedicao: string, idade: string) {
+    await comComerciante(base.dono, c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+        trx,
+      );
+      await sql`update expedicao set etiqueta_em = now() - ${idade}::interval
+        where id = ${expedicao.slice(4)}::uuid`.execute(trx);
+    });
+  }
+
+  /** A vez da expedição na volta da API chegou. */
+  const aVezChegou = (expedicao: string) =>
+    sql`update trabalho_envio set quando = now() - interval '1 minute'
+      where expedicao_id = ${expedicao.slice(4)}::uuid`.execute(base.dono);
+
+  const versaoDe = async (expedicao: string) =>
+    (
+      await sql<{
+        versao: number;
+      }>`select versao from expedicao where id = ${expedicao.slice(4)}::uuid`.execute(
+        base.dono,
+      )
+    ).rows[0]?.versao ?? 0;
+
   /** Um aviso da transportadora para a conta do cenário. */
   const avisoCtt = (s: Cenario, dados: Json, segredo = SEGREDO_ENVIOS) => {
     const corpo = JSON.stringify(dados);
@@ -579,6 +606,12 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
     ctt.estado.pedir = "rede";
     const b = await expedicaoPaga(s, s.metodoCtt, 1);
     await ok(s.adm("POST", `/shipments/${b.expedicao}/label`));
+    // Logo a seguir, «não existe» ainda pode ser a transportadora a
+    // processar: não se conclui (revisão do #400, P2-2).
+    expect(
+      await ok(s.adm("POST", `/shipments/${b.expedicao}/refresh`)),
+    ).toMatchObject({ etiqueta: "incerta" });
+    await envelhecer(s.c, b.expedicao, "20 minutes");
     expect(
       await ok(s.adm("POST", `/shipments/${b.expedicao}/refresh`)),
     ).toMatchObject({ etiqueta: "recusada" });
@@ -697,21 +730,242 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
     // Um só problema, mesmo com o aviso repetido.
     expect(problemas).toHaveLength(1);
     expect(problemas[0]?.descricao).toContain("perdida");
-    // A conta de outro comerciante não recebe pelo endereço desta.
+    // O isolamento (revisão do #400, P2-7): um aviso bem assinado que chega
+    // ao endereço da conta de outro comerciante, com a referência de uma
+    // expedição deste, não lhe toca (fica «ignorado»).
     const outro = await cenario();
+    const b = await expedicaoPaga(s, s.metodoCtt, 1);
+    await ok(s.adm("POST", `/shipments/${b.expedicao}/label`));
+    const alheio = {
+      referencia: `${b.expedicao.slice(4)}-1`,
+      eventos: [
+        {
+          id: "av-x",
+          estado: "EM_TRANSITO",
+          normalizado: "em_transito",
+          em: "2026-10-12T10:00:00Z",
+        },
+      ],
+    };
+    expect((await avisoCtt(outro, alheio)).statusCode).toBe(200);
+    expect(
+      await ok(s.adm("GET", `/shipments/${b.expedicao}/label`)),
+    ).toMatchObject({ estado_expedicao: "criada" });
+    // Uma tentativa que já não é a viva também não (P3-1).
+    expect(
+      (
+        await avisoCtt(s, {
+          ...alheio,
+          referencia: `${b.expedicao.slice(4)}-9`,
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      await ok(s.adm("GET", `/shipments/${b.expedicao}/label`)),
+    ).toMatchObject({ estado_expedicao: "criada" });
+    const resultados = (
+      await sql<{
+        resultado: string | null;
+      }>`select resultado from aviso_transportadora
+          where conta_id in (${outro.conta.slice(4)}::uuid, ${s.conta.slice(4)}::uuid)
+          order by recebido_em desc, id desc limit 2`.execute(base.dono)
+    ).rows;
+    expect(resultados.map((x) => x.resultado)).toEqual([
+      "ignorado",
+      "ignorado",
+    ]);
+    // Uma conta que não existe responde como uma assinatura errada.
     const r = await app.inject({
       method: "POST",
-      url: `/webhooks/carriers/ctt/${outro.conta}`,
+      url: `/webhooks/carriers/ctt/cac_${randomUUID()}`,
       headers: {
         "content-type": "application/json",
-        "x-assinatura": assinarAviso(
-          JSON.stringify(perdida),
-          "errado-xxxxxxxx",
-        ),
+        "x-assinatura": assinarAviso(JSON.stringify(alheio), SEGREDO_ENVIOS),
       },
-      payload: JSON.stringify(perdida),
+      payload: JSON.stringify(alheio),
     });
     expect(r.statusCode).toBe(401);
+    // As rotas novas, com expedições e armazéns de outro comerciante: não
+    // existem.
+    for (const [m, url] of [
+      ["GET", `/shipments/${b.expedicao}/label`],
+      ["GET", `/shipments/${b.expedicao}/label/file`],
+      ["GET", `/shipments/${b.expedicao}/events`],
+      ["POST", `/shipments/${b.expedicao}/refresh`],
+      ["POST", `/shipments/${b.expedicao}/label/void`],
+      ["POST", `/shipments/${b.expedicao}/label`],
+    ] as const) {
+      expect(await codigo(outro.adm(m, url)), url).toEqual([
+        404,
+        "shipping.not_found",
+      ]);
+    }
+    expect(
+      await codigo(
+        outro.adm("PUT", `/warehouses/${s.armazem}/packaging`, {
+          embalagem_g: 10,
+        }),
+      ),
+    ).toEqual([404, "shipping.not_found"]);
+  });
+
+  it("duas pessoas a pedir a etiqueta ao mesmo tempo: a transportadora recebe um pedido só", async () => {
+    const s = await cenario();
+    ctt.estado.pedir = "emitir";
+    const a = await expedicaoPaga(s, s.metodoCtt, 1);
+    let soltar: () => void = () => undefined;
+    ctt.estado.atraso = new Promise<void>((r) => {
+      soltar = r;
+    });
+    const antes = ctt.estado.pedidos.length;
+    try {
+      const primeiro = s.adm("POST", `/shipments/${a.expedicao}/label`);
+      // O segundo chega enquanto o primeiro espera pela transportadora.
+      while (ctt.estado.pedidos.length === antes) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      const segundo = await codigo(
+        s.adm("POST", `/shipments/${a.expedicao}/label`),
+      );
+      soltar();
+      expect(segundo).toEqual([409, "shipping.label_exists"]);
+      expect(await ok(primeiro)).toMatchObject({ etiqueta: "emitida" });
+      expect(ctt.estado.pedidos.length).toBe(antes + 1);
+    } finally {
+      soltar();
+      ctt.estado.atraso = null;
+    }
+  });
+
+  it("o pedido que fica a meio (a transportadora não responde, ou a API reinicia) não prende a expedição: a volta passa-o a incerta e consulta", async () => {
+    const s = await cenario();
+    ctt.estado.consultar = "responde";
+    // Não responde: o núcleo desiste ao fim do tempo-limite (P2-6).
+    ctt.estado.pedir = "pendurar";
+    const a = await expedicaoPaga(s, s.metodoCtt, 1);
+    expect(
+      await ok(s.adm("POST", `/shipments/${a.expedicao}/label`)),
+    ).toMatchObject({ etiqueta: "incerta" });
+    // A API reiniciou a meio do pedido (P1-1): a etiqueta ficou «a_pedir».
+    ctt.estado.pedir = "emitir";
+    const b = await expedicaoPaga(s, s.metodoCtt, 1);
+    const id = b.expedicao.slice(4);
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(
+        trx,
+      );
+      await sql`update expedicao set etiqueta = 'a_pedir', etiqueta_tentativa = 1,
+          conta_transportadora_id = ${s.conta.slice(4)}::uuid, transportadora = 'ctt',
+          servico = 'EXPRESSO_48'
+        where id = ${id}::uuid`.execute(trx);
+    });
+    // A transportadora chegou a criá-la.
+    ctt.emitir(`${id}-1`);
+    // Ainda dentro dos 5 minutos: a volta não lhe toca.
+    await aVezChegou(b.expedicao);
+    await correrTrabalho(base.api, envios);
+    expect(
+      await ok(s.adm("GET", `/shipments/${b.expedicao}/label`)),
+    ).toMatchObject({ etiqueta: "a_pedir" });
+    await envelhecer(s.c, b.expedicao, "10 minutes");
+    await aVezChegou(b.expedicao);
+    const r = await correrTrabalho(base.api, envios);
+    expect(r.falhas).toBe(0);
+    expect(
+      await ok(s.adm("GET", `/shipments/${b.expedicao}/label`)),
+    ).toMatchObject({ etiqueta: "incerta" });
+    // Na volta seguinte, consulta-se pela referência e fica emitida.
+    await aVezChegou(b.expedicao);
+    await correrTrabalho(base.api, envios);
+    expect(
+      await ok(s.adm("GET", `/shipments/${b.expedicao}/label`)),
+    ).toMatchObject({ etiqueta: "emitida", tentativa: 1, ficheiro: "pdf" });
+  });
+
+  it("com a etiqueta viva, a expedição não se cancela nem troca o número ou o serviço por fora", async () => {
+    const s = await cenario();
+    ctt.estado.pedir = "emitir";
+    const a = await expedicaoPaga(s, s.metodoCtt, 1);
+    await ok(s.adm("POST", `/shipments/${a.expedicao}/label`));
+    expect(
+      await codigo(
+        s.adm("PATCH", `/shipments/${a.expedicao}`, {
+          versao: await versaoDe(a.expedicao),
+          estado: "cancelada",
+        }),
+      ),
+    ).toEqual([409, "shipments.invalid_transition"]);
+    expect(
+      await codigo(
+        s.adm("PATCH", `/shipments/${a.expedicao}`, {
+          versao: await versaoDe(a.expedicao),
+          seguimento: "OUTRO123PT",
+        }),
+      ),
+    ).toEqual([409, "shipments.invalid_transition"]);
+    // Anulada, já se cancela.
+    ctt.estado.anular = "anulada";
+    await ok(s.adm("POST", `/shipments/${a.expedicao}/label/void`));
+    await ok(
+      s.adm("PATCH", `/shipments/${a.expedicao}`, {
+        versao: await versaoDe(a.expedicao),
+        estado: "cancelada",
+      }),
+    );
+  });
+
+  it("os eventos fora de ordem aplicam-se pela data; um evento que contradiz uma expedição acabada abre um problema", async () => {
+    const s = await cenario();
+    ctt.estado.pedir = "emitir";
+    ctt.estado.consultar = "responde";
+    const a = await expedicaoPaga(s, s.metodoCtt, 1);
+    const e = await ok(s.adm("POST", `/shipments/${a.expedicao}/label`));
+    // Chegam ao contrário: entregue primeiro, recolhida depois.
+    ctt.estado.eventos.set(String(e["seguimento"]), [
+      {
+        idExterno: "o-2",
+        estadoTransportadora: "ENTREGUE",
+        estadoNormalizado: "entregue",
+        em: new Date("2026-10-13T15:00:00Z"),
+      },
+      {
+        idExterno: "o-1",
+        estadoTransportadora: "ACEITE",
+        estadoNormalizado: "recolhida",
+        em: new Date("2026-10-12T10:00:00Z"),
+      },
+      // Um evento que não se pode gravar descarta-se (P3-2).
+      {
+        idExterno: " ",
+        estadoTransportadora: "X",
+        estadoNormalizado: "outro",
+        em: new Date("2026-10-12T11:00:00Z"),
+      },
+    ]);
+    expect(
+      await ok(s.adm("POST", `/shipments/${a.expedicao}/refresh`)),
+    ).toMatchObject({ estado_expedicao: "entregue", novos: 2 });
+    // Depois de entregue, a transportadora diz perdida: fica entregue, e
+    // uma pessoa vê a contradição.
+    ctt.estado.eventos.set(String(e["seguimento"]), [
+      {
+        idExterno: "o-3",
+        estadoTransportadora: "EXTRAVIADO",
+        estadoNormalizado: "perdida",
+        em: new Date("2026-10-14T10:00:00Z"),
+      },
+    ]);
+    expect(
+      await ok(s.adm("POST", `/shipments/${a.expedicao}/refresh`)),
+    ).toMatchObject({ estado_expedicao: "entregue", novos: 1 });
+    const problemas = (
+      await sql<{
+        descricao: string;
+      }>`select descricao from problema
+          where comerciante_id = ${s.c}::uuid`.execute(base.dono)
+    ).rows;
+    expect(problemas).toHaveLength(1);
+    expect(problemas[0]?.descricao).toContain("já entregue");
   });
 
   it("a volta da API: segue a etiqueta até entregue e apaga o ficheiro quando o prazo dos 30 dias passa", async () => {
@@ -761,7 +1015,7 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
           trx,
         ),
       ),
-    ).rejects.toThrow(/append_only|só se acrescenta/);
+    ).rejects.toThrow(/shipping.immutable/);
     await expect(
       comComerciante(base.dono, s.c, async (trx) => {
         await sql`select set_config('eurolify.quem', 'pessoa:teste', true)`.execute(

@@ -23,14 +23,17 @@ Pedido do Diogo, 12/10/2026: *«depois avança com a parte B dos envios»*
 
 ## Números (com data e como se contaram)
 
-- 12/10/2026, local, `test/envios-etiquetas.test.ts`: 6 testes verdes.
+- 12/10/2026, local, `test/envios-etiquetas.test.ts`: 6 testes verdes no primeiro commit; 11 depois da revisão do agente (P1 e P2 tratados, docs/36 §15).
+- 12/10/2026, local, a suite inteira no primeiro commit: 1498 verdes, 1 saltado.
 - `comerciante.test.ts`: passou a contar 88 tabelas com RLS forçado (eram 85).
 
 ## O que ficou por verificar
 
 - A API dos CTT (V1 a V5 do `docs/36`).
 - Sem teste:
-  - o apagamento do titular a levar a etiqueta;
+  - o apagamento do titular a levar a etiqueta e a limpar avisos e eventos;
   - o problema da incerta sem resposta há um dia;
-  - a concorrência de dois pedidos de etiqueta.
+  - um evento que o armazém recuse (o ponto de retorno);
+  - o resumo dos avisos aos 30 dias.
+- Os P3 da revisão que ficaram estão no docs/36 §15.
 - A `ENVIOS_CHAVE` continua fora da VPS: sem ela a volta dos envios não arranca.
