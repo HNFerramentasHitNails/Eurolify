@@ -1,7 +1,8 @@
 # Envios — transportadoras, etiquetas e seguimento
 
-> **Versão de 12/10/2026 — desenho, por aprovar** (issue #393). Pedido do
-> Diogo, 12/10/2026: *«sim, começa o desenho dos envios»*. É a **peça 9 da
+> **Estado: desenho aprovado** (issue #393; `docs/06`, ED). Diogo, 12/10/2026:
+> *«sim, começa o desenho dos envios»* e *«sim, aprovo; avança com a parte
+> A»* (Q1 a Q8 como propostas). É a **peça 9 da
 > Fase 1** (`docs/10` §2: «Envios: CTT e um agregador») e a **parte 2 da
 > fatia 9** (`docs/27` §1: «adaptadores de transportadora (cotação, etiqueta,
 > seguimento automático, pontos de recolha) — parte 2 desta fatia (Q5)»).
