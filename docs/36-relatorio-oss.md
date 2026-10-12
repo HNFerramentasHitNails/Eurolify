@@ -1,7 +1,8 @@
 # Relatório OSS — os baldes do IVA, o fecho e os registos
 
-> **Estado: proposta, por aprovar.** Diogo, 12/10/2026: *«sim, avança com o
-> desenho do relatório OSS»*. É a parte 3 da fatia 10 (issue #310) e a peça
+> **Estado: aprovado** (`docs/06`, ED). Diogo, 12/10/2026: *«sim, aprovo o
+> desenho com as propostas Q-O1 a Q-O5»*. Pedido inicial, 12/10/2026: *«sim,
+> avança com o desenho do relatório OSS»*. É a parte 3 da fatia 10 (issue #310) e a peça
 > 18 da Fase 1 (`docs/10`; trazida da Fase 2 pela decisão AD, ADR-0022). Só
 > desenho; nenhum código antes de aprovado (ADR-0023).
 >
