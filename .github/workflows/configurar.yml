@@ -3,7 +3,7 @@
 # (ADR-0028: a VPS opera-se pelo GitHub), depois de criar ou mudar os cinco
 # segredos SMTP_* do ambiente «ensaio», que só aceita o main.
 #
-# A chave «configurar» só entrega «smtp <base64>»; na VPS, o serviço valida
+# A chave «configurar» só entrega «smtp <base64> run:<n> github:<conta>»; na VPS, o serviço valida
 # cada valor, escreve o /etc/eurolify/api-smtp.env (600, root) e recria a API
 # com a imagem que está no ar. Os valores nunca vão para a saída nem para o
 # registo, de um lado nem do outro.
@@ -22,7 +22,8 @@ concurrency:
 jobs:
   configurar:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    # Mais do que a espera da VPS (1900 s; revisão do #398, P3-1).
+    timeout-minutes: 35
     environment: ensaio
     steps:
       - name: Preparar o SSH
@@ -64,7 +65,8 @@ jobs:
             "$SMTP_UTILIZADOR" "$SMTP_PALAVRA_PASSE" "$SMTP_REMETENTE" | base64 -w0)"
           echo "::add-mask::$dados"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
-            -i ~/.ssh/chave "eurolify-configurar@${VPS}" "smtp $dados"
+            -i ~/.ssh/chave "eurolify-configurar@${VPS}" \
+            "smtp $dados run:${GITHUB_RUN_ID} github:${GITHUB_ACTOR_ID}"
       - name: Apagar a chave do executor
         if: always()
         run: rm -f ~/.ssh/chave

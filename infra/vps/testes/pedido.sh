@@ -96,14 +96,18 @@ for fluxo in operar configurar; do
     falhou "$fluxo: limites diferentes ('$maximo' / '$limite')"
   fi
 done
-espera="$(awk '/^ *operar\)/ { d = 1 } d && /espera=/ { sub(/.*espera=/, ""); print; exit }' "$pedido_sh")"
 copia="$(grep -oE '^TimeoutStartSec=[0-9]+' "$f/systemd/eurolify-copia.service" | cut -d= -f2)"
 servico="$(grep -oE '^TimeoutStartSec=[0-9]+' "$f/systemd/eurolify-pedido@.service" | cut -d= -f2)"
-if [[ -n "$espera" && -n "$copia" && -n "$servico" ]] && ((espera > copia && espera > servico)); then
-  echo "ok: operar: espera mais ($espera s) do que a cópia ($copia s) e o serviço ($servico s)"
-else
-  falhou "operar: espera $espera s, cópia $copia s, serviço $servico s (revisão do #110, P2-2)"
-fi
+# O operar espera pela cópia; o configurar pela recriação da API, que pode
+# esperar por uma publicação (revisão do #398, P3-1).
+for fluxo in operar configurar; do
+  espera="$(awk -v f="$fluxo" '$0 ~ "^ *" f "\\)" { d = 1 } d && /espera=/ { sub(/.*espera=/, ""); print; exit }' "$pedido_sh")"
+  if [[ -n "$espera" && -n "$copia" && -n "$servico" ]] && ((espera > copia && espera > servico)); then
+    echo "ok: $fluxo: espera mais ($espera s) do que a cópia ($copia s) e o serviço ($servico s)"
+  else
+    falhou "$fluxo: espera $espera s, cópia $copia s, serviço $servico s (revisão do #110, P2-2)"
+  fi
+done
 
 # 2. Fluxo desconhecido. O «mcp» existe no serviço da máquina, mas não tem
 # chave SSH: o eurolify-pedido não o aceita.
@@ -131,6 +135,12 @@ recusados=(
   "operar|comerciante pt Europe/Lisbon Loja github:1"
   "operar|chave 0 catalog:read eul_sk_abcde $h64 Nome github:1"
   "operar|comerciante pt $fuso_longo Loja run:1 github:1"
+  # O configurar (revisão do #398, P3-2): sem a execução, com «;», com uma
+  # mudança de linha, e longo demais.
+  "configurar|smtp YWJj"
+  "configurar|smtp YWJj run:1 github:1;reboot"
+  "configurar|smtp YWJj${nl}run:1 github:1"
+  "configurar|smtp $(printf 'A%.0s' {1..1500}) run:1 github:1"
 )
 for caso in "${recusados[@]}"; do
   fluxo="${caso%%|*}"; texto="${caso#*|}"; mostrar="${texto//$nl/\\n}"
