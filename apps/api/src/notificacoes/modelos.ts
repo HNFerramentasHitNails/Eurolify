@@ -26,6 +26,8 @@ export interface DadosDaTarefa {
   motivo: string | null;
   /** AAAA-MM-DD HH:MI, no fuso do comerciante. */
   prazo: string | null;
+  /** Quando saiu o aviso, AAAA-MM-DD HH:MI, no fuso do comerciante. */
+  avisado_em?: string | null;
   fuso: string | null;
 }
 
@@ -208,9 +210,15 @@ const dataHora = (t: string | null, l: Lingua) => {
   return `${data(d ?? null, l)} ${h ?? ""}`.trim();
 };
 
-/** Um código da lista da fila: só letras, algarismos e `_`, ou «?». */
+/**
+ * Os códigos da fila, separados por vírgula (um documento com dois motivos,
+ * os sinais de um duplicado; revisão do #389, P3-1): só letras, algarismos,
+ * `_` e `,`, ou «?».
+ */
 const codigo = (t: string | null) =>
-  t !== null && /^[a-z0-9_]{1,60}$/.test(t) ? t : "?";
+  t !== null && /^[a-z0-9_]+(,[a-z0-9_]+)*$/.test(t) && t.length <= 200
+    ? t.replaceAll(",", ", ")
+    : "?";
 
 function textoDaTarefa(
   d: DadosDaTarefa,

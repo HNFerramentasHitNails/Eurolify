@@ -21,14 +21,20 @@
 
 ## Números (com data e como se contaram)
 
-- **Testes:** 5 em `test/notificacoes-tarefas.test.ts` (12/10/2026, base
-  local PostgreSQL 18.6).
-- **Mutações:** 9 desvios postos à mão na migração 0071, um de cada vez.
+- **Testes:** 9 em `test/notificacoes-tarefas.test.ts` (12/10/2026, base
+  local PostgreSQL 18.6), depois da revisão do #389.
+- **Mutações, 1.ª ronda:** 9 desvios postos à mão na migração 0071, um de cada vez.
   - 7 foram apanhados pelos testes.
   - 2 são equivalentes entre si, ambos em `tarefas_aviso_espera()`: tirar a
     condição «vencido» ou tirar a condição «sem prazo novo depois do aviso».
     Os testes não os distinguem, porque o caso só deixa de estar vencido
     quando alguém muda o prazo, e essa mudança fica no rasto.
+- **Mutações, 2.ª ronda** (depois da revisão):
+  - foram apanhados o gatilho só na linha `vencida` (P2-1) e a falta da
+    segunda trava do responsável (P2-3);
+  - tirar o filtro do comerciante em `tarefas_aviso_espera()` não muda nada,
+    porque o RLS forçado do `atribuicao_rasto` filtra antes. O teste de
+    isolamento falha se faltarem os dois filtros.
 
 ## O que ficou por verificar
 

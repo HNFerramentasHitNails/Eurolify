@@ -218,18 +218,25 @@ async function tomarVez(
     res.canceladas += 1;
     return null;
   }
-  await mudar(trx, id, {
-    proxima_em: sql<Date>`now() + make_interval(mins => ${VEZ_MINUTOS})`,
-  });
-  return {
-    mensagem: mensagemDe(
+  // Uns dados que não dão texto falham já, com o código, em vez de repetir
+  // o erro a cada volta (revisão do #389, P3-3).
+  let mensagem: Mensagem;
+  try {
+    mensagem = mensagemDe(
       n.tipo,
       n.lingua,
       n.dados as unknown as DadosDoAviso | DadosDaTarefa,
       destino,
-    ),
-    tentativas: n.tentativas,
-  };
+    );
+  } catch {
+    await mudar(trx, id, { estado: "falhada", ultimo_erro: "dados_invalidos" });
+    res.falhadas += 1;
+    return null;
+  }
+  await mudar(trx, id, {
+    proxima_em: sql<Date>`now() + make_interval(mins => ${VEZ_MINUTOS})`,
+  });
+  return { mensagem, tentativas: n.tentativas };
 }
 
 /** Nada, se a devolução ainda espera o reembolso; senão, o código. */

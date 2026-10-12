@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
+import pg from "pg";
 import { sql, type Transaction } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import { registarComerciante } from "../src/comerciante/repositorio.js";
 import { criarChave } from "../src/identidade/repositorio.js";
 import { CorreioDeEnsaio } from "../src/notificacoes/correio.js";
+import { mensagemDe } from "../src/notificacoes/modelos.js";
 import { correrNotificacoes } from "../src/notificacoes/repositorio.js";
 import { correrAvisosDeTarefas } from "../src/tarefas/avisos.js";
 import {
@@ -35,7 +37,7 @@ describe.skipIf(URL_BASE === undefined)(
       desactivada: randomUUID(),
       donoB: randomUUID(),
     };
-    const nomeDe = new Map(Object.entries(pessoas).map(([k, v]) => [v, k]));
+    const nomeDe = new Map<string, string>(Object.entries(pessoas).map(([k, v]) => [v, k]));
     const casos = {
       diferenca: randomUUID(),
       duplicado: randomUUID(),
@@ -213,8 +215,9 @@ describe.skipIf(URL_BASE === undefined)(
           ultimo_erro: string | null;
           referencia: string;
           comerciante_id: string;
-        }>`select dados ->> 'fila' as fila, pessoa_id, estado, ultimo_erro,
-              referencia, comerciante_id
+          caso: string;
+        }>`select dados ->> 'fila' as fila, dados ->> 'caso' as caso, pessoa_id,
+              estado, ultimo_erro, referencia, comerciante_id
             from notificacao where tipo = 'task.overdue'
             order by criada_em, id`.execute(base.dono)
       ).rows.map((n) => ({
@@ -337,11 +340,11 @@ describe.skipIf(URL_BASE === undefined)(
       );
       for (const { d } of dados.rows) {
         expect(d).not.toContain(CLIENTE);
-        expect(d).not.toContain("documento");
+        expect(d).not.toContain("à espera de um documento");
       }
     });
 
-    it("um prazo novo que volta a vencer dá um aviso novo, ao responsável de agora", async () => {
+    it("um prazo novo que volta a vencer dá um aviso novo ao responsável", async () => {
       // O prazo do duplicado passa a ontem (como o tempo a passar).
       await comoDono((t) =>
         sql`update atribuicao set prazo = now() - interval '1 minute'
@@ -421,6 +424,183 @@ describe.skipIf(URL_BASE === undefined)(
       expect(n.rows).toEqual([
         { estado: "cancelada", ultimo_erro: "tarefa_ja_nao_espera" },
       ]);
+    });
+
+    /** Uma pessoa nova na equipa do A (os testes de cima já tiraram o gestor). */
+    const novaPessoa = async (papel: string) => {
+      const p = randomUUID();
+      nomeDe.set(p, `${papel}-${p.slice(0, 4)}`);
+      await comoDono(async (t) => {
+        await sql`insert into pessoa (id, email, nome)
+          values (${p}, ${`${p}@exemplo.pt`}, 'Pessoa')`.execute(t);
+        await sql`insert into membro (id, comerciante_id, pessoa_id, papel, convidado_por)
+          values (${randomUUID()}, ${a}, ${p}, ${papel}, 'operador:teste')`.execute(
+          t,
+        );
+      });
+      return p;
+    };
+    const problemaVencido = async () => {
+      const id = randomUUID();
+      await comoDono((t) =>
+        sql`insert into problema (id, comerciante_id, encomenda_id, tipo, descricao,
+            estado, criado_por, criado_em, na_fila_desde)
+          values (${id}, ${a}, ${encomenda}, 'atraso', 'tarde', 'aberto', 'teste',
+            now() - interval '3 days', now() - interval '3 days')`.execute(t),
+      );
+      return id;
+    };
+    const doCaso = async (caso: string) =>
+      (await notificacoes())
+        .filter((n) => n.fila === "problema" && n.caso === caso)
+        .map((n) => `${n.pessoa}:${n.estado}`)
+        .sort();
+
+    it("o responsável muda depois do aviso e antes do envio: o aviso vai ao novo; sem ninguém, a quem decide e atribui (revisão do #389, P2-1)", async () => {
+      const [r, s2] = [await novaPessoa("gestor"), await novaPessoa("gestor")];
+      const caso = await problemaVencido();
+      await atribuir("problema", `prb_${caso}`, r, 0);
+      await correrAvisosDeTarefas(base.api);
+      expect(await doCaso(caso)).toEqual([`${nomeDe.get(r) ?? ""}:a_enviar`]);
+      // Passa de R para S: S recebe o mesmo aviso; R cancela-se no envio.
+      await atribuir("problema", `prb_${caso}`, s2, 1);
+      // S sai da equipa pela porta normal (o R8 tira-lhe o caso): o caso
+      // fica sem ninguém e o aviso vai a quem decide e atribui.
+      const outro = await problemaVencido();
+      await atribuir("problema", `prb_${outro}`, s2, 0);
+      await correrAvisosDeTarefas(base.api);
+      await base.dono.transaction().execute((t) =>
+        sql`update membro set ate = now(), terminado_por = 'operador:teste'
+            where pessoa_id = ${s2} and comerciante_id = ${a}`.execute(t),
+      );
+      const correio = new CorreioDeEnsaio();
+      expect((await correrNotificacoes(base.api, correio)).erros).toEqual([]);
+      const [nr, ns] = [nomeDe.get(r) ?? "", nomeDe.get(s2) ?? ""];
+      // O primeiro caso: S saiu antes do envio, e com ele o caso ficou sem
+      // responsável; o aviso chega ao dono e a R (gestor activo).
+      expect(await doCaso(caso)).toEqual(
+        [`${nr}:enviada`, `${ns}:cancelada`, "dono:enviada"].sort(),
+      );
+      expect(await doCaso(outro)).toEqual(
+        [`${nr}:enviada`, `${ns}:cancelada`, "dono:enviada"].sort(),
+      );
+      expect(correio.enviados.some((m) => m.para === `${s2}@exemplo.pt`)).toBe(
+        false,
+      );
+    });
+
+    it("um responsável que já não decide não conta no aviso: vai a quem decide e atribui (revisão do #389, P2-3)", async () => {
+      const r = await novaPessoa("gestor");
+      const caso = await problemaVencido();
+      await atribuir("problema", `prb_${caso}`, r, 0);
+      // Sai sem o R8 (modo replica): a atribuição fica com ele.
+      await comoDono((t) =>
+        sql`update membro set ate = now(), terminado_por = 'operador:teste'
+          where pessoa_id = ${r}`.execute(t),
+      );
+      await correrAvisosDeTarefas(base.api);
+      const gestores = (
+        await sql<{ pessoa_id: string }>`
+          select m.pessoa_id from membro m join pessoa p on p.id = m.pessoa_id
+          where m.comerciante_id = ${a} and m.ate is null and p.estado = 'activa'
+            and m.papel in ('dono', 'gestor')`.execute(base.dono)
+      ).rows.map((x) => `${nomeDe.get(x.pessoa_id) ?? x.pessoa_id}:a_enviar`);
+      expect(gestores).toContain("dono:a_enviar");
+      expect(await doCaso(caso)).toEqual(gestores.sort());
+    });
+
+    it("outro comerciante não vê as notificações deste nem sabe se o aviso dele ainda espera (P2-2)", async () => {
+      const deB = (
+        await sql<{ referencia: string }>`
+          select referencia from notificacao
+          where tipo = 'task.overdue' and comerciante_id = ${b}`.execute(
+          base.dono,
+        )
+      ).rows[0]?.referencia;
+      expect(deB).toBeDefined();
+      const comContexto = async <T>(
+        c: string,
+        fn: (cl: pg.Client) => Promise<T>,
+      ) => {
+        const cl = new pg.Client({ connectionString: base.urlApi });
+        await cl.connect();
+        try {
+          await cl.query("begin");
+          await cl.query(
+            "select set_config('eurolify.comerciante', $1, true)",
+            [c],
+          );
+          return await fn(cl);
+        } finally {
+          await cl.query("rollback").catch(() => undefined);
+          await cl.end();
+        }
+      };
+      const ver = (c: string) =>
+        comContexto(c, async (cl) => ({
+          deB: (
+            await cl.query<{ n: number }>(
+              "select count(*)::int as n from notificacao where comerciante_id = $1",
+              [b],
+            )
+          ).rows[0]?.n,
+          espera: (
+            await cl.query<{ e: boolean }>(
+              "select tarefas_aviso_espera($1) as e",
+              [deB],
+            )
+          ).rows[0]?.e,
+        }));
+      expect(await ver(b)).toEqual({ deB: 1, espera: true });
+      expect(await ver(a)).toEqual({ deB: 0, espera: false });
+    });
+
+    it("o texto: em inglês, com os vários códigos do motivo; uns dados sem fila conhecida não dão texto", () => {
+      const m = mensagemDe(
+        "task.overdue",
+        "en",
+        {
+          loja: "Shop\nA",
+          fila: "documento_fiscal",
+          caso: "0190",
+          motivo: "emissor_por_configurar,taxa_sem_mapa",
+          prazo: "2026-10-12 09:30",
+          fuso: "Europe/Lisbon",
+        },
+        { email: "x@exemplo.pt" },
+      );
+      expect(m.assunto).toBe("Overdue task: tax document inv_0190");
+      expect(m.texto).toContain(
+        'In the shop "Shop A", the case inv_0190 (tax document; reason: emissor_por_configurar, taxa_sem_mapa) passed its deadline of 2026-10-12 09:30 (Europe/Lisbon) without a decision.',
+      );
+      expect(
+        mensagemDe(
+          "task.overdue",
+          "pt",
+          {
+            fila: "reembolso",
+            caso: "1",
+            motivo: "Nome do cliente",
+            prazo: null,
+            fuso: null,
+          },
+          { email: "x@exemplo.pt" },
+        ).texto,
+      ).toContain("o caso rfd_1 (reembolso; motivo: ?)");
+      expect(() =>
+        mensagemDe(
+          "task.overdue",
+          "pt",
+          {
+            fila: "inventada" as "pagamento",
+            caso: "1",
+            motivo: null,
+            prazo: null,
+            fuso: null,
+          },
+          { email: "x@exemplo.pt" },
+        ),
+      ).toThrow();
     });
   },
 );

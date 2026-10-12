@@ -5,8 +5,10 @@
 -- O que esta migração faz:
 -- - O `tipo` da `notificacao` ganha `task.overdue`.
 -- - O gatilho da linha `vencida` do `atribuicao_rasto` (0066) grava uma
---   notificação por pessoa, na mesma transacção que o aviso (N5, T2): à
---   responsável pelo caso; sem responsável, a quem pode decidir a fila e
+--   notificação por pessoa, na mesma transacção que o aviso (N5, T2); e,
+--   numa atribuição já avisada, as linhas `atribuida` e `retirada` levam o
+--   mesmo aviso a quem passa a recebê-lo (revisão do #389, P2-1). Vai à
+--   pessoa responsável pelo caso; sem responsável, a quem pode decidir a fila e
 --   atribuir (`tasks:assign`) — Q12 A. A `referencia` é a linha do rasto:
 --   um prazo novo que vence outra vez dá um aviso novo (R6). A fila
 --   `prazo_reembolso` não entra: tem os avisos da 0067 (T3).
@@ -53,14 +55,22 @@ CREATE FUNCTION tarefas_aviso_responsavel(p_comerciante uuid, p_fila text,
     THEN p_responsavel END
 $$;
 
--- O gatilho do aviso (T2): só identificadores, o motivo da fila (código), o
--- prazo no fuso do comerciante e a loja (T4); nunca dados do cliente nem o
--- motivo livre de uma mudança de prazo (docs/33 §6). O membro e a pessoa têm
--- RLS sem política para a API: lê-os o dono.
+-- O gatilho do aviso (T2): só identificadores, o motivo da fila (códigos),
+-- o prazo no fuso do comerciante, a hora do aviso e a loja (T4); nunca dados
+-- do cliente nem o motivo livre de uma mudança de prazo (docs/33 §6). O
+-- membro e a pessoa têm RLS sem política para a API: lê-os o dono.
+--
+-- Corre na linha `vencida` (o aviso) e também nas linhas `atribuida` e
+-- `retirada` de uma atribuição já avisada cujo caso ainda espera: quem passa
+-- a receber pela T1 (o responsável novo, ou quem decide e atribui quando o
+-- caso fica sem ninguém) recebe o mesmo aviso; o anterior cancela-se no
+-- envio. Sem isto, um aviso marcado e ainda não enviado ficava sem ninguém
+-- (revisão do #389, P2-1).
 CREATE FUNCTION atribuicao_vencida_notificacao() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
   a public.atribuicao;
+  aviso public.atribuicao_rasto;
   resp uuid;
   motivo text;
   lingua text;
@@ -72,15 +82,30 @@ BEGIN
   IF NOT FOUND OR a.fila = 'prazo_reembolso' THEN
     RETURN NULL;
   END IF;
+  IF NEW.acto = 'vencida' THEN
+    aviso := NEW;
+  ELSE
+    IF a.aviso_vencido_em IS NULL THEN
+      RETURN NULL;
+    END IF;
+    SELECT z.* INTO aviso FROM public.atribuicao_rasto z
+    WHERE z.comerciante_id = NEW.comerciante_id AND z.atribuicao_id = a.id
+      AND z.acto = 'vencida'
+    ORDER BY z.em DESC, z.id DESC LIMIT 1;
+    IF NOT FOUND OR NOT public.tarefas_aviso_espera(aviso.id) THEN
+      RETURN NULL;
+    END IF;
+  END IF;
   resp := public.tarefas_aviso_responsavel(NEW.comerciante_id, a.fila, a.responsavel);
   SELECT x.motivo INTO motivo FROM public.tarefas_casos(ARRAY[a.fila]) x
   WHERE x.caso = a.caso AND x.entrou_em = a.entrou_em;
   SELECT CASE WHEN c.lingua IN ('pt', 'es', 'en') THEN c.lingua ELSE 'en' END, c.nome, c.fuso
     INTO lingua, loja, fuso FROM public.comerciante c WHERE c.id = NEW.comerciante_id;
   INSERT INTO public.notificacao (comerciante_id, tipo, referencia, pessoa_id, lingua, dados)
-  SELECT NEW.comerciante_id, 'task.overdue', NEW.id, m.pessoa_id, lingua,
+  SELECT NEW.comerciante_id, 'task.overdue', aviso.id, m.pessoa_id, lingua,
     jsonb_build_object('loja', loja, 'fila', a.fila, 'caso', a.caso, 'motivo', motivo,
-      'prazo', to_char(NEW.prazo_depois AT TIME ZONE fuso, 'YYYY-MM-DD HH24:MI'),
+      'prazo', to_char(aviso.prazo_depois AT TIME ZONE fuso, 'YYYY-MM-DD HH24:MI'),
+      'avisado_em', to_char(aviso.em AT TIME ZONE fuso, 'YYYY-MM-DD HH24:MI'),
       'fuso', fuso)
   FROM public.membro m
   WHERE m.comerciante_id = NEW.comerciante_id
@@ -90,7 +115,7 @@ BEGIN
 END
 $$;
 CREATE TRIGGER atribuicao_vencida_notificacao AFTER INSERT ON atribuicao_rasto
-  FOR EACH ROW WHEN (NEW.acto = 'vencida')
+  FOR EACH ROW WHEN (NEW.acto IN ('vencida', 'atribuida', 'retirada'))
   EXECUTE FUNCTION atribuicao_vencida_notificacao();
 ALTER TABLE atribuicao_rasto ENABLE ALWAYS TRIGGER atribuicao_vencida_notificacao;
 
