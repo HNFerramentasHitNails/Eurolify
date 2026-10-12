@@ -622,3 +622,59 @@ cabeçalho mede-se na conta trial (§13.7) antes de se confiar no mapa.
 - **a prova na conta trial** (§13.7), com as credenciais no ambiente e o OK de
   cada escrita: até lá, **nada disto está verificado contra o Moloni real**;
 - a NC pelo Moloni (M7), depois da medição; o aviso ao dono pela fila.
+
+## 15. A saída «emitida fora do Eurolify» (desenho, 12/10/2026)
+
+> **Estado: proposta, por aprovar.** Diogo, 12/10/2026: *«avança com a saída
+> «emitida fora do Eurolify»»*. Vem da revisão do #312 (P2-1, §12: «se a
+> entidade escolher o sistema próprio, fica retida — falta a acção»). Só
+> desenho; nenhum código antes de aprovado (ADR-0023).
+
+### 15.1 O caso
+
+Uma encomenda paga **antes** de a entidade escolher quem emite fica com
+`emissor = por_configurar` (copiado no botão final e imutável, §3.1). O pedido
+de fatura nasce e fica retido com `emissor_por_configurar`. Se a entidade
+escolher depois o **sistema próprio** (ADR-0041), o pedido não pode sair pelo
+Eurolify — quem emite é o sistema dela — e **não há saída**: fica na fila «A
+decidir» para sempre. Medido no código a 12/10/2026 (`repositorio.ts`,
+`verificar`): o motivo fica, e nenhuma acção o tira (libertar não o aceita,
+R9; corrigir não toca no emissor).
+
+Encontrado ao ler o código para este desenho: se essa encomenda for
+reembolsada, `nota_credito_pedir` (migração 0058) vê que há um pedido de
+fatura e **pede a nota de crédito**, que fica retida com
+`original_por_emitir` também para sempre.
+
+### 15.2 A proposta
+
+| # | Regra | Porquê |
+|---|---|---|
+| F1 | Uma acção de uma pessoa, `POST /invoices/{id}/issued-elsewhere`, leva o pedido para um estado final novo, **`fora`** («emitida fora do Eurolify») | ADR-0041: uma venda nunca tem os dois emissores; o pedido do Eurolify tem de acabar sem sair |
+| F2 | Só vale para uma **fatura retida** com `emissor_por_configurar`, numa encomenda com `emissor = por_configurar`, cuja entidade **já escolheu** `sistema_proprio`. Em qualquer outro caso, recusa (`invoices.invalid_transition`) | o caso exacto da §15.1; com a entidade ainda por configurar, a resposta é configurar, não fechar |
+| F3 | Leva **motivo** (obrigatório) e o **número do documento no sistema próprio** (obrigatório, texto até 60). O número é **declarado por uma pessoa**: fica no rasto como declaração, **não é prova** (a prova é o documento, `AGENTS.md`, «Não se erra…», regra 4) | quem consultar a encomenda sabe onde está a fatura; ninguém o confunde com uma prova lida do emissor |
+| F4 | `fora` é final: não volta atrás, não tem prova, nem `emissor_id`; sai da fila «A decidir» | §4.1; `documento_na_fila` só conta retidos, divergentes e incertos manuais |
+| F5 | Uma **nota de crédito** pedida para essa fatura (retida com `original_por_emitir`) passa **também** a `fora`, com o rasto a dizê-lo; e, a partir daí, um reembolso dessa encomenda **não pede** NC (`nota_credito_pedir` devolve nada; o reembolso diz `sem_nota_credito: sistema_proprio`) | é o sistema próprio que emite a NC, como já acontece nas encomendas com `sistema_proprio` (docs/30, revisão do #329, P2-8) |
+| F6 | Um evento novo, **`invoice.issued_elsewhere`**, só com identificadores e estado (§7.3) | quem integra sabe que o Eurolify não emite esta |
+| F7 | **Nunca em lote** (R10): um pedido de cada vez | lição 2.10 |
+
+### 15.3 Perguntas para o Diogo ou o Bruno
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q-F1 | **Quem pode marcar «emitida fora»?** | **só o dono** (`invoices:accounts`, o âmbito de escolher quem emite): é a mesma decisão — quem emite esta venda |
+| Q-F2 | **O número do documento no sistema próprio é obrigatório?** | **sim**, declarado (F3); sem ele, a encomenda fica sem rasto de onde está a fatura |
+| Q-F3 | **E o relatório OSS (parte 3)?** | as vendas `fora` **não entram** nos baldes (o relatório lê só provas, §11), mas o relatório **conta-as e lista-as à parte** («N vendas faturadas no sistema próprio»), para o comerciante as juntar ao OSS dele — a confirmar com o contabilista quando a parte 3 se desenhar (**C**) |
+
+### 15.4 Como entra no código (depois de aprovado)
+
+- migração: o estado `fora` no CHECK e nas transições (`retido → fora`), o
+  número declarado, `nota_credito_pedir` sem NC para uma fatura `fora`, o
+  evento;
+- `src/faturacao/`: a acção, as verificações de F2, a NC em F5, a leitura do
+  pedido com o número declarado;
+- `src/posvenda/`: `sem_nota_credito: sistema_proprio` também neste caso;
+- testes: o caminho inteiro (paga antes de escolher → sistema próprio → fora),
+  cada recusa de F2, a NC já pedida (F5) e o reembolso depois (sem NC), o
+  âmbito (Q-F1), a fila «A decidir» sem o caso; mutações; a revisão do
+  agente.
