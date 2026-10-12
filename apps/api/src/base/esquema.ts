@@ -1598,6 +1598,8 @@ export const ESTADOS_DOCUMENTO = [
   "incerto",
   "divergente",
   "resolvido",
+  // Emitida no sistema próprio, fora do Eurolify (docs/29 §15; 0070).
+  "fora",
 ] as const;
 export type EstadoDocumento = (typeof ESTADOS_DOCUMENTO)[number];
 
@@ -1666,6 +1668,8 @@ export interface TabelaDocumentoFiscal {
   validados: ColumnType<string[], never, string[]>;
   ligacao_id: ColumnType<string | null, never, string | null>;
   emissor_id: ColumnType<string | null, never, string | null>;
+  /** O número declarado no sistema próprio (docs/29 §15, F3; 0070). */
+  fora_numero: ColumnType<string | null, never, string | null>;
   tentativas: ColumnType<number, never, number>;
   falhas: ColumnType<number, never, number>;
   proxima_em: ColumnType<Date, never, Date>;
