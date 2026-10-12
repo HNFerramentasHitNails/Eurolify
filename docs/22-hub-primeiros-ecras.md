@@ -1814,7 +1814,7 @@ venda, por omissão, uma variante que pode ainda não estar pronta.
 
 ## 28. O ecrã «A decidir» (issue #366, parte 2)
 
-Pedido do Diogo, 12/10/2026 (*«avança com o próximo pendente»*). A peça 21
+Pedido do Diogo, 12/10/2026 (*«avança com o próximo pendente»*). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (*«A, aprovado»*). A peça 21
 (`docs/33`, decisão DW) já tem a API: a lista `GET /tasks`, atribuir e
 mudar o prazo, o aviso de vencido de hora a hora e, desde a migração 0071,
 o e-mail desse aviso (`docs/34` §12, EB). Mas só por chave. O `docs/33` §8
@@ -1886,7 +1886,9 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/tarefas/rotas
 | A lista parecer vazia por estar cortada | o total por fila e «Ver mais» (R10) |
 | Uma pessoa pensar que o identificador sem ligação é um erro | a linha diz «Este caso ainda não tem ecrã no Hub; decide-se pela integração.» uma vez por cima da lista, enquanto nenhuma fila tiver ecrã (Q1) |
 
-### 28.5 Pergunta para o Diogo ou o Bruno
+### 28.5 Decidido
+
+✅ **Q1: A** (Diogo, 12/10/2026, *«A, aprovado»*). Desenho aprovado.
 
 **Q1.** Nenhuma das sete filas tem ecrã no Hub. A lista «A decidir» avança
 já, **sem ligação ao caso** (mostra o identificador do caso e da encomenda,

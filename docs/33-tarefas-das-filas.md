@@ -184,7 +184,7 @@ parte 2 tem de dar ao ecrã as mesmas regras R2 e R3 pelo papel da pessoa. O
 desenho do ecrã faz-se com as skills `eurolify-design`, `eurolify-hub-modular`
 e `eurolify-hub-quality-gate` antes do código dele.
 
-**Desenhado** em `docs/22` §28 (12/10/2026), à espera da Q1.
+**Desenhado** em `docs/22` §28 e aprovado pelo Diogo a 12/10/2026 (Q1 A: a lista avança sem ligação ao caso enquanto as filas não têm ecrã).
 
 ## 9. Por onde é que isto ainda pode sair errado
 
