@@ -1686,3 +1686,128 @@ por bloco.
   importação, e uma conclusão automática; «Detalhes» com o teclado; capturas
   a 375, 768 e 1280 px, claro e escuro, para o OK do aspecto pelo Diogo
   (regra 1 da `eurolify-design`).
+
+## 27. Catálogo: publicar um artigo pelo Hub (issue #378)
+
+Pedido do Diogo, 12/10/2026 («aprovado», à pergunta *«Avanço com o
+desenho de "publicar um artigo pelo Hub"?»*). **Aprovado pelo Diogo a
+12/10/2026**, com a Q1 em «não vêm marcadas» (*«aprovado»*, à pergunta
+*«Aprova o desenho, com a Q1 em "não vêm marcadas"?»*). No Hub já se cria um artigo,
+se acrescentam e editam variantes e se definem os preços (§14, §23, §24,
+§25), mas nada se põe à venda: a publicação só se faz pela integração, com
+uma chave com `catalog:publish` (`docs/14` §7.1). Uma variante acrescentada
+a um artigo publicado fica fora das lojas até a publicação ser refeita
+(§24.1). Skills: `catalog-pim`, `consumer-rights-eu`,
+`product-compliance-eu`, `headless-commerce`, `eurolify-design`,
+`observability-security`.
+
+Ex.: na ficha do «Gel Coral 41», a publicação «Loja online · Portugal»
+está publicada com a `ENS-041` e a `ENS-041-B` fora (acabada de
+acrescentar, já com preço). A gestora carrega em «Rever a publicação»,
+marca a `ENS-041-B`, vê «Pode publicar» e carrega em «Publicar». A ficha
+volta com «Publicado em Loja online · Portugal.» e a `ENS-041-B` à venda.
+
+### 27.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **Publicar** num canal × mercado onde o canal vende: a primeira vez, outra vez depois de retirada, ou **refazer** uma publicada para mudar as variantes à venda |
+| **Escolher as variantes à venda** (as outras ficam em `variantes_fora`; tirar uma não retira o artigo, `catalog-pim`, regra 6) |
+| **Ver antes** se pode publicar: a verificação do servidor (C2), com os impedimentos em linguagem comum |
+| **Retirar** uma publicação publicada (fica arquivada, motivo «retirada») |
+
+| Fica de fora, e porquê |
+|---|
+| **Criar canais, mercados ou ligar um canal a um mercado**: são de Preços e mercados; outro ecrã, ainda por desenhar. O Hub só oferece os pares que já existem. |
+| **Resolver os impedimentos a partir daqui**: cada um leva ao ecrã onde se resolve (o preço, §25; o peso, §23; o texto alternativo, §15), mas o ecrã da publicação não os edita. |
+| **A Conformidade** (atributos obrigatórios por mercado): ainda não existe; a resposta diz sempre `nao_verificado: [conformidade]`, e o ecrã diz que **não foi verificada** — nunca «conforme» (`docs/14` §5, C2, rede temporária CF). |
+| **Publicar vários artigos de uma vez**: nunca em lote sem rever cada um (`AGENTS.md`, «Não se erra»). |
+
+### 27.2 Como o Hub escreve
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `GET /hub/sales-pairs` | a sessão com `catalog:read` (os quatro papéis) | os pares canal × mercado do comerciante onde o canal vende, com o nome e o estado do canal, do mercado e da loja (a mesma leitura dos nomes da §18.1 e §19.1) |
+| `POST /hub/products/{id}/publications/check` | a mesma | a mesma função do `POST /products/{id}/publications/check` pela chave: a verificação (C2) com as variantes escolhidas, sem escrever |
+| `POST /hub/products/{id}/publications` | a sessão com `catalog:publish` (o dono e o gestor) | a mesma função do `POST /products/{id}/publications` (`publicar`), com o `eurolify.quem` da pessoa; o corpo é o da chave (canal, mercado, `variantes_fora`) mais a **`versao` lida** da publicação (`null` quando ainda não existe nesse par) |
+| `POST /hub/publications/{id}/archive` | a mesma | a mesma função do `POST /publications/{id}/archive` (`retirarPublicacao`), com a `versao` lida no corpo |
+
+- **A versão.** A publicação já tem `versao` na base (0019) e a API já a
+  mostra. As escritas do Hub mandam a lida; outra guardada (alguém publicou,
+  retirou ou mudou as variantes entretanto, ou a reverificação a arquivou)
+  dá **409 `catalog.version_conflict`**, sem escrever. A conferência faz-se
+  **dentro de `publicar`**, depois de a linha da publicação estar tomada
+  (a ordem dos bloqueios de hoje não muda, `docs/14` §3.9). As rotas pela
+  chave ficam como estão.
+- **As regras são as do Catálogo, sem cópia no Hub**: a verificação (C2) é
+  do servidor; com impedimentos, nada muda além da verificação guardada e a
+  resposta diz `publicada: false` com a lista (o ecrã lê sempre
+  `publicada`, nunca só o estado HTTP); a base repete o preço, o peso e a
+  variante à venda no instante de publicar.
+- **Artigo do sistema de gestão**: publica-se no Hub, como decidido na
+  §13.3 («a publicação edita-se no Eurolify»).
+- **O mesmo prazo de espera** das outras escritas do Hub (5 s, depois 503
+  `catalog.retry`).
+- **Sem `Idempotency-Key`**, como as outras escritas do Hub. Se a resposta
+  se perde, o ecrã relê as publicações do artigo: se a do par estiver no
+  estado pedido, com as variantes pedidas e outra versão, dá-a por feita;
+  senão, diz que não encontrou a mudança.
+
+### 27.3 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Ficha**, secção «Publicações» (§12.2, §18, §19) | Com `catalog:publish`: em cada publicação, «Rever a publicação» (rascunho, publicada ou arquivada) e, numa publicada, «Retirar», que pergunta antes («Retirar o Gel Coral 41 de Loja online · Portugal? Deixa de estar à venda nesta loja.»). Por baixo da tabela, «Publicar noutra loja» quando há pares sem publicação. Uma publicada com variantes fora diz quantas: «1 variante fora». | — |
+| **Publicação** (`/artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}`) | No topo, o canal, o mercado (com a loja quando o nome se repete, §19.2) e o estado. **As variantes**: uma caixa por variante activa, marcada se está à venda; as que estão fora dizem «fora», e uma nova diz «nova» (§27.5). **«Verificar»** pede a verificação com as escolhidas e mostra o resultado: «Pode publicar» ou a lista dos impedimentos, cada um com a frase e a ligação para onde se resolve; sempre com «A conformidade do produto ainda não é verificada.». **«Publicar»** (ou «Publicar outra vez» numa publicada) só depois de uma verificação sem impedimentos com as mesmas escolhidas; mudar uma escolha pede outra verificação. Depois de publicar, volta à ficha com «Publicado em {canal} · {mercado}.» | a verificar; a publicar; impedimentos (a lista; o botão «Publicar» não aparece); um impedimento novo no instante de publicar (`publicada: false`: a lista nova, nada mudou); conflito (409: «Outra pessoa mudou esta publicação entretanto.», com o estado e as variantes de agora; as escolhas da pessoa ficam); a resposta perdida (§27.2); sem permissão (só o aviso, sem acções); par que não existe ou em que o canal deixou de vender (só o aviso) |
+| **Publicar noutra loja** (na ficha) | Uma lista dos pares sem publicação («Loja online · Espanha»); escolher um abre a página da publicação desse par, sem nada escolhido à partida (todas as variantes activas marcadas). | sem pares: a ligação não aparece |
+
+**Os impedimentos em linguagem comum** (os códigos da API, `docs/14` §5;
+em pt, es e en), cada um com a ligação para onde se resolve quando o Hub já
+o resolve:
+
+| Código | Texto | Leva a |
+|---|---|---|
+| `artigo_nao_activo` | O artigo não está activo. | a ficha (activar, §13) |
+| `mercado_inactivo`, `canal_inactivo`, `canal_nao_vende_no_mercado` | O mercado (ou o canal) não está activo, ou o canal deixou de vender neste mercado. | — (Preços e mercados) |
+| `sem_variantes_a_venda` | Escolha pelo menos uma variante. | — |
+| `categoria_fiscal_em_falta` | Falta a categoria fiscal do artigo. | editar o artigo (§13) |
+| `peso_em_falta` | Falta o peso de {SKU}. | editar a variante (§23) |
+| `preco_em_falta` | {SKU} não tem preço na lista base de {mercado}. | o preço (§25) |
+| `traducao_em_falta`, `traducao_desactualizada` | Falta (ou está desactualizada) a tradução do nome em {línguas}. | — (as traduções ainda não se editam no Hub) |
+| `classificacao_em_falta`, `natureza_incompativel`, `familia_restrita`, `data_ou_local_em_falta` | O texto do código, sem ligação (a classificação tem desenho à parte, §13.1). | — |
+| `texto_alternativo_em_falta` | Há imagens sem texto alternativo. | a ficha, nas imagens (§15) |
+
+### 27.4 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| Pôr à venda o que não se reviu (uma variante nova sem fotografia, por exemplo) | as variantes escolhem-se uma a uma; as que estão fora não vêm marcadas (§27.5) |
+| Publicar com uma verificação antiga | o botão só aparece depois de verificar com as mesmas escolhidas, e o servidor verifica outra vez no instante de publicar (`publicada: false` se algo mudou) |
+| Ler «sem impedimentos» como «conforme» | o ecrã diz sempre que a conformidade não foi verificada (C2, CF) |
+| Duas pessoas a publicar ou retirar a mesma publicação | a versão (§27.2): a segunda recebe 409 |
+| O armazém ou o apoio põem à venda | a rota confere `catalog:publish`; o ecrã nem mostra as acções |
+
+### 27.5 Decidido
+
+**Q1. Ao rever uma publicação publicada, as variantes que estão fora vêm
+marcadas para entrar?** Ex.: a `ENS-041-B`, acabada de acrescentar.
+✅ **Decidido: não** (Diogo, 12/10/2026, *«aprovado»*). Ficam como estão, com a marca «nova» (a que nasceu fora
+por ter sido acrescentada depois de publicar) ou «fora» (a que alguém tirou),
+e a pessoa marca as que quer pôr à venda. Assim nada entra numa loja sem
+alguém o escolher. A alternativa (vir marcadas) poupa um clique, mas põe à
+venda, por omissão, uma variante que pode ainda não estar pronta.
+
+### 27.6 Antes de dizer que está feito (o pedido do código)
+
+- **API**: as rotas pelo Hub fazem o mesmo que as da chave; a versão (409
+  também com `null` quando a publicação já existe); o armazém e o apoio
+  recebem 403 ao publicar e ao retirar; outro comerciante não chega (404,
+  com prova pela falha); `publicada: false` com impedimentos, sem mudar o
+  estado nem as variantes; `publicado_por` e `arquivado_por` são a pessoa;
+  o prazo de espera.
+- **Hub**: a passagem refaz a publicação do «Gel Coral 41» com a
+  `ENS-041-B` só com o teclado; vê os impedimentos de outro artigo (peso e
+  preço em falta, com as ligações); publica noutro par; retira com a
+  pergunta; recebe o conflito; a resposta perdida; o papel sem
+  `catalog:publish`; capturas a 375, 768 e 1280 px, claro e escuro, para a
+  página de aprovação.
