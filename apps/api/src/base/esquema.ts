@@ -1448,10 +1448,11 @@ export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   em: ColumnType<Date, never, never>;
 }
 
-// Notificações (migração 0067; docs/34).
+// Notificações (migrações 0067 e 0071; docs/34).
 export const TIPOS_NOTIFICACAO = [
   "refund.deadline_approaching",
   "refund.deadline_passed",
+  "task.overdue",
 ] as const;
 export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
 export const ESTADOS_NOTIFICACAO = [

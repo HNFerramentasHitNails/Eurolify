@@ -1,4 +1,5 @@
-import type { TipoNotificacao } from "../base/esquema.js";
+import type { FilaTarefa, TipoNotificacao } from "../base/esquema.js";
+import { FILAS } from "../tarefas/filas.js";
 import type { Mensagem } from "./correio.js";
 
 // Os textos das notificações (docs/34, N3 e N4): PT, ES e EN, texto simples.
@@ -15,6 +16,22 @@ export interface DadosDoAviso {
   reembolsar_ate: string | null;
   dias: number | null;
 }
+
+/** O aviso de um caso vencido das tarefas (docs/34 §12, T4; migração 0071). */
+export interface DadosDaTarefa {
+  loja?: string;
+  fila: FilaTarefa;
+  caso: string;
+  /** O motivo da fila (código da lista dela), nunca texto livre. */
+  motivo: string | null;
+  /** AAAA-MM-DD HH:MI, no fuso do comerciante. */
+  prazo: string | null;
+  /** Quando saiu o aviso, AAAA-MM-DD HH:MI, no fuso do comerciante. */
+  avisado_em?: string | null;
+  fuso: string | null;
+}
+
+type TipoDoReembolso = Exclude<TipoNotificacao, "task.overdue">;
 
 const data = (iso: string | null, l: Lingua) => {
   if (iso === null) return "?";
@@ -49,7 +66,7 @@ const faltam = (dias: number | null, l: Lingua): string => {
 const TEXTOS: Record<
   Lingua,
   Record<
-    TipoNotificacao,
+    TipoDoReembolso,
     (
       d: DadosDoAviso,
       loja: string,
@@ -155,16 +172,126 @@ const TEXTOS: Record<
   },
 };
 
+/** O nome de cada fila, na língua do Hub (docs/33 §1). */
+const NOMES_DAS_FILAS: Record<Lingua, Record<FilaTarefa, string>> = {
+  pt: {
+    pagamento: "diferença de pagamento",
+    documento_fiscal: "documento fiscal",
+    duplicado_cliente: "possível cliente duplicado",
+    prazo_reembolso: "prazo do reembolso",
+    livre_resolucao: "pedido de livre resolução",
+    problema: "problema numa encomenda",
+    reembolso: "reembolso",
+  },
+  es: {
+    pagamento: "diferencia de pago",
+    documento_fiscal: "documento fiscal",
+    duplicado_cliente: "posible cliente duplicado",
+    prazo_reembolso: "plazo del reembolso",
+    livre_resolucao: "solicitud de desistimiento",
+    problema: "incidencia en un pedido",
+    reembolso: "reembolso",
+  },
+  en: {
+    pagamento: "payment discrepancy",
+    documento_fiscal: "tax document",
+    duplicado_cliente: "possible duplicate customer",
+    prazo_reembolso: "refund deadline",
+    livre_resolucao: "withdrawal request",
+    problema: "order issue",
+    reembolso: "refund",
+  },
+};
+
+/** «2026-10-12 09:30» → «12/10/2026 09:30» (PT, ES) ou como está (EN). */
+const dataHora = (t: string | null, l: Lingua) => {
+  if (t === null) return "?";
+  const [d, h] = t.split(" ");
+  return `${data(d ?? null, l)} ${h ?? ""}`.trim();
+};
+
+/**
+ * Os códigos da fila, separados por vírgula (um documento com dois motivos,
+ * os sinais de um duplicado; revisão do #389, P3-1): só letras, algarismos,
+ * `_` e `,`, ou «?».
+ */
+const codigo = (t: string | null) =>
+  t !== null && /^[a-z0-9_]+(,[a-z0-9_]+)*$/.test(t) && t.length <= 200
+    ? t.replaceAll(",", ", ")
+    : "?";
+
+function textoDaTarefa(
+  d: DadosDaTarefa,
+  l: Lingua,
+  loja: string,
+): Omit<Mensagem, "para"> {
+  const fila = FILAS[d.fila];
+  const caso = `${fila.prefixo}_${d.caso}`;
+  const nome = NOMES_DAS_FILAS[l][d.fila];
+  const prazo = `${dataHora(d.prazo, l)} (${linha(d.fuso ?? undefined) || "?"})`;
+  const motivo = codigo(d.motivo);
+  const t = {
+    pt: {
+      assunto: `Tarefa vencida: ${nome} ${caso}`,
+      texto: [
+        "Olá,",
+        "",
+        `Na loja «${loja}», o caso ${caso} (${nome}; motivo: ${motivo}) passou o prazo de ${prazo} sem decisão.`,
+        "",
+        "A lista dos casos vencidos: GET /tasks?vencida=true.",
+        "",
+        "Este aviso vai para a pessoa responsável pelo caso ou, sem responsável, para quem o pode decidir e atribuir. Não leva dados do cliente.",
+        "Eurolify",
+      ],
+    },
+    es: {
+      assunto: `Tarea vencida: ${nome} ${caso}`,
+      texto: [
+        "Hola:",
+        "",
+        `En la tienda «${loja}», el caso ${caso} (${nome}; motivo: ${motivo}) ha superado el plazo del ${prazo} sin decisión.`,
+        "",
+        "La lista de casos vencidos: GET /tasks?vencida=true.",
+        "",
+        "Este aviso se envía a la persona responsable del caso o, si no la hay, a quien puede decidirlo y asignarlo. No incluye datos del cliente.",
+        "Eurolify",
+      ],
+    },
+    en: {
+      assunto: `Overdue task: ${nome} ${caso}`,
+      texto: [
+        "Hello,",
+        "",
+        `In the shop "${loja}", the case ${caso} (${nome}; reason: ${motivo}) passed its deadline of ${prazo} without a decision.`,
+        "",
+        "The list of overdue cases: GET /tasks?vencida=true.",
+        "",
+        "This notice goes to the person responsible for the case or, if there is none, to those who can decide and assign it. It carries no customer data.",
+        "Eurolify",
+      ],
+    },
+  }[l];
+  return { assunto: t.assunto, texto: t.texto.join("\n") };
+}
+
 /** O e-mail de uma notificação, para uma pessoa. */
 export function mensagemDe(
   tipo: TipoNotificacao,
   lingua: Lingua,
-  dados: DadosDoAviso,
+  dados: DadosDoAviso | DadosDaTarefa,
   para: { email: string },
 ): Mensagem {
-  const m = TEXTOS[lingua][tipo](dados, linha(dados.loja) || "?", {
-    rma: `rma_${dados.devolucao}`,
-    ord: `ord_${dados.encomenda}`,
+  const loja = linha(dados.loja) || "?";
+  if (tipo === "task.overdue") {
+    return {
+      ...textoDaTarefa(dados as DadosDaTarefa, lingua, loja),
+      para: para.email,
+    };
+  }
+  const d = dados as DadosDoAviso;
+  const m = TEXTOS[lingua][tipo](d, loja, {
+    rma: `rma_${d.devolucao}`,
+    ord: `ord_${d.encomenda}`,
   });
   return { ...m, para: para.email };
 }

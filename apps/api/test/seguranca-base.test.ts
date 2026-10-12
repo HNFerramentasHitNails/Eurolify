@@ -182,6 +182,8 @@ const FUNCOES_DA_API = [
   "stock_politica",
   "tarefa_origem",
   "tarefas_atribuir",
+  // O caso de um aviso de vencido ainda espera (0071), no envio do e-mail.
+  "tarefas_aviso_espera",
   "tarefas_casos",
   "tarefas_comerciantes",
   "tarefas_filas",
