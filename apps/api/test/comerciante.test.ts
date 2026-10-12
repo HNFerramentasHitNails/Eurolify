@@ -168,6 +168,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0079_envios_parte_b",
         "0080_envios_sendcloud",
         "0081_moloni_autorizacao",
+        "0082_titular_exportacao_indices",
       ]);
     });
 
