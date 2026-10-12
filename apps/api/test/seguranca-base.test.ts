@@ -108,7 +108,7 @@ const FUNCOES_DA_API = [
   "ficheiros_comerciantes_sem_uso",
   "ficheiros_sem_uso",
   "gtin_valido",
-  // O Moloni (0068): os comerciantes com ligações a renovar os tokens.
+  // O Moloni (0069): os comerciantes com ligações a renovar os tokens.
   "ligacoes_comerciantes_a_renovar",
   "marketing_do_contacto",
   "membro_mudar_papel",

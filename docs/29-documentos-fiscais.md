@@ -551,15 +551,15 @@ cabeçalho mede-se na conta trial (§13.7) antes de se confiar no mapa.
   M3; mutações; a revisão do agente; e a prova na conta trial (§13.7) antes de
   dizer que funciona.
 
-## 14. Em código — parte 2 (12/10/2026; migração 0068; DZ)
+## 14. Em código — parte 2 (12/10/2026; migração 0069; DZ)
 
 | O quê | Onde |
 |---|---|
 | o adaptador: as oito operações da §13.3, o mapa de volta, o cliente (M3), o artigo pela referência = SKU e criado sem stock (M2), a NC e outra moeda recusadas (M6, M7), o estado 2 nunca lido como fechado | `src/faturacao/moloni.ts` |
 | o cliente HTTP: o token só no endereço e tapado nos erros, corpo em formulário (a forma por omissão da API), tempo limite de 15 s, 60 pedidos por minuto por empresa | `src/faturacao/moloni.ts` |
-| `config` e `sessao` na ligação: a configuração só aceita ids e obriga a testar outra vez; a sessão guarda os tokens renovados, cifrados, **sem** pôr a ligação por testar nem mudar a versão; credenciais novas apagam a sessão | migração 0068 |
+| `config` e `sessao` na ligação: a configuração só aceita ids e obriga a testar outra vez; a sessão guarda os tokens renovados, cifrados, **sem** pôr a ligação por testar nem mudar a versão; credenciais novas apagam a sessão | migração 0069 |
 | a renovação com a ligação trancada (duas voltas nunca gastam o mesmo par), gravada antes de se usar; uma autorização morta põe a ligação `com_erro` e o pedido fica retido (`ligacao_sem_teste`) | `src/faturacao/repositorio.ts` |
-| a tarefa das renovações, de seis em seis horas, com alarme se parar 26 horas; o Moloni liga-se no servidor só com `MOLONI_CLIENT_ID`, `MOLONI_CLIENT_SECRET` e `MOLONI_EMPRESAS_TESTE` | `src/faturacao/repositorio.ts`, `src/servidor.ts`, migração 0068 |
+| a tarefa das renovações, de seis em seis horas, com alarme se parar 26 horas; o Moloni liga-se no servidor só com `MOLONI_CLIENT_ID`, `MOLONI_CLIENT_SECRET` e `MOLONI_EMPRESAS_TESTE` | `src/faturacao/repositorio.ts`, `src/servidor.ts`, migração 0069 |
 | o motivo `nota_credito_sem_adaptador` (M7) | `src/faturacao/repositorio.ts` |
 | 23 testes do adaptador contra um Moloni simulado; 6 pela API com a base; 1 da NC retida na pós-venda | `test/moloni.test.ts`, `test/moloni-falso.ts`, `test/documentos-api.test.ts`, `test/posvenda-api.test.ts` |
 
@@ -607,7 +607,7 @@ cabeçalho mede-se na conta trial (§13.7) antes de se confiar no mapa.
   tem de começar por `%PDF-`; os segredos em JSON tapam-se; o gatilho da
   configuração deixou de depender da ordem de avaliação; a tarefa corre um
   minuto depois do arranque.
-- **Ficam como estão (P3), e porquê:** a 0068 não junta ligações Moloni
+- **Ficam como estão (P3), e porquê:** a 0069 não junta ligações Moloni
   anteriores porque a API as recusava (`criarLigacao` lançava
   «o adaptador Moloni ainda não existe») — não há nenhuma; o rascunho relê-se
   ao fechar sem nova conferência (janela de segundos, e a prova seguinte

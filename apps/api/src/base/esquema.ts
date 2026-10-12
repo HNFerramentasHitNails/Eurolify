@@ -1638,7 +1638,7 @@ export interface TabelaLigacaoFaturacao {
   serie: ColumnType<string | null, string | null, string | null>;
   taxas: ColumnType<TaxaDoEmissor[], string, string>;
   isencoes: ColumnType<IsencaoDoEmissor[], string, string>;
-  /** Os ids do emissor por omissão (docs/29 §13.2; migração 0068). */
+  /** Os ids do emissor por omissão (docs/29 §13.2; migração 0069). */
   config: ColumnType<ConfigDaLigacao, string | undefined, string>;
   /** Os tokens que o emissor renova sozinho, cifrados (§13.4). */
   sessao: ColumnType<Buffer | null, never, Buffer | null>;

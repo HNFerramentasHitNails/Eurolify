@@ -363,7 +363,7 @@ function credenciaisDe(
  * renova tokens, renova-os **com a ligação trancada** (duas voltas nunca
  * gastam o mesmo par: o Moloni devolve um par novo e o antigo deixa de
  * servir) e grava o par novo antes de o devolver. Renovar não mexe no estado
- * nem na versão da ligação (migração 0068). Lança o erro do emissor.
+ * nem na versão da ligação (migração 0069). Lança o erro do emissor.
  */
 async function credenciaisActuais(
   db: Kysely<BaseDados>,
