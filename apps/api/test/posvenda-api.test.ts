@@ -1343,6 +1343,97 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(await eventos(s)).toContain("order.returned");
   });
 
+  it("as vendas do dia (#367): uma venda real — checkout, captura, fatura, devolução, reembolso e NC — dá os quatro números", async () => {
+    const s = await cenario();
+    await ligar(s, `c-${randomUUID()}`);
+    const e = await paga(s, [[s.v1, 2]], "501964843");
+    await ateParar();
+    const [linha] = await expedir(s, e.encomenda);
+    const rma = await devolvidaEInspeccionada(s, e.token, [
+      { linha: linha?.["id"], quantidade: 1 },
+    ]);
+    const r = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        motivo: "livre resolução",
+      }),
+      201,
+    );
+    await manual(s, String(r["reembolso"]));
+    await ateParar();
+    const { fatura, notas } = await documentosDe(s, e.encomenda);
+    expect(fatura?.["estado"]).toBe("emitido");
+    expect(notas.map((n) => n["estado"])).toEqual(["emitido"]);
+    // O sem IVA da encomenda e o da prova da fatura, como ficaram guardados.
+    const { total_base: semIva } = await naBase(s, (trx) =>
+      trx
+        .selectFrom("encomenda")
+        .select("total_base")
+        .where("id", "=", e.encomenda.slice(4))
+        .executeTakeFirstOrThrow(),
+    );
+    const prova = await naBase(s, (trx) =>
+      trx
+        .selectFrom("documento_prova")
+        .select("totais")
+        .where("documento_id", "=", String(fatura?.["id"]).slice(4))
+        .executeTakeFirstOrThrow(),
+    );
+    const totalFatura = prova.totais as { total: number; base: number };
+    // 2 × 12,30 € + 4,99 € de portes (abaixo dos 50,00 €).
+    const total = 2 * 1230 + 499;
+    expect(totalFatura.total).toBe(total);
+    // O dia de hoje no fuso do comerciante.
+    const dia = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Lisbon",
+    }).format(new Date());
+    const leitor = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Vendas",
+        ambitos: ["sales:read"],
+      })
+    ).segredo;
+    const v = await ok(
+      pedir("GET", `/sales/summary?dia=${dia}`, undefined, {
+        authorization: `Bearer ${leitor}`,
+      }),
+    );
+    expect(v["periodo"]).toMatchObject({
+      fuso: "Europe/Lisbon",
+      completo: false,
+    });
+    const moedas = v["moedas"] as Json[];
+    expect(moedas.map((m) => m["moeda"])).toEqual(["EUR"]);
+    const t = (moedas[0] as Json)["total"] as Json;
+    expect(t).toMatchObject({
+      encomendado: {
+        com_iva: total,
+        sem_iva: Number(semIva),
+        quantidade: 1,
+        das_quais_canceladas: { com_iva: 0, sem_iva: 0, quantidade: 0 },
+      },
+      pago: { com_iva: total, sem_iva: Number(semIva), quantidade: 1 },
+      faturado: {
+        com_iva: total,
+        sem_iva: totalFatura.base,
+        quantidade: 1,
+        // A taxa e a proporção da fatura: 12,30 € = 10,00 € + 2,30 € de IVA.
+        creditado: { com_iva: 1230, sem_iva: 1000, quantidade: 1 },
+      },
+      devolvido: { com_iva: 1230, sem_iva: 1000, quantidade: 1 },
+    });
+    for (const n of ["encomendado", "pago", "faturado", "devolvido"]) {
+      expect(t[n]).not.toHaveProperty("sem_iva_por_conhecer");
+    }
+    // Uma linha só, a do canal e do mercado da venda, igual ao total.
+    expect((moedas[0] as Json)["por_canal_e_mercado"]).toEqual([
+      { canal: `chn_${s.canal}`, mercado: `mkt_${s.mercado}`, ...t },
+    ]);
+  });
+
   it("a nota de crédito espera pela fatura; emitida a fatura, sai a seguir", async () => {
     const s = await cenario();
     const conta = `c-${randomUUID()}`;
