@@ -160,8 +160,49 @@ lista da API, os testes e a revisão do agente. Um pedido só.
   (Diogo ou Bruno); os eventos `notification.sent` e `notification.failed`
   (sem quem os leia ainda); o ecrã no Hub.
 
+## 12. Os avisos das tarefas vencidas por e-mail (desenho, 12/10/2026; #372)
+
+O §9 deixou este aviso para «um pedido próprio». A peça 21 (`docs/33`, DW)
+já marca um caso vencido uma vez por prazo e põe `task.overdue` na
+`evento_saida` (`tarefas_marcar_vencida()` e `atribuicao_evento()`, migração
+0066). Hoje o aviso só se vê na lista `GET /tasks?vencida=true`
+(`src/tarefas/avisos.ts`: «Sem e-mail até haver notificações»). Esta parte
+leva-o à fila de e-mails das §3–§4, sem mudar o fornecedor, o envio nem as
+regras N4 a N11.
+
+| # | O quê | Proposta | Fonte |
+|---|---|---|---|
+| T1 | **A quem** (Q12) | **A:** à pessoa **responsável** pelo caso, se houver; um caso **sem responsável** vai a quem pode **decidir a fila** e **atribuir** (`tasks:assign`, dono e gestor), isto é, os donos e gestores com o âmbito de decisão da fila (`docs/33` §1): na fila `pagamento` só os donos. **B:** sempre aos donos e gestores, como N2, e também ao responsável, se for de outro papel | `docs/33` R3, R8; `eu-gdpr-privacy` (minimização) |
+| T2 | **Quando** | na mesma transacção da marca de vencido (a linha `vencida` do `atribuicao_rasto`), uma notificação por pessoa; nunca duas para a mesma pessoa e o mesmo aviso. Mudar o prazo para depois permite um aviso novo (R6): a `referencia` é a linha do rasto, não a atribuição | `docs/33` R6; N5 |
+| T3 | **A fila `prazo_reembolso`** | **não** entra: tem os e-mails do §3 (R6: «não sai um segundo») | `docs/33` R6 |
+| T4 | **O que diz** | a fila (o nome traduzido), o caso com o prefixo (`pdi_…`, `inv_…`, `dup_…`, `wdr_…`, `prb_…`, `rfd_…`; `src/tarefas/filas.ts`), o motivo da fila (código, da lista de valores dela), o prazo e há quanto venceu, a loja numa linha só, e a lista da API (`GET /tasks?vencida=true`), porque o Hub não tem o ecrã «A decidir» (parte 2). **Nenhum dado do cliente**, nem o motivo livre de uma mudança de prazo (`docs/33` §6: pode ter dados que alguém lá escreveu) | N3; `docs/33` §6 e §7 |
+| T5 | **No envio** | o endereço lê-se no envio, como hoje (N9). Fica **cancelada**, com o código, se a pessoa já não estiver activa ou já não puder receber pela T1, ou se o caso já não esperar: saiu da fila, mudou de prazo ou de passagem (`tarefa_ja_nao_espera`) | §11, `notificacao_destino()` |
+| T6 | **Língua** | a do Hub do comerciante, como os avisos do reembolso (§11, desvios) | N4 |
+| T7 | **Dados pessoais** | os mesmos da N9 (a pessoa, não o endereço; 90 dias, **C**); o tratamento T10 do `docs/17` alarga-se: a finalidade passa a incluir os casos vencidos e, na A, os titulares passam a incluir o armazém e o apoio quando são responsáveis de um caso da fila `livre_resolucao` (`docs/33` §1: decidem-na); actualiza-se no mesmo pedido do código | `docs/17` T10 |
+
+**O modelo:** o `tipo` da `notificacao` ganha `task.overdue`; nenhuma tabela
+nova. Os `dados` levam a fila, o caso, o motivo, o prazo e a hora do aviso.
+
+**Os testes que impedem o lançamento:**
+
+- um caso vencido com responsável dá **uma** notificação, a dele;
+- sem responsável, dá uma a cada pessoa da T1, e nenhuma ao armazém, ao
+  apoio, a um membro que saiu ou a uma pessoa desactivada;
+- a fila `pagamento` sem responsável só avisa os donos;
+- `prazo_reembolso` não dá nenhuma;
+- um prazo mudado para depois e vencido outra vez dá um aviso novo;
+- um caso decidido, ou uma pessoa que deixou de poder, antes do envio dá
+  `cancelada`;
+- o corpo não tem dados do cliente nem o motivo livre; outro comerciante não
+  vê as notificações deste.
+
+**Como entra no código:** uma migração (o `tipo`, o gatilho no
+`atribuicao_rasto`, o destino), os modelos PT, ES e EN, os testes e a
+revisão do agente. Um pedido só.
+
 ## 10. Pergunta para o Diogo ou o Bruno
 
 | # | Pergunta | Proposta |
 |---|---|---|
 | Q11 ✅ A (Diogo, 11/10/2026) | Aprovas o desenho (N1 a N11), com o fornecedor **A: OVH E-mail Pro** por agora (mantém o fornecedor único) ou **B: Lettermint** já (segundo fornecedor, com estado da entrega)? | A |
+| Q12 ✅ A (Diogo, 12/10/2026; EB) | Aprovas o §12 (T1 a T7)? O aviso de um caso vencido vai **A:** ao responsável, ou, sem responsável, aos donos e gestores que decidem a fila, ou **B:** sempre aos donos e gestores, e também ao responsável? | A |
