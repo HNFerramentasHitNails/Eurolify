@@ -115,6 +115,21 @@ const COLUNAS = [
   "versao",
 ] as const;
 
+/**
+ * Os serviços de uma conta (docs/36 §16, D1): a fotografia guardada na
+ * chamada de teste, quando o adaptador os tem por conta (a Sendcloud); a
+ * lista fixa do adaptador, quando não (os CTT).
+ */
+export function servicosDe(
+  adaptador: AdaptadorTransportadora,
+  fotografia: unknown,
+): readonly ServicoTransportadora[] {
+  if (adaptador.servicosDaConta === undefined) return adaptador.servicos();
+  return Array.isArray(fotografia)
+    ? (fotografia as ServicoTransportadora[])
+    : [];
+}
+
 export async function listarContas(db: Kysely<BaseDados>, c: string) {
   return noEnvios(db, c, (trx) =>
     trx
@@ -329,6 +344,7 @@ export async function testarConta(
         "credenciais_cifra",
         "chave_versao",
         "credenciais_em",
+        "remetente",
       ])
       .where("id", "=", id)
       .executeTakeFirst(),
@@ -341,8 +357,25 @@ export async function testarConta(
   }
   const { adaptador, chave } = adaptadorDe(cfg, conta.transportadora);
   const credenciais = credenciaisDe(conta, chave);
+  let fotografia: ServicoTransportadora[] | null = null;
   try {
     await adaptador.testar(credenciais);
+    // Os serviços da conta (D1): para a origem do remetente e para cada
+    // país dos mercados do comerciante, em modo teste (0074).
+    if (adaptador.servicosDaConta !== undefined) {
+      const destinos = await noEnvios(db, c, async (trx) => {
+        const linhas = await trx
+          .selectFrom("mercado")
+          .select("paises")
+          .execute();
+        return [...new Set(linhas.flatMap((l) => l.paises))].sort();
+      });
+      fotografia = await adaptador.servicosDaConta(credenciais, {
+        origem: (conta.remetente as unknown as Remetente).pais,
+        destinos,
+        modo: "teste",
+      });
+    }
   } catch (erro) {
     // Recusadas agora: uma conta pronta deixa de o estar e sai do checkout
     // (revisão do #397, P3-6). Se não respondeu, nada muda.
@@ -392,6 +425,12 @@ export async function testarConta(
       .set({
         testada_em: new Date(),
         estado: "pronta",
+        ...(fotografia === null
+          ? {}
+          : {
+              servicos: JSON.stringify(fotografia),
+              servicos_em: new Date(),
+            }),
         actualizado_em: new Date(),
         versao: agora.versao + 1,
       })
@@ -411,14 +450,17 @@ export async function servicosDaConta(
   const conta = await noEnvios(db, c, (trx) =>
     trx
       .selectFrom("conta_transportadora")
-      .select(["transportadora"])
+      .select(["transportadora", "servicos"])
       .where("id", "=", id)
       .executeTakeFirst(),
   );
   if (conta === undefined) {
     throw new ErroEnvios("shipping.not_found", "esta conta não existe");
   }
-  return adaptadorDe(cfg, conta.transportadora).adaptador.servicos();
+  return servicosDe(
+    adaptadorDe(cfg, conta.transportadora).adaptador,
+    conta.servicos,
+  );
 }
 
 /**
@@ -435,7 +477,7 @@ export async function conferirServico(
 ): Promise<ServicoTransportadora> {
   const conta = await trx
     .selectFrom("conta_transportadora")
-    .select(["id", "transportadora", "estado"])
+    .select(["id", "transportadora", "estado", "servicos"])
     .where("id", "=", contaId)
     .forShare()
     .executeTakeFirst();
@@ -448,9 +490,10 @@ export async function conferirServico(
       "a conta ainda não passou a chamada de teste (ou está arquivada)",
     );
   }
-  const s = adaptadorDe(cfg, conta.transportadora)
-    .adaptador.servicos()
-    .find((x) => x.codigo === servico);
+  const s = servicosDe(
+    adaptadorDe(cfg, conta.transportadora).adaptador,
+    conta.servicos,
+  ).find((x) => x.codigo === servico);
   if (s === undefined) {
     throw new ErroEnvios(
       "shipping.service_unknown",

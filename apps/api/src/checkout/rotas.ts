@@ -1175,7 +1175,7 @@ export function rotasDoCheckout(
     conta: Type.Optional(Type.Union([IdConta, Type.Null()])),
     servico: Type.Optional(
       Type.Union([
-        Type.String({ pattern: "^[0-9A-Za-z_.-]{1,50}$" }),
+        Type.String({ pattern: "^[0-9A-Za-z_.:/-]{1,100}$" }),
         Type.Null(),
       ]),
     ),

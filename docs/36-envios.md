@@ -572,6 +572,20 @@ Documentação técnica da Sendcloud, API v3, lida a 12/10/2026 em
 | D8 | **Respostas:** 4xx com erros ⇒ recusada, com o primeiro motivo; 5xx, 429 ou sem resposta ⇒ incerta (R2). Um 201 com o volume em falha de anúncio ⇒ recusada. | R2 |
 | D9 | **Só vai o que a entrega precisa** (§6): nome, morada, peso e, só se o serviço exigir, telefone e e-mail. Não vão as linhas, os preços nem o número da encomenda. | minimização |
 
+### 16.4 Em código (migração 0080)
+
+| O quê | Onde |
+|---|---|
+| o adaptador: teste da conta, serviços da conta, etiqueta, consulta pela referência, anular, seguimento, aviso | `src/envios/sendcloud.ts` |
+| o contrato ganha `servicosDaConta` (opcional); o núcleo lê a fotografia da conta quando o adaptador o tem (`servicosDe`) | `src/envios/adaptador.ts`, `src/envios/repositorio.ts`, `src/envios/etiquetas.ts` |
+| a conta guarda `servicos` e `servicos_em`; a transportadora `sendcloud`; o código do serviço passa a aceitar `:` e `/`, até 100 caracteres | migração 0080; `src/checkout/rotas.ts` |
+| um aviso sem eventos marca a consulta para daí a 1 minuto (D4) | `receberAviso` |
+| o servidor liga o adaptador da Sendcloud | `src/servidor.ts` |
+| 7 testes do adaptador contra uma Sendcloud de ensaio, sem base; 1 teste pela API (a conta, a fotografia, o método recusado e aceite, a etiqueta, o aviso, a volta até entregue) | `test/envios-sendcloud.test.ts`, `test/sendcloud-falsa.ts`, `test/envios-etiquetas.test.ts` |
+
 **Por fazer na parte C:** os ecrãs do Hub dos envios ficam para um pedido à
-parte. Ficam por verificar numa conta de teste: o conteúdo real dos avisos e
-os estados de uma transportadora portuguesa.
+parte. Ficam por verificar numa conta de teste:
+- o conteúdo real dos avisos;
+- os estados de uma transportadora portuguesa;
+- se `sendcloud:letter` aparece na lista de serviços de uma conta portuguesa.
+  Se não aparecer, o modo teste fica sem serviços.

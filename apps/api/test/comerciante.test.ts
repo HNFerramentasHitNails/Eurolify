@@ -166,6 +166,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0077_checkout_sessoes_sem_dados",
         "0078_relatorio_oss",
         "0079_envios_parte_b",
+        "0080_envios_sendcloud",
       ]);
     });
 

@@ -1,5 +1,5 @@
 import { sql, type Kysely, type Transaction } from "kysely";
-import type { BaseDados } from "../base/esquema.js";
+import type { BaseDados, Transportadora } from "../base/esquema.js";
 import { aplicarRasto, contextoDaTarefa } from "../base/rasto.js";
 import { conteudoDe } from "../checkout/entrega.js";
 import { comComerciante } from "../comerciante/repositorio.js";
@@ -18,6 +18,7 @@ import {
   adaptadorDe,
   credenciaisDe,
   noEnvios,
+  servicosDe,
   type Remetente,
 } from "./repositorio.js";
 
@@ -123,7 +124,7 @@ export async function lerEtiqueta(
 interface Preparado {
   expedicao: string;
   tentativa: number;
-  conta: { id: string; transportadora: "ctt" };
+  conta: { id: string; transportadora: Transportadora };
   credenciais: ReturnType<typeof credenciaisDe>;
   pedidoBase: {
     servico: string;
@@ -206,6 +207,7 @@ async function preparar(
         "remetente",
         "credenciais_cifra",
         "chave_versao",
+        "servicos",
       ])
       .where("id", "=", metodo.conta)
       .forShare()
@@ -221,9 +223,9 @@ async function preparar(
     // conta que já não se decifra não deixa a expedição presa (revisão do
     // #400, P1-1).
     const credenciais = credenciaisDe(conta, chave);
-    const servico = adaptador
-      .servicos()
-      .find((s) => s.codigo === metodo.servico);
+    const servico = servicosDe(adaptador, conta.servicos).find(
+      (s) => s.codigo === metodo.servico,
+    );
     if (servico === undefined) {
       throw new ErroEnvios(
         "shipping.service_unknown",
@@ -982,6 +984,13 @@ export async function receberAviso(
       "aviso",
       QUEM_DAS_TAREFAS,
     );
+    // Um aviso sem eventos é um sinal para consultar (docs/36 §16, D4: a
+    // Sendcloud): a volta consulta esta expedição daqui a um minuto.
+    if (leitura.eventos.length === 0) {
+      await noEnvios(db, c, (trx) =>
+        sql`select envios_trabalho_adiar(${expedicao}::uuid, 1)`.execute(trx),
+      );
+    }
     await fechar("tratado");
   } catch (erro) {
     await fechar("erro", erro instanceof Error ? erro.name : "erro");
