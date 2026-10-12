@@ -625,8 +625,9 @@ cabeçalho mede-se na conta trial (§13.7) antes de se confiar no mapa.
 
 ## 15. A saída «emitida fora do Eurolify» (desenho, 12/10/2026)
 
-> **Estado: proposta, por aprovar.** Diogo, 12/10/2026: *«avança com a saída
-> «emitida fora do Eurolify»»*. Vem da revisão do #312 (P2-1, §12: «se a
+> **Estado: aprovado** (`docs/06`, EA). Diogo, 12/10/2026: *«sim, aprovo o
+> desenho com as propostas Q-F1 a Q-F3»*. Pedido inicial, 12/10/2026: *«avança
+> com a saída «emitida fora do Eurolify»»*. Vem da revisão do #312 (P2-1, §12: «se a
 > entidade escolher o sistema próprio, fica retida — falta a acção»). Só
 > desenho; nenhum código antes de aprovado (ADR-0023).
 
