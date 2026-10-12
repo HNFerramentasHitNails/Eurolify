@@ -1971,7 +1971,8 @@ onde carregar para a resolver.
 ## 29. Envios: as contas de transportadora (issue #393)
 
 Pedido do Diogo, 12/10/2026: *«avança»*, depois de a parte C dos envios estar
-no `main` (`docs/36` §16, #406). **Por aprovar.** É o primeiro passo dos
+no `main` (`docs/36` §16, #406). Desenho aprovado pelo Diogo a 12/10/2026
+(*«sim, aprovo; avança com o código»*). É o primeiro passo dos
 envios no Hub. A API já tem tudo (`docs/36` §3.1, §7.1 e §16): o Hub só
 lhe dá ecrãs. Skills: `eurolify-design`, `eurolify-hub-modular`,
 `observability-security`, `eu-gdpr-privacy`, `order-fulfilment`.
@@ -2006,8 +2007,11 @@ assinatura dos avisos, e carrega em «Testar a ligação». A conta passa a
 
 **Rotas novas pela sessão do Hub**, uma para cada rota da chave, com a
 mesma função e o mesmo âmbito (uma regra, um sítio). Seguem o padrão das
-chaves (§9.3): o cabeçalho `Eurolify-Comerciante` e `Idempotency-Key` nas
-escritas.
+rotas do Hub (§28.2): o cabeçalho `Eurolify-Comerciante` e **sem
+`Idempotency-Key`** (`docs/21` §11; o desenho dizia o contrário e corrigiu-se
+no código). A `versao` recusa a repetição de uma alteração. Uma resposta
+perdida ao ligar a conta não se repete sozinha: o ecrã diz que a conta pode
+ter ficado criada e pede para conferir a lista.
 
 | Caminho do Hub | Âmbito | A rota da chave |
 |---|---|---|
@@ -2044,6 +2048,14 @@ escritas.
 
 **Os textos** estão em PT, ES e EN, sem maiúsculas forçadas. «Pronta» quer dizer
 «passou o teste», e o ecrã nunca o diz por outras palavras.
+
+**O caminho dos avisos.** O ecrã mostra o caminho
+(`/webhooks/carriers/{transportadora}/cac_…`), não o endereço completo. Na
+VPS de ensaio, só o Hub (`/hub/`) e o MCP estão publicados
+(`infra/vps/ficheiros/nginx-hub.conf`): **os avisos das transportadoras, e os
+dos pagamentos, ainda não chegam à API**. O ecrã di-lo. Até lá, a volta
+consulta o seguimento de hora a hora. Publicar o caminho é uma mudança à
+VPS, com pedido próprio (ADR-0028).
 
 ### 29.4 Antes de dizer que está feito (o pedido do código)
 

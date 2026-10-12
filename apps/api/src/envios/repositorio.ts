@@ -111,6 +111,7 @@ const COLUNAS = [
   "credenciais_em",
   "credenciais_por",
   "testada_em",
+  "servicos_em",
   "criado_em",
   "versao",
 ] as const;

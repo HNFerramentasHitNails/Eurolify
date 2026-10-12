@@ -84,6 +84,14 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "tasks.reason_required": "decidirMotivoObrigatorio",
   "tasks.forbidden": "decidirSemPermissao",
   "tasks.not_found": "decidirJaNaoEsta",
+  // Os envios (docs/22 §29.3). `shipping.invalid_field` fica com a
+  // mensagem da API: diz os métodos que ficariam sem serviço.
+  "shipping.version_conflict": "enviosConflito",
+  "shipping.account_not_ready": "enviosRecusadas",
+  "shipping.carrier_unavailable": "enviosSemResposta",
+  "shipping.not_configured": "enviosSemChave",
+  "shipping.not_found": "enviosNaoExiste",
+  "shipping.immutable": "enviosImutavel",
 };
 
 /** Um erro conferido no próprio ecrã, com o texto já escolhido. */

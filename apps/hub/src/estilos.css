@@ -419,6 +419,21 @@ code {
   color: var(--estado-artigo-arquivado);
 }
 
+/* O estado de uma conta de transportadora (docs/22 §29.3): a cor do estado
+   e o nome, nunca só a cor. */
+.estado-conta {
+  font-weight: 600;
+}
+.estado-conta[data-estado="pronta"] {
+  color: var(--estado-conta-pronta);
+}
+.estado-conta[data-estado="rascunho"] {
+  color: var(--estado-conta-rascunho);
+}
+.estado-conta[data-estado="arquivada"] {
+  color: var(--estado-conta-arquivada);
+}
+
 /* O ecrã «A decidir» (docs/22 §28.3): o vencido diz-se em texto e com a cor
    do estado; o filtro escolhido marca-se também pelo aria-pressed. */
 .tarefa-vencida {

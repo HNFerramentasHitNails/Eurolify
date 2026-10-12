@@ -38,6 +38,7 @@ import { rotasDoIva } from "./iva/rotas.js";
 import { rotasDoCheckout } from "./checkout/rotas.js";
 import type { ConfigEnvios } from "./envios/adaptador.js";
 import { rotasDosEnvios } from "./envios/rotas.js";
+import { rotasDosEnviosNoHub } from "./envios/rotas-hub.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { rotasDosPagamentos } from "./pagamentos/rotas.js";
 import { rotasDoStock } from "./stock/rotas.js";
@@ -427,6 +428,7 @@ export function criarApp(
       rotasDoCatalogoNoHub(rotas, base);
       rotasDasVendasNoHub(rotas, base);
       rotasDasTarefasNoHub(rotas, base);
+      rotasDosEnviosNoHub(rotas, base, envios);
       if (armazenamento !== undefined) {
         rotasDasImagensNoHub(rotas, base, armazenamento);
       }
