@@ -26,6 +26,7 @@ import {
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { urlSemSegredos } from "../src/base/registo.js";
 import { correrApagamentosPendentes } from "../src/clientes/titular-fila.js";
+import { correrLimpezaDasSessoes } from "../src/checkout/limpeza-sessoes.js";
 import { eupagoFalso } from "./eupago-falso.js";
 import {
   criarBaseDeTeste,
@@ -1331,6 +1332,99 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
     );
   });
+
+  it("as sessões sem dados pessoais: a concluída logo; a expirada, a abandonada e a aberta esquecida 7 dias depois; as de 6 dias ficam (docs/23 §15.4)", async () => {
+    const s = await cenario();
+    const pessoais = async (sessao: string) =>
+      (
+        await sql<Json>`select email, nome, telefone, entrega, faturacao
+          from sessao_checkout where id = ${sessao.slice(4)}::uuid`.execute(
+          base.dono,
+        )
+      ).rows[0];
+    const vazia = {
+      email: null,
+      nome: null,
+      telefone: null,
+      entrega: null,
+      faturacao: null,
+    };
+    // Concluída: sai ao criar a encomenda; a encomenda tem a cópia.
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    expect((await pessoais(k.sessao))?.["email"]).toBe("rui@exemplo.pt");
+    await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    expect(await pessoais(k.sessao)).toEqual(vazia);
+    expect(await ok(pedir("GET", `/checkout/${k.token}`))).toMatchObject({
+      estado: "concluida",
+      contacto: null,
+    });
+    expect(
+      await ok(pedir("GET", `/checkout/${k.token}/confirmation`)),
+    ).toMatchObject({ contacto: { email: "rui@exemplo.pt" } });
+    // Quatro sessões com dados, envelhecidas pelo superutilizador do teste
+    // (o gatilho desligado nesta transacção).
+    const nova = async () => {
+      const x = await checkoutCom(s, [[s.v1, 1]]);
+      await ok(
+        pedir("PUT", `/checkout/${x.token}/contact`, {
+          email: "ana@exemplo.pt",
+          nome: "Ana",
+        }),
+      );
+      return x.sessao;
+    };
+    const envelhecer = (sessao: string, estado: string, dias: number) =>
+      base.dono.transaction().execute(async (trx) => {
+        await sql`alter table sessao_checkout disable trigger sessao_checkout_antes_de_gravar`.execute(
+          trx,
+        );
+        await sql`update sessao_checkout set estado = ${estado},
+            actualizado_em = now() - make_interval(days => ${dias}),
+            expira_em = now() - make_interval(days => ${dias})
+          where id = ${sessao.slice(4)}::uuid`.execute(trx);
+        await sql`alter table sessao_checkout enable always trigger sessao_checkout_antes_de_gravar`.execute(
+          trx,
+        );
+      });
+    const abandonada8 = await nova();
+    await envelhecer(abandonada8, "abandonada", 8);
+    const expirada8 = await nova();
+    await envelhecer(expirada8, "expirada", 8);
+    const aberta8 = await nova();
+    await envelhecer(aberta8, "aberta", 8);
+    const expirada6 = await nova();
+    await envelhecer(expirada6, "expirada", 6);
+    // Ainda aberta e por expirar: fica.
+    const aberta = await nova();
+    const volta = await correrLimpezaDasSessoes(base.api);
+    expect(volta.falhas).toEqual([]);
+    expect(volta.limpas).toBeGreaterThanOrEqual(3);
+    for (const x of [abandonada8, expirada8, aberta8]) {
+      expect(await pessoais(x)).toEqual(vazia);
+    }
+    for (const x of [expirada6, aberta]) {
+      expect((await pessoais(x))?.["email"]).toBe("ana@exemplo.pt");
+    }
+    // O estado e o resto da sessão não mudam.
+    expect(
+      (
+        await sql<{ estado: string }>`select estado from sessao_checkout
+          where id = ${aberta8.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0]?.estado,
+    ).toBe("aberta");
+    // Fora da função do dono, a API não abre uma sessão fechada.
+    await expect(
+      comComerciante(base.api, s.c, (trx) =>
+        sql`update sessao_checkout set email = null
+          where id = ${expirada6.slice(4)}::uuid`.execute(trx),
+      ),
+    ).rejects.toThrow(/checkout\.closed/);
+    // Seis sessões e uma encomenda.
+  }, 30_000);
 
   it("a confirmação pelo token só nos 30 dias depois da encomenda", async () => {
     const s = await cenario();

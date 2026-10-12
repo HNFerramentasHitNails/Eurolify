@@ -1678,9 +1678,19 @@ export async function concluir(
     }
     throw erro;
   }
+  // Os dados pessoais saem da sessão: a encomenda tem a cópia (docs/23
+  // §15.4; migração 0077).
   await trx
     .updateTable("sessao_checkout")
-    .set({ estado: "concluida", concluida_em: new Date() })
+    .set({
+      estado: "concluida",
+      concluida_em: new Date(),
+      email: null,
+      nome: null,
+      telefone: null,
+      entrega: null,
+      faturacao: null,
+    })
     .where("id", "=", s.id)
     .execute();
   await trx

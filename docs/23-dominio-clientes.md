@@ -1172,7 +1172,16 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 | uma livre resolução numa encomenda já limpa guarda «sem e-mail», não o marcador | `src/posvenda/repositorio.ts` |
 | a sessão de checkout de cada encomenda limpa fica vazia; o resumo do aviso leva a chave do rasto (0054, 8 hex); os objectos guardam só o que não é pessoal (país, tipo) e limpam o resto; uma encomenda que volte a ficar em curso vai para a fila em vez de falhar o pedido; a tarefa trata cada encomenda à parte e regista as falhas (código, sem dados); a limpeza adiada limpa também o perfil que deixou de servir (revisão do #374) | 0072 |
 
-Falta: a parte 2 (as sessões de checkout, §15.4) e a parte 3 (a
-exportação, coluna «Exportação» da §15.2; e as fichas com o mesmo contacto,
-§15.5).
+**Parte 2 — as sessões de checkout por prazo** (§15.4; migração 0077):
+
+| O quê | Onde |
+|---|---|
+| ao criar a encomenda, a sessão perde o e-mail, o nome, o telefone e as moradas (a encomenda tem a cópia); `GET /checkout/{token}` passa a dar `contacto: null`, e a confirmação continua a ler a encomenda | `concluir()` em `src/checkout/repositorio.ts` |
+| 7 dias depois de expirar ou de ser abandonada (ou, se ficou aberta, 7 dias depois de `expira_em`), a sessão perde os mesmos dados; o estado e o resto ficam | `checkout_sessoes_limpar()`; a tarefa de hora a hora `src/checkout/limpeza-sessoes.ts` (`tarefa:sessoes`) |
+| a limpeza só passa com a marca da 0049, dentro da função do dono; fora dela, o gatilho recusa (`checkout.closed`) | `sessao_checkout_antes_de_gravar()` (0072) |
+
+O prazo de 7 dias é proposta (`docs/25` §7, J3/J4: **C**, jurista).
+
+Falta: a parte 3 (a exportação, coluna «Exportação» da §15.2; e as fichas
+com o mesmo contacto, §15.5).
 

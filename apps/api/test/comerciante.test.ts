@@ -163,6 +163,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0072_titular_todos_os_dominios",
         "0073_tarefas_no_hub",
         "0074_envios_parte_a",
+        "0077_checkout_sessoes_sem_dados",
       ]);
     });
 

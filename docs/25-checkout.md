@@ -357,8 +357,10 @@ registos técnicos, só identificadores (`eu-gdpr-privacy`, regra 7).
   o checkout sem conta não tem perfil com VIES. Pode comprar como
   consumidor.
 - **Por fazer na parte 2:** as páginas do checkout, a limpeza dos carrinhos
-  expirados e dos dados das sessões abandonadas (7 dias, §7), e o envio da
-  confirmação (Q4, com o fornecedor de e-mail).
+  expirados e o envio da confirmação (Q4, com o fornecedor de e-mail). Os
+  dados das sessões já se limpam: ao criar a encomenda e 7 dias depois de a
+  sessão expirar ou ser abandonada (`docs/23` §15.4 e §15.10, migração
+  0077).
 
 **Correcções da revisão do #276** (agente, Sonnet 5.5; 09/10/2026):
 - **O segredo do carrinho e o token** não ficam na tabela da idempotência;
