@@ -190,7 +190,7 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 | `relatorio_oss_fecho` e `relatorio_oss_documento`: só se acrescentam (a base recusa mudar e apagar), RLS forçado; o evento `tax_report.closed` | migração 0075 |
 | os registos do art. 63.º-C em CSV (com a protecção contra fórmulas) | `src/faturacao/oss.ts` (`registosOss`) |
 | as rotas `GET /tax-reports/oss`, `POST /tax-reports/oss/close`, `POST /tax-reports/oss/classifications`, `GET /tax-reports/oss/records` | `src/faturacao/rotas-oss.ts` |
-| 10 testes da classificação sem base; 5 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
+| 10 testes da classificação sem base; 6 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
 
 **Desvios do desenho:**
 - **As rotas** levam a entidade e o período na consulta (`?entidade=&periodo=`)
@@ -242,6 +242,15 @@ apagar ou esvaziar. Ex.: uma fatura que saiu a 21 % quando o pedido dizia
 23 %, aceite como `resolvido`, entra no balde nacional, PT, a 21 %. **C**
 (contabilista): que essa linha se declara à taxa da fatura emitida. No
 limiar, de um documento classificado conta o que o dono pôs no OSS.
+
+**Validações da 3.ª revisão do #392** (sem P0/P1): o par balde/país tem de
+ser coerente — nacional = o país da entidade; OSS e intracomunitárias = outro
+Estado-membro; exportação = fora da UE; a data do dono fica entre o dia em
+que o pedido nasceu e hoje; linhas desalinhadas só num `resolvido`; um
+documento sem data só se o resto não o impedir; um documento já declarado
+não se classifica. No limiar, um documento classificado para outro país mas
+posto no nacional conta como excluído (não se adivinha se era venda à
+distância).
 
 **Também desta ronda:** as leituras do relatório e dos registos correm numa
 só fotografia da base (P2-2); os erros saem com os códigos do relatório

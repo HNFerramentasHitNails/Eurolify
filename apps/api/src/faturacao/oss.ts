@@ -1,6 +1,7 @@
 import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
+import { PAISES_UE } from "../iva/decisao.js";
 
 // O relatório OSS (docs/37; docs/06, EF; issue #310). Os montantes vêm só das
 // provas dos documentos emitidos (O1); o balde de cada linha vem da decisão
@@ -626,9 +627,19 @@ function vendasADistancia(
       excluidos += 1;
       continue;
     }
-    // Com a decisão do dono, conta o que ele pôs no OSS (P1-A).
+    // Com a decisão do dono, conta o que ele pôs no OSS (P1-A). Uma venda
+    // para outro país que ele pôs no nacional pode ter sido uma venda à
+    // distância tributada na origem: não se adivinha, conta como excluída
+    // (3.ª revisão do #392, P2-C).
     if (d.classificacao != null) {
       for (const l of linhas) if (l.balde === "oss") base += l.base;
+      if (
+        d.conteudo.destino !== null &&
+        d.conteudo.destino !== paisEntidade &&
+        linhas.some((l) => l.balde === "nacional")
+      ) {
+        excluidos += 1;
+      }
       continue;
     }
     d.conteudo.linhas.forEach((lc, i) => {
@@ -1031,6 +1042,14 @@ export async function registosOss(
         const deFora = r.relatorio.impedimentos.filter(
           (i) => i.motivo !== "periodo_em_curso" && i.motivo !== "por_emitir",
         );
+        if (deFora.some((i) => i.motivo === "periodo_posterior_fechado")) {
+          // P3-4: a razão certa.
+          throw new ErroRelatorio(
+            "tax_reports.not_closable",
+            "este período é anterior ao último fechado: o que tem a data dele está nas alterações dos períodos seguintes",
+            { impedimentos: deFora },
+          );
+        }
         if (deFora.length > 0) {
           throw new ErroRelatorio(
             "tax_reports.not_closable",
@@ -1199,12 +1218,34 @@ export async function classificarOss(
     }
     const paisEntidade = await paisDaEntidade(trx, doc.entidade_legal_id);
     const { impedimento } = linhasDe(d, paisEntidade);
-    const motivo = d.data === null ? "sem_data" : impedimento;
+    // Um documento sem data só se classifica se nada mais o impedir que a
+    // classificação não resolva (3.ª revisão do #392, P3-1).
+    const motivo = impedimento ?? (d.data === null ? "sem_data" : null);
     if (motivo === null || !CLASSIFICAVEIS.includes(motivo)) {
       throw new ErroRelatorio(
         "tax_reports.not_classifiable",
         "o relatório já classifica este documento, ou o que o impede não se resolve assim",
         { impedimento: motivo },
+      );
+    }
+    // Linhas da prova diferentes das do pedido: só depois de uma pessoa ter
+    // aceitado a divergência (`resolvido`, com motivo; P3-2).
+    if (motivo === "linhas_desalinhadas" && d.estado !== "resolvido") {
+      throw new ErroRelatorio(
+        "tax_reports.not_classifiable",
+        "as linhas da prova não batem com as do pedido: resolver a divergência primeiro",
+      );
+    }
+    // Um documento já declarado não se reclassifica (P3-3).
+    const declarado = await trx
+      .selectFrom("relatorio_oss_documento")
+      .select("documento_id")
+      .where("documento_id", "=", documento)
+      .executeTakeFirst();
+    if (declarado !== undefined) {
+      throw new ErroRelatorio(
+        "tax_reports.not_classifiable",
+        "este documento já entrou num período fechado",
       );
     }
     if (dados.linhas.length !== d.linhas.length) {
@@ -1221,6 +1262,40 @@ export async function classificarOss(
           ? "a prova não tem data: indicar a data"
           : "a prova já tem data: não se indica outra",
       );
+    }
+    // A data do dono: entre o dia em que o pedido nasceu e hoje, no fuso de
+    // Portugal (P2-B).
+    if (dados.data !== undefined) {
+      const { rows } = await sql<{ desde: string }>`
+        select to_char((d.criado_em at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD') as desde
+        from documento_fiscal d where d.id = ${documento}::uuid`.execute(trx);
+      const desde = rows[0]?.desde ?? dados.data;
+      if (dados.data < desde || dados.data > hojeEmLisboa()) {
+        throw new ErroRelatorio(
+          "tax_reports.invalid",
+          `a data tem de estar entre ${desde} e hoje`,
+        );
+      }
+    }
+    // O par balde/país tem de ser coerente com o balde (docs/37 §2.1; P2-A):
+    // o nacional é o país da entidade; o OSS e as intracomunitárias, outro
+    // Estado-membro; a exportação, fora da UE.
+    for (const [i, l] of dados.linhas.entries()) {
+      const naUe = PAISES_UE.has(l.pais);
+      const coerente =
+        l.balde === "nacional"
+          ? l.pais === paisEntidade
+          : l.balde === "oss" || l.balde === "intracomunitarias"
+            ? naUe && l.pais !== paisEntidade
+            : l.balde === "exportacao"
+              ? !naUe
+              : true;
+      if (!coerente) {
+        throw new ErroRelatorio(
+          "tax_reports.invalid",
+          `linha ${String(i + 1)}: o país ${l.pais} não serve para o balde ${l.balde}`,
+        );
+      }
     }
     const linhas = dados.linhas.map((l) => ({ balde: l.balde, pais: l.pais }));
     await trx
