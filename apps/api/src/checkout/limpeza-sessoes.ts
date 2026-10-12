@@ -31,10 +31,18 @@ export async function correrLimpezaDasSessoes(
         await sql`select set_config('eurolify.quem', ${QUEM_DA_LIMPEZA}, true)`.execute(
           trx,
         );
-        const { rows: x } = await sql<{
-          n: number;
-        }>`select checkout_sessoes_limpar(${porVolta}) as n`.execute(trx);
-        return x[0]?.n ?? 0;
+        // Repete enquanto vierem cheias, até 20 (um comerciante com muitas
+        // sessões não acumula atraso; revisão do #402, P3-4).
+        let total = 0;
+        for (let i = 0; i < 20; i++) {
+          const { rows: x } = await sql<{
+            n: number;
+          }>`select checkout_sessoes_limpar(${porVolta}) as n`.execute(trx);
+          const n = x[0]?.n ?? 0;
+          total += n;
+          if (n < porVolta) break;
+        }
+        return total;
       });
     } catch (erro) {
       volta.falhas.push({

@@ -1091,8 +1091,9 @@ diz «talvez». Em vez disso, por prazo (o que o `docs/25` §7 já propunha):
 - **sessão expirada ou abandonada**: limpam-se 7 dias depois (`docs/25`
   §7, proposta; prazo **C**, jurista).
 
-Assim, nenhuma sessão guarda dados mais de 7 dias, e o pedido do titular não
-precisa de as procurar.
+Assim, nenhuma sessão guarda dados mais de cerca de 8 dias (até 24 h aberta,
+mais 7 dias, mais até 1 h da volta da tarefa; revisão do #402, P2-1), e o
+pedido do titular não precisa de as procurar.
 
 ### 15.5 Várias fichas da mesma pessoa
 
@@ -1177,7 +1178,8 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 | O quê | Onde |
 |---|---|
 | ao criar a encomenda, a sessão perde o e-mail, o nome, o telefone e as moradas (a encomenda tem a cópia); `GET /checkout/{token}` passa a dar `contacto: null`, e a confirmação continua a ler a encomenda | `concluir()` em `src/checkout/repositorio.ts` |
-| 7 dias depois de expirar ou de ser abandonada (ou, se ficou aberta, 7 dias depois de `expira_em`), a sessão perde os mesmos dados; o estado e o resto ficam | `checkout_sessoes_limpar()`; a tarefa de hora a hora `src/checkout/limpeza-sessoes.ts` (`tarefa:sessoes`) |
+| 7 dias depois de expirar ou de ser abandonada, contados da mais cedo entre a última mudança e `expira_em` (uma aberta esquecida, 7 dias depois de `expira_em`), a sessão perde os mesmos dados; o estado e o resto ficam; as concluídas antes da 0077 também | `checkout_sessoes_limpar()` (com um índice só das sessões com dados); a tarefa de hora a hora `src/checkout/limpeza-sessoes.ts` (`tarefa:sessoes`), que repete enquanto as voltas vêm cheias |
+| desvio ao §15.6: a tarefa escreve só no registo da aplicação (as limpas e as falhas, sem dados) e não avisa se parar — como a fila do titular | por fazer, com o aviso das tarefas que param (`observability-security`) |
 | a limpeza só passa com a marca da 0049, dentro da função do dono; fora dela, o gatilho recusa (`checkout.closed`) | `sessao_checkout_antes_de_gravar()` (0072) |
 
 O prazo de 7 dias é proposta (`docs/25` §7, J3/J4: **C**, jurista).

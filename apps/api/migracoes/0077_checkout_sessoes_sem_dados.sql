@@ -8,7 +8,8 @@
 -- identidade por um sinal que só diz «talvez». Por isso, por prazo:
 -- - concluída: limpa-se ao criar a encomenda (no código, `concluir`); esta
 --   tarefa apanha as concluídas antes desta migração;
--- - expirada ou abandonada: 7 dias depois da última mudança;
+-- - expirada ou abandonada: 7 dias depois da última mudança ou de expirar,
+--   a mais cedo das duas;
 -- - aberta e já expirada (só passa a «expirada» quando alguém volta ao
 --   token): 7 dias depois de `expira_em`.
 -- O prazo de 7 dias é proposta (docs/25 §7, J3/J4: **C**, jurista).
@@ -17,17 +18,12 @@
 -- marca da 0049, como a 0072: o gatilho da sessão só deixa mudar essas
 -- colunas, e só dentro desta função do dono.
 
--- Os comerciantes a percorrer. A sessão tem RLS forçada (0041), por isso não
--- se lê aqui sem contexto: vão todos os que alguma vez tiveram uma pessoa ou
--- uma chave (todo o comerciante tem o primeiro dono), como em
--- `tarefas_comerciantes()` (0066), mas sem filtrar pelos activos — uma
--- sessão antiga de um comerciante sem chaves também se limpa.
+-- Os comerciantes com sessões. A sessão tem RLS forçada (0041) e não se lê
+-- aqui sem contexto; o token tem RLS sem forçar e só existe para quem teve
+-- sessões (segunda revisão do #402, P3-5).
 CREATE FUNCTION checkout_comerciantes_com_sessoes_a_limpar() RETURNS SETOF uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT m.comerciante_id FROM public.membro m
-  UNION
-  SELECT k.comerciante_id FROM public.chave_api k
-  ORDER BY 1
+  SELECT DISTINCT t.comerciante_id FROM public.token_checkout t ORDER BY 1
 $$;
 
 -- No comerciante do contexto, limpa até `p_limite` sessões. Devolve quantas.
@@ -50,7 +46,11 @@ BEGIN
       AND (s.email IS NOT NULL OR s.nome IS NOT NULL OR s.telefone IS NOT NULL
            OR s.entrega IS NOT NULL OR s.faturacao IS NOT NULL)
       AND (s.estado = 'concluida'
-        OR (s.estado IN ('expirada', 'abandonada') AND s.actualizado_em < now() - interval '7 days')
+        -- A mais cedo das duas: uma aberta esquecida que só passa a expirada
+        -- quando alguém volta conta desde que expirou, não desde que mudou
+        -- (revisão do #402, P2-1).
+        OR (s.estado IN ('expirada', 'abandonada')
+            AND least(s.actualizado_em, s.expira_em) < now() - interval '7 days')
         OR (s.estado = 'aberta' AND s.expira_em < now() - interval '7 days'))
     ORDER BY s.criado_em, s.id
     LIMIT greatest(p_limite, 0)
@@ -60,6 +60,12 @@ BEGIN
   RETURN n;
 END
 $$;
+
+-- Só as sessões que ainda têm dados (a tarefa não percorre as já limpas;
+-- revisão do #402, P3-4).
+CREATE INDEX sessao_checkout_com_dados ON sessao_checkout (comerciante_id, criado_em)
+  WHERE email IS NOT NULL OR nome IS NOT NULL OR telefone IS NOT NULL
+     OR entrega IS NOT NULL OR faturacao IS NOT NULL;
 
 REVOKE EXECUTE ON FUNCTION checkout_comerciantes_com_sessoes_a_limpar(),
   checkout_sessoes_limpar(integer) FROM PUBLIC;

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { sql } from "kysely";
+import { sql, type Transaction } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import {
@@ -23,7 +23,7 @@ import {
   definirPreco,
   mudarEstadoMercado,
 } from "../src/precos/repositorio.js";
-import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
+import { TIPOS_TEXTO_LEGAL, type BaseDados } from "../src/base/esquema.js";
 import { urlSemSegredos } from "../src/base/registo.js";
 import { correrApagamentosPendentes } from "../src/clientes/titular-fila.js";
 import { correrLimpezaDasSessoes } from "../src/checkout/limpeza-sessoes.js";
@@ -1365,10 +1365,11 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     expect(
       await ok(pedir("GET", `/checkout/${k.token}/confirmation`)),
     ).toMatchObject({ contacto: { email: "rui@exemplo.pt" } });
-    // Quatro sessões com dados, envelhecidas pelo superutilizador do teste
-    // (o gatilho desligado nesta transacção).
-    const nova = async () => {
-      const x = await checkoutCom(s, [[s.v1, 1]]);
+    // Sessões com dados, envelhecidas pelo superutilizador do teste (o
+    // gatilho desligado nesta transacção). A última mudança e a expiração
+    // contam à parte (revisão do #402, P2-1 e P3-1).
+    const nova = async (cen: Cenario = s) => {
+      const x = await checkoutCom(cen, [[cen.v1, 1]]);
       await ok(
         pedir("PUT", `/checkout/${x.token}/contact`, {
           email: "ana@exemplo.pt",
@@ -1377,36 +1378,83 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       );
       return x.sessao;
     };
-    const envelhecer = (sessao: string, estado: string, dias: number) =>
+    const semGatilho = (f: (trx: Transaction<BaseDados>) => Promise<unknown>) =>
       base.dono.transaction().execute(async (trx) => {
         await sql`alter table sessao_checkout disable trigger sessao_checkout_antes_de_gravar`.execute(
           trx,
         );
-        await sql`update sessao_checkout set estado = ${estado},
-            actualizado_em = now() - make_interval(days => ${dias}),
-            expira_em = now() - make_interval(days => ${dias})
-          where id = ${sessao.slice(4)}::uuid`.execute(trx);
+        await f(trx);
         await sql`alter table sessao_checkout enable always trigger sessao_checkout_antes_de_gravar`.execute(
           trx,
         );
       });
+    /** `mudou` e `expirou`: há quantos dias (negativo: no futuro). */
+    const envelhecer = (
+      sessao: string,
+      estado: string,
+      mudou: number,
+      expirou: number,
+    ) =>
+      semGatilho((trx) =>
+        sql`update sessao_checkout set estado = ${estado},
+            actualizado_em = now() - make_interval(days => ${mudou}),
+            expira_em = now() - make_interval(days => ${expirou})
+          where id = ${sessao.slice(4)}::uuid`.execute(trx),
+      );
     const abandonada8 = await nova();
-    await envelhecer(abandonada8, "abandonada", 8);
+    await envelhecer(abandonada8, "abandonada", 8, 7);
     const expirada8 = await nova();
-    await envelhecer(expirada8, "expirada", 8);
+    await envelhecer(expirada8, "expirada", 8, 8);
+    // Aberta esquecida: expirou há 8 dias, mexida ontem não conta.
     const aberta8 = await nova();
-    await envelhecer(aberta8, "aberta", 8);
+    await envelhecer(aberta8, "aberta", 1, 8);
+    // Expirada há 8 dias, mas só passou a «expirada» ontem (o cliente voltou
+    // ao token): conta desde que expirou.
+    const expiradaTarde = await nova();
+    await envelhecer(expiradaTarde, "expirada", 1, 8);
     const expirada6 = await nova();
-    await envelhecer(expirada6, "expirada", 6);
+    await envelhecer(expirada6, "expirada", 6, 6);
+    // Abandonada há 6 dias, antes de expirar: fica.
+    const abandonada6 = await nova();
+    await envelhecer(abandonada6, "abandonada", 6, -1);
     // Ainda aberta e por expirar: fica.
     const aberta = await nova();
+    // Concluída antes desta migração, ainda com dados: limpa-se na volta.
+    const k2 = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k2.token);
+    await ok(
+      botao(k2.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    await semGatilho((trx) =>
+      sql`update sessao_checkout set email = 'rui@exemplo.pt', nome = 'Rui'
+        where id = ${k2.sessao.slice(4)}::uuid`.execute(trx),
+    );
+    // Outro comerciante: a volta no contexto do primeiro não lhe toca.
+    const s2 = await cenario();
+    const doOutro = await nova(s2);
+    await envelhecer(doOutro, "expirada", 8, 8);
+    await comComerciante(base.api, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'sistema:checkout', true)`.execute(
+        trx,
+      );
+      await sql`select checkout_sessoes_limpar(100)`.execute(trx);
+    });
+    expect((await pessoais(doOutro))?.["email"]).toBe("ana@exemplo.pt");
+    expect(await pessoais(abandonada8)).toEqual(vazia);
     const volta = await correrLimpezaDasSessoes(base.api);
     expect(volta.falhas).toEqual([]);
-    expect(volta.limpas).toBeGreaterThanOrEqual(3);
-    for (const x of [abandonada8, expirada8, aberta8]) {
+    for (const x of [
+      abandonada8,
+      expirada8,
+      aberta8,
+      expiradaTarde,
+      k2.sessao,
+      doOutro,
+    ]) {
       expect(await pessoais(x)).toEqual(vazia);
     }
-    for (const x of [expirada6, aberta]) {
+    for (const x of [expirada6, abandonada6, aberta]) {
       expect((await pessoais(x))?.["email"]).toBe("ana@exemplo.pt");
     }
     // O estado e o resto da sessão não mudam.
@@ -1423,8 +1471,8 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
           where id = ${expirada6.slice(4)}::uuid`.execute(trx),
       ),
     ).rejects.toThrow(/checkout\.closed/);
-    // Seis sessões e uma encomenda.
-  }, 30_000);
+    // Dois comerciantes, dez sessões e duas encomendas.
+  }, 60_000);
 
   it("a confirmação pelo token só nos 30 dias depois da encomenda", async () => {
     const s = await cenario();

@@ -51,9 +51,11 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
   ignorar contactos com o marcador «(pseudonimizado)».
 - Parte 2 (sessões de checkout por prazo) feita a 12/10/2026, migração
   0077 (`docs/23` §15.10): ao criar a encomenda e 7 dias depois de expirar
-  ou ser abandonada. O prazo de 7 dias é **C** (jurista). Não medido: o custo
-  da tarefa com muitas sessões (não há índice próprio; percorre todos os
-  comerciantes de hora a hora). Parte 3 (exportação) por fazer.
+  ou ser abandonada (a mais cedo entre a última mudança e `expira_em`,
+  revisão do #402, P2-1). O prazo de 7 dias é **C** (jurista). Índice só
+  das sessões com dados; o custo com muitas sessões não foi medido. A tarefa
+  não avisa se parar (desvio ao §15.6, como a fila do titular). Parte 3
+  (exportação) por fazer.
 - Revisão do #374, P1-1, **decidida** (Diogo, 12/10/2026: *«a»*); os
   estados da encomenda não mudam. Acabam também, sem nada aberto: uma
   `devolvida_parcial` 14 dias depois da última entrega (como a
