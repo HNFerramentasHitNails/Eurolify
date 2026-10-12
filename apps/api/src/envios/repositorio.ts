@@ -9,20 +9,26 @@ import {
   type CredenciaisTransportadora,
   type ServicoTransportadora,
 } from "./adaptador.js";
-import { ErroEnvios } from "./erros.js";
+import { ErroEnvios, type CodigoErroEnvios } from "./erros.js";
 
 // As contas do comerciante numa transportadora (docs/36 §3.1; migração
 // 0074; Diogo, 12/10/2026: «sim, aprovo; avança com a parte A»): o padrão
 // das contas de pagamento (docs/26 §3.1) — credenciais cifradas que nunca
 // saem, pronta só depois da chamada de teste, só o dono as liga.
 
+const CODIGOS_DA_BASE: CodigoErroEnvios[] = [
+  "shipping.immutable",
+  "shipping.invalid_transition",
+  "shipping.label_exists",
+  "shipping.void_not_allowed",
+];
+
 export function traduzir(erro: unknown): unknown {
   if (!(erro instanceof Error) || erro instanceof ErroEnvios) return erro;
-  // O gatilho da conta (0074) recusa com o código à frente da mensagem.
-  if (erro.message.startsWith("shipping.immutable:")) {
-    return new ErroEnvios("shipping.immutable", erro.message, undefined, {
-      cause: erro,
-    });
+  // Os gatilhos (0074, 0079) recusam com o código à frente da mensagem.
+  const codigo = CODIGOS_DA_BASE.find((c) => erro.message.startsWith(`${c}:`));
+  if (codigo !== undefined) {
+    return new ErroEnvios(codigo, erro.message, undefined, { cause: erro });
   }
   const pg = erro as Error & { code?: string };
   if (pg.code === "40P01" || pg.code === "40001" || pg.code === "55P03") {
@@ -49,7 +55,7 @@ export function traduzir(erro: unknown): unknown {
   return erro;
 }
 
-async function noEnvios<T>(
+export async function noEnvios<T>(
   db: Kysely<BaseDados>,
   comercianteId: string,
   fn: (trx: Transaction<BaseDados>) => Promise<T>,
@@ -63,7 +69,7 @@ async function noEnvios<T>(
   }
 }
 
-function adaptadorDe(
+export function adaptadorDe(
   cfg: ConfigEnvios | undefined,
   transportadora: Transportadora,
 ): { adaptador: AdaptadorTransportadora; chave: ChavePagamentos } {
@@ -272,7 +278,7 @@ export async function definirCredenciais(
   });
 }
 
-function credenciaisDe(
+export function credenciaisDe(
   conta: {
     id: string;
     credenciais_cifra: Buffer | null;
@@ -338,6 +344,28 @@ export async function testarConta(
   try {
     await adaptador.testar(credenciais);
   } catch (erro) {
+    // Recusadas agora: uma conta pronta deixa de o estar e sai do checkout
+    // (revisão do #397, P3-6). Se não respondeu, nada muda.
+    if (!(erro instanceof ErroDeRede) && conta.estado === "pronta") {
+      await noEnvios(db, c, async (trx) => {
+        const agora = await contaParaMudar(trx, id, null);
+        if (
+          agora.estado === "pronta" &&
+          agora.credenciais_em?.getTime() === conta.credenciais_em?.getTime()
+        ) {
+          await trx
+            .updateTable("conta_transportadora")
+            .set({
+              estado: "rascunho",
+              testada_em: null,
+              actualizado_em: new Date(),
+              versao: agora.versao + 1,
+            })
+            .where("id", "=", id)
+            .execute();
+        }
+      });
+    }
     throw new ErroEnvios(
       erro instanceof ErroDeRede
         ? "shipping.carrier_unavailable"
