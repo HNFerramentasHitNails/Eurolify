@@ -15,6 +15,7 @@ import {
 import { TEXTOS } from "../src/textos";
 import { FILAS } from "../../api/src/tarefas/filas";
 import { FILAS_TAREFAS as FILAS_DA_API } from "../../api/src/base/esquema";
+import { MOTIVOS_RETENCAO } from "../../api/src/faturacao/motivos";
 
 // O ecrã «A decidir» (docs/22 §28): o filtro, o motivo e as horas no fuso
 // do comerciante. A régua de quem decide cada fila é a da API: este teste vê
@@ -83,6 +84,15 @@ describe("o motivo", () => {
       "same email; same phone",
     );
     expect(motivoDe(TEXTOS.pt, "codigo_novo")).toBe("codigo_novo");
+  });
+
+  it("cada motivo de retenção de um documento da API tem texto nas três línguas", () => {
+    for (const l of ["pt", "es", "en"] as const) {
+      const textos = TEXTOS[l] as Record<string, string>;
+      for (const m of MOTIVOS_RETENCAO) {
+        expect(textos[`motivoTarefa_${m}`]?.trim(), `${l} ${m}`).toBeTruthy();
+      }
+    }
   });
 
   it("o identificador encurtado mostra o prefixo e os últimos 4", () => {

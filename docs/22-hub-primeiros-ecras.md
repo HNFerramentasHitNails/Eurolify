@@ -1915,12 +1915,12 @@ onde carregar para a resolver.
   histórico, e não num diálogo. O Hub não tem diálogos, e um painel na
   página não prende o foco nem o teclado. O foco vai para o título do
   painel quando abre.
-- **Os motivos com texto** são os das filas de pagamentos, clientes,
-  pós-venda e os estados do documento. Dos motivos de retenção de um
-  documento, só quatro têm texto (`emissor_por_configurar`,
-  `taxa_sem_mapa`, `original_por_emitir`, `reembolso_por_executar`); os
-  outros mostram o código, como o §28.3 prevê. Os textos dos outros ficam
-  por escrever.
+- **Os motivos com texto** são os das filas de pagamentos, clientes e
+  pós-venda, os estados do documento e os 19 motivos de retenção de um
+  documento (`MOTIVOS_RETENCAO`), estes desde 12/10/2026 a partir do
+  `docs/29` (R3, M6, M7) e do `docs/30` (C2). Um teste obriga cada motivo da
+  lista da API (`apps/api/src/faturacao/motivos.ts`) a ter texto nas três línguas. Um código novo sem texto
+  mostra-se como está.
 - **O comerciante vai no cabeçalho,** não na consulta. É assim em todas as
   rotas do Hub.
 - **Ficar com um caso que tem outro responsável** pede também
