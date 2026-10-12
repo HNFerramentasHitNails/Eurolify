@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   comRasto,
   contextoDaTarefa,
@@ -282,6 +282,14 @@ export async function definirCredenciais(
       })
       .where("id", "=", id)
       .execute();
+    // Credenciais novas fazem caducar as autorizações por concluir desta
+    // ligação (revisão do #407, P3-1).
+    await trx
+      .updateTable("autorizacao_faturacao")
+      .set({ usada_em: new Date() })
+      .where("ligacao_id", "=", id)
+      .where("usada_em", "is", null)
+      .execute();
   });
 }
 
@@ -453,6 +461,184 @@ export async function testarLigacao(
       .execute();
   });
   return { estado: erro === null ? "pronta" : "com_erro", erro };
+}
+
+// ------------------------------------------ A autorização (docs/29 §17)
+
+/** Quanto tempo vale um pedido de autorização. */
+const VALIDADE_AUTORIZACAO_MS = 10 * 60_000;
+
+const resumoDe = (estado: string) =>
+  createHash("sha256").update(estado, "utf8").digest();
+
+/**
+ * O dono pede para ligar a conta do emissor pela autorização dele (o Moloni):
+ * um valor aleatório (guardado só o resumo), a empresa e o endereço onde
+ * autoriza. Vale 10 minutos e uma vez.
+ */
+export async function pedirAutorizacao(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  empresa: string,
+  cfg: ConfigFaturacao | undefined,
+  quem: string,
+): Promise<{ url: string; estado: string; expira_em: Date }> {
+  exigirChave(cfg);
+  return noDocumentos(db, c, async (trx) => {
+    await marcar(trx, quem);
+    const l = await ligacaoParaMudar(trx, id, null);
+    if (!l.activa) {
+      throw new ErroDocumentos(
+        "invoices.invalid_transition",
+        "esta ligação está desligada",
+      );
+    }
+    const a = adaptadorDe(cfg, l.adaptador);
+    if (a.urlAutorizacao === undefined || a.trocarCodigo === undefined) {
+      throw new ErroDocumentos(
+        "invoices.invalid_field",
+        "este emissor não se liga por autorização: as credenciais entram pela API",
+      );
+    }
+    // A M8 antes de mandar o dono ao Moloni (revisão do #407, P3-2).
+    if (a.empresaPermitida !== undefined && !a.empresaPermitida(empresa)) {
+      throw new ErroDocumentos(
+        "invoices.invalid_field",
+        `a empresa ${empresa} não está na lista das contas de teste (M8): o modo real está fechado`,
+      );
+    }
+    const estado = randomBytes(32).toString("base64url");
+    const url = a.urlAutorizacao(estado);
+    if (url === null) {
+      throw new ErroDocumentos(
+        "invoices.not_configured",
+        "o endereço de resposta do emissor não está configurado neste servidor",
+      );
+    }
+    const expira_em = new Date(Date.now() + VALIDADE_AUTORIZACAO_MS);
+    await trx
+      .insertInto("autorizacao_faturacao")
+      .values({
+        comerciante_id: c,
+        ligacao_id: id,
+        empresa,
+        resumo: resumoDe(estado),
+        criada_por: quem,
+        expira_em,
+      })
+      .execute();
+    return { url, estado, expira_em };
+  });
+}
+
+/**
+ * Conclui a autorização com o código que o emissor deu ao dono e o valor que
+ * o Eurolify lhe deu. Marca o pedido usado **antes** de chamar o emissor (um
+ * código nunca se troca duas vezes); troca o código, confere o acesso à
+ * empresa e só então grava as credenciais (a ligação fica por testar).
+ */
+export async function concluirAutorizacao(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  dados: { codigo: string; estado: string },
+  cfg: ConfigFaturacao | undefined,
+  quem: string,
+): Promise<void> {
+  exigirChave(cfg);
+  const { empresa, adaptador } = await noDocumentos(db, c, async (trx) => {
+    await marcar(trx, quem);
+    const l = await ligacaoParaMudar(trx, id, null);
+    const aut = await trx
+      .selectFrom("autorizacao_faturacao")
+      .select(["id", "ligacao_id", "empresa", "expira_em", "usada_em"])
+      .where("resumo", "=", resumoDe(dados.estado))
+      .forUpdate()
+      .executeTakeFirst();
+    if (aut === undefined || aut.ligacao_id !== id) {
+      throw new ErroDocumentos(
+        "invoices.not_found",
+        "não há um pedido de autorização com este valor para esta ligação",
+      );
+    }
+    if (aut.usada_em !== null) {
+      throw new ErroDocumentos(
+        "invoices.invalid_transition",
+        "esta autorização já foi usada: pedir outra",
+      );
+    }
+    if (aut.expira_em.getTime() <= Date.now()) {
+      throw new ErroDocumentos(
+        "invoices.invalid_transition",
+        "esta autorização expirou: pedir outra",
+      );
+    }
+    if (!l.activa) {
+      throw new ErroDocumentos(
+        "invoices.invalid_transition",
+        "esta ligação está desligada",
+      );
+    }
+    // Com documentos a meio no emissor, a conta não muda (R15): a
+    // reconciliação procuraria noutra empresa (revisão do #407, P2-3).
+    await semDocumentosAMeio(trx, id);
+    await trx
+      .updateTable("autorizacao_faturacao")
+      .set({ usada_em: new Date() })
+      .where("id", "=", aut.id)
+      .execute();
+    return { empresa: aut.empresa, adaptador: l.adaptador };
+  });
+  const a = adaptadorDe(cfg, adaptador);
+  if (a.trocarCodigo === undefined) {
+    throw new ErroDocumentos(
+      "invoices.invalid_field",
+      "este emissor não se liga por autorização",
+    );
+  }
+  let credenciais: CredenciaisEmissor;
+  try {
+    credenciais = await a.trocarCodigo(dados.codigo, empresa);
+  } catch (e) {
+    if (e instanceof ErroDoEmissor || e instanceof ErroDeRede) {
+      throw new ErroDocumentos(
+        "invoices.issuer_error",
+        `${e.message.slice(0, 200)} — pedir outra autorização`,
+      );
+    }
+    throw e;
+  }
+  await noDocumentos(db, c, async (trx) => {
+    await marcar(trx, quem);
+    // A ligação pode ter mudado durante a troca (revisão do #407, P3-1).
+    const l = await ligacaoParaMudar(trx, id, null);
+    if (!l.activa) {
+      throw new ErroDocumentos(
+        "invoices.invalid_transition",
+        "esta ligação foi desligada durante a autorização",
+      );
+    }
+    await semDocumentosAMeio(trx, id);
+    await definirCredenciais(trx, c, id, credenciais, cfg, quem);
+  });
+}
+
+/** Recusa se a ligação tem documentos a meio no emissor (R15). */
+async function semDocumentosAMeio(trx: Transaction<BaseDados>, id: string) {
+  const aMeio = await trx
+    .selectFrom("documento_fiscal")
+    .select("id")
+    .where("ligacao_id", "=", id)
+    .where("estado", "in", ["rascunho", "incerto"])
+    .limit(1)
+    .executeTakeFirst();
+  if (aMeio !== undefined) {
+    throw new ErroDocumentos(
+      "invoices.issuer_busy",
+      "há documentos a meio no emissor desta ligação: resolvê-los antes de mudar a conta",
+    );
+  }
 }
 
 // ------------------------------------------------------- O conteúdo (§3.3)

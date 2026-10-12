@@ -96,6 +96,8 @@ export function moloniFalso() {
   const estado = {
     tokens: new Map<string, number>(), // access_token → expira (ms)
     refresh: new Set<string>(),
+    /** Os códigos de autorização por trocar (um uso cada; docs/29 §17). */
+    codigos: new Set<string>(),
     clientes: [] as Cliente[],
     artigos: [] as Artigo[],
     documentos: [] as DocMoloni[],
@@ -395,6 +397,37 @@ export function moloniFalso() {
         ),
       );
     }
+    if (
+      metodo === "grant" &&
+      url.searchParams.get("grant_type") === "authorization_code"
+    ) {
+      const c = url.searchParams.get("code") ?? "";
+      if (
+        !estado.codigos.has(c) ||
+        (url.searchParams.get("redirect_uri") ?? "") === ""
+      ) {
+        return Promise.resolve(
+          json(
+            {
+              error: "invalid_grant",
+              error_description: "Invalid authorization code",
+            },
+            400,
+          ),
+        );
+      }
+      estado.codigos.delete(c);
+      const t = novoToken();
+      return Promise.resolve(
+        json({
+          access_token: t.access,
+          expires_in: 3600,
+          token_type: "bearer",
+          scope: null,
+          refresh_token: t.refresh,
+        }),
+      );
+    }
     if (metodo === "grant") {
       const r = url.searchParams.get("refresh_token") ?? "";
       if (estado.falhas.segredoErrado === true) {
@@ -493,9 +526,16 @@ export function moloniFalso() {
     return x;
   };
 
+  /** Um código de autorização novo, como o Moloni o daria ao dono. */
+  const codigoAutorizacao = () => {
+    const c = `cod-${String(estado.codigos.size + 1)}-${String(Date.now())}`;
+    estado.codigos.add(c);
+    return c;
+  };
   return {
     estado,
     fetch: fetchFalso,
+    codigoAutorizacao,
     credenciais,
     artigo,
     cliente,

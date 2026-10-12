@@ -8,7 +8,11 @@ import type { FastifyError, FastifyRequest } from "fastify";
  * P2-1).
  */
 export const urlSemSegredos = (url: string) =>
-  url.replace(/\/checkout\/[A-Za-z0-9_-]{43}/g, "/checkout/[token]");
+  url
+    .replace(/\/checkout\/[A-Za-z0-9_-]{43}/g, "/checkout/[token]")
+    // O código e o valor da autorização de um emissor (docs/29 §17; revisão
+    // do #407, P1-1): trocam-se por tokens enquanto valem.
+    .replace(/([?&](?:code|state)=)[^&#]*/gi, "$1[tapado]");
 
 export const serializadores = {
   // Sem endereços IP nem cabeçalhos (a chave vai no Authorization): são dados

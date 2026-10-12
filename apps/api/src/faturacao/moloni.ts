@@ -23,6 +23,8 @@ import {
 // rascunho fica retido — nunca sai com outra coisa.
 
 const BASE = "https://api.moloni.pt/v1";
+/** A página onde o dono autoriza (página «Autenticação», docs/29 §17). */
+const AUTORIZACAO = "https://www.moloni.pt/ac/root/oauth/";
 
 /** O NIF que o Moloni usa para o consumidor final (lição 1.10 do docs/04, **M**). */
 const NIF_CONSUMIDOR_FINAL = "999999990";
@@ -43,6 +45,13 @@ export interface ConfigMoloni {
    * comunica-a à AT (revisão do #384, P1-2).
    */
   empresasPermitidas: readonly string[];
+  /**
+   * O endereço de resposta registado na conta de Developer
+   * (MOLONI_REDIRECT_URI; docs/29 §17): sem ele, não se pede autorização.
+   */
+  redirectUri?: string;
+  /** A página onde o dono autoriza (docs/29 §17). */
+  autorizacaoBase?: string;
   base?: string;
   fetch?: typeof fetch;
   tempoLimiteMs?: number;
@@ -198,6 +207,75 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       access_expira: new Date(agora + validade * 1000).toISOString(),
       refresh_em: new Date(agora).toISOString(),
     };
+  }
+
+  // ------------------------------------------------------- A autorização
+
+  urlAutorizacao(estado: string): string | null {
+    if (this.cfg.redirectUri === undefined || this.cfg.redirectUri === "") {
+      return null;
+    }
+    // O `state` não vem na página do Moloni (docs/29 §17): vai, mas não se
+    // conta com ele de volta.
+    return (
+      `${this.cfg.autorizacaoBase ?? AUTORIZACAO}?response_type=code` +
+      `&client_id=${encodeURIComponent(this.cfg.clientId)}` +
+      `&redirect_uri=${encodeURIComponent(this.cfg.redirectUri)}` +
+      `&state=${encodeURIComponent(estado)}`
+    );
+  }
+
+  empresaPermitida(empresa: string): boolean {
+    return this.cfg.empresasPermitidas.includes(empresa);
+  }
+
+  async trocarCodigo(
+    codigo: string,
+    empresa: string,
+  ): Promise<CredenciaisEmissor> {
+    if (this.cfg.redirectUri === undefined || this.cfg.redirectUri === "") {
+      throw new ErroDoEmissor(
+        "o endereço de resposta do Moloni não está configurado (MOLONI_REDIRECT_URI)",
+      );
+    }
+    if (!this.cfg.empresasPermitidas.includes(empresa)) {
+      throw new ErroDoEmissor(
+        `a empresa ${empresa} do Moloni não está na lista das contas de teste (M8): o modo real está fechado`,
+      );
+    }
+    const agora = this.agora();
+    const url =
+      `${this.base}/grant/?grant_type=authorization_code` +
+      `&client_id=${encodeURIComponent(this.cfg.clientId)}` +
+      `&redirect_uri=${encodeURIComponent(this.cfg.redirectUri)}` +
+      `&client_secret=${encodeURIComponent(this.cfg.clientSecret)}` +
+      `&code=${encodeURIComponent(codigo)}`;
+    const t = (await this.chamar(url, { method: "GET" })) as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+      expires_in?: unknown;
+    } | null;
+    if (
+      t === null ||
+      typeof t.access_token !== "string" ||
+      typeof t.refresh_token !== "string"
+    ) {
+      throw new ErroDoEmissor("o Moloni respondeu à autorização sem os tokens");
+    }
+    const validade =
+      typeof t.expires_in === "number" && t.expires_in > 0
+        ? t.expires_in
+        : 3600;
+    const credenciais: CredenciaisEmissor = {
+      company_id: empresa,
+      access_token: t.access_token,
+      refresh_token: t.refresh_token,
+      access_expira: new Date(agora + validade * 1000).toISOString(),
+      refresh_em: new Date(agora).toISOString(),
+    };
+    // A autorização tem de dar acesso à empresa pedida (como o teste).
+    await this.testar(credenciais);
+    return credenciais;
   }
 
   // ------------------------------------------------------------ HTTP

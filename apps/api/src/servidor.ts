@@ -121,6 +121,24 @@ const moloniEmpresas = (process.env["MOLONI_EMPRESAS_TESTE"] ?? "")
   .split(",")
   .map((x) => x.trim())
   .filter((x) => /^\d{1,12}$/.test(x));
+// A ligação pela autorização do Moloni (docs/29 §17): o endereço de resposta
+// registado na conta de Developer (MOLONI_REDIRECT_URI, o da rota
+// /invoicing-connections/moloni/callback) e, quando houver ecrã no Hub, para
+// onde o navegador volta com o código (MOLONI_RETORNO_URL).
+const moloniResposta = process.env["MOLONI_REDIRECT_URI"]?.trim();
+const moloniRetorno = process.env["MOLONI_RETORNO_URL"]?.trim();
+// Um endereço mal escrito não arranca, em vez de dar 500 a cada resposta do
+// Moloni (revisão do #407, P3-3).
+const ehHttps = (u: string) => {
+  try {
+    return new URL(u).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+if (moloniRetorno && !ehHttps(moloniRetorno)) {
+  throw new Error("MOLONI_RETORNO_URL tem de ser um endereço https");
+}
 const faturacao: ConfigFaturacao = {
   adaptadores:
     moloniId && moloniSegredo && moloniEmpresas.length > 0
@@ -129,9 +147,11 @@ const faturacao: ConfigFaturacao = {
             clientId: moloniId,
             clientSecret: moloniSegredo,
             empresasPermitidas: moloniEmpresas,
+            ...(moloniResposta ? { redirectUri: moloniResposta } : {}),
           }),
         }
       : {},
+  ...(moloniRetorno ? { retornoAutorizacao: moloniRetorno } : {}),
   ...(textoChaveFaturacao === undefined || textoChaveFaturacao === ""
     ? {}
     : {

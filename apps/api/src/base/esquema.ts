@@ -1663,6 +1663,7 @@ export interface BaseDados {
   transicao_encomenda: TabelaTransicaoEncomenda;
   linha_encomenda_folha: TabelaLinhaEncomendaFolha;
   ligacao_faturacao: TabelaLigacaoFaturacao;
+  autorizacao_faturacao: TabelaAutorizacaoFaturacao;
   documento_fiscal: TabelaDocumentoFiscal;
   documento_conteudo: TabelaDocumentoConteudo;
   documento_prova: TabelaDocumentoProva;
@@ -1735,6 +1736,19 @@ export interface IsencaoDoEmissor {
 export interface ConfigDaLigacao {
   [chave: string]: string | Record<string, string> | undefined;
   metodos_pagamento?: Record<string, string>;
+}
+
+/** Um pedido de autorização de uma ligação (docs/29 §17; migração 0081). */
+export interface TabelaAutorizacaoFaturacao {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  ligacao_id: ColumnType<string, string, never>;
+  empresa: ColumnType<string, string, never>;
+  resumo: ColumnType<Buffer, Buffer, never>;
+  criada_por: ColumnType<string, string, never>;
+  criada_em: ColumnType<Date, never, never>;
+  expira_em: ColumnType<Date, Date, never>;
+  usada_em: ColumnType<Date | null, never, Date>;
 }
 
 export interface TabelaLigacaoFaturacao {

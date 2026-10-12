@@ -138,6 +138,19 @@ export interface AdaptadorFaturacao {
     motivo: "usar" | "manter",
   ): Promise<CredenciaisEmissor | null>;
   /**
+   * Um emissor que se liga pela autorização dele (o Moloni, docs/29 §17): o
+   * endereço onde o dono autoriza, com o valor `estado`; null se o endereço
+   * de resposta não está configurado.
+   */
+  urlAutorizacao?(estado: string): string | null;
+  /** Se o Eurolify pode usar esta empresa do emissor (M8, só as de teste). */
+  empresaPermitida?(empresa: string): boolean;
+  /**
+   * Troca o código da autorização pelas credenciais da `empresa` e confere
+   * que dão acesso a ela (como `testar`). Lança o erro do emissor.
+   */
+  trocarCodigo?(codigo: string, empresa: string): Promise<CredenciaisEmissor>;
+  /**
    * Pelo número sem prefixo (eu-vat-oss-ioss, «NIF»); null = não existe. Com
    * mais de uma entidade com esse número, devolve uma **sem NIF** — não
    * escolhe, e o pedido fica retido (docs/29 §13.3).
@@ -171,6 +184,12 @@ export interface AdaptadorFaturacao {
 export interface ConfigFaturacao {
   chave?: ChavePagamentos;
   adaptadores: Partial<Record<NomeAdaptador, AdaptadorFaturacao>>;
+  /**
+   * Para onde o endereço de resposta do Moloni reencaminha o navegador com o
+   * código (o ecrã do Hub; docs/29 §17). Sem ele, uma página diz para voltar
+   * ao Eurolify.
+   */
+  retornoAutorizacao?: string;
 }
 
 // ---------------------------------------------------------- O ensaio

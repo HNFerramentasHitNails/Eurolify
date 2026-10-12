@@ -711,3 +711,74 @@ fatura e **pede a nota de crédito**, que fica retida com
 
 **Por fazer:** o relatório OSS (parte 3) com a lista à parte (Q-F3, **C**);
 o ecrã no Hub.
+
+## 17. Parte 2b — ligar o Moloni pela autorização dele (12/10/2026)
+
+> **Estado:** desenho de execução do §13.4 e da M1 (aprovados, `docs/06`,
+> DZ). Pedido do Diogo, 12/10/2026: *«sim, avança com a parte 2b»*. Só a API;
+> o botão no Hub fica para depois.
+
+**O que diz o Moloni** (página «Autenticação», `moloni.pt/dev/autenticacao/`,
+lida a 12/10/2026, **M**):
+1. o utilizador abre
+   `https://www.moloni.pt/ac/root/oauth/?response_type=code&client_id=…&redirect_uri=…`,
+   entra e aceita;
+2. o Moloni devolve-o ao `redirect_uri` com `?code=…`;
+3. o código troca-se por `GET https://api.moloni.pt/v1/grant/?grant_type=authorization_code&client_id=…&redirect_uri=…&client_secret=…&code=…`;
+   a resposta traz `access_token` (1 hora), `refresh_token` (14 dias) e
+   `expires_in`.
+
+**A página não fala de `state`** (o valor que liga a resposta ao pedido e
+impede que alguém faça ligar a conta dele). Não se conta com ele: a troca do
+código **nunca** se faz no endereço público, só num pedido do dono
+autenticado, com o valor que o Eurolify lhe deu ao pedir a autorização. Se o
+Moloni devolver o `state`, passa adiante; se não, a pessoa leva o código.
+**Por medir na conta trial:** se o `state` volta, e se o `redirect_uri` tem de
+ser igual ao registado.
+
+| Rota | Quem | O que faz |
+|---|---|---|
+| `POST /invoicing-connections/{id}/authorize` | o dono (`invoices:accounts`) | Para uma ligação `moloni`: recebe a `empresa` (o `company_id`; a lista de teste, M8, confere-se na troca, antes de chamar o Moloni), cria um pedido de autorização com um valor aleatório (guardado só o resumo SHA-256), válido **10 minutos**, e devolve o endereço do Moloni (com `state`), o valor e quando expira. Sem `MOLONI_REDIRECT_URI` configurado, recusa |
+| `GET /invoicing-connections/moloni/callback` | público (o navegador vindo do Moloni) | **Não troca nada.** Com `MOLONI_RETORNO_URL`, reencaminha para lá com o `code` (e o `state`, se vier); sem ele, mostra uma página que diz para voltar ao Eurolify com o código. O código só se aceita com letras, números e `._-`, e a página não se guarda em cache |
+| `POST /invoicing-connections/{id}/authorize/complete` | o dono (`invoices:accounts`) | Recebe o `code` e o `state` que o Eurolify deu. Confere que o pedido é desta ligação, não expirou e não foi usado, e **marca-o usado antes de chamar o Moloni** (um código nunca se troca duas vezes). Troca o código, confere que a autorização dá acesso à empresa (como o teste da ligação) e só então grava os tokens como credenciais cifradas. A ligação fica `por_testar` |
+
+- **Uma autorização gasta-se uma vez:** se a troca falhar depois de marcada,
+  pede-se outra.
+- **A empresa** vem do pedido e confere-se no fim. Se a autorização não lhe
+  der acesso, não se grava nada.
+- **As credenciais novas apagam a sessão anterior** (gatilho da 0069), e a
+  renovação passa a correr pelo `refresh_token` novo (§13.4).
+- **Fora desta parte:** o botão no Hub; a escolha da empresa numa lista;
+  e o modo real (M8).
+
+**Em código (12/10/2026; migração 0081):**
+
+| O quê | Onde |
+|---|---|
+| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás e apagar); RLS forçado | migração 0081 |
+| `urlAutorizacao` e `trocarCodigo` no contrato do adaptador; no Moloni, com `MOLONI_REDIRECT_URI` | `src/faturacao/adaptador.ts`, `src/faturacao/moloni.ts`, `src/servidor.ts` |
+| `pedirAutorizacao` e `concluirAutorizacao` (marca usada antes de trocar; grava só depois de conferir a empresa) | `src/faturacao/repositorio.ts` |
+| as três rotas; a página do endereço de resposta (sem nada de fora, sem cache, o texto escapado) e o reencaminhamento com `MOLONI_RETORNO_URL` | `src/faturacao/rotas.ts` |
+| testes: o adaptador (`test/moloni.test.ts`) e o caminho todo pela API contra o Moloni simulado (`test/documentos-api.test.ts`) | — |
+
+**Revisão do #407** (agente da sessão, Opus 5.5; 0 P0, 1 P1, 3 P2, 5 P3):
+- **P1-1, corrigido:** o `code` e o `state` deixam de ficar no registo da API.
+- **P2-2, corrigido:** o reencaminhamento para o Hub leva o código no
+  fragmento (`#code=…`), que não sai do navegador.
+- **P2-3, corrigido:** com documentos a meio no emissor, a autorização é
+  recusada (`invoices.issuer_busy`) antes de se gastar.
+- **P3-1 a P3-3, corrigidos:** a ligação volta a conferir-se antes de gravar,
+  as credenciais novas fazem caducar as autorizações pendentes, a M8 confere-se
+  ao pedir, e um `MOLONI_RETORNO_URL` que não seja `https` impede o arranque.
+- **P2-1, fica para antes do modo real:** o código não fica preso ao pedido.
+  Quem obtiver o código de outro comerciante e tiver uma chave de dono pode
+  ligá-lo à empresa de teste dele. Hoje só há empresas de teste (M8). Quando
+  se medir se o `state` volta, o endereço de resposta passa a guardar o código
+  no pedido e o dono conclui só com o valor; e a mesma empresa não se liga em
+  dois comerciantes.
+- **P3-4 e P3-5, ficam:** a tabela não tem retenção, e quem conclui pode ser
+  outra chave de dono do mesmo comerciante.
+
+**Por fazer:** o botão e o ecrã no Hub; registar `MOLONI_REDIRECT_URI` na
+conta de Developer e no ambiente `ensaio`; medir na conta trial se o `state`
+volta e se o `redirect_uri` tem de coincidir.

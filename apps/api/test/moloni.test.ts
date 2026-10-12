@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { urlSemSegredos } from "../src/base/registo.js";
 import {
   ErroDeRede,
   ErroDoEmissor,
@@ -122,9 +123,53 @@ describe("o formulário do Moloni", () => {
       "https://api.moloni.pt/v1/grant/?client_secret=***&refresh_token=***&access_token=***",
     );
   });
+
+  it("o código e o valor da autorização não ficam no registo da API (revisão do #407, P1-1)", () => {
+    expect(
+      urlSemSegredos(
+        "/invoicing-connections/moloni/callback?code=abc.123&state=XyZ_-9&outro=1",
+      ),
+    ).toBe(
+      "/invoicing-connections/moloni/callback?code=[tapado]&state=[tapado]&outro=1",
+    );
+    expect(urlSemSegredos("/x?STATE=a")).toBe("/x?STATE=[tapado]");
+  });
 });
 
 describe("o adaptador Moloni", () => {
+  it("a autorização (docs/29 §17): sem endereço de resposta não se pede; o código troca-se uma vez pelos tokens da empresa de teste", async () => {
+    const { m, a } = montar();
+    expect(a.urlAutorizacao("abc")).toBeNull();
+    await expect(
+      a.trocarCodigo(m.codigoAutorizacao(), String(m.empresa)),
+    ).rejects.toBeInstanceOf(ErroDoEmissor);
+    const b = new AdaptadorMoloni({
+      clientId: "dev-eurolify",
+      clientSecret: "segredo-do-developer",
+      empresasPermitidas: [String(m.empresa)],
+      redirectUri: "https://api.exemplo.test/cb",
+      fetch: m.fetch,
+    });
+    const cod = m.codigoAutorizacao();
+    const cred = await b.trocarCodigo(cod, String(m.empresa));
+    expect(cred).toMatchObject({
+      company_id: String(m.empresa),
+      access_token: expect.any(String) as unknown,
+      refresh_token: expect.any(String) as unknown,
+    });
+    await expect(b.testar(cred)).resolves.toBeUndefined();
+    // O mesmo código outra vez: o Moloni recusa (um uso).
+    await expect(b.trocarCodigo(cod, String(m.empresa))).rejects.toBeInstanceOf(
+      ErroDoEmissor,
+    );
+    // Uma empresa fora da lista de teste (M8): nem se chama o Moloni.
+    const antes = m.estado.codigos.size;
+    await expect(b.trocarCodigo(m.codigoAutorizacao(), "999")).rejects.toThrow(
+      /M8/,
+    );
+    expect(m.estado.codigos.size).toBe(antes + 1);
+  });
+
   it("testar: a autorização tem de abrir a empresa da ligação", async () => {
     const { a, cred } = montar();
     await expect(a.testar(cred)).resolves.toBeUndefined();

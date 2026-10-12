@@ -26,6 +26,8 @@ import {
   emitidaFora,
   reverificar,
   testarLigacao,
+  concluirAutorizacao,
+  pedirAutorizacao,
 } from "./repositorio.js";
 
 // A API dos documentos fiscais (docs/29 §7; issue #310; Diogo, 10/10/2026:
@@ -364,6 +366,157 @@ export function rotasDosDocumentos(
           quemDe(chave),
         ),
       );
+    },
+  );
+
+  // ------------------------------- A autorização do emissor (docs/29 §17)
+
+  rotas.post(
+    "/invoicing-connections/:id/authorize",
+    {
+      config: { ambito: "invoices:accounts" },
+      schema: {
+        description:
+          "Pede para ligar a conta do Moloni pela autorização dele (docs/29 §17): devolve o endereço onde o dono entra e autoriza, e o valor (`estado`) que tem de trazer de volta com o código. Vale 10 minutos e uma vez. A `empresa` é o company_id do Moloni (só as empresas de teste, M8). Só o dono.",
+        params: Type.Object({ id: IdLigacao }),
+        body: Type.Object(
+          { empresa: Type.String({ pattern: "^[0-9]{1,12}$" }) },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({
+            url: Type.String(),
+            estado: Type.String(),
+            expira_em: Type.String(),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      return emDocumentos(resposta, async () => {
+        const r = await pedirAutorizacao(
+          base,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+          pedido.body.empresa,
+          cfg,
+          quemDe(chave),
+        );
+        void resposta.header("cache-control", "no-store");
+        return { ...r, expira_em: r.expira_em.toISOString() };
+      });
+    },
+  );
+
+  rotas.post(
+    "/invoicing-connections/:id/authorize/complete",
+    {
+      config: { ambito: "invoices:accounts" },
+      schema: {
+        description:
+          "Conclui a autorização com o `codigo` que o Moloni deu e o `estado` que o Eurolify deu ao pedir: troca o código pelos tokens, confere o acesso à empresa e guarda-os cifrados. A ligação fica por testar. Uma autorização gasta-se uma vez, mesmo que a troca falhe. Só o dono.",
+        params: Type.Object({ id: IdLigacao }),
+        body: Type.Object(
+          {
+            codigo: Type.String({ pattern: "^[A-Za-z0-9._~-]{1,512}$" }),
+            estado: Type.String({ pattern: "^[A-Za-z0-9_-]{20,100}$" }),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const chave = chaveDo(pedido);
+      await emDocumentos(resposta, () =>
+        concluirAutorizacao(
+          base,
+          chave.comercianteId,
+          semPrefixo(pedido.params.id),
+          pedido.body,
+          cfg,
+          quemDe(chave),
+        ),
+      );
+      return resposta.code(204).send(null);
+    },
+  );
+
+  rotas.get(
+    "/invoicing-connections/moloni/callback",
+    {
+      // Pública (o navegador vindo do Moloni), com o limite por IP da loja.
+      config: { ambito: "publico" as const, loja: true },
+      schema: {
+        description:
+          "O endereço de resposta do Moloni (docs/29 §17). Não troca nada: com o ecrã configurado (MOLONI_RETORNO_URL) reencaminha para lá com o código; sem ele, uma página diz para voltar ao Eurolify e concluir com o código.",
+        querystring: Type.Object(
+          {
+            code: Type.Optional(Type.String({ maxLength: 512 })),
+            state: Type.Optional(Type.String({ maxLength: 100 })),
+          },
+          { additionalProperties: true },
+        ),
+        response: {
+          200: {
+            description: "A página",
+            content: { "text/html": { schema: { type: "string" } } },
+          },
+          303: Type.Null(),
+          400: {
+            description: "Sem código válido",
+            content: { "text/html": { schema: { type: "string" } } },
+          },
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      const { code, state } = pedido.query;
+      void resposta
+        .header("cache-control", "no-store")
+        .header("referrer-policy", "no-referrer")
+        .header("x-content-type-options", "nosniff")
+        .header("x-robots-tag", "noindex")
+        .header(
+          "content-security-policy",
+          "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+        );
+      const codigoValido =
+        code !== undefined && /^[A-Za-z0-9._~-]{1,512}$/.test(code);
+      const estadoValido =
+        state !== undefined && /^[A-Za-z0-9_-]{20,100}$/.test(state);
+      if (!codigoValido) {
+        return resposta
+          .code(400)
+          .type("text/html; charset=utf-8")
+          .send(
+            paginaAutorizacao(
+              "A autorização não foi concluída",
+              "O Moloni não devolveu um código. Volte ao Eurolify e peça outra autorização.",
+            ),
+          );
+      }
+      if (cfg?.retornoAutorizacao !== undefined) {
+        // No fragmento, que não sai do navegador: nem histórico do servidor
+        // do Hub nem Referer (revisão do #407, P2-2).
+        const destino = new URL(cfg.retornoAutorizacao);
+        const fragmento = new URLSearchParams({ code });
+        if (estadoValido) fragmento.set("state", state);
+        destino.hash = fragmento.toString();
+        return resposta.redirect(destino.toString(), 303);
+      }
+      return resposta
+        .type("text/html; charset=utf-8")
+        .send(
+          paginaAutorizacao(
+            "Autorização recebida",
+            "Volte ao Eurolify para concluir a ligação com este código (vale poucos minutos e uma vez):",
+            code,
+          ),
+        );
     },
   );
 
@@ -769,4 +922,16 @@ export function rotasDosDocumentos(
         })),
       ),
   );
+}
+
+/** A página simples do endereço de resposta (docs/29 §17), sem nada de fora. */
+function paginaAutorizacao(titulo: string, texto: string, codigo?: string) {
+  const esc = (t: string) =>
+    t
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  return `<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(titulo)}</title><style>body{font-family:system-ui,sans-serif;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.5}code{display:block;padding:.75rem;background:#f2f2f2;word-break:break-all}</style></head><body><h1>${esc(titulo)}</h1><p>${esc(texto)}</p>${codigo === undefined ? "" : `<code>${esc(codigo)}</code>`}</body></html>`;
 }
