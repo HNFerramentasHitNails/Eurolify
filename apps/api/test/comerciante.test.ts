@@ -156,6 +156,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0065_pos_venda_selado_por_higiene",
         "0066_tarefas_das_filas",
         "0067_notificacoes",
+        "0068_vendas_do_dia",
       ]);
     });
 

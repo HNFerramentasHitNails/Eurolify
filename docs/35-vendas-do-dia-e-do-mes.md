@@ -28,7 +28,7 @@ Hub (Fase 2) usa a mesma rota: o número do ecrã e o da IA vêm do mesmo sítio
 |---|---|---|---|---|
 | **Encomendado** | quanto me pediram? | as encomendas criadas no botão final, **em qualquer estado**, incluindo as que depois se cancelaram (vêm à parte em `das_quais_canceladas`) | `encomenda.criada_em` dentro do período | `encomenda.total`, `total_base`, `total_iva` (`0041_checkout.sql:334-336`) |
 | **Pago** | quanto recebi? | os pagamentos que passaram a `capturado` | o `em` da transição para `capturado` (`transicao_pagamento`, `0044:313-326`) | `pagamento.montante`; sem IVA pela encomenda paga (§3) |
-| **Faturado** | quanto faturei? | as faturas emitidas pelo Eurolify; as notas de crédito vêm à parte em `creditado` | o `em` da passagem a `emitido` (`documento_rasto`, `0050:333-363`) | `documento_conteudo.conteudo.totais.{base, iva, total}` da última versão (`faturacao/repositorio.ts:822-826`) |
+| **Faturado** | quanto faturei? | as faturas emitidas pelo Eurolify; as notas de crédito vêm à parte em `creditado` | o `em` da passagem a `emitido` (`documento_rasto`, `0050:333-363`) | `documento_prova.totais.{base, iva, total}`: o que o emissor devolveu, como o domínio conta (`faturacao/repositorio.ts:2377-2391`); a moeda vem do conteúdo (revisão do #383, P1-1) |
 | **Devolvido** | quanto devolvi? | os reembolsos executados, de qualquer origem (devolução, problema, cancelamento) | `reembolso.executado_em` (`0058:515-526`) | `reembolso.montante`; sem IVA pela nota de crédito do reembolso, quando a há (§3) |
 
 As comissões e as metas, quando vierem, contam sobre o **faturado**, nunca
@@ -41,8 +41,8 @@ sobre o encomendado (`docs/13` §11, porta 6).
 | `dia=AAAA-MM-DD` | das 00:00 às 24:00 desse dia, **no fuso do comerciante** (`comerciante.fuso`, `0001:38-39`) | `dia=2026-10-11` em `Europe/Lisbon`: de `2026-10-11T00:00+01:00` a `2026-10-12T00:00+01:00` |
 | `mes=AAAA-MM` | do dia 1 às 00:00 ao dia 1 do mês seguinte, no mesmo fuso | `mes=2026-10` |
 
-- A resposta traz `periodo.de` e `periodo.ate` com o desvio do fuso, e o
-  nome do fuso. Um dia da mudança de hora tem 23 ou 25 horas; conta-se pelo
+- A resposta traz `periodo.de` e `periodo.ate` em UTC (ISO 8601 com `Z`;
+  o mesmo instante) e o nome do fuso (revisão do #383, P3-1). Um dia da mudança de hora tem 23 ou 25 horas; conta-se pelo
   relógio local, não por 24 horas.
 - Um período que ainda não acabou (hoje, este mês) vem com
   `periodo.completo: false` e `periodo.ate` = o momento da consulta.
@@ -55,9 +55,9 @@ O IVA nunca se recalcula aqui: lê-se o que o domínio guardou.
 | Número | Com IVA | Sem IVA | Quando não se sabe |
 |---|---|---|---|
 | Encomendado | `total` | `total_base` | — |
-| Pago | `pagamento.montante` | o `total_base` da encomenda, **só quando o montante capturado é igual ao `total` dela** (é a regra para a encomenda passar a paga, `0044:434-445`) | se forem diferentes, o pagamento conta no com IVA e entra em `sem_iva_por_conhecer` |
-| Faturado | `totais.total` | `totais.base` | — |
-| Devolvido | `reembolso.montante` | a base da nota de crédito ligada ao reembolso (`documento_fiscal.reembolso_id`, `0058:733-747`) | sem nota de crédito emitida (ainda não, ou comerciante com sistema próprio), o reembolso conta no com IVA e entra em `sem_iva_por_conhecer` |
+| Pago | `pagamento.montante` | o `total_base` da encomenda, **só na primeira captura dela e quando o montante capturado é igual ao `total`** (é a regra para a encomenda passar a paga, `0044:434-445`) | um segundo pagamento capturado da mesma encomenda (um duplicado) conta no com IVA e entra em `sem_iva_por_conhecer`: a base da venda não conta duas vezes (revisão do #383, P2-1) |
+| Faturado | `totais.total` da prova | `totais.base` da prova | — |
+| Devolvido | `reembolso.montante` | a base da prova da nota de crédito ligada ao reembolso (`documento_fiscal.reembolso_id`, `0058:733-747`), emitida, divergente ou resolvida | sem nota de crédito saída (ainda não, ou comerciante com sistema próprio), o reembolso conta no com IVA e entra em `sem_iva_por_conhecer` |
 
 Cada número traz `quantidade` (encomendas, pagamentos, documentos ou
 reembolsos contados) e, quando há, `sem_iva_por_conhecer` com quantos ficaram
@@ -84,7 +84,7 @@ de fora do sem IVA e o montante com IVA deles. **Nunca se estima.**
 | Cada número | `{com_iva, sem_iva, quantidade, o_que_conta: {pt, en}, sem_iva_por_conhecer?: {quantidade, com_iva}}`; encomendado com `das_quais_canceladas`; faturado com `creditado` |
 | Dinheiro | inteiros em cêntimos com a moeda ao lado (regra 8 da `headless-commerce`) |
 | Isolamento | corre em `comComerciante`, só leitura (RLS); um teste tenta ler as vendas de outro comerciante e tem de dar zero |
-| Erros | RFC 9457: `request.invalid` (dia e mês juntos, nenhum, data inválida, futuro), `auth.forbidden` sem o âmbito |
+| Erros | RFC 9457: `request.invalid` (dia e mês juntos, nenhum, data inválida, futuro), `auth.forbidden` sem o âmbito numa chave; no Hub, `member.role_escalation` sem o papel, como as outras rotas do Hub (revisão do #383, P3-3) |
 
 Exemplo de um número:
 
@@ -104,9 +104,10 @@ a resposta diz `modo: "teste"`; quando houver, os dois nunca se somam
 (ponto a desenhar com o modo real).
 
 **O comerciante com sistema próprio** (`emissor_fiscal = 'sistema_proprio'`,
-`0050:27`; ADR-0041): o Eurolify não fatura por ele, por isso o faturado vem
-vazio com a frase «as faturas são emitidas pelo seu sistema; o Eurolify não as
-conta».
+`0050:27`; ADR-0041): o Eurolify não fatura essas encomendas. Quando há
+encomendas do período com esse emissor (o que a encomenda copiou no botão
+final, não o de hoje), a frase do faturado diz que o Eurolify não conta essas
+faturas (revisão do #383, P3-5).
 
 ## 6. Perguntas para o Diogo ou o Bruno
 

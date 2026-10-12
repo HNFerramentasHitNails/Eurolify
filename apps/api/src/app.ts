@@ -43,6 +43,7 @@ import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { rotasDosDocumentos } from "./faturacao/rotas.js";
 import { rotasDaPosVenda } from "./posvenda/rotas.js";
 import { rotasDasTarefas } from "./tarefas/rotas.js";
+import { rotasDasVendas, rotasDasVendasNoHub } from "./vendas/rotas.js";
 import { rotasDasNotificacoes } from "./notificacoes/rotas.js";
 import type { ConsultaVies } from "./clientes/vies.js";
 import { rotasDosPrecos } from "./precos/rotas.js";
@@ -394,6 +395,7 @@ export function criarApp(
       rotasDosDocumentos(rotas, base, faturacao);
       rotasDaPosVenda(rotas, base, pagamentos);
       rotasDasTarefas(rotas, base);
+      rotasDasVendas(rotas, base);
       rotasDasNotificacoes(rotas, base);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
@@ -413,6 +415,7 @@ export function criarApp(
       rotasDasCredenciais(rotas, base, hub);
       rotasDasChavesDoHub(rotas, base);
       rotasDoCatalogoNoHub(rotas, base);
+      rotasDasVendasNoHub(rotas, base);
       if (armazenamento !== undefined) {
         rotasDasImagensNoHub(rotas, base, armazenamento);
       }
