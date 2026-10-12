@@ -179,3 +179,27 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 - **O tratamento das NC** no OSS (Q-O2) para além do art. 369.º-G, n.º 4.
 - **Vendas expedidas de outro Estado-Membro** (L4): a Fase 1 tem um armazém
   só; o relatório diz o país do armazém, mas não separa por país de expedição.
+
+## 10. Em código (12/10/2026; migração 0071; ED)
+
+| O quê | Onde |
+|---|---|
+| a regra do Motor de IVA → balde (cinco, Q-O3), o período (trimestre e mês), a classificação pura (baldes, alterações, impedimentos) | `src/faturacao/oss.ts` (`baldeDe`, `lerPeriodo`, `agregar`) |
+| a leitura das provas (montantes) e do último conteúdo (a decisão), as listas à parte, o limiar no ano civil | `src/faturacao/oss.ts` (`relatorioOss`) |
+| o fecho: só o dono (`tax:write`), um de cada vez por entidade, recusa com impedimentos (os «por emitir» só com `confirmo_por_emitir`), a fotografia e os documentos que entraram, uma vez só | `src/faturacao/oss.ts` (`fecharOss`); migração 0071 |
+| `relatorio_oss_fecho` e `relatorio_oss_documento`: só se acrescentam (a base recusa mudar e apagar), RLS forçado; o evento `tax_report.closed` | migração 0071 |
+| os registos do art. 63.º-C em CSV (com a protecção contra fórmulas) | `src/faturacao/oss.ts` (`registosOss`) |
+| as rotas `GET /tax-reports/oss`, `POST /tax-reports/oss/close`, `GET /tax-reports/oss/records` | `src/faturacao/rotas-oss.ts` |
+| 7 testes da classificação sem base; 3 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
+
+**Desvios do desenho:**
+- **As rotas** levam a entidade e o período na consulta (`?entidade=&periodo=`)
+  e o fecho no corpo, em vez de `/{periodo}` no caminho: um comerciante pode
+  ter mais de uma entidade (cada uma com o seu OSS).
+- **O período de um documento** conta pela data da prova; os da lista à
+  parte (`fora`, «por emitir») pela data em que o pedido nasceu, e os do
+  sistema próprio pela captura do pagamento — não têm prova.
+- **Um documento sem data** na prova impede o fecho (não se adivinha).
+
+**Por fazer:** o ecrã no Hub; os registos de serviços (art. 63.º-C, al. b) e
+k) para serviços) quando houver; outras moedas (L6).

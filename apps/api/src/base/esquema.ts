@@ -1557,6 +1557,8 @@ export interface BaseDados {
   documento_fiscal: TabelaDocumentoFiscal;
   documento_conteudo: TabelaDocumentoConteudo;
   documento_prova: TabelaDocumentoProva;
+  relatorio_oss_fecho: TabelaRelatorioOssFecho;
+  relatorio_oss_documento: TabelaRelatorioOssDocumento;
   documento_rasto: TabelaDocumentoRasto;
   pedido_livre_resolucao: TabelaPedidoLivreResolucao;
   linha_livre_resolucao: TabelaLinhaLivreResolucao;
@@ -1948,4 +1950,27 @@ export interface TabelaAtribuicaoRasto {
   ia: ColumnType<unknown, never, never>;
   autorizado_por: ColumnType<string | null, never, never>;
   a_pedido_de: ColumnType<unknown, never, never>;
+}
+
+/** O fecho de um período do relatório OSS (docs/36 §3; migração 0071). */
+export interface TabelaRelatorioOssFecho {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  entidade_legal_id: ColumnType<string, string, never>;
+  granularidade: ColumnType<"trimestre" | "mes", "trimestre" | "mes", never>;
+  periodo: ColumnType<string, string, never>;
+  fotografia: ColumnType<unknown, string, never>;
+  versao_regra: ColumnType<number, number, never>;
+  confirmacoes: ColumnType<unknown, string | undefined, never>;
+  fechado_por: ColumnType<string, string, never>;
+  fechado_em: ColumnType<Date, never, never>;
+}
+
+/** Os documentos que entraram num fecho (uma vez só, P4; migração 0071). */
+export interface TabelaRelatorioOssDocumento {
+  comerciante_id: ColumnType<string, string, never>;
+  fecho_id: ColumnType<string, string, never>;
+  granularidade: ColumnType<"trimestre" | "mes", "trimestre" | "mes", never>;
+  documento_id: ColumnType<string, string, never>;
+  periodo_original: ColumnType<string, string, never>;
 }

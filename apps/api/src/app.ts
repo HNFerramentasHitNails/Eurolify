@@ -41,6 +41,7 @@ import { rotasDosPagamentos } from "./pagamentos/rotas.js";
 import { rotasDoStock } from "./stock/rotas.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { rotasDosDocumentos } from "./faturacao/rotas.js";
+import { rotasDoRelatorioOss } from "./faturacao/rotas-oss.js";
 import { rotasDaPosVenda } from "./posvenda/rotas.js";
 import { rotasDasTarefas } from "./tarefas/rotas.js";
 import { rotasDasVendas, rotasDasVendasNoHub } from "./vendas/rotas.js";
@@ -393,6 +394,7 @@ export function criarApp(
       rotasDosPagamentos(rotas, base, pagamentos);
       rotasDoStock(rotas, base);
       rotasDosDocumentos(rotas, base, faturacao);
+      rotasDoRelatorioOss(rotas, base);
       rotasDaPosVenda(rotas, base, pagamentos);
       rotasDasTarefas(rotas, base);
       rotasDasVendas(rotas, base);
