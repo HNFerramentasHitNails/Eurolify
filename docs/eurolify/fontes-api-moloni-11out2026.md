@@ -239,3 +239,32 @@ do filtro por dia do `productStocks/getAll` — o `date` que usei **não
 limitou** (11 dias × 1000 movimentos = o tecto que pus). ~~Se os documentos da
 demonstração têm validade fiscal~~ — o Diogo disse a 11/10/2026 que os das
 contas de teste não vão para a AT.
+
+## 9. A emissão — páginas lidas a 12/10/2026 (fatia 10, parte 2)
+
+Pedido do Diogo, 12/10/2026 (*«sim, avança com o adaptador Moloni»*). Li as
+páginas abaixo **em bruto** (o HTML descarregado e o texto extraído, não um
+resumo). **Nenhum pedido à API**: as credenciais não estavam no ambiente.
+
+| Página | O que diz (só o que serve à emissão) |
+|---|---|
+| `dev/documents/invoices/insert/` | obrigatórios: `company_id`, `date`, `expiration_date`, `document_set_id`, `customer_id`, `products[]` (cada um com `product_id`, `name`, `qty`, `price`; `taxes[].tax_id`); `our_reference` e `your_reference` facultativos; `exemption_reason` obrigatório na linha sem IVA; `status` 0 = rascunho (por omissão), 1 = fechado, e fechado «será comunicada para a Autoridade Tributária, caso a empresa tenha essa opção activa»; fechar movimenta o stock dos artigos com gestão de stock; outra moeda pede `exchange_currency_id` e `exchange_rate`; resposta `{valid: 1, document_id}` |
+| `dev/documents/invoices/update/` | «Não é possível actualizar uma fatura que já se encontre no estado fechado»; os mesmos obrigatórios do `insert` mais `document_id`; resposta `{valid: 1}` |
+| `dev/documents/invoices/delete/` | «Não é possível eliminar uma fatura que já se encontre no estado fechado» |
+| `dev/documents/invoices/getone/` e `dev/documents/documents/getone/` | cabeçalho com `entity_vat`, `entity_name`, `entity_country`, `number`, `document_set`, `status`, `gross_value`, `taxes_value`, `net_value`, `our_reference`, `rsa_hash`, `hash_control`; linhas com `product_id`, `reference`, `price`, `qty`, `discount`, `exemption_reason`, `taxes[]` (`value`, `incidence_value`, `total_value`). **Nenhum campo de ATCUD na lista**, nem `document_product_id` nas linhas |
+| `dev/documents/documents/getall/` | filtra por `our_reference`, `your_reference`, `status`, `document_set_id`, `number`, `year`; `qty` máx. 50 |
+| `dev/documents/documents/getpdflink/` | devolve `{url}`; «Só podem ser pedidos documentos que já não estejam em estado de rascunho»; `signed` facultativo: sem ele, o PDF não vem assinado |
+| `dev/documents/credit-notes/insert/` | sem `rappel`, obrigatórios `associated_documents` (`associated_id`, `value`) e, por linha, `related_id` = «o document_product_id de um dos artigos do documento associado»; o total não pode passar o valor conciliado; preço e quantidade não podem passar os da fatura |
+| `dev/documents/invoice-receipts/insert/` | descarregada; não lida linha a linha (fica para o V1) |
+| `dev/entities/customers/getbyvat/` | procura por `vat` (texto), devolve uma lista |
+| `dev/entities/customers/insert/` | obrigatórios `vat`, `number` (máx. 20), `name`, `language_id`, `address`, `city`, `country_id`, `maturity_date_id`, `payment_method_id`; em Portugal o contribuinte tem de ser válido e o código postal `NNNN-NNN` |
+| `dev/products/products/getbyreference/` e `insert/` | procura por `reference` com `exact`; criar pede `category_id`, `type` (1 produto, 2 serviço…), `name`, `reference` (única), `price`, `unit_id`, `has_stock`, `stock`; `at_product_category` obrigatório se `has_stock` |
+| `dev/settings/tax-fees/getall/` | `tax_id`, `value`, `saft_type`, `fiscal_zone` por taxa da empresa |
+| `dev/global-data/tax-exemptions/getall/` | `code`, `name`, `description` |
+| `dev/settings/document-sets/getall/`, `payment-methods/getall/`, `global-data/countries/getall/`, `currencies/getall/` | os ids para a configuração da ligação |
+| `dev/autenticacao/` | renovar: `grant_type=refresh_token` devolve **novos** `access_token` e `refresh_token`; passados os 14 dias o utilizador autentica-se outra vez |
+| `dev/controlo-de-erros/` | erros de dados «código + espaço + campo»; `human_errors=true` dá a descrição; erros de autenticação HTTP 400 com `error` e `error_description` (ex.: `invalid_grant` «Refresh token has expired») |
+
+**Não diz:** o tamanho do `our_reference`; as casas decimais que o `price`
+guarda; o ATCUD; como se obtém o `document_product_id` para a nota de
+crédito. Ficam para medir (`docs/29` §13.7).
