@@ -39,7 +39,7 @@ EUROLIFY_ORIGEM="${EUROLIFY_ORIGEM:-manual por ${SUDO_USER:-root}}"
 # O fluxo aplicar-script já põe o commit na origem: não o repetir.
 [[ "$EUROLIFY_ORIGEM" == *"commit "* ]] || EUROLIFY_ORIGEM+=", commit ${EUROLIFY_COMMIT:-desconhecido}"
 export EUROLIFY_ORIGEM
-FLUXOS=(publicar aplicar medir operar)
+FLUXOS=(publicar aplicar medir operar configurar)
 mudancas=0
 avisos=0
 mudou=0
@@ -261,7 +261,7 @@ passo "8. Programas e unidades do Eurolify"
 instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
 instalar "$F/lib/chave-totp.sh" /usr/local/lib/eurolify/chave-totp.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
-for p in trabalho publicar aplicar medir copia reposicao verificacao limpeza operar operador; do
+for p in trabalho publicar aplicar medir copia reposicao verificacao limpeza operar operador configurar; do
   instalar "$F/sbin/eurolify-$p" "/usr/local/sbin/eurolify-$p" 700
 done
 unidades_mudaram=0
@@ -754,7 +754,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub.env e api-totp.env (docs/19 §6, #107)"
+passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub.env, api-totp.env e api-smtp.env (docs/19 §6, #107; docs/34 §13)"
 # O docker só lê o --env-file quando cria o contentor: uma ligação nova só
 # chega à API quando o contentor for recriado. Quem o recria é o
 # eurolify-publicar --so-recriar, com a imagem que já está no ar (passo 8 já o
@@ -773,7 +773,7 @@ configuracao_mais_recente_que_a_api() {
   [[ " $montagens " == *" /media "* ]] || return 0
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env; do
+  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-smtp.env; do
     mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
     mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
