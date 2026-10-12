@@ -1,10 +1,10 @@
 # Vendas do dia e do mês: uma consulta, quatro números
 
-> **Versão de 12/10/2026 — proposta, por aprovar.** Peça 22 da Fase 1
-> (issue #367; decisão DS, ADR-0043, ponto 4; `docs/13` §11). O código só
-> entra depois de o Diogo ou o Bruno aprovarem este desenho (ADR-0023), e os
-> números dependem de domínios ainda a crescer (encomendas, pagamentos,
-> documentos fiscais, pós-venda).
+> **Versão de 12/10/2026 — desenho aprovado** pelo Diogo a 12/10/2026
+> (*«aprovado»*), com as três propostas da §6 (`docs/06`, DY). Peça 22 da Fase 1
+> (issue #367; decisão DS, ADR-0043, ponto 4; `docs/13` §11). Os números
+> dependem de domínios ainda a crescer (encomendas, pagamentos, documentos
+> fiscais, pós-venda).
 >
 > Skills seguidas: `headless-commerce` (rota, contrato, dinheiro em
 > cêntimos), `eurolify-finance-reconciliation-eu` (separar vendas,
@@ -46,8 +46,7 @@ sobre o encomendado (`docs/13` §11, porta 6).
   relógio local, não por 24 horas.
 - Um período que ainda não acabou (hoje, este mês) vem com
   `periodo.completo: false` e `periodo.ate` = o momento da consulta.
-- Um período no futuro: 400 `request.invalid`. Mais de 13 meses para trás:
-  por decidir (§6, Q3).
+- Um período no futuro: 400 `request.invalid`. Sem limite para trás (§6, Q3).
 
 ## 3. Com e sem IVA, sem recalcular
 
@@ -113,9 +112,9 @@ conta».
 
 | # | Pergunta | Proposta |
 |---|---|---|
-| Q1 | Quem vê as vendas? | Um âmbito novo `sales:read`, no dono e no gestor (como o `docs/13` §11: «um papel, o dono e o gestor»). Ler os quatro números junta encomendas, pagamentos, faturas e reembolsos; não chega ter um deles |
-| Q2 | O encomendado conta as encomendas que depois se cancelaram? | Sim, conta tudo o que se pediu, com `das_quais_canceladas` à parte. Assim o encomendado de ontem não muda quando alguém cancela hoje |
-| Q3 | Até quando para trás se pode pedir? | Sem limite na rota; a medição (§7) diz se é preciso um |
+| Q1 | Quem vê as vendas? | ✅ **Decidido** (Diogo, 12/10/2026): um âmbito novo `sales:read`, no dono e no gestor (como o `docs/13` §11: «um papel, o dono e o gestor»). Ler os quatro números junta encomendas, pagamentos, faturas e reembolsos; não chega ter um deles |
+| Q2 | O encomendado conta as encomendas que depois se cancelaram? | ✅ **Decidido** (Diogo, 12/10/2026): sim, conta tudo o que se pediu, com `das_quais_canceladas` à parte. Assim o encomendado de ontem não muda quando alguém cancela hoje |
+| Q3 | Até quando para trás se pode pedir? | ✅ **Decidido** (Diogo, 12/10/2026): sem limite na rota; a medição (§7) diz se é preciso um |
 
 ## 7. Desempenho: medir antes de pré-calcular
 
