@@ -17,6 +17,14 @@ const TRACOS: Record<IdModulo, readonly string[]> = {
     "M3.5 7.5 12 12l8.5-4.5",
     "M12 12v9",
   ],
+  // Uma lista com um visto e um relógio.
+  decidir: [
+    "M4 6h9",
+    "M4 12h6",
+    "M4 18h5",
+    "M17.5 21a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z",
+    "M17.5 14.5v2l1.5 1",
+  ],
   // Uma chave.
   chaves: [
     "M8 15.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z",

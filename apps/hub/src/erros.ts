@@ -77,6 +77,13 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "member.not_found": "erroMembroNaoExiste",
   "invite.other_person": "erroConviteOutraPessoa",
   "invite.already_member": "erroJaMembro",
+  // O ecrã «A decidir» (docs/22 §28.3).
+  "tasks.version_conflict": "decidirConflito",
+  "tasks.assignee_not_allowed": "decidirNaoPodeSer",
+  "tasks.deadline_invalid": "decidirPrazoRecusado",
+  "tasks.reason_required": "decidirMotivoObrigatorio",
+  "tasks.forbidden": "decidirSemPermissao",
+  "tasks.not_found": "decidirJaNaoEsta",
 };
 
 /** Um erro conferido no próprio ecrã, com o texto já escolhido. */

@@ -228,3 +228,23 @@ export function podemSerResponsaveis(
     ),
   );
 }
+
+/** O fuso do comerciante (o ecrã «A decidir» mostra os prazos nele). */
+export function fusoDo(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+): Promise<string> {
+  return comComerciante(
+    db,
+    comercianteId,
+    async (trx) =>
+      (
+        await trx
+          .selectFrom("comerciante")
+          .select("fuso")
+          .where("id", "=", comercianteId)
+          .executeTakeFirstOrThrow()
+      ).fuso,
+    { soLeitura: true },
+  );
+}

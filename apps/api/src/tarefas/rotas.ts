@@ -20,6 +20,7 @@ import {
   lerTarefa,
   listarTarefas,
   mudarPrazo,
+  fusoDo,
   podemSerResponsaveis,
   type CasoAberto,
 } from "./repositorio.js";
@@ -509,7 +510,16 @@ export function rotasDasTarefasNoHub(
           },
           { additionalProperties: false },
         ),
-        response: { 200: RespostaLista, ...RESPOSTA_DE_ERRO },
+        response: {
+          200: Type.Object({
+            ...RespostaLista.properties,
+            fuso: Type.String({
+              description:
+                "O fuso do comerciante (IANA): o ecrã mostra e escolhe os prazos nele",
+            }),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
       },
     },
     async (pedido, resposta) =>
@@ -517,7 +527,8 @@ export function rotasDasTarefasNoHub(
         const s = daSessao(pedido, resposta);
         const q = pedido.query;
         const r = q.responsavel;
-        return responderLista(base, s.comercianteId, s.ambitos, {
+        const fuso = await fusoDo(base, s.comercianteId);
+        const lista = await responderLista(base, s.comercianteId, s.ambitos, {
           ...q,
           responsavel:
             r === undefined || r === "sem"
@@ -526,6 +537,7 @@ export function rotasDasTarefasNoHub(
                 ? s.pessoaId
                 : r.slice(4),
         });
+        return { ...lista, fuso };
       }),
   );
 
