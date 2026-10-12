@@ -933,7 +933,9 @@ function Credenciais({
           <h3>{t.enviosAvisos}</h3>
           <p>{t.enviosAvisosExplicacao}</p>
           <p className="linha">
-            <code translate="no">{caminhoDosAvisos(conta)}</code>{" "}
+            <code className="caminho-avisos" translate="no">
+              {caminhoDosAvisos(conta)}
+            </code>{" "}
             <Copiar texto={caminhoDosAvisos(conta)} />
           </p>
           <p className="secundario">{t.enviosAvisosVps}</p>

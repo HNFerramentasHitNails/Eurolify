@@ -421,6 +421,11 @@ code {
 
 /* O estado de uma conta de transportadora (docs/22 §29.3): a cor do estado
    e o nome, nunca só a cor. */
+/* O caminho dos avisos é uma linha comprida sem espaços: parte em qualquer
+   ponto, para não empurrar a página no telemóvel. */
+.caminho-avisos {
+  overflow-wrap: anywhere;
+}
 .estado-conta {
   font-weight: 600;
 }
