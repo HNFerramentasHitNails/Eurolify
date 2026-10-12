@@ -29,6 +29,7 @@ import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
 import { AdaptadorMoloni } from "../src/faturacao/moloni.js";
 import { correrDocumentos } from "../src/faturacao/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
+import { correrApagamentosPendentes } from "../src/clientes/titular-fila.js";
 import { correrAvisosDePrazo } from "../src/posvenda/prazo.js";
 import {
   correrNotificacoes,
@@ -691,6 +692,356 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     );
     return rma;
   }
+
+  it("o apagamento numa encomenda paga e concluída: o contacto e os textos saem, a cópia fiscal fica, o aviso do prestador fica resumo (docs/23 §15)", async () => {
+    const s = await cenario();
+    // Com a fatura emitida pelo emissor de ensaio (o documento fiscal fica).
+    await ligar(s, `c-${randomUUID()}`);
+    const e = await paga(s, [[s.v1, 1]], "501964843");
+    await ateParar();
+    const id = e.encomenda.slice(4);
+    expect((await documentosDe(s, e.encomenda)).fatura?.["estado"]).toBe(
+      "emitido",
+    );
+    // Um problema aberto e fechado, com texto livre.
+    const prb = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: e.encomenda,
+        tipo: "chegou_danificado",
+        descricao: "a Ana Silva diz que o frasco veio partido",
+      }),
+      201,
+    );
+    await ok(
+      s.adm("POST", `/problems/${String(prb["id"])}/close`, {
+        versao: 1,
+        motivo: "resolvido com a Ana Silva por telefone",
+      }),
+    );
+    // Expedida e entregue, com o nome de quem recebeu na prova.
+    const enc = await ok(s.adm("GET", `/orders/${e.encomenda}`));
+    const x = await ok(
+      s.adm("POST", `/orders/${e.encomenda}/shipments`, {
+        linhas: (enc["linhas"] as Json[]).map((l) => ({
+          linha: l["id"],
+          quantidade: l["quantidade"],
+        })),
+      }),
+      201,
+    );
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+        versao: 1,
+        estado: "expedida",
+      }),
+    );
+    await ok(
+      s.adm("PATCH", `/shipments/${String(x["id"])}`, {
+        versao: 2,
+        estado: "entregue",
+        prova_entrega: "recebido pela Ana Silva",
+      }),
+    );
+    // Concluída (a tarefa fá-lo 14 dias depois de entregue).
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'sistema:encomendas', true)`.execute(
+        trx,
+      );
+      await sql`update encomenda set estado = 'concluida'
+        where id = ${id}::uuid`.execute(trx);
+    });
+    const ler = async () =>
+      (
+        await sql<{
+          cliente_id: string;
+          contacto: Json;
+          entrega: Json;
+          perfil_copia: Json;
+        }>`select cliente_id, contacto, entrega, perfil_copia from encomenda
+          where id = ${id}::uuid`.execute(base.dono)
+      ).rows[0];
+    const antes = await ler();
+    const avisosAntes = (
+      await sql<{ corpo: string }>`select a.corpo from aviso_pagamento a
+        join pagamento p on p.id = a.pagamento_id
+        where p.encomenda_id = ${id}::uuid order by a.id`.execute(base.dono)
+    ).rows;
+    expect(avisosAntes.length).toBeGreaterThan(0);
+    // O documento fiscal, linha a linha, para comparar depois.
+    const documentos = async () =>
+      (
+        await sql<{
+          t: string;
+        }>`select md5(c::text) || md5(coalesce(p::text, '')) as t
+          from documento_fiscal d
+          join documento_conteudo c on c.documento_id = d.id
+          left join documento_prova p on p.documento_id = d.id
+          where d.encomenda_id = ${id}::uuid order by c.documento_id, c.versao`.execute(
+          base.dono,
+        )
+      ).rows.map((x) => x.t);
+    const documentosAntes = await documentos();
+    expect(documentosAntes.length).toBeGreaterThan(0);
+    const r = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{
+          r: Json;
+        }>`select cliente_pseudonimizar(${antes?.cliente_id}::uuid,
+          ${`pseudonimizar cus_${String(antes?.cliente_id)}`}, 'teste') as r`.execute(
+          trx,
+        )
+      ).rows[0]?.r;
+    });
+    expect(r).toMatchObject({
+      encomendas_limpas: 1,
+      encomendas_com_dados_fiscais_mantidos: 1,
+      encomendas_por_acabar: 0,
+      perfis_mantidos_por_obrigacao_fiscal: 1,
+    });
+    const depois = await ler();
+    expect(depois?.contacto["email"]).toBe("(pseudonimizado)");
+    expect(depois?.entrega["linha1"]).toBe("(pseudonimizado)");
+    // A cópia de onde se emite o documento fiscal fica (grupo A).
+    expect(depois?.perfil_copia).toEqual(antes?.perfil_copia);
+    const prova = (
+      await sql<{ prova_entrega: string }>`select prova_entrega from expedicao
+        where encomenda_id = ${id}::uuid`.execute(base.dono)
+    ).rows[0]?.prova_entrega;
+    expect(prova).toBe("(pseudonimizado)");
+    const avisos = (
+      await sql<{ corpo: string }>`select a.corpo from aviso_pagamento a
+        join pagamento p on p.id = a.pagamento_id
+        where p.encomenda_id = ${id}::uuid order by a.id`.execute(base.dono)
+    ).rows;
+    expect(avisos).toHaveLength(avisosAntes.length);
+    for (const a of avisos) {
+      // O resumo leva a chave do rasto (0054): 8 hex, não o sha256 do corpo.
+      expect(JSON.parse(a.corpo)).toEqual({
+        pseudonimizado: true,
+        resumo: expect.stringMatching(/^[0-9a-f]{8}$/) as unknown,
+      });
+    }
+    // O documento fiscal fica igual (grupo A).
+    expect(await documentos()).toEqual(documentosAntes);
+    // O texto livre do problema e os motivos das transições.
+    expect(
+      (
+        await sql<{ descricao: string }>`select descricao from problema
+          where encomenda_id = ${id}::uuid`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ descricao: "(pseudonimizado)" }]);
+    const motivosPagamento = (
+      await sql<{ motivo: string }>`select t.motivo from transicao_pagamento t
+        join pagamento p on p.id = t.pagamento_id
+        where p.encomenda_id = ${id}::uuid and t.motivo is not null`.execute(
+        base.dono,
+      )
+    ).rows.map((x) => x.motivo);
+    expect(motivosPagamento.every((m) => m === "(pseudonimizado)")).toBe(true);
+    // A sessão de checkout desta encomenda fica vazia.
+    expect(
+      (
+        await sql<Json>`select s.email, s.nome, s.telefone, s.entrega, s.faturacao
+          from sessao_checkout s join encomenda e on e.sessao_id = s.id
+          where e.id = ${id}::uuid`.execute(base.dono)
+      ).rows[0],
+    ).toEqual({
+      email: null,
+      nome: null,
+      telefone: null,
+      entrega: null,
+      faturacao: null,
+    });
+    // Uma livre resolução pedida depois guarda «sem e-mail», não o marcador.
+    await ok(
+      pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+        linhas: [
+          { linha: (enc["linhas"] as Json[])[0]?.["id"], quantidade: 1 },
+        ],
+      }),
+      201,
+    );
+    expect(
+      (
+        await sql<{
+          contacto: string;
+        }>`select contacto from pedido_livre_resolucao
+          where encomenda_id = ${id}::uuid`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ contacto: "sem e-mail" }]);
+    // O registo do negócio fica: o pagamento, as linhas e o estado.
+    expect(await ok(s.adm("GET", `/orders/${e.encomenda}`))).toMatchObject({
+      estado: "concluida",
+      linhas: enc["linhas"],
+    });
+  });
+
+  it("o apagamento numa devolvida em parte (14 dias depois de entregue) e numa expedida perdida (problema fechado, com ou sem reembolso): contam como acabadas, sem mudar o estado (revisão do #374, P1-1; Diogo, «A»)", async () => {
+    const s = await cenario();
+    const contactoDe = async (encomenda: string) =>
+      (
+        await sql<{ estado: string; email: unknown }>`select estado,
+          contacto ->> 'email' as email from encomenda
+          where id = ${encomenda.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0];
+    const pseudonimizar = async (cen: Cenario, encomenda: string) => {
+      const cliente = (
+        await sql<{ cliente_id: string }>`select cliente_id from encomenda
+          where id = ${encomenda.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0]?.cliente_id;
+      return comComerciante(base.dono, cen.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+          trx,
+        );
+        return (
+          await sql<{
+            r: Json;
+          }>`select cliente_pseudonimizar(${cliente}::uuid,
+            ${`pseudonimizar cus_${String(cliente)}`}, 'teste') as r`.execute(
+            trx,
+          )
+        ).rows[0]?.r;
+      });
+    };
+
+    // Devolvida em parte: 2 de 3 devolvidas e reembolsadas. Só passaria a
+    // `devolvida`; sem nada aberto, limpa-se.
+    const d = await paga(s, [[s.v1, 3]]);
+    const [linha] = await expedir(s, d.encomenda);
+    const rma = await devolvidaEInspeccionada(s, d.token, [
+      { linha: linha?.["id"], quantidade: 2 },
+    ]);
+    const r = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: linha?.["id"], quantidade: 2 }],
+        motivo: "dois revendáveis",
+      }),
+      201,
+    );
+    await manual(s, String(r["reembolso"]));
+    expect(await contactoDe(d.encomenda)).toMatchObject({
+      estado: "devolvida_parcial",
+    });
+    // Dentro dos 14 dias da entrega, como uma entregue: o resto ainda se
+    // pode devolver; fica na fila.
+    const antesD = await contactoDe(d.encomenda);
+    expect(await pseudonimizar(s, d.encomenda)).toMatchObject({
+      encomendas_limpas: 0,
+      encomendas_por_acabar: 1,
+    });
+    expect(await contactoDe(d.encomenda)).toEqual(antesD);
+    await entregueHa(d.encomenda, 15);
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(d.encomenda)).toEqual({
+      estado: "devolvida_parcial",
+      email: "(pseudonimizado)",
+    });
+
+    // Expedida e perdida: até uma pessoa fechar o problema (ou o pagamento
+    // deixar de estar capturado), o comerciante ainda reenvia (precisa da
+    // morada) ou reembolsa; fica na fila.
+    const perdida = async (cen: Cenario, comProblema = true) => {
+      const p = await paga(cen, [[cen.v1, 1]]);
+      const [l] = await expedir(cen, p.encomenda, false);
+      const x = (
+        await sql<{ id: string }>`select id from expedicao
+          where encomenda_id = ${p.encomenda.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0];
+      await ok(
+        cen.adm("PATCH", `/shipments/shp_${String(x?.id)}`, {
+          versao: 2,
+          estado: "perdida",
+        }),
+      );
+      const antes = await contactoDe(p.encomenda);
+      expect(antes?.estado).toBe("expedida");
+      expect(await pseudonimizar(cen, p.encomenda)).toMatchObject({
+        encomendas_limpas: 0,
+        encomendas_por_acabar: 1,
+      });
+      expect(await contactoDe(p.encomenda)).toEqual(antes);
+      if (!comProblema) return { encomenda: p.encomenda, antes };
+      const prb = await ok(
+        cen.adm("POST", "/problems", {
+          encomenda: p.encomenda,
+          tipo: "em_falta",
+          descricao: "a transportadora perdeu a encomenda",
+        }),
+        201,
+      );
+      // Com o problema aberto, continua na fila.
+      expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+      expect(await contactoDe(p.encomenda)).toEqual(antes);
+      return {
+        encomenda: p.encomenda,
+        antes,
+        linha: l,
+        problema: String(prb["id"]),
+      };
+    };
+    // Reembolsado só o artigo, sem os portes: o pagamento fica
+    // reembolsado em parte e o problema fecha-se com o reembolso.
+    const s2 = await cenario();
+    const a = await perdida(s2);
+    const rp = await ok(
+      s2.adm("POST", `/problems/${String(a.problema)}/decide`, {
+        versao: 1,
+        linhas: [{ linha: a.linha?.["id"], quantidade: 1 }],
+        motivo: "perdida",
+      }),
+      201,
+    );
+    await manual(s2, String(rp["reembolso"]));
+    expect(await estadoDoPagamento(s2, a.encomenda)).toBe(
+      "reembolsado_parcial",
+    );
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(a.encomenda)).toEqual({
+      estado: "expedida",
+      email: "(pseudonimizado)",
+    });
+    // Resolvida fora (reenvio noutra encomenda): o problema fecha-se sem
+    // reembolso e o pagamento fica capturado.
+    const s3 = await cenario();
+    const b = await perdida(s3);
+    await ok(
+      s3.adm("POST", `/problems/${String(b.problema)}/close`, {
+        versao: 1,
+        motivo: "reenviado noutra encomenda",
+      }),
+    );
+    expect(await estadoDoPagamento(s3, b.encomenda)).toBe("capturado");
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(b.encomenda)).toEqual({
+      estado: "expedida",
+      email: "(pseudonimizado)",
+    });
+    // Sem problema, numa disputa: em disputa fica (a prova de entrega é do
+    // comerciante); perdida a disputa, o dinheiro voltou ao cliente.
+    const s4 = await cenario();
+    const c = await perdida(s4, false);
+    const disputa = (estado: string) =>
+      comComerciante(base.dono, s4.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'sistema:teste', true),
+          set_config('eurolify.origem', 'aviso', true)`.execute(trx);
+        await sql`update pagamento set estado = ${estado}
+          where encomenda_id = ${c.encomenda.slice(4)}::uuid`.execute(trx);
+      });
+    await disputa("em_disputa");
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(c.encomenda)).toEqual(c.antes);
+    await disputa("perdida");
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    expect(await contactoDe(c.encomenda)).toEqual({
+      estado: "expedida",
+      email: "(pseudonimizado)",
+    });
+    // Quatro comerciantes e sete voltas da fila.
+  }, 30_000);
 
   it("o botão: dentro do prazo regista, confirma com data e hora e abre a devolução; sem dados pessoais", async () => {
     const s = await cenario();
@@ -3870,7 +4221,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         l["valor_iva"],
         l["total"],
       ]),
-      // Desde a 0072, com a data-limite dos portes (docs/36 L1; revisão do
+      // Desde a 0073, com a data-limite dos portes (docs/36 L1; revisão do
       // #397, P1-1).
       portes: [
         sp(portes["metodo"]),

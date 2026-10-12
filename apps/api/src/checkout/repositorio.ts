@@ -1974,7 +1974,7 @@ export interface DadosMetodoEntrega {
   pede_telefone: boolean;
 }
 
-/** O que o método diz para os envios (docs/36 §3.2; 0072). */
+/** O que o método diz para os envios (docs/36 §3.2; 0073). */
 export interface EnviosDoMetodo {
   conta: string | null;
   servico: string | null;

@@ -23,6 +23,7 @@ import { ArmazenamentoEmDisco } from "./catalogo/armazenamento.js";
 import { agendarLimpezaDosFicheiros } from "./catalogo/limpeza-ficheiros.js";
 import { consultaVies } from "./clientes/vies.js";
 import { agendarFilaVies } from "./clientes/vies-fila.js";
+import { agendarApagamentosPendentes } from "./clientes/titular-fila.js";
 import { proxyConfiavel } from "./base/limite.js";
 import { serializadores } from "./base/registo.js";
 import { chaveTotp } from "./identidade/palavra-passe.js";
@@ -285,8 +286,18 @@ const pararConclusoes =
       )
     : () => undefined;
 
+// As encomendas de um pedido de apagamento que estavam em curso limpam-se
+// quando acabarem, de hora a hora (docs/23 §15.3).
+const pararApagamentos =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:titular" }, () =>
+        agendarApagamentosPendentes(base, app.log),
+      )
+    : () => undefined;
+
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
+    pararApagamentos();
     pararConclusoes();
     pararDocumentos();
     pararRenovacoes();

@@ -4,7 +4,7 @@ import { codigoPostalLimpo, diaNoFuso } from "../iva/decisao.js";
 import { folhas } from "../stock/repositorio.js";
 
 // O que decide se um método de entrega serve uma encomenda (docs/36 R4;
-// migração 0072): a zona da morada (L3), o peso, os perigosos (L9) e a conta
+// migração 0073): a zona da morada (L3), o peso, os perigosos (L9) e a conta
 // da transportadora; e a data-limite que o cliente vê antes de comprar (L1,
 // L4). Uma regra, um sítio: o resumo, a escolha do método e a lista do
 // checkout perguntam aqui.
@@ -17,7 +17,7 @@ export type MotivoNaoServe =
   | "peso_excedido"
   | "conta_indisponivel";
 
-/** O que o método de entrega diz sobre o que aceita (0072). */
+/** O que o método de entrega diz sobre o que aceita (0073). */
 export interface RegrasDoMetodo {
   conta_transportadora_id: string | null;
   codigos_postais: string[];

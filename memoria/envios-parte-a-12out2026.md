@@ -5,7 +5,7 @@ desenho no `docs/36`, decisão ED). O que está no código está no `docs/36` §
 
 ## O que se fez
 
-- Migração 0072:
+- Migração 0073:
   - `conta_transportadora` (só `ctt`, só modo teste, credenciais cifradas com `ENVIOS_CHAVE`);
   - os campos novos do `metodo_entrega` (conta e serviço, `prazo_max_dias`, `codigos_postais`, `aceita_onu`, `peso_max_g`);
   - o âmbito `shipping:accounts`, só do dono.

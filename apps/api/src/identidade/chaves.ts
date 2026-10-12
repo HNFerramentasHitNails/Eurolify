@@ -31,7 +31,7 @@ export const AMBITOS = [
   "legal:write",
   "shipping:read",
   "shipping:write",
-  // As contas de transportadora (docs/36 §3.1; 0072).
+  // As contas de transportadora (docs/36 §3.1; 0073).
   "shipping:accounts",
   "orders:read",
   "payments:read",

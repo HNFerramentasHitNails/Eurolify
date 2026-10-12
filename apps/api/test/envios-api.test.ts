@@ -38,7 +38,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Os envios, parte A (docs/36; migração 0072): as contas de transportadora
+// Os envios, parte A (docs/36; migração 0073): as contas de transportadora
 // (credenciais cifradas que nunca saem, pronta só depois do teste, só o
 // dono), o método de entrega com conta e serviço, e o que decide se um
 // método serve (zona, perigosos, peso, conta pronta) com a data-limite. A
@@ -551,7 +551,7 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
         ),
       ),
     ).toEqual([403, "auth.forbidden"]);
-    // O dono tem o âmbito pelo papel; o gestor não (papel_ambitos, 0072).
+    // O dono tem o âmbito pelo papel; o gestor não (papel_ambitos, 0073).
     const papeis = (
       await sql<{
         papel: string;

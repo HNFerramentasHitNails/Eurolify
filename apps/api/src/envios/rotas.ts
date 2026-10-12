@@ -18,7 +18,7 @@ import {
   traduzir,
 } from "./repositorio.js";
 
-// A API das contas de transportadora (docs/36 §7.1; migração 0072; Diogo,
+// A API das contas de transportadora (docs/36 §7.1; migração 0073; Diogo,
 // 12/10/2026: «sim, aprovo; avança com a parte A»). Os campos novos do
 // método de entrega vivem nas rotas do checkout (/shipping-methods).
 

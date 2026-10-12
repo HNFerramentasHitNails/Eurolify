@@ -12,13 +12,13 @@ import {
 import { ErroEnvios } from "./erros.js";
 
 // As contas do comerciante numa transportadora (docs/36 §3.1; migração
-// 0072; Diogo, 12/10/2026: «sim, aprovo; avança com a parte A»): o padrão
+// 0073; Diogo, 12/10/2026: «sim, aprovo; avança com a parte A»): o padrão
 // das contas de pagamento (docs/26 §3.1) — credenciais cifradas que nunca
 // saem, pronta só depois da chamada de teste, só o dono as liga.
 
 export function traduzir(erro: unknown): unknown {
   if (!(erro instanceof Error) || erro instanceof ErroEnvios) return erro;
-  // O gatilho da conta (0072) recusa com o código à frente da mensagem.
+  // O gatilho da conta (0073) recusa com o código à frente da mensagem.
   if (erro.message.startsWith("shipping.immutable:")) {
     return new ErroEnvios("shipping.immutable", erro.message, undefined, {
       cause: erro,
