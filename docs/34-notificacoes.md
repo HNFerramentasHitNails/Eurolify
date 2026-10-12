@@ -256,14 +256,45 @@ configuração errada não derruba a API: a API arranca sem SMTP e diz porquê,
 
 **O DNS de `eurolify.eu`** (lido a 12/10/2026 pelo `dns.google`):
 - **SPF:** havia **dois** registos (`~all` e `-all`). Com mais de um, o SPF
-  dá erro (RFC 7208, §4.5) e não vale: fica só o
-  `v=spf1 include:mx.ovh.com ~all` da OVH
+  dá erro (RFC 7208, §4.5) e não vale
   ([guia](https://docs.ovhcloud.com/en/guides/web-cloud/domains/dns-zone-spf)).
+  O Diogo apagou o `~all`: fica um só, `v=spf1 include:mx.ovh.com -all`
+  (lido a 12/10/2026).
 - **DMARC:** `v=DMARC1; p=none; rua=mailto:avisos@eurolify.eu`. Começa só a
   vigiar, como a OVH recomenda
   ([guia](https://docs.ovhcloud.com/en/guides/web-cloud/domains/dns-zone-dmarc)).
 - **MX:** `mx1`, `mx2` e `mx3.mail.ovh.net`.
-- **DKIM:** **não verifiquei**. O nome do selector vem do painel da OVH.
+- **DKIM:** os selectores `ovhmo-selector-1` e `ovhmo-selector-2` estão
+  publicados (`CNAME` para a OVH, com a chave `v=DKIM1; k=rsa`; lidos a
+  12/10/2026). **Não verifiquei** se a assinatura está ligada no painel.
+
+### 13.1 O e-mail de teste (12/10/2026; Diogo: «A»)
+
+A acção correu verde a 12/10/2026 (execução 38263297038), mas um e-mail real
+só sai quando há um caso, e o ensaio não tem nenhum: nem o Hub nem a acção
+`operar` criam clientes, devoluções ou problemas, e a API de Administração
+não está aberta para fora no ensaio (`nginx-hub.conf` só deixa passar
+`/hub/`). À pergunta «como testamos o envio?» o Diogo respondeu *«A»*: **uma
+acção de teste**, que serve também quando mudarem a palavra-passe ou o
+servidor.
+
+| Peça | O que faz | Onde |
+|---|---|---|
+| acção `configurar`, escolha `testar` | sem os segredos `SMTP_*`: entrega só `teste run:<n> github:<conta>` | `.github/workflows/configurar.yml` |
+| `eurolify-pedido` e `eurolify-trabalho` | aceitam também esse formato no fluxo `configurar`; o registo diz `'teste' (<execução> github:<conta>)` | `ficheiros/bin/eurolify-pedido`; `ficheiros/sbin/eurolify-trabalho` |
+| `eurolify-configurar` | com o `api-smtp.env` que já está na máquina (sem ele, recusa) e **só se a API corre com ele** (as cinco linhas no ambiente do contentor; senão pede o «configurar» primeiro: revisão do #410, P2-1), corre `node dist/testar-correio.js run:<n>` num contentor de uma vez com a imagem da API no ar e só esse ficheiro de ambiente, com as protecções do contentor do operador; mostra só a linha do resultado, e só se tiver a forma esperada. Não muda nada | `ficheiros/sbin/eurolify-configurar` |
+| `testar-correio` | envia **do remetente para o próprio remetente** (`SMTP_REMETENTE`), com o assunto «Eurolify: e-mail de teste» e a execução no texto: nenhum dado de alguém. Escreve se saiu e o `Message-ID`, ou o código e a culpa do erro (`smtp_535`: utilizador ou palavra-passe; `econnection`, `etimedout`: anfitrião ou porta), nunca a configuração | `src/notificacoes/teste.ts`; `src/testar-correio.ts` |
+
+**O que prova:** que o servidor da OVH aceitou o início de sessão e o
+e-mail, com a configuração com que a API corre. **Que chegou** vê-se na caixa
+do remetente; isso a máquina não sabe.
+
+**A ordem:** juntar o pedido; o `publicar` leva a imagem com o
+`dist/testar-correio.js` e o `aplicar-script` os programas da máquina (uma
+imagem de antes dá «publicar primeiro»); lançar `configurar` com `testar`.
+
+**Fica** (revisão do #410): o contentor de teste usa a rede `eurolify`, como
+a API, porque o teste é do caminho que a API usa para chegar à OVH (P3-1).
 
 ## 10. Pergunta para o Diogo ou o Bruno
 

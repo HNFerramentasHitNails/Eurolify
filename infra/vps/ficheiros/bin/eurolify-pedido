@@ -37,10 +37,10 @@ case "$fluxo" in
     ;;
   # A configuração do e-mail da API (docs/34 §13): os cinco valores em
   # base64, dos segredos do ambiente «ensaio», com a execução e a conta de
-  # quem a lançou. Espera pela API recriada, mais do que o serviço (revisão
+  # quem a lançou; ou «teste», o e-mail de teste com o que a API tem (§13.1). Espera pela API recriada, mais do que o serviço (revisão
   # do #398, P3-1).
   configurar)
-    padrao='^smtp [A-Za-z0-9+/]+={0,2} run:[0-9]{1,20} github:[0-9]{1,20}$'
+    padrao='^(smtp [A-Za-z0-9+/]+={0,2}|teste) run:[0-9]{1,20} github:[0-9]{1,20}$'
     espera=1900
     maximo=1500
     ;;

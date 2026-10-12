@@ -141,6 +141,11 @@ recusados=(
   "configurar|smtp YWJj run:1 github:1;reboot"
   "configurar|smtp YWJj${nl}run:1 github:1"
   "configurar|smtp $(printf 'A%.0s' {1..1500}) run:1 github:1"
+  # O e-mail de teste (docs/34 §13.1): sem a conta, com «;», com mais
+  # alguma coisa antes da execução.
+  "configurar|teste run:1"
+  "configurar|teste run:1 github:1;reboot"
+  "configurar|teste YWJj run:1 github:1"
 )
 for caso in "${recusados[@]}"; do
   fluxo="${caso%%|*}"; texto="${caso#*|}"; mostrar="${texto//$nl/\\n}"
