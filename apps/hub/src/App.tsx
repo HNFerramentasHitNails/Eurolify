@@ -14,6 +14,7 @@ import { PrecoDaVariante } from "./ecras/PrecoDaVariante";
 import { VarianteEditar } from "./ecras/VarianteEditar";
 import { VarianteNova } from "./ecras/VarianteNova";
 import { Chaves } from "./ecras/Chaves";
+import { EnvioConta, EnvioNova, Envios } from "./ecras/Envios";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
 import { Entrar } from "./ecras/Entrar";
@@ -54,6 +55,7 @@ const CAMINHO_HISTORICO = /^\/artigos\/([^/]+)\/historico$/;
 const CAMINHO_OPCOES = /^\/artigos\/([^/]+)\/opcoes$/;
 const CAMINHO_VARIANTE = /^\/artigos\/([^/]+)\/variantes\/([^/]+)$/;
 const CAMINHO_PRECO = /^\/artigos\/([^/]+)\/precos\/([^/]+)\/([^/]+)$/;
+const CAMINHO_CONTA_ENVIOS = /^\/envios\/(cac_[^/]+)$/;
 
 const segredoInicial =
   window.location.pathname === "/convite" ? lerSegredoDaLigacao() : null;
@@ -145,6 +147,7 @@ export function App() {
   const opcoesDoArtigo = CAMINHO_OPCOES.exec(local.caminho)?.[1] ?? null;
   const daVariante = CAMINHO_VARIANTE.exec(local.caminho);
   const doPreco = CAMINHO_PRECO.exec(local.caminho);
+  const contaDeEnvios = CAMINHO_CONTA_ENVIOS.exec(local.caminho)?.[1] ?? null;
   const comSessao =
     novo ||
     artigo !== null ||
@@ -156,6 +159,9 @@ export function App() {
     local.caminho === "/equipa" ||
     local.caminho === "/artigos" ||
     local.caminho === "/a-decidir" ||
+    local.caminho === "/envios" ||
+    local.caminho === "/envios/nova" ||
+    contaDeEnvios !== null ||
     local.caminho === "/chaves" ||
     local.caminho === "/conta";
 
@@ -187,11 +193,17 @@ export function App() {
                             : t.varianteEditarTitulo
                           : local.caminho === "/a-decidir"
                             ? t.decidirTitulo
-                            : local.caminho === "/chaves"
-                              ? t.chavesTitulo
-                              : local.caminho === "/conta"
-                                ? t.contaTitulo
-                                : t.inicioTitulo;
+                            : local.caminho === "/envios"
+                              ? t.enviosTitulo
+                              : local.caminho === "/envios/nova"
+                                ? t.enviosNovaTitulo
+                                : contaDeEnvios !== null
+                                  ? t.enviosContaTitulo
+                                  : local.caminho === "/chaves"
+                                    ? t.chavesTitulo
+                                    : local.caminho === "/conta"
+                                      ? t.contaTitulo
+                                      : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -300,6 +312,28 @@ export function App() {
         key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
         consulta={local.consulta}
+      />
+    );
+  else if (local.caminho === "/envios")
+    ecra = (
+      <Envios
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (local.caminho === "/envios/nova")
+    ecra = (
+      <EnvioNova
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (contaDeEnvios !== null)
+    ecra = (
+      <EnvioConta
+        key={`${contaDeEnvios} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        conta={contaDeEnvios}
       />
     );
   else if (local.caminho === "/chaves")

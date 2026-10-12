@@ -896,4 +896,122 @@ export const es: Textos = {
     "nota de crédito a tramitar en el emisor",
   decidirCopiarCaso: "Copiar el caso {caso}",
   decidirActo_ficou: "{quem} se quedó con el caso.",
+  // Los envíos (docs/22 §29).
+  modulo_envios: "Envíos",
+  termos_envios:
+    "transportistas etiquetas sendcloud ctt expedición seguimiento",
+  enviosTitulo: "Envíos",
+  enviosExplicacao:
+    "Las cuentas del comerciante en los transportistas. Con ellas, Eurolify pide las etiquetas y sigue los pedidos. Solo el propietario conecta y cambia las cuentas.",
+  enviosLigar: "Conectar un transportista",
+  enviosVazio: "Aún no hay cuentas de transportista.",
+  enviosContagemUm: "1 cuenta.",
+  enviosContagem: "{n} cuentas.",
+  enviosMostrarArquivadas: "Mostrar las archivadas ({n})",
+  enviosColunaConta: "Cuenta",
+  enviosColunaTransportadora: "Transportista",
+  enviosColunaEstado: "Estado",
+  enviosColunaModo: "Modo",
+  enviosColunaTestada: "Última prueba",
+  enviosNuncaTestada: "Nunca",
+  enviosModo: "Modo: {modo}",
+  enviosModo_teste: "Prueba",
+  enviosEstadoPronta: "Lista",
+  enviosEstadoPorTestar: "Por probar",
+  enviosEstadoArquivada: "Archivada",
+  enviosTransportadora_sendcloud: "Sendcloud",
+  enviosTransportadora_ctt: "CTT",
+  enviosVoltar: "Volver a los envíos",
+  enviosNovaTitulo: "Conectar un transportista",
+  enviosNovaExplicacao:
+    "La cuenta queda en modo prueba y por probar hasta guardar las credenciales y pasar la prueba.",
+  enviosCttAinda:
+    "CTT aún no está conectado a Eurolify: la cuenta se crea, pero la prueba solo pasará cuando lo esté.",
+  enviosNome: "Nombre de la cuenta",
+  enviosRemetente: "Desde dónde salen los pedidos",
+  enviosRemNome: "Nombre",
+  enviosRemLinha1: "Dirección",
+  enviosRemLinha2: "Dirección (continuación, opcional)",
+  enviosRemCodigoPostal: "Código postal",
+  enviosRemLocalidade: "Localidad",
+  enviosRemPais: "País (código de 2 letras, p. ej.: ES)",
+  enviosCriar: "Conectar",
+  enviosFalta_conta: "Escriba el nombre de la cuenta.",
+  enviosFalta_nome: "Escriba el nombre del remitente.",
+  enviosFalta_linha1: "Escriba la dirección del remitente.",
+  enviosFalta_codigo_postal: "Escriba el código postal del remitente.",
+  enviosFalta_localidade: "Escriba la localidad del remitente.",
+  enviosFalta_pais: "El país es el código de 2 letras (p. ej.: ES).",
+  enviosTalvezCriada:
+    "No llegó respuesta: la cuenta puede haberse creado. Revise la lista de envíos antes de intentarlo de nuevo.",
+  enviosContaTitulo: "Cuenta de transportista",
+  enviosNaoExiste: "Esta cuenta no existe o no es de este comerciante.",
+  enviosArquivada: "La cuenta está archivada: solo se puede consultar.",
+  enviosDados: "Datos de la cuenta",
+  enviosEditar: "Editar",
+  enviosGuardar: "Guardar",
+  enviosCancelar: "Cancelar",
+  enviosGuardado: "Guardado.",
+  enviosCredenciais: "Credenciales",
+  enviosCredenciaisExplicacao:
+    "Escriba las claves que le dio el transportista. Quedan cifradas y no vuelven a mostrarse, ni a usted.",
+  enviosCredenciaisGuardadas: "Guardadas el {data} por {quem}.",
+  enviosCredenciaisNenhumas: "Aún no hay credenciales.",
+  enviosCredenciaisSemAdaptador:
+    "Este transportista aún no está conectado a Eurolify: las credenciales y la prueba quedan para cuando lo esté.",
+  enviosCampo_chave_publica: "Clave pública",
+  enviosCampo_chave_secreta: "Clave secreta",
+  enviosSegredoAviso: "Clave de firma de los avisos (opcional)",
+  enviosSegredoAvisoAjuda:
+    "La clave con la que el transportista firma los avisos. En blanco, queda la que estaba guardada.",
+  enviosGuardarCredenciais: "Guardar las credenciales",
+  enviosCredenciaisGuardadasAgora:
+    "Credenciales guardadas. La cuenta queda por probar hasta pasar la prueba.",
+  enviosCredenciaisFaltam: "Escriba todos los campos de las credenciales.",
+  enviosSegredoCurto:
+    "La clave de firma de los avisos debe tener al menos 16 caracteres.",
+  enviosAvisos: "Avisos del transportista",
+  enviosAvisosExplicacao:
+    "En el transportista, indique esta ruta, en la dirección de la API de Eurolify:",
+  enviosAvisosVps:
+    "En el VPS de pruebas, los avisos aún no llegan: falta publicar esta ruta en el servidor. Hasta entonces, Eurolify consulta el seguimiento cada hora.",
+  enviosTestar: "Probar la conexión",
+  enviosATestar: "Probando…",
+  enviosTestarExplicacao:
+    "Eurolify pregunta al transportista si acepta las credenciales y lee los servicios de la cuenta.",
+  enviosTestarSemCredenciais: "Guarde primero las credenciales.",
+  enviosTestePronta:
+    "El transportista aceptó las credenciales: la cuenta está lista.",
+  enviosServicos: "Servicios",
+  enviosServicosFotografia: "Lista leída en la prueba del {data}.",
+  enviosServicosVazio:
+    "Sin servicios. Aparecen cuando la cuenta pasa la prueba.",
+  enviosColunaServico: "Servicio",
+  enviosColunaPaises: "Países",
+  enviosColunaPesoMax: "Peso máximo",
+  enviosColunaPede: "Pide",
+  enviosPedeTelefone: "teléfono",
+  enviosPedeEmail: "correo electrónico",
+  enviosPedeNada: "—",
+  enviosSemLimite: "sin límite declarado",
+  enviosArquivar: "Archivar la cuenta",
+  enviosArquivarConfirmar:
+    "¿Archivar la cuenta «{nome}»? Una vez archivada, solo se puede consultar. Si un método de entrega activo la usa, el archivo se rechaza: cambie ese método primero.",
+  enviosArquivadaAgora: "La cuenta se archivó.",
+  enviosConflito:
+    "La cuenta cambió mientras tanto. Recargue para ver la versión actual.",
+  enviosRecusadas:
+    "Las credenciales no están listas: el transportista las rechazó, o hay que guardarlas otra vez. Guárdelas y pruebe de nuevo.",
+  enviosSemResposta:
+    "El transportista no respondió, o aún no está conectado a Eurolify. No cambió nada.",
+  enviosSemChave: "Los envíos aún no están activados en este servidor.",
+  enviosImutavel: "La cuenta está archivada y ya no cambia.",
+  enviosContaEmUso:
+    "Hay métodos de entrega activos con esta cuenta: la cuenta no se archiva. Cambie esos métodos primero.",
+  enviosServicoEmUso:
+    "El transportista ya no tiene el servicio de un método de entrega activo de esta cuenta: la prueba no guardó la lista nueva y la cuenta quedó como estaba. Cambie ese método primero.",
+  enviosTentarDeNovo:
+    "Los envíos están ocupados en este momento. Inténtelo de nuevo en un rato.",
+  enviosServicosFalha:
+    "No se pudieron leer los servicios de la cuenta ahora. El resto de la página funciona; recargue más tarde.",
 };

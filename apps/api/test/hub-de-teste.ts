@@ -1,3 +1,4 @@
+import type { ConfigEnvios } from "../src/envios/adaptador.js";
 import { randomBytes } from "node:crypto";
 import { Writable } from "node:stream";
 import { sql } from "kysely";
@@ -45,7 +46,11 @@ export const CHAVE_TOTP = { versao: 1, chave: Buffer.alloc(32, 7) };
 
 export function hubDeTeste(
   base: BaseDeTeste,
-  opcoes: { comTotp?: boolean; armazenamento?: Armazenamento } = {},
+  opcoes: {
+    comTotp?: boolean;
+    armazenamento?: Armazenamento;
+    envios?: ConfigEnvios;
+  } = {},
 ) {
   const registo: string[] = [];
   const destino = new Writable({
@@ -60,6 +65,11 @@ export function hubDeTeste(
     base.api,
     opcoes.comTotp === true ? { ...HUB, chaveTotp: CHAVE_TOTP } : HUB,
     opcoes.armazenamento,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    opcoes.envios,
   );
 
   const pedir = (

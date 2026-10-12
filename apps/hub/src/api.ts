@@ -111,6 +111,48 @@ export interface ChaveApi {
   agente_ia: boolean;
 }
 
+/** A morada de onde saem as encomendas de uma conta (docs/36 §3.1). */
+export interface RemetenteConta {
+  nome: string;
+  linha1: string;
+  linha2?: string;
+  codigo_postal: string;
+  localidade: string;
+  pais: string;
+  /** Só pela chave, por agora: o Hub guarda-os como vieram. */
+  telefone?: string;
+  email?: string;
+}
+
+/** Uma conta de transportadora, sem as credenciais (docs/22 §29.2). */
+export interface ContaTransportadora {
+  id: string;
+  transportadora: "ctt" | "sendcloud";
+  nome: string;
+  modo: "teste";
+  remetente: RemetenteConta;
+  estado: "rascunho" | "pronta" | "arquivada";
+  credenciais_em: string | null;
+  /** pessoa:per_…, chave:key_… ou operador:… */
+  credenciais_por: string | null;
+  testada_em: string | null;
+  servicos_em: string | null;
+  /** Os campos que a transportadora pede; vazio se ainda não está ligada. */
+  campos_credenciais: { campo: string; segredo: boolean }[];
+  criado_em: string;
+  versao: number;
+}
+
+/** Um serviço de uma conta (docs/36 §8). */
+export interface ServicoConta {
+  codigo: string;
+  nome: Record<string, string>;
+  paises: string[];
+  peso_max_g: number | null;
+  pede_telefone: boolean;
+  pede_email: boolean;
+}
+
 /** Um artigo na lista do catálogo (docs/22 §11; o resumo do GET /products). */
 export interface ResumoArtigo {
   id: string;
@@ -691,6 +733,63 @@ export const api = {
       "POST",
       `/hub/tasks/${fila}/${encodeURIComponent(caso)}/deadline`,
       { comerciante, corpo: { prazo, motivo, versao } },
+    ),
+  // As contas de transportadora (docs/22 §29.2): as mesmas rotas da chave.
+  contasTransportadora: (comerciante: string) =>
+    pedir<{ dados: ContaTransportadora[] }>("GET", "/hub/carrier-accounts", {
+      comerciante,
+    }),
+  criarContaTransportadora: (
+    comerciante: string,
+    corpo: {
+      transportadora: ContaTransportadora["transportadora"];
+      nome: string;
+      remetente: RemetenteConta;
+    },
+  ) =>
+    pedir<{ id: string }>("POST", "/hub/carrier-accounts", {
+      comerciante,
+      corpo,
+    }),
+  mudarContaTransportadora: (
+    comerciante: string,
+    id: string,
+    corpo: {
+      versao: number;
+      nome?: string;
+      remetente?: RemetenteConta;
+      arquivar?: true;
+    },
+  ) =>
+    pedir<{ versao: number }>(
+      "PATCH",
+      `/hub/carrier-accounts/${encodeURIComponent(id)}`,
+      { comerciante, corpo },
+    ),
+  guardarCredenciais: (
+    comerciante: string,
+    id: string,
+    corpo: {
+      credenciais: Record<string, string>;
+      segredo_aviso?: string | null;
+    },
+  ) =>
+    pedir<undefined>(
+      "PUT",
+      `/hub/carrier-accounts/${encodeURIComponent(id)}/credentials`,
+      { comerciante, corpo },
+    ),
+  testarContaTransportadora: (comerciante: string, id: string) =>
+    pedir<{ versao: number }>(
+      "POST",
+      `/hub/carrier-accounts/${encodeURIComponent(id)}/test`,
+      { comerciante, corpo: {} },
+    ),
+  servicosDaConta: (comerciante: string, id: string) =>
+    pedir<{ dados: ServicoConta[] }>(
+      "GET",
+      `/hub/carrier-accounts/${encodeURIComponent(id)}/services`,
+      { comerciante },
     ),
   sair: () => pedir<{ ok: true }>("POST", "/hub/session/end"),
   membros: (comerciante: string) =>

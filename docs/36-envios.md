@@ -241,6 +241,12 @@ O armazém e o apoio já têm `shipping:read` (`papeis.ts:100` e `:117`).
 `shipping.void_not_allowed`, `shipping.carrier_unavailable`,
 `checkout.no_shipping_method`.
 
+Desde o docs/22 §29 (revisão do #409), dois códigos próprios para o que um
+método de entrega activo impede, para que o Hub o diga sem ler o texto:
+`shipping.account_in_use` (409, arquivar uma conta que um método activo usa)
+e `shipping.service_in_use` (409, um teste cuja lista nova de serviços
+deixaria um método activo sem o serviço dele). O `detail` leva os métodos.
+
 ### 7.5 Eventos
 
 `shipment.label_created`, `shipment.label_refused`, `shipment.label_voided`,

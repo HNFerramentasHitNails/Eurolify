@@ -88,6 +88,12 @@ export type LeituraAvisoEnvio =
 
 export interface AdaptadorTransportadora {
   readonly transportadora: Transportadora;
+  /**
+   * Os campos das credenciais que a transportadora pede (docs/22 §29.2):
+   * quem os declara é o adaptador, nunca o ecrã. `segredo` só muda a forma
+   * de os escrever no Hub; nenhum campo volta do servidor.
+   */
+  readonly camposCredenciais?: readonly { campo: string; segredo: boolean }[];
   /** Os serviços que a transportadora tem (parte A: sem credenciais). */
   servicos(): readonly ServicoTransportadora[];
   /** Uma chamada que confirma que as credenciais são aceites. Lança se não forem. */

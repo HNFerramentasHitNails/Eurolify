@@ -6,7 +6,7 @@ import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { TRANSPORTADORAS, type BaseDados } from "../base/esquema.js";
 import { escrever, idCom, semPrefixo, umDe } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
-import type { ConfigEnvios } from "./adaptador.js";
+import type { ConfigEnvios, ServicoTransportadora } from "./adaptador.js";
 import {
   anularEtiqueta,
   comercianteDaConta,
@@ -65,13 +65,13 @@ export async function emEnvios<T>(
   }
 }
 
-const IdConta = idCom("cac", "cac_…");
+export const IdConta = idCom("cac", "cac_…");
 const IdExpedicao = idCom("shp", "shp_…");
 const IdArmazem = idCom("whs", "whs_…");
-const Versao = Type.Integer({ minimum: 1 });
+export const Versao = Type.Integer({ minimum: 1 });
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 
-const Remetente = Type.Object(
+export const Remetente = Type.Object(
   {
     nome: Type.String({ minLength: 1, maxLength: 200 }),
     linha1: Type.String({ minLength: 1, maxLength: 200 }),
@@ -87,14 +87,54 @@ const Remetente = Type.Object(
   { additionalProperties: false },
 );
 
-export function rotasDosEnvios(
-  instancia: FastifyInstance,
-  base: Kysely<BaseDados>,
-  cfg: ConfigEnvios | undefined,
-) {
-  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+export const CorpoNovaConta = Type.Object(
+  {
+    transportadora: umDe(TRANSPORTADORAS),
+    nome: Type.String({ minLength: 1, maxLength: 100 }),
+    remetente: Remetente,
+  },
+  { additionalProperties: false },
+);
 
-  const paraConta = (c: Awaited<ReturnType<typeof listarContas>>[number]) => ({
+export const CorpoMudarConta = Type.Object(
+  {
+    versao: Versao,
+    nome: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
+    remetente: Type.Optional(Remetente),
+    arquivar: Type.Optional(Type.Literal(true)),
+  },
+  { additionalProperties: false },
+);
+
+export const CorpoCredenciais = Type.Object(
+  {
+    credenciais: Type.Record(
+      Type.String({ pattern: "^[a-z][a-z0-9_]{0,39}$" }),
+      Type.String({ minLength: 1, maxLength: 500 }),
+      { minProperties: 1, maxProperties: 10 },
+    ),
+    // Sem ele, o segredo guardado fica; null tira-o.
+    segredo_aviso: Type.Optional(
+      Type.Union([Type.String({ minLength: 16, maxLength: 200 }), Type.Null()]),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+/** Um serviço como a API o mostra, pela chave e pelo Hub. */
+export const servicoParaApi = (s: ServicoTransportadora) => ({
+  codigo: s.codigo,
+  nome: s.nome,
+  paises: s.paises,
+  peso_max_g: s.pesoMaxG,
+  pede_telefone: s.pedeTelefone,
+  pede_email: s.pedeEmail,
+  aceita_onu: s.aceitaOnu,
+});
+
+/** Uma conta como a API a mostra, pela chave e pelo Hub (docs/22 §29.2). */
+export function contaParaApi(cfg: ConfigEnvios | undefined) {
+  return (c: Awaited<ReturnType<typeof listarContas>>[number]) => ({
     id: `cac_${c.id}`,
     transportadora: c.transportadora,
     nome: c.nome,
@@ -105,9 +145,25 @@ export function rotasDosEnvios(
     credenciais_em: iso(c.credenciais_em),
     credenciais_por: c.credenciais_por,
     testada_em: iso(c.testada_em),
+    servicos_em: iso(c.servicos_em),
+    // Os campos que a transportadora pede, como o adaptador os declara;
+    // vazio quando a transportadora ainda não está ligada ao Eurolify.
+    campos_credenciais: [
+      ...(cfg?.adaptadores[c.transportadora]?.camposCredenciais ?? []),
+    ],
     criado_em: c.criado_em.toISOString(),
     versao: c.versao,
   });
+}
+
+export function rotasDosEnvios(
+  instancia: FastifyInstance,
+  base: Kysely<BaseDados>,
+  cfg: ConfigEnvios | undefined,
+) {
+  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+
+  const paraConta = contaParaApi(cfg);
 
   rotas.get(
     "/carrier-accounts",
@@ -139,14 +195,7 @@ export function rotasDosEnvios(
       schema: {
         description:
           "Cria uma conta numa transportadora (rascunho, modo teste). Só o dono (shipping:accounts).",
-        body: Type.Object(
-          {
-            transportadora: umDe(TRANSPORTADORAS),
-            nome: Type.String({ minLength: 1, maxLength: 100 }),
-            remetente: Remetente,
-          },
-          { additionalProperties: false },
-        ),
+        body: CorpoNovaConta,
         response: {
           201: Type.Object({ id: Type.String() }),
           ...RESPOSTA_DE_ERRO,
@@ -169,15 +218,7 @@ export function rotasDosEnvios(
         description:
           "Muda o nome ou o remetente da conta, ou arquiva-a (só sem métodos de entrega activos a usá-la).",
         params: Type.Object({ id: IdConta }),
-        body: Type.Object(
-          {
-            versao: Versao,
-            nome: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
-            remetente: Type.Optional(Remetente),
-            arquivar: Type.Optional(Type.Literal(true)),
-          },
-          { additionalProperties: false },
-        ),
+        body: CorpoMudarConta,
         response: {
           200: Type.Object({ versao: Type.Integer() }),
           ...RESPOSTA_DE_ERRO,
@@ -209,23 +250,7 @@ export function rotasDosEnvios(
         description:
           "Define as credenciais da conta na transportadora (os campos dependem dela) e, se a transportadora avisar, o segredo dos avisos (sem o campo, o guardado fica; null tira-o). Ficam cifrados e nunca se devolvem; a conta volta a rascunho até à chamada de teste.",
         params: Type.Object({ id: IdConta }),
-        body: Type.Object(
-          {
-            credenciais: Type.Record(
-              Type.String({ pattern: "^[a-z][a-z0-9_]{0,39}$" }),
-              Type.String({ minLength: 1, maxLength: 500 }),
-              { minProperties: 1, maxProperties: 10 },
-            ),
-            // Sem ele, o segredo guardado fica; null tira-o.
-            segredo_aviso: Type.Optional(
-              Type.Union([
-                Type.String({ minLength: 16, maxLength: 200 }),
-                Type.Null(),
-              ]),
-            ),
-          },
-          { additionalProperties: false },
-        ),
+        body: CorpoCredenciais,
         response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
       },
     },
@@ -295,15 +320,7 @@ export function rotasDosEnvios(
             semPrefixo(pedido.params.id),
             cfg,
           )
-        ).map((s) => ({
-          codigo: s.codigo,
-          nome: s.nome,
-          paises: s.paises,
-          peso_max_g: s.pesoMaxG,
-          pede_telefone: s.pedeTelefone,
-          pede_email: s.pedeEmail,
-          aceita_onu: s.aceitaOnu,
-        })),
+        ).map(servicoParaApi),
       })),
   );
 
