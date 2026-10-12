@@ -190,7 +190,7 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 | `relatorio_oss_fecho` e `relatorio_oss_documento`: só se acrescentam (a base recusa mudar e apagar), RLS forçado; o evento `tax_report.closed` | migração 0071 |
 | os registos do art. 63.º-C em CSV (com a protecção contra fórmulas) | `src/faturacao/oss.ts` (`registosOss`) |
 | as rotas `GET /tax-reports/oss`, `POST /tax-reports/oss/close`, `GET /tax-reports/oss/records` | `src/faturacao/rotas-oss.ts` |
-| 7 testes da classificação sem base; 3 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
+| 8 testes da classificação sem base; 4 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
 
 **Desvios do desenho:**
 - **As rotas** levam a entidade e o período na consulta (`?entidade=&periodo=`)
@@ -200,6 +200,36 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
   parte (`fora`, «por emitir») pela data em que o pedido nasceu, e os do
   sistema próprio pela captura do pagamento — não têm prova.
 - **Um documento sem data** na prova impede o fecho (não se adivinha).
+
+**Correcções da revisão do #392** (agente revisor, 12/10/2026):
+- **CSV:** uma célula de texto que comece por `= + - @`, tabulação ou retorno
+  leva sempre o apóstrofo (também `-1+1`); os números passam como estão; com
+  BOM; as datas no fuso de Portugal.
+- **As linhas** da prova e do conteúdo casam uma a uma pela quantidade, a taxa
+  e o motivo; uma diferença impede (`linhas_desalinhadas`); um montante
+  negativo na prova também (`sinal_inesperado`).
+- **As emitidas fora** entram uma vez só (ficam em `relatorio_oss_documento`
+  no fecho) e, se chegarem depois do fecho do seu período, aparecem como
+  alteração dele (`alteracao_de`).
+- **Impedem também:** um documento de um período anterior ainda aberto
+  (`periodo_anterior_aberto`) e um documento já declarado que passou a
+  divergente (`declarado_divergente`).
+- **Os registos** de um período fechado lêem o balde e o país gravados no
+  fecho (coluna `linhas`), nunca a regra actual; de um período aberto, só sem
+  impedimentos que deixem documentos de fora. Sem expedição registada, o país
+  de início do transporte fica vazio e `expedicao_registada = nao`.
+- **O limiar** soma o ano civil e o anterior e diz quantos documentos ficaram
+  fora da soma (`documentos_excluidos`).
+- **A base** recusa também `TRUNCATE` nas duas tabelas.
+
+**Limites que ficam:**
+- As vendas com sistema próprio não têm documento no Eurolify: mostram-se
+  pela captura do pagamento e **não têm alteração** se o pagamento for
+  capturado depois do fecho.
+- O código de país é o do Eurolify (ISO 3166, `GR`); a declaração OSS usa
+  `EL` para a Grécia — **não verifiquei** se o portal da AT pede um ou outro.
+- `fechado_por` guarda a chave que fechou (o identificador dela), não o nome
+  da pessoa.
 
 **Por fazer:** o ecrã no Hub; os registos de serviços (art. 63.º-C, al. b) e
 k) para serviços) quando houver; outras moedas (L6).

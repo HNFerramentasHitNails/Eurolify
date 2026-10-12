@@ -26,6 +26,7 @@ import {
 import { TIPOS_TEXTO_LEGAL } from "../src/base/esquema.js";
 import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
 import { AdaptadorMoloni } from "../src/faturacao/moloni.js";
+import { hojeEmLisboa, periodoDe } from "../src/faturacao/oss.js";
 import {
   correrDocumentos,
   correrRenovacoes,
@@ -1908,10 +1909,8 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
   });
   // ----------------------------------- O relatório OSS (docs/36; ED, #310)
 
-  const trimestreDeHoje = () => {
-    const d = new Date();
-    return `${String(d.getUTCFullYear())}-T${String(Math.ceil((d.getUTCMonth() + 1) / 3))}`;
-  };
+  // O trimestre de hoje no fuso de Portugal, como o relatório (P2).
+  const trimestreDeHoje = () => periodoDe(hojeEmLisboa(), "trimestre");
   const relatorio = (s: Cenario, periodo: string) =>
     ok(
       s.adm(
@@ -1962,7 +1961,9 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     );
     expect(csv.statusCode).toBe(200);
     expect(csv.headers["content-type"]).toMatch(/^text\/csv/);
-    const linhas = csv.body.trim().split("\r\n");
+    // Com BOM, para a folha de cálculo ler os acentos (revisão do #392).
+    expect(csv.body.startsWith("\uFEFF")).toBe(true);
+    const linhas = csv.body.slice(1).trim().split("\r\n");
     expect(linhas[0]).toMatch(/^periodo,periodo_original,tipo,numero/);
     expect(linhas).toHaveLength(
       1 + (prova as unknown as { linhas: unknown[] }).linhas.length,
@@ -2034,6 +2035,38 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         sql`select count(*) from relatorio_oss_fecho`.execute(trx),
       ),
     ).resolves.toMatchObject({ rows: [{ count: "1" }] });
+    // Os registos do T4 trazem a alteração com o período de origem (P4).
+    const registos = await s.adm(
+      "GET",
+      `/tax-reports/oss/records?entidade=lgl_${s.entidade}&periodo=2026-T4`,
+    );
+    expect(registos.statusCode).toBe(200);
+    expect(registos.body).toContain(",2026-T3,fatura,");
+  });
+
+  it("relatório OSS: outro comerciante não lê nem fecha; dois fechos ao mesmo tempo dão um só", async () => {
+    const s = await cenario();
+    const outro = await cenario();
+    const corpo = { entidade: `lgl_${s.entidade}`, periodo: "2026-T2" };
+    expect(
+      await codigo(
+        outro.adm(
+          "GET",
+          `/tax-reports/oss?entidade=lgl_${s.entidade}&periodo=2026-T2`,
+        ),
+      ),
+    ).toEqual([404, "tax_reports.not_found"]);
+    expect(
+      await codigo(outro.adm("POST", "/tax-reports/oss/close", corpo)),
+    ).toEqual([404, "tax_reports.not_found"]);
+    const respostas = await Promise.all([
+      s.adm("POST", "/tax-reports/oss/close", corpo),
+      s.adm("POST", "/tax-reports/oss/close", corpo),
+    ]);
+    expect(respostas.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    expect(
+      respostas.find((r) => r.statusCode === 409)?.json<Json>(),
+    ).toMatchObject({ codigo: "tax_reports.already_closed" });
   });
 
   it("relatório OSS: as vendas emitidas fora do Eurolify ficam à parte, com o número declarado (Q-F3)", async () => {

@@ -322,7 +322,45 @@ describe("o relatório OSS (puro)", () => {
         periodo_original: "2026-T3",
       },
     ]);
-    expect(r.incluidos).toEqual([{ id: "tarde", periodo_original: "2026-T3" }]);
+    expect(r.incluidos).toEqual([
+      {
+        id: "tarde",
+        periodo_original: "2026-T3",
+        linhas: [{ balde: "oss", pais: "ES" }],
+      },
+    ]);
+    // De um período anterior ainda aberto: impede (revisão do #392, P2-1).
+    expect([...(r.impedimentos.get("periodo_anterior_aberto") ?? [])]).toEqual([
+      "inv_antes",
+    ]);
+  });
+
+  it("as linhas casam uma a uma: quantidade, taxa ou motivo diferentes impedem (revisão do #392, P1-2)", () => {
+    const duas = [
+      { regra: "nacional", pais_imposto: "PT", base: 100, iva: 23, taxa: 2300 },
+      {
+        regra: "distancia_destino",
+        pais_imposto: "ES",
+        base: 200,
+        iva: 42,
+        taxa: 2100,
+      },
+    ];
+    const trocado = documento("t", "2026-10-02", duas);
+    // A prova com as linhas pela ordem trocada: o mesmo número de linhas.
+    trocado.linhas = [...trocado.linhas].reverse();
+    const negativo = documento("n", "2026-10-02", duas);
+    negativo.linhas = negativo.linhas.map((l) => ({ ...l, base: -l.base }));
+    const r = agregar([trocado, negativo], "PT", T4, new Set());
+    expect(
+      Object.fromEntries(
+        [...r.impedimentos.entries()].map(([k, v]) => [k, [...v]]),
+      ),
+    ).toEqual({
+      linhas_desalinhadas: ["inv_t"],
+      sinal_inesperado: ["inv_n"],
+    });
+    expect(r.incluidos).toEqual([]);
   });
 
   it("impedem o fecho: divergente, outra moeda, sem data, sem balde, linhas desalinhadas (O5, O6, P5)", () => {
@@ -363,7 +401,14 @@ describe("o relatório OSS (puro)", () => {
   it("o CSV não deixa entrar fórmulas nem parte as colunas", () => {
     expect(celula("=1+1")).toBe("'=1+1");
     expect(celula("@SUM(A1)")).toBe("'@SUM(A1)");
-    expect(celula("-12.30")).toBe("-12.30");
+    // Texto: sempre protegido, também o que parece um número (P1-1).
+    expect(celula("-1+1")).toBe("'-1+1");
+    expect(celula("-1;2")).toBe(`"'-1;2"`);
+    expect(celula("+351 912")).toBe("'+351 912");
+    expect(celula("\tx")).toBe("'\tx");
+    // Números dos nossos formatos: passam como estão.
+    expect(celula("-12.30", "numero")).toBe("-12.30");
+    expect(celula(-3, "numero")).toBe("-3");
     expect(celula('Verniz "vermelho", 10 ml')).toBe(
       '"Verniz ""vermelho"", 10 ml"',
     );

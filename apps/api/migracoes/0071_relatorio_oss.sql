@@ -41,6 +41,10 @@ CREATE TABLE relatorio_oss_documento (
   documento_id uuid NOT NULL,
   -- O período da data do documento; diferente do do fecho numa alteração.
   periodo_original text NOT NULL,
+  -- O balde e o país de cada linha como entraram no fecho: os registos de um
+  -- período fechado lêem-se daqui, nunca da regra actual (revisão do #392,
+  -- P2-2). Vazio numa venda emitida fora do Eurolify (sem linhas).
+  linhas jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(linhas) = 'array'),
   PRIMARY KEY (granularidade, documento_id),
   FOREIGN KEY (comerciante_id, fecho_id) REFERENCES relatorio_oss_fecho (comerciante_id, id),
   FOREIGN KEY (comerciante_id, documento_id) REFERENCES documento_fiscal (comerciante_id, id)
@@ -60,6 +64,13 @@ ALTER TABLE relatorio_oss_fecho ENABLE ALWAYS TRIGGER relatorio_oss_fecho_so_acr
 CREATE TRIGGER relatorio_oss_documento_so_acrescenta BEFORE UPDATE OR DELETE ON relatorio_oss_documento
   FOR EACH ROW EXECUTE FUNCTION relatorio_oss_so_acrescenta();
 ALTER TABLE relatorio_oss_documento ENABLE ALWAYS TRIGGER relatorio_oss_documento_so_acrescenta;
+-- Também contra TRUNCATE, como os documentos (0050; revisão do #392, P3).
+CREATE TRIGGER relatorio_oss_fecho_sem_truncate BEFORE TRUNCATE ON relatorio_oss_fecho
+  FOR EACH STATEMENT EXECUTE FUNCTION relatorio_oss_so_acrescenta();
+ALTER TABLE relatorio_oss_fecho ENABLE ALWAYS TRIGGER relatorio_oss_fecho_sem_truncate;
+CREATE TRIGGER relatorio_oss_documento_sem_truncate BEFORE TRUNCATE ON relatorio_oss_documento
+  FOR EACH STATEMENT EXECUTE FUNCTION relatorio_oss_so_acrescenta();
+ALTER TABLE relatorio_oss_documento ENABLE ALWAYS TRIGGER relatorio_oss_documento_sem_truncate;
 
 -- O evento do fecho: só identificadores (headless-commerce).
 CREATE FUNCTION relatorio_oss_evento() RETURNS trigger

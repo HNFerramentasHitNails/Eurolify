@@ -1973,4 +1973,5 @@ export interface TabelaRelatorioOssDocumento {
   granularidade: ColumnType<"trimestre" | "mes", "trimestre" | "mes", never>;
   documento_id: ColumnType<string, string, never>;
   periodo_original: ColumnType<string, string, never>;
+  linhas: ColumnType<unknown, string | undefined, never>;
 }

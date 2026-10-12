@@ -1,6 +1,5 @@
 import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados } from "../base/esquema.js";
-import type { Conteudo, LinhaDoConteudo } from "./repositorio.js";
 import { noDocumentos } from "./repositorio.js";
 
 // O relatório OSS (docs/36; docs/06, ED; issue #310). Os montantes vêm só das
@@ -171,13 +170,13 @@ export function periodoDe(
 }
 
 /** Hoje, no fuso de Portugal (a entidade da Fase 1; P2). */
-function hoje(): string {
+export function hojeEmLisboa(agora = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Lisbon",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(agora);
 }
 
 // ------------------------------------------------------------ A leitura
@@ -189,6 +188,23 @@ interface LinhaDaProva {
   taxa: number;
   iva: number;
   codigo_motivo: string | null;
+}
+
+/**
+ * Só o que o relatório precisa do conteúdo: a decisão de cada linha, a
+ * moeda e o país de entrega — nunca o cliente nem a morada (revisão do #392,
+ * P2-5).
+ */
+export interface ConteudoResumido {
+  moeda: string;
+  destino: string | null;
+  linhas: {
+    regra: string;
+    pais_imposto: string | null;
+    quantidade: number;
+    taxa: number;
+    codigo_motivo: string | null;
+  }[];
 }
 
 export interface DocumentoLido {
@@ -205,7 +221,7 @@ export interface DocumentoLido {
   nif: string | null;
   nome: string | null;
   linhas: LinhaDaProva[];
-  conteudo: Conteudo;
+  conteudo: ConteudoResumido;
 }
 
 /** Uma linha do relatório: um balde, um país e uma taxa. */
@@ -223,15 +239,20 @@ export interface Alteracao extends LinhaRelatorio {
   periodo_original: string;
 }
 
+export type MotivoImpedimento =
+  | "divergente"
+  | "declarado_divergente"
+  | "outra_moeda"
+  | "sem_data"
+  | "sem_balde"
+  | "linhas_desalinhadas"
+  | "sinal_inesperado"
+  | "periodo_anterior_aberto"
+  | "por_emitir"
+  | "periodo_em_curso";
+
 export interface Impedimento {
-  motivo:
-    | "divergente"
-    | "outra_moeda"
-    | "sem_data"
-    | "sem_balde"
-    | "linhas_desalinhadas"
-    | "por_emitir"
-    | "periodo_em_curso";
+  motivo: MotivoImpedimento;
   documentos: string[];
 }
 
@@ -255,6 +276,8 @@ export interface Relatorio {
       pais: string | null;
       total: number;
       numero_declarado: string | null;
+      /** O período fechado a que pertencia, se chegou depois (P4). */
+      alteracao_de: string | null;
     }[];
     sistema_proprio: {
       encomenda: string;
@@ -266,49 +289,51 @@ export interface Relatorio {
   limiar: {
     ano: string;
     vendas_a_distancia_base: number;
+    ano_anterior: string;
+    ano_anterior_base: number;
     limiar: number;
     passou: boolean;
+    /** Documentos que não entraram na soma (impedimentos); a soma é por baixo. */
+    documentos_excluidos: number;
   };
   impedimentos: Impedimento[];
 }
 
+const CONTEUDO_RESUMIDO = sql`(select jsonb_build_object(
+    'moeda', c.conteudo->'moeda',
+    'destino', c.conteudo->'destino',
+    'linhas', coalesce((select jsonb_agg(jsonb_build_object(
+        'regra', l->'regra', 'pais_imposto', l->'pais_imposto',
+        'quantidade', l->'quantidade', 'taxa', l->'taxa',
+        'codigo_motivo', l->'codigo_motivo') order by i)
+      from jsonb_array_elements(c.conteudo->'linhas') with ordinality as x(l, i)), '[]'::jsonb))
+  from documento_conteudo c where c.documento_id = d.id
+  order by c.versao desc limit 1)`;
+
 async function lerDocumentos(
   trx: Transaction<BaseDados>,
   entidade: string,
-  ate: string,
-  granularidade: "trimestre" | "mes",
-  soNaoDeclarados: boolean,
-  desde: string | null,
+  filtro: {
+    ate?: string;
+    desde?: string;
+    naoDeclaradosEm?: "trimestre" | "mes";
+    ids?: string[];
+  },
 ): Promise<DocumentoLido[]> {
-  const { rows } = await sql<{
-    id: string;
-    tipo: "fatura" | "nota_credito";
-    estado: string;
-    encomenda_id: string;
-    original_id: string | null;
-    reembolso_id: string | null;
-    numero: string;
-    serie: string | null;
-    data: string | null;
-    atcud: string | null;
-    nif: string | null;
-    nome: string | null;
-    linhas: LinhaDaProva[];
-    conteudo: Conteudo;
-  }>`
+  const { rows } = await sql<DocumentoLido>`
     select d.id, d.tipo, d.estado, d.encomenda_id, d.original_id, d.reembolso_id,
-      p.numero, p.serie, to_char(p.data, 'YYYY-MM-DD') as data, p.atcud, p.nif, p.nome, p.linhas,
-      (select c.conteudo from documento_conteudo c where c.documento_id = d.id
-        order by c.versao desc limit 1) as conteudo
+      p.numero, p.serie, to_char(p.data, 'YYYY-MM-DD') as data, p.atcud, p.nif, p.nome,
+      p.linhas, ${CONTEUDO_RESUMIDO} as conteudo
     from documento_fiscal d
     join documento_prova p on p.documento_id = d.id
     where d.entidade_legal_id = ${entidade}::uuid
       and d.estado in ('emitido', 'divergente', 'resolvido')
-      and (p.data is null or p.data < ${ate}::date)
-      and (${desde}::text is null or p.data is null or p.data >= ${desde}::date)
-      and (not ${soNaoDeclarados} or not exists (
+      and (${filtro.ate ?? null}::date is null or p.data is null or p.data < ${filtro.ate ?? null}::date)
+      and (${filtro.desde ?? null}::date is null or p.data is null or p.data >= ${filtro.desde ?? null}::date)
+      and (${filtro.ids ?? null}::uuid[] is null or d.id = any(${filtro.ids ?? null}::uuid[]))
+      and (${filtro.naoDeclaradosEm ?? null}::text is null or not exists (
         select 1 from relatorio_oss_documento r
-        where r.documento_id = d.id and r.granularidade = ${granularidade}))
+        where r.documento_id = d.id and r.granularidade = ${filtro.naoDeclaradosEm ?? null}))
     order by p.data, d.id`.execute(trx);
   return rows;
 }
@@ -319,12 +344,32 @@ function linhasDe(
   paisEntidade: string,
 ): {
   linhas: Omit<LinhaRelatorio, "documentos">[];
-  impedimento: Impedimento["motivo"] | null;
+  impedimento: MotivoImpedimento | null;
 } {
-  if (d.conteudo.moeda !== "EUR")
+  if (d.conteudo.moeda !== "EUR") {
     return { linhas: [], impedimento: "outra_moeda" };
-  if (d.linhas.length !== d.conteudo.linhas.length) {
+  }
+  // As linhas casam por posição, como na conferência (R6/R7); confere-se
+  // cada uma — a quantidade, a taxa e o motivo — para o valor de uma nunca ir
+  // para o balde de outra (revisão do #392, P1-2).
+  if (
+    d.linhas.length !== d.conteudo.linhas.length ||
+    d.conteudo.linhas.some((lc, i) => {
+      const lp = d.linhas[i];
+      return (
+        lp === undefined ||
+        lp.quantidade !== lc.quantidade ||
+        lp.taxa !== lc.taxa ||
+        (lp.codigo_motivo ?? null) !== (lc.codigo_motivo ?? null)
+      );
+    })
+  ) {
     return { linhas: [], impedimento: "linhas_desalinhadas" };
+  }
+  // A prova guarda montantes positivos; um negativo não se adivinha
+  // (revisão do #392, P2-7).
+  if (d.linhas.some((l) => l.base < 0 || l.iva < 0)) {
+    return { linhas: [], impedimento: "sinal_inesperado" };
   }
   const sinal = d.tipo === "nota_credito" ? -1 : 1;
   const linhas: Omit<LinhaRelatorio, "documentos">[] = [];
@@ -334,11 +379,11 @@ function linhasDe(
     if (balde === null) return { linhas: [], impedimento: "sem_balde" };
     linhas.push({
       balde,
-      // O3: o país de entrega; no nacional, o país do imposto (o do
-      // comerciante).
+      // O3: o país de entrega. No OSS e no nacional, o país do imposto (a
+      // taxa é dele; revisão do #392, P3).
       pais:
-        balde === "nacional"
-          ? (lc.pais_imposto ?? paisEntidade)
+        balde === "oss" || balde === "nacional"
+          ? (lc.pais_imposto ?? d.conteudo.destino ?? paisEntidade)
           : (d.conteudo.destino ?? lc.pais_imposto ?? paisEntidade),
       taxa: lp.taxa,
       base: sinal * lp.base,
@@ -356,10 +401,10 @@ function somar<T extends LinhaRelatorio>(
   documento: string,
   vistos: Map<string, Set<string>>,
 ) {
-  const a = alvo.get(chave);
   const docs = vistos.get(chave) ?? new Set<string>();
   docs.add(documento);
   vistos.set(chave, docs);
+  const a = alvo.get(chave);
   if (a === undefined) {
     alvo.set(chave, { ...l, ...extra, documentos: 1 } as T);
   } else {
@@ -367,6 +412,115 @@ function somar<T extends LinhaRelatorio>(
     a.iva += l.iva;
     a.documentos = docs.size;
   }
+}
+
+/** O que entrou num fecho por documento (P4; os registos, P2-2). */
+export interface Incluido {
+  id: string;
+  periodo_original: string;
+  linhas: { balde: Balde; pais: string }[];
+}
+
+/**
+ * A classificação, sem base de dados (docs/36 §2–§3): os documentos do
+ * período nos baldes, os de um período fechado como alterações (P4), e o
+ * que impede o fecho — também um documento de um período anterior ainda
+ * aberto (revisão do #392, P2-1).
+ */
+export function agregar(
+  docs: DocumentoLido[],
+  paisEntidade: string,
+  p: Periodo,
+  fechados: ReadonlySet<string>,
+) {
+  const impedimentos = new Map<MotivoImpedimento, Set<string>>();
+  const impedir = (m: MotivoImpedimento, id: string | null) => {
+    const s = impedimentos.get(m) ?? new Set<string>();
+    if (id !== null) s.add(`inv_${id}`);
+    impedimentos.set(m, s);
+  };
+  const doPeriodo = new Map<string, LinhaRelatorio>();
+  const alteracoes = new Map<string, Alteracao>();
+  const vistos = new Map<string, Set<string>>();
+  const incluidos: Incluido[] = [];
+  for (const d of docs) {
+    if (d.data === null) {
+      impedir("sem_data", d.id);
+      continue;
+    }
+    const original = periodoDe(d.data, p.granularidade);
+    const noPeriodo = d.data >= p.inicio;
+    if (!noPeriodo && !fechados.has(original)) {
+      impedir("periodo_anterior_aberto", d.id);
+      continue;
+    }
+    if (d.estado === "divergente") {
+      impedir("divergente", d.id);
+      continue;
+    }
+    const { linhas, impedimento } = linhasDe(d, paisEntidade);
+    if (impedimento !== null) {
+      impedir(impedimento, d.id);
+      continue;
+    }
+    for (const l of linhas) {
+      if (noPeriodo) {
+        somar(
+          doPeriodo,
+          `${l.balde}|${l.pais}|${String(l.taxa)}`,
+          l,
+          {},
+          d.id,
+          vistos,
+        );
+      } else {
+        somar(
+          alteracoes,
+          `${original}|${l.balde}|${l.pais}|${String(l.taxa)}`,
+          l,
+          { periodo_original: original },
+          d.id,
+          vistos,
+        );
+      }
+    }
+    incluidos.push({
+      id: d.id,
+      periodo_original: original,
+      linhas: linhas.map((l) => ({ balde: l.balde, pais: l.pais })),
+    });
+  }
+  const baldes = BALDES.map((balde) => {
+    const linhas = [...doPeriodo.values()]
+      .filter((l) => l.balde === balde)
+      .sort((a, b) => a.pais.localeCompare(b.pais) || a.taxa - b.taxa);
+    return {
+      balde,
+      base: linhas.reduce((s, l) => s + l.base, 0),
+      iva: linhas.reduce((s, l) => s + l.iva, 0),
+      linhas,
+    };
+  });
+  return { baldes, alteracoes, impedimentos, impedir, incluidos };
+}
+
+/** O limiar (§2.3): as vendas à distância que o Eurolify vê num ano civil. */
+function vendasADistancia(docs: DocumentoLido[], paisEntidade: string) {
+  let base = 0;
+  let excluidos = 0;
+  for (const d of docs) {
+    const { linhas, impedimento } = linhasDe(d, paisEntidade);
+    if (d.data === null || d.estado === "divergente" || impedimento !== null) {
+      excluidos += 1;
+      continue;
+    }
+    d.conteudo.linhas.forEach((lc, i) => {
+      if (lc.regra === "distancia_destino" || lc.regra === "distancia_origem") {
+        base += linhas[i]?.base ?? 0;
+      }
+    });
+  }
+  return { base, excluidos };
 }
 
 async function paisDaEntidade(trx: Transaction<BaseDados>, entidade: string) {
@@ -398,94 +552,12 @@ async function fechoDe(
     .executeTakeFirst();
 }
 
-/**
- * A classificação, sem base de dados (docs/36 §2–§3): os documentos do
- * período nos baldes, os de um período fechado como alterações (P4), e o
- * que impede o fecho. Os documentos de um período anterior ainda aberto
- * ficam de fora (pertencem a esse período).
- */
-export function agregar(
-  docs: DocumentoLido[],
-  paisEntidade: string,
-  p: Periodo,
-  fechados: ReadonlySet<string>,
-) {
-  const impedimentos = new Map<Impedimento["motivo"], Set<string>>();
-  const impedir = (m: Impedimento["motivo"], id: string) => {
-    const s = impedimentos.get(m) ?? new Set<string>();
-    s.add(`inv_${id}`);
-    impedimentos.set(m, s);
-  };
-  const doPeriodo = new Map<string, LinhaRelatorio>();
-  const alteracoes = new Map<string, Alteracao>();
-  const vistos = new Map<string, Set<string>>();
-  const incluidos: { id: string; periodo_original: string }[] = [];
-  for (const d of docs) {
-    if (d.data === null) {
-      impedir("sem_data", d.id);
-      continue;
-    }
-    const original = periodoDe(d.data, p.granularidade);
-    const noPeriodo = d.data >= p.inicio;
-    // Um documento de um período anterior ainda aberto pertence a esse
-    // período; só os de um período fechado vêm como alteração (P4).
-    if (!noPeriodo && !fechados.has(original)) continue;
-    if (d.estado === "divergente") {
-      impedir("divergente", d.id);
-      continue;
-    }
-    const { linhas, impedimento } = linhasDe(d, paisEntidade);
-    if (impedimento !== null) {
-      impedir(impedimento, d.id);
-      continue;
-    }
-    for (const l of linhas) {
-      if (noPeriodo) {
-        somar(
-          doPeriodo,
-          `${l.balde}|${l.pais}|${String(l.taxa)}`,
-          l,
-          {},
-          d.id,
-          vistos,
-        );
-      } else {
-        somar(
-          alteracoes,
-          `${original}|${l.balde}|${l.pais}|${String(l.taxa)}`,
-          l,
-          { periodo_original: original },
-          d.id,
-          vistos,
-        );
-      }
-    }
-    incluidos.push({ id: d.id, periodo_original: original });
-  }
-  const baldes = BALDES.map((balde) => {
-    const linhas = [...doPeriodo.values()]
-      .filter((l) => l.balde === balde)
-      .sort((a, b) => a.pais.localeCompare(b.pais) || a.taxa - b.taxa);
-    return {
-      balde,
-      base: linhas.reduce((s, l) => s + l.base, 0),
-      iva: linhas.reduce((s, l) => s + l.iva, 0),
-      linhas,
-    };
-  });
-
-  return { baldes, alteracoes, impedimentos, impedir, incluidos };
-}
-
 /** Calcula o relatório de um período aberto (nunca o de um fechado). */
 async function calcular(
   trx: Transaction<BaseDados>,
   entidade: string,
   p: Periodo,
-): Promise<{
-  relatorio: Relatorio;
-  documentos: { id: string; periodo_original: string }[];
-}> {
+): Promise<{ relatorio: Relatorio; incluidos: Incluido[] }> {
   const paisEntidade = await paisDaEntidade(trx, entidade);
   const fechados = new Set(
     (
@@ -497,14 +569,10 @@ async function calcular(
         .execute()
     ).map((f) => f.periodo),
   );
-  const docs = await lerDocumentos(
-    trx,
-    entidade,
-    p.fim,
-    p.granularidade,
-    true,
-    null,
-  );
+  const docs = await lerDocumentos(trx, entidade, {
+    ate: p.fim,
+    naoDeclaradosEm: p.granularidade,
+  });
   const { baldes, alteracoes, impedimentos, impedir, incluidos } = agregar(
     docs,
     paisEntidade,
@@ -512,19 +580,53 @@ async function calcular(
     fechados,
   );
 
-  // À parte (§2.2), pela data de pagamento no fuso de Portugal.
+  // Um documento já declarado que passou depois a divergente (revisão do
+  // #392, P2-8): alguém tem de o ver antes de fechar outro período.
+  const { rows: declaradosDivergentes } = await sql<{ id: string }>`
+    select d.id from documento_fiscal d
+    join relatorio_oss_documento r on r.documento_id = d.id and r.granularidade = ${p.granularidade}
+    where d.entidade_legal_id = ${entidade}::uuid and d.estado = 'divergente'
+    order by d.id`.execute(trx);
+  for (const x of declaradosDivergentes) impedir("declarado_divergente", x.id);
+
+  // À parte (§2.2). As emitidas fora entram uma vez, pela data em que o
+  // pedido nasceu (o pagamento); as de um período já fechado que chegaram
+  // depois vêm como alteração dele (revisão do #392, P1-3).
   const { rows: fora } = await sql<{
     id: string;
     encomenda_id: string;
     pais: string | null;
     total: string;
     fora_numero: string | null;
-  }>`select d.id, d.encomenda_id, e.entrega->>'pais' as pais, e.total, d.fora_numero
+    data: string;
+  }>`select d.id, d.encomenda_id, e.entrega->>'pais' as pais, e.total, d.fora_numero,
+       to_char((d.criado_em at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD') as data
      from documento_fiscal d join encomenda e on e.id = d.encomenda_id
      where d.entidade_legal_id = ${entidade}::uuid and d.estado = 'fora' and d.tipo = 'fatura'
-       and (d.criado_em at time zone 'Europe/Lisbon')::date >= ${p.inicio}::date
        and (d.criado_em at time zone 'Europe/Lisbon')::date < ${p.fim}::date
+       and not exists (select 1 from relatorio_oss_documento r
+         where r.documento_id = d.id and r.granularidade = ${p.granularidade})
      order by d.id`.execute(trx);
+  const emitidasFora: Relatorio["a_parte"]["emitidas_fora"] = [];
+  for (const x of fora) {
+    const original = periodoDe(x.data, p.granularidade);
+    const noPeriodo = x.data >= p.inicio;
+    if (!noPeriodo && !fechados.has(original)) {
+      impedir("periodo_anterior_aberto", x.id);
+      continue;
+    }
+    emitidasFora.push({
+      documento: `inv_${x.id}`,
+      encomenda: `ord_${x.encomenda_id}`,
+      pais: x.pais,
+      total: Number(x.total),
+      numero_declarado: x.fora_numero,
+      alteracao_de: noPeriodo ? null : original,
+    });
+    incluidos.push({ id: x.id, periodo_original: original, linhas: [] });
+  }
+  // As vendas com sistema próprio não têm documento no Eurolify: mostram-se
+  // pela captura do pagamento no período (sem alteração; docs/36 §10).
   const { rows: proprio } = await sql<{
     id: string;
     pais: string | null;
@@ -547,30 +649,25 @@ async function calcular(
        and (d.criado_em at time zone 'Europe/Lisbon')::date < ${p.fim}::date
      order by d.id`.execute(trx);
   for (const x of porEmitir) impedir("por_emitir", x.id);
-  if (p.fim > hoje()) {
-    impedimentos.set("periodo_em_curso", new Set());
-  }
+  if (p.fim > hojeEmLisboa()) impedir("periodo_em_curso", null);
 
-  // O limiar (§2.3): as vendas à distância que o Eurolify vê no ano civil.
+  // O limiar: o ano civil e o anterior (art. 59.º-C; revisão do #392, P2-6).
   const ano = p.inicio.slice(0, 4);
-  let distancia = 0;
-  for (const d of await lerDocumentos(
-    trx,
-    entidade,
-    `${String(Number(ano) + 1)}-01-01`,
-    p.granularidade,
-    false,
-    `${ano}-01-01`,
-  )) {
-    if (d.data === null || d.estado === "divergente") continue;
-    const { linhas, impedimento } = linhasDe(d, paisEntidade);
-    if (impedimento !== null) continue;
-    d.conteudo.linhas.forEach((lc: LinhaDoConteudo, i) => {
-      if (lc.regra === "distancia_destino" || lc.regra === "distancia_origem") {
-        distancia += linhas[i]?.base ?? 0;
-      }
-    });
-  }
+  const anterior = String(Number(ano) - 1);
+  const doAno = vendasADistancia(
+    await lerDocumentos(trx, entidade, {
+      desde: `${ano}-01-01`,
+      ate: `${String(Number(ano) + 1)}-01-01`,
+    }),
+    paisEntidade,
+  );
+  const doAnterior = vendasADistancia(
+    await lerDocumentos(trx, entidade, {
+      desde: `${anterior}-01-01`,
+      ate: `${ano}-01-01`,
+    }),
+    paisEntidade,
+  );
 
   return {
     relatorio: {
@@ -588,13 +685,7 @@ async function calcular(
           a.taxa - b.taxa,
       ),
       a_parte: {
-        emitidas_fora: fora.map((x) => ({
-          documento: `inv_${x.id}`,
-          encomenda: `ord_${x.encomenda_id}`,
-          pais: x.pais,
-          total: Number(x.total),
-          numero_declarado: x.fora_numero,
-        })),
+        emitidas_fora: emitidasFora,
         sistema_proprio: proprio.map((x) => ({
           encomenda: `ord_${x.id}`,
           pais: x.pais,
@@ -608,16 +699,20 @@ async function calcular(
       },
       limiar: {
         ano,
-        vendas_a_distancia_base: distancia,
+        vendas_a_distancia_base: doAno.base,
+        ano_anterior: anterior,
+        ano_anterior_base: doAnterior.base,
         limiar: LIMIAR_CENTIMOS,
-        passou: distancia > LIMIAR_CENTIMOS,
+        passou:
+          doAno.base > LIMIAR_CENTIMOS || doAnterior.base > LIMIAR_CENTIMOS,
+        documentos_excluidos: doAno.excluidos + doAnterior.excluidos,
       },
       impedimentos: [...impedimentos.entries()].map(([motivo, docs]) => ({
         motivo,
         documentos: [...docs].sort(),
       })),
     },
-    documentos: incluidos,
+    incluidos,
   };
 }
 
@@ -645,11 +740,17 @@ export async function relatorioOss(
   });
 }
 
+/** Impedimentos que não deixam fechar (os «por emitir», só sem confirmação). */
+function bloqueiosDe(r: Relatorio, confirmoPorEmitir: boolean) {
+  return r.impedimentos.filter(
+    (i) => i.motivo !== "por_emitir" || !confirmoPorEmitir,
+  );
+}
+
 /**
- * Fecha um período (P3–P6): só o dono (`tax:write`); recusa com divergentes,
- * outra moeda, documentos sem data ou sem balde, ou um período em curso; os
- * «por emitir» só com a confirmação de quem fecha. Grava a fotografia e os
- * documentos que entraram, uma vez só.
+ * Fecha um período (P3–P6): só o dono (`tax:write`); recusa com qualquer
+ * impedimento; os «por emitir» só com a confirmação de quem fecha. Grava a
+ * fotografia e os documentos que entraram, uma vez só.
  */
 export async function fecharOss(
   db: Kysely<BaseDados>,
@@ -672,10 +773,8 @@ export async function fecharOss(
         "este período já está fechado",
       );
     }
-    const { relatorio, documentos } = await calcular(trx, entidade, p);
-    const bloqueios = relatorio.impedimentos.filter(
-      (i) => i.motivo !== "por_emitir" || !dados.confirmo_por_emitir,
-    );
+    const { relatorio, incluidos } = await calcular(trx, entidade, p);
+    const bloqueios = bloqueiosDe(relatorio, dados.confirmo_por_emitir);
     if (bloqueios.length > 0) {
       throw new ErroRelatorio(
         "tax_reports.not_closable",
@@ -701,16 +800,17 @@ export async function fecharOss(
       })
       .returning(["id", "fechado_em"])
       .executeTakeFirstOrThrow();
-    if (documentos.length > 0) {
+    if (incluidos.length > 0) {
       await trx
         .insertInto("relatorio_oss_documento")
         .values(
-          documentos.map((d) => ({
+          incluidos.map((d) => ({
             comerciante_id: c,
             fecho_id: id,
             granularidade: p.granularidade,
             documento_id: d.id,
             periodo_original: d.periodo_original,
+            linhas: JSON.stringify(d.linhas),
           })),
         )
         .execute();
@@ -749,6 +849,7 @@ const COLUNAS = [
   "moeda",
   "data_pagamento",
   "montante_pagamento",
+  "expedicao_registada",
   "data_expedicao",
   "pais_inicio_transporte",
   "pais_entrega",
@@ -759,19 +860,28 @@ const COLUNAS = [
 const euros = (c: number) => (c / 100).toFixed(2);
 const taxaEmTexto = (t: number) => (t / 100).toFixed(2);
 
-export function celula(v: string | number | null): string {
+/**
+ * Uma célula do CSV. Texto que comece por `= + - @`, tabulação ou retorno
+ * leva sempre um apóstrofo à frente (uma folha de cálculo nunca o lê como
+ * fórmula: revisão do #392, P1-1); os números saem dos nossos formatos e
+ * passam como estão.
+ */
+export function celula(
+  v: string | number | null,
+  tipo: "texto" | "numero" = "texto",
+): string {
   if (v === null) return "";
   const s = String(v);
-  // Fórmulas não entram numa folha de cálculo (injecção CSV).
-  const seguro = /^[=+\-@\t\r]/.test(s) && !/^-?\d/.test(s) ? `'${s}` : s;
+  const seguro = tipo === "texto" && /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
   return /[",\n\r;]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro;
 }
 
 /**
  * Os registos do art. 63.º-C do Reg. 282/2011 (docs/36 §4): uma linha por
  * linha de documento do período (os do período e as alterações). De um
- * período fechado, os documentos que entraram nele; de um aberto, os que
- * entrariam se fechasse agora.
+ * período fechado, os documentos que entraram nele, com o balde e o país
+ * gravados no fecho (P2-2); de um aberto, os que entrariam se fechasse agora,
+ * e só sem impedimentos que deixem documentos de fora (P2-3).
  */
 export async function registosOss(
   db: Kysely<BaseDados>,
@@ -781,87 +891,116 @@ export async function registosOss(
 ): Promise<string> {
   const p = lerPeriodo(periodo);
   return noDocumentos(db, c, async (trx) => {
-    const paisEntidade = await paisDaEntidade(trx, entidade);
     const fecho = await fechoDe(trx, entidade, p);
-    const ids =
-      fecho === undefined
-        ? (await calcular(trx, entidade, p)).documentos
-        : await trx
-            .selectFrom("relatorio_oss_documento")
-            .select(["documento_id as id", "periodo_original"])
-            .where("fecho_id", "=", fecho.id)
-            .execute();
-    const original = new Map(ids.map((x) => [x.id, x.periodo_original]));
-    const todos = await lerDocumentos(
-      trx,
-      entidade,
-      "9999-12-31",
-      p.granularidade,
-      false,
-      null,
-    );
-    const docs = todos.filter((d) => original.has(d.id));
+    let incluidos: Incluido[];
+    if (fecho === undefined) {
+      const r = await calcular(trx, entidade, p);
+      const deFora = r.relatorio.impedimentos.filter(
+        (i) => i.motivo !== "periodo_em_curso" && i.motivo !== "por_emitir",
+      );
+      if (deFora.length > 0) {
+        throw new ErroRelatorio(
+          "tax_reports.not_closable",
+          "há documentos que ficariam fora dos registos",
+          { impedimentos: deFora },
+        );
+      }
+      incluidos = r.incluidos;
+    } else {
+      incluidos = (
+        await trx
+          .selectFrom("relatorio_oss_documento")
+          .select(["documento_id", "periodo_original", "linhas"])
+          .where("fecho_id", "=", fecho.id)
+          .execute()
+      ).map((x) => ({
+        id: x.documento_id,
+        periodo_original: x.periodo_original,
+        linhas: x.linhas as Incluido["linhas"],
+      }));
+    }
+    const porId = new Map(incluidos.map((x) => [x.id, x]));
+    const ids = incluidos.filter((x) => x.linhas.length > 0).map((x) => x.id);
+    const docs =
+      ids.length === 0 ? [] : await lerDocumentos(trx, entidade, { ids });
+    // Os dados da encomenda de todos os documentos numa consulta (P2-5);
+    // as datas no fuso de Portugal (P3).
+    const { rows: extras } =
+      ids.length === 0
+        ? { rows: [] }
+        : await sql<{
+            id: string;
+            data_pagamento: string | null;
+            montante: string | null;
+            data_expedicao: string | null;
+            pais_armazem: string | null;
+            entrega_pais: string | null;
+            entrega_cp: string | null;
+            devolucao: string | null;
+            fatura: string | null;
+          }>`select d.id,
+              (select to_char((t.em at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD')
+               from pagamento g join transicao_pagamento t on t.pagamento_id = g.id
+               where g.encomenda_id = e.id and t.para = 'capturado' order by t.em limit 1) as data_pagamento,
+              (select g.montante from pagamento g where g.encomenda_id = e.id and g.estado = 'capturado'
+               order by g.id limit 1) as montante,
+              (select to_char((min(x.expedida_em) at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD')
+               from expedicao x where x.encomenda_id = e.id) as data_expedicao,
+              (select a.morada->>'pais' from expedicao x join armazem a on a.id = x.armazem_id
+               where x.encomenda_id = e.id and x.expedida_em is not null
+               order by x.expedida_em limit 1) as pais_armazem,
+              e.entrega->>'pais' as entrega_pais, e.entrega->>'codigo_postal' as entrega_cp,
+              (select r.devolucao_id from reembolso r where r.id = d.reembolso_id) as devolucao,
+              (select p.numero from documento_prova p where p.documento_id = d.original_id) as fatura
+            from documento_fiscal d join encomenda e on e.id = d.encomenda_id
+            where d.id = any(${ids}::uuid[])`.execute(trx);
+    const extraDe = new Map(extras.map((x) => [x.id, x]));
     const linhas: string[] = [COLUNAS.join(",")];
     for (const d of docs) {
-      const { rows } = await sql<{
-        data_pagamento: Date | null;
-        montante: string | null;
-        expedida_em: Date | null;
-        pais_armazem: string | null;
-        entrega_pais: string | null;
-        entrega_cp: string | null;
-        devolucao: string | null;
-        fatura: string | null;
-      }>`select
-          (select t.em from pagamento g join transicao_pagamento t on t.pagamento_id = g.id
-           where g.encomenda_id = e.id and t.para = 'capturado' order by t.em limit 1) as data_pagamento,
-          (select g.montante from pagamento g where g.encomenda_id = e.id and g.estado = 'capturado'
-           order by g.id limit 1) as montante,
-          (select min(x.expedida_em) from expedicao x where x.encomenda_id = e.id) as expedida_em,
-          (select a.morada->>'pais' from expedicao x join armazem a on a.id = x.armazem_id
-           where x.encomenda_id = e.id order by x.expedida_em nulls last limit 1) as pais_armazem,
-          e.entrega->>'pais' as entrega_pais, e.entrega->>'codigo_postal' as entrega_cp,
-          (select r.devolucao_id from reembolso r where r.id = ${d.reembolso_id}::uuid) as devolucao,
-          (select p.numero from documento_prova p where p.documento_id = ${d.original_id}::uuid) as fatura
-        from encomenda e where e.id = ${d.encomenda_id}::uuid`.execute(trx);
-      const x = rows[0];
-      const { linhas: noBalde } = linhasDe(d, paisEntidade);
+      const x = extraDe.get(d.id);
+      const gravadas = porId.get(d.id)?.linhas ?? [];
+      const sinal = d.tipo === "nota_credito" ? -1 : 1;
       d.linhas.forEach((lp, i) => {
-        const lb = noBalde[i];
-        const sinal = d.tipo === "nota_credito" ? -1 : 1;
+        const lb = gravadas[i];
+        const expedida = x?.data_expedicao != null;
         linhas.push(
           [
-            p.texto,
-            original.get(d.id) ?? null,
-            d.tipo,
-            d.numero,
-            d.serie,
-            d.data,
-            d.atcud,
-            x?.fatura ?? null,
-            d.nif,
-            d.nome,
-            lb?.pais ?? d.conteudo.destino,
-            lb?.balde ?? null,
-            lp.descricao,
-            lp.quantidade,
-            euros(sinal * lp.base),
-            taxaEmTexto(lp.taxa),
-            euros(sinal * lp.iva),
-            d.conteudo.moeda,
-            x?.data_pagamento?.toISOString().slice(0, 10) ?? null,
-            x?.montante == null ? null : euros(Number(x.montante)),
-            x?.expedida_em?.toISOString().slice(0, 10) ?? null,
-            x?.pais_armazem ?? paisEntidade,
-            x?.entrega_pais ?? null,
-            x?.entrega_cp ?? null,
-            x?.devolucao == null ? null : `rma_${x.devolucao}`,
-          ]
-            .map(celula)
-            .join(","),
+            celula(p.texto),
+            celula(porId.get(d.id)?.periodo_original ?? null),
+            celula(d.tipo),
+            celula(d.numero),
+            celula(d.serie),
+            celula(d.data),
+            celula(d.atcud),
+            celula(x?.fatura ?? null),
+            celula(d.nif),
+            celula(d.nome),
+            celula(lb?.pais ?? null),
+            celula(lb?.balde ?? null),
+            celula(lp.descricao),
+            celula(lp.quantidade, "numero"),
+            celula(euros(sinal * lp.base), "numero"),
+            celula(taxaEmTexto(lp.taxa), "numero"),
+            celula(euros(sinal * lp.iva), "numero"),
+            celula(d.conteudo.moeda),
+            celula(x?.data_pagamento ?? null),
+            celula(
+              x?.montante == null ? null : euros(Number(x.montante)),
+              "numero",
+            ),
+            // Sem expedição registada, vazio e marcado: nada se inventa
+            // (docs/36 §4, c) e k); revisão do #392, P2-4).
+            celula(expedida ? "sim" : "nao"),
+            celula(x?.data_expedicao ?? null),
+            celula(expedida ? (x.pais_armazem ?? null) : null),
+            celula(x?.entrega_pais ?? null),
+            celula(x?.entrega_cp ?? null),
+            celula(x?.devolucao == null ? null : `rma_${x.devolucao}`),
+          ].join(","),
         );
       });
     }
-    return `${linhas.join("\r\n")}\r\n`;
+    // Com BOM: uma folha de cálculo abre os acentos certos (P3).
+    return `\uFEFF${linhas.join("\r\n")}\r\n`;
   });
 }
