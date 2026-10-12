@@ -60,6 +60,9 @@ const FUNCOES_DA_API = [
   // pseudonimização, a régua por contacto e o pedido e a confirmação.
   "cliente_pseudonimizado_sem_confirmacoes",
   "cliente_pseudonimizar",
+  // As tarefas das filas (0066; docs/33): os casos abertos de cada domínio,
+  // a lista, atribuir, o prazo e o aviso; e o «na fila desde» do documento.
+  "clientes_casos_a_decidir",
   "clientes_do_grupo",
   "clientes_dono_a_escrever",
   "clientes_pseudonimizacao_em_curso",
@@ -80,8 +83,11 @@ const FUNCOES_DA_API = [
   "desafio_criar_acrescentar",
   "desafio_criar_entrada",
   "desafio_criar_registo",
+  "documento_na_fila",
+  "documento_na_fila_antes",
   // Os documentos fiscais (0050): a fila da tarefa e a marca do perfil usado.
   "documentos_a_tratar",
+  "documentos_casos_a_decidir",
   "documentos_comerciantes_com_trabalho",
   "duplicado_descartar",
   "duplicados_sinalizar",
@@ -102,6 +108,8 @@ const FUNCOES_DA_API = [
   "ficheiros_comerciantes_sem_uso",
   "ficheiros_sem_uso",
   "gtin_valido",
+  // O Moloni (0069): os comerciantes com ligações a renovar os tokens.
+  "ligacoes_comerciantes_a_renovar",
   "marketing_do_contacto",
   "membro_mudar_papel",
   "membro_terminar",
@@ -113,8 +121,13 @@ const FUNCOES_DA_API = [
   "nif_regua",
   // A pós-venda (0058): a NC pede-se ao decidir o reembolso, se há fatura.
   "nota_credito_pedir",
+  // As notificações (0067): a fila, o destino lido no envio e a limpeza.
+  "notificacao_apagar_antigas",
+  "notificacao_comerciantes",
+  "notificacao_destino",
   "pagamento_transicao_valida",
   "pagamentos_adiar_tarefa",
+  "pagamentos_casos_a_decidir",
   "pagamentos_comerciantes_com_tarefas",
   "pagamentos_conta_do_aviso",
   "pagamentos_tarefas",
@@ -139,6 +152,7 @@ const FUNCOES_DA_API = [
   // A régua única do marketing (0042): quem envia pergunta-lhe.
   "pode_receber_marketing",
   "pode_receber_marketing",
+  "posvenda_casos_a_decidir",
   // A tarefa dos reembolsos no prestador (0061): os comerciantes com trabalho.
   "posvenda_comerciantes_com_reembolsos",
   // O aviso do prazo do reembolso (0063): o prazo e a tarefa.
@@ -167,8 +181,16 @@ const FUNCOES_DA_API = [
   "stock_bloquear",
   "stock_politica",
   "tarefa_origem",
+  "tarefas_atribuir",
+  "tarefas_casos",
+  "tarefas_comerciantes",
+  "tarefas_filas",
+  "tarefas_marcar_vencida",
+  "tarefas_mudar_prazo",
+  "tarefas_por_avisar",
+  "tarefas_prazo_por_omissao",
   "telefones_validos",
-  // Os pedidos do titular em todos os domínios (0066): a que os gatilhos
+  // Os pedidos do titular em todos os domínios (0072): a que os gatilhos
   // chamam (dá falso fora da função do dono) e a tarefa da fila.
   "titular_comerciantes_com_pendentes",
   "titular_limpeza_permitida",

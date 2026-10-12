@@ -2,7 +2,7 @@ import { sql, type Kysely } from "kysely";
 import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 
-// A fila dos pedidos de apagamento (docs/23 §15.3; migração 0066): as
+// A fila dos pedidos de apagamento (docs/23 §15.3; migração 0072): as
 // encomendas que estavam em curso quando o titular pediu o apagamento
 // limpam-se quando acabarem. Ex.: a Ana pede o apagamento com uma encomenda
 // por expedir; 14 dias depois de entregue, a encomenda passa a concluída e,

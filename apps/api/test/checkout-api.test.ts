@@ -1586,7 +1586,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
         );
         await sql.raw(alteracao).execute(trx);
       });
-    // O contacto abre (só a 0066 o deixa).
+    // O contacto abre (só a 0072 o deixa).
     await comMarca(
       `update encomenda set contacto = '{"email": "(pseudonimizado)"}'::jsonb where id = '${enc.id}'`,
     );

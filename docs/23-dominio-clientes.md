@@ -787,7 +787,15 @@ minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
 - **A consulta pedida** (`POST …/vies-checks`) não espera pelo VIES: põe o
   perfil à frente da fila e responde 202 (revisão do #244, P1-1).
 - **A fila vem desligada** até se medir a saída da VPS para a Comissão
-  (`VIES_URL`; revisão do #244, P2-5): ligar é um pedido à parte.
+  (`VIES_URL`; revisão do #244, P2-5): ligar é um pedido à parte. A medição
+  fixa da VPS (`eurolify-medir`, fluxo `medir`) diz se a máquina chega ao
+  `check-status` do VIES e se o `VIES_URL` está no `api.env` (12/10/2026).
+  Mede a partir da máquina, não do contentor da API (outra rede e outros
+  certificados): a prova final é a primeira consulta da fila depois de ligar,
+  com o `codigo_erro` se falhar (revisão do #377, P2-1).
+  Ligar é pôr `VIES_URL=` no `/etc/eurolify/api.env` e recriar a API: muda a
+  configuração da máquina, por isso fica com o Diogo ou o Bruno (AGENTS.md,
+  «Operar a VPS», regra 1).
 - A isenção e a prova não entram na linha do tempo da ficha: são registos que
   só se acrescentam, com o seu quem e quando.
 
@@ -1132,7 +1140,7 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 
 ### 15.10 Em código
 
-**Parte 1 — o apagamento nos outros domínios** (migração 0066; Diogo,
+**Parte 1 — o apagamento nos outros domínios** (migração 0072; Diogo,
 11/10/2026: *«aprovado, junta o #369 e avança com o código»*):
 
 | O quê | Onde |
@@ -1142,7 +1150,7 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 | as encomendas em curso ficam na fila (`titular_pendente`, interna); a tarefa de hora a hora limpa as que acabaram; a lista dos pedidos diz `encomendas_por_acabar` | `titular_pendentes_aplicar()`; `src/clientes/titular-fila.ts` |
 | o perfil de faturação só fica com documento ou encomenda que não foi cancelada sem pagamento (Q2) | `cliente_pseudonimizar()` |
 | uma livre resolução numa encomenda já limpa guarda «sem e-mail», não o marcador | `src/posvenda/repositorio.ts` |
-| a sessão de checkout de cada encomenda limpa fica vazia; o resumo do aviso leva a chave do rasto (0054, 8 hex); os objectos guardam só o que não é pessoal (país, tipo) e limpam o resto; uma encomenda que volte a ficar em curso vai para a fila em vez de falhar o pedido; a tarefa trata cada encomenda à parte e regista as falhas (código, sem dados); a limpeza adiada limpa também o perfil que deixou de servir (revisão do #374) | 0066 |
+| a sessão de checkout de cada encomenda limpa fica vazia; o resumo do aviso leva a chave do rasto (0054, 8 hex); os objectos guardam só o que não é pessoal (país, tipo) e limpam o resto; uma encomenda que volte a ficar em curso vai para a fila em vez de falhar o pedido; a tarefa trata cada encomenda à parte e regista as falhas (código, sem dados); a limpeza adiada limpa também o perfil que deixou de servir (revisão do #374) | 0072 |
 
 Falta: a parte 2 (as sessões de checkout, §15.4) e a parte 3 (a
 exportação, coluna «Exportação» da §15.2; e as fichas com o mesmo contacto,

@@ -1,4 +1,7 @@
-import type { AdaptadorFaturacao as NomeAdaptador } from "../base/esquema.js";
+import type {
+  AdaptadorFaturacao as NomeAdaptador,
+  ConfigDaLigacao,
+} from "../base/esquema.js";
 import type { ChavePagamentos } from "../pagamentos/cifra.js";
 
 // O contrato do adaptador de faturação (docs/29 §7.4; docs/08 §4): o mesmo
@@ -18,6 +21,8 @@ export interface EntidadeNoEmissor {
 }
 
 export interface LinhaPedida {
+  /** O SKU do artigo; null nos portes (a única linha sem artigo, lição 3.6). */
+  sku: string | null;
   descricao: string;
   quantidade: number;
   /** Cêntimos. */
@@ -40,6 +45,8 @@ export interface PedidoRascunho {
   /** A nossa referência (`inv_…`), escrita no documento para o reencontrar. */
   referencia: string;
   serie: string | null;
+  /** Os ids do emissor por omissão (docs/29 §13.2): cliente, artigos, métodos. */
+  config: ConfigDaLigacao;
   /** A entidade já existente no emissor, ou null para a criar. */
   entidade_id: string | null;
   cliente: {
@@ -65,7 +72,11 @@ export interface LinhaNoEmissor {
   iva: number;
 }
 
-/** Um documento como o emissor o tem (rascunho ou fechado). */
+/**
+ * Um documento como o emissor o tem (rascunho ou fechado). Num documento de
+ * consumidor final, `nif` e `pais` vêm vazios (o emissor põe lá o número de
+ * consumidor final, que não é o de ninguém).
+ */
 export interface DocumentoNoEmissor {
   id: string;
   tipo: "fatura" | "nota_credito";
@@ -114,7 +125,23 @@ export interface AdaptadorFaturacao {
   readonly nome: NomeAdaptador;
   /** Lança se as credenciais não forem aceites. */
   testar(credenciais: CredenciaisEmissor): Promise<void>;
-  /** Pelo número sem prefixo (eu-vat-oss-ioss, «NIF»); null = não existe. */
+  /**
+   * Um emissor cujos tokens mudam (o Moloni, docs/29 §13.4): devolve as
+   * credenciais novas quando as renovou, ou null se as que tem ainda servem.
+   * `usar`: antes de uma chamada (renova se o acesso está a acabar ou o par
+   * tem mais de 7 dias); `manter`: a tarefa, só pela idade do par. **As
+   * outras operações nunca renovam**: o par novo tem de se gravar antes de
+   * se usar, e só quem chama sabe gravá-lo.
+   */
+  renovar?(
+    credenciais: CredenciaisEmissor,
+    motivo: "usar" | "manter",
+  ): Promise<CredenciaisEmissor | null>;
+  /**
+   * Pelo número sem prefixo (eu-vat-oss-ioss, «NIF»); null = não existe. Com
+   * mais de uma entidade com esse número, devolve uma **sem NIF** — não
+   * escolhe, e o pedido fica retido (docs/29 §13.3).
+   */
   procurarEntidade(
     credenciais: CredenciaisEmissor,
     nifSemPrefixo: string,

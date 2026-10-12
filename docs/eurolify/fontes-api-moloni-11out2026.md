@@ -120,6 +120,11 @@ Eurolify que escreva no stock do Moloni**, para a app não vender o que a loja
 online já reservou. O atraso entre uma venda ao balcão e a loja online saber
 dela é o intervalo das perguntas — **não medido**.
 
+> **Actualização, 11/10/2026 (DV, ADR-0044):** a ligação do balcão a um POS de
+> fora saiu do primeiro alvo — o balcão vende pelo POS do Hub do Eurolify e o
+> Moloni **só emite as faturas**. O parágrafo acima fica para se ver o que se
+> pensou; o Eurolify não lê vendas nem stock do Moloni.
+
 ## 6. O que serve à fatia 10 (`docs/29`, Q5)
 
 - O mesmo fluxo de autenticação (`authorization_code`, 1 hora / 14 dias,
@@ -144,6 +149,10 @@ dela é o intervalo das perguntas — **não medido**.
   antes de o Moloni confirmar que os documentos dela não seguem para a
   Autoridade Tributária (*«sim, concordo»*, 11/10/2026). A conta trial é,
   provavelmente, uma empresa normal, não a sandbox; não verificado.
+  **Actualização, 11/10/2026:** o Diogo disse que *«os documentos das contas
+  de teste não vão para a Autoridade Tributária»*. Fica escrito como dito por
+  ele; a resposta do Moloni não foi vista nesta sessão. A proibição de fechar
+  documentos na conta trial cai; escrever continua a pedir o OK de cada vez.
 - Uma captura do API Explorer da conta antiga (subscrição expirada) mostrou um
   `access_token` e um `refresh_token` no chat, a 11/10/2026. **Não se usam.**
   A cópia local da imagem foi apagada; o modo de revogar um `refresh_token` não
@@ -182,7 +191,8 @@ com as variáveis `MOLONI_*`; o token nunca foi impresso.
 
 O código ATCUD dos documentos da demonstração começa por `AAAAAAAA`
 (ex.: `AAAAAAAA2B-26`), o que **sugere** séries não comunicadas à AT; **não
-verificado** — a pergunta ao Moloni (§7, regras) continua de pé.
+verificado** pela API; o Diogo disse a 11/10/2026 que os documentos das contas
+de teste não vão para a AT (§7, regras).
 
 | # | Pergunta | Resposta | Como se mediu |
 |---|---|---|---|
@@ -195,7 +205,10 @@ verificado** — a pergunta ao Moloni (§7, regras) continua de pé.
 | 7 | O token aceita-se no cabeçalho `Authorization`? | **Não.** `Authorization: Bearer …` e o token cru dão 401 «Invalid access token»; no corpo JSON, 401; no corpo de formulário, o pedido passa mas **sem identidade** (`companies/getAll` devolve lista vazia). **Só funciona na query string** — tapar o token nos registos é obrigatório (§1) | cinco variantes contra `documents/count` e `companies/getAll` |
 | 8 | Limite de pedidos na prática | **Nenhum encontrado até ~1400 pedidos/minuto durante 9 segundos.** 100 seguidos (40,6 s, 0,41 s cada) e 200 com 10 em paralelo (8,6 s): todos 200. **Sem cabeçalhos de limite** (nem `X-RateLimit`, nem `Retry-After`). Um limite por hora ou por dia **não foi medido**; não forcei mais numa conta partilhada | 300 pedidos a `documents/count` |
 
-**O que isto muda no desenho:**
+**O que isto muda no desenho** (escrito antes da DV; com o ADR-0044, o balcão
+vende pelo POS do Hub e os dois primeiros pontos deixam de servir o balcão —
+ficam como prova do que a API faz; o segundo continua a valer para a emissão:
+cada fatura emitida baixa o stock do Moloni, que o Eurolify não lê):
 
 - **O balcão é legível**: as vendas do POS chegam com `terminal_id` e as
   linhas trazem artigo, referência e armazém. Separar «balcão» de «resto»
@@ -223,5 +236,35 @@ verificado** — a pergunta ao Moloni (§7, regras) continua de pé.
 **O que ficou por verificar:** o significado do `status` 2; se os
 terminais vistos são a app «Moloni POS»; limites por hora ou por dia; o nome
 do filtro por dia do `productStocks/getAll` — o `date` que usei **não
-limitou** (11 dias × 1000 movimentos = o tecto que pus); se os documentos da
-demonstração têm validade fiscal.
+limitou** (11 dias × 1000 movimentos = o tecto que pus). ~~Se os documentos da
+demonstração têm validade fiscal~~ — o Diogo disse a 11/10/2026 que os das
+contas de teste não vão para a AT.
+
+## 9. A emissão — páginas lidas a 12/10/2026 (fatia 10, parte 2)
+
+Pedido do Diogo, 12/10/2026 (*«sim, avança com o adaptador Moloni»*). Li as
+páginas abaixo **em bruto** (o HTML descarregado e o texto extraído, não um
+resumo). **Nenhum pedido à API**: as credenciais não estavam no ambiente.
+
+| Página | O que diz (só o que serve à emissão) |
+|---|---|
+| `dev/documents/invoices/insert/` | obrigatórios: `company_id`, `date`, `expiration_date`, `document_set_id`, `customer_id`, `products[]` (cada um com `product_id`, `name`, `qty`, `price`; `taxes[].tax_id`); `our_reference` e `your_reference` facultativos; `exemption_reason` obrigatório na linha sem IVA; `status` 0 = rascunho (por omissão), 1 = fechado, e fechado «será comunicada para a Autoridade Tributária, caso a empresa tenha essa opção activa»; fechar movimenta o stock dos artigos com gestão de stock; outra moeda pede `exchange_currency_id` e `exchange_rate`; resposta `{valid: 1, document_id}` |
+| `dev/documents/invoices/update/` | «Não é possível actualizar uma fatura que já se encontre no estado fechado»; os mesmos obrigatórios do `insert` mais `document_id`; resposta `{valid: 1}` |
+| `dev/documents/invoices/delete/` | «Não é possível eliminar uma fatura que já se encontre no estado fechado» |
+| `dev/documents/invoices/getone/` e `dev/documents/documents/getone/` | cabeçalho com `entity_vat`, `entity_name`, `entity_country`, `number`, `document_set`, `status`, `gross_value`, `taxes_value`, `net_value`, `our_reference`, `rsa_hash`, `hash_control`; linhas com `product_id`, `reference`, `price`, `qty`, `discount`, `exemption_reason`, `taxes[]` (`value`, `incidence_value`, `total_value`). **Nenhum campo de ATCUD na lista**, nem `document_product_id` nas linhas |
+| `dev/documents/documents/getall/` | filtra por `our_reference`, `your_reference`, `status`, `document_set_id`, `number`, `year`; `qty` máx. 50 |
+| `dev/documents/documents/getpdflink/` | devolve `{url}`; «Só podem ser pedidos documentos que já não estejam em estado de rascunho»; `signed` facultativo: sem ele, o PDF não vem assinado |
+| `dev/documents/credit-notes/insert/` | sem `rappel`, obrigatórios `associated_documents` (`associated_id`, `value`) e, por linha, `related_id` = «o document_product_id de um dos artigos do documento associado»; o total não pode passar o valor conciliado; preço e quantidade não podem passar os da fatura |
+| `dev/documents/invoice-receipts/insert/` | descarregada; não lida linha a linha (fica para o V1) |
+| `dev/entities/customers/getbyvat/` | procura por `vat` (texto), devolve uma lista |
+| `dev/entities/customers/insert/` | obrigatórios `vat`, `number` (máx. 20), `name`, `language_id`, `address`, `city`, `country_id`, `maturity_date_id`, `payment_method_id`; em Portugal o contribuinte tem de ser válido e o código postal `NNNN-NNN` |
+| `dev/products/products/getbyreference/` e `insert/` | procura por `reference` com `exact`; criar pede `category_id`, `type` (1 produto, 2 serviço…), `name`, `reference` (única), `price`, `unit_id`, `has_stock`, `stock`; `at_product_category` obrigatório se `has_stock` |
+| `dev/settings/tax-fees/getall/` | `tax_id`, `value`, `saft_type`, `fiscal_zone` por taxa da empresa |
+| `dev/global-data/tax-exemptions/getall/` | `code`, `name`, `description` |
+| `dev/settings/document-sets/getall/`, `payment-methods/getall/`, `global-data/countries/getall/`, `currencies/getall/` | os ids para a configuração da ligação |
+| `dev/autenticacao/` | renovar: `grant_type=refresh_token` devolve **novos** `access_token` e `refresh_token`; passados os 14 dias o utilizador autentica-se outra vez |
+| `dev/controlo-de-erros/` | erros de dados «código + espaço + campo»; `human_errors=true` dá a descrição; erros de autenticação HTTP 400 com `error` e `error_description` (ex.: `invalid_grant` «Refresh token has expired») |
+
+**Não diz:** o tamanho do `our_reference`; as casas decimais que o `price`
+guarda; o ATCUD; como se obtém o `document_product_id` para a nota de
+crédito. Ficam para medir (`docs/29` §13.7).

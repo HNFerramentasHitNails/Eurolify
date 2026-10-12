@@ -50,7 +50,7 @@ CREATE OR REPLACE FUNCTION encomenda_antes_de_gravar() RETURNS trigger
 DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
 BEGIN
-  -- O apagamento do titular (0066): só as colunas com dados pessoais, só
+  -- O apagamento do titular (0072): só as colunas com dados pessoais, só
   -- dentro da função do dono.
   IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
        ARRAY['contacto', 'entrega', 'perfil_copia']) THEN
@@ -102,7 +102,7 @@ CREATE OR REPLACE FUNCTION expedicao_antes_de_gravar() RETURNS trigger
 DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
 BEGIN
-  -- O apagamento do titular (0066): só as colunas com dados pessoais, só
+  -- O apagamento do titular (0072): só as colunas com dados pessoais, só
   -- dentro da função do dono.
   IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
        ARRAY['prova_entrega']) THEN
@@ -145,7 +145,7 @@ $$;
 CREATE OR REPLACE FUNCTION aviso_pagamento_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-  -- O apagamento do titular (0066): só as colunas com dados pessoais, só
+  -- O apagamento do titular (0072): só as colunas com dados pessoais, só
   -- dentro da função do dono.
   IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
        ARRAY['corpo']) THEN
@@ -168,7 +168,7 @@ $$;
 CREATE OR REPLACE FUNCTION pedido_livre_resolucao_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-  -- O apagamento do titular (0066): só as colunas com dados pessoais, só
+  -- O apagamento do titular (0072): só as colunas com dados pessoais, só
   -- dentro da função do dono.
   IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
        ARRAY['contacto', 'motivo_decisao']) THEN
@@ -200,7 +200,7 @@ DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
   prazo record;
 BEGIN
-  -- O apagamento do titular (0066): só as colunas com dados pessoais, só
+  -- O apagamento do titular (0072): só as colunas com dados pessoais, só
   -- dentro da função do dono.
   IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
        ARRAY['motivo']) THEN
@@ -269,7 +269,7 @@ CREATE OR REPLACE FUNCTION problema_antes_de_gravar() RETURNS trigger
 DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
 BEGIN
-  -- O apagamento do titular (0066): só as colunas com dados pessoais, só
+  -- O apagamento do titular (0072): só as colunas com dados pessoais, só
   -- dentro da função do dono.
   IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
        ARRAY['descricao']) THEN
@@ -304,7 +304,7 @@ $$;
 CREATE OR REPLACE FUNCTION sessao_checkout_antes_de_gravar() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-  -- O apagamento do titular (0066): os dados pessoais de uma sessão já
+  -- O apagamento do titular (0072): os dados pessoais de uma sessão já
   -- fechada, só dentro da função do dono (revisão do #374, P2-1).
   IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
        ARRAY['email', 'nome', 'telefone', 'entrega', 'faturacao']) THEN

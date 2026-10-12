@@ -97,6 +97,8 @@ dependem da P1 (§7).
 | `customers:merge` | Clientes: fundir fichas (com ensaio) e descartar candidatos a duplicado — dono e gestor (migração 0046) | `docs/23` §3.7; `docs/06`, DD |
 | `customers:privacy` | Clientes: os pedidos do titular — exportar, limitar e pseudonimizar — só o dono (migração 0049) | `docs/23` §7.1 e §12 |
 | `tax:read`, `tax:write` | Motor de IVA: ler as tabelas, simular a decisão; declarar o regime de cada entidade legal (só o dono) (migração 0040) | `docs/24` §8; `docs/06`, CZ |
+| `tasks:assign` | nas tarefas das filas que pedem uma pessoa, atribuir um caso e mudar o prazo; junto com o âmbito que lê a fila e o que a decide. Dono e gestor (migração 0066). Uma chave de agente de IA nunca atribui, mesmo com ele (R11) | `docs/33` R3; `docs/06`, DW |
+| `sales:read` | as vendas do dia e do mês (`GET /sales/summary`, `docs/35`): encomendado, pago, faturado e devolvido, com e sem IVA. Junta números de encomendas, pagamentos, faturas e reembolsos, por isso é um âmbito próprio: ter os desses domínios não chega. Dono e gestor (migração 0068; decisão DY) |
 | `keys:write` | criar e revogar chaves | este documento |
 | `storefront` | a lista fixa da chave pública | `docs/02` §4.1 |
 

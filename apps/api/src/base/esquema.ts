@@ -891,6 +891,8 @@ export interface TabelaDuplicadoCliente {
   decidido_em: ColumnType<Date | null, never, never>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
+  /** Desde quando está por decidir nesta passagem (0066; docs/33 §4.1). */
+  por_decidir_desde: ColumnType<Date | null, never, never>;
 }
 
 export const TIPOS_PEDIDO_TITULAR = [
@@ -1446,6 +1448,38 @@ export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   em: ColumnType<Date, never, never>;
 }
 
+// Notificações (migração 0067; docs/34).
+export const TIPOS_NOTIFICACAO = [
+  "refund.deadline_approaching",
+  "refund.deadline_passed",
+] as const;
+export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
+export const ESTADOS_NOTIFICACAO = [
+  "a_enviar",
+  "enviada",
+  "falhada",
+  "cancelada",
+] as const;
+export type EstadoNotificacao = (typeof ESTADOS_NOTIFICACAO)[number];
+
+/** Grava-a o gatilho do aviso; a API só a lê e muda o estado. */
+export interface TabelaNotificacao {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  tipo: ColumnType<TipoNotificacao, never, never>;
+  referencia: ColumnType<string, never, never>;
+  pessoa_id: ColumnType<string, never, never>;
+  lingua: ColumnType<"pt" | "es" | "en", never, never>;
+  dados: ColumnType<Record<string, unknown>, never, never>;
+  estado: ColumnType<EstadoNotificacao, never, EstadoNotificacao>;
+  tentativas: ColumnType<number, never, number>;
+  proxima_em: ColumnType<Date, never, Date>;
+  ultimo_erro: ColumnType<string | null, never, string | null>;
+  id_mensagem: ColumnType<string | null, never, string | null>;
+  criada_em: ColumnType<Date, never, never>;
+  terminada_em: ColumnType<Date | null, never, never>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -1527,10 +1561,13 @@ export interface BaseDados {
   pedido_livre_resolucao: TabelaPedidoLivreResolucao;
   linha_livre_resolucao: TabelaLinhaLivreResolucao;
   devolucao: TabelaDevolucao;
+  notificacao: TabelaNotificacao;
   linha_devolucao: TabelaLinhaDevolucao;
   problema: TabelaProblema;
   reembolso: TabelaReembolso;
   linha_reembolso: TabelaLinhaReembolso;
+  atribuicao: TabelaAtribuicao;
+  atribuicao_rasto: TabelaAtribuicaoRasto;
 }
 
 // Documentos fiscais (migração 0050; docs/29).
@@ -1576,6 +1613,16 @@ export interface IsencaoDoEmissor {
   emissor: string;
 }
 
+/**
+ * A configuração de uma ligação (docs/29 §13.2): só identificadores do
+ * emissor, nunca nomes. `metodos_pagamento` vai do método do Eurolify ao id
+ * do método no emissor.
+ */
+export interface ConfigDaLigacao {
+  [chave: string]: string | Record<string, string> | undefined;
+  metodos_pagamento?: Record<string, string>;
+}
+
 export interface TabelaLigacaoFaturacao {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1591,6 +1638,12 @@ export interface TabelaLigacaoFaturacao {
   serie: ColumnType<string | null, string | null, string | null>;
   taxas: ColumnType<TaxaDoEmissor[], string, string>;
   isencoes: ColumnType<IsencaoDoEmissor[], string, string>;
+  /** Os ids do emissor por omissão (docs/29 §13.2; migração 0069). */
+  config: ColumnType<ConfigDaLigacao, string | undefined, string>;
+  /** Os tokens que o emissor renova sozinho, cifrados (§13.4). */
+  sessao: ColumnType<Buffer | null, never, Buffer | null>;
+  sessao_versao_chave: ColumnType<string | null, never, string | null>;
+  sessao_em: ColumnType<Date | null, never, Date | null>;
   testada_em: ColumnType<Date | null, never, Date | null>;
   erro: ColumnType<string | null, never, string | null>;
   versao: ColumnType<number, never, number>;
@@ -1620,6 +1673,8 @@ export interface TabelaDocumentoFiscal {
   versao: ColumnType<number, never, number>;
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
+  /** Desde quando está na fila de uma pessoa (0066; docs/33 §4.1); põe-no o gatilho. */
+  na_fila_desde: ColumnType<Date | null, never, never>;
 }
 
 export interface TabelaDocumentoConteudo {
@@ -1820,6 +1875,8 @@ export interface TabelaReembolso {
   referencia_prestador: ColumnType<string | null, never, string>;
   falha: ColumnType<string | null, never, string>;
   consultado_em: ColumnType<Date | null, never, Date>;
+  /** Desde quando está incerto ou falhado nesta passagem (0066; docs/33 §4.1). */
+  na_fila_desde: ColumnType<Date | null, never, never>;
 }
 
 export interface TabelaLinhaReembolso {
@@ -1829,4 +1886,62 @@ export interface TabelaLinhaReembolso {
   linha_encomenda_id: ColumnType<string | null, string | null, never>;
   quantidade: ColumnType<number, number, never>;
   montante: ColumnType<string, number, never>;
+}
+
+// As tarefas das filas que pedem uma pessoa (migração 0066; docs/33; decisão
+// DW). A API só lê: escrevem as funções do dono (`tarefas_atribuir`,
+// `tarefas_mudar_prazo`, `tarefas_marcar_vencida`).
+
+export const FILAS_TAREFAS = [
+  "pagamento",
+  "documento_fiscal",
+  "duplicado_cliente",
+  "prazo_reembolso",
+  "livre_resolucao",
+  "problema",
+  "reembolso",
+] as const;
+export type FilaTarefa = (typeof FILAS_TAREFAS)[number];
+
+export const ACTOS_ATRIBUICAO = [
+  "atribuida",
+  "retirada",
+  "prazo_mudado",
+  "vencida",
+] as const;
+export type ActoAtribuicao = (typeof ACTOS_ATRIBUICAO)[number];
+
+/** Quem decide e até quando, numa passagem de um caso pela fila (docs/33 §4.2). */
+export interface TabelaAtribuicao {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  fila: ColumnType<FilaTarefa, never, never>;
+  caso: ColumnType<string, never, never>;
+  entrou_em: ColumnType<Date, never, never>;
+  responsavel: ColumnType<string | null, never, never>;
+  prazo: ColumnType<Date | null, never, never>;
+  aviso_vencido_em: ColumnType<Date | null, never, never>;
+  versao: ColumnType<number, never, never>;
+  criada_em: ColumnType<Date, never, never>;
+  actualizada_em: ColumnType<Date, never, never>;
+}
+
+/** O rasto da atribuição: só se acrescenta (0066). */
+export interface TabelaAtribuicaoRasto {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  atribuicao_id: ColumnType<string, never, never>;
+  acto: ColumnType<ActoAtribuicao, never, never>;
+  responsavel_antes: ColumnType<string | null, never, never>;
+  responsavel_depois: ColumnType<string | null, never, never>;
+  prazo_antes: ColumnType<Date | null, never, never>;
+  prazo_depois: ColumnType<Date | null, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  quem: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
+  canal: ColumnType<string | null, never, never>;
+  pedido: ColumnType<string | null, never, never>;
+  ia: ColumnType<unknown, never, never>;
+  autorizado_por: ColumnType<string | null, never, never>;
+  a_pedido_de: ColumnType<unknown, never, never>;
 }

@@ -40,7 +40,7 @@
 
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1 (preços só antes da peça 13, ADR-0012); AD (ADR-0022, 04/10): relatório OSS, núcleo das devoluções e lotes passam para a Fase 1, estimados — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, antes da peça 13 e não antes do código (S, ADR-0012) — 03/10/2026](modelo-de-receita-03out2026.md)
-- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 17–33 meses a tempo inteiro, 31–60 a meio (hipótese C; com a AD e as peças da DS, 11/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
+- [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 18–33 meses a tempo inteiro, 32–60 a meio (hipótese C; com a AD, a DS e a DW, 11/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
 
 ## Marca e apresentação
 
@@ -118,6 +118,7 @@
 - [Clientes 2c (#314): pedidos do titular — registo, limitação, exportação sem cópia na idempotência, pseudonimização do grupo; ficam os perfis de documentos e encomendas (R9); migração 0049 — 10/10/2026](clientes-pedidos-do-titular-10out2026.md)
 - [Clientes (#325, #330): consentimento por contacto e canal no comerciante; sobre uma recusa, «sim» só com dupla confirmação (enviada pela loja; 3/hora); migração 0052 — 10/10/2026](clientes-consentimento-por-contacto-10out2026.md)
 - [Clientes (#338): anexos da isenção manual na base (PDF/JPEG/PNG, 10 MB, 5 por isenção, 1 GB por comerciante), imutáveis salvo pseudonimização; decisão DN; migração 0055 — 10/10/2026](clientes-anexos-da-isencao-10out2026.md)
+- [VIES (#377): a VPS chega ao check-status da Comissão (HTTP 200, «disponível», 12/10/2026); o VIES_URL ainda não está no api.env — ligar é do Diogo ou do Bruno](vies-saida-da-vps-12out2026.md)
 - [Imagem da base do ensaio trocada (10/10/2026, #316): a mesma postgres 18.6 com o OpenSSL deb13u3, cópia antes, pelo aplicar-script; a API chega à base depois (401 com sessão inventada); a autorização tirada a seguir](postgres-imagem-trocada-10out2026.md)
 - [Acrescentar uma variante (#321, #324, #326, #331): POST /hub/products/{id}/variants (lock_timeout em todas as escritas do Hub); ecrã «Acrescentar variante», resposta perdida só aceita variante nova igual; 517 ok; aspecto aprovado — 10/10/2026](hub-acrescentar-variante-10out2026.md)
 - [Preço da variante no Hub (#335, #336, #339, #341): PUT/DELETE /hub/price-lists/{id}/prices/{variante} sobre o preço lido; ecrã «Preço da variante», cêntimos sem vírgula flutuante, 409 mostra sempre o conflito; 540 ok; aspecto aprovado — 10/10/2026](hub-preco-da-variante-10out2026.md)
@@ -127,7 +128,12 @@
 
 ## Âmbito do produto
 
-- [Hub da empresa inteira (#355): PDFs do Hub actual lidos; docs/31; módulos ligáveis a partir da Fase 2 (DR, ADR-0042); 13 módulos pelas 8 portas e as saídas aprovadas (DS, ADR-0043): E, marketing e G fora; 2 peças para a Fase 1 — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
+- [Hub da empresa (#355): docs/31; módulos a partir da Fase 2 (DR, ADR-0042); 13 módulos pelas 8 portas (DS, ADR-0043): E, marketing e G fora, 2 peças na Fase 1; balcão pelo POS do Hub, Moloni só fatura (DV, ADR-0044) — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
 - [API do Moloni testada só a ler (#355): vendas do POS lêem-se com terminal_id; cada venda baixa o stock sozinha; movimento negativo é saída; token só no endereço; sem limite até ~1400/min; status 2 por perceber — 11/10/2026](moloni-api-testes-11out2026.md)
+- [Moloni, a emissão (#310, parte 2): 33 páginas da documentação lidas; desenho aprovado (DZ); código no #384 (0069), revisto e corrigido; nada medido no Moloni real — 12/10/2026](moloni-emissao-desenho-12out2026.md)
 - [Pós-venda: aviso do prazo do reembolso (#353, decisão DQ): 3 dias antes e quando passa, evento e lista da API, sem e-mail; prazo no fuso do comerciante; fora de prazo aceite sem aviso; migração 0063 no ensaio (corrida 38165970858) — 11/10/2026](pos-venda-prazo-reembolso-11out2026.md)
-- [Pedidos do titular em todos os domínios (#233, DU): desenho docs/23 §15; parte 1 (0066) — o apagamento limpa encomendas acabadas, fila para as em curso, perfil só sem cancelamento sem pagamento, aviso em resumo — 11/10/2026](titular-todos-os-dominios-11out2026.md)
+- [Pós-venda: selado por higiene (#363, decisão DT): marca no artigo, copiada para a encomenda e conferida; aberta numa livre resolução, uma pessoa decide reembolsar ou a excepção; texto legal por país por fazer (J5); migração 0065 — 11/10/2026](pos-venda-selado-higiene-11out2026.md)
+- [Notificações (#373, decisão DX): o e-mail do aviso do prazo aos donos e gestores, por SMTP (OVH E-mail Pro), fila na base, sem dados do cliente; falta a conta, as SMTP_* na VPS e o DNS; docs/34, migração 0067 — 11/10/2026](notificacoes-email-11out2026.md)
+- [Peça 21, tarefas das filas (#366, #368, #375): desenho aprovado (DW), código da parte 1; a lista lê as filas e a tarefa só guarda quem e até quando; 7 filas (DS dizia 4); achado: pedido de livre resolução pendente corre o prazo sem aviso — 11/10/2026](tarefas-das-filas-11out2026.md)
+- [Vendas do dia e do mês (#367, DY): quatro números com e sem IVA, por canal e mercado; âmbito sales:read (dono e gestor); migração 0068; medido: dia ~25 ms, mês 0,4–0,75 s com 100 000 encomendas; sem pré-calcular — 12/10/2026](vendas-do-dia-12out2026.md)
+- [Pedidos do titular em todos os domínios (#233, DU): desenho docs/23 §15; parte 1 (0072) — o apagamento limpa encomendas acabadas, fila para as em curso, perfil só sem cancelamento sem pagamento, aviso em resumo — 11/10/2026](titular-todos-os-dominios-11out2026.md)

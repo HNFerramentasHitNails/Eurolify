@@ -3,7 +3,7 @@
 Desenho: `docs/23` §15, aprovado pelo Diogo a 11/10/2026 (*«aprovado»*),
 com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
 (juntado, 53b7ccd); parte 1 do código neste ramo
-(`titular-apagamento-dominios`, migração 0066).
+(`titular-apagamento-dominios`, migração 0072).
 
 ## O que se fez
 
@@ -14,7 +14,7 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
 - A regra (RGPD, art. 17.º, n.º 1, al. a), e n.º 3, als. b) e e), lido no
   EUR-Lex, CELEX 32016R0679): a prova fiscal fica 10 anos; uma encomenda em
   curso fica até acabar e limpa-se sozinha; o resto limpa-se logo.
-- Parte 1 (0066): os gatilhos abrem só as colunas pessoais, só com a marca
+- Parte 1 (0072): os gatilhos abrem só as colunas pessoais, só com a marca
   da 0049; `titular_limpar_encomenda()`; a fila `titular_pendente` (interna)
   e a tarefa de hora a hora; o perfil só fica sem cancelamento sem pagamento
   (Q2); o aviso em bruto passa a resumo SHA-256 (Q3).
@@ -48,5 +48,5 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
 - Fica de fora (revisão do #374, P3): os avisos sem pagamento associado
   (formato da EuPago **C**); os textos que entrem depois numa encomenda já
   limpa (uma devolução ou um problema novos); os apagamentos feitos antes da
-  0066 (decisão pedido a pedido, nunca em massa); o custo dos gatilhos, que
+  0072 (decisão pedido a pedido, nunca em massa); o custo dos gatilhos, que
   passam a converter OLD e NEW em JSON em cada alteração.
