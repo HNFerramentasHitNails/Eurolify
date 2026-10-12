@@ -1625,8 +1625,16 @@ export async function lerReembolso(
         .select("emissor_fiscal")
         .where("id", "=", r.encomenda_id)
         .executeTakeFirstOrThrow();
+      // A fatura emitida fora do Eurolify também é do sistema próprio
+      // (docs/29 §15, F5).
+      const fatura = await trx
+        .selectFrom("documento_fiscal")
+        .select("estado")
+        .where("encomenda_id", "=", r.encomenda_id)
+        .where("tipo", "=", "fatura")
+        .executeTakeFirst();
       semNotaCredito =
-        e.emissor_fiscal === "sistema_proprio"
+        e.emissor_fiscal === "sistema_proprio" || fatura?.estado === "fora"
           ? "sistema_proprio"
           : "sem_fatura";
     }

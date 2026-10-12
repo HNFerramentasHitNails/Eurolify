@@ -1546,6 +1546,93 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     ).rejects.toThrow(/refunds\.exceeds_paid/);
   });
 
+  it("emitida fora do Eurolify: a NC que esperava pela fatura sai com ela, e um reembolso depois não pede NC (docs/29 §15, F5)", async () => {
+    const s = await cenario();
+    // Paga antes de a entidade escolher quem emite.
+    const e = await paga(s, [[s.v1, 2]]);
+    await ateParar();
+    const [linha] = await expedir(s, e.encomenda);
+    const decidir = async (descricao: string) => {
+      const p = await ok(
+        s.adm("POST", "/problems", {
+          encomenda: e.encomenda,
+          tipo: "chegou_danificado",
+          descricao,
+        }),
+        201,
+      );
+      return ok(
+        s.adm("POST", `/problems/${String(p["id"])}/decide`, {
+          versao: 1,
+          linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+          motivo: "partido",
+        }),
+        201,
+      );
+    };
+    const r1 = await decidir("frasco partido");
+    expect(String(r1["nota_credito"])).toMatch(/^inv_/);
+    await ateParar();
+    let { fatura, notas } = await documentosDe(s, e.encomenda);
+    expect(fatura?.["estado"]).toBe("retido");
+    expect(notas[0]?.["estado"]).toBe("retido");
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "sistema_proprio",
+      }),
+      204,
+    );
+    await ok(
+      s.adm("POST", `/invoices/${String(fatura?.["id"])}/issued-elsewhere`, {
+        versao: fatura?.["versao"],
+        motivo: "faturada no sistema da loja",
+        numero: "FT 2026/58",
+      }),
+    );
+    ({ fatura, notas } = await documentosDe(s, e.encomenda));
+    expect(fatura?.["estado"]).toBe("fora");
+    // A NC sai com a fatura, sem número declarado: o da fatura não é o dela
+    // (revisão do #386, P2-2).
+    expect(notas[0]).toMatchObject({
+      estado: "fora",
+      emitida_fora: { numero_declarado: null, prova: false },
+    });
+    // E sai da fila «A decidir» (P2-5).
+    const { rows: fila } = await naBase(s, (trx) =>
+      sql<{
+        caso: string;
+      }>`select caso from documentos_casos_a_decidir()`.execute(trx),
+    );
+    expect(fila.map((x) => x.caso)).not.toContain(
+      String(notas[0]?.["id"]).slice(4),
+    );
+    // Um reembolso depois: sem NC no Eurolify, e diz porquê.
+    const r2 = await decidir("outro frasco partido");
+    expect(r2["nota_credito"]).toBeNull();
+    expect(
+      await ok(s.adm("GET", `/refunds/${String(r2["reembolso"])}`)),
+    ).toMatchObject({
+      nota_credito: null,
+      sem_nota_credito: "sistema_proprio",
+    });
+    // Pedir a NC devolve nada; e a base recusa criá-la directamente
+    // (revisão do #386, P2-3).
+    await expect(
+      naBase(s, (trx) =>
+        sql`select nota_credito_pedir(${String(r2["reembolso"]).slice(4)}::uuid)`.execute(
+          trx,
+        ),
+      ),
+    ).resolves.toMatchObject({ rows: [{ nota_credito_pedir: null }] });
+    await expect(
+      sql`insert into documento_fiscal (comerciante_id, encomenda_id, entidade_legal_id,
+          tipo, modo, original_id, reembolso_id)
+        values (${s.c}::uuid, ${e.encomenda.slice(4)}::uuid, ${s.entidade}::uuid,
+          'nota_credito', 'teste', ${String(fatura?.["id"]).slice(4)}::uuid,
+          ${String(r2["reembolso"]).slice(4)}::uuid)`.execute(base.dono),
+    ).rejects.toThrow(/invoices\.other_issuer/);
+  });
+
   it("a nota de crédito de uma fatura do Moloni fica retida até se medir o related_id (docs/29 §13.6, M7)", async () => {
     const s = await cenario();
     await ok(
@@ -1603,6 +1690,27 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       estado: "retido",
       motivos: ["nota_credito_sem_adaptador"],
     });
+    // Uma NC de uma fatura emitida pelo Eurolify nunca sai «fora»: nem pela
+    // API, nem pela base (revisão do #386, P2-3).
+    expect(
+      await codigo(
+        s.adm(
+          "POST",
+          `/invoices/${String(notas[0]?.["id"])}/issued-elsewhere`,
+          {
+            versao: notas[0]?.["versao"],
+            motivo: "tentativa numa NC da fatura do Eurolify",
+            numero: "NC 1",
+          },
+        ),
+      ),
+    ).toEqual([409, "invoices.invalid_transition"]);
+    await expect(
+      sql`update documento_fiscal set estado = 'fora'
+        where id = ${String(notas[0]?.["id"]).slice(4)}::uuid`.execute(
+        base.dono,
+      ),
+    ).rejects.toThrow(/invoices\.invalid_transition/);
     // Nenhuma NC chegou ao Moloni.
     expect(
       moloni.estado.pedidos.some((x) => x.metodo.startsWith("creditNotes/")),

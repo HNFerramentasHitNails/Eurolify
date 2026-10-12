@@ -41,6 +41,7 @@
 - [D-1 decidida: vender desde o início (ADR-0006); fases reorganizadas, D-14 antes da Fase 1 (preços só antes da peça 13, ADR-0012); AD (ADR-0022, 04/10): relatório OSS, núcleo das devoluções e lotes passam para a Fase 1, estimados — 03/10/2026](d1-vender-desde-o-inicio-03out2026.md)
 - [Modelo de receita estudado (D-14): concorrência, 9 fontes de receita, base decidida (N: mensalidade por escalões, sem taxa sobre as vendas); preços por decidir, antes da peça 13 e não antes do código (S, ADR-0012) — 03/10/2026](modelo-de-receita-03out2026.md)
 - [Estimativa (D-13): decidido o A (O, ADR-0008), Diogo e Bruno com Claude Code e Codex; Fase 1 18–33 meses a tempo inteiro, 32–60 a meio (hipótese C; com a AD, a DS e a DW, 11/10), tempo por fases no docs/10 §9; o Codex não lê o CLAUDE.md — 03/10/2026](estimativa-prazo-e-custo-03out2026.md)
+- [Ritmo medido (provisório): ≈ 31 % da Fase 1 em 8 dias; código completo dez/2026–fev/2027 (C, docs/10 §6.1); decisão EC (ADR-0045): validações no fim, fonte sempre o eur-lex — 12/10/2026](ritmo-medido-12out2026.md)
 
 ## Marca e apresentação
 
@@ -131,6 +132,7 @@
 - [Hub da empresa (#355): docs/31; módulos a partir da Fase 2 (DR, ADR-0042); 13 módulos pelas 8 portas (DS, ADR-0043): E, marketing e G fora, 2 peças na Fase 1; balcão pelo POS do Hub, Moloni só fatura (DV, ADR-0044) — 11/10/2026](hub-da-empresa-pdfs-11out2026.md)
 - [API do Moloni testada só a ler (#355): vendas do POS lêem-se com terminal_id; cada venda baixa o stock sozinha; movimento negativo é saída; token só no endereço; sem limite até ~1400/min; status 2 por perceber — 11/10/2026](moloni-api-testes-11out2026.md)
 - [Moloni, a emissão (#310, parte 2): 33 páginas da documentação lidas; desenho aprovado (DZ); código no #384 (0069), revisto e corrigido; nada medido no Moloni real — 12/10/2026](moloni-emissao-desenho-12out2026.md)
+- [Emitida fora do Eurolify (#310, #386): estado final `fora` pelo dono, número declarado sem ser prova, NC vai com a fatura; corrida com reembolso corrigida (EA, 0070) — 12/10/2026](emitida-fora-12out2026.md)
 - [Pós-venda: aviso do prazo do reembolso (#353, decisão DQ): 3 dias antes e quando passa, evento e lista da API, sem e-mail; prazo no fuso do comerciante; fora de prazo aceite sem aviso; migração 0063 no ensaio (corrida 38165970858) — 11/10/2026](pos-venda-prazo-reembolso-11out2026.md)
 - [Pós-venda: selado por higiene (#363, decisão DT): marca no artigo, copiada para a encomenda e conferida; aberta numa livre resolução, uma pessoa decide reembolsar ou a excepção; texto legal por país por fazer (J5); migração 0065 — 11/10/2026](pos-venda-selado-higiene-11out2026.md)
 - [Notificações (#373, decisão DX): o e-mail do aviso do prazo aos donos e gestores, por SMTP (OVH E-mail Pro), fila na base, sem dados do cliente; falta a conta, as SMTP_* na VPS e o DNS; docs/34, migração 0067 — 11/10/2026](notificacoes-email-11out2026.md)

@@ -2502,6 +2502,118 @@ export async function resolver(
   });
 }
 
+/**
+ * A fatura «emitida fora do Eurolify» (docs/29 §15; EA): só o caso exacto da
+ * F2 (a base confere-o também), com motivo e o número **declarado** no
+ * sistema próprio, que não é prova (F3). A NC que esperava por ela vai com
+ * ela (F5). Um pedido de cada vez (R10).
+ */
+export async function emitidaFora(
+  trx: Transaction<BaseDados>,
+  c: string,
+  id: string,
+  dados: { versao: number; motivo: string; numero: string },
+  quem: string,
+) {
+  return noDocumentos(trx, c, async () => {
+    await marcar(trx, quem, dados.motivo);
+    const ctx = await paraDecidir(trx, id, dados.versao, [
+      "retido",
+      "a_verificar",
+    ]);
+    // Uma NC que ficou presa a uma fatura já `fora` (uma corrida antes da
+    // tranca da base; revisão do #386, P2-1) tem saída: vai também, com o
+    // número que a pessoa declarar para ela.
+    if (ctx.doc.tipo === "nota_credito") {
+      const original =
+        ctx.doc.original_id === null
+          ? undefined
+          : await trx
+              .selectFrom("documento_fiscal")
+              .select("estado")
+              .where("id", "=", ctx.doc.original_id)
+              .executeTakeFirst();
+      if (original?.estado !== "fora") {
+        throw new ErroDocumentos(
+          "invoices.invalid_transition",
+          "uma nota de crédito só sai fora com a fatura dela",
+        );
+      }
+      await paraFora(trx, ctx.doc.id, ctx.doc.versao, dados.numero);
+      return ctx.doc.versao + 1;
+    }
+    const e = await trx
+      .selectFrom("encomenda")
+      .innerJoin(
+        "entidade_legal",
+        "entidade_legal.id",
+        "encomenda.entidade_legal_id",
+      )
+      .select([
+        "encomenda.emissor_fiscal as encomenda",
+        "entidade_legal.emissor_fiscal as entidade",
+      ])
+      .where("encomenda.id", "=", ctx.doc.encomenda_id)
+      // A escolha da entidade não muda até ao fim (revisão do #386, P3).
+      .forShare()
+      .executeTakeFirstOrThrow();
+    if (
+      ctx.doc.estado !== "retido" ||
+      !ctx.doc.motivos.includes("emissor_por_configurar") ||
+      e.encomenda !== "por_configurar" ||
+      e.entidade !== "sistema_proprio"
+    ) {
+      throw new ErroDocumentos(
+        "invoices.invalid_transition",
+        "só uma fatura retida por quem emite, de uma encomenda paga antes da escolha, cuja entidade emite no sistema próprio",
+      );
+    }
+    await paraFora(trx, ctx.doc.id, ctx.doc.versao, dados.numero);
+    // As NC que esperavam por esta fatura são do sistema próprio (F5), sem
+    // número declarado: o da fatura não é o delas (revisão do #386, P2-2).
+    const notas = await trx
+      .selectFrom("documento_fiscal")
+      .select(["id", "versao"])
+      .where("original_id", "=", ctx.doc.id)
+      .where("tipo", "=", "nota_credito")
+      .where("estado", "in", ["a_verificar", "retido"])
+      .forUpdate()
+      .execute();
+    for (const n of notas) {
+      await trx
+        .updateTable("documento_fiscal")
+        .set({
+          estado: "fora",
+          versao: n.versao + 1,
+          reservado_ate: null,
+        })
+        .where("id", "=", n.id)
+        .execute();
+    }
+    return ctx.doc.versao + 1;
+  });
+}
+
+async function paraFora(
+  trx: Transaction<BaseDados>,
+  id: string,
+  versao: number,
+  numero: string,
+) {
+  const r = await trx
+    .updateTable("documento_fiscal")
+    .set({
+      estado: "fora",
+      fora_numero: numero,
+      versao: versao + 1,
+      reservado_ate: null,
+    })
+    .where("id", "=", id)
+    .where("versao", "=", versao)
+    .executeTakeFirst();
+  if (Number(r.numUpdatedRows) === 0) throw OCUPADO();
+}
+
 // ------------------------------------------------------------- Leituras
 
 export async function listarDocumentos(

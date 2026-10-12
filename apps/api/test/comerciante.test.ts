@@ -158,6 +158,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0067_notificacoes",
         "0068_vendas_do_dia",
         "0069_faturacao_moloni",
+        "0070_documento_emitido_fora",
         "0072_titular_todos_os_dominios",
       ]);
     });
