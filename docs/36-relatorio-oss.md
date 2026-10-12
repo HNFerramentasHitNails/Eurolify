@@ -26,8 +26,8 @@
 >
 > Marca **W/M/C** como no `docs/03`: **W** = lido no texto da UE; **C** = por
 > confirmar (interpretação nossa, ou depende de lei nacional ou do
-> contabilista). As validações profissionais fazem-se no fim da Fase 1
-> (proposta EC, pedido #391, ainda por juntar); até lá, **C** fica **C**.
+> contabilista). As validações profissionais fazem-se no fim do
+> desenvolvimento (decisão EC, ADR-0045); até lá, **C** fica **C**.
 
 ## 1. O que o texto da UE pede (W)
 
