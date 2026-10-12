@@ -25,6 +25,13 @@ Pedido do Diogo, 12/10/2026: *«sim, corrige já o docs/10 com esta medição»*
   fevereiro de 2027, contando o que falta 3 a 4 vezes mais devagar; a Fase 1
   passada entre junho e setembro de 2027.
 
+## Decisão no mesmo dia (EC, ADR-0045)
+
+O Diogo decidiu tratar o contabilista, o jurista e o seguro **no fim do
+desenvolvimento** e usar sempre o repositório `eur-lex` como fonte das regras.
+O §6.1 passou a dizer que o primeiro comerciante de fora vem depois das
+validações, cujo prazo não está estimado.
+
 ## O que ficou por verificar
 
 - As horas e a dedicação de cada um. Os commits vêm todos da conta

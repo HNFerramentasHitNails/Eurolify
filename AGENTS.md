@@ -104,6 +104,13 @@ totalmente as regras da UE e nunca inventar nada fora da UE»*.
    para Paris (ADR-0018, Diogo, 03/10/2026) — **nenhum dado pessoal real entra
    nela**; acaba a **31/03/2027**, ou antes se um dado de cliente real tiver
    de entrar (ADR-0019).
+5. **A fonte é o repositório `eur-lex`** (ADR-0045, Diogo, 12/10/2026): antes
+   de uma regra fiscal ou legal entrar num desenho, teste ou código, procura-se
+   o acto em `HNFerramentasHitNails/eur-lex` (`ferramentas/procurar.py`, skill
+   `consultar-legislacao` desse repositório) e lê-se o artigo. Cita-se o
+   ficheiro, o artigo, a versão e o `obtido_em`. Se não estiver lá, diz-se como
+   se procurou. Contabilista, jurista e seguro tratam-se no fim do
+   desenvolvimento, sempre antes do primeiro comerciante de fora.
 
 ## 🔴 Uma regra, um sítio — e o sítio é a API
 

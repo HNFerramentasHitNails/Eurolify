@@ -37,6 +37,12 @@ data indicada — ou, quando a linha o diz, no mesmo texto do Jornal Oficial
 servido pelo Serviço das Publicações da UE; o resto do acto não. Alterações posteriores a esse texto não
 foram vistas, salvo as que a linha cita.
 
+**Lido no repositório `eur-lex`** (ADR-0045, desde 12/10/2026, a fonte por
+omissão): a linha cita o ficheiro, o artigo, a `versao_aplicavel_desde`, se o
+texto é o original do JO ou a versão consolidada, e o `obtido_em`. Um texto
+consolidado não tem valor jurídico (aviso do EUR-Lex). Para as linhas que vão
+a uma decisão de IVA ou a um texto legal, confirma-se o JO pela `url_eurlex`.
+
 ---
 
 ## 1. Impostos e faturação
