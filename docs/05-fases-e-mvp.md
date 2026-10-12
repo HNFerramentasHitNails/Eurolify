@@ -121,7 +121,8 @@ em paralelo com o Shopify, **nunca a loja principal primeiro**. O piloto de
 pagamentos EuPago e Stripe já desenhado para a plataforma de formação
 (29/09/2026) segue o seu caminho; o Eurolify reaproveita o desenho dele.
 
-**Critério de passagem:** 3 meses de vendas reais, em todos os comerciantes,
+**Critério de passagem:** 3 meses de vendas reais **na loja piloto do grupo**
+(decisão EC, ADR-0045, 12/10/2026; era «em todos os comerciantes»),
 sem um documento fiscal errado com origem no Eurolify; pagamentos 100 % conciliados; os testes de
 isolamento entre inquilinos sempre verdes; o botão de livre resolução usado e
 tratado de ponta a ponta pelo menos uma vez — até ao reembolso e à nota de

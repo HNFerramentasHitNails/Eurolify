@@ -281,7 +281,7 @@ Por isso conto o resto **3 a 4 vezes mais devagar** do que o ritmo medido.
 | Esforço que falta na Fase 1 | 116–221 p-s | ≈ 80–152 p-s (69 % de 100,5–170, com +15 % a +30 %) |
 | Código da Fase 1 completo | maio de 2028 a outubro de 2029 | **dezembro de 2026 a fevereiro de 2027** (≈ 8 a 19 semanas a contar de 12/10/2026) |
 | Primeiro comerciante de fora | — | depois do código completo, das validações do contabilista e do jurista e do seguro (no fim, ADR-0045) e da VPS em Paris (até 31/03/2027, ADR-0019); o prazo das validações **não está estimado** |
-| Fase 1 passada (+3 meses de vendas reais) | +3 meses sobre o fim da construção | **junho a setembro de 2027**, se os 3 meses contarem com as vendas da loja piloto do grupo; se tiverem de incluir comerciantes de fora, soma-se o prazo das validações (ADR-0045), por estimar |
+| Fase 1 passada (+3 meses de vendas reais) | +3 meses sobre o fim da construção | **junho a setembro de 2027**: os 3 meses contam só com a loja piloto do grupo (ADR-0045), por isso não dependem do prazo das validações |
 | Até ao fim da Fase 3 | ≈ 39 a 71 meses (3 a 6 anos) | **ordem de grandeza: 2028** — as Fases 2 e 3 não foram medidas peça a peça |
 
 **O que manda continua a ser o critério de passagem, não o calendário**

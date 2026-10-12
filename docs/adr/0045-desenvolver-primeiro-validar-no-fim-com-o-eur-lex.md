@@ -39,6 +39,11 @@
    teste ou em código, procura-se lá o acto e lê-se o artigo
    (`ferramentas/procurar.py`; a skill `consultar-legislacao` desse
    repositório).
+3. **Os 3 meses de vendas reais do critério de passagem da Fase 1 contam só
+   com a loja piloto do grupo** (Diogo, 12/10/2026, à pergunta deste ADR:
+   *«só com a loja piloto do grupo»*). As outras condições do critério ficam:
+   nenhum documento fiscal errado, pagamentos 100 % conciliados, isolamento
+   sempre verde e uma livre resolução tratada até à nota de crédito.
 
 ## Consequências
 
@@ -57,6 +62,9 @@
 - **A previsão** (`docs/10` §6.1): o código da Fase 1 continua previsto entre
   dezembro de 2026 e fevereiro de 2027. O primeiro comerciante de fora passa a
   vir **depois** das validações, cujo prazo não está estimado.
+- **A Fase 1 pode passar antes de entrar o primeiro comerciante de fora**
+  (ponto 3): a previsão de junho a setembro de 2027 (`docs/10` §6.1) não
+  depende do prazo das validações.
 - **A recomendação do `docs/10` §7** (pedir já os orçamentos) fica como
   registo e não se segue.
 
@@ -64,6 +72,6 @@
 
 - Quanto demoram as validações do contabilista e do jurista e a contratação do
   seguro: sem orçamento nem prazo.
-- Se o critério de passagem da Fase 1 (`docs/05`) pode contar só as vendas das
-  lojas do próprio grupo, que não precisam das validações para comerciantes de
-  fora. O texto diz «em todos os comerciantes»; não se decidiu.
+- O critério de passagem com só a loja piloto não prova o Eurolify com
+  comerciantes de fora (outros catálogos, outros sistemas de gestão, outros
+  países); isso fica para depois das validações, já na Fase 2 ou em paralelo.

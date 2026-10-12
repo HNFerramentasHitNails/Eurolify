@@ -30,7 +30,10 @@ Pedido do Diogo, 12/10/2026: *«sim, corrige já o docs/10 com esta medição»*
 O Diogo decidiu tratar o contabilista, o jurista e o seguro **no fim do
 desenvolvimento** e usar sempre o repositório `eur-lex` como fonte das regras.
 O §6.1 passou a dizer que o primeiro comerciante de fora vem depois das
-validações, cujo prazo não está estimado.
+validações, cujo prazo não está estimado. No mesmo dia: os 3 meses de vendas
+do critério da Fase 1 contam **só com a loja piloto do grupo** (*«só com a
+loja piloto do grupo»*), por isso a Fase 1 passada (junho a setembro de 2027,
+**C**) não depende das validações.
 
 ## O que ficou por verificar
 
