@@ -755,13 +755,17 @@ fi
 
 # ---------------------------------------------------------------------------
 passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub.env, api-totp.env, api-smtp.env e api-vies.env (docs/19 §6, #107; docs/34 §13; docs/23 §13)"
-# O VIES (docs/23 §13; Diogo, 12/10/2026: «sim, avança»): o endereço da API
-# REST da Comissão, num ficheiro só dele que este passo escreve inteiro. Não é
-# segredo; ligá-lo muda a configuração da API, por isso entra por pedido
-# revisto (ADR-0028). A medição diz se está ligado; a prova é a primeira
-# consulta da fila.
+# O VIES (docs/23 §13; Diogo, 12/10/2026: «sim, avança»), num ficheiro só
+# dele que este passo escreve inteiro. No ensaio, o SERVIÇO DE TESTE da
+# Comissão (revisão do #405, P2-1; Diogo: «a»): a VPS ainda está no Reino
+# Unido e nenhum dado pessoal real entra nela (ADR-0019); o serviço de teste
+# devolve nomes e moradas de exemplo («100» válido, «200» inválido). O
+# serviço verdadeiro (…/check-vat-number) liga-se em Paris. Não é segredo;
+# ligá-lo muda a configuração da API, por isso entra por pedido revisto
+# (ADR-0028).
 API_VIES_ENV=/etc/eurolify/api-vies.env
-VIES_DESEJADO="VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number"
+VIES_DESEJADO="VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-test-service"
+VIES_ESCRITO=0
 escrever_api_vies() {
   (
     umask 077
@@ -775,6 +779,9 @@ if [[ "$(cat "$API_VIES_ENV" 2>/dev/null || true)" == "$VIES_DESEJADO" &&
   ok "$API_VIES_ENV"
 else
   fazer "escrever $API_VIES_ENV (o endereço do VIES)" escrever_api_vies
+  # Também no --mostrar, para dizer que a API se recriaria (revisão do #405,
+  # P3-1).
+  VIES_ESCRITO=1
 fi
 # O docker só lê o --env-file quando cria o contentor: uma ligação nova só
 # chega à API quando o contentor for recriado. Quem o recria é o
@@ -811,7 +818,7 @@ recriar_api() {
 imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
 if [[ -z "$imagem_api" ]]; then
   ok "sem contentor eurolify-api: a primeira publicação já o cria com a ligação"
-elif ((API_ENV_RENOVADO || TOTP_GERADA)) || configuracao_mais_recente_que_a_api; then
+elif ((API_ENV_RENOVADO || TOTP_GERADA || VIES_ESCRITO)) || configuracao_mais_recente_que_a_api; then
   resumo_api="${imagem_api##*@}"
   # O eurolify-publicar só recria a imagem do IMAGEM_REPO desta máquina: com
   # outro repositório, dizia «não recrio» e saía bem (revisão do #180, P3-1).

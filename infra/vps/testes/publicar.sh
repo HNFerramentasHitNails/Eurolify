@@ -41,6 +41,8 @@ case "$1" in
     if [[ "$*" == *"{{.Created}}"* ]]; then echo "${CRIADO:-2099-01-01T00:00:00Z}"
     # As montagens da API no ar: sem-media faz de API de antes do #178.
     elif [[ "$*" == *"{{range .Mounts}}"* ]]; then [[ -f "$FALSOS/sem-media" ]] || echo "/media "
+    # O ambiente da API no ar: o de $FALSOS/api-ambiente.
+    elif [[ "$*" == *"{{range .Config.Env}}"* ]]; then cat "$FALSOS/api-ambiente" 2>/dev/null || true
     else cat "$FALSOS/no-ar"; fi ;;
   exec)
     [[ "${BASE_EM_BAIXO:-0}" == 0 ]] || exit 2
@@ -572,7 +574,7 @@ confere sim "regista-o" no_registo "chave TOTP inválida"
 # O endereço do VIES (docs/23 §13): o api-vies.env novo recria a API, e a API
 # recebe-o; sem ele, não se passa.
 preparar
-printf 'VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number\n' >/etc/eurolify/api-vies.env
+printf 'VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-test-service\n' >/etc/eurolify/api-vies.env
 touch -d @2000000000.5 /etc/eurolify/api-vies.env
 OPCAO=--so-recriar caso "--so-recriar com o endereço do VIES" 3 CRIADO=2033-05-18T03:33:20Z
 confere sim "recria a API" arrancou 3
@@ -723,10 +725,17 @@ echo "VIES_URL=   " >/etc/eurolify/api.env
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "um VIES_URL só com espaços não conta" linha_na_saida "VIES_URL na configuração da API: não (a consulta está desligada)"
 : >/etc/eurolify/api.env
-echo "VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number" >/etc/eurolify/api-vies.env
+echo "VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-test-service" >/etc/eurolify/api-vies.env
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "com o VIES_URL no api-vies.env" linha_na_saida "VIES_URL na configuração da API: sim (a API só o lê quando é recriada)"
-rm -f /etc/eurolify/api-vies.env
+confere sim "diz que é o serviço de teste" linha_na_saida "VIES: o serviço de teste da Comissão (sem dados reais)"
+confere sim "a API no ar ainda sem ele" linha_na_saida "VIES_URL na API no ar: não"
+touch "$falsos/no-ar"
+printf 'PATH=/x\nVIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-test-service\n' >"$falsos/api-ambiente"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "a API no ar já o leu" linha_na_saida "VIES_URL na API no ar: sim"
+confere nao "sem o valor do ambiente" na_saida "PATH=/x"
+rm -f /etc/eurolify/api-vies.env "$falsos/api-ambiente"
 
 rm -rf "$falsos"
 ((falhas == 0))

@@ -797,8 +797,12 @@ minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
   Ligar muda a configuração da máquina (AGENTS.md, «Operar a VPS», regra 1):
   o Diogo decidiu ligar a 12/10/2026 (*«sim, avança»*). O passo 10c do
   `preparar.sh` escreve o `VIES_URL` no `/etc/eurolify/api-vies.env` e recria
-  a API; a publicação passa-o à API; a medição diz «VIES_URL na configuração
-  da API: sim».
+  a API; a publicação passa-o à API; a medição diz se está na configuração e
+  na API no ar. **No ensaio, o serviço de teste da Comissão**
+  (`…/rest-api/check-vat-test-service`; «100» válido, «200» inválido, com
+  nome e morada de exemplo): a VPS ainda está no Reino Unido e nenhum dado
+  pessoal real entra nela (ADR-0019; revisão do #405, P2-1; Diogo,
+  12/10/2026: *«a»*). O serviço verdadeiro liga-se em Paris.
 - A isenção e a prova não entram na linha do tempo da ficha: são registos que
   só se acrescentam, com o seu quem e quando.
 
