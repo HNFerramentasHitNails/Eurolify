@@ -3,8 +3,10 @@ import {
   agregar,
   baldeDe,
   celula,
+  jaDeclarado,
   lerPeriodo,
   periodoDe,
+  ultimoFechado,
   type DocumentoLido,
 } from "../src/faturacao/oss.js";
 import type { Conteudo } from "../src/faturacao/repositorio.js";
@@ -284,31 +286,19 @@ describe("o relatório OSS (puro)", () => {
     expect(baldeDoRelatorio(r, "oss")?.linhas).toEqual([]);
   });
 
-  it("um documento de um período fechado entra como alteração; de um período anterior aberto, fica de fora (P4)", () => {
+  it("um documento de um período fechado, ou anterior ao último fechado, entra como alteração; de um período aberto depois dele, impede (P4; P1-B)", () => {
+    const linha = (base: number) => ({
+      regra: "distancia_destino",
+      pais_imposto: "ES",
+      base,
+      iva: base * 0.21,
+      taxa: 2100,
+    });
     const docs = [
-      documento(
-        "tarde",
-        "2026-09-20",
-        [
-          {
-            regra: "distancia_destino",
-            pais_imposto: "ES",
-            base: 1000,
-            iva: 210,
-            taxa: 2100,
-          },
-        ],
-        { tipo: "nota_credito" },
-      ),
-      documento("antes", "2026-06-20", [
-        {
-          regra: "distancia_destino",
-          pais_imposto: "ES",
-          base: 400,
-          iva: 84,
-          taxa: 2100,
-        },
-      ]),
+      documento("tarde", "2026-09-20", [linha(1000)], { tipo: "nota_credito" }),
+      // O T2 nunca se fechou no Eurolify, mas é anterior ao T3 fechado: já
+      // está declarado, e o que chega com data dele é alteração (P1-B).
+      documento("antes", "2026-06-20", [linha(400)]),
     ];
     const r = agregar(docs, "PT", T4, new Set(["2026-T3"]));
     expect([...r.alteracoes.values()]).toEqual([
@@ -321,18 +311,39 @@ describe("o relatório OSS (puro)", () => {
         documentos: 1,
         periodo_original: "2026-T3",
       },
-    ]);
-    expect(r.incluidos).toEqual([
       {
-        id: "tarde",
-        periodo_original: "2026-T3",
-        linhas: [{ balde: "oss", pais: "ES" }],
+        balde: "oss",
+        pais: "ES",
+        taxa: 2100,
+        base: 400,
+        iva: 84,
+        documentos: 1,
+        periodo_original: "2026-T2",
       },
     ]);
-    // De um período anterior ainda aberto: impede (revisão do #392, P2-1).
-    expect([...(r.impedimentos.get("periodo_anterior_aberto") ?? [])]).toEqual([
-      "inv_antes",
+    expect(r.incluidos.map((x) => [x.id, x.periodo_original])).toEqual([
+      ["tarde", "2026-T3"],
+      ["antes", "2026-T2"],
     ]);
+    expect(r.impedimentos.size).toBe(0);
+    // Com só o T2 fechado, um documento do T3 (aberto) impede (P2-1).
+    const s = agregar(docs, "PT", T4, new Set(["2026-T2"]));
+    expect([...(s.impedimentos.get("periodo_anterior_aberto") ?? [])]).toEqual([
+      "inv_tarde",
+    ]);
+    expect(s.incluidos.map((x) => x.id)).toEqual(["antes"]);
+  });
+
+  it("o último fechado e o que já está declarado seguem a ordem do calendário", () => {
+    expect(ultimoFechado(new Set())).toBeNull();
+    expect(ultimoFechado(new Set(["2026-T2", "2027-T1", "2026-T4"]))).toBe(
+      "2027-T1",
+    );
+    expect(jaDeclarado("2026-T1", new Set(["2026-T3"]))).toBe(true);
+    expect(jaDeclarado("2026-T3", new Set(["2026-T3"]))).toBe(true);
+    expect(jaDeclarado("2026-T4", new Set(["2026-T3"]))).toBe(false);
+    expect(jaDeclarado("2026-09", new Set(["2026-10"]))).toBe(true);
+    expect(jaDeclarado("2026-10", new Set())).toBe(false);
   });
 
   it("as linhas casam uma a uma: quantidade, taxa ou motivo diferentes impedem (revisão do #392, P1-2)", () => {

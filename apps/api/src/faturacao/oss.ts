@@ -248,6 +248,7 @@ export type MotivoImpedimento =
   | "linhas_desalinhadas"
   | "sinal_inesperado"
   | "periodo_anterior_aberto"
+  | "periodo_posterior_fechado"
   | "por_emitir"
   | "periodo_em_curso";
 
@@ -422,6 +423,30 @@ export interface Incluido {
 }
 
 /**
+ * O último período fechado (da mesma granularidade), ou null. Os textos
+ * comparam-se pela ordem do calendário (2026-T3 < 2026-T4; 2026-09 < 2026-10).
+ */
+export function ultimoFechado(fechados: ReadonlySet<string>): string | null {
+  let ultimo: string | null = null;
+  for (const f of fechados) if (ultimo === null || f > ultimo) ultimo = f;
+  return ultimo;
+}
+
+/**
+ * Um documento de um período anterior entra como alteração se esse período
+ * já está declarado: fechado, ou anterior ao último fechado, mesmo que nunca
+ * se tenha fechado no Eurolify (P1-B da 2.ª revisão do #392; Diogo,
+ * 12/10/2026; Diretiva IVA, art. 369.º-G, n.º 4).
+ */
+export function jaDeclarado(
+  original: string,
+  fechados: ReadonlySet<string>,
+): boolean {
+  const ultimo = ultimoFechado(fechados);
+  return ultimo !== null && original <= ultimo;
+}
+
+/**
  * A classificação, sem base de dados (docs/37 §2–§3): os documentos do
  * período nos baldes, os de um período fechado como alterações (P4), e o
  * que impede o fecho — também um documento de um período anterior ainda
@@ -450,7 +475,7 @@ export function agregar(
     }
     const original = periodoDe(d.data, p.granularidade);
     const noPeriodo = d.data >= p.inicio;
-    if (!noPeriodo && !fechados.has(original)) {
+    if (!noPeriodo && !jaDeclarado(original, fechados)) {
       impedir("periodo_anterior_aberto", d.id);
       continue;
     }
@@ -611,7 +636,7 @@ async function calcular(
   for (const x of fora) {
     const original = periodoDe(x.data, p.granularidade);
     const noPeriodo = x.data >= p.inicio;
-    if (!noPeriodo && !fechados.has(original)) {
+    if (!noPeriodo && !jaDeclarado(original, fechados)) {
       impedir("periodo_anterior_aberto", x.id);
       continue;
     }
@@ -650,6 +675,12 @@ async function calcular(
      order by d.id`.execute(trx);
   for (const x of porEmitir) impedir("por_emitir", x.id);
   if (p.fim > hojeEmLisboa()) impedir("periodo_em_curso", null);
+  // Não se fecha um período anterior ao último fechado: o que chegar com a
+  // data dele é alteração de um período seguinte (P1-B; Diogo, 12/10/2026).
+  const ultimo = ultimoFechado(fechados);
+  if (ultimo !== null && ultimo > p.texto) {
+    impedir("periodo_posterior_fechado", null);
+  }
 
   // O limiar: o ano civil e o anterior (art. 59.º-C; revisão do #392, P2-6).
   const ano = p.inicio.slice(0, 4);

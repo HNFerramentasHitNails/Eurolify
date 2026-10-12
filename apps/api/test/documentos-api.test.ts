@@ -1998,6 +1998,19 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       await codigo(s.adm("POST", "/tax-reports/oss/close", corpo)),
     ).toEqual([409, "tax_reports.already_closed"]);
     const antes = await relatorio(s, "2026-T3");
+    // Um período anterior ao último fechado já não se fecha (P1-B).
+    expect((await relatorio(s, "2026-T2"))["impedimentos"]).toContainEqual({
+      motivo: "periodo_posterior_fechado",
+      documentos: [],
+    });
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/close", {
+          ...corpo,
+          periodo: "2026-T2",
+        }),
+      ),
+    ).toEqual([409, "tax_reports.not_closable"]);
     // Uma fatura que sai agora com a data de 15/09 (o emissor de ensaio
     // devolve a data que se lhe disser).
     ensaio.conta(conta).aoFechar = (doc) => ({ ...doc, data: "2026-09-15" });

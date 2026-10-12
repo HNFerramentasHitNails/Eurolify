@@ -190,7 +190,7 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 | `relatorio_oss_fecho` e `relatorio_oss_documento`: só se acrescentam (a base recusa mudar e apagar), RLS forçado; o evento `tax_report.closed` | migração 0072 |
 | os registos do art. 63.º-C em CSV (com a protecção contra fórmulas) | `src/faturacao/oss.ts` (`registosOss`) |
 | as rotas `GET /tax-reports/oss`, `POST /tax-reports/oss/close`, `GET /tax-reports/oss/records` | `src/faturacao/rotas-oss.ts` |
-| 8 testes da classificação sem base; 4 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
+| 9 testes da classificação sem base; 4 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
 
 **Desvios do desenho:**
 - **As rotas** levam a entidade e o período na consulta (`?entidade=&periodo=`)
@@ -221,6 +221,14 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 - **O limiar** soma o ano civil e o anterior e diz quantos documentos ficaram
   fora da soma (`documentos_excluidos`).
 - **A base** recusa também `TRUNCATE` nas duas tabelas.
+
+**Decisão da 2.ª revisão do #392 (P1-B; Diogo, 12/10/2026: *«sim, aceito a
+proposta para o P1-B»*):** não se fecha um período anterior ao último já
+fechado da mesma granularidade (impedimento `periodo_posterior_fechado`); um
+documento com data anterior ao último fecho entra sempre como alteração do
+período seguinte, mesmo que o período dele nunca se tenha fechado no
+Eurolify (Diretiva IVA, art. 369.º-G, n.º 4: as alterações a uma declaração
+apresentada fazem-se numa declaração posterior; **C**, contabilista).
 
 **Limites que ficam:**
 - As vendas com sistema próprio não têm documento no Eurolify: mostram-se
