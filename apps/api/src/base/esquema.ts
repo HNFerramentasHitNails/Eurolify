@@ -1383,7 +1383,7 @@ export interface TabelaArmazem {
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, Date>;
   versao: ColumnType<number, never, number>;
-  /** O peso da embalagem por omissão (docs/36 Q6; 0075). */
+  /** O peso da embalagem por omissão (docs/36 Q6; 0078). */
   embalagem_g: ColumnType<number, never, number>;
 }
 
@@ -1472,7 +1472,7 @@ export interface TabelaExpedicao {
   criada_por: ColumnType<string, string, never>;
   criada_em: ColumnType<Date, never, never>;
   versao: ColumnType<number, never, number>;
-  // A etiqueta (docs/36 §3.3; 0075).
+  // A etiqueta (docs/36 §3.3; 0078).
   conta_transportadora_id: ColumnType<string | null, never, string | null>;
   peso_g: ColumnType<number | null, never, number | null>;
   etiqueta: ColumnType<EstadoEtiqueta, never, EstadoEtiqueta>;
@@ -1482,7 +1482,7 @@ export interface TabelaExpedicao {
   url_seguimento: ColumnType<string | null, never, string | null>;
 }
 
-/** O estado da etiqueta de uma expedição (docs/36 §4.1; 0075). */
+/** O estado da etiqueta de uma expedição (docs/36 §4.1; 0078). */
 export const ESTADOS_ETIQUETA = [
   "por_pedir",
   "a_pedir",

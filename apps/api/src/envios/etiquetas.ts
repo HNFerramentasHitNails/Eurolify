@@ -21,7 +21,7 @@ import {
   type Remetente,
 } from "./repositorio.js";
 
-// A etiqueta e o seguimento (docs/36 §3.3 a §3.5, §4, §8; migração 0075;
+// A etiqueta e o seguimento (docs/36 §3.3 a §3.5, §4, §8; migração 0078;
 // Diogo, 12/10/2026: «depois avança com a parte B dos envios»). O serviço
 // da etiqueta é o vendido (R1); uma etiqueta viva por expedição, e uma
 // incerta nunca se repete às cegas (R2); os estados da expedição só andam
@@ -866,7 +866,7 @@ export async function definirEmbalagem(
   });
 }
 
-/** O comerciante de uma conta, pelo endereço do aviso (0075). */
+/** O comerciante de uma conta, pelo endereço do aviso (0078). */
 export async function comercianteDaConta(
   db: Kysely<BaseDados>,
   conta: string,

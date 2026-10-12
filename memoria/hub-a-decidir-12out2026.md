@@ -28,11 +28,11 @@
   e a falta do bloqueio da IA declarada.
 - **Depois da revisão:** 8 testes pela API e 193 do Hub.
 
+- **Os textos dos 19 motivos de retenção** de um documento entraram a
+  12/10/2026, depois do #396. Um teste confere-os contra `MOTIVOS_RETENCAO`.
+
 ## O que ficou por verificar
 
-- Os textos de 15 dos 19 motivos de retenção de um documento (contados em
-  `MOTIVOS_RETENCAO`, 12/10/2026): até lá, aparece o
-  código (`docs/22` §28.7).
 - A ligação de cada linha ao ecrã da fila, que ainda não existe.
 - Safari e um telemóvel real.
 - O motivo livre de uma mudança de prazo vê-se no histórico por todos os

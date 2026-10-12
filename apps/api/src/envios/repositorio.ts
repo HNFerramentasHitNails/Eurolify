@@ -25,7 +25,7 @@ const CODIGOS_DA_BASE: CodigoErroEnvios[] = [
 
 export function traduzir(erro: unknown): unknown {
   if (!(erro instanceof Error) || erro instanceof ErroEnvios) return erro;
-  // Os gatilhos (0074, 0075) recusam com o código à frente da mensagem.
+  // Os gatilhos (0074, 0078) recusam com o código à frente da mensagem.
   const codigo = CODIGOS_DA_BASE.find((c) => erro.message.startsWith(`${c}:`));
   if (codigo !== undefined) {
     return new ErroEnvios(codigo, erro.message, undefined, { cause: erro });

@@ -342,7 +342,7 @@ DECLARE
   quem text := nullif(btrim(current_setting('eurolify.quem', true)), '');
 BEGIN
   -- O apagamento do titular (0072): só as colunas com dados pessoais, só
-  -- dentro da função do dono; desde a 0075 também o motivo da etiqueta.
+  -- dentro da função do dono; desde a 0078 também o motivo da etiqueta.
   IF TG_OP = 'UPDATE' AND public.titular_limpeza_permitida(to_jsonb(OLD), to_jsonb(NEW),
        ARRAY['prova_entrega', 'etiqueta_motivo']) THEN
     RETURN NEW;

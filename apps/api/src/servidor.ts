@@ -25,6 +25,7 @@ import { agendarLimpezaDosFicheiros } from "./catalogo/limpeza-ficheiros.js";
 import { consultaVies } from "./clientes/vies.js";
 import { agendarFilaVies } from "./clientes/vies-fila.js";
 import { agendarApagamentosPendentes } from "./clientes/titular-fila.js";
+import { agendarLimpezaDasSessoes } from "./checkout/limpeza-sessoes.js";
 import { proxyConfiavel } from "./base/limite.js";
 import { serializadores } from "./base/registo.js";
 import { chaveTotp } from "./identidade/palavra-passe.js";
@@ -305,9 +306,19 @@ const pararEnvios =
       )
     : () => undefined;
 
+// As sessões de checkout perdem os dados pessoais 7 dias depois de
+// expirarem ou de serem abandonadas, de hora a hora (docs/23 §15.4).
+const pararSessoes =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:sessoes" }, () =>
+        agendarLimpezaDasSessoes(base, app.log),
+      )
+    : () => undefined;
+
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
     pararEnvios();
+    pararSessoes();
     pararApagamentos();
     pararConclusoes();
     pararDocumentos();

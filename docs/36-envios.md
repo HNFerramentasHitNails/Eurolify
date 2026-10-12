@@ -422,7 +422,7 @@ P3):
 **Por fazer:** a parte B (o adaptador dos CTT depois de V1 a V5, etiquetas,
 seguimento, avisos), a parte C (o segundo adaptador) e os ecrãs do Hub.
 
-## 15. Em código — parte B (12/10/2026; migração 0075; `docs/06`, ED)
+## 15. Em código — parte B (12/10/2026; migração 0078; `docs/06`, ED)
 
 Pedido do Diogo, 12/10/2026: *«depois avança com a parte B dos envios»*.
 **Sem o adaptador real dos CTT** (V1: não há especificação pública). Tudo o
@@ -431,10 +431,10 @@ resto corre contra uma transportadora de ensaio com o contrato inteiro da §8.
 | O quê | Onde |
 |---|---|
 | o contrato do adaptador completo: `pedirEtiqueta`, `consultarEtiqueta`, `anularEtiqueta`, `consultarSeguimento`, `lerAviso` | `src/envios/adaptador.ts` |
-| a etiqueta na expedição: estado (§4.1, posto pela base), tentativa, conta e serviço copiados do método vendido (R1), peso da caixa (as variantes-folha mais a embalagem do armazém, Q6), motivo, seguimento e endereço público | migração 0075; `src/envios/etiquetas.ts` |
+| a etiqueta na expedição: estado (§4.1, posto pela base), tentativa, conta e serviço copiados do método vendido (R1), peso da caixa (as variantes-folha mais a embalagem do armazém, Q6), motivo, seguimento e endereço público | migração 0078; `src/envios/etiquetas.ts` |
 | uma etiqueta viva por expedição e a referência «expedição-tentativa» como chave de idempotência (R2); uma etiqueta incerta não se repete: consulta-se pela referência (existe ⇒ emitida; não existe ⇒ recusada, e pede-se outra) | idem |
 | anular, se a transportadora deixar, antes de a expedição sair; o ficheiro sai | idem |
-| o ficheiro da etiqueta na base (privado), apagado 30 dias depois de a expedição acabar (Q7) pela volta da API, ou logo num apagamento do titular (gatilho na encomenda) | migração 0075 |
+| o ficheiro da etiqueta na base (privado), apagado 30 dias depois de a expedição acabar (Q7) pela volta da API, ou logo num apagamento do titular (gatilho na encomenda) | migração 0078 |
 | os eventos de seguimento, só acrescentados, um por `id_externo`; mudam a expedição pelas portas do armazém (`mudarExpedicao`), só para a frente | idem |
 | os avisos das transportadoras: gravados em bruto antes de se tratarem, só com assinatura válida mudam alguma coisa (R3); a porta do endereço para o comerciante como a dos pagamentos | idem; `POST /webhooks/carriers/{transportadora}/{conta}` |
 | perdida ou devolvida ao remetente, e uma etiqueta incerta sem resposta há mais de um dia ⇒ um problema na pós-venda (Q4, a fila «problema» da peça 21) | `src/envios/etiquetas.ts` |

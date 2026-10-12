@@ -38,7 +38,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// Os envios, parte B (docs/36 §3.3 a §3.5, §4, §8; migração 0075): a etiqueta
+// Os envios, parte B (docs/36 §3.3 a §3.5, §4, §8; migração 0078): a etiqueta
 // pela conta e pelo serviço vendidos, com o peso da caixa; uma etiqueta viva
 // por expedição; a incerta que nunca se repete às cegas; anular; o seguimento
 // por consulta e por aviso assinado; perdida ⇒ um problema; e a volta da API

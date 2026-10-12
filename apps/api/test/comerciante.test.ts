@@ -163,7 +163,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0072_titular_todos_os_dominios",
         "0073_tarefas_no_hub",
         "0074_envios_parte_a",
-        "0075_envios_parte_b",
+        "0077_checkout_sessoes_sem_dados",
+        "0078_envios_parte_b",
       ]);
     });
 
@@ -258,7 +259,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // as funções do dono lhe tocam.
           "titular_pendente",
           // A porta dos avisos das transportadoras e o trabalho dos envios
-          // (0075): escrevem-nas os gatilhos, lêem-nas as funções do dono.
+          // (0078): escrevem-nas os gatilhos, lêem-nas as funções do dono.
           "conta_transportadora_aviso",
           "trabalho_envio",
         ].includes(t);
@@ -301,7 +302,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // isenção (0055), as 7 da pós-venda (0058), as 2 das tarefas das filas
       // (0066), as notificações (0067), as contas de transportadora (0074)
       // e o ficheiro da etiqueta, os eventos de seguimento e os avisos das
-      // transportadoras (0075).
+      // transportadoras (0078).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(88);

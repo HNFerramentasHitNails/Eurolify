@@ -48,8 +48,11 @@ const FUNCOES_DA_API = [
   "chave_resolver",
   "chave_revogar_pela_api",
   "chave_revogar_pela_sessao",
+  // As sessões de checkout sem dados pessoais (0077): a tarefa corre pela API.
+  "checkout_comerciantes_com_sessoes_a_limpar",
   // O checkout alojado (0041): do token para a sessão, sem RLS.
   "checkout_resolver",
+  "checkout_sessoes_limpar",
   // Duplicados e fusões (0046): fundir, descartar, a procura de candidatos (do
   // gatilho), o grupo de fichas fundidas e a comparação dos e-mails.
   "cliente_fundir",
@@ -102,7 +105,7 @@ const FUNCOES_DA_API = [
   "encomendas_tarefas",
   "entrar_com_palavra_passe",
   "entrar_com_passkey",
-  // Os envios (0075): a porta dos avisos e o trabalho da API.
+  // Os envios (0078): a porta dos avisos e o trabalho da API.
   "envios_avisos_resumir",
   "envios_comerciantes_com_trabalho",
   "envios_conta_do_aviso",
