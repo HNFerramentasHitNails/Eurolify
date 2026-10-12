@@ -8,7 +8,8 @@
 # É «smtp <base64> run:<n> github:<conta>»: o base64 traz as cinco linhas
 # SMTP_ANFITRIAO, SMTP_PORTA, SMTP_UTILIZADOR, SMTP_PALAVRA_PASSE e
 # SMTP_REMETENTE, por esta ordem, vindas dos segredos do ambiente «ensaio» do
-# GitHub. Valida cada uma, escreve o /etc/eurolify/api-smtp.env (600, root)
+# GitHub. Ou «teste run:<n> github:<conta>»: o e-mail de teste (§13.1),
+# só quando a API já corre com o ficheiro. Valida cada uma, escreve o /etc/eurolify/api-smtp.env (600, root)
 # de uma vez e confirma que a API corre com ele (recria-a com a imagem que
 # está no ar, eurolify-publicar --so-recriar, se ainda não).
 #
@@ -30,6 +31,60 @@ recusar() {
 (($# == 0)) || recusar "o pedido vem pela entrada, não como argumento"
 pedido=""
 IFS= read -r pedido || true
+
+# O e-mail de teste (docs/34 §13.1; Diogo, 12/10/2026: «A»): uma mensagem do
+# remetente para ele próprio, com o api-smtp.env que está na máquina, num
+# contentor de uma vez com a imagem da API que está no ar. Não muda nada.
+if [[ "$pedido" =~ ^teste\ (run:[0-9]{1,20})\ github:[0-9]{1,20}$ ]]; then
+  execucao="${BASH_REMATCH[1]}"
+  [[ -s "$API_SMTP_ENV" ]] || recusar "ainda não há configuração do e-mail (lance a acção com «configurar» primeiro)"
+  carregar_config
+  imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+  if [[ -z "$imagem_api" || "${imagem_api%@*}" != "${IMAGEM_REPO:-}" || ! "${imagem_api##*@}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "ATENÇÃO: o eurolify-api não está no ar com uma imagem de ${IMAGEM_REPO:-?} com resumo: sem imagem de onde enviar o teste."
+    registar "configurar: teste não enviado (sem a API no ar)"
+    exit 1
+  fi
+  # O teste usa o ficheiro: só prova a API se ela corre com ele (as cinco
+  # linhas no ambiente do contentor, comparadas em memória; revisão do #410,
+  # P2-1). Uma recriação que falhou num «configurar» não passa por verde.
+  ambiente="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>/dev/null || true)"
+  while IFS= read -r linha; do
+    [[ -z "$linha" ]] && continue
+    if ! grep -qxF -- "$linha" <<<"$ambiente"; then
+      echo "ATENÇÃO: a API não corre com o api-smtp.env desta máquina: lance a acção com «configurar» primeiro."
+      registar "configurar: teste não enviado (a API não corre com o ficheiro)"
+      exit 1
+    fi
+  done <"$API_SMTP_ENV"
+  if ! docker run --rm --pull=never --entrypoint test "$imagem_api" -f dist/testar-correio.js >/dev/null 2>&1; then
+    echo "ATENÇÃO: a imagem no ar ainda não tem o e-mail de teste (publicar primeiro)."
+    registar "configurar: teste não enviado (imagem sem o teste)"
+    exit 1
+  fi
+  # As protecções do contentor do operador (eurolify-operador). A saída é uma
+  # linha JSON: se saiu, o Message-ID ou o código do erro, nunca os valores.
+  codigo=0
+  resultado="$(docker run --rm --pull=never --network eurolify --env-file "$API_SMTP_ENV" \
+    --memory 256m --pids-limit 64 --cap-drop ALL --security-opt no-new-privileges \
+    --read-only --tmpfs /tmp --no-healthcheck \
+    "$imagem_api" node dist/testar-correio.js "$execucao" 2>/dev/null)" || codigo=$?
+  # Só a linha do resultado, e só com a forma esperada.
+  resultado="$(tail -n 1 <<<"$resultado")"
+  [[ "$resultado" =~ ^\{\"enviado\":(true|false)[,\"A-Za-z0-9_:.@\<\>+=-]*\}$ ]] || resultado="(sem resultado legível)"
+  # Um 0 sem resultado legível não se diz aceite (revisão do #410, P3-4).
+  if ((codigo == 0)) && [[ "$resultado" != "(sem resultado legível)" ]]; then
+    echo "E-mail de teste aceite pelo servidor: $resultado"
+    echo "Veja a caixa do remetente (SMTP_REMETENTE)."
+    registar "configurar: teste enviado"
+    exit 0
+  fi
+  echo "ATENÇÃO: o e-mail de teste não saiu: $resultado"
+  echo "smtp_535: utilizador ou palavra-passe recusados; econnection/etimedout/esocket: o anfitrião ou a porta; desconhecido: outro erro (TLS, DNS), ver o registo da API."
+  registar "configurar: teste falhou"
+  exit 1
+fi
+
 [[ "$pedido" =~ ^smtp\ ([A-Za-z0-9+/]+={0,2})\ run:[0-9]{1,20}\ github:[0-9]{1,20}$ ]] ||
   recusar "o pedido não tem a forma «smtp <base64> run:<n> github:<conta>»"
 # O base64 desfaz-se aqui, num processo de root; uma falha não mostra nada dele.
