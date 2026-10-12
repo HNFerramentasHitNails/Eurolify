@@ -86,6 +86,25 @@ const Isencoes = Type.Array(
   ),
   { maxItems: 100 },
 );
+/**
+ * A configuração da ligação no emissor (docs/29 §13.2): só identificadores
+ * (nunca nomes, AGENTS.md, «Não se erra…», regra 6).
+ */
+const IdDoEmissor = Type.String({ pattern: "^[A-Za-z0-9._:-]{1,60}$" });
+const ConfigLigacao = Type.Object(
+  {
+    lingua: Type.Optional(IdDoEmissor),
+    vencimento: Type.Optional(IdDoEmissor),
+    artigo_portes: Type.Optional(IdDoEmissor),
+    categoria: Type.Optional(IdDoEmissor),
+    unidade: Type.Optional(IdDoEmissor),
+    cliente_consumidor_final: Type.Optional(IdDoEmissor),
+    metodos_pagamento: Type.Optional(
+      Type.Record(Type.String({ pattern: "^[a-z0-9_]{1,40}$" }), IdDoEmissor),
+    ),
+  },
+  { additionalProperties: false },
+);
 const Serie = Type.Union([
   Type.String({ pattern: "^[A-Za-z0-9._/-]{1,40}$" }),
   Type.Null(),
@@ -164,6 +183,7 @@ export function rotasDosDocumentos(
     serie: l.serie,
     taxas: l.taxas,
     isencoes: l.isencoes,
+    config: l.config,
     credenciais_em: iso(l.credenciais_em),
     credenciais_por: l.credenciais_por,
     testada_em: iso(l.testada_em),
@@ -177,7 +197,7 @@ export function rotasDosDocumentos(
       config: { ambito: "invoices:accounts" },
       schema: {
         description:
-          "Liga uma entidade a um software de faturação certificado: o adaptador (nesta parte só `ensaio`, que nunca emite nada real), a série e os mapas (país, taxa) → taxa do emissor e código do motivo → isenção do emissor. Uma ligação activa por entidade. Só o dono.",
+          "Liga uma entidade a um software de faturação certificado: o adaptador (`ensaio`, que nunca emite nada real, ou `moloni`, só em modo teste), a série e os mapas (país, taxa) → taxa do emissor e código do motivo → isenção do emissor, e a configuração no emissor (ids da língua, do vencimento, dos métodos de pagamento, do artigo dos portes, da categoria e da unidade dos artigos criados, do cliente «Consumidor final»). Uma ligação activa por entidade. Só o dono.",
         body: Type.Object(
           {
             entidade_legal: IdEntidade,
@@ -185,6 +205,7 @@ export function rotasDosDocumentos(
             serie: Type.Optional(Serie),
             taxas: Type.Optional(Taxas),
             isencoes: Type.Optional(Isencoes),
+            config: Type.Optional(ConfigLigacao),
           },
           { additionalProperties: false },
         ),
@@ -206,6 +227,7 @@ export function rotasDosDocumentos(
               serie: pedido.body.serie ?? null,
               taxas: pedido.body.taxas ?? [],
               isencoes: pedido.body.isencoes ?? [],
+              config: pedido.body.config ?? {},
             },
             quemDe(chave),
           )}`,
@@ -240,7 +262,7 @@ export function rotasDosDocumentos(
       config: { ambito: "invoices:accounts" },
       schema: {
         description:
-          "Muda a série ou os mapas, ou desliga a ligação. Mudar obriga a testar outra vez; com documentos a meio no emissor, recusa (R15).",
+          "Muda a série, os mapas ou a configuração no emissor, ou desliga a ligação. Mudar obriga a testar outra vez; com documentos a meio no emissor, recusa (R15).",
         params: Type.Object({ id: IdLigacao }),
         body: Type.Object(
           {
@@ -248,6 +270,7 @@ export function rotasDosDocumentos(
             serie: Type.Optional(Serie),
             taxas: Type.Optional(Taxas),
             isencoes: Type.Optional(Isencoes),
+            config: Type.Optional(ConfigLigacao),
             activa: Type.Optional(Type.Literal(false)),
           },
           { additionalProperties: false },

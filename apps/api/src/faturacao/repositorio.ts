@@ -7,6 +7,7 @@ import {
 import { sql, type Kysely, type Transaction } from "kysely";
 import type {
   BaseDados,
+  ConfigDaLigacao,
   EmissorFiscal,
   EstadoDocumento,
   IsencaoDoEmissor,
@@ -68,6 +69,10 @@ export const MOTIVOS_RETENCAO = [
   // a ordem final é a pergunta C1 do contabilista).
   "reembolso_por_executar",
   "reembolso_cancelado",
+  // O Moloni pede, na NC, o id de cada linha da fatura (`related_id`), que a
+  // documentação não diz onde se lê: até se medir, a NC de uma fatura do
+  // Moloni fica retida e trata-se no Moloni (docs/29 §13.6, M7; DZ).
+  "nota_credito_sem_adaptador",
 ] as const;
 export type MotivoRetencao = (typeof MOTIVOS_RETENCAO)[number];
 
@@ -179,18 +184,11 @@ export async function criarLigacao(
     serie: string | null;
     taxas: TaxaDoEmissor[];
     isencoes: IsencaoDoEmissor[];
+    config?: ConfigDaLigacao;
   },
   quem: string,
 ) {
   return noDocumentos(trx, c, async () => {
-    if (dados.adaptador === "moloni") {
-      // O Moloni é a parte 2 (docs/29 Q5): sem a documentação lida, não há
-      // adaptador.
-      throw new ErroDocumentos(
-        "invoices.not_configured",
-        "o adaptador Moloni ainda não existe (parte 2)",
-      );
-    }
     const { id } = await trx
       .insertInto("ligacao_faturacao")
       .values({
@@ -200,6 +198,7 @@ export async function criarLigacao(
         serie: dados.serie,
         taxas: JSON.stringify(dados.taxas),
         isencoes: JSON.stringify(dados.isencoes),
+        config: JSON.stringify(dados.config ?? {}),
         criada_por: quem,
       })
       .returning("id")
@@ -222,6 +221,7 @@ export async function listarLigacoes(db: Kysely<BaseDados>, c: string) {
         "serie",
         "taxas",
         "isencoes",
+        "config",
         "credenciais_em",
         "credenciais_por",
         "testada_em",
@@ -264,6 +264,7 @@ export async function mudarLigacao(
     serie?: string | null;
     taxas?: TaxaDoEmissor[];
     isencoes?: IsencaoDoEmissor[];
+    config?: ConfigDaLigacao;
     activa?: false;
   },
 ) {
@@ -279,6 +280,9 @@ export async function mudarLigacao(
         ...(dados.isencoes === undefined
           ? {}
           : { isencoes: JSON.stringify(dados.isencoes) }),
+        ...(dados.config === undefined
+          ? {}
+          : { config: JSON.stringify(dados.config) }),
         ...(dados.activa === undefined ? {} : { activa: false }),
         versao: l.versao + 1,
       })
@@ -325,20 +329,104 @@ function credenciaisDe(
     id: string;
     credenciais: Buffer | null;
     credenciais_versao_chave: string | null;
+    sessao?: Buffer | null;
+    sessao_versao_chave?: string | null;
   },
   cfg: ConfigFaturacao | undefined,
 ): CredenciaisEmissor | null {
   if (l.credenciais === null) return null;
   const chave = exigirChave(cfg);
-  if (l.credenciais_versao_chave !== chave.versao) {
+  if (
+    l.credenciais_versao_chave !== chave.versao ||
+    (l.sessao != null && l.sessao_versao_chave !== chave.versao)
+  ) {
     throw new ErroDocumentos(
       "invoices.not_configured",
       "as credenciais foram cifradas com outra versão da chave (FATURACAO_CHAVE_VERSAO)",
     );
   }
-  return JSON.parse(
+  const base = JSON.parse(
     decifrar(l.credenciais, l.id, "credenciais", chave),
   ) as CredenciaisEmissor;
+  // Os tokens renovados (docs/29 §13.4) sobrepõem-se aos que a pessoa deu.
+  if (l.sessao == null) return base;
+  return {
+    ...base,
+    ...(JSON.parse(
+      decifrar(l.sessao, l.id, "sessao", chave),
+    ) as CredenciaisEmissor),
+  };
+}
+
+/**
+ * As credenciais de uma ligação prontas a usar (docs/29 §13.4): se o emissor
+ * renova tokens, renova-os **com a ligação trancada** (duas voltas nunca
+ * gastam o mesmo par: o Moloni devolve um par novo e o antigo deixa de
+ * servir) e grava o par novo antes de o devolver. Renovar não mexe no estado
+ * nem na versão da ligação (migração 0068). Lança o erro do emissor.
+ */
+async function credenciaisActuais(
+  db: Kysely<BaseDados>,
+  c: string,
+  ligacaoId: string,
+  cfg: ConfigFaturacao | undefined,
+): Promise<CredenciaisEmissor | null> {
+  return noDocumentos(db, c, async (trx) => {
+    await marcar(trx, QUEM_DA_TAREFA, "os tokens do emissor");
+    const l = await trx
+      .selectFrom("ligacao_faturacao")
+      .select([
+        "id",
+        "adaptador",
+        "credenciais",
+        "credenciais_versao_chave",
+        "sessao",
+        "sessao_versao_chave",
+      ])
+      .where("id", "=", ligacaoId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (l === undefined) return null;
+    const cred = credenciaisDe(l, cfg);
+    if (cred === null) return null;
+    const a = adaptadorDe(cfg, l.adaptador);
+    if (a.renovar === undefined) return cred;
+    const novas = await a.renovar(cred, false);
+    if (novas === null) return cred;
+    const chave = exigirChave(cfg);
+    await trx
+      .updateTable("ligacao_faturacao")
+      .set({
+        sessao: cifrar(JSON.stringify(novas), l.id, "sessao", chave),
+        sessao_versao_chave: chave.versao,
+        sessao_em: new Date(),
+      })
+      .where("id", "=", l.id)
+      .execute();
+    return novas;
+  });
+}
+
+/** O emissor recusou renovar (a autorização morreu): uma pessoa liga outra vez. */
+async function ligacaoComErro(
+  db: Kysely<BaseDados>,
+  c: string,
+  ligacaoId: string,
+  erro: string,
+) {
+  await noDocumentos(db, c, async (trx) => {
+    await marcar(trx, QUEM_DA_TAREFA, "o emissor recusou renovar os tokens");
+    const l = await ligacaoParaMudar(trx, ligacaoId, null);
+    await trx
+      .updateTable("ligacao_faturacao")
+      .set({
+        estado: "com_erro",
+        erro: erro.slice(0, 200),
+        versao: l.versao + 1,
+      })
+      .where("id", "=", ligacaoId)
+      .execute();
+  });
 }
 
 /** Testa a ligação no emissor (fora da transacção) e grava o resultado. */
@@ -349,20 +437,30 @@ export async function testarLigacao(
   cfg: ConfigFaturacao | undefined,
   quem: string,
 ) {
+  // Os tokens renovam-se antes de ler a versão: renovar não a muda, mas o
+  // teste vale para as credenciais que estão na ligação.
+  let erro: string | null = null;
+  let credenciais: CredenciaisEmissor | null = null;
+  try {
+    credenciais = await credenciaisActuais(db, c, id, cfg);
+  } catch (e) {
+    if (!(e instanceof ErroDoEmissor) && !(e instanceof ErroDeRede)) throw e;
+    erro = e.message.slice(0, 200);
+  }
   const l = await noDocumentos(db, c, (trx) => ligacaoParaMudar(trx, id, null));
-  const credenciais = credenciaisDe(l, cfg);
-  if (credenciais === null) {
+  if (erro === null && credenciais === null) {
     throw new ErroDocumentos(
       "invoices.issuer_not_ready",
       "a ligação não tem credenciais",
     );
   }
-  let erro: string | null = null;
-  try {
-    await adaptadorDe(cfg, l.adaptador).testar(credenciais);
-  } catch (e) {
-    if (!(e instanceof ErroDoEmissor) && !(e instanceof ErroDeRede)) throw e;
-    erro = e.message.slice(0, 200);
+  if (erro === null && credenciais !== null) {
+    try {
+      await adaptadorDe(cfg, l.adaptador).testar(credenciais);
+    } catch (e) {
+      if (!(e instanceof ErroDoEmissor) && !(e instanceof ErroDeRede)) throw e;
+      erro = e.message.slice(0, 200);
+    }
   }
   await noDocumentos(db, c, async (trx) => {
     await marcar(trx, quem);
@@ -843,6 +941,7 @@ async function verificar(
   },
   conteudo: Conteudo,
   ligacao: {
+    adaptador?: string;
     estado: string;
     activa: boolean;
     taxas: TaxaDoEmissor[];
@@ -897,6 +996,9 @@ async function verificar(
   if (perfil?.cliente_id !== e.cliente_id) motivos.add("perfil_de_outra_ficha");
   for (const m of motivosDoConteudo(conteudo, ligacao, doc.modo)) {
     motivos.add(m);
+  }
+  if (doc.tipo === "nota_credito" && ligacao?.adaptador === "moloni") {
+    motivos.add("nota_credito_sem_adaptador");
   }
   if (doc.tipo === "nota_credito") {
     // A NC espera pela fatura emitida e não passa o saldo dela (docs/30
@@ -973,7 +1075,10 @@ export function comparar(
   );
   // O país e o nome também (revisão do #312, P2-8).
   dif("pais", c.cliente.pais_contribuinte, d.pais);
-  dif("nome", c.cliente.nome, d.nome);
+  // O nome confere-se quando há NIF (é a identidade do documento). Sem NIF,
+  // o documento sai no cliente «Consumidor final» do emissor, com o nome
+  // dele, e o que se confere é que não leva NIF nenhum (docs/29 §13.6, M3).
+  if (c.cliente.nif_numero !== null) dif("nome", c.cliente.nome, d.nome);
   if (serie !== undefined && serie !== null) dif("serie", serie, d.serie);
   dif("linhas", c.linhas.length, d.linhas.length);
   c.linhas.forEach((l, i) => {
@@ -998,6 +1103,7 @@ function pedidoDoConteudo(
     serie: string | null;
     taxas: TaxaDoEmissor[];
     isencoes: IsencaoDoEmissor[];
+    config: ConfigDaLigacao;
   },
   entidadeId: string | null,
   original: Contexto["original"] = null,
@@ -1010,6 +1116,7 @@ function pedidoDoConteudo(
         : { numero: original.numero, emissor_id: original.emissor_id },
     referencia,
     serie: ligacao.serie,
+    config: ligacao.config,
     entidade_id: entidadeId,
     cliente: {
       nome: c.cliente.nome,
@@ -1019,6 +1126,7 @@ function pedidoDoConteudo(
     },
     moeda: c.moeda,
     linhas: c.linhas.map((l) => ({
+      sku: l.sku,
       descricao: l.descricao,
       quantidade: l.quantidade,
       base: l.base,
@@ -1087,8 +1195,11 @@ interface Contexto {
     serie: string | null;
     taxas: TaxaDoEmissor[];
     isencoes: IsencaoDoEmissor[];
+    config: ConfigDaLigacao;
     credenciais: Buffer | null;
     credenciais_versao_chave: string | null;
+    sessao: Buffer | null;
+    sessao_versao_chave: string | null;
   } | null;
 }
 
@@ -1195,8 +1306,11 @@ async function lerContexto(
       "serie",
       "taxas",
       "isencoes",
+      "config",
       "credenciais",
       "credenciais_versao_chave",
+      "sessao",
+      "sessao_versao_chave",
     ])
     .executeTakeFirst();
   return {
@@ -1530,11 +1644,28 @@ async function fecharEProvar(
   );
 }
 
-function credenciaisDaLigacao(ctx: Contexto, cfg: ConfigFaturacao | undefined) {
+async function credenciaisDaLigacao(
+  db: Kysely<BaseDados>,
+  c: string,
+  ctx: Contexto,
+  cfg: ConfigFaturacao | undefined,
+) {
   const l = ctx.ligacao;
   // Uma ligação desligada não emite, nem para um pronto (revisão do #312, P2-6).
   if (l === null || l.estado !== "pronta" || !l.activa) return null;
-  const cred = credenciaisDe(l, cfg);
+  if (credenciaisDe(l, cfg) === null) return null;
+  let cred: CredenciaisEmissor | null;
+  try {
+    cred = await credenciaisActuais(db, c, l.id, cfg);
+  } catch (e) {
+    // A autorização morreu (§13.4): a ligação fica com erro e nada sai com
+    // credenciais por confirmar.
+    if (e instanceof ErroDoEmissor) {
+      await ligacaoComErro(db, c, l.id, e.message);
+      return null;
+    }
+    throw e;
+  }
   if (cred === null) return null;
   return { a: adaptadorDe(cfg, l.adaptador), cred };
 }
@@ -1580,7 +1711,7 @@ export async function processarDocumento(
       });
     }
     case "pronto": {
-      const ligado = credenciaisDaLigacao(ctx, cfg);
+      const ligado = await credenciaisDaLigacao(db, c, ctx, cfg);
       if (ligado === null) {
         return paraRetido(
           db,
@@ -1669,7 +1800,7 @@ export async function processarDocumento(
       return "rascunho";
     }
     case "rascunho": {
-      const ligado = credenciaisDaLigacao(ctx, cfg);
+      const ligado = await credenciaisDaLigacao(db, c, ctx, cfg);
       if (ligado === null) {
         throw new ErroDocumentos(
           "invoices.issuer_not_ready",
@@ -1732,7 +1863,7 @@ async function reconciliarAutomaticamente(
   ctx: Contexto,
   cfg: ConfigFaturacao | undefined,
 ) {
-  const ligado = credenciaisDaLigacao(ctx, cfg);
+  const ligado = await credenciaisDaLigacao(db, c, ctx, cfg);
   let resultado: "encontrado" | "nao_existe" | "nao_sei" = "nao_sei";
   let documento: DocumentoNoEmissor | null = null;
   if (ligado !== null) {
@@ -1947,6 +2078,87 @@ export function agendarDocumentos(
         aCorrer = false;
       });
   }, 60_000);
+  t.unref();
+  return () => {
+    clearInterval(t);
+  };
+}
+
+// ------------------------------------------- A renovação dos tokens (§13.4)
+
+/**
+ * Renova os tokens das ligações cujo emissor os renova (o Moloni: o de
+ * renovação morre aos 14 dias), uma a uma. Uma autorização morta deixa a
+ * ligação com erro — nada se emite com ela até o dono ligar outra vez.
+ */
+export async function correrRenovacoes(
+  db: Kysely<BaseDados>,
+  cfg: ConfigFaturacao | undefined,
+): Promise<{ renovadas: number; erros: number }> {
+  const r = { renovadas: 0, erros: 0 };
+  const { rows } = await sql<{
+    c: string;
+  }>`select ligacoes_comerciantes_a_renovar() as c`.execute(db);
+  for (const { c } of rows) {
+    const ligacoes = await noDocumentos(db, c, (trx) =>
+      trx
+        .selectFrom("ligacao_faturacao")
+        .select(["id", "adaptador"])
+        .where("activa", "=", true)
+        .where("credenciais", "is not", null)
+        .execute(),
+    );
+    for (const l of ligacoes) {
+      if (cfg?.adaptadores[l.adaptador]?.renovar === undefined) continue;
+      try {
+        await credenciaisActuais(db, c, l.id, cfg);
+        r.renovadas += 1;
+      } catch (e) {
+        r.erros += 1;
+        if (e instanceof ErroDoEmissor) {
+          await ligacaoComErro(db, c, l.id, e.message);
+        } else if (!(e instanceof ErroDeRede)) {
+          throw e;
+        }
+      }
+    }
+  }
+  return r;
+}
+
+/** De seis em seis horas; uma renovação parada há mais de 26 horas dá alarme. */
+export function agendarRenovacoes(
+  base: Kysely<BaseDados>,
+  cfg: ConfigFaturacao,
+  registo: {
+    info: (o: object, m: string) => void;
+    error: (o: object, m: string) => void;
+  },
+): () => void {
+  let ultima = Date.now();
+  const correr = () => {
+    correrRenovacoes(base, cfg)
+      .then((r) => {
+        ultima = Date.now();
+        if (r.erros > 0) {
+          registo.error(r, "documentos: ligações com a renovação recusada");
+        } else if (r.renovadas > 0) {
+          registo.info(r, "documentos: tokens renovados");
+        }
+      })
+      .catch((erro: unknown) => {
+        registo.error(
+          { erro: erro instanceof Error ? erro.name : "erro" },
+          "documentos: a renovação dos tokens falhou",
+        );
+      })
+      .finally(() => {
+        if (Date.now() - ultima > 26 * 3_600_000) {
+          registo.error({}, "documentos: os tokens não se renovam há 26 h");
+        }
+      });
+  };
+  const t = setInterval(correr, 6 * 3_600_000);
   t.unref();
   return () => {
     clearInterval(t);
@@ -2201,7 +2413,7 @@ export async function reconciliar(
       "«encontrado» leva o identificador do documento no emissor",
     );
   }
-  const ligado = credenciaisDaLigacao(ctx, cfg);
+  const ligado = await credenciaisDaLigacao(db, c, ctx, cfg);
   if (ligado === null) {
     throw new ErroDocumentos(
       "invoices.issuer_not_ready",

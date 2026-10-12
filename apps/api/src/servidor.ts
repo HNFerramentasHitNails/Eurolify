@@ -10,7 +10,11 @@ import { agendarAvisosDeTarefas } from "./tarefas/avisos.js";
 import { agendarNotificacoes } from "./notificacoes/repositorio.js";
 import { configSmtp, correioSmtp } from "./notificacoes/correio.js";
 import type { ConfigFaturacao } from "./faturacao/adaptador.js";
-import { agendarDocumentos } from "./faturacao/repositorio.js";
+import { AdaptadorMoloni } from "./faturacao/moloni.js";
+import {
+  agendarDocumentos,
+  agendarRenovacoes,
+} from "./faturacao/repositorio.js";
 import { randomUUID } from "node:crypto";
 import { criarApp } from "./app.js";
 import { abrirBase } from "./base/ligacao.js";
@@ -97,12 +101,24 @@ const pagamentos: ConfigPagamentos = {
       }),
 };
 
-// Os documentos fiscais (docs/29 Q5): nesta parte só o adaptador de ensaio
-// existe e não está ligado no servidor — nenhum documento sai. A chave cifra
-// as credenciais das ligações (FATURACAO_CHAVE), como a dos pagamentos.
+// Os documentos fiscais (docs/29): o adaptador de ensaio só existe nos
+// testes; o Moloni liga-se com a conta de Developer do Eurolify
+// (MOLONI_CLIENT_ID e MOLONI_CLIENT_SECRET; §13.6, M1), e só em modo teste
+// (M8). A chave cifra as credenciais e os tokens das ligações
+// (FATURACAO_CHAVE), como a dos pagamentos.
 const textoChaveFaturacao = process.env["FATURACAO_CHAVE"]?.trim();
+const moloniId = process.env["MOLONI_CLIENT_ID"]?.trim();
+const moloniSegredo = process.env["MOLONI_CLIENT_SECRET"]?.trim();
 const faturacao: ConfigFaturacao = {
-  adaptadores: {},
+  adaptadores:
+    moloniId && moloniSegredo
+      ? {
+          moloni: new AdaptadorMoloni({
+            clientId: moloniId,
+            clientSecret: moloniSegredo,
+          }),
+        }
+      : {},
   ...(textoChaveFaturacao === undefined || textoChaveFaturacao === ""
     ? {}
     : {
@@ -180,6 +196,17 @@ const pararDocumentos =
       )
     : () => undefined;
 
+// Os tokens das ligações que os renovam (o Moloni), de seis em seis horas
+// (docs/29 §13.4).
+const pararRenovacoes =
+  base !== undefined &&
+  faturacao.chave !== undefined &&
+  faturacao.adaptadores.moloni
+    ? comRasto({ canal: "sistema", pedido: "tarefa:renovacoes" }, () =>
+        agendarRenovacoes(base, faturacao, app.log),
+      )
+    : () => undefined;
+
 // O aviso do prazo do reembolso, de hora a hora (docs/30 §14, R10).
 const pararPrazos =
   base !== undefined
@@ -235,6 +262,7 @@ for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
     pararConclusoes();
     pararDocumentos();
+    pararRenovacoes();
     pararLimpeza();
     pararVies();
     pararPagamentos();

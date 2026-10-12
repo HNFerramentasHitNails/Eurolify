@@ -30,7 +30,7 @@ const aad = (contaId: string, campo: string) =>
 export function cifrar(
   texto: string,
   contaId: string,
-  campo: "credenciais" | "segredo_aviso",
+  campo: "credenciais" | "segredo_aviso" | "sessao",
   chave: ChavePagamentos,
 ): Buffer {
   const iv = randomBytes(12);
@@ -43,7 +43,7 @@ export function cifrar(
 export function decifrar(
   cifrado: Buffer,
   contaId: string,
-  campo: "credenciais" | "segredo_aviso",
+  campo: "credenciais" | "segredo_aviso" | "sessao",
   chave: ChavePagamentos,
 ): string {
   const decifra = createDecipheriv(
