@@ -1195,6 +1195,74 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     ).rejects.toThrow(/refunds\.exceeds_paid/);
   });
 
+  it("emitida fora do Eurolify: a NC que esperava pela fatura sai com ela, e um reembolso depois não pede NC (docs/29 §15, F5)", async () => {
+    const s = await cenario();
+    // Paga antes de a entidade escolher quem emite.
+    const e = await paga(s, [[s.v1, 2]]);
+    await ateParar();
+    const [linha] = await expedir(s, e.encomenda);
+    const decidir = async (descricao: string) => {
+      const p = await ok(
+        s.adm("POST", "/problems", {
+          encomenda: e.encomenda,
+          tipo: "chegou_danificado",
+          descricao,
+        }),
+        201,
+      );
+      return ok(
+        s.adm("POST", `/problems/${String(p["id"])}/decide`, {
+          versao: 1,
+          linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+          motivo: "partido",
+        }),
+        201,
+      );
+    };
+    const r1 = await decidir("frasco partido");
+    expect(String(r1["nota_credito"])).toMatch(/^inv_/);
+    await ateParar();
+    let { fatura, notas } = await documentosDe(s, e.encomenda);
+    expect(fatura?.["estado"]).toBe("retido");
+    expect(notas[0]?.["estado"]).toBe("retido");
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "sistema_proprio",
+      }),
+      204,
+    );
+    await ok(
+      s.adm("POST", `/invoices/${String(fatura?.["id"])}/issued-elsewhere`, {
+        versao: fatura?.["versao"],
+        motivo: "faturada no sistema da loja",
+        numero: "FT 2026/58",
+      }),
+    );
+    ({ fatura, notas } = await documentosDe(s, e.encomenda));
+    expect(fatura?.["estado"]).toBe("fora");
+    expect(notas[0]).toMatchObject({
+      estado: "fora",
+      emitida_fora: { numero_declarado: "FT 2026/58", prova: false },
+    });
+    // Um reembolso depois: sem NC no Eurolify, e diz porquê.
+    const r2 = await decidir("outro frasco partido");
+    expect(r2["nota_credito"]).toBeNull();
+    expect(
+      await ok(s.adm("GET", `/refunds/${String(r2["reembolso"])}`)),
+    ).toMatchObject({
+      nota_credito: null,
+      sem_nota_credito: "sistema_proprio",
+    });
+    // A base recusa uma NC para uma fatura emitida fora, mesmo sem a API.
+    await expect(
+      naBase(s, (trx) =>
+        sql`select nota_credito_pedir(${String(r2["reembolso"]).slice(4)}::uuid)`.execute(
+          trx,
+        ),
+      ),
+    ).resolves.toMatchObject({ rows: [{ nota_credito_pedir: null }] });
+  });
+
   it("a nota de crédito de uma fatura do Moloni fica retida até se medir o related_id (docs/29 §13.6, M7)", async () => {
     const s = await cenario();
     await ok(

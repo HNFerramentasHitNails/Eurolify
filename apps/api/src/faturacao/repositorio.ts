@@ -2502,6 +2502,83 @@ export async function resolver(
   });
 }
 
+/**
+ * A fatura «emitida fora do Eurolify» (docs/29 §15; EA): só o caso exacto da
+ * F2 (a base confere-o também), com motivo e o número **declarado** no
+ * sistema próprio, que não é prova (F3). A NC que esperava por ela vai com
+ * ela (F5). Um pedido de cada vez (R10).
+ */
+export async function emitidaFora(
+  trx: Transaction<BaseDados>,
+  c: string,
+  id: string,
+  dados: { versao: number; motivo: string; numero: string },
+  quem: string,
+) {
+  return noDocumentos(trx, c, async () => {
+    await marcar(trx, quem, dados.motivo);
+    const ctx = await paraDecidir(trx, id, dados.versao, ["retido"]);
+    const e = await trx
+      .selectFrom("encomenda")
+      .innerJoin(
+        "entidade_legal",
+        "entidade_legal.id",
+        "encomenda.entidade_legal_id",
+      )
+      .select([
+        "encomenda.emissor_fiscal as encomenda",
+        "entidade_legal.emissor_fiscal as entidade",
+      ])
+      .where("encomenda.id", "=", ctx.doc.encomenda_id)
+      .executeTakeFirstOrThrow();
+    if (
+      ctx.doc.tipo !== "fatura" ||
+      !ctx.doc.motivos.includes("emissor_por_configurar") ||
+      e.encomenda !== "por_configurar" ||
+      e.entidade !== "sistema_proprio"
+    ) {
+      throw new ErroDocumentos(
+        "invoices.invalid_transition",
+        "só uma fatura retida por quem emite, de uma encomenda paga antes da escolha, cuja entidade emite no sistema próprio",
+      );
+    }
+    const r = await trx
+      .updateTable("documento_fiscal")
+      .set({
+        estado: "fora",
+        fora_numero: dados.numero,
+        versao: ctx.doc.versao + 1,
+        reservado_ate: null,
+      })
+      .where("id", "=", ctx.doc.id)
+      .where("versao", "=", ctx.doc.versao)
+      .executeTakeFirst();
+    if (Number(r.numUpdatedRows) === 0) throw OCUPADO();
+    // As NC que esperavam por esta fatura são do sistema próprio (F5).
+    const notas = await trx
+      .selectFrom("documento_fiscal")
+      .select(["id", "versao"])
+      .where("original_id", "=", ctx.doc.id)
+      .where("tipo", "=", "nota_credito")
+      .where("estado", "in", ["a_verificar", "retido"])
+      .forUpdate()
+      .execute();
+    for (const n of notas) {
+      await trx
+        .updateTable("documento_fiscal")
+        .set({
+          estado: "fora",
+          fora_numero: dados.numero,
+          versao: n.versao + 1,
+          reservado_ate: null,
+        })
+        .where("id", "=", n.id)
+        .execute();
+    }
+    return ctx.doc.versao + 1;
+  });
+}
+
 // ------------------------------------------------------------- Leituras
 
 export async function listarDocumentos(

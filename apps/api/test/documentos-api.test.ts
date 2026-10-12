@@ -1701,4 +1701,144 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       ).rejects.toThrow(/invoices\.invalid_field/);
     }
   });
+  // ------------------------- Emitida fora do Eurolify (docs/29 §15; EA)
+
+  /** Paga antes de a entidade escolher quem emite: retida por quem emite. */
+  async function pagaAntesDeEscolher(s: Cenario) {
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    const d = (await documentoDe(s, e.encomenda)) as Json;
+    // Sem emissor escolhido também não há ligação: os dois motivos.
+    expect(d["estado"]).toBe("retido");
+    expect(d["motivos"]).toContain("emissor_por_configurar");
+    return { e, d };
+  }
+
+  it("emitida fora: a fatura retida de uma encomenda paga antes da escolha sai para o sistema próprio, com o número declarado", async () => {
+    const s = await cenario();
+    const { e, d } = await pagaAntesDeEscolher(s);
+    const id = String(d["id"]);
+    const corpo = {
+      versao: d["versao"],
+      motivo: "a loja passou a faturar no sistema dela",
+      numero: "FT 2026/57",
+    };
+    // Com a entidade ainda por configurar, a resposta é configurar (F2).
+    expect(
+      await codigo(s.adm("POST", `/invoices/${id}/issued-elsewhere`, corpo)),
+    ).toEqual([409, "invoices.invalid_transition"]);
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "sistema_proprio",
+      }),
+      204,
+    );
+    // O gestor não decide quem emite (Q-F1).
+    const gestor = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Gestor",
+        ambitos: ["invoices:read", "invoices:write"],
+      })
+    ).segredo;
+    expect(
+      await codigo(
+        pedir("POST", `/invoices/${id}/issued-elsewhere`, corpo, {
+          authorization: `Bearer ${gestor}`,
+        }),
+      ),
+    ).toEqual([403, "auth.forbidden"]);
+    // Sem número, recusa (Q-F2).
+    expect(
+      (
+        await s.adm("POST", `/invoices/${id}/issued-elsewhere`, {
+          versao: d["versao"],
+          motivo: corpo.motivo,
+        })
+      ).statusCode,
+    ).toBe(400);
+    await ok(s.adm("POST", `/invoices/${id}/issued-elsewhere`, corpo));
+    const depois = (await documentoDe(s, e.encomenda)) as Json;
+    expect(depois).toMatchObject({
+      estado: "fora",
+      motivos: [],
+      emissor_id: null,
+      prova: null,
+      emitida_fora: { numero_declarado: "FT 2026/57", prova: false },
+    });
+    const passo = (depois["rasto"] as Json[]).find((p) => p["para"] === "fora");
+    expect(passo).toMatchObject({
+      motivo: "a loja passou a faturar no sistema dela",
+    });
+    expect(await eventos(s)).toContain("invoice.issued_elsewhere");
+    // Fora da fila «A decidir» (F4) e final: não volta a nada.
+    const { rows } = await naBase(s, (trx) =>
+      sql<{
+        caso: string;
+      }>`select caso from documentos_casos_a_decidir()`.execute(trx),
+    );
+    expect(rows.map((r) => r.caso)).not.toContain(id.slice(4));
+    expect(
+      await codigo(
+        s.adm("POST", `/invoices/${id}/recheck`, {
+          versao: depois["versao"],
+        }),
+      ),
+    ).toEqual([409, "invoices.invalid_transition"]);
+    await expect(
+      sql`update documento_fiscal set fora_numero = 'outro'
+        where id = ${id.slice(4)}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/invoices\.immutable/);
+  });
+
+  it("emitida fora: recusada numa fatura que não é o caso exacto (F2), também na base", async () => {
+    const s = await cenario();
+    // Retida por outro motivo (a ligação sem teste), com a entidade a emitir
+    // pelo Eurolify.
+    const conta = `c-${randomUUID()}`;
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "eurolify",
+      }),
+      204,
+    );
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    const d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("retido");
+    expect(
+      await codigo(
+        s.adm("POST", `/invoices/${String(d["id"])}/issued-elsewhere`, {
+          versao: d["versao"],
+          motivo: "tentativa fora do caso",
+          numero: "FT 1",
+        }),
+      ),
+    ).toEqual([409, "invoices.invalid_transition"]);
+    // A base recusa o mesmo, mesmo sem a API.
+    await expect(
+      sql`update documento_fiscal set estado = 'fora', fora_numero = 'FT 1'
+        where id = ${String(d["id"]).slice(4)}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/invoices\.invalid_transition/);
+    // Uma fatura emitida também não.
+    await ligar(s, conta);
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/recheck`, {
+        versao: d["versao"],
+      }),
+    );
+    await ateParar();
+    const emitida = (await documentoDe(s, e.encomenda)) as Json;
+    expect(emitida["estado"]).toBe("emitido");
+    expect(
+      await codigo(
+        s.adm("POST", `/invoices/${String(d["id"])}/issued-elsewhere`, {
+          versao: emitida["versao"],
+          motivo: "tentativa numa emitida",
+          numero: "FT 1",
+        }),
+      ),
+    ).toEqual([409, "invoices.invalid_transition"]);
+  });
 });

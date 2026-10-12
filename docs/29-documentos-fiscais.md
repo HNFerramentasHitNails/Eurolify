@@ -679,3 +679,17 @@ fatura e **pede a nota de crédito**, que fica retida com
   cada recusa de F2, a NC já pedida (F5) e o reembolso depois (sem NC), o
   âmbito (Q-F1), a fila «A decidir» sem o caso; mutações; a revisão do
   agente.
+
+## 16. Em código — a saída «emitida fora» (12/10/2026; migração 0070; EA)
+
+| O quê | Onde |
+|---|---|
+| o estado `fora` e o número declarado (`fora_numero`, obrigatório só em `fora`); `retido → fora` só no caso exacto da F2, conferido **na base** e na API; `fora` é final e não muda | migração 0070 |
+| a NC que esperava pela fatura (em verificação ou retida) passa a `fora` com ela; uma NC nova para uma fatura `fora` é recusada na base, e `nota_credito_pedir` deixa de a pedir (F5) | migração 0070; `src/faturacao/repositorio.ts` (`emitidaFora`) |
+| o evento `invoice.issued_elsewhere` e o número declarado no rasto | migração 0070 |
+| `POST /invoices/{id}/issued-elsewhere` (`invoices:accounts`, só o dono; Q-F1) com motivo e número (Q-F2); a leitura do pedido diz `emitida_fora: {numero_declarado, prova: false}` | `src/faturacao/rotas.ts` |
+| o reembolso diz `sem_nota_credito: sistema_proprio` também neste caso | `src/posvenda/repositorio.ts` |
+| 2 testes pela API e 1 na pós-venda | `test/documentos-api.test.ts`, `test/posvenda-api.test.ts` |
+
+**Por fazer:** o relatório OSS (parte 3) com a lista à parte (Q-F3, **C**);
+o ecrã no Hub.
