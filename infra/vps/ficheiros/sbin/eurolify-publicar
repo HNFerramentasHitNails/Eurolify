@@ -73,6 +73,11 @@ hub_env=()
 API_SMTP_ENV=/etc/eurolify/api-smtp.env
 smtp_env=()
 [[ -f "$API_SMTP_ENV" ]] && smtp_env=(--env-file "$API_SMTP_ENV")
+# O endereço do VIES (VIES_URL), que o passo 10c do preparar.sh escreve
+# (docs/23 §13). Sem ele, a consulta ao VIES fica desligada.
+API_VIES_ENV=/etc/eurolify/api-vies.env
+vies_env=()
+[[ -f "$API_VIES_ENV" ]] && vies_env=(--env-file "$API_VIES_ENV")
 API_TOTP_ENV=/etc/eurolify/api-totp.env
 totp_env=()
 if [[ -e "$API_TOTP_ENV" ]]; then
@@ -106,6 +111,7 @@ arrancar() {
     "${hub_env[@]}" \
     "${totp_env[@]}" \
     "${smtp_env[@]}" \
+    "${vies_env[@]}" \
     --mount type=bind,src=/var/lib/eurolify/media,dst=/media \
     -e MEDIA_PASTA=/media \
     --memory 512m \
@@ -186,7 +192,7 @@ api_env_mudou() {
   # que a API foi criada não contava (revisão do #160, P2-2).
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV" "$API_HUB_ENV" "$API_TOTP_ENV" "$API_SMTP_ENV"; do
+  for ficheiro in /etc/eurolify/api.env "$API_BASE_ENV" "$API_HUB_ENV" "$API_TOTP_ENV" "$API_SMTP_ENV" "$API_VIES_ENV"; do
     mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
     mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
@@ -312,7 +318,7 @@ fi
 if [[ "$anterior" == "$imagem" ]]; then
   recriada=0
   if api_env_mudou; then
-    echo "A API já está nesta imagem, mas a configuração (api.env, api-base.env, api-hub.env, api-totp.env, api-smtp.env ou a pasta das imagens) mudou depois de ela arrancar: recria-se."
+    echo "A API já está nesta imagem, mas a configuração (api.env, api-base.env, api-hub.env, api-totp.env, api-smtp.env, api-vies.env ou a pasta das imagens) mudou depois de ela arrancar: recria-se."
     arrancar "$imagem"
     if ! saude 8080; then
       echo "O /health não respondeu em 60 s. Últimas linhas do contentor:"

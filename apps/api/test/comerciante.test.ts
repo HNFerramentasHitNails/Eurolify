@@ -166,7 +166,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0077_checkout_sessoes_sem_dados",
         "0078_relatorio_oss",
         "0079_envios_parte_b",
-        "0080_moloni_autorizacao",
+        "0080_envios_sendcloud",
+        "0081_moloni_autorizacao",
       ]);
     });
 
@@ -305,7 +306,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // (0066), as notificações (0067), as contas de transportadora (0074),
       // as 3 do relatório OSS (0078) e o ficheiro da etiqueta, os eventos de
       // seguimento e os avisos das transportadoras (0079) e as autorizações
-      // das ligações de faturação (0080).
+      // das ligações de faturação (0081).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(92);

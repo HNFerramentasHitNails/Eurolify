@@ -33,6 +33,11 @@ import {
   transportadoraFalsa,
 } from "./transportadora-falsa.js";
 import {
+  adaptadorSendcloud,
+  SERVICO_DE_TESTE,
+} from "../src/envios/sendcloud.js";
+import { opcao, PUBLICA, SECRETA, sendcloudFalsa } from "./sendcloud-falsa.js";
+import {
   criarBaseDeTeste,
   URL_BASE,
   type BaseDeTeste,
@@ -55,9 +60,13 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
   let app: ReturnType<typeof criarApp>;
   const eupago = eupagoFalso();
   const ctt = transportadoraFalsa();
+  const sc = sendcloudFalsa();
   const envios = {
     chave: chavePagamentos(randomBytes(32).toString("base64")),
-    adaptadores: { ctt: ctt.adaptador },
+    adaptadores: {
+      ctt: ctt.adaptador,
+      sendcloud: adaptadorSendcloud(sc.buscar),
+    },
     // A transportadora que não responde desiste-se dela depressa (P2-6).
     tempoLimiteMs: 1000,
   };
@@ -1025,5 +1034,160 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
           where id = ${a.expedicao.slice(4)}::uuid`.execute(trx);
       }),
     ).rejects.toThrow(/shipping.invalid_transition/);
+  });
+  it("a Sendcloud (docs/36 §16): os serviços da conta guardados no teste, só o sem custo; a etiqueta; o aviso assinado faz consultar", async () => {
+    const s = await cenario();
+    sc.estado.servicos.set("PT", [
+      opcao(SERVICO_DE_TESTE, { maxKg: "2.000" }),
+      opcao("ctt:expresso_48"),
+    ]);
+    const conta = String(
+      (
+        await ok(
+          s.adm("POST", "/carrier-accounts", {
+            transportadora: "sendcloud",
+            nome: "Sendcloud",
+            remetente: {
+              nome: "Armazém",
+              linha1: "Rua 1",
+              codigo_postal: "1000-001",
+              localidade: "Lisboa",
+              pais: "PT",
+            },
+          }),
+          201,
+        )
+      )["id"],
+    );
+    await ok(
+      s.adm("PUT", `/carrier-accounts/${conta}/credentials`, {
+        credenciais: { chave_publica: PUBLICA, chave_secreta: SECRETA },
+        segredo_aviso: SECRETA,
+      }),
+      204,
+    );
+    // Antes do teste, a conta não tem serviços.
+    expect(
+      (await ok(s.adm("GET", `/carrier-accounts/${conta}/services`)))["dados"],
+    ).toEqual([]);
+    await ok(s.adm("POST", `/carrier-accounts/${conta}/test`));
+    const servicos = (
+      await ok(s.adm("GET", `/carrier-accounts/${conta}/services`))
+    )["dados"] as Json[];
+    // Só o serviço sem custo (D2), para o país do mercado.
+    expect(servicos.map((x) => [x["codigo"], x["paises"]])).toEqual([
+      [SERVICO_DE_TESTE, ["PT"]],
+    ]);
+    // Um método com um serviço que a conta não tem é recusado.
+    expect(
+      await codigo(
+        s.adm("POST", "/shipping-methods", {
+          mercado: `mkt_${s.mercado}`,
+          nome: { pt: "CTT por Sendcloud" },
+          tarifa: 499,
+          conta,
+          servico: "ctt:expresso_48",
+        }),
+      ),
+    ).toEqual([422, "shipping.service_unknown"]);
+    const metodo = String(
+      (
+        await ok(
+          s.adm("POST", "/shipping-methods", {
+            mercado: `mkt_${s.mercado}`,
+            nome: { pt: "Teste Sendcloud" },
+            tarifa: 0,
+            conta,
+            servico: SERVICO_DE_TESTE,
+          }),
+          201,
+        )
+      )["id"],
+    );
+    const a = await expedicaoPaga(s, metodo, 1);
+    const e = await ok(s.adm("POST", `/shipments/${a.expedicao}/label`));
+    expect(e).toMatchObject({
+      etiqueta: "emitida",
+      transportadora: "sendcloud",
+      servico: SERVICO_DE_TESTE,
+      ficheiro: "pdf",
+    });
+    const id = a.expedicao.slice(4);
+    expect(sc.estado.envios.at(-1)?.referencia).toBe(`${id}-1`);
+    // O aviso assinado (D4): sem eventos, marca a consulta para já.
+    const corpo = JSON.stringify({
+      action: "parcel_status_changed",
+      parcel: { tracking_number: e["seguimento"] },
+    });
+    const r = await app.inject({
+      method: "POST",
+      url: `/webhooks/carriers/sendcloud/${conta}`,
+      headers: {
+        "content-type": "application/json",
+        "sendcloud-signature": assinarAviso(corpo, SECRETA),
+      },
+      payload: corpo,
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    const { rows } = await sql<{
+      segundos: number;
+    }>`select extract(epoch from quando - now()) as segundos
+        from trabalho_envio where expedicao_id = ${id}::uuid`.execute(
+      base.dono,
+    );
+    expect(Number(rows[0]?.segundos)).toBeLessThanOrEqual(61);
+    // A volta consulta e a expedição anda.
+    sc.estado.eventos.set(String(e["seguimento"]), [
+      {
+        event_at: "2026-10-13T15:00:00Z",
+        phase: "delivered",
+        exception: "none",
+        sub_status: "none",
+      },
+    ]);
+    await aVezChegou(a.expedicao);
+    await correrTrabalho(base.api, envios);
+    expect(
+      await ok(s.adm("GET", `/shipments/${a.expedicao}/label`)),
+    ).toMatchObject({ estado_expedicao: "entregue" });
+    // Um aviso atrasado numa expedição acabada não antecipa o apagamento do
+    // ficheiro (30 dias, Q7; revisão do #406, P2-3).
+    const r2 = await app.inject({
+      method: "POST",
+      url: `/webhooks/carriers/sendcloud/${conta}`,
+      headers: {
+        "content-type": "application/json",
+        "sendcloud-signature": assinarAviso(corpo, SECRETA),
+      },
+      payload: corpo,
+    });
+    expect(r2.statusCode, r2.body).toBe(200);
+    const depois = await sql<{
+      dias: number;
+    }>`select round(extract(epoch from quando - now()) / 86400) as dias
+        from trabalho_envio where expedicao_id = ${id}::uuid`.execute(
+      base.dono,
+    );
+    expect(Number(depois.rows[0]?.dias)).toBe(30);
+    // A lista de serviços falha no teste: a conta continua pronta (P2-1).
+    sc.estado.opcoesFalham = true;
+    expect(
+      await codigo(s.adm("POST", `/carrier-accounts/${conta}/test`)),
+    ).toEqual([503, "shipping.carrier_unavailable"]);
+    sc.estado.opcoesFalham = false;
+    const contas = (await ok(s.adm("GET", "/carrier-accounts")))[
+      "dados"
+    ] as Json[];
+    expect(contas.find((x) => x["id"] === conta)?.["estado"]).toBe("pronta");
+    // A conta deixou de ter o serviço do método activo: a fotografia nova
+    // é recusada, com o método (P2-2).
+    sc.estado.servicos.set("PT", [opcao("ctt:expresso_48")]);
+    const recusa = await s.adm("POST", `/carrier-accounts/${conta}/test`);
+    expect(recusa.statusCode, recusa.body).toBe(400);
+    expect(recusa.json<Json>()["codigo"]).toBe("shipping.invalid_field");
+    expect(JSON.stringify(recusa.json())).toContain(`shm_${metodo.slice(4)}`);
+    expect(
+      (await ok(s.adm("GET", `/carrier-accounts/${conta}/services`)))["dados"],
+    ).toHaveLength(1);
   });
 });

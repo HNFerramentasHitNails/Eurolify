@@ -751,11 +751,11 @@ ser igual ao registado.
 - **Fora desta parte:** o botão no Hub; a escolha da empresa numa lista;
   e o modo real (M8).
 
-**Em código (12/10/2026; migração 0080):**
+**Em código (12/10/2026; migração 0081):**
 
 | O quê | Onde |
 |---|---|
-| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás e apagar); RLS forçado | migração 0080 |
+| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás e apagar); RLS forçado | migração 0081 |
 | `urlAutorizacao` e `trocarCodigo` no contrato do adaptador; no Moloni, com `MOLONI_REDIRECT_URI` | `src/faturacao/adaptador.ts`, `src/faturacao/moloni.ts`, `src/servidor.ts` |
 | `pedirAutorizacao` e `concluirAutorizacao` (marca usada antes de trocar; grava só depois de conferir a empresa) | `src/faturacao/repositorio.ts` |
 | as três rotas; a página do endereço de resposta (sem nada de fora, sem cache, o texto escapado) e o reencaminhamento com `MOLONI_RETORNO_URL` | `src/faturacao/rotas.ts` |
