@@ -44,7 +44,7 @@ exit "$(cat /var/tmp/teste-pedido/codigo)"
 FIM
   chmod 755 "/usr/local/sbin/eurolify-$programa"
 done
-for fluxo in publicar aplicar medir operar; do
+for fluxo in publicar aplicar medir operar configurar; do
   id "eurolify-$fluxo" >/dev/null 2>&1 || useradd -r "eurolify-$fluxo"
   install -d -m 700 -o "eurolify-$fluxo" "/var/lib/eurolify/pedidos/$fluxo"
 done
@@ -69,7 +69,7 @@ padrao_de() { # padrao_de <ficheiro> <fluxo>
       print substr($0, RSTART + 8, RLENGTH - 9); exit
     }' "$1"
 }
-for fluxo in publicar aplicar medir operar; do
+for fluxo in publicar aplicar medir operar configurar; do
   a="$(padrao_de "$pedido_sh" "$fluxo")"
   b="$(padrao_de "$trabalho_sh" "$fluxo")"
   if [[ -n "$a" && "$a" == "$b" ]]; then
@@ -78,13 +78,24 @@ for fluxo in publicar aplicar medir operar; do
     falhou "$fluxo: as expressões diferem ('$a' / '$b')"
   fi
 done
-maximo="$(grep -oE '^ *maximo=[0-9]+' "$pedido_sh" | grep -oE '[0-9]+')"
-limite="$(grep -oE 'operar \]\] && limite=[0-9]+' "$trabalho_sh" | grep -oE '[0-9]+$')"
-if [[ -n "$maximo" && "$maximo" == "$limite" ]]; then
-  echo "ok: operar: o mesmo limite de tamanho nas duas camadas ($maximo)"
-else
-  falhou "operar: limites diferentes ('$maximo' / '$limite')"
-fi
+# O limite de tamanho de cada fluxo com pedidos longos, nas duas camadas.
+maximo_de() { # maximo_de <fluxo>: o maximo= do bloco do fluxo no eurolify-pedido
+  awk -v f="$1" '
+    $0 ~ "^ *" f "\\)" { dentro = 1 }
+    dentro && match($0, /^ *maximo=[0-9]+/) {
+      sub(/^ *maximo=/, ""); print; exit
+    }
+    dentro && /;;/ { exit }' "$pedido_sh"
+}
+for fluxo in operar configurar; do
+  maximo="$(maximo_de "$fluxo")"
+  limite="$(grep -oE "$fluxo \]\] && limite=[0-9]+" "$trabalho_sh" | grep -oE '[0-9]+$')"
+  if [[ -n "$maximo" && "$maximo" == "$limite" ]]; then
+    echo "ok: $fluxo: o mesmo limite de tamanho nas duas camadas ($maximo)"
+  else
+    falhou "$fluxo: limites diferentes ('$maximo' / '$limite')"
+  fi
+done
 espera="$(awk '/^ *operar\)/ { d = 1 } d && /espera=/ { sub(/.*espera=/, ""); print; exit }' "$pedido_sh")"
 copia="$(grep -oE '^TimeoutStartSec=[0-9]+' "$f/systemd/eurolify-copia.service" | cut -d= -f2)"
 servico="$(grep -oE '^TimeoutStartSec=[0-9]+' "$f/systemd/eurolify-pedido@.service" | cut -d= -f2)"

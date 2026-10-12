@@ -35,6 +35,13 @@ case "$fluxo" in
     espera=1900
     maximo=600
     ;;
+  # A configuração do e-mail da API (docs/34 §13): os cinco valores em
+  # base64, dos segredos do ambiente «ensaio». Espera pela API recriada.
+  configurar)
+    padrao='^smtp [A-Za-z0-9+/]+={0,2}$'
+    espera=1700
+    maximo=1500
+    ;;
   *)
     echo "eurolify-pedido: fluxo desconhecido" >&2
     exit 64

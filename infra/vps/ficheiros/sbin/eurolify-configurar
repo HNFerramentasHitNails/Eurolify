@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Configura o envio de e-mails da API (docs/34 §5 e §13; issue #372; Diogo,
+# 12/10/2026: «a», a porta própria para a configuração). Corre como root,
+# chamado pelo eurolify-trabalho no fluxo «configurar».
+#
+# O pedido é «smtp <base64>»: as cinco linhas SMTP_ANFITRIAO, SMTP_PORTA,
+# SMTP_UTILIZADOR, SMTP_PALAVRA_PASSE e SMTP_REMETENTE, por esta ordem, vindas
+# dos segredos do ambiente «ensaio» do GitHub. Valida cada uma, escreve o
+# /etc/eurolify/api-smtp.env (600, root) de uma vez e, se mudou, recria a API
+# com a imagem que está no ar (eurolify-publicar --so-recriar).
+#
+# Nunca escreve os valores na saída nem no registo: só o que aconteceu.
+set -Eeuo pipefail
+umask 077
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+
+API_SMTP_ENV="${EUROLIFY_API_SMTP_ENV:-/etc/eurolify/api-smtp.env}"
+
+recusar() {
+  echo "Configuração recusada: $1. Nada mudou."
+  registar "configurar: recusado ($1)"
+  exit 65
+}
+
+pedido="${1:-}"
+[[ "$pedido" =~ ^smtp\ ([A-Za-z0-9+/]+={0,2})$ ]] || recusar "o pedido não tem a forma «smtp <base64>»"
+# O base64 decide-se aqui, numa pasta de root; uma falha não mostra nada dele.
+if ! conteudo="$(printf '%s' "${BASH_REMATCH[1]}" | base64 -d 2>/dev/null)"; then
+  recusar "os dados não vêm em base64"
+fi
+linhas=()
+while IFS= read -r linha || [[ -n "$linha" ]]; do
+  linhas+=("$linha")
+done <<<"$conteudo"
+[[ ${#linhas[@]} -eq 5 ]] || recusar "vieram ${#linhas[@]} linhas, e não as 5 (anfitrião, porta, utilizador, palavra-passe, remetente)"
+
+anfitriao="${linhas[0]}"
+porta="${linhas[1]}"
+utilizador="${linhas[2]}"
+palavra_passe="${linhas[3]}"
+remetente="${linhas[4]}"
+
+# O mesmo endereço simples da API (apps/api/src/notificacoes/correio.ts,
+# ENDERECO): nada que vire uma lista de destinatários.
+endereco='^[A-Za-z0-9._%+'"'"'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$'
+LC_ALL=C
+[[ "$anfitriao" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$ ]] || recusar "SMTP_ANFITRIAO não é um nome de servidor"
+# A API só usa 465 (TLS logo) e 587 (STARTTLS) (docs/34 §5).
+[[ "$porta" =~ ^(465|587)$ ]] || recusar "SMTP_PORTA não é 465 nem 587"
+[[ ${#utilizador} -le 254 && "$utilizador" =~ $endereco ]] || recusar "SMTP_UTILIZADOR não é um endereço de e-mail"
+[[ ${#remetente} -le 254 && "$remetente" =~ $endereco ]] || recusar "SMTP_REMETENTE não é um endereço de e-mail"
+# A palavra-passe vai inteira para o --env-file do docker, que lê a linha até
+# ao fim: sem caracteres de controlo e sem espaços nas pontas (o docker e o
+# painel da OVH podiam cortá-los).
+[[ ${#palavra_passe} -ge 1 && ${#palavra_passe} -le 256 ]] || recusar "SMTP_PALAVRA_PASSE vazia ou com mais de 256 caracteres"
+[[ ! "$palavra_passe" =~ [[:cntrl:]] ]] || recusar "SMTP_PALAVRA_PASSE tem caracteres de controlo"
+[[ ! "$palavra_passe" =~ ^[[:space:]] && ! "$palavra_passe" =~ [[:space:]]$ ]] || recusar "SMTP_PALAVRA_PASSE começa ou acaba com espaço"
+
+desejado="$(printf 'SMTP_ANFITRIAO=%s\nSMTP_PORTA=%s\nSMTP_UTILIZADOR=%s\nSMTP_PALAVRA_PASSE=%s\nSMTP_REMETENTE=%s' \
+  "$anfitriao" "$porta" "$utilizador" "$palavra_passe" "$remetente")"
+actual="$(cat "$API_SMTP_ENV" 2>/dev/null || true)"
+if [[ -f "$API_SMTP_ENV" && "$actual" == "$desejado" ]]; then
+  echo "A configuração do e-mail já era esta: nada mudou."
+  registar "configurar: api-smtp.env sem mudança"
+  exit 0
+fi
+
+novo="$API_SMTP_ENV.novo"
+rm -f -- "$novo"
+printf '%s\n' "$desejado" >"$novo"
+chown root:root "$novo"
+chmod 600 "$novo"
+mv -fT "$novo" "$API_SMTP_ENV"
+echo "Configuração do e-mail escrita em $API_SMTP_ENV (5 variáveis; os valores não se mostram)."
+registar "configurar: api-smtp.env escrito (5 variáveis)"
+
+# A API só lê o --env-file ao ser criada: recria-se com a imagem que está no
+# ar (o mesmo caminho do passo 10c do preparar.sh). Sem contentor, a próxima
+# publicação já o lê.
+imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+resumo_api="${imagem_api##*@}"
+if [[ -z "$imagem_api" ]]; then
+  echo "Sem contentor eurolify-api: a próxima publicação já lê a configuração."
+elif [[ ! "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "AVISO: o eurolify-api corre sem resumo: não o recrio (a próxima publicação recria-o)."
+  registar "configurar: a API não se recriou (imagem sem resumo)"
+  exit 1
+elif /usr/local/sbin/eurolify-publicar "$resumo_api" --so-recriar; then
+  echo "A API recriou-se com a configuração do e-mail."
+else
+  registar "configurar: falhou recriar a API com a configuração do e-mail"
+  echo "ATENÇÃO: a API não se recriou bem (ver acima)."
+  exit 1
+fi
