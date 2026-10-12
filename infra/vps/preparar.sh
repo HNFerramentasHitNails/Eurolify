@@ -754,7 +754,28 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub.env, api-totp.env e api-smtp.env (docs/19 §6, #107; docs/34 §13)"
+passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub.env, api-totp.env, api-smtp.env e api-vies.env (docs/19 §6, #107; docs/34 §13; docs/23 §13)"
+# O VIES (docs/23 §13; Diogo, 12/10/2026: «sim, avança»): o endereço da API
+# REST da Comissão, num ficheiro só dele que este passo escreve inteiro. Não é
+# segredo; ligá-lo muda a configuração da API, por isso entra por pedido
+# revisto (ADR-0028). A medição diz se está ligado; a prova é a primeira
+# consulta da fila.
+API_VIES_ENV=/etc/eurolify/api-vies.env
+VIES_DESEJADO="VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number"
+escrever_api_vies() {
+  (
+    umask 077
+    printf '%s\n' "$VIES_DESEJADO" >"$API_VIES_ENV.novo"
+  )
+  chown root:root "$API_VIES_ENV.novo"
+  mv -f "$API_VIES_ENV.novo" "$API_VIES_ENV"
+}
+if [[ "$(cat "$API_VIES_ENV" 2>/dev/null || true)" == "$VIES_DESEJADO" &&
+  "$(stat -c '%a %U' "$API_VIES_ENV" 2>/dev/null)" == "600 root" ]]; then
+  ok "$API_VIES_ENV"
+else
+  fazer "escrever $API_VIES_ENV (o endereço do VIES)" escrever_api_vies
+fi
 # O docker só lê o --env-file quando cria o contentor: uma ligação nova só
 # chega à API quando o contentor for recriado. Quem o recria é o
 # eurolify-publicar --so-recriar, com a imagem que já está no ar (passo 8 já o
@@ -773,7 +794,7 @@ configuracao_mais_recente_que_a_api() {
   [[ " $montagens " == *" /media "* ]] || return 0
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-smtp.env; do
+  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-smtp.env "$API_VIES_ENV"; do
     mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
     mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0

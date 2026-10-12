@@ -32,8 +32,10 @@ Na mesma medição, fora deste tema:
 
 - **A API (no contentor) chegar ao VIES:** só se mede a partir da máquina.
   A prova final é a primeira consulta da fila depois de ligar.
-- **Ligar:** pôr `VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number`
-  no `/etc/eurolify/api.env` e recriar a API. Muda a configuração da máquina:
-  Diogo ou Bruno (AGENTS.md, «Operar a VPS», regra 1).
+- **Ligar:** decidido pelo Diogo a 12/10/2026 (*«sim, avança»*). O passo
+  10c do `preparar.sh` escreve o `VIES_URL` num ficheiro próprio,
+  `/etc/eurolify/api-vies.env` (600, root), e recria a API; a publicação
+  passa-o; a medição diz «VIES_URL na configuração da API». Fica feito quando
+  o pedido for juntado, aplicado pelo fluxo `aplicar-script` e medido.
 - **Porque falhou a verificação das 07:00** e qual é o aviso do
   `preparar.sh`: não li.
