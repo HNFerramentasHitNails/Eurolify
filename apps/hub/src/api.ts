@@ -2,6 +2,11 @@
 // próprio anfitrião (`/hub/*`), com o cookie da sessão (que o Hub não lê) e
 // sempre em JSON; os erros chegam no formato RFC 9457 com um `codigo`.
 
+import type {
+  DocumentoAClassificar,
+  Faturacao,
+  RelatorioOss,
+} from "./faturacao";
 import type { OpcaoArtigo } from "./opcoes";
 import type { CorpoPreco, PrecoLido } from "./preco";
 import type { CasoTarefa, FilaTarefa, PaginaTarefas } from "./tarefas";
@@ -691,6 +696,77 @@ export const api = {
       "POST",
       `/hub/tasks/${fila}/${encodeURIComponent(caso)}/deadline`,
       { comerciante, corpo: { prazo, motivo, versao } },
+    ),
+  // O ecrã «Faturação» (docs/22 §29.2): as mesmas rotas da chave pelo Hub.
+  faturacao: (comerciante: string) =>
+    pedir<Faturacao>("GET", "/hub/invoicing", { comerciante }),
+  /** Chama-se dentro de `comRecente` (autenticação recente). */
+  autorizarLigacao: (comerciante: string, ligacao: string, empresa: string) =>
+    pedir<{ url: string; estado: string; expira_em: string }>(
+      "POST",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/authorize`,
+      { comerciante, corpo: { empresa } },
+    ),
+  concluirLigacao: (
+    comerciante: string,
+    ligacao: string,
+    codigo: string,
+    estado: string,
+  ) =>
+    pedir<undefined>(
+      "POST",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/authorize/complete`,
+      { comerciante, corpo: { codigo, estado } },
+    ),
+  testarLigacao: (comerciante: string, ligacao: string) =>
+    pedir<{ estado: string; erro: string | null }>(
+      "POST",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/test`,
+      { comerciante },
+    ),
+  relatorioOss: (comerciante: string, entidade: string, periodo: string) =>
+    pedir<RelatorioOss>(
+      "GET",
+      `/hub/tax-reports/oss?${new URLSearchParams({ entidade, periodo }).toString()}`,
+      { comerciante },
+    ),
+  documentoOss: (comerciante: string, documento: string) =>
+    pedir<DocumentoAClassificar>(
+      "GET",
+      `/hub/tax-reports/oss/documents/${encodeURIComponent(documento)}`,
+      { comerciante },
+    ),
+  classificarOss: (
+    comerciante: string,
+    corpo: {
+      documento: string;
+      linhas: { balde: string; pais: string }[];
+      data?: string;
+      motivo: string;
+    },
+  ) =>
+    pedir<unknown>("POST", "/hub/tax-reports/oss/classifications", {
+      comerciante,
+      corpo,
+    }),
+  /** Chama-se dentro de `comRecente` (autenticação recente). */
+  fecharOss: (
+    comerciante: string,
+    entidade: string,
+    periodo: string,
+    confirmoPorEmitir: boolean,
+  ) =>
+    pedir<RelatorioOss>("POST", "/hub/tax-reports/oss/close", {
+      comerciante,
+      corpo: confirmoPorEmitir
+        ? { entidade, periodo, confirmo_por_emitir: true }
+        : { entidade, periodo },
+    }),
+  /** O CSV dos registos (art. 63.º-C), em bytes, para descarregar. */
+  registosOss: (comerciante: string, entidade: string, periodo: string) =>
+    pedirBytes(
+      `/hub/tax-reports/oss/records?${new URLSearchParams({ entidade, periodo }).toString()}`,
+      comerciante,
     ),
   sair: () => pedir<{ ok: true }>("POST", "/hub/session/end"),
   membros: (comerciante: string) =>

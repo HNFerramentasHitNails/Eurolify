@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { lerSegredoDaLigacao } from "./convite";
+import { lerFragmentoMoloni } from "./faturacao";
 import { fecharAvisoDeRecuperada } from "./recuperacao";
 import { ContextoHub, type Contexto } from "./contexto";
 import { Artigo } from "./ecras/Artigo";
@@ -18,6 +19,8 @@ import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
 import { Entrar } from "./ecras/Entrar";
 import { Equipa } from "./ecras/Equipa";
+import { Faturacao, RegressoMoloni } from "./ecras/Faturacao";
+import { RelatorioOss } from "./ecras/RelatorioOss";
 import { Inicio } from "./ecras/Inicio";
 import { Recuperar } from "./ecras/Recuperar";
 import {
@@ -43,8 +46,8 @@ import {
 // /artigos/{prd_…}/editar, /artigos/{prd_…}/historico,
 // /artigos/{prd_…}/opcoes, /artigos/{prd_…}/variantes/{var_…},
 // /artigos/{prd_…}/variantes/nova,
-// /artigos/{prd_…}/precos/{prl_…}/{var_…}, /a-decidir, /chaves,
-// /conta e /. Nunca debaixo de /hub/, que é da API.
+// /artigos/{prd_…}/precos/{prl_…}/{var_…}, /a-decidir, /faturacao,
+// /faturacao/moloni, /faturacao/oss, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
@@ -57,6 +60,22 @@ const CAMINHO_PRECO = /^\/artigos\/([^/]+)\/precos\/([^/]+)\/([^/]+)$/;
 
 const segredoInicial =
   window.location.pathname === "/convite" ? lerSegredoDaLigacao() : null;
+
+// O código do Moloni vem no fragmento (docs/22 §29.2): lê-se uma vez, ao
+// abrir a página, e sai logo da barra de endereço.
+function lerRegressoMoloni() {
+  const fragmento = window.location.hash;
+  if (fragmento !== "") {
+    window.history.replaceState(
+      window.history.state,
+      "",
+      window.location.pathname + window.location.search,
+    );
+  }
+  return lerFragmentoMoloni(fragmento);
+}
+const regressoMoloni =
+  window.location.pathname === "/faturacao/moloni" ? lerRegressoMoloni() : null;
 
 export function App() {
   const [lingua, setLingua] = useState<Lingua>(linguaGuardada);
@@ -156,6 +175,9 @@ export function App() {
     local.caminho === "/equipa" ||
     local.caminho === "/artigos" ||
     local.caminho === "/a-decidir" ||
+    local.caminho === "/faturacao" ||
+    local.caminho === "/faturacao/moloni" ||
+    local.caminho === "/faturacao/oss" ||
     local.caminho === "/chaves" ||
     local.caminho === "/conta";
 
@@ -187,11 +209,17 @@ export function App() {
                             : t.varianteEditarTitulo
                           : local.caminho === "/a-decidir"
                             ? t.decidirTitulo
-                            : local.caminho === "/chaves"
-                              ? t.chavesTitulo
-                              : local.caminho === "/conta"
-                                ? t.contaTitulo
-                                : t.inicioTitulo;
+                            : local.caminho === "/faturacao"
+                              ? t.faturacaoTitulo
+                              : local.caminho === "/faturacao/moloni"
+                                ? t.moloniTitulo
+                                : local.caminho === "/faturacao/oss"
+                                  ? t.ossTitulo
+                                  : local.caminho === "/chaves"
+                                    ? t.chavesTitulo
+                                    : local.caminho === "/conta"
+                                      ? t.contaTitulo
+                                      : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -298,6 +326,25 @@ export function App() {
       <ADecidir
         // Outro comerciante, outro ecrã: nada do anterior fica.
         key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        consulta={local.consulta}
+      />
+    );
+  else if (local.caminho === "/faturacao")
+    ecra = (
+      <Faturacao
+        // Outro comerciante, outro ecrã: nada do anterior fica.
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (local.caminho === "/faturacao/moloni")
+    ecra = <RegressoMoloni fragmento={regressoMoloni} />;
+  else if (local.caminho === "/faturacao/oss")
+    ecra = (
+      <RelatorioOss
+        // Outro comerciante, entidade ou período: outro relatório.
+        key={local.consulta}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
         consulta={local.consulta}
       />
