@@ -2074,3 +2074,212 @@ VPS, com pedido próprio (ADR-0028). **Rede temporária:** o texto
   - credenciais recusadas, transportadora sem resposta e o conflito;
   - o papel do armazém só a ver;
   - capturas a 375, 768 e 1280 px, em claro e escuro, para a página de aprovação (`eurolify-hub-quality-gate`).
+
+## 30. O ecrã «Faturação»: a ligação ao emissor e o relatório OSS (issue #310)
+
+Pedido do Diogo, 12/10/2026 (*«sim, avança com o desenho do ecrã
+Faturação»*). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (*«sim,
+aprovo o desenho com a Q1 em A»*; `docs/06`, EG).
+
+Hoje tudo o que a fatia 10 faz só se usa pela integração, com uma chave:
+- ligar o Moloni pela autorização dele (`docs/29` §17);
+- testar a ligação;
+- ver o relatório OSS, fechar o período e classificar um documento
+  (`docs/37`);
+- descarregar os registos.
+
+O Hub não tem nenhum ecrã de faturação (lido em `apps/hub/src/ecras`,
+12/10/2026).
+
+Skills: `eu-vat-oss-ioss`, `third-party-extensions`, `headless-commerce`,
+`eurolify-design`, `eurolify-hub-modular`, `eurolify-hub-glass-responsive`,
+`eurolify-hub-quality-gate`, `observability-security`, `eu-gdpr-privacy`.
+
+Ex.: a dona da «Loja Exemplo» abre «Faturação» e vê:
+- a ligação ao Moloni «Pronta, em modo teste»;
+- por baixo, o T3 de 2026 com «1 fatura por classificar».
+
+Carrega na fatura, escolhe «Nacional · PT» e grava. O relatório já não tem
+impedimentos. Carrega em «Fechar o T3 de 2026», confirma com a passkey e vê
+«Fechado a 12/10/2026, por si».
+
+### 30.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **A ligação de cada entidade legal**: o adaptador, o modo (teste), o estado (`por_testar`, `pronta`, `com_erro`, desligada), quando foi testada e o erro em linguagem comum |
+| **Ligar o Moloni** (ou ligar outra vez) pela autorização dele, e **testar** a ligação |
+| **O relatório OSS de um período** (trimestre; o mês fica na API): os cinco baldes por país e taxa, as alterações, o que fica à parte, o limiar e o que impede o fecho |
+| **Classificar um documento** que o relatório não classifica sozinho (`docs/37` §10, P1-A) |
+| **Fechar o período** (só o dono) e ver um período fechado tal como ficou |
+| **Descarregar os registos** do art. 63.º-C do Reg. 282/2011 (CSV) |
+
+| Fica de fora, e porquê |
+|---|
+| **Criar a ligação e os mapas** (a série, (país, taxa) → taxa do emissor, motivo → isenção, os ids do Moloni). Dependem de ids que só se lêem no Moloni, e um mapa errado põe uma taxa errada numa fatura. Ficam pela integração até haver leitura das listas do Moloni (Q1). |
+| **Escolher o emissor da entidade** (`eurolify` ou `sistema_proprio`) e **«emitida fora»** (`docs/29` §15). São decisões de faturação com fila própria; entram com o ecrã dos documentos fiscais. |
+| **Os documentos fiscais** (a lista, a prova, o PDF, resolver uma divergência). Outro ecrã: as filas de «A decidir» (§28) já os mostram pelo identificador. |
+| **Declarar** no portal da AT. O Eurolify nunca declara: dá os números e os registos, e o comerciante apresenta a declaração (Diretiva IVA, art. 369.º-F; `docs/37`). |
+
+### 30.2 Como o Hub lê e escreve
+
+As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rotas.ts` e `rotas-oss.ts`). Usam a sessão em vez da chave, o comerciante no cabeçalho `Eurolify-Comerciante` e o `eurolify.quem` da pessoa, como em «A decidir» (§28.2).
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `GET /hub/invoicing` | a sessão com `invoices:read` (dono, gestor, apoio) | as entidades legais do comerciante (nome, país, emissor escolhido) e as ligações de cada uma, **sem credenciais** (as mesmas de `GET /invoicing-connections`) |
+| `POST /hub/invoicing-connections/{id}/authorize` `{ empresa }` | `invoices:accounts` (só o dono), **autenticação recente** | a mesma `pedirAutorizacao` (`docs/29` §17) |
+| `POST /hub/invoicing-connections/{id}/authorize/complete` `{ codigo, estado }` | `invoices:accounts` | a mesma `concluirAutorizacao` |
+| `POST /hub/invoicing-connections/{id}/test` | `invoices:accounts` | a mesma `testarLigacao` |
+| `GET /hub/tax-reports/oss?entidade=&periodo=` | `tax:read` (dono, gestor, apoio) | o mesmo `relatorioOss` |
+| `POST /hub/tax-reports/oss/classifications` | `tax:write` (só o dono) | a mesma `classificarOss` |
+| `POST /hub/tax-reports/oss/close` | `tax:write`, **autenticação recente** | o mesmo `fecharOss`; o `fechado_por` passa a ser a pessoa (`pessoa:per_…`) |
+| `GET /hub/tax-reports/oss/records?entidade=&periodo=` | `tax:read` | o mesmo CSV, com os mesmos cabeçalhos (sem cache, como anexo) |
+
+- **Autenticação recente** para ligar uma conta e para fechar um período
+  (§3): o primeiro dá acesso à emissão; o segundo não se desfaz.
+- **O regresso do Moloni.** O servidor configura o `MOLONI_RETORNO_URL`
+  com o endereço `/faturacao/moloni` do Hub.
+  1. Antes de mandar a pessoa ao Moloni, o ecrã guarda no `sessionStorage`
+     do separador o comerciante, a ligação, o `estado` e quando expira.
+  2. A API devolve o código no fragmento (`#code=…`, `docs/29` §17,
+     revisão do #407).
+  3. O ecrã lê o fragmento, apaga-o do endereço e conclui com o `estado`
+     guardado. Se o Moloni devolver um `state` diferente do guardado, não
+     conclui e diz porquê.
+  4. Sem nada guardado (outro separador, outro navegador, mais de 10
+     minutos), diz para pedir outra vez.
+- **O prazo de espera e as respostas perdidas**, como nas outras escritas do
+  Hub (5 s, depois 503).
+  - **Ao fechar:** relê o relatório. Se já estiver fechado, dá-o por feito.
+  - **Ao classificar:** relê o relatório. Se o documento já não estiver nos
+    impedimentos, dá-o por feito.
+
+### 30.3 O ecrã
+
+| Onde | O que mostra | Estados além do normal |
+|---|---|---|
+| **Entrada** (`/`) | Um módulo «Faturação» na grelha, para quem tem `invoices:read` ou `tax:read`: dono, gestor e apoio; o armazém não o vê. | — |
+| **Faturação** (`/faturacao?comerciante=…`) | Uma secção por entidade legal (o nome e o país; com uma só, sem título repetido). **A ligação**: o emissor («Moloni»), «em modo teste» sempre à vista, o estado com texto e o token de estado (regra 3), «testada há 2 dias» e o erro em linguagem comum. Com `invoices:accounts`: «Ligar o Moloni» (sem credenciais), «Ligar outra vez» (com erro ou para mudar de conta) e «Testar». Sem ligação: «Esta entidade ainda não está ligada a um software de faturação. A ligação cria-se pela integração.» (Q1). Por baixo, **«Relatório OSS»**, com o último trimestre acabado e o estado dele («Aberto · 2 impedimentos», «Fechado a …»). | a carregar; erro com «Tentar outra vez»; entidade que escolheu o sistema próprio («Os documentos desta entidade saem do sistema próprio.»); ligação desligada; comerciante errado (como nas outras páginas) |
+| **Ligar o Moloni** (diálogo) | O campo «Empresa no Moloni» (o número que o Moloni mostra na área de cliente) e a frase «Vai entrar no Moloni para autorizar o Eurolify. Só as empresas de teste são aceites.». Confirmar pede a autenticação recente e leva ao Moloni. | `invoices.invalid_field` (empresa fora da lista de teste, M8: «Esta empresa não é uma conta de teste.»); `invoices.not_configured` (o endereço de resposta não está configurado: «A ligação ao Moloni ainda não está disponível neste servidor.») |
+| **De volta do Moloni** (`/faturacao/moloni`) | «A concluir a ligação ao Moloni…», depois «Ligado. Falta testar.» com o botão «Testar», e por fim o resultado. | sem pedido guardado ou expirado («Este pedido já não vale. Peça outra vez.»); `state` diferente; `invoices.issuer_error` (o Moloni recusou: a frase dele, tapada, e «Peça outra vez»); `invoices.issuer_busy` (documentos a meio: «Há documentos a meio no Moloni; resolva-os antes de mudar a conta.»); usada (409) |
+| **Relatório OSS** (`/faturacao/oss?comerciante=…&entidade=lgl_…&periodo=2026-T3`) | **No topo**: o período, com anterior e seguinte. Os trimestres escolhem-se numa lista dos últimos oito, mais o actual com «em curso». Mostra o estado: aberto, ou «Fechado a {data}, por {nome}» com a versão da regra. Sempre a frase: «Estes números ajudam a preencher a declaração OSS. Quem a apresenta é a empresa, no portal das Finanças.» **Os baldes**: os cinco pela ordem do `docs/37` §2.1, cada um com a base e o IVA e as linhas por país e taxa (tabela a partir de 768 px, cartões abaixo, regra 5). As notas de crédito já vêm a negativo, e um valor negativo leva sinal e texto, não só cor. **Alterações de períodos anteriores**, quando houver, com o período de origem. **À parte** (sem somar): as emitidas fora do Eurolify (com o número declarado), as do sistema próprio e as por emitir. **O limiar**: «Vendas à distância em 2026: 4 230,00 € de 10 000,00 €»; com documentos excluídos, «a soma pode estar por baixo: {n} documentos não entraram». **O que impede o fecho**: cada motivo em linguagem comum, com os documentos (os últimos 4 algarismos à vista) e, nos classificáveis, «Classificar». No fim, «Descarregar os registos (CSV)» e, para o dono, «Fechar o {período}». | a carregar; erro; período inválido; período em curso (o botão diz «Só depois de {data}»); com impedimentos (o botão não aparece; a lista diz porquê); só «por emitir» (o diálogo de fechar pede a confirmação, Q-O4); período anterior ao último fechado (só leitura, com a frase do P1-B); CSV recusado (a frase da API); sem `tax:write` (só leitura, sem botões) |
+| **Classificar** (diálogo) | O documento (número, data, total) e uma linha por cada linha da prova, pela ordem dela: a descrição, a taxa e os valores, **só de leitura**, e dois campos, o **balde** (lista dos cinco) e o **país** (lista dos 27 e «fora da UE»). O país vem filtrado pelo balde para o ecrã não oferecer o que a API recusa: nacional só o país da entidade, OSS e intracomunitárias os outros 26, exportação fora da UE. Quando a prova não tem data, também **a data**, entre o dia do pedido e hoje. Por fim, o **motivo** (obrigatório, com a frase «Não escreva dados de clientes neste motivo.») e o aviso «Esta decisão fica gravada e não se muda.». | `tax_reports.invalid` (a frase da API); `tax_reports.not_classifiable`; `tax_reports.already_classified` (relê); sem `tax:write` |
+| **Fechar** (diálogo) | «Fechar o T3 de 2026? Os números ficam gravados como estão e o período não se reabre. O que chegar depois com data deste período entra como alteração no seguinte.» Com por emitir: a lista deles e a caixa «Vi os pedidos por emitir e quero fechar na mesma». Pede a autenticação recente. | `tax_reports.not_closable` (a lista nova de impedimentos: alguma coisa mudou); `tax_reports.already_closed` (relê); `tax_reports.retry` |
+
+**A régua do país por balde** (no diálogo de classificar) vem do servidor e não é cópia: a rota `GET /hub/tax-reports/oss` passa a devolver `classificavel: { baldes: [{ balde, paises: [...] }] }`, calculado a partir de `PAISES_UE` e do país da entidade, os mesmos que validam em `classificarOss` (regra 8, como o `pode_ser_responsavel` do §28.2).
+
+**Os impedimentos em linguagem comum** (pt, es, en), com o que se pode fazer:
+
+| Código | Texto | Acção |
+|---|---|---|
+| `periodo_em_curso` | O período ainda não acabou. | — |
+| `por_emitir` | Há pedidos pagos por faturar ({n}). | fechar com a confirmação (Q-O4) |
+| `divergente` | Há faturas emitidas que não batem com o pedido. | — («A decidir») |
+| `declarado_divergente` | Uma fatura já declarada passou a divergente. | — («A decidir») |
+| `linhas_desalinhadas` | As linhas da fatura não batem com as do pedido. | «Classificar» (só se a divergência foi resolvida) |
+| `sem_balde` | O Eurolify não sabe onde declarar uma linha. | «Classificar» |
+| `sem_data` | A fatura não tem data. | «Classificar» |
+| `outra_moeda` | Fatura noutra moeda que não o euro. | — (ainda não suportado) |
+| `sinal_inesperado` | A fatura tem valores negativos. | — (suporte) |
+| `periodo_anterior_aberto` | Um período anterior ainda está aberto ({período}). | ir a esse período |
+| `periodo_posterior_fechado` | Já fechou um período a seguir a este. | só leitura |
+
+### 30.4 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| **Números baseados em regras ainda C** (o período pela data do documento, a NC no período dela, a taxa da fatura emitida numa linha classificada, GR/EL) chegarem a um ecrã sem validação (`AGENTS.md`, «Não se erra», regra 7) | o ecrã diz sempre que os números ajudam e que quem declara é a empresa; o módulo só se liga **no ensaio** até o contabilista validar o `docs/37` (ADR-0045: as validações no fim do desenvolvimento, antes do primeiro comerciante de fora). A porta está escrita no `docs/05`, «Antes do primeiro comerciante de fora» (revisão do #408, P2-5) |
+| Ler um período fechado como recalculado | o topo diz «Fechado a …» e a página mostra a fotografia, nunca outra conta |
+| O apoio descarregar os registos (têm o NIF e o nome dos clientes) | `tax:read` dá-lhe o mesmo que pela chave. O ecrã diz antes de descarregar: «Tem dados pessoais (NIF e nome). Guarde-o só onde guarda a contabilidade.» Se o apoio não deve ter esta leitura, muda-se o papel (`papel_ambitos`), não o ecrã |
+| Ligar a conta Moloni de outra pessoa | a autorização só se conclui com o `estado` guardado no separador de quem a pediu; o P2-1 do #407 (prender o código ao pedido) continua por fazer antes do modo real |
+| Classificar com um país que a API recusa | o ecrã só oferece os países que o servidor devolve; a API confere outra vez |
+| Duas pessoas a fechar o mesmo período | a API fecha um de cada vez por entidade; a segunda recebe `already_closed` e o ecrã relê |
+| Um erro do Moloni com dados sensíveis no ecrã | a API já tapa os segredos (`taparSegredos`); o ecrã mostra só a `mensagem` |
+
+### 30.5 Decidido
+
+✅ **Q1: A** (Diogo, 12/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
+
+**Q1. A ligação ao emissor e os mapas criam-se no Hub nesta parte?** Ex.:
+a dona da «Loja Exemplo» ainda não tem ligação. Precisaria de escolher a
+série «500», dizer que a taxa de 23 % de PT é a taxa «11» do Moloni e indicar
+o artigo dos portes e o cliente «Consumidor final».
+- **A (proposta):** não. Nesta parte, o Hub só liga, testa e mostra a
+  ligação; criá-la e os mapas ficam pela integração. Os mapas dependem de ids
+  que só se lêem no Moloni, e um mapa errado põe uma taxa errada numa fatura.
+  Entram numa parte seguinte, com a leitura das listas do Moloni (as taxas,
+  as séries, os artigos), para escolher em vez de escrever números.
+- **B:** sim, já, com campos de texto para os ids. É mais rápido, mas é
+  exactamente o tipo de configuração escrita à mão que o `docs/04` mostra a
+  dar faturas erradas.
+
+### 30.6 Antes de dizer que está feito (o pedido do código)
+
+- **API**: as oito rotas pelo Hub fazem o mesmo que as da chave.
+  - O gestor e o apoio recebem 403 ao ligar, classificar e fechar; o armazém
+    recebe 403 em tudo.
+  - Outro comerciante não chega (404, com prova pela falha).
+  - Ligar e fechar pedem autenticação recente.
+  - `fechado_por` e `decidido_por` são a pessoa.
+  - O CSV sai com os mesmos cabeçalhos.
+  - `classificavel` vem do servidor.
+- **Hub**: a passagem completa só com o teclado:
+  - ligar com o Moloni simulado;
+  - o regresso com e sem `sessionStorage`;
+  - testar;
+  - abrir o T3 com um impedimento e classificá-lo;
+  - fechar com a passkey;
+  - ver o período fechado;
+  - descarregar o CSV.
+
+  Também: o papel sem `tax:write`, um período em curso e um posterior
+  fechado.
+- **Capturas**: a 375, 768 e 1280 px, claro e escuro, para a página de
+  aprovação (`eurolify-hub-quality-gate`).
+
+### 30.7 Em código (12/10/2026; pedido #408)
+
+| O quê | Onde |
+|---|---|
+| as rotas `/hub/invoicing…` (a faturação, ligar, concluir, testar), pelo papel da sessão e com autenticação recente para ligar | `apps/api/src/faturacao/rotas.ts` |
+| as rotas `/hub/tax-reports/oss…` (o relatório com `classificavel`, o documento a classificar, classificar, fechar com autenticação recente, os registos) | `apps/api/src/faturacao/rotas-oss.ts`; `paisesPorBalde`, `classificavelOss` e `documentoParaClassificar` em `oss.ts` |
+| o módulo, a página «Faturação», o regresso do Moloni e o relatório OSS, com os diálogos | `apps/hub/src/ecras/Faturacao.tsx`, `RelatorioOss.tsx`, `Dialogo.tsx`; a lógica em `apps/hub/src/faturacao.ts` |
+| testes: as rotas pelo papel (`apps/api/test/faturacao-hub.test.ts`), a lógica do Hub (`apps/hub/test/faturacao.test.ts`) e as capturas (`scripts/capturas.mjs`, com `/faturacao`) | — |
+
+**Desvio do desenho:** uma rota a mais, `GET /hub/tax-reports/oss/documents/{id}`.
+O relatório não traz as linhas da prova, e o diálogo «Classificar» precisa
+delas. A rota devolve o número, a data, o total, a data mínima e as linhas;
+nunca o NIF nem o nome do cliente.
+
+**Revisão do #408** (agente da sessão, Opus 5.5; 0 P0, 0 P1, 5 P2, 11 P3):
+- **P2-1, corrigido:** os erros do relatório e a recusa do Moloni passam a
+  ter texto próprio nas três línguas, com o pormenor da API (em português).
+- **P2-2, corrigido:** uma resposta perdida conta também com um 5xx sem
+  código; no regresso do Moloni, relê a ligação antes de dizer que falhou.
+- **P2-5, corrigido:** a porta do ensaio está escrita no `docs/05`, «Antes do
+  primeiro comerciante de fora».
+- **P2-3, em parte:** já há testes do gestor e do outro comerciante ao
+  concluir, testar e descarregar, e do CSV com a mesma primeira linha. Falta
+  o teste com um documento real: a rota do documento sem NIF nem nome, e o
+  `decidido_por` da pessoa.
+- **P2-4, não feito:** a passagem completa do Hub só com o teclado. Está
+  feita só contra uma API simulada, fora do repositório; as capturas
+  verdadeiras cobrem a página `/faturacao`.
+- **P3-1 a P3-3, P3-6, P3-7, P3-9 e P3-10, corrigidos:** um `state` mal
+  formado recusa-se; o endereço confere-se antes de guardar; sem sessão, o
+  pedido não se apaga; «uma integração» em vez do identificador; a data no
+  fuso de Lisboa; o comerciante nunca vazio; «administración tributaria».
+- **P3-4, P3-5, P3-8 e P3-11, ficam:** o botão «Classificar» aparece numa
+  divergência por resolver, e a API recusa-a com a frase dela; a confirmação
+  dos por emitir é a da lista lida; o módulo com `tax:read` sem
+  `invoices:read`; dois pormenores de acessibilidade.
+
+**Por fazer:**
+- **A exportação:** os países fora da UE ainda não vêm do servidor. O ecrã
+  pede o código, e a API confere-o.
+- **`periodo_anterior_aberto`:** o impedimento não diz qual é o período.
+- **Os erros do relatório em espanhol:** saem com a mensagem genérica.
+- **O relatório OSS nas capturas:** não entra, porque o script não sabe o id
+  da entidade.
+- **A passagem com uma passkey real e no Safari de um iPhone.**

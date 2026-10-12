@@ -5,6 +5,7 @@ import { sql } from "kysely";
 import { expect } from "vitest";
 import { criarApp } from "../src/app.js";
 import type { Armazenamento } from "../src/catalogo/armazenamento.js";
+import type { ConfigFaturacao } from "../src/faturacao/adaptador.js";
 import { serializadores } from "../src/base/registo.js";
 import { configHub, resumo } from "../src/identidade/sessoes.js";
 import { AutenticadorDeTeste } from "./autenticador-de-teste.js";
@@ -49,6 +50,7 @@ export function hubDeTeste(
   opcoes: {
     comTotp?: boolean;
     armazenamento?: Armazenamento;
+    faturacao?: ConfigFaturacao;
     envios?: ConfigEnvios;
   } = {},
 ) {
@@ -68,7 +70,7 @@ export function hubDeTeste(
     undefined,
     undefined,
     undefined,
-    undefined,
+    opcoes.faturacao,
     opcoes.envios,
   );
 

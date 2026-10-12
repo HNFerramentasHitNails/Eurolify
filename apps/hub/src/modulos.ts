@@ -8,7 +8,8 @@ import type { Textos } from "./textos";
 
 export type Comerciante = Eu["comerciantes"][number];
 
-export type IdModulo = "equipa" | "artigos" | "decidir" | "envios" | "chaves";
+export type IdModulo =
+  "equipa" | "artigos" | "decidir" | "envios" | "faturacao" | "chaves";
 
 export interface Modulo {
   id: IdModulo;
@@ -18,7 +19,13 @@ export interface Modulo {
    * §28.3); null: basta ser membro (a Equipa, `GET /hub/members`).
    */
   ambitoNecessario: string | readonly string[] | null;
-  caminho: "/equipa" | "/artigos" | "/a-decidir" | "/envios" | "/chaves";
+  caminho:
+    | "/equipa"
+    | "/artigos"
+    | "/a-decidir"
+    | "/envios"
+    | "/faturacao"
+    | "/chaves";
 }
 
 export const MODULOS: readonly Modulo[] = [
@@ -38,6 +45,13 @@ export const MODULOS: readonly Modulo[] = [
   },
   // As contas de transportadora (docs/22 §29): os quatro papéis vêem.
   { id: "envios", ambitoNecessario: "shipping:read", caminho: "/envios" },
+  {
+    id: "faturacao",
+    // A ligação ao emissor (`invoices:read`) ou o relatório OSS (`tax:read`):
+    // dono, gestor e apoio; o armazém não o vê (docs/22 §30.3).
+    ambitoNecessario: ["invoices:read", "tax:read"],
+    caminho: "/faturacao",
+  },
   { id: "chaves", ambitoNecessario: "keys:write", caminho: "/chaves" },
 ];
 

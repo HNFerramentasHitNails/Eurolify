@@ -1159,6 +1159,103 @@ export async function registosOss(
   );
 }
 
+/**
+ * Os países que cada balde aceita numa classificação (docs/22 §30): a mesma
+ * régua que `classificarOss` confere, para o ecrã não oferecer o que a API
+ * recusa. Fora da UE só na exportação; as outras isentas aceitam qualquer.
+ */
+export function paisesPorBalde(paisEntidade: string) {
+  const ue = [...PAISES_UE].sort();
+  const outros = ue.filter((p) => p !== paisEntidade);
+  return [
+    { balde: "oss" as const, paises: outros, fora_da_ue: false },
+    { balde: "nacional" as const, paises: [paisEntidade], fora_da_ue: false },
+    { balde: "intracomunitarias" as const, paises: outros, fora_da_ue: false },
+    { balde: "exportacao" as const, paises: [] as string[], fora_da_ue: true },
+    { balde: "outras_isentas" as const, paises: ue, fora_da_ue: true },
+  ];
+}
+
+/**
+ * O documento a classificar, como o diálogo do Hub o mostra (docs/22 §30): o
+ * número, a data da prova, o tipo e as linhas da prova pela ordem dela (a
+ * descrição, a quantidade, a taxa e os valores). Sem NIF nem nome.
+ */
+export async function documentoParaClassificar(
+  db: Kysely<BaseDados>,
+  c: string,
+  documento: string,
+) {
+  return noRelatorio(
+    db,
+    c,
+    async (trx) => {
+      const d = await trx
+        .selectFrom("documento_fiscal")
+        .select([
+          "entidade_legal_id",
+          sql<string>`to_char((criado_em at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD')`.as(
+            "desde",
+          ),
+        ])
+        .where("id", "=", documento)
+        .executeTakeFirst();
+      if (d === undefined) {
+        throw new ErroRelatorio(
+          "tax_reports.not_found",
+          "este documento não existe",
+        );
+      }
+      const [x] = await lerDocumentos(trx, d.entidade_legal_id, {
+        ids: [documento],
+      });
+      if (x === undefined) {
+        throw new ErroRelatorio(
+          "tax_reports.not_found",
+          "este documento não tem prova",
+        );
+      }
+      return {
+        documento: `inv_${x.id}`,
+        tipo: x.tipo,
+        estado: x.estado,
+        numero: x.numero,
+        data_prova: x.data_prova ?? null,
+        moeda: x.conteudo.moeda,
+        classificado: x.classificacao != null,
+        // O total da prova (positivo, como as linhas) e a data mais antiga
+        // que a classificação aceita (o dia em que o pedido nasceu).
+        total: x.linhas.reduce((t, l) => t + l.base + l.iva, 0),
+        data_minima: d.desde,
+        linhas: x.linhas.map((l) => ({
+          descricao: l.descricao,
+          quantidade: l.quantidade,
+          taxa: l.taxa,
+          base: l.base,
+          iva: l.iva,
+        })),
+      };
+    },
+    { soLeitura: true },
+  );
+}
+
+/** A régua de `paisesPorBalde` para uma entidade do comerciante. */
+export async function classificavelOss(
+  db: Kysely<BaseDados>,
+  c: string,
+  entidade: string,
+) {
+  return noRelatorio(
+    db,
+    c,
+    async (trx) => ({
+      baldes: paisesPorBalde(await paisDaEntidade(trx, entidade)),
+    }),
+    { soLeitura: true },
+  );
+}
+
 // ---------------------------------------------------- A decisão do dono
 
 /** Os impedimentos que o dono pode resolver classificando (P1-A). */

@@ -5116,6 +5116,7 @@ try {
       "artigos",
       "a-decidir",
       "envios",
+      "faturacao",
       "chaves",
     ].map((c) => `/${c}?comerciante=mer_${comerciante}`);
     const medirEntrada = (p) =>
@@ -5189,7 +5190,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os cinco módulos do dono, com o comerciante no endereço`,
+          `${nome}: os seis módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5256,9 +5257,9 @@ try {
         (await p.locator(".contagem-modulos").textContent()) === "1 módulo",
       "entrada: a pesquisa encontra a equipa pelos termos, sem acentos nem maiúsculas, e anuncia 1 módulo",
     );
-    await campo.fill("faturas");
+    await campo.fill("girassol");
     await p
-      .getByText("Nenhum módulo corresponde a «faturas».")
+      .getByText("Nenhum módulo corresponde a «girassol».")
       .waitFor({ timeout: 5_000 });
     confere(
       (await p.locator(".atalho-modulo").count()) === 0,
@@ -5271,9 +5272,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 5 &&
+        (await p.locator(".atalho-modulo").count()) === 6 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos cinco módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos seis módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5431,8 +5432,14 @@ try {
     confere(
       new URL(pv.url()).search === `?comerciante=mer_${segundo}` &&
         JSON.stringify(await pv.locator(".atalho-modulo").allTextContents()) ===
-          JSON.stringify(["Equipa", "Artigos", "A decidir", "Envios"]),
-      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir» e os envios, sem as chaves",
+          JSON.stringify([
+            "Equipa",
+            "Artigos",
+            "A decidir",
+            "Envios",
+            "Faturação",
+          ]),
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», os envios e a faturação, sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
@@ -5850,6 +5857,7 @@ try {
       `/envios/${contaDeEnvios}?comerciante=mer_${comerciante}`,
       "Sendcloud",
     ],
+    ["faturacao", `/faturacao?comerciante=mer_${comerciante}`, "Faturação"],
     ["recuperar", "/recuperar", "Recuperar a conta"],
   ];
   for (const tema of ["light", "dark"]) {

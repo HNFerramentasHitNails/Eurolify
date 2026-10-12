@@ -25,6 +25,14 @@ const TRACOS: Record<IdModulo, readonly string[]> = {
     "M17.5 21a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z",
     "M17.5 14.5v2l1.5 1",
   ],
+  // Uma folha com linhas e um canto dobrado.
+  faturacao: [
+    "M6 3h8.5L19 7.5V21H6V3Z",
+    "M14.5 3v4.5H19",
+    "M9 11.5h7",
+    "M9 15h7",
+    "M9 18.5h4",
+  ],
   // Um camião.
   envios: [
     "M2.5 6.5h11v10h-11Z",

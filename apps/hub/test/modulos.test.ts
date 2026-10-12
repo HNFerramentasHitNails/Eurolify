@@ -39,25 +39,43 @@ function comerciante(
 const ids = (l: readonly { id: string }[]) => l.map((m) => m.id);
 
 describe("os módulos de cada papel", () => {
-  it("o dono vê a equipa, os artigos, «A decidir», os envios e as chaves, por esta ordem", () => {
+  it("o dono vê a equipa, os artigos, «A decidir», os envios, a faturação e as chaves, por esta ordem", () => {
     expect(ids(modulosDe(comerciante("a", "dono")))).toEqual([
       "equipa",
       "artigos",
       "decidir",
       "envios",
+      "faturacao",
       "chaves",
     ]);
   });
 
-  it("o gestor, o armazém e o apoio vêem os envios (shipping:read) mas não as chaves", () => {
-    for (const papel of ["gestor", "armazem", "apoio"] as const) {
+  it("o gestor e o apoio vêem os envios e a faturação, não as chaves; o armazém vê os envios e não a faturação (docs/22 §29.3, §30.3)", () => {
+    for (const papel of ["gestor", "apoio"] as const) {
       expect(ids(modulosDe(comerciante("a", papel))), papel).toEqual([
         "equipa",
         "artigos",
         "decidir",
         "envios",
+        "faturacao",
       ]);
     }
+    expect(ids(modulosDe(comerciante("a", "armazem")))).toEqual([
+      "equipa",
+      "artigos",
+      "decidir",
+      "envios",
+    ]);
+  });
+
+  it("a faturação basta invoices:read ou tax:read", () => {
+    expect(ids(modulosDe(comerciante("a", "apoio", ["tax:read"])))).toEqual([
+      "equipa",
+      "faturacao",
+    ]);
+    expect(
+      ids(modulosDe(comerciante("a", "apoio", ["invoices:read"]))),
+    ).toEqual(["equipa", "decidir", "faturacao"]);
   });
 
   it("«A decidir» pede os âmbitos que lêem as filas na régua da API (revisão do #396, P3-5)", () => {
@@ -98,6 +116,7 @@ describe("os módulos de cada papel", () => {
         "/artigos",
         "/a-decidir",
         "/envios",
+        "/faturacao",
         "/chaves",
       ]).toContain(new URL(destino, "https://h.test").pathname);
       expect(
@@ -147,7 +166,7 @@ describe("a pesquisa de módulos", () => {
   });
 
   it("sem resultados, lista vazia", () => {
-    expect(filtrarModulos(todos, "faturas", TEXTOS.pt)).toEqual([]);
+    expect(filtrarModulos(todos, "girassol", TEXTOS.pt)).toEqual([]);
   });
 });
 
