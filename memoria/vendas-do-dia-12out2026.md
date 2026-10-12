@@ -19,6 +19,11 @@
 
 - Testes da peça: 13 em `test/vendas.test.ts` (12/10/2026, depois da revisão
   do #383), com dados postos directamente na base para marcar as horas exactas.
+- **Ponta a ponta** (12/10/2026, #387): um caso em `test/posvenda-api.test.ts`
+  pelo circuito real — checkout, captura, fatura do emissor de ensaio,
+  devolução de 1 unidade, reembolso e NC — confere os quatro números do dia
+  (29,59 € encomendado, pago e faturado; 12,30 € / 10,00 € creditado e
+  devolvido). Falha se o devolvido sem IVA deixar de vir da NC.
 - **Medição** (12/10/2026, `test/medicao-vendas.test.ts` com `MEDIR=1`; base
   local PostgreSQL 18.6 com as definições de omissão, não a VPS; 3 × 100 000
   encomendas em 13 meses, `VACUUM ANALYZE` depois de encher; duas corridas de
