@@ -18,6 +18,7 @@ import {
   primeiroDiaDepois,
   regressoDe,
   resumoDoPeriodo,
+  talvezFeito,
   taxa,
   textoDoImpedimento,
   trimestreAnterior,
@@ -339,6 +340,19 @@ describe("o regresso do Moloni", () => {
     expect(lerFragmentoMoloni("#state=x")).toBeNull();
     expect(lerFragmentoMoloni("")).toBeNull();
     expect(lerFragmentoMoloni("#code=a%20b")).toBeNull();
+    // Um `state` mal formado não conta como ausente (revisão do #408, P3-1).
+    const mau = lerFragmentoMoloni("#code=abc123&state=<x>");
+    expect(mau).toEqual({ codigo: "abc123", estado: "" });
+    expect(regressoDe(mau, pedido, 0).tipo).toBe("estado_diferente");
+  });
+
+  it("uma resposta talvez feita: sem rede ou um 5xx sem código (revisão do #408, P2-2)", () => {
+    expect(talvezFeito({ estado: 0 })).toBe(true);
+    expect(talvezFeito({ estado: 504 })).toBe(true);
+    expect(talvezFeito({ estado: 503, codigo: "tax_reports.retry" })).toBe(
+      false,
+    );
+    expect(talvezFeito({ estado: 409, codigo: "x" })).toBe(false);
   });
 
   it("o pedido guardado só vale com os quatro campos", () => {

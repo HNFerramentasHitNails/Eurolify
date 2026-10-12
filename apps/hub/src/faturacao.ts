@@ -412,11 +412,32 @@ export function lerFragmentoMoloni(
   const codigo = q.get("code");
   if (codigo === null || !CODIGO.test(codigo)) return null;
   const estado = q.get("state");
+  // Um `state` que vem mal formado não conta como ausente: recusa-se
+  // (revisão do #408, P3-1). A cadeia vazia nunca é igual ao guardado.
   return {
     codigo,
-    estado: estado !== null && ESTADO.test(estado) ? estado : null,
+    estado: estado === null ? null : ESTADO.test(estado) ? estado : "",
   };
 }
+
+/**
+ * Uma resposta que pode ter ficado feita: sem rede, ou um 5xx sem código
+ * (o proxy), como nos outros ecrãs (revisão do #408, P2-2).
+ */
+export function talvezFeito(e: {
+  estado: number;
+  codigo?: string | undefined;
+}) {
+  return e.estado === 0 || (e.estado >= 500 && e.codigo === undefined);
+}
+
+/** Os erros do relatório com texto próprio (revisão do #408, P2-1). */
+export const TEXTO_DO_ERRO_DO_RELATORIO = {
+  "tax_reports.invalid": "ossErroInvalido",
+  "tax_reports.not_classifiable": "ossErroNaoClassificavel",
+  "tax_reports.not_closable": "ossErroNaoFecha",
+  "tax_reports.retry": "ossErroTentar",
+} as const;
 
 /** O pedido guardado, se for um; texto que não é JSON conta como nenhum. */
 export function lerPedidoMoloni(texto: string | null): PedidoMoloni | null {

@@ -2082,7 +2082,7 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rot
 
 | Risco | O que o evita |
 |---|---|
-| **Números baseados em regras ainda C** (o período pela data do documento, a NC no período dela, a taxa da fatura emitida numa linha classificada, GR/EL) chegarem a um ecrã sem validação (`AGENTS.md`, «Não se erra», regra 7) | o ecrã diz sempre que os números ajudam e que quem declara é a empresa; o módulo só se liga **no ensaio** até o contabilista validar o `docs/37` (ADR-0045: as validações no fim do desenvolvimento, antes do primeiro comerciante de fora). A porta fica escrita na lista de lançamento |
+| **Números baseados em regras ainda C** (o período pela data do documento, a NC no período dela, a taxa da fatura emitida numa linha classificada, GR/EL) chegarem a um ecrã sem validação (`AGENTS.md`, «Não se erra», regra 7) | o ecrã diz sempre que os números ajudam e que quem declara é a empresa; o módulo só se liga **no ensaio** até o contabilista validar o `docs/37` (ADR-0045: as validações no fim do desenvolvimento, antes do primeiro comerciante de fora). A porta está escrita no `docs/05`, «Antes do primeiro comerciante de fora» (revisão do #408, P2-5) |
 | Ler um período fechado como recalculado | o topo diz «Fechado a …» e a página mostra a fotografia, nunca outra conta |
 | O apoio descarregar os registos (têm o NIF e o nome dos clientes) | `tax:read` dá-lhe o mesmo que pela chave. O ecrã diz antes de descarregar: «Tem dados pessoais (NIF e nome). Guarde-o só onde guarda a contabilidade.» Se o apoio não deve ter esta leitura, muda-se o papel (`papel_ambitos`), não o ecrã |
 | Ligar a conta Moloni de outra pessoa | a autorização só se conclui com o `estado` guardado no separador de quem a pediu; o P2-1 do #407 (prender o código ao pedido) continua por fazer antes do modo real |
@@ -2144,6 +2144,29 @@ o artigo dos portes e o cliente «Consumidor final».
 O relatório não traz as linhas da prova, e o diálogo «Classificar» precisa
 delas. A rota devolve o número, a data, o total, a data mínima e as linhas;
 nunca o NIF nem o nome do cliente.
+
+**Revisão do #408** (agente da sessão, Opus 5.5; 0 P0, 0 P1, 5 P2, 11 P3):
+- **P2-1, corrigido:** os erros do relatório e a recusa do Moloni passam a
+  ter texto próprio nas três línguas, com o pormenor da API (em português).
+- **P2-2, corrigido:** uma resposta perdida conta também com um 5xx sem
+  código; no regresso do Moloni, relê a ligação antes de dizer que falhou.
+- **P2-5, corrigido:** a porta do ensaio está escrita no `docs/05`, «Antes do
+  primeiro comerciante de fora».
+- **P2-3, em parte:** já há testes do gestor e do outro comerciante ao
+  concluir, testar e descarregar, e do CSV com a mesma primeira linha. Falta
+  o teste com um documento real: a rota do documento sem NIF nem nome, e o
+  `decidido_por` da pessoa.
+- **P2-4, não feito:** a passagem completa do Hub só com o teclado. Está
+  feita só contra uma API simulada, fora do repositório; as capturas
+  verdadeiras cobrem a página `/faturacao`.
+- **P3-1 a P3-3, P3-6, P3-7, P3-9 e P3-10, corrigidos:** um `state` mal
+  formado recusa-se; o endereço confere-se antes de guardar; sem sessão, o
+  pedido não se apaga; «uma integração» em vez do identificador; a data no
+  fuso de Lisboa; o comerciante nunca vazio; «administración tributaria».
+- **P3-4, P3-5, P3-8 e P3-11, ficam:** o botão «Classificar» aparece numa
+  divergência por resolver, e a API recusa-a com a frase dela; a confirmação
+  dos por emitir é a da lista lida; o módulo com `tax:read` sem
+  `invoices:read`; dois pormenores de acessibilidade.
 
 **Por fazer:**
 - **A exportação:** os países fora da UE ainda não vêm do servidor. O ecrã

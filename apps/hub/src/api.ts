@@ -395,6 +395,8 @@ export class ErroHub extends Error {
     readonly mensagens: { pt?: string | undefined; en?: string | undefined },
     readonly referencia: string | undefined,
     readonly esperarSegundos: number | undefined,
+    /** O pormenor da API (`detail`), em português (docs/22 §29.3). */
+    readonly detalhe?: string,
   ) {
     super(codigo ?? `HTTP ${String(estado)}`);
   }
@@ -402,6 +404,7 @@ export class ErroHub extends Error {
 
 interface Problema {
   codigo?: unknown;
+  detail?: unknown;
   mensagem?: { pt?: unknown; en?: unknown };
   instance?: unknown;
 }
@@ -660,6 +663,7 @@ async function erroDe(resposta: Response): Promise<ErroHub> {
     },
     texto(problema.instance),
     Number.isFinite(esperar) && esperar > 0 ? esperar : undefined,
+    texto(problema.detail),
   );
 }
 

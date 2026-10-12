@@ -17,6 +17,8 @@ import {
   type EntidadeFaturacao,
   type Faturacao as DadosFaturacao,
   type LigacaoFaturacao,
+  talvezFeito,
+  type PedidoMoloni,
   type RelatorioOss,
 } from "../faturacao";
 import { entradaDe } from "../modulos";
@@ -405,6 +407,13 @@ function DialogoLigar({
       const r = await comRecente(() =>
         api.autorizarLigacao(comerciante, ligacao.id, numero),
       );
+      // Só um endereço https sai daqui (conferido antes de guardar nada;
+      // revisão do #408, P3-2).
+      if (!r.url.startsWith("https://")) {
+        setErro(t.erroGenerico);
+        setAEnviar(false);
+        return;
+      }
       // O pedido fica neste separador para o regresso (docs/22 §29.2).
       try {
         sessionStorage.setItem(
@@ -418,11 +427,6 @@ function DialogoLigar({
         );
       } catch {
         setErro(t.ligarSemArmazenamento);
-        setAEnviar(false);
-        return;
-      }
-      if (!r.url.startsWith("https://")) {
-        setErro(t.erroGenerico);
         setAEnviar(false);
         return;
       }
@@ -533,6 +537,21 @@ export function RegressoMoloni({
         // Sem armazenamento: nada a apagar.
       }
     };
+    // A ligação recebeu credenciais depois deste pedido (a resposta
+    // perdeu-se, mas a troca ficou feita; revisão do #408, P2-2).
+    const ligacaoMudou = async (p: PedidoMoloni) => {
+      try {
+        const d = await api.faturacao(p.comerciante);
+        const l = d.ligacoes.find((x) => x.id === p.ligacao);
+        const desde = new Date(p.expira_em).getTime() - 10 * 60_000;
+        return (
+          l?.credenciais_em != null &&
+          new Date(l.credenciais_em).getTime() >= desde
+        );
+      } catch {
+        return false;
+      }
+    };
     if (r.tipo !== "concluir") {
       if (r.tipo === "expirado") esquecer();
       setPasso({
@@ -559,21 +578,31 @@ export function RegressoMoloni({
           esquecer();
           setPasso({ tipo: "ligado" });
         },
-        (e: unknown) => {
-          esquecer();
+        async (e: unknown) => {
+          // Sem sessão, o pedido fica: depois de entrar, dentro dos 10
+          // minutos, ainda serve (revisão do #408, P3-3).
           if (semSessao(e)) {
             navegar("/entrar", { substituir: true });
             return;
           }
+          // A resposta pode ter-se perdido com a ligação feita: relê antes
+          // de dizer que falhou (P2-2).
+          if (e instanceof ErroHub && talvezFeito(e)) {
+            const feita = await ligacaoMudou(r.pedido);
+            if (feita) {
+              esquecer();
+              setPasso({ tipo: "ligado" });
+              return;
+            }
+            setPasso({ tipo: "falhou", texto: t.ossNaoConfirmado });
+            return;
+          }
+          esquecer();
           let texto = mensagemDeErro(e, t, lingua).texto;
           if (e instanceof ErroHub) {
             if (e.codigo === "invoices.issuer_error") {
-              // A frase do Moloni, já tapada pela API.
-              const frase =
-                (lingua === "en" ? e.mensagens.en : undefined) ??
-                e.mensagens.pt ??
-                "";
-              texto = preencher(t.moloniRecusou, { erro: frase });
+              // A frase do Moloni, já tapada pela API (o pormenor; P2-1).
+              texto = preencher(t.moloniRecusou, { erro: e.detalhe ?? "" });
             } else if (e.codigo === "invoices.issuer_busy") {
               texto = t.moloniOcupado;
             } else if (

@@ -161,6 +161,26 @@ describe.skipIf(URL_BASE === undefined)("Hub: o ecrã Faturação", () => {
       404,
       "invoices.not_found",
     ]);
+    // Concluir e testar também só o dono, e só no comerciante dele.
+    for (const papel of ["gestor", "donoB"]) {
+      const esperado =
+        papel === "gestor"
+          ? [403, "member.role_escalation"]
+          : [404, "invoices.not_found"];
+      expect(
+        await codigo(
+          como(papel, "POST", `${url}/complete`, {
+            codigo: "x",
+            estado: "y".repeat(43),
+          }),
+        ),
+      ).toEqual(esperado);
+      expect(
+        await codigo(
+          como(papel, "POST", `/hub/invoicing-connections/isx_${ligacao}/test`),
+        ),
+      ).toEqual(esperado);
+    }
     const pedido = await ok(como("dono", "POST", url, corpo));
     const concluir = await como(
       "dono",
@@ -215,6 +235,15 @@ describe.skipIf(URL_BASE === undefined)("Hub: o ecrã Faturação", () => {
     expect(csv.statusCode).toBe(200);
     expect(csv.headers["content-type"]).toMatch(/^text\/csv/);
     expect(csv.headers["cache-control"]).toBe("private, no-store");
+    expect(csv.body.replace(/^\uFEFF/, "")).toMatch(
+      /^periodo,periodo_original,tipo,numero/,
+    );
+    expect(
+      await codigo(como("armazem", "GET", `/hub/tax-reports/oss/records?${q}`)),
+    ).toEqual([403, "member.role_escalation"]);
+    expect(
+      await codigo(como("donoB", "GET", `/hub/tax-reports/oss/records?${q}`)),
+    ).toEqual([404, "tax_reports.not_found"]);
     const corpo = { entidade: `lgl_${entidade}`, periodo: "2026-T2" };
     expect(
       await codigo(como("gestor", "POST", "/hub/tax-reports/oss/close", corpo)),

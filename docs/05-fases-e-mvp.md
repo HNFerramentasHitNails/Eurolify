@@ -112,6 +112,11 @@ acima (as tarefas das filas e a consulta das vendas).
 **Antes do primeiro comerciante de fora:** o motor de IVA validado pelo
 contabilista, os fluxos do consumidor validados por jurista, o contrato com
 limites de responsabilidade e o seguro, e o modelo de receita (D-14).
+**O relatório OSS e o ecrã «Faturação» do Hub** (`docs/37`, `docs/22` §29,
+decisões EF e EG) mostram números que assentam em regras ainda **C** (o
+período pela data do documento, a NC no período dela, a taxa da fatura
+emitida numa linha classificada): ficam **só no ensaio** até o contabilista
+validar o `docs/37`.
 O contabilista, o jurista e o seguro tratam-se **quando o desenvolvimento
 da Fase 1 terminar** (decisão EC, [ADR-0045](adr/0045-desenvolver-primeiro-validar-no-fim-com-o-eur-lex.md),
 12/10/2026); até lá, as regras verificam-se no repositório `eur-lex`.

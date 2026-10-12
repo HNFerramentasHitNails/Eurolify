@@ -238,10 +238,12 @@ export function rotasDoRelatorioOss(
         "autentique-se outra vez para esta operação",
       );
     }
-    return {
-      comercianteId: s.comercianteId ?? "",
-      quem: `pessoa:per_${s.pessoaId}`,
-    };
+    // Com `sessao_comerciante` o comerciante vem sempre; um vazio seria um
+    // erro silencioso (revisão do #408, P3-9).
+    if (s.comercianteId === null) {
+      throw erroConta("auth.forbidden", "falta o comerciante");
+    }
+    return { comercianteId: s.comercianteId, quem: `pessoa:per_${s.pessoaId}` };
   };
 
   rotas.get(

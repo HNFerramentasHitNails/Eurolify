@@ -25,11 +25,33 @@ import {
   type Classificavel,
   type DocumentoAClassificar,
   type RelatorioOss as Relatorio,
+  FUSO_DO_RELATORIO,
+  talvezFeito,
+  TEXTO_DO_ERRO_DO_RELATORIO,
 } from "../faturacao";
 import { comRecente } from "../passkeys";
 import { curto } from "../tarefas";
 import { preencher, TAG_LINGUA, type Lingua, type Textos } from "../textos";
 import { Dialogo } from "./Dialogo";
+
+/**
+ * O erro do relatório em linguagem comum, com o pormenor da API quando o
+ * desenho o pede (a linha recusada, o motivo; revisão do #408, P2-1).
+ */
+function mensagemOss(e: unknown, t: Textos, lingua: Lingua): string {
+  if (e instanceof ErroHub && e.codigo !== undefined) {
+    const chave = (
+      TEXTO_DO_ERRO_DO_RELATORIO as Record<string, keyof Textos | undefined>
+    )[e.codigo];
+    if (chave !== undefined) {
+      const base = t[chave];
+      return e.detalhe === undefined
+        ? base
+        : `${base} ${preencher(t.ossPormenor, { p: e.detalhe })}`;
+    }
+  }
+  return mensagemDeErro(e, t, lingua).texto;
+}
 
 // O relatório OSS de um período (docs/22 §29.3; docs/37): os cinco baldes,
 // as alterações, o que fica à parte, o limiar e o que impede o fecho, como a
@@ -264,12 +286,15 @@ export function RelatorioOss({
         t.ossPessoaDesconhecida
       );
     }
-    return por;
+    // Pela integração: nunca o identificador técnico (revisão do #408, P3-6).
+    return t.ossPorIntegracao;
   };
+  // No fuso do relatório (Lisboa), não no do navegador (P3-7).
   const dataHora = (iso: string) =>
-    new Intl.DateTimeFormat(TAG_LINGUA[lingua], { dateStyle: "medium" }).format(
-      new Date(iso),
-    );
+    new Intl.DateTimeFormat(TAG_LINGUA[lingua], {
+      dateStyle: "medium",
+      timeZone: FUSO_DO_RELATORIO,
+    }).format(new Date(iso));
 
   async function descarregar(r: Relatorio) {
     setADescarregar(true);
@@ -291,7 +316,7 @@ export function RelatorioOss({
         navegar("/entrar", { substituir: true });
         return;
       }
-      setFalhaCsv(mensagemDeErro(e, t, lingua).texto);
+      setFalhaCsv(mensagemOss(e, t, lingua));
     } finally {
       setADescarregar(false);
     }
@@ -797,7 +822,7 @@ function DialogoClassificar({
         aoFechar(t.classificarJaClassificado);
         return;
       }
-      if (e instanceof ErroHub && e.estado === 0) {
+      if (e instanceof ErroHub && talvezFeito(e)) {
         // A resposta perdeu-se: se o documento já não impede o fecho, ficou
         // feito (docs/22 §29.2).
         const r = await reler();
@@ -812,7 +837,7 @@ function DialogoClassificar({
         setAGravar(false);
         return;
       }
-      setErro(mensagemDeErro(e, t, lingua).texto);
+      setErro(mensagemOss(e, t, lingua));
       setAGravar(false);
     }
   }
@@ -1083,7 +1108,7 @@ function DialogoFechar({
         aoFechar(t.fecharMudou);
         return;
       }
-      if (f instanceof ErroHub && f.estado === 0) {
+      if (f instanceof ErroHub && talvezFeito(f)) {
         // A resposta perdeu-se: se já está fechado, ficou feito (§29.2).
         const lido = await reler();
         if (lido?.fechado != null) {
@@ -1094,7 +1119,7 @@ function DialogoFechar({
         setAFechar(false);
         return;
       }
-      setErro(mensagemDeErro(f, t, lingua).texto);
+      setErro(mensagemOss(f, t, lingua));
       setAFechar(false);
     }
   }
