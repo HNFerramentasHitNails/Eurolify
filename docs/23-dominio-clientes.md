@@ -790,6 +790,9 @@ minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
   (`VIES_URL`; revisão do #244, P2-5): ligar é um pedido à parte. A medição
   fixa da VPS (`eurolify-medir`, fluxo `medir`) diz se a máquina chega ao
   `check-status` do VIES e se o `VIES_URL` está no `api.env` (12/10/2026).
+  Mede a partir da máquina, não do contentor da API (outra rede e outros
+  certificados): a prova final é a primeira consulta da fila depois de ligar,
+  com o `codigo_erro` se falhar (revisão do #377, P2-1).
   Ligar é pôr `VIES_URL=` no `/etc/eurolify/api.env` e recriar a API: muda a
   configuração da máquina, por isso fica com o Diogo ou o Bruno (AGENTS.md,
   «Operar a VPS», regra 1).

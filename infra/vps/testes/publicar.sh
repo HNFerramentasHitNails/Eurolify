@@ -90,9 +90,10 @@ cat >"$falsos/curl" <<'FALSO'
 if [[ "$*" == */me* ]]; then echo "${CODIGO_ME:-401}"; exit 0; fi
 # O estado do VIES (eurolify-medir).
 if [[ "$*" == */check-status* ]]; then
-  [[ -z "${VIES_FALHA:-}" ]] || exit 7
-  corpo='{"vow":{"available":true}}'
-  printf '%s\nHTTP 200 em 0.2 s' "${VIES_CORPO:-$corpo}"
+  echo "$*" >"$FALSOS/curl-vies"
+  [[ -z "${VIES_FALHA:-}" ]] || exit "$VIES_FALHA"
+  corpo='{"vow":{"available":true},"countries":[]}'
+  printf '%s\nHTTP %s em 0.2 s' "${VIES_CORPO:-$corpo}" "${VIES_HTTP:-200}"
   exit 0
 fi
 exit "${CURL_FALHA:-0}"
@@ -688,14 +689,29 @@ rm -f "$falsos/no-ar"
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "diz quando a API não está no ar" linha_na_saida "sem a API no ar"
 
-# A saída para o VIES (docs/23 §13; revisão do #244, P2-5).
+# A saída para o VIES (docs/23 §13; revisão do #244, P2-5; do #377).
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "o VIES responde e está disponível" linha_na_saida "VIES: disponível"
-confere sim "com o código e o tempo" linha_na_saida "HTTP 200 em 0.2 s"
+confere sim "com o código e o tempo, a partir da máquina" linha_na_saida "a partir da máquina (não do contentor da API): HTTP 200 em 0.2 s"
+confere nao "sem o corpo da resposta" na_saida '"vow"'
+confere sim "com 10 s no máximo" grep -q -- "-m 10 " "$falsos/curl-vies"
+confere sim "sem o VIES_URL no api.env" linha_na_saida "VIES_URL no api.env: não (a consulta está desligada)"
+VIES_CORPO='{"vow" : {"available" : true}}' bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "o JSON com espaços também conta" linha_na_saida "VIES: disponível"
 VIES_CORPO='{"vow":{"available":false}}' bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "o VIES responde sem estar disponível" linha_na_saida "VIES: responde, mas não diz que está disponível"
-VIES_FALHA=1 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
-confere sim "a máquina não chega ao VIES" linha_na_saida "VIES: sem resposta (a máquina não chega à Comissão, ou o VIES está em baixo)"
+VIES_HTTP=503 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "um 503 não é «disponível»" linha_na_saida "VIES: responde, mas não diz que está disponível"
+confere sim "e mostra o 503" linha_na_saida "a partir da máquina (não do contentor da API): HTTP 503 em 0.2 s"
+VIES_FALHA=28 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "sem resposta, com o código do curl" linha_na_saida "VIES: sem resposta (código do curl 28)"
+echo "VIES_URL=https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number" >/etc/eurolify/api.env
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "com o VIES_URL no api.env" linha_na_saida "VIES_URL no api.env: sim (a API só o lê quando é recriada)"
+echo "VIES_URL=   " >/etc/eurolify/api.env
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "um VIES_URL só com espaços não conta" linha_na_saida "VIES_URL no api.env: não (a consulta está desligada)"
+: >/etc/eurolify/api.env
 
 rm -rf "$falsos"
 ((falhas == 0))
