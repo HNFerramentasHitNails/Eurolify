@@ -42,7 +42,9 @@
 
 - O DKIM: o selector vem do painel da OVH e não o li.
 - O primeiro e-mail real: a API tem a configuração (12/10/2026), mas não vi
-  nenhum sair nem chegar, nem se a OVH aceita o início de sessão (só se sabe
-  no primeiro envio, no estado da notificação).
+  nenhum sair nem chegar, nem se a OVH aceita o início de sessão. O e-mail
+  de teste (`docs/34` §13.1) ainda não correu: depois de juntar o #410 e de o
+  `publicar` e o `aplicar-script` correrem, lança-se `configurar` com
+  `testar`.
 - Se a conta é Email Pro ou MX Plan: o painel mostra 1 GB, e não sei se
   isso corresponde à Email Pro.

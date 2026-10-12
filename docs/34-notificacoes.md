@@ -282,11 +282,19 @@ servidor.
 |---|---|---|
 | acção `configurar`, escolha `testar` | sem os segredos `SMTP_*`: entrega só `teste run:<n> github:<conta>` | `.github/workflows/configurar.yml` |
 | `eurolify-pedido` e `eurolify-trabalho` | aceitam também esse formato no fluxo `configurar`; o registo diz `'teste' (<execução> github:<conta>)` | `ficheiros/bin/eurolify-pedido`; `ficheiros/sbin/eurolify-trabalho` |
-| `eurolify-configurar` | com o `api-smtp.env` que já está na máquina (sem ele, recusa), corre `node dist/testar-correio.js run:<n>` num contentor de uma vez com a imagem da API no ar e só esse ficheiro de ambiente, com as protecções do contentor do operador; mostra só a linha do resultado, e só se tiver a forma esperada. Não muda nada | `ficheiros/sbin/eurolify-configurar` |
+| `eurolify-configurar` | com o `api-smtp.env` que já está na máquina (sem ele, recusa) e **só se a API corre com ele** (as cinco linhas no ambiente do contentor; senão pede o «configurar» primeiro: revisão do #410, P2-1), corre `node dist/testar-correio.js run:<n>` num contentor de uma vez com a imagem da API no ar e só esse ficheiro de ambiente, com as protecções do contentor do operador; mostra só a linha do resultado, e só se tiver a forma esperada. Não muda nada | `ficheiros/sbin/eurolify-configurar` |
 | `testar-correio` | envia **do remetente para o próprio remetente** (`SMTP_REMETENTE`), com o assunto «Eurolify: e-mail de teste» e a execução no texto: nenhum dado de alguém. Escreve se saiu e o `Message-ID`, ou o código e a culpa do erro (`smtp_535`: utilizador ou palavra-passe; `econnection`, `etimedout`: anfitrião ou porta), nunca a configuração | `src/notificacoes/teste.ts`; `src/testar-correio.ts` |
 
 **O que prova:** que o servidor da OVH aceitou o início de sessão e o
-e-mail. **Que chegou** vê-se na caixa do remetente; isso a máquina não sabe.
+e-mail, com a configuração com que a API corre. **Que chegou** vê-se na caixa
+do remetente; isso a máquina não sabe.
+
+**A ordem:** juntar o pedido; o `publicar` leva a imagem com o
+`dist/testar-correio.js` e o `aplicar-script` os programas da máquina (uma
+imagem de antes dá «publicar primeiro»); lançar `configurar` com `testar`.
+
+**Fica** (revisão do #410): o contentor de teste usa a rede `eurolify`, como
+a API, porque o teste é do caminho que a API usa para chegar à OVH (P3-1).
 
 ## 10. Pergunta para o Diogo ou o Bruno
 

@@ -185,6 +185,8 @@ FIM
 chmod 755 /usr/local/bin/docker
 printf 'ghcr.io/teste/eurolify@%s' "$resumo" >/tmp/api-imagem
 teste_pedido='teste run:88 github:1001'
+# A API no ar com o ficheiro (as cinco linhas no ambiente do contentor).
+{ printf 'PATH=/x\n'; cat "$ficheiro"; } >/tmp/api-ambiente
 
 # 6a. A imagem no ar ainda sem o teste: 1, sem correr nada.
 rm -f /tmp/teste-imagem-tem /tmp/teste-chamada
@@ -192,6 +194,16 @@ pedir "$teste_pedido"
 confere "imagem sem o teste: 1" igual "$codigo" 1
 confere "imagem sem o teste: pede para publicar" contem "$saida" "publicar primeiro"
 confere "imagem sem o teste: não correu o envio" igual "$([[ -e /tmp/teste-chamada ]] && echo sim || echo nao)" nao
+
+# 6a2. A API não corre com o ficheiro (a recriação de um «configurar»
+# falhou): 1, sem enviar (revisão do #410, P2-1).
+touch /tmp/teste-imagem-tem
+printf 'PATH=/x\n' >/tmp/api-ambiente
+pedir "$teste_pedido"
+confere "API sem o ficheiro: 1" igual "$codigo" 1
+confere "API sem o ficheiro: pede o «configurar»" contem "$saida" "lance a acção com «configurar» primeiro"
+confere "API sem o ficheiro: não correu o envio" igual "$([[ -e /tmp/teste-chamada ]] && echo sim || echo nao)" nao
+{ printf 'PATH=/x\n'; cat "$ficheiro"; } >/tmp/api-ambiente
 
 # 6b. Aceite: 0, a linha do resultado, e o contentor só com o api-smtp.env.
 touch /tmp/teste-imagem-tem
@@ -205,6 +217,11 @@ confere "teste aceite: com o api-smtp.env e a execução" \
   contem "$(cat /tmp/teste-chamada)" "--env-file $ficheiro"
 confere "teste aceite: a execução vai ao programa" contem "$(cat /tmp/teste-chamada)" "dist/testar-correio.js run:88"
 confere "teste aceite: a palavra-passe não vai na linha de comandos" sem_texto p4ss "$(cat /tmp/teste-chamada)"
+# As protecções do contentor (revisão do #410, P3-2).
+for opcao in "--cap-drop ALL" "--security-opt no-new-privileges" "--read-only" \
+  "--tmpfs /tmp" "--memory 256m" "--pids-limit 64" "--pull=never" "--rm"; do
+  confere "teste aceite: o contentor com $opcao" contem "$(cat /tmp/teste-chamada)" " $opcao "
+done
 confere "teste aceite: o ficheiro não muda" igual "$(stat -c %Y "$ficheiro")" "$antes"
 confere "teste aceite: o registo diz «teste» e a execução" grep -qF "'teste' (88 github:1001) tratado, código 0" "$registo"
 
@@ -220,6 +237,17 @@ pedir "$teste_pedido"
 confere "saída fora da forma: 1" igual "$codigo" 1
 confere "saída fora da forma: não a mostra" sem_texto p4ss "$saida"
 confere "saída fora da forma: diz que não se leu" contem "$saida" "sem resultado legível"
+# Um 0 sem resultado legível não é «aceite» (revisão do #410, P3-4).
+echo 0 >/tmp/teste-codigo
+pedir "$teste_pedido"
+confere "0 sem resultado legível: 1" igual "$codigo" 1
+confere "0 sem resultado legível: não diz aceite" sem_texto "aceite pelo servidor" "$saida"
+# Pelo serviço, um «teste» fora da forma é recusado antes do programa
+# (revisão do #410, P3-3).
+rm -f /tmp/teste-chamada
+pedir "teste run:88"
+confere "teste sem a conta: recusado pelo serviço (65)" igual "$codigo" 65
+confere "teste sem a conta: não correu o envio" igual "$([[ -e /tmp/teste-chamada ]] && echo sim || echo nao)" nao
 
 # 6d. Sem a API no ar, ou sem configuração: 1 e 65, sem correr nada.
 rm -f /tmp/teste-chamada
