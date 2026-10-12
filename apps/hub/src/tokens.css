@@ -90,7 +90,7 @@
   --estado-artigo-arquivado: var(--texto-secundario);
   /* Um caso vencido no «A decidir» (docs/22 §28.3): um estado, uma cor. */
   --estado-tarefa-vencida: var(--estado-erro);
-  /* A ligação ao software de faturação (docs/22 §29.3): um estado, uma cor,
+  /* A ligação ao software de faturação (docs/22 §30.3): um estado, uma cor,
      sempre com o nome ao lado. */
   --estado-ligacao-pronta: var(--estado-sucesso);
   --estado-ligacao-por-testar: var(--estado-aviso);
@@ -98,6 +98,11 @@
   --estado-ligacao-desligada: var(--texto-secundario);
   /* O véu por trás de um diálogo (a cor, depois 60 % no estilo). */
   --veu-dialogo: var(--cinzento-950);
+  /* O estado de uma conta de transportadora (docs/22 §29.3): um estado,
+     uma cor, que apontam para as dos estados gerais. */
+  --estado-conta-pronta: var(--estado-sucesso);
+  --estado-conta-rascunho: var(--estado-aviso);
+  --estado-conta-arquivada: var(--texto-secundario);
   /* O vidro da entrada: uma cor, a opacidade (percentagem, para o
      color-mix) e o fundo estático com um gradiente muito leve. O teste de
      contraste mede as cores compostas. */

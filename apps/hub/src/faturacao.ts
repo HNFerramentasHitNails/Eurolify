@@ -1,6 +1,6 @@
 import { preencher, type Textos } from "./textos";
 
-// O ecrã «Faturação» (docs/22 §29): as funções sem ecrã — os períodos, os
+// O ecrã «Faturação» (docs/22 §30): as funções sem ecrã — os períodos, os
 // montantes e as taxas pela língua, o texto de cada impedimento e o regresso
 // do Moloni. Quem pode ligar, classificar e fechar, e o que impede o fecho,
 // decide-o a API (`apps/api/src/faturacao`); aqui só se mostra o que ela
@@ -86,7 +86,7 @@ export interface Impedimento {
   documentos: string[];
 }
 
-/** A régua do país por balde, do servidor (docs/22 §29.3). */
+/** A régua do país por balde, do servidor (docs/22 §30.3). */
 export interface Classificavel {
   baldes: { balde: Balde; paises: string[]; fora_da_ue: boolean }[];
 }
@@ -238,7 +238,7 @@ export const ultimoTrimestreAcabado = (hoje: string) =>
 
 /**
  * Os trimestres para escolher: o actual («em curso») e os oito anteriores,
- * do mais recente ao mais antigo (docs/22 §29.3).
+ * do mais recente ao mais antigo (docs/22 §30.3).
  */
 export function trimestresParaEscolher(
   hoje: string,
@@ -390,7 +390,7 @@ export function linhasAClassificar(
 
 // ------------------------------------------------- O regresso do Moloni
 
-/** A chave do pedido guardado no `sessionStorage` do separador (§29.2). */
+/** A chave do pedido guardado no `sessionStorage` do separador (§30.2). */
 export const CHAVE_PEDIDO_MOLONI = "eurolify-hub-moloni";
 
 export interface PedidoMoloni {

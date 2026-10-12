@@ -168,7 +168,7 @@ export async function criarLigacao(
   });
 }
 
-/** As entidades legais activas e quem emite por elas (o ecrã do Hub, docs/22 §29). */
+/** As entidades legais activas e quem emite por elas (o ecrã do Hub, docs/22 §30). */
 export async function entidadesDaFaturacao(db: Kysely<BaseDados>, c: string) {
   return noDocumentos(db, c, (trx) =>
     trx

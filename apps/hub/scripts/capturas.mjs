@@ -149,6 +149,10 @@ const api = spawn("node", [join(API, "dist/servidor.js")], {
     // A palavra-passe com o TOTP ligada (docs/22 §9.2), com uma chave nova.
     TOTP_CHAVE: randomBytes(32).toString("base64"),
     MEDIA_PASTA: PASTA_MEDIA,
+    // Os envios (docs/22 §29), com uma chave nova: liga o adaptador da
+    // Sendcloud. As capturas nunca carregam em «Testar a ligação» (seria uma
+    // chamada à Sendcloud verdadeira).
+    ENVIOS_CHAVE: randomBytes(32).toString("base64"),
   },
   stdio: ["ignore", "ignore", "inherit"],
 });
@@ -5111,6 +5115,7 @@ try {
       "equipa",
       "artigos",
       "a-decidir",
+      "envios",
       "faturacao",
       "chaves",
     ].map((c) => `/${c}?comerciante=mer_${comerciante}`);
@@ -5185,7 +5190,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os cinco módulos do dono, com o comerciante no endereço`,
+          `${nome}: os seis módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5252,9 +5257,9 @@ try {
         (await p.locator(".contagem-modulos").textContent()) === "1 módulo",
       "entrada: a pesquisa encontra a equipa pelos termos, sem acentos nem maiúsculas, e anuncia 1 módulo",
     );
-    await campo.fill("transportadoras");
+    await campo.fill("girassol");
     await p
-      .getByText("Nenhum módulo corresponde a «transportadoras».")
+      .getByText("Nenhum módulo corresponde a «girassol».")
       .waitFor({ timeout: 5_000 });
     confere(
       (await p.locator(".atalho-modulo").count()) === 0,
@@ -5267,9 +5272,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 5 &&
+        (await p.locator(".atalho-modulo").count()) === 6 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos cinco módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos seis módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5427,8 +5432,14 @@ try {
     confere(
       new URL(pv.url()).search === `?comerciante=mer_${segundo}` &&
         JSON.stringify(await pv.locator(".atalho-modulo").allTextContents()) ===
-          JSON.stringify(["Equipa", "Artigos", "A decidir", "Faturação"]),
-      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir» e a faturação, sem as chaves",
+          JSON.stringify([
+            "Equipa",
+            "Artigos",
+            "A decidir",
+            "Envios",
+            "Faturação",
+          ]),
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», os envios e a faturação, sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
@@ -5738,7 +5749,79 @@ try {
     await c.close();
   }
 
-  // As capturas: 13 ecrãs × 3 larguras × 2 temas.
+  // Os envios (docs/22 §29.4): o dono liga a Sendcloud e guarda as
+  // credenciais; os segredos não ficam na página depois de guardados.
+  let contaDeEnvios = "";
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/envios?comerciante=mer_${comerciante}`);
+    await p
+      .getByRole("heading", { name: /Envios/ })
+      .first()
+      .waitFor();
+    await p.getByText("Ainda não há contas de transportadora.").waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "envios-vazio-1280-claro.png"),
+      fullPage: true,
+    });
+    await p.getByRole("link", { name: "Ligar uma transportadora" }).click();
+    await p
+      .getByRole("heading", { name: /Ligar uma transportadora/ })
+      .waitFor();
+    // Sem o nome, o ecrã diz o que falta antes de enviar.
+    await p.getByRole("button", { name: "Ligar", exact: true }).click();
+    await p.getByText("Escreva o nome da conta.").waitFor();
+    confere(
+      (await p.getByLabel("Nome da conta").getAttribute("aria-invalid")) ===
+        "true",
+      "envios: o campo em falta fica marcado (aria-invalid)",
+    );
+    await p.getByLabel("Nome da conta").fill("Sendcloud (teste)");
+    await p.getByLabel("Nome", { exact: true }).fill("Armazém de Lisboa");
+    await p.getByLabel("Morada", { exact: true }).fill("Rua do Ouro 1");
+    await p.getByLabel("Código postal").fill("1100-060");
+    await p.getByLabel("Localidade").fill("Lisboa");
+    await p.getByRole("button", { name: "Ligar", exact: true }).click();
+    await p.getByRole("heading", { name: "Sendcloud (teste)" }).waitFor();
+    contaDeEnvios = new URL(p.url()).pathname.split("/").pop() ?? "";
+    confere(
+      /^cac_[0-9a-f-]{36}$/.test(contaDeEnvios),
+      "envios: criar a conta abre a página dela",
+    );
+    await p.getByText("Ainda não há credenciais.").waitFor();
+    const segredo = "segredo-das-capturas-que-nao-pode-ficar";
+    await p.getByLabel("Chave pública").fill("publica-das-capturas");
+    await p.getByLabel("Chave secreta").fill(segredo);
+    await p
+      .getByLabel("Chave de assinatura dos avisos (opcional)")
+      .fill(`${segredo}-aviso`);
+    await p.getByRole("button", { name: "Guardar as credenciais" }).click();
+    await p
+      .getByText("Credenciais guardadas. A conta fica por testar")
+      .waitFor();
+    await p.getByText(/Guardadas a .* por Você/).waitFor();
+    const html = await p.content();
+    confere(
+      !html.includes(segredo),
+      "envios: depois de guardar, o segredo não fica na página",
+    );
+    confere(
+      (await p.getByLabel("Chave secreta").inputValue()) === "",
+      "envios: o campo da chave secreta fica vazio",
+    );
+    await p.screenshot({
+      path: join(SAIDA, "envios-conta-guardada-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
+  }
+
+  // As capturas: os ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
     ["convite", `/convite#${conviteDasCapturas}`, "Aceitar o convite"],
@@ -5763,6 +5846,17 @@ try {
     ["conta", "/conta", "A minha conta"],
     ["chaves", `/chaves?comerciante=mer_${comerciante}`, "Chaves de API"],
     ["a-decidir", `/a-decidir?comerciante=mer_${comerciante}`, "A decidir"],
+    ["envios", `/envios?comerciante=mer_${comerciante}`, "Envios"],
+    [
+      "envios-nova",
+      `/envios/nova?comerciante=mer_${comerciante}`,
+      "Ligar uma transportadora",
+    ],
+    [
+      "envios-conta",
+      `/envios/${contaDeEnvios}?comerciante=mer_${comerciante}`,
+      "Sendcloud",
+    ],
     ["faturacao", `/faturacao?comerciante=mer_${comerciante}`, "Faturação"],
     ["recuperar", "/recuperar", "Recuperar a conta"],
   ];

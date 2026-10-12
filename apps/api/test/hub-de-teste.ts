@@ -1,3 +1,4 @@
+import type { ConfigEnvios } from "../src/envios/adaptador.js";
 import { randomBytes } from "node:crypto";
 import { Writable } from "node:stream";
 import { sql } from "kysely";
@@ -50,6 +51,7 @@ export function hubDeTeste(
     comTotp?: boolean;
     armazenamento?: Armazenamento;
     faturacao?: ConfigFaturacao;
+    envios?: ConfigEnvios;
   } = {},
 ) {
   const registo: string[] = [];
@@ -69,6 +71,7 @@ export function hubDeTeste(
     undefined,
     undefined,
     opcoes.faturacao,
+    opcoes.envios,
   );
 
   const pedir = (

@@ -522,7 +522,7 @@ export function rotasDosDocumentos(
     },
   );
 
-  // ------------------------------- O ecrã «Faturação» do Hub (docs/22 §29)
+  // ------------------------------- O ecrã «Faturação» do Hub (docs/22 §30)
 
   /**
    * A sessão do Hub com o âmbito pedido (o papel) e, para ligar uma conta,
@@ -557,7 +557,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "O ecrã «Faturação» do Hub (docs/22 §29): as entidades legais activas, quem emite por cada uma e as ligações, sem credenciais (as mesmas de GET /invoicing-connections). Com `invoices:read`.",
+          "O ecrã «Faturação» do Hub (docs/22 §30): as entidades legais activas, quem emite por cada uma e as ligações, sem credenciais (as mesmas de GET /invoicing-connections). Com `invoices:read`.",
         response: {
           200: Type.Object({
             entidades: Type.Array(Livre),
@@ -592,7 +592,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §29): o mesmo que POST /invoicing-connections/{id}/authorize, com `invoices:accounts` (o dono) e autenticação recente.",
+          "Pelo Hub (docs/22 §30): o mesmo que POST /invoicing-connections/{id}/authorize, com `invoices:accounts` (o dono) e autenticação recente.",
         params: Type.Object({ id: IdLigacao }),
         body: Type.Object(
           { empresa: Type.String({ pattern: "^[0-9]{1,12}$" }) },
@@ -630,7 +630,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §29): o mesmo que POST /invoicing-connections/{id}/authorize/complete, com `invoices:accounts`.",
+          "Pelo Hub (docs/22 §30): o mesmo que POST /invoicing-connections/{id}/authorize/complete, com `invoices:accounts`.",
         params: Type.Object({ id: IdLigacao }),
         body: Type.Object(
           {
@@ -664,7 +664,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §29): a chamada de teste ao software de faturação, como POST /invoicing-connections/{id}/test, com `invoices:accounts`.",
+          "Pelo Hub (docs/22 §30): a chamada de teste ao software de faturação, como POST /invoicing-connections/{id}/test, com `invoices:accounts`.",
         params: Type.Object({ id: IdLigacao }),
         response: {
           200: Type.Object({

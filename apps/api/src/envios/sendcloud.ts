@@ -314,6 +314,10 @@ export function adaptadorSendcloud(
 ): AdaptadorTransportadora {
   return {
     transportadora: "sendcloud",
+    camposCredenciais: [
+      { campo: "chave_publica", segredo: false },
+      { campo: "chave_secreta", segredo: true },
+    ],
     // Os serviços são os da conta (D1): `servicosDaConta`.
     servicos: () => [],
 

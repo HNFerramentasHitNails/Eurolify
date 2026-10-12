@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
-// Um diálogo modal (docs/22 §29.3): o `<dialog>` do navegador prende o foco
+// Um diálogo modal (docs/22 §30.3): o `<dialog>` do navegador prende o foco
 // lá dentro e fecha-se com Esc. Ao sair, o foco volta a quem o abriu.
 
 export function Dialogo({

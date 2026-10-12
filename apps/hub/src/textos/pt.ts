@@ -887,7 +887,7 @@ export const pt = {
     "nota de crédito a tratar no emissor",
   decidirCopiarCaso: "Copiar o caso {caso}",
   decidirActo_ficou: "{quem} ficou com o caso.",
-  // O ecrã «Faturação» (docs/22 §29).
+  // O ecrã «Faturação» (docs/22 §30).
   modulo_faturacao: "Faturação",
   termos_faturacao: "faturas moloni oss iva relatorio declaracao emissor",
   faturacaoTitulo: "Faturação",
@@ -1074,6 +1074,125 @@ export const pt = {
   classificarFeito: "Classificado.",
   ossNaoConfirmado:
     "A resposta perdeu-se e o relatório não mostra a mudança. Confira e tente outra vez.",
+  // Os envios (docs/22 §29).
+  modulo_envios: "Envios",
+  termos_envios: "transportadoras etiquetas sendcloud ctt expedição seguimento",
+  enviosTitulo: "Envios",
+  enviosExplicacao:
+    "As contas do comerciante nas transportadoras. Por elas, o Eurolify pede as etiquetas e segue as encomendas. Só o dono liga e muda as contas.",
+  enviosLigar: "Ligar uma transportadora",
+  enviosVazio: "Ainda não há contas de transportadora.",
+  enviosContagemUm: "1 conta.",
+  enviosContagem: "{n} contas.",
+  enviosMostrarArquivadas: "Mostrar as arquivadas ({n})",
+  enviosColunaConta: "Conta",
+  enviosColunaTransportadora: "Transportadora",
+  enviosColunaEstado: "Estado",
+  enviosColunaModo: "Modo",
+  enviosColunaTestada: "Último teste",
+  enviosNuncaTestada: "Nunca",
+  enviosModo: "Modo: {modo}",
+  enviosModo_teste: "Teste",
+  enviosEstadoPronta: "Pronta",
+  enviosEstadoPorTestar: "Por testar",
+  enviosEstadoArquivada: "Arquivada",
+  enviosTransportadora_sendcloud: "Sendcloud",
+  enviosTransportadora_ctt: "CTT",
+  enviosVoltar: "Voltar aos envios",
+  enviosNovaTitulo: "Ligar uma transportadora",
+  enviosNovaExplicacao:
+    "A conta fica em modo teste e por testar até guardar as credenciais e passar o teste.",
+  enviosCttAinda:
+    "Os CTT ainda não estão ligados ao Eurolify: a conta cria-se, mas o teste só passa quando estiverem.",
+  enviosNome: "Nome da conta",
+  enviosRemetente: "De onde saem as encomendas",
+  enviosRemNome: "Nome",
+  enviosRemLinha1: "Morada",
+  enviosRemLinha2: "Morada (continuação, opcional)",
+  enviosRemCodigoPostal: "Código postal",
+  enviosRemLocalidade: "Localidade",
+  enviosRemPais: "País (código de 2 letras, ex.: PT)",
+  enviosCriar: "Ligar",
+  enviosFalta_conta: "Escreva o nome da conta.",
+  enviosFalta_nome: "Escreva o nome do remetente.",
+  enviosFalta_linha1: "Escreva a morada do remetente.",
+  enviosFalta_codigo_postal: "Escreva o código postal do remetente.",
+  enviosFalta_localidade: "Escreva a localidade do remetente.",
+  enviosFalta_pais: "O país é o código de 2 letras (ex.: PT).",
+  enviosTalvezCriada:
+    "Não chegou resposta: a conta pode ter ficado criada. Confira a lista dos envios antes de tentar outra vez.",
+  enviosContaTitulo: "Conta de transportadora",
+  enviosNaoExiste: "Esta conta não existe ou não é deste comerciante.",
+  enviosArquivada: "A conta está arquivada: só se pode consultar.",
+  enviosDados: "Dados da conta",
+  enviosEditar: "Editar",
+  enviosGuardar: "Guardar",
+  enviosCancelar: "Cancelar",
+  enviosGuardado: "Guardado.",
+  enviosCredenciais: "Credenciais",
+  enviosCredenciaisExplicacao:
+    "Escreva as chaves que a transportadora lhe deu. Ficam cifradas e nunca voltam a aparecer, nem para si.",
+  enviosCredenciaisGuardadas: "Guardadas a {data} por {quem}.",
+  enviosCredenciaisNenhumas: "Ainda não há credenciais.",
+  enviosCredenciaisSemAdaptador:
+    "Esta transportadora ainda não está ligada ao Eurolify: as credenciais e o teste ficam para quando estiver.",
+  enviosCampo_chave_publica: "Chave pública",
+  enviosCampo_chave_secreta: "Chave secreta",
+  enviosSegredoAviso: "Chave de assinatura dos avisos (opcional)",
+  enviosSegredoAvisoAjuda:
+    "A chave com que a transportadora assina os avisos. Em branco, fica a que estava guardada.",
+  enviosGuardarCredenciais: "Guardar as credenciais",
+  enviosCredenciaisGuardadasAgora:
+    "Credenciais guardadas. A conta fica por testar até passar o teste.",
+  enviosCredenciaisFaltam: "Escreva todos os campos das credenciais.",
+  enviosSegredoCurto:
+    "A chave de assinatura dos avisos tem de ter pelo menos 16 caracteres.",
+  enviosAvisos: "Avisos da transportadora",
+  enviosAvisosExplicacao:
+    "Na transportadora, indique este caminho, no endereço da API do Eurolify:",
+  // Rede temporária (AGENTS.md): retira-se quando o nginx da VPS publicar
+  // /webhooks/carriers/ (pedido à VPS pelo GitHub, ADR-0028); docs/22 §29.
+  enviosAvisosVps:
+    "Na VPS de ensaio, os avisos ainda não chegam: falta publicar este caminho no servidor. Até lá, o Eurolify consulta o seguimento de hora a hora.",
+  enviosTestar: "Testar a ligação",
+  enviosATestar: "A testar…",
+  enviosTestarExplicacao:
+    "O Eurolify pergunta à transportadora se aceita as credenciais e lê os serviços da conta.",
+  enviosTestarSemCredenciais: "Guarde primeiro as credenciais.",
+  enviosTestePronta:
+    "A transportadora aceitou as credenciais: a conta está pronta.",
+  enviosServicos: "Serviços",
+  enviosServicosFotografia: "Lista lida no teste de {data}.",
+  enviosServicosVazio:
+    "Sem serviços. Aparecem depois de a conta passar o teste.",
+  enviosColunaServico: "Serviço",
+  enviosColunaPaises: "Países",
+  enviosColunaPesoMax: "Peso máximo",
+  enviosColunaPede: "Pede",
+  enviosPedeTelefone: "telefone",
+  enviosPedeEmail: "e-mail",
+  enviosPedeNada: "—",
+  enviosSemLimite: "sem limite declarado",
+  enviosArquivar: "Arquivar a conta",
+  enviosArquivarConfirmar:
+    "Arquivar a conta «{nome}»? Depois de arquivada, só se pode consultar. Se um método de entrega activo a usar, o arquivo é recusado: mude esse método primeiro.",
+  enviosArquivadaAgora: "A conta foi arquivada.",
+  enviosConflito:
+    "A conta mudou entretanto. Recarregue para ver a versão actual.",
+  enviosRecusadas:
+    "As credenciais não estão prontas: a transportadora recusou-as, ou têm de ser guardadas outra vez. Guarde-as e teste de novo.",
+  enviosSemResposta:
+    "A transportadora não respondeu, ou ainda não está ligada ao Eurolify. Nada mudou.",
+  enviosSemChave: "Os envios ainda não estão ligados neste servidor.",
+  enviosImutavel: "A conta está arquivada e já não muda.",
+  enviosContaEmUso:
+    "Há métodos de entrega activos com esta conta: a conta não se arquiva. Mude esses métodos primeiro.",
+  enviosServicoEmUso:
+    "A transportadora já não tem o serviço de um método de entrega activo desta conta: o teste não guardou a lista nova e a conta ficou como estava. Mude esse método primeiro.",
+  enviosTentarDeNovo:
+    "Os envios estão ocupados neste momento. Tente outra vez daqui a pouco.",
+  enviosServicosFalha:
+    "Não foi possível ler os serviços da conta agora. O resto da página funciona; recarregue mais tarde.",
 };
 
 export type Textos = typeof pt;

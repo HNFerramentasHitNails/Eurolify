@@ -1968,7 +1968,114 @@ onde carregar para a resolver.
   - o papel sem `tasks:assign`;
   - capturas a 375, 768 e 1280 px, em claro e escuro, para a página de aprovação (`eurolify-hub-quality-gate`; o programa de capturas só numa base descartável).
 
-## 29. O ecrã «Faturação»: a ligação ao emissor e o relatório OSS (issue #310)
+## 29. Envios: as contas de transportadora (issue #393)
+
+Pedido do Diogo, 12/10/2026: *«avança»*, depois de a parte C dos envios estar
+no `main` (`docs/36` §16, #406). Desenho aprovado pelo Diogo a 12/10/2026
+(*«sim, aprovo; avança com o código»*). É o primeiro passo dos
+envios no Hub. A API já tem tudo (`docs/36` §3.1, §7.1 e §16): o Hub só
+lhe dá ecrãs. Skills: `eurolify-design`, `eurolify-hub-modular`,
+`observability-security`, `eu-gdpr-privacy`, `order-fulfilment`.
+
+Ex.: o dono abre «Envios» e escolhe «Ligar uma transportadora». Escolhe
+«Sendcloud», dá-lhe o nome «Sendcloud (teste)» e a morada de onde saem as
+encomendas. Depois cola a chave pública, a chave secreta e a chave de
+assinatura dos avisos, e carrega em «Testar a ligação». A conta passa a
+«Pronta», com um serviço: «Unstamped letter», para Portugal.
+
+### 29.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **A lista das contas** do comerciante, com estes campos: o nome; a transportadora; o estado («Por testar», «Pronta» ou «Arquivada»); o modo («Teste»); quando e por quem as credenciais foram guardadas; e quando foi testada. |
+| **Ligar uma conta** (só o dono, `shipping:accounts`): a transportadora, o nome e a morada do remetente. |
+| **Mudar o nome e a morada do remetente**, com a versão (409 num conflito). |
+| **As credenciais.** Os campos dependem da transportadora: na Sendcloud, «Chave pública» e «Chave secreta». Junta-se o segredo dos avisos, com o endereço dos avisos para copiar (`…/webhooks/carriers/{transportadora}/cac_…`). Os segredos **nunca se mostram nem voltam do servidor**; o ecrã diz só «Guardadas a {data} por {pessoa}». |
+| **«Testar a ligação»** e o resultado, nas palavras do servidor: pronta; credenciais recusadas (a conta volta a «Por testar»); a transportadora não respondeu (nada muda); ou a lista nova de serviços deixa métodos activos sem serviço (código próprio `shipping.service_in_use`; os métodos vão no `detail`, o ecrã diz que há um método activo a mudar primeiro; `docs/36` §16, P2-2, e revisão do #409). |
+| **Os serviços da conta**: o nome, os países, o peso máximo e se pede telefone ou e-mail. Na Sendcloud, com a data da fotografia. |
+| **Arquivar uma conta**, com confirmação («Arquivar a conta? Depois de arquivada, só se pode consultar. Se um método de entrega activo a usar, o arquivo é recusado»). O servidor recusa com `shipping.account_in_use` (409) enquanto houver um método activo com ela (revisão do #409, P2-2). |
+| **Um módulo «Envios» na entrada do Hub**, para quem tem `shipping:read`. |
+
+| Fica de fora, e porquê |
+|---|
+| **Os métodos de entrega** (a tarifa, a conta, o serviço, as zonas) e **o peso da embalagem por armazém**: são o passo seguinte (§30, a desenhar). Precisam das listas dos mercados e dos armazéns no Hub. |
+| **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Desenha-se com eles (`docs/27`). |
+| **O modo real**: é uma migração com decisão escrita (`docs/36` §16.2). O ecrã diz «Teste» e não oferece outro. |
+| **Os CTT**: a conta cria-se, vê-se e arquiva-se, mas sem credenciais nem teste: o adaptador não declara campos, e o ecrã diz «Esta transportadora ainda não está ligada ao Eurolify», até haver o adaptador (V1). |
+
+### 29.2 Como o Hub lê e escreve
+
+**Rotas novas pela sessão do Hub**, uma para cada rota da chave, com a
+mesma função e o mesmo âmbito (uma regra, um sítio). Seguem o padrão das
+rotas do Hub (§28.2): o cabeçalho `Eurolify-Comerciante` e **sem
+`Idempotency-Key`** (`docs/21` §11; o desenho dizia o contrário e corrigiu-se
+no código). A `versao` recusa a repetição de uma alteração. Uma resposta
+perdida ao ligar a conta não se repete sozinha: o ecrã diz que a conta pode
+ter ficado criada e pede para conferir a lista.
+
+| Caminho do Hub | Âmbito | A rota da chave |
+|---|---|---|
+| `GET /hub/carrier-accounts` | `shipping:read` | `GET /carrier-accounts` |
+| `POST /hub/carrier-accounts` | `shipping:accounts` | `POST /carrier-accounts` |
+| `PATCH /hub/carrier-accounts/{id}` | `shipping:accounts` | `PATCH /carrier-accounts/{id}` |
+| `PUT /hub/carrier-accounts/{id}/credentials` | `shipping:accounts` | `PUT /carrier-accounts/{id}/credentials` |
+| `POST /hub/carrier-accounts/{id}/test` | `shipping:accounts` | `POST /carrier-accounts/{id}/test` |
+| `GET /hub/carrier-accounts/{id}/services` | `shipping:read` | `GET /carrier-accounts/{id}/services` |
+
+- **Os papéis** são os da migração 0074: o dono tem `shipping:accounts`; o
+  gestor, o armazém e o apoio só `shipping:read` e vêem a lista sem os
+  botões. Nenhum papel muda.
+- **O que o servidor passa a dizer** para o ecrã ser honesto:
+  - `servicos_em` (a data da fotografia) na lista das contas;
+  - os campos de credenciais que cada transportadora pede, com o nome e se é
+    segredo. Nas contas da Sendcloud são `chave_publica` e `chave_secreta`.
+  - **Quem os declara é o adaptador**, nunca o ecrã.
+- **Os segredos:**
+  - vão em campos de palavra-passe, sem preencher automaticamente;
+  - no `PUT`, só seguem os campos que a pessoa escreveu;
+  - nunca ficam no `localStorage` nem nos registos;
+  - no caso de resposta perdida, o ecrã não os guarda para repetir: pede-os
+    outra vez.
+- `cache-control: private, no-store` nas leituras, como as outras do Hub.
+
+### 29.3 O ecrã
+
+| Ecrã | O que mostra | Estados além do normal |
+|---|---|---|
+| **Envios** (`/envios`, no módulo novo) | Uma linha por conta (cartões no telemóvel): o nome, a transportadora, o estado com a cor do estado, «Teste», e a última vez que foi testada. Para o dono, «Ligar uma transportadora». Por omissão, as arquivadas ficam escondidas, com «Mostrar as arquivadas». | sem contas («Ainda não há contas de transportadora»; para o dono, com o botão); a carregar; erro; sem permissão |
+| **Ligar uma transportadora** (`/envios/nova`) | A transportadora (Sendcloud ou CTT), o nome e a morada do remetente: nome, linha 1, linha 2, código postal, localidade e país. | campos em falta e o país, conferidos no ecrã junto ao campo; um valor que o servidor recuse sai no topo, com a mensagem dele; resposta perdida (o ecrã não repete: diz que a conta pode ter ficado criada e manda conferir a lista) |
+| **A conta** (`/envios/{cac_…}`) | O estado e o modo. O nome e o remetente, com «Editar». As credenciais: os campos da transportadora, vazios, com «Guardadas a {data} por {pessoa}» ou «Ainda não há credenciais». O segredo dos avisos e o endereço dos avisos, com «Copiar». «Testar a ligação». Os serviços, numa tabela. «Arquivar». | o teste a decorrer (o botão diz «A testar…», e as outras acções ficam paradas até acabar: guardar credenciais a meio daria conflito); os serviços que não se lêem (a página abre na mesma, com um aviso); os quatro resultados do teste (§29.1); conflito (409: «A conta mudou entretanto», com «Recarregar»); arquivada (só leitura); sem permissão para mudar (os campos não aparecem) |
+
+**Os textos** estão em PT, ES e EN, sem maiúsculas forçadas. «Pronta» quer dizer
+«passou o teste», e o ecrã nunca o diz por outras palavras.
+
+**O caminho dos avisos.** O ecrã mostra o caminho
+(`/webhooks/carriers/{transportadora}/cac_…`), não o endereço completo. Na
+VPS de ensaio, só o Hub (`/hub/`) e o MCP estão publicados
+(`infra/vps/ficheiros/nginx-hub.conf`): **os avisos das transportadoras, e os
+dos pagamentos, ainda não chegam à API**. O ecrã di-lo. Até lá, a volta
+consulta o seguimento de hora a hora. Publicar o caminho é uma mudança à
+VPS, com pedido próprio (ADR-0028). **Rede temporária:** o texto
+`enviosAvisosVps` retira-se no mesmo pedido que publicar
+`/webhooks/carriers/` no nginx da VPS; sem esse pedido, revê-se a
+31/03/2027, com a migração para Paris (ADR-0018).
+
+### 29.4 Antes de dizer que está feito (o pedido do código)
+
+- **API:**
+  - as rotas do Hub fazem o mesmo que as da chave;
+  - os papéis sem `shipping:accounts` recebem 403 nas escritas;
+  - uma conta de outro comerciante dá 404;
+  - **os segredos nunca aparecem em nenhuma resposta**, com prova: procurar o valor do segredo no corpo de todas as respostas do teste;
+  - `no-store`;
+  - o contrato (`sessao`).
+- **Hub:**
+  - a passagem do exemplo, só com o teclado, contra a Sendcloud de ensaio;
+  - credenciais recusadas, transportadora sem resposta e o conflito;
+  - o papel do armazém só a ver;
+  - capturas a 375, 768 e 1280 px, em claro e escuro, para a página de aprovação (`eurolify-hub-quality-gate`).
+
+## 30. O ecrã «Faturação»: a ligação ao emissor e o relatório OSS (issue #310)
 
 Pedido do Diogo, 12/10/2026 (*«sim, avança com o desenho do ecrã
 Faturação»*). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (*«sim,
@@ -1996,7 +2103,7 @@ Carrega na fatura, escolhe «Nacional · PT» e grava. O relatório já não tem
 impedimentos. Carrega em «Fechar o T3 de 2026», confirma com a passkey e vê
 «Fechado a 12/10/2026, por si».
 
-### 29.1 O que entra e o que fica de fora
+### 30.1 O que entra e o que fica de fora
 
 | Entra |
 |---|
@@ -2014,7 +2121,7 @@ impedimentos. Carrega em «Fechar o T3 de 2026», confirma com a passkey e vê
 | **Os documentos fiscais** (a lista, a prova, o PDF, resolver uma divergência). Outro ecrã: as filas de «A decidir» (§28) já os mostram pelo identificador. |
 | **Declarar** no portal da AT. O Eurolify nunca declara: dá os números e os registos, e o comerciante apresenta a declaração (Diretiva IVA, art. 369.º-F; `docs/37`). |
 
-### 29.2 Como o Hub lê e escreve
+### 30.2 Como o Hub lê e escreve
 
 As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rotas.ts` e `rotas-oss.ts`). Usam a sessão em vez da chave, o comerciante no cabeçalho `Eurolify-Comerciante` e o `eurolify.quem` da pessoa, como em «A decidir» (§28.2).
 
@@ -2048,7 +2155,7 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rot
   - **Ao classificar:** relê o relatório. Se o documento já não estiver nos
     impedimentos, dá-o por feito.
 
-### 29.3 O ecrã
+### 30.3 O ecrã
 
 | Onde | O que mostra | Estados além do normal |
 |---|---|---|
@@ -2078,7 +2185,7 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rot
 | `periodo_anterior_aberto` | Um período anterior ainda está aberto ({período}). | ir a esse período |
 | `periodo_posterior_fechado` | Já fechou um período a seguir a este. | só leitura |
 
-### 29.4 Por onde é que isto ainda pode sair errado
+### 30.4 Por onde é que isto ainda pode sair errado
 
 | Risco | O que o evita |
 |---|---|
@@ -2090,7 +2197,7 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rot
 | Duas pessoas a fechar o mesmo período | a API fecha um de cada vez por entidade; a segunda recebe `already_closed` e o ecrã relê |
 | Um erro do Moloni com dados sensíveis no ecrã | a API já tapa os segredos (`taparSegredos`); o ecrã mostra só a `mensagem` |
 
-### 29.5 Decidido
+### 30.5 Decidido
 
 ✅ **Q1: A** (Diogo, 12/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
 
@@ -2107,7 +2214,7 @@ o artigo dos portes e o cliente «Consumidor final».
   exactamente o tipo de configuração escrita à mão que o `docs/04` mostra a
   dar faturas erradas.
 
-### 29.6 Antes de dizer que está feito (o pedido do código)
+### 30.6 Antes de dizer que está feito (o pedido do código)
 
 - **API**: as oito rotas pelo Hub fazem o mesmo que as da chave.
   - O gestor e o apoio recebem 403 ao ligar, classificar e fechar; o armazém
@@ -2131,7 +2238,7 @@ o artigo dos portes e o cliente «Consumidor final».
 - **Capturas**: a 375, 768 e 1280 px, claro e escuro, para a página de
   aprovação (`eurolify-hub-quality-gate`).
 
-### 29.7 Em código (12/10/2026; pedido #408)
+### 30.7 Em código (12/10/2026; pedido #408)
 
 | O quê | Onde |
 |---|---|

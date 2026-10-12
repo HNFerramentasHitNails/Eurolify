@@ -111,6 +111,7 @@ const COLUNAS = [
   "credenciais_em",
   "credenciais_por",
   "testada_em",
+  "servicos_em",
   "criado_em",
   "versao",
 ] as const;
@@ -208,7 +209,7 @@ export async function mudarConta(
         .executeTakeFirst();
       if (usada !== undefined) {
         throw new ErroEnvios(
-          "shipping.immutable",
+          "shipping.account_in_use",
           "há métodos de entrega activos com esta conta",
           { metodo: `shm_${usada.id}` },
         );
@@ -456,7 +457,7 @@ export async function testarConta(
       });
       if (sem.length > 0) {
         throw new ErroEnvios(
-          "shipping.invalid_field",
+          "shipping.service_in_use",
           "a transportadora deixou de ter o serviço de métodos activos: arquivam-se ou mudam-se primeiro",
           { metodos: sem.map((m) => `shm_${m.id}`) },
         );

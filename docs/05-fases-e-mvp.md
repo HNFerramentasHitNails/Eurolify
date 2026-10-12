@@ -112,7 +112,7 @@ acima (as tarefas das filas e a consulta das vendas).
 **Antes do primeiro comerciante de fora:** o motor de IVA validado pelo
 contabilista, os fluxos do consumidor validados por jurista, o contrato com
 limites de responsabilidade e o seguro, e o modelo de receita (D-14).
-**O relatório OSS e o ecrã «Faturação» do Hub** (`docs/37`, `docs/22` §29,
+**O relatório OSS e o ecrã «Faturação» do Hub** (`docs/37`, `docs/22` §30,
 decisões EF e EG) mostram números que assentam em regras ainda **C** (o
 período pela data do documento, a NC no período dela, a taxa da fatura
 emitida numa linha classificada): ficam **só no ensaio** até o contabilista

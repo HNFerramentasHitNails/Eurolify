@@ -1160,7 +1160,7 @@ export async function registosOss(
 }
 
 /**
- * Os países que cada balde aceita numa classificação (docs/22 §29): a mesma
+ * Os países que cada balde aceita numa classificação (docs/22 §30): a mesma
  * régua que `classificarOss` confere, para o ecrã não oferecer o que a API
  * recusa. Fora da UE só na exportação; as outras isentas aceitam qualquer.
  */
@@ -1177,7 +1177,7 @@ export function paisesPorBalde(paisEntidade: string) {
 }
 
 /**
- * O documento a classificar, como o diálogo do Hub o mostra (docs/22 §29): o
+ * O documento a classificar, como o diálogo do Hub o mostra (docs/22 §30): o
  * número, a data da prova, o tipo e as linhas da prova pela ordem dela (a
  * descrição, a quantidade, a taxa e os valores). Sem NIF nem nome.
  */

@@ -53,7 +53,7 @@ function mensagemOss(e: unknown, t: Textos, lingua: Lingua): string {
   return mensagemDeErro(e, t, lingua).texto;
 }
 
-// O relatório OSS de um período (docs/22 §29.3; docs/37): os cinco baldes,
+// O relatório OSS de um período (docs/22 §30.3; docs/37): os cinco baldes,
 // as alterações, o que fica à parte, o limiar e o que impede o fecho, como a
 // API os devolve. O ecrã não soma nem decide: mostra, deixa classificar o
 // que a API diz que se classifica e fechar quando ela deixa. Os números
@@ -62,7 +62,7 @@ function mensagemOss(e: unknown, t: Textos, lingua: Lingua): string {
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
 const FORMATO_ENTIDADE = /^lgl_[0-9a-f-]{36}$/;
 
-/** Um montante; o negativo leva o sinal e o texto, não só a cor (§29.3). */
+/** Um montante; o negativo leva o sinal e o texto, não só a cor (§30.3). */
 function Valor({ c, moeda }: { c: number; moeda: string }) {
   const { t, lingua } = useHub();
   const texto = montante(c, TAG_LINGUA[lingua], moeda);
@@ -824,7 +824,7 @@ function DialogoClassificar({
       }
       if (e instanceof ErroHub && talvezFeito(e)) {
         // A resposta perdeu-se: se o documento já não impede o fecho, ficou
-        // feito (docs/22 §29.2).
+        // feito (docs/22 §30.2).
         const r = await reler();
         if (
           r !== null &&
@@ -1109,7 +1109,7 @@ function DialogoFechar({
         return;
       }
       if (f instanceof ErroHub && talvezFeito(f)) {
-        // A resposta perdeu-se: se já está fechado, ficou feito (§29.2).
+        // A resposta perdeu-se: se já está fechado, ficou feito (§30.2).
         const lido = await reler();
         if (lido?.fechado != null) {
           aoFechar(t.fecharFeito);

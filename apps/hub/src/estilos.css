@@ -419,6 +419,26 @@ code {
   color: var(--estado-artigo-arquivado);
 }
 
+/* O estado de uma conta de transportadora (docs/22 §29.3): a cor do estado
+   e o nome, nunca só a cor. */
+/* O caminho dos avisos é uma linha comprida sem espaços: parte em qualquer
+   ponto, para não empurrar a página no telemóvel. */
+.caminho-avisos {
+  overflow-wrap: anywhere;
+}
+.estado-conta {
+  font-weight: 600;
+}
+.estado-conta[data-estado="pronta"] {
+  color: var(--estado-conta-pronta);
+}
+.estado-conta[data-estado="rascunho"] {
+  color: var(--estado-conta-rascunho);
+}
+.estado-conta[data-estado="arquivada"] {
+  color: var(--estado-conta-arquivada);
+}
+
 /* O ecrã «A decidir» (docs/22 §28.3): o vencido diz-se em texto e com a cor
    do estado; o filtro escolhido marca-se também pelo aria-pressed. */
 .tarefa-vencida {
@@ -1028,7 +1048,7 @@ textarea {
   white-space: nowrap;
 }
 
-/* O ecrã «Faturação» (docs/22 §29.3). O estado da ligação diz-se em texto e
+/* O ecrã «Faturação» (docs/22 §30.3). O estado da ligação diz-se em texto e
    com a cor do estado. */
 .estado-ligacao {
   font-weight: 600;
@@ -1104,7 +1124,7 @@ textarea {
 }
 
 /* As tabelas do relatório OSS são tabela a partir de 768 px e cartões
-   abaixo (docs/22 §29.3). 48em dá 768 px com a letra por omissão e cresce
+   abaixo (docs/22 §30.3). 48em dá 768 px com a letra por omissão e cresce
    com ela (issue #237); 47.99em para os 768 px já serem tabela. */
 @media (max-width: 47.99em) {
   .tabela-media thead {

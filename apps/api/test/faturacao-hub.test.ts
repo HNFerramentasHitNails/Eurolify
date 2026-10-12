@@ -16,7 +16,7 @@ import {
 import { hubDeTeste } from "./hub-de-teste.js";
 import { moloniFalso } from "./moloni-falso.js";
 
-// O ecrã «Faturação» pela API do Hub (docs/22 §29; docs/06, EG): as rotas
+// O ecrã «Faturação» pela API do Hub (docs/22 §30; docs/06, EG): as rotas
 // /hub fazem o mesmo que as da chave, pelo papel (o dono liga, classifica e
 // fecha; o gestor e o apoio só lêem; o armazém nada), com autenticação
 // recente para ligar e para fechar, e a pessoa no `eurolify.quem`.

@@ -27,7 +27,7 @@ import { horasDesde } from "../tarefas";
 import { preencher, TAG_LINGUA, type Lingua, type Textos } from "../textos";
 import { Dialogo } from "./Dialogo";
 
-// O ecrã «Faturação» (docs/22 §29; Q1 em A): por entidade legal, a ligação
+// O ecrã «Faturação» (docs/22 §30; Q1 em A): por entidade legal, a ligação
 // ao software de faturação (ligar, ligar outra vez e testar, só o dono) e a
 // entrada para o relatório OSS do último trimestre acabado. Criar a ligação
 // e os mapas fica pela integração. Quem pode o quê decide-o a API.
@@ -414,7 +414,7 @@ function DialogoLigar({
         setAEnviar(false);
         return;
       }
-      // O pedido fica neste separador para o regresso (docs/22 §29.2).
+      // O pedido fica neste separador para o regresso (docs/22 §30.2).
       try {
         sessionStorage.setItem(
           CHAVE_PEDIDO_MOLONI,
@@ -497,7 +497,7 @@ type PassoRegresso =
   | { tipo: "falhou"; texto: string };
 
 /**
- * De volta do Moloni (`/faturacao/moloni`, docs/22 §29.2): o código vem no
+ * De volta do Moloni (`/faturacao/moloni`, docs/22 §30.2): o código vem no
  * fragmento, lido e tirado do endereço ao abrir a página (App.tsx); o
  * pedido, do `sessionStorage` deste separador.
  */

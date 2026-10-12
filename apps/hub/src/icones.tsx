@@ -33,6 +33,13 @@ const TRACOS: Record<IdModulo, readonly string[]> = {
     "M9 15h7",
     "M9 18.5h4",
   ],
+  // Um camião.
+  envios: [
+    "M2.5 6.5h11v10h-11Z",
+    "M13.5 10h4l3 3.5v3h-7",
+    "M6.5 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
+    "M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
+  ],
   // Uma chave.
   chaves: [
     "M8 15.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z",

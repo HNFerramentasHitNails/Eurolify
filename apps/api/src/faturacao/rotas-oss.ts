@@ -220,7 +220,7 @@ export function rotasDoRelatorioOss(
     },
   );
 
-  // ------------------------------- O ecrã «Faturação» do Hub (docs/22 §29)
+  // ------------------------------- O ecrã «Faturação» do Hub (docs/22 §30)
 
   /** A sessão com o âmbito pedido e, para fechar, autenticação recente. */
   const daSessao = (
@@ -252,7 +252,7 @@ export function rotasDoRelatorioOss(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §29): o relatório OSS de um período, como GET /tax-reports/oss, com `tax:read`; mais `classificavel`, os países que cada balde aceita numa classificação (a régua do servidor).",
+          "Pelo Hub (docs/22 §30): o relatório OSS de um período, como GET /tax-reports/oss, com `tax:read`; mais `classificavel`, os países que cada balde aceita numa classificação (a régua do servidor).",
         querystring: Type.Object(
           { entidade: IdEntidade, periodo: Periodo },
           { additionalProperties: false },
@@ -287,7 +287,7 @@ export function rotasDoRelatorioOss(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §29): o documento a classificar — o número, a data da prova, o tipo e as linhas da prova pela ordem dela (descrição, quantidade, taxa e valores), sem os dados do cliente. Com `tax:read`.",
+          "Pelo Hub (docs/22 §30): o documento a classificar — o número, a data da prova, o tipo e as linhas da prova pela ordem dela (descrição, quantidade, taxa e valores), sem os dados do cliente. Com `tax:read`.",
         params: Type.Object({ id: IdDocumento }),
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -309,7 +309,7 @@ export function rotasDoRelatorioOss(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §29): classificar um documento, como POST /tax-reports/oss/classifications, com `tax:write` (o dono).",
+          "Pelo Hub (docs/22 §30): classificar um documento, como POST /tax-reports/oss/classifications, com `tax:write` (o dono).",
         body: CorpoClassificacao,
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -334,7 +334,7 @@ export function rotasDoRelatorioOss(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §29): fechar um período, como POST /tax-reports/oss/close, com `tax:write` e autenticação recente; `fechado_por` é a pessoa.",
+          "Pelo Hub (docs/22 §30): fechar um período, como POST /tax-reports/oss/close, com `tax:write` e autenticação recente; `fechado_por` é a pessoa.",
         body: CorpoFecho,
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -359,7 +359,7 @@ export function rotasDoRelatorioOss(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §29): os registos do art. 63.º-C em CSV, como GET /tax-reports/oss/records, com `tax:read`. Têm dados pessoais (o NIF e o nome da fatura).",
+          "Pelo Hub (docs/22 §30): os registos do art. 63.º-C em CSV, como GET /tax-reports/oss/records, com `tax:read`. Têm dados pessoais (o NIF e o nome da fatura).",
         querystring: Type.Object(
           { entidade: IdEntidade, periodo: Periodo },
           { additionalProperties: false },

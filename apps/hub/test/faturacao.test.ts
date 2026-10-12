@@ -33,7 +33,7 @@ import {
 import { TEXTOS } from "../src/textos";
 import { paisesPorBalde } from "../../api/src/faturacao/oss";
 
-// O ecrã «Faturação» (docs/22 §29): as funções sem ecrã.
+// O ecrã «Faturação» (docs/22 §30): as funções sem ecrã.
 
 const t = TEXTOS.pt;
 
