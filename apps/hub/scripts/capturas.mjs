@@ -5107,7 +5107,7 @@ try {
     const LARGURAS = [320, 375, 390, 768, 820, 1024, 1280, 1440];
     const colunasPara = (w) =>
       w < 480 ? 2 : w < 640 ? 3 : w < 880 ? 4 : w < 1040 ? 5 : 6;
-    const destinosDoDono = ["equipa", "artigos", "chaves"].map(
+    const destinosDoDono = ["equipa", "artigos", "a-decidir", "chaves"].map(
       (c) => `/${c}?comerciante=mer_${comerciante}`,
     );
     const medirEntrada = (p) =>
@@ -5181,7 +5181,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os três módulos do dono, com o comerciante no endereço`,
+          `${nome}: os quatro módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5263,9 +5263,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 3 &&
+        (await p.locator(".atalho-modulo").count()) === 4 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos três módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos quatro módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5423,8 +5423,8 @@ try {
     confere(
       new URL(pv.url()).search === `?comerciante=mer_${segundo}` &&
         JSON.stringify(await pv.locator(".atalho-modulo").allTextContents()) ===
-          JSON.stringify(["Equipa", "Artigos"]),
-      "entrada: na segunda loja, o apoio vê a equipa e os artigos, sem as chaves",
+          JSON.stringify(["Equipa", "Artigos", "A decidir"]),
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos e «A decidir», sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
