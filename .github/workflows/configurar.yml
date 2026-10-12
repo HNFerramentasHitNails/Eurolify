@@ -3,7 +3,8 @@
 # (ADR-0028: a VPS opera-se pelo GitHub), depois de criar ou mudar os cinco
 # segredos SMTP_* do ambiente «ensaio», que só aceita o main.
 #
-# A chave «configurar» só entrega «smtp <base64> run:<n> github:<conta>»; na VPS, o serviço valida
+# A chave «configurar» só entrega «smtp <base64> run:<n> github:<conta>» ou
+# «teste run:<n> github:<conta>» (o e-mail de teste, §13.1); na VPS, o serviço valida
 # cada valor, escreve o /etc/eurolify/api-smtp.env (600, root) e recria a API
 # com a imagem que está no ar. Os valores nunca vão para a saída nem para o
 # registo, de um lado nem do outro.
@@ -11,6 +12,12 @@ name: configurar
 
 on:
   workflow_dispatch:
+    inputs:
+      accao:
+        description: "configurar: leva os cinco SMTP_* para a API; testar: envia um e-mail de teste do remetente para ele próprio, com o que a API já tem (docs/34 §13.1)"
+        type: choice
+        options: [configurar, testar]
+        default: configurar
 
 permissions:
   contents: read
@@ -42,6 +49,7 @@ jobs:
           chmod 600 ~/.ssh/chave
           printf '%s\n' "$ANFITRIOES" > ~/.ssh/known_hosts
       - name: Enviar a configuração do e-mail
+        if: inputs.accao == 'configurar'
         env:
           VPS: ${{ secrets.VPS_ENDERECO }}
           SMTP_ANFITRIAO: ${{ secrets.SMTP_ANFITRIAO }}
@@ -67,6 +75,16 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
             -i ~/.ssh/chave "eurolify-configurar@${VPS}" \
             "smtp $dados run:${GITHUB_RUN_ID} github:${GITHUB_ACTOR_ID}"
+      - name: Enviar o e-mail de teste
+        # Sem segredos SMTP: a VPS usa o api-smtp.env que já tem.
+        if: inputs.accao == 'testar'
+        env:
+          VPS: ${{ secrets.VPS_ENDERECO }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/chave "eurolify-configurar@${VPS}" \
+            "teste run:${GITHUB_RUN_ID} github:${GITHUB_ACTOR_ID}"
       - name: Apagar a chave do executor
         if: always()
         run: rm -f ~/.ssh/chave

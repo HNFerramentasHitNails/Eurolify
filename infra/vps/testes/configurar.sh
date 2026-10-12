@@ -166,6 +166,75 @@ pedir "$(pedido_de "$certo")"
 confere "imagem de outro repositório: 1 sem recriar" igual "$codigo|$(wc -l </tmp/publicar-chamadas)" "1|0"
 confere "nenhuma mensagem leva a palavra-passe" sem_no_registo p4ss
 
+# 6. O e-mail de teste (docs/34 §13.1): «teste run:<n> github:<conta>», com o
+# api-smtp.env que já está na máquina, num contentor de uma vez com a imagem
+# no ar. O docker de mentira responde ao «run» a partir de /tmp/teste-*.
+cat >/usr/local/bin/docker <<'FIM'
+#!/usr/bin/env bash
+# docker de mentira: inspect do eurolify-api, e o «run» do e-mail de teste.
+if [[ "$1 $2 $3" == "inspect -f {{.Config.Image}}" ]]; then cat /tmp/api-imagem; exit; fi
+if [[ "$1 $2" == "inspect -f" && "$3" == *Config.Env* ]]; then cat /tmp/api-ambiente 2>/dev/null; exit; fi
+if [[ "$1" == run && " $* " == *" --entrypoint test "* ]]; then [[ -f /tmp/teste-imagem-tem ]]; exit; fi
+if [[ "$1" == run && " $* " == *" node dist/testar-correio.js "* ]]; then
+  printf '%s\n' "$*" >/tmp/teste-chamada
+  cat /tmp/teste-saida
+  exit "$(cat /tmp/teste-codigo)"
+fi
+exit 1
+FIM
+chmod 755 /usr/local/bin/docker
+printf 'ghcr.io/teste/eurolify@%s' "$resumo" >/tmp/api-imagem
+teste_pedido='teste run:88 github:1001'
+
+# 6a. A imagem no ar ainda sem o teste: 1, sem correr nada.
+rm -f /tmp/teste-imagem-tem /tmp/teste-chamada
+pedir "$teste_pedido"
+confere "imagem sem o teste: 1" igual "$codigo" 1
+confere "imagem sem o teste: pede para publicar" contem "$saida" "publicar primeiro"
+confere "imagem sem o teste: não correu o envio" igual "$([[ -e /tmp/teste-chamada ]] && echo sim || echo nao)" nao
+
+# 6b. Aceite: 0, a linha do resultado, e o contentor só com o api-smtp.env.
+touch /tmp/teste-imagem-tem
+printf '{"enviado":true,"id":"<abc-1.2@eurolify.eu>"}\n' >/tmp/teste-saida
+echo 0 >/tmp/teste-codigo
+antes="$(stat -c %Y "$ficheiro")"
+pedir "$teste_pedido"
+confere "teste aceite: 0 ($codigo)" igual "$codigo" 0
+confere "teste aceite: mostra o resultado" contem "$saida" '{"enviado":true,"id":"<abc-1.2@eurolify.eu>"}'
+confere "teste aceite: com o api-smtp.env e a execução" \
+  contem "$(cat /tmp/teste-chamada)" "--env-file $ficheiro"
+confere "teste aceite: a execução vai ao programa" contem "$(cat /tmp/teste-chamada)" "dist/testar-correio.js run:88"
+confere "teste aceite: a palavra-passe não vai na linha de comandos" sem_texto p4ss "$(cat /tmp/teste-chamada)"
+confere "teste aceite: o ficheiro não muda" igual "$(stat -c %Y "$ficheiro")" "$antes"
+confere "teste aceite: o registo diz «teste» e a execução" grep -qF "'teste' (88 github:1001) tratado, código 0" "$registo"
+
+# 6c. Recusado pelo servidor: 1, com o código, e uma saída fora da forma não
+# passa (o programa nunca escreve os valores, mas a máquina não confia).
+printf '{"enviado":false,"codigo":"smtp_535","culpa":"servidor"}\n' >/tmp/teste-saida
+echo 1 >/tmp/teste-codigo
+pedir "$teste_pedido"
+confere "teste recusado: 1" igual "$codigo" 1
+confere "teste recusado: mostra o código" contem "$saida" '"codigo":"smtp_535"'
+printf 'SMTP_PALAVRA_PASSE=%s\n' "$SEGREDO" >/tmp/teste-saida
+pedir "$teste_pedido"
+confere "saída fora da forma: 1" igual "$codigo" 1
+confere "saída fora da forma: não a mostra" sem_texto p4ss "$saida"
+confere "saída fora da forma: diz que não se leu" contem "$saida" "sem resultado legível"
+
+# 6d. Sem a API no ar, ou sem configuração: 1 e 65, sem correr nada.
+rm -f /tmp/teste-chamada
+: >/tmp/api-imagem
+pedir "$teste_pedido"
+confere "sem a API no ar: 1" igual "$codigo" 1
+confere "sem a API no ar: não correu o envio" igual "$([[ -e /tmp/teste-chamada ]] && echo sim || echo nao)" nao
+printf 'ghcr.io/teste/eurolify@%s' "$resumo" >/tmp/api-imagem
+mv "$ficheiro" /tmp/api-smtp.guardado
+pedir "$teste_pedido"
+confere "sem configuração: recusado (65)" igual "$codigo" 65
+confere "sem configuração: não correu o envio" igual "$([[ -e /tmp/teste-chamada ]] && echo sim || echo nao)" nao
+mv /tmp/api-smtp.guardado "$ficheiro"
+confere "o teste nunca deixa a palavra-passe no registo" sem_no_registo p4ss
+
 echo
 if ((falhas > 0)); then
   echo "$falhas verificação(ões) falharam"

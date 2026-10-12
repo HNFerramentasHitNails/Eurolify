@@ -20,6 +20,7 @@
   - Desenho em `docs/34` §13.
 - **A chave do fluxo `configurar`** (12/10/2026): o Diogo criou-a no computador dele, guardou a parte privada no segredo `VPS_CHAVE_CONFIGURAR` do ambiente `ensaio` e colou a pública, que entrou em `infra/vps/chaves/fluxos/configurar.pub` (ed25519, impressão `SHA256:h38JE67Leg8JbDeKgnrBlGbRObNRKLcqSb6++lh7Uzg`, calculada da linha). O `aplicar-script` instala-a ao juntar. O SPF ficou com um registo só (`v=spf1 include:mx.ovh.com -all`, lido em `dns.google` a 12/10/2026).
 - **A acção `configurar` correu** (12/10/2026, corrida 38263297038, lançada pelo Diogo, verde): escreveu o `/etc/eurolify/api-smtp.env` (5 variáveis), recriou a API com a imagem que estava no ar (`sha256:a67a5c48…`), o `/health` responde, a API chega à base e corre com a configuração do e-mail (lido no registo da corrida).
+- **O e-mail de teste** (12/10/2026; Diogo: «A»): o ensaio não tem casos, e nada no Hub nem na acção `operar` os cria, por isso nenhum aviso real sai. A acção `configurar` ganhou a escolha `testar`: envia de `SMTP_REMETENTE` para ele próprio, sem dados de ninguém (`docs/34` §13.1). O convite pelo Hub aceita qualquer endereço (sem a rede do convite do operador): o Diogo convidou `avisos@eurolify.eu`, uma caixa da empresa.
 
 ## Números (com data e como se contaram)
 
