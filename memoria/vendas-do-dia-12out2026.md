@@ -17,13 +17,20 @@
 
 ## Números (com data e como se contaram)
 
-- Testes da peça: 11 em `test/vendas.test.ts` (12/10/2026), com dados postos
-  directamente na base para marcar as horas exactas.
+- Testes da peça: 13 em `test/vendas.test.ts` (12/10/2026, depois da revisão
+  do #383), com dados postos directamente na base para marcar as horas exactas.
+- **Medição** (12/10/2026, `test/medicao-vendas.test.ts` com `MEDIR=1`; base
+  local PostgreSQL 18.6 com as definições de omissão, não a VPS; 3 × 100 000
+  encomendas em 13 meses, `VACUUM ANALYZE` depois de encher; duas corridas de
+  5 voltas). Um dia: mediana 24 e 27 ms. Um mês (~7 600 encomendas): mediana
+  520 e 438 ms; primeira volta 569 e 517 ms; com o PostgreSQL acabado de
+  reiniciar, 742 ms (medido à mão, só a cache do PostgreSQL vazia). Sem os
+  índices da 0068: dia 194 e 166 ms, mês 879 e 725 ms. Sem o VACUUM, a
+  primeira volta do mês chegou a 5,4 s. Decisão técnica: não se pré-calcula.
 
 ## O que ficou por verificar
 
-- O tempo de resposta com muitas encomendas: a medição com 100 000
-  encomendas (docs/35 §7) está por fazer.
+- O tempo na VPS com dados reais: a medição foi numa base local.
 - O ecrã do painel (Fase 2) e a ferramenta do MCP (peça 12) usam esta rota;
   nenhum dos dois existe ainda.
 - Só há modo de teste; quando houver modo real, os dois nunca se somam

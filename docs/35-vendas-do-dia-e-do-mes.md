@@ -119,15 +119,34 @@ faturas (revisão do #383, P3-5).
 
 ## 7. Desempenho: medir antes de pré-calcular
 
-Não há índice por comerciante e instante em nenhuma destas tabelas
-(procurei `CREATE INDEX` nas migrações). Proposta:
+Os índices por comerciante e instante entraram com o código (migração 0068).
+**Medido a 12/10/2026** (`test/medicao-vendas.test.ts`, corre só com
+`MEDIR=1`; os números saem dele, salvo onde se diz):
 
-- índices novos, numa migração: `encomenda (comerciante_id, criada_em)`,
-  `reembolso (comerciante_id, executado_em)`, e um sobre as transições para
-  `capturado` e as passagens a `emitido`;
-- **medir** a consulta com 100 000 encomendas de teste antes de decidir
-  pré-calcular por dia (`docs/13` §11, porta 7). Sem medida, não há tabela de
-  totais.
+| O quê | Valor |
+|---|---|
+| A base | PostgreSQL 18.6 local, com as definições de omissão (`shared_buffers` 128 MB, `work_mem` 4 MB), 4 CPU e 15 GB; **não é a VPS** |
+| Os dados | 3 comerciantes × 100 000 encomendas (300 000), espalhadas por 13 meses: ~80 % pagas (~240 000 pagamentos, três transições cada), as faturas e ~4 % reembolsadas (5 % das pagas) com nota de crédito (~237 000 documentos, três passos de rasto cada; ~11 800 reembolsos); `VACUUM ANALYZE` depois de encher |
+| Um dia (~250 encomendas) | mediana **24 ms** e **27 ms** (duas corridas de 5 voltas; máximos 26 e 28 ms); a primeira volta, 65 e 55 ms |
+| Um mês (~7 600 encomendas) | mediana **520 ms** e **438 ms** (máximos 631 e 482 ms); a primeira volta, 569 e 517 ms |
+| Um mês com o PostgreSQL acabado de reiniciar | **742 ms** na primeira consulta; o mesmo mês a seguir 428 ms, outro mês 449 ms, um dia 22 ms. Medido à mão (não sai do teste), e só a memória do PostgreSQL estava vazia: a do sistema operativo não se conseguiu esvaziar no contentor |
+| Sem os índices da 0068 | dia, mediana 194 e 166 ms; mês, 879 e 725 ms (medidos depois, já com a cache quente: a diferença, se tanto, está por baixo) |
+
+Na primeira medição, sem o `VACUUM`, a primeira volta do mês chegou a
+5,4 s (a primeira leitura depois de uma carga em massa grava os *hint bits* e
+ainda não há mapa de visibilidade).
+
+Onde está o tempo do mês (`EXPLAIN ANALYZE` à mão, na primeira medição; não
+sai do teste): o encomendado leva 6 ms; o pago (112 ms) e o faturado (131 ms)
+cruzam com todos os pagamentos e todas as provas do comerciante (cerca de
+80 000). Reescrever essas ligações como procuras pela chave não mudou o plano.
+
+**Decisão técnica:** não se pré-calcula. Um mês com 7 600 encomendas responde
+entre meio segundo e três quartos de segundo, também com a cache do
+PostgreSQL vazia, o que chega para o MCP de leitura e para o painel. Volta-se
+a medir quando um comerciante passar das 100 000 encomendas por ano. **Na
+VPS, nunca com este teste** (muda a palavra-passe do papel da API da
+instância): só a ler, com `EXPLAIN ANALYZE` pelo fluxo de medir.
 
 ## 8. Testes que impedem o lançamento
 
