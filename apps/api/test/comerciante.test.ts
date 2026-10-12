@@ -164,6 +164,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0073_tarefas_no_hub",
         "0074_envios_parte_a",
         "0077_checkout_sessoes_sem_dados",
+        "0078_relatorio_oss",
       ]);
     });
 
@@ -295,10 +296,11 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // as 5 dos documentos fiscais (0050), os pedidos de dupla confirmação e
       // os contactos inferidos das declarações antigas (0052), os anexos da
       // isenção (0055), as 7 da pós-venda (0058), as 2 das tarefas das filas
-      // (0066), as notificações (0067) e as contas de transportadora (0074).
+      // (0066), as notificações (0067), as contas de transportadora (0074) e as 3 do
+      // relatório OSS (0078).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(85);
+      ).toHaveLength(88);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {
