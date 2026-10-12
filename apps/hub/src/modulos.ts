@@ -8,7 +8,7 @@ import type { Textos } from "./textos";
 
 export type Comerciante = Eu["comerciantes"][number];
 
-export type IdModulo = "equipa" | "artigos" | "decidir" | "chaves";
+export type IdModulo = "equipa" | "artigos" | "decidir" | "envios" | "chaves";
 
 export interface Modulo {
   id: IdModulo;
@@ -18,7 +18,7 @@ export interface Modulo {
    * §28.3); null: basta ser membro (a Equipa, `GET /hub/members`).
    */
   ambitoNecessario: string | readonly string[] | null;
-  caminho: "/equipa" | "/artigos" | "/a-decidir" | "/chaves";
+  caminho: "/equipa" | "/artigos" | "/a-decidir" | "/envios" | "/chaves";
 }
 
 export const MODULOS: readonly Modulo[] = [
@@ -36,6 +36,8 @@ export const MODULOS: readonly Modulo[] = [
     ],
     caminho: "/a-decidir",
   },
+  // As contas de transportadora (docs/22 §29): os quatro papéis vêem.
+  { id: "envios", ambitoNecessario: "shipping:read", caminho: "/envios" },
   { id: "chaves", ambitoNecessario: "keys:write", caminho: "/chaves" },
 ];
 

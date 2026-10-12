@@ -16,7 +16,10 @@ export type CodigoErroEnvios =
   | "shipping.label_refused"
   | "shipping.void_not_allowed"
   | "shipping.invalid_transition"
-  | "shipping.signature_invalid";
+  | "shipping.signature_invalid"
+  // As contas pelo Hub (docs/22 §29): um método activo impede-o.
+  | "shipping.account_in_use"
+  | "shipping.service_in_use";
 
 export const ESTADO_DO_CODIGO: Record<CodigoErroEnvios, number> = {
   "shipping.not_found": 404,
@@ -34,6 +37,8 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroEnvios, number> = {
   "shipping.void_not_allowed": 409,
   "shipping.invalid_transition": 409,
   "shipping.signature_invalid": 401,
+  "shipping.account_in_use": 409,
+  "shipping.service_in_use": 409,
 };
 
 export class ErroEnvios extends Error {

@@ -619,7 +619,7 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
           arquivar: true,
         }),
       ),
-    ).toEqual([409, "shipping.immutable"]);
+    ).toEqual([409, "shipping.account_in_use"]);
     // A conta de outro comerciante não existe para este.
     const outro = await cenario();
     expect(

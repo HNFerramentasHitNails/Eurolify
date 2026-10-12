@@ -39,21 +39,23 @@ function comerciante(
 const ids = (l: readonly { id: string }[]) => l.map((m) => m.id);
 
 describe("os módulos de cada papel", () => {
-  it("o dono vê a equipa, os artigos, «A decidir» e as chaves, por esta ordem", () => {
+  it("o dono vê a equipa, os artigos, «A decidir», os envios e as chaves, por esta ordem", () => {
     expect(ids(modulosDe(comerciante("a", "dono")))).toEqual([
       "equipa",
       "artigos",
       "decidir",
+      "envios",
       "chaves",
     ]);
   });
 
-  it("o gestor, o armazém e o apoio não vêem as chaves", () => {
+  it("o gestor, o armazém e o apoio vêem os envios (shipping:read) mas não as chaves", () => {
     for (const papel of ["gestor", "armazem", "apoio"] as const) {
       expect(ids(modulosDe(comerciante("a", papel))), papel).toEqual([
         "equipa",
         "artigos",
         "decidir",
+        "envios",
       ]);
     }
   });
@@ -91,9 +93,13 @@ describe("os módulos de cada papel", () => {
     for (const m of MODULOS) {
       const destino = destinoDe(m, "mer_1");
       expect(destino.startsWith("/hub/"), m.id).toBe(false);
-      expect(["/equipa", "/artigos", "/a-decidir", "/chaves"]).toContain(
-        new URL(destino, "https://h.test").pathname,
-      );
+      expect([
+        "/equipa",
+        "/artigos",
+        "/a-decidir",
+        "/envios",
+        "/chaves",
+      ]).toContain(new URL(destino, "https://h.test").pathname);
       expect(
         new URL(destino, "https://h.test").searchParams.get("comerciante"),
       ).toBe("mer_1");
