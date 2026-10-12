@@ -761,6 +761,24 @@ ser igual ao registado.
 | as três rotas; a página do endereço de resposta (sem nada de fora, sem cache, o texto escapado) e o reencaminhamento com `MOLONI_RETORNO_URL` | `src/faturacao/rotas.ts` |
 | testes: o adaptador (`test/moloni.test.ts`) e o caminho todo pela API contra o Moloni simulado (`test/documentos-api.test.ts`) | — |
 
+**Revisão do #407** (agente da sessão, Opus 5.5; 0 P0, 1 P1, 3 P2, 5 P3):
+- **P1-1, corrigido:** o `code` e o `state` deixam de ficar no registo da API.
+- **P2-2, corrigido:** o reencaminhamento para o Hub leva o código no
+  fragmento (`#code=…`), que não sai do navegador.
+- **P2-3, corrigido:** com documentos a meio no emissor, a autorização é
+  recusada (`invoices.issuer_busy`) antes de se gastar.
+- **P3-1 a P3-3, corrigidos:** a ligação volta a conferir-se antes de gravar,
+  as credenciais novas fazem caducar as autorizações pendentes, a M8 confere-se
+  ao pedir, e um `MOLONI_RETORNO_URL` que não seja `https` impede o arranque.
+- **P2-1, fica para antes do modo real:** o código não fica preso ao pedido.
+  Quem obtiver o código de outro comerciante e tiver uma chave de dono pode
+  ligá-lo à empresa de teste dele. Hoje só há empresas de teste (M8). Quando
+  se medir se o `state` volta, o endereço de resposta passa a guardar o código
+  no pedido e o dono conclui só com o valor; e a mesma empresa não se liga em
+  dois comerciantes.
+- **P3-4 e P3-5, ficam:** a tabela não tem retenção, e quem conclui pode ser
+  outra chave de dono do mesmo comerciante.
+
 **Por fazer:** o botão e o ecrã no Hub; registar `MOLONI_REDIRECT_URI` na
 conta de Developer e no ambiente `ensaio`; medir na conta trial se o `state`
 volta e se o `redirect_uri` tem de coincidir.

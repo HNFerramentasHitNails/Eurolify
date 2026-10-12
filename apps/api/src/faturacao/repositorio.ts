@@ -282,6 +282,14 @@ export async function definirCredenciais(
       })
       .where("id", "=", id)
       .execute();
+    // Credenciais novas fazem caducar as autorizações por concluir desta
+    // ligação (revisão do #407, P3-1).
+    await trx
+      .updateTable("autorizacao_faturacao")
+      .set({ usada_em: new Date() })
+      .where("ligacao_id", "=", id)
+      .where("usada_em", "is", null)
+      .execute();
   });
 }
 
@@ -493,6 +501,13 @@ export async function pedirAutorizacao(
         "este emissor não se liga por autorização: as credenciais entram pela API",
       );
     }
+    // A M8 antes de mandar o dono ao Moloni (revisão do #407, P3-2).
+    if (a.empresaPermitida !== undefined && !a.empresaPermitida(empresa)) {
+      throw new ErroDocumentos(
+        "invoices.invalid_field",
+        `a empresa ${empresa} não está na lista das contas de teste (M8): o modo real está fechado`,
+      );
+    }
     const estado = randomBytes(32).toString("base64url");
     const url = a.urlAutorizacao(estado);
     if (url === null) {
@@ -565,6 +580,9 @@ export async function concluirAutorizacao(
         "esta ligação está desligada",
       );
     }
+    // Com documentos a meio no emissor, a conta não muda (R15): a
+    // reconciliação procuraria noutra empresa (revisão do #407, P2-3).
+    await semDocumentosAMeio(trx, id);
     await trx
       .updateTable("autorizacao_faturacao")
       .set({ usada_em: new Date() })
@@ -593,8 +611,34 @@ export async function concluirAutorizacao(
   }
   await noDocumentos(db, c, async (trx) => {
     await marcar(trx, quem);
+    // A ligação pode ter mudado durante a troca (revisão do #407, P3-1).
+    const l = await ligacaoParaMudar(trx, id, null);
+    if (!l.activa) {
+      throw new ErroDocumentos(
+        "invoices.invalid_transition",
+        "esta ligação foi desligada durante a autorização",
+      );
+    }
+    await semDocumentosAMeio(trx, id);
     await definirCredenciais(trx, c, id, credenciais, cfg, quem);
   });
+}
+
+/** Recusa se a ligação tem documentos a meio no emissor (R15). */
+async function semDocumentosAMeio(trx: Transaction<BaseDados>, id: string) {
+  const aMeio = await trx
+    .selectFrom("documento_fiscal")
+    .select("id")
+    .where("ligacao_id", "=", id)
+    .where("estado", "in", ["rascunho", "incerto"])
+    .limit(1)
+    .executeTakeFirst();
+  if (aMeio !== undefined) {
+    throw new ErroDocumentos(
+      "invoices.issuer_busy",
+      "há documentos a meio no emissor desta ligação: resolvê-los antes de mudar a conta",
+    );
+  }
 }
 
 // ------------------------------------------------------- O conteúdo (§3.3)

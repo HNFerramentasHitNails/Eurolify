@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { urlSemSegredos } from "../src/base/registo.js";
 import {
   ErroDeRede,
   ErroDoEmissor,
@@ -121,6 +122,17 @@ describe("o formulário do Moloni", () => {
     ).toBe(
       "https://api.moloni.pt/v1/grant/?client_secret=***&refresh_token=***&access_token=***",
     );
+  });
+
+  it("o código e o valor da autorização não ficam no registo da API (revisão do #407, P1-1)", () => {
+    expect(
+      urlSemSegredos(
+        "/invoicing-connections/moloni/callback?code=abc.123&state=XyZ_-9&outro=1",
+      ),
+    ).toBe(
+      "/invoicing-connections/moloni/callback?code=[tapado]&state=[tapado]&outro=1",
+    );
+    expect(urlSemSegredos("/x?STATE=a")).toBe("/x?STATE=[tapado]");
   });
 });
 

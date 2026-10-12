@@ -126,6 +126,18 @@ const moloniEmpresas = (process.env["MOLONI_EMPRESAS_TESTE"] ?? "")
 // onde o navegador volta com o código (MOLONI_RETORNO_URL).
 const moloniResposta = process.env["MOLONI_REDIRECT_URI"]?.trim();
 const moloniRetorno = process.env["MOLONI_RETORNO_URL"]?.trim();
+// Um endereço mal escrito não arranca, em vez de dar 500 a cada resposta do
+// Moloni (revisão do #407, P3-3).
+const ehHttps = (u: string) => {
+  try {
+    return new URL(u).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+if (moloniRetorno && !ehHttps(moloniRetorno)) {
+  throw new Error("MOLONI_RETORNO_URL tem de ser um endereço https");
+}
 const faturacao: ConfigFaturacao = {
   adaptadores:
     moloniId && moloniSegredo && moloniEmpresas.length > 0

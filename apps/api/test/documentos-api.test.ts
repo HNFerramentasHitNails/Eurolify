@@ -1513,8 +1513,9 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     );
     delete faturacao.retornoAutorizacao;
     expect(volta.statusCode).toBe(303);
+    // No fragmento, que não sai do navegador (revisão do #407, P2-2).
     expect(volta.headers["location"]).toBe(
-      `https://hub.exemplo.test/faturacao/moloni?code=${cod}&state=${estado}`,
+      `https://hub.exemplo.test/faturacao/moloni#code=${cod}&state=${estado}`,
     );
     // Outro valor, ou outro comerciante: não há pedido.
     expect(
@@ -1572,22 +1573,37 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         }),
       ),
     ).toEqual([409, "invoices.invalid_transition"]);
-    // Uma empresa fora da lista de teste (M8): a troca é recusada e nada se
-    // grava; a autorização fica gasta.
-    const fora = await ok(
+    // Uma empresa fora da lista de teste (M8): recusada antes de mandar o
+    // dono ao Moloni (revisão do #407, P3-2).
+    expect(
+      await codigo(
+        s.adm("POST", `/invoicing-connections/${id}/authorize`, {
+          empresa: "999",
+        }),
+      ),
+    ).toEqual([400, "invoices.invalid_field"]);
+    expect(await ligacaoDe(s, id)).toMatchObject({ estado: "pronta" });
+    // Credenciais que entram pela API fazem caducar as autorizações por
+    // concluir (P3-1).
+    const pendente = await ok(
       s.adm("POST", `/invoicing-connections/${id}/authorize`, {
-        empresa: "999",
+        empresa: String(moloni.empresa),
       }),
+    );
+    await ok(
+      s.adm("PUT", `/invoicing-connections/${id}/credentials`, {
+        credenciais: moloni.credenciais(),
+      }),
+      204,
     );
     expect(
       await codigo(
         s.adm("POST", `/invoicing-connections/${id}/authorize/complete`, {
           codigo: moloni.codigoAutorizacao(),
-          estado: fora["estado"],
+          estado: pendente["estado"],
         }),
       ),
-    ).toEqual([502, "invoices.issuer_error"]);
-    expect(await ligacaoDe(s, id)).toMatchObject({ estado: "pronta" });
+    ).toEqual([409, "invoices.invalid_transition"]);
     // Um código que o Moloni não conhece: a mesma recusa.
     const outraVez = await ok(
       s.adm("POST", `/invoicing-connections/${id}/authorize`, {

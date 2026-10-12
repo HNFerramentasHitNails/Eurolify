@@ -500,9 +500,12 @@ export function rotasDosDocumentos(
           );
       }
       if (cfg?.retornoAutorizacao !== undefined) {
+        // No fragmento, que não sai do navegador: nem histórico do servidor
+        // do Hub nem Referer (revisão do #407, P2-2).
         const destino = new URL(cfg.retornoAutorizacao);
-        destino.searchParams.set("code", code);
-        if (estadoValido) destino.searchParams.set("state", state);
+        const fragmento = new URLSearchParams({ code });
+        if (estadoValido) fragmento.set("state", state);
+        destino.hash = fragmento.toString();
         return resposta.redirect(destino.toString(), 303);
       }
       return resposta

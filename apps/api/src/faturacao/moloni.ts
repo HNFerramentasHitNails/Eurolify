@@ -225,6 +225,10 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     );
   }
 
+  empresaPermitida(empresa: string): boolean {
+    return this.cfg.empresasPermitidas.includes(empresa);
+  }
+
   async trocarCodigo(
     codigo: string,
     empresa: string,
