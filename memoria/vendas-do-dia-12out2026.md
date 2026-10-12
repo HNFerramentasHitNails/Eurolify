@@ -17,13 +17,18 @@
 
 ## Números (com data e como se contaram)
 
-- Testes da peça: 11 em `test/vendas.test.ts` (12/10/2026), com dados postos
-  directamente na base para marcar as horas exactas.
+- Testes da peça: 13 em `test/vendas.test.ts` (12/10/2026, depois da revisão
+  do #383), com dados postos directamente na base para marcar as horas exactas.
+- **Medição** (12/10/2026, `test/medicao-vendas.test.ts` com `MEDIR=1`; base
+  local PostgreSQL 18.6 com as definições de omissão, não a VPS): 3 × 100 000
+  encomendas em 13 meses. Um dia: 23–24 ms (mediana de 5). Um mês (~7 600
+  encomendas): 399–508 ms (mediana de 5; 5,4 s numa primeira volta logo após
+  encher). Sem os índices da 0068: dia 94 ms, mês 823 ms. O pago e o faturado
+  levam ~110–130 ms cada no mês. Decisão técnica: não se pré-calcula.
 
 ## O que ficou por verificar
 
-- O tempo de resposta com muitas encomendas: a medição com 100 000
-  encomendas (docs/35 §7) está por fazer.
+- O tempo na VPS com dados reais: a medição foi numa base local.
 - O ecrã do painel (Fase 2) e a ferramenta do MCP (peça 12) usam esta rota;
   nenhum dos dois existe ainda.
 - Só há modo de teste; quando houver modo real, os dois nunca se somam

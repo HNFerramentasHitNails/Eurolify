@@ -119,15 +119,27 @@ faturas (revisão do #383, P3-5).
 
 ## 7. Desempenho: medir antes de pré-calcular
 
-Não há índice por comerciante e instante em nenhuma destas tabelas
-(procurei `CREATE INDEX` nas migrações). Proposta:
+Os índices por comerciante e instante entraram com o código (migração 0068).
+**Medido a 12/10/2026** (`test/medicao-vendas.test.ts`, corre só com
+`MEDIR=1`):
 
-- índices novos, numa migração: `encomenda (comerciante_id, criada_em)`,
-  `reembolso (comerciante_id, executado_em)`, e um sobre as transições para
-  `capturado` e as passagens a `emitido`;
-- **medir** a consulta com 100 000 encomendas de teste antes de decidir
-  pré-calcular por dia (`docs/13` §11, porta 7). Sem medida, não há tabela de
-  totais.
+| O quê | Valor |
+|---|---|
+| A base | PostgreSQL 18.6 local, com as definições de omissão (`shared_buffers` 128 MB, `work_mem` 4 MB), 4 CPU e 15 GB; **não é a VPS** |
+| Os dados | 3 comerciantes × 100 000 encomendas (300 000), espalhadas por 13 meses: 80 % pagas (239 900 pagamentos), faturas e 5 % reembolsadas com nota de crédito (236 659 documentos, 12 015 reembolsos) |
+| Um dia (~250 encomendas) | **23–24 ms** de mediana em 5 voltas (máximo 65–68 ms) |
+| Um mês (~7 600 encomendas) | **399–508 ms** de mediana em 5 voltas (máximo 435 ms numa corrida; 5,4 s na primeira volta da outra, logo a seguir a encher a base) |
+| Sem os índices da 0068 | um dia 94 ms, um mês 823 ms |
+
+Onde está o tempo do mês (plano da base, `EXPLAIN ANALYZE`): o encomendado
+leva 6 ms; o pago (112 ms) e o faturado (131 ms) cruzam com todos os
+pagamentos e todas as provas do comerciante (cerca de 80 000). Reescrever
+essas ligações como procuras pela chave não mudou o plano.
+
+**Decisão técnica:** não se pré-calcula. Meio segundo para um mês com 7 600
+encomendas chega para o MCP de leitura e para o painel. Volta-se a medir
+quando um comerciante passar das 100 000 encomendas por ano, ou na VPS com
+dados reais.
 
 ## 8. Testes que impedem o lançamento
 
