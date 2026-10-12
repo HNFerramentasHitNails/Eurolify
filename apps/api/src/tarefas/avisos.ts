@@ -7,7 +7,8 @@ import { comComerciante } from "../comerciante/repositorio.js";
 // hora, os casos abertos cujo prazo passou ganham o aviso, uma vez por
 // prazo — a marca na atribuição e o evento `task.overdue` (o gatilho da
 // base). O prazo do reembolso fica de fora: tem os avisos da pós-venda
-// (0063). Sem e-mail até haver notificações: o aviso vê-se na lista.
+// (0063). O e-mail sai pela fila das notificações: o gatilho da linha
+// `vencida` grava-o (migração 0071; docs/34 §12; decisão EB).
 
 export const QUEM_DA_TAREFA = "sistema:tarefas";
 const POR_VOLTA = 50;

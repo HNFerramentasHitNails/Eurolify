@@ -1,6 +1,6 @@
 # Relatório OSS — os baldes do IVA, o fecho e os registos
 
-> **Estado: aprovado** (`docs/06`, ED). Diogo, 12/10/2026: *«sim, aprovo o
+> **Estado: aprovado** (`docs/06`, EE). Diogo, 12/10/2026: *«sim, aprovo o
 > desenho com as propostas Q-O1 a Q-O5»*. Pedido inicial, 12/10/2026: *«sim,
 > avança com o desenho do relatório OSS»*. É a parte 3 da fatia 10 (issue #310) e a peça
 > 18 da Fase 1 (`docs/10`; trazida da Fase 2 pela decisão AD, ADR-0022). Só
@@ -180,14 +180,14 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 - **Vendas expedidas de outro Estado-Membro** (L4): a Fase 1 tem um armazém
   só; o relatório diz o país do armazém, mas não separa por país de expedição.
 
-## 10. Em código (12/10/2026; migração 0071; ED)
+## 10. Em código (12/10/2026; migração 0072; EE)
 
 | O quê | Onde |
 |---|---|
 | a regra do Motor de IVA → balde (cinco, Q-O3), o período (trimestre e mês), a classificação pura (baldes, alterações, impedimentos) | `src/faturacao/oss.ts` (`baldeDe`, `lerPeriodo`, `agregar`) |
 | a leitura das provas (montantes) e do último conteúdo (a decisão), as listas à parte, o limiar no ano civil | `src/faturacao/oss.ts` (`relatorioOss`) |
-| o fecho: só o dono (`tax:write`), um de cada vez por entidade, recusa com impedimentos (os «por emitir» só com `confirmo_por_emitir`), a fotografia e os documentos que entraram, uma vez só | `src/faturacao/oss.ts` (`fecharOss`); migração 0071 |
-| `relatorio_oss_fecho` e `relatorio_oss_documento`: só se acrescentam (a base recusa mudar e apagar), RLS forçado; o evento `tax_report.closed` | migração 0071 |
+| o fecho: só o dono (`tax:write`), um de cada vez por entidade, recusa com impedimentos (os «por emitir» só com `confirmo_por_emitir`), a fotografia e os documentos que entraram, uma vez só | `src/faturacao/oss.ts` (`fecharOss`); migração 0072 |
+| `relatorio_oss_fecho` e `relatorio_oss_documento`: só se acrescentam (a base recusa mudar e apagar), RLS forçado; o evento `tax_report.closed` | migração 0072 |
 | os registos do art. 63.º-C em CSV (com a protecção contra fórmulas) | `src/faturacao/oss.ts` (`registosOss`) |
 | as rotas `GET /tax-reports/oss`, `POST /tax-reports/oss/close`, `GET /tax-reports/oss/records` | `src/faturacao/rotas-oss.ts` |
 | 8 testes da classificação sem base; 4 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |

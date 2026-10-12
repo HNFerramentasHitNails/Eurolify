@@ -1,4 +1,4 @@
--- Documentos fiscais, parte 3: o relatório OSS (docs/36; docs/06, ED; issue
+-- Documentos fiscais, parte 3: o relatório OSS (docs/37; docs/06, EE; issue
 -- #310).
 --
 -- - `relatorio_oss_fecho`: o fecho de um período (um trimestre ou um mês), com
@@ -23,7 +23,7 @@ CREATE TABLE relatorio_oss_fecho (
   CHECK ((granularidade = 'trimestre') = (periodo ~ '-T')),
   -- Os números como foram mostrados ao fechar (nunca recalculados).
   fotografia jsonb NOT NULL CHECK (jsonb_typeof(fotografia) = 'object'),
-  -- A versão da regra dos baldes (docs/36 §2.1) com que se fez.
+  -- A versão da regra dos baldes (docs/37 §2.1) com que se fez.
   versao_regra integer NOT NULL CHECK (versao_regra >= 1),
   -- O que a pessoa confirmou ter visto (P5).
   confirmacoes jsonb NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(confirmacoes) = 'object'),

@@ -169,8 +169,9 @@ do prazo legal), `tasks.reason_required`, `tasks.retry`.
 
 **Eventos** (na `evento_saida`; só identificadores, fila e prazo; nunca dados
 pessoais): `task.assigned`, `task.unassigned`, `task.deadline_changed`,
-`task.overdue`. **Enquanto nada lê a `evento_saida` (§2), o aviso só se vê na
-lista** (`vencida=true`) e pela API.
+`task.overdue`. A `evento_saida` ainda não tem quem a leia (§2); o aviso vê-se
+na lista (`vencida=true`) e, desde a migração 0071, sai também por e-mail ao
+responsável ou, sem ele, a quem decide e atribui (`docs/34` §12; decisão EB).
 
 ## 8. O ecrã «A decidir» no Hub (parte 2)
 
@@ -183,6 +184,8 @@ sessão não conferem âmbitos como as de chave (`autenticacao.ts:153-179`): a
 parte 2 tem de dar ao ecrã as mesmas regras R2 e R3 pelo papel da pessoa. O
 desenho do ecrã faz-se com as skills `eurolify-design`, `eurolify-hub-modular`
 e `eurolify-hub-quality-gate` antes do código dele.
+
+**Desenhado** em `docs/22` §28 e aprovado pelo Diogo a 12/10/2026 (Q1 A: a lista avança sem ligação ao caso enquanto as filas não têm ecrã).
 
 ## 9. Por onde é que isto ainda pode sair errado
 
@@ -198,7 +201,7 @@ e `eurolify-hub-quality-gate` antes do código dele.
 | a lista mostra um caso de outra fila ou de outro comerciante | R2 e o RLS; testes que tentam e têm de falhar |
 | a lista corta e diz «nada por decidir» | R10 |
 | a verificação de hora a hora pára | conta e avisa como as outras tarefas automáticas; um comerciante que falhe não pára os outros |
-| o aviso «sai» mas ninguém o recebe | §7: até haver quem leia a `evento_saida`, o aviso é a lista; dizê-lo no ecrã |
+| o aviso «sai» mas ninguém o recebe | §7: a lista e o e-mail do `docs/34` §12; o e-mail só sai com o SMTP configurado (até lá, fica à espera na fila e vê-se em `GET /notifications`) |
 | a lista fica lenta com muitas encomendas | medir antes de pré-calcular (`docs/13` §11, porta 7) |
 | uma fila nova da Fase 1 fica fora | a lista de filas é um valor da base; uma fila nova acrescenta-se lá e com a sua função |
 

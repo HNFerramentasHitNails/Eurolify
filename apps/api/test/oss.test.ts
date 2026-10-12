@@ -9,7 +9,7 @@ import {
 } from "../src/faturacao/oss.js";
 import type { Conteudo } from "../src/faturacao/repositorio.js";
 
-// O relatório OSS sem base de dados (docs/36; ED): a regra do Motor de IVA →
+// O relatório OSS sem base de dados (docs/37; EE): a regra do Motor de IVA →
 // o balde, o período, as NC a negativo, as alterações de um período fechado
 // e o que impede o fecho.
 

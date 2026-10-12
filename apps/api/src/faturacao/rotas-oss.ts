@@ -15,7 +15,7 @@ import {
   traduzirRelatorio,
 } from "./oss.js";
 
-// O relatório OSS (docs/36 §5; docs/06, ED). Ler é `tax:read`; fechar é
+// O relatório OSS (docs/37 §5; docs/06, EE). Ler é `tax:read`; fechar é
 // `tax:write`, que só o dono tem (Q-O4).
 
 async function emRelatorio<T>(resposta: FastifyReply, fn: () => Promise<T>) {
@@ -64,7 +64,7 @@ export function rotasDoRelatorioOss(
       config: { ambito: "tax:read" },
       schema: {
         description:
-          "O relatório OSS de um período (docs/36): os cinco baldes por país e taxa, das faturas e notas de crédito emitidas (as NC a negativo); as alterações de períodos já fechados; à parte, as vendas emitidas fora do Eurolify, as do sistema próprio e o que está por emitir; o limiar dos 10 000 €; e o que impede o fecho. De um período fechado, a fotografia, nunca recalculada.",
+          "O relatório OSS de um período (docs/37): os cinco baldes por país e taxa, das faturas e notas de crédito emitidas (as NC a negativo); as alterações de períodos já fechados; à parte, as vendas emitidas fora do Eurolify, as do sistema próprio e o que está por emitir; o limiar dos 10 000 €; e o que impede o fecho. De um período fechado, a fotografia, nunca recalculada.",
         querystring: Type.Object(
           { entidade: IdEntidade, periodo: Periodo },
           { additionalProperties: false },
@@ -121,7 +121,7 @@ export function rotasDoRelatorioOss(
       config: { ambito: "tax:read" },
       schema: {
         description:
-          "Os registos do art. 63.º-C do Reg. 282/2011 (docs/36 §4), em CSV: uma linha por linha de documento do período. Têm dados pessoais (o NIF e o nome da fatura).",
+          "Os registos do art. 63.º-C do Reg. 282/2011 (docs/37 §4), em CSV: uma linha por linha de documento do período. Têm dados pessoais (o NIF e o nome da fatura).",
         querystring: Type.Object(
           { entidade: IdEntidade, periodo: Periodo },
           { additionalProperties: false },

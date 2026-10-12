@@ -2,14 +2,14 @@ import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados } from "../base/esquema.js";
 import { noDocumentos } from "./repositorio.js";
 
-// O relatório OSS (docs/36; docs/06, ED; issue #310). Os montantes vêm só das
+// O relatório OSS (docs/37; docs/06, EE; issue #310). Os montantes vêm só das
 // provas dos documentos emitidos (O1); o balde de cada linha vem da decisão
 // de IVA copiada no conteúdo (O2); o Estado-Membro de consumo é o país de
 // entrega (O3); as NC entram a negativo (O4). Não se declara nada: o
 // comerciante apresenta a declaração (Diretiva IVA, art. 369.º-F); o
 // Eurolify dá-lhe os números e os registos (art. 63.º-C do Reg. 282/2011).
 
-/** A versão da regra dos baldes (docs/36 §2.1), guardada em cada fecho. */
+/** A versão da regra dos baldes (docs/37 §2.1), guardada em cada fecho. */
 export const VERSAO_REGRA = 1;
 
 /** O limiar das vendas à distância (Diretiva IVA, art. 59.º-C), em cêntimos. */
@@ -26,7 +26,7 @@ const BALDES: readonly Balde[] = [
   "outras_isentas",
 ];
 
-/** A regra do Motor de IVA (docs/24 §5.2) → o balde (docs/36 §2.1; Q-O3). */
+/** A regra do Motor de IVA (docs/24 §5.2) → o balde (docs/37 §2.1; Q-O3). */
 export function baldeDe(
   regra: string,
   paisImposto: string | null,
@@ -422,7 +422,7 @@ export interface Incluido {
 }
 
 /**
- * A classificação, sem base de dados (docs/36 §2–§3): os documentos do
+ * A classificação, sem base de dados (docs/37 §2–§3): os documentos do
  * período nos baldes, os de um período fechado como alterações (P4), e o
  * que impede o fecho — também um documento de um período anterior ainda
  * aberto (revisão do #392, P2-1).
@@ -626,7 +626,7 @@ async function calcular(
     incluidos.push({ id: x.id, periodo_original: original, linhas: [] });
   }
   // As vendas com sistema próprio não têm documento no Eurolify: mostram-se
-  // pela captura do pagamento no período (sem alteração; docs/36 §10).
+  // pela captura do pagamento no período (sem alteração; docs/37 §10).
   const { rows: proprio } = await sql<{
     id: string;
     pais: string | null;
@@ -877,7 +877,7 @@ export function celula(
 }
 
 /**
- * Os registos do art. 63.º-C do Reg. 282/2011 (docs/36 §4): uma linha por
+ * Os registos do art. 63.º-C do Reg. 282/2011 (docs/37 §4): uma linha por
  * linha de documento do período (os do período e as alterações). De um
  * período fechado, os documentos que entraram nele, com o balde e o país
  * gravados no fecho (P2-2); de um aberto, os que entrariam se fechasse agora,
@@ -989,7 +989,7 @@ export async function registosOss(
               "numero",
             ),
             // Sem expedição registada, vazio e marcado: nada se inventa
-            // (docs/36 §4, c) e k); revisão do #392, P2-4).
+            // (docs/37 §4, c) e k); revisão do #392, P2-4).
             celula(expedida ? "sim" : "nao"),
             celula(x?.data_expedicao ?? null),
             celula(expedida ? (x.pais_armazem ?? null) : null),

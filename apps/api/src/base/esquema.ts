@@ -1448,10 +1448,11 @@ export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   em: ColumnType<Date, never, never>;
 }
 
-// Notificações (migração 0067; docs/34).
+// Notificações (migrações 0067 e 0071; docs/34).
 export const TIPOS_NOTIFICACAO = [
   "refund.deadline_approaching",
   "refund.deadline_passed",
+  "task.overdue",
 ] as const;
 export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
 export const ESTADOS_NOTIFICACAO = [
@@ -1952,7 +1953,7 @@ export interface TabelaAtribuicaoRasto {
   a_pedido_de: ColumnType<unknown, never, never>;
 }
 
-/** O fecho de um período do relatório OSS (docs/36 §3; migração 0071). */
+/** O fecho de um período do relatório OSS (docs/37 §3; migração 0072). */
 export interface TabelaRelatorioOssFecho {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1966,7 +1967,7 @@ export interface TabelaRelatorioOssFecho {
   fechado_em: ColumnType<Date, never, never>;
 }
 
-/** Os documentos que entraram num fecho (uma vez só, P4; migração 0071). */
+/** Os documentos que entraram num fecho (uma vez só, P4; migração 0072). */
 export interface TabelaRelatorioOssDocumento {
   comerciante_id: ColumnType<string, string, never>;
   fecho_id: ColumnType<string, string, never>;
