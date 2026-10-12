@@ -18,6 +18,7 @@
   - os textos em PT, ES e EN, sem dados do cliente.
 - **O `docs/17` T10 foi alargado:** inclui agora o armazém e o apoio quando
   são responsáveis por um pedido de livre resolução.
+- **Decisão EE (Diogo, 12/10/2026, «A»):** o pedido de livre resolução `pendente` não avisa antes do prazo legal, só quando passa (`task.overdue`); registado no `docs/33` R6 e no `docs/06`. O código já fazia assim: nada mudou.
 
 ## Números (com data e como se contaram)
 
