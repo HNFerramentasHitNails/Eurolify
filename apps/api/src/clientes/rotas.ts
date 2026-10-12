@@ -807,7 +807,7 @@ const FichasComOMesmoContacto = Type.Array(
   }),
   {
     description:
-      "Outras fichas deste comerciante, fora deste grupo, com um e-mail ou telefone igual (ex.: duas compras sem conta). O pedido não chegou a elas: decide o dono se as funde e repete o pedido — o sistema nunca as junta sozinho (docs/23 §15.5)",
+      "Outras fichas deste comerciante, fora deste grupo, com um e-mail ou telefone igual (ex.: duas compras sem conta). O pedido não chegou a elas: decide o dono se as funde e repete o pedido — o sistema nunca as junta sozinho (docs/23 §15.5). É para o dono, não para entregar ao titular: um telefone partilhado pode apontar para outra pessoa",
   },
 );
 const ResultadoPseudonimizacaoEsquema = Type.Object({
@@ -1744,7 +1744,7 @@ export function rotasDosClientes(
       config: privacidade,
       schema: {
         description:
-          "Exporta tudo o que este domínio guarda sobre o titular, na ficha e nas fundidas nela, com as encomendas, as linhas e os pagamentos delas (só para ler). Regista o pedido com a verificação da identidade. Uma ficha fundida não se exporta: peça pela que ficou. A resposta não se guarda: repetir com a mesma Idempotency-Key dá idempotency.response_not_kept, com o id do pedido (dsr_…); para outra exportação, outra chave.",
+          "Exporta tudo o que se guarda sobre o titular, na ficha e nas fundidas nela, com as encomendas e o que os outros domínios guardam delas (docs/23 §15.2; só para ler), e as outras fichas com o mesmo contacto. Regista o pedido com a verificação da identidade. Uma ficha fundida não se exporta: peça pela que ficou. A resposta não se guarda: repetir com a mesma Idempotency-Key dá idempotency.response_not_kept, com o id do pedido (dsr_…); para outra exportação, outra chave.",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdCliente),
         body: PedidoComVerificacao,

@@ -611,6 +611,30 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     return enc["linhas"] as Json[];
   }
 
+  /** A exportação do titular da encomenda, com uma chave `customers:privacy`. */
+  async function exportarTitular(s: Cenario, encomenda: string) {
+    const clienteId = (
+      await sql<{ c: string }>`select cliente_id as c from encomenda
+        where id = ${encomenda.slice(4)}::uuid`.execute(base.dono)
+    ).rows[0]?.c;
+    const privado = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Privacidade",
+        ambitos: ["customers:privacy"],
+      })
+    ).segredo;
+    return ok(
+      pedir(
+        "POST",
+        `/customers/cus_${String(clienteId)}/export`,
+        { verificacao: "resposta do e-mail da encomenda a 12/10/2026" },
+        { authorization: `Bearer ${privado}` },
+      ),
+    );
+  }
+
   /** A entrega passa para há `dias` dias (o relógio do prazo). */
   const entregueHa = (encomenda: string, dias: number) =>
     base.dono.transaction().execute(async (t) => {
@@ -1120,26 +1144,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         base.dono,
       )
     ).rows.map((m) => m.motivo);
-    const clienteId = (
-      await sql<{ c: string }>`select cliente_id as c from encomenda
-        where id = ${id}::uuid`.execute(base.dono)
-    ).rows[0]?.c;
-    const privado = (
-      await criarChave(base.dono, s.c, {
-        tipo: "servidor",
-        criadaPor: "operador:teste",
-        nome: "Privacidade",
-        ambitos: ["customers:privacy"],
-      })
-    ).segredo;
-    const exp = await ok(
-      pedir(
-        "POST",
-        `/customers/cus_${String(clienteId)}/export`,
-        { verificacao: "resposta do e-mail da encomenda a 12/10/2026" },
-        { authorization: `Bearer ${privado}` },
-      ),
-    );
+    const exp = await exportarTitular(s, e.encomenda);
     const f = (exp["fichas"] as Json[])[0] ?? {};
     const texto = JSON.stringify(exp);
     // A encomenda inteira: também os portes, o método, as aceitações e a
@@ -1185,6 +1190,10 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       }) as unknown,
     });
     expect(fatura?.["totais_no_documento"]).not.toBeNull();
+    // E o comprador como ficou no documento lido de volta (P2-2).
+    expect(fatura?.["comprador_no_documento"]).toMatchObject({
+      nif: expect.stringContaining("501964843") as unknown,
+    });
     for (const doc of docs) {
       expect(doc).not.toHaveProperty("pdf");
       expect(doc).not.toHaveProperty("em_bruto");
@@ -1215,11 +1224,28 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         montante: String(r["montante"]),
       }),
     ]);
-    expect(reembolsos[0]).not.toHaveProperty("prova");
+    for (const chave of ["prova", "falha", "decidido_por", "pedido_por"]) {
+      expect(reembolsos[0]).not.toHaveProperty(chave);
+    }
     expect(texto).not.toContain("TRF-EXPORTA-77");
-    // O que não sai: a sessão de checkout, os avisos, os eventos de saída.
-    for (const chave of ["sessoes_de_checkout", "avisos", "eventos"]) {
-      expect(f).not.toHaveProperty(chave);
+    // O que não sai: a sessão de checkout, os avisos e os eventos de saída
+    // (nem pelos ids; revisão do #411, testes).
+    const naoSaem = (
+      await sql<{ id: string }>`
+        select a.id::text as id from aviso_pagamento a
+        join pagamento p on p.id = a.pagamento_id
+        where p.encomenda_id = ${id}::uuid
+        union all
+        select s.id::text from sessao_checkout s
+        join encomenda x on x.sessao_id = s.id where x.id = ${id}::uuid`.execute(
+        base.dono,
+      )
+    ).rows.map((x) => x.id);
+    expect(naoSaem.length).toBeGreaterThan(1);
+    // A sessão sai só como `sessao_id` da encomenda (um id, sem dados).
+    const sessao = String(encomenda["sessao_id"]);
+    for (const x of naoSaem.filter((x) => x !== sessao)) {
+      expect(texto).not.toContain(x);
     }
   });
 
@@ -1771,6 +1797,20 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     );
     ({ fatura, notas } = await documentosDe(s, e.encomenda));
     expect(fatura?.["estado"]).toBe("fora");
+    // A exportação do titular dá o número declarado, e não o motivo do
+    // rasto (docs/23 §15.2; revisão do #411, P2-1).
+    {
+      const exp = await exportarTitular(s, e.encomenda);
+      const docs = (exp["fichas"] as Json[])[0]?.[
+        "documentos_fiscais"
+      ] as Json[];
+      expect(docs.find((d) => d["tipo"] === "fatura")).toMatchObject({
+        estado: "fora",
+        numero: null,
+        numero_declarado: "FT 2026/58",
+      });
+      expect(JSON.stringify(exp)).not.toContain("faturada no sistema da loja");
+    }
     // A NC sai com a fatura, sem número declarado: o da fatura não é o dela
     // (revisão do #386, P2-2).
     expect(notas[0]).toMatchObject({

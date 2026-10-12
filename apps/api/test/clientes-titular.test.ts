@@ -777,6 +777,17 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       emails: [`ANA.${u}@EX.PT`],
     });
     const porTelefone = await ficha({ nome: `Ana S. ${u}`, telefones: [tel] });
+    const pelosDois = await ficha({
+      nome: `Ana Silva ${u}`,
+      emails: [`ana.${u}@ex.pt`],
+      telefones: [tel],
+    });
+    // Uma já apagada com o mesmo e-mail: não entra (já não tem contactos).
+    const apagada = await ficha({
+      nome: `Ana ${u}`,
+      emails: [`ana.${u}@ex.pt`],
+    });
+    await ok(pseudonimizar(apagada));
     const outra = await ficha({ nome: `Rui ${u}`, emails: [`rui.${u}@ex.pt`] });
     // Uma do grupo (fundida nesta) e uma de outro comerciante: não entram.
     const fundida = await ficha({
@@ -793,6 +804,7 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     const esperadas = [
       { id: porEmail, estado: "activo", sinais: ["email"] },
       { id: porTelefone, estado: "activo", sinais: ["telefone"] },
+      { id: pelosDois, estado: "activo", sinais: ["email", "telefone"] },
     ].sort((x, y) => x.id.localeCompare(y.id));
     const e = await ok(
       pedir("POST", `/customers/${id}/export`, { verificacao }),

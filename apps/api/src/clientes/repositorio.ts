@@ -1581,24 +1581,30 @@ async function fichasComOMesmoContacto(
   trx: Kysely<BaseDados>,
   ids: string[],
 ): Promise<FichaComOMesmoContacto[]> {
+  // Os contactos do grupo primeiro, numa lista cada: a comparação com
+  // `&&` usa os índices GIN da 0046 (revisão do #411, P2-3).
+  const { rows: g } = await sql<{ emails: string[]; telefones: string[] }>`
+    select coalesce(array_agg(distinct e) filter (where e is not null), '{}') as emails,
+           coalesce(array_agg(distinct t) filter (where t is not null), '{}') as telefones
+    from cliente c
+    left join lateral unnest(emails_para_comparar(c.emails)) e on true
+    left join lateral unnest(c.telefones) t on true
+    where c.id = any(${ids}::uuid[])`.execute(trx);
+  const emails = g[0]?.emails ?? [];
+  const telefones = g[0]?.telefones ?? [];
+  if (emails.length === 0 && telefones.length === 0) return [];
   const { rows } = await sql<FichaComOMesmoContacto>`
-    with grupo as (
-      select emails_para_comparar(emails) as emails, telefones
-      from cliente where id = any(${ids}::uuid[])
-    )
     select c.id, c.estado,
            array_remove(array[
-             case when exists (select from grupo g
-               where emails_para_comparar(c.emails) && g.emails) then 'email' end,
-             case when exists (select from grupo g
-               where c.telefones && g.telefones) then 'telefone' end
+             case when emails_para_comparar(c.emails) && ${emails}::text[]
+               then 'email' end,
+             case when c.telefones && ${telefones}::text[] then 'telefone' end
            ], null) as sinais
     from cliente c
-    where c.id <> all(${ids}::uuid[])
+    where (emails_para_comparar(c.emails) && ${emails}::text[]
+           or c.telefones && ${telefones}::text[])
+      and c.id <> all(${ids}::uuid[])
       and c.estado not in ('fundido', 'pseudonimizado')
-      and exists (select from grupo g
-        where emails_para_comparar(c.emails) && g.emails
-           or c.telefones && g.telefones)
     order by c.id`.execute(trx);
   return rows;
 }
@@ -1764,14 +1770,24 @@ export async function exportarCliente(
                        c.conteudo -> 'cliente' as comprador,
                        c.conteudo -> 'totais' as totais,
                        p.numero, p.serie, p.data, p.atcud,
-                       p.totais as totais_no_documento
+                       p.totais as totais_no_documento,
+                       -- Como ficou no documento lido de volta (pode
+                       -- divergir do enviado; revisão do #411, P2-2).
+                       case when p.documento_id is not null then
+                         jsonb_build_object('nif', p.nif, 'nome', p.nome,
+                                            'pais', p.pais)
+                       end as comprador_no_documento,
+                       -- Emitido fora do Eurolify: o número declarado
+                       -- (0070; revisão do #411, P2-1).
+                       d.fora_numero as numero_declarado
                 from documento_fiscal d
                 left join lateral (
                   select x.conteudo from documento_conteudo x
                   where x.documento_id = d.id order by x.versao desc limit 1
                 ) c on true
                 left join lateral (
-                  select y.numero, y.serie, y.data, y.atcud, y.totais
+                  select y.documento_id, y.numero, y.serie, y.data, y.atcud,
+                         y.totais, y.nif, y.nome, y.pais
                   from documento_prova y
                   where y.documento_id = d.id order by y.lida_em desc, y.id desc
                   limit 1
