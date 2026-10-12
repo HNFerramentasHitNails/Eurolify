@@ -1488,9 +1488,14 @@ export interface ResultadoPseudonimizacao {
   provas_vies_apagadas: number;
   isencoes_limpas: number;
   entradas_da_linha_do_tempo: number;
+  fichas_com_o_mesmo_contacto: FichaComOMesmoContacto[];
 }
 
-/** Pseudonimiza a ficha e as fundidas nela (cliente_pseudonimizar). Irreversível. */
+/**
+ * Pseudonimiza a ficha e as fundidas nela (cliente_pseudonimizar).
+ * Irreversível. As fichas com o mesmo contacto contam-se antes, na mesma
+ * transacção: depois, o grupo já não tem contactos para comparar.
+ */
 export async function pseudonimizarCliente(
   db: Kysely<BaseDados>,
   comercianteId: string,
@@ -1498,15 +1503,28 @@ export async function pseudonimizarCliente(
   confirmacao: string,
   verificacao: string,
 ): Promise<ResultadoPseudonimizacao> {
-  const { rows } = await noClientes(db, comercianteId, (trx) =>
-    sql<{ r: ResultadoPseudonimizacao }>`
+  return noClientes(db, comercianteId, async (trx) => {
+    // A ficha presa primeiro: uma fusão a meio não muda o grupo entre a
+    // contagem e o apagamento.
+    await sql`select id from cliente where id = ${clienteId}::uuid for update`.execute(
+      trx,
+    );
+    const { rows: grupo } = await sql<{ id: string }>`
+      select clientes_do_grupo(${clienteId}::uuid) as id`.execute(trx);
+    const mesmoContacto = await fichasComOMesmoContacto(
+      trx,
+      grupo.map((g) => g.id),
+    );
+    const { rows } = await sql<{
+      r: Omit<ResultadoPseudonimizacao, "fichas_com_o_mesmo_contacto">;
+    }>`
       select cliente_pseudonimizar(${clienteId}::uuid, ${confirmacao}, ${verificacao}) as r`.execute(
       trx,
-    ),
-  );
-  const r = rows[0]?.r;
-  if (r === undefined) throw new Error("cliente_pseudonimizar sem resposta");
-  return r;
+    );
+    const r = rows[0]?.r;
+    if (r === undefined) throw new Error("cliente_pseudonimizar sem resposta");
+    return { ...r, fichas_com_o_mesmo_contacto: mesmoContacto };
+  });
 }
 
 export async function listarPedidosTitular(
@@ -1543,6 +1561,46 @@ export async function listarPedidosTitular(
       encomendas_por_acabar: porAcabar.get(p.id) ?? 0,
     }));
   });
+}
+
+/** Uma ficha de fora do grupo com um e-mail ou telefone igual (§15.5). */
+export interface FichaComOMesmoContacto {
+  id: string;
+  estado: string;
+  /** `email`, `telefone` ou os dois; nunca o contacto em si. */
+  sinais: string[];
+}
+
+/**
+ * As outras fichas do comerciante com um e-mail ou telefone igual ao de uma
+ * ficha do grupo (docs/23 §15.5). Ex.: a Ana comprou duas vezes sem conta e
+ * tem duas fichas; o pedido sobre uma lista a outra. Só se lista: decide o
+ * dono se as funde antes — o sistema nunca (regra 6 do AGENTS.md).
+ */
+async function fichasComOMesmoContacto(
+  trx: Kysely<BaseDados>,
+  ids: string[],
+): Promise<FichaComOMesmoContacto[]> {
+  const { rows } = await sql<FichaComOMesmoContacto>`
+    with grupo as (
+      select emails_para_comparar(emails) as emails, telefones
+      from cliente where id = any(${ids}::uuid[])
+    )
+    select c.id, c.estado,
+           array_remove(array[
+             case when exists (select from grupo g
+               where emails_para_comparar(c.emails) && g.emails) then 'email' end,
+             case when exists (select from grupo g
+               where c.telefones && g.telefones) then 'telefone' end
+           ], null) as sinais
+    from cliente c
+    where c.id <> all(${ids}::uuid[])
+      and c.estado not in ('fundido', 'pseudonimizado')
+      and exists (select from grupo g
+        where emails_para_comparar(c.emails) && g.emails
+           or c.telefones && g.telefones)
+    order by c.id`.execute(trx);
+  return rows;
 }
 
 /**
@@ -1587,24 +1645,24 @@ export async function exportarCliente(
           .execute(trx)
           .then((r) => r.rows);
       const perfis = await linhas("perfil_faturacao");
-      const encomendas = (
-        await sql<Record<string, unknown>>`
-          select id, criada_em, estado, moeda, total, finalidade, contacto,
-                 entrega, perfil_copia
-          from encomenda where cliente_id = ${id}::uuid order by id`.execute(
-          trx,
-        )
-      ).rows;
+      // A encomenda inteira (docs/23 §15.2): também os portes, o método de
+      // entrega, as aceitações e a língua.
+      const encomendas = await linhas("encomenda");
       const idsEncomendas = encomendas.map((e) => String(e["id"]));
-      const daEncomenda = async (tabela: string) =>
+      // Das encomendas desta ficha: `colunas` é a lista fixa do que sai
+      // (nunca vem do pedido); sem ela, a linha inteira.
+      const daEncomenda = async (tabela: string, colunas?: string[]) =>
         idsEncomendas.length === 0
           ? []
           : (
               await sql<Record<string, unknown>>`
-              select * from ${sql.table(tabela)}
+              select ${colunas === undefined ? sql`*` : sql.join(colunas.map((c) => sql.ref(c)))}
+              from ${sql.table(tabela)}
               where encomenda_id = any(${idsEncomendas}::uuid[])
               order by id`.execute(trx)
             ).rows;
+      const pagamentos = await daEncomenda("pagamento");
+      const idsPagamentos = pagamentos.map((p) => String(p["id"]));
       const ids_perfis = perfis.map((p) => String(p["id"]));
       const doPerfil = async (tabela: string) =>
         ids_perfis.length === 0
@@ -1654,7 +1712,137 @@ export async function exportarCliente(
         ).rows,
         encomendas,
         linhas_das_encomendas: await daEncomenda("linha_encomenda"),
-        pagamentos: await daEncomenda("pagamento"),
+        pagamentos,
+        // Da expedição, o que a pessoa vê: sem a etiqueta nem as tentativas
+        // de a pedir (técnico).
+        expedicoes: await daEncomenda("expedicao", [
+          "id",
+          "encomenda_id",
+          "metodo_entrega",
+          "transportadora",
+          "servico",
+          "seguimento",
+          "url_seguimento",
+          "estado",
+          "peso_g",
+          "criada_em",
+          "expedida_em",
+          "entregue_em",
+          "prova_entrega",
+        ]),
+        // O histórico de estados, sem o motivo nem quem mudou (§15.2).
+        estados_das_encomendas: await daEncomenda("transicao_encomenda", [
+          "id",
+          "encomenda_id",
+          "de",
+          "para",
+          "em",
+          "canal",
+        ]),
+        estados_dos_pagamentos:
+          idsPagamentos.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select id, pagamento_id, de, para, origem, em, canal
+                from transicao_pagamento
+                where pagamento_id = any(${idsPagamentos}::uuid[])
+                order by id`.execute(trx)
+              ).rows,
+        // Os documentos fiscais: o tipo, o estado, o comprador e os totais
+        // da última versão do conteúdo e, se já foi emitido, o número, a
+        // série, a data, o ATCUD e os totais do documento lido de volta.
+        // Sem o PDF nem a resposta em bruto (Q4); o rasto (com o motivo das
+        // correcções) não sai.
+        documentos_fiscais:
+          idsEncomendas.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select d.id, d.encomenda_id, d.tipo, d.estado, d.criado_em,
+                       d.original_id, d.reembolso_id,
+                       c.conteudo -> 'cliente' as comprador,
+                       c.conteudo -> 'totais' as totais,
+                       p.numero, p.serie, p.data, p.atcud,
+                       p.totais as totais_no_documento
+                from documento_fiscal d
+                left join lateral (
+                  select x.conteudo from documento_conteudo x
+                  where x.documento_id = d.id order by x.versao desc limit 1
+                ) c on true
+                left join lateral (
+                  select y.numero, y.serie, y.data, y.atcud, y.totais
+                  from documento_prova y
+                  where y.documento_id = d.id order by y.lida_em desc, y.id desc
+                  limit 1
+                ) p on true
+                where d.encomenda_id = any(${idsEncomendas}::uuid[])
+                order by d.id`.execute(trx)
+              ).rows,
+        pedidos_de_livre_resolucao: await daEncomenda(
+          "pedido_livre_resolucao",
+          [
+            "id",
+            "encomenda_id",
+            "origem",
+            "contacto",
+            "recebido_em",
+            "prazo_ate",
+            "dentro_do_prazo",
+            "estado",
+            "confirmacao",
+            "motivo_decisao",
+          ],
+        ),
+        devolucoes: await daEncomenda("devolucao", [
+          "id",
+          "encomenda_id",
+          "origem",
+          "pedido_livre_resolucao_id",
+          "motivo",
+          "transportadora",
+          "seguimento",
+          "estado",
+          "criada_em",
+          "prazo_passado_em",
+        ]),
+        linhas_das_devolucoes:
+          idsEncomendas.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select l.devolucao_id, l.linha_encomenda_id, l.pedida,
+                       l.recebida, l.aceite, l.estado_artigo
+                from linha_devolucao l
+                join devolucao d on d.id = l.devolucao_id
+                where d.encomenda_id = any(${idsEncomendas}::uuid[])
+                order by l.devolucao_id, l.linha_encomenda_id`.execute(trx)
+              ).rows,
+        problemas: await daEncomenda("problema", [
+          "id",
+          "encomenda_id",
+          "tipo",
+          "descricao",
+          "estado",
+          "criado_em",
+        ]),
+        // Os reembolsos sem a prova (data, referência do banco, quem) nem a
+        // falha técnica (§15.2).
+        reembolsos: await daEncomenda("reembolso", [
+          "id",
+          "encomenda_id",
+          "pagamento_id",
+          "origem",
+          "devolucao_id",
+          "problema_id",
+          "montante",
+          "moeda",
+          "via",
+          "estado",
+          "criado_em",
+          "pedido_em",
+          "executado_em",
+        ]),
         // Os pares em que esta ficha entra: só os ids, o sinal e o estado.
         candidatos_a_duplicado: (
           await sql<Record<string, unknown>>`
@@ -1685,6 +1873,7 @@ export async function exportarCliente(
       gerada_em: new Date().toISOString(),
       fichas,
       pedidos_do_titular: pedidos,
+      fichas_com_o_mesmo_contacto: await fichasComOMesmoContacto(trx, ids),
     };
   });
 }

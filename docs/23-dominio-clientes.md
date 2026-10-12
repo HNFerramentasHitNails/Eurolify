@@ -368,7 +368,7 @@ O armazém não lê clientes: a morada de que precisa vem na encomenda
 | Candidatos a duplicado | `GET /customer-duplicates`, `POST /customer-duplicates/{id}/dismiss` | read / merge | descartar fica no rasto |
 | Fundir | `POST /customers/{id}/merge` (`{ absorver: cus_…, ensaio: true }`) | merge | com `ensaio` devolve o que mudaria sem escrever |
 | Linha do tempo | `GET /customers/{id}/timeline` | read | o rasto (§3.8) |
-| Exportação do titular | `POST /customers/{id}/export` | privacy | JSON com tudo deste domínio; os outros domínios juntam o seu quando existirem. Um `POST` e não um `GET` (parte 2c): o pedido leva a verificação da identidade e fica registado |
+| Exportação do titular | `POST /customers/{id}/export` | privacy | JSON com tudo deste domínio e o que os outros guardam sobre as encomendas da pessoa (§15.2, parte 3 da §15.10), e as fichas com o mesmo contacto (§15.5). Um `POST` e não um `GET` (parte 2c): o pedido leva a verificação da identidade e fica registado |
 | Limitação | `PUT /customers/{id}/restriction`, `DELETE …` | privacy | |
 | Pseudonimizar | `POST /customers/{id}/pseudonymize` | privacy | irreversível; pede a confirmação no corpo, como as acções do MCP da VPS |
 
@@ -1191,6 +1191,24 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 
 O prazo de 7 dias é proposta (`docs/25` §7, J3/J4: **C**, jurista).
 
-Falta: a parte 3 (a exportação, coluna «Exportação» da §15.2; e as fichas
-com o mesmo contacto, §15.5).
+**Parte 3 — a exportação e as fichas com o mesmo contacto** (§15.2, coluna
+«Exportação»; §15.5):
+
+| O quê | Onde |
+|---|---|
+| a encomenda sai inteira (também os portes, o método de entrega e o de pagamento, as aceitações e a língua) | `exportarCliente()` em `src/clientes/repositorio.ts` |
+| as expedições, com a transportadora, o serviço, o seguimento, as datas e a prova de entrega; sem a etiqueta nem as tentativas de a pedir (técnico) | `expedicoes` |
+| o histórico de estados da encomenda e do pagamento (de, para, quando, canal), sem o motivo nem quem mudou | `estados_das_encomendas`, `estados_dos_pagamentos` |
+| os documentos fiscais: tipo, estado, o comprador e os totais da última versão do conteúdo e, emitido, o número, a série, a data, o ATCUD e os totais lidos do documento; sem o PDF nem a resposta em bruto (Q4); o rasto (com o motivo das correcções) não sai | `documentos_fiscais` |
+| a livre resolução (contacto, confirmação, prazo, estado, motivo da decisão), as devoluções com as linhas, os problemas com a descrição, os reembolsos (montante, via, estado, datas) sem a prova nem a falha técnica | `pedidos_de_livre_resolucao`, `devolucoes`, `linhas_das_devolucoes`, `problemas`, `reembolsos` |
+| não saem a sessão de checkout, os avisos dos prestadores nem os eventos de saída | — |
+| a exportação e o apagamento listam as outras fichas do comerciante, fora do grupo, com um e-mail (sem distinguir maiúsculas, como os candidatos a duplicado) ou um telefone igual: só o id, o estado e o sinal, nunca o contacto. Não se juntam: decide o dono se as funde e repete o pedido. No apagamento contam-se antes de apagar, com a ficha presa, na mesma transacção | `fichasComOMesmoContacto()`; `fichas_com_o_mesmo_contacto` nas duas respostas |
+
+Testes, com contraprova (cada um falha com a protecção tirada): a
+exportação de uma encomenda paga, com fatura, expedição, problema com
+reembolso transferido e livre resolução, traz tudo isto e não traz o motivo
+das transições, a prova do reembolso nem o PDF (`posvenda-api.test.ts`); as
+fichas com o mesmo e-mail ou telefone aparecem na exportação e no
+apagamento, as do grupo e as de outro comerciante não, e ficam como estavam
+(`clientes-titular.test.ts`).
 
