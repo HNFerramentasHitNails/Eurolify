@@ -65,6 +65,26 @@ done
 [[ -r /etc/eurolify/ovh-dns.expira ]] && echo "chave da OVH (certificado) troca-se a: $(cat /etc/eurolify/ovh-dns.expira)"
 curl -fsS -m 5 http://127.0.0.1:8090/health 2>/dev/null && echo || echo "MCP: /health sem resposta"
 
+seccao "saída para o VIES (docs/23 §13)"
+# Antes de ligar o VIES_URL (revisão do #244, P2-5): a máquina chega à API
+# REST da Comissão? Só o estado do serviço, sem NIF nenhum.
+if resposta="$(curl -fsS -m 10 -w '\nHTTP %{http_code} em %{time_total} s' \
+  https://ec.europa.eu/taxation_customs/vies/rest-api/check-status 2>/dev/null)"; then
+  echo "${resposta##*$'\n'}"
+  if grep -q '"vow":{"available":true' <<<"$resposta"; then
+    echo "VIES: disponível"
+  else
+    echo "VIES: responde, mas não diz que está disponível"
+  fi
+else
+  echo "VIES: sem resposta (a máquina não chega à Comissão, ou o VIES está em baixo)"
+fi
+if grep -qs '^VIES_URL=.' /etc/eurolify/api.env; then
+  echo "VIES_URL no api.env: sim (a consulta está ligada)"
+else
+  echo "VIES_URL no api.env: não (a consulta está desligada)"
+fi
+
 seccao "actualizações"
 /usr/lib/update-notifier/apt-check --human-readable 2>&1
 [[ -f /var/run/reboot-required ]] && echo "Reinício pedido pelas actualizações."

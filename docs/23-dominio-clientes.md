@@ -787,7 +787,12 @@ minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
 - **A consulta pedida** (`POST …/vies-checks`) não espera pelo VIES: põe o
   perfil à frente da fila e responde 202 (revisão do #244, P1-1).
 - **A fila vem desligada** até se medir a saída da VPS para a Comissão
-  (`VIES_URL`; revisão do #244, P2-5): ligar é um pedido à parte.
+  (`VIES_URL`; revisão do #244, P2-5): ligar é um pedido à parte. A medição
+  fixa da VPS (`eurolify-medir`, fluxo `medir`) diz se a máquina chega ao
+  `check-status` do VIES e se o `VIES_URL` está no `api.env` (12/10/2026).
+  Ligar é pôr `VIES_URL=` no `/etc/eurolify/api.env` e recriar a API: muda a
+  configuração da máquina, por isso fica com o Diogo ou o Bruno (AGENTS.md,
+  «Operar a VPS», regra 1).
 - A isenção e a prova não entram na linha do tempo da ficha: são registos que
   só se acrescentam, com o seu quem e quando.
 

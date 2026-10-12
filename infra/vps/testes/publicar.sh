@@ -88,6 +88,13 @@ cat >"$falsos/curl" <<'FALSO'
 #!/usr/bin/env bash
 # A prova da base (chega_a_base) pede /me com uma chave inventada.
 if [[ "$*" == */me* ]]; then echo "${CODIGO_ME:-401}"; exit 0; fi
+# O estado do VIES (eurolify-medir).
+if [[ "$*" == */check-status* ]]; then
+  [[ -z "${VIES_FALHA:-}" ]] || exit 7
+  corpo='{"vow":{"available":true}}'
+  printf '%s\nHTTP 200 em 0.2 s' "${VIES_CORPO:-$corpo}"
+  exit 0
+fi
 exit "${CURL_FALHA:-0}"
 FALSO
 printf '#!/usr/bin/env bash\nexit 0\n' >"$falsos/sleep"
@@ -680,6 +687,15 @@ confere sim "diz quando a base não responde" linha_na_saida "a base não respon
 rm -f "$falsos/no-ar"
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "diz quando a API não está no ar" linha_na_saida "sem a API no ar"
+
+# A saída para o VIES (docs/23 §13; revisão do #244, P2-5).
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "o VIES responde e está disponível" linha_na_saida "VIES: disponível"
+confere sim "com o código e o tempo" linha_na_saida "HTTP 200 em 0.2 s"
+VIES_CORPO='{"vow":{"available":false}}' bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "o VIES responde sem estar disponível" linha_na_saida "VIES: responde, mas não diz que está disponível"
+VIES_FALHA=1 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "a máquina não chega ao VIES" linha_na_saida "VIES: sem resposta (a máquina não chega à Comissão, ou o VIES está em baixo)"
 
 rm -rf "$falsos"
 ((falhas == 0))
