@@ -2,7 +2,7 @@ import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 
-// O relatório OSS (docs/37; docs/06, EE; issue #310). Os montantes vêm só das
+// O relatório OSS (docs/37; docs/06, EF; issue #310). Os montantes vêm só das
 // provas dos documentos emitidos (O1); o balde de cada linha vem da decisão
 // de IVA copiada no conteúdo (O2); o Estado-Membro de consumo é o país de
 // entrega (O3); as NC entram a negativo (O4). Não se declara nada: o

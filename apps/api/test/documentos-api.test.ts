@@ -1907,7 +1907,7 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       ),
     ).toEqual([409, "invoices.invalid_transition"]);
   });
-  // ----------------------------------- O relatório OSS (docs/37; EE, #310)
+  // ----------------------------------- O relatório OSS (docs/37; EF, #310)
 
   // O trimestre de hoje no fuso de Portugal, como o relatório (P2).
   const trimestreDeHoje = () => periodoDe(hojeEmLisboa(), "trimestre");

@@ -16,7 +16,7 @@ import {
   traduzirRelatorio,
 } from "./oss.js";
 
-// O relatório OSS (docs/37 §5; docs/06, EE). Ler é `tax:read`; fechar é
+// O relatório OSS (docs/37 §5; docs/06, EF). Ler é `tax:read`; fechar é
 // `tax:write`, que só o dono tem (Q-O4); classificar um documento também
 // (P1-A da 2.ª revisão do #392).
 

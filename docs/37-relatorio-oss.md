@@ -1,6 +1,6 @@
 # Relatório OSS — os baldes do IVA, o fecho e os registos
 
-> **Estado: aprovado** (`docs/06`, EE). Diogo, 12/10/2026: *«sim, aprovo o
+> **Estado: aprovado** (`docs/06`, EF). Diogo, 12/10/2026: *«sim, aprovo o
 > desenho com as propostas Q-O1 a Q-O5»*. Pedido inicial, 12/10/2026: *«sim,
 > avança com o desenho do relatório OSS»*. É a parte 3 da fatia 10 (issue #310) e a peça
 > 18 da Fase 1 (`docs/10`; trazida da Fase 2 pela decisão AD, ADR-0022). Só
@@ -180,7 +180,7 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 - **Vendas expedidas de outro Estado-Membro** (L4): a Fase 1 tem um armazém
   só; o relatório diz o país do armazém, mas não separa por país de expedição.
 
-## 10. Em código (12/10/2026; migração 0075; EE)
+## 10. Em código (12/10/2026; migração 0075; EF)
 
 | O quê | Onde |
 |---|---|

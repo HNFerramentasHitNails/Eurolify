@@ -1,4 +1,4 @@
--- Documentos fiscais, parte 3: o relatório OSS (docs/37; docs/06, EE; issue
+-- Documentos fiscais, parte 3: o relatório OSS (docs/37; docs/06, EF; issue
 -- #310).
 --
 -- - `relatorio_oss_fecho`: o fecho de um período (um trimestre ou um mês), com
