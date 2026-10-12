@@ -864,6 +864,7 @@ export const pt = {
   motivoTarefa_inspeccionada: "devolução inspeccionada",
   motivoTarefa_decidida: "devolução decidida",
   decidirCopiarCaso: "Copiar o caso {caso}",
+  decidirActo_ficou: "{quem} ficou com o caso.",
 };
 
 export type Textos = typeof pt;

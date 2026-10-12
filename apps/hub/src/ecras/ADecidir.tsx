@@ -226,9 +226,14 @@ export function ADecidir({
       : pessoa === euId
         ? t.decidirEu
         : (nomes.get(pessoa)?.nome ?? t.decidirPessoaDesconhecida);
+  // No histórico, os nomes e não «eu»: «eu atribuiu a eu» não se lê.
+  const nomeProprio = (pessoa: string | null) =>
+    pessoa === null
+      ? t.decidirSemResponsavel
+      : (nomes.get(pessoa)?.nome ?? t.decidirPessoaDesconhecida);
   const quemFez = (quem: string) =>
     quem.startsWith("pessoa:per_")
-      ? nomeDe(quem.slice("pessoa:".length))
+      ? nomeProprio(quem.slice("pessoa:".length))
       : quem.startsWith("sistema:")
         ? t.decidirSistema
         : quem;
@@ -406,6 +411,7 @@ export function ADecidir({
                       }
                       gravar={(pedido, feito) => gravar(x, pedido, feito)}
                       nomeDe={nomeDe}
+                      nomeProprio={nomeProprio}
                       papelDe={(p) => nomes.get(p)?.papel ?? null}
                       quemFez={quemFez}
                       dataHora={dataHora}
@@ -452,6 +458,7 @@ function Linha({
   ficar,
   gravar,
   nomeDe,
+  nomeProprio,
   papelDe,
   quemFez,
   dataHora,
@@ -472,6 +479,7 @@ function Linha({
     feito: (lida: Tarefa) => boolean,
   ) => Promise<boolean>;
   nomeDe: (pessoa: string | null) => string;
+  nomeProprio: (pessoa: string | null) => string;
   papelDe: (pessoa: string) => Papel | null;
   quemFez: (quem: string) => string;
   dataHora: (iso: string | null) => string;
@@ -629,6 +637,7 @@ function Linha({
                 }}
                 gravar={gravar}
                 nomeDe={nomeDe}
+                nomeProprio={nomeProprio}
                 papelDe={papelDe}
                 quemFez={quemFez}
                 dataHora={dataHora}
@@ -650,6 +659,7 @@ function Painel({
   fechar,
   gravar,
   nomeDe,
+  nomeProprio,
   papelDe,
   quemFez,
   dataHora,
@@ -665,6 +675,7 @@ function Painel({
     feito: (lida: Tarefa) => boolean,
   ) => Promise<boolean>;
   nomeDe: (pessoa: string | null) => string;
+  nomeProprio: (pessoa: string | null) => string;
   papelDe: (pessoa: string) => Papel | null;
   quemFez: (quem: string) => string;
   dataHora: (iso: string | null) => string;
@@ -749,15 +760,19 @@ function Painel({
   function textoDoPasso(h: PassoTarefa) {
     const quem = quemFez(h.quem);
     if (h.acto === "atribuida") {
+      // Quem se atribuiu a si próprio «ficou com o caso».
+      if (h.quem === `pessoa:${h.responsavel_depois ?? ""}`) {
+        return preencher(t.decidirActo_ficou, { quem });
+      }
       return preencher(t.decidirActo_atribuida, {
         quem,
-        para: nomeDe(h.responsavel_depois),
+        para: nomeProprio(h.responsavel_depois),
       });
     }
     if (h.acto === "retirada") {
       return preencher(t.decidirActo_retirada, {
         quem,
-        de: nomeDe(h.responsavel_antes),
+        de: nomeProprio(h.responsavel_antes),
       });
     }
     if (h.acto === "prazo_mudado") {

@@ -873,4 +873,5 @@ export const es: Textos = {
   motivoTarefa_inspeccionada: "devolución inspeccionada",
   motivoTarefa_decidida: "devolución decidida",
   decidirCopiarCaso: "Copiar el caso {caso}",
+  decidirActo_ficou: "{quem} se quedó con el caso.",
 };

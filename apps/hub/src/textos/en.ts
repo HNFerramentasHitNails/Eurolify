@@ -863,4 +863,5 @@ export const en: Textos = {
   motivoTarefa_inspeccionada: "return inspected",
   motivoTarefa_decidida: "return decided",
   decidirCopiarCaso: "Copy case {caso}",
+  decidirActo_ficou: "{quem} took the case.",
 };

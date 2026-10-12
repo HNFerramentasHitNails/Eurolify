@@ -5713,7 +5713,7 @@ try {
     const passos = await historico.allTextContents();
     confere(
       passos.length >= 2 &&
-        passos.some((x) => x.includes("atribuiu a")) &&
+        passos.some((x) => x.includes("ficou com o caso")) &&
         passos.some((x) =>
           x.includes("Motivo: à espera do extracto do prestador"),
         ),
