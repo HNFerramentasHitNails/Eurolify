@@ -42,7 +42,7 @@ export interface Vendas {
   ate: Date;
   fuso: string;
   completo: boolean;
-  /** O comerciante tem uma entidade que fatura no sistema dele (ADR-0041). */
+  /** Há encomendas do período faturadas pelo sistema próprio (ADR-0041). */
   sistemaProprio: boolean;
   linhas: Linha[];
 }
@@ -107,14 +107,12 @@ async function vendasNaTransaccao(
     ate: Date;
     fuso: string;
     agora: Date;
-    sistema_proprio: boolean;
+    comerciante: string;
   }>`
     select (${pedido.inicio}::date)::timestamp at time zone c.fuso as de,
            (${pedido.fim}::date)::timestamp at time zone c.fuso as ate,
            c.fuso, now() as agora,
-           exists (select 1 from entidade_legal l
-                   where l.comerciante_id = c.id
-                     and l.emissor_fiscal = 'sistema_proprio') as sistema_proprio
+           c.id as comerciante
     from comerciante c where c.id = comerciante_actual()`.execute(trx);
   const p = periodo[0];
   if (p === undefined) throw new Error("comerciante sem contexto");
@@ -124,6 +122,15 @@ async function vendasNaTransaccao(
   const ate = completo ? p.ate : p.agora;
   const canal = pedido.canalId ?? null;
   const mercado = pedido.mercadoId ?? null;
+
+  // O emissor de cada encomenda do período (copiado no botão final, 0050):
+  // o que valia então, não o de hoje (revisão do #383, P3-5).
+  const { rows: proprio } = await sql<{ ha: boolean }>`
+    select exists (select 1 from encomenda e
+                   where e.criada_em >= ${de} and e.criada_em < ${ate}
+                     and e.emissor_fiscal = 'sistema_proprio') as ha`.execute(
+    trx,
+  );
 
   // Encomendado: criadas no período, em qualquer estado (Q2).
   const encomendado = await sql<
@@ -142,34 +149,54 @@ async function vendasNaTransaccao(
     group by 1, 2, 3`.execute(trx);
 
   // Pago: a primeira captura de cada pagamento caiu no período. O sem IVA é
-  // o da encomenda só quando o capturado é igual ao total dela (§3).
+  // o da encomenda só na primeira captura dela e quando o capturado é igual
+  // ao total (§3); um segundo pagamento capturado da mesma encomenda (um
+  // duplicado, 0044) conta no com IVA e fica por conhecer no sem IVA, para a
+  // base da mesma venda não contar duas vezes (revisão do #383, P2-1).
   const pago = await sql<Soma>`
-    select p.moeda, e.canal_id, e.mercado_id, count(*) as n,
-           sum(p.montante) as com,
-           sum(e.total_base) filter (where p.montante = e.total and p.moeda = e.moeda) as sem,
-           count(*) filter (where p.montante <> e.total or p.moeda <> e.moeda) as n_desc,
-           sum(p.montante) filter (where p.montante <> e.total or p.moeda <> e.moeda) as com_desc
-    from transicao_pagamento t
-    join pagamento p on p.comerciante_id = t.comerciante_id and p.id = t.pagamento_id
-    join encomenda e on e.comerciante_id = p.comerciante_id and e.id = p.encomenda_id
-    where t.para = 'capturado' and t.em >= ${de} and t.em < ${ate}
-      and not exists (select 1 from transicao_pagamento a
-                      where a.pagamento_id = t.pagamento_id and a.para = 'capturado'
-                        and (a.em, a.id) < (t.em, t.id))
-      and (${canal}::uuid is null or e.canal_id = ${canal}::uuid)
-      and (${mercado}::uuid is null or e.mercado_id = ${mercado}::uuid)
+    with capturas as (
+      select p.moeda, p.montante, e.canal_id, e.mercado_id, e.total, e.total_base,
+             e.moeda as moeda_encomenda,
+             not exists (
+               select 1 from pagamento q
+               join transicao_pagamento u
+                 on u.pagamento_id = q.id and u.para = 'capturado'
+               where q.comerciante_id = p.comerciante_id
+                 and q.encomenda_id = p.encomenda_id and q.id <> p.id
+                 and (u.em, u.id) < (t.em, t.id)) as primeira
+      from transicao_pagamento t
+      join pagamento p on p.comerciante_id = t.comerciante_id and p.id = t.pagamento_id
+      join encomenda e on e.comerciante_id = p.comerciante_id and e.id = p.encomenda_id
+      where t.para = 'capturado' and t.em >= ${de} and t.em < ${ate}
+        and not exists (select 1 from transicao_pagamento a
+                        where a.pagamento_id = t.pagamento_id and a.para = 'capturado'
+                          and (a.em, a.id) < (t.em, t.id))
+        and (${canal}::uuid is null or e.canal_id = ${canal}::uuid)
+        and (${mercado}::uuid is null or e.mercado_id = ${mercado}::uuid)
+    )
+    select moeda, canal_id, mercado_id, count(*) as n, sum(montante) as com,
+           sum(total_base) filter (where primeira and montante = total
+                                   and moeda = moeda_encomenda) as sem,
+           count(*) filter (where not (primeira and montante = total
+                                       and moeda = moeda_encomenda)) as n_desc,
+           sum(montante) filter (where not (primeira and montante = total
+                                            and moeda = moeda_encomenda)) as com_desc
+    from capturas
     group by 1, 2, 3`.execute(trx);
 
   // Faturado e creditado: a primeira passagem a «emitido» caiu no período;
-  // os totais são os da última versão do conteúdo.
+  // os totais são os da prova, o que o emissor devolveu, nunca o nosso
+  // pedido (regra 4 dos documentos fiscais; revisão do #383, P1-1). A moeda
+  // vem do conteúdo, que a prova não guarda.
   const faturado = await sql<Soma & { tipo: string }>`
     select d.tipo, c.conteudo ->> 'moeda' as moeda, e.canal_id, e.mercado_id,
            count(*) as n,
-           sum((c.conteudo -> 'totais' ->> 'total')::bigint) as com,
-           sum((c.conteudo -> 'totais' ->> 'base')::bigint) as sem,
+           sum((pr.totais ->> 'total')::bigint) as com,
+           sum((pr.totais ->> 'base')::bigint) as sem,
            0 as n_desc, null as com_desc
     from documento_rasto r
     join documento_fiscal d on d.comerciante_id = r.comerciante_id and d.id = r.documento_id
+    join documento_prova pr on pr.comerciante_id = d.comerciante_id and pr.documento_id = d.id
     join encomenda e on e.comerciante_id = d.comerciante_id and e.id = d.encomenda_id
     join lateral (select x.conteudo from documento_conteudo x
                   where x.documento_id = d.id order by x.versao desc limit 1) c on true
@@ -181,8 +208,9 @@ async function vendasNaTransaccao(
       and (${mercado}::uuid is null or e.mercado_id = ${mercado}::uuid)
     group by 1, 2, 3, 4`.execute(trx);
 
-  // Devolvido: reembolsos executados no período; o sem IVA é o da nota de
-  // crédito emitida do reembolso, quando a há (§3).
+  // Devolvido: reembolsos executados no período; o sem IVA é o da prova da
+  // nota de crédito do reembolso, quando já saiu — emitida, divergente ou
+  // resolvida, como o domínio a conta (revisão do #383, P1-1 e P2-2).
   const devolvido = await sql<Soma>`
     select r.moeda, e.canal_id, e.mercado_id, count(*) as n,
            sum(r.montante) as com,
@@ -192,12 +220,11 @@ async function vendasNaTransaccao(
     from reembolso r
     join encomenda e on e.comerciante_id = r.comerciante_id and e.id = r.encomenda_id
     left join lateral (
-      select (x.conteudo -> 'totais' ->> 'base')::bigint as base
+      select (pr.totais ->> 'base')::bigint as base
       from documento_fiscal n
-      join lateral (select y.conteudo from documento_conteudo y
-                    where y.documento_id = n.id order by y.versao desc limit 1) x on true
+      join documento_prova pr on pr.comerciante_id = n.comerciante_id and pr.documento_id = n.id
       where n.comerciante_id = r.comerciante_id and n.reembolso_id = r.id
-        and n.tipo = 'nota_credito' and n.estado = 'emitido'
+        and n.tipo = 'nota_credito' and n.estado in ('emitido', 'divergente', 'resolvido')
     ) nc on true
     where r.estado = 'executado' and r.executado_em >= ${de} and r.executado_em < ${ate}
       and (${canal}::uuid is null or e.canal_id = ${canal}::uuid)
@@ -245,7 +272,7 @@ async function vendasNaTransaccao(
     ate,
     fuso: p.fuso,
     completo,
-    sistemaProprio: p.sistema_proprio,
+    sistemaProprio: proprio[0]?.ha ?? false,
     linhas: [...linhas.values()].sort((a, b) =>
       `${a.moeda}${a.canalId}${a.mercadoId}`.localeCompare(
         `${b.moeda}${b.canalId}${b.mercadoId}`,

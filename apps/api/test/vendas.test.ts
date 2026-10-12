@@ -21,8 +21,11 @@ import { hubDeTeste } from "./hub-de-teste.js";
 // gatilhos de negócio desligados (`session_replication_role = replica`):
 // só assim se marcam as horas exactas (a fronteira do dia, a mudança de
 // hora), que pelo checkout seriam sempre a hora real. A consulta e a rota
-// correm depois como a API, com o RLS. Os gatilhos «ALWAYS» (o rasto que só
-// se acrescenta) continuam ligados.
+// correm depois como a API, com o RLS. Os gatilhos «ALWAYS» das tabelas
+// preparadas também se desligam, só nessa transacção, e voltam ao estado
+// que tinham. Por isso estes testes não provam os nomes que os domínios
+// escrevem: estão conferidos nas migrações 0044, 0050 e 0058 (revisão do
+// #383, P2-3).
 
 type Json = Record<string, unknown>;
 interface NumeroR {
@@ -88,6 +91,7 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
       canal?: string;
       mercado?: string;
       estado?: string;
+      emissor?: string;
     },
   ): Promise<string> {
     const id = randomUUID();
@@ -97,13 +101,13 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
           entidade_legal_id, sessao_id, cliente_id, perfil_id, perfil_copia, contacto,
           entrega, finalidade, moeda, preco_inclui_iva, lingua, total_base, total_iva,
           total, portes, metodo_entrega, metodo_pagamento, aceitacoes, criada_por,
-          estado, criada_em)
+          estado, criada_em, emissor_fiscal)
         values (${id}::uuid, ${c}::uuid, gen_random_uuid(), ${o.canal ?? C1}::uuid,
           ${o.mercado ?? M_PT}::uuid, gen_random_uuid(), gen_random_uuid(),
           gen_random_uuid(), gen_random_uuid(), '{}', '{}', '{}', 'consumo',
           ${o.moeda ?? "EUR"}, true, 'pt', ${o.base}, ${o.total - o.base}, ${o.total},
           '{}', '{}', 'mb_way', '{}', 'teste:vendas', ${o.estado ?? "a_aguardar_pagamento"},
-          ${o.em}::timestamptz)`.execute(trx);
+          ${o.em}::timestamptz, ${o.emissor ?? "eurolify"})`.execute(trx);
     });
     return id;
   }
@@ -141,16 +145,24 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
       reembolso?: string;
       original?: string;
       moeda?: string;
+      estado?: string;
+      /** O que o emissor devolveu; por omissão, o mesmo que se pediu. */
+      prova?: { total: number; base: number };
     },
   ): Promise<string> {
     const id = randomUUID();
     await preparar(
-      ["documento_fiscal", "documento_conteudo", "documento_rasto"],
+      [
+        "documento_fiscal",
+        "documento_conteudo",
+        "documento_rasto",
+        "documento_prova",
+      ],
       async (trx) => {
         await sql`insert into documento_fiscal (id, comerciante_id, encomenda_id,
           entidade_legal_id, modo, tipo, estado, reembolso_id, original_id)
         values (${id}::uuid, ${c}::uuid, ${enc}::uuid, gen_random_uuid(), 'teste',
-          ${o.tipo ?? "fatura"}, 'emitido', ${o.reembolso ?? null}::uuid,
+          ${o.tipo ?? "fatura"}, ${o.estado ?? "emitido"}, ${o.reembolso ?? null}::uuid,
           ${o.original ?? null}::uuid)`.execute(trx);
         const conteudo = {
           moeda: o.moeda ?? "EUR",
@@ -161,6 +173,12 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
           conteudo, impressao, motivo, quem)
         values (${id}::uuid, ${c}::uuid, 1, ${JSON.stringify(conteudo)}::jsonb,
           ${"0".repeat(64)}, 'teste', 'teste:vendas')`.execute(trx);
+        const prova = o.prova ?? { total: o.total, base: o.base };
+        await sql`insert into documento_prova (documento_id, comerciante_id, numero,
+          linhas, totais, em_bruto)
+        values (${id}::uuid, ${c}::uuid, ${`FT ${id.slice(0, 8)}`}, '[]',
+          ${JSON.stringify({ base: prova.base, iva: prova.total - prova.base, total: prova.total })}::jsonb,
+          '{}')`.execute(trx);
         await sql`insert into documento_rasto (documento_id, comerciante_id, passo,
           de, para, quem, em)
         values (${id}::uuid, ${c}::uuid, 'estado', 'pronto', 'emitido',
@@ -283,10 +301,14 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
     });
     // Paga no dia 6: encomendada no 5, paga no 6.
     const pag = await capturado(a, paga, 12300, "2026-10-06T09:00:00+01:00");
+    // O emissor devolveu 12301 (arredondou de outra forma): a fatura fica
+    // divergente, e conta o que saiu, a prova (revisão do #383, P1-1).
     const fatura = await documento(a, paga, {
       em: "2026-10-06T09:05:00+01:00",
       total: 12300,
       base: 10000,
+      estado: "divergente",
+      prova: { total: 12301, base: 10001 },
     });
     // Um reembolso com nota de crédito e outro sem.
     const r1 = await reembolso(a, paga, pag, 2460, "2026-10-06T15:00:00+01:00");
@@ -297,15 +319,26 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
       tipo: "nota_credito",
       reembolso: r1,
       original: fatura,
+      // Divergente também saiu: o reembolso tem sem IVA (P2-2).
+      estado: "divergente",
     });
     await reembolso(a, paga, pag, 1230, "2026-10-06T16:00:00+01:00");
-    // Um pagamento com um montante diferente do total da encomenda.
+    // Dois pagamentos capturados da mesma encomenda (um expirou e chegou
+    // depois): a base da venda conta uma vez (revisão do #383, P2-1).
     const outra = await encomenda(a, {
       em: "2026-10-06T08:00:00+01:00",
       total: 3000,
       base: 2439,
     });
-    await capturado(a, outra, 2999, "2026-10-06T08:10:00+01:00");
+    await capturado(a, outra, 3000, "2026-10-06T08:10:00+01:00");
+    await capturado(a, outra, 3000, "2026-10-06T08:20:00+01:00");
+    // Encomendas nos dias da mudança de hora, em Lisboa: 23:30 locais de
+    // 26/10/2025 (já UTC+0) e de 29/03/2026 (já UTC+1) ficam no dia; a 00:30
+    // seguinte não.
+    await encomenda(a, { em: "2025-10-26T23:30:00Z", total: 100, base: 81 });
+    await encomenda(a, { em: "2025-10-27T00:30:00Z", total: 100, base: 81 });
+    await encomenda(a, { em: "2026-03-29T22:30:00Z", total: 100, base: 81 });
+    await encomenda(a, { em: "2026-03-29T23:30:00Z", total: 100, base: 81 });
     // O comerciante B: nunca aparece nos números de A.
     await encomenda(b, {
       em: "2026-10-05T10:00:00+01:00",
@@ -372,16 +405,17 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
     const r = await resumo("dia=2026-10-06");
     expect(r.periodo.completo).toBe(true);
     const t = r.moedas.find((m) => m.moeda === "EUR")?.total;
-    // 12300 (sem IVA 10000) + 2999 diferente do total: sem IVA por conhecer.
+    // 12300 (sem IVA 10000) + 3000 (2439) + o duplicado de 3000, por conhecer.
     expect(t?.["pago"]).toMatchObject({
-      com_iva: 15299,
-      sem_iva: 10000,
-      quantidade: 2,
-      sem_iva_por_conhecer: { quantidade: 1, com_iva: 2999 },
+      com_iva: 18300,
+      sem_iva: 12439,
+      quantidade: 3,
+      sem_iva_por_conhecer: { quantidade: 1, com_iva: 3000 },
     });
+    // A prova, não o pedido.
     expect(t?.["faturado"]).toMatchObject({
-      com_iva: 12300,
-      sem_iva: 10000,
+      com_iva: 12301,
+      sem_iva: 10001,
       quantidade: 1,
       creditado: { com_iva: 2460, sem_iva: 2000, quantidade: 1 },
     });
@@ -423,6 +457,31 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
     const marco = await resumo("dia=2026-03-29");
     expect(marco.periodo.de).toBe("2026-03-29T00:00:00.000Z");
     expect(marco.periodo.ate).toBe("2026-03-29T23:00:00.000Z");
+    for (const r of [outubro, marco]) {
+      expect(r.moedas[0]?.total["encomendado"]).toMatchObject({
+        com_iva: 100,
+        quantidade: 1,
+      });
+    }
+  });
+
+  it("o filtro do canal só deixa o canal", async () => {
+    const r = await resumo(`dia=2026-10-05&canal=chn_${C2}`);
+    expect(r.moedas).toHaveLength(1);
+    expect(r.moedas[0]?.por_canal_e_mercado.map((l) => l.canal)).toEqual([
+      `chn_${C2}`,
+    ]);
+    expect(r.moedas[0]?.total["encomendado"]).toMatchObject({
+      com_iva: 2420,
+      quantidade: 1,
+    });
+  });
+
+  it("um ano fora de 1970–9998 dá 400, não 500", async () => {
+    for (const q of ["dia=0000-01-01", "mes=9999-12", "dia=1969-12-31"]) {
+      const r = await pedir(`/sales/summary?${q}`);
+      expect(r.statusCode, q).toBe(400);
+    }
   });
 
   it("um comerciante nunca vê as vendas de outro", async () => {
@@ -480,6 +539,7 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
       em: "2026-10-05T10:00:00+01:00",
       total: 100,
       base: 81,
+      emissor: "sistema_proprio",
     });
     const r = await resumo("dia=2026-10-05", chave);
     const frase = (r.moedas[0]?.total["faturado"] as Json)[
@@ -488,20 +548,24 @@ describe.skipIf(URL_BASE === undefined)("vendas do dia e do mês", () => {
     expect(frase["pt"]).toContain("sistema próprio");
   });
 
-  it("no Hub: o dono vê; o apoio ao cliente não", async () => {
+  it("no Hub: o dono e o gestor vêem; o apoio e o armazém não", async () => {
     const h = hubDeTeste(base);
-    const dono = await h.pessoaCom(a, "dono");
-    const ok = await h.pedir("GET", "/hub/sales/summary?dia=2026-10-05", {
-      sessao: dono.sessao,
-      comerciante: a,
-    });
-    expect(ok.statusCode, ok.body).toBe(200);
-    const apoio = await h.pessoaCom(a, "apoio");
-    const nao = await h.pedir("GET", "/hub/sales/summary?dia=2026-10-05", {
-      sessao: apoio.sessao,
-      comerciante: a,
-    });
-    expect(nao.statusCode).toBe(403);
-    await h.app.close();
+    try {
+      for (const [papel, estado] of [
+        ["dono", 200],
+        ["gestor", 200],
+        ["apoio", 403],
+        ["armazem", 403],
+      ] as const) {
+        const p = await h.pessoaCom(a, papel);
+        const r = await h.pedir("GET", "/hub/sales/summary?dia=2026-10-05", {
+          sessao: p.sessao,
+          comerciante: a,
+        });
+        expect(r.statusCode, `${papel}: ${r.body}`).toBe(estado);
+      }
+    } finally {
+      await h.app.close();
+    }
   });
 });

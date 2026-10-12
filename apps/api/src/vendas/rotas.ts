@@ -120,7 +120,15 @@ export function periodoDe(q: Consulta): { inicio: string; fim: string } {
   }
   const texto = q.dia ?? `${q.mes ?? ""}-01`;
   const d = new Date(`${texto}T00:00:00Z`);
-  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== texto) {
+  // De 1970 a 9998: fora disto, a base não lê a data ou o fim passa a ter
+  // cinco algarismos (revisão do #383, P3-2).
+  const ano = Number(texto.slice(0, 4));
+  if (
+    ano < 1970 ||
+    ano > 9998 ||
+    Number.isNaN(d.getTime()) ||
+    d.toISOString().slice(0, 10) !== texto
+  ) {
     throw erroBase("request.invalid", "data inválida");
   }
   const fim = new Date(d);
@@ -151,8 +159,8 @@ function frases(v: Vendas) {
   const en = `between ${quando(v.de, v.fuso, "en")} and ${quando(v.ate, v.fuso, "en")}${v.completo ? "" : " (now)"} (${v.fuso})`;
   const proprio = v.sistemaProprio
     ? {
-        pt: " As faturas de uma entidade com sistema próprio são emitidas pelo sistema dela; o Eurolify não as conta.",
-        en: " Invoices of an entity with its own system are issued by that system; Eurolify does not count them.",
+        pt: " Há encomendas deste período faturadas pelo sistema próprio do comerciante; o Eurolify não conta essas faturas.",
+        en: " Some orders in this period are invoiced by the merchant's own system; Eurolify does not count those invoices.",
       }
     : { pt: "", en: "" };
   return {
@@ -169,8 +177,8 @@ function frases(v: Vendas) {
       en: `Invoices issued by Eurolify ${en}; credit notes in "creditado".${proprio.en}`,
     },
     devolvido: {
-      pt: `Reembolsos executados ${pt}.`,
-      en: `Refunds completed ${en}.`,
+      pt: `Reembolsos executados ${pt}. O sem IVA de um reembolso entra quando a nota de crédito dele sai.`,
+      en: `Refunds completed ${en}. A refund's amount without VAT counts once its credit note is issued.`,
     },
   };
 }
