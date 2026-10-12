@@ -1603,6 +1603,7 @@ export interface BaseDados {
   documento_prova: TabelaDocumentoProva;
   relatorio_oss_fecho: TabelaRelatorioOssFecho;
   relatorio_oss_documento: TabelaRelatorioOssDocumento;
+  relatorio_oss_classificacao: TabelaRelatorioOssClassificacao;
   documento_rasto: TabelaDocumentoRasto;
   pedido_livre_resolucao: TabelaPedidoLivreResolucao;
   linha_livre_resolucao: TabelaLinhaLivreResolucao;
@@ -2011,6 +2012,17 @@ export interface TabelaRelatorioOssFecho {
 }
 
 /** Os documentos que entraram num fecho (uma vez só, P4; migração 0075). */
+/** A classificação de um documento pelo dono (P1-A; migração 0075). */
+export interface TabelaRelatorioOssClassificacao {
+  comerciante_id: ColumnType<string, string, never>;
+  documento_id: ColumnType<string, string, never>;
+  linhas: ColumnType<unknown, string, never>;
+  data: ColumnType<string | null, string | null | undefined, never>;
+  motivo: ColumnType<string, string, never>;
+  decidido_por: ColumnType<string, string, never>;
+  decidido_em: ColumnType<Date, never, never>;
+}
+
 export interface TabelaRelatorioOssDocumento {
   comerciante_id: ColumnType<string, string, never>;
   fecho_id: ColumnType<string, string, never>;

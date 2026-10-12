@@ -2082,6 +2082,97 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     ).toMatchObject({ codigo: "tax_reports.already_closed" });
   });
 
+  it("relatório OSS: uma fatura resolvida com a taxa diferente impede; o dono classifica-a uma vez e entra com a taxa da prova (P1-A)", async () => {
+    const s = await cenario();
+    const outro = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    // O emissor devolve a primeira linha a 21 % em vez de 23 %.
+    ensaio.conta(conta).aoFechar = (doc) => ({
+      ...doc,
+      linhas: doc.linhas.map((l, i) => (i === 0 ? { ...l, taxa: 2100 } : l)),
+    });
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    delete ensaio.conta(conta).aoFechar;
+    let d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("divergente");
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/resolve`, {
+        versao: d["versao"],
+        motivo: "aceite: a taxa sai na nota de crédito",
+      }),
+    );
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("resolvido");
+    const periodo = trimestreDeHoje();
+    expect((await relatorio(s, periodo))["impedimentos"]).toContainEqual({
+      motivo: "linhas_desalinhadas",
+      documentos: [d["id"]],
+    });
+    const provaLinhas = (d["prova"] as Json)["linhas"] as Json[];
+    const corpo = {
+      documento: d["id"],
+      linhas: provaLinhas.map(() => ({ balde: "nacional", pais: "PT" })),
+      motivo: "visto: declara-se à taxa da fatura emitida",
+    };
+    // Outro comerciante não o vê; uma linha a menos e uma data com a prova
+    // datada são recusadas.
+    expect(
+      await codigo(
+        outro.adm("POST", "/tax-reports/oss/classifications", corpo),
+      ),
+    ).toEqual([404, "tax_reports.not_found"]);
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/classifications", {
+          ...corpo,
+          linhas: corpo.linhas.slice(1),
+        }),
+      ),
+    ).toEqual([400, "tax_reports.invalid"]);
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/classifications", {
+          ...corpo,
+          data: "2026-10-01",
+        }),
+      ),
+    ).toEqual([400, "tax_reports.invalid"]);
+    await ok(s.adm("POST", "/tax-reports/oss/classifications", corpo));
+    expect(
+      await codigo(s.adm("POST", "/tax-reports/oss/classifications", corpo)),
+    ).toEqual([409, "tax_reports.already_classified"]);
+    const r = await relatorio(s, periodo);
+    expect((r["impedimentos"] as Json[]).map((i) => i["motivo"])).not.toContain(
+      "linhas_desalinhadas",
+    );
+    const nacional = (r["baldes"] as Json[]).find(
+      (b) => b["balde"] === "nacional",
+    ) as Json;
+    expect(nacional["linhas"]).toContainEqual(
+      expect.objectContaining({ pais: "PT", taxa: 2100, documentos: 1 }),
+    );
+    // Uma fatura que o relatório já classifica não se classifica à mão.
+    const e2 = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    const d2 = (await documentoDe(s, e2.encomenda)) as Json;
+    expect(d2["estado"]).toBe("emitido");
+    expect(
+      await codigo(
+        s.adm("POST", "/tax-reports/oss/classifications", {
+          ...corpo,
+          documento: d2["id"],
+        }),
+      ),
+    ).toEqual([409, "tax_reports.not_classifiable"]);
+    // A base não deixa mudar a decisão.
+    await expect(
+      sql`update relatorio_oss_classificacao set motivo = 'outro'
+        where comerciante_id = ${s.c}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/tax_reports\.immutable/);
+  });
+
   it("relatório OSS: as vendas emitidas fora do Eurolify ficam à parte, com o número declarado (Q-F3)", async () => {
     const s = await cenario();
     const { d } = await pagaAntesDeEscolher(s);

@@ -369,6 +369,7 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       "/tasks/{fila}/{caso}/assign",
       "/tasks/{fila}/{caso}/deadline",
       "/tax-reports/oss",
+      "/tax-reports/oss/classifications",
       "/tax-reports/oss/close",
       "/tax-reports/oss/records",
       "/tax/categories",

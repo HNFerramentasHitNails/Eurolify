@@ -7,6 +7,7 @@ import type { BaseDados } from "../base/esquema.js";
 import { idCom, semPrefixo } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
 import {
+  classificarOss,
   ErroRelatorio,
   ESTADO_DO_CODIGO_RELATORIO,
   fecharOss,
@@ -16,7 +17,8 @@ import {
 } from "./oss.js";
 
 // O relatório OSS (docs/37 §5; docs/06, EE). Ler é `tax:read`; fechar é
-// `tax:write`, que só o dono tem (Q-O4).
+// `tax:write`, que só o dono tem (Q-O4); classificar um documento também
+// (P1-A da 2.ª revisão do #392).
 
 async function emRelatorio<T>(resposta: FastifyReply, fn: () => Promise<T>) {
   try {
@@ -47,6 +49,17 @@ async function emRelatorio<T>(resposta: FastifyReply, fn: () => Promise<T>) {
 
 const Livre = Type.Record(Type.String(), Type.Unknown());
 const IdEntidade = idCom("lgl", "lgl_…");
+const IdDocumento = idCom("inv", "inv_…");
+const Balde = Type.Union(
+  [
+    Type.Literal("oss"),
+    Type.Literal("nacional"),
+    Type.Literal("intracomunitarias"),
+    Type.Literal("exportacao"),
+    Type.Literal("outras_isentas"),
+  ],
+  { description: "O balde do relatório (docs/37 §2.1)." },
+);
 const Periodo = Type.String({
   pattern: "^[0-9]{4}-(T[1-4]|(0[1-9]|1[0-2]))$",
   description: "Um trimestre civil (2026-T4) ou um mês (2026-10).",
@@ -110,6 +123,48 @@ export function rotasDoRelatorioOss(
           semPrefixo(pedido.body.entidade),
           pedido.body.periodo,
           { confirmo_por_emitir: pedido.body.confirmo_por_emitir === true },
+          `chave:key_${chave.chaveId}`,
+        );
+      }),
+  );
+
+  rotas.post(
+    "/tax-reports/oss/classifications",
+    {
+      config: { ambito: "tax:write" },
+      schema: {
+        description:
+          "O dono classifica um documento que o relatório não classifica sozinho (uma fatura resolvida com as linhas da prova diferentes das do pedido, uma linha sem balde, uma prova sem data): o balde e o país de cada linha da prova, pela ordem dela; a taxa e os valores vêm sempre da prova. A data só quando a prova não a tem. Uma vez por documento; não muda.",
+        body: Type.Object(
+          {
+            documento: IdDocumento,
+            linhas: Type.Array(
+              Type.Object(
+                {
+                  balde: Balde,
+                  pais: Type.String({ pattern: "^[A-Z]{2}$" }),
+                },
+                { additionalProperties: false },
+              ),
+              { minItems: 1, maxItems: 500 },
+            ),
+            data: Type.Optional(Type.String({ format: "date" })),
+            motivo: Type.String({ minLength: 1, maxLength: 500 }),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emRelatorio(resposta, async () => {
+        const chave = chaveDo(pedido);
+        const { documento, linhas, data, motivo } = pedido.body;
+        return classificarOss(
+          base,
+          chave.comercianteId,
+          semPrefixo(documento),
+          data === undefined ? { linhas, motivo } : { linhas, data, motivo },
           `chave:key_${chave.chaveId}`,
         );
       }),

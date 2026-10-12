@@ -189,8 +189,8 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 | o fecho: só o dono (`tax:write`), um de cada vez por entidade, recusa com impedimentos (os «por emitir» só com `confirmo_por_emitir`), a fotografia e os documentos que entraram, uma vez só | `src/faturacao/oss.ts` (`fecharOss`); migração 0075 |
 | `relatorio_oss_fecho` e `relatorio_oss_documento`: só se acrescentam (a base recusa mudar e apagar), RLS forçado; o evento `tax_report.closed` | migração 0075 |
 | os registos do art. 63.º-C em CSV (com a protecção contra fórmulas) | `src/faturacao/oss.ts` (`registosOss`) |
-| as rotas `GET /tax-reports/oss`, `POST /tax-reports/oss/close`, `GET /tax-reports/oss/records` | `src/faturacao/rotas-oss.ts` |
-| 9 testes da classificação sem base; 4 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
+| as rotas `GET /tax-reports/oss`, `POST /tax-reports/oss/close`, `POST /tax-reports/oss/classifications`, `GET /tax-reports/oss/records` | `src/faturacao/rotas-oss.ts` |
+| 10 testes da classificação sem base; 5 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
 
 **Desvios do desenho:**
 - **As rotas** levam a entidade e o período na consulta (`?entidade=&periodo=`)
@@ -229,6 +229,24 @@ documento com data anterior ao último fecho entra sempre como alteração do
 período seguinte, mesmo que o período dele nunca se tenha fechado no
 Eurolify (Diretiva IVA, art. 369.º-G, n.º 4: as alterações a uma declaração
 apresentada fazem-se numa declaração posterior; **C**, contabilista).
+
+**Decisão da 2.ª revisão do #392 (P1-A; Diogo, 12/10/2026: *«aprovado»*):**
+um documento que o relatório não classifica sozinho — uma fatura ou NC
+`resolvido` (ou emitida) com as linhas da prova diferentes das do pedido, uma
+linha sem balde, ou uma prova sem data — é classificado **pelo dono** em
+`POST /tax-reports/oss/classifications` (`tax:write`): o balde e o país de
+cada linha da prova, pela ordem dela; **a taxa e os valores vêm sempre da
+prova**; a data só quando a prova não a tem. Fica em
+`relatorio_oss_classificacao`, uma vez por documento, e a base recusa mudar,
+apagar ou esvaziar. Ex.: uma fatura que saiu a 21 % quando o pedido dizia
+23 %, aceite como `resolvido`, entra no balde nacional, PT, a 21 %. **C**
+(contabilista): que essa linha se declara à taxa da fatura emitida. No
+limiar, de um documento classificado conta o que o dono pôs no OSS.
+
+**Também desta ronda:** as leituras do relatório e dos registos correm numa
+só fotografia da base (P2-2); os erros saem com os códigos do relatório
+(`tax_reports.*`, P3-6); um documento sem data conta uma vez só nos
+excluídos do limiar (P3-3).
 
 **Limites que ficam:**
 - As vendas com sistema próprio não têm documento no Eurolify: mostram-se

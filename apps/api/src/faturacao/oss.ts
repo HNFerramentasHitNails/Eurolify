@@ -1,6 +1,6 @@
 import { sql, type Kysely, type Transaction } from "kysely";
 import type { BaseDados } from "../base/esquema.js";
-import { noDocumentos } from "./repositorio.js";
+import { comComerciante } from "../comerciante/repositorio.js";
 
 // O relatório OSS (docs/37; docs/06, EE; issue #310). Os montantes vêm só das
 // provas dos documentos emitidos (O1); o balde de cada linha vem da decisão
@@ -60,6 +60,9 @@ export type CodigoErroRelatorio =
   | "tax_reports.not_closable"
   | "tax_reports.already_closed"
   | "tax_reports.immutable"
+  | "tax_reports.invalid"
+  | "tax_reports.not_classifiable"
+  | "tax_reports.already_classified"
   | "tax_reports.retry";
 
 export const ESTADO_DO_CODIGO_RELATORIO: Record<CodigoErroRelatorio, number> = {
@@ -68,6 +71,9 @@ export const ESTADO_DO_CODIGO_RELATORIO: Record<CodigoErroRelatorio, number> = {
   "tax_reports.not_closable": 409,
   "tax_reports.already_closed": 409,
   "tax_reports.immutable": 409,
+  "tax_reports.invalid": 400,
+  "tax_reports.not_classifiable": 409,
+  "tax_reports.already_classified": 409,
   "tax_reports.retry": 503,
 };
 
@@ -92,6 +98,12 @@ export function traduzirRelatorio(erro: unknown): unknown {
   if (pg.code === "23505") {
     // Outro fecho ao mesmo tempo: o mesmo período, ou o mesmo documento
     // reclamado por dois períodos (P4).
+    if (pg.constraint === "relatorio_oss_classificacao_pkey") {
+      return new ErroRelatorio(
+        "tax_reports.already_classified",
+        "este documento já foi classificado",
+      );
+    }
     return pg.constraint?.startsWith("relatorio_oss_fecho_") === true
       ? new ErroRelatorio(
           "tax_reports.already_closed",
@@ -99,13 +111,41 @@ export function traduzirRelatorio(erro: unknown): unknown {
         )
       : new ErroRelatorio("tax_reports.retry", "tentar outra vez");
   }
-  if (pg.code === "22P02" && /uuid/.test(erro.message)) {
+  if (
+    pg.code === "23503" ||
+    (pg.code === "22P02" && /uuid/.test(erro.message))
+  ) {
     return new ErroRelatorio("tax_reports.not_found", "não existe");
+  }
+  if (["23514", "22001", "22007", "22008"].includes(pg.code ?? "")) {
+    return new ErroRelatorio(
+      "tax_reports.invalid",
+      "um valor do pedido não é aceite",
+    );
   }
   if (pg.code === "40P01" || pg.code === "40001" || pg.code === "55P03") {
     return new ErroRelatorio("tax_reports.retry", "tentar outra vez");
   }
   return erro;
+}
+
+/**
+ * Uma transacção com o contexto do comerciante e os erros do relatório (não
+ * os dos documentos: revisão do #392, P3-6). Com `soLeitura`, as leituras
+ * vêem todas o mesmo momento (P2-2).
+ */
+async function noRelatorio<T>(
+  db: Kysely<BaseDados>,
+  c: string,
+  fn: (trx: Transaction<BaseDados>) => Promise<T>,
+  opcoes: { soLeitura?: boolean } = {},
+): Promise<T> {
+  try {
+    if (db.isTransaction) return await fn(db as Transaction<BaseDados>);
+    return await comComerciante(db, c, fn, opcoes);
+  } catch (erro) {
+    throw traduzirRelatorio(erro);
+  }
 }
 
 // -------------------------------------------------------------- O período
@@ -220,8 +260,17 @@ export interface DocumentoLido {
   atcud: string | null;
   nif: string | null;
   nome: string | null;
+  /** A data da prova, como saiu no documento (nos registos). */
+  data_prova?: string | null;
   linhas: LinhaDaProva[];
   conteudo: ConteudoResumido;
+  /** A decisão do dono, quando o relatório não classifica sozinho (P1-A). */
+  classificacao?: Classificacao | null;
+}
+
+export interface Classificacao {
+  linhas: { balde: Balde; pais: string }[];
+  data: string | null;
 }
 
 /** Uma linha do relatório: um balde, um país e uma taxa. */
@@ -321,21 +370,28 @@ async function lerDocumentos(
     ids?: string[];
   },
 ): Promise<DocumentoLido[]> {
+  // A data que conta é a da prova; sem ela, a que o dono deu (P1-A).
   const { rows } = await sql<DocumentoLido>`
     select d.id, d.tipo, d.estado, d.encomenda_id, d.original_id, d.reembolso_id,
-      p.numero, p.serie, to_char(p.data, 'YYYY-MM-DD') as data, p.atcud, p.nif, p.nome,
-      p.linhas, ${CONTEUDO_RESUMIDO} as conteudo
+      p.numero, p.serie, to_char(coalesce(p.data, k.data), 'YYYY-MM-DD') as data,
+      to_char(p.data, 'YYYY-MM-DD') as data_prova, p.atcud, p.nif, p.nome,
+      p.linhas, ${CONTEUDO_RESUMIDO} as conteudo,
+      case when k.documento_id is null then null else jsonb_build_object(
+        'linhas', k.linhas, 'data', to_char(k.data, 'YYYY-MM-DD')) end as classificacao
     from documento_fiscal d
     join documento_prova p on p.documento_id = d.id
+    left join relatorio_oss_classificacao k on k.documento_id = d.id
     where d.entidade_legal_id = ${entidade}::uuid
       and d.estado in ('emitido', 'divergente', 'resolvido')
-      and (${filtro.ate ?? null}::date is null or p.data is null or p.data < ${filtro.ate ?? null}::date)
-      and (${filtro.desde ?? null}::date is null or p.data is null or p.data >= ${filtro.desde ?? null}::date)
+      and (${filtro.ate ?? null}::date is null or coalesce(p.data, k.data) is null
+        or coalesce(p.data, k.data) < ${filtro.ate ?? null}::date)
+      and (${filtro.desde ?? null}::date is null or coalesce(p.data, k.data) is null
+        or coalesce(p.data, k.data) >= ${filtro.desde ?? null}::date)
       and (${filtro.ids ?? null}::uuid[] is null or d.id = any(${filtro.ids ?? null}::uuid[]))
       and (${filtro.naoDeclaradosEm ?? null}::text is null or not exists (
         select 1 from relatorio_oss_documento r
         where r.documento_id = d.id and r.granularidade = ${filtro.naoDeclaradosEm ?? null}))
-    order by p.data, d.id`.execute(trx);
+    order by coalesce(p.data, k.data), d.id`.execute(trx);
   return rows;
 }
 
@@ -349,6 +405,33 @@ function linhasDe(
 } {
   if (d.conteudo.moeda !== "EUR") {
     return { linhas: [], impedimento: "outra_moeda" };
+  }
+  // A prova guarda montantes positivos; um negativo não se adivinha
+  // (revisão do #392, P2-7).
+  if (d.linhas.some((l) => l.base < 0 || l.iva < 0)) {
+    return { linhas: [], impedimento: "sinal_inesperado" };
+  }
+  const sinal = d.tipo === "nota_credito" ? -1 : 1;
+  // Com a decisão do dono (P1-A): o balde e o país dele; a taxa e os valores
+  // sempre da prova.
+  const k = d.classificacao;
+  if (k != null) {
+    if (k.linhas.length !== d.linhas.length) {
+      return { linhas: [], impedimento: "linhas_desalinhadas" };
+    }
+    return {
+      linhas: d.linhas.map((lp, i) => {
+        const kl = k.linhas[i] as Classificacao["linhas"][number];
+        return {
+          balde: kl.balde,
+          pais: kl.pais,
+          taxa: lp.taxa,
+          base: sinal * lp.base,
+          iva: sinal * lp.iva,
+        };
+      }),
+      impedimento: null,
+    };
   }
   // As linhas casam por posição, como na conferência (R6/R7); confere-se
   // cada uma — a quantidade, a taxa e o motivo — para o valor de uma nunca ir
@@ -367,12 +450,6 @@ function linhasDe(
   ) {
     return { linhas: [], impedimento: "linhas_desalinhadas" };
   }
-  // A prova guarda montantes positivos; um negativo não se adivinha
-  // (revisão do #392, P2-7).
-  if (d.linhas.some((l) => l.base < 0 || l.iva < 0)) {
-    return { linhas: [], impedimento: "sinal_inesperado" };
-  }
-  const sinal = d.tipo === "nota_credito" ? -1 : 1;
   const linhas: Omit<LinhaRelatorio, "documentos">[] = [];
   for (const [i, lc] of d.conteudo.linhas.entries()) {
     const lp = d.linhas[i] as LinhaDaProva;
@@ -530,13 +607,28 @@ export function agregar(
 }
 
 /** O limiar (§2.3): as vendas à distância que o Eurolify vê num ano civil. */
-function vendasADistancia(docs: DocumentoLido[], paisEntidade: string) {
+function vendasADistancia(
+  docs: DocumentoLido[],
+  paisEntidade: string,
+  contarSemData: boolean,
+) {
   let base = 0;
   let excluidos = 0;
   for (const d of docs) {
+    // Um documento sem data aparece nas leituras dos dois anos; conta-se uma
+    // vez só (revisão do #392, P3-3).
+    if (d.data === null) {
+      if (contarSemData) excluidos += 1;
+      continue;
+    }
     const { linhas, impedimento } = linhasDe(d, paisEntidade);
-    if (d.data === null || d.estado === "divergente" || impedimento !== null) {
+    if (d.estado === "divergente" || impedimento !== null) {
       excluidos += 1;
+      continue;
+    }
+    // Com a decisão do dono, conta o que ele pôs no OSS (P1-A).
+    if (d.classificacao != null) {
+      for (const l of linhas) if (l.balde === "oss") base += l.base;
       continue;
     }
     d.conteudo.linhas.forEach((lc, i) => {
@@ -691,6 +783,7 @@ async function calcular(
       ate: `${String(Number(ano) + 1)}-01-01`,
     }),
     paisEntidade,
+    true,
   );
   const doAnterior = vendasADistancia(
     await lerDocumentos(trx, entidade, {
@@ -698,6 +791,7 @@ async function calcular(
       ate: `${ano}-01-01`,
     }),
     paisEntidade,
+    false,
   );
 
   return {
@@ -755,20 +849,25 @@ export async function relatorioOss(
   periodo: string,
 ): Promise<Relatorio> {
   const p = lerPeriodo(periodo);
-  return noDocumentos(db, c, async (trx) => {
-    const fecho = await fechoDe(trx, entidade, p);
-    if (fecho !== undefined) {
-      return {
-        ...(fecho.fotografia as Relatorio),
-        fechado: {
-          em: fecho.fechado_em.toISOString(),
-          por: fecho.fechado_por,
-          versao_regra: fecho.versao_regra,
-        },
-      };
-    }
-    return (await calcular(trx, entidade, p)).relatorio;
-  });
+  return noRelatorio(
+    db,
+    c,
+    async (trx) => {
+      const fecho = await fechoDe(trx, entidade, p);
+      if (fecho !== undefined) {
+        return {
+          ...(fecho.fotografia as Relatorio),
+          fechado: {
+            em: fecho.fechado_em.toISOString(),
+            por: fecho.fechado_por,
+            versao_regra: fecho.versao_regra,
+          },
+        };
+      }
+      return (await calcular(trx, entidade, p)).relatorio;
+    },
+    { soLeitura: true },
+  );
 }
 
 /** Impedimentos que não deixam fechar (os «por emitir», só sem confirmação). */
@@ -792,7 +891,7 @@ export async function fecharOss(
   quem: string,
 ): Promise<Relatorio> {
   const p = lerPeriodo(periodo);
-  return noDocumentos(db, c, async (trx) => {
+  return noRelatorio(db, c, async (trx) => {
     // Um fecho de cada vez por entidade: dois fechos ao mesmo tempo
     // disputariam as mesmas alterações (P4).
     await sql`select pg_advisory_xact_lock(hashtext(${`oss:${entidade}`}))`.execute(
@@ -921,55 +1020,58 @@ export async function registosOss(
   periodo: string,
 ): Promise<string> {
   const p = lerPeriodo(periodo);
-  return noDocumentos(db, c, async (trx) => {
-    const fecho = await fechoDe(trx, entidade, p);
-    let incluidos: Incluido[];
-    if (fecho === undefined) {
-      const r = await calcular(trx, entidade, p);
-      const deFora = r.relatorio.impedimentos.filter(
-        (i) => i.motivo !== "periodo_em_curso" && i.motivo !== "por_emitir",
-      );
-      if (deFora.length > 0) {
-        throw new ErroRelatorio(
-          "tax_reports.not_closable",
-          "há documentos que ficariam fora dos registos",
-          { impedimentos: deFora },
+  return noRelatorio(
+    db,
+    c,
+    async (trx) => {
+      const fecho = await fechoDe(trx, entidade, p);
+      let incluidos: Incluido[];
+      if (fecho === undefined) {
+        const r = await calcular(trx, entidade, p);
+        const deFora = r.relatorio.impedimentos.filter(
+          (i) => i.motivo !== "periodo_em_curso" && i.motivo !== "por_emitir",
         );
+        if (deFora.length > 0) {
+          throw new ErroRelatorio(
+            "tax_reports.not_closable",
+            "há documentos que ficariam fora dos registos",
+            { impedimentos: deFora },
+          );
+        }
+        incluidos = r.incluidos;
+      } else {
+        incluidos = (
+          await trx
+            .selectFrom("relatorio_oss_documento")
+            .select(["documento_id", "periodo_original", "linhas"])
+            .where("fecho_id", "=", fecho.id)
+            .execute()
+        ).map((x) => ({
+          id: x.documento_id,
+          periodo_original: x.periodo_original,
+          linhas: x.linhas as Incluido["linhas"],
+        }));
       }
-      incluidos = r.incluidos;
-    } else {
-      incluidos = (
-        await trx
-          .selectFrom("relatorio_oss_documento")
-          .select(["documento_id", "periodo_original", "linhas"])
-          .where("fecho_id", "=", fecho.id)
-          .execute()
-      ).map((x) => ({
-        id: x.documento_id,
-        periodo_original: x.periodo_original,
-        linhas: x.linhas as Incluido["linhas"],
-      }));
-    }
-    const porId = new Map(incluidos.map((x) => [x.id, x]));
-    const ids = incluidos.filter((x) => x.linhas.length > 0).map((x) => x.id);
-    const docs =
-      ids.length === 0 ? [] : await lerDocumentos(trx, entidade, { ids });
-    // Os dados da encomenda de todos os documentos numa consulta (P2-5);
-    // as datas no fuso de Portugal (P3).
-    const { rows: extras } =
-      ids.length === 0
-        ? { rows: [] }
-        : await sql<{
-            id: string;
-            data_pagamento: string | null;
-            montante: string | null;
-            data_expedicao: string | null;
-            pais_armazem: string | null;
-            entrega_pais: string | null;
-            entrega_cp: string | null;
-            devolucao: string | null;
-            fatura: string | null;
-          }>`select d.id,
+      const porId = new Map(incluidos.map((x) => [x.id, x]));
+      const ids = incluidos.filter((x) => x.linhas.length > 0).map((x) => x.id);
+      const docs =
+        ids.length === 0 ? [] : await lerDocumentos(trx, entidade, { ids });
+      // Os dados da encomenda de todos os documentos numa consulta (P2-5);
+      // as datas no fuso de Portugal (P3).
+      const { rows: extras } =
+        ids.length === 0
+          ? { rows: [] }
+          : await sql<{
+              id: string;
+              data_pagamento: string | null;
+              montante: string | null;
+              data_expedicao: string | null;
+              pais_armazem: string | null;
+              entrega_pais: string | null;
+              entrega_cp: string | null;
+              devolucao: string | null;
+              fatura: string | null;
+            }>`select d.id,
               (select to_char((t.em at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD')
                from pagamento g join transicao_pagamento t on t.pagamento_id = g.id
                where g.encomenda_id = e.id and t.para = 'capturado' order by t.em limit 1) as data_pagamento,
@@ -985,53 +1087,156 @@ export async function registosOss(
               (select p.numero from documento_prova p where p.documento_id = d.original_id) as fatura
             from documento_fiscal d join encomenda e on e.id = d.encomenda_id
             where d.id = any(${ids}::uuid[])`.execute(trx);
-    const extraDe = new Map(extras.map((x) => [x.id, x]));
-    const linhas: string[] = [COLUNAS.join(",")];
-    for (const d of docs) {
-      const x = extraDe.get(d.id);
-      const gravadas = porId.get(d.id)?.linhas ?? [];
-      const sinal = d.tipo === "nota_credito" ? -1 : 1;
-      d.linhas.forEach((lp, i) => {
-        const lb = gravadas[i];
-        const expedida = x?.data_expedicao != null;
-        linhas.push(
-          [
-            celula(p.texto),
-            celula(porId.get(d.id)?.periodo_original ?? null),
-            celula(d.tipo),
-            celula(d.numero),
-            celula(d.serie),
-            celula(d.data),
-            celula(d.atcud),
-            celula(x?.fatura ?? null),
-            celula(d.nif),
-            celula(d.nome),
-            celula(lb?.pais ?? null),
-            celula(lb?.balde ?? null),
-            celula(lp.descricao),
-            celula(lp.quantidade, "numero"),
-            celula(euros(sinal * lp.base), "numero"),
-            celula(taxaEmTexto(lp.taxa), "numero"),
-            celula(euros(sinal * lp.iva), "numero"),
-            celula(d.conteudo.moeda),
-            celula(x?.data_pagamento ?? null),
-            celula(
-              x?.montante == null ? null : euros(Number(x.montante)),
-              "numero",
-            ),
-            // Sem expedição registada, vazio e marcado: nada se inventa
-            // (docs/37 §4, c) e k); revisão do #392, P2-4).
-            celula(expedida ? "sim" : "nao"),
-            celula(x?.data_expedicao ?? null),
-            celula(expedida ? (x.pais_armazem ?? null) : null),
-            celula(x?.entrega_pais ?? null),
-            celula(x?.entrega_cp ?? null),
-            celula(x?.devolucao == null ? null : `rma_${x.devolucao}`),
-          ].join(","),
-        );
-      });
+      const extraDe = new Map(extras.map((x) => [x.id, x]));
+      const linhas: string[] = [COLUNAS.join(",")];
+      for (const d of docs) {
+        const x = extraDe.get(d.id);
+        const gravadas = porId.get(d.id)?.linhas ?? [];
+        const sinal = d.tipo === "nota_credito" ? -1 : 1;
+        d.linhas.forEach((lp, i) => {
+          const lb = gravadas[i];
+          const expedida = x?.data_expedicao != null;
+          linhas.push(
+            [
+              celula(p.texto),
+              celula(porId.get(d.id)?.periodo_original ?? null),
+              celula(d.tipo),
+              celula(d.numero),
+              celula(d.serie),
+              celula(d.data_prova ?? null),
+              celula(d.atcud),
+              celula(x?.fatura ?? null),
+              celula(d.nif),
+              celula(d.nome),
+              celula(lb?.pais ?? null),
+              celula(lb?.balde ?? null),
+              celula(lp.descricao),
+              celula(lp.quantidade, "numero"),
+              celula(euros(sinal * lp.base), "numero"),
+              celula(taxaEmTexto(lp.taxa), "numero"),
+              celula(euros(sinal * lp.iva), "numero"),
+              celula(d.conteudo.moeda),
+              celula(x?.data_pagamento ?? null),
+              celula(
+                x?.montante == null ? null : euros(Number(x.montante)),
+                "numero",
+              ),
+              // Sem expedição registada, vazio e marcado: nada se inventa
+              // (docs/37 §4, c) e k); revisão do #392, P2-4).
+              celula(expedida ? "sim" : "nao"),
+              celula(x?.data_expedicao ?? null),
+              celula(expedida ? (x.pais_armazem ?? null) : null),
+              celula(x?.entrega_pais ?? null),
+              celula(x?.entrega_cp ?? null),
+              celula(x?.devolucao == null ? null : `rma_${x.devolucao}`),
+            ].join(","),
+          );
+        });
+      }
+      // Com BOM: uma folha de cálculo abre os acentos certos (P3).
+      return `\uFEFF${linhas.join("\r\n")}\r\n`;
+    },
+    { soLeitura: true },
+  );
+}
+
+// ---------------------------------------------------- A decisão do dono
+
+/** Os impedimentos que o dono pode resolver classificando (P1-A). */
+const CLASSIFICAVEIS: readonly MotivoImpedimento[] = [
+  "linhas_desalinhadas",
+  "sem_balde",
+  "sem_data",
+];
+
+/**
+ * O dono classifica um documento que o relatório não classifica sozinho
+ * (P1-A da 2.ª revisão do #392; Diogo, 12/10/2026): uma fatura ou NC
+ * emitida ou `resolvido` com as linhas da prova diferentes das do pedido,
+ * uma linha sem balde ou uma prova sem data. Escolhe o balde e o país de
+ * cada linha da prova (a taxa e os valores vêm sempre da prova) e, só se a
+ * prova não tem data, a data. Uma vez por documento; não muda (**C**: que a
+ * linha se declara à taxa da fatura emitida, contabilista).
+ */
+export async function classificarOss(
+  db: Kysely<BaseDados>,
+  c: string,
+  documento: string,
+  dados: {
+    linhas: { balde: Balde; pais: string }[];
+    data?: string;
+    motivo: string;
+  },
+  quem: string,
+): Promise<{ documento: string; classificacao: Classificacao }> {
+  return noRelatorio(db, c, async (trx) => {
+    const doc = await trx
+      .selectFrom("documento_fiscal")
+      .select(["entidade_legal_id", "estado"])
+      .where("id", "=", documento)
+      .forUpdate()
+      .executeTakeFirst();
+    if (doc === undefined) {
+      throw new ErroRelatorio(
+        "tax_reports.not_found",
+        "este documento não existe",
+      );
     }
-    // Com BOM: uma folha de cálculo abre os acentos certos (P3).
-    return `\uFEFF${linhas.join("\r\n")}\r\n`;
+    const [d] = await lerDocumentos(trx, doc.entidade_legal_id, {
+      ids: [documento],
+    });
+    if (d === undefined || !["emitido", "resolvido"].includes(d.estado)) {
+      throw new ErroRelatorio(
+        "tax_reports.not_classifiable",
+        "só um documento emitido ou resolvido se classifica",
+      );
+    }
+    if (d.classificacao != null) {
+      throw new ErroRelatorio(
+        "tax_reports.already_classified",
+        "este documento já foi classificado",
+      );
+    }
+    const paisEntidade = await paisDaEntidade(trx, doc.entidade_legal_id);
+    const { impedimento } = linhasDe(d, paisEntidade);
+    const motivo = d.data === null ? "sem_data" : impedimento;
+    if (motivo === null || !CLASSIFICAVEIS.includes(motivo)) {
+      throw new ErroRelatorio(
+        "tax_reports.not_classifiable",
+        "o relatório já classifica este documento, ou o que o impede não se resolve assim",
+        { impedimento: motivo },
+      );
+    }
+    if (dados.linhas.length !== d.linhas.length) {
+      throw new ErroRelatorio(
+        "tax_reports.invalid",
+        `a prova tem ${String(d.linhas.length)} linhas: uma classificação por linha`,
+      );
+    }
+    const semData = d.data_prova == null;
+    if (semData !== (dados.data !== undefined)) {
+      throw new ErroRelatorio(
+        "tax_reports.invalid",
+        semData
+          ? "a prova não tem data: indicar a data"
+          : "a prova já tem data: não se indica outra",
+      );
+    }
+    const linhas = dados.linhas.map((l) => ({ balde: l.balde, pais: l.pais }));
+    await trx
+      .insertInto("relatorio_oss_classificacao")
+      .values({
+        comerciante_id: c,
+        documento_id: documento,
+        linhas: JSON.stringify(linhas),
+        data: dados.data ?? null,
+        motivo: dados.motivo,
+        decidido_por: quem,
+      })
+      .execute();
+    return {
+      documento: `inv_${documento}`,
+      classificacao: { linhas, data: dados.data ?? null },
+    };
   });
 }

@@ -346,6 +346,62 @@ describe("o relatório OSS (puro)", () => {
     expect(jaDeclarado("2026-10", new Set())).toBe(false);
   });
 
+  it("com a decisão do dono, o balde e o país são os dele e a taxa e os valores os da prova; sem data, conta a que ele deu (P1-A)", () => {
+    const l = {
+      regra: "nacional",
+      pais_imposto: "PT",
+      base: 100,
+      iva: 23,
+      taxa: 2300,
+    };
+    const resolvido = documento("r", "2026-10-02", [l], {
+      estado: "resolvido",
+    });
+    resolvido.linhas = resolvido.linhas.map((x) => ({
+      ...x,
+      taxa: 2100,
+      iva: 21,
+    }));
+    expect([
+      ...agregar([resolvido], "PT", T4, new Set()).impedimentos.keys(),
+    ]).toEqual(["linhas_desalinhadas"]);
+    resolvido.classificacao = {
+      linhas: [{ balde: "nacional", pais: "PT" }],
+      data: null,
+    };
+    const semData = documento("s", null, [l]);
+    semData.data = "2026-10-05";
+    semData.classificacao = {
+      linhas: [{ balde: "nacional", pais: "PT" }],
+      data: "2026-10-05",
+    };
+    const r = agregar([resolvido, semData], "PT", T4, new Set());
+    expect(r.impedimentos.size).toBe(0);
+    expect(baldeDoRelatorio(r, "nacional")?.linhas).toEqual([
+      {
+        balde: "nacional",
+        pais: "PT",
+        taxa: 2100,
+        base: 100,
+        iva: 21,
+        documentos: 1,
+      },
+      {
+        balde: "nacional",
+        pais: "PT",
+        taxa: 2300,
+        base: 100,
+        iva: 23,
+        documentos: 1,
+      },
+    ]);
+    // Uma classificação com outro número de linhas não entra.
+    resolvido.classificacao = { linhas: [], data: null };
+    expect([
+      ...agregar([resolvido], "PT", T4, new Set()).impedimentos.keys(),
+    ]).toEqual(["linhas_desalinhadas"]);
+  });
+
   it("as linhas casam uma a uma: quantidade, taxa ou motivo diferentes impedem (revisão do #392, P1-2)", () => {
     const duas = [
       { regra: "nacional", pais_imposto: "PT", base: 100, iva: 23, taxa: 2300 },

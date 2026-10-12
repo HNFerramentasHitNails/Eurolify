@@ -8,6 +8,8 @@
 --   granularidade, uma vez só — um documento que chegue depois com a data de
 --   um período fechado entra no período seguinte como alteração (P4; Diretiva
 --   IVA, art. 369.º-G, n.º 4);
+-- - `relatorio_oss_classificacao`: a decisão do dono sobre um documento que
+--   o relatório não classifica sozinho (P1-A da 2.ª revisão do #392);
 -- - o evento `tax_report.closed`.
 
 SET LOCAL lock_timeout = '10s';
@@ -51,6 +53,25 @@ CREATE TABLE relatorio_oss_documento (
 );
 CREATE INDEX relatorio_oss_documento_fecho ON relatorio_oss_documento (fecho_id);
 
+-- A classificação de um documento que o relatório não sabe classificar
+-- sozinho (P1-A da 2.ª revisão do #392; Diogo, 12/10/2026): uma fatura
+-- `resolvido` cuja prova não bate com o pedido, uma prova sem data ou uma
+-- linha sem balde. O dono escolhe o balde e o país de cada linha da prova (a
+-- taxa e os valores vêm sempre da prova) e, se a prova não tem data, a data.
+-- Uma vez por documento; não muda.
+CREATE TABLE relatorio_oss_classificacao (
+  comerciante_id uuid NOT NULL,
+  documento_id uuid NOT NULL,
+  -- [{balde, pais}], uma por linha da prova, pela ordem dela.
+  linhas jsonb NOT NULL CHECK (jsonb_typeof(linhas) = 'array' AND jsonb_array_length(linhas) > 0),
+  data date,
+  motivo text NOT NULL CHECK (length(btrim(motivo)) BETWEEN 1 AND 500),
+  decidido_por text NOT NULL,
+  decidido_em timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (documento_id),
+  FOREIGN KEY (comerciante_id, documento_id) REFERENCES documento_fiscal (comerciante_id, id)
+);
+
 -- Só se acrescenta (P3, P6): nem se muda, nem se apaga.
 CREATE FUNCTION relatorio_oss_so_acrescenta() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
@@ -71,6 +92,13 @@ ALTER TABLE relatorio_oss_fecho ENABLE ALWAYS TRIGGER relatorio_oss_fecho_sem_tr
 CREATE TRIGGER relatorio_oss_documento_sem_truncate BEFORE TRUNCATE ON relatorio_oss_documento
   FOR EACH STATEMENT EXECUTE FUNCTION relatorio_oss_so_acrescenta();
 ALTER TABLE relatorio_oss_documento ENABLE ALWAYS TRIGGER relatorio_oss_documento_sem_truncate;
+
+CREATE TRIGGER relatorio_oss_classificacao_so_acrescenta BEFORE UPDATE OR DELETE ON relatorio_oss_classificacao
+  FOR EACH ROW EXECUTE FUNCTION relatorio_oss_so_acrescenta();
+ALTER TABLE relatorio_oss_classificacao ENABLE ALWAYS TRIGGER relatorio_oss_classificacao_so_acrescenta;
+CREATE TRIGGER relatorio_oss_classificacao_sem_truncate BEFORE TRUNCATE ON relatorio_oss_classificacao
+  FOR EACH STATEMENT EXECUTE FUNCTION relatorio_oss_so_acrescenta();
+ALTER TABLE relatorio_oss_classificacao ENABLE ALWAYS TRIGGER relatorio_oss_classificacao_sem_truncate;
 
 -- O evento do fecho: só identificadores (headless-commerce).
 CREATE FUNCTION relatorio_oss_evento() RETURNS trigger
@@ -99,9 +127,18 @@ CREATE POLICY so_o_proprio ON relatorio_oss_documento
   USING (comerciante_id = comerciante_actual())
   WITH CHECK (comerciante_id = comerciante_actual());
 
-REVOKE ALL ON relatorio_oss_fecho, relatorio_oss_documento FROM PUBLIC;
+ALTER TABLE relatorio_oss_classificacao ENABLE ROW LEVEL SECURITY;
+ALTER TABLE relatorio_oss_classificacao FORCE ROW LEVEL SECURITY;
+CREATE POLICY so_o_proprio ON relatorio_oss_classificacao
+  USING (comerciante_id = comerciante_actual())
+  WITH CHECK (comerciante_id = comerciante_actual());
+
+REVOKE ALL ON relatorio_oss_fecho, relatorio_oss_documento, relatorio_oss_classificacao FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION relatorio_oss_so_acrescenta(), relatorio_oss_evento() FROM PUBLIC;
 GRANT SELECT ON relatorio_oss_fecho, relatorio_oss_documento TO eurolify_api;
 GRANT INSERT (comerciante_id, entidade_legal_id, granularidade, periodo, fotografia, versao_regra,
   confirmacoes, fechado_por) ON relatorio_oss_fecho TO eurolify_api;
 GRANT INSERT ON relatorio_oss_documento TO eurolify_api;
+GRANT SELECT ON relatorio_oss_classificacao TO eurolify_api;
+GRANT INSERT (comerciante_id, documento_id, linhas, data, motivo, decidido_por)
+  ON relatorio_oss_classificacao TO eurolify_api;
