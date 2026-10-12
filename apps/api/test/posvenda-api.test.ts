@@ -1343,7 +1343,15 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(await eventos(s)).toContain("order.returned");
   });
 
-  it("as vendas do dia (#367): uma venda real — checkout, captura, fatura, devolução, reembolso e NC — dá os quatro números", async () => {
+  it("as vendas do dia (#367): uma venda real — checkout, captura, fatura, devolução, reembolso e NC — dá os quatro números", async (ctx) => {
+    // O dia de hoje no fuso do comerciante. Se a meia-noite de Lisboa cair a
+    // meio do caso, a venda fica em dois dias: confere-se antes de cada
+    // consulta, já depois das escritas que ela conta (revisão do #387, P2-1).
+    const hoje = () =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Lisbon" }).format(
+        new Date(),
+      );
+    const dia = hoje();
     const s = await cenario();
     await ligar(s, `c-${randomUUID()}`);
     const e = await paga(s, [[s.v1, 2]], "501964843");
@@ -1360,34 +1368,10 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       }),
       201,
     );
+    // O devolvido conta no dia em que o reembolso se regista como executado
+    // (docs/35 §1, `executado_em`), não na data da transferência que o
+    // `manual` declara (revisão do #387, P3-5).
     await manual(s, String(r["reembolso"]));
-    await ateParar();
-    const { fatura, notas } = await documentosDe(s, e.encomenda);
-    expect(fatura?.["estado"]).toBe("emitido");
-    expect(notas.map((n) => n["estado"])).toEqual(["emitido"]);
-    // O sem IVA da encomenda e o da prova da fatura, como ficaram guardados.
-    const { total_base: semIva } = await naBase(s, (trx) =>
-      trx
-        .selectFrom("encomenda")
-        .select("total_base")
-        .where("id", "=", e.encomenda.slice(4))
-        .executeTakeFirstOrThrow(),
-    );
-    const prova = await naBase(s, (trx) =>
-      trx
-        .selectFrom("documento_prova")
-        .select("totais")
-        .where("documento_id", "=", String(fatura?.["id"]).slice(4))
-        .executeTakeFirstOrThrow(),
-    );
-    const totalFatura = prova.totais as { total: number; base: number };
-    // 2 × 12,30 € + 4,99 € de portes (abaixo dos 50,00 €).
-    const total = 2 * 1230 + 499;
-    expect(totalFatura.total).toBe(total);
-    // O dia de hoje no fuso do comerciante.
-    const dia = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Lisbon",
-    }).format(new Date());
     const leitor = (
       await criarChave(base.dono, s.c, {
         tipo: "servidor",
@@ -1396,42 +1380,85 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         ambitos: ["sales:read"],
       })
     ).segredo;
-    const v = await ok(
-      pedir("GET", `/sales/summary?dia=${dia}`, undefined, {
-        authorization: `Bearer ${leitor}`,
-      }),
-    );
-    expect(v["periodo"]).toMatchObject({
-      fuso: "Europe/Lisbon",
-      completo: false,
+    const vendasDoDia = async () => {
+      const v = await ok(
+        pedir("GET", `/sales/summary?dia=${dia}`, undefined, {
+          authorization: `Bearer ${leitor}`,
+        }),
+      );
+      expect(v).toMatchObject({
+        periodo: { fuso: "Europe/Lisbon", completo: false },
+        modo: "teste",
+      });
+      const moedas = v["moedas"] as Json[];
+      expect(moedas.map((m) => m["moeda"])).toEqual(["EUR"]);
+      const m = moedas[0] as Json;
+      // Uma linha só, com a moeda lida do conteúdo real da fatura: uma moeda
+      // nula abriria um segundo bloco (revisão do #387, P3-3).
+      expect(m["por_canal_e_mercado"]).toEqual([
+        {
+          canal: `chn_${s.canal}`,
+          mercado: `mkt_${s.mercado}`,
+          ...(m["total"] as Json),
+        },
+      ]);
+      return m["total"] as Json;
+    };
+    // Executado o reembolso, a NC ainda não saiu (a tarefa dos documentos não
+    // correu): o devolvido conta, e o sem IVA dele fica por conhecer (§3).
+    if (hoje() !== dia) ctx.skip("a meia-noite de Lisboa caiu a meio do caso");
+    const antes = await vendasDoDia();
+    expect(antes["devolvido"]).toMatchObject({
+      com_iva: 1230,
+      sem_iva: 0,
+      quantidade: 1,
+      sem_iva_por_conhecer: { quantidade: 1, com_iva: 1230 },
     });
-    const moedas = v["moedas"] as Json[];
-    expect(moedas.map((m) => m["moeda"])).toEqual(["EUR"]);
-    const t = (moedas[0] as Json)["total"] as Json;
+    expect(antes["faturado"]).toMatchObject({
+      creditado: { com_iva: 0, sem_iva: 0, quantidade: 0 },
+    });
+    await ateParar();
+    const { fatura, notas } = await documentosDe(s, e.encomenda);
+    expect(fatura?.["estado"]).toBe("emitido");
+    expect(notas.map((n) => n["estado"])).toEqual(["emitido"]);
+    // Os valores fixos, não lidos da mesma coluna que a rota soma (revisão do
+    // #387, P2-2): 2 × 12,30 € + 4,99 € de portes (abaixo dos 50,00 €), com
+    // IVA a 23 % incluído = 20,00 € + 4,06 € sem IVA. O emissor de ensaio
+    // devolve a mesma base que um recálculo daria; a regra de ler e nunca
+    // recalcular prova-se com uma prova diferente em `vendas.test.ts`.
+    const total = 2959;
+    const semIva = 2406;
+    if (hoje() !== dia) ctx.skip("a meia-noite de Lisboa caiu a meio do caso");
+    const t = await vendasDoDia();
     expect(t).toMatchObject({
       encomendado: {
         com_iva: total,
-        sem_iva: Number(semIva),
+        sem_iva: semIva,
         quantidade: 1,
         das_quais_canceladas: { com_iva: 0, sem_iva: 0, quantidade: 0 },
       },
-      pago: { com_iva: total, sem_iva: Number(semIva), quantidade: 1 },
+      pago: { com_iva: total, sem_iva: semIva, quantidade: 1 },
       faturado: {
         com_iva: total,
-        sem_iva: totalFatura.base,
+        sem_iva: semIva,
         quantidade: 1,
         // A taxa e a proporção da fatura: 12,30 € = 10,00 € + 2,30 € de IVA.
         creditado: { com_iva: 1230, sem_iva: 1000, quantidade: 1 },
       },
       devolvido: { com_iva: 1230, sem_iva: 1000, quantidade: 1 },
     });
-    for (const n of ["encomendado", "pago", "faturado", "devolvido"]) {
-      expect(t[n]).not.toHaveProperty("sem_iva_por_conhecer");
+    const faturado = t["faturado"] as Json;
+    const encomendado = t["encomendado"] as Json;
+    for (const n of [
+      encomendado,
+      encomendado["das_quais_canceladas"],
+      t["pago"],
+      faturado,
+      faturado["creditado"],
+      t["devolvido"],
+    ]) {
+      expect(n).not.toHaveProperty("sem_iva_por_conhecer");
     }
-    // Uma linha só, a do canal e do mercado da venda, igual ao total.
-    expect((moedas[0] as Json)["por_canal_e_mercado"]).toEqual([
-      { canal: `chn_${s.canal}`, mercado: `mkt_${s.mercado}`, ...t },
-    ]);
   });
 
   it("a nota de crédito espera pela fatura; emitida a fatura, sai a seguir", async () => {
