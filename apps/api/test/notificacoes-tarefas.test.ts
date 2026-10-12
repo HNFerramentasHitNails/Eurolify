@@ -37,7 +37,9 @@ describe.skipIf(URL_BASE === undefined)(
       desactivada: randomUUID(),
       donoB: randomUUID(),
     };
-    const nomeDe = new Map<string, string>(Object.entries(pessoas).map(([k, v]) => [v, k]));
+    const nomeDe = new Map<string, string>(
+      Object.entries(pessoas).map(([k, v]) => [v, k]),
+    );
     const casos = {
       diferenca: randomUUID(),
       duplicado: randomUUID(),
