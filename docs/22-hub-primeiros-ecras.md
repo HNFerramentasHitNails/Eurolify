@@ -1811,3 +1811,113 @@ venda, por omissão, uma variante que pode ainda não estar pronta.
   pergunta; recebe o conflito; a resposta perdida; o papel sem
   `catalog:publish`; capturas a 375, 768 e 1280 px, claro e escuro, para a
   página de aprovação.
+
+## 28. O ecrã «A decidir» (issue #366, parte 2)
+
+Pedido do Diogo, 12/10/2026 (*«avança com o próximo pendente»*). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (*«A, aprovado»*). A peça 21
+(`docs/33`, decisão DW) já tem a API: a lista `GET /tasks`, atribuir e
+mudar o prazo, o aviso de vencido de hora a hora e, desde a migração 0071,
+o e-mail desse aviso (`docs/34` §12, EB). Mas só por chave. O `docs/33` §8
+pede o ecrã, desenhado primeiro, com as skills `eurolify-design`,
+`eurolify-hub-modular` e `eurolify-hub-quality-gate`. Este é esse desenho.
+Skills: as três, mais `observability-security` (as permissões pelo papel) e
+`platform-architect` (a tarefa não decide).
+
+Ex.: a gestora abre «A decidir», carrega em «Vencidas» e vê, primeiro,
+«Diferença de pagamento · pdi_…0190 · motivo: incerto · há 2 dias · sem
+responsável · prazo 11/10 às 14:00 · vencida». Carrega em «Ficar com o
+caso». A linha passa a dizer «Responsável: eu» e a lista mantém-se na mesma
+página.
+
+### 28.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **A lista** dos casos abertos das filas que o papel lê, do prazo mais próximo ao mais longe, com o total por fila, a dizer de que filas são («Vê 5 das 7 filas») |
+| **Os filtros** «Todos», «Os meus», «Sem responsável» e «Vencidas», e a fila |
+| **Ficar com o caso** (atribuir-se), **atribuir a outra pessoa**, **tirar o responsável** e **mudar o prazo**, com a versão lida |
+| **O histórico** das atribuições do caso (quem o teve, os prazos, os motivos), a abrir na linha |
+| Um **módulo novo** na entrada, «A decidir», para quem lê pelo menos uma fila |
+
+| Fica de fora, e porquê |
+|---|
+| **Decidir o caso a partir daqui.** A tarefa diz quem decide e até quando, nunca decide (`docs/33` R1). Cada caso decide-se no ecrã da fila dele, e **nenhuma das sete filas tem ecrã no Hub** (`docs/33` §2; procurei `/withdrawals`, `/problems`, `/refunds`, `/invoices` e `payment-issues` em `apps/hub/src` a 12/10/2026, sem resultados). Por isso a linha mostra o identificador do caso e da encomenda, sem ligação, até cada fila ter o seu ecrã (Q1). |
+| **Atribuir vários casos de uma vez.** Nunca em lote (`AGENTS.md`, «Não se erra», regra 5). |
+| **Guardar filtros por pessoa** e escolher colunas: o `docs/hub-modular-glassmorphism.md` não deixa guardar nada no navegador sem desenho aprovado. Fica para quando houver preferências no servidor. |
+| **Notificações dentro do Hub.** O aviso de vencido sai por e-mail (`docs/34` §12) e aparece na lista como «vencida». |
+
+### 28.2 Como o Hub lê e escreve
+
+As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/tarefas/rotas.ts`), com a sessão em vez da chave, como em Vendas (`/hub/sales/summary`, `docs/35`).
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `GET /hub/tasks?comerciante=&fila=&responsavel=eu\|sem&vencida=&limite=&cursor=` | a sessão do comerciante; as filas são as que o **papel** lê (R2, pelos `ambitos` da sessão) | a lista e os totais de `listarTarefas`. **`responsavel=eu`** existe aqui, porque a sessão é uma pessoa (`docs/33` §7 deixou-o para o ecrã). Sem nenhuma fila, 403 `tasks.forbidden` |
+| `GET /hub/tasks/{fila}/{caso}` | o `read` da fila no papel | o caso e o histórico das atribuições |
+| `POST /hub/tasks/{fila}/{caso}/assign` `{ responsavel: per_… \| null, versao }` | atribuir-se: o âmbito de decidir a fila no papel; outra pessoa ou `null`: também `tasks:assign` (R3) | a mesma função `tarefas_atribuir`, com o `eurolify.quem` da pessoa; a base confere quem pode ser responsável |
+| `POST /hub/tasks/{fila}/{caso}/deadline` `{ prazo, motivo, versao }` | decidir a fila e `tasks:assign` | a mesma função `tarefas_mudar_prazo`; o prazo nunca no passado nem depois do prazo legal (R5) |
+
+- **Os nomes das pessoas** lêem-se do `GET /hub/members` (já existe, todos os membros o lêem). A lista de tarefas só traz `per_…`.
+- **Quem pode ser escolhido** em «Atribuir a…»: os membros cujo papel decide a fila. A régua vive na base (`tarefas_pode_decidir`). Para o ecrã não oferecer o que a API recusa, a rota `GET /hub/tasks/{fila}/{caso}` devolve também `pode_ser_responsavel: [per_…]`, calculado pela base. Assim o ecrã não guarda nenhuma cópia da régua (`eurolify-design`, regra 8; ao contrário do `papeis.ts` dos convites, que é uma cópia).
+- **A versão.** As escritas mandam a lida. Outra guardada dá **409 `tasks.version_conflict`** e o ecrã relê a linha.
+- **O mesmo prazo de espera** das outras escritas do Hub (5 s, depois 503 `tasks.retry`). **Sem `Idempotency-Key`**, como as outras escritas do Hub. Se a resposta se perde, o ecrã relê o caso: com o responsável ou o prazo pedidos e outra versão, dá-o por feito; senão, diz que não encontrou a mudança.
+
+### 28.3 O ecrã
+
+| Onde | O que mostra | Estados além do normal |
+|---|---|---|
+| **Entrada** (`/`) | Um módulo «A decidir» na grelha, para quem lê pelo menos uma fila: os quatro papéis de hoje (`papel_ambitos`, migração 0068). O dono, o gestor e o apoio lêem as sete filas. O armazém lê as três com `returns:read`: o prazo do reembolso, a livre resolução e o problema. O registo dos módulos (`modulos.ts`) passa a aceitar «um destes âmbitos». | — |
+| **A decidir** (`/a-decidir?comerciante=…`) | No topo, os filtros «Todos · Os meus · Sem responsável · Vencidas» (um grupo de botões de alternância, com o seleccionado marcado também por texto e não só por cor), a fila (uma lista de escolha) e «Vê 5 das 7 filas», quando o papel não lê todas. Depois, a contagem («12 casos; 3 vencidos») e a lista: **tabela** a partir de 768 px, **cartões** abaixo (regra 5). Cada linha: a fila pelo nome; o caso (`pdi_…`, os últimos 4 algarismos à vista e o resto ao copiar); a encomenda, se houver; o motivo em linguagem comum; há quanto tempo está na fila; o responsável (o nome, ou «eu», ou «sem responsável»); o prazo, com a data e a hora no fuso do comerciante, e a etiqueta «vencida» (token de estado único, regra 3, com texto). Os botões da linha, conforme o papel: «Ficar com o caso», «Atribuir…», «Mudar o prazo…» e «Histórico». No fim, «Ver mais» (cursor; nunca corta em silêncio, R10). | a carregar; erro com «Tentar outra vez»; vazio por filtro («Nada vencido.»; «Não tem casos.»); vazio total («Nada por decidir.»); sem nenhuma fila (só o aviso, como acontece com `tasks.forbidden`); comerciante errado ou que mudou entretanto (como nas outras páginas; `docs/hub-modular-glassmorphism.md`, «Contexto do comerciante») |
+| **Atribuir…** (um diálogo) | As pessoas que `pode_ser_responsavel` devolve, com o nome e o papel, e «Sem responsável». Confirmar grava; a linha actualiza. | conflito (409: «Outra pessoa mudou este caso entretanto.», com o responsável e o prazo de agora); `tasks.assignee_not_allowed` (a pessoa mudou de papel entretanto: relê a lista); sem `tasks:assign` (só «Ficar com o caso») |
+| **Mudar o prazo…** (um diálogo) | A data e a hora, no fuso do comerciante (dito ao lado: «Hora de Lisboa»), e o **motivo**, obrigatório, com a frase «Não escreva dados de clientes neste motivo.» (`docs/33` §6). Onde há prazo legal: «Não pode passar de {data}.», e o campo não deixa escolher depois. | `tasks.deadline_invalid` (no passado, ou depois do prazo legal: a frase da API em linguagem comum); `tasks.reason_required`; conflito |
+| **Histórico** (abre por baixo da linha) | Cada mudança: quando, quem (o nome, ou «sistema» no aviso de vencido), o que mudou (o responsável de → para; o prazo de → para) e o motivo. | a carregar; erro |
+
+**Os motivos em linguagem comum** (pt, es e en): o código de cada fila vem do domínio dela (`docs/33` §4.1). O texto escreve-se para os códigos de hoje: as diferenças de pagamento (`0044`), os motivos de um documento retido (`docs/29`), os sinais de um duplicado (só o tipo, nunca o valor, `0046` R12), o estado do pedido de livre resolução, o tipo do problema e o estado do reembolso. Um código sem texto mostra-se como está, nunca se esconde. Vários códigos (um documento com dois motivos) mostram-se todos.
+
+### 28.4 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| O ecrã mostrar casos de uma fila que o papel não lê | a rota filtra pelos âmbitos da sessão, como a da chave (R2); o ecrã não filtra nada sozinho |
+| O armazém atribuir a outra pessoa ou mudar o prazo | a rota pede `tasks:assign`; o ecrã nem mostra os botões; a base confere quem pode ser responsável |
+| Duas pessoas ao mesmo tempo no mesmo caso | a versão (409) e o tranco do caso na base (`docs/33` R7) |
+| Ler «a tarefa está feita» numa atribuição | não há «marcar como feita» (R1): o caso sai da lista quando a fila o decide |
+| Um motivo de mudança de prazo com dados de clientes | a frase no campo; o motivo nunca vai no e-mail (`docs/34` §12, T4); a ligação ao apagamento do titular continua por fazer (`docs/33` §6) |
+| A lista parecer vazia por estar cortada | o total por fila e «Ver mais» (R10) |
+| Uma pessoa pensar que o identificador sem ligação é um erro | a linha diz «Este caso ainda não tem ecrã no Hub; decide-se pela integração.» uma vez por cima da lista, enquanto nenhuma fila tiver ecrã (Q1) |
+
+### 28.5 Decidido
+
+✅ **Q1: A** (Diogo, 12/10/2026, *«A, aprovado»*). Desenho aprovado.
+
+**Q1.** Nenhuma das sete filas tem ecrã no Hub. A lista «A decidir» avança
+já, **sem ligação ao caso** (mostra o identificador do caso e da encomenda,
+e diz que se decide pela integração), ou espera que as filas tenham os seus
+ecrãs? Ex.: uma diferença de pagamento aparece como «pdi_…0190», sem nada
+onde carregar para a resolver.
+- **A (proposta):** avança já. Atribuir e mudar prazos no Hub tem valor
+  sozinho: quem decide passa a saber o que é seu e o que venceu. Cada ecrã
+  de fila, quando existir, acrescenta a ligação nesta lista.
+- **B:** espera pelos ecrãs das filas, começando pelo da diferença de
+  pagamento.
+
+### 28.6 Antes de dizer que está feito (o pedido do código)
+
+- **API**:
+  - as rotas pelo Hub fazem o mesmo que as da chave;
+  - `responsavel=eu`;
+  - o armazém e o apoio vêem só as filas que lêem e recebem 403 ao atribuir a outra pessoa e ao mudar o prazo;
+  - outro comerciante não chega (404, com prova pela falha);
+  - o `eurolify.quem` é a pessoa;
+  - `pode_ser_responsavel` vem da base;
+  - a versão (409).
+- **Hub**:
+  - a passagem do exemplo só com o teclado;
+  - os quatro filtros e a fila;
+  - «Ver mais»;
+  - atribuir a outra pessoa;
+  - mudar o prazo antes do prazo legal e recusar depois dele;
+  - o conflito;
+  - a resposta perdida;
+  - o papel sem `tasks:assign`;
+  - capturas a 375, 768 e 1280 px, em claro e escuro, para a página de aprovação (`eurolify-hub-quality-gate`; o programa de capturas só numa base descartável).
