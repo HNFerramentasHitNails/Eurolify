@@ -789,13 +789,20 @@ minuto a minuto e a diária; as rotas. Revisão de um agente antes de juntar.
 - **A fila vem desligada** até se medir a saída da VPS para a Comissão
   (`VIES_URL`; revisão do #244, P2-5): ligar é um pedido à parte. A medição
   fixa da VPS (`eurolify-medir`, fluxo `medir`) diz se a máquina chega ao
-  `check-status` do VIES e se o `VIES_URL` está no `api.env` (12/10/2026).
+  `check-status` do VIES e se o `VIES_URL` está na configuração da API
+  (12/10/2026).
   Mede a partir da máquina, não do contentor da API (outra rede e outros
   certificados): a prova final é a primeira consulta da fila depois de ligar,
   com o `codigo_erro` se falhar (revisão do #377, P2-1).
-  Ligar é pôr `VIES_URL=` no `/etc/eurolify/api.env` e recriar a API: muda a
-  configuração da máquina, por isso fica com o Diogo ou o Bruno (AGENTS.md,
-  «Operar a VPS», regra 1).
+  Ligar muda a configuração da máquina (AGENTS.md, «Operar a VPS», regra 1):
+  o Diogo decidiu ligar a 12/10/2026 (*«sim, avança»*). O passo 10c do
+  `preparar.sh` escreve o `VIES_URL` no `/etc/eurolify/api-vies.env` e recria
+  a API; a publicação passa-o à API; a medição diz se está na configuração e
+  na API no ar. **No ensaio, o serviço de teste da Comissão**
+  (`…/rest-api/check-vat-test-service`; «100» válido, «200» inválido, com
+  nome e morada de exemplo): a VPS ainda está no Reino Unido e nenhum dado
+  pessoal real entra nela (ADR-0019; revisão do #405, P2-1; Diogo,
+  12/10/2026: *«a»*). O serviço verdadeiro liga-se em Paris.
 - A isenção e a prova não entram na linha do tempo da ficha: são registos que
   só se acrescentam, com o seu quem e quando.
 

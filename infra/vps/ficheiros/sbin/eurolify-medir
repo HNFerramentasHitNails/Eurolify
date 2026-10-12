@@ -85,10 +85,23 @@ else
   # 28 tempo esgotado, 35 ou 60 TLS.
   echo "VIES: sem resposta (código do curl $?)"
 fi
-if grep -qsE '^VIES_URL=[[:space:]]*[^[:space:]]' /etc/eurolify/api.env; then
-  echo "VIES_URL no api.env: sim (a API só o lê quando é recriada)"
+# O endereço vem do api-vies.env (passo 10c do preparar.sh) ou, antes dele, do
+# api.env; os dois chegam à API.
+if grep -qsE '^VIES_URL=[[:space:]]*[^[:space:]]' /etc/eurolify/api-vies.env /etc/eurolify/api.env; then
+  echo "VIES_URL na configuração da API: sim (a API só o lê quando é recriada)"
 else
-  echo "VIES_URL no api.env: não (a consulta está desligada)"
+  echo "VIES_URL na configuração da API: não (a consulta está desligada)"
+fi
+if grep -qs 'check-vat-test-service' /etc/eurolify/api-vies.env /etc/eurolify/api.env; then
+  echo "VIES: o serviço de teste da Comissão (sem dados reais)"
+fi
+# A API leu-o? Só se diz se a variável está no contentor, nunca o valor
+# (revisão do #405, P3-2).
+if docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>/dev/null |
+  grep -qE '^VIES_URL=[^[:space:]]'; then
+  echo "VIES_URL na API no ar: sim"
+else
+  echo "VIES_URL na API no ar: não"
 fi
 
 seccao "actualizações"
