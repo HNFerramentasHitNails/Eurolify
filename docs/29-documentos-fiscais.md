@@ -711,3 +711,42 @@ fatura e **pede a nota de crédito**, que fica retida com
 
 **Por fazer:** o relatório OSS (parte 3) com a lista à parte (Q-F3, **C**);
 o ecrã no Hub.
+
+## 17. Parte 2b — ligar o Moloni pela autorização dele (12/10/2026)
+
+> **Estado:** desenho de execução do §13.4 e da M1 (aprovados, `docs/06`,
+> DZ). Pedido do Diogo, 12/10/2026: *«sim, avança com a parte 2b»*. Só a API;
+> o botão no Hub fica para depois.
+
+**O que diz o Moloni** (página «Autenticação», `moloni.pt/dev/autenticacao/`,
+lida a 12/10/2026, **M**):
+1. o utilizador abre
+   `https://www.moloni.pt/ac/root/oauth/?response_type=code&client_id=…&redirect_uri=…`,
+   entra e aceita;
+2. o Moloni devolve-o ao `redirect_uri` com `?code=…`;
+3. o código troca-se por `GET https://api.moloni.pt/v1/grant/?grant_type=authorization_code&client_id=…&redirect_uri=…&client_secret=…&code=…`;
+   a resposta traz `access_token` (1 hora), `refresh_token` (14 dias) e
+   `expires_in`.
+
+**A página não fala de `state`** (o valor que liga a resposta ao pedido e
+impede que alguém faça ligar a conta dele). Não se conta com ele: a troca do
+código **nunca** se faz no endereço público, só num pedido do dono
+autenticado, com o valor que o Eurolify lhe deu ao pedir a autorização. Se o
+Moloni devolver o `state`, passa adiante; se não, a pessoa leva o código.
+**Por medir na conta trial:** se o `state` volta, e se o `redirect_uri` tem de
+ser igual ao registado.
+
+| Rota | Quem | O que faz |
+|---|---|---|
+| `POST /invoicing-connections/{id}/authorize` | o dono (`invoices:accounts`) | Para uma ligação `moloni`: recebe a `empresa` (o `company_id`, só uma da lista de teste, M8), cria um pedido de autorização com um valor aleatório (guardado só o resumo SHA-256), válido **10 minutos**, e devolve o endereço do Moloni (com `state`), o valor e quando expira. Sem `MOLONI_REDIRECT_URI` configurado, recusa |
+| `GET /invoicing-connections/moloni/callback` | público (o navegador vindo do Moloni) | **Não troca nada.** Com `MOLONI_RETORNO_URL`, reencaminha para lá com o `code` (e o `state`, se vier); sem ele, mostra uma página que diz para voltar ao Eurolify com o código. O código só se aceita com letras, números e `._-`, e a página não se guarda em cache |
+| `POST /invoicing-connections/{id}/authorize/complete` | o dono (`invoices:accounts`) | Recebe o `code` e o `state` que o Eurolify deu. Confere que o pedido é desta ligação, não expirou e não foi usado, e **marca-o usado antes de chamar o Moloni** (um código nunca se troca duas vezes). Troca o código, confere que a autorização dá acesso à empresa (como o teste da ligação) e só então grava os tokens como credenciais cifradas. A ligação fica `por_testar` |
+
+- **Uma autorização gasta-se uma vez:** se a troca falhar depois de marcada,
+  pede-se outra.
+- **A empresa** vem do pedido e confere-se no fim. Se a autorização não lhe
+  der acesso, não se grava nada.
+- **As credenciais novas apagam a sessão anterior** (gatilho da 0069), e a
+  renovação passa a correr pelo `refresh_token` novo (§13.4).
+- **Fora desta parte:** o botão no Hub; a escolha da empresa numa lista;
+  e o modo real (M8).
