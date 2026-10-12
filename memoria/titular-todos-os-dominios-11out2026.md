@@ -42,9 +42,14 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
 - As notificações por e-mail (#373, em desenho por outra sessão) devem
   ignorar contactos com o marcador «(pseudonimizado)».
 - Partes 2 (sessões de checkout por prazo) e 3 (exportação) por fazer.
-- Revisão do #374, P1-1, **por decidir**: uma encomenda `devolvida_parcial`
-  (só passa a `devolvida`) ou `expedida` com a expedição perdida ou devolvida
-  ao remetente nunca chega a «acabou» — os dados ficariam para sempre.
+- Revisão do #374, P1-1, **decidida** (Diogo, 12/10/2026: *«a»*): uma
+  encomenda `devolvida_parcial`, ou `expedida` com a expedição perdida ou
+  devolvida ao remetente e o pagamento todo reembolsado, conta como acabada
+  sem nada aberto; os estados da encomenda não mudam. A condição do
+  reembolso na `expedida` foi acrescentada nesta sessão (o comerciante
+  ainda reenvia ou reembolsa); teste com contraprova em
+  `posvenda-api.test.ts`. Uma `expedida` perdida que se resolve com uma
+  encomenda nova, sem reembolso, continua na fila.
 - Fica de fora (revisão do #374, P3): os avisos sem pagamento associado
   (formato da EuPago **C**); os textos que entrem depois numa encomenda já
   limpa (uma devolução ou um problema novos); os apagamentos feitos antes da

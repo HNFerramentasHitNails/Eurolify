@@ -29,6 +29,7 @@ import { EmissorDeEnsaio } from "../src/faturacao/adaptador.js";
 import { AdaptadorMoloni } from "../src/faturacao/moloni.js";
 import { correrDocumentos } from "../src/faturacao/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
+import { correrApagamentosPendentes } from "../src/clientes/titular-fila.js";
 import { correrAvisosDePrazo } from "../src/posvenda/prazo.js";
 import {
   correrNotificacoes,
@@ -875,6 +876,113 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     expect(await ok(s.adm("GET", `/orders/${e.encomenda}`))).toMatchObject({
       estado: "concluida",
       linhas: enc["linhas"],
+    });
+  });
+
+  it("o apagamento numa devolvida em parte e numa expedida perdida já reembolsada: contam como acabadas, sem mudar o estado (revisão do #374, P1-1; Diogo, «A»)", async () => {
+    const s = await cenario();
+    const contactoDe = async (encomenda: string) =>
+      (
+        await sql<{ estado: string; email: unknown }>`select estado,
+          contacto ->> 'email' as email from encomenda
+          where id = ${encomenda.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0];
+    const pseudonimizar = async (cen: Cenario, encomenda: string) => {
+      const cliente = (
+        await sql<{ cliente_id: string }>`select cliente_id from encomenda
+          where id = ${encomenda.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0]?.cliente_id;
+      return comComerciante(base.dono, cen.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+          trx,
+        );
+        return (
+          await sql<{
+            r: Json;
+          }>`select cliente_pseudonimizar(${cliente}::uuid,
+            ${`pseudonimizar cus_${String(cliente)}`}, 'teste') as r`.execute(
+            trx,
+          )
+        ).rows[0]?.r;
+      });
+    };
+
+    // Devolvida em parte: 2 de 3 devolvidas e reembolsadas. Só passaria a
+    // `devolvida`; sem nada aberto, limpa-se.
+    const d = await paga(s, [[s.v1, 3]]);
+    const [linha] = await expedir(s, d.encomenda);
+    const rma = await devolvidaEInspeccionada(s, d.token, [
+      { linha: linha?.["id"], quantidade: 2 },
+    ]);
+    const r = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: linha?.["id"], quantidade: 2 }],
+        motivo: "dois revendáveis",
+      }),
+      201,
+    );
+    await manual(s, String(r["reembolso"]));
+    expect(await contactoDe(d.encomenda)).toMatchObject({
+      estado: "devolvida_parcial",
+    });
+    expect(await pseudonimizar(s, d.encomenda)).toMatchObject({
+      encomendas_limpas: 1,
+      encomendas_por_acabar: 0,
+    });
+    expect(await contactoDe(d.encomenda)).toEqual({
+      estado: "devolvida_parcial",
+      email: "(pseudonimizado)",
+    });
+
+    // Expedida e perdida: até o pagamento estar todo reembolsado, o
+    // comerciante ainda reenvia (precisa da morada) ou reembolsa; fica na
+    // fila.
+    const s2 = await cenario();
+    const p = await paga(s2, [[s2.v1, 1]]);
+    const [lp] = await expedir(s2, p.encomenda, false);
+    const x = (
+      await sql<{ id: string }>`select id from expedicao
+        where encomenda_id = ${p.encomenda.slice(4)}::uuid`.execute(base.dono)
+    ).rows[0];
+    await ok(
+      s2.adm("PATCH", `/shipments/shp_${String(x?.id)}`, {
+        versao: 2,
+        estado: "perdida",
+      }),
+    );
+    const antes = await contactoDe(p.encomenda);
+    expect(antes?.estado).toBe("expedida");
+    expect(await pseudonimizar(s2, p.encomenda)).toMatchObject({
+      encomendas_limpas: 0,
+      encomendas_por_acabar: 1,
+    });
+    expect(await contactoDe(p.encomenda)).toEqual(antes);
+    // Um problema reembolsa tudo (o artigo e os portes), por transferência.
+    const prb = await ok(
+      s2.adm("POST", "/problems", {
+        encomenda: p.encomenda,
+        tipo: "em_falta",
+        descricao: "a transportadora perdeu a encomenda",
+      }),
+      201,
+    );
+    const rp = await ok(
+      s2.adm("POST", `/problems/${String(prb["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: lp?.["id"], quantidade: 1 }],
+        incluir_portes: true,
+        motivo: "perdida",
+      }),
+      201,
+    );
+    await manual(s2, String(rp["reembolso"]));
+    expect(await estadoDoPagamento(s2, p.encomenda)).toBe("reembolsado");
+    const volta = await correrApagamentosPendentes(base.api);
+    expect(volta.falhas).toEqual([]);
+    expect(await contactoDe(p.encomenda)).toEqual({
+      estado: "expedida",
+      email: "(pseudonimizado)",
     });
   });
 

@@ -373,11 +373,29 @@ CREATE FUNCTION titular_morada_sem(p jsonb) RETURNS jsonb
 $$;
 
 -- Uma encomenda acabou: estado final e nada aberto na pós-venda (§15.3).
+-- Duas que nunca chegam a um estado final também contam, sem nada aberto
+-- (revisão do #374, P1-1; Diogo, 12/10/2026, «A»; os estados da encomenda
+-- não mudam):
+--  - `devolvida_parcial`, que só passa a `devolvida`;
+--  - `expedida` sem expedição viva e com alguma perdida ou devolvida ao
+--    remetente, e todo o pagamento capturado já reembolsado: até lá, o
+--    comerciante ainda reenvia (precisa da morada) ou reembolsa.
 CREATE FUNCTION titular_encomenda_acabou(p_encomenda uuid) RETURNS boolean
   LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT EXISTS (SELECT FROM public.encomenda e
       WHERE e.comerciante_id = public.comerciante_actual() AND e.id = p_encomenda
-        AND e.estado IN ('concluida', 'cancelada', 'cancelada_sem_pagamento', 'devolvida'))
+        AND (e.estado IN ('concluida', 'cancelada', 'cancelada_sem_pagamento', 'devolvida',
+                          'devolvida_parcial')
+          OR (e.estado = 'expedida'
+            AND EXISTS (SELECT FROM public.expedicao x
+              WHERE x.encomenda_id = e.id AND x.estado IN ('perdida', 'devolvida_ao_remetente'))
+            AND NOT EXISTS (SELECT FROM public.expedicao x
+              WHERE x.encomenda_id = e.id AND x.estado IN ('criada', 'expedida'))
+            AND NOT EXISTS (SELECT FROM public.pagamento g
+              WHERE g.encomenda_id = e.id
+                AND g.estado IN ('capturado', 'reembolsado_parcial', 'em_disputa'))
+            AND EXISTS (SELECT FROM public.pagamento g
+              WHERE g.encomenda_id = e.id AND g.estado = 'reembolsado'))))
     AND NOT EXISTS (SELECT FROM public.pedido_livre_resolucao p
       WHERE p.encomenda_id = p_encomenda AND p.estado IN ('pendente', 'fora_de_prazo'))
     AND NOT EXISTS (SELECT FROM public.devolucao d
