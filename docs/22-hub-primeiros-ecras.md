@@ -1971,7 +1971,8 @@ onde carregar para a resolver.
 ## 29. O ecrã «Faturação»: a ligação ao emissor e o relatório OSS (issue #310)
 
 Pedido do Diogo, 12/10/2026 (*«sim, avança com o desenho do ecrã
-Faturação»*). **Estado: desenho, por aprovar.**
+Faturação»*). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (*«sim,
+aprovo o desenho com a Q1 em A»*; `docs/06`, EG).
 
 Hoje tudo o que a fatia 10 faz só se usa pela integração, com uma chave:
 - ligar o Moloni pela autorização dele (`docs/29` §17);
@@ -2089,7 +2090,9 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rot
 | Duas pessoas a fechar o mesmo período | a API fecha um de cada vez por entidade; a segunda recebe `already_closed` e o ecrã relê |
 | Um erro do Moloni com dados sensíveis no ecrã | a API já tapa os segredos (`taparSegredos`); o ecrã mostra só a `mensagem` |
 
-### 29.5 Por decidir
+### 29.5 Decidido
+
+✅ **Q1: A** (Diogo, 12/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
 
 **Q1. A ligação ao emissor e os mapas criam-se no Hub nesta parte?** Ex.:
 a dona da «Loja Exemplo» ainda não tem ligação. Precisaria de escolher a
