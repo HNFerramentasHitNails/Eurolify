@@ -508,3 +508,70 @@ dentro do bloqueio.
 **Por fazer:** o adaptador dos CTT (quando houver a especificação e as
 credenciais de teste); a parte C (o segundo adaptador); os ecrãs do Hub.
 
+
+## 16. Parte C — o adaptador da Sendcloud (12/10/2026; desenho e código)
+
+Pedido do Diogo, 12/10/2026: *«ainda não; avança com a parte C»*. Os CTT
+esperam pela especificação. A Sendcloud é o segundo adaptador (Q2).
+
+### 16.1 O que se leu (V6)
+
+Documentação técnica da Sendcloud, API v3, lida a 12/10/2026 em
+`sendcloud.dev` (**W**). Nada se correu contra uma conta real.
+
+| Ponto | O que diz | Página |
+|---|---|---|
+| Autenticação | Basic: chave pública e chave secreta da integração. OAuth2 opcional. | `docs/getting-started/authentication` |
+| Endereço | `https://panel.sendcloud.sc/api/v3` | todas |
+| Etiqueta | `POST /shipments/announce` (síncrono) devolve o envio, o número de seguimento, o endereço de seguimento e, com um volume só, o ficheiro em base64 (`label_file`) | `api/v3/shipments/create-and-announce-a-shipment-synchronously` |
+| Idempotência | `external_reference_id` é único por conta. Repeti-lo dá **409 e devolve o envio que já existe**: é a nossa referência «expedição-tentativa» (R2). | idem |
+| Consultar | `GET /shipments?external_reference_id=…` e `?tracking_number=…` | `api/v3/shipments/retrieve-shipments` |
+| Anular | `POST /shipments/{id}/cancel`: 200 anulada; 202 em fila (a Sendcloud anula se o envio não andar em 14 dias); 409 recusada (já anulada, entregue, ou mais de 42 dias depois de anunciada). Nem todas as transportadoras deixam. | `api/v3/shipments/cancel-a-shipment` |
+| Seguimento | `GET /parcels/tracking/{número}`: eventos com `event_at`, `phase`, `exception` e `sub_status`. **Os eventos não têm identificador.** | `api/v3/parcel-tracking/…`, `docs/parcel-tracking/retrieve-tracking-info` |
+| Avisos | HMAC-SHA256 do corpo em bruto, em hexadecimal, no cabeçalho `Sendcloud-Signature`, com a chave secreta ou a chave de assinatura dos avisos. Repete até 10 vezes e pode chegar fora de ordem. **O conteúdo do aviso na v3 não está descrito** («o mesmo do volume»). | `api/v3/webhooks/index` |
+| Serviços | `POST /shipping-options`: por origem e destino, com o peso máximo, `requirements.fields` (`to_email`, `to_telephone`, medidas), se exige ponto de recolha ou documentos aduaneiros, e `dangerous_goods` (sim ou não, sem números ONU) | `api/v3/shipping-options/return-a-list-of-available-shipping-options` |
+| Etiquetas de teste | o serviço `sendcloud:letter` («Unstamped letter») não é cobrado | `docs/getting-started/creating-test-labels` |
+| Limites | 100 pedidos/min para escrever, 1000/min para ler | `docs/getting-started/rate-limits` |
+
+### 16.2 Onde trata os dados (regra 4 do `AGENTS.md`, Q2)
+
+- **A Sendcloud é dos Países Baixos** (Sendcloud B.V., Eindhoven). No acordo de
+  tratamento (DPA, lido a 12/10/2026, **W**), é **subcontratante**. Os dados
+  do cliente do comerciante (nome, morada, e-mail…) servem «para as
+  transportadoras entregarem e para o seguimento». **Apagam-se 365 dias depois
+  de o envio acabar.** As transferências para fora da UE fazem-se pelo
+  capítulo V do RGPD, com cláusulas-tipo.
+- **A lista oficial dos subcontratantes** (página de apoio da Sendcloud, de
+  01/08/2024) **não a li**: recusa o acesso automático (403). A pesquisa
+  resume-a assim:
+  - AWS EMEA SARL, onde corre a plataforma, na UE;
+  - CM.com, 360dialog e Trustpilot, para avisos por SMS, WhatsApp e avaliações;
+  - Twilio SendGrid, para os e-mails de seguimento;
+  - Zendesk, para o apoio.
+- **Um agregador de terceiros** (openli, 28/11/2024) dá o SendGrid e o Zendesk
+  a tratar dados **nos EUA**. **Não verifiquei, C.**
+- **O que reduz o risco:** o Eurolify só envia o telefone e o e-mail de quem
+  recebe quando o serviço os exige (§6). Os avisos de seguimento da Sendcloud
+  por e-mail e por SMS ficam então sem o contacto do cliente. Em modo teste
+  (D2), o único serviço não exige nenhum dos dois.
+- **Antes do modo real** (uma migração com decisão escrita, 0074), é preciso:
+  ler a lista oficial e o DPA com o jurista; e o Diogo ou o Bruno decidirem,
+  por escrito, se os subcontratantes dos EUA são aceitáveis.
+
+### 16.3 Decisões técnicas (de rotina)
+
+| # | Decisão | Porquê |
+|---|---|---|
+| D1 | **Serviços por conta.** Na Sendcloud, os serviços dependem das transportadoras que cada conta tem ligadas. Ao passar a chamada de teste, o Eurolify pede-os para a origem (o país do remetente) e para cada país dos mercados do comerciante, e guarda uma fotografia na conta (`servicos`, `servicos_em`). O checkout, os métodos e a etiqueta leem a fotografia, sem chamar a Sendcloud. Testar outra vez renova-a. Os adaptadores de lista fixa (CTT) ficam como estão. | o contrato da §8 (`servicos()`) supunha uma lista fixa |
+| D2 | **Em modo teste, só o serviço `sendcloud:letter`**, que não é cobrado | o modo teste não pode pagar etiquetas |
+| D3 | **Ficam de fora os serviços** que exigem ponto de recolha (Q5, parte 3), medidas (o modelo não as tem) ou documentos aduaneiros. Nenhum aceita perigosos (`aceitaOnu` vazio): a Sendcloud diz só «sim ou não», sem números ONU. | R4: não se vende o que não se consegue cumprir |
+| D4 | **O aviso é um sinal para consultar.** Verifica-se a assinatura e lê-se só o número de seguimento ou a referência. A consulta à Sendcloud fica marcada para daí a 1 minuto. Os eventos vêm sempre da consulta. | o conteúdo do aviso não está descrito (16.1) |
+| D5 | **O identificador de um evento** é `event_at`, `phase`, `exception` e `sub_status`, juntos | os eventos não o trazem; o mesmo evento repetido continua a não contar duas vezes |
+| D6 | **Estados:** `dropped` e `accepted` ⇒ recolhida; `sorted`, `in_transit`, `customs` e `in_delivery` ⇒ em trânsito; `attempted` ⇒ tentativa falhada; `pup` ⇒ para levantar; `delivered` ⇒ entregue; `returned_sender` ⇒ devolvida. Tudo o resto ⇒ outro, só no histórico, incluindo `delivery_forced` (a Sendcloud dá por entregue sem confirmação da transportadora: não conta para a livre resolução, L6) e `missing` (**C**: «em falta» pode ser temporário; dar a expedição por perdida é final). | só para a frente (§4.2) |
+| D7 | **Anular:** 200 ⇒ anulada; 202 (em fila) ⇒ anulada; 409 ou 404 ⇒ não é possível | com o 202, a Sendcloud anula sozinha se o envio não andar |
+| D8 | **Respostas:** 4xx com erros ⇒ recusada, com o primeiro motivo; 5xx, 429 ou sem resposta ⇒ incerta (R2). Um 201 com o volume em falha de anúncio ⇒ recusada. | R2 |
+| D9 | **Só vai o que a entrega precisa** (§6): nome, morada, peso e, só se o serviço exigir, telefone e e-mail. Não vão as linhas, os preços nem o número da encomenda. | minimização |
+
+**Por fazer na parte C:** os ecrãs do Hub dos envios ficam para um pedido à
+parte. Ficam por verificar numa conta de teste: o conteúdo real dos avisos e
+os estados de uma transportadora portuguesa.
