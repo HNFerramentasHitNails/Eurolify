@@ -1,6 +1,7 @@
 import { agendarConclusoes } from "./stock/repositorio.js";
 import { comRasto } from "./base/rasto.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
+import type { ConfigEnvios } from "./envios/adaptador.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
@@ -22,6 +23,7 @@ import { ArmazenamentoEmDisco } from "./catalogo/armazenamento.js";
 import { agendarLimpezaDosFicheiros } from "./catalogo/limpeza-ficheiros.js";
 import { consultaVies } from "./clientes/vies.js";
 import { agendarFilaVies } from "./clientes/vies-fila.js";
+import { agendarApagamentosPendentes } from "./clientes/titular-fila.js";
 import { proxyConfiavel } from "./base/limite.js";
 import { serializadores } from "./base/registo.js";
 import { chaveTotp } from "./identidade/palavra-passe.js";
@@ -137,6 +139,23 @@ const faturacao: ConfigFaturacao = {
       }),
 };
 
+// Os envios (docs/36 §3.1): a chave que cifra as credenciais das contas de
+// transportadora (ENVIOS_CHAVE), como a dos pagamentos. Na parte A não há
+// adaptador de nenhuma transportadora: as contas criam-se mas não passam a
+// chamada de teste (`shipping.carrier_unavailable`) até ao dos CTT (parte B).
+const textoChaveEnvios = process.env["ENVIOS_CHAVE"]?.trim();
+const envios: ConfigEnvios = {
+  adaptadores: {},
+  ...(textoChaveEnvios === undefined || textoChaveEnvios === ""
+    ? {}
+    : {
+        chave: chavePagamentos(
+          textoChaveEnvios,
+          process.env["ENVIOS_CHAVE_VERSAO"]?.trim() || "1",
+        ),
+      }),
+};
+
 const app = criarApp(
   {
     // Um identificador por pedido que não recomeça a cada arranque: é o
@@ -156,6 +175,7 @@ const app = criarApp(
   undefined,
   pagamentos,
   faturacao,
+  envios,
 );
 
 // As tarefas agendadas correm com o canal «sistema» no rasto de auditoria
@@ -266,8 +286,18 @@ const pararConclusoes =
       )
     : () => undefined;
 
+// As encomendas de um pedido de apagamento que estavam em curso limpam-se
+// quando acabarem, de hora a hora (docs/23 §15.3).
+const pararApagamentos =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:titular" }, () =>
+        agendarApagamentosPendentes(base, app.log),
+      )
+    : () => undefined;
+
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
+    pararApagamentos();
     pararConclusoes();
     pararDocumentos();
     pararRenovacoes();

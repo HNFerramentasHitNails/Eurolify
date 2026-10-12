@@ -1852,7 +1852,7 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/tarefas/rotas
 
 | Caminho | Quem | O que faz |
 |---|---|---|
-| `GET /hub/tasks?comerciante=&fila=&responsavel=eu\|sem&vencida=&limite=&cursor=` | a sessão do comerciante; as filas são as que o **papel** lê (R2, pelos `ambitos` da sessão) | a lista e os totais de `listarTarefas`. **`responsavel=eu`** existe aqui, porque a sessão é uma pessoa (`docs/33` §7 deixou-o para o ecrã). Sem nenhuma fila, 403 `tasks.forbidden` |
+| `GET /hub/tasks?fila=&responsavel=eu\|sem&vencida=&limite=&cursor=` (o comerciante no cabeçalho `Eurolify-Comerciante`, como nas outras rotas do Hub) | a sessão do comerciante; as filas são as que o **papel** lê (R2, pelos `ambitos` da sessão) | a lista e os totais de `listarTarefas`. **`responsavel=eu`** existe aqui, porque a sessão é uma pessoa (`docs/33` §7 deixou-o para o ecrã). Sem nenhuma fila, 403 `tasks.forbidden` |
 | `GET /hub/tasks/{fila}/{caso}` | o `read` da fila no papel | o caso e o histórico das atribuições |
 | `POST /hub/tasks/{fila}/{caso}/assign` `{ responsavel: per_… \| null, versao }` | atribuir-se: o âmbito de decidir a fila no papel; outra pessoa ou `null`: também `tasks:assign` (R3) | a mesma função `tarefas_atribuir`, com o `eurolify.quem` da pessoa; a base confere quem pode ser responsável |
 | `POST /hub/tasks/{fila}/{caso}/deadline` `{ prazo, motivo, versao }` | decidir a fila e `tasks:assign` | a mesma função `tarefas_mudar_prazo`; o prazo nunca no passado nem depois do prazo legal (R5) |
@@ -1900,6 +1900,52 @@ onde carregar para a resolver.
   de fila, quando existir, acrescenta a ligação nesta lista.
 - **B:** espera pelos ecrãs das filas, começando pelo da diferença de
   pagamento.
+
+### 28.7 Em código (12/10/2026; migração 0073; pedido #396)
+
+| O quê | Onde |
+|---|---|
+| as quatro rotas `/hub/tasks`, com as funções da lista e do caso partilhadas com as da chave; a lista leva também o `fuso` do comerciante, para o ecrã mostrar e escolher os prazos nele | `apps/api/src/tarefas/rotas.ts` |
+| `tarefas_podem_ser_responsaveis(fila)`: quem pode ser responsável, pela régua da base, só no comerciante do contexto | migração 0073 |
+| o ecrã, o módulo «A decidir» (basta um dos âmbitos que lêem as filas), os textos PT, ES e EN e os motivos em linguagem comum | `apps/hub/src/ecras/ADecidir.tsx`, `tarefas.ts`, `modulos.ts`, `textos/` |
+| testes: 6 pela API (`test/tarefas-hub.test.ts`), 13 sem servidor (`apps/hub/test/tarefas.test.ts`, com a régua igual à da API) e a passagem nas capturas | — |
+
+**Desvios do desenho:**
+- **«Atribuir…» e «Mudar o prazo…» abrem por baixo da linha,** como o
+  histórico, e não num diálogo. O Hub não tem diálogos, e um painel na
+  página não prende o foco nem o teclado. O foco vai para o título do
+  painel quando abre.
+- **Os motivos com texto** são os das filas de pagamentos, clientes,
+  pós-venda e os estados do documento. Dos motivos de retenção de um
+  documento, só quatro têm texto (`emissor_por_configurar`,
+  `taxa_sem_mapa`, `original_por_emitir`, `reembolso_por_executar`); os
+  outros mostram o código, como o §28.3 prevê. Os textos dos outros ficam
+  por escrever.
+- **O comerciante vai no cabeçalho,** não na consulta. É assim em todas as
+  rotas do Hub.
+- **Ficar com um caso que tem outro responsável** pede também
+  `tasks:assign`, porque é tirá-lo a essa pessoa (R3; revisão do #396,
+  P2-1). Sem `tasks:assign`, o botão só aparece nos casos sem responsável.
+- **Uma IA declarada no pedido** (`Eurolify-IA`) não atribui nem muda prazos
+  pelo Hub (R11; revisão do #396, P3-6).
+- **O limite do prazo legal** no campo é a meia-noite do dia seguinte ao
+  último dia legal, como a base o conta (revisão do #396, P3-2).
+- **Os vazios por filtro** dizem todos «Nenhum caso com este filtro.», em vez
+  de uma frase por filtro. A contagem não separa os vencidos: a API dá o
+  total por fila, não por estado.
+- **Uma linha que deixa de cumprir o filtro** depois de uma mudança fica à
+  vista até se mudar de filtro ou recarregar, com o aviso «Guardado.»; tirá-la
+  logo fazia perder o foco (revisão do #396, P3-9).
+- **A tabela passa a cartões até 960 px** (`.tabela-larga`), porque as sete
+  colunas não cabiam a 768 px (revisão do #396, P3-8).
+
+**Ficam** (revisão do #396):
+- Não há teste do componente sem servidor para o conflito (409), «Ver mais»
+  e atribuir a outra pessoa; a passagem nas capturas cobre a resposta
+  perdida, o foco, os filtros, ficar com o caso, o prazo e o histórico.
+- O motivo livre de uma mudança de prazo vê-se no histórico por todos os
+  papéis que lêem a fila (o armazém e o apoio também); a ligação dele ao
+  apagamento do titular (DU) continua por fazer (`docs/33` §6).
 
 ### 28.6 Antes de dizer que está feito (o pedido do código)
 

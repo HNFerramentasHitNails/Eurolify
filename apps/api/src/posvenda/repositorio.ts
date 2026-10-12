@@ -256,7 +256,10 @@ export async function pedirLivreResolucao(
       trx,
     );
     const agora = (rows[0] as { agora: string }).agora;
-    const contacto = (e.contacto as { email?: string } | null)?.email ?? "";
+    // O e-mail de uma encomenda já limpa num pedido de apagamento é o
+    // marcador (docs/23 §15.2): fica «sem e-mail», como sem contacto.
+    const email = (e.contacto as { email?: string } | null)?.email ?? "";
+    const contacto = email === "(pseudonimizado)" ? "" : email;
     const confirmacaoPara = (aceite: boolean) => ({
       encomenda: `ord_${e.id}`,
       recebido_em: agora,

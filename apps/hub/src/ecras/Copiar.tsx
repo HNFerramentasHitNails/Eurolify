@@ -1,14 +1,18 @@
 import { useState } from "react";
 import { useHub } from "../contexto";
 
-/** «Copiar» para a área de transferência, com a confirmação anunciada. */
-export function Copiar({ texto }: { texto: string }) {
+/**
+ * «Copiar» para a área de transferência, com a confirmação anunciada. O
+ * `rotulo` dá um nome próprio ao botão quando há vários na página.
+ */
+export function Copiar({ texto, rotulo }: { texto: string; rotulo?: string }) {
   const { t } = useHub();
   const [estado, setEstado] = useState<"antes" | "copiado" | "falhou">("antes");
   return (
     <>
       <button
         type="button"
+        {...(rotulo === undefined ? {} : { "aria-label": rotulo })}
         onClick={() => {
           navigator.clipboard.writeText(texto).then(
             () => {

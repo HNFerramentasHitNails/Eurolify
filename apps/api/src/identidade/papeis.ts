@@ -46,6 +46,7 @@ export const AMBITOS_DO_PAPEL: Record<Papel, readonly Ambito[]> = {
     "returns:read",
     "returns:write",
     "sales:read",
+    "shipping:accounts",
     "shipping:read",
     "shipping:write",
     "tasks:assign",

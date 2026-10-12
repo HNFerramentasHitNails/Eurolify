@@ -9,6 +9,8 @@ import { comIdempotencia } from "../base/idempotencia.js";
 import { TIPOS_TEXTO_LEGAL, type BaseDados } from "../base/esquema.js";
 import { escrever, idCom, semPrefixo, umDe } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
+import type { ConfigEnvios } from "../envios/adaptador.js";
+import { emEnvios } from "../envios/rotas.js";
 import {
   CabecalhoIdempotencia,
   caminhoDe,
@@ -46,6 +48,7 @@ import {
   versaoDoResumo,
   type Resumo,
   type SessaoLida,
+  metodosDaSessao,
 } from "./repositorio.js";
 
 // A API do checkout (docs/25 §8; issue #273; Diogo, 09/10/2026: «sim,
@@ -153,6 +156,7 @@ const IdTexto = idCom("lgt", "lgt_…");
 const IdVersao = idCom("lgv", "lgv_…");
 const IdMetodo = idCom("shm", "shm_…");
 const IdEncomenda = idCom("ord", "ord_…");
+const IdConta = idCom("cac", "cac_…");
 export const Token = Type.String({ pattern: "^[A-Za-z0-9_-]{43}$" });
 const CabecalhoCarrinho = Type.Object({
   "x-cart-secret": Type.Optional(Type.String({ maxLength: 100 })),
@@ -223,6 +227,8 @@ const paraResumo = (r: Resumo) => ({
       : {
           metodo: `shm_${r.portes.metodo_id}`,
           nome: r.portes.nome,
+          // A data-limite de entrega se encomendar agora (docs/36 L1).
+          data_limite: r.portes.data_limite,
           tarifa: r.portes.tarifa,
           base: r.portes.base,
           valor_iva: r.portes.iva,
@@ -305,6 +311,7 @@ const moradaDe = (m: MoradaPedida) => ({
 export function rotasDoCheckout(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
+  envios?: ConfigEnvios,
 ) {
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
   const loja = { ambito: "storefront" as const, loja: true };
@@ -668,6 +675,43 @@ export function rotasDoCheckout(
       ),
   );
 
+  rotas.get(
+    "/checkout/:token/delivery-methods",
+    {
+      config: publico,
+      schema: {
+        description:
+          "Os métodos de entrega do mercado da sessão, com a data-limite se encomendar agora e os códigos postais que servem; os que não servem esta morada ou este conteúdo vêm com o porquê (docs/36 L1, L3, R4).",
+        params: ParamToken,
+        response: {
+          200: Type.Object({ dados: Type.Array(Livre) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emCheckout(resposta, () =>
+        naSessao(
+          base,
+          pedido.params.token,
+          async (trx, s) => ({
+            dados: (await metodosDaSessao(trx, s)).map((m) => ({
+              ...m,
+              id: `shm_${m.id}`,
+              // O estado da conta e o peso em falta são da operação: o
+              // cliente vê só «indisponível» (revisão do #397, P3-3).
+              motivo:
+                m.motivo === "conta_indisponivel" ||
+                m.motivo === "peso_desconhecido"
+                  ? "indisponivel"
+                  : m.motivo,
+            })),
+          }),
+          { soAberta: false },
+        ),
+      ),
+  );
+
   rotas.put(
     "/checkout/:token/delivery-method",
     {
@@ -841,6 +885,17 @@ export function rotasDoCheckout(
               paraEncomenda(await lerEncomenda(trx, s.comerciante_id, id));
             delete publica.emissor_fiscal;
             delete publica.documento;
+            // A conta e o serviço da transportadora são da operação; o
+            // cliente vê o método e a data-limite (docs/36 L1).
+            const me = publica.metodo_entrega as
+              Record<string, unknown> | undefined;
+            if (me !== undefined) {
+              publica.metodo_entrega = {
+                id: me["id"],
+                nome: me["nome"],
+                data_limite: me["data_limite"] ?? null,
+              };
+            }
             // O botão de livre resolução vai na confirmação (docs/30 R2 e
             // §8; revisão do #329, P2-9): só os consumidores o usam.
             return {
@@ -1055,6 +1110,16 @@ export function rotasDoCheckout(
     gratis_a_partir_de:
       m.gratis_a_partir_de === null ? null : Number(m.gratis_a_partir_de),
     pede_telefone: m.pede_telefone,
+    // Os envios (docs/36 §3.2; 0074).
+    conta:
+      m.conta_transportadora_id === null
+        ? null
+        : `cac_${m.conta_transportadora_id}`,
+    servico: m.servico,
+    prazo_max_dias: m.prazo_max_dias,
+    codigos_postais: m.codigos_postais,
+    aceita_onu: m.aceita_onu,
+    peso_max_g: m.peso_max_g,
     estado: m.estado,
     versao: m.versao,
   });
@@ -1104,6 +1169,54 @@ export function rotasDoCheckout(
     pede_telefone: Type.Optional(Type.Boolean()),
   };
 
+  // Os campos dos envios (docs/36 §3.2): a conta e o serviço vão juntos, ou
+  // nenhum (método «manual»).
+  const CamposEnvios = {
+    conta: Type.Optional(Type.Union([IdConta, Type.Null()])),
+    servico: Type.Optional(
+      Type.Union([
+        Type.String({ pattern: "^[0-9A-Za-z_.-]{1,50}$" }),
+        Type.Null(),
+      ]),
+    ),
+    prazo_max_dias: Type.Optional(Type.Integer({ minimum: 1, maximum: 30 })),
+    codigos_postais: Type.Optional(
+      Type.Array(Type.String({ pattern: "^[0-9A-Za-z][0-9A-Za-z -]{0,11}$" }), {
+        maxItems: 200,
+      }),
+    ),
+    aceita_onu: Type.Optional(
+      Type.Array(Type.String({ pattern: "^UN[0-9]{4}$" }), { maxItems: 200 }),
+    ),
+    peso_max_g: Type.Optional(
+      Type.Union([
+        Type.Integer({ minimum: 1, maximum: 1_000_000 }),
+        Type.Null(),
+      ]),
+    ),
+  };
+  const enviosDo = (b: {
+    conta?: string | null;
+    servico?: string | null;
+    prazo_max_dias?: number;
+    codigos_postais?: string[];
+    aceita_onu?: string[];
+    peso_max_g?: number | null;
+  }) => ({
+    ...(b.conta === undefined
+      ? {}
+      : { conta: b.conta === null ? null : semPrefixo(b.conta) }),
+    ...(b.servico === undefined ? {} : { servico: b.servico }),
+    ...(b.prazo_max_dias === undefined
+      ? {}
+      : { prazo_max_dias: b.prazo_max_dias }),
+    ...(b.codigos_postais === undefined
+      ? {}
+      : { codigos_postais: b.codigos_postais }),
+    ...(b.aceita_onu === undefined ? {} : { aceita_onu: b.aceita_onu }),
+    ...(b.peso_max_g === undefined ? {} : { peso_max_g: b.peso_max_g }),
+  });
+
   rotas.post(
     "/shipping-methods",
     {
@@ -1112,7 +1225,7 @@ export function rotasDoCheckout(
         description: "Cria um método de entrega num mercado.",
         headers: CabecalhoIdempotencia,
         body: Type.Object(
-          { mercado: IdMercado, ...CamposMetodo },
+          { mercado: IdMercado, ...CamposMetodo, ...CamposEnvios },
           { additionalProperties: false },
         ),
         response: {
@@ -1123,23 +1236,27 @@ export function rotasDoCheckout(
     },
     (pedido, resposta) =>
       escrever(base, pedido, resposta, 201, (trx, chave) =>
-        emCheckout(resposta, async () => {
-          const b = pedido.body;
-          return {
-            id: `shm_${await criarMetodoEntrega(
-              trx,
-              chave.comercianteId,
-              semPrefixo(b.mercado),
-              {
-                nome: b.nome,
-                prazo: b.prazo ?? {},
-                tarifa: b.tarifa,
-                gratis_a_partir_de: b.gratis_a_partir_de ?? null,
-                pede_telefone: b.pede_telefone ?? false,
-              },
-            )}`,
-          };
-        }),
+        emEnvios(resposta, () =>
+          emCheckout(resposta, async () => {
+            const b = pedido.body;
+            return {
+              id: `shm_${await criarMetodoEntrega(
+                trx,
+                chave.comercianteId,
+                semPrefixo(b.mercado),
+                {
+                  nome: b.nome,
+                  prazo: b.prazo ?? {},
+                  tarifa: b.tarifa,
+                  gratis_a_partir_de: b.gratis_a_partir_de ?? null,
+                  pede_telefone: b.pede_telefone ?? false,
+                  ...enviosDo(b),
+                },
+                envios,
+              )}`,
+            };
+          }),
+        ),
       ),
   );
 
@@ -1161,6 +1278,7 @@ export function rotasDoCheckout(
             gratis_a_partir_de: CamposMetodo.gratis_a_partir_de,
             pede_telefone: Type.Optional(Type.Boolean()),
             estado: Type.Optional(umDe(["activo", "arquivado"] as const)),
+            ...CamposEnvios,
           },
           { additionalProperties: false },
         ),
@@ -1169,17 +1287,32 @@ export function rotasDoCheckout(
     },
     (pedido, resposta) =>
       escrever(base, pedido, resposta, 204, (trx, chave) =>
-        emCheckout(resposta, async () => {
-          const { versao, ...dados } = pedido.body;
-          await mudarMetodoEntrega(
-            trx,
-            chave.comercianteId,
-            semPrefixo(pedido.params.id),
-            versao,
-            dados,
-          );
-          return null;
-        }),
+        emEnvios(resposta, () =>
+          emCheckout(resposta, async () => {
+            const b = pedido.body;
+            await mudarMetodoEntrega(
+              trx,
+              chave.comercianteId,
+              semPrefixo(pedido.params.id),
+              b.versao,
+              {
+                ...(b.nome === undefined ? {} : { nome: b.nome }),
+                ...(b.prazo === undefined ? {} : { prazo: b.prazo }),
+                ...(b.tarifa === undefined ? {} : { tarifa: b.tarifa }),
+                ...(b.gratis_a_partir_de === undefined
+                  ? {}
+                  : { gratis_a_partir_de: b.gratis_a_partir_de }),
+                ...(b.pede_telefone === undefined
+                  ? {}
+                  : { pede_telefone: b.pede_telefone }),
+                ...(b.estado === undefined ? {} : { estado: b.estado }),
+                ...enviosDo(b),
+              },
+              envios,
+            );
+            return null;
+          }),
+        ),
       ),
   );
 

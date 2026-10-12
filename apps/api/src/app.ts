@@ -36,6 +36,8 @@ import { rotasDaMedia } from "./catalogo/rotas-media.js";
 import { rotasDosClientes } from "./clientes/rotas.js";
 import { rotasDoIva } from "./iva/rotas.js";
 import { rotasDoCheckout } from "./checkout/rotas.js";
+import type { ConfigEnvios } from "./envios/adaptador.js";
+import { rotasDosEnvios } from "./envios/rotas.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { rotasDosPagamentos } from "./pagamentos/rotas.js";
 import { rotasDoStock } from "./stock/rotas.js";
@@ -43,7 +45,7 @@ import type { ConfigFaturacao } from "./faturacao/adaptador.js";
 import { rotasDosDocumentos } from "./faturacao/rotas.js";
 import { rotasDoRelatorioOss } from "./faturacao/rotas-oss.js";
 import { rotasDaPosVenda } from "./posvenda/rotas.js";
-import { rotasDasTarefas } from "./tarefas/rotas.js";
+import { rotasDasTarefas, rotasDasTarefasNoHub } from "./tarefas/rotas.js";
 import { rotasDasVendas, rotasDasVendasNoHub } from "./vendas/rotas.js";
 import { rotasDasNotificacoes } from "./notificacoes/rotas.js";
 import type { ConsultaVies } from "./clientes/vies.js";
@@ -124,6 +126,11 @@ export function criarApp(
    * eles, ligar o emissor dá 503 `invoices.not_configured`.
    */
   faturacao?: ConfigFaturacao,
+  /**
+   * Os adaptadores das transportadoras e a chave das credenciais (docs/36);
+   * sem eles, ligar uma conta dá 503 `shipping.not_configured`.
+   */
+  envios?: ConfigEnvios,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -390,7 +397,8 @@ export function criarApp(
       rotasDosPrecos(rotas, base);
       rotasDosClientes(rotas, base, vies);
       rotasDoIva(rotas, base);
-      rotasDoCheckout(rotas, base);
+      rotasDoCheckout(rotas, base, envios);
+      rotasDosEnvios(rotas, base, envios);
       rotasDosPagamentos(rotas, base, pagamentos);
       rotasDoStock(rotas, base);
       rotasDosDocumentos(rotas, base, faturacao);
@@ -418,6 +426,7 @@ export function criarApp(
       rotasDasChavesDoHub(rotas, base);
       rotasDoCatalogoNoHub(rotas, base);
       rotasDasVendasNoHub(rotas, base);
+      rotasDasTarefasNoHub(rotas, base);
       if (armazenamento !== undefined) {
         rotasDasImagensNoHub(rotas, base, armazenamento);
       }

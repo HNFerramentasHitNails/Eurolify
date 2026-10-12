@@ -88,6 +88,8 @@
   --estado-artigo-rascunho: var(--estado-aviso);
   --estado-artigo-activo: var(--estado-sucesso);
   --estado-artigo-arquivado: var(--texto-secundario);
+  /* Um caso vencido no «A decidir» (docs/22 §28.3): um estado, uma cor. */
+  --estado-tarefa-vencida: var(--estado-erro);
   /* O vidro da entrada: uma cor, a opacidade (percentagem, para o
      color-mix) e o fundo estático com um gradiente muito leve. O teste de
      contraste mede as cores compostas. */

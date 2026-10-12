@@ -228,6 +228,43 @@ revisão do agente. Um pedido só.
   `notificacao`, o gatilho, que é `ALWAYS`, recria notificações (P3-7).
   A ordem da reposição não foi verificada.
 
+## 13. A configuração chega à VPS pelo GitHub (12/10/2026; #372)
+
+O §5 deixou por fazer o caminho dos cinco `SMTP_*` até à VPS. A 12/10/2026
+o Diogo criou a conta `avisos@eurolify.eu`, os cinco segredos no ambiente
+`ensaio` do GitHub e a zona DNS. À pergunta «por que porta entram os dados?»
+respondeu *«a»*: **uma acção e uma chave próprias**, para que a chave que
+cria comerciantes (`operar`) não mexa na configuração da API.
+
+| Peça | O que faz | Onde |
+|---|---|---|
+| acção `configurar` (à mão, ambiente `ensaio`, só o `main`) | junta os cinco segredos numa linha de base64, esconde-a do registo do GitHub e entrega `smtp <base64> run:<n> github:<conta>` com a chave `VPS_CHAVE_CONFIGURAR` | `.github/workflows/configurar.yml` |
+| utilizador `eurolify-configurar` | sem sudo nem docker; a chave só corre `eurolify-pedido configurar`, que só aceita esse formato, até 1500 caracteres, e espera até 1900 s | `preparar.sh`, passo 11; `ficheiros/bin/eurolify-pedido` |
+| `eurolify-configurar` (root) | recebe o pedido **pela entrada**, nunca como argumento: a linha de comandos de um processo lê-se no `/proc` (revisão do #398, P1-1). Valida cada valor: o anfitrião é um nome; a porta é 465 ou 587; o utilizador e o remetente são endereços simples, como a API os aceita; a palavra-passe tem até 256 bytes, sem caracteres de controlo e sem espaços nas pontas. Escreve o `/etc/eurolify/api-smtp.env` (600, root) de uma vez. Depois, **sempre**, confere se o contentor da API tem os cinco valores no ambiente, comparados em memória; se não, recria-a (`eurolify-publicar --so-recriar`) e confere outra vez. Só diz que ficou bem quando os tem; senão pede para lançar a acção outra vez (revisão do #398, P2-1). Uma imagem de outro repositório não se recria | `ficheiros/sbin/eurolify-configurar` |
+| a API lê o ficheiro | o `eurolify-publicar` passa-o à API (`--env-file`) e recria-a quando ele muda; o passo 10c também | `ficheiros/sbin/eurolify-publicar`; `preparar.sh` |
+| nunca os valores | nem na saída, nem no registo da máquina (`'smtp' (<execução> github:<conta>) tratado`, com a conta de quem lançou), nem no do GitHub; o teste procura também o base64 | `eurolify-trabalho`; `infra/vps/testes/configurar.sh` |
+
+**Fica** (revisão do #398): o `api-smtp.env` anterior não se guarda (uma
+configuração errada não derruba a API: a API arranca sem SMTP e diz porquê,
+`configSmtp`); o `docker inspect` mostra os valores a quem é root, como o
+`api-base.env` (P3-6, P3-7).
+
+**Para os e-mails saírem (Diogo ou Bruno):**
+1. criar a chave do fluxo, como a do `operar` (`memoria/convite-do-operador-08out2026.md`): a privada no segredo `VPS_CHAVE_CONFIGURAR` do ambiente `ensaio`, a pública em `infra/vps/chaves/fluxos/configurar.pub` (por pedido de alteração);
+2. juntar esse pedido: o `aplicar-script` cria o utilizador e liga a chave;
+3. lançar a acção `configurar` (Actions → configurar → Run workflow).
+
+**O DNS de `eurolify.eu`** (lido a 12/10/2026 pelo `dns.google`):
+- **SPF:** havia **dois** registos (`~all` e `-all`). Com mais de um, o SPF
+  dá erro (RFC 7208, §4.5) e não vale: fica só o
+  `v=spf1 include:mx.ovh.com ~all` da OVH
+  ([guia](https://docs.ovhcloud.com/en/guides/web-cloud/domains/dns-zone-spf)).
+- **DMARC:** `v=DMARC1; p=none; rua=mailto:avisos@eurolify.eu`. Começa só a
+  vigiar, como a OVH recomenda
+  ([guia](https://docs.ovhcloud.com/en/guides/web-cloud/domains/dns-zone-dmarc)).
+- **MX:** `mx1`, `mx2` e `mx3.mail.ovh.net`.
+- **DKIM:** **não verifiquei**. O nome do selector vem do painel da OVH.
+
 ## 10. Pergunta para o Diogo ou o Bruno
 
 | # | Pergunta | Proposta |
