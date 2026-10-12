@@ -1159,6 +1159,39 @@ export async function registosOss(
   );
 }
 
+/**
+ * Os países que cada balde aceita numa classificação (docs/22 §29): a mesma
+ * régua que `classificarOss` confere, para o ecrã não oferecer o que a API
+ * recusa. Fora da UE só na exportação; as outras isentas aceitam qualquer.
+ */
+export function paisesPorBalde(paisEntidade: string) {
+  const ue = [...PAISES_UE].sort();
+  const outros = ue.filter((p) => p !== paisEntidade);
+  return [
+    { balde: "oss" as const, paises: outros, fora_da_ue: false },
+    { balde: "nacional" as const, paises: [paisEntidade], fora_da_ue: false },
+    { balde: "intracomunitarias" as const, paises: outros, fora_da_ue: false },
+    { balde: "exportacao" as const, paises: [] as string[], fora_da_ue: true },
+    { balde: "outras_isentas" as const, paises: ue, fora_da_ue: true },
+  ];
+}
+
+/** A régua de `paisesPorBalde` para uma entidade do comerciante. */
+export async function classificavelOss(
+  db: Kysely<BaseDados>,
+  c: string,
+  entidade: string,
+) {
+  return noRelatorio(
+    db,
+    c,
+    async (trx) => ({
+      baldes: paisesPorBalde(await paisDaEntidade(trx, entidade)),
+    }),
+    { soLeitura: true },
+  );
+}
+
 // ---------------------------------------------------- A decisão do dono
 
 /** Os impedimentos que o dono pode resolver classificando (P1-A). */

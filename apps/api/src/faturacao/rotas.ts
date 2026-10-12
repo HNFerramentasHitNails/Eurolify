@@ -6,7 +6,8 @@ import { Type } from "typebox";
 import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { ESTADOS_DOCUMENTO, type BaseDados } from "../base/esquema.js";
 import { escrever, idCom, semPrefixo, umDe } from "../catalogo/rotas.js";
-import { chaveDo } from "../identidade/autenticacao.js";
+import { chaveDo, sessaoDo } from "../identidade/autenticacao.js";
+import { erroConta } from "../identidade/sessoes.js";
 import type { ConfigFaturacao } from "./adaptador.js";
 import { ErroDocumentos, ESTADO_DO_CODIGO, traduzir } from "./erros.js";
 import {
@@ -27,6 +28,7 @@ import {
   reverificar,
   testarLigacao,
   concluirAutorizacao,
+  entidadesDaFaturacao,
   pedirAutorizacao,
 } from "./repositorio.js";
 
@@ -518,6 +520,170 @@ export function rotasDosDocumentos(
           ),
         );
     },
+  );
+
+  // ------------------------------- O ecrã «Faturação» do Hub (docs/22 §29)
+
+  /**
+   * A sessão do Hub com o âmbito pedido (o papel) e, para ligar uma conta,
+   * autenticação recente (§3). O `eurolify.quem` é a pessoa.
+   */
+  const daSessao = (
+    pedido: Parameters<typeof sessaoDo>[0],
+    ambito: string,
+    recente = false,
+  ) => {
+    const s = sessaoDo(pedido);
+    if (!(s.ambitos as readonly string[]).includes(ambito)) {
+      throw erroConta("member.role_escalation", `o papel não tem ${ambito}`);
+    }
+    if (recente && !s.recente) {
+      throw erroConta(
+        "auth.reauthentication_required",
+        "autentique-se outra vez para esta operação",
+      );
+    }
+    return {
+      comercianteId: s.comercianteId ?? "",
+      quem: `pessoa:per_${s.pessoaId}`,
+    };
+  };
+
+  rotas.get(
+    "/hub/invoicing",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "O ecrã «Faturação» do Hub (docs/22 §29): as entidades legais activas, quem emite por cada uma e as ligações, sem credenciais (as mesmas de GET /invoicing-connections). Com `invoices:read`.",
+        response: {
+          200: Type.Object({
+            entidades: Type.Array(Livre),
+            ligacoes: Type.Array(Livre),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emDocumentos(resposta, async () => {
+        const s = daSessao(pedido, "invoices:read");
+        const [entidades, ligacoes] = await Promise.all([
+          entidadesDaFaturacao(base, s.comercianteId),
+          listarLigacoes(base, s.comercianteId),
+        ]);
+        return {
+          entidades: entidades.map((e) => ({
+            id: `lgl_${e.id}`,
+            nome: e.denominacao,
+            pais: e.pais,
+            emissor: e.emissor_fiscal,
+          })),
+          ligacoes: ligacoes.map(paraLigacao),
+        };
+      }),
+  );
+
+  rotas.post(
+    "/hub/invoicing-connections/:id/authorize",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §29): o mesmo que POST /invoicing-connections/{id}/authorize, com `invoices:accounts` (o dono) e autenticação recente.",
+        params: Type.Object({ id: IdLigacao }),
+        body: Type.Object(
+          { empresa: Type.String({ pattern: "^[0-9]{1,12}$" }) },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({
+            url: Type.String(),
+            estado: Type.String(),
+            expira_em: Type.String(),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emDocumentos(resposta, async () => {
+        const s = daSessao(pedido, "invoices:accounts", true);
+        const r = await pedirAutorizacao(
+          base,
+          s.comercianteId,
+          semPrefixo(pedido.params.id),
+          pedido.body.empresa,
+          cfg,
+          s.quem,
+        );
+        void resposta.header("cache-control", "no-store");
+        return { ...r, expira_em: r.expira_em.toISOString() };
+      }),
+  );
+
+  rotas.post(
+    "/hub/invoicing-connections/:id/authorize/complete",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §29): o mesmo que POST /invoicing-connections/{id}/authorize/complete, com `invoices:accounts`.",
+        params: Type.Object({ id: IdLigacao }),
+        body: Type.Object(
+          {
+            codigo: Type.String({ pattern: "^[A-Za-z0-9._~-]{1,512}$" }),
+            estado: Type.String({ pattern: "^[A-Za-z0-9_-]{20,100}$" }),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      await emDocumentos(resposta, async () => {
+        const s = daSessao(pedido, "invoices:accounts");
+        await concluirAutorizacao(
+          base,
+          s.comercianteId,
+          semPrefixo(pedido.params.id),
+          pedido.body,
+          cfg,
+          s.quem,
+        );
+      });
+      return resposta.code(204).send(null);
+    },
+  );
+
+  rotas.post(
+    "/hub/invoicing-connections/:id/test",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §29): a chamada de teste ao software de faturação, como POST /invoicing-connections/{id}/test, com `invoices:accounts`.",
+        params: Type.Object({ id: IdLigacao }),
+        response: {
+          200: Type.Object({
+            estado: Type.String(),
+            erro: Type.Union([Type.String(), Type.Null()]),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emDocumentos(resposta, async () => {
+        const s = daSessao(pedido, "invoices:accounts");
+        return testarLigacao(
+          base,
+          s.comercianteId,
+          semPrefixo(pedido.params.id),
+          cfg,
+          s.quem,
+        );
+      }),
   );
 
   // ------------------------------------------------- Os documentos (§3.3)

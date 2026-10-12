@@ -168,6 +168,18 @@ export async function criarLigacao(
   });
 }
 
+/** As entidades legais activas e quem emite por elas (o ecrã do Hub, docs/22 §29). */
+export async function entidadesDaFaturacao(db: Kysely<BaseDados>, c: string) {
+  return noDocumentos(db, c, (trx) =>
+    trx
+      .selectFrom("entidade_legal")
+      .select(["id", "denominacao", "pais", "emissor_fiscal"])
+      .where("estado", "=", "activa")
+      .orderBy("criado_em")
+      .execute(),
+  );
+}
+
 export async function listarLigacoes(db: Kysely<BaseDados>, c: string) {
   return noDocumentos(db, c, (trx) =>
     trx
