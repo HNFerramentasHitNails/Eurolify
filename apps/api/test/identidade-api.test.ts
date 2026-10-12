@@ -263,6 +263,7 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       "/invoices",
       "/invoices/{id}",
       "/invoices/{id}/correct",
+      "/invoices/{id}/issued-elsewhere",
       "/invoices/{id}/pdf",
       "/invoices/{id}/recheck",
       "/invoices/{id}/reconcile",

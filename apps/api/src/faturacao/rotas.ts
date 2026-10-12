@@ -23,6 +23,7 @@ import {
   pdfDoDocumento,
   reconciliar,
   resolver,
+  emitidaFora,
   reverificar,
   testarLigacao,
 } from "./repositorio.js";
@@ -452,6 +453,13 @@ export function rotasDosDocumentos(
           saldo: d.saldo,
           ligacao: d.ligacao_id === null ? null : `isx_${d.ligacao_id}`,
           emissor_id: d.emissor_id,
+          // Emitida no sistema próprio (docs/29 §15): o número foi declarado
+          // por uma pessoa, não lido de um emissor — não é prova (F3).
+          // Uma NC que saiu com a fatura não tem número declarado (P2-2).
+          emitida_fora:
+            d.estado !== "fora"
+              ? null
+              : { numero_declarado: d.fora_numero, prova: false },
           versao: d.versao,
           criado_em: d.criado_em.toISOString(),
           conteudos: d.conteudos.map((x) => ({
@@ -719,6 +727,39 @@ export function rotasDosDocumentos(
       escrever(base, pedido, resposta, 200, async (trx, chave) =>
         emDocumentos(resposta, async () => ({
           versao: await resolver(
+            trx,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body,
+            quemDe(chave),
+          ),
+        })),
+      ),
+  );
+
+  rotas.post(
+    "/invoices/:id/issued-elsewhere",
+    {
+      config: { ambito: "invoices:accounts" },
+      schema: {
+        description:
+          "A fatura emitida fora do Eurolify (docs/29 §15): uma fatura retida por quem emite, de uma encomenda paga antes de a entidade escolher, cuja entidade escolheu depois o sistema próprio, passa ao estado final `fora`, com motivo e o número do documento no sistema próprio, declarado (não é prova). A nota de crédito que esperava por ela vai com ela. Só o dono.",
+        params: Type.Object({ id: IdDocumento }),
+        body: Type.Object(
+          {
+            versao: Versao,
+            motivo: Motivo,
+            numero: Type.String({ pattern: "^\\S(.{0,58}\\S)?$" }),
+          },
+          { additionalProperties: false },
+        ),
+        response: Resposta,
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, async (trx, chave) =>
+        emDocumentos(resposta, async () => ({
+          versao: await emitidaFora(
             trx,
             chave.comercianteId,
             semPrefixo(pedido.params.id),
