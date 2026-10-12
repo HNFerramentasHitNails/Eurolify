@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { api, ErroHub, type Eu, type Membros, type Papel } from "../api";
 import { ACarregar, CaixaDeErro, LigacaoInterna, useHub } from "../contexto";
 import { mensagemDeErro, semSessao } from "../erros";
@@ -309,7 +315,8 @@ export function ADecidir({
       </div>
       {falha instanceof ErroHub &&
       falha.estado === 403 &&
-      falha.codigo === "tasks.forbidden" ? (
+      falha.codigo === "tasks.forbidden" &&
+      fila === null ? (
         <CaixaDeErro erro={{ texto: t.decidirSemFilas }} />
       ) : falha !== null ? (
         <CaixaDeErro
@@ -348,7 +355,7 @@ export function ADecidir({
             )
           ) : (
             <>
-              <table>
+              <table className="tabela-larga">
                 <thead>
                   <tr>
                     <th scope="col">{t.colunaFila}</th>
@@ -375,7 +382,13 @@ export function ADecidir({
                         );
                       }}
                       aviso={aviso?.caso === x.caso ? aviso.texto : null}
-                      podeFicar={decide(x.fila) && x.responsavel !== euId}
+                      // Tirar o caso a outra pessoa pede tasks:assign (R3;
+                      // revisão do #396, P2-1).
+                      podeFicar={
+                        decide(x.fila) &&
+                        x.responsavel !== euId &&
+                        (x.responsavel === null || atribui)
+                      }
                       podeAtribuir={decide(x.fila) && atribui}
                       ficar={() =>
                         gravar(
@@ -468,6 +481,21 @@ function Linha({
   const { t } = useHub();
   const [aGuardar, setAGuardar] = useState(false);
   const painel = `painel-${x.caso}`;
+  // O foco não se perde quando o painel fecha ou o botão desaparece
+  // (revisão do #396, P2-2): vai para o aviso da linha, se houver, ou para o
+  // botão que abriu o painel.
+  const botoes = useRef<Partial<Record<Modo, HTMLButtonElement | null>>>({});
+  const avisoRef = useRef<HTMLParagraphElement>(null);
+  const antes = useRef<Modo | null>(aberto);
+  useLayoutEffect(() => {
+    const anterior = antes.current;
+    antes.current = aberto;
+    if (aviso !== null) {
+      avisoRef.current?.focus();
+    } else if (anterior !== null && aberto === null) {
+      botoes.current[anterior]?.focus();
+    }
+  }, [aberto, aviso]);
   const correr = async (fn: () => Promise<boolean>) => {
     setAGuardar(true);
     try {
@@ -487,7 +515,10 @@ function Linha({
           <span translate="no" title={x.caso}>
             {curto(x.caso)}
           </span>{" "}
-          <Copiar texto={x.caso} />
+          <Copiar
+            texto={x.caso}
+            rotulo={preencher(t.decidirCopiarCaso, { caso: curto(x.caso) })}
+          />
           {x.encomenda === null ? null : (
             <>
               <br />
@@ -533,7 +564,10 @@ function Linha({
                 <button
                   type="button"
                   aria-expanded={aberto === "atribuir"}
-                  aria-controls={painel}
+                  {...(aberto === null ? {} : { "aria-controls": painel })}
+                  ref={(b) => {
+                    botoes.current.atribuir = b;
+                  }}
                   onClick={() => {
                     alternar("atribuir");
                   }}
@@ -543,7 +577,10 @@ function Linha({
                 <button
                   type="button"
                   aria-expanded={aberto === "prazo"}
-                  aria-controls={painel}
+                  {...(aberto === null ? {} : { "aria-controls": painel })}
+                  ref={(b) => {
+                    botoes.current.prazo = b;
+                  }}
                   onClick={() => {
                     alternar("prazo");
                   }}
@@ -555,7 +592,10 @@ function Linha({
             <button
               type="button"
               aria-expanded={aberto === "historico"}
-              aria-controls={painel}
+              {...(aberto === null ? {} : { "aria-controls": painel })}
+              ref={(b) => {
+                botoes.current.historico = b;
+              }}
               onClick={() => {
                 alternar("historico");
               }}
@@ -564,7 +604,12 @@ function Linha({
             </button>
           </div>
           {aviso === null ? null : (
-            <p className="secundario" role="status">
+            <p
+              className="secundario"
+              role="status"
+              tabIndex={-1}
+              ref={avisoRef}
+            >
               {aviso}
             </p>
           )}
@@ -633,6 +678,9 @@ function Painel({
   const [motivo, setMotivo] = useState("");
   const [erroCampo, setErroCampo] = useState<string | null>(null);
   const [aGuardar, setAGuardar] = useState(false);
+  // Relê o caso depois de uma recusa (ex.: a pessoa mudou de papel: a lista
+  // de quem pode ser responsável muda; revisão do #396, P3-4).
+  const [releitura, setReleitura] = useState(0);
   const titulo = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -655,7 +703,7 @@ function Painel({
     return () => {
       vivo = false;
     };
-  }, [modo, comerciante, x.fila, x.caso, x.versao]);
+  }, [modo, comerciante, x.fila, x.caso, x.versao, releitura]);
 
   const fecharBotao = (
     <button type="button" onClick={fechar}>
@@ -743,9 +791,13 @@ function Painel({
                 caso.tarefa.versao,
               ),
             (lida) => lida.responsavel === novo,
-          ).finally(() => {
-            setAGuardar(false);
-          });
+          )
+            .then((feito) => {
+              if (!feito) setReleitura((n) => n + 1);
+            })
+            .finally(() => {
+              setAGuardar(false);
+            });
         }}
       >
         <h2 tabIndex={-1} ref={titulo}>

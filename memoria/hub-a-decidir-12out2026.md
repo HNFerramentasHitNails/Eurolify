@@ -23,7 +23,10 @@
   - 13 sem servidor, em `apps/hub/test/tarefas.test.ts`;
   - 191 do Hub, todos a passar.
 - **Mutações nas rotas, uma de cada vez:** foram apanhadas a falta de
-  `tasks:assign` para atribuir a outros e o `responsavel=eu` ignorado.
+  `tasks:assign` para atribuir a outros, o `responsavel=eu` ignorado e,
+  depois da revisão do #396, tirar o caso a outra pessoa sem `tasks:assign`
+  e a falta do bloqueio da IA declarada.
+- **Depois da revisão:** 8 testes pela API e 193 do Hub.
 
 ## O que ficou por verificar
 
@@ -32,3 +35,8 @@
   código (`docs/22` §28.7).
 - A ligação de cada linha ao ecrã da fila, que ainda não existe.
 - Safari e um telemóvel real.
+- O motivo livre de uma mudança de prazo vê-se no histórico por todos os
+  papéis que lêem a fila. A ligação dele ao apagamento do titular (DU)
+  continua por fazer (`docs/33` §6).
+- Os testes do componente sem servidor para o conflito, «Ver mais» e
+  atribuir a outra pessoa.

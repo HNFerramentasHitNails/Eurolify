@@ -1923,6 +1923,29 @@ onde carregar para a resolver.
   por escrever.
 - **O comerciante vai no cabeçalho,** não na consulta. É assim em todas as
   rotas do Hub.
+- **Ficar com um caso que tem outro responsável** pede também
+  `tasks:assign`, porque é tirá-lo a essa pessoa (R3; revisão do #396,
+  P2-1). Sem `tasks:assign`, o botão só aparece nos casos sem responsável.
+- **Uma IA declarada no pedido** (`Eurolify-IA`) não atribui nem muda prazos
+  pelo Hub (R11; revisão do #396, P3-6).
+- **O limite do prazo legal** no campo é a meia-noite do dia seguinte ao
+  último dia legal, como a base o conta (revisão do #396, P3-2).
+- **Os vazios por filtro** dizem todos «Nenhum caso com este filtro.», em vez
+  de uma frase por filtro. A contagem não separa os vencidos: a API dá o
+  total por fila, não por estado.
+- **Uma linha que deixa de cumprir o filtro** depois de uma mudança fica à
+  vista até se mudar de filtro ou recarregar, com o aviso «Guardado.»; tirá-la
+  logo fazia perder o foco (revisão do #396, P3-9).
+- **A tabela passa a cartões até 960 px** (`.tabela-larga`), porque as sete
+  colunas não cabiam a 768 px (revisão do #396, P3-8).
+
+**Ficam** (revisão do #396):
+- Não há teste do componente sem servidor para o conflito (409), «Ver mais»
+  e atribuir a outra pessoa; a passagem nas capturas cobre a resposta
+  perdida, o foco, os filtros, ficar com o caso, o prazo e o histórico.
+- O motivo livre de uma mudança de prazo vê-se no histórico por todos os
+  papéis que lêem a fila (o armazém e o apoio também); a ligação dele ao
+  apagamento do titular (DU) continua por fazer (`docs/33` §6).
 
 ### 28.6 Antes de dizer que está feito (o pedido do código)
 

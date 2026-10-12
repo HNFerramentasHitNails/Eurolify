@@ -5660,9 +5660,30 @@ try {
       "a decidir: o filtro escolhido diz-se também pelo aria-pressed",
     );
     const linha = p.getByRole("row", { name: /Diferença de pagamento/ });
+    // A resposta perde-se depois de a API gravar: o ecrã relê o caso e dá-o
+    // por feito (docs/22 §28.2; revisão do #396, P2-3).
+    let perdida = 0;
+    await p.route("**/hub/tasks/pagamento/*/assign", async (rota) => {
+      await rota.fetch();
+      perdida += 1;
+      await rota.abort("connectionreset");
+    });
     await linha.getByRole("button", { name: "Ficar com o caso" }).focus();
     await p.keyboard.press("Enter");
     await linha.getByText("Guardado.").waitFor();
+    await p.unroute("**/hub/tasks/pagamento/*/assign");
+    confere(
+      perdida === 1,
+      "a decidir: com a resposta perdida, relê o caso e dá a mudança por feita",
+    );
+    // O foco fica no aviso da linha, não se perde com o botão que saiu
+    // (revisão do #396, P2-2).
+    confere(
+      await p.evaluate(
+        () => document.activeElement?.textContent === "Guardado.",
+      ),
+      "a decidir: depois de gravar, o foco fica no aviso «Guardado.»",
+    );
     confere(
       (await linha.getByRole("cell", { name: "eu", exact: true }).count()) ===
         1,
@@ -5687,11 +5708,24 @@ try {
     await p.getByText("3 casos nesta vista.").waitFor();
     const outra = p.getByRole("row", { name: /Diferença de pagamento/ });
     await outra.getByRole("button", { name: "Histórico" }).click();
-    await p.getByText(/atribuiu a/).waitFor();
-    await p.getByText("Motivo: à espera do extracto do prestador").waitFor();
+    const historico = p.locator(".painel-tarefa ol li");
+    await historico.first().waitFor();
+    const passos = await historico.allTextContents();
     confere(
-      true,
-      "a decidir: o histórico mostra a atribuição e o prazo com o motivo",
+      passos.length >= 2 &&
+        passos.some((x) => x.includes("atribuiu a")) &&
+        passos.some((x) =>
+          x.includes("Motivo: à espera do extracto do prestador"),
+        ),
+      `a decidir: o histórico mostra a atribuição e o prazo com o motivo (${passos.join(" | ")})`,
+    );
+    // Fechar devolve o foco ao botão que abriu o painel.
+    await p.getByRole("button", { name: "Fechar" }).click();
+    confere(
+      await p.evaluate(
+        () => document.activeElement?.textContent === "Histórico",
+      ),
+      "a decidir: fechar o painel devolve o foco a «Histórico»",
     );
     await p.screenshot({
       path: join(SAIDA, "a-decidir-historico-1280-claro.png"),

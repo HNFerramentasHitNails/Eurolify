@@ -121,13 +121,23 @@ describe("as horas no fuso do comerciante", () => {
     expect(relogioDe(i ?? "", "Europe/Lisbon")).toBe("2026-03-29T02:30");
   });
 
+  it("a hora que se repete (o recuo de Outubro) fica a segunda, a do inverno", () => {
+    // Em Lisboa, a 25/10/2026, das 02:00 volta-se à 01:00: 01:30 acontece
+    // duas vezes (00:30Z e 01:30Z).
+    expect(instanteDe("2026-10-25T01:30", "Europe/Lisbon")).toBe(
+      "2026-10-25T01:30:00.000Z",
+    );
+  });
+
   it("um texto fora do formato não dá instante", () => {
     expect(instanteDe("29/03/2026 10:00", "Europe/Lisbon")).toBeNull();
     expect(instanteDe("", "Europe/Lisbon")).toBeNull();
   });
 
   it("o limite é o fim do último dia legal; há quanto tempo em horas inteiras", () => {
-    expect(limiteDoPrazo("2026-10-20")).toBe("2026-10-20T23:59");
+    // A meia-noite do dia seguinte, como a base (0066, tarefas_mudar_prazo).
+    expect(limiteDoPrazo("2026-10-20")).toBe("2026-10-21T00:00");
+    expect(limiteDoPrazo("2026-12-31")).toBe("2027-01-01T00:00");
     expect(limiteDoPrazo(null)).toBeNull();
     const agora = Date.parse("2026-10-12T12:00:00Z");
     expect(horasDesde("2026-10-12T09:30:00Z", agora)).toBe(2);

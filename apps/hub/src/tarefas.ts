@@ -157,7 +157,8 @@ function desvio(instante: number, fuso: string): number {
 /**
  * «AAAA-MM-DDTHH:MM» no relógio do fuso → o instante (ISO, UTC). Numa hora
  * que não existe (o salto da mudança de hora) fica a seguinte; numa que se
- * repete, a primeira.
+ * repete (o recuo de Outubro), a segunda — a do horário de inverno
+ * (revisão do #396, P3-1).
  */
 export function instanteDe(dataHora: string, fuso: string): string | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(dataHora);
@@ -178,11 +179,17 @@ export function relogioDe(iso: string, fuso: string): string {
 }
 
 /**
- * O último minuto que o prazo pode ter, no relógio do fuso: o fim do último
- * dia legal (R5). Sem prazo legal, nenhum.
+ * O último instante que o prazo pode ter, no relógio do fuso: o fim do
+ * último dia legal, que é a meia-noite do dia seguinte, como a base o conta
+ * (`(prazo_legal + 1)::timestamp at time zone fuso`, R5; revisão do #396,
+ * P3-2). Sem prazo legal, nenhum.
  */
-export const limiteDoPrazo = (prazoLegal: string | null) =>
-  prazoLegal === null ? null : `${prazoLegal}T23:59`;
+export function limiteDoPrazo(prazoLegal: string | null): string | null {
+  if (prazoLegal === null) return null;
+  const d = new Date(`${prazoLegal}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return `${d.toISOString().slice(0, 10)}T00:00`;
+}
 
 /**
  * O âmbito que decide cada fila (docs/33 §1), só para o ecrã não oferecer o

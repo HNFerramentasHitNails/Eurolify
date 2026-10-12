@@ -11,6 +11,7 @@ import {
 import { escrever, Instante, iso, umDe } from "../catalogo/rotas.js";
 import { chaveDo, sessaoDo } from "../identidade/autenticacao.js";
 import { comComerciante } from "../comerciante/repositorio.js";
+import { rastoActual } from "../base/rasto.js";
 import { ESPERA_MAXIMA } from "../catalogo/erros.js";
 import type { ContextoChave } from "../identidade/repositorio.js";
 import { ErroTarefas, ESTADO_DO_CODIGO, traduzir } from "./erros.js";
@@ -22,6 +23,7 @@ import {
   mudarPrazo,
   fusoDo,
   podemSerResponsaveis,
+  responsavelDe,
   type CasoAberto,
 } from "./repositorio.js";
 
@@ -471,6 +473,16 @@ export function rotasDasTarefasNoHub(
     }
   };
 
+  /**
+   * Nenhuma IA atribui nem muda prazos (R11), também pelo Hub com a IA
+   * declarada no pedido (revisão do #396, P3-6).
+   */
+  const semIa = () => {
+    if (rastoActual()?.ia !== undefined) {
+      throw proibido("uma IA não atribui nem muda prazos (R11)");
+    }
+  };
+
   /** Uma escrita na transacção do comerciante, com o «quem» da pessoa. */
   const escreverNoHub = <T>(
     comercianteId: string,
@@ -600,11 +612,29 @@ export function rotasDasTarefasNoHub(
           pedido.body.responsavel === null
             ? null
             : pedido.body.responsavel.slice(4);
+        semIa();
         exigir(s.ambitos, fila, quem !== s.pessoaId);
         const caso = casoDa(fila, pedido.params.caso);
+        const atribui = s.ambitos.includes("tasks:assign");
         return {
-          versao: await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
-            atribuir(trx, fila, caso, quem, pedido.body.versao),
+          versao: await escreverNoHub(
+            s.comercianteId,
+            s.pessoaId,
+            async (trx) => {
+              // Ficar com um caso que tem outro responsável é tirá-lo a ele:
+              // pede também tasks:assign (R3; revisão do #396, P2-1). A
+              // versão lida, conferida na base com o caso trancado, garante
+              // que o responsável visto aqui é o que a escrita substitui.
+              if (!atribui) {
+                const actual = await responsavelDe(trx, fila, caso);
+                if (actual !== null && actual !== s.pessoaId) {
+                  throw proibido(
+                    "tirar o caso a outra pessoa pede tasks:assign",
+                  );
+                }
+              }
+              return atribuir(trx, fila, caso, quem, pedido.body.versao);
+            },
           ),
         };
       }),
@@ -632,6 +662,7 @@ export function rotasDasTarefasNoHub(
       emTarefas(resposta, async () => {
         const s = daSessao(pedido, resposta);
         const { fila } = pedido.params;
+        semIa();
         exigir(s.ambitos, fila, true);
         const caso = casoDa(fila, pedido.params.caso);
         return {

@@ -248,3 +248,19 @@ export function fusoDo(
     { soLeitura: true },
   );
 }
+
+/**
+ * O responsável de agora de um caso aberto (sem o prefixo), na transacção
+ * de quem vai escrever; nenhum se não tem, ou se o caso não está aberto
+ * (a escrita dá então o erro da base).
+ */
+export async function responsavelDe(
+  trx: Transaction<BaseDados>,
+  fila: FilaTarefa,
+  caso: string,
+): Promise<string | null> {
+  const { rows } = await sql<{ responsavel: string | null }>`
+    select x.responsavel from tarefas_casos(${[fila]}::text[]) x
+    where x.caso = ${caso}::uuid`.execute(trx);
+  return rows[0]?.responsavel ?? null;
+}

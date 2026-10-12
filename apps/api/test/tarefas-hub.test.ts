@@ -26,6 +26,8 @@ describe.skipIf(URL_BASE === undefined)("Hub: as tarefas das filas", () => {
     diferenca: randomUUID(),
     problema: randomUUID(),
     foraDePrazo: randomUUID(),
+    // Pendente há 1 dia: o prazo legal do reembolso ainda corre.
+    pendente: randomUUID(),
     diferencaB: randomUUID(),
   };
   const encomenda = randomUUID();
@@ -88,7 +90,9 @@ describe.skipIf(URL_BASE === undefined)("Hub: as tarefas das filas", () => {
       await sql`insert into pedido_livre_resolucao (id, comerciante_id, encomenda_id,
           origem, contacto, recebido_em, dentro_do_prazo, estado, confirmacao)
         values (${casos.foraDePrazo}, ${a}, ${encomenda}, 'botao', 'x@exemplo.pt',
-          now() - interval '3 days', false, 'fora_de_prazo', '{}')`.execute(t);
+          now() - interval '3 days', false, 'fora_de_prazo', '{}'),
+               (${casos.pendente}, ${a}, ${encomenda}, 'botao', 'x@exemplo.pt',
+          now() - interval '1 day', true, 'pendente', '{}')`.execute(t);
     });
   }, 120_000);
 
@@ -132,14 +136,21 @@ describe.skipIf(URL_BASE === undefined)("Hub: as tarefas das filas", () => {
         `pdi_${casos.diferenca}`,
         `prb_${casos.problema}`,
         `wdr_${casos.foraDePrazo}`,
+        `wdr_${casos.pendente}`,
       ].sort(),
     );
+    // O fuso do comerciante vem com a lista (o ecrã escolhe os prazos nele).
+    expect(dono["fuso"]).toBe("Europe/Lisbon");
     const armazem = await ok(como("armazem", "GET", "/hub/tasks"));
     expect((armazem["filas"] as string[]).sort()).toEqual(
       ["livre_resolucao", "prazo_reembolso", "problema"].sort(),
     );
     expect(casosDe(armazem)).toEqual(
-      [`prb_${casos.problema}`, `wdr_${casos.foraDePrazo}`].sort(),
+      [
+        `prb_${casos.problema}`,
+        `wdr_${casos.foraDePrazo}`,
+        `wdr_${casos.pendente}`,
+      ].sort(),
     );
     expect(
       await codigo(
@@ -260,7 +271,9 @@ describe.skipIf(URL_BASE === undefined)("Hub: as tarefas das filas", () => {
       casosDe(await ok(como("dono", "GET", "/hub/tasks?responsavel=eu"))),
     ).toEqual([]);
     const sem = await ok(como("dono", "GET", "/hub/tasks?responsavel=sem"));
-    expect(casosDe(sem)).toEqual([`pdi_${casos.diferenca}`]);
+    expect(casosDe(sem)).toEqual(
+      [`pdi_${casos.diferenca}`, `wdr_${casos.pendente}`].sort(),
+    );
     const caso = await ok(
       como("dono", "GET", `/hub/tasks/problema/prb_${casos.problema}`),
     );
@@ -320,6 +333,124 @@ describe.skipIf(URL_BASE === undefined)("Hub: as tarefas das filas", () => {
       como("dono", "GET", `/hub/tasks/pagamento/pdi_${casos.diferenca}`),
     );
     expect((depois["tarefa"] as Json)["vencida"]).toBe(false);
+  });
+
+  it("ficar com um caso de outra pessoa pede tasks:assign (R3; revisão do #396, P2-1)", async () => {
+    // O caso fora de prazo é do armazém (teste acima). O apoio decide a
+    // livre resolução mas não atribui: não lho tira.
+    const t = await ok(
+      como(
+        "apoio",
+        "GET",
+        `/hub/tasks/livre_resolucao/wdr_${casos.foraDePrazo}`,
+      ),
+    );
+    const versao = (t["tarefa"] as Json)["versao"];
+    expect((t["tarefa"] as Json)["responsavel"]).toBe(pessoa("armazem"));
+    expect(
+      await codigo(
+        como(
+          "apoio",
+          "POST",
+          `/hub/tasks/livre_resolucao/wdr_${casos.foraDePrazo}/assign`,
+          { responsavel: pessoa("apoio"), versao },
+        ),
+      ),
+    ).toEqual([403, "tasks.forbidden"]);
+    // Num caso sem responsável, fica.
+    await ok(
+      como(
+        "apoio",
+        "POST",
+        `/hub/tasks/livre_resolucao/wdr_${casos.pendente}/assign`,
+        { responsavel: pessoa("apoio"), versao: 0 },
+      ),
+    );
+    // Nem atribui a outros nem muda o prazo.
+    expect(
+      await codigo(
+        como(
+          "apoio",
+          "POST",
+          `/hub/tasks/livre_resolucao/wdr_${casos.pendente}/assign`,
+          { responsavel: pessoa("gestor"), versao: 1 },
+        ),
+      ),
+    ).toEqual([403, "tasks.forbidden"]);
+    expect(
+      await codigo(
+        como(
+          "apoio",
+          "POST",
+          `/hub/tasks/livre_resolucao/wdr_${casos.pendente}/deadline`,
+          {
+            prazo: new Date(Date.now() + 3_600_000).toISOString(),
+            motivo: "amanhã",
+            versao: 1,
+          },
+        ),
+      ),
+    ).toEqual([403, "tasks.forbidden"]);
+    // O gestor, com tasks:assign, tira-o ao armazém.
+    await ok(
+      como(
+        "gestor",
+        "POST",
+        `/hub/tasks/livre_resolucao/wdr_${casos.foraDePrazo}/assign`,
+        { responsavel: pessoa("gestor"), versao },
+      ),
+    );
+  });
+
+  it("o prazo nunca passa do prazo legal, e uma IA declarada não atribui nem muda prazos (R5, R11)", async () => {
+    const t = await ok(
+      como("dono", "GET", `/hub/tasks/livre_resolucao/wdr_${casos.pendente}`),
+    );
+    const tarefa = t["tarefa"] as Json;
+    const legal = String(tarefa["prazo_legal"]);
+    expect(legal).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(
+      await codigo(
+        como(
+          "dono",
+          "POST",
+          `/hub/tasks/livre_resolucao/wdr_${casos.pendente}/deadline`,
+          {
+            prazo: new Date(
+              Date.parse(`${legal}T12:00:00Z`) + 3 * 86_400_000,
+            ).toISOString(),
+            motivo: "depois do prazo legal",
+            versao: tarefa["versao"],
+          },
+        ),
+      ),
+    ).toEqual([422, "tasks.deadline_invalid"]);
+    const ia = { "eurolify-ia": "fornecedor=teste; modelo=m1; execucao=e1" };
+    for (const [url, corpo] of [
+      [
+        `/hub/tasks/livre_resolucao/wdr_${casos.pendente}/assign`,
+        { responsavel: pessoa("dono"), versao: tarefa["versao"] },
+      ],
+      [
+        `/hub/tasks/livre_resolucao/wdr_${casos.pendente}/deadline`,
+        {
+          prazo: new Date(Date.now() + 3_600_000).toISOString(),
+          motivo: "pela IA",
+          versao: tarefa["versao"],
+        },
+      ],
+    ] as const) {
+      const r = await h.pedir("POST", url, {
+        sessao: p["dono"]?.sessao ?? "",
+        comerciante: a,
+        corpo,
+        cabecalhos: ia,
+      });
+      expect([r.statusCode, (JSON.parse(r.body) as Json)["codigo"]]).toEqual([
+        403,
+        "tasks.forbidden",
+      ]);
+    }
   });
 
   it("outro comerciante não chega aos casos do A, nem pelo identificador", async () => {

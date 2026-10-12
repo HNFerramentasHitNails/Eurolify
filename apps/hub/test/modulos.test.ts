@@ -11,6 +11,7 @@ import {
 } from "../src/modulos";
 import { TEXTOS } from "../src/textos";
 import { AMBITOS_DO_PAPEL } from "../../api/src/identidade/papeis";
+import { FILAS } from "../../api/src/tarefas/filas";
 
 // A entrada por módulos (docs/hub-modular-glassmorphism.md, «Primeira
 // implementação»): só destinos que existem, pelos âmbitos do /hub/me, e o
@@ -55,6 +56,16 @@ describe("os módulos de cada papel", () => {
         "decidir",
       ]);
     }
+  });
+
+  it("«A decidir» pede os âmbitos que lêem as filas na régua da API (revisão do #396, P3-5)", () => {
+    const decidir = MODULOS.find((m) => m.id === "decidir");
+    const daApi = [...new Set(Object.values(FILAS).map((f) => f.ler))].sort();
+    const pede = decidir?.ambitoNecessario;
+    expect(Array.isArray(pede)).toBe(true);
+    expect(Array.isArray(pede) ? [...(pede as string[])].sort() : []).toEqual(
+      daApi,
+    );
   });
 
   it("«A decidir» basta ler uma fila (docs/22 §28.3); sem nenhuma, não aparece", () => {
