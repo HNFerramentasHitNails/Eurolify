@@ -144,3 +144,4 @@
 - [Pedidos do titular em todos os domínios (#233, DU): desenho docs/23 §15; parte 1 (0072) — o apagamento limpa encomendas acabadas, fila para as em curso, perfil só sem cancelamento sem pagamento, aviso em resumo — 11/10/2026](titular-todos-os-dominios-11out2026.md)
 - [SMTP pela VPS (#372, «a»): acção e chave próprias `configurar`, api-smtp.env 600 root, valores nunca no registo; DNS lido: dois SPF (erro), DMARC p=none; falta a chave e o DKIM — 12/10/2026](smtp-pela-vps-12out2026.md)
 - [Hub «A decidir» (#366 parte 2, Q1 A): rotas /hub/tasks pelo papel, migração 0073, ecrã com filtros, atribuir e prazo no fuso do comerciante; sem ligação ao caso — 12/10/2026](hub-a-decidir-12out2026.md)
+- [Envios, parte C (#393, #406): adaptador da Sendcloud em modo teste (só sendcloud:letter), serviços por conta (0080), aviso como sinal; subcontratantes dos EUA por decidir antes do modo real — 12/10/2026](envios-parte-c-sendcloud-12out2026.md)

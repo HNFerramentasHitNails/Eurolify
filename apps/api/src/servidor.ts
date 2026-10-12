@@ -3,6 +3,7 @@ import { comRasto } from "./base/rasto.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import type { ConfigEnvios } from "./envios/adaptador.js";
 import { agendarTrabalhoEnvios } from "./envios/etiquetas.js";
+import { adaptadorSendcloud } from "./envios/sendcloud.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
@@ -142,12 +143,13 @@ const faturacao: ConfigFaturacao = {
 };
 
 // Os envios (docs/36 §3.1): a chave que cifra as credenciais das contas de
-// transportadora (ENVIOS_CHAVE), como a dos pagamentos. Na parte A não há
-// adaptador de nenhuma transportadora: as contas criam-se mas não passam a
-// chamada de teste (`shipping.carrier_unavailable`) até ao dos CTT (parte B).
+// transportadora (ENVIOS_CHAVE), como a dos pagamentos. A Sendcloud desde a
+// parte C (§16), em modo teste; o adaptador dos CTT espera pela
+// especificação (V1): as contas dos CTT criam-se mas não passam a chamada de
+// teste (`shipping.carrier_unavailable`).
 const textoChaveEnvios = process.env["ENVIOS_CHAVE"]?.trim();
 const envios: ConfigEnvios = {
-  adaptadores: {},
+  adaptadores: { sendcloud: adaptadorSendcloud() },
   ...(textoChaveEnvios === undefined || textoChaveEnvios === ""
     ? {}
     : {

@@ -1067,7 +1067,7 @@ export interface TabelaMetodoEntrega {
 }
 
 /** As transportadoras com adaptador (docs/36 §3.1; 0074). */
-export const TRANSPORTADORAS = ["ctt"] as const;
+export const TRANSPORTADORAS = ["ctt", "sendcloud"] as const;
 export type Transportadora = (typeof TRANSPORTADORAS)[number];
 
 export interface TabelaContaTransportadora {
@@ -1083,6 +1083,9 @@ export interface TabelaContaTransportadora {
   credenciais_por: ColumnType<string | null, never, string | null>;
   testada_em: ColumnType<Date | null, never, Date | null>;
   remetente: ColumnType<Record<string, unknown>, string, string>;
+  /** Os serviços da conta, na última chamada de teste (docs/36 §16, D1; 0080). */
+  servicos: ColumnType<unknown, never, string | null>;
+  servicos_em: ColumnType<Date | null, never, Date | null>;
   estado: ColumnType<
     "rascunho" | "pronta" | "arquivada",
     never,

@@ -93,6 +93,15 @@ export interface AdaptadorTransportadora {
   /** Uma chamada que confirma que as credenciais são aceites. Lança se não forem. */
   testar(credenciais: CredenciaisTransportadora): Promise<void>;
   /**
+   * Os serviços de uma conta, quando dependem dela (docs/36 §16, D1: a
+   * Sendcloud). Chama-se na chamada de teste e o núcleo guarda o resultado
+   * na conta; quem o tem não declara nada em `servicos()`.
+   */
+  servicosDaConta?(
+    credenciais: CredenciaisTransportadora,
+    pedido: { origem: string; destinos: readonly string[]; modo: "teste" },
+  ): Promise<ServicoTransportadora[]>;
+  /**
    * Pede a etiqueta. Lança `ErroDeRede` quando não se sabe se ela existe
    * (tempo esgotado, resposta que não se lê): a etiqueta fica `incerta`.
    */

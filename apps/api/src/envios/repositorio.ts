@@ -115,6 +115,21 @@ const COLUNAS = [
   "versao",
 ] as const;
 
+/**
+ * Os serviços de uma conta (docs/36 §16, D1): a fotografia guardada na
+ * chamada de teste, quando o adaptador os tem por conta (a Sendcloud); a
+ * lista fixa do adaptador, quando não (os CTT).
+ */
+export function servicosDe(
+  adaptador: AdaptadorTransportadora,
+  fotografia: unknown,
+): readonly ServicoTransportadora[] {
+  if (adaptador.servicosDaConta === undefined) return adaptador.servicos();
+  return Array.isArray(fotografia)
+    ? (fotografia as ServicoTransportadora[])
+    : [];
+}
+
 export async function listarContas(db: Kysely<BaseDados>, c: string) {
   return noEnvios(db, c, (trx) =>
     trx
@@ -329,6 +344,7 @@ export async function testarConta(
         "credenciais_cifra",
         "chave_versao",
         "credenciais_em",
+        "remetente",
       ])
       .where("id", "=", id)
       .executeTakeFirst(),
@@ -341,6 +357,19 @@ export async function testarConta(
   }
   const { adaptador, chave } = adaptadorDe(cfg, conta.transportadora);
   const credenciais = credenciaisDe(conta, chave);
+  // Os países dos mercados do comerciante, lidos antes de falar com a
+  // transportadora: um erro da base não passa por credenciais recusadas
+  // (revisão do #406, P2-1).
+  const destinos =
+    adaptador.servicosDaConta === undefined
+      ? []
+      : await noEnvios(db, c, async (trx) => {
+          const linhas = await trx
+            .selectFrom("mercado")
+            .select("paises")
+            .execute();
+          return [...new Set(linhas.flatMap((l) => l.paises))].sort();
+        });
   try {
     await adaptador.testar(credenciais);
   } catch (erro) {
@@ -375,6 +404,24 @@ export async function testarConta(
         : "a transportadora recusou as credenciais",
     );
   }
+  // Os serviços da conta (D1): para a origem do remetente e para cada país
+  // dos mercados, em modo teste (0074). Uma falha aqui não é uma recusa das
+  // credenciais: a conta fica como estava (revisão do #406, P2-1).
+  let fotografia: ServicoTransportadora[] | null = null;
+  if (adaptador.servicosDaConta !== undefined) {
+    try {
+      fotografia = await adaptador.servicosDaConta(credenciais, {
+        origem: (conta.remetente as unknown as Remetente).pais,
+        destinos,
+        modo: "teste",
+      });
+    } catch {
+      throw new ErroEnvios(
+        "shipping.carrier_unavailable",
+        "a lista de serviços da transportadora não se obteve: a conta fica como estava",
+      );
+    }
+  }
   return noEnvios(db, c, async (trx) => {
     const agora = await contaParaMudar(trx, id, null);
     // As credenciais mudaram durante o teste: não se dá esta por testada.
@@ -387,11 +434,45 @@ export async function testarConta(
         "a conta mudou durante o teste",
       );
     }
+    // Uma fotografia nova não pode deixar sem serviço um método activo da
+    // conta: o checkout continuaria a vendê-lo e a etiqueta falharia numa
+    // encomenda paga (revisão do #406, P2-2).
+    if (fotografia !== null) {
+      const metodos = await trx
+        .selectFrom("metodo_entrega")
+        .innerJoin("mercado", "mercado.id", "metodo_entrega.mercado_id")
+        .select([
+          "metodo_entrega.id",
+          "metodo_entrega.servico",
+          "mercado.paises",
+        ])
+        .where("metodo_entrega.conta_transportadora_id", "=", id)
+        .where("metodo_entrega.estado", "=", "activo")
+        .execute();
+      const novos = fotografia;
+      const sem = metodos.filter((m) => {
+        const sv = novos.find((x) => x.codigo === m.servico);
+        return sv === undefined || m.paises.some((p) => !sv.paises.includes(p));
+      });
+      if (sem.length > 0) {
+        throw new ErroEnvios(
+          "shipping.invalid_field",
+          "a transportadora deixou de ter o serviço de métodos activos: arquivam-se ou mudam-se primeiro",
+          { metodos: sem.map((m) => `shm_${m.id}`) },
+        );
+      }
+    }
     await trx
       .updateTable("conta_transportadora")
       .set({
         testada_em: new Date(),
         estado: "pronta",
+        ...(fotografia === null
+          ? {}
+          : {
+              servicos: JSON.stringify(fotografia),
+              servicos_em: new Date(),
+            }),
         actualizado_em: new Date(),
         versao: agora.versao + 1,
       })
@@ -411,14 +492,17 @@ export async function servicosDaConta(
   const conta = await noEnvios(db, c, (trx) =>
     trx
       .selectFrom("conta_transportadora")
-      .select(["transportadora"])
+      .select(["transportadora", "servicos"])
       .where("id", "=", id)
       .executeTakeFirst(),
   );
   if (conta === undefined) {
     throw new ErroEnvios("shipping.not_found", "esta conta não existe");
   }
-  return adaptadorDe(cfg, conta.transportadora).adaptador.servicos();
+  return servicosDe(
+    adaptadorDe(cfg, conta.transportadora).adaptador,
+    conta.servicos,
+  );
 }
 
 /**
@@ -435,7 +519,7 @@ export async function conferirServico(
 ): Promise<ServicoTransportadora> {
   const conta = await trx
     .selectFrom("conta_transportadora")
-    .select(["id", "transportadora", "estado"])
+    .select(["id", "transportadora", "estado", "servicos"])
     .where("id", "=", contaId)
     .forShare()
     .executeTakeFirst();
@@ -448,9 +532,10 @@ export async function conferirServico(
       "a conta ainda não passou a chamada de teste (ou está arquivada)",
     );
   }
-  const s = adaptadorDe(cfg, conta.transportadora)
-    .adaptador.servicos()
-    .find((x) => x.codigo === servico);
+  const s = servicosDe(
+    adaptadorDe(cfg, conta.transportadora).adaptador,
+    conta.servicos,
+  ).find((x) => x.codigo === servico);
   if (s === undefined) {
     throw new ErroEnvios(
       "shipping.service_unknown",
