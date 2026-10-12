@@ -872,6 +872,25 @@ export const es: Textos = {
   motivoTarefa_recebida: "devolución recibida",
   motivoTarefa_inspeccionada: "devolución inspeccionada",
   motivoTarefa_decidida: "devolución decidida",
+  motivoTarefa_ligacao_sem_teste:
+    "la conexión con el emisor no ha superado la prueba",
+  motivoTarefa_nif_recusado: "NIF rechazado",
+  motivoTarefa_nif_consumidor_final:
+    "NIF de consumidor final, o empresa sin NIF",
+  motivoTarefa_perfil_de_outra_ficha: "perfil de facturación de otro cliente",
+  motivoTarefa_isencao_sem_prova: "exención sin prueba",
+  motivoTarefa_isencao_sem_mapa: "exención sin correspondencia en el emisor",
+  motivoTarefa_taxa_por_verificar: "tipo de IVA por verificar",
+  motivoTarefa_territorio_por_decidir: "territorio por decidir",
+  motivoTarefa_moeda_nao_suportada: "moneda no admitida",
+  motivoTarefa_totais_nao_batem: "los totales no cuadran con el pedido",
+  motivoTarefa_entidade_do_emissor_diferente:
+    "la entidad en el emisor no es la del perfil",
+  motivoTarefa_credito_acima_do_saldo: "abono superior al saldo de la factura",
+  motivoTarefa_encomenda_reembolsada: "pedido reembolsado por completo",
+  motivoTarefa_reembolso_cancelado: "reembolso cancelado",
+  motivoTarefa_nota_credito_sem_adaptador:
+    "nota de crédito a tramitar en el emisor",
   decidirCopiarCaso: "Copiar el caso {caso}",
   decidirActo_ficou: "{quem} se quedó con el caso.",
 };

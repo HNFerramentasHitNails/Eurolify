@@ -862,6 +862,25 @@ export const en: Textos = {
   motivoTarefa_recebida: "return received",
   motivoTarefa_inspeccionada: "return inspected",
   motivoTarefa_decidida: "return decided",
+  motivoTarefa_ligacao_sem_teste:
+    "the issuer connection has not passed its test",
+  motivoTarefa_nif_recusado: "tax number rejected",
+  motivoTarefa_nif_consumidor_final:
+    "final-consumer tax number, or company without one",
+  motivoTarefa_perfil_de_outra_ficha: "billing profile of another customer",
+  motivoTarefa_isencao_sem_prova: "exemption without proof",
+  motivoTarefa_isencao_sem_mapa: "exemption not mapped in the issuer",
+  motivoTarefa_taxa_por_verificar: "VAT rate not yet verified",
+  motivoTarefa_territorio_por_decidir: "territory to be decided",
+  motivoTarefa_moeda_nao_suportada: "currency not supported",
+  motivoTarefa_totais_nao_batem: "totals do not match the order",
+  motivoTarefa_entidade_do_emissor_diferente:
+    "the issuer's entity differs from the profile",
+  motivoTarefa_credito_acima_do_saldo: "credit above the invoice balance",
+  motivoTarefa_encomenda_reembolsada: "order fully refunded",
+  motivoTarefa_reembolso_cancelado: "refund cancelled",
+  motivoTarefa_nota_credito_sem_adaptador:
+    "credit note to be handled in the issuer",
   decidirCopiarCaso: "Copy case {caso}",
   decidirActo_ficou: "{quem} took the case.",
 };
