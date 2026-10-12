@@ -205,4 +205,4 @@ revisão do agente. Um pedido só.
 | # | Pergunta | Proposta |
 |---|---|---|
 | Q11 ✅ A (Diogo, 11/10/2026) | Aprovas o desenho (N1 a N11), com o fornecedor **A: OVH E-mail Pro** por agora (mantém o fornecedor único) ou **B: Lettermint** já (segundo fornecedor, com estado da entrega)? | A |
-| Q12 | Aprovas o §12 (T1 a T7)? O aviso de um caso vencido vai **A:** ao responsável, ou, sem responsável, aos donos e gestores que decidem a fila, ou **B:** sempre aos donos e gestores, e também ao responsável? | A |
+| Q12 ✅ A (Diogo, 12/10/2026; EB) | Aprovas o §12 (T1 a T7)? O aviso de um caso vencido vai **A:** ao responsável, ou, sem responsável, aos donos e gestores que decidem a fila, ou **B:** sempre aos donos e gestores, e também ao responsável? | A |
