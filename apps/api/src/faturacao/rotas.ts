@@ -455,8 +455,9 @@ export function rotasDosDocumentos(
           emissor_id: d.emissor_id,
           // Emitida no sistema próprio (docs/29 §15): o número foi declarado
           // por uma pessoa, não lido de um emissor — não é prova (F3).
+          // Uma NC que saiu com a fatura não tem número declarado (P2-2).
           emitida_fora:
-            d.fora_numero === null
+            d.estado !== "fora"
               ? null
               : { numero_declarado: d.fora_numero, prova: false },
           versao: d.versao,

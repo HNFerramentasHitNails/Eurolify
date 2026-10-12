@@ -691,5 +691,23 @@ fatura e **pede a nota de crédito**, que fica retida com
 | o reembolso diz `sem_nota_credito: sistema_proprio` também neste caso | `src/posvenda/repositorio.ts` |
 | 2 testes pela API e 1 na pós-venda | `test/documentos-api.test.ts`, `test/posvenda-api.test.ts` |
 
+**Correcções da revisão do #386** (Sonnet 5.5; 0 P0, 0 P1, 5 P2, 6 P3):
+- **P2-1, a corrida com um reembolso:** pedir ou criar a NC tranca a fatura
+  (`FOR SHARE`), por isso quem a está a marcar `fora` termina primeiro e a NC
+  não nasce; e uma NC que tenha ficado presa a uma fatura `fora` tem saída
+  pela mesma acção, com o número que a pessoa declarar para ela.
+- **P2-2:** a NC que sai com a fatura **não tem número declarado** (o da
+  fatura não é o dela); a leitura diz `numero_declarado: null`.
+- **P2-3 a P2-5, testes:** a NC criada directamente na base para uma fatura
+  `fora` é recusada; uma NC de uma fatura do Eurolify não sai `fora` (API e
+  base); a escolha da entidade conferida na base; versão desactualizada,
+  documento reservado, número sem quebras de linha; o número no rasto; o
+  tipo no evento; a NC fora da fila.
+- **P3:** a escolha da entidade lê-se trancada; a base exige que nunca tenha
+  ido ao emissor (sem identificador e sem prova); o evento diz o tipo
+  (fatura ou NC); a guarda de uma encomenda inexistente.
+- **Fica como está (P3):** números declarados repetidos não se avisam — é
+  uma declaração, e a fila do sistema próprio é a dele.
+
 **Por fazer:** o relatório OSS (parte 3) com a lista à parte (Q-F3, **C**);
 o ecrã no Hub.

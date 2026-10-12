@@ -14,11 +14,14 @@ ALTER TABLE documento_fiscal ADD CONSTRAINT documento_fiscal_estado_check
   CHECK (estado IN ('a_verificar', 'retido', 'pronto', 'rascunho', 'emitido', 'incerto',
     'divergente', 'resolvido', 'fora'));
 
--- O número declarado (F3): só num pedido `fora`, e então obrigatório.
+-- O número declarado (F3): só num pedido `fora`; obrigatório na fatura. A NC
+-- que sai com a fatura não tem número declarado — ninguém o declarou, e o da
+-- fatura não é o dela (revisão do #386, P2-2). Sem quebras de linha (P3).
 ALTER TABLE documento_fiscal ADD COLUMN fora_numero text
-  CHECK (fora_numero IS NULL OR fora_numero ~ '^\S(.{0,58}\S)?$');
+  CHECK (fora_numero IS NULL OR fora_numero ~ '^[^\s]([^\r\n]{0,58}[^\s])?$');
 ALTER TABLE documento_fiscal ADD CONSTRAINT documento_fiscal_fora_com_numero
-  CHECK ((estado = 'fora') = (fora_numero IS NOT NULL));
+  CHECK ((fora_numero IS NULL OR estado = 'fora')
+         AND (estado <> 'fora' OR tipo = 'nota_credito' OR fora_numero IS NOT NULL));
 
 -- A máquina de estados de 0058, com `fora`: só a partir do caso exacto da
 -- §15 (F2), final (F4) e sem identificador do emissor.
@@ -47,9 +50,13 @@ BEGIN
          WHERE o.id = NEW.original_id AND o.tipo = 'fatura' AND o.encomenda_id = NEW.encomenda_id)) THEN
       RAISE EXCEPTION 'invoices.invalid_field: a nota de crédito precisa da fatura da encomenda e do reembolso';
     END IF;
-    -- A fatura emitida fora: a NC é do sistema próprio (F5).
+    -- A fatura emitida fora: a NC é do sistema próprio (F5). A fatura
+    -- tranca-se (FOR SHARE): quem a está a marcar `fora` ao mesmo tempo
+    -- termina primeiro, e o estado lê-se já confirmado (revisão do #386,
+    -- P2-1).
     IF NEW.tipo = 'nota_credito' AND EXISTS (
-         SELECT 1 FROM public.documento_fiscal o WHERE o.id = NEW.original_id AND o.estado = 'fora') THEN
+         SELECT 1 FROM public.documento_fiscal o WHERE o.id = NEW.original_id AND o.estado = 'fora'
+         FOR SHARE) THEN
       RAISE EXCEPTION 'invoices.other_issuer: a fatura desta encomenda foi emitida fora do Eurolify';
     END IF;
     NEW.entidade_legal_id := e.entidade_legal_id;
@@ -99,7 +106,10 @@ BEGIN
       RAISE EXCEPTION 'invoices.invalid_transition: % sem o identificador do emissor', NEW.estado;
     END IF;
     IF NEW.estado = 'fora' THEN
-      IF NEW.emissor_id IS NOT NULL THEN
+      -- Nunca foi ao emissor do Eurolify: sem identificador e sem prova
+      -- (revisão do #386, P3).
+      IF NEW.emissor_id IS NOT NULL OR EXISTS (
+           SELECT 1 FROM public.documento_prova p WHERE p.documento_id = NEW.id) THEN
         RAISE EXCEPTION 'invoices.invalid_transition: um documento emitido fora não foi ao emissor do Eurolify';
       END IF;
       IF NEW.tipo = 'fatura' THEN
@@ -108,8 +118,9 @@ BEGIN
         SELECT x.emissor_fiscal AS encomenda, l.emissor_fiscal AS entidade INTO e
         FROM public.encomenda x JOIN public.entidade_legal l ON l.id = x.entidade_legal_id
         WHERE x.id = NEW.encomenda_id;
-        IF OLD.estado <> 'retido' OR NOT 'emissor_por_configurar' = ANY (OLD.motivos)
-           OR e.encomenda <> 'por_configurar' OR e.entidade <> 'sistema_proprio' THEN
+        IF e IS NULL OR OLD.estado <> 'retido' OR NOT 'emissor_por_configurar' = ANY (OLD.motivos)
+           OR e.encomenda <> 'por_configurar' OR e.entidade <> 'sistema_proprio'
+           OR NEW.fora_numero IS NULL THEN
           RAISE EXCEPTION 'invoices.invalid_transition: só uma fatura retida por quem emite, de uma encomenda paga antes da escolha, cuja entidade emite no sistema próprio';
         END IF;
       ELSIF NOT EXISTS (SELECT 1 FROM public.documento_fiscal o
@@ -140,8 +151,11 @@ BEGIN
   IF r IS NULL THEN
     RAISE EXCEPTION 'invoices.not_found: o reembolso não existe';
   END IF;
+  -- FOR SHARE: espera por quem estiver a marcar a fatura `fora` (revisão do
+  -- #386, P2-1).
   SELECT d.id, d.entidade_legal_id, d.modo, d.estado INTO f FROM public.documento_fiscal d
-  WHERE d.encomenda_id = r.encomenda_id AND d.tipo = 'fatura';
+  WHERE d.encomenda_id = r.encomenda_id AND d.tipo = 'fatura'
+  FOR SHARE;
   IF f IS NULL OR f.estado = 'fora' THEN
     RETURN NULL;
   END IF;
@@ -174,7 +188,7 @@ BEGIN
   INSERT INTO public.evento_saida (comerciante_id, tipo, agregado_tipo, agregado_id, dados)
   SELECT NEW.comerciante_id, t, 'documento_fiscal', NEW.id,
     jsonb_build_object('documento_id', NEW.id, 'encomenda_id', NEW.encomenda_id,
-      'estado', NEW.estado, 'modo', NEW.modo,
+      'estado', NEW.estado, 'modo', NEW.modo, 'tipo', NEW.tipo,
       'em', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))
   FROM (SELECT CASE NEW.estado
       WHEN 'a_verificar' THEN CASE WHEN TG_OP = 'INSERT' THEN 'invoice.requested' END

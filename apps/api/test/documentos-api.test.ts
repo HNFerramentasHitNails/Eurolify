@@ -1770,7 +1770,16 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     const passo = (depois["rasto"] as Json[]).find((p) => p["para"] === "fora");
     expect(passo).toMatchObject({
       motivo: "a loja passou a faturar no sistema dela",
+      dados: { numero_declarado: "FT 2026/57" },
     });
+    // O evento diz o tipo (revisão do #386, P3).
+    const { rows: ev } = await sql<{
+      dados: Json;
+    }>`select dados from evento_saida
+      where comerciante_id = ${s.c}::uuid and tipo = 'invoice.issued_elsewhere'`.execute(
+      base.dono,
+    );
+    expect(ev.map((x) => x.dados["tipo"])).toEqual(["fatura"]);
     expect(await eventos(s)).toContain("invoice.issued_elsewhere");
     // Fora da fila «A decidir» (F4) e final: não volta a nada.
     const { rows } = await naBase(s, (trx) =>
@@ -1790,6 +1799,60 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       sql`update documento_fiscal set fora_numero = 'outro'
         where id = ${id.slice(4)}::uuid`.execute(base.dono),
     ).rejects.toThrow(/invoices\.immutable/);
+    await expect(
+      sql`update documento_fiscal set estado = 'retido', fora_numero = null
+        where id = ${id.slice(4)}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/invoices\.immutable/);
+  });
+
+  it("emitida fora (revisão do #386): a base confere a escolha da entidade, a versão, a reserva e o número", async () => {
+    const s = await cenario();
+    const { d } = await pagaAntesDeEscolher(s);
+    const id = String(d["id"]);
+    // P2-4: retida por quem emite, mas a entidade ainda não escolheu — a
+    // base recusa, mesmo sem a API.
+    await expect(
+      sql`update documento_fiscal set estado = 'fora', fora_numero = 'FT 1'
+        where id = ${id.slice(4)}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/invoices\.invalid_transition/);
+    await ok(
+      s.adm("PUT", `/legal-entities/lgl_${s.entidade}/invoicing`, {
+        emissor: "sistema_proprio",
+      }),
+      204,
+    );
+    // Sem número, a base também recusa a fatura (F3).
+    await expect(
+      sql`update documento_fiscal set estado = 'fora'
+        where id = ${id.slice(4)}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/invoices\.invalid_transition|fora_com_numero/);
+    // Um número com uma quebra de linha não entra (P3).
+    await expect(
+      sql`update documento_fiscal set estado = 'fora', fora_numero = ${"FT\n2026/1"}
+        where id = ${id.slice(4)}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/fora_numero_check|violates check/);
+    const corpo = {
+      versao: d["versao"],
+      motivo: "faturada no sistema da loja",
+      numero: "FT 2026/59",
+    };
+    // P2-5: versão desactualizada e documento reservado pela tarefa.
+    expect(
+      await codigo(
+        s.adm("POST", `/invoices/${id}/issued-elsewhere`, {
+          ...corpo,
+          versao: Number(d["versao"]) + 5,
+        }),
+      ),
+    ).toEqual([409, "invoices.version_conflict"]);
+    await sql`update documento_fiscal set reservado_ate = now() + interval '5 minutes'
+      where id = ${id.slice(4)}::uuid`.execute(base.dono);
+    expect(
+      await codigo(s.adm("POST", `/invoices/${id}/issued-elsewhere`, corpo)),
+    ).toEqual([503, "invoices.retry"]);
+    await sql`update documento_fiscal set reservado_ate = null
+      where id = ${id.slice(4)}::uuid`.execute(base.dono);
+    await ok(s.adm("POST", `/invoices/${id}/issued-elsewhere`, corpo));
   });
 
   it("emitida fora: recusada numa fatura que não é o caso exacto (F2), também na base", async () => {
