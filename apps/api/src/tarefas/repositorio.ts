@@ -201,3 +201,30 @@ export async function mudarPrazo(
     return r.rows[0]?.v ?? versao;
   });
 }
+
+/**
+ * As pessoas deste comerciante que podem ser responsáveis de um caso da fila
+ * (R3), pela régua da base (`tarefas_podem_ser_responsaveis`, migração 0072):
+ * o «Atribuir…» do Hub mostra estas, sem cópia da régua (docs/22 §28.2).
+ */
+export function podemSerResponsaveis(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  fila: FilaTarefa,
+): Promise<string[]> {
+  return emTarefas(() =>
+    comComerciante(
+      db,
+      comercianteId,
+      async (trx) =>
+        (
+          await sql<{
+            p: string;
+          }>`select x as p from tarefas_podem_ser_responsaveis(${fila}) x`.execute(
+            trx,
+          )
+        ).rows.map((r) => r.p),
+      { soLeitura: true },
+    ),
+  );
+}

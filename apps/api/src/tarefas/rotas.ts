@@ -1,6 +1,6 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import type { Kysely } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
 import { Type } from "typebox";
 import { ErroApi, RESPOSTA_DE_ERRO, erroBase } from "../base/erros.js";
 import {
@@ -9,7 +9,9 @@ import {
   type FilaTarefa,
 } from "../base/esquema.js";
 import { escrever, Instante, iso, umDe } from "../catalogo/rotas.js";
-import { chaveDo } from "../identidade/autenticacao.js";
+import { chaveDo, sessaoDo } from "../identidade/autenticacao.js";
+import { comComerciante } from "../comerciante/repositorio.js";
+import { ESPERA_MAXIMA } from "../catalogo/erros.js";
 import type { ContextoChave } from "../identidade/repositorio.js";
 import { ErroTarefas, ESTADO_DO_CODIGO, traduzir } from "./erros.js";
 import { FILAS } from "./filas.js";
@@ -18,11 +20,12 @@ import {
   lerTarefa,
   listarTarefas,
   mudarPrazo,
+  podemSerResponsaveis,
   type CasoAberto,
 } from "./repositorio.js";
 
 // A API das tarefas das filas que pedem uma pessoa (docs/33 §7; decisão
-// DW). Só por chave nesta parte: o ecrã «A decidir» do Hub é a parte 2.
+// DW). Pela chave, e no Hub pelas rotas `/hub/tasks` (docs/22 §28).
 // Cada rota pede «qualquer» chave e confere aqui o âmbito da fila: a lista
 // mostra só as filas que a chave lê (R2).
 
@@ -100,9 +103,9 @@ const proibido = (detalhe: string) =>
     detalhe,
   );
 
-/** As filas que a chave lê (R2). */
-const filasQueLe = (chave: ContextoChave) =>
-  FILAS_TAREFAS.filter((f) => chave.ambitos.includes(FILAS[f].ler));
+/** As filas que a chave ou o papel da sessão lêem (R2). */
+const filasQueLe = (ambitos: readonly string[]) =>
+  FILAS_TAREFAS.filter((f) => ambitos.includes(FILAS[f].ler));
 
 /** O id do caso sem o prefixo, ou 404 se o prefixo não é o da fila. */
 function casoDa(fila: FilaTarefa, caso: string): string {
@@ -161,6 +164,115 @@ function doCursor(cursor: string | undefined) {
   throw erroBase("request.invalid", "`cursor` não é um cursor desta lista");
 }
 
+const RespostaLista = Type.Object({
+  dados: Type.Array(Tarefa),
+  filas: Type.Array(Fila),
+  totais: Type.Record(Type.String(), Type.Integer()),
+  ha_mais: Type.Boolean(),
+  cursor_seguinte: Type.Union([Type.String(), Type.Null()]),
+});
+
+const RespostaCaso = Type.Object({
+  tarefa: Tarefa,
+  historico: Type.Array(
+    Type.Object({
+      acto: umDe(["atribuida", "retirada", "prazo_mudado", "vencida"] as const),
+      responsavel_antes: Type.Union([Type.String(), Type.Null()]),
+      responsavel_depois: Type.Union([Type.String(), Type.Null()]),
+      prazo_antes: Type.Union([Instante, Type.Null()]),
+      prazo_depois: Type.Union([Instante, Type.Null()]),
+      motivo: Type.Union([Type.String(), Type.Null()]),
+      quem: Type.String(),
+      em: Instante,
+      passagem: Instante,
+    }),
+  ),
+});
+
+/** O pedido da lista, já sem prefixos (a chave e o Hub, docs/22 §28.2). */
+interface PedidoDaLista {
+  fila?: FilaTarefa | undefined;
+  /** `sem`, ou o id da pessoa sem o prefixo. */
+  responsavel?: string | undefined;
+  vencida?: "true" | "false" | undefined;
+  limite?: string | undefined;
+  cursor?: string | undefined;
+}
+
+/** A lista «A decidir» das filas que os âmbitos lêem (R2, R10). */
+async function responderLista(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  ambitos: readonly string[],
+  q: PedidoDaLista,
+) {
+  const le = filasQueLe(ambitos);
+  if (le.length === 0) {
+    throw proibido("não lê nenhuma fila");
+  }
+  if (q.fila !== undefined && !le.includes(q.fila)) {
+    throw proibido(`falta o âmbito ${FILAS[q.fila].ler}`);
+  }
+  const filas = q.fila === undefined ? le : [q.fila];
+  const limite = q.limite === undefined ? 25 : Number(q.limite);
+  const depoisDe = doCursor(q.cursor);
+  const r = await listarTarefas(base, comercianteId, {
+    filas,
+    limite,
+    ...(q.responsavel === undefined ? {} : { responsavel: q.responsavel }),
+    ...(q.vencida === undefined ? {} : { vencida: q.vencida === "true" }),
+    ...(depoisDe === undefined ? {} : { depoisDe }),
+  });
+  const ultima = r.dados.at(-1);
+  return {
+    dados: r.dados.map(paraTarefa),
+    filas,
+    totais: r.totais,
+    ha_mais: r.haMais,
+    cursor_seguinte: r.haMais && ultima !== undefined ? cursorDe(ultima) : null,
+  };
+}
+
+/** Um caso aberto e o histórico, se os âmbitos lêem a fila. */
+async function responderCaso(
+  base: Kysely<BaseDados>,
+  comercianteId: string,
+  ambitos: readonly string[],
+  fila: FilaTarefa,
+  casoComPrefixo: string,
+) {
+  if (!ambitos.includes(FILAS[fila].ler)) {
+    throw proibido(`falta o âmbito ${FILAS[fila].ler}`);
+  }
+  const r = await lerTarefa(
+    base,
+    comercianteId,
+    fila,
+    casoDa(fila, casoComPrefixo),
+  );
+  if (r === null) {
+    throw new ErroTarefas(
+      "tasks.not_found",
+      "tasks.not_found: o caso não está aberto nesta fila",
+    );
+  }
+  const pessoa = (id: string | null) => (id === null ? null : `per_${id}`);
+  return {
+    tarefa: paraTarefa(r.caso),
+    historico: r.historico.map((h) => ({
+      acto: h.acto,
+      responsavel_antes: pessoa(h.responsavel_antes),
+      responsavel_depois: pessoa(h.responsavel_depois),
+      prazo_antes: iso(h.prazo_antes),
+      prazo_depois: iso(h.prazo_depois),
+      motivo: h.motivo,
+      quem: h.quem,
+      em: h.em.toISOString(),
+      passagem: h.entrou_em.toISOString(),
+    })),
+  };
+}
+
 export function rotasDasTarefas(
   app: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -194,13 +306,7 @@ export function rotasDasTarefas(
           { additionalProperties: false },
         ),
         response: {
-          200: Type.Object({
-            dados: Type.Array(Tarefa),
-            filas: Type.Array(Fila),
-            totais: Type.Record(Type.String(), Type.Integer()),
-            ha_mais: Type.Boolean(),
-            cursor_seguinte: Type.Union([Type.String(), Type.Null()]),
-          }),
+          200: RespostaLista,
           ...RESPOSTA_DE_ERRO,
         },
       },
@@ -208,38 +314,16 @@ export function rotasDasTarefas(
     async (pedido, resposta) =>
       emTarefas(resposta, async () => {
         const chave = chaveDo(pedido);
-        const le = filasQueLe(chave);
         const q = pedido.query;
-        if (le.length === 0) {
-          throw proibido("a chave não lê nenhuma fila");
-        }
-        if (q.fila !== undefined && !le.includes(q.fila)) {
-          throw proibido(`falta o âmbito ${FILAS[q.fila].ler}`);
-        }
-        const filas = q.fila === undefined ? le : [q.fila];
-        const limite = q.limite === undefined ? 25 : Number(q.limite);
-        const depoisDe = doCursor(q.cursor);
-        const r = await listarTarefas(base, chave.comercianteId, {
-          filas,
-          limite,
+        return responderLista(base, chave.comercianteId, chave.ambitos, {
+          ...q,
           ...(q.responsavel === undefined
             ? {}
             : {
                 responsavel:
                   q.responsavel === "sem" ? "sem" : q.responsavel.slice(4),
               }),
-          ...(q.vencida === undefined ? {} : { vencida: q.vencida === "true" }),
-          ...(depoisDe === undefined ? {} : { depoisDe }),
         });
-        const ultima = r.dados.at(-1);
-        return {
-          dados: r.dados.map(paraTarefa),
-          filas,
-          totais: r.totais,
-          ha_mais: r.haMais,
-          cursor_seguinte:
-            r.haMais && ultima !== undefined ? cursorDe(ultima) : null,
-        };
       }),
   );
 
@@ -252,27 +336,7 @@ export function rotasDasTarefas(
           "Um caso aberto e o histórico das atribuições dele (quem, o prazo, o motivo, o aviso), de todas as passagens pela fila.",
         params: Type.Object({ fila: Fila, caso: Caso }),
         response: {
-          200: Type.Object({
-            tarefa: Tarefa,
-            historico: Type.Array(
-              Type.Object({
-                acto: umDe([
-                  "atribuida",
-                  "retirada",
-                  "prazo_mudado",
-                  "vencida",
-                ] as const),
-                responsavel_antes: Type.Union([Type.String(), Type.Null()]),
-                responsavel_depois: Type.Union([Type.String(), Type.Null()]),
-                prazo_antes: Type.Union([Instante, Type.Null()]),
-                prazo_depois: Type.Union([Instante, Type.Null()]),
-                motivo: Type.Union([Type.String(), Type.Null()]),
-                quem: Type.String(),
-                em: Instante,
-                passagem: Instante,
-              }),
-            ),
-          }),
+          200: RespostaCaso,
           ...RESPOSTA_DE_ERRO,
         },
       },
@@ -280,38 +344,13 @@ export function rotasDasTarefas(
     async (pedido, resposta) =>
       emTarefas(resposta, async () => {
         const chave = chaveDo(pedido);
-        const { fila } = pedido.params;
-        if (!chave.ambitos.includes(FILAS[fila].ler)) {
-          throw proibido(`falta o âmbito ${FILAS[fila].ler}`);
-        }
-        const r = await lerTarefa(
+        return responderCaso(
           base,
           chave.comercianteId,
-          fila,
-          casoDa(fila, pedido.params.caso),
+          chave.ambitos,
+          pedido.params.fila,
+          pedido.params.caso,
         );
-        if (r === null) {
-          throw new ErroTarefas(
-            "tasks.not_found",
-            "tasks.not_found: o caso não está aberto nesta fila",
-          );
-        }
-        const pessoa = (id: string | null) =>
-          id === null ? null : `per_${id}`;
-        return {
-          tarefa: paraTarefa(r.caso),
-          historico: r.historico.map((h) => ({
-            acto: h.acto,
-            responsavel_antes: pessoa(h.responsavel_antes),
-            responsavel_depois: pessoa(h.responsavel_depois),
-            prazo_antes: iso(h.prazo_antes),
-            prazo_depois: iso(h.prazo_depois),
-            motivo: h.motivo,
-            quem: h.quem,
-            em: h.em.toISOString(),
-            passagem: h.entrou_em.toISOString(),
-          })),
-        };
       }),
   );
 
@@ -393,5 +432,208 @@ export function rotasDasTarefas(
           };
         }),
       ),
+  );
+}
+
+/**
+ * As mesmas rotas no Hub, com a sessão (docs/22 §28.2; só com o Hub
+ * ligado). As filas são as que o papel lê (R2); a sessão é uma pessoa, por
+ * isso há `responsavel=eu` e atribuir-se a si próprio pede só decidir a fila
+ * (R3); outra pessoa, tirar e mudar o prazo pedem também `tasks:assign`.
+ */
+export function rotasDasTarefasNoHub(
+  app: FastifyInstance,
+  base: Kysely<BaseDados>,
+): void {
+  const rotas = app.withTypeProvider<TypeBoxTypeProvider>();
+
+  const daSessao = (pedido: FastifyRequest, resposta: FastifyReply) => {
+    const sessao = sessaoDo(pedido);
+    if (sessao.comercianteId === null) {
+      throw new Error("rota com comerciante sem o comerciante da sessão");
+    }
+    void resposta.header("cache-control", "private, no-store");
+    return { ...sessao, comercianteId: sessao.comercianteId };
+  };
+
+  /** Ler e decidir a fila; `outros` pede também `tasks:assign` (R3). */
+  const exigir = (
+    ambitos: readonly string[],
+    fila: FilaTarefa,
+    outros: boolean,
+  ) => {
+    const em = FILAS[fila];
+    for (const a of outros
+      ? [em.ler, em.decidir, "tasks:assign"]
+      : [em.ler, em.decidir]) {
+      if (!ambitos.includes(a)) throw proibido(`falta o âmbito ${a}`);
+    }
+  };
+
+  /** Uma escrita na transacção do comerciante, com o «quem» da pessoa. */
+  const escreverNoHub = <T>(
+    comercianteId: string,
+    pessoaId: string,
+    fn: (trx: Transaction<BaseDados>) => Promise<T>,
+  ) =>
+    comComerciante(base, comercianteId, async (trx) => {
+      await sql`select set_config('eurolify.quem', ${`pessoa:per_${pessoaId}`}, true)`.execute(
+        trx,
+      );
+      await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
+        trx,
+      );
+      return fn(trx);
+    });
+
+  rotas.get(
+    "/hub/tasks",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "A lista «A decidir» no Hub (docs/22 §28): a mesma da chave, com as filas que o papel lê; `responsavel=eu` é a pessoa da sessão.",
+        querystring: Type.Object(
+          {
+            fila: Type.Optional(Fila),
+            responsavel: Type.Optional(
+              Type.Union([Type.Literal("eu"), Type.Literal("sem"), Pessoa]),
+            ),
+            vencida: Type.Optional(umDe(["true", "false"] as const)),
+            limite: Type.Optional(
+              Type.String({ pattern: "^[1-9][0-9]?$|^100$" }),
+            ),
+            cursor: Type.Optional(
+              Type.String({ pattern: "^[A-Za-z0-9_-]{1,300}$" }),
+            ),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 200: RespostaLista, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emTarefas(resposta, async () => {
+        const s = daSessao(pedido, resposta);
+        const q = pedido.query;
+        const r = q.responsavel;
+        return responderLista(base, s.comercianteId, s.ambitos, {
+          ...q,
+          responsavel:
+            r === undefined || r === "sem"
+              ? r
+              : r === "eu"
+                ? s.pessoaId
+                : r.slice(4),
+        });
+      }),
+  );
+
+  rotas.get(
+    "/hub/tasks/:fila/:caso",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Um caso aberto e o histórico (docs/22 §28), com quem pode ser responsável pela régua da base (R3).",
+        params: Type.Object({ fila: Fila, caso: Caso }),
+        response: {
+          200: Type.Object({
+            ...RespostaCaso.properties,
+            pode_ser_responsavel: Type.Array(Pessoa),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emTarefas(resposta, async () => {
+        const s = daSessao(pedido, resposta);
+        const { fila, caso } = pedido.params;
+        const r = await responderCaso(
+          base,
+          s.comercianteId,
+          s.ambitos,
+          fila,
+          caso,
+        );
+        const podem = await podemSerResponsaveis(base, s.comercianteId, fila);
+        return { ...r, pode_ser_responsavel: podem.map((p) => `per_${p}`) };
+      }),
+  );
+
+  rotas.post(
+    "/hub/tasks/:fila/:caso/assign",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Atribui o caso (docs/22 §28.2): a si próprio, com o âmbito de decidir a fila; a outra pessoa ou ninguém (`null`), também com `tasks:assign`. Com a versão lida: outra dá 409.",
+        params: Type.Object({ fila: Fila, caso: Caso }),
+        body: Type.Object(
+          { responsavel: Type.Union([Pessoa, Type.Null()]), versao: Versao },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emTarefas(resposta, async () => {
+        const s = daSessao(pedido, resposta);
+        const { fila } = pedido.params;
+        const quem =
+          pedido.body.responsavel === null
+            ? null
+            : pedido.body.responsavel.slice(4);
+        exigir(s.ambitos, fila, quem !== s.pessoaId);
+        const caso = casoDa(fila, pedido.params.caso);
+        return {
+          versao: await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
+            atribuir(trx, fila, caso, quem, pedido.body.versao),
+          ),
+        };
+      }),
+  );
+
+  rotas.post(
+    "/hub/tasks/:fila/:caso/deadline",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Muda o prazo do caso, com o motivo (docs/22 §28.2): nunca no passado e nunca depois do prazo legal. Pede decidir a fila e `tasks:assign`.",
+        params: Type.Object({ fila: Fila, caso: Caso }),
+        body: Type.Object(
+          { prazo: Instante, motivo: Motivo, versao: Versao },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emTarefas(resposta, async () => {
+        const s = daSessao(pedido, resposta);
+        const { fila } = pedido.params;
+        exigir(s.ambitos, fila, true);
+        const caso = casoDa(fila, pedido.params.caso);
+        return {
+          versao: await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
+            mudarPrazo(
+              trx,
+              fila,
+              caso,
+              new Date(pedido.body.prazo),
+              pedido.body.motivo,
+              pedido.body.versao,
+            ),
+          ),
+        };
+      }),
   );
 }
