@@ -15,7 +15,7 @@ import {
 import { TEXTOS } from "../src/textos";
 import { FILAS } from "../../api/src/tarefas/filas";
 import { FILAS_TAREFAS as FILAS_DA_API } from "../../api/src/base/esquema";
-import { MOTIVOS_RETENCAO } from "../../api/src/faturacao/repositorio";
+import { MOTIVOS_RETENCAO } from "../../api/src/faturacao/motivos";
 
 // O ecrã «A decidir» (docs/22 §28): o filtro, o motivo e as horas no fuso
 // do comerciante. A régua de quem decide cada fila é a da API: este teste vê

@@ -873,21 +873,24 @@ export const es: Textos = {
   motivoTarefa_inspeccionada: "devolución inspeccionada",
   motivoTarefa_decidida: "devolución decidida",
   motivoTarefa_ligacao_sem_teste:
-    "la conexión con el emisor no ha superado la prueba",
-  motivoTarefa_nif_recusado: "NIF rechazado",
+    "la conexión con el emisor no está lista (sin probar, con error o desactivada)",
+  motivoTarefa_nif_recusado: "NIF rechazado por la verificación de Eurolify",
   motivoTarefa_nif_consumidor_final:
     "NIF de consumidor final, o empresa sin NIF",
   motivoTarefa_perfil_de_outra_ficha: "perfil de facturación de otro cliente",
   motivoTarefa_isencao_sem_prova: "exención sin prueba",
   motivoTarefa_isencao_sem_mapa: "exención sin correspondencia en el emisor",
   motivoTarefa_taxa_por_verificar: "tipo de IVA por verificar",
-  motivoTarefa_territorio_por_decidir: "territorio por decidir",
+  motivoTarefa_territorio_por_decidir: "territorio del IVA por decidir",
   motivoTarefa_moeda_nao_suportada: "moneda no admitida",
-  motivoTarefa_totais_nao_batem: "los totales no cuadran con el pedido",
+  motivoTarefa_totais_nao_batem:
+    "las líneas o los totales no cuadran (en el pedido o en el borrador del emisor)",
   motivoTarefa_entidade_do_emissor_diferente:
     "la entidad en el emisor no es la del perfil",
-  motivoTarefa_credito_acima_do_saldo: "abono superior al saldo de la factura",
-  motivoTarefa_encomenda_reembolsada: "pedido reembolsado por completo",
+  motivoTarefa_credito_acima_do_saldo:
+    "nota de crédito superior al saldo de la factura",
+  motivoTarefa_encomenda_reembolsada:
+    "pedido reembolsado por completo antes de la factura (a la espera del contable)",
   motivoTarefa_reembolso_cancelado: "reembolso cancelado",
   motivoTarefa_nota_credito_sem_adaptador:
     "nota de crédito a tramitar en el emisor",

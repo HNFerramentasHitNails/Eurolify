@@ -1918,8 +1918,8 @@ onde carregar para a resolver.
 - **Os motivos com texto** são os das filas de pagamentos, clientes e
   pós-venda, os estados do documento e os 19 motivos de retenção de um
   documento (`MOTIVOS_RETENCAO`), estes desde 12/10/2026 a partir do
-  `docs/29` (R3, M6, C2, M7) e do `docs/30`. Um teste obriga cada motivo da
-  lista da API a ter texto nas três línguas. Um código novo sem texto
+  `docs/29` (R3, M6, M7) e do `docs/30` (C2). Um teste obriga cada motivo da
+  lista da API (`apps/api/src/faturacao/motivos.ts`) a ter texto nas três línguas. Um código novo sem texto
   mostra-se como está.
 - **O comerciante vai no cabeçalho,** não na consulta. É assim em todas as
   rotas do Hub.
