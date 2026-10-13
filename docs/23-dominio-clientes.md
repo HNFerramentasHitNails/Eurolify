@@ -1275,7 +1275,13 @@ ou o Bruno o pedirem. **Por onde pode sair errado:** um aviso falso quando
 uma encomenda que estava na fila há mais de um dia acaba na hora antes das
 07:00 e a tarefa ainda não teve a volta seguinte (ex.: a encomenda da Ana,
 na fila desde 2/10, passa a concluída às 06:40) — no dia seguinte já não
-aparece. A janela é de até uma hora por dia.
+aparece. A janela é de até duas horas antes das 07:00 (a encomenda muda a
+qualquer hora e a tarefa corre de hora a hora; revisão do #433, P2-3), e
+vale para cada encomenda da fila que acabe nela: com muitas, o aviso falso
+fica mais provável. **Como ler o aviso:** um número que aparece num dia e
+desaparece no seguinte não é a tarefa parada; o que repete dois dias seguidos
+é. Se os avisos falsos se tornarem frequentes, a correcção é contar desde que
+a encomenda acabou, e isso volta ao Diogo ou ao Bruno.
 
 **Decidido:** Q-T1, aprovado pelo Diogo a 13/10/2026 (*«A»*), com **1 dia**
 de folga e o aviso pela verificação diária das 07:00.

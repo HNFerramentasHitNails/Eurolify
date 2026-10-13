@@ -340,9 +340,20 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
   ): Promise<number> {
     return base.dono.transaction().execute(async (trx) => {
       await sql`set local role eurolify_limpeza`.execute(trx);
+      // O contexto de quem chama volta ao que era (revisão do #433, P3-8).
+      const marca = randomUUID();
+      await sql`select set_config('eurolify.comerciante', ${marca}, true)`.execute(
+        trx,
+      );
       const { rows } = await sql<{
         n: string;
       }>`select ${sql.raw(funcao)}() as n`.execute(trx);
+      const { rows: depois } = await sql<{
+        c: string;
+      }>`select current_setting('eurolify.comerciante', true) as c`.execute(
+        trx,
+      );
+      expect(depois[0]?.c).toBe(marca);
       return Number(rows[0]?.n);
     });
   }

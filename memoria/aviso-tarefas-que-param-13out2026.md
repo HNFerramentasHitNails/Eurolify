@@ -30,4 +30,6 @@ Pedido do Diogo, 13/10/2026 (*«A»*, a pegar nos avisos das duas tarefas do
 
 - O tempo das contagens com muitos comerciantes e sessões (sem `EXPLAIN`).
 - O aviso a sério na VPS: só depois da publicação.
-- Aviso falso possível numa janela de até uma hora por dia (§15.11).
+- Aviso falso possível numa janela de até duas horas antes das 07:00, por
+  cada encomenda que acabe nela; um aviso de um dia só não é a tarefa
+  parada (§15.11; revisão do #433, P2-3).

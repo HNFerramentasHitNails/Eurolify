@@ -95,13 +95,13 @@ confere "sem a função, as sessões não aparecem" sem_texto "$saida" "checkout
 # 4. Uma consulta que falha avisa só com a categoria, nunca com a linha do
 # erro do psql (revisão do #428, P3-3).
 verificar falha falha
-confere "a falha da fila do titular avisa" contem "$saida" "não consegui contar da fila do titular: a consulta falhou"
-confere "a falha das sessões avisa" contem "$saida" "não consegui contar das sessões de checkout: a consulta falhou"
+confere "a falha da fila do titular avisa" contem "$saida" "não consegui contar a fila do titular: a consulta falhou"
+confere "a falha das sessões avisa" contem "$saida" "não consegui contar as sessões de checkout: a consulta falhou"
 confere "a linha do erro do psql não sai" sem_texto "$saida" "ana@exemplo.pt"
 
 # 5. Uma resposta que não é número avisa.
 verificar texto 0
-confere "uma contagem que não é número avisa" contem "$saida" "a contagem da fila do titular não é um número"
+confere "uma contagem que não é número avisa" contem "$saida" "a contagem (a fila do titular) não é um número"
 
 if ((falhas)); then
   echo "$falhas verificação(ões) falharam"
