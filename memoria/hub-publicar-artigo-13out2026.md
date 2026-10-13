@@ -5,6 +5,7 @@
 - **API** (`docs/22` §27.7): `GET /hub/sales-pairs`, `POST /hub/products/{id}/publications/check`, `POST /hub/products/{id}/publications` e `POST /hub/publications/{id}/archive`, com as mesmas funções da chave. A `versao` lida confere-se dentro de `publicar` e `retirarPublicacao` (`src/catalogo/publicacao.ts`): `null` só numa publicação que nasce no pedido.
 - **Hub**: a página `/artigos/{prd}/publicacoes/{chn}/{mkt}` (`PublicarArtigo.tsx`, lógica em `publicar.ts`) e as acções na secção «Publicações» da ficha (`Artigo.tsx`). O ecrã foi escrito por um agente construtor e revisto aqui.
 - **Decisão EJ** (Diogo, 13/10/2026: «A»): numa publicação que não está à venda, nenhuma variante vem marcada (`docs/06`).
+- Aspecto e os quatro textos novos aprovados pelo Diogo (13/10/2026, «A»).
 - Revisão do agente (Sonnet 5.5): 0 P0, 0 P1, 4 P2 e 10 P3, tratados no pedido.
 
 ## Números (com data e como se contaram)
@@ -17,5 +18,4 @@
 
 - A marca «nova» (a API não distingue a variante acrescentada da que alguém tirou).
 - Uma variante criada com o ecrã aberto, num par sem publicação publicada, entra se a pessoa não recarregar (o servidor grava as `variantes_fora` do ecrã; passa pela verificação do preço e do peso).
-- Os quatro textos de impedimentos escritos aqui (classificação, natureza, família, data ou local) e a aprovação visual, com o Diogo ou o Bruno.
 - Safari e um telemóvel real.

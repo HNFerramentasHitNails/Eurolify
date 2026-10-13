@@ -1828,6 +1828,8 @@ venda, por omissão, uma variante que pode ainda não estar pronta.
 | os textos dos impedimentos em pt, es e en, com a ligação para onde se resolve (a ficha, editar o artigo, editar a variante, o preço na lista base) | `apps/hub/src/textos/` |
 | testes da lógica do ecrã (escolha inicial, «Publicar», pares, impedimentos, resposta perdida) e a passagem no navegador com as capturas a 375, 768 e 1280 px, claro e escuro | `apps/hub/test/publicar.test.ts`; `apps/hub/scripts/capturas.mjs` |
 
+✅ **Aspecto e os quatro textos novos dos impedimentos aprovados** (Diogo, 13/10/2026, *«A»*), pelas capturas de 1280 px claro e 375 px escuro.
+
 **Desvios do desenho:**
 - **Não há a marca «nova»:** a API não distingue a variante acrescentada depois de publicar da que alguém tirou; as duas dizem «fora» e vêm por marcar.
 - **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma variante vem marcada** (Diogo, 13/10/2026: *«A»*; `docs/06`, EJ): a base só põe fora a variante acrescentada a uma publicação publicada, e assim nada volta à venda sem ser escolhido (revisão do #421, P2-2).
