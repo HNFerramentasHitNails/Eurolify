@@ -1421,7 +1421,8 @@ export const en: Textos = {
     "The translation of the images' alternative text is not checked yet.",
   publicarNovosImpedimentos:
     "Not published: a blocker has appeared in the meantime and nothing changed.",
-  publicarConflito: "Someone else changed this publication in the meantime.",
+  publicarConflito:
+    "Someone else changed this publication or the product's variants in the meantime.",
   publicarConflitoActual:
     "Below are the current status and variants; your choices stay ticked. Check again before publishing.",
   publicarSemResposta:
