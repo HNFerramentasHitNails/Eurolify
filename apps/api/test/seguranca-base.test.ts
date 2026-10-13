@@ -337,6 +337,42 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
     );
   });
 
+  it("nenhum gatilho que cria notificações corre numa cópia reposta em modo replica (regra da 0053; 0091, #435)", async () => {
+    // «A» (ALWAYS) correria também em replica; «O», só na origem.
+    const { rows } = await sql<{ nome: string; ligado: string }>`
+      select t.tgname as nome, t.tgenabled as ligado
+      from pg_trigger t join pg_proc f on f.oid = t.tgfoid
+      where not t.tgisinternal
+        and f.prosrc ~* ${String.raw`insert\s+into\s+(public\.)?notificacao\M`}
+      order by 1`.execute(base.dono);
+    expect(rows.map((r) => r.nome)).toEqual(
+      expect.arrayContaining([
+        "atribuicao_vencida_notificacao",
+        "devolucao_prazo_notificacao",
+        "ligacao_faturacao_com_erro_notificacao",
+      ]),
+    );
+    expect(rows.filter((r) => r.ligado === "A")).toEqual([]);
+    // A procura só apanha o `insert` escrito na função do gatilho (não uma
+    // função auxiliar que insira): por isso também a lista fixa, com o índice
+    // das tarefas, que escreve noutra tabela (revisão do #441, P2-1 e P3-1).
+    const { rows: fixos } = await sql<{ nome: string; ligado: string }>`
+      select t.tgname as nome, t.tgenabled as ligado from pg_trigger t
+      where t.tgname in ('atribuicao_vencida_notificacao', 'devolucao_prazo_notificacao',
+                         'ligacao_faturacao_com_erro_notificacao', 'notificacao_tarefa',
+                         'evento_seguimento_aviso')
+      order by 1`.execute(base.dono);
+    expect(fixos).toEqual(
+      [
+        "atribuicao_vencida_notificacao",
+        "devolucao_prazo_notificacao",
+        "evento_seguimento_aviso",
+        "ligacao_faturacao_com_erro_notificacao",
+        "notificacao_tarefa",
+      ].map((nome) => ({ nome, ligado: "O" })),
+    );
+  });
+
   describe("funções fechadas por omissão", () => {
     it("nenhuma função do esquema public fica aberta a PUBLIC", async () => {
       const { rows } = await sql<{ nome: string }>`

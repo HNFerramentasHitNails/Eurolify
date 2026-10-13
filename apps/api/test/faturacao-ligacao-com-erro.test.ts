@@ -399,6 +399,21 @@ describe.skipIf(URL_BASE === undefined)(
       await desligar(id);
     });
 
+    it("uma cópia reposta em modo replica não manda o e-mail outra vez (regra da 0053; 0091, #435)", async () => {
+      const id = await novaLigacao(a, entidade, false);
+      // A linha como uma reposição a escreve: já com erro, a passagem e o
+      // motivo, sem os gatilhos da origem.
+      await base.dono.transaction().execute(async (trx) => {
+        await sql`set local session_replication_role = replica`.execute(trx);
+        await sql`update ligacao_faturacao set estado = 'com_erro',
+          com_erro_motivo = 'renovacao_recusada', com_erro_desde = now(),
+          com_erro_passagem = gen_random_uuid(), versao = versao + 1
+          where id = ${id}::uuid`.execute(trx);
+      });
+      expect(await avisosDe(id)).toEqual([]);
+      await desligar(id);
+    });
+
     it("ligar outra vez e testar tira o caso da fila; o e-mail ainda por enviar fica cancelado", async () => {
       const id = await novaLigacao(a, entidade, true);
       await renovacaoRecusada();
