@@ -18,6 +18,7 @@ img() { echo "$repo_img@$(r "$1")"; }
 install -d /usr/local/lib/eurolify /etc/eurolify /var/log/eurolify /run/lock
 install -m 644 "$f/lib/comum.sh" /usr/local/lib/eurolify/comum.sh
 install -m 644 "$f/lib/chave-totp.sh" /usr/local/lib/eurolify/chave-totp.sh
+install -m 644 "$f/lib/chave-envios.sh" /usr/local/lib/eurolify/chave-envios.sh
 printf 'IMAGEM_REPO=%s\nGHCR_UTILIZADOR=ensaio\nBASE_NOME=eurolify\n' "$repo_img" >/etc/eurolify/ensaio.conf
 echo token >/etc/eurolify/ghcr.token
 : >/etc/eurolify/migrar.env
@@ -98,6 +99,20 @@ if [[ "$*" == */check-status* ]]; then
   printf '%s\nHTTP %s em 0.2 s' "${VIES_CORPO:-$corpo}" "${VIES_HTTP:-200}"
   exit 0
 fi
+# Os avisos (eurolify-medir), como o nginx do Hub: o POST da Sendcloud chega
+# à API, o GET leva 403 (limit_except), o resto 404. O corpo iria para o -o.
+if [[ "$*" == */webhooks/* ]]; then
+  echo "$*" >>"$FALSOS/curl-avisos"
+  [[ -z "${AVISOS_FALHA:-}" ]] || exit 7
+  if [[ "$*" == *"-X POST"*/webhooks/carriers/sendcloud/* ]]; then
+    printf '401 application/problem+json'
+  elif [[ "$*" == *"-X GET"*/webhooks/carriers/sendcloud/* ]]; then
+    printf '403 text/html'
+  else
+    printf '404 text/html'
+  fi
+  exit 0
+fi
 exit "${CURL_FALHA:-0}"
 FALSO
 printf '#!/usr/bin/env bash\nexit 0\n' >"$falsos/sleep"
@@ -111,7 +126,7 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
-  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos"/hub-* "$falsos/docker-chamado" /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-vies.env \
+  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos"/hub-* "$falsos/docker-chamado" /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-envios.env /etc/eurolify/api-vies.env \
     "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" "$falsos/sem-media" /var/log/eurolify/acoes.log
   echo token >/etc/eurolify/ghcr.token
   cat >/var/log/eurolify/publicacoes.log <<REG
@@ -571,6 +586,25 @@ confere sim "publica" arrancou 4
 confere nao "não passa a chave estragada" grep -q -- "api-totp.env" "$falsos/docker-chamado"
 confere sim "avisa" na_saida "a API arranca sem a palavra-passe"
 confere sim "regista-o" no_registo "chave TOTP inválida"
+# A chave dos envios (docs/36 §17): como a TOTP, uma chave nova recria a
+# API e a API recebe-a; sem ela ou estragada, não se passa.
+preparar
+printf 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=1\n' "$(printf 'b%.0s' {1..43})=" >/etc/eurolify/api-envios.env
+touch -d @2000000000.5 /etc/eurolify/api-envios.env
+OPCAO=--so-recriar caso "--so-recriar com a chave dos envios nova" 3 CRIADO=2033-05-18T03:33:20Z
+confere sim "recria a API" arrancou 3
+confere sim "passa a chave dos envios à API" grep -q -- "--env-file /etc/eurolify/api-envios.env" "$falsos/docker-chamado"
+preparar
+caso "publicar sem a chave dos envios" 4
+confere sim "publica" arrancou 4
+confere nao "não passa a chave que não existe" grep -q -- "api-envios.env" "$falsos/docker-chamado"
+preparar
+printf 'ENVIOS_CHAVE=x\nENVIOS_CHAVE_VERSAO=1\n' >/etc/eurolify/api-envios.env
+caso "publicar com a chave dos envios estragada" 4
+confere sim "publica" arrancou 4
+confere nao "não passa a chave estragada" grep -q -- "api-envios.env" "$falsos/docker-chamado"
+confere sim "avisa" na_saida "a API arranca sem os envios"
+confere sim "regista-o" no_registo "chave dos envios inválida"
 # O endereço do VIES (docs/23 §13): o api-vies.env novo recria a API, e a API
 # recebe-o; sem ele, não se passa.
 preparar
@@ -736,6 +770,31 @@ bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "a API no ar já o leu" linha_na_saida "VIES_URL na API no ar: sim"
 confere nao "sem o valor do ambiente" na_saida "PATH=/x"
 rm -f /etc/eurolify/api-vies.env "$falsos/api-ambiente"
+
+# Os envios (docs/36 §17.2, ponto 4).
+echo "== envios no medir"
+touch "$falsos/no-ar"
+rm -f "$falsos/curl-avisos"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "a API no ar sem a chave dos envios" linha_na_saida "ENVIOS_CHAVE na API no ar: não (os envios estão desligados)"
+confere sim "o aviso da Sendcloud chega à API" linha_na_saida "POST /webhooks/carriers/sendcloud/cac_00000000-0000-4000-8000-000000000000: 401 application/problem+json"
+confere sim "um GET fica no nginx" linha_na_saida "GET /webhooks/carriers/sendcloud/cac_00000000-0000-4000-8000-000000000000: 403 text/html"
+confere sim "os CTT ficam no nginx" linha_na_saida "POST /webhooks/carriers/ctt/cac_00000000-0000-4000-8000-000000000000: 404 text/html"
+confere sim "os pagamentos ficam no nginx" linha_na_saida "POST /webhooks/payments/x: 404 text/html"
+confere sim "pede-os à própria máquina, nunca para fora" grep -q -- "--resolve hub.eurolify.eu:443:127.0.0.1" "$falsos/curl-avisos"
+confere nao "nenhum sai sem o --resolve" grep -qv -- "--resolve hub.eurolify.eu:443:127.0.0.1" "$falsos/curl-avisos"
+confere nao "nenhum vai por um proxy" grep -qv -- "--noproxy \*" "$falsos/curl-avisos"
+confere nao "o corpo da resposta nunca vem para a saída" grep -qv -- "-o /dev/null" "$falsos/curl-avisos"
+confere sim "são quatro pedidos" test "$(wc -l <"$falsos/curl-avisos")" -eq 4
+confere nao "o GET não leva corpo" grep -q -- "-X GET.*--data" "$falsos/curl-avisos"
+confere sim "os POST levam só {}" test "$(grep -c -- "--data {} " "$falsos/curl-avisos")" -eq 3
+AVISOS_FALHA=1 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "sem resposta diz-se, com o código do curl" linha_na_saida "POST /webhooks/payments/x: sem resposta (código do curl 7)"
+printf 'PATH=/x\nENVIOS_CHAVE=AAAAsegredoAAAA=\n' >"$falsos/api-ambiente"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "a API no ar com a chave dos envios" linha_na_saida "ENVIOS_CHAVE na API no ar: sim (a variável está no contentor)"
+confere nao "sem o valor da chave" na_saida "segredo"
+rm -f "$falsos/api-ambiente" "$falsos/curl-avisos"
 
 rm -rf "$falsos"
 ((falhas == 0))

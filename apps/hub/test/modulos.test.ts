@@ -39,23 +39,25 @@ function comerciante(
 const ids = (l: readonly { id: string }[]) => l.map((m) => m.id);
 
 describe("os módulos de cada papel", () => {
-  it("o dono vê a equipa, os artigos, «A decidir», os envios, a faturação e as chaves, por esta ordem", () => {
+  it("o dono vê a equipa, os artigos, «A decidir», «Expedir», os envios, a faturação e as chaves, por esta ordem", () => {
     expect(ids(modulosDe(comerciante("a", "dono")))).toEqual([
       "equipa",
       "artigos",
       "decidir",
+      "expedir",
       "envios",
       "faturacao",
       "chaves",
     ]);
   });
 
-  it("o gestor e o apoio vêem os envios e a faturação, não as chaves; o armazém vê os envios e não a faturação (docs/22 §29.3, §30.3)", () => {
+  it("o gestor e o apoio vêem «Expedir», os envios e a faturação, não as chaves; o armazém vê «Expedir» e os envios, não a faturação (docs/22 §29.3, §30.3, §33.1)", () => {
     for (const papel of ["gestor", "apoio"] as const) {
       expect(ids(modulosDe(comerciante("a", papel))), papel).toEqual([
         "equipa",
         "artigos",
         "decidir",
+        "expedir",
         "envios",
         "faturacao",
       ]);
@@ -64,6 +66,7 @@ describe("os módulos de cada papel", () => {
       "equipa",
       "artigos",
       "decidir",
+      "expedir",
       "envios",
     ]);
   });
@@ -115,6 +118,7 @@ describe("os módulos de cada papel", () => {
         "/equipa",
         "/artigos",
         "/a-decidir",
+        "/expedir",
         "/envios",
         "/faturacao",
         "/chaves",

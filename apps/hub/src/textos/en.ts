@@ -1226,8 +1226,6 @@ export const en: Textos = {
   enviosAvisos: "Carrier notifications",
   enviosAvisosExplicacao:
     "At the carrier, enter this path, on the Eurolify API address:",
-  enviosAvisosVps:
-    "On the test VPS, notifications do not arrive yet: this path still has to be published on the server. Until then, Eurolify checks tracking every hour.",
   enviosTestar: "Test the connection",
   enviosATestar: "Testing…",
   enviosTestarExplicacao:
@@ -1388,4 +1386,134 @@ export const en: Textos = {
     "This market no longer exists. Reload the page and choose another.",
   embalagemNaoExiste:
     "This warehouse no longer exists or does not belong to this merchant.",
+  // Expedir (docs/22 §33).
+  modulo_expedir: "Ship orders",
+  termos_expedir: "orders shipments labels warehouse tracking ship",
+  expedirTitulo: "Ship orders",
+  expedirExplicacao:
+    "Paid orders still to ship, oldest first. Prices, tax numbers and e-mail addresses are not shown here.",
+  expedirVazio: "There are no orders to ship.",
+  expedirContagemUm: "1 order to ship.",
+  expedirContagem: "{n} orders to ship.",
+  expedirContagemMaximo:
+    "Showing the {n} oldest; there are more to ship. Ship these to see the next ones.",
+  expedirColunaEncomenda: "Order",
+  expedirColunaEstado: "Status",
+  expedirColunaMetodo: "Delivery method",
+  expedirColunaPorExpedir: "Items to ship",
+  expedirColunaLocalidade: "Town",
+  expedirEncomendaDe: "Order of {data}",
+  expedirEncomendaTitulo: "Order to ship",
+  expedirEstadoPaga: "Paid",
+  expedirEstadoEmPreparacao: "Being prepared",
+  expedirEstadoExpedidaParcial: "Partly shipped",
+  expedirEstadoExpedida: "Shipped",
+  expedirVoltar: "Back to «Ship orders»",
+  expedirSoVer:
+    "Your role can only view shipments: it cannot create or change them.",
+  expedirQuemRecebe: "Recipient",
+  expedirTelefone: "Phone:",
+  expedirLinhas: "Items",
+  expedirColunaArtigo: "Item",
+  expedirColunaQuantidade: "Quantity",
+  expedirColunaJaSaiu: "Already in a shipment",
+  expedirColunaNestaExpedicao: "In this shipment",
+  expedirQuantidadeDe: "Quantity of {nome} in this shipment",
+  expedirCriar: "Create the shipment",
+  expedirTudoSaiu: "All items are already in a shipment.",
+  expedirNadaEscolhido: "Enter the quantity of at least one item.",
+  expedirQuantidadeErrada: "The quantity is a whole number.",
+  expedirMaisDoQueFalta:
+    "The quantity is more than what is left to ship of this item.",
+  expedirTalvezCriada:
+    "No response arrived: the shipment may have been created. Check the shipments below before creating another; if the page does not show them, press «Try again».",
+  expedirExpedicoes: "Shipments",
+  expedirSemExpedicoes: "There are no shipments for this order yet.",
+  expedirExpedicaoNumero: "Shipment {n}",
+  expedirSaiuEm: "Left on {data}.",
+  expedicaoCriada: "Not yet sent",
+  expedicaoExpedida: "Shipped",
+  expedicaoEntregue: "Delivered",
+  expedicaoDevolvida: "Returned to sender",
+  expedicaoPerdida: "Lost",
+  expedicaoCancelada: "Cancelled",
+  expedirTransportadora: "Carrier (optional)",
+  expedirSeguimento: "Tracking number (optional)",
+  expedirMarcar: "Mark as shipped",
+  expedirMarcarConfirmar:
+    "Mark as shipped? Stock leaves now, using the lots that expire first, and this screen cannot undo it.",
+  expedirMarcadaAgora: "The shipment left.",
+  expedirCancelar: "Cancel the shipment",
+  expedirCancelarConfirmar:
+    "Cancel this shipment? The items go back to being unshipped.",
+  expedirCanceladaAgora: "The shipment was cancelled.",
+  expedirEntregue: "Mark as delivered",
+  expedirEntregueAgora: "The shipment was delivered.",
+  expedirDevolvida: "Returned to sender",
+  expedirDevolvidaConfirmar: "Mark as returned to sender?",
+  expedirDevolvidaAgora: "The shipment is now returned to sender.",
+  expedirPerdida: "Mark as lost",
+  expedirPerdidaConfirmar: "Mark as lost?",
+  expedirPerdidaAgora: "The shipment is now lost.",
+  expedirRecusada:
+    "The server refused the shipment: check the quantities (no more than what is left).",
+  expedirConflito:
+    "The shipment changed in the meantime. «Try again» reloads the page.",
+  expedirSemArmazem: "This order's store has no warehouse: create it in stock.",
+  expedirSemLote:
+    "One of the variants requires a lot and there is no lot in stock within its expiry. Record the receipt with the lot.",
+  expedirSemStock: "There is not enough physical stock for this shipment.",
+  expedirNaoExiste:
+    "This order or shipment does not exist, or does not belong to this merchant.",
+  expedirTransicaoImpossivel: "This status change is not possible now.",
+  etiquetaTitulo: "Label:",
+  etiquetaPorPedir: "Not requested",
+  etiquetaAPedir: "Requesting…",
+  etiquetaEmitida: "Issued",
+  etiquetaIncerta: "Uncertain",
+  etiquetaRecusada: "Refused",
+  etiquetaAnulada: "Voided",
+  etiquetaMotivo: "The carrier refused it: {motivo}. Fix it and request again.",
+  etiquetaIncertaExplicacao:
+    "It is not known whether the carrier created the label. Do not request another: press «Ask the carrier».",
+  etiquetaSeguimento: "Tracking",
+  etiquetaPeso: "Parcel weight",
+  etiquetaGramas: "{g} g",
+  etiquetaPedir: "Request the label",
+  etiquetaPedidaAgora: "The label was issued.",
+  etiquetaDescarregar: "Download the label",
+  etiquetaFicheiroApaga:
+    "The file has the recipient's details and is deleted 30 days after the shipment ends.",
+  etiquetaConsultar: "Ask the carrier",
+  etiquetaConsultadaAgora: "The carrier was asked.",
+  etiquetaAnular: "Void the label",
+  etiquetaAnularConfirmar:
+    "Void the label? Only before marking the shipment as shipped, and if the carrier allows it.",
+  etiquetaAnuladaAgora: "The label was voided.",
+  etiquetaEventos: "Carrier tracking",
+  etiquetaSemEventos: "No carrier events yet.",
+  etiquetaJaExiste:
+    "There is already a label: void it before requesting another.",
+  etiquetaIncertaConsultar:
+    "It is not known whether the label exists: press «Ask the carrier».",
+  etiquetaNaoAnula:
+    "The carrier does not allow voiding this label (the parcel was collected, or there is no issued label).",
+  etiquetaContaNaoPronta:
+    "This method's carrier account is not ready: test it in «Shipping», «Accounts».",
+  etiquetaPedidoRecusado:
+    "The server refused the label request: check the variants' weight and the address.",
+  etiquetaSemResposta: "The carrier did not respond. Try again in a moment.",
+  expedirLinhaNaoEDaEncomenda:
+    "One of the items is not from this order. Reload the page.",
+  expedirImutavel: "This shipment can no longer change.",
+  expedirEncomendaNaoEstaParaExpedir:
+    "This order is no longer to be shipped (for example, it was cancelled or has fully left).",
+  etiquetaTransicaoImpossivel:
+    "The label cannot change like that now: once the shipment has left, it can no longer be requested or voided.",
+  expedirPrimeiroAEtiqueta:
+    "With this method, mark it as shipped once the label is issued.",
+  expedirAnularParaCancelar:
+    "To cancel this shipment, void the label first (or ask the carrier, if it is uncertain).",
+  etiquetaFicheiroJaNao:
+    "The label file no longer exists: it is deleted 30 days after the shipment ends.",
 };

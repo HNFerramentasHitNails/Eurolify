@@ -109,6 +109,8 @@ const FUNCOES_DA_API = [
   "envios_avisos_resumir",
   "envios_comerciantes_com_trabalho",
   "envios_conta_do_aviso",
+  // Os envios depois do apagamento do titular (0083): o gatilho do evento.
+  "envios_encomenda_limpa",
   "envios_trabalho",
   "envios_trabalho_adiar",
   "envios_trabalho_feito",

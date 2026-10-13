@@ -260,6 +260,7 @@ instalar "$F/github_known_hosts" /etc/eurolify/github_known_hosts 644
 passo "8. Programas e unidades do Eurolify"
 instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
 instalar "$F/lib/chave-totp.sh" /usr/local/lib/eurolify/chave-totp.sh 644
+instalar "$F/lib/chave-envios.sh" /usr/local/lib/eurolify/chave-envios.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
 for p in trabalho publicar aplicar medir copia reposicao verificacao limpeza operar operador configurar; do
   instalar "$F/sbin/eurolify-$p" "/usr/local/sbin/eurolify-$p" 700
@@ -341,6 +342,36 @@ else
     TOTP_GERADA=1
   else
     aviso "não se gerou a chave dos segredos TOTP: a API corre sem a palavra-passe"
+  fi
+fi
+# A chave que cifra as credenciais das contas de transportadora (docs/36
+# §17; Diogo, 13/10/2026: «sim, aprovo; avança com o código»): como a chave
+# TOTP, fora da base, num ficheiro só da API. Gera-se UMA vez e nunca se
+# reescreve: trocá-la deixava ilegíveis as credenciais guardadas (cada conta
+# teria de as receber outra vez). É outra que não a dos pagamentos. Sem ela,
+# a API corre sem os envios. Nas mensagens, nunca o conteúdo.
+# shellcheck source=ficheiros/lib/chave-envios.sh
+source "$F/lib/chave-envios.sh"
+api_envios=/etc/eurolify/api-envios.env
+ENVIOS_GERADA=0
+if [[ -e "$api_envios" || -L "$api_envios" ]]; then
+  if [[ ! -f "$api_envios" || -L "$api_envios" ]]; then
+    aviso "$api_envios existe mas não é um ficheiro normal: não lhe toco; a API arranca sem os envios (LEIA-ME, «A chave dos envios»)"
+  elif [[ "$(stat -c '%a %U' "$api_envios")" != "600 root" ]]; then
+    aviso "$api_envios devia ser 600 e de root"
+  elif ! chave_envios_valida "$api_envios"; then
+    aviso "$api_envios não tem o formato esperado: não o reescrevo, e a API arranca sem os envios até se corrigir à mão (LEIA-ME, «A chave dos envios»)"
+  else
+    ok "$api_envios (a chave dos envios)"
+  fi
+else
+  # O 10c recria a API para a ler; no --mostrar, diz que o faria.
+  if fazer "gerar a chave dos envios em $api_envios" gerar_chave_envios "$api_envios"; then
+    ENVIOS_GERADA=1
+    # No --mostrar não nasceu nada (revisão do pedido, P3-1).
+    ((MOSTRAR)) || aviso "nasceu a chave dos envios: o Diogo ou o Bruno guardam uma cópia fora da máquina, à parte das cópias da base (LEIA-ME, «A chave dos envios»)"
+  else
+    aviso "não se gerou a chave dos envios: a API corre sem os envios"
   fi
 fi
 # A ligação do migrador (dono das tabelas) vive num ficheiro à parte: só o
@@ -754,7 +785,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub.env, api-totp.env, api-smtp.env e api-vies.env (docs/19 §6, #107; docs/34 §13; docs/23 §13)"
+passo "10c. A API corre com a sua configuração: api.env, api-base.env, api-hub.env, api-totp.env, api-envios.env, api-smtp.env e api-vies.env (docs/19 §6, #107; docs/34 §13; docs/23 §13)"
 # O VIES (docs/23 §13; Diogo, 12/10/2026: «sim, avança»), num ficheiro só
 # dele que este passo escreve inteiro. No ensaio, o SERVIÇO DE TESTE da
 # Comissão (revisão do #405, P2-1; Diogo: «a»): a VPS ainda está no Reino
@@ -801,7 +832,7 @@ configuracao_mais_recente_que_a_api() {
   [[ " $montagens " == *" /media "* ]] || return 0
   criado="$(date -d "$criado" +%s%N 2>/dev/null)" || return 1
   [[ "$criado" =~ ^[0-9]+$ ]] || return 1
-  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-smtp.env "$API_VIES_ENV"; do
+  for ficheiro in /etc/eurolify/api.env /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-envios.env /etc/eurolify/api-smtp.env "$API_VIES_ENV"; do
     mudado="$(stat -c %.9Y "$ficheiro" 2>/dev/null)" || continue
     mudado="${mudado/./}"
     [[ "$mudado" =~ ^[0-9]+$ ]] && ((mudado > criado)) && return 0
@@ -818,7 +849,7 @@ recriar_api() {
 imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
 if [[ -z "$imagem_api" ]]; then
   ok "sem contentor eurolify-api: a primeira publicação já o cria com a ligação"
-elif ((API_ENV_RENOVADO || TOTP_GERADA || VIES_ESCRITO)) || configuracao_mais_recente_que_a_api; then
+elif ((API_ENV_RENOVADO || TOTP_GERADA || ENVIOS_GERADA || VIES_ESCRITO)) || configuracao_mais_recente_que_a_api; then
   resumo_api="${imagem_api##*@}"
   # O eurolify-publicar só recria a imagem do IMAGEM_REPO desta máquina: com
   # outro repositório, dizia «não recrio» e saía bem (revisão do #180, P3-1).
