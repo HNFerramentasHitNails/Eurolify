@@ -5,6 +5,7 @@ import { ErroCorreio, type Correio, type Mensagem } from "./correio.js";
 import {
   mensagemDe,
   type DadosDaLigacao,
+  type DadosDoEnvio,
   type DadosDaTarefa,
   type DadosDoAviso,
 } from "./modelos.js";
@@ -201,7 +202,9 @@ async function tomarVez(
     ? tarefaEspera(trx, n.referencia)
     : n.tipo === "invoicing.connection_error"
       ? ligacaoEspera(trx, n.referencia)
-      : devolucaoEspera(trx, n.referencia));
+      : n.tipo === "shipment.needs_attention"
+        ? envioEspera(trx, n.dados)
+        : devolucaoEspera(trx, n.referencia));
   if (espera !== null) {
     await mudar(trx, id, { estado: "cancelada", ultimo_erro: espera });
     res.canceladas += 1;
@@ -226,7 +229,7 @@ async function tomarVez(
   // As faturas retidas contam-se agora, não à hora do erro: a fatura que o
   // deu só fica retida depois (docs/29 §18; revisão do #422, P1-2).
   let dados = n.dados as unknown as
-    DadosDoAviso | DadosDaTarefa | DadosDaLigacao;
+    DadosDoAviso | DadosDaTarefa | DadosDaLigacao | DadosDoEnvio;
   if (n.tipo === "invoicing.connection_error") {
     const { rows: r } = await sql<{
       n: number;
@@ -274,6 +277,29 @@ async function ligacaoEspera(
     espera: boolean;
   }>`select faturacao_aviso_espera(${passagem}::uuid) as espera`.execute(trx);
   return rows[0]?.espera === true ? null : "ligacao_ja_nao_espera";
+}
+
+/**
+ * Nada, se a expedição do aviso ainda não acabou e a encomenda não voltou a
+ * andar depois do evento (docs/36 §20); senão, o código.
+ */
+async function envioEspera(
+  trx: Transaction<BaseDados>,
+  dados: unknown,
+): Promise<string | null> {
+  const { expedicao, estado } = (dados ?? {}) as {
+    expedicao?: unknown;
+    estado?: unknown;
+  };
+  if (typeof expedicao !== "string" || typeof estado !== "string") {
+    return "dados_invalidos";
+  }
+  const { rows } = await sql<{
+    motivo: string | null;
+  }>`select envios_aviso_espera(${expedicao}::uuid, ${estado}) as motivo`.execute(
+    trx,
+  );
+  return rows[0]?.motivo ?? null;
 }
 
 /** Nada, se o caso do aviso ainda espera; senão, o código. */

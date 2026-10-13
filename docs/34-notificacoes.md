@@ -244,6 +244,26 @@ mudar o fornecedor nem as regras N4 a N11:
   software, o motivo (só o código), desde quando e quantas faturas estão
   retidas por isso. Nunca a frase do emissor nem dados de clientes.
 
+## 12.2 O aviso da tentativa falhada (13/10/2026; migração 0087; ED)
+
+O desenho está no `docs/36` §20. Usa a mesma fila de e-mails, sem mudar o
+fornecedor nem as regras N4 a N11:
+
+- **O tipo** `shipment.needs_attention`: um por expedição, por estado
+  (`tentativa_falhada` ou `disponivel_para_levantar`) e por pessoa; a
+  `referencia` deriva-se da expedição e do estado.
+- **A quem:** quem expede (`fulfilment:write`: o dono, o gestor e o
+  armazém), lido outra vez no envio (`notificacao_destino()`).
+- **No envio:** fica cancelada, com `expedicao_ja_acabou`, se a expedição já
+  estiver entregue, devolvida, perdida ou cancelada.
+- **O que diz:** a loja, a expedição, a transportadora, o número de
+  seguimento, o estado e a hora do evento no fuso do comerciante. Nunca o
+  texto da transportadora, o nome nem a morada de quem recebe.
+- **O gatilho não fica `ALWAYS`**, ao contrário dos da 0067, 0071 e 0084:
+  segue a regra da 0053 (um gatilho que escreve não fica `ALWAYS`; uma
+  cópia reposta em modo `replica` não cria notificações a mais). Alinhar os
+  outros três fica para um pedido à parte.
+
 ## 13. A configuração chega à VPS pelo GitHub (12/10/2026; #372)
 
 O §5 deixou por fazer o caminho dos cinco `SMTP_*` até à VPS. A 12/10/2026
