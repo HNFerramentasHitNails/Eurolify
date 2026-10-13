@@ -1812,6 +1812,18 @@ venda, por omissão, uma variante que pode ainda não estar pronta.
   `catalog:publish`; capturas a 375, 768 e 1280 px, claro e escuro, para a
   página de aprovação.
 
+### 27.7 Em código (13/10/2026; pedido #421)
+
+| O quê | Onde |
+|---|---|
+| `GET /hub/sales-pairs`: os pares canal × mercado onde o canal vende, com os nomes e os estados do canal, do mercado e da loja (`catalog:read`) | `paresDeVenda` (`src/precos/repositorio.ts`); `src/identidade/hub-catalogo.ts` |
+| `POST /hub/products/{id}/publications/check`: a mesma `verificarPublicacao` da chave (`catalog:read`) | `src/identidade/hub-catalogo.ts` |
+| `POST /hub/products/{id}/publications` e `POST /hub/publications/{id}/archive`: o mesmo `publicar` e `retirarPublicacao` da chave, com `catalog:publish`, a pessoa como «quem» e o prazo de espera do `escreverNoHub` (que passou a receber o âmbito) | `src/identidade/hub-catalogo.ts` |
+| a `versao` lida, dentro de `publicar` e de `retirarPublicacao`, com a linha já tomada: `null` só numa publicação que nasce no pedido; um número só se é o guardado e a publicação já existia; outra dá 409 `catalog.version_conflict` e a transacção desfaz o rascunho. As rotas pela chave não a mandam e ficam como estavam | `src/catalogo/publicacao.ts` |
+| 6 testes pela API: os pares (e outro comerciante não os vê); verificar, publicar com `null`, refazer na versão lida e retirar, com `publicado_por` e `arquivado_por` da pessoa; os três conflitos de versão sem escrever; `publicada: false` sem mudar o estado nem as variantes; o armazém e o apoio verificam mas recebem 403 ao publicar e retirar, e o gestor retira; outro comerciante dá 404, com prova pela falha | `test/hub-publicar.test.ts` |
+
+**Por fazer neste pedido:** o ecrã do Hub (§27.3).
+
 ## 28. O ecrã «A decidir» (issue #366, parte 2)
 
 Pedido do Diogo, 12/10/2026 (*«avança com o próximo pendente»*). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (*«A, aprovado»*). A peça 21
