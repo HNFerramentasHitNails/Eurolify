@@ -4866,6 +4866,12 @@ try {
     ]);
     await rp.getByText("Ainda não pode publicar:").waitFor();
     await rp.unroute("**/hub/products/*/publications/check");
+    // A ligação do preço espera pela lista base, lida à parte: dá-se-lhe
+    // tempo antes de contar (na 3.ª corrida de 13/10/2026 faltou uma vez).
+    await rp
+      .getByRole("link", { name: "Definir o preço de ENS-041-B" })
+      .waitFor({ timeout: 5000 })
+      .catch(() => undefined);
     for (const [descricao, verdade] of [
       [
         "o texto do peso em falta",
