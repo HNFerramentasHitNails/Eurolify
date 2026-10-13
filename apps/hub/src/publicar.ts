@@ -39,6 +39,33 @@ export function escolhaInicial(
   return activas.filter((v) => !publicacao.variantes_fora.includes(v));
 }
 
+/**
+ * A marca de uma variante na publicação (§27.5): numa publicada, a que está
+ * fora e nasceu depois de a publicação entrar em venda (`publicado_em`, que
+ * a base só muda ao passar a publicada, não ao publicar outra vez) é «nova»;
+ * a outra que está fora é «fora» (alguém a tirou). Fora de `variantes_fora`,
+ * nenhuma. Com as datas iguais ou ilegíveis, «fora» (revisão do #427).
+ */
+export function marcaDaVariante(
+  variante: { id: string; criado_em: string },
+  publicacao: Pick<
+    PublicacaoArtigo,
+    "estado" | "variantes_fora" | "publicado_em"
+  > | null,
+): "nova" | "fora" | null {
+  if (publicacao === null || !publicacao.variantes_fora.includes(variante.id)) {
+    return null;
+  }
+  if (
+    publicacao.estado === "publicado" &&
+    publicacao.publicado_em !== null &&
+    Date.parse(variante.criado_em) > Date.parse(publicacao.publicado_em)
+  ) {
+    return "nova";
+  }
+  return "fora";
+}
+
 /** As activas que ficam por marcar: vão em `variantes_fora`. */
 export function variantesFora(
   activas: readonly string[],

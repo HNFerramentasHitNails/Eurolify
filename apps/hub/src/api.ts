@@ -352,6 +352,8 @@ export interface VarianteArtigo {
   posicao: number;
   /** A versão lida: alterar a variante leva-a (docs/22 §23.1). */
   versao: number;
+  /** Quando nasceu: a marca «nova» na publicação (docs/22 §27.5). */
+  criado_em: string;
 }
 
 export const UNIDADES_DE_VENDA = [
