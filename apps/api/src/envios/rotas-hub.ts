@@ -433,9 +433,7 @@ export function rotasDosEnviosNoHub(
       emEnvios(resposta, async () => {
         const s = daSessao(pedido, resposta, "inventory:read");
         return {
-          dados: (await listarArmazens(base, s.comercianteId)).map(
-            paraArmazem,
-          ),
+          dados: (await listarArmazens(base, s.comercianteId)).map(paraArmazem),
         };
       }),
   );

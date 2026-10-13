@@ -371,10 +371,7 @@ export const CamposEnvios = {
     Type.Array(Type.String({ pattern: "^UN[0-9]{4}$" }), { maxItems: 200 }),
   ),
   peso_max_g: Type.Optional(
-    Type.Union([
-      Type.Integer({ minimum: 1, maximum: 1_000_000 }),
-      Type.Null(),
-    ]),
+    Type.Union([Type.Integer({ minimum: 1, maximum: 1_000_000 }), Type.Null()]),
   ),
 };
 export const enviosDo = (b: {
@@ -398,7 +395,6 @@ export const enviosDo = (b: {
   ...(b.aceita_onu === undefined ? {} : { aceita_onu: b.aceita_onu }),
   ...(b.peso_max_g === undefined ? {} : { peso_max_g: b.peso_max_g }),
 });
-
 
 /** O corpo de um método novo, pela chave e pelo Hub. */
 export const CorpoNovoMetodo = Type.Object(
