@@ -839,7 +839,9 @@ export function rotasDoHub(
     async (pedido, resposta) => {
       const sessao = sessaoDo(pedido);
       // Antes de tudo: um endereço de alguém nunca chega à base do ensaio
-      // (dominios-de-ensaio.ts; ADR-0019).
+      // (dominios-de-ensaio.ts; ADR-0019). Por isso dá 422 antes do 403 da
+      // autenticação recente ou do papel, que a base confere: a regra é
+      // pública, não revela nada (revisão do #417, P3-1).
       if (!emailAceiteNoConviteDoHub(pedido.body.email)) {
         throw erroConta("invite.email_not_allowed");
       }

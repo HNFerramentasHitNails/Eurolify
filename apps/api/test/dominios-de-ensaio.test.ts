@@ -30,6 +30,11 @@ describe("os endereços aceites nos convites do ensaio", () => {
       "ana@loja.test.pt",
       "a b@eurolify.eu",
       "@eurolify.eu",
+      // Dois «@» ou um espaço (revisão do #417, P2-1).
+      "maria@gmail.com@x.test",
+      "maria@gmail.com@eurolify.eu",
+      "a b@loja.test",
+      "a@b@loja.test",
     ]) {
       expect(emailAceiteNoConviteDoHub(e), e).toBe(false);
     }

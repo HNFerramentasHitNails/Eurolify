@@ -18,5 +18,8 @@ export const DOMINIO_DE_TESTE =
  */
 export function emailAceiteNoConviteDoHub(email: string): boolean {
   const e = email.trim().toLowerCase();
-  return DOMINIO_DE_TESTE.test(e) || /^[^@\s]+@eurolify\.eu$/.test(e);
+  // Primeiro a forma: um «@» só e sem espaços, para que «a@gmail.com@x.test»
+  // não passe pelo domínio de teste do fim (revisão do #417, P2-1).
+  if (!/^[^@\s]+@[^@\s]+$/.test(e)) return false;
+  return DOMINIO_DE_TESTE.test(e) || /@eurolify\.eu$/.test(e);
 }
