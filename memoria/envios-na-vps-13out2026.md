@@ -47,18 +47,22 @@ desenho do `docs/36` §17 (issue #393).
   - as migrações estão iguais na base e na versão no ar (79);
   - abertas para fora, só a 22 e a 443 (`ss` e `ufw`); a 8080 da API só
     nesta máquina;
-  - **O fluxo ainda não mede** se a API leu a `ENVIOS_CHAVE` nem as
-    respostas de `/webhooks/`: entra no pedido seguinte (o `eurolify-medir`
-    ganha a secção «envios»). Pedi-las daqui ao `hub.eurolify.eu` foi
+  - **O fluxo não media** se a `ENVIOS_CHAVE` chegou à API nem as
+    respostas de `/webhooks/`. Pedi-las daqui ao `hub.eurolify.eu` foi
     recusado pelas permissões da sessão, e bem: a regra é medir pelo fluxo.
+    Por isso o #424 acrescenta ao `eurolify-medir` a secção «envios»: a
+    chave no contentor (só sim ou não) e quatro pedidos à própria máquina
+    (`--noproxy` e `--resolve` para 127.0.0.1), com uma conta fictícia que
+    não grava nada. O teste `publicar.sh` passou a 213 verificações verdes
+    (13/10/2026, local, contadas pelas linhas `ok:`).
 - Visto de passagem no `medir`: a tarefa `verificacao` **falhou** às 07:00
   UTC de 13/10/2026 (`exit-code`). Não é deste pedido: está por investigar.
 
 ## O que ficou por verificar
 
 - **Na VPS:** a `ENVIOS_CHAVE` na API no ar e as respostas de `/webhooks/`
-  (§17.2, ponto 4), pelo `medir` depois do pedido seguinte; e a cópia da
-  chave fora da máquina (passo do Diogo ou do Bruno, à mão).
+  (§17.2, ponto 4), pelo `medir` depois de o #424 estar aplicado; e a
+  cópia da chave fora da máquina (passo do Diogo ou do Bruno, à mão).
 - **O `preparar.sh --mostrar`** num Ubuntu vazio corre no GitHub (fluxo
   `script-vps`), e não aqui.
 - **O nginx da VPS (Ubuntu)** é outra versão que a 1.27 do ensaio local; o

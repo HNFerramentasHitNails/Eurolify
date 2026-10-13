@@ -99,12 +99,15 @@ if [[ "$*" == */check-status* ]]; then
   printf '%s\nHTTP %s em 0.2 s' "${VIES_CORPO:-$corpo}" "${VIES_HTTP:-200}"
   exit 0
 fi
-# Os avisos (eurolify-medir): só a Sendcloud por POST chega à API.
+# Os avisos (eurolify-medir), como o nginx do Hub: o POST da Sendcloud chega
+# à API, o GET leva 403 (limit_except), o resto 404. O corpo iria para o -o.
 if [[ "$*" == */webhooks/* ]]; then
   echo "$*" >>"$FALSOS/curl-avisos"
   [[ -z "${AVISOS_FALHA:-}" ]] || exit 7
   if [[ "$*" == *"-X POST"*/webhooks/carriers/sendcloud/* ]]; then
-    printf '401 application/json; charset=utf-8'
+    printf '401 application/problem+json'
+  elif [[ "$*" == *"-X GET"*/webhooks/carriers/sendcloud/* ]]; then
+    printf '403 text/html'
   else
     printf '404 text/html'
   fi
@@ -774,17 +777,22 @@ touch "$falsos/no-ar"
 rm -f "$falsos/curl-avisos"
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "a API no ar sem a chave dos envios" linha_na_saida "ENVIOS_CHAVE na API no ar: não (os envios estão desligados)"
-confere sim "o aviso da Sendcloud chega à API" linha_na_saida "POST /webhooks/carriers/sendcloud/cac_00000000-0000-4000-8000-000000000000: 401 application/json; charset=utf-8"
-confere sim "um GET fica no nginx" linha_na_saida "GET /webhooks/carriers/sendcloud/cac_00000000-0000-4000-8000-000000000000: 404 text/html"
+confere sim "o aviso da Sendcloud chega à API" linha_na_saida "POST /webhooks/carriers/sendcloud/cac_00000000-0000-4000-8000-000000000000: 401 application/problem+json"
+confere sim "um GET fica no nginx" linha_na_saida "GET /webhooks/carriers/sendcloud/cac_00000000-0000-4000-8000-000000000000: 403 text/html"
 confere sim "os CTT ficam no nginx" linha_na_saida "POST /webhooks/carriers/ctt/cac_00000000-0000-4000-8000-000000000000: 404 text/html"
 confere sim "os pagamentos ficam no nginx" linha_na_saida "POST /webhooks/payments/x: 404 text/html"
 confere sim "pede-os à própria máquina, nunca para fora" grep -q -- "--resolve hub.eurolify.eu:443:127.0.0.1" "$falsos/curl-avisos"
 confere nao "nenhum sai sem o --resolve" grep -qv -- "--resolve hub.eurolify.eu:443:127.0.0.1" "$falsos/curl-avisos"
+confere nao "nenhum vai por um proxy" grep -qv -- "--noproxy \*" "$falsos/curl-avisos"
+confere nao "o corpo da resposta nunca vem para a saída" grep -qv -- "-o /dev/null" "$falsos/curl-avisos"
+confere sim "são quatro pedidos" test "$(wc -l <"$falsos/curl-avisos")" -eq 4
+confere nao "o GET não leva corpo" grep -q -- "-X GET.*--data" "$falsos/curl-avisos"
+confere sim "os POST levam só {}" test "$(grep -c -- "--data {} " "$falsos/curl-avisos")" -eq 3
 AVISOS_FALHA=1 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
-confere sim "sem resposta diz-se" linha_na_saida "POST /webhooks/payments/x: sem resposta"
+confere sim "sem resposta diz-se, com o código do curl" linha_na_saida "POST /webhooks/payments/x: sem resposta (código do curl 7)"
 printf 'PATH=/x\nENVIOS_CHAVE=AAAAsegredoAAAA=\n' >"$falsos/api-ambiente"
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
-confere sim "a API no ar com a chave dos envios" linha_na_saida "ENVIOS_CHAVE na API no ar: sim"
+confere sim "a API no ar com a chave dos envios" linha_na_saida "ENVIOS_CHAVE na API no ar: sim (a variável está no contentor)"
 confere nao "sem o valor da chave" na_saida "segredo"
 rm -f "$falsos/api-ambiente" "$falsos/curl-avisos"
 

@@ -731,7 +731,8 @@ contentor, por isso tirou-se a linha `[::]:443` só nessa cópia):
 **Aplicado na VPS a 13/10/2026** (#423, fluxo `aplicar-script`): a chave
 gerada, a API recriada com o `/health` a responder e o nginx do Hub
 recarregado (`memoria/envios-na-vps-13out2026.md`). **Por medir:** o 17.2,
-ponto 4. O fluxo `medir` ainda não o fazia; o `eurolify-medir` ganha a
+ponto 4, que só fica cumprido depois de o #424 estar aplicado e de o `medir`
+correr. O fluxo `medir` ainda não o fazia; o `eurolify-medir` ganha a
 secção «envios» (a `ENVIOS_CHAVE` na API no ar, só sim ou não, e as
 respostas de `/webhooks/` pedidas da própria máquina). Um `GET` leva 403 do
 `limit_except`, e não 405, como se mediu no nginx local.
