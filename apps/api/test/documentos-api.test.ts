@@ -2090,6 +2090,28 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
 
   // O trimestre de hoje no fuso de Portugal, como o relatório (P2).
   const trimestreDeHoje = () => periodoDe(hojeEmLisboa(), "trimestre");
+  // Uma linha do CSV em células: as vírgulas dentro de aspas não partem.
+  const celulasCsv = (linha: string) => {
+    const celulas: string[] = [];
+    let actual = "";
+    let aspas = false;
+    for (let i = 0; i < linha.length; i += 1) {
+      const ch = linha.charAt(i);
+      if (aspas && ch === '"' && linha.charAt(i + 1) === '"') {
+        actual += '"';
+        i += 1;
+      } else if (ch === '"') {
+        aspas = !aspas;
+      } else if (ch === "," && !aspas) {
+        celulas.push(actual);
+        actual = "";
+      } else {
+        actual += ch;
+      }
+    }
+    celulas.push(actual);
+    return celulas;
+  };
   const relatorio = (s: Cenario, periodo: string) =>
     ok(
       s.adm(
@@ -2148,6 +2170,12 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       1 + (prova as unknown as { linhas: unknown[] }).linhas.length,
     );
     expect(linhas[1]).toContain(String((d["prova"] as Json)["numero"]));
+    // Sem decisão do dono: «nao» e as três colunas vazias (P3-6).
+    const cabecalho = celulasCsv(linhas[0] ?? "");
+    for (const l of linhas.slice(1).map(celulasCsv)) {
+      expect(l).toHaveLength(cabecalho.length);
+      expect(l.slice(-4)).toEqual(["nao", "", "", ""]);
+    }
   });
 
   it("relatório OSS: fechar um período passado congela-o; o que chega depois com data dele é alteração do período seguinte (P3, P4, P6)", async () => {
@@ -2430,10 +2458,11 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         ),
       ).toEqual([400, "tax_reports.invalid"]);
     }
+    const hoje = hojeEmLisboa();
     await ok(
       s.adm("POST", "/tax-reports/oss/classifications", {
         ...corpo,
-        data: hojeEmLisboa(),
+        data: hoje,
       }),
     );
     const r = await relatorio(s, periodo);
@@ -2447,19 +2476,41 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     ).toContainEqual(expect.objectContaining({ pais: "PT", documentos: 1 }));
     // Os registos dizem que o balde e a data foram decididos à mão, por quem
     // e quando (3.ª revisão do #392, P3-6).
+    // O dia da decisão é o de Lisboa: 23:30 UTC no Verão já é o dia
+    // seguinte (a tabela não deixa mudar; só aqui, para o teste).
+    await base.dono.transaction().execute(async (trx) => {
+      await sql`alter table relatorio_oss_classificacao
+        disable trigger relatorio_oss_classificacao_so_acrescenta`.execute(trx);
+      await sql`update relatorio_oss_classificacao
+        set decidido_em = '2026-07-01T23:30:00Z'
+        where comerciante_id = ${s.c}::uuid`.execute(trx);
+      await sql`alter table relatorio_oss_classificacao
+        enable always trigger relatorio_oss_classificacao_so_acrescenta`.execute(
+        trx,
+      );
+    });
     const csv = await s.adm(
       "GET",
       `/tax-reports/oss/records?entidade=lgl_${s.entidade}&periodo=${periodo}`,
     );
     expect(csv.statusCode).toBe(200);
-    const linhas = csv.body.slice(1).trim().split("\r\n");
-    expect(linhas[0]).toMatch(
-      /,classificado,data_decidida,classificado_por,classificado_em$/,
-    );
-    const hoje = hojeEmLisboa();
-    expect(linhas.length).toBeGreaterThan(1);
-    for (const l of linhas.slice(1)) {
-      expect(l).toMatch(new RegExp(`,sim,${hoje},[^,]+,${hoje}$`));
+    const [cabecalho, ...linhas] = csv.body
+      .slice(1)
+      .trim()
+      .split("\r\n")
+      .map(celulasCsv);
+    expect(cabecalho?.slice(-4)).toEqual([
+      "classificado",
+      "data_decidida",
+      "classificado_por",
+      "classificado_em",
+    ]);
+    expect(linhas.length).toBeGreaterThan(0);
+    for (const l of linhas) {
+      expect(l).toHaveLength(cabecalho?.length ?? 0);
+      const [classificado, data, por, em] = l.slice(-4);
+      expect([classificado, data, em]).toEqual(["sim", hoje, "2026-07-02"]);
+      expect(por).toMatch(/^(chave:key_|pessoa:per_)\S+$/);
     }
   });
 
@@ -2478,16 +2529,17 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     await ateParar();
     delete ensaio.conta(conta).aoFechar;
     let d = (await documentoDe(s, e.encomenda)) as Json;
-    if (d["estado"] === "divergente") {
-      await ok(
-        s.adm("POST", `/invoices/${String(d["id"])}/resolve`, {
-          versao: d["versao"],
-          motivo: "aceite para o teste",
-        }),
-      );
-      d = (await documentoDe(s, e.encomenda)) as Json;
-    }
-    expect(["emitido", "resolvido"]).toContain(d["estado"]);
+    // A conferência apanha os montantes trocados; resolve-se para chegar ao
+    // relatório.
+    expect(d["estado"]).toBe("divergente");
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/resolve`, {
+        versao: d["versao"],
+        motivo: "aceite para o teste",
+      }),
+    );
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("resolvido");
     const resposta = await s.adm("POST", "/tax-reports/oss/classifications", {
       documento: d["id"],
       linhas: ((d["prova"] as Json)["linhas"] as Json[]).map(() => ({

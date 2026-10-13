@@ -27,13 +27,18 @@
   (`npx vitest run`). O fluxo `verificar` ficou verde no `759a0dde`.
 - Testes do relatório: 10 sem base (`test/oss.test.ts`) e 6 pela API (bloco
   «relatório OSS» de `test/documentos-api.test.ts`).
+- 13/10/2026 (#430, P3-6 e P3-8): 12 sem base e 7 pela API (contados pelos
+  `it`). O CSV tem quatro colunas novas no fim (`classificado`,
+  `data_decidida`, `classificado_por`, `classificado_em`).
 
 ## O que ficou por verificar
 
 - **C (contabilista):** a taxa da fatura emitida numa linha classificada à mão;
   o período pela data do documento; GR ou EL; o limiar com vendas tributadas
   na origem (art. 59.º-C não lido no `eur-lex`).
-- **Por fazer:** os P3-5 a P3-8 da 3.ª revisão; o ecrã no Hub; os registos de
+- **Por fazer:** o P3-7 da 3.ª revisão (prova sem linhas e sem data bloqueia
+  o fecho; precisa de decisão de negócio); se o identificador da pessoa sai
+  no CSV (`docs/37` §4, não verificado com jurista); o ecrã no Hub; os registos de
   serviços; outras moedas.
 - **Lição:** a cada junção do `main`, confirmar os números livres das
   migrações e das letras do `docs/06` (houve três colisões no mesmo dia).
