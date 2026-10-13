@@ -199,7 +199,7 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     await base.fechar();
   });
 
-  it("depois do apagamento, só o dono lê o nome, o NIF e a morada do perfil guardado (docs/23 §15.12, EL)", async () => {
+  it("depois do apagamento, só o dono lê o nome, o NIF e a morada do perfil guardado (docs/23 §15.12, EM)", async () => {
     const u = unico();
     const nif = nifNovo();
     const id = await ficha({ nome: `Rita ${u}` });

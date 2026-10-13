@@ -124,6 +124,16 @@ export interface RelatorioOss {
       total: number;
     }[];
     por_emitir: { documento: string; encomenda: string; estado: string }[];
+    /** As provas sem linhas declaradas à parte (docs/37 §11); ausente nas fotografias antigas. */
+    declarados?: {
+      documento: string;
+      tipo: string;
+      numero: string;
+      data: string;
+      alteracao_de: string | null;
+      decidido_por: string;
+      decidido_em: string;
+    }[];
   };
   limiar: {
     ano: string;

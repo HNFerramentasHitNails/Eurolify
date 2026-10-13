@@ -67,6 +67,83 @@ const OPCOES_DAS_CAPTURAS = {
   },
 };
 
+/**
+ * Um relatório OSS de exemplo (só nas capturas): uma prova sem linhas por
+ * declarar à parte e outra já declarada (docs/37 §11).
+ */
+const ENTIDADE_DAS_CAPTURAS = "lgl_00000000-0000-7000-8000-000000000002";
+const SEM_LINHAS_DAS_CAPTURAS = "inv_00000000-0000-7000-8000-000000000003";
+const UE_DAS_CAPTURAS = ["AT", "BE", "DE", "ES", "FR", "IT", "PT"];
+const OUTROS_DAS_CAPTURAS = UE_DAS_CAPTURAS.filter((x) => x !== "PT");
+const RELATORIO_DAS_CAPTURAS = {
+  entidade_legal: ENTIDADE_DAS_CAPTURAS,
+  periodo: "2026-T3",
+  granularidade: "trimestre",
+  fechado: null,
+  moeda: "EUR",
+  baldes: [
+    "oss",
+    "nacional",
+    "intracomunitarias",
+    "exportacao",
+    "outras_isentas",
+  ].map((balde) => ({ balde, base: 0, iva: 0, linhas: [] })),
+  alteracoes: [],
+  a_parte: {
+    emitidas_fora: [],
+    sistema_proprio: [],
+    por_emitir: [],
+    declarados: [
+      {
+        documento: "inv_00000000-0000-7000-8000-000000000004",
+        tipo: "fatura",
+        numero: "FT 2026/123",
+        data: "2026-09-15",
+        alteracao_de: null,
+        decidido_por: "chave:key_1",
+        decidido_em: "2026-10-13",
+      },
+    ],
+  },
+  limiar: {
+    ano: "2026",
+    vendas_a_distancia_base: 0,
+    ano_anterior: "2025",
+    ano_anterior_base: 0,
+    limiar: 1000000,
+    passou: false,
+    documentos_excluidos: 2,
+  },
+  impedimentos: [
+    { motivo: "linhas_desalinhadas", documentos: [SEM_LINHAS_DAS_CAPTURAS] },
+  ],
+  classificavel: {
+    baldes: [
+      { balde: "oss", paises: OUTROS_DAS_CAPTURAS, fora_da_ue: false },
+      { balde: "nacional", paises: ["PT"], fora_da_ue: false },
+      {
+        balde: "intracomunitarias",
+        paises: OUTROS_DAS_CAPTURAS,
+        fora_da_ue: false,
+      },
+      { balde: "exportacao", paises: [], fora_da_ue: true },
+      { balde: "outras_isentas", paises: UE_DAS_CAPTURAS, fora_da_ue: true },
+    ],
+  },
+};
+const DOCUMENTO_SEM_LINHAS_DAS_CAPTURAS = {
+  documento: SEM_LINHAS_DAS_CAPTURAS,
+  tipo: "fatura",
+  estado: "resolvido",
+  numero: "FT 2026/124",
+  data_prova: "2026-09-20",
+  moeda: "EUR",
+  classificado: false,
+  total: 0,
+  data_minima: "2026-09-18",
+  linhas: [],
+};
+
 if (URL_BASE === undefined) {
   console.error("falta BASE_DADOS_URL (superutilizador da base de testes)");
   process.exit(1);
@@ -6757,6 +6834,11 @@ try {
       `/faturacao/configurar?comerciante=mer_${comerciante}&ligacao=${LIGACAO_DAS_CAPTURAS}`,
       "Configurar a ligação ao Moloni",
     ],
+    [
+      "relatorio-oss",
+      `/faturacao/oss?comerciante=mer_${comerciante}&entidade=${ENTIDADE_DAS_CAPTURAS}&periodo=2026-T3`,
+      "Relatório OSS",
+    ],
     ["recuperar", "/recuperar", "Recuperar a conta"],
   ];
   for (const tema of ["light", "dark"]) {
@@ -6771,6 +6853,13 @@ try {
       // §32) vêm de um exemplo, servido só neste navegador.
       await c.route("**/hub/invoicing-connections/*/issuer-options", (r) =>
         r.fulfill({ json: OPCOES_DAS_CAPTURAS }),
+      );
+      // O relatório OSS e a prova sem linhas também (docs/37 §11).
+      await c.route("**/hub/tax-reports/oss?*", (r) =>
+        r.fulfill({ json: RELATORIO_DAS_CAPTURAS }),
+      );
+      await c.route("**/hub/tax-reports/oss/documents/*", (r) =>
+        r.fulfill({ json: DOCUMENTO_SEM_LINHAS_DAS_CAPTURAS }),
       );
       const p = await c.newPage();
       for (const [nome, caminho, titulo] of ecras) {
@@ -6807,6 +6896,30 @@ try {
           fullPage: true,
         });
       }
+      // A prova sem linhas: o diálogo declara-a à parte (docs/37 §11).
+      await p.goto(
+        `${ORIGEM}/faturacao/oss?comerciante=mer_${comerciante}&entidade=${ENTIDADE_DAS_CAPTURAS}&periodo=2026-T3`,
+      );
+      await p.getByRole("button", { name: /^Classificar / }).click();
+      await p.getByText("A prova não tem linhas.").waitFor();
+      confere(
+        (await p.getByRole("button", { name: "Declarar à parte" }).count()) ===
+          1,
+        `oss-declarar ${String(largura)} ${tema}: o botão declara à parte`,
+      );
+      confere(
+        !(await p.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        )),
+        `oss-declarar ${String(largura)} ${tema}: sem deslocação horizontal`,
+      );
+      await p.screenshot({
+        path: join(
+          SAIDA,
+          `oss-declarar-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+        ),
+        fullPage: true,
+      });
       await c.close();
     }
   }

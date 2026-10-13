@@ -1062,6 +1062,10 @@ export const en: Textos = {
   ossAlteracaoDe: "correction to {periodo}",
   ossSistemaProprio: "From its own system",
   ossPorEmitir: "Not issued yet",
+  ossDeclarados: "Declared apart by the owner",
+  ossDeclaradosAviso:
+    "These documents' value is not in the totals: declare it by hand from the issued document.",
+  ossDeclaradoPor: "decided by {nome} on {data}",
   ossNada: "Nothing.",
   ossPaisPorSaber: "country unknown",
   ossLimiarTitulo: "The distance sales threshold",
@@ -1147,6 +1151,10 @@ export const en: Textos = {
   classificarFaltaMotivo: "Write the reason.",
   classificarJaClassificado: "This document has already been classified.",
   classificarFeito: "Classified.",
+  classificarSemLinhas:
+    "The proof has no lines. It is declared apart: it leaves the report's totals and its value must be declared by hand from the issued document.",
+  classificarDeclarar: "Declare apart",
+  classificarDeclarado: "Declared apart.",
   ossNaoConfirmado:
     "The response was lost and the report does not show the change. Check and try again.",
   // Shipping (docs/22 §29).

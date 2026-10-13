@@ -605,7 +605,7 @@ a fatia 7.
   e-mail da ficha»), nunca o e-mail ou o número de um documento (P3-1). O
   Hub tem de o dizer;
 - **os perfis mantidos por obrigação fiscal**: depois do pedido, só o dono
-  lê o nome, o NIF e a morada (decidido a 13/10/2026, EL; §15.12);
+  lê o nome, o NIF e a morada (decidido a 13/10/2026, EM; §15.12);
 - **levantar a limitação** é um `DELETE` com corpo; uma variante `POST` para
   clientes que descartam o corpo de um `DELETE` fica para depois (P3-7);
 - **a exportação** ainda não junta o que os outros domínios guardarem
@@ -1300,7 +1300,7 @@ VPS depois da publicação.
 
 ### 15.12 Os perfis guardados por obrigação fiscal, só para o dono (desenho de 13/10/2026)
 
-Decisão do Diogo, 13/10/2026 (*«A»*; `docs/06` EL), ao P3-6 que ficou na
+Decisão do Diogo, 13/10/2026 (*«A»*; `docs/06` EM), ao P3-6 que ficou na
 §15.10 («Fica por fazer»): depois de um pedido de apagamento, **só quem tem
 `customers:billing` (o dono)** lê o nome, o NIF e a morada dos perfis que
 ficam por obrigação fiscal. O gestor e o apoio (`customers:read`) vêem que o

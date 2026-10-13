@@ -458,7 +458,7 @@ export function rotasDoIva(
         }
         // Um perfil guardado por obrigação fiscal (ficha pseudonimizada): a
         // decisão devolve o país e o número do NIF, que só o dono lê (docs/23
-        // §15.12, EL).
+        // §15.12, EM).
         if (
           b.perfil !== undefined &&
           b.perfil !== null &&

@@ -428,7 +428,7 @@ const camposDaMorada = (m: Morada | null) => ({
 
 /**
  * Se a ficha, ou aquela em que foi fundida (subindo por `fundido_em`), foi
- * pseudonimizada por um pedido de apagamento (docs/23 §15.12; EL).
+ * pseudonimizada por um pedido de apagamento (docs/23 §15.12; EM).
  * Os perfis dela que ficaram por obrigação fiscal só se lêem com
  * `customers:billing` (o dono). A regra vive só aqui: as rotas que lêem
  * perfis, provas do VIES, isenções e anexos passam por ela.

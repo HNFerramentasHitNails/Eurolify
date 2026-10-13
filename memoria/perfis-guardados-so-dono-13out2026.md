@@ -2,7 +2,7 @@
 
 ## O que se fez
 
-Decisão do Diogo, 13/10/2026 (*«A»*; `docs/06` EL; `docs/23` §15.12), ao
+Decisão do Diogo, 13/10/2026 (*«A»*; `docs/06` EM; `docs/23` §15.12), ao
 P3-6 que ficou na §15.10: depois de um pedido de apagamento, só quem tem
 `customers:billing` (o dono) lê o nome, o NIF e a morada dos perfis que
 ficam por obrigação fiscal.
