@@ -782,3 +782,77 @@ ser igual ao registado.
 **Por fazer:** o botão e o ecrã no Hub; registar `MOLONI_REDIRECT_URI` na
 conta de Developer e no ambiente `ensaio`; medir na conta trial se o `state`
 volta e se o `redirect_uri` tem de coincidir.
+
+## 18. O aviso ao dono quando a ligação fica com erro (desenho, 13/10/2026)
+
+Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho do aviso ao
+dono»*). É o ponto que o §14 deixou aberto: «o aviso ao dono quando a
+autorização morre ainda não é uma tarefa da fila». **Por aprovar** (`docs/06`,
+EJ); o código só depois (ADR-0023).
+
+Skills: `platform-architect` (tarefas sobre um registo; uma regra num sítio),
+`observability-security` (tarefas automáticas que não param em silêncio),
+`eu-vat-oss-ioss` (na dúvida, retém), `eu-gdpr-privacy` (o e-mail à
+equipa, `docs/17` T10), `eurolify-design` (o ecrã «A decidir»).
+
+Ex.: no sábado, o Moloni recusa renovar os tokens da «Loja Exemplo» (a
+autorização foi retirada na conta do Moloni). Na segunda de manhã há 12
+faturas retidas e o dono não sabe porquê.
+
+### 18.1 O que acontece hoje (lido no código a 13/10/2026)
+
+| O quê | O que o código faz | Onde |
+|---|---|---|
+| **quem põe a ligação «com erro»** | a renovação recusada pelo emissor, em dois sítios: antes de emitir e na tarefa que mantém os tokens (`motivo = manter`); e o teste da ligação, quando falha | `src/faturacao/repositorio.ts`: `ligacaoComErro` (404), chamado em 2284 e 2747; `testarLigacao` (428) |
+| **as faturas que chegam depois** | ficam retidas, uma a uma, com o motivo `ligacao_sem_teste`, e cada uma entra na fila `documento_fiscal` do «A decidir» com o prazo de 2 dias | `repositorio.ts` 1598 e 2334-2342; `docs/33` §1 |
+| **a causa** | não está em fila nenhuma: a lista das filas tem sete, e nenhuma é a ligação | migração 0066, linha 274 |
+| **sem faturas por emitir** | se o erro vem da tarefa que mantém os tokens e não há faturas, **nada aparece** em lado nenhum, até à primeira fatura | idem |
+| **o e-mail** | só sai um `task.overdue` por fatura retida, ao fim dos 2 dias: 12 faturas são 12 e-mails, e nenhum diz a causa | `docs/34` §12 |
+| **depois de ligar outra vez** | cada fatura retida volta a verificar-se **uma a uma**, por uma pessoa (`reverificar`) | `repositorio.ts` 2888 |
+
+### 18.2 O que entra
+
+| # | O quê | Proposta | Fonte |
+|---|---|---|---|
+| L1 | **Uma fila nova, `ligacao_faturacao`**, a oitava do «A decidir». **Caso** = uma ligação **activa** com o estado `com_erro`. Sai da fila quando a ligação deixa de estar com erro (ligar outra vez, testar com sucesso) ou é desligada. A tarefa nunca decide (`docs/33` R1) | `docs/33` §3 (forma B: a lista lê a fila) |
+| L2 | **O motivo**, um código: `renovacao_recusada` (o emissor recusou renovar: a autorização morreu) ou `teste_falhou` (o teste da ligação falhou). Nunca a frase do emissor no motivo | `docs/33` §4.1 (motivo sem dados) |
+| L3 | **Quem lê:** `invoices:read` (dono, gestor e apoio, como o ecrã Faturação). **Quem decide e pode ser responsável:** `invoices:accounts` (só o dono), porque só ele liga a conta | `docs/33` R2, R3; `docs/22` §30 |
+| L4 | **Prazo por omissão: 1 dia** (proposta, **não é lei**): enquanto dura, as faturas não saem | `docs/33` R4 |
+| L5 | **Na fila desde:** uma coluna nova na ligação (`com_erro_desde`), posta pelo gatilho da base quando o estado passa a `com_erro` e limpa quando sai. Uma passagem nova é uma atribuição nova (`docs/33` R9) | `docs/33` §4.1 |
+| L6 | **O caso no Hub:** abre o ecrã «Faturação» do comerciante (`/faturacao`), onde já estão «Ligar outra vez» e «Testar». A linha diz a entidade, o software, o motivo em linguagem comum e **quantas faturas estão retidas por `ligacao_sem_teste`** nessa entidade | `docs/22` §28 e §30 |
+| L7 | **O e-mail** (Q1): ver abaixo | `docs/34` |
+| L8 | **Testes que impedem o lançamento:** a renovação recusada põe o caso na fila (na emissão e na tarefa, com e sem faturas); o teste falhado também; ligar e testar com sucesso tira-o; desligar tira-o; o gestor e o apoio vêem, mas só o dono pode ser responsável; outro comerciante não vê; o motivo nunca traz a frase do emissor; a lista das oito filas é a mesma na base, na API e no Hub | `eurolify-engineering-execution` |
+
+### 18.3 A pergunta (Q1): avisar logo, ou só ao fim do prazo?
+
+- **A (proposta):** **um e-mail logo** aos donos, quando a ligação passa a
+  `com_erro` **pela renovação** (`renovacao_recusada`). Um por passagem. Diz a
+  entidade, o software, o motivo (código), quantas faturas estão retidas e o
+  endereço do ecrã «Faturação». Nunca diz a frase do emissor nem dados de
+  clientes. Ao fim do dia, se ninguém resolveu, sai também o `task.overdue`
+  normal. Um teste falhado não manda e-mail: foi o próprio dono que o fez e
+  está a ver o resultado no ecrã.
+  - **A favor:** o dono sabe no próprio dia, não ao fim de 24 horas.
+  - **Contra:** um tipo de notificação novo (`invoicing.connection_error`),
+    com os seus textos nas três línguas.
+- **B:** **só a fila**, e o `task.overdue` ao fim do dia, como as outras
+  filas.
+  - **A favor:** nada novo nas notificações.
+  - **Contra:** no exemplo, o dono só sabe no domingo à tarde, e só pelo
+    e-mail do caso vencido.
+
+### 18.4 Fica de fora, e porquê
+
+| O quê | Porquê |
+|---|---|
+| **Verificar outra vez, de uma vez, as faturas retidas por `ligacao_sem_teste`** quando a ligação volta a ficar pronta | É um reenvio em lote. Uma pessoa decide (`AGENTS.md`, «Não se erra em documentos fiscais», regra 5). Continua uma a uma, como hoje; se fizer falta, é uma decisão à parte |
+| **Calar os `task.overdue` das faturas retidas** enquanto a ligação está com erro | Cada fatura continua a ser um caso. Juntá-las muda o `docs/33` e o `docs/34`; fica para medir primeiro quantos e-mails saem de facto |
+| **Avisar antes** de a autorização morrer (o Moloni avisa?) | Não verifiquei se o Moloni avisa antes de retirar uma autorização (§13.7, por medir) |
+
+### 18.5 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| Uma ligação que oscila (fica com erro, volta, fica outra vez) | um caso e, na A, um e-mail por passagem; mede-se no ensaio |
+| O aviso ir para ninguém (nenhum dono activo) | a mesma regra do `docs/34` §12: quem decide a fila, activo; sem ninguém, a notificação fica `cancelada` e vê-se em `GET /notifications` |
+| O dono resolver sem verificar as faturas retidas | a linha do caso diz quantas estão retidas; elas continuam na fila `documento_fiscal` até alguém as verificar |
