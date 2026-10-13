@@ -354,3 +354,38 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
   curtos (ex.: um código postal). Para um valor de poucas hipóteses, mesmo com
   a chave secreta, um resumo igual diz que o valor não mudou. Fica para a
   revisão de segurança.
+
+## 7. Cópias, reposições e gatilhos `ALWAYS` (13/10/2026; #444)
+
+**Decisão do Diogo (13/10/2026: *«sim, aprovo a proposta»*):** a cópia e a
+reposição são sempre **completas**: `pg_dump -Fc` e `pg_restore` sem
+`--data-only`, como em `infra/vps/ficheiros/sbin/eurolify-copia` e
+`eurolify-reposicao` (ADR-0027). Os 161 gatilhos `ALWAYS` que existiam a
+13/10/2026 ficam como estão.
+
+**Porquê:** numa cópia completa, os dados vêm antes dos gatilhos, que só se
+criam no fim (secção *post-data* do `pg_dump`). Nenhum gatilho corre na
+reposição, nem os `ALWAYS`, e a base reposta fica igual à copiada.
+- **Medido a 13/10/2026** no PostgreSQL 18 local: uma tabela com um
+  `ALWAYS` `BEFORE` que mudava a data e um `ALWAYS` `AFTER` que escrevia
+  noutra tabela. Depois da reposição, a data ficou a original e a outra
+  tabela ficou com 1 linha, não 2.
+- **O teste `apps/api/test/copia-reposicao.test.ts`** faz o mesmo a uma base
+  com as migrações todas. Antes da reposição põe dados que passam por
+  gatilhos `ALWAYS` (a chave, a linha do tempo do catálogo). Depois confere,
+  tabela a tabela, o número de linhas e um resumo do conteúdo, e que os
+  gatilhos vêm depois dos dados na cópia.
+
+**O que muda isto:** só uma reposição de dados (`--data-only`) ou uma
+replicação lógica fazem correr os gatilhos `ALWAYS`, porque correm em modo
+`replica`. Usar uma delas pede antes uma revisão dos gatilhos. A contagem de
+13/10/2026 está no #444:
+- 95 guardas, que ficam;
+- 31 `BEFORE` que mudam a própria linha (datas, estado, versão; um deles
+  escreve nos saldos de stock);
+- 35 `AFTER` que escrevem noutra tabela (eventos, rasto, linha do tempo,
+  tarefas, o documento fiscal da encomenda).
+
+A regra da 0017 e da 0053 («um gatilho que escreve não fica `ALWAYS`»)
+continua a valer para os gatilhos novos. Os 66 que já existem não se mudam
+por ela.
