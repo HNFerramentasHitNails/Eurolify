@@ -173,6 +173,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0084_ligacao_com_erro_na_fila",
         "0085_envios_encomenda_parada",
         "0086_envios_correcoes_da_expedicao",
+        "0088_tarefas_em_atraso",
       ]);
     });
 

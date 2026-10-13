@@ -83,6 +83,31 @@ if [[ "$(docker inspect -f '{{.State.Running}}' eurolify-postgres 2>/dev/null)" 
       problemas+=("$atrasados ficheiro(s) de imagem sem uso há mais de 9 dias: a limpeza da API (catalogo/limpeza-ficheiros.ts) não está a correr (docker logs eurolify-api)")
     fi
   fi
+  # As duas tarefas da API que limpam dados pessoais (migração 0088; docs/23
+  # §15.11): a fila do titular e as sessões de checkout. Com mais de zero, a
+  # tarefa não está a correr. Sem a função (0088 por publicar), não avisa.
+  # Uma falha diz só a categoria, nunca a linha do erro do psql, que pode
+  # trazer valores (revisão do #428, P3-3).
+  em_atraso() {
+    local funcao="$1" nome="$2" aviso="$3" existe n
+    if ! existe="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" -qAtc \
+      "select to_regprocedure('public.$funcao()') is not null" 2>/dev/null)"; then
+      problemas+=("não consegui ver se a função $nome existe: a consulta falhou")
+    elif [[ "$existe" == t ]]; then
+      if ! n="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" -qAtc \
+        "select $funcao()" 2>/dev/null)"; then
+        problemas+=("não consegui contar $nome: a consulta falhou")
+      elif [[ ! "$n" =~ ^[0-9]+$ ]]; then
+        problemas+=("a contagem $nome não é um número")
+      elif ((n > 0)); then
+        problemas+=("$n $aviso")
+      fi
+    fi
+  }
+  em_atraso titular_pendentes_em_atraso "da fila do titular" \
+    "encomenda(s) de pedidos de apagamento por limpar há mais de um dia: a fila do titular (clientes/titular-fila.ts) não está a correr (docker logs eurolify-api)"
+  em_atraso checkout_sessoes_em_atraso "das sessões de checkout" \
+    "sessão(ões) de checkout com dados pessoais por limpar há mais de um dia: a limpeza das sessões (checkout/limpeza-sessoes.ts) não está a correr (docker logs eurolify-api)"
 fi
 
 seguranca="$(/usr/lib/update-notifier/apt-check 2>&1 | cut -d ';' -f 2)"
