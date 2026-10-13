@@ -5124,6 +5124,7 @@ try {
       "equipa",
       "artigos",
       "a-decidir",
+      "expedir",
       "envios",
       "faturacao",
       "chaves",
@@ -5199,7 +5200,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os seis módulos do dono, com o comerciante no endereço`,
+          `${nome}: os sete módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5281,9 +5282,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 6 &&
+        (await p.locator(".atalho-modulo").count()) === 7 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos seis módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos sete módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5445,10 +5446,11 @@ try {
             "Equipa",
             "Artigos",
             "A decidir",
+            "Expedir",
             "Envios",
             "Faturação",
           ]),
-      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», os envios e a faturação, sem as chaves",
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», os envios e a faturação, sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
