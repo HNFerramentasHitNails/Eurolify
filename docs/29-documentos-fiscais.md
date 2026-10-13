@@ -859,3 +859,43 @@ faturas retidas e o dono não sabe porquê.
 | Uma ligação que oscila (fica com erro, volta, fica outra vez) | um caso e, na A, um e-mail por passagem; mede-se no ensaio |
 | O aviso ir para ninguém (nenhum dono activo) | a mesma regra do `docs/34` §12: quem decide a fila, activo; sem ninguém, a notificação fica `cancelada` e vê-se em `GET /notifications` |
 | O dono resolver sem verificar as faturas retidas | a linha do caso diz quantas estão retidas; elas continuam na fila `documento_fiscal` até alguém as verificar |
+
+### 18.6 Em código (13/10/2026; migração 0083; pedido #422)
+
+| O quê | Onde |
+|---|---|
+| na ligação, `com_erro_desde`, `com_erro_passagem` e `com_erro_motivo`, com o gatilho que os põe e limpa; a oitava fila (`faturacao_casos_a_decidir()`) na régua, no prazo por omissão, na lista comum e na restrição da atribuição | migração 0083 |
+| o tipo de notificação `invoicing.connection_error`, o gatilho que a grava, quem recebe (`faturacao_aviso_pode_receber`), a conferência no envio (`faturacao_aviso_espera`) e as faturas retidas contadas no envio (`faturacao_aviso_retidas`) | migração 0083; `src/notificacoes/repositorio.ts` e `modelos.ts` |
+| a renovação recusada e o teste falhado gravam o motivo; a renovação recusada só marca a ligação se as credenciais recusadas ainda forem as dela | `src/faturacao/repositorio.ts` (`ligacaoComErro`, `RenovacaoRecusada`, `testarLigacao`) |
+| no Hub: a fila no «A decidir», com a entidade, o software e as faturas retidas na linha e a ligação para a Faturação; o número de retidas no ecrã Faturação | `apps/hub/src/ecras/ADecidir.tsx`, `Faturacao.tsx`, `faturacao.ts`, `tarefas.ts` |
+| testes: `apps/api/test/faturacao-ligacao-com-erro.test.ts` (a fila em cada comerciante, o e-mail aos donos e só a eles, as retidas no envio, a passagem nova, o responsável que passa a gestor, o motivo que passa a mais grave, o cancelamento, a escrita que a API não pode fazer, os textos) e os das filas com oito | — |
+
+**Desvios do desenho:**
+- **As faturas retidas contam-se no envio** do e-mail, não à hora do erro: a
+  fatura que dá o erro só fica retida depois (revisão, P1-2).
+- **Na mesma passagem, o motivo passa de `teste_falhou` a
+  `renovacao_recusada`**, e aí sai o e-mail: a autorização morreu depois de
+  um teste falhado (revisão, P2-3). Nunca volta ao mais leve.
+- **A linha do «A decidir» lê a entidade, o software e as retidas do ecrã
+  Faturação** (`GET /hub/invoicing`), em vez de os trazer na lista das
+  tarefas.
+
+**Revisão do #422** (agente da sessão, Sonnet 5.5; 0 P0, 2 P1, 5 P2, 6 P3):
+- **P1-1, corrigido:** as funções novas estão na lista do teste de
+  segurança da base.
+- **P1-2, corrigido:** o número de retidas lê-se no envio.
+- **P2-1 a P2-3, corrigidos:** a linha do «A decidir» diz a entidade, o
+  software e as retidas; o isolamento testa-se com uma ligação com erro nos
+  dois comerciantes; o motivo passa ao mais grave, com teste da passagem nova,
+  de dois donos e do dono que passa a gestor.
+- **P2-4, corrigido sem teste:** a renovação recusada traz a data das
+  credenciais e não marca credenciais novas. A corrida (milissegundos) não se
+  reproduz num teste sem tornar o teste instável.
+- **P2-5, corrigido:** teste do responsável que passa a gestor.
+- **P3-1, P3-3 e P3-5, corrigidos:** o gatilho da hora deixa de ser
+  `ALWAYS`; o `docs/17` diz que o aviso leva o nome da entidade; os
+  comentários e os testes fracos.
+- **P3 que ficam:** 2 (o e-mail diz «no Hub, Faturação», sem endereço: a API
+  não conhece o endereço do Hub); 4 (as ligações que já estiverem com erro ao
+  migrar entram logo vencidas, e sai o aviso de vencido na volta seguinte); 6
+  (o valor novo `ligacao_faturacao` nas listas da API de tarefas, aditivo).

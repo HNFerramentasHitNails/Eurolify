@@ -160,7 +160,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
         await sql`insert into membro (id, comerciante_id, pessoa_id, papel, convidado_por)
           values (${m}, ${c}, ${p}, ${papel}, 'operador:teste')`.execute(t);
       }
-      // As sete filas do comerciante A, mais uma diferença no B.
+      // As sete filas da 0066 (a oitava, da ligação, não tem caso aqui) do comerciante A, mais uma diferença no B.
       await sql`insert into diferenca_pagamento (id, comerciante_id, motivo, criada_em)
         values (${casos.diferenca}, ${a}, 'incerto', now() - interval '2 days'),
                (${casos.diferencaDeB}, ${b}, 'incerto', now() - interval '2 days')`.execute(

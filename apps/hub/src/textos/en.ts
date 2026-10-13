@@ -843,6 +843,7 @@ export const en: Textos = {
   motivoTarefa_teste_falhou: "the connection test failed",
   motivoTarefa_com_erro: "connection with an error",
   decidirAbrirFaturacao: "Open Invoicing",
+  faturacaoRetidasNenhuma: "No invoices held for now.",
   faturacaoRetidasUma: "1 invoice held waiting for the connection.",
   faturacaoRetidas: "{n} invoices held waiting for the connection.",
   motivoTarefa_incerto: "uncertain status",

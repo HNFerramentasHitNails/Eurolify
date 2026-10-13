@@ -380,6 +380,7 @@ async function credenciaisActuais(
         "adaptador",
         "credenciais",
         "credenciais_versao_chave",
+        "credenciais_em",
         "sessao",
         "sessao_versao_chave",
       ])
@@ -396,7 +397,17 @@ async function credenciaisActuais(
     // depois de o Moloni renovar, o par novo perde-se e o antigo já não
     // serve — a ligação fica com erro na próxima volta e o dono liga outra
     // vez (§13.4; revisão do #384, P2-1).
-    const novas = await a.renovar(cred, motivo);
+    let novas: CredenciaisEmissor | null;
+    try {
+      novas = await a.renovar(cred, motivo);
+    } catch (e) {
+      // Quem marca a ligação com erro confere que as credenciais recusadas
+      // ainda são as dela (revisão do #422, P2-4).
+      if (e instanceof ErroDoEmissor) {
+        throw new RenovacaoRecusada(e.message, l.credenciais_em);
+      }
+      throw e;
+    }
     if (novas === null) return cred;
     const chave = exigirChave(cfg);
     await trx
@@ -413,25 +424,51 @@ async function credenciaisActuais(
   });
 }
 
+/**
+ * A renovação recusada pelo emissor, com a data das credenciais que a
+ * pediram: credenciais novas entretanto não se marcam com erro.
+ */
+export class RenovacaoRecusada extends ErroDoEmissor {
+  constructor(
+    mensagem: string,
+    readonly credenciaisEm: Date | null,
+  ) {
+    super(mensagem);
+  }
+}
+
 /** O emissor recusou renovar (a autorização morreu): uma pessoa liga outra vez. */
 async function ligacaoComErro(
   db: Kysely<BaseDados>,
   c: string,
   ligacaoId: string,
-  erro: string,
+  erro: ErroDoEmissor,
 ) {
   await noDocumentos(db, c, async (trx) => {
     await marcar(trx, QUEM_DA_TAREFA, "o emissor recusou renovar os tokens");
     const l = await ligacaoParaMudar(trx, ligacaoId, null);
-    // Já com erro: não sobe a versão a cada volta (revisão do #384, P2-2).
-    if (l.estado === "com_erro") return;
+    // O dono ligou outra vez enquanto a renovação corria: as credenciais
+    // recusadas já não são estas (revisão do #422, P2-4).
+    if (
+      erro instanceof RenovacaoRecusada &&
+      (erro.credenciaisEm?.getTime() ?? null) !==
+        (l.credenciais_em?.getTime() ?? null)
+    ) {
+      return;
+    }
+    // Já com erro pela renovação: não sobe a versão a cada volta (revisão do
+    // #384, P2-2). Com erro por um teste falhado, passa a dizer a causa
+    // mais grave e avisa os donos (revisão do #422, P2-3).
+    if (l.estado === "com_erro" && l.com_erro_motivo === "renovacao_recusada") {
+      return;
+    }
     await trx
       .updateTable("ligacao_faturacao")
       .set({
         estado: "com_erro",
         // A fila do «A decidir» e o e-mail aos donos (docs/29 §18).
         com_erro_motivo: "renovacao_recusada",
-        erro: erro.slice(0, 200),
+        erro: erro.message.slice(0, 200),
         versao: l.versao + 1,
       })
       .where("id", "=", ligacaoId)
@@ -2299,7 +2336,7 @@ async function credenciaisDaLigacao(
     // A autorização morreu (§13.4): a ligação fica com erro e nada sai com
     // credenciais por confirmar.
     if (e instanceof ErroDoEmissor) {
-      await ligacaoComErro(db, c, l.id, e.message);
+      await ligacaoComErro(db, c, l.id, e);
       return null;
     }
     throw e;
@@ -2762,7 +2799,7 @@ export async function correrRenovacoes(
       } catch (e) {
         r.erros += 1;
         if (e instanceof ErroDoEmissor) {
-          await ligacaoComErro(db, c, l.id, e.message);
+          await ligacaoComErro(db, c, l.id, e);
         } else if (!(e instanceof ErroDeRede)) {
           throw e;
         }

@@ -853,6 +853,7 @@ export const es: Textos = {
   motivoTarefa_teste_falhou: "la prueba de la conexión falló",
   motivoTarefa_com_erro: "conexión con error",
   decidirAbrirFaturacao: "Abrir Facturación",
+  faturacaoRetidasNenhuma: "Ninguna factura retenida por ahora.",
   faturacaoRetidasUma: "1 factura retenida a la espera de la conexión.",
   faturacaoRetidas: "{n} facturas retenidas a la espera de la conexión.",
   motivoTarefa_incerto: "estado incierto",

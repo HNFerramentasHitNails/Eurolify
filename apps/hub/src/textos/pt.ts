@@ -844,6 +844,7 @@ export const pt = {
   motivoTarefa_teste_falhou: "o teste da ligação falhou",
   motivoTarefa_com_erro: "ligação com erro",
   decidirAbrirFaturacao: "Abrir a Faturação",
+  faturacaoRetidasNenhuma: "Nenhuma fatura retida por agora.",
   faturacaoRetidasUma: "1 fatura retida à espera da ligação.",
   faturacaoRetidas: "{n} faturas retidas à espera da ligação.",
   motivoTarefa_incerto: "estado incerto",

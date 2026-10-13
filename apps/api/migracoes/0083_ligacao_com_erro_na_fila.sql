@@ -15,9 +15,9 @@
 --   oito (`tarefas_filas()`, `tarefas_prazo_por_omissao()`, `tarefas_casos()`
 --   e `atribuicao.fila`, 0066).
 -- - O e-mail logo (Q1 A): o tipo `invoicing.connection_error`, um por dono e
---   por passagem, só quando a ligação entra em erro pela renovação recusada;
+--   por passagem, só quando a ligação fica com erro pela renovação recusada;
 --   no envio, confere-se que a ligação ainda está com erro na mesma passagem
---   e que a pessoa ainda pode ligar a conta.
+--   e que a pessoa ainda pode ligar a conta, e contam-se as faturas retidas.
 
 SET LOCAL lock_timeout = '10s';
 
@@ -47,8 +47,10 @@ ALTER TABLE ligacao_faturacao ADD CONSTRAINT ligacao_faturacao_com_erro_coerente
      AND (estado = 'com_erro' OR com_erro_motivo IS NULL));
 
 -- «Com erro desde» e a passagem (L5): entrar põe-nos; continuar com erro
--- guarda-os (e o primeiro motivo); sair limpa-os. Entrar pede o motivo: só a
--- renovação recusada e o teste falhado põem uma ligação com erro.
+-- guarda-os; sair limpa-os. Entrar pede o motivo: só a renovação recusada e o
+-- teste falhado põem uma ligação com erro. Na mesma passagem, o motivo só muda
+-- para a causa mais grave: de `teste_falhou` para `renovacao_recusada` (a
+-- autorização morreu; revisão do #422, P2-3).
 CREATE FUNCTION ligacao_com_erro_desde() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
@@ -65,14 +67,16 @@ BEGIN
   ELSE
     NEW.com_erro_desde := OLD.com_erro_desde;
     NEW.com_erro_passagem := OLD.com_erro_passagem;
-    NEW.com_erro_motivo := coalesce(OLD.com_erro_motivo, NEW.com_erro_motivo);
+    NEW.com_erro_motivo := CASE WHEN NEW.com_erro_motivo = 'renovacao_recusada'
+      THEN 'renovacao_recusada' ELSE coalesce(OLD.com_erro_motivo, NEW.com_erro_motivo) END;
   END IF;
   RETURN NEW;
 END
 $$;
+-- Sem `ALWAYS`, como os «na fila desde» da 0066: uma cópia reposta em modo
+-- `replica` guarda as horas e as passagens que tinha (revisão do #422, P3-1).
 CREATE TRIGGER ligacao_faturacao_com_erro BEFORE INSERT OR UPDATE ON ligacao_faturacao
   FOR EACH ROW EXECUTE FUNCTION ligacao_com_erro_desde();
-ALTER TABLE ligacao_faturacao ENABLE ALWAYS TRIGGER ligacao_faturacao_com_erro;
 
 GRANT UPDATE (com_erro_motivo) ON ligacao_faturacao TO eurolify_api;
 
@@ -185,11 +189,14 @@ CREATE FUNCTION faturacao_aviso_pode_receber(p_comerciante uuid, p_pessoa uuid)
       AND 'invoices:accounts' = ANY (public.papel_ambitos(m.papel)))
 $$;
 
--- Quando a ligação entra em erro pela renovação recusada: uma notificação por
+-- Quando a ligação fica com erro pela renovação recusada (ao entrar, ou na
+-- mesma passagem depois de um teste falhado; P2-3): uma notificação por
 -- pessoa que pode ligar a conta, na língua do Hub (N4). A `referencia` é a
--- passagem: uma por passagem e por pessoa (N5). Só códigos, números, a loja
--- e a entidade (o nome da empresa do comerciante); nunca a frase do emissor
--- nem dados de clientes (docs/29 §18.3).
+-- passagem: uma por passagem e por pessoa (N5). Só códigos, a loja e a
+-- entidade (o nome da empresa do comerciante); nunca a frase do emissor nem
+-- dados de clientes (docs/29 §18.3). O número de faturas retidas lê-se no
+-- envio, não aqui: a fatura que deu o erro só fica retida depois (revisão do
+-- #422, P1-2).
 CREATE FUNCTION ligacao_com_erro_notificacao() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -197,25 +204,22 @@ DECLARE
   loja text;
   fuso text;
   entidade text;
-  retidas integer;
 BEGIN
   IF NEW.estado <> 'com_erro' OR NOT NEW.activa
      OR NEW.com_erro_motivo IS DISTINCT FROM 'renovacao_recusada'
-     OR (TG_OP = 'UPDATE' AND OLD.estado = 'com_erro') THEN
+     OR (TG_OP = 'UPDATE' AND OLD.estado = 'com_erro'
+         AND OLD.com_erro_motivo IS NOT DISTINCT FROM 'renovacao_recusada') THEN
     RETURN NULL;
   END IF;
   SELECT CASE WHEN c.lingua IN ('pt', 'es', 'en') THEN c.lingua ELSE 'en' END, c.nome, c.fuso
     INTO lingua, loja, fuso FROM public.comerciante c WHERE c.id = NEW.comerciante_id;
   SELECT e.denominacao INTO entidade FROM public.entidade_legal e
   WHERE e.id = NEW.entidade_legal_id AND e.comerciante_id = NEW.comerciante_id;
-  SELECT count(*) INTO retidas FROM public.documento_fiscal d
-  WHERE d.comerciante_id = NEW.comerciante_id AND d.entidade_legal_id = NEW.entidade_legal_id
-    AND d.estado = 'retido' AND 'ligacao_sem_teste' = ANY (d.motivos);
   INSERT INTO public.notificacao (comerciante_id, tipo, referencia, pessoa_id, lingua, dados)
   SELECT NEW.comerciante_id, 'invoicing.connection_error', NEW.com_erro_passagem, m.pessoa_id,
     lingua,
     jsonb_build_object('loja', loja, 'entidade', entidade, 'ligacao', NEW.id,
-      'adaptador', NEW.adaptador, 'motivo', NEW.com_erro_motivo, 'retidas', retidas,
+      'adaptador', NEW.adaptador, 'motivo', NEW.com_erro_motivo,
       'desde', to_char(NEW.com_erro_desde AT TIME ZONE fuso, 'YYYY-MM-DD HH24:MI'),
       'fuso', fuso)
   FROM public.membro m
@@ -237,6 +241,17 @@ CREATE FUNCTION faturacao_aviso_espera(p_passagem uuid) RETURNS boolean
     SELECT 1 FROM public.ligacao_faturacao l
     WHERE l.comerciante_id = public.comerciante_actual() AND l.com_erro_passagem = p_passagem
       AND l.activa AND l.estado = 'com_erro')
+$$;
+
+-- As faturas retidas à espera da ligação desta passagem, contadas no envio
+-- (P1-2): as da entidade dela retidas por `ligacao_sem_teste`.
+CREATE FUNCTION faturacao_aviso_retidas(p_passagem uuid) RETURNS integer
+  LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT count(*)::integer FROM public.documento_fiscal d
+  JOIN public.ligacao_faturacao l ON l.comerciante_id = d.comerciante_id
+    AND l.entidade_legal_id = d.entidade_legal_id
+  WHERE l.comerciante_id = public.comerciante_actual() AND l.com_erro_passagem = p_passagem
+    AND d.estado = 'retido' AND 'ligacao_sem_teste' = ANY (d.motivos)
 $$;
 
 -- Quem recebe, lido no envio (N9): o reembolso como na 0067, o caso vencido
@@ -267,6 +282,6 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION ligacao_com_erro_desde(), faturacao_casos_a_decidir(),
   faturacao_aviso_pode_receber(uuid, uuid), ligacao_com_erro_notificacao(),
-  faturacao_aviso_espera(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION faturacao_casos_a_decidir(), faturacao_aviso_espera(uuid)
-  TO eurolify_api;
+  faturacao_aviso_espera(uuid), faturacao_aviso_retidas(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION faturacao_casos_a_decidir(), faturacao_aviso_espera(uuid),
+  faturacao_aviso_retidas(uuid) TO eurolify_api;

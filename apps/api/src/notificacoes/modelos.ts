@@ -43,8 +43,11 @@ export interface DadosDaLigacao {
   adaptador: string;
   /** Um código: `renovacao_recusada`. */
   motivo: string | null;
-  /** As faturas retidas por `ligacao_sem_teste` nessa entidade. */
-  retidas: number;
+  /**
+   * As faturas retidas por `ligacao_sem_teste` nessa entidade, contadas no
+   * envio (não se guardam na notificação).
+   */
+  retidas?: number;
   /** AAAA-MM-DD HH:MI, no fuso do comerciante. */
   desde: string | null;
   fuso: string | null;
@@ -314,7 +317,10 @@ function textoDaLigacao(
   const caso = `isx_${d.ligacao}`;
   const motivo = codigo(d.motivo);
   const desde = `${dataHora(d.desde, l)} (${linha(d.fuso ?? undefined) || "?"})`;
-  const retidas = Number.isInteger(d.retidas) && d.retidas >= 0 ? d.retidas : 0;
+  const retidas =
+    d.retidas !== undefined && Number.isInteger(d.retidas) && d.retidas >= 0
+      ? d.retidas
+      : 0;
   const t = {
     pt: {
       assunto: `Faturação: a ligação ao ${software} de «${entidade}» está com erro`,
@@ -324,7 +330,7 @@ function textoDaLigacao(
         `Na loja «${loja}», a ligação ${caso} da entidade «${entidade}» ao ${software} está com erro desde ${desde} (motivo: ${motivo}).`,
         "Enquanto estiver assim, as faturas desta entidade não saem: ficam retidas.",
         retidas === 0
-          ? "Neste momento não há faturas retidas por isto."
+          ? "Ainda não há faturas retidas por isto; as próximas ficam retidas até a ligação voltar."
           : retidas === 1
             ? "Neste momento há 1 fatura retida por isto."
             : `Neste momento há ${String(retidas)} faturas retidas por isto.`,
@@ -343,7 +349,7 @@ function textoDaLigacao(
         `En la tienda «${loja}», la conexión ${caso} de la entidad «${entidade}» a ${software} tiene un error desde el ${desde} (motivo: ${motivo}).`,
         "Mientras siga así, las facturas de esta entidad no se emiten: quedan retenidas.",
         retidas === 0
-          ? "En este momento no hay facturas retenidas por esto."
+          ? "Aún no hay facturas retenidas por esto; las próximas quedarán retenidas hasta que vuelva la conexión."
           : retidas === 1
             ? "En este momento hay 1 factura retenida por esto."
             : `En este momento hay ${String(retidas)} facturas retenidas por esto.`,
@@ -362,7 +368,7 @@ function textoDaLigacao(
         `In the shop "${loja}", the connection ${caso} of the entity "${entidade}" to ${software} has had an error since ${desde} (reason: ${motivo}).`,
         "While it stays like this, this entity's invoices are not issued: they are held.",
         retidas === 0
-          ? "Right now no invoices are held because of this."
+          ? "No invoices are held because of this yet; the next ones will be held until the connection is back."
           : retidas === 1
             ? "Right now 1 invoice is held because of this."
             : `Right now ${String(retidas)} invoices are held because of this.`,

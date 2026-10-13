@@ -223,14 +223,19 @@ async function tomarVez(
   }
   // Uns dados que não dão texto falham já, com o código, em vez de repetir
   // o erro a cada volta (revisão do #389, P3-3).
+  // As faturas retidas contam-se agora, não à hora do erro: a fatura que o
+  // deu só fica retida depois (docs/29 §18; revisão do #422, P1-2).
+  let dados = n.dados as unknown as
+    DadosDoAviso | DadosDaTarefa | DadosDaLigacao;
+  if (n.tipo === "invoicing.connection_error") {
+    const { rows: r } = await sql<{
+      n: number;
+    }>`select faturacao_aviso_retidas(${n.referencia}::uuid) as n`.execute(trx);
+    dados = { ...(dados as DadosDaLigacao), retidas: r[0]?.n ?? 0 };
+  }
   let mensagem: Mensagem;
   try {
-    mensagem = mensagemDe(
-      n.tipo,
-      n.lingua,
-      n.dados as unknown as DadosDoAviso | DadosDaTarefa | DadosDaLigacao,
-      destino,
-    );
+    mensagem = mensagemDe(n.tipo, n.lingua, dados, destino);
   } catch {
     await mudar(trx, id, { estado: "falhada", ultimo_erro: "dados_invalidos" });
     res.falhadas += 1;
