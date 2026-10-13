@@ -57,7 +57,7 @@ function comTempo<T>(cfg: ConfigEnvios | undefined, p: Promise<T>): Promise<T> {
 }
 
 /** O código de um erro, sem dados (para o registo e para os problemas). */
-const codigoDe = (erro: unknown) =>
+export const codigoDe = (erro: unknown) =>
   typeof (erro as { codigo?: unknown }).codigo === "string"
     ? (erro as { codigo: string }).codigo
     : erro instanceof Error

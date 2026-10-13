@@ -3,6 +3,7 @@ import { comRasto } from "./base/rasto.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import type { ConfigEnvios } from "./envios/adaptador.js";
 import { agendarTrabalhoEnvios } from "./envios/etiquetas.js";
+import { agendarEncomendasParadas } from "./envios/paradas.js";
 import { adaptadorSendcloud } from "./envios/sendcloud.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
@@ -328,6 +329,15 @@ const pararEnvios =
       )
     : () => undefined;
 
+// As encomendas paradas perto da data-limite (docs/36 §18), de hora a hora:
+// não dependem da chave das credenciais (revisão do #426, P2-2).
+const pararParadas =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:paradas" }, () =>
+        agendarEncomendasParadas(base, app.log),
+      )
+    : () => undefined;
+
 // As sessões de checkout perdem os dados pessoais 7 dias depois de
 // expirarem ou de serem abandonadas, de hora a hora (docs/23 §15.4).
 const pararSessoes =
@@ -340,6 +350,7 @@ const pararSessoes =
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
     pararEnvios();
+    pararParadas();
     pararSessoes();
     pararApagamentos();
     pararConclusoes();
