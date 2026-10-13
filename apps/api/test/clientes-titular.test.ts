@@ -43,6 +43,8 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
   let deB: string;
   // Como o apoio: lê e escreve fichas, sem customers:billing (§15.12).
   let apoio: string;
+  // Põe e lê isenções e anexos, sem customers:billing (revisão do #440, P2-2).
+  let soIsencoes: string;
   let entidadeA: string;
 
   const pedir = (
@@ -187,6 +189,9 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     apoio = (
       await chave(a, "Apoio", ["customers:read", "customers:write", "tax:read"])
     ).segredo;
+    soIsencoes = (
+      await chave(a, "Isenções", ["customers:read", "customers:exemptions"])
+    ).segredo;
   }, 60_000);
 
   afterAll(async () => {
@@ -210,11 +215,24 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       },
     });
     const pid = String(usado["id"]);
-    const isencao = await ok(
+    // Uma isenção retirada (com o motivo da retirada) e a que fica em vigor.
+    await ok(
       pedir("PUT", `/billing-profiles/${pid}/exemption`, {
         codigo_motivo: "M05",
         motivo: `a Rita ${u} exporta`,
         nota: `falado com a Rita ${u}`,
+      }),
+      201,
+    );
+    await ok(
+      pedir("DELETE", `/billing-profiles/${pid}/exemption`, {
+        motivo_retirada: `a Rita ${u} deixou de exportar`,
+      }),
+    );
+    const isencao = await ok(
+      pedir("PUT", `/billing-profiles/${pid}/exemption`, {
+        codigo_motivo: "M05",
+        motivo: `a Rita ${u} voltou a exportar`,
       }),
       201,
     );
@@ -252,6 +270,7 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
         ...dados,
         `a Rita ${u}`,
         `falado com a Rita ${u}`,
+        `deixou de exportar`,
         `declaracao-rita-${u}`,
       ]) {
         expect(corpo, d).not.toContain(d);
@@ -299,6 +318,12 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     semDados(isencoes.body);
     expect(isencoes.json<{ dados: Json[] }>().dados).toMatchObject([
       { codigo_motivo: "M05", motivo: "(reservado)", nota: null },
+      {
+        codigo_motivo: "M05",
+        motivo: "(reservado)",
+        nota: null,
+        motivo_retirada: "(reservado)",
+      },
     ]);
     const anexos = await pedir(
       "GET",
@@ -308,6 +333,22 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     );
     expect(anexos.statusCode, anexos.body).toBe(200);
     semDados(anexos.body);
+    // Os bytes do anexo: o documento é da pessoa; quem põe isenções sem
+    // customers:billing não o descarrega (revisão do #440, P2-2).
+    const anexoId = String(
+      (anexos.json<{ dados: Json[] }>().dados[0] ?? {})["id"],
+    );
+    const bytes = `/exemptions/${String(isencao["id"])}/attachments/${anexoId}`;
+    await recusa(
+      pedir("GET", bytes, undefined, soIsencoes),
+      403,
+      "auth.forbidden",
+    );
+    const doDono = await pedir("GET", bytes);
+    expect(doDono.statusCode).toBe(200);
+    expect(doDono.headers["content-disposition"]).toContain(
+      `declaracao-rita-${u}`,
+    );
     // G5: a procura pelo NIF não mostra a ficha apagada.
     const procura = await ok(
       pedir("POST", "/customers/search", { procura: nif }, apoio),
@@ -345,10 +386,52 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
     ).toMatchObject([{ numero_consultado: nif, nome_devolvido: `RITA ${u}` }]);
     expect(
       (await ok(pedir("GET", `/billing-profiles/${pid}/exemptions`)))["dados"],
-    ).toMatchObject([{ nota: `falado com a Rita ${u}` }]);
+    ).toMatchObject([
+      { motivo: `a Rita ${u} voltou a exportar` },
+      {
+        nota: `falado com a Rita ${u}`,
+        motivo_retirada: `a Rita ${u} deixou de exportar`,
+      },
+    ]);
     expect(
       (await ok(pedir("POST", "/customers/search", { procura: nif })))["dados"],
     ).toMatchObject([{ id }]);
+  });
+
+  it("o perfil de uma ficha fundida na que foi apagada também fica só para o dono (§15.12)", async () => {
+    const u = unico();
+    const nif = nifNovo();
+    const fica = await ficha({ nome: `Rita ${u}` });
+    const absorvida = await ficha({ nome: `Rita Antiga ${u}` });
+    const antigo = await perfil(absorvida, {
+      tipo: "particular",
+      nome_documento: `Rita Antiga ${u}`,
+      nif,
+    });
+    const pid = String(antigo["id"]);
+    await comoDono(async (trx) => {
+      await sql`update perfil_faturacao set usado_em_documento = true
+          where id = ${pid.slice(4)}::uuid`.execute(trx);
+    });
+    await ok(
+      pedir("POST", `/customers/${fica}/merge`, {
+        absorver: absorvida,
+        ensaio: false,
+      }),
+    );
+    await ok(pseudonimizar(fica));
+    // A ficha absorvida está «fundido»; sobe-se por fundido_em até à
+    // pseudonimizada.
+    const r = await pedir("GET", `/billing-profiles/${pid}`, undefined, apoio);
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.body).not.toContain(nif);
+    expect(r.json<Json>()).toMatchObject({
+      guardado_por_obrigacao_fiscal: true,
+      nif: null,
+    });
+    expect(await ok(pedir("GET", `/billing-profiles/${pid}`))).toMatchObject({
+      nif,
+    });
   });
 
   it("numa ficha que não foi apagada, o apoio lê o perfil como hoje (§15.12)", async () => {
@@ -374,6 +457,42 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
         "dados"
       ],
     ).toMatchObject([{ id }]);
+    const pid = String(p["id"]);
+    await ok(
+      pedir("PUT", `/billing-profiles/${pid}/exemption`, {
+        codigo_motivo: "M05",
+        motivo: `o Rui ${u} exporta`,
+        nota: `falado com o Rui ${u}`,
+      }),
+      201,
+    );
+    await comoDono(async (trx) => {
+      await sql`insert into validacao_vies (comerciante_id, perfil_id, pais_consultado,
+            numero_consultado, consultado_em, resultado, nome_devolvido, motivo, quem)
+          values (${a}::uuid, ${pid.slice(4)}::uuid, 'PT', ${nif}, now(), 'valido',
+            ${`RUI ${u}`}, 'pedido', 'sistema:vies')`.execute(trx);
+    });
+    expect(
+      (
+        await ok(
+          pedir(
+            "GET",
+            `/billing-profiles/${pid}/vies-checks`,
+            undefined,
+            apoio,
+          ),
+        )
+      )["dados"],
+    ).toMatchObject([{ numero_consultado: nif, nome_devolvido: `RUI ${u}` }]);
+    expect(
+      (
+        await ok(
+          pedir("GET", `/billing-profiles/${pid}/exemptions`, undefined, apoio),
+        )
+      )["dados"],
+    ).toMatchObject([
+      { motivo: `o Rui ${u} exporta`, nota: `falado com o Rui ${u}` },
+    ]);
   });
 
   it("a pseudonimização troca também o motivo do histórico (texto livre; #322)", async () => {

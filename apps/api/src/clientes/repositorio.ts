@@ -1142,9 +1142,27 @@ export async function lerAnexoDaIsencao(
   const a = await noClientes(db, comercianteId, (trx) =>
     trx
       .selectFrom("anexo_isencao")
-      .select(["tipo", "nome", "bytes", "resumo"])
-      .where("isencao_id", "=", isencaoId)
-      .where("id", "=", anexoId)
+      .innerJoin(
+        "isencao_manual",
+        "isencao_manual.id",
+        "anexo_isencao.isencao_id",
+      )
+      .select([
+        "anexo_isencao.tipo",
+        "anexo_isencao.nome",
+        "anexo_isencao.bytes",
+        "anexo_isencao.resumo",
+      ])
+      // O perfil é de uma ficha pseudonimizada (§15.12): os bytes e o nome
+      // do ficheiro só para o dono.
+      .select(
+        fichaPseudonimizada(
+          sql`(select p.cliente_id from perfil_faturacao p
+            where p.id = isencao_manual.perfil_id)`,
+        ).as("guardado"),
+      )
+      .where("anexo_isencao.isencao_id", "=", isencaoId)
+      .where("anexo_isencao.id", "=", anexoId)
       .executeTakeFirst(),
   );
   if (a === undefined) {

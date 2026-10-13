@@ -68,6 +68,7 @@ import {
   anexarIsencao,
   listarAnexosDaIsencao,
   lerAnexoDaIsencao,
+  perfilGuardado,
   tirarEtiqueta,
   tornarPrincipal,
   traduzir,
@@ -1958,7 +1959,13 @@ export function rotasDosClientes(
             pedido.body.nota ?? null,
             pedido.body.codigo_motivo,
           );
-          return paraIsencao(await obterIsencao(trx, c.comercianteId, id));
+          // Numa ficha pseudonimizada, a nota e os motivos só para o dono
+          // (§15.12; revisão do #440, P2-2).
+          return paraIsencao(
+            await obterIsencao(trx, c.comercianteId, id),
+            (await perfilGuardado(trx, semPrefixo(pedido.params.id))) &&
+              !veDadosGuardados(chaveDo(pedido).ambitos),
+          );
         }),
       ),
   );
@@ -1985,7 +1992,13 @@ export function rotasDosClientes(
             semPrefixo(pedido.params.id),
             pedido.body.motivo_retirada,
           );
-          return paraIsencao(await obterIsencao(trx, c.comercianteId, id));
+          // Numa ficha pseudonimizada, a nota e os motivos só para o dono
+          // (§15.12; revisão do #440, P2-2).
+          return paraIsencao(
+            await obterIsencao(trx, c.comercianteId, id),
+            (await perfilGuardado(trx, semPrefixo(pedido.params.id))) &&
+              !veDadosGuardados(chaveDo(pedido).ambitos),
+          );
         }),
       ),
   );
@@ -2240,7 +2253,7 @@ function rotasDosAnexos(
       config: isencoes,
       schema: {
         description:
-          "Os bytes de um anexo, com o tipo dele (só com customers:exemptions).",
+          "Os bytes de um anexo, com o tipo dele (só com customers:exemptions). Num perfil guardado por obrigação fiscal, só com customers:billing também (docs/23 §15.12).",
         params: Type.Object({ id: IdIsencao, anexo: IdAnexo }),
         response: {
           200: {
@@ -2265,6 +2278,20 @@ function rotasDosAnexos(
           semPrefixo(pedido.params.anexo),
         ),
       );
+      // Num perfil guardado por obrigação fiscal, o documento da isenção é
+      // da pessoa que pediu o apagamento: só o dono o descarrega (§15.12;
+      // revisão do #440, P2-2).
+      if (a.guardado && !veDadosGuardados(chaveDo(pedido).ambitos)) {
+        throw new ErroApi(
+          "auth.forbidden",
+          403,
+          {
+            pt: "A chave não tem o âmbito desta operação",
+            en: "The key lacks the scope for this operation",
+          },
+          "âmbito pedido: customers:billing (perfil guardado por obrigação fiscal)",
+        );
+      }
       return (
         resposta
           .header("content-type", a.tipo)

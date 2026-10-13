@@ -1317,8 +1317,11 @@ precisar destes dados depois do pedido é leitura nossa: **C**, jurista.
 
 **Como se reconhece:** um perfil cuja ficha, ou a ficha em que ela foi
 fundida (subindo por `fundido_em`), está `pseudonimizado`. Não há coluna
-nova: a pseudonimização já deixa a ficha assim (0072). Os perfis dessa ficha
-que não ficaram (já com «Pseudonimizado» e sem dados) saem iguais.
+nova: a pseudonimização já deixa a ficha assim (0072). O campo
+`guardado_por_obrigacao_fiscal` diz que a ficha foi pseudonimizada: vem
+`true` em todos os perfis dela, também nos que não ficaram (esses já estão
+com «Pseudonimizado» e sem dados; a quem não é dono saem com `null` em vez
+de «Pseudonimizado»; revisão do #440, P3-2).
 
 **Os sítios por onde se lêem** (procurados a 13/10/2026 nas rotas de
 `clientes/`, `iva/`, `checkout/`, `faturacao/` e `identidade/hub-*`, por
@@ -1329,8 +1332,8 @@ que não ficaram (já com «Pseudonimizado» e sem dados) saem iguais.
 |---|---|---|---|
 | G1 | `GET /customers/{id}/billing-profiles` e `GET /billing-profiles/{id}` | `customers:read` | `nome_documento`, `nif`, `nif_escrito`, `pais_contribuinte` e `morada` a `null`; o campo novo `guardado_por_obrigacao_fiscal: true` diz porquê (para o dono também, com os dados) |
 | G2 | `GET /billing-profiles/{id}/vies-checks` | `customers:read` | `pais_consultado`, `numero_consultado`, `nome_devolvido` e `morada_devolvida` a `null` (a prova do VIES traz o NIF, e o nome e a morada que o VIES respondeu) |
-| G3 | `GET /billing-profiles/{id}/exemptions` | `customers:read` | `nota` e `motivo_retirada` a `null`, e `motivo` com «(reservado)»: são texto livre que pode falar da pessoa |
-| G4 | `GET /exemptions/{id}/attachments` | `customers:read` | o `nome` do ficheiro com «(reservado)» (pode ter o nome da pessoa); os bytes já pedem `customers:exemptions` |
+| G3 | `GET /billing-profiles/{id}/exemptions`, e a resposta de pôr e retirar a isenção (`PUT` e `DELETE /billing-profiles/{id}/exemption`, `customers:exemptions`) | `customers:read` | `nota` a `null`, e `motivo` e `motivo_retirada` (quando há) com «(reservado)»: são texto livre que pode falar da pessoa |
+| G4 | `GET /exemptions/{id}/attachments` e os bytes (`GET /exemptions/{id}/attachments/{anexo}`, `customers:exemptions`) | `customers:read` | o `nome` do ficheiro com «(reservado)» (pode ter o nome da pessoa); os bytes dão 403 `auth.forbidden` (o documento é da pessoa) |
 | G5 | `POST /customers/search` com `nif` | `customers:read` | as fichas pseudonimizadas não aparecem: a resposta confirmava que aquele NIF é da pessoa que pediu o apagamento |
 | G6 | `POST /tax/decisions/simulate` com `perfil` | `tax:read` e `customers:read` | 403 `auth.forbidden` (a decisão devolve o país e o número do NIF do perfil) |
 
@@ -1344,6 +1347,12 @@ que não ficaram (já com «Pseudonimizado» e sem dados) saem iguais.
   declara, e quem trata das encomendas e das faturas precisa delas. Não são
   o perfil; restringi-las é outra decisão, que fica em aberto;
 - **o dono** lê tudo, como hoje.
+
+**Atenção (revisão do #440, P2-1):** esta regra fecha os perfis e o que se
+pendura neles (`clientes/` e a simulação do `iva/`). O mesmo NIF, nome e
+morada continuam na cópia da encomenda, na fatura e no relatório OSS, que o
+gestor e o apoio lêem. «Só o dono lê» vale para o perfil, não para essas
+cópias, até haver a outra decisão.
 
 **Por onde pode sair errado:** uma rota nova que leia perfis sem passar pela
 mesma função; por isso a regra vive num só sítio em `clientes/` e o teste
