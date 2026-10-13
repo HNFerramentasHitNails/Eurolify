@@ -178,6 +178,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0089_relatorio_oss_a_parte",
         "0090_envios_pontos_de_recolha",
         "0091_notificacoes_gatilhos_sem_always",
+        "0092_clientes_pedidos_recebidos",
       ]);
     });
 
@@ -320,10 +321,11 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // as 3 do relatório OSS (0078) e o ficheiro da etiqueta, os eventos de
       // seguimento e os avisos das transportadoras (0079) e as autorizações
       // das ligações de faturação (0081), as encomendas paradas avisadas
-      // (0085) e as correcções da expedição (0086).
+      // (0085), as correcções da expedição (0086) e os pedidos do titular
+      // recebidos (0092).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(94);
+      ).toHaveLength(95);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

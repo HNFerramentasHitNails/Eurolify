@@ -839,10 +839,14 @@ export const pt = {
   fila_problema: "Problema numa encomenda",
   fila_reembolso: "Reembolso",
   fila_ligacao_faturacao: "Ligação à faturação com erro",
+  fila_pedido_titular: "Pedido sobre dados pessoais",
   motivoTarefa_renovacao_recusada:
     "o software de faturação recusou renovar o acesso",
   motivoTarefa_teste_falhou: "o teste da ligação falhou",
   motivoTarefa_com_erro: "ligação com erro",
+  motivoTarefa_por_responder:
+    "por responder; o prazo legal é de um mês desde que chegou",
+  motivoTarefa_prorrogado: "prazo prorrogado; o cliente foi informado",
   decidirAbrirFaturacao: "Abrir a Faturação",
   faturacaoRetidasNenhuma: "Nenhuma fatura retida por agora.",
   faturacaoRetidasUma: "1 fatura retida à espera da ligação.",

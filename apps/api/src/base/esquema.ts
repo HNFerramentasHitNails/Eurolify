@@ -915,6 +915,62 @@ export interface TabelaPedidoTitular {
   resultado: ColumnType<Record<string, unknown>, never, never>;
 }
 
+// O pedido do titular recebido, com o prazo de resposta (migração 0092;
+// docs/23 §15.14). A API só lê: escrevem as funções do dono.
+export const TIPOS_PEDIDO_RECEBIDO = [
+  "acesso",
+  "apagamento",
+  "limitacao",
+  "rectificacao",
+  "portabilidade",
+  "oposicao",
+  "outro",
+] as const;
+export type TipoPedidoRecebido = (typeof TIPOS_PEDIDO_RECEBIDO)[number];
+export const CANAIS_PEDIDO_RECEBIDO = [
+  "email",
+  "telefone",
+  "carta",
+  "presencial",
+  "loja",
+  "outro",
+] as const;
+export type CanalPedidoRecebido = (typeof CANAIS_PEDIDO_RECEBIDO)[number];
+export const ESTADOS_PEDIDO_RECEBIDO = [
+  "aberto",
+  "executado",
+  "respondido",
+  "recusado",
+] as const;
+export type EstadoPedidoRecebido = (typeof ESTADOS_PEDIDO_RECEBIDO)[number];
+/** Os fins de um pedido recebido (todos os estados menos `aberto`). */
+export const FINS_PEDIDO_RECEBIDO = [
+  "executado",
+  "respondido",
+  "recusado",
+] as const;
+
+export interface TabelaPedidoTitularRecebido {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  cliente_id: ColumnType<string, never, never>;
+  tipo: ColumnType<TipoPedidoRecebido, never, never>;
+  canal: ColumnType<CanalPedidoRecebido, never, never>;
+  recebido_em: ColumnType<Date, never, never>;
+  /** O dia em que chegou, no fuso do comerciante; lê-se com `to_char`. */
+  recebido_dia: ColumnType<Date | string, never, never>;
+  /** Um mês depois do dia em que chegou; calculado na base (coluna gerada). */
+  prazo_legal: ColumnType<Date | string, never, never>;
+  prorrogado_ate: ColumnType<Date | string | null, never, never>;
+  prorrogado_motivo: ColumnType<string | null, never, never>;
+  titular_informado_em: ColumnType<Date | string | null, never, never>;
+  estado: ColumnType<EstadoPedidoRecebido, never, never>;
+  fechado_em: ColumnType<Date | string | null, never, never>;
+  pedido_titular_id: ColumnType<string | null, never, never>;
+  quem: ColumnType<string, never, never>;
+  criado_em: ColumnType<Date, never, never>;
+}
+
 export interface TabelaIsencaoManual {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1664,6 +1720,7 @@ export interface BaseDados {
   consentimento: TabelaConsentimento;
   duplicado_cliente: TabelaDuplicadoCliente;
   pedido_titular: TabelaPedidoTitular;
+  pedido_titular_recebido: TabelaPedidoTitularRecebido;
   confirmacao_consentimento: TabelaConfirmacaoConsentimento;
   anexo_isencao: TabelaAnexoIsencao;
   categoria_fiscal: TabelaCategoriaFiscal;
@@ -2079,6 +2136,7 @@ export const FILAS_TAREFAS = [
   "problema",
   "reembolso",
   "ligacao_faturacao",
+  "pedido_titular",
 ] as const;
 export type FilaTarefa = (typeof FILAS_TAREFAS)[number];
 

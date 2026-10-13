@@ -224,6 +224,7 @@ const NOMES_DAS_FILAS: Record<Lingua, Record<FilaTarefa, string>> = {
     problema: "problema numa encomenda",
     reembolso: "reembolso",
     ligacao_faturacao: "ligação ao software de faturação com erro",
+    pedido_titular: "pedido de um cliente sobre os seus dados",
   },
   es: {
     pagamento: "diferencia de pago",
@@ -234,6 +235,7 @@ const NOMES_DAS_FILAS: Record<Lingua, Record<FilaTarefa, string>> = {
     problema: "incidencia en un pedido",
     reembolso: "reembolso",
     ligacao_faturacao: "conexión al software de facturación con error",
+    pedido_titular: "solicitud de un cliente sobre sus datos",
   },
   en: {
     pagamento: "payment discrepancy",
@@ -244,6 +246,7 @@ const NOMES_DAS_FILAS: Record<Lingua, Record<FilaTarefa, string>> = {
     problema: "order issue",
     reembolso: "refund",
     ligacao_faturacao: "invoicing software connection with an error",
+    pedido_titular: "customer request about their data",
   },
 };
 

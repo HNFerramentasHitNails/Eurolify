@@ -1413,6 +1413,20 @@ a 3/11 o mês passou e o Eurolify não o sabe.
 | T6 | **Sem identidade ainda** | o registo pede uma ficha (`cus_…`). Um pedido de quem ainda não se identificou fica fora do Eurolify até se saber a ficha (decidido, Q-P2) | nunca decidir identidade pelo nome (regra fiscal 6) |
 | T7 | **Dados** | o registo guarda só o tipo, as datas, o canal, quem registou e o estado; a pseudonimização não lhe toca (é a prova de que se respondeu) | minimização (art. 5.º, n.º 1, c)) e prova (art. 5.º, n.º 2) |
 
+**Em código, parte 1** (13/10/2026; T1–T4, T6 e T7):
+
+| O quê | Onde |
+|---|---|
+| a tabela `pedido_titular_recebido` (`prq_`): o dia em que chegou no fuso do comerciante (`recebido_dia`, fixado ao registar), o `prazo_legal` gerado na base (`+ interval '1 month'`: 31/01 → 28/02, ou 29/02 num ano bissexto), a prorrogação uma vez e só dentro do primeiro mês (até `recebido_dia + 2 meses`, **C**), os três fins com o dia; não se apaga; só numa ficha activa | migração 0092 |
+| as rotas `POST`/`GET /customers/{id}/privacy-requests/received`, `POST /privacy-requests/received/{id}/extend` e `/close` (`customers:privacy`, só o dono); o pedido executado tem de ser do mesmo titular (também nas fichas fundidas) | `src/clientes/rotas.ts`, `repositorio.ts` |
+| a nona fila `pedido_titular` no «A decidir» (prazo 7 dias antes do legal, nunca antes de entrar), na API, no Hub e no nome do e-mail | 0092; `src/tarefas/filas.ts`; `apps/hub/src/tarefas.ts`, textos |
+| testes, que falham sem a regra (uma prorrogação, o mesmo titular, o prazo da tarefa, o não se apagar) | `test/clientes-pedidos-recebidos.test.ts` |
+
+Não feito nesta parte: o segundo aviso (T5, §15.15); a exportação do titular
+ainda não junta os pedidos recebidos; o fecho como executado não confere que
+o tipo do pedido executado é o do recebido (um apagamento feito antes de a
+chegada ser registada não se recusa).
+
 **Fica de fora:** o pedido pela Loja (o login dos clientes, Q5 da CX); o
 envio da resposta ao titular (o comerciante responde pelo seu canal); a
 contagem de dias úteis ou feriados (o RGPD conta em meses).

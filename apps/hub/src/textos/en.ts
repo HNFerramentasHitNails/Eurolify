@@ -838,10 +838,14 @@ export const en: Textos = {
   fila_problema: "Order issue",
   fila_reembolso: "Refund",
   fila_ligacao_faturacao: "Invoicing connection with an error",
+  fila_pedido_titular: "Personal data request",
   motivoTarefa_renovacao_recusada:
     "the invoicing software refused to renew access",
   motivoTarefa_teste_falhou: "the connection test failed",
   motivoTarefa_com_erro: "connection with an error",
+  motivoTarefa_por_responder:
+    "not yet answered; the legal deadline is one month from when it arrived",
+  motivoTarefa_prorrogado: "deadline extended; the customer was informed",
   decidirAbrirFaturacao: "Open Invoicing",
   faturacaoRetidasNenhuma: "No invoices held for now.",
   faturacaoRetidasUma: "1 invoice held waiting for the connection.",

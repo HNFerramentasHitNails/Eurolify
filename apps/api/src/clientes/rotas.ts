@@ -7,11 +7,15 @@ import { Type, type Static } from "typebox";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import {
   CANAIS_CONSENTIMENTO,
+  CANAIS_PEDIDO_RECEBIDO,
   ENTIDADES_DO_RASTO_CLIENTE,
+  ESTADOS_PEDIDO_RECEBIDO,
+  FINS_PEDIDO_RECEBIDO,
   ESTADOS_DUPLICADO,
   ESTADOS_VIES,
   SINAIS_DUPLICADO,
   TIPOS_DE_ANEXO,
+  TIPOS_PEDIDO_RECEBIDO,
   TIPOS_PEDIDO_TITULAR,
   type BaseDados,
   type TipoDeAnexo,
@@ -41,6 +45,12 @@ import {
   fundirClientes,
   limitarCliente,
   listarPedidosTitular,
+  listarPedidosRecebidos,
+  obterPedidoRecebido,
+  registarPedidoRecebido,
+  prorrogarPedidoRecebido,
+  fecharPedidoRecebido,
+  type PedidoRecebido,
   pseudonimizarCliente,
   type FichaComOMesmoContacto,
   linhaDoTempo,
@@ -834,6 +844,99 @@ const paraPedidoTitular = (
   em: p.em.toISOString(),
   resultado: p.resultado,
   encomendas_por_acabar: p.encomendas_por_acabar,
+});
+// O pedido do titular recebido e o prazo de resposta (docs/23 §15.14; migração
+// 0092; RGPD, art. 12.º, n.os 3 e 4).
+const IdPedidoRecebido = idCom("prq", "prq_…");
+const Dia = Type.String({ format: "date", description: "AAAA-MM-DD" });
+const PedidoRegistarRecebido = Type.Object(
+  {
+    tipo: umDe(TIPOS_PEDIDO_RECEBIDO),
+    canal: umDe(CANAIS_PEDIDO_RECEBIDO),
+    recebido_em: Type.Optional(
+      Type.String({
+        format: "date-time",
+        description:
+          "Quando o pedido chegou (o prazo conta daí, não do dia em que se trata); por omissão, agora. Nunca no futuro",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+const PedidoProrrogar = Type.Object(
+  {
+    prorrogado_ate: Dia,
+    motivo: Type.String({
+      minLength: 1,
+      maxLength: 200,
+      description:
+        "Porquê (complexidade, número de pedidos), sem dados da pessoa: nem o nome, nem o contacto, nem o que pediu",
+    }),
+    titular_informado_em: Type.String({
+      format: "date",
+      description:
+        "O dia em que o titular foi informado da prorrogação e dos motivos: dentro do primeiro mês (art. 12.º, n.º 3)",
+    }),
+  },
+  { additionalProperties: false },
+);
+const PedidoFechar = Type.Object(
+  {
+    fim: umDe(FINS_PEDIDO_RECEBIDO),
+    em: Type.String({
+      format: "date",
+      description:
+        "O dia em que se respondeu ou, na recusa, em que se informou o titular das razões e da possibilidade de reclamar à autoridade de controlo (art. 12.º, n.º 4). Nunca no futuro",
+    }),
+    pedido: Type.Optional(
+      idCom(
+        "dsr",
+        "O pedido executado (dsr_…) do mesmo titular; obrigatório, e só, no fim executado",
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+const PedidoRecebidoEsquema = Type.Object({
+  id: Type.String({ description: "prq_…" }),
+  cliente: Type.String({ description: "cus_…" }),
+  tipo: umDe(TIPOS_PEDIDO_RECEBIDO),
+  canal: umDe(CANAIS_PEDIDO_RECEBIDO),
+  recebido_em: Instante,
+  prazo_legal: Type.String({
+    format: "date",
+    description:
+      "Um mês depois do dia em que chegou, no fuso do comerciante (art. 12.º, n.º 3); calculado pelo Eurolify",
+  }),
+  prorrogado_ate: Type.Union([Type.String({ format: "date" }), Type.Null()]),
+  prorrogado_motivo: Type.Union([Type.String(), Type.Null()]),
+  titular_informado_em: Type.Union([
+    Type.String({ format: "date" }),
+    Type.Null(),
+  ]),
+  estado: umDe(ESTADOS_PEDIDO_RECEBIDO),
+  fechado_em: Type.Union([Type.String({ format: "date" }), Type.Null()]),
+  pedido: Type.Union([Type.String({ description: "dsr_…" }), Type.Null()]),
+  quem: Type.String(),
+  criado_em: Instante,
+});
+const paraPedidoRecebido = (
+  p: PedidoRecebido,
+): Static<typeof PedidoRecebidoEsquema> => ({
+  id: `prq_${p.id}`,
+  cliente: `cus_${p.cliente_id}`,
+  tipo: p.tipo,
+  canal: p.canal,
+  recebido_em: p.recebido_em.toISOString(),
+  prazo_legal: p.prazo_legal,
+  prorrogado_ate: p.prorrogado_ate,
+  prorrogado_motivo: p.prorrogado_motivo,
+  titular_informado_em: p.titular_informado_em,
+  estado: p.estado,
+  fechado_em: p.fechado_em,
+  pedido: p.pedido_titular_id === null ? null : `dsr_${p.pedido_titular_id}`,
+  quem: p.quem,
+  criado_em: p.criado_em.toISOString(),
 });
 const FichasComOMesmoContacto = Type.Array(
   Type.Object({
@@ -1931,6 +2034,132 @@ export function rotasDosClientes(
         )
       ).map(paraPedidoTitular),
     }),
+  );
+
+  // ---- O pedido do titular recebido e o prazo de resposta (§15.14)
+
+  rotas.post(
+    "/customers/:id/privacy-requests/received",
+    {
+      config: privacidade,
+      schema: {
+        description:
+          "Regista a chegada de um pedido do titular (docs/23 §15.14, T1): o tipo, o canal e quando chegou. O Eurolify calcula o prazo legal (um mês desde que chegou, RGPD art. 12.º, n.º 3) e põe o pedido na fila «pedido_titular» das tarefas até fechar. Só numa ficha activa: um pedido de quem ainda não tem ficha fica fora até se saber quem é (Q-P2).",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdCliente),
+        body: PedidoRegistarRecebido,
+        response: { 201: PedidoRecebidoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 201, (trx, c) =>
+        emClientes(resposta, async () => {
+          const id = await registarPedidoRecebido(
+            trx,
+            c.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body.tipo,
+            pedido.body.canal,
+            pedido.body.recebido_em ?? null,
+          );
+          return paraPedidoRecebido(
+            await obterPedidoRecebido(trx, c.comercianteId, id),
+          );
+        }),
+      ),
+  );
+
+  rotas.get(
+    "/customers/:id/privacy-requests/received",
+    {
+      config: privacidade,
+      schema: {
+        description:
+          "Os pedidos do titular recebidos nesta ficha e nas fundidas nela, os mais recentes primeiro, com o prazo legal e o estado.",
+        params: ParametroId(IdCliente),
+        response: {
+          200: Type.Object({ dados: Type.Array(PedidoRecebidoEsquema) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => ({
+      dados: (
+        await emClientes(resposta, () =>
+          listarPedidosRecebidos(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+          ),
+        )
+      ).map(paraPedidoRecebido),
+    }),
+  );
+
+  rotas.post(
+    "/privacy-requests/received/:id/extend",
+    {
+      config: privacidade,
+      schema: {
+        description:
+          "Prorroga o prazo, uma vez, enquanto o mês ainda não passou (RGPD art. 12.º, n.º 3): até dois meses depois da chegada (leitura conservadora, por confirmar com o jurista), com o motivo e o dia em que o titular foi informado, dentro do primeiro mês.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdPedidoRecebido),
+        body: PedidoProrrogar,
+        response: { 200: PedidoRecebidoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, c) =>
+        emClientes(resposta, async () => {
+          const id = semPrefixo(pedido.params.id);
+          await prorrogarPedidoRecebido(
+            trx,
+            c.comercianteId,
+            id,
+            pedido.body.prorrogado_ate,
+            pedido.body.motivo,
+            pedido.body.titular_informado_em,
+          );
+          return paraPedidoRecebido(
+            await obterPedidoRecebido(trx, c.comercianteId, id),
+          );
+        }),
+      ),
+  );
+
+  rotas.post(
+    "/privacy-requests/received/:id/close",
+    {
+      config: privacidade,
+      schema: {
+        description:
+          "Fecha o pedido recebido, uma vez, com o dia (docs/23 §15.14, T3): executado (com o pedido executado, dsr_…, do mesmo titular), respondido fora do Eurolify, ou recusado (o dia em que se informou o titular das razões, art. 12.º, n.º 4). Fechado, não muda nem se apaga; sai da fila das tarefas.",
+        headers: CabecalhoIdempotencia,
+        params: ParametroId(IdPedidoRecebido),
+        body: PedidoFechar,
+        response: { 200: PedidoRecebidoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, c) =>
+        emClientes(resposta, async () => {
+          const id = semPrefixo(pedido.params.id);
+          await fecharPedidoRecebido(
+            trx,
+            c.comercianteId,
+            id,
+            pedido.body.fim,
+            pedido.body.em,
+            pedido.body.pedido === undefined
+              ? null
+              : semPrefixo(pedido.body.pedido),
+          );
+          return paraPedidoRecebido(
+            await obterPedidoRecebido(trx, c.comercianteId, id),
+          );
+        }),
+      ),
   );
 
   // ---- Isenção manual (§13.5)
