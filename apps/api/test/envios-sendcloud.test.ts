@@ -52,7 +52,7 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     await expect(semRede.testar(CRED)).rejects.toBeInstanceOf(ErroDeRede);
   });
 
-  it("os serviços da conta: só o de teste (D2), por país, sem medidas nem alfândega (D3), e sem o país onde o mesmo código pede ponto (§21)", async () => {
+  it("os serviços da conta: só o de teste (D2), por país, sem medidas nem alfândega (D3)", async () => {
     const f = sendcloudFalsa();
     f.estado.servicos.set("PT", [
       opcao(SERVICO_DE_TESTE, { fields: ["to_telephone"], maxKg: "2.000" }),
@@ -60,9 +60,6 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     ]);
     f.estado.servicos.set("ES", [
       opcao(SERVICO_DE_TESTE, { fields: ["to_email"], maxKg: "1.500" }),
-    ]);
-    f.estado.servicos.set("FR", [
-      opcao(SERVICO_DE_TESTE, { servicePoint: true }),
     ]);
     f.estado.servicos.set("DE", [
       opcao(SERVICO_DE_TESTE, { fields: ["length", "width", "height"] }),
@@ -73,7 +70,7 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     const a = adaptadorSendcloud(f.buscar);
     const s = await a.servicosDaConta?.(CRED, {
       origem: "PT",
-      destinos: ["PT", "ES", "FR", "DE", "CH"],
+      destinos: ["PT", "ES", "DE", "CH"],
       modo: "teste",
     });
     expect(s).toEqual([
@@ -420,5 +417,26 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     expect(f.estado.pedidos.at(-1)?.corpo).not.toHaveProperty(
       "to_service_point",
     );
+  });
+
+  it("o mesmo código com e sem ponto de recolha em países diferentes fica de fora em todos (§21; #439, P3-6)", async () => {
+    const f = sendcloudFalsa();
+    f.estado.servicos.set("PT", [opcao(SERVICO_DE_TESTE)]);
+    f.estado.servicos.set("FR", [
+      opcao(SERVICO_DE_TESTE, { servicePoint: true }),
+    ]);
+    const a = adaptadorSendcloud(f.buscar);
+    for (const destinos of [
+      ["PT", "FR"],
+      ["FR", "PT"],
+    ]) {
+      expect(
+        await a.servicosDaConta?.(CRED, {
+          origem: "PT",
+          destinos,
+          modo: "teste",
+        }),
+      ).toEqual([]);
+    }
   });
 });

@@ -237,6 +237,8 @@ const paraResumo = (r: Resumo) => ({
           nome: r.portes.nome,
           // A data-limite de entrega se encomendar agora (docs/36 L1).
           data_limite: r.portes.data_limite,
+          // O ponto de recolha que o cliente escolheu (docs/36 §21).
+          ponto: r.portes.ponto,
           tarifa: r.portes.tarifa,
           base: r.portes.base,
           valor_iva: r.portes.iva,

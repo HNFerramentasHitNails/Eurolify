@@ -845,7 +845,13 @@ const entregaParaZona = (
   entrega: Entrega | null,
   onde: "morada" | "ponto",
 ): Entrega | null =>
-  onde === "ponto" ? (entrega?.ponto === undefined ? null : entrega) : entrega;
+  onde === "ponto"
+    ? entrega?.ponto === undefined
+      ? null
+      : entrega
+    : entrega?.ponto === undefined
+      ? entrega
+      : null;
 
 export async function porFaturacao(
   trx: Transaction<BaseDados>,
@@ -904,9 +910,14 @@ export async function porMetodoEntrega(
       { motivo },
     );
   }
+  // A morada de um ponto não serve um método de morada: sai, e o resumo
+  // pede a morada de casa (revisão do #439, P1-1).
   await trx
     .updateTable("sessao_checkout")
-    .set({ metodo_entrega_id: m.id })
+    .set({
+      metodo_entrega_id: m.id,
+      ...(s.entrega?.ponto === undefined ? {} : { entrega: null }),
+    })
     .where("id", "=", s.id)
     .execute();
 }
@@ -1407,6 +1418,8 @@ export interface Resumo {
     nome: Record<string, string>;
     /** A data-limite de entrega se encomendar agora (docs/36 L1), AAAA-MM-DD. */
     data_limite: string;
+    /** O ponto de recolha escolhido, num método `ponto` (docs/36 §21). */
+    ponto: { id: string; nome: string } | null;
     tarifa: number;
     decisao: Decisao;
     base: number;
@@ -1492,7 +1505,9 @@ export async function calcularResumo(
   // Num método `ponto`, a entrega é o ponto escolhido (docs/36 §21).
   if (onde === "ponto") {
     if (s.entrega?.ponto === undefined) em_falta.push("ponto_recolha");
-  } else if (s.entrega === null) {
+  } else if (s.entrega === null || s.entrega.ponto !== undefined) {
+    // Um método de morada com a morada de um ponto (o comerciante mudou o
+    // método, ou outro separador): falta a morada (revisão do #439, P1-1).
     em_falta.push("entrega");
   }
   if (s.faturacao === null) em_falta.push("faturacao");
@@ -1681,6 +1696,11 @@ export async function calcularResumo(
     portes = {
       metodo_id: m.id,
       nome: m.nome,
+      // O ponto que o cliente viu entra na impressão (revisão do #439, P3-2).
+      ponto:
+        onde === "ponto" && s.entrega?.ponto !== undefined
+          ? s.entrega.ponto
+          : null,
       data_limite: dataLimite(
         momento,
         comerciante.fuso,
@@ -1798,6 +1818,9 @@ export const impressaoDo = (r: Resumo) => ({
           // A data-limite que o cliente viu (docs/36 L1; revisão do #397,
           // P1-1): se mudar até ao botão final, a encomenda não se faz.
           r.portes.data_limite,
+          // O ponto de recolha, só quando há (docs/36 §21; revisão do #439,
+          // P3-2): as impressões sem ponto ficam as de antes.
+          ...(r.portes.ponto === null ? [] : [`ponto:${r.portes.ponto.id}`]),
         ],
   total: r.totais.total,
   textos: r.textos.map((t) => t.versao_id),

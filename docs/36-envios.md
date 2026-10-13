@@ -322,6 +322,11 @@ contra um ambiente de teste.
 - Se o art. 19.º do DL 24/2014 (reembolso em dobro) se aplica à expedição
   perdida ou só à indisponibilidade do bem (L4).
 - Os textos da data-limite e das restrições de entrega por língua (L1, L3).
+- Entrega num ponto de recolha (§21):
+  - se o dono do ponto é «terceiro indicado pelo consumidor» (L5);
+  - se o país do ponto, que passa a ser o país de entrega, decide os textos
+    de consumidor e o IVA quando o cliente vive noutro país (revisão do #439,
+    P3-4).
 
 ## 13. Como entra no código (quando aprovado)
 
@@ -1269,6 +1274,25 @@ Dois pedidos, por esta ordem:
 - **Em modo teste a Sendcloud só tem o serviço `sendcloud:letter`** (D2),
   que não é de ponto: um método `ponto` com a Sendcloud só se configura em
   modo real. Os testes pela API usam a transportadora de ensaio.
+- **As rotas** são `GET /checkout/{token}/pickup-points?metodo&pais&codigo_postal`
+  e `PUT /checkout/{token}/pickup-point`, em vez de um `ponto` no `PUT
+  …/delivery` e de `?postal_code=` (revisão do #439, P3-8).
+
+**Da revisão do agente (#439):**
+- **P1-1:** um método de morada não fica com a morada de um ponto. Escolhê-lo
+  tira-a, e o resumo pede a morada (também quando é o comerciante que muda o
+  método).
+- **P2-1:** numa expedição para um ponto só serve o serviço e a conta
+  vendidos (o ponto é da transportadora com que o cliente o escolheu).
+- **P2-2:** o código postal da procura não vai para o registo da aplicação.
+- **P3-2:** o ponto entra na impressão do resumo e aparece nos portes.
+- **P3-6:** um código com e sem ponto em países diferentes fica de fora em
+  todos.
+- **Ficou como está:**
+  - o `GET` da procura conta para o limite de propósito (P3-1);
+  - um `delivered` gravado como «outro» não passa a entregue sozinho quando
+    o «para levantar» chega depois, e fica para uma pessoa (P3-3, para o lado
+    seguro).
 
 **Por verificar** (além de V7 a V9): V10, o formato do horário dos pontos;
 se `carrier_code` é a parte do código do serviço antes de «:» em todas as

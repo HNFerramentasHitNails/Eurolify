@@ -379,6 +379,7 @@ export function adaptadorSendcloud(
 
     async servicosDaConta(c, { origem, destinos }) {
       const porCodigo = new Map<string, ServicoTransportadora>();
+      const ambiguos = new Set<string>();
       for (const destino of destinos) {
         const r = await chamar(buscar, c, "POST", "/shipping-options", {
           from_country_code: origem,
@@ -398,9 +399,11 @@ export function adaptadorSendcloud(
           // O modo real é uma migração com decisão escrita.
           if (s.codigo !== SERVICO_DE_TESTE) continue;
           const ja = porCodigo.get(s.codigo);
-          // O mesmo código com e sem ponto de recolha noutro país: esse país
-          // fica de fora (na dúvida, não vende; docs/36 §21).
+          // O mesmo código com e sem ponto de recolha em países diferentes:
+          // fica de fora em todos (na dúvida, não vende; docs/36 §21;
+          // revisão do #439, P3-6).
           if (ja !== undefined && (ja.ponto === true) !== (s.ponto === true)) {
+            ambiguos.add(s.codigo);
             continue;
           }
           if (ja === undefined) {
@@ -419,9 +422,9 @@ export function adaptadorSendcloud(
           }
         }
       }
-      return [...porCodigo.values()].sort((a, b) =>
-        a.codigo.localeCompare(b.codigo),
-      );
+      return [...porCodigo.values()]
+        .filter((x) => !ambiguos.has(x.codigo))
+        .sort((a, b) => a.codigo.localeCompare(b.codigo));
     },
 
     async procurarPontos(c, { servico, pais, codigoPostal, limite }) {

@@ -11,7 +11,7 @@ import {
 import { cenariosDeEnvios, type Cenario } from "./envios-cenario.js";
 import { eupagoFalso } from "./eupago-falso.js";
 import { hubDeTeste } from "./hub-de-teste.js";
-import { transportadoraFalsa } from "./transportadora-falsa.js";
+import { CHAVE_BOA, transportadoraFalsa } from "./transportadora-falsa.js";
 
 // Entrega num ponto de recolha ou cacifo (docs/36 §21; migração 0089): o
 // método `ponto`, a procura e a escolha no checkout (só o país e o código
@@ -466,5 +466,135 @@ describe.skipIf(URL_BASE === undefined)("Envios: pontos de recolha", () => {
     ]);
     await ok(s.adm("POST", `/shipments/${a.expedicao}/refresh`));
     expect(await estado()).toBe("entregue");
+  });
+
+  it("revisão do #439: o ponto não fica num método de morada; o `place` repetido não confere outra vez; outro ponto depois do resumo não vende", async () => {
+    // P1-1: escolher um método de morada tira a morada do ponto.
+    const token = await sessao();
+    await ok(escolher(token, "P1"));
+    await ok(
+      pedir("PUT", `/checkout/${token}/delivery-method`, {
+        metodo: `${s.metodoManual}`,
+      }),
+    );
+    expect((await ok(pedir("GET", `/checkout/${token}`)))["entrega"]).toBe(
+      null,
+    );
+    expect(
+      (await ok(pedir("GET", `/checkout/${token}/summary`)))["em_falta"],
+    ).toEqual(["entrega"]);
+
+    // P1-1: o comerciante muda o método de `ponto` para morada (manual).
+    const mudavel = String(
+      (
+        await ok(
+          s.adm("POST", "/shipping-methods", {
+            mercado: `mkt_${s.mercado}`,
+            nome: { pt: "Ponto que muda" },
+            tarifa: 100,
+            conta: s.conta,
+            servico: "PONTO_48",
+            entrega: "ponto",
+          }),
+          201,
+        )
+      )["id"],
+    );
+    const t2 = await sessao();
+    await ok(escolher(t2, "P1", mudavel));
+    const lido = await ok(
+      s.adm("GET", `/shipping-methods?mercado=mkt_${s.mercado}`),
+    );
+    const versao = (lido["dados"] as Json[]).find((x) => x["id"] === mudavel)?.[
+      "versao"
+    ];
+    await ok(
+      s.adm("PATCH", `/shipping-methods/${mudavel}`, {
+        versao,
+        entrega: "morada",
+        conta: null,
+        servico: null,
+      }),
+      204,
+    );
+    expect(
+      (await ok(pedir("GET", `/checkout/${t2}/summary`)))["em_falta"],
+    ).toEqual(["entrega"]);
+
+    // P3-2: outro ponto depois do resumo muda a impressão.
+    const t3 = await sessao();
+    await ok(escolher(t3, "P1"));
+    const resumo = await ok(pedir("GET", `/checkout/${t3}/summary`));
+    expect(resumo["portes"]).toMatchObject({
+      ponto: { id: "P1", nome: "Papelaria P1" },
+    });
+    await ok(escolher(t3, "P2"));
+    const comprar = (impressao: unknown) =>
+      pedir("POST", `/checkout/${t3}/place`, {
+        aceita_condicoes: true,
+        versoes: (resumo["textos"] as Json[]).map((t) => t["versao"]),
+        impressao,
+      });
+    expect(await codigo(comprar(resumo["impressao"]))).toEqual([
+      409,
+      "checkout.total_changed",
+    ]);
+    // O `place` repetido numa sessão concluída devolve a mesma encomenda,
+    // sem perguntar outra vez pelo ponto.
+    const novo = await ok(pedir("GET", `/checkout/${t3}/summary`));
+    const e = await ok(comprar(novo["impressao"]), 201);
+    ctt.estado.pontosFechados.add("P2");
+    const outraVez = await ok(comprar(novo["impressao"]), 201);
+    ctt.estado.pontosFechados.clear();
+    expect(outraVez["encomenda"]).toBe(e["encomenda"]);
+  });
+
+  it("revisão do #439, P2-1: numa expedição para um ponto, o serviço de ponto de outra conta não serve", async () => {
+    const outra = String(
+      (
+        await ok(
+          s.adm("POST", "/carrier-accounts", {
+            transportadora: "ctt",
+            nome: "CTT 2",
+            remetente: {
+              nome: "Armazém",
+              linha1: "Rua 1",
+              codigo_postal: "1000-001",
+              localidade: "Lisboa",
+              pais: "PT",
+            },
+          }),
+          201,
+        )
+      )["id"],
+    );
+    await ok(
+      s.adm("PUT", `/carrier-accounts/${outra}/credentials`, {
+        credenciais: { chave: CHAVE_BOA },
+      }),
+      204,
+    );
+    await ok(s.adm("POST", `/carrier-accounts/${outra}/test`));
+    const a = await expedicaoPaga(s, metodoPonto, 1, true, "Rui", {
+      pais: "PT",
+      codigo_postal: "4700-000",
+      ponto: "P1",
+    });
+    const servicos = await ok(
+      s.adm("GET", `/shipments/${a.expedicao}/services`),
+    );
+    expect(
+      (servicos["opcoes"] as Json[]).map((x) => [x["conta"], x["servico"]]),
+    ).toEqual([[s.conta, "PONTO_48"]]);
+    expect(
+      await codigo(
+        s.adm("PUT", `/shipments/${a.expedicao}/service`, {
+          versao: servicos["versao"],
+          conta: outra,
+          servico: "PONTO_48",
+          motivo: "outra conta",
+        }),
+      ),
+    ).toEqual([400, "shipping.invalid_field"]);
   });
 });

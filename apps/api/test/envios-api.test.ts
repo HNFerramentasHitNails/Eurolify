@@ -483,6 +483,7 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
     expect((servicos["dados"] as Json[]).map((x) => x["codigo"])).toEqual([
       "EXPRESSO_48",
       "COM_TELEFONE",
+      "PONTO_48",
       "SO_ESPANHA",
     ]);
     // O gestor não liga contas (shipping:accounts é só do dono).

@@ -34,8 +34,13 @@ Esta parte usa só a Sendcloud: os CTT continuam sem especificação (§11, V1).
 
 - 13/10/2026, local, com o PostgreSQL 18.6 num contentor (contados pelo
   resumo do `vitest`):
-  - `test/envios-pontos.test.ts`: 6 testes verdes;
-  - `test/envios-sendcloud.test.ts`: 11 verdes, 2 deles novos.
+  - `test/envios-pontos.test.ts`: 6 testes verdes no primeiro commit e 8
+    depois da revisão do agente;
+  - `test/envios-sendcloud.test.ts`: 11 verdes, 2 deles novos; 12 depois da
+    revisão;
+  - a suite inteira, no primeiro commit: 1627 verdes. Falhou 1, a lista de
+    serviços da transportadora de ensaio, que ganhou o `PONTO_48`; corrigido
+    no teste.
 - **Prova pela falha,** com quatro protecções tiradas ao mesmo tempo:
   - a conferência do ponto no botão final;
   - a morada fiscal;
@@ -44,6 +49,19 @@ Esta parte usa só a Sendcloud: os CTT continuam sem especificação (§11, V1).
 
   Falham 3 de 6 testes. Só sem a protecção da morada fiscal, falha o teste
   do botão final.
+- **Prova pela falha das correcções da revisão:** sem a P1-1 (o ponto num
+  método de morada) e sem a P2-1 (o serviço de outra conta), falham os 2
+  testes novos (2 de 8).
+
+## Revisão do agente (Sonnet 5.5, publicada no #439)
+
+- **P1-1:** o ponto ficava na sessão depois de passar a um método de
+  morada. Corrigido.
+- **P2-1:** o serviço de ponto de outra conta servia. Corrigido.
+- **P2-2:** o código postal da procura ia para o registo. Corrigido.
+- **P3-2, P3-6:** corrigidos.
+- **P3-4 e P3-8:** só documentos.
+- **Ficaram como estavam, com a razão:** P3-1 e P3-3.
 
 ## O que ficou por verificar
 

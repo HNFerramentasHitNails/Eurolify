@@ -133,6 +133,14 @@ describe("o formulário do Moloni", () => {
       "/invoicing-connections/moloni/callback?code=[tapado]&state=[tapado]&outro=1",
     );
     expect(urlSemSegredos("/x?STATE=a")).toBe("/x?STATE=[tapado]");
+    // O código postal da procura de pontos (docs/36 §21.5; #439, P2-2).
+    expect(
+      urlSemSegredos(
+        "/checkout/t/pickup-points?metodo=shm_1&pais=PT&codigo_postal=4700-000",
+      ),
+    ).toBe(
+      "/checkout/t/pickup-points?metodo=shm_1&pais=PT&codigo_postal=[tapado]",
+    );
   });
 });
 

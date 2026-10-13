@@ -25,6 +25,13 @@ interface Caixa {
   onu: ReadonlySet<string>;
 }
 
+/** É o serviço vendido (a conta e o serviço da cópia do método)? */
+const eoVendido = (
+  vendido: { conta: string; servico: string } | null,
+  conta: string,
+  servico: string,
+) => vendido !== null && vendido.conta === conta && vendido.servico === servico;
+
 /** Porque é que o serviço não serve a caixa, ou `null` se serve. */
 export function porQueNaoServeACaixa(
   s: ServicoTransportadora,
@@ -260,6 +267,7 @@ export async function servicosDaExpedicao(
     for (const conta of await contasProntas(trx, cfg)) {
       for (const s of conta.servicos) {
         if (porQueNaoServeACaixa(s, caixa) !== null) continue;
+        if (caixa.ponto && !eoVendido(vendido, conta.id, s.codigo)) continue;
         opcoes.push({
           conta: conta.id,
           conta_nome: conta.nome,
@@ -351,7 +359,7 @@ export async function mudarServico(
 ) {
   return noEnvios(db, c, async (trx) => {
     await marcar(trx, quem, dados.motivo);
-    const { x, caixa } = await caixaDa(trx, id, true);
+    const { x, caixa, vendido } = await caixaDa(trx, id, true);
     conferirCorrigivel(x);
     conferirVersao(x.versao, dados.versao);
     if ((dados.conta === null) !== (dados.servico === null)) {
@@ -372,6 +380,15 @@ export async function mudarServico(
         throw new ErroEnvios(
           "shipping.invalid_field",
           `o serviço não serve esta expedição: ${porque}`,
+        );
+      }
+      // O ponto é da transportadora e da conta com que o cliente o
+      // escolheu: numa expedição para um ponto, só o serviço vendido
+      // (revisão do #439, P2-1).
+      if (caixa.ponto && !eoVendido(vendido, dados.conta, dados.servico)) {
+        throw new ErroEnvios(
+          "shipping.invalid_field",
+          "o serviço não serve esta expedição: o ponto de recolha foi escolhido com o serviço vendido",
         );
       }
     }
