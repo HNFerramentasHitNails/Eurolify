@@ -4852,9 +4852,12 @@ try {
     }
     await rp.getByRole("button", { name: "Publicar outra vez" }).click();
     await rp
-      .getByText("Outra pessoa mudou esta publicação entretanto.", {
-        exact: false,
-      })
+      .getByText(
+        "Outra pessoa mudou esta publicação ou as variantes do artigo entretanto.",
+        {
+          exact: false,
+        },
+      )
       .first()
       .waitFor();
     confere(

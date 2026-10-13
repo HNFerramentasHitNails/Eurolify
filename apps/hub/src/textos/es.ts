@@ -1438,7 +1438,8 @@ export const es: Textos = {
     "La traducción del texto alternativo de las imágenes todavía no se verifica.",
   publicarNovosImpedimentos:
     "No hemos publicado: ha aparecido un impedimento y no ha cambiado nada.",
-  publicarConflito: "Otra persona cambió esta publicación mientras tanto.",
+  publicarConflito:
+    "Otra persona cambió esta publicación o las variantes del artículo mientras tanto.",
   publicarConflitoActual:
     "Debajo está el estado actual, con las variantes actuales; sus elecciones siguen marcadas. Verifique otra vez antes de publicar.",
   publicarSemResposta:

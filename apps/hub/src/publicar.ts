@@ -86,6 +86,21 @@ export function escolhaDepoisDeRecarregar(
   return activasAgora.filter((v) => marcadas.includes(v));
 }
 
+/**
+ * As variantes que apareceram ao reler (criadas com o ecrã aberto), juntas às
+ * que já se tinham visto aparecer: o ecrã marca-as «nova» até sair, também
+ * num par sem publicação à venda, onde `marcaDaVariante` não as vê (revisão
+ * do #436, P2).
+ */
+export function variantesQueApareceram(
+  jaApareceram: readonly string[],
+  activasAntes: readonly string[],
+  activasAgora: readonly string[],
+): string[] {
+  const novas = activasAgora.filter((v) => !activasAntes.includes(v));
+  return [...jaApareceram, ...novas.filter((v) => !jaApareceram.includes(v))];
+}
+
 /** O que identifica uma escolha: o par e as variantes fora, sem ordem. */
 export function chaveDaEscolha(
   canal: string,

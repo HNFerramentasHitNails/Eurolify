@@ -207,6 +207,7 @@ describe.skipIf(URL_BASE === undefined)(
       sessao: string,
       versao: number | null,
       fora: string[] = [],
+      vistas: string[] = [c.v1, c.v2],
     ) =>
       h.pedir("POST", `/hub/products/${c.artigo}/publications`, {
         sessao,
@@ -216,6 +217,7 @@ describe.skipIf(URL_BASE === undefined)(
           mercado: c.mercado,
           variantes_fora: fora,
           versao,
+          variantes_vistas: vistas,
         },
       });
     const retirarNoHub = (c: C, sessao: string, id: string, versao: number) =>
@@ -345,6 +347,55 @@ describe.skipIf(URL_BASE === undefined)(
       expect(lidas.json<{ dados: Publicacao[] }>().dados).toMatchObject([
         { estado: "publicado", variantes_fora: [c.v2], versao: pub.versao },
       ]);
+    });
+
+    it("uma variante criada com o ecrã aberto, num par sem publicação, dá 409 sem escrever; vista, entra (§27.2)", async () => {
+      const c = await comerciante("Variante nova");
+      // O ecrã abre com a ENS-041 e a ENS-041-B; outra pessoa cria a
+      // ENS-041-C pela chave. O par ainda não tem publicação, por isso a
+      // versão (null) não muda e não a apanha.
+      const nova = await chave(
+        c.segredo,
+        "POST",
+        `/products/${c.artigo}/variants`,
+        {
+          sku: `ENS-041-C-${randomUUID()}`,
+          unidade_de_venda: "unidade",
+          peso_g: 60,
+        },
+      );
+      expect(nova.statusCode, nova.body).toBe(201);
+      const v3 = nova.json<{ id: string; estado: string }>();
+      expect(v3.estado).toBe("activa");
+      // Publicar com a ENS-041-B fora levava a ENS-041-C, que ninguém viu.
+      const r = await publicarNoHub(c, c.dono.sessao, null, [c.v2]);
+      expect(r.statusCode, r.body).toBe(409);
+      expect(h.codigo(r)).toBe("catalog.version_conflict");
+      const { rows } = await sql<{ n: number }>`
+        select count(*)::int as n from publicacao
+        where artigo_id = ${c.artigo.slice(4)}::uuid`.execute(base.dono);
+      expect(rows[0]?.n).toBe(0);
+      // Depois de reler, com a ENS-041-C vista e deixada fora, passa.
+      const ok = await publicarNoHub(
+        c,
+        c.dono.sessao,
+        null,
+        [c.v2, v3.id],
+        [c.v1, c.v2, v3.id],
+      );
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(ok.json<RespostaPublicar>().publicada).toBe(true);
+      // Uma variante arquivada que o ecrã ainda mostra não impede: só as
+      // activas contam.
+      const p2 = ok.json<RespostaPublicar>().publicacao as Publicacao;
+      const r2 = await publicarNoHub(
+        c,
+        c.dono.sessao,
+        p2.versao,
+        [c.v2],
+        [c.v1, c.v2, v3.id, `var_${randomUUID()}`],
+      );
+      expect(r2.statusCode, r2.body).toBe(200);
     });
 
     it("com impedimentos responde publicada: false sem mudar o estado nem as variantes", async () => {
