@@ -18,6 +18,11 @@ export type CodigoErroCheckout =
   | "checkout.empty_cart"
   | "checkout.payment_unavailable"
   | "checkout.out_of_stock"
+  | "checkout.pickup_point_required"
+  | "checkout.pickup_point_unavailable"
+  | "checkout.pickup_point_outside_zone"
+  | "checkout.too_many_searches"
+  | "checkout.carrier_unavailable"
   | "cart.not_open"
   | "cart.secret_invalid"
   | "cart.min_quantity"
@@ -44,6 +49,12 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroCheckout, number> = {
   "checkout.empty_cart": 422,
   "checkout.payment_unavailable": 422,
   "checkout.out_of_stock": 422,
+  // Entrega num ponto de recolha (docs/36 §21).
+  "checkout.pickup_point_required": 422,
+  "checkout.pickup_point_unavailable": 409,
+  "checkout.pickup_point_outside_zone": 422,
+  "checkout.too_many_searches": 429,
+  "checkout.carrier_unavailable": 503,
   "cart.not_open": 409,
   "cart.secret_invalid": 404,
   "cart.min_quantity": 422,

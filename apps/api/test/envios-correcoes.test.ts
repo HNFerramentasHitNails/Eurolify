@@ -620,6 +620,7 @@ describe("porQueNaoServeACaixa (docs/36 §19)", () => {
   };
   const caixa = {
     pais: "PT",
+    ponto: false,
     temTelefone: true,
     pesoG: 500,
     onu: new Set<string>(),
@@ -641,6 +642,13 @@ describe("porQueNaoServeACaixa (docs/36 §19)", () => {
     expect(
       porQueNaoServeACaixa(servico, { ...caixa, temTelefone: false }),
     ).toMatch(/telefone/);
+    // A entrega vendida não muda com o serviço (docs/36 §21).
+    expect(porQueNaoServeACaixa(servico, { ...caixa, ponto: true })).toMatch(
+      /pontos de recolha/,
+    );
+    expect(porQueNaoServeACaixa({ ...servico, ponto: true }, caixa)).toMatch(
+      /pontos de recolha/,
+    );
     // Sem peso calculado, o máximo não se confere aqui (a etiqueta pede-o).
     expect(porQueNaoServeACaixa(servico, { ...caixa, pesoG: null })).toBeNull();
   });

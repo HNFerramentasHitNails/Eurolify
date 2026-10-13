@@ -226,7 +226,7 @@ revisão do agente. Um pedido só.
   da fila do comerciante, por isso fica por medir com volume (P3-5).
 - **Reposição em modo `replica`:** se repuser o `atribuicao_rasto` antes da
   `notificacao`, o gatilho, que era `ALWAYS`, recriava notificações (P3-7).
-  Desde a 0090 (#435) já não é `ALWAYS` e não corre numa reposição.
+  Desde a 0091 (#435) já não é `ALWAYS` e não corre numa reposição.
 
 ## 12.1 O aviso da ligação com erro (13/10/2026; migração 0084; EK)
 
@@ -261,7 +261,7 @@ fornecedor nem as regras N4 a N11:
   texto da transportadora, o nome nem a morada de quem recebe.
 - **O gatilho não fica `ALWAYS`**: segue a regra da 0053 (um gatilho que
   escreve não fica `ALWAYS`; uma cópia reposta em modo `replica` não cria
-  notificações a mais). Os da 0067, 0071 e 0084 ficaram alinhados na 0090
+  notificações a mais). Os da 0067, 0071 e 0084 ficaram alinhados na 0091
   (#435), com o índice das tarefas (`notificacao_tarefa`), que também
   escreve; um teste de `seguranca-base` recusa um gatilho novo que crie
   notificações e fique `ALWAYS`.

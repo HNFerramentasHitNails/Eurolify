@@ -18,10 +18,19 @@ export const temTelefone = (t: unknown): t is string =>
 /** O que a expedição leva, para conferir um serviço. */
 interface Caixa {
   pais: string;
+  /** A encomenda entrega num ponto de recolha (docs/36 §21). */
+  ponto: boolean;
   temTelefone: boolean;
   pesoG: number | null;
   onu: ReadonlySet<string>;
 }
+
+/** É o serviço vendido (a conta e o serviço da cópia do método)? */
+const eoVendido = (
+  vendido: { conta: string; servico: string } | null,
+  conta: string,
+  servico: string,
+) => vendido !== null && vendido.conta === conta && vendido.servico === servico;
 
 /** Porque é que o serviço não serve a caixa, ou `null` se serve. */
 export function porQueNaoServeACaixa(
@@ -29,6 +38,12 @@ export function porQueNaoServeACaixa(
   caixa: Caixa,
 ): string | null {
   if (!s.paises.includes(caixa.pais)) return "não entrega no país da morada";
+  // A entrega vendida (morada ou ponto) não muda com o serviço (§21).
+  if ((s.ponto === true) !== caixa.ponto) {
+    return caixa.ponto
+      ? "não entrega em pontos de recolha, e a encomenda é para um ponto"
+      : "entrega em pontos de recolha, e a encomenda é para uma morada";
+  }
   if (s.pesoMaxG !== null && caixa.pesoG !== null && caixa.pesoG > s.pesoMaxG) {
     return "a caixa pesa mais do que o serviço aceita";
   }
@@ -107,6 +122,7 @@ async function caixaDa(
         : { conta: metodo.conta, servico: metodo.servico },
     caixa: {
       pais: entrega.pais,
+      ponto: (entrega as { ponto?: unknown }).ponto !== undefined,
       temTelefone: temTelefone(contacto.telefone),
       pesoG: x.peso_corrigido_g ?? calculadoG,
       onu,
@@ -251,6 +267,7 @@ export async function servicosDaExpedicao(
     for (const conta of await contasProntas(trx, cfg)) {
       for (const s of conta.servicos) {
         if (porQueNaoServeACaixa(s, caixa) !== null) continue;
+        if (caixa.ponto && !eoVendido(vendido, conta.id, s.codigo)) continue;
         opcoes.push({
           conta: conta.id,
           conta_nome: conta.nome,
@@ -342,7 +359,7 @@ export async function mudarServico(
 ) {
   return noEnvios(db, c, async (trx) => {
     await marcar(trx, quem, dados.motivo);
-    const { x, caixa } = await caixaDa(trx, id, true);
+    const { x, caixa, vendido } = await caixaDa(trx, id, true);
     conferirCorrigivel(x);
     conferirVersao(x.versao, dados.versao);
     if ((dados.conta === null) !== (dados.servico === null)) {
@@ -363,6 +380,15 @@ export async function mudarServico(
         throw new ErroEnvios(
           "shipping.invalid_field",
           `o serviço não serve esta expedição: ${porque}`,
+        );
+      }
+      // O ponto é da transportadora e da conta com que o cliente o
+      // escolheu: numa expedição para um ponto, só o serviço vendido
+      // (revisão do #439, P2-1).
+      if (caixa.ponto && !eoVendido(vendido, dados.conta, dados.servico)) {
+        throw new ErroEnvios(
+          "shipping.invalid_field",
+          "o serviço não serve esta expedição: o ponto de recolha foi escolhido com o serviço vendido",
         );
       }
     }

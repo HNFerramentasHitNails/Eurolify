@@ -399,7 +399,7 @@ describe.skipIf(URL_BASE === undefined)(
       await desligar(id);
     });
 
-    it("uma cópia reposta em modo replica não manda o e-mail outra vez (regra da 0053; 0090, #435)", async () => {
+    it("uma cópia reposta em modo replica não manda o e-mail outra vez (regra da 0053; 0091, #435)", async () => {
       const id = await novaLigacao(a, entidade, false);
       // A linha como uma reposição a escreve: já com erro, a passagem e o
       // motivo, sem os gatilhos da origem.

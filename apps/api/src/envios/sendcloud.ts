@@ -6,6 +6,7 @@ import {
   type EtiquetaEmitida,
   type EventoSeguimento,
   type MoradaEtiqueta,
+  type PontoRecolha,
   type ResultadoEtiqueta,
   type ServicoTransportadora,
 } from "./adaptador.js";
@@ -25,6 +26,10 @@ import {
 //   `Sendcloud-Signature`. O conteúdo não está descrito na v3: o aviso é só
 //   um sinal para consultar (D4).
 // - Serviços: POST /shipping-options, por origem e destino (D1, D3).
+// - Pontos de recolha (docs/36 §21, lida a 13/10/2026, **W**): GET
+//   /service-points (país, código postal, transportadora) e POST
+//   /service-points/{id}/check-availability antes de criar o envio; na
+//   etiqueta, `to_service_point.id`.
 
 const BASE = "https://panel.sendcloud.sc/api/v3";
 
@@ -282,10 +287,12 @@ export function servicoDe(
   if (codigo === null || !/^[0-9A-Za-z_.:/-]{1,100}$/.test(codigo)) return null;
   const req = objecto(o["requirements"]);
   const campos = lista(req?.["fields"]).map(texto);
-  // Na dúvida, não se vende (R4; revisão do #406, P3-2).
+  // Na dúvida, não se vende (R4; revisão do #406, P3-2). Um serviço que
+  // exige ponto de recolha só serve um método `ponto` (docs/36 §21).
+  const ponto = req?.["is_service_point_required"];
   if (
     req === null ||
-    req["is_service_point_required"] !== false ||
+    typeof ponto !== "boolean" ||
     req["export_documents"] !== false ||
     campos.some((c) => c === "length" || c === "width" || c === "height")
   ) {
@@ -306,8 +313,48 @@ export function servicoDe(
     pedeEmail: campos.includes("to_email"),
     // A Sendcloud só diz «sim ou não» aos perigosos, sem números ONU (D3).
     aceitaOnu: [],
+    ...(ponto ? { ponto: true } : {}),
   };
 }
+
+/** Um ponto de recolha da Sendcloud, ou `null` se falta a morada (docs/36 §21). */
+export function pontoDe(o: Record<string, unknown>): PontoRecolha | null {
+  const id = texto(o["id"]);
+  const m = objecto(o["address"]);
+  const rua = [texto(m?.["street"]), texto(m?.["house_number"])]
+    .filter((x) => x !== null)
+    .join(" ")
+    .trim();
+  const cp = texto(m?.["postal_code"]);
+  const localidade = texto(m?.["city"]);
+  const pais = texto(m?.["country_code"])?.toUpperCase() ?? null;
+  // Um ponto expirado, ou sem morada inteira, não se oferece.
+  if (
+    o["is_expired"] === true ||
+    id === null ||
+    !/^[0-9A-Za-z_-]{1,100}$/.test(id) ||
+    rua === "" ||
+    cp === null ||
+    localidade === null ||
+    pais === null ||
+    !/^[A-Z]{2}$/.test(pais)
+  ) {
+    return null;
+  }
+  const d = Number(o["distance"]);
+  return {
+    id,
+    nome: (texto(o["name"]) ?? id).slice(0, 200),
+    linha1: rua.slice(0, 200),
+    codigo_postal: cp.slice(0, 20),
+    localidade: localidade.slice(0, 100),
+    pais,
+    distanciaM: Number.isFinite(d) && d >= 0 ? Math.round(d) : null,
+  };
+}
+
+/** O id do ponto como a Sendcloud o deu: um número, se for só algarismos. */
+const idDoPonto = (id: string) => (/^[0-9]{1,15}$/.test(id) ? Number(id) : id);
 
 export function adaptadorSendcloud(
   buscar: Buscar = fetch,
@@ -332,6 +379,7 @@ export function adaptadorSendcloud(
 
     async servicosDaConta(c, { origem, destinos }) {
       const porCodigo = new Map<string, ServicoTransportadora>();
+      const ambiguos = new Set<string>();
       for (const destino of destinos) {
         const r = await chamar(buscar, c, "POST", "/shipping-options", {
           from_country_code: origem,
@@ -351,6 +399,13 @@ export function adaptadorSendcloud(
           // O modo real é uma migração com decisão escrita.
           if (s.codigo !== SERVICO_DE_TESTE) continue;
           const ja = porCodigo.get(s.codigo);
+          // O mesmo código com e sem ponto de recolha em países diferentes:
+          // fica de fora em todos (na dúvida, não vende; docs/36 §21;
+          // revisão do #439, P3-6).
+          if (ja !== undefined && (ja.ponto === true) !== (s.ponto === true)) {
+            ambiguos.add(s.codigo);
+            continue;
+          }
           if (ja === undefined) {
             porCodigo.set(s.codigo, s);
           } else {
@@ -367,9 +422,58 @@ export function adaptadorSendcloud(
           }
         }
       }
-      return [...porCodigo.values()].sort((a, b) =>
-        a.codigo.localeCompare(b.codigo),
+      return [...porCodigo.values()]
+        .filter((x) => !ambiguos.has(x.codigo))
+        .sort((a, b) => a.codigo.localeCompare(b.codigo));
+    },
+
+    async procurarPontos(c, { servico, pais, codigoPostal, limite }) {
+      // A transportadora do serviço: a parte antes de «:» no código do
+      // serviço (ex.: `postnl:standard`). Só o país e o código postal saem.
+      const transportadora = servico.split(":")[0] ?? "";
+      const q = new URLSearchParams({
+        country_code: pais,
+        address_postal_code: codigoPostal,
+        carrier_code: transportadora,
+        limit: String(limite),
+      });
+      const r = await chamar(
+        buscar,
+        c,
+        "GET",
+        `/service-points?${q.toString()}`,
       );
+      if (r.estado !== 200) {
+        throw new ErroDeRede(
+          `a procura de pontos respondeu ${String(r.estado)}`,
+        );
+      }
+      const j = r.json;
+      const dados = Array.isArray(j) ? j : lista(objecto(j)?.["data"]);
+      const pontos: PontoRecolha[] = [];
+      for (const x of dados) {
+        const o = objecto(x);
+        const p = o === null ? null : pontoDe(o);
+        if (p !== null && p.pais === pais) pontos.push(p);
+      }
+      return pontos.slice(0, limite);
+    },
+
+    async pontoDisponivel(c, ponto) {
+      const r = await chamar(
+        buscar,
+        c,
+        "POST",
+        `/service-points/${encodeURIComponent(ponto)}/check-availability`,
+      );
+      if (r.estado === 404) return false;
+      if (r.estado !== 200) {
+        throw new ErroDeRede(`a disponibilidade respondeu ${String(r.estado)}`);
+      }
+      const j = objecto(r.json);
+      const v = objecto(j?.["data"])?.["is_available"] ?? j?.["is_available"];
+      // Só um «sim» claro conta (na dúvida, não vende).
+      return v === true;
     },
 
     async pedirEtiqueta(c, p): Promise<ResultadoEtiqueta> {
@@ -392,6 +496,9 @@ export function adaptadorSendcloud(
         },
         from_address: morada(p.remetente),
         to_address: morada(p.destinatario),
+        ...(p.ponto === undefined
+          ? {}
+          : { to_service_point: { id: idDoPonto(p.ponto) } }),
         parcels: [
           { weight: { value: (p.pesoG / 1000).toFixed(3), unit: "kg" } },
         ],

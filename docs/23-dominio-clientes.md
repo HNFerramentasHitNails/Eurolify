@@ -604,9 +604,8 @@ a fatia 7.
   e não passa pela pseudonimização: escrever como se verificou («resposta do
   e-mail da ficha»), nunca o e-mail ou o número de um documento (P3-1). O
   Hub tem de o dizer;
-- **os perfis mantidos por obrigação fiscal** continuam legíveis por quem tem
-  `customers:read` (apoio); restringi-los depois do pedido fica para decidir
-  (P3-6);
+- **os perfis mantidos por obrigação fiscal**: depois do pedido, só o dono
+  lê o nome, o NIF e a morada (decidido a 13/10/2026, EM; §15.12);
 - **levantar a limitação** é um `DELETE` com corpo; uma variante `POST` para
   clientes que descartam o corpo de um `DELETE` fica para depois (P3-7);
 - **a exportação** ainda não junta o que os outros domínios guardarem
@@ -1298,3 +1297,63 @@ de folga e o aviso pela verificação diária das 07:00.
 Não verificado: o tempo das duas contagens com muitos comerciantes e sessões
 (uma consulta por comerciante, sem `EXPLAIN`); o aviso a sério só se vê na
 VPS depois da publicação.
+
+### 15.12 Os perfis guardados por obrigação fiscal, só para o dono (desenho de 13/10/2026)
+
+Decisão do Diogo, 13/10/2026 (*«A»*; `docs/06` EM), ao P3-6 que ficou na
+§15.10 («Fica por fazer»): depois de um pedido de apagamento, **só quem tem
+`customers:billing` (o dono)** lê o nome, o NIF e a morada dos perfis que
+ficam por obrigação fiscal. O gestor e o apoio (`customers:read`) vêem que o
+perfil existe e que está guardado, sem esses dados. Ex.: a Ana pede o
+apagamento; o perfil da fatura dela fica; o apoio vê «perfil guardado por
+obrigação fiscal», sem o NIF nem a morada.
+
+**Fonte:** RGPD, art. 25.º, n.º 2 (por defeito, só os dados necessários a
+cada finalidade, também na «acessibilidade»), e art. 17.º, n.º 3, alínea b)
+(guardar para cumprir uma obrigação legal) — `eur-lex`
+`corpus/dados-e-privacidade/32016R0679-rgpd.md`, versão consolidada
+02016R0679-20160504, obtido_em 2026-10-12. Que o gestor e o apoio deixem de
+precisar destes dados depois do pedido é leitura nossa: **C**, jurista.
+
+**Como se reconhece:** um perfil cuja ficha, ou a ficha em que ela foi
+fundida (subindo por `fundido_em`), está `pseudonimizado`. Não há coluna
+nova: a pseudonimização já deixa a ficha assim (0072). O campo
+`guardado_por_obrigacao_fiscal` diz que a ficha foi pseudonimizada: vem
+`true` em todos os perfis dela, também nos que não ficaram (esses já estão
+com «Pseudonimizado» e sem dados; a quem não é dono saem com `null` em vez
+de «Pseudonimizado»; revisão do #440, P3-2).
+
+**Os sítios por onde se lêem** (procurados a 13/10/2026 nas rotas de
+`clientes/`, `iva/`, `checkout/`, `faturacao/` e `identidade/hub-*`, por
+`perfil_faturacao`, `nif_escrito`, `nome_documento`, `morada_linha`,
+`perfil_copia` e `alteracao_cliente`):
+
+| # | Rota | Âmbito hoje | Sem `customers:billing`, num perfil guardado |
+|---|---|---|---|
+| G1 | `GET /customers/{id}/billing-profiles` e `GET /billing-profiles/{id}` | `customers:read` | `nome_documento`, `nif`, `nif_escrito`, `pais_contribuinte` e `morada` a `null`; o campo novo `guardado_por_obrigacao_fiscal: true` diz porquê (para o dono também, com os dados) |
+| G2 | `GET /billing-profiles/{id}/vies-checks` | `customers:read` | `pais_consultado`, `numero_consultado`, `nome_devolvido` e `morada_devolvida` a `null` (a prova do VIES traz o NIF, e o nome e a morada que o VIES respondeu) |
+| G3 | `GET /billing-profiles/{id}/exemptions`, e a resposta de pôr e retirar a isenção (`PUT` e `DELETE /billing-profiles/{id}/exemption`, `customers:exemptions`) | `customers:read` | `nota` a `null`, e `motivo` e `motivo_retirada` (quando há) com «(reservado)»: são texto livre que pode falar da pessoa |
+| G4 | `GET /exemptions/{id}/attachments` e os bytes (`GET /exemptions/{id}/attachments/{anexo}`, `customers:exemptions`) | `customers:read` | o `nome` do ficheiro com «(reservado)» (pode ter o nome da pessoa); os bytes dão 403 `auth.forbidden` (o documento é da pessoa) |
+| G5 | `POST /customers/search` com `nif` | `customers:read` | as fichas pseudonimizadas não aparecem: a resposta confirmava que aquele NIF é da pessoa que pediu o apagamento |
+| G6 | `POST /tax/decisions/simulate` com `perfil` | `tax:read` e `customers:read` | 403 `auth.forbidden` (a decisão devolve o país e o número do NIF do perfil) |
+
+**Fica como está, e porquê:**
+- **a linha do tempo** (`GET /customers/{id}/timeline`): os campos do perfil
+  já só guardam o marcador, nunca o valor (0054);
+- **a exportação do titular** (`customers:privacy`): só o dono;
+- **a cópia na encomenda** (`perfil_copia`, `GET /orders/{id}`, `orders:read`),
+  **o documento fiscal** (`GET /invoices/{id}` e o PDF, `invoices:read`) e
+  **o relatório OSS** (`tax:read`): são as cópias de onde se emite e se
+  declara, e quem trata das encomendas e das faturas precisa delas. Não são
+  o perfil; restringi-las é outra decisão, que fica em aberto;
+- **o dono** lê tudo, como hoje.
+
+**Atenção (revisão do #440, P2-1):** esta regra fecha os perfis e o que se
+pendura neles (`clientes/` e a simulação do `iva/`). O mesmo NIF, nome e
+morada continuam na cópia da encomenda, na fatura e no relatório OSS, que o
+gestor e o apoio lêem. «Só o dono lê» vale para o perfil, não para essas
+cópias, até haver a outra decisão.
+
+**Por onde pode sair errado:** uma rota nova que leia perfis sem passar pela
+mesma função; por isso a regra vive num só sítio em `clientes/` e o teste
+percorre as seis rotas com uma chave sem `customers:billing`.
