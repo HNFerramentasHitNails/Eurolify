@@ -1791,6 +1791,8 @@ o resolve:
 
 **Q1. Ao rever uma publicação publicada, as variantes que estão fora vêm
 marcadas para entrar?** Ex.: a `ENS-041-B`, acabada de acrescentar.
+✅ **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma vem marcada** (Diogo, 13/10/2026, *«A»*; revisão do #421, P2-2).
+
 ✅ **Decidido: não** (Diogo, 12/10/2026, *«aprovado»*). Ficam como estão, com a marca «nova» (a que nasceu fora
 por ter sido acrescentada depois de publicar) ou «fora» (a que alguém tirou),
 e a pessoa marca as que quer pôr à venda. Assim nada entra numa loja sem
@@ -1820,9 +1822,18 @@ venda, por omissão, uma variante que pode ainda não estar pronta.
 | `POST /hub/products/{id}/publications/check`: a mesma `verificarPublicacao` da chave (`catalog:read`) | `src/identidade/hub-catalogo.ts` |
 | `POST /hub/products/{id}/publications` e `POST /hub/publications/{id}/archive`: o mesmo `publicar` e `retirarPublicacao` da chave, com `catalog:publish`, a pessoa como «quem» e o prazo de espera do `escreverNoHub` (que passou a receber o âmbito) | `src/identidade/hub-catalogo.ts` |
 | a `versao` lida, dentro de `publicar` e de `retirarPublicacao`, com a linha já tomada: `null` só numa publicação que nasce no pedido; um número só se é o guardado e a publicação já existia; outra dá 409 `catalog.version_conflict` e a transacção desfaz o rascunho. As rotas pela chave não a mandam e ficam como estavam | `src/catalogo/publicacao.ts` |
-| 6 testes pela API: os pares (e outro comerciante não os vê); verificar, publicar com `null`, refazer na versão lida e retirar, com `publicado_por` e `arquivado_por` da pessoa; os três conflitos de versão sem escrever; `publicada: false` sem mudar o estado nem as variantes; o armazém e o apoio verificam mas recebem 403 ao publicar e retirar, e o gestor retira; outro comerciante dá 404, com prova pela falha | `test/hub-publicar.test.ts` |
+| 8 testes pela API: os pares (e outro comerciante não os vê); verificar, publicar com `null`, refazer na versão lida e retirar, com `publicado_por` e `arquivado_por` da pessoa; os três conflitos de versão sem escrever; `publicada: false` sem mudar o estado nem as variantes; o armazém e o apoio verificam mas recebem 403 ao publicar e retirar, e o gestor retira; outro comerciante dá 404, com prova pela falha; o prazo de espera (503 `catalog.retry` com a publicação presa); duas publicações ao mesmo tempo sobre a mesma versão (uma 200, a outra 409) | `test/hub-publicar.test.ts` |
+| o ecrã da publicação (`/artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}`): as variantes, «Verificar», «Publicar» só depois de uma verificação sem impedimentos com as mesmas escolhas (o foco vai para o botão; com impedimentos fica no resultado), o 409, a resposta perdida (só dá por feito com o estado, as variantes, outra versão **e** a última verificação sem impedimentos), `publicada: false` | `apps/hub/src/ecras/PublicarArtigo.tsx`; a lógica em `apps/hub/src/publicar.ts` |
+| na ficha, secção «Publicações»: «Rever a publicação», «Retirar» com a pergunta (o 409 e a transição inválida recarregam com «Outra pessoa mudou…»; a resposta perdida diz que não encontrou a mudança), «N variantes fora», «Publicar noutra loja» só com pares de canal e mercado activos | `apps/hub/src/ecras/Artigo.tsx` |
+| os textos dos impedimentos em pt, es e en, com a ligação para onde se resolve (a ficha, editar o artigo, editar a variante, o preço na lista base) | `apps/hub/src/textos/` |
+| testes da lógica do ecrã (escolha inicial, «Publicar», pares, impedimentos, resposta perdida) e a passagem no navegador com as capturas a 375, 768 e 1280 px, claro e escuro | `apps/hub/test/publicar.test.ts`; `apps/hub/scripts/capturas.mjs` |
 
-**Por fazer neste pedido:** o ecrã do Hub (§27.3).
+**Desvios do desenho:**
+- **Não há a marca «nova»:** a API não distingue a variante acrescentada depois de publicar da que alguém tirou; as duas dizem «fora» e vêm por marcar.
+- **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma variante vem marcada** (Diogo, 13/10/2026: *«A»*; `docs/06`, EJ): a base só põe fora a variante acrescentada a uma publicação publicada, e assim nada volta à venda sem ser escolhido (revisão do #421, P2-2).
+- **«Retirar» pergunta com a caixa do navegador** (`window.confirm`), como as outras perguntas da ficha.
+- **Os textos de `classificacao_em_falta`, `natureza_incompativel`, `familia_restrita` e `data_ou_local_em_falta`** foram escritos aqui (a §27.3 dizia «o texto do código»); a família mostra o código interno.
+- **Fica** (revisão do #421): uma variante criada enquanto o ecrã está aberto, num par sem publicação publicada, entra no que se publica se a pessoa não recarregar (o servidor grava as `variantes_fora` que o ecrã mandou; ainda passa pela verificação do preço e do peso); o aviso «Publicado em…» na ficha vem do endereço, como o «Alterações guardadas»; nenhum papel de hoje tem `catalog:write` sem `catalog:publish`, por isso o teste dos papéis não distingue os dois.
 
 ## 28. O ecrã «A decidir» (issue #366, parte 2)
 
