@@ -14,6 +14,7 @@ operador»*). Desenho no `docs/19` §6.0.
 - O pedido (`convite <uuid> <e-mail base64url> dono <resumo> <quem>`) é
   validado nas três camadas da máquina, no `lerPedido` e na base
   (`convite_criar_pelo_operador`, migração 0018).
+- **O convite pelo Hub também tem a rede** (13/10/2026; Diogo: «A»; `docs/06` EH): até aí aceitava qualquer endereço no ensaio (`hub.ts`, rota `/hub/invitations`). Passa a aceitar só domínios de teste e `@eurolify.eu`; a regra vive em `apps/api/src/identidade/dominios-de-ensaio.ts`, partilhada com o operador.
 
 ## Números (com data e como se contaram)
 

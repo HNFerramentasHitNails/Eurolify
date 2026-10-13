@@ -140,6 +140,12 @@ const ERROS_DAS_CONTAS = {
     pt: "E-mail inválido",
     en: "Invalid e-mail",
   },
+  // A rede temporária do ensaio (dominios-de-ensaio.ts; Diogo, 13/10/2026).
+  "invite.email_not_allowed": {
+    status: 422,
+    pt: "No ensaio só se convidam endereços de teste ou da empresa (@eurolify.eu)",
+    en: "In the trial only test or company (@eurolify.eu) addresses can be invited",
+  },
   "invite.invalid_role": {
     status: 422,
     pt: "Papel desconhecido",

@@ -920,6 +920,42 @@ describe.skipIf(URL_BASE === undefined)("rotas do Hub (0020)", () => {
     });
   });
 
+  describe("o convite no ensaio só para endereços que não são de ninguém (ADR-0019)", () => {
+    it("recusa um endereço de alguém antes da base; aceita os de teste e os da empresa", async () => {
+      const d = await pessoaCom(a, "dono");
+      const convidar = (email: string) =>
+        pedir("POST", "/hub/invitations", {
+          sessao: d.sessao,
+          comerciante: a,
+          corpo: { email, papel: "apoio" },
+        });
+      for (const email of [
+        "maria.silva@gmail.com",
+        "ana@eurolify.eu.exemplo.com",
+        "ana@sub.eurolify.eu",
+        "ana@eurolify.eu.",
+        "ana@test.pt",
+      ]) {
+        const r = await convidar(email);
+        expect(r.statusCode, email).toBe(422);
+        expect(codigo(r), email).toBe("invite.email_not_allowed");
+      }
+      for (const email of ["AVISOS@Eurolify.EU", "z@loja.test"]) {
+        const r = await convidar(email);
+        expect(r.statusCode, `${email}: ${r.body}`).toBe(201);
+      }
+      const lista = await pedir("GET", "/hub/members", {
+        sessao: d.sessao,
+        comerciante: a,
+      });
+      const convites = lista
+        .json<{ convites: { email: string }[] }>()
+        .convites.map((c) => c.email.toLowerCase());
+      expect(convites).toContain("avisos@eurolify.eu");
+      expect(convites).not.toContain("maria.silva@gmail.com");
+    });
+  });
+
   describe("P-T5 e o contrato", () => {
     it("nem segredos nem e-mails no registo da aplicação", async () => {
       const p = await pessoaCom(a, "dono");

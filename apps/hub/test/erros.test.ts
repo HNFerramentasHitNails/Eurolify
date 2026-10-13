@@ -66,6 +66,7 @@ describe("as mensagens de erro", () => {
       "invite.used",
       "invite.not_found",
       "invite.invalid_email",
+      "invite.email_not_allowed",
       "invite.invalid_role",
       "member.merchant_inactive",
       "auth.reauthentication_required",
