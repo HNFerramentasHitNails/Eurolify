@@ -272,6 +272,9 @@ export interface DocumentoLido {
 export interface Classificacao {
   linhas: { balde: Balde; pais: string }[];
   data: string | null;
+  /** Quem decidiu e quando (dia, Lisboa): só nos registos (P3-6). */
+  decidido_por?: string;
+  decidido_em?: string;
 }
 
 /** Uma linha do relatório: um balde, um país e uma taxa. */
@@ -378,7 +381,10 @@ async function lerDocumentos(
       to_char(p.data, 'YYYY-MM-DD') as data_prova, p.atcud, p.nif, p.nome,
       p.linhas, ${CONTEUDO_RESUMIDO} as conteudo,
       case when k.documento_id is null then null else jsonb_build_object(
-        'linhas', k.linhas, 'data', to_char(k.data, 'YYYY-MM-DD')) end as classificacao
+        'linhas', k.linhas, 'data', to_char(k.data, 'YYYY-MM-DD'),
+        'decidido_por', k.decidido_por,
+        'decidido_em', to_char((k.decidido_em at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD'))
+        end as classificacao
     from documento_fiscal d
     join documento_prova p on p.documento_id = d.id
     left join relatorio_oss_classificacao k on k.documento_id = d.id
@@ -608,7 +614,7 @@ export function agregar(
 }
 
 /** O limiar (§2.3): as vendas à distância que o Eurolify vê num ano civil. */
-function vendasADistancia(
+export function vendasADistancia(
   docs: DocumentoLido[],
   paisEntidade: string,
   contarSemData: boolean,
@@ -996,6 +1002,12 @@ const COLUNAS = [
   "pais_entrega",
   "codigo_postal_entrega",
   "devolucao",
+  // O balde, o país ou a data decididos pelo dono, e por quem (revisão do
+  // #392, 3.ª ronda, P3-6): no fim, para as colunas de antes não mudarem.
+  "classificado",
+  "data_decidida",
+  "classificado_por",
+  "classificado_em",
 ] as const;
 
 const euros = (c: number) => (c / 100).toFixed(2);
@@ -1148,6 +1160,10 @@ export async function registosOss(
               celula(x?.entrega_pais ?? null),
               celula(x?.entrega_cp ?? null),
               celula(x?.devolucao == null ? null : `rma_${x.devolucao}`),
+              celula(d.classificacao == null ? "nao" : "sim"),
+              celula(d.classificacao?.data ?? null),
+              celula(d.classificacao?.decidido_por ?? null),
+              celula(d.classificacao?.decidido_em ?? null),
             ].join(","),
           );
         });

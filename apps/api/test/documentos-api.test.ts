@@ -2445,6 +2445,61 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         "linhas"
       ],
     ).toContainEqual(expect.objectContaining({ pais: "PT", documentos: 1 }));
+    // Os registos dizem que o balde e a data foram decididos à mão, por quem
+    // e quando (3.ª revisão do #392, P3-6).
+    const csv = await s.adm(
+      "GET",
+      `/tax-reports/oss/records?entidade=lgl_${s.entidade}&periodo=${periodo}`,
+    );
+    expect(csv.statusCode).toBe(200);
+    const linhas = csv.body.slice(1).trim().split("\r\n");
+    expect(linhas[0]).toMatch(
+      /,classificado,data_decidida,classificado_por,classificado_em$/,
+    );
+    const hoje = hojeEmLisboa();
+    expect(linhas.length).toBeGreaterThan(1);
+    for (const l of linhas.slice(1)) {
+      expect(l).toMatch(new RegExp(`,sim,${hoje},[^,]+,${hoje}$`));
+    }
+  });
+
+  it("relatório OSS: uma prova com montantes negativos e sem data não se classifica, nem depois de resolvida (3.ª revisão do #392, P3-8)", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    ensaio.conta(conta).aoFechar = (doc) => ({
+      ...doc,
+      data: null,
+      linhas: doc.linhas.map((l, i) =>
+        i === 0 ? { ...l, base: -l.base, iva: -l.iva } : l,
+      ),
+    });
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    delete ensaio.conta(conta).aoFechar;
+    let d = (await documentoDe(s, e.encomenda)) as Json;
+    if (d["estado"] === "divergente") {
+      await ok(
+        s.adm("POST", `/invoices/${String(d["id"])}/resolve`, {
+          versao: d["versao"],
+          motivo: "aceite para o teste",
+        }),
+      );
+      d = (await documentoDe(s, e.encomenda)) as Json;
+    }
+    expect(["emitido", "resolvido"]).toContain(d["estado"]);
+    const resposta = await s.adm("POST", "/tax-reports/oss/classifications", {
+      documento: d["id"],
+      linhas: ((d["prova"] as Json)["linhas"] as Json[]).map(() => ({
+        balde: "nacional",
+        pais: "PT",
+      })),
+      data: hojeEmLisboa(),
+      motivo: "a data está no PDF da fatura",
+    });
+    expect(resposta.statusCode).toBe(409);
+    expect(resposta.body).toContain("tax_reports.not_classifiable");
+    expect(resposta.body).toContain("sinal_inesperado");
   });
 
   it("relatório OSS: as vendas emitidas fora do Eurolify ficam à parte, com o número declarado (Q-F3)", async () => {

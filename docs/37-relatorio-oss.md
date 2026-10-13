@@ -121,6 +121,12 @@ Os registos ficam **10 anos** (L7; o mesmo prazo do art. 52.º do CIVA,
 `docs/29` §6). Exportam-se em CSV, com o cabeçalho em português, e nunca vão
 para os registos do servidor (têm dados pessoais: `eu-gdpr-privacy`).
 
+No fim de cada linha, quatro colunas dizem o que não veio da prova
+(3.ª revisão do #392, P3-6): `classificado` (`sim` quando o balde e o país
+foram decididos pelo dono, §10), `data_decidida` (a data que o dono deu a uma
+prova sem data), `classificado_por` (a chave que decidiu) e `classificado_em`
+(o dia, em Lisboa). Ficam no fim para as colunas de antes não mudarem.
+
 ## 5. A API
 
 | Rota | Âmbito |
@@ -256,6 +262,19 @@ distância).
 só fotografia da base (P2-2); os erros saem com os códigos do relatório
 (`tax_reports.*`, P3-6); um documento sem data conta uma vez só nos
 excluídos do limiar (P3-3).
+
+**Testes acrescentados (3.ª revisão do #392, P3-8):** um documento
+classificado que fica divergente continua a impedir e sai do limiar; o limiar
+com documentos classificados (o OSS do dono conta; o nacional para outro país
+fica excluído); uma prova com montantes negativos e sem data não se
+classifica, nem depois de resolvida. **Não se testam**, e porquê:
+classificar ao mesmo tempo que se fecha (só se classifica um documento que
+impede o fecho, e o fecho recusa com qualquer impedimento: ou o fecho o lê
+por classificar e recusa, ou já classificado e conta-o — lido no código, sem
+teste de corrida, que dependeria do relógio); e uma data do dono num período
+já fechado (a data dele entra em `lerDocumentos` como a da prova, e um
+documento com data num período fechado entra como alteração do seguinte,
+caso que o teste das alterações já cobre, §3).
 
 **Limites que ficam:**
 - As vendas com sistema próprio não têm documento no Eurolify: mostram-se
