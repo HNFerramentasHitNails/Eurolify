@@ -45,8 +45,8 @@ completa a Q4 da decisão ED (issue #393).
 ## O que ficou por verificar
 
 - **O número de seguimento nas notificações** (até 90 dias) não entra no
-  apagamento do titular (0072); se deve entrar fica **C**, para o Diogo ou o
-  Bruno decidirem (revisão do #434, P2-4).
+  apagamento do titular (0072): o Diogo decidiu a 13/10/2026 *«fica como
+  está»* (revisão do #434, P2-4). A base jurídica não foi verificada (**C**).
 - **O texto da transportadora** não entra no e-mail, mas fica no histórico
   do seguimento: pode trazer o nome (como já estava, `docs/36` §6).
 - **O conteúdo real dos avisos da Sendcloud** (§16.4): não se verificou se a

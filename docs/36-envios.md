@@ -1101,6 +1101,7 @@ destino e a conferência no envio), os modelos PT, ES e EN, o T10 do
   posterior no mesmo lote.
 - **O e-mail diz «não leva o nome nem a morada de quem recebe»**, e não «não
   leva dados de clientes» (revisão do #434, P2-4): leva o número de
-  seguimento, que identifica a encomenda junto da transportadora. Se esse
-  número nas notificações entra no apagamento do titular (0072) fica **C**,
-  por decidir.
+  seguimento, que identifica a encomenda junto da transportadora. O número
+  nas notificações não entra no apagamento do titular (0072) e sai com elas
+  aos 90 dias: decisão do Diogo, 13/10/2026 (*«fica como está»*; a base
+  jurídica continua **C**).
